@@ -884,7 +884,8 @@ If it is not recorded here — it does not exist.
     `docs/evals/EVIDENCE_RELATION_CAUSAL_AUDIT_V1.md`,
     `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-noos-1a-evidence-relations`
   - DoD: Freeze 24 distinct synthetic answer-level scenarios, 16 development
-    and 8 holdout with eight each in RU/EN/ES across six families; collect
+    and 8 holdout with eight each in RU/EN/ES across six families; retain 12
+    separate manual controls, one acceptable and one unacceptable per family; collect
     actual final Distortion Simulator outputs through bounded Sonar attempts
     (at most 32 physical sends and US$4.80 reserved); obtain independent
     owner-accepted reference before isolated blind candidate disclosure;

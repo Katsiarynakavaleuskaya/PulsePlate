@@ -10,16 +10,19 @@ from __future__ import annotations
 import argparse
 from collections import Counter
 from collections.abc import Sequence
+import copy
 import hashlib
 import json
 import math
+import os
 from pathlib import Path
+import stat
 import sys
 from typing import Any, cast
 
 from core.evidence.relations import audit_snapshot, parse_snapshot
 from core.judgment import CLAIM_TYPES, EVIDENCE_MODES, SUPPORT_STATUSES
-from scripts.evals.evidence_relation_audit import _read_input, read_jsonl, write_report
+from scripts.evals.evidence_relation_audit import _parent_fd, _read_input, read_jsonl, write_report
 
 CASE_SCHEMA = "fitchef_claim_case.v1"
 PACKET_SCHEMA = "fitchef_claim_candidate_packet.v1"
@@ -175,7 +178,7 @@ def _validate_sources(value: object) -> list[dict[str, Any]]:
         for key in ("chunk_id", "file", "content", "preview"):
             _string(source[key], key, allow_empty=key == "preview")
         score = source["score"]
-        if type(score) not in (int, float) or not math.isfinite(score):
+        if type(score) not in (int, float) or not math.isfinite(score) or not 0 <= score <= 1:
             raise ValueError("source_score")
         result.append(source)
     return result
@@ -202,6 +205,13 @@ def _validate_run(value: object, provenance: str) -> dict[str, Any]:
     )
     for key in ("id", "code_sha", "model"):
         _string(run[key], key)
+    if provenance == "provider_run" and (
+        run["model"] != "sonar"
+        or type(run["code_sha"]) is not str
+        or len(run["code_sha"]) != 40
+        or any(char not in "0123456789abcdef" for char in run["code_sha"])
+    ):
+        raise ValueError("provider_identity")
     hashes = run["code_hashes"]
     if type(hashes) is not dict or any(
         type(name) is not str
@@ -222,12 +232,14 @@ def _validate_run(value: object, provenance: str) -> dict[str, Any]:
     if type(run["parameters"]) is not dict:
         raise ValueError("parameters_shape")
     if provenance == "provider_run" and run["parameters"] != {
-        "disable_search": True,
         "max_tokens": 1024,
+        "web_search_options": {"disable_search": True},
     }:
         raise ValueError("provider_parameters")
     if type(run["attempts"]) is not int or not 0 <= run["attempts"] <= 32:
         raise ValueError("attempts_range")
+    if provenance == "provider_run" and run["attempts"] == 0:
+        raise ValueError("provider_attempts_required")
     reserved = run["reserved_usd"]
     if type(reserved) not in (int, float) or not 0 <= reserved <= 4.8:
         raise ValueError("reserve_range")
@@ -248,6 +260,14 @@ def _validate_run(value: object, provenance: str) -> dict[str, Any]:
         or (run["cost_status"] != "known" and cost is not None)
     ):
         raise ValueError("cost_value")
+    if provenance == "provider_run" and (
+        run["cost_status"] == "not_applicable"
+        or (
+            run["cost_status"] == "known"
+            and (run["attempts"] != 1 or not math.isfinite(cost) or cost > 0.15)
+        )
+    ):
+        raise ValueError("provider_cost_status")
     if provenance == "provider_run" and round(reserved, 2) != round(run["attempts"] * 0.15, 2):
         raise ValueError("reserve_mismatch")
     return run
@@ -295,7 +315,7 @@ def validate_cases(rows: list[object], rubric_sha256: str) -> list[dict[str, Any
             raise ValueError("final_answer_mismatch")
         if case["material_fingerprint"] != case_fingerprint(case, rubric_sha256):
             raise ValueError("stale_case_fingerprint")
-        cases.append(case)
+        cases.append(copy.deepcopy(case))
     if (
         sum(case["run"]["attempts"] for case in cases if case["input_provenance"] == "provider_run")
         > 32
@@ -449,7 +469,7 @@ def validate_annotations(
             if identity in spans:
                 raise ValueError("duplicate_claim")
             spans.add(identity)
-        result[opaque] = annotation
+        result[opaque] = copy.deepcopy(annotation)
     if reference and set(result) != set(by_id):
         raise ValueError("reference_missing_case")
     return result
@@ -469,6 +489,19 @@ def validate_acceptance(path: Path, reference_sha256: str) -> None:
     _string(receipt["accepted_at"], "accepted_at")
     if receipt["reference_sha256"] != reference_sha256:
         raise ValueError("reference_not_accepted")
+
+
+def _input_identity(path: Path) -> tuple[int, int]:
+    parent, name = _parent_fd(path)
+    try:
+        info = os.stat(name, dir_fd=parent, follow_symlinks=False)
+        if not stat.S_ISREG(info.st_mode):
+            raise ValueError("unsafe_annotation_input")
+        return info.st_dev, info.st_ino
+    except OSError as exc:
+        raise ValueError("unsafe_annotation_input") from exc
+    finally:
+        os.close(parent)
 
 
 def _ratio(numerator: int, denominator: int) -> dict[str, int | float | str]:
@@ -600,6 +633,10 @@ def build_report(
     references: dict[str, dict[str, Any]],
     *,
     structural: object | None = None,
+    rubric_sha256: str | None = None,
+    accepted_reference_sha256: str | None = None,
+    acceptance_sha256: str | None = None,
+    structural_input_sha256: str | None = None,
 ) -> dict[str, Any]:
     slices: dict[str, dict[str, Any]] = {}
     for field in ("split", "family", "language", "input_provenance", "field_origin"):
@@ -624,6 +661,15 @@ def build_report(
             "unknown_cost_cases": unknown_cost_cases,
         },
         "structural_advisory": structural,
+        "input_fingerprints": {
+            "cases_sha256": _sha(_canonical(cases)),
+            "candidate_sha256": _sha(_canonical(candidates)),
+            "reference_sha256": _sha(_canonical(references)),
+            "rubric_sha256": rubric_sha256,
+            "accepted_reference_sha256": accepted_reference_sha256,
+            "acceptance_sha256": acceptance_sha256,
+            "structural_input_sha256": structural_input_sha256,
+        },
         "authority": {"answer_changed": False, "promotion": False, "causal_truth": False},
     }
     report["report_fingerprint"] = _sha(_canonical(report))
@@ -661,21 +707,45 @@ def main(argv: list[str] | None = None) -> int:
             write_report(args.output, _jsonl(prepare_packet(cases, rubric_sha256)))
             return 0
         validate_packet(read_jsonl(args.packet), cases, rubric_sha256)
+        if _input_identity(args.reference) == _input_identity(args.candidate):
+            raise ValueError("candidate_is_reference")
         reference_bytes = _read_input(args.reference)
         reference = validate_annotations(read_jsonl(args.reference), cases, reference=True)
         if _read_input(args.reference) != reference_bytes:
             raise ValueError("reference_changed_during_read")
+        acceptance_bytes = _read_input(args.reference_acceptance)
         validate_acceptance(args.reference_acceptance, _sha(reference_bytes))
+        if _read_input(args.reference_acceptance) != acceptance_bytes:
+            raise ValueError("acceptance_changed_during_read")
+        candidate_bytes = _read_input(args.candidate)
         candidate = validate_annotations(read_jsonl(args.candidate), cases, reference=False)
+        if _read_input(args.candidate) != candidate_bytes:
+            raise ValueError("candidate_changed_during_read")
         if args.command == "report":
             structural = None
+            structural_input_sha256 = None
             if args.relation_snapshot is not None:
+                structural_bytes = _read_input(args.relation_snapshot)
                 structural = audit_snapshot(
                     parse_snapshot(read_jsonl(args.relation_snapshot))
                 ).to_dict()
+                if _read_input(args.relation_snapshot) != structural_bytes:
+                    raise ValueError("structural_changed_during_read")
+                structural_input_sha256 = _sha(structural_bytes)
             write_report(
                 args.output,
-                _canonical(build_report(cases, candidate, reference, structural=structural))
+                _canonical(
+                    build_report(
+                        cases,
+                        candidate,
+                        reference,
+                        structural=structural,
+                        rubric_sha256=rubric_sha256,
+                        accepted_reference_sha256=_sha(reference_bytes),
+                        acceptance_sha256=_sha(acceptance_bytes),
+                        structural_input_sha256=structural_input_sha256,
+                    )
+                )
                 + b"\n",
             )
     except (ValueError, OSError) as exc:

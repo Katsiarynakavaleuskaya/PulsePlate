@@ -13,7 +13,6 @@ import asyncio
 from collections import Counter
 from contextlib import ExitStack
 import hashlib
-import json
 import logging
 import math
 import os
@@ -30,14 +29,14 @@ from openai import AsyncOpenAI
 from app.middleware.api_tiers import SubscriptionTier, get_subscription_tier
 from app.routers import fitchef_structured
 from app.schemas.fitchef import FitChefDistortionSimulatorTaskEnvelope
-from app.security.agent_input_guard import require_safe_ai_agent_input
+from app.security.agent_input_guard import require_safe_ai_agent_input, scan_ai_agent_input
 from app.security.llm_monthly_quota import require_llm_monthly_limit
 from app.services import fitchef_runtime
 from core.insight import fitchef_companion
 from core.rag import vector_rag
 from core.rag.contracts import RAGChunk, RAGContext
 from providers.perplexity import PerplexityProvider
-from scripts.evals.evidence_relation_audit import read_jsonl, write_report
+from scripts.evals.evidence_relation_audit import _parent_fd, read_jsonl, write_report
 from scripts.evals.fitchef_claim_assurance_eval import (
     CASE_SCHEMA,
     FAMILIES,
@@ -81,6 +80,9 @@ class AttemptLedger:
         self.directory = directory
         self._lock = asyncio.Lock()
         self.attempts = 0
+        self.exhausted = False
+        self.transport_rejection = False
+        self.reported_overrun_usd: float | None = None
         if not directory.is_dir() or directory.is_symlink():
             raise ValueError("unsafe_budget_directory")
         info = directory.stat()
@@ -97,11 +99,16 @@ class AttemptLedger:
             or request.url.host != "api.perplexity.ai"
             or request.url.path != "/chat/completions"
         ):
+            self.transport_rejection = True
             raise ValueError("unexpected_provider_destination")
         if len(request.content) > _MAX_HTTP_BODY_BYTES:
+            self.transport_rejection = True
             raise ValueError("request_body_limit")
         async with self._lock:
+            if self.reported_overrun_usd is not None:
+                raise BudgetExhausted("reported_cost_overrun")
             if self.attempts >= _ATTEMPT_LIMIT:
+                self.exhausted = True
                 raise BudgetExhausted("physical_attempt_limit")
             next_attempt = self.attempts + 1
             record = {
@@ -162,8 +169,14 @@ def validate_manifest(rows: list[object], *, require_full: bool = True) -> list[
             for key in ("chunk_id", "file", "content"):
                 if type(source[key]) is not str or not source[key] or len(source[key]) > 4000:
                     raise ValueError("manifest_source")
-            if type(source["score"]) not in (int, float) or not 0 <= source["score"] <= 1:
+            if (
+                type(source["score"]) not in (int, float)
+                or not math.isfinite(source["score"])
+                or not 0 <= source["score"] <= 1
+            ):
                 raise ValueError("manifest_score")
+            if not scan_ai_agent_input(source["content"]).is_safe:
+                raise ValueError("unsafe_source_instruction")
         result.append(case)
     if require_full:
         split = Counter(case["split"] for case in result)
@@ -252,24 +265,28 @@ def _code_hashes() -> dict[str, str]:
 
 
 def _private_parent(path: Path) -> None:
-    if (
-        not path.is_absolute()
-        or path.is_symlink()
-        or path.parent.is_symlink()
-        or not path.parent.is_dir()
-    ):
+    if not path.is_absolute():
         raise ValueError("unsafe_private_path")
-    parent = path.parent.stat()
-    if parent.st_uid != os.getuid() or parent.st_mode & 0o077:
-        raise ValueError("unsafe_private_path")
-    if path.exists():
-        target = path.stat()
+    parent, name = _parent_fd(path)
+    try:
+        parent_info = os.fstat(parent)
+        if parent_info.st_uid != os.getuid() or parent_info.st_mode & 0o077:
+            raise ValueError("unsafe_private_path")
+        try:
+            target = os.stat(name, dir_fd=parent, follow_symlinks=False)
+        except FileNotFoundError:
+            return
         if (
             not stat.S_ISREG(target.st_mode)
+            or target.st_nlink != 1
             or target.st_uid != os.getuid()
             or target.st_mode & 0o077
         ):
             raise ValueError("unsafe_private_path")
+    except OSError as exc:
+        raise ValueError("unsafe_private_path") from exc
+    finally:
+        os.close(parent)
 
 
 def validate_live_environment(fitchef_key: str) -> None:
@@ -344,6 +361,7 @@ async def _collect_one(
     raw_response: str | None = None
     frozen_snapshot: Any = None
     fallback_called = False
+    retrieval_completed = False
     usage: dict[str, Any] | None = None
     provider_content: str | None = None
     actual_cost: float | None = None
@@ -358,7 +376,7 @@ async def _collect_one(
         if "max_tokens" in kwargs or "extra_body" in kwargs:
             raise ValueError("provider_parameter_collision")
         kwargs["max_tokens"] = 1024
-        kwargs["extra_body"] = {"disable_search": True}
+        kwargs["extra_body"] = {"web_search_options": {"disable_search": True}}
         response = await real_create(*args, **kwargs)
         content = response.choices[0].message.content
         if type(content) is str:
@@ -385,6 +403,9 @@ async def _collect_one(
                     ):
                         raise ValueError("invalid_provider_cost")
                     actual_cost = float(amount)
+                    if actual_cost > _RESERVE_USD:
+                        ledger.reported_overrun_usd = actual_cost
+                        raise ValueError("reported_cost_overrun")
         return response
 
     async def observed_generate(prompt: str) -> str:
@@ -409,8 +430,10 @@ async def _collect_one(
         return result
 
     def controlled_retrieval(query: str, **kwargs: Any) -> RAGContext:
+        nonlocal retrieval_completed
         if kwargs.get("agent_id") != "cbt-agent" or kwargs.get("user_tier") not in ("PRO", "VIP"):
             raise ValueError("unexpected_retrieval_context")
+        retrieval_completed = True
         return RAGContext(
             query=query,
             refined_queries=[],
@@ -446,14 +469,41 @@ async def _collect_one(
             result = await fitchef_runtime.run_distortion_simulator_task(task)
         finally:
             logging.disable(previous_logging_disable)
-    if frozen_snapshot is None or raw_response is None:
+    if frozen_snapshot is None or raw_response is None or not retrieval_completed:
         raise ValueError("capture_incomplete")
+    if "rag_retrieval_failed" in result.warnings:
+        raise ValueError("controlled_retrieval_degraded")
     if frozen_snapshot.source_snapshot_fingerprint is None:
         raise ValueError("source_fingerprint_unavailable")
+    expected_sources: list[tuple[str, str, str, float]] = []
+    for chunk in rag_chunks[:5]:
+        sanitized = fitchef_runtime.sanitize_rag_markdown(chunk.content)
+        content = fitchef_runtime.redact_pii_from_text(sanitized) or ""
+        if content.strip():
+            expected_sources.append((chunk.chunk_id, chunk.file, content, chunk.score))
+    observed_sources = [
+        (item.chunk_id, item.file, item.content, item.score) for item in frozen_snapshot.occurrences
+    ]
+    if observed_sources != expected_sources:
+        raise ValueError("controlled_source_mismatch")
     public_result = result.model_dump(mode="json")
     public_result.pop("claim_evidence_assessment", None)
     answer = result.balanced_reframe
-    origin = "fallback" if fallback_called else "provider"
+    provider_reframe = ""
+    if provider_content is not None:
+        try:
+            payload = fitchef_companion._extract_json_payload(provider_content)
+            provider_reframe = fitchef_companion._normalize_structured_string(
+                payload.get("balanced_reframe")
+            )
+        except ValueError:
+            pass
+    if fallback_called:
+        origin = "fallback"
+    elif provider_content is not None and provider_reframe == answer:
+        origin = "provider"
+    else:
+        origin = "unknown"
     occurrences = [
         {
             "ordinal": item.ordinal,
@@ -485,11 +535,11 @@ async def _collect_one(
             "code_sha": code_sha,
             "code_hashes": code_hashes,
             "model": _MODEL,
-            "parameters": {"max_tokens": 1024, "disable_search": True},
+            "parameters": {"max_tokens": 1024, "web_search_options": {"disable_search": True}},
             "attempts": attempts,
             "reserved_usd": round(attempts * _RESERVE_USD, 2),
-            "cost_usd": actual_cost,
-            "cost_status": "known" if actual_cost is not None else "unknown",
+            "cost_usd": actual_cost if attempts == 1 else None,
+            "cost_status": "known" if actual_cost is not None and attempts == 1 else "unknown",
             "usage": usage,
         },
         "material_fingerprint": "",
@@ -555,13 +605,18 @@ async def collect(
             "missing_ids": [],
             "physical_attempts": ledger.attempts,
             "reserved_usd": round(ledger.attempts * _RESERVE_USD, 2),
+            "reported_overrun_usd": None,
         }
         write_report(output_dir / "collection-status.json", _canonical(complete) + b"\n")
-    except Exception as exc:
-        if isinstance(exc, BudgetExhausted):
+    except BaseException as exc:
+        if ledger.reported_overrun_usd is not None:
+            reason = "reported_cost_overrun"
+        elif ledger.exhausted or isinstance(exc, BudgetExhausted):
             reason = "budget_exhausted"
-        elif isinstance(exc, ValueError):
+        elif ledger.transport_rejection or isinstance(exc, ValueError):
             reason = "validation_failure"
+        elif not isinstance(exc, Exception):
+            reason = "interrupted"
         else:
             reason = "provider_or_runtime_failure"
         completed = [case["case_id"] for case in cases]
@@ -576,6 +631,7 @@ async def collect(
             ],
             "physical_attempts": ledger.attempts,
             "reserved_usd": round(ledger.attempts * _RESERVE_USD, 2),
+            "reported_overrun_usd": ledger.reported_overrun_usd,
         }
         write_report(output_dir / "collection-status.json", _canonical(receipt) + b"\n")
         raise

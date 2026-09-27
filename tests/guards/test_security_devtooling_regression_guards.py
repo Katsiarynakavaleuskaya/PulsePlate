@@ -908,6 +908,10 @@ def test_fitchef_claim_eval_reuses_bounded_reader_and_private_no_replace_writer(
     assert reserve is not None
     assert "write_report(" in reserve
     assert "physical_attempt_limit" in reserve
+    private_parent = _function_source(collector_path, "_private_parent")
+    assert "_parent_fd(path)" in private_parent
+    assert "follow_symlinks=False" in private_parent
+    assert "os.fstat(parent)" in private_parent
 
 
 def _thaw_invariant_episode_policy(value: object) -> object:
