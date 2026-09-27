@@ -12,6 +12,7 @@ import re
 import subprocess
 from typing import Any
 import uuid
+import zipfile
 
 import pytest
 
@@ -1814,6 +1815,13 @@ def test_operational_review_rejects_different_native_result_with_same_variant_id
         validate_creative_workflow_review(review, request, changed)
 
 
+def test_operational_request_accepts_credential_related_repo_paths() -> None:
+    request = _operational_request()
+    request["allowed_paths"] = ["app/routers/api_key.py", "tests/test_update_api_key.py"]
+    request["test_commands"] = ["pytest -q tests/test_update_api_key.py"]
+    assert validate_creative_workflow_request(request) == request
+
+
 def test_operational_native_and_handoff_reject_out_of_scope() -> None:
     request = _operational_request()
     result = _operational_native(request)
@@ -2350,6 +2358,40 @@ def test_operational_cli_native_stages_and_archive_round_trip(
         cli.CREATIVE_CONTEXT_ROOT / "restored/work_review.md"
     ).read_text() == "Observed C1 and C2 after local checks"
     original_archive = archive.read_bytes()
+    with zipfile.ZipFile(io.BytesIO(original_archive)) as source_archive:
+        forged_members = {name: source_archive.read(name) for name in source_archive.namelist()}
+    admitted_payload = json.loads(forged_members["workflow.admitted.json"])
+    admitted_payload["handoff"]["writer_role"] = "unrelated-writer"
+    forged_stage = build_creative_workflow_stage(
+        admitted_payload, upstream_fingerprint=admitted_payload["upstream_assets"][0]
+    )
+    forged_members["workflow.admitted.json"] = json.dumps(forged_stage).encode("utf-8")
+    forged_manifest = json.loads(forged_members["manifest.json"])
+    forged_manifest["files"]["workflow.admitted.json"] = (
+        "sha256:" + hashlib.sha256(forged_members["workflow.admitted.json"]).hexdigest()
+    )
+    forged_members["manifest.json"] = json.dumps(forged_manifest).encode("utf-8")
+    forged_dir = cli.CREATIVE_CONTEXT_ROOT / "forged-capsule"
+    forged_dir.mkdir()
+    forged_archive = forged_dir / "creative_workflow_capsule.zip"
+    with zipfile.ZipFile(forged_archive, "w", compression=zipfile.ZIP_STORED) as target_archive:
+        for name, data in forged_members.items():
+            target_archive.writestr(name, data)
+    assert (
+        cli.main(
+            [
+                "workflow-verify-archive",
+                "--archive",
+                str(forged_archive),
+                "--sha256",
+                hashlib.sha256(forged_archive.read_bytes()).hexdigest(),
+                "--restore-dir",
+                "forged-restore",
+            ]
+        )
+        == 1
+    )
+    assert not (cli.CREATIVE_CONTEXT_ROOT / "forged-restore").exists()
     original_safe_read = cli._safe_workflow_file
 
     def replace_archive_after_verified_read(raw_path: str, *, maximum: int) -> bytes:
@@ -2428,6 +2470,37 @@ def test_operational_returned_stage_rejects_non_scalar_error(bad_error: Any) -> 
         build_creative_workflow_stage(returned, upstream_fingerprint=SHA256)
 
 
+@pytest.mark.parametrize(
+    "handoff",
+    [
+        {},
+        {
+            "schema_version": "creative_workflow_handoff.v1",
+            "request_fingerprint": workflow_fingerprint(_operational_request()),
+            "selected_variant_id": "variant_1",
+            "coordinator_role": "agent-coordinator",
+            "writer_role": "unrelated-writer",
+            "manifest_order": 5,
+            "files": ["tests/test_example.py"],
+        },
+    ],
+)
+def test_operational_admitted_stage_rejects_unvalidated_handoff(handoff: Any) -> None:
+    request = _operational_request()
+    result = _operational_native(request)
+    admitted = {
+        "schema_version": "creative_workflow.v1",
+        "stage": "admitted",
+        "request": request,
+        "native_result": result,
+        "review": _operational_review(request, result),
+        "handoff": handoff,
+        "intake_error": None,
+    }
+    with pytest.raises(ExperimentRunnerCreativeContextContractError, match="writer"):
+        build_creative_workflow_stage(admitted, upstream_fingerprint=SHA256)
+
+
 def test_operational_stage_and_archive_reject_false_completion_and_unsafe_files(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -2469,6 +2542,9 @@ def test_operational_stage_and_archive_reject_false_completion_and_unsafe_files(
         ("patch.diff", "diff --git a/a.py b/a.py\n+log('/home/alice/PulsePlate')"),
         ("test_evidence.json", '{"cwd":"/workspace/PulsePlate"}'),
         ("work_review.md", "Observed /opt/local/PulsePlate and /mnt/build/PulsePlate"),
+        ("work_review.md", "Observed /srv/alice/PulsePlate"),
+        ("test_evidence.json", '{"credential":"DATABASE_PASSWORD=not-a-real-secret"}'),
+        ("work_review.md", "Synthetic key ID: " + "AKIA" + "A" * 16),
     ):
         (output / name).write_text(content, encoding="utf-8")
         with pytest.raises(cli.ExperimentRunnerCreativeContextCliError, match="private"):

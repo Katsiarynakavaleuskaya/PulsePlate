@@ -39,6 +39,7 @@ from scripts.orchestration.experiment_runner_pr_creative_context_contract import
     CREATIVE_WORKFLOW_SCHEMA_VERSION,
     LOCAL_ABSOLUTE_PATH_RE,
     SECRET_RE,
+    SECRET_VALUE_RE,
     ExperimentRunnerCreativeContextContractError,
     build_agent_consumption_summary,
     build_creative_workflow_stage,
@@ -871,6 +872,7 @@ def _workflow_archive_inputs(directory: Path, include: list[str]) -> dict[str, b
             raise ExperimentRunnerCreativeContextCliError("capsule file is not UTF-8") from exc
         if (
             SECRET_RE.search(readable)
+            or SECRET_VALUE_RE.search(readable)
             or LOCAL_ABSOLUTE_PATH_RE.search(readable)
             or re.search(
                 r"/(?:Users|private/var|var/folders|tmp|etc|root)/|file://|"
@@ -1002,6 +1004,18 @@ def _workflow_verify_archive(args: argparse.Namespace) -> int:
                 predecessor = stage
             if restored_stages["workflow.returned.json"]["intake_error"] is not None:
                 raise ExperimentRunnerCreativeContextCliError("restored intake was invalid")
+            admitted_stage = restored_stages["workflow.admitted.json"]
+            dispatch_order, eligible = _canonical_manifest_writer_occurrences(
+                admitted_stage["request"]
+            )
+            validate_creative_workflow_handoff(
+                admitted_stage["handoff"],
+                admitted_stage["request"],
+                admitted_stage["native_result"],
+                admitted_stage["review"],
+                eligible,
+                dispatch_order,
+            )
     except (zipfile.BadZipFile, RuntimeError, KeyError) as exc:
         raise ExperimentRunnerCreativeContextCliError("capsule could not be restored") from exc
     requested_restore = Path(args.restore_dir)

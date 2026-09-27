@@ -224,9 +224,17 @@ LEAK_TEXT_RE = re.compile(
     re.IGNORECASE | re.MULTILINE,
 )
 LOCAL_ABSOLUTE_PATH_RE = re.compile(
-    r"/(?:Users|home|private/var|var/folders|tmp|etc|opt|usr|Volumes|mnt|root|"
-    r"workspace|workspaces)(?:/|$)|~[/\\]|[A-Za-z]:[\\/]",
+    r"(?<![A-Za-z0-9:/])/(?!dev/null(?:\s|$))[A-Za-z0-9._-]+"
+    r"(?:/[A-Za-z0-9._-]+)*|~[/\\]|[A-Za-z]:[\\/]",
     re.IGNORECASE | re.MULTILINE,
+)
+SECRET_VALUE_RE = re.compile(
+    r"\b(?:AKIA|ASIA)[A-Z0-9]{16}\b|"
+    r"\b(?:sk-[A-Za-z0-9_-]{12,}|gh[psoru]_[A-Za-z0-9_.-]{12,}|"
+    r"github_pat_[A-Za-z0-9_]{12,}|xox[abprs]-[A-Za-z0-9-]{12,})|"
+    r"\b[A-Z0-9_]*(?:SECRET|TOKEN|PASSWORD|PRIVATE_KEY|API[_-]?KEY)[A-Z0-9_]*"
+    r"\s*[:=]\s*[^\s,;\"']+",
+    re.IGNORECASE,
 )
 UNSAFE_KEY_RE = re.compile(
     r"(?i)(^raw|raw_|_raw|body$|_body$|body_text|body_html|patch_text|raw_patch|"
@@ -3060,6 +3068,7 @@ def _workflow_text(value: Any, label: str, *, maximum: int = 600) -> str:
         _workflow_fail(f"{label} must be bounded nonempty text")
     if (
         SECRET_RE.search(value)
+        or SECRET_VALUE_RE.search(value)
         or re.search(
             r"/(?:Users|private/var|var/folders|tmp|etc|root)/|file://|"
             r"(?:https?://[^\s?#]+\?[^\s]+)",
@@ -3082,7 +3091,11 @@ def _workflow_texts(value: Any, label: str, *, maximum: int = 30) -> list[str]:
 
 
 def _workflow_path(value: Any, label: str) -> str:
-    path = _workflow_text(value, label, maximum=240)
+    if not isinstance(value, str) or not value or value != value.strip() or len(value) > 240:
+        _workflow_fail(f"{label} must be bounded nonempty text")
+    if SECRET_VALUE_RE.search(value) or any(ord(character) < 32 for character in value):
+        _workflow_fail(f"{label} contains private or unsupported content")
+    path = value
     parts = PurePosixPath(path)
     if (
         parts.is_absolute()
@@ -3096,7 +3109,11 @@ def _workflow_path(value: Any, label: str) -> str:
 
 
 def _workflow_test_command(value: Any) -> str:
-    command = _workflow_text(value, "test command", maximum=240)
+    if not isinstance(value, str) or not value or value != value.strip() or len(value) > 240:
+        _workflow_fail("test command must be bounded nonempty text")
+    if SECRET_VALUE_RE.search(value):
+        _workflow_fail("test command contains private content")
+    command = value
     if re.search(r"[;&|<>$`\\\r\n\t]", command):
         _workflow_fail("test command contains shell syntax")
     if command in _WORKFLOW_MAKE_TEST_COMMANDS:
@@ -3403,13 +3420,11 @@ def validate_creative_workflow_review(
     return review
 
 
-def validate_creative_workflow_handoff(
+def _validated_workflow_handoff_content(
     payload: Mapping[str, Any],
     request: Mapping[str, Any],
     result: Mapping[str, Any],
     review: Mapping[str, Any],
-    eligible_occurrences: Sequence[tuple[int, str]],
-    dispatch_order: Sequence[str] | None = None,
 ) -> dict[str, Any]:
     handoff = _workflow_object(
         payload,
@@ -3438,19 +3453,16 @@ def validate_creative_workflow_handoff(
     if (
         type(handoff["manifest_order"]) is not int
         or handoff["manifest_order"] < 1
-        or (handoff["manifest_order"], handoff["writer_role"]) not in eligible_occurrences
+        or not isinstance(handoff["writer_role"], str)
+        or AGENT_SLUG_RE.fullmatch(handoff["writer_role"]) is None
     ):
-        _workflow_fail("writer occurrence is not eligible")
-    if (
-        not isinstance(dispatch_order, (list, tuple))
-        or not dispatch_order
-        or (
-            handoff["manifest_order"] > len(dispatch_order)
-            or dispatch_order[handoff["manifest_order"] - 1] != handoff["writer_role"]
-        )
-    ):
-        _workflow_fail("writer occurrence does not match packet role order")
-    selected = next(row for row in result["variants"] if row["id"] == review["selected_variant_id"])
+        _workflow_fail("writer handoff occurrence is invalid")
+    selected = next(
+        (row for row in result["variants"] if row["id"] == review["selected_variant_id"]),
+        None,
+    )
+    if selected is None:
+        _workflow_fail("writer handoff selected variant is unknown")
     files = handoff["files"]
     if (
         not isinstance(files, list)
@@ -3458,6 +3470,27 @@ def validate_creative_workflow_handoff(
         or len(files) > request["budget"]["max_files"]
     ):
         _workflow_fail("writer file scope does not match selected variant")
+    return handoff
+
+
+def validate_creative_workflow_handoff(
+    payload: Mapping[str, Any],
+    request: Mapping[str, Any],
+    result: Mapping[str, Any],
+    review: Mapping[str, Any],
+    eligible_occurrences: Sequence[tuple[int, str]],
+    dispatch_order: Sequence[str] | None = None,
+) -> dict[str, Any]:
+    handoff = _validated_workflow_handoff_content(payload, request, result, review)
+    if (handoff["manifest_order"], handoff["writer_role"]) not in eligible_occurrences:
+        _workflow_fail("writer occurrence is not eligible")
+    if (
+        not isinstance(dispatch_order, (list, tuple))
+        or not dispatch_order
+        or handoff["manifest_order"] > len(dispatch_order)
+        or dispatch_order[handoff["manifest_order"] - 1] != handoff["writer_role"]
+    ):
+        _workflow_fail("writer occurrence does not match packet role order")
     return handoff
 
 
@@ -3528,6 +3561,10 @@ def validate_creative_workflow_stage(payload: Mapping[str, Any]) -> dict[str, An
                 _workflow_fail("reviewed stage contains a writer handoff")
             if stage["stage"] == "admitted" and stage["handoff"] is None:
                 _workflow_fail("admitted stage lacks writer handoff")
+            if stage["stage"] == "admitted":
+                _validated_workflow_handoff_content(
+                    stage["handoff"], stage["request"], result, stage["review"]
+                )
     return stage
 
 
