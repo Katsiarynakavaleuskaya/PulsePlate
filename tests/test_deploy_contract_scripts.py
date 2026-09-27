@@ -4,6 +4,7 @@ import io
 import hashlib
 import json
 import os
+import re
 import shlex
 import shutil
 import stat
@@ -7385,11 +7386,29 @@ def test_staging_and_production_postgres_image_parsers_have_exact_source_parity(
     def function_source(script: str, name: str) -> str:
         marker = f"{name}() {{\n"
         start = script.index(marker)
-        end = script.index("\n}\n", start) + len("\n}\n")
+        next_header = re.search(
+            r"(?m)^[A-Za-z_][A-Za-z_0-9]*\(\) \{\n", script[start + len(marker) :]
+        )
+        assert next_header is not None
+        next_start = start + len(marker) + next_header.start()
+        closing_brace = script.rfind("\n}\n", start, next_start)
+        assert closing_brace >= 0
+        end = closing_brace + len("\n}\n")
+        assert not script[end:next_start].strip()
         return script[start:end]
 
     staging = (REPO_ROOT / "scripts/deploy.sh").read_text(encoding="utf-8")
     production = (REPO_ROOT / "scripts/deploy_production.sh").read_text(encoding="utf-8")
+    metadata_source = function_source(staging, "validate_postgres_image_metadata")
+    assert 'repo_digests = record.get("RepoDigests")' in metadata_source
+    assert "Pulled PostgreSQL image is not bound to the canonical GHCR digest" in metadata_source
+    final_condition = "or expected not in repo_digests"
+    assert production.count(final_condition) == 1
+    assert final_condition in function_source(production, "validate_postgres_image_metadata")
+    altered_production = production.replace(final_condition, "or expected in repo_digests", 1)
+    assert function_source(staging, "validate_postgres_image_metadata") != function_source(
+        altered_production, "validate_postgres_image_metadata"
+    )
     for function_name in (
         "validate_postgres_image_metadata",
         "validate_pulled_postgres_image",
