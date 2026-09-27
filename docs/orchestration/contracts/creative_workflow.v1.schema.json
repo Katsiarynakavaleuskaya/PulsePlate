@@ -23,6 +23,21 @@
     "sha": {"type": "string", "pattern": "^[a-f0-9]{40}$"},
     "sha256": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
     "path": {"type": "string", "minLength": 1, "maxLength": 240},
+    "test_evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "request_fingerprint", "selected_variant_id", "writer_role", "manifest_order", "patch_sha256", "changed_files", "commands"],
+      "properties": {
+        "schema_version": {"const": "creative_workflow_test_evidence.v1"},
+        "request_fingerprint": {"$ref": "#/$defs/sha256"},
+        "selected_variant_id": {"type": "string", "minLength": 1, "maxLength": 32},
+        "writer_role": {"type": "string", "minLength": 1, "maxLength": 64},
+        "manifest_order": {"type": "integer", "minimum": 1},
+        "patch_sha256": {"$ref": "#/$defs/sha256"},
+        "changed_files": {"type": "array", "minItems": 1, "maxItems": 3, "uniqueItems": true, "items": {"$ref": "#/$defs/path"}},
+        "commands": {"type": "array", "minItems": 1, "maxItems": 2, "uniqueItems": true, "items": {"type": "object", "additionalProperties": false, "required": ["command", "exit_code", "observed_tests"], "properties": {"command": {"type": "string", "minLength": 1, "maxLength": 240}, "exit_code": {"type": "integer", "minimum": 0, "maximum": 255}, "observed_tests": {"type": "integer", "minimum": 1}}}}
+      }
+    },
     "request": {
       "type": "object",
       "additionalProperties": false,

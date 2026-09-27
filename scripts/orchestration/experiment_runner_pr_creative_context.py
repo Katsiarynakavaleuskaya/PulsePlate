@@ -921,6 +921,125 @@ def _workflow_archive_inputs(directory: Path, include: list[str]) -> dict[str, b
     return files
 
 
+def _workflow_patch_paths(patch: bytes) -> list[str]:
+    """Use Git's read-only patch parser to enumerate every changed file."""
+    text = patch.decode("utf-8")
+    headers = re.findall(r"^diff --git ", text, re.MULTILINE)
+    if (
+        not text.startswith("diff --git ")
+        or not headers
+        or re.search(
+            r"^(?:GIT binary patch|Binary files |rename |copy |old mode |new mode |"
+            r"new file mode 120000|deleted file mode 120000)",
+            text,
+            re.MULTILINE,
+        )
+    ):
+        raise ExperimentRunnerCreativeContextCliError("capsule patch form is unsupported")
+    try:
+        result = run_git(
+            ["apply", "--numstat", "-z", "-"], cwd=REPO_ROOT, check=False, input_text=text
+        )
+    except CreativeCodePatchWorkspaceError as exc:
+        raise ExperimentRunnerCreativeContextCliError("capsule patch cannot be parsed") from exc
+    if result.returncode != 0 or not result.stdout.endswith("\0"):
+        raise ExperimentRunnerCreativeContextCliError("capsule patch cannot be parsed")
+    paths: list[str] = []
+    for row in result.stdout.split("\0")[:-1]:
+        fields = row.split("\t", 2)
+        if (
+            len(fields) != 3
+            or not fields[0].isdigit()
+            or not fields[1].isdigit()
+            or int(fields[0]) + int(fields[1]) == 0
+            or not fields[2]
+            or fields[2] in paths
+        ):
+            raise ExperimentRunnerCreativeContextCliError("capsule patch paths are invalid")
+        paths.append(fields[2])
+    if len(paths) != len(headers):
+        raise ExperimentRunnerCreativeContextCliError(
+            "capsule patch headers differ from changed files"
+        )
+    return paths
+
+
+def _require_bound_patch_test_evidence(
+    files: Mapping[str, bytes], admitted: Mapping[str, Any]
+) -> None:
+    patch = files["patch.diff"]
+    paths = _workflow_patch_paths(patch)
+    request = admitted["request"]
+    handoff = admitted["handoff"]
+    if sorted(paths) != sorted(handoff["files"]):
+        raise ExperimentRunnerCreativeContextCliError("capsule patch differs from writer handoff")
+    evidence = _workflow_json_bytes(files["test_evidence.json"])
+    if (
+        set(evidence)
+        != {
+            "schema_version",
+            "request_fingerprint",
+            "selected_variant_id",
+            "writer_role",
+            "manifest_order",
+            "patch_sha256",
+            "changed_files",
+            "commands",
+        }
+        or evidence["schema_version"] != "creative_workflow_test_evidence.v1"
+    ):
+        raise ExperimentRunnerCreativeContextCliError("capsule test evidence fields are invalid")
+    if (
+        evidence["request_fingerprint"] != workflow_fingerprint(request)
+        or evidence["selected_variant_id"] != handoff["selected_variant_id"]
+        or evidence["writer_role"] != handoff["writer_role"]
+        or not isinstance(evidence["manifest_order"], int)
+        or isinstance(evidence["manifest_order"], bool)
+        or evidence["manifest_order"] != handoff["manifest_order"]
+        or evidence["patch_sha256"] != "sha256:" + hashlib.sha256(patch).hexdigest()
+        or evidence["changed_files"] != sorted(paths)
+    ):
+        raise ExperimentRunnerCreativeContextCliError(
+            "capsule test evidence differs from patch or handoff"
+        )
+    selected = next(
+        (
+            item
+            for item in admitted["native_result"]["variants"]
+            if item["id"] == handoff["selected_variant_id"]
+        ),
+        None,
+    )
+    rows = evidence["commands"]
+    if (
+        selected is None
+        or not isinstance(rows, list)
+        or not rows
+        or len(rows) > request["budget"]["max_test_commands"]
+    ):
+        raise ExperimentRunnerCreativeContextCliError("capsule test commands are invalid")
+    commands: list[str] = []
+    for row in rows:
+        if not isinstance(row, dict) or set(row) != {"command", "exit_code", "observed_tests"}:
+            raise ExperimentRunnerCreativeContextCliError("capsule test result is invalid")
+        command = row["command"]
+        if (
+            not isinstance(command, str)
+            or command not in request["test_commands"]
+            or command not in selected["tests"]
+            or not isinstance(row["exit_code"], int)
+            or isinstance(row["exit_code"], bool)
+            or not 0 <= row["exit_code"] <= 255
+            or not isinstance(row["observed_tests"], int)
+            or isinstance(row["observed_tests"], bool)
+            or row["observed_tests"] <= 0
+        ):
+            raise ExperimentRunnerCreativeContextCliError("capsule test result is unbound")
+        commands.append(command)
+    if len(commands) != len(set(commands)) or set(commands) != set(selected["tests"]):
+        raise ExperimentRunnerCreativeContextCliError("capsule test command set is incomplete")
+
+
 def _workflow_export(args: argparse.Namespace) -> int:
     admitted = _load_workflow_stage(args.workflow, "admitted", require_current_git=False)
     directory = _workflow_stage_path(args.workflow, "admitted").parent
@@ -936,6 +1055,7 @@ def _workflow_export(args: argparse.Namespace) -> int:
     ):
         raise ExperimentRunnerCreativeContextCliError("capsule stage chain is inconsistent")
     files = _workflow_archive_inputs(directory, args.include)
+    _require_bound_patch_test_evidence(files, admitted)
     manifest = {
         "schema_version": "creative_workflow_capsule.v1",
         "files": {
@@ -1051,6 +1171,7 @@ def _workflow_verify_archive(args: argparse.Namespace) -> int:
                 eligible,
                 dispatch_order,
             )
+            _require_bound_patch_test_evidence(extracted, admitted_stage)
     except (zipfile.BadZipFile, zlib.error, RuntimeError, KeyError) as exc:
         raise ExperimentRunnerCreativeContextCliError("capsule could not be restored") from exc
     requested_restore = Path(args.restore_dir)

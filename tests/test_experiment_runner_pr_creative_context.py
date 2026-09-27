@@ -1708,6 +1708,16 @@ def test_operational_workflow_binds_full_dod_euler_review_and_one_writer() -> No
     assert re.fullmatch(command_schema["pattern"], request["test_commands"][0])
     assert not re.search(command_schema["not"]["pattern"], request["test_commands"][0])
     assert re.fullmatch(command_schema["pattern"], "make validate-changed") is None
+    assert set(schema["$defs"]["test_evidence"]["required"]) == {
+        "schema_version",
+        "request_fingerprint",
+        "selected_variant_id",
+        "writer_role",
+        "manifest_order",
+        "patch_sha256",
+        "changed_files",
+        "commands",
+    }
     result = validate_creative_workflow_native_result(_operational_native(request), request)
     review = validate_creative_workflow_review(_operational_review(request), request, result)
     handoff = {
@@ -2382,12 +2392,28 @@ def test_operational_cli_native_stages_and_archive_round_trip(
         )
         == 0
     )
-    for name, content in (
-        ("patch.diff", "A sanitized candidate patch summary"),
-        ("test_evidence.json", '{"focused_tests":"passed"}'),
-        ("work_review.md", "Observed C1 and C2 after local checks"),
-    ):
-        (output_dir / name).write_text(content, encoding="utf-8")
+    patch_text = (
+        "diff --git a/tests/test_example.py b/tests/test_example.py\n"
+        "new file mode 100644\n--- /dev/null\n+++ b/tests/test_example.py\n"
+        "@@ -0,0 +1 @@\n+def test_case(): pass\n"
+    )
+    patch_path = output_dir / "patch.diff"
+    patch_path.write_text(patch_text, encoding="utf-8")
+    evidence = {
+        "schema_version": "creative_workflow_test_evidence.v1",
+        "request_fingerprint": workflow_fingerprint(request),
+        "selected_variant_id": handoff["selected_variant_id"],
+        "writer_role": handoff["writer_role"],
+        "manifest_order": handoff["manifest_order"],
+        "patch_sha256": "sha256:" + hashlib.sha256(patch_path.read_bytes()).hexdigest(),
+        "changed_files": handoff["files"],
+        "commands": [{"command": request["test_commands"][0], "exit_code": 0, "observed_tests": 1}],
+    }
+    evidence_path = output_dir / "test_evidence.json"
+    evidence_path.write_text(json.dumps(evidence), encoding="utf-8")
+    (output_dir / "work_review.md").write_text(
+        "Observed C1 and C2 after local checks", encoding="utf-8"
+    )
     names = [
         *cli.WORKFLOW_STAGE_FILES.values(),
         "patch.diff",
@@ -2397,6 +2423,24 @@ def test_operational_cli_native_stages_and_archive_round_trip(
     export_args = ["workflow-export", "--workflow", str(output_dir / "workflow.admitted.json")]
     for name in names:
         export_args.extend(["--include", name])
+    unrelated_patch = patch_text.replace("test_example.py", "test_other_example.py")
+    patch_path.write_text(unrelated_patch, encoding="utf-8")
+    assert cli.main(export_args) == 1
+    assert not (output_dir / "creative_workflow_capsule.zip").exists()
+    patch_path.write_text(patch_text, encoding="utf-8")
+    evidence["patch_sha256"] = "sha256:" + "0" * 64
+    evidence_path.write_text(json.dumps(evidence), encoding="utf-8")
+    assert cli.main(export_args) == 1
+    evidence["patch_sha256"] = "sha256:" + hashlib.sha256(patch_path.read_bytes()).hexdigest()
+    evidence["commands"][0]["command"] = "pytest -q tests/test_other_example.py"
+    evidence_path.write_text(json.dumps(evidence), encoding="utf-8")
+    assert cli.main(export_args) == 1
+    evidence["commands"][0]["command"] = request["test_commands"][0]
+    evidence["manifest_order"] = True
+    evidence_path.write_text(json.dumps(evidence), encoding="utf-8")
+    assert cli.main(export_args) == 1
+    evidence["manifest_order"] = handoff["manifest_order"]
+    evidence_path.write_text(json.dumps(evidence), encoding="utf-8")
     assert cli.main(export_args) == 0
     archive = output_dir / "creative_workflow_capsule.zip"
     assert (
@@ -2418,7 +2462,8 @@ def test_operational_cli_native_stages_and_archive_round_trip(
     ).read_text() == "Observed C1 and C2 after local checks"
     original_archive = archive.read_bytes()
     with zipfile.ZipFile(io.BytesIO(original_archive)) as source_archive:
-        forged_members = {name: source_archive.read(name) for name in source_archive.namelist()}
+        original_members = {name: source_archive.read(name) for name in source_archive.namelist()}
+    forged_members = dict(original_members)
     admitted_payload = json.loads(forged_members["workflow.admitted.json"])
     admitted_payload["handoff"]["writer_role"] = "unrelated-writer"
     forged_stage = build_creative_workflow_stage(
@@ -2451,6 +2496,40 @@ def test_operational_cli_native_stages_and_archive_round_trip(
         == 1
     )
     assert not (cli.CREATIVE_CONTEXT_ROOT / "forged-restore").exists()
+    stale_evidence = json.loads(original_members["test_evidence.json"])
+    stale_evidence["commands"][0]["command"] = "pytest -q tests/test_other_example.py"
+    for case, member_name, replacement in (
+        ("unrelated-patch", "patch.diff", unrelated_patch.encode("utf-8")),
+        ("stale-test-command", "test_evidence.json", json.dumps(stale_evidence).encode("utf-8")),
+    ):
+        tampered_members = dict(original_members)
+        tampered_members[member_name] = replacement
+        tampered_manifest = json.loads(original_members["manifest.json"])
+        tampered_manifest["files"][member_name] = (
+            "sha256:" + hashlib.sha256(replacement).hexdigest()
+        )
+        tampered_members["manifest.json"] = json.dumps(tampered_manifest).encode("utf-8")
+        tampered_dir = cli.CREATIVE_CONTEXT_ROOT / case
+        tampered_dir.mkdir()
+        tampered_archive = tampered_dir / "creative_workflow_capsule.zip"
+        with zipfile.ZipFile(tampered_archive, "w", compression=zipfile.ZIP_STORED) as target:
+            for name, data in tampered_members.items():
+                target.writestr(name, data)
+        assert (
+            cli.main(
+                [
+                    "workflow-verify-archive",
+                    "--archive",
+                    str(tampered_archive),
+                    "--sha256",
+                    hashlib.sha256(tampered_archive.read_bytes()).hexdigest(),
+                    "--restore-dir",
+                    case + "-restore",
+                ]
+            )
+            == 1
+        )
+        assert not (cli.CREATIVE_CONTEXT_ROOT / (case + "-restore")).exists()
     unsupported_bytes = bytearray(original_archive)
     local_header = unsupported_bytes.find(b"PK\x03\x04")
     central_header = unsupported_bytes.find(b"PK\x01\x02")
