@@ -452,15 +452,15 @@ final class SubscriptionManagerTests: XCTestCase {
     }
 
     private func makeManager(
-        storeKit: MockStoreKitManager = MockStoreKitManager(),
-        billing: MockSubscriptionBillingService = MockSubscriptionBillingService(),
-        pointerStore: InMemoryActivationPointerStore = InMemoryActivationPointerStore(),
+        storeKit: MockStoreKitManager? = nil,
+        billing: MockSubscriptionBillingService? = nil,
+        pointerStore: InMemoryActivationPointerStore? = nil,
         apiKey: String? = ["pp", "placeholder"].joined(separator: "-")
     ) -> SubscriptionManager {
         SubscriptionManager(
-            storeKitManager: storeKit,
-            billingService: billing,
-            activationPointerStore: pointerStore,
+            storeKitManager: storeKit ?? MockStoreKitManager(),
+            billingService: billing ?? MockSubscriptionBillingService(),
+            activationPointerStore: pointerStore ?? InMemoryActivationPointerStore(),
             apiKeyProvider: { apiKey }
         )
     }

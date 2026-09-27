@@ -19,7 +19,7 @@ struct PlanMetricsView: View {
     }
 
     private var adherenceText: String? {
-        guard let adherence else { return nil }
+        guard adherence != nil else { return nil }
         return (clampedAdherence * 100).formatted(.number.precision(.fractionLength(0))) + "%"
     }
 
