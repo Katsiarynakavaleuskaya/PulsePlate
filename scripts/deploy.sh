@@ -482,7 +482,14 @@ except (TypeError, ValueError, UnicodeError, RecursionError) as exc:
 if type(payload) is not list or len(payload) != 1 or type(payload[0]) is not dict:
     raise SystemExit("PostgreSQL image inspect must return exactly one image")
 record = payload[0]
-if sys.argv[2] and record.get("Id") != sys.argv[2]:
+image_id = record.get("Id")
+frozen_image_ids = {
+    "sha256:c822c68e22d0358e66cee17e06f7b3ece5d1538cb8b607c1376b59620866ceff",
+    sys.argv[1],
+}
+if type(image_id) is not str or image_id not in frozen_image_ids:
+    raise SystemExit("PostgreSQL image inspect ID is outside the frozen candidate")
+if sys.argv[2] and image_id != sys.argv[2]:
     raise SystemExit("Existing PostgreSQL image inspect ID does not match the container")
 config = record.get("Config")
 if type(config) is not dict:

@@ -4565,7 +4565,13 @@ def _postgres_image_inspect_variant(variant: str) -> str:
     config = record["Config"]
     if variant == "duplicate-key":
         return json.dumps(payload).replace('"Os":', '"Os":"linux","Os":', 1)
-    if variant == "wrong-platform":
+    if variant == "foreign-id":
+        record["Id"] = "sha256:" + "e" * 64
+    elif variant == "missing-id":
+        del record["Id"]
+    elif variant == "malformed-id":
+        record["Id"] = 7
+    elif variant == "wrong-platform":
         record["Architecture"] = "arm64"
     elif variant == "wrong-user":
         config["User"] = "0"
@@ -4598,6 +4604,9 @@ POSTGRES_IMAGE_INSPECT_REJECTIONS = (
             "wrong-repository-digest",
             "malformed-repository-digests",
             "duplicate-key",
+            "foreign-id",
+            "missing-id",
+            "malformed-id",
         )
     ),
 )
@@ -4651,6 +4660,7 @@ def test_staging_deploy_rejects_pulled_postgres_identity_before_product_mutation
     )
 
     assert completed.returncode != 0
+    assert "Pulled PostgreSQL image metadata is not the frozen candidate" in completed.stderr
     assert "PostgreSQL image" in completed.stderr
     log_lines = log_file.read_text(encoding="utf-8").splitlines()
     assert any(" pull app caddy postgres prometheus" in line for line in log_lines)
@@ -4658,6 +4668,8 @@ def test_staging_deploy_rejects_pulled_postgres_identity_before_product_mutation
     assert all("promtool" not in line for line in log_lines)
     assert all("assert_production_runtime_invariants" not in line for line in log_lines)
     assert all(" stop " not in line and " up " not in line for line in log_lines)
+    assert all(not line.startswith("backup ") for line in log_lines)
+    assert all("alembic upgrade head" not in line for line in log_lines)
 
 
 def test_staging_deploy_rejects_postgres_mountpoint_drift_before_product_mutation(
@@ -7131,6 +7143,39 @@ def test_production_self_hosted_reuses_both_frozen_current_image_id_forms(
     )
 
 
+@pytest.mark.parametrize("surface", ("staging", "production"))
+@pytest.mark.parametrize("image_id", (POSTGRES_CONFIG_DIGEST, POSTGRES_PLATFORM_MANIFEST_DIGEST))
+def test_pulled_postgres_admits_both_frozen_image_id_forms(
+    tmp_path: Path, surface: str, image_id: str
+) -> None:
+    inspected = (
+        FAKE_POSTGRES_CONFIG_IMAGE_INSPECT_JSON
+        if image_id == POSTGRES_CONFIG_DIGEST
+        else FAKE_POSTGRES_IMAGE_INSPECT_JSON
+    )
+    if surface == "staging":
+        env, log_file = _staging_deploy_fixture(tmp_path)
+        env["STUB_POSTGRES_IMAGE_INSPECT_JSON"] = inspected
+        backend_ref = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "a" * 64
+        caddy_ref = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "b" * 64
+        command = [str(REPO_ROOT / "scripts/deploy.sh"), backend_ref, caddy_ref]
+    else:
+        env, log_file = _production_self_hosted_image_identity_fixture(tmp_path)
+        env["STUB_PRODUCTION_PULLED_POSTGRES_IMAGE_JSON"] = inspected
+        command = [str(REPO_ROOT / "scripts/deploy_production.sh")]
+    completed = subprocess.run(
+        command,
+        cwd=str(REPO_ROOT),
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert completed.returncode == 0, completed.stderr
+    lines = log_file.read_text(encoding="utf-8").splitlines()
+    assert any(line == f"docker image inspect {POSTGRES_RUNTIME_REF}" for line in lines)
+
+
 def test_production_self_hosted_keeps_frozen_legacy_image_transition(tmp_path: Path) -> None:
     env, log_file = _production_self_hosted_image_identity_fixture(tmp_path)
     completed = subprocess.run(
@@ -7272,6 +7317,9 @@ def test_production_self_hosted_rejects_untrusted_existing_image_before_quiescen
         "duplicate-key",
         "wrong-repository-digest",
         "malformed-repository-digests",
+        "foreign-id",
+        "missing-id",
+        "malformed-id",
         "wrong-environment",
         "conflicting-env-first",
         "conflicting-env-last",
@@ -7395,7 +7443,6 @@ printf 'curl %s\\n' "$*" >> "{log_file}"
     env["DEPLOY_DIR"] = str(project_dir)
     env["ENV_FILE"] = str(project_dir / ".env")
     env["COMPOSE_FILE"] = CANONICAL_MANAGED_COMPOSE
-    env["PROD_DEPLOY_MODE"] = "self-hosted"
     env["CURL_BIN"] = str(bin_dir / "curl")
     env["IMAGE_REF"] = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:test"
     env["TAG"] = "prod-vtest"
