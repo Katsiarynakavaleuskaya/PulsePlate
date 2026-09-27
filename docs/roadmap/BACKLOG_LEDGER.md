@@ -843,14 +843,13 @@ If it is not recorded here — it does not exist.
     compatibility baseline.
 
 <a id="ledger-p1-noos-1a-evidence-relations"></a>
-- [ ] P1: NOOS-1A typed evidence relations and offline causal overclaim audit
+- [x] P1: NOOS-1A typed evidence relations and offline causal overclaim audit
   - Owner: backend-engineer / agent-coordinator
   - Priority: P1
   - Target PR: [#2417](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2417)
     on `codex/evidence-relation-causal-overclaim-audit-v1`
-  - Status: Implementation in progress. Structural acceptance and closeout
-    remain subject to current-head CI, review disposition and separate merge
-    authorization.
+  - Status: Merged in PR #2417 as `5a04fcda909aa5d0f02009acf293f649f5a6dc9f`;
+    the structural instrument remains advisory and is not answer-content truth.
   - Area: offline eval / evidence contracts
   - Reason (EN): Existing evidence assets and provenance do not distinguish
     claim-to-evidence links from asserted world relations or audit the
@@ -873,18 +872,25 @@ If it is not recorded here — it does not exist.
 - [ ] P1: NOOS-1B FitChef answer-content evaluation
   - Owner: product AI / evaluation owner
   - Priority: P1
-  - Target PR: `PR-TBD` (separately admitted after NOOS-1A)
-  - Status: Deferred; no automatic start or runtime activation.
+  - Target PR: `PR-TBD` on `codex/noos-fitchef-claim-evidence-evaluation`
+    (one implementation PR after NOOS-1A #2417)
+  - Status: Active offline-eval implementation; live provider corpus, independent
+    owner-accepted reference, blind candidate, CI and review remain pending.
   - Area: FitChef eval / product outcomes
   - Reason (EN): The NOOS-1A structural matrix cannot measure whether actual
     FitChef responses make supported claims or improve trust, retention,
     quality or cost. That needs separately reviewed item-level answer evidence.
-  - Links: `docs/evals/EVIDENCE_RELATION_CAUSAL_AUDIT_V1.md`,
+  - Links: `docs/evals/FITCHEF_CLAIM_EVIDENCE_EVAL_V1.md`,
+    `docs/evals/EVIDENCE_RELATION_CAUSAL_AUDIT_V1.md`,
     `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-noos-1a-evidence-relations`
-  - DoD: Freeze a separately approved answer-level corpus and independent
-    expected judgments; measure false acceptance/rejection and user-relevant
-    quality on actual FitChef outputs; preserve wellness-only and runtime
-    authority boundaries; gate any product change through its own PR.
+  - DoD: Freeze 24 distinct synthetic answer-level scenarios, 16 development
+    and 8 holdout with eight each in RU/EN/ES across six families; collect
+    actual final Distortion Simulator outputs through bounded Sonar attempts
+    (at most 32 physical sends and US$4.80 reserved); obtain independent
+    owner-accepted reference before isolated blind candidate disclosure;
+    measure 4x4 claim-support agreement, false acceptance/rejection, omissions,
+    abstentions, language fit and user-relevant quality; preserve wellness-only
+    and runtime authority boundaries; gate any product change through its own PR.
   - Out of scope (EN): Automatic promotion from NOOS-1A reports, unreviewed
     provider calls and semantic-cache serving.
 
