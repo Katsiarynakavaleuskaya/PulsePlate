@@ -614,7 +614,7 @@ def _private_input_identity(path: Path) -> tuple[int, ...]:
 
 def read_private_jsonl(path: Path) -> list[object]:
     before = _private_input_identity(path)
-    rows = read_jsonl(path)
+    rows: list[object] = read_jsonl(path)
     if before != _private_input_identity(path):
         raise ValueError("private_input_changed")
     return rows
@@ -622,7 +622,7 @@ def read_private_jsonl(path: Path) -> list[object]:
 
 def _read_private_input(path: Path) -> bytes:
     before = _private_input_identity(path)
-    data = _read_input(path)
+    data: bytes = _read_input(path)
     if before != _private_input_identity(path):
         raise ValueError("private_input_changed")
     return data
