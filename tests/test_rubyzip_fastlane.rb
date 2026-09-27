@@ -8,12 +8,12 @@ module RubyzipFastlaneFixtures
   FORK = 'https://github.com/Katsiarynakavaleuskaya/fastlane.git'
   REVISION = '1ac01395d37bf7e6b88b3d0bcba5f84af841fcbc'
 
-  def self.fixture(version = '3.4.0')
+  def self.fixture(version = '3.4.0', suffix_version = '7.0.5')
     manifest = <<~GEMFILE
       source "https://rubygems.org"
       gem "CFPropertyList", "= 3.0.8"
       gem "fastlane", "= 2.237.0", git: "#{FORK}", ref: "#{REVISION}"
-      gem "public_suffix", "< 7"
+      gem "public_suffix", "< 8"
       gem "rubyzip", "= #{version}"
     GEMFILE
     lock = <<~LOCK
@@ -37,7 +37,7 @@ module RubyzipFastlaneFixtures
           excon (1.5.0)
           json (2.19.9)
           jwt (3.2.0)
-          public_suffix (6.0.2)
+          public_suffix (#{suffix_version})
           rubyzip (#{version})
 
       PLATFORMS
@@ -46,7 +46,7 @@ module RubyzipFastlaneFixtures
       DEPENDENCIES
         CFPropertyList (= 3.0.8)
         fastlane (= 2.237.0)!
-        public_suffix (< 7)
+        public_suffix (< 8)
         rubyzip (= #{version})
 
       BUNDLED WITH
@@ -81,6 +81,18 @@ module RubyzipFastlaneFixtures
           end
           count += 1
         end
+        ['6.0.2', '7.0.5', '7.9.0'].each do |version|
+          report = check_case("public_suffix_#{version}", *fixture('3.4.0', version),
+                              ['ios/Gemfile', 'ios/Gemfile.lock'], accepted: true)
+          raise "#{version}: incomplete selected suffix evidence" unless report[:status] == 'PASS'
+
+          count += 1
+        end
+        ['7.0.5.pre', '8.0.0', 'nonsense'].each do |version|
+          check_case("public_suffix_#{version}", *fixture('3.4.0', version),
+                     ['ios/Gemfile', 'ios/Gemfile.lock'])
+          count += 1
+        end
         ['1.2.0', '1.2.1', '1.2.2', '1.3.0', '2.4.1', '3.4.0.rc1', '3.4.0-pre', '4.0.0'].each do |version|
           check_case(version, *fixture(version), ['ios/Gemfile', 'ios/Gemfile.lock'])
           count += 1
@@ -91,7 +103,10 @@ module RubyzipFastlaneFixtures
           short_ref wrong_revision version_spoof duplicate_spec duplicate_dependency duplicate_edge
           duplicate_section duplicate_source_option unsupported_section malformed_lock missing_rubyzip
           missing_pin_marker manifest_lock_mismatch incompatible_fork unsafe_constraint cfpropertylist_floor
-          public_suffix_constraint jwt_floor json_floor excon_floor bundler_drift empty_platforms
+          public_suffix_constraint public_suffix_requirement_mismatch
+          public_suffix_duplicate_manifest public_suffix_duplicate_spec
+          public_suffix_duplicate_dependency public_suffix_source_mismatch
+          jwt_floor json_floor excon_floor bundler_drift empty_platforms
           duplicate_platform trailing_source_alias
         ].each do |mutation|
           manifest, lock = fixture
@@ -137,7 +152,17 @@ module RubyzipFastlaneFixtures
             manifest, lock = manifest.gsub('"= 3.4.0"', '">= 0"'), lock.gsub('rubyzip (= 3.4.0)', 'rubyzip (>= 0)')
           when 'cfpropertylist_floor' then lock = lock.gsub('    CFPropertyList (3.0.8)', '    CFPropertyList (4.0.0)')
           when 'public_suffix_constraint'
-            manifest, lock = manifest.gsub('"< 7"', '"< 8"'), lock.gsub('public_suffix (< 7)', 'public_suffix (< 8)')
+            manifest, lock = manifest.gsub('"< 8"', '"< 9"'), lock.gsub('public_suffix (< 8)', 'public_suffix (< 9)')
+          when 'public_suffix_requirement_mismatch'
+            lock = lock.gsub('public_suffix (< 8)', 'public_suffix (< 9)')
+          when 'public_suffix_duplicate_manifest'
+            manifest += "gem \"public_suffix\", \"< 8\"\n"
+          when 'public_suffix_duplicate_spec'
+            lock = lock.gsub('    public_suffix (7.0.5)', "    public_suffix (7.0.5)\n    public_suffix (7.0.5)")
+          when 'public_suffix_duplicate_dependency'
+            lock = lock.gsub('  public_suffix (< 8)', "  public_suffix (< 8)\n  public_suffix (< 8)")
+          when 'public_suffix_source_mismatch'
+            lock = lock.gsub('  remote: https://rubygems.org/', '  remote: https://mirror.invalid/')
           when 'jwt_floor' then lock = lock.gsub('jwt (3.2.0)', 'jwt (3.1.0)')
           when 'json_floor' then lock = lock.gsub('json (2.19.9)', 'json (2.19.8)')
           when 'excon_floor' then lock = lock.gsub('excon (1.5.0)', 'excon (1.4.2)')
