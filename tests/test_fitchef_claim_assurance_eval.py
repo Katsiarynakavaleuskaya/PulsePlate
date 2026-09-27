@@ -18,6 +18,8 @@ from unittest.mock import patch
 import httpx
 from openai import AsyncOpenAI
 import pytest
+from sqlalchemy.engine import make_url
+from tenacity import wait_none
 
 from app.services import fitchef_runtime
 from core import db as core_db
@@ -521,42 +523,44 @@ def test_private_path_rejects_symlinked_ancestor(tmp_path: Path) -> None:
 
 
 def test_live_environment_needs_synthetic_private_pro_quota(
+    isolated_sqlite_database: Path,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    key = "noos-eval-synthetic"
-    monkeypatch.setenv("APP_ENV", "development")
-    monkeypatch.setenv("SUBSCRIPTION_DB_ENABLED", "false")
-    monkeypatch.setenv("PRO_API_KEYS", key)
-    monkeypatch.setenv("PRO_LLM_INSIGHT_REQUESTS_PER_MONTH", "24")
-    monkeypatch.setenv("SERVER_SALT", "synthetic-evaluation-salt-" + "x" * 32)
-    monkeypatch.setenv("AGENT_CONTROL_AUDIT_SIGNING_KEY", "synthetic-audit")
-    monkeypatch.setenv("AGENT_CONTROL_AUDIT_LOG_PATH", str(tmp_path / "audit.jsonl"))
-    monkeypatch.setenv("DATABASE_URL", f"sqlite:///{tmp_path / 'quota.sqlite'}")
-    monkeypatch.setenv("FEATURE_FITCHEF_STRUCTURED_COACH", "true")
-    monkeypatch.setenv("FITCHEF_STRUCTURED_COACH_EXECUTION_MODE", "auto-safe")
-    monkeypatch.setattr(core_db, "SessionLocal", core_db.SessionLocal)
-    core_db.create_tables()
-    (tmp_path / "quota.sqlite").chmod(0o600)
-    collector.validate_live_environment(key)
-    with collector.session_scope() as session:
-        session.add(
-            collector.VipLlmMonthlyUsage(
-                key_fingerprint=collector.llm_key_fingerprint(key, tier="PRO"),
-                month_start_date=collector.month_start_date_utc(),
-                used_requests=1,
+    del isolated_sqlite_database
+    with monkeypatch.context() as scoped:
+        key = "noos-eval-synthetic"
+        scoped.setenv("APP_ENV", "development")
+        scoped.setenv("SUBSCRIPTION_DB_ENABLED", "false")
+        scoped.setenv("PRO_API_KEYS", key)
+        scoped.setenv("PRO_LLM_INSIGHT_REQUESTS_PER_MONTH", "24")
+        scoped.setenv("SERVER_SALT", "synthetic-evaluation-salt-" + "x" * 32)
+        scoped.setenv("AGENT_CONTROL_AUDIT_SIGNING_KEY", "synthetic-audit")
+        scoped.setenv("AGENT_CONTROL_AUDIT_LOG_PATH", str(tmp_path / "audit.jsonl"))
+        scoped.setenv("DATABASE_URL", f"sqlite:///{tmp_path / 'quota.sqlite'}")
+        scoped.setenv("FEATURE_FITCHEF_STRUCTURED_COACH", "true")
+        scoped.setenv("FITCHEF_STRUCTURED_COACH_EXECUTION_MODE", "auto-safe")
+        core_db.create_tables()
+        (tmp_path / "quota.sqlite").chmod(0o600)
+        collector.validate_live_environment(key)
+        with collector.session_scope() as session:
+            session.add(
+                collector.VipLlmMonthlyUsage(
+                    key_fingerprint=collector.llm_key_fingerprint(key, tier="PRO"),
+                    month_start_date=collector.month_start_date_utc(),
+                    used_requests=1,
+                )
             )
-        )
-    with pytest.raises(ValueError, match="insufficient_synthetic_quota"):
+        with pytest.raises(ValueError, match="insufficient_synthetic_quota"):
+            collector.validate_live_environment(key)
+        scoped.setenv("PRO_LLM_INSIGHT_REQUESTS_PER_MONTH", "25")
         collector.validate_live_environment(key)
-    monkeypatch.setenv("PRO_LLM_INSIGHT_REQUESTS_PER_MONTH", "25")
-    collector.validate_live_environment(key)
-    monkeypatch.setenv("PRO_LLM_INSIGHT_REQUESTS_PER_MONTH", "23")
-    with pytest.raises(ValueError, match="insufficient_synthetic_quota"):
-        collector.validate_live_environment(key)
-    monkeypatch.setenv("PRO_LLM_INSIGHT_REQUESTS_PER_MONTH", "24")
-    with pytest.raises(ValueError, match="synthetic_pro_key_required"):
-        collector.validate_live_environment("customer-key")
+        scoped.setenv("PRO_LLM_INSIGHT_REQUESTS_PER_MONTH", "23")
+        with pytest.raises(ValueError, match="insufficient_synthetic_quota"):
+            collector.validate_live_environment(key)
+        scoped.setenv("PRO_LLM_INSIGHT_REQUESTS_PER_MONTH", "24")
+        with pytest.raises(ValueError, match="synthetic_pro_key_required"):
+            collector.validate_live_environment("customer-key")
 
 
 def test_false_acceptance_matrix_and_abstention_denominator() -> None:
@@ -708,9 +712,17 @@ def test_exhausted_hook_blocks_network_handler(tmp_path: Path) -> None:
     assert sends == 0
 
 
-def test_sdk_and_tenacity_retries_share_physical_attempt_counter(tmp_path: Path) -> None:
+def test_sdk_and_tenacity_retries_share_physical_attempt_counter(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     ledger = collector.AttemptLedger(tmp_path)
     calls = 0
+    sdk_retries = 0
+    monkeypatch.setattr(PerplexityProvider.generate.retry, "wait", wait_none())
+
+    async def no_sdk_backoff(**_kwargs: Any) -> None:
+        nonlocal sdk_retries
+        sdk_retries += 1
 
     async def response(_request: httpx.Request) -> httpx.Response:
         nonlocal calls
@@ -748,6 +760,7 @@ def test_sdk_and_tenacity_retries_share_physical_attempt_counter(tmp_path: Path)
             http_client=transport,
             max_retries=1,
         )
+        monkeypatch.setattr(provider.client, "_sleep_for_retry", no_sdk_backoff)
         try:
             return await provider.generate("synthetic")
         finally:
@@ -755,6 +768,7 @@ def test_sdk_and_tenacity_retries_share_physical_attempt_counter(tmp_path: Path)
 
     assert asyncio.run(run()) == "safe"
     assert calls == ledger.attempts == 4
+    assert sdk_retries == 2
 
 
 def test_collector_serializes_nested_disable_search_on_actual_sdk_request(
@@ -1113,6 +1127,7 @@ def test_reported_cost_over_reservation_stops_following_send(
     monkeypatch: pytest.MonkeyPatch,
     reported_cost: float,
 ) -> None:
+    monkeypatch.setattr(PerplexityProvider.generate.retry, "wait", wait_none())
     monkeypatch.setenv("FEATURE_FITCHEF_STRUCTURED_COACH", "true")
     monkeypatch.setenv("FITCHEF_STRUCTURED_COACH_EXECUTION_MODE", "auto-safe")
     scenario = {
@@ -1134,8 +1149,11 @@ def test_reported_cost_over_reservation_stops_following_send(
     )
     ledger = collector.AttemptLedger(tmp_path)
     request = httpx.Request("POST", "https://api.perplexity.ai/chat/completions", json={})
+    logical_calls = 0
 
     async def high_cost(*_args: Any, **_kwargs: Any) -> Any:
+        nonlocal logical_calls
+        logical_calls += 1
         await ledger.reserve(request)
         return SimpleNamespace(
             choices=[
@@ -1184,6 +1202,7 @@ def test_reported_cost_over_reservation_stops_following_send(
     asyncio.run(run())
     assert ledger.reported_overrun_usd == reported_cost
     assert ledger.attempts == 1
+    assert logical_calls == 3
 
 
 def test_provider_failure_does_not_log_upstream_secret_marker(
@@ -2215,7 +2234,6 @@ def _set_synthetic_live_environment(tmp_path: Path, monkeypatch: pytest.MonkeyPa
     }
     for name, value in env.items():
         monkeypatch.setenv(name, value)
-    monkeypatch.setattr(core_db, "SessionLocal", core_db.SessionLocal)
     core_db.create_tables()
     (tmp_path / "quota.sqlite").chmod(0o600)
     return key
@@ -2233,43 +2251,57 @@ def _set_synthetic_live_environment(tmp_path: Path, monkeypatch: pytest.MonkeyPa
     ],
 )
 def test_live_environment_rejects_each_isolation_and_feature_failure(
+    isolated_sqlite_database: Path,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     field: str,
     value: str,
     error: str,
 ) -> None:
-    key = _set_synthetic_live_environment(tmp_path, monkeypatch)
-    monkeypatch.setenv(field, value)
-    if field == "FITCHEF_STRUCTURED_COACH_EXECUTION_MODE":
-        with pytest.raises(HTTPException) as rejected:
-            collector.validate_live_environment(key)
-        assert rejected.value.detail == "agent_execution_blocked"
-    else:
-        with pytest.raises(ValueError, match=error):
-            collector.validate_live_environment(key)
+    del isolated_sqlite_database
+    with monkeypatch.context() as scoped:
+        key = _set_synthetic_live_environment(tmp_path, scoped)
+        scoped.setenv(field, value)
+        if field == "FITCHEF_STRUCTURED_COACH_EXECUTION_MODE":
+            with pytest.raises(HTTPException) as rejected:
+                collector.validate_live_environment(key)
+            assert rejected.value.detail == "agent_execution_blocked"
+        else:
+            with pytest.raises(ValueError, match=error):
+                collector.validate_live_environment(key)
 
 
 def test_live_environment_rejects_wrong_tier_and_invalid_current_usage(
+    isolated_sqlite_database: Path,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    key = _set_synthetic_live_environment(tmp_path, monkeypatch)
-    with patch.object(
-        collector, "get_subscription_tier", lambda _key: collector.SubscriptionTier.FREE
-    ):
-        with pytest.raises(ValueError, match="pro_tier_unavailable"):
-            collector.validate_live_environment(key)
-    with collector.session_scope() as session:
-        session.add(
-            collector.VipLlmMonthlyUsage(
-                key_fingerprint=collector.llm_key_fingerprint(key, tier="PRO"),
-                month_start_date=collector.month_start_date_utc(),
-                used_requests=-1,
+    del isolated_sqlite_database
+    with monkeypatch.context() as scoped:
+        key = _set_synthetic_live_environment(tmp_path, scoped)
+        with patch.object(
+            collector, "get_subscription_tier", lambda _key: collector.SubscriptionTier.FREE
+        ):
+            with pytest.raises(ValueError, match="pro_tier_unavailable"):
+                collector.validate_live_environment(key)
+        with collector.session_scope() as session:
+            session.add(
+                collector.VipLlmMonthlyUsage(
+                    key_fingerprint=collector.llm_key_fingerprint(key, tier="PRO"),
+                    month_start_date=collector.month_start_date_utc(),
+                    used_requests=-1,
+                )
             )
-        )
-    with pytest.raises(ValueError, match="invalid_synthetic_quota_usage"):
-        collector.validate_live_environment(key)
+        with pytest.raises(ValueError, match="invalid_synthetic_quota_usage"):
+            collector.validate_live_environment(key)
+
+
+def test_live_environment_restores_baseline_engine_after_temporary_quota_db() -> None:
+    engine = core_db._RAW_ENGINE
+    assert engine is not None
+    assert engine.url == make_url(core_db.get_database_url())
+    with core_db.session_scope() as session:
+        assert session.get_bind() is engine
 
 
 @pytest.mark.parametrize(
