@@ -3,12 +3,10 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Iterator
 
 import pytest
 from fastapi.testclient import TestClient
 
-from app import app
 from app.middleware.api_tiers import TEST_KEY_PRO, TEST_KEY_VIP
 from app.security.web_session import WEB_SESSION_COOKIE_NAME
 from app.services import pro_nutrition_targets as service
@@ -21,14 +19,17 @@ _PRO_GAPS_PATH = "/api/v1/pro/nutrition/gaps"
 _AUTH_HEADER_VALUE = "targets-gaps-test-value"
 
 
-@pytest.fixture
-def client(monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClient]:
+@pytest.fixture(autouse=True)
+def _targets_gaps_environment(
+    test_environment: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Apply route-specific settings before the shared managed client opens."""
+    del test_environment
     monkeypatch.setenv("API_KEY", _AUTH_HEADER_VALUE)
     monkeypatch.setenv("SERVER_SALT", "StrongServerSaltForTests123456789!")
     monkeypatch.setenv("APP_ENV", "local")
     monkeypatch.setenv("DEBUG", "true")
-    with TestClient(app) as test_client:
-        yield test_client
 
 
 def _headers(key: str = _AUTH_HEADER_VALUE) -> dict[str, str]:
