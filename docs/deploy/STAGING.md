@@ -244,6 +244,12 @@ before stopping any product writers. A new password file cannot change a
 persisted PostgreSQL role password. Incompatible credentials or legacy TLS
 setups HOLD for an explicit verified migration that preserves the existing
 data; deployment does not rotate credentials or fall back to plaintext.
+For the exact current PostgreSQL reference, Docker may report either its frozen
+config digest or frozen platform manifest digest as the container image ID. Both
+forms require `docker image inspect` of the exact frozen reference, with the
+returned ID matching the existing container's image ID and with canonical
+repository digest, platform and runtime metadata. Missing or conflicting
+identity causes HOLD before product writers are stopped.
 After admission it waits for the database, migrates and checks an
 actual TLS session through the application before exposure. Respect existing
 staging enablement and public-release locks; this work does not authorize a
