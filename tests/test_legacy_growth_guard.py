@@ -214,6 +214,7 @@ def test_retired_nutrition_contract_tail_is_exact_and_disjoint() -> None:
 
 
 def test_retired_log_retention_tail_is_exact_and_disjoint() -> None:
+    """Pin the four-name cohort separately from earlier legacy retirements."""
     assert RETIRED_LOG_RETENTION_BINDINGS == (
         "DataClass",
         "get_retention_manager",
@@ -240,6 +241,7 @@ def test_retired_log_retention_tail_is_exact_and_disjoint() -> None:
     ids=["assignment", "annotation", "import-alias", "function", "class", "delete", "global"],
 )
 def test_retired_log_retention_binding_carrier(binding_name: str, source_template: str) -> None:
+    """Reject each recognized static carrier of a retired retention name."""
     assert legacy_guard.validate_retired_legacy_python_bindings(
         source_template.format(name=binding_name)
     ) == [f"legacy_app.py: retired Python compatibility binding is forbidden: {binding_name}"]
@@ -249,6 +251,7 @@ def test_retired_log_retention_binding_carrier(binding_name: str, source_templat
 def test_retired_log_retention_guard_rejects_exact_canonical_reimport(
     binding_name: str,
 ) -> None:
+    """Reject re-exporting a canonical core symbol through the legacy facade."""
     assert legacy_guard.validate_retired_legacy_python_bindings(
         f"from core.log_retention import {binding_name}\n"
     ) == [f"legacy_app.py: retired Python compatibility binding is forbidden: {binding_name}"]
