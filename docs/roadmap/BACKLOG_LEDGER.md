@@ -872,7 +872,7 @@ If it is not recorded here — it does not exist.
 - [ ] P1: NOOS-1B FitChef answer-content evaluation
   - Owner: product AI / evaluation owner
   - Priority: P1
-  - Target PR: `PR-TBD` on `codex/noos-fitchef-claim-evidence-evaluation`
+  - Target PR: [#2451](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2451) on `codex/noos-fitchef-claim-evidence-evaluation`
     (one implementation PR after NOOS-1A #2417)
   - Status: Active offline-eval implementation; live provider corpus, independent
     owner-accepted reference, blind candidate, CI and review remain pending.
