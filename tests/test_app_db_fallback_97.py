@@ -10,7 +10,7 @@ Covers _attempt_db_fallback function branches:
 import asyncio
 import os
 import inspect
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from threading import Event, RLock, get_ident
@@ -539,6 +539,32 @@ def test_fallback_factory_failure_preserves_original_error_on_cleanup_failure(
 
 class TestAppDBFallback97:
     """Tests for core.db_fallback DB fallback logic to achieve 97% coverage."""
+
+    @pytest.fixture(autouse=True)
+    def _restore_published_fallback_bindings(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> Iterator[None]:
+        """Restore DB bindings and selectors that real fallback calls publish."""
+        from core import db, db_fallback
+
+        original_engine = db._RAW_ENGINE
+        with monkeypatch.context() as restore:
+            for name in ("_RAW_ENGINE", "engine", "SessionLocal"):
+                restore.setattr(db, name, getattr(db, name))
+            for key in ("DATABASE_URL", "DB_FALLBACK_URL", "DB_HEALTH_DEGRADED"):
+                if key in os.environ:
+                    restore.setenv(key, os.environ[key])
+                else:
+                    restore.delenv(key, raising=False)
+            try:
+                yield
+            finally:
+                try:
+                    candidate = db._RAW_ENGINE
+                    if candidate is not original_engine and isinstance(candidate, Engine):
+                        candidate.dispose()
+                finally:
+                    db_fallback.reset_fallback_state()
 
     TRUTHY: set[str] = {"1", "true", "yes", "on"}
 
