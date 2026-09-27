@@ -116,7 +116,10 @@ values) fail. Path validation treats repository filenames separately from
 secret values, so legitimate names such
 as `api_key.py` remain admissible. Explicit decorator and HTTP-method contexts
 allow public route literals such as `GET /api/v1/items` in patch and review
-evidence; they never exempt known filesystem roots such as `/home` and `/srv`.
+evidence; they never exempt known filesystem roots such as `/home` and `/srv`
+or UNC shares. Restore admits only the exporter's `ZIP_STORED` members before
+reading payloads. Gitlink, symlink and other non-regular patch modes fail
+closed. Work Review must be nonempty and address every accepted criterion ID.
 Readiness claims in exported Work Review and test/oracle evidence are rejected;
 patch source is screened under its own content rules. These finite checks do not
 prove the absence of every possible secret; host review remains required before

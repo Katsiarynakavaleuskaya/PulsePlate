@@ -577,10 +577,12 @@ Euler import, execution or store access is permitted.
   its predecessor's inherited request, native
   result and review bytes; a matching predecessor hash alone is insufficient.
   Archive export permits route literals in explicit decorator or HTTP-method
-  context while rejecting local filesystem paths elsewhere. Both export and
-  restore require the Git-parsed patch files to equal the exact writer
+  context while rejecting local filesystem paths, including UNC shares. Both
+  export and restore require the Git-parsed patch files to equal the exact writer
   handoff and structured test evidence to bind its digest and admitted commands;
-  this continuity does not authenticate test execution. Restore also rechecks
+  only regular patch modes and stored ZIP members are accepted, and Work Review
+  must name each accepted criterion. This continuity does not authenticate
+  test execution. Restore also rechecks
   the packet's canonical writer manifest and the criteria,
   requirements, and Euler source digests; missing or changed evidence fails
   closed. Legacy v1/adaptive-v2

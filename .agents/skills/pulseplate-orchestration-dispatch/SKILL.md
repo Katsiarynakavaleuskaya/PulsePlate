@@ -187,7 +187,9 @@ not enter this procedure.
    request, selected writer occurrence, patch SHA-256, complete changed files
    and approved commands with observed nonzero test counts. The CLI checks
    its continuity against the Git-parsed patch and handoff at export and
-   restore; the sidecar cannot authenticate execution by itself. A pending or
+   restore, rejects non-regular patch modes and unsupported ZIP compression,
+   and requires nonempty Work Review text naming every accepted criterion ID.
+   The sidecar cannot authenticate execution by itself. A pending or
    over-budget test result cannot support completion. Export a sanitized owned capsule using
    `workflow-export`, then let
    the host upload, read the same document ID, download the archive, compare its
