@@ -52,10 +52,20 @@ If it is not recorded here — it does not exist.
   - Owner: dev-operator / agent-coordinator
   - Priority: P1
   - Target PR: [#2415](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2415) (`codex/ops03a-staging-runtime-diagnostics`)
-  - Status: Implementation in progress; live staging observation, PR closeout and merge remain unproven.
-  - Reason for deferral: OPS-01 was offline and OPS-02 repaired repository DB lifecycle. Neither proved the current private staging host, app readiness or authenticated PostgreSQL path. This bounded diagnostic needs its own current-head gates and one authorized read-only post-merge host observation.
+  - Status: PR #2415 merged as `ff95fffe60653f66bbc0ac16a5641e926b4d7520` on 2026-09-26; repository diagnostic implementation and owner-only evidence/Drive readback were completed. The authorized live pass returned untrusted container identity, so the operational diagnostic outcome remains pending.
+  - Reason for deferral: The merged diagnostic did not obtain a trustworthy live staging snapshot; host bundle drift was repaired and the follow-up staging deploy stopped at a PostgreSQL image-ID guard before writer quiescence. OPS-03B PR #2443 owns the bounded guard repair; a separate approved live pass is still required before claiming the operational outcome.
   - Links: `docs/deploy/OPERATIONAL_SIGNALS.md`, `docs/deploy/STAGING.md`, `scripts/ops/staging_runtime_diagnostics.py`.
   - DoD: Exact staging SSH/receipt and unique container identity, separate `/health` and `/ready` results, verify-full file-backed read-only DB observations with unknown visibility, sanitized versioned JSON and deterministic failure codes; focused/CI coverage and review gates; after authorized merge, preserve an owner-only verified archive and same-ID sanitized Drive readback. No deployment or alert-delivery claim.
+
+<a id="ledger-p1-production-postgres-image-id-admission"></a>
+- [ ] P1: Admit the frozen PostgreSQL platform image ID in self-hosted production deploy
+  - Owner: dev-operator / security-auditor / agent-coordinator
+  - Priority: P1 (deployment image identity)
+  - Target PR: [#2443](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2443) (OPS-03B staging and self-hosted production image-ID admission)
+  - Status: In progress in PR #2443; merge and current-head gates remain pending. A disposable Docker probe proved the platform-ID form on the exact frozen image without starting its container; the config-ID form has deterministic full-path fixture coverage only. No live production host identity, deploy or activation is claimed.
+  - Reason for deferral: `scripts/deploy_production.sh` has the same config-digest-only current-image guard observed to reject the frozen platform manifest ID on staging. The owner expanded the bounded #2443 repository repair to both staging and self-hosted production, while keeping production host operations outside scope.
+  - Links: `scripts/deploy_production.sh`, `deploy/postgres-pgvector/image-manifest.json`, `docs/deploy/POSTGRES_SELF_HOSTED_DROPLET.md`.
+  - DoD: Prove native `docker image inspect` by the existing container image ID on a disposable self-hosted production harness; accept only the exact configured PostgreSQL ref with the frozen config or platform ID, binding both forms to one bounded duplicate-free inspect record, matching `Id`, canonical `RepoDigests`, linux/amd64 and closed runtime metadata. Retain the frozen legacy predecessor and prove malformed, foreign, ambiguous and unavailable identity failures occur before writer stop, backup, migration or PostgreSQL replacement. Complete focused and current-head PR gates; obtain separate approval for any production deploy.
 
 <a id="ledger-p1-ops03-alert-delivery"></a>
 - [ ] P1: OPS-03 host/DB/service observability with human alert delivery
