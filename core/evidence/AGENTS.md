@@ -18,6 +18,19 @@ For E2/E3-style work, keep `core/evidence/` pure and deterministic. Do not
 import FastAPI, providers, DB/session state, Redis/cache modules, eval runners,
 or advisory wiki modules from this package.
 
+## NOOS-1A offline relation audit
+
+`relations.py` owns typed, immutable claim-to-evidence links, world-relation
+assertions, and structural assessments over one supplied finite inventory.
+Keep assessment separate from assertion, preserve every explicit revision, and
+include every represented adverse link for the exact claim/context/time key.
+A positive causal structural result only means the declared method, review and
+adjudication references satisfy the offline matrix for that supplied scope.
+It never authenticates a reviewer or grants product/runtime authority. The
+JSONL reader and private report writer belong only to
+`scripts/evals/evidence_relation_audit.py`; do not move I/O into this package
+or export these new types through the general `core.evidence` facade.
+
 E3 promotion ledger/replay changes may add append-only promotion contracts and
 dry-run replay summaries only. They must not write files, call runtime stores,
 create promotion side effects, or duplicate `core/knowledge/promotion.py`.
