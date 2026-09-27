@@ -106,6 +106,19 @@ PRODUCTION_DOMAIN=example.com STAGING_FALLBACK_DOMAIN=staging.example.com \
   `STAGING_ATTESTED_DIGEST_READY`; secret bootstrap and staging/production
   activation remain human actions. Follow
   `docs/deploy/OPERATIONAL_SIGNALS.md` for the operator sequence and rollback.
+- Optional OBS2A Alertmanager is an `alerting` profile in all three contours.
+  It is not part of ordinary app/DB/metrics startup. Its exact image, private
+  network topology, `environment` label authority, config and narrow Trivy
+  exception must pass CD and both deploy admissions before product mutation.
+  Only selected alerting requires a Compose-account-owned mode-0444 SMTP key
+  in the existing protected mode-0700 secrets directory; the bind mount makes
+  the file readable to Alertmanager UID 65534 without ownership remapping.
+  neither the key nor its contents belongs in a bundle. Preserve an already
+  running Alertmanager across production `--remove-orphans` app/Caddy updates.
+  `smtp-egress` is outbound networking, not a destination firewall. Actual
+  received email and host activation require separate evidence; see
+  `docs/deploy/OPERATIONAL_SIGNALS.md` and
+  `docs/security/CVE-2026-84445-alertmanager.md`.
 
 ## Immutable PostgreSQL 15 plus pgvector contour
 
