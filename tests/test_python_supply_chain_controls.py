@@ -66,7 +66,7 @@ PIP_REQUIREMENT_DIRECTIVE_PREFIXES = (
     "-c ",
     "--constraint ",
 )
-PINNED_CHECKOUT_ACTION = "actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd"
+PINNED_CHECKOUT_ACTION = "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1"
 OPTIONAL_VECTOR_STACK_PACKAGES = (
     "fastembed",
     "pgvector",
