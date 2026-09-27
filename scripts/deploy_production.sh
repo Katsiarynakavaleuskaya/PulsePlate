@@ -1159,20 +1159,45 @@ if type(digests) is not list or not ({expected, "docker.io/" + expected} & set(d
 }
 
 
-validate_pulled_postgres_image() {
+validate_postgres_image_metadata() {
   local runtime_ref="$1"
+  local inspect_subject="$2"
+  local required_image_id="$3"
   local platform_digest="${runtime_ref##*@}"
-  "$DOCKER_BIN" image inspect "$runtime_ref" | "$PYTHON_BIN" -c '
+  "$DOCKER_BIN" image inspect "$inspect_subject" | "$PYTHON_BIN" -c '
 import json
 import sys
 
+def unique_object(pairs):
+    record = {}
+    for key, value in pairs:
+        if key in record:
+            raise ValueError("duplicate JSON key")
+        record[key] = value
+    return record
+
+def reject_constant(_value):
+    raise ValueError("non-JSON numeric constant")
+
 try:
-    payload = json.load(sys.stdin)
-except (TypeError, ValueError, json.JSONDecodeError) as exc:
+    raw = sys.stdin.buffer.read(1048577)
+    if len(raw) > 1048576:
+        raise ValueError("image inspect output too large")
+    payload = json.loads(raw, object_pairs_hook=unique_object, parse_constant=reject_constant)
+except (TypeError, ValueError, UnicodeError, RecursionError) as exc:
     raise SystemExit("PostgreSQL image inspect JSON is malformed") from exc
 if type(payload) is not list or len(payload) != 1 or type(payload[0]) is not dict:
     raise SystemExit("PostgreSQL image inspect must return exactly one image")
 record = payload[0]
+image_id = record.get("Id")
+frozen_image_ids = {
+    "sha256:c822c68e22d0358e66cee17e06f7b3ece5d1538cb8b607c1376b59620866ceff",
+    sys.argv[1],
+}
+if type(image_id) is not str or image_id not in frozen_image_ids:
+    raise SystemExit("PostgreSQL image inspect ID is outside the frozen candidate")
+if sys.argv[2] and image_id != sys.argv[2]:
+    raise SystemExit("Existing PostgreSQL image inspect ID does not match the container")
 config = record.get("Config")
 if type(config) is not dict:
     raise SystemExit("PostgreSQL image config is malformed")
@@ -1182,13 +1207,20 @@ if config.get("User") != "70" or config.get("Entrypoint") != ["/usr/local/bin/do
     raise SystemExit("Pulled PostgreSQL image runtime identity is not canonical")
 environment = config.get("Env")
 required_environment = {
-    "PGDATA=/var/lib/postgresql/15/data",
-    "PG_MAJOR=15",
-    "PG_MINOR=19",
+    "PGDATA": "/var/lib/postgresql/15/data",
+    "PG_MAJOR": "15",
+    "PG_MINOR": "19",
 }
 
-if type(environment) is not list or not required_environment.issubset(environment):
+if (
+    type(environment) is not list
+    or any(type(item) is not str for item in environment)
+):
     raise SystemExit("Pulled PostgreSQL image version or default PGDATA drifted")
+for name, value in required_environment.items():
+    matching = [item for item in environment if item.partition("=")[0] == name]
+    if matching != [f"{name}={value}"]:
+        raise SystemExit("Pulled PostgreSQL image version or default PGDATA drifted")
 labels = config.get("Labels")
 required_labels = {
     "com.pulseplate.pgvector.version": "0.8.6",
@@ -1199,9 +1231,22 @@ if type(labels) is not dict or any(labels.get(key) != value for key, value in re
     raise SystemExit("Pulled PostgreSQL image labels do not match the closed build")
 repo_digests = record.get("RepoDigests")
 expected = f"ghcr.io/katsiarynakavaleuskaya/pulseplate@{sys.argv[1]}"
-if type(repo_digests) is not list or expected not in repo_digests:
+if (
+    type(repo_digests) is not list
+    or any(type(item) is not str for item in repo_digests)
+    or expected not in repo_digests
+):
     raise SystemExit("Pulled PostgreSQL image is not bound to the canonical GHCR digest")
-' "$platform_digest"
+' "$platform_digest" "$required_image_id"
+}
+
+validate_pulled_postgres_image() {
+  if validate_postgres_image_metadata "$1" "$1" "" 2>/dev/null; then
+    :
+  else
+    echo "❌ Pulled PostgreSQL image metadata is not the frozen candidate" >&2
+    return 1
+  fi
 }
 
 validate_pulled_postgres_mountpoint() {
@@ -2610,7 +2655,17 @@ validate_existing_postgres_image_identity() {
       fi
       ;;
     "$POSTGRES_RUNTIME_REF")
-      if [ "$image_id" != "sha256:c822c68e22d0358e66cee17e06f7b3ece5d1538cb8b607c1376b59620866ceff" ]; then
+      local platform_image_id="${POSTGRES_RUNTIME_REF##*@}"
+      if [ "$image_id" = "sha256:c822c68e22d0358e66cee17e06f7b3ece5d1538cb8b607c1376b59620866ceff" ] || \
+         [ "$image_id" = "$platform_image_id" ]; then
+        if validate_postgres_image_metadata \
+            "$POSTGRES_RUNTIME_REF" "$POSTGRES_RUNTIME_REF" "$image_id" 2>/dev/null; then
+          :
+        else
+          echo "❌ Existing current PostgreSQL image metadata is not the frozen candidate" >&2
+          return 1
+        fi
+      else
         echo "❌ Existing current PostgreSQL image ID does not match the frozen candidate" >&2
         return 1
       fi
