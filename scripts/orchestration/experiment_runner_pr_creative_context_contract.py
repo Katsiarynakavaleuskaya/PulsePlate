@@ -233,7 +233,7 @@ SECRET_VALUE_RE = re.compile(
     r"\b(?:sk-[A-Za-z0-9_-]{12,}|gh[psoru]_[A-Za-z0-9_.-]{12,}|"
     r"github_pat_[A-Za-z0-9_]{12,}|xox[abprs]-[A-Za-z0-9-]{12,})|"
     r"\b[A-Z0-9_]*(?:SECRET|TOKEN|PASSWORD|PRIVATE_KEY|API[_-]?KEY)[A-Z0-9_]*"
-    r"\s*[:=]\s*[^\s,;\"']+",
+    r"['\"]?\s*[:=]\s*(?:\"[^\"\r\n]+\"|'[^'\r\n]+'|[^\s,;\"']+)",
     re.IGNORECASE,
 )
 UNSAFE_KEY_RE = re.compile(

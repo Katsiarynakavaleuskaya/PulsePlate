@@ -2410,6 +2410,31 @@ def test_operational_cli_native_stages_and_archive_round_trip(
         == 1
     )
     assert not (cli.CREATIVE_CONTEXT_ROOT / "forged-restore").exists()
+    unsupported_bytes = bytearray(original_archive)
+    local_header = unsupported_bytes.find(b"PK\x03\x04")
+    central_header = unsupported_bytes.find(b"PK\x01\x02")
+    assert local_header >= 0 and central_header >= 0
+    unsupported_bytes[local_header + 8 : local_header + 10] = (99).to_bytes(2, "little")
+    unsupported_bytes[central_header + 10 : central_header + 12] = (99).to_bytes(2, "little")
+    unsupported_dir = cli.CREATIVE_CONTEXT_ROOT / "unsupported-compression"
+    unsupported_dir.mkdir()
+    unsupported_archive = unsupported_dir / "creative_workflow_capsule.zip"
+    unsupported_archive.write_bytes(unsupported_bytes)
+    assert (
+        cli.main(
+            [
+                "workflow-verify-archive",
+                "--archive",
+                str(unsupported_archive),
+                "--sha256",
+                hashlib.sha256(unsupported_bytes).hexdigest(),
+                "--restore-dir",
+                "unsupported-restore",
+            ]
+        )
+        == 1
+    )
+    assert not (cli.CREATIVE_CONTEXT_ROOT / "unsupported-restore").exists()
     original_safe_read = cli._safe_workflow_file
 
     def replace_archive_after_verified_read(raw_path: str, *, maximum: int) -> bytes:
@@ -2471,6 +2496,21 @@ def test_operational_cli_native_stages_and_archive_round_trip(
     (source_dir / "euler.json").write_text('{"relations": []}', encoding="utf-8")
     with pytest.raises(cli.ExperimentRunnerCreativeContextCliError, match="digest changed"):
         cli._load_workflow_stage(str(output_dir / "workflow.admitted.json"), "admitted")
+    assert (
+        cli.main(
+            [
+                "workflow-verify-archive",
+                "--archive",
+                str(archive),
+                "--sha256",
+                hashlib.sha256(original_archive).hexdigest(),
+                "--restore-dir",
+                "stale-source-restore",
+            ]
+        )
+        == 1
+    )
+    assert not (cli.CREATIVE_CONTEXT_ROOT / "stale-source-restore").exists()
 
 
 @pytest.mark.parametrize("bad_error", [[], {}])
@@ -2570,6 +2610,9 @@ def test_operational_stage_and_archive_reject_false_completion_and_unsafe_files(
         ("work_review.md", "Observed /srv/alice/PulsePlate"),
         ("test_evidence.json", '{"credential":"DATABASE_PASSWORD=not-a-real-secret"}'),
         ("work_review.md", "Synthetic key ID: " + "AKIA" + "A" * 16),
+        ("work_review.md", "DATABASE_PASSWORD" + "=" + '"synthetic-not-a-secret"'),
+        ("patch.diff", "AWS_SECRET_ACCESS_KEY" + "=" + "'synthetic-not-a-secret'"),
+        ("test_evidence.json", json.dumps({"pass" + "word": "synthetic-not-a-secret"})),
     ):
         (output / name).write_text(content, encoding="utf-8")
         with pytest.raises(cli.ExperimentRunnerCreativeContextCliError, match="private"):

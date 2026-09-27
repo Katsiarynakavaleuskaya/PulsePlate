@@ -67,6 +67,7 @@ REASON_CODES = (
     "manual_additive_upgrade",
     "bounded_alternatives_declared",
     "creative_writer_unavailable",
+    "creative_exact_file_scope_missing",
     "direct_fix_declared",
     "creative_disabled",
 )
@@ -175,6 +176,7 @@ class ApplicabilitySignals:
     docs_only: bool
     pr_phase: str = "none"
     runtime_writer_available: bool = False
+    exact_file_candidate_available: bool = False
     creative_applicability: str | None = None
 
 
@@ -727,6 +729,21 @@ def _mapping(value: Any) -> Mapping[str, Any]:
     return cast(Mapping[str, Any], value)
 
 
+def _has_exact_file_candidate(paths: tuple[str, ...]) -> bool:
+    for raw_path in paths:
+        if raw_path == ".":
+            continue
+        candidate = REPO_ROOT
+        for part in PurePosixPath(raw_path).parts:
+            candidate = candidate / part
+            if candidate.is_symlink():
+                break
+        else:
+            if not candidate.is_dir():
+                return True
+    return False
+
+
 def extract_applicability_signals(snapshot: TaskPacketSnapshot) -> ApplicabilitySignals:
     """Extract only structured, producer-bound signals from a validated snapshot."""
 
@@ -769,6 +786,9 @@ def extract_applicability_signals(snapshot: TaskPacketSnapshot) -> Applicability
         or dispatch.get("runtime_implementation_owner_flags_required") is not bool(owners)
     ):
         _error()
+    candidate_paths = packet.get("candidate_paths")
+    if not isinstance(candidate_paths, tuple):
+        _error()
     return ApplicabilitySignals(
         invariant_review=invariant_signal,
         security_review=automation.get("security_review_required") is True,
@@ -776,6 +796,7 @@ def extract_applicability_signals(snapshot: TaskPacketSnapshot) -> Applicability
         docs_only=skill_routing.get("envelope_mode_hint") == "docs_only",
         pr_phase=cast(str, packet["pr_phase"]),
         runtime_writer_available=bool(owners),
+        exact_file_candidate_available=_has_exact_file_candidate(candidate_paths),
         creative_applicability=cast(str | None, packet.get("creative_applicability")),
     )
 
@@ -833,7 +854,7 @@ def _decision_rows(
         )
         creative_treatment = (
             RailTreatment.RECOMMEND
-            if alternatives and writer_available
+            if alternatives and writer_available and signals.exact_file_candidate_available
             else RailTreatment.NOT_APPLICABLE
         )
         creative_reason = {
@@ -843,7 +864,13 @@ def _decision_rows(
         }.get(signals.creative_applicability or "", "creative_scope_not_selected")
         if alternatives:
             creative_reason = (
-                "design_lane_applicable" if writer_available else "creative_writer_unavailable"
+                "creative_writer_unavailable"
+                if not writer_available
+                else (
+                    "design_lane_applicable"
+                    if signals.exact_file_candidate_available
+                    else "creative_exact_file_scope_missing"
+                )
             )
         rows = (
             ("teleology", RailTreatment.FULL, ("design_lane_applicable",)),
@@ -895,12 +922,20 @@ def _decision_rows(
             ),
             (
                 "creative",
-                RailTreatment.RECOMMEND if writer_available else RailTreatment.NOT_APPLICABLE,
+                (
+                    RailTreatment.RECOMMEND
+                    if writer_available and signals.exact_file_candidate_available
+                    else RailTreatment.NOT_APPLICABLE
+                ),
                 (
                     (
-                        "bounded_alternatives_declared"
-                        if writer_available
-                        else "creative_writer_unavailable"
+                        "creative_writer_unavailable"
+                        if not writer_available
+                        else (
+                            "bounded_alternatives_declared"
+                            if signals.exact_file_candidate_available
+                            else "creative_exact_file_scope_missing"
+                        )
                     ),
                 ),
             ),

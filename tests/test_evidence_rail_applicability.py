@@ -158,6 +158,7 @@ def test_actual_packet_shape_selects_exact_high_assurance_projection(
         docs_only=False,
         pr_phase="pre_open",
         runtime_writer_available=True,
+        exact_file_candidate_available=True,
     )
     assert result.rule_id == "higher_assurance"
     assert result.applicable_sidecar_rails == ("euler", "experiment_runner", "teleology")
@@ -300,6 +301,27 @@ def test_pre_open_research_without_runtime_owner_does_not_recommend_creative(
     assert _treatments(result)["creative"] == {
         "treatment": "not_applicable",
         "reasons": ["creative_writer_unavailable"],
+    }
+
+
+def test_directory_only_packet_scope_does_not_recommend_creative(
+    packet_root: Path, tmp_path: Path
+) -> None:
+    (tmp_path / "tests").mkdir()
+    packet = _base_packet(
+        tmp_path,
+        task_class="Implementation",
+        candidate_paths=["tests"],
+        creative_applicability="alternatives",
+        pr_phase="pre_open",
+    )
+    assert packet["role_agent_dispatch_contract"]["runtime_implementation_owners"]
+    result = build_evidence_rail_applicability(
+        _snapshot(packet_root, packet, salt="directory-only-creative-scope")
+    )
+    assert _treatments(result)["creative"] == {
+        "treatment": "not_applicable",
+        "reasons": ["creative_exact_file_scope_missing"],
     }
 
 

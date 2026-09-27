@@ -1038,6 +1038,7 @@ def _workflow_verify_archive(args: argparse.Namespace) -> int:
             if restored_stages["workflow.returned.json"]["intake_error"] is not None:
                 raise ExperimentRunnerCreativeContextCliError("restored intake was invalid")
             admitted_stage = restored_stages["workflow.admitted.json"]
+            _workflow_sources(admitted_stage["request"], require_current_git=False)
             dispatch_order, eligible = _canonical_manifest_writer_occurrences(
                 admitted_stage["request"]
             )
