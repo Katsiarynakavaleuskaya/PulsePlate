@@ -15,6 +15,7 @@ from contextlib import ExitStack
 import hashlib
 import json
 import logging
+import math
 import os
 from pathlib import Path
 import re
@@ -202,13 +203,16 @@ def validate_pricing_evidence(rows: list[object]) -> None:
         "verified_at",
     }:
         raise ValueError("pricing_shape")
+    max_cost = row["max_usd_per_attempt"]
+    if not isinstance(max_cost, (int, float)) or isinstance(max_cost, bool):
+        raise ValueError("pricing_unverified")
     if (
         row["schema_version"] != "fitchef_pricing_evidence.v1"
         or row["model"] != _MODEL
         or row["max_request_bytes"] != _MAX_HTTP_BODY_BYTES
         or row["max_tokens"] != 1024
-        or type(row["max_usd_per_attempt"]) not in (int, float)
-        or not 0 <= row["max_usd_per_attempt"] <= _RESERVE_USD
+        or not math.isfinite(max_cost)
+        or not 0 <= max_cost <= _RESERVE_USD
         or type(row["source_url"]) is not str
         or not row["source_url"].startswith("https://docs.perplexity.ai/")
         or type(row["verified_at"]) is not str
@@ -228,18 +232,21 @@ def _code_sha() -> str:
     code, sha = run_resolved_git(["git", "rev-parse", "HEAD"], cwd=Path.cwd())
     if code != 0:
         raise ValueError("git_head_unavailable")
-    if not re.fullmatch(r"[0-9a-f]{40}", sha):
+    if not isinstance(sha, str) or not re.fullmatch(r"[0-9a-f]{40}", sha):
         raise ValueError("code_sha")
     return sha
 
 
 def _code_hashes() -> dict[str, str]:
+    adapter_file = sys.modules[PerplexityProvider.__module__].__file__
+    if not isinstance(adapter_file, str):
+        raise ValueError("perplexity_adapter_file_unavailable")
     modules = {
         "collector": Path(__file__),
         "evaluator": Path(fitchef_claim_assurance_eval.__file__),
         "fitchef_runtime": Path(fitchef_runtime.__file__),
         "fitchef_companion": Path(fitchef_companion.__file__),
-        "perplexity_adapter": Path(sys.modules[PerplexityProvider.__module__].__file__),
+        "perplexity_adapter": Path(adapter_file),
     }
     return {name: hashlib.sha256(path.read_bytes()).hexdigest() for name, path in modules.items()}
 
@@ -370,7 +377,12 @@ async def _collect_one(
                     if type(extra) is not dict:
                         raise ValueError("invalid_provider_cost")
                     amount = extra.get("total_cost")
-                    if type(amount) not in (int, float) or not 0 <= amount <= 5:
+                    if (
+                        not isinstance(amount, (int, float))
+                        or isinstance(amount, bool)
+                        or not math.isfinite(amount)
+                        or not 0 <= amount <= 5
+                    ):
                         raise ValueError("invalid_provider_cost")
                     actual_cost = float(amount)
         return response
@@ -378,6 +390,8 @@ async def _collect_one(
     async def observed_generate(prompt: str) -> str:
         nonlocal raw_response
         result = await real_generate(prompt)
+        if not isinstance(result, str):
+            raise ValueError("provider_response_type")
         raw_response = result
         return result
 
@@ -389,7 +403,10 @@ async def _collect_one(
     def observed_fallback(*, automatic_thought: str, goal: str | None) -> str:
         nonlocal fallback_called
         fallback_called = True
-        return real_fallback(automatic_thought=automatic_thought, goal=goal)
+        result = real_fallback(automatic_thought=automatic_thought, goal=goal)
+        if not isinstance(result, str):
+            raise ValueError("fallback_response_type")
+        return result
 
     def controlled_retrieval(query: str, **kwargs: Any) -> RAGContext:
         if kwargs.get("agent_id") != "cbt-agent" or kwargs.get("user_tier") not in ("PRO", "VIP"):

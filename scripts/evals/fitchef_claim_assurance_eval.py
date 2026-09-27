@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 from collections import Counter
+from collections.abc import Sequence
 import hashlib
 import json
 import math
@@ -134,7 +135,7 @@ def _canonical(value: object) -> bytes:
     ).encode("utf-8")
 
 
-def _jsonl(rows: list[object]) -> bytes:
+def _jsonl(rows: Sequence[object]) -> bytes:
     return b"".join(_canonical(row) + b"\n" for row in rows)
 
 
