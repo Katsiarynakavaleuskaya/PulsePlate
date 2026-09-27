@@ -646,7 +646,7 @@ def test_exhausted_hook_blocks_network_handler(tmp_path: Path) -> None:
         )
         try:
             with pytest.raises(collector.BudgetExhausted):
-                await client.post("https://api.perplexity.ai/chat/completions", json={})
+                await client.send(request)
         finally:
             await client.aclose()
 
@@ -825,7 +825,9 @@ def test_timeout_keeps_unknown_cost_reservation(tmp_path: Path) -> None:
         )
         try:
             with pytest.raises(httpx.ReadTimeout):
-                await client.post("https://api.perplexity.ai/chat/completions", json={})
+                await client.send(
+                    httpx.Request("POST", "https://api.perplexity.ai/chat/completions", json={})
+                )
         finally:
             await client.aclose()
 
