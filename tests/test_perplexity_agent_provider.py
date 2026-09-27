@@ -12,7 +12,8 @@ from typing import Any
 
 import httpx
 import pytest
-from openai import AsyncOpenAI
+from openai import DefaultAsyncHttpxClient
+from openai._models import FinalRequestOptions
 from fastapi.testclient import TestClient
 
 from app.middleware.api_tiers import TEST_KEY_VIP
@@ -21,6 +22,7 @@ from providers.perplexity_agent import (
     AGENT_API_MAX_OUTPUT_BYTES,
     AGENT_API_MAX_PROMPT_BYTES,
     PerplexityAgentProvider,
+    _AgentAsyncOpenAI,
 )
 
 MODEL = "openai/gpt-6-luna"
@@ -284,6 +286,281 @@ def test_timeout_is_sanitized_and_not_retried() -> None:
     assert "secret prompt and credential" not in "".join(traceback.format_exception(caught.value))
 
 
+@pytest.mark.parametrize("status", [307, 308])
+@pytest.mark.parametrize("cross_origin", [False, True])
+@pytest.mark.parametrize("owned", [False, True])
+def test_redirect_is_rejected_after_one_physical_send(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+    status: int,
+    cross_origin: bool,
+    owned: bool,
+) -> None:
+    calls: list[httpx.Request] = []
+    created: list[httpx.AsyncClient] = []
+    caplog.set_level(logging.DEBUG, logger="openai._base_client")
+    caplog.set_level(logging.DEBUG, logger="openai._response")
+    location = (
+        "https://example.invalid/private-redirect"
+        if cross_origin
+        else "https://api.perplexity.ai/v1/responses?private-redirect=1"
+    )
+
+    def _handler(request: httpx.Request) -> httpx.Response:
+        calls.append(request)
+        if len(calls) == 1:
+            return httpx.Response(
+                status,
+                headers={"location": location},
+                json={"error": {"message": "secret-redirect-body"}},
+            )
+        return httpx.Response(200, json=_response_body())
+
+    def _owned_client(**kwargs: Any) -> httpx.AsyncClient:
+        assert kwargs["follow_redirects"] is False
+        client = DefaultAsyncHttpxClient(**kwargs, transport=httpx.MockTransport(_handler))
+        created.append(client)
+        return client
+
+    monkeypatch.setattr("providers.perplexity_agent.DefaultAsyncHttpxClient", _owned_client)
+
+    async def _run() -> None:
+        async with httpx.AsyncClient(transport=httpx.MockTransport(_handler)) as borrowed:
+            provider = PerplexityAgentProvider(
+                api_key=TEST_KEY_VIP,
+                model=MODEL,
+                reasoning_effort="low",
+                http_client=None if owned else borrowed,
+            )
+            with pytest.raises(RuntimeError, match="FitChef Agent API unavailable") as caught:
+                await provider.generate(PROMPT)
+            assert "secret-redirect-body" not in "".join(traceback.format_exception(caught.value))
+            assert not borrowed.is_closed and borrowed.follow_redirects is False
+        assert len(created) == (1 if owned else 0)
+        if owned:
+            assert created[0].is_closed
+
+    asyncio.run(_run())
+    assert len(calls) == 1
+    assert str(calls[0].url) == "https://api.perplexity.ai/v1/responses"
+    assert calls[0].method == "POST"
+    assert calls[0].headers["authorization"] == f"Bearer {TEST_KEY_VIP}"
+    assert json.loads(calls[0].content)["input"] == PROMPT
+    assert location not in caplog.text and "secret-redirect-body" not in caplog.text
+    assert TEST_KEY_VIP not in caplog.text and PROMPT not in caplog.text
+
+
+@pytest.mark.parametrize(
+    "stage",
+    ["constructor_true", "before_generate_true", "constructor_closed", "before_generate_closed"],
+)
+def test_unsafe_borrowed_client_rejected_without_send_allocation_or_owner_effects(
+    monkeypatch: pytest.MonkeyPatch,
+    stage: str,
+) -> None:
+    monkeypatch.setattr(
+        "providers.perplexity_agent.DefaultAsyncHttpxClient",
+        lambda **kwargs: pytest.fail("unsafe borrowed client must not allocate owned HTTPX"),
+    )
+    monkeypatch.setattr(
+        "providers.perplexity_agent._AgentAsyncOpenAI",
+        lambda **kwargs: pytest.fail("unsafe borrowed client must not allocate SDK"),
+    )
+
+    async def _run() -> None:
+        borrowed = httpx.AsyncClient(
+            transport=httpx.MockTransport(
+                lambda request: pytest.fail("unsafe client must not send")
+            ),
+            follow_redirects=stage == "constructor_true",
+        )
+        try:
+            if stage == "constructor_closed":
+                await borrowed.aclose()
+            if stage.startswith("constructor"):
+                with pytest.raises(ValueError, match="not configured safely"):
+                    PerplexityAgentProvider(
+                        api_key=TEST_KEY_VIP,
+                        model=MODEL,
+                        reasoning_effort="low",
+                        http_client=borrowed,
+                    )
+            else:
+                provider = PerplexityAgentProvider(
+                    api_key=TEST_KEY_VIP, model=MODEL, reasoning_effort="low", http_client=borrowed
+                )
+                if stage == "before_generate_true":
+                    borrowed.follow_redirects = True
+                else:
+                    await borrowed.aclose()
+                with pytest.raises(RuntimeError, match="FitChef Agent API unavailable"):
+                    await provider.generate(PROMPT)
+            assert borrowed.follow_redirects == stage.endswith("true")
+            assert borrowed.is_closed == stage.endswith("closed")
+        finally:
+            await borrowed.aclose()
+
+    asyncio.run(_run())
+
+
+@pytest.mark.parametrize("status", [307, 308])
+@pytest.mark.parametrize("cross_origin", [False, True])
+def test_request_bound_redirect_option_survives_late_borrowed_flag_mutation(
+    monkeypatch: pytest.MonkeyPatch,
+    status: int,
+    cross_origin: bool,
+) -> None:
+    calls: list[httpx.Request] = []
+
+    async def _run() -> None:
+        def _handler(request: httpx.Request) -> httpx.Response:
+            calls.append(request)
+            return httpx.Response(
+                status,
+                headers={
+                    "location": (
+                        "https://example.invalid/redirect" if cross_origin else "/v1/redirect"
+                    )
+                },
+            )
+
+        async with httpx.AsyncClient(transport=httpx.MockTransport(_handler)) as borrowed:
+
+            async def _mutate_after_options(
+                self: _AgentAsyncOpenAI, request: httpx.Request
+            ) -> None:
+                borrowed.follow_redirects = True
+
+            monkeypatch.setattr(_AgentAsyncOpenAI, "_prepare_request", _mutate_after_options)
+            provider = PerplexityAgentProvider(
+                api_key=TEST_KEY_VIP, model=MODEL, reasoning_effort="low", http_client=borrowed
+            )
+            with pytest.raises(RuntimeError, match="FitChef Agent API unavailable"):
+                await provider.generate(PROMPT)
+            assert borrowed.follow_redirects is True and not borrowed.is_closed
+
+    asyncio.run(_run())
+    assert len(calls) == 1 and calls[0].url.host == "api.perplexity.ai"
+
+
+def test_native_sdk_redirect_hook_copies_options_and_borrowed_success_stays_open() -> None:
+    async def _run() -> None:
+        async with httpx.AsyncClient(
+            transport=httpx.MockTransport(
+                lambda request: httpx.Response(200, json=_response_body())
+            )
+        ) as borrowed:
+            sdk = _AgentAsyncOpenAI(api_key=TEST_KEY_VIP, http_client=borrowed)
+            options = FinalRequestOptions.construct(
+                method="post", url="/responses", follow_redirects=True
+            )
+            prepared = await sdk._prepare_options(options)
+            assert prepared is not options and prepared.follow_redirects is False
+            assert options.follow_redirects is True
+            provider = PerplexityAgentProvider(
+                api_key=TEST_KEY_VIP, model=MODEL, reasoning_effort="low", http_client=borrowed
+            )
+            assert await provider.generate(PROMPT) == "Choose one balanced next meal."
+            assert not borrowed.is_closed and borrowed.follow_redirects is False
+
+    asyncio.run(_run())
+
+
+@pytest.mark.parametrize("outcome", ["success", "sdk_allocation_error", "cancelled"])
+@pytest.mark.parametrize("owned", [False, True])
+def test_client_ownership_includes_allocation_error_and_cancellation(
+    monkeypatch: pytest.MonkeyPatch,
+    outcome: str,
+    owned: bool,
+) -> None:
+    created: list[httpx.AsyncClient] = []
+
+    async def _run() -> None:
+        entered = asyncio.Event()
+        release = asyncio.Event()
+
+        async def _handler(request: httpx.Request) -> httpx.Response:
+            entered.set()
+            if outcome == "cancelled":
+                await release.wait()
+            return httpx.Response(200, json=_response_body())
+
+        def _factory(**kwargs: Any) -> httpx.AsyncClient:
+            client = DefaultAsyncHttpxClient(**kwargs, transport=httpx.MockTransport(_handler))
+            created.append(client)
+            return client
+
+        monkeypatch.setattr("providers.perplexity_agent.DefaultAsyncHttpxClient", _factory)
+        if outcome == "sdk_allocation_error":
+
+            def _fail_sdk(**kwargs: Any) -> _AgentAsyncOpenAI:
+                raise RuntimeError("secret SDK allocation details")
+
+            monkeypatch.setattr("providers.perplexity_agent._AgentAsyncOpenAI", _fail_sdk)
+        async with httpx.AsyncClient(transport=httpx.MockTransport(_handler)) as borrowed:
+            provider = PerplexityAgentProvider(
+                api_key=TEST_KEY_VIP,
+                model=MODEL,
+                reasoning_effort="low",
+                http_client=None if owned else borrowed,
+            )
+            if outcome == "cancelled":
+                task = asyncio.create_task(provider.generate(PROMPT))
+                await asyncio.wait_for(entered.wait(), timeout=5.0)
+                task.cancel()
+                with pytest.raises(asyncio.CancelledError):
+                    await task
+            elif outcome == "sdk_allocation_error":
+                with pytest.raises(RuntimeError, match="FitChef Agent API unavailable") as caught:
+                    await provider.generate(PROMPT)
+                assert "secret SDK allocation details" not in "".join(
+                    traceback.format_exception(caught.value)
+                )
+            else:
+                assert await provider.generate(PROMPT) == "Choose one balanced next meal."
+            assert not borrowed.is_closed and borrowed.follow_redirects is False
+        assert len(created) == (1 if owned else 0)
+        if owned:
+            assert created[0].is_closed
+
+    asyncio.run(_run())
+
+
+def test_inherited_sdk_log_context_remains_private_after_parent_reset(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    caplog.set_level(logging.DEBUG, logger="openai._base_client")
+    caplog.set_level(logging.DEBUG, logger="openai._response")
+
+    async def _run() -> None:
+        release_child = asyncio.Event()
+        children: list[asyncio.Task[None]] = []
+
+        async def _child() -> None:
+            await release_child.wait()
+            for name in ("openai._base_client", "openai._response"):
+                logging.getLogger(name).warning("inherited Agent child diagnostic")
+
+        def _handler(request: httpx.Request) -> httpx.Response:
+            children.append(asyncio.create_task(_child()))
+            logging.getLogger("openai._base_client").warning("nested Agent diagnostic")
+            return httpx.Response(200, json=_response_body())
+
+        async with httpx.AsyncClient(transport=httpx.MockTransport(_handler)) as borrowed:
+            provider = PerplexityAgentProvider(
+                api_key=TEST_KEY_VIP, model=MODEL, reasoning_effort="low", http_client=borrowed
+            )
+            await provider.generate(PROMPT)
+            logging.getLogger("openai._base_client").warning("independent outside Agent diagnostic")
+            release_child.set()
+            await asyncio.wait_for(asyncio.gather(*children), timeout=5.0)
+
+    asyncio.run(_run())
+    assert "inherited Agent child diagnostic" not in caplog.text
+    assert "nested Agent diagnostic" not in caplog.text
+    assert "independent outside Agent diagnostic" in caplog.text
+
+
 def test_sdk_debug_logs_are_private_and_concurrent_diagnostics_are_preserved(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
@@ -333,7 +610,7 @@ def test_invalid_prompt_does_not_allocate_client(
     prompt: str,
 ) -> None:
     monkeypatch.setattr(
-        "providers.perplexity_agent.AsyncOpenAI",
+        "providers.perplexity_agent._AgentAsyncOpenAI",
         lambda **kwargs: pytest.fail("bad prompt must not allocate a client"),
     )
     provider = PerplexityAgentProvider(api_key=TEST_KEY_VIP, model=MODEL, reasoning_effort="low")
@@ -382,13 +659,11 @@ def agent_runtime_transport(
     )
 
     def _install(handler: Callable[[httpx.Request], httpx.Response]) -> None:
-        def _client(**kwargs: Any) -> AsyncOpenAI:
-            kwargs.pop("http_client", None)
-            return AsyncOpenAI(
-                **kwargs, http_client=httpx.AsyncClient(transport=httpx.MockTransport(handler))
-            )
+        def _client(**kwargs: Any) -> httpx.AsyncClient:
+            assert kwargs["follow_redirects"] is False
+            return DefaultAsyncHttpxClient(**kwargs, transport=httpx.MockTransport(handler))
 
-        monkeypatch.setattr("providers.perplexity_agent.AsyncOpenAI", _client)
+        monkeypatch.setattr("providers.perplexity_agent.DefaultAsyncHttpxClient", _client)
 
     return _install
 
@@ -515,7 +790,7 @@ def test_agent_routes_quota_denied_makes_zero_provider_calls(
         lambda request: pytest.fail("quota denial must prevent physical request")
     )
     monkeypatch.setattr(
-        "providers.perplexity_agent.AsyncOpenAI",
+        "providers.perplexity_agent.DefaultAsyncHttpxClient",
         lambda **kwargs: pytest.fail("quota denial must not allocate a client"),
     )
     response = client.post(
@@ -527,7 +802,20 @@ def test_agent_routes_quota_denied_makes_zero_provider_calls(
 
 
 @pytest.mark.parametrize(
-    "failure", ["sdk_error", "timeout", "failed", "incomplete", "wrong_model", "tool", "empty"]
+    "failure",
+    [
+        "sdk_error",
+        "timeout",
+        "failed",
+        "incomplete",
+        "wrong_model",
+        "tool",
+        "empty",
+        "redirect_same307",
+        "redirect_cross307",
+        "redirect_same308",
+        "redirect_cross308",
+    ],
 )
 def test_agent_route_failure_is_sanitized_without_sonar_reroute(
     client: TestClient,
@@ -551,6 +839,18 @@ def test_agent_route_failure_is_sanitized_without_sonar_reroute(
         if failure == "sdk_error":
             return httpx.Response(
                 500, json={"error": {"message": "secret-provider-body synthetic-test-key"}}
+            )
+        if failure.startswith("redirect_"):
+            return httpx.Response(
+                307 if failure.endswith("307") else 308,
+                headers={
+                    "location": (
+                        "https://example.invalid/private-redirect"
+                        if "cross" in failure
+                        else "/v1/private-redirect"
+                    )
+                },
+                json={"error": {"message": "secret-provider-body synthetic-test-key"}},
             )
         body = _response_body()
         if failure in ("failed", "incomplete"):
@@ -623,7 +923,7 @@ def test_agent_bad_configuration_stops_before_quota_and_client(
         lambda *args, **kwargs: pytest.fail("bad configuration must not debit quota"),
     )
     monkeypatch.setattr(
-        "providers.perplexity_agent.AsyncOpenAI",
+        "providers.perplexity_agent._AgentAsyncOpenAI",
         lambda **kwargs: pytest.fail("bad configuration must not allocate a client"),
     )
     case = _ROUTE_CASES[1 if structured else 0]

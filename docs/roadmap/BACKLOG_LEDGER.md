@@ -5932,7 +5932,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: FitChef opt-in Perplexity Agent API text transport
   - Owner: backend-engineer / product AI / security-auditor
   - Priority: P1
-  - Target PR: `PR-TBD` on `codex/fitchef-agent-api-provider`
+  - Target PR: [#2452](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2452) on `codex/fitchef-agent-api-provider`
   - Status: Separate experimental implementation lane; existing Sonar remains
     the default. No real-user Agent API activation or quality claim is admitted.
   - Area: FitChef provider adapter / cost and privacy boundary
@@ -5945,6 +5945,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Links: `app/services/fitchef_runtime.py`, `providers/perplexity.py`,
     `docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md`,
     `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-noos-1b-fitchef-answer-evaluation`,
+    [NOOS-1C reservation in owning PR #2451 branch](https://github.com/Katsiarynakavaleuskaya/PulsePlate/blob/codex/noos-fitchef-claim-evidence-evaluation/docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-noos-1c-fitchef-response-quality-routing),
+    [Search retrieval study reservation in owning PR #2451 branch](https://github.com/Katsiarynakavaleuskaya/PulsePlate/blob/codex/noos-fitchef-claim-evidence-evaluation/docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-noos-search-retrieval-candidate-study),
     <https://docs.perplexity.ai/docs/agent-api/openai-compatibility>,
     <https://docs.perplexity.ai/docs/resources/privacy-security>
   - DoD: Add a default-off, FitChef-scoped, development-only Agent API option

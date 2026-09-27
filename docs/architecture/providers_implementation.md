@@ -54,15 +54,29 @@ their order, including the `provider://default` audit target.
 | Model | Exactly one of `openai/gpt-6-luna`, `openai/gpt-6-sol`; explicit configuration |
 | Reasoning effort | Explicit `none` or `low` |
 | Tools and storage option | `tools=[]`, `store=false` |
-| Attempt budget | SDK retries disabled; no automatic Sonar reroute or second paid attempt |
+| Attempt budget | SDK retries and redirects disabled; no automatic Sonar reroute or second paid attempt |
 | Limits | 45-second SDK timeout; 32,768-byte prompt and output bounds; 2,048 output tokens |
 | Response admission | Completed, error-free, exact requested model, one final assistant text message; no tool output |
 
-The provider adapter closes its request client and sanitizes SDK exceptions
+The provider allocates an explicitly redirect-disabled owned HTTPX client only
+inside quota-admitted generation and closes owned resources on success, failure,
+SDK allocation error, and cancellation. Injected clients remain caller-owned:
+unsafe redirect-following or closed clients fail before quota/client allocation,
+are rechecked before generation, and are never mutated or closed by the adapter.
+The native SDK request-options hook copies its options and pins
+`follow_redirects=False` for each send, including when a borrowed client flag
+changes after admission. A redirect stops after the initial request and becomes
+the existing sanitized unavailable error; no second destination receives body
+or credentials (`providers/perplexity_agent.py:48`).
+
+The provider adapter sanitizes SDK exceptions
 without attaching raw SDK errors, prompt, key, or response body to logged
-tracebacks. A request-local `ContextVar` filter suppresses the Responses SDK's
-payload/exception logs, including DEBUG, for this Agent call while preserving
-concurrent unrelated SDK diagnostics (`providers/perplexity_agent.py:25`).
+tracebacks. A request-local `ContextVar` filter suppresses all records on exactly
+`openai._base_client` and `openai._response` during the entire active or inherited
+Agent request context, including nested SDK calls and child tasks that outlive
+the parent context reset. Independent contexts outside Agent retain diagnostics;
+this makes no broader concurrent/nested SDK observability promise
+(`providers/perplexity_agent.py:25`).
 Existing public timeout `504`,
 provider-unavailable `503`, and user quota `429` contracts remain unchanged.
 Text still enters the current structured draft, wellness validation, and

@@ -7,7 +7,8 @@ import logging
 from typing import Any
 
 import httpx
-from openai import APITimeoutError, AsyncOpenAI
+from openai import APITimeoutError, AsyncOpenAI, DefaultAsyncHttpxClient
+from openai._models import FinalRequestOptions
 
 AGENT_API_BASE_URL = "https://api.perplexity.ai/v1"
 AGENT_API_MODELS = frozenset({"openai/gpt-6-luna", "openai/gpt-6-sol"})
@@ -26,7 +27,7 @@ _AGENT_REQUEST_ACTIVE: ContextVar[bool] = ContextVar(
 
 
 class _AgentSDKLogFilter(logging.Filter):
-    """Suppress SDK payload/traceback records only in this request's context."""
+    """Suppress all exact-SDK-logger records in active or inherited Agent contexts."""
 
     def filter(self, record: logging.LogRecord) -> bool:
         return not _AGENT_REQUEST_ACTIVE.get()
@@ -34,10 +35,19 @@ class _AgentSDKLogFilter(logging.Filter):
 
 _SDK_LOG_FILTER = _AgentSDKLogFilter()
 # The installed Responses SDK logs raw input at DEBUG before our exception
-# sanitizer runs. Logger levels are shared; a task-local filter preserves other
-# providers' concurrent diagnostics without exposing this FitChef request.
+# sanitizer runs. Suppress every record on these two loggers in the entire
+# active/inherited Agent context. Independent contexts outside Agent retain
+# their diagnostics; nested SDK calls do not gain a confidentiality exception.
 for _sdk_logger_name in ("openai._base_client", "openai._response"):
     logging.getLogger(_sdk_logger_name).addFilter(_SDK_LOG_FILTER)
+
+
+class _AgentAsyncOpenAI(AsyncOpenAI):
+    """Bind no-redirect behavior to a copied native SDK request option."""
+
+    async def _prepare_options(self, options: FinalRequestOptions) -> FinalRequestOptions:
+        prepared = await super()._prepare_options(options)
+        return prepared.model_copy(update={"follow_redirects": False})
 
 
 def _item_field(item: object, name: str) -> Any:
@@ -72,6 +82,7 @@ class PerplexityAgentProvider:
             raise ValueError("FitChef Agent API model is not approved")
         if reasoning_effort not in AGENT_API_REASONING_EFFORTS:
             raise ValueError("FitChef Agent API reasoning effort is not approved")
+        self._require_safe_http_client(http_client)
 
         self.model = model
         self.reasoning_effort = reasoning_effort
@@ -79,6 +90,11 @@ class PerplexityAgentProvider:
         # denial must not leave an unused connection pool behind.
         self._api_key = normalized_key
         self._http_client = http_client
+
+    @staticmethod
+    def _require_safe_http_client(client: httpx.AsyncClient | None) -> None:
+        if client is not None and (client.follow_redirects is not False or client.is_closed):
+            raise ValueError("FitChef Agent API HTTP client is not configured safely")
 
     @staticmethod
     def require_prompt_in_budget(prompt: str) -> None:
@@ -93,13 +109,22 @@ class PerplexityAgentProvider:
         self.require_prompt_in_budget(text)
         log_context = _AGENT_REQUEST_ACTIVE.set(True)
         try:
-            async with AsyncOpenAI(
-                api_key=self._api_key,
-                base_url=AGENT_API_BASE_URL,
-                max_retries=0,
-                timeout=AGENT_API_TIMEOUT_SECONDS,
-                http_client=self._http_client,
-            ) as client:
+            self._require_safe_http_client(self._http_client)
+            owned_http_client: httpx.AsyncClient | None = None
+            try:
+                http_client = self._http_client
+                if http_client is None:
+                    owned_http_client = DefaultAsyncHttpxClient(
+                        follow_redirects=False, timeout=AGENT_API_TIMEOUT_SECONDS
+                    )
+                    http_client = owned_http_client
+                client = _AgentAsyncOpenAI(
+                    api_key=self._api_key,
+                    base_url=AGENT_API_BASE_URL,
+                    max_retries=0,
+                    timeout=AGENT_API_TIMEOUT_SECONDS,
+                    http_client=http_client,
+                )
                 response = await client.responses.create(
                     model=self.model,
                     input=text,
@@ -108,6 +133,9 @@ class PerplexityAgentProvider:
                     tools=[],
                     store=False,
                 )
+            finally:
+                if owned_http_client is not None:
+                    await owned_http_client.aclose()
             if (
                 response.status != "completed"
                 or response.error is not None
