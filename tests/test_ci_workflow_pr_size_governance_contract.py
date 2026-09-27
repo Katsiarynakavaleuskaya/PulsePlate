@@ -573,17 +573,31 @@ def test_all_active_workflows_declare_unique_yaml_keys() -> None:
         _assert_yaml_mapping_keys_are_unique(workflow_path.read_text(encoding="utf-8"))
 
 
+def _assert_no_unsafe_checkout_input(value: object) -> None:
+    """Reject the unsafe v7 opt-in regardless of action-input key casing."""
+
+    if isinstance(value, dict):
+        assert all(
+            not isinstance(key, str) or key.casefold() != "allow-unsafe-pr-checkout"
+            for key in value
+        )
+        for child in value.values():
+            _assert_no_unsafe_checkout_input(child)
+    elif isinstance(value, list):
+        for child in value:
+            _assert_no_unsafe_checkout_input(child)
+
+
+@pytest.mark.parametrize("key", ["allow-unsafe-pr-checkout", "Allow-Unsafe-Pr-Checkout"])
+def test_checkout_unsafe_input_rejects_case_variants(key: str) -> None:
+    """A casing variant cannot bypass the parsed workflow input guard."""
+
+    with pytest.raises(AssertionError):
+        _assert_no_unsafe_checkout_input({"jobs": [{"with": {key: True}}]})
+
+
 def test_all_active_checkout_uses_have_one_exact_v7_pin() -> None:
     """Enumerate checkout uses in every active workflow and local composite action."""
-
-    def assert_no_unsafe_checkout_input(value: object) -> None:
-        if isinstance(value, dict):
-            assert "allow-unsafe-pr-checkout" not in value
-            for child in value.values():
-                assert_no_unsafe_checkout_input(child)
-        elif isinstance(value, list):
-            for child in value:
-                assert_no_unsafe_checkout_input(child)
 
     workflow_paths = list(_active_workflow_paths())
     composite_paths = list(_active_composite_action_paths())
@@ -603,7 +617,7 @@ def test_all_active_checkout_uses_have_one_exact_v7_pin() -> None:
         _assert_yaml_mapping_keys_are_unique(source)
         payload = yaml.safe_load(source)
         assert isinstance(payload, dict), f"{path}: YAML root must be a mapping"
-        assert_no_unsafe_checkout_input(payload)
+        _assert_no_unsafe_checkout_input(payload)
         if path in workflow_path_set:
             assert (
                 isinstance(payload.get("jobs"), dict) and payload["jobs"]
@@ -626,7 +640,35 @@ def test_all_active_checkout_uses_have_one_exact_v7_pin() -> None:
                 source_line in expected_source_lines
             ), f"{relative_path}:{key_node.start_mark.line + 1}: {source_line}"
 
-    assert observed_checkout_uses, "No active actions/checkout references found"
+    expected_checkout_workflows = {
+        ".github/workflows/accessibility.yml",
+        ".github/workflows/actionlint.yml",
+        ".github/workflows/build-equivalence-evidence.yml",
+        ".github/workflows/build.yml",
+        ".github/workflows/cd-test.yml",
+        ".github/workflows/cd.yml",
+        ".github/workflows/ci-metrics.yml",
+        ".github/workflows/ci.yml",
+        ".github/workflows/codecov-upload.yml",
+        ".github/workflows/codeql.yml",
+        ".github/workflows/devcontainer-smoke.yml",
+        ".github/workflows/experiment-runner-dispatch.yml",
+        ".github/workflows/experiment-runner-slack-socket-smoke.yml",
+        ".github/workflows/frontend-ci.yml",
+        ".github/workflows/greenlight-ios.yml",
+        ".github/workflows/ios-appstore-assets.yml",
+        ".github/workflows/nightly-tests.yml",
+        ".github/workflows/nightly.yml",
+        ".github/workflows/npm-dependency-submission.yml",
+        ".github/workflows/python-dependency-submission.yml",
+        ".github/workflows/rag-release-gates.yml",
+        ".github/workflows/release-control-plane-evidence.yml",
+        ".github/workflows/release-manifest-evidence.yml",
+        ".github/workflows/security.yml",
+        ".github/workflows/trivy.yml",
+    }
+    assert len(observed_checkout_uses) == 74
+    assert {path for path, _ in observed_checkout_uses} == expected_checkout_workflows
 
 
 def _job_step_by_name(

@@ -631,11 +631,11 @@ def test_npm_dependency_submission_covers_root_and_frontend_lockfiles() -> None:
     )
     checkout_action = "actions/checkout@" + "".join(
         (
-            "de0fac2e",
-            "4500dabe",
-            "0009e672",
-            "14ff5f54",
-            "47ce83dd",
+            "3d3c42e5",
+            "aac5ba80",
+            "5825da76",
+            "410c1812",
+            "73ba90b1",
         )
     )
     root_step = _job_action_step(workflow, job_id="dependency-submission", action_name=action)
@@ -737,11 +737,11 @@ def test_python_dependency_submission_uses_profile_scoped_lockfile_roots() -> No
     )
     checkout_action = "actions/checkout@" + "".join(
         (
-            "de0fac2e",
-            "4500dabe",
-            "0009e672",
-            "14ff5f54",
-            "47ce83dd",
+            "3d3c42e5",
+            "aac5ba80",
+            "5825da76",
+            "410c1812",
+            "73ba90b1",
         )
     )
 
