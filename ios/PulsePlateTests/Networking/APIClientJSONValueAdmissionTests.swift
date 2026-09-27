@@ -210,7 +210,7 @@ private final class RawJSONAdmissionURLProtocol: URLProtocol {
 }
 
 // NSLock protects every access to the shared scripted responses and captured requests.
-private final class SequentialFitChefURLProtocol: URLProtocol, @unchecked Sendable {
+private final class SequentialFitChefURLProtocol: URLProtocol {
     private static let lock = NSLock()
     nonisolated(unsafe) private static var responseBodies: [Data] = []
     nonisolated(unsafe) private static var requests: [URLRequest] = []

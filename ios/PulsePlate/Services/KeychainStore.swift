@@ -18,7 +18,7 @@ nonisolated struct KeychainStore: Sendable {
     }
 
     func getString(account: String) throws -> String? {
-        var query: [CFString: Any] = [
+        let query: [CFString: Any] = [
             kSecClass: kSecClassGenericPassword,
             kSecAttrService: service,
             kSecAttrAccount: account,
