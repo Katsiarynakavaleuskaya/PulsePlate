@@ -1098,6 +1098,28 @@ jobs:
               raise SystemExit("OPS coverage must contain nonempty source line inventories")
           PY
 
+      - name: Measure FitChef Agent provider coverage
+        env:
+          PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/tests"
+          BLOCK_TEST_NETWORK: "true"
+        run: |
+          set -euo pipefail
+          python -m coverage run --rcfile=/dev/null --branch \
+            --include='providers/perplexity_agent.py' \
+            --data-file=.coverage.fitchef-agent -m pytest -q -p no:xdist \
+            tests/test_perplexity_agent_provider.py
+          python -m coverage xml --rcfile=/dev/null \
+            --data-file=.coverage.fitchef-agent -o coverage-fitchef-agent.xml
+          python - <<'PY'
+          from xml.etree import ElementTree
+
+          classes = ElementTree.parse("coverage-fitchef-agent.xml").findall(".//class")
+          if len(classes) != 1 or classes[0].get("filename") != "providers/perplexity_agent.py":
+              raise SystemExit("FitChef Agent coverage has missing or unexpected source files")
+          if not classes[0].findall("./lines/line"):
+              raise SystemExit("FitChef Agent coverage must contain a nonempty source line inventory")
+          PY
+
       - name: Finalize coverage artifacts
         env:
           PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/tests"
@@ -1124,6 +1146,14 @@ jobs:
         with:
           name: coverage-ops-context-${{ env.PYTHON_VERSION }}
           path: coverage-ops-context.xml
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload FitChef Agent coverage artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1 / Node 24
+        with:
+          name: coverage-fitchef-agent-${{ env.PYTHON_VERSION }}
+          path: coverage-fitchef-agent.xml
           if-no-files-found: error
           retention-days: 7
 
@@ -1907,6 +1937,12 @@ jobs:
           name: coverage-ops-context-${{ env.PYTHON_VERSION }}
           path: ./ops-context-coverage
 
+      - name: Download FitChef Agent coverage artifact
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1 / Node 24
+        with:
+          name: coverage-fitchef-agent-${{ env.PYTHON_VERSION }}
+          path: ./fitchef-agent-coverage
+
       - name: Fetch base branch
         run: |
           git fetch --no-tags --prune origin "${{ github.base_ref }}":"${{ github.base_ref }}"
@@ -1918,6 +1954,7 @@ jobs:
         run: |
           diff-cover ./coverage-artifacts/coverage.xml \
             ./ops-context-coverage/coverage-ops-context.xml \
+            ./fitchef-agent-coverage/coverage-fitchef-agent.xml \
             --compare-branch "${{ github.base_ref }}" \
             --fail-under "${{ env.COVERAGE_THRESHOLD }}" \
             --exclude 'frontend/**' \

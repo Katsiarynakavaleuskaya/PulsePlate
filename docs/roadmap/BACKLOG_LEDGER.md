@@ -5916,6 +5916,41 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `RU` and `ES` localization follow-ups are anchored as separate backlog items with their own target PR placeholders
     - Foundation/docs PRs remain docs-only and do not carry mascot or App Icon binary asset promotion
 
+<a id="ledger-p1-fitchef-agent-api-opt-in-transport"></a>
+- [ ] P1: FitChef opt-in Perplexity Agent API text transport
+  - Owner: backend-engineer / product AI / security-auditor
+  - Priority: P1
+  - Target PR: `PR-TBD` on `codex/fitchef-agent-api-provider`
+  - Status: Separate experimental implementation lane; existing Sonar remains
+    the default. No real-user Agent API activation or quality claim is admitted.
+  - Area: FitChef provider adapter / cost and privacy boundary
+  - Reason (EN): The current Perplexity Router endpoint is private preview and
+    returned 403 for the project's key, while a synthetic no-tools Agent API
+    call succeeded. An explicit FitChef-only transport option can compare
+    lower-cost frontier models without changing global `LLM_PROVIDER` for CBT
+    insight or creative research. Three exploratory development cases did not
+    establish a better model, a language policy, or answer-level support.
+  - Links: `app/services/fitchef_runtime.py`, `providers/perplexity.py`,
+    `docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md`,
+    `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-noos-1b-fitchef-answer-evaluation`,
+    <https://docs.perplexity.ai/docs/agent-api/openai-compatibility>,
+    <https://docs.perplexity.ai/docs/resources/privacy-security>
+  - DoD: Add a default-off, FitChef-scoped, development-only Agent API option
+    with one explicit reviewed model, no web or other tools, no model fallback
+    chain or SDK retries, bounded prompt/output, and no user content in logs.
+    Preserve the existing public FitChef routes, monthly quota, tier and input
+    gates, RAG provenance, wellness guard, deterministic template fallback,
+    and default Sonar behavior. Verify exact wire and failed/incomplete output
+    handling with mock transport and focused route tests; use only synthetic
+    text for a minimal real transport smoke. Keep production activation blocked
+    until the separate high-distress output repair in PR #2430 and a reviewed
+    Agent API data-retention/consent decision are complete. A later NOOS
+    outcome comparison must establish language, claim support, naturalness,
+    latency and cost before any product model switch.
+  - Out of scope (EN): Search API retrieval, Router private-preview bypass,
+    adaptive Luna/Sol routing, public DTO/OpenAPI, clinical advice, and a
+    claim that `store=false` means zero data retention.
+
 
 <a id="ledger-p1-distortion-simulator-wave"></a>
 - [x] P1: Distortion Simulator structured coaching lane
