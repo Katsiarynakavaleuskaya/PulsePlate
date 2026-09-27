@@ -833,7 +833,7 @@ def _decision_rows(
         )
         creative_reason = (
             "higher_assurance_scope_preempts_creative"
-            if signals.design_lane
+            if signals.creative_applicability == "alternatives"
             else "creative_scope_not_selected"
         )
         rows = (

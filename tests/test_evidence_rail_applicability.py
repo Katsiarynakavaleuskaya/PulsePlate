@@ -503,6 +503,7 @@ def test_high_assurance_preempts_design_with_specific_reason(
         target_surface="web-home",
         task_mode="implement",
         code_native_design_brief_path="docs/design/example.md",
+        creative_applicability="alternatives",
     )
     result = build_evidence_rail_applicability(
         _snapshot(packet_root, packet, salt="design-security")
@@ -986,7 +987,10 @@ def test_higher_assurance_preempts_declared_creative_alternatives(
         _snapshot(packet_root, packet, salt="preempt-alternatives")
     )
     assert result.rule_id == "higher_assurance"
-    assert _treatments(result)["creative"]["treatment"] == "not_applicable"
+    assert _treatments(result)["creative"] == {
+        "treatment": "not_applicable",
+        "reasons": ["higher_assurance_scope_preempts_creative"],
+    }
 
 
 @pytest.mark.parametrize("phase", ["post_open_review", "merge_ready"])
