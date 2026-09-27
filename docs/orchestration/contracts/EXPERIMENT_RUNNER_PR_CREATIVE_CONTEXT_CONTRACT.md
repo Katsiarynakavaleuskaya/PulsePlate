@@ -115,12 +115,14 @@ known token shapes and credential assignments (including quoted and JSON
 values) fail. Path validation treats repository filenames separately from
 secret values, so legitimate names such
 as `api_key.py` and ordinary prose such as "API key validation" remain
-admissible; token shapes, assignments, bearer values and key material do not.
+admissible; token shapes, assignments (including canonical `SERVER_SALT`),
+bearer values and key material do not.
 The same content sanitizer runs on export and restore, so a downloaded archive
 with internally consistent hashes cannot bypass UTF-8 or private-content checks.
 Explicit decorator and HTTP-method contexts
 allow public route literals such as `GET /api/v1/items` in patch and review
-evidence; they never exempt known filesystem roots such as `/home` and `/srv`
+evidence; they never exempt known filesystem roots such as `/home`, `/srv`,
+`/run`, `/proc`, `/sys` and `/media`
 or UNC shares. Restore admits only the exporter's `ZIP_STORED` members before
 reading payloads. Gitlink, symlink and other non-regular patch modes fail
 closed. Work Review must be nonempty and address every accepted criterion ID.
