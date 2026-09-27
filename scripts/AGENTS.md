@@ -561,15 +561,19 @@ Euler import, execution or store access is permitted.
   dispatch contract declares at least one runtime owner, after higher-assurance
   preemption.
   An execution-ready design packet without that explicit choice and a
-  `post_open_review`/`merge_ready` packet or any packet without a runtime writer receive no
-  Creative recommendation. The recommendation is not
+  `post_open_review`/`merge_ready` packet or any packet without a runtime writer
+  receive no Creative recommendation. The recommendation is not
   native execution or writer authority. The host follows the operational
   sequence in `.agents/skills/pulseplate-orchestration-dispatch/SKILL.md`, and
   the additive `creative_workflow.v1` CLI validates returned intake, separate
   review, exact-file writer handoff and sanitized capsule. Canonical repository
   paths may contain credential-related names; secret-value checks apply to
-  their contents. Archive restore rechecks the packet's canonical writer
-  manifest and fails closed when it is unavailable. Legacy v1/adaptive-v2
+  their contents. Each stage keeps its predecessor's inherited request, native
+  result and review bytes; a matching predecessor hash alone is insufficient.
+  Archive export permits route literals in explicit decorator or HTTP-method
+  context while rejecting local filesystem paths elsewhere. Archive restore
+  rechecks the packet's canonical writer manifest and fails closed when it is
+  unavailable. Legacy v1/adaptive-v2
   hypothesis and PR-2 patch-sandbox authority remains unchanged.
 - Contract and readiness boundaries:
   `docs/orchestration/PR_EVIDENCE_SIDECAR_V1.md` and

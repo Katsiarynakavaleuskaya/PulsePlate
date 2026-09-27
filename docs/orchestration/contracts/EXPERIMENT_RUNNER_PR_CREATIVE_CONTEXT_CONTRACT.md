@@ -63,10 +63,13 @@ Separate immutable, private local stages record `prepared`, `returned`,
 `returned` artifact with `INVALID_NATIVE_RESULT`; it cannot create a validated
 stage. Each stage declares its asset type, policy version, one upstream asset,
 content fingerprint and idempotency key; the next stage checks that exact
-predecessor. The packet selector recomputes the Creative marker's derived
-packet ID from its recorded base ID, rejecting a changed marker with the old
-ID. These checks provide local content continuity, not authentication against
-a same-UID actor able to rewrite all sources. `workflow-review` requires every criterion and Euler relation assessed
+predecessor and compares fields that must be inherited unchanged. A reviewed
+stage cannot substitute a different native result while naming the real
+validated-stage fingerprint. The packet selector recomputes the Creative
+marker's derived packet ID from its recorded base ID, rejecting a changed
+marker with the old ID. These checks provide local content continuity, not
+authentication against a same-UID actor able to rewrite all sources.
+`workflow-review` requires every criterion and Euler relation assessed
 as supported or satisfied before selection. The review binds the exact
 validated native-result fingerprint, so reusing variant IDs with changed
 content cannot reuse an earlier review. `workflow-admit` records a
@@ -96,8 +99,11 @@ evidence and Work Review, with a SHA-256 manifest. Symlinks, hardlinks,
 traversal, unexpected filenames, size excess, filesystem-rooted path forms,
 known token shapes and credential assignments fail. Path validation treats
 repository filenames separately from secret values, so legitimate names such
-as `api_key.py` remain admissible. These finite checks do not prove the absence
-of every possible secret; host review remains required before external upload.
+as `api_key.py` remain admissible. Explicit decorator and HTTP-method contexts
+allow public route literals such as `GET /api/v1/items` in patch and review
+evidence; they do not exempt ordinary local paths. These finite checks do not
+prove the absence of every possible secret; host review remains required before
+external upload.
 The authorized host uploads the package, reads the updated Google Doc by the
 same ID, downloads the package, compares its SHA-256 and runs safe restore in
 a fresh owned directory. Failure remains `storage_pending` and bars cleanup.
