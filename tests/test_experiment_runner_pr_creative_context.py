@@ -1831,7 +1831,25 @@ def test_operational_request_accepts_credential_related_repo_paths() -> None:
     request = _operational_request()
     request["allowed_paths"] = ["app/routers/api_key.py", "tests/test_update_api_key.py"]
     request["test_commands"] = ["pytest -q tests/test_update_api_key.py"]
+    request["criteria"][0]["description"] = "Update the API key validation route"
     assert validate_creative_workflow_request(request) == request
+    native = _operational_native(request)
+    for variant in native["variants"]:
+        variant["paths"] = ["app/routers/api_key.py"]
+        variant["tests"] = request["test_commands"]
+    native["variants"][0]["change"] = "Review private key metadata handling"
+    assert validate_creative_workflow_native_result(native, request) == native
+    review = _operational_review(request, native)
+    review["rationale"] = "Select the API key validation change"
+    assert validate_creative_workflow_review(review, request, native) == review
+    for private_value in (
+        "API_KEY=synthetic-value",
+        "Authorization: Bearer synthetic-value",
+        "-----BEGIN " + "PRIVATE KEY-----",
+    ):
+        request["criteria"][0]["description"] = private_value
+        with pytest.raises(ExperimentRunnerCreativeContextContractError, match="private"):
+            validate_creative_workflow_request(request)
 
 
 def test_operational_stage_inputs_reject_local_paths_before_persistence() -> None:
@@ -2524,8 +2542,10 @@ def test_operational_cli_native_stages_and_archive_round_trip(
     stale_evidence["commands"][0]["command"] = "pytest -q tests/test_other_example.py"
     for case, member_name, replacement in (
         ("unrelated-patch", "patch.diff", unrelated_patch.encode("utf-8")),
+        ("non-utf8-patch", "patch.diff", b"\xff"),
         ("stale-test-command", "test_evidence.json", json.dumps(stale_evidence).encode("utf-8")),
         ("empty-review", "work_review.md", b"   \n"),
+        ("unsafe-review", "work_review.md", b"Observed C1 and C2; API_KEY=synthetic-value"),
     ):
         tampered_members = dict(original_members)
         tampered_members[member_name] = replacement

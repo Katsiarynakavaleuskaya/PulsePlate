@@ -283,6 +283,13 @@ SECRET_VALUE_RE = re.compile(
     r"['\"]?\s*[:=]\s*(?:\"[^\"\r\n]+\"|'[^'\r\n]+'|[^\s,;\"']+)",
     re.IGNORECASE,
 )
+WORKFLOW_SECRET_TOKEN_RE = re.compile(
+    r"\b(?:sk-[A-Za-z0-9_-]{12,}|gh[psoru]_[A-Za-z0-9_.-]{12,}|"
+    r"github_pat_[A-Za-z0-9_]{12,}|xox[abprs]-[A-Za-z0-9-]{12,})\b|"
+    r"authorization:\s*bearer[ \t]+\S+|"
+    r"-----BEGIN(?: [A-Z0-9]+)? PRIVATE KEY-----",
+    re.IGNORECASE,
+)
 UNSAFE_KEY_RE = re.compile(
     r"(?i)(^raw|raw_|_raw|body$|_body$|body_text|body_html|patch_text|raw_patch|"
     r"prompt_text|raw_prompt|provider_payload|oracle_stdout|oracle_stderr|"
@@ -3112,7 +3119,7 @@ def _workflow_text(value: Any, label: str, *, maximum: int = 600) -> str:
     if not isinstance(value, str) or not value or value != value.strip() or len(value) > maximum:
         _workflow_fail(f"{label} must be bounded nonempty text")
     if (
-        SECRET_RE.search(value)
+        WORKFLOW_SECRET_TOKEN_RE.search(value)
         or SECRET_VALUE_RE.search(value)
         or contains_local_path_outside_route_context(value)
         or re.search(

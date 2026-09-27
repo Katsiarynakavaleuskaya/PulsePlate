@@ -39,6 +39,7 @@ from scripts.orchestration.experiment_runner_pr_creative_context_contract import
     OPERATOR_MODEL_INTAKE_TYPE,
     CREATIVE_WORKFLOW_SCHEMA_VERSION,
     SECRET_VALUE_RE,
+    WORKFLOW_SECRET_TOKEN_RE,
     contains_local_path_outside_route_context,
     ExperimentRunnerCreativeContextContractError,
     build_agent_consumption_summary,
@@ -77,13 +78,6 @@ from scripts.orchestration.creative_code_patch_workspace import (
 )
 from scripts.orchestration import qoder_dispatch_bridge
 
-ARCHIVE_SECRET_RE = re.compile(
-    r"\b(?:sk-[A-Za-z0-9_-]{12,}|gh[psoru]_[A-Za-z0-9_.-]{12,}|"
-    r"github_pat_[A-Za-z0-9_]{12,}|xox[abprs]-[A-Za-z0-9-]{12,})\b|"
-    r"authorization:\s*bearer[ \t]+\S+|"
-    r"-----BEGIN(?: [A-Z0-9]+)? PRIVATE KEY-----",
-    re.IGNORECASE,
-)
 ARCHIVE_AUTHORITY_CLAIM_RE = re.compile(
     r"\b(?:ready\s+to\s+merge|mergeable|merge-ready)\b",
     re.IGNORECASE,
@@ -874,6 +868,29 @@ def _workflow_admit(args: argparse.Namespace) -> int:
     return 0
 
 
+def _require_safe_workflow_archive_member(name: str, data: bytes) -> None:
+    try:
+        readable = data.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise ExperimentRunnerCreativeContextCliError("capsule file is not UTF-8") from exc
+    if (
+        WORKFLOW_SECRET_TOKEN_RE.search(readable)
+        or SECRET_VALUE_RE.search(readable)
+        or (
+            name in {"test_evidence.json", "oracle_evidence.json", "work_review.md"}
+            and ARCHIVE_AUTHORITY_CLAIM_RE.search(readable)
+        )
+        or contains_local_path_outside_route_context(readable)
+        or re.search(
+            r"/(?:Users|private/var|var/folders|tmp|etc|root)/|file://|"
+            r"(?:https?://[^\s?#]+\?[^\s]+)",
+            readable,
+            re.IGNORECASE,
+        )
+    ):
+        raise ExperimentRunnerCreativeContextCliError("capsule contains private or signed content")
+
+
 def _workflow_archive_inputs(directory: Path, include: list[str]) -> dict[str, bytes]:
     required = {
         *WORKFLOW_STAGE_FILES.values(),
@@ -895,35 +912,17 @@ def _workflow_archive_inputs(directory: Path, include: list[str]) -> dict[str, b
         total += len(data)
         if total > MAX_WORKFLOW_ARCHIVE_BYTES:
             raise ExperimentRunnerCreativeContextCliError("capsule exceeds size limit")
-        try:
-            readable = data.decode("utf-8")
-        except UnicodeDecodeError as exc:
-            raise ExperimentRunnerCreativeContextCliError("capsule file is not UTF-8") from exc
-        if (
-            ARCHIVE_SECRET_RE.search(readable)
-            or SECRET_VALUE_RE.search(readable)
-            or (
-                name in {"test_evidence.json", "oracle_evidence.json", "work_review.md"}
-                and ARCHIVE_AUTHORITY_CLAIM_RE.search(readable)
-            )
-            or contains_local_path_outside_route_context(readable)
-            or re.search(
-                r"/(?:Users|private/var|var/folders|tmp|etc|root)/|file://|"
-                r"(?:https?://[^\s?#]+\?[^\s]+)",
-                readable,
-                re.IGNORECASE,
-            )
-        ):
-            raise ExperimentRunnerCreativeContextCliError(
-                "capsule contains private or signed content"
-            )
+        _require_safe_workflow_archive_member(name, data)
         files[name] = data
     return files
 
 
 def _workflow_patch_paths(patch: bytes) -> list[str]:
     """Use Git's read-only patch parser to enumerate every changed file."""
-    text = patch.decode("utf-8")
+    try:
+        text = patch.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise ExperimentRunnerCreativeContextCliError("capsule patch is not UTF-8") from exc
     headers = re.findall(r"^diff --git ", text, re.MULTILINE)
     for line in text.splitlines():
         if line.startswith(("new file mode ", "deleted file mode ")) and not line.endswith(
@@ -1147,6 +1146,7 @@ def _workflow_verify_archive(args: argparse.Namespace) -> int:
                 raise ExperimentRunnerCreativeContextCliError("capsule expanded size exceeds bound")
             restored_stages: dict[str, dict[str, Any]] = {}
             for name, data in extracted.items():
+                _require_safe_workflow_archive_member(name, data)
                 if manifest["files"][name] != "sha256:" + hashlib.sha256(data).hexdigest():
                     raise ExperimentRunnerCreativeContextCliError("capsule member digest mismatch")
                 if name in WORKFLOW_STAGE_FILES.values():
