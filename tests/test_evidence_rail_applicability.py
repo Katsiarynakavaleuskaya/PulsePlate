@@ -157,6 +157,7 @@ def test_actual_packet_shape_selects_exact_high_assurance_projection(
         design_lane=False,
         docs_only=False,
         pr_phase="pre_open",
+        runtime_writer_available=True,
     )
     assert result.rule_id == "higher_assurance"
     assert result.applicable_sidecar_rails == ("euler", "experiment_runner", "teleology")
@@ -267,6 +268,7 @@ def test_later_pr_phases_do_not_recommend_creative_without_writer(
 ) -> None:
     packet = _base_packet(
         tmp_path,
+        task_class="Implementation",
         candidate_paths=["tests/test_example.py"],
         creative_applicability="alternatives",
         pr_phase=phase,
@@ -277,7 +279,27 @@ def test_later_pr_phases_do_not_recommend_creative_without_writer(
     )
     assert _treatments(result)["creative"] == {
         "treatment": "not_applicable",
-        "reasons": ["creative_writer_unavailable_in_phase"],
+        "reasons": ["creative_writer_unavailable"],
+    }
+
+
+def test_pre_open_research_without_runtime_owner_does_not_recommend_creative(
+    packet_root: Path, tmp_path: Path
+) -> None:
+    packet = _base_packet(
+        tmp_path,
+        task_class="Research",
+        candidate_paths=["tests/test_example.py"],
+        creative_applicability="alternatives",
+        pr_phase="pre_open",
+    )
+    assert packet["role_agent_dispatch_contract"]["runtime_implementation_owners"] == []
+    result = build_evidence_rail_applicability(
+        _snapshot(packet_root, packet, salt="research-without-writer")
+    )
+    assert _treatments(result)["creative"] == {
+        "treatment": "not_applicable",
+        "reasons": ["creative_writer_unavailable"],
     }
 
 
@@ -918,6 +940,7 @@ def test_structured_creative_choice_uses_sole_selector(
 ) -> None:
     packet = _base_packet(
         tmp_path,
+        task_class="Implementation",
         candidate_paths=["tests/test_example.py"],
         creative_applicability=creative_choice,
     )
@@ -978,6 +1001,7 @@ def test_creative_packet_field_tamper_is_rejected_by_identity_check(
 ) -> None:
     packet = _base_packet(
         tmp_path,
+        task_class="Implementation",
         candidate_paths=["tests/test_example.py"],
         creative_applicability="alternatives",
     )

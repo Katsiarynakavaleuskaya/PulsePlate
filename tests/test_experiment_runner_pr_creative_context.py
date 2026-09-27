@@ -1662,10 +1662,15 @@ def _operational_native(request: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _operational_review(request: dict[str, Any]) -> dict[str, Any]:
+def _operational_review(
+    request: dict[str, Any], result: dict[str, Any] | None = None
+) -> dict[str, Any]:
+    if result is None:
+        result = _operational_native(request)
     return {
         "schema_version": "creative_workflow_review.v1",
         "request_fingerprint": workflow_fingerprint(request),
+        "native_result_fingerprint": workflow_fingerprint(result),
         "selected_variant_id": "variant_1",
         "reviewer_role": "agent-coordinator",
         "rationale": "The first approach preserves every criterion with a direct test",
@@ -1758,7 +1763,7 @@ def test_operational_variants_can_cover_all_accepted_criteria_above_thirty() -> 
     for variant in result["variants"]:
         variant["criteria"] = [row["id"] for row in request["criteria"]]
     assert validate_creative_workflow_native_result(result, request) == result
-    review = _operational_review(request)
+    review = _operational_review(request, result)
     review["criteria_coverage"] = [
         {"id": row["id"], "status": "supported", "evidence": "Observed criterion check"}
         for row in request["criteria"]
@@ -1796,6 +1801,17 @@ def test_operational_review_blocks_missing_dod_and_violated_euler() -> None:
     review["euler_assessment"][0]["status"] = "violated"
     with pytest.raises(ExperimentRunnerCreativeContextContractError, match="Euler relation"):
         validate_creative_workflow_review(review, request, result)
+
+
+def test_operational_review_rejects_different_native_result_with_same_variant_id() -> None:
+    request = _operational_request()
+    original = _operational_native(request)
+    review = _operational_review(request)
+    changed = deepcopy(original)
+    changed["variants"][0]["change"] = "A materially different formatter approach"
+    validate_creative_workflow_native_result(changed, request)
+    with pytest.raises(ExperimentRunnerCreativeContextContractError, match="native result"):
+        validate_creative_workflow_review(review, request, changed)
 
 
 def test_operational_native_and_handoff_reject_out_of_scope() -> None:
@@ -2236,7 +2252,7 @@ def test_operational_cli_native_stages_and_archive_round_trip(
     assert (output_dir / "workflow.returned.json").exists()
     validated = output_dir / "workflow.validated.json"
     review_path = source_dir / "review.json"
-    review_path.write_text(json.dumps(_operational_review(request)), encoding="utf-8")
+    review_path.write_text(json.dumps(_operational_review(request, native)), encoding="utf-8")
     assert (
         cli.main(
             [
@@ -2448,5 +2464,15 @@ def test_operational_stage_and_archive_reject_false_completion_and_unsafe_files(
     (output / "patch.diff").symlink_to(tmp_path / "secret")
     with pytest.raises(cli.ExperimentRunnerCreativeContextCliError, match="symlink"):
         cli._workflow_archive_inputs(output, include)
+    (output / "patch.diff").unlink()
+    for name, content in (
+        ("patch.diff", "diff --git a/a.py b/a.py\n+log('/home/alice/PulsePlate')"),
+        ("test_evidence.json", '{"cwd":"/workspace/PulsePlate"}'),
+        ("work_review.md", "Observed /opt/local/PulsePlate and /mnt/build/PulsePlate"),
+    ):
+        (output / name).write_text(content, encoding="utf-8")
+        with pytest.raises(cli.ExperimentRunnerCreativeContextCliError, match="private"):
+            cli._workflow_archive_inputs(output, include)
+        (output / name).write_text("safe", encoding="utf-8")
     with pytest.raises(cli.ExperimentRunnerCreativeContextCliError, match="unapproved"):
         cli._workflow_archive_inputs(output, [*include, "../secret"])

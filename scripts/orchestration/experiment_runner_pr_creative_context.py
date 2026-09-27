@@ -37,6 +37,7 @@ from scripts.orchestration.experiment_runner_pr_creative_context_contract import
     ORACLE_ATTACHMENT_TYPE,
     OPERATOR_MODEL_INTAKE_TYPE,
     CREATIVE_WORKFLOW_SCHEMA_VERSION,
+    LOCAL_ABSOLUTE_PATH_RE,
     SECRET_RE,
     ExperimentRunnerCreativeContextContractError,
     build_agent_consumption_summary,
@@ -868,11 +869,15 @@ def _workflow_archive_inputs(directory: Path, include: list[str]) -> dict[str, b
             readable = data.decode("utf-8")
         except UnicodeDecodeError as exc:
             raise ExperimentRunnerCreativeContextCliError("capsule file is not UTF-8") from exc
-        if SECRET_RE.search(readable) or re.search(
-            r"/(?:Users|private/var|var/folders|tmp|etc|root)/|file://|"
-            r"(?:https?://[^\s?#]+\?[^\s]+)",
-            readable,
-            re.IGNORECASE,
+        if (
+            SECRET_RE.search(readable)
+            or LOCAL_ABSOLUTE_PATH_RE.search(readable)
+            or re.search(
+                r"/(?:Users|private/var|var/folders|tmp|etc|root)/|file://|"
+                r"(?:https?://[^\s?#]+\?[^\s]+)",
+                readable,
+                re.IGNORECASE,
+            )
         ):
             raise ExperimentRunnerCreativeContextCliError(
                 "capsule contains private or signed content"

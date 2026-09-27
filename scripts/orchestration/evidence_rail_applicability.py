@@ -66,7 +66,7 @@ REASON_CODES = (
     "creative_scope_not_selected",
     "manual_additive_upgrade",
     "bounded_alternatives_declared",
-    "creative_writer_unavailable_in_phase",
+    "creative_writer_unavailable",
     "direct_fix_declared",
     "creative_disabled",
 )
@@ -174,6 +174,7 @@ class ApplicabilitySignals:
     design_lane: bool
     docs_only: bool
     pr_phase: str = "none"
+    runtime_writer_available: bool = False
     creative_applicability: str | None = None
 
 
@@ -760,12 +761,21 @@ def extract_applicability_signals(snapshot: TaskPacketSnapshot) -> Applicability
     design_signal = bool(
         classification.get("label") == "design" and design_projection.execution_ready
     )
+    dispatch = _mapping(packet.get("role_agent_dispatch_contract"))
+    owners = dispatch.get("runtime_implementation_owners")
+    if (
+        not isinstance(owners, tuple)
+        or any(type(owner) is not str or not owner for owner in owners)
+        or dispatch.get("runtime_implementation_owner_flags_required") is not bool(owners)
+    ):
+        _error()
     return ApplicabilitySignals(
         invariant_review=invariant_signal,
         security_review=automation.get("security_review_required") is True,
         design_lane=design_signal,
         docs_only=skill_routing.get("envelope_mode_hint") == "docs_only",
         pr_phase=cast(str, packet["pr_phase"]),
+        runtime_writer_available=bool(owners),
         creative_applicability=cast(str | None, packet.get("creative_applicability")),
     )
 
@@ -818,10 +828,12 @@ def _decision_rows(
     elif signals.design_lane:
         rule_id = "design"
         alternatives = signals.creative_applicability == "alternatives"
-        writer_phase = signals.pr_phase in {"none", "pre_open"}
+        writer_available = (
+            signals.pr_phase in {"none", "pre_open"} and signals.runtime_writer_available
+        )
         creative_treatment = (
             RailTreatment.RECOMMEND
-            if alternatives and writer_phase
+            if alternatives and writer_available
             else RailTreatment.NOT_APPLICABLE
         )
         creative_reason = {
@@ -831,7 +843,7 @@ def _decision_rows(
         }.get(signals.creative_applicability or "", "creative_scope_not_selected")
         if alternatives:
             creative_reason = (
-                "design_lane_applicable" if writer_phase else "creative_writer_unavailable_in_phase"
+                "design_lane_applicable" if writer_available else "creative_writer_unavailable"
             )
         rows = (
             ("teleology", RailTreatment.FULL, ("design_lane_applicable",)),
@@ -870,7 +882,9 @@ def _decision_rows(
         )
     elif signals.creative_applicability == "alternatives":
         rule_id = "creative_alternatives"
-        writer_phase = signals.pr_phase in {"none", "pre_open"}
+        writer_available = (
+            signals.pr_phase in {"none", "pre_open"} and signals.runtime_writer_available
+        )
         rows = (
             ("teleology", RailTreatment.FULL, ("bounded_alternatives_declared",)),
             ("euler", RailTreatment.FINITE_REVIEW, ("bounded_alternatives_declared",)),
@@ -881,12 +895,12 @@ def _decision_rows(
             ),
             (
                 "creative",
-                RailTreatment.RECOMMEND if writer_phase else RailTreatment.NOT_APPLICABLE,
+                RailTreatment.RECOMMEND if writer_available else RailTreatment.NOT_APPLICABLE,
                 (
                     (
                         "bounded_alternatives_declared"
-                        if writer_phase
-                        else "creative_writer_unavailable_in_phase"
+                        if writer_available
+                        else "creative_writer_unavailable"
                     ),
                 ),
             ),

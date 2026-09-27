@@ -223,6 +223,11 @@ LEAK_TEXT_RE = re.compile(
     r"worktrees([:/._-]|$)|merge[-_ ]?ready|ready to merge|mergeable)",
     re.IGNORECASE | re.MULTILINE,
 )
+LOCAL_ABSOLUTE_PATH_RE = re.compile(
+    r"/(?:Users|home|private/var|var/folders|tmp|etc|opt|usr|Volumes|mnt|root|"
+    r"workspace|workspaces)(?:/|$)|~[/\\]|[A-Za-z]:[\\/]",
+    re.IGNORECASE | re.MULTILINE,
+)
 UNSAFE_KEY_RE = re.compile(
     r"(?i)(^raw|raw_|_raw|body$|_body$|body_text|body_html|patch_text|raw_patch|"
     r"prompt_text|raw_prompt|provider_payload|oracle_stdout|oracle_stderr|"
@@ -3339,6 +3344,7 @@ def validate_creative_workflow_review(
         {
             "schema_version",
             "request_fingerprint",
+            "native_result_fingerprint",
             "selected_variant_id",
             "reviewer_role",
             "rationale",
@@ -3351,6 +3357,9 @@ def validate_creative_workflow_review(
         "request_fingerprint"
     ] != workflow_fingerprint(request):
         _workflow_fail("review identity is stale")
+    _workflow_digest(review["native_result_fingerprint"], "review native result fingerprint")
+    if review["native_result_fingerprint"] != workflow_fingerprint(result):
+        _workflow_fail("review native result is stale")
     if review["reviewer_role"] != "agent-coordinator":
         _workflow_fail("selection requires coordinator review")
     _workflow_text(review["rationale"], "review rationale")
@@ -3419,6 +3428,8 @@ def validate_creative_workflow_handoff(
         "request_fingerprint"
     ] != workflow_fingerprint(request):
         _workflow_fail("writer handoff identity is stale")
+    if review.get("native_result_fingerprint") != workflow_fingerprint(result):
+        _workflow_fail("writer handoff native result is unreviewed")
     if (
         handoff["coordinator_role"] != "agent-coordinator"
         or handoff["selected_variant_id"] != review["selected_variant_id"]

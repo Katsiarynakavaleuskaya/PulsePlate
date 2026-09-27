@@ -49,6 +49,7 @@ def test_packet_prompt_treats_creative_recommendation_as_native_host_handoff() -
             design_lane=False,
             docs_only=False,
             pr_phase="none",
+            runtime_writer_available=True,
             creative_applicability="alternatives",
         ),
     )
