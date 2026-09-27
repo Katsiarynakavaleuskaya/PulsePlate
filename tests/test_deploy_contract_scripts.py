@@ -3975,6 +3975,52 @@ PY_COMPOSE_MODEL
     printf '%s' "$volume_list_output"
     ;;
   image\\ inspect\\ *postgres-15.19-pgvector0.8.6-alpine3.23*)
+    if [ -n "${{STUB_POSTGRES_IMAGE_INSPECT_COUNTER_FILE:-}}" ]; then
+      inspect_count=0
+      if [ -f "$STUB_POSTGRES_IMAGE_INSPECT_COUNTER_FILE" ]; then
+        IFS= read -r inspect_count < "$STUB_POSTGRES_IMAGE_INSPECT_COUNTER_FILE"
+      fi
+      inspect_count=$((inspect_count + 1))
+      printf '%s\\n' "$inspect_count" > "$STUB_POSTGRES_IMAGE_INSPECT_COUNTER_FILE"
+      if [ "$inspect_count" -gt 1 ]; then
+        printf 'docker %s\\n' "$*" >> "$STUB_DEPLOY_LOG_FILE"
+        case "${{STUB_POSTGRES_EXISTING_IMAGE_FORM:-config}}" in
+          config)
+            if [ -n "${{STUB_POSTGRES_EXISTING_CONFIG_IMAGE_INSPECT_TRACE:-}}" ]; then
+              printf '%s\\n' "$*" >> "$STUB_POSTGRES_EXISTING_CONFIG_IMAGE_INSPECT_TRACE"
+            fi
+            if [ -n "${{STUB_POSTGRES_EXISTING_CONFIG_IMAGE_INSPECT_STDERR:-}}" ]; then
+              printf '%s\\n' "$STUB_POSTGRES_EXISTING_CONFIG_IMAGE_INSPECT_STDERR" >&2
+            fi
+            if [ "${{STUB_POSTGRES_EXISTING_CONFIG_IMAGE_INSPECT_STATUS:-0}}" -ne 0 ]; then
+              exit "$STUB_POSTGRES_EXISTING_CONFIG_IMAGE_INSPECT_STATUS"
+            fi
+            if [ -n "${{STUB_POSTGRES_EXISTING_CONFIG_IMAGE_INSPECT_JSON+x}}" ]; then
+              printf '%s\\n' "$STUB_POSTGRES_EXISTING_CONFIG_IMAGE_INSPECT_JSON"
+            else
+              printf '%s\\n' '{FAKE_POSTGRES_CONFIG_IMAGE_INSPECT_JSON}'
+            fi
+            ;;
+          platform)
+            if [ -n "${{STUB_POSTGRES_EXISTING_PLATFORM_IMAGE_INSPECT_STDERR:-}}" ]; then
+              printf '%s\\n' "$STUB_POSTGRES_EXISTING_PLATFORM_IMAGE_INSPECT_STDERR" >&2
+            fi
+            if [ "${{STUB_POSTGRES_EXISTING_PLATFORM_IMAGE_INSPECT_STATUS:-0}}" -ne 0 ]; then
+              exit "$STUB_POSTGRES_EXISTING_PLATFORM_IMAGE_INSPECT_STATUS"
+            fi
+            if [ -n "${{STUB_POSTGRES_EXISTING_PLATFORM_IMAGE_INSPECT_FILE:-}}" ]; then
+              cat "$STUB_POSTGRES_EXISTING_PLATFORM_IMAGE_INSPECT_FILE"
+            elif [ -n "${{STUB_POSTGRES_EXISTING_PLATFORM_IMAGE_INSPECT_JSON+x}}" ]; then
+              printf '%s\\n' "$STUB_POSTGRES_EXISTING_PLATFORM_IMAGE_INSPECT_JSON"
+            else
+              printf '%s\\n' '{FAKE_POSTGRES_IMAGE_INSPECT_JSON}'
+            fi
+            ;;
+          *) exit 93 ;;
+        esac
+        exit 0
+      fi
+    fi
     if [ "${{STUB_IMAGE_INSPECT_STATUS:-0}}" -ne 0 ]; then
       exit "${{STUB_IMAGE_INSPECT_STATUS}}"
     fi
@@ -3985,36 +4031,11 @@ PY_COMPOSE_MODEL
     fi
     ;;
   image\\ inspect\\ {POSTGRES_CONFIG_DIGEST})
-    if [ -n "${{STUB_POSTGRES_EXISTING_CONFIG_IMAGE_INSPECT_TRACE:-}}" ]; then
-      printf '%s\\n' "$*" >> "$STUB_POSTGRES_EXISTING_CONFIG_IMAGE_INSPECT_TRACE"
-    fi
-    if [ -n "${{STUB_POSTGRES_EXISTING_CONFIG_IMAGE_INSPECT_STDERR:-}}" ]; then
-      printf '%s\\n' "$STUB_POSTGRES_EXISTING_CONFIG_IMAGE_INSPECT_STDERR" >&2
-    fi
-    if [ "${{STUB_POSTGRES_EXISTING_CONFIG_IMAGE_INSPECT_STATUS:-0}}" -ne 0 ]; then
-      exit "${{STUB_POSTGRES_EXISTING_CONFIG_IMAGE_INSPECT_STATUS}}"
-    fi
-    if [ -n "${{STUB_POSTGRES_EXISTING_CONFIG_IMAGE_INSPECT_JSON+x}}" ]; then
-      printf '%s\\n' "$STUB_POSTGRES_EXISTING_CONFIG_IMAGE_INSPECT_JSON"
-    else
-      printf '%s\\n' '{FAKE_POSTGRES_CONFIG_IMAGE_INSPECT_JSON}'
-    fi
-    ;;
+    printf '%s\\n' 'unexpected bare-ID image inspect' >&2
+    exit 92 ;;
   image\\ inspect\\ {POSTGRES_PLATFORM_MANIFEST_DIGEST})
-    if [ -n "${{STUB_POSTGRES_EXISTING_PLATFORM_IMAGE_INSPECT_STDERR:-}}" ]; then
-      printf '%s\\n' "$STUB_POSTGRES_EXISTING_PLATFORM_IMAGE_INSPECT_STDERR" >&2
-    fi
-    if [ "${{STUB_POSTGRES_EXISTING_PLATFORM_IMAGE_INSPECT_STATUS:-0}}" -ne 0 ]; then
-      exit "${{STUB_POSTGRES_EXISTING_PLATFORM_IMAGE_INSPECT_STATUS}}"
-    fi
-    if [ -n "${{STUB_POSTGRES_EXISTING_PLATFORM_IMAGE_INSPECT_FILE:-}}" ]; then
-      cat "$STUB_POSTGRES_EXISTING_PLATFORM_IMAGE_INSPECT_FILE"
-    elif [ -n "${{STUB_POSTGRES_EXISTING_PLATFORM_IMAGE_INSPECT_JSON+x}}" ]; then
-      printf '%s\\n' "$STUB_POSTGRES_EXISTING_PLATFORM_IMAGE_INSPECT_JSON"
-    else
-      printf '%s\\n' '{FAKE_POSTGRES_IMAGE_INSPECT_JSON}'
-    fi
-    ;;
+    printf '%s\\n' 'unexpected bare-ID image inspect' >&2
+    exit 92 ;;
   image\\ inspect\\ *)
     if [ \"${{STUB_IMAGE_INSPECT_STATUS:-0}}\" -ne 0 ]; then
       exit \"${{STUB_IMAGE_INSPECT_STATUS}}\"
@@ -7041,27 +7062,37 @@ esac
   printf 'docker %s\\n' "$*" >> "$STUB_DEPLOY_LOG_FILE"
   case "${{3:-}}" in
     '{POSTGRES_RUNTIME_REF}')
-      if [ "${{STUB_PRODUCTION_PULLED_INSPECT_STATUS:-0}}" -ne 0 ]; then
-        printf '%s\\n' 'native-secret-value' >&2
-        exit "$STUB_PRODUCTION_PULLED_INSPECT_STATUS"
+      inspect_count=0
+      if [ -f "$STUB_PRODUCTION_POSTGRES_REF_INSPECT_COUNTER_FILE" ]; then
+        IFS= read -r inspect_count < "$STUB_PRODUCTION_POSTGRES_REF_INSPECT_COUNTER_FILE"
       fi
-      if [ -n "${{STUB_PRODUCTION_PULLED_IMAGE_FILE:-}}" ]; then
-        cat "$STUB_PRODUCTION_PULLED_IMAGE_FILE"
+      inspect_count=$((inspect_count + 1))
+      printf '%s\\n' "$inspect_count" > "$STUB_PRODUCTION_POSTGRES_REF_INSPECT_COUNTER_FILE"
+      if [ "$inspect_count" -eq 1 ]; then
+        if [ "${{STUB_PRODUCTION_PULLED_INSPECT_STATUS:-0}}" -ne 0 ]; then
+          printf '%s\\n' 'native-secret-value' >&2
+          exit "$STUB_PRODUCTION_PULLED_INSPECT_STATUS"
+        fi
+        if [ -n "${{STUB_PRODUCTION_PULLED_IMAGE_FILE:-}}" ]; then
+          cat "$STUB_PRODUCTION_PULLED_IMAGE_FILE"
+        else
+          printf '%s\\n' "$STUB_PRODUCTION_PULLED_POSTGRES_IMAGE_JSON"
+        fi
       else
-        printf '%s\\n' "$STUB_PRODUCTION_PULLED_POSTGRES_IMAGE_JSON"
+        if [ "${{STUB_PRODUCTION_EXISTING_INSPECT_STATUS:-0}}" -ne 0 ]; then
+          printf '%s\\n' 'native-secret-value' >&2
+          exit "$STUB_PRODUCTION_EXISTING_INSPECT_STATUS"
+        fi
+        if [ -n "${{STUB_PRODUCTION_EXISTING_IMAGE_FILE:-}}" ]; then
+          cat "$STUB_PRODUCTION_EXISTING_IMAGE_FILE"
+        else
+          printf '%s\\n' "$STUB_PRODUCTION_EXISTING_POSTGRES_IMAGE_JSON"
+        fi
       fi
       ;;
     '{POSTGRES_CONFIG_DIGEST}'|'{POSTGRES_PLATFORM_MANIFEST_DIGEST}')
-      if [ "${{STUB_PRODUCTION_EXISTING_INSPECT_STATUS:-0}}" -ne 0 ]; then
-        printf '%s\\n' 'native-secret-value' >&2
-        exit "$STUB_PRODUCTION_EXISTING_INSPECT_STATUS"
-      fi
-      if [ -n "${{STUB_PRODUCTION_EXISTING_IMAGE_FILE:-}}" ]; then
-        cat "$STUB_PRODUCTION_EXISTING_IMAGE_FILE"
-      else
-        printf '%s\\n' "$STUB_PRODUCTION_EXISTING_POSTGRES_IMAGE_JSON"
-      fi
-      ;;
+      printf '%s\\n' 'unexpected bare-ID image inspect' >&2
+      exit 92 ;;
     '{PROMETHEUS_RUNTIME_REF}')
       printf '%s\\n' "$STUB_PRODUCTION_PROMETHEUS_IMAGE_JSON" ;;
     *)
@@ -7099,6 +7130,9 @@ fi
             "STUB_PRODUCTION_PULLED_POSTGRES_IMAGE_JSON": FAKE_POSTGRES_IMAGE_INSPECT_JSON,
             "STUB_PRODUCTION_EXISTING_POSTGRES_IMAGE_JSON": FAKE_POSTGRES_IMAGE_INSPECT_JSON,
             "STUB_PRODUCTION_PROMETHEUS_IMAGE_JSON": FAKE_PROMETHEUS_IMAGE_INSPECT_JSON,
+            "STUB_PRODUCTION_POSTGRES_REF_INSPECT_COUNTER_FILE": str(
+                tmp_path / "postgres-ref-inspect-count"
+            ),
         }
     )
     return env, log_file
@@ -7125,8 +7159,10 @@ def test_production_self_hosted_reuses_both_frozen_current_image_id_forms(
     )
     assert completed.returncode == 0, completed.stderr
     lines = log_file.read_text(encoding="utf-8").splitlines()
-    inspect_line = f"docker image inspect {image_id}"
-    assert lines.count(inspect_line) == 1
+    inspect_line = f"docker image inspect {POSTGRES_RUNTIME_REF}"
+    assert lines.count(inspect_line) == 2
+    assert f"docker image inspect {image_id}" not in lines
+    second_inspect = [i for i, line in enumerate(lines) if line == inspect_line][1]
     stop_writers = next(i for i, line in enumerate(lines) if " stop worker caddy app" in line)
     backup = lines.index("backup")
     stop_postgres = lines.index(f"docker stop {'a' * 64}")
@@ -7134,14 +7170,7 @@ def test_production_self_hosted_reuses_both_frozen_current_image_id_forms(
         i for i, line in enumerate(lines) if " up -d --pull never postgres" in line
     )
     migration = next(i for i, line in enumerate(lines) if "alembic upgrade head" in line)
-    assert (
-        lines.index(inspect_line)
-        < stop_writers
-        < backup
-        < stop_postgres
-        < start_candidate
-        < migration
-    )
+    assert second_inspect < stop_writers < backup < stop_postgres < start_candidate < migration
 
 
 @pytest.mark.parametrize("surface", ("staging", "production"))
@@ -7174,7 +7203,8 @@ def test_pulled_postgres_admits_both_frozen_image_id_forms(
     )
     assert completed.returncode == 0, completed.stderr
     lines = log_file.read_text(encoding="utf-8").splitlines()
-    assert any(line == f"docker image inspect {POSTGRES_RUNTIME_REF}" for line in lines)
+    assert lines.count(f"docker image inspect {POSTGRES_RUNTIME_REF}") == 1
+    assert f"docker image inspect {image_id}" not in lines
 
 
 def test_production_self_hosted_keeps_frozen_legacy_image_transition(tmp_path: Path) -> None:
@@ -7300,8 +7330,9 @@ def test_production_self_hosted_rejects_untrusted_existing_image_before_quiescen
     assert expected_error in completed.stderr
     lines = log_file.read_text(encoding="utf-8").splitlines()
     assert any(line.startswith("docker inspect aaaaaaaaaaaa") for line in lines)
-    if variant not in ("foreign-configured-image", "foreign-image-id"):
-        assert lines.count(f"docker image inspect {image_id}") == 1
+    expected_ref_inspects = 1 if variant in ("foreign-configured-image", "foreign-image-id") else 2
+    assert lines.count(f"docker image inspect {POSTGRES_RUNTIME_REF}") == expected_ref_inspects
+    assert f"docker image inspect {image_id}" not in lines
     assert all(" stop worker caddy app" not in line for line in lines)
     assert all(line != "backup" for line in lines)
     assert all(" up -d --pull never postgres" not in line for line in lines)
@@ -8450,6 +8481,10 @@ esac
             "HEALTH_MAX_ATTEMPTS": "1",
             "HEALTH_SLEEP_S": "0",
             "STUB_POSTGRES_STARTED_FILE": str(tmp_path / "postgres-started"),
+            "STUB_POSTGRES_IMAGE_INSPECT_COUNTER_FILE": str(
+                tmp_path / "postgres-image-inspect-count"
+            ),
+            "STUB_DEPLOY_LOG_FILE": str(log_file),
         }
     )
     return env, log_file
@@ -9022,6 +9057,9 @@ def test_staging_existing_current_postgres_accepts_only_frozen_id_forms(
 ) -> None:
     env, log_file = _staging_deploy_fixture(tmp_path)
     env["STUB_POSTGRES_CONTAINER_INSPECT_JSON"] = _current_postgres_container_inspect(image_id)
+    env["STUB_POSTGRES_EXISTING_IMAGE_FORM"] = (
+        "config" if image_id == POSTGRES_CONFIG_DIGEST else "platform"
+    )
     backend_ref = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "a" * 64
     caddy_ref = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "b" * 64
 
@@ -9036,8 +9074,8 @@ def test_staging_existing_current_postgres_accepts_only_frozen_id_forms(
 
     assert completed.returncode == 0, completed.stderr
     log_lines = log_file.read_text(encoding="utf-8").splitlines()
-    by_id_calls = [line for line in log_lines if line == f"docker image inspect {image_id}"]
-    assert len(by_id_calls) == 1
+    assert log_lines.count(f"docker image inspect {POSTGRES_RUNTIME_REF}") == 2
+    assert f"docker image inspect {image_id}" not in log_lines
     assert any(" stop worker caddy app" in line for line in log_lines)
     assert any(line.startswith("backup ") for line in log_lines)
 
@@ -9077,6 +9115,7 @@ def test_staging_existing_current_postgres_rejects_untrusted_id_before_quiescenc
     if variant == "foreign-configured-image":
         container_inspect[0]["Config"]["Image"] = "other.invalid/postgres:latest"
     env["STUB_POSTGRES_CONTAINER_INSPECT_JSON"] = json.dumps(container_inspect)
+    env["STUB_POSTGRES_EXISTING_IMAGE_FORM"] = "platform"
     if variant in ("inspect-failure", "native-stderr"):
         env["STUB_POSTGRES_EXISTING_PLATFORM_IMAGE_INSPECT_STATUS"] = "64"
         env["STUB_POSTGRES_EXISTING_PLATFORM_IMAGE_INSPECT_STDERR"] = "native-secret-value"
@@ -9112,6 +9151,9 @@ def test_staging_existing_current_postgres_rejects_untrusted_id_before_quiescenc
     else:
         assert "image metadata is not the frozen candidate" in completed.stderr
     log_lines = log_file.read_text(encoding="utf-8").splitlines()
+    expected_ref_inspects = 1 if variant in ("foreign-configured-image", "foreign-image-id") else 2
+    assert log_lines.count(f"docker image inspect {POSTGRES_RUNTIME_REF}") == expected_ref_inspects
+    assert f"docker image inspect {image_id}" not in log_lines
     assert all(" stop worker caddy app" not in line for line in log_lines)
     assert all(not line.startswith("backup ") for line in log_lines)
     assert all(" up -d --pull never postgres" not in line for line in log_lines)
@@ -9155,8 +9197,10 @@ def test_staging_existing_current_config_id_requires_own_inspect_before_quiescen
     assert "native-secret-value" not in completed.stdout + completed.stderr
     log_lines = log_file.read_text(encoding="utf-8").splitlines()
     assert inspect_trace.read_text(encoding="utf-8").splitlines() == [
-        f"image inspect {POSTGRES_CONFIG_DIGEST}"
+        f"image inspect {POSTGRES_RUNTIME_REF}"
     ]
+    assert log_lines.count(f"docker image inspect {POSTGRES_RUNTIME_REF}") == 2
+    assert f"docker image inspect {POSTGRES_CONFIG_DIGEST}" not in log_lines
     assert all(" stop worker caddy app" not in line for line in log_lines)
     assert all(not line.startswith("backup ") for line in log_lines)
     assert all(" up -d --pull never postgres" not in line for line in log_lines)
@@ -9199,6 +9243,9 @@ def test_staging_postgres_image_rejects_duplicate_runtime_environment_before_qui
         env["STUB_POSTGRES_IMAGE_INSPECT_JSON"] = image_payload
     else:
         env["STUB_POSTGRES_CONTAINER_INSPECT_JSON"] = _current_postgres_container_inspect(image_id)
+        env["STUB_POSTGRES_EXISTING_IMAGE_FORM"] = (
+            "config" if image_id == POSTGRES_CONFIG_DIGEST else "platform"
+        )
         variable = (
             "STUB_POSTGRES_EXISTING_CONFIG_IMAGE_INSPECT_JSON"
             if surface == "config-id"

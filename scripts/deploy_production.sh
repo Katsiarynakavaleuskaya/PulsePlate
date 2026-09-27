@@ -2244,7 +2244,7 @@ validate_existing_postgres_image_identity() {
       if [ "$image_id" = "sha256:c822c68e22d0358e66cee17e06f7b3ece5d1538cb8b607c1376b59620866ceff" ] || \
          [ "$image_id" = "$platform_image_id" ]; then
         if validate_postgres_image_metadata \
-            "$POSTGRES_RUNTIME_REF" "$image_id" "$image_id" 2>/dev/null; then
+            "$POSTGRES_RUNTIME_REF" "$POSTGRES_RUNTIME_REF" "$image_id" 2>/dev/null; then
           :
         else
           echo "❌ Existing current PostgreSQL image metadata is not the frozen candidate" >&2

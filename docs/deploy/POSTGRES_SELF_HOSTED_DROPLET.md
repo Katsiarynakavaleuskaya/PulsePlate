@@ -29,11 +29,12 @@ Health via the edge (after DNS/TLS):
 
 For an existing self-hosted PostgreSQL container configured with the exact frozen
 image reference, deploy admits only the frozen config digest or platform manifest
-digest as its image ID. Both forms require an independent `docker image inspect`
-by the existing container's image ID with matching repository digest, platform
-and runtime metadata; missing or conflicting identity causes HOLD before product
-writers are stopped. This repository contract does not authorize a production
-deployment or establish a live production outcome.
+digest as its image ID. Both forms require `docker image inspect` of the exact
+frozen reference, with the returned ID matching the existing container's image
+ID and with canonical repository digest, platform and runtime metadata.
+Missing or conflicting identity causes HOLD before product writers are stopped.
+This repository contract does not authorize a production deployment or
+establish a live production outcome.
 
 ```bash
 # From repo root (after deploy/.env is populated — see .env.example for keys)
