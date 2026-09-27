@@ -55,6 +55,9 @@ PROMETHEUS_IMAGE_MANIFEST="${PROMETHEUS_IMAGE_MANIFEST:-${PROJECT_DIR}/prometheu
 ALERTMANAGER_CONFIG="${PROJECT_DIR}/alertmanager/alertmanager.yml"
 ALERTMANAGER_TRIVY_IGNORE="${PROJECT_DIR}/alertmanager/trivy-ignore.yaml"
 ALERTMANAGER_SMTP_KEY="${PROJECT_DIR}/secrets/alertmanager_smtp_key"
+# Keep the caller's profile choice authoritative over Compose --env-file values.
+COMPOSE_PROFILES="${COMPOSE_PROFILES-}"
+export COMPOSE_PROFILES
 POSTGRES_IMAGE_MANIFEST="${POSTGRES_IMAGE_MANIFEST:-${PROJECT_DIR}/postgres-pgvector/image-manifest.json}"
 METRICS_SECRET_DIR="${METRICS_SECRET_DIR:-${PROJECT_DIR}/secrets}"
 METRICS_SECRET_FILE="${METRICS_SECRET_FILE:-${METRICS_SECRET_DIR}/pulseplate_metrics_scrape_key}"
@@ -453,6 +456,14 @@ alertmanager_selected() {
   done
 }
 
+validate_alertmanager_exception_time() {
+  "$PYTHON_BIN" - <<'PY'
+from datetime import datetime, timezone
+if datetime.now(timezone.utc) >= datetime(2026, 10, 24, tzinfo=timezone.utc):
+    raise SystemExit("Selected or running Alertmanager Trivy exception has expired")
+PY
+}
+
 validate_alertmanager_secret_if_selected() {
   if "$PYTHON_BIN" - "$ENV_FILE" <<'PY'
 from pathlib import Path
@@ -470,11 +481,7 @@ PY
   if ! alertmanager_selected; then
     return 0
   fi
-  "$PYTHON_BIN" - <<'PY'
-from datetime import date, datetime, timezone
-if datetime.now(timezone.utc).date() > date.fromisoformat("2026-10-24"):
-    raise SystemExit("Selected Alertmanager Trivy exception has expired")
-PY
+  validate_alertmanager_exception_time
   if [ -L "$ALERTMANAGER_SMTP_KEY" ] || [ ! -f "$ALERTMANAGER_SMTP_KEY" ]; then
     echo "❌ Selected Alertmanager requires a regular non-symlink SMTP key" >&2
     return 1

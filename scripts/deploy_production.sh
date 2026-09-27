@@ -65,6 +65,9 @@ GHCR_DOCKER_CONFIG=""
 # deploy/.env cannot override the CI-provided registry contract.
 ORIGINAL_GHCR_USER="${GHCR_USER:-}"
 ORIGINAL_GHCR_TOKEN="${GHCR_TOKEN:-}"
+PULSEPLATE_CALLER_COMPOSE_PROFILES_PRESENT="${COMPOSE_PROFILES+x}"
+PULSEPLATE_CALLER_COMPOSE_PROFILES="${COMPOSE_PROFILES-}"
+readonly PULSEPLATE_CALLER_COMPOSE_PROFILES_PRESENT PULSEPLATE_CALLER_COMPOSE_PROFILES
 
 resolve_docker_bin() {
   local candidate
@@ -284,6 +287,18 @@ set -a
 . "$ENV_FILE"
 set +a
 
+profile_source_drift=0
+if [ "${COMPOSE_PROFILES+x}" != "$PULSEPLATE_CALLER_COMPOSE_PROFILES_PRESENT" ] || \
+   [ "${COMPOSE_PROFILES-}" != "$PULSEPLATE_CALLER_COMPOSE_PROFILES" ]; then
+  profile_source_drift=1
+fi
+COMPOSE_PROFILES="$PULSEPLATE_CALLER_COMPOSE_PROFILES"
+export COMPOSE_PROFILES
+if [ "$profile_source_drift" -ne 0 ]; then
+  echo "❌ Production env file changed caller-owned COMPOSE_PROFILES" >&2
+  exit 1
+fi
+
 IMAGE_REF="$DEPLOY_IMAGE_REF"
 TAG="$DEPLOY_TAG"
 
@@ -464,6 +479,14 @@ alertmanager_selected() {
   done
 }
 
+validate_alertmanager_exception_time() {
+  "$PYTHON_BIN" - <<'PY'
+from datetime import datetime, timezone
+if datetime.now(timezone.utc) >= datetime(2026, 10, 24, tzinfo=timezone.utc):
+    raise SystemExit("Selected or running Alertmanager Trivy exception has expired")
+PY
+}
+
 validate_alertmanager_secret_if_selected() {
   if "$PYTHON_BIN" - "$ENV_FILE" <<'PY'
 from pathlib import Path
@@ -481,11 +504,7 @@ PY
   if ! alertmanager_selected; then
     return 0
   fi
-  "$PYTHON_BIN" - <<'PY'
-from datetime import date, datetime, timezone
-if datetime.now(timezone.utc).date() > date.fromisoformat("2026-10-24"):
-    raise SystemExit("Selected Alertmanager Trivy exception has expired")
-PY
+  validate_alertmanager_exception_time
   if [ -L "$ALERTMANAGER_SMTP_KEY" ] || [ ! -f "$ALERTMANAGER_SMTP_KEY" ]; then
     echo "❌ Selected Alertmanager requires a regular non-symlink SMTP key" >&2
     return 1
@@ -502,6 +521,80 @@ metadata = os.lstat(sys.argv[1])
 if not stat.S_ISREG(metadata.st_mode) or metadata.st_size <= 0:
     raise SystemExit("Selected Alertmanager requires a nonempty regular SMTP key")
 PY
+}
+
+validate_off_profile_alertmanager_runtime() {
+  if alertmanager_selected; then
+    return 0
+  fi
+  local container_id=""
+  local project_name=""
+  local runtime_state=""
+  if ! project_name="$(dc --profile alerting config --format json | "$PYTHON_BIN" -c '
+import json
+import re
+import sys
+try:
+    payload = json.load(sys.stdin)
+except (ValueError, TypeError) as exc:
+    raise SystemExit("Compose project identity is malformed") from exc
+name = payload.get("name") if type(payload) is dict else None
+if type(name) is not str or not re.fullmatch(r"[a-z0-9][a-z0-9_-]*", name):
+    raise SystemExit("Compose project identity is missing or ambiguous")
+print(name)
+')"; then
+    echo "❌ Unable to bind Alertmanager census to one Compose project" >&2
+    return 1
+  fi
+  if ! container_id="$(dc --profile alerting ps --all --quiet alertmanager)"; then
+    echo "❌ Unable to census this Compose project's Alertmanager" >&2
+    return 1
+  fi
+  if [ -z "$container_id" ]; then
+    return 0
+  fi
+  if [[ "$container_id" == *$'\n'* ]] || [[ ! "$container_id" =~ ^[0-9a-f]{12,64}$ ]]; then
+    echo "❌ Alertmanager census returned ambiguous or malformed container IDs" >&2
+    return 1
+  fi
+  if ! runtime_state="$("$DOCKER_BIN" inspect "$container_id" | "$PYTHON_BIN" -c '
+import json
+import re
+import sys
+short_id, project_name = sys.argv[1:3]
+try:
+    records = json.load(sys.stdin)
+except (ValueError, TypeError) as exc:
+    raise SystemExit("Alertmanager inspect result is malformed") from exc
+if type(records) is not list or len(records) != 1 or type(records[0]) is not dict:
+    raise SystemExit("Alertmanager inspect must return exactly one container")
+record = records[0]
+full_id = record.get("Id")
+if type(full_id) is not str or not re.fullmatch(r"[0-9a-f]{64}", full_id) or not full_id.startswith(short_id):
+    raise SystemExit("Alertmanager inspect ID differs from Compose census")
+config = record.get("Config")
+labels = config.get("Labels") if type(config) is dict else None
+if (type(labels) is not dict or labels.get("com.docker.compose.project") != project_name
+        or labels.get("com.docker.compose.service") != "alertmanager"):
+    raise SystemExit("Alertmanager inspect project or service identity is ambiguous")
+state = record.get("State")
+if type(state) is not dict or state.get("Restarting") is not False:
+    raise SystemExit("Alertmanager inspect state is unknown or restarting")
+if state.get("Paused") is not False or state.get("Dead") is not False:
+    raise SystemExit("Alertmanager inspect state is paused, dead, or unknown")
+if state.get("Status") == "running" and state.get("Running") is True:
+    print("running")
+elif state.get("Status") in ("created", "exited") and state.get("Running") is False:
+    print("stopped")
+else:
+    raise SystemExit("Alertmanager inspect state is unknown or inconsistent")
+' "$container_id" "$project_name")"; then
+    echo "❌ Unable to prove this Compose project's Alertmanager runtime state" >&2
+    return 1
+  fi
+  if [ "$runtime_state" = running ]; then
+    validate_alertmanager_exception_time
+  fi
 }
 
 validate_postgres_contract_files() {
@@ -2964,6 +3057,7 @@ run_preflight() {
         "$COMPOSE_CONTRACT_PATH"
     fi
   fi
+  validate_off_profile_alertmanager_runtime
   validate_production_database_contract
   validate_scheduler_mode_contract
   echo "✅ Production deploy preflight passed"
@@ -2998,6 +3092,7 @@ validate_prometheus_compose_identity "$COMPOSE_CONTRACT_PATH" "$PROMETHEUS_RUNTI
 validate_alertmanager_contract "$COMPOSE_CONTRACT_PATH" "$PROMETHEUS_CONFIG" \
   "$PROMETHEUS_RULES" "$ALERTMANAGER_CONFIG" "$ALERTMANAGER_TRIVY_IGNORE"
 validate_alertmanager_secret_if_selected
+validate_off_profile_alertmanager_runtime
 POSTGRES_RUNTIME_REF=""
 if [ "$PRODUCTION_DB_TOPOLOGY" = "self-hosted" ]; then
   validate_postgres_contract_files

@@ -4453,6 +4453,7 @@ if "STUB_PROMETHEUS_COMPOSE_JSON" not in os.environ and isinstance(payload, dict
     match = re.search(r"-f\\s+(\\S+)", os.environ["STUB_COMPOSE_ARGS"])
     if match:
         compose = Path(match.group(1))
+        payload["name"] = compose.parent.name
         payload["services"]["alertmanager"]["volumes"] = [{{
             "type": "bind", "source": str(compose.parent / "alertmanager/alertmanager.yml"),
             "target": "/etc/alertmanager/alertmanager.yml", "read_only": True
@@ -4460,11 +4461,33 @@ if "STUB_PROMETHEUS_COMPOSE_JSON" not in os.environ and isinstance(payload, dict
         payload["secrets"]["alertmanager_smtp_key"]["file"] = str(
             compose.parent / "secrets/alertmanager_smtp_key"
         )
+if "STUB_COMPOSE_PROJECT_NAME" in os.environ and isinstance(payload, dict):
+    payload["name"] = os.environ["STUB_COMPOSE_PROJECT_NAME"]
 if os.environ["STUB_ALL_PROFILES"] != "true" and isinstance(payload, dict):
     services = payload.get("services")
     if isinstance(services, dict): services.pop("worker", None)
 print(json.dumps(payload))
 PY_COMPOSE_MODEL
+    ;;
+  *"ps --all --quiet alertmanager"*)
+    if [ -n "${{STUB_CENSUS_LOG:-}}" ]; then
+      printf 'docker %s\\n' "$*" >> "$STUB_CENSUS_LOG"
+    fi
+    if [ "${{STUB_ALERTMANAGER_PS_STATUS:-0}}" -ne 0 ]; then
+      exit "${{STUB_ALERTMANAGER_PS_STATUS}}"
+    fi
+    printf '%s' "${{STUB_ALERTMANAGER_PS_IDS:-}}"
+    exit 0
+    ;;
+  inspect\\ eeeeeeeeeeee*)
+    if [ -n "${{STUB_CENSUS_LOG:-}}" ]; then
+      printf 'docker %s\\n' "$*" >> "$STUB_CENSUS_LOG"
+    fi
+    if [ "${{STUB_ALERTMANAGER_INSPECT_STATUS:-0}}" -ne 0 ]; then
+      exit "${{STUB_ALERTMANAGER_INSPECT_STATUS}}"
+    fi
+    printf '%s\\n' "${{STUB_ALERTMANAGER_INSPECT_JSON:-invalid-inspect-json}}"
+    exit 0
     ;;
   run\\ --rm\\ --platform\\ linux/amd64\\ --user\\ 70:70\\ *)
     if [ "${{STUB_POSTGRES_MOUNTPOINT_STATUS:-0}}" -ne 0 ]; then
@@ -4949,11 +4972,15 @@ def test_production_all_profile_alertmanager_security_denies_forged_service_or_n
 
 @pytest.mark.parametrize("contour", ["staging", "production"])
 @pytest.mark.parametrize(
-    ("utc_date", "selected_allowed"),
-    [("2026-10-24", True), ("2026-10-25", False)],
+    ("utc_instant", "selected_allowed"),
+    [
+        ("2026-10-23T23:59:59+00:00", True),
+        ("2026-10-24T00:00:00+00:00", False),
+        ("2026-10-24T00:00:01+00:00", False),
+    ],
 )
 def test_selected_alertmanager_utc_waiver_boundary_and_off_profile_independence(
-    tmp_path: Path, contour: str, utc_date: str, selected_allowed: bool
+    tmp_path: Path, contour: str, utc_instant: str, selected_allowed: bool
 ) -> None:
     if contour == "staging":
         env, log_file = _staging_deploy_fixture(tmp_path)
@@ -4972,11 +4999,11 @@ def test_selected_alertmanager_utc_waiver_boundary_and_off_profile_independence(
         source = REPO_ROOT / "scripts/deploy_production.sh"
         args = ["--preflight-only"]
     original = source.read_text(encoding="utf-8")
-    clock_expression = "datetime.now(timezone.utc).date()"
+    clock_expression = "datetime.now(timezone.utc)"
     assert original.count(clock_expression) == 1
     observed_date_script = tmp_path / f"{contour}-observed-date-deploy.sh"
     observed_date_script.write_text(
-        original.replace(clock_expression, f'date.fromisoformat("{utc_date}")'),
+        original.replace(clock_expression, f'datetime.fromisoformat("{utc_instant}")'),
         encoding="utf-8",
     )
     observed_date_script.chmod(0o755)
@@ -4993,7 +5020,7 @@ def test_selected_alertmanager_utc_waiver_boundary_and_off_profile_independence(
     )
     assert (selected.returncode == 0) is selected_allowed, selected.stderr
     if not selected_allowed:
-        assert "Selected Alertmanager Trivy exception has expired" in selected.stderr
+        assert "Alertmanager Trivy exception has expired" in selected.stderr
     key.unlink()
     env.pop("COMPOSE_PROFILES", None)
     off = subprocess.run(
@@ -5006,6 +5033,322 @@ def test_selected_alertmanager_utc_waiver_boundary_and_off_profile_independence(
     )
     assert off.returncode == 0, off.stderr
     if log_file.exists():
+        assert all(
+            " pull " not in line and " up " not in line
+            for line in log_file.read_text().splitlines()
+        )
+
+
+def _alertmanager_census_inspect_record(
+    *,
+    status: str = "running",
+    project: str = "deploy",
+    service: str = "alertmanager",
+    full_id: str = "e" * 64,
+) -> dict[str, object]:
+    return {
+        "Id": full_id,
+        "Config": {
+            "Labels": {
+                "com.docker.compose.project": project,
+                "com.docker.compose.service": service,
+            }
+        },
+        "State": {
+            "Status": status,
+            "Running": status == "running",
+            "Restarting": status == "restarting",
+            "Paused": False,
+            "Dead": False,
+        },
+    }
+
+
+@pytest.mark.parametrize(
+    ("presence", "utc_instant", "allowed"),
+    (
+        ("absent", "2026-10-24T00:00:01+00:00", True),
+        ("stopped", "2026-10-24T00:00:01+00:00", True),
+        ("running", "2026-10-23T23:59:59+00:00", True),
+        ("running", "2026-10-24T00:00:00+00:00", False),
+        ("running", "2026-10-24T00:00:01+00:00", False),
+    ),
+)
+def test_production_off_profile_census_only_running_alertmanager_enforces_expiry(
+    tmp_path: Path, presence: str, utc_instant: str, allowed: bool
+) -> None:
+    env, _project_dir, log_file, _bundle = _production_preflight_fixture(
+        tmp_path, with_bundle=False
+    )
+    env.pop("COMPOSE_PROFILES", None)
+    env["STUB_CENSUS_LOG"] = str(log_file)
+    source = (REPO_ROOT / "scripts/deploy_production.sh").read_text(encoding="utf-8")
+    clock_expression = "datetime.now(timezone.utc)"
+    assert source.count(clock_expression) == 1
+    script = tmp_path / "production-census-observed-clock.sh"
+    script.write_text(
+        source.replace(clock_expression, f'datetime.fromisoformat("{utc_instant}")'),
+        encoding="utf-8",
+    )
+    script.chmod(0o755)
+    if presence != "absent":
+        env["STUB_ALERTMANAGER_PS_IDS"] = "e" * 12
+        status = "running" if presence == "running" else "exited"
+        env["STUB_ALERTMANAGER_INSPECT_JSON"] = json.dumps(
+            [_alertmanager_census_inspect_record(status=status)]
+        )
+    completed = subprocess.run(
+        [str(script), "--preflight-only"],
+        cwd=REPO_ROOT,
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert (completed.returncode == 0) is allowed, completed.stderr
+    if not allowed:
+        assert "running Alertmanager Trivy exception has expired" in completed.stderr
+    log = log_file.read_text().splitlines()
+    assert any("--profile alerting ps --all --quiet alertmanager" in line for line in log)
+    assert bool([line for line in log if line.startswith("docker inspect " + "e" * 12)]) is (
+        presence != "absent"
+    )
+    assert all(" pull " not in line and " up " not in line and " stop " not in line for line in log)
+
+
+@pytest.mark.parametrize(
+    ("fault", "expected"),
+    (
+        ("ps-error", "Unable to census"),
+        ("multiple", "ambiguous or malformed container IDs"),
+        ("malformed-id", "ambiguous or malformed container IDs"),
+        ("inspect-error", "Unable to prove"),
+        ("restarting", "unknown or restarting"),
+        ("unknown-state", "unknown or inconsistent"),
+        ("paused", "paused, dead, or unknown"),
+        ("wrong-project-label", "project or service identity is ambiguous"),
+        ("wrong-service-label", "project or service identity is ambiguous"),
+        ("wrong-id", "ID differs from Compose census"),
+        ("wrong-project-name", "project identity is missing or ambiguous"),
+    ),
+)
+def test_production_off_profile_census_fails_closed_before_product_mutation(
+    tmp_path: Path, fault: str, expected: str
+) -> None:
+    env, _project_dir, log_file, _bundle = _production_preflight_fixture(
+        tmp_path, with_bundle=False
+    )
+    env.pop("COMPOSE_PROFILES", None)
+    env["STUB_CENSUS_LOG"] = str(log_file)
+    env["STUB_ALERTMANAGER_PS_IDS"] = "e" * 12
+    record = _alertmanager_census_inspect_record()
+    if fault == "ps-error":
+        env["STUB_ALERTMANAGER_PS_STATUS"] = "37"
+    elif fault == "multiple":
+        env["STUB_ALERTMANAGER_PS_IDS"] += "\n" + "f" * 12
+    elif fault == "malformed-id":
+        env["STUB_ALERTMANAGER_PS_IDS"] = "not-a-container-id"
+    elif fault == "inspect-error":
+        env["STUB_ALERTMANAGER_INSPECT_STATUS"] = "47"
+    elif fault == "restarting":
+        record["State"] = {
+            "Status": "restarting",
+            "Running": True,
+            "Restarting": True,
+            "Paused": False,
+            "Dead": False,
+        }
+    elif fault == "unknown-state":
+        record["State"] = {
+            "Status": "removing",
+            "Running": False,
+            "Restarting": False,
+            "Paused": False,
+            "Dead": False,
+        }
+    elif fault == "paused":
+        state = record["State"]
+        assert isinstance(state, dict)
+        state["Paused"] = True
+    elif fault == "wrong-project-label":
+        config = record["Config"]
+        assert isinstance(config, dict)
+        labels = config["Labels"]
+        assert isinstance(labels, dict)
+        labels["com.docker.compose.project"] = "foreign"
+    elif fault == "wrong-service-label":
+        config = record["Config"]
+        assert isinstance(config, dict)
+        labels = config["Labels"]
+        assert isinstance(labels, dict)
+        labels["com.docker.compose.service"] = "worker"
+    elif fault == "wrong-id":
+        record["Id"] = "f" * 64
+    elif fault == "wrong-project-name":
+        env["STUB_COMPOSE_PROJECT_NAME"] = "Bad Name"
+    env["STUB_ALERTMANAGER_INSPECT_JSON"] = json.dumps([record])
+    completed = subprocess.run(
+        [str(REPO_ROOT / "scripts/deploy_production.sh"), "--preflight-only"],
+        cwd=REPO_ROOT,
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert completed.returncode != 0
+    assert expected in completed.stderr
+    log = log_file.read_text().splitlines()
+    assert any("--profile alerting ps --all --quiet alertmanager" in line for line in log) is (
+        fault != "wrong-project-name"
+    )
+    assert all(" pull " not in line and " up " not in line and " stop " not in line for line in log)
+
+
+@pytest.mark.parametrize(
+    ("project_name", "allowed"),
+    ((None, True), ("", False), ("Bad Name", False)),
+)
+def test_production_empty_alertmanager_census_requires_canonical_project_identity(
+    tmp_path: Path, project_name: str | None, allowed: bool
+) -> None:
+    env, _project_dir, log_file, _bundle = _production_preflight_fixture(
+        tmp_path, with_bundle=False
+    )
+    env.pop("COMPOSE_PROFILES", None)
+    env["STUB_CENSUS_LOG"] = str(log_file)
+    env["STUB_ALERTMANAGER_PS_IDS"] = ""
+    if project_name is not None:
+        env["STUB_COMPOSE_PROJECT_NAME"] = project_name
+    completed = subprocess.run(
+        [str(REPO_ROOT / "scripts/deploy_production.sh"), "--preflight-only"],
+        cwd=REPO_ROOT,
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert (completed.returncode == 0) is allowed, completed.stderr
+    if not allowed:
+        assert "Compose project identity is missing or ambiguous" in completed.stderr
+    log = log_file.read_text().splitlines()
+    assert any("--profile alerting config --format json" in line for line in log)
+    assert (
+        any("--profile alerting ps --all --quiet alertmanager" in line for line in log) is allowed
+    )
+    assert all(" pull " not in line and " up " not in line and " stop " not in line for line in log)
+
+
+def _capture_compose_profile_environment(env: dict[str, str], tmp_path: Path) -> Path:
+    original_docker = Path(env["DOCKER_BIN"])
+    observed = tmp_path / "compose-profiles.log"
+    wrapper = tmp_path / "docker-profile-wrapper"
+    _write_executable(
+        wrapper,
+        "#!/usr/bin/env bash\nset -euo pipefail\n"
+        "printf 'present=%s value=%s\\n' "
+        '"${COMPOSE_PROFILES+x}" "${COMPOSE_PROFILES-}" '
+        f">> {shlex.quote(str(observed))}\n"
+        f'exec {shlex.quote(str(original_docker))} "$@"\n',
+    )
+    env["DOCKER_BIN"] = str(wrapper)
+    return observed
+
+
+@pytest.mark.parametrize(
+    ("caller_profile", "env_assignment", "allowed"),
+    (
+        (None, None, True),
+        ("", None, True),
+        ("scheduler-external", None, True),
+        ("alerting", None, True),
+        ("scheduler-external, alerting", None, True),
+        (None, "COMPOSE_PROFILES=alerting", False),
+        (None, "export COMPOSE_PROFILES=alerting", False),
+        ("", "export COMPOSE_PROFILES=alerting", False),
+        ("alerting", "unset COMPOSE_PROFILES", False),
+        (None, "unset COMPOSE_PROFILES", True),
+    ),
+)
+def test_production_compose_profiles_remain_caller_owned_across_sourced_env(
+    tmp_path: Path, caller_profile: str | None, env_assignment: str | None, allowed: bool
+) -> None:
+    env, project_dir, log_file, _bundle = _production_preflight_fixture(tmp_path, with_bundle=False)
+    env.pop("COMPOSE_PROFILES", None)
+    if caller_profile is not None:
+        env["COMPOSE_PROFILES"] = caller_profile
+    if env_assignment is not None:
+        with Path(env["ENV_FILE"]).open("a", encoding="utf-8") as handle:
+            handle.write(env_assignment + "\n")
+    if caller_profile is not None and "alerting" in caller_profile:
+        key = project_dir / "deploy/secrets/alertmanager_smtp_key"
+        key.write_text("synthetic-only", encoding="ascii")
+        key.chmod(0o444)
+    observed = _capture_compose_profile_environment(env, tmp_path)
+    completed = subprocess.run(
+        [str(REPO_ROOT / "scripts/deploy_production.sh"), "--preflight-only"],
+        cwd=REPO_ROOT,
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert (completed.returncode == 0) is allowed, completed.stderr
+    if allowed:
+        profile_lines = observed.read_text().splitlines()
+        assert profile_lines
+        assert all(line == f"present=x value={caller_profile or ''}" for line in profile_lines)
+    else:
+        assert "env file changed caller-owned COMPOSE_PROFILES" in completed.stderr
+        assert not observed.exists()
+        assert not log_file.exists()
+
+
+@pytest.mark.parametrize(
+    ("caller_profile", "env_assignment", "allowed"),
+    (
+        (None, None, True),
+        ("", None, True),
+        ("scheduler-external", None, True),
+        ("alerting", None, True),
+        ("scheduler-external, alerting", None, True),
+        (None, "COMPOSE_PROFILES=alerting", False),
+        (None, "export COMPOSE_PROFILES=alerting", True),
+    ),
+)
+def test_staging_compose_profiles_export_caller_choice_before_compose(
+    tmp_path: Path, caller_profile: str | None, env_assignment: str | None, allowed: bool
+) -> None:
+    env, log_file = _staging_deploy_fixture(tmp_path)
+    env.pop("COMPOSE_PROFILES", None)
+    if caller_profile is not None:
+        env["COMPOSE_PROFILES"] = caller_profile
+    if env_assignment is not None:
+        with Path(env["ENV_FILE"]).open("a", encoding="utf-8") as handle:
+            handle.write(env_assignment + "\n")
+    if caller_profile is not None and "alerting" in caller_profile:
+        key = Path(env["PROJECT_DIR"]) / "secrets/alertmanager_smtp_key"
+        key.write_text("synthetic-only", encoding="ascii")
+        key.chmod(0o444)
+    observed = _capture_compose_profile_environment(env, tmp_path)
+    completed = subprocess.run(
+        [
+            str(REPO_ROOT / "scripts/deploy.sh"),
+            "--preflight-only",
+            "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "a" * 64,
+            "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "b" * 64,
+        ],
+        cwd=REPO_ROOT,
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert (completed.returncode == 0) is allowed, completed.stderr
+    profile_lines = observed.read_text().splitlines()
+    assert profile_lines
+    assert all(line == f"present=x value={caller_profile or ''}" for line in profile_lines)
+    if not allowed:
+        assert "COMPOSE_PROFILES must be selected by the operator" in completed.stderr
         assert all(
             " pull " not in line and " up " not in line
             for line in log_file.read_text().splitlines()
