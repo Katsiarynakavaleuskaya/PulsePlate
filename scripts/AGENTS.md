@@ -566,7 +566,10 @@ Euler import, execution or store access is permitted.
   native execution or writer authority. The host follows the operational
   sequence in `.agents/skills/pulseplate-orchestration-dispatch/SKILL.md`, and
   the additive `creative_workflow.v1` CLI validates returned intake, separate
-  review, exact-file writer handoff and sanitized capsule. Legacy v1/adaptive-v2
+  review, exact-file writer handoff and sanitized capsule. Canonical repository
+  paths may contain credential-related names; secret-value checks apply to
+  their contents. Archive restore rechecks the packet's canonical writer
+  manifest and fails closed when it is unavailable. Legacy v1/adaptive-v2
   hypothesis and PR-2 patch-sandbox authority remains unchanged.
 - Contract and readiness boundaries:
   `docs/orchestration/PR_EVIDENCE_SIDECAR_V1.md` and

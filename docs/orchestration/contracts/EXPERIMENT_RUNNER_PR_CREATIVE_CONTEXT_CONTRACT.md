@@ -71,8 +71,10 @@ as supported or satisfied before selection. The review binds the exact
 validated native-result fingerprint, so reusing variant IDs with changed
 content cannot reuse an earlier review. `workflow-admit` records a
 separate coordinator handoff to one eligible writer on the selected exact
-files. Writer eligibility and the one-based occurrence order are re-read from
-the canonical runtime role-dispatch bridge at admission and stage reload;
+files. The pure stage validator checks handoff shape, result identity and exact
+selected files; it does not infer writer eligibility. Writer eligibility and
+the one-based occurrence order are re-read from the canonical runtime
+role-dispatch bridge at admission, stage reload and archive restore;
 missing, failed or incomplete manifest evidence blocks the handoff. These
 records are local evidence of the host procedure, not
 authenticated human approval, agent execution, repository permission or
@@ -91,8 +93,11 @@ Material edits require targeted review against the accepted criteria.
 
 An export packages only the named stage files, sanitized patch, focused test
 evidence and Work Review, with a SHA-256 manifest. Symlinks, hardlinks,
-traversal, unexpected filenames, size excess, local absolute paths and
-token-shaped content fail.
+traversal, unexpected filenames, size excess, filesystem-rooted path forms,
+known token shapes and credential assignments fail. Path validation treats
+repository filenames separately from secret values, so legitimate names such
+as `api_key.py` remain admissible. These finite checks do not prove the absence
+of every possible secret; host review remains required before external upload.
 The authorized host uploads the package, reads the updated Google Doc by the
 same ID, downloads the package, compares its SHA-256 and runs safe restore in
 a fresh owned directory. Failure remains `storage_pending` and bars cleanup.

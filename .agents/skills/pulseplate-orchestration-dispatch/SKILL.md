@@ -168,7 +168,9 @@ not enter this procedure.
    actual patch and test results against each accepted criterion in Work
    Review. Export a sanitized owned capsule using `workflow-export`, then let
    the host upload, read the same document ID, download the archive, compare its
-   SHA-256 and run `workflow-verify-archive` into a fresh owned directory. Until
+   SHA-256 and run `workflow-verify-archive` into a fresh owned directory. Keep
+   the bound packet available because restore rechecks the canonical writer
+   manifest; if it is unavailable, leave `storage_pending`. Until
    this round trip passes, record `storage_pending` and retain local evidence.
 
 Reopen an existing stage only against its unchanged source and input; identical
