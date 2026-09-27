@@ -887,10 +887,12 @@ If it is not recorded here — it does not exist.
   - Priority: P1
   - Target PR: [#2451](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2451) on `codex/noos-fitchef-claim-evidence-evaluation`
     (one implementation PR after NOOS-1A #2417)
-  - Status: Active offline-eval implementation. The private controlled-source
-    Sonar run captured 24 final answers in 24 physical attempts; the independent
-    72-claim reference was prepared and accepted by the owner. Blind candidate
-    comparison, current-base CI, review, and archive closeout remain pending.
+  - Status: Active offline-eval review. The private controlled-source Sonar
+    run captured 24 final answers in 24 physical attempts; the independent
+    72-claim reference was accepted by the owner. A tool-isolated GPT-6-Sol
+    assessor produced 24 valid case annotations and a byte-reproducible
+    comparison; the earlier partial GPT-5.6-Sol pass remains separate evidence.
+    Current-head CI, review, and owner-only archive closeout remain pending.
   - Area: FitChef eval / product outcomes
   - Reason (EN): The NOOS-1A structural matrix cannot measure whether actual
     FitChef responses make supported claims or improve trust, retention,
@@ -917,14 +919,18 @@ If it is not recorded here — it does not exist.
   - Target PR: `PR-TBD` after NOOS-1B #2451 and the separately governed
     opt-in Agent API transport carrier
   - Status: Reserved successor; no product model switch or generation fix is
-    authorized by the three-case exploratory comparison.
+    authorized by the exploratory comparison or the NOOS-1B assessment.
   - Area: FitChef product behavior / model evaluation
   - Reason (EN): The first controlled-source comparison found an RU language
     mismatch for Sonar and default Agent responses, a cheaper RU Agent response
     with explicit language preference, and a more evidence-proportionate Sonar
     causal statement in an ES case. Higher reasoning effort did not clearly
     improve the one inspected RU case. These dependent examples do not establish
-    a universal winner or justify switching the current Sonar default.
+    a universal winner or justify switching the current Sonar default. The
+    owner-private NOOS-1B report identifies language-fit, evidence-relevance,
+    context and causal-confidence regression surfaces without publishing
+    holdout content or reference judgments here. Its stratified synthetic set
+    is not a production rate.
   - Links: `docs/evals/FITCHEF_CLAIM_EVIDENCE_EVAL_V1.md`,
     `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-noos-1b-fitchef-answer-evaluation`,
     `docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md`,
@@ -932,7 +938,11 @@ If it is not recorded here — it does not exist.
   - DoD: Compare frozen same-context FitChef outputs by RU/EN/ES and task type
     with owner-reviewed claim support, naturalness, language fit, wellness
     wording, latency, and actual token cost; define thresholds before changing
-    product behavior. Route only by an explicit backend task type and reviewed
+    product behavior. Include concrete negative regressions for an RU or ES
+    request answered in English, a topical citation that does not support its
+    proposition, a claim whose source has a different population or time, and
+    a confident causal suggestion supported only by correlation or no admitted
+    evidence. Route only by an explicit backend task type and reviewed
     locale, not inferred model prose. Keep nutrition/planner/tier truth in
     canonical engines; make any model selection reversible, quota/cost bounded,
     and deterministic-testable with safe fallback. Promote only a measured
