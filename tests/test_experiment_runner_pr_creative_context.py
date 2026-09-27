@@ -1707,6 +1707,7 @@ def test_operational_workflow_binds_full_dod_euler_review_and_one_writer() -> No
     command_schema = request_properties["test_commands"]["items"]
     assert re.fullmatch(command_schema["pattern"], request["test_commands"][0])
     assert not re.search(command_schema["not"]["pattern"], request["test_commands"][0])
+    assert re.fullmatch(command_schema["pattern"], "make validate-changed") is None
     result = validate_creative_workflow_native_result(_operational_native(request), request)
     review = validate_creative_workflow_review(_operational_review(request), request, result)
     handoff = {
@@ -1841,6 +1842,23 @@ def test_operational_stage_inputs_reject_local_paths_before_persistence() -> Non
     with pytest.raises(ExperimentRunnerCreativeContextContractError, match="private"):
         validate_creative_workflow_review(review, request, native)
 
+    for rooted in ("GET /home/alice/file.py", "GET /workspace/build/file.py"):
+        request = _operational_request()
+        request["criteria"][0]["description"] = rooted
+        with pytest.raises(ExperimentRunnerCreativeContextContractError, match="private"):
+            validate_creative_workflow_request(request)
+
+    request = _operational_request()
+    native = _operational_native(request)
+    native["variants"][0]["change"] = "GET /workspace/build/file.py"
+    with pytest.raises(ExperimentRunnerCreativeContextContractError, match="private"):
+        validate_creative_workflow_native_result(native, request)
+    native = _operational_native(request)
+    review = _operational_review(request, native)
+    review["rationale"] = "GET /opt/build/file.py"
+    with pytest.raises(ExperimentRunnerCreativeContextContractError, match="private"):
+        validate_creative_workflow_review(review, request, native)
+
     native["variants"][0]["change"] = "Implement GET /api/v1/items"
     assert validate_creative_workflow_native_result(native, request) == native
 
@@ -1955,6 +1973,7 @@ def test_operational_request_rejects_empty_euler_relations() -> None:
         "pytest -q tests/../test_example.py",
         "pytest -q -p arbitrary tests/test_example.py",
         "make clean",
+        "make validate-changed",
         "npm --prefix frontend run deploy",
     ],
 )
@@ -1971,7 +1990,6 @@ def test_operational_request_rejects_unsafe_test_command(command: str) -> None:
         "pytest -q tests/test_example.py",
         "pytest -q tests/test_example.py::test_case --maxfail=1",
         "make test-fast",
-        "make validate-changed",
         "make ios-test",
         "npm --prefix frontend test -- --run src/api/client.test.ts",
     ],
@@ -2667,12 +2685,15 @@ def test_operational_stage_and_archive_reject_false_completion_and_unsafe_files(
         ("test_evidence.json", '{"cwd":"/workspace/PulsePlate"}'),
         ("work_review.md", "Observed /opt/local/PulsePlate and /mnt/build/PulsePlate"),
         ("work_review.md", "Observed /srv/alice/PulsePlate"),
+        ("work_review.md", "GET /srv/alice/PulsePlate remains a local path"),
         ("test_evidence.json", '{"credential":"DATABASE_PASSWORD=not-a-real-secret"}'),
         ("work_review.md", "Synthetic key ID: " + "AKIA" + "A" * 16),
         ("work_review.md", "DATABASE_PASSWORD" + "=" + '"synthetic-not-a-secret"'),
         ("patch.diff", "AWS_SECRET_ACCESS_KEY" + "=" + "'synthetic-not-a-secret'"),
         ("test_evidence.json", json.dumps({"pass" + "word": "synthetic-not-a-secret"})),
         ("work_review.md", "Authorization: Bearer synthetic-not-a-secret"),
+        ("work_review.md", "This result is ready to merge"),
+        ("test_evidence.json", '{"claim":"mergeable"}'),
     ):
         (output / name).write_text(content, encoding="utf-8")
         with pytest.raises(cli.ExperimentRunnerCreativeContextCliError, match="private"):

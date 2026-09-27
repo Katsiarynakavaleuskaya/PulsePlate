@@ -233,10 +233,35 @@ _ROUTE_LITERAL_CONTEXT_RE = re.compile(
     r"\(\s*['\"]|\b(?:GET|POST|PUT|PATCH|DELETE|OPTIONS|HEAD|WEBSOCKET)\s+)$",
     re.IGNORECASE,
 )
+_LOCAL_FILESYSTEM_ROOTS = frozenset(
+    {
+        "dev",
+        "etc",
+        "home",
+        "mnt",
+        "opt",
+        "private",
+        "root",
+        "srv",
+        "tmp",
+        "users",
+        "usr",
+        "var",
+        "volumes",
+        "workspace",
+        "workspaces",
+    }
+)
 
 
 def contains_local_path_outside_route_context(value: str) -> bool:
     for match in LOCAL_ABSOLUTE_PATH_RE.finditer(value):
+        matched_path = match.group()
+        if (
+            matched_path.startswith("/")
+            and matched_path.split("/", 2)[1].casefold() in _LOCAL_FILESYSTEM_ROOTS
+        ):
+            return True
         line_start = value.rfind("\n", 0, match.start()) + 1
         if _ROUTE_LITERAL_CONTEXT_RE.search(value[line_start : match.start()]):
             continue
@@ -3061,9 +3086,7 @@ _WORKFLOW_PYTEST_COMMAND_RE = re.compile(
 _WORKFLOW_FRONTEND_COMMAND_RE = re.compile(
     r"^npm --prefix frontend test -- --run (src/[A-Za-z0-9_./-]+\.(?:test|spec)\.(?:js|jsx|ts|tsx))$"
 )
-_WORKFLOW_MAKE_TEST_COMMANDS = frozenset(
-    {"make test-fast", "make validate-changed", "make ios-test"}
-)
+_WORKFLOW_MAKE_TEST_COMMANDS = frozenset({"make test-fast", "make ios-test"})
 _WORKFLOW_STAGES = ("prepared", "returned", "validated", "reviewed", "admitted")
 CREATIVE_WORKFLOW_STAGE_TYPE = "creative_workflow_stage"
 CREATIVE_WORKFLOW_POLICY_VERSION = "creative_workflow.policy.v1"

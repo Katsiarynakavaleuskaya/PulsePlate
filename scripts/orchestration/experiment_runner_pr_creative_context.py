@@ -84,6 +84,10 @@ ARCHIVE_SECRET_RE = re.compile(
     r"-----BEGIN(?: [A-Z0-9]+)? PRIVATE KEY-----",
     re.IGNORECASE,
 )
+ARCHIVE_AUTHORITY_CLAIM_RE = re.compile(
+    r"\b(?:ready\s+to\s+merge|mergeable|merge-ready)\b",
+    re.IGNORECASE,
+)
 
 CREATIVE_CONTEXT_ROOT = (
     REPO_ROOT / "artifacts" / "orchestration" / "experiments" / "creative_context"
@@ -898,6 +902,10 @@ def _workflow_archive_inputs(directory: Path, include: list[str]) -> dict[str, b
         if (
             ARCHIVE_SECRET_RE.search(readable)
             or SECRET_VALUE_RE.search(readable)
+            or (
+                name in {"test_evidence.json", "oracle_evidence.json", "work_review.md"}
+                and ARCHIVE_AUTHORITY_CLAIM_RE.search(readable)
+            )
             or contains_local_path_outside_route_context(readable)
             or re.search(
                 r"/(?:Users|private/var|var/folders|tmp|etc|root)/|file://|"
