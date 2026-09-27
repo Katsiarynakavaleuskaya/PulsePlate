@@ -27,13 +27,13 @@ test-only reassignment of `legacy_app.app` cannot rebind package, bootstrap, or
 not import `legacy_app`. Resolving `app.app` imports `app.main` without loading
 `legacy_app`; the canonical bootstrap no longer reverse-imports the compatibility
 facade. The eight former paid/BMI registration mirrors are absent from `app`,
-`app.main`, and `legacy_app.py`. Nine bounded Python-binding retirements remove
-only the exact 83 `legacy_app.py` Python bindings enumerated below; they do not
+`app.main`, and `legacy_app.py`. Ten bounded Python-binding retirements remove
+only the exact 87 `legacy_app.py` Python bindings enumerated below; they do not
 remove or redirect any HTTP path, change auth, alter OpenAPI, or change FastAPI
 object identity. Repository census found no tracked supported production
 consumer of the second ten-name, third eleven-name, fourth eight-name, fifth
-twelve-name, sixth seven-name, seventh three-name, eighth seven-name, or ninth
-fifteen-name cohort;
+twelve-name, sixth seven-name, seventh three-name, eighth seven-name, ninth
+fifteen-name, or tenth four-name cohort;
 it does not prove that no external or dynamic Python consumer exists.
 
 Application startup/shutdown behavior is canonically owned by
@@ -95,6 +95,130 @@ only Python import paths, extends the finite guard from 68 to 83, and leaves
 retained HTTP routes, response models, OpenAPI, and the FastAPI app identity
 unchanged. Unknown external or reflective Python importers remain a residual
 compatibility risk.
+
+The tenth bounded retirement removes only `DataClass`,
+`get_retention_manager`, `LogRetentionManager`, and the unused
+`_log_retention_manager` from `legacy_app.py`. The first three remain canonical
+in `core/log_retention.py:18`, `core/log_retention.py:196`, and
+`core/log_retention.py:33`; the fourth was a facade-local `None` placeholder,
+not the core singleton. The live admin service consumes the first two directly
+at `app/services/admin_operations.py:21`; privacy cleanup imports the getter
+at `core/compliance/privacy.py:10`. This retires only four Python bindings
+and extends the exact-name guard from 83 to 87. It does not alter log cleanup,
+HTTP routes, auth, OpenAPI, or FastAPI object identity. Unknown external or
+computed imports remain a compatibility risk and must migrate to the core owner.
+
+## Residual Python facade census (log-retention child)
+
+The exact base is `0dccc2ee18d5f88d0753a5cdff384838bd080af7` (`origin/main`
+at lane admission). Python's `symtable.symtable(..., "exec")` counted names with
+`is_assigned() or is_imported()` in that base's `legacy_app.py`: **60**. The
+candidate file after the four-name removal has **56**. This is a static module
+symbol inventory, not a supported export list: it includes private names,
+typing imports, local scaffolding, conditional imports, and `annotations`.
+The exact residual 56-name partition is:
+
+| Classification / canonical owner | Residual names |
+| --- | --- |
+| Python/typing imports | `annotations`, `logging`, `TYPE_CHECKING`, `Any`, `Callable`, `Optional`, `cast` |
+| App construction and metadata: `app/bootstrap/*`, `app/application_metadata.py` | `build_application_metadata`, `APPLICATION_METADATA`, `RUNTIME_ENV`, `_canonical_app`, `lifespan`, `app`, `_app_env`, `_application_metadata`, `tags_metadata`, `_api_description`, `logger`, `bmi_logger` |
+| Error details and API-key dependency: `app/http_error_details.py`, `app/routers/api_key.py` | `ENHANCED_PLATE_GENERATION_FAILED_DETAIL`, `INVALID_PREMIUM_PLATE_INPUT_DETAIL`, `_get_api_key_dynamic`, `get_api_key` |
+| Schemas: `app/schemas/*` | `BMIRequest`, `BMIRequestV1`, `CanonicalTargetsIn`, `TargetsIn`, `LegacyWeekPlanRequest`, `WeeklyMenuResponse` |
+| BMI rendering adapter: `app/services/bmi_compat.py` | `MATPLOTLIB_AVAILABLE`, `add_visualization_if_requested`, `generate_bmi_visualization`, `_BMI_COMPAT_REEXPORTS`, `_BMI_SCHEMA_COMPAT_REEXPORTS` |
+| Scheduler, core utilities and compatibility tuple | `get_update_scheduler`, `get_session`, `Language`, `normalize_lang`, `t`, `FIBER_MIN_G`, `_short_git_sha`, `_is_truthy`, `_LEGACY_IMPORT_COMPAT_REEXPORTS` |
+| Rate limiting and optional SlowAPI scaffolding: `app/security/rate_limit.py`, `slowapi`, `typing` | `RATE_LIMIT_429_RESPONSES`, `RATE_LIMIT_EXPORTS`, `RATE_LIMIT_INSIGHT`, `_RATE_LIMIT_429_RESPONSES`, `limiter`, `limit_if_available`, `Limiter`, `LimiterType`, `_Limiter`, `slowapi_available`, `_TypeVar`, `_F`, `_LimitValue` |
+
+The tracked direct-consumer scan parsed 89 Python files containing the literal
+`legacy_app` out of 1,797 tracked `*.py` files. It recognized explicit
+`from legacy_app import name`, `import legacy_app [as alias]` followed by
+`alias.name`, and constant-string `getattr(alias, "name")`. The same 16 of the
+residual names had 27 name/file pairs at both base and candidate. All 27 pairs
+are in tests; there is no recognized production direct consumer. Exact test
+consumers are:
+
+| Tracked file | Direct residual names |
+| --- | --- |
+| `tests/test_api_key_dependency_ownership.py` | `_get_api_key_dynamic`, `get_api_key` |
+| `tests/test_app_missing_lines_extra.py` | `get_update_scheduler` |
+| `tests/test_app_public_surface.py` | `app`, `get_update_scheduler`, `lifespan` |
+| `tests/test_application_instance_ownership.py` | `app` |
+| `tests/test_application_metadata.py` | `_api_description`, `_app_env`, `tags_metadata` |
+| `tests/test_canonical_application_lifespan.py` | `app`, `lifespan` |
+| `tests/test_env_guards.py` | `app` |
+| `tests/test_final_coverage_97_boost.py` | `app` |
+| `tests/test_health_db.py` | `app` |
+| `tests/test_legacy_app_diff_coverage.py` | `BMIRequest`, `FIBER_MIN_G`, `LegacyWeekPlanRequest`, `add_visualization_if_requested`, `app`, `get_update_scheduler` |
+| `tests/test_legacy_app_git_sha.py` | `_short_git_sha` |
+| `tests/test_legacy_bmi_shims.py` | `BMIRequest`, `BMIRequestV1` |
+| `tests/test_legacy_weekly_plan_alias_api.py` | `LegacyWeekPlanRequest`, `WeeklyMenuResponse` |
+| `tests/test_targets_in_parity.py` | `TargetsIn` |
+
+Reproduce the census from the repository root with the following read-only
+stdlib script. `base` reads committed Git blobs; `candidate` reads the current
+checkout. After the material commit, rerun `base` with that commit SHA to check
+the committed 56-name projection. `git grep` only narrows the Python parse
+candidate list; the AST, not text matches, decides direct uses.
+
+```bash
+python3 - <<'PY'
+import ast
+from collections import defaultdict
+from pathlib import Path
+import shutil
+import subprocess
+import symtable
+
+git_bin = shutil.which("git")
+assert git_bin is not None
+# Public Git commit SHA fixing the census base; it is not a credential.
+base = "0dccc2ee18d5f88d0753a5cdff384838bd080af7"  # pragma: allowlist secret
+
+def git(*args):
+    return subprocess.check_output([git_bin, *args])
+
+for rev in (base, None):
+    source = git("show", f"{rev}:legacy_app.py").decode() if rev else Path("legacy_app.py").read_text()
+    symbols = symtable.symtable(source, "legacy_app.py", "exec").get_symbols()
+    names = {s.get_name() for s in symbols if s.is_assigned() or s.is_imported()}
+    argv = ("grep", "-l", "-z", "legacy_app", rev, "--", "*.py") if rev else (
+        "grep", "-l", "-z", "legacy_app", "--", "*.py"
+    )
+    paths = [p.decode().removeprefix(rev + ":") if rev else p.decode()
+             for p in git(*argv).split(b"\0") if p]
+    uses = defaultdict(set)
+    for path in paths:
+        code = git("show", f"{rev}:{path}").decode() if rev else Path(path).read_text()
+        tree = ast.parse(code)
+        aliases = {a.asname or a.name for n in ast.walk(tree)
+                   if isinstance(n, ast.Import) for a in n.names if a.name == "legacy_app"}
+        for n in ast.walk(tree):
+            if isinstance(n, ast.ImportFrom) and n.module == "legacy_app":
+                for a in n.names:
+                    if a.name in names:
+                        uses[a.name].add(path)
+            elif isinstance(n, ast.Attribute) and isinstance(n.value, ast.Name):
+                if n.value.id in aliases and n.attr in names:
+                    uses[n.attr].add(path)
+            elif isinstance(n, ast.Call) and isinstance(n.func, ast.Name):
+                args = n.args
+                if (n.func.id == "getattr" and len(args) >= 2
+                    and isinstance(args[0], ast.Name) and args[0].id in aliases
+                    and isinstance(args[1], ast.Constant)
+                    and isinstance(args[1].value, str) and args[1].value in names):
+                    uses[args[1].value].add(path)
+    pairs = sum(len(files) for files in uses.values())
+    production_pairs = sum(not path.startswith("tests/")
+                           for files in uses.values() for path in files)
+    print(rev or "candidate", len(names), len(paths), len(uses), pairs, production_pairs)
+PY
+```
+
+This scan does not resolve arbitrary alias flow, indirect or computed lookups,
+import hooks, runtime mutation, generated/untracked files, shell/Markdown
+consumers, or external Python packages. It does not justify retiring any of
+the other 56 names. The four selected log-retention names had zero recognized
+tracked direct consumers at base; their canonical owners and the supported
+admin/privacy direct imports are stated above.
 
 Admin scheduler access is canonically exposed by
 `app/services/scheduler_access.py` as a lazy typed delegator. The core scheduler
@@ -334,9 +458,9 @@ data from 39 to 51, and included the merged #2365 ledger reconciliation.
 merged on 2026-09-23 at 14:32:10 UTC as
 `ab7da79ce12cbd25537df57551b57b31e69409d0`. It retired only the seven
 `core.nutrition_utils` projections above and extended the same name set from
-51 to 58 without changing its recognizer. The current bounded child,
+51 to 58 without changing its recognizer. The later bounded child,
 [PR #2407](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2407)
-(`codex/retire-legacy-targets-gaps-service-exports`) retires only the three
+(`codex/retire-legacy-targets-gaps-service-exports`) retired only the three
 targets/gaps service projections above, extending the exact-name set from 58 to
 61 without changing its recognizer. The parent Legacy epic remains open.
 All retained Insight HTTP routes, all four versioned nutrition aliases, and
@@ -418,9 +542,9 @@ implementations and canonical `app/**` reverse imports or dynamic lookups for
 those callables. Current facts may disappear as the seam shrinks; new facts fail
 closed with repo-relative diagnostics.
 
-For the 83 retired Python bindings, the guard has a deliberately bounded
+For the 87 retired Python bindings, the guard has a deliberately bounded
 finite mechanical claim over the exact repo-relative `legacy_app.py` source
-only. It freezes the exact 83-name set, uses the existing `_assigned_names`
+only. It freezes the exact 87-name set, uses the existing `_assigned_names`
 collector for statically visible ordinary module-scope `Name` Store/Del
 bindings, rejects explicit `global` declarations for a protected name, rejects
 all star imports, and rejects a statically bound module-level `__getattr__`.
@@ -438,7 +562,7 @@ import hooks, reflection, arbitrary helpers, and external monkeypatching. The
 rule neither accepts nor certifies those families and makes no completeness
 claim about them. Any new or changed dynamic namespace carrier in
 `legacy_app.py`, and any dynamic carrier intended to bind or rebind one of the
-83 protected names, requires manual STOP and review. The existing router-import
+87 protected names, requires manual STOP and review. The existing router-import
 recognizer separately rejects reintroduction of the former exact dynamic
 `app.routers.plan_export -> _plan_mod` fact; this does not widen the ordinary
 binding rule or certify arbitrary namespace mutation.
