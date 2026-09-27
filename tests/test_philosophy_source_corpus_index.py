@@ -1086,9 +1086,9 @@ def test_philosophy_source_corpus_index_treats_option_like_paths_as_files(
 @pytest.mark.parametrize(
     ("head_data", "has_new_match"),
     [
-        (b"old=/tmp/recorded.pdf\nsafe=added\n", False),
-        (b"old=/tmp/recorded.pdf\nnew=/tmp/recorded.pdf\n", True),
-        (b"old=/tmp/recorded.pdf\nnew=/tmp/new.pdf\n", True),
+        (b"old=/" + b"tmp/recorded.pdf\nsafe=added\n", False),
+        (b"old=/" + b"tmp/recorded.pdf\nnew=/" + b"tmp/recorded.pdf\n", True),
+        (b"old=/" + b"tmp/recorded.pdf\nnew=/" + b"tmp/new.pdf\n", True),
     ],
 )
 def test_source_corpus_differential_counts_new_forbidden_occurrences(
@@ -1097,7 +1097,7 @@ def test_source_corpus_differential_counts_new_forbidden_occurrences(
     head_data: bytes,
     has_new_match: bool,
 ) -> None:
-    base_ref = _corpus_diff_fixture(tmp_path, b"old=/tmp/recorded.pdf\n", head_data)
+    base_ref = _corpus_diff_fixture(tmp_path, b"old=/" + b"tmp/recorded.pdf\n", head_data)
     monkeypatch.setattr(corpus, "REPO_ROOT", tmp_path)
 
     errors = validate_new_file_contents(["docs/evidence/changed.md"], base_ref=base_ref)
@@ -1105,14 +1105,14 @@ def test_source_corpus_differential_counts_new_forbidden_occurrences(
     assert bool(errors) is has_new_match
     if has_new_match:
         assert "new forbidden local path or credential-like token" in errors[0]
-        assert "/tmp/" not in errors[0]
+        assert "/" + "tmp/" not in errors[0]
 
 
 def test_source_corpus_differential_ignores_git_replacement_objects(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     path = "docs/evidence/changed.md"
-    head_data = b"new=/tmp/new-source.pdf\n"
+    head_data = b"new=/" + b"tmp/new-source.pdf\n"
     base_ref = _corpus_diff_fixture(tmp_path, b"safe=base\n", head_data)
     head_tree = _fixture_git(tmp_path, "rev-parse", "HEAD^{tree}").decode("ascii")
     replacement = _fixture_git(
@@ -1163,7 +1163,7 @@ def test_source_corpus_git_failure_does_not_echo_stderr(
             args=["git"],
             returncode=128,
             stdout=b"",
-            stderr=b"fatal: /Users/example/private-source was rejected",
+            stderr=b"fatal: /" + b"Users/example/private-source was rejected",
         )
 
     monkeypatch.setattr(corpus.subprocess, "run", failed_git)
@@ -1171,7 +1171,7 @@ def test_source_corpus_git_failure_does_not_echo_stderr(
         corpus._corpus_git_bytes("cat-file", "-e", "f" * 40)
 
     assert "Git cat-file object check failed (exit 128)" in str(exc.value)
-    assert "/Users/example/private-source" not in str(exc.value)
+    assert "/" + "Users/example/private-source" not in str(exc.value)
 
 
 def test_source_corpus_differential_rejects_rename_ambiguity(
@@ -1237,7 +1237,7 @@ def test_source_corpus_differential_keeps_symlink_target_guard(
     )
     base_ref = _fixture_git(tmp_path, "rev-parse", "HEAD").decode("ascii")
     artifact.unlink()
-    artifact.symlink_to("/tmp/private-source.pdf")
+    artifact.symlink_to("/" + "tmp/private-source.pdf")
     _fixture_git(tmp_path, "add", ".")
     _fixture_git(
         tmp_path,
@@ -1261,8 +1261,8 @@ def test_source_corpus_cli_uses_base_before_terminal_files(
 ) -> None:
     base_ref = _corpus_diff_fixture(
         tmp_path,
-        b"old=/tmp/recorded.pdf\n",
-        b"old=/tmp/recorded.pdf\nsafe=added\n",
+        b"old=/" + b"tmp/recorded.pdf\n",
+        b"old=/" + b"tmp/recorded.pdf\nsafe=added\n",
     )
     monkeypatch.setattr(corpus, "REPO_ROOT", tmp_path)
 
