@@ -28,6 +28,10 @@ DEFAULT_GATE_REPORT = (
     / "contracts"
     / "PHILOSOPHY_GATE_OPEN_PRECONDITIONS_REPORT.json"
 )
+SOURCE_CORPUS_PATHS = frozenset(
+    path.relative_to(REPO_ROOT).as_posix().encode("utf-8")
+    for path in (DEFAULT_INDEX, DEFAULT_SCHEMA, DEFAULT_ROADMAP, DEFAULT_GATE_REPORT)
+)
 
 CONTRACT_ID = "philosophy_source_corpus_index"
 CONTRACT_VERSION = "2026-05-24"
@@ -1324,6 +1328,34 @@ def _forbidden_content_multiset(text: str) -> Counter[tuple[int, str]]:
     return occurrences
 
 
+def _has_source_corpus_rename_or_copy(base_ref: str) -> bool:
+    """Reject ambiguous Git moves only when a canonical corpus path participates."""
+
+    raw = _corpus_git_bytes(
+        "diff",
+        "--no-ext-diff",
+        "--no-textconv",
+        "--name-status",
+        "-z",
+        "--find-renames",
+        "--find-copies-harder",
+        "--diff-filter=RC",
+        f"{base_ref}...HEAD",
+    )
+    if not raw:
+        return False
+    fields = raw.split(b"\0")
+    if fields[-1] or (len(fields) - 1) % 3:
+        raise ValueError("source corpus Git rename/copy evidence is malformed")
+    for index in range(0, len(fields) - 1, 3):
+        status, old_path, new_path = fields[index : index + 3]
+        if not re.fullmatch(rb"[RC](?:100|[0-9]{1,2})", status) or not old_path or not new_path:
+            raise ValueError("source corpus Git rename/copy evidence is malformed")
+        if old_path in SOURCE_CORPUS_PATHS or new_path in SOURCE_CORPUS_PATHS:
+            return True
+    return False
+
+
 def validate_new_file_contents(paths: list[str], *, base_ref: str) -> list[str]:
     """Reject newly introduced forbidden matches against one exact trusted base tree."""
 
@@ -1332,17 +1364,7 @@ def validate_new_file_contents(paths: list[str], *, base_ref: str) -> list[str]:
             raise ValueError("source corpus base ref must be a full lowercase commit SHA")
         _corpus_git_bytes("cat-file", "-e", f"{base_ref}^{{commit}}")
         _corpus_git_bytes("merge-base", "--is-ancestor", base_ref, "HEAD")
-        renamed = _corpus_git_bytes(
-            "diff",
-            "--no-ext-diff",
-            "--no-textconv",
-            "--name-only",
-            "-z",
-            "--find-renames",
-            "--diff-filter=RC",
-            f"{base_ref}...HEAD",
-        )
-        if renamed:
+        if _has_source_corpus_rename_or_copy(base_ref):
             raise ValueError("source corpus differential rejects rename/copy ambiguity")
 
         errors: list[str] = []

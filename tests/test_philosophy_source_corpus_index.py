@@ -1174,7 +1174,7 @@ def test_source_corpus_git_failure_does_not_echo_stderr(
     assert "/" + "Users/example/private-source" not in str(exc.value)
 
 
-def test_source_corpus_differential_rejects_rename_ambiguity(
+def test_source_corpus_differential_allows_unrelated_safe_rename(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     _fixture_git(tmp_path, "init", "--quiet")
@@ -1209,10 +1209,59 @@ def test_source_corpus_differential_rejects_rename_ambiguity(
     monkeypatch.setattr(corpus, "REPO_ROOT", tmp_path)
 
     assert (
-        "rename/copy ambiguity"
-        in validate_new_file_contents(
+        validate_new_file_contents(
             ["docs/evidence/old.md", "docs/evidence/new.md"], base_ref=base_ref
-        )[0]
+        )
+        == []
+    )
+
+
+@pytest.mark.parametrize("operation", ["rename", "copy"])
+def test_source_corpus_differential_rejects_canonical_rename_or_copy(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, operation: str
+) -> None:
+    _fixture_git(tmp_path, "init", "--quiet")
+    original_path = REL_INDEX
+    original = tmp_path / original_path
+    original.parent.mkdir(parents=True)
+    original.write_text("safe canonical corpus\n", encoding="utf-8")
+    _fixture_git(tmp_path, "add", ".")
+    _fixture_git(
+        tmp_path,
+        "-c",
+        "user.name=CI Test",
+        "-c",
+        "user.email=ci@example.test",
+        "commit",
+        "--quiet",
+        "-m",
+        "base",
+    )
+    base_ref = _fixture_git(tmp_path, "rev-parse", "HEAD").decode("ascii")
+    copied_path = "docs/evidence/copied-index.json"
+    copied = tmp_path / copied_path
+    copied.parent.mkdir(parents=True)
+    if operation == "rename":
+        _fixture_git(tmp_path, "mv", original_path, copied_path)
+    else:
+        copied.write_bytes(original.read_bytes())
+        _fixture_git(tmp_path, "add", copied_path)
+    _fixture_git(
+        tmp_path,
+        "-c",
+        "user.name=CI Test",
+        "-c",
+        "user.email=ci@example.test",
+        "commit",
+        "--quiet",
+        "-m",
+        operation,
+    )
+    monkeypatch.setattr(corpus, "REPO_ROOT", tmp_path)
+
+    assert (
+        "rename/copy ambiguity"
+        in validate_new_file_contents([original_path, copied_path], base_ref=base_ref)[0]
     )
 
 

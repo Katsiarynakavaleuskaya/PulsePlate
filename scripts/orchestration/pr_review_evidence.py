@@ -1292,6 +1292,7 @@ def validated_duplicate_reply_urls(
                         commit_sha=snapshot.head_sha,
                         pr_number=snapshot.pr_number,
                     ),
+                    repo_root=repo_root,
                     manifest=material_manifest,
                     repository=repository,
                     pr_number=snapshot.pr_number,
@@ -2090,6 +2091,7 @@ def _validate_stale_seal_linear_material_edge(
 def _validate_stale_seal_projection(
     mapping_text: str,
     *,
+    repo_root: Path,
     manifest: MaterialManifest,
     repository: str,
     pr_number: int,
@@ -2119,6 +2121,7 @@ def _validate_stale_seal_projection(
         seal,
         material_paths=(entry.path for entry in manifest.entries),
         material_diff_summary=manifest.diff_summary,
+        repo_root=repo_root,
     )
     return seal
 
@@ -2927,6 +2930,7 @@ def _validate_historical_stale_seal_reseal(
     )
     _validate_stale_seal_projection(
         prior_mapping,
+        repo_root=repo_root,
         manifest=prior_manifest,
         repository=repository,
         pr_number=snapshot.pr_number,
@@ -2949,6 +2953,7 @@ def _validate_historical_stale_seal_reseal(
         raise ReviewEvidenceError("owner stale-seal reseal changes material identity")
     _validate_stale_seal_projection(
         resealed_mapping,
+        repo_root=repo_root,
         manifest=stale_manifest,
         repository=repository,
         pr_number=snapshot.pr_number,
@@ -3043,6 +3048,7 @@ def _validate_current_stale_seal_closeout(
         raise ReviewEvidenceError("owner stale-seal current reseal changes material identity")
     _validate_stale_seal_projection(
         live_mapping,
+        repo_root=repo_root,
         manifest=material_manifest,
         repository=repository,
         pr_number=snapshot.pr_number,

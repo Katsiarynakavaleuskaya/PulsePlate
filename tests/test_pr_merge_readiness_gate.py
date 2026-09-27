@@ -2237,6 +2237,32 @@ def _provider_no_claim_seal_context(
     return repo, seal, snapshot, material_head
 
 
+def test_historical_stale_seal_projection_uses_material_checkout(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo, seal, snapshot, material_head = _provider_no_claim_seal_context(tmp_path, monkeypatch)
+    manifest = compute_material_manifest(
+        repo,
+        base_ref_oid=snapshot.base_sha,
+        head_ref_oid=material_head,
+        pr_number=snapshot.pr_number,
+    )
+    policy_checkout = tmp_path / "policy-checkout"
+    policy_checkout.mkdir()
+    monkeypatch.setattr(evidence_module, "_REPO_ROOT", policy_checkout)
+
+    validated = evidence_module._validate_stale_seal_projection(
+        _artifact_with_seal(seal),
+        repo_root=repo,
+        manifest=manifest,
+        repository=snapshot.repository,
+        pr_number=snapshot.pr_number,
+        require_provider_no_claim=True,
+    )
+
+    assert validated["material"]["digest"] == manifest.digest
+
+
 def test_ci_gate_accepts_provider_no_claim_and_waits_bounded_without_providers(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
