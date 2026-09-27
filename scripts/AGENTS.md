@@ -572,7 +572,8 @@ Euler import, execution or store access is permitted.
   checkout for supported commands; unavailable containment or unsupported
   platform commands remain pending, never a host-side fallback. Canonical
   repository paths may contain credential-related names; secret-value checks apply to
-  their contents. Request, native-result and review prose use the same
+  their contents, while prose may name an API key without containing one.
+  Request, native-result and review prose use the same
   route-aware local-path check before any stage is persisted. Each stage keeps
   its predecessor's inherited request, native
   result and review bytes; a matching predecessor hash alone is insufficient.
@@ -582,7 +583,8 @@ Euler import, execution or store access is permitted.
   handoff and structured test evidence to bind its digest and admitted commands;
   only regular patch modes and stored ZIP members are accepted, and Work Review
   must name each accepted criterion. This continuity does not authenticate
-  test execution. Restore also rechecks
+  test execution. Export and restore share the same UTF-8 and private-content
+  sanitizer. Restore also rechecks
   the packet's canonical writer manifest and the criteria,
   requirements, and Euler source digests; missing or changed evidence fails
   closed. Legacy v1/adaptive-v2
