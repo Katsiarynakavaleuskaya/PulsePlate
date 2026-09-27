@@ -21,6 +21,7 @@ import stat
 import sys
 import tempfile
 import zipfile
+import zlib
 from typing import Any, Mapping
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -37,7 +38,6 @@ from scripts.orchestration.experiment_runner_pr_creative_context_contract import
     ORACLE_ATTACHMENT_TYPE,
     OPERATOR_MODEL_INTAKE_TYPE,
     CREATIVE_WORKFLOW_SCHEMA_VERSION,
-    SECRET_RE,
     SECRET_VALUE_RE,
     contains_local_path_outside_route_context,
     ExperimentRunnerCreativeContextContractError,
@@ -64,6 +64,7 @@ from scripts.orchestration.experiment_runner_pr_creative_context_contract import
     validate_creative_workflow_stage,
     workflow_fingerprint,
 )
+
 from scripts.orchestration.evidence_rail_applicability import (
     read_task_packet_snapshot,
     EvidenceRailApplicabilityError,
@@ -75,6 +76,14 @@ from scripts.orchestration.creative_code_patch_workspace import (
     run_git,
 )
 from scripts.orchestration import qoder_dispatch_bridge
+
+ARCHIVE_SECRET_RE = re.compile(
+    r"\b(?:sk-[A-Za-z0-9_-]{12,}|gh[psoru]_[A-Za-z0-9_.-]{12,}|"
+    r"github_pat_[A-Za-z0-9_]{12,}|xox[abprs]-[A-Za-z0-9-]{12,})\b|"
+    r"authorization:\s*bearer[ \t]+\S+|"
+    r"-----BEGIN(?: [A-Z0-9]+)? PRIVATE KEY-----",
+    re.IGNORECASE,
+)
 
 CREATIVE_CONTEXT_ROOT = (
     REPO_ROOT / "artifacts" / "orchestration" / "experiments" / "creative_context"
@@ -887,7 +896,7 @@ def _workflow_archive_inputs(directory: Path, include: list[str]) -> dict[str, b
         except UnicodeDecodeError as exc:
             raise ExperimentRunnerCreativeContextCliError("capsule file is not UTF-8") from exc
         if (
-            SECRET_RE.search(readable)
+            ARCHIVE_SECRET_RE.search(readable)
             or SECRET_VALUE_RE.search(readable)
             or contains_local_path_outside_route_context(readable)
             or re.search(
@@ -1034,7 +1043,7 @@ def _workflow_verify_archive(args: argparse.Namespace) -> int:
                 eligible,
                 dispatch_order,
             )
-    except (zipfile.BadZipFile, RuntimeError, KeyError) as exc:
+    except (zipfile.BadZipFile, zlib.error, RuntimeError, KeyError) as exc:
         raise ExperimentRunnerCreativeContextCliError("capsule could not be restored") from exc
     requested_restore = Path(args.restore_dir)
     if requested_restore.name in {"", ".", ".."} or ".." in requested_restore.parts:

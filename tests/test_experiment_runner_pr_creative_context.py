@@ -13,6 +13,7 @@ import subprocess
 from typing import Any
 import uuid
 import zipfile
+import zlib
 
 import pytest
 
@@ -2457,6 +2458,36 @@ def test_operational_cli_native_stages_and_archive_round_trip(
         == 1
     )
     assert not (cli.CREATIVE_CONTEXT_ROOT / "unsupported-restore").exists()
+    deflated_dir = cli.CREATIVE_CONTEXT_ROOT / "corrupt-deflate"
+    deflated_dir.mkdir()
+    deflated_archive = deflated_dir / "creative_workflow_capsule.zip"
+    with zipfile.ZipFile(deflated_archive, "w", compression=zipfile.ZIP_DEFLATED) as target:
+        for name, data in forged_members.items():
+            target.writestr(name, data)
+    with zipfile.ZipFile(deflated_archive) as source:
+        info = source.getinfo("manifest.json")
+        compressed_start = info.header_offset + 30 + len(info.filename.encode()) + len(info.extra)
+    corrupt_bytes = bytearray(deflated_archive.read_bytes())
+    corrupt_bytes[compressed_start] = 0xFF
+    deflated_archive.write_bytes(corrupt_bytes)
+    with zipfile.ZipFile(deflated_archive) as source:
+        with pytest.raises(zlib.error):
+            source.read("manifest.json")
+    assert (
+        cli.main(
+            [
+                "workflow-verify-archive",
+                "--archive",
+                str(deflated_archive),
+                "--sha256",
+                hashlib.sha256(corrupt_bytes).hexdigest(),
+                "--restore-dir",
+                "corrupt-deflate-restore",
+            ]
+        )
+        == 1
+    )
+    assert not (cli.CREATIVE_CONTEXT_ROOT / "corrupt-deflate-restore").exists()
     original_safe_read = cli._safe_workflow_file
 
     def replace_archive_after_verified_read(raw_path: str, *, maximum: int) -> bytes:
@@ -2621,6 +2652,12 @@ def test_operational_stage_and_archive_reject_false_completion_and_unsafe_files(
     for name, content in (
         ("patch.diff", '@router.get("/api/v1/items")'),
         ("work_review.md", "GET /api/v1/items remains public routing evidence"),
+        (
+            "patch.diff",
+            "diff --git a/app/routers/api_key.py b/app/routers/api_key.py\n"
+            "--- a/app/routers/api_key.py\n+++ b/app/routers/api_key.py\n",
+        ),
+        ("work_review.md", "Reviewed app/routers/api_key.py without credential values"),
     ):
         (output / name).write_text(content, encoding="utf-8")
         assert cli._workflow_archive_inputs(output, include)[name] == content.encode("utf-8")
@@ -2635,6 +2672,7 @@ def test_operational_stage_and_archive_reject_false_completion_and_unsafe_files(
         ("work_review.md", "DATABASE_PASSWORD" + "=" + '"synthetic-not-a-secret"'),
         ("patch.diff", "AWS_SECRET_ACCESS_KEY" + "=" + "'synthetic-not-a-secret'"),
         ("test_evidence.json", json.dumps({"pass" + "word": "synthetic-not-a-secret"})),
+        ("work_review.md", "Authorization: Bearer synthetic-not-a-secret"),
     ):
         (output / name).write_text(content, encoding="utf-8")
         with pytest.raises(cli.ExperimentRunnerCreativeContextCliError, match="private"):
