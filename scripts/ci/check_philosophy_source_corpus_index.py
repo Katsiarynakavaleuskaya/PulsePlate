@@ -4,10 +4,14 @@
 from __future__ import annotations
 
 import argparse
+from collections import Counter
 import json
+import os
 from pathlib import Path, PurePosixPath
 import posixpath
 import re
+import shutil
+import subprocess  # nosec B404: fixed read-only Git object checks (remove-by: 2026-10-31, ref: PR-2446)
 import sys
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -1227,6 +1231,169 @@ def validate_file_contents(paths: list[str]) -> list[str]:
     return errors
 
 
+def _corpus_git_bytes(*args: str) -> bytes:
+    """Read exact Git objects without caller Git environment or replacement objects."""
+
+    git = shutil.which("git")
+    if git is None or not Path(git).is_absolute():
+        raise ValueError("source corpus differential requires an absolute Git executable")
+    git_env = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
+    git_env.update(
+        GIT_CONFIG_GLOBAL=os.devnull,
+        GIT_CONFIG_NOSYSTEM="1",
+        GIT_NO_REPLACE_OBJECTS="1",
+        GIT_TERMINAL_PROMPT="0",
+    )
+    try:
+        completed = subprocess.run(  # nosec B603: absolute Git with bounded read-only argv (remove-by: 2026-10-31, ref: PR-2446)
+            [git, *args],
+            cwd=REPO_ROOT,
+            env=git_env,
+            capture_output=True,
+            check=False,
+            timeout=30,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise ValueError(f"source corpus Git {args[0]} object check unavailable") from exc
+    if completed.returncode != 0:
+        raise ValueError(
+            f"source corpus Git {args[0]} object check failed " f"(exit {completed.returncode})"
+        )
+    return completed.stdout
+
+
+def _corpus_tree_blob(ref: str, path: str) -> tuple[str, bytes] | None:
+    raw = _corpus_git_bytes("ls-tree", "--full-tree", "-z", ref, "--", f":(literal){path}")
+    if not raw:
+        return None
+    records = raw.split(b"\0")
+    if len(records) != 2 or records[-1] or b"\t" not in records[0]:
+        raise ValueError(f"{path}: Git tree entry is ambiguous")
+    metadata, returned_path = records[0].split(b"\t", 1)
+    fields = metadata.split(b" ")
+    if (
+        returned_path != path.encode("utf-8")
+        or len(fields) != 3
+        or fields[1] != b"blob"
+        or not re.fullmatch(rb"[0-9a-f]{40}", fields[2])
+    ):
+        raise ValueError(f"{path}: Git tree object is malformed or unsupported")
+    mode = fields[0].decode("ascii")
+    if mode not in {"100644", "100755", "120000"}:
+        raise ValueError(f"{path}: Git tree mode is unsupported")
+    return mode, _corpus_git_bytes("cat-file", "blob", fields[2].decode("ascii"))
+
+
+def _corpus_text(data: bytes, *, path: str) -> str:
+    if data.startswith(
+        (
+            b"%PDF-",
+            b"\x89PNG",
+            b"\xff\xd8",
+            b"PK\x03\x04",
+            b"GIF87a",
+            b"GIF89a",
+            b"SQLite format 3",
+            b"\x7fELF",
+        )
+    ):
+        raise ValueError(f"{path}: binary or ambiguous text encoding")
+    if data.startswith((b"\xff\xfe\x00\x00", b"\x00\x00\xfe\xff")):
+        encoding = "utf-32"
+    elif data.startswith((b"\xff\xfe", b"\xfe\xff")):
+        encoding = "utf-16"
+    else:
+        encoding = "utf-8-sig"
+        if b"\x00" in data:
+            raise ValueError(f"{path}: binary or ambiguous text encoding")
+    try:
+        text = data.decode(encoding)
+    except UnicodeError as exc:
+        raise ValueError(f"{path}: binary or ambiguous text encoding") from exc
+    if any(ord(char) < 32 and char not in "\t\n\r" for char in text):
+        raise ValueError(f"{path}: binary or ambiguous text encoding")
+    return text
+
+
+def _forbidden_content_multiset(text: str) -> Counter[tuple[int, str]]:
+    occurrences: Counter[tuple[int, str]] = Counter()
+    for index, pattern in enumerate(SECRET_OR_LOCAL_PATTERNS):
+        for match in pattern.finditer(text):
+            if not _is_allowed_secret_or_local_match(text, match):
+                occurrences[(index, match.group(0))] += 1
+    return occurrences
+
+
+def validate_new_file_contents(paths: list[str], *, base_ref: str) -> list[str]:
+    """Reject newly introduced forbidden matches against one exact trusted base tree."""
+
+    try:
+        if not re.fullmatch(r"[0-9a-f]{40}", base_ref):
+            raise ValueError("source corpus base ref must be a full lowercase commit SHA")
+        _corpus_git_bytes("cat-file", "-e", f"{base_ref}^{{commit}}")
+        _corpus_git_bytes("merge-base", "--is-ancestor", base_ref, "HEAD")
+        renamed = _corpus_git_bytes(
+            "diff",
+            "--no-ext-diff",
+            "--no-textconv",
+            "--name-only",
+            "-z",
+            "--find-renames",
+            "--diff-filter=RC",
+            f"{base_ref}...HEAD",
+        )
+        if renamed:
+            raise ValueError("source corpus differential rejects rename/copy ambiguity")
+
+        errors: list[str] = []
+        for raw_path in paths:
+            path, error = _normalize_touched_path(raw_path)
+            if error is not None or path is None:
+                errors.append(error or f"changed path could not be normalized: {raw_path}")
+                continue
+            base_entry = _corpus_tree_blob(base_ref, path)
+            head_entry = _corpus_tree_blob("HEAD", path)
+            if base_entry is None and head_entry is None:
+                errors.append(f"{path}: touched path is absent from both exact Git trees")
+                continue
+            if head_entry is None:
+                continue  # Exact deletion cannot introduce file content.
+            head_mode, head_data = head_entry
+            candidate = REPO_ROOT / path
+            if head_mode == "120000":
+                if not candidate.is_symlink() or os.fsencode(os.readlink(candidate)) != head_data:
+                    errors.append(f"{path}: symlink differs from the exact head tree")
+                else:
+                    errors.extend(validate_file_contents([path]))
+                continue
+            if base_entry is not None and base_entry[0] == "120000":
+                errors.append(f"{path}: symlink-to-file transition is ambiguous")
+                continue
+            if (
+                candidate.is_symlink()
+                or not candidate.is_file()
+                or candidate.read_bytes() != head_data
+            ):
+                errors.append(f"{path}: working file differs from the exact head tree")
+                continue
+            head_matches = _forbidden_content_multiset(_corpus_text(head_data, path=path))
+            base_matches = (
+                Counter()
+                if base_entry is None
+                else _forbidden_content_multiset(_corpus_text(base_entry[1], path=path))
+            )
+            if any(count > base_matches[key] for key, count in head_matches.items()):
+                errors.append(
+                    f"{path}: new forbidden local path or credential-like token detected "
+                    "(value redacted)"
+                )
+        return errors
+    except ValueError as exc:
+        return [str(exc)]
+    except OSError as exc:
+        return [f"source corpus file inspection unavailable: {type(exc).__name__}"]
+
+
 def _validate_runtime_flags(index: dict[str, object]) -> list[str]:
     errors: list[str] = []
     for key in (
@@ -1590,6 +1757,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--roadmap", type=Path, default=DEFAULT_ROADMAP)
     parser.add_argument("--gate-report", type=Path, default=DEFAULT_GATE_REPORT)
     parser.add_argument(
+        "--base-ref",
+        help="Exact trusted PR base commit for differential scanning of touched files.",
+    )
+    parser.add_argument(
         "--files",
         nargs=argparse.REMAINDER,
         default=[],
@@ -1597,7 +1768,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
-    late_options = ("--check", "--index", "--schema", "--roadmap", "--gate-report")
+    late_options = ("--check", "--index", "--schema", "--roadmap", "--gate-report", "--base-ref")
     for path in args.files:
         if any(path == option or path.startswith(f"{option}=") for option in late_options):
             parser.error(f"{path}: configuration options must precede terminal --files")
@@ -1612,7 +1783,10 @@ def main(argv: list[str] | None = None) -> int:
         gate_report_text=args.gate_report.read_text(encoding="utf-8"),
     )
     errors.extend(validate_touched_paths(list(args.files)))
-    errors.extend(validate_file_contents(list(args.files)))
+    if args.base_ref is None:
+        errors.extend(validate_file_contents(list(args.files)))
+    else:
+        errors.extend(validate_new_file_contents(list(args.files), base_ref=args.base_ref))
     if errors:
         print("ERROR: philosophy source corpus index check failed:")
         for error in errors:

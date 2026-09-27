@@ -419,14 +419,81 @@ def _git_stdout(*args: str, repo_root: Path = REPO_ROOT) -> bytes:
     assert git_binary is not None, "git is required for tracked dependency guards"
     assert Path(git_binary).is_absolute(), "git binary must resolve to an absolute path"
     child_env = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
+    child_env.update(
+        GIT_CONFIG_GLOBAL=os.devnull,
+        GIT_CONFIG_NOSYSTEM="1",
+        GIT_NO_REPLACE_OBJECTS="1",
+        GIT_TERMINAL_PROMPT="0",
+    )
     result = subprocess.run(
         [git_binary, "-C", str(repo_root), *args],
-        check=True,
+        check=False,
         capture_output=True,
         env=child_env,
         timeout=30,
     )
+    if result.returncode != 0:
+        diagnostic = result.stderr.decode("utf-8", "replace")[:300].strip()
+        raise AssertionError(
+            f"recorded Git object unavailable or checkout incomplete (exit {result.returncode}): "
+            f"{diagnostic}"
+        )
     return result.stdout
+
+
+def test_recorded_git_objects_ignore_replacements_and_missing_objects(
+    tmp_path: Path,
+) -> None:
+    git_binary = shutil.which("git")
+    assert git_binary is not None
+    fixture_env = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
+    fixture_env.update(GIT_CONFIG_GLOBAL=os.devnull, GIT_CONFIG_NOSYSTEM="1")
+
+    def fixture_git(*args: str) -> bytes:
+        result = subprocess.run(  # nosec B603: resolved Git binary with test-owned fixed argv (remove-by: 2026-10-31, ref: PR-consol-ci-1)
+            [git_binary, "-C", str(tmp_path), *args],
+            check=True,
+            capture_output=True,
+            env=fixture_env,
+        )
+        return result.stdout.strip()
+
+    fixture_git("init", "--quiet")
+    evidence = tmp_path / "evidence.json"
+    evidence.write_bytes(b'{"status":"recorded"}\n')
+    fixture_git("add", "evidence.json")
+    fixture_git(
+        "-c",
+        "user.name=CI Test",
+        "-c",
+        "user.email=ci@example.test",
+        "commit",
+        "--quiet",
+        "-m",
+        "recorded",
+    )
+    recorded = fixture_git("rev-parse", "HEAD").decode("ascii")
+    evidence.write_bytes(b'{"status":"replacement"}\n')
+    fixture_git("add", "evidence.json")
+    fixture_git(
+        "-c",
+        "user.name=CI Test",
+        "-c",
+        "user.email=ci@example.test",
+        "commit",
+        "--quiet",
+        "-m",
+        "replacement",
+    )
+    replacement = fixture_git("rev-parse", "HEAD").decode("ascii")
+    fixture_git("replace", recorded, replacement)
+
+    assert fixture_git("show", f"{recorded}:evidence.json") == b'{"status":"replacement"}'
+    assert _git_stdout("show", f"{recorded}:evidence.json", repo_root=tmp_path) == (
+        b'{"status":"recorded"}\n'
+    )
+    with pytest.raises(AssertionError, match="recorded Git object unavailable"):
+        _git_stdout("show", f"{'f' * 40}:evidence.json", repo_root=tmp_path)
 
 
 def _assert_npm_registry_resolution(*, package_name: str, resolved: str) -> None:

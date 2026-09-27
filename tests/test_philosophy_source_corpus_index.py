@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
+import shutil
+import subprocess
 
 import pytest
 
@@ -13,6 +16,7 @@ from scripts.ci.check_philosophy_source_corpus_index import (
     DEFAULT_ROADMAP,
     DEFAULT_SCHEMA,
     validate_file_contents,
+    validate_new_file_contents,
     validate_philosophy_source_corpus_index,
     validate_touched_paths,
 )
@@ -20,6 +24,54 @@ from scripts.ci.check_philosophy_source_corpus_index import (
 REPO_ROOT = Path(__file__).resolve().parents[1]
 REL_INDEX = "docs/orchestration/contracts/PHILOSOPHY_SOURCE_CORPUS_INDEX.json"
 REL_SCHEMA = "docs/orchestration/contracts/PHILOSOPHY_SOURCE_CORPUS_INDEX.schema.json"
+
+
+def _fixture_git(repo: Path, *args: str) -> bytes:
+    git = shutil.which("git")
+    assert git is not None
+    fixture_env = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
+    fixture_env.update(GIT_CONFIG_GLOBAL=os.devnull, GIT_CONFIG_NOSYSTEM="1")
+    completed = subprocess.run(  # nosec B603: resolved Git binary with test-owned argv (remove-by: 2026-10-31, ref: PR-2446)
+        [git, "-C", str(repo), *args],
+        check=True,
+        capture_output=True,
+        env=fixture_env,
+    )
+    return completed.stdout.strip()
+
+
+def _corpus_diff_fixture(repo: Path, base_data: bytes, head_data: bytes) -> str:
+    _fixture_git(repo, "init", "--quiet")
+    artifact = repo / "docs" / "evidence" / "changed.md"
+    artifact.parent.mkdir(parents=True)
+    artifact.write_bytes(base_data)
+    _fixture_git(repo, "add", ".")
+    _fixture_git(
+        repo,
+        "-c",
+        "user.name=CI Test",
+        "-c",
+        "user.email=ci@example.test",
+        "commit",
+        "--quiet",
+        "-m",
+        "base",
+    )
+    base_ref = _fixture_git(repo, "rev-parse", "HEAD").decode("ascii")
+    artifact.write_bytes(head_data)
+    _fixture_git(repo, "add", ".")
+    _fixture_git(
+        repo,
+        "-c",
+        "user.name=CI Test",
+        "-c",
+        "user.email=ci@example.test",
+        "commit",
+        "--quiet",
+        "-m",
+        "head",
+    )
+    return base_ref
 
 
 def _read(path: Path) -> str:
@@ -1031,7 +1083,195 @@ def test_philosophy_source_corpus_index_treats_option_like_paths_as_files(
     ) in capsys.readouterr().out
 
 
-@pytest.mark.parametrize("late_option", ["--check", "--index", "--schema=other.json"])
+@pytest.mark.parametrize(
+    ("head_data", "has_new_match"),
+    [
+        (b"old=/tmp/recorded.pdf\nsafe=added\n", False),
+        (b"old=/tmp/recorded.pdf\nnew=/tmp/recorded.pdf\n", True),
+        (b"old=/tmp/recorded.pdf\nnew=/tmp/new.pdf\n", True),
+    ],
+)
+def test_source_corpus_differential_counts_new_forbidden_occurrences(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    head_data: bytes,
+    has_new_match: bool,
+) -> None:
+    base_ref = _corpus_diff_fixture(tmp_path, b"old=/tmp/recorded.pdf\n", head_data)
+    monkeypatch.setattr(corpus, "REPO_ROOT", tmp_path)
+
+    errors = validate_new_file_contents(["docs/evidence/changed.md"], base_ref=base_ref)
+
+    assert bool(errors) is has_new_match
+    if has_new_match:
+        assert "new forbidden local path or credential-like token" in errors[0]
+        assert "/tmp/" not in errors[0]
+
+
+def test_source_corpus_differential_ignores_git_replacement_objects(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = "docs/evidence/changed.md"
+    head_data = b"new=/tmp/new-source.pdf\n"
+    base_ref = _corpus_diff_fixture(tmp_path, b"safe=base\n", head_data)
+    head_tree = _fixture_git(tmp_path, "rev-parse", "HEAD^{tree}").decode("ascii")
+    replacement = _fixture_git(
+        tmp_path,
+        "-c",
+        "user.name=CI Test",
+        "-c",
+        "user.email=ci@example.test",
+        "commit-tree",
+        head_tree,
+        "-m",
+        "replacement",
+    ).decode("ascii")
+    _fixture_git(tmp_path, "replace", base_ref, replacement)
+    assert _fixture_git(tmp_path, "show", f"{base_ref}:{path}") == head_data.strip()
+    monkeypatch.setattr(corpus, "REPO_ROOT", tmp_path)
+
+    assert (
+        "new forbidden local path or credential-like token"
+        in validate_new_file_contents([path], base_ref=base_ref)[0]
+    )
+
+
+@pytest.mark.parametrize("head_data", [b"\x89PNG\x00payload", b"%PDF-1.7\nplain-ascii-header\n"])
+def test_source_corpus_differential_fails_on_bad_base_or_binary_head(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, head_data: bytes
+) -> None:
+    base_ref = _corpus_diff_fixture(tmp_path, b"safe=base\n", head_data)
+    monkeypatch.setattr(corpus, "REPO_ROOT", tmp_path)
+    path = "docs/evidence/changed.md"
+
+    assert "full lowercase commit SHA" in validate_new_file_contents([path], base_ref="bad")[0]
+    assert (
+        "Git cat-file object check failed"
+        in validate_new_file_contents([path], base_ref="f" * 40)[0]
+    )
+    assert (
+        "binary or ambiguous text encoding"
+        in validate_new_file_contents([path], base_ref=base_ref)[0]
+    )
+
+
+def test_source_corpus_git_failure_does_not_echo_stderr(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def failed_git(*_args: object, **_kwargs: object) -> subprocess.CompletedProcess[bytes]:
+        return subprocess.CompletedProcess(
+            args=["git"],
+            returncode=128,
+            stdout=b"",
+            stderr=b"fatal: /Users/example/private-source was rejected",
+        )
+
+    monkeypatch.setattr(corpus.subprocess, "run", failed_git)
+    with pytest.raises(ValueError) as exc:
+        corpus._corpus_git_bytes("cat-file", "-e", "f" * 40)
+
+    assert "Git cat-file object check failed (exit 128)" in str(exc.value)
+    assert "/Users/example/private-source" not in str(exc.value)
+
+
+def test_source_corpus_differential_rejects_rename_ambiguity(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _fixture_git(tmp_path, "init", "--quiet")
+    original = tmp_path / "docs" / "evidence" / "old.md"
+    original.parent.mkdir(parents=True)
+    original.write_text("safe\n", encoding="utf-8")
+    _fixture_git(tmp_path, "add", ".")
+    _fixture_git(
+        tmp_path,
+        "-c",
+        "user.name=CI Test",
+        "-c",
+        "user.email=ci@example.test",
+        "commit",
+        "--quiet",
+        "-m",
+        "base",
+    )
+    base_ref = _fixture_git(tmp_path, "rev-parse", "HEAD").decode("ascii")
+    _fixture_git(tmp_path, "mv", "docs/evidence/old.md", "docs/evidence/new.md")
+    _fixture_git(
+        tmp_path,
+        "-c",
+        "user.name=CI Test",
+        "-c",
+        "user.email=ci@example.test",
+        "commit",
+        "--quiet",
+        "-m",
+        "rename",
+    )
+    monkeypatch.setattr(corpus, "REPO_ROOT", tmp_path)
+
+    assert (
+        "rename/copy ambiguity"
+        in validate_new_file_contents(
+            ["docs/evidence/old.md", "docs/evidence/new.md"], base_ref=base_ref
+        )[0]
+    )
+
+
+def test_source_corpus_differential_keeps_symlink_target_guard(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _fixture_git(tmp_path, "init", "--quiet")
+    artifact = tmp_path / "docs" / "evidence" / "changed.md"
+    artifact.parent.mkdir(parents=True)
+    artifact.write_text("safe\n", encoding="utf-8")
+    _fixture_git(tmp_path, "add", ".")
+    _fixture_git(
+        tmp_path,
+        "-c",
+        "user.name=CI Test",
+        "-c",
+        "user.email=ci@example.test",
+        "commit",
+        "--quiet",
+        "-m",
+        "base",
+    )
+    base_ref = _fixture_git(tmp_path, "rev-parse", "HEAD").decode("ascii")
+    artifact.unlink()
+    artifact.symlink_to("/tmp/private-source.pdf")
+    _fixture_git(tmp_path, "add", ".")
+    _fixture_git(
+        tmp_path,
+        "-c",
+        "user.name=CI Test",
+        "-c",
+        "user.email=ci@example.test",
+        "commit",
+        "--quiet",
+        "-m",
+        "symlink",
+    )
+    monkeypatch.setattr(corpus, "REPO_ROOT", tmp_path)
+
+    errors = validate_new_file_contents(["docs/evidence/changed.md"], base_ref=base_ref)
+    assert any("symlink target must not be an absolute local path" in error for error in errors)
+
+
+def test_source_corpus_cli_uses_base_before_terminal_files(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    base_ref = _corpus_diff_fixture(
+        tmp_path,
+        b"old=/tmp/recorded.pdf\n",
+        b"old=/tmp/recorded.pdf\nsafe=added\n",
+    )
+    monkeypatch.setattr(corpus, "REPO_ROOT", tmp_path)
+
+    assert (
+        corpus.main(["--check", "--base-ref", base_ref, "--files", "docs/evidence/changed.md"]) == 0
+    )
+
+
+@pytest.mark.parametrize("late_option", ["--check", "--index", "--schema=other.json", "--base-ref"])
 def test_philosophy_source_corpus_index_rejects_configuration_after_files(
     late_option: str, capsys: pytest.CaptureFixture[str]
 ) -> None:

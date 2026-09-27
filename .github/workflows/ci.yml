@@ -371,7 +371,8 @@ jobs:
 
           if [ "${PR5_SOURCE_CORPUS_CHANGED}" -eq 1 ]; then
             echo "PR-5 source corpus guard changed; checking source index and all touched paths."
-            python scripts/ci/check_philosophy_source_corpus_index.py --check --files "${ALL_CHANGED_FILES[@]}"
+            python scripts/ci/check_philosophy_source_corpus_index.py --check \
+              --base-ref "$BASE_REF" --files "${ALL_CHANGED_FILES[@]}"
           fi
 
           if [ "${#LINT_MD[@]}" -eq 0 ]; then
@@ -902,7 +903,7 @@ jobs:
 
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with: {fetch-depth: 0}
+        with: {fetch-depth: 0, persist-credentials: false}
 
       - name: Setup Python environment
         uses: ./.github/actions/python-setup
@@ -1367,7 +1368,7 @@ jobs:
 
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with: {fetch-depth: 0}
+        with: {fetch-depth: 0, persist-credentials: false}
 
       - name: Start fast-feedback timing
         shell: bash

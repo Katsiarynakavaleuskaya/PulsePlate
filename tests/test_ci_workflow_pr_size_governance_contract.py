@@ -2009,7 +2009,7 @@ def test_docs_phase1_gates_include_schema_only_contract_changes() -> None:
         in docs_phase1_section
     )
     assert (
-        "python scripts/ci/check_philosophy_source_corpus_index.py --check --files"
+        'python scripts/ci/check_philosophy_source_corpus_index.py --check \\\n              --base-ref "$BASE_REF" --files "${ALL_CHANGED_FILES[@]}"'
         in docs_phase1_section
     )
     assert (
@@ -4403,6 +4403,17 @@ def test_ci_main_matrix_uses_full_history_for_git_evidence_guards() -> None:
     assert checkout_step["with"]["fetch-depth"] == 0
 
 
+@pytest.mark.parametrize("job_id", ("test-pr", "test-feature"))
+def test_ci_history_jobs_do_not_persist_checkout_credentials(job_id: str) -> None:
+    workflow = _load_ci_workflow()
+    checkout_step = _job_step_by_name(workflow, job_id=job_id, step_name="Checkout")
+    assert checkout_step == {
+        "name": "Checkout",
+        "uses": f"actions/checkout@{CHECKOUT_NODE24_SHA}",
+        "with": {"fetch-depth": 0, "persist-credentials": False},
+    }
+
+
 def test_ci_lint_all_files_pre_commit_uses_project_node_version() -> None:
     workflow = _load_ci_workflow()
 
@@ -4431,8 +4442,8 @@ def _assert_ci_lint_node24_frontend_hook_dependency_contract(
     assert isinstance(jobs, dict)
     lint_job = jobs["lint"]
     assert isinstance(lint_job, dict)
+    assert lint_job.get("if") == "${{ always() }}"
     for forbidden_key in (
-        "if",
         "continue-on-error",
         "defaults",
         "permissions",
@@ -4442,6 +4453,12 @@ def _assert_ci_lint_node24_frontend_hook_dependency_contract(
     lint_steps = lint_job["steps"]
     assert isinstance(lint_steps, list)
     assert all(isinstance(step, dict) for step in lint_steps)
+    health_gate = lint_steps[0]
+    assert health_gate["name"] == "Enforce prerequisite results"
+    assert health_gate["env"] == {
+        "PRIVATE_PYTHON_PROXY_HEALTH_RESULT": ("${{ needs.private_python_proxy_health.result }}")
+    }
+    assert '"$PRIVATE_PYTHON_PROXY_HEALTH_RESULT" != "success"' in health_gate["run"]
 
     def unique_step(step_name: str) -> dict[str, object]:
         matches = [step for step in lint_steps if step.get("name") == step_name]
@@ -4701,9 +4718,13 @@ def test_main_branch_python_sharded_runner_preserves_required_check_policy() -> 
 
     setup_python_step = next(step for step in steps if step["name"] == "Setup Python environment")
     assert setup_python_step["env"] == {
-        "DEVPI_CI_USER": "${{ github.event_name != 'pull_request' && secrets.DEVPI_CI_USER || '' }}",
+        "DEVPI_CI_USER": (
+            "${{ github.event_name != 'pull_request' && "
+            "github.ref == 'refs/heads/main' && secrets.DEVPI_CI_USER || '' }}"
+        ),
         "DEVPI_CI_PASSWORD": (
-            "${{ github.event_name != 'pull_request' && secrets.DEVPI_CI_PASSWORD || '' }}"
+            "${{ github.event_name != 'pull_request' && "
+            "github.ref == 'refs/heads/main' && secrets.DEVPI_CI_PASSWORD || '' }}"
         ),
     }
 
