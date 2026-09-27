@@ -10,6 +10,7 @@
 - Treat scripts as production automation: avoid breaking flags or outputs.
 - Prefer small, focused edits; update any dependent docs or Make targets if needed.
 - Avoid adding network calls to scripts used in CI unless explicitly required.
+
 - Before mocking a pinned external CLI or workflow adapter, verify its real
   flags, serialization fields and permitted Actions contexts through native
   help, pinned primary source and actionlint. A fixture accepting an invented
@@ -612,6 +613,11 @@ Eval artifact sidecars with predictable filenames must use symlink-safe,
 fail-closed writers. Eval JSONL validators must reject malformed fields with
 `ValueError`, must not coerce raw values into accepted schema fields, and must
 defensively copy validated mutable containers.
+
+## NOOS-1B FitChef answer evaluation
+
+- `scripts/evals/collect_fitchef_answers.py` is opt-in and local only. Before a paid run, require a committed clean checkout, a frozen private synthetic 24-case manifest, verified Sonar pricing/parameters, isolated synthetic PRO quota/SQLite/audit state, and the private Perplexity key. The owner-approved cap is 32 actual HTTP attempts with US$0.15 reserved before each send; retain reservations after timeout and preserve incomplete-run receipts. Do not rerun for a preferred answer.
+- `scripts/evals/fitchef_claim_assurance_eval.py` is offline. Keep candidate packets blind, exact answer/source/rubric bindings strict, `abstain` separate from a support label, and report NOOS-1A structural output only as advisory. Private outputs must reuse the bounded no-follow JSONL reader and no-replace writer in `evidence_relation_audit.py`. See `docs/evals/FITCHEF_CLAIM_EVIDENCE_EVAL_V1.md` for the owning rubric.
 
 ## Security/dev-tooling regression guards
 
