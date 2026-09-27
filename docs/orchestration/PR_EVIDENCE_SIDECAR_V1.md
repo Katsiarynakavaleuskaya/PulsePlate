@@ -116,7 +116,10 @@ The closed precedence and treatment matrix are:
 Invariant applicability is phase-stable: v1 uses the canonical non-empty
 `change_classes`, while v2 uses its validated `required_pending` repeated-family
 projection. Security and docs-only signals are recomputed through their existing
-closed recognizers. Creative recommendation additionally requires the
+closed recognizers. When invariant or security review preempts explicitly
+declared Creative alternatives, the Creative reason is
+`higher_assurance_scope_preempts_creative`; without that selection it remains
+`creative_scope_not_selected`. Creative recommendation additionally requires the
 coordinator's explicit `creative_applicability=alternatives`, a writer-capable
 phase, a nonempty runtime owner set in the packet's dispatch contract, and at
 least one non-directory exact-file candidate in packet scope.
