@@ -37,9 +37,9 @@ from scripts.orchestration.experiment_runner_pr_creative_context_contract import
     ORACLE_ATTACHMENT_TYPE,
     OPERATOR_MODEL_INTAKE_TYPE,
     CREATIVE_WORKFLOW_SCHEMA_VERSION,
-    LOCAL_ABSOLUTE_PATH_RE,
     SECRET_RE,
     SECRET_VALUE_RE,
+    contains_local_path_outside_route_context,
     ExperimentRunnerCreativeContextContractError,
     build_agent_consumption_summary,
     build_creative_workflow_stage,
@@ -861,22 +861,6 @@ def _workflow_admit(args: argparse.Namespace) -> int:
     return 0
 
 
-_ROUTE_LITERAL_CONTEXT_RE = re.compile(
-    r"(?:@(?:router|app)\.(?:get|post|put|patch|delete|options|head|api_route|websocket)"
-    r"\(\s*['\"]|\b(?:GET|POST|PUT|PATCH|DELETE|OPTIONS|HEAD|WEBSOCKET)\s+)$",
-    re.IGNORECASE,
-)
-
-
-def _contains_local_path_outside_route_context(value: str) -> bool:
-    for match in LOCAL_ABSOLUTE_PATH_RE.finditer(value):
-        line_start = value.rfind("\n", 0, match.start()) + 1
-        if _ROUTE_LITERAL_CONTEXT_RE.search(value[line_start : match.start()]):
-            continue
-        return True
-    return False
-
-
 def _workflow_archive_inputs(directory: Path, include: list[str]) -> dict[str, bytes]:
     required = {
         *WORKFLOW_STAGE_FILES.values(),
@@ -905,7 +889,7 @@ def _workflow_archive_inputs(directory: Path, include: list[str]) -> dict[str, b
         if (
             SECRET_RE.search(readable)
             or SECRET_VALUE_RE.search(readable)
-            or _contains_local_path_outside_route_context(readable)
+            or contains_local_path_outside_route_context(readable)
             or re.search(
                 r"/(?:Users|private/var|var/folders|tmp|etc|root)/|file://|"
                 r"(?:https?://[^\s?#]+\?[^\s]+)",

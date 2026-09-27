@@ -228,6 +228,22 @@ LOCAL_ABSOLUTE_PATH_RE = re.compile(
     r"(?:/[A-Za-z0-9._-]+)*|~[/\\]|[A-Za-z]:[\\/]",
     re.IGNORECASE | re.MULTILINE,
 )
+_ROUTE_LITERAL_CONTEXT_RE = re.compile(
+    r"(?:@(?:router|app)\.(?:get|post|put|patch|delete|options|head|api_route|websocket)"
+    r"\(\s*['\"]|\b(?:GET|POST|PUT|PATCH|DELETE|OPTIONS|HEAD|WEBSOCKET)\s+)$",
+    re.IGNORECASE,
+)
+
+
+def contains_local_path_outside_route_context(value: str) -> bool:
+    for match in LOCAL_ABSOLUTE_PATH_RE.finditer(value):
+        line_start = value.rfind("\n", 0, match.start()) + 1
+        if _ROUTE_LITERAL_CONTEXT_RE.search(value[line_start : match.start()]):
+            continue
+        return True
+    return False
+
+
 SECRET_VALUE_RE = re.compile(
     r"\b(?:AKIA|ASIA)[A-Z0-9]{16}\b|"
     r"\b(?:sk-[A-Za-z0-9_-]{12,}|gh[psoru]_[A-Za-z0-9_.-]{12,}|"
@@ -3069,9 +3085,9 @@ def _workflow_text(value: Any, label: str, *, maximum: int = 600) -> str:
     if (
         SECRET_RE.search(value)
         or SECRET_VALUE_RE.search(value)
+        or contains_local_path_outside_route_context(value)
         or re.search(
-            r"/(?:Users|private/var|var/folders|tmp|etc|root)/|file://|"
-            r"(?:https?://[^\s?#]+\?[^\s]+)",
+            r"file://|(?:https?://[^\s?#]+\?[^\s]+)",
             value,
             re.IGNORECASE,
         )

@@ -1822,6 +1822,28 @@ def test_operational_request_accepts_credential_related_repo_paths() -> None:
     assert validate_creative_workflow_request(request) == request
 
 
+def test_operational_stage_inputs_reject_local_paths_before_persistence() -> None:
+    request = _operational_request()
+    request["criteria"][0]["description"] = "Use /home/alice/PulsePlate/file.py"
+    with pytest.raises(ExperimentRunnerCreativeContextContractError, match="private"):
+        validate_creative_workflow_request(request)
+
+    request = _operational_request()
+    native = _operational_native(request)
+    native["variants"][0]["change"] = "Use /workspace/PulsePlate/file.py"
+    with pytest.raises(ExperimentRunnerCreativeContextContractError, match="private"):
+        validate_creative_workflow_native_result(native, request)
+
+    native = _operational_native(request)
+    review = _operational_review(request, native)
+    review["rationale"] = "See /opt/build/file.py"
+    with pytest.raises(ExperimentRunnerCreativeContextContractError, match="private"):
+        validate_creative_workflow_review(review, request, native)
+
+    native["variants"][0]["change"] = "Implement GET /api/v1/items"
+    assert validate_creative_workflow_native_result(native, request) == native
+
+
 def test_operational_native_and_handoff_reject_out_of_scope() -> None:
     request = _operational_request()
     result = _operational_native(request)
