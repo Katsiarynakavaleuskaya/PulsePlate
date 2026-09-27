@@ -556,15 +556,15 @@ Euler import, execution or store access is permitted.
   through `start_pr_lane.sh` or manual bootstrap. The starter forwards the same
   closed value in both its dry-run recipe and actual bootstrap. The structured
   value is packet-identity-bearing; the sole
-  applicability selector recommends operational Creative only for admitted
+  applicability selector recommends operational Creative for admitted
   alternatives in `none` or `pre_open` phases only when the packet's structured
-  dispatch contract declares at least one runtime owner, after higher-assurance
-  preemption.
-  An execution-ready design packet without that explicit choice and a
-  `post_open_review`/`merge_ready` packet or any packet without a runtime writer
-  receive no Creative recommendation. The recommendation is not
-  native execution or writer authority. The host follows the operational
-  sequence in `.agents/skills/pulseplate-orchestration-dispatch/SKILL.md`, and
+  dispatch contract declares at least one runtime owner and its packet scope
+  contains a non-directory exact-file candidate, after higher-assurance
+  preemption. An execution-ready design packet without that explicit choice and a
+  `post_open_review`/`merge_ready` packet, any packet without a runtime writer,
+  and directory-only scope receive no Creative recommendation. The
+  recommendation is not native execution or writer authority. The host follows
+  the operational sequence in `.agents/skills/pulseplate-orchestration-dispatch/SKILL.md`, and
   the additive `creative_workflow.v1` CLI validates returned intake, separate
   review, exact-file writer handoff and sanitized capsule. Canonical repository
   paths may contain credential-related names; secret-value checks apply to
@@ -572,8 +572,9 @@ Euler import, execution or store access is permitted.
   result and review bytes; a matching predecessor hash alone is insufficient.
   Archive export permits route literals in explicit decorator or HTTP-method
   context while rejecting local filesystem paths elsewhere. Archive restore
-  rechecks the packet's canonical writer manifest and fails closed when it is
-  unavailable. Legacy v1/adaptive-v2
+  rechecks the packet's canonical writer manifest and the criteria,
+  requirements, and Euler source digests; missing or changed evidence fails
+  closed. Legacy v1/adaptive-v2
   hypothesis and PR-2 patch-sandbox authority remains unchanged.
 - Contract and readiness boundaries:
   `docs/orchestration/PR_EVIDENCE_SIDECAR_V1.md` and

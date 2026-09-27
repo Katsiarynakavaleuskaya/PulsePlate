@@ -93,12 +93,16 @@ plus the stricter Python validators. Input and stage replay is bounded; exact
 identical stages are reused without rewriting, divergent stages fail. Changed
 packet, criteria, requirements or Euler source bytes stale downstream stages.
 Material edits require targeted review against the accepted criteria.
+Archive restoration rechecks those source bytes against the stored digests
+without requiring the old Git head to remain current. A changed source blocks
+restore before any file is written.
 
 An export packages only the named stage files, sanitized patch, focused test
 evidence and Work Review, with a SHA-256 manifest. Symlinks, hardlinks,
 traversal, unexpected filenames, size excess, filesystem-rooted path forms,
-known token shapes and credential assignments fail. Path validation treats
-repository filenames separately from secret values, so legitimate names such
+known token shapes and credential assignments (including quoted and JSON
+values) fail. Path validation treats repository filenames separately from
+secret values, so legitimate names such
 as `api_key.py` remain admissible. Explicit decorator and HTTP-method contexts
 allow public route literals such as `GET /api/v1/items` in patch and review
 evidence; they do not exempt ordinary local paths. These finite checks do not

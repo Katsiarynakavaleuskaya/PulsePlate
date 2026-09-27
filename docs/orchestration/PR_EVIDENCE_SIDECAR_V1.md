@@ -108,9 +108,9 @@ The closed precedence and treatment matrix are:
 | Structured branch | Teleology | Euler | Experiment Runner | Creative |
 | --- | --- | --- | --- | --- |
 | invariant or security | `full` | `finite_review` | `required` | `not_applicable` |
-| ready design, without invariant/security | `full` | `finite_review` | `required` | `recommend` only for explicit alternatives with a runtime writer in `none`/`pre_open`; otherwise `not_applicable` |
+| ready design, without invariant/security | `full` | `finite_review` | `required` | `recommend` only for explicit alternatives with a runtime writer and exact-file candidate in `none`/`pre_open`; otherwise `not_applicable` |
 | docs-only, without earlier branches | `compact` | `not_applicable` | `required` | `not_applicable` |
-| other valid packet with explicit alternatives | `full` | `finite_review` | `required` | `recommend` with a runtime writer in `none`/`pre_open`; otherwise `not_applicable` |
+| other valid packet with explicit alternatives | `full` | `finite_review` | `required` | `recommend` with a runtime writer and exact-file candidate in `none`/`pre_open`; otherwise `not_applicable` |
 | other valid packet | `full` | `finite_review` | `required` | `not_applicable` |
 
 Invariant applicability is phase-stable: v1 uses the canonical non-empty
@@ -118,7 +118,8 @@ Invariant applicability is phase-stable: v1 uses the canonical non-empty
 projection. Security and docs-only signals are recomputed through their existing
 closed recognizers. Creative recommendation additionally requires the
 coordinator's explicit `creative_applicability=alternatives`, a writer-capable
-phase and a nonempty runtime owner set in the packet's dispatch contract.
+phase, a nonempty runtime owner set in the packet's dispatch contract, and at
+least one non-directory exact-file candidate in packet scope.
 Design alone does not
 activate Creative. Design applicability still requires the existing finite `design`
 classification plus the frozen
