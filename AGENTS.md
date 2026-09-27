@@ -112,7 +112,10 @@ still applies; preserve the current lane's scope and report the dependency.
 - Green CI alone is NOT sufficient for merge.
 - PR MUST NOT be merged while any review thread is unresolved.
 - PR MUST NOT be merged while any bot comment contains actionable items.
-- Before merge, confirm CodeRabbit, Sourcery, and Cubic are explicitly PASS / no-actionables.
+- Before merge, confirm CodeRabbit and Sourcery are explicitly PASS / no-actionables.
+  Inspect authenticated current-head results from other configured reviewers;
+  missing optional reviewer output is not a PASS, and every posted actionable
+  bot item still requires disposition.
 - Required checks must be PASS with no pending required jobs.
 - `gh pr checks <PR_NUMBER>` is diagnostic only: a non-zero exit can mean live
   pending jobs, not failed checks. Use the strict merge wrapper plus targeted
