@@ -5039,6 +5039,268 @@ def test_selected_alertmanager_utc_waiver_boundary_and_off_profile_independence(
         )
 
 
+def _alertmanager_dependency_fixture(
+    tmp_path: Path, contour: str
+) -> tuple[dict[str, str], list[str], Path, Path]:
+    if contour == "staging":
+        env, log_file = _staging_deploy_fixture(tmp_path)
+        project_dir = Path(env["PROJECT_DIR"])
+        argv = [
+            str(REPO_ROOT / "scripts/deploy.sh"),
+            "--preflight-only",
+            "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "a" * 64,
+            "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "b" * 64,
+        ]
+    else:
+        env, project_dir, log_file, _bundle = _production_preflight_fixture(
+            tmp_path, with_bundle=False
+        )
+        payload = json.loads(FAKE_PROMETHEUS_COMPOSE_JSON)
+        payload["name"] = "production"
+        payload["services"]["alertmanager"]["volumes"] = [
+            {
+                "type": "bind",
+                "source": str(project_dir / "deploy/alertmanager/alertmanager.yml"),
+                "target": "/etc/alertmanager/alertmanager.yml",
+                "read_only": True,
+            }
+        ]
+        payload["secrets"]["alertmanager_smtp_key"]["file"] = str(
+            project_dir / "deploy/secrets/alertmanager_smtp_key"
+        )
+        env["STUB_PROMETHEUS_COMPOSE_JSON"] = json.dumps(payload)
+        argv = [str(REPO_ROOT / "scripts/deploy_production.sh"), "--preflight-only"]
+    env["COMPOSE_PROFILES"] = ""
+    return env, argv, log_file, project_dir
+
+
+def _assert_dependency_admission_has_no_product_effect(log_file: Path) -> None:
+    calls = log_file.read_text(encoding="utf-8").splitlines()
+    assert any(call.endswith("--profile * config --format json") for call in calls)
+    assert not any(
+        token in call
+        for call in calls
+        for token in (
+            " login ",
+            " pull ",
+            " run ",
+            " stop ",
+            " start ",
+            " up ",
+            "alembic",
+            "postgres_backup",
+        )
+    )
+
+
+@pytest.mark.parametrize("contour", ["staging", "production"])
+@pytest.mark.parametrize(
+    ("service_name", "condition", "required", "restart", "indirect"),
+    [
+        ("app", "service_started", True, False, False),
+        ("app", "service_healthy", True, True, False),
+        ("app", "service_completed_successfully", True, False, False),
+        ("app", "service_started", False, False, False),
+        ("app", "service_healthy", False, True, False),
+        ("app", "service_completed_successfully", False, False, False),
+        ("prometheus", "service_healthy", True, False, False),
+        ("worker", "service_started", False, True, False),
+        ("inactive-helper", "service_started", False, False, False),
+        ("inactive-helper", "service_started", False, False, True),
+    ],
+)
+def test_alertmanager_dependency_admission_rejects_every_incoming_edge(
+    tmp_path: Path,
+    contour: str,
+    service_name: str,
+    condition: str,
+    required: bool,
+    restart: bool,
+    indirect: bool,
+) -> None:
+    env, argv, log_file, _project = _alertmanager_dependency_fixture(tmp_path, contour)
+    payload = json.loads(env["STUB_PROMETHEUS_COMPOSE_JSON"])
+    service = payload["services"].setdefault(service_name, {})
+    if service_name == "inactive-helper":
+        service["profiles"] = ["unselected"]
+    service["depends_on"] = {
+        "alertmanager": {"condition": condition, "required": required, "restart": restart}
+    }
+    if indirect:
+        payload["services"]["app"]["depends_on"] = {
+            service_name: {"condition": "service_started", "required": True}
+        }
+    env["STUB_PROMETHEUS_COMPOSE_JSON"] = json.dumps(payload)
+    completed = subprocess.run(
+        argv, cwd=REPO_ROOT, env=env, capture_output=True, text=True, check=False
+    )
+    assert completed.returncode != 0
+    assert "Another service may not depend on Alertmanager" in completed.stderr
+    _assert_dependency_admission_has_no_product_effect(log_file)
+
+
+@pytest.mark.parametrize("contour", ["staging", "production"])
+@pytest.mark.parametrize("bad_value", [None, [], "", 0, False])
+@pytest.mark.parametrize("shape", ["map", "edge"])
+def test_alertmanager_dependency_admission_rejects_malformed_normalized_graph(
+    tmp_path: Path, contour: str, bad_value: object, shape: str
+) -> None:
+    env, argv, log_file, _project = _alertmanager_dependency_fixture(tmp_path, contour)
+    payload = json.loads(env["STUB_PROMETHEUS_COMPOSE_JSON"])
+    payload["services"]["app"]["depends_on"] = (
+        bad_value if shape == "map" else {"postgres": bad_value}
+    )
+    env["STUB_PROMETHEUS_COMPOSE_JSON"] = json.dumps(payload)
+    completed = subprocess.run(
+        argv, cwd=REPO_ROOT, env=env, capture_output=True, text=True, check=False
+    )
+    assert completed.returncode != 0
+    assert "Rendered Compose dependency map is malformed" in completed.stderr
+    _assert_dependency_admission_has_no_product_effect(log_file)
+
+
+@pytest.mark.parametrize("contour", ["staging", "production"])
+def test_alertmanager_dependency_admission_rejects_empty_incoming_edge_record(
+    tmp_path: Path, contour: str
+) -> None:
+    env, argv, log_file, _project = _alertmanager_dependency_fixture(tmp_path, contour)
+    payload = json.loads(env["STUB_PROMETHEUS_COMPOSE_JSON"])
+    payload["services"]["app"]["depends_on"] = {"alertmanager": {}}
+    env["STUB_PROMETHEUS_COMPOSE_JSON"] = json.dumps(payload)
+    completed = subprocess.run(
+        argv, cwd=REPO_ROOT, env=env, capture_output=True, text=True, check=False
+    )
+    assert completed.returncode != 0
+    assert "Another service may not depend on Alertmanager" in completed.stderr
+    _assert_dependency_admission_has_no_product_effect(log_file)
+
+
+@pytest.mark.parametrize("contour", ["staging", "production"])
+@pytest.mark.parametrize("bad_value", [None, [], "", 0, False])
+def test_alertmanager_dependency_admission_rejects_false_like_outgoing_map(
+    tmp_path: Path, contour: str, bad_value: object
+) -> None:
+    env, argv, log_file, _project = _alertmanager_dependency_fixture(tmp_path, contour)
+    payload = json.loads(env["STUB_PROMETHEUS_COMPOSE_JSON"])
+    payload["services"]["alertmanager"]["depends_on"] = bad_value
+    env["STUB_PROMETHEUS_COMPOSE_JSON"] = json.dumps(payload)
+    completed = subprocess.run(
+        argv, cwd=REPO_ROOT, env=env, capture_output=True, text=True, check=False
+    )
+    assert completed.returncode != 0
+    assert "Rendered Compose dependency map is malformed" in completed.stderr
+    _assert_dependency_admission_has_no_product_effect(log_file)
+
+
+@pytest.mark.parametrize("contour", ["staging", "production"])
+@pytest.mark.parametrize("selected", [False, True])
+@pytest.mark.parametrize("dependencies", ["absent", "empty", "product"])
+def test_alertmanager_dependency_admission_preserves_legitimate_product_edges_and_profiles(
+    tmp_path: Path, contour: str, selected: bool, dependencies: str
+) -> None:
+    env, argv, log_file, project = _alertmanager_dependency_fixture(tmp_path, contour)
+    payload = json.loads(env["STUB_PROMETHEUS_COMPOSE_JSON"])
+    for service in payload["services"].values():
+        service.pop("depends_on", None)
+    if dependencies == "empty":
+        for service in payload["services"].values():
+            service["depends_on"] = {}
+    elif dependencies == "product":
+        payload["services"]["app"]["depends_on"] = {
+            "postgres": {"condition": "service_healthy", "required": True}
+        }
+        payload["services"]["prometheus"]["depends_on"] = {
+            "app": {"condition": "service_started", "required": False, "restart": True}
+        }
+    env["STUB_PROMETHEUS_COMPOSE_JSON"] = json.dumps(payload)
+    secret_dir = project / ("secrets" if contour == "staging" else "deploy/secrets")
+    key = secret_dir / "alertmanager_smtp_key"
+    if selected:
+        key.write_text("synthetic-only", encoding="ascii")
+        key.chmod(0o444)
+        env["COMPOSE_PROFILES"] = "alerting"
+    else:
+        assert not key.exists()
+    completed = subprocess.run(
+        argv, cwd=REPO_ROOT, env=env, capture_output=True, text=True, check=False
+    )
+    assert completed.returncode == 0, completed.stderr
+    _assert_dependency_admission_has_no_product_effect(log_file)
+
+
+@pytest.mark.parametrize("source_kind", ["directory", "archive"])
+def test_production_incoming_alertmanager_dependency_rejects_before_contract_publication(
+    tmp_path: Path, source_kind: str
+) -> None:
+    env, project, log_file, bundle = _production_preflight_fixture(tmp_path, with_bundle=True)
+    assert bundle is not None
+    source_compose = bundle / "deploy/docker-compose.production.yaml"
+    source = yaml.safe_load(source_compose.read_text(encoding="utf-8"))
+    source["services"]["app"]["depends_on"] = {
+        "alertmanager": {"condition": "service_healthy", "required": True}
+    }
+    source_compose.write_text(yaml.safe_dump(source, sort_keys=False), encoding="utf-8")
+    docker_stub = Path(env["DOCKER_BIN"])
+    stub_text = docker_stub.read_text(encoding="utf-8")
+    assert stub_text.count("print(json.dumps(payload))") == 1
+    docker_stub.write_text(
+        stub_text.replace(
+            "print(json.dumps(payload))",
+            "import yaml\n"
+            'source = yaml.safe_load(compose.read_text(encoding="utf-8"))\n'
+            'payload["services"]["app"]["depends_on"] = '
+            'source["services"]["app"].get("depends_on", {})\n'
+            "print(json.dumps(payload))",
+        ),
+        encoding="utf-8",
+    )
+    env.pop("STUB_PROMETHEUS_COMPOSE_JSON", None)
+    env["COMPOSE_PROFILES"] = ""
+    env["IMAGE_REF"] = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "a" * 64
+    env["TAG"] = "prod-vtest"
+    previous_backup = project / "scripts/ops/postgres_backup.sh"
+    previous_backup.parent.mkdir(parents=True)
+    previous_backup.write_text("#!/usr/bin/env bash\nexit 71\n", encoding="utf-8")
+    previous_backup.chmod(0o755)
+    installed_paths = [
+        "deploy/docker-compose.production.yaml",
+        "deploy/prometheus/prometheus.yml",
+        "deploy/prometheus/alias-alerts.yml",
+        "deploy/prometheus/image-manifest.json",
+        "deploy/alertmanager/alertmanager.yml",
+        "deploy/alertmanager/trivy-ignore.yaml",
+        "deploy/postgres-pgvector/image-manifest.json",
+        "scripts/ops/postgres_backup.sh",
+    ]
+    installed = {relative: (project / relative).read_bytes() for relative in installed_paths}
+    archive = _canonical_test_archive_path(9447)
+    if source_kind == "archive":
+        _write_shell_bundle_archive(archive, bundle)
+        env.pop("SHELL_BUNDLE_DIR", None)
+        env["SHELL_BUNDLE_ARCHIVE"] = str(archive)
+    else:
+        env.pop("SHELL_BUNDLE_ARCHIVE", None)
+    try:
+        completed = subprocess.run(
+            [str(REPO_ROOT / "scripts/deploy_production.sh")],
+            cwd=REPO_ROOT,
+            env=env,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        assert completed.returncode != 0
+        assert "Another service may not depend on Alertmanager" in completed.stderr
+        _assert_dependency_admission_has_no_product_effect(log_file)
+        assert {relative: (project / relative).read_bytes() for relative in installed_paths} == (
+            installed
+        )
+        assert not list(project.rglob(".pulseplate-*.tmp-*"))
+    finally:
+        if source_kind == "archive":
+            archive.unlink(missing_ok=True)
+
+
 def _alertmanager_census_inspect_record(
     *,
     status: str = "running",

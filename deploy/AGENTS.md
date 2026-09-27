@@ -107,6 +107,10 @@ PRODUCTION_DOMAIN=example.com STAGING_FALLBACK_DOMAIN=staging.example.com \
   activation remain human actions. Follow
   `docs/deploy/OPERATIONAL_SIGNALS.md` for the operator sequence and rollback.
 - Optional OBS2A Alertmanager is an `alerting` profile in all three contours.
+  Both readers reject every normalized incoming dependency to Alertmanager in
+  the invocation's native all-profile model, including optional and indirect
+  coupling; native Compose owns normalization and valid non-AM dependencies
+  remain allowed.
   It is not part of ordinary app/DB/metrics startup. Its exact image, private
   network topology, `environment` label authority, config and narrow Trivy
   exception must pass CD and both deploy admissions before product mutation.

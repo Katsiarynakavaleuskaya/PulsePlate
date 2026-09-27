@@ -968,6 +968,11 @@ smtp_key_path = str(compose.parent / "secrets/alertmanager_smtp_key")
 for service_name, service in services.items():
     if type(service) is not dict:
         raise SystemExit("Rendered Compose service is malformed")
+    dependencies = service.get("depends_on", {})
+    if type(dependencies) is not dict or any(type(edge) is not dict for edge in dependencies.values()):
+        raise SystemExit("Rendered Compose dependency map is malformed")
+    if service_name != "alertmanager" and "alertmanager" in dependencies:
+        raise SystemExit("Another service may not depend on Alertmanager")
     if service_name != "alertmanager":
         if "network_mode" in service:
             raise SystemExit("Another service may not share Alertmanager network namespace")
