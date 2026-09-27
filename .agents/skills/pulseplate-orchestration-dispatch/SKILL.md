@@ -149,7 +149,8 @@ not enter this procedure.
    commands from the coordinator-approved `request.test_commands`; model text
    cannot introduce another executable check.
 3. Coordinator inspects content, goal coverage, Euler relation and
-   counterexample evidence. Capture its separate structured review and run
+   counterexample evidence. Bind the structured review to the exact validated
+   native-result fingerprint, then run
    `workflow-review`. Only then capture one exact-file, packet-eligible writer
    handoff and run `workflow-admit`. These stage artifacts record the host's
    decisions; their JSON, hashes and role labels do not authenticate a human,

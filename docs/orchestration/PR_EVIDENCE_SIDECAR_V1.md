@@ -108,17 +108,18 @@ The closed precedence and treatment matrix are:
 | Structured branch | Teleology | Euler | Experiment Runner | Creative |
 | --- | --- | --- | --- | --- |
 | invariant or security | `full` | `finite_review` | `required` | `not_applicable` |
-| ready design, without invariant/security | `full` | `finite_review` | `required` | `recommend` only for explicit alternatives in `none`/`pre_open`; otherwise `not_applicable` |
+| ready design, without invariant/security | `full` | `finite_review` | `required` | `recommend` only for explicit alternatives with a runtime writer in `none`/`pre_open`; otherwise `not_applicable` |
 | docs-only, without earlier branches | `compact` | `not_applicable` | `required` | `not_applicable` |
-| other valid packet with explicit alternatives | `full` | `finite_review` | `required` | `recommend` in `none`/`pre_open`; otherwise `not_applicable` |
+| other valid packet with explicit alternatives | `full` | `finite_review` | `required` | `recommend` with a runtime writer in `none`/`pre_open`; otherwise `not_applicable` |
 | other valid packet | `full` | `finite_review` | `required` | `not_applicable` |
 
 Invariant applicability is phase-stable: v1 uses the canonical non-empty
 `change_classes`, while v2 uses its validated `required_pending` repeated-family
 projection. Security and docs-only signals are recomputed through their existing
 closed recognizers. Creative recommendation additionally requires the
-coordinator's explicit `creative_applicability=alternatives` and a phase in
-which the canonical dispatch can name a runtime writer. Design alone does not
+coordinator's explicit `creative_applicability=alternatives`, a writer-capable
+phase and a nonempty runtime owner set in the packet's dispatch contract.
+Design alone does not
 activate Creative. Design applicability still requires the existing finite `design`
 classification plus the frozen
 `normalize_design_lane_packet_projection(...)` recognizer returning

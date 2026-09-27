@@ -67,7 +67,9 @@ predecessor. The packet selector recomputes the Creative marker's derived
 packet ID from its recorded base ID, rejecting a changed marker with the old
 ID. These checks provide local content continuity, not authentication against
 a same-UID actor able to rewrite all sources. `workflow-review` requires every criterion and Euler relation assessed
-as supported or satisfied before selection. `workflow-admit` records a
+as supported or satisfied before selection. The review binds the exact
+validated native-result fingerprint, so reusing variant IDs with changed
+content cannot reuse an earlier review. `workflow-admit` records a
 separate coordinator handoff to one eligible writer on the selected exact
 files. Writer eligibility and the one-based occurrence order are re-read from
 the canonical runtime role-dispatch bridge at admission and stage reload;
@@ -89,7 +91,8 @@ Material edits require targeted review against the accepted criteria.
 
 An export packages only the named stage files, sanitized patch, focused test
 evidence and Work Review, with a SHA-256 manifest. Symlinks, hardlinks,
-traversal, unexpected filenames, size excess and token-shaped content fail.
+traversal, unexpected filenames, size excess, local absolute paths and
+token-shaped content fail.
 The authorized host uploads the package, reads the updated Google Doc by the
 same ID, downloads the package, compares its SHA-256 and runs safe restore in
 a fresh owned directory. Failure remains `storage_pending` and bars cleanup.
