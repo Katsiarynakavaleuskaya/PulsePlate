@@ -1870,7 +1870,14 @@ def test_operational_stage_inputs_reject_local_paths_before_persistence() -> Non
     with pytest.raises(ExperimentRunnerCreativeContextContractError, match="private"):
         validate_creative_workflow_review(review, request, native)
 
-    for rooted in ("GET /home/alice/file.py", "GET /workspace/build/file.py"):
+    for rooted in (
+        "GET /home/alice/file.py",
+        "GET /workspace/build/file.py",
+        "GET /run/user/1000/keyring",
+        "GET /proc/self/environ",
+        "GET /sys/kernel/config",
+        "GET /media/data/private.txt",
+    ):
         request = _operational_request()
         request["criteria"][0]["description"] = rooted
         with pytest.raises(ExperimentRunnerCreativeContextContractError, match="private"):
@@ -2546,6 +2553,11 @@ def test_operational_cli_native_stages_and_archive_round_trip(
         ("stale-test-command", "test_evidence.json", json.dumps(stale_evidence).encode("utf-8")),
         ("empty-review", "work_review.md", b"   \n"),
         ("unsafe-review", "work_review.md", b"Observed C1 and C2; API_KEY=synthetic-value"),
+        (
+            "unsafe-salt-review",
+            "work_review.md",
+            b'Observed C1 and C2; SERVER_SALT="synthetic-value"',
+        ),
     ):
         tampered_members = dict(original_members)
         tampered_members[member_name] = replacement
@@ -2842,6 +2854,7 @@ def test_operational_stage_and_archive_reject_false_completion_and_unsafe_files(
         ("work_review.md", "DATABASE_PASSWORD" + "=" + '"synthetic-not-a-secret"'),
         ("patch.diff", "AWS_SECRET_ACCESS_KEY" + "=" + "'synthetic-not-a-secret'"),
         ("test_evidence.json", json.dumps({"pass" + "word": "synthetic-not-a-secret"})),
+        ("patch.diff", 'SERVER_SALT="synthetic-value"'),
         ("work_review.md", "Authorization: Bearer synthetic-not-a-secret"),
         ("work_review.md", "This result is ready to merge"),
         ("test_evidence.json", '{"claim":"mergeable"}'),

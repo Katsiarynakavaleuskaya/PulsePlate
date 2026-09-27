@@ -242,11 +242,15 @@ _LOCAL_FILESYSTEM_ROOTS = frozenset(
         "dev",
         "etc",
         "home",
+        "media",
         "mnt",
         "opt",
         "private",
+        "proc",
         "root",
+        "run",
         "srv",
+        "sys",
         "tmp",
         "users",
         "usr",
@@ -279,7 +283,7 @@ SECRET_VALUE_RE = re.compile(
     r"\b(?:AKIA|ASIA)[A-Z0-9]{16}\b|"
     r"\b(?:sk-[A-Za-z0-9_-]{12,}|gh[psoru]_[A-Za-z0-9_.-]{12,}|"
     r"github_pat_[A-Za-z0-9_]{12,}|xox[abprs]-[A-Za-z0-9-]{12,})|"
-    r"\b[A-Z0-9_]*(?:SECRET|TOKEN|PASSWORD|PRIVATE_KEY|API[_-]?KEY)[A-Z0-9_]*"
+    r"\b[A-Z0-9_]*(?:SECRET|TOKEN|PASSWORD|SALT|PRIVATE_KEY|API[_-]?KEY)[A-Z0-9_]*"
     r"['\"]?\s*[:=]\s*(?:\"[^\"\r\n]+\"|'[^'\r\n]+'|[^\s,;\"']+)",
     re.IGNORECASE,
 )
