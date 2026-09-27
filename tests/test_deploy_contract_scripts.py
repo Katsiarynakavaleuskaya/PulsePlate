@@ -465,10 +465,8 @@ def test_postgres_pgvector_manifest_binds_reproducible_image_and_scan_contract()
         f"{manifest['repository']}:{manifest['tag']}@{manifest['platform_manifest_digest']}"
     )
     staging_script = (REPO_ROOT / "scripts/deploy.sh").read_text(encoding="utf-8")
-    production_script = (REPO_ROOT / "scripts/deploy_production.sh").read_text(encoding="utf-8")
     assert f'if [ "$image_id" = "{manifest["config_digest"]}" ] || \\' in staging_script
     assert 'platform_image_id="${POSTGRES_RUNTIME_REF##*@}"' in staging_script
-    assert f'if [ "$image_id" != "{manifest["config_digest"]}" ]; then' in production_script
 
 
 @pytest.mark.parametrize("compose_path", (STAGING_COMPOSE_PATH, SELF_HOSTED_COMPOSE_PATH))
@@ -6983,6 +6981,375 @@ esac
     assert "RESOLVED_COMPOSE_FILE does not exist" in completed.stderr
 
 
+def _production_self_hosted_image_identity_fixture(
+    tmp_path: Path,
+) -> tuple[dict[str, str], Path]:
+    project_dir = tmp_path / "production"
+    shell_bundle_dir = tmp_path / "shell-bundle"
+    bin_dir = tmp_path / "bin"
+    log_file = tmp_path / "deploy.log"
+    project_dir.mkdir()
+    shell_bundle_dir.mkdir()
+    bin_dir.mkdir()
+    compose_text = SELF_HOSTED_COMPOSE_PATH.read_text(encoding="utf-8")
+    _write_production_host_contract(project_dir, compose_text=compose_text, self_hosted=True)
+    _write_shell_bundle_contract(
+        shell_bundle_dir,
+        compose_text=compose_text,
+        compose_name="docker-compose.production.selfhosted.yaml",
+    )
+    host_backup_helper = project_dir / "scripts" / "ops" / "postgres_backup.sh"
+    source_backup_helper = shell_bundle_dir / "scripts" / "ops" / "postgres_backup.sh"
+    source_backup_helper.write_bytes(host_backup_helper.read_bytes())
+    source_backup_helper.chmod(0o755)
+    env_file = project_dir / ".env"
+    env_file.write_text(
+        "POSTGRES_DB=pulseplate\nPOSTGRES_USER=pulseplate\nPOSTGRES_PASSWORD=test-only\n",  # pragma: allowlist secret
+        encoding="utf-8",
+    )
+    docker_path = bin_dir / "docker"
+    _write_executable(
+        docker_path,
+        f"""#!/usr/bin/env bash
+set -euo pipefail
+printf 'docker %s\\n' "$*" >> "{log_file}"
+case "$*" in
+  *"config --services"*) printf 'app\\ncaddy\\npostgres\\nprometheus\\nworker\\n' ;;
+  *"ps -q postgres"*) printf 'aaaaaaaaaaaa\\n' ;;
+  *"ps -q app"*) printf 'bbbbbbbbbbbb\\n' ;;
+  *"ps -q caddy"*) printf 'cccccccccccc\\n' ;;
+  *"ps -q worker"*) printf 'dddddddddddd\\n' ;;
+  *"inspect --format"*) printf 'healthy\\n' ;;
+  *"ps --last 20"*) printf 'CONTAINER ID\\n' ;;
+esac
+""",
+    )
+    strict_inspect = f"""if [ "${{1:-}}" = image ] && [ "${{2:-}}" = inspect ]; then
+  printf 'docker %s\\n' "$*" >> "$STUB_DEPLOY_LOG_FILE"
+  case "${{3:-}}" in
+    '{POSTGRES_RUNTIME_REF}')
+      if [ "${{STUB_PRODUCTION_PULLED_INSPECT_STATUS:-0}}" -ne 0 ]; then
+        printf '%s\\n' 'native-secret-value' >&2
+        exit "$STUB_PRODUCTION_PULLED_INSPECT_STATUS"
+      fi
+      if [ -n "${{STUB_PRODUCTION_PULLED_IMAGE_FILE:-}}" ]; then
+        cat "$STUB_PRODUCTION_PULLED_IMAGE_FILE"
+      else
+        printf '%s\\n' "$STUB_PRODUCTION_PULLED_POSTGRES_IMAGE_JSON"
+      fi
+      ;;
+    '{POSTGRES_CONFIG_DIGEST}'|'{POSTGRES_PLATFORM_MANIFEST_DIGEST}')
+      if [ "${{STUB_PRODUCTION_EXISTING_INSPECT_STATUS:-0}}" -ne 0 ]; then
+        printf '%s\\n' 'native-secret-value' >&2
+        exit "$STUB_PRODUCTION_EXISTING_INSPECT_STATUS"
+      fi
+      if [ -n "${{STUB_PRODUCTION_EXISTING_IMAGE_FILE:-}}" ]; then
+        cat "$STUB_PRODUCTION_EXISTING_IMAGE_FILE"
+      else
+        printf '%s\\n' "$STUB_PRODUCTION_EXISTING_POSTGRES_IMAGE_JSON"
+      fi
+      ;;
+    '{PROMETHEUS_RUNTIME_REF}')
+      printf '%s\\n' "$STUB_PRODUCTION_PROMETHEUS_IMAGE_JSON" ;;
+    *)
+      printf '%s\\n' 'unexpected image inspect subject' >&2
+      exit 92 ;;
+  esac
+  exit 0
+fi
+"""
+    docker_script = docker_path.read_text(encoding="utf-8")
+    marker = "set -euo pipefail\n"
+    assert marker in docker_script
+    docker_path.write_text(
+        docker_script.replace(marker, marker + strict_inspect, 1), encoding="utf-8"
+    )
+    _write_executable(bin_dir / "curl", "#!/usr/bin/env bash\nset -euo pipefail\n")
+    env = os.environ.copy()
+    env.pop("GHCR_TOKEN", None)
+    env.pop("GHCR_USER", None)
+    env.update(
+        {
+            "DOCKER_BIN": str(docker_path),
+            "PYTHON_BIN": sys.executable,
+            "CURL_BIN": str(bin_dir / "curl"),
+            "DEPLOY_DIR": str(project_dir),
+            "ENV_FILE": str(env_file),
+            "COMPOSE_FILE": CANONICAL_SELF_HOSTED_COMPOSE,
+            "PRODUCTION_DOMAIN": "pulseplate.test",
+            "HEALTH_MAX_ATTEMPTS": "1",
+            "HEALTH_SLEEP_S": "0",
+            "IMAGE_REF": "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:test",
+            "TAG": "prod-vtest",
+            "STUB_DEPLOY_LOG_FILE": str(log_file),
+            "SHELL_BUNDLE_DIR": str(shell_bundle_dir),
+            "STUB_PRODUCTION_PULLED_POSTGRES_IMAGE_JSON": FAKE_POSTGRES_IMAGE_INSPECT_JSON,
+            "STUB_PRODUCTION_EXISTING_POSTGRES_IMAGE_JSON": FAKE_POSTGRES_IMAGE_INSPECT_JSON,
+            "STUB_PRODUCTION_PROMETHEUS_IMAGE_JSON": FAKE_PROMETHEUS_IMAGE_INSPECT_JSON,
+        }
+    )
+    return env, log_file
+
+
+@pytest.mark.parametrize("image_id", (POSTGRES_CONFIG_DIGEST, POSTGRES_PLATFORM_MANIFEST_DIGEST))
+def test_production_self_hosted_reuses_both_frozen_current_image_id_forms(
+    tmp_path: Path, image_id: str
+) -> None:
+    env, log_file = _production_self_hosted_image_identity_fixture(tmp_path)
+    env["STUB_POSTGRES_CONTAINER_INSPECT_JSON"] = _current_postgres_container_inspect(image_id)
+    env["STUB_PRODUCTION_EXISTING_POSTGRES_IMAGE_JSON"] = (
+        FAKE_POSTGRES_CONFIG_IMAGE_INSPECT_JSON
+        if image_id == POSTGRES_CONFIG_DIGEST
+        else FAKE_POSTGRES_IMAGE_INSPECT_JSON
+    )
+    completed = subprocess.run(
+        [str(REPO_ROOT / "scripts/deploy_production.sh")],
+        cwd=str(REPO_ROOT),
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert completed.returncode == 0, completed.stderr
+    lines = log_file.read_text(encoding="utf-8").splitlines()
+    inspect_line = f"docker image inspect {image_id}"
+    assert lines.count(inspect_line) == 1
+    stop_writers = next(i for i, line in enumerate(lines) if " stop worker caddy app" in line)
+    backup = lines.index("backup")
+    stop_postgres = lines.index(f"docker stop {'a' * 64}")
+    start_candidate = next(
+        i for i, line in enumerate(lines) if " up -d --pull never postgres" in line
+    )
+    migration = next(i for i, line in enumerate(lines) if "alembic upgrade head" in line)
+    assert (
+        lines.index(inspect_line)
+        < stop_writers
+        < backup
+        < stop_postgres
+        < start_candidate
+        < migration
+    )
+
+
+def test_production_self_hosted_keeps_frozen_legacy_image_transition(tmp_path: Path) -> None:
+    env, log_file = _production_self_hosted_image_identity_fixture(tmp_path)
+    completed = subprocess.run(
+        [str(REPO_ROOT / "scripts/deploy_production.sh")],
+        cwd=str(REPO_ROOT),
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert completed.returncode == 0, completed.stderr
+    lines = log_file.read_text(encoding="utf-8").splitlines()
+    assert any(" stop worker caddy app" in line for line in lines)
+    assert not any("image inspect sha256:aad6289c" in line for line in lines)
+
+
+def test_production_self_hosted_rejects_foreign_legacy_image_before_quiescence(
+    tmp_path: Path,
+) -> None:
+    env, log_file = _production_self_hosted_image_identity_fixture(tmp_path)
+    inspected = json.loads(FAKE_POSTGRES_CONTAINER_INSPECT_JSON)
+    inspected[0]["Image"] = "sha256:" + "e" * 64
+    env["STUB_POSTGRES_CONTAINER_INSPECT_JSON"] = json.dumps(inspected)
+    completed = subprocess.run(
+        [str(REPO_ROOT / "scripts/deploy_production.sh")],
+        cwd=str(REPO_ROOT),
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert completed.returncode != 0
+    assert "legacy PostgreSQL image ID does not match" in completed.stderr
+    lines = log_file.read_text(encoding="utf-8").splitlines()
+    assert any(line.startswith("docker inspect aaaaaaaaaaaa") for line in lines)
+    assert all(" stop worker caddy app" not in line for line in lines)
+    assert all(line != "backup" for line in lines)
+    assert all(" up -d --pull never postgres" not in line for line in lines)
+
+
+@pytest.mark.parametrize("image_id", (POSTGRES_CONFIG_DIGEST, POSTGRES_PLATFORM_MANIFEST_DIGEST))
+@pytest.mark.parametrize(
+    "variant",
+    (
+        "foreign-configured-image",
+        "foreign-image-id",
+        "native-failure",
+        "malformed",
+        "oversized",
+        "zero-records",
+        "multiple-records",
+        "duplicate-key",
+        "wrong-id",
+        "wrong-repository-digest",
+        "malformed-repository-digests",
+        "wrong-platform",
+        "wrong-user",
+        "wrong-entrypoint",
+        "wrong-environment",
+        "conflicting-env-first",
+        "conflicting-env-last",
+        "duplicate-env",
+        "wrong-label",
+    ),
+)
+def test_production_self_hosted_rejects_untrusted_existing_image_before_quiescence(
+    tmp_path: Path, image_id: str, variant: str
+) -> None:
+    env, log_file = _production_self_hosted_image_identity_fixture(tmp_path)
+    selected_image_id = "sha256:" + "e" * 64 if variant == "foreign-image-id" else image_id
+    container_inspect = json.loads(_current_postgres_container_inspect(selected_image_id))
+    if variant == "foreign-configured-image":
+        container_inspect[0]["Config"]["Image"] = "other.invalid/postgres:latest"
+    env["STUB_POSTGRES_CONTAINER_INSPECT_JSON"] = json.dumps(container_inspect)
+    if variant == "native-failure":
+        env["STUB_PRODUCTION_EXISTING_INSPECT_STATUS"] = "63"
+    elif variant == "oversized":
+        source = (
+            FAKE_POSTGRES_CONFIG_IMAGE_INSPECT_JSON
+            if image_id == POSTGRES_CONFIG_DIGEST
+            else FAKE_POSTGRES_IMAGE_INSPECT_JSON
+        )
+        oversized = json.loads(source)
+        oversized[0]["Config"]["Env"].append("PAD=" + "x" * 1_048_576)
+        oversized_file = tmp_path / "oversized-existing-image.json"
+        oversized_file.write_text(json.dumps(oversized), encoding="utf-8")
+        assert oversized_file.stat().st_size > 1_048_576
+        env["STUB_PRODUCTION_EXISTING_IMAGE_FILE"] = str(oversized_file)
+    elif variant in ("conflicting-env-first", "conflicting-env-last", "duplicate-env"):
+        source = (
+            FAKE_POSTGRES_CONFIG_IMAGE_INSPECT_JSON
+            if image_id == POSTGRES_CONFIG_DIGEST
+            else FAKE_POSTGRES_IMAGE_INSPECT_JSON
+        )
+        inspected = json.loads(source)
+        image_environment = inspected[0]["Config"]["Env"]
+        duplicate = "PG_MAJOR=15" if variant == "duplicate-env" else "PG_MAJOR=16"
+        if variant == "conflicting-env-first":
+            image_environment.insert(0, duplicate)
+        else:
+            image_environment.append(duplicate)
+        env["STUB_PRODUCTION_EXISTING_POSTGRES_IMAGE_JSON"] = json.dumps(inspected)
+    elif variant not in ("foreign-configured-image", "foreign-image-id"):
+        env["STUB_PRODUCTION_EXISTING_POSTGRES_IMAGE_JSON"] = (
+            _current_postgres_image_inspect_variant(variant, image_id)
+        )
+    completed = subprocess.run(
+        [str(REPO_ROOT / "scripts/deploy_production.sh")],
+        cwd=str(REPO_ROOT),
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert completed.returncode != 0
+    assert "native-secret-value" not in completed.stdout + completed.stderr
+    expected_error = {
+        "foreign-configured-image": "Existing PostgreSQL configured image is outside the closed transition set",
+        "foreign-image-id": "Existing current PostgreSQL image ID does not match the frozen candidate",
+    }.get(variant, "Existing current PostgreSQL image metadata is not the frozen candidate")
+    assert expected_error in completed.stderr
+    lines = log_file.read_text(encoding="utf-8").splitlines()
+    assert any(line.startswith("docker inspect aaaaaaaaaaaa") for line in lines)
+    if variant not in ("foreign-configured-image", "foreign-image-id"):
+        assert lines.count(f"docker image inspect {image_id}") == 1
+    assert all(" stop worker caddy app" not in line for line in lines)
+    assert all(line != "backup" for line in lines)
+    assert all(" up -d --pull never postgres" not in line for line in lines)
+    assert all("alembic upgrade head" not in line for line in lines)
+
+
+@pytest.mark.parametrize(
+    "variant",
+    (
+        "native-failure",
+        "malformed",
+        "zero-records",
+        "multiple-records",
+        "duplicate-key",
+        "wrong-repository-digest",
+        "malformed-repository-digests",
+        "wrong-environment",
+        "conflicting-env-first",
+        "conflicting-env-last",
+        "duplicate-env",
+        "oversized",
+    ),
+)
+def test_production_self_hosted_rejects_untrusted_pulled_image_before_quiescence(
+    tmp_path: Path, variant: str
+) -> None:
+    env, log_file = _production_self_hosted_image_identity_fixture(tmp_path)
+    if variant == "native-failure":
+        env["STUB_PRODUCTION_PULLED_INSPECT_STATUS"] = "64"
+    elif variant == "oversized":
+        oversized = json.loads(FAKE_POSTGRES_IMAGE_INSPECT_JSON)
+        oversized[0]["Config"]["Env"].append("PAD=" + "x" * 1_048_576)
+        oversized_file = tmp_path / "oversized-pulled-image.json"
+        oversized_file.write_text(json.dumps(oversized), encoding="utf-8")
+        assert oversized_file.stat().st_size > 1_048_576
+        env["STUB_PRODUCTION_PULLED_IMAGE_FILE"] = str(oversized_file)
+    elif variant in ("malformed", "zero-records", "multiple-records"):
+        env["STUB_PRODUCTION_PULLED_POSTGRES_IMAGE_JSON"] = {
+            "malformed": "{",
+            "zero-records": "[]",
+            "multiple-records": json.dumps(
+                [
+                    json.loads(FAKE_POSTGRES_IMAGE_INSPECT_JSON)[0],
+                    json.loads(FAKE_POSTGRES_IMAGE_INSPECT_JSON)[0],
+                ]
+            ),
+        }[variant]
+    elif variant in ("conflicting-env-first", "conflicting-env-last", "duplicate-env"):
+        inspected = json.loads(FAKE_POSTGRES_IMAGE_INSPECT_JSON)
+        image_environment = inspected[0]["Config"]["Env"]
+        duplicate = "PG_MAJOR=15" if variant == "duplicate-env" else "PG_MAJOR=16"
+        if variant == "conflicting-env-first":
+            image_environment.insert(0, duplicate)
+        else:
+            image_environment.append(duplicate)
+        env["STUB_PRODUCTION_PULLED_POSTGRES_IMAGE_JSON"] = json.dumps(inspected)
+    else:
+        env["STUB_PRODUCTION_PULLED_POSTGRES_IMAGE_JSON"] = _postgres_image_inspect_variant(variant)
+    completed = subprocess.run(
+        [str(REPO_ROOT / "scripts/deploy_production.sh")],
+        cwd=str(REPO_ROOT),
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert completed.returncode != 0
+    assert "native-secret-value" not in completed.stdout + completed.stderr
+    assert "Pulled PostgreSQL image metadata is not the frozen candidate" in completed.stderr
+    lines = log_file.read_text(encoding="utf-8").splitlines()
+    assert lines.count(f"docker image inspect {POSTGRES_RUNTIME_REF}") == 1
+    assert all(" stop worker caddy app" not in line for line in lines)
+    assert all(line != "backup" for line in lines)
+    assert all(" up -d --pull never postgres" not in line for line in lines)
+    assert all("alembic upgrade head" not in line for line in lines)
+
+
+def test_staging_and_production_postgres_image_parsers_have_exact_source_parity() -> None:
+    def function_source(script: str, name: str) -> str:
+        marker = f"{name}() {{\n"
+        start = script.index(marker)
+        end = script.index("\n}\n", start) + len("\n}\n")
+        return script[start:end]
+
+    staging = (REPO_ROOT / "scripts/deploy.sh").read_text(encoding="utf-8")
+    production = (REPO_ROOT / "scripts/deploy_production.sh").read_text(encoding="utf-8")
+    for function_name in (
+        "validate_postgres_image_metadata",
+        "validate_pulled_postgres_image",
+        "validate_existing_postgres_image_identity",
+    ):
+        assert function_source(staging, function_name) == function_source(production, function_name)
+
+
 def test_deploy_production_does_not_require_home_when_docker_bin_is_explicit(
     tmp_path: Path,
 ) -> None:
@@ -7028,6 +7395,7 @@ printf 'curl %s\\n' "$*" >> "{log_file}"
     env["DEPLOY_DIR"] = str(project_dir)
     env["ENV_FILE"] = str(project_dir / ".env")
     env["COMPOSE_FILE"] = CANONICAL_MANAGED_COMPOSE
+    env["PROD_DEPLOY_MODE"] = "self-hosted"
     env["CURL_BIN"] = str(bin_dir / "curl")
     env["IMAGE_REF"] = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:test"
     env["TAG"] = "prod-vtest"
@@ -7044,6 +7412,13 @@ printf 'curl %s\\n' "$*" >> "{log_file}"
 
     assert "Deploy dir:" in completed.stdout
     assert "compose --env-file" in log_file.read_text(encoding="utf-8")
+    lines = log_file.read_text(encoding="utf-8").splitlines()
+    assert all(" pull postgres" not in line for line in lines)
+    assert all(" image inspect sha256:06c914" not in line for line in lines)
+    assert all(" image inspect sha256:c822c68" not in line for line in lines)
+    assert all(POSTGRES_RUNTIME_REF not in line for line in lines)
+    assert f"docker stop {'a' * 64}" not in lines
+    assert all(" up -d --pull never postgres" not in line for line in lines)
 
 
 def test_deploy_production_rejects_relative_docker_bin_override(tmp_path: Path) -> None:
@@ -8720,6 +9095,69 @@ def test_staging_existing_current_config_id_requires_own_inspect_before_quiescen
     assert all(not line.startswith("backup ") for line in log_lines)
     assert all(" up -d --pull never postgres" not in line for line in log_lines)
     assert all("alembic upgrade head" not in line for line in log_lines)
+
+
+@pytest.mark.parametrize("surface", ("pulled", "config-id", "platform-id"))
+@pytest.mark.parametrize("field", ("PGDATA", "PG_MAJOR", "PG_MINOR"))
+@pytest.mark.parametrize("order", ("wrong-first", "wrong-last", "duplicate-exact", "no-equals"))
+def test_staging_postgres_image_rejects_duplicate_runtime_environment_before_quiescence(
+    tmp_path: Path, surface: str, field: str, order: str
+) -> None:
+    env, log_file = _staging_deploy_fixture(tmp_path)
+    image_id = (
+        POSTGRES_CONFIG_DIGEST if surface == "config-id" else POSTGRES_PLATFORM_MANIFEST_DIGEST
+    )
+    source = (
+        FAKE_POSTGRES_CONFIG_IMAGE_INSPECT_JSON
+        if surface == "config-id"
+        else FAKE_POSTGRES_IMAGE_INSPECT_JSON
+    )
+    inspected = json.loads(source)
+    image_environment = inspected[0]["Config"]["Env"]
+    canonical = next(item for item in image_environment if item.startswith(f"{field}="))
+    conflicting = {
+        "PGDATA": "PGDATA=/wrong/location",
+        "PG_MAJOR": "PG_MAJOR=16",
+        "PG_MINOR": "PG_MINOR=18",
+    }[field]
+    if order == "wrong-first":
+        image_environment.insert(0, conflicting)
+    elif order == "wrong-last":
+        image_environment.append(conflicting)
+    elif order == "duplicate-exact":
+        image_environment.append(canonical)
+    else:
+        image_environment.append(field)
+    image_payload = json.dumps(inspected)
+    if surface == "pulled":
+        env["STUB_POSTGRES_IMAGE_INSPECT_JSON"] = image_payload
+    else:
+        env["STUB_POSTGRES_CONTAINER_INSPECT_JSON"] = _current_postgres_container_inspect(image_id)
+        variable = (
+            "STUB_POSTGRES_EXISTING_CONFIG_IMAGE_INSPECT_JSON"
+            if surface == "config-id"
+            else "STUB_POSTGRES_EXISTING_PLATFORM_IMAGE_INSPECT_JSON"
+        )
+        env[variable] = image_payload
+    backend_ref = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "a" * 64
+    caddy_ref = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "b" * 64
+
+    completed = subprocess.run(
+        [str(REPO_ROOT / "scripts/deploy.sh"), backend_ref, caddy_ref],
+        cwd=str(REPO_ROOT),
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    log_lines = log_file.read_text(encoding="utf-8").splitlines()
+    assert all(" stop worker caddy app" not in line for line in log_lines)
+    assert all(not line.startswith("backup ") for line in log_lines)
+    assert all("alembic upgrade head" not in line for line in log_lines)
+    assert all(" up -d --pull never postgres" not in line for line in log_lines)
+    assert completed.returncode != 0, (surface, field, order, completed.stderr)
+    assert "PostgreSQL image" in completed.stderr
 
 
 def test_staging_rejects_unlistable_backup_before_postgres_switch(tmp_path: Path) -> None:

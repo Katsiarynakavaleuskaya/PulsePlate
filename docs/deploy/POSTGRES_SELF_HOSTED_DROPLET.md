@@ -27,6 +27,14 @@ Health via the edge (after DNS/TLS):
 - **Contract:** internal `postgres` service (no host-published `5432`), `app` has `depends_on: postgres` with `condition: service_healthy`. Compose **sets** `DATABASE_URL` for `app` to `postgresql+psycopg://…@postgres:5432/…` from `POSTGRES_USER`, `POSTGRES_PASSWORD`, and `POSTGRES_DB` so a stale managed URL in `.env` cannot point the app at an external database. Use **URL-safe** passwords or percent-encode reserved URI characters in `POSTGRES_PASSWORD`.
 - **Security:** keep Postgres off the public internet; rely on Docker network isolation and host firewall.
 
+For an existing self-hosted PostgreSQL container configured with the exact frozen
+image reference, deploy admits only the frozen config digest or platform manifest
+digest as its image ID. Both forms require an independent `docker image inspect`
+by the existing container's image ID with matching repository digest, platform
+and runtime metadata; missing or conflicting identity causes HOLD before product
+writers are stopped. This repository contract does not authorize a production
+deployment or establish a live production outcome.
+
 ```bash
 # From repo root (after deploy/.env is populated — see .env.example for keys)
 docker compose --project-directory deploy -f deploy/docker-compose.production.selfhosted.yaml config

@@ -493,17 +493,20 @@ if config.get("User") != "70" or config.get("Entrypoint") != ["/usr/local/bin/do
     raise SystemExit("Pulled PostgreSQL image runtime identity is not canonical")
 environment = config.get("Env")
 required_environment = {
-    "PGDATA=/var/lib/postgresql/15/data",
-    "PG_MAJOR=15",
-    "PG_MINOR=19",
+    "PGDATA": "/var/lib/postgresql/15/data",
+    "PG_MAJOR": "15",
+    "PG_MINOR": "19",
 }
 
 if (
     type(environment) is not list
     or any(type(item) is not str for item in environment)
-    or not required_environment.issubset(environment)
 ):
     raise SystemExit("Pulled PostgreSQL image version or default PGDATA drifted")
+for name, value in required_environment.items():
+    matching = [item for item in environment if item.partition("=")[0] == name]
+    if matching != [f"{name}={value}"]:
+        raise SystemExit("Pulled PostgreSQL image version or default PGDATA drifted")
 labels = config.get("Labels")
 required_labels = {
     "com.pulseplate.pgvector.version": "0.8.6",
@@ -524,7 +527,12 @@ if (
 }
 
 validate_pulled_postgres_image() {
-  validate_postgres_image_metadata "$1" "$1" ""
+  if validate_postgres_image_metadata "$1" "$1" "" 2>/dev/null; then
+    :
+  else
+    echo "❌ Pulled PostgreSQL image metadata is not the frozen candidate" >&2
+    return 1
+  fi
 }
 
 validate_staging_database_binding() {
