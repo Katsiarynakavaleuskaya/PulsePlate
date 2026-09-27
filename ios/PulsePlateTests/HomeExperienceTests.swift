@@ -362,6 +362,28 @@ final class HomeExperienceTests: XCTestCase {
         )
     }
 
+    func testClientEventIDFactoryCountsConcurrentCallbacks() async throws {
+        let probe = HomeDestinationFactoryProbe()
+        let makeClientEventID = probe.dependencies.makeClientEventID
+        let invocationCount = 64
+
+        let identifiers = await withTaskGroup(of: UUID.self, returning: [UUID].self) { group in
+            for _ in 0..<invocationCount {
+                group.addTask { makeClientEventID() }
+            }
+            var results: [UUID] = []
+            for await identifier in group {
+                results.append(identifier)
+            }
+            return results
+        }
+
+        let expectedID = try XCTUnwrap(UUID(uuidString: "00000000-0000-4000-8000-000000000001"))
+        XCTAssertEqual(identifiers.count, invocationCount)
+        XCTAssertTrue(identifiers.allSatisfy { $0 == expectedID })
+        XCTAssertEqual(probe.clientEventIDCount, invocationCount)
+    }
+
     func testHomeProfileRefreshContractChangesPaidActionAndKeepsFactoriesLazy() async throws {
         let profileProvider = MutableHomeProfileProvider(profile: nil)
         let apiClient = HomeNoCallAPIClient()
@@ -808,7 +830,19 @@ private final class HomeDestinationFactoryProbe: @unchecked Sendable {
     private(set) var supportServiceFactoryCount = 0
     private(set) var weeklyServiceFactoryCount = 0
     private(set) var shoppingServiceFactoryCount = 0
-    private(set) var clientEventIDCount = 0
+    nonisolated private let clientEventIDLock = NSLock()
+    nonisolated(unsafe) private var clientEventIDCountStorage = 0
+
+    var clientEventIDCount: Int {
+        clientEventIDLock.withLock { clientEventIDCountStorage }
+    }
+
+    nonisolated private func nextClientEventID() -> UUID {
+        clientEventIDLock.withLock {
+            clientEventIDCountStorage += 1
+        }
+        return UUID(uuidString: "00000000-0000-4000-8000-000000000001")!
+    }
 
     var dependencies: HomeDestinationDependencies {
         HomeDestinationDependencies(
@@ -833,8 +867,8 @@ private final class HomeDestinationFactoryProbe: @unchecked Sendable {
                 return HomeNoCallShoppingService()
             },
             makeClientEventID: { [weak self] in
-                self?.clientEventIDCount += 1
-                return UUID(uuidString: "00000000-0000-4000-8000-000000000001")!
+                self?.nextClientEventID()
+                    ?? UUID(uuidString: "00000000-0000-4000-8000-000000000001")!
             }
         )
     }

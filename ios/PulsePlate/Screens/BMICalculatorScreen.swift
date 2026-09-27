@@ -39,7 +39,9 @@ struct BMICalculatorScreen: View {
                             Text(res.interpretation)
 
                             if let vis = res.visualization {
-                                Text("Visualization: \(vis.kind)")
+                                if let kind = vis.kind {
+                                    Text("Visualization: \(kind)")
+                                }
                                 Text("Ranges: \(vis.ranges.count)")
                             }
 
