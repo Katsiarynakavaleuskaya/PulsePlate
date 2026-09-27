@@ -338,6 +338,51 @@ class TestFitChefMascotRuntimeBehavior:
         assert "provider" not in data
         assert calls == [("openai/gpt-6-luna", "low"), ("generate", "once")]
 
+    @pytest.mark.parametrize(
+        ("setting", "bad_value"),
+        [
+            ("FITCHEF_AGENT_API_ENABLED", "sometimes"),
+            ("FITCHEF_AGENT_API_MODEL", "sonar"),
+            ("FITCHEF_AGENT_API_MODEL", ""),
+            ("FITCHEF_AGENT_API_REASONING_EFFORT", "high"),
+            ("PERPLEXITY_API_KEY", ""),
+            ("PERPLEXITY_API_KEY", "__replace_me__"),
+        ],
+    )
+    def test_agent_bad_configuration_returns_503_before_quota_or_provider(
+        self, setting: str, bad_value: str
+    ) -> None:
+        """VIP request admission rejects bad Agent settings without spending quota."""
+
+        self.monkeypatch.setenv("APP_ENV", "test")
+        self.monkeypatch.setenv("ENVIRONMENT", "test")
+        self.monkeypatch.setenv("FITCHEF_AGENT_API_ENABLED", "true")
+        self.monkeypatch.setenv("FITCHEF_AGENT_API_MODEL", "openai/gpt-6-luna")
+        self.monkeypatch.setenv("FITCHEF_AGENT_API_REASONING_EFFORT", "low")
+        self.monkeypatch.setenv("PERPLEXITY_API_KEY", TEST_KEY_VIP)
+        self.monkeypatch.setenv(setting, bad_value)
+        self.monkeypatch.setattr(
+            "app.services.fitchef_runtime.attempt_consume_llm_monthly_quota",
+            lambda *args, **kwargs: pytest.fail("bad Agent configuration must not debit quota"),
+        )
+        self.monkeypatch.setattr(
+            "providers.perplexity_agent.DefaultAsyncHttpxClient",
+            lambda **kwargs: pytest.fail("bad Agent configuration must not allocate a client"),
+        )
+        self.monkeypatch.setattr(
+            "llm.get_provider",
+            lambda: pytest.fail("bad Agent configuration must not use Sonar"),
+        )
+
+        response = self.client.post(
+            self.url,
+            json={"query": "Need support with dinner"},
+            headers=self.vip_headers,
+        )
+
+        assert response.status_code == 503
+        assert _json_body(response) == {"detail": "fitchef_agent_api_configuration_invalid"}
+
     def test_production_agent_opt_in_rejects_before_quota_or_provider(self) -> None:
         """Production cannot activate the Agent branch with a feature flag."""
 

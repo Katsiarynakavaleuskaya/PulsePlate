@@ -123,6 +123,17 @@ def test_http_200_noncompleted_status_fails_closed(status: str) -> None:
         _response_body(model="openai/gpt-6-sol"),
         _response_body(text="  "),
         _response_body(output=[]),
+        _response_body(
+            output=[
+                {
+                    "id": "msg_empty",
+                    "type": "message",
+                    "role": "assistant",
+                    "status": "completed",
+                    "content": [],
+                }
+            ]
+        ),
         _response_body(error={"message": "hidden-provider-detail"}),
         _response_body(
             output=[
