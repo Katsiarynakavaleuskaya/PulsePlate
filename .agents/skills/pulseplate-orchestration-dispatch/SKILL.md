@@ -171,7 +171,10 @@ not enter this procedure.
    keep `network_budget=0`, 300 seconds, at most three changed files, two
    targeted test commands and one infrastructure retry. Newly added files may
    be marked intent-to-add only in the owned scratch checkout so its diff is
-   visible to the runner. The runner result is procedural test evidence, not
+   visible to the runner. Do not admit `make validate-changed` as a candidate
+   command: branch-diff mode ignores an uncommitted writer patch. The PR lane
+   still runs `make validate-changed` separately for its own committed diff.
+   The runner result is procedural test evidence, not
    promotion or merge authority. If a command or required fixture cannot be
    admitted by the strict backend, or capability/provenance is unavailable,
    do not run the generated code on the host. Record tests `pending` and let

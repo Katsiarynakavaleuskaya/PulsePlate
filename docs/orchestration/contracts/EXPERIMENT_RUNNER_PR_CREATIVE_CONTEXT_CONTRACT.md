@@ -51,11 +51,13 @@ only that admitted command list after reviewing the selected variant and the
 actual writer patch. The variant cannot introduce another executable command.
 The v1 request admits only bounded, non-shell test forms: `pytest -q` with one
 canonical `tests/*.py` target and optional test node/`--maxfail=1`, the fixed
-`make test-fast|validate-changed|ios-test` targets, or `npm --prefix frontend
+`make test-fast|ios-test` targets, or `npm --prefix frontend
 test -- --run` with one `src/*.(test|spec).(js|jsx|ts|tsx)` target. Shell
 operators, traversal and arbitrary executable names are rejected before native
 dispatch. The host runs supported commands only through the existing strict,
 zero-network Experiment Runner in an owned scratch checkout after patch review;
+`make validate-changed` is deliberately excluded from candidate commands
+because its branch-scoped selection does not see an uncommitted writer patch.
 `shell=False` alone is not containment. It never executes generated code with
 host credentials. A current backend that cannot admit an approved npm/Xcode
 command or its required fixture leaves tests `pending`; ordinary platform-owner
@@ -114,7 +116,9 @@ values) fail. Path validation treats repository filenames separately from
 secret values, so legitimate names such
 as `api_key.py` remain admissible. Explicit decorator and HTTP-method contexts
 allow public route literals such as `GET /api/v1/items` in patch and review
-evidence; they do not exempt ordinary local paths. These finite checks do not
+evidence; they never exempt known filesystem roots such as `/home` and `/srv`.
+Readiness claims in exported Work Review and test/oracle evidence are rejected;
+patch source is screened under its own content rules. These finite checks do not
 prove the absence of every possible secret; host review remains required before
 external upload.
 The authorized host uploads the package, reads the updated Google Doc by the
