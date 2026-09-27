@@ -97,7 +97,7 @@ struct PPNumberInput: View {
                 .focused($isFocused)
                 .font(PPDesignTokens.Typography.body)
                 .foregroundColor(PPDesignTokens.ColorToken.textPrimary)
-                .onChange(of: textValue) { newValue in
+                .onChange(of: textValue, initial: false) { _, newValue in
                     // Parse using locale-aware NumberFormatter (handles comma/period based on locale)
                     value = newValue.isEmpty ? nil : formatter.number(from: newValue)?.doubleValue
                 }
@@ -133,7 +133,7 @@ struct PPNumberInput: View {
             }
         }
         // Sync textValue when bound value changes externally (Cubic P2 review)
-        .onChange(of: value) { newValue in
+        .onChange(of: value, initial: false) { _, newValue in
             let newText = newValue.flatMap { formatter.string(from: NSNumber(value: $0)) } ?? ""
             // Only update if different to avoid cursor jump during user typing
             if newText != textValue && !isFocused {
