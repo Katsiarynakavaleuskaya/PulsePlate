@@ -121,6 +121,14 @@ Readiness claims in exported Work Review and test/oracle evidence are rejected;
 patch source is screened under its own content rules. These finite checks do not
 prove the absence of every possible secret; host review remains required before
 external upload.
+Export and restore both parse the ordinary text patch with Git's read-only
+numstat mode and require its complete changed-path set to equal the admitted
+writer handoff. The separately versioned `creative_workflow_test_evidence.v1`
+sidecar binds the exact request fingerprint, selected variant, writer
+occurrence, patch SHA-256, changed files and observed commands; commands must
+be the selected variant's approved tests. A consistent sidecar proves content
+continuity only: the host still reviews the patch and actual test outputs, and
+an incomplete or uncontained run remains pending.
 The authorized host uploads the package, reads the updated Google Doc by the
 same ID, downloads the package, compares its SHA-256 and runs safe restore in
 a fresh owned directory. Failure remains `storage_pending` and bars cleanup.

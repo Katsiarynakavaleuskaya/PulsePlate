@@ -182,8 +182,13 @@ not enter this procedure.
    fixture-bearing projection is separate evidence and never replaces the
    selected patch's original hash or its exact-material test claim.
 6. Compare the observed sandbox command results and actual patch with each
-   accepted criterion in Work Review. A pending or over-budget test result
-   cannot support completion. Export a sanitized owned capsule using
+   accepted criterion in Work Review. Before export, write the structured
+   `creative_workflow_test_evidence.v1` sidecar from host observations: exact
+   request, selected writer occurrence, patch SHA-256, complete changed files
+   and approved commands with observed nonzero test counts. The CLI checks
+   its continuity against the Git-parsed patch and handoff at export and
+   restore; the sidecar cannot authenticate execution by itself. A pending or
+   over-budget test result cannot support completion. Export a sanitized owned capsule using
    `workflow-export`, then let
    the host upload, read the same document ID, download the archive, compare its
    SHA-256 and run `workflow-verify-archive` into a fresh owned directory. Keep
