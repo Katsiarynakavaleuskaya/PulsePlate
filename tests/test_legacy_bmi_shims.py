@@ -110,6 +110,10 @@ RETIRED_LEGACY_PYTHON_BINDINGS = {
     "Goal",
     "Sex",
     "build_who_targets_ui_labels",
+    "DataClass",
+    "get_retention_manager",
+    "LogRetentionManager",
+    "_log_retention_manager",
 }
 
 RETIRED_PLATE_HELPER_BINDINGS = (
@@ -254,6 +258,7 @@ def test_retired_legacy_python_bindings_are_absent_with_canonical_owners_present
     import app.services.pro_nutrition_plate as plate_service
     import app.services.pro_nutrition_targets as targets_service
     import core.exports as exports
+    import core.log_retention as log_retention
     import core.menu_engine as menu_engine
     import core.nutrition_utils as nutrition_utils
     import core.plate as plate
@@ -346,6 +351,10 @@ def test_retired_legacy_python_bindings_are_absent_with_canonical_owners_present
         "Goal": premium_contracts.Goal,
         "Sex": premium_contracts.Sex,
         "build_who_targets_ui_labels": premium_contracts.build_who_targets_ui_labels,
+        "DataClass": log_retention.DataClass,
+        "get_retention_manager": log_retention.get_retention_manager,
+        "LogRetentionManager": log_retention.LogRetentionManager,
+        "_log_retention_manager": None,
     }
     canonical_constants = {
         "DB_TO_ALIAS_NUTRIENT_MAP": plate_service.DB_TO_ALIAS_NUTRIENT_MAP,
@@ -365,7 +374,7 @@ def test_retired_legacy_python_bindings_are_absent_with_canonical_owners_present
 
     assert canonical_migrations.keys() == RETIRED_LEGACY_PYTHON_BINDINGS
     assert RETIRED_LEGACY_PYTHON_BINDINGS == legacy_guard.RETIRED_LEGACY_PYTHON_BINDINGS
-    assert len(RETIRED_LEGACY_PYTHON_BINDINGS) == 83
+    assert len(RETIRED_LEGACY_PYTHON_BINDINGS) == 87
     assert RETIRED_OPENAPI_BINDINGS == tuple(
         name for name in canonical_migrations if name in RETIRED_OPENAPI_BINDINGS
     )
@@ -405,7 +414,14 @@ def test_retired_legacy_python_bindings_are_absent_with_canonical_owners_present
         binding_name
         for binding_name, canonical_migration in canonical_migrations.items()
         if canonical_migration is None
-    } == {"_resolve_build_targets_callable", "WeeklyPlanFlexibleRequest"}
+    } == {
+        "_resolve_build_targets_callable",
+        "WeeklyPlanFlexibleRequest",
+        "_log_retention_manager",
+    }
+    assert log_retention.DataClass.__module__ == log_retention.__name__
+    assert log_retention.LogRetentionManager.__module__ == log_retention.__name__
+    assert log_retention.get_retention_manager.__module__ == log_retention.__name__
     for binding_name, canonical_migration in canonical_migrations.items():
         if binding_name in canonical_constants:
             assert canonical_migration == canonical_constants[binding_name]
@@ -509,6 +525,7 @@ def test_retired_legacy_python_bindings_fail_closed_in_a_fresh_process() -> None
         import app.bootstrap.openapi as canonical_openapi
         import app.services.pro_nutrition_plate as plate_service
         import app.services.pro_nutrition_targets as targets_service
+        import core.log_retention as log_retention
         import core.nutrition_utils as nutrition_utils
 
         retired = {retired_bindings!r}
@@ -522,6 +539,9 @@ def test_retired_legacy_python_bindings_fail_closed_in_a_fresh_process() -> None
         )
         assert set(retired).isdisjoint(vars(legacy_app))
         assert app_facade._macros_to_kcal is plate_service._macros_to_kcal
+        assert log_retention.DataClass.__module__ == log_retention.__name__
+        assert log_retention.LogRetentionManager.__module__ == log_retention.__name__
+        assert log_retention.get_retention_manager.__module__ == log_retention.__name__
         for binding_name in plate_helpers:
             canonical_object = getattr(plate_service, binding_name)
             if binding_name == "DB_TO_ALIAS_NUTRIENT_MAP":

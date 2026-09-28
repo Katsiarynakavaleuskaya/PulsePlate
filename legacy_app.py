@@ -38,11 +38,6 @@ from app.services.bmi_compat import (
     add_visualization_if_requested,
     generate_bmi_visualization,
 )
-from core.log_retention import (
-    DataClass,
-    get_retention_manager,
-    LogRetentionManager,
-)
 from core.db import get_session
 from core.i18n import Language, normalize_lang, t
 from core.targets import FIBER_MIN_G
@@ -64,8 +59,6 @@ _BMI_SCHEMA_COMPAT_REEXPORTS = (
 )
 
 _LEGACY_IMPORT_COMPAT_REEXPORTS = (
-    DataClass,
-    get_retention_manager,
     get_session,
     Language,
     normalize_lang,
@@ -131,10 +124,6 @@ slowapi_available = Limiter is not None
 _app_env = RUNTIME_ENV
 logger = logging.getLogger(__name__)
 bmi_logger = logging.getLogger("app.bmi")
-
-# Initialize log retention manager
-_log_retention_manager: Optional[LogRetentionManager] = None
-
 
 # OpenAPI/Swagger metadata remains available here as exact compatibility values.
 _application_metadata = APPLICATION_METADATA
