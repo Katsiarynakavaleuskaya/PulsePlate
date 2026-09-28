@@ -5687,6 +5687,16 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Links: `tests/guards/test_nosec_policy_guard.py`, `AGENTS.md` (Bandit / nosec policy), and `scripts/ci/fetch_docker_source_artifacts.py:175` as one affected example.
   - DoD: Reconcile every exact inline suppression with its owning rule, current code path and safer fix; remove or repair where possible, renew only independently justified remaining exceptions with owner/ref/TTL proof, retain the guard, and verify exact-head main CI before 2026-10-01. Do not mix this 22-file inventory with the bounded Docker/Trivy calendar repair PR.
 
+<a id="ledger-p1-native-trivy-cli-nosec-20261028"></a>
+- [ ] P1: Reassess native Trivy CLI B404/B603 exceptions by 2026-10-28
+  - Owner: Security/SRE
+  - Priority: P1
+  - Target PR: PR-TBD-NATIVE-TRIVY-CLI-NOSEC (after #2453)
+  - Area: security / CI tooling
+  - Reason: PR #2453 uses the resolved absolute native Trivy executable with fixed argv, no shell and a bounded timeout. Two explicit LOW Bandit B404/B603 exceptions are required for that subprocess boundary and expire 2026-10-28; they are separate from the 53 pre-existing September 30 inline TTLs.
+  - Links: `scripts/ci/check_trivy_ignore_policy_native.py`, `tests/guards/test_nosec_policy_guard.py`, and [PR #2453](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2453).
+  - DoD: Reassess the exact native CLI call and Bandit findings before 2026-10-28; remove the exceptions if a simpler safe implementation is available, or renew only with current evidence, bounded TTL and the same fail-closed native policy tests. Never use a broad allowlist or weaken Bandit.
+
 - [ ] P1: Phase 2 — Remove nosec allowlist by migrating legacy suppressions
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1

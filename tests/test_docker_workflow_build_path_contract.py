@@ -568,6 +568,34 @@ def test_libuuid_build_executes_both_source_digest_checks(
         assert f"{corrupt_digest.upper()} mismatch" in result.stderr
 
 
+def test_pr_build_runs_native_suppression_contract_after_pinned_scan() -> None:
+    workflow = _load_workflow(WORKFLOWS_DIR / "build.yml")
+    jobs = workflow["jobs"]
+    assert isinstance(jobs, dict)
+    build = jobs["build"]
+    assert isinstance(build, dict)
+    names = _step_names(build)
+    assert names.count("Validate native Trivy suppression semantics") == 1
+    assert names.index("Scan production image before publication eligibility") + 1 == names.index(
+        "Validate native Trivy suppression semantics"
+    )
+    assert names.index("Validate native Trivy suppression semantics") + 1 == names.index(
+        "Validate production image report and render SARIF"
+    )
+    scan = _step_by_name(build, "Scan production image before publication eligibility")
+    assert scan["uses"] == ("aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25")
+    assert scan["with"]["version"] == "v0.74.0"
+    assert scan["with"]["ignore-policy"] == ".trivy-ignore-policy.rego"
+    native = _step_by_name(build, "Validate native Trivy suppression semantics")
+    assert native == {
+        "name": "Validate native Trivy suppression semantics",
+        "if": "github.event_name == 'pull_request'",
+        "run": "set -euo pipefail\npython3 scripts/ci/check_trivy_ignore_policy_native.py\n",
+    }
+    assert "continue-on-error" not in native
+    assert "Validate native Trivy suppression semantics" not in _step_names(jobs["publish"])
+
+
 def test_pr_and_publish_share_strict_native_image_scan_predicates() -> None:
     workflow = _load_workflow(WORKFLOWS_DIR / "build.yml")
     jobs = workflow["jobs"]
