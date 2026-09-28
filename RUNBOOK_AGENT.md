@@ -302,6 +302,17 @@ The shared October 7 hard expiry and util-linux CVE-2026-53615 remain separate
 owner decisions. The forecast does not replace current-head Docker build,
 strict image/filesystem scans, canonical CI, or merge authorization.
 
+For PR builds, the separate native Trivy policy check follows the pinned image
+scan and precedes report validation (`.github/workflows/build.yml:182`). It
+byte-binds the copied scan policy to `trivy/ignore-policy.rego` and exercises
+the five exact zlib/ncurses package tuples using synthetic JSON; the actual
+image and filesystem scanners retain their own fail-closed results. Native
+Trivy 0.74.0 normalizes JSON `null` in string-valued `FixedVersion` to empty;
+a numeric value fails JSON decoding and must not be counted as a vulnerability
+finding or a Rego decision (`scripts/ci/check_trivy_ignore_policy_native.py:178`).
+If the native check fails, inspect the first execution/schema/count error and
+repair the policy or checker in the same PR before mapping review findings.
+
 ## Guard Coverage Step (EVMbench-inspired)
 
 **Purpose:** Ensure comprehensive coverage — address *all* related violations, not just one.
