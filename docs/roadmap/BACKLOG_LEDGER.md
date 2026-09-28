@@ -61,7 +61,7 @@ If it is not recorded here — it does not exist.
 - [ ] P1: Replace the false staging worker Docker healthcheck wait gate
   - Owner: dev-operator / agent-coordinator
   - Priority: P1
-  - Target PR: current `codex/ops03-worker-running-gate` implementation PR (number pending).
+  - Target PR: [#2456](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2456) (`codex/ops03-worker-running-gate`).
   - Status: In progress; the repository change has no host deployment authority. A read-only worker observation on 2026-09-28 at 18:47 UTC found `Running=true`, `ExitCode=0`, `RestartCount=0`, `OOMKilled=false`, and no Docker healthcheck; scheduler cycle remains unknown.
   - Reason for deferral: Staging Compose intentionally disables the worker healthcheck, while the two `deploy.sh` worker `up --wait` calls can reject a running container. The code repair and current-head gates are still pending merge; any later host activation requires separate approval.
   - Links: `scripts/deploy.sh`, `deploy/docker-compose.staging.yaml`, `docs/deploy/STAGING.md`, `docs/deploy/OPERATIONAL_SIGNALS.md`, [OPS-03A](#ledger-p1-ops03a-staging-runtime-diagnostics).
