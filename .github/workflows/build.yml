@@ -64,8 +64,8 @@ jobs:
       - name: Prepare private Python index Docker authentication
         shell: bash
         env:
-          DEVPI_CI_USER: ${{ github.event_name != 'pull_request' && secrets.DEVPI_CI_USER || '' }}
-          DEVPI_CI_PASSWORD: ${{ github.event_name != 'pull_request' && secrets.DEVPI_CI_PASSWORD || '' }}
+          DEVPI_CI_USER: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && secrets.DEVPI_CI_USER || '' }}
+          DEVPI_CI_PASSWORD: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && secrets.DEVPI_CI_PASSWORD || '' }}
           PULSEPLATE_PYTHON_INDEX_URL: ${{ vars.PULSEPLATE_PYTHON_INDEX_URL }}
         run: |
           set -euo pipefail
@@ -178,6 +178,12 @@ jobs:
           exit-code: '1'
           format: json
           output: trivy-build-image.json
+
+      - name: Validate native Trivy suppression semantics
+        if: github.event_name == 'pull_request'
+        run: |
+          set -euo pipefail
+          python3 scripts/ci/check_trivy_ignore_policy_native.py
 
       - name: Validate production image report and render SARIF
         if: ${{ always() }}
@@ -540,8 +546,8 @@ jobs:
       - name: Prepare private Python index Docker authentication
         shell: bash
         env:
-          DEVPI_CI_USER: ${{ github.event_name != 'pull_request' && secrets.DEVPI_CI_USER || '' }}
-          DEVPI_CI_PASSWORD: ${{ github.event_name != 'pull_request' && secrets.DEVPI_CI_PASSWORD || '' }}
+          DEVPI_CI_USER: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && secrets.DEVPI_CI_USER || '' }}
+          DEVPI_CI_PASSWORD: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && secrets.DEVPI_CI_PASSWORD || '' }}
           PULSEPLATE_PYTHON_INDEX_URL: ${{ vars.PULSEPLATE_PYTHON_INDEX_URL }}
         run: |
           set -euo pipefail

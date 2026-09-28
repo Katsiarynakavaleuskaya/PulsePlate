@@ -2,7 +2,11 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Any
+import os
+import shutil
+import subprocess
 
+import pytest
 import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -247,3 +251,118 @@ def test_python_setup_jobs_depend_on_private_proxy_health_gate() -> None:
         job = jobs[job_name]
         assert isinstance(job, dict)
         assert HEALTH_JOB in as_needs_set(job), f"{job_name} must need {HEALTH_JOB}"
+
+
+def test_python_setup_jobs_receive_devpi_credentials_on_main_push_only() -> None:
+    workflow_text = CI_WORKFLOW.read_text(encoding="utf-8")
+    assert "github.event_name != 'pull_request' && secrets.DEVPI_CI_USER" not in workflow_text
+    assert "github.event_name != 'pull_request' && secrets.DEVPI_CI_PASSWORD" not in workflow_text
+
+    workflow = load_ci_workflow()
+    jobs = workflow["jobs"]
+    assert isinstance(jobs, dict)
+
+    expected_user = (
+        "${{ github.event_name != 'pull_request' && "
+        "github.ref == 'refs/heads/main' && secrets.DEVPI_CI_USER || '' }}"
+    )
+    expected_password = (
+        "${{ github.event_name != 'pull_request' && "
+        "github.ref == 'refs/heads/main' && secrets.DEVPI_CI_PASSWORD || '' }}"
+    )
+
+    for job_name, job in jobs.items():
+        if not isinstance(job, dict) or not job_uses_python_setup(job):
+            continue
+        matching_steps = [
+            step
+            for step in job.get("steps", [])
+            if isinstance(step, dict) and step.get("uses") == "./.github/actions/python-setup"
+        ]
+        assert matching_steps, f"{job_name} must call python-setup"
+        for step in matching_steps:
+            env = step.get("env")
+            assert isinstance(env, dict), f"{job_name} python-setup step must declare env"
+            assert env.get("DEVPI_CI_USER") == expected_user
+            assert env.get("DEVPI_CI_PASSWORD") == expected_password
+
+
+@pytest.mark.parametrize(
+    "job_name",
+    [
+        "merge_readiness_gate",
+        "lint",
+        "security",
+        "openapi-sync",
+        "test-pr",
+        "pgvector_compat",
+        "test-feature",
+        "test-main",
+        "diff-coverage",
+    ],
+)
+def test_proxy_dependent_jobs_fail_before_work_on_invalid_needs(job_name: str) -> None:
+    bash = shutil.which("bash")
+    assert bash is not None
+    job = load_ci_workflow()["jobs"][job_name]
+    needs = as_needs_set(job)
+    step = job["steps"][0]
+    assert step["name"] == "Enforce prerequisite results"
+    assert isinstance(step["env"], dict)
+    assert isinstance(step["run"], str)
+    gate_steps = job["steps"][:2] if job_name == "security" else [step]
+    gate_env = {key: value for gate in gate_steps for key, value in gate["env"].items()}
+    gate_script = "\n".join(gate["run"] for gate in gate_steps)
+    if len(needs) > 1:
+        assert "always()" in str(job["if"])
+    if "changes" in needs and job_name not in {"merge_readiness_gate", "test-main"}:
+        assert "needs.changes.result != 'success'" in str(job["if"])
+
+    expected_keys = {
+        (
+            "PGVECTOR_RESULT"
+            if need == "pgvector_compat" and job_name == "security"
+            else need.upper().replace("-", "_") + "_RESULT"
+        )
+        for need in needs
+    }
+    assert expected_keys <= set(gate_env)
+    for need in needs:
+        key = (
+            "PGVECTOR_RESULT"
+            if need == "pgvector_compat" and job_name == "security"
+            else need.upper().replace("-", "_") + "_RESULT"
+        )
+        assert gate_env[key] == "${{ needs." + need + ".result }}"
+
+    def execute(overrides: dict[str, str]) -> subprocess.CompletedProcess[str]:
+        env = dict(os.environ)
+        env.update({key: "success" for key in expected_keys})
+        if job_name == "security":
+            env.update(PGVECTOR_RESULT="skipped", PGVECTOR_SELECTION="false")
+        if job_name == "merge_readiness_gate":
+            env.update(SECURITY_REQUIRED="true", PGVECTOR_REQUIRED="false")
+        env.update(overrides)
+        return subprocess.run(  # nosec B603: resolved bash executes fixed workflow gate text (remove-by: 2026-10-31, ref: PR-consol-ci-1)
+            [bash, "-e", "-o", "pipefail", "-c", gate_script],
+            env=env,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+    assert execute({}).returncode == 0
+    for need in needs:
+        key = (
+            "PGVECTOR_RESULT"
+            if need == "pgvector_compat" and job_name == "security"
+            else need.upper().replace("-", "_") + "_RESULT"
+        )
+        for invalid in ("failure", "cancelled", "skipped"):
+            overrides = {key: invalid}
+            if need == "pgvector_compat":
+                overrides["PGVECTOR_SELECTION"] = "true"
+            assert execute(overrides).returncode != 0, (job_name, need, invalid)
+    if job_name == "merge_readiness_gate":
+        assert execute({"SECURITY_RESULT": "skipped", "SECURITY_REQUIRED": "false"}).returncode == 0
+        assert execute({"SECURITY_RESULT": "failure", "SECURITY_REQUIRED": "false"}).returncode != 0

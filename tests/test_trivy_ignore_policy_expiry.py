@@ -1,13 +1,16 @@
 from __future__ import annotations
 
 from datetime import date
+import json
 import os
 from pathlib import Path
 import re
+import subprocess
 
 import pytest
 
 from scripts.ci import check_trivy_ignore_policy_expiry as expiry_guard
+from scripts.ci import check_trivy_ignore_policy_native as native_policy
 from scripts.ci.check_trivy_ignore_policy_expiry import evaluate_policy_file
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -163,22 +166,28 @@ def _repository_gemfile_locks(repo_root: Path) -> list[Path]:
     return sorted(lockfiles)
 
 
-@pytest.mark.parametrize("today", [date(2026, 9, 20), date(2026, 9, 27), date(2026, 9, 28)])
+@pytest.mark.parametrize("today", [date(2026, 9, 28), date(2026, 10, 5), date(2026, 10, 6)])
 def test_current_policy_review_deadline_is_inclusive_and_distinct_from_expiry(today: date) -> None:
     """The approved review boundary expires the records, not the whole October policy."""
+    policy_lines = POLICY_PATH.read_text().splitlines()
+    assert [line for line in policy_lines if line.startswith("# Review-by:")] == [
+        "# Review-by: 2026-10-05 (manual removal)",
+        "# Review-by: 2026-10-07 (manual removal)",
+        "# Review-by: 2026-10-05 (manual removal)",
+    ]
     review_lines = [
         number
-        for number, line in enumerate(POLICY_PATH.read_text().splitlines(), start=1)
-        if line.startswith("# Review-by: 2026-09-27 ")
+        for number, line in enumerate(policy_lines, start=1)
+        if line.startswith("# Review-by: 2026-10-05 ")
     ]
     assert len(review_lines) == 2, "both retained reviewed records must be represented"
     expected = (
         [
             f"Stale Trivy suppression review date: {POLICY_PATH}:{number} "
-            f"(review-by 2026-09-27, today {today})"
+            f"(review-by 2026-10-05, today {today})"
             for number in review_lines
         ]
-        if today == date(2026, 9, 28)
+        if today == date(2026, 10, 6)
         else []
     )
     assert evaluate_policy_file(POLICY_PATH, today=today) == expected
@@ -562,16 +571,302 @@ def test_gemfile_scan_fails_closed_on_traversal_error(
 
 def test_zlib_suppression_requires_exact_pkgid_scope() -> None:
     policy = _policy_text()
-
-    zlib_ignore_rule = policy[
-        policy.index('ignore if {\n\tinput.VulnerabilityID == "CVE-2026-27171"') :
-    ]
+    start = policy.index('ignore if {\n\tinput.VulnerabilityID == "CVE-2026-27171"')
+    zlib_ignore_rule = policy[start : policy.index("\n}", start) + 2]
 
     assert 'input.InstalledVersion == "1:1.2.13.dfsg-1"' in policy
     assert 'contains(input.PkgID, "zlib1g@1:1.2.13.dfsg-1")' in policy
     assert 'input.PkgName == "zlib1g"' in zlib_ignore_rule
     assert "cve_2026_27171_version_match" in zlib_ignore_rule
     assert "cve_2026_27171_pkgid_match" in zlib_ignore_rule
+    assert zlib_ignore_rule.count('object.get(input, "FixedVersion", "") == ""') == 1
+
+
+def test_ncurses_suppression_requires_fixed_version_and_exact_tuple_scope() -> None:
+    policy = _policy_text()
+    start = policy.index('ignore if {\n\tinput.VulnerabilityID == "CVE-2025-69720"')
+    ncurses_ignore_rule = policy[start : policy.index("\n}", start) + 2]
+    helper_region = policy[policy.index("cve_2025_69720_pkg_match if {") : start]
+
+    assert 'input.VulnerabilityID == "CVE-2025-69720"' in ncurses_ignore_rule
+    assert "cve_2025_69720_pkg_match" in ncurses_ignore_rule
+    assert "cve_2025_69720_version_match" in ncurses_ignore_rule
+    assert "cve_2025_69720_pkgid_match" in ncurses_ignore_rule
+    assert ncurses_ignore_rule.count('object.get(input, "FixedVersion", "") == ""') == 1
+    assert 'input.InstalledVersion == "6.4-4"' in helper_region
+    for package in ("libncursesw6", "libtinfo6", "ncurses-base", "ncurses-bin"):
+        assert f'startswith(input.PkgID, "{package}@6.4-4")' in helper_region
+
+
+def _native_report_output(finding: dict[str, object], count: int) -> bytes:
+    report = json.loads(native_policy._report_bytes(finding))
+    if count == 0:
+        del report["Results"][0]["Vulnerabilities"]
+    return json.dumps(report).encode()
+
+
+def test_native_trivy_case_inventory_is_exact_and_bounded() -> None:
+    cases = native_policy._cases()
+
+    assert len(native_policy.TUPLES) == 5
+    assert len(cases) == 45
+    assert len({case_id for case_id, _, _ in cases}) == 45
+    assert {case_id.rsplit("/", 1)[1] for case_id, _, _ in cases} == {
+        "missing",
+        "empty",
+        "null",
+        "nonempty",
+        "wrong-cve",
+        "wrong-package",
+        "wrong-version",
+        "wrong-pkgid",
+        "integer",
+    }
+    assert [finding["PkgName"] for _, finding, _ in cases[::9]] == [
+        "zlib1g",
+        "libncursesw6",
+        "libtinfo6",
+        "ncurses-base",
+        "ncurses-bin",
+    ]
+    assert all(expected is None for _, _, expected in cases[8::9])
+
+
+def test_native_trivy_policy_copy_rejects_symlink_hardlink_and_drift(tmp_path: Path) -> None:
+    source = tmp_path / "source.rego"
+    scan_copy = tmp_path / "scan.rego"
+    source.write_bytes(b"package trivy\n")
+    scan_copy.write_bytes(source.read_bytes())
+    native_policy._verify_policy_copy(source, scan_copy)
+
+    scan_copy.write_bytes(b"different")
+    with pytest.raises(ValueError, match="differs"):
+        native_policy._verify_policy_copy(source, scan_copy)
+    scan_copy.unlink()
+    scan_copy.symlink_to(source)
+    with pytest.raises(ValueError, match="real single-link"):
+        native_policy._verify_policy_copy(source, scan_copy)
+    scan_copy.unlink()
+    os.link(source, scan_copy)
+    with pytest.raises(ValueError, match="real single-link"):
+        native_policy._verify_policy_copy(source, scan_copy)
+    scan_copy.unlink()
+    with pytest.raises(ValueError, match="Unable to read"):
+        native_policy._verify_policy_copy(source, scan_copy)
+
+
+def test_native_trivy_binary_requires_real_absolute_executable(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(native_policy.shutil, "which", lambda _name: None)
+    with pytest.raises(ValueError, match="missing"):
+        native_policy._trivy_binary()
+
+    binary = tmp_path / "trivy"
+    binary.write_bytes(b"synthetic executable")
+    monkeypatch.setattr(native_policy.shutil, "which", lambda _name: str(binary))
+    with pytest.raises(ValueError, match="not an executable"):
+        native_policy._trivy_binary()
+    binary.chmod(0o700)
+    assert native_policy._trivy_binary() == str(binary.resolve())
+    binary.unlink()
+    with pytest.raises(ValueError, match="Unable to resolve"):
+        native_policy._trivy_binary()
+
+
+def test_native_trivy_runner_distinguishes_timeout_and_start_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def timeout(*_args: object, **_kwargs: object) -> None:
+        raise subprocess.TimeoutExpired(cmd="trivy", timeout=10)
+
+    monkeypatch.setattr(native_policy.subprocess, "run", timeout)
+    with pytest.raises(ValueError, match="timed out"):
+        native_policy._invoke(["/usr/bin/trivy", "convert"])
+
+    def cannot_start(*_args: object, **_kwargs: object) -> None:
+        raise OSError("synthetic failure")
+
+    monkeypatch.setattr(native_policy.subprocess, "run", cannot_start)
+    with pytest.raises(ValueError, match="could not start"):
+        native_policy._invoke(["/usr/bin/trivy", "convert"])
+
+
+def test_native_trivy_runner_uses_fixed_local_subprocess_boundary(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, object] = {}
+
+    def run(argv: list[str], **kwargs: object) -> subprocess.CompletedProcess[bytes]:
+        captured.update({"argv": argv, **kwargs})
+        return subprocess.CompletedProcess(argv, 0, b"{}", b"")
+
+    monkeypatch.setattr(native_policy.subprocess, "run", run)
+    payload = b"synthetic"
+    result = native_policy._invoke(["/usr/bin/trivy", "convert"], payload=payload)
+
+    assert result.returncode == 0
+    assert captured["argv"] == ["/usr/bin/trivy", "convert"]
+    assert captured["input"] == payload
+    assert captured["cwd"] == native_policy.REPO_ROOT
+    assert captured["timeout"] == native_policy.TIMEOUT_SECONDS
+    assert captured["check"] is False
+    assert "shell" not in captured
+
+
+def test_native_trivy_version_requires_exact_pinned_cli(monkeypatch: pytest.MonkeyPatch) -> None:
+    for returncode, stdout in (
+        (0, b"Version: 0.74.0\n"),
+        (1, b"Version: 0.74.0\n"),
+        (0, b"Version: 0.75.0\n"),
+    ):
+        monkeypatch.setattr(
+            native_policy,
+            "_invoke",
+            lambda _argv, *, payload=None: subprocess.CompletedProcess(
+                args=[], returncode=returncode, stdout=stdout, stderr=b""
+            ),
+        )
+        if returncode == 0 and stdout == b"Version: 0.74.0\n":
+            native_policy._require_version("/usr/bin/trivy")
+        else:
+            with pytest.raises(ValueError, match="exactly version 0.74.0"):
+                native_policy._require_version("/usr/bin/trivy")
+
+
+def test_native_trivy_output_requires_exact_schema_identity_count_and_finding() -> None:
+    finding = native_policy._cases()[3][1]
+    visible = json.loads(_native_report_output(finding, 1))
+    native_policy._validate_output(_native_report_output(finding, 0), finding, 0)
+    native_policy._validate_output(_native_report_output(finding, 1), finding, 1)
+
+    bad_reports: list[tuple[object, str]] = [(b"not-json", "invalid JSON")]
+    for edit, expected in (
+        (lambda report: report.update({"Extra": True}), "unexpected report shape"),
+        (lambda report: report.update({"SchemaVersion": "2"}), "different report identity"),
+        (lambda report: report["Results"].append({}), "different report identity"),
+        (
+            lambda report: report["Results"][0].update({"Target": "other"}),
+            "different result identity",
+        ),
+        (lambda report: report["Results"][0].update({"Extra": True}), "different result identity"),
+        (lambda report: report["Results"][0].update({"Vulnerabilities": {}}), "finding count"),
+        (lambda report: report["Results"][0]["Vulnerabilities"].append(finding), "finding count"),
+        (
+            lambda report: report["Results"][0]["Vulnerabilities"][0].update({"PkgID": "other"}),
+            "different finding identity",
+        ),
+    ):
+        mutated = json.loads(json.dumps(visible))
+        edit(mutated)
+        bad_reports.append((json.dumps(mutated).encode(), expected))
+    for raw, expected in bad_reports:
+        with pytest.raises(ValueError, match=expected):
+            native_policy._validate_output(raw, finding, 1)
+
+
+def test_native_trivy_contract_runs_each_case_with_fixed_argv(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    cases = native_policy._cases()
+    calls: list[list[str]] = []
+
+    def convert(
+        argv: list[str], *, payload: bytes | None = None
+    ) -> subprocess.CompletedProcess[bytes]:
+        case_id, finding, expected = cases[len(calls)]
+        calls.append(argv)
+        assert json.loads(payload or b"")["Results"][0]["Vulnerabilities"] == [finding]
+        if expected is None:
+            return subprocess.CompletedProcess(
+                argv, 1, b"", b"json decode error FixedVersion of type string"
+            )
+        return subprocess.CompletedProcess(argv, 0, _native_report_output(finding, expected), b"")
+
+    monkeypatch.setattr(native_policy, "_invoke", convert)
+    assert native_policy._run_contract("/usr/bin/trivy", Path("/tmp/policy.rego")) == 45
+    assert len(calls) == 45
+    assert all(
+        call
+        == [
+            "/usr/bin/trivy",
+            "convert",
+            "--quiet",
+            "--format",
+            "json",
+            "--ignore-policy",
+            "/tmp/policy.rego",
+            "--ignorefile",
+            "/dev/null",
+            "/dev/stdin",
+        ]
+        for call in calls
+    )
+
+
+def test_native_trivy_contract_rejects_other_errors_and_wrong_counts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    case_id, finding, _ = native_policy._cases()[0]
+
+    def failure(
+        argv: list[str], *, payload: bytes | None = None
+    ) -> subprocess.CompletedProcess[bytes]:
+        return subprocess.CompletedProcess(argv, 1, b"", b"network error")
+
+    monkeypatch.setattr(native_policy, "_invoke", failure)
+    with pytest.raises(ValueError, match="conversion failed"):
+        native_policy._run_contract("/usr/bin/trivy", Path("/tmp/policy.rego"))
+
+    def wrong_count(
+        argv: list[str], *, payload: bytes | None = None
+    ) -> subprocess.CompletedProcess[bytes]:
+        return subprocess.CompletedProcess(argv, 0, _native_report_output(finding, 1), b"")
+
+    monkeypatch.setattr(native_policy, "_invoke", wrong_count)
+    with pytest.raises(ValueError, match="finding count"):
+        native_policy._run_contract("/usr/bin/trivy", Path("/tmp/policy.rego"))
+
+
+def test_native_trivy_integer_case_rejects_unrelated_process_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    cases = native_policy._cases()
+    calls = 0
+
+    def convert(
+        argv: list[str], *, payload: bytes | None = None
+    ) -> subprocess.CompletedProcess[bytes]:
+        nonlocal calls
+        _, finding, expected = cases[calls]
+        calls += 1
+        if expected is None:
+            return subprocess.CompletedProcess(argv, 1, b"", b"network error")
+        return subprocess.CompletedProcess(argv, 0, _native_report_output(finding, expected), b"")
+
+    monkeypatch.setattr(native_policy, "_invoke", convert)
+    with pytest.raises(ValueError, match="expected native FixedVersion type rejection"):
+        native_policy._run_contract("/usr/bin/trivy", Path("/tmp/policy.rego"))
+    assert calls == 9
+
+
+def test_native_trivy_main_fails_closed_and_passes_bound_inputs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    source = tmp_path / "tracked.rego"
+    scan_copy = tmp_path / "copy.rego"
+    source.write_bytes(b"package trivy\n")
+    scan_copy.write_bytes(source.read_bytes())
+    monkeypatch.setattr(native_policy, "SOURCE_POLICY", source)
+    monkeypatch.setattr(native_policy, "SCAN_POLICY", scan_copy)
+    monkeypatch.setattr(native_policy, "_trivy_binary", lambda: "/usr/bin/trivy")
+    monkeypatch.setattr(native_policy, "_require_version", lambda _binary: None)
+    monkeypatch.setattr(native_policy, "_run_contract", lambda _binary, _policy: 45)
+    assert native_policy.main() == 0
+    assert "passed: 45 cases" in capsys.readouterr().out
+    scan_copy.write_bytes(b"drift")
+    assert native_policy.main() == 1
+    assert "differs" in capsys.readouterr().err
 
 
 def test_retired_util_linux_3184_suppression_stays_absent() -> None:
