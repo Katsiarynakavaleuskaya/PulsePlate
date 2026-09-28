@@ -38,6 +38,9 @@ Options:
   --path <path>              Repeatable; task scope path for preflight/bootstrap.
   --invariant-change-class <class>
                              Repeatable; parser, validator, guard, or authority.
+  --creative-applicability <choice>
+                             Coordinator choice: alternatives, direct_fix,
+                             not_applicable, or disabled. Forwarded to bootstrap.
   --requested-agent <slug>   Repeatable; forwarded to task_bootstrap.py.
   --evidence-sidecar-rail <rail>
                              Repeatable additive upgrade: teleology, euler, or
@@ -211,6 +214,7 @@ DRY_RUN=0
 ALLOW_DIRTY_LAUNCHER=0
 PATH_ARGS=()
 INVARIANT_CLASS_ARGS=()
+CREATIVE_APPLICABILITY_ARGS=()
 REQUESTED_ARGS=(--requested-agent "agent-coordinator")
 PLUGIN_ARGS=()
 EVIDENCE_SIDECAR_RAILS=()
@@ -254,6 +258,18 @@ while [[ $# -gt 0 ]]; do
                 *) die_usage "--invariant-change-class must be one of: parser, validator, guard, authority" ;;
             esac
             INVARIANT_CLASS_ARGS+=(--invariant-change-class "$2")
+            shift 2
+            ;;
+        --creative-applicability)
+            if [[ $# -lt 2 ]]; then die_usage "--creative-applicability requires a value"; fi
+            if ((${#CREATIVE_APPLICABILITY_ARGS[@]})); then
+                die_usage "--creative-applicability may be supplied only once"
+            fi
+            case "$2" in
+                alternatives|direct_fix|not_applicable|disabled) ;;
+                *) die_usage "--creative-applicability must be one of: alternatives, direct_fix, not_applicable, disabled" ;;
+            esac
+            CREATIVE_APPLICABILITY_ARGS=(--creative-applicability "$2")
             shift 2
             ;;
         --requested-agent)
@@ -414,6 +430,9 @@ if [[ "${DRY_RUN}" -eq 1 ]]; then
     for ((i = 0; i < ${#INVARIANT_CLASS_ARGS[@]}; i += 2)); do
         printf " %q %q" "${INVARIANT_CLASS_ARGS[i]}" "${INVARIANT_CLASS_ARGS[i + 1]}"
     done
+    if ((${#CREATIVE_APPLICABILITY_ARGS[@]})); then
+        printf " %q %q" "${CREATIVE_APPLICABILITY_ARGS[0]}" "${CREATIVE_APPLICABILITY_ARGS[1]}"
+    fi
     for ((i = 0; i < ${#REQUESTED_ARGS[@]}; i += 2)); do
         printf " %q %q" "${REQUESTED_ARGS[i]}" "${REQUESTED_ARGS[i + 1]}"
     done
@@ -445,6 +464,9 @@ if [[ "${DRY_RUN}" -eq 1 ]]; then
     fi
     if ((${#INVARIANT_CLASS_ARGS[@]})); then
         prompt_cmd+=("${INVARIANT_CLASS_ARGS[@]}")
+    fi
+    if ((${#CREATIVE_APPLICABILITY_ARGS[@]})); then
+        prompt_cmd+=("${CREATIVE_APPLICABILITY_ARGS[@]}")
     fi
     if ((${#REQUESTED_ARGS[@]})); then
         prompt_cmd+=("${REQUESTED_ARGS[@]}")
@@ -482,6 +504,9 @@ git worktree add -b "${BRANCH}" "${WORKTREE_REL}" "${BASE_REF}"
     fi
     if ((${#INVARIANT_CLASS_ARGS[@]})); then
         bootstrap_cmd+=("${INVARIANT_CLASS_ARGS[@]}")
+    fi
+    if ((${#CREATIVE_APPLICABILITY_ARGS[@]})); then
+        bootstrap_cmd+=("${CREATIVE_APPLICABILITY_ARGS[@]}")
     fi
     if ((${#REQUESTED_ARGS[@]})); then
         bootstrap_cmd+=("${REQUESTED_ARGS[@]}")

@@ -13,6 +13,7 @@ from typing import cast
 import pytest
 
 import scripts.orchestration.task_bootstrap as task_bootstrap_module
+import scripts.orchestration.qoder_dispatch_bridge as qoder_dispatch_bridge
 from core.evidence.fingerprints import fingerprint_payload
 from core.judgment import (
     CLAIM_EVIDENCE_FIELDS,
@@ -3604,3 +3605,51 @@ def test_invariant_review_shell_launchers_share_the_canonical_python_enum() -> N
                 '${INVARIANT_CLASS_ARGS[@]+"${INVARIANT_CLASS_ARGS[@]}"}',
             )
         )
+
+
+def test_creative_applicability_is_structured_and_packet_identity_bearing() -> None:
+    inputs = {
+        "goal": "Improve the local formatter",
+        "task_class": "Implementation",
+        "candidate_paths": ["tests/test_example.py"],
+    }
+    baseline = build_task_packet(**inputs)
+    alternatives = build_task_packet(**inputs, creative_applicability="alternatives")
+    direct_fix = build_task_packet(**inputs, creative_applicability="direct_fix")
+    disabled = build_task_packet(**inputs, creative_applicability="disabled")
+
+    assert (
+        len({row["task_packet_id"] for row in (baseline, alternatives, direct_fix, disabled)}) == 4
+    )
+    assert "creative_applicability" not in baseline
+    assert alternatives["creative_applicability_base_packet_id"] == baseline["task_packet_id"]
+    assert alternatives["creative_applicability"] == "alternatives"
+    assert direct_fix["creative_applicability"] == "direct_fix"
+    with pytest.raises(ValueError, match="creative-applicability"):
+        build_task_packet(**inputs, creative_applicability="unsupported")
+
+
+def test_creative_applicability_packet_preserves_native_dispatch(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    packet = build_task_packet(
+        goal="Compare local formatter approaches",
+        task_class="Implementation",
+        candidate_paths=["tests/test_example.py"],
+        creative_applicability="alternatives",
+    )
+    packet_path = (
+        REPO_ROOT / "artifacts/orchestration/task_packets" / f"dispatch-{uuid.uuid4().hex}.json"
+    )
+    packet_path.parent.mkdir(parents=True, exist_ok=True)
+    packet_path.write_text(json.dumps(packet), encoding="utf-8")
+    try:
+        command = ["--packet", str(packet_path), "--mode", "runtime"]
+        for role in packet["role_agent_dispatch_contract"]["runtime_implementation_owners"]:
+            command.extend(["--implementation-owner", role])
+        assert qoder_dispatch_bridge.main(command) == 0
+        manifest = json.loads(capsys.readouterr().out)
+        assert manifest["missing_agents"] == []
+        assert manifest["dispatch_sequence"]
+    finally:
+        packet_path.unlink(missing_ok=True)
