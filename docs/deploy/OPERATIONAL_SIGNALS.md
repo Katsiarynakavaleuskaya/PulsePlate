@@ -548,10 +548,19 @@ The CLI uses the dedicated `pulseplate-ops` key and known-hosts record named
 in `docs/deploy/STAGING.md`. The fixed SSH probe calls the installed full
 `check_staging_security.py` on the selected all-profile Compose render, then
 requires one running, non-one-off `app` and `postgres` under exact staging
-Compose labels. It binds their configured images and compares container ID,
-image ID, the native `docker compose config --hash` result for each selected
-service, and start time before and after the observation. A changed or
-ambiguous hash fails closed. From the selected app container it requests
+Compose labels. The installed staging Compose source must match the exact
+reviewed SHA-256, and a controlled process environment pins the backend and
+Caddy references to the attested merge. This rejects a stale host `.env` image
+reference without reading it as image authority. The probe keeps the bounded
+resolved Compose JSON in memory, verifies its stdin roundtrip, and compares
+resolved app/PostgreSQL hashes with the selected container labels. PostgreSQL
+also requires native `config --hash` equality. For the app, the native hash may
+differ because [docker/compose#14001](https://github.com/docker/compose/issues/14001)
+omits service `env_file` values on affected versions; the exact pinned Compose
+source witnesses that app-only exception. It compares container ID, image ID,
+configured image and start time, then rerenders, roundtrips and recomputes all
+four hashes after the app probe. Any source, model, hash or generation change
+fails closed. From the selected app container it requests
 `/health` and `/ready` separately with redirects and ambient proxies disabled
 and opens a short-lived PostgreSQL read-only session with the existing CA and
 passfile under `sslmode=verify-full`. Ambient libpq overrides fail closed before

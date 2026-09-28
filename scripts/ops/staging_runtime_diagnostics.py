@@ -26,10 +26,10 @@ SCHEMA = "pulseplate.staging-runtime-diagnostics.v1"
 PROJECT = "/srv/pulseplate-staging"
 SSH_BINARY = Path("/usr/bin/ssh")
 MAX_OUTPUT = 65536
-# Worst-case remote budget: Compose (15) + four native Compose hashes (4*15)
-# + checker (25) + eight container census/inspect calls (8*15) + app (15)
-# = 235 seconds. Allow a bounded 35-second SSH/scheduling margin.
-SSH_TIMEOUT = 270
+# Worst-case remote budget: four Compose renders (4*15), eight hashes (8*15),
+# checker (25), eight census/inspect calls (8*15), and app probe (15).
+# This is 340 seconds; retain a bounded SSH/scheduling margin for file reads.
+SSH_TIMEOUT = 390
 REMOTE_ERRORS = frozenset(
     {
         "NATIVE_UNAVAILABLE",
@@ -46,6 +46,8 @@ REMOTE_ERRORS = frozenset(
         "COMPOSE_HASH_FAILED",
         "COMPOSE_HASH_UNTRUSTED",
         "COMPOSE_HASH_CHANGED",
+        "COMPOSE_MODEL_UNTRUSTED",
+        "COMPOSE_SOURCE_UNTRUSTED",
         "COMPOSE_IDENTITY_UNTRUSTED",
         "STAGING_RECEIPT_FAILED",
         "APP_PROBE_FAILED",
@@ -63,14 +65,22 @@ import os
 import re
 import selectors
 import shutil
+import stat
 import subprocess
 import sys
 import time
 
 PROJECT = "/srv/pulseplate-staging"
 COMPOSE = PROJECT + "/docker-compose.staging.yaml"
+COMPOSE_SOURCE_SHA = "9e9ed40ec219f926d85daabef57b571b501c5bc3478820462cc2a24958839db4"
+BACKEND_REF = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:a4d973ba64919338b87b3095a556ef1a83b0d4b3f08bdd914d90dd977d31657e"
+CADDY_REF = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:b501c3f134d02859b64d9e24c9e14fa6285ec96e1f07be388e2b3b0fdcaa1974"
 CHECKER = PROJECT + "/scripts/ops/check_staging_security.py"
 MAX_NATIVE = 2_000_000
+SEARCH_PATH = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+NATIVE_ENV = {"PATH": SEARCH_PATH, "HOME": "/root", "LANG": "C.UTF-8",
+    "STAGING_IMAGE_REF": BACKEND_REF, "STAGING_CADDY_IMAGE_REF": CADDY_REF,
+    "STAGING_ENV_FILE": PROJECT + "/.env"}
 
 APP_PROBE = r"""
 import json
@@ -177,12 +187,12 @@ print(json.dumps({"health": http("/health"), "ready": http("/ready"),
 """
 
 def run(argv, *, input_data=None, timeout=15):
-    binary = shutil.which(argv[0])
+    binary = shutil.which(argv[0], path=SEARCH_PATH)
     if binary is None or not os.path.isabs(binary):
         raise RuntimeError("NATIVE_UNAVAILABLE")
     process = subprocess.Popen([binary, *argv[1:]],
         stdin=subprocess.PIPE if input_data is not None else subprocess.DEVNULL,
-        stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+        stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, env=NATIVE_ENV)
     selector = selectors.DefaultSelector()
     output = bytearray()
     deadline = time.monotonic() + timeout
@@ -244,19 +254,106 @@ def parse_json(raw):
     return json.loads(raw, object_pairs_hook=unique,
         parse_constant=lambda _: (_ for _ in ()).throw(ValueError("nonfinite")))
 
+def same_model(first, second):
+    # Parsed JSON alone uses Python's coercive equality (True == 1 == 1.0).
+    # Canonical serialization preserves scalar types while ignoring key order.
+    def canonical(value):
+        return json.dumps(value, sort_keys=True, ensure_ascii=False,
+            allow_nan=False, separators=(",", ":"))
+    return canonical(first) == canonical(second)
+
 def compose_command():
     return ["docker", "compose", "--project-directory", PROJECT,
         "-f", COMPOSE, "--env-file", PROJECT + "/.env", "--profile", "*",
         "config"]
 
-def compose_hash(service):
-    code, raw = run([*compose_command(), "--hash", service])
+def resolved_command():
+    return ["docker", "compose", "--project-directory", PROJECT,
+        "-f", "-", "--profile", "*", "config"]
+
+def compose_hash(service, *, resolved=None):
+    command = compose_command() if resolved is None else resolved_command()
+    code, raw = run([*command, "--hash", service], input_data=resolved)
     if code:
         raise RuntimeError("COMPOSE_HASH_FAILED")
-    lines = raw.decode("ascii").splitlines()
-    if len(lines) != 1 or not re.fullmatch(service + r" [a-f0-9]{64}", lines[0]):
+    if re.fullmatch((service + r" [a-f0-9]{64}\n").encode("ascii"), raw) is None:
         raise RuntimeError("COMPOSE_HASH_UNTRUSTED")
-    return lines[0].split(" ", 1)[1]
+    return raw.decode("ascii").split(" ", 1)[1].strip()
+
+def resolved_model(raw):
+    code, second = run([*resolved_command(), "--format", "json"], input_data=raw)
+    if code:
+        raise RuntimeError("COMPOSE_MODEL_UNTRUSTED")
+    try:
+        original = parse_json(raw)
+        repeated = parse_json(second)
+        unchanged = isinstance(original, dict) and same_model(repeated, original)
+    except (ValueError, UnicodeError, RecursionError):
+        raise RuntimeError("COMPOSE_MODEL_UNTRUSTED") from None
+    if not unchanged:
+        raise RuntimeError("COMPOSE_MODEL_UNTRUSTED")
+    return original
+
+def trusted_source(path, mode, maximum):
+    no_follow = getattr(os, "O_NOFOLLOW", 0)
+    if no_follow <= 0:
+        raise RuntimeError("COMPOSE_SOURCE_UNTRUSTED")
+    def generation(item):
+        return (item.st_dev, item.st_ino, item.st_mode, item.st_uid, item.st_gid,
+                item.st_nlink, item.st_size, item.st_mtime_ns, item.st_ctime_ns)
+    def safe_parent():
+        for parent in ("/srv", PROJECT):
+            entry = os.lstat(parent)
+            if (not stat.S_ISDIR(entry.st_mode) or entry.st_uid != 0
+                or entry.st_mode & 0o022):
+                raise ValueError("unsafe parent")
+    try:
+        safe_parent()
+        path_before = os.lstat(path)
+        descriptor = os.open(path, os.O_RDONLY | no_follow | getattr(os, "O_CLOEXEC", 0))
+        try:
+            before = os.fstat(descriptor)
+            if (not stat.S_ISREG(before.st_mode) or before.st_uid != 0
+                or before.st_nlink != 1
+                or stat.S_IMODE(before.st_mode) != mode
+                or not 0 < before.st_size <= maximum
+                or generation(path_before) != generation(before)):
+                raise ValueError("unsafe file")
+            parts = []
+            remaining = before.st_size
+            while remaining:
+                part = os.read(descriptor, min(65536, remaining))
+                if not part:
+                    raise ValueError("short read")
+                parts.append(part)
+                remaining -= len(part)
+            if os.read(descriptor, 1):
+                raise ValueError("growing file")
+            after = os.fstat(descriptor)
+            path_after = os.lstat(path)
+            safe_parent()
+            if (generation(before) != generation(after)
+                or generation(after) != generation(path_after)):
+                raise ValueError("changing file")
+        finally:
+            os.close(descriptor)
+        data = b"".join(parts)
+        return data, (generation(after), hashlib.sha256(data).hexdigest())
+    except (OSError, ValueError, AttributeError):
+        raise RuntimeError("COMPOSE_SOURCE_UNTRUSTED") from None
+
+def app_env_file_signature():
+    # Exact reviewed source has one app env_file at the protected .env path;
+    # PostgreSQL uses only its inline environment. Future Compose source edits
+    # must update this reviewed pin in the same PR.
+    compose_bytes, compose_generation = trusted_source(COMPOSE, 0o644, 65536)
+    if hashlib.sha256(compose_bytes).hexdigest() != COMPOSE_SOURCE_SHA:
+        raise RuntimeError("COMPOSE_SOURCE_UNTRUSTED")
+    env_bytes, env_generation = trusted_source(PROJECT + "/.env", 0o600, 65536)
+    # The protected env supplies DB/domain values; NATIVE_ENV pins all image
+    # and env-file references above any stale variables in this file.
+    del env_bytes
+    return compose_generation, env_generation
 
 def selected(service, compose, expected_hash):
     code, raw = run(["docker", "ps", "--quiet", "--no-trunc",
@@ -283,7 +380,8 @@ def selected(service, compose, expected_hash):
         or labels.get("com.docker.compose.service") != service
         or labels.get("com.docker.compose.oneoff") != "False"
         or not state["Running"] or state["Status"] != "running"
-        or config["Image"] != compose["services"][service]["image"]):
+        or config["Image"] != compose["services"][service]["image"]
+        or service == "app" and config["Image"] != BACKEND_REF):
         raise RuntimeError("CONTAINER_IDENTITY_UNTRUSTED")
     image = value["Image"]
     config_hash = labels.get("com.docker.compose.config-hash")
@@ -297,12 +395,18 @@ def selected(service, compose, expected_hash):
 
 def main():
     try:
+        source_signature = app_env_file_signature()
         code, raw = run([*compose_command(), "--format", "json"])
         if code:
             raise RuntimeError("COMPOSE_RENDER_FAILED")
         compose = parse_json(raw)
         if compose.get("name") != "pulseplate-staging":
             raise RuntimeError("COMPOSE_IDENTITY_UNTRUSTED")
+        if (compose["services"]["app"]["image"] != BACKEND_REF
+            or compose["services"]["caddy"]["image"] != CADDY_REF):
+            raise RuntimeError("COMPOSE_IDENTITY_UNTRUSTED")
+        if app_env_file_signature() != source_signature:
+            raise RuntimeError("COMPOSE_SOURCE_UNTRUSTED")
         db_environment = compose["services"]["postgres"]["environment"]
         expected_name = db_environment["POSTGRES_DB"]
         expected_user = db_environment["POSTGRES_USER"]
@@ -314,8 +418,13 @@ def main():
             "--compose-stdin"], input_data=raw, timeout=25)
         if code:
             raise RuntimeError("STAGING_RECEIPT_FAILED")
-        app_hash = compose_hash("app")
-        db_hash = compose_hash("postgres")
+        resolved_model(raw)
+        native_app_hash = compose_hash("app")
+        native_db_hash = compose_hash("postgres")
+        app_hash = compose_hash("app", resolved=raw)
+        db_hash = compose_hash("postgres", resolved=raw)
+        if native_db_hash != db_hash:
+            raise RuntimeError("COMPOSE_HASH_UNTRUSTED")
         app_before = selected("app", compose, app_hash)
         db_before = selected("postgres", compose, db_hash)
         code, raw = run(["docker", "exec", "-i", app_before["id"],
@@ -323,18 +432,38 @@ def main():
         if code or len(raw) > 65536:
             raise RuntimeError("APP_PROBE_FAILED")
         observation = parse_json(raw)
-        if compose_hash("app") != app_hash or compose_hash("postgres") != db_hash:
+        if app_env_file_signature() != source_signature:
+            raise RuntimeError("COMPOSE_HASH_CHANGED")
+        code, current_raw = run([*compose_command(), "--format", "json"])
+        if code:
+            raise RuntimeError("COMPOSE_HASH_CHANGED")
+        try:
+            current = parse_json(current_raw)
+            unchanged = same_model(current, compose)
+        except (ValueError, UnicodeError, RecursionError):
+            raise RuntimeError("COMPOSE_HASH_CHANGED") from None
+        if not unchanged:
+            raise RuntimeError("COMPOSE_HASH_CHANGED")
+        resolved_model(current_raw)
+        if (compose_hash("app") != native_app_hash
+            or compose_hash("postgres") != native_db_hash
+            or compose_hash("app", resolved=current_raw) != app_hash
+            or compose_hash("postgres", resolved=current_raw) != db_hash):
+            raise RuntimeError("COMPOSE_HASH_CHANGED")
+        if app_env_file_signature() != source_signature:
             raise RuntimeError("COMPOSE_HASH_CHANGED")
         app_after = selected("app", compose, app_hash)
         db_after = selected("postgres", compose, db_hash)
         if app_before != app_after or db_before != db_after:
             raise RuntimeError("CONTAINER_GENERATION_CHANGED")
+        if app_env_file_signature() != source_signature:
+            raise RuntimeError("COMPOSE_HASH_CHANGED")
         identity = json.dumps({"app": app_before, "postgres": db_before},
             sort_keys=True, separators=(",", ":")).encode()
         print(json.dumps({"schema": "pulseplate.staging-runtime-host.v1", "trust": "accepted",
             "fingerprint": hashlib.sha256(identity).hexdigest(), "observation": observation},
             separators=(",", ":")))
-    except (OSError, ValueError, KeyError, TypeError, UnicodeError,
+    except (OSError, ValueError, KeyError, TypeError, UnicodeError, RecursionError,
             subprocess.SubprocessError, RuntimeError) as error:
         code = str(error) if isinstance(error, RuntimeError) else "REMOTE_PROBE_UNTRUSTED"
         if code not in {"NATIVE_UNAVAILABLE", "NATIVE_TIMEOUT", "NATIVE_OUTPUT_OVERSIZE",
@@ -342,7 +471,8 @@ def main():
             "CONTAINER_INSPECT_FAILED", "CONTAINER_INSPECT_UNTRUSTED",
             "CONTAINER_IDENTITY_UNTRUSTED", "CONTAINER_GENERATION_CHANGED",
             "COMPOSE_RENDER_FAILED", "COMPOSE_HASH_FAILED", "COMPOSE_HASH_UNTRUSTED",
-            "COMPOSE_HASH_CHANGED", "COMPOSE_IDENTITY_UNTRUSTED",
+            "COMPOSE_HASH_CHANGED", "COMPOSE_MODEL_UNTRUSTED",
+            "COMPOSE_SOURCE_UNTRUSTED", "COMPOSE_IDENTITY_UNTRUSTED",
             "STAGING_RECEIPT_FAILED", "APP_PROBE_FAILED"}:
             code = "REMOTE_PROBE_UNTRUSTED"
         print(json.dumps({"schema": "pulseplate.staging-runtime-host.v1", "trust": "rejected",

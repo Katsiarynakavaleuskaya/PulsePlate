@@ -250,7 +250,27 @@ forms require `docker image inspect` of the exact frozen reference, with the
 returned ID matching the existing container's image ID and with canonical
 repository digest, platform and runtime metadata. Missing or conflicting
 identity causes HOLD before product writers are stopped.
-After admission it waits for the database, migrates and checks an
+
+The one-shot `staging_runtime_diagnostics.py` observer separately checks the
+running app and PostgreSQL generation without deploying. For Compose versions
+affected by [docker/compose#14001](https://github.com/docker/compose/issues/14001),
+`config --hash app` may omit the app's `env_file` while the container label
+includes its resolved values. The observer keeps bounded resolved Compose
+JSON in memory, verifies its unchanged stdin roundtrip, and compares the
+resolved service hashes to the exact container labels. Every observation
+requires the installed root-owned Compose file to have the exact reviewed
+SHA-256 `9e9ed40ec219f926d85daabef57b571b501c5bc3478820462cc2a24958839db4`.
+Those exact source bytes define one protected app `.env` file and no PostgreSQL
+`env_file`. The observer overrides stale local or protected `.env` image and
+env-file references with backend/Caddy digest refs from the exact reviewed
+merge. A future Compose or published image epoch requires a reviewed pin update
+in the same PR. The app's resolved hash must match its container label;
+PostgreSQL native, resolved and container hashes must all match. The observer
+rechecks both models, all four hashes, file generation and container identity
+after the app probe. Any mismatch fails without a JSON success report. It never
+publishes the rendered model or its environment; a complete observation alone
+does not assert health.
+After deploy admission, `deploy.sh` waits for the database, migrates and checks an
 actual TLS session through the application before exposure. Respect existing
 staging enablement and public-release locks; this work does not authorize a
 production rollout or public release.
