@@ -483,6 +483,13 @@ Avoid `# type: ignore[no-any-return]` and prefer typed locals over `cast()`.
   `app.services.pro_nutrition_targets.generate_who_targets_response`,
   `fallback_targets_response`, and `analyze_nutrient_gaps_response`;
   retained HTTP routes keep their canonical router and service owners.
+- Log retention is owned by `core/log_retention.py`; the admin service imports
+  `DataClass` and `get_retention_manager` from that module directly. The
+  `legacy_app.py` bindings `DataClass`, `get_retention_manager`,
+  `LogRetentionManager`, and the unused `_log_retention_manager` placeholder are
+  retired and must not be recreated. Direct callers use the canonical core
+  module. The repository census is bounded to tracked Python source and cannot
+  establish absence of external or computed importers.
 - Planning and export direct-call ownership belongs to `core/menu_engine.py`,
   `core/plate.py`, `core/recommendations.py`, and `core/exports.py`. The
   following ordinary `legacy_app.py` bindings are retired and must not be
