@@ -227,8 +227,10 @@
   `artifacts/orchestration/creative_code/patch_runs/`. The builder CLI
   `creative_code_patch_builder.py` is not role dispatch, PR lifecycle
   automation, merge governance, or promotion authority. Its `evaluate` command
-  may call Experiment Runner candidate-patch mode for local candidate evaluation,
-  but that result is not the mandatory PR oracle-only governance evidence and
+  must not call the host Experiment Runner for candidate evaluation. Its
+  `evaluate` command prepares only the bound packet and fails closed; the
+  existing strict native dispatcher and finalizer own execution/result truth,
+  which is not the mandatory PR oracle-only governance evidence and
   must not be used as fixed-mapping, review-disposition, or merge-readiness
   proof. New PR-2 writers must budget mutation as Git numstat additions plus
   deletions with `line_metric=numstat_added_plus_deleted_v1`; serialized U3
@@ -238,8 +240,10 @@
   `artifacts/orchestration/creative_code/patch_generation/`. The
   `creative_code_patch_generation.py` CLI may only validate an already prepared
   patch admission, emit `generation_gate.json`, call the existing PR-2 builder
-  `generate` / `evaluate` commands through `generate-candidate`, and emit a
-  sanitized `generation_receipt.json`. Receipt validation must re-read linked
+  `generate` and `prepare_dispatch` seams through `generate-candidate`, and
+  leave an explicit native-dispatch handoff without an early result or receipt.
+  Only `finalize-dispatched-result` may emit a sanitized `generation_receipt.json`
+  from matched dispatch evidence. Receipt validation must re-read linked
   `candidate.patch`, `patch_metadata.json`, `experiment_packet.json`, and
   `result.json` sidecars, require them to be the canonical files under the
   receipt's `patch_runs/<run_id>/` directory, and fail closed when any sidecar
@@ -252,15 +256,18 @@
   `artifacts/orchestration/creative_code/promotions/`. The promoter CLI
   `creative_code_pr_promotion.py` may only plan, validate, TTY-approve, and
   promote one accepted PR-2 patch into a new non-draft `experiment/*` PR. It
-  may optionally consume one exact accepted Apple Container dispatch result
-  plus its explicitly supplied canonical PR-2 generation receipt during
-  `validate`; both paths are required together and must remain under their
+  requires one exact accepted Apple Container dispatch result plus its
+  explicitly supplied canonical PR-2 generation receipt for new `validate`
+  and first `promote` operations; both paths are required together and remain under their
   canonical local artifact roots. This intake uses the existing PR-2 trusted
-  binding validator instead of direct re-evaluation, must reconstruct the gate
+  binding validator without direct host re-evaluation, must reconstruct the gate
   from canonical admission and finalized run state, and must re-read the
   packet, result, gate, and receipt after local gates. The validation artifact
-  must distinguish direct evaluation from trusted Apple dispatch and bind the
-  applicable evidence fingerprints. The intake must never regenerate or
+  records trusted Apple dispatch and binds the applicable evidence fingerprints;
+  historical direct-evaluation artifacts remain parseable but cannot authorize
+  a first promotion. `promote` reruns real validation and current-actor TTY
+  approval, then rechecks live remote main, actor, branch, patch and evidence
+  before remote effects. The intake must never regenerate or
   finalize PR-2 artifacts through this intake. It must not open drafts, update
   existing branches, force-push, request reviews, submit reviews, resolve review
   threads, edit fixed mappings, claim merge readiness, merge, release, call
@@ -371,7 +378,10 @@
   `creative_code_applied_candidate_pr6.py` CLI may only validate PR-5
   `CreativeCodeRepairLaunchPacket` inputs, bind the first applied candidate
   target to `docs/prompts/cv/program.md`, and emit a deterministic local
-  PR-1 / PR-2 / PR-3 / PR-4 command checklist. It must not execute patch
+  PR-1 / PR-2 / PR-3 / PR-4 command checklist. The PR-2 sequence must retain
+  human admission, the generation gate, native dispatch and the existing
+  finalizer; PR-3 validation and promotion carry the matched result/receipt
+  pair. Historical direct-evaluate command graphs must be regenerated. It must not execute patch
   generation, call Codex or providers, create or write branches, push, open PRs,
   resolve review threads, edit fixed mappings, claim merge readiness, merge,
   release, call product runtime, change GitHub App or Slack settings, or widen
