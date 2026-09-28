@@ -122,6 +122,10 @@ RETIRED_LEGACY_PYTHON_BINDINGS = frozenset(
         "Goal",
         "Sex",
         "build_who_targets_ui_labels",
+        "DataClass",
+        "get_retention_manager",
+        "LogRetentionManager",
+        "_log_retention_manager",
     }
 )
 ALLOWED_CANONICAL_LIFESPAN_APP_IMPORTS = frozenset(
