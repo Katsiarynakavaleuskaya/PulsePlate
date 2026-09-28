@@ -343,8 +343,8 @@ def test_docker_source_artifact_manifest_pins_sqlite_source() -> None:
     )
     artifacts = manifest["artifacts"]
     assert manifest["schema_version"] == 1
-    assert manifest["generated_at"] == "2026-09-20"
-    assert manifest["review_by"] == "2026-09-27"
+    assert manifest["generated_at"] == "2026-09-28"
+    assert manifest["review_by"] == "2026-10-05"
     assert len(artifacts) == 2
 
     artifact = artifacts[0]
@@ -372,10 +372,141 @@ def test_docker_source_artifact_manifest_review_window_is_inclusive() -> None:
     """The checked-in manifest remains valid through its exact review-by date."""
     manifest_path = REPO_ROOT / "scripts/ci/docker_source_artifacts.json"
 
-    assert docker_sources.load_manifest(manifest_path, today=date(2026, 9, 20))
-    assert docker_sources.load_manifest(manifest_path, today=date(2026, 9, 27))
-    with pytest.raises(RuntimeError, match="review_by is stale: 2026-09-27"):
-        docker_sources.load_manifest(manifest_path, today=date(2026, 9, 28))
+    assert docker_sources.load_manifest(manifest_path, today=date(2026, 9, 28))
+    assert docker_sources.load_manifest(manifest_path, today=date(2026, 10, 5))
+    with pytest.raises(RuntimeError, match="review_by is stale: 2026-10-05"):
+        docker_sources.load_manifest(manifest_path, today=date(2026, 10, 6))
+
+
+def _forecast_workflow_step() -> tuple[dict[str, object], str]:
+    workflow = _load_workflow(WORKFLOWS_DIR / "nightly.yml")
+    jobs = workflow["jobs"]
+    assert isinstance(jobs, dict)
+    job = jobs["review-deadline-forecast"]
+    assert isinstance(job, dict)
+    step = _step_by_name(job, "Forecast source and suppression review deadlines")
+    run = step["run"]
+    assert isinstance(run, str)
+    return job, run
+
+
+def _run_forecast_workflow(
+    tmp_path: Path, *, today: date, review_by: str = "2026-10-05", policy: str | None = None
+) -> tuple[subprocess.CompletedProcess[str], str]:
+    manifest_dir = tmp_path / "scripts" / "ci"
+    policy_dir = tmp_path / "trivy"
+    manifest_dir.mkdir(parents=True)
+    policy_dir.mkdir()
+    (manifest_dir / "docker_source_artifacts.json").write_text(
+        json.dumps(_docker_source_manifest(review_by=review_by)), encoding="utf-8"
+    )
+    (policy_dir / "ignore-policy.rego").write_text(
+        (
+            policy
+            if policy is not None
+            else (REPO_ROOT / "trivy" / "ignore-policy.rego").read_text(encoding="utf-8")
+        ),
+        encoding="utf-8",
+    )
+
+    _, run = _forecast_workflow_step()
+    marker = "python3 - <<'PY'\n"
+    assert run.startswith("set -euo pipefail\n" + marker)
+    source = run.split(marker, 1)[1].rsplit("\nPY", 1)[0]
+    assert "datetime.now(UTC).date()" in source
+    functions = source.split('if __name__ == "__main__":', 1)[0]
+    guard = (
+        "import urllib.request\n"
+        "def reject_network(*args, **kwargs):\n"
+        "    raise AssertionError('forecast must not use network')\n"
+        "urllib.request.urlopen = reject_network\n"
+    )
+    invocation = f"\nraise SystemExit(main(date.fromisoformat({today.isoformat()!r}), Path({str(tmp_path)!r})))\n"
+    summary = tmp_path / "summary.md"
+    result = subprocess.run(
+        [sys.executable, "-c", guard + functions + invocation],
+        cwd=REPO_ROOT,
+        env={**os.environ, "GITHUB_STEP_SUMMARY": str(summary)},
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    return result, summary.read_text(encoding="utf-8") if summary.exists() else ""
+
+
+def test_nightly_forecast_job_is_main_only_private_free_and_independent() -> None:
+    job, run = _forecast_workflow_step()
+    workflow = _load_workflow(WORKFLOWS_DIR / "nightly.yml")
+
+    assert workflow["jobs"]["test"] != job
+    assert job["if"] == (
+        "${{ github.ref == 'refs/heads/main' && "
+        "(github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') }}"
+    )
+    assert job["timeout-minutes"] == 2
+    assert job["permissions"] == {"contents": "read"}
+    assert job["env"] == {
+        "PULSEPLATE_PYTHON_INDEX_URL": "",
+        "PULSEPLATE_PYTHON_TRUSTED_HOST": "",
+    }
+    checkout = _step_by_name(job, "Checkout code")
+    assert checkout["with"] == {"persist-credentials": False}
+    assert "actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd" == checkout["uses"]
+    assert "load_manifest" in run and "evaluate_policy_file" in run
+    assert "urlopen" not in run and "--ignore-policy" not in run
+    assert "GITHUB_STEP_SUMMARY" in run
+
+
+@pytest.mark.parametrize(
+    ("today", "expected_exit", "current_finding", "forecast_finding"),
+    [
+        (date(2026, 9, 30), 0, False, False),
+        (date(2026, 10, 2), 1, False, True),
+        (date(2026, 10, 4), 1, False, True),
+        (date(2026, 10, 6), 1, True, True),
+    ],
+)
+def test_nightly_forecast_executes_utc_date_boundaries_and_labels(
+    tmp_path: Path,
+    today: date,
+    expected_exit: int,
+    current_finding: bool,
+    forecast_finding: bool,
+) -> None:
+    result, summary = _run_forecast_workflow(tmp_path, today=today)
+
+    assert result.returncode == expected_exit, result.stderr
+    assert (
+        f"UTC today: {today}; UTC forecast date: {date.fromordinal(today.toordinal() + 4)}"
+        in summary
+    )
+    assert f"### CURRENT: {'attention required' if current_finding else 'no finding'}" in summary
+    assert f"### FORECAST: {'attention required' if forecast_finding else 'no finding'}" in summary
+    if today == date(2026, 10, 2):
+        assert "review-by 2026-10-05" in summary
+        assert "review-by 2026-10-07" not in summary
+    if today == date(2026, 10, 4):
+        assert "review-by 2026-10-07" in summary
+        assert "Expired Trivy ignore policy" in summary
+
+
+@pytest.mark.parametrize(
+    ("review_by", "policy"),
+    [
+        ("bad-date", None),
+        ("2026-10-05", "package trivy\nnot a valid policy"),
+    ],
+)
+def test_nightly_forecast_malformed_inputs_fail_closed(
+    tmp_path: Path, review_by: str, policy: str | None
+) -> None:
+    result, summary = _run_forecast_workflow(
+        tmp_path, today=date(2026, 9, 28), review_by=review_by, policy=policy
+    )
+
+    assert result.returncode == 1, result.stderr
+    assert "### CURRENT: attention required" in summary
+    assert "### FORECAST: attention required" in summary
 
 
 def test_libuuid_source_and_production_native_linkage_contract() -> None:
@@ -435,6 +566,34 @@ def test_libuuid_build_executes_both_source_digest_checks(
     else:
         assert result.returncode != 0
         assert f"{corrupt_digest.upper()} mismatch" in result.stderr
+
+
+def test_pr_build_runs_native_suppression_contract_after_pinned_scan() -> None:
+    workflow = _load_workflow(WORKFLOWS_DIR / "build.yml")
+    jobs = workflow["jobs"]
+    assert isinstance(jobs, dict)
+    build = jobs["build"]
+    assert isinstance(build, dict)
+    names = _step_names(build)
+    assert names.count("Validate native Trivy suppression semantics") == 1
+    assert names.index("Scan production image before publication eligibility") + 1 == names.index(
+        "Validate native Trivy suppression semantics"
+    )
+    assert names.index("Validate native Trivy suppression semantics") + 1 == names.index(
+        "Validate production image report and render SARIF"
+    )
+    scan = _step_by_name(build, "Scan production image before publication eligibility")
+    assert scan["uses"] == ("aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25")
+    assert scan["with"]["version"] == "v0.74.0"
+    assert scan["with"]["ignore-policy"] == ".trivy-ignore-policy.rego"
+    native = _step_by_name(build, "Validate native Trivy suppression semantics")
+    assert native == {
+        "name": "Validate native Trivy suppression semantics",
+        "if": "github.event_name == 'pull_request'",
+        "run": "set -euo pipefail\npython3 scripts/ci/check_trivy_ignore_policy_native.py\n",
+    }
+    assert "continue-on-error" not in native
+    assert "Validate native Trivy suppression semantics" not in _step_names(jobs["publish"])
 
 
 def test_pr_and_publish_share_strict_native_image_scan_predicates() -> None:
