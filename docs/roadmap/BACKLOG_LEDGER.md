@@ -48,14 +48,24 @@ If it is not recorded here — it does not exist.
   - DoD: Same fully parsed URL reuses an engine; candidate failure preserves the prior pair; supported new session acquisitions bind to the selected engine; replacement disposes owned sync or awaited async resources. Prove focused SQLite, native PostgreSQL and current-head PR gates without asserting closure of previously issued sessions.
 
 <a id="ledger-p1-ops03a-staging-runtime-diagnostics"></a>
-- [ ] P1: OPS-03A one-shot private staging runtime diagnostics
+- [x] P1: OPS-03A one-shot private staging runtime diagnostics
   - Owner: dev-operator / agent-coordinator
   - Priority: P1
   - Target PR: [#2415](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2415) (`codex/ops03a-staging-runtime-diagnostics`); corrective PR [#2454](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2454) (`codex/ops03a-compose-hash-fix`).
-  - Status: PR #2415 merged as `ff95fffe60653f66bbc0ac16a5641e926b4d7520` on 2026-09-26; repository diagnostic implementation and owner-only evidence/Drive readback were completed. OPS-03B PR #2443 later merged as `4f0548328bc24fc59c8d951868b18c4ec276e15b`. The subsequent read-only diagnosis found an app `env_file` Compose hash mismatch; no trusted complete live OPS-03A snapshot has yet been obtained.
-  - Reason for deferral: [Docker Compose issue #14001](https://github.com/docker/compose/issues/14001) describes `config --hash` omitting service `env_file` values that are included in the container's config-hash label. The corrective PR binds the app label to the exact resolved model with a pinned, root-owned staging Compose source, attested backend/Caddy digest refs and independent PostgreSQL hash control; a future image/Compose epoch needs a reviewed pin update. A separately authorized live pass remains required to establish the operational outcome; this code repair does not imply alert delivery or production activation.
+  - Status: PR #2415 merged as `ff95fffe60653f66bbc0ac16a5641e926b4d7520` on 2026-09-26; OPS-03B PR #2443 merged as `4f0548328bc24fc59c8d951868b18c4ec276e15b`; corrective PR #2454 merged as `314995c81283a99d268e5e7e504c0353ac437720` on 2026-09-28. The separately authorized read-only live pass at 17:58 UTC returned exit 0, `complete`, `/health=200`, `/ready=200`, DB/role match and PostgreSQL TLSv1.3 without errors or unknowns. Its sanitized archive was downloaded and verified byte-for-byte (SHA-256 `65cf8ab3271dc8d68e6019d201bddc6a50befd190285757384cb78a2b0e71784`); the same INFRA plan/capsule and Execution Tracker IDs were updated and read back.
+  - Residual scope: [Docker Compose issue #14001](https://github.com/docker/compose/issues/14001) explains the former app `env_file` config-hash mismatch. A future image/Compose epoch needs a reviewed pin update. One complete observation does not prove worker scheduling, alert delivery, production activation or broader OPS-03/OPS-04 closure.
   - Links: `docs/deploy/OPERATIONAL_SIGNALS.md`, `docs/deploy/STAGING.md`, `scripts/ops/staging_runtime_diagnostics.py`.
   - DoD: Exact staging SSH/receipt and unique container identity, app resolved-model hash with an exact `env_file` source and independent PostgreSQL native/resolved/hash-label control, separate `/health` and `/ready` results, verify-full file-backed read-only DB observations with unknown visibility, sanitized versioned JSON and deterministic failure codes; focused/CI coverage and review gates; after authorized merge, preserve an owner-only verified archive and same-ID sanitized Drive readback. No deployment or alert-delivery claim.
+
+<a id="ledger-p1-ops03-staging-worker-running-gate"></a>
+- [ ] P1: Replace the false staging worker Docker healthcheck wait gate
+  - Owner: dev-operator / agent-coordinator
+  - Priority: P1
+  - Target PR: current `codex/ops03-worker-running-gate` implementation PR (number pending).
+  - Status: In progress; the repository change has no host deployment authority. A read-only worker observation on 2026-09-28 at 18:47 UTC found `Running=true`, `ExitCode=0`, `RestartCount=0`, `OOMKilled=false`, and no Docker healthcheck; scheduler cycle remains unknown.
+  - Reason for deferral: Staging Compose intentionally disables the worker healthcheck, while the two `deploy.sh` worker `up --wait` calls can reject a running container. The code repair and current-head gates are still pending merge; any later host activation requires separate approval.
+  - Links: `scripts/deploy.sh`, `deploy/docker-compose.staging.yaml`, `docs/deploy/STAGING.md`, `docs/deploy/OPERATIONAL_SIGNALS.md`, [OPS-03A](#ledger-p1-ops03a-staging-runtime-diagnostics).
+  - DoD: Use one bounded worker `up` without `--wait`, admit exact image/config and unique non-one-off app/worker identity, require typed running/exit/OOM facts and stable generation before Caddy, recheck the same generation after HTTPS without a second `up`, and fail closed on absence, duplication, drift, malformed native output or timeout. Preserve the disabled Docker healthcheck and label scheduler function unknown until separately observed; pass focused, narrow local and exact-head PR gates.
 
 <a id="ledger-p1-production-postgres-image-id-admission"></a>
 - [ ] P1: Admit the frozen PostgreSQL platform image ID in self-hosted production deploy
