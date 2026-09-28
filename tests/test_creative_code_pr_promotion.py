@@ -44,6 +44,7 @@ from scripts.orchestration.creative_code_pr_promotion_contract import (
 from scripts.orchestration.creative_code_specification import (
     read_creative_code_specification_bundle,
 )
+from tests import test_creative_code_patch_generation as generation_fixtures
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 REFERENCE_BUNDLE = REPO_ROOT / "docs/orchestration/contracts/creative_code_specification.v1.json"
@@ -737,6 +738,182 @@ def _promote_with_real_validation(
                 stdout=FakeStdout(),
             ),
         )
+
+
+def test_generated_dispatch_result_flows_through_finalizer_and_first_promotion(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Join one PR-2 run to PR-3 without faking local validation or Git apply."""
+
+    repo, base_sha = generation_fixtures._init_patch_repo(tmp_path)
+    generation_fixtures._patch_modules_to_repo(monkeypatch, repo)
+    monkeypatch.setattr(creative_code_pr_promotion, "REPO_ROOT", repo)
+    monkeypatch.setattr(
+        creative_code_pr_promotion,
+        "PROMOTION_ROOT",
+        repo / "artifacts" / "orchestration" / "creative_code" / "promotions",
+    )
+
+    def fake_codex_generation(
+        *, checkout: Path, prompt: str, timeout_seconds: int
+    ) -> dict[str, int]:
+        assert "Do not run network commands" in prompt
+        assert timeout_seconds == 60
+        (checkout / "core" / "rag" / "orchestration.py").write_text(
+            "def value() -> int:\n    return 2\n", encoding="utf-8"
+        )
+        return {"returncode": 0, "stdout_lines": 0, "stderr_lines": 0}
+
+    monkeypatch.setattr(creative_code_patch_builder, "run_codex_exec", fake_codex_generation)
+    run_id = "joined-dispatch-promotion"
+    admission_path = generation_fixtures._prepare_admission(
+        repo=repo, base_sha=base_sha, run_id=run_id
+    )
+    gate_path = generation_fixtures._write_gate(
+        repo=repo, admission_path=admission_path, run_id=run_id
+    )
+    assert (
+        creative_code_patch_generation.main(["generate-candidate", "--gate", str(gate_path)]) == 0
+    )
+    run_dir = creative_code_patch_workspace.resolve_run_dir(run_id, create=False)
+    packet = json.loads((run_dir / EXPERIMENT_PACKET_FILE).read_text(encoding="utf-8"))
+    metadata = json.loads((run_dir / PATCH_METADATA_FILE).read_text(encoding="utf-8"))
+    assert (run_dir / CANDIDATE_PATCH_FILE).is_file()
+    assert packet["base_commit_sha"] == base_sha
+    assert packet["candidate_patch_fingerprint"] == metadata["patch_fingerprint"]
+    assert not (run_dir / RESULT_FILE).exists()
+    receipt_path = gate_path.parent / creative_code_patch_generation.RECEIPT_FILENAME
+    assert not receipt_path.exists()
+
+    # Synthetic accepted evidence tests identity wiring; native Apple proof is separate.
+    dispatch_result = generation_fixtures._trusted_dispatch_result(packet)
+    dispatch_path = (
+        repo / "artifacts" / "orchestration" / "experiments" / "results" / f"{run_id}.json"
+    )
+    generation_fixtures._write_json(dispatch_path, dispatch_result)
+    assert (
+        creative_code_patch_generation.main(
+            [
+                "finalize-dispatched-result",
+                "--gate",
+                str(gate_path),
+                "--dispatch-result",
+                str(dispatch_path),
+            ]
+        )
+        == 0
+    )
+    result = json.loads((run_dir / RESULT_FILE).read_text(encoding="utf-8"))
+    generation_receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+    assert generation_receipt["run_id"] == run_id
+    assert generation_receipt["result_id"] == result["result_id"]
+    assert generation_receipt["experiment_packet_fingerprint"] == fingerprint_payload(packet)
+    assert generation_receipt["result_fingerprint"] == fingerprint_payload(result)
+    assert result["runner_summary"]["runner_result_fingerprint"] == fingerprint_payload(
+        dispatch_result
+    )
+
+    effects: list[str] = []
+
+    class LocalGitRemoteStub(creative_code_pr_promotion.GitTransport):
+        def __init__(self) -> None:
+            super().__init__()
+            self.uploads: list[tuple[str, str]] = []
+
+        def remote_main_sha(self) -> str:
+            return cast(str, base_sha)
+
+        def remote_branch_exists(self, branch: str) -> bool:
+            return False
+
+        def remote_url(self) -> str:
+            return "git@github.com:Katsiarynakavaleuskaya/PulsePlate.git"
+
+        def human_identity(self) -> tuple[str, str]:
+            return "Test Operator", "operator@pulseplate.test"
+
+        def push_upload_branch(self, *, cwd: Path, branch: str) -> None:
+            commit_sha = self.run(["rev-parse", "HEAD"], cwd=cwd).stdout.strip()
+            effects.append("upload")
+            self.uploads.append((branch, commit_sha))
+
+    class EchoCommitGitHub(FakeGitHub):
+        def create_branch_ref(self, *, branch: str, commit_sha: str) -> None:
+            effects.append("create-ref")
+            super().create_branch_ref(branch=branch, commit_sha=commit_sha)
+
+        def create_pull_request(self, *, head_branch: str, title: str, body_file: Path) -> str:
+            effects.append("create-pr")
+            return super().create_pull_request(
+                head_branch=head_branch, title=title, body_file=body_file
+            )
+
+        def read_pull_request(self, *, pr_ref: str) -> dict[str, Any]:
+            self.calls.append(["pr", "view", pr_ref])
+            assert self.created_refs
+            return {
+                "number": 9999,
+                "url": pr_ref,
+                "state": "OPEN",
+                "isDraft": False,
+                "baseRefName": "main",
+                "headRefName": self.head_branch,
+                "headRefOid": self.created_refs[-1][1],
+            }
+
+    class RecordingTTY(FakeTTY):
+        def readline(self) -> str:
+            effects.append("tty-approval")
+            return super().readline()
+
+    git = LocalGitRemoteStub()
+    github = EchoCommitGitHub()
+    promotion_id = "joined-first-promotion"
+    planned = creative_code_pr_promotion.plan(patch_run=run_id, promotion_id=promotion_id, git=git)
+    plan = planned["plan"]
+    assert plan["source_result_id"] == result["result_id"]
+    assert plan["patch_fingerprint"] == packet["candidate_patch_fingerprint"]
+    phrase = (
+        f"APPROVE NON-DRAFT PR {promotion_plan_fingerprint(plan)} "
+        f"{plan['patch_fingerprint'][7:15]}\n"
+    )
+    gates = FakeGates()
+    promotion_receipt = creative_code_pr_promotion.promote(
+        promotion_id=promotion_id,
+        trusted_dispatch_result=dispatch_path.relative_to(repo),
+        trusted_generation_receipt=receipt_path.relative_to(repo),
+        git=git,
+        github=github,
+        gate_runner=gates,
+        stdin=RecordingTTY(phrase),
+        stdout=FakeStdout(),
+    )
+    validation = creative_code_pr_promotion._load_validation(Path(planned["promotion_dir"]))
+    assert validation["oracle_evidence"]["experiment_packet_fingerprint"] == fingerprint_payload(
+        packet
+    )
+    assert validation["oracle_evidence"]["result_fingerprint"] == fingerprint_payload(
+        dispatch_result
+    )
+    assert validation["oracle_evidence"]["generation_receipt_fingerprint"] == (
+        fingerprint_payload(generation_receipt)
+    )
+    assert gates.calls == ["pre_commit", "validate_changed"]
+    assert effects == ["tty-approval", "upload", "create-ref", "create-pr"]
+    assert len(git.uploads) == 1
+    assert len(github.created_refs) == 1
+    assert len([call for call in github.calls if call[:2] == ["pr", "create"]]) == 1
+    assert promotion_receipt["commit_sha"] == git.uploads[0][1]
+    assert github.created_refs[0][1] == promotion_receipt["commit_sha"]
+    assert promotion_receipt["pull_request_draft"] is False
+
+    replay = creative_code_pr_promotion.promote(promotion_id=promotion_id, git=git, github=github)
+    assert replay == promotion_receipt
+    assert len(git.uploads) == 1
+    assert len(github.created_refs) == 1
+    assert len([call for call in github.calls if call[:2] == ["pr", "create"]]) == 1
+    assert effects == ["tty-approval", "upload", "create-ref", "create-pr"]
 
 
 def test_pr3_schemas_are_closed() -> None:
