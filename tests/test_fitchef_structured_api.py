@@ -231,6 +231,44 @@ class TestFitChefDistortionSimulatorRoute:
             lambda *args, **kwargs: _make_rag_context(),
         )
 
+    def test_agent_provider_output_still_uses_structured_draft_fallback(self) -> None:
+        """Agent text has no authority to bypass the existing structured parser."""
+
+        self.monkeypatch.setenv("APP_ENV", "test")
+        self.monkeypatch.setenv("ENVIRONMENT", "test")
+        self.monkeypatch.setenv("FITCHEF_AGENT_API_ENABLED", "true")
+        self.monkeypatch.setenv("FITCHEF_AGENT_API_MODEL", "openai/gpt-6-luna")
+        self.monkeypatch.setenv("FITCHEF_AGENT_API_REASONING_EFFORT", "low")
+        self.monkeypatch.setenv("PERPLEXITY_API_KEY", "synthetic-test-key")
+
+        async def _generate(self: object, prompt: str) -> str:
+            return "This is not a structured JSON draft."
+
+        self.monkeypatch.setattr(
+            "providers.perplexity_agent.PerplexityAgentProvider.generate", _generate
+        )
+        self.monkeypatch.setattr(
+            "llm.get_provider", lambda: pytest.fail("Agent must stay FitChef-only")
+        )
+        self.monkeypatch.setattr(
+            "app.services.fitchef_runtime.attempt_consume_llm_monthly_quota",
+            lambda *args, **kwargs: True,
+        )
+        response = self.client.post(
+            self.url,
+            headers=self.pro_headers,
+            json={
+                "situation": "I ate dessert",
+                "automatic_thought": "I ruined the day",
+                "emotion": "guilt",
+            },
+        )
+        assert response.status_code == 200
+        data = _json_body(response)
+        assert "structured_parse_fallback" in data["warnings"]
+        assert data["balanced_reframe"] != "This is not a structured JSON draft."
+        assert data["quota_state"] == "consumed"
+
     def test_missing_api_key_returns_401(self) -> None:
         """Structured PRO route must reject missing auth."""
 

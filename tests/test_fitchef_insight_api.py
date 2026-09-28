@@ -290,6 +290,141 @@ class TestFitChefMascotRuntimeBehavior:
             },
         )
 
+    def test_agent_opt_in_uses_fitchef_provider_and_preserves_public_envelope(self) -> None:
+        """The explicit Agent option changes only the FitChef provider call."""
+
+        calls: list[tuple[str, str]] = []
+
+        class _FakeAgent:
+            def __init__(self, *, api_key: str, model: str, reasoning_effort: str) -> None:
+                assert api_key == os.environ["PERPLEXITY_API_KEY"]
+                calls.append((model, reasoning_effort))
+
+            @staticmethod
+            def require_prompt_in_budget(prompt: str) -> None:
+                assert "Need support with dinner" in prompt
+
+            async def generate(self, prompt: str) -> str:
+                assert "Need support with dinner" in prompt
+                calls.append(("generate", "once"))
+                return "FitChef says: choose one balanced next meal."
+
+        self.monkeypatch.setenv("APP_ENV", "test")
+        self.monkeypatch.setenv("ENVIRONMENT", "test")
+        self.monkeypatch.setenv("FITCHEF_AGENT_API_ENABLED", "true")
+        self.monkeypatch.setenv("FITCHEF_AGENT_API_MODEL", "openai/gpt-6-luna")
+        self.monkeypatch.setenv("FITCHEF_AGENT_API_REASONING_EFFORT", "low")
+        self.monkeypatch.setenv("PERPLEXITY_API_KEY", "synthetic-test-key")
+        self.monkeypatch.setattr("providers.perplexity_agent.PerplexityAgentProvider", _FakeAgent)
+        self.monkeypatch.setattr(
+            "llm.get_provider", lambda: pytest.fail("global selector must not run")
+        )
+        self.monkeypatch.setattr(
+            "app.services.fitchef_runtime.attempt_consume_llm_monthly_quota",
+            lambda *args, **kwargs: True,
+        )
+
+        response = self.client.post(
+            self.url,
+            json={"query": "Need support with dinner"},
+            headers=self.vip_headers,
+        )
+
+        assert response.status_code == 200
+        data = _json_body(response)
+        assert data["message"] == "FitChef says: choose one balanced next meal."
+        assert data["scenario"] == "mascot_insight"
+        assert data["quota_state"] == "consumed"
+        assert "provider" not in data
+        assert calls == [("openai/gpt-6-luna", "low"), ("generate", "once")]
+
+    @pytest.mark.parametrize(
+        ("setting", "bad_value"),
+        [
+            ("FITCHEF_AGENT_API_ENABLED", "sometimes"),
+            ("FITCHEF_AGENT_API_MODEL", "sonar"),
+            ("FITCHEF_AGENT_API_MODEL", ""),
+            ("FITCHEF_AGENT_API_REASONING_EFFORT", "high"),
+            ("PERPLEXITY_API_KEY", ""),
+            ("PERPLEXITY_API_KEY", "__replace_me__"),
+        ],
+    )
+    def test_agent_bad_configuration_returns_503_before_quota_or_provider(
+        self, setting: str, bad_value: str
+    ) -> None:
+        """VIP request admission rejects bad Agent settings without spending quota."""
+
+        self.monkeypatch.setenv("APP_ENV", "test")
+        self.monkeypatch.setenv("ENVIRONMENT", "test")
+        self.monkeypatch.setenv("FITCHEF_AGENT_API_ENABLED", "true")
+        self.monkeypatch.setenv("FITCHEF_AGENT_API_MODEL", "openai/gpt-6-luna")
+        self.monkeypatch.setenv("FITCHEF_AGENT_API_REASONING_EFFORT", "low")
+        self.monkeypatch.setenv("PERPLEXITY_API_KEY", TEST_KEY_VIP)
+        self.monkeypatch.setenv(setting, bad_value)
+        self.monkeypatch.setattr(
+            "app.services.fitchef_runtime.attempt_consume_llm_monthly_quota",
+            lambda *args, **kwargs: pytest.fail("bad Agent configuration must not debit quota"),
+        )
+        self.monkeypatch.setattr(
+            "providers.perplexity_agent.DefaultAsyncHttpxClient",
+            lambda **kwargs: pytest.fail("bad Agent configuration must not allocate a client"),
+        )
+        self.monkeypatch.setattr(
+            "llm.get_provider",
+            lambda: pytest.fail("bad Agent configuration must not use Sonar"),
+        )
+
+        response = self.client.post(
+            self.url,
+            json={"query": "Need support with dinner"},
+            headers=self.vip_headers,
+        )
+
+        assert response.status_code == 503
+        assert _json_body(response) == {"detail": "fitchef_agent_api_configuration_invalid"}
+
+    def test_production_agent_opt_in_rejects_before_quota_or_provider(self) -> None:
+        """Production cannot activate the Agent branch with a feature flag."""
+
+        from app.services import fitchef_runtime
+
+        self.monkeypatch.setenv("APP_ENV", "production")
+        self.monkeypatch.setenv("ENVIRONMENT", "production")
+        self.monkeypatch.setenv("FITCHEF_AGENT_API_ENABLED", "true")
+        self.monkeypatch.setenv("FITCHEF_AGENT_API_MODEL", "openai/gpt-6-luna")
+        self.monkeypatch.setenv("FITCHEF_AGENT_API_REASONING_EFFORT", "low")
+        self.monkeypatch.setenv("PERPLEXITY_API_KEY", "synthetic-test-key")
+        self.monkeypatch.setattr(
+            "app.services.fitchef_runtime._persist_privileged_action_audit",
+            lambda **kwargs: None,
+        )
+        self.monkeypatch.setattr(
+            "providers.perplexity_agent.PerplexityAgentProvider",
+            lambda **kwargs: pytest.fail("Agent provider must not be constructed"),
+        )
+        self.monkeypatch.setattr(
+            "app.services.fitchef_runtime.attempt_consume_llm_monthly_quota",
+            lambda *args, **kwargs: pytest.fail("quota must not be consumed"),
+        )
+
+        with pytest.raises(HTTPException) as caught:
+            asyncio.run(
+                fitchef_runtime.run_mascot_insight_task(
+                    FitChefMascotInsightTaskEnvelope(
+                        mode="auto-safe",
+                        input=FitChefMascotInsightInput(
+                            safe_query="Need support with dinner",
+                            api_key=TEST_KEY_VIP,
+                            endpoint=self.url,
+                            method="POST",
+                        ),
+                    )
+                )
+            )
+
+        assert caught.value.status_code == 503
+        assert caught.value.detail == "fitchef_agent_api_development_only"
+
     def test_quota_enforced_before_provider_generation(self) -> None:
         """Monthly quota must stop mascot insight before provider generation."""
 
@@ -2658,6 +2793,38 @@ class TestFitChefCoachInsightRuntimeCoverage:
 
         assert result.insight == "Steady CBT support"
         assert result.quota_state == "consumed"
+
+    def test_cbt_ignores_enabled_but_invalid_fitchef_agent_configuration(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """The FitChef-only switch cannot change the independent CBT selector."""
+
+        from app.services import fitchef_runtime
+
+        self._patch_shared_runtime_dependencies(monkeypatch)
+        monkeypatch.setenv("FITCHEF_AGENT_API_ENABLED", "true")
+        monkeypatch.setenv("FITCHEF_AGENT_API_MODEL", "invalid")
+        monkeypatch.setenv("FITCHEF_AGENT_API_REASONING_EFFORT", "invalid")
+        monkeypatch.delenv("PERPLEXITY_API_KEY", raising=False)
+        calls: list[str] = []
+
+        class _BaselineProvider:
+            name = "baseline"
+
+            async def generate(self, prompt: str) -> str:
+                calls.append("baseline")
+                return "Plan one small next step."
+
+        monkeypatch.setattr("llm.get_provider", lambda: _BaselineProvider())
+        monkeypatch.setattr(
+            "providers.perplexity_agent.PerplexityAgentProvider",
+            lambda **kwargs: pytest.fail("CBT must not construct Agent"),
+        )
+        result = asyncio.run(fitchef_runtime.run_coach_insight_task(_make_coach_insight_task()))
+        assert result.insight == "Plan one small next step."
+        assert result.quota_state == "consumed"
+        assert calls == ["baseline"]
 
     def test_runtime_async_provider_returns_string(
         self,
