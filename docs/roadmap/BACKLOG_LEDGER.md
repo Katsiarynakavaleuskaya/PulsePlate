@@ -892,7 +892,7 @@ If it is not recorded here — it does not exist.
     72-claim reference was accepted by the owner. A tool-isolated GPT-6-Sol
     assessor produced 24 valid case annotations and a byte-reproducible
     comparison; the earlier partial GPT-5.6-Sol pass remains separate evidence.
-    Current-head CI, review, and owner-only archive closeout remain pending.
+    Current-head CI, review, and link-access evidence archive closeout remain pending; the replay key remains a separate owner-only secret object outside that folder.
   - Area: FitChef eval / product outcomes
   - Reason (EN): The NOOS-1A structural matrix cannot measure whether actual
     FitChef responses make supported claims or improve trust, retention,
