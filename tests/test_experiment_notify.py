@@ -604,6 +604,7 @@ def test_sensitive_slack_outcomes_require_both_channel_lists_before_send(
     _configure_slack_env(monkeypatch)
     _reset_fake_slack()
     monkeypatch.setattr(experiment_notify, "_send_slack_api_message", FakeSlackTransport())
+    monkeypatch.delenv(experiment_notify.SLACK_SECURITY_CHANNEL_ALLOWLIST_ENV, raising=False)
     if security_allowlist is not None:
         monkeypatch.setenv(
             experiment_notify.SLACK_SECURITY_CHANNEL_ALLOWLIST_ENV, security_allowlist

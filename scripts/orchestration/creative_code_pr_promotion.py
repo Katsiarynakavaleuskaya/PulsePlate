@@ -413,7 +413,7 @@ class GitTransport:
         """Read the exact remote main ref without mutating local tracking refs."""
 
         process = self.run(
-            ["ls-remote", "--exit-code", "--heads", "origin", "main"],
+            ["ls-remote", "--exit-code", "--heads", "origin", "refs/heads/main"],
             cwd=REPO_ROOT,
             check=False,
             timeout_seconds=60,

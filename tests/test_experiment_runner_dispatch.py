@@ -2133,8 +2133,9 @@ def test_docker_gateway_is_discovered_from_bridge_inspection(
 
 
 @pytest.mark.parametrize("outer_reachable", [True, False])
+@pytest.mark.parametrize("host_address", ["10.0.0.20", "172.17.0.1"])
 def test_docker_canary_requires_host_reachability_and_both_guest_probes_blocked(
-    monkeypatch: pytest.MonkeyPatch, outer_reachable: bool
+    monkeypatch: pytest.MonkeyPatch, outer_reachable: bool, host_address: str
 ) -> None:
     gateway = "172.17.0.1"
     listener_addresses: list[str | None] = []
@@ -2153,6 +2154,7 @@ def test_docker_canary_requires_host_reachability_and_both_guest_probes_blocked(
     }
     payloads = iter((payload, {**payload, "host_reachable": False}))
     monkeypatch.setattr(dispatch, "_discover_gateway", lambda *_args: gateway)
+    monkeypatch.setattr(dispatch, "_discover_host_bind_address", lambda: host_address)
     monkeypatch.setattr(dispatch, "_create_result_volume", lambda *_args: "result-volume")
     monkeypatch.setattr(dispatch, "_initialize_result_volume", lambda **_kwargs: True)
 
@@ -2185,9 +2187,22 @@ def test_docker_canary_requires_host_reachability_and_both_guest_probes_blocked(
         assert result["outer_host_control"] is False
         assert result["inner_host_blocked"] is True
         assert len(runs) == 2
-    assert listener_addresses == [gateway]
-    assert codes == [(gateway, 43123)]
+    assert listener_addresses == [host_address]
+    assert codes == [(host_address, 43123)]
     assert all(argv[argv.index("--network") + 1] == "none" for argv in runs)
+
+
+def test_docker_listener_fails_closed_when_no_unique_host_bind_address(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(dispatch, "_discover_gateway", lambda *_args: "172.17.0.1")
+    monkeypatch.setattr(
+        dispatch,
+        "_discover_host_bind_address",
+        lambda: (_ for _ in ()).throw(dispatch.DispatchError("host_listener_unavailable")),
+    )
+    with pytest.raises(dispatch.DispatchError, match="host_listener_unavailable"):
+        dispatch._run_container_canary("/usr/local/bin/docker", "docker", _image())
 
 
 def test_docker_strict_capability_rejects_forged_reachable_outer_guest() -> None:
@@ -2642,6 +2657,24 @@ def test_host_bind_address_is_exact_non_loopback_ipv4(
     )
 
     assert dispatch._discover_host_bind_address() == "192.168.100.100"
+
+
+def test_host_bind_address_rejects_multiple_bindable_candidates(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(dispatch.socket, "gethostname", lambda: "local-host")
+    monkeypatch.setattr(
+        dispatch.socket,
+        "getaddrinfo",
+        lambda *_args, **_kwargs: [
+            (dispatch.socket.AF_INET, dispatch.socket.SOCK_STREAM, 6, "", ("10.0.0.10", 0)),
+            (dispatch.socket.AF_INET, dispatch.socket.SOCK_STREAM, 6, "", ("10.0.0.20", 0)),
+        ],
+    )
+    monkeypatch.setattr(dispatch, "_address_is_bindable", lambda _address: True)
+
+    with pytest.raises(dispatch.DispatchError, match="host_listener_unavailable"):
+        dispatch._discover_host_bind_address()
 
 
 def test_probe_cli_requires_immutable_image() -> None:

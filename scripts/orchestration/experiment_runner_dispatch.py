@@ -670,35 +670,9 @@ def _address_is_bindable(address: str) -> bool:
 
 
 def _discover_host_bind_address() -> str:
-    """Return one exact non-loopback IPv4 address without persisting host identity."""
+    """Require one safe host-bindable IPv4 address without selection-order fallback."""
 
-    try:
-        records = socket.getaddrinfo(
-            socket.gethostname(),
-            None,
-            family=socket.AF_INET,
-            type=socket.SOCK_STREAM,
-        )
-    except OSError as exc:
-        raise DispatchError("host_listener_unavailable") from exc
-
-    candidates: list[str] = []
-    for _family, _kind, _proto, _canonical, sockaddr in records:
-        candidate = str(sockaddr[0])
-        address = ipaddress.ip_address(candidate)
-        if (
-            address.is_loopback
-            or address.is_unspecified
-            or address.is_multicast
-            or address.is_link_local
-            or candidate in candidates
-        ):
-            continue
-        candidates.append(candidate)
-    for candidate in candidates:
-        if _address_is_bindable(candidate):
-            return candidate
-    raise DispatchError("host_listener_unavailable")
+    return _discover_apple_host_bind_address(())
 
 
 def _find_apple_ipv4_subnets(value: Any) -> tuple[ipaddress.IPv4Network, ...]:
@@ -956,7 +930,10 @@ def _run_container_canary(
                 host_address = _discover_apple_host_bind_address(runtime_subnets)
                 apple_network = _create_apple_network(cli)
             else:
-                host_address = _discover_gateway(cli, backend, apple_network)
+                # The Docker bridge is VM-owned on Desktop. Keep its metadata
+                # prerequisite, but bind only to a unique reachable host address.
+                _discover_gateway(cli, backend, apple_network)
+                host_address = _discover_host_bind_address()
             volume = _create_result_volume(cli, backend)
             runtime_ref = image.runtime_ref(backend)
             if not _initialize_result_volume(

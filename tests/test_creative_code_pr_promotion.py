@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 import subprocess
 from typing import Any, cast
@@ -914,6 +915,82 @@ def test_generated_dispatch_result_flows_through_finalizer_and_first_promotion(
     assert len(github.created_refs) == 1
     assert len([call for call in github.calls if call[:2] == ["pr", "create"]]) == 1
     assert effects == ["tty-approval", "upload", "create-ref", "create-pr"]
+
+
+def test_remote_main_lookup_matches_only_exact_ref_with_suffix_branch(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A release/main branch must not make live-main freshness unavailable."""
+
+    git_binary = creative_code_pr_promotion._resolve_binary("git")
+    clean_env = creative_code_patch_workspace.git_env_without_parent_state()
+    clean_env.update(
+        GIT_CONFIG_GLOBAL=os.devnull,
+        GIT_CONFIG_NOSYSTEM="1",
+        GIT_NO_REPLACE_OBJECTS="1",
+    )
+
+    def run(*argv: str) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(  # nosec B603: absolute Git and test-owned refs only (remove-by: 2026-10-31, ref: PR-2455)
+            [git_binary, *argv],
+            cwd=tmp_path,
+            env=clean_env,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+
+    repo, base_sha = generation_fixtures._init_patch_repo(tmp_path)
+    remote = tmp_path / "remote.git"
+    unrelated_parent = tmp_path / "unrelated-parent.git"
+    run("clone", "--bare", str(repo), str(remote))
+    run("init", "--bare", str(unrelated_parent))
+    run("-C", str(repo), "remote", "add", "origin", str(remote))
+    run("--git-dir", str(remote), "update-ref", "refs/heads/main", base_sha)
+    run("--git-dir", str(remote), "update-ref", "refs/heads/release/main", base_sha)
+    assert (
+        len(run("-C", str(repo), "ls-remote", "--heads", "origin", "main").stdout.splitlines()) == 2
+    )
+    unrelated_config = (unrelated_parent / "config").read_bytes()
+    unrelated_head = (unrelated_parent / "HEAD").read_bytes()
+    monkeypatch.setenv("GIT_DIR", str(unrelated_parent))
+    monkeypatch.setattr(creative_code_pr_promotion, "REPO_ROOT", repo)
+
+    transport = creative_code_pr_promotion.GitTransport(git_binary=git_binary)
+    assert transport.remote_main_sha() == base_sha
+    assert transport.calls[-1] == [
+        "ls-remote",
+        "--exit-code",
+        "--heads",
+        "origin",
+        "refs/heads/main",
+    ]
+    assert (unrelated_parent / "config").read_bytes() == unrelated_config
+    assert (unrelated_parent / "HEAD").read_bytes() == unrelated_head
+    assert not (unrelated_parent / "index").exists()
+
+
+@pytest.mark.parametrize(
+    ("stdout", "returncode"),
+    [
+        ("", 0),
+        ("not-a-sha\trefs/heads/main\n", 0),
+        (("a" * 40) + "\trefs/heads/release/main\n", 0),
+        (("a" * 40) + "\trefs/heads/main\n" + ("b" * 40) + "\trefs/heads/main\n", 0),
+        ("", 2),
+    ],
+)
+def test_remote_main_lookup_rejects_missing_malformed_or_ambiguous_output(
+    monkeypatch: pytest.MonkeyPatch, stdout: str, returncode: int
+) -> None:
+    transport = creative_code_pr_promotion.GitTransport(git_binary="/usr/bin/git")
+    monkeypatch.setattr(
+        transport,
+        "run",
+        lambda _args, **_kwargs: subprocess.CompletedProcess(_args, returncode, stdout, ""),
+    )
+    with pytest.raises(CreativeCodePRPromotionError, match="remote main ref lookup"):
+        transport.remote_main_sha()
 
 
 def test_pr3_schemas_are_closed() -> None:
