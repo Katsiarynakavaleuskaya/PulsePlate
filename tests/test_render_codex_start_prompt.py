@@ -33,6 +33,60 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 _SYNTHETIC_WORKSPACE_SOURCE = "test://synthetic-synthesis-workspace"
 
 
+def test_packet_prompt_treats_creative_recommendation_as_native_host_handoff() -> None:
+    packet = task_bootstrap.build_task_packet(
+        goal="Compare bounded formatter alternatives",
+        task_class="Implementation",
+        candidate_paths=["tests/test_example.py"],
+        creative_applicability="alternatives",
+    )
+    projection = rail_applicability.decide_evidence_rail_applicability(
+        task_packet_id=packet["task_packet_id"],
+        task_packet_fingerprint="sha256:" + "a" * 64,
+        signals=rail_applicability.ApplicabilitySignals(
+            invariant_review=False,
+            security_review=False,
+            design_lane=False,
+            docs_only=False,
+            pr_phase="none",
+            runtime_writer_available=True,
+            exact_file_candidate_available=True,
+            creative_applicability="alternatives",
+        ),
+    )
+    rendered = render_packet_prompt(
+        packet,
+        packet_path="artifacts/orchestration/task_packets/example.json",
+        evidence_rail_applicability=projection,
+    )
+    assert "Creative: recommend" in rendered
+    assert "actual native agent return" in rendered
+    assert "workflow-ingest" in rendered
+
+
+def test_recipe_forwards_structured_creative_choice_without_selecting_treatment() -> None:
+    rendered = render_recipe_prompt(
+        goal="Compare formatter approaches",
+        task_class="Implementation",
+        pr_phase="pre_open",
+        paths=["tests/test_example.py"],
+        requested_agents=[],
+        creative_applicability="alternatives",
+    )
+    assert "--creative-applicability alternatives" in rendered
+    assert "Creative applicability: alternatives" in rendered
+    assert "Evidence rail applicability: pending validated bootstrap packet" in rendered
+    with pytest.raises(codex_prompt.PromptError, match="unsupported value"):
+        render_recipe_prompt(
+            goal="Compare formatter approaches",
+            task_class="Implementation",
+            pr_phase="pre_open",
+            paths=["tests/test_example.py"],
+            requested_agents=[],
+            creative_applicability="unknown",
+        )
+
+
 @pytest.fixture(autouse=True)
 def _isolate_synthetic_synthesis_workspace_source(
     monkeypatch: pytest.MonkeyPatch,

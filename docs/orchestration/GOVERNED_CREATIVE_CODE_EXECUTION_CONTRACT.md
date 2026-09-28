@@ -1,5 +1,20 @@
 # Governed Creative-Code Execution Contract
 
+## CREATIVE-OPS-1 operational consumer
+
+The additive `creative_workflow.v1` host procedure binds an accepted task and
+criteria to Euler evidence, obtains three native-agent alternatives, records a
+separate coordinator review and passes one selected exact-file proposal to the
+packet-eligible writer. Its local stage files and sanitized capsule are
+procedural evidence only. A reviewed selection is not PR-1 specification
+approval, PR-2 candidate patch authority, PR-3 promotion, release, or merge
+authority. Product-platform proposals use the normal backend, web or iOS
+writer and ordinary PR gates; they do not widen the PR-2 sandbox. Existing
+v1/adaptive-v2 hypothesis contracts retain their original product and workflow
+target restrictions. See
+`docs/orchestration/contracts/EXPERIMENT_RUNNER_PR_CREATIVE_CONTEXT_CONTRACT.md#operational-creative-v1-separate-contract`
+for the operational stage and Drive handoff.
+
 <!-- markdownlint-disable MD013 -->
 
 **Status:** PR-6 first applied-candidate lane, local private-pilot loop
