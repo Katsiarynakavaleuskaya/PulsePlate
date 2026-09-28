@@ -1466,6 +1466,17 @@ If it is not recorded here — it does not exist.
   - Links: `.github/workflows/ci.yml`, `scripts/ci/check_pr_size_governance.py`, `tests/test_ci_workflow_pr_size_governance_contract.py`, `docs/review/PR_1909_FIXED_MAPPING.md`
   - DoD: Update `pr_scope_guard` to checkout PR code and trusted base guard code separately; execute PR size governance from the trusted base copy while setting `PULSEPLATE_SIZE_GOVERNANCE_REPO_ROOT` to the PR checkout; preserve `--base-sha`, `--head-sha`, and `--event-path`; add workflow contract coverage; verify current-head CI and merge-readiness gates.
 
+<a id="ledger-p1-merge-readiness-trusted-policy-workflow-switch"></a>
+- [ ] P1: Switch the hosted merge-readiness job to trusted-base policy execution
+  - Owner: @katsiaryna_kavaleuskaya (CI and orchestration governance)
+  - Priority: P1
+  - Target PR: CONSOL-ORCH-1 (number pending)
+  - Status: Pending prerequisite CONSOL-CI-1 merge and current-main proof
+  - Area: CI / merge governance
+  - Reason (EN): CONSOL-CI-1 adds a verified dual-checkout verifier interface, but the hosted job must continue using its existing invocation until that policy code is present in the protected base. The second consolidated PR will switch workflow execution to the exact authenticated base SHA and inspect the exact PR-head material separately.
+  - Links: `.github/workflows/ci.yml`, `scripts/ci/check_pr_merge_readiness.py`, `tests/test_pr_merge_readiness_gate.py`
+  - DoD: Use distinct credential-free base and head checkouts, invoke only the base verifier with `--material-repo-root`, reject wrong identities or untrusted material imports, and pass current-head CI and strict merge-readiness evidence.
+
 <a id="ledger-p1-scientific-writing-agent"></a>
 - [ ] P1: Scientific Writing Agent registration
   - Owner: @katsiaryna_kavaleuskaya (Agent governance)

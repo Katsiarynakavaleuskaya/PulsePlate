@@ -237,11 +237,14 @@ Canonical contract for shared CI/Docker/bootstrap paths:
   references do not churn in the same PR. Reintroducing entries requires
   security sign-off, exact package/version/filename metadata, pinned `sha256`,
   expiry, package-scoped mirror evidence, and a removal plan.
-- The installer may use an exact manifest wheel after pip reports both an exact
-  resolver miss and either a package-scoped retry/timeout against that approved
-  simple project path or a package-scoped approved-proxy health-probe timeout.
-  Plain resolver misses without package-scoped proxy evidence remain
-  proxy-health gated; generic proxy outages remain fail-closed.
+- The installer may use an exact manifest wheel after pip reports an exact
+  resolver miss and either a verified package-scoped pip retry/timeout against
+  that approved simple project path or a successful approved-proxy health probe
+  for the requested project. Every failed health probe, including a timeout or
+  HTTP 5xx, blocks fallback; a plain resolver miss alone grants no bypass.
+- Every CI job that depends directly on private-proxy health uses `always()`
+  and checks `needs.private_python_proxy_health.result` before substantive work.
+  Failed or cancelled health checks produce explicit downstream failures.
 - Production-target Docker workflows pass `PULSEPLATE_REQUIREMENTS_FILE=requirements-docker-runtime.txt`
   so the backend image stays on the Docker runtime surface instead of `requirements-ci-lite.txt`.
 

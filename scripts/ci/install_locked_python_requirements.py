@@ -1344,17 +1344,6 @@ def _package_scoped_proxy_retry_failure(runtime_error: RuntimeError, *, package:
     )
 
 
-def _package_scoped_health_probe_failure(runtime_error: RuntimeError, *, package: str) -> bool:
-    """Return True when the approved-proxy health probe failed only on this package path."""
-    return any(
-        "approved python package proxy health check failed before emergency fallback"
-        in line.lower()
-        and _line_mentions_requested_project(line, package=package)
-        and _line_has_transport_failure_excluding_package_name(line, package=package)
-        for line in str(runtime_error).splitlines()
-    )
-
-
 def _pip_upgrade_resolver_miss(runtime_error: RuntimeError) -> bool:
     """Return True when pip failed because the pip spec is absent from the proxy."""
     message = str(runtime_error).lower()
@@ -2074,16 +2063,11 @@ def _require_private_index_health_unless_package_scoped_retry(
     """Keep generic fallback health-gated while accepting exact package retry evidence."""
     if _package_scoped_proxy_retry_failure(exc, package=package):
         return
-    try:
-        _require_private_index_project_health(
-            index_url=index_url,
-            package=package,
-            trusted_host=trusted_host,
-        )
-    except RuntimeError as health_exc:
-        if _package_scoped_health_probe_failure(health_exc, package=package):
-            return
-        raise
+    _require_private_index_project_health(
+        index_url=index_url,
+        package=package,
+        trusted_host=trusted_host,
+    )
 
 
 def build_wheelhouse_with_emergency_fallback(

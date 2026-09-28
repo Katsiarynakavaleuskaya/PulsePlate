@@ -86,6 +86,20 @@
   gates and authentication/body-fetch operations retain 120 seconds. A timeout
   remains a blocking failure; the budget does not replace proof or authorize merge.
 
+## CI trust-boundary helper usage
+
+- `check_pr_merge_readiness.py --material-repo-root` is the staged interface for
+  executing policy from the exact authenticated PR base while reading material
+  from a distinct exact PR-head checkout. Keep ordinary local and
+  `--pre-closeout` invocations on their existing single-checkout path. The
+  hosted workflow switches to this interface only after the base contains it.
+- For `check_philosophy_source_corpus_index.py`, put `--files` last. Tokens after
+  it are file paths, including `--help`; parser configuration belongs before it.
+- A failed private Python proxy health probe blocks emergency wheel fallback.
+  Only the installer's existing package-scoped pip retry evidence may avoid a
+  new probe. Git-index discovery must neutralize executable repository Git
+  configuration while retaining a positive carrier-discovery path.
+
 ## Governed Experimentation Runner
 
 - Canonical entrypoints for the experimentation lane are `scripts/orchestration/experiment_bootstrap.py` and `scripts/orchestration/experiment_runner.py`.
