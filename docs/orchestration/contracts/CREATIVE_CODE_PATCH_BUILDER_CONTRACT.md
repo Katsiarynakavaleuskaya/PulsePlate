@@ -148,9 +148,9 @@ The optional shadow form requires `--shadow-forecast` and `--started-at`
 together. Under the existing cooperative run lock it validates the exact
 forecast/gate target and publishes immutable `start.json` before the first
 builder call, keeps that same lock through generation, and releases it before
-evaluation takes the existing lock. The builder receives no forecast
-probabilities. A shadow slot blocks an
-unbound invocation for that exact target; a clean retry after start publication
+preparing the bound dispatch packet under the existing per-run lock. The builder
+receives no forecast probabilities. A shadow slot blocks an unbound invocation
+for that exact target; a clean retry after start publication
 must use identical forecast/start bytes. This is local dependency ordering
 only, not routing, admission, prediction-quality, promotion, review, PR, or
 merge authority. The legacy unforecasted behavior is unchanged when no exact
