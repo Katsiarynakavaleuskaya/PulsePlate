@@ -352,9 +352,10 @@
   must receive paired `--shadow-forecast` / `--started-at`, publish or read back
   immutable canonical `start.json` under the existing cooperative run lock,
   recheck forecast/gate sources, hold that same lock through generation to
-  serialize duplicate invocation, release it before evaluation takes the
-  existing lock, and otherwise preserve the unchanged builder path. It must
-  never pass forecast probabilities downstream.
+  serialize duplicate invocation, release it before preparing the bound
+  dispatch packet under the existing per-run lock, and otherwise preserve the
+  builder path. Trusted native dispatch and finalization follow separately.
+  It must never pass forecast probabilities downstream.
   An occupied exact shadow slot blocks unbound generation; identical replay is
   zero-write and divergent replay preserves the first winner. Forecast/start/
   score artifacts are mode-`0600` under mode-`0700` directories and remain
