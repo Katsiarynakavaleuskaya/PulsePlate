@@ -553,6 +553,43 @@ Euler import, execution or store access is permitted.
   producer-owned verifier is tracked in
   `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-canonical-task-packet-identity-verifier`.
   Every applicability authority field remains literal `false`.
+- A coordinator may set `--creative-applicability alternatives|direct_fix|not_applicable|disabled`
+  through `start_pr_lane.sh` or manual bootstrap. The starter forwards the same
+  closed value in both its dry-run recipe and actual bootstrap. The structured
+  value is packet-identity-bearing; the sole
+  applicability selector recommends operational Creative for admitted
+  alternatives in `none` or `pre_open` phases only when the packet's structured
+  dispatch contract declares at least one runtime owner and its packet scope
+  contains a non-directory exact-file candidate, after higher-assurance
+  preemption. An execution-ready design packet without that explicit choice and a
+  `post_open_review`/`merge_ready` packet, any packet without a runtime writer,
+  and directory-only scope receive no Creative recommendation. The
+  recommendation is not native execution or writer authority. The host follows
+  the operational sequence in `.agents/skills/pulseplate-orchestration-dispatch/SKILL.md`, and
+  the additive `creative_workflow.v1` CLI validates returned intake, separate
+  review, exact-file writer handoff and sanitized capsule. The host reviews a
+  generated patch before any test execution and uses only
+  the existing strict zero-network Experiment Runner in an owned scratch
+  checkout for supported commands; unavailable containment or unsupported
+  platform commands remain pending, never a host-side fallback. Canonical
+  repository paths may contain credential-related names; secret-value checks apply to
+  their contents, while prose may name an API key without containing one.
+  Request, native-result and review prose use the same
+  route-aware local-path check before any stage is persisted. Each stage keeps
+  its predecessor's inherited request, native
+  result and review bytes; a matching predecessor hash alone is insufficient.
+  Archive export permits route literals in explicit decorator or HTTP-method
+  context while rejecting local filesystem paths, including UNC shares. Both
+  export and restore require the Git-parsed patch files to equal the exact writer
+  handoff and structured test evidence to bind its digest and admitted commands;
+  only regular patch modes and stored ZIP members are accepted, and Work Review
+  must name each accepted criterion. This continuity does not authenticate
+  test execution. Export and restore share the same UTF-8 and private-content
+  sanitizer. Restore also rechecks
+  the packet's canonical writer manifest and the criteria,
+  requirements, and Euler source digests; missing or changed evidence fails
+  closed. Legacy v1/adaptive-v2
+  hypothesis and PR-2 patch-sandbox authority remains unchanged.
 - Contract and readiness boundaries:
   `docs/orchestration/PR_EVIDENCE_SIDECAR_V1.md` and
   `docs/orchestration/AUTOMATION_READINESS_MATRIX.md`.

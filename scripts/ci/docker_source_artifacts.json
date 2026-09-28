@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-09-20",
-  "review_by": "2026-09-27",
+  "generated_at": "2026-09-28",
+  "review_by": "2026-10-05",
   "reason": "Reviewed official SQLite and util-linux sources for the existing bounded native runtime-library build. Fetch and checksum verification precede Docker builds.",
   "artifacts": [
     {

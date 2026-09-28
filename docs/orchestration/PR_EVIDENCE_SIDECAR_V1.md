@@ -108,14 +108,23 @@ The closed precedence and treatment matrix are:
 | Structured branch | Teleology | Euler | Experiment Runner | Creative |
 | --- | --- | --- | --- | --- |
 | invariant or security | `full` | `finite_review` | `required` | `not_applicable` |
-| ready design, without invariant/security | `full` | `finite_review` | `required` | `recommend` |
+| ready design, without invariant/security | `full` | `finite_review` | `required` | `recommend` only for explicit alternatives with a runtime writer and exact-file candidate in `none`/`pre_open`; otherwise `not_applicable` |
 | docs-only, without earlier branches | `compact` | `not_applicable` | `required` | `not_applicable` |
+| other valid packet with explicit alternatives | `full` | `finite_review` | `required` | `recommend` with a runtime writer and exact-file candidate in `none`/`pre_open`; otherwise `not_applicable` |
 | other valid packet | `full` | `finite_review` | `required` | `not_applicable` |
 
 Invariant applicability is phase-stable: v1 uses the canonical non-empty
 `change_classes`, while v2 uses its validated `required_pending` repeated-family
 projection. Security and docs-only signals are recomputed through their existing
-closed recognizers. Design recommendation requires the existing finite `design`
+closed recognizers. When invariant or security review preempts explicitly
+declared Creative alternatives, the Creative reason is
+`higher_assurance_scope_preempts_creative`; without that selection it remains
+`creative_scope_not_selected`. Creative recommendation additionally requires the
+coordinator's explicit `creative_applicability=alternatives`, a writer-capable
+phase, a nonempty runtime owner set in the packet's dispatch contract, and at
+least one non-directory exact-file candidate in packet scope.
+Design alone does not
+activate Creative. Design applicability still requires the existing finite `design`
 classification plus the frozen
 `normalize_design_lane_packet_projection(...)` recognizer returning
 `execution_ready=true`. That field means packet-local contract readiness only;
@@ -260,6 +269,12 @@ never fabricate J or terminal facts, invent an archive acknowledgement, or erase
 the store to finish a checklist. The retention boundary remains tracked in the
 [existing Euler handoff item](../roadmap/BACKLOG_LEDGER.md#ledger-p1-euler-supervision-renderer-handoff).
 This ordering adds no archive, transfer, root-override or reconstruction mechanism.
+
+The CREATIVE-OPS-1 capsule exporter belongs only to the separate operational
+Creative task workflow. Its Drive round trip preserves that task's selected
+patch and Work Review; it does not enroll, archive, transfer, verify or delete
+Euler episode stores or this PR evidence sidecar. Their existing retention and
+cleanup boundaries still apply independently.
 
 Applicable sidecar rails keep `unknown` plus `null` without the required genuine
 reference; a prepared sidecar, selected treatment or checkpoint fingerprint

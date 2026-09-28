@@ -511,6 +511,49 @@ def test_start_pr_lane_dry_run_deduplicates_sidecar_rails_without_writing() -> N
     assert "pr_evidence_sidecars/" not in result.stdout
 
 
+def test_start_pr_lane_dry_run_forwards_closed_creative_choice() -> None:
+    result = run_start(*_required_args(), "--creative-applicability", "alternatives", "--dry-run")
+    assert result.returncode == 0, result.stderr
+    bootstrap_line = next(
+        line
+        for line in result.stdout.splitlines()
+        if line.startswith("Would run in worktree:") and "task_bootstrap.py" in line
+    )
+    assert bootstrap_line.count("--creative-applicability alternatives") == 1
+    assert "Creative applicability: alternatives" in result.stdout
+    assert (
+        "--creative-applicability alternatives"
+        in result.stdout.split("Paste into Codex now:", maxsplit=1)[1]
+    )
+    for invalid in ("unknown", "alternatives extra"):
+        rejected = run_start(*_required_args(), "--creative-applicability", invalid, "--dry-run")
+        assert rejected.returncode == 2
+        assert "creative-applicability must be one of" in rejected.stderr
+    duplicate = run_start(
+        *_required_args(),
+        "--creative-applicability",
+        "alternatives",
+        "--creative-applicability",
+        "disabled",
+        "--dry-run",
+    )
+    assert duplicate.returncode == 2
+    assert "may be supplied only once" in duplicate.stderr
+
+
+def test_start_pr_lane_execute_forwards_creative_choice_to_bootstrap(tmp_path: Path) -> None:
+    result, _ = _run_execute_path_with_sidecar_payload(
+        tmp_path,
+        _valid_sidecar_prepare_payload(),
+        extra_start_args=("--creative-applicability", "direct_fix"),
+    )
+    assert result.returncode == 0, result.stderr
+    raw = (tmp_path / "task-bootstrap-args.bin").read_bytes().split(b"\0")
+    observed = [item.decode("utf-8") for item in raw[:-1]]
+    position = observed.index("--creative-applicability")
+    assert observed[position + 1] == "direct_fix"
+
+
 def test_start_pr_lane_dry_run_forwards_all_typed_design_arguments() -> None:
     result = run_start(
         *_required_args(),
