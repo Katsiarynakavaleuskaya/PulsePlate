@@ -179,6 +179,12 @@ jobs:
           format: json
           output: trivy-build-image.json
 
+      - name: Validate native Trivy suppression semantics
+        if: github.event_name == 'pull_request'
+        run: |
+          set -euo pipefail
+          python3 scripts/ci/check_trivy_ignore_policy_native.py
+
       - name: Validate production image report and render SARIF
         if: ${{ always() }}
         run: |

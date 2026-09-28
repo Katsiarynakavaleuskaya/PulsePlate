@@ -133,6 +133,27 @@ Evidence: `scripts/ci/docker_source_artifacts.json:3`,
 `scripts/ci/fetch_docker_source_artifacts.py:81`,
 `tests/test_docker_workflow_build_path_contract.py:371`.
 
+## Docker source review checkpoint — 2026-09-28
+
+The prior `review_by: 2026-09-27` gate is stale on September 28. A fresh
+streaming read of the two unchanged pinned HTTPS sources returned HTTP 200:
+SQLite 3.53.2 (`sqlite-autoconf-3530200.tar.gz`, 3,279,926 bytes) matched the
+manifest SHA3-256; util-linux 2.42.3 (23,193,616 bytes) matched both its
+manifest SHA3-256 and SHA-256. No tarball was retained. The approved source
+names, versions, filenames, URLs, order, and digest parts are unchanged from
+the September 20 review and from the current main source material.
+
+The existing manifest is reviewed on 2026-09-28 through 2026-10-05 inclusive;
+October 6 fails closed before fetching. Newer upstream maintenance releases
+exist. The Dockerfile builds only `libuuid.la` from the pinned util-linux
+archive (`Dockerfile:226`), so this narrow review retains that source pin
+without a latest-version claim. Matching bytes do not verify upstream
+signatures or clear source vulnerabilities. A current-head image build and
+strict image/filesystem security scans remain necessary before publication.
+Evidence: `scripts/ci/docker_source_artifacts.json:3`,
+`tests/test_docker_workflow_build_path_contract.py:344`,
+`scripts/ci/fetch_docker_source_artifacts.py:93`.
+
 ## Native attestation inventory continuation
 
 PR #2394 merged as `b89e833af752d2b68f8d8b0fa99ab18b59e856e9`.
