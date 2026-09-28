@@ -419,14 +419,81 @@ def _git_stdout(*args: str, repo_root: Path = REPO_ROOT) -> bytes:
     assert git_binary is not None, "git is required for tracked dependency guards"
     assert Path(git_binary).is_absolute(), "git binary must resolve to an absolute path"
     child_env = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
+    child_env.update(
+        GIT_CONFIG_GLOBAL=os.devnull,
+        GIT_CONFIG_NOSYSTEM="1",
+        GIT_NO_REPLACE_OBJECTS="1",
+        GIT_TERMINAL_PROMPT="0",
+    )
     result = subprocess.run(
         [git_binary, "-C", str(repo_root), *args],
-        check=True,
+        check=False,
         capture_output=True,
         env=child_env,
         timeout=30,
     )
+    if result.returncode != 0:
+        diagnostic = result.stderr.decode("utf-8", "replace")[:300].strip()
+        raise AssertionError(
+            f"recorded Git object unavailable or checkout incomplete (exit {result.returncode}): "
+            f"{diagnostic}"
+        )
     return result.stdout
+
+
+def test_recorded_git_objects_ignore_replacements_and_missing_objects(
+    tmp_path: Path,
+) -> None:
+    git_binary = shutil.which("git")
+    assert git_binary is not None
+    fixture_env = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
+    fixture_env.update(GIT_CONFIG_GLOBAL=os.devnull, GIT_CONFIG_NOSYSTEM="1")
+
+    def fixture_git(*args: str) -> bytes:
+        result = subprocess.run(  # nosec B603: resolved Git binary with test-owned fixed argv (remove-by: 2026-10-31, ref: PR-consol-ci-1)
+            [git_binary, "-C", str(tmp_path), *args],
+            check=True,
+            capture_output=True,
+            env=fixture_env,
+        )
+        return result.stdout.strip()
+
+    fixture_git("init", "--quiet")
+    evidence = tmp_path / "evidence.json"
+    evidence.write_bytes(b'{"status":"recorded"}\n')
+    fixture_git("add", "evidence.json")
+    fixture_git(
+        "-c",
+        "user.name=CI Test",
+        "-c",
+        "user.email=ci@example.test",
+        "commit",
+        "--quiet",
+        "-m",
+        "recorded",
+    )
+    recorded = fixture_git("rev-parse", "HEAD").decode("ascii")
+    evidence.write_bytes(b'{"status":"replacement"}\n')
+    fixture_git("add", "evidence.json")
+    fixture_git(
+        "-c",
+        "user.name=CI Test",
+        "-c",
+        "user.email=ci@example.test",
+        "commit",
+        "--quiet",
+        "-m",
+        "replacement",
+    )
+    replacement = fixture_git("rev-parse", "HEAD").decode("ascii")
+    fixture_git("replace", recorded, replacement)
+
+    assert fixture_git("show", f"{recorded}:evidence.json") == b'{"status":"replacement"}'
+    assert _git_stdout("show", f"{recorded}:evidence.json", repo_root=tmp_path) == (
+        b'{"status":"recorded"}\n'
+    )
+    with pytest.raises(AssertionError, match="recorded Git object unavailable"):
+        _git_stdout("show", f"{'f' * 40}:evidence.json", repo_root=tmp_path)
 
 
 def _assert_npm_registry_resolution(*, package_name: str, resolved: str) -> None:
@@ -617,13 +684,15 @@ def _brace_expansion_head_evidence_projection(
     *,
     package_json: dict[str, object],
     package_lock: dict[str, object],
+    enforce_current_safety: bool = True,
 ) -> dict[str, object]:
     """Project only the validated, bounded head evidence for this dependency class."""
 
-    _assert_brace_expansion_security_class(
-        package_json=package_json,
-        package_lock=package_lock,
-    )
+    if enforce_current_safety:
+        _assert_brace_expansion_security_class(
+            package_json=package_json,
+            package_lock=package_lock,
+        )
     overrides = package_json.get("overrides")
     assert isinstance(overrides, dict), "frontend/package.json: overrides must be an object"
     manifest_occurrences = _find_override_key_paths(
@@ -653,10 +722,12 @@ def _brace_expansion_head_evidence_digest(
     *,
     package_json: dict[str, object],
     package_lock: dict[str, object],
+    enforce_current_safety: bool = True,
 ) -> str:
     projection = _brace_expansion_head_evidence_projection(
         package_json=package_json,
         package_lock=package_lock,
+        enforce_current_safety=enforce_current_safety,
     )
     canonical = json.dumps(
         projection,
@@ -665,6 +736,29 @@ def _brace_expansion_head_evidence_digest(
         sort_keys=True,
     ).encode("utf-8")
     return hashlib.sha256(canonical).hexdigest()
+
+
+def _load_json_at_git_ref(*, git_ref: str, path: str) -> dict:
+    """Load one immutable JSON artifact directly from the repository object graph."""
+
+    document = json.loads(_git_stdout("show", f"{git_ref}:{path}").decode("utf-8"))
+    assert isinstance(document, dict), f"{git_ref}:{path}: expected a JSON object"
+    return document
+
+
+def _load_recorded_brace_expansion_head_evidence_documents() -> tuple[dict, dict]:
+    """Load the package surfaces committed at the recorded remediation head."""
+
+    return (
+        _load_json_at_git_ref(
+            git_ref=BRACE_EXPANSION_RECORDED_HEAD,
+            path="frontend/package.json",
+        ),
+        _load_json_at_git_ref(
+            git_ref=BRACE_EXPANSION_RECORDED_HEAD,
+            path="frontend/package-lock.json",
+        ),
+    )
 
 
 def _version_is_affected(*, version: Version, advisory: str) -> bool:
@@ -1111,6 +1205,17 @@ def _assert_brace_expansion_owner_evidence(document: str) -> None:
     assert digest_matches == [
         BRACE_EXPANSION_HEAD_EVIDENCE_SHA256
     ], "owner targeted-evidence digest marker drift"
+    recorded_package_json, recorded_package_lock = (
+        _load_recorded_brace_expansion_head_evidence_documents()
+    )
+    assert (
+        _brace_expansion_head_evidence_digest(
+            package_json=recorded_package_json,
+            package_lock=recorded_package_lock,
+            enforce_current_safety=False,
+        )
+        == BRACE_EXPANSION_HEAD_EVIDENCE_SHA256
+    ), "recorded remediation-head artifacts do not match the owner evidence digest"
 
 
 def _is_governed_npm_surface(relative: PurePosixPath) -> bool:

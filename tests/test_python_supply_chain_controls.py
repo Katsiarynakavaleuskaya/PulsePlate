@@ -10,6 +10,7 @@ from pathlib import Path
 import runpy
 import shutil
 import subprocess
+from typing import Any, cast
 
 from packaging.requirements import InvalidRequirement
 from packaging.requirements import Requirement
@@ -18,6 +19,7 @@ import pytest
 import yaml
 
 import scripts.ci.install_locked_python_requirements as locked_installer
+from scripts.ci import dependabot_requirement_carriers as carriers
 from scripts.ci import check_python_dependency_surfaces as dependency_surfaces
 from scripts.ci.check_docker_provenance_attestation import SBOM_PREDICATE_TYPE
 from tests.runtime_toolchain_versions import CANONICAL_PYTHON
@@ -44,6 +46,14 @@ APPROVED_TRUSTED_HOST_EXPRESSION = (
 )
 APPROVED_PR_PROXY_ENV_EXPRESSION = "${{ vars.PULSEPLATE_PYTHON_INDEX_URL }}"
 APPROVED_PR_TRUSTED_HOST_EXPRESSION = "${{ vars.PULSEPLATE_PYTHON_TRUSTED_HOST }}"
+APPROVED_DEVPI_CI_USER_EXPRESSION = (
+    "${{ github.event_name != 'pull_request' && "
+    "github.ref == 'refs/heads/main' && secrets.DEVPI_CI_USER || '' }}"
+)
+APPROVED_DEVPI_CI_PASSWORD_EXPRESSION = (
+    "${{ github.event_name != 'pull_request' && "
+    "github.ref == 'refs/heads/main' && secrets.DEVPI_CI_PASSWORD || '' }}"
+)
 PR_TRIGGERED_PROXY_WORKFLOWS = frozenset(
     {
         ".github/workflows/ci.yml",
@@ -710,7 +720,7 @@ def test_python_setup_action_netrc_lifecycle_rejects_unsafe_auth_inputs(
         assert not netrc_path.exists()
 
 
-def test_ci_python_setup_steps_receive_devpi_secrets_only_outside_pull_requests() -> None:
+def test_ci_python_setup_steps_receive_devpi_secrets_on_main_push_only() -> None:
     workflow = _load_workflow(".github/workflows/ci.yml")
     jobs = workflow["jobs"]
     assert isinstance(jobs, dict)
@@ -727,12 +737,8 @@ def test_ci_python_setup_steps_receive_devpi_secrets_only_outside_pull_requests(
     for step in setup_steps:
         env = step.get("env")
         assert isinstance(env, dict), f"Missing protected devpi env on {step}"
-        assert env["DEVPI_CI_USER"] == (
-            "${{ github.event_name != 'pull_request' && secrets.DEVPI_CI_USER || '' }}"
-        )
-        assert env["DEVPI_CI_PASSWORD"] == (
-            "${{ github.event_name != 'pull_request' && secrets.DEVPI_CI_PASSWORD || '' }}"
-        )
+        assert env["DEVPI_CI_USER"] == APPROVED_DEVPI_CI_USER_EXPRESSION
+        assert env["DEVPI_CI_PASSWORD"] == APPROVED_DEVPI_CI_PASSWORD_EXPRESSION
 
 
 def test_ci_security_job_keeps_devpi_setup_and_uses_pip_audit() -> None:
@@ -748,12 +754,8 @@ def test_ci_security_job_keeps_devpi_setup_and_uses_pip_audit() -> None:
     assert setup_step["with"]["requirements-profile"] == "ci-lite"
     assert setup_step["with"]["install-mode"] == "direct-proxy"
     setup_env = setup_step["env"]
-    assert setup_env["DEVPI_CI_USER"] == (
-        "${{ github.event_name != 'pull_request' && secrets.DEVPI_CI_USER || '' }}"
-    )
-    assert setup_env["DEVPI_CI_PASSWORD"] == (
-        "${{ github.event_name != 'pull_request' && secrets.DEVPI_CI_PASSWORD || '' }}"
-    )
+    assert setup_env["DEVPI_CI_USER"] == APPROVED_DEVPI_CI_USER_EXPRESSION
+    assert setup_env["DEVPI_CI_PASSWORD"] == APPROVED_DEVPI_CI_PASSWORD_EXPRESSION
 
     audit_step = _workflow_step_by_name(
         ".github/workflows/ci.yml",
@@ -1014,6 +1016,34 @@ def test_proxy_backed_workflows_support_vars_or_secrets(workflow_path: str) -> N
 
     assert APPROVED_PROXY_ENV_EXPRESSION in workflow_text
     assert APPROVED_TRUSTED_HOST_EXPRESSION in workflow_text
+
+
+@pytest.mark.parametrize(
+    "workflow_path",
+    (
+        ".github/workflows/ci.yml",
+        ".github/workflows/frontend-ci.yml",
+        ".github/workflows/build.yml",
+    ),
+)
+def test_devpi_ci_secrets_are_not_exposed_to_feature_branch_pushes(workflow_path: str) -> None:
+    workflow_text = (REPO_ROOT / workflow_path).read_text(encoding="utf-8")
+    vulnerable_user_expression = "github.event_name != 'pull_request' && secrets.DEVPI_CI_USER"
+    vulnerable_password_expression = (
+        "github.event_name != 'pull_request' && secrets.DEVPI_CI_PASSWORD"
+    )
+
+    assert vulnerable_user_expression not in workflow_text
+    assert vulnerable_password_expression not in workflow_text
+
+    workflow = _load_workflow(workflow_path)
+    user_envs = list(_iter_step_env_values(workflow, "DEVPI_CI_USER"))
+    password_envs = list(_iter_step_env_values(workflow, "DEVPI_CI_PASSWORD"))
+
+    assert user_envs, f"Expected DEVPI_CI_USER env in {workflow_path}"
+    assert password_envs, f"Expected DEVPI_CI_PASSWORD env in {workflow_path}"
+    assert set(user_envs) == {APPROVED_DEVPI_CI_USER_EXPRESSION}
+    assert set(password_envs) == {APPROVED_DEVPI_CI_PASSWORD_EXPRESSION}
 
 
 def test_pr_diagnostic_proxy_vars_must_stay_credential_free() -> None:
@@ -1971,12 +2001,8 @@ def test_build_workflow_passes_netrc_secret_file_to_private_index_docker_builds(
         )
 
         auth_env = auth_step["env"]
-        assert auth_env["DEVPI_CI_USER"] == (
-            "${{ github.event_name != 'pull_request' && secrets.DEVPI_CI_USER || '' }}"
-        )
-        assert auth_env["DEVPI_CI_PASSWORD"] == (
-            "${{ github.event_name != 'pull_request' && secrets.DEVPI_CI_PASSWORD || '' }}"
-        )
+        assert auth_env["DEVPI_CI_USER"] == APPROVED_DEVPI_CI_USER_EXPRESSION
+        assert auth_env["DEVPI_CI_PASSWORD"] == APPROVED_DEVPI_CI_PASSWORD_EXPRESSION
         assert auth_env["PULSEPLATE_PYTHON_INDEX_URL"] == "${{ vars.PULSEPLATE_PYTHON_INDEX_URL }}"
 
         auth_script = auth_step["run"]
@@ -2794,3 +2820,47 @@ def test_checked_in_docker_image_budget_policy_has_expected_schema() -> None:
         == "docs/telemetry/docker_image_baseline.production.json"
     )
     assert budget_payload["baseline_reference"]["workflow"] == "build.yml"
+
+
+def test_dependabot_git_discovery_isolated_from_executable_config(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    git = shutil.which("git")
+    assert git is not None
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    fixture_env = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
+
+    def fixture_git(*argv: str) -> None:
+        subprocess.run(  # nosec B603: resolved Git binary with fixed test-owned argv (remove-by: 2026-10-31, ref: PR-consol-ci-1)
+            [git, "-C", str(repo), *argv],
+            check=True,
+            capture_output=True,
+            env=fixture_env,
+        )
+
+    fixture_git("init", "--quiet")
+    (repo / "requirements.txt").write_text("requests==2.32.5\n", encoding="utf-8")
+    fixture_git("add", "requirements.txt")
+    fixture_git("config", "core.fsmonitor", str(tmp_path / "untrusted-helper"))
+
+    real_run = subprocess.run
+    observed: list[tuple[list[str], dict[str, str]]] = []
+
+    def record_git_run(argv: list[str], **kwargs: Any) -> subprocess.CompletedProcess[bytes]:
+        environment = kwargs.get("env")
+        assert isinstance(environment, dict)
+        observed.append((argv, environment))
+        return cast(subprocess.CompletedProcess[bytes], real_run(argv, **kwargs))
+
+    monkeypatch.setattr(carriers.subprocess, "run", record_git_run)
+    assert carriers.discover_dependabot_requirement_carriers(repo) == {"requirements.txt"}
+    assert len(observed) == 2
+    for argv, environment in observed:
+        assert argv[0] == carriers.GIT_BINARY
+        assert argv[1 : 1 + len(carriers.SAFE_GIT_CONFIG_ARGS)] == list(
+            carriers.SAFE_GIT_CONFIG_ARGS
+        )
+        assert environment["GIT_CONFIG_GLOBAL"] == os.devnull
+        assert environment["GIT_CONFIG_NOSYSTEM"] == "1"
+        assert environment["GIT_TERMINAL_PROMPT"] == "0"
