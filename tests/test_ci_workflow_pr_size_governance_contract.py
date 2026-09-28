@@ -6,8 +6,11 @@ from collections.abc import Iterator
 import fnmatch
 import hashlib
 import json
+import os
 from pathlib import Path
 import re
+import shutil
+import subprocess
 from typing import cast
 
 import pytest
@@ -1955,8 +1958,9 @@ def test_docs_phase1_gates_include_schema_only_contract_changes() -> None:
     assert docs_phase1_section.index('BASE_REF="$(git rev-parse HEAD^1)"') < (
         docs_phase1_section.index("github.event.pull_request.base.sha")
     )
-    assert 'git diff --name-status -z --diff-filter=ACDMRT "$BASE_REF"...HEAD' in (
-        docs_phase1_section
+    assert (
+        'git diff --name-status -z --find-renames --find-copies-harder --diff-filter=ACDMRT "$BASE_REF"...HEAD'
+        in (docs_phase1_section)
     )
     assert 'case "$status" in' in docs_phase1_section
     assert "R*|C*)" in docs_phase1_section
@@ -1981,7 +1985,9 @@ def test_docs_phase1_gates_include_schema_only_contract_changes() -> None:
     for pr5_companion_input in (
         "docs/orchestration/contracts/PHILOSOPHY_SOURCE_CORPUS_INDEX.json",
         "docs/orchestration/contracts/PHILOSOPHY_SOURCE_CORPUS_INDEX.schema.json",
+        "docs/orchestration/contracts/PHILOSOPHY_GATE_OPEN_PRECONDITIONS_REPORT.json",
         "docs/orchestration/PHILOSOPHY_EPIC_V2_PR5_SOURCE_CORPUS_INDEX_PACKET_2026-05-24.md",
+        "docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md",
         "scripts/ci/check_philosophy_source_corpus_index.py",
         "tests/test_philosophy_source_corpus_index.py",
     ):
@@ -1994,14 +2000,15 @@ def test_docs_phase1_gates_include_schema_only_contract_changes() -> None:
     )
     for pr5_companion_input in (
         "docs/orchestration/contracts/PHILOSOPHY_SOURCE_CORPUS_INDEX.schema.json",
+        "docs/orchestration/contracts/PHILOSOPHY_GATE_OPEN_PRECONDITIONS_REPORT.json",
         "docs/orchestration/PHILOSOPHY_EPIC_V2_PR5_SOURCE_CORPUS_INDEX_PACKET_2026-05-24.md",
+        "docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md",
         "scripts/ci/check_philosophy_source_corpus_index.py",
         "tests/test_philosophy_source_corpus_index.py",
     ):
         assert pr5_companion_input in pr5_case
     for unrelated_pr5_trigger in (
         "docs/roadmap/BACKLOG_LEDGER.md",
-        "docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md",
         "scripts/ci/check_docs_phase1_gates.py",
     ):
         assert unrelated_pr5_trigger not in pr5_case
@@ -2017,6 +2024,105 @@ def test_docs_phase1_gates_include_schema_only_contract_changes() -> None:
         'python scripts/ci/check_docs_phase1_gates.py --files "${CHANGED_DOCS[@]}"'
         not in docs_phase1_section
     )
+
+
+@pytest.mark.parametrize(
+    ("operation", "source_path", "expected_trigger"),
+    [
+        ("copy", "docs/orchestration/contracts/PHILOSOPHY_SOURCE_CORPUS_INDEX.json", "1"),
+        ("copy", "docs/evidence/unrelated.json", "0"),
+        ("modify", "docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md", "1"),
+        (
+            "modify",
+            "docs/orchestration/contracts/PHILOSOPHY_GATE_OPEN_PRECONDITIONS_REPORT.json",
+            "1",
+        ),
+        ("modify", "docs/evidence/unrelated.json", "0"),
+    ],
+)
+def test_docs_phase1_corpus_input_discovery_executes_workflow_path_loop(
+    tmp_path: Path, operation: str, source_path: str, expected_trigger: str
+) -> None:
+    git = shutil.which("git")
+    bash = shutil.which("bash")
+    assert git is not None and bash is not None
+    fixture_env = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
+    fixture_env.update(GIT_CONFIG_GLOBAL=os.devnull, GIT_CONFIG_NOSYSTEM="1")
+
+    def run_git(*args: str) -> str:
+        result = subprocess.run(  # nosec B603: resolved Git in test-owned repository (remove-by: 2026-10-31, ref: PR-2446)
+            [git, "-C", str(tmp_path), *args],
+            check=True,
+            capture_output=True,
+            text=True,
+            env=fixture_env,
+        )
+        return result.stdout.strip()
+
+    run_git("init", "--quiet")
+    source = tmp_path / source_path
+    source.parent.mkdir(parents=True)
+    source.write_text("safe source corpus evidence\n", encoding="utf-8")
+    run_git("add", ".")
+    run_git(
+        "-c",
+        "user.name=CI Test",
+        "-c",
+        "user.email=ci@example.test",
+        "commit",
+        "--quiet",
+        "-m",
+        "base",
+    )
+    base_ref = run_git("rev-parse", "HEAD")
+    destination_path: str | None = None
+    if operation == "copy":
+        destination_path = "docs/evidence/copied.json"
+        destination = tmp_path / destination_path
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_bytes(source.read_bytes())
+        run_git("add", destination_path)
+    else:
+        source.write_text("safe updated corpus evidence\n", encoding="utf-8")
+        run_git("add", source_path)
+    run_git(
+        "-c",
+        "user.name=CI Test",
+        "-c",
+        "user.email=ci@example.test",
+        "commit",
+        "--quiet",
+        "-m",
+        operation,
+    )
+
+    workflow = yaml.safe_load(CI_WORKFLOW_PATH.read_text(encoding="utf-8"))
+    steps = workflow["jobs"]["docs_phase1_gates"]["steps"]
+    run_script = next(step["run"] for step in steps if step.get("name") == "Run Phase1 docs gates")
+    start = run_script.index("CHANGED_MD=()")
+    end = run_script.index("\n", run_script.index("done < <(git diff --name-status", start))
+    path_loop = run_script[start:end]
+    assert "--find-copies-harder" in path_loop
+    result = subprocess.run(  # nosec B603: resolved Bash runs extracted fixed workflow loop (remove-by: 2026-10-31, ref: PR-2446)
+        [
+            bash,
+            "-c",
+            "set -euo pipefail\n"
+            + path_loop
+            + "\nprintf 'FLAG=%s\\n' \"$PR5_SOURCE_CORPUS_CHANGED\"\n"
+            + "printf 'PATH=%s\\n' \"${ALL_CHANGED_FILES[@]}\"\n",
+        ],
+        cwd=tmp_path,
+        env={**fixture_env, "BASE_REF": base_ref},
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    assert f"FLAG={expected_trigger}" in result.stdout.splitlines()
+    assert f"PATH={source_path}" in result.stdout.splitlines()
+    if destination_path is not None:
+        assert f"PATH={destination_path}" in result.stdout.splitlines()
 
 
 def test_semantic_cache_contract_suites_include_philosophy_policy_oracle() -> None:

@@ -303,14 +303,16 @@ jobs:
               case "$path" in
                 docs/orchestration/contracts/PHILOSOPHY_SOURCE_CORPUS_INDEX.json|\
                 docs/orchestration/contracts/PHILOSOPHY_SOURCE_CORPUS_INDEX.schema.json|\
+                docs/orchestration/contracts/PHILOSOPHY_GATE_OPEN_PRECONDITIONS_REPORT.json|\
                 docs/orchestration/PHILOSOPHY_EPIC_V2_PR5_SOURCE_CORPUS_INDEX_PACKET_2026-05-24.md|\
+                docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md|\
                 scripts/ci/check_philosophy_source_corpus_index.py|\
                 tests/test_philosophy_source_corpus_index.py)
                   PR5_SOURCE_CORPUS_CHANGED=1
                   ;;
               esac
             done
-          done < <(git diff --name-status -z --diff-filter=ACDMRT "$BASE_REF"...HEAD)
+          done < <(git diff --name-status -z --find-renames --find-copies-harder --diff-filter=ACDMRT "$BASE_REF"...HEAD)
           while IFS= read -r -d '' path; do
             CHANGED_MD+=("$path")
             if [[ "$path" == docs/* ]]; then
