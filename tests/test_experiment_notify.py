@@ -591,6 +591,69 @@ def test_slack_delivery_accepts_allowlisted_channel_and_writes_audit(
     )
 
 
+@pytest.mark.parametrize("runner_mode", ["candidate_patch", "oracle_only_governance_reviewer"])
+@pytest.mark.parametrize("security_allowlist", [None, "C0OTHER", "C0ALERTS,", "C0ALERTS"])
+def test_sensitive_slack_outcomes_require_both_channel_lists_before_send(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    runner_mode: str,
+    security_allowlist: str | None,
+) -> None:
+    repo = _init_repo(tmp_path)
+    _configure_repo(monkeypatch, repo)
+    _configure_slack_env(monkeypatch)
+    _reset_fake_slack()
+    monkeypatch.setattr(experiment_notify, "_send_slack_api_message", FakeSlackTransport())
+    if security_allowlist is not None:
+        monkeypatch.setenv(
+            experiment_notify.SLACK_SECURITY_CHANNEL_ALLOWLIST_ENV, security_allowlist
+        )
+    packet = _packet(runner_mode=runner_mode)
+    if runner_mode == "oracle_only_governance_reviewer":
+        monkeypatch.setattr(experiment_contract, "REPO_ROOT", Path(__file__).resolve().parents[1])
+        packet["mutable_candidate_surface"] = ["scripts/orchestration/experiment_notify.py"]
+    packet_path = _write_json(tmp_path / "packet.json", packet)
+    result = _result(status="rejected", failure_class="policy_violation", runner_mode=runner_mode)
+    result["mutated_paths"] = []
+    result["oracle_results"] = []
+    if runner_mode == "oracle_only_governance_reviewer":
+        result["candidate_patch"] = runner_mode
+    result["budget_observations"] = {
+        "attempts": 0,
+        "retries_consumed": 0,
+        "runner_error": "terminal policy violation",
+    }
+    result_path = _write_json(tmp_path / "result.json", result)
+
+    exit_code = experiment_notify.main(
+        [
+            "--packet",
+            str(packet_path),
+            "--result",
+            str(result_path),
+            "--slack",
+            "--slack-channel",
+            "C0ALERTS",
+        ]
+    )
+    audit_path = (
+        repo
+        / "artifacts"
+        / "orchestration"
+        / "experiments"
+        / "notifications"
+        / "exp-notify.slack-audit.json"
+    )
+    if security_allowlist == "C0ALERTS":
+        assert exit_code == 0
+        assert len(FakeSlackTransport.calls) == 1
+        assert audit_path.is_file()
+    else:
+        assert exit_code == 1
+        assert FakeSlackTransport.calls == []
+        assert not audit_path.exists()
+
+
 def test_slack_delivery_requires_explicit_allowlisted_channel(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

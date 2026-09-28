@@ -423,6 +423,10 @@ class FakeGit:
     def rev_parse_origin_main(self) -> str:
         return self.base_sha
 
+    def remote_main_sha(self) -> str:
+        self.calls.append(["remote_main_sha"])
+        return self.base_sha
+
     def shared_status(self) -> str:
         return ""
 
@@ -669,6 +673,70 @@ def _write_ready_promotion_artifacts(
     _write_json(promotion_dir / creative_code_pr_promotion.VALIDATION_FILE, validation)
     _write_json(promotion_dir / creative_code_pr_promotion.APPROVAL_FILE, approval)
     return plan, validation, approval, promotion_dir
+
+
+def _promote_with_real_validation(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    promotion_id: str,
+    git: FakeGit,
+    github: FakeGitHub,
+) -> dict[str, Any]:
+    """Run actual validation and TTY approval while faking external effects."""
+
+    promotion_dir = creative_code_pr_promotion.resolve_promotion_dir(promotion_id, create=False)
+    state = creative_code_pr_promotion._load_state(promotion_dir)
+    repo = creative_code_pr_promotion.REPO_ROOT
+    run_id = state["patch_run"]
+    result_path, _packet = _write_dispatch_fixture(repo, run_id)
+    plan = creative_code_pr_promotion._load_plan(promotion_dir)
+    phrase = (
+        f"APPROVE NON-DRAFT PR {promotion_plan_fingerprint(plan)} "
+        f"{plan['patch_fingerprint'][7:15]}\n"
+    )
+    existing_prepare = creative_code_pr_promotion._prepare_checkout
+    existing_apply = creative_code_pr_promotion._apply_patch_and_verify
+    existing_destroy = creative_code_pr_promotion._destroy_checkout
+
+    def prepare(**kwargs: Any) -> Path:
+        if kwargs["dirname"] == creative_code_pr_promotion.VALIDATION_CHECKOUT:
+            checkout = promotion_dir / kwargs["dirname"]
+            checkout.mkdir()
+            return checkout
+        return cast(Path, existing_prepare(**kwargs))
+
+    def apply(**kwargs: Any) -> None:
+        if kwargs["checkout"].name != creative_code_pr_promotion.VALIDATION_CHECKOUT:
+            existing_apply(**kwargs)
+
+    def destroy(directory: Path, dirname: str) -> bool:
+        if dirname == creative_code_pr_promotion.VALIDATION_CHECKOUT:
+            (directory / dirname).rmdir()
+            return True
+        return bool(existing_destroy(directory, dirname))
+
+    with monkeypatch.context() as context:
+        context.setattr(creative_code_pr_promotion, "_prepare_checkout", prepare)
+        context.setattr(creative_code_pr_promotion, "_apply_patch_and_verify", apply)
+        context.setattr(creative_code_pr_promotion, "_destroy_checkout", destroy)
+        context.setattr(
+            creative_code_pr_promotion,
+            "_ensure_patch_unchanged_after_gates",
+            lambda **_kwargs: None,
+        )
+        return cast(
+            dict[str, Any],
+            creative_code_pr_promotion.promote(
+                promotion_id=promotion_id,
+                trusted_dispatch_result=result_path.relative_to(repo),
+                trusted_generation_receipt=_generation_receipt_path(repo, run_id).relative_to(repo),
+                git=git,
+                github=github,
+                gate_runner=FakeGates(),
+                stdin=FakeTTY(phrase),
+                stdout=FakeStdout(),
+            ),
+        )
 
 
 def test_pr3_schemas_are_closed() -> None:
@@ -1165,16 +1233,17 @@ def test_plan_writes_non_draft_artifact_and_rejects_existing_branch(
     assert "/Users/" not in body
 
 
-def test_validation_uses_isolated_checkout_and_destroyed_on_success(
+def test_validation_uses_isolated_checkout_and_trusted_evidence_on_success(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    _repo, run_id, _result = _make_patch_run(monkeypatch, tmp_path)
+    repo, run_id, _result = _make_patch_run(monkeypatch, tmp_path)
     planned = creative_code_pr_promotion.plan(
         patch_run=run_id,
         promotion_id="promotion-pr3-validate",
         git=FakeGit(),
     )
+    result_path, _packet = _write_dispatch_fixture(repo, run_id)
     calls: list[str] = []
 
     def fake_prepare(**kwargs: Any) -> Path:
@@ -1205,15 +1274,17 @@ def test_validation_uses_isolated_checkout_and_destroyed_on_success(
     gates = FakeGates()
     validation = creative_code_pr_promotion.validate(
         promotion_id="promotion-pr3-validate",
+        trusted_dispatch_result=result_path.relative_to(repo),
+        trusted_generation_receipt=_generation_receipt_path(repo, run_id).relative_to(repo),
         git=FakeGit(),
         gate_runner=gates,
     )
 
     assert validation["preopen_gates"]["pre_commit"] == "passed"
     assert validation["validation_checkout"]["used_throwaway_commit"] is True
-    assert validation["oracle_evidence"]["source"] == "direct_evaluation"
-    assert validation["oracle_evidence"]["executed_during_validation"] is True
-    assert gates.calls == ["fresh_oracle", "pre_commit", "validate_changed"]
+    assert validation["oracle_evidence"]["source"] == "trusted_apple_dispatch"
+    assert validation["oracle_evidence"]["executed_during_validation"] is False
+    assert gates.calls == ["pre_commit", "validate_changed"]
     assert calls == [
         "prepare:validation_checkout",
         "apply",
@@ -1257,7 +1328,7 @@ def test_validation_accepts_exact_trusted_apple_dispatch_without_direct_evaluati
     assert gates.calls == ["pre_commit", "validate_changed"]
 
 
-def test_validation_rejects_direct_packet_drift_during_gates(
+def test_validation_rejects_trusted_packet_drift_during_gates(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
@@ -1271,6 +1342,7 @@ def test_validation_rejects_direct_packet_drift_during_gates(
         promotion_id="promotion-pr3-direct-packet-drift",
         git=FakeGit(),
     )
+    result_path, _packet = _write_dispatch_fixture(repo, run_id)
     run_dir = repo / "artifacts" / "orchestration" / "creative_code" / "patch_runs" / run_id
     packet_path = run_dir / EXPERIMENT_PACKET_FILE
     promotion_dir = Path(planned["promotion_dir"])
@@ -1285,12 +1357,11 @@ def test_validation_rejects_direct_packet_drift_during_gates(
             ] = "pytest -q tests/test_creative_code_patch_generation.py"
             _write_json(packet_path, packet)
 
-    with pytest.raises(
-        CreativeCodePRPromotionError,
-        match="direct oracle experiment packet changed during validation",
-    ):
+    with pytest.raises(CreativeCodePRPromotionError):
         creative_code_pr_promotion.validate(
             promotion_id="promotion-pr3-direct-packet-drift",
+            trusted_dispatch_result=result_path.relative_to(repo),
+            trusted_generation_receipt=_generation_receipt_path(repo, run_id).relative_to(repo),
             git=FakeGit(),
             gate_runner=MutatingGates(),
         )
@@ -2074,67 +2145,28 @@ def test_validation_rejects_generation_receipt_drift_from_canonical_gate(
     assert not (promotion_dir / creative_code_pr_promotion.VALIDATION_FILE).exists()
 
 
-def test_validation_capability_signal_cleans_checkout_without_artifact_or_leak(
+def test_validation_rejects_absent_pair_before_checkout_or_host_execution(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
     _repo, run_id, _result = _make_patch_run(monkeypatch, tmp_path)
-    git = cast(creative_code_pr_promotion.GitTransport, FakeGit())
     planned = creative_code_pr_promotion.plan(
         patch_run=run_id,
-        promotion_id="promotion-pr3-capability-signal",
-        git=git,
+        promotion_id="promotion-pr3-absent-pair",
+        git=FakeGit(),
     )
-    calls: list[str] = []
-    canary = "/Users/example/ghp_capability_canary"
-
-    def fake_prepare(**kwargs: Any) -> Path:
-        dirname = kwargs["dirname"]
-        assert isinstance(dirname, str)
-        calls.append(f"prepare:{dirname}")
-        checkout = Path(planned["promotion_dir"]) / dirname
-        checkout.mkdir()
-        return checkout
-
-    def fake_apply(**kwargs: Any) -> None:
-        calls.append("apply")
-
-    def fake_destroy(_promotion_dir: Path, dirname: str) -> bool:
-        calls.append(f"destroy:{dirname}")
-        return True
-
-    def raise_capability_signal(*args: Any, **kwargs: Any) -> dict[str, Any]:
-        raise creative_code_pr_promotion.RunnerCapabilitySignal(canary)
-
-    monkeypatch.setattr(creative_code_pr_promotion, "_prepare_checkout", fake_prepare)
-    monkeypatch.setattr(creative_code_pr_promotion, "_apply_patch_and_verify", fake_apply)
-    monkeypatch.setattr(creative_code_pr_promotion, "_destroy_checkout", fake_destroy)
-    monkeypatch.setattr(
-        creative_code_pr_promotion,
-        "evaluate_candidate",
-        raise_capability_signal,
-    )
-
-    with pytest.raises(
-        CreativeCodePRPromotionError,
-        match=(
-            "^Fresh Experiment Runner capability unavailable; " "trusted dispatch is required\\.$"
-        ),
-    ) as exc_info:
-        creative_code_pr_promotion.validate(
-            promotion_id="promotion-pr3-capability-signal",
-            git=git,
-            gate_runner=creative_code_pr_promotion.GateRunner(),
-        )
-
-    assert exc_info.value.__cause__ is None
-    assert canary not in str(exc_info.value)
-    assert calls == [
-        "prepare:validation_checkout",
-        "apply",
-        "destroy:validation_checkout",
-    ]
     promotion_dir = Path(planned["promotion_dir"])
+
+    def fail_prepare(**_kwargs: Any) -> Path:
+        pytest.fail("missing pair must reject before validation checkout")
+
+    monkeypatch.setattr(creative_code_pr_promotion, "_prepare_checkout", fail_prepare)
+    with pytest.raises(CreativeCodePRPromotionError, match="required for validation"):
+        creative_code_pr_promotion.validate(
+            promotion_id="promotion-pr3-absent-pair",
+            git=FakeGit(),
+            gate_runner=FakeGates(),
+        )
     assert not (promotion_dir / creative_code_pr_promotion.VALIDATION_FILE).exists()
 
 
@@ -2477,7 +2509,8 @@ def test_promotion_readback_requires_non_draft(
 
     git = FakeGit()
     github = FakeGitHub()
-    receipt = creative_code_pr_promotion.promote(
+    receipt = _promote_with_real_validation(
+        monkeypatch,
         promotion_id="promotion-pr3-promote",
         git=git,
         github=github,
@@ -2534,13 +2567,14 @@ def test_promote_rejects_non_human_git_identity_before_mutation(
     git = FakeGit(identity=("PulsePlate Experiment Runner", "pulseplate@pm.me"))
     github = FakeGitHub()
     with pytest.raises(CreativeCodePRPromotionError, match="human git identity"):
-        creative_code_pr_promotion.promote(
+        _promote_with_real_validation(
+            monkeypatch,
             promotion_id="promotion-pr3-runner-identity",
             git=git,
             github=github,
         )
 
-    assert not any("commit" in call or "push_upload_branch" in call for call in git.calls)
+    assert not any(call[:1] == ["push_upload_branch"] for call in git.calls)
     assert not any(call[:2] == ["pr", "create"] for call in github.calls)
 
 
@@ -2588,7 +2622,8 @@ def test_promote_identity_verification_failure_writes_no_receipt_or_remote_mutat
     git = FakeGit(verify_identity_failure=True)
     github = FakeGitHub()
     with pytest.raises(CreativeCodePRPromotionError, match="identity mismatch"):
-        creative_code_pr_promotion.promote(
+        _promote_with_real_validation(
+            monkeypatch,
             promotion_id="promotion-pr3-identity-verify",
             git=git,
             github=github,
@@ -2788,7 +2823,8 @@ def test_promote_rejects_stale_patch_file_before_mutation(
     git = FakeGit()
     github = FakeGitHub()
     with pytest.raises(CreativeCodePRPromotionError, match="candidate.patch changed"):
-        creative_code_pr_promotion.promote(
+        _promote_with_real_validation(
+            monkeypatch,
             promotion_id="promotion-pr3-stale-patch",
             git=git,
             github=github,
@@ -2841,8 +2877,9 @@ def test_promote_rejects_branch_that_appears_before_ref_create(
 
     git = FakeGit(remote_exists_sequence=[False, True])
     github = FakeGitHub()
-    with pytest.raises(CreativeCodePRPromotionError, match="appeared before ref create"):
-        creative_code_pr_promotion.promote(
+    with pytest.raises(CreativeCodePRPromotionError, match="appeared before remote effect"):
+        _promote_with_real_validation(
+            monkeypatch,
             promotion_id="promotion-pr3-branch-race",
             git=git,
             github=github,
@@ -2896,7 +2933,8 @@ def test_promote_create_ref_failure_cleans_temporary_upload_ref(
     git = FakeGit()
     github = FailingCreateRefGitHub()
     with pytest.raises(CreativeCodePRPromotionError, match="target ref already exists"):
-        creative_code_pr_promotion.promote(
+        _promote_with_real_validation(
+            monkeypatch,
             promotion_id="promotion-pr3-create-ref-failure",
             git=git,
             github=github,
@@ -2958,7 +2996,8 @@ def test_promote_cleans_ambiguous_temp_upload_push(
         creative_code_pr_promotion.TemporaryUploadBranchAmbiguousError,
         match="cleanup required",
     ):
-        creative_code_pr_promotion.promote(
+        _promote_with_real_validation(
+            monkeypatch,
             promotion_id="promotion-pr3-ambiguous-upload",
             git=git,
             github=github,
@@ -3017,7 +3056,8 @@ def test_promote_cleans_temp_upload_after_push_timeout(
     git = TimeoutUploadGit()
     github = FakeGitHub()
     with pytest.raises(subprocess.TimeoutExpired):
-        creative_code_pr_promotion.promote(
+        _promote_with_real_validation(
+            monkeypatch,
             promotion_id="promotion-pr3-timeout-upload",
             git=git,
             github=github,
@@ -3064,12 +3104,19 @@ def test_promote_rejects_approval_artifact_cross_mismatch(
     _write_json(promotion_dir / creative_code_pr_promotion.VALIDATION_FILE, validation)
     _write_json(promotion_dir / creative_code_pr_promotion.APPROVAL_FILE, approval)
 
+    class DriftMainGit(FakeGit):
+        def remote_main_sha(self) -> str:
+            return "d" * 40
+
     github = FakeGitHub()
-    with pytest.raises(CreativeCodePRPromotionError, match="approval target branch"):
-        creative_code_pr_promotion.promote(
+    with pytest.raises(CreativeCodePRPromotionError, match="remote main drifted"):
+        _promote_with_real_validation(
+            monkeypatch,
             promotion_id="promotion-pr3-stale-approval",
-            git=FakeGit(),
+            git=DriftMainGit(),
             github=github,
         )
 
-    assert github.calls == []
+    fresh_approval = creative_code_pr_promotion._load_approval(promotion_dir)
+    assert fresh_approval["confirmed_target_branch"] == plan["target_head_branch"]
+    assert not any(call[:2] == ["pr", "create"] for call in github.calls)

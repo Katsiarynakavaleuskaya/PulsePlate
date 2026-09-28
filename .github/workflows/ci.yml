@@ -470,10 +470,19 @@ jobs:
             exit 1
           fi
 
-      - name: Checkout
+      - name: Checkout policy
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: policy
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Checkout material
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           ref: ${{ github.event.pull_request.head.sha }}
+          path: material
           fetch-depth: 0
           persist-credentials: false
 
@@ -489,7 +498,9 @@ jobs:
         run: |
           set -euo pipefail
           # Outage receipts fail closed until exact-current-head security jobs settle.
-          python scripts/ci/check_pr_merge_readiness.py \
+          cd "$GITHUB_WORKSPACE/policy"
+          python "$GITHUB_WORKSPACE/policy/scripts/ci/check_pr_merge_readiness.py" \
+            --material-repo-root "$GITHUB_WORKSPACE/material" \
             --event-path "$GITHUB_EVENT_PATH" \
             --outage-security-wait-seconds 300
 

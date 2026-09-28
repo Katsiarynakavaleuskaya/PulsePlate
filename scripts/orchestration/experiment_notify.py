@@ -39,6 +39,7 @@ try:
     from scripts.orchestration.experiment_slack_kpp_renderer import (
         KPPRenderError,
         KPPSlackBlockMessage,
+        SECURITY_SENSITIVE_OUTCOMES,
         render_kpp_block_message,
         route_kpp_outcome_from_result,
     )
@@ -64,6 +65,7 @@ SMTP_AUTH_ENV = "EXPERIMENT_NOTIFICATION_SMTP_" + "".join(("P", "ASS", "W", "ORD
 SMTP_FROM_ENV = "EXPERIMENT_NOTIFICATION_EMAIL_FROM"
 SLACK_BOT_AUTH_ENV = "EXPERIMENT_NOTIFICATION_SLACK_BOT_" + "".join(("TO", "KEN"))
 SLACK_CHANNEL_ALLOWLIST_ENV = "EXPERIMENT_NOTIFICATION_SLACK_CHANNEL_ALLOWLIST"
+SLACK_SECURITY_CHANNEL_ALLOWLIST_ENV = "EXPERIMENT_NOTIFICATION_SLACK_SECURITY_CHANNEL_ALLOWLIST"
 SLACK_TIMEOUT_ENV = "EXPERIMENT_NOTIFICATION_SLACK_TIMEOUT_SECONDS"
 SLACK_MIN_INTERVAL_ENV = "EXPERIMENT_NOTIFICATION_SLACK_MIN_INTERVAL_SECONDS"
 SLACK_API_HOST = "slack.com"
@@ -1089,6 +1091,23 @@ def _require_allowed_slack_channel(raw_channel: str | None) -> str:
     return channel
 
 
+def _require_security_slack_channel(channel: str, *, outcome: str) -> None:
+    """Gate typed sensitive outcomes before any Slack send claim or transport."""
+
+    if outcome not in SECURITY_SENSITIVE_OUTCOMES:
+        return
+    raw = os.environ.get(SLACK_SECURITY_CHANNEL_ALLOWLIST_ENV, "")
+    candidates = raw.split(",")
+    if not raw.strip() or any(not candidate.strip() for candidate in candidates):
+        raise ExperimentSlackDeliveryError("Slack security channel allowlist is invalid.")
+    try:
+        approved = {_normalize_slack_channel(candidate) for candidate in candidates}
+    except ExperimentSlackDeliveryError as exc:
+        raise ExperimentSlackDeliveryError("Slack security channel allowlist is invalid.") from exc
+    if channel not in approved:
+        raise ExperimentSlackDeliveryError("Slack channel is not approved for this outcome.")
+
+
 def _slack_config() -> dict[str, str | int]:
     """Read Slack runtime settings without returning raw secrets in errors."""
 
@@ -1471,6 +1490,9 @@ def main(argv: list[str] | None = None) -> int:
                 promotion_path, label="promotion"
             )
             promotion = _validate_promotion_decision(promotion_payload)
+        if args.slack and slack_channel is not None:
+            outcome = route_kpp_outcome_from_result(result, promotion)
+            _require_security_slack_channel(slack_channel, outcome=outcome)
         output_path = _resolve_output_path(args.output, packet["experiment_id"])
         markdown = render_notification_markdown(packet, result, promotion)
     except ValueError:

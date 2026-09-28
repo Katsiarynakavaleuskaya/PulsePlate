@@ -1783,91 +1783,25 @@ def test_patch_metadata_rejects_new_executable_file(
         )
 
 
-def test_evaluate_writes_sanitized_result_without_runner_leaks(
+def test_direct_evaluate_writes_only_bound_dispatch_packet_without_host_execution(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
     repo, base_sha = _init_patch_repo(tmp_path)
     _patch_modules_to_repo(monkeypatch, repo)
-    run_dir = creative_code_patch_workspace.resolve_run_dir("eval-sanitize", create=True)
-    request = _request_for_base(base_sha)
-    state = {
-        "run_id": "eval-sanitize",
-        "request_id": request["request_id"],
-        "source_bundle_id": request["source_bundle_id"],
-        "selected_variant_id": request["selected_variant_id"],
-        "base_commit_sha": base_sha,
-        "workspace": {"origin_removed": True},
-        "candidate_patch_generated": True,
-        "checkout_destroyed": True,
-    }
-    patch_text = """diff --git a/core/rag/orchestration.py b/core/rag/orchestration.py
-index 8f11111..8f22222 100644
---- a/core/rag/orchestration.py
-+++ b/core/rag/orchestration.py
-@@ -1,2 +1,2 @@
- def value() -> int:
--    return 1
-+    return 2
-"""
-    metadata = {
-        "changed_paths": ["core/rag/orchestration.py"],
-        "changed_path_statuses": {"core/rag/orchestration.py": "M"},
-        "patch_fingerprint": fingerprint_payload({"candidate_patch": patch_text}),
-        "patch_bytes": len(patch_text.encode("utf-8")),
-        "changed_lines": 2,
-        "serialized_patch_lines": len(patch_text.splitlines()),
-        "line_metric": "numstat_added_plus_deleted_v1",
-    }
-    state["patch_metadata"] = metadata
-    creative_code_patch_workspace.write_json_atomic(run_dir / "request.json", request)
-    creative_code_patch_workspace.write_json_atomic(
-        run_dir / "source_bundle.json", _reference_bundle()
-    )
-    creative_code_patch_workspace.write_json_atomic(run_dir / "state.json", state)
-    creative_code_patch_workspace.write_json_atomic(run_dir / "patch_metadata.json", metadata)
-    (run_dir / "candidate.patch").write_text(patch_text, encoding="utf-8")
+    run_id = "eval-dispatch-only"
+    run_dir = _write_generated_run(run_id=run_id, base_sha=base_sha)
 
-    def fake_evaluate_candidate(
-        packet: dict[str, Any], candidate_patch_path: Path
-    ) -> dict[str, Any]:
-        return {
-            "experiment_id": packet["experiment_id"],
-            "runner_mode": "candidate_patch",
-            "candidate_patch": str(candidate_patch_path),
-            "status": "rejected",
-            "failure_class": "guard_failure",
-            "mutated_paths": ["core/rag/orchestration.py"],
-            "oracle_results": [
-                {
-                    "command": "pytest -q tests/test_creative_code_patch_builder.py",
-                    "returncode": 1,
-                    "timed_out": False,
-                    "truncated": False,
-                    "stdout": "/Users/example/raw output sk-secretsecretsecret",
-                    "stderr": "diff --git leak",
-                    "cwd": "/Users/example/checkout",
-                }
-            ],
-            "budget_observations": {
-                "oracle_commands_configured": 1,
-                "attempts": 1,
-                "retries_consumed": 0,
-                "runner_error": "/Users/example/ghp_secretsecretsecret",
-            },
-            "shared_tree_untouched": True,
-        }
+    def fail_host_execution(*_args: object, **_kwargs: object) -> dict[str, Any]:
+        pytest.fail("host candidate evaluator must never execute")
 
-    monkeypatch.setattr(creative_code_patch_builder, "evaluate_candidate", fake_evaluate_candidate)
-
-    result = creative_code_patch_builder.evaluate(run_id="eval-sanitize")
-    encoded = json.dumps(result, sort_keys=True)
-
-    assert result["status"] == "rejected"
-    assert result["runner_summary"]["runner_error_present"] is True
-    assert "/Users/example" not in encoded
-    assert "sk-secret" not in encoded
-    assert "diff --git leak" not in encoded
+    monkeypatch.setattr(creative_code_patch_builder, "evaluate_candidate", fail_host_execution)
+    with pytest.raises(CreativeCodePatchBuilderError, match="trusted dispatch is required"):
+        creative_code_patch_builder.evaluate(run_id=run_id)
+    assert (run_dir / creative_code_patch_builder.EXPERIMENT_PACKET_FILE).is_file()
+    assert not (run_dir / creative_code_patch_builder.RESULT_FILE).exists()
+    state = json.loads((run_dir / creative_code_patch_builder.STATE_FILE).read_text())
+    assert state.get("candidate_patch_evaluated") is not True
 
 
 def test_evaluate_rejects_shared_head_drift_before_runner_or_result_write(
@@ -1967,235 +1901,48 @@ def test_evaluate_supplies_cv_context_for_cv_candidate(
     creative_code_patch_workspace.write_json_atomic(run_dir / "patch_metadata.json", metadata)
     (run_dir / "candidate.patch").write_text(patch_text, encoding="utf-8")
 
-    def fake_evaluate_candidate(
-        packet: dict[str, Any], candidate_patch_path: Path
-    ) -> dict[str, Any]:
-        assert validate_cv_context(packet["cv_context"]) == packet["cv_context"]
-        assert packet["cv_context"]["privacy_packet"]["raw_image_retention"] == "forbidden"
-        return {
-            "experiment_id": packet["experiment_id"],
-            "runner_mode": "candidate_patch",
-            "candidate_patch": str(candidate_patch_path),
-            "status": "accepted",
-            "failure_class": None,
-            "mutated_paths": ["docs/prompts/cv/program.md"],
-            "oracle_results": [{"returncode": 0, "timed_out": False, "truncated": False}],
-            "budget_observations": {
-                "oracle_commands_configured": 1,
-                "attempts": 1,
-                "retries_consumed": 0,
-            },
-            "shared_tree_untouched": True,
-        }
-
-    monkeypatch.setattr(creative_code_patch_builder, "evaluate_candidate", fake_evaluate_candidate)
-
-    result = creative_code_patch_builder.evaluate(run_id=run_id)
-
-    assert result["status"] == "accepted"
-    packet = json.loads((run_dir / "experiment_packet.json").read_text(encoding="utf-8"))
+    packet = creative_code_patch_builder.prepare_dispatch(run_id=run_id)
+    assert validate_cv_context(packet["cv_context"]) == packet["cv_context"]
+    assert packet["cv_context"]["privacy_packet"]["raw_image_retention"] == "forbidden"
+    assert not (run_dir / creative_code_patch_builder.RESULT_FILE).exists()
     assert packet["cv_context"]["dataset"]["id"] == (
         "creative-research-cv-program-offline-eval-001"
     )
-    assert packet["cv_context"]["uncertainty_band_policy"]["bands"] == [
-        "high",
-        "medium",
-        "low",
-        "unknown",
-    ]
 
 
-def test_evaluate_fallback_stores_error_class_not_raw_exception(
+def test_prepare_dispatch_rejects_replay_without_replacing_packet(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
     repo, base_sha = _init_patch_repo(tmp_path)
     _patch_modules_to_repo(monkeypatch, repo)
-    run_dir = creative_code_patch_workspace.resolve_run_dir("eval-error-class", create=True)
-    request = _request_for_base(base_sha)
-    state = {
-        "run_id": "eval-error-class",
-        "request_id": request["request_id"],
-        "source_bundle_id": request["source_bundle_id"],
-        "selected_variant_id": request["selected_variant_id"],
-        "base_commit_sha": base_sha,
-        "workspace": {"origin_removed": True},
-        "candidate_patch_generated": True,
-        "checkout_destroyed": True,
-    }
-    patch_text = """diff --git a/core/rag/orchestration.py b/core/rag/orchestration.py
-index 8f11111..8f22222 100644
---- a/core/rag/orchestration.py
-+++ b/core/rag/orchestration.py
-@@ -1,2 +1,2 @@
- def value() -> int:
--    return 1
-+    return 2
-"""
-    metadata = {
-        "changed_paths": ["core/rag/orchestration.py"],
-        "changed_path_statuses": {"core/rag/orchestration.py": "M"},
-        "patch_fingerprint": fingerprint_payload({"candidate_patch": patch_text}),
-        "patch_bytes": len(patch_text.encode("utf-8")),
-        "changed_lines": 2,
-        "serialized_patch_lines": len(patch_text.splitlines()),
-        "line_metric": "numstat_added_plus_deleted_v1",
-    }
-    state["patch_metadata"] = metadata
-    creative_code_patch_workspace.write_json_atomic(run_dir / "request.json", request)
-    creative_code_patch_workspace.write_json_atomic(
-        run_dir / "source_bundle.json", _reference_bundle()
-    )
-    creative_code_patch_workspace.write_json_atomic(run_dir / "state.json", state)
-    creative_code_patch_workspace.write_json_atomic(run_dir / "patch_metadata.json", metadata)
-    (run_dir / "candidate.patch").write_text(patch_text, encoding="utf-8")
-
-    def fake_evaluate_candidate(
-        packet: dict[str, Any], candidate_patch_path: Path
-    ) -> dict[str, Any]:
-        raise RuntimeError("/Users/example/ghp_secretsecretsecret")
-
-    monkeypatch.setattr(creative_code_patch_builder, "evaluate_candidate", fake_evaluate_candidate)
-
-    result = creative_code_patch_builder.evaluate(run_id="eval-error-class")
-    encoded = json.dumps(result, sort_keys=True)
-
-    assert result["status"] == "rejected"
-    assert result["failure_class"] == "infra_flake"
-    assert result["runner_summary"]["runner_error_present"] is True
-    assert "/Users/example" not in encoded
-    assert "ghp_secret" not in encoded
-
-
-def test_evaluate_rejects_rerun_without_replacing_result(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-) -> None:
-    repo, base_sha = _init_patch_repo(tmp_path)
-    _patch_modules_to_repo(monkeypatch, repo)
-    run_id = "eval-rerun"
+    run_id = "dispatch-replay"
     run_dir = _write_generated_run(run_id=run_id, base_sha=base_sha)
-
-    def fake_evaluate_candidate(
-        packet: dict[str, Any], candidate_patch_path: Path
-    ) -> dict[str, Any]:
-        return {
-            "experiment_id": packet["experiment_id"],
-            "runner_mode": "candidate_patch",
-            "candidate_patch": str(candidate_patch_path),
-            "status": "accepted",
-            "failure_class": None,
-            "mutated_paths": ["core/rag/orchestration.py"],
-            "oracle_results": [{"returncode": 0, "timed_out": False, "truncated": False}],
-            "budget_observations": {
-                "oracle_commands_configured": 1,
-                "attempts": 1,
-                "retries_consumed": 0,
-            },
-            "shared_tree_untouched": True,
-        }
-
-    monkeypatch.setattr(creative_code_patch_builder, "evaluate_candidate", fake_evaluate_candidate)
-
-    creative_code_patch_builder.evaluate(run_id=run_id)
-    result_file = run_dir / creative_code_patch_builder.RESULT_FILE
-    original_result = result_file.read_bytes()
-
-    with pytest.raises(CreativeCodePatchBuilderError, match="already evaluated"):
-        creative_code_patch_builder.evaluate(run_id=run_id)
-
-    assert result_file.read_bytes() == original_result
-
-    state_file = run_dir / creative_code_patch_builder.STATE_FILE
-    state = json.loads(state_file.read_text(encoding="utf-8"))
-    state["candidate_patch_evaluated"] = False
-    creative_code_patch_workspace.write_json_atomic(state_file, state)
-
-    with pytest.raises(CreativeCodePatchBuilderError, match="result already exists"):
-        creative_code_patch_builder.evaluate(run_id=run_id)
-
-    assert result_file.read_bytes() == original_result
+    creative_code_patch_builder.prepare_dispatch(run_id=run_id)
+    packet_path = run_dir / creative_code_patch_builder.EXPERIMENT_PACKET_FILE
+    first_packet = packet_path.read_bytes()
+    with pytest.raises(CreativeCodePatchBuilderError, match="packet already exists"):
+        creative_code_patch_builder.prepare_dispatch(run_id=run_id)
+    assert packet_path.read_bytes() == first_packet
+    assert not (run_dir / creative_code_patch_builder.RESULT_FILE).exists()
 
 
-def test_evaluate_capability_signal_fails_closed_without_result_or_cli_leak(
+def test_evaluate_cli_fails_closed_without_result_or_host_import(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     repo, base_sha = _init_patch_repo(tmp_path)
     _patch_modules_to_repo(monkeypatch, repo)
-    run_id = "eval-capability-signal"
+    run_id = "eval-cli-refused"
     run_dir = _write_generated_run(run_id=run_id, base_sha=base_sha)
-    canary = "/Users/example/ghp_capability_canary"
-
-    def raise_capability_signal(*args: Any, **kwargs: Any) -> dict[str, Any]:
-        raise experiment_runner.RunnerCapabilitySignal(canary)
-
-    monkeypatch.setattr(
-        creative_code_patch_builder,
-        "_import_runner_api",
-        lambda: (experiment_runner.RunnerCapabilitySignal, raise_capability_signal),
-    )
-
-    with pytest.raises(
-        CreativeCodePatchBuilderError,
-        match="^Experiment Runner capability unavailable; trusted dispatch is required\\.$",
-    ) as exc_info:
-        creative_code_patch_builder.evaluate(run_id=run_id)
-
-    assert exc_info.value.__cause__ is None
-    assert canary not in str(exc_info.value)
-    assert not (run_dir / creative_code_patch_builder.RESULT_FILE).exists()
-    state = json.loads((run_dir / creative_code_patch_builder.STATE_FILE).read_text())
-    assert state.get("candidate_patch_evaluated") is not True
-
     assert creative_code_patch_builder.main(["evaluate", "--run-dir", run_id]) == 1
     captured = capsys.readouterr()
     assert captured.out == ""
-    assert captured.err == (
-        "FAIL: Experiment Runner capability unavailable; trusted dispatch is required.\n"
-    )
-    assert canary not in captured.err
+    assert captured.err == f"FAIL: {creative_code_patch_builder.RUNNER_CAPABILITY_ERROR}\n"
     assert "Traceback" not in captured.err
+    assert (run_dir / creative_code_patch_builder.EXPERIMENT_PACKET_FILE).is_file()
     assert not (run_dir / creative_code_patch_builder.RESULT_FILE).exists()
-    state = json.loads((run_dir / creative_code_patch_builder.STATE_FILE).read_text())
-    assert state.get("candidate_patch_evaluated") is not True
-
-
-def test_evaluate_import_failure_preserves_dispatch_handoff(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-) -> None:
-    repo, base_sha = _init_patch_repo(tmp_path)
-    _patch_modules_to_repo(monkeypatch, repo)
-    run_id = "eval-runner-import-unavailable"
-    run_dir = _write_generated_run(run_id=run_id, base_sha=base_sha)
-
-    def fail_runner_import() -> tuple[Any, Any]:
-        raise ImportError
-
-    monkeypatch.setattr(
-        creative_code_patch_builder,
-        "_import_runner_api",
-        fail_runner_import,
-    )
-
-    with pytest.raises(
-        CreativeCodePatchBuilderError,
-        match="^Experiment Runner capability unavailable; trusted dispatch is required\\.$",
-    ) as exc_info:
-        creative_code_patch_builder.evaluate(run_id=run_id)
-
-    assert exc_info.value.__cause__ is None
-    packet_path = run_dir / creative_code_patch_builder.EXPERIMENT_PACKET_FILE
-    packet = json.loads(packet_path.read_text(encoding="utf-8"))
-    metadata = json.loads(
-        (run_dir / creative_code_patch_builder.PATCH_METADATA_FILE).read_text(encoding="utf-8")
-    )
-    assert packet["candidate_patch_fingerprint"] == metadata["patch_fingerprint"]
-    assert not (run_dir / creative_code_patch_builder.RESULT_FILE).exists()
-    state = json.loads((run_dir / creative_code_patch_builder.STATE_FILE).read_text())
-    assert state.get("candidate_patch_evaluated") is not True
 
 
 def test_evaluate_rejects_tampered_candidate_patch(
@@ -2507,10 +2254,9 @@ def test_cli_prepare_generate_evaluate_cleanup(
         == 0
     )
     assert creative_code_patch_builder.main(["generate", "--run-dir", run_id]) == 0
-    assert creative_code_patch_builder.main(["evaluate", "--run-dir", run_id]) == 0
+    assert creative_code_patch_builder.main(["evaluate", "--run-dir", run_id]) == 1
     run_dir = creative_code_patch_workspace.resolve_run_dir(run_id)
-    result = json.loads((run_dir / "result.json").read_text(encoding="utf-8"))
-    assert result["status"] == "accepted"
-    assert result["authority"]["open_pull_request"] is False
+    assert (run_dir / creative_code_patch_builder.EXPERIMENT_PACKET_FILE).is_file()
+    assert not (run_dir / creative_code_patch_builder.RESULT_FILE).exists()
     assert creative_code_patch_builder.main(["cleanup", "--run-dir", run_id]) == 0
     assert not run_dir.exists()

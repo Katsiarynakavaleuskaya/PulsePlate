@@ -1397,9 +1397,9 @@ If it is not recorded here — it does not exist.
   - Owner: @katsiaryna_kavaleuskaya (CI and orchestration governance)
   - Priority: P1
   - Target PR: CONSOL-ORCH-1 (number pending)
-  - Status: Pending prerequisite CONSOL-CI-1 merge and current-main proof
+  - Status: Implementation in progress after CONSOL-CI-1 (#2446) merge; exact-head ORCH proof and merge remain pending
   - Area: CI / merge governance
-  - Reason (EN): CONSOL-CI-1 adds a verified dual-checkout verifier interface, but the hosted job must continue using its existing invocation until that policy code is present in the protected base. The second consolidated PR will switch workflow execution to the exact authenticated base SHA and inspect the exact PR-head material separately.
+  - Reason (EN): CONSOL-CI-1 (#2446) supplied the verified dual-checkout verifier interface on protected main. CONSOL-ORCH-1 must now switch hosted execution to the exact authenticated base SHA and inspect exact PR-head material separately; its current-head workflow, native-dispatch, candidate-handoff, promotion, path, disposition, and Slack checks remain unproven until the implementation PR's own gates complete.
   - Links: `.github/workflows/ci.yml`, `scripts/ci/check_pr_merge_readiness.py`, `tests/test_pr_merge_readiness_gate.py`
   - DoD: Use distinct credential-free base and head checkouts, invoke only the base verifier with `--material-repo-root`, reject wrong identities or untrusted material imports, and pass current-head CI and strict merge-readiness evidence.
 

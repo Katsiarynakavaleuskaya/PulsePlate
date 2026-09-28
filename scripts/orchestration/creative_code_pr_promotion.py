@@ -72,7 +72,6 @@ from scripts.orchestration.creative_code_specification import (
     read_creative_code_specification_bundle,
     validate_creative_code_specification_bundle,
 )
-from scripts.orchestration.experiment_runner import RunnerCapabilitySignal, evaluate_candidate
 
 PROMOTION_ROOT = REPO_ROOT / "artifacts" / "orchestration" / "creative_code" / "promotions"
 
@@ -114,11 +113,6 @@ SECRET_ENV_SUBSTRINGS = (
 
 class CreativeCodePRPromotionError(ValueError):
     """Raised when the PR-3 promotion CLI fails closed."""
-
-
-RUNNER_CAPABILITY_ERROR = (
-    "Fresh Experiment Runner capability unavailable; trusted dispatch is required."
-)
 
 
 class TemporaryUploadBranchAmbiguousError(CreativeCodePRPromotionError):
@@ -415,6 +409,23 @@ class GitTransport:
     def rev_parse_origin_main(self) -> str:
         return self.run(["rev-parse", "origin/main"], cwd=REPO_ROOT).stdout.strip()
 
+    def remote_main_sha(self) -> str:
+        """Read the exact remote main ref without mutating local tracking refs."""
+
+        process = self.run(
+            ["ls-remote", "--exit-code", "--heads", "origin", "main"],
+            cwd=REPO_ROOT,
+            check=False,
+            timeout_seconds=60,
+        )
+        lines = process.stdout.splitlines()
+        if process.returncode != 0 or len(lines) != 1:
+            raise CreativeCodePRPromotionError("remote main ref lookup failed.")
+        match = re.fullmatch(r"([a-f0-9]{40})\trefs/heads/main", lines[0])
+        if match is None:
+            raise CreativeCodePRPromotionError("remote main ref lookup was ambiguous.")
+        return match.group(1)
+
     def shared_status(self) -> str:
         return self.run(
             ["status", "--porcelain=v1", "--untracked-files=all"],
@@ -646,18 +657,6 @@ class GateRunner:
             env=_sanitized_command_env(),
             timeout_seconds=1200,
         )
-
-    def run_fresh_oracle(self, *, experiment_packet: Path, candidate_patch: Path) -> dict[str, Any]:
-        packet = read_json(experiment_packet)
-        if not isinstance(packet, dict):
-            raise CreativeCodePRPromotionError("experiment packet must be a JSON object.")
-        try:
-            result = evaluate_candidate(packet, candidate_patch)
-        except RunnerCapabilitySignal:
-            raise CreativeCodePRPromotionError(RUNNER_CAPABILITY_ERROR) from None
-        if not isinstance(result, dict):
-            raise CreativeCodePRPromotionError("fresh oracle must return a JSON object.")
-        return result
 
 
 def _load_patch_run(
@@ -1337,6 +1336,10 @@ def validate(
     git: GitTransport | None = None,
     gate_runner: GateRunner | None = None,
 ) -> dict[str, Any]:
+    if trusted_dispatch_result is None and trusted_generation_receipt is None:
+        raise CreativeCodePRPromotionError(
+            "trusted dispatch result and generation receipt are required for validation."
+        )
     if (trusted_dispatch_result is None) != (trusted_generation_receipt is None):
         raise CreativeCodePRPromotionError(
             "trusted dispatch result and generation receipt must be supplied together."
@@ -1352,7 +1355,6 @@ def validate(
 
     state = _load_state(promotion_dir)
     run_dir = resolve_patch_run_dir(state["patch_run"], create=False)
-    patch_path = resolve_patch_run_file(run_dir, CANDIDATE_PATCH_FILE)
     experiment_packet = resolve_patch_run_file(run_dir, EXPERIMENT_PACKET_FILE)
     patch_text = _load_current_patch_text_for_plan(
         promotion_dir=promotion_dir,
@@ -1402,30 +1404,14 @@ def validate(
             ]
             | None
         ) = None
-        direct_packet_fingerprint: str | None = None
-        if trusted_dispatch_result is None:
-            direct_packet = patch_generation_cli._read_experiment_packet(
-                experiment_packet,
-                trusted_root=run_dir,
-            )
-            direct_packet_fingerprint = fingerprint_payload(direct_packet)
-            oracle_result = gate_runner.run_fresh_oracle(
-                experiment_packet=experiment_packet,
-                candidate_patch=patch_path,
-            )
-        else:
-            if trusted_generation_receipt is None:
-                raise CreativeCodePRPromotionError(
-                    "trusted generation receipt path missing during validation."
-                )
-            trusted_dispatch_snapshot = _load_trusted_apple_dispatch_result(
-                result_path=trusted_dispatch_result,
-                generation_receipt_path=trusted_generation_receipt,
-                experiment_packet=experiment_packet,
-                run_dir=run_dir,
-                plan_artifact=plan_artifact,
-            )
-            oracle_result = trusted_dispatch_snapshot[2]
+        trusted_dispatch_snapshot = _load_trusted_apple_dispatch_result(
+            result_path=trusted_dispatch_result,
+            generation_receipt_path=trusted_generation_receipt,
+            experiment_packet=experiment_packet,
+            run_dir=run_dir,
+            plan_artifact=plan_artifact,
+        )
+        oracle_result = trusted_dispatch_snapshot[2]
         if (
             oracle_result.get("status") != "accepted"
             or oracle_result.get("failure_class") is not None
@@ -1442,43 +1428,17 @@ def validate(
             expected_patch_fingerprint=plan_artifact["patch_fingerprint"],
             git=git,
         )
-        if trusted_dispatch_snapshot is not None:
-            if trusted_dispatch_result is None or trusted_generation_receipt is None:
-                raise CreativeCodePRPromotionError(
-                    "trusted dispatch evidence paths missing during snapshot verification."
-                )
-            current_snapshot = _load_trusted_apple_dispatch_result(
-                result_path=trusted_dispatch_result,
-                generation_receipt_path=trusted_generation_receipt,
-                experiment_packet=experiment_packet,
-                run_dir=run_dir,
-                plan_artifact=plan_artifact,
+        current_snapshot = _load_trusted_apple_dispatch_result(
+            result_path=trusted_dispatch_result,
+            generation_receipt_path=trusted_generation_receipt,
+            experiment_packet=experiment_packet,
+            run_dir=run_dir,
+            plan_artifact=plan_artifact,
+        )
+        if current_snapshot != trusted_dispatch_snapshot:
+            raise CreativeCodePRPromotionError(
+                "trusted dispatch evidence changed during validation."
             )
-            if (
-                current_snapshot[0] != trusted_dispatch_snapshot[0]
-                or current_snapshot[3] != trusted_dispatch_snapshot[3]
-                or current_snapshot[4] != trusted_dispatch_snapshot[4]
-                or current_snapshot[5] != trusted_dispatch_snapshot[5]
-                or current_snapshot[6] != trusted_dispatch_snapshot[6]
-                or current_snapshot[7] != trusted_dispatch_snapshot[7]
-                or current_snapshot[8] != trusted_dispatch_snapshot[8]
-            ):
-                raise CreativeCodePRPromotionError(
-                    "trusted dispatch evidence changed during validation."
-                )
-        else:
-            if direct_packet_fingerprint is None:
-                raise CreativeCodePRPromotionError(
-                    "direct oracle experiment packet snapshot is missing."
-                )
-            current_direct_packet = patch_generation_cli._read_experiment_packet(
-                experiment_packet,
-                trusted_root=run_dir,
-            )
-            if fingerprint_payload(current_direct_packet) != direct_packet_fingerprint:
-                raise CreativeCodePRPromotionError(
-                    "direct oracle experiment packet changed during validation."
-                )
     finally:
         destroyed = _destroy_checkout(promotion_dir, VALIDATION_CHECKOUT)
     if not checkout_created or not destroyed:
@@ -1486,24 +1446,12 @@ def validate(
     budget_observations = oracle_result.get("budget_observations", {})
     if not isinstance(budget_observations, dict):
         raise CreativeCodePRPromotionError("oracle evidence budget observations missing.")
-    if trusted_dispatch_snapshot is None:
-        oracle_evidence_source = "direct_evaluation"
-        oracle_executed_during_validation = True
-        oracle_result_fingerprint = fingerprint_payload(oracle_result)
-        if direct_packet_fingerprint is None:
-            raise CreativeCodePRPromotionError(
-                "direct oracle experiment packet snapshot is missing."
-            )
-        experiment_packet_fingerprint = direct_packet_fingerprint
-        generation_gate_fingerprint = None
-        generation_receipt_fingerprint = None
-    else:
-        oracle_evidence_source = "trusted_apple_dispatch"
-        oracle_executed_during_validation = False
-        oracle_result_fingerprint = trusted_dispatch_snapshot[4]
-        experiment_packet_fingerprint = trusted_dispatch_snapshot[3]
-        generation_gate_fingerprint = trusted_dispatch_snapshot[8]
-        generation_receipt_fingerprint = trusted_dispatch_snapshot[6]
+    oracle_evidence_source = "trusted_apple_dispatch"
+    oracle_executed_during_validation = False
+    oracle_result_fingerprint = trusted_dispatch_snapshot[4]
+    experiment_packet_fingerprint = trusted_dispatch_snapshot[3]
+    generation_gate_fingerprint = trusted_dispatch_snapshot[8]
+    generation_receipt_fingerprint = trusted_dispatch_snapshot[6]
     validation_artifact: dict[str, Any] = build_creative_code_pr_promotion_validation(
         promotion_id=promotion_id,
         plan_fingerprint=promotion_plan_fingerprint(plan_artifact),
@@ -1579,26 +1527,90 @@ def _commit_message(*, plan_artifact: dict[str, Any], approval: dict[str, Any]) 
     )
 
 
+def _require_fresh_first_promotion_boundary(
+    *,
+    promotion_dir: Path,
+    plan_artifact: dict[str, Any],
+    validation_artifact: dict[str, Any],
+    approval_artifact: dict[str, Any],
+    trusted_dispatch_result: Path,
+    trusted_generation_receipt: Path,
+    expected_patch_text: str,
+    git: GitTransport,
+    github: GitHubTransport,
+) -> None:
+    """Rebind actor, evidence, live base, branch and patch before a remote effect."""
+
+    if _load_plan(promotion_dir) != plan_artifact:
+        raise CreativeCodePRPromotionError("promotion plan changed after approval.")
+    if _load_validation(promotion_dir) != validation_artifact:
+        raise CreativeCodePRPromotionError("validation changed after approval.")
+    if _load_approval(promotion_dir) != approval_artifact:
+        raise CreativeCodePRPromotionError("approval changed after confirmation.")
+    _require_approval_matches_plan_and_validation(
+        approval_artifact=approval_artifact,
+        plan_artifact=plan_artifact,
+        validation_artifact=validation_artifact,
+    )
+    if github.current_login() != approval_artifact["approved_by_login"]:
+        raise CreativeCodePRPromotionError("current gh actor does not match approval.")
+    base_sha = plan_artifact["base_commit_sha"]
+    if git.rev_parse_origin_main() != base_sha or git.remote_main_sha() != base_sha:
+        raise CreativeCodePRPromotionError("remote main drifted after approval.")
+    branch = plan_artifact["target_head_branch"]
+    if git.remote_branch_exists(branch) or git.local_branch_exists(branch):
+        raise CreativeCodePRPromotionError(
+            "target experiment branch appeared before remote effect."
+        )
+    if (
+        _load_current_patch_text_for_plan(promotion_dir=promotion_dir, plan_artifact=plan_artifact)
+        != expected_patch_text
+    ):
+        raise CreativeCodePRPromotionError("candidate.patch changed after approval.")
+    state = _load_state(promotion_dir)
+    run_dir = resolve_patch_run_dir(state["patch_run"], create=False)
+    packet_path = resolve_patch_run_file(run_dir, EXPERIMENT_PACKET_FILE)
+    snapshot = _load_trusted_apple_dispatch_result(
+        result_path=trusted_dispatch_result,
+        generation_receipt_path=trusted_generation_receipt,
+        experiment_packet=packet_path,
+        run_dir=run_dir,
+        plan_artifact=plan_artifact,
+    )
+    evidence = validation_artifact["oracle_evidence"]
+    if (
+        snapshot[3] != evidence["experiment_packet_fingerprint"]
+        or snapshot[4] != evidence["result_fingerprint"]
+        or snapshot[6] != evidence["generation_receipt_fingerprint"]
+        or snapshot[8] != evidence["generation_gate_fingerprint"]
+    ):
+        raise CreativeCodePRPromotionError("trusted dispatch evidence changed after validation.")
+
+
 def promote(
     *,
     promotion_id: str,
+    trusted_dispatch_result: Path | None = None,
+    trusted_generation_receipt: Path | None = None,
     git: GitTransport | None = None,
     github: GitHubTransport | None = None,
+    gate_runner: GateRunner | None = None,
+    stdin: ApprovalInput | None = None,
+    stdout: Any | None = None,
 ) -> dict[str, Any]:
     git = git or GitTransport()
     github = github or GitHubTransport()
     promotion_dir = resolve_promotion_dir(promotion_id, create=False)
     receipt_path = resolve_promotion_file(promotion_dir, RECEIPT_FILE, for_write=True)
     plan_artifact = _load_plan(promotion_dir)
-    validation_artifact = _load_validation(promotion_dir)
-    approval_artifact = _load_approval(promotion_dir)
-    plan_fp = promotion_plan_fingerprint(plan_artifact)
-    _require_approval_matches_plan_and_validation(
-        approval_artifact=approval_artifact,
-        plan_artifact=plan_artifact,
-        validation_artifact=validation_artifact,
-    )
     if receipt_path.exists():
+        validation_artifact = _load_validation(promotion_dir)
+        approval_artifact = _load_approval(promotion_dir)
+        _require_approval_matches_plan_and_validation(
+            approval_artifact=approval_artifact,
+            plan_artifact=plan_artifact,
+            validation_artifact=validation_artifact,
+        )
         receipt = cast(
             dict[str, Any],
             validate_creative_code_pr_promotion_receipt(read_json_object(receipt_path)),
@@ -1611,13 +1623,49 @@ def promote(
         )
         _require_existing_receipt_live_pr(receipt=receipt, github=github)
         return receipt
-    if approval_artifact["approved_by_login"] != github.current_login():
-        raise CreativeCodePRPromotionError("current gh actor does not match approval.")
-    if git.rev_parse_origin_main() != plan_artifact["base_commit_sha"]:
-        raise CreativeCodePRPromotionError("origin/main drifted after approval.")
+    if trusted_dispatch_result is None and trusted_generation_receipt is None:
+        raise CreativeCodePRPromotionError(
+            "trusted dispatch result and generation receipt are required for promotion."
+        )
+    if trusted_dispatch_result is None or trusted_generation_receipt is None:
+        raise CreativeCodePRPromotionError(
+            "trusted dispatch result and generation receipt must be supplied together."
+        )
+    validation_artifact = validate(
+        promotion_id=promotion_id,
+        trusted_dispatch_result=trusted_dispatch_result,
+        trusted_generation_receipt=trusted_generation_receipt,
+        git=git,
+        gate_runner=gate_runner,
+    )
+    approval_artifact = approve(
+        promotion_id=promotion_id,
+        approved_by_login=github.current_login(),
+        github=github,
+        stdin=stdin,
+        stdout=stdout,
+    )
+    plan_artifact = _load_plan(promotion_dir)
+    plan_fp = promotion_plan_fingerprint(plan_artifact)
+    _require_approval_matches_plan_and_validation(
+        approval_artifact=approval_artifact,
+        plan_artifact=plan_artifact,
+        validation_artifact=validation_artifact,
+    )
     branch = plan_artifact["target_head_branch"]
-    if git.remote_branch_exists(branch) or git.local_branch_exists(branch):
-        raise CreativeCodePRPromotionError("target experiment branch already exists.")
+    _require_fresh_first_promotion_boundary(
+        promotion_dir=promotion_dir,
+        plan_artifact=plan_artifact,
+        validation_artifact=validation_artifact,
+        approval_artifact=approval_artifact,
+        trusted_dispatch_result=trusted_dispatch_result,
+        trusted_generation_receipt=trusted_generation_receipt,
+        expected_patch_text=_load_current_patch_text_for_plan(
+            promotion_dir=promotion_dir, plan_artifact=plan_artifact
+        ),
+        git=git,
+        github=github,
+    )
     human_name, human_email = git.human_identity()
 
     patch_text = _load_current_patch_text_for_plan(
@@ -1666,10 +1714,17 @@ def promote(
             expected_email=human_email,
         )
         commit_identity_verified = True
-        if git.remote_branch_exists(branch):
-            raise CreativeCodePRPromotionError(
-                "target experiment branch appeared before ref create."
-            )
+        _require_fresh_first_promotion_boundary(
+            promotion_dir=promotion_dir,
+            plan_artifact=plan_artifact,
+            validation_artifact=validation_artifact,
+            approval_artifact=approval_artifact,
+            trusted_dispatch_result=trusted_dispatch_result,
+            trusted_generation_receipt=trusted_generation_receipt,
+            expected_patch_text=patch_text,
+            git=git,
+            github=github,
+        )
         temp_upload_branch = _derive_temp_upload_branch(
             target_branch=branch,
             commit_sha=commit_sha,
@@ -1678,10 +1733,17 @@ def promote(
             raise CreativeCodePRPromotionError("temporary upload branch already exists.")
         temp_upload_pushed = True
         git.push_upload_branch(cwd=checkout, branch=temp_upload_branch)
-        if git.remote_branch_exists(branch):
-            raise CreativeCodePRPromotionError(
-                "target experiment branch appeared before ref create."
-            )
+        _require_fresh_first_promotion_boundary(
+            promotion_dir=promotion_dir,
+            plan_artifact=plan_artifact,
+            validation_artifact=validation_artifact,
+            approval_artifact=approval_artifact,
+            trusted_dispatch_result=trusted_dispatch_result,
+            trusted_generation_receipt=trusted_generation_receipt,
+            expected_patch_text=patch_text,
+            git=git,
+            github=github,
+        )
         github.create_branch_ref(branch=branch, commit_sha=commit_sha)
         target_ref_created = True
         _cleanup_temp_upload_ref(github, branch=temp_upload_branch)
@@ -1775,6 +1837,8 @@ def main(argv: list[str] | None = None) -> int:
     approve_parser.add_argument("--approved-by-login", required=True)
     promote_parser = subparsers.add_parser("promote")
     promote_parser.add_argument("--promotion-id", required=True)
+    promote_parser.add_argument("--trusted-dispatch-result", type=Path)
+    promote_parser.add_argument("--trusted-generation-receipt", type=Path)
     args = parser.parse_args(argv)
 
     try:
@@ -1792,7 +1856,11 @@ def main(argv: list[str] | None = None) -> int:
             approve(promotion_id=args.promotion_id, approved_by_login=args.approved_by_login)
             print(SUCCESS_APPROVE_OUTPUT)
         elif args.command == "promote":
-            promote(promotion_id=args.promotion_id)
+            promote(
+                promotion_id=args.promotion_id,
+                trusted_dispatch_result=args.trusted_dispatch_result,
+                trusted_generation_receipt=args.trusted_generation_receipt,
+            )
             print(SUCCESS_PROMOTE_OUTPUT)
         else:  # pragma: no cover - argparse enforces choices.
             parser.error("unsupported command")

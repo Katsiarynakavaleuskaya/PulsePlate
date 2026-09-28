@@ -478,51 +478,97 @@ def _commands(candidate_id: str) -> dict[str, list[dict[str, Any]]]:
         ],
         "pr2_patch_builder": [
             _command(
-                "build_patch_request_after_specification_bundle",
-                (
-                    "manual: after PR-1 bundle.json exists, build and validate "
-                    "CreativeCodePatchBuildRequest at "
-                    f"artifacts/orchestration/creative_code/applied_candidates/{candidate_id}/"
-                    "patch_request.json with source bundle "
-                    f"artifacts/orchestration/creative_code/spec_runs/{candidate_id}/bundle.json"
-                ),
+                "record_human_patch_admission",
+                "manual: review the PR-1 finalized bundle and receipt; record the existing human admission artifact before PR-2",
                 authority_owner="human_pr2_admission",
                 requires_human_gate=True,
             ),
             _command(
-                "prepare_patch_request",
+                "build_and_prepare_patch_admission",
                 _module_command(
-                    "scripts.orchestration.creative_code_patch_builder",
+                    "scripts.orchestration.creative_spec_patch_admission",
                     [
-                        "prepare",
-                        "--spec-bundle",
+                        "build-and-prepare",
+                        "--finalize-receipt",
+                        "REVIEWED_PR1_FINALIZE_RECEIPT_REF",
+                        "--bundle",
                         f"artifacts/orchestration/creative_code/spec_runs/{candidate_id}/bundle.json",
-                        "--request",
-                        f"artifacts/orchestration/creative_code/applied_candidates/{candidate_id}/patch_request.json",
-                        "--run-dir",
+                        "--human-admission",
+                        "REVIEWED_HUMAN_ADMISSION_REF",
+                        "--base-sha",
+                        "REVIEWED_MAIN_SHA",
+                        "--output-dir",
+                        f"artifacts/orchestration/creative_code/patch_admission/{candidate_id}",
+                        "--run-id",
                         patch_run_id,
                     ],
                 ),
-                authority_owner="creative_code_patch_builder_pr2",
+                authority_owner="creative_spec_patch_admission",
                 authority_effects=("isolated_workspace_write",),
+            ),
+            _command(
+                "validate_generation_gate",
+                _module_command(
+                    "scripts.orchestration.creative_code_patch_generation",
+                    [
+                        "validate-run-plan",
+                        "--admission",
+                        f"artifacts/orchestration/creative_code/patch_admission/{candidate_id}/creative_spec_patch_admission.json",
+                        "--run-id",
+                        patch_run_id,
+                        "--output-dir",
+                        f"artifacts/orchestration/creative_code/patch_generation/{patch_run_id}",
+                    ],
+                ),
+                authority_owner="creative_code_patch_generation_pr2",
             ),
             _command(
                 "generate_patch_candidate",
                 _module_command(
-                    "scripts.orchestration.creative_code_patch_builder",
-                    ["generate", "--run-dir", patch_run_id],
+                    "scripts.orchestration.creative_code_patch_generation",
+                    [
+                        "generate-candidate",
+                        "--gate",
+                        f"artifacts/orchestration/creative_code/patch_generation/{patch_run_id}/generation_gate.json",
+                    ],
                 ),
-                authority_owner="creative_code_patch_builder_pr2",
+                authority_owner="creative_code_patch_generation_pr2",
                 authority_effects=("isolated_workspace_write", "local_codex_exec"),
             ),
             _command(
-                "evaluate_patch_candidate",
+                "dispatch_patch_candidate",
                 _module_command(
-                    "scripts.orchestration.creative_code_patch_builder",
-                    ["evaluate", "--run-dir", patch_run_id],
+                    "scripts.orchestration.experiment_runner_dispatch",
+                    [
+                        "run",
+                        "--backend",
+                        "REVIEWED_BACKEND",
+                        "--packet",
+                        f"artifacts/orchestration/creative_code/patch_runs/{patch_run_id}/experiment_packet.json",
+                        "--candidate-patch",
+                        "VERIFIED_PATCH_REF",
+                        "--image",
+                        "REVIEWED_IMMUTABLE_IMAGE",
+                        "--output",
+                        "REVIEWED_RESULT_FILE.json",
+                    ],
                 ),
-                authority_owner="creative_code_patch_builder_pr2",
-                authority_effects=("isolated_workspace_write", "local_oracle_execution"),
+                authority_owner="experiment_runner_dispatch",
+                authority_effects=("native_isolated_oracle_execution",),
+            ),
+            _command(
+                "finalize_dispatched_result",
+                _module_command(
+                    "scripts.orchestration.creative_code_patch_generation",
+                    [
+                        "finalize-dispatched-result",
+                        "--gate",
+                        f"artifacts/orchestration/creative_code/patch_generation/{patch_run_id}/generation_gate.json",
+                        "--dispatch-result",
+                        "artifacts/orchestration/experiments/results/REVIEWED_RESULT_FILE.json",
+                    ],
+                ),
+                authority_owner="creative_code_patch_generation_pr2",
             ),
         ],
         "pr3_promotion": [
@@ -539,35 +585,37 @@ def _commands(candidate_id: str) -> dict[str, list[dict[str, Any]]]:
                 "validate_promotion",
                 _module_command(
                     "scripts.orchestration.creative_code_pr_promotion",
-                    ["validate", "--promotion-id", promotion_id],
+                    [
+                        "validate",
+                        "--promotion-id",
+                        promotion_id,
+                        "--trusted-dispatch-result",
+                        "artifacts/orchestration/experiments/results/REVIEWED_RESULT_FILE.json",
+                        "--trusted-generation-receipt",
+                        f"artifacts/orchestration/creative_code/patch_generation/{patch_run_id}/generation_receipt.json",
+                    ],
                 ),
                 authority_owner="creative_code_pr_promotion_pr3",
                 authority_effects=("local_validation_execution",),
             ),
             _command(
-                "approve_promotion",
-                _module_command(
-                    "scripts.orchestration.creative_code_pr_promotion",
-                    [
-                        "approve",
-                        "--promotion-id",
-                        promotion_id,
-                        "--approved-by-login",
-                        "Katsiarynakavaleuskaya",
-                    ],
-                ),
-                authority_owner="creative_code_pr_promotion_pr3",
-                authority_effects=("requires_tty_approval",),
-                requires_human_gate=True,
-            ),
-            _command(
                 "promote_non_draft_pr",
                 _module_command(
                     "scripts.orchestration.creative_code_pr_promotion",
-                    ["promote", "--promotion-id", promotion_id],
+                    [
+                        "promote",
+                        "--promotion-id",
+                        promotion_id,
+                        "--trusted-dispatch-result",
+                        "artifacts/orchestration/experiments/results/REVIEWED_RESULT_FILE.json",
+                        "--trusted-generation-receipt",
+                        f"artifacts/orchestration/creative_code/patch_generation/{patch_run_id}/generation_receipt.json",
+                    ],
                 ),
                 authority_owner="creative_code_pr_promotion_pr3",
                 authority_effects=(
+                    "fresh_local_validation",
+                    "requires_tty_approval",
                     "github_write",
                     "network",
                     "push",
@@ -617,6 +665,25 @@ def _expected_artifacts(candidate_id: str) -> dict[str, str]:
         "pr2_patch_request": (
             f"artifacts/orchestration/creative_code/applied_candidates/{candidate_id}/"
             "patch_request.json"
+        ),
+        "pr2_patch_admission": (
+            f"artifacts/orchestration/creative_code/patch_admission/{candidate_id}/"
+            "creative_spec_patch_admission.json"
+        ),
+        "pr2_generation_gate": (
+            f"artifacts/orchestration/creative_code/patch_generation/{patch_run_id}/"
+            "generation_gate.json"
+        ),
+        "pr2_experiment_packet": (
+            f"artifacts/orchestration/creative_code/patch_runs/{patch_run_id}/"
+            "experiment_packet.json"
+        ),
+        "pr2_trusted_dispatch_result": (
+            "artifacts/orchestration/experiments/results/REVIEWED_RESULT_FILE.json"
+        ),
+        "pr2_generation_receipt": (
+            f"artifacts/orchestration/creative_code/patch_generation/{patch_run_id}/"
+            "generation_receipt.json"
         ),
         "pr2_patch_result": (
             f"artifacts/orchestration/creative_code/patch_runs/{patch_run_id}/result.json"

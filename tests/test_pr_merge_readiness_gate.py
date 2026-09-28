@@ -3203,7 +3203,7 @@ def test_merge_readiness_main_blocks_missing_mapping(
     assert "canonical review artifact is invalid" in capsys.readouterr().out
 
 
-def test_merge_readiness_checkout_uses_exact_pr_head_and_no_credentials() -> None:
+def test_merge_readiness_executes_exact_base_policy_over_separate_head_material() -> None:
     workflow_path = Path(__file__).resolve().parents[1] / ".github" / "workflows" / "ci.yml"
     workflow = yaml.safe_load(workflow_path.read_text(encoding="utf-8"))
     job = workflow["jobs"]["merge_readiness_gate"]
@@ -3224,16 +3224,29 @@ def test_merge_readiness_checkout_uses_exact_pr_head_and_no_credentials() -> Non
         "statuses": "read",
     }
     steps = job["steps"]
-    checkout = next(step for step in steps if step.get("name") == "Checkout")
-    assert checkout["with"] == {
+    policy_checkout = next(step for step in steps if step.get("name") == "Checkout policy")
+    material_checkout = next(step for step in steps if step.get("name") == "Checkout material")
+    assert sum(step.get("uses", "").startswith("actions/checkout@") for step in steps) == 2
+    assert policy_checkout["with"] == {
         "fetch-depth": 0,
         "persist-credentials": False,
+        "path": "policy",
+        "ref": "${{ github.event.pull_request.base.sha }}",
+    }
+    assert material_checkout["with"] == {
+        "fetch-depth": 0,
+        "persist-credentials": False,
+        "path": "material",
         "ref": "${{ github.event.pull_request.head.sha }}",
     }
     enforcement = next(
         step for step in steps if step.get("name") == "Enforce merge readiness policy"
     )
     run = enforcement["run"]
+    assert 'cd "$GITHUB_WORKSPACE/policy"' in run
+    assert 'python "$GITHUB_WORKSPACE/policy/scripts/ci/check_pr_merge_readiness.py"' in run
+    assert '--material-repo-root "$GITHUB_WORKSPACE/material"' in run
+    assert "python scripts/ci/check_pr_merge_readiness.py" not in run
     assert '--event-path "$GITHUB_EVENT_PATH"' in run
     assert "--outage-security-wait-seconds 300" in run
     assert "--defer-outage-security-checks" not in run

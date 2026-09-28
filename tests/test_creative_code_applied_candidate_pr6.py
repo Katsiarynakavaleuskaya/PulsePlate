@@ -195,15 +195,54 @@ def test_run_plan_is_local_only_and_checklist_only() -> None:
         "record_skeptic_review_decisions",
         "finalize_specification",
     ]
+    assert [command["label"] for command in plan["commands"]["pr2_patch_builder"]] == [
+        "record_human_patch_admission",
+        "build_and_prepare_patch_admission",
+        "validate_generation_gate",
+        "generate_patch_candidate",
+        "dispatch_patch_candidate",
+        "finalize_dispatched_result",
+    ]
+    pr2_commands = [row["command"] for row in plan["commands"]["pr2_patch_builder"]]
+    assert "build-and-prepare --finalize-receipt" in pr2_commands[1]
+    assert "--human-admission REVIEWED_HUMAN_ADMISSION_REF" in pr2_commands[1]
+    assert "validate-run-plan --admission" in pr2_commands[2]
+    assert "generate-candidate --gate" in pr2_commands[3]
+    assert "experiment_runner_dispatch run --backend REVIEWED_BACKEND" in pr2_commands[4]
+    assert "--candidate-patch VERIFIED_PATCH_REF" in pr2_commands[4]
+    assert "finalize-dispatched-result --gate" in pr2_commands[5]
+    assert not any("creative_code_patch_builder evaluate" in command for command in pr2_commands)
+    assert [row["label"] for row in plan["commands"]["pr3_promotion"]] == [
+        "plan_promotion",
+        "validate_promotion",
+        "promote_non_draft_pr",
+    ]
+    for row in plan["commands"]["pr3_promotion"][1:]:
+        assert "--trusted-dispatch-result" in row["command"]
+        assert "--trusted-generation-receipt" in row["command"]
     promote = plan["commands"]["pr3_promotion"][-1]
     assert promote["authority_owner"] == "creative_code_pr_promotion_pr3"
     assert promote["authority_effects"] == [
+        "fresh_local_validation",
+        "requires_tty_approval",
         "github_write",
         "network",
         "push",
         "open_non_draft_pr",
     ]
     assert promote["requires_human_gate"] is True
+
+
+def test_historical_direct_evaluate_plan_is_rejected_after_identity_recalculation() -> None:
+    plan = pr6.build_run_plan(launch_packet=_launch_packet(), target="docs/prompts/cv/program.md")
+    old_plan = deepcopy(plan)
+    old_plan["commands"]["pr2_patch_builder"][4]["command"] = (
+        "<repo-python> -m scripts.orchestration.creative_code_patch_builder "
+        "evaluate --run-dir cv-program-offline-eval-001-patch"
+    )
+    _refresh_run_plan_identity(old_plan)
+    with pytest.raises(pr6.CreativeCodeAppliedCandidatePR6Error, match="commands"):
+        pr6.validate_run_plan(old_plan)
 
 
 def test_run_plan_contains_no_raw_review_body_patch_prompt_or_secret() -> None:
