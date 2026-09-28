@@ -46,6 +46,143 @@ OUTAGE_BASE_SHA = "c" * 40
 OUTAGE_HEAD_SHA = "d" * 40
 
 
+@pytest.mark.parametrize(
+    ("policy_head", "material_head", "expected_exit"),
+    [
+        ("a" * 40, "b" * 40, 0),
+        ("c" * 40, "b" * 40, 1),
+        ("a" * 40, "c" * 40, 1),
+    ],
+)
+def test_split_checkout_main_binds_authenticated_base_and_head(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    policy_head: str,
+    material_head: str,
+    expected_exit: int,
+) -> None:
+    (tmp_path / ".git").mkdir()
+    snapshot = PrSnapshot(
+        repository="owner/repo",
+        pr_number=42,
+        base_sha="a" * 40,
+        head_sha="b" * 40,
+        commits=(PrCommitEvidence("b" * 40, None),),
+    )
+    context = (42, "owner/repo", False, "body", "feature")
+    observed_reads: list[tuple[Path, str]] = []
+
+    def read_material(
+        _number: int, *, material_repo_root: Path, head_sha: str, split_checkout: bool
+    ) -> str:
+        assert split_checkout is True
+        observed_reads.append((material_repo_root, head_sha))
+        return "artifact"
+
+    monkeypatch.setenv("GITHUB_TOKEN", "opaque")
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "check_pr_merge_readiness.py",
+            "--pr-number",
+            "42",
+            "--repo",
+            "owner/repo",
+            "--material-repo-root",
+            str(tmp_path),
+        ],
+    )
+    monkeypatch.setattr(merge_gate, "_fetch_pr_context", lambda **_kwargs: context)
+    monkeypatch.setattr(merge_gate, "fetch_pr_snapshot", lambda *_a, **_k: snapshot)
+    monkeypatch.setattr(
+        merge_gate,
+        "_local_head_sha",
+        lambda root=None: policy_head if root is None else material_head,
+    )
+    monkeypatch.setattr(merge_gate, "fetch_review_threads", lambda *_a, **_k: ())
+    monkeypatch.setattr(merge_gate, "_collect_actionable_items", lambda **_k: [])
+    monkeypatch.setattr(merge_gate, "_read_material_mapping_artifact", read_material)
+    monkeypatch.setattr(merge_gate, "validate_mapping_artifact_text", lambda _text: [])
+    monkeypatch.setattr(merge_gate, "extract_fixed_mapping_section", lambda _text: "mapping")
+    monkeypatch.setattr(merge_gate, "parse_fixed_mapping_entries", lambda _text: {})
+    monkeypatch.setattr(merge_gate, "has_no_actionable_marker", lambda _text: True)
+    monkeypatch.setattr(merge_gate, "review_seal_version", lambda _text: None)
+    monkeypatch.setattr(merge_gate, "_review_seal_v1_required", lambda *_a: False)
+    monkeypatch.setattr(merge_gate, "_canonical_artifact_markdown_link_count", lambda *_a: 1)
+    monkeypatch.setattr(merge_gate, "_wait_for_review_quiet_window", lambda **_k: (2, 0))
+    monkeypatch.setattr(merge_gate, "assert_snapshot_unchanged", lambda *_a, **_k: None)
+
+    assert merge_gate.main() == expected_exit
+    assert observed_reads == (
+        [(tmp_path.resolve(), snapshot.head_sha)] * 2 if expected_exit == 0 else []
+    )
+
+
+def test_split_material_reads_exact_git_blob_and_scoped_agents(
+    tmp_path: Path,
+) -> None:
+    git = shutil.which("git")
+    assert git is not None
+    fixture_env = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
+    fixture_env.update(
+        GIT_CONFIG_GLOBAL=os.devnull,
+        GIT_CONFIG_NOSYSTEM="1",
+        GIT_NO_REPLACE_OBJECTS="1",
+        GIT_TERMINAL_PROMPT="0",
+    )
+
+    def run_git(*argv: str) -> bytes:
+        completed = subprocess.run(  # nosec B603: fixed test-owned Git repository (remove-by: 2026-10-31, ref: PR-consol-ci-1)
+            [git, "-C", str(tmp_path), *argv],
+            check=False,
+            capture_output=True,
+            env=fixture_env,
+        )
+        if completed.returncode != 0:
+            diagnostic = completed.stderr.decode("utf-8", "replace")[:512].strip()
+            pytest.fail(
+                f"temporary fixture git {argv[0]} failed (exit {completed.returncode}): "
+                f"{diagnostic}",
+                pytrace=False,
+            )
+        return completed.stdout.strip()
+
+    run_git("init", "--quiet")
+    (tmp_path / "docs" / "review").mkdir(parents=True)
+    (tmp_path / "scripts" / "orchestration").mkdir(parents=True)
+    (tmp_path / "AGENTS.md").write_text("root", encoding="utf-8")
+    (tmp_path / "scripts" / "AGENTS.md").write_text("scripts", encoding="utf-8")
+    mapping = tmp_path / "docs" / "review" / "PR_42_FIXED_MAPPING.md"
+    mapping.write_text("committed mapping", encoding="utf-8")
+    (tmp_path / "scripts" / "orchestration" / "pr_review_evidence.py").write_text(
+        "raise RuntimeError('untrusted material code executed')\n", encoding="utf-8"
+    )
+    run_git("add", ".")
+    run_git(
+        "-c",
+        "user.name=CI Test",
+        "-c",
+        "user.email=ci@example.test",
+        "commit",
+        "--quiet",
+        "-m",
+        "fixture",
+    )
+    head = run_git("rev-parse", "HEAD").decode("ascii")
+    mapping.write_text("dirty worktree mapping", encoding="utf-8")
+
+    assert (
+        merge_gate._read_material_mapping_artifact(
+            42, material_repo_root=tmp_path, head_sha=head, split_checkout=True
+        )
+        == "committed mapping"
+    )
+    assert evidence_module._applicable_scoped_agents(
+        ["scripts/ci/example.py"], material_head_sha=head, repo_root=tmp_path
+    ) == ["AGENTS.md", "scripts/AGENTS.md"]
+
+
 def test_duplicate_reply_coverage_uses_canonical_shared_validator() -> None:
     """Real-Git producer cases plus the wiring test below cover composition."""
 
@@ -2100,6 +2237,32 @@ def _provider_no_claim_seal_context(
     return repo, seal, snapshot, material_head
 
 
+def test_historical_stale_seal_projection_uses_material_checkout(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo, seal, snapshot, material_head = _provider_no_claim_seal_context(tmp_path, monkeypatch)
+    manifest = compute_material_manifest(
+        repo,
+        base_ref_oid=snapshot.base_sha,
+        head_ref_oid=material_head,
+        pr_number=snapshot.pr_number,
+    )
+    policy_checkout = tmp_path / "policy-checkout"
+    policy_checkout.mkdir()
+    monkeypatch.setattr(evidence_module, "_REPO_ROOT", policy_checkout)
+
+    validated = evidence_module._validate_stale_seal_projection(
+        _artifact_with_seal(seal),
+        repo_root=repo,
+        manifest=manifest,
+        repository=snapshot.repository,
+        pr_number=snapshot.pr_number,
+        require_provider_no_claim=True,
+    )
+
+    assert validated["material"]["digest"] == manifest.digest
+
+
 def test_ci_gate_accepts_provider_no_claim_and_waits_bounded_without_providers(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -2168,6 +2331,22 @@ def test_ci_gate_accepts_provider_no_claim_and_waits_bounded_without_providers(
     assert validated["codex_security"]["scan_claim"] == "none"
     assert metadata_heads == [material_head, material_head, material_head]
     assert sleeps == [15.0, 15.0]
+
+    # The policy module may live in a different checkout; every material Git
+    # operation, including seal validation, must use the explicit PR checkout.
+    with monkeypatch.context() as isolated_policy:
+        isolated_policy.setattr(merge_gate, "REPO_ROOT", tmp_path / "policy-checkout")
+        separated = merge_gate._validate_v1_seal(
+            artifact_text=_artifact_with_seal(seal),
+            repository="owner/repo",
+            pr_number=42,
+            snapshot=snapshot,
+            token="opaque",
+            enforce_outage_security_checks=False,
+            require_committed_closeout=False,
+            material_repo_root=repo,
+        )
+    assert separated["material"]["digest"] == seal["material"]["digest"]
 
     wrong_paths_seal = json.loads(json.dumps(seal))
     self_review = wrong_paths_seal["self_review"]
