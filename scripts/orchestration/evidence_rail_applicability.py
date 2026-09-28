@@ -22,6 +22,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+from core.evidence.fingerprints import fingerprint_payload
 from scripts.orchestration.bootstrap_sync_policy import (
     INVARIANT_CHANGE_CLASSES,
     INVARIANT_FAMILY_REPEAT_TRIGGER_RULE,
@@ -52,7 +53,7 @@ MAX_JSON_NODES = 50_000
 
 RAILS = ("teleology", "euler", "experiment_runner", "creative")
 SIDECAR_RAILS = ("teleology", "euler", "experiment_runner")
-RULE_IDS = ("higher_assurance", "design", "docs_only", "conservative")
+RULE_IDS = ("higher_assurance", "design", "docs_only", "creative_alternatives", "conservative")
 REASON_CODES = (
     "invariant_review_required",
     "security_review_required",
@@ -64,6 +65,11 @@ REASON_CODES = (
     "docs_only_euler_not_selected",
     "creative_scope_not_selected",
     "manual_additive_upgrade",
+    "bounded_alternatives_declared",
+    "creative_writer_unavailable",
+    "creative_exact_file_scope_missing",
+    "direct_fix_declared",
+    "creative_disabled",
 )
 TASK_CLASSIFICATION_LABELS = (
     "pr_governance",
@@ -168,6 +174,10 @@ class ApplicabilitySignals:
     security_review: bool
     design_lane: bool
     docs_only: bool
+    pr_phase: str = "none"
+    runtime_writer_available: bool = False
+    exact_file_candidate_available: bool = False
+    creative_applicability: str | None = None
 
 
 @dataclass(frozen=True)
@@ -597,6 +607,37 @@ def _validate_packet_projection(packet: Any, *, filename_id: str) -> None:
     pr_phase = packet.get("pr_phase")
     if pr_phase not in PR_PHASES:
         _error()
+    creative_choice = packet.get("creative_applicability")
+    if creative_choice is not None and (
+        not isinstance(creative_choice, str)
+        or creative_choice
+        not in {
+            "alternatives",
+            "direct_fix",
+            "not_applicable",
+            "disabled",
+        }
+    ):
+        _error()
+    creative_base_id = packet.get("creative_applicability_base_packet_id")
+    if creative_choice is None:
+        if creative_base_id is not None:
+            _error()
+    else:
+        if (
+            not isinstance(creative_base_id, str)
+            or _PACKET_ID_RE.fullmatch(creative_base_id) is None
+        ):
+            _error()
+        expected_creative_id = fingerprint_payload(
+            {
+                "identity_schema": "task_packet_id.creative_applicability.v1",
+                "base_task_packet_id": creative_base_id,
+                "creative_applicability": creative_choice,
+            }
+        ).removeprefix("sha256:")[:12]
+        if task_packet_id != expected_creative_id:
+            _error()
     candidate_paths = packet.get("candidate_paths")
     if not isinstance(candidate_paths, list) or len(candidate_paths) > MAX_CANDIDATE_PATHS:
         _error()
@@ -688,6 +729,21 @@ def _mapping(value: Any) -> Mapping[str, Any]:
     return cast(Mapping[str, Any], value)
 
 
+def _has_exact_file_candidate(paths: tuple[str, ...]) -> bool:
+    for raw_path in paths:
+        if raw_path == ".":
+            continue
+        candidate = REPO_ROOT
+        for part in PurePosixPath(raw_path).parts:
+            candidate = candidate / part
+            if candidate.is_symlink():
+                break
+        else:
+            if not candidate.is_dir():
+                return True
+    return False
+
+
 def extract_applicability_signals(snapshot: TaskPacketSnapshot) -> ApplicabilitySignals:
     """Extract only structured, producer-bound signals from a validated snapshot."""
 
@@ -722,11 +778,26 @@ def extract_applicability_signals(snapshot: TaskPacketSnapshot) -> Applicability
     design_signal = bool(
         classification.get("label") == "design" and design_projection.execution_ready
     )
+    dispatch = _mapping(packet.get("role_agent_dispatch_contract"))
+    owners = dispatch.get("runtime_implementation_owners")
+    if (
+        not isinstance(owners, tuple)
+        or any(type(owner) is not str or not owner for owner in owners)
+        or dispatch.get("runtime_implementation_owner_flags_required") is not bool(owners)
+    ):
+        _error()
+    candidate_paths = packet.get("candidate_paths")
+    if not isinstance(candidate_paths, tuple):
+        _error()
     return ApplicabilitySignals(
         invariant_review=invariant_signal,
         security_review=automation.get("security_review_required") is True,
         design_lane=design_signal,
         docs_only=skill_routing.get("envelope_mode_hint") == "docs_only",
+        pr_phase=cast(str, packet["pr_phase"]),
+        runtime_writer_available=bool(owners),
+        exact_file_candidate_available=_has_exact_file_candidate(candidate_paths),
+        creative_applicability=cast(str | None, packet.get("creative_applicability")),
     )
 
 
@@ -762,7 +833,7 @@ def _decision_rows(
         )
         creative_reason = (
             "higher_assurance_scope_preempts_creative"
-            if signals.design_lane
+            if signals.creative_applicability == "alternatives"
             else "creative_scope_not_selected"
         )
         rows = (
@@ -777,6 +848,30 @@ def _decision_rows(
         )
     elif signals.design_lane:
         rule_id = "design"
+        alternatives = signals.creative_applicability == "alternatives"
+        writer_available = (
+            signals.pr_phase in {"none", "pre_open"} and signals.runtime_writer_available
+        )
+        creative_treatment = (
+            RailTreatment.RECOMMEND
+            if alternatives and writer_available and signals.exact_file_candidate_available
+            else RailTreatment.NOT_APPLICABLE
+        )
+        creative_reason = {
+            "direct_fix": "direct_fix_declared",
+            "disabled": "creative_disabled",
+            "not_applicable": "creative_scope_not_selected",
+        }.get(signals.creative_applicability or "", "creative_scope_not_selected")
+        if alternatives:
+            creative_reason = (
+                "creative_writer_unavailable"
+                if not writer_available
+                else (
+                    "design_lane_applicable"
+                    if signals.exact_file_candidate_available
+                    else "creative_exact_file_scope_missing"
+                )
+            )
         rows = (
             ("teleology", RailTreatment.FULL, ("design_lane_applicable",)),
             ("euler", RailTreatment.FINITE_REVIEW, ("design_lane_applicable",)),
@@ -785,7 +880,7 @@ def _decision_rows(
                 RailTreatment.REQUIRED,
                 ("runner_required_by_existing_pr_policy",),
             ),
-            ("creative", RailTreatment.RECOMMEND, ("design_lane_applicable",)),
+            ("creative", creative_treatment, (creative_reason,)),
         )
     elif signals.docs_only:
         rule_id = "docs_only"
@@ -812,8 +907,45 @@ def _decision_rows(
                 ("creative_scope_not_selected",),
             ),
         )
+    elif signals.creative_applicability == "alternatives":
+        rule_id = "creative_alternatives"
+        writer_available = (
+            signals.pr_phase in {"none", "pre_open"} and signals.runtime_writer_available
+        )
+        rows = (
+            ("teleology", RailTreatment.FULL, ("bounded_alternatives_declared",)),
+            ("euler", RailTreatment.FINITE_REVIEW, ("bounded_alternatives_declared",)),
+            (
+                "experiment_runner",
+                RailTreatment.REQUIRED,
+                ("runner_required_by_existing_pr_policy",),
+            ),
+            (
+                "creative",
+                (
+                    RailTreatment.RECOMMEND
+                    if writer_available and signals.exact_file_candidate_available
+                    else RailTreatment.NOT_APPLICABLE
+                ),
+                (
+                    (
+                        "creative_writer_unavailable"
+                        if not writer_available
+                        else (
+                            "bounded_alternatives_declared"
+                            if signals.exact_file_candidate_available
+                            else "creative_exact_file_scope_missing"
+                        )
+                    ),
+                ),
+            ),
+        )
     else:
         rule_id = "conservative"
+        creative_reason = {
+            "direct_fix": "direct_fix_declared",
+            "disabled": "creative_disabled",
+        }.get(signals.creative_applicability or "", "creative_scope_not_selected")
         rows = (
             ("teleology", RailTreatment.FULL, ("conservative_default",)),
             ("euler", RailTreatment.FINITE_REVIEW, ("conservative_default",)),
@@ -825,7 +957,7 @@ def _decision_rows(
             (
                 "creative",
                 RailTreatment.NOT_APPLICABLE,
-                ("creative_scope_not_selected",),
+                (creative_reason,),
             ),
         )
 

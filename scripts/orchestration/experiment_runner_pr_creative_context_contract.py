@@ -11,11 +11,12 @@ from __future__ import annotations
 
 import argparse
 from collections.abc import Callable, Mapping, Sequence
+import hashlib
 import json
 from pathlib import Path, PurePosixPath
 import re
 import sys
-from typing import Any, cast
+from typing import Any, NoReturn, cast
 
 from core.evidence.fingerprints import build_asset_id, build_idempotency_key, fingerprint_payload
 from scripts.orchestration.creative_pilot_workspace_contract import (
@@ -221,6 +222,77 @@ LEAK_TEXT_RE = re.compile(
     r"workspace|workspaces)(?:/|$)|~[/\\]|[A-Za-z]:[\\/]|\.venv/|\.git/|"
     r"worktrees([:/._-]|$)|merge[-_ ]?ready|ready to merge|mergeable)",
     re.IGNORECASE | re.MULTILINE,
+)
+LOCAL_ABSOLUTE_PATH_RE = re.compile(
+    r"(?<![A-Za-z0-9:/])/(?!dev/null(?:\s|$))[A-Za-z0-9._-]+"
+    r"(?:/[A-Za-z0-9._-]+)*|~[/\\]|[A-Za-z]:[\\/]",
+    re.IGNORECASE | re.MULTILINE,
+)
+_ROUTE_LITERAL_CONTEXT_RE = re.compile(
+    r"(?:@(?:router|app)\.(?:get|post|put|patch|delete|options|head|api_route|websocket)"
+    r"\(\s*['\"]|\b(?:GET|POST|PUT|PATCH|DELETE|OPTIONS|HEAD|WEBSOCKET)\s+)$",
+    re.IGNORECASE,
+)
+_UNC_PATH_RE = re.compile(
+    r"\\\\[A-Za-z0-9._-]+\\[A-Za-z0-9._-]+|(?<!:)//[A-Za-z0-9._-]+/[A-Za-z0-9._-]+",
+    re.IGNORECASE,
+)
+_LOCAL_FILESYSTEM_ROOTS = frozenset(
+    {
+        "dev",
+        "etc",
+        "home",
+        "media",
+        "mnt",
+        "opt",
+        "private",
+        "proc",
+        "root",
+        "run",
+        "srv",
+        "sys",
+        "tmp",
+        "users",
+        "usr",
+        "var",
+        "volumes",
+        "workspace",
+        "workspaces",
+    }
+)
+
+
+def contains_local_path_outside_route_context(value: str) -> bool:
+    if _UNC_PATH_RE.search(value):
+        return True
+    for match in LOCAL_ABSOLUTE_PATH_RE.finditer(value):
+        matched_path = match.group()
+        if (
+            matched_path.startswith("/")
+            and matched_path.split("/", 2)[1].casefold() in _LOCAL_FILESYSTEM_ROOTS
+        ):
+            return True
+        line_start = value.rfind("\n", 0, match.start()) + 1
+        if _ROUTE_LITERAL_CONTEXT_RE.search(value[line_start : match.start()]):
+            continue
+        return True
+    return False
+
+
+SECRET_VALUE_RE = re.compile(
+    r"\b(?:AKIA|ASIA)[A-Z0-9]{16}\b|"
+    r"\b(?:sk-[A-Za-z0-9_-]{12,}|gh[psoru]_[A-Za-z0-9_.-]{12,}|"
+    r"github_pat_[A-Za-z0-9_]{12,}|xox[abprs]-[A-Za-z0-9-]{12,})|"
+    r"\b[A-Z0-9_]*(?:SECRET|TOKEN|PASSWORD|SALT|PRIVATE_KEY|API[_-]?KEY)[A-Z0-9_]*"
+    r"['\"]?\s*[:=]\s*(?:\"[^\"\r\n]+\"|'[^'\r\n]+'|[^\s,;\"']+)",
+    re.IGNORECASE,
+)
+WORKFLOW_SECRET_TOKEN_RE = re.compile(
+    r"\b(?:sk-[A-Za-z0-9_-]{12,}|gh[psoru]_[A-Za-z0-9_.-]{12,}|"
+    r"github_pat_[A-Za-z0-9_]{12,}|xox[abprs]-[A-Za-z0-9-]{12,})\b|"
+    r"authorization:\s*bearer[ \t]+\S+|"
+    r"-----BEGIN(?: [A-Z0-9]+)? PRIVATE KEY-----",
+    re.IGNORECASE,
 )
 UNSAFE_KEY_RE = re.compile(
     r"(?i)(^raw|raw_|_raw|body$|_body$|body_text|body_html|patch_text|raw_patch|"
@@ -3014,6 +3086,572 @@ def validate_artifact_by_type(
             f"Unsupported artifact type: {artifact_type}. Supported: {supported}"
         )
     return validators[artifact_type](payload)
+
+
+# Operational Creative is an additive host workflow. Legacy creative-context v1,
+# adaptive v2, and the PR-2 patch sandbox keep their original authority.
+CREATIVE_WORKFLOW_SCHEMA_VERSION = "creative_workflow.v1"
+CREATIVE_WORKFLOW_REQUEST_VERSION = "creative_workflow_request.v1"
+CREATIVE_WORKFLOW_NATIVE_VERSION = "creative_workflow_native_result.v1"
+CREATIVE_WORKFLOW_REVIEW_VERSION = "creative_workflow_review.v1"
+CREATIVE_WORKFLOW_HANDOFF_VERSION = "creative_workflow_handoff.v1"
+_WORKFLOW_SHA256_RE = re.compile(r"^sha256:[a-f0-9]{64}$")
+_WORKFLOW_CRITERION_RE = re.compile(r"^C[1-9][0-9]{0,2}$")
+_WORKFLOW_PYTEST_COMMAND_RE = re.compile(
+    r"^pytest -q (tests/[A-Za-z0-9_./-]+\.py)(?:::[A-Za-z_][A-Za-z0-9_]*)*" r"(?: --maxfail=1)?$"
+)
+_WORKFLOW_FRONTEND_COMMAND_RE = re.compile(
+    r"^npm --prefix frontend test -- --run (src/[A-Za-z0-9_./-]+\.(?:test|spec)\.(?:js|jsx|ts|tsx))$"
+)
+_WORKFLOW_MAKE_TEST_COMMANDS = frozenset({"make test-fast", "make ios-test"})
+_WORKFLOW_STAGES = ("prepared", "returned", "validated", "reviewed", "admitted")
+CREATIVE_WORKFLOW_STAGE_TYPE = "creative_workflow_stage"
+CREATIVE_WORKFLOW_POLICY_VERSION = "creative_workflow.policy.v1"
+
+
+def _workflow_fail(message: str) -> NoReturn:
+    raise ExperimentRunnerCreativeContextContractError(f"creative workflow: {message}")
+
+
+def _workflow_object(value: Any, keys: set[str], label: str) -> dict[str, Any]:
+    if not isinstance(value, dict) or set(value) != keys:
+        _workflow_fail(f"{label} fields are invalid")
+    return value
+
+
+def _workflow_text(value: Any, label: str, *, maximum: int = 600) -> str:
+    if not isinstance(value, str) or not value or value != value.strip() or len(value) > maximum:
+        _workflow_fail(f"{label} must be bounded nonempty text")
+    if (
+        WORKFLOW_SECRET_TOKEN_RE.search(value)
+        or SECRET_VALUE_RE.search(value)
+        or contains_local_path_outside_route_context(value)
+        or re.search(
+            r"file://|(?:https?://[^\s?#]+\?[^\s]+)",
+            value,
+            re.IGNORECASE,
+        )
+        or any(ord(character) < 32 and character not in "\t\n" for character in value)
+    ):
+        _workflow_fail(f"{label} contains private or unsupported content")
+    return value
+
+
+def _workflow_texts(value: Any, label: str, *, maximum: int = 30) -> list[str]:
+    if not isinstance(value, list) or not value or len(value) > maximum:
+        _workflow_fail(f"{label} must be a nonempty bounded list")
+    rows = [_workflow_text(item, label) for item in value]
+    if len(set(rows)) != len(rows):
+        _workflow_fail(f"{label} contains duplicates")
+    return rows
+
+
+def _workflow_path(value: Any, label: str) -> str:
+    if not isinstance(value, str) or not value or value != value.strip() or len(value) > 240:
+        _workflow_fail(f"{label} must be bounded nonempty text")
+    if SECRET_VALUE_RE.search(value) or any(ord(character) < 32 for character in value):
+        _workflow_fail(f"{label} contains private or unsupported content")
+    path = value
+    parts = PurePosixPath(path)
+    if (
+        parts.is_absolute()
+        or parts.as_posix() != path
+        or path.startswith(".")
+        or "\\" in path
+        or any(part in {"", ".", ".."} for part in path.split("/"))
+    ):
+        _workflow_fail(f"{label} must be a canonical repo-relative path")
+    return path
+
+
+def _workflow_test_command(value: Any) -> str:
+    if not isinstance(value, str) or not value or value != value.strip() or len(value) > 240:
+        _workflow_fail("test command must be bounded nonempty text")
+    if SECRET_VALUE_RE.search(value):
+        _workflow_fail("test command contains private content")
+    command = value
+    if re.search(r"[;&|<>$`\\\r\n\t]", command):
+        _workflow_fail("test command contains shell syntax")
+    if command in _WORKFLOW_MAKE_TEST_COMMANDS:
+        return command
+    python_target = _WORKFLOW_PYTEST_COMMAND_RE.fullmatch(command)
+    if python_target is not None:
+        _workflow_path(python_target.group(1), "test command target")
+        return command
+    frontend_target = _WORKFLOW_FRONTEND_COMMAND_RE.fullmatch(command)
+    if frontend_target is not None:
+        _workflow_path("frontend/" + frontend_target.group(1), "test command target")
+        return command
+    _workflow_fail("test command is not an approved focused test target")
+
+
+def _workflow_digest(value: Any, label: str) -> str:
+    if not isinstance(value, str) or _WORKFLOW_SHA256_RE.fullmatch(value) is None:
+        _workflow_fail(f"{label} must be SHA-256")
+    return value
+
+
+def workflow_fingerprint(value: Mapping[str, Any]) -> str:
+    """Content integrity only; never an approval or outcome claim."""
+
+    return (
+        "sha256:"
+        + hashlib.sha256(
+            json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode(
+                "ascii"
+            )
+        ).hexdigest()
+    )
+
+
+def validate_creative_workflow_request(payload: Mapping[str, Any]) -> dict[str, Any]:
+    """Validate one coordinator-authored, packet-bound operational request."""
+
+    request = _workflow_object(
+        payload,
+        {
+            "schema_version",
+            "repository",
+            "base_sha",
+            "head_sha",
+            "task_packet_id",
+            "task_packet_fingerprint",
+            "criteria_ref",
+            "criteria_sha256",
+            "criteria_version",
+            "requirements_ref",
+            "requirements_sha256",
+            "original_dod",
+            "criteria",
+            "allowed_paths",
+            "euler",
+            "budget",
+            "test_commands",
+        },
+        "request",
+    )
+    if request["schema_version"] != CREATIVE_WORKFLOW_REQUEST_VERSION:
+        _workflow_fail("request schema version is invalid")
+    if (
+        not isinstance(request["repository"], str)
+        or REPOSITORY_RE.fullmatch(request["repository"]) is None
+    ):
+        _workflow_fail("repository is invalid")
+    for key in ("base_sha", "head_sha"):
+        if not isinstance(request[key], str) or SHA_RE.fullmatch(request[key]) is None:
+            _workflow_fail(f"{key} is invalid")
+    if (
+        not isinstance(request["task_packet_id"], str)
+        or re.fullmatch(r"[a-f0-9]{12}", request["task_packet_id"]) is None
+    ):
+        _workflow_fail("task packet id is invalid")
+    _workflow_digest(request["task_packet_fingerprint"], "task packet fingerprint")
+    _workflow_path(request["criteria_ref"], "criteria ref")
+    _workflow_digest(request["criteria_sha256"], "criteria digest")
+    _workflow_text(request["criteria_version"], "criteria version", maximum=96)
+    _workflow_path(request["requirements_ref"], "requirements ref")
+    _workflow_digest(request["requirements_sha256"], "requirements digest")
+    _workflow_texts(request["original_dod"], "original DoD", maximum=100)
+    criteria = request["criteria"]
+    if not isinstance(criteria, list) or not criteria or len(criteria) > 100:
+        _workflow_fail("criteria must be a nonempty bounded list")
+    criterion_ids: list[str] = []
+    for row in criteria:
+        row = _workflow_object(row, {"id", "description", "source_items"}, "criterion")
+        if not isinstance(row["id"], str) or _WORKFLOW_CRITERION_RE.fullmatch(row["id"]) is None:
+            _workflow_fail("criterion id is invalid")
+        _workflow_text(row["description"], "criterion description")
+        source_items = _workflow_texts(row["source_items"], "criterion source items")
+        if not set(source_items).issubset(request["original_dod"]):
+            _workflow_fail("criterion references an unknown original DoD item")
+        criterion_ids.append(row["id"])
+    if len(set(criterion_ids)) != len(criterion_ids):
+        _workflow_fail("criterion ids are duplicated")
+    if set(request["original_dod"]) != {item for row in criteria for item in row["source_items"]}:
+        _workflow_fail("original DoD coverage is incomplete")
+    paths = request["allowed_paths"]
+    if not isinstance(paths, list) or not paths or len(paths) > 30:
+        _workflow_fail("allowed paths are invalid")
+    normalized_paths = [_workflow_path(path, "allowed path") for path in paths]
+    if normalized_paths != sorted(set(normalized_paths)):
+        _workflow_fail("allowed paths must be sorted and unique")
+    euler = _workflow_object(
+        request["euler"], {"artifact_ref", "artifact_sha256", "relations"}, "Euler"
+    )
+    _workflow_path(euler["artifact_ref"], "Euler artifact ref")
+    _workflow_digest(euler["artifact_sha256"], "Euler artifact digest")
+    relations = euler["relations"]
+    if not isinstance(relations, list) or not relations or len(relations) > 100:
+        _workflow_fail("Euler relations are invalid")
+    relation_ids: list[str] = []
+    for row in relations:
+        row = _workflow_object(row, {"id", "description", "finding_ids"}, "Euler relation")
+        relation_ids.append(_workflow_text(row["id"], "Euler relation id", maximum=96))
+        _workflow_text(row["description"], "Euler relation description")
+        if not isinstance(row["finding_ids"], list) or len(row["finding_ids"]) > 100:
+            _workflow_fail("Euler finding IDs are invalid")
+        for finding_id in row["finding_ids"]:
+            _workflow_text(finding_id, "Euler finding ID", maximum=96)
+    if len(set(relation_ids)) != len(relation_ids):
+        _workflow_fail("Euler relation IDs are duplicated")
+    budget = _workflow_object(
+        request["budget"],
+        {"seconds", "max_files", "max_test_commands", "max_infra_retries"},
+        "budget",
+    )
+    for key, bound in (
+        ("seconds", 300),
+        ("max_files", 3),
+        ("max_test_commands", 2),
+        ("max_infra_retries", 1),
+    ):
+        if type(budget[key]) is not int or budget[key] < 0 or budget[key] > bound:
+            _workflow_fail(f"budget {key} exceeds the candidate-cycle limit")
+    if budget["seconds"] == 0 or budget["max_files"] == 0 or budget["max_test_commands"] == 0:
+        _workflow_fail("candidate-cycle budget must be nonzero")
+    tests = request["test_commands"]
+    if not isinstance(tests, list) or not tests or len(tests) > budget["max_test_commands"]:
+        _workflow_fail("test command count exceeds budget")
+    for command in tests:
+        _workflow_test_command(command)
+    return request
+
+
+def validate_creative_workflow_native_result(
+    payload: Mapping[str, Any], request: Mapping[str, Any]
+) -> dict[str, Any]:
+    """Admit three bounded proposals as data, without scoring or authority."""
+
+    result = _workflow_object(
+        payload,
+        {
+            "schema_version",
+            "request_fingerprint",
+            "task_packet_id",
+            "status",
+            "variants",
+            "unchanged_baseline",
+        },
+        "native result",
+    )
+    if result["schema_version"] != CREATIVE_WORKFLOW_NATIVE_VERSION or result["status"] != "ok":
+        _workflow_fail("native result is incomplete")
+    if (
+        result["request_fingerprint"] != workflow_fingerprint(request)
+        or result["task_packet_id"] != request["task_packet_id"]
+    ):
+        _workflow_fail("native result identity is stale")
+    variants = result["variants"]
+    if not isinstance(variants, list) or len(variants) != 3:
+        _workflow_fail("exactly three variants are required")
+    allowed_paths = set(request["allowed_paths"])
+    criterion_ids = {row["id"] for row in request["criteria"]}
+    euler_ids = {row["id"] for row in request["euler"]["relations"]}
+    names: set[str] = set()
+    changes: set[str] = set()
+    for row in variants:
+        row = _workflow_object(
+            row,
+            {
+                "id",
+                "criteria",
+                "change",
+                "paths",
+                "assumptions",
+                "expected_observation",
+                "counterexample",
+                "tests",
+                "risks",
+                "euler_relation_ids",
+            },
+            "variant",
+        )
+        name = _workflow_text(row["id"], "variant id", maximum=32)
+        if name in names:
+            _workflow_fail("variant ids are duplicated")
+        names.add(name)
+        change = _workflow_text(row["change"], "variant change")
+        if change.casefold() in changes:
+            _workflow_fail("variant changes are duplicated")
+        changes.add(change.casefold())
+        if not set(_workflow_texts(row["criteria"], "variant criteria", maximum=100)).issubset(
+            criterion_ids
+        ):
+            _workflow_fail("variant uses unknown criterion")
+        paths = _workflow_texts(row["paths"], "variant paths")
+        for path in paths:
+            _workflow_path(path, "variant path")
+        if not set(paths).issubset(allowed_paths) or len(paths) > request["budget"]["max_files"]:
+            _workflow_fail("variant exceeds exact allowed paths or file budget")
+        for key in ("assumptions", "tests", "risks"):
+            _workflow_texts(row[key], f"variant {key}")
+        if len(row["tests"]) > request["budget"]["max_test_commands"]:
+            _workflow_fail("variant exceeds focused test command budget")
+        if not set(row["tests"]).issubset(request["test_commands"]):
+            _workflow_fail("variant test command is outside the admitted request")
+        for key in ("expected_observation", "counterexample"):
+            _workflow_text(row[key], f"variant {key}")
+        relation_ids = row["euler_relation_ids"]
+        if not isinstance(relation_ids, list) or len(relation_ids) > 100:
+            _workflow_fail("variant Euler relations are invalid")
+        checked_relation_ids = [
+            _workflow_text(item, "variant Euler relation id", maximum=96) for item in relation_ids
+        ]
+        if any(item not in euler_ids for item in checked_relation_ids) or len(
+            set(checked_relation_ids)
+        ) != len(checked_relation_ids):
+            _workflow_fail("variant Euler relation is unknown or duplicated")
+    baseline = _workflow_object(
+        result["unchanged_baseline"], {"expected_observation", "risk"}, "unchanged baseline"
+    )
+    _workflow_text(baseline["expected_observation"], "baseline observation")
+    _workflow_text(baseline["risk"], "baseline risk")
+    return result
+
+
+def validate_creative_workflow_review(
+    payload: Mapping[str, Any], request: Mapping[str, Any], result: Mapping[str, Any]
+) -> dict[str, Any]:
+    review = _workflow_object(
+        payload,
+        {
+            "schema_version",
+            "request_fingerprint",
+            "native_result_fingerprint",
+            "selected_variant_id",
+            "reviewer_role",
+            "rationale",
+            "criteria_coverage",
+            "euler_assessment",
+        },
+        "review",
+    )
+    if review["schema_version"] != CREATIVE_WORKFLOW_REVIEW_VERSION or review[
+        "request_fingerprint"
+    ] != workflow_fingerprint(request):
+        _workflow_fail("review identity is stale")
+    _workflow_digest(review["native_result_fingerprint"], "review native result fingerprint")
+    if review["native_result_fingerprint"] != workflow_fingerprint(result):
+        _workflow_fail("review native result is stale")
+    if review["reviewer_role"] != "agent-coordinator":
+        _workflow_fail("selection requires coordinator review")
+    _workflow_text(review["rationale"], "review rationale")
+    selected = next(
+        (row for row in result["variants"] if row["id"] == review["selected_variant_id"]), None
+    )
+    if selected is None:
+        _workflow_fail("selected variant is unknown")
+    coverage = review["criteria_coverage"]
+    required_ids = {row["id"] for row in request["criteria"]}
+    if not isinstance(coverage, list) or len(coverage) != len(required_ids):
+        _workflow_fail("review omitted an accepted criterion")
+    coverage_rows = [
+        _workflow_object(row, {"id", "status", "evidence"}, "criterion review") for row in coverage
+    ]
+    coverage_ids = [_workflow_text(row["id"], "criterion review id") for row in coverage_rows]
+    if set(coverage_ids) != required_ids:
+        _workflow_fail("review omitted an accepted criterion")
+    for row in coverage_rows:
+        if row["status"] != "supported":
+            _workflow_fail("selected variant has unsupported criterion")
+        _workflow_text(row["evidence"], "criterion review evidence")
+    if not required_ids.issubset(selected["criteria"]):
+        _workflow_fail("selected variant omits an accepted criterion")
+    euler = review["euler_assessment"]
+    relation_ids = {row["id"] for row in request["euler"]["relations"]}
+    if not relation_ids or not isinstance(euler, list) or len(euler) != len(relation_ids):
+        _workflow_fail("Euler assessment is absent or incomplete")
+    euler_rows = [
+        _workflow_object(row, {"id", "status", "evidence"}, "Euler assessment") for row in euler
+    ]
+    euler_ids = [_workflow_text(row["id"], "Euler assessment id") for row in euler_rows]
+    if set(euler_ids) != relation_ids:
+        _workflow_fail("Euler assessment is absent or incomplete")
+    if not relation_ids.issubset(selected["euler_relation_ids"]):
+        _workflow_fail("selected variant omits an Euler relation")
+    for row in euler_rows:
+        if row["status"] != "satisfied":
+            _workflow_fail("unresolved Euler relation blocks selection")
+        _workflow_text(row["evidence"], "Euler evidence")
+    return review
+
+
+def _validated_workflow_handoff_content(
+    payload: Mapping[str, Any],
+    request: Mapping[str, Any],
+    result: Mapping[str, Any],
+    review: Mapping[str, Any],
+) -> dict[str, Any]:
+    handoff = _workflow_object(
+        payload,
+        {
+            "schema_version",
+            "request_fingerprint",
+            "selected_variant_id",
+            "coordinator_role",
+            "writer_role",
+            "manifest_order",
+            "files",
+        },
+        "writer handoff",
+    )
+    if handoff["schema_version"] != CREATIVE_WORKFLOW_HANDOFF_VERSION or handoff[
+        "request_fingerprint"
+    ] != workflow_fingerprint(request):
+        _workflow_fail("writer handoff identity is stale")
+    if review.get("native_result_fingerprint") != workflow_fingerprint(result):
+        _workflow_fail("writer handoff native result is unreviewed")
+    if (
+        handoff["coordinator_role"] != "agent-coordinator"
+        or handoff["selected_variant_id"] != review["selected_variant_id"]
+    ):
+        _workflow_fail("writer handoff does not match reviewed selection")
+    if (
+        type(handoff["manifest_order"]) is not int
+        or handoff["manifest_order"] < 1
+        or not isinstance(handoff["writer_role"], str)
+        or AGENT_SLUG_RE.fullmatch(handoff["writer_role"]) is None
+    ):
+        _workflow_fail("writer handoff occurrence is invalid")
+    selected = next(
+        (row for row in result["variants"] if row["id"] == review["selected_variant_id"]),
+        None,
+    )
+    if selected is None:
+        _workflow_fail("writer handoff selected variant is unknown")
+    files = handoff["files"]
+    if (
+        not isinstance(files, list)
+        or files != selected["paths"]
+        or len(files) > request["budget"]["max_files"]
+    ):
+        _workflow_fail("writer file scope does not match selected variant")
+    return handoff
+
+
+def validate_creative_workflow_handoff(
+    payload: Mapping[str, Any],
+    request: Mapping[str, Any],
+    result: Mapping[str, Any],
+    review: Mapping[str, Any],
+    eligible_occurrences: Sequence[tuple[int, str]],
+    dispatch_order: Sequence[str] | None = None,
+) -> dict[str, Any]:
+    handoff = _validated_workflow_handoff_content(payload, request, result, review)
+    if (handoff["manifest_order"], handoff["writer_role"]) not in eligible_occurrences:
+        _workflow_fail("writer occurrence is not eligible")
+    if (
+        not isinstance(dispatch_order, (list, tuple))
+        or not dispatch_order
+        or handoff["manifest_order"] > len(dispatch_order)
+        or dispatch_order[handoff["manifest_order"] - 1] != handoff["writer_role"]
+    ):
+        _workflow_fail("writer occurrence does not match packet role order")
+    return handoff
+
+
+def validate_creative_workflow_stage(payload: Mapping[str, Any]) -> dict[str, Any]:
+    stage = _workflow_object(
+        payload,
+        {
+            "artifact_type",
+            "policy_version",
+            "upstream_assets",
+            "fingerprint",
+            "idempotency_key",
+            "schema_version",
+            "stage",
+            "request",
+            "native_result",
+            "review",
+            "handoff",
+            "intake_error",
+        },
+        "stage artifact",
+    )
+    if (
+        stage["schema_version"] != CREATIVE_WORKFLOW_SCHEMA_VERSION
+        or stage["stage"] not in _WORKFLOW_STAGES
+    ):
+        _workflow_fail("stage version or state is invalid")
+    if (
+        stage["artifact_type"] != CREATIVE_WORKFLOW_STAGE_TYPE
+        or stage["policy_version"] != CREATIVE_WORKFLOW_POLICY_VERSION
+        or not isinstance(stage["upstream_assets"], list)
+        or len(stage["upstream_assets"]) != 1
+    ):
+        _workflow_fail("stage asset lineage is invalid")
+    _workflow_digest(stage["upstream_assets"][0], "stage upstream asset")
+    content = {
+        key: value for key, value in stage.items() if key not in {"fingerprint", "idempotency_key"}
+    }
+    expected_fingerprint = workflow_fingerprint(content)
+    if stage["fingerprint"] != expected_fingerprint or stage[
+        "idempotency_key"
+    ] != "creative-workflow-stage.v1:" + expected_fingerprint.removeprefix("sha256:"):
+        _workflow_fail("stage fingerprint or idempotency key is invalid")
+    validate_creative_workflow_request(stage["request"])
+    if stage["stage"] == "prepared":
+        if any(
+            stage[key] is not None for key in ("native_result", "review", "handoff", "intake_error")
+        ):
+            _workflow_fail("prepared stage contains later evidence")
+    elif stage["stage"] == "returned":
+        if any(stage[key] is not None for key in ("native_result", "review", "handoff")):
+            _workflow_fail("returned stage contains unvalidated evidence")
+        intake_error = stage["intake_error"]
+        if intake_error is not None and (
+            not isinstance(intake_error, str) or intake_error != "INVALID_NATIVE_RESULT"
+        ):
+            _workflow_fail("returned stage error category is invalid")
+    else:
+        if stage["intake_error"] is not None:
+            _workflow_fail("validated stage cannot contain an intake error")
+        result = validate_creative_workflow_native_result(stage["native_result"], stage["request"])
+        if stage["stage"] == "validated":
+            if stage["review"] is not None or stage["handoff"] is not None:
+                _workflow_fail("validated stage contains later evidence")
+        else:
+            validate_creative_workflow_review(stage["review"], stage["request"], result)
+            if stage["stage"] == "reviewed" and stage["handoff"] is not None:
+                _workflow_fail("reviewed stage contains a writer handoff")
+            if stage["stage"] == "admitted" and stage["handoff"] is None:
+                _workflow_fail("admitted stage lacks writer handoff")
+            if stage["stage"] == "admitted":
+                _validated_workflow_handoff_content(
+                    stage["handoff"], stage["request"], result, stage["review"]
+                )
+    return stage
+
+
+def build_creative_workflow_stage(
+    payload: Mapping[str, Any], *, upstream_fingerprint: str
+) -> dict[str, Any]:
+    """Build one exact replayable local stage from its admitted predecessor."""
+
+    _workflow_digest(upstream_fingerprint, "stage upstream asset")
+    stage = {
+        **{
+            key: value
+            for key, value in payload.items()
+            if key
+            not in {
+                "artifact_type",
+                "policy_version",
+                "upstream_assets",
+                "fingerprint",
+                "idempotency_key",
+            }
+        },
+        "artifact_type": CREATIVE_WORKFLOW_STAGE_TYPE,
+        "policy_version": CREATIVE_WORKFLOW_POLICY_VERSION,
+        "upstream_assets": [upstream_fingerprint],
+    }
+    stage["fingerprint"] = workflow_fingerprint(stage)
+    stage["idempotency_key"] = "creative-workflow-stage.v1:" + stage["fingerprint"].removeprefix(
+        "sha256:"
+    )
+    return validate_creative_workflow_stage(stage)
 
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
