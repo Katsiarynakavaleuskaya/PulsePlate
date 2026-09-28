@@ -303,14 +303,16 @@ jobs:
               case "$path" in
                 docs/orchestration/contracts/PHILOSOPHY_SOURCE_CORPUS_INDEX.json|\
                 docs/orchestration/contracts/PHILOSOPHY_SOURCE_CORPUS_INDEX.schema.json|\
+                docs/orchestration/contracts/PHILOSOPHY_GATE_OPEN_PRECONDITIONS_REPORT.json|\
                 docs/orchestration/PHILOSOPHY_EPIC_V2_PR5_SOURCE_CORPUS_INDEX_PACKET_2026-05-24.md|\
+                docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md|\
                 scripts/ci/check_philosophy_source_corpus_index.py|\
                 tests/test_philosophy_source_corpus_index.py)
                   PR5_SOURCE_CORPUS_CHANGED=1
                   ;;
               esac
             done
-          done < <(git diff --name-status -z --diff-filter=ACDMRT "$BASE_REF"...HEAD)
+          done < <(git diff --name-status -z --find-renames --find-copies-harder --diff-filter=ACDMRT "$BASE_REF"...HEAD)
           while IFS= read -r -d '' path; do
             CHANGED_MD+=("$path")
             if [[ "$path" == docs/* ]]; then
@@ -371,7 +373,8 @@ jobs:
 
           if [ "${PR5_SOURCE_CORPUS_CHANGED}" -eq 1 ]; then
             echo "PR-5 source corpus guard changed; checking source index and all touched paths."
-            python scripts/ci/check_philosophy_source_corpus_index.py --check --files "${ALL_CHANGED_FILES[@]}"
+            python scripts/ci/check_philosophy_source_corpus_index.py --check \
+              --base-ref "$BASE_REF" --files "${ALL_CHANGED_FILES[@]}"
           fi
 
           if [ "${#LINT_MD[@]}" -eq 0 ]; then
@@ -431,6 +434,42 @@ jobs:
       pull-requests: read
       statuses: read
     steps:
+      - name: Enforce prerequisite results
+        env:
+          CHANGES_RESULT: ${{ needs.changes.result }}
+          PR_BODY_PHASE2_GATES_RESULT: ${{ needs.pr_body_phase2_gates.result }}
+          PRIVATE_PYTHON_PROXY_HEALTH_RESULT: ${{ needs.private_python_proxy_health.result }}
+          TRIVY_IGNORE_POLICY_EXPIRY_RESULT: ${{ needs.trivy_ignore_policy_expiry.result }}
+          SECURITY_RESULT: ${{ needs.security.result }}
+          SECURITY_REQUIRED: ${{ needs.changes.outputs.run_security }}
+          PGVECTOR_REQUIRED: ${{ needs.changes.outputs.pgvector_compat }}
+        run: |
+          if [[ "$CHANGES_RESULT" != "success" ]]; then
+            echo "::error::changes did not succeed ($CHANGES_RESULT)"
+            exit 1
+          fi
+          if [[ "$PR_BODY_PHASE2_GATES_RESULT" != "success" ]]; then
+            echo "::error::pr_body_phase2_gates did not succeed ($PR_BODY_PHASE2_GATES_RESULT)"
+            exit 1
+          fi
+          if [[ "$PRIVATE_PYTHON_PROXY_HEALTH_RESULT" != "success" ]]; then
+            echo "::error::private_python_proxy_health did not succeed ($PRIVATE_PYTHON_PROXY_HEALTH_RESULT)"
+            exit 1
+          fi
+          if [[ "$TRIVY_IGNORE_POLICY_EXPIRY_RESULT" != "success" ]]; then
+            echo "::error::trivy_ignore_policy_expiry did not succeed ($TRIVY_IGNORE_POLICY_EXPIRY_RESULT)"
+            exit 1
+          fi
+          if [[ "$SECURITY_REQUIRED" == "true" || "$PGVECTOR_REQUIRED" == "true" ]]; then
+            expected_security_result="success"
+          else
+            expected_security_result="skipped"
+          fi
+          if [[ "$SECURITY_RESULT" != "$expected_security_result" ]]; then
+            echo "::error::security has an invalid selection/result pair ($SECURITY_REQUIRED/$PGVECTOR_REQUIRED:$SECURITY_RESULT)"
+            exit 1
+          fi
+
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -570,8 +609,8 @@ jobs:
       - name: Configure protected main package proxy authentication
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         env:
-          DEVPI_CI_USER: ${{ secrets.DEVPI_CI_USER }}
-          DEVPI_CI_PASSWORD: ${{ secrets.DEVPI_CI_PASSWORD }}
+          DEVPI_CI_USER: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && secrets.DEVPI_CI_USER || '' }}
+          DEVPI_CI_PASSWORD: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && secrets.DEVPI_CI_PASSWORD || '' }}
         run: |
           set -euo pipefail
           if [[ -z "${DEVPI_CI_USER:-}" && -z "${DEVPI_CI_PASSWORD:-}" ]]; then
@@ -649,9 +688,19 @@ jobs:
           fi
   lint:
     needs: [private_python_proxy_health]
+    if: ${{ always() }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
+      - name: Enforce prerequisite results
+        env:
+          PRIVATE_PYTHON_PROXY_HEALTH_RESULT: ${{ needs.private_python_proxy_health.result }}
+        run: |
+          if [[ "$PRIVATE_PYTHON_PROXY_HEALTH_RESULT" != "success" ]]; then
+            echo "::error::private_python_proxy_health did not succeed ($PRIVATE_PYTHON_PROXY_HEALTH_RESULT)"
+            exit 1
+          fi
+
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with: {fetch-depth: 0, persist-credentials: false}
@@ -659,8 +708,8 @@ jobs:
       - name: Setup Python environment
         uses: ./.github/actions/python-setup
         env:
-          DEVPI_CI_USER: ${{ github.event_name != 'pull_request' && secrets.DEVPI_CI_USER || '' }}
-          DEVPI_CI_PASSWORD: ${{ github.event_name != 'pull_request' && secrets.DEVPI_CI_PASSWORD || '' }}
+          DEVPI_CI_USER: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && secrets.DEVPI_CI_USER || '' }}
+          DEVPI_CI_PASSWORD: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && secrets.DEVPI_CI_PASSWORD || '' }}
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           requirements-profile: ci-lite
@@ -679,10 +728,24 @@ jobs:
 
   security:
     needs: [changes, private_python_proxy_health, pgvector_compat]
-    if: ${{ always() && (github.event_name != 'pull_request' || needs.changes.outputs.run_security == 'true' || needs.changes.outputs.pgvector_compat == 'true') }}
+    if: ${{ always() && (github.event_name != 'pull_request' || needs.changes.result != 'success' || needs.changes.outputs.run_security == 'true' || needs.changes.outputs.pgvector_compat == 'true') }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
+      - name: Enforce prerequisite results
+        env:
+          CHANGES_RESULT: ${{ needs.changes.result }}
+          PRIVATE_PYTHON_PROXY_HEALTH_RESULT: ${{ needs.private_python_proxy_health.result }}
+        run: |
+          if [[ "$CHANGES_RESULT" != "success" ]]; then
+            echo "::error::changes did not succeed ($CHANGES_RESULT)"
+            exit 1
+          fi
+          if [[ "$PRIVATE_PYTHON_PROXY_HEALTH_RESULT" != "success" ]]; then
+            echo "::error::private_python_proxy_health did not succeed ($PRIVATE_PYTHON_PROXY_HEALTH_RESULT)"
+            exit 1
+          fi
+
       - name: Enforce pgvector compatibility proof result
         if: github.event_name == 'pull_request'
         env:
@@ -701,8 +764,8 @@ jobs:
       - name: Setup Python environment
         uses: ./.github/actions/python-setup
         env:
-          DEVPI_CI_USER: ${{ github.event_name != 'pull_request' && secrets.DEVPI_CI_USER || '' }}
-          DEVPI_CI_PASSWORD: ${{ github.event_name != 'pull_request' && secrets.DEVPI_CI_PASSWORD || '' }}
+          DEVPI_CI_USER: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && secrets.DEVPI_CI_USER || '' }}
+          DEVPI_CI_PASSWORD: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && secrets.DEVPI_CI_PASSWORD || '' }}
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           requirements-profile: ci-lite
@@ -751,21 +814,35 @@ jobs:
   openapi-sync:
     name: OpenAPI sync (backend -> frontend artifacts)
     needs: [changes, private_python_proxy_health]
-    if: github.event_name != 'pull_request' || needs.changes.outputs.run_openapi_sync == 'true'
+    if: always() && (github.event_name != 'pull_request' || needs.changes.result != 'success' || needs.changes.outputs.run_openapi_sync == 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
       APP_ENV: test
       ENVIRONMENT: test
     steps:
+      - name: Enforce prerequisite results
+        env:
+          CHANGES_RESULT: ${{ needs.changes.result }}
+          PRIVATE_PYTHON_PROXY_HEALTH_RESULT: ${{ needs.private_python_proxy_health.result }}
+        run: |
+          if [[ "$CHANGES_RESULT" != "success" ]]; then
+            echo "::error::changes did not succeed ($CHANGES_RESULT)"
+            exit 1
+          fi
+          if [[ "$PRIVATE_PYTHON_PROXY_HEALTH_RESULT" != "success" ]]; then
+            echo "::error::private_python_proxy_health did not succeed ($PRIVATE_PYTHON_PROXY_HEALTH_RESULT)"
+            exit 1
+          fi
+
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Setup Python environment
         uses: ./.github/actions/python-setup
         env:
-          DEVPI_CI_USER: ${{ github.event_name != 'pull_request' && secrets.DEVPI_CI_USER || '' }}
-          DEVPI_CI_PASSWORD: ${{ github.event_name != 'pull_request' && secrets.DEVPI_CI_PASSWORD || '' }}
+          DEVPI_CI_USER: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && secrets.DEVPI_CI_USER || '' }}
+          DEVPI_CI_PASSWORD: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && secrets.DEVPI_CI_PASSWORD || '' }}
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           requirements-profile: ci-lite
@@ -794,7 +871,7 @@ jobs:
 
   # Tier 1 PR testing: critical smoke + contract/risk suites
   test-pr:
-    if: github.event_name == 'pull_request' && needs.changes.outputs.run_backend_blocking == 'true'
+    if: always() && github.event_name == 'pull_request' && (needs.changes.result != 'success' || needs.changes.outputs.run_backend_blocking == 'true')
     needs: [changes, pr_scope_guard, private_python_proxy_health]
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -807,14 +884,34 @@ jobs:
         python-version: ['3.13']
 
     steps:
+      - name: Enforce prerequisite results
+        env:
+          CHANGES_RESULT: ${{ needs.changes.result }}
+          PR_SCOPE_GUARD_RESULT: ${{ needs.pr_scope_guard.result }}
+          PRIVATE_PYTHON_PROXY_HEALTH_RESULT: ${{ needs.private_python_proxy_health.result }}
+        run: |
+          if [[ "$CHANGES_RESULT" != "success" ]]; then
+            echo "::error::changes did not succeed ($CHANGES_RESULT)"
+            exit 1
+          fi
+          if [[ "$PR_SCOPE_GUARD_RESULT" != "success" ]]; then
+            echo "::error::pr_scope_guard did not succeed ($PR_SCOPE_GUARD_RESULT)"
+            exit 1
+          fi
+          if [[ "$PRIVATE_PYTHON_PROXY_HEALTH_RESULT" != "success" ]]; then
+            echo "::error::private_python_proxy_health did not succeed ($PRIVATE_PYTHON_PROXY_HEALTH_RESULT)"
+            exit 1
+          fi
+
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with: {fetch-depth: 0, persist-credentials: false}
 
       - name: Setup Python environment
         uses: ./.github/actions/python-setup
         env:
-          DEVPI_CI_USER: ${{ github.event_name != 'pull_request' && secrets.DEVPI_CI_USER || '' }}
-          DEVPI_CI_PASSWORD: ${{ github.event_name != 'pull_request' && secrets.DEVPI_CI_PASSWORD || '' }}
+          DEVPI_CI_USER: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && secrets.DEVPI_CI_USER || '' }}
+          DEVPI_CI_PASSWORD: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && secrets.DEVPI_CI_PASSWORD || '' }}
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           requirements-profile: ci-test
@@ -1141,7 +1238,7 @@ jobs:
   pgvector_compat:
     name: pgvector-compat
     needs: [changes, private_python_proxy_health]
-    if: github.event_name == 'pull_request' && needs.changes.outputs.pgvector_compat == 'true'
+    if: always() && github.event_name == 'pull_request' && (needs.changes.result != 'success' || needs.changes.outputs.pgvector_compat == 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -1168,6 +1265,20 @@ jobs:
       PGVECTOR_COMPAT_DATABASE_URL: postgresql+psycopg://pgvector_compat:pgvector_compat_test_password@127.0.0.1:5432/pgvector_compat  # pragma: allowlist secret
       PGVECTOR_COMPAT_REQUIRED: "1"
     steps:
+      - name: Enforce prerequisite results
+        env:
+          CHANGES_RESULT: ${{ needs.changes.result }}
+          PRIVATE_PYTHON_PROXY_HEALTH_RESULT: ${{ needs.private_python_proxy_health.result }}
+        run: |
+          if [[ "$CHANGES_RESULT" != "success" ]]; then
+            echo "::error::changes did not succeed ($CHANGES_RESULT)"
+            exit 1
+          fi
+          if [[ "$PRIVATE_PYTHON_PROXY_HEALTH_RESULT" != "success" ]]; then
+            echo "::error::private_python_proxy_health did not succeed ($PRIVATE_PYTHON_PROXY_HEALTH_RESULT)"
+            exit 1
+          fi
+
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -1228,7 +1339,7 @@ jobs:
 
   # Fast testing for feature branches (single Python version)
   test-feature:
-    if: github.event_name == 'push' && (startsWith(github.ref, 'refs/heads/feat/') || startsWith(github.ref, 'refs/heads/fix/') || startsWith(github.ref, 'refs/heads/feature/')) && needs.changes.outputs.run_backend_blocking == 'true'
+    if: always() && github.event_name == 'push' && (startsWith(github.ref, 'refs/heads/feat/') || startsWith(github.ref, 'refs/heads/fix/') || startsWith(github.ref, 'refs/heads/feature/')) && (needs.changes.result != 'success' || needs.changes.outputs.run_backend_blocking == 'true')
     needs: [changes, private_python_proxy_health]
     runs-on: ubuntu-latest
     timeout-minutes: 90
@@ -1243,8 +1354,23 @@ jobs:
         python-version: ['3.13']
 
     steps:
+      - name: Enforce prerequisite results
+        env:
+          CHANGES_RESULT: ${{ needs.changes.result }}
+          PRIVATE_PYTHON_PROXY_HEALTH_RESULT: ${{ needs.private_python_proxy_health.result }}
+        run: |
+          if [[ "$CHANGES_RESULT" != "success" ]]; then
+            echo "::error::changes did not succeed ($CHANGES_RESULT)"
+            exit 1
+          fi
+          if [[ "$PRIVATE_PYTHON_PROXY_HEALTH_RESULT" != "success" ]]; then
+            echo "::error::private_python_proxy_health did not succeed ($PRIVATE_PYTHON_PROXY_HEALTH_RESULT)"
+            exit 1
+          fi
+
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with: {fetch-depth: 0, persist-credentials: false}
 
       - name: Start fast-feedback timing
         shell: bash
@@ -1255,8 +1381,8 @@ jobs:
       - name: Setup Python environment
         uses: ./.github/actions/python-setup
         env:
-          DEVPI_CI_USER: ${{ github.event_name != 'pull_request' && secrets.DEVPI_CI_USER || '' }}
-          DEVPI_CI_PASSWORD: ${{ github.event_name != 'pull_request' && secrets.DEVPI_CI_PASSWORD || '' }}
+          DEVPI_CI_USER: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && secrets.DEVPI_CI_USER || '' }}
+          DEVPI_CI_PASSWORD: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && secrets.DEVPI_CI_PASSWORD || '' }}
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           requirements-profile: ci-test
@@ -1599,7 +1725,7 @@ jobs:
   # Comprehensive testing for main branch
   test-main:
     needs: [changes, private_python_proxy_health]
-    if: github.ref == 'refs/heads/main' || (github.event_name == 'pull_request' && needs.changes.outputs.run_main_ci_diagnostic == 'true')
+    if: always() && (github.ref == 'refs/heads/main' || (github.event_name == 'pull_request' && (needs.changes.result != 'success' || needs.changes.outputs.run_main_ci_diagnostic == 'true')))
     runs-on: ubuntu-latest
     timeout-minutes: ${{ matrix.timeout-minutes }}
     permissions:
@@ -1623,6 +1749,20 @@ jobs:
             timeout-minutes: 90
 
     steps:
+      - name: Enforce prerequisite results
+        env:
+          CHANGES_RESULT: ${{ needs.changes.result }}
+          PRIVATE_PYTHON_PROXY_HEALTH_RESULT: ${{ needs.private_python_proxy_health.result }}
+        run: |
+          if [[ "$CHANGES_RESULT" != "success" ]]; then
+            echo "::error::changes did not succeed ($CHANGES_RESULT)"
+            exit 1
+          fi
+          if [[ "$PRIVATE_PYTHON_PROXY_HEALTH_RESULT" != "success" ]]; then
+            echo "::error::private_python_proxy_health did not succeed ($PRIVATE_PYTHON_PROXY_HEALTH_RESULT)"
+            exit 1
+          fi
+
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -1691,8 +1831,8 @@ jobs:
       - name: Setup Python environment
         uses: ./.github/actions/python-setup
         env:
-          DEVPI_CI_USER: ${{ github.event_name != 'pull_request' && secrets.DEVPI_CI_USER || '' }}
-          DEVPI_CI_PASSWORD: ${{ github.event_name != 'pull_request' && secrets.DEVPI_CI_PASSWORD || '' }}
+          DEVPI_CI_USER: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && secrets.DEVPI_CI_USER || '' }}
+          DEVPI_CI_PASSWORD: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && secrets.DEVPI_CI_PASSWORD || '' }}
         with:
           python-version: ${{ matrix.python-version == '3.13' && env.PYTHON_VERSION || matrix.python-version }}
           requirements-profile: ci-test
@@ -1872,7 +2012,7 @@ jobs:
 
   diff-coverage:
     name: diff-coverage
-    if: github.event_name == 'pull_request' && needs.changes.outputs.run_backend_blocking == 'true'
+    if: always() && github.event_name == 'pull_request' && (needs.changes.result != 'success' || needs.changes.outputs.run_backend_blocking == 'true')
     needs: [changes, pr_scope_guard, private_python_proxy_health, test-pr]
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -1880,6 +2020,30 @@ jobs:
       contents: read
       actions: read
     steps:
+      - name: Enforce prerequisite results
+        env:
+          CHANGES_RESULT: ${{ needs.changes.result }}
+          PR_SCOPE_GUARD_RESULT: ${{ needs.pr_scope_guard.result }}
+          PRIVATE_PYTHON_PROXY_HEALTH_RESULT: ${{ needs.private_python_proxy_health.result }}
+          TEST_PR_RESULT: ${{ needs.test-pr.result }}
+        run: |
+          if [[ "$CHANGES_RESULT" != "success" ]]; then
+            echo "::error::changes did not succeed ($CHANGES_RESULT)"
+            exit 1
+          fi
+          if [[ "$PR_SCOPE_GUARD_RESULT" != "success" ]]; then
+            echo "::error::pr_scope_guard did not succeed ($PR_SCOPE_GUARD_RESULT)"
+            exit 1
+          fi
+          if [[ "$PRIVATE_PYTHON_PROXY_HEALTH_RESULT" != "success" ]]; then
+            echo "::error::private_python_proxy_health did not succeed ($PRIVATE_PYTHON_PROXY_HEALTH_RESULT)"
+            exit 1
+          fi
+          if [[ "$TEST_PR_RESULT" != "success" ]]; then
+            echo "::error::test-pr did not succeed ($TEST_PR_RESULT)"
+            exit 1
+          fi
+
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -1888,8 +2052,8 @@ jobs:
       - name: Setup Python environment
         uses: ./.github/actions/python-setup
         env:
-          DEVPI_CI_USER: ${{ github.event_name != 'pull_request' && secrets.DEVPI_CI_USER || '' }}
-          DEVPI_CI_PASSWORD: ${{ github.event_name != 'pull_request' && secrets.DEVPI_CI_PASSWORD || '' }}
+          DEVPI_CI_USER: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && secrets.DEVPI_CI_USER || '' }}
+          DEVPI_CI_PASSWORD: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && secrets.DEVPI_CI_PASSWORD || '' }}
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           requirements-profile: ci-lite
