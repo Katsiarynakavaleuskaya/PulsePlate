@@ -805,6 +805,7 @@ def native(argv: list[str], *, maximum: int) -> bytes:
     if remaining <= 0:
         fail("WORKER_GATE_TIMEOUT")
     process = None
+    completed = False
     selector = selectors.DefaultSelector()
     output = bytearray()
     try:
@@ -833,20 +834,21 @@ def native(argv: list[str], *, maximum: int) -> bytes:
             fail("WORKER_GATE_TIMEOUT")
         if process.wait(timeout=wait) != 0:
             fail("WORKER_NATIVE_FAILED")
+        completed = True
         return bytes(output)
     except (OSError, subprocess.TimeoutExpired):
         fail("WORKER_NATIVE_FAILED")
     finally:
         selector.close()
         if process is not None:
-            if process.poll() is None:
+            if not completed:
                 try:
                     os.killpg(process.pid, signal.SIGKILL)
-                except ProcessLookupError:
+                except OSError:
                     pass
             try:
                 process.wait(timeout=0.5)
-            except subprocess.TimeoutExpired:
+            except (OSError, subprocess.TimeoutExpired):
                 pass
             if process.stdout is not None:
                 process.stdout.close()
@@ -1086,6 +1088,7 @@ def unique(pairs):
     return result
 
 process = None
+completed = False
 selector = selectors.DefaultSelector()
 try:
     docker, expected_ref = sys.argv[1:]
@@ -1134,19 +1137,20 @@ try:
         or not all(type(value) is str for value in digests)
         or expected_ref not in digests):
         raise ValueError("identity")
+    completed = True
 except (ValueError, TypeError, UnicodeError, OSError, subprocess.TimeoutExpired):
     raise SystemExit("WORKER_BACKEND_IMAGE_UNTRUSTED") from None
 finally:
     selector.close()
     if process is not None:
-        if process.poll() is None:
+        if not completed:
             try:
                 os.killpg(process.pid, signal.SIGKILL)
-            except ProcessLookupError:
+            except OSError:
                 pass
         try:
             process.wait(timeout=0.5)
-        except subprocess.TimeoutExpired:
+        except (OSError, subprocess.TimeoutExpired):
             pass
         if process.stdout is not None:
             process.stdout.close()

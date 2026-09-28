@@ -4058,6 +4058,11 @@ PY_COMPOSE_MODEL
       printf '%s' "$$" > "$STUB_HUNG_PID_FILE"
       exec /bin/sleep 60
     fi
+    if [ "${{STUB_BACKEND_IMAGE_PIPE_CHILD:-0}}" = "1" ]; then
+      /bin/sleep 60 &
+      printf '%s' "$!" > "$STUB_HUNG_PID_FILE"
+      exit 0
+    fi
     if [ -n "${{STUB_BACKEND_IMAGE_INSPECT_FILE:-}}" ]; then
       cat "$STUB_BACKEND_IMAGE_INSPECT_FILE"
       exit 0
@@ -8501,6 +8506,11 @@ case "$*" in
       printf '%s' "$$" > "$STUB_HUNG_PID_FILE"
       exec /bin/sleep 60
     fi
+    if [ "${{STUB_WORKER_HASH_PIPE_CHILD:-0}}" = "1" ]; then
+      /bin/sleep 60 &
+      printf '%s' "$!" > "$STUB_HUNG_PID_FILE"
+      exit 0
+    fi
     printf 'worker %s\n' "$STUB_WORKER_HASH"
     ;;
   *"ps --all --quiet --no-trunc"*"service=app"*) printf '%s\n' "$STUB_APP_FULL_ID" ;;
@@ -8992,19 +9002,24 @@ def test_staging_worker_gate_excludes_oneoff_from_exact_census(tmp_path: Path) -
     )
 
 
-@pytest.mark.parametrize("hung_command", ("image_inspect", "worker_hash"))
+@pytest.mark.parametrize(
+    ("hung_command", "stub_flag"),
+    (
+        ("image_inspect", "STUB_BACKEND_IMAGE_INSPECT_HANG"),
+        ("worker_hash", "STUB_WORKER_HASH_HANG"),
+        ("image_pipe_child", "STUB_BACKEND_IMAGE_PIPE_CHILD"),
+        ("hash_pipe_child", "STUB_WORKER_HASH_PIPE_CHILD"),
+    ),
+)
 def test_staging_worker_native_hang_is_bounded_and_holds_before_caddy(
-    tmp_path: Path, hung_command: str
+    tmp_path: Path, hung_command: str, stub_flag: str
 ) -> None:
+    import signal
+    import time
+
     env, log_file = _staging_deploy_fixture(tmp_path)
     env["FOOD_UPDATE_SCHEDULER_MODE"] = "external"
-    env[
-        (
-            "STUB_BACKEND_IMAGE_INSPECT_HANG"
-            if hung_command == "image_inspect"
-            else "STUB_WORKER_HASH_HANG"
-        )
-    ] = "1"
+    env[stub_flag] = "1"
     hung_pid_file = tmp_path / "hung-native-pid"
     env["STUB_HUNG_PID_FILE"] = str(hung_pid_file)
 
@@ -9027,8 +9042,24 @@ def test_staging_worker_native_hang_is_bounded_and_holds_before_caddy(
     log_lines = log_file.read_text(encoding="utf-8").splitlines()
     assert not any(" up -d --pull never caddy" in line for line in log_lines)
     hung_pid = int(hung_pid_file.read_text(encoding="ascii"))
-    with pytest.raises(ProcessLookupError):
-        os.kill(hung_pid, 0)
+    ps_bin = shutil.which("ps")
+    assert ps_bin is not None
+    active = True
+    for _ in range(20):
+        state = subprocess.run(
+            [ps_bin, "-o", "stat=", "-p", str(hung_pid)],
+            text=True,
+            capture_output=True,
+            check=False,
+            timeout=2,
+        ).stdout.strip()
+        active = bool(state) and not state.startswith("Z")
+        if not active:
+            break
+        time.sleep(0.05)
+    if active:
+        os.kill(hung_pid, signal.SIGKILL)
+    assert not active, f"{hung_command} left its owned native child active"
 
 
 @pytest.mark.parametrize("failure", ("digest", "id", "platform", "duplicate", "oversize"))
