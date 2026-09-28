@@ -278,6 +278,41 @@ Operator routing baseline before PR2 workflow consolidation:
 - Release/image PR: inspect `Docker Build and Push` plus any publish lane that
   the PR explicitly changes.
 
+## Nightly Docker and Trivy review-deadline forecast
+
+The independent `review-deadline-forecast` job in the existing main-only daily
+Nightly Tests workflow checks the reviewed Docker source manifest and every
+review/hard-expiry date in the current `trivy/ignore-policy.rego` at one UTC day
+plus four days
+(`.github/workflows/nightly.yml:17`). Its Actions summary labels current
+failures `CURRENT` and the future check `FORECAST`. The job uses the existing
+offline validators (`scripts/ci/fetch_docker_source_artifacts.py:81` and
+`scripts/ci/check_trivy_ignore_policy_expiry.py:480`); it does not download
+sources, scan an image, edit dates, or approve a suppression. GitHub scheduled
+runs and notifications are best-effort, so absence of a warning is not proof
+that the material remains current.
+
+On `FORECAST`, inspect the exact named deadline, current primary upstream and
+Trivy image evidence, assign the security/CI owner, and land a separately
+reviewed correction before the deadline. On `CURRENT`, treat the corresponding
+Docker or Trivy gate as failed now; repair the bounded cause before claiming
+readiness. A new fixed Bookworm package or Trivy `FixedVersion` calls for
+package remediation or suppression retirement, not a blind date extension.
+The shared October 7 hard expiry and util-linux CVE-2026-53615 remain separate
+owner decisions. The forecast does not replace current-head Docker build,
+strict image/filesystem scans, canonical CI, or merge authorization.
+
+For PR builds, the separate native Trivy policy check follows the pinned image
+scan and precedes report validation (`.github/workflows/build.yml:182`). It
+byte-binds the copied scan policy to `trivy/ignore-policy.rego` and exercises
+the five exact zlib/ncurses package tuples using synthetic JSON; the actual
+image and filesystem scanners retain their own fail-closed results. Native
+Trivy 0.74.0 normalizes JSON `null` in string-valued `FixedVersion` to empty;
+a numeric value fails JSON decoding and must not be counted as a vulnerability
+finding or a Rego decision (`scripts/ci/check_trivy_ignore_policy_native.py:178`).
+If the native check fails, inspect the first execution/schema/count error and
+repair the policy or checker in the same PR before mapping review findings.
+
 ## Guard Coverage Step (EVMbench-inspired)
 
 **Purpose:** Ensure comprehensive coverage — address *all* related violations, not just one.
