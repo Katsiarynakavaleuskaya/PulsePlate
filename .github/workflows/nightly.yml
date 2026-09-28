@@ -14,6 +14,82 @@ permissions:
   contents: read
 
 jobs:
+  review-deadline-forecast:
+    if: ${{ github.ref == 'refs/heads/main' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    permissions:
+      contents: read
+    env:
+      PULSEPLATE_PYTHON_INDEX_URL: ''
+      PULSEPLATE_PYTHON_TRUSTED_HOST: ''
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Forecast source and suppression review deadlines
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from datetime import UTC, date, datetime, timedelta
+          import json
+          import os
+          from pathlib import Path
+
+          from scripts.ci.check_trivy_ignore_policy_expiry import evaluate_policy_file
+          from scripts.ci.fetch_docker_source_artifacts import load_manifest
+
+
+          def evaluate_deadlines(
+              today: date, manifest_path: Path, policy_path: Path
+          ) -> dict[str, list[str]]:
+              results: dict[str, list[str]] = {}
+              for label, checked_date in (
+                  ("CURRENT", today),
+                  ("FORECAST", today + timedelta(days=4)),
+              ):
+                  findings: list[str] = []
+                  try:
+                      load_manifest(manifest_path, today=checked_date)
+                  except RuntimeError as exc:
+                      findings.append(f"Docker sources: {exc}")
+                  findings.extend(
+                      f"Trivy policy: {item}"
+                      for item in evaluate_policy_file(policy_path, today=checked_date)
+                  )
+                  results[label] = findings
+              return results
+
+
+          def main(today: date | None = None, repo_root: Path = Path(".")) -> int:
+              current_day = today if today is not None else datetime.now(UTC).date()
+              horizon = current_day + timedelta(days=4)
+              results = evaluate_deadlines(
+                  current_day,
+                  repo_root / "scripts/ci/docker_source_artifacts.json",
+                  repo_root / "trivy/ignore-policy.rego",
+              )
+              lines = [
+                  "## CI review deadline forecast",
+                  f"UTC today: {current_day}; UTC forecast date: {horizon} (today + 4 days).",
+                  "A forecast is an early warning, not a review or date renewal.",
+              ]
+              for label in ("CURRENT", "FORECAST"):
+                  findings = results[label]
+                  lines.append(f"### {label}: {'attention required' if findings else 'no finding'}")
+                  lines.extend(f"- {json.dumps(item, ensure_ascii=False)}" for item in findings)
+              with Path(os.environ["GITHUB_STEP_SUMMARY"]).open("a", encoding="utf-8") as summary:
+                  summary.write("\n".join(lines) + "\n")
+              print("\n".join(lines))
+              return 1 if any(results.values()) else 0
+
+
+          if __name__ == "__main__":
+              raise SystemExit(main())
+          PY
+
   test:
     runs-on: ubuntu-latest
     timeout-minutes: 60  # Each shard should complete in 15-25min; 60min provides buffer for slow runners

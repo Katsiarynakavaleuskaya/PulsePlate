@@ -163,22 +163,28 @@ def _repository_gemfile_locks(repo_root: Path) -> list[Path]:
     return sorted(lockfiles)
 
 
-@pytest.mark.parametrize("today", [date(2026, 9, 20), date(2026, 9, 27), date(2026, 9, 28)])
+@pytest.mark.parametrize("today", [date(2026, 9, 28), date(2026, 10, 5), date(2026, 10, 6)])
 def test_current_policy_review_deadline_is_inclusive_and_distinct_from_expiry(today: date) -> None:
     """The approved review boundary expires the records, not the whole October policy."""
+    policy_lines = POLICY_PATH.read_text().splitlines()
+    assert [line for line in policy_lines if line.startswith("# Review-by:")] == [
+        "# Review-by: 2026-10-05 (manual removal)",
+        "# Review-by: 2026-10-07 (manual removal)",
+        "# Review-by: 2026-10-05 (manual removal)",
+    ]
     review_lines = [
         number
-        for number, line in enumerate(POLICY_PATH.read_text().splitlines(), start=1)
-        if line.startswith("# Review-by: 2026-09-27 ")
+        for number, line in enumerate(policy_lines, start=1)
+        if line.startswith("# Review-by: 2026-10-05 ")
     ]
     assert len(review_lines) == 2, "both retained reviewed records must be represented"
     expected = (
         [
             f"Stale Trivy suppression review date: {POLICY_PATH}:{number} "
-            f"(review-by 2026-09-27, today {today})"
+            f"(review-by 2026-10-05, today {today})"
             for number in review_lines
         ]
-        if today == date(2026, 9, 28)
+        if today == date(2026, 10, 6)
         else []
     )
     assert evaluate_policy_file(POLICY_PATH, today=today) == expected
@@ -562,16 +568,47 @@ def test_gemfile_scan_fails_closed_on_traversal_error(
 
 def test_zlib_suppression_requires_exact_pkgid_scope() -> None:
     policy = _policy_text()
-
-    zlib_ignore_rule = policy[
-        policy.index('ignore if {\n\tinput.VulnerabilityID == "CVE-2026-27171"') :
-    ]
+    start = policy.index('ignore if {\n\tinput.VulnerabilityID == "CVE-2026-27171"')
+    zlib_ignore_rule = policy[start : policy.index("\n}", start) + 2]
 
     assert 'input.InstalledVersion == "1:1.2.13.dfsg-1"' in policy
     assert 'contains(input.PkgID, "zlib1g@1:1.2.13.dfsg-1")' in policy
     assert 'input.PkgName == "zlib1g"' in zlib_ignore_rule
     assert "cve_2026_27171_version_match" in zlib_ignore_rule
     assert "cve_2026_27171_pkgid_match" in zlib_ignore_rule
+    assert zlib_ignore_rule.count('object.get(input, "FixedVersion", "") == ""') == 1
+
+
+def test_ncurses_suppression_requires_fixed_version_and_exact_tuple_scope() -> None:
+    policy = _policy_text()
+    start = policy.index('ignore if {\n\tinput.VulnerabilityID == "CVE-2025-69720"')
+    ncurses_ignore_rule = policy[start : policy.index("\n}", start) + 2]
+    helper_region = policy[policy.index("cve_2025_69720_pkg_match if {") : start]
+
+    assert 'input.VulnerabilityID == "CVE-2025-69720"' in ncurses_ignore_rule
+    assert "cve_2025_69720_pkg_match" in ncurses_ignore_rule
+    assert "cve_2025_69720_version_match" in ncurses_ignore_rule
+    assert "cve_2025_69720_pkgid_match" in ncurses_ignore_rule
+    assert ncurses_ignore_rule.count('object.get(input, "FixedVersion", "") == ""') == 1
+    assert 'input.InstalledVersion == "6.4-4"' in helper_region
+    for package in ("libncursesw6", "libtinfo6", "ncurses-base", "ncurses-bin"):
+        assert f'startswith(input.PkgID, "{package}@6.4-4")' in helper_region
+
+
+@pytest.mark.parametrize(
+    ("finding", "unfixed"),
+    [
+        ({}, True),
+        ({"FixedVersion": ""}, True),
+        ({"FixedVersion": "1:1.3.dfsg+really1.3.2-3"}, False),
+        ({"FixedVersion": "6.6+20260608-2"}, False),
+        ({"FixedVersion": None}, False),
+    ],
+)
+def test_zlib_and_ncurses_fixed_version_clause_is_fail_closed(
+    finding: dict[str, str | None], unfixed: bool
+) -> None:
+    assert (finding.get("FixedVersion", "") == "") is unfixed
 
 
 def test_retired_util_linux_3184_suppression_stays_absent() -> None:
