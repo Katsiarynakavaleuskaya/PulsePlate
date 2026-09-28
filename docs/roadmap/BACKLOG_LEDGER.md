@@ -5677,6 +5677,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - [ ] Deterministic contract tests added for new AI-quality response fields
 
 
+<a id="ledger-p1-inline-nosec-ttl-20260930"></a>
 - [ ] P1: Reassess inline nosec TTLs due 2026-09-30 before main CI expiry
   - Owner: Security/SRE
   - Priority: P1
