@@ -1544,12 +1544,29 @@ def build_task_packet(
     creative_learning_hints_path: str | Path | None = None,
     creative_pilot_workspace_path: str | Path | None = None,
     creative_pilot_phase: str | None = None,
+    creative_applicability: str | None = None,
 ) -> dict[str, Any]:
     """Build a deterministic task packet for orchestration tooling."""
 
     normalized_pr_phase = _normalize_pr_phase(pr_phase)
+    if creative_applicability not in {
+        None,
+        "alternatives",
+        "direct_fix",
+        "not_applicable",
+        "disabled",
+    }:
+        raise ValueError(
+            "--creative-applicability must be alternatives, direct_fix, not_applicable, or disabled"
+        )
+    if creative_applicability is not None and creative_pilot_workspace_path is not None:
+        raise ValueError("--creative-applicability cannot alter adaptive creative-pilot packets")
     family_repeat: dict[str, Any] | None = None
     if review_invariant_family_relations_input is not None:
+        if creative_applicability is not None:
+            raise ValueError(
+                "--creative-applicability cannot be combined with repeated-family L2 review"
+            )
         if invariant_change_classes:
             raise ValueError(
                 "--review-invariant-family-relations-input is incompatible with "
@@ -1883,6 +1900,15 @@ def build_task_packet(
         )
     if packet_id is None:
         raise RuntimeError("task packet identity was not constructed")
+    creative_applicability_base_packet_id = packet_id
+    if creative_applicability is not None:
+        packet_id = fingerprint_payload(
+            {
+                "identity_schema": "task_packet_id.creative_applicability.v1",
+                "base_task_packet_id": packet_id,
+                "creative_applicability": creative_applicability,
+            }
+        ).removeprefix("sha256:")[:12]
     invariant_dispatch_role_order = None
     if invariant_review_required_now:
         invariant_dispatch_role_order = _build_invariant_dispatch_role_order(native_subagent_bridge)
@@ -2112,6 +2138,9 @@ def build_task_packet(
         "native_subagent_bridge": native_subagent_bridge,
         "routing_rationale": decision.rationale,
     }
+    if creative_applicability is not None:
+        packet["creative_applicability"] = creative_applicability
+        packet["creative_applicability_base_packet_id"] = creative_applicability_base_packet_id
     if creative_pilot_context is not None:
         packet["creative_pilot_context"] = creative_pilot_context
         packet["automation_flags"]["creative_pilot_enabled"] = True
@@ -2148,6 +2177,11 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--goal", required=True)
     parser.add_argument("--task-class", required=True)
     parser.add_argument("--path", action="append", default=[])
+    parser.add_argument(
+        "--creative-applicability",
+        choices=("alternatives", "direct_fix", "not_applicable", "disabled"),
+        help="Coordinator's structured Creative applicability decision; bound into packet identity.",
+    )
     parser.add_argument(
         "--requested-agent",
         action="append",
@@ -2270,6 +2304,7 @@ def main(argv: list[str] | None = None) -> int:
             creative_learning_hints_path=args.creative_learning_hints,
             creative_pilot_workspace_path=args.creative_pilot_workspace,
             creative_pilot_phase=args.creative_pilot_phase,
+            creative_applicability=args.creative_applicability,
         )
     except ValueError as exc:
         print(f"FAIL: {exc}")

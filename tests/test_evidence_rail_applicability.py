@@ -67,9 +67,13 @@ def _base_packet(
 
 def _write_packet(packet_root: Path, packet: dict[str, Any], *, salt: str) -> str:
     packet = copy.deepcopy(packet)
-    identity = hashlib.sha256(
-        (salt + json.dumps(packet, sort_keys=True, default=str)).encode("utf-8")
-    ).hexdigest()[:12]
+    identity = (
+        packet["task_packet_id"]
+        if "creative_applicability" in packet
+        else hashlib.sha256(
+            (salt + json.dumps(packet, sort_keys=True, default=str)).encode("utf-8")
+        ).hexdigest()[:12]
+    )
     packet["task_packet_id"] = identity
     path = packet_root / f"{identity}.json"
     path.write_text(
@@ -152,6 +156,9 @@ def test_actual_packet_shape_selects_exact_high_assurance_projection(
         security_review=True,
         design_lane=False,
         docs_only=False,
+        pr_phase="pre_open",
+        runtime_writer_available=True,
+        exact_file_candidate_available=True,
     )
     assert result.rule_id == "higher_assurance"
     assert result.applicable_sidecar_rails == ("euler", "experiment_runner", "teleology")
@@ -209,7 +216,7 @@ def test_high_assurance_signal_combinations(
     assert _treatments(result)["creative"]["reasons"] == ["creative_scope_not_selected"]
 
 
-def test_design_packet_recommends_creative_but_never_sidecar(
+def test_design_packet_without_alternatives_skips_creative_but_never_sidecar(
     packet_root: Path, tmp_path: Path
 ) -> None:
     packet = _base_packet(
@@ -226,10 +233,96 @@ def test_design_packet_recommends_creative_but_never_sidecar(
 
     assert result.rule_id == "design"
     assert _treatments(result)["creative"] == {
+        "treatment": "not_applicable",
+        "reasons": ["creative_scope_not_selected"],
+    }
+    assert "creative" not in result.applicable_sidecar_rails
+
+
+def test_design_packet_with_alternatives_recommends_creative(
+    packet_root: Path, tmp_path: Path
+) -> None:
+    packet = _base_packet(
+        tmp_path,
+        goal="Implement approved Figma screen with alternatives",
+        task_class="Design",
+        candidate_paths=["docs/design/example.md"],
+        design_source="code_native_brief",
+        target_surface="web-home",
+        task_mode="implement",
+        code_native_design_brief_path="docs/design/example.md",
+        creative_applicability="alternatives",
+    )
+    result = build_evidence_rail_applicability(
+        _snapshot(packet_root, packet, salt="design-alternatives")
+    )
+    assert result.rule_id == "design"
+    assert _treatments(result)["creative"] == {
         "treatment": "recommend",
         "reasons": ["design_lane_applicable"],
     }
-    assert "creative" not in result.applicable_sidecar_rails
+
+
+@pytest.mark.parametrize("phase", ["post_open_review", "merge_ready"])
+def test_later_pr_phases_do_not_recommend_creative_without_writer(
+    packet_root: Path, tmp_path: Path, phase: str
+) -> None:
+    packet = _base_packet(
+        tmp_path,
+        task_class="Implementation",
+        candidate_paths=["tests/test_example.py"],
+        creative_applicability="alternatives",
+        pr_phase=phase,
+    )
+    assert packet["role_agent_dispatch_contract"]["runtime_implementation_owners"] == []
+    result = build_evidence_rail_applicability(
+        _snapshot(packet_root, packet, salt=f"creative-{phase}")
+    )
+    assert _treatments(result)["creative"] == {
+        "treatment": "not_applicable",
+        "reasons": ["creative_writer_unavailable"],
+    }
+
+
+def test_pre_open_research_without_runtime_owner_does_not_recommend_creative(
+    packet_root: Path, tmp_path: Path
+) -> None:
+    packet = _base_packet(
+        tmp_path,
+        task_class="Research",
+        candidate_paths=["tests/test_example.py"],
+        creative_applicability="alternatives",
+        pr_phase="pre_open",
+    )
+    assert packet["role_agent_dispatch_contract"]["runtime_implementation_owners"] == []
+    result = build_evidence_rail_applicability(
+        _snapshot(packet_root, packet, salt="research-without-writer")
+    )
+    assert _treatments(result)["creative"] == {
+        "treatment": "not_applicable",
+        "reasons": ["creative_writer_unavailable"],
+    }
+
+
+def test_directory_only_packet_scope_does_not_recommend_creative(
+    packet_root: Path, tmp_path: Path
+) -> None:
+    (tmp_path / "tests").mkdir()
+    packet = _base_packet(
+        tmp_path,
+        task_class="Implementation",
+        candidate_paths=["tests"],
+        creative_applicability="alternatives",
+        pr_phase="pre_open",
+    )
+    assert packet["role_agent_dispatch_contract"]["runtime_implementation_owners"]
+    result = build_evidence_rail_applicability(
+        _snapshot(packet_root, packet, salt="directory-only-creative-scope")
+    )
+    assert _treatments(result)["creative"] == {
+        "treatment": "not_applicable",
+        "reasons": ["creative_exact_file_scope_missing"],
+    }
 
 
 def test_public_design_packet_projection_is_frozen_and_packet_local(
@@ -410,6 +503,7 @@ def test_high_assurance_preempts_design_with_specific_reason(
         target_surface="web-home",
         task_mode="implement",
         code_native_design_brief_path="docs/design/example.md",
+        creative_applicability="alternatives",
     )
     result = build_evidence_rail_applicability(
         _snapshot(packet_root, packet, salt="design-security")
@@ -849,3 +943,122 @@ def test_public_treatment_enum_has_no_enrollment_or_runner_na_values() -> None:
         "recommend",
         "not_applicable",
     }
+
+
+@pytest.mark.parametrize(
+    ("creative_choice", "expected_treatment", "expected_reason"),
+    [
+        ("alternatives", "recommend", "bounded_alternatives_declared"),
+        ("direct_fix", "not_applicable", "direct_fix_declared"),
+        ("disabled", "not_applicable", "creative_disabled"),
+        ("not_applicable", "not_applicable", "creative_scope_not_selected"),
+    ],
+)
+def test_structured_creative_choice_uses_sole_selector(
+    packet_root: Path,
+    tmp_path: Path,
+    creative_choice: str,
+    expected_treatment: str,
+    expected_reason: str,
+) -> None:
+    packet = _base_packet(
+        tmp_path,
+        task_class="Implementation",
+        candidate_paths=["tests/test_example.py"],
+        creative_applicability=creative_choice,
+    )
+    result = build_evidence_rail_applicability(_snapshot(packet_root, packet, salt=creative_choice))
+    assert _treatments(result)["creative"] == {
+        "treatment": expected_treatment,
+        "reasons": [expected_reason],
+    }
+
+
+def test_higher_assurance_preempts_declared_creative_alternatives(
+    packet_root: Path, tmp_path: Path
+) -> None:
+    packet = _base_packet(
+        tmp_path,
+        candidate_paths=["scripts/orchestration/evidence_rail_applicability.py"],
+        invariant_change_classes=["guard"],
+        creative_applicability="alternatives",
+    )
+    result = build_evidence_rail_applicability(
+        _snapshot(packet_root, packet, salt="preempt-alternatives")
+    )
+    assert result.rule_id == "higher_assurance"
+    assert _treatments(result)["creative"] == {
+        "treatment": "not_applicable",
+        "reasons": ["higher_assurance_scope_preempts_creative"],
+    }
+
+
+@pytest.mark.parametrize("phase", ["post_open_review", "merge_ready"])
+def test_declared_invariant_preempts_creative_after_opening_phase(
+    packet_root: Path, tmp_path: Path, phase: str
+) -> None:
+    packet = _base_packet(
+        tmp_path,
+        candidate_paths=["scripts/orchestration/evidence_rail_applicability.py"],
+        invariant_change_classes=["guard"],
+        creative_applicability="alternatives",
+        pr_phase=phase,
+    )
+    result = build_evidence_rail_applicability(
+        _snapshot(packet_root, packet, salt=f"invariant-{phase}")
+    )
+    assert result.rule_id == "higher_assurance"
+    assert _treatments(result)["creative"]["treatment"] == "not_applicable"
+
+
+def test_root_scope_is_already_higher_assurance_for_creative(
+    packet_root: Path, tmp_path: Path
+) -> None:
+    packet = _base_packet(tmp_path, candidate_paths=["."], creative_applicability="alternatives")
+    result = build_evidence_rail_applicability(
+        _snapshot(packet_root, packet, salt="root-preempted")
+    )
+    assert result.rule_id == "higher_assurance"
+    assert _treatments(result)["creative"]["treatment"] == "not_applicable"
+
+
+def test_creative_packet_field_tamper_is_rejected_by_identity_check(
+    packet_root: Path, tmp_path: Path
+) -> None:
+    packet = _base_packet(
+        tmp_path,
+        task_class="Implementation",
+        candidate_paths=["tests/test_example.py"],
+        creative_applicability="alternatives",
+    )
+    packet_path = _write_packet(packet_root, packet, salt="original")
+    snapshot = read_task_packet_snapshot(packet_path)
+    assert (
+        _treatments(build_evidence_rail_applicability(snapshot))["creative"]["treatment"]
+        == "recommend"
+    )
+
+    absolute_path = tmp_path / packet_path
+    tampered = json.loads(absolute_path.read_text(encoding="utf-8"))
+    tampered["creative_applicability"] = "disabled"
+    absolute_path.write_text(json.dumps(tampered), encoding="utf-8")
+    with pytest.raises(EvidenceRailApplicabilityError):
+        read_task_packet_snapshot(packet_path)
+
+
+@pytest.mark.parametrize("bad_choice", [[], {}])
+def test_unhashable_creative_applicability_fails_with_stable_category(
+    packet_root: Path, tmp_path: Path, bad_choice: Any
+) -> None:
+    packet = _base_packet(
+        tmp_path,
+        candidate_paths=["tests/test_example.py"],
+        creative_applicability="alternatives",
+    )
+    path = _write_packet(packet_root, packet, salt="malformed-choice")
+    absolute_path = tmp_path / path
+    malformed = json.loads(absolute_path.read_text(encoding="utf-8"))
+    malformed["creative_applicability"] = bad_choice
+    absolute_path.write_text(json.dumps(malformed), encoding="utf-8")
+    with pytest.raises(EvidenceRailApplicabilityError, match="INVALID_INPUT"):
+        read_task_packet_snapshot(path)

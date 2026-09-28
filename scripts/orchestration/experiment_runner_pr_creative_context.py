@@ -9,12 +9,19 @@ mapping, resolve threads, or claim merge readiness.
 from __future__ import annotations
 
 import argparse
+from contextlib import redirect_stderr, redirect_stdout
 from datetime import datetime, timezone
+import hashlib
+import io
 import json
 import os
 from pathlib import Path
+import re
+import stat
 import sys
 import tempfile
+import zipfile
+import zlib
 from typing import Any, Mapping
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -30,8 +37,13 @@ from scripts.orchestration.experiment_runner_pr_creative_context_contract import
     HYPOTHESIS_PACKET_TYPE,
     ORACLE_ATTACHMENT_TYPE,
     OPERATOR_MODEL_INTAKE_TYPE,
+    CREATIVE_WORKFLOW_SCHEMA_VERSION,
+    SECRET_VALUE_RE,
+    WORKFLOW_SECRET_TOKEN_RE,
+    contains_local_path_outside_route_context,
     ExperimentRunnerCreativeContextContractError,
     build_agent_consumption_summary,
+    build_creative_workflow_stage,
     build_creative_hypothesis_coordinator_dispatch,
     build_creative_hypothesis_agent_routing,
     build_creative_hypothesis_packet,
@@ -46,6 +58,29 @@ from scripts.orchestration.experiment_runner_pr_creative_context_contract import
     validate_creative_hypothesis_packet,
     validate_creative_protocol_context_map,
     validate_experiment_runner_pr_oracle_attachment,
+    validate_creative_workflow_request,
+    validate_creative_workflow_native_result,
+    validate_creative_workflow_review,
+    validate_creative_workflow_handoff,
+    validate_creative_workflow_stage,
+    workflow_fingerprint,
+)
+
+from scripts.orchestration.evidence_rail_applicability import (
+    read_task_packet_snapshot,
+    EvidenceRailApplicabilityError,
+    build_evidence_rail_applicability,
+    RailTreatment,
+)
+from scripts.orchestration.creative_code_patch_workspace import (
+    CreativeCodePatchWorkspaceError,
+    run_git,
+)
+from scripts.orchestration import qoder_dispatch_bridge
+
+ARCHIVE_AUTHORITY_CLAIM_RE = re.compile(
+    r"\b(?:ready\s+to\s+merge|mergeable|merge-ready)\b",
+    re.IGNORECASE,
 )
 
 CREATIVE_CONTEXT_ROOT = (
@@ -64,6 +99,25 @@ ALLOWED_OUTPUT_FILENAMES = frozenset(
         "creative_context.json",
     }
 )
+WORKFLOW_STAGE_FILES = {
+    "prepared": "workflow.prepared.json",
+    "returned": "workflow.returned.json",
+    "validated": "workflow.validated.json",
+    "reviewed": "workflow.reviewed.json",
+    "admitted": "workflow.admitted.json",
+}
+WORKFLOW_ARCHIVE_FILES = frozenset(
+    {
+        *WORKFLOW_STAGE_FILES.values(),
+        "patch.diff",
+        "test_evidence.json",
+        "oracle_evidence.json",
+        "work_review.md",
+    }
+)
+MAX_WORKFLOW_JSON_BYTES = 262_144
+MAX_WORKFLOW_ARCHIVE_BYTES = 1_048_576
+MAX_WORKFLOW_MANIFEST_BYTES = 2_000_000
 SUCCESS_PREPARE_OUTPUT = "PASS: experiment-runner creative-context artifacts prepared"
 
 
@@ -410,6 +464,755 @@ def _add_context_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--security-relevant-diff-changed", action="store_true")
 
 
+def _workflow_json_bytes(raw: bytes, *, maximum: int = MAX_WORKFLOW_JSON_BYTES) -> dict[str, Any]:
+    if not raw or len(raw) > maximum or raw.startswith(b"\xef\xbb\xbf"):
+        raise ExperimentRunnerCreativeContextCliError("workflow JSON is empty or exceeds its bound")
+    try:
+        value = json.loads(
+            raw.decode("utf-8"),
+            object_pairs_hook=_reject_workflow_duplicate_keys,
+            parse_constant=lambda _value: (_ for _ in ()).throw(ValueError("nonfinite JSON")),
+        )
+    except (UnicodeDecodeError, ValueError, json.JSONDecodeError, RecursionError) as exc:
+        raise ExperimentRunnerCreativeContextCliError("workflow JSON is malformed") from exc
+    if not isinstance(value, dict):
+        raise ExperimentRunnerCreativeContextCliError("workflow JSON must be an object")
+    return value
+
+
+def _reject_workflow_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    value: dict[str, Any] = {}
+    for key, item in pairs:
+        if key in value:
+            raise ValueError("duplicate JSON key")
+        value[key] = item
+    return value
+
+
+def _safe_workflow_file(raw_path: str, *, maximum: int) -> bytes:
+    path = REPO_ROOT / raw_path
+    if (
+        raw_path.startswith("/")
+        or "\\" in raw_path
+        or any(part in {"", ".", ".."} for part in raw_path.split("/"))
+    ):
+        raise ExperimentRunnerCreativeContextCliError("workflow source path is unsafe")
+    _reject_symlink_components(path, label="workflow source")
+    try:
+        descriptor = os.open(
+            path,
+            os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC | os.O_NONBLOCK,
+        )
+        try:
+            before = os.fstat(descriptor)
+            if not stat.S_ISREG(before.st_mode) or before.st_nlink != 1 or before.st_size > maximum:
+                raise ExperimentRunnerCreativeContextCliError(
+                    "workflow source is not an admitted regular file"
+                )
+            chunks: list[bytes] = []
+            remaining = maximum + 1
+            while remaining:
+                chunk = os.read(descriptor, min(65536, remaining))
+                if not chunk:
+                    break
+                chunks.append(chunk)
+                remaining -= len(chunk)
+            raw = b"".join(chunks)
+            after = os.fstat(descriptor)
+        finally:
+            os.close(descriptor)
+    except OSError as exc:
+        raise ExperimentRunnerCreativeContextCliError("workflow source cannot be read") from exc
+    if len(raw) != before.st_size or (
+        before.st_dev,
+        before.st_ino,
+        before.st_size,
+        before.st_mtime_ns,
+        before.st_ctime_ns,
+    ) != (after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns, after.st_ctime_ns):
+        raise ExperimentRunnerCreativeContextCliError("workflow source changed during read")
+    return raw
+
+
+def _git_identity() -> tuple[str, str, str]:
+    """Read local Git identity without invoking a shell or a remote service."""
+
+    def query(*arguments: str) -> str:
+        try:
+            completed = run_git(["--no-replace-objects", *arguments], cwd=REPO_ROOT, check=False)
+        except (CreativeCodePatchWorkspaceError, OSError) as exc:
+            raise ExperimentRunnerCreativeContextCliError("Git identity is unavailable") from exc
+        output = completed.stdout
+        if completed.returncode != 0 or not isinstance(output, str) or len(output) > 512:
+            raise ExperimentRunnerCreativeContextCliError("Git identity is unavailable")
+        return output.strip()
+
+    remote = query("remote", "get-url", "origin")
+    matched = re.fullmatch(
+        r"(?:git@github\.com:|https://github\.com/|ssh://git@github\.com/)([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+?)(?:\.git)?",
+        remote,
+    )
+    if matched is None:
+        raise ExperimentRunnerCreativeContextCliError("Git origin repository is unsupported")
+    return (
+        matched.group(1),
+        query("rev-parse", "--verify", "origin/main^{commit}"),
+        query("rev-parse", "--verify", "HEAD^{commit}"),
+    )
+
+
+def _workflow_sources(request: Mapping[str, Any], *, require_current_git: bool = True) -> None:
+    if require_current_git:
+        repository, base_sha, head_sha = _git_identity()
+        if (
+            request["repository"] != repository
+            or request["base_sha"] != base_sha
+            or request["head_sha"] != head_sha
+        ):
+            raise ExperimentRunnerCreativeContextCliError("workflow Git material identity is stale")
+    snapshot = read_task_packet_snapshot(
+        f"artifacts/orchestration/task_packets/{request['task_packet_id']}.json"
+    )
+    if snapshot.task_packet_fingerprint != request["task_packet_fingerprint"]:
+        raise ExperimentRunnerCreativeContextCliError("workflow task packet changed")
+    if snapshot.packet.get("creative_applicability") != "alternatives":
+        raise ExperimentRunnerCreativeContextCliError("workflow packet does not admit alternatives")
+    treatment = next(
+        row[1]
+        for row in build_evidence_rail_applicability(snapshot).treatments
+        if row[0] == "creative"
+    )
+    if treatment != RailTreatment.RECOMMEND:
+        raise ExperimentRunnerCreativeContextCliError(
+            "higher-assurance or disabled treatment blocks Creative"
+        )
+    packet_scope = snapshot.packet.get("candidate_paths")
+    if not isinstance(packet_scope, tuple) or not packet_scope or "." in packet_scope:
+        raise ExperimentRunnerCreativeContextCliError("task packet scope is unavailable")
+    for allowed in request["allowed_paths"]:
+        if allowed not in packet_scope:
+            raise ExperimentRunnerCreativeContextCliError(
+                "workflow allowed path is outside task packet scope"
+            )
+        allowed_file = REPO_ROOT / allowed
+        _reject_symlink_components(allowed_file, label="workflow allowed file")
+        if allowed_file.is_dir():
+            raise ExperimentRunnerCreativeContextCliError(
+                "workflow allowed path must name an exact file"
+            )
+    for path_key, hash_key in (
+        ("criteria_ref", "criteria_sha256"),
+        ("requirements_ref", "requirements_sha256"),
+        ("euler.artifact_ref", "euler.artifact_sha256"),
+    ):
+        container = request["euler"] if path_key.startswith("euler.") else request
+        path_name = path_key.rsplit(".", maxsplit=1)[-1]
+        hash_name = hash_key.rsplit(".", maxsplit=1)[-1]
+        raw = _safe_workflow_file(container[path_name], maximum=MAX_WORKFLOW_ARCHIVE_BYTES)
+        if "sha256:" + hashlib.sha256(raw).hexdigest() != container[hash_name]:
+            raise ExperimentRunnerCreativeContextCliError("workflow source digest changed")
+
+
+def _workflow_stage_path(raw_path: str, expected: str) -> Path:
+    path = Path(raw_path)
+    if path.name != WORKFLOW_STAGE_FILES[expected]:
+        raise ExperimentRunnerCreativeContextCliError("wrong workflow stage input")
+    output_dir = _resolve_output_dir(path.parent, create=False)
+    candidate = output_dir / path.name
+    _reject_symlink_components(candidate, label="workflow stage")
+    return candidate
+
+
+class _BoundedManifestCapture(io.StringIO):
+    """Keep bridge output finite without changing its canonical parser."""
+
+    def write(self, value: str) -> int:
+        if self.tell() + len(value) > MAX_WORKFLOW_MANIFEST_BYTES:
+            raise ExperimentRunnerCreativeContextCliError("canonical writer manifest is oversized")
+        return super().write(value)
+
+
+def _canonical_manifest_writer_occurrences(
+    request: Mapping[str, Any],
+) -> tuple[list[str], list[tuple[int, str]]]:
+    """Use the canonical role-dispatch bridge for exact runtime occurrences."""
+
+    snapshot = read_task_packet_snapshot(
+        f"artifacts/orchestration/task_packets/{request['task_packet_id']}.json"
+    )
+    if snapshot.task_packet_fingerprint != request["task_packet_fingerprint"]:
+        raise ExperimentRunnerCreativeContextCliError("writer packet changed")
+    contract = snapshot.packet.get("role_agent_dispatch_contract")
+    if not isinstance(contract, Mapping):
+        raise ExperimentRunnerCreativeContextCliError("writer dispatch contract is missing")
+    owners = contract.get("runtime_implementation_owners")
+    if not isinstance(owners, tuple) or not owners or any(not isinstance(x, str) for x in owners):
+        raise ExperimentRunnerCreativeContextCliError("writer owners are missing")
+    command = ["--packet", str(REPO_ROOT / snapshot.packet_path), "--mode", "runtime"]
+    for owner in owners:
+        command.extend(("--implementation-owner", owner))
+    captured_stdout = _BoundedManifestCapture()
+    captured_stderr = _BoundedManifestCapture()
+    try:
+        with redirect_stdout(captured_stdout), redirect_stderr(captured_stderr):
+            exit_code = qoder_dispatch_bridge.main(command)
+    except (OSError, SystemExit, ValueError) as exc:
+        raise ExperimentRunnerCreativeContextCliError(
+            "canonical writer manifest unavailable"
+        ) from exc
+    if exit_code != 0:
+        raise ExperimentRunnerCreativeContextCliError("canonical writer manifest unavailable")
+    manifest = _workflow_json_bytes(
+        captured_stdout.getvalue().encode("utf-8"), maximum=MAX_WORKFLOW_MANIFEST_BYTES
+    )
+    rows = manifest.get("dispatch_sequence")
+    if (
+        manifest.get("mode") != "runtime"
+        or manifest.get("missing_agents") != []
+        or not isinstance(rows, list)
+        or not rows
+    ):
+        raise ExperimentRunnerCreativeContextCliError("canonical writer manifest is incomplete")
+    role_order: list[str] = []
+    eligible: list[tuple[int, str]] = []
+    for position, row in enumerate(rows, start=1):
+        if (
+            not isinstance(row, dict)
+            or row.get("order") != position
+            or not isinstance(row.get("role_slug"), str)
+        ):
+            raise ExperimentRunnerCreativeContextCliError("canonical writer order is invalid")
+        role = row["role_slug"]
+        role_order.append(role)
+        if row.get("implementation_owner_override") is True and row.get("readonly") is False:
+            eligible.append((position, role))
+    if not eligible or not {role for _position, role in eligible}.issubset(owners):
+        raise ExperimentRunnerCreativeContextCliError("canonical writer eligibility is invalid")
+    return role_order, eligible
+
+
+def _require_inherited_workflow_evidence(
+    stage: Mapping[str, Any], predecessor: Mapping[str, Any] | None
+) -> None:
+    if predecessor is None:
+        return
+    inherited_fields = {
+        "returned": ("request", "native_result", "review", "handoff"),
+        "validated": ("request", "review", "handoff", "intake_error"),
+        "reviewed": ("request", "native_result", "handoff", "intake_error"),
+        "admitted": ("request", "native_result", "review", "intake_error"),
+    }
+    if any(stage[key] != predecessor[key] for key in inherited_fields[stage["stage"]]):
+        raise ExperimentRunnerCreativeContextCliError("workflow inherited evidence changed")
+
+
+def _load_workflow_stage(
+    raw_path: str, expected: str, *, require_current_git: bool = True
+) -> dict[str, Any]:
+    path = _workflow_stage_path(raw_path, expected)
+    relative = path.relative_to(REPO_ROOT).as_posix()
+    data: dict[str, Any] = validate_creative_workflow_stage(
+        _workflow_json_bytes(_safe_workflow_file(relative, maximum=MAX_WORKFLOW_JSON_BYTES))
+    )
+    if data["stage"] != expected:
+        raise ExperimentRunnerCreativeContextCliError("workflow stage content mismatch")
+    _workflow_sources(data["request"], require_current_git=require_current_git)
+    stage_names = tuple(WORKFLOW_STAGE_FILES)
+    stage_position = stage_names.index(expected)
+    previous = (
+        None
+        if stage_position == 0
+        else _load_workflow_stage(
+            str(path.parent / WORKFLOW_STAGE_FILES[stage_names[stage_position - 1]]),
+            stage_names[stage_position - 1],
+            require_current_git=require_current_git,
+        )
+    )
+    expected_upstream = (
+        workflow_fingerprint(data["request"]) if previous is None else previous["fingerprint"]
+    )
+    if data["upstream_assets"] != [expected_upstream]:
+        raise ExperimentRunnerCreativeContextCliError("workflow stage predecessor changed")
+    _require_inherited_workflow_evidence(data, previous)
+    if expected == "validated" and previous is not None and previous["intake_error"] is not None:
+        raise ExperimentRunnerCreativeContextCliError("invalid returned intake blocks validation")
+    if expected == "admitted":
+        dispatch_order, eligible = _canonical_manifest_writer_occurrences(data["request"])
+        validate_creative_workflow_handoff(
+            data["handoff"],
+            data["request"],
+            data["native_result"],
+            data["review"],
+            eligible,
+            dispatch_order,
+        )
+    return data
+
+
+def _write_workflow_stage(output_dir: Path, payload: Mapping[str, Any]) -> Path:
+    stage_names = tuple(WORKFLOW_STAGE_FILES)
+    stage_position = stage_names.index(payload["stage"])
+    upstream = (
+        workflow_fingerprint(payload["request"])
+        if stage_position == 0
+        else _load_workflow_stage(
+            str(output_dir / WORKFLOW_STAGE_FILES[stage_names[stage_position - 1]]),
+            stage_names[stage_position - 1],
+        )["fingerprint"]
+    )
+    validated = build_creative_workflow_stage(payload, upstream_fingerprint=upstream)
+    destination = output_dir / WORKFLOW_STAGE_FILES[validated["stage"]]
+    encoded = (json.dumps(validated, sort_keys=True, ensure_ascii=True, indent=2) + "\n").encode(
+        "ascii"
+    )
+    if len(encoded) > MAX_WORKFLOW_JSON_BYTES:
+        raise ExperimentRunnerCreativeContextCliError("workflow stage exceeds its bound")
+    if destination.exists() or destination.is_symlink():
+        relative = destination.relative_to(REPO_ROOT).as_posix()
+        if _safe_workflow_file(relative, maximum=MAX_WORKFLOW_JSON_BYTES) != encoded:
+            raise ExperimentRunnerCreativeContextCliError("divergent workflow stage replay")
+        return destination
+    descriptor, temp_name = tempfile.mkstemp(prefix=".workflow-", dir=output_dir)
+    try:
+        with os.fdopen(descriptor, "wb") as handle:
+            os.fchmod(handle.fileno(), 0o600)
+            handle.write(encoded)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.link(temp_name, destination, follow_symlinks=False)
+    except FileExistsError as exc:
+        raise ExperimentRunnerCreativeContextCliError(
+            "workflow stage publication collided"
+        ) from exc
+    finally:
+        Path(temp_name).unlink(missing_ok=True)
+    return destination
+
+
+def _workflow_prepare(args: argparse.Namespace) -> int:
+    request = validate_creative_workflow_request(
+        _workflow_json_bytes(_safe_workflow_file(args.request, maximum=MAX_WORKFLOW_JSON_BYTES))
+    )
+    if args.packet != f"artifacts/orchestration/task_packets/{request['task_packet_id']}.json":
+        raise ExperimentRunnerCreativeContextCliError("workflow packet path differs from request")
+    _workflow_sources(request)
+    output_dir = _resolve_output_dir(Path(args.output_dir), create=True)
+    stage = {
+        "schema_version": CREATIVE_WORKFLOW_SCHEMA_VERSION,
+        "stage": "prepared",
+        "request": request,
+        "native_result": None,
+        "review": None,
+        "handoff": None,
+        "intake_error": None,
+    }
+    path = _write_workflow_stage(output_dir, stage)
+    print(f"PASS: Creative workflow prepared at {_display_path(path)}")
+    print(f"Request fingerprint: {workflow_fingerprint(request)}")
+    return 0
+
+
+def _workflow_ingest(args: argparse.Namespace) -> int:
+    prepared = _load_workflow_stage(args.workflow, "prepared")
+    output_dir = _workflow_stage_path(args.workflow, "prepared").parent
+    raw = sys.stdin.buffer.read(MAX_WORKFLOW_JSON_BYTES + 1)
+    try:
+        native_result = validate_creative_workflow_native_result(
+            _workflow_json_bytes(raw), prepared["request"]
+        )
+    except (ExperimentRunnerCreativeContextCliError, ExperimentRunnerCreativeContextContractError):
+        returned = dict(prepared, stage="returned", intake_error="INVALID_NATIVE_RESULT")
+        _write_workflow_stage(output_dir, returned)
+        raise ExperimentRunnerCreativeContextCliError(
+            "native result returned but intake is invalid"
+        ) from None
+    returned = dict(prepared, stage="returned")
+    _write_workflow_stage(output_dir, returned)
+    validated = dict(returned, stage="validated", native_result=native_result)
+    path = _write_workflow_stage(output_dir, validated)
+    print(f"PASS: native intake validated at {_display_path(path)}")
+    return 0
+
+
+def _workflow_review(args: argparse.Namespace) -> int:
+    validated = _load_workflow_stage(args.workflow, "validated")
+    review = validate_creative_workflow_review(
+        _workflow_json_bytes(_safe_workflow_file(args.review, maximum=MAX_WORKFLOW_JSON_BYTES)),
+        validated["request"],
+        validated["native_result"],
+    )
+    path = _write_workflow_stage(
+        _workflow_stage_path(args.workflow, "validated").parent,
+        dict(validated, stage="reviewed", review=review),
+    )
+    print(f"PASS: Creative selection reviewed at {_display_path(path)}")
+    return 0
+
+
+def _workflow_admit(args: argparse.Namespace) -> int:
+    reviewed = _load_workflow_stage(args.workflow, "reviewed")
+    dispatch_order, eligible = _canonical_manifest_writer_occurrences(reviewed["request"])
+    handoff = validate_creative_workflow_handoff(
+        _workflow_json_bytes(_safe_workflow_file(args.handoff, maximum=MAX_WORKFLOW_JSON_BYTES)),
+        reviewed["request"],
+        reviewed["native_result"],
+        reviewed["review"],
+        eligible,
+        dispatch_order,
+    )
+    path = _write_workflow_stage(
+        _workflow_stage_path(args.workflow, "reviewed").parent,
+        dict(reviewed, stage="admitted", handoff=handoff),
+    )
+    print(f"PASS: exact writer handoff recorded at {_display_path(path)}")
+    return 0
+
+
+def _require_safe_workflow_archive_member(name: str, data: bytes) -> None:
+    try:
+        readable = data.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise ExperimentRunnerCreativeContextCliError("capsule file is not UTF-8") from exc
+    if (
+        WORKFLOW_SECRET_TOKEN_RE.search(readable)
+        or SECRET_VALUE_RE.search(readable)
+        or (
+            name in {"test_evidence.json", "oracle_evidence.json", "work_review.md"}
+            and ARCHIVE_AUTHORITY_CLAIM_RE.search(readable)
+        )
+        or contains_local_path_outside_route_context(readable)
+        or re.search(
+            r"/(?:Users|private/var|var/folders|tmp|etc|root)/|file://|"
+            r"(?:https?://[^\s?#]+\?[^\s]+)",
+            readable,
+            re.IGNORECASE,
+        )
+    ):
+        raise ExperimentRunnerCreativeContextCliError("capsule contains private or signed content")
+
+
+def _workflow_archive_inputs(directory: Path, include: list[str]) -> dict[str, bytes]:
+    required = {
+        *WORKFLOW_STAGE_FILES.values(),
+        "patch.diff",
+        "test_evidence.json",
+        "work_review.md",
+    }
+    if len(include) != len(set(include)) or not required.issubset(include):
+        raise ExperimentRunnerCreativeContextCliError("capsule is missing a required file")
+    if set(include) - WORKFLOW_ARCHIVE_FILES:
+        raise ExperimentRunnerCreativeContextCliError("capsule contains an unapproved file")
+    files: dict[str, bytes] = {}
+    total = 0
+    for name in sorted(include):
+        path = directory / name
+        data = _safe_workflow_file(
+            path.relative_to(REPO_ROOT).as_posix(), maximum=MAX_WORKFLOW_ARCHIVE_BYTES
+        )
+        total += len(data)
+        if total > MAX_WORKFLOW_ARCHIVE_BYTES:
+            raise ExperimentRunnerCreativeContextCliError("capsule exceeds size limit")
+        _require_safe_workflow_archive_member(name, data)
+        files[name] = data
+    return files
+
+
+def _workflow_patch_paths(patch: bytes) -> list[str]:
+    """Use Git's read-only patch parser to enumerate every changed file."""
+    try:
+        text = patch.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise ExperimentRunnerCreativeContextCliError("capsule patch is not UTF-8") from exc
+    headers = re.findall(r"^diff --git ", text, re.MULTILINE)
+    for line in text.splitlines():
+        if line.startswith(("new file mode ", "deleted file mode ")) and not line.endswith(
+            " 100644"
+        ):
+            raise ExperimentRunnerCreativeContextCliError("capsule patch file mode is unsafe")
+    if (
+        not text.startswith("diff --git ")
+        or not headers
+        or re.search(
+            r"^(?:GIT binary patch|Binary files |rename |copy |old mode |new mode |Submodule )",
+            text,
+            re.MULTILINE,
+        )
+    ):
+        raise ExperimentRunnerCreativeContextCliError("capsule patch form is unsupported")
+    try:
+        result = run_git(
+            ["apply", "--numstat", "-z", "-"], cwd=REPO_ROOT, check=False, input_text=text
+        )
+    except CreativeCodePatchWorkspaceError as exc:
+        raise ExperimentRunnerCreativeContextCliError("capsule patch cannot be parsed") from exc
+    if result.returncode != 0 or not result.stdout.endswith("\0"):
+        raise ExperimentRunnerCreativeContextCliError("capsule patch cannot be parsed")
+    paths: list[str] = []
+    for row in result.stdout.split("\0")[:-1]:
+        fields = row.split("\t", 2)
+        if (
+            len(fields) != 3
+            or not fields[0].isdigit()
+            or not fields[1].isdigit()
+            or int(fields[0]) + int(fields[1]) == 0
+            or not fields[2]
+            or fields[2] in paths
+        ):
+            raise ExperimentRunnerCreativeContextCliError("capsule patch paths are invalid")
+        paths.append(fields[2])
+    if len(paths) != len(headers):
+        raise ExperimentRunnerCreativeContextCliError(
+            "capsule patch headers differ from changed files"
+        )
+    return paths
+
+
+def _require_bound_patch_test_evidence(
+    files: Mapping[str, bytes], admitted: Mapping[str, Any]
+) -> None:
+    patch = files["patch.diff"]
+    paths = _workflow_patch_paths(patch)
+    request = admitted["request"]
+    handoff = admitted["handoff"]
+    if sorted(paths) != sorted(handoff["files"]):
+        raise ExperimentRunnerCreativeContextCliError("capsule patch differs from writer handoff")
+    evidence = _workflow_json_bytes(files["test_evidence.json"])
+    if (
+        set(evidence)
+        != {
+            "schema_version",
+            "request_fingerprint",
+            "selected_variant_id",
+            "writer_role",
+            "manifest_order",
+            "patch_sha256",
+            "changed_files",
+            "commands",
+        }
+        or evidence["schema_version"] != "creative_workflow_test_evidence.v1"
+    ):
+        raise ExperimentRunnerCreativeContextCliError("capsule test evidence fields are invalid")
+    if (
+        evidence["request_fingerprint"] != workflow_fingerprint(request)
+        or evidence["selected_variant_id"] != handoff["selected_variant_id"]
+        or evidence["writer_role"] != handoff["writer_role"]
+        or not isinstance(evidence["manifest_order"], int)
+        or isinstance(evidence["manifest_order"], bool)
+        or evidence["manifest_order"] != handoff["manifest_order"]
+        or evidence["patch_sha256"] != "sha256:" + hashlib.sha256(patch).hexdigest()
+        or evidence["changed_files"] != sorted(paths)
+    ):
+        raise ExperimentRunnerCreativeContextCliError(
+            "capsule test evidence differs from patch or handoff"
+        )
+    selected = next(
+        (
+            item
+            for item in admitted["native_result"]["variants"]
+            if item["id"] == handoff["selected_variant_id"]
+        ),
+        None,
+    )
+    rows = evidence["commands"]
+    if (
+        selected is None
+        or not isinstance(rows, list)
+        or not rows
+        or len(rows) > request["budget"]["max_test_commands"]
+    ):
+        raise ExperimentRunnerCreativeContextCliError("capsule test commands are invalid")
+    commands: list[str] = []
+    for row in rows:
+        if not isinstance(row, dict) or set(row) != {"command", "exit_code", "observed_tests"}:
+            raise ExperimentRunnerCreativeContextCliError("capsule test result is invalid")
+        command = row["command"]
+        if (
+            not isinstance(command, str)
+            or command not in request["test_commands"]
+            or command not in selected["tests"]
+            or not isinstance(row["exit_code"], int)
+            or isinstance(row["exit_code"], bool)
+            or not 0 <= row["exit_code"] <= 255
+            or not isinstance(row["observed_tests"], int)
+            or isinstance(row["observed_tests"], bool)
+            or row["observed_tests"] <= 0
+        ):
+            raise ExperimentRunnerCreativeContextCliError("capsule test result is unbound")
+        commands.append(command)
+    if len(commands) != len(set(commands)) or set(commands) != set(selected["tests"]):
+        raise ExperimentRunnerCreativeContextCliError("capsule test command set is incomplete")
+    work_review = files["work_review.md"].decode("utf-8").strip()
+    if len(work_review) < 20 or any(
+        re.search(r"\b" + re.escape(row["id"]) + r"\b", work_review) is None
+        for row in request["criteria"]
+    ):
+        raise ExperimentRunnerCreativeContextCliError("capsule Work Review omits criteria")
+
+
+def _workflow_export(args: argparse.Namespace) -> int:
+    admitted = _load_workflow_stage(args.workflow, "admitted", require_current_git=False)
+    directory = _workflow_stage_path(args.workflow, "admitted").parent
+    stages = {
+        name: _load_workflow_stage(str(directory / filename), name, require_current_git=False)
+        for name, filename in WORKFLOW_STAGE_FILES.items()
+    }
+    if (
+        any(stage["request"] != admitted["request"] for stage in stages.values())
+        or stages["returned"]["intake_error"] is not None
+        or stages["validated"]["native_result"] != admitted["native_result"]
+        or stages["reviewed"]["review"] != admitted["review"]
+    ):
+        raise ExperimentRunnerCreativeContextCliError("capsule stage chain is inconsistent")
+    files = _workflow_archive_inputs(directory, args.include)
+    _require_bound_patch_test_evidence(files, admitted)
+    manifest = {
+        "schema_version": "creative_workflow_capsule.v1",
+        "files": {
+            name: "sha256:" + hashlib.sha256(data).hexdigest() for name, data in files.items()
+        },
+    }
+    destination = directory / "creative_workflow_capsule.zip"
+    if destination.exists() or destination.is_symlink():
+        raise ExperimentRunnerCreativeContextCliError("capsule already exists")
+    descriptor, temp_name = tempfile.mkstemp(prefix=".capsule-", dir=directory)
+    os.close(descriptor)
+    try:
+        with zipfile.ZipFile(temp_name, "w", compression=zipfile.ZIP_STORED) as archive:
+            for name, data in files.items():
+                info = zipfile.ZipInfo(name)
+                info.external_attr = 0o600 << 16
+                archive.writestr(info, data)
+            info = zipfile.ZipInfo("manifest.json")
+            info.external_attr = 0o600 << 16
+            archive.writestr(info, json.dumps(manifest, sort_keys=True, separators=(",", ":")))
+        os.link(temp_name, destination, follow_symlinks=False)
+    finally:
+        Path(temp_name).unlink(missing_ok=True)
+    print(f"PASS: capsule exported at {_display_path(destination)}")
+    print("SHA-256: " + hashlib.sha256(destination.read_bytes()).hexdigest())
+    print("Storage state: storage_pending until same-ID Drive readback and downloaded restore")
+    return 0
+
+
+def _workflow_verify_archive(args: argparse.Namespace) -> int:
+    archive_path = Path(args.archive)
+    if archive_path.name != "creative_workflow_capsule.zip":
+        raise ExperimentRunnerCreativeContextCliError("unexpected capsule filename")
+    directory = _resolve_output_dir(archive_path.parent, create=False)
+    archive_path = directory / archive_path.name
+    raw = _safe_workflow_file(
+        archive_path.relative_to(REPO_ROOT).as_posix(), maximum=MAX_WORKFLOW_ARCHIVE_BYTES + 100_000
+    )
+    if hashlib.sha256(raw).hexdigest() != args.sha256:
+        raise ExperimentRunnerCreativeContextCliError("downloaded capsule hash mismatch")
+    try:
+        with zipfile.ZipFile(io.BytesIO(raw), "r") as archive:
+            infos = archive.infolist()
+            names = [info.filename for info in infos]
+            if (
+                len(names) != len(set(names))
+                or "manifest.json" not in names
+                or (set(names) - {"manifest.json"} - WORKFLOW_ARCHIVE_FILES)
+            ):
+                raise ExperimentRunnerCreativeContextCliError("capsule member names are unsafe")
+            if not {
+                *WORKFLOW_STAGE_FILES.values(),
+                "patch.diff",
+                "test_evidence.json",
+                "work_review.md",
+            }.issubset(names):
+                raise ExperimentRunnerCreativeContextCliError("capsule is incomplete")
+            for info in infos:
+                if (
+                    info.is_dir()
+                    or info.compress_type != zipfile.ZIP_STORED
+                    or info.file_size > MAX_WORKFLOW_ARCHIVE_BYTES
+                    or ((info.external_attr >> 16) & 0o170000) not in {0, stat.S_IFREG}
+                ):
+                    raise ExperimentRunnerCreativeContextCliError(
+                        "capsule member type or size is unsafe"
+                    )
+            manifest = _workflow_json_bytes(archive.read("manifest.json"))
+            if manifest.get("schema_version") != "creative_workflow_capsule.v1" or not isinstance(
+                manifest.get("files"), dict
+            ):
+                raise ExperimentRunnerCreativeContextCliError("capsule manifest is invalid")
+            if set(manifest["files"]) != set(names) - {"manifest.json"}:
+                raise ExperimentRunnerCreativeContextCliError(
+                    "capsule manifest does not cover files"
+                )
+            extracted = {name: archive.read(name) for name in manifest["files"]}
+            if sum(len(item) for item in extracted.values()) > MAX_WORKFLOW_ARCHIVE_BYTES:
+                raise ExperimentRunnerCreativeContextCliError("capsule expanded size exceeds bound")
+            restored_stages: dict[str, dict[str, Any]] = {}
+            for name, data in extracted.items():
+                _require_safe_workflow_archive_member(name, data)
+                if manifest["files"][name] != "sha256:" + hashlib.sha256(data).hexdigest():
+                    raise ExperimentRunnerCreativeContextCliError("capsule member digest mismatch")
+                if name in WORKFLOW_STAGE_FILES.values():
+                    restored_stages[name] = validate_creative_workflow_stage(
+                        _workflow_json_bytes(data)
+                    )
+            predecessor = None
+            for stage_name, filename in WORKFLOW_STAGE_FILES.items():
+                stage = restored_stages[filename]
+                if stage["stage"] != stage_name:
+                    raise ExperimentRunnerCreativeContextCliError("restored stage name mismatch")
+                expected = (
+                    workflow_fingerprint(stage["request"])
+                    if predecessor is None
+                    else predecessor["fingerprint"]
+                )
+                if stage["upstream_assets"] != [expected]:
+                    raise ExperimentRunnerCreativeContextCliError("restored stage lineage mismatch")
+                _require_inherited_workflow_evidence(stage, predecessor)
+                predecessor = stage
+            if restored_stages["workflow.returned.json"]["intake_error"] is not None:
+                raise ExperimentRunnerCreativeContextCliError("restored intake was invalid")
+            admitted_stage = restored_stages["workflow.admitted.json"]
+            _workflow_sources(admitted_stage["request"], require_current_git=False)
+            dispatch_order, eligible = _canonical_manifest_writer_occurrences(
+                admitted_stage["request"]
+            )
+            validate_creative_workflow_handoff(
+                admitted_stage["handoff"],
+                admitted_stage["request"],
+                admitted_stage["native_result"],
+                admitted_stage["review"],
+                eligible,
+                dispatch_order,
+            )
+            _require_bound_patch_test_evidence(extracted, admitted_stage)
+    except (zipfile.BadZipFile, zlib.error, RuntimeError, KeyError) as exc:
+        raise ExperimentRunnerCreativeContextCliError("capsule could not be restored") from exc
+    requested_restore = Path(args.restore_dir)
+    if requested_restore.name in {"", ".", ".."} or ".." in requested_restore.parts:
+        raise ExperimentRunnerCreativeContextCliError("restore directory must name a safe leaf")
+    parent = _resolve_output_dir(requested_restore.parent, create=True)
+    restore_dir = parent / requested_restore.name
+    _reject_symlink_components(restore_dir, label="restore directory")
+    try:
+        restore_dir.mkdir(mode=0o700)
+    except FileExistsError as exc:
+        raise ExperimentRunnerCreativeContextCliError("restore directory already exists") from exc
+    except OSError as exc:
+        raise ExperimentRunnerCreativeContextCliError(
+            "restore directory cannot be created"
+        ) from exc
+    try:
+        for name, data in extracted.items():
+            target = restore_dir / name
+            with target.open("xb") as handle:
+                os.fchmod(handle.fileno(), 0o600)
+                handle.write(data)
+    except OSError as exc:
+        raise ExperimentRunnerCreativeContextCliError(
+            "restored capsule could not be written"
+        ) from exc
+    print(f"PASS: downloaded capsule hash and restore verified at {_display_path(restore_dir)}")
+    return 0
+
+
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Prepare local Experiment Runner PR creative-context artifacts."
@@ -485,6 +1288,38 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     validate_parser.add_argument("--path", required=True)
     validate_parser.add_argument("--output")
     validate_parser.set_defaults(func=_cmd_validate)
+
+    workflow_prepare = subparsers.add_parser("workflow-prepare")
+    workflow_prepare.add_argument("--packet", required=True)
+    workflow_prepare.add_argument("--request", required=True)
+    workflow_prepare.add_argument("--output-dir", required=True)
+    workflow_prepare.set_defaults(func=_workflow_prepare)
+
+    workflow_ingest = subparsers.add_parser("workflow-ingest")
+    workflow_ingest.add_argument("--workflow", required=True)
+    workflow_ingest.add_argument("--native-result-stdin", action="store_true", required=True)
+    workflow_ingest.set_defaults(func=_workflow_ingest)
+
+    workflow_review = subparsers.add_parser("workflow-review")
+    workflow_review.add_argument("--workflow", required=True)
+    workflow_review.add_argument("--review", required=True)
+    workflow_review.set_defaults(func=_workflow_review)
+
+    workflow_admit = subparsers.add_parser("workflow-admit")
+    workflow_admit.add_argument("--workflow", required=True)
+    workflow_admit.add_argument("--handoff", required=True)
+    workflow_admit.set_defaults(func=_workflow_admit)
+
+    workflow_export = subparsers.add_parser("workflow-export")
+    workflow_export.add_argument("--workflow", required=True)
+    workflow_export.add_argument("--include", action="append", required=True)
+    workflow_export.set_defaults(func=_workflow_export)
+
+    workflow_verify = subparsers.add_parser("workflow-verify-archive")
+    workflow_verify.add_argument("--archive", required=True)
+    workflow_verify.add_argument("--sha256", required=True)
+    workflow_verify.add_argument("--restore-dir", required=True)
+    workflow_verify.set_defaults(func=_workflow_verify_archive)
     return parser.parse_args(argv)
 
 
@@ -495,6 +1330,7 @@ def main(argv: list[str] | None = None) -> int:
     except (
         ExperimentRunnerCreativeContextCliError,
         ExperimentRunnerCreativeContextContractError,
+        EvidenceRailApplicabilityError,
     ) as exc:
         print(f"FAIL: {exc}", file=sys.stderr)
         return 1
