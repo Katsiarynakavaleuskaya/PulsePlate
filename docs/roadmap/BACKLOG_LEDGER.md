@@ -1396,7 +1396,7 @@ If it is not recorded here — it does not exist.
 - [ ] P1: Switch the hosted merge-readiness job to trusted-base policy execution
   - Owner: @katsiaryna_kavaleuskaya (CI and orchestration governance)
   - Priority: P1
-  - Target PR: CONSOL-ORCH-1 (number pending)
+  - Target PR: [PR #2455](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2455) (CONSOL-ORCH-1)
   - Status: Implementation in progress after CONSOL-CI-1 (#2446) merge; exact-head ORCH proof and merge remain pending
   - Area: CI / merge governance
   - Reason (EN): CONSOL-CI-1 (#2446) supplied the verified dual-checkout verifier interface on protected main. CONSOL-ORCH-1 must now switch hosted execution to the exact authenticated base SHA and inspect exact PR-head material separately; its current-head workflow, native-dispatch, candidate-handoff, promotion, path, disposition, and Slack checks remain unproven until the implementation PR's own gates complete.
