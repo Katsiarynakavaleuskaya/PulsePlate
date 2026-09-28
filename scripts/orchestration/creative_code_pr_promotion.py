@@ -1336,11 +1336,15 @@ def validate(
     git: GitTransport | None = None,
     gate_runner: GateRunner | None = None,
 ) -> dict[str, Any]:
-    if trusted_dispatch_result is None and trusted_generation_receipt is None:
+    if trusted_dispatch_result is None:
+        if trusted_generation_receipt is None:
+            raise CreativeCodePRPromotionError(
+                "trusted dispatch result and generation receipt are required for validation."
+            )
         raise CreativeCodePRPromotionError(
-            "trusted dispatch result and generation receipt are required for validation."
+            "trusted dispatch result and generation receipt must be supplied together."
         )
-    if (trusted_dispatch_result is None) != (trusted_generation_receipt is None):
+    if trusted_generation_receipt is None:
         raise CreativeCodePRPromotionError(
             "trusted dispatch result and generation receipt must be supplied together."
         )
