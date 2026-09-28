@@ -5678,6 +5678,26 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - [ ] Deterministic contract tests added for new AI-quality response fields
 
 
+<a id="ledger-p1-inline-nosec-ttl-20260930"></a>
+- [ ] P1: Reassess inline nosec TTLs due 2026-09-30 before main CI expiry
+  - Owner: Security/SRE
+  - Priority: P1
+  - Target PR: PR-TBD-NOSEC-TTL-20260930 (separate main-stabilization lane)
+  - Area: security / CI / static analysis
+  - Reason: On 2026-09-28, 53 inline `# nosec` remove-by entries across 22 tracked files still expire on 2026-09-30. The on-by-default guard will reject them from 2026-10-01; this is separate from the current Docker source and Trivy review-date failures. A blind batch date extension would not revalidate the underlying findings.
+  - Links: `tests/guards/test_nosec_policy_guard.py`, `AGENTS.md` (Bandit / nosec policy), and `scripts/ci/fetch_docker_source_artifacts.py:175` as one affected example.
+  - DoD: Reconcile every exact inline suppression with its owning rule, current code path and safer fix; remove or repair where possible, renew only independently justified remaining exceptions with owner/ref/TTL proof, retain the guard, and verify exact-head main CI before 2026-10-01. Do not mix this 22-file inventory with the bounded Docker/Trivy calendar repair PR.
+
+<a id="ledger-p1-native-trivy-cli-nosec-20261028"></a>
+- [ ] P1: Reassess native Trivy CLI B404/B603 exceptions by 2026-10-28
+  - Owner: Security/SRE
+  - Priority: P1
+  - Target PR: PR-TBD-NATIVE-TRIVY-CLI-NOSEC (after #2453)
+  - Area: security / CI tooling
+  - Reason: PR #2453 uses the resolved absolute native Trivy executable with fixed argv, no shell and a bounded timeout. Two explicit LOW Bandit B404/B603 exceptions are required for that subprocess boundary and expire 2026-10-28; they are separate from the 53 pre-existing September 30 inline TTLs.
+  - Links: `scripts/ci/check_trivy_ignore_policy_native.py`, `tests/guards/test_nosec_policy_guard.py`, and [PR #2453](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2453).
+  - DoD: Reassess the exact native CLI call and Bandit findings before 2026-10-28; remove the exceptions if a simpler safe implementation is available, or renew only with current evidence, bounded TTL and the same fail-closed native policy tests. Never use a broad allowlist or weaken Bandit.
+
 - [ ] P1: Phase 2 — Remove nosec allowlist by migrating legacy suppressions
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
@@ -7257,6 +7277,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Priority: P1
   - Target PR: TBD (follow-up after upstream fix)
   - Review checkpoint (PR #2400, 2026-09-20): Bookworm 6.4-4 remains vulnerable/no-dsa and all four tuples remain in the selected production inventory. Existing predicates retained unchanged; Review-by 2026-09-27, hard expiry 2026-10-07. Continued risk acceptance, not remediation; fresh reduced-policy scans remain pending.
+  - Current review (2026-09-28): Bookworm `ncurses` 6.4-4 remains vulnerable/no-dsa; the four existing package/version/PkgID predicates remain unchanged, and nonempty Trivy `FixedVersion` now excludes suppression. Review-by is 2026-10-05 inclusive; hard expiry remains 2026-10-07. The daily main Nightly Tests forecast is best-effort early warning only; further evidence-based review is required before both deadlines and dates never auto-renew. Actual package upgrade/removal and suppression retirement remain open; current-head strict image/filesystem scans remain required.
   - Reason: Trivy reports Debian bookworm `ncurses` family packages
     (`libncursesw6`, `libtinfo6`, `ncurses-base`, `ncurses-bin`) as vulnerable at
     `6.4-4` with no actionable fixed version in the current bookworm image line as
@@ -7437,6 +7458,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Remove suppressions when fixed versions available
     - Update base image when fixes land
   - Current bounded review (PR #2400, 2026-09-20): zlib1g 1:1.2.13.dfsg-1 and ncurses 6.4-4 remain vulnerable/no-dsa. Both unchanged rules retain risk with Review-by 2026-09-27 and hard expiry 2026-10-07; CVE-2026-53615 is unchanged. CVE-2026-53613 package-absence and CVE-2026-14456 metadata-correction retirements have separate open entries above. Fresh reduced-policy scans and main evidence remain pending.
+  - Current review (2026-09-28): Bookworm zlib `1:1.2.13.dfsg-1` and ncurses `6.4-4` remain independently vulnerable/no-dsa. Their existing package/version/PkgID predicates remain unchanged; each now excludes a nonempty Trivy `FixedVersion`. Both Review-by dates are 2026-10-05 inclusive; the shared hard expiry is still 2026-10-07 and CVE-2026-53615 is unchanged. The daily main Nightly Tests forecast is best-effort early warning only; further evidence-based review is required before both deadlines and dates never auto-renew. Keep package upgrade/removal and suppression retirement open, and require current-head strict image/filesystem scans before readiness.
   - **Historical Rego review: 2026-08-09**
     - PR #929: Removed 4 upstream-fixed CVE suppressions (gpgv, gnutls, p11-kit)
     - PR #930: Extended review-by dates to 2026-05-27 for unfixed CVEs
