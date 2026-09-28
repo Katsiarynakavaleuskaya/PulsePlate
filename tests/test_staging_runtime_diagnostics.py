@@ -5,15 +5,14 @@ from __future__ import annotations
 import json
 import io
 import os
+import stat
 from pathlib import Path
 import subprocess
 import sys
-import threading
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-import time
 from typing import Any
 from contextlib import redirect_stdout
-from types import ModuleType
+from types import ModuleType, SimpleNamespace
+import hashlib
 
 import pytest
 
@@ -74,7 +73,11 @@ def selected_container(
         "Id": "a" * 64,
         "Image": image,
         "Config": {
-            "Image": "example.invalid/" + service + ":test",
+            "Image": (
+                host_functions()["BACKEND_REF"]
+                if service == "app"
+                else "example.invalid/" + service + ":test"
+            ),
             "Labels": {
                 "com.docker.compose.project": "pulseplate-staging",
                 "com.docker.compose.service": service,
@@ -87,10 +90,12 @@ def selected_container(
 
 
 def compose_fixture() -> dict[str, Any]:
+    namespace = host_functions()
     return {
         "name": "pulseplate-staging",
         "services": {
-            "app": {"image": "example.invalid/app:test"},
+            "app": {"image": namespace["BACKEND_REF"]},
+            "caddy": {"image": namespace["CADDY_REF"]},
             "postgres": {
                 "image": "example.invalid/postgres:test",
                 "environment": {"POSTGRES_DB": "pulseplate", "POSTGRES_USER": "pulseplate"},
@@ -282,6 +287,7 @@ def test_t07_host_selection_rejects_duplicate_oneoff_or_absent(ids: list[str], o
 
 def test_t19_host_rejects_generation_drift_after_app_probe() -> None:
     namespace = host_functions()
+    namespace["app_env_file_signature"] = lambda: ("trusted",)
     selected_count = 0
     compose = compose_fixture()
 
@@ -319,6 +325,7 @@ def test_t19_host_rejects_generation_drift_after_app_probe() -> None:
 
 def test_t06_host_checker_failure_stops_before_container_census() -> None:
     namespace = host_functions()
+    namespace["app_env_file_signature"] = lambda: ("trusted",)
     calls: list[list[str]] = []
 
     def run(argv: list[str], **kwargs: Any) -> tuple[int, bytes]:
@@ -440,6 +447,377 @@ def test_compose_hash_uses_same_selected_config_and_binds_container_label() -> N
         namespace["selected"]("app", compose_fixture(), "d" * 64)
 
 
+def test_resolved_model_stdin_is_unmodified_and_literal_values_roundtrip() -> None:
+    namespace = host_functions()
+    model = compose_fixture()
+    model["services"]["app"]["environment"] = {
+        "DOLLAR": "cost$$5",
+        "BRACED": "$${HOME}",
+        "QUOTED": 'a "quoted" value',
+        "SENTINEL": "native-secret-value",
+    }
+    raw = json.dumps(model, separators=(",", ":")).encode()
+    calls: list[tuple[list[str], bytes | None]] = []
+
+    def run(argv: list[str], **kwargs: Any) -> tuple[int, bytes]:
+        calls.append((argv, kwargs.get("input_data")))
+        if "--hash" in argv:
+            return 0, ("app " + "c" * 64 + "\n").encode()
+        return 0, raw
+
+    namespace["run"] = run
+    assert namespace["resolved_model"](raw) == model
+    assert namespace["compose_hash"]("app", resolved=raw) == "c" * 64
+    for argv, supplied in calls:
+        assert supplied == raw
+        assert argv[:5] == [
+            "docker",
+            "compose",
+            "--project-directory",
+            "/srv/pulseplate-staging",
+            "-f",
+        ]
+        assert argv[5] == "-" and "--no-interpolate" not in argv
+        assert "--no-env-resolution" not in argv
+    assert len(calls) == 2
+
+
+@pytest.mark.parametrize("field,replacement", [("flag", 1), ("count", 1.0)])
+def test_resolved_model_rejects_nested_scalar_type_change(
+    field: str, replacement: bool | int | float
+) -> None:
+    namespace = host_functions()
+    model = {"name": "pulseplate-staging", "nested": {"flag": True, "count": 1}}
+    changed = json.loads(json.dumps(model))
+    changed["nested"][field] = replacement
+    assert changed == model  # Demonstrate why dict equality is insufficient.
+    namespace["run"] = lambda argv, **kwargs: (0, json.dumps(changed).encode())
+    with pytest.raises(RuntimeError, match="COMPOSE_MODEL_UNTRUSTED"):
+        namespace["resolved_model"](json.dumps(model).encode())
+
+
+def test_resolved_model_accepts_object_key_reorder() -> None:
+    namespace = host_functions()
+    model = {"name": "pulseplate-staging", "nested": {"flag": True, "count": 1}}
+    reordered = {"nested": {"count": 1, "flag": True}, "name": "pulseplate-staging"}
+    namespace["run"] = lambda argv, **kwargs: (0, json.dumps(reordered).encode())
+    assert namespace["resolved_model"](json.dumps(model).encode()) == model
+
+
+def test_native_subprocess_uses_pinned_refs_over_ambient_values(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    namespace = host_functions()
+    monkeypatch.setenv("STAGING_IMAGE_REF", "stale.example/app:latest")
+    monkeypatch.setenv("STAGING_CADDY_IMAGE_REF", "stale.example/caddy:latest")
+    monkeypatch.setenv("STAGING_ENV_FILE", "/tmp/stale.env")
+    monkeypatch.setenv("DOCKER_HOST", "tcp://stale.example:2375")
+    monkeypatch.setenv("GHCR_TOKEN", "synthetic-secret")
+    code, raw = namespace["run"](
+        [sys.executable, "-c", "import json, os; print(json.dumps(dict(os.environ)))"],
+        timeout=5,
+    )
+    assert code == 0
+    actual = json.loads(raw)
+    assert all(actual[key] == value for key, value in namespace["NATIVE_ENV"].items())
+    assert actual["STAGING_IMAGE_REF"] == namespace["BACKEND_REF"]
+    assert actual["STAGING_CADDY_IMAGE_REF"] == namespace["CADDY_REF"]
+    assert actual["STAGING_ENV_FILE"] == "/srv/pulseplate-staging/.env"
+    assert "DOCKER_HOST" not in actual and "GHCR_TOKEN" not in actual
+
+
+@pytest.mark.parametrize("fault", ["changed", "duplicate", "nonfinite", "oversize"])
+def test_resolved_model_rejects_changed_or_untrusted_native_output(fault: str) -> None:
+    namespace = host_functions()
+    raw = json.dumps(compose_fixture()).encode()
+    response = {
+        "changed": json.dumps({"name": "foreign"}).encode(),
+        "duplicate": b'{"name":"pulseplate-staging","name":"foreign"}',
+        "nonfinite": b'{"name":NaN}',
+        "oversize": b"x" * (2_000_001),
+    }[fault]
+
+    def run(argv: list[str], **kwargs: Any) -> tuple[int, bytes]:
+        if fault == "oversize":
+            raise RuntimeError("NATIVE_OUTPUT_OVERSIZE")
+        return 0, response
+
+    namespace["run"] = run
+    with pytest.raises(RuntimeError, match="COMPOSE_MODEL_UNTRUSTED|NATIVE_OUTPUT_OVERSIZE"):
+        namespace["resolved_model"](raw)
+
+
+@pytest.mark.parametrize(
+    "fault",
+    [
+        "none",
+        "source_sha",
+        "source_mode",
+        "source_owner",
+        "source_symlink",
+        "path_swap",
+        "ctime_change",
+        "env_override",
+        "env_assignment",
+        "env_mode",
+        "oversize",
+    ],
+)
+def test_exact_staging_compose_source_witness_is_fail_closed(
+    fault: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    namespace = host_functions()
+    reviewed = (
+        Path(__file__).resolve().parents[1] / "deploy" / "docker-compose.staging.yaml"
+    ).read_bytes()
+    assert hashlib.sha256(reviewed).hexdigest() == namespace["COMPOSE_SOURCE_SHA"]
+    compose = tmp_path / "docker-compose.staging.yaml"
+    compose.write_bytes(reviewed)
+    compose.chmod(0o644)
+    env_file = tmp_path / ".env"
+    env_file.write_bytes(b"STAGING_DOMAIN=example.test\nSYNTHETIC_SECRET=native-secret-value\n")
+    env_file.chmod(0o600)
+    monkeypatch.delenv("STAGING_ENV_FILE", raising=False)
+    if fault == "source_sha":
+        compose.write_bytes(reviewed + b"\n# changed\n")
+    elif fault == "source_mode":
+        compose.chmod(0o666)
+    elif fault == "source_symlink":
+        retained = tmp_path / "retained.yaml"
+        compose.rename(retained)
+        compose.symlink_to(retained)
+    elif fault == "env_override":
+        monkeypatch.setenv("STAGING_ENV_FILE", "/tmp/foreign.env")
+    elif fault == "env_assignment":
+        env_file.write_bytes(b"STAGING_ENV_FILE=/tmp/foreign.env\n")
+    elif fault == "env_mode":
+        env_file.chmod(0o644)
+    elif fault == "oversize":
+        compose.write_bytes(b"x" * 65537)
+
+    class SyntheticRootOS:
+        def __init__(self, file_uid: int = 0) -> None:
+            self.file_uid = file_uid
+            self.path_reads: dict[str, int] = {}
+            self.fd_reads = 0
+
+        def __getattr__(self, name: str) -> Any:
+            return getattr(os, name)
+
+        def lstat(self, path: str) -> SimpleNamespace:
+            if path in ("/srv", str(tmp_path)):
+                return SimpleNamespace(st_mode=stat.S_IFDIR | 0o755, st_uid=0)
+            assert path in (str(compose), str(env_file))
+            self.path_reads[path] = self.path_reads.get(path, 0) + 1
+            real = os.lstat(path)
+            return SimpleNamespace(
+                st_dev=real.st_dev,
+                st_ino=real.st_ino
+                + (
+                    1
+                    if fault == "path_swap" and path == str(compose) and self.path_reads[path] == 2
+                    else 0
+                ),
+                st_ctime_ns=real.st_ctime_ns,
+                st_mtime_ns=real.st_mtime_ns,
+                st_size=real.st_size,
+                st_mode=real.st_mode,
+                st_uid=self.file_uid,
+                st_gid=0,
+                st_nlink=real.st_nlink,
+            )
+
+        def fstat(self, descriptor: int) -> SimpleNamespace:
+            self.fd_reads += 1
+            real = os.fstat(descriptor)
+            return SimpleNamespace(
+                st_dev=real.st_dev,
+                st_ino=real.st_ino,
+                st_ctime_ns=real.st_ctime_ns
+                + (1 if fault == "ctime_change" and self.fd_reads == 2 else 0),
+                st_mtime_ns=real.st_mtime_ns,
+                st_size=real.st_size,
+                st_mode=real.st_mode,
+                st_uid=self.file_uid,
+                st_gid=0,
+                st_nlink=real.st_nlink,
+            )
+
+    namespace["PROJECT"] = str(tmp_path)
+    namespace["COMPOSE"] = str(compose)
+    namespace["os"] = SyntheticRootOS(1 if fault == "source_owner" else 0)
+    if fault in ("none", "env_override", "env_assignment"):
+        witness = namespace["app_env_file_signature"]()
+        assert len(witness) == 2
+        assert all(len(item[1]) == 64 for item in witness)
+    else:
+        with pytest.raises(RuntimeError, match="COMPOSE_SOURCE_UNTRUSTED"):
+            namespace["app_env_file_signature"]()
+
+
+def _run_hash_host_case(
+    *,
+    native_app: str = "c",
+    native_db: str = "c",
+    resolved_app: str = "c",
+    resolved_db: str = "c",
+    bad_source: bool = False,
+    source_image_change: bool = False,
+    source_change: bool = False,
+    late_source_change: bool = False,
+    model_change: bool = False,
+    model_scalar_change: str | None = None,
+    post_key_reorder: bool = False,
+    roundtrip_change: bool = False,
+    post_roundtrip_change: bool = False,
+    hash_only_drift: bool = False,
+    bad_app_ref: bool = False,
+    bad_caddy_ref: bool = False,
+    app_config_drift: bool = False,
+) -> tuple[dict[str, Any], list[tuple[list[str], bytes | None]]]:
+    namespace = host_functions()
+    model = compose_fixture()
+    model["services"]["app"]["environment"] = {"SENTINEL": "native-secret-value"}
+    model["type_probe"] = {"flag": True, "count": 1}
+    if bad_app_ref:
+        model["services"]["app"]["image"] = "example.invalid/foreign:test"
+    if bad_caddy_ref:
+        model["services"]["caddy"]["image"] = "example.invalid/foreign:test"
+    calls: list[tuple[list[str], bytes | None]] = []
+    source_reads = 0
+    model_reads = 0
+    roundtrip_reads = 0
+    hash_reads: dict[tuple[str, bool], int] = {}
+
+    def source_signature() -> tuple[str, ...]:
+        nonlocal source_reads
+        source_reads += 1
+        calls.append((["trusted_source_signature"], None))
+        if bad_source or source_image_change:
+            raise RuntimeError("COMPOSE_SOURCE_UNTRUSTED")
+        return (
+            ("changed",)
+            if (source_change and source_reads == 3 or late_source_change and source_reads == 5)
+            else ("trusted",)
+        )
+
+    def run(argv: list[str], **kwargs: Any) -> tuple[int, bytes]:
+        nonlocal model_reads, roundtrip_reads
+        calls.append((argv, kwargs.get("input_data")))
+        if "--hash" in argv:
+            service = argv[-1]
+            is_resolved = "-f" in argv and argv[argv.index("-f") + 1] == "-"
+            key = service, is_resolved
+            hash_reads[key] = hash_reads.get(key, 0) + 1
+            letter = (
+                (resolved_app if service == "app" else resolved_db)
+                if is_resolved
+                else (native_app if service == "app" else native_db)
+            )
+            if hash_only_drift and key == ("app", False) and hash_reads[key] == 2:
+                letter = "f"
+            return 0, (service + " " + letter * 64 + "\n").encode()
+        if "compose" in argv:
+            if "-f" in argv and argv[argv.index("-f") + 1] == "-":
+                roundtrip_reads += 1
+                changed = (
+                    {"name": "foreign"}
+                    if roundtrip_change or post_roundtrip_change and roundtrip_reads == 2
+                    else model
+                )
+                return 0, json.dumps(changed).encode()
+            model_reads += 1
+            selected_model = json.loads(json.dumps(model))
+            if model_change and model_reads == 2:
+                selected_model["services"]["app"]["image"] = "example.invalid/changed:test"
+            if model_scalar_change and model_reads == 2:
+                selected_model["type_probe"][model_scalar_change] = (
+                    1 if model_scalar_change == "flag" else 1.0
+                )
+            if post_key_reorder and model_reads == 2:
+                selected_model = dict(reversed(list(selected_model.items())))
+            return 0, json.dumps(selected_model).encode()
+        if "check_staging_security.py" in " ".join(argv):
+            return 0, b""
+        if len(argv) > 1 and argv[1] == "ps":
+            service = next(
+                part.rsplit("=", 1)[1]
+                for part in argv
+                if part.startswith("label=com.docker.compose.service=")
+            )
+            return 0, (("a" if service == "app" else "b") * 64 + "\n").encode()
+        if len(argv) > 1 and argv[1] == "inspect":
+            service = "app" if argv[-1].startswith("a") else "postgres"
+            item = selected_container(service)
+            item["Id"] = ("a" if service == "app" else "b") * 64
+            if app_config_drift and service == "app":
+                item["Config"]["Image"] = "example.invalid/foreign:test"
+            return 0, json.dumps([item]).encode()
+        if len(argv) > 1 and argv[1] == "exec":
+            return 0, json.dumps(observation()).encode()
+        raise AssertionError(f"unexpected command family: {argv[:2]}")
+
+    namespace["run"] = run
+    namespace["app_env_file_signature"] = source_signature
+    output = io.StringIO()
+    with redirect_stdout(output):
+        namespace["main"]()
+    assert "native-secret-value" not in output.getvalue()
+    return json.loads(output.getvalue()), calls
+
+
+@pytest.mark.parametrize("native_app", ["c", "d"])
+def test_host_accepts_normal_or_exact_env_file_hash_relation(native_app: str) -> None:
+    result, calls = _run_hash_host_case(native_app=native_app)
+    assert result["trust"] == "accepted"
+    assert result["observation"] == observation()
+    signature_calls = [argv for argv, _ in calls if argv == ["trusted_source_signature"]]
+    assert len(signature_calls) == 5
+    stdin_calls = [
+        (argv, supplied)
+        for argv, supplied in calls
+        if "-f" in argv and argv[argv.index("-f") + 1] == "-"
+    ]
+    assert len(stdin_calls) == 6
+    assert all(
+        supplied is not None and b"native-secret-value" in supplied for _, supplied in stdin_calls
+    )
+
+
+def test_host_accepts_postprobe_object_key_reorder() -> None:
+    result, _ = _run_hash_host_case(post_key_reorder=True)
+    assert result["trust"] == "accepted"
+
+
+@pytest.mark.parametrize(
+    "kwargs,error",
+    [
+        ({"native_db": "d"}, "COMPOSE_HASH_UNTRUSTED"),
+        ({"native_app": "d", "bad_source": True}, "COMPOSE_SOURCE_UNTRUSTED"),
+        ({"native_app": "d", "source_image_change": True}, "COMPOSE_SOURCE_UNTRUSTED"),
+        ({"native_app": "d", "source_change": True}, "COMPOSE_HASH_CHANGED"),
+        ({"late_source_change": True}, "COMPOSE_HASH_CHANGED"),
+        ({"model_change": True}, "COMPOSE_HASH_CHANGED"),
+        ({"model_scalar_change": "flag"}, "COMPOSE_HASH_CHANGED"),
+        ({"model_scalar_change": "count"}, "COMPOSE_HASH_CHANGED"),
+        ({"roundtrip_change": True}, "COMPOSE_MODEL_UNTRUSTED"),
+        ({"post_roundtrip_change": True}, "COMPOSE_MODEL_UNTRUSTED"),
+        ({"hash_only_drift": True}, "COMPOSE_HASH_CHANGED"),
+        ({"bad_app_ref": True}, "COMPOSE_IDENTITY_UNTRUSTED"),
+        ({"bad_caddy_ref": True}, "COMPOSE_IDENTITY_UNTRUSTED"),
+        ({"app_config_drift": True}, "CONTAINER_IDENTITY_UNTRUSTED"),
+        ({"resolved_app": "e"}, "CONTAINER_IDENTITY_UNTRUSTED"),
+    ],
+)
+def test_host_rejects_unproven_hash_or_model_relation(kwargs: dict[str, Any], error: str) -> None:
+    result, _ = _run_hash_host_case(**kwargs)
+    assert result == {
+        "schema": "pulseplate.staging-runtime-host.v1",
+        "trust": "rejected",
+        "error": error,
+    }
+
+
 @pytest.mark.parametrize(
     "raw",
     [
@@ -456,20 +834,25 @@ def test_compose_hash_rejects_missing_malformed_or_ambiguous_native_output(raw: 
         namespace["compose_hash"]("app")
 
 
-def test_host_rejects_native_compose_hash_change_during_observation() -> None:
+def test_host_rejects_rendered_compose_change_during_observation() -> None:
     namespace = host_functions()
-    app_hash_reads = 0
+    namespace["app_env_file_signature"] = lambda: ("trusted",)
+    render_reads = 0
+    compose = compose_fixture()
 
     def run(argv: list[str], **kwargs: Any) -> tuple[int, bytes]:
-        nonlocal app_hash_reads
+        nonlocal render_reads
         if "--hash" in argv:
             service = argv[-1]
-            if service == "app":
-                app_hash_reads += 1
-            digest = "d" * 64 if service == "app" and app_hash_reads == 2 else "c" * 64
-            return 0, (service + " " + digest + "\n").encode()
+            return 0, (service + " " + "c" * 64 + "\n").encode()
         if "compose" in argv:
-            return 0, json.dumps(compose_fixture()).encode()
+            if "--format" in argv and "docker-compose.staging.yaml" in " ".join(argv):
+                render_reads += 1
+                if render_reads == 2:
+                    changed = json.loads(json.dumps(compose))
+                    changed["services"]["app"]["image"] = "example.invalid/changed:test"
+                    return 0, json.dumps(changed).encode()
+            return 0, json.dumps(compose).encode()
         if "check_staging_security.py" in " ".join(argv):
             return 0, b"ok"
         return 0, json.dumps(observation()).encode()
@@ -618,50 +1001,56 @@ def test_http_probe_uses_local_transport_without_proxy_or_redirect(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     namespace = app_functions(monkeypatch)
-    seen: list[str] = []
-    status = {"ready": 503}
+    seen: list[tuple[str, float]] = []
+    ready_outcomes = iter((503, 302, "timeout"))
 
-    class Handler(BaseHTTPRequestHandler):
-        def log_message(self, *args: object) -> None:
+    class Response:
+        status = 200
+
+        def __enter__(self) -> Response:
+            return self
+
+        def __exit__(self, *_args: object) -> None:
             return None
 
-        def do_GET(self) -> None:
-            seen.append(self.path)
-            if self.path == "/health":
-                self.send_response(200)
-            elif self.path == "/ready" and status["ready"] == 302:
-                self.send_response(302)
-                self.send_header("Location", "/second")
-            elif self.path == "/ready" and status["ready"] == 0:
-                time.sleep(0.2)
-                self.send_response(200)
-            else:
-                self.send_response(status["ready"])
-            self.end_headers()
-            try:
-                self.wfile.write(b"ok")
-            except BrokenPipeError:
-                pass
+        def read(self, limit: int) -> bytes:
+            assert limit == 4096
+            return b"synthetic body is discarded"
 
-    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
-    thread.start()
-    try:
-        namespace["HTTP_ORIGIN"] = f"http://127.0.0.1:{server.server_port}"
-        monkeypatch.setenv("HTTP_PROXY", "http://127.0.0.1:1")
-        monkeypatch.setenv("NO_PROXY", "")
-        assert namespace["http"]("/health") == {"status": "response", "code": 200}
-        assert namespace["http"]("/ready") == {"status": "response", "code": 503}
-        status["ready"] = 302
-        assert namespace["http"]("/ready") == {"status": "response", "code": 302}
-        assert "/second" not in seen
-        status["ready"] = 0
-        namespace["HTTP_TIMEOUT"] = 0.02
-        assert namespace["http"]("/ready") == {"status": "unreachable", "code": None}
-        assert seen.count("/health") == 1 and seen.count("/ready") == 3
-    finally:
-        server.shutdown()
-        server.server_close()
+    class Opener:
+        def open(self, request: Any, *, timeout: float) -> Response:
+            assert request.get_method() == "GET"
+            assert request.full_url.startswith("http://127.0.0.1:8000/")
+            path = request.full_url.removeprefix("http://127.0.0.1:8000")
+            seen.append((path, timeout))
+            if path == "/health":
+                return Response()
+            outcome = next(ready_outcomes)
+            if outcome == "timeout":
+                raise TimeoutError("synthetic timeout")
+            headers = {"Location": "/second"} if outcome == 302 else {}
+            raise namespace["HTTPError"](
+                request.full_url, outcome, "synthetic status", headers, io.BytesIO(b"discarded")
+            )
+
+    def build_opener(*handlers: Any) -> Opener:
+        assert len(handlers) == 2
+        assert isinstance(handlers[0], namespace["ProxyHandler"])
+        assert handlers[0].proxies == {}
+        assert isinstance(handlers[1], namespace["NoRedirect"])
+        assert handlers[1].redirect_request(None, None, 302, "redirect", {}, "/second") is None
+        return Opener()
+
+    namespace["build_opener"] = build_opener
+    monkeypatch.setenv("HTTP_PROXY", "http://127.0.0.1:1")
+    monkeypatch.setenv("NO_PROXY", "")
+    assert namespace["http"]("/other") == {"status": "unreachable", "code": None}
+    assert namespace["http"]("/health") == {"status": "response", "code": 200}
+    assert namespace["http"]("/ready") == {"status": "response", "code": 503}
+    assert namespace["http"]("/ready") == {"status": "response", "code": 302}
+    namespace["HTTP_TIMEOUT"] = 0.02
+    assert namespace["http"]("/ready") == {"status": "unreachable", "code": None}
+    assert seen == [("/health", 3), ("/ready", 3), ("/ready", 3), ("/ready", 0.02)]
 
 
 @pytest.mark.parametrize("field,code", [("health", "HEALTH_NOT_OK"), ("ready", "READY_NOT_OK")])
