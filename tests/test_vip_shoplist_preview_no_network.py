@@ -166,6 +166,7 @@ def test_vip_shoplist_preview_no_network(monkeypatch: pytest.MonkeyPatch) -> Non
     with open_test_client() as client:
         r = client.get("/api/v1/vip/shoplist/preview", headers={"X-API-Key": "test_vip_key"})
         assert r.status_code == 200
+        assert r.headers["content-type"].startswith("application/json")
 
         payload = r.json()
         assert "items" in payload

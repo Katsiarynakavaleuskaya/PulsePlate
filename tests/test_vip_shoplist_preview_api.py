@@ -25,6 +25,8 @@ def test_vip_shoplist_preview_flag_on_returns_200_deterministic(
 
     assert r1.status_code == 200
     assert r2.status_code == 200
+    assert r1.headers["content-type"].startswith("application/json")
+    assert r2.headers["content-type"].startswith("application/json")
     assert r1.json() == r2.json()
 
     payload = r1.json()
@@ -51,8 +53,8 @@ def test_vip_shoplist_preview_non_vip_api_key_returns_403(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("VIP_MODULE_ENABLED", "true")
-    monkeypatch.setenv("API_KEY", "test_key")
+    monkeypatch.setenv("API_KEY", "test_pro_key")
 
     with open_test_client() as client:
-        r = client.get("/api/v1/vip/shoplist/preview", headers={"X-API-Key": "test_key"})
+        r = client.get("/api/v1/vip/shoplist/preview", headers={"X-API-Key": "test_pro_key"})
     assert r.status_code == 403
