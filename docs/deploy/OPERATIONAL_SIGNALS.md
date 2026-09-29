@@ -253,6 +253,13 @@ change is merged. It never starts the production clock.
    is `HOLD`; only proven volume absence is a fresh path. PostgreSQL health,
    migration, app, worker, Caddy, and external readiness complete before
    Prometheus starts.
+   For the external scheduler, worker acceptance is a bounded native Docker
+   running/identity check because its Compose healthcheck is disabled. One
+   `up -d --pull never --no-deps worker` precedes Caddy; the same app/worker
+   generation is observed again after HTTPS `/ready`, without a second `up`.
+   `Running=true` and numeric `ExitCode=0` do not prove a scheduler cycle or
+   alert delivery. A failed gate is `HOLD`, and a post-Caddy failure may leave
+   partial host state; any recovery needs a new operator decision.
 7. Run canonical BMR and gaps API smoke plus Web Nutrition Setup smoke.
 8. Create a private mode-`0700` staging evidence directory and run the
    verifier in `baseline` mode.
