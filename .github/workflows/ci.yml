@@ -1955,6 +1955,9 @@ jobs:
           if [[ "$PYVER" == 3.11* ]]; then
             MAIN_TEST_SHARDS=4
             MAIN_TEST_MAX_PARALLEL=4
+            # The expanded suite exceeded the 30-minute per-shard watchdog
+            # while still progressing; keep a bounded limit inside the job.
+            export MAIN_TEST_SHARD_TIMEOUT_SECONDS=2400
           elif [[ "$PYVER" == 3.12* ]]; then
             MAIN_TEST_SHARDS=16
             MAIN_TEST_MAX_PARALLEL=4

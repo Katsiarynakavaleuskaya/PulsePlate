@@ -551,6 +551,10 @@ class TestAppDBFallback97:
         with monkeypatch.context() as restore:
             for name in ("_RAW_ENGINE", "engine", "SessionLocal"):
                 restore.setattr(db, name, getattr(db, name))
+            # Fallback publication retires its prior engine. Keep the ambient
+            # binding outside this test so teardown can restore a live engine.
+            restore.setattr(db, "_RAW_ENGINE", None)
+            restore.setattr(db, "SessionLocal", None)
             for key in ("DATABASE_URL", "DB_FALLBACK_URL", "DB_HEALTH_DEGRADED"):
                 if key in os.environ:
                     restore.setenv(key, os.environ[key])
