@@ -3213,6 +3213,8 @@ def test_merge_readiness_checkout_uses_exact_pr_head_and_no_credentials() -> Non
         "private_python_proxy_health",
         "security",
         "trivy_ignore_policy_expiry",
+        "ios-tests",
+        "ios-ui-smoke",
     ]
     assert job["if"] == "${{ always() && github.event_name == 'pull_request' }}"
     assert job["timeout-minutes"] == 15
@@ -3223,6 +3225,12 @@ def test_merge_readiness_checkout_uses_exact_pr_head_and_no_credentials() -> Non
         "pull-requests": "read",
         "statuses": "read",
     }
+    prerequisite = next(
+        step for step in job["steps"] if step.get("name") == "Enforce prerequisite results"
+    )
+    assert prerequisite["env"]["IOS_REQUIRED"] == "${{ needs.changes.outputs.ios }}"
+    assert prerequisite["env"]["IOS_TESTS_RESULT"] == "${{ needs.ios-tests.result }}"
+    assert prerequisite["env"]["IOS_UI_SMOKE_RESULT"] == "${{ needs.ios-ui-smoke.result }}"
     steps = job["steps"]
     checkout = next(step for step in steps if step.get("name") == "Checkout")
     assert checkout["with"] == {
@@ -3237,6 +3245,51 @@ def test_merge_readiness_checkout_uses_exact_pr_head_and_no_credentials() -> Non
     assert '--event-path "$GITHUB_EVENT_PATH"' in run
     assert "--outage-security-wait-seconds 300" in run
     assert "--defer-outage-security-checks" not in run
+
+
+@pytest.mark.parametrize(
+    ("selected", "unit_result", "smoke_result", "passes"),
+    [
+        ("true", "success", "success", True),
+        ("true", "failure", "success", False),
+        ("true", "success", "failure", False),
+        ("true", "skipped", "success", False),
+        ("true", "success", "cancelled", False),
+        ("false", "skipped", "skipped", True),
+        ("false", "success", "skipped", False),
+        ("false", "skipped", "success", False),
+        ("", "skipped", "skipped", False),
+        ("unknown", "skipped", "skipped", False),
+    ],
+)
+def test_ios_merge_gate_executes_exact_selection_result_policy(
+    selected: str, unit_result: str, smoke_result: str, passes: bool
+) -> None:
+    workflow_path = Path(__file__).resolve().parents[1] / ".github" / "workflows" / "ci.yml"
+    workflow = yaml.safe_load(workflow_path.read_text(encoding="utf-8"))
+    step = next(
+        item
+        for item in workflow["jobs"]["merge_readiness_gate"]["steps"]
+        if item.get("name") == "Enforce prerequisite results"
+    )
+    bash = shutil.which("bash")
+    assert bash is not None
+    env = os.environ.copy()
+    env.update(
+        CHANGES_RESULT="success",
+        PR_BODY_PHASE2_GATES_RESULT="success",
+        PRIVATE_PYTHON_PROXY_HEALTH_RESULT="success",
+        TRIVY_IGNORE_POLICY_EXPIRY_RESULT="success",
+        SECURITY_RESULT="skipped",
+        SECURITY_REQUIRED="false",
+        PGVECTOR_REQUIRED="false",
+        IOS_REQUIRED=selected,
+        IOS_TESTS_RESULT=unit_result,
+        IOS_UI_SMOKE_RESULT=smoke_result,
+    )
+
+    result = subprocess.run([bash, "-e", "-c", step["run"]], env=env, capture_output=True)
+    assert (result.returncode == 0) is passes, result.stdout.decode() + result.stderr.decode()
 
 
 def test_event_head_sha_is_required_and_exact(tmp_path: Path) -> None:

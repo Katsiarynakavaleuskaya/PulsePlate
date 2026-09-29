@@ -146,7 +146,7 @@
 
 ## CI Integration — iOS Tests Workflow
 
-**Job:** `ios-tests` (GitHub Actions)
+**Jobs:** `ios-tests` and `ios-ui-smoke` (GitHub Actions), each with iPhone and iPad rows.
 
 **Triggers:**
 
@@ -167,18 +167,16 @@
 
 **Simulator (CI):**
 
-- **Auto-selected** from available simulators at runtime (no hard-coded device)
+- **Auto-selected** from available simulators in the requested family at runtime (no hard-coded device)
 - **Runtime policy:** require the exact available iOS 27.0 simulator; no older-runtime fallback
-- **Device preference:** `iPhone 18 Pro Max` → `iPhone 18 Pro` → `iPhone 17e` → `iPhone 17`
-  - If none of the preferred devices exist on the runner, CI falls back to **any available iPhone**, then to **any iOS simulator** (deterministic sort)
+- **Device preference:** the iPhone row prefers `iPhone 18 Pro Max` → `iPhone 18 Pro` → `iPhone 17e` → `iPhone 17`; the iPad row prefers known iPad models. Missing preferred models fall back to the same family in deterministic order.
+- **Family proof:** `deviceTypeIdentifier` joins the `simctl` device type inventory, where
+  `productFamily` must match the matrix row. A missing family fails its row.
 - **Destination:** **UDID-only** `platform=iOS Simulator,id=<UDID>`
 - **Hard rule:** CI must **never** use `OS=latest`. There is a guard that fails the job if `latest` appears in the destination spec.
 
-**Testing device fallback (CI):**
-
-- You can force fallback behavior by overriding:
-  - `PREFERRED_DEVICES="iPhone 99,iPhone 98"`
-- CI logs + Step Summary must show when fallback is used and which UDID/device were selected.
+**Testing device fallback (CI):** focused selector tests supply alternate preferred-name
+orders and inventories. CI output and Step Summary show family, runtime, UDID and device.
 
 **Test execution (project-based, split build/test):**
 
@@ -238,9 +236,9 @@
 
 **Destination policy (CI):**
 
-- CI **auto-selects** destination from available simulators dynamically
+- CI **auto-selects** destination from available simulators in each row's family
 - Requires **iOS 27.0 runtime**; missing runtime fails the job
-- Preferred devices: `iPhone 18 Pro Max` → `iPhone 18 Pro` → `iPhone 17e` → `iPhone 17`
+- Preferred device ordering is family-specific and never changes the requested family
 - **Hard rule:** never pin a simulator that may not exist; CI must discover availability first
 - Never uses `OS=latest` for named devices (to avoid nondeterministic runtime resolution)
 
@@ -282,8 +280,11 @@
 **Local vs CI differences:**
 
 - **Local:** Default `iPhone 16e` (can be overridden via `IOS_SIM_NAME`/`IOS_SIM_OS`)
-- **CI:** Auto-selects destination using **UDID-only** format (`platform=iOS Simulator,id=<UDID>`)
-  - Prefers `iPhone 18 Pro Max` → `iPhone 18 Pro` → `iPhone 17e` → `iPhone 17` from available iOS 27.0 simulators
+- **CI:** Both unit/Release and UI smoke jobs run separate iPhone and iPad matrix rows,
+  each selecting a **UDID-only** destination (`platform=iOS Simulator,id=<UDID>`).
+  - iPhone preference order is `iPhone 18 Pro Max` → `iPhone 18 Pro` → `iPhone 17e` → `iPhone 17`.
+  - iPad preference order and fallback remain within iPad models. `productFamily` from
+    `simctl list devicetypes -j` is the sole family recognizer.
   - Requires iOS 27.0 runtime (no older-runtime fallback)
   - **Never uses `OS=latest`** (guard fails job if `latest` detected)
 - Both use `-project PulsePlate.xcodeproj` (canonical: app scheme tests = project-based)
@@ -298,15 +299,16 @@
 - **Rationale:** UDID-only kills `latest` ambiguity, name mismatch, and OS version format issues on multi-runtime runners
 - **Boot requirement:** If `xcodebuild test` cannot match UDID destination, boot + bootstatus is the first remediation step; keep UDID-only strategy. Some runners require simulator to be booted before `xcodebuild` can resolve destination by UDID.
 
-**Device fallback (hard rule):**
+**Device selection (hard rule):**
 
-- Preferred devices: `iPhone 18 Pro Max → iPhone 18 Pro → iPhone 17e → iPhone 17`
-- If none found: pick **any available iPhone** (sorted by name, then UDID)
-- If no iPhone: pick **any available iOS simulator** (iPad acceptable)
-- CI **must not fail** solely due to missing preferred simulators
-- Output must include: `ios_runtime_id`, `device_name`, `udid`, and `DESTINATION`
-- Step summary logs runtime, device, UDID, and destination for easy debugging
-- **Testing fallback:** Override `PREFERRED_DEVICES` env var (e.g., `PREFERRED_DEVICES="iPhone 99,iPhone 98"`) **only for testing** to force fallback behavior. Default preferred list remains unchanged for normal CI runs.
+- Preferred models only affect order within the requested family. If none is present,
+  select any available device of the same `productFamily`, sorted by name and UDID.
+- If that family, the exact iOS 27.0 runtime, a known device type, or a valid UDID
+  is unavailable, fail the row. Never use device-name prefixes or cross-family fallback.
+- Output must include: `family`, `ios_runtime_id`, `device_name`, `udid`, and `destination`.
+- Each family has a distinct check and artifact name. Both family rows must succeed
+  before the iOS-selected PR can pass the required merge gate.
+- Step summary logs family, runtime, device, UDID, and destination for debugging.
 
 ## CI invariants (hard rules)
 

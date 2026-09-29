@@ -2183,10 +2183,12 @@ def test_changes_job_uses_node24_paths_filter_pin_and_keeps_ios_filters() -> Non
         ".github/workflows/**",
         ".github/actions/**",
         "scripts/ios_test_targets.sh",
+        "scripts/ci/select_ios_simulator.py",
         "scripts/ci/check_ios_swift_syntax.sh",
         "scripts/release/check_ios_appstore_verify.py",
     ]
     for path, expected in (
+        ("scripts/ci/select_ios_simulator.py", True),
         ("scripts/release/check_ios_appstore_verify.py", True),
         ("scripts/release/release_manifest.py", False),
     ):
@@ -2223,7 +2225,11 @@ def test_changes_job_uses_node24_paths_filter_pin_and_keeps_ios_filters() -> Non
         assert 'if [ "$XCODE_VERSION" != "27.0" ]; then' in executable_xcode_lines
         assert 'if [ "$sdk_version" != "27.0" ]; then' in executable_xcode_lines
         assert "Apple Swift version 6.4" in executable_xcode_lines
-        assert "parse_ios_ver(r) == (27, 0)" in job_steps[3]["run"]
+        assert (
+            'python3 ../scripts/ci/select_ios_simulator.py --family "${{ matrix.family }}"'
+            in job_steps[3]["run"]
+        )
+        assert "simctl list devices" not in job_steps[3]["run"]
         assert job["runs-on"] == "xcode-27"
 
 
@@ -4096,8 +4102,17 @@ def _assert_ios_release_build_contract(workflow: dict[str, object]) -> None:
     assert isinstance(jobs, dict)
     ios_tests = jobs["ios-tests"]
     assert isinstance(ios_tests, dict)
-    assert set(ios_tests) == {"name", "runs-on", "timeout-minutes", "if", "needs", "steps"}
-    assert ios_tests["name"] == "iOS unit tests (xcodebuild)"
+    assert set(ios_tests) == {
+        "name",
+        "runs-on",
+        "strategy",
+        "timeout-minutes",
+        "if",
+        "needs",
+        "steps",
+    }
+    assert ios_tests["name"] == "iOS unit tests (${{ matrix.family }}, xcodebuild)"
+    assert ios_tests["strategy"] == {"fail-fast": False, "matrix": {"family": ["iphone", "ipad"]}}
     assert ios_tests["runs-on"] == "xcode-27"
     assert ios_tests["needs"] == ["changes"]
     assert ios_tests["if"] == IOS_TESTS_JOB_IF
@@ -4133,7 +4148,7 @@ def _assert_ios_release_build_contract(workflow: dict[str, object]) -> None:
         "if": "always()",
         "uses": f"actions/upload-artifact@{UPLOAD_ARTIFACT_NODE24_SHA}",
         "with": {
-            "name": "ios-unit-xcresult-${{ github.run_id }}-${{ github.run_attempt }}",
+            "name": "ios-unit-xcresult-${{ matrix.family }}-${{ github.run_id }}-${{ github.run_attempt }}",
             "path": "ios/.derivedData/Logs/Test/*.xcresult",
             "retention-days": 7,
             "if-no-files-found": "warn",
@@ -4188,6 +4203,73 @@ def test_ios_release_simulator_build_stays_blocking_after_complete_unit_run() ->
     workflow = _load_ci_workflow()
 
     _assert_ios_release_build_contract(workflow)
+
+
+def test_ios_family_matrix_has_four_distinct_blocking_checks_and_artifacts() -> None:
+    workflow = _load_ci_workflow()
+    jobs = workflow["jobs"]
+    assert isinstance(jobs, dict)
+    observed_names: set[str] = set()
+    observed_artifacts: set[str] = set()
+    for job_id, label, artifact_step in (
+        ("ios-tests", "iOS unit tests", "Retain iOS unit result bundles and crash diagnostics"),
+        ("ios-ui-smoke", "iOS UI smoke", "Upload xcresult on failure (crash evidence)"),
+    ):
+        job = jobs[job_id]
+        assert isinstance(job, dict)
+        assert job["strategy"] == {
+            "fail-fast": False,
+            "matrix": {"family": ["iphone", "ipad"]},
+        }
+        assert job["name"] == f"{label} (${{{{ matrix.family }}}}, xcodebuild)"
+        assert job["needs"] == ["changes"]
+        assert job["if"] == IOS_TESTS_JOB_IF
+        assert "continue-on-error" not in job
+        assert "permissions" not in job
+        steps = job["steps"]
+        assert isinstance(steps, list)
+        selection = next(step for step in steps if step.get("id") == "select-destination")
+        assert selection["working-directory"] == "ios"
+        assert selection["env"] == {
+            "DEVELOPER_DIR": "${{ steps.select-xcode.outputs.developer_dir }}"
+        }
+        assert (
+            'python3 ../scripts/ci/select_ios_simulator.py --family "${{ matrix.family }}"'
+            in selection["run"]
+        )
+        artifact = next(step for step in steps if step.get("name") == artifact_step)
+        artifact_name = artifact["with"]["name"]
+        assert "${{ matrix.family }}" in artifact_name
+        assert "${{ github.run_id }}" in artifact_name
+        assert "${{ github.run_attempt }}" in artifact_name
+        for family in ("iphone", "ipad"):
+            observed_names.add(job["name"].replace("${{ matrix.family }}", family))
+            observed_artifacts.add(artifact_name.replace("${{ matrix.family }}", family))
+    assert len(observed_names) == 4
+    assert len(observed_artifacts) == 4
+
+
+@pytest.mark.parametrize("mutation", ["drop-ipad", "allow-fail-fast", "collide-artifact"])
+def test_ios_matrix_contract_rejects_missing_family_or_artifact_collision(mutation: str) -> None:
+    workflow = _load_ci_workflow()
+    jobs = workflow["jobs"]
+    assert isinstance(jobs, dict)
+    unit = jobs["ios-tests"]
+    assert isinstance(unit, dict)
+    if mutation == "drop-ipad":
+        unit["strategy"]["matrix"]["family"] = ["iphone"]
+    elif mutation == "allow-fail-fast":
+        unit["strategy"]["fail-fast"] = True
+    else:
+        artifact = next(
+            step
+            for step in unit["steps"]
+            if step.get("name") == "Retain iOS unit result bundles and crash diagnostics"
+        )
+        artifact["with"]["name"] = "ios-unit-xcresult-${{ github.run_id }}"
+
+    with pytest.raises(AssertionError):
+        _assert_ios_release_build_contract(workflow)
 
 
 @pytest.mark.parametrize(

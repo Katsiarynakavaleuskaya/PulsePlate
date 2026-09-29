@@ -2644,15 +2644,21 @@ Do not remove this exclusion without a product decision and a separate PR
 
 **iOS CI job gating (paths-filter):**
 
-- `ios-tests` job is gated via `changes` job using `dorny/paths-filter`.
+- `ios-tests` and `ios-ui-smoke` each run an iPhone/iPad matrix, gated via `changes` using `dorny/paths-filter`.
 - iOS tests run **only** when PR touches: `ios/**`, `.github/workflows/**`, `.github/actions/**`,
-  `scripts/ios_test_targets.sh`, `scripts/ci/check_ios_swift_syntax.sh`, or `scripts/release/check_ios_appstore_verify.py`.
+  `scripts/ios_test_targets.sh`, `scripts/ci/select_ios_simulator.py`,
+  `scripts/ci/check_ios_swift_syntax.sh`, or `scripts/release/check_ios_appstore_verify.py`.
 - Docs-only PRs (e.g., `docs/**/*.md`, `README*.md`, `AGENTS.md`, `.github/*.md`) **do not** run macOS iOS jobs.
 - **Rationale:** Reduces CI noise, prevents flaky iOS tests on unrelated PRs, speeds up docs-only PR cycle.
 
 **iOS CI destination policy (canonical):**
 
 - **CI destination MUST be UDID-only:** `platform=iOS Simulator,id=<UDID>`
+- **Family matrix:** each iOS job emits distinct iPhone and iPad checks. The selector uses
+  `simctl` device types' `productFamily` for the requested family and fails when that
+  family is unavailable; device-name prefixes and cross-family fallback are forbidden.
+  The required `Merge readiness gate` accepts both iOS jobs only when both matrix
+  results succeed on an iOS-selected PR; unrelated PRs require both jobs skipped.
 - **`OS=latest` is forbidden in CI:** Job fails if destination contains `latest` (anti-nondeterminism guard). CI must use explicit UDID-based destinations only.
 - **Rationale:** UDID-only kills `latest` ambiguity, name mismatch, and OS version format issues on multi-runtime runners.
 - **Local runs (developer convenience):** May use friendly device name (e.g., `iPhone 16e`) or select latest available iOS runtime for local testing, but CI is strictly UDID-only.
