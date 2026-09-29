@@ -8,7 +8,7 @@ import os
 from pathlib import Path
 import re
 import shutil
-import subprocess  # nosec B404: bounded native simctl inventory reads require a subprocess (remove-by: 2026-10-31, ref: PR-CAB-06)
+import subprocess  # nosec B404: bounded native simctl inventory reads require a subprocess (remove-by: 2026-10-31, ref: PR-2460)
 import sys
 from typing import Any
 import unicodedata
@@ -100,13 +100,16 @@ def select_simulator(
         type_id = _safe_text(item.get("deviceTypeIdentifier"), label="device type identifier")
         if type_id not in families_by_type:
             raise SelectionError(f"Unknown device type identifier: {type_id}")
+        product_family = families_by_type[type_id]
+        if product_family not in FAMILIES.values():
+            raise SelectionError(f"Unknown iOS device productFamily: {product_family}")
         udid = _safe_text(item.get("udid"), label="UDID")
         if not UDID_RE.fullmatch(udid):
             raise SelectionError(f"Invalid simulator UDID for {name}")
         if str(UUID(udid)).casefold() in seen_udids:
             raise SelectionError(f"Duplicate simulator UDID for {name}")
         seen_udids.add(str(UUID(udid)).casefold())
-        if families_by_type[type_id] == FAMILIES[family]:
+        if product_family == FAMILIES[family]:
             candidates.append({"device_name": name, "udid": udid})
 
     if not candidates:
@@ -131,7 +134,7 @@ def select_simulator(
 
 
 def _native_inventory(xcrun: str, *args: str) -> Any:
-    result = subprocess.run(  # nosec B603: resolved absolute xcrun, fixed simctl argv, no shell (remove-by: 2026-10-31, ref: PR-CAB-06)
+    result = subprocess.run(  # nosec B603: resolved absolute xcrun, fixed simctl argv, no shell (remove-by: 2026-10-31, ref: PR-2460)
         [xcrun, "simctl", "list", *args, "-j"],
         check=True,
         capture_output=True,

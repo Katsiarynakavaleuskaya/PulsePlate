@@ -97,6 +97,18 @@ def test_product_family_wins_over_device_name() -> None:
     assert selected["udid"] == IPHONE_UDID
 
 
+def test_unknown_product_family_rejects_inventory_even_with_valid_candidates() -> None:
+    devices, types = _inventories()
+    device_types = types["devicetypes"]
+    assert isinstance(device_types, list)
+    ipad_type = device_types[1]
+    assert isinstance(ipad_type, dict)
+    ipad_type["productFamily"] = "Unknown"
+
+    with pytest.raises(selector.SelectionError, match="Unknown iOS device productFamily"):
+        selector.select_simulator(devices, types, family="iphone")
+
+
 def test_inventory_order_does_not_change_selection() -> None:
     devices, types = _inventories()
     before = selector.select_simulator(devices, types, family="iphone", preferred_names=())
@@ -128,6 +140,56 @@ def test_missing_family_fails_instead_of_crossing_to_other_family(family: str) -
 
     with pytest.raises(selector.SelectionError, match="No available"):
         selector.select_simulator(devices, types, family=family)
+
+
+@pytest.mark.parametrize(
+    ("mutation", "message"),
+    [
+        ("family", "Unsupported simulator family"),
+        ("devices_map", "no devices map"),
+        ("runtime_devices", "must be a list"),
+        ("types_list", "no devicetypes list"),
+        ("type_entry", "type entry must be an object"),
+        ("duplicate_udid", "Duplicate simulator UDID"),
+    ],
+)
+def test_incomplete_inventory_and_duplicate_identity_fail(mutation: str, message: str) -> None:
+    devices, types = _inventories()
+    family = "iphone"
+    if mutation == "family":
+        family = "mac"
+    elif mutation == "devices_map":
+        devices["devices"] = []
+    elif mutation == "runtime_devices":
+        devices["devices"] = {selector.IOS_27_RUNTIME: None}
+    elif mutation == "types_list":
+        types["devicetypes"] = {}
+    elif mutation == "type_entry":
+        types["devicetypes"] = [None]
+    else:
+        device_map = devices["devices"]
+        assert isinstance(device_map, dict)
+        device_list = device_map[selector.IOS_27_RUNTIME]
+        assert isinstance(device_list, list)
+        second_iphone = device_list[2]
+        assert isinstance(second_iphone, dict)
+        second_iphone["udid"] = IPHONE_UDID
+
+    with pytest.raises(selector.SelectionError, match=message):
+        selector.select_simulator(devices, types, family=family)
+
+
+def test_unavailable_preferred_device_is_not_selected() -> None:
+    devices, types = _inventories()
+    device_map = devices["devices"]
+    assert isinstance(device_map, dict)
+    device_list = device_map[selector.IOS_27_RUNTIME]
+    assert isinstance(device_list, list)
+    preferred = device_list[1]
+    assert isinstance(preferred, dict)
+    preferred["isAvailable"] = False
+
+    assert selector.select_simulator(devices, types, family="iphone")["udid"] == OTHER_IPHONE_UDID
 
 
 @pytest.mark.parametrize(
@@ -225,6 +287,56 @@ def test_cli_failure_does_not_publish_a_destination(
     assert selector.main() == 1
     assert not output_path.exists()
     assert not summary_path.exists()
+
+
+@pytest.mark.parametrize("missing", ["xcrun", "github_output", "invalid_json"])
+def test_cli_missing_prerequisite_fails_before_outputs(
+    missing: str, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    devices, types = _inventories()
+    output_path = tmp_path / "github-output"
+    summary_path = tmp_path / "summary"
+    monkeypatch.setenv("GITHUB_OUTPUT", str(output_path))
+    monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(summary_path))
+    monkeypatch.setattr(selector.sys, "argv", ["select_ios_simulator.py", "--family", "iphone"])
+    monkeypatch.setattr(
+        selector.shutil, "which", lambda name: None if missing == "xcrun" else "/usr/bin/xcrun"
+    )
+    if missing == "invalid_json":
+        monkeypatch.setattr(
+            selector.subprocess,
+            "run",
+            lambda argv, **kwargs: selector.subprocess.CompletedProcess(argv, 0, stdout="{"),
+        )
+    else:
+        monkeypatch.setattr(
+            selector,
+            "_native_inventory",
+            lambda _xcrun, *args: devices if args[0] == "devices" else types,
+        )
+    if missing == "github_output":
+        monkeypatch.delenv("GITHUB_OUTPUT")
+
+    assert selector.main() == 1
+    assert not output_path.exists()
+    assert not summary_path.exists()
+
+
+def test_cli_summary_is_optional(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    devices, types = _inventories()
+    output_path = tmp_path / "github-output"
+    monkeypatch.setenv("GITHUB_OUTPUT", str(output_path))
+    monkeypatch.delenv("GITHUB_STEP_SUMMARY", raising=False)
+    monkeypatch.setattr(selector.shutil, "which", lambda name: "/usr/bin/xcrun")
+    monkeypatch.setattr(
+        selector,
+        "_native_inventory",
+        lambda _xcrun, *args: devices if args[0] == "devices" else types,
+    )
+    monkeypatch.setattr(selector.sys, "argv", ["select_ios_simulator.py", "--family", "iphone"])
+
+    assert selector.main() == 0
+    assert f"udid={IPHONE_UDID}\n" in output_path.read_text()
 
 
 def test_native_inventory_uses_resolved_xcrun_with_exact_arguments(
