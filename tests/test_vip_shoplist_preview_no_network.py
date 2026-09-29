@@ -8,7 +8,7 @@ from typing import Any
 from urllib.parse import urlparse
 
 import pytest
-from tests._client import open_test_client
+from tests._client import MetricsAwareTestClient, open_test_client
 
 
 def test_vip_shoplist_preview_no_network(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -79,9 +79,20 @@ def test_vip_shoplist_preview_no_network(monkeypatch: pytest.MonkeyPatch) -> Non
         monkeypatch.setattr(client_cls, "request", client_request, raising=True)
         monkeypatch.setattr(async_client_cls, "request", async_request, raising=True)
 
-    http_libraries = {name: importlib.import_module(name) for name in ("httpx", "httpx2")}
+    def _add_optional_module(libraries: dict[str, ModuleType], name: str) -> None:
+        try:
+            libraries[name] = importlib.import_module(name)
+        except ModuleNotFoundError as error:
+            if error.name != name:
+                raise
+
+    http_libraries = {"httpx": importlib.import_module("httpx")}
+    _add_optional_module(http_libraries, "httpx2")
     for name, module in http_libraries.items():
         _guard_httpx(module, name)
+    assert any(
+        issubclass(MetricsAwareTestClient, module.Client) for module in http_libraries.values()
+    ), "The active TestClient HTTP stack must have an installed network guard"
 
     try:
         requests = importlib.import_module("requests")
@@ -142,7 +153,8 @@ def test_vip_shoplist_preview_no_network(monkeypatch: pytest.MonkeyPatch) -> Non
 
                 monkeypatch.setattr(cls, handler_name, handle_async_request, raising=True)
 
-    core_libraries = {name: importlib.import_module(name) for name in ("httpcore", "httpcore2")}
+    core_libraries = {"httpcore": importlib.import_module("httpcore")}
+    _add_optional_module(core_libraries, "httpcore2")
     for name, module in core_libraries.items():
         _guard_httpcore(module, name)
 
