@@ -285,6 +285,11 @@ def test_high_distress_boundary_preserves_ru_es_safe_near_misses(text: str) -> N
     [
         "I do not want to die",
         "I never want to die",
+        "I don't want to die",
+        "I don’t want to die",
+        "I don‘t want to die",
+        "I donʼt want to die",
+        "I don＇t want to die",
         "No  quiero morir",
         "No\tquiero morir",
     ],
@@ -297,6 +302,7 @@ def test_high_distress_boundary_skips_negated_occurrence(text: str) -> None:
     "text",
     [
         "I do not want to die. I want to die",
+        "I don’t want to die. I want to die",
         "No  quiero morir. Quiero morir",
         "I do not want to live",
         "Я хочу умереть",

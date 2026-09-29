@@ -26,7 +26,7 @@ _SLIP_SUPPORT_ACTION_KEYWORDS = ("pause", "restart", "return", "plan", *_DEFAULT
 _DEFAULT_LIST_LIMIT = 3
 _EN_WANT_TO_DIE_PATTERN = re.compile(r"\bwant\s+to\s+die\b", re.IGNORECASE)
 _ES_QUIERO_MORIR_PATTERN = re.compile(r"\bquiero\s+morir\b", re.IGNORECASE)
-_EN_NEGATED_WANT_PREFIX = re.compile(r"\bi\s+(?:do\s+not|don'?t|never)\s+$", re.IGNORECASE)
+_EN_NEGATED_WANT_PREFIX = re.compile(r"\bi\s+(?:do\s+not|don['’‘ʼ]?t|never)\s+$", re.IGNORECASE)
 _ES_NEGATED_QUIERO_PREFIX = re.compile(r"\bno\s+$", re.IGNORECASE)
 _HIGH_DISTRESS_BOUNDARY_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(r"\b(?:kill|hurt|harm)\s+myself\b", re.IGNORECASE),

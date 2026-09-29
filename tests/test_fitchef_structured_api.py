@@ -343,7 +343,11 @@ class TestFitChefDistortionSimulatorRoute:
 
     @pytest.mark.parametrize(
         ("thought", "lang"),
-        [("I do not want to die", "en"), ("No  quiero morir", "es")],
+        [
+            ("I do not want to die", "en"),
+            ("I don’t want to die", "en"),
+            ("No  quiero morir", "es"),
+        ],
     )
     def test_negated_distress_reaches_distortion_runtime(self, thought: str, lang: str) -> None:
         """Reviewed negations must not be classified as an affirmative cue."""
