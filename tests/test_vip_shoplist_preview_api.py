@@ -1,24 +1,15 @@
 from __future__ import annotations
 
-from typing import cast
-
 import pytest
-from fastapi.testclient import TestClient
-from starlette.types import ASGIApp
-
-
-def _make_client() -> TestClient:
-    import app
-
-    return TestClient(cast(ASGIApp, app.app))
+from tests._client import open_test_client
 
 
 def test_vip_shoplist_preview_flag_off_returns_404(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("VIP_MODULE_ENABLED", "false")
     monkeypatch.setenv("API_KEY", "test_vip_key")
 
-    client = _make_client()
-    r = client.get("/api/v1/vip/shoplist/preview", headers={"X-API-Key": "test_vip_key"})
+    with open_test_client() as client:
+        r = client.get("/api/v1/vip/shoplist/preview", headers={"X-API-Key": "test_vip_key"})
     assert r.status_code == 404
 
 
@@ -28,12 +19,14 @@ def test_vip_shoplist_preview_flag_on_returns_200_deterministic(
     monkeypatch.setenv("VIP_MODULE_ENABLED", "true")
     monkeypatch.setenv("API_KEY", "test_vip_key")
 
-    client = _make_client()
-    r1 = client.get("/api/v1/vip/shoplist/preview", headers={"X-API-Key": "test_vip_key"})
-    r2 = client.get("/api/v1/vip/shoplist/preview", headers={"X-API-Key": "test_vip_key"})
+    with open_test_client() as client:
+        r1 = client.get("/api/v1/vip/shoplist/preview", headers={"X-API-Key": "test_vip_key"})
+        r2 = client.get("/api/v1/vip/shoplist/preview", headers={"X-API-Key": "test_vip_key"})
 
     assert r1.status_code == 200
     assert r2.status_code == 200
+    assert r1.headers["content-type"].startswith("application/json")
+    assert r2.headers["content-type"].startswith("application/json")
     assert r1.json() == r2.json()
 
     payload = r1.json()
@@ -51,8 +44,8 @@ def test_vip_shoplist_preview_missing_api_key_returns_403(
     monkeypatch.setenv("VIP_MODULE_ENABLED", "true")
     monkeypatch.setenv("API_KEY", "test_vip_key")
 
-    client = _make_client()
-    r = client.get("/api/v1/vip/shoplist/preview")
+    with open_test_client() as client:
+        r = client.get("/api/v1/vip/shoplist/preview")
     assert r.status_code == 403
 
 
@@ -60,8 +53,8 @@ def test_vip_shoplist_preview_non_vip_api_key_returns_403(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("VIP_MODULE_ENABLED", "true")
-    monkeypatch.setenv("API_KEY", "test_key")
+    monkeypatch.setenv("API_KEY", "test_pro_key")
 
-    client = _make_client()
-    r = client.get("/api/v1/vip/shoplist/preview", headers={"X-API-Key": "test_key"})
+    with open_test_client() as client:
+        r = client.get("/api/v1/vip/shoplist/preview", headers={"X-API-Key": "test_pro_key"})
     assert r.status_code == 403
