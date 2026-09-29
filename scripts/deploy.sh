@@ -755,6 +755,224 @@ capture_running_service_container() {
   esac
 }
 
+worker_runtime_generation() {
+  local deadline_ns="$1"
+  "$PYTHON_BIN" - "$DOCKER_BIN" "$BACKEND_IMAGE_REF" "$BACKEND_RUNTIME_IMAGE_ID" \
+    "$deadline_ns" "${COMPOSE[@]}" <<'PY_WORKER_GATE'
+import hashlib
+import json
+import os
+import re
+import selectors
+import signal
+import subprocess
+import sys
+import time
+
+
+class GateError(Exception):
+    def __init__(self, code: str) -> None:
+        self.code = code
+
+
+class GatePending(Exception):
+    pass
+
+
+def fail(code: str) -> None:
+    raise GateError(code)
+
+
+def unique(pairs: list[tuple[str, object]]) -> dict[str, object]:
+    value: dict[str, object] = {}
+    for key, item in pairs:
+        if key in value:
+            fail("WORKER_JSON_UNTRUSTED")
+        value[key] = item
+    return value
+
+
+def parse(raw: bytes) -> object:
+    try:
+        return json.loads(raw, object_pairs_hook=unique,
+            parse_constant=lambda _: (_ for _ in ()).throw(ValueError("nonfinite")))
+    except (ValueError, TypeError, UnicodeError, RecursionError):
+        fail("WORKER_JSON_UNTRUSTED")
+
+
+def native(argv: list[str], *, maximum: int) -> bytes:
+    remaining = (deadline_ns - time.monotonic_ns()) / 1_000_000_000
+    if remaining <= 0:
+        fail("WORKER_GATE_TIMEOUT")
+    process = None
+    completed = False
+    selector = selectors.DefaultSelector()
+    output = bytearray()
+    try:
+        process = subprocess.Popen(argv, stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+            start_new_session=True)
+        if process.stdout is None:
+            fail("WORKER_NATIVE_FAILED")
+        os.set_blocking(process.stdout.fileno(), False)
+        selector.register(process.stdout, selectors.EVENT_READ)
+        command_deadline = min(time.monotonic() + 8, time.monotonic() + remaining)
+        while selector.get_map():
+            wait = command_deadline - time.monotonic()
+            if wait <= 0:
+                fail("WORKER_GATE_TIMEOUT")
+            for key, _ in selector.select(wait):
+                part = os.read(key.fileobj.fileno(), 8192)
+                if not part:
+                    selector.unregister(key.fileobj)
+                else:
+                    output.extend(part)
+                    if len(output) > maximum:
+                        fail("WORKER_NATIVE_OVERSIZE")
+        wait = command_deadline - time.monotonic()
+        if wait <= 0:
+            fail("WORKER_GATE_TIMEOUT")
+        if process.wait(timeout=wait) != 0:
+            fail("WORKER_NATIVE_FAILED")
+        completed = True
+        return bytes(output)
+    except (OSError, subprocess.TimeoutExpired):
+        fail("WORKER_NATIVE_FAILED")
+    finally:
+        selector.close()
+        if process is not None:
+            if not completed:
+                try:
+                    os.killpg(process.pid, signal.SIGKILL)
+                except OSError:
+                    pass
+            try:
+                process.wait(timeout=0.5)
+            except (OSError, subprocess.TimeoutExpired):
+                pass
+            if process.stdout is not None:
+                process.stdout.close()
+
+
+def census(service: str) -> str:
+    raw = native([docker, "ps", "--all", "--quiet", "--no-trunc",
+        "--filter", "label=com.docker.compose.project=pulseplate-staging",
+        "--filter", "label=com.docker.compose.service=" + service,
+        "--filter", "label=com.docker.compose.oneoff=False"], maximum=256)
+    try:
+        ids = raw.decode("ascii").splitlines()
+    except UnicodeError:
+        fail("WORKER_CENSUS_UNTRUSTED")
+    if service == "worker" and not ids:
+        raise GatePending()
+    if len(ids) != 1 or re.fullmatch(r"[a-f0-9]{64}", ids[0]) is None:
+        fail("WORKER_CENSUS_UNTRUSTED")
+    return ids[0]
+
+
+def inspect(container_id: str, record: object, service: str, worker_hash: str) -> dict[str, object]:
+    if type(record) is not dict:
+        fail("WORKER_INSPECT_UNTRUSTED")
+    config = record.get("config")
+    labels = record.get("labels")
+    state = record.get("state")
+    if type(config) is not dict or type(labels) is not dict or type(state) is not dict:
+        fail("WORKER_INSPECT_UNTRUSTED")
+    config_hash = labels.get("com.docker.compose.config-hash")
+    if (record.get("gate") != "worker_v1" or record.get("id") != container_id
+        or labels.get("com.docker.compose.project") != "pulseplate-staging"
+        or labels.get("com.docker.compose.service") != service
+        or labels.get("com.docker.compose.oneoff") != "False"
+        or config.get("image") != expected_ref
+        or record.get("image") != expected_image_id
+        or type(config_hash) is not str
+        or re.fullmatch(r"[a-f0-9]{64}", config_hash) is None
+        or service == "worker" and config_hash != worker_hash):
+        fail("WORKER_IDENTITY_UNTRUSTED")
+    running = state.get("running")
+    status = state.get("status")
+    exit_code = state.get("exit_code")
+    oom = state.get("oom")
+    dead = state.get("dead")
+    restarting = state.get("restarting")
+    paused = state.get("paused")
+    pid = state.get("pid")
+    restarts = record.get("restart_count")
+    started = state.get("started_at")
+    if (type(running) is not bool or type(status) is not str
+        or type(exit_code) is not int or type(oom) is not bool
+        or type(dead) is not bool or type(restarting) is not bool
+        or type(paused) is not bool or type(pid) is not int
+        or type(restarts) is not int or not 0 <= restarts <= 1_000_000):
+        fail("WORKER_STATE_UNTRUSTED")
+    if service == "worker" and status == "created" and not running and exit_code == 0:
+        raise GatePending()
+    if (not running or status != "running" or exit_code != 0
+        or oom or dead or restarting or paused or pid <= 0
+        or type(started) is not str or not started or started.startswith("0001-")):
+        fail("WORKER_STATE_UNTRUSTED")
+    if service == "worker":
+        healthcheck = config.get("healthcheck")
+        if (type(healthcheck) is not dict
+            or healthcheck.get("Test") != ["NONE"]
+            or state.get("health") is not None):
+            fail("WORKER_HEALTH_UNTRUSTED")
+    return {"id": container_id, "image": record["image"],
+        "config_hash": config_hash, "started_at": started,
+        "pid": pid, "restart_count": restarts}
+
+
+try:
+    docker, expected_ref, expected_image_id, deadline_text, *compose = sys.argv[1:]
+    if (not os.path.isabs(docker) or not os.access(docker, os.X_OK)
+        or compose[:2] != [docker, "compose"]
+        or re.fullmatch(r"ghcr\.io/katsiarynakavaleuskaya/pulseplate@sha256:[a-f0-9]{64}",
+                        expected_ref) is None
+        or re.fullmatch(r"sha256:[a-f0-9]{64}", expected_image_id) is None
+        or re.fullmatch(r"[0-9]{1,20}", deadline_text) is None):
+        fail("WORKER_GATE_INPUT_UNTRUSTED")
+    deadline_ns = int(deadline_text)
+    worker_hash_raw = native([*compose, "--profile", "*", "config", "--hash", "worker"],
+                             maximum=128)
+    if re.fullmatch(rb"worker [a-f0-9]{64}\n", worker_hash_raw) is None:
+        fail("WORKER_HASH_UNTRUSTED")
+    worker_hash = worker_hash_raw.decode("ascii").split(" ", 1)[1].strip()
+    app_id = census("app")
+    worker_id = census("worker")
+    fmt = ('{"gate":"worker_v1","id":{{json .Id}},"image":{{json .Image}},'
+        '"config":{"image":{{json .Config.Image}},'
+        '"healthcheck":{{json (index .Config "Healthcheck")}}},'
+        '"labels":{{json .Config.Labels}},'
+        '"restart_count":{{json .RestartCount}},'
+        '"state":{"running":{{json .State.Running}},'
+        '"status":{{json .State.Status}},'
+        '"exit_code":{{json .State.ExitCode}},'
+        '"oom":{{json .State.OOMKilled}},'
+        '"dead":{{json .State.Dead}},'
+        '"restarting":{{json .State.Restarting}},'
+        '"paused":{{json .State.Paused}},'
+        '"pid":{{json .State.Pid}},'
+        '"started_at":{{json .State.StartedAt}},'
+        '"health":{{json (index .State "Health")}}}}')
+    raw = native([docker, "inspect", "--format", fmt, app_id, worker_id],
+                 maximum=8192)
+    rows = raw.splitlines()
+    if len(rows) != 2:
+        fail("WORKER_INSPECT_UNTRUSTED")
+    app = inspect(app_id, parse(rows[0]), "app", worker_hash)
+    worker = inspect(worker_id, parse(rows[1]), "worker", worker_hash)
+    identity = json.dumps({"app": app, "worker": worker},
+        sort_keys=True, separators=(",", ":")).encode()
+    print(hashlib.sha256(identity).hexdigest())
+except GatePending:
+    raise SystemExit(75)
+except GateError as error:
+    raise SystemExit(error.code) from None
+except (OSError, ValueError, TypeError, IndexError, RecursionError):
+    raise SystemExit("WORKER_GATE_UNTRUSTED") from None
+PY_WORKER_GATE
+}
+
 restart_captured_product_containers() {
   local cleanup_failed=0
   local container_id
@@ -849,6 +1067,97 @@ if not allowed.intersection(repo_digests):
 ' "$PROMETHEUS_PLATFORM_MANIFEST_DIGEST"
 }
 
+read_pulled_backend_image_id() {
+  local runtime_ref="$1"
+  "$PYTHON_BIN" - "$DOCKER_BIN" "$runtime_ref" <<'PY_BACKEND_IMAGE'
+import json
+import os
+import re
+import selectors
+import signal
+import subprocess
+import sys
+import time
+
+def unique(pairs):
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError("duplicate")
+        result[key] = value
+    return result
+
+process = None
+completed = False
+selector = selectors.DefaultSelector()
+try:
+    docker, expected_ref = sys.argv[1:]
+    if not os.path.isabs(docker) or not os.access(docker, os.X_OK):
+        raise ValueError("docker")
+    process = subprocess.Popen(
+        [docker, "image", "inspect", expected_ref],
+        stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+        start_new_session=True,
+    )
+    if process.stdout is None:
+        raise ValueError("stdout")
+    os.set_blocking(process.stdout.fileno(), False)
+    selector.register(process.stdout, selectors.EVENT_READ)
+    deadline = time.monotonic() + 8
+    output = bytearray()
+    while selector.get_map():
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise ValueError("timeout")
+        for key, _ in selector.select(remaining):
+            chunk = os.read(key.fileobj.fileno(), 8192)
+            if not chunk:
+                selector.unregister(key.fileobj)
+            else:
+                output.extend(chunk)
+                if len(output) > 65536:
+                    raise ValueError("oversize")
+    remaining = deadline - time.monotonic()
+    if remaining <= 0 or process.wait(timeout=remaining) != 0:
+        raise ValueError("native")
+    raw = bytes(output)
+    if not raw:
+        raise ValueError("oversize")
+    payload = json.loads(raw, object_pairs_hook=unique,
+        parse_constant=lambda _: (_ for _ in ()).throw(ValueError("nonfinite")))
+    if type(payload) is not list or len(payload) != 1 or type(payload[0]) is not dict:
+        raise ValueError("cardinality")
+    item = payload[0]
+    image_id = item.get("Id")
+    digests = item.get("RepoDigests")
+    if (item.get("Os") != "linux" or item.get("Architecture") != "amd64"
+        or type(image_id) is not str
+        or re.fullmatch(r"sha256:[a-f0-9]{64}", image_id) is None
+        or type(digests) is not list
+        or not all(type(value) is str for value in digests)
+        or expected_ref not in digests):
+        raise ValueError("identity")
+    completed = True
+except (ValueError, TypeError, UnicodeError, OSError, subprocess.TimeoutExpired):
+    raise SystemExit("WORKER_BACKEND_IMAGE_UNTRUSTED") from None
+finally:
+    selector.close()
+    if process is not None:
+        if not completed:
+            try:
+                os.killpg(process.pid, signal.SIGKILL)
+            except OSError:
+                pass
+        try:
+            process.wait(timeout=0.5)
+        except (OSError, subprocess.TimeoutExpired):
+            pass
+        if process.stdout is not None:
+            process.stdout.close()
+print(image_id)
+PY_BACKEND_IMAGE
+}
+
 export STAGING_IMAGE_REF="$BACKEND_IMAGE_REF"
 export STAGING_CADDY_IMAGE_REF="$CADDY_IMAGE_REF"
 export STAGING_ENV_FILE="$ENV_FILE"
@@ -896,6 +1205,18 @@ case "$scheduler_mode" in
 esac
 FOOD_UPDATE_SCHEDULER_MODE="$scheduler_mode"
 export FOOD_UPDATE_SCHEDULER_MODE
+WORKER_TIMEOUT_BIN=""
+if [ "$FOOD_UPDATE_SCHEDULER_MODE" = "external" ]; then
+  if ! WORKER_TIMEOUT_BIN="$(command -v timeout)"; then
+    echo "❌ Bounded worker start requires an absolute timeout executable" >&2
+    exit 1
+  fi
+  if [[ "$WORKER_TIMEOUT_BIN" != /* ]] || [ ! -x "$WORKER_TIMEOUT_BIN" ]; then
+    echo "❌ Bounded worker start requires an absolute timeout executable" >&2
+    exit 1
+  fi
+fi
+readonly WORKER_TIMEOUT_BIN
 
 STAGING_DOMAIN=${STAGING_DOMAIN:?"STAGING_DOMAIN not set"}
 
@@ -903,8 +1224,8 @@ DOCKER_BIN="${DOCKER_BIN:-}"
 if [ -z "$DOCKER_BIN" ]; then
   DOCKER_BIN="$(command -v docker || :)"
 fi
-if [ -z "$DOCKER_BIN" ] || [ ! -x "$DOCKER_BIN" ]; then
-  echo "❌ docker executable is required" >&2
+if [[ "$DOCKER_BIN" != /* ]] || [ ! -x "$DOCKER_BIN" ]; then
+  echo "❌ An absolute docker executable is required" >&2
   exit 1
 fi
 
@@ -1003,6 +1324,12 @@ echo "[2/5] Pull exact backend, Caddy, PostgreSQL, and Prometheus digests"
 "${COMPOSE[@]}" pull app caddy postgres prometheus
 echo "Pull scheduler worker from the exact backend digest"
 "${COMPOSE[@]}" pull worker
+if BACKEND_RUNTIME_IMAGE_ID="$(read_pulled_backend_image_id "$BACKEND_IMAGE_REF")"; then
+  readonly BACKEND_RUNTIME_IMAGE_ID
+else
+  echo "❌ Pulled backend image identity is untrusted; HOLD before product mutation" >&2
+  exit 1
+fi
 echo "Validating the pulled Prometheus platform manifest before product mutation"
 validate_pulled_prometheus_image "$PROMETHEUS_RUNTIME_REF"
 echo "Validating the pulled PostgreSQL platform manifest before product mutation"
@@ -1235,7 +1562,44 @@ fi
 
 if [ "$FOOD_UPDATE_SCHEDULER_MODE" = "external" ]; then
   echo "Starting scheduler worker after app readiness"
-  "${COMPOSE[@]}" up -d --pull never --wait --wait-timeout 30 worker
+  worker_deadline_ns="$("$PYTHON_BIN" -c 'import time; print(time.monotonic_ns() + 30_000_000_000)')"
+  if "$WORKER_TIMEOUT_BIN" --signal=TERM --kill-after=2s 25s \
+      "${COMPOSE[@]}" up -d --pull never --no-deps worker >/dev/null 2>&1; then
+    :
+  else
+    echo "❌ Worker start failed or timed out; outcome may be partial; HOLD before Caddy" >&2
+    exit 1
+  fi
+  worker_generation=""
+  worker_stable=0
+  worker_attempt=0
+  while [ "$worker_attempt" -lt 5 ]; do
+    if worker_sample="$(worker_runtime_generation "$worker_deadline_ns")"; then
+      if [ -n "$worker_generation" ]; then
+        if [ "$worker_sample" != "$worker_generation" ]; then
+          echo "❌ Worker or app generation changed during startup; HOLD before Caddy" >&2
+          exit 1
+        fi
+        worker_stable=1
+        break
+      fi
+      worker_generation="$worker_sample"
+    else
+      worker_gate_status=$?
+      if [ "$worker_gate_status" -ne 75 ]; then
+        echo "❌ Worker running/identity gate rejected startup; HOLD before Caddy" >&2
+        exit 1
+      fi
+    fi
+    worker_attempt=$((worker_attempt + 1))
+    sleep 1
+  done
+  if [ "$worker_stable" -ne 1 ]; then
+    echo "❌ Worker did not hold one stable running generation; HOLD before Caddy" >&2
+    exit 1
+  fi
+  validate_staging_database_binding --storage-only
+  readonly worker_generation
 else
   echo "Scheduler mode is disabled; worker container remains absent"
   "${COMPOSE[@]}" rm -f worker
@@ -1277,8 +1641,17 @@ while [ "$attempt" -lt "$HEALTH_MAX_ATTEMPTS" ]; do
 done
 
 if [ "$FOOD_UPDATE_SCHEDULER_MODE" = "external" ]; then
-  echo "Confirming scheduler worker process is running"
-  "${COMPOSE[@]}" up -d --pull never --no-recreate --wait --wait-timeout 30 worker
+  echo "Rechecking the same worker and app generation after HTTPS"
+  worker_recheck_deadline_ns="$("$PYTHON_BIN" -c 'import time; print(time.monotonic_ns() + 10_000_000_000)')"
+  if worker_after_https="$(worker_runtime_generation "$worker_recheck_deadline_ns")"; then
+    if [ "$worker_after_https" != "$worker_generation" ]; then
+      echo "❌ Worker or app generation changed after HTTPS; Caddy may be running; HOLD" >&2
+      exit 1
+    fi
+  else
+    echo "❌ Worker running/identity recheck failed after HTTPS; Caddy may be running; HOLD" >&2
+    exit 1
+  fi
 fi
 
 validate_staging_database_binding --storage-only
