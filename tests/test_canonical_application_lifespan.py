@@ -1658,10 +1658,11 @@ def test_deploy_scripts_quiesce_migrate_start_and_prove_worker_in_order() -> Non
         'if "${COMPOSE[@]}" stop worker caddy app; then',
         'if "${COMPOSE[@]}" run --rm --no-deps app alembic upgrade head; then',
         '"${COMPOSE[@]}" up -d --pull never app',
-        '  "${COMPOSE[@]}" up -d --pull never --wait --wait-timeout 30 worker',
+        '      "${COMPOSE[@]}" up -d --pull never --no-deps worker >/dev/null 2>&1; then',
+        '    if worker_sample="$(worker_runtime_generation "$worker_deadline_ns")"; then',
         '  "${COMPOSE[@]}" rm -f worker',
         '"${COMPOSE[@]}" up -d --pull never caddy',
-        ('  "${COMPOSE[@]}" up -d --pull never --no-recreate --wait --wait-timeout 30 worker'),
+        '  if worker_after_https="$(worker_runtime_generation "$worker_recheck_deadline_ns")"; then',
     ]
     staging_indexes = _ordered_indexes(
         "scripts/deploy.sh",
