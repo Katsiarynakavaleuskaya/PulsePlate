@@ -12,14 +12,14 @@ from __future__ import annotations
 
 import math
 from collections.abc import Mapping
-from typing import Any, Dict, Optional
+from typing import Dict, Optional
 
 from pydantic import BaseModel, Field, field_validator
 
 
 def _validate_numeric_dict(v: object, field_name: str) -> object:
-    """RU: Проверка словаря чисел (finite, >=0), bool запрещён.
-    EN: Validate numeric dict values (finite, >=0), bool is forbidden.
+    """RU: Проверить Mapping конечных неотрицательных чисел и числовых строк; bool запрещён.
+    EN: Validate a Mapping of finite nonnegative numbers or numeric strings; bool is forbidden.
     """
 
     if not isinstance(v, Mapping):
