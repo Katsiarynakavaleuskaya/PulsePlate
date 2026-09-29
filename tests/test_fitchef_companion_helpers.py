@@ -281,6 +281,33 @@ def test_high_distress_boundary_preserves_ru_es_safe_near_misses(text: str) -> N
 
 
 @pytest.mark.parametrize(
+    "text",
+    [
+        "I do not want to die",
+        "I never want to die",
+        "No  quiero morir",
+        "No\tquiero morir",
+    ],
+)
+def test_high_distress_boundary_skips_negated_occurrence(text: str) -> None:
+    assert not has_high_distress_boundary(text)
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "I do not want to die. I want to die",
+        "No  quiero morir. Quiero morir",
+        "I do not want to live",
+        "Я хочу умереть",
+        "\u043aill myself",
+    ],
+)
+def test_high_distress_boundary_keeps_later_and_distinct_positives(text: str) -> None:
+    assert has_high_distress_boundary(text)
+
+
+@pytest.mark.parametrize(
     ("lang", "unsafe"),
     [("ru", "Пропусти следующий приём пищи."), ("es", "Sáltate la próxima comida.")],
 )
@@ -385,6 +412,23 @@ def test_infer_distortion_labels_stays_neutral_when_no_pattern_matches() -> None
     """Inference should keep uncertainty explicit when no bounded marker matches."""
 
     assert _infer_distortion_labels("A plain observation with no strong cognitive marker.") == []
+
+
+@pytest.mark.parametrize("thought", ["I ate mustard", "Nevertheless I continued", "I feel hungry"])
+def test_infer_distortion_labels_rejects_substrings_and_bare_feelings(thought: str) -> None:
+    assert _infer_distortion_labels(thought) == []
+
+
+@pytest.mark.parametrize(
+    ("thought", "label"),
+    [
+        ("I must be perfect", "should_statements"),
+        ("I never do anything right", "all_or_nothing_thinking"),
+        ("I feel this means it is true", "emotional_reasoning"),
+    ],
+)
+def test_infer_distortion_labels_retains_bounded_positive_cues(thought: str, label: str) -> None:
+    assert label in _infer_distortion_labels(thought)
 
 
 @pytest.mark.parametrize(

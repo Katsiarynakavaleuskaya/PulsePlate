@@ -341,6 +341,37 @@ class TestFitChefDistortionSimulatorRoute:
         assert response.status_code == 400
         assert _json_body(response) == {"detail": "fitchef_high_distress_boundary"}
 
+    @pytest.mark.parametrize(
+        ("thought", "lang"),
+        [("I do not want to die", "en"), ("No  quiero morir", "es")],
+    )
+    def test_negated_distress_reaches_distortion_runtime(self, thought: str, lang: str) -> None:
+        """Reviewed negations must not be classified as an affirmative cue."""
+
+        captured: list[object] = []
+
+        async def reached_runtime(task: object) -> FitChefDistortionSimulatorResult:
+            captured.append(task)
+            raise HTTPException(status_code=503, detail="sentinel_runtime_reached")
+
+        self.monkeypatch.setattr(
+            "app.routers.fitchef_structured.fitchef_runtime.run_distortion_simulator_task",
+            reached_runtime,
+        )
+        response = self.client.post(
+            self.url,
+            json={
+                "situation": "Dinner changed",
+                "automatic_thought": thought,
+                "emotion": "worry",
+                "lang": lang,
+            },
+            headers=self.pro_headers,
+        )
+        assert response.status_code == 503
+        assert _json_body(response) == {"detail": "sentinel_runtime_reached"}
+        assert len(captured) == 1
+
     def test_distortion_invalid_language_returns_422(self) -> None:
         """The public request admits only the three reviewed languages."""
 
@@ -2184,6 +2215,21 @@ class TestFitChefStructuredRuntimeCoverage:
             asyncio.run(fitchef_runtime.run_distortion_simulator_task(task))
         assert blocked.value.status_code == 400
         assert blocked.value.detail == "fitchef_high_distress_boundary"
+
+    @pytest.mark.parametrize("thought", ["I do not want to die", "No  quiero morir"])
+    def test_direct_runtime_allows_negated_distress_to_reach_executor(self, thought: str) -> None:
+        """The internal boundary also distinguishes reviewed negated text."""
+
+        from app.services import fitchef_runtime
+
+        async def reached_executor(_config: object) -> object:
+            raise RuntimeError("sentinel_executor_reached")
+
+        self.monkeypatch.setattr(fitchef_runtime, "_run_fitchef_structured_task", reached_executor)
+        task = self._distortion_task()
+        task.input.safe_automatic_thought = thought
+        with pytest.raises(RuntimeError, match="sentinel_executor_reached"):
+            asyncio.run(fitchef_runtime.run_distortion_simulator_task(task))
 
     def test_runtime_builds_sanitized_sources_and_confidence(self) -> None:
         """Structured runtime should preserve sources, confidence, and warning flags."""

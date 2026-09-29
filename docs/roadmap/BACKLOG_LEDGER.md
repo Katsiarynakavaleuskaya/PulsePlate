@@ -925,9 +925,11 @@ If it is not recorded here — it does not exist.
 - [ ] P1: NOOS-1C FitChef response quality
   - Owner: product AI / backend-engineer / evaluation owner
   - Priority: P1
-  - Target PR: `PR-TBD` on `codex/noos-fitchef-response-quality-routing`
-  - Status: Bounded response-quality implementation in progress; current Sonar
-    selection is unchanged. This item remains open until its own PR merges.
+  - Target PR: [#2459](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2459)
+    on `codex/noos-fitchef-response-quality-routing`
+  - Status: Open PR #2459; post-open findings and current-head CI/governance
+    remain pending. Current Sonar selection is unchanged. This item remains
+    open until its own PR merges.
   - Area: FitChef product behavior / model evaluation
   - Reason (EN): The first controlled-source comparison found an RU language
     mismatch for Sonar and default Agent responses, a cheaper RU Agent response

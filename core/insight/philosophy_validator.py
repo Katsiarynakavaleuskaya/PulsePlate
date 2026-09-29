@@ -84,7 +84,7 @@ _BLOCKER_PATTERNS: List[Tuple[str, re.Pattern[str]]] = [
         "FITCHEF_COMPENSATION_LANGUAGE",
         re.compile(
             r"\b(earn\s+it\s+back|burn\s+it\s+off|work\s+it\s+off|skip\s+the\s+next\s+meal)\b"
-            r"|(?<!не\s)\bпропусти\s+следующий\s+при[её]м\s+пищи\b"
+            r"|\bпропусти\s+следующий\s+при[её]м\s+пищи\b"
             r"|\bs[áa]ltate\s+la\s+pr[óo]xima\s+comida\b",
             re.IGNORECASE,
         ),
@@ -141,6 +141,12 @@ def validate_llm_output(text: str, *, domain: str | None = None) -> Report:
     blockers: List[Finding] = []
     for code, pattern in _BLOCKER_PATTERNS:
         for m in pattern.finditer(text):
+            if (
+                code == "FITCHEF_COMPENSATION_LANGUAGE"
+                and m.group(0).casefold().startswith("пропусти")
+                and re.search(r"\bне\s+$", text[: m.start()], re.IGNORECASE)
+            ):
+                continue
             blockers.append(Finding(code=code, start=m.start(), end=m.end(), matched=m.group(0)))
     blockers.sort(key=lambda b: b.start)
     return Report(ok=len(blockers) == 0, blockers=blockers, domain=domain)

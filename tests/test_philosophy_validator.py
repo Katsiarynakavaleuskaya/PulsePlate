@@ -186,3 +186,17 @@ def test_compensation_language_blocks_specific_ru_es_imperatives(text: str) -> N
 def test_compensation_language_leaves_safe_near_misses_unblocked(text: str) -> None:
     report = validate_llm_output(text, domain="fitchef_mascot")
     assert not any(finding.code == "FITCHEF_COMPENSATION_LANGUAGE" for finding in report.blockers)
+
+
+@pytest.mark.parametrize("separator", ["  ", "\t", " \t "])
+def test_ru_compensation_negation_accepts_whitespace_without_offset_drift(
+    separator: str,
+) -> None:
+    text = f"Не{separator}пропусти следующий приём пищи. Пропусти следующий прием пищи."
+    report = validate_llm_output(text, domain="fitchef_mascot")
+    matches = [item for item in report.blockers if item.code == "FITCHEF_COMPENSATION_LANGUAGE"]
+    assert len(matches) == 1
+    affirmative_start = text.rindex("Пропусти")
+    assert matches[0].start == affirmative_start
+    assert matches[0].matched == "Пропусти следующий прием пищи"
+    assert matches[0].end == affirmative_start + len(matches[0].matched)

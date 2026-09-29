@@ -992,6 +992,24 @@ def test_collector_direct_path_rejects_high_distress_before_reservation(
     assert not list(tmp_path.glob("attempt-*"))
 
 
+@pytest.mark.parametrize("thought", ["I do not want to die", "No  quiero morir"])
+def test_collector_admission_preserves_negated_distress(
+    thought: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("FEATURE_FITCHEF_STRUCTURED_COACH", "true")
+    monkeypatch.setenv("FITCHEF_STRUCTURED_COACH_EXECUTION_MODE", "auto-safe")
+    context = _manifest_case()["context"]
+    context["automatic_thought"] = thought
+    assert (
+        collector._admitted_task(context, "synthetic", "en").input.safe_automatic_thought == thought
+    )
+    context["automatic_thought"] += ". I want to die"
+    with pytest.raises(HTTPException) as blocked:
+        collector._admitted_task(context, "synthetic", "en")
+    assert blocked.value.status_code == 400
+    assert blocked.value.detail == "fitchef_high_distress_boundary"
+
+
 def test_dirty_code_state_blocks_collection(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         collector, "run_git", lambda *_args, **_kwargs: CompletedProcess([], 0, "?? code.py\n", "")

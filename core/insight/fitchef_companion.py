@@ -24,11 +24,15 @@ _DEFAULT_ACTION_KEYWORDS = ("try", "start", "choose", "add")
 _WEEKLY_REFLECTION_ACTION_KEYWORDS = ("keep", "plan", "notice", *_DEFAULT_ACTION_KEYWORDS)
 _SLIP_SUPPORT_ACTION_KEYWORDS = ("pause", "restart", "return", "plan", *_DEFAULT_ACTION_KEYWORDS)
 _DEFAULT_LIST_LIMIT = 3
+_EN_WANT_TO_DIE_PATTERN = re.compile(r"\bwant\s+to\s+die\b", re.IGNORECASE)
+_ES_QUIERO_MORIR_PATTERN = re.compile(r"\bquiero\s+morir\b", re.IGNORECASE)
+_EN_NEGATED_WANT_PREFIX = re.compile(r"\bi\s+(?:do\s+not|don'?t|never)\s+$", re.IGNORECASE)
+_ES_NEGATED_QUIERO_PREFIX = re.compile(r"\bno\s+$", re.IGNORECASE)
 _HIGH_DISTRESS_BOUNDARY_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(r"\b(?:kill|hurt|harm)\s+myself\b", re.IGNORECASE),
     re.compile(r"\bend\s+my\s+life\b", re.IGNORECASE),
     re.compile(r"\bend\s+it\s+all\b", re.IGNORECASE),
-    re.compile(r"\bwant\s+to\s+die\b", re.IGNORECASE),
+    _EN_WANT_TO_DIE_PATTERN,
     re.compile(r"\bwish\s+i\s+were\s+dead\b", re.IGNORECASE),
     re.compile(r"\bi\s+can(?:not|'?t)\s+go\s+on\b", re.IGNORECASE),
     re.compile(r"\b(?:do\s+not|don'?t)\s+want\s+to\s+be\s+here\s+anymore\b", re.IGNORECASE),
@@ -39,7 +43,7 @@ _HIGH_DISTRESS_BOUNDARY_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(r"\bi\s+do\s+not\s+want\s+to\s+live\b", re.IGNORECASE),
     re.compile(r"\bi\s+don'?t\s+want\s+to\s+live\b", re.IGNORECASE),
     re.compile(r"\bя\s+хочу\s+умереть\b", re.IGNORECASE),
-    re.compile(r"(?<!no\s)\bquiero\s+morir\b", re.IGNORECASE),
+    _ES_QUIERO_MORIR_PATTERN,
 )
 _HIGH_DISTRESS_HOMOGLYPHS = str.maketrans(
     {
@@ -430,12 +434,19 @@ def has_high_distress_boundary(*values: str | None) -> bool:
             continue
         normalized = unicodedata.normalize("NFKC", value)
         transliterated = normalized.translate(_HIGH_DISTRESS_HOMOGLYPHS)
-        if any(
-            pattern.search(candidate)
-            for candidate in (normalized, transliterated)
-            for pattern in _HIGH_DISTRESS_BOUNDARY_PATTERNS
-        ):
-            return True
+        for candidate in (normalized, transliterated):
+            for pattern in _HIGH_DISTRESS_BOUNDARY_PATTERNS:
+                for match in pattern.finditer(candidate):
+                    prefix = candidate[: match.start()]
+                    if pattern is _EN_WANT_TO_DIE_PATTERN and _EN_NEGATED_WANT_PREFIX.search(
+                        prefix
+                    ):
+                        continue
+                    if pattern is _ES_QUIERO_MORIR_PATTERN and _ES_NEGATED_QUIERO_PREFIX.search(
+                        prefix
+                    ):
+                        continue
+                    return True
     return False
 
 
@@ -847,20 +858,20 @@ def _infer_distortion_labels(automatic_thought: str) -> list[str]:
 
     lowered = automatic_thought.lower()
     labels: list[str] = []
-    if any(token in lowered for token in ("always", "never", "ruined", "perfect", "completely")):
+    if re.search(r"\b(?:always|never|ruined|perfect|completely)\b", lowered):
         labels.append("all_or_nothing_thinking")
-    if any(
-        token in lowered
-        for token in ("disaster", "awful", "terrible", "never reach", "nothing will")
-    ):
+    if re.search(r"\b(?:disaster|awful|terrible)\b|\bnever\s+reach\b|\bnothing\s+will\b", lowered):
         labels.append("catastrophizing")
-    if "should" in lowered or "must" in lowered or "ought" in lowered:
+    if re.search(r"\b(?:should|must|ought)\b", lowered):
         labels.append("should_statements")
-    if "i feel" in lowered or "feels like" in lowered:
+    if re.search(
+        r"\bi\s+feel\s+this\s+means\s+it\s+is\s+true\b|\bfeels\s+like\s+proof\b",
+        lowered,
+    ):
         labels.append("emotional_reasoning")
-    if any(
-        token in lowered
-        for token in ("only", "nothing good", "all i can see", "but i still failed")
+    if re.search(
+        r"\bonly\b|\bnothing\s+good\b|\ball\s+i\s+can\s+see\b|\bbut\s+i\s+still\s+failed\b",
+        lowered,
     ):
         labels.append("mental_filtering")
     return labels[:2]
