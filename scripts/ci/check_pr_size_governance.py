@@ -77,6 +77,12 @@ BACKEND_API_AI_EXACT_PATHS = {
     "legacy_app.py",
     "mcp_pulseplate_server.py",
 }
+GENERATED_OPENAPI_CONTRACT_PATHS = frozenset(
+    {
+        "frontend/src/api/openapi.json",
+        "frontend/src/api/schema.ts",
+    }
+)
 
 TRUSTED_APPROVAL_LABELS_RAW = {
     "operator": ("scope/operator-approved", "operator-approved"),
@@ -176,6 +182,8 @@ def _normalize_path(path: str) -> str:
 
 def _is_product_client_path(path: str) -> bool:
     """Recognize web and native clients under the existing frontend policy vocabulary."""
+    if path in GENERATED_OPENAPI_CONTRACT_PATHS:
+        return False
     return _normalize_path(path).startswith(("frontend/", "ios/"))
 
 

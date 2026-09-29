@@ -21,6 +21,143 @@ TRUSTED_FRONTEND_MIX = {
 }
 
 
+GENERATED_OPENAPI_PATHS = (
+    "frontend/src/api/openapi.json",
+    "frontend/src/api/schema.ts",
+)
+
+
+@pytest.mark.parametrize("path", GENERATED_OPENAPI_PATHS)
+def test_exact_generated_openapi_path_is_not_product_client_implementation(path: str) -> None:
+    assert not size_gate._is_product_client_path(path)
+    assert not size_gate.has_mixed_frontend_backend_runtime(["app/routers/example.py", path])
+
+
+@pytest.mark.parametrize("count", [18, 21])
+def test_generated_openapi_paths_keep_standard_file_and_line_limits(count: int) -> None:
+    changed_files = [f"app/routers/route_{index}.py" for index in range(count - 2)]
+    changed_files.extend(GENERATED_OPENAPI_PATHS)
+    code, lines = size_gate.evaluate_pr_size_policy(
+        total_changed_lines=1200,
+        counted_files=len(changed_files),
+        changed_files=changed_files,
+        pr_body=_standard_body(
+            "\n## Split Justification\nBackend contract and generated clients travel together.\n"
+        ),
+    )
+
+    assert code == (0 if count == 18 else 1), lines
+    assert "PR scope category: standard_governance_design" in lines
+    assert f"Counted files: {count}" in lines
+    assert "Changed lines: 1200" in lines
+    if count == 21:
+        assert any(
+            "standard governance/design PR has 21 files; cap is 20" in line for line in lines
+        )
+
+
+@pytest.mark.parametrize("count", [15, 16])
+def test_generated_openapi_paths_keep_privileged_hard_cap(count: int) -> None:
+    changed_files = ["scripts/ci/check_pr_size_governance.py"]
+    changed_files.extend(f"tests/example_{index}.py" for index in range(count - 3))
+    changed_files.extend(GENERATED_OPENAPI_PATHS)
+    code, lines = size_gate.evaluate_pr_size_policy(
+        total_changed_lines=200,
+        counted_files=len(changed_files),
+        changed_files=changed_files,
+        pr_body=_standard_body(),
+    )
+
+    assert code == (0 if count == 15 else 1), lines
+    assert "PR scope category: privileged_ci_security_workflow" in lines
+    assert f"Counted files: {count}" in lines
+    assert not any("mixes with frontend product implementation" in line for line in lines)
+    if count == 16:
+        assert any("hard cap is 15" in line for line in lines)
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "frontend/src/App.tsx",
+        "ios/App.swift",
+        "frontend/src/api/contract.json",
+        "frontend/src/api/openapi.json.bak",
+        "frontend/src/api/schema.tsx",
+        "frontend/src/api/OpenAPI.json",
+        "frontend/src/api/Schema.ts",
+        "./frontend/src/api/openapi.json",
+        "./frontend/src/api/schema.ts",
+        "frontend/src/api/openapi.json ",
+        "frontend/src/api/schema.ts ",
+        "frontend/src/api/schema_renamed.ts",
+    ],
+)
+def test_other_client_paths_still_require_mixed_scope_approvals(path: str) -> None:
+    assert size_gate._is_product_client_path(path)
+    assert size_gate.has_mixed_frontend_backend_runtime(["app/routers/example.py", path])
+
+    body = _standard_body(
+        "\n## Split Justification\nClient and backend changes ship together.\n"
+        "Operator approval: approved\nFrontend vertical MVP approval: approved\n"
+    )
+    code, lines = size_gate.evaluate_pr_size_policy(
+        total_changed_lines=20,
+        counted_files=2,
+        changed_files=["app/routers/example.py", path],
+        pr_body=body,
+        trusted_approvals=TRUSTED_FRONTEND_MVP,
+    )
+    assert code == 1
+    assert "PR scope category: frontend_vertical_mvp" in lines
+    assert any(
+        "frontend MVP mixes frontend UI with backend/API/AI runtime" in line for line in lines
+    )
+
+    privileged_code, privileged_lines = size_gate.evaluate_pr_size_policy(
+        total_changed_lines=20,
+        counted_files=2,
+        changed_files=["scripts/ci/check.py", path],
+        pr_body=body,
+        trusted_approvals=TRUSTED_FRONTEND_MVP,
+    )
+    assert privileged_code == 1
+    assert "PR scope category: privileged_ci_security_workflow" in privileged_lines
+    assert any("mixes with frontend product implementation" in line for line in privileged_lines)
+
+
+def test_rename_from_generated_openapi_to_client_path_still_requires_approval() -> None:
+    changed_files = [
+        "frontend/src/api/schema.ts",
+        "frontend/src/api/schema_renamed.ts",
+        "app/routers/example.py",
+    ]
+    code, lines = size_gate.evaluate_pr_size_policy(
+        total_changed_lines=10,
+        counted_files=len(changed_files),
+        changed_files=changed_files,
+        pr_body=_standard_body(),
+    )
+
+    assert code == 1
+    assert "PR scope category: frontend_vertical_mvp" in lines
+
+
+def test_generated_openapi_paths_count_toward_oversized_body_only_denial() -> None:
+    changed_files = [f"app/routers/route_{index}.py" for index in range(29)]
+    changed_files.extend(GENERATED_OPENAPI_PATHS)
+    code, lines = size_gate.evaluate_pr_size_policy(
+        total_changed_lines=200,
+        counted_files=len(changed_files),
+        changed_files=changed_files,
+        pr_body=_standard_body("\nOperator approval: approved\nEmergency exception: approved\n"),
+    )
+
+    assert code == 1
+    assert "Counted files: 31" in lines
+    assert any(">30 files without emergency/operator exception" in line for line in lines)
+
+
 @pytest.mark.parametrize("client_prefix", ["frontend/", "ios/", "./ios/"])
 @pytest.mark.parametrize("count", [20, 21, 30, 31])
 def test_client_vertical_scope_preserves_size_boundaries(client_prefix: str, count: int) -> None:
