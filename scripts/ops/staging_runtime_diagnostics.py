@@ -73,8 +73,8 @@ import time
 PROJECT = "/srv/pulseplate-staging"
 COMPOSE = PROJECT + "/docker-compose.staging.yaml"
 COMPOSE_SOURCE_SHA = "9e9ed40ec219f926d85daabef57b571b501c5bc3478820462cc2a24958839db4"
-BACKEND_REF = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:a4d973ba64919338b87b3095a556ef1a83b0d4b3f08bdd914d90dd977d31657e"
-CADDY_REF = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:b501c3f134d02859b64d9e24c9e14fa6285ec96e1f07be388e2b3b0fdcaa1974"
+BACKEND_REF = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:a78a9d920bb917c395dff08c5bc244bd299fef803c99eca332bbc4b60fdeff26"
+CADDY_REF = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:5b99acd0ffaf7a93822341b64e053fe8d5b5a6bdf0dfd467e31e870c5f49584c"
 CHECKER = PROJECT + "/scripts/ops/check_staging_security.py"
 MAX_NATIVE = 2_000_000
 SEARCH_PATH = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
