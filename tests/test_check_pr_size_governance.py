@@ -5,6 +5,8 @@ from __future__ import annotations
 import importlib
 import json
 from pathlib import Path
+import subprocess
+from types import SimpleNamespace
 
 import pytest
 
@@ -28,9 +30,144 @@ GENERATED_OPENAPI_PATHS = (
 
 
 @pytest.mark.parametrize("path", GENERATED_OPENAPI_PATHS)
+@pytest.mark.parametrize(
+    ("mode", "object_type", "admitted"),
+    [
+        ("100644", "blob", True),
+        ("120000", "blob", False),
+        ("100755", "blob", False),
+        ("160000", "commit", False),
+    ],
+)
+def test_generated_openapi_exemption_requires_exact_head_regular_blob(
+    path: str,
+    mode: str,
+    object_type: str,
+    admitted: bool,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    head_sha = "c" * 40
+    tree_output = f"{mode} {object_type} {'a' * 40}\t{path}\0".encode()
+
+    def fake_run(argv: list[str], **kwargs: object) -> SimpleNamespace:
+        assert argv == [
+            size_gate.GIT_BINARY,
+            "ls-tree",
+            "-r",
+            "-z",
+            "--full-tree",
+            head_sha,
+            "--",
+            *sorted(GENERATED_OPENAPI_PATHS),
+        ]
+        assert kwargs["cwd"] == size_gate.REPO_ROOT
+        assert kwargs["check"] is True
+        assert kwargs["capture_output"] is True
+        assert kwargs["text"] is False
+        return SimpleNamespace(stdout=tree_output)
+
+    monkeypatch.setattr(size_gate.subprocess, "run", fake_run)
+    result = size_gate.collect_regular_generated_openapi_paths(head_sha=head_sha)
+    assert result == (frozenset({path}) if admitted else frozenset())
+
+
+@pytest.mark.parametrize(
+    "tree_output",
+    [
+        b"garbage\0",
+        b"100644 blob " + b"a" * 40 + b"\tfrontend/src/api/openapi.json",
+        2 * (b"100644 blob " + b"a" * 40 + b"\tfrontend/src/api/openapi.json\0"),
+        b"100644 blob " + b"a" * 40 + b"\tfrontend/src/api/neighbor.json\0",
+        b"\0",
+    ],
+)
+def test_generated_openapi_tree_output_fails_on_untrusted_records(
+    tree_output: bytes,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        size_gate.subprocess,
+        "run",
+        lambda *args, **kwargs: SimpleNamespace(stdout=tree_output),
+    )
+    with pytest.raises(ValueError):
+        size_gate.collect_regular_generated_openapi_paths(head_sha="c" * 40)
+
+
+def test_generated_openapi_tree_allows_missing_paths_but_blocks_git_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        size_gate.subprocess,
+        "run",
+        lambda *args, **kwargs: SimpleNamespace(stdout=b""),
+    )
+    assert size_gate.collect_regular_generated_openapi_paths(head_sha="c" * 40) == frozenset()
+
+    def fail_git(*args: object, **kwargs: object) -> SimpleNamespace:
+        raise subprocess.CalledProcessError(128, "git ls-tree")
+
+    monkeypatch.setattr(size_gate.subprocess, "run", fail_git)
+    with pytest.raises(subprocess.CalledProcessError):
+        size_gate.collect_regular_generated_openapi_paths(head_sha="c" * 40)
+
+
+@pytest.mark.parametrize("path", GENERATED_OPENAPI_PATHS)
+def test_generated_openapi_without_head_mode_evidence_is_client(path: str) -> None:
+    assert size_gate._is_product_client_path(path, regular_generated_paths=frozenset())
+    assert size_gate.has_mixed_frontend_backend_runtime(["app/routers/example.py", path])
+    code, lines = size_gate.evaluate_pr_size_policy(
+        total_changed_lines=10,
+        counted_files=2,
+        changed_files=["app/routers/example.py", path],
+        pr_body=_standard_body(),
+    )
+    assert code == 1
+    assert "PR scope category: frontend_vertical_mvp" in lines
+
+
+def test_admission_input_cannot_exempt_any_other_client_path() -> None:
+    assert size_gate._is_product_client_path(
+        "frontend/src/App.tsx", regular_generated_paths=frozenset({"frontend/src/App.tsx"})
+    )
+
+
+def test_main_binds_generated_openapi_exemption_to_explicit_head_sha(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    head_sha = "c" * 40
+    observed_heads: list[str] = []
+    monkeypatch.setattr(
+        size_gate,
+        "collect_numstat_output",
+        lambda *, base_sha, head_sha: "10\t0\tapp/routers/example.py\n",
+    )
+    monkeypatch.setattr(
+        size_gate,
+        "collect_changed_files",
+        lambda *, base_sha, head_sha: ["app/routers/example.py", *GENERATED_OPENAPI_PATHS],
+    )
+
+    def fake_regular_paths(*, head_sha: str) -> frozenset[str]:
+        observed_heads.append(head_sha)
+        return frozenset(GENERATED_OPENAPI_PATHS)
+
+    monkeypatch.setattr(size_gate, "collect_regular_generated_openapi_paths", fake_regular_paths)
+    code = size_gate.main(["--base-sha", "b" * 40, "--head-sha", head_sha])
+
+    assert code == 0
+    assert observed_heads == [head_sha]
+    assert "PR scope category: micro" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("path", GENERATED_OPENAPI_PATHS)
 def test_exact_generated_openapi_path_is_not_product_client_implementation(path: str) -> None:
-    assert not size_gate._is_product_client_path(path)
-    assert not size_gate.has_mixed_frontend_backend_runtime(["app/routers/example.py", path])
+    admitted = frozenset({path})
+    assert not size_gate._is_product_client_path(path, regular_generated_paths=admitted)
+    assert not size_gate.has_mixed_frontend_backend_runtime(
+        ["app/routers/example.py", path], regular_generated_paths=admitted
+    )
 
 
 @pytest.mark.parametrize("count", [18, 21])
@@ -44,6 +181,7 @@ def test_generated_openapi_paths_keep_standard_file_and_line_limits(count: int) 
         pr_body=_standard_body(
             "\n## Split Justification\nBackend contract and generated clients travel together.\n"
         ),
+        regular_generated_paths=frozenset(GENERATED_OPENAPI_PATHS),
     )
 
     assert code == (0 if count == 18 else 1), lines
@@ -66,6 +204,7 @@ def test_generated_openapi_paths_keep_privileged_hard_cap(count: int) -> None:
         counted_files=len(changed_files),
         changed_files=changed_files,
         pr_body=_standard_body(),
+        regular_generated_paths=frozenset(GENERATED_OPENAPI_PATHS),
     )
 
     assert code == (0 if count == 15 else 1), lines
@@ -137,6 +276,7 @@ def test_rename_from_generated_openapi_to_client_path_still_requires_approval() 
         counted_files=len(changed_files),
         changed_files=changed_files,
         pr_body=_standard_body(),
+        regular_generated_paths=frozenset(GENERATED_OPENAPI_PATHS),
     )
 
     assert code == 1
@@ -151,6 +291,7 @@ def test_generated_openapi_paths_count_toward_oversized_body_only_denial() -> No
         counted_files=len(changed_files),
         changed_files=changed_files,
         pr_body=_standard_body("\nOperator approval: approved\nEmergency exception: approved\n"),
+        regular_generated_paths=frozenset(GENERATED_OPENAPI_PATHS),
     )
 
     assert code == 1
