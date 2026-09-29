@@ -308,6 +308,8 @@ orders and inventories. CI output and Step Summary show family, runtime, UDID an
 - Output must include: `family`, `ios_runtime_id`, `device_name`, `udid`, and `destination`.
 - Each family has a distinct check and artifact name. Both family rows must succeed
   before the iOS-selected PR can pass the required merge gate.
+- Verify all four current-head child checks by family; an aggregate gate result
+  alone does not establish that both simulator families actually ran.
 - Step summary logs family, runtime, device, UDID, and destination for debugging.
 
 ## CI invariants (hard rules)

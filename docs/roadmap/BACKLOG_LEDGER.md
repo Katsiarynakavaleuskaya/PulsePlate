@@ -424,7 +424,8 @@ If it is not recorded here — it does not exist.
   - Priority: P1 (ordered client architecture and release-integrity follow-ups)
   - Target PR: CAB-04 [PR #2408](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2408);
     CAB-05 [PR #2414](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2414);
-    CAB-06 implementation PR on `codex/ios-iphone-ipad-ci-matrix` (number assigned at open).
+    CAB-06 [PR #2460](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2460)
+    (`codex/ios-iphone-ipad-ci-matrix`).
   - Status: CAB-03 merged in PR #2381, CAB-04 merged in PR #2408, and CAB-05
     merged in PR #2414. CAB-06 is the active iPhone/iPad CI matrix carrier;
     its checkbox remains open pending its own current-head checks and merge evidence.
