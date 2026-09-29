@@ -14,6 +14,7 @@ from app.schemas.fitchef import (
     FitChefClarificationV1,
     FitChefWeeklyReflectionResponseState,
 )
+from core.i18n import Language
 
 FitChefSupportNeed = Literal["daily_structure", "weekly_structure"]
 FitChefSupportTargetSurface = Literal["pro_daily_plate", "pro_weekly_plan"]
@@ -163,6 +164,12 @@ class FitChefWeeklyReflectionRequest(BaseModel):
     goal: str | None = Field(default=None, max_length=200)
 
 
+def _default_distortion_language() -> Language:
+    """Return the transport default without marking lang required in generated types."""
+
+    return "en"
+
+
 class FitChefDistortionSimulatorRequest(BaseModel):
     """Distortion-simulator request payload."""
 
@@ -170,6 +177,10 @@ class FitChefDistortionSimulatorRequest(BaseModel):
     automatic_thought: str = Field(..., min_length=1, max_length=500)
     emotion: str = Field(..., min_length=1, max_length=120)
     goal: str | None = Field(default=None, max_length=200)
+    lang: Language = Field(
+        default_factory=_default_distortion_language,
+        description="Response language: ru, en, or es. Defaults to en when omitted.",
+    )
 
     @field_validator("situation", "automatic_thought", "emotion", "goal")
     @classmethod

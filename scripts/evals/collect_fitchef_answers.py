@@ -25,6 +25,7 @@ from typing import Any, cast
 from unittest.mock import patch
 
 import httpx
+from fastapi import HTTPException
 from openai import AsyncOpenAI, OpenAI
 from sqlalchemy import select
 
@@ -43,6 +44,7 @@ from app.security.llm_monthly_quota import (
     require_llm_monthly_limit,
 )
 from app.services import fitchef_runtime
+from core.i18n import Language
 from core.insight import fitchef_companion
 from core.db import session_scope
 from core.rag import vector_rag
@@ -257,6 +259,7 @@ def _preflight_request_size(scenario: dict[str, Any]) -> None:
         context["emotion"],
         context["goal"],
         fitchef_runtime.build_fitchef_source_prompt_context(snapshot),
+        lang=scenario["language"],
     )
 
     def transport(request: httpx.Request) -> httpx.Response:
@@ -473,12 +476,18 @@ def _validate_output_directory(directory: Path) -> None:
         raise ValueError("output_ignore_unavailable")
 
 
-def _admitted_task(context: dict[str, Any], key: str) -> FitChefDistortionSimulatorTaskEnvelope:
+def _admitted_task(
+    context: dict[str, Any], key: str, lang: Language
+) -> FitChefDistortionSimulatorTaskEnvelope:
     if not fitchef_structured._is_fitchef_structured_enabled():
         raise ValueError("fitchef_feature_disabled")
     mode = fitchef_structured._require_fitchef_structured_mode()
     if mode != "auto-safe":
         raise ValueError("fitchef_mode_not_auto_safe")
+    if fitchef_companion.has_high_distress_boundary(
+        context["situation"], context["automatic_thought"], context["emotion"], context["goal"]
+    ):
+        raise HTTPException(status_code=400, detail="fitchef_high_distress_boundary")
     return FitChefDistortionSimulatorTaskEnvelope(
         agent_id="fitchef-agent",
         mode=mode,
@@ -492,6 +501,7 @@ def _admitted_task(context: dict[str, Any], key: str) -> FitChefDistortionSimula
                 if context["goal"] is not None and context["goal"].strip()
                 else None
             ),
+            lang=lang,
             api_key=key,
             endpoint="/api/v1/pro/fitchef/explain",
             method="POST",
@@ -575,10 +585,12 @@ async def _collect_one(
         frozen_snapshot = real_freeze(occurrences)
         return frozen_snapshot
 
-    def observed_fallback(*, automatic_thought: str, goal: str | None) -> str:
+    def observed_fallback(
+        *, automatic_thought: str, goal: str | None, lang: Language = "en"
+    ) -> str:
         nonlocal fallback_called
         fallback_called = True
-        result = real_fallback(automatic_thought=automatic_thought, goal=goal)
+        result = real_fallback(automatic_thought=automatic_thought, goal=goal, lang=lang)
         if not isinstance(result, str):
             raise ValueError("fallback_response_type")
         return result
@@ -599,7 +611,7 @@ async def _collect_one(
             user_tier=kwargs["user_tier"],
         )
 
-    task = _admitted_task(context, key)
+    task = _admitted_task(context, key, scenario["language"])
     with ExitStack() as stack:
         stack.enter_context(
             patch.object(provider.client.chat.completions, "create", bounded_create)

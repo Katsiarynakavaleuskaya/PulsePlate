@@ -882,17 +882,16 @@ If it is not recorded here — it does not exist.
     are changed.
 
 <a id="ledger-p1-noos-1b-fitchef-answer-evaluation"></a>
-- [ ] P1: NOOS-1B FitChef answer-content evaluation
+- [x] P1: NOOS-1B FitChef answer-content evaluation
   - Owner: product AI / evaluation owner
   - Priority: P1
   - Target PR: [#2451](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2451) on `codex/noos-fitchef-claim-evidence-evaluation`
     (one implementation PR after NOOS-1A #2417)
-  - Status: Active offline-eval review. The private controlled-source Sonar
-    run captured 24 final answers in 24 physical attempts; the independent
-    72-claim reference was accepted by the owner. A tool-isolated GPT-6-Sol
-    assessor produced 24 valid case annotations and a byte-reproducible
-    comparison; the earlier partial GPT-5.6-Sol pass remains separate evidence.
-    Current-head CI, review, and link-access evidence archive closeout remain pending; the replay key remains a separate owner-only secret object outside that folder.
+  - Status: Merged in PR #2451 as `8a27e07f48331259628ee262fb8fff259d01379e`.
+    The private controlled-source Sonar run and owner-reviewed reference remain
+    historical evaluation evidence, not authority to switch provider or
+    retroactively change answers. The replay key remains a separate owner-only
+    secret object outside the link-access evidence folder.
   - Area: FitChef eval / product outcomes
   - Reason (EN): The NOOS-1A structural matrix cannot measure whether actual
     FitChef responses make supported claims or improve trust, retention,
@@ -913,13 +912,12 @@ If it is not recorded here — it does not exist.
     provider calls and semantic-cache serving.
 
 <a id="ledger-p1-noos-1c-fitchef-response-quality-routing"></a>
-- [ ] P1: NOOS-1C FitChef response quality and cost-aware model routing
+- [ ] P1: NOOS-1C FitChef response quality
   - Owner: product AI / backend-engineer / evaluation owner
   - Priority: P1
-  - Target PR: `PR-TBD` after NOOS-1B #2451 and the separately governed
-    opt-in Agent API transport carrier
-  - Status: Reserved successor; no product model switch or generation fix is
-    authorized by the exploratory comparison or the NOOS-1B assessment.
+  - Target PR: `PR-TBD` on `codex/noos-fitchef-response-quality-routing`
+  - Status: Bounded response-quality implementation in progress; current Sonar
+    selection is unchanged. This item remains open until its own PR merges.
   - Area: FitChef product behavior / model evaluation
   - Reason (EN): The first controlled-source comparison found an RU language
     mismatch for Sonar and default Agent responses, a cheaper RU Agent response
@@ -935,20 +933,35 @@ If it is not recorded here — it does not exist.
     `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-noos-1b-fitchef-answer-evaluation`,
     `docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md`,
     <https://docs.perplexity.ai/docs/agent-api/models>
-  - DoD: Compare frozen same-context FitChef outputs by RU/EN/ES and task type
-    with owner-reviewed claim support, naturalness, language fit, wellness
-    wording, latency, and actual token cost; define thresholds before changing
-    product behavior. Include concrete negative regressions for an RU or ES
-    request answered in English, a topical citation that does not support its
-    proposition, a claim whose source has a different population or time, and
-    a confident causal suggestion supported only by correlation or no admitted
-    evidence. Route only by an explicit backend task type and reviewed
-    locale, not inferred model prose. Keep nutrition/planner/tier truth in
-    canonical engines; make any model selection reversible, quota/cost bounded,
-    and deterministic-testable with safe fallback. Promote only a measured
-    improvement through its own product PR and current-head gates.
+  - DoD: Preserve requested RU/EN/ES language through the public/internal
+    request, runtime prompt, deterministic fallback, and collector preflight
+    and actual task. Reject invalid locale with `422`; localize all five
+    user-facing fallback fields; keep unknown labels empty and unverified goals
+    out of fallback advice. Separate user report, tentative interpretation and
+    actual source support in the prompt; block high-distress input before
+    runtime. Retain Sonar, quota, source-assurance and response-shape contracts;
+    regenerate OpenAPI and pass deterministic tests and current-head gates.
   - Out of scope (EN): Treating Search API rank as human approval, automatic
-    web-source admission, implicit model escalation, and clinical claims.
+    web-source admission, cost-aware model selection, implicit model escalation,
+    and clinical claims.
+
+<a id="ledger-p1-noos-fitchef-cost-routing"></a>
+- [ ] P1: FitChef cost-aware model routing after NOOS-1C
+  - Owner: product AI / backend-engineer / evaluation owner
+  - Priority: P1
+  - Target PR: `PR-TBD` after the separately governed opt-in Agent API
+    transport carrier #2452 and owner-approved comparative evaluation
+  - Status: Deferred; no global or FitChef provider switch is admitted by the
+    NOOS-1C response-quality slice.
+  - Area: FitChef provider evaluation / cost controls
+  - Reason (EN): The controlled examples and NOOS-1B assessment do not establish
+    a quality-and-cost winner across languages, task types, and failure modes.
+  - Links: `docs/evals/FITCHEF_CLAIM_EVIDENCE_EVAL_V1.md`,
+    `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-noos-1c-fitchef-response-quality-routing`
+  - DoD: Freeze same-context RU/EN/ES comparisons and acceptance thresholds;
+    review claim support, language fit, wellness wording, latency and actual
+    token cost; test reversibility, quota and cost bounds, provider failure and
+    safe fallback before any explicit FitChef-only routing change.
 
 <a id="ledger-p2-noos-search-retrieval-candidate-study"></a>
 - [ ] P2: NOOS Search API retrieval-candidate study

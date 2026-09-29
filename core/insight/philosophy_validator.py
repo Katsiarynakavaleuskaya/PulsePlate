@@ -83,7 +83,9 @@ _BLOCKER_PATTERNS: List[Tuple[str, re.Pattern[str]]] = [
     (
         "FITCHEF_COMPENSATION_LANGUAGE",
         re.compile(
-            r"\b(earn\s+it\s+back|burn\s+it\s+off|work\s+it\s+off|skip\s+the\s+next\s+meal)\b",
+            r"\b(earn\s+it\s+back|burn\s+it\s+off|work\s+it\s+off|skip\s+the\s+next\s+meal)\b"
+            r"|(?<!не\s)\bпропусти\s+следующий\s+при[её]м\s+пищи\b"
+            r"|\bs[áa]ltate\s+la\s+pr[óo]xima\s+comida\b",
             re.IGNORECASE,
         ),
     ),

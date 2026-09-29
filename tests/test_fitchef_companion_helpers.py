@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+
 import pytest
 
 from core.insight.fitchef_companion import (
@@ -34,7 +36,46 @@ def test_build_distortion_simulator_prompt_includes_rag_context() -> None:
     )
 
     assert "Relevant CBT context:\nCBT context block" in prompt
-    assert "Goal: steady dinners" in prompt
+    assert "User-reported goal (unverified): steady dinners" in prompt
+    assert "source appearing in context is not proof of support" in prompt
+
+
+@pytest.mark.parametrize("lang", ["en", "ru", "es"])
+def test_distortion_fallback_respects_language_and_unverified_goal(lang: str) -> None:
+    """A malformed draft keeps its locale and does not endorse a raw goal."""
+
+    draft = prepare_distortion_simulator_draft(
+        "not json",
+        situation="Dinner changed",
+        automatic_thought="A plain observation",
+        emotion="worry",
+        goal="skip all meals",
+        lang=lang,
+    )
+    assert draft.distortion_labels == []
+    assert "skip all meals" not in " ".join(
+        [
+            draft.why_it_matches,
+            *draft.evidence_for,
+            *draft.evidence_against,
+            draft.balanced_reframe,
+            draft.next_small_action,
+        ]
+    )
+    fields = [
+        draft.why_it_matches,
+        " ".join(draft.evidence_for),
+        " ".join(draft.evidence_against),
+        draft.balanced_reframe,
+        draft.next_small_action,
+    ]
+    if lang == "ru":
+        fragments = ["описанию", "описали", "момент", "момент", "Запишите"]
+    elif lang == "es":
+        fragments = ["descripción", "Describiste", "momento", "momento", "Escribe"]
+    else:
+        fragments = ["description", "reported", "moment", "moment", "Write"]
+    assert all(fragment in value for fragment, value in zip(fragments, fields, strict=True))
 
 
 def test_prepare_distortion_simulator_draft_normalizes_aliases_and_defaults() -> None:
@@ -59,9 +100,14 @@ def test_prepare_distortion_simulator_draft_normalizes_aliases_and_defaults() ->
 
     assert draft.distortion_labels == ["all_or_nothing_thinking"]
     assert "middle ground" in draft.why_it_matches
-    assert any("steady dinners" in item for item in draft.evidence_against)
-    assert "steady dinners" in draft.balanced_reframe
-    assert "steady dinners" in draft.next_small_action
+    assert "steady dinners" not in " ".join(
+        [
+            *draft.evidence_for,
+            *draft.evidence_against,
+            draft.balanced_reframe,
+            draft.next_small_action,
+        ]
+    )
     assert draft.warnings == []
 
 
@@ -222,6 +268,47 @@ def test_identity_loop_mapper_detects_high_distress_boundary() -> None:
     assert not has_high_distress_boundary("I felt disappointed after dinner planning slipped")
 
 
+@pytest.mark.parametrize("text", ["Я хочу умереть", "Quiero morir"])
+def test_high_distress_boundary_catches_specific_ru_es_self_directed_text(text: str) -> None:
+    assert has_high_distress_boundary(text)
+
+
+@pytest.mark.parametrize(
+    "text", ["Я хочу жить", "Quiero vivir", "No quiero morir", "Мне грустно после ужина"]
+)
+def test_high_distress_boundary_preserves_ru_es_safe_near_misses(text: str) -> None:
+    assert not has_high_distress_boundary(text)
+
+
+@pytest.mark.parametrize(
+    ("lang", "unsafe"),
+    [("ru", "Пропусти следующий приём пищи."), ("es", "Sáltate la próxima comida.")],
+)
+def test_unsafe_ru_es_provider_json_rewrites_to_localized_fallback(lang: str, unsafe: str) -> None:
+    raw = json.dumps(
+        {
+            "distortion_labels": ["all_or_nothing_thinking"],
+            "why_it_matches": "A rigid thought.",
+            "evidence_for": ["A report was made."],
+            "evidence_against": ["Another view is possible."],
+            "balanced_reframe": "I can pause.",
+            "next_small_action": unsafe,
+        },
+        ensure_ascii=False,
+    )
+    draft = prepare_distortion_simulator_draft(
+        raw,
+        situation="Dinner changed",
+        automatic_thought="I ruined the day",
+        emotion="worry",
+        goal=None,
+        lang=lang,
+    )
+    assert draft.warnings == ["wellness_language_rewritten"]
+    assert unsafe not in draft.next_small_action
+    assert ("Запишите" if lang == "ru" else "Escribe") in draft.next_small_action
+
+
 def test_extract_json_payload_accepts_fenced_and_embedded_objects() -> None:
     """Structured JSON extraction should support fenced and embedded payloads."""
 
@@ -262,11 +349,11 @@ def test_normalize_structured_string_and_list_fail_closed() -> None:
     assert _normalize_string_list([" one ", "", 3, "two"]) == ["one", "two"]
 
 
-def test_normalize_distortion_labels_defaults_when_unknown() -> None:
-    """Unknown distortion labels must fall back to the stable default."""
+def test_normalize_distortion_labels_stays_neutral_when_unknown() -> None:
+    """Unknown distortion labels must not invent a canonical classification."""
 
     assert _normalize_distortion_labels(["mental filtering"]) == ["mental_filtering"]
-    assert _normalize_distortion_labels(["unknown"]) == ["emotional_reasoning"]
+    assert _normalize_distortion_labels(["unknown"]) == []
 
 
 def test_normalize_distortion_labels_ignores_non_string_values() -> None:
@@ -294,12 +381,10 @@ def test_infer_distortion_labels_covers_core_branches(
     assert expected_label in _infer_distortion_labels(automatic_thought)
 
 
-def test_infer_distortion_labels_defaults_when_no_pattern_matches() -> None:
-    """Inference should fall back to the canonical default when no heuristic matches."""
+def test_infer_distortion_labels_stays_neutral_when_no_pattern_matches() -> None:
+    """Inference should keep uncertainty explicit when no bounded marker matches."""
 
-    assert _infer_distortion_labels("A plain observation with no strong cognitive marker.") == [
-        "emotional_reasoning"
-    ]
+    assert _infer_distortion_labels("A plain observation with no strong cognitive marker.") == []
 
 
 @pytest.mark.parametrize(
@@ -308,7 +393,7 @@ def test_infer_distortion_labels_defaults_when_no_pattern_matches() -> None:
         (["catastrophizing"], "I ruined everything", "worst-case"),
         (["should_statements"], "I should do better", "rigid rules"),
         (["mental_filtering"], "I only see the bad parts", "negative part"),
-        ([], "I feel awful", "feelings are not the whole evidence"),
+        ([], "I feel awful", "does not establish a thought pattern"),
         ([], "Just one interpretation", "only one interpretation"),
     ],
 )

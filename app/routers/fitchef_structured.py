@@ -390,6 +390,10 @@ async def fitchef_distortion_simulator(
         raise HTTPException(status_code=503, detail="FEATURE_FITCHEF_STRUCTURED_COACH is disabled")
 
     execution_mode = _require_fitchef_structured_mode()
+    if has_high_distress_boundary(
+        payload.situation, payload.automatic_thought, payload.emotion, payload.goal
+    ):
+        raise HTTPException(status_code=400, detail=FITCHEF_HIGH_DISTRESS_BOUNDARY_DETAIL)
     task = FitChefDistortionSimulatorTaskEnvelope(
         mode=execution_mode,
         input=FitChefDistortionSimulatorInput(
@@ -401,6 +405,7 @@ async def fitchef_distortion_simulator(
                 if payload.goal is not None and payload.goal.strip()
                 else None
             ),
+            lang=payload.lang,
             api_key=pro_key,
             endpoint=str(request.url.path),
             method=request.method,

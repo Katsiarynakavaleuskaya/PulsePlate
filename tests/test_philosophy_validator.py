@@ -158,3 +158,31 @@ def test_validate_llm_output_blocks_fitchef_anti_harm_lexicon(
 
     assert report.ok is False
     assert any(blocker.code == expected_code for blocker in report.blockers)
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Пропусти следующий приём пищи.",
+        "Пропусти следующий прием пищи.",
+        "Sáltate la próxima comida.",
+        "Saltate la proxima comida.",
+    ],
+)
+def test_compensation_language_blocks_specific_ru_es_imperatives(text: str) -> None:
+    report = validate_llm_output(text, domain="fitchef_mascot")
+    assert any(finding.code == "FITCHEF_COMPENSATION_LANGUAGE" for finding in report.blockers)
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Не пропусти следующий приём пищи.",
+        "No te saltes la próxima comida.",
+        "Я хочу жить.",
+        "Quiero vivir.",
+    ],
+)
+def test_compensation_language_leaves_safe_near_misses_unblocked(text: str) -> None:
+    report = validate_llm_output(text, domain="fitchef_mascot")
+    assert not any(finding.code == "FITCHEF_COMPENSATION_LANGUAGE" for finding in report.blockers)
