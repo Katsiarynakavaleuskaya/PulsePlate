@@ -1162,10 +1162,11 @@ An operator-approved coherent flow may stay in one PR under these existing
 exceptions; classification alone grants no exception or merge authority.
 Only the raw, exact Git paths `frontend/src/api/openapi.json` and
 `frontend/src/api/schema.ts` are generated OpenAPI contract exceptions to
-product-client category and client-mix classification; they still count toward
-file caps and the advisory changed-line count, and remain subject to OpenAPI
-sync. Normalized aliases, neighboring paths, and other Web/iOS files retain
-the ordinary client policy.
+product-client category and client-mix classification, and only when the
+explicit PR head tree records the path as a `100644 blob`. They still count
+toward file caps and the advisory changed-line count, and remain subject to
+OpenAPI sync. Symlinks, normalized aliases, neighboring paths, and other
+Web/iOS files retain the ordinary client policy.
 
 4. **Warnings (non-blocking):**
 
