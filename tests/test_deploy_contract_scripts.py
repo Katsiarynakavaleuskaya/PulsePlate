@@ -4499,6 +4499,23 @@ PY_COMPOSE_MODEL
       exit "${{STUB_POSTGRES_MOUNTPOINT_STATUS}}"
     fi
     ;;
+  inspect\\ --format\\ *worker_v1*)
+    printf 'worker-gate-inspect\\n' >> "$STUB_DEPLOY_LOG_FILE"
+    if [ -n "${{STUB_WORKER_INSPECT_DRIFT_FILE:-}}" ]; then
+      drift_count=0
+      if [ -f "$STUB_WORKER_INSPECT_DRIFT_FILE" ]; then
+        drift_count="$(cat "$STUB_WORKER_INSPECT_DRIFT_FILE")"
+      fi
+      drift_count=$((drift_count + 1))
+      printf '%s' "$drift_count" > "$STUB_WORKER_INSPECT_DRIFT_FILE"
+      if [ "$drift_count" -ge 3 ]; then
+        cat "$STUB_WORKER_INSPECT_AFTER_FILE"
+        exit 0
+      fi
+    fi
+    cat "$STUB_WORKER_INSPECT_FILE"
+    exit 0
+    ;;
   inspect\\ --format\\ *State.Running*)
     printf '%s\\n' "${{STUB_CONTAINER_RUNNING:-true}}"
     exit 0
@@ -4618,6 +4635,23 @@ PY_COMPOSE_MODEL
   image\\ inspect\\ {POSTGRES_PLATFORM_MANIFEST_DIGEST})
     printf '%s\\n' 'unexpected bare-ID image inspect' >&2
     exit 92 ;;
+  image\\ inspect\\ ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:*)
+    if [ "${{STUB_BACKEND_IMAGE_INSPECT_HANG:-0}}" = "1" ]; then
+      printf '%s' "$$" > "$STUB_HUNG_PID_FILE"
+      exec /bin/sleep 60
+    fi
+    if [ "${{STUB_BACKEND_IMAGE_PIPE_CHILD:-0}}" = "1" ]; then
+      /bin/sleep 60 &
+      printf '%s' "$!" > "$STUB_HUNG_PID_FILE"
+      exit 0
+    fi
+    if [ -n "${{STUB_BACKEND_IMAGE_INSPECT_FILE:-}}" ]; then
+      cat "$STUB_BACKEND_IMAGE_INSPECT_FILE"
+      exit 0
+    else
+      exit 94
+    fi
+    ;;
   image\\ inspect\\ *)
     if [ \"${{STUB_IMAGE_INSPECT_STATUS:-0}}\" -ne 0 ]; then
       exit \"${{STUB_IMAGE_INSPECT_STATUS}}\"
@@ -10038,6 +10072,63 @@ chmod 0600 "$receipt"
 printf 'Backup created: %s\\n' "$receipt"
 """,
     )
+    backend_ref = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "a" * 64
+    backend_image_id = "sha256:" + "c" * 64
+    worker_hash = "e" * 64
+    app_id = "b" * 64
+    worker_id = "d" * 64
+    backend_image_inspect = tmp_path / "backend-image-inspect.json"
+    backend_image_inspect.write_text(
+        json.dumps(
+            [
+                {
+                    "Id": backend_image_id,
+                    "Os": "linux",
+                    "Architecture": "amd64",
+                    "RepoDigests": [backend_ref],
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+    worker_inspect = tmp_path / "worker-gate-inspect.jsonl"
+    records = []
+    for service, container_id in (("app", app_id), ("worker", worker_id)):
+        records.append(
+            {
+                "gate": "worker_v1",
+                "id": container_id,
+                "image": backend_image_id,
+                "config": {
+                    "image": backend_ref,
+                    "healthcheck": {"Test": ["NONE"]} if service == "worker" else None,
+                },
+                "labels": {
+                    "com.docker.compose.project": "pulseplate-staging",
+                    "com.docker.compose.service": service,
+                    "com.docker.compose.oneoff": "False",
+                    "com.docker.compose.config-hash": (
+                        worker_hash if service == "worker" else "f" * 64
+                    ),
+                },
+                "restart_count": 0,
+                "state": {
+                    "running": True,
+                    "status": "running",
+                    "exit_code": 0,
+                    "oom": False,
+                    "dead": False,
+                    "restarting": False,
+                    "paused": False,
+                    "pid": 42,
+                    "started_at": "2026-09-28T17:00:00Z",
+                    "health": None,
+                },
+            }
+        )
+    worker_inspect.write_text(
+        "\n".join(json.dumps(record) for record in records) + "\n", encoding="utf-8"
+    )
     _write_executable(
         bin_dir / "docker",
         f"""#!/usr/bin/env bash
@@ -10064,6 +10155,27 @@ case "$*" in
     ;;
   *"login ghcr.io"*"--password-stdin"*) cat >/dev/null ;;
   *"info --format"*"Architecture"*) printf 'amd64\n' ;;
+  *"config --hash worker"*)
+    if [ "${{STUB_WORKER_HASH_HANG:-0}}" = "1" ]; then
+      printf '%s' "$$" > "$STUB_HUNG_PID_FILE"
+      exec /bin/sleep 60
+    fi
+    if [ "${{STUB_WORKER_HASH_PIPE_CHILD:-0}}" = "1" ]; then
+      /bin/sleep 60 &
+      printf '%s' "$!" > "$STUB_HUNG_PID_FILE"
+      exit 0
+    fi
+    printf 'worker %s\n' "$STUB_WORKER_HASH"
+    ;;
+  *"ps --all --quiet --no-trunc"*"service=app"*) printf '%s\n' "$STUB_APP_FULL_ID" ;;
+  *"ps --all --quiet --no-trunc"*"service=worker"*)
+    if [ "${{STUB_WORKER_WITH_ONEOFF:-0}}" = "1" ] && \
+       [[ "$*" != *"label=com.docker.compose.oneoff=False"* ]]; then
+      printf '%s\n%s\n' "$STUB_WORKER_FULL_ID" "${{STUB_ONEOFF_FULL_ID}}"
+    else
+      printf '%s\n' "$STUB_WORKER_FULL_ID"
+    fi
+    ;;
   *"inspect --format"*"State.Running"*) printf 'true\n' ;;
   *"ps -q postgres"*)
     if [[ "${{STUB_POSTGRES_CONTAINER_ABSENT:-0}}" != "1" ]] || \
@@ -10090,6 +10202,21 @@ case "$*" in
     fi
     ;;
 esac
+""",
+    )
+    _write_executable(
+        bin_dir / "timeout",
+        f"""#!/usr/bin/env bash
+set -euo pipefail
+printf 'timeout %s\n' "$*" >> "{log_file}"
+if [ "$1" != "--signal=TERM" ] || [ "$2" != "--kill-after=2s" ] || [ "$3" != "25s" ]; then
+  exit 99
+fi
+if [ "${{STUB_WORKER_UP_TIMEOUT:-0}}" = "1" ]; then
+  exit 124
+fi
+shift 3
+"$@"
 """,
     )
     _write_executable(
@@ -10140,6 +10267,11 @@ esac
                 tmp_path / "postgres-image-inspect-count"
             ),
             "STUB_DEPLOY_LOG_FILE": str(log_file),
+            "STUB_BACKEND_IMAGE_INSPECT_FILE": str(backend_image_inspect),
+            "STUB_WORKER_INSPECT_FILE": str(worker_inspect),
+            "STUB_WORKER_HASH": worker_hash,
+            "STUB_APP_FULL_ID": app_id,
+            "STUB_WORKER_FULL_ID": worker_id,
         }
     )
     return env, log_file
@@ -10370,17 +10502,27 @@ def test_staging_deploy_preserves_backup_migration_caddy_order_and_cli_identity(
     worker_starts = [
         index
         for index, line in enumerate(log_lines)
-        if " up -d " in line and line.endswith(" worker")
+        if line.startswith("docker ") and " up -d " in line and line.endswith(" worker")
     ]
     if scheduler_mode == "external":
-        assert worker_starts and all(index > app_index for index in worker_starts)
+        assert len(worker_starts) == 1
+        assert app_index < worker_starts[0] < caddy_index
+        assert " --wait" not in log_lines[worker_starts[0]]
+        worker_inspects = [
+            index for index, line in enumerate(log_lines) if line == "worker-gate-inspect"
+        ]
+        assert len(worker_inspects) == 3
+        assert worker_starts[0] < worker_inspects[0] < worker_inspects[1] < caddy_index
+        assert caddy_index < worker_inspects[2]
     else:
         assert not worker_starts
+        assert "worker-gate-inspect" not in log_lines
         assert any(line.endswith(" rm -f worker") for line in log_lines)
     assert all(
         line.endswith("--profile * config --format json")
         or line.endswith("--profile alerting config --format json")
         or line.endswith("--profile alerting pull alertmanager")
+        or line.endswith("--profile * config --hash worker")
         for line in log_lines
         if "--profile" in line
     )
@@ -10395,6 +10537,241 @@ def test_staging_deploy_preserves_backup_migration_caddy_order_and_cli_identity(
     docker_config = env_lines[-1].split(" config=", 1)[1]
     assert docker_config
     assert not Path(docker_config).exists()
+
+
+def _run_staging_worker_gate_fixture(env: dict[str, str]) -> subprocess.CompletedProcess[str]:
+    backend_ref = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "a" * 64
+    caddy_ref = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "b" * 64
+    return subprocess.run(
+        [str(REPO_ROOT / "scripts/deploy.sh"), backend_ref, caddy_ref],
+        cwd=str(REPO_ROOT),
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+
+@pytest.mark.parametrize(
+    "failure",
+    (
+        "app_absent",
+        "app_duplicate",
+        "app_image_id",
+        "app_stopped",
+        "absent",
+        "duplicate",
+        "oneoff",
+        "image_id",
+        "config_image",
+        "config_hash",
+        "stopped",
+        "exit_code",
+        "oom",
+        "restarting",
+        "healthcheck",
+        "malformed",
+        "oversize",
+        "timeout",
+    ),
+)
+def test_staging_worker_gate_holds_before_caddy_on_untrusted_runtime(
+    tmp_path: Path, failure: str
+) -> None:
+    env, log_file = _staging_deploy_fixture(tmp_path)
+    env["FOOD_UPDATE_SCHEDULER_MODE"] = "external"
+    inspect_file = Path(env["STUB_WORKER_INSPECT_FILE"])
+    records = [json.loads(line) for line in inspect_file.read_text(encoding="utf-8").splitlines()]
+    worker = records[1]
+    app = records[0]
+    if failure == "app_absent":
+        env["STUB_APP_FULL_ID"] = ""
+    elif failure == "app_duplicate":
+        env["STUB_APP_FULL_ID"] += "\n" + "e" * 64
+    elif failure == "app_image_id":
+        app["image"] = "sha256:" + "9" * 64
+    elif failure == "app_stopped":
+        app["state"].update(running=False, status="exited", pid=0)
+    elif failure == "absent":
+        env["STUB_WORKER_FULL_ID"] = ""
+    elif failure == "duplicate":
+        env["STUB_WORKER_FULL_ID"] += "\n" + "e" * 64
+    elif failure == "oneoff":
+        worker["labels"]["com.docker.compose.oneoff"] = "True"
+    elif failure == "image_id":
+        worker["image"] = "sha256:" + "9" * 64
+    elif failure == "config_image":
+        worker["config"]["image"] = "ghcr.io/other/image@sha256:" + "a" * 64
+    elif failure == "config_hash":
+        worker["labels"]["com.docker.compose.config-hash"] = "9" * 64
+    elif failure == "stopped":
+        worker["state"].update(running=False, status="exited", pid=0)
+    elif failure == "exit_code":
+        worker["state"]["exit_code"] = 1
+    elif failure == "oom":
+        worker["state"]["oom"] = True
+    elif failure == "restarting":
+        worker["state"]["restarting"] = True
+    elif failure == "healthcheck":
+        worker["config"]["healthcheck"] = {"Test": ["CMD", "true"]}
+    elif failure == "malformed":
+        inspect_file.write_text('{"gate":"worker_v1", "gate":"duplicate"}\n', encoding="utf-8")
+    elif failure == "oversize":
+        inspect_file.write_text("X" * 8193, encoding="utf-8")
+    elif failure == "timeout":
+        env["STUB_WORKER_UP_TIMEOUT"] = "1"
+    if failure not in {"malformed", "oversize"}:
+        inspect_file.write_text(
+            "\n".join(json.dumps(record) for record in records) + "\n", encoding="utf-8"
+        )
+
+    completed = _run_staging_worker_gate_fixture(env)
+
+    assert completed.returncode != 0
+    assert "HOLD before Caddy" in completed.stderr
+    log_lines = log_file.read_text(encoding="utf-8").splitlines()
+    assert not any(" up -d --pull never caddy" in line for line in log_lines)
+    assert not any(" up -d --pull never prometheus" in line for line in log_lines)
+
+
+@pytest.mark.parametrize("drift_service", ("app", "worker"))
+def test_staging_worker_gate_rechecks_same_generation_after_https(
+    tmp_path: Path, drift_service: str
+) -> None:
+    env, log_file = _staging_deploy_fixture(tmp_path)
+    env["FOOD_UPDATE_SCHEDULER_MODE"] = "external"
+    inspect_file = Path(env["STUB_WORKER_INSPECT_FILE"])
+    records = [json.loads(line) for line in inspect_file.read_text(encoding="utf-8").splitlines()]
+    records[0 if drift_service == "app" else 1]["restart_count"] = 1
+    after_file = tmp_path / "worker-inspect-after.jsonl"
+    after_file.write_text(
+        "\n".join(json.dumps(record) for record in records) + "\n", encoding="utf-8"
+    )
+    env["STUB_WORKER_INSPECT_DRIFT_FILE"] = str(tmp_path / "worker-inspect-count")
+    env["STUB_WORKER_INSPECT_AFTER_FILE"] = str(after_file)
+
+    completed = _run_staging_worker_gate_fixture(env)
+
+    assert completed.returncode != 0
+    assert "generation changed after HTTPS" in completed.stderr
+    log_lines = log_file.read_text(encoding="utf-8").splitlines()
+    assert (
+        sum(
+            line.startswith("docker ") and " up -d --pull never --no-deps worker" in line
+            for line in log_lines
+        )
+        == 1
+    )
+    assert any(" up -d --pull never caddy" in line for line in log_lines)
+    assert not any(" up -d --pull never prometheus" in line for line in log_lines)
+
+
+def test_staging_worker_gate_excludes_oneoff_from_exact_census(tmp_path: Path) -> None:
+    env, log_file = _staging_deploy_fixture(tmp_path)
+    env["FOOD_UPDATE_SCHEDULER_MODE"] = "external"
+    env["STUB_WORKER_WITH_ONEOFF"] = "1"
+    env["STUB_ONEOFF_FULL_ID"] = "e" * 64
+
+    completed = _run_staging_worker_gate_fixture(env)
+
+    assert completed.returncode == 0, completed.stderr
+    log_lines = log_file.read_text(encoding="utf-8").splitlines()
+    assert any(
+        line.startswith("docker ps --all --quiet --no-trunc")
+        and "label=com.docker.compose.service=worker" in line
+        and "label=com.docker.compose.oneoff=False" in line
+        for line in log_lines
+    )
+
+
+@pytest.mark.parametrize(
+    ("hung_command", "stub_flag"),
+    (
+        ("image_inspect", "STUB_BACKEND_IMAGE_INSPECT_HANG"),
+        ("worker_hash", "STUB_WORKER_HASH_HANG"),
+        ("image_pipe_child", "STUB_BACKEND_IMAGE_PIPE_CHILD"),
+        ("hash_pipe_child", "STUB_WORKER_HASH_PIPE_CHILD"),
+    ),
+)
+def test_staging_worker_native_hang_is_bounded_and_holds_before_caddy(
+    tmp_path: Path, hung_command: str, stub_flag: str
+) -> None:
+    import signal
+    import time
+
+    env, log_file = _staging_deploy_fixture(tmp_path)
+    env["FOOD_UPDATE_SCHEDULER_MODE"] = "external"
+    env[stub_flag] = "1"
+    hung_pid_file = tmp_path / "hung-native-pid"
+    env["STUB_HUNG_PID_FILE"] = str(hung_pid_file)
+
+    completed = subprocess.run(
+        [
+            str(REPO_ROOT / "scripts/deploy.sh"),
+            "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "a" * 64,
+            "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "b" * 64,
+        ],
+        cwd=str(REPO_ROOT),
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+        timeout=15,
+    )
+
+    assert completed.returncode != 0
+    assert "HOLD" in completed.stderr
+    log_lines = log_file.read_text(encoding="utf-8").splitlines()
+    assert not any(" up -d --pull never caddy" in line for line in log_lines)
+    hung_pid = int(hung_pid_file.read_text(encoding="ascii"))
+    ps_bin = shutil.which("ps")
+    assert ps_bin is not None
+    active = True
+    for _ in range(20):
+        state = subprocess.run(
+            [ps_bin, "-o", "stat=", "-p", str(hung_pid)],
+            text=True,
+            capture_output=True,
+            check=False,
+            timeout=2,
+        ).stdout.strip()
+        active = bool(state) and not state.startswith("Z")
+        if not active:
+            break
+        time.sleep(0.05)
+    if active:
+        os.kill(hung_pid, signal.SIGKILL)
+    assert not active, f"{hung_command} left its owned native child active"
+
+
+@pytest.mark.parametrize("failure", ("digest", "id", "platform", "duplicate", "oversize"))
+def test_staging_worker_backend_image_identity_fails_before_product_mutation(
+    tmp_path: Path, failure: str
+) -> None:
+    env, log_file = _staging_deploy_fixture(tmp_path)
+    env["FOOD_UPDATE_SCHEDULER_MODE"] = "external"
+    image_file = Path(env["STUB_BACKEND_IMAGE_INSPECT_FILE"])
+    record = json.loads(image_file.read_text(encoding="utf-8"))[0]
+    if failure == "digest":
+        record["RepoDigests"] = ["ghcr.io/other/image@sha256:" + "a" * 64]
+    elif failure == "id":
+        record["Id"] = "not-an-image-id"
+    elif failure == "platform":
+        record["Architecture"] = "arm64"
+    elif failure == "duplicate":
+        image_file.write_text('[{"Id":"first","Id":"second"}]', encoding="utf-8")
+    elif failure == "oversize":
+        image_file.write_text("X" * 65537, encoding="utf-8")
+    if failure not in {"duplicate", "oversize"}:
+        image_file.write_text(json.dumps([record]), encoding="utf-8")
+
+    completed = _run_staging_worker_gate_fixture(env)
+
+    assert completed.returncode != 0
+    assert "Pulled backend image identity is untrusted" in completed.stderr
+    log_lines = log_file.read_text(encoding="utf-8").splitlines()
+    assert not any(" stop worker caddy app" in line for line in log_lines)
+    assert not any(" up -d --pull never app" in line for line in log_lines)
 
 
 def test_staging_backup_failure_preserves_primary_exit_and_never_switches_postgres(

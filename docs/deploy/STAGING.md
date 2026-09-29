@@ -275,6 +275,20 @@ actual TLS session through the application before exposure. Respect existing
 staging enablement and public-release locks; this work does not authorize a
 production rollout or public release.
 
+In external scheduler mode, the staging worker has `healthcheck: disable: true`.
+Do not use `docker compose up --wait` as its acceptance gate: Compose may reject
+a running container without a health state. The deploy starts the worker once
+with `--pull never --no-deps`, then checks the exact local backend image ID,
+unique staging app/worker labels, expected worker config hash, disabled health
+configuration, typed `Running=true`, `Status=running`, `ExitCode=0`, no OOM, and
+a stable container generation before starting Caddy. After HTTPS `/ready`, it
+rechecks that same generation without another worker `up`. Failure holds the
+deploy; a timeout or post-Caddy failure can leave a partial running state, so
+inspect before any separately authorized recovery. These checks prove container
+state and identity, not that the scheduled job completed a cycle. The native
+Docker probe and deterministic test cover this disabled-health configuration;
+they do not authorize a staging deploy.
+
 Install `deploy/systemd/pulseplate-staging-postgres-backup.service.example`
 as `pulseplate-postgres-backup.service` plus the existing daily timer. The
 generic `pulseplate-postgres-backup.service.example` is for self-hosted
