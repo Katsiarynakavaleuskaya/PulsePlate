@@ -1160,6 +1160,12 @@ mixing. Privileged paths retain classification priority: a client PR that repair
 its CI guard must meet the privileged size and client-mix approval requirements.
 An operator-approved coherent flow may stay in one PR under these existing
 exceptions; classification alone grants no exception or merge authority.
+Only the raw, exact Git paths `frontend/src/api/openapi.json` and
+`frontend/src/api/schema.ts` are generated OpenAPI contract exceptions to
+product-client category and client-mix classification; they still count toward
+file caps and the advisory changed-line count, and remain subject to OpenAPI
+sync. Normalized aliases, neighboring paths, and other Web/iOS files retain
+the ordinary client policy.
 
 4. **Warnings (non-blocking):**
 
