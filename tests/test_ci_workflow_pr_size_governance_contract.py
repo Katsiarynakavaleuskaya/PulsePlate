@@ -18,6 +18,10 @@ import yaml
 from yaml.nodes import MappingNode, Node, ScalarNode, SequenceNode
 
 from scripts.ci import ci_risk_profile
+from scripts.orchestration.creative_code_patch_workspace import (
+    git_env_without_parent_state,
+    safe_git_config_args,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 ACTIONLINT_WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "actionlint.yml"
@@ -2365,7 +2369,7 @@ def test_node24_artifact_and_script_action_pins_use_verified_commit_shas() -> No
     """Guard remaining Node 20 action migrations against tag-object drift."""
 
     download_workflows = {
-        CI_WORKFLOW_PATH: 7,
+        CI_WORKFLOW_PATH: 8,
         CODECOV_UPLOAD_WORKFLOW_PATH: 1,
         IOS_APPSTORE_ASSETS_WORKFLOW_PATH: 1,
         NIGHTLY_WORKFLOW_PATH: 1,
@@ -3642,6 +3646,16 @@ def test_node24_artifact_migration_preserves_download_contracts() -> None:
             {
                 "name": "coverage-ops-context-${{ env.PYTHON_VERSION }}",
                 "path": "./ops-context-coverage",
+            },
+            None,
+        ),
+        (
+            ".github/workflows/ci.yml",
+            "diff-coverage",
+            "Download FitChef eval coverage artifact",
+            {
+                "name": "coverage-fitchef-eval-${{ env.PYTHON_VERSION }}",
+                "path": "./fitchef-eval-coverage",
             },
             None,
         ),
@@ -5180,3 +5194,205 @@ def test_ops_context_workflow_rejects_missing_line_inventory(tmp_path: Path, cas
         [sys.executable, "-c", check], cwd=tmp_path, capture_output=True, timeout=5, check=False
     )
     assert (result.returncode == 0) is (case in {"valid", "zero_hit"})
+
+
+def test_fitchef_eval_coverage_is_separate_and_required_by_numeric_diff_gate() -> None:
+    workflow = _load_ci_workflow()
+    measure = _job_step_by_name(
+        workflow, job_id="test-pr", step_name="Measure FitChef eval CLI coverage"
+    )
+    run = str(measure["run"])
+    assert "--rcfile=/dev/null --branch" in run
+    assert (
+        "--include='scripts/evals/collect_fitchef_answers.py,scripts/evals/fitchef_claim_assurance_eval.py'"
+        in run
+    )
+    assert "--data-file=.coverage.fitchef-eval -m pytest -q -p no:xdist" in run
+    assert "tests/test_fitchef_claim_assurance_eval.py" in run
+    assert "--data-file=.coverage.fitchef-eval -o coverage-fitchef-eval.xml" in run
+    assert measure["env"]["BLOCK_TEST_NETWORK"] == "true"
+    assert "--append" not in run
+    assert "continue-on-error" not in measure and "if" not in measure
+    upload = _job_step_by_name(
+        workflow, job_id="test-pr", step_name="Upload FitChef eval coverage artifact"
+    )
+    assert upload["uses"] == f"actions/upload-artifact@{UPLOAD_ARTIFACT_NODE24_SHA}"
+    assert upload["with"] == {
+        "name": "coverage-fitchef-eval-${{ env.PYTHON_VERSION }}",
+        "path": "coverage-fitchef-eval.xml",
+        "if-no-files-found": "error",
+        "retention-days": 7,
+    }
+    download = _job_step_by_name(
+        workflow, job_id="diff-coverage", step_name="Download FitChef eval coverage artifact"
+    )
+    assert download["uses"] == f"actions/download-artifact@{DOWNLOAD_ARTIFACT_NODE24_SHA}"
+    assert download["with"] == {
+        "name": "coverage-fitchef-eval-${{ env.PYTHON_VERSION }}",
+        "path": "./fitchef-eval-coverage",
+    }
+    for step in (upload, download):
+        assert "continue-on-error" not in step and "if" not in step
+    gate = _job_step_by_name(
+        workflow, job_id="diff-coverage", step_name="Enforce diff coverage >= 97%"
+    )
+    assert gate["env"] == {"COVERAGE_THRESHOLD": 97}
+    assert "./fitchef-eval-coverage/coverage-fitchef-eval.xml" in gate["run"]
+    assert "--exclude 'scripts" not in gate["run"]
+    assert '--fail-under "${{ env.COVERAGE_THRESHOLD }}"' in gate["run"]
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        "valid",
+        "zero_hit",
+        "missing",
+        "malformed",
+        "empty",
+        "no_class",
+        "wrong",
+        "duplicate",
+        "extra",
+        "missing_evaluator",
+        "bad_line",
+        "negative_hits",
+        "duplicate_line",
+    ],
+)
+def test_fitchef_eval_workflow_executes_exact_file_and_line_inventory_checker(
+    tmp_path: Path,
+    case: str,
+) -> None:
+    import subprocess
+    import sys
+
+    measure = _job_step_by_name(
+        _load_ci_workflow(), job_id="test-pr", step_name="Measure FitChef eval CLI coverage"
+    )
+    marker = "python - <<'PY'\n"
+    run = str(measure["run"])
+    assert run.count(marker) == 1
+    checker = run.split(marker, 1)[1].rsplit("\nPY", 1)[0]
+    filename = "other.py" if case == "wrong" else "scripts/evals/collect_fitchef_answers.py"
+    hits = "0" if case == "zero_hit" else "-1" if case == "negative_hits" else "1"
+    number = "bad" if case == "bad_line" else "1"
+    lines = "" if case == "empty" else f'<line number="{number}" hits="{hits}"/>'
+    if case == "duplicate_line":
+        lines += lines
+    first = f'<class filename="{filename}"><lines>{lines}</lines></class>'
+    second = f'<class filename="scripts/evals/fitchef_claim_assurance_eval.py"><lines>{lines}</lines></class>'
+    raw = "<coverage><sources><source>.</source></sources><packages><package><classes>"
+    if case != "no_class":
+        raw += first
+        if case == "duplicate":
+            raw += first
+        if case == "extra":
+            raw += '<class filename="extra.py"><lines><line number="1" hits="1"/></lines></class>'
+        if case != "missing_evaluator":
+            raw += second
+    raw += "</classes></package></packages></coverage>"
+    if case == "malformed":
+        raw = "<coverage"
+    if case != "missing":
+        (tmp_path / "coverage-fitchef-eval.xml").write_text(raw, encoding="utf-8")
+    result = subprocess.run(
+        [sys.executable, "-c", checker], cwd=tmp_path, capture_output=True, timeout=5, check=False
+    )
+    assert (result.returncode == 0) is (case in {"valid", "zero_hit"})
+    if case == "zero_hit":
+        _assert_zero_hit_diff_consumer_rejects(tmp_path)
+
+
+def _assert_zero_hit_diff_consumer_rejects(tmp_path: Path) -> None:
+    import shutil
+    import subprocess
+    import sys
+
+    git = shutil.which("git")
+    assert git is not None
+    subprocess.run(
+        [git, *safe_git_config_args(), "init", "-q"],
+        cwd=tmp_path,
+        env=git_env_without_parent_state(),
+        check=True,
+        timeout=5,
+    )
+    source = tmp_path / "scripts/evals/collect_fitchef_answers.py"
+    source.parent.mkdir(parents=True)
+    source.write_text("after = 1\n", encoding="utf-8")
+    patch = tmp_path / "changed.patch"
+    patch.write_text(
+        "diff --git a/scripts/evals/collect_fitchef_answers.py b/scripts/evals/collect_fitchef_answers.py\n"
+        "--- a/scripts/evals/collect_fitchef_answers.py\n+++ b/scripts/evals/collect_fitchef_answers.py\n"
+        "@@ -1 +1 @@\n-before = 0\n+after = 1\n",
+        encoding="utf-8",
+    )
+    consumed = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "diff_cover.diff_cover_tool",
+            "coverage-fitchef-eval.xml",
+            "--diff-file",
+            str(patch),
+            "--fail-under",
+            "97",
+        ],
+        cwd=tmp_path,
+        env=git_env_without_parent_state(),
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
+    )
+    assert consumed.returncode != 0
+    assert "Coverage: 0%" in consumed.stdout + consumed.stderr
+
+
+def test_fitchef_zero_hit_git_fixture_preserves_an_inherited_synthetic_parent(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import shutil
+    import subprocess
+
+    git = shutil.which("git")
+    assert git is not None
+    parent = tmp_path / "synthetic-parent"
+    parent.mkdir()
+    clean = git_env_without_parent_state()
+    subprocess.run(
+        [git, *safe_git_config_args(), "init", "-q"], cwd=parent, env=clean, check=True, timeout=5
+    )
+    tracked = parent / "tracked.txt"
+    tracked.write_text("synthetic unchanged parent\n", encoding="utf-8")
+    subprocess.run(
+        [git, *safe_git_config_args(), "add", "--", tracked.name],
+        cwd=parent,
+        env=clean,
+        check=True,
+        timeout=5,
+    )
+    metadata = parent / ".git"
+    before = {name: (metadata / name).read_bytes() for name in ("config", "HEAD", "index")}
+    inherited = {
+        "GIT_DIR": str(metadata),
+        "GIT_WORK_TREE": str(parent),
+        "GIT_INDEX_FILE": str(metadata / "index"),
+        "GIT_COMMON_DIR": str(metadata),
+    }
+    for name, value in inherited.items():
+        monkeypatch.setenv(name, value)
+    child = tmp_path / "synthetic-child"
+    child.mkdir()
+    xml = "<coverage><sources><source>.</source></sources><packages><package><classes>"
+    for filename in (
+        "scripts/evals/collect_fitchef_answers.py",
+        "scripts/evals/fitchef_claim_assurance_eval.py",
+    ):
+        xml += f'<class filename="{filename}"><lines><line number="1" hits="0"/></lines></class>'
+    xml += "</classes></package></packages></coverage>"
+    (child / "coverage-fitchef-eval.xml").write_text(xml, encoding="utf-8")
+    _assert_zero_hit_diff_consumer_rejects(child)
+    assert {name: (metadata / name).read_bytes() for name in before} == before

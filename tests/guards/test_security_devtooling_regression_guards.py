@@ -868,6 +868,70 @@ def test_evidence_relation_audit_stays_offline_and_uses_private_no_replace_write
     assert ".write_text(" not in writer
 
 
+def test_fitchef_claim_eval_reuses_bounded_reader_and_private_no_replace_writer() -> None:
+    """NOOS-1B outputs must stay on the audited private publication path."""
+
+    evaluator_path = REPO_ROOT / "scripts/evals/fitchef_claim_assurance_eval.py"
+    collector_path = REPO_ROOT / "scripts/evals/collect_fitchef_answers.py"
+    evaluator_source = evaluator_path.read_text(encoding="utf-8")
+    collector_source = collector_path.read_text(encoding="utf-8")
+    evaluator_tree = ast.parse(evaluator_source)
+    imports = {
+        node.module.split(".")[0]
+        for node in ast.walk(evaluator_tree)
+        if isinstance(node, ast.ImportFrom) and node.module
+    }
+    imports.update(
+        alias.name.split(".")[0]
+        for node in ast.walk(evaluator_tree)
+        if isinstance(node, ast.Import)
+        for alias in node.names
+    )
+    assert not imports.intersection(
+        {"socket", "subprocess", "requests", "httpx", "urllib", "providers"}
+    )
+    app_imports = [
+        node
+        for node in ast.walk(evaluator_tree)
+        if isinstance(node, ast.ImportFrom) and node.module and node.module.split(".")[0] == "app"
+    ]
+    assert len(app_imports) == 1
+    assert app_imports[0].module == "app.services.fitchef_claim_evidence_assurance"
+    assert {alias.name for alias in app_imports[0].names} == {
+        "FitChefSourceOccurrenceV1",
+        "build_fitchef_source_items",
+        "freeze_fitchef_source_snapshot",
+    }
+    assert all(
+        alias.name.split(".")[0] != "app"
+        for node in ast.walk(evaluator_tree)
+        if isinstance(node, ast.Import)
+        for alias in node.names
+    )
+    for source in (evaluator_source, collector_source):
+        assert "from scripts.evals.evidence_relation_audit import" in source
+        assert "read_jsonl" in source
+        assert "write_report(" in source
+        assert ".write_text(" not in source
+        assert "os.replace(" not in source
+        assert "os.rename(" not in source
+    collector_tree = ast.parse(collector_source)
+    reserve_nodes = [
+        node
+        for node in ast.walk(collector_tree)
+        if isinstance(node, ast.AsyncFunctionDef) and node.name == "reserve"
+    ]
+    assert len(reserve_nodes) == 1
+    reserve = ast.get_source_segment(collector_source, reserve_nodes[0])
+    assert reserve is not None
+    assert "write_report(" in reserve
+    assert "physical_attempt_limit" in reserve
+    private_parent = _function_source(collector_path, "_private_parent")
+    assert "_parent_fd(path)" in private_parent
+    assert "follow_symlinks=False" in private_parent
+    assert "os.fstat(parent)" in private_parent
+
+
 def _thaw_invariant_episode_policy(value: object) -> object:
     if isinstance(value, Mapping):
         return {key: _thaw_invariant_episode_policy(item) for key, item in value.items()}
