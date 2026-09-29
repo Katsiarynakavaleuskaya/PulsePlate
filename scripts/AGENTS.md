@@ -10,6 +10,7 @@
 - Treat scripts as production automation: avoid breaking flags or outputs.
 - Prefer small, focused edits; update any dependent docs or Make targets if needed.
 - Avoid adding network calls to scripts used in CI unless explicitly required.
+
 - Before mocking a pinned external CLI or workflow adapter, verify its real
   flags, serialization fields and permitted Actions contexts through native
   help, pinned primary source and actionlint. A fixture accepting an invented
@@ -674,6 +675,11 @@ Eval artifact sidecars with predictable filenames must use symlink-safe,
 fail-closed writers. Eval JSONL validators must reject malformed fields with
 `ValueError`, must not coerce raw values into accepted schema fields, and must
 defensively copy validated mutable containers.
+
+## NOOS-1B FitChef answer evaluation
+
+- `scripts/evals/collect_fitchef_answers.py` is opt-in and local only. At the actual `collect()` entry, revalidate/deep-copy the complete 24-case manifest, require all admitted languages in holdout and actual remaining synthetic monthly quota, suppress/restore SDK preflight logging, then require a committed clean checkout, a frozen private synthetic 24-case manifest, verified Sonar pricing/parameters, isolated synthetic PRO quota/SQLite/audit state, and the private Perplexity key. The owner-approved cap is 32 actual HTTP attempts with US$0.15 reserved before each send; retain reservations after timeout and preserve incomplete-run receipts. Do not rerun for a preferred answer.
+- `scripts/evals/fitchef_claim_assurance_eval.py` is offline. Require the same owner-private 32-byte replay key for packet-v2 preparation, validation and reporting; keep it out of candidate material, logs and Git. Preserve historical case-v1/rubric bytes and report missing captured fingerprints; new case-v2 must retain the actual observed canonical freeze fingerprint. Reuse only the pure `app.services.fitchef_claim_evidence_assurance` snapshot helpers for consistency, without copying their canonicalizer. Keep candidate packets blind, exact answer/source/rubric bindings strict, `abstain` separate from a support label, and report NOOS-1A structural output only as advisory. Private outputs must reuse the bounded no-follow JSONL reader and no-replace writer in `evidence_relation_audit.py`. See `docs/evals/FITCHEF_CLAIM_EVIDENCE_EVAL_V1.md` for the owning rubric.
 
 ## Security/dev-tooling regression guards
 
