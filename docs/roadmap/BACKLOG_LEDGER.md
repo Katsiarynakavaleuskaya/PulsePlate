@@ -856,14 +856,13 @@ If it is not recorded here — it does not exist.
     compatibility baseline.
 
 <a id="ledger-p1-noos-1a-evidence-relations"></a>
-- [ ] P1: NOOS-1A typed evidence relations and offline causal overclaim audit
+- [x] P1: NOOS-1A typed evidence relations and offline causal overclaim audit
   - Owner: backend-engineer / agent-coordinator
   - Priority: P1
   - Target PR: [#2417](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2417)
     on `codex/evidence-relation-causal-overclaim-audit-v1`
-  - Status: Implementation in progress. Structural acceptance and closeout
-    remain subject to current-head CI, review disposition and separate merge
-    authorization.
+  - Status: Merged in PR #2417 as `5a04fcda909aa5d0f02009acf293f649f5a6dc9f`;
+    the structural instrument remains advisory and is not answer-content truth.
   - Area: offline eval / evidence contracts
   - Reason (EN): Existing evidence assets and provenance do not distinguish
     claim-to-evidence links from asserted world relations or audit the
@@ -886,20 +885,95 @@ If it is not recorded here — it does not exist.
 - [ ] P1: NOOS-1B FitChef answer-content evaluation
   - Owner: product AI / evaluation owner
   - Priority: P1
-  - Target PR: `PR-TBD` (separately admitted after NOOS-1A)
-  - Status: Deferred; no automatic start or runtime activation.
+  - Target PR: [#2451](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2451) on `codex/noos-fitchef-claim-evidence-evaluation`
+    (one implementation PR after NOOS-1A #2417)
+  - Status: Active offline-eval review. The private controlled-source Sonar
+    run captured 24 final answers in 24 physical attempts; the independent
+    72-claim reference was accepted by the owner. A tool-isolated GPT-6-Sol
+    assessor produced 24 valid case annotations and a byte-reproducible
+    comparison; the earlier partial GPT-5.6-Sol pass remains separate evidence.
+    Current-head CI, review, and link-access evidence archive closeout remain pending; the replay key remains a separate owner-only secret object outside that folder.
   - Area: FitChef eval / product outcomes
   - Reason (EN): The NOOS-1A structural matrix cannot measure whether actual
     FitChef responses make supported claims or improve trust, retention,
     quality or cost. That needs separately reviewed item-level answer evidence.
-  - Links: `docs/evals/EVIDENCE_RELATION_CAUSAL_AUDIT_V1.md`,
+  - Links: `docs/evals/FITCHEF_CLAIM_EVIDENCE_EVAL_V1.md`,
+    `docs/evals/EVIDENCE_RELATION_CAUSAL_AUDIT_V1.md`,
     `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-noos-1a-evidence-relations`
-  - DoD: Freeze a separately approved answer-level corpus and independent
-    expected judgments; measure false acceptance/rejection and user-relevant
-    quality on actual FitChef outputs; preserve wellness-only and runtime
-    authority boundaries; gate any product change through its own PR.
+  - DoD: Freeze 24 distinct synthetic answer-level scenarios, 16 development
+    and 8 holdout with eight each in RU/EN/ES across six families; retain 12
+    separate manual controls, one acceptable and one unacceptable per family; collect
+    actual final Distortion Simulator outputs through bounded Sonar attempts
+    (at most 32 physical sends and US$4.80 reserved); obtain independent
+    owner-accepted reference before isolated blind candidate disclosure;
+    measure 4x4 claim-support agreement, false acceptance/rejection, omissions,
+    abstentions, language fit and user-relevant quality; preserve wellness-only
+    and runtime authority boundaries; gate any product change through its own PR.
   - Out of scope (EN): Automatic promotion from NOOS-1A reports, unreviewed
     provider calls and semantic-cache serving.
+
+<a id="ledger-p1-noos-1c-fitchef-response-quality-routing"></a>
+- [ ] P1: NOOS-1C FitChef response quality and cost-aware model routing
+  - Owner: product AI / backend-engineer / evaluation owner
+  - Priority: P1
+  - Target PR: `PR-TBD` after NOOS-1B #2451 and the separately governed
+    opt-in Agent API transport carrier
+  - Status: Reserved successor; no product model switch or generation fix is
+    authorized by the exploratory comparison or the NOOS-1B assessment.
+  - Area: FitChef product behavior / model evaluation
+  - Reason (EN): The first controlled-source comparison found an RU language
+    mismatch for Sonar and default Agent responses, a cheaper RU Agent response
+    with explicit language preference, and a more evidence-proportionate Sonar
+    causal statement in an ES case. Higher reasoning effort did not clearly
+    improve the one inspected RU case. These dependent examples do not establish
+    a universal winner or justify switching the current Sonar default. The
+    owner-private NOOS-1B report identifies language-fit, evidence-relevance,
+    context and causal-confidence regression surfaces without publishing
+    holdout content or reference judgments here. Its stratified synthetic set
+    is not a production rate.
+  - Links: `docs/evals/FITCHEF_CLAIM_EVIDENCE_EVAL_V1.md`,
+    `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-noos-1b-fitchef-answer-evaluation`,
+    `docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md`,
+    <https://docs.perplexity.ai/docs/agent-api/models>
+  - DoD: Compare frozen same-context FitChef outputs by RU/EN/ES and task type
+    with owner-reviewed claim support, naturalness, language fit, wellness
+    wording, latency, and actual token cost; define thresholds before changing
+    product behavior. Include concrete negative regressions for an RU or ES
+    request answered in English, a topical citation that does not support its
+    proposition, a claim whose source has a different population or time, and
+    a confident causal suggestion supported only by correlation or no admitted
+    evidence. Route only by an explicit backend task type and reviewed
+    locale, not inferred model prose. Keep nutrition/planner/tier truth in
+    canonical engines; make any model selection reversible, quota/cost bounded,
+    and deterministic-testable with safe fallback. Promote only a measured
+    improvement through its own product PR and current-head gates.
+  - Out of scope (EN): Treating Search API rank as human approval, automatic
+    web-source admission, implicit model escalation, and clinical claims.
+
+<a id="ledger-p2-noos-search-retrieval-candidate-study"></a>
+- [ ] P2: NOOS Search API retrieval-candidate study
+  - Owner: evidence/RAG owner / product AI
+  - Priority: P2
+  - Target PR: `PR-TBD` after the NOOS-1B evidence review and retrieval
+    provenance/admission contract are explicitly admitted
+  - Status: Deferred research and offline evaluation; no FitChef retrieval or
+    answer-serving change is authorized.
+  - Area: evidence retrieval / source provenance
+  - Reason (EN): Perplexity Search API returns ranked web results, not a
+    generated answer or human validation of claim support. A small Fast Search
+    probe returned topical external links, but their ranking does not establish
+    authority for a controlled FitChef case.
+  - Links: `docs/evals/FITCHEF_CLAIM_EVIDENCE_EVAL_V1.md`,
+    `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-noos-1c-fitchef-response-quality-routing`,
+    `docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md`,
+    <https://docs.perplexity.ai/docs/search/quickstart>
+  - DoD: Compare Search API retrieval candidates against the canonical RAG
+    source set on a finite, synthetic, multilingual query set; record source
+    lineage, dates, population/context fit, relevance and human-reviewed
+    admissibility separately from rank. Define replay-safe evidence admission
+    and negative controls before any product prompt or cache can use the
+    results. Keep Search API output outside answer, plan, entitlement and
+    scientific-truth authority until a later reviewed gate opens.
 
 <a id="ledger-p1-canonical-task-packet-identity-verifier"></a>
 - [ ] P1: Add one producer-owned canonical task-packet identity verifier
