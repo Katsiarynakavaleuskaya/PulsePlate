@@ -812,7 +812,7 @@ Manual patch copying remains possible but loses structured provenance. Autonomou
 Patch fingerprint: `{result["patch_summary"]["patch_fingerprint"]}`. Candidate evaluation is not merge-readiness evidence.
 
 ## Oracle Evidence
-Candidate oracle evidence is required before promotion. Validation records whether it executed the direct evaluator or consumed exact trusted Apple Container dispatch evidence. A separate oracle-only governance review of the actual PR diff remains required.
+Candidate oracle evidence is required before promotion. Validation consumes the exact accepted trusted Apple Container dispatch result and its matching PR-2 generation receipt. A separate oracle-only governance review of the actual PR diff remains required.
 
 ## Pre-Open Validation
 Validation artifact: `{validation_ref}`.

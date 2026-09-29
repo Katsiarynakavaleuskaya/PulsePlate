@@ -542,7 +542,7 @@ def _commands(candidate_id: str) -> dict[str, list[dict[str, Any]]]:
                     [
                         "run",
                         "--backend",
-                        "REVIEWED_BACKEND",
+                        "apple-container",
                         "--packet",
                         f"artifacts/orchestration/creative_code/patch_runs/{patch_run_id}/experiment_packet.json",
                         "--candidate-patch",

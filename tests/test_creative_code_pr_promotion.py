@@ -91,6 +91,27 @@ index 8f11111..8f22222 100644
 """
 
 
+def test_render_pr_body_requires_trusted_apple_evidence_and_separate_diff_review() -> None:
+    body = creative_code_pr_promotion._render_pr_body(
+        promotion_id="promotion-pr3-copy",
+        result={
+            "result_id": "result-pr3-copy",
+            "patch_summary": {"patch_fingerprint": "sha256:" + "a" * 64},
+        },
+        branch="experiment/pr3-copy",
+        changed_paths=["docs/prompts/cv/program.md"],
+        validation_fingerprint="sha256:" + "b" * 64,
+        approval_id="approval-pr3-copy",
+    )
+
+    oracle_section = body.split("## Oracle Evidence\n", 1)[1].split("\n## ", 1)[0]
+    assert "exact accepted trusted Apple Container dispatch result" in oracle_section
+    assert "matching PR-2 generation receipt" in oracle_section
+    assert "separate oracle-only governance review of the actual PR diff" in oracle_section
+    assert "direct evaluator" not in body
+    assert "Candidate evaluation is not merge-readiness evidence" in body
+
+
 def _request_for_base(base_sha: str) -> dict[str, Any]:
     return build_creative_code_patch_build_request(
         source_bundle=_reference_bundle(),
