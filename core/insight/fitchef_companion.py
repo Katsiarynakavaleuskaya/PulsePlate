@@ -877,37 +877,46 @@ def _infer_distortion_labels(automatic_thought: str) -> list[str]:
     return labels[:2]
 
 
+def _translate_distortion_text(lang: Language, key: str) -> str:
+    """Require a text translation across the isolated type-check boundary."""
+
+    value: object = t(lang, key)
+    if not isinstance(value, str):
+        raise TypeError("FitChef distortion translation must be text")
+    return value
+
+
 def _build_distortion_reason(
     *, labels: list[str], automatic_thought: str, lang: Language = "en"
 ) -> str:
     """Return a deterministic short explanation for the detected distortion labels."""
 
     if not labels:
-        return t(lang, "fitchef.distortion.reason_uncertain")
+        return _translate_distortion_text(lang, "fitchef.distortion.reason_uncertain")
     label = labels[0]
     if label == "all_or_nothing_thinking":
-        return t(lang, "fitchef.distortion.reason_all_or_nothing")
+        return _translate_distortion_text(lang, "fitchef.distortion.reason_all_or_nothing")
     if label == "catastrophizing":
-        return t(lang, "fitchef.distortion.reason_catastrophizing")
+        return _translate_distortion_text(lang, "fitchef.distortion.reason_catastrophizing")
     if label == "should_statements":
-        return t(lang, "fitchef.distortion.reason_should_statements")
+        return _translate_distortion_text(lang, "fitchef.distortion.reason_should_statements")
     if label == "mental_filtering":
-        return t(lang, "fitchef.distortion.reason_mental_filtering")
-    return t(lang, "fitchef.distortion.reason_emotional_reasoning")
+        return _translate_distortion_text(lang, "fitchef.distortion.reason_mental_filtering")
+    return _translate_distortion_text(lang, "fitchef.distortion.reason_emotional_reasoning")
 
 
 def _fallback_evidence_for(*, emotion: str, lang: Language = "en") -> list[str]:
     """Return deterministic evidence-for items without inventing facts."""
 
-    return [t(lang, "fitchef.distortion.report_context")]
+    return [_translate_distortion_text(lang, "fitchef.distortion.report_context")]
 
 
 def _fallback_evidence_against(*, goal: str | None, lang: Language = "en") -> list[str]:
     """Return deterministic evidence-against items."""
 
     return [
-        t(lang, "fitchef.distortion.evidence_against_moment"),
-        t(lang, "fitchef.distortion.evidence_against_next"),
+        _translate_distortion_text(lang, "fitchef.distortion.evidence_against_moment"),
+        _translate_distortion_text(lang, "fitchef.distortion.evidence_against_next"),
     ]
 
 
@@ -916,13 +925,13 @@ def _fallback_balanced_reframe(
 ) -> str:
     """Return a deterministic balanced reframe."""
 
-    return t(lang, "fitchef.distortion.balanced_reframe")
+    return _translate_distortion_text(lang, "fitchef.distortion.balanced_reframe")
 
 
 def _fallback_next_small_action(*, goal: str | None, lang: Language = "en") -> str:
     """Return a deterministic next-small-action field."""
 
-    return t(lang, "fitchef.distortion.next_small_action")
+    return _translate_distortion_text(lang, "fitchef.distortion.next_small_action")
 
 
 def _fallback_distortion_draft(
