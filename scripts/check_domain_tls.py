@@ -13,6 +13,7 @@ import shutil
 import socket
 import subprocess  # nosec B404 # B404: read-only diagnostics require bounded subprocess calls (remove-by: 2026-10-30, ref: PR-main-nightly-nosec-ttl)
 from dataclasses import dataclass
+from typing import cast
 
 HTTP_TIMEOUT_SEC = 15
 SUCCESS_EXIT_CODE = 0
@@ -124,7 +125,7 @@ def _socket_answers(hostname: str, family: socket.AddressFamily) -> tuple[str, .
         infos = socket.getaddrinfo(hostname, None, family=family, type=socket.SOCK_STREAM)
     except socket.gaierror:
         return ()
-    addresses = {item[4][0] for item in infos}
+    addresses = {cast(str, item[4][0]) for item in infos}
     return tuple(sorted(addresses))
 
 

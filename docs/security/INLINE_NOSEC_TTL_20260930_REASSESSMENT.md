@@ -33,7 +33,7 @@ Every original row has 2026-09-30 TTL. Each Renew row retains its original rule/
 | `conftest.py:190` | B105 | deterministic non-production test key | Remove | Synthetic test value unchanged; ordinary Bandit needs no B105 suppression. `conftest.py:193` |
 | `conftest.py:191` | B105 | deterministic non-production test key | Remove | Synthetic test value unchanged; ordinary Bandit needs no B105 suppression. `conftest.py:194` |
 | `scripts/check_domain_tls.py:14` | B404 | read-only diagnostics require bounded subprocess calls | Renew | read-only diagnostics require bounded subprocess calls `scripts/check_domain_tls.py:14` |
-| `scripts/check_domain_tls.py:90` | B603 | argv uses absolute binaries and fixed diagnostic flags | Renew | argv uses absolute binaries and fixed diagnostic flags `scripts/check_domain_tls.py:90` |
+| `scripts/check_domain_tls.py:90` | B603 | argv uses absolute binaries and fixed diagnostic flags | Renew | argv uses absolute binaries and fixed diagnostic flags `scripts/check_domain_tls.py:91` |
 | `scripts/ci/check_docker_provenance_attestation.py:19` | B404 | bounded gh CLI verification is required for OCI attestation checks | Renew | bounded gh CLI verification is required for OCI attestation checks `scripts/ci/check_docker_provenance_attestation.py:19` |
 | `scripts/ci/check_docker_provenance_attestation.py:106` | B603 | argv uses a resolved gh path with fixed attestation verify/download subcommands only | Renew | argv uses a resolved gh path with fixed attestation verify/download subcommands only `scripts/ci/check_docker_provenance_attestation.py:106` |
 | `scripts/ci/check_docker_runtime_dependency_surface.py:18` | B404 | subprocess is required for bounded local Docker inspection | Renew | subprocess is required for bounded local Docker inspection `scripts/ci/check_docker_runtime_dependency_surface.py:18` |
@@ -84,7 +84,7 @@ Every original row has 2026-09-30 TTL. Each Renew row retains its original rule/
 
 ## Ancillary changes and parity
 
-The undated root B110 at original `conftest.py:115` is separately removed by executable constant/class logging. Synthetic keys, public document labels and the numeric release reason remain unchanged; root key lines retain independent `pragma: allowlist secret` comments. AST equality holds for all 20 comment-only cohort source files. Only installer, fetcher and root teardown have intentional executable source changes.
+The undated root B110 at original `conftest.py:115` is separately removed by executable constant/class logging. Synthetic keys, public document labels and the numeric release reason remain unchanged; root key lines retain independent `pragma: allowlist secret` comments. Current AST evidence distinguishes 19 genuinely comment-only cohort files and one narrowly projected type-only domain-diagnostic repair. The three runtime behavior repairs remain installer, fetcher and root teardown; the additional diagnostic cast preserves values under its existing native internet-family contract.
 
 The nine following annotations change only `# nosec Bxxx:` to `# nosec Bxxx # Bxxx:`. Rule, explanation, reference and TTL are otherwise exact; eight October 31 and one December 31 dates are retained.
 
@@ -133,7 +133,7 @@ The production/root Bandit command was `../../.venv/bin/python -B -m bandit -q -
 
 The separate plain all-23 diagnostic exits **1** with exactly **25 B101** test assertions; unsuppressed all-23 exits **1** with **81** findings. Both have empty parse-error inventories. Production/plain stderr retains **19** existing node-level “nosec encountered (B105), but no failed test” warnings around the retained numeric reason-code dictionary. They are distinct from the eliminated prose-as-rule parser warnings, which are **0**. These diagnostics are retained separately from the required existing-profile success and do not establish provider review, scan approval or repository-wide safety.
 
-The bounded reconciliation command was `../../.venv/bin/python -B artifacts/orchestration/nosec_ttl_20260930/reconcile_implementation.py` (exit **0**). This ignored one-time finite evidence helper compares the exact base ASTs and preserved source annotations; it is not a new permanent scanner or authority mechanism. Raw stdout:
+Before the later required MyPy repair, the bounded reconciliation command was `../../.venv/bin/python -B artifacts/orchestration/nosec_ttl_20260930/reconcile_implementation.py` (exit **0**). This ignored one-time finite evidence helper compares the exact base ASTs and preserved source annotations; it is not a new permanent scanner or authority mechanism. The following original stdout is historical; the current 19-plus-one result appears in the MyPy correction below:
 
 ```text
 PASS: cohort 55 = 7 removals + 1 repair/removal + 47 renewals
@@ -158,11 +158,43 @@ The cache interruption left only the owned unstaged `scripts/AGENTS.md` patch in
 
 The coordinator's learning-helper run records raw `24 passed in 8.99s`. Commit `052ca397ea20273093cd80e716371f147264ba67` (`docs(agents): document bounded transport and scan evidence`) includes the small scoped lesson to verify Bandit JSON errors/expected file inventory and AST equality for comment-only edits. At that recovery checkpoint, the source-material commit had not restarted. Source material is now committed as `d0f40df81576e0e9d23befb9628c013c9c7a6be0`; normal commit hooks passed, including backend-tests and detect-secrets. Required `make validate-changed`, all-files pre-commit and a refreshed oracle proceed on our current material now, with current-head GitHub checks and later lifecycle gates still required. Refresh affected evidence if a new base arrives; commit-hook success alone does not establish readiness.
 
+### Required MyPy correction on the admitted diagnostic
+
+The initial ordinary push failed its required MyPy gate before publication. Raw `initial-push.log` evidence includes:
+
+```text
+scripts/check_domain_tls.py:128: error: Argument 1 to "sorted" has incompatible
+type "set[str | int]"; expected "Iterable[str]"  [arg-type]
+Found 1 error in 1 file (checked 21 source files)
+```
+
+`_collect_dns_answers` invokes `_socket_answers` only for AF_INET/AF_INET6. Installed socket typeshed includes a generic `tuple[int, bytes]` alternative that explains the inferred union; these existing internet-family callers use native string-address tuples. The same admitted diagnostic now imports `typing.cast` and uses only `cast(str, item[4][0])` in its existing comprehension. Installed stdlib cast returns its input unchanged; there is no filtering, conversion, dropped uncertain value, type ignore or new permanent test module.
+
+The focused command `../../.venv/bin/python -B -m mypy scripts/check_domain_tls.py` exited **0**, with raw `Success: no issues found in 1 source file`. The existing owner suite command `../../.venv/bin/python -B -m pytest -o addopts='' -q -p no:cacheprovider tests/test_check_domain_tls.py` exited **0**, with raw `9 passed in 10.20s`.
+
+The ignored one-time command `../../.venv/bin/python -B -m artifacts.orchestration.nosec_ttl_20260930.socket_typing_probe` exited **0**. It compares original/current sorting, duplicates and gaierror output for both existing families, observes numeric-only native sockaddr values, and checks cast object identity. Raw stdout:
+
+```text
+PASS: AF_INET sorting, duplicate removal, gaierror and native numeric string sockaddr
+PASS: AF_INET6 sorting, duplicate removal, gaierror and native numeric string sockaddr
+PASS: typing.cast returns the original object; no filtering, coercion or dropped values
+```
+
+The updated ignored reconciliation command above exited **0**. It permits exactly one `from typing import cast` and one scoped `cast(str, item[4][0])` wrapper, removes only those in its finite AST projection, and requires the whole remaining file AST to equal exact base. All permanent guards remain unchanged. Current raw stdout includes:
+
+```text
+PASS: AST equality for 19 comment-only source files; syntax checked for all 23
+PASS: domain resolver whole-file AST equals base after only one cast import and one exact cast projection
+PASS: nine future separators only; eight October 31 and one December 31 TTLs preserved
+```
+
+The 55-record outcomes, nine future annotations, three behavior repairs and 30-path cap remain unchanged. Root must repeat the required hook/current affected gates and ordinary push; this focused repair is not current-head CI or publication proof.
+
 ## Premortem and Experiment Runner
 
 The coordinator's actual-diff premortem reviewed all 28 admitted paths against the unchanged 32-criterion reference. Its local record is `artifacts/orchestration/nosec_ttl_20260930/premortem-actual-diff.md`. The proceed decision retains every later gate and grants no readiness or merge authority.
 
-- **PM-NOSEC-01 — annotation-removal syntax defect:** repaired in working material at the existing Ollama opener statement. All 23 source files parse, all 20 comment-only ASTs equal base, and the affected nosec/subprocess plus exact timeout-case rerun passes with 43 tests. Historical failed output is retained above; process exit alone never proves complete scan coverage. Ordinary material commit identity will supply commit-bound FIXED proof.
+- **PM-NOSEC-01 — annotation-removal syntax defect:** repaired in working material at the existing Ollama opener statement. All 23 source files parse, and the affected nosec/subprocess plus exact timeout-case rerun passes with 43 tests. The original 20-comment-only AST observation is retained historically above; current parity is 19 comment-only files plus the exact runtime-identity type projection described in the required MyPy correction. Historical failed output is retained; process exit alone never proves complete scan coverage. Ordinary material commit identity will supply commit-bound FIXED proof.
 - **PM-NOSEC-02 — delimiter-only trusted authority:** repaired in the existing matcher by requiring parsed netloc equality with the admitted authority. Five added malformed-authority cases are included in the 351-test passing owner run. Ordinary material commit identity will supply commit-bound FIXED proof.
 - The real-opener redirect dispatch and bounded connection/cleanup diagnostics were assessed as NOT-A-BUG for the reviewed implementation, with the executable 351-test run, one-request assertions and observed root garbage collection as evidence. These are bounded findings/dispositions, not a general security or no-findings claim.
 
