@@ -468,9 +468,11 @@ targets/gaps service projections above, extending the exact-name set from 58 to
 61 without changing its recognizer. PR #2412 then merged the seven OpenAPI
 helper projections above as `156bed4034c8de9daded0e5a91014e700563f1d7`,
 and PR #2419 merged the fifteen BMR/PRO nutrition projections as
-`dc24f2f6e4a90d1736c4bf9d2c36d6b8c0609e17`. Current PR #2449 proposes
-the four-name log-retention retirement and census above; its merge and
-post-merge proof remain unclaimed. The parent Legacy epic remains open.
+`dc24f2f6e4a90d1736c4bf9d2c36d6b8c0609e17`.
+[PR #2449](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2449)
+merged on 2026-09-28T20:49:16Z as
+`0151b9416804b36fd80834a76989965eb958c03c`, completing the four-name
+log-retention retirement and census above. The parent Legacy epic remains open.
 All retained Insight HTTP routes, all four versioned nutrition aliases, and
 both root aliases remain callable. Versioned-alias retirement, root-alias
 auth/sunset, retained Insight HTTP-alias retirement, and final legacy deletion
