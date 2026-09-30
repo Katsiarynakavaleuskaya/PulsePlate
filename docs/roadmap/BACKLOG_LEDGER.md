@@ -5779,11 +5779,34 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Reassess inline nosec TTLs due 2026-09-30 before main CI expiry
   - Owner: Security/SRE
   - Priority: P1
-  - Target PR: PR-TBD-NOSEC-TTL-20260930 (separate main-stabilization lane)
+  - Target PR: PR-TBD-NOSEC-TTL-20260930 (`codex/security-nosec-ttl-20260930`)
+  - Status: Implementation in review; closure awaits merged PR and exact-main evidence.
   - Area: security / CI / static analysis
-  - Reason: On 2026-09-28, 53 inline `# nosec` remove-by entries across 22 tracked files still expire on 2026-09-30. The on-by-default guard will reject them from 2026-10-01; this is separate from the current Docker source and Trivy review-date failures. A blind batch date extension would not revalidate the underlying findings.
+  - Reason: The original scanner observation was 53 September entries in 22 files; full frozen reconciliation adds two root `conftest.py` entries, giving 55 in 23 files at c32e61e85c9d02e7a22bd006462435eaf7bbfe7d, unchanged at b04d2eb1c9a0ea6a86dd2db18c2b5818432f97d9. The admitted implementation removes seven stale suppressions, repairs/removes source-fetch B310, and individually renews 47 necessary exceptions through 2026-10-30. Root B110 and nine future-format edits are separate. This is distinct from Docker/Trivy calendar and image-CVE remediation; renewal does not establish vulnerability remediation.
   - Links: `tests/guards/test_nosec_policy_guard.py`, `AGENTS.md` (Bandit / nosec policy), and `scripts/ci/fetch_docker_source_artifacts.py:175` as one affected example.
-  - DoD: Reconcile every exact inline suppression with its owning rule, current code path and safer fix; remove or repair where possible, renew only independently justified remaining exceptions with owner/ref/TTL proof, retain the guard, and verify exact-head main CI before 2026-10-01. Do not mix this 22-file inventory with the bounded Docker/Trivy calendar repair PR.
+  - Evidence: [Individual reconciliation](../security/INLINE_NOSEC_TTL_20260930_REASSESSMENT.md) owns original coordinates, decisions and bounded transport/diagnostic changes.
+  - DoD: Reconcile all 55 records individually, prove comment/value/pragma parity and executable boundaries, pass existing guards, repository-profile Bandit, narrow local gates and applicable exact-head CI, then verify merged-main terminal state. Record separate failed or pending image rails without taking their ownership.
+
+<a id="ledger-p1-inline-nosec-reassessment-20261030"></a>
+- [ ] P1: Reassess the 47 retained inline security exceptions before 2026-10-30
+  - Owner: Security/SRE
+  - Priority: P1
+  - Target PR: PR-TBD-NOSEC-REVIEW-20261030
+  - Status: Scheduled follow-up after the September reassessment PR merges.
+  - Reason: Required bounded subprocess operations, three public labels/reason codes and anonymous trusted-host compatibility still need explicit temporary Bandit exceptions. A renewed annotation is not elimination of the underlying rule finding.
+  - Links: [September owner evidence](../security/INLINE_NOSEC_TTL_20260930_REASSESSMENT.md), `tests/guards/test_nosec_policy_guard.py`, and `AGENTS.md` (Bandit / nosec policy).
+  - DoD: Reassess every retained site against its live callers and safer alternatives; remove exceptions where feasible, or individually justify an authorized short TTL with real reference; preserve guards and all unrelated future dates, and verify exact-head CI. Keep October 5 source/zlib/ncurses, October 7 Trivy/util-linux and October 28 native Trivy obligations separate.
+
+<a id="ledger-p1-main-openssl-cve-2026-84782"></a>
+- [ ] P1: Resolve the separate current-main OpenSSL image security prerequisite
+  - Owner: PR #2447 / Prometheus T0-1 closeout (Security/SRE; owning chat `01a0def6-7596-7a41-95e7-0ccf8ce90f58`)
+  - Priority: P1
+  - Target PR: [PR #2447](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2447) (Prometheus closeout / Docker-CVE ownership)
+  - Status: Awaiting PR #2447 merge; latest authenticated checkpoint OPEN. The September inline-nosec lane implements no remediation or waiver for this prerequisite.
+  - Owner steering: Wait for PR #2447 to be MERGED, then immediately adopt fetched origin/main without waiting for green main CI. Preserve the inline-nosec scope and all 32 accepted criteria; refresh required validation/oracle/CI evidence on the adopted base. This sequencing instruction does not establish remediation or readiness.
+  - Reason: Docker publisher run 36683691099, job 109784592483, and CD run 36683691096, job 109785230250, at main b04d2eb1c9a0ea6a86dd2db18c2b5818432f97d9 report CVE-2026-84782 for libssl3/openssl 3.0.22-1~deb12u1 with no scanner fixed-version value. The observation does not establish causality from PR #2462 or a scanner-database update.
+  - Links: [Debian primary tracker](https://security-tracker.debian.org/tracker/CVE-2026-84782), [Docker job](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/36683691099/job/109784592483), [CD job](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/36683691096/job/109785230250), and [inline-lane boundary](../security/INLINE_NOSEC_TTL_20260930_REASSESSMENT.md).
+  - DoD: Freshly reconcile upstream applicability/fix status with exact image/scanner evidence, admit a dedicated owner-scoped remediation or governed unfixed-upstream disposition, pass applicable image security/publish/CD gates and prove current-main terminal health. Do not add a suppression, dependency bump or Dockerfile change to the inline-nosec PR.
 
 <a id="ledger-p1-native-trivy-cli-nosec-20261028"></a>
 - [ ] P1: Reassess native Trivy CLI B404/B603 exceptions by 2026-10-28

@@ -20,13 +20,28 @@ import stat
 import sys
 import tempfile
 from urllib.parse import urlparse
-from urllib.request import urlopen
+from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_MANIFEST = REPO_ROOT / "scripts" / "ci" / "docker_source_artifacts.json"
 DEFAULT_OUTPUT_DIR = REPO_ROOT / "build" / "docker-sources"
 ALLOWED_SOURCE_HOSTS = frozenset({"sqlite.org", "www.sqlite.org", "www.kernel.org"})
 _HEX_RE = re.compile(r"^[0-9a-f]{64}$")
+
+
+class _NoRedirectHandler(HTTPRedirectHandler):
+    """The manifest selects one source URL; redirects cannot select another."""
+
+    def redirect_request(
+        self,
+        req: Request,
+        fp: object,
+        code: int,
+        msg: str,
+        headers: object,
+        newurl: str,
+    ) -> None:
+        return None
 
 
 @dataclass(frozen=True)
@@ -68,7 +83,13 @@ def _validate_source_url(url: str, *, artifact_name: str) -> str:
         raise RuntimeError(f"{artifact_name} source URL must use https and host one of: {allowed}")
     if not parsed.path.endswith(".tar.gz"):
         raise RuntimeError(f"{artifact_name} source URL must point to a .tar.gz artifact.")
-    if parsed.username or parsed.password or parsed.port or parsed.query or parsed.fragment:
+    if (
+        parsed.username is not None
+        or parsed.password is not None
+        or parsed.port is not None
+        or parsed.query
+        or parsed.fragment
+    ):
         raise RuntimeError(f"{artifact_name} source URL must not contain credentials or overrides.")
     artifact_hosts = {
         "sqlite-autoconf": {"sqlite.org", "www.sqlite.org"},
@@ -171,11 +192,10 @@ def _write_verified_artifact(artifact: DockerSourceArtifact, output_dir: Path) -
             return output_path
         output_path.unlink()
 
-    print(f"{artifact.name}: fetching {artifact.url}")
-    payload = urlopen(  # nosec B310: URL is manifest-pinned to approved HTTPS hosts and SHA3-verified (remove-by: 2026-09-30, ref: PR-fix-main-trivy-container-cves)
-        artifact.url,
-        timeout=60,
-    ).read()
+    source_url = _validate_source_url(artifact.url, artifact_name=artifact.name)
+    print(f"{artifact.name}: fetching {source_url}")
+    with build_opener(_NoRedirectHandler()).open(source_url, timeout=60) as response:
+        payload = response.read()
     actual_digest = sha3_256(payload).hexdigest()
     if actual_digest != artifact.sha3_256:
         raise RuntimeError(

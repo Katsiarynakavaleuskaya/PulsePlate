@@ -30,11 +30,11 @@ def _review_dir() -> Path:
     return base
 
 
-DISCUSSION_THREAD_PASS_HEADING = "## Discussion Thread Pass"  # nosec B105: doc heading (remove-by: 2026-09-30, ref: PR-main-nightly-nosec-ttl)
+DISCUSSION_THREAD_PASS_HEADING = "## Discussion Thread Pass"  # nosec B105 # B105: doc heading (remove-by: 2026-10-30, ref: PR-main-nightly-nosec-ttl)
 # Canonical artifact uses ##; PR-body mirror/fallback may use ### (AGENTS.md)
 FIXED_MAPPING_HEADINGS = ("## Fixed in Commit Mapping", "### Fixed in Commit Mapping")
 
-CHECKBOX_DISCUSSION_PASS = "- [x] Discussion-thread pass completed"  # nosec B105: checkbox label (remove-by: 2026-09-30, ref: PR-main-nightly-nosec-ttl)
+CHECKBOX_DISCUSSION_PASS = "- [x] Discussion-thread pass completed"  # nosec B105 # B105: checkbox label (remove-by: 2026-10-30, ref: PR-main-nightly-nosec-ttl)
 CHECKBOX_FIXED_MAPPING = "- [x] Fixed in commit mapping completed"
 
 MAPPING_LINE_RE = re.compile(r"^\s*-\s+(https://github\.com/\S+)\s+->\s+([0-9a-f]{7,40})\s*$")

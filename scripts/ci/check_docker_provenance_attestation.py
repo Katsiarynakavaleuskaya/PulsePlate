@@ -16,7 +16,7 @@ import os
 from pathlib import Path
 import re
 import shutil
-import subprocess  # nosec B404: bounded gh CLI verification is required for OCI attestation checks (remove-by: 2026-09-30, ref: PR-docker-signed-provenance)
+import subprocess  # nosec B404 # B404: bounded gh CLI verification is required for OCI attestation checks (remove-by: 2026-10-30, ref: PR-docker-signed-provenance)
 import sys
 
 GH_TIMEOUT_SECONDS_DEFAULT = 180
@@ -103,7 +103,7 @@ def _run_gh(args: list[str], *, cwd: Path | None = None) -> subprocess.Completed
 
     timeout_seconds = _gh_timeout_seconds()
     try:
-        return subprocess.run(  # nosec B603: argv uses a resolved gh path with fixed attestation verify/download subcommands only (remove-by: 2026-09-30, ref: PR-docker-signed-provenance)
+        return subprocess.run(  # nosec B603 # B603: argv uses a resolved gh path with fixed attestation verify/download subcommands only (remove-by: 2026-10-30, ref: PR-docker-signed-provenance)
             [_gh_path(), *args],
             check=True,
             capture_output=True,

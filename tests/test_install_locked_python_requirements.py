@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
+import base64
 import json
 import os
 from pathlib import Path
@@ -10,6 +11,7 @@ import re
 import subprocess
 import sys
 from typing import Any
+from urllib.parse import urlparse
 
 import pytest
 
@@ -28,6 +30,12 @@ MAIN_PREFLIGHT_TESTS = {
 MAIN_EXECUTABLE_RESOLUTION_TESTS = {
     "test_main_normalizes_python_executable_once_before_dispatch",
 }
+
+
+@pytest.fixture(autouse=True)
+def _isolate_default_netrc_home(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """Anonymous and CLI tests must never read the operator's default netrc."""
+    monkeypatch.setenv("HOME", str(tmp_path))
 
 
 @pytest.fixture(autouse=True)
@@ -675,7 +683,7 @@ def test_private_index_project_health_rejects_root_netrc_credentials(
         )
 
 
-def test_netrc_basic_auth_header_ignores_empty_hostname(
+def test_netrc_credentials_ignores_empty_hostname(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     def fail_if_called() -> None:
@@ -683,8 +691,8 @@ def test_netrc_basic_auth_header_ignores_empty_hostname(
 
     monkeypatch.setattr(installer.netrc, "netrc", fail_if_called)
 
-    assert installer._netrc_basic_auth_header(None) is None
-    assert installer._netrc_basic_auth_header("") is None
+    assert installer._netrc_credentials(None) is None
+    assert installer._netrc_credentials("") is None
 
 
 @pytest.mark.parametrize(
@@ -795,6 +803,358 @@ def test_private_index_project_health_accepts_underscore_wheel_name(
         package="python-multipart",
         trusted_host=None,
     )
+
+
+def _write_admission_netrc(tmp_path: Path, entry: str) -> None:
+    path = tmp_path / ".netrc"
+    path.write_text(entry + "\n", encoding="utf-8")
+    path.chmod(0o600)
+
+
+@pytest.mark.parametrize(
+    "entry",
+    [
+        "machine packages.example.internal login ci-reader password synthetic-marker",
+        "machine packages.example.internal account ci-reader password synthetic-marker",
+        "default login ci-reader password synthetic-marker",
+        "default account ci-reader password synthetic-marker",
+    ],
+)
+@pytest.mark.parametrize("transport", ["http", "trusted-https"])
+@pytest.mark.parametrize(
+    "flags", [[], ["--preflight-only"], ["--upgrade-pip"], ["--upgrade-pip-only"]]
+)
+def test_main_rejects_insecure_default_netrc_before_any_cli_branch(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    entry: str,
+    transport: str,
+    flags: list[str],
+) -> None:
+    _write_admission_netrc(tmp_path, entry)
+    index = (
+        APPROVED_PROXY_URL
+        if transport == "trusted-https"
+        else APPROVED_PROXY_URL.replace("https:", "http:")
+    )
+    args = ["--index-url", index, *flags]
+    if transport == "trusted-https":
+        args += ["--trusted-host", "packages.example.internal"]
+    calls: list[str] = []
+
+    def forbidden(*_args: object, **_kwargs: object) -> None:
+        calls.append("downstream")
+        raise AssertionError("unsafe admission must stop before downstream execution")
+
+    for name in (
+        "upgrade_pip",
+        "run_dependency_floor_preflight",
+        "run_command",
+        "resolve_requirement_files",
+    ):
+        monkeypatch.setattr(installer, name, forbidden)
+    monkeypatch.setattr(installer.http.client, "HTTPConnection", forbidden)
+    monkeypatch.setattr(installer.http.client, "HTTPSConnection", forbidden)
+    monkeypatch.setattr(installer.ssl, "_create_unverified_context", forbidden)
+
+    assert installer.main(args) == 1
+    output = capsys.readouterr()
+    assert "require verified HTTPS" in output.out
+    assert "synthetic-marker" not in output.out + output.err
+    assert "ci-reader" not in output.out + output.err
+    assert calls == []
+
+
+@pytest.mark.parametrize(
+    "entry,message",
+    [
+        ("machine packages.example.internal password synthetic-marker", "Indeterminate"),
+        ("machine packages.example.internal", "Indeterminate"),
+        ("default account root password synthetic-marker", "Root devpi"),
+        ("machine packages.example.internal login root password synthetic-marker", "Root devpi"),
+        ("machine packages.example.internal account root password synthetic-marker", "Root devpi"),
+        ("default login ci-reader password synthetic-marker", "require verified HTTPS"),
+        ("default account ci-reader password synthetic-marker", "require verified HTTPS"),
+    ],
+)
+@pytest.mark.parametrize("transport", ["http", "trusted-https"])
+def test_default_netrc_direct_reader_and_settings_fail_before_connection(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, entry: str, message: str, transport: str
+) -> None:
+    _write_admission_netrc(tmp_path, entry)
+    index = (
+        APPROVED_PROXY_URL
+        if transport == "trusted-https"
+        else APPROVED_PROXY_URL.replace("https:", "http:")
+    )
+    trusted = "packages.example.internal" if transport == "trusted-https" else None
+    calls: list[str] = []
+
+    def forbidden(*_args: object, **_kwargs: object) -> None:
+        calls.append("connection/context")
+        raise AssertionError("inadmissible credentials must stop before connection/context")
+
+    monkeypatch.setattr(installer.http.client, "HTTPConnection", forbidden)
+    monkeypatch.setattr(installer.http.client, "HTTPSConnection", forbidden)
+    monkeypatch.setattr(installer.ssl, "_create_unverified_context", forbidden)
+    for action in (
+        lambda: installer.resolve_private_proxy_settings(index_url=index, trusted_host=trusted),
+        lambda: installer._read_private_index_project_page(
+            index_url=index, package="pip", trusted_host=trusted
+        ),
+    ):
+        with pytest.raises(RuntimeError, match=message) as error:
+            action()
+        assert "synthetic-marker" not in str(error.value)
+    assert calls == []
+
+
+@pytest.mark.parametrize(
+    "entry",
+    [
+        "machine packages.example.internal login ci-reader password synthetic-marker",
+        "machine packages.example.internal account ci-reader password synthetic-marker",
+        "default login ci-reader password synthetic-marker",
+        "default account ci-reader password synthetic-marker",
+    ],
+)
+@pytest.mark.parametrize(
+    "trusted", [None, "other.example.internal", "packages.example.internal:443"]
+)
+def test_verified_https_admits_real_default_netrc_selection(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, entry: str, trusted: str | None
+) -> None:
+    _write_admission_netrc(tmp_path, entry)
+    observed: list[dict[str, str]] = []
+
+    class Connection:
+        def __init__(self, *_args: object, **kwargs: object) -> None:
+            assert "context" not in kwargs
+
+        def request(self, _method: str, _path: str, *, headers: dict[str, str]) -> None:
+            observed.append(headers)
+
+        def getresponse(self) -> _FakeSimpleIndexResponse:
+            return _FakeSimpleIndexResponse()
+
+        def close(self) -> None:
+            return None
+
+    monkeypatch.setattr(installer.http.client, "HTTPSConnection", Connection)
+    assert installer.resolve_private_proxy_settings(
+        index_url=APPROVED_PROXY_URL, trusted_host=trusted
+    ) == (APPROVED_PROXY_URL, trusted)
+    installer._read_private_index_project_page(
+        index_url=APPROVED_PROXY_URL, package="pip", trusted_host=trusted
+    )
+    assert len(observed) == 1
+    assert (
+        base64.b64decode(observed[0]["Authorization"].removeprefix("Basic "))
+        == b"ci-reader:synthetic-marker"
+    )
+
+
+@pytest.mark.parametrize(
+    "entry", [None, "machine other.example.internal login reader password synthetic-marker"]
+)
+@pytest.mark.parametrize(
+    "index,trusted",
+    [
+        ("http://packages.example.internal/simple", None),
+        (APPROVED_PROXY_URL, "packages.example.internal"),
+    ],
+)
+def test_anonymous_admission_requires_absent_applicable_authenticator(
+    tmp_path: Path, entry: str | None, index: str, trusted: str | None
+) -> None:
+    if entry is not None:
+        _write_admission_netrc(tmp_path, entry)
+    assert installer.resolve_private_proxy_settings(index_url=index, trusted_host=trusted) == (
+        index,
+        trusted,
+    )
+    assert (
+        installer._admit_private_proxy_netrc_auth(parsed_url=urlparse(index), trusted_host=trusted)
+        is None
+    )
+
+
+@pytest.mark.parametrize(
+    "trusted,url,expected",
+    [
+        (None, APPROVED_PROXY_URL, False),
+        ("PACKAGES.EXAMPLE.INTERNAL.", APPROVED_PROXY_URL, True),
+        ("packages.example.internal.:443", "https://packages.example.internal:443/simple", True),
+        ("packages.example.internal:443", APPROVED_PROXY_URL, False),
+        ("packages.example.internal", "https://packages.example.internal:8443/simple", True),
+        ("packages.example.internal:443", "https://packages.example.internal:8443/simple", False),
+        ("other.example.internal", APPROVED_PROXY_URL, False),
+        ("[2001:DB8::1]", "https://[2001:db8::1]:8443/simple", True),
+        ("[2001:db8::1]:443", "https://[2001:db8::1]/simple", False),
+        ("[2001:db8::1]:0443", "https://[2001:db8::1]:443/simple", True),
+        ("[2001:db8::1]:443", "https://[2001:db8::1]:8443/simple", False),
+    ],
+)
+def test_trusted_authority_matches_native_explicit_port_semantics(
+    trusted: str | None, url: str, expected: bool
+) -> None:
+    assert (
+        installer._trusted_host_matches_url(trusted_host=trusted, parsed_url=urlparse(url))
+        is expected
+    )
+
+
+@pytest.mark.parametrize(
+    "trusted",
+    [
+        "https://packages.example.internal",
+        "reader@packages.example.internal",
+        "packages.example.internal:",
+        "packages.example.internal:no",
+        "packages.example.internal:65536",
+        "packages.example.internal/path",
+        "packages.example.internal?query",
+        "packages.example.internal?",
+        "packages.example.internal#fragment",
+        "packages.example.internal#",
+        "[2001:db8::1]?",
+        "[2001:db8::1]#",
+        "packages.example.internal\x00",
+        "pack ages.example.internal",
+        "[2001:db8::1",
+        "2001:db8::1",
+        "[2001:db8::1]:",
+    ],
+)
+def test_malformed_trusted_authority_fails_settings_and_direct_admission(trusted: str) -> None:
+    with pytest.raises(RuntimeError, match="trusted-host authority"):
+        installer.resolve_private_proxy_settings(index_url=APPROVED_PROXY_URL, trusted_host=trusted)
+    with pytest.raises(RuntimeError, match="trusted-host authority"):
+        installer._read_private_index_project_page(
+            index_url=APPROVED_PROXY_URL, package="pip", trusted_host=trusted
+        )
+
+
+@pytest.mark.parametrize(
+    "credentials",
+    [
+        ("", "", "synthetic-marker"),
+        ("", "", ""),
+        ("reader", "", None),
+        ("reader",),
+        ("reader", "", "value", "extra"),
+    ],
+)
+def test_indeterminate_netrc_shape_is_never_anonymous(
+    monkeypatch: pytest.MonkeyPatch, credentials: object
+) -> None:
+    class AmbiguousNetrc:
+        def authenticators(self, _hostname: str) -> object:
+            return credentials
+
+    monkeypatch.setattr(installer.netrc, "netrc", AmbiguousNetrc)
+    with pytest.raises(RuntimeError, match="Indeterminate"):
+        installer.resolve_private_proxy_settings(index_url=APPROVED_PROXY_URL, trusted_host=None)
+    with pytest.raises(RuntimeError, match="Indeterminate"):
+        installer._read_private_index_project_page(
+            index_url=APPROVED_PROXY_URL, package="pip", trusted_host=None
+        )
+
+
+@pytest.mark.parametrize("kind", ["parse", "read", "decode"])
+def test_main_netrc_failures_display_only_constant_and_class(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], kind: str
+) -> None:
+    def failing_netrc() -> None:
+        if kind == "parse":
+            raise installer.netrc.NetrcParseError("synthetic-secret-exception-marker")
+        if kind == "decode":
+            raise UnicodeDecodeError("utf-8", b"synthetic-secret-exception-marker", 0, 1, "invalid")
+        raise OSError("synthetic-secret-exception-marker")
+
+    monkeypatch.setattr(installer.netrc, "netrc", failing_netrc)
+    assert installer.main(["--index-url", APPROVED_PROXY_URL, "--upgrade-pip-only"]) == 1
+    output = capsys.readouterr()
+    assert "Unable to read default .netrc credentials" in output.out
+    assert "synthetic-secret-exception-marker" not in output.out + output.err
+    with pytest.raises(RuntimeError) as error:
+        installer._read_private_index_project_page(
+            index_url=APPROVED_PROXY_URL, package="pip", trusted_host=None
+        )
+    assert error.value.__suppress_context__ is True
+    assert "synthetic-secret-exception-marker" not in str(error.value)
+
+
+@pytest.mark.parametrize(
+    "stage", ["constructor", "context", "request", "response", "read", "close", "request-and-close"]
+)
+def test_project_probe_failure_and_cleanup_share_sanitized_bounded_budget(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], stage: str
+) -> None:
+    counts = {"constructed": 0, "closed": 0, "context": 0}
+    sleeps: list[float] = []
+
+    def fail() -> None:
+        raise OSError("synthetic-secret-exception-marker")
+
+    class Response:
+        status = 200
+
+        def read(self, _limit: int) -> bytes:
+            if stage == "read":
+                fail()
+            return b"simple project"
+
+    class Connection:
+        def __init__(self, *_args: object, **_kwargs: object) -> None:
+            counts["constructed"] += 1
+            if stage == "constructor":
+                fail()
+
+        def request(self, *_args: object, **_kwargs: object) -> None:
+            if stage in {"request", "request-and-close"}:
+                fail()
+
+        def getresponse(self) -> Response:
+            if stage == "response":
+                fail()
+            return Response()
+
+        def close(self) -> None:
+            counts["closed"] += 1
+            if stage in {"close", "request-and-close"}:
+                fail()
+
+    def failing_context() -> None:
+        counts["context"] += 1
+        fail()
+
+    monkeypatch.setattr(installer.http.client, "HTTPSConnection", Connection)
+    monkeypatch.setattr(installer.ssl, "_create_unverified_context", failing_context)
+    monkeypatch.setattr(installer.time, "sleep", sleeps.append)
+    trusted = "packages.example.internal" if stage == "context" else None
+    with pytest.raises(RuntimeError, match="OSError") as error:
+        installer._read_private_index_project_page(
+            index_url=APPROVED_PROXY_URL, package="pip", trusted_host=trusted
+        )
+    assert error.value.__suppress_context__ is True
+    assert "synthetic-secret-exception-marker" not in str(error.value)
+    assert len(sleeps) == installer.PIP_NETWORK_RETRIES - 1
+    expected_connections = 0 if stage == "context" else installer.PIP_NETWORK_RETRIES
+    assert counts["constructed"] == expected_connections
+    assert counts["closed"] == (0 if stage == "constructor" else expected_connections)
+    assert counts["context"] == (installer.PIP_NETWORK_RETRIES if stage == "context" else 0)
+    monkeypatch.setattr(
+        installer,
+        "upgrade_pip",
+        lambda *_args, **_kwargs: installer._read_private_index_project_page(
+            index_url=APPROVED_PROXY_URL, package="pip", trusted_host=trusted
+        ),
+    )
+    assert installer.main(["--index-url", APPROVED_PROXY_URL, "--upgrade-pip-only"]) == 1
+    output = capsys.readouterr()
+    assert "synthetic-secret-exception-marker" not in output.out + output.err
 
 
 def test_repo_emergency_manifest_is_retired_empty_compatibility_marker() -> None:

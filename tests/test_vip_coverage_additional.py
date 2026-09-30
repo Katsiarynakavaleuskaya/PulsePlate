@@ -29,11 +29,11 @@ def vip_auth_env(monkeypatch):
     monkeypatch.setenv("ALLOW_DEV_API_KEY", "false")
     monkeypatch.setenv(
         "PRO_API_KEYS",
-        "test_pro_key",  # nosec B105: deterministic non-production test key (remove-by: 2026-09-30, ref: PR-1052)
+        "test_pro_key",
     )
     monkeypatch.setenv(
         "VIP_API_KEYS",
-        "test_vip_key",  # nosec B105: deterministic non-production test key (remove-by: 2026-09-30, ref: PR-1052)
+        "test_vip_key",
     )
 
 

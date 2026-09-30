@@ -3,13 +3,19 @@
 from __future__ import annotations
 
 from datetime import date
+from dataclasses import replace
+from email.message import Message
 from hashlib import sha256, sha3_256
+from io import BytesIO
 import json
 import os
 import subprocess
 import sys
 from pathlib import Path
 from urllib.parse import urlparse
+from urllib.error import HTTPError
+from urllib.request import HTTPHandler, HTTPSHandler, Request
+from urllib.response import addinfourl
 
 from fastapi.testclient import TestClient
 import pytest
@@ -714,6 +720,84 @@ def test_source_manifest_rejects_ambiguous_identity_and_url_overrides(
         docker_sources.load_manifest(path, today=date(2026, 6, 14))
 
 
+def _stub_source_transport(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    payload: bytes,
+    code: int = 200,
+    location: str | None = None,
+) -> list[tuple[str, int]]:
+    """Keep the actual opener/redirect dispatch and replace only HTTP transport."""
+    calls: list[tuple[str, int]] = []
+
+    def respond(_handler: object, request: Request) -> addinfourl:
+        calls.append((request.full_url, request.timeout))
+        headers = Message()
+        if location is not None:
+            headers["Location"] = location
+        response = addinfourl(BytesIO(payload), headers, request.full_url, code)
+        response.msg = "synthetic source response"
+        return response
+
+    monkeypatch.setattr(HTTPSHandler, "https_open", respond)
+    monkeypatch.setattr(HTTPHandler, "http_open", respond)
+    return calls
+
+
+@pytest.mark.parametrize("code", [301, 302, 303, 307, 308])
+@pytest.mark.parametrize(
+    "location",
+    [
+        "/2026/another.tar.gz",
+        "https://www.sqlite.org/2026/sqlite-autoconf-3530200.tar.gz",
+        "https://www.kernel.org/another.tar.gz",
+        "https://unapproved.example/another.tar.gz",
+        "http://sqlite.org/2026/sqlite-autoconf-3530200.tar.gz",
+        "file:///tmp/another.tar.gz",
+    ],
+)
+def test_source_fetch_rejects_real_opener_redirects_without_second_request(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, code: int, location: str
+) -> None:
+    payload = b"verified source"
+    path = _write_docker_source_manifest(tmp_path, _docker_source_manifest(payload=payload))
+    artifact = docker_sources.load_manifest(path, today=date(2026, 6, 14))[0]
+    calls = _stub_source_transport(monkeypatch, payload=payload, code=code, location=location)
+    output = tmp_path / "sources"
+
+    with pytest.raises(HTTPError):
+        docker_sources._write_verified_artifact(artifact, output)
+
+    assert calls == [(artifact.url, 60)]
+    assert list(output.iterdir()) == []
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "http://sqlite.org/2026/sqlite-autoconf-3530200.tar.gz",
+        "https://unapproved.example/sqlite-autoconf-3530200.tar.gz",
+        "https://www.kernel.org/sqlite-autoconf-3530200.tar.gz",
+        "https://@sqlite.org/2026/sqlite-autoconf-3530200.tar.gz",
+        "https://sqlite.org:0/2026/sqlite-autoconf-3530200.tar.gz",
+        "https://reader@sqlite.org/2026/sqlite-autoconf-3530200.tar.gz",
+        "https://sqlite.org/2026/sqlite-autoconf-3530200.tar.gz?override=1",
+        "https://sqlite.org/2026/sqlite-autoconf-3530200.tar.gz#override",
+    ],
+)
+def test_source_fetch_revalidates_direct_artifact_before_transport(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, url: str
+) -> None:
+    path = _write_docker_source_manifest(tmp_path, _docker_source_manifest())
+    artifact = replace(docker_sources.load_manifest(path, today=date(2026, 6, 14))[0], url=url)
+    calls = _stub_source_transport(monkeypatch, payload=b"unused")
+
+    with pytest.raises(RuntimeError):
+        docker_sources._write_verified_artifact(artifact, tmp_path / "sources")
+
+    assert calls == []
+
+
 def test_docker_source_artifact_fetcher_verifies_sha3_and_reuses_existing_file(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -723,17 +807,7 @@ def test_docker_source_artifact_fetcher_verifies_sha3_and_reuses_existing_file(
     )
     artifact = docker_sources.load_manifest(manifest_path, today=date(2026, 6, 14))[0]
     output_dir = tmp_path / "docker-sources"
-    calls: list[tuple[str, int]] = []
-
-    class _Response:
-        def read(self) -> bytes:
-            return payload
-
-    def _urlopen(url: str, *, timeout: int) -> _Response:
-        calls.append((url, timeout))
-        return _Response()
-
-    monkeypatch.setattr(docker_sources, "urlopen", _urlopen)
+    calls = _stub_source_transport(monkeypatch, payload=payload)
     output_path = docker_sources._write_verified_artifact(artifact, output_dir)
 
     assert output_path == output_dir / "sqlite-autoconf-3530200.tar.gz"
@@ -741,14 +815,11 @@ def test_docker_source_artifact_fetcher_verifies_sha3_and_reuses_existing_file(
     assert output_path.stat().st_mode & 0o777 == 0o644
     assert calls == [("https://sqlite.org/2026/sqlite-autoconf-3530200.tar.gz", 60)]
 
-    def _unexpected_urlopen(_url: str, *, timeout: int) -> _Response:
-        raise AssertionError("verified artifact should be reused without a network call")
-
-    monkeypatch.setattr(docker_sources, "urlopen", _unexpected_urlopen)
     reused_path = docker_sources._write_verified_artifact(artifact, output_dir)
 
     assert reused_path == output_path
     assert output_path.read_bytes() == payload
+    assert calls == [(artifact.url, 60)]
 
 
 def test_docker_source_artifact_fetcher_rejects_digest_mismatches(
@@ -760,11 +831,7 @@ def test_docker_source_artifact_fetcher_rejects_digest_mismatches(
     )
     artifact = docker_sources.load_manifest(manifest_path, today=date(2026, 6, 14))[0]
 
-    class _Response:
-        def read(self) -> bytes:
-            return b"tampered sqlite source artifact"
-
-    monkeypatch.setattr(docker_sources, "urlopen", lambda _url, *, timeout: _Response())
+    _stub_source_transport(monkeypatch, payload=b"tampered sqlite source artifact")
 
     with pytest.raises(RuntimeError, match="SHA3 mismatch"):
         docker_sources._write_verified_artifact(artifact, tmp_path / "docker-sources")
@@ -799,7 +866,7 @@ def test_source_cache_rejects_nonregular_objects(
     def no_network(*args: object, **kwargs: object) -> None:
         pytest.fail("unsafe cache entry must be rejected before network access")
 
-    monkeypatch.setattr(docker_sources, "urlopen", no_network)
+    monkeypatch.setattr(docker_sources, "build_opener", no_network)
     with pytest.raises(RuntimeError, match="regular|symlink"):
         docker_sources._write_verified_artifact(artifact, output)
     assert referent.read_bytes() == payload
