@@ -50,18 +50,18 @@ RUNBOOK_PATH = REPO_ROOT / "RUNBOOK_AGENT.md"
 ORCHESTRATION_CONTRACT_PATH = (
     REPO_ROOT / "docs" / "orchestration" / "PR_ORCHESTRATION_CONTRACT_MATRIX.md"
 )
-CHECKOUT_NODE24_SHA = "".join(
+CHECKOUT_V7_SHA = "".join(
     (
-        "de0f",
-        "ac2e",
-        "4500",
-        "dabe",
-        "0009",
-        "e672",
-        "14ff",
-        "5f54",
-        "47ce",
-        "83dd",
+        "3d3c",
+        "42e5",
+        "aac5",
+        "ba80",
+        "5825",
+        "da76",
+        "410c",
+        "1812",
+        "73ba",
+        "90b1",
     )
 )
 SETUP_NODE_NODE24_SHA = "".join(
@@ -504,6 +504,12 @@ def _active_workflow_paths() -> Iterator[Path]:
     yield from sorted(workflow_dir.glob("*.yaml"))
 
 
+def _active_composite_action_paths() -> Iterator[Path]:
+    actions_dir = REPO_ROOT / ".github" / "actions"
+    yield from sorted(actions_dir.rglob("action.yml"))
+    yield from sorted(actions_dir.rglob("action.yaml"))
+
+
 def _iter_job_steps(path: Path) -> Iterator[tuple[str, dict[str, object]]]:
     workflow = _load_workflow(path)
     jobs = workflow["jobs"]
@@ -553,11 +559,124 @@ def _assert_yaml_mapping_keys_are_unique(source: str) -> None:
     visit(document, ())
 
 
+def _iter_uses_source_mappings(node: Node) -> Iterator[tuple[ScalarNode, ScalarNode]]:
+    """Visit every parsed uses field, including nested composite action steps."""
+
+    if isinstance(node, MappingNode):
+        for key_node, value_node in node.value:
+            if isinstance(key_node, ScalarNode) and key_node.value == "uses":
+                assert isinstance(value_node, ScalarNode), "uses must be a YAML scalar"
+                assert value_node.tag == "tag:yaml.org,2002:str", "uses must be a string"
+                yield key_node, value_node
+            yield from _iter_uses_source_mappings(value_node)
+    elif isinstance(node, SequenceNode):
+        for value_node in node.value:
+            yield from _iter_uses_source_mappings(value_node)
+
+
 def test_all_active_workflows_declare_unique_yaml_keys() -> None:
     """Duplicate keys must not silently override any active workflow configuration."""
 
     for workflow_path in _active_workflow_paths():
         _assert_yaml_mapping_keys_are_unique(workflow_path.read_text(encoding="utf-8"))
+
+
+def _assert_no_unsafe_checkout_input(value: object) -> None:
+    """Reject the unsafe v7 opt-in regardless of action-input key casing."""
+
+    if isinstance(value, dict):
+        assert all(
+            not isinstance(key, str) or key.casefold() != "allow-unsafe-pr-checkout"
+            for key in value
+        )
+        for child in value.values():
+            _assert_no_unsafe_checkout_input(child)
+    elif isinstance(value, list):
+        for child in value:
+            _assert_no_unsafe_checkout_input(child)
+
+
+@pytest.mark.parametrize("key", ["allow-unsafe-pr-checkout", "Allow-Unsafe-Pr-Checkout"])
+def test_checkout_unsafe_input_rejects_case_variants(key: str) -> None:
+    """A casing variant cannot bypass the parsed workflow input guard."""
+
+    with pytest.raises(AssertionError):
+        _assert_no_unsafe_checkout_input({"jobs": [{"with": {key: True}}]})
+
+
+def test_all_active_checkout_uses_have_one_exact_v7_pin() -> None:
+    """Enumerate checkout uses in every active workflow and local composite action."""
+
+    workflow_paths = list(_active_workflow_paths())
+    composite_paths = list(_active_composite_action_paths())
+    assert workflow_paths, "Active workflow inventory must not be empty"
+    assert len({path.name for path in workflow_paths}) == len(workflow_paths)
+    assert len({path.parent for path in composite_paths}) == len(composite_paths)
+    workflow_path_set = set(workflow_paths)
+
+    expected_uses = f"actions/checkout@{CHECKOUT_V7_SHA}"
+    expected_source_lines = {
+        f"uses: {expected_uses} # v7.0.1",
+        f"uses: {expected_uses} # v7.0.1 / Node 24",
+    }
+    observed_checkout_uses: list[tuple[str, int]] = []
+    for path in (*workflow_paths, *composite_paths):
+        source = path.read_text(encoding="utf-8")
+        _assert_yaml_mapping_keys_are_unique(source)
+        payload = yaml.safe_load(source)
+        assert isinstance(payload, dict), f"{path}: YAML root must be a mapping"
+        _assert_no_unsafe_checkout_input(payload)
+        if path in workflow_path_set:
+            assert (
+                isinstance(payload.get("jobs"), dict) and payload["jobs"]
+            ), f"{path}: active workflow jobs inventory must be nonempty"
+        else:
+            runs = payload.get("runs")
+            assert isinstance(runs, dict) and runs.get("using") == "composite", path
+            assert isinstance(runs.get("steps"), list) and runs["steps"], path
+        document = yaml.compose(source)
+        assert isinstance(document, MappingNode), f"{path}: YAML root must be a mapping"
+        for key_node, value_node in _iter_uses_source_mappings(document):
+            uses = value_node.value
+            if uses.split("@", maxsplit=1)[0].casefold() != "actions/checkout":
+                continue
+            relative_path = str(path.relative_to(REPO_ROOT))
+            observed_checkout_uses.append((relative_path, key_node.start_mark.line + 1))
+            assert uses == expected_uses, f"{relative_path}:{key_node.start_mark.line + 1}: {uses}"
+            source_line = source.splitlines()[key_node.start_mark.line].strip().removeprefix("- ")
+            assert (
+                source_line in expected_source_lines
+            ), f"{relative_path}:{key_node.start_mark.line + 1}: {source_line}"
+
+    expected_checkout_workflows = {
+        ".github/workflows/accessibility.yml",
+        ".github/workflows/actionlint.yml",
+        ".github/workflows/build-equivalence-evidence.yml",
+        ".github/workflows/build.yml",
+        ".github/workflows/cd-test.yml",
+        ".github/workflows/cd.yml",
+        ".github/workflows/ci-metrics.yml",
+        ".github/workflows/ci.yml",
+        ".github/workflows/codecov-upload.yml",
+        ".github/workflows/codeql.yml",
+        ".github/workflows/devcontainer-smoke.yml",
+        ".github/workflows/experiment-runner-dispatch.yml",
+        ".github/workflows/experiment-runner-slack-socket-smoke.yml",
+        ".github/workflows/frontend-ci.yml",
+        ".github/workflows/greenlight-ios.yml",
+        ".github/workflows/ios-appstore-assets.yml",
+        ".github/workflows/nightly-tests.yml",
+        ".github/workflows/nightly.yml",
+        ".github/workflows/npm-dependency-submission.yml",
+        ".github/workflows/python-dependency-submission.yml",
+        ".github/workflows/rag-release-gates.yml",
+        ".github/workflows/release-control-plane-evidence.yml",
+        ".github/workflows/release-manifest-evidence.yml",
+        ".github/workflows/security.yml",
+        ".github/workflows/trivy.yml",
+    }
+    assert len(observed_checkout_uses) == 76
+    assert {path for path, _ in observed_checkout_uses} == expected_checkout_workflows
 
 
 def _job_step_by_name(
@@ -1772,7 +1891,7 @@ def test_nightly_full_tests_uses_process_shards_without_xdist() -> None:
     assert "continue-on-error" not in job
 
     checkout_step = _job_step_by_name(workflow, job_id="tests", step_name="Checkout")
-    assert checkout_step["uses"] == f"actions/checkout@{CHECKOUT_NODE24_SHA}"
+    assert checkout_step["uses"] == f"actions/checkout@{CHECKOUT_V7_SHA}"
     assert checkout_step["with"]["fetch-depth"] == 0
     assert checkout_step["with"]["persist-credentials"] is False
 
@@ -2360,7 +2479,7 @@ def test_cd_test_published_image_health_smoke_is_trusted_and_fail_closed() -> No
     assert isinstance(validate_steps, list)
     validate_checkout = validate_steps[0]
     assert isinstance(validate_checkout, dict)
-    assert validate_checkout["uses"] == f"actions/checkout@{CHECKOUT_NODE24_SHA}"
+    assert validate_checkout["uses"] == f"actions/checkout@{CHECKOUT_V7_SHA}"
     assert validate_checkout["with"] == {
         "ref": "${{ github.event.workflow_run.head_sha }}",
         "persist-credentials": False,
@@ -2545,7 +2664,7 @@ def test_cd_test_published_image_health_smoke_is_trusted_and_fail_closed() -> No
     assert isinstance(production_steps, list)
     production_checkout = production_steps[0]
     assert isinstance(production_checkout, dict)
-    assert production_checkout["uses"] == f"actions/checkout@{CHECKOUT_NODE24_SHA}"
+    assert production_checkout["uses"] == f"actions/checkout@{CHECKOUT_V7_SHA}"
     assert "with" not in production_checkout
     production_validation = _job_step_by_name(
         workflow,
@@ -2602,7 +2721,7 @@ def test_node24_checkout_and_docker_action_pins_use_verified_commit_shas() -> No
         IOS_APPSTORE_ASSETS_WORKFLOW_PATH: 3,
         SECURITY_WORKFLOW_PATH: 1,
     }
-    expected_checkout_line = f"actions/checkout@{CHECKOUT_NODE24_SHA} # v6.0.2 / Node 24"
+    expected_checkout_line = f"actions/checkout@{CHECKOUT_V7_SHA} # v7.0.1 / Node 24"
 
     observed_checkout_steps = 0
     for workflow_path, expected_count in checkout_workflows.items():
@@ -2613,7 +2732,7 @@ def test_node24_checkout_and_docker_action_pins_use_verified_commit_shas() -> No
             uses = step.get("uses")
             if isinstance(uses, str) and uses.startswith("actions/checkout@"):
                 observed_checkout_steps += 1
-                assert uses == f"actions/checkout@{CHECKOUT_NODE24_SHA}"
+                assert uses == f"actions/checkout@{CHECKOUT_V7_SHA}"
 
     assert observed_checkout_steps == sum(checkout_workflows.values())
 
@@ -3031,17 +3150,6 @@ def test_active_upload_artifact_refs_all_use_node24_sha() -> None:
 def test_active_sbom_action_refs_use_verified_v0_24_0_sha_and_preserve_contracts() -> None:
     """Guard every active SBOM action use and its fail-closed generation contract."""
 
-    def iter_uses_source_mappings(node: Node) -> Iterator[tuple[ScalarNode, ScalarNode]]:
-        if isinstance(node, MappingNode):
-            for key_node, value_node in node.value:
-                if isinstance(key_node, ScalarNode) and key_node.value == "uses":
-                    if isinstance(value_node, ScalarNode):
-                        yield key_node, value_node
-                yield from iter_uses_source_mappings(value_node)
-        elif isinstance(node, SequenceNode):
-            for value_node in node.value:
-                yield from iter_uses_source_mappings(value_node)
-
     expected_uses = f"anchore/sbom-action@{SBOM_ACTION_NODE24_SHA}"
     expected_line = f"{expected_uses} # v0.24.0"
     expected_counts = {
@@ -3064,7 +3172,7 @@ def test_active_sbom_action_refs_use_verified_v0_24_0_sha_and_preserve_contracts
         workflow_document = yaml.compose(workflow_text)
         assert isinstance(workflow_document, Node)
         sbom_source_node_count = 0
-        for uses_key_node, uses_value_node in iter_uses_source_mappings(workflow_document):
+        for uses_key_node, uses_value_node in _iter_uses_source_mappings(workflow_document):
             uses = uses_value_node.value
             if not uses.casefold().startswith("anchore/sbom-action@"):
                 continue
@@ -3192,17 +3300,6 @@ def test_active_sbom_action_refs_use_verified_v0_24_0_sha_and_preserve_contracts
 def test_active_codeql_action_refs_use_verified_v4_37_1_sha() -> None:
     """Guard every active CodeQL action ref against pin and location drift."""
 
-    def iter_uses_source_mappings(node: Node) -> Iterator[tuple[ScalarNode, ScalarNode]]:
-        if isinstance(node, MappingNode):
-            for key_node, value_node in node.value:
-                if isinstance(key_node, ScalarNode) and key_node.value == "uses":
-                    if isinstance(value_node, ScalarNode):
-                        yield key_node, value_node
-                yield from iter_uses_source_mappings(value_node)
-        elif isinstance(node, SequenceNode):
-            for value_node in node.value:
-                yield from iter_uses_source_mappings(value_node)
-
     expected_uses_by_component = {
         "init": f"github/codeql-action/init@{CODEQL_ACTION_V4_37_1_SHA}",
         "analyze": f"github/codeql-action/analyze@{CODEQL_ACTION_V4_37_1_SHA}",
@@ -3239,7 +3336,7 @@ def test_active_codeql_action_refs_use_verified_v4_37_1_sha() -> None:
         }
         workflow_document = yaml.compose(workflow_text)
         assert isinstance(workflow_document, Node)
-        for uses_key_node, uses_value_node in iter_uses_source_mappings(workflow_document):
+        for uses_key_node, uses_value_node in _iter_uses_source_mappings(workflow_document):
             uses = uses_value_node.value
             normalized_uses = uses.casefold()
             if not normalized_uses.startswith("github/codeql-action/"):
@@ -4527,7 +4624,7 @@ def test_ci_lint_all_files_pre_commit_uses_full_history_checkout() -> None:
     workflow = _load_ci_workflow()
 
     checkout_step = _job_step_by_name(workflow, job_id="lint", step_name="Checkout")
-    assert checkout_step["uses"] == f"actions/checkout@{CHECKOUT_NODE24_SHA}"
+    assert checkout_step["uses"] == f"actions/checkout@{CHECKOUT_V7_SHA}"
     assert checkout_step["with"]["fetch-depth"] == 0
 
     pre_commit_step = _job_step_by_name(
@@ -4542,7 +4639,7 @@ def test_ci_main_matrix_uses_full_history_for_git_evidence_guards() -> None:
     workflow = _load_ci_workflow()
 
     checkout_step = _job_step_by_name(workflow, job_id="test-main", step_name="Checkout")
-    assert checkout_step["uses"] == f"actions/checkout@{CHECKOUT_NODE24_SHA}"
+    assert checkout_step["uses"] == f"actions/checkout@{CHECKOUT_V7_SHA}"
     assert checkout_step["with"]["fetch-depth"] == 0
 
 
@@ -4552,7 +4649,7 @@ def test_ci_history_jobs_do_not_persist_checkout_credentials(job_id: str) -> Non
     checkout_step = _job_step_by_name(workflow, job_id=job_id, step_name="Checkout")
     assert checkout_step == {
         "name": "Checkout",
-        "uses": f"actions/checkout@{CHECKOUT_NODE24_SHA}",
+        "uses": f"actions/checkout@{CHECKOUT_V7_SHA}",
         "with": {"fetch-depth": 0, "persist-credentials": False},
     }
 
@@ -4611,7 +4708,7 @@ def _assert_ci_lint_node24_frontend_hook_dependency_contract(
     checkout_step = unique_step("Checkout")
     assert checkout_step == {
         "name": "Checkout",
-        "uses": f"actions/checkout@{CHECKOUT_NODE24_SHA}",
+        "uses": f"actions/checkout@{CHECKOUT_V7_SHA}",
         "with": {"fetch-depth": 0, "persist-credentials": False},
     }
 
@@ -4914,6 +5011,7 @@ def test_main_branch_python_sharded_runner_preserves_required_check_policy() -> 
 
     assert "MAIN_TEST_SHARDS=4" in py311_block
     assert "MAIN_TEST_MAX_PARALLEL=4" in py311_block
+    assert "export MAIN_TEST_SHARD_TIMEOUT_SECONDS=2400" in py311_block
     assert "PYTEST_XDIST_ARGS=(-p no:xdist)" not in py311_block
     assert "PYTEST_XDIST_ARGS=(-n 2 --dist=loadscope)" not in py311_block
     assert "PYTEST_XDIST_ARGS=(-n 4 --dist=loadscope)" not in py311_block
