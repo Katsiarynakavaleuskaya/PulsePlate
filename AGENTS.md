@@ -1169,8 +1169,11 @@ Only the raw, exact Git paths `frontend/src/api/openapi.json` and
 product-client category and client-mix classification, and only when the
 explicit PR head tree records the path as a `100644 blob`. They still count
 toward file caps and the advisory changed-line count, and remain subject to
-OpenAPI sync. Symlinks, normalized aliases, neighboring paths, and other
-Web/iOS files retain the ordinary client policy.
+OpenAPI sync. Either endpoint of a rename or copy record emitted by the
+declared Git name-status diff retains the ordinary client policy even when
+the head path is a regular blob. This finite status check does not prove
+every actual file movement or generated content. Symlinks, normalized aliases,
+neighboring paths, and other Web/iOS files retain the ordinary client policy.
 
 4. **Warnings (non-blocking):**
 
