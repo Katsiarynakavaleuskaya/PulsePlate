@@ -451,6 +451,10 @@ This document is the canonical governance reference and must stay aligned with:
 - **CI strict:** when `CI=true`, disposition preflight requires `GH_TOKEN` (for example `GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}`) and `gh auth status` before any GraphQL.
 
 **GitHub token handling:** Never assume fixed GitHub token length. Treat `GITHUB_TOKEN`, `GH_TOKEN`, GitHub App installation tokens, and `ghs_*` values as opaque secrets. Validators must accept stateless GitHub App installation tokens, including `ghs_` JWT-format tokens of approximately 520 characters with dots. Do not decode, introspect, split, log, or persist installation-token internals. Workflow command emissions that mask or print untrusted `workflow_dispatch` values must escape `%`, CR, and LF before writing `::add-mask::` or related workflow commands.
+Deterministic test and mock harnesses that construct, assert, or snapshot
+authentication headers must isolate every credential-source environment variable
+and inject synthetic credentials, even when transport is mocked, so assertion
+diagnostics cannot expose host credentials.
 
 The merge-readiness gate remains separate and still requires `GITHUB_TOKEN` for PR API access. Before any GraphQL call, the disposition guard runs a mandatory preflight: if `--require-auth` or `CI=true`, it requires `GH_TOKEN` and runs `gh auth status`; if either is missing or fails, the script exits 1 with env diagnostic and fix commands (no GraphQL, no mapping/resolve). This prevents agents from wasting iterations on mapping when auth is invalid.
 
