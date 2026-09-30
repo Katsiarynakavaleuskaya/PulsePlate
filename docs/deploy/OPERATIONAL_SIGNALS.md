@@ -92,8 +92,11 @@ linux/amd64 image is pinned by platform digest in the Compose files. The
 service has no host port or Caddy route, runs as UID 65534 with a read-only
 root, dropped capabilities, a 16 MiB temporary store, and no cluster listener.
 Prometheus and Alertmanager share only the internal `alerting` network;
-Alertmanager alone also joins `smtp-egress`. That bridge permits outbound
-networking and is not a firewall restricting traffic to Resend.
+Alertmanager alone also joins `smtp-egress`. Its explicit gateway priority 2
+exceeds the internal `alerting` attachment's priority 1, making SMTP egress
+the default route. That bridge permits outbound networking and is not a
+firewall restricting traffic to Resend. The installed Compose host must retain
+both priority values in its normalized config before activation.
 
 Prometheus sets the literal `staging` or `production` external `environment`
 label, and drops the same name from scraped metric labels before ingestion.

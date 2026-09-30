@@ -546,14 +546,16 @@ print(name)
     echo "❌ Unable to bind Alertmanager census to one Compose project" >&2
     return 1
   fi
-  if ! container_id="$(dc --profile alerting ps --all --quiet alertmanager)"; then
+  if ! container_id="$("$DOCKER_BIN" ps --all --no-trunc --quiet \
+    --filter "label=com.docker.compose.project=$project_name" \
+    --filter "label=com.docker.compose.service=alertmanager")"; then
     echo "❌ Unable to census this Compose project's Alertmanager" >&2
     return 1
   fi
   if [ -z "$container_id" ]; then
     return 0
   fi
-  if [[ "$container_id" == *$'\n'* ]] || [[ ! "$container_id" =~ ^[0-9a-f]{12,64}$ ]]; then
+  if [[ "$container_id" == *$'\n'* ]] || [[ ! "$container_id" =~ ^[0-9a-f]{64}$ ]]; then
     echo "❌ Alertmanager census returned ambiguous or malformed container IDs" >&2
     return 1
   fi
@@ -561,7 +563,7 @@ print(name)
 import json
 import re
 import sys
-short_id, project_name = sys.argv[1:3]
+container_id, project_name = sys.argv[1:3]
 try:
     records = json.load(sys.stdin)
 except (ValueError, TypeError) as exc:
@@ -570,7 +572,7 @@ if type(records) is not list or len(records) != 1 or type(records[0]) is not dic
     raise SystemExit("Alertmanager inspect must return exactly one container")
 record = records[0]
 full_id = record.get("Id")
-if type(full_id) is not str or not re.fullmatch(r"[0-9a-f]{64}", full_id) or not full_id.startswith(short_id):
+if type(full_id) is not str or not re.fullmatch(r"[0-9a-f]{64}", full_id) or full_id != container_id:
     raise SystemExit("Alertmanager inspect ID differs from Compose census")
 config = record.get("Config")
 labels = config.get("Labels") if type(config) is dict else None
@@ -928,6 +930,14 @@ if alertmanager.get("profiles") != ["alerting"] or alertmanager.get("ports") not
     raise SystemExit("Alertmanager must be private and profile selected")
 if set(alertmanager.get("networks", {})) != {"alerting", "smtp-egress"}:
     raise SystemExit("Alertmanager networks are not canonical")
+alertmanager_networks = alertmanager["networks"]
+if (type(alertmanager_networks["alerting"]) is not dict
+        or type(alertmanager_networks["smtp-egress"]) is not dict
+        or type(alertmanager_networks["alerting"].get("gw_priority")) is not int
+        or type(alertmanager_networks["smtp-egress"].get("gw_priority")) is not int
+        or alertmanager_networks["alerting"]["gw_priority"] != 1
+        or alertmanager_networks["smtp-egress"]["gw_priority"] != 2):
+    raise SystemExit("Alertmanager SMTP egress must be the explicit highest-priority gateway")
 if set(prometheus.get("networks", {})) != {"observability", "alerting"}:
     raise SystemExit("Prometheus networks are not canonical")
 expected_app_networks = {"web", "observability", "database"} if expected_environment == "staging" else {"web", "observability"}

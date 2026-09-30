@@ -259,7 +259,7 @@ includes its resolved values. The observer keeps bounded resolved Compose
 JSON in memory, verifies its unchanged stdin roundtrip, and compares the
 resolved service hashes to the exact container labels. Every observation
 requires the installed root-owned Compose file to have the exact reviewed
-SHA-256 `94a109c65bfe702f38b129e1733f808274d1d46a6705da7ccb1cee5f3d988e7a`.
+SHA-256 `f194f8c5a58fec75c9483cf6827b5e1ef5171c3571d8897202ee56d0c666cca6`.
 Those exact source bytes define one protected app `.env` file and no PostgreSQL
 `env_file`. The observer overrides stale local or protected `.env` image and
 env-file references with backend/Caddy digest refs from the exact reviewed

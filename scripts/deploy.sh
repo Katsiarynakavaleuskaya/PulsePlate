@@ -321,6 +321,14 @@ if alertmanager.get("profiles") != ["alerting"] or alertmanager.get("ports") not
     raise SystemExit("Alertmanager must be private and profile selected")
 if set(alertmanager.get("networks", {})) != {"alerting", "smtp-egress"}:
     raise SystemExit("Alertmanager networks are not canonical")
+alertmanager_networks = alertmanager["networks"]
+if (type(alertmanager_networks["alerting"]) is not dict
+        or type(alertmanager_networks["smtp-egress"]) is not dict
+        or type(alertmanager_networks["alerting"].get("gw_priority")) is not int
+        or type(alertmanager_networks["smtp-egress"].get("gw_priority")) is not int
+        or alertmanager_networks["alerting"]["gw_priority"] != 1
+        or alertmanager_networks["smtp-egress"]["gw_priority"] != 2):
+    raise SystemExit("Alertmanager SMTP egress must be the explicit highest-priority gateway")
 if set(prometheus.get("networks", {})) != {"observability", "alerting"}:
     raise SystemExit("Prometheus networks are not canonical")
 expected_app_networks = {"web", "observability", "database"} if expected_environment == "staging" else {"web", "observability"}

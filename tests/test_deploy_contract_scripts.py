@@ -59,7 +59,7 @@ FAKE_PROMETHEUS_COMPOSE_JSON = json.dumps(
                 "image": ALERTMANAGER_RUNTIME_REF,
                 "platform": "linux/amd64",
                 "profiles": ["alerting"],
-                "networks": {"alerting": {}, "smtp-egress": {}},
+                "networks": {"alerting": {"gw_priority": 1}, "smtp-egress": {"gw_priority": 2}},
                 "command": [
                     "--config.file=/etc/alertmanager/alertmanager.yml",
                     "--storage.path=/alertmanager",
@@ -4076,7 +4076,10 @@ def test_three_compose_contours_normalize_to_one_private_prometheus_contract(
     assert alertmanager["read_only"] is True
     assert alertmanager["cap_drop"] == ["ALL"]
     assert alertmanager["security_opt"] == ["no-new-privileges:true"]
-    assert set(alertmanager["networks"]) == {"alerting", "smtp-egress"}
+    assert alertmanager["networks"] == {
+        "alerting": {"gw_priority": 1},
+        "smtp-egress": {"gw_priority": 2},
+    }
     assert normalized["networks"]["alerting"]["internal"] is True
     assert normalized["networks"]["smtp-egress"].get("internal", False) is False
     assert "ports" not in alertmanager
@@ -4102,6 +4105,93 @@ def test_three_compose_contours_normalize_to_one_private_prometheus_contract(
             if compose_path != STAGING_COMPOSE_PATH or service_name == "caddy":
                 assert "secrets" not in service
     assert "prometheus_data" in normalized["volumes"]
+
+
+@pytest.mark.parametrize(
+    "compose_path",
+    (STAGING_COMPOSE_PATH, PRODUCTION_COMPOSE_PATH, SELF_HOSTED_COMPOSE_PATH),
+)
+def test_three_compose_contours_preserve_smtp_default_gateway_in_normal_config(
+    compose_path: Path,
+) -> None:
+    docker_bin = shutil.which("docker")
+    assert docker_bin is not None, "native Docker Compose is required for gateway admission"
+    native_env = os.environ.copy()
+    source = compose_path.read_text(encoding="utf-8")
+    required_names = set(re.findall(r"\$\{([A-Z][A-Z0-9_]*)(?::[^}]*)?\}", source))
+    native_env.update({name: "synthetic" for name in required_names})
+    for image_name in ("IMAGE_REF", "STAGING_IMAGE_REF", "STAGING_CADDY_IMAGE_REF"):
+        native_env[image_name] = "ghcr.io/example/pulseplate@sha256:" + "a" * 64
+    completed = subprocess.run(
+        [
+            docker_bin,
+            "compose",
+            "-f",
+            str(compose_path),
+            "--profile",
+            "*",
+            "config",
+            "--no-env-resolution",
+            "--format",
+            "json",
+        ],
+        cwd=REPO_ROOT,
+        env=native_env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert completed.returncode == 0, completed.stderr
+    assert json.loads(completed.stdout)["services"]["alertmanager"]["networks"] == {
+        "alerting": {"gw_priority": 1},
+        "smtp-egress": {"gw_priority": 2},
+    }
+
+
+@pytest.mark.parametrize("contour", ("staging", "production"))
+@pytest.mark.parametrize(
+    "fault",
+    (
+        "missing-alerting",
+        "missing-smtp",
+        "equal",
+        "reversed",
+        "bool",
+        "string",
+        "extra-network",
+    ),
+)
+def test_alertmanager_gateway_priority_admission_fails_closed(
+    tmp_path: Path, contour: str, fault: str
+) -> None:
+    env, argv, log_file, _project = _alertmanager_dependency_fixture(tmp_path, contour)
+    payload = json.loads(env["STUB_PROMETHEUS_COMPOSE_JSON"])
+    attachments = payload["services"]["alertmanager"]["networks"]
+    if fault == "missing-alerting":
+        attachments["alerting"].pop("gw_priority")
+    elif fault == "missing-smtp":
+        attachments["smtp-egress"].pop("gw_priority")
+    elif fault == "equal":
+        attachments["smtp-egress"]["gw_priority"] = 1
+    elif fault == "reversed":
+        attachments["smtp-egress"]["gw_priority"] = 0
+    elif fault == "bool":
+        attachments["smtp-egress"]["gw_priority"] = True
+    elif fault == "string":
+        attachments["smtp-egress"]["gw_priority"] = "2"
+    else:
+        attachments["other"] = {"gw_priority": 3}
+    env["STUB_PROMETHEUS_COMPOSE_JSON"] = json.dumps(payload)
+    completed = subprocess.run(
+        argv, cwd=REPO_ROOT, env=env, capture_output=True, text=True, check=False
+    )
+    assert completed.returncode != 0
+    assert (
+        "Alertmanager networks are not canonical"
+        if fault == "extra-network"
+        else "Alertmanager SMTP egress must be the explicit highest-priority gateway"
+    ) in completed.stderr
+    _assert_dependency_admission_has_no_product_effect(log_file)
 
 
 @pytest.mark.parametrize(
@@ -4459,10 +4549,13 @@ if "STUB_PROMETHEUS_COMPOSE_JSON" not in os.environ and isinstance(payload, dict
     if match:
         compose = Path(match.group(1))
         payload["name"] = compose.parent.name
-        payload["services"]["alertmanager"]["volumes"] = [{{
-            "type": "bind", "source": str(compose.parent / "alertmanager/alertmanager.yml"),
-            "target": "/etc/alertmanager/alertmanager.yml", "read_only": True
-        }}]
+        if os.environ.get("STUB_INSTALLED_NO_ALERTMANAGER") == str(compose.resolve()):
+            payload["services"].pop("alertmanager", None)
+        else:
+            payload["services"]["alertmanager"]["volumes"] = [{{
+                "type": "bind", "source": str(compose.parent / "alertmanager/alertmanager.yml"),
+                "target": "/etc/alertmanager/alertmanager.yml", "read_only": True
+            }}]
         payload["secrets"]["alertmanager_smtp_key"]["file"] = str(
             compose.parent / "secrets/alertmanager_smtp_key"
         )
@@ -4475,6 +4568,10 @@ print(json.dumps(payload))
 PY_COMPOSE_MODEL
     ;;
   *"ps --all --quiet alertmanager"*)
+    printf '%s\\n' 'no such service: alertmanager' >&2
+    exit 97
+    ;;
+  *"ps --all --no-trunc --quiet --filter label=com.docker.compose.project="*"--filter label=com.docker.compose.service=alertmanager"*)
     if [ -n "${{STUB_CENSUS_LOG:-}}" ]; then
       printf 'docker %s\\n' "$*" >> "$STUB_CENSUS_LOG"
     fi
@@ -4484,7 +4581,7 @@ PY_COMPOSE_MODEL
     printf '%s' "${{STUB_ALERTMANAGER_PS_IDS:-}}"
     exit 0
     ;;
-  inspect\\ eeeeeeeeeeee*)
+  inspect\\ {'e' * 64}*)
     if [ -n "${{STUB_CENSUS_LOG:-}}" ]; then
       printf 'docker %s\\n' "$*" >> "$STUB_CENSUS_LOG"
     fi
@@ -5319,6 +5416,69 @@ def test_alertmanager_dependency_admission_preserves_legitimate_product_edges_an
     _assert_dependency_admission_has_no_product_effect(log_file)
 
 
+@pytest.mark.parametrize("contour", ("staging", "production"))
+@pytest.mark.parametrize(
+    ("carrier", "field"),
+    (
+        ("ipc", "ipc: service:alertmanager"),
+        ("pid", "pid: service:alertmanager"),
+        ("volumes_from", "volumes_from: [alertmanager]"),
+        ("links", "links: [alertmanager]"),
+        ("network_mode", "network_mode: service:alertmanager"),
+    ),
+)
+def test_native_compose_service_references_reject_via_normalized_dependency(
+    tmp_path: Path, contour: str, carrier: str, field: str
+) -> None:
+    docker_bin = shutil.which("docker")
+    assert docker_bin is not None, "native Docker Compose is required for reference admission"
+    compose_path = tmp_path / "native-reference.yaml"
+    compose_path.write_text(
+        "services:\n"
+        "  alertmanager:\n"
+        "    image: busybox:latest\n"
+        "    profiles: [alerting]\n"
+        "  app:\n"
+        "    image: busybox:latest\n"
+        f"    {field}\n",
+        encoding="utf-8",
+    )
+    native = subprocess.run(
+        [
+            docker_bin,
+            "compose",
+            "-f",
+            str(compose_path),
+            "--profile",
+            "*",
+            "config",
+            "--format",
+            "json",
+        ],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert native.returncode == 0, native.stderr
+    projected = json.loads(native.stdout)["services"]["app"]
+    assert "alertmanager" in projected["depends_on"], (carrier, projected)
+    assert carrier in projected
+
+    env, argv, log_file, _project = _alertmanager_dependency_fixture(tmp_path, contour)
+    payload = json.loads(env["STUB_PROMETHEUS_COMPOSE_JSON"])
+    payload["services"]["app"]["depends_on"] = projected["depends_on"]
+    payload["services"]["app"][carrier] = projected[carrier]
+    env["STUB_PROMETHEUS_COMPOSE_JSON"] = json.dumps(payload)
+    assert not env.get("COMPOSE_PROFILES")
+    completed = subprocess.run(
+        argv, cwd=REPO_ROOT, env=env, capture_output=True, text=True, check=False
+    )
+    assert completed.returncode != 0
+    assert "Another service may not depend on Alertmanager" in completed.stderr
+    _assert_dependency_admission_has_no_product_effect(log_file)
+
+
 @pytest.mark.parametrize("source_kind", ["directory", "archive"])
 def test_production_incoming_alertmanager_dependency_rejects_before_contract_publication(
     tmp_path: Path, source_kind: str
@@ -5417,6 +5577,63 @@ def _alertmanager_census_inspect_record(
     }
 
 
+@pytest.mark.parametrize("source_kind", ("directory", "archive"))
+def test_production_first_bundle_censuses_old_project_without_installed_alertmanager(
+    tmp_path: Path, source_kind: str
+) -> None:
+    env, project, log_file, bundle = _production_preflight_fixture(tmp_path, with_bundle=True)
+    assert bundle is not None
+    installed_compose = project / "deploy/docker-compose.production.yaml"
+    old_source = yaml.safe_load(installed_compose.read_text(encoding="utf-8"))
+    old_source["services"].pop("alertmanager")
+    old_source["secrets"].pop("alertmanager_smtp_key")
+    old_source["networks"].pop("alerting")
+    old_source["networks"].pop("smtp-egress")
+    old_source["services"]["prometheus"]["networks"] = ["observability"]
+    installed_compose.write_text(yaml.safe_dump(old_source, sort_keys=False), encoding="utf-8")
+    installed_alertmanager = project / "deploy/alertmanager"
+    for leaf in ("alertmanager.yml", "trivy-ignore.yaml"):
+        (installed_alertmanager / leaf).unlink()
+    installed_alertmanager.rmdir()
+    assert (bundle / "deploy/alertmanager/alertmanager.yml").is_file()
+    assert (bundle / "deploy/alertmanager/trivy-ignore.yaml").is_file()
+    assert "alertmanager" not in yaml.safe_load(installed_compose.read_text())["services"]
+    env["STUB_INSTALLED_NO_ALERTMANAGER"] = str(installed_compose)
+    env["STUB_CENSUS_LOG"] = str(log_file)
+    env.pop("COMPOSE_PROFILES", None)
+    archive: Path | None = None
+    if source_kind == "archive":
+        archive = _canonical_test_archive_path(9448)
+        _write_shell_bundle_archive(archive, bundle)
+        env.pop("SHELL_BUNDLE_DIR", None)
+        env["SHELL_BUNDLE_ARCHIVE"] = str(archive)
+    try:
+        completed = subprocess.run(
+            [str(REPO_ROOT / "scripts/deploy_production.sh"), "--preflight-only"],
+            cwd=REPO_ROOT,
+            env=env,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        assert completed.returncode == 0, completed.stderr
+        log = log_file.read_text(encoding="utf-8").splitlines()
+        assert any(
+            "ps --all --no-trunc --quiet" in line
+            and "label=com.docker.compose.project=deploy" in line
+            and "label=com.docker.compose.service=alertmanager" in line
+            for line in log
+        ), log
+        assert all("ps --all --quiet alertmanager" not in line for line in log)
+        assert all(
+            " pull " not in line and " up " not in line and " stop " not in line for line in log
+        )
+        assert not installed_alertmanager.exists()
+    finally:
+        if archive is not None:
+            archive.unlink(missing_ok=True)
+
+
 @pytest.mark.parametrize(
     ("presence", "utc_instant", "allowed"),
     (
@@ -5445,7 +5662,7 @@ def test_production_off_profile_census_only_running_alertmanager_enforces_expiry
     )
     script.chmod(0o755)
     if presence != "absent":
-        env["STUB_ALERTMANAGER_PS_IDS"] = "e" * 12
+        env["STUB_ALERTMANAGER_PS_IDS"] = "e" * 64
         status = "running" if presence == "running" else "exited"
         env["STUB_ALERTMANAGER_INSPECT_JSON"] = json.dumps(
             [_alertmanager_census_inspect_record(status=status)]
@@ -5462,8 +5679,12 @@ def test_production_off_profile_census_only_running_alertmanager_enforces_expiry
     if not allowed:
         assert "running Alertmanager Trivy exception has expired" in completed.stderr
     log = log_file.read_text().splitlines()
-    assert any("--profile alerting ps --all --quiet alertmanager" in line for line in log)
-    assert bool([line for line in log if line.startswith("docker inspect " + "e" * 12)]) is (
+    assert any(
+        "ps --all --no-trunc --quiet --filter label=com.docker.compose.project=" in line
+        and "--filter label=com.docker.compose.service=alertmanager" in line
+        for line in log
+    )
+    assert bool([line for line in log if line.startswith("docker inspect " + "e" * 64)]) is (
         presence != "absent"
     )
     assert all(" pull " not in line and " up " not in line and " stop " not in line for line in log)
@@ -5474,6 +5695,8 @@ def test_production_off_profile_census_only_running_alertmanager_enforces_expiry
     (
         ("ps-error", "Unable to census"),
         ("multiple", "ambiguous or malformed container IDs"),
+        ("duplicate", "ambiguous or malformed container IDs"),
+        ("short-id", "ambiguous or malformed container IDs"),
         ("malformed-id", "ambiguous or malformed container IDs"),
         ("inspect-error", "Unable to prove"),
         ("restarting", "unknown or restarting"),
@@ -5493,12 +5716,16 @@ def test_production_off_profile_census_fails_closed_before_product_mutation(
     )
     env.pop("COMPOSE_PROFILES", None)
     env["STUB_CENSUS_LOG"] = str(log_file)
-    env["STUB_ALERTMANAGER_PS_IDS"] = "e" * 12
+    env["STUB_ALERTMANAGER_PS_IDS"] = "e" * 64
     record = _alertmanager_census_inspect_record()
     if fault == "ps-error":
         env["STUB_ALERTMANAGER_PS_STATUS"] = "37"
     elif fault == "multiple":
-        env["STUB_ALERTMANAGER_PS_IDS"] += "\n" + "f" * 12
+        env["STUB_ALERTMANAGER_PS_IDS"] += "\n" + "f" * 64
+    elif fault == "duplicate":
+        env["STUB_ALERTMANAGER_PS_IDS"] += "\n" + "e" * 64
+    elif fault == "short-id":
+        env["STUB_ALERTMANAGER_PS_IDS"] = "e" * 12
     elif fault == "malformed-id":
         env["STUB_ALERTMANAGER_PS_IDS"] = "not-a-container-id"
     elif fault == "inspect-error":
@@ -5551,9 +5778,10 @@ def test_production_off_profile_census_fails_closed_before_product_mutation(
     assert completed.returncode != 0
     assert expected in completed.stderr
     log = log_file.read_text().splitlines()
-    assert any("--profile alerting ps --all --quiet alertmanager" in line for line in log) is (
-        fault != "wrong-project-name"
-    )
+    assert any(
+        "ps --all --no-trunc --quiet --filter label=com.docker.compose.project=" in line
+        for line in log
+    ) is (fault != "wrong-project-name")
     assert all(" pull " not in line and " up " not in line and " stop " not in line for line in log)
 
 
@@ -5586,7 +5814,11 @@ def test_production_empty_alertmanager_census_requires_canonical_project_identit
     log = log_file.read_text().splitlines()
     assert any("--profile alerting config --format json" in line for line in log)
     assert (
-        any("--profile alerting ps --all --quiet alertmanager" in line for line in log) is allowed
+        any(
+            "ps --all --no-trunc --quiet --filter label=com.docker.compose.project=" in line
+            for line in log
+        )
+        is allowed
     )
     assert all(" pull " not in line and " up " not in line and " stop " not in line for line in log)
 

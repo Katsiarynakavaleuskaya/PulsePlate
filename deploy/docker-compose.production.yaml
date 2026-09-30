@@ -112,7 +112,11 @@ services:
     profiles: ["alerting"]
     restart: unless-stopped
     read_only: true
-    networks: [alerting, smtp-egress]
+    networks:
+      alerting:
+        gw_priority: 1
+      smtp-egress:
+        gw_priority: 2
     cap_drop: [ALL]
     security_opt:
       - no-new-privileges:true
