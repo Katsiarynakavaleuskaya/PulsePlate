@@ -41,6 +41,10 @@ This file lists, per agent slug:
   dependent action. Never describe a summary or omitted file as full delivery.
 - A new child with a bounded/no-history fork still needs the same required
   context and predecessor evidence; model selection does not waive it.
+- A tool response marked truncated is incomplete acquisition. Retain a per-source
+  range cursor and finish with bounded non-truncated reads in the same occurrence.
+  Count inherited content only when it was actually consumed in full and remains
+  byte-current; an unchanged hash or a source summary does not establish that read.
 
 The same full-context obligation applies to the manual prompt path and to
 exact delivery requested with
