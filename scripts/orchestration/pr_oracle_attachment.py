@@ -151,7 +151,7 @@ def _execute_dispatch(arguments: list[str]) -> int:
 
     captured = io.StringIO()
     with redirect_stdout(captured):
-        status = dispatcher.main(arguments)
+        status: int = dispatcher.main(arguments)
     if len(captured.getvalue()) > MAX_BYTES:
         raise OracleEvidenceError("Dispatcher summary exceeds its bound.")
     return status
