@@ -174,13 +174,14 @@ def test_current_policy_review_deadline_is_inclusive_and_distinct_from_expiry(to
         "# Review-by: 2026-10-05 (manual removal)",
         "# Review-by: 2026-10-07 (manual removal)",
         "# Review-by: 2026-10-05 (manual removal)",
+        "# Review-by: 2026-10-05 (manual removal)",
     ]
     review_lines = [
         number
         for number, line in enumerate(policy_lines, start=1)
         if line.startswith("# Review-by: 2026-10-05 ")
     ]
-    assert len(review_lines) == 2, "both retained reviewed records must be represented"
+    assert len(review_lines) == 3, "two retained records and new OpenSSL review are required"
     expected = (
         [
             f"Stale Trivy suppression review date: {POLICY_PATH}:{number} "
@@ -570,6 +571,7 @@ def test_gemfile_scan_fails_closed_on_traversal_error(
 
 
 def test_zlib_suppression_requires_exact_pkgid_scope() -> None:
+    """Retain CVE/name/version scope and lexical contains; no exact-ID claim."""
     policy = _policy_text()
     start = policy.index('ignore if {\n\tinput.VulnerabilityID == "CVE-2026-27171"')
     zlib_ignore_rule = policy[start : policy.index("\n}", start) + 2]
@@ -583,6 +585,7 @@ def test_zlib_suppression_requires_exact_pkgid_scope() -> None:
 
 
 def test_ncurses_suppression_requires_fixed_version_and_exact_tuple_scope() -> None:
+    """Retain family/name/version scope; prefixes do not prove paired equality."""
     policy = _policy_text()
     start = policy.index('ignore if {\n\tinput.VulnerabilityID == "CVE-2025-69720"')
     ncurses_ignore_rule = policy[start : policy.index("\n}", start) + 2]
@@ -768,7 +771,7 @@ def test_native_trivy_output_requires_exact_schema_identity_count_and_finding() 
 def test_native_trivy_contract_runs_each_case_with_fixed_argv(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    cases = native_policy._cases()
+    cases = native_policy._cases() + native_policy._openssl_cases()
     calls: list[list[str]] = []
 
     def convert(
@@ -784,8 +787,8 @@ def test_native_trivy_contract_runs_each_case_with_fixed_argv(
         return subprocess.CompletedProcess(argv, 0, _native_report_output(finding, expected), b"")
 
     monkeypatch.setattr(native_policy, "_invoke", convert)
-    assert native_policy._run_contract("/usr/bin/trivy", Path("/tmp/policy.rego")) == 45
-    assert len(calls) == 45
+    assert native_policy._run_contract("/usr/bin/trivy", Path("/tmp/policy.rego")) == 85
+    assert len(calls) == 85
     assert all(
         call
         == [
@@ -1507,3 +1510,176 @@ def test_ignore_text_in_comments_does_not_create_suppression_rule(
 
 def test_current_policy_uses_only_supported_ignore_rule_heads() -> None:
     assert evaluate_policy_file(POLICY_PATH, today=date(2026, 7, 27)) == []
+
+
+def test_openssl_suppression_requires_paired_high_unfixed_scope() -> None:
+    policy = _policy_text()
+    start = policy.index("cve_2026_84782_pkgid_match if {")
+    openssl_region = policy[start:]
+    helpers = re.findall(r"cve_2026_84782_pkgid_match if \{(.*?)\n\}", openssl_region, re.S)
+    assert len(helpers) == 2
+    assert {block.strip() for block in helpers} == {
+        'input.PkgName == "libssl3"\n\tinput.PkgID == "libssl3@3.0.22-1~deb12u1"',
+        'input.PkgName == "openssl"\n\tinput.PkgID == "openssl@3.0.22-1~deb12u1"',
+    }
+    rule = openssl_region[openssl_region.index("ignore if {") :]
+    assert 'input.VulnerabilityID == "CVE-2026-84782"' in rule
+    assert 'input.Severity == "HIGH"' in rule
+    assert 'input.InstalledVersion == "3.0.22-1~deb12u1"' in rule
+    assert "cve_2026_84782_pkgid_match" in rule
+    assert rule.count('object.get(input, "FixedVersion", "") == ""') == 1
+    assert "contains(" not in openssl_region
+    assert "startswith(" not in openssl_region
+    assert "== null" not in openssl_region
+    assert policy.count("Suppression expires: 2026-10-07") == 1
+
+
+def test_openssl_native_cases_keep_distinct_members_and_adversarial_inputs() -> None:
+    cases = native_policy._openssl_cases()
+    assert native_policy.OPENSSL_TUPLES == (
+        ("libssl3", "libssl3@3.0.22-1~deb12u1"),
+        ("openssl", "openssl@3.0.22-1~deb12u1"),
+    )
+    assert len(cases) == len({case_id for case_id, _, _ in cases}) == 40
+    kinds = {
+        "missing",
+        "empty",
+        "null",
+        "wrong-cve",
+        "wrong-package",
+        "wrong-version",
+        "wrong-pkgid",
+        "cross-pair",
+        "pkgid-prefix",
+        "pkgid-suffix",
+        "pkgid-lookalike",
+        "nonempty",
+        "fixed-text",
+        "fixed-whitespace",
+        "critical",
+        "integer",
+        "float",
+        "bool",
+        "array",
+        "object",
+    }
+    assert {case_id.rsplit("/", 1)[1] for case_id, _, _ in cases} == kinds
+    for package, pkgid in native_policy.OPENSSL_TUPLES:
+        group = {
+            case_id.rsplit("/", 1)[1]: (finding, expected)
+            for case_id, finding, expected in cases
+            if case_id.split("/")[1] == package
+        }
+        assert set(group) == kinds
+        baseline = group["missing"][0]
+        assert baseline["PkgName"] == package
+        assert baseline["PkgID"] == pkgid
+        assert baseline["InstalledVersion"] == "3.0.22-1~deb12u1"
+        assert baseline["Severity"] == "HIGH"
+        assert "FixedVersion" not in baseline
+        assert group["empty"][0]["FixedVersion"] == ""
+        assert group["null"][0]["FixedVersion"] is None
+        assert group["cross-pair"][0]["PkgID"] in {
+            value for name, value in native_policy.OPENSSL_TUPLES if name != package
+        }
+        assert group["pkgid-prefix"][0]["PkgID"] == f"prefix/{pkgid}"
+        assert group["pkgid-suffix"][0]["PkgID"] == f"{pkgid}:suffix"
+        assert group["pkgid-lookalike"][0]["PkgID"] == f"{pkgid}0"
+        assert group["critical"][0]["Severity"] == "CRITICAL"
+        assert group["fixed-whitespace"][0]["FixedVersion"] == " "
+        assert {kind for kind, (_, expected) in group.items() if expected == 0} == {
+            "missing",
+            "empty",
+            "null",
+        }
+        assert {kind for kind, (_, expected) in group.items() if expected is None} == {
+            "integer",
+            "float",
+            "bool",
+            "array",
+            "object",
+        }
+        assert {
+            type(group[kind][0]["FixedVersion"])
+            for kind in ("integer", "float", "bool", "array", "object")
+        } == {int, float, bool, list, dict}
+        assert sum(expected == 1 for _, expected in group.values()) == 12
+
+
+@pytest.mark.parametrize("kind", ("integer", "float", "bool", "array", "object"))
+@pytest.mark.parametrize("fault", ("success", "stdout", "decoder", "field", "type"))
+def test_openssl_native_type_controls_require_actual_decode_rejection(
+    kind: str, fault: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    cases = native_policy._cases() + native_policy._openssl_cases()
+    target = f"CVE-2026-84782/libssl3/{kind}"
+    calls = 0
+
+    def convert(
+        argv: list[str], *, payload: bytes | None = None
+    ) -> subprocess.CompletedProcess[bytes]:
+        nonlocal calls
+        case_id, finding, expected = cases[calls]
+        calls += 1
+        assert json.loads(payload or b"")["Results"][0]["Vulnerabilities"] == [finding]
+        if case_id == target:
+            result = {
+                "success": (0, b"", b"json decode error FixedVersion of type string"),
+                "stdout": (1, b"{}", b"json decode error FixedVersion of type string"),
+                "decoder": (1, b"", b"unrelated error FixedVersion of type string"),
+                "field": (1, b"", b"json decode error OtherField of type string"),
+                "type": (1, b"", b"json decode error FixedVersion of type number"),
+            }[fault]
+            return subprocess.CompletedProcess(argv, *result)
+        if expected is None:
+            return subprocess.CompletedProcess(
+                argv, 1, b"", b"json decode error FixedVersion of type string"
+            )
+        return subprocess.CompletedProcess(argv, 0, _native_report_output(finding, expected), b"")
+
+    monkeypatch.setattr(native_policy, "_invoke", convert)
+    with pytest.raises(ValueError, match="expected native FixedVersion type rejection"):
+        native_policy._run_contract("/usr/bin/trivy", Path("/tmp/policy.rego"))
+    assert cases[calls - 1][0] == target
+
+
+@pytest.mark.parametrize("package", ("libssl3", "openssl"))
+@pytest.mark.parametrize(
+    "kind",
+    (
+        "cross-pair",
+        "pkgid-prefix",
+        "pkgid-suffix",
+        "critical",
+        "nonempty",
+        "fixed-text",
+        "fixed-whitespace",
+    ),
+)
+def test_openssl_native_negatives_require_retained_finding_identity(
+    package: str, kind: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    cases = native_policy._cases() + native_policy._openssl_cases()
+    target = f"CVE-2026-84782/{package}/{kind}"
+    calls = 0
+
+    def convert(
+        argv: list[str], *, payload: bytes | None = None
+    ) -> subprocess.CompletedProcess[bytes]:
+        nonlocal calls
+        case_id, finding, expected = cases[calls]
+        calls += 1
+        if case_id == target:
+            assert expected == 1
+            changed = {**finding, "PkgID": "other@0"}
+            return subprocess.CompletedProcess(argv, 0, _native_report_output(changed, 1), b"")
+        if expected is None:
+            return subprocess.CompletedProcess(
+                argv, 1, b"", b"json decode error FixedVersion of type string"
+            )
+        return subprocess.CompletedProcess(argv, 0, _native_report_output(finding, expected), b"")
+
+    monkeypatch.setattr(native_policy, "_invoke", convert)
+    with pytest.raises(ValueError, match="different finding identity"):
+        native_policy._run_contract("/usr/bin/trivy", Path("/tmp/policy.rego"))
+    assert cases[calls - 1][0] == target

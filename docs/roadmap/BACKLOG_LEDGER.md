@@ -24,6 +24,17 @@ If it is not recorded here — it does not exist.
 
 <!-- EXPERIMENT_BACKLOG_ENTRIES:INSERT BELOW -->
 
+<a id="ledger-p1-remove-trivy-suppression-openssl-cve-2026-84782"></a>
+- [ ] P1: Remove the temporary Bookworm OpenSSL CVE-2026-84782 exception
+  - Owner: security-auditor / PulsePlate DevOps
+  - Priority: P1
+  - Target PR: [#2447](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2447) for bounded admission; follow-up removal PR when its trigger occurs.
+  - Status: Open; candidate repository exception, with exact-head human residual-risk acceptance and merge approval still pending.
+  - Reason for deferral: Debian Bookworm still lists OpenSSL `3.0.22-1~deb12u1` as vulnerable at the 2026-09-30 review, without a fixed Bookworm row. Both affected packages remain present; this is a temporary publication exception, not remediation or a false-positive finding.
+  - Review-by: 2026-10-05 inclusive; unchanged shared hard expiry: 2026-10-07. Reassess before both dates; no automatic renewal.
+  - Links: `docs/security/CVE-2026-84782-openssl.md`, `trivy/ignore-policy.rego`, `scripts/ci/check_trivy_ignore_policy_native.py`, [Debian tracker](https://security-tracker.debian.org/tracker/CVE-2026-84782).
+  - DoD: Admit an applicable fixed Bookworm package or disposition a new nonempty native Trivy FixedVersion; remove only the exact CVE-2026-84782 rule and its now-obsolete native controls in the reviewed removal change. Prove the exact package/image/native linkage as applicable, suppression-free result for this CVE and all independent selected security gates; preserve unrelated rules/deadlines and OPS coverage. Complete current-head local/CI/review gates and the separately authorized post-merge main/image proof; then close this item through the canonical ledger closeout.
+
 <a id="ledger-p1-ops-context-inventory"></a>
 - [ ] P1: OPS-01 offline operational context inventory and separate operational follow-ups
   - Owner: dev-operator / agent-coordinator

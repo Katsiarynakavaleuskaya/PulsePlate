@@ -998,6 +998,15 @@ make diff-cov   # Diff-coverage ≥97% on changed lines
 - If CI is red, PR is not ready.
 - File-level coverage (e.g., "95.5% for app/middleware/metrics.py") is NOT a gate metric.
 - **Diff-cover failures:** Fix ONLY via tests (preferred) unless behavior is wrong; do not rewrite code solely for coverage.
+- **Numeric coverage applicability:** Keep the existing application and explicit
+  dedicated CLI coverage producers and the >=97% threshold for measurable
+  eligible changed executable lines. Numeric coverage is N/A only when the
+  actual diff, canonical configuration and existing producer contracts
+  positively establish an empty eligible-line inventory. Missing, stale,
+  failed or incomplete expected XML is unknown/failure, never N/A or 100%.
+  Required focused/native tests and producer outputs remain mandatory,
+  including the OPS-03A dedicated coverage producer and script-only selection.
+  Do not add a collector, exclusion or threshold change solely for a percentage.
 
 **legacy_app.py policy (hard):**
 
@@ -2323,7 +2332,23 @@ git grep -nE "spec_from_file_location|exec_module|sys\.modules\[" -- scripts || 
 
 **Security PR scoping:**
 
-- **One PR per CVE:** Security suppression PRs must be CVE-scoped: one PR per CVE (doc + policy rule) for traceability and auditability.
+- **Docker security PR unit:** CVE-scoped security suppression PRs remain the
+  default. One coherent Docker security/publication PR may cover the complete
+  finite HIGH/CRITICAL blocking cohort that the operator explicitly admits
+  from one immutable full snapshot of every selected governed scanner subject.
+  The snapshot derives all-and-only membership; it does not authorize the work.
+  Each CVE retains its own precise package/image evidence and security document,
+  available applicable fixes prioritized, and an individually justified remedy
+  or temporary exception with owner, review deadline, hard expiry, removal
+  criteria and rollback. All native, local, current-head CI and review gates
+  remain required. Omitted or added cohort members fail admission; no blanket
+  ignore or general waiver follows. Temporary residual-risk acceptance and
+  exact-head merge remain separate human decisions.
+- **Prospective effect:** This Docker cohort unit takes effect after merge.
+  A direct external operator instruction may separately authorize the exact
+  policy transition and its bounded current material. Candidate policy text,
+  scanners, agents and labels cannot create, infer or widen that instruction.
+  The application dependency-remediation v2 contract below remains unchanged.
 - **Exception:** A base image bump / distro upgrade PR may address multiple CVEs via upstream fixes (no suppression additions required).
 
 **Example:**
