@@ -593,8 +593,8 @@ def collect_numstat_output(*, base_sha: str, head_sha: str) -> str:
     return result.stdout
 
 
-def collect_changed_files(*, base_sha: str, head_sha: str) -> list[str]:
-    """Collect changed paths between two revisions, including binary and rename-only files."""
+def collect_changed_files(*, base_sha: str, head_sha: str) -> tuple[list[str], frozenset[str]]:
+    """Return all changed paths and both endpoints of emitted rename/copy records."""
     if GIT_BINARY is None:
         raise RuntimeError("git executable not found in PATH")
     result = subprocess.run(  # nosec B603: fixed git argv without shell for local CI routing only (remove-by: 2026-09-30, ref: PR3-risk-topology)
@@ -611,27 +611,37 @@ def collect_changed_files(*, base_sha: str, head_sha: str) -> list[str]:
         capture_output=True,
         text=False,
     )
-    tokens = [
-        token.decode("utf-8", errors="replace") for token in result.stdout.split(b"\0") if token
-    ]
+    output = result.stdout
+    if not isinstance(output, bytes):
+        raise ValueError("Git name-status output must be bytes")
+    if output and not output.endswith(b"\0"):
+        raise ValueError("Git name-status output lacks NUL terminator")
+    tokens = output[:-1].split(b"\0") if output else []
     changed_files: list[str] = []
+    rename_copy_endpoints: set[str] = set()
     index = 0
     while index < len(tokens):
         status = tokens[index]
         index += 1
-        if status.startswith(("R", "C")):
-            if index + 1 >= len(tokens):
-                break
-            old_path = tokens[index]
-            new_path = tokens[index + 1]
-            changed_files.extend([old_path, new_path])
-            index += 2
-            continue
-        if index >= len(tokens):
-            break
-        changed_files.append(tokens[index])
-        index += 1
-    return list(dict.fromkeys(changed_files))
+        if (
+            re.fullmatch(rb"(?:[ADMT]|M(?:100|0?[0-9]{1,2})|[RC](?:100|0?[0-9]{1,2}))", status)
+            is None
+        ):
+            raise ValueError("Unsupported or malformed Git name-status token")
+        path_count = 2 if status.startswith((b"R", b"C")) else 1
+        if len(tokens) - index < path_count or any(
+            not token for token in tokens[index : index + path_count]
+        ):
+            raise ValueError("Missing Git name-status path")
+        try:
+            paths = [token.decode("utf-8") for token in tokens[index : index + path_count]]
+        except UnicodeDecodeError as error:
+            raise ValueError("Git name-status path is not valid UTF-8") from error
+        changed_files.extend(paths)
+        if path_count == 2:
+            rename_copy_endpoints.update(paths)
+        index += path_count
+    return list(dict.fromkeys(changed_files)), frozenset(rename_copy_endpoints)
 
 
 def collect_regular_generated_openapi_paths(*, head_sha: str) -> frozenset[str]:
@@ -810,12 +820,15 @@ def main(argv: list[str] | None = None) -> int:
     total_changed_lines, _numstat_counted_files, _numstat_changed_files = parse_numstat_details(
         collect_numstat_output(base_sha=base_sha, head_sha=head_sha),
     )
-    changed_files = collect_changed_files(base_sha=base_sha, head_sha=head_sha)
+    changed_files, rename_copy_endpoints = collect_changed_files(
+        base_sha=base_sha, head_sha=head_sha
+    )
     regular_generated_paths = (
         collect_regular_generated_openapi_paths(head_sha=head_sha)
         if any(path in GENERATED_OPENAPI_CONTRACT_PATHS for path in changed_files)
         else frozenset()
     )
+    regular_generated_paths -= rename_copy_endpoints
     counted_files = len(changed_files)
     exit_code, lines = evaluate_pr_size_policy(
         total_changed_lines=total_changed_lines,

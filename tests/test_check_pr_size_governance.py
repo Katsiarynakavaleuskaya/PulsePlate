@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib
 import json
+import os
 from pathlib import Path
 import subprocess
 from types import SimpleNamespace
@@ -46,10 +47,12 @@ def test_generated_openapi_exemption_requires_exact_head_regular_blob(
     admitted: bool,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Only a regular head blob can admit either exact generated path."""
     head_sha = "c" * 40
     tree_output = f"{mode} {object_type} {'a' * 40}\t{path}\0".encode()
 
     def fake_run(argv: list[str], **kwargs: object) -> SimpleNamespace:
+        """Assert the tree probe binds both literal paths to the requested head."""
         assert argv == [
             size_gate.GIT_BINARY,
             "ls-tree",
@@ -85,6 +88,7 @@ def test_generated_openapi_tree_output_fails_on_untrusted_records(
     tree_output: bytes,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Reject malformed, duplicated and neighboring Git tree records."""
     monkeypatch.setattr(
         size_gate.subprocess,
         "run",
@@ -97,6 +101,7 @@ def test_generated_openapi_tree_output_fails_on_untrusted_records(
 def test_generated_openapi_tree_allows_missing_paths_but_blocks_git_failure(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """A missing tree path is ineligible while a failed Git probe is fatal."""
     monkeypatch.setattr(
         size_gate.subprocess,
         "run",
@@ -105,6 +110,7 @@ def test_generated_openapi_tree_allows_missing_paths_but_blocks_git_failure(
     assert size_gate.collect_regular_generated_openapi_paths(head_sha="c" * 40) == frozenset()
 
     def fail_git(*args: object, **kwargs: object) -> SimpleNamespace:
+        """Model a failed Git tree invocation without weakening the gate."""
         raise subprocess.CalledProcessError(128, "git ls-tree")
 
     monkeypatch.setattr(size_gate.subprocess, "run", fail_git)
@@ -114,6 +120,7 @@ def test_generated_openapi_tree_allows_missing_paths_but_blocks_git_failure(
 
 @pytest.mark.parametrize("path", GENERATED_OPENAPI_PATHS)
 def test_generated_openapi_without_head_mode_evidence_is_client(path: str) -> None:
+    """A generated spelling without mode proof retains client classification."""
     assert size_gate._is_product_client_path(path, regular_generated_paths=frozenset())
     assert size_gate.has_mixed_frontend_backend_runtime(["app/routers/example.py", path])
     code, lines = size_gate.evaluate_pr_size_policy(
@@ -127,6 +134,7 @@ def test_generated_openapi_without_head_mode_evidence_is_client(path: str) -> No
 
 
 def test_admission_input_cannot_exempt_any_other_client_path() -> None:
+    """Callers cannot add other paths to the finite generated exception."""
     assert size_gate._is_product_client_path(
         "frontend/src/App.tsx", regular_generated_paths=frozenset({"frontend/src/App.tsx"})
     )
@@ -136,6 +144,7 @@ def test_main_binds_generated_openapi_exemption_to_explicit_head_sha(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
+    """The CLI probes the supplied head before admitting generated paths."""
     head_sha = "c" * 40
     observed_heads: list[str] = []
     monkeypatch.setattr(
@@ -146,10 +155,14 @@ def test_main_binds_generated_openapi_exemption_to_explicit_head_sha(
     monkeypatch.setattr(
         size_gate,
         "collect_changed_files",
-        lambda *, base_sha, head_sha: ["app/routers/example.py", *GENERATED_OPENAPI_PATHS],
+        lambda *, base_sha, head_sha: (
+            ["app/routers/example.py", *GENERATED_OPENAPI_PATHS],
+            frozenset(),
+        ),
     )
 
     def fake_regular_paths(*, head_sha: str) -> frozenset[str]:
+        """Record the exact head used for generated-path admission."""
         observed_heads.append(head_sha)
         return frozenset(GENERATED_OPENAPI_PATHS)
 
@@ -161,8 +174,145 @@ def test_main_binds_generated_openapi_exemption_to_explicit_head_sha(
     assert "PR scope category: micro" in capsys.readouterr().out
 
 
+@pytest.mark.parametrize("generated_path", GENERATED_OPENAPI_PATHS)
+def test_main_inbound_rename_to_generated_path_retains_client_gates(
+    generated_path: str,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """An inbound rename to either generated path must retain client classification."""
+    monkeypatch.setattr(
+        size_gate,
+        "collect_numstat_output",
+        lambda *, base_sha, head_sha: "1\t0\tapp/routers/example.py\n",
+    )
+    monkeypatch.setattr(
+        size_gate,
+        "collect_changed_files",
+        lambda *, base_sha, head_sha: (
+            ["contracts/source.txt", generated_path, "app/routers/example.py"],
+            frozenset({"contracts/source.txt", generated_path}),
+        ),
+    )
+    monkeypatch.setattr(
+        size_gate,
+        "collect_regular_generated_openapi_paths",
+        lambda *, head_sha: frozenset({generated_path}),
+    )
+
+    code = size_gate.main(["--base-sha", "b" * 40, "--head-sha", "c" * 40])
+    output = capsys.readouterr().out
+
+    assert code == 1
+    assert "PR scope category: frontend_vertical_mvp" in output
+    assert "frontend vertical MVP proof missing" in output
+
+
+@pytest.mark.parametrize("generated_path", GENERATED_OPENAPI_PATHS)
+@pytest.mark.parametrize("kind", ["inbound", "outbound", "between_generated"])
+@pytest.mark.parametrize("status", ["R100", "C100"])
+def test_main_rename_copy_endpoints_keep_client_classification(
+    generated_path: str,
+    kind: str,
+    status: str,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Both endpoints of emitted renames and copies stay in client policy."""
+    other_generated = next(path for path in GENERATED_OPENAPI_PATHS if path != generated_path)
+    endpoints = {
+        "inbound": ("contracts/source.txt", generated_path),
+        "outbound": (generated_path, "docs/copied_contract.txt"),
+        "between_generated": (generated_path, other_generated),
+    }[kind]
+    output = f"{status}\0{endpoints[0]}\0{endpoints[1]}\0M\0app/routers/example.py\0".encode()
+    monkeypatch.setattr(
+        size_gate.subprocess,
+        "run",
+        lambda *args, **kwargs: SimpleNamespace(stdout=output),
+    )
+    paths, moved = size_gate.collect_changed_files(base_sha="b" * 40, head_sha="c" * 40)
+    assert paths == [*endpoints, "app/routers/example.py"]
+    assert moved == frozenset(endpoints)
+
+    monkeypatch.setattr(
+        size_gate,
+        "collect_numstat_output",
+        lambda *, base_sha, head_sha: "1\t0\tapp/routers/example.py\n",
+    )
+    monkeypatch.setattr(size_gate, "collect_changed_files", lambda **kwargs: (paths, moved))
+    monkeypatch.setattr(
+        size_gate,
+        "collect_regular_generated_openapi_paths",
+        lambda *, head_sha: frozenset(GENERATED_OPENAPI_PATHS),
+    )
+    code = size_gate.main(["--base-sha", "b" * 40, "--head-sha", "c" * 40])
+    result = capsys.readouterr().out
+    assert code == 1
+    assert "PR scope category: frontend_vertical_mvp" in result
+    assert "Counted files: 3" in result
+
+
+def test_main_mixed_ordinary_generated_and_rename_keeps_endpoint_only(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """An ordinary generated change stays eligible beside a renamed sibling."""
+    ordinary, renamed = GENERATED_OPENAPI_PATHS
+    monkeypatch.setattr(
+        size_gate, "collect_numstat_output", lambda **kwargs: "1\t0\tapp/example.py\n"
+    )
+    monkeypatch.setattr(
+        size_gate,
+        "collect_changed_files",
+        lambda **kwargs: (
+            [ordinary, "contracts/source.txt", renamed, "app/example.py"],
+            frozenset({"contracts/source.txt", renamed}),
+        ),
+    )
+    monkeypatch.setattr(
+        size_gate,
+        "collect_regular_generated_openapi_paths",
+        lambda **kwargs: frozenset(GENERATED_OPENAPI_PATHS),
+    )
+    code = size_gate.main(["--base-sha", "b" * 40, "--head-sha", "c" * 40])
+    assert code == 1
+    assert "PR scope category: frontend_vertical_mvp" in capsys.readouterr().out
+
+
+def test_main_inbound_rename_requires_trusted_privileged_client_mix_approval(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A generated rename into a privileged PR keeps the trusted mix gate."""
+    changed = [
+        "scripts/ci/check_pr_size_governance.py",
+        "contracts/schema.ts",
+        "frontend/src/api/schema.ts",
+    ]
+    monkeypatch.setattr(
+        size_gate, "collect_numstat_output", lambda **kwargs: "1\t0\tscripts/ci/check.py\n"
+    )
+    monkeypatch.setattr(
+        size_gate,
+        "collect_changed_files",
+        lambda **kwargs: (changed, frozenset(changed[-2:])),
+    )
+    monkeypatch.setattr(
+        size_gate,
+        "collect_regular_generated_openapi_paths",
+        lambda **kwargs: frozenset({"frontend/src/api/schema.ts"}),
+    )
+    code = size_gate.main(["--base-sha", "b" * 40, "--head-sha", "c" * 40])
+    output = capsys.readouterr().out
+    assert code == 1
+    assert "PR scope category: privileged_ci_security_workflow" in output
+    assert "mixes with frontend product implementation" in output
+
+
 @pytest.mark.parametrize("path", GENERATED_OPENAPI_PATHS)
 def test_exact_generated_openapi_path_is_not_product_client_implementation(path: str) -> None:
+    """Admitted exact generated paths do not create product-client mixing."""
     admitted = frozenset({path})
     assert not size_gate._is_product_client_path(path, regular_generated_paths=admitted)
     assert not size_gate.has_mixed_frontend_backend_runtime(
@@ -172,6 +322,7 @@ def test_exact_generated_openapi_path_is_not_product_client_implementation(path:
 
 @pytest.mark.parametrize("count", [18, 21])
 def test_generated_openapi_paths_keep_standard_file_and_line_limits(count: int) -> None:
+    """Generated files still consume standard file caps and line accounting."""
     changed_files = [f"app/routers/route_{index}.py" for index in range(count - 2)]
     changed_files.extend(GENERATED_OPENAPI_PATHS)
     code, lines = size_gate.evaluate_pr_size_policy(
@@ -196,6 +347,7 @@ def test_generated_openapi_paths_keep_standard_file_and_line_limits(count: int) 
 
 @pytest.mark.parametrize("count", [15, 16])
 def test_generated_openapi_paths_keep_privileged_hard_cap(count: int) -> None:
+    """Generated-path admission never expands the privileged file cap."""
     changed_files = ["scripts/ci/check_pr_size_governance.py"]
     changed_files.extend(f"tests/example_{index}.py" for index in range(count - 3))
     changed_files.extend(GENERATED_OPENAPI_PATHS)
@@ -233,6 +385,7 @@ def test_generated_openapi_paths_keep_privileged_hard_cap(count: int) -> None:
     ],
 )
 def test_other_client_paths_still_require_mixed_scope_approvals(path: str) -> None:
+    """Nearby, aliased and ordinary client paths retain mix approval checks."""
     assert size_gate._is_product_client_path(path)
     assert size_gate.has_mixed_frontend_backend_runtime(["app/routers/example.py", path])
 
@@ -266,6 +419,7 @@ def test_other_client_paths_still_require_mixed_scope_approvals(path: str) -> No
 
 
 def test_rename_from_generated_openapi_to_client_path_still_requires_approval() -> None:
+    """A generated source cannot exempt an ordinary client destination."""
     changed_files = [
         "frontend/src/api/schema.ts",
         "frontend/src/api/schema_renamed.ts",
@@ -284,6 +438,7 @@ def test_rename_from_generated_openapi_to_client_path_still_requires_approval() 
 
 
 def test_generated_openapi_paths_count_toward_oversized_body_only_denial() -> None:
+    """A body claim alone does not waive the over-thirty file limit."""
     changed_files = [f"app/routers/route_{index}.py" for index in range(29)]
     changed_files.extend(GENERATED_OPENAPI_PATHS)
     code, lines = size_gate.evaluate_pr_size_policy(
@@ -949,11 +1104,137 @@ def test_collect_changed_files_includes_rename_old_and_new_paths(
 
     monkeypatch.setattr(size_gate.subprocess, "run", fake_run)
 
-    assert size_gate.collect_changed_files(base_sha="base", head_sha="head") == [
-        "scripts/ci/old_guard.py",
-        "docs/old_guard.md",
-        "docs/new.md",
-    ]
+    assert size_gate.collect_changed_files(base_sha="base", head_sha="head") == (
+        ["scripts/ci/old_guard.py", "docs/old_guard.md", "docs/new.md"],
+        frozenset({"scripts/ci/old_guard.py", "docs/old_guard.md"}),
+    )
+
+
+def test_collect_changed_files_deduplicates_paths_but_retains_copy_endpoints(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A path seen as ordinary and copied remains marked as a copy endpoint."""
+    output = (
+        b"A\0frontend/src/api/schema.ts\0"
+        b"C085\0frontend/src/api/schema.ts\0docs/copy.ts\0"
+        b"M\0frontend/src/api/schema.ts\0T\0docs/copy.ts\0"
+    )
+    monkeypatch.setattr(
+        size_gate.subprocess, "run", lambda *args, **kwargs: SimpleNamespace(stdout=output)
+    )
+    assert size_gate.collect_changed_files(base_sha="base", head_sha="head") == (
+        ["frontend/src/api/schema.ts", "docs/copy.ts"],
+        frozenset({"frontend/src/api/schema.ts", "docs/copy.ts"}),
+    )
+
+
+@pytest.mark.parametrize(
+    "output",
+    [
+        "A\0docs/file.md\0",
+        b"A\0docs/file.md",
+        b"A\0\0",
+        b"\0",
+        b"R100\0docs/old.md\0",
+        b"C100\0docs/old.md\0\0",
+        b"Q\0docs/file.md\0",
+        b"R\0docs/old.md\0docs/new.md\0",
+        b"R101\0docs/old.md\0docs/new.md\0",
+        b"C-1\0docs/old.md\0docs/new.md\0",
+        b"M999\0docs/file.md\0",
+        b"A\0docs/\xff.md\0",
+    ],
+)
+def test_collect_changed_files_rejects_incomplete_or_ambiguous_git_output(
+    output: bytes | str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Invalid status framing or lossy paths cannot yield a partial list."""
+    monkeypatch.setattr(
+        size_gate.subprocess, "run", lambda *args, **kwargs: SimpleNamespace(stdout=output)
+    )
+    with pytest.raises(ValueError):
+        size_gate.collect_changed_files(base_sha="base", head_sha="head")
+
+
+def test_real_git_inbound_rename_keeps_generated_destination_under_client_policy(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Native Git rename detection reaches the same client gate through main."""
+    assert size_gate.GIT_BINARY is not None
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    template = tmp_path / "empty-template"
+    template.mkdir()
+    git_env = {
+        "HOME": str(tmp_path),
+        "PATH": str(Path(size_gate.GIT_BINARY).parent),
+        "GIT_CONFIG_NOSYSTEM": "1",
+        "GIT_CONFIG_GLOBAL": "/dev/null",
+        "GIT_TEMPLATE_DIR": str(template),
+        "GIT_AUTHOR_NAME": "Fixture",
+        "GIT_AUTHOR_EMAIL": "fixture@example.invalid",
+        "GIT_COMMITTER_NAME": "Fixture",
+        "GIT_COMMITTER_EMAIL": "fixture@example.invalid",
+    }
+
+    def run_git(*args: str) -> str:
+        """Run disposable Git setup without host config, templates or hooks."""
+        result = subprocess.run(
+            [
+                size_gate.GIT_BINARY,
+                "-c",
+                "core.hooksPath=/dev/null",
+                "-c",
+                "commit.gpgsign=false",
+                *args,
+            ],
+            cwd=repo,
+            env=git_env,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        return result.stdout.strip()
+
+    run_git("init", "--quiet")
+    (repo / "contracts").mkdir()
+    (repo / "contracts/schema.ts").write_text("export const schema = 1;\n", encoding="utf-8")
+    (repo / "app").mkdir()
+    (repo / "app/example.py").write_text("value = 1\n", encoding="utf-8")
+    run_git("add", ".")
+    run_git("commit", "--quiet", "-m", "base")
+    base_sha = run_git("rev-parse", "HEAD")
+    (repo / "frontend/src/api").mkdir(parents=True)
+    run_git("mv", "contracts/schema.ts", "frontend/src/api/schema.ts")
+    (repo / "app/example.py").write_text("value = 2\n", encoding="utf-8")
+    run_git("add", ".")
+    run_git("commit", "--quiet", "-m", "rename")
+    head_sha = run_git("rev-parse", "HEAD")
+
+    # Commit hooks can pass their own repository context to this test process.
+    # Prove that the real collector uses only the disposable repository below.
+    monkeypatch.setenv("GIT_DIR", str(tmp_path / "hook.git"))
+    monkeypatch.setenv("GIT_WORK_TREE", str(tmp_path / "hook-worktree"))
+    monkeypatch.setenv("GIT_INDEX_FILE", str(tmp_path / "hook-index"))
+    for name in tuple(os.environ):
+        if name.startswith("GIT_"):
+            monkeypatch.delenv(name)
+    monkeypatch.setenv("GIT_CONFIG_NOSYSTEM", "1")
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", "/dev/null")
+    monkeypatch.setenv("GIT_TEMPLATE_DIR", str(template))
+
+    monkeypatch.setattr(size_gate, "REPO_ROOT", repo)
+    changed, moved = size_gate.collect_changed_files(base_sha=base_sha, head_sha=head_sha)
+    assert changed == ["app/example.py", "contracts/schema.ts", "frontend/src/api/schema.ts"]
+    assert moved == frozenset({"contracts/schema.ts", "frontend/src/api/schema.ts"})
+    assert size_gate.collect_regular_generated_openapi_paths(head_sha=head_sha) == frozenset(
+        {"frontend/src/api/schema.ts"}
+    )
+    assert size_gate.main(["--base-sha", base_sha, "--head-sha", head_sha]) == 1
+    assert "PR scope category: frontend_vertical_mvp" in capsys.readouterr().out
 
 
 def test_rename_from_privileged_old_path_uses_privileged_category() -> None:
@@ -1197,8 +1478,11 @@ def test_main_uses_event_labels_for_trusted_scope_approvals(
     monkeypatch.setattr(
         size_gate,
         "collect_changed_files",
-        lambda *, base_sha, head_sha: ["scripts/ci/check_pr_size_governance.py"]
-        + [f"tests/example_{index}.py" for index in range(15)],
+        lambda *, base_sha, head_sha: (
+            ["scripts/ci/check_pr_size_governance.py"]
+            + [f"tests/example_{index}.py" for index in range(15)],
+            frozenset(),
+        ),
     )
 
     exit_code = size_gate.main(
@@ -1234,8 +1518,11 @@ def test_main_rejects_event_body_approvals_without_trusted_labels(
     monkeypatch.setattr(
         size_gate,
         "collect_changed_files",
-        lambda *, base_sha, head_sha: ["scripts/ci/check_pr_size_governance.py"]
-        + [f"tests/example_{index}.py" for index in range(15)],
+        lambda *, base_sha, head_sha: (
+            ["scripts/ci/check_pr_size_governance.py"]
+            + [f"tests/example_{index}.py" for index in range(15)],
+            frozenset(),
+        ),
     )
 
     exit_code = size_gate.main(
