@@ -2650,6 +2650,9 @@ Do not remove this exclusion without a product decision and a separate PR
   `scripts/ci/check_ios_swift_syntax.sh`, or `scripts/release/check_ios_appstore_verify.py`.
 - Docs-only PRs (e.g., `docs/**/*.md`, `README*.md`, `AGENTS.md`, `.github/*.md`) **do not** run macOS iOS jobs.
 - **Rationale:** Reduces CI noise, prevents flaky iOS tests on unrelated PRs, speeds up docs-only PR cycle.
+- Changes to `.github/workflows/ci.yml` must run the prerequisite consumer contract
+  `tests/test_private_python_proxy_workflow_contract.py` locally; the existing backend
+  hook maps that workflow into the suite alongside the workflow and merge-gate tests.
 
 **iOS CI destination policy (canonical):**
 

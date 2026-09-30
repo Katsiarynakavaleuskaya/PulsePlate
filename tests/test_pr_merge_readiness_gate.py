@@ -3292,6 +3292,38 @@ def test_ios_merge_gate_executes_exact_selection_result_policy(
     assert (result.returncode == 0) is passes, result.stdout.decode() + result.stderr.decode()
 
 
+@pytest.mark.parametrize(
+    ("changed_path", "expected"),
+    [(".github/workflows/ci.yml", True), ("ios/AGENTS.md", False)],
+)
+def test_ci_hook_selects_prerequisite_consumer_contract(changed_path: str, expected: bool) -> None:
+    hook = Path(__file__).resolve().parents[1] / "scripts/run-backend-tests-pre-commit.sh"
+    source = hook.read_text(encoding="utf-8")
+    start = source.index("add_extra_tests_for_changed_files() {")
+    end = source.index("\n}\n\nadd_extra_tests_for_changed_files", start) + 2
+    function = source[start:end]
+    script = (
+        "set -euo pipefail\n"
+        "declare -a EXTRA_TEST_FILES=()\n"
+        "declare -a PYTHON_DEPENDENCY_TESTCLIENT_SURFACE_FILES=(unrelated)\n"
+        "declare -a REVIEW_SOURCE_QUOTA_POLICY_SURFACE_FILES=(unrelated)\n"
+        f'CHANGED_FILES=("{changed_path}")\n'
+        f"{function}\n"
+        "add_extra_tests_for_changed_files\n"
+        'printf "%s\\n" "${EXTRA_TEST_FILES[@]-}"\n'
+    )
+    bash = shutil.which("bash")
+    assert bash is not None
+    result = subprocess.run([bash, "-c", script], capture_output=True, text=True, check=True)
+    targets = (
+        "tests/test_private_python_proxy_workflow_contract.py",
+        "tests/test_ci_workflow_pr_size_governance_contract.py",
+        "tests/test_pr_merge_readiness_gate.py",
+    )
+    for target in targets:
+        assert (target in result.stdout.splitlines()) is expected
+
+
 def test_event_head_sha_is_required_and_exact(tmp_path: Path) -> None:
     event = tmp_path / "event.json"
     event.write_text(

@@ -341,7 +341,7 @@ def test_proxy_dependent_jobs_fail_before_work_on_invalid_needs(job_name: str) -
         if job_name == "security":
             env.update(PGVECTOR_RESULT="skipped", PGVECTOR_SELECTION="false")
         if job_name == "merge_readiness_gate":
-            env.update(SECURITY_REQUIRED="true", PGVECTOR_REQUIRED="false")
+            env.update(SECURITY_REQUIRED="true", PGVECTOR_REQUIRED="false", IOS_REQUIRED="true")
         env.update(overrides)
         return subprocess.run(  # nosec B603: resolved bash executes fixed workflow gate text (remove-by: 2026-10-31, ref: PR-consol-ci-1)
             [bash, "-e", "-o", "pipefail", "-c", gate_script],
