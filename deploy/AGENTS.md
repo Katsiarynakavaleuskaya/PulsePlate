@@ -119,6 +119,9 @@ PRODUCTION_DOMAIN=example.com STAGING_FALLBACK_DOMAIN=staging.example.com \
   the file readable to Alertmanager UID 65534 without ownership remapping.
   Neither the key nor its contents belongs in a bundle. Preserve an already
   running Alertmanager across production `--remove-orphans` app/Caddy updates.
+  Each Alertmanager network attachment must retain explicit normalized
+  `gw_priority`: `alerting=1`, `smtp-egress=2`, so SMTP egress is the default
+  gateway. A Compose host that cannot preserve both values is `HOLD`.
   `smtp-egress` is outbound networking, not a destination firewall. Actual
   received email and host activation require separate evidence; see
   `docs/deploy/OPERATIONAL_SIGNALS.md` and
@@ -138,8 +141,10 @@ PRODUCTION_DOMAIN=example.com STAGING_FALLBACK_DOMAIN=staging.example.com \
   arbitrary sourced-shell behavior is outside this bounded profile check.
 - The Alertmanager exception expires at `2026-10-24T00:00:00Z`; selected
   alerting must reject at or after that UTC instant. Profile-off production
-  admission also performs a read-only census of the selected Compose
-  project's Alertmanager. Bind the sole container ID, project/service labels
+  admission also performs a read-only all-state Docker label census of the
+  installed Compose project's Alertmanager, including on a first bundle when
+  the old installed Compose has no Alertmanager service or config files.
+  Bind the sole full container ID, project/service labels
   and consistent Docker state; errors, multiple IDs, restarting or unknown
   states are `HOLD`. A running instance must pass the same expiry check;
   absent or proven stopped instances do not require an SMTP key. Rejection
