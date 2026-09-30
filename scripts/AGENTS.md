@@ -12,8 +12,11 @@
 - Avoid adding network calls to scripts used in CI unless explicitly required.
 
 - Locked-install settings and direct project-page probes must share default
-  `.netrc` admission before CLI dispatch or connection/context creation.
-  Delegate named/default selection to stdlib, preserve effective login/account
+  `.netrc`/`_netrc` admission before CLI dispatch or connection/context creation.
+  Preserve native first-existing default candidate order (`.netrc`, then `_netrc`),
+  including primary-file permission checks; never infer source absence from a
+  selected-file read failure. Delegate parsing/named-default selection to stdlib,
+  preserve effective login/account
   and root rejection, and fail closed for indeterminate credentials or malformed
   trusted authority. Applicable credentials require verified HTTPS; this does
   not cover every pip authentication source. Probe failures, including connection
