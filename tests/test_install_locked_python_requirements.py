@@ -805,8 +805,8 @@ def test_private_index_project_health_accepts_underscore_wheel_name(
     )
 
 
-def _write_admission_netrc(tmp_path: Path, entry: str) -> None:
-    path = tmp_path / ".netrc"
+def _write_admission_netrc(tmp_path: Path, entry: str, *, filename: str = ".netrc") -> None:
+    path = tmp_path / filename
     path.write_text(entry + "\n", encoding="utf-8")
     path.chmod(0o600)
 
@@ -821,6 +821,7 @@ def _write_admission_netrc(tmp_path: Path, entry: str) -> None:
     ],
 )
 @pytest.mark.parametrize("transport", ["http", "trusted-https"])
+@pytest.mark.parametrize("filename", [".netrc", "_netrc"])
 @pytest.mark.parametrize(
     "flags", [[], ["--preflight-only"], ["--upgrade-pip"], ["--upgrade-pip-only"]]
 )
@@ -831,8 +832,9 @@ def test_main_rejects_insecure_default_netrc_before_any_cli_branch(
     entry: str,
     transport: str,
     flags: list[str],
+    filename: str,
 ) -> None:
-    _write_admission_netrc(tmp_path, entry)
+    _write_admission_netrc(tmp_path, entry, filename=filename)
     index = (
         APPROVED_PROXY_URL
         if transport == "trusted-https"
@@ -878,11 +880,17 @@ def test_main_rejects_insecure_default_netrc_before_any_cli_branch(
         ("default account ci-reader password synthetic-marker", "require verified HTTPS"),
     ],
 )
+@pytest.mark.parametrize("filename", [".netrc", "_netrc"])
 @pytest.mark.parametrize("transport", ["http", "trusted-https"])
 def test_default_netrc_direct_reader_and_settings_fail_before_connection(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, entry: str, message: str, transport: str
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    entry: str,
+    message: str,
+    transport: str,
+    filename: str,
 ) -> None:
-    _write_admission_netrc(tmp_path, entry)
+    _write_admission_netrc(tmp_path, entry, filename=filename)
     index = (
         APPROVED_PROXY_URL
         if transport == "trusted-https"
@@ -919,13 +927,14 @@ def test_default_netrc_direct_reader_and_settings_fail_before_connection(
         "default account ci-reader password synthetic-marker",
     ],
 )
+@pytest.mark.parametrize("filename", [".netrc", "_netrc"])
 @pytest.mark.parametrize(
     "trusted", [None, "other.example.internal", "packages.example.internal:443"]
 )
 def test_verified_https_admits_real_default_netrc_selection(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, entry: str, trusted: str | None
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, entry: str, trusted: str | None, filename: str
 ) -> None:
-    _write_admission_netrc(tmp_path, entry)
+    _write_admission_netrc(tmp_path, entry, filename=filename)
     observed: list[dict[str, str]] = []
 
     class Connection:
@@ -958,6 +967,7 @@ def test_verified_https_admits_real_default_netrc_selection(
 @pytest.mark.parametrize(
     "entry", [None, "machine other.example.internal login reader password synthetic-marker"]
 )
+@pytest.mark.parametrize("filename", [".netrc", "_netrc"])
 @pytest.mark.parametrize(
     "index,trusted",
     [
@@ -966,10 +976,10 @@ def test_verified_https_admits_real_default_netrc_selection(
     ],
 )
 def test_anonymous_admission_requires_absent_applicable_authenticator(
-    tmp_path: Path, entry: str | None, index: str, trusted: str | None
+    tmp_path: Path, entry: str | None, index: str, trusted: str | None, filename: str
 ) -> None:
     if entry is not None:
-        _write_admission_netrc(tmp_path, entry)
+        _write_admission_netrc(tmp_path, entry, filename=filename)
     assert installer.resolve_private_proxy_settings(index_url=index, trusted_host=trusted) == (
         index,
         trusted,
@@ -978,6 +988,87 @@ def test_anonymous_admission_requires_absent_applicable_authenticator(
         installer._admit_private_proxy_netrc_auth(parsed_url=urlparse(index), trusted_host=trusted)
         is None
     )
+
+
+@pytest.mark.parametrize("first_applies", [False, True])
+def test_default_netrc_first_existing_candidate_has_native_precedence(
+    tmp_path: Path, first_applies: bool
+) -> None:
+    first_host = "packages.example.internal" if first_applies else "other.example.internal"
+    _write_admission_netrc(tmp_path, f"machine {first_host} login first password first-marker")
+    _write_admission_netrc(
+        tmp_path,
+        "default account fallback password fallback-marker",
+        filename="_netrc",
+    )
+
+    assert installer._netrc_credentials("packages.example.internal") == (
+        ("first", "first-marker") if first_applies else None
+    )
+
+
+@pytest.mark.parametrize("filename", [".netrc", "_netrc"])
+@pytest.mark.parametrize("failure", ["read", "parse", "disappeared"])
+def test_selected_default_netrc_failure_does_not_fall_through_or_leak(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    filename: str,
+    failure: str,
+) -> None:
+    _write_admission_netrc(
+        tmp_path, "default login reader password synthetic-marker", filename=filename
+    )
+    if filename == ".netrc":
+        _write_admission_netrc(
+            tmp_path, "default login alternate password alternate-marker", filename="_netrc"
+        )
+    calls: list[object] = []
+
+    def fail_selected(file: object = None) -> None:
+        calls.append(file)
+        if failure == "parse":
+            raise installer.netrc.NetrcParseError("synthetic-secret-exception-marker")
+        if failure == "disappeared":
+            raise FileNotFoundError("synthetic-secret-exception-marker")
+        raise PermissionError("synthetic-secret-exception-marker")
+
+    monkeypatch.setattr(installer.netrc, "netrc", fail_selected)
+    with pytest.raises(RuntimeError, match="Unable to read default netrc credentials") as error:
+        installer._netrc_credentials("packages.example.internal")
+
+    assert calls == [None if filename == ".netrc" else tmp_path / "_netrc"]
+    assert error.value.__suppress_context__ is True
+    assert "synthetic-secret-exception-marker" not in str(error.value)
+
+
+def test_primary_default_netrc_preserves_stdlib_permission_rejection(tmp_path: Path) -> None:
+    _write_admission_netrc(tmp_path, "default login reader password synthetic-marker")
+    (tmp_path / ".netrc").chmod(0o644)
+    _write_admission_netrc(
+        tmp_path, "default login fallback password fallback-marker", filename="_netrc"
+    )
+
+    with pytest.raises(RuntimeError, match="NetrcParseError") as error:
+        installer._netrc_credentials("packages.example.internal")
+    assert error.value.__suppress_context__ is True
+    assert "synthetic-marker" not in str(error.value)
+
+
+def test_default_netrc_selection_uncertainty_is_not_anonymous(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    original_stat = Path.stat
+
+    def uncertain_stat(path: Path, *, follow_symlinks: bool = True) -> os.stat_result:
+        if path == tmp_path / ".netrc":
+            raise PermissionError("synthetic-secret-exception-marker")
+        return original_stat(path, follow_symlinks=follow_symlinks)
+
+    monkeypatch.setattr(Path, "stat", uncertain_stat)
+    with pytest.raises(RuntimeError, match="PermissionError") as error:
+        installer._netrc_credentials("packages.example.internal")
+    assert error.value.__suppress_context__ is True
+    assert "synthetic-secret-exception-marker" not in str(error.value)
 
 
 @pytest.mark.parametrize(
@@ -1047,8 +1138,10 @@ def test_malformed_trusted_authority_fails_settings_and_direct_admission(trusted
     ],
 )
 def test_indeterminate_netrc_shape_is_never_anonymous(
-    monkeypatch: pytest.MonkeyPatch, credentials: object
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, credentials: object
 ) -> None:
+    _write_admission_netrc(tmp_path, "default login reader password synthetic-marker")
+
     class AmbiguousNetrc:
         def authenticators(self, _hostname: str) -> object:
             return credentials
@@ -1064,8 +1157,10 @@ def test_indeterminate_netrc_shape_is_never_anonymous(
 
 @pytest.mark.parametrize("kind", ["parse", "read", "decode"])
 def test_main_netrc_failures_display_only_constant_and_class(
-    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], kind: str
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str], kind: str
 ) -> None:
+    _write_admission_netrc(tmp_path, "default login reader password synthetic-marker")
+
     def failing_netrc() -> None:
         if kind == "parse":
             raise installer.netrc.NetrcParseError("synthetic-secret-exception-marker")
@@ -1076,7 +1171,7 @@ def test_main_netrc_failures_display_only_constant_and_class(
     monkeypatch.setattr(installer.netrc, "netrc", failing_netrc)
     assert installer.main(["--index-url", APPROVED_PROXY_URL, "--upgrade-pip-only"]) == 1
     output = capsys.readouterr()
-    assert "Unable to read default .netrc credentials" in output.out
+    assert "Unable to read default netrc credentials" in output.out
     assert "synthetic-secret-exception-marker" not in output.out + output.err
     with pytest.raises(RuntimeError) as error:
         installer._read_private_index_project_page(

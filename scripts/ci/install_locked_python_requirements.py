@@ -1433,16 +1433,26 @@ def _redact_url_credentials_in_text(value: str) -> str:
 
 
 def _netrc_credentials(hostname: str | None) -> tuple[str, str] | None:
-    """Resolve this default-netrc source; None denotes established absence only."""
+    """Resolve Requests' first existing default candidate; absence alone is anonymous."""
     if not hostname:
         return None
     try:
-        credentials = netrc.netrc().authenticators(hostname)
-    except FileNotFoundError:
-        return None
+        # Native pip-vendored Requests NETRC_FILES order; stdlib owns parsing.
+        # Retain filename-less parsing for .netrc's existing owner/mode checks.
+        for filename in (".netrc", "_netrc"):
+            candidate = Path(os.path.expanduser(f"~/{filename}"))
+            try:
+                candidate.stat()
+            except FileNotFoundError:
+                continue
+            parsed_credentials = netrc.netrc() if filename == ".netrc" else netrc.netrc(candidate)
+            credentials = parsed_credentials.authenticators(hostname)
+            break
+        else:
+            return None
     except (netrc.NetrcParseError, OSError, UnicodeError) as exc:
         raise RuntimeError(
-            f"Unable to read default .netrc credentials ({type(exc).__name__})."
+            f"Unable to read default netrc credentials ({type(exc).__name__})."
         ) from None
     if credentials is None:
         return None
@@ -1451,15 +1461,15 @@ def _netrc_credentials(hostname: str | None) -> tuple[str, str] | None:
         or len(credentials) != 3
         or not all(isinstance(value, str) for value in credentials)
     ):
-        raise RuntimeError("Indeterminate default .netrc credentials are forbidden.")
+        raise RuntimeError("Indeterminate default netrc credentials are forbidden.")
     login, account, password = credentials
     # Native pip's requests selects account when login is empty. stdlib owns
     # named-machine/default-stanza selection; do not parse another auth source.
     principal = login or account
     if not principal.strip():
-        raise RuntimeError("Indeterminate default .netrc credentials are forbidden.")
+        raise RuntimeError("Indeterminate default netrc credentials are forbidden.")
     if principal.strip().lower() == "root":
-        raise RuntimeError("Root devpi credentials are forbidden in .netrc.")
+        raise RuntimeError("Root devpi credentials are forbidden in default netrc.")
     return principal, password
 
 
@@ -1511,7 +1521,7 @@ def _admit_private_proxy_netrc_auth(
         return None
     if parsed_url.scheme != "https" or trusted_transport:
         raise RuntimeError(
-            "Default .netrc credentials require verified HTTPS. Use the existing HTTPS "
+            "Default netrc credentials require verified HTTPS. Use the existing HTTPS "
             "private proxy and remove its matching trusted-host override."
         )
     principal, password = credentials
@@ -1560,7 +1570,7 @@ def _read_private_index_project_page(
                 )
             elif _trusted_host_matches_url(trusted_host=trusted_host, parsed_url=parsed):
                 # fmt: off
-                trusted_context = ssl._create_unverified_context()  # nosec B323 # B323: explicit anonymous trusted-host probe only; default-netrc credentials require verified HTTPS before context creation (remove-by: 2026-10-30, ref: PR-main-nightly-nosec-ttl)
+                trusted_context = ssl._create_unverified_context()  # nosec B323 # B323: explicit anonymous trusted-host probe only; selected default .netrc/_netrc credentials require verified HTTPS before context creation (remove-by: 2026-10-30, ref: PR-main-nightly-nosec-ttl)
                 # fmt: on
                 conn = http.client.HTTPSConnection(
                     parsed.hostname,

@@ -5782,20 +5782,30 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Target PR: PR-TBD-NOSEC-TTL-20260930 (`codex/security-nosec-ttl-20260930`)
   - Status: Implementation in review; closure awaits merged PR and exact-main evidence.
   - Area: security / CI / static analysis
-  - Reason: The original scanner observation was 53 September entries in 22 files; full frozen reconciliation adds two root `conftest.py` entries, giving 55 in 23 files at c32e61e85c9d02e7a22bd006462435eaf7bbfe7d, unchanged at b04d2eb1c9a0ea6a86dd2db18c2b5818432f97d9. The admitted implementation removes seven stale suppressions, repairs/removes source-fetch B310, and individually renews 47 necessary exceptions through 2026-10-30. Root B110 and nine future-format edits are separate. This is distinct from Docker/Trivy calendar and image-CVE remediation; renewal does not establish vulnerability remediation.
+  - Reason: The original scanner observation was 53 September entries in 22 files; full frozen reconciliation adds two root `conftest.py` entries, giving 55 in 23 files at c32e61e85c9d02e7a22bd006462435eaf7bbfe7d, unchanged at b04d2eb1c9a0ea6a86dd2db18c2b5818432f97d9. The admitted implementation removes seven stale suppressions, repairs/removes source-fetch B310 plus two avoidable label-name B105 suppressions, and individually renews 45 necessary exceptions through 2026-10-30. Root B110 and nine future-format edits are separate. This is distinct from Docker/Trivy calendar and image-CVE remediation; renewal does not establish vulnerability remediation.
   - Links: `tests/guards/test_nosec_policy_guard.py`, `AGENTS.md` (Bandit / nosec policy), and `scripts/ci/fetch_docker_source_artifacts.py:175` as one affected example.
   - Evidence: [Individual reconciliation](../security/INLINE_NOSEC_TTL_20260930_REASSESSMENT.md) owns original coordinates, decisions and bounded transport/diagnostic changes.
   - DoD: Reconcile all 55 records individually, prove comment/value/pragma parity and executable boundaries, pass existing guards, repository-profile Bandit, narrow local gates and applicable exact-head CI, then verify merged-main terminal state. Record separate failed or pending image rails without taking their ownership.
 
 <a id="ledger-p1-inline-nosec-reassessment-20261030"></a>
-- [ ] P1: Reassess the 47 retained inline security exceptions before 2026-10-30
+- [ ] P1: Reassess the 45 retained inline security exceptions before 2026-10-30
   - Owner: Security/SRE
   - Priority: P1
   - Target PR: PR-TBD-NOSEC-REVIEW-20261030
   - Status: Scheduled follow-up after the September reassessment PR merges.
-  - Reason: Required bounded subprocess operations, three public labels/reason codes and anonymous trusted-host compatibility still need explicit temporary Bandit exceptions. A renewed annotation is not elimination of the underlying rule finding.
+  - Reason: Required bounded subprocess operations, one public release reason code and anonymous trusted-host compatibility still need explicit temporary Bandit exceptions. A renewed annotation is not elimination of the underlying rule finding.
   - Links: [September owner evidence](../security/INLINE_NOSEC_TTL_20260930_REASSESSMENT.md), `tests/guards/test_nosec_policy_guard.py`, and `AGENTS.md` (Bandit / nosec policy).
   - DoD: Reassess every retained site against its live callers and safer alternatives; remove exceptions where feasible, or individually justify an authorized short TTL with real reference; preserve guards and all unrelated future dates, and verify exact-head CI. Keep October 5 source/zlib/ncurses, October 7 Trivy/util-linux and October 28 native Trivy obligations separate.
+
+<a id="ledger-p1-urllib3-prometheus-handoff-20260930"></a>
+- [ ] P1: Complete the separately owned Python urllib3 advisory remediation handoff
+  - Owner: Prometheus T0-1 closeout (owning chat `01a0def6-7596-7a41-95e7-0ccf8ce90f58`)
+  - Priority: P1
+  - Target PR: Pending confirmation of the owner's implementation PR and exact head; no dependency material is assigned to PR #2463.
+  - Status: Ongoing external handoff; the direct owner withdrew urllib3 from the inline-nosec lane before any dependency edits, and the coordinator sent the authorized evidence handoff. No remediation result is claimed.
+  - Reason for deferral: Direct owner assigned this dependency to Prometheus; our original inline-nosec packet continues only its own review fixes. Canonical CI run 36734183242 at head 08b9b1b0641ee9064c4132e9b7f2467b1475b7d2 reports urllib3 2.7.0 with CVE-2026-97687, CVE-2026-97688 and CVE-2026-97689 in four audited lock profiles. This dependency finding is distinct from the separately owned Docker/OpenSSL finding and is not waived or relabeled PASS.
+  - Links: [Exact canonical security job](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/36734183242/job/109953943533), [inline-nosec owner evidence](../security/INLINE_NOSEC_TTL_20260930_REASSESSMENT.md), and root `AGENTS.md` application-dependency remediation policy.
+  - DoD: Confirm the owning implementation PR/head, reconcile all governed manifest/lock surfaces and advisories under canonical dependency policy, complete the authorized urllib3 remediation, and prove current-head pip-audit PASS before claiming that dependency outcome complete. Preserve exact observed failures until terminal evidence exists.
 
 <a id="ledger-p1-main-openssl-cve-2026-84782"></a>
 - [ ] P1: Resolve the separately owned current-main OpenSSL image security finding
