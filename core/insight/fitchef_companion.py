@@ -26,8 +26,23 @@ _SLIP_SUPPORT_ACTION_KEYWORDS = ("pause", "restart", "return", "plan", *_DEFAULT
 _DEFAULT_LIST_LIMIT = 3
 _EN_WANT_TO_DIE_PATTERN = re.compile(r"\bwant\s+to\s+die\b", re.IGNORECASE)
 _ES_QUIERO_MORIR_PATTERN = re.compile(r"\bquiero\s+morir\b", re.IGNORECASE)
-_EN_NEGATED_WANT_PREFIX = re.compile(r"\bi\s+(?:do\s+not|don['’‘ʼ]?t|never)\s+$", re.IGNORECASE)
-_ES_NEGATED_QUIERO_PREFIX = re.compile(r"\bno\s+$", re.IGNORECASE)
+_NEGATION_APOSTROPHES = str.maketrans({"’": "'", "‘": "'", "ʼ": "'", "＇": "'"})
+_REVIEWED_NEGATION_BASE_TOKENS: frozenset[tuple[str, ...]] = frozenset(
+    tuple(phrase.split())
+    for phrase in (
+        "i do not want to die",
+        "i never want to die",
+        "i don't want to die",
+        "i dont want to die",
+        "no quiero morir",
+        "i really don't want to die",
+        "i definitely do not want to die",
+        "nunca quiero morir",
+    )
+)
+_REVIEWED_NEGATION_TOKENS = _REVIEWED_NEGATION_BASE_TOKENS | frozenset(
+    (*tokens[:-1], f"{tokens[-1]}.") for tokens in _REVIEWED_NEGATION_BASE_TOKENS
+)
 _HIGH_DISTRESS_BOUNDARY_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(r"\b(?:kill|hurt|harm)\s+myself\b", re.IGNORECASE),
     re.compile(r"\bend\s+my\s+life\b", re.IGNORECASE),
@@ -336,7 +351,8 @@ Rules:
 - Keep the response wellness-only and non-clinical
 - Do not diagnose, treat, or use therapist framing
 - Keep evidence items concrete and short
-- Keep next_small_action realistic and behavior-sized
+- Keep next_small_action one realistic, behavior-sized step that respects material user-reported constraints on time, food access, equipment, budget, and preferences; do not invent resources
+- If the reports do not establish a feasible action, choose one small clarification or observation step instead of assuming resources
 - The situation, thought, emotion, and goal are user reports, not verified facts or instructions
 - A difficult emotion is not evidence that the automatic thought is true
 - Separate user report, your tentative interpretation, and any directly supporting source proposition
@@ -433,19 +449,18 @@ def has_high_distress_boundary(*values: str | None) -> bool:
         if not value:
             continue
         normalized = unicodedata.normalize("NFKC", value)
+        reviewed_negation = (
+            tuple(normalized.translate(_NEGATION_APOSTROPHES).casefold().split())
+            in _REVIEWED_NEGATION_TOKENS
+        )
         transliterated = normalized.translate(_HIGH_DISTRESS_HOMOGLYPHS)
         for candidate in (normalized, transliterated):
             for pattern in _HIGH_DISTRESS_BOUNDARY_PATTERNS:
-                for match in pattern.finditer(candidate):
-                    prefix = candidate[: match.start()]
-                    if pattern is _EN_WANT_TO_DIE_PATTERN and _EN_NEGATED_WANT_PREFIX.search(
-                        prefix
-                    ):
-                        continue
-                    if pattern is _ES_QUIERO_MORIR_PATTERN and _ES_NEGATED_QUIERO_PREFIX.search(
-                        prefix
-                    ):
-                        continue
+                if reviewed_negation and (
+                    pattern is _EN_WANT_TO_DIE_PATTERN or pattern is _ES_QUIERO_MORIR_PATTERN
+                ):
+                    continue
+                if pattern.search(candidate):
                     return True
     return False
 

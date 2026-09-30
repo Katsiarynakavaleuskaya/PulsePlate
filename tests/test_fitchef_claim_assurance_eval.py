@@ -957,7 +957,15 @@ def test_sdk_preflight_carries_scenario_language(
     assert observed == ["es"]
 
 
-@pytest.mark.parametrize("thought", ["Я хочу умереть", "Quiero morir"])
+@pytest.mark.parametrize(
+    "thought",
+    [
+        "Я хочу умереть",
+        "Quiero morir",
+        "I don't want to die is a lie",
+        "No quiero morir hoy",
+    ],
+)
 def test_collector_direct_path_rejects_high_distress_before_reservation(
     thought: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -992,7 +1000,16 @@ def test_collector_direct_path_rejects_high_distress_before_reservation(
     assert not list(tmp_path.glob("attempt-*"))
 
 
-@pytest.mark.parametrize("thought", ["I do not want to die", "No  quiero morir"])
+@pytest.mark.parametrize(
+    "thought",
+    [
+        "I do not want to die",
+        "No  quiero morir",
+        "I really don't want to die",
+        "I definitely do not want to die.",
+        "Nunca quiero morir",
+    ],
+)
 def test_collector_admission_preserves_negated_distress(
     thought: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -1008,6 +1025,41 @@ def test_collector_admission_preserves_negated_distress(
         collector._admitted_task(context, "synthetic", "en")
     assert blocked.value.status_code == 400
     assert blocked.value.detail == "fitchef_high_distress_boundary"
+
+
+def test_collector_reviewed_negation_cannot_hide_other_field_before_reservation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("FEATURE_FITCHEF_STRUCTURED_COACH", "true")
+    monkeypatch.setenv("FITCHEF_STRUCTURED_COACH_EXECUTION_MODE", "auto-safe")
+    scenario = _manifest_case()
+    scenario["context"]["automatic_thought"] = "I really don't want to die"
+    scenario["context"]["goal"] = "Tonight I want to die"
+    provider = PerplexityProvider(
+        endpoint="https://api.perplexity.ai", model="sonar", api_key=_dummy_credential()
+    )
+
+    async def fail_generate(_prompt: str) -> str:
+        pytest.fail("provider must not run")
+
+    monkeypatch.setattr(provider, "generate", fail_generate)
+    ledger = collector.AttemptLedger(tmp_path)
+    with pytest.raises(HTTPException) as blocked:
+        asyncio.run(
+            collector._collect_one(
+                scenario,
+                key="synthetic",
+                provider=provider,
+                ledger=ledger,
+                code_sha="a" * 40,
+                code_hashes={},
+                rubric_sha256="a" * 64,
+            )
+        )
+    assert blocked.value.status_code == 400
+    assert blocked.value.detail == "fitchef_high_distress_boundary"
+    assert ledger.attempts == 0
+    assert not list(tmp_path.glob("attempt-*"))
 
 
 def test_dirty_code_state_blocks_collection(monkeypatch: pytest.MonkeyPatch) -> None:
