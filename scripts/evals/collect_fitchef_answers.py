@@ -88,6 +88,13 @@ class BudgetExhausted(RuntimeError):
     """The next physical request is not allowed to reach transport."""
 
 
+class _PreproviderHighDistressBoundary(HTTPException):
+    """Identify only the collector's own preprovider distress admission failure."""
+
+    def __init__(self) -> None:
+        super().__init__(status_code=400, detail="fitchef_high_distress_boundary")
+
+
 class AttemptLedger:
     """Durable private reservation immediately before each HTTPX send."""
 
@@ -487,7 +494,7 @@ def _admitted_task(
     if fitchef_companion.has_high_distress_boundary(
         context["situation"], context["automatic_thought"], context["emotion"], context["goal"]
     ):
-        raise HTTPException(status_code=400, detail="fitchef_high_distress_boundary")
+        raise _PreproviderHighDistressBoundary()
     return FitChefDistortionSimulatorTaskEnvelope(
         agent_id="fitchef-agent",
         mode=mode,
@@ -787,6 +794,8 @@ async def collect(
             reason = "reported_cost_overrun"
         elif ledger.exhausted or isinstance(exc, BudgetExhausted):
             reason = "budget_exhausted"
+        elif isinstance(exc, _PreproviderHighDistressBoundary):
+            reason = "validation_failure"
         elif ledger.transport_rejection or isinstance(exc, ValueError):
             reason = "validation_failure"
         elif not isinstance(exc, Exception):

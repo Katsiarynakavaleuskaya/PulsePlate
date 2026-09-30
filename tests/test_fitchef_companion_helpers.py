@@ -425,6 +425,21 @@ def test_infer_distortion_labels_rejects_substrings_and_bare_feelings(thought: s
     assert _infer_distortion_labels(thought) == []
 
 
+@pytest.mark.parametrize("thought", ["I only want a snack", "There is only one apple left"])
+def test_bare_only_is_not_mental_filtering_and_fallback_stays_neutral(thought: str) -> None:
+    assert _infer_distortion_labels(thought) == []
+    draft = prepare_distortion_simulator_draft(
+        "not json",
+        situation="Dinner changed",
+        automatic_thought=thought,
+        emotion="worry",
+        goal=None,
+    )
+    assert draft.distortion_labels == []
+    assert "does not establish a thought pattern" in draft.why_it_matches
+    assert draft.warnings == ["structured_parse_fallback"]
+
+
 @pytest.mark.parametrize(
     ("thought", "label"),
     [

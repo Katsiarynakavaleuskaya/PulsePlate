@@ -1022,6 +1022,14 @@ def test_dirty_code_state_blocks_collection(monkeypatch: pytest.MonkeyPatch) -> 
     "failure,expected_reason",
     [
         (RuntimeError("synthetic failure"), "provider_or_runtime_failure"),
+        (
+            HTTPException(status_code=400, detail="fitchef_high_distress_boundary"),
+            "provider_or_runtime_failure",
+        ),
+        (
+            HTTPException(status_code=503, detail="provider_unavailable"),
+            "provider_or_runtime_failure",
+        ),
         (asyncio.CancelledError(), "interrupted"),
     ],
 )
@@ -1065,6 +1073,41 @@ def test_partial_collection_receipt_preserves_completed_case(
     assert (tmp_path / "case-01.jsonl").exists()
     assert not (tmp_path / "cases.jsonl").exists()
     assert calls == 2
+
+
+def test_collection_receipt_classifies_only_preprovider_distress_as_validation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("FEATURE_FITCHEF_STRUCTURED_COACH", "true")
+    monkeypatch.setenv("FITCHEF_STRUCTURED_COACH_EXECUTION_MODE", "auto-safe")
+    manifest = _manifest_24()
+    manifest[0]["context"]["automatic_thought"] = "I want to die"
+    monkeypatch.setattr(collector, "_code_sha", lambda: "a" * 40)
+    monkeypatch.setattr(collector, "_code_hashes", lambda: {})
+    monkeypatch.setattr(collector, "validate_live_environment", lambda _key: None)
+
+    async def fail_generate(*_args: Any, **_kwargs: Any) -> str:
+        pytest.fail("provider must not run for preprovider distress")
+
+    monkeypatch.setattr(collector.PerplexityProvider, "generate", fail_generate)
+    with pytest.raises(HTTPException) as blocked:
+        asyncio.run(
+            collector.collect(
+                manifest,
+                output_dir=tmp_path,
+                rubric_sha256=evaluation._rubric_hash(RUBRIC),
+                fitchef_key="synthetic",
+                perplexity_key="synthetic",
+            )
+        )
+    assert blocked.value.status_code == 400
+    assert blocked.value.detail == "fitchef_high_distress_boundary"
+    receipt = read_jsonl(tmp_path / "collection-status.json")[0]
+    assert receipt["status"] == "incomplete"
+    assert receipt["failure_category"] == "validation_failure"
+    assert receipt["physical_attempts"] == 0
+    assert receipt["reserved_usd"] == 0
+    assert not list(tmp_path.glob("attempt-*"))
 
 
 @pytest.mark.parametrize(

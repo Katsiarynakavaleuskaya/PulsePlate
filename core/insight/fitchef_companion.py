@@ -870,7 +870,7 @@ def _infer_distortion_labels(automatic_thought: str) -> list[str]:
     ):
         labels.append("emotional_reasoning")
     if re.search(
-        r"\bonly\b|\bnothing\s+good\b|\ball\s+i\s+can\s+see\b|\bbut\s+i\s+still\s+failed\b",
+        r"\bnothing\s+good\b|\ball\s+i\s+can\s+see\b|\bbut\s+i\s+still\s+failed\b",
         lowered,
     ):
         labels.append("mental_filtering")
