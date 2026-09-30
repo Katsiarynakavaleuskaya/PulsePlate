@@ -11,6 +11,23 @@
 - Prefer small, focused edits; update any dependent docs or Make targets if needed.
 - Avoid adding network calls to scripts used in CI unless explicitly required.
 
+- Locked-install settings and direct project-page probes must share default
+  `.netrc` admission before CLI dispatch or connection/context creation.
+  Delegate named/default selection to stdlib, preserve effective login/account
+  and root rejection, and fail closed for indeterminate credentials or malformed
+  trusted authority. Applicable credentials require verified HTTPS; this does
+  not cover every pip authentication source. Probe failures, including connection
+  creation and cleanup, must expose constant/class-only diagnostics with bounded
+  retries. Docker source downloads must reuse the existing URL validator at the
+  network boundary and reject all redirects through the installed opener; tests
+  replace transport, preserving real handler dispatch. See
+  `docs/security/INLINE_NOSEC_TTL_20260930_REASSESSMENT.md` for the bounded proof.
+
+- For inline annotation reviews, verify Bandit's JSON errors and expected
+  scanned-file inventory alongside its exit status. Prove AST equality for
+  comment-only edits against the admitted base; repair any parse omission or
+  executable delta before claiming that the bounded review is complete.
+
 - Before mocking a pinned external CLI or workflow adapter, verify its real
   flags, serialization fields and permitted Actions contexts through native
   help, pinned primary source and actionlint. A fixture accepting an invented
