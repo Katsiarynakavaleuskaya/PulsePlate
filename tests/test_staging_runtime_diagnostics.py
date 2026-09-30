@@ -116,6 +116,10 @@ def host_functions() -> dict[str, Any]:
 
 def test_exact_deployed_image_epoch_pins_are_independent_literals() -> None:
     namespace = host_functions()
+    assert diagnostic.BACKEND_REF == REVIEWED_BACKEND_REF
+    assert diagnostic.CADDY_REF == REVIEWED_CADDY_REF
+    assert "__BACKEND_IMAGE_REF__" not in diagnostic.HOST_PROBE
+    assert "__CADDY_IMAGE_REF__" not in diagnostic.HOST_PROBE
     assert (
         namespace["BACKEND_REF"],
         namespace["CADDY_REF"],
@@ -125,6 +129,15 @@ def test_exact_deployed_image_epoch_pins_are_independent_literals() -> None:
         REVIEWED_CADDY_REF,
         REVIEWED_COMPOSE_SHA,
     )
+
+
+@pytest.mark.parametrize(
+    "template",
+    ["BACKEND_REF = __BACKEND_IMAGE_REF__", "BACKEND_REF = __BACKEND_IMAGE_REF__\n" * 2],
+)
+def test_host_probe_rejects_missing_or_repeated_pin_placeholder(template: str) -> None:
+    with pytest.raises(RuntimeError, match="^REMOTE_PROBE_UNTRUSTED$"):
+        diagnostic._fixed_host_probe(template, REVIEWED_BACKEND_REF, REVIEWED_CADDY_REF)
 
 
 def app_functions(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
