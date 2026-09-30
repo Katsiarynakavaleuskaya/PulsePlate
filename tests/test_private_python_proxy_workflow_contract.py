@@ -53,7 +53,7 @@ def test_private_proxy_health_job_is_stdlib_fail_fast_gate() -> None:
     steps = job["steps"]
     assert isinstance(steps, list)
     step_uses = [step.get("uses") for step in steps if isinstance(step, dict)]
-    assert "actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd" in step_uses
+    assert "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1" in step_uses
     assert "actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405" in step_uses
     assert "./.github/actions/python-setup" not in step_uses
     checkout_step = next(
