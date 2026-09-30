@@ -10,7 +10,7 @@ Covers _attempt_db_fallback function branches:
 import asyncio
 import os
 import inspect
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from threading import Event, RLock, get_ident
@@ -539,6 +539,43 @@ def test_fallback_factory_failure_preserves_original_error_on_cleanup_failure(
 
 class TestAppDBFallback97:
     """Tests for core.db_fallback DB fallback logic to achieve 97% coverage."""
+
+    @pytest.fixture(autouse=True)
+    def _restore_published_fallback_bindings(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> Iterator[None]:
+        """Restore DB bindings and selectors that real fallback calls publish."""
+        from core import db, db_fallback
+
+        original_engine = db._RAW_ENGINE
+        original_wrapper = db.engine
+        original_session = db.SessionLocal
+        # Keep these snapshots on the shared monkeypatch stack. Test-level
+        # patches unwind first, then the ambient bindings are restored last.
+        monkeypatch.setattr(db, "engine", db.engine)
+        # Fallback publication retires its prior engine. Keep the ambient
+        # binding outside this test so teardown can restore a live engine.
+        monkeypatch.setattr(db, "_RAW_ENGINE", None)
+        monkeypatch.setattr(db, "SessionLocal", None)
+        for key in ("DATABASE_URL", "DB_FALLBACK_URL", "DB_HEALTH_DEGRADED"):
+            if key in os.environ:
+                monkeypatch.setenv(key, os.environ[key])
+            else:
+                monkeypatch.delenv(key, raising=False)
+        try:
+            yield
+        finally:
+            try:
+                candidate = db._RAW_ENGINE
+                if candidate is not original_engine and isinstance(candidate, Engine):
+                    candidate.dispose()
+            finally:
+                # Other teardown fixtures use the DB before the shared
+                # monkeypatch finalizer; restore the ambient binding now too.
+                db._RAW_ENGINE = original_engine
+                db.engine = original_wrapper
+                db.SessionLocal = original_session
+                db_fallback.reset_fallback_state()
 
     TRUTHY: set[str] = {"1", "true", "yes", "on"}
 
