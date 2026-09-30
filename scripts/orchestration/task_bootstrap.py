@@ -65,6 +65,7 @@ from scripts.orchestration.agent_consistency_loader import (
     load_inventory_agents,
     load_non_routable_agents,
 )
+from scripts.orchestration import bootstrap_sync_policy as _bootstrap_sync_policy
 from scripts.orchestration.bootstrap_sync_policy import (
     DOCS_ONLY_ENVELOPE_MODE,
     INVARIANT_CHANGE_CLASSES,
@@ -73,9 +74,7 @@ from scripts.orchestration.bootstrap_sync_policy import (
     INVARIANT_REVIEW_COVERAGE_CLAIM,
     INVARIANT_REVIEW_REQUIRED_OUTPUT_FIELDS,
     INVARIANT_REVIEW_REQUIRED_ROLES,
-    INVARIANT_REVIEW_RECOMMENDED_RESOLUTIONS,
     INVARIANT_REVIEW_STOP_CONDITION,
-    INVARIANT_REVIEW_V2_FIELDS,
     INVARIANT_REVIEW_V2_REQUIRED_OUTPUT_FIELDS,
     InvariantReviewDecision,
     classify_invariant_review,
@@ -134,6 +133,11 @@ from scripts.orchestration.shadow_reuse_telemetry import (
     collect_previous_task_packet_candidates,
     resolve_current_head_sha,
 )
+
+INVARIANT_REVIEW_RECOMMENDED_RESOLUTIONS = (
+    _bootstrap_sync_policy.INVARIANT_REVIEW_RECOMMENDED_RESOLUTIONS
+)
+INVARIANT_REVIEW_V2_FIELDS = _bootstrap_sync_policy.INVARIANT_REVIEW_V2_FIELDS
 
 SCHEMA_VERSION = "3.1"
 TASK_PACKET_DIR: Path = REPO_ROOT / "artifacts" / "orchestration" / "task_packets"
@@ -389,7 +393,8 @@ def _read_creative_learning_hints(raw_path: str | Path | None) -> dict[str, Any]
         raise ValueError("unable to read --creative-learning-hints JSON") from exc
     if not isinstance(payload, dict):
         raise ValueError("--creative-learning-hints must contain a JSON object")
-    return cast(dict[str, Any], validate_coordinator_advisory_hints(payload))
+    hints: dict[str, Any] = validate_coordinator_advisory_hints(payload)
+    return hints
 
 
 def _build_creative_learning_hints_packet(
@@ -2106,6 +2111,13 @@ def build_task_packet(
         },
         "creative_learning_hints": creative_learning_hints_packet,
         "message_envelope": message_envelope,
+        "pr_oracle_attachment": {
+            "state": "pending",
+            "enabled_by_default": True,
+            "entrypoint": "scripts/orchestration/pr_oracle_attachment.py dispatch",
+            "requires_coordinator_admission": True,
+            "authority": "metadata_only",
+        },
         "recommended_skills": recommended_skills,
         "skill_routing": skill_routing,
         "automation_flags": {

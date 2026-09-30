@@ -607,6 +607,30 @@ def _thaw_packet(value: Any) -> Any:
     return value
 
 
+def _oracle_hook_prompt_lines(
+    packet_path: str, *, implementation_owners: list[str] | None = None
+) -> list[str]:
+    """Deliver inert host instructions; rendering never executes an oracle."""
+
+    return [
+        "Oracle accompaniment is pending metadata until coordinator admission of commands, budget and the first reviewable material diff.",
+        "Before a material-dependent native review, use the host dispatch hook. Preserve the validated manifest mode and every implementation-owner flag; replace placeholders with admitted inputs.",
+        "Host oracle dispatch: $VENV_PYTHON scripts/orchestration/pr_oracle_attachment.py dispatch --packet "
+        + _shell_quote(packet_path)
+        + " --experiment-packet '<approved-experiment-packet>' --role-context-order '<selected-order>' --mode '<manifest-mode>' --backend apple-container --image '<immutable-image>' --pretty",
+        (
+            "Preserve these emitted owner flags: "
+            + " ".join(
+                "--implementation-owner " + _shell_quote(owner) for owner in implementation_owners
+            )
+            if implementation_owners
+            else "Preserve any emitted owner flags; an ownerless packet receives none."
+        )
+        + " Append --admitted-new-file only for explicitly admitted new files. The hook ensures or reuses evidence, then emits the exact existing role-context envelope for the host native transport.",
+        "Automatic transport is enabled by default. --no-auto-oracle --oracle-evidence '<manual-linkage-receipt>' disables execution and still requires equally validated current manual oracle evidence. Preparatory roles retain the ordinary oracle-independent bridge path.",
+    ]
+
+
 def render_packet_prompt(
     packet: dict[str, Any],
     *,
@@ -658,6 +682,14 @@ def render_packet_prompt(
         f"Path scope: {_prompt_list(candidate_paths, '<no explicit paths>')}",
     ]
     lines.extend(packet_details)
+    lines.extend(
+        _oracle_hook_prompt_lines(
+            packet_path,
+            implementation_owners=_as_string_list(
+                role_dispatch_contract.get("runtime_implementation_owners")
+            ),
+        )
+    )
     if evidence_rail_applicability is not None:
         lines.extend(_applicability_prompt_lines(evidence_rail_applicability))
     else:
@@ -843,6 +875,7 @@ def render_recipe_prompt(
             EXPERIMENT_RUNNER_ENV_GUIDANCE,
         ]
     )
+    lines.extend(_oracle_hook_prompt_lines("<bootstrap-packet>"))
     lines.extend(_euler_prompt_lines(None))
     return "\n".join(lines)
 

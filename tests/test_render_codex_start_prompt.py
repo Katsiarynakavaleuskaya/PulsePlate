@@ -33,6 +33,37 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 _SYNTHETIC_WORKSPACE_SOURCE = "test://synthetic-synthesis-workspace"
 
 
+def test_both_start_modes_deliver_pending_oracle_hook_without_execution(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from scripts.orchestration import pr_oracle_attachment as oracle
+
+    def forbidden(arguments: list[str]) -> int:
+        raise AssertionError("Rendering must not execute oracle commands")
+
+    monkeypatch.setattr(oracle, "_execute_dispatch", forbidden)
+    packet = task_bootstrap.build_task_packet(
+        goal="Prepare bounded fix",
+        task_class="Orchestration",
+        candidate_paths=["scripts/orchestration/task_bootstrap.py"],
+    )
+    prompt = render_packet_prompt(
+        packet, packet_path="artifacts/orchestration/task_packets/example.json"
+    )
+    recipe = render_recipe_prompt(
+        goal="Prepare bounded fix",
+        task_class="Orchestration",
+        pr_phase="pre_open",
+        paths=["scripts/orchestration/task_bootstrap.py"],
+        requested_agents=[],
+    )
+    for text in (prompt, recipe):
+        assert "pending metadata until coordinator admission" in text
+        assert "pr_oracle_attachment.py dispatch" in text
+        assert "--no-auto-oracle" in text
+        assert "still requires equally validated current manual oracle evidence" in text
+
+
 def test_packet_prompt_treats_creative_recommendation_as_native_host_handoff() -> None:
     packet = task_bootstrap.build_task_packet(
         goal="Compare bounded formatter alternatives",

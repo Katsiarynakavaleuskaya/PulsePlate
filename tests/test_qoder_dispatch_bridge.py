@@ -4852,6 +4852,87 @@ def test_default_cli_schema_does_not_emit_exact_context_fields(
     assert set(manifest) == REQUIRED_TOP_LEVEL_KEYS | {"missing_agents"}
 
 
+@pytest.mark.parametrize("mode", ["analysis", "runtime", "review", "docs-only"])
+def test_oracle_delivery_is_outer_only_and_selects_repeated_occurrence(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    mode: str,
+) -> None:
+    from scripts.orchestration import pr_oracle_attachment as oracle
+
+    packet = _write_exact_dispatch_fixture(tmp_path, monkeypatch, repeated_reviewer=True)
+    arguments = ["--packet", str(packet), "--role-context-order", "3", "--mode", mode]
+    assert qoder_dispatch_bridge.main(arguments) == 0
+    baseline = json.loads(capsys.readouterr().out)
+    calls: list[Dict[str, Any]] = []
+
+    def validate(ref: str, **kwargs: Any) -> Dict[str, Any]:
+        calls.append({"ref": ref, **kwargs})
+        return {
+            "authority": "evidence_only",
+            "selected_dispatch": kwargs["selected_dispatch"],
+            "attachment": {"oracle_status": "accepted"},
+        }
+
+    monkeypatch.setattr(oracle, "validate_oracle_evidence", validate)
+    assert (
+        qoder_dispatch_bridge.main([*arguments, "--oracle-evidence", "canonical-receipt.json"]) == 0
+    )
+    delivered = json.loads(capsys.readouterr().out)
+    assert {
+        key: value for key, value in delivered["manifest"].items() if key != "generated_at"
+    } == {key: value for key, value in baseline["manifest"].items() if key != "generated_at"}
+    assert delivered["role_context"] == baseline["role_context"]
+    assert delivered["selected_dispatch"] == baseline["selected_dispatch"]
+    assert calls[0]["selected_dispatch"] == {
+        key: baseline["selected_dispatch"][key]
+        for key in ("order", "role_slug", "readonly", "implementation_owner_override")
+    }
+    assert calls[0]["selected_dispatch"]["order"] == 3
+    assert calls[0]["mode"] == mode
+    assert delivered["experiment_runner_oracle"]["authority"] == "evidence_only"
+
+
+def test_oracle_evidence_cannot_use_ad_hoc_manifest(capsys: pytest.CaptureFixture[str]) -> None:
+    assert (
+        qoder_dispatch_bridge.main(
+            ["--roles", "agent-coordinator", "--oracle-evidence", "missing.json"]
+        )
+        == 1
+    )
+    assert "requires JSON packet and exact occurrence" in capsys.readouterr().err
+
+
+def test_material_evidence_revalidation_failure_blocks_payload(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from scripts.orchestration import pr_oracle_attachment as oracle
+
+    packet = _write_exact_dispatch_fixture(tmp_path, monkeypatch)
+
+    def stale(*args: Any, **kwargs: Any) -> Dict[str, Any]:
+        raise ValueError("stale linked material")
+
+    monkeypatch.setattr(oracle, "validate_oracle_evidence", stale)
+    assert (
+        qoder_dispatch_bridge.main(
+            [
+                "--packet",
+                str(packet),
+                "--role-context-order",
+                "1",
+                "--oracle-evidence",
+                "stale.json",
+            ]
+        )
+        == 1
+    )
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "oracle evidence rejected" in captured.err
+
+
 @pytest.mark.parametrize(
     "args",
     [

@@ -2834,6 +2834,28 @@ def test_build_task_packet_defaults_native_bridge_transport_to_codex() -> None:
     assert packet["native_subagent_bridge"]["transport"] == "codex-native-subagents"
 
 
+def test_oracle_hook_metadata_is_inert_and_outside_closed_contracts() -> None:
+    from scripts.orchestration.evidence_rail_applicability import AUTOMATION_FLAG_FIELDS
+
+    packet = build_task_packet(
+        goal="Prepare a direct orchestration fix",
+        task_class="Orchestration",
+        candidate_paths=["scripts/orchestration/task_bootstrap.py"],
+        pr_phase="pre_open",
+        creative_applicability="direct_fix",
+    )
+    assert packet["pr_oracle_attachment"] == {
+        "state": "pending",
+        "enabled_by_default": True,
+        "entrypoint": "scripts/orchestration/pr_oracle_attachment.py dispatch",
+        "requires_coordinator_admission": True,
+        "authority": "metadata_only",
+    }
+    assert set(packet["automation_flags"]) == AUTOMATION_FLAG_FIELDS
+    assert "pr_oracle_attachment" not in packet["role_agent_dispatch_contract"]
+    assert packet["role_agent_dispatch_contract"]["packet_creation_executes_roles"] is False
+
+
 def test_build_task_packet_passes_explicit_kimi_native_bridge_transport() -> None:
     """Direct packet builder calls should propagate explicit Kimi transport."""
 
