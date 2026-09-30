@@ -451,7 +451,7 @@ def test_nightly_forecast_job_is_main_only_private_free_and_independent() -> Non
     }
     checkout = _step_by_name(job, "Checkout code")
     assert checkout["with"] == {"persist-credentials": False}
-    assert "actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd" == checkout["uses"]
+    assert "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1" == checkout["uses"]
     assert "load_manifest" in run and "evaluate_policy_file" in run
     assert "urlopen" not in run and "--ignore-policy" not in run
     assert "GITHUB_STEP_SUMMARY" in run

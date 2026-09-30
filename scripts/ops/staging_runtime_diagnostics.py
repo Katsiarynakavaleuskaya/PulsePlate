@@ -55,10 +55,14 @@ REMOTE_ERRORS = frozenset(
     }
 )
 
+# These reviewed refs are the only substitutions in the fixed remote program.
+BACKEND_REF = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:a78a9d920bb917c395dff08c5bc244bd299fef803c99eca332bbc4b60fdeff26"
+CADDY_REF = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:5b99acd0ffaf7a93822341b64e053fe8d5b5a6bdf0dfd467e31e870c5f49584c"
+
 # This text is sent to the already authenticated host's Python stdin. All
 # native argv, SQL, paths and output fields are fixed or selected from the
 # trusted staging Compose/checker contract. It never prints subprocess stderr.
-HOST_PROBE = r'''
+_HOST_PROBE_TEMPLATE = r'''
 import hashlib
 import json
 import os
@@ -73,8 +77,8 @@ import time
 PROJECT = "/srv/pulseplate-staging"
 COMPOSE = PROJECT + "/docker-compose.staging.yaml"
 COMPOSE_SOURCE_SHA = "9e9ed40ec219f926d85daabef57b571b501c5bc3478820462cc2a24958839db4"
-BACKEND_REF = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:a4d973ba64919338b87b3095a556ef1a83b0d4b3f08bdd914d90dd977d31657e"
-CADDY_REF = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:b501c3f134d02859b64d9e24c9e14fa6285ec96e1f07be388e2b3b0fdcaa1974"
+BACKEND_REF = __BACKEND_IMAGE_REF__
+CADDY_REF = __CADDY_IMAGE_REF__
 CHECKER = PROJECT + "/scripts/ops/check_staging_security.py"
 MAX_NATIVE = 2_000_000
 SEARCH_PATH = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
@@ -480,6 +484,17 @@ def main():
 
 main()
 '''
+
+
+def _fixed_host_probe(template: str, backend_ref: str, caddy_ref: str) -> str:
+    if template.count("__BACKEND_IMAGE_REF__") != 1 or template.count("__CADDY_IMAGE_REF__") != 1:
+        raise RuntimeError("REMOTE_PROBE_UNTRUSTED")
+    return template.replace("__BACKEND_IMAGE_REF__", json.dumps(backend_ref)).replace(
+        "__CADDY_IMAGE_REF__", json.dumps(caddy_ref)
+    )
+
+
+HOST_PROBE = _fixed_host_probe(_HOST_PROBE_TEMPLATE, BACKEND_REF, CADDY_REF)
 
 
 def _unique_object(pairs: list[tuple[str, object]]) -> dict[str, object]:
