@@ -11,15 +11,19 @@ IMPORTANT:
 from __future__ import annotations
 
 import math
-from typing import Any, Dict, Optional
+from collections.abc import Mapping
+from typing import Dict, Optional
 
 from pydantic import BaseModel, Field, field_validator
 
 
-def _validate_numeric_dict(v: Dict[str, Any], field_name: str) -> Dict[str, Any]:
-    """RU: Проверка словаря чисел (finite, >=0), bool запрещён.
-    EN: Validate numeric dict values (finite, >=0), bool is forbidden.
+def _validate_numeric_dict(v: object, field_name: str) -> object:
+    """RU: Проверить Mapping конечных неотрицательных чисел и числовых строк; bool запрещён.
+    EN: Validate a Mapping of finite nonnegative numbers or numeric strings; bool is forbidden.
     """
+
+    if not isinstance(v, Mapping):
+        raise ValueError(f"{field_name} must be a mapping of finite numbers >= 0")
 
     for key, val in v.items():
         # bool is a subclass of int -> must reject explicitly (before Pydantic coercion).
@@ -27,7 +31,7 @@ def _validate_numeric_dict(v: Dict[str, Any], field_name: str) -> Dict[str, Any]
             raise ValueError(f"{field_name}[{key}] must be a finite number >= 0")
         try:
             num = float(val)
-        except (TypeError, ValueError):
+        except (TypeError, ValueError, OverflowError):
             raise ValueError(f"{field_name}[{key}] must be a finite number >= 0") from None
         if not math.isfinite(num) or num < 0:
             raise ValueError(f"{field_name}[{key}] must be a finite number >= 0")
@@ -49,10 +53,10 @@ class TargetsIn(BaseModel):
 
     @field_validator("macros", mode="before")
     @classmethod
-    def _validate_macros(cls, v: Dict[str, Any]) -> Dict[str, Any]:
+    def _validate_macros(cls, v: object) -> object:
         return _validate_numeric_dict(v, "macros")
 
     @field_validator("micro", mode="before")
     @classmethod
-    def _validate_micro(cls, v: Dict[str, Any]) -> Dict[str, Any]:
+    def _validate_micro(cls, v: object) -> object:
         return _validate_numeric_dict(v, "micro")

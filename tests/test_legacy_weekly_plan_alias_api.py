@@ -465,6 +465,36 @@ def test_legacy_weekly_alias_valid_key_invalid_body_skips_builder(
     _assert_invalid_request_work_not_started(spies)
 
 
+@pytest.mark.parametrize("field", ("macros", "micro"))
+@pytest.mark.parametrize(
+    "bad_value",
+    ([], None, "private-structured-target-marker", True, 42, {"amount": 10**400}),
+    ids=("list", "null", "string", "boolean", "number", "overflow"),
+)
+def test_legacy_weekly_alias_rejects_malformed_targets_before_work(
+    client: TestClient,
+    vip_headers: dict[str, str],
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+    field: str,
+    bad_value: object,
+) -> None:
+    marker = "private-structured-target-marker"
+    spies = _patch_invalid_request_work_spies(monkeypatch)
+    monkeypatch.setenv("API_KEY", vip_headers["X-API-Key"])
+    caplog.set_level(logging.DEBUG, logger=weekly_plan_router.__name__)
+    targets = _valid_targets()
+    targets[field] = bad_value
+    payload = {**_valid_payload(), "targets": targets}
+
+    response = client.post("/api/v1/premium/plan/week", json=payload, headers=vip_headers)
+
+    _assert_static_invalid_weekly_payload(response)
+    assert marker not in response.text
+    assert marker not in caplog.text
+    _assert_invalid_request_work_not_started(spies)
+
+
 @pytest.mark.parametrize(
     "missing_field", ("sex", "age", "height_cm", "weight_kg", "activity", "goal")
 )
