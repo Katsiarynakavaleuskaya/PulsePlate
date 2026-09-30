@@ -18,6 +18,68 @@ import pytest
 
 from scripts.ops import staging_runtime_diagnostics as diagnostic
 
+IMAGE_REPOSITORY = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:"
+REVIEWED_BACKEND_REF = IMAGE_REPOSITORY + "".join(
+    (
+        "a78a9d92",
+        "0bb917c3",
+        "95dff08c",
+        "5bc244bd",
+        "299fef80",
+        "3c99eca3",
+        "32bbc4b6",
+        "0fdeff26",
+    )
+)
+REVIEWED_CADDY_REF = IMAGE_REPOSITORY + "".join(
+    (
+        "5b99acd0",
+        "ffaf7a93",
+        "822341b6",
+        "4e053fe8",
+        "d5b5a6bd",
+        "f0dfd467",
+        "e31e870c",
+        "5f49584c",
+    )
+)
+REVIEWED_COMPOSE_SHA = "".join(
+    (
+        "f194f8c5",
+        "a58fec75",
+        "c9483cf6",
+        "827b5e1e",
+        "f5171c35",
+        "71d88972",
+        "02ee56d0",
+        "c666cca6",
+    )
+)
+PREVIOUS_BACKEND_REF = IMAGE_REPOSITORY + "".join(
+    (
+        "a4d973ba",
+        "64919338",
+        "b87b3095",
+        "a556ef1a",
+        "83b0d4b3",
+        "f08bdd91",
+        "4d90dd97",
+        "7d31657e",
+    )
+)
+PREVIOUS_CADDY_REF = IMAGE_REPOSITORY + "".join(
+    (
+        "b501c3f1",
+        "34d02859",
+        "b64d9e24",
+        "c9e14fa6",
+        "285ec96e",
+        "1f07be38",
+        "8e2b3b0f",
+        "dcaa1974",
+    )
+)
+
 
 def observation() -> dict[str, Any]:
     return {
@@ -50,6 +112,32 @@ def host_functions() -> dict[str, Any]:
     source = diagnostic.HOST_PROBE.rsplit("\nmain()", 1)[0]
     exec(compile(source, "<fixed-host-probe>", "exec"), namespace)
     return namespace
+
+
+def test_exact_deployed_image_epoch_pins_are_independent_literals() -> None:
+    namespace = host_functions()
+    assert diagnostic.BACKEND_REF == REVIEWED_BACKEND_REF
+    assert diagnostic.CADDY_REF == REVIEWED_CADDY_REF
+    assert "__BACKEND_IMAGE_REF__" not in diagnostic.HOST_PROBE
+    assert "__CADDY_IMAGE_REF__" not in diagnostic.HOST_PROBE
+    assert (
+        namespace["BACKEND_REF"],
+        namespace["CADDY_REF"],
+        namespace["COMPOSE_SOURCE_SHA"],
+    ) == (
+        REVIEWED_BACKEND_REF,
+        REVIEWED_CADDY_REF,
+        REVIEWED_COMPOSE_SHA,
+    )
+
+
+@pytest.mark.parametrize(
+    "template",
+    ["BACKEND_REF = __BACKEND_IMAGE_REF__", "BACKEND_REF = __BACKEND_IMAGE_REF__\n" * 2],
+)
+def test_host_probe_rejects_missing_or_repeated_pin_placeholder(template: str) -> None:
+    with pytest.raises(RuntimeError, match="^REMOTE_PROBE_UNTRUSTED$"):
+        diagnostic._fixed_host_probe(template, REVIEWED_BACKEND_REF, REVIEWED_CADDY_REF)
 
 
 def app_functions(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
@@ -674,6 +762,9 @@ def _run_hash_host_case(
     bad_app_ref: bool = False,
     bad_caddy_ref: bool = False,
     app_config_drift: bool = False,
+    app_model_ref: str | None = None,
+    caddy_model_ref: str | None = None,
+    app_config_ref: str | None = None,
 ) -> tuple[dict[str, Any], list[tuple[list[str], bytes | None]]]:
     namespace = host_functions()
     model = compose_fixture()
@@ -683,6 +774,10 @@ def _run_hash_host_case(
         model["services"]["app"]["image"] = "example.invalid/foreign:test"
     if bad_caddy_ref:
         model["services"]["caddy"]["image"] = "example.invalid/foreign:test"
+    if app_model_ref is not None:
+        model["services"]["app"]["image"] = app_model_ref
+    if caddy_model_ref is not None:
+        model["services"]["caddy"]["image"] = caddy_model_ref
     calls: list[tuple[list[str], bytes | None]] = []
     source_reads = 0
     model_reads = 0
@@ -750,8 +845,11 @@ def _run_hash_host_case(
             service = "app" if argv[-1].startswith("a") else "postgres"
             item = selected_container(service)
             item["Id"] = ("a" if service == "app" else "b") * 64
-            if app_config_drift and service == "app":
-                item["Config"]["Image"] = "example.invalid/foreign:test"
+            if service == "app":
+                if app_config_ref is not None:
+                    item["Config"]["Image"] = app_config_ref
+                elif app_config_drift:
+                    item["Config"]["Image"] = "example.invalid/foreign:test"
             return 0, json.dumps([item]).encode()
         if len(argv) > 1 and argv[1] == "exec":
             return 0, json.dumps(observation()).encode()
@@ -816,6 +914,80 @@ def test_host_rejects_unproven_hash_or_model_relation(kwargs: dict[str, Any], er
         "trust": "rejected",
         "error": error,
     }
+
+
+@pytest.mark.parametrize(
+    "surface,ref,error",
+    [
+        (
+            "app_model_ref",
+            PREVIOUS_BACKEND_REF,
+            "COMPOSE_IDENTITY_UNTRUSTED",
+        ),
+        (
+            "caddy_model_ref",
+            PREVIOUS_CADDY_REF,
+            "COMPOSE_IDENTITY_UNTRUSTED",
+        ),
+        ("app_model_ref", "example.invalid/foreign:test", "COMPOSE_IDENTITY_UNTRUSTED"),
+        ("caddy_model_ref", "example.invalid/foreign:test", "COMPOSE_IDENTITY_UNTRUSTED"),
+        (
+            "app_model_ref",
+            "ghcr.io/katsiarynakavaleuskaya/pulseplate:latest",
+            "COMPOSE_IDENTITY_UNTRUSTED",
+        ),
+        (
+            "caddy_model_ref",
+            "ghcr.io/katsiarynakavaleuskaya/pulseplate:latest",
+            "COMPOSE_IDENTITY_UNTRUSTED",
+        ),
+        (
+            "app_model_ref",
+            REVIEWED_CADDY_REF,
+            "COMPOSE_IDENTITY_UNTRUSTED",
+        ),
+        (
+            "caddy_model_ref",
+            REVIEWED_BACKEND_REF,
+            "COMPOSE_IDENTITY_UNTRUSTED",
+        ),
+        (
+            "app_config_ref",
+            PREVIOUS_BACKEND_REF,
+            "CONTAINER_IDENTITY_UNTRUSTED",
+        ),
+        ("app_config_ref", "example.invalid/foreign:test", "CONTAINER_IDENTITY_UNTRUSTED"),
+        (
+            "app_config_ref",
+            "ghcr.io/katsiarynakavaleuskaya/pulseplate:latest",
+            "CONTAINER_IDENTITY_UNTRUSTED",
+        ),
+        (
+            "app_config_ref",
+            REVIEWED_CADDY_REF,
+            "CONTAINER_IDENTITY_UNTRUSTED",
+        ),
+    ],
+)
+def test_unreviewed_epoch_refs_reject_without_success_json(
+    surface: str,
+    ref: str,
+    error: str,
+    local_run: None,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    result, _ = _run_hash_host_case(**{surface: ref})
+    assert result == {
+        "schema": "pulseplate.staging-runtime-host.v1",
+        "trust": "rejected",
+        "error": error,
+    }
+    monkeypatch.setattr(diagnostic, "_ssh_observe", lambda argv: json.dumps(result).encode())
+    assert diagnostic.main(["--environment", "staging", "--format", "json"]) == 3
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err.strip() == error
 
 
 @pytest.mark.parametrize(

@@ -4113,6 +4113,7 @@ def test_three_compose_contours_normalize_to_one_private_prometheus_contract(
 )
 def test_three_compose_contours_preserve_smtp_default_gateway_in_normal_config(
     compose_path: Path,
+    tmp_path: Path,
 ) -> None:
     docker_bin = shutil.which("docker")
     assert docker_bin is not None, "native Docker Compose is required for gateway admission"
@@ -4120,6 +4121,9 @@ def test_three_compose_contours_preserve_smtp_default_gateway_in_normal_config(
     source = compose_path.read_text(encoding="utf-8")
     required_names = set(re.findall(r"\$\{([A-Z][A-Z0-9_]*)(?::[^}]*)?\}", source))
     native_env.update({name: "synthetic" for name in required_names})
+    staging_env_file = tmp_path / "staging.env"
+    staging_env_file.write_text("", encoding="utf-8")
+    native_env["STAGING_ENV_FILE"] = str(staging_env_file)
     for image_name in ("IMAGE_REF", "STAGING_IMAGE_REF", "STAGING_CADDY_IMAGE_REF"):
         native_env[image_name] = "ghcr.io/example/pulseplate@sha256:" + "a" * 64
     completed = subprocess.run(
@@ -10948,7 +10952,8 @@ def test_staging_worker_native_hang_is_bounded_and_holds_before_caddy(
         text=True,
         capture_output=True,
         check=False,
-        timeout=15,
+        # The worker gate has a 30-second deadline; this outer bound also covers fixture setup.
+        timeout=45,
     )
 
     assert completed.returncode != 0

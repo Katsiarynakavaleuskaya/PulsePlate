@@ -262,8 +262,15 @@ requires the installed root-owned Compose file to have the exact reviewed
 SHA-256 `f194f8c5a58fec75c9483cf6827b5e1ef5171c3571d8897202ee56d0c666cca6`.
 Those exact source bytes define one protected app `.env` file and no PostgreSQL
 `env_file`. The observer overrides stale local or protected `.env` image and
-env-file references with backend/Caddy digest refs from the exact reviewed
-merge. A future Compose or published image epoch requires a reviewed pin update
+env-file references with the backend/Caddy digest refs from the one separately
+approved staging deployment of main
+`e6d16df698ba30d14e7b40b42f6e16c4df5728b2` (attested CD run
+[`36628510436`](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/36628510436)):
+
+- Backend: `ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:a78a9d920bb917c395dff08c5bc244bd299fef803c99eca332bbc4b60fdeff26`
+- Caddy: `ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:5b99acd0ffaf7a93822341b64e053fe8d5b5a6bdf0dfd467e31e870c5f49584c`
+
+A future Compose or published image epoch requires a reviewed pin update
 in the same PR. The app's resolved hash must match its container label;
 PostgreSQL native, resolved and container hashes must all match. The observer
 rechecks both models, all four hashes, file generation and container identity
