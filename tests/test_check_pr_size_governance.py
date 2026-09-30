@@ -1046,6 +1046,7 @@ def test_extract_pr_body_falls_back_to_api_for_missing_body(
         encoding="utf-8",
     )
 
+    monkeypatch.delenv("GH_TOKEN", raising=False)
     monkeypatch.setenv("GITHUB_TOKEN", "test-token")
 
     class FakeResponse:
@@ -1086,6 +1087,7 @@ def test_extract_trusted_approvals_falls_back_to_api_for_missing_labels(
         encoding="utf-8",
     )
 
+    monkeypatch.delenv("GH_TOKEN", raising=False)
     monkeypatch.setenv("GITHUB_TOKEN", "test-token")
 
     class FakeResponse:
@@ -1130,6 +1132,7 @@ def test_extract_trusted_approvals_unions_live_labels_when_event_labels_are_stal
         encoding="utf-8",
     )
 
+    monkeypatch.delenv("GH_TOKEN", raising=False)
     monkeypatch.setenv("GITHUB_TOKEN", "test-token")
 
     class FakeResponse:
