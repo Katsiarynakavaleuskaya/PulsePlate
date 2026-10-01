@@ -688,6 +688,10 @@ checklist-only and remain bound to `docs/prompts/cv/program.md`.
 
 The GitHub App capability gate remains separate from the local
 [CREATIVE-OPS-2 admitted host hook](contracts/EXPERIMENT_RUNNER_PR_CREATIVE_CONTEXT_CONTRACT.md#admitted-host-oracle-accompaniment-creative-ops-2).
+That hook selects externally admitted T before host startup and reads distinct
+explicit M through the existing root-aware owners. Its frozen tracked observer
+snapshot and separately retained archive companions provide bounded continuity;
+they do not prove hostile same-UID authenticity or standalone recovery.
 That hook composes oracle execution/reuse and exact role-context delivery under
 its approved packet, strict backend, attribution, opt-out and retention contract.
 It grants no GitHub App or workflow-dispatch authority and preserves the existing

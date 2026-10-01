@@ -87,3 +87,9 @@ For exact JSON packet-backed delivery:
    recommended skill names.
 5. Treat `complete=false` as a manual-loading requirement. Missing, unsafe,
    malformed, changed, or over-limit sources block the exact invocation.
+
+For automatic oracle delivery, acquire control instructions and packets from the
+externally admitted T checkout; explicit M instruction/code changes are review
+data until promoted. Preserve both source bindings through the canonical
+[accompaniment contract](../../../../docs/orchestration/contracts/EXPERIMENT_RUNNER_PR_CREATIVE_CONTEXT_CONTRACT.md#admitted-host-oracle-accompaniment-creative-ops-2).
+Historical provenance cannot be upgraded by a new delivery label or hash.

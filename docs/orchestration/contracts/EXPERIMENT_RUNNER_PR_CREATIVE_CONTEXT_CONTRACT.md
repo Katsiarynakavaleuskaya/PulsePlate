@@ -16,13 +16,24 @@ or higher-assurance packet. Evidence: `scripts/orchestration/task_bootstrap.py:2
 `scripts/orchestration/pr_oracle_attachment.py:201`.
 
 ```bash
-"$VENV_PYTHON" scripts/orchestration/pr_oracle_attachment.py dispatch \
+"$VENV_PYTHON" -I "$TRUSTED_TOOL_ROOT/scripts/orchestration/pr_oracle_attachment.py" dispatch \
+  --material-root "$MATERIAL_ROOT" \
   --packet artifacts/orchestration/task_packets/<task-id>.json \
   --experiment-packet artifacts/orchestration/experiments/<experiment-id>.json \
   --role-context-order <order> --mode runtime \
   --implementation-owner <packet-owner> \
   --backend apple-container --image <immutable-image> --pretty
 ```
+
+Before invocation, the external operator/coordinator admits canonical tool checkout T
+and a clean absolute Python runtime, selects a distinct canonical absolute material
+checkout M with no nesting or overlap in either direction, and sets cwd to T. T owns every host entrypoint, control import, packet,
+selector and evidence store. Python `-I` excludes ordinary ambient search paths but
+does not disable site processing; approved runtime/site startup remains a separate
+prerequisite. The new automatic helper requires explicit M and never executes an M
+helper to accept a trust flag. Older trusted-caller manual APIs retain their defaults.
+On other supported hosts the inert recipe requires an explicit compatible container
+backend; this Mac retains explicit Apple with no Docker or host fallback.
 
 Preserve every admitted owner flag. The ordinal is independently validated
 before execution and at delivery; it does not select write permission. The
@@ -49,6 +60,18 @@ after execution and at consumer delivery. Every head change, including a
 mapping-only commit, requires a new bounded check. Evidence:
 `scripts/orchestration/experiment_runner_dispatch.py:1638` and
 `scripts/orchestration/experiment_runner_dispatch.py:1714`.
+
+The existing dispatcher freezes the complete native tracked T snapshot separately
+from exact M, mounts both read-only, and selects the T Runner/control imports with
+explicit M execution-root arguments. Existing Git identity, status, diff and temporary
+checkout readers consume M through parameters; control/result globals and the sole
+applicability selector stay T. Request and snapshot proof bind both sources before
+execution, reuse and delivery. Every current consumer supplies caller-admitted M;
+the retained receipt cannot select its own read root. The helper forwards M as
+`--oracle-material-root` to the existing role bridge, while historical restoration
+requires no live M. Historical receipts remain historical and cannot
+silently acquire this provenance. Frozen observer selection does not authenticate
+hostile same-UID guest results, semantic test adequacy or human approval.
 
 Generic result and attachment validators remain their existing structural
 owners. The shared consumer additionally requires the complete approved
@@ -91,8 +114,22 @@ copies until verified archive/readback and enumerated owned cleanup.
 `export` writes one new-only ordinary ZIP with its exact inventory and hashes.
 `verify-archive` checks outer/member hashes, member types, sanitizer and frozen
 receipt/request/experiment/result/proof/attachment/input lineage before fresh
-restore. The task packet is a separately preserved canonical dependency with
-an exported reference/hash; restore requires those same original bytes.
+restore. The task packet, original request and checked/new inputs are separately preserved
+canonical companions represented by screened reference/hash projections. Original
+private or binary bytes never enter raw transport. Restore reacquires all and only
+those originals through the existing bounded safe reader and verifies every digest
+and complete historical lineage before reserving a fresh leaf. All projection
+references and the all-and-only original inventory are first checked against the
+transported receipt. Only its derived canonical original-request slot may be
+acquired to bind the canonical task-packet ref and complete dependency inventory;
+all remaining companion reads use those checked lineage refs. Archive-selected
+paths never select a generic private reader. Missing or substituted
+originals remain `storage_pending`; no Runner repeat or sole-copy cleanup follows.
+The ZIP depends on companion availability and is not a standalone archive. Every
+transport member, projection and reference uses the canonical sanitizer, whose
+known predicates do not prove universal secret absence. Restore-root directory flock
+spans valid inventory, capacity and reservation; partial leaves consume capacity
+and remain retained evidence. Nonblocking lock contention may reject a call.
 `validate-restored` validates historical lineage independently of the original
 run-directory name and makes `currentness_claim=false`. It grants no dispatch
 authority. The ordinary archive preserves the original bound sanitized result;
@@ -219,7 +256,14 @@ as `api_key.py` and ordinary prose such as "API key validation" remain
 admissible; token shapes, assignments (including canonical `SERVER_SALT`),
 bearer values and key material do not.
 The same content sanitizer runs on export and restore, so a downloaded archive
-with internally consistent hashes cannot bypass UTF-8 or private-content checks.
+with internally consistent hashes cannot bypass UTF-8 or private-content checks. Caller-admitted
+JSON members use the existing native object decoder, reject duplicate keys,
+nonfinite or unrepresentable values, and screen decoded keys and nested strings
+independently. Native finite serialization checks credential key/value
+associations only; serialization escapes are not filesystem syntax. Non-JSON
+members retain raw UTF-8 screening. Screening preserves the original member
+bytes for hashes, export and restore, and neither changes caller inventories
+nor their byte bounds or independent structural JSON limits.
 Explicit decorator and HTTP-method contexts
 allow public route literals such as `GET /api/v1/items` in patch and review
 evidence; they never exempt known filesystem roots such as `/home`, `/srv`,
