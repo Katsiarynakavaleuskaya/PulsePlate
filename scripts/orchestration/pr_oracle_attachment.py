@@ -196,7 +196,19 @@ def _request(
     contribution_kind: str = "none",
     coauthor_required: bool = False,
     coauthor_reason: str = "",
+    material_root: Path | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
+    if material_root is None:
+        raise OracleEvidenceError("Explicit distinct material checkout is required.")
+    dispatcher._reject_symlink_components(material_root)
+    if (
+        not material_root.is_absolute()
+        or material_root.resolve() != material_root
+        or not material_root.is_dir()
+        or material_root.is_relative_to(REPO_ROOT.resolve())
+        or REPO_ROOT.resolve().is_relative_to(material_root)
+    ):
+        raise OracleEvidenceError("Material checkout must be canonical and distinct from controls.")
     task = read_task_packet_snapshot(packet)
     applicability = build_evidence_rail_applicability(task)
     if not any(
@@ -239,8 +251,9 @@ def _request(
     ):
         raise OracleEvidenceError("New-file admission exceeds the experiment context.")
     try:
-        source_material = dispatcher.capture_source_material(REPO_ROOT, admitted_new_files)
-    except ValueError as exc:
+        source_material = dispatcher.capture_source_material(material_root, admitted_new_files)
+        tool_source = dispatcher.capture_source_material(REPO_ROOT.resolve())
+    except (ValueError, dispatcher.DispatchError) as exc:
         raise OracleEvidenceError(
             "Exact raw material cannot be acquired.", lifecycle_state="material_unavailable"
         ) from exc
@@ -254,6 +267,9 @@ def _request(
         "experiment_packet_sha256": _digest(experiment_bytes),
         "experiment_packet_fingerprint": fingerprint_payload(experiment),
         "source_material": source_material,
+        "material_root": str(material_root),
+        "tool_root_binding": _digest(str(REPO_ROOT.resolve()).encode()),
+        "tool_source": tool_source,
         "dispatch_mode": mode,
         "implementation_owners": sorted(owners),
         "backend": backend,
@@ -271,6 +287,33 @@ def _request(
 
 
 def _dependency_names(request: dict[str, Any]) -> dict[str, tuple[str, str]]:
+    required_request = {
+        "policy_version",
+        "selector_policy_version",
+        "task_packet_ref",
+        "task_packet_id",
+        "task_packet_fingerprint",
+        "experiment_packet_ref",
+        "experiment_packet_sha256",
+        "experiment_packet_fingerprint",
+        "source_material",
+        "dispatch_mode",
+        "implementation_owners",
+        "backend",
+        "image",
+        "checked_inputs",
+        "contribution",
+    }
+    if (
+        set(request)
+        not in (
+            required_request,
+            required_request | {"material_root", "tool_root_binding", "tool_source"},
+        )
+        or request["policy_version"] != POLICY_VERSION
+        or request["selector_policy_version"] != SELECTOR_POLICY
+    ):
+        raise OracleEvidenceError("Frozen request shape or policy is invalid.")
     checked = request["checked_inputs"]
     new = request["source_material"]["admitted_new_files"]
     if (
@@ -305,7 +348,11 @@ def _dependency_names(request: dict[str, Any]) -> dict[str, tuple[str, str]]:
 def _dependencies(request: dict[str, Any]) -> dict[str, bytes]:
     retained: dict[str, bytes] = {}
     for name, (ref, expected) in _dependency_names(request).items():
-        raw = _raw(ref)
+        raw = (
+            dispatcher._material_file(Path(request["material_root"]), ref)
+            if name.startswith("new-") and "material_root" in request
+            else _raw(ref)
+        )
         if _digest(raw) != expected:
             raise OracleEvidenceError(
                 "An approved input dependency changed before retention.", lifecycle_state="stale"
@@ -332,29 +379,6 @@ def _historical_bundle(
 
     try:
         request = _workflow_json_bytes(files["request.json"], maximum=MAX_BYTES)
-        required_request = {
-            "policy_version",
-            "selector_policy_version",
-            "task_packet_ref",
-            "task_packet_id",
-            "task_packet_fingerprint",
-            "experiment_packet_ref",
-            "experiment_packet_sha256",
-            "experiment_packet_fingerprint",
-            "source_material",
-            "dispatch_mode",
-            "implementation_owners",
-            "backend",
-            "image",
-            "checked_inputs",
-            "contribution",
-        }
-        if (
-            set(request) != required_request
-            or request["policy_version"] != POLICY_VERSION
-            or request["selector_policy_version"] != SELECTOR_POLICY
-        ):
-            raise OracleEvidenceError("Frozen request shape or policy is invalid.")
         dependencies = _dependency_names(request)
         receipt = _workflow_json_bytes(files["receipt.json"], maximum=MAX_BYTES)
         expected_members = set(BUNDLE_FILES) | set(dependencies) | _attempt_names(receipt)
@@ -533,6 +557,14 @@ def _accepted(
         "result_projection",
         "snapshot_content_sha256",
     }
+    if "tool_source" in request:
+        expected_proof |= {"tool_source", "tool_snapshot_content_sha256"}
+        if (
+            proof.get("tool_source") != request["tool_source"]
+            or proof.get("tool_snapshot_content_sha256")
+            != request["tool_source"]["tracked_content_sha256"]
+        ):
+            raise OracleEvidenceError("Trusted control snapshot binding differs.")
     if (
         set(proof) != expected_proof
         or proof["schema_version"] != "experiment_runner_checked_snapshot.v1"
@@ -558,9 +590,12 @@ def _validate_oracle_evidence(
     selected_dispatch: dict[str, Any],
     mode: str,
     implementation_owners: tuple[str, ...] = (),
+    material_root: Path | None = None,
 ) -> dict[str, Any]:
     """Reacquire the winning linked bytes and current source at consumption."""
 
+    if material_root is None:
+        raise OracleEvidenceError("Current consumption requires caller-admitted material root.")
     path = REPO_ROOT / ref
     if path.name != "receipt.json" or path.parent.parent != EVIDENCE_ROOT:
         raise OracleEvidenceError("Evidence must name a canonical immutable receipt.")
@@ -568,7 +603,16 @@ def _validate_oracle_evidence(
     request, result, receipt = _historical_bundle(files)
     if path.parent.name != receipt["request_fingerprint"].removeprefix("sha256:"):
         raise OracleEvidenceError("Request identity does not match its evidence slot.")
+    if "material_root" not in request or "tool_source" not in request:
+        raise OracleEvidenceError(
+            "Historical evidence lacks current control provenance.", lifecycle_state="stale"
+        )
+    if material_root is not None and str(material_root) != request["material_root"]:
+        raise OracleEvidenceError(
+            "Material root differs from retained evidence.", lifecycle_state="stale"
+        )
     current, _ = _request(
+        material_root=material_root,
         packet=packet,
         experiment_packet=request["experiment_packet_ref"],
         mode=mode,
@@ -608,6 +652,7 @@ def validate_oracle_evidence(
     selected_dispatch: dict[str, Any],
     mode: str,
     implementation_owners: tuple[str, ...] = (),
+    material_root: Path | None = None,
 ) -> dict[str, Any]:
     """One public consumer boundary for malformed, linked and currentness failures."""
 
@@ -618,6 +663,7 @@ def validate_oracle_evidence(
             selected_dispatch=selected_dispatch,
             mode=mode,
             implementation_owners=implementation_owners,
+            material_root=material_root,
         )
     except (KeyError, TypeError, AttributeError, IndexError, RecursionError) as exc:
         raise OracleEvidenceError("Malformed linked oracle evidence.") from exc
@@ -657,13 +703,17 @@ def ensure_oracle_evidence(
     contribution_kind: str = "none",
     coauthor_required: bool = False,
     coauthor_reason: str = "",
+    material_root: Path | None = None,
 ) -> str:
     """Execute once for exact admitted inputs, or validate a retained winner."""
 
+    if material_root is None:
+        raise OracleEvidenceError("Explicit distinct material checkout is required.")
     selected = _selection(packet, role_context_order, mode, implementation_owners)
 
     def acquire_request() -> tuple[dict[str, Any], dict[str, Any]]:
         return _request(
+            material_root=material_root,
             packet=packet,
             experiment_packet=experiment_packet,
             mode=mode,
@@ -709,6 +759,7 @@ def ensure_oracle_evidence(
                 selected_dispatch=selected,
                 mode=mode,
                 implementation_owners=implementation_owners,
+                material_root=material_root,
             )
             return receipt_ref
         if any(directory.iterdir()):
@@ -740,6 +791,8 @@ def ensure_oracle_evidence(
             proof_path = dispatcher.RESULT_ARTIFACT_DIR / (nonce + ".snapshot.json")
             argv = [
                 "run",
+                "--material-root",
+                str(material_root),
                 "--packet",
                 _ref(directory / "experiment_packet.json"),
                 "--backend",
@@ -859,6 +912,7 @@ def ensure_oracle_evidence(
             selected_dispatch=selected,
             mode=mode,
             implementation_owners=implementation_owners,
+            material_root=material_root,
         )
     return receipt_ref
 
@@ -870,6 +924,7 @@ def render_pr_evidence(
     selected_dispatch: dict[str, Any],
     mode: str,
     implementation_owners: tuple[str, ...] = (),
+    material_root: Path | None = None,
 ) -> str:
     """Prepare a local body projection; this function performs no publication."""
 
@@ -879,6 +934,7 @@ def render_pr_evidence(
         selected_dispatch=selected_dispatch,
         mode=mode,
         implementation_owners=implementation_owners,
+        material_root=material_root,
     )
     return (
         "## Experiment Runner Evidence\n\nArtifact: "
@@ -915,17 +971,25 @@ def export_evidence(ref: str) -> tuple[str, str]:
         raise OracleEvidenceError("Export requires a canonical evidence receipt.")
     files = _bundle_bytes(directory)
     request, _, _ = _historical_bundle(files)
-    # Preserve this dynamic packet independently; its generated token-count
-    # metadata is not suitable for the existing private-text archive recognizer.
-    files.pop("task_packet.json")
-    files["task_packet_dependency.json"] = json.dumps(
-        {
-            "ref": request["task_packet_ref"],
-            "sha256": request["task_packet_fingerprint"],
-            "authority": "dependency_reference_only",
-        },
-        sort_keys=True,
-    ).encode()
+    # Transport retains screened references; immutable originals remain companions.
+    companion_names = {"task_packet.json", "request.json"} | {
+        name for name in _dependency_names(request) if name.startswith(("checked-", "new-"))
+    }
+    for name in sorted(companion_names):
+        original = files.pop(name)
+        projection = name.removesuffix(".json").removesuffix(".input") + "_dependency.json"
+        files[projection] = json.dumps(
+            {
+                "ref": (
+                    request["task_packet_ref"]
+                    if name == "task_packet.json"
+                    else _ref(directory / name)
+                ),
+                "sha256": _digest(original),
+                "authority": "dependency_reference_only",
+            },
+            sort_keys=True,
+        ).encode()
     for name, data in files.items():
         _require_export_member(name, data)
     manifest = {
@@ -961,7 +1025,7 @@ def verify_archive(archive_ref: str, expected_sha256: str, restore_ref: str) -> 
     with zipfile.ZipFile(io.BytesIO(raw)) as archive:
         infos = archive.infolist()
         names = [i.filename for i in infos]
-        fixed = (set(BUNDLE_FILES) - {"task_packet.json"}) | {
+        fixed = (set(BUNDLE_FILES) - {"task_packet.json", "request.json"}) | {
             "task_packet_dependency.json",
             "manifest.json",
         }
@@ -972,7 +1036,8 @@ def verify_archive(archive_ref: str, expected_sha256: str, restore_ref: str) -> 
             or any(
                 name not in fixed
                 and not re.fullmatch(
-                    r"(?:(?:checked|new)-[0-9]{2}\.input|attempt-[1-3](?:\.terminal)?\.json)", name
+                    r"(?:(?:checked|new)-[0-9]{2}(?:\.input|_dependency\.json)|request(?:\.json|_dependency\.json)|attempt-[1-3](?:\.terminal)?\.json)",
+                    name,
                 )
                 for name in names
             )
@@ -996,17 +1061,147 @@ def verify_archive(archive_ref: str, expected_sha256: str, restore_ref: str) -> 
         raise OracleEvidenceError("Archive member digests differ.")
     for name, data in files.items():
         _require_export_member(name, data)
-    dependency = _workflow_json_bytes(files.pop("task_packet_dependency.json"), maximum=MAX_BYTES)
+    # Derive the closed original inventory from the transported receipt before
+    # opening any private companion. Archive projection refs never select readers.
+    receipt = _workflow_json_bytes(files["receipt.json"], maximum=MAX_BYTES)
     if (
-        set(dependency) != {"ref", "sha256", "authority"}
-        or dependency["authority"] != "dependency_reference_only"
+        set(receipt)
+        != {
+            "schema_version",
+            "authority",
+            "request_fingerprint",
+            "files",
+            "attempts",
+            "retries_consumed",
+        }
+        or receipt["schema_version"] != POLICY_VERSION
+        or receipt["authority"] != "evidence_only"
+        or not isinstance(receipt["files"], dict)
+        or not isinstance(receipt["request_fingerprint"], str)
+        or re.fullmatch(r"sha256:[0-9a-f]{64}", receipt["request_fingerprint"]) is None
     ):
-        raise OracleEvidenceError("Task dependency reference is malformed.")
-    task_raw = _raw(dependency["ref"])
-    if _digest(task_raw) != dependency["sha256"]:
-        raise OracleEvidenceError("Separately preserved task dependency differs.")
-    validation_files = {**files, "task_packet.json": task_raw}
-    _historical_bundle(validation_files)
+        raise OracleEvidenceError(
+            "Original receipt inventory is malformed.", lifecycle_state="storage_pending"
+        )
+    original_names = set(receipt["files"]) | {"receipt.json"}
+    required_originals = set(BUNDLE_FILES) | _attempt_names(receipt)
+    if (
+        not required_originals.issubset(original_names)
+        or any(
+            name not in required_originals
+            and not re.fullmatch(r"(?:checked|new)-[0-9]{2}\.input", name)
+            for name in original_names
+        )
+        or any(
+            not isinstance(value, str) or re.fullmatch(r"sha256:[0-9a-f]{64}", value) is None
+            for value in receipt["files"].values()
+        )
+    ):
+        raise OracleEvidenceError(
+            "Original member inventory is invalid.", lifecycle_state="storage_pending"
+        )
+    original_directory = EVIDENCE_ROOT / receipt["request_fingerprint"].removeprefix("sha256:")
+    companions = {"task_packet.json"}
+    legacy_task_ref = None
+    if "request_dependency.json" in files:
+        companions |= {"request.json"} | {
+            name for name in original_names if name.startswith(("checked-", "new-"))
+        }
+    else:
+        # Historical archives carry their complete screened request. Its bound
+        # literal task ref remains the older companion API; no provenance upgrade.
+        request_raw = files.get("request.json", b"")
+        legacy_request = _workflow_json_bytes(request_raw, maximum=MAX_BYTES)
+        if (
+            _digest(request_raw) != receipt["files"]["request.json"]
+            or fingerprint_payload(legacy_request) != receipt["request_fingerprint"]
+        ):
+            raise OracleEvidenceError(
+                "Historical request binding differs.", lifecycle_state="storage_pending"
+            )
+        legacy_task_ref = _dependency_names(legacy_request)["task_packet.json"][0]
+    projections = {
+        name.removesuffix(".json").removesuffix(".input") + "_dependency.json": name
+        for name in companions
+    }
+    if set(files) != (original_names - companions) | set(projections):
+        raise OracleEvidenceError("Companion inventory differs.", lifecycle_state="storage_pending")
+    admitted: dict[str, tuple[str, str]] = {}
+    task_projection = _workflow_json_bytes(files["task_packet_dependency.json"], maximum=MAX_BYTES)
+    for projection, original_name in projections.items():
+        row = _workflow_json_bytes(files[projection], maximum=MAX_BYTES)
+        expected_ref = _ref(original_directory / original_name)
+        if (
+            set(row) != {"ref", "sha256", "authority"}
+            or row["authority"] != "dependency_reference_only"
+            or row["sha256"] != receipt["files"][original_name]
+            or (original_name != "task_packet.json" and row["ref"] != expected_ref)
+        ):
+            raise OracleEvidenceError(
+                "Companion reference differs from original lineage.",
+                lifecycle_state="storage_pending",
+            )
+        if original_name != "task_packet.json":
+            admitted[original_name] = (expected_ref, row["sha256"])
+    # The receipt permits just this derived canonical request slot read. Neither
+    # the archive's request ref nor its task ref selects this acquisition.
+    request_ref = _ref(original_directory / "request.json")
+    try:
+        request_raw = files["request.json"] if legacy_task_ref is not None else _raw(request_ref)
+    except (OSError, ValueError) as exc:
+        raise OracleEvidenceError(
+            "Original request is unavailable.", lifecycle_state="storage_pending"
+        ) from exc
+    original_request = _workflow_json_bytes(request_raw, maximum=MAX_BYTES)
+    if (
+        _digest(request_raw) != receipt["files"]["request.json"]
+        or fingerprint_payload(original_request) != receipt["request_fingerprint"]
+    ):
+        raise OracleEvidenceError(
+            "Original request binding differs.", lifecycle_state="storage_pending"
+        )
+    task_id = original_request.get("task_packet_id")
+    if not isinstance(task_id, str) or re.fullmatch(r"[0-9a-f]{12}", task_id) is None:
+        raise OracleEvidenceError(
+            "Original task identity is invalid.", lifecycle_state="storage_pending"
+        )
+    expected_task_ref = f"artifacts/orchestration/task_packets/{task_id}.json"
+    if (
+        original_request.get("task_packet_ref") != expected_task_ref
+        or task_projection["ref"] != expected_task_ref
+    ):
+        raise OracleEvidenceError(
+            "Companion reference differs from original lineage.", lifecycle_state="storage_pending"
+        )
+    original_dependencies = _dependency_names(original_request)
+    if set(original_dependencies) | set(BUNDLE_FILES) | _attempt_names(receipt) != original_names:
+        raise OracleEvidenceError(
+            "Original dependency inventory differs.", lifecycle_state="storage_pending"
+        )
+    admitted["task_packet.json"] = (expected_task_ref, receipt["files"]["task_packet.json"])
+    # All refs and all-and-only carriers are checked before remaining companion reads.
+    validation_files = {name: raw for name, raw in files.items() if name not in projections}
+    if "request.json" in admitted:
+        admitted.pop("request.json")
+        validation_files["request.json"] = request_raw
+    for name, (ref, expected) in admitted.items():
+        try:
+            original = _raw(ref)
+        except (OSError, ValueError) as exc:
+            raise OracleEvidenceError(
+                "Original companion is unavailable.", lifecycle_state="storage_pending"
+            ) from exc
+        if _digest(original) != expected:
+            raise OracleEvidenceError(
+                "Original companion differs.", lifecycle_state="storage_pending"
+            )
+        validation_files[name] = original
+    try:
+        _historical_bundle(validation_files)
+    except OracleEvidenceError as exc:
+        raise OracleEvidenceError(
+            "Complete original restore lineage is unavailable.", lifecycle_state="storage_pending"
+        ) from exc
     restore = REPO_ROOT / restore_ref
     restore_root = EVIDENCE_ROOT / "restores"
     if restore.parent != restore_root or not re.fullmatch(
@@ -1014,17 +1209,30 @@ def verify_archive(archive_ref: str, expected_sha256: str, restore_ref: str) -> 
     ):
         raise OracleEvidenceError("Restore requires a fresh leaf in the existing evidence root.")
     _private_directory(restore_root)
-    if len(list(restore_root.iterdir())) >= MAX_RETAINED_RUNS:
-        raise OracleEvidenceError("Restore capacity reached; preserve existing verified resources.")
-    dispatcher._reject_symlink_components(restore)
-    restore.mkdir(mode=0o700)
-    for name, data in validation_files.items():
-        with (restore / name).open("xb") as handle:
-            os.fchmod(handle.fileno(), 0o600)
-            handle.write(data)
-            handle.flush()
-            os.fsync(handle.fileno())
-    validate_restored_bundle(restore_ref)
+    with exclusive_patch_run_lock(restore_root, label="oracle restore admission"):
+        retained = list(restore_root.iterdir())
+        if any(
+            leaf.is_symlink()
+            or not leaf.is_dir()
+            or not re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9._-]{0,63}", leaf.name)
+            or leaf.stat().st_mode & 0o777 != 0o700
+            for leaf in retained
+        ):
+            raise OracleEvidenceError("Restore inventory contains an unsafe resource.")
+        if len(retained) >= MAX_RETAINED_RUNS:
+            raise OracleEvidenceError(
+                "Restore capacity reached; preserve existing verified resources."
+            )
+        dispatcher._reject_symlink_components(restore)
+        restore.mkdir(mode=0o700)
+    with exclusive_patch_run_lock(restore, label="oracle restore publication"):
+        for name, data in validation_files.items():
+            with (restore / name).open("xb") as handle:
+                os.fchmod(handle.fileno(), 0o600)
+                handle.write(data)
+                handle.flush()
+                os.fsync(handle.fileno())
+        validate_restored_bundle(restore_ref)
     return _ref(restore)
 
 
@@ -1063,6 +1271,7 @@ def main(argv: list[str] | None = None) -> int:
             "validate-restored",
         ),
     )
+    parser.add_argument("--material-root", type=Path)
     parser.add_argument("--packet")
     parser.add_argument("--experiment-packet")
     parser.add_argument("--role-context-order", type=int)
@@ -1100,6 +1309,11 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         if not args.packet or args.role_context_order is None:
             raise OracleEvidenceError("Canonical packet and exact occurrence are required.")
+        if (
+            args.command in {"ensure", "dispatch", "validate", "body"}
+            and args.material_root is None
+        ):
+            raise OracleEvidenceError("Explicit distinct material checkout is required.")
         owners = tuple(args.implementation_owner)
         selected = _selection(args.packet, args.role_context_order, args.mode, owners)
         if args.command in {"validate", "body"} or args.no_auto_oracle:
@@ -1115,6 +1329,7 @@ def main(argv: list[str] | None = None) -> int:
                 selected_dispatch=selected,
                 mode=args.mode,
                 implementation_owners=owners,
+                material_root=args.material_root,
             )
         else:
             if args.oracle_evidence or not args.experiment_packet or not args.image:
@@ -1122,6 +1337,7 @@ def main(argv: list[str] | None = None) -> int:
                     "Automatic dispatch requires approved experiment and image inputs."
                 )
             ref = ensure_oracle_evidence(
+                material_root=args.material_root,
                 packet=args.packet,
                 experiment_packet=args.experiment_packet,
                 role_context_order=args.role_context_order,
@@ -1141,10 +1357,12 @@ def main(argv: list[str] | None = None) -> int:
                 selected_dispatch=selected,
                 mode=args.mode,
                 implementation_owners=owners,
+                material_root=args.material_root,
             )
         if args.command == "dispatch":
             command = [
                 sys.executable,
+                "-I",
                 str(REPO_ROOT / "scripts/orchestration/role_dispatch_bridge.py"),
                 "--packet",
                 args.packet,
@@ -1154,6 +1372,8 @@ def main(argv: list[str] | None = None) -> int:
                 args.mode,
                 "--oracle-evidence",
                 ref,
+                "--oracle-material-root",
+                str(args.material_root),
             ]
             for owner in owners:
                 command.extend(["--implementation-owner", owner])
@@ -1161,7 +1381,10 @@ def main(argv: list[str] | None = None) -> int:
                 command.extend(["--instruction-file", instruction])
             if args.pretty:
                 command.append("--pretty")
-            result = dispatcher._run(command, cwd=REPO_ROOT, timeout=120)
+            try:
+                result = dispatcher._run(command, cwd=REPO_ROOT, timeout=120)
+            except dispatcher.DispatchError as exc:
+                raise OracleEvidenceError("Exact bridge delivery failed.") from exc
             if result.returncode:
                 raise OracleEvidenceError("Exact bridge delivery failed.")
             print(result.stdout, end="")
@@ -1175,6 +1398,7 @@ def main(argv: list[str] | None = None) -> int:
                     selected_dispatch=selected,
                     mode=args.mode,
                     implementation_owners=owners,
+                    material_root=args.material_root,
                 ),
                 end="",
             )
@@ -1187,9 +1411,13 @@ def main(argv: list[str] | None = None) -> int:
                 {
                     "component": "pr_oracle_attachment",
                     "lifecycle_state": (
-                        exc.lifecycle_state
-                        if isinstance(exc, OracleEvidenceError)
-                        else "invalid_evidence"
+                        "storage_pending"
+                        if args.command in {"export", "verify-archive", "validate-restored"}
+                        else (
+                            exc.lifecycle_state
+                            if isinstance(exc, OracleEvidenceError)
+                            else "invalid_evidence"
+                        )
                     ),
                     "runner_failure_class": (
                         exc.runner_failure_class if isinstance(exc, OracleEvidenceError) else None

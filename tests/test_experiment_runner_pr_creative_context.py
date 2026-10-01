@@ -2340,6 +2340,7 @@ def test_operational_cli_native_stages_and_archive_round_trip(
     native = _operational_native(request)
     for variant in native["variants"]:
         variant["paths"] = ["tests/test_example.py"]
+        variant["change"] += " expanded call:\nUnicode café"
     monkeypatch.setattr(cli.sys, "stdin", io.TextIOWrapper(io.BytesIO(json.dumps(native).encode())))
     assert cli.main(["workflow-ingest", "--workflow", str(prepared), "--native-result-stdin"]) == 0
     assert (output_dir / "workflow.returned.json").exists()
@@ -2444,7 +2445,12 @@ def test_operational_cli_native_stages_and_archive_round_trip(
         "commands": [{"command": request["test_commands"][0], "exit_code": 0, "observed_tests": 1}],
     }
     evidence_path = output_dir / "test_evidence.json"
-    evidence_path.write_text(json.dumps(evidence), encoding="utf-8")
+    evidence_bytes = (
+        "  "
+        + json.dumps(evidence, indent=2).replace("selected_variant_id", "selected_variant_\\u0069d")
+        + "\n"
+    ).encode("utf-8")
+    evidence_path.write_bytes(evidence_bytes)
     (output_dir / "work_review.md").write_text(
         "Observed C1 and C2 after local checks", encoding="utf-8"
     )
@@ -2490,6 +2496,7 @@ def test_operational_cli_native_stages_and_archive_round_trip(
     (output_dir / "work_review.md").write_text(
         "Observed C1 and C2 after local checks", encoding="utf-8"
     )
+    evidence_path.write_bytes(evidence_bytes)
     assert cli.main(export_args) == 0
     archive = output_dir / "creative_workflow_capsule.zip"
     assert (
@@ -2509,6 +2516,13 @@ def test_operational_cli_native_stages_and_archive_round_trip(
     assert (
         cli.CREATIVE_CONTEXT_ROOT / "restored/work_review.md"
     ).read_text() == "Observed C1 and C2 after local checks"
+    assert (
+        cli.CREATIVE_CONTEXT_ROOT / "restored/test_evidence.json"
+    ).read_bytes() == evidence_bytes
+    for stage_name in cli.WORKFLOW_STAGE_FILES.values():
+        assert (cli.CREATIVE_CONTEXT_ROOT / "restored" / stage_name).read_bytes() == (
+            output_dir / stage_name
+        ).read_bytes()
     original_archive = archive.read_bytes()
     with zipfile.ZipFile(io.BytesIO(original_archive)) as source_archive:
         original_members = {name: source_archive.read(name) for name in source_archive.namelist()}
@@ -2816,7 +2830,7 @@ def test_operational_stage_and_archive_reject_false_completion_and_unsafe_files(
     for name in cli.WORKFLOW_STAGE_FILES.values():
         (output / name).write_text("{}", encoding="utf-8")
     for name in ("patch.diff", "test_evidence.json", "work_review.md"):
-        (output / name).write_text("safe", encoding="utf-8")
+        (output / name).write_text("{}" if name.endswith(".json") else "safe", encoding="utf-8")
     include = [
         *cli.WORKFLOW_STAGE_FILES.values(),
         "patch.diff",
@@ -2840,7 +2854,7 @@ def test_operational_stage_and_archive_reject_false_completion_and_unsafe_files(
     ):
         (output / name).write_text(content, encoding="utf-8")
         assert cli._workflow_archive_inputs(output, include)[name] == content.encode("utf-8")
-        (output / name).write_text("safe", encoding="utf-8")
+        (output / name).write_text("{}" if name.endswith(".json") else "safe", encoding="utf-8")
     for name, content in (
         ("patch.diff", "diff --git a/a.py b/a.py\n+log('/home/alice/PulsePlate')"),
         ("test_evidence.json", '{"cwd":"/workspace/PulsePlate"}'),
@@ -2862,6 +2876,92 @@ def test_operational_stage_and_archive_reject_false_completion_and_unsafe_files(
         (output / name).write_text(content, encoding="utf-8")
         with pytest.raises(cli.ExperimentRunnerCreativeContextCliError, match="private"):
             cli._workflow_archive_inputs(output, include)
-        (output / name).write_text("safe", encoding="utf-8")
+        (output / name).write_text("{}" if name.endswith(".json") else "safe", encoding="utf-8")
     with pytest.raises(cli.ExperimentRunnerCreativeContextCliError, match="unapproved"):
         cli._workflow_archive_inputs(output, [*include, "../secret"])
+
+
+@pytest.mark.parametrize(
+    "data",
+    [
+        b"",
+        b"\xff",
+        b"\xef\xbb\xbf{}",
+        b"{",
+        b"[]",
+        b"null",
+        b'{"a":1,"a":2}',
+        b'{"a":1,"\\u0061":2}',
+        b'{"x":NaN}',
+        b'{"x":Infinity}',
+        b'{"x":-Infinity}',
+        b'{"x":1e999}',
+        b'{"x":-1e999}',
+        b'{"x":"\\ud800"}',
+        b'{"\\udfff":"x"}',
+        b'{"x":' + b"[" * 10000 + b"0" + b"]" * 10000 + b"}",
+    ],
+)
+def test_archive_json_native_invalidity_rejects(data: bytes) -> None:
+    with pytest.raises(cli.ExperimentRunnerCreativeContextCliError):
+        cli._require_safe_workflow_archive_member("result.json", data)
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "ghp_" + "A" * 36,
+        "C:" + "\\" + "private\\file.txt",
+        "\\\\server\\share\\file.txt",
+        "//server/share/file.txt",
+        "/Users/alice/file",
+        "file:///home/alice/file",
+        "https://example.test/object?signature=synthetic",
+        "Authorization: Bearer synthetic-value",
+    ],
+)
+@pytest.mark.parametrize("position", ["key", "value"])
+def test_archive_json_screens_escaped_nested_strings(text: str, position: str) -> None:
+    payload = {"nested": [{text: "benign"} if position == "key" else {"value": text}]}
+    raw = json.dumps(payload).encode("utf-8")
+    # Force Unicode escapes even for ASCII so the raw spelling hides known patterns.
+    encoded = "".join("\\u%04x" % ord(char) for char in text)
+    raw = raw.replace(json.dumps(text).encode(), ('"' + encoded + '"').encode())
+    with pytest.raises(cli.ExperimentRunnerCreativeContextCliError, match="private"):
+        cli._require_safe_workflow_archive_member("result.json", raw)
+
+
+@pytest.mark.parametrize("key", ["password", "SERVER_SALT", "api_key"])
+def test_archive_json_screens_decoded_credential_association(key: str) -> None:
+    encoded = "".join("\\u%04x" % ord(char) for char in key)
+    raw = ('{"nested":[{"' + encoded + '":"synthetic-value"}]}').encode()
+    with pytest.raises(cli.ExperimentRunnerCreativeContextCliError, match="private"):
+        cli._require_safe_workflow_archive_member("result.json", raw)
+
+
+@pytest.mark.parametrize("name", ["test_evidence.json", "oracle_evidence.json"])
+@pytest.mark.parametrize("position", ["key", "value"])
+def test_archive_json_preserves_name_scoped_readiness(name: str, position: str) -> None:
+    raw = (
+        b'{"nested":[{"\\u006dergeable":"benign"}]}'
+        if position == "key"
+        else b'{"nested":[{"value":"\\u006dergeable"}]}'
+    )
+    with pytest.raises(cli.ExperimentRunnerCreativeContextCliError, match="private"):
+        cli._require_safe_workflow_archive_member(name, raw)
+    cli._require_safe_workflow_archive_member("result.json", raw)
+
+
+def test_archive_json_benign_decoded_context_and_caller_bounds() -> None:
+    payload = {
+        "text": "expanded call:\nUnicode café\tworks",
+        "routes": ['@router.get("/api/v1/items")', "GET /api/v1/items"],
+        "reference": "app/routers/api_key.py",
+        "separate": ["C", ":", "\\", "benign"],
+        "large": "x" * (cli.MAX_WORKFLOW_JSON_BYTES + 1),
+    }
+    raw = json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8")
+    assert cli.MAX_WORKFLOW_JSON_BYTES < len(raw) < cli.MAX_WORKFLOW_ARCHIVE_BYTES
+    cli._require_safe_workflow_archive_member("result.json", raw)
+    with pytest.raises(cli.ExperimentRunnerCreativeContextCliError, match="bound"):
+        cli._workflow_json_bytes(raw)

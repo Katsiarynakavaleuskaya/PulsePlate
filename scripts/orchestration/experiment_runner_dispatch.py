@@ -478,6 +478,7 @@ def _container_run_argv(
     result_volume: str,
     command: list[str],
     repository: Path | None = None,
+    material_repository: Path | None = None,
     input_dir: Path | None = None,
     apple_network: str | None = None,
     user: str = "65532:65532",
@@ -547,6 +548,9 @@ def _container_run_argv(
             )
     else:
         raise DispatchError("probe_execution_failed")
+    if material_repository is not None:
+        mount = _docker_mount if backend == "docker" else _apple_mount
+        argv.extend(["--mount", mount(material_repository, "/material", readonly=True)])
     argv.extend(
         [
             "--mount",
@@ -1640,11 +1644,12 @@ def capture_source_material(root: Path, admitted_new_files: tuple[str, ...] = ()
 
     from scripts.orchestration.experiment_runner_pr_creative_context import _git_identity
 
-    if root.resolve() != Path(REPO_ROOT).resolve():
-        raise ValueError("Material capture requires the owning repository checkout.")
+    _reject_symlink_components(root)
+    if not root.is_absolute() or root.resolve() != root or not root.is_dir():
+        raise ValueError("Material capture requires a canonical absolute checkout.")
     if len(admitted_new_files) > 32 or len(set(admitted_new_files)) != len(admitted_new_files):
         raise ValueError("Admitted new files must be bounded and unique.")
-    repository, base, head = _git_identity()
+    repository, base, head = _git_identity(root)
     flags = _git(["ls-files", "-v", "-z"], cwd=root).stdout
     if any(row and (row[0].islower() or row[0] == "S") for row in flags.split("\0")):
         raise ValueError("Hidden assume-unchanged/skip-worktree index flags are unsupported.")
@@ -2161,7 +2166,9 @@ def _invoke_container_runner(
     admitted_new_files: tuple[str, ...] = (),
     snapshot_proof: dict[str, Any] | None = None,
     accepted_observations: dict[str, Any] | None = None,
+    material_root: Path | None = None,
 ) -> dict[str, Any]:
+    execution_root = REPO_ROOT if material_root is None else material_root
     cli_name = "container" if probe.backend == "apple-container" else "docker"
     cli = _resolve_cli(cli_name)
     if cli is None:
@@ -2169,7 +2176,7 @@ def _invoke_container_runner(
     packet = validate_experiment_packet(_read_packet(packet_path))
     if expected_packet is not None and packet != expected_packet:
         raise DispatchError("result_validation_failed")
-    _require_candidate_checkout(packet, root=REPO_ROOT)
+    _require_candidate_checkout(packet, root=execution_root)
     candidate_patch_text: str | None = None
     if candidate_patch is not None:
         expected_patch_fingerprint = packet.get("candidate_patch_fingerprint")
@@ -2181,7 +2188,7 @@ def _invoke_container_runner(
                 raise DispatchError("result_validation_failed")
     candidate_checkout_proof = _candidate_checkout_proof(
         packet,
-        root=REPO_ROOT,
+        root=execution_root,
     )
     with tempfile.TemporaryDirectory(prefix="pp-er-run-") as raw_temp:
         temp_root = Path(raw_temp).resolve(strict=True)
@@ -2189,29 +2196,35 @@ def _invoke_container_runner(
         input_dir = temp_root / "input"
         input_dir.mkdir()
         source_material = (
-            capture_source_material(REPO_ROOT, admitted_new_files)
+            capture_source_material(execution_root, admitted_new_files)
             if snapshot_proof is not None or admitted_new_files
             else None
         )
         if source_material is None:
-            tracked_diff = _create_snapshot(REPO_ROOT, snapshot)
+            tracked_diff = _create_snapshot(execution_root, snapshot)
         else:
             tracked_diff = _create_snapshot(
-                REPO_ROOT,
+                execution_root,
                 snapshot,
                 admitted_new_files=admitted_new_files,
                 source_material=source_material,
                 snapshot_proof=snapshot_proof,
             )
-        _require_candidate_checkout(packet, root=REPO_ROOT)
+        tool_snapshot = snapshot
+        tool_source = None
+        if material_root is not None:
+            tool_source = capture_source_material(Path(REPO_ROOT).resolve())
+            tool_snapshot = temp_root / "tool"
+            _create_snapshot(Path(REPO_ROOT).resolve(), tool_snapshot, source_material=tool_source)
+        _require_candidate_checkout(packet, root=execution_root)
         if (
             packet["runner_mode"] != ORACLE_ONLY_GOVERNANCE_REVIEWER_MODE
             and packet.get("base_commit_sha") is not None
             and tracked_diff
         ):
             raise DispatchError("result_validation_failed")
-        (snapshot / CONTAINER_INPUT.removeprefix(f"{CONTAINER_REPO}/")).mkdir()
-        (snapshot / CONTAINER_RESULT_DIR.removeprefix(f"{CONTAINER_REPO}/")).mkdir(
+        (tool_snapshot / CONTAINER_INPUT.removeprefix(f"{CONTAINER_REPO}/")).mkdir()
+        (tool_snapshot / CONTAINER_RESULT_DIR.removeprefix(f"{CONTAINER_REPO}/")).mkdir(
             parents=True, exist_ok=True
         )
         (input_dir / "packet.json").write_text(
@@ -2227,12 +2240,15 @@ def _invoke_container_runner(
             shutil.copyfile(candidate_patch, input_dir / "candidate.patch")
         command = [
             CONTAINER_PYTHON,
+            "-I",
             f"{CONTAINER_REPO}/scripts/orchestration/experiment_runner.py",
             "--packet",
             f"{CONTAINER_INPUT}/packet.json",
             "--output",
             output_name,
         ]
+        if material_root is not None:
+            command.extend(["--execution-root", "/material"])
         if candidate_patch is not None:
             command.extend(["--candidate-patch", f"{CONTAINER_INPUT}/candidate.patch"])
         if contribution_kind != "none":
@@ -2275,7 +2291,8 @@ def _invoke_container_runner(
                         image_ref=runtime_ref,
                         container_name=runner_name,
                         result_volume=volume,
-                        repository=snapshot,
+                        repository=tool_snapshot,
+                        material_repository=snapshot if material_root is not None else None,
                         input_dir=input_dir,
                         command=command,
                         apple_network=apple_network,
@@ -2329,7 +2346,7 @@ def _invoke_container_runner(
         if runner_capability_signal:
             capability_checkout_proof = _candidate_checkout_proof(
                 packet,
-                root=REPO_ROOT,
+                root=execution_root,
                 candidate_patch_text=candidate_patch_text,
             )
             return _post_preflight_capability_mismatch_result(
@@ -2341,7 +2358,14 @@ def _invoke_container_runner(
         if payload is None:
             raise DispatchError("result_extraction_failed")
         if snapshot_proof is not None and any(
-            key in payload for key in ("snapshot_proof", "source_material", "copied_new_files")
+            key in payload
+            for key in (
+                "snapshot_proof",
+                "source_material",
+                "copied_new_files",
+                "tool_source",
+                "tool_snapshot_content_sha256",
+            )
         ):
             raise DispatchError("result_validation_failed")
         sanitized = _sanitize_result(
@@ -2354,8 +2378,18 @@ def _invoke_container_runner(
             requested_coauthor_reason=coauthor_reason,
         )
         _require_result_status_matches_runner_exit(sanitized, completed.returncode)
+        if tool_source is not None:
+            if capture_source_material(Path(REPO_ROOT).resolve()) != tool_source:
+                raise DispatchError("result_validation_failed")
+            if snapshot_proof is not None:
+                snapshot_proof.update(
+                    {
+                        "tool_source": tool_source,
+                        "tool_snapshot_content_sha256": _tracked_content_digest(tool_snapshot),
+                    }
+                )
         if source_material is not None:
-            if capture_source_material(REPO_ROOT, admitted_new_files) != source_material:
+            if capture_source_material(execution_root, admitted_new_files) != source_material:
                 raise DispatchError("result_validation_failed")
             if snapshot_proof is not None:
                 if sanitized["status"] == "accepted":
@@ -2496,6 +2530,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     build.add_argument("--tag", required=True)
     run = subparsers.add_parser("run")
     run.add_argument("--backend", choices=BACKENDS, default="auto")
+    run.add_argument("--material-root", type=Path, default=None)
     run.add_argument("--packet", required=True)
     run.add_argument("--candidate-patch", default=None)
     run.add_argument("--image", required=True)
@@ -2561,6 +2596,17 @@ def main(argv: list[str] | None = None) -> int:
         )
         output_path = _resolve_local_output(args.output, root=RESULT_ARTIFACT_DIR)
         packet = validate_experiment_packet(_read_packet(packet_path))
+        material_root = getattr(args, "material_root", None)
+        if material_root is not None:
+            _reject_symlink_components(material_root)
+            if (
+                not material_root.is_absolute()
+                or material_root.resolve() != material_root
+                or not material_root.is_dir()
+                or material_root.is_relative_to(Path(REPO_ROOT).resolve())
+                or Path(REPO_ROOT).resolve().is_relative_to(material_root)
+            ):
+                raise ValueError("Material root must be canonical and distinct from controls.")
         admitted_new_files = tuple(getattr(args, "admitted_new_file", []))
         proof_output_raw = getattr(args, "snapshot_proof_output", None)
         snapshot_proof: dict[str, Any] | None = {} if proof_output_raw else None
@@ -2648,6 +2694,7 @@ def main(argv: list[str] | None = None) -> int:
                     admitted_new_files=admitted_new_files,
                     snapshot_proof=snapshot_proof,
                     accepted_observations=accepted_observations,
+                    **({"material_root": material_root} if material_root is not None else {}),
                 )
             except PreRunCapabilityError as exc:
                 result = _capability_mismatch_result(

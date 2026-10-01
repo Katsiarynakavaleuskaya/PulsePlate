@@ -4877,7 +4877,16 @@ def test_oracle_delivery_is_outer_only_and_selects_repeated_occurrence(
 
     monkeypatch.setattr(oracle, "validate_oracle_evidence", validate)
     assert (
-        qoder_dispatch_bridge.main([*arguments, "--oracle-evidence", "canonical-receipt.json"]) == 0
+        qoder_dispatch_bridge.main(
+            [
+                *arguments,
+                "--oracle-evidence",
+                "canonical-receipt.json",
+                "--oracle-material-root",
+                str(tmp_path.parent / "material"),
+            ]
+        )
+        == 0
     )
     delivered = json.loads(capsys.readouterr().out)
     assert {
@@ -4924,6 +4933,8 @@ def test_material_evidence_revalidation_failure_blocks_payload(
                 "1",
                 "--oracle-evidence",
                 "stale.json",
+                "--oracle-material-root",
+                str(tmp_path.parent / "material"),
             ]
         )
         == 1
@@ -5603,3 +5614,61 @@ def test_reviewer_name_detection() -> None:
         reviewer_slugs=set(),
     )
     assert result is True, "auditor slug in tail position should be detected as reviewer"
+
+
+def test_oracle_specific_dispatch_failure_is_sanitized_and_programming_error_propagates(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from scripts.orchestration import pr_oracle_attachment as oracle
+    from scripts.orchestration.experiment_runner_dispatch import DispatchError
+
+    packet = _write_exact_dispatch_fixture(tmp_path, monkeypatch)
+    arguments = [
+        "--packet",
+        str(packet),
+        "--role-context-order",
+        "1",
+        "--oracle-evidence",
+        "receipt.json",
+        "--oracle-material-root",
+        str(tmp_path.parent / "material"),
+    ]
+
+    def unavailable(*args: Any, **kwargs: Any) -> Dict[str, Any]:
+        raise DispatchError("probe_execution_failed")
+
+    monkeypatch.setattr(oracle, "validate_oracle_evidence", unavailable)
+    assert qoder_dispatch_bridge.main(arguments) == 1
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "DispatchError" in captured.err
+    assert "probe_execution_failed" not in captured.err
+
+    def programming(*args: Any, **kwargs: Any) -> Dict[str, Any]:
+        raise RuntimeError("programming defect")
+
+    monkeypatch.setattr(oracle, "validate_oracle_evidence", programming)
+    with pytest.raises(RuntimeError, match="programming defect"):
+        qoder_dispatch_bridge.main(arguments)
+
+
+def test_live_oracle_delivery_requires_explicit_caller_material_root(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    packet = _write_exact_dispatch_fixture(tmp_path, monkeypatch)
+    assert (
+        qoder_dispatch_bridge.main(
+            [
+                "--packet",
+                str(packet),
+                "--role-context-order",
+                "1",
+                "--oracle-evidence",
+                "receipt.json",
+            ]
+        )
+        == 1
+    )
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "caller-admitted material root" in captured.err

@@ -3623,6 +3623,7 @@ def test_container_runner_attribution_argv_has_backend_parity_and_default_omissi
     assert captured_commands == [
         [
             dispatch.CONTAINER_PYTHON,
+            "-I",
             f"{dispatch.CONTAINER_REPO}/scripts/orchestration/experiment_runner.py",
             "--packet",
             f"{dispatch.CONTAINER_INPUT}/packet.json",
@@ -4279,11 +4280,11 @@ def test_capture_refuses_invalid_new_file_inventory(
         dispatch.capture_source_material(oracle_source_checkout, paths)
 
 
-def test_capture_refuses_foreign_checkout_and_ignored_intake(
+def test_capture_refuses_missing_git_checkout_and_ignored_intake(
     oracle_source_checkout: Path, tmp_path: Path
 ) -> None:
     root = oracle_source_checkout
-    with pytest.raises(ValueError, match="owning repository"):
+    with pytest.raises((ValueError, dispatch.DispatchError)):
         dispatch.capture_source_material(tmp_path)
     (root / ".gitignore").write_text("new.py\n", encoding="utf-8")
     (root / "new.py").write_bytes(b"ignored private material")
@@ -4632,3 +4633,463 @@ def test_raw_symlink_binding_hashes_link_without_reading_target(
     target.symlink_to("another-missing-private-target")
     assert dispatch._tracked_content_digest(root) != original
     assert not (root / "missing-private-target").exists()
+
+
+@pytest.mark.parametrize("backend", ["docker", "apple-container"])
+def test_separate_tool_and_material_mounts_are_readonly(backend: str, tmp_path: Path) -> None:
+    tool = tmp_path / "tool"
+    material = tmp_path / "material"
+    argv = dispatch._container_run_argv(
+        cli="/approved/container",
+        backend=backend,
+        image_ref="image@" + _DIGEST,
+        container_name="fixture",
+        result_volume="owned-result",
+        repository=tool,
+        material_repository=material,
+        input_dir=tmp_path / "input",
+        apple_network="owned-network",
+        command=[
+            dispatch.CONTAINER_PYTHON,
+            "-I",
+            "/repo/scripts/orchestration/experiment_runner.py",
+            "--execution-root",
+            "/material",
+        ],
+    )
+    mounts = [argv[index + 1] for index, token in enumerate(argv[:-1]) if token == "--mount"]
+    for source, destination in [(tool, "/repo"), (material, "/material")]:
+        selected = [mount for mount in mounts if str(source) in mount and destination in mount]
+        assert len(selected) == 1
+        assert "readonly" in selected[0]
+    assert "PYTHONPATH=/repo" in argv
+    assert "PYTHONPATH=/material" not in argv
+    assert argv[-5:] == [
+        dispatch.CONTAINER_PYTHON,
+        "-I",
+        "/repo/scripts/orchestration/experiment_runner.py",
+        "--execution-root",
+        "/material",
+    ]
+
+
+def test_existing_git_identity_reads_explicit_material_without_changing_controls(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    from scripts.orchestration import experiment_runner_pr_creative_context as context
+
+    original = context.REPO_ROOT
+    roots: list[Path] = []
+
+    def query(arguments: list[str], *, cwd: Path, check: bool) -> subprocess.CompletedProcess[str]:
+        roots.append(cwd)
+        value = (
+            "git@github.com:Katsiarynakavaleuskaya/PulsePlate.git"
+            if "remote" in arguments
+            else "a" * 40
+        )
+        return subprocess.CompletedProcess(arguments, 0, value + "\n", "")
+
+    monkeypatch.setattr(context, "run_git", query)
+    assert context._git_identity(tmp_path) == (
+        "Katsiarynakavaleuskaya/PulsePlate",
+        "a" * 40,
+        "a" * 40,
+    )
+    assert roots == [tmp_path] * 3
+    assert context.REPO_ROOT == original
+
+
+def test_runner_material_status_diff_and_checkout_do_not_change_tool_globals(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    material = tmp_path / "material"
+    material.mkdir()
+    tool_root = experiment_runner.REPO_ROOT
+    result_root = experiment_runner.RESULT_ARTIFACT_DIR
+    observations: list[tuple[str, Path]] = []
+
+    def status(root: Path) -> str:
+        observations.append(("status", root))
+        return ""
+
+    def diff(root: Path) -> str:
+        observations.append(("diff", root))
+        return ""
+
+    def checkout(root: Path) -> Any:
+        observations.append(("checkout", root))
+        raise experiment_runner.InfraFlakeError("controlled checkout unavailable")
+
+    monkeypatch.setattr(experiment_runner, "_shared_tree_status", status)
+    monkeypatch.setattr(experiment_runner, "_working_tree_diff_against_head", diff)
+    monkeypatch.setattr(experiment_runner, "_create_temp_checkout", checkout)
+    result = experiment_runner.evaluate_oracle_only_governance_reviewer(
+        _packet(), execution_root=material
+    )
+    assert result["status"] == "rejected"
+    assert observations == [
+        ("status", material),
+        ("diff", material),
+        ("checkout", material),
+        ("status", material),
+    ]
+    assert experiment_runner.REPO_ROOT == tool_root
+    assert experiment_runner.RESULT_ARTIFACT_DIR == result_root
+
+
+@pytest.mark.parametrize("drift", [None, "tool", "material"])
+def test_strict_dispatch_selects_tool_runner_and_rejects_source_drift(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, drift: str | None
+) -> None:
+    tool = tmp_path / "tool"
+    material = tmp_path / "material"
+    tool.mkdir()
+    material.mkdir()
+    packet_path = tmp_path / "packet.json"
+    packet_path.write_text(json.dumps(_packet()), encoding="utf-8")
+    _configure_container_runner_exit(monkeypatch, returncode=0)
+    monkeypatch.setattr(dispatch, "REPO_ROOT", tool)
+    monkeypatch.setattr(dispatch, "_require_candidate_checkout", lambda *args, **kwargs: None)
+    monkeypatch.setattr(dispatch, "_candidate_checkout_proof", lambda *args, **kwargs: {})
+    sources = {
+        tool: {"tracked_content_sha256": "b" * 64},
+        material: {"tracked_content_sha256": "a" * 64},
+    }
+    captured: list[Path] = []
+
+    def capture(root: Path, *args: Any) -> dict[str, Any]:
+        captured.append(root)
+        value = dict(sources[root])
+        selected = tool if drift == "tool" else material
+        if drift is not None and root == selected and captured.count(root) == 2:
+            value["tracked_content_sha256"] = "e" * 64
+        return value
+
+    snapshots: list[Path] = []
+
+    def snapshot(root: Path, destination: Path, **kwargs: Any) -> str:
+        snapshots.append(root)
+        destination.mkdir()
+        if kwargs.get("snapshot_proof") is not None:
+            kwargs["snapshot_proof"].update({"source_material": dict(sources[root])})
+        return ""
+
+    monkeypatch.setattr(dispatch, "capture_source_material", capture)
+    monkeypatch.setattr(dispatch, "_create_snapshot", snapshot)
+    monkeypatch.setattr(dispatch, "_tracked_content_digest", lambda root: "b" * 64)
+    calls: list[list[str]] = []
+    original_run = dispatch._run
+
+    def observed(arguments: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        calls.append(arguments)
+        return original_run(arguments, **kwargs)
+
+    monkeypatch.setattr(dispatch, "_run", observed)
+    result = _accepted_oracle_result()
+    monkeypatch.setattr(dispatch, "_collect_result_volume", lambda **kwargs: result)
+    proof: dict[str, Any] = {}
+    observations: dict[str, Any] = {}
+
+    def invoke() -> dict[str, Any]:
+        return dispatch._invoke_container_runner(
+            probe=_probe("apple-container", strict=True),
+            image=_image(),
+            packet_path=packet_path,
+            candidate_patch=None,
+            output_name="result.json",
+            material_root=material,
+            snapshot_proof=proof,
+            accepted_observations=observations,
+            contribution_kind="oracle_review",
+            coauthor_required=True,
+            coauthor_reason=result["coauthor_reason"],
+        )
+
+    if drift is None:
+        assert invoke()["status"] == "accepted"
+    else:
+        with pytest.raises(dispatch.DispatchError, match="result_validation_failed"):
+            invoke()
+        assert observations == {}
+    assert snapshots == [material, tool]
+    expected_captures = (
+        [material, tool, tool] if drift == "tool" else [material, tool, tool, material]
+    )
+    assert captured == expected_captures
+    runner_calls = [
+        argv for argv in calls if "/repo/scripts/orchestration/experiment_runner.py" in argv
+    ]
+    assert len(runner_calls) == 1
+    argv = runner_calls[0]
+    runner_index = argv.index("/repo/scripts/orchestration/experiment_runner.py")
+    assert argv[runner_index - 1] == "-I"
+    assert argv[argv.index("--execution-root") + 1] == "/material"
+    if drift != "tool":
+        assert proof["tool_source"] == sources[tool]
+        assert proof["tool_snapshot_content_sha256"] == "b" * 64
+    assert dispatch.REPO_ROOT == tool
+
+
+@pytest.mark.parametrize("relation", ["material_child", "material_parent"])
+def test_dispatcher_rejects_overlapping_material_before_runtime_probe(
+    oracle_source_checkout: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    relation: str,
+) -> None:
+    tool = oracle_source_checkout
+    material = tool / "nested" if relation == "material_child" else tool.parent
+    material.mkdir(exist_ok=True)
+    packet = tool / "packet.json"
+    packet.write_text(json.dumps(_packet()), encoding="utf-8")
+
+    def forbidden(*args: Any) -> Any:
+        raise AssertionError("overlap must reject before runtime selection")
+
+    monkeypatch.setattr(dispatch, "select_backend", forbidden)
+    assert (
+        dispatch.main(
+            [
+                "run",
+                "--packet",
+                packet.relative_to(tool).as_posix(),
+                "--material-root",
+                str(material),
+                "--image",
+                "test/runner@" + _DIGEST,
+                "--output",
+                "overlap.json",
+                "--backend",
+                "apple-container",
+            ]
+        )
+        == 2
+    )
+    assert "distinct" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("kind", ["relative", "file", "alias"])
+def test_material_capture_rejects_noncanonical_root_before_git_identity(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, kind: str
+) -> None:
+    from scripts.orchestration import experiment_runner_pr_creative_context as context
+
+    if kind == "relative":
+        root = Path("relative-material")
+    elif kind == "file":
+        root = tmp_path / "material-file"
+        root.write_bytes(b"not a checkout")
+    else:
+        target = tmp_path / "real-material"
+        target.mkdir()
+        root = tmp_path / "material-alias"
+        root.symlink_to(target, target_is_directory=True)
+
+    def forbidden(*args: Any) -> tuple[str, str, str]:
+        raise AssertionError("invalid root must not reach Git identity")
+
+    monkeypatch.setattr(context, "_git_identity", forbidden)
+    with pytest.raises(ValueError):
+        dispatch.capture_source_material(root)
+
+
+@pytest.mark.parametrize("kind", ["relative", "file", "alias", "canonical"])
+def test_runner_cli_execution_root_admission_precedes_material_evaluation(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    kind: str,
+) -> None:
+    material = tmp_path / "material"
+    material.mkdir()
+    root = material
+    if kind == "relative":
+        root = Path("relative-material")
+    elif kind == "file":
+        root = tmp_path / "material-file"
+        root.write_bytes(b"not a checkout")
+    elif kind == "alias":
+        root = tmp_path / "material-alias"
+        root.symlink_to(material, target_is_directory=True)
+    observed: list[Path] = []
+
+    def evaluate(packet: dict[str, Any], **kwargs: Any) -> dict[str, Any]:
+        observed.append(kwargs["execution_root"])
+        return _accepted_oracle_result()
+
+    monkeypatch.setattr(experiment_runner, "_read_json_object", lambda path: _packet())
+    output = tmp_path / "result.json"
+    monkeypatch.setattr(experiment_runner, "_resolve_output_path", lambda *args: output)
+    monkeypatch.setattr(experiment_runner, "evaluate_oracle_only_governance_reviewer", evaluate)
+    status = experiment_runner.main(
+        ["--packet", str(tmp_path / "packet.json"), "--execution-root", str(root)]
+    )
+    if kind == "canonical":
+        assert status == 0
+        assert observed == [material]
+        assert output.is_file()
+    else:
+        assert status == 1
+        assert observed == []
+        assert not output.exists()
+        assert "canonical absolute checkout" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize(
+    "backend,strict", [("apple-container", True), ("auto", True), ("auto", False)]
+)
+def test_public_probe_cli_publishes_capability_and_preserves_rejection(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    backend: str,
+    strict: bool,
+) -> None:
+    output = tmp_path / "capability.json"
+    observed = _probe("apple-container", strict=strict)
+    calls: list[str] = []
+
+    def probe_backend(selected: str, image: dispatch.ImageReference) -> dispatch.BackendProbe:
+        calls.append(selected)
+        assert image.digest == _DIGEST
+        return observed
+
+    def select_backend(
+        selected: str, image: dispatch.ImageReference
+    ) -> tuple[dispatch.BackendProbe | None, list[dispatch.BackendProbe]]:
+        calls.append(selected)
+        assert image.digest == _DIGEST
+        return (observed if strict else None), [observed]
+
+    monkeypatch.setattr(dispatch, "probe_backend", probe_backend)
+    monkeypatch.setattr(dispatch, "select_backend", select_backend)
+    monkeypatch.setattr(dispatch, "_resolve_local_output", lambda *_args, **_kwargs: output)
+    code = dispatch.main(
+        [
+            "probe",
+            "--backend",
+            backend,
+            "--image",
+            "test/runner@" + _DIGEST,
+            "--output",
+            "capability.json",
+        ]
+    )
+    assert code == (0 if strict else 2)
+    saved = json.loads(output.read_bytes())
+    assert saved["authority"] == "evidence_only"
+    assert saved["strict_isolation"] is strict
+    assert saved["image_digest"] == _DIGEST
+    assert saved["blocking_reasons"] == list(observed.blocking_reasons)
+    captured = capsys.readouterr()
+    assert json.loads(captured.out) == {"artifact": "capability.json", "strict_isolation": strict}
+    assert captured.err == ""
+    assert calls == [backend]
+
+
+@pytest.mark.parametrize("fails", [False, True])
+def test_public_build_image_cli_emits_immutable_binding_or_typed_failure(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    fails: bool,
+) -> None:
+    calls: list[tuple[str, str]] = []
+    expected = {
+        "backend": "apple-container",
+        "image": "test/runner@" + _DIGEST,
+        "sanitized": "true",
+    }
+
+    def build(backend: str, tag: str) -> dict[str, str]:
+        calls.append((backend, tag))
+        if fails:
+            raise dispatch.DispatchError("image_hygiene_failed")
+        return expected
+
+    monkeypatch.setattr(dispatch, "_build_image", build)
+    code = dispatch.main(
+        ["build-image", "--backend", "apple-container", "--tag", "test/runner:local"]
+    )
+    captured = capsys.readouterr()
+    assert calls == [("apple-container", "test/runner:local")]
+    if fails:
+        assert code == 2
+        assert captured.out == ""
+        assert captured.err == "experiment_runner_dispatch: image_hygiene_failed\n"
+    else:
+        assert code == 0
+        assert json.loads(captured.out) == expected
+        assert captured.err == ""
+
+
+@pytest.mark.parametrize("kind", ["canonical", "relative", "file", "alias"])
+def test_public_run_cli_admits_only_canonical_distinct_material_before_backend(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    kind: str,
+) -> None:
+    tool = tmp_path / "controls"
+    tool.mkdir()
+    material = tmp_path / "material"
+    material.mkdir()
+    packet = tool / "packet.json"
+    packet.write_text(json.dumps(_packet()), encoding="utf-8")
+    output = tool / "result.json"
+    selected_root = material
+    if kind == "relative":
+        selected_root = Path("relative-material")
+    elif kind == "file":
+        selected_root = tmp_path / "file"
+        selected_root.write_bytes(b"not a directory")
+    elif kind == "alias":
+        selected_root = tmp_path / "alias"
+        selected_root.symlink_to(material, target_is_directory=True)
+    calls: list[str] = []
+    observed = _probe("apple-container", strict=False)
+
+    def select(
+        backend: str, image: dispatch.ImageReference
+    ) -> tuple[None, list[dispatch.BackendProbe]]:
+        calls.append(backend)
+        assert image.digest == _DIGEST
+        return None, [observed]
+
+    monkeypatch.setattr(dispatch, "REPO_ROOT", tool)
+    monkeypatch.setattr(dispatch, "_require_repo_local_file", lambda *_args, **_kwargs: packet)
+    monkeypatch.setattr(dispatch, "_resolve_local_output", lambda *_args, **_kwargs: output)
+    monkeypatch.setattr(dispatch, "select_backend", select)
+    code = dispatch.main(
+        [
+            "run",
+            "--backend",
+            "apple-container",
+            "--packet",
+            "packet.json",
+            "--material-root",
+            str(selected_root),
+            "--image",
+            "test/runner@" + _DIGEST,
+            "--output",
+            "result.json",
+        ]
+    )
+    captured = capsys.readouterr()
+    assert code == (4 if kind == "canonical" else 2)
+    if kind == "canonical":
+        assert calls == ["apple-container"]
+        result = json.loads(output.read_bytes())
+        assert result["status"] == "rejected"
+        assert result["failure_class"] == "capability_mismatch"
+        assert result["budget_observations"]["oracle_commands_executed"] == 0
+        assert result["budget_observations"]["attempts"] == 0
+        assert result["budget_observations"]["retries_consumed"] == 0
+        assert result["promotion_ready"] is False
+        assert json.loads(captured.out)["status"] == "rejected"
+        assert captured.err == ""
+    else:
+        assert calls == []
+        assert not output.exists()
+        assert captured.out == ""
+        assert captured.err.startswith("experiment_runner_dispatch: ")

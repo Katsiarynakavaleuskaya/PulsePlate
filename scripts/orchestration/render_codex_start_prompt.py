@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import platform
 import shlex
 import sys
 from pathlib import Path
@@ -608,16 +609,27 @@ def _thaw_packet(value: Any) -> Any:
 
 
 def _oracle_hook_prompt_lines(
-    packet_path: str, *, implementation_owners: list[str] | None = None
+    packet_path: str,
+    *,
+    implementation_owners: list[str] | None = None,
+    host_platform: str | None = None,
 ) -> list[str]:
     """Deliver inert host instructions; rendering never executes an oracle."""
 
+    backend = (
+        "apple-container"
+        if (host_platform or platform.system()) == "Darwin"
+        else "<explicit-compatible-container-backend>"
+    )
     return [
+        "Externally admit TRUSTED_TOOL_ROOT, distinct MATERIAL_ROOT and a clean absolute VENV_PYTHON before invocation. Run from TRUSTED_TOOL_ROOT; -I does not disable approved runtime site processing.",
         "Oracle accompaniment is pending metadata until coordinator admission of commands, budget and the first reviewable material diff.",
         "Before a material-dependent native review, use the host dispatch hook. Preserve the validated manifest mode and every implementation-owner flag; replace placeholders with admitted inputs.",
-        "Host oracle dispatch: $VENV_PYTHON scripts/orchestration/pr_oracle_attachment.py dispatch --packet "
+        'Host oracle dispatch: "$VENV_PYTHON" -I "$TRUSTED_TOOL_ROOT/scripts/orchestration/pr_oracle_attachment.py" dispatch --material-root "$MATERIAL_ROOT" --packet '
         + _shell_quote(packet_path)
-        + " --experiment-packet '<approved-experiment-packet>' --role-context-order '<selected-order>' --mode '<manifest-mode>' --backend apple-container --image '<immutable-image>' --pretty",
+        + " --experiment-packet '<approved-experiment-packet>' --role-context-order '<selected-order>' --mode '<manifest-mode>' --backend "
+        + _shell_quote(backend)
+        + " --image '<immutable-image>' --pretty",
         (
             "Preserve these emitted owner flags: "
             + " ".join(

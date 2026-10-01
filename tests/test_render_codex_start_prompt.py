@@ -59,7 +59,7 @@ def test_both_start_modes_deliver_pending_oracle_hook_without_execution(
     )
     for text in (prompt, recipe):
         assert "pending metadata until coordinator admission" in text
-        assert "pr_oracle_attachment.py dispatch" in text
+        assert 'pr_oracle_attachment.py" dispatch --material-root "$MATERIAL_ROOT"' in text
         assert "--no-auto-oracle" in text
         assert "still requires equally validated current manual oracle evidence" in text
 
@@ -1911,3 +1911,19 @@ def test_euler_canonical_guidance_preserves_depth_and_retention_boundaries() -> 
     assert "#post-merge-sync-and-cleanup-before-the-next-pr" in document
     assert "this PR does not implement a durable archive or store-transfer procedure" in normalized
     assert "existing governed retention/closeout procedure" not in normalized
+
+
+def test_oracle_recipe_uses_explicit_roots_and_platform_without_probing() -> None:
+    from scripts.orchestration.render_codex_start_prompt import _oracle_hook_prompt_lines
+
+    for platform_name, backend in [
+        ("Darwin", "apple-container"),
+        ("Linux", "<explicit-compatible-container-backend>"),
+    ]:
+        rendered = "\n".join(_oracle_hook_prompt_lines("packet.json", host_platform=platform_name))
+        assert backend in rendered
+        assert '"$VENV_PYTHON" -I "$TRUSTED_TOOL_ROOT/' in rendered
+        assert '--material-root "$MATERIAL_ROOT"' in rendered
+        assert "Run from TRUSTED_TOOL_ROOT" in rendered
+        assert "does not disable" in rendered
+        assert "--backend auto" not in rendered

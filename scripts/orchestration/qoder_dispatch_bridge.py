@@ -2605,6 +2605,12 @@ def _parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
         help="Optional canonical local oracle linkage receipt for this exact occurrence.",
     )
 
+    parser.add_argument(
+        "--oracle-material-root",
+        type=Path,
+        default=None,
+        help="Caller-admitted canonical material checkout required for live oracle delivery.",
+    )
     return parser.parse_args(argv)
 
 
@@ -2617,6 +2623,9 @@ def main(argv: Optional[List[str]] = None) -> int:
         not args.packet or not exact_context_requested or Path(args.packet).suffix != ".json"
     ):
         print("FAIL: --oracle-evidence requires JSON packet and exact occurrence.", file=sys.stderr)
+        return 1
+    if args.oracle_evidence and args.oracle_material_root is None:
+        print("FAIL: oracle evidence requires caller-admitted material root.", file=sys.stderr)
         return 1
     if exact_context_requested and args.role_context_order < 1:
         print(
@@ -2923,6 +2932,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         }
         if args.oracle_evidence:
             from scripts.orchestration.pr_oracle_attachment import validate_oracle_evidence
+            from scripts.orchestration.experiment_runner_dispatch import DispatchError
 
             try:
                 selected_context_output["experiment_runner_oracle"] = validate_oracle_evidence(
@@ -2939,8 +2949,9 @@ def main(argv: Optional[List[str]] = None) -> int:
                     },
                     mode=args.mode,
                     implementation_owners=tuple(implementation_owner_slugs),
+                    material_root=args.oracle_material_root,
                 )
-            except (OSError, ValueError, KeyError, TypeError) as exc:
+            except (OSError, ValueError, KeyError, TypeError, DispatchError) as exc:
                 print(f"FAIL: oracle evidence rejected ({type(exc).__name__}).", file=sys.stderr)
                 return 1
 

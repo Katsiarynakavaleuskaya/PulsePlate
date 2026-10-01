@@ -165,7 +165,8 @@ def test_failed_substituted_or_raw_command_observation_rejected(field: str, valu
 def evidence_runtime(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> tuple[dict[str, Any], list[list[str]], dict[str, Any]]:
-    root = tmp_path.resolve()
+    root = tmp_path.resolve() / "tool"
+    root.mkdir()
     store = root / "artifacts/orchestration/experiments/results"
     task = build_task_packet(
         goal="Verify retained local oracle evidence",
@@ -185,6 +186,8 @@ def evidence_runtime(
         target = root / ref
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(raw)
+    material_root = tmp_path.resolve() / "material"
+    material_root.mkdir()
     request.update(
         {
             "policy_version": oracle.POLICY_VERSION,
@@ -198,6 +201,9 @@ def evidence_runtime(
             "dispatch_mode": "runtime",
             "implementation_owners": ["security-auditor"],
             "checked_inputs": [],
+            "material_root": str(material_root),
+            "tool_root_binding": oracle._digest(str(root).encode()),
+            "tool_source": copy.deepcopy(request["source_material"]),
         }
     )
     selected = {
@@ -230,6 +236,8 @@ def evidence_runtime(
         ).digest
         bound = {
             **proof,
+            "tool_source": copy.deepcopy(request["tool_source"]),
+            "tool_snapshot_content_sha256": request["tool_source"]["tracked_content_sha256"],
             "source_material": copy.deepcopy(request["source_material"]),
             "copied_new_files": copy.deepcopy(request["source_material"]["admitted_new_files"]),
             "snapshot_content_sha256": request["source_material"]["tracked_content_sha256"],
@@ -257,6 +265,7 @@ def evidence_runtime(
 
 def _ensure(request: dict[str, Any]) -> str:
     return oracle.ensure_oracle_evidence(
+        material_root=Path(request["material_root"]),
         packet=request["task_packet_ref"],
         experiment_packet="artifacts/orchestration/experiments/test.json",
         role_context_order=1,
@@ -312,6 +321,7 @@ def test_stale_head_blocks_consumer(
     with pytest.raises(ValueError, match="stale"):
         oracle.validate_oracle_evidence(
             ref,
+            material_root=Path(request["material_root"]),
             packet=request["task_packet_ref"],
             selected_dispatch=selected,
             mode="runtime",
@@ -385,6 +395,7 @@ def test_malformed_linked_shapes_fail_with_valueerror(
     with pytest.raises(ValueError):
         oracle.validate_oracle_evidence(
             ref,
+            material_root=Path(request["material_root"]),
             packet=request["task_packet_ref"],
             selected_dispatch=selected,
             mode="runtime",
@@ -520,6 +531,7 @@ def test_body_projection_validates_current_evidence(
     ref = _ensure(request)
     body = oracle.render_pr_evidence(
         ref,
+        material_root=Path(request["material_root"]),
         packet=request["task_packet_ref"],
         selected_dispatch=selected,
         mode="runtime",
@@ -531,6 +543,7 @@ def test_body_projection_validates_current_evidence(
     with pytest.raises(ValueError, match="stale"):
         oracle.render_pr_evidence(
             ref,
+            material_root=Path(request["material_root"]),
             packet=request["task_packet_ref"],
             selected_dispatch=selected,
             mode="runtime",
@@ -552,6 +565,7 @@ def test_explicit_material_contribution_is_bound_and_forwarded(
     assert calls[0][calls[0].index("--contribution-kind") + 1] == "oracle_review"
     evidence = oracle.validate_oracle_evidence(
         ref,
+        material_root=Path(request["material_root"]),
         packet=request["task_packet_ref"],
         selected_dispatch=selected,
         mode="runtime",
@@ -605,6 +619,8 @@ def test_only_admitted_infrastructure_failure_retries(
         "tracked_content_sha256",
         "image",
         "policy_version",
+        "tool_source",
+        "tool_root_binding",
     ],
 )
 def test_each_binding_change_blocks_old_delivery_and_runs_new_identity(
@@ -620,11 +636,16 @@ def test_each_binding_change_blocks_old_delivery_and_runs_new_identity(
     elif field == "policy_version":
         monkeypatch.setattr(oracle, "POLICY_VERSION", "pr_oracle_attachment.next")
         request[field] = oracle.POLICY_VERSION
+    elif field == "tool_source":
+        request[field]["tracked_content_sha256"] = "e" * 64
+    elif field == "tool_root_binding":
+        request[field] = "sha256:" + "e" * 64
     else:
         request["source_material"][field] = "e" * (40 if field.endswith("_sha") else 64)
     with pytest.raises(ValueError):
         oracle.validate_oracle_evidence(
             ref,
+            material_root=Path(request["material_root"]),
             packet=request["task_packet_ref"],
             selected_dispatch=selected,
             mode="runtime",
@@ -648,7 +669,8 @@ def test_each_binding_change_blocks_old_delivery_and_runs_new_identity(
 def test_actual_request_uses_canonical_selector_and_snapshot(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, choice: str | None, path: str
 ) -> None:
-    root = tmp_path.resolve()
+    root = tmp_path.resolve() / "tool"
+    root.mkdir()
     packet, request, _, _ = _accepted_inputs()
     task = build_task_packet(
         goal="Evaluate bounded local material",
@@ -671,7 +693,10 @@ def test_actual_request_uses_canonical_selector_and_snapshot(
         "capture_source_material",
         lambda *args: copy.deepcopy(request["source_material"]),
     )
+    material_root = tmp_path.resolve() / "material"
+    material_root.mkdir()
     bound, admitted = oracle._request(
+        material_root=material_root,
         packet=task_ref,
         experiment_packet=experiment_ref,
         mode="analysis",
@@ -688,6 +713,7 @@ def test_actual_request_uses_canonical_selector_and_snapshot(
     (root / experiment_ref).write_text(json.dumps(packet), encoding="utf-8")
     with pytest.raises(ValueError, match="network_budget"):
         oracle._request(
+            material_root=material_root,
             packet=task_ref,
             experiment_packet=experiment_ref,
             mode="analysis",
@@ -723,6 +749,8 @@ def test_cli_commands_keep_fixed_dispatch_and_current_manual_gate(
     monkeypatch.setattr(oracle.dispatcher, "_run", bridge)
     arguments = [
         command,
+        "--material-root",
+        request["material_root"],
         "--packet",
         request["task_packet_ref"],
         "--role-context-order",
@@ -752,7 +780,8 @@ def test_cli_commands_keep_fixed_dispatch_and_current_manual_gate(
     assert len(calls) == 1
     if command == "dispatch":
         assert json.loads(output)["schema_version"] == "exact-test-envelope"
-        assert bridge_calls[0][1].endswith("scripts/orchestration/role_dispatch_bridge.py")
+        assert bridge_calls[0][1] == "-I"
+        assert bridge_calls[0][2].endswith("scripts/orchestration/role_dispatch_bridge.py")
         assert bridge_calls[0][bridge_calls[0].index("--oracle-evidence") + 1] == ref
         assert bridge_calls[0][-3:] == [
             "--instruction-file",
@@ -773,7 +802,8 @@ def admitted_request(
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     """Use canonical packets and real Git material, replacing no admission owners."""
 
-    root = tmp_path.resolve()
+    root = tmp_path.resolve() / "tool"
+    root.mkdir()
     task = build_task_packet(
         goal="Verify an admitted local orchestration change",
         task_class="Orchestration",
@@ -833,7 +863,13 @@ def admitted_request(
         target = root / ref
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(json.dumps(payload), encoding="utf-8")
+    material_root = tmp_path.resolve() / "material"
+    shutil.copytree(root / ".git", material_root / ".git")
+    material_fixture = material_root / "scripts/orchestration/fixture.py"
+    material_fixture.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(fixture, material_fixture)
     return {
+        "material_root": material_root,
         "packet": task_ref,
         "experiment_packet": experiment_ref,
         "mode": "runtime",
@@ -849,7 +885,7 @@ def test_canonical_request_binds_real_staged_unstaged_new_and_checked_bytes(
     admitted_request: tuple[dict[str, Any], dict[str, Any]],
 ) -> None:
     arguments, _ = admitted_request
-    root = oracle.REPO_ROOT
+    root = arguments["material_root"]
     before, _ = oracle._request(**arguments)
     tracked = root / "scripts/orchestration/fixture.py"
     tracked.write_text("observed = 'staged'\n", encoding="utf-8")
@@ -872,18 +908,21 @@ def test_canonical_request_binds_real_staged_unstaged_new_and_checked_bytes(
     new_ref = "scripts/orchestration/new-input.txt"
     checked_ref = "artifacts/orchestration/criteria.json"
     (root / new_ref).write_bytes(b"exact new bytes\n")
-    (root / checked_ref).write_bytes(b'{"criterion":"observed"}\n')
+    (oracle.REPO_ROOT / checked_ref).write_bytes(b'{"criterion":"observed"}\n')
     arguments.update({"admitted_new_files": (new_ref,), "checked_inputs": (checked_ref,)})
     bound, _ = oracle._request(**arguments)
     assert bound["checked_inputs"] == [
-        {"ref": checked_ref, "sha256": oracle._digest((root / checked_ref).read_bytes())}
+        {
+            "ref": checked_ref,
+            "sha256": oracle._digest((oracle.REPO_ROOT / checked_ref).read_bytes()),
+        }
     ]
     assert bound["source_material"]["admitted_new_files"][0]["path"] == new_ref
     assert oracle.dispatcher._git(["ls-files", "--", new_ref], cwd=root).stdout == ""
     (root / new_ref).write_bytes(b"changed new bytes\n")
     changed, _ = oracle._request(**arguments)
     assert fingerprint_payload(changed) != fingerprint_payload(bound)
-    (root / checked_ref).write_bytes(b'{"criterion":"changed"}\n')
+    (oracle.REPO_ROOT / checked_ref).write_bytes(b'{"criterion":"changed"}\n')
     checked_changed, _ = oracle._request(**arguments)
     assert checked_changed["checked_inputs"] != changed["checked_inputs"]
 
@@ -1004,7 +1043,7 @@ def test_archive_retains_exact_checked_and_new_dependencies(
     request, calls, _ = evidence_runtime
     new_ref = "scripts/orchestration/new-input.txt"
     checked_ref = "artifacts/orchestration/checked.json"
-    new = oracle.REPO_ROOT / new_ref
+    new = Path(request["material_root"]) / new_ref
     new.parent.mkdir(parents=True)
     new.write_bytes(b"new material\n")
     checked = oracle.REPO_ROOT / checked_ref
@@ -1080,7 +1119,7 @@ def test_restore_requires_original_task_dependency_and_owned_fresh_leaf(
     original = task.read_bytes()
     task.write_bytes(original + b"\n")
     restore = oracle._ref(oracle.EVIDENCE_ROOT / "restores/retained")
-    with pytest.raises(ValueError, match="task dependency differs"):
+    with pytest.raises(ValueError, match="Original companion differs"):
         oracle.verify_archive(archive, digest, restore)
     assert not (oracle.REPO_ROOT / restore).exists()
     task.write_bytes(original)
@@ -1123,7 +1162,7 @@ def test_partial_transport_retains_storage_pending_original_without_runner_retry
         == 1
     )
     failure = json.loads(capsys.readouterr().err)
-    assert failure["lifecycle_state"] == "invalid_evidence"
+    assert failure["lifecycle_state"] == "storage_pending"
     assert not (oracle.REPO_ROOT / restore).exists()
     assert (oracle.REPO_ROOT / ref).exists()
     assert (oracle.REPO_ROOT / exported["archive"]).read_bytes() == original
@@ -1294,6 +1333,7 @@ def test_consumer_rejects_receipt_aliases_and_selected_occurrence_substitution(
     with pytest.raises(ValueError):
         oracle.validate_oracle_evidence(
             ref,
+            material_root=Path(request["material_root"]),
             packet=request["task_packet_ref"],
             selected_dispatch=selected,
             mode="runtime",
@@ -1390,7 +1430,14 @@ def test_cli_rejects_missing_admission_and_bridge_failure_without_payload_leak(
     request, calls, _ = evidence_runtime
     assert oracle.main(["ensure"]) == 1
     assert json.loads(capsys.readouterr().err)["lifecycle_state"] == "invalid_evidence"
-    base_args = ["--packet", request["task_packet_ref"], "--role-context-order", "1"]
+    base_args = [
+        "--material-root",
+        request["material_root"],
+        "--packet",
+        request["task_packet_ref"],
+        "--role-context-order",
+        "1",
+    ]
     assert oracle.main(["ensure", *base_args]) == 1
     assert json.loads(capsys.readouterr().err)["lifecycle_state"] == "invalid_evidence"
     assert calls == []
@@ -1671,3 +1718,520 @@ def test_attempt_gate_rechecks_inputs_after_retention_and_between_retry_observat
     assert len(calls) == (0 if phase == "first_attempt" else 1)
     assert not list(oracle.EVIDENCE_ROOT.rglob("attempt-2.json"))
     assert not list(oracle.EVIDENCE_ROOT.rglob("receipt.json"))
+
+
+def test_missing_or_equal_material_root_rejects_before_capture(
+    admitted_request: tuple[dict[str, Any], dict[str, Any]], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    arguments, _ = admitted_request
+
+    def forbidden(*args: Any) -> dict[str, Any]:
+        raise AssertionError("root rejection must precede material capture")
+
+    monkeypatch.setattr(oracle.dispatcher, "capture_source_material", forbidden)
+    for value in (None, oracle.REPO_ROOT, Path("relative")):
+        with pytest.raises(oracle.OracleEvidenceError):
+            oracle._request(**{**arguments, "material_root": value})
+
+
+def test_canonical_dispatch_error_is_sanitized_but_programming_error_is_visible(
+    admitted_request: tuple[dict[str, Any], dict[str, Any]], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    arguments, _ = admitted_request
+
+    def unavailable(*args: Any) -> dict[str, Any]:
+        raise oracle.dispatcher.DispatchError("probe_execution_failed")
+
+    monkeypatch.setattr(oracle.dispatcher, "capture_source_material", unavailable)
+    with pytest.raises(oracle.OracleEvidenceError) as failed:
+        oracle._request(**arguments)
+    assert failed.value.lifecycle_state == "material_unavailable"
+    assert "probe_execution_failed" not in str(failed.value)
+
+    def programming_error(*args: Any) -> dict[str, Any]:
+        raise RuntimeError("programming defect")
+
+    monkeypatch.setattr(oracle.dispatcher, "capture_source_material", programming_error)
+    with pytest.raises(RuntimeError, match="programming defect"):
+        oracle._request(**arguments)
+
+
+@pytest.mark.parametrize(
+    "private_bytes",
+    [
+        b"\xff\x00",
+        b"/Users/example/private.txt",
+        b"https://example.org/file?signature=abc",
+        b"password=private-value",
+    ],
+)
+def test_companion_projection_preserves_private_original_and_blocks_missing_restore(
+    evidence_runtime: tuple[dict[str, Any], list[list[str]], dict[str, Any]], private_bytes: bytes
+) -> None:
+    request, calls, _ = evidence_runtime
+    checked_ref = "artifacts/orchestration/private-input.bin"
+    checked = oracle.REPO_ROOT / checked_ref
+    checked.write_bytes(private_bytes)
+    request["checked_inputs"] = [{"ref": checked_ref, "sha256": oracle._digest(private_bytes)}]
+    receipt = _ensure(request)
+    source = (oracle.REPO_ROOT / receipt).parent / "checked-00.input"
+    original_digest = oracle._digest(source.read_bytes())
+    archive_ref, digest = oracle.export_evidence(receipt)
+    with zipfile.ZipFile(oracle.REPO_ROOT / archive_ref) as archive:
+        assert "checked-00.input" not in archive.namelist()
+        assert "checked-00_dependency.json" in archive.namelist()
+        assert all(private_bytes not in archive.read(name) for name in archive.namelist())
+    restore_ref = oracle._ref(oracle.EVIDENCE_ROOT / "restores/private")
+    source.rename(source.with_suffix(".retained"))
+    with pytest.raises(oracle.OracleEvidenceError) as failed:
+        oracle.verify_archive(archive_ref, digest, restore_ref)
+    assert failed.value.lifecycle_state == "storage_pending"
+    assert not (oracle.REPO_ROOT / restore_ref).exists()
+    source.with_suffix(".retained").rename(source)
+    oracle.verify_archive(archive_ref, digest, restore_ref)
+    assert (
+        oracle._digest((oracle.REPO_ROOT / restore_ref / "checked-00.input").read_bytes())
+        == original_digest
+    )
+    assert len(calls) == 1
+
+
+def test_restore_capacity_serializes_two_cooperating_admissions_at_31(
+    evidence_runtime: tuple[dict[str, Any], list[list[str]], dict[str, Any]],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from concurrent.futures import ThreadPoolExecutor
+    from contextlib import contextmanager
+    from threading import Barrier
+    from typing import Iterator
+
+    receipt = _ensure(evidence_runtime[0])
+    archive, digest = oracle.export_evidence(receipt)
+    restore_root = oracle.EVIDENCE_ROOT / "restores"
+    oracle._private_directory(restore_root)
+    for index in range(31):
+        (restore_root / f"retained-{index}").mkdir(mode=0o700)
+    original_lock = oracle.exclusive_patch_run_lock
+    barrier = Barrier(2)
+
+    @contextmanager
+    def synchronized(path: Path, *, label: str) -> Iterator[None]:
+        if label == "oracle restore admission":
+            barrier.wait(timeout=5)
+        with original_lock(path, label=label):
+            yield
+
+    monkeypatch.setattr(oracle, "exclusive_patch_run_lock", synchronized)
+
+    def restore(name: str) -> bool:
+        try:
+            oracle.verify_archive(archive, digest, oracle._ref(restore_root / name))
+            return True
+        except ValueError:
+            return False
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        results = list(pool.map(restore, ["first", "second"]))
+    assert results.count(True) == 1
+    assert len(list(restore_root.iterdir())) == 32
+    assert all((restore_root / f"retained-{index}").is_dir() for index in range(31))
+    assert (oracle.REPO_ROOT / archive).is_file()
+    assert len(evidence_runtime[1]) == 1
+
+
+def test_material_bridge_and_runner_poison_are_data_to_the_trusted_request(
+    admitted_request: tuple[dict[str, Any], dict[str, Any]],
+) -> None:
+    arguments, _ = admitted_request
+    material = arguments["material_root"]
+    sentinel = material / "should-not-execute"
+    for name in ["qoder_dispatch_bridge.py", "experiment_runner.py", "context_pack.py"]:
+        (material / "scripts/orchestration" / name).write_text(
+            f"from pathlib import Path\nPath({str(sentinel)!r}).write_text('executed')\n",
+            encoding="utf-8",
+        )
+    request, _ = oracle._request(**arguments)
+    selected = oracle._selection(arguments["packet"], 1, "runtime", ())
+    assert selected["order"] == 1
+    assert request["material_root"] == str(material)
+    assert not sentinel.exists()
+    assert oracle.REPO_ROOT != material
+
+
+def test_current_consumer_requires_caller_root_and_rejects_retained_root_substitution(
+    evidence_runtime: tuple[dict[str, Any], list[list[str]], dict[str, Any]],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request, calls, selected = evidence_runtime
+    receipt = _ensure(request)
+    arguments = dict(
+        packet=request["task_packet_ref"],
+        selected_dispatch=selected,
+        mode="runtime",
+        implementation_owners=("security-auditor",),
+    )
+    with pytest.raises(oracle.OracleEvidenceError, match="caller-admitted"):
+        oracle.validate_oracle_evidence(receipt, **arguments)
+    other = Path(request["material_root"]).with_name("substituted-material")
+    other.mkdir()
+    with pytest.raises(oracle.OracleEvidenceError, match="Material root differs"):
+        oracle.validate_oracle_evidence(receipt, material_root=other, **arguments)
+    assert len(calls) == 1
+
+
+@pytest.mark.parametrize("relation", ["material_child", "material_parent"])
+def test_overlapping_tool_material_roots_reject_before_capture(
+    admitted_request: tuple[dict[str, Any], dict[str, Any]],
+    monkeypatch: pytest.MonkeyPatch,
+    relation: str,
+) -> None:
+    arguments, _ = admitted_request
+    root = oracle.REPO_ROOT / "nested" if relation == "material_child" else oracle.REPO_ROOT.parent
+    root.mkdir(exist_ok=True)
+
+    def forbidden(*args: Any) -> dict[str, Any]:
+        raise AssertionError("overlap must reject before capture")
+
+    monkeypatch.setattr(oracle.dispatcher, "capture_source_material", forbidden)
+    with pytest.raises(oracle.OracleEvidenceError, match="distinct"):
+        oracle._request(**{**arguments, "material_root": root})
+
+
+@pytest.mark.parametrize(
+    "projection",
+    ["task_packet_dependency.json", "request_dependency.json", "checked-00_dependency.json"],
+)
+def test_archive_checks_all_companion_refs_before_any_private_read(
+    evidence_runtime: tuple[dict[str, Any], list[list[str]], dict[str, Any]],
+    monkeypatch: pytest.MonkeyPatch,
+    projection: str,
+) -> None:
+    request, _, _ = evidence_runtime
+    source_ref = "artifacts/orchestration/checked.json"
+    source = oracle.REPO_ROOT / source_ref
+    source.write_bytes(b"bounded original")
+    request["checked_inputs"] = [{"ref": source_ref, "sha256": oracle._digest(source.read_bytes())}]
+    receipt = _ensure(request)
+    archive_ref, _ = oracle.export_evidence(receipt)
+    with zipfile.ZipFile(oracle.REPO_ROOT / archive_ref) as archive:
+        files = {name: archive.read(name) for name in archive.namelist()}
+    row = json.loads(files[projection])
+    row["ref"] = "artifacts/orchestration/unrelated-private.json"
+    files[projection] = json.dumps(row).encode()
+    manifest = json.loads(files["manifest.json"])
+    manifest["files"][projection] = oracle._digest(files[projection])
+    files["manifest.json"] = json.dumps(manifest).encode()
+    altered = io.BytesIO()
+    with zipfile.ZipFile(altered, "w", compression=zipfile.ZIP_STORED) as archive:
+        for name, raw in files.items():
+            info = zipfile.ZipInfo(name)
+            info.external_attr = 0o600 << 16
+            archive.writestr(info, raw)
+    download = oracle.REPO_ROOT / "artifacts/orchestration/altered.zip"
+    download.write_bytes(altered.getvalue())
+    canonical_request_ref = oracle._ref((oracle.REPO_ROOT / receipt).parent / "request.json")
+    original_request_bytes = oracle._raw(canonical_request_ref)
+    reads: list[str] = []
+
+    def forbidden(ref: str) -> bytes:
+        reads.append(ref)
+        if ref == canonical_request_ref:
+            return original_request_bytes
+        raise AssertionError("only the receipt-derived request slot may precede exact task binding")
+
+    monkeypatch.setattr(oracle, "_raw", forbidden)
+    restore = oracle._ref(oracle.EVIDENCE_ROOT / "restores/unsafe-ref")
+    with pytest.raises(oracle.OracleEvidenceError, match="Companion reference"):
+        oracle.verify_archive(oracle._ref(download), oracle._digest(altered.getvalue()), restore)
+    assert reads in ([], [canonical_request_ref])
+    assert not (oracle.REPO_ROOT / restore).exists()
+
+
+def _write_transport_fixture(files: dict[str, bytes], filename: str) -> tuple[str, str]:
+    """Build a stored transport fixture through the existing screening owner."""
+
+    for name, raw in files.items():
+        oracle._require_export_member(name, raw)
+    manifest = {
+        "schema_version": "pr_oracle_archive.v1",
+        "authority": "transport_evidence_only",
+        "files": {name: oracle._digest(raw) for name, raw in files.items()},
+    }
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", compression=zipfile.ZIP_STORED) as archive:
+        for name, raw in {**files, "manifest.json": json.dumps(manifest).encode()}.items():
+            info = zipfile.ZipInfo(name)
+            info.external_attr = 0o600 << 16
+            archive.writestr(info, raw)
+    path = oracle.REPO_ROOT / "artifacts/orchestration" / filename
+    path.write_bytes(buffer.getvalue())
+    return oracle._ref(path), oracle._digest(buffer.getvalue())
+
+
+def _historical_raw_request_fixture(receipt_ref: str) -> tuple[str, dict[str, bytes]]:
+    """Create separate legacy fixture bytes without rewriting modern evidence."""
+
+    modern = (oracle.REPO_ROOT / receipt_ref).parent
+    files = oracle._bundle_bytes(modern)
+    request = json.loads(files["request.json"])
+    for field in ("material_root", "tool_root_binding", "tool_source"):
+        request.pop(field)
+    proof = json.loads(files["snapshot.json"])
+    proof.pop("tool_source")
+    proof.pop("tool_snapshot_content_sha256")
+    files["request.json"] = json.dumps(request).encode()
+    files["snapshot.json"] = json.dumps(proof).encode()
+    directory = oracle.EVIDENCE_ROOT / fingerprint_payload(request).removeprefix("sha256:")
+    result = json.loads(files["result.json"])
+    files["attachment.json"] = json.dumps(
+        oracle._attachment(request, result, oracle._ref(directory / "result.json"))
+    ).encode()
+    receipt = json.loads(files["receipt.json"])
+    receipt["request_fingerprint"] = fingerprint_payload(request)
+    receipt["files"] = {
+        name: oracle._digest(raw) for name, raw in files.items() if name != "receipt.json"
+    }
+    files["receipt.json"] = json.dumps(receipt).encode()
+    oracle._historical_bundle(files)
+    directory.mkdir(mode=0o700)
+    for name, raw in files.items():
+        target = directory / name
+        target.write_bytes(raw)
+        target.chmod(0o600)
+    transport = dict(files)
+    task = transport.pop("task_packet.json")
+    transport["task_packet_dependency.json"] = json.dumps(
+        {
+            "ref": request["task_packet_ref"],
+            "sha256": oracle._digest(task),
+            "authority": "dependency_reference_only",
+        }
+    ).encode()
+    return oracle._ref(directory / "receipt.json"), transport
+
+
+@pytest.mark.parametrize("damaged", [False, True])
+def test_historical_raw_request_restore_and_live_provenance_refusal(
+    evidence_runtime: tuple[dict[str, Any], list[list[str]], dict[str, Any]],
+    damaged: bool,
+) -> None:
+    request, calls, selected = evidence_runtime
+    modern_ref = _ensure(request)
+    modern_bytes = (oracle.REPO_ROOT / modern_ref).read_bytes()
+    legacy_ref, transport = _historical_raw_request_fixture(modern_ref)
+    result_bytes = transport["result.json"]
+    if damaged:
+        transport["request.json"] += b"\n"
+    archive, digest = _write_transport_fixture(transport, "historical-raw-request.zip")
+    restore = oracle._ref(oracle.EVIDENCE_ROOT / "restores/historical-raw")
+    if damaged:
+        with pytest.raises(oracle.OracleEvidenceError, match="Historical request binding"):
+            oracle.verify_archive(archive, digest, restore)
+        assert not (oracle.REPO_ROOT / restore).exists()
+    else:
+        oracle.verify_archive(archive, digest, restore)
+        assert (oracle.REPO_ROOT / restore / "result.json").read_bytes() == result_bytes
+        assert oracle.validate_restored_bundle(restore)["currentness_claim"] is False
+        with pytest.raises(oracle.OracleEvidenceError, match="lacks current control provenance"):
+            oracle.validate_oracle_evidence(
+                legacy_ref,
+                packet=request["task_packet_ref"],
+                selected_dispatch=selected,
+                mode="runtime",
+                implementation_owners=("security-auditor",),
+                material_root=Path(request["material_root"]),
+            )
+    assert (oracle.REPO_ROOT / modern_ref).read_bytes() == modern_bytes
+    assert len(calls) == 1
+
+
+@pytest.mark.parametrize("change", ["missing", "substituted"])
+def test_original_request_unavailable_blocks_restore_before_publication(
+    evidence_runtime: tuple[dict[str, Any], list[list[str]], dict[str, Any]],
+    change: str,
+) -> None:
+    receipt = _ensure(evidence_runtime[0])
+    archive, digest = oracle.export_evidence(receipt)
+    original = (oracle.REPO_ROOT / receipt).parent / "request.json"
+    original_bytes = original.read_bytes()
+    retained = original.with_suffix(".retained")
+    original.rename(retained)
+    if change == "substituted":
+        original.write_bytes(b'{"substituted":"original"}')
+    restore = oracle._ref(oracle.EVIDENCE_ROOT / "restores/missing-request")
+    try:
+        with pytest.raises(oracle.OracleEvidenceError) as failure:
+            oracle.verify_archive(archive, digest, restore)
+        assert failure.value.lifecycle_state == "storage_pending"
+        assert not (oracle.REPO_ROOT / restore).exists()
+        assert retained.read_bytes() == original_bytes
+        assert (oracle.REPO_ROOT / archive).is_file()
+        assert len(evidence_runtime[1]) == 1
+    finally:
+        if original.exists():
+            original.unlink()
+        retained.rename(original)
+
+
+@pytest.mark.parametrize("change", ["receipt_shape", "extra_original", "extra_companion"])
+def test_closed_transport_inventory_rejects_before_private_reads(
+    evidence_runtime: tuple[dict[str, Any], list[list[str]], dict[str, Any]],
+    monkeypatch: pytest.MonkeyPatch,
+    change: str,
+) -> None:
+    receipt_ref = _ensure(evidence_runtime[0])
+    archive_ref, _ = oracle.export_evidence(receipt_ref)
+    with zipfile.ZipFile(oracle.REPO_ROOT / archive_ref) as archive:
+        files = {name: archive.read(name) for name in archive.namelist() if name != "manifest.json"}
+    receipt = json.loads(files["receipt.json"])
+    if change == "receipt_shape":
+        receipt["authority"] = "unsupported"
+    elif change == "extra_original":
+        receipt["files"]["unexpected.input"] = "sha256:" + "a" * 64
+    else:
+        files["checked-00_dependency.json"] = json.dumps(
+            {
+                "ref": "artifacts/orchestration/unrelated.json",
+                "sha256": "sha256:" + "a" * 64,
+                "authority": "dependency_reference_only",
+            }
+        ).encode()
+    files["receipt.json"] = json.dumps(receipt).encode()
+    archive_ref, digest = _write_transport_fixture(files, "invalid-inventory.zip")
+
+    def forbidden(ref: str) -> bytes:
+        raise AssertionError("invalid inventory cannot admit private companion reads")
+
+    monkeypatch.setattr(oracle, "_raw", forbidden)
+    restore = oracle._ref(oracle.EVIDENCE_ROOT / "restores/invalid-inventory")
+    with pytest.raises(oracle.OracleEvidenceError) as failure:
+        oracle.verify_archive(archive_ref, digest, restore)
+    assert failure.value.lifecycle_state == "storage_pending"
+    assert not (oracle.REPO_ROOT / restore).exists()
+    assert len(evidence_runtime[1]) == 1
+
+
+@pytest.mark.parametrize("kind", ["file", "public_directory"])
+def test_unsafe_retained_restore_leaf_blocks_reservation_and_preserves_originals(
+    evidence_runtime: tuple[dict[str, Any], list[list[str]], dict[str, Any]], kind: str
+) -> None:
+    receipt = _ensure(evidence_runtime[0])
+    archive, digest = oracle.export_evidence(receipt)
+    root = oracle.EVIDENCE_ROOT / "restores"
+    oracle._private_directory(root)
+    old = root / "retained"
+    if kind == "file":
+        old.write_bytes(b"retain partial evidence")
+    else:
+        old.mkdir(mode=0o755)
+        old.chmod(0o755)
+    restore = oracle._ref(root / "new")
+    with pytest.raises(oracle.OracleEvidenceError, match="unsafe resource"):
+        oracle.verify_archive(archive, digest, restore)
+    assert old.exists()
+    assert not (oracle.REPO_ROOT / restore).exists()
+    assert (oracle.REPO_ROOT / archive).is_file()
+    assert len(evidence_runtime[1]) == 1
+
+
+def test_specific_helper_dispatch_error_is_sanitized_without_traceback(
+    evidence_runtime: tuple[dict[str, Any], list[list[str]], dict[str, Any]],
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    request, calls, _ = evidence_runtime
+    receipt = _ensure(request)
+
+    def unavailable(arguments: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        raise oracle.dispatcher.DispatchError("probe_execution_failed")
+
+    monkeypatch.setattr(oracle.dispatcher, "_run", unavailable)
+    assert (
+        oracle.main(
+            [
+                "dispatch",
+                "--packet",
+                request["task_packet_ref"],
+                "--role-context-order",
+                "1",
+                "--material-root",
+                request["material_root"],
+                "--no-auto-oracle",
+                "--implementation-owner",
+                "security-auditor",
+                "--oracle-evidence",
+                receipt,
+            ]
+        )
+        == 1
+    )
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "Traceback" not in captured.err
+    assert "probe_execution_failed" not in captured.err
+    assert json.loads(captured.err)["error_class"] == "OracleEvidenceError"
+    assert len(calls) == 1
+
+
+def test_post_execution_material_drift_retains_attempt_without_publishing_receipt(
+    evidence_runtime: tuple[dict[str, Any], list[list[str]], dict[str, Any]],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request, calls, _ = evidence_runtime
+    original_execute = oracle._execute_dispatch
+
+    def drift(arguments: list[str]) -> int:
+        status = original_execute(arguments)
+        request["source_material"]["head_sha"] = "e" * 40
+        return status
+
+    monkeypatch.setattr(oracle, "_execute_dispatch", drift)
+    with pytest.raises(oracle.OracleEvidenceError) as failure:
+        _ensure(request)
+    assert failure.value.lifecycle_state == "stale"
+    assert len(calls) == 1
+    assert list(oracle.EVIDENCE_ROOT.rglob("receipt.json")) == []
+    assert len(list(oracle.EVIDENCE_ROOT.rglob("attempt-1.json"))) == 1
+
+
+def test_ordinary_archive_preserves_original_json_spelling(
+    evidence_runtime: tuple[dict[str, Any], list[list[str]], dict[str, Any]],
+) -> None:
+    request, calls, _ = evidence_runtime
+    ref = _ensure(request)
+    receipt_path = oracle.REPO_ROOT / ref
+    receipt = json.loads(receipt_path.read_bytes())
+    original = (
+        "  "
+        + json.dumps(receipt, indent=2).replace("request_fingerprint", "request_\\u0066ingerprint")
+        + "\n"
+    ).encode()
+    receipt_path.write_bytes(original)
+    archive_ref, digest = oracle.export_evidence(ref)
+    with zipfile.ZipFile(oracle.REPO_ROOT / archive_ref) as archive:
+        assert archive.read("receipt.json") == original
+    restore = oracle._ref(oracle.EVIDENCE_ROOT / "restores/json-spelling")
+    oracle.verify_archive(archive_ref, digest, restore)
+    assert (oracle.REPO_ROOT / restore / "receipt.json").read_bytes() == original
+    assert receipt_path.read_bytes() == original
+    assert len(calls) == 1
+
+
+def test_ordinary_json_screen_keeps_transport_bound_and_authority_projection(
+    evidence_runtime: tuple[dict[str, Any], list[list[str]], dict[str, Any]],
+) -> None:
+    request, _, _ = evidence_runtime
+    raw = json.dumps(
+        {"text": "expanded call:\nUnicode café", "large": "x" * 262145}, ensure_ascii=False
+    ).encode()
+    assert context.MAX_WORKFLOW_JSON_BYTES < len(raw) < oracle.MAX_BYTES
+    oracle._require_export_member("result.json", raw)
+    ref = _ensure(request)
+    attachment = (oracle.REPO_ROOT / ref).parent / "attachment.json"
+    oracle._require_export_member("attachment.json", attachment.read_bytes())
+    payload = json.loads(attachment.read_bytes())
+    payload["authority"]["read_secrets"] = True
+    with pytest.raises(ValueError):
+        oracle._require_export_member("attachment.json", json.dumps(payload).encode())
+    with pytest.raises(context.ExperimentRunnerCreativeContextCliError, match="private"):
+        oracle._require_export_member("result.json", b'{"read_secrets":false}')
