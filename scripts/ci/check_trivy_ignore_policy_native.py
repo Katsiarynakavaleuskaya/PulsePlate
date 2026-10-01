@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check the five retained zlib/ncurses suppressions with native Trivy 0.74.0."""
+"""Check retained zlib/ncurses and exact OpenSSL exceptions with native Trivy 0.74.0."""
 
 from __future__ import annotations
 
@@ -21,6 +21,12 @@ TUPLES = (
     ("CVE-2025-69720", "libtinfo6", "6.4-4", "6.6+20260608-2"),
     ("CVE-2025-69720", "ncurses-base", "6.4-4", "6.6+20260608-2"),
     ("CVE-2025-69720", "ncurses-bin", "6.4-4", "6.6+20260608-2"),
+)
+
+OPENSSL_VERSION = "3.0.22-1~deb12u1"
+OPENSSL_TUPLES = (
+    ("libssl3", "libssl3@3.0.22-1~deb12u1"),
+    ("openssl", "openssl@3.0.22-1~deb12u1"),
 )
 
 
@@ -158,6 +164,47 @@ def _cases() -> list[tuple[str, dict[str, object], int | None]]:
     return cases
 
 
+def _openssl_cases() -> list[tuple[str, dict[str, object], int | None]]:
+    """Challenge both ordered pairs without interpreting Rego in Python."""
+    cases: list[tuple[str, dict[str, object], int | None]] = []
+    for package, pkgid in OPENSSL_TUPLES:
+        exact: dict[str, object] = {
+            "VulnerabilityID": "CVE-2026-84782",
+            "PkgName": package,
+            "PkgID": pkgid,
+            "InstalledVersion": OPENSSL_VERSION,
+            "Severity": "HIGH",
+            "Title": "synthetic fixture",
+        }
+        other_pkgid = next(value for name, value in OPENSSL_TUPLES if name != package)
+        prefix = f"CVE-2026-84782/{package}"
+        cases.extend(
+            (
+                (f"{prefix}/missing", exact, 0),
+                (f"{prefix}/empty", {**exact, "FixedVersion": ""}, 0),
+                (f"{prefix}/null", {**exact, "FixedVersion": None}, 0),
+                (f"{prefix}/wrong-cve", {**exact, "VulnerabilityID": "CVE-0000-0000"}, 1),
+                (f"{prefix}/wrong-package", {**exact, "PkgName": "other"}, 1),
+                (f"{prefix}/wrong-version", {**exact, "InstalledVersion": "other"}, 1),
+                (f"{prefix}/wrong-pkgid", {**exact, "PkgID": "other@0"}, 1),
+                (f"{prefix}/cross-pair", {**exact, "PkgID": other_pkgid}, 1),
+                (f"{prefix}/pkgid-prefix", {**exact, "PkgID": f"prefix/{pkgid}"}, 1),
+                (f"{prefix}/pkgid-suffix", {**exact, "PkgID": f"{pkgid}:suffix"}, 1),
+                (f"{prefix}/pkgid-lookalike", {**exact, "PkgID": f"{pkgid}0"}, 1),
+                (f"{prefix}/nonempty", {**exact, "FixedVersion": "3.0.23"}, 1),
+                (f"{prefix}/fixed-text", {**exact, "FixedVersion": "fixed metadata"}, 1),
+                (f"{prefix}/fixed-whitespace", {**exact, "FixedVersion": " "}, 1),
+                (f"{prefix}/critical", {**exact, "Severity": "CRITICAL"}, 1),
+                (f"{prefix}/integer", {**exact, "FixedVersion": 7}, None),
+                (f"{prefix}/float", {**exact, "FixedVersion": 7.5}, None),
+                (f"{prefix}/bool", {**exact, "FixedVersion": True}, None),
+                (f"{prefix}/array", {**exact, "FixedVersion": []}, None),
+                (f"{prefix}/object", {**exact, "FixedVersion": {}}, None),
+            )
+        )
+    return cases
+
+
 def _run_contract(binary: str, scan_copy: Path) -> int:
     argv = [
         binary,
@@ -171,7 +218,7 @@ def _run_contract(binary: str, scan_copy: Path) -> int:
         "/dev/null",
         "/dev/stdin",
     ]
-    cases = _cases()
+    cases = _cases() + _openssl_cases()
     for case_id, finding, expected in cases:
         result = _invoke(argv, payload=_report_bytes(finding))
         if expected is None:

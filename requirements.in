@@ -15,6 +15,8 @@ opentelemetry-exporter-otlp-proto-http>=1.38.0,<2.0.0
 httpx>=0.28.1,<1.0.0
 # Security floor: GHSA-gc5v-m9x4-r6x2 (transitive via opentelemetry exporter)
 requests>=2.33.0,<3.0.0
+# Security floor: CVE-2026-97687 / CVE-2026-97688 / CVE-2026-97689 fixed in urllib3 2.8.0.
+urllib3>=2.8.0,<3.0.0
 # Security floor: July 2026 Pillow advisory cluster fixed in 12.3.0.
 pillow>=12.3.0,<13.0.0
 # Security floor: GHSA-5239-wwwm-4pmq

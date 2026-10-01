@@ -106,6 +106,51 @@ PRODUCTION_DOMAIN=example.com STAGING_FALLBACK_DOMAIN=staging.example.com \
   `STAGING_ATTESTED_DIGEST_READY`; secret bootstrap and staging/production
   activation remain human actions. Follow
   `docs/deploy/OPERATIONAL_SIGNALS.md` for the operator sequence and rollback.
+- Optional OBS2A Alertmanager is an `alerting` profile in all three contours.
+  Both readers reject every normalized incoming dependency to Alertmanager in
+  the invocation's native all-profile model, including optional and indirect
+  coupling; native Compose owns normalization and valid non-AM dependencies
+  remain allowed.
+  It is not part of ordinary app/DB/metrics startup. Its exact image, private
+  network topology, `environment` label authority, config and narrow Trivy
+  exception must pass CD and both deploy admissions before product mutation.
+  Only selected alerting requires a Compose-account-owned mode-0444 SMTP key
+  in the existing protected mode-0700 secrets directory; the bind mount makes
+  the file readable to Alertmanager UID 65534 without ownership remapping.
+  Neither the key nor its contents belongs in a bundle. Preserve an already
+  running Alertmanager across production `--remove-orphans` app/Caddy updates.
+  Each Alertmanager network attachment must retain explicit normalized
+  `gw_priority`: `alerting=1`, `smtp-egress=2`, so SMTP egress is the default
+  gateway. A Compose host that cannot preserve both values is `HOLD`.
+  `smtp-egress` is outbound networking, not a destination firewall. Actual
+  received email and host activation require separate evidence; see
+  `docs/deploy/OPERATIONAL_SIGNALS.md` and
+  `docs/security/CVE-2026-84445-alertmanager.md`.
+- OBS2A deploy admission binds the complete reviewed Prometheus config, alias
+  rules and Alertmanager Trivy ignore bytes, plus the exact reviewed
+  Alertmanager route. A change to any of these files requires reviewing the
+  complete replacement, updating both existing deploy readers and their
+  focused negative tests, and repeating native config/security admission.
+  Do not append text checks to admit an unreviewed YAML extension.
+- Runtime `COMPOSE_PROFILES` belongs to the caller. Snapshot its presence and
+  value before production env loading, reject changes introduced by that
+  load, and export the caller value for every Compose command. An absent
+  caller choice becomes an exported empty value so Compose `--env-file`
+  cannot activate a profile. Configuration-only profile rendering does not
+  authorize runtime activation. Prove precedence with native Compose;
+  arbitrary sourced-shell behavior is outside this bounded profile check.
+- The Alertmanager exception expires at `2026-10-24T00:00:00Z`; selected
+  alerting must reject at or after that UTC instant. Profile-off production
+  admission also performs a read-only all-state Docker label census of the
+  installed Compose project's Alertmanager, including on a first bundle when
+  the old installed Compose has no Alertmanager service or config files.
+  Bind the sole full container ID, project/service labels
+  and consistent Docker state; errors, multiple IDs, restarting or unknown
+  states are `HOLD`. A running instance must pass the same expiry check;
+  absent or proven stopped instances do not require an SMTP key. Rejection
+  must precede product mutation and must not automatically stop or start
+  Alertmanager. This census is an admission boundary, not continuous or
+  whole-host monitoring.
 
 ## Immutable PostgreSQL 15 plus pgvector contour
 
