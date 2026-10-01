@@ -1926,7 +1926,7 @@ def _run_owned_pip_child(argv: Sequence[str]) -> int:
         _install_pip_transport_guard()
         from pip._internal.cli.main import main as pip_main
 
-        return pip_main(list(argv))
+        return cast(int, pip_main(list(argv)))
     except _PipTransportRejected:
         print(PIP_TRANSPORT_ERROR, file=sys.stderr)
         return 1
