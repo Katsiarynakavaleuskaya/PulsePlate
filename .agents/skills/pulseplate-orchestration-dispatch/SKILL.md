@@ -105,10 +105,11 @@ After coordinator admission of commands, budget and coherent material, use
 `pr_oracle_attachment.py dispatch` before dependent material review. Preserve
 the validated packet mode and every owner flag, select the exact occurrence,
 and supply the approved experiment packet and immutable strict image. Before
-invocation externally admit T, explicit distinct canonical M and a clean absolute
-Python runtime; reject nested/overlapping roots and use the absolute T helper
-with `-I` and T cwd. Current delivery supplies caller-admitted M through the
-existing bridge's `--oracle-material-root`; a retained receipt cannot choose M. Follow the linked
+invocation externally admit `TRUSTED_TOOL_ROOT`, an explicit distinct canonical
+`MATERIAL_ROOT` and a clean absolute Python runtime; reject nested/overlapping roots
+and run the absolute `TRUSTED_TOOL_ROOT` helper with `-I` from `TRUSTED_TOOL_ROOT`.
+Current delivery supplies the caller-admitted `MATERIAL_ROOT` through the existing
+bridge's `--oracle-material-root`; a retained receipt cannot choose it. Follow the linked
 contract for the separate read-only guest observer and original-companion restore.
 A trust flag, hash or accepted output cannot supply admission. The hook
 ensures/reuses linkage, calls the existing bridge with `--oracle-evidence`, and
