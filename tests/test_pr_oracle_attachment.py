@@ -853,7 +853,8 @@ def admitted_request(
     fixture = root / "scripts/orchestration/fixture.py"
     fixture.parent.mkdir(parents=True, exist_ok=True)
     fixture.write_text("observed = 'baseline'\n", encoding="utf-8")
-    oracle.dispatcher._git(["add", "scripts/orchestration/fixture.py"], cwd=root)
+    (root / ".gitignore").write_text("/artifacts/\n", encoding="utf-8")
+    oracle.dispatcher._git(["add", ".gitignore", ".cursor", "docs", "scripts"], cwd=root)
     oracle.dispatcher._git(["commit", "--quiet", "-m", "admitted fixture"], cwd=root)
     oracle.dispatcher._git(["update-ref", "refs/remotes/origin/main", "HEAD"], cwd=root)
     experiment, request, _, _ = _accepted_inputs()
@@ -864,10 +865,7 @@ def admitted_request(
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(json.dumps(payload), encoding="utf-8")
     material_root = tmp_path.resolve() / "material"
-    shutil.copytree(root / ".git", material_root / ".git")
-    material_fixture = material_root / "scripts/orchestration/fixture.py"
-    material_fixture.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copyfile(fixture, material_fixture)
+    shutil.copytree(root, material_root, ignore=shutil.ignore_patterns("artifacts"))
     return {
         "material_root": material_root,
         "packet": task_ref,
@@ -879,6 +877,166 @@ def admitted_request(
         "admitted_new_files": (),
         "checked_inputs": (),
     }, experiment
+
+
+@pytest.mark.parametrize(
+    "origin",
+    [
+        "https://github.com/Katsiarynakavaleuskaya/PulsePlate.git",
+        "git@github.com:katsiarynakavaleuskaya/pulseplate.git",
+    ],
+)
+def test_actual_request_accepts_same_nominal_repository_spelling(
+    admitted_request: tuple[dict[str, Any], dict[str, Any]], origin: str
+) -> None:
+    arguments, _ = admitted_request
+    root = arguments["material_root"]
+    oracle.dispatcher._git(["remote", "set-url", "origin", origin], cwd=root)
+    (root / "scripts/orchestration/fixture.py").write_bytes(b"different material head\n")
+    oracle.dispatcher._git(["add", "scripts/orchestration/fixture.py"], cwd=root)
+    oracle.dispatcher._git(["commit", "--quiet", "-m", "material-only fixture head"], cwd=root)
+    request, _ = oracle._request(**arguments)
+    material = request["source_material"]
+    tool = request["tool_source"]
+    assert material["repository"].casefold() == tool["repository"].casefold()
+    assert material["head_sha"] != tool["head_sha"]
+    if "katsiarynakavaleuskaya/pulseplate" in origin:
+        assert material["repository"] == "katsiarynakavaleuskaya/pulseplate"
+        assert tool["repository"] == "Katsiarynakavaleuskaya/PulsePlate"
+
+
+def test_actual_request_rejects_foreign_repository_before_execution_or_retention(
+    admitted_request: tuple[dict[str, Any], dict[str, Any]], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    arguments, _ = admitted_request
+    oracle.dispatcher._git(
+        ["remote", "set-url", "origin", "git@github.com:another-owner/another-repo.git"],
+        cwd=arguments["material_root"],
+    )
+    calls: list[list[str]] = []
+    monkeypatch.setattr(oracle, "_execute_dispatch", lambda argv: calls.append(argv) or 0)
+    with pytest.raises(oracle.OracleEvidenceError, match="same repository") as failure:
+        oracle._request(**arguments)
+    assert failure.value.lifecycle_state == "invalid_evidence"
+    ensure_arguments = dict(arguments)
+    ensure_arguments["implementation_owners"] = ensure_arguments.pop("owners")
+    with pytest.raises(oracle.OracleEvidenceError, match="same repository"):
+        oracle.ensure_oracle_evidence(**ensure_arguments, role_context_order=1)
+    assert calls == []
+    assert not oracle.EVIDENCE_ROOT.exists()
+
+
+@pytest.mark.parametrize("checkout", ["material", "tool"])
+def test_actual_request_rejects_unadmitted_inventory_before_execution_or_retention(
+    admitted_request: tuple[dict[str, Any], dict[str, Any]],
+    monkeypatch: pytest.MonkeyPatch,
+    checkout: str,
+) -> None:
+    arguments, _ = admitted_request
+    root = arguments["material_root"] if checkout == "material" else oracle.REPO_ROOT
+    (root / "scripts/orchestration/omitted.py").write_bytes(b"new omitted implementation\n")
+    calls: list[list[str]] = []
+    monkeypatch.setattr(oracle, "_execute_dispatch", lambda argv: calls.append(argv) or 0)
+    ensure_arguments = dict(arguments)
+    ensure_arguments["implementation_owners"] = ensure_arguments.pop("owners")
+    with pytest.raises(oracle.OracleEvidenceError) as failure:
+        oracle.ensure_oracle_evidence(**ensure_arguments, role_context_order=1)
+    assert failure.value.lifecycle_state == "material_unavailable"
+    assert isinstance(failure.value.__cause__, ValueError)
+    assert "inventory must equal" in str(failure.value.__cause__)
+    assert calls == []
+    assert not oracle.EVIDENCE_ROOT.exists()
+
+
+@pytest.mark.parametrize("checkout", ["material", "tool"])
+@pytest.mark.parametrize("drift", ["origin", "untracked", "post_execution_untracked"])
+def test_retained_real_source_rejects_origin_or_inventory_drift_on_reuse_and_delivery(
+    admitted_request: tuple[dict[str, Any], dict[str, Any]],
+    monkeypatch: pytest.MonkeyPatch,
+    checkout: str,
+    drift: str,
+) -> None:
+    arguments, _ = admitted_request
+    store = oracle.REPO_ROOT / "artifacts/orchestration/experiments/results"
+    monkeypatch.setattr(oracle.dispatcher, "RESULT_ARTIFACT_DIR", store)
+    calls: list[list[str]] = []
+
+    def execute(argv: list[str]) -> int:
+        calls.append(list(argv))
+        request, experiment = oracle._request(**arguments)
+        _, _, result, proof = _accepted_inputs()
+        proof.update(
+            {
+                "source_material": request["source_material"],
+                "tool_source": request["tool_source"],
+                "copied_new_files": request["source_material"]["admitted_new_files"],
+                "snapshot_content_sha256": request["source_material"]["tracked_content_sha256"],
+                "tool_snapshot_content_sha256": request["tool_source"]["tracked_content_sha256"],
+                "experiment_packet_fingerprint": fingerprint_payload(experiment),
+            }
+        )
+        output = store / argv[argv.index("--output") + 1]
+        snapshot = store / argv[argv.index("--snapshot-proof-output") + 1]
+        output.write_text(json.dumps(result), encoding="utf-8")
+        snapshot.write_text(json.dumps(proof), encoding="utf-8")
+        snapshot.with_name(snapshot.stem + ".observations.json").write_text(
+            json.dumps(
+                {
+                    "schema_version": "experiment_runner_private_observations.v1",
+                    "authority": "local_observation_only",
+                    "oracle_results": result["oracle_results"],
+                }
+            ),
+            encoding="utf-8",
+        )
+        if drift == "post_execution_untracked":
+            root = arguments["material_root"] if checkout == "material" else oracle.REPO_ROOT
+            (root / "scripts/orchestration/omitted.py").write_bytes(b"new during execution\n")
+        return 0
+
+    monkeypatch.setattr(oracle, "_execute_dispatch", execute)
+    ensure_arguments = dict(arguments)
+    ensure_arguments["implementation_owners"] = ensure_arguments.pop("owners")
+    if drift == "post_execution_untracked":
+        with pytest.raises(oracle.OracleEvidenceError) as failure:
+            oracle.ensure_oracle_evidence(**ensure_arguments, role_context_order=1)
+        assert failure.value.lifecycle_state == "material_unavailable"
+        assert len(calls) == 1
+        assert not list(oracle.EVIDENCE_ROOT.rglob("receipt.json"))
+        assert list(oracle.EVIDENCE_ROOT.rglob("attempt-1.terminal.json"))
+        return
+    ref = oracle.ensure_oracle_evidence(**ensure_arguments, role_context_order=1)
+    assert oracle.ensure_oracle_evidence(**ensure_arguments, role_context_order=1) == ref
+    assert len(calls) == 1
+    retained = {
+        path: path.read_bytes() for path in oracle.EVIDENCE_ROOT.rglob("*") if path.is_file()
+    }
+    selected = oracle._selection(arguments["packet"], 1, arguments["mode"], arguments["owners"])
+    root = arguments["material_root"] if checkout == "material" else oracle.REPO_ROOT
+    if drift == "origin":
+        oracle.dispatcher._git(
+            ["remote", "set-url", "origin", "git@github.com:another-owner/another-repo.git"],
+            cwd=root,
+        )
+    else:
+        (root / "scripts/orchestration/omitted.py").write_bytes(b"new after retained evidence\n")
+    for operation in (
+        lambda: oracle.ensure_oracle_evidence(**ensure_arguments, role_context_order=1),
+        lambda: oracle.validate_oracle_evidence(
+            ref,
+            packet=arguments["packet"],
+            selected_dispatch=selected,
+            mode=arguments["mode"],
+            implementation_owners=arguments["owners"],
+            material_root=arguments["material_root"],
+        ),
+    ):
+        with pytest.raises(oracle.OracleEvidenceError):
+            operation()
+    assert len(calls) == 1
+    assert retained == {
+        path: path.read_bytes() for path in oracle.EVIDENCE_ROOT.rglob("*") if path.is_file()
+    }
 
 
 def test_canonical_request_binds_real_staged_unstaged_new_and_checked_bytes(
@@ -1849,6 +2007,9 @@ def test_material_bridge_and_runner_poison_are_data_to_the_trusted_request(
         (material / "scripts/orchestration" / name).write_text(
             f"from pathlib import Path\nPath({str(sentinel)!r}).write_text('executed')\n",
             encoding="utf-8",
+        )
+        oracle.dispatcher._git(
+            ["--literal-pathspecs", "add", "--", f"scripts/orchestration/{name}"], cwd=material
         )
     request, _ = oracle._request(**arguments)
     selected = oracle._selection(arguments["packet"], 1, "runtime", ())

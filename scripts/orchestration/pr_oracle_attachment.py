@@ -257,6 +257,8 @@ def _request(
         raise OracleEvidenceError(
             "Exact raw material cannot be acquired.", lifecycle_state="material_unavailable"
         ) from exc
+    if source_material["repository"].casefold() != tool_source["repository"].casefold():
+        raise OracleEvidenceError("Material and trusted controls must name the same repository.")
     request = {
         "policy_version": POLICY_VERSION,
         "selector_policy_version": SELECTOR_POLICY,

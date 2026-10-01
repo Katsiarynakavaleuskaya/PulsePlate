@@ -147,6 +147,102 @@ def test_admitted_file_reaches_second_checkout_without_source_index_write(
     assert proof["copied_new_files"] == source["admitted_new_files"]
 
 
+def test_capture_requires_complete_native_untracked_admission(oracle_source_checkout: Path) -> None:
+    root = oracle_source_checkout
+    paths = ("one.py", "two.py")
+    for relative in paths:
+        (root / relative).write_bytes(relative.encode())
+    index_before = dispatch._git(["ls-files", "--stage", "-z"], cwd=root).stdout
+    for incomplete in ((), paths[:1]):
+        with pytest.raises(ValueError, match="inventory must equal"):
+            dispatch.capture_source_material(root, incomplete)
+    captured = dispatch.capture_source_material(root, paths)
+    assert [row["path"] for row in captured["admitted_new_files"]] == list(paths)
+    assert dispatch._git(["ls-files", "--stage", "-z"], cwd=root).stdout == index_before
+
+
+@pytest.mark.parametrize("relative", ["space name.py", "tab\tname.py", "line\nname.py", "*.py"])
+def test_capture_uses_nul_and_literal_native_membership(
+    oracle_source_checkout: Path, relative: str
+) -> None:
+    root = oracle_source_checkout
+    (root / relative).write_bytes(b"literal admitted bytes")
+    with pytest.raises(ValueError, match="inventory must equal"):
+        dispatch.capture_source_material(root)
+    captured = dispatch.capture_source_material(root, (relative,))
+    assert captured["admitted_new_files"][0]["path"] == relative
+    assert dispatch._git(["ls-files", "--stage", "-z"], cwd=root).stdout.endswith("tracked.py\0")
+
+
+def test_capture_respects_real_git_ignore_without_artifact_exemption(
+    oracle_source_checkout: Path,
+) -> None:
+    root = oracle_source_checkout
+    (root / ".gitignore").write_text("/artifacts/ignored.json\n", encoding="utf-8")
+    dispatch._git(["add", ".gitignore"], cwd=root)
+    artifacts = root / "artifacts"
+    artifacts.mkdir()
+    (artifacts / "ignored.json").write_bytes(b"ignored fixture receipt")
+    captured = dispatch.capture_source_material(root)
+    assert captured["admitted_new_files"] == []
+    (artifacts / "unadmitted.json").write_bytes(b"nonignored fixture receipt")
+    with pytest.raises(ValueError, match="inventory must equal"):
+        dispatch.capture_source_material(root)
+
+
+@pytest.mark.parametrize("phase", ["before_copy", "during_copy"])
+def test_snapshot_rejects_new_unadmitted_inventory_at_capture_checkpoints(
+    oracle_source_checkout: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, phase: str
+) -> None:
+    root = oracle_source_checkout
+    captured = dispatch.capture_source_material(root)
+    destination = tmp_path.resolve() / "inventory-drift-snapshot"
+    if phase == "before_copy":
+        (root / "omitted.py").write_bytes(b"omitted before copy")
+    else:
+        original_digest = dispatch._tracked_content_digest
+
+        def digest(checkout: Path, admitted: tuple[str, ...] = ()) -> str:
+            value = original_digest(checkout, admitted)
+            if checkout == destination:
+                (root / "omitted.py").write_bytes(b"omitted during copy")
+            return value
+
+        monkeypatch.setattr(dispatch, "_tracked_content_digest", digest)
+    proof: dict[str, Any] = {}
+    with pytest.raises(ValueError, match="inventory must equal"):
+        dispatch._create_snapshot(root, destination, source_material=captured, snapshot_proof=proof)
+    assert proof == {}
+    if phase == "before_copy":
+        assert not destination.exists()
+
+
+def test_proofless_snapshot_retains_manual_untracked_defaults(
+    oracle_source_checkout: Path, tmp_path: Path
+) -> None:
+    root = oracle_source_checkout
+    (root / "unadmitted.py").write_bytes(b"manual default does not copy this")
+    destination = tmp_path.resolve() / "manual-snapshot"
+    assert dispatch._create_snapshot(root, destination) == ""
+    assert (destination / "tracked.py").read_bytes() == (root / "tracked.py").read_bytes()
+    assert not (destination / "unadmitted.py").exists()
+
+
+def test_capture_native_untracked_failure_is_not_empty_inventory(
+    oracle_source_checkout: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    original_git = dispatch._git
+
+    def git(arguments: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        if arguments == ["ls-files", "--others", "--exclude-standard", "-z"]:
+            raise dispatch.DispatchError("probe_execution_failed")
+        return original_git(arguments, **kwargs)
+
+    monkeypatch.setattr(dispatch, "_git", git)
+    with pytest.raises(dispatch.DispatchError, match="probe_execution_failed"):
+        dispatch.capture_source_material(oracle_source_checkout)
+
+
 def test_owned_temp_alias_is_canonicalized_before_new_file_snapshot(
     oracle_source_checkout: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -158,6 +254,7 @@ def test_owned_temp_alias_is_canonicalized_before_new_file_snapshot(
     packet["mutable_candidate_surface"] = ["tracked.py"]
     packet_path = root / "packet.json"
     packet_path.write_text(json.dumps(packet), encoding="utf-8")
+    dispatch._git(["add", "packet.json"], cwd=root)
     monkeypatch.setattr(experiment_contract, "REPO_ROOT", root)
     real_parent = tmp_path.resolve() / "real-temp-parent"
     real_parent.mkdir()

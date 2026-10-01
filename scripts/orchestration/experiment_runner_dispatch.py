@@ -1703,6 +1703,11 @@ def capture_source_material(root: Path, admitted_new_files: tuple[str, ...] = ()
         admitted.append(
             {"path": relative, "mode": mode, "sha256": hashlib.sha256(data).hexdigest()}
         )
+    untracked_inventory = _git(
+        ["ls-files", "--others", "--exclude-standard", "-z"], cwd=root
+    ).stdout
+    if set(untracked_inventory.split("\0")) - {""} != set(admitted_new_files):
+        raise ValueError("Non-ignored untracked inventory must equal admitted new files.")
     return {
         "repository": repository,
         "base_sha": base,
