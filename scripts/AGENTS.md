@@ -11,15 +11,23 @@
 - Prefer small, focused edits; update any dependent docs or Make targets if needed.
 - Avoid adding network calls to scripts used in CI unless explicitly required.
 
-- Locked-install settings and direct project-page probes must share default
-  `.netrc`/`_netrc` admission before CLI dispatch or connection/context creation.
+- Locked-install settings and the installer-owned direct project-page reader share default
+  `.netrc`/`_netrc` admission in `install_locked_python_requirements.py` only,
+  before its CLI dispatch or its own connection/context creation.
   Preserve native first-existing default candidate order (`.netrc`, then `_netrc`),
   including primary-file permission checks; never infer source absence from a
   selected-file read failure. Delegate parsing/named-default selection to stdlib,
   preserve effective login/account
   and root rejection, and fail closed for indeterminate credentials or malformed
   trusted authority. Applicable credentials require verified HTTPS; this does
-  not cover every pip authentication source. Probe failures, including connection
+  not cover every pip authentication source. Each installer-owned pip child
+  loads its native send guard before CLI and retains that common boundary
+  through process termination. Final case-insensitive
+  Authorization membership requires verified HTTPS on the supported native
+  graph; header values and credential sources are not transport predicates.
+  This current native-client correction does not recognize arbitrary plugins,
+  monkeypatched clients or future implementations. The separate proxy
+  health checker is outside this installer contract. Probe failures, including connection
   creation and cleanup, must expose constant/class-only diagnostics with bounded
   retries. Docker source downloads must reuse the existing URL validator at the
   network boundary and reject all redirects through the installed opener; tests
