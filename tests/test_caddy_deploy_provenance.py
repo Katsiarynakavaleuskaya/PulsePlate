@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import os
 import hashlib
+import json
 import re
 import shutil
 import stat
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -57,6 +59,126 @@ def test_alertmanager_cd_contract_carries_exact_files_and_keeps_scans_separate()
         '"network", "create", "--internal"',
     ):
         assert required in workflow
+
+
+def _run_alertmanager_scan_fixture(
+    tmp_path: Path, scenario: str
+) -> subprocess.CompletedProcess[str]:
+    """Execute the actual admission step with controlled native-command outcomes."""
+    step = _named_step(
+        _steps(_job(_workflow(CD_WORKFLOW), "prometheus-image-security")),
+        "Admit exact Alertmanager image, config, and narrow CVE exception",
+    )
+    script = step["run"]
+    assert isinstance(script, str)
+    workspace = tmp_path / "workspace"
+    config = workspace / "deploy" / "alertmanager"
+    config.mkdir(parents=True)
+    shutil.copyfile(ALERTMANAGER_CONFIG, config / "alertmanager.yml")
+    shutil.copyfile(ALERTMANAGER_IGNORE, config / "trivy-ignore.yaml")
+    binaries = tmp_path / "bin"
+    binaries.mkdir()
+    digest = "sha256:84967b9b7ba45e38a9278d3e594305f43d4993c310df3905b51138b816c365f3"
+    docker = binaries / "docker"
+    docker.write_text(
+        f"#!{sys.executable}\n"
+        "import json,sys\n"
+        f"digest={digest!r}\n"
+        "args=sys.argv[1:]\n"
+        "if args[:2]==['buildx','imagetools']:\n"
+        " print(json.dumps({'manifests':[{'digest':digest,'platform':{'os':'linux','architecture':'amd64'}}]}))\n"
+        "elif args[:2]==['image','inspect']:\n"
+        " print(json.dumps([{'Os':'linux','Architecture':'amd64','RepoDigests':['prom/alertmanager@'+digest]}]))\n"
+        "elif '--version' in args: print('alertmanager, version 0.34.1')\n",
+        encoding="utf-8",
+    )
+    docker.chmod(0o755)
+    report = {
+        "SchemaVersion": 2,
+        "ArtifactName": "prom/alertmanager@" + digest,
+        "Results": [
+            {
+                "Target": target,
+                "Vulnerabilities": [
+                    {
+                        "VulnerabilityID": "CVE-2026-84445",
+                        "PkgIdentifier": {"PURL": "pkg:golang/google.golang.org/grpc@v1.83.1"},
+                    }
+                ],
+            }
+            for target in ("bin/alertmanager", "bin/amtool")
+        ],
+    }
+    (tmp_path / "report.json").write_text(json.dumps(report), encoding="utf-8")
+    trivy = binaries / "trivy"
+    trivy.write_text(
+        f"#!{sys.executable}\n"
+        "import json,os,sys\nfrom pathlib import Path\n"
+        "args=sys.argv[1:]\n"
+        "ignore=Path(args[args.index('--ignorefile')+1]).name if '--ignorefile' in args else ''\n"
+        "negative=bool(ignore) and ignore!='trivy-ignore.yaml'\n"
+        "late='expired' in ignore\n"
+        "scenario=os.environ['SCAN_SCENARIO']\n"
+        "report=json.loads(Path(os.environ['SCAN_REPORT']).read_text())\n"
+        "if negative:\n"
+        " with Path(os.environ['SCAN_CALLS']).open('a') as stream: stream.write(ignore+'\\n')\n"
+        " if scenario in ('exit1','exit2'):\n"
+        "  print('scanner prerequisite failed; no report',file=sys.stderr); sys.exit(int(scenario[-1]))\n"
+        " if scenario=='stale' and late: sys.exit(0)\n"
+        " if scenario=='empty': report['Results']=[]\n"
+        " if scenario=='wrong': report['Results'][0]['Vulnerabilities'][0]['PkgIdentifier']['PURL']='pkg:golang/google.golang.org/grpc@v1.83.0'\n"
+        " if scenario=='extra': report['Results'][0]['Vulnerabilities'].append({'VulnerabilityID':'CVE-0000-0000','PkgIdentifier':{'PURL':'pkg:generic/other@1'}})\n"
+        " if scenario=='secret': report['Results'][0]['Secrets']=[{'RuleID':'synthetic','Severity':'HIGH'}]\n"
+        "if '--output' in args:\n"
+        " output=Path(args[args.index('--output')+1])\n"
+        " output.write_text('{' if negative and scenario=='malformed' else json.dumps(report))\n",
+        encoding="utf-8",
+    )
+    trivy.chmod(0o755)
+    runner = tmp_path / "runner"
+    runner.mkdir()
+    env = {
+        key: value
+        for key, value in os.environ.items()
+        if not key.startswith(("GIT_", "GITHUB_", "GH_"))
+    }
+    env.update(
+        {
+            "PATH": str(binaries) + os.pathsep + env["PATH"],
+            "GITHUB_WORKSPACE": str(workspace),
+            "RUNNER_TEMP": str(runner),
+            "TRIVY_BIN": str(trivy),
+            "SCAN_SCENARIO": scenario,
+            "SCAN_REPORT": str(tmp_path / "report.json"),
+            "SCAN_CALLS": str(tmp_path / "calls.log"),
+        }
+    )
+    bash = shutil.which("bash")
+    assert bash is not None
+    return subprocess.run(
+        [bash, "-c", script], cwd=workspace, env=env, capture_output=True, text=True, timeout=20
+    )
+
+
+@pytest.mark.parametrize(
+    "scenario", ("exit1", "exit2", "malformed", "empty", "wrong", "extra", "secret", "stale")
+)
+def test_alertmanager_negative_controls_reject_unproven_scans(
+    tmp_path: Path, scenario: str
+) -> None:
+    """An error or absent/different report cannot masquerade as policy rejection."""
+    result = _run_alertmanager_scan_fixture(tmp_path, scenario)
+    assert result.returncode != 0, result.stdout + result.stderr
+    assert (tmp_path / "calls.log").read_text(encoding="utf-8").strip()
+
+
+def test_alertmanager_negative_controls_require_both_retained_inventories(tmp_path: Path) -> None:
+    """Both real scan-success branches must retain the complete frozen inventory."""
+    result = _run_alertmanager_scan_fixture(tmp_path, "valid")
+    assert result.returncode == 0, result.stdout + result.stderr
+    calls = (tmp_path / "calls.log").read_text(encoding="utf-8").splitlines()
+    assert len(calls) == 2
+    assert "wrong" in calls[0] and "expired" in calls[1]
 
 
 PROMETHEUS_RULES_HASH_CHECK = (

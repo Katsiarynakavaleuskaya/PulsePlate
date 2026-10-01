@@ -876,7 +876,8 @@ jobs:
           scan="$(mktemp "${RUNNER_TEMP}/pulseplate-alertmanager-scan.XXXXXX")"
           wrong="$(mktemp "${RUNNER_TEMP}/pulseplate-alertmanager-wrong.XXXXXX")"
           expired="$(mktemp "${RUNNER_TEMP}/pulseplate-alertmanager-expired.XXXXXX")"
-          trap 'rm -f -- "$scan" "$wrong" "$expired"' EXIT
+          negative_scan="$(mktemp "${RUNNER_TEMP}/pulseplate-alertmanager-negative-scan.XXXXXX")"
+          trap 'rm -f -- "$scan" "$wrong" "$expired" "$negative_scan"' EXIT
           docker run --rm --pull never --platform linux/amd64 --network none \
             --read-only --user 65534:65534 --cap-drop ALL \
             --security-opt no-new-privileges:true --entrypoint /bin/amtool \
@@ -885,9 +886,12 @@ jobs:
           "$TRIVY_BIN" image --scanners vuln,secret --format json \
             --pkg-types os,library --severity CRITICAL,HIGH --exit-code 0 \
             --timeout 15m --output "$scan" "$alert_ref"
-          python3 - "$scan" <<'PY'
+          verify_alertmanager_inventory() {
+            python3 - "$1" <<'PY'
           import json, sys
           data=json.load(open(sys.argv[1], encoding="utf-8"))
+          if any(r.get("Secrets") for r in data.get("Results", [])):
+              raise SystemExit("Alertmanager scan contains unexpected secret findings")
           found=[(r.get("Target"), v.get("VulnerabilityID"), (v.get("PkgIdentifier") or {}).get("PURL"))
                  for r in data.get("Results", []) for v in (r.get("Vulnerabilities") or [])]
           expected={(target, "CVE-2026-84445", "pkg:golang/google.golang.org/grpc@v1.83.1")
@@ -895,18 +899,19 @@ jobs:
           if set(found) != expected or len(found) != len(expected):
               raise SystemExit("Unsuppressed Alertmanager finding inventory changed")
           PY
+          }
+          verify_alertmanager_inventory "$scan"
           "$TRIVY_BIN" image --scanners vuln,secret --format table \
             --pkg-types os,library --severity CRITICAL,HIGH --exit-code 1 \
             --timeout 15m --ignorefile "$ignore" "$alert_ref"
           sed 's|pkg:golang/google.golang.org/grpc@v1.83.1|pkg:golang/google.golang.org/grpc@v1.83.0|' "$ignore" > "$wrong"
           sed 's/expired_at: 2026-10-24/expired_at: 2026-01-01/' "$ignore" > "$expired"
           for negative in "$wrong" "$expired"; do
-            if "$TRIVY_BIN" image --scanners vuln,secret --format table \
-              --pkg-types os,library --severity CRITICAL,HIGH --exit-code 1 \
-              --timeout 15m --ignorefile "$negative" "$alert_ref"; then
-              echo 'Alertmanager negative CVE control unexpectedly passed' >&2
-              exit 1
-            fi
+            : > "$negative_scan"
+            "$TRIVY_BIN" image --scanners vuln,secret --format json \
+              --pkg-types os,library --severity CRITICAL,HIGH --exit-code 0 \
+              --timeout 15m --ignorefile "$negative" --output "$negative_scan" "$alert_ref"
+            verify_alertmanager_inventory "$negative_scan"
           done
 
       - name: Prove staging environment label reaches Alertmanager despite forged metric label

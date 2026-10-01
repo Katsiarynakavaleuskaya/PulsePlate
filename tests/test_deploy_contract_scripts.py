@@ -3470,7 +3470,8 @@ def test_alertmanager_cd_consumes_unsuppressed_inventory_without_extra_findings(
         if item.get("name") == "Admit exact Alertmanager image, config, and narrow CVE exception"
     )
     run = step["run"]
-    marker = "python3 - \"$scan\" <<'PY'\n"
+    marker = "python3 - \"$1\" <<'PY'\n"
+    assert run.count(marker) == 1
     program = run.split(marker, 1)[1].split("\nPY", 1)[0]
     finding = {
         "VulnerabilityID": "CVE-2026-84445",
@@ -4119,19 +4120,27 @@ def test_three_compose_contours_preserve_smtp_default_gateway_in_normal_config(
     assert docker_bin is not None, "native Docker Compose is required for gateway admission"
     native_env = os.environ.copy()
     source = compose_path.read_text(encoding="utf-8")
+    native_compose = tmp_path / compose_path.name
+    native_compose.write_bytes(compose_path.read_bytes())
+    assert native_compose.read_bytes() == compose_path.read_bytes()
     required_names = set(re.findall(r"\$\{([A-Z][A-Z0-9_]*)(?::[^}]*)?\}", source))
     native_env.update({name: "synthetic" for name in required_names})
-    staging_env_file = tmp_path / "staging.env"
+    staging_env_file = tmp_path / ".env"
     staging_env_file.write_text("", encoding="utf-8")
     native_env["STAGING_ENV_FILE"] = str(staging_env_file)
+    native_env["COMPOSE_PROFILES"] = ""
     for image_name in ("IMAGE_REF", "STAGING_IMAGE_REF", "STAGING_CADDY_IMAGE_REF"):
         native_env[image_name] = "ghcr.io/example/pulseplate@sha256:" + "a" * 64
     completed = subprocess.run(
         [
             docker_bin,
             "compose",
+            "--project-directory",
+            str(tmp_path),
+            "--env-file",
+            str(staging_env_file),
             "-f",
-            str(compose_path),
+            str(native_compose),
             "--profile",
             "*",
             "config",
