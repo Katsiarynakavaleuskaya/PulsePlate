@@ -45,14 +45,14 @@ REVIEWED_CADDY_REF = IMAGE_REPOSITORY + "".join(
 )
 REVIEWED_COMPOSE_SHA = "".join(
     (
-        "9e9ed40e",
-        "c219f926",
-        "d85daabe",
-        "f57b571b",
-        "501c5bc3",
-        "47882046",
-        "2cc2a249",
-        "58839db4",
+        "f194f8c5",
+        "a58fec75",
+        "c9483cf6",
+        "827b5e1e",
+        "f5171c35",
+        "71d88972",
+        "02ee56d0",
+        "c666cca6",
     )
 )
 PREVIOUS_BACKEND_REF = IMAGE_REPOSITORY + "".join(

@@ -304,14 +304,29 @@ strict image/filesystem scans, canonical CI, or merge authorization.
 
 For PR builds, the separate native Trivy policy check follows the pinned image
 scan and precedes report validation (`.github/workflows/build.yml:182`). It
-byte-binds the copied scan policy to `trivy/ignore-policy.rego` and exercises
-the five exact zlib/ncurses package tuples using synthetic JSON; the actual
-image and filesystem scanners retain their own fail-closed results. Native
-Trivy 0.74.0 normalizes JSON `null` in string-valued `FixedVersion` to empty;
-a numeric value fails JSON decoding and must not be counted as a vulnerability
-finding or a Rego decision (`scripts/ci/check_trivy_ignore_policy_native.py:178`).
-If the native check fails, inspect the first execution/schema/count error and
-repair the policy or checker in the same PR before mapping review findings.
+byte-binds the copied scan policy to `trivy/ignore-policy.rego`, preserves the
+45 synthetic controls for the five observed zlib/ncurses tuples, and adds 40
+controls for the two exact paired OpenSSL CVE-2026-84782 tuples. The OpenSSL
+rule requires HIGH severity, installed version `3.0.22-1~deb12u1` and the
+corresponding exact PkgName/PkgID pair. Cross-pairs, prefixes, suffixes,
+lookalikes, fixed metadata, whitespace and the same CRITICAL tuple stay visible.
+The legacy rules retain their CVE/package-name/installed-version boundaries
+and existing PkgID `contains`/`startswith` family semantics. Observed tuple
+fixtures do not prove arbitrary-input paired equality or native field coherence;
+the retained legacy test identifiers are not a stronger contract.
+
+Native Trivy 0.74.0 owns JSON decoding: `null` in string-valued `FixedVersion`
+normalizes to empty before Rego; numeric, boolean, array and object values fail
+with a decode/type error. Such errors are neither vulnerability findings nor
+ignore decisions. Raw Rego `null` is not an empty string. The checker must
+observe the relevant diagnostic, nonzero exit and absent output, and compare
+retained finding identity rather than counts alone. Its synthetic controls
+never replace actual image/filesystem or selected PostgreSQL publication scans.
+The shared October 7 expiry, new OpenSSL October 5 review and independent
+Alertmanager October 24 expiry remain separate obligations. A new applicable
+Bookworm fix or nonempty FixedVersion requires reassessment/removal, not an
+automatic deadline extension. If the native check fails, repair its first
+execution/schema/count/identity error before mapping review findings.
 
 ## Guard Coverage Step (EVMbench-inspired)
 

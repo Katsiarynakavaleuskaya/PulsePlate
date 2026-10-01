@@ -26,6 +26,11 @@ STAGING_COMPOSE_PATH = REPO_ROOT / "deploy" / "docker-compose.staging.yaml"
 PROMETHEUS_CONFIG_PATH = REPO_ROOT / "deploy" / "prometheus" / "prometheus.yml"
 PROMETHEUS_RULES_PATH = REPO_ROOT / "deploy" / "prometheus" / "alias-alerts.yml"
 PROMETHEUS_MANIFEST_PATH = REPO_ROOT / "deploy" / "prometheus" / "image-manifest.json"
+ALERTMANAGER_CONFIG_PATH = REPO_ROOT / "deploy" / "alertmanager" / "alertmanager.yml"
+ALERTMANAGER_IGNORE_PATH = REPO_ROOT / "deploy" / "alertmanager" / "trivy-ignore.yaml"
+ALERTMANAGER_RUNTIME_REF = (
+    "prom/alertmanager@sha256:84967b9b7ba45e38a9278d3e594305f43d4993c310df3905b51138b816c365f3"
+)
 POSTGRES_MANIFEST_PATH = REPO_ROOT / "deploy" / "postgres-pgvector" / "image-manifest.json"
 PROMETHEUS_SOURCE_REVISION = "53144df54e01b689bf6c45e811c6230631b132e7"
 PROMETHEUS_INDEX_DIGEST = "sha256:62464aea89547566d3e26b33566a40d8a9d2ddef947fde9d37454040c9c636b1"
@@ -47,7 +52,44 @@ FAKE_PROMETHEUS_COMPOSE_JSON = json.dumps(
             "prometheus": {
                 "image": PROMETHEUS_RUNTIME_REF,
                 "platform": "linux/amd64",
+                "environment": {"PULSEPLATE_ENVIRONMENT": "production"},
+                "networks": {"observability": {}, "alerting": {}},
             },
+            "alertmanager": {
+                "image": ALERTMANAGER_RUNTIME_REF,
+                "platform": "linux/amd64",
+                "profiles": ["alerting"],
+                "networks": {"alerting": {"gw_priority": 1}, "smtp-egress": {"gw_priority": 2}},
+                "command": [
+                    "--config.file=/etc/alertmanager/alertmanager.yml",
+                    "--storage.path=/alertmanager",
+                    "--cluster.listen-address=",
+                ],
+                "read_only": True,
+                "user": "65534:65534",
+                "cap_drop": ["ALL"],
+                "security_opt": ["no-new-privileges:true"],
+                "tmpfs": ["/alertmanager:size=16m,mode=0700,uid=65534,gid=65534,noexec,nosuid"],
+                "healthcheck": {
+                    "test": [
+                        "CMD",
+                        "/bin/wget",
+                        "-q",
+                        "-T",
+                        "5",
+                        "-O",
+                        "/dev/null",
+                        "http://127.0.0.1:9093/-/ready",
+                    ]
+                },
+                "secrets": [
+                    {
+                        "source": "alertmanager_smtp_key",
+                        "target": "/run/secrets/alertmanager_smtp_key",
+                    }
+                ],
+            },
+            "app": {"networks": {"web": {}, "observability": {}}},
             "postgres": {
                 "image": POSTGRES_RUNTIME_REF,
                 "platform": "linux/amd64",
@@ -62,6 +104,12 @@ FAKE_PROMETHEUS_COMPOSE_JSON = json.dumps(
             },
         },
         "volumes": {"postgres_data": {"name": "pulseplate_postgres_data"}},
+        "networks": {
+            "alerting": {"internal": True},
+            "observability": {"internal": True},
+            "smtp-egress": {"driver": "bridge"},
+        },
+        "secrets": {"alertmanager_smtp_key": {"file": "/tmp/alertmanager_smtp_key"}},
     },
     separators=(",", ":"),
 )
@@ -73,6 +121,10 @@ FAKE_PROMETHEUS_IMAGE_INSPECT_JSON = json.dumps(
             "RepoDigests": [f"prom/prometheus@{PROMETHEUS_PLATFORM_MANIFEST_DIGEST}"],
         }
     ],
+    separators=(",", ":"),
+)
+FAKE_ALERTMANAGER_IMAGE_INSPECT_JSON = json.dumps(
+    [{"Os": "linux", "Architecture": "amd64", "RepoDigests": [ALERTMANAGER_RUNTIME_REF]}],
     separators=(",", ":"),
 )
 FAKE_POSTGRES_IMAGE_INSPECT_JSON = json.dumps(
@@ -145,16 +197,18 @@ MOUNTPOINT_LAYER_GZIP = base64.b64decode(
 def _write_production_host_contract(
     project_dir: Path,
     *,
-    compose_text: str = "services: {}\n",
+    compose_text: str = PRODUCTION_COMPOSE_TEXT,
     self_hosted: bool = False,
 ) -> Path:
     deploy_dir = project_dir / "deploy"
     prometheus_dir = deploy_dir / "prometheus"
+    alertmanager_dir = deploy_dir / "alertmanager"
     postgres_manifest_dir = deploy_dir / "postgres-pgvector"
     secret_dir = deploy_dir / "secrets"
     backup_dir = project_dir / "backups"
     backup_helper_dir = project_dir / "scripts" / "ops"
     prometheus_dir.mkdir(parents=True, exist_ok=True)
+    alertmanager_dir.mkdir(parents=True, exist_ok=True)
     postgres_manifest_dir.mkdir(parents=True, exist_ok=True)
     secret_dir.mkdir(parents=True, exist_ok=True)
     if self_hosted:
@@ -172,6 +226,12 @@ def _write_production_host_contract(
     )
     (prometheus_dir / "image-manifest.json").write_text(
         PROMETHEUS_MANIFEST_PATH.read_text(encoding="utf-8"), encoding="utf-8"
+    )
+    (alertmanager_dir / "alertmanager.yml").write_text(
+        ALERTMANAGER_CONFIG_PATH.read_text(encoding="utf-8"), encoding="utf-8"
+    )
+    (alertmanager_dir / "trivy-ignore.yaml").write_text(
+        ALERTMANAGER_IGNORE_PATH.read_text(encoding="utf-8"), encoding="utf-8"
     )
     (postgres_manifest_dir / "image-manifest.json").write_text(
         POSTGRES_MANIFEST_PATH.read_text(encoding="utf-8"), encoding="utf-8"
@@ -210,11 +270,13 @@ def _write_shell_bundle_contract(
 ) -> None:
     deploy_dir = shell_bundle_dir / "deploy"
     prometheus_dir = deploy_dir / "prometheus"
+    alertmanager_dir = deploy_dir / "alertmanager"
     postgres_manifest_dir = deploy_dir / "postgres-pgvector"
     scripts_dir = shell_bundle_dir / "scripts"
     ops_dir = scripts_dir / "ops"
     deploy_dir.mkdir(parents=True, exist_ok=True)
     prometheus_dir.mkdir(parents=True, exist_ok=True)
+    alertmanager_dir.mkdir(parents=True, exist_ok=True)
     postgres_manifest_dir.mkdir(parents=True, exist_ok=True)
     scripts_dir.mkdir(parents=True, exist_ok=True)
     ops_dir.mkdir(parents=True, exist_ok=True)
@@ -240,6 +302,12 @@ def _write_shell_bundle_contract(
     )
     (prometheus_dir / "image-manifest.json").write_text(
         PROMETHEUS_MANIFEST_PATH.read_text(encoding="utf-8"), encoding="utf-8"
+    )
+    (alertmanager_dir / "alertmanager.yml").write_text(
+        ALERTMANAGER_CONFIG_PATH.read_text(encoding="utf-8"), encoding="utf-8"
+    )
+    (alertmanager_dir / "trivy-ignore.yaml").write_text(
+        ALERTMANAGER_IGNORE_PATH.read_text(encoding="utf-8"), encoding="utf-8"
     )
     (postgres_manifest_dir / "image-manifest.json").write_text(
         POSTGRES_MANIFEST_PATH.read_text(encoding="utf-8"), encoding="utf-8"
@@ -279,6 +347,8 @@ def _write_shell_bundle_archive(
         "deploy/prometheus/prometheus.yml",
         "deploy/prometheus/alias-alerts.yml",
         "deploy/prometheus/image-manifest.json",
+        "deploy/alertmanager/alertmanager.yml",
+        "deploy/alertmanager/trivy-ignore.yaml",
         "scripts/diagnose_web.sh",
         "scripts/ops/postgres_backup.sh",
         "scripts/redeploy_caddy.sh",
@@ -296,6 +366,16 @@ def _write_shell_bundle_archive(
                 continue
             if variant in {"missing_rules", "rules_symlink"} and relative_path == (
                 "deploy/prometheus/alias-alerts.yml"
+            ):
+                continue
+            if (
+                variant == "missing_alert_config"
+                and relative_path == "deploy/alertmanager/alertmanager.yml"
+            ):
+                continue
+            if (
+                variant == "missing_alert_ignore"
+                and relative_path == "deploy/alertmanager/trivy-ignore.yaml"
             ):
                 continue
             if variant.startswith("backup_helper_") and relative_path == (
@@ -3378,6 +3458,49 @@ def test_prometheus_cd_security_job_cross_binds_v2_digest_and_revision() -> None
     assert "continue-on-error" not in scan_run
 
 
+@pytest.mark.parametrize("additional_finding", (False, True))
+def test_alertmanager_cd_consumes_unsuppressed_inventory_without_extra_findings(
+    tmp_path: Path, additional_finding: bool
+) -> None:
+    workflow = yaml.safe_load(CD_WORKFLOW_PATH.read_text(encoding="utf-8"))
+    steps = workflow["jobs"]["prometheus-image-security"]["steps"]
+    step = next(
+        item
+        for item in steps
+        if item.get("name") == "Admit exact Alertmanager image, config, and narrow CVE exception"
+    )
+    run = step["run"]
+    marker = "python3 - \"$1\" <<'PY'\n"
+    assert run.count(marker) == 1
+    program = run.split(marker, 1)[1].split("\nPY", 1)[0]
+    finding = {
+        "VulnerabilityID": "CVE-2026-84445",
+        "PkgIdentifier": {"PURL": "pkg:golang/google.golang.org/grpc@v1.83.1"},
+    }
+    results = [
+        {"Target": target, "Vulnerabilities": [finding.copy()]}
+        for target in ("bin/alertmanager", "bin/amtool")
+    ]
+    if additional_finding:
+        results[0]["Vulnerabilities"].append(
+            {
+                "VulnerabilityID": "CVE-2026-99999",
+                "PkgIdentifier": {"PURL": "pkg:golang/example@v1"},
+            }
+        )
+    scan = tmp_path / "scan.json"
+    scan.write_text(json.dumps({"Results": results}), encoding="utf-8")
+    completed = subprocess.run(
+        [sys.executable, "-c", program, str(scan)],
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert (completed.returncode != 0) is additional_finding
+    if additional_finding:
+        assert "Unsuppressed Alertmanager finding inventory changed" in completed.stderr
+
+
 def test_prometheus_config_has_one_private_exact_target() -> None:
     config = yaml.safe_load(PROMETHEUS_CONFIG_PATH.read_text(encoding="utf-8"))
     assert config == {
@@ -3385,7 +3508,9 @@ def test_prometheus_config_has_one_private_exact_target() -> None:
             "scrape_interval": "30s",
             "scrape_timeout": "10s",
             "evaluation_interval": "30s",
+            "external_labels": {"environment": "${PULSEPLATE_ENVIRONMENT}"},
         },
+        "alerting": {"alertmanagers": [{"static_configs": [{"targets": ["alertmanager:9093"]}]}]},
         "rule_files": ["/etc/prometheus/alias-alerts.yml"],
         "scrape_configs": [
             {
@@ -3396,6 +3521,7 @@ def test_prometheus_config_has_one_private_exact_target() -> None:
                     "X-API-Key": {"files": ["/run/secrets/pulseplate_metrics_scrape_key"]}
                 },
                 "static_configs": [{"targets": ["app:8000"]}],
+                "metric_relabel_configs": [{"action": "labeldrop", "regex": "^environment$"}],
             }
         ],
     }
@@ -3403,7 +3529,6 @@ def test_prometheus_config_has_one_private_exact_target() -> None:
     for forbidden in (
         "remote_write",
         "remote_read",
-        "alerting",
         "storage.tsdb.retention",
         "web.enable-lifecycle",
         "web.enable-admin-api",
@@ -3480,8 +3605,384 @@ def test_cd_alias_rules_use_native_promtool_and_both_staging_hash_passes() -> No
     assert workflow_text.count('= "$PROMETHEUS_RULES_SHA256" ]') == 2
     assert (
         "deploy/postgres-pgvector/image-manifest.json \\\n"
-        "            deploy/prometheus/alias-alerts.yml\n"
+        "            deploy/prometheus/alias-alerts.yml \\\n"
+        "            deploy/alertmanager/alertmanager.yml \\\n"
+        "            deploy/alertmanager/trivy-ignore.yaml\n"
     ) in workflow_text
+
+
+@pytest.mark.parametrize(
+    ("variant", "expected"),
+    (
+        ("crossed-environment", "Prometheus environment must be one literal contour value"),
+        ("duplicate-environment", "Prometheus environment must be one literal contour value"),
+        ("missing-labeldrop", "Prometheus configuration differs from the admitted complete file"),
+        ("rule-shadow", "Prometheus rules differ from the admitted complete file"),
+        ("wrong-image", "Raw Alertmanager image must use the admitted platform digest"),
+        (
+            "extra-recipient",
+            "Alertmanager route and sole recipient are not the exact reviewed config",
+        ),
+        (
+            "extra-webhook",
+            "Alertmanager route and sole recipient are not the exact reviewed config",
+        ),
+        (
+            "inline-password",
+            "Alertmanager route and sole recipient are not the exact reviewed config",
+        ),
+        (
+            "config-line-drift",
+            "Alertmanager route and sole recipient are not the exact reviewed config",
+        ),
+    ),
+)
+def test_staging_alertmanager_admission_rejects_forged_contract_before_product_mutation(
+    tmp_path: Path, variant: str, expected: str
+) -> None:
+    env, log_file = _staging_deploy_fixture(tmp_path)
+    project = Path(env["PROJECT_DIR"])
+    compose = project / "docker-compose.staging.yaml"
+    if variant in {"crossed-environment", "duplicate-environment", "wrong-image"}:
+        text = compose.read_text(encoding="utf-8")
+        if variant == "crossed-environment":
+            text = text.replace(
+                "PULSEPLATE_ENVIRONMENT=staging", "PULSEPLATE_ENVIRONMENT=production"
+            )
+        elif variant == "duplicate-environment":
+            text = text.replace(
+                "- PULSEPLATE_ENVIRONMENT=staging",
+                "- PULSEPLATE_ENVIRONMENT=staging\n      - PULSEPLATE_ENVIRONMENT=staging",
+            )
+        else:
+            text = text.replace(ALERTMANAGER_RUNTIME_REF, "prom/alertmanager:latest")
+        compose.write_text(text, encoding="utf-8")
+    elif variant == "missing-labeldrop":
+        config = project / "prometheus/prometheus.yml"
+        config.write_text(
+            config.read_text(encoding="utf-8").replace(
+                "    metric_relabel_configs:\n      - action: labeldrop\n        regex: ^environment$\n",
+                "",
+            ),
+            encoding="utf-8",
+        )
+    elif variant == "rule-shadow":
+        rules = project / "prometheus/alias-alerts.yml"
+        rules.write_text(
+            rules.read_text(encoding="utf-8") + "\n      environment: attacker\n",
+            encoding="utf-8",
+        )
+    else:
+        config = project / "alertmanager/alertmanager.yml"
+        config_text = config.read_text(encoding="utf-8")
+        if variant == "inline-password":
+            config_text = config_text.replace(
+                "  smtp_auth_password_file: /run/secrets/alertmanager_smtp_key\n",
+                "  smtp_auth_password_file: /run/secrets/alertmanager_smtp_key\n"
+                "  smtp_auth_password: synthetic-only\n",
+            )
+        elif variant == "config-line-drift":
+            config_text = config_text.replace(
+                "PulsePlate alert {{ .CommonLabels.alertname }}",
+                "PulsePlate changed alert {{ .CommonLabels.alertname }}",
+            )
+        else:
+            config_text += {
+                "extra-recipient": "\n      - to: attacker@example.invalid\n",
+                "extra-webhook": "\n    webhook_configs:\n      - url: https://attacker.example.invalid/notify\n",
+            }[variant]
+        config.write_text(config_text, encoding="utf-8")
+    result = subprocess.run(
+        [
+            str(REPO_ROOT / "scripts/deploy.sh"),
+            "--preflight-only",
+            "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "a" * 64,
+            "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "b" * 64,
+        ],
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode != 0
+    assert expected in result.stderr
+    if log_file.exists():
+        assert all(
+            " pull " not in line and " stop " not in line and " up " not in line
+            for line in log_file.read_text(encoding="utf-8").splitlines()
+        )
+
+
+def test_staging_alertmanager_off_profile_needs_no_smtp_file(tmp_path: Path) -> None:
+    env, _log_file = _staging_deploy_fixture(tmp_path)
+    env.pop("COMPOSE_PROFILES", None)
+    assert not (Path(env["PROJECT_DIR"]) / "secrets/alertmanager_smtp_key").exists()
+    result = subprocess.run(
+        [
+            str(REPO_ROOT / "scripts/deploy.sh"),
+            "--preflight-only",
+            "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "a" * 64,
+            "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "b" * 64,
+        ],
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+
+
+@pytest.mark.parametrize("profiles", ["alerting", "scheduler-external, alerting", " alerting"])
+def test_staging_selected_alertmanager_requires_smtp_metadata(
+    tmp_path: Path, profiles: str
+) -> None:
+    env, log_file = _staging_deploy_fixture(tmp_path)
+    env["COMPOSE_PROFILES"] = profiles
+    result = subprocess.run(
+        [
+            str(REPO_ROOT / "scripts/deploy.sh"),
+            "--preflight-only",
+            "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "a" * 64,
+            "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "b" * 64,
+        ],
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode != 0
+    assert "Selected Alertmanager requires a regular non-symlink SMTP key" in result.stderr
+    if log_file.exists():
+        assert all(
+            " pull " not in line and " stop " not in line
+            for line in log_file.read_text().splitlines()
+        )
+
+
+@pytest.mark.parametrize("profiles", ["alerting", "scheduler-external, alerting", " alerting"])
+def test_staging_selected_alertmanager_accepts_compose_owned_readable_file(
+    tmp_path: Path, profiles: str
+) -> None:
+    env, _log_file = _staging_deploy_fixture(tmp_path)
+    key = Path(env["PROJECT_DIR"]) / "secrets/alertmanager_smtp_key"
+    key.write_text("synthetic-only", encoding="ascii")
+    key.chmod(0o444)
+    env["COMPOSE_PROFILES"] = profiles
+    result = subprocess.run(
+        [
+            str(REPO_ROOT / "scripts/deploy.sh"),
+            "--preflight-only",
+            "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "a" * 64,
+            "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "b" * 64,
+        ],
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+
+
+@pytest.mark.parametrize(
+    ("relative_path", "old", "new", "expected"),
+    (
+        (
+            "prometheus/prometheus.yml",
+            "alertmanager:9093",
+            "alertmanager:9094",
+            "Prometheus configuration differs from the admitted complete file",
+        ),
+        (
+            "prometheus/prometheus.yml",
+            "metric_relabel_configs:",
+            "metric_relabel_configs:\n      - action: labeldrop\n        regex: ^other$",
+            "Prometheus configuration differs from the admitted complete file",
+        ),
+        (
+            "prometheus/alias-alerts.yml",
+            "      labels:",
+            "      labels:\n        environment: attacker",
+            "Prometheus rules differ from the admitted complete file",
+        ),
+        (
+            "alertmanager/trivy-ignore.yaml",
+            "grpc@v1.83.1",
+            "grpc@v1.83.2",
+            "Alertmanager Trivy exception differs from the admitted complete file",
+        ),
+        (
+            "alertmanager/trivy-ignore.yaml",
+            "expired_at: 2026-10-24",
+            "expired_at: 2026-10-24\n  - id: CVE-2099-00000",
+            "Alertmanager Trivy exception differs from the admitted complete file",
+        ),
+    ),
+)
+def test_staging_alertmanager_complete_file_admission_rejects_drift_before_pull(
+    tmp_path: Path, relative_path: str, old: str, new: str, expected: str
+) -> None:
+    env, log_file = _staging_deploy_fixture(tmp_path)
+    path = Path(env["PROJECT_DIR"]) / relative_path
+    original = path.read_text(encoding="utf-8")
+    assert old in original
+    path.write_text(original.replace(old, new, 1), encoding="utf-8")
+    completed = subprocess.run(
+        [
+            str(REPO_ROOT / "scripts/deploy.sh"),
+            "--preflight-only",
+            "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "a" * 64,
+            "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "b" * 64,
+        ],
+        cwd=REPO_ROOT,
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert completed.returncode != 0
+    assert expected in completed.stderr
+    assert all(
+        " pull " not in line and " up " not in line for line in log_file.read_text().splitlines()
+    )
+
+
+@pytest.mark.parametrize(
+    ("service_name", "fault", "expected"),
+    (
+        ("worker", "egress", "SMTP egress leaked to another service"),
+        ("unreviewed", "egress", "SMTP egress leaked to another service"),
+        ("unreviewed", "secret", "SMTP secret leaked to another service"),
+        ("unreviewed", "alias-secret", "SMTP secret leaked to another service"),
+        ("worker", "network-mode", "Another service may not share Alertmanager network namespace"),
+        ("worker", "bind-source", "SMTP key bind mount leaked to another service"),
+        ("worker", "bind-target", "SMTP key bind mount leaked to another service"),
+        (
+            "alertmanager",
+            "internal-egress",
+            "SMTP egress must be a non-internal, non-external bridge",
+        ),
+        (
+            "alertmanager",
+            "external-egress",
+            "SMTP egress must be a non-internal, non-external bridge",
+        ),
+    ),
+)
+def test_staging_all_profile_alertmanager_security_denies_forged_service_or_network(
+    tmp_path: Path, service_name: str, fault: str, expected: str
+) -> None:
+    env, log_file = _staging_deploy_fixture(tmp_path)
+    payload = json.loads(env["STUB_PROMETHEUS_COMPOSE_JSON"])
+    if fault == "internal-egress":
+        payload["networks"]["smtp-egress"]["internal"] = True
+    elif fault == "external-egress":
+        payload["networks"]["smtp-egress"]["external"] = True
+    else:
+        service = payload["services"].setdefault(service_name, {})
+        if fault == "egress":
+            service["networks"] = {"smtp-egress": {}}
+        elif fault == "network-mode":
+            service.pop("networks", None)
+            service["network_mode"] = "service:alertmanager"
+        elif fault in {"bind-source", "bind-target"}:
+            service["volumes"] = [
+                {
+                    "type": "bind",
+                    "source": (
+                        str(Path(env["PROJECT_DIR"]) / "secrets/alertmanager_smtp_key")
+                        if fault == "bind-source"
+                        else str(tmp_path / "unrelated")
+                    ),
+                    "target": (
+                        "/run/secrets/alertmanager_smtp_key"
+                        if fault == "bind-target"
+                        else "/run/secrets/other"
+                    ),
+                    "read_only": True,
+                }
+            ]
+        elif fault == "alias-secret":
+            payload["secrets"]["alias"] = {
+                "file": str(Path(env["PROJECT_DIR"]) / "secrets/alertmanager_smtp_key")
+            }
+            service["secrets"] = [{"source": "alias", "target": "/run/secrets/alias"}]
+        else:
+            service["secrets"] = [{"source": "alertmanager_smtp_key"}]
+    env["STUB_PROMETHEUS_COMPOSE_JSON"] = json.dumps(payload)
+    completed = subprocess.run(
+        [
+            str(REPO_ROOT / "scripts/deploy.sh"),
+            "--preflight-only",
+            "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "a" * 64,
+            "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "b" * 64,
+        ],
+        cwd=REPO_ROOT,
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert completed.returncode != 0
+    assert expected in completed.stderr
+    log = log_file.read_text().splitlines()
+    assert any(line.endswith("--profile * config --format json") for line in log)
+    assert all(" pull " not in line and " up " not in line for line in log)
+
+
+@pytest.mark.parametrize("profiles", ["alerting", "scheduler-external, alerting", " alerting"])
+def test_staging_selected_alertmanager_key_must_be_nonempty(tmp_path: Path, profiles: str) -> None:
+    env, log_file = _staging_deploy_fixture(tmp_path)
+    key = Path(env["PROJECT_DIR"]) / "secrets/alertmanager_smtp_key"
+    key.touch()
+    key.chmod(0o444)
+    env["COMPOSE_PROFILES"] = profiles
+    completed = subprocess.run(
+        [
+            str(REPO_ROOT / "scripts/deploy.sh"),
+            "--preflight-only",
+            "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "a" * 64,
+            "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "b" * 64,
+        ],
+        cwd=REPO_ROOT,
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert completed.returncode != 0
+    assert "nonempty regular SMTP key" in completed.stderr
+    assert all(
+        " pull " not in line and " up " not in line for line in log_file.read_text().splitlines()
+    )
+
+
+@pytest.mark.parametrize("profiles", ["alerting", "scheduler-external, alerting", " alerting"])
+def test_staging_selected_alertmanager_missing_image_fails_before_product_mutation(
+    tmp_path: Path,
+    profiles: str,
+) -> None:
+    env, log_file = _staging_deploy_fixture(tmp_path)
+    key = Path(env["PROJECT_DIR"]) / "secrets/alertmanager_smtp_key"
+    key.write_text("synthetic-only", encoding="ascii")
+    key.chmod(0o444)
+    env["COMPOSE_PROFILES"] = profiles
+    env["STUB_ALERTMANAGER_IMAGE_ABSENT"] = "1"
+    completed = subprocess.run(
+        [
+            str(REPO_ROOT / "scripts/deploy.sh"),
+            "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "a" * 64,
+            "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "b" * 64,
+        ],
+        cwd=REPO_ROOT,
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert completed.returncode == 91, completed.stderr
+    log = log_file.read_text().splitlines()
+    assert any("pull alertmanager" in line for line in log)
+    assert all(" stop " not in line and " up " not in line for line in log)
 
 
 @pytest.mark.parametrize(
@@ -3520,7 +4021,11 @@ def test_three_compose_contours_normalize_to_one_private_prometheus_contract(
         if compose_path == STAGING_COMPOSE_PATH
         else {"web", "observability"}
     )
-    assert set(prometheus["networks"]) == {"observability"}
+    assert set(prometheus["networks"]) == {"observability", "alerting"}
+    assert prometheus["environment"] == [
+        "PULSEPLATE_ENVIRONMENT="
+        + ("staging" if compose_path == STAGING_COMPOSE_PATH else "production")
+    ]
     assert prometheus["image"] == PROMETHEUS_RUNTIME_REF
     assert prometheus["platform"] == "linux/amd64"
     assert prometheus["user"] == "65532:65532"
@@ -3564,6 +4069,36 @@ def test_three_compose_contours_normalize_to_one_private_prometheus_contract(
     ]
     assert prometheus["secrets"][0] in services["app"]["secrets"]
     assert "prometheus" not in services["app"].get("depends_on", {})
+    alertmanager = services["alertmanager"]
+    assert alertmanager["image"] == ALERTMANAGER_RUNTIME_REF
+    assert alertmanager["profiles"] == ["alerting"]
+    assert alertmanager["platform"] == "linux/amd64"
+    assert alertmanager["user"] == "65534:65534"
+    assert alertmanager["read_only"] is True
+    assert alertmanager["cap_drop"] == ["ALL"]
+    assert alertmanager["security_opt"] == ["no-new-privileges:true"]
+    assert alertmanager["networks"] == {
+        "alerting": {"gw_priority": 1},
+        "smtp-egress": {"gw_priority": 2},
+    }
+    assert normalized["networks"]["alerting"]["internal"] is True
+    assert normalized["networks"]["smtp-egress"].get("internal", False) is False
+    assert "ports" not in alertmanager
+    assert "--cluster.listen-address=" in alertmanager["command"]
+    assert alertmanager["healthcheck"]["test"] == [
+        "CMD",
+        "/bin/wget",
+        "-q",
+        "-T",
+        "5",
+        "-O",
+        "/dev/null",
+        "http://127.0.0.1:9093/-/ready",
+    ]
+    assert alertmanager["secrets"] == [
+        {"source": "alertmanager_smtp_key", "target": "/run/secrets/alertmanager_smtp_key"}
+    ]
+    assert "alertmanager" not in services["app"].get("depends_on", {})
     for service_name in ("caddy", "worker", "postgres"):
         service = services.get(service_name)
         if isinstance(service, dict):
@@ -3571,6 +4106,105 @@ def test_three_compose_contours_normalize_to_one_private_prometheus_contract(
             if compose_path != STAGING_COMPOSE_PATH or service_name == "caddy":
                 assert "secrets" not in service
     assert "prometheus_data" in normalized["volumes"]
+
+
+@pytest.mark.parametrize(
+    "compose_path",
+    (STAGING_COMPOSE_PATH, PRODUCTION_COMPOSE_PATH, SELF_HOSTED_COMPOSE_PATH),
+)
+def test_three_compose_contours_preserve_smtp_default_gateway_in_normal_config(
+    compose_path: Path,
+    tmp_path: Path,
+) -> None:
+    docker_bin = shutil.which("docker")
+    assert docker_bin is not None, "native Docker Compose is required for gateway admission"
+    native_env = os.environ.copy()
+    source = compose_path.read_text(encoding="utf-8")
+    native_compose = tmp_path / compose_path.name
+    native_compose.write_bytes(compose_path.read_bytes())
+    assert native_compose.read_bytes() == compose_path.read_bytes()
+    required_names = set(re.findall(r"\$\{([A-Z][A-Z0-9_]*)(?::[^}]*)?\}", source))
+    native_env.update({name: "synthetic" for name in required_names})
+    staging_env_file = tmp_path / ".env"
+    staging_env_file.write_text("", encoding="utf-8")
+    native_env["STAGING_ENV_FILE"] = str(staging_env_file)
+    native_env["COMPOSE_PROFILES"] = ""
+    for image_name in ("IMAGE_REF", "STAGING_IMAGE_REF", "STAGING_CADDY_IMAGE_REF"):
+        native_env[image_name] = "ghcr.io/example/pulseplate@sha256:" + "a" * 64
+    completed = subprocess.run(
+        [
+            docker_bin,
+            "compose",
+            "--project-directory",
+            str(tmp_path),
+            "--env-file",
+            str(staging_env_file),
+            "-f",
+            str(native_compose),
+            "--profile",
+            "*",
+            "config",
+            "--no-env-resolution",
+            "--format",
+            "json",
+        ],
+        cwd=REPO_ROOT,
+        env=native_env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert completed.returncode == 0, completed.stderr
+    assert json.loads(completed.stdout)["services"]["alertmanager"]["networks"] == {
+        "alerting": {"gw_priority": 1},
+        "smtp-egress": {"gw_priority": 2},
+    }
+
+
+@pytest.mark.parametrize("contour", ("staging", "production"))
+@pytest.mark.parametrize(
+    "fault",
+    (
+        "missing-alerting",
+        "missing-smtp",
+        "equal",
+        "reversed",
+        "bool",
+        "string",
+        "extra-network",
+    ),
+)
+def test_alertmanager_gateway_priority_admission_fails_closed(
+    tmp_path: Path, contour: str, fault: str
+) -> None:
+    env, argv, log_file, _project = _alertmanager_dependency_fixture(tmp_path, contour)
+    payload = json.loads(env["STUB_PROMETHEUS_COMPOSE_JSON"])
+    attachments = payload["services"]["alertmanager"]["networks"]
+    if fault == "missing-alerting":
+        attachments["alerting"].pop("gw_priority")
+    elif fault == "missing-smtp":
+        attachments["smtp-egress"].pop("gw_priority")
+    elif fault == "equal":
+        attachments["smtp-egress"]["gw_priority"] = 1
+    elif fault == "reversed":
+        attachments["smtp-egress"]["gw_priority"] = 0
+    elif fault == "bool":
+        attachments["smtp-egress"]["gw_priority"] = True
+    elif fault == "string":
+        attachments["smtp-egress"]["gw_priority"] = "2"
+    else:
+        attachments["other"] = {"gw_priority": 3}
+    env["STUB_PROMETHEUS_COMPOSE_JSON"] = json.dumps(payload)
+    completed = subprocess.run(
+        argv, cwd=REPO_ROOT, env=env, capture_output=True, text=True, check=False
+    )
+    assert completed.returncode != 0
+    assert (
+        "Alertmanager networks are not canonical"
+        if fault == "extra-network"
+        else "Alertmanager SMTP egress must be the explicit highest-priority gateway"
+    ) in completed.stderr
+    _assert_dependency_admission_has_no_product_effect(log_file)
 
 
 @pytest.mark.parametrize(
@@ -3837,6 +4471,15 @@ def _staging_compose_fixture_json(project_dir: Path = Path("/srv/pulseplate-stag
             "POSTGRES_PASSWORD_FILE": "/run/secrets/postgres_password",
         }
     )
+    payload["services"]["prometheus"]["environment"]["PULSEPLATE_ENVIRONMENT"] = "staging"
+    payload["services"]["alertmanager"]["volumes"] = [
+        {
+            "type": "bind",
+            "source": str(project_dir / "alertmanager/alertmanager.yml"),
+            "target": "/etc/alertmanager/alertmanager.yml",
+            "read_only": True,
+        }
+    ]
     local_database_url = "postgresql+psycopg://pulseplate@postgres:5432/pulseplate?sslmode=verify-full&sslrootcert=/run/secrets/postgres_ca&passfile=/run/secrets/postgres_pgpass"
     for name in ("app", "worker"):
         payload["services"][name] = {
@@ -3846,9 +4489,10 @@ def _staging_compose_fixture_json(project_dir: Path = Path("/srv/pulseplate-stag
                 "PGPASSFILE": "/run/secrets/postgres_pgpass",
             }
         }
+    payload["services"]["app"]["networks"] = {"web": {}, "observability": {}, "database": {}}
     payload["services"]["postgres"]["command"] = POSTGRES_COMMAND
     payload["services"]["postgres"]["networks"] = {"database": {}}
-    payload["networks"] = {"database": {"internal": True}}
+    payload["networks"]["database"] = {"internal": True}
     for name, directory in (("postgres_data", "postgres"), ("prometheus_data", "prometheus")):
         payload["volumes"].setdefault(name, {})
         payload["volumes"][name].update(
@@ -3870,6 +4514,7 @@ def _staging_compose_fixture_json(project_dir: Path = Path("/srv/pulseplate-stag
             "postgres_password",
             "postgres_pgpass",
             "pulseplate_metrics_scrape_key",
+            "alertmanager_smtp_key",
         )
     }
     return json.dumps(payload, separators=(",", ":"))
@@ -3901,19 +4546,63 @@ def _write_executable(path: Path, content: str) -> None:
       if [ "$previous" = --profile ] && [ "$argument" = '*' ]; then all_profiles=true; fi
       previous="$argument"
     done
-    STUB_ALL_PROFILES="$all_profiles" {shlex.quote(sys.executable)} - <<'PY_COMPOSE_MODEL'
-import json, os
-raw = os.environ.get("STUB_PROMETHEUS_COMPOSE_JSON", {FAKE_STAGING_COMPOSE_JSON!r})
+    STUB_ALL_PROFILES="$all_profiles" STUB_COMPOSE_ARGS="$*" {shlex.quote(sys.executable)} - <<'PY_COMPOSE_MODEL'
+import json, os, re
+from pathlib import Path
+default = ({FAKE_STAGING_COMPOSE_JSON!r} if "docker-compose.staging.yaml" in os.environ["STUB_COMPOSE_ARGS"]
+           else {FAKE_PROMETHEUS_COMPOSE_JSON!r})
+raw = os.environ.get("STUB_PROMETHEUS_COMPOSE_JSON", default)
 try:
     payload = json.loads(raw)
 except json.JSONDecodeError:
     print(raw)
     raise SystemExit(0)
+if "STUB_PROMETHEUS_COMPOSE_JSON" not in os.environ and isinstance(payload, dict):
+    match = re.search(r"-f\\s+(\\S+)", os.environ["STUB_COMPOSE_ARGS"])
+    if match:
+        compose = Path(match.group(1))
+        payload["name"] = compose.parent.name
+        if os.environ.get("STUB_INSTALLED_NO_ALERTMANAGER") == str(compose.resolve()):
+            payload["services"].pop("alertmanager", None)
+        else:
+            payload["services"]["alertmanager"]["volumes"] = [{{
+                "type": "bind", "source": str(compose.parent / "alertmanager/alertmanager.yml"),
+                "target": "/etc/alertmanager/alertmanager.yml", "read_only": True
+            }}]
+        payload["secrets"]["alertmanager_smtp_key"]["file"] = str(
+            compose.parent / "secrets/alertmanager_smtp_key"
+        )
+if "STUB_COMPOSE_PROJECT_NAME" in os.environ and isinstance(payload, dict):
+    payload["name"] = os.environ["STUB_COMPOSE_PROJECT_NAME"]
 if os.environ["STUB_ALL_PROFILES"] != "true" and isinstance(payload, dict):
     services = payload.get("services")
     if isinstance(services, dict): services.pop("worker", None)
 print(json.dumps(payload))
 PY_COMPOSE_MODEL
+    ;;
+  *"ps --all --quiet alertmanager"*)
+    printf '%s\\n' 'no such service: alertmanager' >&2
+    exit 97
+    ;;
+  *"ps --all --no-trunc --quiet --filter label=com.docker.compose.project="*"--filter label=com.docker.compose.service=alertmanager"*)
+    if [ -n "${{STUB_CENSUS_LOG:-}}" ]; then
+      printf 'docker %s\\n' "$*" >> "$STUB_CENSUS_LOG"
+    fi
+    if [ "${{STUB_ALERTMANAGER_PS_STATUS:-0}}" -ne 0 ]; then
+      exit "${{STUB_ALERTMANAGER_PS_STATUS}}"
+    fi
+    printf '%s' "${{STUB_ALERTMANAGER_PS_IDS:-}}"
+    exit 0
+    ;;
+  inspect\\ {'e' * 64}*)
+    if [ -n "${{STUB_CENSUS_LOG:-}}" ]; then
+      printf 'docker %s\\n' "$*" >> "$STUB_CENSUS_LOG"
+    fi
+    if [ "${{STUB_ALERTMANAGER_INSPECT_STATUS:-0}}" -ne 0 ]; then
+      exit "${{STUB_ALERTMANAGER_INSPECT_STATUS}}"
+    fi
+    printf '%s\\n' "${{STUB_ALERTMANAGER_INSPECT_JSON:-invalid-inspect-json}}"
+    exit 0
     ;;
   run\\ --rm\\ --platform\\ linux/amd64\\ --user\\ 70:70\\ *)
     if [ "${{STUB_POSTGRES_MOUNTPOINT_STATUS:-0}}" -ne 0 ]; then
@@ -4046,6 +4735,9 @@ PY_COMPOSE_MODEL
     else
       printf '%s\\n' '{FAKE_POSTGRES_IMAGE_INSPECT_JSON}'
     fi
+    ;;
+  image\\ inspect\\ *alertmanager*)
+    printf '%s\\n' '{FAKE_ALERTMANAGER_IMAGE_INSPECT_JSON}'
     ;;
   image\\ inspect\\ {POSTGRES_CONFIG_DIGEST})
     printf '%s\\n' 'unexpected bare-ID image inspect' >&2
@@ -4238,6 +4930,1161 @@ def test_production_shell_bundle_rejects_invalid_rules_before_docker(
     )
     assert result.returncode != 0
     assert "Incoming Prometheus rules" in result.stderr
+    assert not log_file.exists()
+
+
+@pytest.mark.parametrize(
+    ("relative_path", "label", "variant"),
+    (
+        ("alertmanager.yml", "Incoming Alertmanager configuration", "missing"),
+        ("alertmanager.yml", "Incoming Alertmanager configuration", "symlink"),
+        ("trivy-ignore.yaml", "Incoming Alertmanager Trivy exception", "missing"),
+        ("trivy-ignore.yaml", "Incoming Alertmanager Trivy exception", "symlink"),
+    ),
+)
+def test_production_bundle_rejects_invalid_alertmanager_source_before_docker(
+    tmp_path: Path, relative_path: str, label: str, variant: str
+) -> None:
+    env, _project_dir, log_file, shell_bundle_dir = _production_preflight_fixture(
+        tmp_path, with_bundle=True
+    )
+    assert shell_bundle_dir is not None
+    source = shell_bundle_dir / "deploy/alertmanager" / relative_path
+    if variant == "missing":
+        source.unlink()
+    else:
+        target = source.with_suffix(source.suffix + ".real")
+        source.rename(target)
+        source.symlink_to(target)
+    result = subprocess.run(
+        [str(REPO_ROOT / "scripts/deploy_production.sh"), "--preflight-only"],
+        cwd=str(REPO_ROOT),
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode != 0
+    assert label in result.stderr
+    assert not log_file.exists()
+
+
+@pytest.mark.parametrize("profiles", ["alerting", "scheduler-external, alerting", " alerting"])
+def test_production_selected_alertmanager_requires_smtp_key_before_docker(
+    tmp_path: Path, profiles: str
+) -> None:
+    env, _project_dir, log_file, _bundle = _production_preflight_fixture(
+        tmp_path, with_bundle=False
+    )
+    env["COMPOSE_PROFILES"] = profiles
+    result = subprocess.run(
+        [str(REPO_ROOT / "scripts/deploy_production.sh"), "--preflight-only"],
+        cwd=str(REPO_ROOT),
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode != 0
+    assert "Selected Alertmanager requires a regular non-symlink SMTP key" in result.stderr
+    assert not log_file.exists()
+
+
+@pytest.mark.parametrize("mode", (0o444, 0o600))
+def test_production_selected_alertmanager_secret_metadata(tmp_path: Path, mode: int) -> None:
+    env, project_dir, _log_file, _bundle = _production_preflight_fixture(
+        tmp_path, with_bundle=False
+    )
+    key = project_dir / "deploy/secrets/alertmanager_smtp_key"
+    key.write_text("synthetic-only", encoding="ascii")
+    key.chmod(mode)
+    env["COMPOSE_PROFILES"] = "alerting"
+    result = subprocess.run(
+        [str(REPO_ROOT / "scripts/deploy_production.sh"), "--preflight-only"],
+        cwd=str(REPO_ROOT),
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert (result.returncode == 0) is (mode == 0o444), result.stderr
+    if mode != 0o444:
+        assert "Compose account with mode 0444" in result.stderr
+
+
+@pytest.mark.parametrize("profiles", ["alerting", "scheduler-external, alerting", " alerting"])
+def test_production_selected_alertmanager_key_must_be_nonempty(
+    tmp_path: Path, profiles: str
+) -> None:
+    env, project_dir, log_file, _bundle = _production_preflight_fixture(tmp_path, with_bundle=False)
+    key = project_dir / "deploy/secrets/alertmanager_smtp_key"
+    key.touch()
+    key.chmod(0o444)
+    env["COMPOSE_PROFILES"] = profiles
+    completed = subprocess.run(
+        [str(REPO_ROOT / "scripts/deploy_production.sh"), "--preflight-only"],
+        cwd=REPO_ROOT,
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert completed.returncode != 0
+    assert "nonempty regular SMTP key" in completed.stderr
+    if log_file.exists():
+        assert all(
+            " pull " not in line and " up " not in line
+            for line in log_file.read_text().splitlines()
+        )
+
+
+@pytest.mark.parametrize("with_bundle", [False, True])
+@pytest.mark.parametrize(
+    ("relative_path", "old", "new", "expected"),
+    (
+        (
+            "prometheus/prometheus.yml",
+            "alertmanager:9093",
+            "alertmanager:9094",
+            "Prometheus configuration differs from the admitted complete file",
+        ),
+        (
+            "prometheus/alias-alerts.yml",
+            "      labels:",
+            "      labels:\n        environment: attacker",
+            "Prometheus rules differ from the admitted complete file",
+        ),
+        (
+            "alertmanager/trivy-ignore.yaml",
+            "grpc@v1.83.1",
+            "grpc@v1.83.2",
+            "Alertmanager Trivy exception differs from the admitted complete file",
+        ),
+    ),
+)
+def test_production_alertmanager_complete_file_admission_rejects_drift_before_pull(
+    tmp_path: Path, with_bundle: bool, relative_path: str, old: str, new: str, expected: str
+) -> None:
+    env, project_dir, log_file, bundle = _production_preflight_fixture(
+        tmp_path, with_bundle=with_bundle
+    )
+    source_dir = bundle if bundle is not None else project_dir
+    path = source_dir / "deploy" / relative_path
+    original = path.read_text(encoding="utf-8")
+    assert old in original
+    path.write_text(original.replace(old, new, 1), encoding="utf-8")
+    completed = subprocess.run(
+        [str(REPO_ROOT / "scripts/deploy_production.sh"), "--preflight-only"],
+        cwd=REPO_ROOT,
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert completed.returncode != 0
+    assert expected in completed.stderr
+    if log_file.exists():
+        assert all(
+            " pull " not in line and " up " not in line
+            for line in log_file.read_text().splitlines()
+        )
+
+
+@pytest.mark.parametrize(
+    ("service_name", "fault", "expected"),
+    (
+        ("worker", "egress", "SMTP egress leaked to another service"),
+        ("unreviewed", "secret", "SMTP secret leaked to another service"),
+        ("unreviewed", "alias-secret", "SMTP secret leaked to another service"),
+        ("worker", "network-mode", "Another service may not share Alertmanager network namespace"),
+        ("worker", "bind-source", "SMTP key bind mount leaked to another service"),
+        ("worker", "bind-target", "SMTP key bind mount leaked to another service"),
+        (
+            "alertmanager",
+            "internal-egress",
+            "SMTP egress must be a non-internal, non-external bridge",
+        ),
+    ),
+)
+def test_production_all_profile_alertmanager_security_denies_forged_service_or_network(
+    tmp_path: Path, service_name: str, fault: str, expected: str
+) -> None:
+    env, project_dir, log_file, _bundle = _production_preflight_fixture(tmp_path, with_bundle=False)
+    payload = json.loads(FAKE_PROMETHEUS_COMPOSE_JSON)
+    payload["services"]["alertmanager"]["volumes"] = [
+        {
+            "type": "bind",
+            "source": str(project_dir / "deploy/alertmanager/alertmanager.yml"),
+            "target": "/etc/alertmanager/alertmanager.yml",
+            "read_only": True,
+        }
+    ]
+    payload["secrets"]["alertmanager_smtp_key"]["file"] = str(
+        project_dir / "deploy/secrets/alertmanager_smtp_key"
+    )
+    if fault == "internal-egress":
+        payload["networks"]["smtp-egress"]["internal"] = True
+    else:
+        service = payload["services"].setdefault(service_name, {})
+        if fault == "egress":
+            service["networks"] = {"smtp-egress": {}}
+        elif fault == "network-mode":
+            service.pop("networks", None)
+            service["network_mode"] = "service:alertmanager"
+        elif fault in {"bind-source", "bind-target"}:
+            service["volumes"] = [
+                {
+                    "type": "bind",
+                    "source": (
+                        str(project_dir / "deploy/secrets/alertmanager_smtp_key")
+                        if fault == "bind-source"
+                        else str(tmp_path / "unrelated")
+                    ),
+                    "target": (
+                        "/run/secrets/alertmanager_smtp_key"
+                        if fault == "bind-target"
+                        else "/run/secrets/other"
+                    ),
+                    "read_only": True,
+                }
+            ]
+        elif fault == "alias-secret":
+            payload["secrets"]["alias"] = {
+                "file": str(project_dir / "deploy/secrets/alertmanager_smtp_key")
+            }
+            service["secrets"] = [{"source": "alias", "target": "/run/secrets/alias"}]
+        else:
+            service["secrets"] = [{"source": "alertmanager_smtp_key"}]
+    env["STUB_PROMETHEUS_COMPOSE_JSON"] = json.dumps(payload)
+    completed = subprocess.run(
+        [str(REPO_ROOT / "scripts/deploy_production.sh"), "--preflight-only"],
+        cwd=REPO_ROOT,
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert completed.returncode != 0
+    assert expected in completed.stderr
+    log = log_file.read_text().splitlines()
+    assert any(line.endswith("--profile * config --format json") for line in log)
+    assert all(" pull " not in line and " up " not in line for line in log)
+
+
+@pytest.mark.parametrize("contour", ["staging", "production"])
+@pytest.mark.parametrize(
+    ("utc_instant", "selected_allowed"),
+    [
+        ("2026-10-23T23:59:59+00:00", True),
+        ("2026-10-24T00:00:00+00:00", False),
+        ("2026-10-24T00:00:01+00:00", False),
+    ],
+)
+def test_selected_alertmanager_utc_waiver_boundary_and_off_profile_independence(
+    tmp_path: Path, contour: str, utc_instant: str, selected_allowed: bool
+) -> None:
+    if contour == "staging":
+        env, log_file = _staging_deploy_fixture(tmp_path)
+        key = Path(env["PROJECT_DIR"]) / "secrets/alertmanager_smtp_key"
+        source = REPO_ROOT / "scripts/deploy.sh"
+        args = [
+            "--preflight-only",
+            "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "a" * 64,
+            "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "b" * 64,
+        ]
+    else:
+        env, project_dir, log_file, _bundle = _production_preflight_fixture(
+            tmp_path, with_bundle=False
+        )
+        key = project_dir / "deploy/secrets/alertmanager_smtp_key"
+        source = REPO_ROOT / "scripts/deploy_production.sh"
+        args = ["--preflight-only"]
+    original = source.read_text(encoding="utf-8")
+    clock_expression = "datetime.now(timezone.utc)"
+    assert original.count(clock_expression) == 1
+    observed_date_script = tmp_path / f"{contour}-observed-date-deploy.sh"
+    observed_date_script.write_text(
+        original.replace(clock_expression, f'datetime.fromisoformat("{utc_instant}")'),
+        encoding="utf-8",
+    )
+    observed_date_script.chmod(0o755)
+    key.write_text("synthetic-only", encoding="ascii")
+    key.chmod(0o444)
+    env["COMPOSE_PROFILES"] = "scheduler-external, alerting"
+    selected = subprocess.run(
+        [str(observed_date_script), *args],
+        cwd=REPO_ROOT,
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert (selected.returncode == 0) is selected_allowed, selected.stderr
+    if not selected_allowed:
+        assert "Alertmanager Trivy exception has expired" in selected.stderr
+    key.unlink()
+    env.pop("COMPOSE_PROFILES", None)
+    off = subprocess.run(
+        [str(observed_date_script), *args],
+        cwd=REPO_ROOT,
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert off.returncode == 0, off.stderr
+    if log_file.exists():
+        assert all(
+            " pull " not in line and " up " not in line
+            for line in log_file.read_text().splitlines()
+        )
+
+
+def _alertmanager_dependency_fixture(
+    tmp_path: Path, contour: str
+) -> tuple[dict[str, str], list[str], Path, Path]:
+    if contour == "staging":
+        env, log_file = _staging_deploy_fixture(tmp_path)
+        project_dir = Path(env["PROJECT_DIR"])
+        argv = [
+            str(REPO_ROOT / "scripts/deploy.sh"),
+            "--preflight-only",
+            "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "a" * 64,
+            "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "b" * 64,
+        ]
+    else:
+        env, project_dir, log_file, _bundle = _production_preflight_fixture(
+            tmp_path, with_bundle=False
+        )
+        payload = json.loads(FAKE_PROMETHEUS_COMPOSE_JSON)
+        payload["name"] = "production"
+        payload["services"]["alertmanager"]["volumes"] = [
+            {
+                "type": "bind",
+                "source": str(project_dir / "deploy/alertmanager/alertmanager.yml"),
+                "target": "/etc/alertmanager/alertmanager.yml",
+                "read_only": True,
+            }
+        ]
+        payload["secrets"]["alertmanager_smtp_key"]["file"] = str(
+            project_dir / "deploy/secrets/alertmanager_smtp_key"
+        )
+        env["STUB_PROMETHEUS_COMPOSE_JSON"] = json.dumps(payload)
+        argv = [str(REPO_ROOT / "scripts/deploy_production.sh"), "--preflight-only"]
+    env["COMPOSE_PROFILES"] = ""
+    return env, argv, log_file, project_dir
+
+
+def _assert_dependency_admission_has_no_product_effect(log_file: Path) -> None:
+    calls = log_file.read_text(encoding="utf-8").splitlines()
+    assert any(call.endswith("--profile * config --format json") for call in calls)
+    assert not any(
+        token in call
+        for call in calls
+        for token in (
+            " login ",
+            " pull ",
+            " run ",
+            " stop ",
+            " start ",
+            " up ",
+            "alembic",
+            "postgres_backup",
+        )
+    )
+
+
+@pytest.mark.parametrize("contour", ["staging", "production"])
+@pytest.mark.parametrize(
+    ("service_name", "condition", "required", "restart", "indirect"),
+    [
+        ("app", "service_started", True, False, False),
+        ("app", "service_healthy", True, True, False),
+        ("app", "service_completed_successfully", True, False, False),
+        ("app", "service_started", False, False, False),
+        ("app", "service_healthy", False, True, False),
+        ("app", "service_completed_successfully", False, False, False),
+        ("prometheus", "service_healthy", True, False, False),
+        ("worker", "service_started", False, True, False),
+        ("inactive-helper", "service_started", False, False, False),
+        ("inactive-helper", "service_started", False, False, True),
+    ],
+)
+def test_alertmanager_dependency_admission_rejects_every_incoming_edge(
+    tmp_path: Path,
+    contour: str,
+    service_name: str,
+    condition: str,
+    required: bool,
+    restart: bool,
+    indirect: bool,
+) -> None:
+    env, argv, log_file, _project = _alertmanager_dependency_fixture(tmp_path, contour)
+    payload = json.loads(env["STUB_PROMETHEUS_COMPOSE_JSON"])
+    service = payload["services"].setdefault(service_name, {})
+    if service_name == "inactive-helper":
+        service["profiles"] = ["unselected"]
+    service["depends_on"] = {
+        "alertmanager": {"condition": condition, "required": required, "restart": restart}
+    }
+    if indirect:
+        payload["services"]["app"]["depends_on"] = {
+            service_name: {"condition": "service_started", "required": True}
+        }
+    env["STUB_PROMETHEUS_COMPOSE_JSON"] = json.dumps(payload)
+    completed = subprocess.run(
+        argv, cwd=REPO_ROOT, env=env, capture_output=True, text=True, check=False
+    )
+    assert completed.returncode != 0
+    assert "Another service may not depend on Alertmanager" in completed.stderr
+    _assert_dependency_admission_has_no_product_effect(log_file)
+
+
+@pytest.mark.parametrize("contour", ["staging", "production"])
+@pytest.mark.parametrize("bad_value", [None, [], "", 0, False])
+@pytest.mark.parametrize("shape", ["map", "edge"])
+def test_alertmanager_dependency_admission_rejects_malformed_normalized_graph(
+    tmp_path: Path, contour: str, bad_value: object, shape: str
+) -> None:
+    env, argv, log_file, _project = _alertmanager_dependency_fixture(tmp_path, contour)
+    payload = json.loads(env["STUB_PROMETHEUS_COMPOSE_JSON"])
+    payload["services"]["app"]["depends_on"] = (
+        bad_value if shape == "map" else {"postgres": bad_value}
+    )
+    env["STUB_PROMETHEUS_COMPOSE_JSON"] = json.dumps(payload)
+    completed = subprocess.run(
+        argv, cwd=REPO_ROOT, env=env, capture_output=True, text=True, check=False
+    )
+    assert completed.returncode != 0
+    assert "Rendered Compose dependency map is malformed" in completed.stderr
+    _assert_dependency_admission_has_no_product_effect(log_file)
+
+
+@pytest.mark.parametrize("contour", ["staging", "production"])
+def test_alertmanager_dependency_admission_rejects_empty_incoming_edge_record(
+    tmp_path: Path, contour: str
+) -> None:
+    env, argv, log_file, _project = _alertmanager_dependency_fixture(tmp_path, contour)
+    payload = json.loads(env["STUB_PROMETHEUS_COMPOSE_JSON"])
+    payload["services"]["app"]["depends_on"] = {"alertmanager": {}}
+    env["STUB_PROMETHEUS_COMPOSE_JSON"] = json.dumps(payload)
+    completed = subprocess.run(
+        argv, cwd=REPO_ROOT, env=env, capture_output=True, text=True, check=False
+    )
+    assert completed.returncode != 0
+    assert "Another service may not depend on Alertmanager" in completed.stderr
+    _assert_dependency_admission_has_no_product_effect(log_file)
+
+
+@pytest.mark.parametrize("contour", ["staging", "production"])
+@pytest.mark.parametrize("bad_value", [None, [], "", 0, False])
+def test_alertmanager_dependency_admission_rejects_false_like_outgoing_map(
+    tmp_path: Path, contour: str, bad_value: object
+) -> None:
+    env, argv, log_file, _project = _alertmanager_dependency_fixture(tmp_path, contour)
+    payload = json.loads(env["STUB_PROMETHEUS_COMPOSE_JSON"])
+    payload["services"]["alertmanager"]["depends_on"] = bad_value
+    env["STUB_PROMETHEUS_COMPOSE_JSON"] = json.dumps(payload)
+    completed = subprocess.run(
+        argv, cwd=REPO_ROOT, env=env, capture_output=True, text=True, check=False
+    )
+    assert completed.returncode != 0
+    assert "Rendered Compose dependency map is malformed" in completed.stderr
+    _assert_dependency_admission_has_no_product_effect(log_file)
+
+
+@pytest.mark.parametrize("contour", ["staging", "production"])
+@pytest.mark.parametrize("selected", [False, True])
+@pytest.mark.parametrize("dependencies", ["absent", "empty", "product"])
+def test_alertmanager_dependency_admission_preserves_legitimate_product_edges_and_profiles(
+    tmp_path: Path, contour: str, selected: bool, dependencies: str
+) -> None:
+    env, argv, log_file, project = _alertmanager_dependency_fixture(tmp_path, contour)
+    payload = json.loads(env["STUB_PROMETHEUS_COMPOSE_JSON"])
+    for service in payload["services"].values():
+        service.pop("depends_on", None)
+    if dependencies == "empty":
+        for service in payload["services"].values():
+            service["depends_on"] = {}
+    elif dependencies == "product":
+        payload["services"]["app"]["depends_on"] = {
+            "postgres": {"condition": "service_healthy", "required": True}
+        }
+        payload["services"]["prometheus"]["depends_on"] = {
+            "app": {"condition": "service_started", "required": False, "restart": True}
+        }
+    env["STUB_PROMETHEUS_COMPOSE_JSON"] = json.dumps(payload)
+    secret_dir = project / ("secrets" if contour == "staging" else "deploy/secrets")
+    key = secret_dir / "alertmanager_smtp_key"
+    if selected:
+        key.write_text("synthetic-only", encoding="ascii")
+        key.chmod(0o444)
+        env["COMPOSE_PROFILES"] = "alerting"
+    else:
+        assert not key.exists()
+    completed = subprocess.run(
+        argv, cwd=REPO_ROOT, env=env, capture_output=True, text=True, check=False
+    )
+    assert completed.returncode == 0, completed.stderr
+    _assert_dependency_admission_has_no_product_effect(log_file)
+
+
+@pytest.mark.parametrize("contour", ("staging", "production"))
+@pytest.mark.parametrize(
+    ("carrier", "field"),
+    (
+        ("ipc", "ipc: service:alertmanager"),
+        ("pid", "pid: service:alertmanager"),
+        ("volumes_from", "volumes_from: [alertmanager]"),
+        ("links", "links: [alertmanager]"),
+        ("network_mode", "network_mode: service:alertmanager"),
+    ),
+)
+def test_native_compose_service_references_reject_via_normalized_dependency(
+    tmp_path: Path, contour: str, carrier: str, field: str
+) -> None:
+    docker_bin = shutil.which("docker")
+    assert docker_bin is not None, "native Docker Compose is required for reference admission"
+    compose_path = tmp_path / "native-reference.yaml"
+    compose_path.write_text(
+        "services:\n"
+        "  alertmanager:\n"
+        "    image: busybox:latest\n"
+        "    profiles: [alerting]\n"
+        "  app:\n"
+        "    image: busybox:latest\n"
+        f"    {field}\n",
+        encoding="utf-8",
+    )
+    native = subprocess.run(
+        [
+            docker_bin,
+            "compose",
+            "-f",
+            str(compose_path),
+            "--profile",
+            "*",
+            "config",
+            "--format",
+            "json",
+        ],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert native.returncode == 0, native.stderr
+    projected = json.loads(native.stdout)["services"]["app"]
+    assert "alertmanager" in projected["depends_on"], (carrier, projected)
+    assert carrier in projected
+
+    env, argv, log_file, _project = _alertmanager_dependency_fixture(tmp_path, contour)
+    payload = json.loads(env["STUB_PROMETHEUS_COMPOSE_JSON"])
+    payload["services"]["app"]["depends_on"] = projected["depends_on"]
+    payload["services"]["app"][carrier] = projected[carrier]
+    env["STUB_PROMETHEUS_COMPOSE_JSON"] = json.dumps(payload)
+    assert not env.get("COMPOSE_PROFILES")
+    completed = subprocess.run(
+        argv, cwd=REPO_ROOT, env=env, capture_output=True, text=True, check=False
+    )
+    assert completed.returncode != 0
+    assert "Another service may not depend on Alertmanager" in completed.stderr
+    _assert_dependency_admission_has_no_product_effect(log_file)
+
+
+@pytest.mark.parametrize("source_kind", ["directory", "archive"])
+def test_production_incoming_alertmanager_dependency_rejects_before_contract_publication(
+    tmp_path: Path, source_kind: str
+) -> None:
+    env, project, log_file, bundle = _production_preflight_fixture(tmp_path, with_bundle=True)
+    assert bundle is not None
+    source_compose = bundle / "deploy/docker-compose.production.yaml"
+    source = yaml.safe_load(source_compose.read_text(encoding="utf-8"))
+    source["services"]["app"]["depends_on"] = {
+        "alertmanager": {"condition": "service_healthy", "required": True}
+    }
+    source_compose.write_text(yaml.safe_dump(source, sort_keys=False), encoding="utf-8")
+    docker_stub = Path(env["DOCKER_BIN"])
+    stub_text = docker_stub.read_text(encoding="utf-8")
+    assert stub_text.count("print(json.dumps(payload))") == 1
+    docker_stub.write_text(
+        stub_text.replace(
+            "print(json.dumps(payload))",
+            "import yaml\n"
+            'source = yaml.safe_load(compose.read_text(encoding="utf-8"))\n'
+            'payload["services"]["app"]["depends_on"] = '
+            'source["services"]["app"].get("depends_on", {})\n'
+            "print(json.dumps(payload))",
+        ),
+        encoding="utf-8",
+    )
+    env.pop("STUB_PROMETHEUS_COMPOSE_JSON", None)
+    env["COMPOSE_PROFILES"] = ""
+    env["IMAGE_REF"] = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "a" * 64
+    env["TAG"] = "prod-vtest"
+    previous_backup = project / "scripts/ops/postgres_backup.sh"
+    previous_backup.parent.mkdir(parents=True)
+    previous_backup.write_text("#!/usr/bin/env bash\nexit 71\n", encoding="utf-8")
+    previous_backup.chmod(0o755)
+    installed_paths = [
+        "deploy/docker-compose.production.yaml",
+        "deploy/prometheus/prometheus.yml",
+        "deploy/prometheus/alias-alerts.yml",
+        "deploy/prometheus/image-manifest.json",
+        "deploy/alertmanager/alertmanager.yml",
+        "deploy/alertmanager/trivy-ignore.yaml",
+        "deploy/postgres-pgvector/image-manifest.json",
+        "scripts/ops/postgres_backup.sh",
+    ]
+    installed = {relative: (project / relative).read_bytes() for relative in installed_paths}
+    archive = _canonical_test_archive_path(9447)
+    if source_kind == "archive":
+        _write_shell_bundle_archive(archive, bundle)
+        env.pop("SHELL_BUNDLE_DIR", None)
+        env["SHELL_BUNDLE_ARCHIVE"] = str(archive)
+    else:
+        env.pop("SHELL_BUNDLE_ARCHIVE", None)
+    try:
+        completed = subprocess.run(
+            [str(REPO_ROOT / "scripts/deploy_production.sh")],
+            cwd=REPO_ROOT,
+            env=env,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        assert completed.returncode != 0
+        assert "Another service may not depend on Alertmanager" in completed.stderr
+        _assert_dependency_admission_has_no_product_effect(log_file)
+        assert {relative: (project / relative).read_bytes() for relative in installed_paths} == (
+            installed
+        )
+        assert not list(project.rglob(".pulseplate-*.tmp-*"))
+    finally:
+        if source_kind == "archive":
+            archive.unlink(missing_ok=True)
+
+
+def _alertmanager_census_inspect_record(
+    *,
+    status: str = "running",
+    project: str = "deploy",
+    service: str = "alertmanager",
+    full_id: str = "e" * 64,
+) -> dict[str, object]:
+    return {
+        "Id": full_id,
+        "Config": {
+            "Labels": {
+                "com.docker.compose.project": project,
+                "com.docker.compose.service": service,
+            }
+        },
+        "State": {
+            "Status": status,
+            "Running": status == "running",
+            "Restarting": status == "restarting",
+            "Paused": False,
+            "Dead": False,
+        },
+    }
+
+
+@pytest.mark.parametrize("source_kind", ("directory", "archive"))
+def test_production_first_bundle_censuses_old_project_without_installed_alertmanager(
+    tmp_path: Path, source_kind: str
+) -> None:
+    env, project, log_file, bundle = _production_preflight_fixture(tmp_path, with_bundle=True)
+    assert bundle is not None
+    installed_compose = project / "deploy/docker-compose.production.yaml"
+    old_source = yaml.safe_load(installed_compose.read_text(encoding="utf-8"))
+    old_source["services"].pop("alertmanager")
+    old_source["secrets"].pop("alertmanager_smtp_key")
+    old_source["networks"].pop("alerting")
+    old_source["networks"].pop("smtp-egress")
+    old_source["services"]["prometheus"]["networks"] = ["observability"]
+    installed_compose.write_text(yaml.safe_dump(old_source, sort_keys=False), encoding="utf-8")
+    installed_alertmanager = project / "deploy/alertmanager"
+    for leaf in ("alertmanager.yml", "trivy-ignore.yaml"):
+        (installed_alertmanager / leaf).unlink()
+    installed_alertmanager.rmdir()
+    assert (bundle / "deploy/alertmanager/alertmanager.yml").is_file()
+    assert (bundle / "deploy/alertmanager/trivy-ignore.yaml").is_file()
+    assert "alertmanager" not in yaml.safe_load(installed_compose.read_text())["services"]
+    env["STUB_INSTALLED_NO_ALERTMANAGER"] = str(installed_compose)
+    env["STUB_CENSUS_LOG"] = str(log_file)
+    env.pop("COMPOSE_PROFILES", None)
+    archive: Path | None = None
+    if source_kind == "archive":
+        archive = _canonical_test_archive_path(9448)
+        _write_shell_bundle_archive(archive, bundle)
+        env.pop("SHELL_BUNDLE_DIR", None)
+        env["SHELL_BUNDLE_ARCHIVE"] = str(archive)
+    try:
+        completed = subprocess.run(
+            [str(REPO_ROOT / "scripts/deploy_production.sh"), "--preflight-only"],
+            cwd=REPO_ROOT,
+            env=env,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        assert completed.returncode == 0, completed.stderr
+        log = log_file.read_text(encoding="utf-8").splitlines()
+        assert any(
+            "ps --all --no-trunc --quiet" in line
+            and "label=com.docker.compose.project=deploy" in line
+            and "label=com.docker.compose.service=alertmanager" in line
+            for line in log
+        ), log
+        assert all("ps --all --quiet alertmanager" not in line for line in log)
+        assert all(
+            " pull " not in line and " up " not in line and " stop " not in line for line in log
+        )
+        assert not installed_alertmanager.exists()
+    finally:
+        if archive is not None:
+            archive.unlink(missing_ok=True)
+
+
+@pytest.mark.parametrize(
+    ("presence", "utc_instant", "allowed"),
+    (
+        ("absent", "2026-10-24T00:00:01+00:00", True),
+        ("stopped", "2026-10-24T00:00:01+00:00", True),
+        ("running", "2026-10-23T23:59:59+00:00", True),
+        ("running", "2026-10-24T00:00:00+00:00", False),
+        ("running", "2026-10-24T00:00:01+00:00", False),
+    ),
+)
+def test_production_off_profile_census_only_running_alertmanager_enforces_expiry(
+    tmp_path: Path, presence: str, utc_instant: str, allowed: bool
+) -> None:
+    env, _project_dir, log_file, _bundle = _production_preflight_fixture(
+        tmp_path, with_bundle=False
+    )
+    env.pop("COMPOSE_PROFILES", None)
+    env["STUB_CENSUS_LOG"] = str(log_file)
+    source = (REPO_ROOT / "scripts/deploy_production.sh").read_text(encoding="utf-8")
+    clock_expression = "datetime.now(timezone.utc)"
+    assert source.count(clock_expression) == 1
+    script = tmp_path / "production-census-observed-clock.sh"
+    script.write_text(
+        source.replace(clock_expression, f'datetime.fromisoformat("{utc_instant}")'),
+        encoding="utf-8",
+    )
+    script.chmod(0o755)
+    if presence != "absent":
+        env["STUB_ALERTMANAGER_PS_IDS"] = "e" * 64
+        status = "running" if presence == "running" else "exited"
+        env["STUB_ALERTMANAGER_INSPECT_JSON"] = json.dumps(
+            [_alertmanager_census_inspect_record(status=status)]
+        )
+    completed = subprocess.run(
+        [str(script), "--preflight-only"],
+        cwd=REPO_ROOT,
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert (completed.returncode == 0) is allowed, completed.stderr
+    if not allowed:
+        assert "running Alertmanager Trivy exception has expired" in completed.stderr
+    log = log_file.read_text().splitlines()
+    assert any(
+        "ps --all --no-trunc --quiet --filter label=com.docker.compose.project=" in line
+        and "--filter label=com.docker.compose.service=alertmanager" in line
+        for line in log
+    )
+    assert bool([line for line in log if line.startswith("docker inspect " + "e" * 64)]) is (
+        presence != "absent"
+    )
+    assert all(" pull " not in line and " up " not in line and " stop " not in line for line in log)
+
+
+@pytest.mark.parametrize(
+    ("fault", "expected"),
+    (
+        ("ps-error", "Unable to census"),
+        ("multiple", "ambiguous or malformed container IDs"),
+        ("duplicate", "ambiguous or malformed container IDs"),
+        ("short-id", "ambiguous or malformed container IDs"),
+        ("malformed-id", "ambiguous or malformed container IDs"),
+        ("inspect-error", "Unable to prove"),
+        ("restarting", "unknown or restarting"),
+        ("unknown-state", "unknown or inconsistent"),
+        ("paused", "paused, dead, or unknown"),
+        ("wrong-project-label", "project or service identity is ambiguous"),
+        ("wrong-service-label", "project or service identity is ambiguous"),
+        ("wrong-id", "ID differs from Compose census"),
+        ("wrong-project-name", "project identity is missing or ambiguous"),
+    ),
+)
+def test_production_off_profile_census_fails_closed_before_product_mutation(
+    tmp_path: Path, fault: str, expected: str
+) -> None:
+    env, _project_dir, log_file, _bundle = _production_preflight_fixture(
+        tmp_path, with_bundle=False
+    )
+    env.pop("COMPOSE_PROFILES", None)
+    env["STUB_CENSUS_LOG"] = str(log_file)
+    env["STUB_ALERTMANAGER_PS_IDS"] = "e" * 64
+    record = _alertmanager_census_inspect_record()
+    if fault == "ps-error":
+        env["STUB_ALERTMANAGER_PS_STATUS"] = "37"
+    elif fault == "multiple":
+        env["STUB_ALERTMANAGER_PS_IDS"] += "\n" + "f" * 64
+    elif fault == "duplicate":
+        env["STUB_ALERTMANAGER_PS_IDS"] += "\n" + "e" * 64
+    elif fault == "short-id":
+        env["STUB_ALERTMANAGER_PS_IDS"] = "e" * 12
+    elif fault == "malformed-id":
+        env["STUB_ALERTMANAGER_PS_IDS"] = "not-a-container-id"
+    elif fault == "inspect-error":
+        env["STUB_ALERTMANAGER_INSPECT_STATUS"] = "47"
+    elif fault == "restarting":
+        record["State"] = {
+            "Status": "restarting",
+            "Running": True,
+            "Restarting": True,
+            "Paused": False,
+            "Dead": False,
+        }
+    elif fault == "unknown-state":
+        record["State"] = {
+            "Status": "removing",
+            "Running": False,
+            "Restarting": False,
+            "Paused": False,
+            "Dead": False,
+        }
+    elif fault == "paused":
+        state = record["State"]
+        assert isinstance(state, dict)
+        state["Paused"] = True
+    elif fault == "wrong-project-label":
+        config = record["Config"]
+        assert isinstance(config, dict)
+        labels = config["Labels"]
+        assert isinstance(labels, dict)
+        labels["com.docker.compose.project"] = "foreign"
+    elif fault == "wrong-service-label":
+        config = record["Config"]
+        assert isinstance(config, dict)
+        labels = config["Labels"]
+        assert isinstance(labels, dict)
+        labels["com.docker.compose.service"] = "worker"
+    elif fault == "wrong-id":
+        record["Id"] = "f" * 64
+    elif fault == "wrong-project-name":
+        env["STUB_COMPOSE_PROJECT_NAME"] = "Bad Name"
+    env["STUB_ALERTMANAGER_INSPECT_JSON"] = json.dumps([record])
+    completed = subprocess.run(
+        [str(REPO_ROOT / "scripts/deploy_production.sh"), "--preflight-only"],
+        cwd=REPO_ROOT,
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert completed.returncode != 0
+    assert expected in completed.stderr
+    log = log_file.read_text().splitlines()
+    assert any(
+        "ps --all --no-trunc --quiet --filter label=com.docker.compose.project=" in line
+        for line in log
+    ) is (fault != "wrong-project-name")
+    assert all(" pull " not in line and " up " not in line and " stop " not in line for line in log)
+
+
+@pytest.mark.parametrize(
+    ("project_name", "allowed"),
+    ((None, True), ("", False), ("Bad Name", False)),
+)
+def test_production_empty_alertmanager_census_requires_canonical_project_identity(
+    tmp_path: Path, project_name: str | None, allowed: bool
+) -> None:
+    env, _project_dir, log_file, _bundle = _production_preflight_fixture(
+        tmp_path, with_bundle=False
+    )
+    env.pop("COMPOSE_PROFILES", None)
+    env["STUB_CENSUS_LOG"] = str(log_file)
+    env["STUB_ALERTMANAGER_PS_IDS"] = ""
+    if project_name is not None:
+        env["STUB_COMPOSE_PROJECT_NAME"] = project_name
+    completed = subprocess.run(
+        [str(REPO_ROOT / "scripts/deploy_production.sh"), "--preflight-only"],
+        cwd=REPO_ROOT,
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert (completed.returncode == 0) is allowed, completed.stderr
+    if not allowed:
+        assert "Compose project identity is missing or ambiguous" in completed.stderr
+    log = log_file.read_text().splitlines()
+    assert any("--profile alerting config --format json" in line for line in log)
+    assert (
+        any(
+            "ps --all --no-trunc --quiet --filter label=com.docker.compose.project=" in line
+            for line in log
+        )
+        is allowed
+    )
+    assert all(" pull " not in line and " up " not in line and " stop " not in line for line in log)
+
+
+def _capture_compose_profile_environment(env: dict[str, str], tmp_path: Path) -> Path:
+    original_docker = Path(env["DOCKER_BIN"])
+    observed = tmp_path / "compose-profiles.log"
+    wrapper = tmp_path / "docker-profile-wrapper"
+    _write_executable(
+        wrapper,
+        "#!/usr/bin/env bash\nset -euo pipefail\n"
+        "printf 'present=%s value=%s\\n' "
+        '"${COMPOSE_PROFILES+x}" "${COMPOSE_PROFILES-}" '
+        f">> {shlex.quote(str(observed))}\n"
+        f'exec {shlex.quote(str(original_docker))} "$@"\n',
+    )
+    env["DOCKER_BIN"] = str(wrapper)
+    return observed
+
+
+@pytest.mark.parametrize(
+    ("caller_profile", "env_assignment", "allowed"),
+    (
+        (None, None, True),
+        ("", None, True),
+        ("scheduler-external", None, True),
+        ("alerting", None, True),
+        ("scheduler-external, alerting", None, True),
+        (None, "COMPOSE_PROFILES=alerting", False),
+        (None, "export COMPOSE_PROFILES=alerting", False),
+        ("", "export COMPOSE_PROFILES=alerting", False),
+        ("alerting", "unset COMPOSE_PROFILES", False),
+        (None, "unset COMPOSE_PROFILES", True),
+    ),
+)
+def test_production_compose_profiles_remain_caller_owned_across_sourced_env(
+    tmp_path: Path, caller_profile: str | None, env_assignment: str | None, allowed: bool
+) -> None:
+    env, project_dir, log_file, _bundle = _production_preflight_fixture(tmp_path, with_bundle=False)
+    env.pop("COMPOSE_PROFILES", None)
+    if caller_profile is not None:
+        env["COMPOSE_PROFILES"] = caller_profile
+    if env_assignment is not None:
+        with Path(env["ENV_FILE"]).open("a", encoding="utf-8") as handle:
+            handle.write(env_assignment + "\n")
+    if caller_profile is not None and "alerting" in caller_profile:
+        key = project_dir / "deploy/secrets/alertmanager_smtp_key"
+        key.write_text("synthetic-only", encoding="ascii")
+        key.chmod(0o444)
+    observed = _capture_compose_profile_environment(env, tmp_path)
+    completed = subprocess.run(
+        [str(REPO_ROOT / "scripts/deploy_production.sh"), "--preflight-only"],
+        cwd=REPO_ROOT,
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert (completed.returncode == 0) is allowed, completed.stderr
+    if allowed:
+        profile_lines = observed.read_text().splitlines()
+        assert profile_lines
+        assert all(line == f"present=x value={caller_profile or ''}" for line in profile_lines)
+    else:
+        assert "env file changed caller-owned COMPOSE_PROFILES" in completed.stderr
+        assert not observed.exists()
+        assert not log_file.exists()
+
+
+@pytest.mark.parametrize(
+    ("caller_profile", "env_assignment", "allowed"),
+    (
+        (None, None, True),
+        ("", None, True),
+        ("scheduler-external", None, True),
+        ("alerting", None, True),
+        ("scheduler-external, alerting", None, True),
+        (None, "COMPOSE_PROFILES=alerting", False),
+        (None, "export COMPOSE_PROFILES=alerting", True),
+    ),
+)
+def test_staging_compose_profiles_export_caller_choice_before_compose(
+    tmp_path: Path, caller_profile: str | None, env_assignment: str | None, allowed: bool
+) -> None:
+    env, log_file = _staging_deploy_fixture(tmp_path)
+    env.pop("COMPOSE_PROFILES", None)
+    if caller_profile is not None:
+        env["COMPOSE_PROFILES"] = caller_profile
+    if env_assignment is not None:
+        with Path(env["ENV_FILE"]).open("a", encoding="utf-8") as handle:
+            handle.write(env_assignment + "\n")
+    if caller_profile is not None and "alerting" in caller_profile:
+        key = Path(env["PROJECT_DIR"]) / "secrets/alertmanager_smtp_key"
+        key.write_text("synthetic-only", encoding="ascii")
+        key.chmod(0o444)
+    observed = _capture_compose_profile_environment(env, tmp_path)
+    completed = subprocess.run(
+        [
+            str(REPO_ROOT / "scripts/deploy.sh"),
+            "--preflight-only",
+            "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "a" * 64,
+            "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "b" * 64,
+        ],
+        cwd=REPO_ROOT,
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert (completed.returncode == 0) is allowed, completed.stderr
+    profile_lines = observed.read_text().splitlines()
+    assert profile_lines
+    assert all(line == f"present=x value={caller_profile or ''}" for line in profile_lines)
+    if not allowed:
+        assert "COMPOSE_PROFILES must be selected by the operator" in completed.stderr
+        assert all(
+            " pull " not in line and " up " not in line
+            for line in log_file.read_text().splitlines()
+        )
+
+
+def test_production_alertmanager_rejects_extra_recipient_before_product_mutation(
+    tmp_path: Path,
+) -> None:
+    env, project_dir, log_file, _bundle = _production_preflight_fixture(tmp_path, with_bundle=False)
+    config = project_dir / "deploy/alertmanager/alertmanager.yml"
+    config.write_text(
+        config.read_text(encoding="utf-8") + "\n      - to: attacker@example.invalid\n",
+        encoding="utf-8",
+    )
+    result = subprocess.run(
+        [str(REPO_ROOT / "scripts/deploy_production.sh"), "--preflight-only"],
+        cwd=str(REPO_ROOT),
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode != 0
+    assert "sole recipient" in result.stderr
+    if log_file.exists():
+        assert all(
+            " pull " not in line and " up " not in line and " stop " not in line
+            for line in log_file.read_text(encoding="utf-8").splitlines()
+        )
+
+
+@pytest.mark.parametrize("partial_leaf", ("alertmanager.yml", "trivy-ignore.yaml"))
+def test_production_partial_alertmanager_publication_holds_then_readmits_exact_bundle(
+    tmp_path: Path, partial_leaf: str
+) -> None:
+    env, project_dir, log_file, _bundle = _production_preflight_fixture(tmp_path, with_bundle=False)
+    installed = project_dir / "deploy/alertmanager" / partial_leaf
+    installed.write_text("older-partial-publication\n", encoding="utf-8")
+    app_sentinel = project_dir / "app-state-sentinel"
+    tsdb_sentinel = project_dir / "prometheus_data" / "sentinel"
+    app_sentinel.write_text("keep-app\n", encoding="utf-8")
+    tsdb_sentinel.parent.mkdir()
+    tsdb_sentinel.write_text("keep-tsdb\n", encoding="utf-8")
+    rejected = subprocess.run(
+        [str(REPO_ROOT / "scripts/deploy_production.sh"), "--preflight-only"],
+        cwd=str(REPO_ROOT),
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert rejected.returncode != 0
+    assert "Alertmanager" in rejected.stderr
+    if log_file.exists():
+        assert all(
+            " pull " not in line and " up " not in line and " stop " not in line
+            for line in log_file.read_text(encoding="utf-8").splitlines()
+        )
+    assert installed.read_text(encoding="utf-8") == "older-partial-publication\n"
+    assert app_sentinel.read_text(encoding="utf-8") == "keep-app\n"
+    assert tsdb_sentinel.read_text(encoding="utf-8") == "keep-tsdb\n"
+
+    source = tmp_path / "readmitted-bundle"
+    source.mkdir()
+    _write_shell_bundle_contract(source)
+    script = (REPO_ROOT / "scripts/deploy_production.sh").read_text(encoding="utf-8")
+    start = script.index("contract_destination_transaction() {")
+    end = script.index("\n}\n\nvalidate_contract_destinations_safely() {", start) + len("\n}\n")
+    transaction = script[start:end]
+    program = transaction + "\n" + """contract_destination_transaction publish-contracts \\
+  "$SOURCE_COMPOSE" "$SOURCE_PROMETHEUS_CONFIG" "$SOURCE_PROMETHEUS_RULES" \\
+  "$SOURCE_PROMETHEUS_MANIFEST" "$SOURCE_ALERTMANAGER_CONFIG" "$SOURCE_ALERTMANAGER_IGNORE" \\
+  "$SOURCE_POSTGRES_MANIFEST" "" "" "" "" "$SOURCE_BACKUP_HELPER"\n"""
+    publication_env = {
+        **env,
+        "PYTHON_BIN": sys.executable,
+        "REQUESTED_DEPLOY_DIR": str(project_dir),
+        "COMPOSE_RELATIVE_IDENTITY": "deploy/docker-compose.production.yaml",
+        "SOURCE_COMPOSE": str(source / "deploy/docker-compose.production.yaml"),
+        "SOURCE_PROMETHEUS_CONFIG": str(source / "deploy/prometheus/prometheus.yml"),
+        "SOURCE_PROMETHEUS_RULES": str(source / "deploy/prometheus/alias-alerts.yml"),
+        "SOURCE_PROMETHEUS_MANIFEST": str(source / "deploy/prometheus/image-manifest.json"),
+        "SOURCE_ALERTMANAGER_CONFIG": str(source / "deploy/alertmanager/alertmanager.yml"),
+        "SOURCE_ALERTMANAGER_IGNORE": str(source / "deploy/alertmanager/trivy-ignore.yaml"),
+        "SOURCE_POSTGRES_MANIFEST": str(source / "deploy/postgres-pgvector/image-manifest.json"),
+        "SOURCE_BACKUP_HELPER": str(source / "scripts/ops/postgres_backup.sh"),
+    }
+    published = subprocess.run(
+        ["/bin/bash", "-euc", program],
+        cwd=str(REPO_ROOT),
+        env=publication_env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert published.returncode == 0, published.stderr
+    assert (
+        project_dir / "deploy/alertmanager/alertmanager.yml"
+    ).read_bytes() == ALERTMANAGER_CONFIG_PATH.read_bytes()
+    assert (
+        project_dir / "deploy/alertmanager/trivy-ignore.yaml"
+    ).read_bytes() == ALERTMANAGER_IGNORE_PATH.read_bytes()
+    assert list(project_dir.rglob(".pulseplate-*.tmp-*")) == []
+    readmitted = subprocess.run(
+        [str(REPO_ROOT / "scripts/deploy_production.sh"), "--preflight-only"],
+        cwd=str(REPO_ROOT),
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert readmitted.returncode == 0, readmitted.stderr
+    assert app_sentinel.read_text(encoding="utf-8") == "keep-app\n"
+    assert tsdb_sentinel.read_text(encoding="utf-8") == "keep-tsdb\n"
+
+
+@pytest.mark.parametrize("leaf", ("alertmanager.yml", "trivy-ignore.yaml"))
+def test_production_rejects_alertmanager_destination_symlink_before_publication(
+    tmp_path: Path, leaf: str
+) -> None:
+    env, project_dir, log_file, _bundle = _production_preflight_fixture(tmp_path, with_bundle=True)
+    destination = project_dir / "deploy/alertmanager" / leaf
+    outside = tmp_path / f"outside-{leaf}"
+    outside.write_text("unrelated-owner-content\n", encoding="utf-8")
+    destination.unlink()
+    destination.symlink_to(outside)
+    result = subprocess.run(
+        [str(REPO_ROOT / "scripts/deploy_production.sh"), "--preflight-only"],
+        cwd=str(REPO_ROOT),
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode != 0
+    assert "destination" in result.stderr
+    assert outside.read_text(encoding="utf-8") == "unrelated-owner-content\n"
     assert not log_file.exists()
 
 
@@ -4442,7 +6289,7 @@ def test_staging_deploy_rejects_rendered_postgres_identity_drift_before_pull(
     variant: str,
 ) -> None:
     env, log_file = _staging_deploy_fixture(tmp_path)
-    rendered = json.loads(FAKE_STAGING_COMPOSE_JSON)
+    rendered = json.loads(_staging_compose_fixture_json(Path(env["PROJECT_DIR"])))
     postgres = rendered["services"]["postgres"]
     if variant == "missing":
         del rendered["services"]["postgres"]
@@ -5021,6 +6868,8 @@ def test_production_full_bundle_rejects_hostile_source_before_runtime_mutation(
         ("unexpected", 9, 1),
         ("missing_manifest", 10, 1),
         ("missing_rules", 17, 1),
+        ("missing_alert_config", 19, 1),
+        ("missing_alert_ignore", 20, 1),
         ("rules_symlink", 18, 1),
         ("oversized_archive", 11, 1),
         ("backup_helper_missing", 13, 1),
@@ -5241,8 +7090,10 @@ def test_production_contract_publication_rejects_destination_symlinks_before_doc
     assert list(deploy_dir.rglob(".pulseplate-*.tmp-*")) == []
 
 
+@pytest.mark.parametrize("alerting_selected", [False, True])
 def test_production_archive_full_deploy_preserves_server_local_state_and_orders_prometheus_last(
     tmp_path: Path,
+    alerting_selected: bool,
 ) -> None:
     project_dir = tmp_path / "production"
     shell_bundle_dir = tmp_path / "bundle-source"
@@ -5272,12 +7123,21 @@ def test_production_archive_full_deploy_preserves_server_local_state_and_orders_
         path.write_text(value, encoding="utf-8")
     secret_file = project_dir / "deploy" / "secrets" / "pulseplate_metrics_scrape_key"
     original_secret = secret_file.read_bytes()
+    if alerting_selected:
+        smtp_key = project_dir / "deploy" / "secrets" / "alertmanager_smtp_key"
+        smtp_key.write_text("synthetic-only", encoding="ascii")
+        smtp_key.chmod(0o444)
 
     archive_path = _canonical_test_archive_path(12)
     _write_shell_bundle_archive(archive_path, shell_bundle_dir)
     docker_stub = f"""#!/usr/bin/env bash
 set -euo pipefail
 printf 'docker %s\n' "$*" >> "{log_file}"
+if [ "${{STUB_ALERTMANAGER_IMAGE_ABSENT:-0}}" = 1 ]; then
+  case "$*" in
+    *"pull alertmanager"*|*"image inspect prom/alertmanager@"*|*"--entrypoint /bin/amtool"*) exit 91 ;;
+  esac
+fi
 case "$*" in
   *"ps -q app"*) printf 'app-id\n' ;;
 esac
@@ -5307,6 +7167,11 @@ printf 'curl %s\n' "$*" >> "{log_file}"
             "HEALTH_SLEEP_S": "0",
         }
     )
+    env.pop("COMPOSE_PROFILES", None)
+    if alerting_selected:
+        env["COMPOSE_PROFILES"] = "scheduler-external, alerting"
+    else:
+        env["STUB_ALERTMANAGER_IMAGE_ABSENT"] = "1"
     completed = subprocess.run(
         [str(REPO_ROOT / "scripts/deploy_production.sh")],
         cwd=str(REPO_ROOT),
@@ -5334,6 +7199,22 @@ printf 'curl %s\n' "$*" >> "{log_file}"
     assert stat.S_IMODE(published_backup_helper.stat().st_mode) == 0o755
 
     log_lines = log_file.read_text(encoding="utf-8").splitlines()
+    alertmanager_commands = [
+        (index, line)
+        for index, line in enumerate(log_lines)
+        if "pull alertmanager" in line
+        or "image inspect prom/alertmanager@" in line
+        or "--entrypoint /bin/amtool" in line
+    ]
+    assert bool(alertmanager_commands) is alerting_selected
+    if alerting_selected:
+        assert len(alertmanager_commands) == 3
+        guard_index = _assert_log_index(
+            log_lines,
+            predicate=lambda line: "assert_production_runtime_invariants(app=app)" in line,
+            message="product invariant missing",
+        )
+        assert all(index < guard_index for index, _ in alertmanager_commands)
     assert all(METRICS_SECRET_SENTINEL not in line for line in log_lines)
     prometheus_pull_index = _assert_log_index(
         log_lines,
@@ -5998,6 +7879,8 @@ printf 'curl %s\\n' "$*" >> "{log_file}"
     published_config = project_dir / "deploy" / "prometheus" / "prometheus.yml"
     published_rules = project_dir / "deploy" / "prometheus" / "alias-alerts.yml"
     published_manifest = project_dir / "deploy" / "prometheus" / "image-manifest.json"
+    published_alert_config = project_dir / "deploy" / "alertmanager" / "alertmanager.yml"
+    published_alert_ignore = project_dir / "deploy" / "alertmanager" / "trivy-ignore.yaml"
     published_postgres_manifest = (
         project_dir / "deploy" / "postgres-pgvector" / "image-manifest.json"
     )
@@ -6010,6 +7893,12 @@ printf 'curl %s\\n' "$*" >> "{log_file}"
     assert published_manifest.read_text(encoding="utf-8") == PROMETHEUS_MANIFEST_PATH.read_text(
         encoding="utf-8"
     )
+    assert published_alert_config.read_text(encoding="utf-8") == ALERTMANAGER_CONFIG_PATH.read_text(
+        encoding="utf-8"
+    )
+    assert published_alert_ignore.read_text(encoding="utf-8") == ALERTMANAGER_IGNORE_PATH.read_text(
+        encoding="utf-8"
+    )
     assert published_postgres_manifest.read_text(
         encoding="utf-8"
     ) == POSTGRES_MANIFEST_PATH.read_text(encoding="utf-8")
@@ -6018,6 +7907,8 @@ printf 'curl %s\\n' "$*" >> "{log_file}"
         published_config,
         published_rules,
         published_manifest,
+        published_alert_config,
+        published_alert_ignore,
         published_postgres_manifest,
         project_dir / "deploy" / "Caddyfile.production",
         project_dir / "frontend" / "bundle-marker.txt",
@@ -6268,10 +8159,7 @@ def test_deploy_production_syncs_shell_bundle_with_relative_compose_subpath(
         "DATABASE_URL=postgresql+psycopg://pulseplate:secret@db.example.com:25060/pulseplate\n",  # pragma: allowlist secret
         encoding="utf-8",
     )
-    _write_shell_bundle_contract(
-        shell_bundle_dir,
-        compose_text="services:\n  app:\n    image: ghcr.io/example/pulseplate:test\n",
-    )
+    _write_shell_bundle_contract(shell_bundle_dir)
     (shell_bundle_dir / "frontend" / "bundle-marker.txt").write_text(
         "frontend-sync\n", encoding="utf-8"
     )
@@ -6323,7 +8211,7 @@ printf 'curl %s\\n' "$*" >> "{log_file}"
 
     assert (project_dir / "deploy" / "docker-compose.production.yaml").read_text(
         encoding="utf-8"
-    ) == "services:\n  app:\n    image: ghcr.io/example/pulseplate:test\n"
+    ) == PRODUCTION_COMPOSE_TEXT
     assert (project_dir / "scripts" / "diagnose_web.sh").read_text(
         encoding="utf-8"
     ) == "#!/usr/bin/env bash\nprintf 'bundle-diagnose\\n'\n"
@@ -6788,9 +8676,8 @@ def test_deploy_production_rejects_compose_with_local_postgres_reference(tmp_pat
     bin_dir.mkdir()
     _write_production_host_contract(
         project_dir,
-        compose_text=(
-            "services:\n  app:\n    depends_on:\n      postgres:\n"
-            "        condition: service_healthy\n  postgres:\n    image: postgres:16\n"
+        compose_text=PRODUCTION_COMPOSE_TEXT.replace(
+            "services:\n", "services:\n  postgres:\n    image: postgres:16\n", 1
         ),
     )
     (project_dir / ".env").write_text(
@@ -8362,12 +10249,19 @@ def _staging_deploy_fixture(tmp_path: Path) -> tuple[dict[str, str], Path]:
     bin_dir.mkdir()
     (project_dir / "scripts" / "ops").mkdir(parents=True)
     (project_dir / "prometheus").mkdir()
+    (project_dir / "alertmanager").mkdir()
     (project_dir / "postgres-pgvector").mkdir()
     (project_dir / "secrets").mkdir()
     (project_dir / "secrets").chmod(0o700)
     (project_dir / "backups").mkdir()
     (project_dir / "docker-compose.staging.yaml").write_text(
-        "services: {app: {}, caddy: {}}\n", encoding="utf-8"
+        STAGING_COMPOSE_PATH.read_text(encoding="utf-8"), encoding="utf-8"
+    )
+    (project_dir / "alertmanager" / "alertmanager.yml").write_text(
+        ALERTMANAGER_CONFIG_PATH.read_text(encoding="utf-8"), encoding="utf-8"
+    )
+    (project_dir / "alertmanager" / "trivy-ignore.yaml").write_text(
+        ALERTMANAGER_IGNORE_PATH.read_text(encoding="utf-8"), encoding="utf-8"
     )
     (project_dir / "Caddyfile").write_text(":80 { respond ok }\n", encoding="utf-8")
     (project_dir / "prometheus" / "prometheus.yml").write_text(
@@ -8485,6 +10379,11 @@ printf 'Backup created: %s\\n' "$receipt"
         f"""#!/usr/bin/env bash
 set -euo pipefail
 printf 'docker %s\n' "$*" >> "{log_file}"
+if [ "${{STUB_ALERTMANAGER_IMAGE_ABSENT:-0}}" = 1 ]; then
+  case "$*" in
+    *"pull alertmanager"*|*"image inspect prom/alertmanager@"*|*"--entrypoint /bin/amtool"*) exit 91 ;;
+  esac
+fi
 printf 'env backend=%s caddy=%s config=%s\n' "${{STAGING_IMAGE_REF:-}}" "${{STAGING_CADDY_IMAGE_REF:-}}" "${{DOCKER_CONFIG:-}}" >> "{log_file}"
 case "$*" in
   start\\ *)
@@ -8576,6 +10475,7 @@ case "${*: -1}" in
   *pulseplate_test.dump) printf '600\\n' ;;
   */secrets) printf '%s\\n' "${STUB_SECRET_DIR_METADATA:-$EUID:700}" ;;
   *pulseplate_metrics_scrape_key) printf '%s\\n' "${STUB_SECRET_FILE_METADATA:-$EUID:444}" ;;
+  *alertmanager_smtp_key) printf '%s\\n' "${STUB_ALERTMANAGER_SECRET_FILE_METADATA:-$EUID:444}" ;;
   *) exit 1 ;;
 esac
 """,
@@ -8738,14 +10638,23 @@ def test_staging_deploy_matches_bounded_compose_scheduler_mode_syntax(
         assert "FOOD_UPDATE_SCHEDULER_MODE must be exactly external or disabled" in completed.stderr
 
 
+@pytest.mark.parametrize("alerting_selected", [False, True])
 @pytest.mark.parametrize("scheduler_mode", ["external", "disabled"])
 def test_staging_deploy_preserves_backup_migration_caddy_order_and_cli_identity(
     tmp_path: Path,
     scheduler_mode: str,
+    alerting_selected: bool,
 ) -> None:
     env, log_file = _staging_deploy_fixture(tmp_path)
     env["FOOD_UPDATE_SCHEDULER_MODE"] = scheduler_mode
     env.pop("COMPOSE_PROFILES", None)
+    if alerting_selected:
+        key = Path(env["PROJECT_DIR"]) / "secrets/alertmanager_smtp_key"
+        key.write_text("synthetic-only", encoding="ascii")
+        key.chmod(0o444)
+        env["COMPOSE_PROFILES"] = "scheduler-external, alerting"
+    else:
+        env["STUB_ALERTMANAGER_IMAGE_ABSENT"] = "1"
     project_dir = Path(env["PROJECT_DIR"])
     selected_env_file = project_dir / "config" / "selected.env"
     selected_env_file.parent.mkdir()
@@ -8766,6 +10675,22 @@ def test_staging_deploy_preserves_backup_migration_caddy_order_and_cli_identity(
 
     assert completed.returncode == 0, completed.stderr
     log_lines = log_file.read_text(encoding="utf-8").splitlines()
+    alertmanager_commands = [
+        (index, line)
+        for index, line in enumerate(log_lines)
+        if "pull alertmanager" in line
+        or "image inspect prom/alertmanager@" in line
+        or "--entrypoint /bin/amtool" in line
+    ]
+    assert bool(alertmanager_commands) is alerting_selected
+    if alerting_selected:
+        assert len(alertmanager_commands) == 3
+        quiesce_index = _assert_log_index(
+            log_lines,
+            predicate=lambda line: " stop worker caddy app" in line,
+            message="product quiesce missing",
+        )
+        assert all(index < quiesce_index for index, _ in alertmanager_commands)
     login_index = _assert_log_index(
         log_lines, predicate=lambda line: "docker login ghcr.io" in line, message="missing login"
     )
@@ -8840,6 +10765,8 @@ def test_staging_deploy_preserves_backup_migration_caddy_order_and_cli_identity(
         assert any(line.endswith(" rm -f worker") for line in log_lines)
     assert all(
         line.endswith("--profile * config --format json")
+        or line.endswith("--profile alerting config --format json")
+        or line.endswith("--profile alerting pull alertmanager")
         or line.endswith("--profile * config --hash worker")
         for line in log_lines
         if "--profile" in line
@@ -9034,7 +10961,8 @@ def test_staging_worker_native_hang_is_bounded_and_holds_before_caddy(
         text=True,
         capture_output=True,
         check=False,
-        timeout=15,
+        # The worker gate has a 30-second deadline; this outer bound also covers fixture setup.
+        timeout=45,
     )
 
     assert completed.returncode != 0
@@ -10715,7 +12643,10 @@ def test_prometheus_census_is_repeated_immediately_before_service_recreation() -
     )
 
 
-def test_staging_promtool_preflight_does_not_create_a_service_data_volume(tmp_path: Path) -> None:
+@pytest.mark.parametrize("profiles", [None, "scheduler-external, alerting"])
+def test_staging_promtool_preflight_does_not_create_a_service_data_volume(
+    tmp_path: Path, profiles: str | None
+) -> None:
     bash = shutil.which("bash")
     assert bash
     script = (REPO_ROOT / "scripts/deploy.sh").read_text()
@@ -10723,6 +12654,8 @@ def test_staging_promtool_preflight_does_not_create_a_service_data_volume(tmp_pa
         '"$DOCKER_BIN" run', script.index('echo "Validating the exact Prometheus configuration')
     )
     end = script.index('\necho "Invoking the canonical application', start)
+    selector_start = script.index("alertmanager_selected() {")
+    selector_end = script.index("\n}\n", selector_start) + len("\n}\n")
     argv_file = tmp_path / "argv.jsonl"
     docker = tmp_path / "docker-argv-capture"
     _write_executable(
@@ -10737,15 +12670,23 @@ def test_staging_promtool_preflight_does_not_create_a_service_data_volume(tmp_pa
         "PROMETHEUS_RUNTIME_REF": PROMETHEUS_RUNTIME_REF,
         "PROMETHEUS_CONFIG": str(tmp_path / "config.yml"),
         "PROMETHEUS_RULES": str(tmp_path / "alias-alerts.yml"),
+        "ALERTMANAGER_CONFIG": str(tmp_path / "alertmanager.yml"),
         "METRICS_SECRET_FILE": str(tmp_path / "key"),
     }
+    env.pop("COMPOSE_PROFILES", None)
+    if profiles is not None:
+        env["COMPOSE_PROFILES"] = profiles
     completed = subprocess.run(
-        [bash, "-euc", script[start:end]], env=env, capture_output=True, text=True, check=False
+        [bash, "-euc", script[selector_start:selector_end] + script[start:end]],
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
     )
     assert completed.returncode == 0, completed.stderr
     commands = [json.loads(line) for line in argv_file.read_text().splitlines()]
-    assert len(commands) == 2
-    config_argv, rules_argv = commands
+    assert len(commands) == (3 if profiles is not None else 2)
+    config_argv, rules_argv = commands[:2]
     assert config_argv[:10] == [
         "run",
         "--rm",
@@ -10782,6 +12723,12 @@ def test_staging_promtool_preflight_does_not_create_a_service_data_volume(tmp_pa
         "rules",
         "/etc/prometheus/alias-alerts.yml",
     ]
+    if profiles is not None:
+        assert commands[2][-3:] == [
+            ALERTMANAGER_RUNTIME_REF,
+            "check-config",
+            "/etc/alertmanager/alertmanager.yml",
+        ]
 
 
 @pytest.mark.parametrize("when", ["before-quiesce", "after-quiesce"])
@@ -10979,7 +12926,12 @@ def test_staging_security_config_includes_profiled_worker_without_activation(
     profile_commands = [line for line in log if "--profile" in line]
     if fault not in ("config-failure", "malformed"):
         assert profile_commands
-        assert all(line.endswith("--profile * config --format json") for line in profile_commands)
+        assert any(line.endswith("--profile * config --format json") for line in profile_commands)
+        assert all(
+            line.endswith("--profile * config --format json")
+            or line.endswith("--profile alerting config --format json")
+            for line in profile_commands
+        )
     assert not any(" up " in line or " start " in line or " pull " in line for line in log)
     assert (
         "Staging deploy preflight passed" in result.stdout
