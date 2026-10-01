@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import os
 import hashlib
+import json
 import re
 import shutil
 import stat
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -26,6 +28,159 @@ CD_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "cd.yml"
 FRONTEND_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "frontend-ci.yml"
 TRIVY_ACTION = "aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25"
 TRIVY_VERSION = "v0.74.0"
+ALERTMANAGER_CONFIG = REPO_ROOT / "deploy" / "alertmanager" / "alertmanager.yml"
+ALERTMANAGER_IGNORE = REPO_ROOT / "deploy" / "alertmanager" / "trivy-ignore.yaml"
+
+
+def test_alertmanager_cd_contract_carries_exact_files_and_keeps_scans_separate() -> None:
+    workflow = CD_WORKFLOW.read_text(encoding="utf-8")
+    for name, output in (
+        ("alertmanager.yml", "ALERTMANAGER_CONFIG_SHA256"),
+        ("trivy-ignore.yaml", "ALERTMANAGER_TRIVY_IGNORE_SHA256"),
+    ):
+        path = f"alertmanager/{name}"
+        assert f"sha256sum deploy/{path}" in workflow
+        assert workflow.count(f"[ ! -L ./{path} ]") == 2
+        assert workflow.count(f'"${output}" ]') == 2
+        assert f"deploy/{path}" in workflow
+    assert "Admit exact Alertmanager image, config, and narrow CVE exception" in workflow
+    assert '--ignorefile "$TRIVY_IGNORE_FILE"' in workflow  # Prometheus stays separate.
+    assert '--ignorefile "$ignore"' in workflow  # Alertmanager only.
+    assert "-e PULSEPLATE_ENVIRONMENT=staging" in workflow
+    assert "CVE-2026-84445" in ALERTMANAGER_IGNORE.read_text(encoding="utf-8")
+    assert "group_interval: 5m" in ALERTMANAGER_CONFIG.read_text(encoding="utf-8")
+    for required in (
+        "Prove staging environment label reaches Alertmanager despite forged metric label",
+        'environment="production"',
+        "PULSEPLATE_ENVIRONMENT=staging",
+        "http://127.0.0.1:9093/api/v2/alerts",
+        'labels.get("environment") != "staging"',
+        '"environment" not in item["metric"]',
+        '"network", "create", "--internal"',
+    ):
+        assert required in workflow
+
+
+def _run_alertmanager_scan_fixture(
+    tmp_path: Path, scenario: str
+) -> subprocess.CompletedProcess[str]:
+    """Execute the actual admission step with controlled native-command outcomes."""
+    step = _named_step(
+        _steps(_job(_workflow(CD_WORKFLOW), "prometheus-image-security")),
+        "Admit exact Alertmanager image, config, and narrow CVE exception",
+    )
+    script = step["run"]
+    assert isinstance(script, str)
+    workspace = tmp_path / "workspace"
+    config = workspace / "deploy" / "alertmanager"
+    config.mkdir(parents=True)
+    shutil.copyfile(ALERTMANAGER_CONFIG, config / "alertmanager.yml")
+    shutil.copyfile(ALERTMANAGER_IGNORE, config / "trivy-ignore.yaml")
+    binaries = tmp_path / "bin"
+    binaries.mkdir()
+    digest = "sha256:84967b9b7ba45e38a9278d3e594305f43d4993c310df3905b51138b816c365f3"
+    docker = binaries / "docker"
+    docker.write_text(
+        f"#!{sys.executable}\n"
+        "import json,sys\n"
+        f"digest={digest!r}\n"
+        "args=sys.argv[1:]\n"
+        "if args[:2]==['buildx','imagetools']:\n"
+        " print(json.dumps({'manifests':[{'digest':digest,'platform':{'os':'linux','architecture':'amd64'}}]}))\n"
+        "elif args[:2]==['image','inspect']:\n"
+        " print(json.dumps([{'Os':'linux','Architecture':'amd64','RepoDigests':['prom/alertmanager@'+digest]}]))\n"
+        "elif '--version' in args: print('alertmanager, version 0.34.1')\n",
+        encoding="utf-8",
+    )
+    docker.chmod(0o755)
+    report = {
+        "SchemaVersion": 2,
+        "ArtifactName": "prom/alertmanager@" + digest,
+        "Results": [
+            {
+                "Target": target,
+                "Vulnerabilities": [
+                    {
+                        "VulnerabilityID": "CVE-2026-84445",
+                        "PkgIdentifier": {"PURL": "pkg:golang/google.golang.org/grpc@v1.83.1"},
+                    }
+                ],
+            }
+            for target in ("bin/alertmanager", "bin/amtool")
+        ],
+    }
+    (tmp_path / "report.json").write_text(json.dumps(report), encoding="utf-8")
+    trivy = binaries / "trivy"
+    trivy.write_text(
+        f"#!{sys.executable}\n"
+        "import json,os,sys\nfrom pathlib import Path\n"
+        "args=sys.argv[1:]\n"
+        "ignore=Path(args[args.index('--ignorefile')+1]).name if '--ignorefile' in args else ''\n"
+        "negative=bool(ignore) and ignore!='trivy-ignore.yaml'\n"
+        "late='expired' in ignore\n"
+        "scenario=os.environ['SCAN_SCENARIO']\n"
+        "report=json.loads(Path(os.environ['SCAN_REPORT']).read_text())\n"
+        "if negative:\n"
+        " with Path(os.environ['SCAN_CALLS']).open('a') as stream: stream.write(ignore+'\\n')\n"
+        " if scenario in ('exit1','exit2'):\n"
+        "  print('scanner prerequisite failed; no report',file=sys.stderr); sys.exit(int(scenario[-1]))\n"
+        " if scenario=='stale' and late: sys.exit(0)\n"
+        " if scenario=='empty': report['Results']=[]\n"
+        " if scenario=='wrong': report['Results'][0]['Vulnerabilities'][0]['PkgIdentifier']['PURL']='pkg:golang/google.golang.org/grpc@v1.83.0'\n"
+        " if scenario=='extra': report['Results'][0]['Vulnerabilities'].append({'VulnerabilityID':'CVE-0000-0000','PkgIdentifier':{'PURL':'pkg:generic/other@1'}})\n"
+        " if scenario=='secret': report['Results'][0]['Secrets']=[{'RuleID':'synthetic','Severity':'HIGH'}]\n"
+        "if '--output' in args:\n"
+        " output=Path(args[args.index('--output')+1])\n"
+        " output.write_text('{' if negative and scenario=='malformed' else json.dumps(report))\n",
+        encoding="utf-8",
+    )
+    trivy.chmod(0o755)
+    runner = tmp_path / "runner"
+    runner.mkdir()
+    env = {
+        key: value
+        for key, value in os.environ.items()
+        if not key.startswith(("GIT_", "GITHUB_", "GH_"))
+    }
+    env.update(
+        {
+            "PATH": str(binaries) + os.pathsep + env["PATH"],
+            "GITHUB_WORKSPACE": str(workspace),
+            "RUNNER_TEMP": str(runner),
+            "TRIVY_BIN": str(trivy),
+            "SCAN_SCENARIO": scenario,
+            "SCAN_REPORT": str(tmp_path / "report.json"),
+            "SCAN_CALLS": str(tmp_path / "calls.log"),
+        }
+    )
+    bash = shutil.which("bash")
+    assert bash is not None
+    return subprocess.run(
+        [bash, "-c", script], cwd=workspace, env=env, capture_output=True, text=True, timeout=20
+    )
+
+
+@pytest.mark.parametrize(
+    "scenario", ("exit1", "exit2", "malformed", "empty", "wrong", "extra", "secret", "stale")
+)
+def test_alertmanager_negative_controls_reject_unproven_scans(
+    tmp_path: Path, scenario: str
+) -> None:
+    """An error or absent/different report cannot masquerade as policy rejection."""
+    result = _run_alertmanager_scan_fixture(tmp_path, scenario)
+    assert result.returncode != 0, result.stdout + result.stderr
+    assert (tmp_path / "calls.log").read_text(encoding="utf-8").strip()
+
+
+def test_alertmanager_negative_controls_require_both_retained_inventories(tmp_path: Path) -> None:
+    """Both real scan-success branches must retain the complete frozen inventory."""
+    result = _run_alertmanager_scan_fixture(tmp_path, "valid")
+    assert result.returncode == 0, result.stdout + result.stderr
+    calls = (tmp_path / "calls.log").read_text(encoding="utf-8").splitlines()
+    assert len(calls) == 2
+    assert "wrong" in calls[0] and "expired" in calls[1]
+
+
 PROMETHEUS_RULES_HASH_CHECK = (
     """[ "$(sha256sum ./prometheus/alias-alerts.yml | cut -d' ' -f1)" """
     '= "$PROMETHEUS_RULES_SHA256" ]'
@@ -572,11 +727,12 @@ def test_staging_compose_requires_two_digest_references_and_preserves_caddy_stat
     assert compose["networks"]["observability"] == {"internal": True}
     assert app["networks"] == ["web", "observability", "database"]
     assert app["secrets"] == ["pulseplate_metrics_scrape_key", "postgres_ca", "postgres_pgpass"]
-    assert prometheus["networks"] == ["observability"]
+    assert prometheus["networks"] == ["observability", "alerting"]
     assert prometheus["secrets"] == ["pulseplate_metrics_scrape_key"]
     assert "ports" not in prometheus
     assert compose["secrets"] == {
         "pulseplate_metrics_scrape_key": {"file": "./secrets/pulseplate_metrics_scrape_key"},
+        "alertmanager_smtp_key": {"file": "./secrets/alertmanager_smtp_key"},
         "postgres_ca": {"file": "./secrets/postgres_ca"},
         "postgres_server_crt": {"file": "./secrets/postgres_server_crt"},
         "postgres_server_key": {"file": "./secrets/postgres_server_key"},
@@ -719,6 +875,7 @@ def test_cd_builds_attests_scans_and_deploys_both_same_job_digests() -> None:
         "DEPLOY_SCRIPT_SHA256,STAGING_COMPOSE_SHA256,"
         "PROMETHEUS_CONFIG_SHA256,PROMETHEUS_RULES_SHA256,"
         "PROMETHEUS_IMAGE_MANIFEST_SHA256,"
+        "ALERTMANAGER_CONFIG_SHA256,ALERTMANAGER_TRIVY_IGNORE_SHA256,"
         "POSTGRES_IMAGE_MANIFEST_SHA256,"
         "STAGING_CADDYFILE_SHA256,BACKUP_HELPER_SHA256,RESTORE_HELPER_SHA256,"
         "STAGING_SECURITY_HELPER_SHA256,PGVECTOR_ATTESTATION_HELPER_SHA256,"
@@ -742,6 +899,7 @@ def test_cd_builds_attests_scans_and_deploys_both_same_job_digests() -> None:
         "STAGING_CADDY_IMAGE_REF,DEPLOY_SCRIPT_SHA256,STAGING_COMPOSE_SHA256,"
         "PROMETHEUS_CONFIG_SHA256,PROMETHEUS_RULES_SHA256,"
         "PROMETHEUS_IMAGE_MANIFEST_SHA256,"
+        "ALERTMANAGER_CONFIG_SHA256,ALERTMANAGER_TRIVY_IGNORE_SHA256,"
         "POSTGRES_IMAGE_MANIFEST_SHA256,"
         "STAGING_CADDYFILE_SHA256,BACKUP_HELPER_SHA256,RESTORE_HELPER_SHA256,"
         "STAGING_SECURITY_HELPER_SHA256,PGVECTOR_ATTESTATION_HELPER_SHA256,"
@@ -800,7 +958,8 @@ def test_remote_contract_preflight_has_no_registry_secret_and_checks_current_fil
     assert with_block["envs"] == (
         "STAGING_DOMAIN,STAGING_IMAGE_REF,STAGING_CADDY_IMAGE_REF,DEPLOY_SCRIPT_SHA256,"
         "STAGING_COMPOSE_SHA256,PROMETHEUS_CONFIG_SHA256,PROMETHEUS_RULES_SHA256,"
-        "PROMETHEUS_IMAGE_MANIFEST_SHA256,POSTGRES_IMAGE_MANIFEST_SHA256,"
+        "PROMETHEUS_IMAGE_MANIFEST_SHA256,ALERTMANAGER_CONFIG_SHA256,"
+        "ALERTMANAGER_TRIVY_IGNORE_SHA256,POSTGRES_IMAGE_MANIFEST_SHA256,"
         "STAGING_CADDYFILE_SHA256,BACKUP_HELPER_SHA256,RESTORE_HELPER_SHA256,"
         "STAGING_SECURITY_HELPER_SHA256,PGVECTOR_ATTESTATION_HELPER_SHA256,"
         "NATIVE_ATTESTATION_HELPER_SHA256,POSTGRES_HBA_SHA256,"
@@ -816,6 +975,8 @@ def test_remote_contract_preflight_has_no_registry_secret_and_checks_current_fil
         "prometheus/prometheus.yml",
         "prometheus/alias-alerts.yml",
         "prometheus/image-manifest.json",
+        "alertmanager/alertmanager.yml",
+        "alertmanager/trivy-ignore.yaml",
         "postgres-pgvector/image-manifest.json",
         "Caddyfile",
         "scripts/ops/postgres_backup.sh",
@@ -939,7 +1100,8 @@ def test_credentialed_deploy_revalidates_the_preflighted_remote_contract() -> No
     assert with_block["envs"].endswith(
         "DEPLOY_SCRIPT_SHA256,STAGING_COMPOSE_SHA256,PROMETHEUS_CONFIG_SHA256,"
         "PROMETHEUS_RULES_SHA256,"
-        "PROMETHEUS_IMAGE_MANIFEST_SHA256,POSTGRES_IMAGE_MANIFEST_SHA256,"
+        "PROMETHEUS_IMAGE_MANIFEST_SHA256,ALERTMANAGER_CONFIG_SHA256,"
+        "ALERTMANAGER_TRIVY_IGNORE_SHA256,POSTGRES_IMAGE_MANIFEST_SHA256,"
         "STAGING_CADDYFILE_SHA256,BACKUP_HELPER_SHA256,RESTORE_HELPER_SHA256,"
         "STAGING_SECURITY_HELPER_SHA256,PGVECTOR_ATTESTATION_HELPER_SHA256,"
         "NATIVE_ATTESTATION_HELPER_SHA256,POSTGRES_HBA_SHA256,"
@@ -955,6 +1117,8 @@ def test_credentialed_deploy_revalidates_the_preflighted_remote_contract() -> No
         ("prometheus/prometheus.yml", "PROMETHEUS_CONFIG_SHA256"),
         ("prometheus/alias-alerts.yml", "PROMETHEUS_RULES_SHA256"),
         ("prometheus/image-manifest.json", "PROMETHEUS_IMAGE_MANIFEST_SHA256"),
+        ("alertmanager/alertmanager.yml", "ALERTMANAGER_CONFIG_SHA256"),
+        ("alertmanager/trivy-ignore.yaml", "ALERTMANAGER_TRIVY_IGNORE_SHA256"),
         ("postgres-pgvector/image-manifest.json", "POSTGRES_IMAGE_MANIFEST_SHA256"),
         ("Caddyfile", "STAGING_CADDYFILE_SHA256"),
         ("scripts/ops/postgres_backup.sh", "BACKUP_HELPER_SHA256"),

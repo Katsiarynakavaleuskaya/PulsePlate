@@ -1,0 +1,22 @@
+global:
+  smtp_smarthost: smtp.resend.com:2465
+  smtp_from: alerts@alerts.pulseplate.app
+  smtp_auth_username: resend
+  smtp_auth_password_file: /run/secrets/alertmanager_smtp_key
+  smtp_require_tls: true
+  smtp_force_implicit_tls: true
+
+route:
+  receiver: pulseplate-email
+  group_by: [alertname, environment, alias]
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 24h
+
+receivers:
+  - name: pulseplate-email
+    email_configs:
+      - to: pulseplate@pm.me
+        send_resolved: false
+        force_implicit_tls: true
+        text: PulsePlate alert {{ .CommonLabels.alertname }} ({{ .CommonLabels.environment }}).

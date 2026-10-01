@@ -147,3 +147,29 @@ ignore if {
 	cve_2025_69720_pkgid_match
 	object.get(input, "FixedVersion", "") == ""
 }
+
+# CVE-2026-84782 (OpenSSL) - no fixed Debian bookworm package at review time
+# Review-by: 2026-10-05 (manual removal)
+# Rationale: Bookworm 3.0.22-1~deb12u1 remains affected at the 2026-09-30 review; this HIGH-only exception retains affected-package risk and requires separate exact-head human acceptance.
+# Monitor: https://security-tracker.debian.org/tracker/CVE-2026-84782
+# Documented in: docs/security/CVE-2026-84782-openssl.md
+# Removal condition: Remove when a fixed Bookworm package is available or native Trivy reports a nonempty FixedVersion; do not extend deadlines automatically.
+
+cve_2026_84782_pkgid_match if {
+	input.PkgName == "libssl3"
+	input.PkgID == "libssl3@3.0.22-1~deb12u1"
+}
+
+cve_2026_84782_pkgid_match if {
+	input.PkgName == "openssl"
+	input.PkgID == "openssl@3.0.22-1~deb12u1"
+}
+
+ignore if {
+	input.VulnerabilityID == "CVE-2026-84782"
+	input.Severity == "HIGH"
+	input.InstalledVersion == "3.0.22-1~deb12u1"
+	cve_2026_84782_pkgid_match
+	# Native Trivy owns string decoding; raw Rego null does not equal empty.
+	object.get(input, "FixedVersion", "") == ""
+}
