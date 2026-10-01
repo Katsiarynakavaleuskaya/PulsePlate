@@ -1869,6 +1869,72 @@ def is_virtualenv_python(python_executable: str) -> bool:
     return bool(payload["prefix"] != payload["base_prefix"])
 
 
+PIP_CHILD_SELECTOR = "--pulseplate-owned-pip-child"
+PIP_TRANSPORT_ERROR = "ERROR: locked pip transport rejected."
+
+
+class _PipTransportRejected(RuntimeError):
+    """Constant, value-free failure at the owned native transport boundary."""
+
+
+def _install_pip_transport_guard() -> object:
+    """Guard the trusted native pip adapter contract until child termination.
+
+    This is a bounded current-client correction, not a recognizer for arbitrary
+    plugins, monkeypatched pip, unknown implementations or future releases.
+    """
+    from pip._internal.network import session as native
+    from pip._vendor.requests.adapters import HTTPAdapter
+    from pip._vendor.requests.models import PreparedRequest
+
+    send = HTTPAdapter.send
+    cert_verify = HTTPAdapter.cert_verify
+    secure = (native.HTTPAdapter, native.CacheControlAdapter)
+
+    def guarded_send(
+        self: HTTPAdapter,
+        request: PreparedRequest,
+        stream: bool = False,
+        timeout: object = None,
+        verify: bool | str = True,
+        cert: object = None,
+        proxies: object = None,
+    ) -> object:
+        # Iterate keys only: Mapping.__contains__ may retrieve a value.
+        if any(key.lower() == "authorization" for key in request.headers):
+            enabled_verify = verify is True or (
+                type(verify) is str
+                and bool(verify)
+                and (os.path.isfile(verify) or os.path.isdir(verify))
+            )
+            if (
+                urlparse(request.url).scheme.lower() != "https"
+                or type(self) not in secure
+                or getattr(self.cert_verify, "__func__", None) is not cert_verify
+                or not enabled_verify
+            ):
+                raise _PipTransportRejected(PIP_TRANSPORT_ERROR)
+        return send(self, request, stream, timeout, verify, cert, proxies)
+
+    HTTPAdapter.send = guarded_send
+    return send  # Test restoration is permitted only after complete quiescence.
+
+
+def _run_owned_pip_child(argv: Sequence[str]) -> int:
+    """Run pip lazily with the guard retained after CLI return and exceptions."""
+    try:
+        _install_pip_transport_guard()
+        from pip._internal.cli.main import main as pip_main
+
+        return pip_main(list(argv))
+    except _PipTransportRejected:
+        print(PIP_TRANSPORT_ERROR, file=sys.stderr)
+        return 1
+    except ImportError:
+        print(PIP_TRANSPORT_ERROR, file=sys.stderr)
+        return 1
+
+
 def run_command(command: Sequence[str]) -> None:
     """Run a subprocess command; include captured stdout/stderr on failure for pip diagnostics."""
     if not command:
@@ -1882,6 +1948,13 @@ def run_command(command: Sequence[str]) -> None:
         detail = _redact_url_credentials_in_text(str(exc))
         raise RuntimeError(f"Command failed: {command_text}: {detail}") from exc
     argv = [resolved_python, *original_argv[1:]]
+    if original_argv[1:3] == ["-m", "pip"]:
+        argv = [
+            resolved_python,
+            str(Path(__file__).resolve()),
+            PIP_CHILD_SELECTOR,
+            *original_argv[3:],
+        ]
     try:
         result = subprocess.run(  # nosec B603 # B603: commands are built internally from pinned requirement/install helpers only (remove-by: 2026-10-31, ref: PR-litellm-hardening)
             argv,
@@ -2407,6 +2480,9 @@ def install_with_guard_from_proxy(
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    child_args = list(sys.argv[1:] if argv is None else argv)
+    if child_args[:1] == [PIP_CHILD_SELECTOR]:
+        return _run_owned_pip_child(child_args[1:])
     try:
         args = parse_args(argv)
         args.python_executable = resolve_python_executable(args.python_executable)

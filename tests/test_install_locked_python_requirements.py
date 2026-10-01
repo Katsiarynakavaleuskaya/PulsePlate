@@ -2,18 +2,32 @@
 
 from __future__ import annotations
 
-from contextlib import contextmanager
 import base64
+import http.client
+import io
 import json
 import os
-from pathlib import Path
 import re
 import subprocess
 import sys
+import tempfile
+import types
+from contextlib import contextmanager
+from datetime import datetime, timezone
+from email.utils import format_datetime
+from pathlib import Path
+from textwrap import dedent
 from typing import Any
+from unittest.mock import patch
 from urllib.parse import urlparse
 
 import pytest
+from pip._internal.network.session import PipSession
+from pip._vendor import certifi
+from pip._vendor.requests import Request
+from pip._vendor.requests.adapters import HTTPAdapter
+from pip._vendor.urllib3.connectionpool import HTTPConnectionPool
+from pip._vendor.urllib3.response import HTTPResponse
 
 import scripts.ci.install_locked_python_requirements as installer
 
@@ -6276,3 +6290,408 @@ def test_main_preflight_only_skips_requirements_file_resolution(
 
     assert result == 0
     assert preflight_called["count"] == 1
+
+
+SYNTHETIC_MARKERS = ("PHASE0_SYNTH_USER", "PHASE0_SYNTH_PASSWORD", "PHASE0_SYNTH_EXCEPTION")
+
+
+class TestLockedPipNativeTransport:
+
+    def setup_method(self) -> None:
+        self.tmp = tempfile.TemporaryDirectory(prefix="native-case-")
+        self.home = Path(self.tmp.name)
+        self.env = pytest.MonkeyPatch()
+        for key, value in {
+            "HOME": str(self.home),
+            "NETRC": str(self.home / "absent"),
+            "HTTP_PROXY": "",
+            "HTTPS_PROXY": "",
+            "ALL_PROXY": "",
+            "NO_PROXY": "*",
+        }.items():
+            self.env.setenv(key, value)
+        self.original_send = installer._install_pip_transport_guard()
+        self.calls = []
+        self.sessions = []
+        self.statuses = []
+        self.headers = []
+        self.bodies = []
+        self.transport = None
+
+    def teardown_method(self) -> None:
+        for session in self.sessions:
+            session.close()
+        if self.transport is not None:
+            self.transport.stop()
+        HTTPAdapter.send = self.original_send
+        self.env.undo()
+        self.tmp.cleanup()
+
+    def session(self, *, trusted: Any = (), cache: Any = False, auth: Any = True) -> Any:
+        s = PipSession(trusted_hosts=trusted, cache=str(self.home / "cache") if cache else None)
+        self.sessions.append(s)
+        s.auth.prompting = False
+        s.auth.keyring_provider = "disabled"
+        if not auth:
+            s.trust_env = False
+        return s
+
+    def network(self) -> None:
+        if self.transport is not None:
+            self.transport.stop()
+        outer = self
+
+        def lower(pool: Any, method: Any, url: Any, **kwargs: Any) -> Any:
+            outer.calls.append(
+                {
+                    "scheme": pool.scheme,
+                    "host": pool.host,
+                    "port": pool.port,
+                    "authorization": any((k.lower() == "authorization" for k in kwargs["headers"])),
+                    "cert_reqs": pool.cert_reqs,
+                    "if_none_match": "If-None-Match" in kwargs["headers"],
+                }
+            )
+            status = outer.statuses.pop(0) if outer.statuses else 200
+            headers = outer.headers.pop(0) if outer.headers else {}
+            body = outer.bodies.pop(0) if outer.bodies else b"ok"
+            if status != 304:
+                headers.setdefault("Content-Length", str(len(body)))
+            wire = (
+                "HTTP/1.1 "
+                + str(status)
+                + " synthetic\r\n"
+                + "".join((str(k) + ": " + str(v) + "\r\n" for k, v in headers.items()))
+                + "\r\n"
+            ).encode() + body
+            socket = types.SimpleNamespace(makefile=lambda *args, **kwargs: io.BytesIO(wire))
+            response = http.client.HTTPResponse(socket)
+            response.begin()
+            return HTTPResponse(
+                body=response,
+                original_response=response,
+                status=status,
+                headers=headers,
+                preload_content=False,
+                decode_content=False,
+                request_method=method,
+                request_url=url,
+            )
+
+        self.transport = patch.object(HTTPConnectionPool, "urlopen", lower)
+        self.transport.start()
+
+    def netrc(self, *, filename: Any = ".netrc", default: Any = False) -> Any:
+        p = self.home / filename
+        p.write_text(
+            f"{('default' if default else 'machine redirect-target.example')} login {SYNTHETIC_MARKERS[0]} password {SYNTHETIC_MARKERS[1]}\n"
+        )
+        p.chmod(384)
+        self.env.delenv("NETRC", raising=False)
+        return p
+
+    def test_native_pip_redirect_status_source_matrix(self) -> None:
+        self.network()
+        for status in (301, 302, 303, 307, 308):
+            for filename in (".netrc", "_netrc"):
+                for default in (False, True):
+                    for f in (".netrc", "_netrc"):
+                        (self.home / f).unlink(missing_ok=True)
+                    self.netrc(filename=filename, default=default)
+                    self.calls.clear()
+                    self.statuses[:] = [status]
+                    self.headers[:] = [{"Location": "http://redirect-target.example/path"}]
+                    s = self.session()
+                    with pytest.raises(installer._PipTransportRejected):
+                        s.get("https://index-origin.example/simple")
+                    assert len(self.calls) == 1
+                    assert self.calls[0]["scheme"] == "https"
+
+    def test_native_pip_trusted_port_cache_and_verified_controls(self) -> None:
+        self.network()
+        for cache in (False, True):
+            for match in (True, False):
+                self.calls.clear()
+                self.netrc()
+                s = self.session(cache=cache, trusted=("redirect-target.example:9443",))
+                destination = f"https://redirect-target.example:{(9443 if match else 9444)}/pkg"
+                if match:
+                    with pytest.raises(installer._PipTransportRejected):
+                        s.get(destination)
+                    assert self.calls == []
+                else:
+                    assert s.get(destination).status_code == 200
+                    assert len(self.calls) == 1
+                    assert self.calls[0]["cert_reqs"] == "CERT_REQUIRED"
+
+    def test_native_pip_key_membership_and_verify_native_matrix(self) -> None:
+        self.network()
+        s = self.session(auth=False)
+        for key in ("Authorization", "authorization", "aUtHoRiZaTiOn"):
+            for value in ("", SYNTHETIC_MARKERS[1]):
+                for verify in (False, None, "", 1, object(), str(self.home / "missing")):
+                    request = Request(
+                        "GET", "https://secure.example/", headers={key: value}
+                    ).prepare()
+                    with pytest.raises(installer._PipTransportRejected):
+                        s.get_adapter(request.url).send(request, False, None, verify)
+                request = Request("GET", "http://unsafe.example/", headers={key: value}).prepare()
+                with pytest.raises(installer._PipTransportRejected):
+                    s.get_adapter(request.url).send(request)
+        assert self.calls == []
+        for verify in (True, certifi.where(), str(Path(certifi.where()).parent)):
+            request = Request(
+                "GET", "https://secure.example/", headers={"Authorization": ""}
+            ).prepare()
+            assert s.get_adapter(request.url).send(request, False, None, verify).status_code == 200
+            assert self.calls[-1]["cert_reqs"] == "CERT_REQUIRED"
+
+    def test_native_pip_source_removed_after_attachment(self) -> None:
+        self.network()
+        source = self.netrc(default=True)
+        s = self.session()
+        request = s.prepare_request(Request("GET", "http://redirect-target.example/"))
+        assert "Authorization" in request.headers
+        source.unlink()
+        with pytest.raises(installer._PipTransportRejected):
+            s.send(request)
+        assert self.calls == []
+
+    def test_native_pip_native_401_direct_adapter_retry(self) -> None:
+        self.network()
+        for unsafe in (False, True):
+            self.calls.clear()
+            self.netrc()
+            s = self.session(trusted=("redirect-target.example",) if unsafe else ())
+            s.auth.prompting = True
+            s.auth.index_urls = [
+                f"https://{SYNTHETIC_MARKERS[0]}:{SYNTHETIC_MARKERS[1]}@redirect-target.example/"
+            ]
+            request = Request("GET", "https://redirect-target.example/").prepare()
+            request.register_hook("response", s.auth.handle_401)
+            self.statuses[:] = [401, 200]
+            if unsafe:
+                with pytest.raises(installer._PipTransportRejected):
+                    s.send(request)
+                assert len(self.calls) == 1
+            else:
+                assert s.send(request).status_code == 200
+                assert len(self.calls) == 2
+                assert self.calls[-1]["authorization"]
+            (self.home / ".netrc").unlink()
+            prepared = s.prepare_request(Request("GET", "https://redirect-target.example/after"))
+            assert "Authorization" in prepared.headers
+            if unsafe:
+                with pytest.raises(installer._PipTransportRejected):
+                    s.send(prepared)
+            self.statuses.clear()
+
+    def test_native_pip_cache_miss_hit_revalidation_positional_and_redirect(self) -> None:
+        self.network()
+        s = self.session(cache=True, auth=False)
+        request = Request(
+            "GET", "https://cache.example/item", headers={"Authorization": "synthetic"}
+        ).prepare()
+        self.headers[:] = [
+            {
+                "Date": format_datetime(datetime.now(timezone.utc), usegmt=True),
+                "Cache-Control": "public, max-age=3600",
+                "ETag": '"first"',
+            }
+        ]
+        assert s.send(request).content == b"ok"
+        assert len(self.calls) == 1
+        assert s.send(request).content == b"ok"
+        assert len(self.calls) == 1
+        other = Request(
+            "GET", "https://cache.example/stale", headers={"Authorization": "synthetic"}
+        ).prepare()
+        self.headers[:] = [
+            {
+                "Date": "Thu, 01 Jan 1970 00:00:00 GMT",
+                "Cache-Control": "public, max-age=0",
+                "ETag": '"stale"',
+            }
+        ]
+        assert s.send(other).content == b"ok"
+        before = len(self.calls)
+        with pytest.raises(installer._PipTransportRejected):
+            s.get_adapter(other.url).send(other, False, None, False)
+        assert len(self.calls) == before
+        self.statuses[:] = [304]
+        self.headers[:] = [{"Date": format_datetime(datetime.now(timezone.utc), usegmt=True)}]
+        assert s.send(other).status_code == 200
+        assert self.calls[-1]["if_none_match"]
+        self.netrc(default=True)
+        redirect = self.session(cache=True)
+        self.statuses[:] = [301]
+        self.headers[:] = [
+            {
+                "Location": "http://redirect-target.example/",
+                "Date": format_datetime(datetime.now(timezone.utc), usegmt=True),
+                "Cache-Control": "public, max-age=3600",
+            }
+        ]
+        before = len(self.calls)
+        with pytest.raises(installer._PipTransportRejected):
+            redirect.get("https://cache.example/redirect")
+        assert len(self.calls) == before + 1
+        before = len(self.calls)
+        with pytest.raises(installer._PipTransportRejected):
+            redirect.get("https://cache.example/redirect")
+        assert len(self.calls) == before
+
+    def test_native_pip_secure_and_anonymous_redirect_controls(self) -> None:
+        self.network()
+        for destination, auth, expected in (
+            ("/relative", False, [False, False]),
+            ("https://redirect-target.example/", True, [True, True]),
+            ("https://other-secure.example/", False, [False, False]),
+            ("http://anonymous.example/", False, [False, False]),
+            ("https://anonymous.example:9443/", False, [False, False]),
+        ):
+            for f in (".netrc", "_netrc"):
+                (self.home / f).unlink(missing_ok=True)
+            if auth:
+                self.netrc(default=True)
+            self.calls.clear()
+            self.statuses[:] = [302, 200]
+            self.headers[:] = [{"Location": destination}, {}]
+            s = self.session(trusted=("anonymous.example:9443",), auth=auth)
+            assert s.get("https://index-origin.example/start").status_code == 200
+            assert [c["authorization"] for c in self.calls] == expected
+
+    def test_native_pip_header_value_never_read_by_guard(self) -> None:
+        self.network()
+        from pip._vendor.requests.structures import CaseInsensitiveDict
+
+        s = self.session(auth=False)
+        request = Request("GET", "http://unsafe.example/", headers={"Authorization": ""}).prepare()
+        with patch.object(
+            CaseInsensitiveDict, "__getitem__", side_effect=AssertionError("header value read")
+        ):
+            with pytest.raises(installer._PipTransportRejected):
+                s.send(request)
+        assert self.calls == []
+
+    def test_native_pip_hostname_matcher_accepts_and_rejects(self) -> None:
+        """Exercise the native hostname matcher separately from adapter TLS settings."""
+        from pip._vendor.urllib3.util.ssl_match_hostname import CertificateError, match_hostname
+
+        peer = {"subjectAltName": (("DNS", "secure.example"),)}
+        match_hostname(peer, "secure.example")
+        with pytest.raises(CertificateError):
+            match_hostname(peer, "wrong.example")
+
+
+def test_owned_pip_child_worker_and_atexit_lifetime() -> None:
+    """Native adapters remain guarded after controlled CLI return or exception."""
+    child_source = dedent("""\
+        from __future__ import annotations
+        import atexit
+        import json
+        import sys
+        import threading
+        from unittest.mock import patch
+        from pip._vendor.requests import Request
+        from pip._vendor.urllib3.connectionpool import HTTPConnectionPool
+        from pip._internal.network.session import PipSession
+        from pip._internal.cli import main as native_cli
+
+        import scripts.ci.install_locked_python_requirements as installer
+        kind=sys.argv[1]
+        namespace=installer.main.__globals__
+        ready=threading.Event()
+        threads=[]
+        counts={'worker_blocked':0,'atexit_blocked':0,'lower':0,'cli_exception':0}
+
+        def lower(*args,**kwargs):
+            counts['lower']+=1
+            raise AssertionError('lower transport must never be entered')
+        HTTPConnectionPool.urlopen=lower
+
+        def send(label):
+            s=PipSession()
+            try:
+                req=Request('GET','http://unsafe.example/',headers={'Authorization':'PHASE0_SYNTH_PASSWORD'}).prepare()
+                try:s.get_adapter(req.url).send(req)
+                except namespace['_PipTransportRejected']:
+                    counts[label+'_blocked']+=1
+            finally:s.close()
+
+        def exit_callback():
+            send('atexit')
+            print('LIFETIME_RESULT '+json.dumps(counts,sort_keys=True),flush=True)
+
+        def worker():
+            assert ready.wait(10)
+            send('worker')
+
+        def fake_cli(args):
+            assert args==['--synthetic-cli']
+            t=threading.Thread(target=worker,daemon=False)
+            threads.append(t)
+            t.start()
+            atexit.register(exit_callback)
+            if kind=='exception':raise RuntimeError('PHASE0_SYNTH_EXCEPTION')
+            return 17
+        native_cli.main=fake_cli
+        try:
+            result=namespace['main']([namespace['PIP_CHILD_SELECTOR'],'--synthetic-cli'])
+        except RuntimeError:
+            counts['cli_exception']=1
+            result=18
+        ready.set()
+        for thread in threads:
+            thread.join(10)
+            assert not thread.is_alive()
+        assert counts['worker_blocked']==1 and counts['lower']==0
+        print('CLI_RESULT '+str(result),flush=True)
+        raise SystemExit(result)
+    """)
+    markers = (
+        *SYNTHETIC_MARKERS,
+        base64.b64encode(b"PHASE0_SYNTH_USER:PHASE0_SYNTH_PASSWORD").decode(),
+    )
+    for kind, expected in (("return", 17), ("exception", 18)):
+        result = subprocess.run(
+            [sys.executable, "-c", child_source, kind], capture_output=True, text=True, timeout=300
+        )
+        assert result.returncode == expected, result.stdout + result.stderr
+        line = next(
+            line for line in result.stdout.splitlines() if line.startswith("LIFETIME_RESULT ")
+        )
+        counts = json.loads(line.split(" ", 1)[1])
+        assert counts == {
+            "worker_blocked": 1,
+            "atexit_blocked": 1,
+            "lower": 0,
+            "cli_exception": int(kind == "exception"),
+        }
+        assert not any(marker in result.stdout + result.stderr for marker in markers)
+
+
+def test_owned_pip_launch_rewrites_once_and_preserves_tail(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Every owned pip argv shares the child entry; unrelated Python argv stay intact."""
+    calls: list[list[str]] = []
+
+    def fake_run(argv: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        calls.append(argv)
+        return subprocess.CompletedProcess(argv, 0, "", "")
+
+    monkeypatch.setattr(installer.subprocess, "run", fake_run)
+    script = str(Path(installer.__file__).resolve())
+    for tail in (
+        ["download", "--index-url", "https://index.example/simple"],
+        ["install", "--no-index"],
+        ["install", "--upgrade", "pip"],
+        ["install", "--upgrade", "--no-index", "pip"],
+        ["install", "local.whl"],
+    ):
+        original = [sys.executable, "-m", "pip", *tail]
+        installer.run_command(original)
+        assert calls[-1] == [sys.executable, script, installer.PIP_CHILD_SELECTOR, *tail]
+        assert original == [sys.executable, "-m", "pip", *tail]
+    for tail in (["-m", "venv", "owned-test-venv"], ["-c", "pass"]):
+        installer.run_command([sys.executable, *tail])
+        assert calls[-1] == [sys.executable, *tail]

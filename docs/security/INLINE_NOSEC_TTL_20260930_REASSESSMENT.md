@@ -295,3 +295,93 @@ The [September ledger item](../roadmap/BACKLOG_LEDGER.md#ledger-p1-inline-nosec-
 Before the main-test correction, committed material had 29 pre-closeout paths, including the justified separate hook-generated secrets-baseline update. The admitted registry-test correction brings current material to 30 paths; the reserved canonical mapping projects 31. On 2026-10-01 the direct owner explicitly approved this exact 31-path scope and the emergency label; the coordinator authenticated application of `scope/emergency-approved` alongside the existing operator/privileged scope labels. Publication must retain the approved `Operator approval: approved`, `Privileged scope exception: approved` and `Emergency exception: approved` markers, split justification and all trusted scope labels. The approval is bounded to the shown material and canonical mapping, grants no unrelated expansion and is separate from exact-head merge approval. Foreign #2455/#2461 semantics/worktrees remain protected. No Trivy/Rego/allowlist, authored dependency, source-manifest, infrastructure, secret, deployment or PT-VIP-1 context-map pointer change enters this PR.
 
 If incompatibility appears, stop the affected operation and repair the admitted seam. Never restore unchecked credential transport, expired suppressions, redirect following or weakened gates. Required narrow-bundle completion, current-head CI, review and provider-neutral seal remain coordinator-owned. No local full make verify is run. Separate exact-PR/head/squash owner approval remains required for merge; provider absence creates no review/scan claim or bypass of findings, CI, mapping, unresolved threads or the review wait window.
+
+
+## Native pip final-send correction
+
+All installer-owned `python -m pip` commands now enter the existing installer's
+reserved child before native CLI parsing (`scripts/ci/install_locked_python_requirements.py:1938`,
+`scripts/ci/install_locked_python_requirements.py:2482`). Original pip argument
+tails and diagnostic argv are preserved. The child lazily installs one guard
+on native Requests `HTTPAdapter.send` and retains it through process termination,
+including workers and atexit (`scripts/ci/install_locked_python_requirements.py:1880`,
+`scripts/ci/install_locked_python_requirements.py:1923`).
+
+Case-insensitive final Authorization key presence, including an empty value,
+requires HTTPS, the current native verifying adapter and retained native
+`cert_verify`, plus enabled verification or an existing native CA file/directory
+path. Header values and credential sources are not inspected. This closes native
+redirect reauthentication, direct 401 adapter retries and positional CacheControl
+network sends. Initial default-file precedence, permissions and root admission
+remain independent. The separate private-proxy health checker is outside this
+installer contract. No version membership, release allowlist, fingerprint table,
+general recognizer, dependency pin or upgrade is added.
+
+Before the portability correction below, nine offline native groups passed in
+both actual Python 3.13.14/pip 26.1.2 target and owned ensurepip staging. They retain real preparation/auth/redirect/cache/
+certificate code and substitute only lower network: redirect statuses and both
+default filenames, trusted ports with cache/no-cache, value-free key membership,
+invalid/disabled verification and real CA paths, source removal after attachment,
+real 401 retries, cache miss/hit/revalidation/cached redirects and secure/anonymous
+controls (`tests/test_install_locked_python_requirements.py:6298`). The corrected
+lower fixture uses genuine stdlib HTTP-response EOF closure for native cache
+publication. Cache hits are reads, not network enforcement proof.
+
+Four real subprocess controls each observed one blocked post-CLI worker send,
+one blocked atexit send and zero lower calls, with controlled return/exception
+exits 17/18; both guarded native `--version` controls exited 0. Eighteen captured
+launches preserved tails and unrelated venv/metadata argv, and upgrade-only
+dispatch was observed (`tests/test_install_locked_python_requirements.py:6587`,
+`tests/test_install_locked_python_requirements.py:6674`). Synthetic credential,
+encoded-header and exception markers were absent from final child diagnostics.
+Native adapter transport controls separately observe retained `cert_verify`
+setting `CERT_REQUIRED`. The common vendored urllib3 `match_hostname(cert, hostname)`
+accepts the matching synthetic hostname and raises its native `CertificateError`
+for a mismatch (`tests/test_install_locked_python_requirements.py:6577`). The
+matcher is called directly with its two required arguments; no private socket
+wrapper, completed TLS handshake or real-peer chain verification is claimed.
+
+The correction trusts the current unmodified native client. Arbitrary plugins,
+monkeypatched clients, future implementations, proxy authorization and other
+credential channels are outside the proof. Import failure stops before native
+CLI and detected unsafe authenticated sends stop before lower transport, without
+an ordinary unguarded pip fallback. Future runtime changes require ordinary
+current-material validation; no future-version rejection guarantee is claimed.
+Focused tracked test output is retained below. Local narrow gates, current-head
+CI, all 42 criteria, review closeout and exact-head human merge approval remain
+independent requirements; these observations do not establish PR readiness.
+
+
+Before the Oracle portability correction below, tracked focused validation used
+the repo-approved shared interpreter. Its portable
+command form is `$VENV_PYTHON -m pytest -q tests/test_install_locked_python_requirements.py
+--junitxml=artifacts/orchestration/nosec_ttl_20260930/pip-phase0-proposal/tracked-installer-junit.xml`
+(with `VENV_PYTHON` resolved by `scripts/hooks/repo_python.sh`). The retained raw
+command includes the actual resolved interpreter; JUnit reports **348 tests,
+0 failures, 0 errors, 0 skips** in 42.682 seconds. Raw terminal evidence:
+
+```text
+............................................................             [100%]
+EXIT 0
+```
+
+
+The strict Apple/Linux oracle subsequently exposed only a test portability defect:
+its vendored urllib3 lacks the private `_ssl_wrap_socket_and_match_hostname`
+wrapper previously exercised by the local fixture. The native guard is unchanged.
+The test now calls the common native hostname matcher directly, preserving a
+positive match and a mismatch rejection; certificate-setting evidence remains in
+the separate real native adapter controls. The rejected Oracle result and raw
+failure remain retained; they are not converted into a passing Oracle claim.
+
+
+The replacement matcher node passed locally with the resolved repo interpreter:
+`tests/test_install_locked_python_requirements.py::TestLockedPipNativeTransport::test_native_pip_hostname_matcher_accepts_and_rejects`
+(`pytest -o addopts='' -q`, targeted JUnit retained), exit **0**. Raw stdout:
+
+```text
+1 passed in 1.24s
+```
+
+The strict Oracle rerun and affected mandatory gates remain coordinator-owned;
+this local targeted result does not establish a passing Oracle or PR readiness.
