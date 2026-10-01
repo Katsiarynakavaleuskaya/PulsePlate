@@ -2849,6 +2849,9 @@ def test_oracle_hook_metadata_is_inert_and_outside_closed_contracts() -> None:
         "enabled_by_default": True,
         "entrypoint": "scripts/orchestration/pr_oracle_attachment.py dispatch",
         "requires_coordinator_admission": True,
+        "requires_distinct_material_root": True,
+        "trusted_tool_root": "externally_admitted_before_startup",
+        "backend": "explicit_host_compatible_container",
         "authority": "metadata_only",
     }
     assert set(packet["automation_flags"]) == AUTOMATION_FLAG_FIELDS

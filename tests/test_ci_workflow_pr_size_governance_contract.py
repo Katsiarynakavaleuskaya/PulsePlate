@@ -5415,6 +5415,8 @@ ORCHESTRATION_COVERAGE_FILES = (
     "scripts/orchestration/qoder_dispatch_bridge.py",
     "scripts/orchestration/task_bootstrap.py",
     "scripts/orchestration/render_codex_start_prompt.py",
+    "scripts/orchestration/experiment_runner.py",
+    "scripts/orchestration/experiment_runner_pr_creative_context.py",
 )
 
 

@@ -1236,11 +1236,12 @@ jobs:
         run: |
           set -euo pipefail
           python -m coverage run --rcfile=/dev/null --branch \
-            --include='scripts/orchestration/pr_oracle_attachment.py,scripts/orchestration/experiment_runner_dispatch.py,scripts/orchestration/qoder_dispatch_bridge.py,scripts/orchestration/task_bootstrap.py,scripts/orchestration/render_codex_start_prompt.py' \
+            --include='scripts/orchestration/pr_oracle_attachment.py,scripts/orchestration/experiment_runner_dispatch.py,scripts/orchestration/qoder_dispatch_bridge.py,scripts/orchestration/task_bootstrap.py,scripts/orchestration/render_codex_start_prompt.py,scripts/orchestration/experiment_runner.py,scripts/orchestration/experiment_runner_pr_creative_context.py' \
             --data-file=.coverage.orchestration -m pytest -q -p no:xdist \
             tests/test_pr_oracle_attachment.py tests/test_experiment_runner_dispatch.py \
             tests/test_qoder_dispatch_bridge.py tests/test_task_bootstrap.py \
-            tests/test_render_codex_start_prompt.py
+            tests/test_render_codex_start_prompt.py tests/test_experiment_runner.py \
+            tests/test_experiment_runner_pr_creative_context.py
           python -m coverage xml --rcfile=/dev/null \
             --data-file=.coverage.orchestration -o coverage-orchestration.xml
           python - <<'PY'
@@ -1254,6 +1255,8 @@ jobs:
               "scripts/orchestration/qoder_dispatch_bridge.py",
               "scripts/orchestration/task_bootstrap.py",
               "scripts/orchestration/render_codex_start_prompt.py",
+              "scripts/orchestration/experiment_runner.py",
+              "scripts/orchestration/experiment_runner_pr_creative_context.py",
           }
           if len(classes) != len(expected) or {c.get("filename") for c in classes} != expected:
               raise SystemExit("Orchestration coverage has missing or unexpected source files")
