@@ -134,6 +134,7 @@ REMEDIATION_FIXED_FLOORS = {
     "anyio": Version("4.14.2"),
     "httpcore2": Version("2.12.0"),
     "httpx2": Version("2.12.0"),
+    "urllib3": Version("2.8.0"),
 }
 
 CURRENT_BLOCKED_VERSION_SPECIFIERS = {
@@ -142,6 +143,7 @@ CURRENT_BLOCKED_VERSION_SPECIFIERS = {
     "httpx2": f"<{REMEDIATION_FIXED_FLOORS['httpx2']}",
     "python-multipart": "<0.0.31",
     "setuptools": "<83.0.0",
+    "urllib3": f"<{REMEDIATION_FIXED_FLOORS['urllib3']}",
 }
 
 PIP_DIRECTIVE_PREFIXES = (
@@ -3205,3 +3207,237 @@ def test_idna_consumer_requires_real_registry_discovery_parity(
         _git_command(["add", "requirements-extra.txt"])
     with pytest.raises(AssertionError, match="idna carrier inventory differs from registry"):
         test_http_client_idna_runtime_constraints_are_compatible()
+
+
+# Frozen advisory data, not an incident lock graph. Evidence owner:
+# docs/security/PR_2447_URLLIB3_REMEDIATION.md
+URLLIB3_F_CUTOFF = {
+    "GHSA-2xpw-w6gg-jr37": ("<2.6.0,>=1.0",),
+    "GHSA-34jh-p97f-mpxf": ("<=1.26.18", "<=2.2.1"),
+    "GHSA-38jv-5279-wg99": ("<2.6.3,>=1.22",),
+    "GHSA-48p4-8xcf-vxj5": ("<2.5.0,>=2.2.0",),
+    "GHSA-5phf-pp7p-vc2r": ("<=1.26.3,>=1.26.0",),
+    "GHSA-8988-9cw3-xx77": ("<2.8.0,>=1.26.0",),
+    "GHSA-g4mx-q9vg-27p4": ("<=2.0.6,>=2", "<=1.26.17"),
+    "GHSA-gh4c-6fx4-qh6g": ("<2.8.0,>=2.6.2",),
+    "GHSA-gm62-xv2j-4w53": ("<2.6.0,>=1.24",),
+    "GHSA-mf9v-mfxr-j63j": ("<2.7.0,>=2.6.0",),
+    "GHSA-pq67-6m6q-mj2v": ("<2.5.0",),
+    "GHSA-q2q7-5pp4-w6pg": ("<1.26.5",),
+    "GHSA-qccp-gfcp-xxvc": ("<2.7.0,>=1.23",),
+    "GHSA-v845-jxx5-vc9f": ("<=2.0.5,>2", "<=1.26.16"),
+    "GHSA-vxq7-64xx-v4gw": ("<2.8.0,>=1.10.3",),
+}
+
+URLLIB3_REQUIRED_COMPILE_PROFILES = frozenset(
+    {"runtime", "docker-runtime", "ci-lite", "dev", "aggregate", "rag-vector", "rag-vector-cpu"}
+)
+
+
+def _assert_urllib3_surface(path: Path, *, required: bool, pinned: bool) -> None:
+    """Reuse canonical carriers and check every retained advisory interval."""
+    if path.exists() or path.is_symlink():
+        assert (
+            not path.is_symlink() and path.is_file()
+        ), f"{path.name}: urllib3 carrier must be a regular non-symlink file"
+    _assert_remediated_dependency_surface(path, package="urllib3", required=required, pinned=pinned)
+    minima, carriers = _requirement_evidence_per_package(path)
+    occurrences = carriers.get("urllib3", ())
+    if not occurrences:
+        return
+    requirement = occurrences[0]
+    assert all(
+        spec.operator != "===" for spec in requirement.specifier
+    ), f"{path.name}: arbitrary equality cannot establish urllib3 range evidence"
+    version = minima["urllib3"]
+    for advisory, ranges in URLLIB3_F_CUTOFF.items():
+        for affected in ranges:
+            assert not SpecifierSet(affected).contains(
+                version, prereleases=True
+            ), f"{path.name}: urllib3 {version} matches {advisory} range {affected}"
+
+
+def test_urllib3_current_governed_surfaces_are_safe() -> None:
+    """Discover current owners and preserve optional-present validation."""
+    registered = registered_dependabot_requirement_carriers()
+    discovered = discover_dependabot_requirement_carriers(REPO_ROOT)
+    assert discovered == registered, "urllib3 carrier inventory differs from registry"
+    compiled = compiled_dependency_surfaces()
+    assert URLLIB3_REQUIRED_COMPILE_PROFILES <= {
+        surface.compile_profile for surface in compiled
+    }, "urllib3 required compile profile is missing from registry"
+    locks = {surface.lockfile for surface in compiled}
+    required = {"requirements.in"} | {
+        surface.lockfile
+        for surface in compiled
+        if surface.compile_profile in URLLIB3_REQUIRED_COMPILE_PROFILES
+    }
+    assert required <= discovered, "urllib3 required carrier is missing from inventory"
+    for name in sorted(discovered):
+        _assert_urllib3_surface(REPO_ROOT / name, required=name in required, pinned=name in locks)
+
+
+@pytest.mark.parametrize(
+    ("name", "text"),
+    [
+        ("requirements.txt", "# missing\n"),
+        ("requirements.txt", "urllib3==2.7.0\n"),
+        ("requirements.txt", "urllib3==1.26.3\n"),
+        ("requirements.txt", "urllib3==2.8.0rc1\n"),
+        ("requirements.txt", "urllib3==2.8.0.dev1\n"),
+        ("requirements.txt", "urllib3==2.8.0\nURLLIB3==2.8.0\n"),
+        ("requirements.txt", "urllib3==2.*\n"),
+        ("requirements.txt", "urllib3>=2.8.0\n"),
+        ("requirements.txt", "urllib3===2.8.0\n"),
+        ("requirements.txt", 'urllib3==2.8.0; python_version < "0"\n'),
+        ("requirements.txt", "urllib3[extra]==2.8.0\n"),
+        ("requirements.in", "urllib3\n"),
+        ("requirements.in", "urllib3>=2.7.0,<3\n"),
+        ("requirements.in", "urllib3>=2.8.0,!=2.8.0,<3\n"),
+        ("requirements.in", "urllib3>=2.8.0,===2.8.0\n"),
+    ],
+)
+def test_urllib3_surface_rejects_unsafe_or_noncanonical_carriers(
+    tmp_path: Path, name: str, text: str
+) -> None:
+    """Challenge complete carriers, including the exclusive-boundary prerelease gap."""
+    path = tmp_path / name
+    path.write_text(text, encoding="utf-8")
+    with pytest.raises((AssertionError, InvalidVersion)):
+        _assert_urllib3_surface(path, required=True, pinned=name.endswith(".txt"))
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "urllib3==2..8.0\n",
+        "urllib3 @ https://example.invalid/urllib3.whl\n",
+        "-e git+https://example.invalid/urllib3.git\n",
+    ],
+)
+def test_urllib3_surface_rejects_malformed_url_or_editable_carriers(
+    tmp_path: Path, text: str
+) -> None:
+    """Use the existing fail-closed requirement parser for invalid sources."""
+    path = tmp_path / "requirements.txt"
+    path.write_text(text, encoding="utf-8")
+    with pytest.raises(pytest.fail.Exception):
+        _assert_urllib3_surface(path, required=True, pinned=True)
+
+
+@pytest.mark.parametrize(
+    ("name", "text", "required", "pinned"),
+    [
+        ("requirements.txt", "urllib3==2.8.1\n", True, True),
+        ("requirements.txt", "urllib3==2.9.0\n", True, True),
+        ("requirements.in", "urllib3>=2.8.0,<3.0.0\n", True, False),
+        ("requirements.in", "urllib3>=2.9.0,<3.0.0\n", True, False),
+        ("requirements-evals.txt", "# optional absence\n", False, True),
+        ("requirements-data.txt", "urllib3==2.8.1\n", False, True),
+    ],
+)
+def test_urllib3_surface_allows_future_versions_and_optional_absence(
+    tmp_path: Path, name: str, text: str, required: bool, pinned: bool
+) -> None:
+    """Permit later authorized safe versions without freezing the incident pin."""
+    path = tmp_path / name
+    path.write_text(text, encoding="utf-8")
+    _assert_urllib3_surface(path, required=required, pinned=pinned)
+
+
+@pytest.mark.parametrize(
+    "lockfile", ("requirements-test.txt", "requirements-data.txt", "requirements-evals.txt")
+)
+@pytest.mark.parametrize(
+    "text",
+    (
+        "urllib3==2.7.0\n",
+        "urllib3==2.8.0rc1\n",
+        "urllib3==2.8.0\nURLLIB3==2.8.0\n",
+        "urllib3==2..8.0\n",
+        "urllib3 @ https://example.invalid/urllib3.whl\n",
+    ),
+)
+def test_urllib3_consumer_rejects_unsafe_or_malformed_present_optional_carriers(
+    idna_consumer_repo: Path, lockfile: str, text: str
+) -> None:
+    """Reuse the existing tracked carrier fixture to exercise the actual consumer."""
+    (idna_consumer_repo / lockfile).write_text(text, encoding="utf-8")
+    with pytest.raises((AssertionError, pytest.fail.Exception)):
+        test_urllib3_current_governed_surfaces_are_safe()
+
+
+@pytest.mark.parametrize(
+    "lockfile", ("requirements-test.txt", "requirements-data.txt", "requirements-evals.txt")
+)
+@pytest.mark.parametrize("text", ("# optional absence\n", "urllib3==2.9.0\n"))
+def test_urllib3_consumer_allows_optional_absence_and_future_safe_pins(
+    idna_consumer_repo: Path, lockfile: str, text: str
+) -> None:
+    """Prove optional absence does not exempt a future present safe carrier."""
+    (idna_consumer_repo / lockfile).write_text(text, encoding="utf-8")
+    test_urllib3_current_governed_surfaces_are_safe()
+
+
+@pytest.mark.parametrize("mutation", ("omit-registered", "add-unregistered"))
+def test_urllib3_consumer_requires_registry_discovery_parity(
+    idna_consumer_repo: Path, mutation: str
+) -> None:
+    """Exercise real indexed inventory changes in the existing temporary fixture."""
+    if mutation == "omit-registered":
+        _git_command(["rm", "--cached", "requirements-all.txt"])
+    else:
+        (idna_consumer_repo / "requirements-extra.txt").write_text(
+            "urllib3==2.8.0\n", encoding="utf-8"
+        )
+        _git_command(["add", "requirements-extra.txt"])
+    with pytest.raises(AssertionError, match="urllib3 carrier inventory differs from registry"):
+        test_urllib3_current_governed_surfaces_are_safe()
+
+
+def test_urllib3_inventory_rejects_removed_required_profile(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Missing one formerly owned profile cannot collapse the universal postcondition."""
+    compiled = tuple(
+        surface
+        for surface in compiled_dependency_surfaces()
+        if surface.compile_profile != "rag-vector-cpu"
+    )
+    monkeypatch.setattr(f"{__name__}.compiled_dependency_surfaces", lambda: compiled)
+    with pytest.raises(AssertionError, match="urllib3 required compile profile is missing"):
+        test_urllib3_current_governed_surfaces_are_safe()
+
+
+def test_urllib3_surface_rejects_missing_file(tmp_path: Path) -> None:
+    """A missing carrier is failure rather than optional absence."""
+    with pytest.raises(pytest.fail.Exception, match="Missing requirement surface"):
+        _assert_urllib3_surface(tmp_path / "requirements.txt", required=False, pinned=True)
+
+
+@pytest.mark.parametrize("kind", ("symlink", "directory"))
+def test_urllib3_consumer_rejects_nonregular_indexed_carriers(
+    idna_consumer_repo: Path, kind: str
+) -> None:
+    """Canonical descriptor discovery rejects nonregular optional carrier paths."""
+    path = idna_consumer_repo / "requirements-data.txt"
+    path.unlink()
+    if kind == "symlink":
+        path.symlink_to(idna_consumer_repo / "requirements.txt")
+    else:
+        path.mkdir()
+    with pytest.raises(AssertionError, match="regular non-symlink"):
+        test_urllib3_current_governed_surfaces_are_safe()
+
+
+def test_urllib3_inventory_rejects_missing_required_source(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Registry parity cannot hide removal of the required authored source."""
+    missing_source = registered_dependabot_requirement_carriers() - {"requirements.in"}
+    monkeypatch.setattr(
+        f"{__name__}.registered_dependabot_requirement_carriers", lambda: missing_source
+    )
+    monkeypatch.setattr(
+        f"{__name__}.discover_dependabot_requirement_carriers", lambda _root: missing_source
+    )
+    with pytest.raises(AssertionError, match="urllib3 required carrier is missing"):
+        test_urllib3_current_governed_surfaces_are_safe()
