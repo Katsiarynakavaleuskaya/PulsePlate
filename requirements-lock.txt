@@ -506,9 +506,10 @@ typing-inspection==0.4.2
     #   -c requirements.txt
     #   fastapi
     #   pydantic
-urllib3==2.7.0
+urllib3==2.8.0
     # via
     #   -c requirements.txt
+    #   -r requirements.in
     #   requests
 uvicorn==0.42.0
     # via
