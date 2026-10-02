@@ -22,7 +22,7 @@ from unittest.mock import patch
 from urllib.parse import urlparse
 
 import pytest
-from pip._internal.network.session import PipSession
+from pip._internal.network.session import InsecureHTTPAdapter, PipSession
 from pip._vendor import certifi
 from pip._vendor.requests import Request
 from pip._vendor.requests.adapters import HTTPAdapter
@@ -895,7 +895,7 @@ def test_main_rejects_insecure_default_netrc_before_any_cli_branch(
     ],
 )
 @pytest.mark.parametrize("filename", [".netrc", "_netrc"])
-@pytest.mark.parametrize("transport", ["http", "trusted-https"])
+@pytest.mark.parametrize("transport", ["http", "trusted-https", "trusted-https-dot"])
 def test_default_netrc_direct_reader_and_settings_fail_before_connection(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -904,13 +904,14 @@ def test_default_netrc_direct_reader_and_settings_fail_before_connection(
     transport: str,
     filename: str,
 ) -> None:
-    _write_admission_netrc(tmp_path, entry, filename=filename)
     index = (
-        APPROVED_PROXY_URL
-        if transport == "trusted-https"
-        else APPROVED_PROXY_URL.replace("https:", "http:")
+        APPROVED_PROXY_URL if transport != "http" else APPROVED_PROXY_URL.replace("https:", "http:")
     )
-    trusted = "packages.example.internal" if transport == "trusted-https" else None
+    if transport == "trusted-https-dot":
+        index = "https://packages.example.internal./simple"
+        entry = entry.replace("packages.example.internal", "packages.example.internal.")
+    _write_admission_netrc(tmp_path, entry, filename=filename)
+    trusted = urlparse(index).hostname if transport != "http" else None
     calls: list[str] = []
 
     def forbidden(*_args: object, **_kwargs: object) -> None:
@@ -943,11 +944,27 @@ def test_default_netrc_direct_reader_and_settings_fail_before_connection(
 )
 @pytest.mark.parametrize("filename", [".netrc", "_netrc"])
 @pytest.mark.parametrize(
-    "trusted", [None, "other.example.internal", "packages.example.internal:443"]
+    "index,trusted",
+    [
+        (APPROVED_PROXY_URL, None),
+        (APPROVED_PROXY_URL, "other.example.internal"),
+        (APPROVED_PROXY_URL, "packages.example.internal:443"),
+        (APPROVED_PROXY_URL, "PACKAGES.EXAMPLE.INTERNAL."),
+        ("https://packages.example.internal./simple", "packages.example.internal"),
+        ("https://packages.example.internal:443/simple", "packages.example.internal:0443"),
+        ("https://packages.example.internal:0443/simple", "packages.example.internal:443"),
+        ("https://[2001:db8::1]:443/simple", "[2001:db8::1]:0443"),
+    ],
 )
 def test_verified_https_admits_real_default_netrc_selection(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, entry: str, trusted: str | None, filename: str
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    entry: str,
+    index: str,
+    trusted: str | None,
+    filename: str,
 ) -> None:
+    entry = entry.replace("packages.example.internal", str(urlparse(index).hostname))
     _write_admission_netrc(tmp_path, entry, filename=filename)
     observed: list[dict[str, str]] = []
 
@@ -965,12 +982,11 @@ def test_verified_https_admits_real_default_netrc_selection(
             return None
 
     monkeypatch.setattr(installer.http.client, "HTTPSConnection", Connection)
-    assert installer.resolve_private_proxy_settings(
-        index_url=APPROVED_PROXY_URL, trusted_host=trusted
-    ) == (APPROVED_PROXY_URL, trusted)
-    installer._read_private_index_project_page(
-        index_url=APPROVED_PROXY_URL, package="pip", trusted_host=trusted
+    assert installer.resolve_private_proxy_settings(index_url=index, trusted_host=trusted) == (
+        index,
+        trusted,
     )
+    installer._read_private_index_project_page(index_url=index, package="pip", trusted_host=trusted)
     assert len(observed) == 1
     assert (
         base64.b64decode(observed[0]["Authorization"].removeprefix("Basic "))
@@ -1089,21 +1105,31 @@ def test_default_netrc_selection_uncertainty_is_not_anonymous(
     "trusted,url,expected",
     [
         (None, APPROVED_PROXY_URL, False),
-        ("PACKAGES.EXAMPLE.INTERNAL.", APPROVED_PROXY_URL, True),
-        ("packages.example.internal.:443", "https://packages.example.internal:443/simple", True),
+        ("PACKAGES.EXAMPLE.INTERNAL", APPROVED_PROXY_URL, True),
+        ("PACKAGES.EXAMPLE.INTERNAL.", APPROVED_PROXY_URL, False),
+        ("packages.example.internal", "https://packages.example.internal./simple", False),
+        ("packages.example.internal.", "https://packages.example.internal./simple", True),
+        ("packages.example.internal.:443", "https://packages.example.internal:443/simple", False),
+        ("packages.example.internal:443", "https://packages.example.internal:443/simple", True),
+        ("packages.example.internal:0443", "https://packages.example.internal:443/simple", False),
+        ("packages.example.internal:443", "https://packages.example.internal:0443/simple", False),
+        ("packages.example.internal:0443", "https://packages.example.internal:0443/simple", True),
         ("packages.example.internal:443", APPROVED_PROXY_URL, False),
         ("packages.example.internal", "https://packages.example.internal:8443/simple", True),
         ("packages.example.internal:443", "https://packages.example.internal:8443/simple", False),
         ("other.example.internal", APPROVED_PROXY_URL, False),
         ("[2001:DB8::1]", "https://[2001:db8::1]:8443/simple", True),
         ("[2001:db8::1]:443", "https://[2001:db8::1]/simple", False),
-        ("[2001:db8::1]:0443", "https://[2001:db8::1]:443/simple", True),
+        ("[2001:db8::1]:443", "https://[2001:db8::1]:443/simple", True),
+        ("[2001:db8::1]:0443", "https://[2001:db8::1]:443/simple", False),
         ("[2001:db8::1]:443", "https://[2001:db8::1]:8443/simple", False),
     ],
 )
 def test_trusted_authority_matches_native_explicit_port_semantics(
     trusted: str | None, url: str, expected: bool
 ) -> None:
+    with PipSession(trusted_hosts=[trusted] if trusted is not None else []) as session:
+        assert (type(session.get_adapter(url)) is InsecureHTTPAdapter) is expected
     assert (
         installer._trusted_host_matches_url(trusted_host=trusted, parsed_url=urlparse(url))
         is expected

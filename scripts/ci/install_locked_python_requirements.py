@@ -1477,13 +1477,13 @@ def _trusted_host_matches_url(*, trusted_host: str | None, parsed_url: ParseResu
     """Return True when the operator trusted-host applies to the project URL host."""
     if not trusted_host:
         return False
-    hostname = str(parsed_url.hostname or "").rstrip(".").lower()
+    hostname = str(parsed_url.hostname or "").lower()
     if not hostname:
         return False
     trusted = trusted_host.strip()
     try:
         authority = urlparse(f"//{trusted}")
-        trusted_hostname = (authority.hostname or "").rstrip(".").lower()
+        trusted_hostname = (authority.hostname or "").lower()
         trusted_port = authority.port
         url_port = parsed_url.port
         suffix = trusted.split("]", 1)[1] if trusted.startswith("[") else trusted.partition(":")[2]
@@ -1508,7 +1508,14 @@ def _trusted_host_matches_url(*, trusted_host: str | None, parsed_url: ParseResu
         raise RuntimeError("Invalid private proxy trusted-host authority.") from None
     if malformed:
         raise RuntimeError("Invalid private proxy trusted-host authority.")
-    return trusted_hostname == hostname and (trusted_port is None or trusted_port == url_port)
+    # Native pip adapter mounts retain trailing dots and explicit port spelling.
+    return trusted_hostname == hostname and (
+        trusted_port is None
+        or (
+            url_port is not None
+            and authority.netloc.rpartition(":")[2] == parsed_url.netloc.rpartition(":")[2]
+        )
+    )
 
 
 def _admit_private_proxy_netrc_auth(
