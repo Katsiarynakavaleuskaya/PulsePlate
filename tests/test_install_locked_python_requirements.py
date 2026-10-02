@@ -6759,3 +6759,37 @@ def test_owned_pip_child_import_failure_has_distinct_private_diagnostic(
     assert installer.PIP_TRANSPORT_ERROR not in captured.err
     assert "Traceback" not in captured.err
     assert not any(marker in captured.err for marker in SYNTHETIC_MARKERS)
+
+
+@pytest.mark.parametrize("error_type", [ImportError, ModuleNotFoundError])
+def test_owned_pip_execution_import_failure_has_private_phase_diagnostic(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    error_type: type[ImportError],
+) -> None:
+    """Execution import errors stay private and distinct from setup or transport errors."""
+    from pip._internal.cli import main as native_cli
+
+    setup_calls: list[bool] = []
+    execution_calls: list[list[str]] = []
+    argv = ["install", "local.whl"]
+
+    def install_guard() -> None:
+        setup_calls.append(True)
+
+    def failed_execution(args: list[str]) -> int:
+        execution_calls.append(args)
+        raise error_type(" ".join(SYNTHETIC_MARKERS))
+
+    monkeypatch.setattr(installer, "_install_pip_transport_guard", install_guard)
+    monkeypatch.setattr(native_cli, "main", failed_execution)
+    assert installer._run_owned_pip_child(argv) == 1
+    assert setup_calls == [True]
+    assert execution_calls == [argv]
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err == installer.PIP_EXECUTION_IMPORT_ERROR + "\n"
+    assert installer.PIP_CHILD_IMPORT_ERROR not in captured.err
+    assert installer.PIP_TRANSPORT_ERROR not in captured.err
+    assert "Traceback" not in captured.err
+    assert not any(marker in captured.err for marker in SYNTHETIC_MARKERS)
