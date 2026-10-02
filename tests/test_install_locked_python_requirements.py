@@ -890,12 +890,22 @@ def test_main_rejects_insecure_default_netrc_before_any_cli_branch(
         ("default account root password synthetic-marker", "Root devpi"),
         ("machine packages.example.internal login root password synthetic-marker", "Root devpi"),
         ("machine packages.example.internal account root password synthetic-marker", "Root devpi"),
+        (
+            "machine packages.example.internal login ci-reader password synthetic-marker",
+            "require verified HTTPS",
+        ),
+        (
+            "machine packages.example.internal account ci-reader password synthetic-marker",
+            "require verified HTTPS",
+        ),
         ("default login ci-reader password synthetic-marker", "require verified HTTPS"),
         ("default account ci-reader password synthetic-marker", "require verified HTTPS"),
     ],
 )
 @pytest.mark.parametrize("filename", [".netrc", "_netrc"])
-@pytest.mark.parametrize("transport", ["http", "trusted-https", "trusted-https-dot"])
+@pytest.mark.parametrize(
+    "transport", ["http", "trusted-https", "trusted-https-dot", "trusted-https-prepared-port"]
+)
 def test_default_netrc_direct_reader_and_settings_fail_before_connection(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -912,6 +922,9 @@ def test_default_netrc_direct_reader_and_settings_fail_before_connection(
         entry = entry.replace("packages.example.internal", "packages.example.internal.")
     _write_admission_netrc(tmp_path, entry, filename=filename)
     trusted = urlparse(index).hostname if transport != "http" else None
+    if transport == "trusted-https-prepared-port":
+        index = "https://packages.example.internal:0443/simple"
+        trusted = "packages.example.internal:443"
     calls: list[str] = []
 
     def forbidden(*_args: object, **_kwargs: object) -> None:
@@ -952,7 +965,6 @@ def test_default_netrc_direct_reader_and_settings_fail_before_connection(
         (APPROVED_PROXY_URL, "PACKAGES.EXAMPLE.INTERNAL."),
         ("https://packages.example.internal./simple", "packages.example.internal"),
         ("https://packages.example.internal:443/simple", "packages.example.internal:0443"),
-        ("https://packages.example.internal:0443/simple", "packages.example.internal:443"),
         ("https://[2001:db8::1]:443/simple", "[2001:db8::1]:0443"),
     ],
 )
@@ -1112,8 +1124,8 @@ def test_default_netrc_selection_uncertainty_is_not_anonymous(
         ("packages.example.internal.:443", "https://packages.example.internal:443/simple", False),
         ("packages.example.internal:443", "https://packages.example.internal:443/simple", True),
         ("packages.example.internal:0443", "https://packages.example.internal:443/simple", False),
-        ("packages.example.internal:443", "https://packages.example.internal:0443/simple", False),
-        ("packages.example.internal:0443", "https://packages.example.internal:0443/simple", True),
+        ("packages.example.internal:443", "https://packages.example.internal:0443/simple", True),
+        ("packages.example.internal:0443", "https://packages.example.internal:0443/simple", False),
         ("packages.example.internal:443", APPROVED_PROXY_URL, False),
         ("packages.example.internal", "https://packages.example.internal:8443/simple", True),
         ("packages.example.internal:443", "https://packages.example.internal:8443/simple", False),
@@ -1128,8 +1140,10 @@ def test_default_netrc_selection_uncertainty_is_not_anonymous(
 def test_trusted_authority_matches_native_explicit_port_semantics(
     trusted: str | None, url: str, expected: bool
 ) -> None:
+    prepared = Request("GET", url).prepare()
+    assert prepared.url is not None
     with PipSession(trusted_hosts=[trusted] if trusted is not None else []) as session:
-        assert (type(session.get_adapter(url)) is InsecureHTTPAdapter) is expected
+        assert (type(session.get_adapter(prepared.url)) is InsecureHTTPAdapter) is expected
     assert (
         installer._trusted_host_matches_url(trusted_host=trusted, parsed_url=urlparse(url))
         is expected

@@ -1511,10 +1511,7 @@ def _trusted_host_matches_url(*, trusted_host: str | None, parsed_url: ParseResu
     # Native pip adapter mounts retain trailing dots and explicit port spelling.
     return trusted_hostname == hostname and (
         trusted_port is None
-        or (
-            url_port is not None
-            and authority.netloc.rpartition(":")[2] == parsed_url.netloc.rpartition(":")[2]
-        )
+        or (url_port is not None and authority.netloc.rpartition(":")[2] == str(url_port))
     )
 
 
