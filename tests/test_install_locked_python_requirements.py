@@ -6574,6 +6574,49 @@ class TestLockedPipNativeTransport:
                 s.send(request)
         assert self.calls == []
 
+    def test_native_normal_command_wrapper_reports_controlled_transport_rejection(
+        self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """The real normal pip wrapper returns ERROR without leaking a traceback."""
+        import logging
+        from pip._internal.cli import base_command, main as native_cli
+        from pip._internal.cli.status_codes import ERROR
+
+        self.network()
+        command = base_command.Command("synthetic", "Owned transport rejection")
+        options, args = command.parse_args([])
+        assert options.debug_mode is False
+
+        def rejected_run(_options: Any, _args: list[str]) -> int:
+            session = self.session(auth=False)
+            request = Request(
+                "GET",
+                "http://unsafe.example/",
+                headers={"Authorization": "PHASE0_SYNTH_PASSWORD"},
+            ).prepare()
+            try:
+                session.send(request)
+            except installer._PipTransportRejected:
+                raise
+            raise AssertionError("unsafe authenticated transport was accepted")
+
+        def normal_cli(argv: list[str]) -> int:
+            assert argv == ["--synthetic-cli"]
+            return command._run_wrapper(logging.INFO, options, args)
+
+        monkeypatch.setattr(command, "run", rejected_run)
+        monkeypatch.setattr(native_cli, "main", normal_cli)
+        with caplog.at_level(logging.INFO, logger=base_command.logger.name):
+            result = installer._run_owned_pip_child(["--synthetic-cli"])
+
+        assert result == ERROR == 1
+        assert self.calls == []
+        records = [record for record in caplog.records if record.name == base_command.logger.name]
+        assert [record.getMessage() for record in records] == [installer.PIP_TRANSPORT_ERROR]
+        assert all(record.exc_info is None for record in records)
+        assert "Traceback" not in caplog.text
+        assert not any(marker in caplog.text for marker in SYNTHETIC_MARKERS)
+
     def test_native_pip_hostname_matcher_accepts_and_rejects(self) -> None:
         """Exercise the native hostname matcher separately from adapter TLS settings."""
         from pip._vendor.urllib3.util.ssl_match_hostname import CertificateError, match_hostname
@@ -6695,3 +6738,24 @@ def test_owned_pip_launch_rewrites_once_and_preserves_tail(monkeypatch: pytest.M
     for tail in (["-m", "venv", "owned-test-venv"], ["-c", "pass"]):
         installer.run_command([sys.executable, *tail])
         assert calls[-1] == [sys.executable, *tail]
+
+
+@pytest.mark.parametrize("error_type", [ImportError, ModuleNotFoundError])
+def test_owned_pip_child_import_failure_has_distinct_private_diagnostic(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    error_type: type[ImportError],
+) -> None:
+    """Missing child prerequisites expose neither synthetic credentials nor traceback."""
+
+    def missing_pip() -> object:
+        raise error_type(" ".join(SYNTHETIC_MARKERS))
+
+    monkeypatch.setattr(installer, "_install_pip_transport_guard", missing_pip)
+    assert installer._run_owned_pip_child(["install", "local.whl"]) == 1
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err == installer.PIP_CHILD_IMPORT_ERROR + "\n"
+    assert installer.PIP_TRANSPORT_ERROR not in captured.err
+    assert "Traceback" not in captured.err
+    assert not any(marker in captured.err for marker in SYNTHETIC_MARKERS)

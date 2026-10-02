@@ -14,7 +14,7 @@ The existing private proxy is retained without purchase, infrastructure or secre
 
 - Settings and direct project-page reads share `_admit_private_proxy_netrc_auth`. The closed native Requests default candidate order is `.netrc`, then `_netrc`, selecting the first existing file even when it has no applicable host entry. Parsing and named/default-stanza selection remain delegated to stdlib `netrc.authenticators`, including effective login/account fallback. Primary `.netrc` retains filename-less stdlib owner/mode enforcement; explicit `_netrc` parsing follows native Requests semantics. A selected-file read/disappearance error never falls through to anonymous mode or another file. Root, password-only/indeterminate, read/parse/decode uncertainty fail closed. Applicable credentials require verified HTTPS before CLI branches, including upgrade-only, or connection/context creation. None denotes established source absence only. The claim does not cover NETRC overrides, keyring, other pip authentication/configuration or later external configuration mutation.
 - Trusted authority is hostname plus optional explicit port, including bracketed IPv6, hostname case and trailing dot. A portless trusted host matches any URL port; an explicit trusted port matches only an explicitly equal URL port. Missing port is not implicitly 443. Malformed authority, including delimiter-only query/fragment and control characters, is rejected.
-- The existing Docker URL validator executes immediately before network access; explicit empty userinfo and port 0 are rejected by presence checks. The real opener installs a local reject-all redirect handler; every 301/302/303/307/308 redirect fails before a second request, including otherwise allowed hosts, relative targets and scheme changes. SHA3, the 60-second timeout, cache reuse, output modes and existing filesystem restrictions remain intact. That original repair changed no source manifests, versions or review dates. The later direct-owner PCRE2 supplement below adds only the exact PCRE2/SLJIT records while preserving the existing SQLite/util-linux records and dates.
+- The existing Docker URL validator executes immediately before network access at `scripts/ci/fetch_docker_source_artifacts.py:239`; the real network opener is `scripts/ci/fetch_docker_source_artifacts.py:241`; explicit empty userinfo and port 0 are rejected by presence checks. The real opener installs the local reject-all redirect handler defined at `scripts/ci/fetch_docker_source_artifacts.py:48`; every 301/302/303/307/308 redirect fails before a second request, including otherwise allowed hosts, relative targets and scheme changes. SHA3, the 60-second timeout, cache reuse, output modes and existing filesystem restrictions remain intact. That original repair changed no source manifests, versions or review dates. The later direct-owner PCRE2 supplement below adds only the exact PCRE2/SLJIT records while preserving the existing SQLite/util-linux records and dates.
 - Constructor/context/request/response/read/close failures share the existing finite probe retry budget. Raw exception details are replaced with class-only diagnostics; existing package/redacted URL context is retained and raw exception chaining is suppressed. Only successfully constructed owned connections are closed; cleanup failure cannot produce success or replace safe diagnostics with exception text.
 - Root teardown uses logging with a constant message and exception class, retains best-effort cleanup and reaches gc.collect(); no exception repr/text/traceback or warnings.warn is introduced.
 
@@ -402,9 +402,15 @@ remain intact. `55 = 7 obsolete + 3 fix/removals + 45 retained` is unchanged.
 
 The [per-CVE owner document](CVE-2026-103111-pcre2.md) binds the immutable
 scanner subject, exact source pair and retained native feasibility observations.
-`scripts/ci/fetch_docker_source_artifacts.py:129` cross-binds the two exact
-name/version/filename/URL/digest records, retaining old identity behavior,
-verified TLS, no redirects and safe-cache/SHA3 checks. `Dockerfile:234` uses
+`scripts/ci/fetch_docker_source_artifacts.py:125` cross-binds the two exact
+name/version/filename/URL/digest records. Calls at
+`scripts/ci/fetch_docker_source_artifacts.py:214` and
+`scripts/ci/fetch_docker_source_artifacts.py:238` enforce that identity before
+cache reuse and before transport. URL validation at
+`scripts/ci/fetch_docker_source_artifacts.py:239` and the installed reject-all
+opener at `scripts/ci/fetch_docker_source_artifacts.py:241`, with its handler
+defined at `scripts/ci/fetch_docker_source_artifacts.py:48`, retain old identity
+behavior, verified TLS, no redirects and safe-cache/SHA3 checks. `Dockerfile:234` uses
 the existing toolchain and manifest with network-disabled native source build;
 `Dockerfile:557` exercises patched PCRE2/JIT and native libselinux under the
 final nonroot user after pruning. The existing image inventory checker receives
@@ -433,3 +439,24 @@ and must bind it to fully passing live-head strict readiness, dispositions,
 wait cycle and match-head guard at execution. Earlier passes and this supplement
 are not completion or merge-readiness proof. The [new PCRE2 ledger item](../roadmap/BACKLOG_LEDGER.md#ledger-p1-pcre2-cve-2026-103111)
 remains in progress until merged implementation and terminal evidence.
+
+
+## Late native-pip command diagnostic correction
+
+The current review exposed that native pip's normal `Command._run_wrapper`
+caught the RuntimeError transport rejection through its broad exception path,
+returning exit 2 with a traceback. Root's retained offline normal-wrapper
+reproduction confirms that the minimal lazy exception interoperability subclass,
+which remains `_PipTransportRejected` and is also native `InstallationError`,
+uses the ordinary controlled exit-1 path with the constant transport message.
+This correction changes only native exception categorization; transport
+predicates, guard boundary/lifetime, CLI argument tails and normal mode stay
+intact. No debug workaround or provider request is used.
+
+Child pip import failure now has a distinct constant diagnostic rather than
+being described as transport rejection. Raw import exception text, synthetic
+credentials and traceback are not emitted. The actual native normal-wrapper
+regression and import-failure privacy regressions are authored in the existing
+test owner; their execution and fresh material gates remain Root-owned and
+pending. Retained native PCRE2/local scanner evidence above remains local proof;
+it does not establish hosted current-head or closeout readiness for this fix.

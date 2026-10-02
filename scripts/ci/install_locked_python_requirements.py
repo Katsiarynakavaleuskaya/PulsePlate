@@ -1871,6 +1871,7 @@ def is_virtualenv_python(python_executable: str) -> bool:
 
 PIP_CHILD_SELECTOR = "--pulseplate-owned-pip-child"
 PIP_TRANSPORT_ERROR = "ERROR: locked pip transport rejected."
+PIP_CHILD_IMPORT_ERROR = "ERROR: locked pip child import failed."
 
 
 class _PipTransportRejected(RuntimeError):
@@ -1883,9 +1884,13 @@ def _install_pip_transport_guard() -> object:
     This is a bounded current-client correction, not a recognizer for arbitrary
     plugins, monkeypatched pip, unknown implementations or future releases.
     """
+    from pip._internal.exceptions import InstallationError
     from pip._internal.network import session as native
     from pip._vendor.requests.adapters import HTTPAdapter
     from pip._vendor.requests.models import PreparedRequest
+
+    class _NativePipTransportRejected(_PipTransportRejected, InstallationError):
+        """Use native pip's ordinary controlled-error path without a traceback."""
 
     send = HTTPAdapter.send
     cert_verify = HTTPAdapter.cert_verify
@@ -1913,7 +1918,7 @@ def _install_pip_transport_guard() -> object:
                 or getattr(self.cert_verify, "__func__", None) is not cert_verify
                 or not enabled_verify
             ):
-                raise _PipTransportRejected(PIP_TRANSPORT_ERROR)
+                raise _NativePipTransportRejected(PIP_TRANSPORT_ERROR)
         return send(self, request, stream, timeout, verify, cert, proxies)
 
     HTTPAdapter.send = guarded_send
@@ -1931,7 +1936,7 @@ def _run_owned_pip_child(argv: Sequence[str]) -> int:
         print(PIP_TRANSPORT_ERROR, file=sys.stderr)
         return 1
     except ImportError:
-        print(PIP_TRANSPORT_ERROR, file=sys.stderr)
+        print(PIP_CHILD_IMPORT_ERROR, file=sys.stderr)
         return 1
 
 
