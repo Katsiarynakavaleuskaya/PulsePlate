@@ -99,6 +99,11 @@
 - The Docker source-artifact fetcher rejects symlink/nonregular cache objects
   and non-real output-directory chains before reads or mutation. Keep source
   identity, archive filename, reviewed hash and literal Docker COPY aligned.
+- PCRE2 production replacement uses only the exact reviewed PCRE2 tag and its
+  pinned upstream SLJIT gitlink in the existing source manifest/fetcher. Keep
+  old source records/dates and TLS, redirect, checksum and cache controls intact.
+  Preserve shared 8-bit SONAME, Unicode and JIT; after pruning, exercise native
+  PCRE2 and libselinux regex calls plus retained consumers under the final user.
 - When replacing a packaged native library, verify the actual extension call
   and loaded replacement under the final runtime user after package pruning.
   Package-record absence and a clean scanner report do not prove native linkage.
