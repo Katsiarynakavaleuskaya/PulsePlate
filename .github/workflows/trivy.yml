@@ -80,6 +80,7 @@ jobs:
             --blocked-debian-package libattr1 \
             --blocked-debian-package libgnutls30 \
             --blocked-debian-package libsqlite3-0 \
+            --blocked-debian-package libpcre2-8-0 \
             --blocked-debian-package perl-base \
             --blocked-debian-package bsdutils \
             --blocked-debian-package libblkid1 \

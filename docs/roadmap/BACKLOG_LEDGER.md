@@ -24,6 +24,17 @@ If it is not recorded here — it does not exist.
 
 <!-- EXPERIMENT_BACKLOG_ENTRIES:INSERT BELOW -->
 
+<a id="ledger-p1-pcre2-cve-2026-103111"></a>
+- [ ] P1: Replace affected production PCRE2 for CVE-2026-103111
+  - Owner: security-auditor / agent-coordinator
+  - Priority: P1
+  - Target PR: [#2463](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2463)
+  - Status: In progress; direct owner admits the new finding; final governed-image/native scan, current-head gates and merge remain pending.
+  - Reason for deferral: Closure requires genuine patched production bytes and preserved native consumers, complete same-image scanner proof and terminal governed PR/main evidence; source acquisition and isolated lab success alone are insufficient.
+  - Links: [PCRE2 owner evidence](../security/CVE-2026-103111-pcre2.md), [Debian tracker](https://security-tracker.debian.org/tracker/CVE-2026-103111), [upstream advisory](https://github.com/PCRE2Project/pcre2/security/advisories/GHSA-r9hj-j2rw-4q3m).
+  - DoD: Exact reviewed PCRE2 10.49 plus upstream SLJIT closure through the existing source owner; unchanged old source values/dates and transport/cache protections; production-only shared8bit replacement preserving SONAME/Unicode/JIT and actual native libselinux/grep/dpkg/ls/mkdir consumers after pruning; terminal final linux/amd64 same-image full HIGH/CRITICAL/secret inventory with no applicable finding/secret; local/current-head review/readiness gates, owner-conditional match-head squash, merged-main terminal proof and same-ID continuity. No new suppression or risk waiver.
+  - Rollback: Normal bounded revert; affected-byte restoration blocks publication until an admitted remedy, with no JIT disable or weakened checks.
+
 <a id="ledger-p1-remove-trivy-suppression-openssl-cve-2026-84782"></a>
 - [ ] P1: Remove the temporary Bookworm OpenSSL CVE-2026-84782 exception
   - Owner: security-auditor / PulsePlate DevOps

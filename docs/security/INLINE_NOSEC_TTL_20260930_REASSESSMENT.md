@@ -4,7 +4,7 @@
 
 ## Scope and current truth
 
-One admitted security PR reconciles the September cohort and its existing executable boundaries. The cohort is frozen at `c32e61e85c9d02e7a22bd006462435eaf7bbfe7d`; all 23 source blobs were byte-identical at implementation base `b04d2eb1c9a0ea6a86dd2db18c2b5818432f97d9`. The direct accepted implementation request has SHA256 `befa0d1ac24761e124d4996c416765bd0e66933af13b75a3f51dd02244b243ce`; historical criteria-v1 preserved all 32 original criteria. Direct owner revision criteria-v3 authorized repairing/removing two avoidable B105 label-name exceptions while preserving every original record. Current `NOSEC-TTL-20260930-criteria-v5` retains all original 32 criteria plus ten individually identified failed-main-test outcomes and the owner's approved exact 31-path scope. Criteria-v4 remains the historical preparation reference; no original requirement is removed.
+One admitted security PR reconciles the September cohort and its existing executable boundaries. The cohort is frozen at `c32e61e85c9d02e7a22bd006462435eaf7bbfe7d`; all 23 source blobs were byte-identical at implementation base `b04d2eb1c9a0ea6a86dd2db18c2b5818432f97d9`. The direct accepted implementation request has SHA256 `befa0d1ac24761e124d4996c416765bd0e66933af13b75a3f51dd02244b243ce`; historical criteria-v1 preserved all 32 original criteria. Direct owner revision criteria-v3 authorized repairing/removing two avoidable B105 label-name exceptions while preserving every original record. Historical `NOSEC-TTL-20260930-criteria-v5` retains all original 32 criteria plus ten individually identified failed-main-test outcomes and the owner's approved exact 31-path scope. Criteria-v4 remains the historical preparation reference; no original requirement is removed.
 
 The existing scanner's 53 records in 22 files omit two root conftest entries. Full finite reconciliation is **55 = 7 stale removals + 3 repairs/removals + 45 individually justified renewals**. Extra root B110 and nine future separator edits are separate. Renewing through **2026-10-30** is temporary exception handling, not vulnerability remediation or a no-findings claim.
 
@@ -14,7 +14,7 @@ The existing private proxy is retained without purchase, infrastructure or secre
 
 - Settings and direct project-page reads share `_admit_private_proxy_netrc_auth`. The closed native Requests default candidate order is `.netrc`, then `_netrc`, selecting the first existing file even when it has no applicable host entry. Parsing and named/default-stanza selection remain delegated to stdlib `netrc.authenticators`, including effective login/account fallback. Primary `.netrc` retains filename-less stdlib owner/mode enforcement; explicit `_netrc` parsing follows native Requests semantics. A selected-file read/disappearance error never falls through to anonymous mode or another file. Root, password-only/indeterminate, read/parse/decode uncertainty fail closed. Applicable credentials require verified HTTPS before CLI branches, including upgrade-only, or connection/context creation. None denotes established source absence only. The claim does not cover NETRC overrides, keyring, other pip authentication/configuration or later external configuration mutation.
 - Trusted authority is hostname plus optional explicit port, including bracketed IPv6, hostname case and trailing dot. A portless trusted host matches any URL port; an explicit trusted port matches only an explicitly equal URL port. Missing port is not implicitly 443. Malformed authority, including delimiter-only query/fragment and control characters, is rejected.
-- The existing Docker URL validator executes immediately before network access; explicit empty userinfo and port 0 are rejected by presence checks. The real opener installs a local reject-all redirect handler; every 301/302/303/307/308 redirect fails before a second request, including otherwise allowed hosts, relative targets and scheme changes. SHA3, the 60-second timeout, cache reuse, output modes and existing filesystem restrictions remain intact. Source manifests, versions and review dates do not change.
+- The existing Docker URL validator executes immediately before network access; explicit empty userinfo and port 0 are rejected by presence checks. The real opener installs a local reject-all redirect handler; every 301/302/303/307/308 redirect fails before a second request, including otherwise allowed hosts, relative targets and scheme changes. SHA3, the 60-second timeout, cache reuse, output modes and existing filesystem restrictions remain intact. That original repair changed no source manifests, versions or review dates. The later direct-owner PCRE2 supplement below adds only the exact PCRE2/SLJIT records while preserving the existing SQLite/util-linux records and dates.
 - Constructor/context/request/response/read/close failures share the existing finite probe retry budget. Raw exception details are replaced with class-only diagnostics; existing package/redacted URL context is retained and raw exception chaining is suppressed. Only successfully constructed owned connections are closed; cleanup failure cannot produce success or replace safe diagnostics with exception text.
 - Root teardown uses logging with a constant message and exception class, retains best-effort cleanup and reaches gc.collect(); no exception repr/text/traceback or warnings.warn is introduced.
 
@@ -258,7 +258,7 @@ Coordinator-saved Docker run **36683691099**, job **109784592483**, and CD run *
 
 The [Debian primary tracker](https://security-tracker.debian.org/tracker/CVE-2026-84782), [exact Docker job](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/36683691099/job/109784592483) and [exact CD job](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/36683691096/job/109785230250) are separate-lane source/evidence references. Saved observations are not fresh upstream-status verification. The [separate remediation ledger item](../roadmap/BACKLOG_LEDGER.md#ledger-p1-main-openssl-cve-2026-84782) retains its owner's terminal image proof. Historical red main/CD is not an independent merge blocker for our PR under the latest direct owner clarification. Our actual required current-head checks, security bundle, findings/dispositions and separate exact-head merge approval remain mandatory; no gate is waived and no foreign remediation ownership transfers here.
 
-Docker/CVE remediation was assigned to [PR #2447](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2447), owned by the Prometheus T0-1 closeout chat `01a0def6-7596-7a41-95e7-0ccf8ce90f58`. The earlier OPEN/base-watch observation is historical. The coordinator's authenticated 2026-10-01 snapshot records **MERGED** at `2026-10-01T17:14:09Z`, merge commit `5338465ad08d4a0c8da6ffa9d65dce9d8dbea985`. This lane adopted that fetched main through ancestry-preserving merge `16ddaf8eb26aae5ed39e18595e859076b9619d6a`, without waiting for green main CI; all 23 owned cohort source blobs remained unchanged from prior head `4acce289f04d7e12e74cf879535a488edd14ba5f`. The owner still classifies the separately owned Docker/CD failure as nonblocking for our work and merge. Adoption proves neither Docker PASS nor current-main health. All original 32 criteria and the ten newly admitted main-test outcomes remain required. No scheduled heartbeat is restored.
+Docker/CVE remediation was assigned to [PR #2447](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2447), owned by the Prometheus T0-1 closeout chat `01a0def6-7596-7a41-95e7-0ccf8ce90f58`. The earlier OPEN/base-watch observation is historical. The coordinator's authenticated 2026-10-01 snapshot records **MERGED** at `2026-10-01T17:14:09Z`, merge commit `5338465ad08d4a0c8da6ffa9d65dce9d8dbea985`. This lane adopted that fetched main through ancestry-preserving merge `16ddaf8eb26aae5ed39e18595e859076b9619d6a`, without waiting for green main CI; all 23 owned cohort source blobs remained unchanged from prior head `4acce289f04d7e12e74cf879535a488edd14ba5f`. At that historical checkpoint, the owner classified the separately owned Docker/CD failure as nonblocking for our work and merge. The later direct instruction admits the new PCRE2 finding and requires fully passing applicable Docker gates. Adoption proves neither Docker PASS nor current-main health. All original 32 criteria and the ten newly admitted main-test outcomes remain required. No scheduled heartbeat is restored.
 
 ## Separately owned urllib3 handoff
 
@@ -292,7 +292,7 @@ The supplemental ordinary packet `e6f417903ae4` completed its five serial no-wri
 
 The [September ledger item](../roadmap/BACKLOG_LEDGER.md#ledger-p1-inline-nosec-ttl-20260930) remains open until merged implementation and required terminal proof. [October 30 reassessment](../roadmap/BACKLOG_LEDGER.md#ledger-p1-inline-nosec-reassessment-20261030) owns the remaining 45 exceptions. October 5 Docker/zlib/ncurses, October 7 Trivy/util-linux and October 28 native-Trivy obligations are distinct and unchanged.
 
-Before the main-test correction, committed material had 29 pre-closeout paths, including the justified separate hook-generated secrets-baseline update. The admitted registry-test correction brings current material to 30 paths; the reserved canonical mapping projects 31. On 2026-10-01 the direct owner explicitly approved this exact 31-path scope and the emergency label; the coordinator authenticated application of `scope/emergency-approved` alongside the existing operator/privileged scope labels. Publication must retain the approved `Operator approval: approved`, `Privileged scope exception: approved` and `Emergency exception: approved` markers, split justification and all trusted scope labels. The approval is bounded to the shown material and canonical mapping, grants no unrelated expansion and is separate from exact-head merge approval. Foreign #2455/#2461 semantics/worktrees remain protected. No Trivy/Rego/allowlist, authored dependency, source-manifest, infrastructure, secret, deployment or PT-VIP-1 context-map pointer change enters this PR.
+Before the main-test correction, committed material had 29 pre-closeout paths, including the justified separate hook-generated secrets-baseline update. The admitted registry-test correction brings current material to 30 paths; the reserved canonical mapping projects 31. On 2026-10-01 the direct owner explicitly approved this exact 31-path scope and the emergency label; the coordinator authenticated application of `scope/emergency-approved` alongside the existing operator/privileged scope labels. Publication must retain the approved `Operator approval: approved`, `Privileged scope exception: approved` and `Emergency exception: approved` markers, split justification and all trusted scope labels. The approval is bounded to the shown material and canonical mapping, grants no unrelated expansion and is separate from exact-head merge approval. Foreign #2455/#2461 semantics/worktrees remain protected. That earlier admission included no Trivy/Rego/allowlist, authored dependency, source-manifest, infrastructure, secret, deployment or PT-VIP-1 context-map pointer change. The later explicit PCRE2 supplement below supersedes the source/Docker limitation only for its exact required correction.
 
 If incompatibility appears, stop the affected operation and repair the admitted seam. Never restore unchecked credential transport, expired suppressions, redirect following or weakened gates. Required narrow-bundle completion, current-head CI, review and provider-neutral seal remain coordinator-owned. No local full make verify is run. Separate exact-PR/head/squash owner approval remains required for merge; provider absence creates no review/scan claim or bypass of findings, CI, mapping, unresolved threads or the review wait window.
 
@@ -385,3 +385,51 @@ The replacement matcher node passed locally with the resolved repo interpreter:
 
 The strict Oracle rerun and affected mandatory gates remain coordinator-owned;
 this local targeted result does not establish a passing Oracle or PR readiness.
+
+
+## Direct-owner PCRE2 supplement on 2026-10-02
+
+The owner explicitly admitted the new HIGH `CVE-2026-103111` finding from
+Docker run 36943207660/job 110639261837 into this same PR and requested fully
+passing applicable current-head CI/security/Docker/review/readiness checks.
+Current `NOSEC-TTL-20260930-criteria-v7` preserves all original 42 requirements
+and adds D01–D06, for 48 individually required outcomes. B03 preserves the
+existing SQLite/util-linux records and review dates while admitting exactly
+PCRE2 10.49 and its upstream SLJIT gitlink closure. The earlier 31-path bound
+and no-Docker restriction are historical for this necessary admitted change;
+quality gates, trusted scope provenance and existing NoSec/pip/main corrections
+remain intact. `55 = 7 obsolete + 3 fix/removals + 45 retained` is unchanged.
+
+The [per-CVE owner document](CVE-2026-103111-pcre2.md) binds the immutable
+scanner subject, exact source pair and retained native feasibility observations.
+`scripts/ci/fetch_docker_source_artifacts.py:129` cross-binds the two exact
+name/version/filename/URL/digest records, retaining old identity behavior,
+verified TLS, no redirects and safe-cache/SHA3 checks. `Dockerfile:234` uses
+the existing toolchain and manifest with network-disabled native source build;
+`Dockerfile:557` exercises patched PCRE2/JIT and native libselinux under the
+final nonroot user after pruning. The existing image inventory checker receives
+one additional blocked package in its three workflow consumers.
+
+Root subsequently built the actual final local linux/amd64 production image
+`sha256:f6845ea1e1b680d41070328b2b60d882eeae043a9c11a14b44761ca02a25941a`
+with exit **0**. Both interpreters under `pulseplate` passed PCRE2 10.49
+UTF/UCP/JIT and native libselinux regex/loaded-path checks after pruning; retained
+grep/dpkg/ls/mkdir/rmdir operations passed. Local Trivy 0.74.0 using the fresh
+October 2 database and unchanged existing policy returned exit **0**, two result
+subjects, zero HIGH/CRITICAL findings and zero secrets. Its final report SHA256
+is `80e8b35cf88d271fbea3031a5f5cb63c25a051a715241595e27560c6341c9db4`.
+The existing same-image inventory/report consumer also exited **0**. The per-CVE
+owner document retains raw native stdout and this bounded local proof.
+
+The first focused run found one stale expected complete package-list literal at
+`tests/test_docker_workflow_build_path_contract.py:240`; its expectation now
+includes `libpcre2-8-0` and preserves every existing member. Focused rerun,
+remaining required local gates and current-material hosted CI/closeout proof
+remain pending. Final local image observations do not prove hosted readiness.
+No new ignore,
+residual-risk waiver, provider call, schedule or production deployment is
+admitted. Root retains the direct owner advance conditional squash instruction
+and must bind it to fully passing live-head strict readiness, dispositions,
+wait cycle and match-head guard at execution. Earlier passes and this supplement
+are not completion or merge-readiness proof. The [new PCRE2 ledger item](../roadmap/BACKLOG_LEDGER.md#ledger-p1-pcre2-cve-2026-103111)
+remains in progress until merged implementation and terminal evidence.

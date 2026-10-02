@@ -239,7 +239,7 @@ def test_production_dockerfile_prunes_package_manager_surface() -> None:
     assert "'perl-modules-*'" in pruning_block
     assert (
         "for package in apt gzip gpgv libacl1 libattr1 libgnutls30 "
-        "libsqlite3-0 perl-base ${perl_module_packages} bsdutils libblkid1 libmount1 "
+        "libsqlite3-0 libpcre2-8-0 perl-base ${perl_module_packages} bsdutils libblkid1 libmount1 "
         "libsmartcols1 libuuid1 mount util-linux util-linux-extra libsystemd0 libudev1; do"
     ) in pruning_block
     for package in (
@@ -250,6 +250,7 @@ def test_production_dockerfile_prunes_package_manager_surface() -> None:
         "libattr1",
         "libgnutls30",
         "libsqlite3-0",
+        "libpcre2-8-0",
         "perl-base",
     ):
         assert f"        {package} \\" in pruning_block
@@ -351,7 +352,7 @@ def test_docker_source_artifact_manifest_pins_sqlite_source() -> None:
     assert manifest["schema_version"] == 1
     assert manifest["generated_at"] == "2026-09-28"
     assert manifest["review_by"] == "2026-10-05"
-    assert len(artifacts) == 2
+    assert len(artifacts) == 4
 
     artifact = artifacts[0]
     parsed_url = urlparse(artifact["url"])
@@ -647,6 +648,7 @@ def test_pr_and_publish_share_strict_native_image_scan_predicates() -> None:
         "util-linux-extra",
         "libsystemd0",
         "libudev1",
+        "libpcre2-8-0",
     )
     for job, name in (
         (build, "Check Docker runtime dependency surface"),
@@ -984,6 +986,7 @@ def test_docker_runtime_surface_guard_blocks_perl_runtime_packages() -> None:
         assert "--blocked-debian-package libattr1" in run_script
         assert "--blocked-debian-package libgnutls30" in run_script
         assert "--blocked-debian-package libsqlite3-0" in run_script
+        assert "--blocked-debian-package libpcre2-8-0" in run_script
         assert "--blocked-debian-package perl-base" in run_script
         assert "--blocked-debian-prefix perl-modules-" in run_script
 
@@ -1190,3 +1193,232 @@ def test_publish_image_scan_fails_closed() -> None:
         attestation_step["with"]["subject-digest"]
         == "${{ steps.docker-build-push.outputs.digest }}"
     )
+
+
+@pytest.mark.parametrize(
+    "name,version,url,digest",
+    [
+        (
+            "pcre2",
+            "10.49",
+            "https://codeload.github.com/PCRE2Project/pcre2/legacy.tar.gz/refs/tags/pcre2-10.49",
+            "6510970e92ea9410b44f85c606c389c3473ba05d2d6338f0ce763cc4ccaa382c",
+        ),
+        (
+            "sljit",
+            "de0259c7aaf36aa40cba8014f3fad3edde9307f9",
+            "https://codeload.github.com/zherczeg/sljit/legacy.tar.gz/"
+            "de0259c7aaf36aa40cba8014f3fad3edde9307f9",
+            "7ad006814d4d9c698832b14541634b9cc12039bae7b3bb547909fda51ee11a80",
+        ),
+    ],
+)
+def test_pcre2_source_records_bind_exact_reviewed_closure(
+    name: str, version: str, url: str, digest: str
+) -> None:
+    artifacts = docker_sources.load_manifest(
+        REPO_ROOT / "scripts/ci/docker_source_artifacts.json", today=date(2026, 10, 2)
+    )
+    assert len(artifacts) == 4
+    matches = [artifact for artifact in artifacts if artifact.name == name]
+    assert len(matches) == 1
+    artifact = matches[0]
+    assert (artifact.version, artifact.filename, artifact.url, artifact.sha3_256) == (
+        version,
+        f"{name}-{version}.tar.gz",
+        url,
+        digest,
+    )
+
+
+@pytest.mark.parametrize("name", ["pcre2", "sljit"])
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        "repo",
+        "ref",
+        "path",
+        "version",
+        "filename",
+        "digest",
+        "cross_pair",
+        "http",
+        "credentials",
+        "empty_userinfo",
+        "port",
+        "query",
+        "fragment",
+        "unknown_name",
+        "malformed_version",
+        "malformed_digest",
+    ],
+)
+def test_pcre2_source_manifest_rejects_identity_and_metadata_cross_pairs(
+    tmp_path: Path, name: str, mutation: str
+) -> None:
+    manifest = json.loads((REPO_ROOT / "scripts/ci/docker_source_artifacts.json").read_text())
+    row = next(record for record in manifest["artifacts"] if record["name"] == name)
+    if mutation == "repo":
+        row["url"] = row["url"].replace("/legacy.tar.gz/", "-other/legacy.tar.gz/")
+    elif mutation == "ref":
+        row["url"] += "-other"
+    elif mutation == "path":
+        row["url"] = row["url"].replace("/legacy.tar.gz/", "/tar.gz/")
+    elif mutation == "version":
+        row["version"] += "-other"
+        row["filename"] = f"{name}-{row['version']}.tar.gz"
+    elif mutation == "filename":
+        row["filename"] = "different.tar.gz"
+    elif mutation == "digest":
+        row["sha3_256_parts"] = ["0" * 64]
+    elif mutation == "cross_pair":
+        other = next(
+            record
+            for record in manifest["artifacts"]
+            if record["name"] != name and record["name"] in ("pcre2", "sljit")
+        )
+        row["url"] = other["url"]
+        row["sha3_256_parts"] = other["sha3_256_parts"]
+    elif mutation == "http":
+        row["url"] = row["url"].replace("https:", "http:")
+    elif mutation == "credentials":
+        row["url"] = row["url"].replace("https://", "https://reader@")
+    elif mutation == "empty_userinfo":
+        row["url"] = row["url"].replace("https://", "https://@")
+    elif mutation == "port":
+        row["url"] = row["url"].replace("github.com/", "github.com:443/")
+    elif mutation == "query":
+        row["url"] += "?override=1"
+    elif mutation == "fragment":
+        row["url"] += "#override"
+    elif mutation == "unknown_name":
+        row["name"] = "other"
+        row["filename"] = f"other-{row['version']}.tar.gz"
+    elif mutation == "malformed_version":
+        row["version"] = 10
+    else:
+        row["sha3_256_parts"] = [None]
+    path = _write_docker_source_manifest(tmp_path, manifest)
+    with pytest.raises(RuntimeError):
+        docker_sources.load_manifest(path, today=date(2026, 10, 2))
+
+
+@pytest.mark.parametrize("name", ["pcre2", "sljit"])
+@pytest.mark.parametrize("code", [301, 302, 303, 307, 308])
+def test_pcre2_source_redirects_use_real_rejecting_handler(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, name: str, code: int
+) -> None:
+    artifact = next(
+        item
+        for item in docker_sources.load_manifest(
+            REPO_ROOT / "scripts/ci/docker_source_artifacts.json", today=date(2026, 10, 2)
+        )
+        if item.name == name
+    )
+    calls = _stub_source_transport(
+        monkeypatch, payload=b"redirected source", code=code, location=artifact.url
+    )
+    output = tmp_path / "sources"
+    with pytest.raises(HTTPError):
+        docker_sources._write_verified_artifact(artifact, output)
+    assert calls == [(artifact.url, 60)]
+    assert list(output.iterdir()) == []
+
+
+@pytest.mark.parametrize("name", ["pcre2", "sljit"])
+@pytest.mark.parametrize("field", ["url", "version", "filename", "sha3_256"])
+def test_pcre2_direct_source_revalidates_identity_before_cache_or_transport(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, name: str, field: str
+) -> None:
+    artifact = next(
+        item
+        for item in docker_sources.load_manifest(
+            REPO_ROOT / "scripts/ci/docker_source_artifacts.json", today=date(2026, 10, 2)
+        )
+        if item.name == name
+    )
+    corrupted = replace(artifact, **{field: getattr(artifact, field) + "other"})
+    calls = _stub_source_transport(monkeypatch, payload=b"unused")
+    output = tmp_path / "sources"
+    with pytest.raises(RuntimeError, match="exact reviewed identity"):
+        docker_sources._write_verified_artifact(corrupted, output)
+    assert calls == []
+    assert not output.exists()
+
+
+@pytest.mark.parametrize("name", ["pcre2", "sljit"])
+def test_pcre2_source_download_rejects_wrong_actual_bytes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, name: str
+) -> None:
+    artifact = next(
+        item
+        for item in docker_sources.load_manifest(
+            REPO_ROOT / "scripts/ci/docker_source_artifacts.json", today=date(2026, 10, 2)
+        )
+        if item.name == name
+    )
+    calls = _stub_source_transport(monkeypatch, payload=b"wrong actual source bytes")
+    output = tmp_path / "sources"
+    with pytest.raises(RuntimeError, match="SHA3"):
+        docker_sources._write_verified_artifact(artifact, output)
+    assert calls == [(artifact.url, 60)]
+    assert list(output.iterdir()) == []
+
+
+def test_pcre2_production_build_preserves_native_features_and_consumers() -> None:
+    dockerfile = (REPO_ROOT / "Dockerfile").read_text()
+    dockerignore = (REPO_ROOT / ".dockerignore").read_text()
+    builder = dockerfile.split("FROM sqlite-builder AS pcre2-builder", 1)[1].split(
+        "# Stage 2: Runtime base stage", 1
+    )[0]
+    for filename in ("pcre2-10.49.tar.gz", "sljit-de0259c7aaf36aa40cba8014f3fad3edde9307f9.tar.gz"):
+        assert f"COPY build/docker-sources/{filename}" in builder
+        assert f"!build/docker-sources/{filename}" in dockerignore
+    assert 'sha3_256(payload).hexdigest() != "".join(records[0]["sha3_256_parts"])' in builder
+    assert "RUN --network=none" in builder
+    assert "--strip-components=1 -C /tmp/pcre2-source/deps/sljit" in builder
+    for flag in (
+        "--enable-shared",
+        "--disable-static",
+        "--enable-jit",
+        "--enable-unicode",
+        "--enable-pcre2-8",
+        "--disable-pcre2-16",
+        "--disable-pcre2-32",
+        "--disable-pcre2grep-libz",
+        "--disable-pcre2grep-libbz2",
+        "--disable-pcre2test-libreadline",
+    ):
+        assert flag in builder
+    assert "make -j2 libpcre2-8.la" in builder
+    for source in ("LICENCE.md", "COPYING", "deps/sljit/LICENSE"):
+        assert f"install -m 0644 {source}" in builder
+    production = dockerfile.split("FROM runtime-base AS production", 1)[1].split(
+        "FROM runtime-base AS development", 1
+    )[0]
+    replacement = production.index("COPY --from=pcre2-builder")
+    pruning = production.index("# SECURITY: production-package-pruning-start")
+    nonroot = production.index("USER pulseplate")
+    smoke = production.index("# Exercise the actual replacement")
+    assert replacement < pruning < nonroot < smoke
+    assert "ln -s libpcre2-8.so.0.16.1 /usr/local/lib/libpcre2-8.so.0 && ldconfig" in production
+    assert "        libpcre2-8-0 \\" in production
+    assert "sha256sum --check /usr/local/share/doc/pulseplate-pcre2/SHA256SUMS" in production
+    for native_call in (
+        "pcre2_config_8",
+        "pcre2_compile_8",
+        "pcre2_jit_compile_8",
+        "pcre2_jit_match_8",
+        "pcre2_jit_stack_assign_8",
+        "selabel_open",
+        "selabel_lookup_raw",
+        "freecon",
+        "selabel_close",
+    ):
+        assert native_call in production[smoke:]
+    assert 'version.value.startswith(b"10.49 ")' in production[smoke:]
+    assert "if loaded != {expected}:" in production[smoke:]
+    assert "finally:" in production[smoke:]
+    assert "grep -P" in production[smoke:]
+    assert "dpkg --version" in production[smoke:]
+    assert 'mkdir "${consumer_directory}/child"' in production[smoke:]
