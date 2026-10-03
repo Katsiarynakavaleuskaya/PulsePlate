@@ -24,6 +24,28 @@ If it is not recorded here — it does not exist.
 
 <!-- EXPERIMENT_BACKLOG_ENTRIES:INSERT BELOW -->
 
+<a id="ledger-p1-pcre2-cve-2026-103111"></a>
+- [ ] P1: Replace affected production PCRE2 for CVE-2026-103111
+  - Owner: security-auditor / agent-coordinator
+  - Priority: P1
+  - Target PR: [#2463](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2463)
+  - Status: In progress; direct owner admits the new finding; final governed-image/native scan, current-head gates and merge remain pending.
+  - Reason for deferral: Closure requires genuine patched production bytes and preserved native consumers, complete same-image scanner proof and terminal governed PR/main evidence; source acquisition and isolated lab success alone are insufficient.
+  - Links: [PCRE2 owner evidence](../security/CVE-2026-103111-pcre2.md), [Debian tracker](https://security-tracker.debian.org/tracker/CVE-2026-103111), [upstream advisory](https://github.com/PCRE2Project/pcre2/security/advisories/GHSA-r9hj-j2rw-4q3m).
+  - DoD: Exact reviewed PCRE2 10.49 plus upstream SLJIT closure through the existing source owner; unchanged old source values/dates and transport/cache protections; production-only shared8bit replacement preserving SONAME/Unicode/JIT and actual native libselinux/grep/dpkg/ls/mkdir consumers after pruning; terminal final linux/amd64 same-image full HIGH/CRITICAL/secret inventory with no applicable finding/secret; local/current-head review/readiness gates, owner-conditional match-head squash, merged-main terminal proof and same-ID continuity. No new suppression or risk waiver.
+  - Rollback: Normal bounded revert; affected-byte restoration blocks publication until an admitted remedy, with no JIT disable or weakened checks.
+
+<a id="ledger-p1-remove-trivy-suppression-openssl-cve-2026-84782"></a>
+- [ ] P1: Remove the temporary Bookworm OpenSSL CVE-2026-84782 exception
+  - Owner: security-auditor / PulsePlate DevOps
+  - Priority: P1
+  - Target PR: [#2447](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2447) for bounded admission; follow-up removal PR when its trigger occurs.
+  - Status: Open; candidate repository exception, with exact-head human residual-risk acceptance and merge approval still pending.
+  - Reason for deferral: Debian Bookworm still lists OpenSSL `3.0.22-1~deb12u1` as vulnerable at the 2026-09-30 review, without a fixed Bookworm row. Both affected packages remain present; this is a temporary publication exception, not remediation or a false-positive finding.
+  - Review-by: 2026-10-05 inclusive; unchanged shared hard expiry: 2026-10-07. Reassess before both dates; no automatic renewal.
+  - Links: `docs/security/CVE-2026-84782-openssl.md`, `trivy/ignore-policy.rego`, `scripts/ci/check_trivy_ignore_policy_native.py`, [Debian tracker](https://security-tracker.debian.org/tracker/CVE-2026-84782).
+  - DoD: Admit an applicable fixed Bookworm package or disposition a new nonempty native Trivy FixedVersion; remove only the exact CVE-2026-84782 rule and its now-obsolete native controls in the reviewed removal change. Prove the exact package/image/native linkage as applicable, suppression-free result for this CVE and all independent selected security gates; preserve unrelated rules/deadlines and OPS coverage. Complete current-head local/CI/review gates and the separately authorized post-merge main/image proof; then close this item through the canonical ledger closeout.
+
 <a id="ledger-p1-ops-context-inventory"></a>
 - [ ] P1: OPS-01 offline operational context inventory and separate operational follow-ups
   - Owner: dev-operator / agent-coordinator
@@ -233,8 +255,9 @@ If it is not recorded here — it does not exist.
 - [ ] P1: Complete staging host visibility and tested failure notifications
   - Owner: @katsiaryna_kavaleuskaya with DevOps and security-auditor
   - Priority: P1 (operational detection and diagnosis)
-  - Target PR: OBS2A-PR1 #2416 exact alias/target rules (merged); dedicated OBS2A-CD-TEST-FIX carryover for CD provenance expectations; separately reviewed OBS2A-PR2 email routing and OBS2A-PR3 daily checkpoint; later host visibility remains separate.
-  - Status: OBS2A-PR1 merged as `ddfdbce31ba33d1f7360281a3bdf0ef02c8353a2`. Current-main CI exposed stale CD provenance test inventories, under repair in the dedicated carryover PR; main verification, host activation, delivered email, scheduled checkpoint, and production `T₀` remain pending.
+  - Target PR: OBS2A-PR1 #2416 exact alias/target rules (merged); CD provenance carryover [#2421](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2421) (merged); active OBS2A-PR2 [#2447](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2447) email routing and separately admitted OBS2A-PR3 daily checkpoint; later host visibility remains separate.
+  - Status: OBS2A-PR1 merged as `ddfdbce31ba33d1f7360281a3bdf0ef02c8353a2`; CD provenance repair #2421 is merged. PR2 #2447 repository work and current-head gates remain in progress; verified current main, monitoring-only host activation, two received emails, scheduled checkpoint, and production `T₀` remain pending.
+  - OBS2A-PR2 scope (EN): The owner approved one combined 37-path privileged Alertmanager/Resend and Docker-security carrier (36 material paths plus the canonical mapping), consolidating all blocking HIGH/CRITICAL Docker findings and the single-identity urllib3 replacement. Preserve the exact staging Compose pin in `scripts/ops/staging_runtime_diagnostics.py`, its `docs/deploy/STAGING.md` mirror, the independent `tests/test_staging_runtime_diagnostics.py` literal retained after main #2462, and the one-for-one `.secrets.baseline` fingerprint update. The exact official v0.34.1 gRPC exception requires weekly review and removal by 2026-10-24 or earlier when a fixed official release is admitted; the exact OpenSSL exception retains its 2026-10-05 review and 2026-10-07 hard expiry. The urllib3 2.8.0 replacement spans the owning source and all seven existing locks without another package transition or suppression. Evidence: [Alertmanager note](../security/CVE-2026-84445-alertmanager.md), [OpenSSL note](../security/CVE-2026-84782-openssl.md), and [urllib3 evidence owner](../security/PR_2447_URLLIB3_REMEDIATION.md). PR2 repository work and current-head gates remain in progress. Resend account/domain/key setup, monitoring-only staging activation, two received emails and PR3's ordinary 04:15 UTC timer run remain separate pending outcomes. Independent whole-Droplet visibility remains deferred to its separately owned lane.
   - Reason for deferral (EN): The private Prometheus scrape exists, but host exporters, notification routing, and independent whole-Droplet visibility remain open. OBS2A-PR1 adds only bounded alias/target diagnostic rules and their file-delivery contract. It does not close the broader host alerting DoD or imply that missing Kubernetes components caused attestation failures.
   - Links: `deploy/prometheus/prometheus.yml`; `deploy/docker-compose.staging.yaml`; `docs/deploy/OPERATIONAL_SIGNALS.md`; `docs/deploy/STAGING.md`; [PR #2393](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2393)
   - DoD: Select a bounded Compose-compatible design for host CPU/RAM/disk visibility, service/database availability, backup age/failure and scrape failures; define actionable thresholds and operator-approved notification destinations; prove alert delivery with synthetic failures; include an independently hosted availability observation for whole-Droplet loss and a documented log inspection/retention path. Preserve internal-only metrics endpoints, secret-file handling and the production/staging evidence boundary. Kubernetes, Grafana, exporters, new services or paid monitoring require the subsequent reviewed scope and are not authorized by this entry.
@@ -5781,11 +5804,44 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Reassess inline nosec TTLs due 2026-09-30 before main CI expiry
   - Owner: Security/SRE
   - Priority: P1
-  - Target PR: PR-TBD-NOSEC-TTL-20260930 (separate main-stabilization lane)
+  - Target PR: [#2463](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2463) (`codex/security-nosec-ttl-20260930`)
+  - Status: Implementation in review; merged #2447 main `5338465ad08d4a0c8da6ffa9d65dce9d8dbea985` adopted at `16ddaf8eb26aae5ed39e18595e859076b9619d6a` with all 23 owned cohort source blobs preserved. The direct owner admitted all ten failed nodes from canonical main run 36897887285; the bounded registry repair preserves exact typed admission and Markdown/rawHTML negative controls. Current criteria-v7 retains all 48 criteria: original 32 outcomes, M01–M10 and D01–D06 for the owner-admitted PCRE2 supplement; v4/v5 remain historical preparation references. The current owner-admitted scope is 37 paths including mapping; publication must retain required approval markers, split justification and trusted labels. The owner gave advance conditional approval to squash #2463 only after fully green applicable live-head CI/security/Docker, review disposition and fresh strict readiness, binding the exact live head at execution. Closure still awaits that merge and exact merged-main terminal evidence.
   - Area: security / CI / static analysis
-  - Reason: On 2026-09-28, 53 inline `# nosec` remove-by entries across 22 tracked files still expire on 2026-09-30. The on-by-default guard will reject them from 2026-10-01; this is separate from the current Docker source and Trivy review-date failures. A blind batch date extension would not revalidate the underlying findings.
+  - Reason: The original scanner observation was 53 September entries in 22 files; full frozen reconciliation adds two root `conftest.py` entries, giving 55 in 23 files at c32e61e85c9d02e7a22bd006462435eaf7bbfe7d, unchanged at b04d2eb1c9a0ea6a86dd2db18c2b5818432f97d9. The admitted implementation removes seven stale suppressions, repairs/removes source-fetch B310 plus two avoidable label-name B105 suppressions, and individually renews 45 necessary exceptions through 2026-10-30. Root B110 and nine future-format edits are separate. This is distinct from Docker/Trivy calendar and image-CVE remediation; renewal does not establish vulnerability remediation.
   - Links: `tests/guards/test_nosec_policy_guard.py`, `AGENTS.md` (Bandit / nosec policy), and `scripts/ci/fetch_docker_source_artifacts.py:175` as one affected example.
-  - DoD: Reconcile every exact inline suppression with its owning rule, current code path and safer fix; remove or repair where possible, renew only independently justified remaining exceptions with owner/ref/TTL proof, retain the guard, and verify exact-head main CI before 2026-10-01. Do not mix this 22-file inventory with the bounded Docker/Trivy calendar repair PR.
+  - Evidence: [Individual reconciliation](../security/INLINE_NOSEC_TTL_20260930_REASSESSMENT.md) owns original coordinates, decisions and bounded transport/diagnostic changes.
+  - DoD: Reconcile all 55 records individually, prove comment/value/pragma parity and executable boundaries, pass existing guards, repository-profile Bandit, narrow local gates and applicable exact-head CI, then verify merged-main terminal state. Record separate failed or pending image rails without taking their ownership.
+
+<a id="ledger-p1-inline-nosec-reassessment-20261030"></a>
+- [ ] P1: Reassess the 45 retained inline security exceptions before 2026-10-30
+  - Owner: Security/SRE
+  - Priority: P1
+  - Target PR: PR-TBD-NOSEC-REVIEW-20261030
+  - Status: Scheduled follow-up after the September reassessment PR merges.
+  - Reason: Required bounded subprocess operations, one public release reason code and anonymous trusted-host compatibility still need explicit temporary Bandit exceptions. A renewed annotation is not elimination of the underlying rule finding.
+  - Links: [September owner evidence](../security/INLINE_NOSEC_TTL_20260930_REASSESSMENT.md), `tests/guards/test_nosec_policy_guard.py`, and `AGENTS.md` (Bandit / nosec policy).
+  - DoD: Reassess every retained site against its live callers and safer alternatives; remove exceptions where feasible, or individually justify an authorized short TTL with real reference; preserve guards and all unrelated future dates, and verify exact-head CI. Keep October 5 source/zlib/ncurses, October 7 Trivy/util-linux and October 28 native Trivy obligations separate.
+
+<a id="ledger-p1-urllib3-prometheus-handoff-20260930"></a>
+- [ ] P1: Complete the separately owned Python urllib3 advisory remediation handoff
+  - Owner: Prometheus T0-1 closeout (owning chat `01a0def6-7596-7a41-95e7-0ccf8ce90f58`)
+  - Priority: P1
+  - Target PR: [#2447](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2447), merged as `5338465ad08d4a0c8da6ffa9d65dce9d8dbea985`; no dependency material is authored by PR #2463.
+  - Status: The owning implementation identity is confirmed; #2463 adopted merged main at `16ddaf8eb26aae5ed39e18595e859076b9619d6a`, bringing upstream urllib3 2.8.0 without an authored dependency delta. The coordinator observed the installed required pre-push pip-audit hook PASS with exit 0 on adopted lock material. Hosted-CI/main-security terminal success is not inferred; the handoff entry stays open for owning-rail terminal validation.
+  - Reason for deferral: Direct owner assigned this dependency to Prometheus; our original inline-nosec packet continues only its own review fixes. Canonical CI run 36734183242 at head 08b9b1b0641ee9064c4132e9b7f2467b1475b7d2 reports urllib3 2.7.0 with CVE-2026-97687, CVE-2026-97688 and CVE-2026-97689 in four audited lock profiles. This dependency finding is distinct from the separately owned Docker/OpenSSL finding and is not waived or relabeled PASS.
+  - Links: [Exact canonical security job](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/36734183242/job/109953943533), [inline-nosec owner evidence](../security/INLINE_NOSEC_TTL_20260930_REASSESSMENT.md), and root `AGENTS.md` application-dependency remediation policy.
+  - DoD: Confirm the owning implementation PR/head, reconcile all governed manifest/lock surfaces and advisories under canonical dependency policy, complete the authorized urllib3 remediation, and prove current-head pip-audit PASS before claiming that dependency outcome complete. Preserve exact observed failures until terminal evidence exists.
+
+<a id="ledger-p1-main-openssl-cve-2026-84782"></a>
+- [ ] P1: Resolve the separately owned current-main OpenSSL image security finding
+  - Owner: PR #2447 / Prometheus T0-1 closeout (Security/SRE; owning chat `01a0def6-7596-7a41-95e7-0ccf8ce90f58`)
+  - Priority: P1
+  - Target PR: [PR #2447](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2447) (Prometheus closeout / Docker-CVE ownership)
+  - Status: The coordinator's authenticated checkpoint records #2447 MERGED at 2026-10-01T17:14:09Z as `5338465ad08d4a0c8da6ffa9d65dce9d8dbea985`; the September inline-nosec lane adopted it at `16ddaf8eb26aae5ed39e18595e859076b9619d6a`. The earlier OPEN/base-watch state is historical. Main/CD terminal remediation proof remains with the listed owner; merge/adoption is not image PASS and this item remains open.
+  - Owner steering: The direct clarification classifies separately owned Docker/CD failures as nonblocking for our work and merge. Fetched main was adopted without waiting for green main CI; the admitted shared-main-test correction continues in #2463 under current criteria-v5, preserving original 32 requirements plus ten individual outcomes and the exact owner-approved 31-path scope. Own current-head security/checks/findings and separate exact-head merge approval remain mandatory; no gate is waived.
+  - Reason: Docker publisher run 36683691099, job 109784592483, and CD run 36683691096, job 109785230250, at main b04d2eb1c9a0ea6a86dd2db18c2b5818432f97d9 report CVE-2026-84782 for libssl3/openssl 3.0.22-1~deb12u1 with no scanner fixed-version value. The observation does not establish causality from PR #2462 or a scanner-database update.
+  - Links: [Debian primary tracker](https://security-tracker.debian.org/tracker/CVE-2026-84782), [Docker job](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/36683691099/job/109784592483), [CD job](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/36683691096/job/109785230250), and [inline-lane boundary](../security/INLINE_NOSEC_TTL_20260930_REASSESSMENT.md).
+  - DoD: Freshly reconcile upstream applicability/fix status with exact image/scanner evidence, admit a dedicated owner-scoped remediation or governed unfixed-upstream disposition, pass applicable image security/publish/CD gates and prove current-main terminal health. Do not add a suppression, dependency bump or Dockerfile change to the inline-nosec PR.
 
 <a id="ledger-p1-native-trivy-cli-nosec-20261028"></a>
 - [ ] P1: Reassess native Trivy CLI B404/B603 exceptions by 2026-10-28

@@ -20,13 +20,44 @@ import stat
 import sys
 import tempfile
 from urllib.parse import urlparse
-from urllib.request import urlopen
+from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_MANIFEST = REPO_ROOT / "scripts" / "ci" / "docker_source_artifacts.json"
 DEFAULT_OUTPUT_DIR = REPO_ROOT / "build" / "docker-sources"
 ALLOWED_SOURCE_HOSTS = frozenset({"sqlite.org", "www.sqlite.org", "www.kernel.org"})
 _HEX_RE = re.compile(r"^[0-9a-f]{64}$")
+
+# Only these two reviewed upstream repository/ref records use codeload basenames.
+_PINNED_CODELOAD_SOURCES = {
+    "pcre2": (
+        "10.49",
+        "https://codeload.github.com/PCRE2Project/pcre2/legacy.tar.gz/refs/tags/pcre2-10.49",
+        "pcre2-10.49.tar.gz",
+        ("6510970e92ea9410b44f85c606c389c3" "473ba05d2d6338f0ce763cc4ccaa382c"),
+    ),
+    "sljit": (
+        "de0259c7aaf36aa40cba8014f3fad3edde9307f9",
+        "https://codeload.github.com/zherczeg/sljit/legacy.tar.gz/de0259c7aaf36aa40cba8014f3fad3edde9307f9",
+        "sljit-de0259c7aaf36aa40cba8014f3fad3edde9307f9.tar.gz",
+        ("7ad006814d4d9c698832b14541634b9c" "c12039bae7b3bb547909fda51ee11a80"),
+    ),
+}
+
+
+class _NoRedirectHandler(HTTPRedirectHandler):
+    """The manifest selects one source URL; redirects cannot select another."""
+
+    def redirect_request(
+        self,
+        req: Request,
+        fp: object,
+        code: int,
+        msg: str,
+        headers: object,
+        newurl: str,
+    ) -> None:
+        return None
 
 
 @dataclass(frozen=True)
@@ -61,6 +92,12 @@ def _sha3_from_parts(raw_parts: object, *, artifact_name: str) -> str:
 
 
 def _validate_source_url(url: str, *, artifact_name: str) -> str:
+    if artifact_name in _PINNED_CODELOAD_SOURCES:
+        if url != _PINNED_CODELOAD_SOURCES[artifact_name][1]:
+            raise RuntimeError(
+                f"{artifact_name} source URL does not match its exact reviewed identity."
+            )
+        return url
     parsed = urlparse(url)
     hostname = (parsed.hostname or "").rstrip(".").lower()
     if parsed.scheme != "https" or hostname not in ALLOWED_SOURCE_HOSTS:
@@ -68,7 +105,13 @@ def _validate_source_url(url: str, *, artifact_name: str) -> str:
         raise RuntimeError(f"{artifact_name} source URL must use https and host one of: {allowed}")
     if not parsed.path.endswith(".tar.gz"):
         raise RuntimeError(f"{artifact_name} source URL must point to a .tar.gz artifact.")
-    if parsed.username or parsed.password or parsed.port or parsed.query or parsed.fragment:
+    if (
+        parsed.username is not None
+        or parsed.password is not None
+        or parsed.port is not None
+        or parsed.query
+        or parsed.fragment
+    ):
         raise RuntimeError(f"{artifact_name} source URL must not contain credentials or overrides.")
     artifact_hosts = {
         "sqlite-autoconf": {"sqlite.org", "www.sqlite.org"},
@@ -77,6 +120,22 @@ def _validate_source_url(url: str, *, artifact_name: str) -> str:
     if hostname not in artifact_hosts.get(artifact_name, set()):
         raise RuntimeError(f"{artifact_name} source identity does not match its approved host.")
     return url
+
+
+def _validate_source_identity(artifact: DockerSourceArtifact) -> None:
+    """Cross-bind the finite codeload records, also before safe-cache reuse."""
+    if artifact.name in _PINNED_CODELOAD_SOURCES:
+        version, url, filename, digest = _PINNED_CODELOAD_SOURCES[artifact.name]
+        if (artifact.version, artifact.url, artifact.filename, artifact.sha3_256) != (
+            version,
+            url,
+            filename,
+            digest,
+        ):
+            raise RuntimeError(
+                f"{artifact.name} source does not match its exact reviewed identity."
+            )
+    _validate_source_url(artifact.url, artifact_name=artifact.name)
 
 
 def load_manifest(path: Path, *, today: date | None = None) -> tuple[DockerSourceArtifact, ...]:
@@ -130,7 +189,9 @@ def load_manifest(path: Path, *, today: date | None = None) -> tuple[DockerSourc
         seen_names.add(artifact_name)
         if filename_text != f"{artifact_name}-{str(version).strip()}.tar.gz":
             raise RuntimeError(f"{artifact_name} filename does not match source identity/version.")
-        if Path(urlparse(str(url).strip()).path).name != filename_text:
+        if artifact_name not in _PINNED_CODELOAD_SOURCES and (
+            Path(urlparse(str(url).strip()).path).name != filename_text
+        ):
             raise RuntimeError(f"{artifact_name} URL filename does not match the source artifact.")
         artifacts.append(
             DockerSourceArtifact(
@@ -144,10 +205,13 @@ def load_manifest(path: Path, *, today: date | None = None) -> tuple[DockerSourc
                 ),
             )
         )
+    for artifact in artifacts:
+        _validate_source_identity(artifact)
     return tuple(artifacts)
 
 
 def _write_verified_artifact(artifact: DockerSourceArtifact, output_dir: Path) -> Path:
+    _validate_source_identity(artifact)
     # A cooperative build cache is not an arbitrary filesystem repair target.
     if ".." in output_dir.parts:
         raise RuntimeError("Source output directory must not traverse parent directories.")
@@ -171,11 +235,11 @@ def _write_verified_artifact(artifact: DockerSourceArtifact, output_dir: Path) -
             return output_path
         output_path.unlink()
 
-    print(f"{artifact.name}: fetching {artifact.url}")
-    payload = urlopen(  # nosec B310: URL is manifest-pinned to approved HTTPS hosts and SHA3-verified (remove-by: 2026-09-30, ref: PR-fix-main-trivy-container-cves)
-        artifact.url,
-        timeout=60,
-    ).read()
+    _validate_source_identity(artifact)
+    source_url = _validate_source_url(artifact.url, artifact_name=artifact.name)
+    print(f"{artifact.name}: fetching {source_url}")
+    with build_opener(_NoRedirectHandler()).open(source_url, timeout=60) as response:
+        payload = response.read()
     actual_digest = sha3_256(payload).hexdigest()
     if actual_digest != artifact.sha3_256:
         raise RuntimeError(

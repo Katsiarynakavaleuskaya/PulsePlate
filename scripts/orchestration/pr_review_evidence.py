@@ -14,7 +14,7 @@ import os
 import re
 import shutil
 import stat
-import subprocess  # nosec B404: fixed absolute git only (remove-by: 2026-09-30, ref: PR-governance-seal)
+import subprocess  # nosec B404 # B404: fixed absolute git only (remove-by: 2026-10-30, ref: PR-governance-seal)
 import unicodedata
 import urllib.parse
 from dataclasses import dataclass
@@ -1478,7 +1478,7 @@ def _run_git(
     git = _git_path()
     _reject_active_git_grafts(repo_root, git=git)
     try:
-        result = subprocess.run(  # nosec B603: absolute git plus validated fixed argv (remove-by: 2026-09-30, ref: PR-governance-seal)
+        result = subprocess.run(  # nosec B603 # B603: resolved Git with bounded object/diff callers, sanitized environment, graft checks and timeout (remove-by: 2026-10-30, ref: PR-governance-seal)
             [git, *args],
             cwd=repo_root,
             env=_git_environment(),
@@ -1502,7 +1502,7 @@ def _git_is_ancestor(repo_root: Path, *, ancestor_sha: str, descendant_sha: str)
     _reject_active_git_grafts(repo_root, git=git)
     _reject_shallow_ancestry(repo_root, descendant_sha=descendant_sha, git=git)
     try:
-        result = subprocess.run(  # nosec B603: absolute git plus validated fixed argv (remove-by: 2026-09-30, ref: PR-governance-seal)
+        result = subprocess.run(  # nosec B603 # B603: resolved Git with fixed ancestry query, checked identities, sanitized environment and shallow/graft rejection (remove-by: 2026-10-30, ref: PR-governance-seal)
             [git, "merge-base", "--is-ancestor", ancestor_sha, descendant_sha],
             cwd=repo_root,
             env=_git_environment(),
@@ -1522,7 +1522,7 @@ def _reject_active_git_grafts(repo_root: Path, *, git: str) -> None:
     """Reject legacy graft files before trusting any local Git topology."""
 
     try:
-        result = subprocess.run(  # nosec B603: absolute git plus fixed argv (remove-by: 2026-09-30, ref: PR-governance-seal)
+        result = subprocess.run(  # nosec B603 # B603: resolved Git with fixed graft-path lookup, sanitized environment and 30-second timeout (remove-by: 2026-10-30, ref: PR-governance-seal)
             [git, "rev-parse", "--git-path", "info/grafts"],
             cwd=repo_root,
             env=_git_environment(),
@@ -1556,7 +1556,7 @@ def _shallow_boundary_shas(repo_root: Path, *, git: str) -> frozenset[str]:
     """Return validated local shallow boundaries without trusting their topology."""
 
     try:
-        result = subprocess.run(  # nosec B603: absolute git plus fixed argv (remove-by: 2026-09-30, ref: PR-governance-seal)
+        result = subprocess.run(  # nosec B603 # B603: resolved Git with fixed shallow-path lookup, sanitized environment and 30-second timeout (remove-by: 2026-10-30, ref: PR-governance-seal)
             [git, "rev-parse", "--git-path", "shallow"],
             cwd=repo_root,
             env=_git_environment(),
@@ -1623,7 +1623,7 @@ def _reject_shallow_ancestry(repo_root: Path, *, descendant_sha: str, git: str) 
     descendant = _require_sha(descendant_sha, label="stale-seal ancestry descendant")
     for boundary in _shallow_boundary_shas(repo_root, git=git):
         try:
-            result = subprocess.run(  # nosec B603: absolute git plus validated fixed argv (remove-by: 2026-09-30, ref: PR-governance-seal)
+            result = subprocess.run(  # nosec B603 # B603: resolved Git with fixed parent-object read, checked commit, sanitized environment and 30-second timeout (remove-by: 2026-10-30, ref: PR-governance-seal)
                 [git, "merge-base", "--is-ancestor", boundary, descendant],
                 cwd=repo_root,
                 env=_git_environment(),

@@ -103,8 +103,8 @@ class TierAuthContext:
 
 
 # Test API keys for deterministic test/development tier checks.
-TEST_KEY_PRO = "test_pro_key"  # nosec B105: deterministic non-production test key (remove-by: 2026-09-30, ref: PR-995)
-TEST_KEY_VIP = "test_vip_key"  # nosec B105: deterministic non-production test key (remove-by: 2026-09-30, ref: PR-995)
+TEST_KEY_PRO = "test_pro_key"
+TEST_KEY_VIP = "test_vip_key"
 
 # Environment configuration
 VIP_MODULE_ENABLED = is_vip_module_enabled()

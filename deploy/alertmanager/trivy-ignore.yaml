@@ -1,0 +1,9 @@
+vulnerabilities:
+  - id: CVE-2026-84445
+    purls:
+      - pkg:golang/google.golang.org/grpc@v1.83.1
+    expired_at: 2026-10-24
+    statement: >-
+      Temporary exception for the exact official Alertmanager v0.34.1 linux/amd64
+      image while no patched Alertmanager release exists. Review weekly and remove
+      when an official release includes grpc 1.83.2 or later.
