@@ -447,11 +447,13 @@ If it is not recorded here — it does not exist.
 - [ ] P1: CLIENT-ARCH-1 / CAB-04–CAB-09 reserved continuation
   - Owner: agent-coordinator (continuation tracking; implementation owners assigned at each admission)
   - Priority: P1 (ordered client architecture and release-integrity follow-ups)
-  - Target PR: CAB-04 [PR #2408](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2408)
-    (`codex/ios-explicit-actor-boundaries`); CAB-05 is the active separate Xcode 27.0
-    and own-target warning carrier; CAB-06–CAB-09 remain reserved.
-  - Status: CAB-03 merged in PR #2381 and CAB-04 merged in PR #2408. CAB-05 is
-    active; its checkbox remains open until its own exact-head merge evidence.
+  - Target PR: CAB-04 [PR #2408](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2408);
+    CAB-05 [PR #2414](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2414);
+    CAB-06 [PR #2460](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2460)
+    (`codex/ios-iphone-ipad-ci-matrix`).
+  - Status: CAB-03 merged in PR #2381, CAB-04 merged in PR #2408, and CAB-05
+    merged in PR #2414. CAB-06 is the active iPhone/iPad CI matrix carrier;
+    its checkbox remains open pending its own current-head checks and merge evidence.
   - Reason (EN): Keep the accepted continuation visible without mixing production Swift,
     warning-policy, device-matrix, Web or Mac work into the bounded AppIcon/Release carrier.
   - Links:
@@ -462,7 +464,7 @@ If it is not recorded here — it does not exist.
     - [x] CAB-04: make the 28 reproducible Xcode 27 actor-isolation/Sendable warning
       boundaries explicit in the iOS client without changing behavior; use the separate
       CAB-04 PR and current-head evidence before closing this item.
-    - [ ] CAB-05: align owned iOS builds to exact Xcode 27.0/iOS 27.0; remove
+    - [x] CAB-05: align owned iOS builds to exact Xcode 27.0/iOS 27.0; remove
       app/test Swift warnings and enforce warnings-as-errors for three own targets
       in Debug and Release. Attribute the separate AppIntents metadata-extraction
       processor message without claiming all Xcode output is warning-free.
