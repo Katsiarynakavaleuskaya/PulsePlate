@@ -2111,7 +2111,7 @@ def test_apple_host_bind_address_normalizes_hostname_resolution_failure(
         dispatch._discover_apple_host_bind_address(())
 
 
-def test_docker_gateway_preserves_bridge_inspection_without_host_bind_requirement(
+def test_docker_gateway_is_discovered_from_bridge_inspection(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     calls: list[list[str]] = []
@@ -2126,14 +2126,55 @@ def test_docker_gateway_preserves_bridge_inspection_without_host_bind_requiremen
         )
 
     monkeypatch.setattr(dispatch, "_run", fake_run)
-    monkeypatch.setattr(
-        dispatch,
-        "_address_is_bindable",
-        lambda _address: (_ for _ in ()).throw(AssertionError("Docker must not host-bind gateway")),
-    )
-
     assert dispatch._discover_gateway("/usr/local/bin/docker", "docker", None) == "172.17.0.1"
     assert calls == [["/usr/local/bin/docker", "network", "inspect", "bridge"]]
+
+
+def test_docker_canaries_bind_and_probe_the_exact_gateway(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    gateway = "172.17.0.1"
+    listener_addresses: list[str | None] = []
+    canary_addresses: list[tuple[str, int]] = []
+    payload = {
+        "guest_platform_supported": True,
+        "host_reachable": False,
+        "dns_blocked": True,
+        "direct_ip_blocked": True,
+        "source_read_only": True,
+        "input_read_only": True,
+        "root_read_only": True,
+        "result_volume_writable": True,
+        "private_tmpfs": True,
+    }
+
+    monkeypatch.setattr(dispatch, "_discover_gateway", lambda *_args: gateway)
+    monkeypatch.setattr(dispatch, "_create_result_volume", lambda *_args: "result-volume")
+    monkeypatch.setattr(dispatch, "_initialize_result_volume", lambda **_kwargs: True)
+
+    def fake_listener(address: str | None = None) -> nullcontext[tuple[str, int, bool]]:
+        listener_addresses.append(address)
+        return nullcontext((str(address), 43123, True))
+
+    def fake_canary(address: str, port: int) -> str:
+        canary_addresses.append((address, port))
+        return "canary-code"
+
+    monkeypatch.setattr(dispatch, "_host_listener", fake_listener)
+    monkeypatch.setattr(dispatch, "_canary_code", fake_canary)
+    monkeypatch.setattr(
+        dispatch,
+        "_run",
+        lambda argv, **_kwargs: subprocess.CompletedProcess(argv, 0, "", ""),
+    )
+    monkeypatch.setattr(dispatch, "_parse_canary", lambda _completed: payload)
+    monkeypatch.setattr(dispatch, "_cleanup_container", lambda *_args: True)
+    monkeypatch.setattr(dispatch, "_cleanup_container_resources", lambda **_kwargs: True)
+
+    dispatch._run_container_canary("/usr/local/bin/docker", "docker", _image())
+
+    assert listener_addresses == [gateway]
+    assert canary_addresses == [(gateway, 43123)]
 
 
 def test_apple_canaries_share_exact_listener_address_on_unique_internal_network(
@@ -2509,6 +2550,49 @@ def test_host_listener_marks_successful_positive_control_ready(
         assert address == "127.0.0.1"
         assert port > 0
         assert ready is True
+
+
+def test_native_canary_binds_and_probes_the_exact_loopback_address(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    listener_addresses: list[str | None] = []
+    canary_addresses: list[tuple[str, int]] = []
+
+    def fake_listener(address: str | None = None) -> nullcontext[tuple[str, int, bool]]:
+        listener_addresses.append(address)
+        return nullcontext((str(address), 43123, True))
+
+    def fake_canary(address: str, port: int) -> str:
+        canary_addresses.append((address, port))
+        return "canary-code"
+
+    monkeypatch.setattr(dispatch.platform, "system", lambda: "Linux")
+    monkeypatch.setattr(dispatch.platform, "machine", lambda: "x86_64")
+    monkeypatch.setattr(dispatch, "_resolve_cli", lambda _name: "/usr/bin/unshare")
+    monkeypatch.setattr(dispatch, "_host_listener", fake_listener)
+    monkeypatch.setattr(dispatch, "_canary_code", fake_canary)
+    monkeypatch.setattr(
+        dispatch,
+        "_run",
+        lambda argv, **_kwargs: subprocess.CompletedProcess(
+            argv,
+            0,
+            json.dumps(
+                {
+                    "guest_platform_supported": True,
+                    "host_reachable": False,
+                    "dns_blocked": True,
+                    "direct_ip_blocked": True,
+                }
+            ),
+            "",
+        ),
+    )
+
+    dispatch.probe_backend("native-linux", _image())
+
+    assert listener_addresses == ["127.0.0.1"]
+    assert canary_addresses == [("127.0.0.1", 43123)]
 
 
 def test_host_bind_address_is_exact_non_loopback_ipv4(
