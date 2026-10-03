@@ -57,3 +57,6 @@
 **/__pycache__/
 **/*.pyc
 **/*.pyo
+
+!build/docker-sources/pcre2-10.49.tar.gz
+!build/docker-sources/sljit-de0259c7aaf36aa40cba8014f3fad3edde9307f9.tar.gz

@@ -16,7 +16,7 @@ import os
 import re
 import shutil
 import ssl
-import subprocess  # nosec B404: subprocess is required for bounded pip/python invocations during locked installation (remove-by: 2026-10-31, ref: PR-litellm-hardening)
+import subprocess  # nosec B404 # B404: subprocess is required for bounded pip/python invocations during locked installation (remove-by: 2026-10-31, ref: PR-litellm-hardening)
 import sys
 import sysconfig
 import tempfile
@@ -70,7 +70,7 @@ PIP_NETWORK_TIMEOUT_SECONDS = 60
 PRIVATE_INDEX_PROJECT_PAGE_BYTES = 100_000
 PRIVATE_INDEX_HEALTH_TIMEOUT_SECONDS = 15
 PRIVATE_INDEX_HEALTH_RETRY_BACKOFF_SECONDS: tuple[float, ...] = (1.0, 2.0, 4.0, 8.0)
-DOCKER_SINGLE_PASS_LOCKED_INSTALL_ENV = "PULSEPLATE_DOCKER_SINGLE_PASS_LOCKED_INSTALL"  # nosec B105: public env key contract, not a password (remove-by: 2026-12-31, ref: PR-docker-gha-buildx-pip-cache)
+DOCKER_SINGLE_PASS_LOCKED_INSTALL_ENV = "PULSEPLATE_DOCKER_SINGLE_PASS_LOCKED_INSTALL"  # nosec B105 # B105: public env key contract, not a password (remove-by: 2026-12-31, ref: PR-docker-gha-buildx-pip-cache)
 DOCKER_PIP_LAYER_CACHE_ENV = "PULSEPLATE_DOCKER_PIP_LAYER_CACHE"
 
 
@@ -748,7 +748,7 @@ def _target_python_wheel_tag_payload(python_executable: str) -> dict[str, object
             "}))",
         )
     )
-    result = subprocess.run(  # nosec B603: argv starts with the selected target Python interpreter and a fixed metadata probe (remove-by: 2026-10-31, ref: PR-2017)
+    result = subprocess.run(  # nosec B603 # B603: argv starts with the selected target Python interpreter and a fixed metadata probe (remove-by: 2026-10-31, ref: PR-2017)
         [probe_python, "-c", probe],
         check=False,
         capture_output=True,
@@ -890,7 +890,7 @@ def _download_with_sha256(*, url: str, destination: Path, expected_sha256: str) 
     temp_path = Path(temp_file_name)
     try:
         with os.fdopen(temp_file_descriptor, "wb") as file_handle:
-            with urlopen(  # nosec B310: url host is allowlisted via load_emergency_wheel_manifest and payload is sha256-verified before use (remove-by: 2026-10-31, ref: PR-1378)
+            with urlopen(  # nosec B310 # B310: url host is allowlisted via load_emergency_wheel_manifest and payload is sha256-verified before use (remove-by: 2026-10-31, ref: PR-1378)
                 url,
                 timeout=60,
             ) as response:
@@ -1215,10 +1215,14 @@ def resolve_private_proxy_settings(
             f"Set {APPROVED_INDEX_ENV_VAR} or pass --index-url."
         )
     reject_ambient_index_overrides()
-    return (
-        validate_private_proxy_url(resolved_index_url),
-        normalize_trusted_host(trusted_host or os.environ.get(TRUSTED_HOST_ENV_VAR)),
+    validated_index_url = validate_private_proxy_url(resolved_index_url)
+    resolved_trusted_host = normalize_trusted_host(
+        trusted_host or os.environ.get(TRUSTED_HOST_ENV_VAR)
     )
+    _admit_private_proxy_netrc_auth(
+        parsed_url=urlparse(validated_index_url), trusted_host=resolved_trusted_host
+    )
+    return validated_index_url, resolved_trusted_host
 
 
 def load_dependency_security_floors(
@@ -1428,37 +1432,105 @@ def _redact_url_credentials_in_text(value: str) -> str:
     )
 
 
-def _netrc_basic_auth_header(hostname: str | None) -> str | None:
-    """Return a Basic Auth header from the user's netrc for the package host."""
+def _netrc_credentials(hostname: str | None) -> tuple[str, str] | None:
+    """Resolve Requests' first existing default candidate; absence alone is anonymous."""
     if not hostname:
         return None
     try:
-        credentials = netrc.netrc().authenticators(hostname)
-    except FileNotFoundError:
-        return None
-    except (netrc.NetrcParseError, OSError) as exc:
-        raise RuntimeError(f"Unable to read .netrc credentials for {hostname}: {exc}") from exc
+        # Native pip-vendored Requests NETRC_FILES order; stdlib owns parsing.
+        # Retain filename-less parsing for .netrc's existing owner/mode checks.
+        for filename in (".netrc", "_netrc"):
+            candidate = Path(os.path.expanduser(f"~/{filename}"))
+            try:
+                candidate.stat()
+            except FileNotFoundError:
+                continue
+            parsed_credentials = netrc.netrc() if filename == ".netrc" else netrc.netrc(candidate)
+            credentials = parsed_credentials.authenticators(hostname)
+            break
+        else:
+            return None
+    except (netrc.NetrcParseError, OSError, UnicodeError) as exc:
+        raise RuntimeError(
+            f"Unable to read default netrc credentials ({type(exc).__name__})."
+        ) from None
     if credentials is None:
         return None
-    login, _account, password = credentials
-    if not login:
-        return None
-    if login.strip().lower() == "root":
-        raise RuntimeError("Root devpi credentials are forbidden in .netrc.")
-    encoded = f"{login}:{password or ''}".encode("utf-8")
-    return "Basic " + base64.b64encode(encoded).decode("ascii")
+    if (
+        not isinstance(credentials, tuple)
+        or len(credentials) != 3
+        or not all(isinstance(value, str) for value in credentials)
+    ):
+        raise RuntimeError("Indeterminate default netrc credentials are forbidden.")
+    login, account, password = credentials
+    # Native pip's requests selects account when login is empty. stdlib owns
+    # named-machine/default-stanza selection; do not parse another auth source.
+    principal = login or account
+    if not principal.strip():
+        raise RuntimeError("Indeterminate default netrc credentials are forbidden.")
+    if principal.strip().lower() == "root":
+        raise RuntimeError("Root devpi credentials are forbidden in default netrc.")
+    return principal, password
 
 
 def _trusted_host_matches_url(*, trusted_host: str | None, parsed_url: ParseResult) -> bool:
     """Return True when the operator trusted-host applies to the project URL host."""
     if not trusted_host:
         return False
-    hostname = str(parsed_url.hostname or "").rstrip(".").lower()
+    hostname = str(parsed_url.hostname or "").lower()
     if not hostname:
         return False
-    trusted = trusted_host.strip().rstrip(".").lower()
-    host_with_port = hostname if parsed_url.port is None else f"{hostname}:{parsed_url.port}"
-    return trusted in {hostname, host_with_port}
+    trusted = trusted_host.strip()
+    try:
+        authority = urlparse(f"//{trusted}")
+        trusted_hostname = (authority.hostname or "").lower()
+        trusted_port = authority.port
+        url_port = parsed_url.port
+        suffix = trusted.split("]", 1)[1] if trusted.startswith("[") else trusted.partition(":")[2]
+        malformed = (
+            not trusted_hostname
+            or authority.netloc != trusted
+            or any(
+                character.isspace() or ord(character) < 32 or ord(character) == 127
+                for character in trusted
+            )
+            or authority.username is not None
+            or authority.password is not None
+            or bool(authority.path or authority.query or authority.fragment)
+            or (
+                trusted.startswith("[")
+                and suffix != ""
+                and (not suffix.startswith(":") or not suffix[1:].isdecimal())
+            )
+            or (not trusted.startswith("[") and ":" in trusted and not suffix.isdecimal())
+        )
+    except ValueError:
+        raise RuntimeError("Invalid private proxy trusted-host authority.") from None
+    if malformed:
+        raise RuntimeError("Invalid private proxy trusted-host authority.")
+    # Native pip adapter mounts retain trailing dots and explicit port spelling.
+    return trusted_hostname == hostname and (
+        trusted_port is None
+        or (url_port is not None and authority.netloc.rpartition(":")[2] == str(url_port))
+    )
+
+
+def _admit_private_proxy_netrc_auth(
+    *, parsed_url: ParseResult, trusted_host: str | None
+) -> str | None:
+    """Admit default-netrc credentials only on verified HTTPS and reuse the result."""
+    trusted_transport = _trusted_host_matches_url(trusted_host=trusted_host, parsed_url=parsed_url)
+    credentials = _netrc_credentials(parsed_url.hostname)
+    if credentials is None:
+        return None
+    if parsed_url.scheme != "https" or trusted_transport:
+        raise RuntimeError(
+            "Default netrc credentials require verified HTTPS. Use the existing HTTPS "
+            "private proxy and remove its matching trusted-host override."
+        )
+    principal, password = credentials
+    encoded = f"{principal}:{password}".encode("utf-8")
+    return "Basic " + base64.b64encode(encoded).decode("ascii")
 
 
 def _read_private_index_project_page(
@@ -1485,53 +1557,61 @@ def _read_private_index_project_page(
     if parsed.query:
         path = f"{path}?{parsed.query}"
     headers: dict[str, str] = {}
-    if parsed.scheme == "https":
-        netrc_header = _netrc_basic_auth_header(parsed.hostname)
-        if netrc_header:
-            headers["Authorization"] = netrc_header
+    netrc_header = _admit_private_proxy_netrc_auth(parsed_url=parsed, trusted_host=trusted_host)
+    if netrc_header is not None:
+        headers["Authorization"] = netrc_header
     status: int
     body: bytes
     for attempt in range(1, PIP_NETWORK_RETRIES + 1):
-        if parsed.scheme == "http":
-            conn = http.client.HTTPConnection(
-                parsed.hostname,
-                port=parsed.port,
-                timeout=PRIVATE_INDEX_HEALTH_TIMEOUT_SECONDS,
-            )
-        elif _trusted_host_matches_url(trusted_host=trusted_host, parsed_url=parsed):
-            # fmt: off
-            trusted_context = ssl._create_unverified_context()  # nosec B323: mirrors explicit operator `--trusted-host` semantics for this health probe only (remove-by: 2026-09-30, ref: PR-main-nightly-nosec-ttl)
-            # fmt: on
-            conn = http.client.HTTPSConnection(
-                parsed.hostname,
-                port=parsed.port,
-                timeout=PRIVATE_INDEX_HEALTH_TIMEOUT_SECONDS,
-                context=trusted_context,
-            )
-        else:
-            conn = http.client.HTTPSConnection(
-                parsed.hostname,
-                port=parsed.port,
-                timeout=PRIVATE_INDEX_HEALTH_TIMEOUT_SECONDS,
-            )
+        conn: http.client.HTTPConnection | None = None
+        failure_class: str | None = None
         try:
+            if parsed.scheme == "http":
+                conn = http.client.HTTPConnection(
+                    parsed.hostname,
+                    port=parsed.port,
+                    timeout=PRIVATE_INDEX_HEALTH_TIMEOUT_SECONDS,
+                )
+            elif _trusted_host_matches_url(trusted_host=trusted_host, parsed_url=parsed):
+                # fmt: off
+                trusted_context = ssl._create_unverified_context()  # nosec B323 # B323: explicit anonymous trusted-host probe only; selected default .netrc/_netrc credentials require verified HTTPS before context creation (remove-by: 2026-10-30, ref: PR-main-nightly-nosec-ttl)
+                # fmt: on
+                conn = http.client.HTTPSConnection(
+                    parsed.hostname,
+                    port=parsed.port,
+                    timeout=PRIVATE_INDEX_HEALTH_TIMEOUT_SECONDS,
+                    context=trusted_context,
+                )
+            else:
+                conn = http.client.HTTPSConnection(
+                    parsed.hostname,
+                    port=parsed.port,
+                    timeout=PRIVATE_INDEX_HEALTH_TIMEOUT_SECONDS,
+                )
             conn.request("GET", path, headers=headers)
             response = conn.getresponse()
             status = response.status
             body = response.read(PRIVATE_INDEX_PROJECT_PAGE_BYTES)
-            if status >= 500 and attempt < PIP_NETWORK_RETRIES:
-                _sleep_before_private_index_retry(attempt)
-                continue
-            break
         except Exception as exc:  # noqa: BLE001 - any probe failure must keep fallback fail-closed.
+            failure_class = type(exc).__name__
+        finally:
+            if conn is not None:
+                try:
+                    conn.close()
+                except Exception as exc:  # noqa: BLE001 - cleanup failures cannot admit fallback.
+                    failure_class = failure_class or type(exc).__name__
+        if failure_class is not None:
             if attempt == PIP_NETWORK_RETRIES:
                 raise RuntimeError(
                     "Approved Python package proxy health check failed before emergency fallback: "
-                    f"{package}: {safe_url}: {exc}"
-                ) from exc
+                    f"{package}: {safe_url}: {failure_class}"
+                ) from None
             _sleep_before_private_index_retry(attempt)
-        finally:
-            conn.close()
+            continue
+        if status >= 500 and attempt < PIP_NETWORK_RETRIES:
+            _sleep_before_private_index_retry(attempt)
+            continue
+        break
     else:  # pragma: no cover - range is non-empty while PIP_NETWORK_RETRIES is positive.
         raise RuntimeError(
             "Approved Python package proxy health check failed before emergency fallback: "
@@ -1779,7 +1859,7 @@ def is_virtualenv_python(python_executable: str) -> bool:
         "print(json.dumps({'prefix': sys.prefix, 'base_prefix': getattr(sys, 'base_prefix', sys.prefix)}))\n"
     )
     try:
-        result = subprocess.run(  # nosec B603: argv uses an explicit Python executable and fixed venv probe code only (remove-by: 2026-10-31, ref: PR-litellm-hardening)
+        result = subprocess.run(  # nosec B603 # B603: argv uses an explicit Python executable and fixed venv probe code only (remove-by: 2026-10-31, ref: PR-litellm-hardening)
             [resolved_python, "-c", probe],
             check=True,
             capture_output=True,
@@ -1791,6 +1871,84 @@ def is_virtualenv_python(python_executable: str) -> bool:
             f"Unable to probe virtualenv state for {python_executable}: {exc}"
         ) from exc
     return bool(payload["prefix"] != payload["base_prefix"])
+
+
+PIP_CHILD_SELECTOR = "--pulseplate-owned-pip-child"
+PIP_TRANSPORT_ERROR = "ERROR: locked pip transport rejected."
+PIP_CHILD_IMPORT_ERROR = "ERROR: locked pip child import failed."
+PIP_EXECUTION_IMPORT_ERROR = "ERROR: locked pip execution import failed."
+
+
+class _PipTransportRejected(RuntimeError):
+    """Constant, value-free failure at the owned native transport boundary."""
+
+
+def _install_pip_transport_guard() -> object:
+    """Guard the trusted native pip adapter contract until child termination.
+
+    This is a bounded current-client correction, not a recognizer for arbitrary
+    plugins, monkeypatched pip, unknown implementations or future releases.
+    """
+    from pip._internal.exceptions import InstallationError
+    from pip._internal.network import session as native
+    from pip._vendor.requests.adapters import HTTPAdapter
+    from pip._vendor.requests.models import PreparedRequest
+
+    class _NativePipTransportRejected(_PipTransportRejected, InstallationError):
+        """Use native pip's ordinary controlled-error path without a traceback."""
+
+    send = HTTPAdapter.send
+    cert_verify = HTTPAdapter.cert_verify
+    secure = (native.HTTPAdapter, native.CacheControlAdapter)
+
+    def guarded_send(
+        self: HTTPAdapter,
+        request: PreparedRequest,
+        stream: bool = False,
+        timeout: object = None,
+        verify: bool | str = True,
+        cert: object = None,
+        proxies: object = None,
+    ) -> object:
+        # Iterate keys only: Mapping.__contains__ may retrieve a value.
+        if any(key.lower() == "authorization" for key in request.headers):
+            enabled_verify = verify is True or (
+                type(verify) is str
+                and bool(verify)
+                and (os.path.isfile(verify) or os.path.isdir(verify))
+            )
+            if (
+                urlparse(request.url).scheme.lower() != "https"
+                or type(self) not in secure
+                or getattr(self.cert_verify, "__func__", None) is not cert_verify
+                or not enabled_verify
+            ):
+                raise _NativePipTransportRejected(PIP_TRANSPORT_ERROR)
+        return send(self, request, stream, timeout, verify, cert, proxies)
+
+    HTTPAdapter.send = guarded_send
+    return send  # Test restoration is permitted only after complete quiescence.
+
+
+def _run_owned_pip_child(argv: Sequence[str]) -> int:
+    """Run pip lazily with the guard retained after CLI return and exceptions."""
+    try:
+        _install_pip_transport_guard()
+        from pip._internal.cli.main import main as pip_main
+    except _PipTransportRejected:
+        print(PIP_TRANSPORT_ERROR, file=sys.stderr)
+        return 1
+    except ImportError:
+        print(PIP_CHILD_IMPORT_ERROR, file=sys.stderr)
+        return 1
+    try:
+        return cast(int, pip_main(list(argv)))
+    except _PipTransportRejected:
+        print(PIP_TRANSPORT_ERROR, file=sys.stderr)
+        return 1
+    except ImportError:
+        print(PIP_EXECUTION_IMPORT_ERROR, file=sys.stderr)
+        return 1
 
 
 def run_command(command: Sequence[str]) -> None:
@@ -1806,8 +1964,15 @@ def run_command(command: Sequence[str]) -> None:
         detail = _redact_url_credentials_in_text(str(exc))
         raise RuntimeError(f"Command failed: {command_text}: {detail}") from exc
     argv = [resolved_python, *original_argv[1:]]
+    if original_argv[1:3] == ["-m", "pip"]:
+        argv = [
+            resolved_python,
+            str(Path(__file__).resolve()),
+            PIP_CHILD_SELECTOR,
+            *original_argv[3:],
+        ]
     try:
-        result = subprocess.run(  # nosec B603: commands are built internally from pinned requirement/install helpers only (remove-by: 2026-10-31, ref: PR-litellm-hardening)
+        result = subprocess.run(  # nosec B603 # B603: commands are built internally from pinned requirement/install helpers only (remove-by: 2026-10-31, ref: PR-litellm-hardening)
             argv,
             check=False,
             capture_output=True,
@@ -1900,7 +2065,7 @@ def collect_startup_hook_failure_lines(
 ) -> list[str]:
     """Run the startup-hook guard as a subprocess for target site-packages."""
     resolved_python = resolve_python_executable(python_executable)
-    result = subprocess.run(  # nosec B603: argv uses the selected Python interpreter plus a fixed repo guard script path (remove-by: 2026-10-31, ref: PR-litellm-hardening)
+    result = subprocess.run(  # nosec B603 # B603: argv uses the selected Python interpreter plus a fixed repo guard script path (remove-by: 2026-10-31, ref: PR-litellm-hardening)
         [
             resolved_python,
             "-S",
@@ -2331,6 +2496,9 @@ def install_with_guard_from_proxy(
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    child_args = list(sys.argv[1:] if argv is None else argv)
+    if child_args[:1] == [PIP_CHILD_SELECTOR]:
+        return _run_owned_pip_child(child_args[1:])
     try:
         args = parse_args(argv)
         args.python_executable = resolve_python_executable(args.python_executable)
