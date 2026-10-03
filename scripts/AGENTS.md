@@ -133,6 +133,16 @@
   new probe. Git-index discovery must neutralize executable repository Git
   configuration while retaining a positive carrier-discovery path.
 
+- For `make requirements-locks` graph changes, select only a complete fixed
+  alternative from the existing v1 admission owner; preserve default/legacy
+  rejection and whole source/seed/artifact/profile bindings. Technical closure
+  requires native canonical output plus independent original-base replay before
+  it is called C_R. Retain no-deps acquisition, destroyed credentialed HOME,
+  offline profile views and rollback; do not add another upgrade intent, hand-edit
+  a seed/lock or rotate a baseline. Record actual hook creation/seed/config bytes
+  separately from version P and final gate success. Command procedure and the
+  finite recorded transition live in `docs/DEPENDENCY_MANAGEMENT.md`.
+
 ## Governed Experimentation Runner
 
 - Canonical entrypoints for the experimentation lane are `scripts/orchestration/experiment_bootstrap.py` and `scripts/orchestration/experiment_runner.py`.

@@ -24,6 +24,17 @@ If it is not recorded here — it does not exist.
 
 <!-- EXPERIMENT_BACKLOG_ENTRIES:INSERT BELOW -->
 
+<a id="ledger-p1-postgres-pcre2-cve-2026-103111"></a>
+- [ ] P1: Restore main-CD PostgreSQL PCRE2 publication and preserve Docker build viability
+  - Owner: security-auditor / agent-coordinator
+  - Priority: P1
+  - Target PR: [#2455](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2455)
+  - Status: In progress; exact42 owner/Emergency scope admitted; measured local supplier/94-package closure/two OCI builds/four native scans are retained. Consumer assembly is authored; continuity, backend, local/current-head review and hosted-main outcomes remain pending.
+  - Reason for deferral: CD37040045738 publisher110949456047 failed on the old DHI runtime PCRE2 10.48-r0 HIGH finding; downstream admission correctly rejected incomplete publication. Local source/build/scan evidence cannot substitute for every assigned outcome or the real trusted publisher.
+  - Links: [PostgreSQL supplement evidence](../security/CVE-2026-103111-pcre2.md#postgresql-runtime-base-supplement-pr-2455), `deploy/postgres-pgvector/image-manifest.json`, `deploy/AGENTS.md`.
+  - DoD: Exact measured supplier/recipe/input/derived identities through existing owners; suppression-free four-subject inventories and original strict admission; coherent legacy/prior/current whole-tuple guards and native status conjunction; three owned same-volume/native ABI/TLS/crash/restart/restore paths; separate backend Docker/native worker viability; all original24/33/18+C25/C26/C27 individually reviewed, narrow/all-files/Oracle/premortem/scoped roles/current-head CI/review/one-closeout/strict/wait gates; separately authorized exact-head merge and actual hosted-main PostgreSQL/backend/CD-Test, continuity/archive readback and owned cleanup. No production deployment, suppression or real-volume authority.
+  - Rollback: Normal bounded repository revert; restoring affected image bytes blocks publication until an admitted remedy. No image-history picker, chown repair, runtime privilege change or gate weakening.
+
 <a id="ledger-p1-pcre2-cve-2026-103111"></a>
 - [ ] P1: Replace affected production PCRE2 for CVE-2026-103111
   - Owner: security-auditor / agent-coordinator
@@ -1511,6 +1522,18 @@ If it is not recorded here — it does not exist.
   - Reason (EN): CONSOL-CI-1 (#2446) supplied the verified dual-checkout verifier interface on protected main. CONSOL-ORCH-1 must now switch hosted execution to the exact authenticated base SHA and inspect exact PR-head material separately; its current-head workflow, native-dispatch, candidate-handoff, promotion, path, disposition, and Slack checks remain unproven until the implementation PR's own gates complete.
   - Links: `.github/workflows/ci.yml`, `scripts/ci/check_pr_merge_readiness.py`, `tests/test_pr_merge_readiness_gate.py`
   - DoD: Use distinct credential-free base and head checkouts, invoke only the base verifier with `--material-repo-root`, reject wrong identities or untrusted material imports, and pass current-head CI and strict merge-readiness evidence.
+
+<a id="ledger-p1-virtualenv-2455-finite-remediation"></a>
+- [ ] P1: Close the required-validation virtualenv advisory defect in PR #2455
+  - Owner: @katsiaryna_kavaleuskaya (dependency security and orchestration)
+  - Priority: P1
+  - Target PR: [PR #2455](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2455)
+  - Status: Implementation in progress; bounded native replay/version/installed/hook observations exist, final-material gates and merge pending
+  - Area: tooling dependency / required local validation
+  - Reason (EN): The operator admitted the relevant virtualenv defect into the active consolidation PR. Preserve one authored virtualenv replacement and all ten reconciled advisory postconditions; the existing compiler needed one exact profile-specific discovery closure accommodation, with no general graph or additional identity intent.
+  - Links: `docs/security/PR_2455_VIRTUALENV_REMEDIATION.md`, `docs/DEPENDENCY_MANAGEMENT.md`, `tests/test_dependency_security_guard.py`, `scripts/ci/compile_locked_python_requirements.py`
+  - Observed local proof: Two canonical Make/original16874 replay runs exited0 with three byte-identical locks and only virtualenv I_R plus necessary discovery C_R; complete S21/five occurrences satisfy all F10 ranges; owned canonical venv-sync/pip-check and real cold/fresh-warm hook creation exited0. These are local qualified observations, not current-head readiness or hosted/post-delivery proof.
+  - DoD: Preserve original24/33/18+C25/C26/C27/C28; enforce complete current carrier/F10 guard, private compatibility and actual hook seed/config limits; pass focused/narrow/sequential all-files, applicable Oracle/scoped roles, current-head CI/security/coverage and strict review/closeout; obtain protected exact-head merge and actual post-merge/continuity evidence before closure. No full local make verify, suppression, runtime virtualenv presence, Cloud bootstrap or foreign-lane closure follows.
 
 <a id="ledger-p1-scientific-writing-agent"></a>
 - [ ] P1: Scientific Writing Agent registration
