@@ -145,6 +145,19 @@
 
 ## Governed Experimentation Runner
 
+- Invoke the automatic helper only from externally admitted T with an approved
+  absolute Python `-I`, T cwd and explicit distinct `--material-root M`; root
+  metadata supplies continuity, never trust. Follow the canonical accompaniment
+  contract for read-only T/M guest snapshots, companion-dependent restore,
+  typed failures and bounded claims.
+- `pr_oracle_attachment.py dispatch` is the admitted local host composition
+  for ensure/reuse followed by existing exact role-context delivery. Follow the
+  [single accompaniment contract](../docs/orchestration/contracts/EXPERIMENT_RUNNER_PR_CREATIVE_CONTEXT_CONTRACT.md#admitted-host-oracle-accompaniment-creative-ops-2)
+  for snapshot proof, typed input/result conjunction, explicit attribution,
+  opt-out/manual evidence, bounded retention, interruption recovery and archive
+  dependencies. Bootstrap/rendering stay inert; the bridge validates evidence
+  and appends only outer-envelope data. The helper performs no publication or
+  provider calls. Its `body` command prepares validated local text only.
 - Canonical entrypoints for the experimentation lane are `scripts/orchestration/experiment_bootstrap.py` and `scripts/orchestration/experiment_runner.py`.
 - Run both scripts from repo root so path validation and artifact resolution stay deterministic.
 - `experiment_runner.py` accepts a validated packet plus a prebuilt unified diff

@@ -101,6 +101,24 @@ both placeholders before running; do not copy a number from an unrelated packet.
 
 ## Context and evidence boundaries
 
+After coordinator admission of commands, budget and coherent material, use
+`pr_oracle_attachment.py dispatch` before dependent material review. Preserve
+the validated packet mode and every owner flag, select the exact occurrence,
+and supply the approved experiment packet and immutable strict image. Before
+invocation externally admit `TRUSTED_TOOL_ROOT`, an explicit distinct canonical
+`MATERIAL_ROOT` and a clean absolute Python runtime; reject nested/overlapping roots
+and run the absolute `TRUSTED_TOOL_ROOT` helper with `-I` from `TRUSTED_TOOL_ROOT`.
+Current delivery supplies the caller-admitted `MATERIAL_ROOT` through the existing
+bridge's `--oracle-material-root`; a retained receipt cannot choose it. Follow the linked
+contract for the separate read-only guest observer and original-companion restore.
+A trust flag, hash or accepted output cannot supply admission. The hook
+ensures/reuses linkage, calls the existing bridge with `--oracle-evidence`, and
+returns the stdout envelope for the normal native transport. Observe actual
+child consumption; the envelope alone proves no substantive review. See the
+[single host accompaniment contract](../../../docs/orchestration/contracts/EXPERIMENT_RUNNER_PR_CREATIVE_CONTEXT_CONTRACT.md#admitted-host-oracle-accompaniment-creative-ops-2).
+Preparation keeps the oracle-independent path. Opt-out requires equally current
+manual linkage; archive/provider/merge authority remains with its existing owners.
+
 Load the full role definition, not `system_prompt_excerpt`. Exact JSON delivery
 uses the existing `pulseplate.role-context-output.v1` envelope and its bounded
 source checks. A successful complete delivery is used directly; do not reread,
@@ -161,7 +179,7 @@ not enter this procedure.
    First inspect the complete patch, compare exact changed paths and elapsed
    time with the admitted files and budget, and reject unsafe or out-of-scope
    changes. A reviewed patch is still untrusted executable code.
-5. Use the existing strict Experiment Runner dispatcher to execute only the
+5. Use the admitted host oracle hook over the existing strict dispatcher to execute only the
    reviewed `request.test_commands` against that exact scratch diff inside a
    capability-probed, zero-network container. On macOS use the runbook's
    explicit Apple Container backend and immutable image; no direct local

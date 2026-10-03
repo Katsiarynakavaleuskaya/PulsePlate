@@ -148,6 +148,7 @@ _SHA256_RE = re.compile(r"^sha256:[a-f0-9]{64}$", re.ASCII)
 _L1_IDEMPOTENCY_RE = re.compile(r"^review-invariant-family-relations\.v1:[a-f0-9]{64}$", re.ASCII)
 CURRENT_TASK_PACKET_SCHEMA_VERSION = "3.1"
 MANIFEST_SCHEMA_VERSION = "2.0"
+DISPATCH_MODES = ("analysis", "docs-only", "runtime", "review")
 MANIFEST_CONTRACT_VERSION = "pulseplate.role-dispatch-manifest/v2"
 CONTEXT_MAP_SOURCE_PATH = "docs/orchestration/AGENT_CONTEXT_MAP.md"
 ROUTING_GRAPH_SOURCE_PATH = "docs/orchestration/AGENT_ROUTING_GRAPH.md"
@@ -2548,7 +2549,7 @@ def _parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
 
     parser.add_argument(
         "--mode",
-        choices=("analysis", "docs-only", "runtime", "review"),
+        choices=DISPATCH_MODES,
         default="analysis",
         help="Task mode (default: analysis).",
     )
@@ -2598,7 +2599,18 @@ def _parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
         metavar="REPO_PATH",
         help=("Explicit repo Markdown instruction path for exact context. Repeat as needed."),
     )
+    parser.add_argument(
+        "--oracle-evidence",
+        default=None,
+        help="Optional canonical local oracle linkage receipt for this exact occurrence.",
+    )
 
+    parser.add_argument(
+        "--oracle-material-root",
+        type=Path,
+        default=None,
+        help="Caller-admitted canonical material checkout required for live oracle delivery.",
+    )
     return parser.parse_args(argv)
 
 
@@ -2607,6 +2619,14 @@ def main(argv: Optional[List[str]] = None) -> int:
     global _routing_graph, _routing_validation_source
     args = _parse_args(argv)
     exact_context_requested = args.role_context_order is not None
+    if args.oracle_evidence and (
+        not args.packet or not exact_context_requested or Path(args.packet).suffix != ".json"
+    ):
+        print("FAIL: --oracle-evidence requires JSON packet and exact occurrence.", file=sys.stderr)
+        return 1
+    if args.oracle_evidence and args.oracle_material_root is None:
+        print("FAIL: oracle evidence requires caller-admitted material root.", file=sys.stderr)
+        return 1
     if exact_context_requested and args.role_context_order < 1:
         print(
             "FAIL: --role-context-order must be a positive one-based occurrence.", file=sys.stderr
@@ -2910,6 +2930,30 @@ def main(argv: Optional[List[str]] = None) -> int:
             "role_context": role_context,
             "context_io_metrics": context_metrics.as_dict(),
         }
+        if args.oracle_evidence:
+            from scripts.orchestration.pr_oracle_attachment import validate_oracle_evidence
+            from scripts.orchestration.experiment_runner_dispatch import DispatchError
+
+            try:
+                selected_context_output["experiment_runner_oracle"] = validate_oracle_evidence(
+                    args.oracle_evidence,
+                    packet=cast(str, packet_relative_path),
+                    selected_dispatch={
+                        key: selected[key]
+                        for key in (
+                            "order",
+                            "role_slug",
+                            "readonly",
+                            "implementation_owner_override",
+                        )
+                    },
+                    mode=args.mode,
+                    implementation_owners=tuple(implementation_owner_slugs),
+                    material_root=args.oracle_material_root,
+                )
+            except (OSError, ValueError, KeyError, TypeError, DispatchError) as exc:
+                print(f"FAIL: oracle evidence rejected ({type(exc).__name__}).", file=sys.stderr)
+                return 1
 
     # Output
     indent = 2 if args.pretty else None

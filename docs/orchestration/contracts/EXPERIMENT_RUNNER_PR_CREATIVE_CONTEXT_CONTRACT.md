@@ -5,6 +5,144 @@
 **Status:** v1 local artifact contract. No workflow, provider, product runtime,
 branch, PR, comment, thread, fixed-mapping, or merge authority.
 
+## Admitted host oracle accompaniment (CREATIVE-OPS-2)
+
+The local host invokes `pr_oracle_attachment.py dispatch` after coordinator
+admission of the existing oracle-only experiment packet, commands, budget and
+reviewable material. Bootstrap and startup rendering deliver pending metadata
+and an inert recipe. The existing applicability selector remains the sole owner
+of treatments; the hook does not execute Creative generation for a direct fix
+or higher-assurance packet. Evidence: `scripts/orchestration/task_bootstrap.py:2114`,
+`scripts/orchestration/pr_oracle_attachment.py:201`.
+
+```bash
+"$VENV_PYTHON" -I "$TRUSTED_TOOL_ROOT/scripts/orchestration/pr_oracle_attachment.py" dispatch \
+  --material-root "$MATERIAL_ROOT" \
+  --packet artifacts/orchestration/task_packets/<task-id>.json \
+  --experiment-packet artifacts/orchestration/experiments/<experiment-id>.json \
+  --role-context-order <order> --mode runtime \
+  --implementation-owner <packet-owner> \
+  --backend apple-container --image <immutable-image> --pretty
+```
+
+Before invocation, the external operator/coordinator admits canonical tool checkout T
+and a clean absolute Python runtime, selects a distinct canonical absolute material
+checkout M with no nesting or overlap in either direction, and sets cwd to T. T owns every host entrypoint, control import, packet,
+selector and evidence store. Python `-I` excludes ordinary ambient search paths but
+does not disable site processing; approved runtime/site startup remains a separate
+prerequisite. The new automatic helper requires explicit M and never executes an M
+helper to accept a trust flag. Older trusted-caller manual APIs retain their defaults.
+On other supported hosts the inert recipe requires an explicit compatible container
+backend; this Mac retains explicit Apple with no Docker or host fallback.
+
+Preserve every admitted owner flag. The ordinal is independently validated
+before execution and at delivery; it does not select write permission. The
+same checked material can accompany another admitted occurrence without an
+oracle rerun solely for an ordinal change. The hook calls the fixed dispatcher
+owner in-process so its bounded internal subprocesses retain their cleanup,
+then uses the existing fixed role bridge for stdout context delivery. It never
+executes packet-displayed command strings or introduces a native executor.
+`qoder_dispatch_bridge.py` revalidates the linkage and adds optional
+`experiment_runner_oracle` only to the outer context envelope. Static sources,
+their digest, default output and manifest rights/order retain their existing
+meaning. Evidence: `scripts/orchestration/qoder_dispatch_bridge.py:2928`.
+
+The immutable linkage binds task/experiment bytes, repository/base/head,
+separate staged and unstaged projections, admitted new-file bytes/modes,
+explicit checked inputs, policy, backend and immutable image. The existing
+snapshot owner copies and stages admitted new files only in its outer scratch
+checkout so the Runner's second guest checkout receives them through its
+existing binary diff path. Use a tracked parent-directory context in the
+experiment packet and a separate exact `--admitted-new-file` for each new file;
+the shared source index remains unchanged. This evaluates final material and
+does not claim separate staged-tree execution. Compare source before copying,
+after execution and at consumer delivery. Every head change, including a
+mapping-only commit, requires a new bounded check. Evidence:
+`scripts/orchestration/experiment_runner_dispatch.py:1638` and
+`scripts/orchestration/experiment_runner_dispatch.py:1714`.
+
+The existing dispatcher freezes the complete native tracked T snapshot separately
+from exact M, mounts both read-only, and selects the T Runner/control imports with
+explicit M execution-root arguments. Existing Git identity, status, diff and temporary
+checkout readers consume M through parameters; control/result globals and the sole
+applicability selector stay T. Request and snapshot proof bind both sources before
+execution, reuse and delivery. Every current consumer supplies caller-admitted M;
+the retained receipt cannot select its own read root. The helper forwards M as
+`--oracle-material-root` to the existing role bridge, while historical restoration
+requires no live M. Historical receipts remain historical and cannot
+silently acquire this provenance. Frozen observer selection does not authenticate
+hostile same-UID guest results, semantic test adequacy or human approval.
+
+Generic result and attachment validators remain their existing structural
+owners. The shared consumer additionally requires the complete approved
+command list/order/count, literal integer budgets/attempts, successful
+non-timeout observations, no mutation, unchanged shared tree, no promotion,
+trusted snapshot/backend provenance and matching linked bytes. An accepted
+flag, file, fingerprint or completed role cannot substitute these observations.
+Receipt-last publication and cooperative locks permit identical no-write
+reuse; partial, interrupted, corrupt or divergent evidence blocks consumption.
+Mac execution requires explicit Apple Container, immutable image and zero
+network; capability failure is terminal and has no host/Docker fallback.
+Only the packet's bounded infrastructure retry is permitted.
+
+Proof-enabled accepted results retain their original schema with the explicit
+`sanitized_command_observations_v1` proof marker: stdout/stderr are empty and
+cwd is `owned_guest_checkout`. A separately named private observation sidecar
+retains bounded redacted oracle output for host inspection of actual test
+counts. It is excluded from role/body/archive delivery. Rejected diagnostics
+remain local. Existing manual/default dispatcher output is unchanged.
+Contribution fields are explicit existing `--contribution-kind`,
+`--coauthor-required` and `--coauthor-reason` inputs; launch or acceptance alone
+never earns attribution. `body` validates current linkage before preparing the
+local PR evidence section; publication remains with the coordinator.
+
+`--no-auto-oracle --oracle-evidence <receipt>` disables automatic execution and
+still validates equally current manually retained evidence. Preparatory roles
+use the ordinary bridge before material exists. Oracle-only calls synthesize
+no hypotheses or Creative summary; operational, legacy and adaptive intake
+stay with their existing separate owners and host handoffs.
+
+Storage is fixed beneath the existing experiments result root. Admission is
+bounded to 32 retained execution slots; each canonical bundle is at most 8 MiB,
+each input/result file at most 2 MiB, with at most 32 explicit new files and 32
+checked inputs and the existing packet retry cap. Attempt records name exact
+owned result/proof/private-observation paths before execution; interruptions
+retain those references. There is no automatic sweeping, retry daemon or
+cleanup of other owners. Preserve original dependencies and private diagnostic
+copies until verified archive/readback and enumerated owned cleanup.
+
+`export` writes one new-only ordinary ZIP with its exact inventory and hashes.
+`verify-archive` checks outer/member hashes, member types, sanitizer and frozen
+receipt/request/experiment/result/proof/attachment/input lineage before fresh
+restore. The task packet, original request and checked/new inputs are separately preserved
+canonical companions represented by screened reference/hash projections. Original
+private or binary bytes never enter raw transport. Restore reacquires all and only
+those originals through the existing bounded safe reader and verifies every digest
+and complete historical lineage before reserving a fresh leaf. All projection
+references and the all-and-only original inventory are first checked against the
+transported receipt. Only its derived canonical original-request slot may be
+acquired to bind the canonical task-packet ref and complete dependency inventory;
+all remaining companion reads use those checked lineage refs. Archive-selected
+paths never select a generic private reader. Missing or substituted
+originals remain `storage_pending`; no Runner repeat or sole-copy cleanup follows.
+The ZIP depends on companion availability and is not a standalone archive. Every
+transport member, projection and reference uses the canonical sanitizer, whose
+known predicates do not prove universal secret absence. Restore-root directory flock
+spans valid inventory, capacity and reservation; partial leaves consume capacity
+and remain retained evidence. Nonblocking lock contention may reject a call.
+`validate-restored` validates historical lineage independently of the original
+run-directory name and makes `currentness_claim=false`. It grants no dispatch
+authority. The ordinary archive preserves the original bound sanitized result;
+private observations and full exact role context are excluded. Creative uses
+its existing capsule exporter and independently retained source dependencies.
+Drive same-ID updates, neighbor/ACL preservation and downloaded round trips
+remain host operations. Failure stays `storage_pending`, retains the sole local
+copy and never restarts Runner. Evidence: `scripts/orchestration/pr_oracle_attachment.py:910` and `scripts/orchestration/pr_oracle_attachment.py:955`.
+
+Rollback disables the automatic hook while preserving required manual oracle
+evidence and CREATIVE-OPS-1. This local interface adds no provider, GitHub App,
+workflow, product, PR, review-thread or merge authority.
+
 ## Operational Creative v1 (separate contract)
 
 `creative_workflow.v1` adds a host-operated task workflow without changing the
@@ -118,7 +256,14 @@ as `api_key.py` and ordinary prose such as "API key validation" remain
 admissible; token shapes, assignments (including canonical `SERVER_SALT`),
 bearer values and key material do not.
 The same content sanitizer runs on export and restore, so a downloaded archive
-with internally consistent hashes cannot bypass UTF-8 or private-content checks.
+with internally consistent hashes cannot bypass UTF-8 or private-content checks. Caller-admitted
+JSON members use the existing native object decoder, reject duplicate keys,
+nonfinite or unrepresentable values, and screen decoded keys and nested strings
+independently. Native finite serialization checks credential key/value
+associations only; serialization escapes are not filesystem syntax. Non-JSON
+members retain raw UTF-8 screening. Screening preserves the original member
+bytes for hashes, export and restore, and neither changes caller inventories
+nor their byte bounds or independent structural JSON limits.
 Explicit decorator and HTTP-method contexts
 allow public route literals such as `GET /api/v1/items` in patch and review
 evidence; they never exempt known filesystem roots such as `/home`, `/srv`,
