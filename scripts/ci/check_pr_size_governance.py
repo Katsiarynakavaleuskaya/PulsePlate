@@ -648,7 +648,7 @@ def collect_regular_generated_openapi_paths(*, head_sha: str) -> frozenset[str]:
     """Admit exact generated paths only when the requested head records regular blobs."""
     if GIT_BINARY is None:
         raise RuntimeError("git executable not found in PATH")
-    result = subprocess.run(  # nosec B603: fixed Git argv reads two exact tree paths (remove-by: 2026-12-31, ref: PR-2461)
+    result = subprocess.run(  # nosec B603 # B603: fixed Git argv reads two exact tree paths (remove-by: 2026-12-31, ref: PR-2461)
         [
             GIT_BINARY,
             "ls-tree",
