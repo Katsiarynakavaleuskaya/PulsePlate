@@ -330,6 +330,52 @@ The landed PRO Distortion Simulator route is already governed by
 `next_small_action`, `sources`, `confidence`, `warnings`, `quota_state`,
 `transparency_notice_id`, and `wellness_boundary`.
 
+The Distortion Simulator request accepts `lang=ru|en|es`, defaulting to `en`;
+other values receive validation `422`. The locale is carried through the public
+request, internal task, prompt and deterministic draft fallback. JSON field
+names and the five canonical distortion label codes stay unchanged. Its five
+user-facing text fields (`why_it_matches`, `evidence_for`, `evidence_against`,
+`balanced_reframe`, `next_small_action`) use the requested locale when a
+deterministic fallback supplies them. When a provider supplies no recognized
+label, or a deterministic fallback finds no bounded marker in the thought,
+`distortion_labels=[]`; neither case is silently called emotional reasoning.
+Recognized provider label codes are normalized but not semantically verified.
+Fallback wording treats the input as a user report, avoids repeating an
+unverified goal as advice, and offers a neutral small step. The prompt asks
+for the requested language and separates reported experience, tentative
+interpretation and direct source support. It asks for one feasible small step
+within the reported time, food access, equipment, budget and preferences,
+without inventing resources; unclear feasibility calls for one clarification
+or observation step. Retrieved context is untrusted
+data; source occurrence alone never proves a claim. Arbitrary provider output
+still requires evaluation for language fit and semantic support.
+
+After the feature and execution-mode gates, the route applies the existing
+high-distress boundary to the four user fields before runtime, retrieval,
+quota, or provider work. A match returns `400` with
+`fitchef_high_distress_boundary`. Existing PRO auth, rate limit, quota,
+provider, source-assurance and response contracts remain in force.
+The helper covers reviewed explicit EN/RU/ES self-directed phrases and retains
+its English confusable protection; it is not a general language detector or
+universal distress classifier. The internal runtime and opt-in collector also
+apply that same boundary before their shared executor or a physical send.
+
+The EN/ES negation exception is closed to eight complete field values:
+`I do not want to die`, `I never want to die`, `I don't want to die`,
+`I dont want to die`, `No quiero morir`, `I really don't want to die`,
+`I definitely do not want to die`, and `Nunca quiero morir`. Each also admits
+one ASCII period attached to its final word, for 16 token sequences total.
+Membership applies NFKC, folds `’`, `‘`, `ʼ`, and `＇` to ASCII apostrophe,
+casefolds, and splits on whitespace. It does not remove other punctuation,
+transliterate confusables, or admit surrounding clauses or extra words. For an
+admitted complete value, only the EN `want to die` and ES `quiero morir`
+phrase matches are skipped. Every other existing phrase and each other user
+field remains subject to the boundary, including the original and confusable
+scan candidates. Unknown values receive no exception; a non-match is neither
+an intent assessment nor a universal safety claim. Longer benign text may
+conservatively block, and unknown paraphrases may be outside the bounded
+phrase detector.
+
 The landed VIP Identity Loop Mapper runtime is schema-frozen by
 `FitChefIdentityLoopMapperResponse`, with `scenario`, `identity_loop`,
 `identity_shift_statement`, `replacement_action`, `repair_if_slip`, `sources`,

@@ -4,7 +4,8 @@ Pure logic: no network, no temperature, regex/rules only.
 Used by coordinator to require rewrite when BLOCKER detected.
 
 Codes:
-- WELLNESS_MEDICAL_CLAIM_* — medical/diagnostic claims (wellness-only posture)
+- WELLNESS_MEDICAL_CLAIM_RU/EN/ES — bounded medical/diagnostic claim phrases
+  (wellness-only posture; language-wide recognition is not claimed)
 - WELLNESS_GUARANTEE — outcome guarantees (non-falsifiable)
 - NON_FALSIFIABLE_VAGUE — vague unverifiable claims
 - POTENTIAL_CONTRADICTION — contradiction markers
@@ -43,6 +44,13 @@ _BLOCKER_PATTERNS: List[Tuple[str, re.Pattern[str]]] = [
         ),
     ),
     (
+        "WELLNESS_MEDICAL_CLAIM_ES",
+        re.compile(
+            r"\b(esto\s+cura|te\s+diagnostico\s+con)\b",
+            re.IGNORECASE,
+        ),
+    ),
+    (
         "WELLNESS_GUARANTEE",
         re.compile(
             r"\b(guaranteed?\s+to\s+cure|100%\s+guaranteed|will\s+definitely\s+cure"
@@ -69,35 +77,45 @@ _BLOCKER_PATTERNS: List[Tuple[str, re.Pattern[str]]] = [
         "FITCHEF_FOOD_MORALITY",
         re.compile(
             r"\b(good|bad|clean|dirty)\s+(food|foods|meal|meals|eating|dessert|desserts|snack|snacks)\b"
-            r"|\b(cheat\s+meal|cheat\s+day)\b",
+            r"|\b(cheat\s+meal|cheat\s+day)\b"
+            r"|\bплохая\s+еда\b"
+            r"|\bcomida\s+mala\b",
             re.IGNORECASE,
         ),
     ),
     (
         "FITCHEF_PUNITIVE_RECOVERY",
         re.compile(
-            r"\b(punish\s+(yourself|the slip)|make\s+up\s+for\s+it|atone\s+for\s+it)\b",
+            r"\b(punish\s+(yourself|the slip)|make\s+up\s+for\s+it|atone\s+for\s+it)\b"
+            r"|\bнакажи\s+себя\b"
+            r"|\bcast[íi]gate\b",
             re.IGNORECASE,
         ),
     ),
     (
         "FITCHEF_COMPENSATION_LANGUAGE",
         re.compile(
-            r"\b(earn\s+it\s+back|burn\s+it\s+off|work\s+it\s+off|skip\s+the\s+next\s+meal)\b",
+            r"\b(earn\s+it\s+back|burn\s+it\s+off|work\s+it\s+off|skip\s+the\s+next\s+meal)\b"
+            r"|\bпропусти\s+следующий\s+при[её]м\s+пищи\b"
+            r"|\bs[áa]ltate\s+la\s+pr[óo]xima\s+comida\b",
             re.IGNORECASE,
         ),
     ),
     (
         "FITCHEF_THERAPIST_DRIFT",
         re.compile(
-            r"\b(you\s+really\s+did\s+this\s+because|deep\s+down\s+you|your\s+inner\s+self)\b",
+            r"\b(you\s+really\s+did\s+this\s+because|deep\s+down\s+you|your\s+inner\s+self)\b"
+            r"|\bты\s+на\s+самом\s+деле\s+сделал\s+это\s+потому,\s+что\b"
+            r"|\ben\s+el\s+fondo\s+hiciste\s+esto\s+porque\b",
             re.IGNORECASE,
         ),
     ),
     (
         "FITCHEF_MANIPULATIVE_REASSURANCE",
         re.compile(
-            r"\b(i\s+know\s+exactly\s+how\s+you\s+feel|i\s+promise\s+everything\s+will\s+be\s+okay)\b",
+            r"\b(i\s+know\s+exactly\s+how\s+you\s+feel|i\s+promise\s+everything\s+will\s+be\s+okay)\b"
+            r"|\bя\s+точно\s+знаю,\s+что\s+ты\s+чувствуешь\b"
+            r"|\bs[ée]\s+exactamente\s+c[óo]mo\s+te\s+sientes\b",
             re.IGNORECASE,
         ),
     ),
@@ -139,6 +157,12 @@ def validate_llm_output(text: str, *, domain: str | None = None) -> Report:
     blockers: List[Finding] = []
     for code, pattern in _BLOCKER_PATTERNS:
         for m in pattern.finditer(text):
+            if (
+                code == "FITCHEF_COMPENSATION_LANGUAGE"
+                and m.group(0).casefold().startswith("пропусти")
+                and re.search(r"\bне\s+$", text[: m.start()], re.IGNORECASE)
+            ):
+                continue
             blockers.append(Finding(code=code, start=m.start(), end=m.end(), matched=m.group(0)))
     blockers.sort(key=lambda b: b.start)
     return Report(ok=len(blockers) == 0, blockers=blockers, domain=domain)
