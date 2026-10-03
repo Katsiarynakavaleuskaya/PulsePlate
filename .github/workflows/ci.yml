@@ -2664,7 +2664,8 @@ jobs:
       fail-fast: false
       matrix:
         family: [iphone, ipad]
-    timeout-minutes: 25
+    # Sequential caps total 30m; nominal 15m setup/diagnostic headroom.
+    timeout-minutes: 45
     if: |
       needs.changes.outputs.ios == 'true' && (
         github.event_name == 'pull_request' ||

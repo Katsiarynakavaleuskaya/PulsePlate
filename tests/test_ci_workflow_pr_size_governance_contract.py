@@ -4338,6 +4338,7 @@ def _assert_ios_family_matrix_contract(workflow: dict[str, object]) -> None:
             in selection["run"]
         )
         if job_id == "ios-ui-smoke":
+            assert job["timeout-minutes"] == 45
             smoke_step = next(
                 step
                 for step in steps
@@ -4409,6 +4410,18 @@ def test_ios_matrix_contract_rejects_ui_destination_bypass(mutation: str) -> Non
             step["run"] = before + substituted + between + '"-destination", destination' + after
         else:
             step["run"] = before + '"-destination", destination' + between + substituted + after
+
+    with pytest.raises(AssertionError):
+        _assert_ios_family_matrix_contract(workflow)
+
+
+def test_ios_matrix_contract_rejects_ui_job_budget_below_sequential_caps() -> None:
+    workflow = _load_ci_workflow()
+    jobs = workflow["jobs"]
+    assert isinstance(jobs, dict)
+    smoke = jobs["ios-ui-smoke"]
+    assert isinstance(smoke, dict)
+    smoke["timeout-minutes"] = 25
 
     with pytest.raises(AssertionError):
         _assert_ios_family_matrix_contract(workflow)

@@ -7,6 +7,8 @@ import asyncio
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
+import pytest
+
 
 def test_usda_fooditem_to_menu_format():
     from core.food_apis.usda_client import USDAFoodItem
@@ -191,7 +193,7 @@ def test_update_manager_more_edges(tmp_path: Path):
     loop.close()
 
 
-def test_scheduler_remaining_edges(tmp_path: Path) -> None:
+def test_scheduler_remaining_edges(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     import core.food_apis.scheduler as sched_mod
     from core.food_apis.scheduler import (
         DatabaseUpdateScheduler,
@@ -243,8 +245,7 @@ def test_scheduler_remaining_edges(tmp_path: Path) -> None:
             async def stop(self):
                 self.is_running = False
 
-        sched_mod._scheduler_instance = _Sched2()  # type: ignore[attr-defined]
+        monkeypatch.setattr(sched_mod, "_scheduler_instance", _Sched2())
         loop.run_until_complete(stop_background_updates())
-        sched_mod._scheduler_instance = None  # cleanup: prevent global leak to other tests
     finally:
         loop.close()
