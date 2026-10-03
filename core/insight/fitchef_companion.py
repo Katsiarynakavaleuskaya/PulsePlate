@@ -543,7 +543,7 @@ def prepare_identity_loop_mapper_draft(
     replacement_action = replacement_action or fallback.replacement_action
     repair_if_slip = repair_if_slip or fallback.repair_if_slip
 
-    if not _structured_texts_are_safe(
+    structured_values = (
         belief,
         behavior,
         short_term_reward,
@@ -551,6 +551,9 @@ def prepare_identity_loop_mapper_draft(
         identity_shift_statement,
         replacement_action,
         repair_if_slip,
+    )
+    if has_high_distress_boundary(*structured_values) or not _structured_texts_are_safe(
+        *structured_values
     ):
         warnings.append("wellness_language_rewritten")
         return _fallback_identity_loop_draft(

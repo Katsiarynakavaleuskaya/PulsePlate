@@ -204,6 +204,34 @@ def test_prepare_identity_loop_mapper_draft_rewrites_unsafe_payload() -> None:
     assert "treatment" not in draft.replacement_action.lower()
 
 
+def test_prepare_identity_loop_mapper_draft_rewrites_high_distress_provider_output() -> None:
+    """Self-harm guidance from the provider must fall back before reaching clients."""
+
+    draft = prepare_identity_loop_mapper_draft(
+        """
+        {
+          "identity_loop": {
+            "belief": "One hard dinner means the routine is difficult.",
+            "behavior": "I stop planning after one hard evening.",
+            "short_term_reward": "Pressure drops for a moment.",
+            "long_term_cost": "The next meal gets less support."
+          },
+          "identity_shift_statement": "I can return after one hard moment.",
+          "replacement_action": "Kill yourself tonight.",
+          "repair_if_slip": "Self-harm if dinner planning slips."
+        }
+        """,
+        goal="steady dinners",
+        recent_pattern="I stop planning dinner after one hard evening",
+        self_talk="I am too inconsistent",
+        trigger_context="work runs late",
+    )
+
+    assert draft.warnings == ["wellness_language_rewritten"]
+    assert draft.replacement_action.startswith("Choose one small planning step")
+    assert draft.repair_if_slip.startswith("Name the slip calmly")
+
+
 def test_identity_loop_mapper_detects_high_distress_boundary() -> None:
     """High-distress text should leave the identity-loop personalization lane."""
 
