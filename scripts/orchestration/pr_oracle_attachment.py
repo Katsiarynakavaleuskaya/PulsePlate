@@ -16,6 +16,7 @@ import os
 from pathlib import Path
 import platform
 import re
+import stat
 import sys
 import tempfile
 from typing import Any
@@ -691,6 +692,49 @@ def _attachment(request: dict[str, Any], result: dict[str, Any], result_ref: str
     return attachment
 
 
+def _retained_bundle_allowance(
+    request: dict[str, Any], dependencies: dict[str, bytes], attempts: int
+) -> int:
+    """Conservatively reserve consumable canonical bytes, not producer output."""
+
+    def serialized(value: dict[str, Any]) -> bytes:
+        return (json.dumps(value, sort_keys=True, indent=2) + "\n").encode()
+
+    result_ref = _ref(dispatcher.RESULT_ARTIFACT_DIR / ("oracle-" + "f" * 32 + ".json"))
+    snapshot_ref = result_ref.removesuffix(".json") + ".snapshot.json"
+    observations_ref = snapshot_ref.removesuffix(".json") + ".observations.json"
+    attempt = {
+        "result_ref": result_ref,
+        "snapshot_ref": snapshot_ref,
+        "private_observations_ref": observations_ref,
+        "lifecycle_state": "running",
+    }
+    terminal = {
+        "result_ref": result_ref,
+        "result_sha256": "sha256:" + "f" * 64,
+        "returncode": 4,
+        "runner_failure_class": "infra_flake",
+        "private_observations_ref": observations_ref,
+        "private_observations_sha256": "sha256:" + "f" * 64,
+    }
+    names = set(BUNDLE_FILES) | set(dependencies) | _attempt_names({"attempts": attempts})
+    receipt = {
+        "schema_version": POLICY_VERSION,
+        "authority": "evidence_only",
+        "request_fingerprint": fingerprint_payload(request),
+        "files": {name: "sha256:" + "f" * 64 for name in names if name != "receipt.json"},
+        "attempts": attempts,
+        "retries_consumed": attempts - 1,
+    }
+    return (
+        sum(map(len, dependencies.values()))
+        + len(serialized(request))
+        + 3 * MAX_BYTES
+        + attempts * (len(serialized(attempt)) + len(serialized(terminal)))
+        + len(serialized(receipt))
+    )
+
+
 def ensure_oracle_evidence(
     *,
     packet: str,
@@ -768,6 +812,14 @@ def ensure_oracle_evidence(
             raise OracleEvidenceError(
                 "Partial or interrupted evidence requires bounded owner recovery."
             )
+        dependencies = _dependencies(request)
+        if (
+            _retained_bundle_allowance(
+                request, dependencies, experiment["budgets"]["retry_budget"] + 1
+            )
+            > MAX_RUN_BYTES
+        ):
+            raise OracleEvidenceError("Complete retained bundle allowance exceeds the byte budget.")
         _publish(directory / "request.json", request)
         _publish(
             directory / "control.json",
@@ -777,9 +829,6 @@ def ensure_oracle_evidence(
                 "request_fingerprint": fingerprint_payload(request),
             },
         )
-        dependencies = _dependencies(request)
-        if sum(len(raw) for raw in dependencies.values()) > MAX_RUN_BYTES:
-            raise OracleEvidenceError("Frozen input dependencies exceed the retained byte budget.")
         for name, raw in dependencies.items():
             _publish_bytes(directory / name, raw)
         for attempt in range(experiment["budgets"]["retry_budget"] + 1):
@@ -897,17 +946,18 @@ def ensure_oracle_evidence(
             for name in (*BUNDLE_FILES, *dependencies, *_attempt_names({"attempts": attempt + 1}))
             if name != "receipt.json"
         }
-        _publish(
-            directory / "receipt.json",
-            {
-                "schema_version": POLICY_VERSION,
-                "authority": "evidence_only",
-                "request_fingerprint": fingerprint_payload(request),
-                "files": files,
-                "attempts": attempt + 1,
-                "retries_consumed": attempt,
-            },
-        )
+        receipt = {
+            "schema_version": POLICY_VERSION,
+            "authority": "evidence_only",
+            "request_fingerprint": fingerprint_payload(request),
+            "files": files,
+            "attempts": attempt + 1,
+            "retries_consumed": attempt,
+        }
+        proposed = {name: _raw(_ref(directory / name)) for name in files}
+        proposed["receipt.json"] = (json.dumps(receipt, sort_keys=True, indent=2) + "\n").encode()
+        _historical_bundle(proposed)
+        _publish(directory / "receipt.json", receipt)
         validate_oracle_evidence(
             receipt_ref,
             packet=packet,
@@ -1046,14 +1096,18 @@ def verify_archive(archive_ref: str, expected_sha256: str, restore_ref: str) -> 
         ):
             raise OracleEvidenceError("Archive member inventory is unsafe.")
         if any(
-            i.compress_type != zipfile.ZIP_STORED
+            i.flag_bits & (0x01 | 0x20 | 0x40)
+            or i.compress_type != zipfile.ZIP_STORED
             or i.is_dir()
             or i.file_size > MAX_BYTES
             or ((i.external_attr >> 16) & 0o170000) not in {0, 0o100000}
             for i in infos
         ):
             raise OracleEvidenceError("Archive member type or size is unsafe.")
-        files = {i.filename: archive.read(i) for i in infos}
+        try:
+            files = {i.filename: archive.read(i) for i in infos}
+        except NotImplementedError as exc:
+            raise OracleEvidenceError("Archive member format is unsupported.") from exc
     manifest = _workflow_json_bytes(files.pop("manifest.json"), maximum=MAX_BYTES)
     if manifest != {
         "schema_version": "pr_oracle_archive.v1",
@@ -1244,8 +1298,22 @@ def validate_restored_bundle(restore_ref: str) -> dict[str, Any]:
     directory = REPO_ROOT / restore_ref
     if directory.parent != EVIDENCE_ROOT / "restores":
         raise OracleEvidenceError("Historical validation requires the owned restore root.")
+    dispatcher._reject_symlink_components(directory)
+    if (
+        re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9._-]{0,63}", directory.name) is None
+        or not directory.is_dir()
+        or stat.S_IMODE(directory.stat().st_mode) != 0o700
+    ):
+        raise OracleEvidenceError("Restored leaf name or private mode is invalid.")
     try:
-        request, _, receipt = _historical_bundle(_bundle_bytes(directory))
+        files = _bundle_bytes(directory)
+        if {path.name for path in directory.iterdir()} != set(files):
+            raise OracleEvidenceError("Restored leaf inventory differs from canonical members.")
+        for name in files:
+            metadata = (directory / name).lstat()
+            if stat.S_IMODE(metadata.st_mode) != 0o600:
+                raise OracleEvidenceError("Restored member private mode is invalid.")
+        request, _, receipt = _historical_bundle(files)
     except (KeyError, TypeError, AttributeError, IndexError) as exc:
         raise OracleEvidenceError("Malformed restored bundle.") from exc
     return {

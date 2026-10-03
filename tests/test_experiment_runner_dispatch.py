@@ -5190,3 +5190,27 @@ def test_public_run_cli_admits_only_canonical_distinct_material_before_backend(
         assert not output.exists()
         assert captured.out == ""
         assert captured.err.startswith("experiment_runner_dispatch: ")
+
+
+@pytest.mark.parametrize("tracked_change", ["unchanged", "edited", "deleted"])
+def test_index_only_deleted_addition_matches_final_snapshot(
+    oracle_source_checkout: Path, tmp_path: Path, tracked_change: str
+) -> None:
+    root = oracle_source_checkout
+    new = root / "staged-new.py"
+    new.write_bytes(b"staged only\n")
+    dispatch._git(["add", "staged-new.py"], cwd=root)
+    new.unlink()
+    if tracked_change == "edited":
+        (root / "tracked.py").write_bytes(b"final edit\n")
+    elif tracked_change == "deleted":
+        (root / "tracked.py").unlink()
+    index = dispatch._git(["ls-files", "--stage", "-z"], cwd=root).stdout
+    material = dispatch.capture_source_material(root)
+    proof: dict[str, Any] = {}
+    snapshot = tmp_path.resolve() / "ad-snapshot"
+    dispatch._create_snapshot(root, snapshot, source_material=material, snapshot_proof=proof)
+    assert proof["snapshot_content_sha256"] == material["tracked_content_sha256"]
+    assert not (snapshot / "staged-new.py").exists()
+    assert dispatch._git(["ls-files", "--stage", "-z"], cwd=root).stdout == index
+    assert material["staged_diff_sha256"] != material["worktree_diff_sha256"]

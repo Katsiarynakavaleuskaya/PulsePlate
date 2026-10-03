@@ -629,7 +629,8 @@ def _oracle_hook_prompt_lines(
         + _shell_quote(packet_path)
         + " --experiment-packet '<approved-experiment-packet>' --role-context-order '<selected-order>' --mode '<manifest-mode>' --backend "
         + _shell_quote(backend)
-        + " --image '<immutable-image>' --pretty",
+        + " --image '<immutable-image>' --instruction-file '<explicitly-admitted-instruction-file>' --pretty",
+        "Replace the instruction placeholder with an explicitly admitted repository instruction reference; repeat --instruction-file for every required admitted source. A placeholder is not acquired instruction content.",
         (
             "Preserve these emitted owner flags: "
             + " ".join(

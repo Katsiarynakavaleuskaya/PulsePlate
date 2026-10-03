@@ -1524,7 +1524,13 @@ def _tracked_content_digest(root: Path, admitted_new_files: tuple[str, ...] = ()
     """Hash native HEAD/index membership and actual bytes without clean filters."""
 
     paths = set(_git(["ls-tree", "-r", "-z", "--name-only", "HEAD"], cwd=root).stdout.split("\0"))
-    paths.update(_git(["ls-files", "-z"], cwd=root).stdout.split("\0"))
+    for relative in _git(["ls-files", "-z"], cwd=root).stdout.split("\0"):
+        if relative and relative not in paths:
+            try:
+                (root / relative).lstat()
+            except FileNotFoundError:
+                continue
+            paths.add(relative)
     paths.update(admitted_new_files)
     paths.discard("")
     head_modes: dict[str, tuple[str, str]] = {}

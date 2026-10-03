@@ -62,6 +62,9 @@ def test_both_start_modes_deliver_pending_oracle_hook_without_execution(
         assert 'pr_oracle_attachment.py" dispatch --material-root "$MATERIAL_ROOT"' in text
         assert "--no-auto-oracle" in text
         assert "still requires equally validated current manual oracle evidence" in text
+        assert "--instruction-file '<explicitly-admitted-instruction-file>'" in text
+        assert "repeat --instruction-file for every required admitted source" in text
+        assert "placeholder is not acquired instruction content" in text
 
 
 def test_packet_prompt_treats_creative_recommendation_as_native_host_handoff() -> None:
@@ -1927,3 +1930,13 @@ def test_oracle_recipe_uses_explicit_roots_and_platform_without_probing() -> Non
         assert "Run from TRUSTED_TOOL_ROOT" in rendered
         assert "does not disable" in rendered
         assert "--backend auto" not in rendered
+
+
+def test_oracle_hook_requires_explicit_instruction_acquisition() -> None:
+    from scripts.orchestration.render_codex_start_prompt import _oracle_hook_prompt_lines
+
+    lines = _oracle_hook_prompt_lines("packet with spaces.json", host_platform="Darwin")
+    rendered = "\n".join(lines)
+    assert "--instruction-file '<explicitly-admitted-instruction-file>'" in rendered
+    assert "repeat --instruction-file for every required admitted source" in rendered
+    assert "placeholder is not acquired instruction content" in rendered

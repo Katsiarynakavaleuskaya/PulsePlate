@@ -1561,7 +1561,14 @@ def test_oversized_retention_blocks_execution_and_preserves_source(
     source = oracle.REPO_ROOT / request["experiment_packet_ref"]
     original = source.read_bytes()
     monkeypatch.setattr(oracle, bound, 1)
-    with pytest.raises(ValueError, match="bound|budget"):
+    if bound == "MAX_BYTES":
+        # The canonical reader combines type/link/size denial in this diagnostic.
+        assert source.is_file() and source.stat().st_nlink == 1
+        assert source.stat().st_size > oracle.MAX_BYTES
+        message = r"^workflow source is not an admitted regular file$"
+    else:
+        message = "Complete retained bundle allowance exceeds the byte budget"
+    with pytest.raises(ValueError, match=message):
         _ensure(request)
     assert calls == []
     assert source.read_bytes() == original
@@ -2396,3 +2403,184 @@ def test_ordinary_json_screen_keeps_transport_bound_and_authority_projection(
         oracle._require_export_member("attachment.json", json.dumps(payload).encode())
     with pytest.raises(context.ExperimentRunnerCreativeContextCliError, match="private"):
         oracle._require_export_member("result.json", b'{"read_secrets":false}')
+
+
+@pytest.mark.parametrize("delta", [-1, 0, 1])
+def test_complete_bundle_allowance_precedes_execution(
+    evidence_runtime: tuple[dict[str, Any], list[list[str]], dict[str, Any]],
+    monkeypatch: pytest.MonkeyPatch,
+    delta: int,
+) -> None:
+    request, calls, _ = evidence_runtime
+    allowance = oracle._retained_bundle_allowance(request, oracle._dependencies(request), 2)
+    monkeypatch.setattr(oracle, "MAX_RUN_BYTES", allowance + delta)
+    if delta < 0:
+        with pytest.raises(oracle.OracleEvidenceError, match="allowance"):
+            _ensure(request)
+        assert calls == []
+        assert not list(oracle.EVIDENCE_ROOT.rglob("receipt.json"))
+    else:
+        ref = _ensure(request)
+        assert _ensure(request) == ref
+        assert len(calls) == 1
+
+
+@pytest.mark.parametrize(
+    "damage", ["extra_file", "extra_directory", "leaf_mode", "file_mode", "name"]
+)
+def test_standalone_restored_validation_requires_exact_private_leaf(
+    evidence_runtime: tuple[dict[str, Any], list[list[str]], dict[str, Any]], damage: str
+) -> None:
+    request, calls, _ = evidence_runtime
+    receipt = _ensure(request)
+    archive, digest = oracle.export_evidence(receipt)
+    restore = oracle._ref(oracle.EVIDENCE_ROOT / "restores/exact-private")
+    oracle.verify_archive(archive, digest, restore)
+    leaf = oracle.REPO_ROOT / restore
+    if damage == "extra_file":
+        (leaf / "unexpected").write_bytes(b"preserve")
+    elif damage == "extra_directory":
+        (leaf / "unexpected").mkdir()
+    elif damage == "leaf_mode":
+        leaf.chmod(0o755)
+    elif damage == "file_mode":
+        (leaf / "result.json").chmod(0o644)
+    else:
+        moved = leaf.with_name("!invalid")
+        leaf.rename(moved)
+        leaf = moved
+        restore = oracle._ref(leaf)
+    before = {p.name: p.lstat().st_mode for p in leaf.iterdir()}
+    with pytest.raises(oracle.OracleEvidenceError):
+        oracle.validate_restored_bundle(restore)
+    assert {p.name: p.lstat().st_mode for p in leaf.iterdir()} == before
+    assert len(calls) == 1
+
+
+@pytest.mark.parametrize("flag", [0x01, 0x20, 0x40])
+def test_encrypted_zip_flag_is_typed_storage_pending_before_read(
+    evidence_runtime: tuple[dict[str, Any], list[list[str]], dict[str, Any]],
+    capsys: pytest.CaptureFixture[str],
+    flag: int,
+) -> None:
+    import struct
+
+    request, calls, _ = evidence_runtime
+    receipt = _ensure(request)
+    archive, _ = oracle.export_evidence(receipt)
+    original = (oracle.REPO_ROOT / archive).read_bytes()
+    raw = bytearray(original)
+    local = raw.index(b"PK\x03\x04")
+    central = raw.index(b"PK\x01\x02")
+    for offset in (local + 6, central + 8):
+        struct.pack_into("<H", raw, offset, struct.unpack_from("<H", raw, offset)[0] | flag)
+    download = oracle.REPO_ROOT / "artifacts/orchestration/encrypted.zip"
+    download.write_bytes(raw)
+    restore = oracle._ref(oracle.EVIDENCE_ROOT / "restores/encrypted")
+    assert (
+        oracle.main(
+            [
+                "verify-archive",
+                "--archive",
+                oracle._ref(download),
+                "--sha256",
+                oracle._digest(bytes(raw)),
+                "--restore-dir",
+                restore,
+            ]
+        )
+        == 1
+    )
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert json.loads(captured.err)["lifecycle_state"] == "storage_pending"
+    assert "Traceback" not in captured.err
+    assert not (oracle.REPO_ROOT / restore).exists()
+    assert (oracle.REPO_ROOT / archive).read_bytes() == original
+    assert len(calls) == 1
+
+
+def test_actual_bundle_rejects_before_receipt_publication(
+    evidence_runtime: tuple[dict[str, Any], list[list[str]], dict[str, Any]],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request, calls, _ = evidence_runtime
+    execute = oracle._execute_dispatch
+
+    def narrow_after_execution(arguments: list[str]) -> int:
+        code = execute(arguments)
+        monkeypatch.setattr(oracle, "MAX_RUN_BYTES", 1)
+        return code
+
+    monkeypatch.setattr(oracle, "_execute_dispatch", narrow_after_execution)
+    with pytest.raises(oracle.OracleEvidenceError, match="byte budget"):
+        _ensure(request)
+    assert len(calls) == 1
+    assert not list(oracle.EVIDENCE_ROOT.rglob("receipt.json"))
+    assert list(oracle.EVIDENCE_ROOT.rglob("attempt-1.terminal.json"))
+
+
+@pytest.mark.parametrize(
+    "target,mode",
+    [
+        ("leaf", 0o1700),
+        ("leaf", 0o2700),
+        ("member", 0o1600),
+        ("member", 0o2600),
+        ("member", 0o4600),
+    ],
+)
+def test_restored_special_permission_bits_are_typed_storage_pending(
+    evidence_runtime: tuple[dict[str, Any], list[list[str]], dict[str, Any]],
+    capsys: pytest.CaptureFixture[str],
+    target: str,
+    mode: int,
+) -> None:
+    import stat
+
+    request, calls, _ = evidence_runtime
+    receipt = _ensure(request)
+    archive, digest = oracle.export_evidence(receipt)
+    restore = oracle._ref(oracle.EVIDENCE_ROOT / "restores/special-mode")
+    oracle.verify_archive(archive, digest, restore)
+    leaf = oracle.REPO_ROOT / restore
+    changed = leaf if target == "leaf" else leaf / "result.json"
+    changed.chmod(mode)
+    assert stat.S_IMODE(changed.lstat().st_mode) == mode
+    before = {
+        path.name: (path.read_bytes(), stat.S_IMODE(path.lstat().st_mode))
+        for path in leaf.iterdir()
+    }
+    leaf_mode = stat.S_IMODE(leaf.lstat().st_mode)
+    assert oracle.main(["validate-restored", "--restore-dir", restore]) == 1
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert json.loads(captured.err)["lifecycle_state"] == "storage_pending"
+    assert stat.S_IMODE(leaf.lstat().st_mode) == leaf_mode
+    assert {
+        path.name: (path.read_bytes(), stat.S_IMODE(path.lstat().st_mode))
+        for path in leaf.iterdir()
+    } == before
+    assert len(calls) == 1
+
+
+@pytest.mark.parametrize("error", [NotImplementedError, RuntimeError])
+def test_archive_native_unsupported_error_is_specific_and_programming_error_visible(
+    evidence_runtime: tuple[dict[str, Any], list[list[str]], dict[str, Any]],
+    monkeypatch: pytest.MonkeyPatch,
+    error: type[Exception],
+) -> None:
+    request, calls, _ = evidence_runtime
+    receipt = _ensure(request)
+    archive, digest = oracle.export_evidence(receipt)
+    restore = oracle._ref(oracle.EVIDENCE_ROOT / "restores/native-error")
+
+    def fail_read(self: zipfile.ZipFile, name: object, pwd: bytes | None = None) -> bytes:
+        raise error("controlled native read boundary")
+
+    monkeypatch.setattr(zipfile.ZipFile, "read", fail_read)
+    expected = oracle.OracleEvidenceError if error is NotImplementedError else RuntimeError
+    with pytest.raises(expected):
+        oracle.verify_archive(archive, digest, restore)
+    assert not (oracle.REPO_ROOT / restore).exists()
+    assert len(calls) == 1
