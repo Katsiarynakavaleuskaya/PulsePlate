@@ -10,6 +10,140 @@ from core.i18n import Language
 from core.insight.fitchef_companion import prepare_distortion_simulator_draft
 from core.insight.philosophy_validator import Report, validate_llm_output
 
+_REVIEWED_POLARITY_CASES: list[tuple[str, str, str, str]] = [
+    ("FITCHEF_FOOD_MORALITY", "Это плохая еда.", "Это не плохая еда.", "плохая еда"),
+    ("FITCHEF_FOOD_MORALITY", "Es comida mala.", "No es comida mala.", "comida mala"),
+    (
+        "WELLNESS_MEDICAL_CLAIM_ES",
+        "Te diagnostico con ansiedad.",
+        "No te diagnostico con ansiedad.",
+        "Te diagnostico con",
+    ),
+    (
+        "WELLNESS_GUARANTEE",
+        "Я гарантирую результаты.",
+        "Я не гарантирую результаты.",
+        "гарантирую результаты",
+    ),
+    (
+        "WELLNESS_GUARANTEE",
+        "Te garantizo resultados.",
+        "No te garantizo resultados.",
+        "Te garantizo resultados",
+    ),
+    (
+        "NON_FALSIFIABLE_VAGUE",
+        "Многие говорят, что это лечит.",
+        "Многие говорят, что планирование помогает.",
+        "Многие говорят, что это лечит",
+    ),
+    (
+        "NON_FALSIFIABLE_VAGUE",
+        "Algunos expertos dicen que esto cura.",
+        "Algunos expertos dicen que planificar ayuda.",
+        "Algunos expertos dicen que esto cura",
+    ),
+    (
+        "POTENTIAL_CONTRADICTION",
+        "Однако мы лечим.",
+        "Однако мы не лечим.",
+        "Однако мы лечим",
+    ),
+    (
+        "POTENTIAL_CONTRADICTION",
+        "Sin embargo, curamos.",
+        "Sin embargo, no curamos.",
+        "Sin embargo, curamos",
+    ),
+]
+
+
+@pytest.mark.parametrize(("code", "positive", "control", "matched"), _REVIEWED_POLARITY_CASES)
+@pytest.mark.parametrize("spacing_and_case", [False, True])
+def test_reviewed_locale_categories_keep_polarity_and_original_spans(
+    code: str, positive: str, control: str, matched: str, spacing_and_case: bool
+) -> None:
+    """Recognize each finite claim while preserving its denial and later positive."""
+
+    if spacing_and_case:
+        positive = positive.upper().replace(" ", " \t")
+        control = control.upper().replace(" ", " \t")
+        matched = matched.upper().replace(" ", " \t")
+    report = validate_llm_output(positive, domain="coaching")
+    findings = [finding for finding in report.blockers if finding.code == code]
+    assert not report.ok
+    assert len(findings) == 1
+    finding = findings[0]
+    assert finding.matched == matched == positive[finding.start : finding.end]
+    assert finding.start == positive.index(matched)
+
+    supportive = validate_llm_output(control, domain="coaching")
+    assert supportive.ok
+    assert supportive.blockers == []
+
+    mixed = f"{control} {positive}"
+    mixed_report = validate_llm_output(mixed, domain="coaching")
+    named = [finding for finding in mixed_report.blockers if finding.code == code]
+    assert not mixed_report.ok
+    assert len(named) == 1
+    assert named[0].start == len(control) + 1 + positive.index(matched)
+    assert named[0].matched == mixed[named[0].start : named[0].end] == matched
+    assert [finding.start for finding in mixed_report.blockers] == sorted(
+        finding.start for finding in mixed_report.blockers
+    )
+
+
+@pytest.mark.parametrize(
+    ("text", "code"),
+    [
+        ("Это не не плохая еда.", "FITCHEF_FOOD_MORALITY"),
+        ("No no es comida mala.", "FITCHEF_FOOD_MORALITY"),
+        ("No no te diagnostico con ansiedad.", "WELLNESS_MEDICAL_CLAIM_ES"),
+        ("Я не не гарантирую результаты.", "WELLNESS_GUARANTEE"),
+        ("No no te garantizo resultados.", "WELLNESS_GUARANTEE"),
+        ("Это не, плохая еда.", "FITCHEF_FOOD_MORALITY"),
+        ("No, es comida mala.", "FITCHEF_FOOD_MORALITY"),
+        ("No, te diagnostico con ansiedad.", "WELLNESS_MEDICAL_CLAIM_ES"),
+        ("No. Te diagnostico con ansiedad.", "WELLNESS_MEDICAL_CLAIM_ES"),
+        ("Я не, гарантирую результаты.", "WELLNESS_GUARANTEE"),
+        ("No, te garantizo resultados.", "WELLNESS_GUARANTEE"),
+        ('"Это не плохая еда."', "FITCHEF_FOOD_MORALITY"),
+        ('"No es comida mala."', "FITCHEF_FOOD_MORALITY"),
+        ('"No te diagnostico con ansiedad."', "WELLNESS_MEDICAL_CLAIM_ES"),
+        ('"Я не гарантирую результаты."', "WELLNESS_GUARANTEE"),
+        ('"No te garantizo resultados."', "WELLNESS_GUARANTEE"),
+    ],
+)
+def test_locale_negation_does_not_exempt_unreviewed_context(text: str, code: str) -> None:
+    """Keep the matching claim blocking outside the reviewed one-clause denials."""
+
+    report = validate_llm_output(text, domain="coaching")
+    assert not report.ok
+    assert any(finding.code == code for finding in report.blockers)
+    for finding in report.blockers:
+        assert finding.matched == text[finding.start : finding.end]
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "предгарантирую результаты",
+        "гарантирую результатым",
+        "te pregarantizo resultados",
+        "te garantizo resultadosx",
+        "однаков мы лечим",
+        "однако мы лечимx",
+        "sin embargox, curamos",
+        "sin embargo, curamosx",
+    ],
+)
+def test_new_locale_claims_keep_word_boundaries(text: str) -> None:
+    """Do not convert embedded-word near misses into the new finite claim forms."""
+
+    report = validate_llm_output(text, domain="coaching")
+    assert report.ok
+    assert report.blockers == []
+
 
 def test_validate_llm_output_ok_empty() -> None:
     """Empty text passes."""

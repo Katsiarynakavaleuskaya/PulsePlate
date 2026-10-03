@@ -16,6 +16,7 @@ Codes:
 - FITCHEF_MANIPULATIVE_REASSURANCE — manipulative certainty / emotional overclaim
 
 Report.ok is False only when BLOCKER-level findings exist.
+Locale rules recognize finite reviewed constructions, not general language safety.
 """
 
 from __future__ import annotations
@@ -54,7 +55,8 @@ _BLOCKER_PATTERNS: List[Tuple[str, re.Pattern[str]]] = [
         "WELLNESS_GUARANTEE",
         re.compile(
             r"\b(guaranteed?\s+to\s+cure|100%\s+guaranteed|will\s+definitely\s+cure"
-            r"|guaranteed\s+results?|money[- ]back\s+guarantee\s+if\s+not\s+cured)\b",
+            r"|guaranteed\s+results?|money[- ]back\s+guarantee\s+if\s+not\s+cured"
+            r"|гарантирую\s+результаты|te\s+garantizo\s+resultados)\b",
             re.IGNORECASE,
         ),
     ),
@@ -62,14 +64,17 @@ _BLOCKER_PATTERNS: List[Tuple[str, re.Pattern[str]]] = [
         "NON_FALSIFIABLE_VAGUE",
         re.compile(
             r"\b(many\s+people\s+say\s+it\s+cures?|some\s+experts\s+say\s+it\s+cures?"
-            r"|it\s+is\s+known\s+to\s+cure|proven\s+to\s+cure\s+everyone)\b",
+            r"|it\s+is\s+known\s+to\s+cure|proven\s+to\s+cure\s+everyone"
+            r"|многие\s+говорят,?\s+что\s+это\s+лечит"
+            r"|algunos\s+expertos\s+dicen\s+que\s+esto\s+cura)\b",
             re.IGNORECASE,
         ),
     ),
     (
         "POTENTIAL_CONTRADICTION",
         re.compile(
-            r"\b(however\s*,\s*we\s+cure|but\s+we\s+also\s+diagnose)\b",
+            r"\b(however\s*,\s*we\s+cure|but\s+we\s+also\s+diagnose"
+            r"|однако,?\s+мы\s+лечим|sin\s+embargo,?\s+curamos)\b",
             re.IGNORECASE,
         ),
     ),
@@ -121,6 +126,26 @@ _BLOCKER_PATTERNS: List[Tuple[str, re.Pattern[str]]] = [
     ),
 ]
 
+# Only these five reviewed direct-denial prefixes exempt their own occurrence.
+# Sentence anchoring rejects stacked negation and leaves later positives visible.
+_REVIEWED_NEGATION_PREFIXES: dict[tuple[str, str], re.Pattern[str]] = {
+    ("FITCHEF_FOOD_MORALITY", "плохая еда"): re.compile(
+        r"(?:\A|[.!?])\s*(?:это\s+)?не\s+$", re.IGNORECASE
+    ),
+    ("FITCHEF_FOOD_MORALITY", "comida mala"): re.compile(
+        r"(?:\A|[.!?])\s*no\s+es\s+$", re.IGNORECASE
+    ),
+    ("WELLNESS_MEDICAL_CLAIM_ES", "te diagnostico con"): re.compile(
+        r"(?:\A|[.!?])\s*no\s+$", re.IGNORECASE
+    ),
+    ("WELLNESS_GUARANTEE", "гарантирую результаты"): re.compile(
+        r"(?:\A|[.!?])\s*(?:я\s+)?не\s+$", re.IGNORECASE
+    ),
+    ("WELLNESS_GUARANTEE", "te garantizo resultados"): re.compile(
+        r"(?:\A|[.!?])\s*no\s+$", re.IGNORECASE
+    ),
+}
+
 
 @dataclass
 class Finding:
@@ -162,6 +187,11 @@ def validate_llm_output(text: str, *, domain: str | None = None) -> Report:
                 and m.group(0).casefold().startswith("пропусти")
                 and re.search(r"\bне\s+$", text[: m.start()], re.IGNORECASE)
             ):
+                continue
+            negation_prefix = _REVIEWED_NEGATION_PREFIXES.get(
+                (code, " ".join(m.group(0).casefold().split()))
+            )
+            if negation_prefix is not None and negation_prefix.search(text[: m.start()]):
                 continue
             blockers.append(Finding(code=code, start=m.start(), end=m.end(), matched=m.group(0)))
     blockers.sort(key=lambda b: b.start)

@@ -576,6 +576,85 @@ def test_ru_negated_food_skip_remains_safe_but_affirmative_rewrites() -> None:
     assert "Запишите" in affirmative.next_small_action
 
 
+@pytest.mark.parametrize(
+    ("lang", "unsafe", "supportive"),
+    [
+        ("ru", "Это плохая еда.", "Это не плохая еда."),
+        ("es", "Es comida mala.", "No es comida mala."),
+        ("es", "Te diagnostico con ansiedad.", "No te diagnostico con ansiedad."),
+        ("ru", "Я гарантирую результаты.", "Я не гарантирую результаты."),
+        ("es", "Te garantizo resultados.", "No te garantizo resultados."),
+        (
+            "ru",
+            "Многие говорят, что это лечит.",
+            "Многие говорят, что планирование помогает.",
+        ),
+        (
+            "es",
+            "Algunos expertos dicen que esto cura.",
+            "Algunos expertos dicen que planificar ayuda.",
+        ),
+        ("ru", "Однако мы лечим.", "Однако мы не лечим."),
+        ("es", "Sin embargo, curamos.", "Sin embargo, no curamos."),
+    ],
+)
+@pytest.mark.parametrize(
+    "field_name",
+    ["why_it_matches", "evidence_for", "evidence_against", "balanced_reframe", "next_small_action"],
+)
+@pytest.mark.parametrize("polarity", ["unsafe", "supportive", "mixed"])
+def test_reviewed_locale_claim_polarity_controls_real_structured_fallback(
+    lang: Language, unsafe: str, supportive: str, field_name: str, polarity: str
+) -> None:
+    """Retain reviewed supportive fields and rewrite unsafe or mixed claims in each field."""
+
+    phrase = supportive if polarity == "supportive" else unsafe
+    if polarity == "mixed":
+        phrase = f"{supportive} {unsafe}"
+    payload: dict[str, str | list[str]] = {
+        "distortion_labels": ["catastrophizing"],
+        "why_it_matches": "A small setback can feel larger than it is.",
+        "evidence_for": ["One plan did not work."],
+        "evidence_against": ["One plan can be revised."],
+        "balanced_reframe": "One setback does not settle the whole plan.",
+        "next_small_action": "Choose one small planning step today.",
+    }
+    payload[field_name] = [phrase] if field_name.startswith("evidence_") else phrase
+    draft = prepare_distortion_simulator_draft(
+        json.dumps(payload, ensure_ascii=False),
+        situation="A meal plan changed.",
+        automatic_thought="One setback means the whole plan is lost.",
+        emotion="frustrated",
+        goal="plan the next meal",
+        lang=lang,
+    )
+    fields = (
+        "why_it_matches",
+        "evidence_for",
+        "evidence_against",
+        "balanced_reframe",
+        "next_small_action",
+    )
+    if polarity == "supportive":
+        assert draft.warnings == []
+        for field in fields:
+            assert getattr(draft, field) == payload[field]
+    else:
+        fallback = prepare_distortion_simulator_draft(
+            "not-json",
+            situation="A meal plan changed.",
+            automatic_thought="One setback means the whole plan is lost.",
+            emotion="frustrated",
+            goal="plan the next meal",
+            lang=lang,
+        )
+        assert draft.warnings == ["wellness_language_rewritten"]
+        assert draft.distortion_labels == fallback.distortion_labels
+        for field in fields:
+            assert getattr(draft, field) == getattr(fallback, field)
+        assert unsafe not in str(draft)
+
+
 def test_extract_json_payload_accepts_fenced_and_embedded_objects() -> None:
     """Structured JSON extraction should support fenced and embedded payloads."""
 
