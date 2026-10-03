@@ -717,6 +717,18 @@ def _retained_bundle_allowance(
         "private_observations_ref": observations_ref,
         "private_observations_sha256": "sha256:" + "f" * 64,
     }
+    # Sizing only: actual accepted attribution must equal this admitted literal.
+    retained_result_ref = _ref(
+        EVIDENCE_ROOT / fingerprint_payload(request).removeprefix("sha256:") / "result.json"
+    )
+    sizing_attachment = _attachment(
+        request,
+        {"coauthor_required": request["contribution"]["coauthor_required"]},
+        retained_result_ref,
+    )
+    attachment_bytes = len(serialized(sizing_attachment))
+    if attachment_bytes > MAX_BYTES:
+        raise OracleEvidenceError("Known attachment serialization exceeds its file byte bound.")
     names = set(BUNDLE_FILES) | set(dependencies) | _attempt_names({"attempts": attempts})
     receipt = {
         "schema_version": POLICY_VERSION,
@@ -729,7 +741,8 @@ def _retained_bundle_allowance(
     return (
         sum(map(len, dependencies.values()))
         + len(serialized(request))
-        + 3 * MAX_BYTES
+        + 2 * MAX_BYTES
+        + attachment_bytes
         + attempts * (len(serialized(attempt)) + len(serialized(terminal)))
         + len(serialized(receipt))
     )

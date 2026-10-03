@@ -2584,3 +2584,87 @@ def test_archive_native_unsupported_error_is_specific_and_programming_error_visi
         oracle.verify_archive(archive, digest, restore)
     assert not (oracle.REPO_ROOT / restore).exists()
     assert len(calls) == 1
+
+
+def test_full_twenty_eight_input_bundle_fits_without_trimming_or_limit_change(
+    evidence_runtime: tuple[dict[str, Any], list[list[str]], dict[str, Any]],
+) -> None:
+    request, calls, _ = evidence_runtime
+    initial = oracle._dependencies(request)
+    remaining = 3_336_601 - sum(map(len, initial.values()))
+    assert remaining > 0
+    request["checked_inputs"] = []
+    for index in range(26):
+        length = remaining // (26 - index)
+        remaining -= length
+        ref = f"artifacts/orchestration/checked-{index:02}.input"
+        raw = b"x" * length
+        assert len(raw) <= 2 * 1024 * 1024
+        (oracle.REPO_ROOT / ref).write_bytes(raw)
+        request["checked_inputs"].append({"ref": ref, "sha256": oracle._digest(raw)})
+    assert remaining == 0
+
+    def serialize(value: dict[str, Any]) -> bytes:
+        return (json.dumps(value, sort_keys=True, indent=2) + "\n").encode()
+
+    # This admitted variable has no guessed global cap; exact request bytes count.
+    difference = 7_121 - len(serialize(request))
+    assert difference > 0
+    request["source_material"]["repository"] = (
+        "a" * difference + request["source_material"]["repository"]
+    )
+    assert len(serialize(request)) == 7_121
+    dependencies = oracle._dependencies(request)
+    assert len(dependencies) == 28
+    assert sum(map(len, dependencies.values())) == 3_336_601
+    assert oracle.MAX_RUN_BYTES == 8 * 1024 * 1024
+    receipt_ref = _ensure(request)
+    files = oracle._bundle_bytes((oracle.REPO_ROOT / receipt_ref).parent)
+    assert all(files[name] == raw for name, raw in dependencies.items())
+    assert sum(map(len, files.values())) <= 8 * 1024 * 1024
+    oracle._historical_bundle(files)
+    before = {
+        path: (path.read_bytes(), path.stat().st_mtime_ns)
+        for path in (oracle.REPO_ROOT / receipt_ref).parent.iterdir()
+        if path.is_file()
+    }
+    assert _ensure(request) == receipt_ref
+    assert len(calls) == 1
+    assert before == {path: (path.read_bytes(), path.stat().st_mtime_ns) for path in before}
+
+
+@pytest.mark.parametrize("coauthor", [False, True])
+@pytest.mark.parametrize("repository_length", [1, 5000])
+@pytest.mark.parametrize("variant", ["baseline", "different hash content"])
+def test_attachment_reserve_exact_constructor_serialization_parity(
+    coauthor: bool, repository_length: int, variant: str
+) -> None:
+    _, request, result, _ = _accepted_inputs()
+    request["task_packet_id"] = "a" * 128
+    request["source_material"]["repository"] = "a" * repository_length + "/repo"
+    result["coauthor_required"] = coauthor
+    result["coauthor_reason"] = variant
+    ref = (
+        "artifacts/orchestration/experiments/results/oracle_attachments/"
+        + "a" * 64
+        + "/result.json"
+    )
+    actual = oracle._attachment(request, result, ref)
+    sizing = oracle._attachment(request, {"coauthor_required": coauthor}, ref)
+
+    def serialize(value: dict[str, Any]) -> bytes:
+        return (json.dumps(value, sort_keys=True, indent=2) + "\n").encode()
+
+    assert actual["result_fingerprint"] != sizing["result_fingerprint"]
+    assert len(serialize(actual)) == len(serialize(sizing))
+
+
+def test_known_oversized_attachment_rejects_before_execution(
+    evidence_runtime: tuple[dict[str, Any], list[list[str]], dict[str, Any]],
+) -> None:
+    request, calls, _ = evidence_runtime
+    request["source_material"]["repository"] = "a" * (2 * 1024 * 1024) + "/repo"
+    with pytest.raises(oracle.OracleEvidenceError, match="attachment serialization"):
+        _ensure(request)
+    assert calls == []
+    assert not list(oracle.EVIDENCE_ROOT.rglob("receipt.json"))
