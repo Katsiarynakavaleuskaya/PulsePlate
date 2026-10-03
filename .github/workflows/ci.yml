@@ -97,7 +97,7 @@ jobs:
   pr_scope_guard:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
-    timeout-minutes: 2
+    timeout-minutes: 5
     permissions:
       contents: read
       pull-requests: read
@@ -470,10 +470,19 @@ jobs:
             exit 1
           fi
 
-      - name: Checkout
+      - name: Checkout policy
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: policy
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Checkout material
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event.pull_request.head.sha }}
+          path: material
           fetch-depth: 0
           persist-credentials: false
 
@@ -489,7 +498,9 @@ jobs:
         run: |
           set -euo pipefail
           # Outage receipts fail closed until exact-current-head security jobs settle.
-          python scripts/ci/check_pr_merge_readiness.py \
+          cd "$GITHUB_WORKSPACE/policy"
+          python "$GITHUB_WORKSPACE/policy/scripts/ci/check_pr_merge_readiness.py" \
+            --material-repo-root "$GITHUB_WORKSPACE/material" \
             --event-path "$GITHUB_EVENT_PATH" \
             --outage-security-wait-seconds 300
 

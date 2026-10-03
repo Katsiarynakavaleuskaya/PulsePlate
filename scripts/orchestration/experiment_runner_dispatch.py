@@ -135,11 +135,12 @@ HOST_PLATFORM_CLASSES = frozenset(
 GUEST_PLATFORM_CLASSES = frozenset({"linux_arm64", "linux_amd64", "linux_unsupported"})
 REQUIRED_PROBE_KEYS = {
     "apple-container": PROBE_RESULT_KEYS,
-    "docker": tuple(key for key in PROBE_RESULT_KEYS if key != "outer_host_control"),
+    "docker": PROBE_RESULT_KEYS,
     "native-linux": (
         "runtime_available",
         "guest_platform_supported",
         "host_listener_ready",
+        "outer_host_control",
         "inner_host_blocked",
         "inner_dns_blocked",
         "inner_direct_ip_blocked",
@@ -147,6 +148,18 @@ REQUIRED_PROBE_KEYS = {
         "cleanup_completed",
     ),
 }
+
+
+def _probe_values_match_backend(
+    backend: str,
+    results: dict[str, bool | None],
+    keys: tuple[str, ...],
+) -> bool:
+    """Docker's network-none outer control must be blocked; Apple must reach."""
+
+    return all(
+        results.get(key) is (backend != "docker" or key != "outer_host_control") for key in keys
+    )
 
 
 def _canary_code(host: str, port: int) -> str:
@@ -257,8 +270,8 @@ class BackendProbe:
 
     @property
     def strict(self) -> bool:
-        return not self.blocking_reasons and all(
-            self.probe_results.get(key) is True for key in REQUIRED_PROBE_KEYS[self.backend]
+        return not self.blocking_reasons and _probe_values_match_backend(
+            self.backend, self.probe_results, REQUIRED_PROBE_KEYS[self.backend]
         )
 
     def to_artifact(self) -> dict[str, Any]:
@@ -657,35 +670,9 @@ def _address_is_bindable(address: str) -> bool:
 
 
 def _discover_host_bind_address() -> str:
-    """Return one exact non-loopback IPv4 address without persisting host identity."""
+    """Require one safe host-bindable IPv4 address without selection-order fallback."""
 
-    try:
-        records = socket.getaddrinfo(
-            socket.gethostname(),
-            None,
-            family=socket.AF_INET,
-            type=socket.SOCK_STREAM,
-        )
-    except OSError as exc:
-        raise DispatchError("host_listener_unavailable") from exc
-
-    candidates: list[str] = []
-    for _family, _kind, _proto, _canonical, sockaddr in records:
-        candidate = str(sockaddr[0])
-        address = ipaddress.ip_address(candidate)
-        if (
-            address.is_loopback
-            or address.is_unspecified
-            or address.is_multicast
-            or address.is_link_local
-            or candidate in candidates
-        ):
-            continue
-        candidates.append(candidate)
-    for candidate in candidates:
-        if _address_is_bindable(candidate):
-            return candidate
-    raise DispatchError("host_listener_unavailable")
+    return _discover_apple_host_bind_address(())
 
 
 def _find_apple_ipv4_subnets(value: Any) -> tuple[ipaddress.IPv4Network, ...]:
@@ -942,10 +929,11 @@ def _run_container_canary(
                 runtime_subnets = _discover_apple_runtime_subnets(cli)
                 host_address = _discover_apple_host_bind_address(runtime_subnets)
                 apple_network = _create_apple_network(cli)
-                gateway = None
             else:
-                host_address = None
-                gateway = _discover_gateway(cli, backend, apple_network)
+                # The Docker bridge is VM-owned on Desktop. Keep its metadata
+                # prerequisite, but bind only to a unique reachable host address.
+                _discover_gateway(cli, backend, apple_network)
+                host_address = _discover_host_bind_address()
             volume = _create_result_volume(cli, backend)
             runtime_ref = image.runtime_ref(backend)
             if not _initialize_result_volume(
@@ -961,12 +949,11 @@ def _run_container_canary(
             results["image_digest_verified"] = True
             with _host_listener(host_address) as (listener_address, port, listener_ready):
                 results["host_listener_ready"] = listener_ready
+                if not listener_ready:
+                    raise DispatchError("host_listener_unavailable")
                 outer_name = f"pp-er-outer-{uuid.uuid4().hex[:12]}"
                 inner_name = f"pp-er-inner-{uuid.uuid4().hex[:12]}"
-                canary_address = listener_address if backend == "apple-container" else gateway
-                if canary_address is None:
-                    raise DispatchError("network_gateway_unavailable")
-                code = _canary_code(canary_address, port)
+                code = _canary_code(listener_address, port)
                 try:
                     outer = _run(
                         _container_run_argv(
@@ -988,6 +975,8 @@ def _run_container_canary(
                     cleanup_completed = (
                         _cleanup_container(cli, backend, outer_name) and cleanup_completed
                     )
+                if outer_payload["host_reachable"] is not (backend == "apple-container"):
+                    raise DispatchError("network_isolation_failed")
                 try:
                     inner = _run(
                         _container_run_argv(
@@ -1018,9 +1007,7 @@ def _run_container_canary(
                         _cleanup_container(cli, backend, inner_name) and cleanup_completed
                     )
             results["guest_platform_supported"] = outer_payload["guest_platform_supported"]
-            results["outer_host_control"] = (
-                outer_payload["host_reachable"] if backend == "apple-container" else None
-            )
+            results["outer_host_control"] = outer_payload["host_reachable"]
             results["outer_dns_blocked"] = outer_payload["dns_blocked"]
             results["outer_direct_ip_blocked"] = outer_payload["direct_ip_blocked"]
             results["inner_host_blocked"] = not inner_payload["host_reachable"]
@@ -1069,18 +1056,33 @@ def probe_backend(backend: str, image: ImageReference | None = None) -> BackendP
             return _failed_probe(backend, "runtime_cli_missing", image_digest=image.digest)
         results = _base_probe_results(backend)
         results["runtime_available"] = True
-        with _host_listener() as (_host_address, port, ready):
-            results["host_listener_ready"] = ready
-            completed = _run(
-                [
-                    unshare,
-                    "--net",
-                    "--map-root-user",
-                    sys.executable,
-                    "-c",
-                    _canary_code("127.0.0.1", port),
-                ],
-                cwd=REPO_ROOT,
+        try:
+            with _host_listener("127.0.0.1") as (listener_address, port, ready):
+                results["host_listener_ready"] = ready
+                results["outer_host_control"] = ready
+                if not ready:
+                    raise DispatchError("host_listener_unavailable")
+                completed = _run(
+                    [
+                        unshare,
+                        "--net",
+                        "--map-root-user",
+                        sys.executable,
+                        "-c",
+                        _canary_code(listener_address, port),
+                    ],
+                    cwd=REPO_ROOT,
+                )
+        except DispatchError as exc:
+            reason = str(exc)
+            if reason not in BLOCKER_CODES:
+                reason = "probe_execution_failed"
+            return _failed_probe(
+                backend,
+                reason,
+                runtime_version=platform.release(),
+                image_digest=image.digest,
+                results=results,
             )
         if completed.returncode != 0:
             return _failed_probe(
@@ -1098,7 +1100,7 @@ def probe_backend(backend: str, image: ImageReference | None = None) -> BackendP
         results["unshare_without_broad_capabilities"] = True
         results["cleanup_completed"] = True
         native_blockers = ["filesystem_isolation_unavailable"]
-        if not all(results[key] is True for key in REQUIRED_PROBE_KEYS[backend]):
+        if not _probe_values_match_backend(backend, results, REQUIRED_PROBE_KEYS[backend]):
             native_blockers.append("network_isolation_failed")
         return BackendProbe(
             backend=backend,
@@ -1159,15 +1161,14 @@ def probe_backend(backend: str, image: ImageReference | None = None) -> BackendP
         container_blockers.append("guest_unshare_unavailable")
     network_keys: tuple[str, ...] = (
         "host_listener_ready",
+        "outer_host_control",
         "outer_dns_blocked",
         "outer_direct_ip_blocked",
         "inner_host_blocked",
         "inner_dns_blocked",
         "inner_direct_ip_blocked",
     )
-    if backend == "apple-container":
-        network_keys = (*network_keys, "outer_host_control")
-    if not all(results[key] is True for key in network_keys):
+    if not _probe_values_match_backend(backend, results, network_keys):
         container_blockers.append("network_isolation_failed")
     if not all(
         results[key] is True
@@ -1285,7 +1286,9 @@ def validate_capability_artifact(payload: dict[str, Any]) -> dict[str, Any]:
         raise ValueError(
             "Capability artifact probe_results must contain the exact boolean/null contract."
         )
-    strict = not reasons and all(probe_results[key] is True for key in REQUIRED_PROBE_KEYS[backend])
+    strict = not reasons and _probe_values_match_backend(
+        backend, probe_results, REQUIRED_PROBE_KEYS[backend]
+    )
     if payload["strict_isolation"] is not strict:
         raise ValueError("Capability artifact strict_isolation is inconsistent.")
     return dict(payload)
