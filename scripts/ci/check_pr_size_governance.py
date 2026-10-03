@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-import subprocess  # nosec B404: subprocess is required for bounded local git diff execution (remove-by: 2026-09-30, ref: PR3-risk-topology)
+import subprocess  # nosec B404 # B404: subprocess is required for bounded local git diff execution (remove-by: 2026-10-30, ref: PR3-risk-topology)
 import sys
 import re
 import shutil
@@ -121,7 +121,7 @@ def _fetch_pr_metadata_from_api(pr_number: int, repo_full_name: str) -> dict[str
         },
     )
 
-    with urllib.request.urlopen(  # nosec B310: fallback PR body fetch is read-only API access for size governance; remove-by: 2026-10-31, ref: PR3-risk-topology
+    with urllib.request.urlopen(  # nosec B310 # B310: fallback PR body fetch is read-only API access for size governance; remove-by: 2026-10-31, ref: PR3-risk-topology
         request,
         timeout=10,
     ) as response:
@@ -547,7 +547,7 @@ def collect_numstat_output(*, base_sha: str, head_sha: str) -> str:
     """Collect git --numstat output between two revisions."""
     if GIT_BINARY is None:
         raise RuntimeError("git executable not found in PATH")
-    result = subprocess.run(  # nosec B603: fixed git argv without shell for local CI routing only (remove-by: 2026-09-30, ref: PR3-risk-topology)
+    result = subprocess.run(  # nosec B603 # B603: resolved Git, fixed diff --numstat query and workflow revision arguments; no shell (remove-by: 2026-10-30, ref: PR3-risk-topology)
         [
             GIT_BINARY,
             "diff",
@@ -566,7 +566,7 @@ def collect_changed_files(*, base_sha: str, head_sha: str) -> list[str]:
     """Collect changed paths between two revisions, including binary and rename-only files."""
     if GIT_BINARY is None:
         raise RuntimeError("git executable not found in PATH")
-    result = subprocess.run(  # nosec B603: fixed git argv without shell for local CI routing only (remove-by: 2026-09-30, ref: PR3-risk-topology)
+    result = subprocess.run(  # nosec B603 # B603: resolved Git, fixed diff --name-status -z query and workflow revision arguments; no shell (remove-by: 2026-10-30, ref: PR3-risk-topology)
         [
             GIT_BINARY,
             "diff",

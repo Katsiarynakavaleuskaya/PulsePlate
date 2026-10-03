@@ -12,7 +12,7 @@ import fnmatch
 import json
 import os
 from pathlib import Path, PurePosixPath
-import subprocess  # nosec B404: subprocess is required for bounded local git diff execution (remove-by: 2026-09-30, ref: PR3-risk-topology)
+import subprocess  # nosec B404 # B404: subprocess is required for bounded local git diff execution (remove-by: 2026-10-30, ref: PR3-risk-topology)
 import sys
 import shutil
 
@@ -511,7 +511,7 @@ def collect_changed_files(*, base_sha: str, head_sha: str) -> tuple[str, ...]:
     if GIT_BINARY is None:
         raise RuntimeError("git executable not found in PATH")
     try:
-        result = subprocess.run(  # nosec B603: fixed git argv without shell for local CI routing only (remove-by: 2026-09-30, ref: PR3-risk-topology)
+        result = subprocess.run(  # nosec B603 # B603: fixed git argv without shell for local CI routing only (remove-by: 2026-10-30, ref: PR3-risk-topology)
             [
                 GIT_BINARY,
                 "diff",

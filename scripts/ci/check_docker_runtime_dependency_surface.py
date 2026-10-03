@@ -15,7 +15,7 @@ import json
 from pathlib import Path
 import shutil
 import stat
-import subprocess  # nosec B404: subprocess is required for bounded local Docker inspection (remove-by: 2026-09-30, ref: PR-docker-runtime-slimming)
+import subprocess  # nosec B404 # B404: subprocess is required for bounded local Docker inspection (remove-by: 2026-10-30, ref: PR-docker-runtime-slimming)
 import sys
 
 DOCKER_BINARY = shutil.which("docker")
@@ -140,7 +140,7 @@ def _run_docker(args: list[str]) -> subprocess.CompletedProcess[str]:
             "environment."
         )
     try:
-        return subprocess.run(  # nosec B603: argv uses resolved docker path with fixed run subcommand only (remove-by: 2026-09-30, ref: PR-docker-runtime-slimming)
+        return subprocess.run(  # nosec B603 # B603: resolved Docker for fixed run inventory or image inspect calls; 60-second timeout and no shell (remove-by: 2026-10-30, ref: PR-docker-runtime-slimming)
             [DOCKER_BINARY, *args],
             check=True,
             capture_output=True,
