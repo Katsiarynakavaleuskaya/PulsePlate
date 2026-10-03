@@ -701,7 +701,7 @@ jobs:
     needs: [private_python_proxy_health]
     if: ${{ always() }}
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 40
     steps:
       - name: Enforce prerequisite results
         env:

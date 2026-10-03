@@ -698,18 +698,35 @@ First-class repo wrappers:
 
 **Change detection order:**
 
-1. If upstream exists: diff `upstream..HEAD`
-2. Else: diff from merge-base against (origin/main|origin/master|main|master)
-3. If base cannot be resolved: fallback to last N commits (diagnostic mode)
+1. Native pre-commit sets `PRE_COMMIT=1` for hook execution, including its
+   pre-push stage. Nonempty `PRE_COMMIT` takes precedence: the helper combines
+   staged paths with the branch diff from the first resolved merge-base against
+   `origin/main`, `origin/master`, `main`, or `master`.
+2. With `PRE_COMMIT` unset and `BRANCH_DIFF_MODE=1`, the helper uses that same
+   branch merge-base diff. An established empty branch selection exits without
+   the recent-commit fallback. `make validate-changed` selects this mode.
+3. Otherwise, direct invocation checks the configured upstream diff, then
+   `origin/<current-branch>` and the main/master merge-base when no paths were
+   found. If no Python or governance targets are selected, the existing
+   `RECENT_COMMITS_FALLBACK` (default 10, bounded by available history) checks
+   recent commits.
 
 **Debug mode:**
 
 - Set `PREPUSH_DEBUG=1` to print resolved upstream/base and file list
 - Example: `PREPUSH_DEBUG=1 git push` will show detailed change detection info
 
+**Output and timing:**
+
+The native hook runner captures child output and prints the terminal hook row
+when that child completes. A last completed frontend `Passed` row does not
+identify the active phase or establish a frontend hang. Verify the active phase
+and its terminal result; budget the complete required hook bundle plus setup.
+The lint job in `.github/workflows/ci.yml` owns its CI execution budget.
+
 **Skip tests:**
 
-- Set `SKIP_TESTS=1` to bypass backend tests (useful for documentation-only commits)
+- For `SKIP_TESTS=1`, follow [root `AGENTS.md`](../AGENTS.md) Hard Gates and approval policy.
 
 ## Evaluation validity
 
