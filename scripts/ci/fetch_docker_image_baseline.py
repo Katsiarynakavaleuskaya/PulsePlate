@@ -13,7 +13,7 @@ import json
 import os
 from pathlib import Path
 import shutil
-import subprocess  # nosec B404: bounded gh CLI calls are required to fetch workflow artifacts for CI telemetry (remove-by: 2026-09-30, ref: PR-docker-image-budget-telemetry)
+import subprocess  # nosec B404 # B404: bounded gh CLI calls are required to fetch workflow artifacts for CI telemetry (remove-by: 2026-10-30, ref: PR-docker-image-budget-telemetry)
 import sys
 import tempfile
 import zipfile
@@ -51,7 +51,7 @@ def _run_gh(args: list[str], *, env: dict[str, str]) -> subprocess.CompletedProc
     """Run gh with a resolved binary path and fixed argv."""
 
     try:
-        return subprocess.run(  # nosec B603: argv uses a resolved gh path with fixed GitHub API/auth subcommands only (remove-by: 2026-09-30, ref: PR-docker-image-budget-telemetry)
+        return subprocess.run(  # nosec B603 # B603: argv uses a resolved gh path with fixed GitHub API/auth subcommands only (remove-by: 2026-10-30, ref: PR-docker-image-budget-telemetry)
             [_gh_path(), *args],
             check=True,
             capture_output=True,
@@ -180,7 +180,7 @@ def _download_artifact_payload(
     with tempfile.TemporaryDirectory(prefix="docker-image-baseline-") as temp_dir:
         archive_path = Path(temp_dir) / "artifact.zip"
         try:
-            completed = subprocess.run(  # nosec B603: argv uses resolved gh path with fixed artifact-download subcommand only (remove-by: 2026-09-30, ref: PR-docker-image-budget-telemetry)
+            completed = subprocess.run(  # nosec B603 # B603: resolved gh with fixed workflow-artifact API argv, temporary archive and bounded timeout; no shell (remove-by: 2026-10-30, ref: PR-docker-image-budget-telemetry)
                 [
                     _gh_path(),
                     "api",

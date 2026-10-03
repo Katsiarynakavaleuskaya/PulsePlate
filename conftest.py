@@ -3,6 +3,7 @@ Global test configuration and fixtures for the project.
 """
 
 import faulthandler
+import logging
 import os
 import signal
 import sys
@@ -112,8 +113,10 @@ def cleanup_async_resources() -> Iterator[None]:
         import core.db
 
         core.db.reset_db_for_tests()
-    except Exception:  # nosec B110
-        pass  # Best-effort cleanup
+    except Exception as exc:
+        logging.getLogger(__name__).warning(
+            "Best-effort database cleanup failed (%s)", type(exc).__name__
+        )
 
     # Force garbage collection to close any remaining unclosed connections
     import gc
@@ -187,8 +190,8 @@ def production_environment():  # sourcery skip: dict-assign-update-to-union
             "APP_ENV": "production",
             "ALLOW_DEV_API_KEY": "false",
             "API_KEY": "production-secret-key",
-            "PRO_API_KEYS": "test_pro_key",  # nosec B105: deterministic non-production test key (remove-by: 2026-09-30, ref: PR-1052)  # pragma: allowlist secret
-            "VIP_API_KEYS": "test_vip_key",  # nosec B105: deterministic non-production test key (remove-by: 2026-09-30, ref: PR-1052)  # pragma: allowlist secret
+            "PRO_API_KEYS": "test_pro_key",  # pragma: allowlist secret
+            "VIP_API_KEYS": "test_vip_key",  # pragma: allowlist secret
             "FEATURE_PREMIUM_NUTRITION": "true",
             "VIP_MODULE_ENABLED": "true",
         }

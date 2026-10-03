@@ -13,7 +13,7 @@ from hashlib import sha256
 from pathlib import Path, PurePosixPath
 import re
 import shutil
-import subprocess  # nosec B404: bounded Git object reads require subprocess (remove-by: 2026-09-30, ref: ledger-p1-agent-experimentation-lane)
+import subprocess  # nosec B404 # B404: bounded Git object reads require subprocess (remove-by: 2026-10-30, ref: ledger-p1-agent-experimentation-lane)
 from typing import Any, cast
 
 from core.evidence.events import EvidenceEvalEvent, create_eval_event
@@ -924,7 +924,7 @@ def _git_path() -> str:
 
 def _git(*args: str, binary: bool = False) -> str | bytes:
     try:
-        completed = subprocess.run(  # nosec B603: absolute Git binary with validated bounded argv (remove-by: 2026-09-30, ref: ledger-p1-agent-experimentation-lane)
+        completed = subprocess.run(  # nosec B603 # B603: absolute Git binary with validated bounded argv (remove-by: 2026-10-30, ref: ledger-p1-agent-experimentation-lane)
             [_git_path(), *args],
             cwd=REPO_ROOT,
             check=False,

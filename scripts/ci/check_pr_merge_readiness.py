@@ -14,7 +14,7 @@ import json
 import os
 import re
 import shutil
-import subprocess  # nosec B404: bounded absolute git identity checks are required (remove-by: 2026-09-30, ref: PR-governance-material-seal)
+import subprocess  # nosec B404 # B404: bounded absolute git identity checks are required (remove-by: 2026-10-30, ref: PR-governance-material-seal)
 import sys
 import time
 import urllib.error
@@ -377,7 +377,7 @@ def _pre_closeout_dirty_paths() -> set[str]:
     if not git:
         raise ValueError("git not found in PATH")
     try:
-        completed = subprocess.run(  # nosec B603: absolute git with fixed status argv only (remove-by: 2026-09-30, ref: PR-strict-closeout-precommit-guard)
+        completed = subprocess.run(  # nosec B603 # B603: absolute git with fixed status argv only (remove-by: 2026-10-30, ref: PR-strict-closeout-precommit-guard)
             [git, "status", "--porcelain=v1", "--untracked-files=all"],
             cwd=REPO_ROOT,
             capture_output=True,
@@ -810,7 +810,7 @@ def _local_head_sha(repo_root: Path | None = None) -> str:
     git_env.update(
         GIT_NO_REPLACE_OBJECTS="1", GIT_CONFIG_GLOBAL=os.devnull, GIT_CONFIG_NOSYSTEM="1"
     )
-    completed = subprocess.run(  # nosec B603: absolute git with fixed rev-parse argv only (remove-by: 2026-09-30, ref: PR-governance-material-seal)
+    completed = subprocess.run(  # nosec B603 # B603: resolved Git with fixed rev-parse HEAD argv and ambient Git/replacement-object isolation (remove-by: 2026-10-30, ref: PR-governance-material-seal)
         [git, "rev-parse", "HEAD"],
         cwd=REPO_ROOT if repo_root is None else repo_root,
         capture_output=True,
@@ -842,7 +842,7 @@ def _read_material_mapping_artifact(
         GIT_NO_REPLACE_OBJECTS="1", GIT_CONFIG_GLOBAL=os.devnull, GIT_CONFIG_NOSYSTEM="1"
     )
     artifact_path = f"docs/review/PR_{pr_number}_FIXED_MAPPING.md"
-    completed = subprocess.run(  # nosec B603: absolute git reads one fixed PR-head blob (remove-by: 2026-10-31, ref: PR-consol-ci-1)
+    completed = subprocess.run(  # nosec B603 # B603: absolute git reads one fixed PR-head blob (remove-by: 2026-10-31, ref: PR-consol-ci-1)
         [git, "cat-file", "blob", f"{head_sha}:{artifact_path}"],
         cwd=material_repo_root,
         capture_output=True,

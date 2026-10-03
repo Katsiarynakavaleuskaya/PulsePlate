@@ -14,7 +14,7 @@ import math
 import os
 import re
 import shutil
-import subprocess  # nosec B404: required for bounded local CLI version checks (remove-by: 2026-09-30, ref: PR-main-nightly-nosec-ttl)
+import subprocess  # nosec B404 # B404: required for bounded local CLI version checks (remove-by: 2026-10-30, ref: PR-main-nightly-nosec-ttl)
 import sys
 from dataclasses import asdict, dataclass
 from typing import Any, ContextManager, Sequence, cast
@@ -68,7 +68,7 @@ def _format_version(version: tuple[int, int, int]) -> str:
 
 def _run_version(binary: str, args: Sequence[str]) -> tuple[int, str]:
     try:
-        completed = subprocess.run(  # nosec B603: argv uses shutil.which-resolved absolute binaries (remove-by: 2026-09-30, ref: PR-main-nightly-nosec-ttl)
+        completed = subprocess.run(  # nosec B603 # B603: argv uses shutil.which-resolved absolute binaries (remove-by: 2026-10-30, ref: PR-main-nightly-nosec-ttl)
             [binary, *args],
             text=True,
             capture_output=True,
@@ -275,9 +275,7 @@ def _check_ollama_server(base_url: str, timeout_s: float) -> CheckResult:
         )
     version_url = root_url.rstrip("/") + "/api/version"
     try:
-        with _open_no_redirect(
-            version_url, timeout_s
-        ) as response:  # nosec B310: URL is validated as localhost http(s) immediately before use (remove-by: 2026-09-30, ref: PR-main-nightly-nosec-ttl)
+        with _open_no_redirect(version_url, timeout_s) as response:
             status = getattr(response, "status", 200)
             server_version = _read_ollama_server_version(response)
     except HTTPError as exc:
