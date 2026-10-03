@@ -534,12 +534,16 @@ def _safe_workflow_file(raw_path: str, *, maximum: int) -> bytes:
     return raw
 
 
-def _git_identity() -> tuple[str, str, str]:
+def _git_identity(root: Path | None = None) -> tuple[str, str, str]:
     """Read local Git identity without invoking a shell or a remote service."""
+
+    identity_root = REPO_ROOT if root is None else root
 
     def query(*arguments: str) -> str:
         try:
-            completed = run_git(["--no-replace-objects", *arguments], cwd=REPO_ROOT, check=False)
+            completed = run_git(
+                ["--no-replace-objects", *arguments], cwd=identity_root, check=False
+            )
         except (CreativeCodePatchWorkspaceError, OSError) as exc:
             raise ExperimentRunnerCreativeContextCliError("Git identity is unavailable") from exc
         output = completed.stdout
@@ -869,26 +873,56 @@ def _workflow_admit(args: argparse.Namespace) -> int:
 
 
 def _require_safe_workflow_archive_member(name: str, data: bytes) -> None:
+    def require_safe_text(readable: str) -> None:
+        if (
+            WORKFLOW_SECRET_TOKEN_RE.search(readable)
+            or SECRET_VALUE_RE.search(readable)
+            or (
+                name in {"test_evidence.json", "oracle_evidence.json", "work_review.md"}
+                and ARCHIVE_AUTHORITY_CLAIM_RE.search(readable)
+            )
+            or contains_local_path_outside_route_context(readable)
+            or re.search(
+                r"/(?:Users|private/var|var/folders|tmp|etc|root)/|file://|"
+                r"(?:https?://[^\s?#]+\?[^\s]+)",
+                readable,
+                re.IGNORECASE,
+            )
+        ):
+            raise ExperimentRunnerCreativeContextCliError(
+                "capsule contains private or signed content"
+            )
+
+    if not name.endswith(".json"):
+        try:
+            readable = data.decode("utf-8")
+        except UnicodeDecodeError as exc:
+            raise ExperimentRunnerCreativeContextCliError("capsule file is not UTF-8") from exc
+        require_safe_text(readable)
+        return
+
+    # Callers already own membership and byte bounds; suffix selects only the format.
+    payload = _workflow_json_bytes(data, maximum=len(data))
     try:
-        readable = data.decode("utf-8")
-    except UnicodeDecodeError as exc:
-        raise ExperimentRunnerCreativeContextCliError("capsule file is not UTF-8") from exc
-    if (
-        WORKFLOW_SECRET_TOKEN_RE.search(readable)
-        or SECRET_VALUE_RE.search(readable)
-        or (
-            name in {"test_evidence.json", "oracle_evidence.json", "work_review.md"}
-            and ARCHIVE_AUTHORITY_CLAIM_RE.search(readable)
-        )
-        or contains_local_path_outside_route_context(readable)
-        or re.search(
-            r"/(?:Users|private/var|var/folders|tmp|etc|root)/|file://|"
-            r"(?:https?://[^\s?#]+\?[^\s]+)",
-            readable,
-            re.IGNORECASE,
-        )
-    ):
+        associated = json.dumps(payload, allow_nan=False, ensure_ascii=False)
+        associated.encode("utf-8")
+    except (ValueError, UnicodeError, RecursionError, OverflowError) as exc:
+        raise ExperimentRunnerCreativeContextCliError("workflow JSON is malformed") from exc
+    # Serialization retains credential key:value association, but its escapes are
+    # not filesystem syntax. Screen actual decoded strings separately below.
+    if SECRET_VALUE_RE.search(associated):
         raise ExperimentRunnerCreativeContextCliError("capsule contains private or signed content")
+    pending: list[Any] = [payload]
+    while pending:
+        item = pending.pop()
+        if isinstance(item, dict):
+            for key, value in item.items():
+                require_safe_text(key)
+                pending.append(value)
+        elif isinstance(item, list):
+            pending.extend(item)
+        elif isinstance(item, str):
+            require_safe_text(item)
 
 
 def _workflow_archive_inputs(directory: Path, include: list[str]) -> dict[str, bytes]:
