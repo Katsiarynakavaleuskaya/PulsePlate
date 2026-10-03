@@ -691,6 +691,84 @@ def test_slack_delivery_requires_runtime_token_without_leaking_values(
     assert FakeSlackTransport.calls == []
 
 
+def test_security_slack_delivery_requires_security_channel_allowlist(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo = _init_repo(tmp_path)
+    _configure_repo(monkeypatch, repo)
+    _configure_slack_env(monkeypatch)
+    _reset_fake_slack()
+    monkeypatch.setattr(experiment_notify, "_send_slack_api_message", FakeSlackTransport())
+    packet_path = _write_json(
+        tmp_path / "packet.json", _packet(runner_mode="oracle_only_governance_reviewer")
+    )
+    result = _result(
+        status="rejected",
+        failure_class="policy_violation",
+        runner_mode="oracle_only_governance_reviewer",
+    )
+    result["mutated_paths"] = []
+    result_path = _write_json(tmp_path / "result.json", result)
+
+    exit_code = experiment_notify.main(
+        [
+            "--packet",
+            str(packet_path),
+            "--result",
+            str(result_path),
+            "--slack",
+            "--slack-channel",
+            "C0ALERTS",
+        ]
+    )
+
+    assert exit_code == 1
+    assert "requires an allowed security channel" in capsys.readouterr().out
+    assert FakeSlackTransport.calls == []
+
+
+def test_security_slack_delivery_accepts_dedicated_security_channel(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = _init_repo(tmp_path)
+    _configure_repo(monkeypatch, repo)
+    _configure_slack_env(monkeypatch)
+    monkeypatch.setenv(
+        "EXPERIMENT_NOTIFICATION_SLACK_SECURITY_CHANNEL_ALLOWLIST", "C0ALERTS"
+    )
+    _reset_fake_slack()
+    monkeypatch.setattr(experiment_notify, "_send_slack_api_message", FakeSlackTransport())
+    packet_path = _write_json(
+        tmp_path / "packet.json", _packet(runner_mode="oracle_only_governance_reviewer")
+    )
+    result = _result(
+        status="rejected",
+        failure_class="policy_violation",
+        runner_mode="oracle_only_governance_reviewer",
+    )
+    result["mutated_paths"] = []
+    result_path = _write_json(tmp_path / "result.json", result)
+
+    exit_code = experiment_notify.main(
+        [
+            "--packet",
+            str(packet_path),
+            "--result",
+            str(result_path),
+            "--slack",
+            "--slack-channel",
+            "C0ALERTS",
+        ]
+    )
+
+    assert exit_code == 0
+    assert len(FakeSlackTransport.calls) == 1
+    assert "SECURITY ALERT: ORACLE_VIOLATION" in str(FakeSlackTransport.calls[0]["blocks"])
+
+
 def test_slack_delivery_is_idempotent_and_rate_limited_before_transport(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
