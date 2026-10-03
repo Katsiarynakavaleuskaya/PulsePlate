@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+import hashlib
 from contextlib import contextmanager
 from dataclasses import dataclass
 import ipaddress
@@ -20,6 +21,7 @@ import platform
 import re
 import shutil
 import socket
+import stat
 import subprocess  # nosec B404: bounded absolute runtime/git argv only (remove-by: 2026-10-31, ref: ledger-p1-experiment-runner-macos-strict-backend)
 import sys
 import tempfile
@@ -476,6 +478,7 @@ def _container_run_argv(
     result_volume: str,
     command: list[str],
     repository: Path | None = None,
+    material_repository: Path | None = None,
     input_dir: Path | None = None,
     apple_network: str | None = None,
     user: str = "65532:65532",
@@ -545,6 +548,9 @@ def _container_run_argv(
             )
     else:
         raise DispatchError("probe_execution_failed")
+    if material_repository is not None:
+        mount = _docker_mount if backend == "docker" else _apple_mount
+        argv.extend(["--mount", mount(material_repository, "/material", readonly=True)])
     argv.extend(
         [
             "--mount",
@@ -1464,6 +1470,7 @@ def _git(
     cwd: Path,
     input_text: str | None = None,
     bind_work_tree: bool = True,
+    allowed_returncodes: tuple[int, ...] = (0,),
 ) -> subprocess.CompletedProcess[str]:
     resolved_cwd, safe_config = _safe_git_config_args_for(cwd, bind_work_tree=bind_work_tree)
     result = _run(
@@ -1472,12 +1479,267 @@ def _git(
         input_text=input_text,
         env_override=_sanitized_git_env_without_parent_state(),
     )
-    if result.returncode != 0:
+    if result.returncode not in allowed_returncodes:
         raise DispatchError("probe_execution_failed")
     return result
 
 
-def _create_snapshot(root: Path, destination: Path) -> str:
+def _material_file(root: Path, relative: str) -> bytes:
+    """Read an explicitly admitted regular file under the cooperative boundary."""
+
+    path = root / relative
+    _reject_symlink_components(path)
+    descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC)
+    try:
+        before = os.fstat(descriptor)
+        if not stat.S_ISREG(before.st_mode) or before.st_nlink != 1:
+            raise ValueError("Admitted material must be a regular, single-link file.")
+        if before.st_size > MAX_RESULT_BYTES:
+            raise ValueError("Admitted material exceeds the bounded file size.")
+        with os.fdopen(descriptor, "rb", closefd=False) as handle:
+            data = handle.read(MAX_RESULT_BYTES + 1)
+        after = os.fstat(descriptor)
+        if (
+            before.st_dev,
+            before.st_ino,
+            before.st_size,
+            before.st_mtime_ns,
+            before.st_ctime_ns,
+        ) != (
+            after.st_dev,
+            after.st_ino,
+            after.st_size,
+            after.st_mtime_ns,
+            after.st_ctime_ns,
+        ) or len(
+            data
+        ) != before.st_size:
+            raise ValueError("Admitted material changed during acquisition.")
+        return data
+    finally:
+        os.close(descriptor)
+
+
+def _tracked_content_digest(root: Path, admitted_new_files: tuple[str, ...] = ()) -> str:
+    """Hash native HEAD/index membership and actual bytes without clean filters."""
+
+    paths = set(_git(["ls-tree", "-r", "-z", "--name-only", "HEAD"], cwd=root).stdout.split("\0"))
+    for relative in _git(["ls-files", "-z"], cwd=root).stdout.split("\0"):
+        if relative and relative not in paths:
+            try:
+                (root / relative).lstat()
+            except FileNotFoundError:
+                continue
+            paths.add(relative)
+    paths.update(admitted_new_files)
+    paths.discard("")
+    head_modes: dict[str, tuple[str, str]] = {}
+    for row in _git(["ls-tree", "-r", "-z", "HEAD"], cwd=root).stdout.split("\0"):
+        if row:
+            header, relative = row.split("\t", 1)
+            mode, _, commit = header.split(" ", 2)
+            head_modes[relative] = (mode, commit)
+    index_modes: dict[str, tuple[str, str]] = {}
+    for row in _git(["ls-files", "--stage", "-z"], cwd=root).stdout.split("\0"):
+        if row:
+            header, relative = row.split("\t", 1)
+            mode, commit, stage = header.split(" ")
+            if stage != "0":
+                raise ValueError("Unmerged tracked material cannot supply content binding.")
+            index_modes[relative] = (mode, commit)
+    if len(paths) > 25_000:
+        raise ValueError("Tracked material inventory exceeds its bound.")
+    digest = hashlib.sha256()
+    total = 0
+    for relative in sorted(paths):
+        if relative.startswith("/") or any(
+            part in {"", ".", "..", ".git"} for part in relative.split("/")
+        ):
+            raise ValueError("Native tracked material path is unsafe.")
+        path = root / relative
+        _reject_symlink_components(path.parent)
+        digest.update(relative.encode() + b"\0")
+        mode_and_object = index_modes.get(relative, head_modes.get(relative))
+        if mode_and_object is not None and mode_and_object[0] == "160000":
+            commit = mode_and_object[1]
+            if path.is_symlink():
+                raise ValueError("Gitlink material must not be a symlink.")
+            if not path.exists():
+                state = "absent"
+            elif path.is_dir() and next(path.iterdir(), None) is None:
+                state = "uninitialized_empty"
+            else:
+                raise ValueError("Initialized or populated Gitlink material is unsupported.")
+            digest.update(b"gitlink\0" + commit.encode() + b"\0" + state.encode() + b"\0")
+            continue
+        try:
+            metadata = path.lstat()
+        except FileNotFoundError:
+            digest.update(b"absent\0")
+            continue
+        if stat.S_ISLNK(metadata.st_mode):
+            digest.update(b"symlink\0" + os.readlink(path).encode() + b"\0")
+            continue
+        file_bound = 32 * MAX_RESULT_BYTES
+        if (
+            not stat.S_ISREG(metadata.st_mode)
+            or metadata.st_nlink != 1
+            or metadata.st_size > file_bound
+        ):
+            raise ValueError("Tracked material is not an admitted bounded regular file.")
+        total += metadata.st_size
+        if total > 512 * MAX_RESULT_BYTES:
+            raise ValueError("Tracked material exceeds the aggregate byte bound.")
+        descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC)
+        content = hashlib.sha256()
+        try:
+            before = os.fstat(descriptor)
+            if (
+                not stat.S_ISREG(before.st_mode)
+                or before.st_nlink != 1
+                or before.st_size > file_bound
+                or (
+                    before.st_dev,
+                    before.st_ino,
+                    before.st_mode,
+                    before.st_size,
+                    before.st_mtime_ns,
+                    before.st_ctime_ns,
+                )
+                != (
+                    metadata.st_dev,
+                    metadata.st_ino,
+                    metadata.st_mode,
+                    metadata.st_size,
+                    metadata.st_mtime_ns,
+                    metadata.st_ctime_ns,
+                )
+            ):
+                raise ValueError("Tracked source identity changed before content acquisition.")
+            read_count = 0
+            with os.fdopen(descriptor, "rb", closefd=False) as handle:
+                while read_count <= file_bound:
+                    chunk = handle.read(min(65_536, file_bound + 1 - read_count))
+                    if not chunk:
+                        break
+                    read_count += len(chunk)
+                    content.update(chunk)
+            after = os.fstat(descriptor)
+            if (
+                read_count > file_bound
+                or read_count != before.st_size
+                or (
+                    before.st_dev,
+                    before.st_ino,
+                    before.st_size,
+                    before.st_mtime_ns,
+                    before.st_ctime_ns,
+                )
+                != (after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns, after.st_ctime_ns)
+            ):
+                raise ValueError("Tracked source changed during content acquisition.")
+        finally:
+            os.close(descriptor)
+        digest_mode = b"100755" if metadata.st_mode & 0o111 else b"100644"
+        digest.update(digest_mode + b"\0" + content.digest() + b"\0")
+    return digest.hexdigest()
+
+
+def capture_source_material(root: Path, admitted_new_files: tuple[str, ...] = ()) -> dict[str, Any]:
+    """Bind separate staging/final material observations; never mutate source Git."""
+
+    from scripts.orchestration.experiment_runner_pr_creative_context import _git_identity
+
+    _reject_symlink_components(root)
+    if not root.is_absolute() or root.resolve() != root or not root.is_dir():
+        raise ValueError("Material capture requires a canonical absolute checkout.")
+    if len(admitted_new_files) > 32 or len(set(admitted_new_files)) != len(admitted_new_files):
+        raise ValueError("Admitted new files must be bounded and unique.")
+    repository, base, head = _git_identity(root)
+    flags = _git(["ls-files", "-v", "-z"], cwd=root).stdout
+    if any(row and (row[0].islower() or row[0] == "S") for row in flags.split("\0")):
+        raise ValueError("Hidden assume-unchanged/skip-worktree index flags are unsupported.")
+    filters = _git(["config", "--get-regexp", "^filter\\."], cwd=root, allowed_returncodes=(0, 1))
+    if filters.returncode == 0:
+        raise ValueError(
+            "Effective Git filter configuration is unsupported for exact raw material."
+        )
+    index = _git(["ls-files", "--stage", "-z"], cwd=root).stdout
+    for entry in index.split("\0"):
+        if entry and entry.split("\t", 1)[0].split(" ")[-1] != "0":
+            raise ValueError("Unmerged index cannot supply oracle material.")
+    staged = _git(
+        ["diff", "--no-ext-diff", "--no-textconv", "--binary", "--cached", "HEAD"], cwd=root
+    ).stdout
+    unstaged = _git(["diff", "--no-ext-diff", "--no-textconv", "--binary"], cwd=root).stdout
+    final_diff = _git(
+        ["diff", "--no-ext-diff", "--no-textconv", "--binary", "HEAD"], cwd=root
+    ).stdout
+    admitted: list[dict[str, Any]] = []
+    total = 0
+    for relative in sorted(admitted_new_files):
+        parts = relative.split("/")
+        if (
+            not relative
+            or relative.startswith("/")
+            or "\\" in relative
+            or any(part in {"", ".", "..", ".git"} for part in parts)
+            or parts[0] in {"artifacts", "worktrees", ".venv", "node_modules"}
+        ):
+            raise ValueError("Admitted new-file path is unsafe.")
+        untracked = _git(
+            [
+                "--literal-pathspecs",
+                "ls-files",
+                "--others",
+                "--exclude-standard",
+                "-z",
+                "--",
+                relative,
+            ],
+            cwd=root,
+        ).stdout
+        if untracked != relative + "\0":
+            raise ValueError("New-file admission requires one non-ignored untracked file.")
+        data = _material_file(root, relative)
+        total += len(data)
+        if total > 8 * MAX_RESULT_BYTES:
+            raise ValueError("Admitted material exceeds the aggregate bound.")
+        mode = "100755" if (root / relative).stat().st_mode & 0o111 else "100644"
+        admitted.append(
+            {"path": relative, "mode": mode, "sha256": hashlib.sha256(data).hexdigest()}
+        )
+    untracked_inventory = _git(
+        ["ls-files", "--others", "--exclude-standard", "-z"], cwd=root
+    ).stdout
+    if set(untracked_inventory.split("\0")) - {""} != set(admitted_new_files):
+        raise ValueError("Non-ignored untracked inventory must equal admitted new files.")
+    return {
+        "repository": repository,
+        "base_sha": base,
+        "head_sha": head,
+        "index_sha256": hashlib.sha256(index.encode()).hexdigest(),
+        "staged_diff_sha256": hashlib.sha256(staged.encode()).hexdigest(),
+        "unstaged_diff_sha256": hashlib.sha256(unstaged.encode()).hexdigest(),
+        "worktree_diff_sha256": hashlib.sha256(final_diff.encode()).hexdigest(),
+        "admitted_new_files": admitted,
+        "tracked_content_sha256": _tracked_content_digest(root, admitted_new_files),
+    }
+
+
+def _create_snapshot(
+    root: Path,
+    destination: Path,
+    *,
+    admitted_new_files: tuple[str, ...] = (),
+    source_material: dict[str, Any] | None = None,
+    snapshot_proof: dict[str, Any] | None = None,
+) -> str:
+    if (
+        source_material is not None
+        and capture_source_material(root, admitted_new_files) != source_material
+    ):
+        raise ValueError("Source material changed before snapshot.")
     before = _git(["status", "--short", "--untracked-files=no"], cwd=root).stdout
     _git(
         [
@@ -1499,9 +1761,45 @@ def _create_snapshot(root: Path, destination: Path) -> str:
     ).stdout
     if tracked_diff:
         _git(["apply", "--index", "--binary", "-"], cwd=destination, input_text=tracked_diff)
+    copied: list[dict[str, Any]] = []
+    for row in (source_material or {}).get("admitted_new_files", []):
+        relative = row["path"]
+        data = _material_file(root, relative)
+        if hashlib.sha256(data).hexdigest() != row["sha256"]:
+            raise ValueError("New-file bytes changed before snapshot copy.")
+        target = destination / relative
+        _reject_symlink_components(target.parent)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        with target.open("xb") as handle:
+            handle.write(data)
+        target.chmod(0o755 if row["mode"] == "100755" else 0o644)
+        if _material_file(destination, relative) != data:
+            raise ValueError("Copied snapshot bytes differ.")
+        _git(["--literal-pathspecs", "add", "--", relative], cwd=destination)
+        copied.append(dict(row))
     after = _git(["status", "--short", "--untracked-files=no"], cwd=root).stdout
     if before != after:
         raise DispatchError("probe_execution_failed")
+    if source_material is not None:
+        snapshot_content = _tracked_content_digest(destination)
+        if snapshot_content != source_material["tracked_content_sha256"]:
+            raise ValueError("Copied scratch material differs from actual source bytes or modes.")
+        if capture_source_material(root, admitted_new_files) != source_material:
+            raise ValueError("Source material changed during snapshot copy.")
+        if snapshot_proof is not None:
+            snapshot_proof.update(
+                {
+                    "source_material": source_material,
+                    "snapshot_diff_sha256": hashlib.sha256(
+                        _git(
+                            ["diff", "--no-ext-diff", "--no-textconv", "--binary", "HEAD"],
+                            cwd=destination,
+                        ).stdout.encode()
+                    ).hexdigest(),
+                    "copied_new_files": copied,
+                    "snapshot_content_sha256": snapshot_content,
+                }
+            )
     return tracked_diff
 
 
@@ -1876,7 +2174,12 @@ def _invoke_container_runner(
     contribution_kind: str = "none",
     coauthor_required: bool = False,
     coauthor_reason: str = "",
+    admitted_new_files: tuple[str, ...] = (),
+    snapshot_proof: dict[str, Any] | None = None,
+    accepted_observations: dict[str, Any] | None = None,
+    material_root: Path | None = None,
 ) -> dict[str, Any]:
+    execution_root = REPO_ROOT if material_root is None else material_root
     cli_name = "container" if probe.backend == "apple-container" else "docker"
     cli = _resolve_cli(cli_name)
     if cli is None:
@@ -1884,7 +2187,7 @@ def _invoke_container_runner(
     packet = validate_experiment_packet(_read_packet(packet_path))
     if expected_packet is not None and packet != expected_packet:
         raise DispatchError("result_validation_failed")
-    _require_candidate_checkout(packet, root=REPO_ROOT)
+    _require_candidate_checkout(packet, root=execution_root)
     candidate_patch_text: str | None = None
     if candidate_patch is not None:
         expected_patch_fingerprint = packet.get("candidate_patch_fingerprint")
@@ -1896,23 +2199,43 @@ def _invoke_container_runner(
                 raise DispatchError("result_validation_failed")
     candidate_checkout_proof = _candidate_checkout_proof(
         packet,
-        root=REPO_ROOT,
+        root=execution_root,
     )
     with tempfile.TemporaryDirectory(prefix="pp-er-run-") as raw_temp:
-        temp_root = Path(raw_temp)
+        temp_root = Path(raw_temp).resolve(strict=True)
         snapshot = temp_root / "repo"
         input_dir = temp_root / "input"
         input_dir.mkdir()
-        tracked_diff = _create_snapshot(REPO_ROOT, snapshot)
-        _require_candidate_checkout(packet, root=REPO_ROOT)
+        source_material = (
+            capture_source_material(execution_root, admitted_new_files)
+            if snapshot_proof is not None or admitted_new_files
+            else None
+        )
+        if source_material is None:
+            tracked_diff = _create_snapshot(execution_root, snapshot)
+        else:
+            tracked_diff = _create_snapshot(
+                execution_root,
+                snapshot,
+                admitted_new_files=admitted_new_files,
+                source_material=source_material,
+                snapshot_proof=snapshot_proof,
+            )
+        tool_snapshot = snapshot
+        tool_source = None
+        if material_root is not None:
+            tool_source = capture_source_material(Path(REPO_ROOT).resolve())
+            tool_snapshot = temp_root / "tool"
+            _create_snapshot(Path(REPO_ROOT).resolve(), tool_snapshot, source_material=tool_source)
+        _require_candidate_checkout(packet, root=execution_root)
         if (
             packet["runner_mode"] != ORACLE_ONLY_GOVERNANCE_REVIEWER_MODE
             and packet.get("base_commit_sha") is not None
             and tracked_diff
         ):
             raise DispatchError("result_validation_failed")
-        (snapshot / CONTAINER_INPUT.removeprefix(f"{CONTAINER_REPO}/")).mkdir()
-        (snapshot / CONTAINER_RESULT_DIR.removeprefix(f"{CONTAINER_REPO}/")).mkdir(
+        (tool_snapshot / CONTAINER_INPUT.removeprefix(f"{CONTAINER_REPO}/")).mkdir()
+        (tool_snapshot / CONTAINER_RESULT_DIR.removeprefix(f"{CONTAINER_REPO}/")).mkdir(
             parents=True, exist_ok=True
         )
         (input_dir / "packet.json").write_text(
@@ -1928,12 +2251,15 @@ def _invoke_container_runner(
             shutil.copyfile(candidate_patch, input_dir / "candidate.patch")
         command = [
             CONTAINER_PYTHON,
+            "-I",
             f"{CONTAINER_REPO}/scripts/orchestration/experiment_runner.py",
             "--packet",
             f"{CONTAINER_INPUT}/packet.json",
             "--output",
             output_name,
         ]
+        if material_root is not None:
+            command.extend(["--execution-root", "/material"])
         if candidate_patch is not None:
             command.extend(["--candidate-patch", f"{CONTAINER_INPUT}/candidate.patch"])
         if contribution_kind != "none":
@@ -1976,7 +2302,8 @@ def _invoke_container_runner(
                         image_ref=runtime_ref,
                         container_name=runner_name,
                         result_volume=volume,
-                        repository=snapshot,
+                        repository=tool_snapshot,
+                        material_repository=snapshot if material_root is not None else None,
                         input_dir=input_dir,
                         command=command,
                         apple_network=apple_network,
@@ -2030,7 +2357,7 @@ def _invoke_container_runner(
         if runner_capability_signal:
             capability_checkout_proof = _candidate_checkout_proof(
                 packet,
-                root=REPO_ROOT,
+                root=execution_root,
                 candidate_patch_text=candidate_patch_text,
             )
             return _post_preflight_capability_mismatch_result(
@@ -2041,6 +2368,17 @@ def _invoke_container_runner(
             )
         if payload is None:
             raise DispatchError("result_extraction_failed")
+        if snapshot_proof is not None and any(
+            key in payload
+            for key in (
+                "snapshot_proof",
+                "source_material",
+                "copied_new_files",
+                "tool_source",
+                "tool_snapshot_content_sha256",
+            )
+        ):
+            raise DispatchError("result_validation_failed")
         sanitized = _sanitize_result(
             payload,
             probe,
@@ -2051,6 +2389,46 @@ def _invoke_container_runner(
             requested_coauthor_reason=coauthor_reason,
         )
         _require_result_status_matches_runner_exit(sanitized, completed.returncode)
+        if tool_source is not None:
+            if capture_source_material(Path(REPO_ROOT).resolve()) != tool_source:
+                raise DispatchError("result_validation_failed")
+            if snapshot_proof is not None:
+                snapshot_proof.update(
+                    {
+                        "tool_source": tool_source,
+                        "tool_snapshot_content_sha256": _tracked_content_digest(tool_snapshot),
+                    }
+                )
+        if source_material is not None:
+            if capture_source_material(execution_root, admitted_new_files) != source_material:
+                raise DispatchError("result_validation_failed")
+            if snapshot_proof is not None:
+                if sanitized["status"] == "accepted":
+                    if accepted_observations is not None:
+                        accepted_observations.update(
+                            {
+                                "schema_version": "experiment_runner_private_observations.v1",
+                                "authority": "local_observation_only",
+                                "oracle_results": [
+                                    dict(row) for row in sanitized["oracle_results"]
+                                ],
+                            }
+                        )
+                    for oracle in sanitized["oracle_results"]:
+                        oracle["stdout"] = ""
+                        oracle["stderr"] = ""
+                        oracle["cwd"] = "owned_guest_checkout"
+                    sanitized = _validated_experiment_result(sanitized)
+                snapshot_proof.update(
+                    {
+                        "schema_version": "experiment_runner_checked_snapshot.v1",
+                        "authority": "evidence_only",
+                        "experiment_packet_fingerprint": fingerprint_payload(packet),
+                        "result_fingerprint": fingerprint_payload(sanitized),
+                        "execution_backend": dict(sanitized["execution_backend"]),
+                        "result_projection": "sanitized_command_observations_v1",
+                    }
+                )
         return sanitized
 
 
@@ -2163,10 +2541,13 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     build.add_argument("--tag", required=True)
     run = subparsers.add_parser("run")
     run.add_argument("--backend", choices=BACKENDS, default="auto")
+    run.add_argument("--material-root", type=Path, default=None)
     run.add_argument("--packet", required=True)
     run.add_argument("--candidate-patch", default=None)
     run.add_argument("--image", required=True)
     run.add_argument("--output", required=True)
+    run.add_argument("--admitted-new-file", action="append", default=[])
+    run.add_argument("--snapshot-proof-output", default=None)
     run.add_argument(
         "--contribution-kind",
         default="none",
@@ -2226,6 +2607,42 @@ def main(argv: list[str] | None = None) -> int:
         )
         output_path = _resolve_local_output(args.output, root=RESULT_ARTIFACT_DIR)
         packet = validate_experiment_packet(_read_packet(packet_path))
+        material_root = getattr(args, "material_root", None)
+        if material_root is not None:
+            _reject_symlink_components(material_root)
+            if (
+                not material_root.is_absolute()
+                or material_root.resolve() != material_root
+                or not material_root.is_dir()
+                or material_root.is_relative_to(Path(REPO_ROOT).resolve())
+                or Path(REPO_ROOT).resolve().is_relative_to(material_root)
+            ):
+                raise ValueError("Material root must be canonical and distinct from controls.")
+        admitted_new_files = tuple(getattr(args, "admitted_new_file", []))
+        proof_output_raw = getattr(args, "snapshot_proof_output", None)
+        snapshot_proof: dict[str, Any] | None = {} if proof_output_raw else None
+        accepted_observations: dict[str, Any] = {}
+        proof_output = (
+            _resolve_local_output(proof_output_raw, root=RESULT_ARTIFACT_DIR)
+            if proof_output_raw
+            else None
+        )
+        if proof_output is not None:
+            if proof_output == output_path or proof_output.exists() or output_path.exists():
+                raise ValueError("Snapshot evidence requires fresh distinct owned output slots.")
+        if admitted_new_files and proof_output is None:
+            raise ValueError("Explicit new-file admission requires snapshot proof output.")
+        if admitted_new_files or proof_output is not None:
+            if packet["runner_mode"] != ORACLE_ONLY_GOVERNANCE_REVIEWER_MODE:
+                raise ValueError("Snapshot proof intake is oracle-only.")
+            if any(
+                not any(
+                    path == surface or path.startswith(surface.rstrip("/") + "/")
+                    for surface in packet["mutable_candidate_surface"]
+                )
+                for path in admitted_new_files
+            ):
+                raise ValueError("New-file admission exceeds the approved context surface.")
         contribution_kind, coauthor_required, coauthor_reason = validate_contribution_attribution(
             contribution_kind=getattr(args, "contribution_kind", "none"),
             coauthor_required=getattr(args, "coauthor_required", False),
@@ -2285,6 +2702,10 @@ def main(argv: list[str] | None = None) -> int:
                     contribution_kind=contribution_kind,
                     coauthor_required=coauthor_required,
                     coauthor_reason=coauthor_reason,
+                    admitted_new_files=admitted_new_files,
+                    snapshot_proof=snapshot_proof,
+                    accepted_observations=accepted_observations,
+                    **({"material_root": material_root} if material_root is not None else {}),
                 )
             except PreRunCapabilityError as exc:
                 result = _capability_mismatch_result(
@@ -2298,6 +2719,13 @@ def main(argv: list[str] | None = None) -> int:
                 result = _infra_flake_result(packet, image, selected, "result_validation_failed")
         public_status = _public_result_status(result)
         _atomic_write_json(output_path, result)
+        if proof_output is not None and snapshot_proof:
+            if accepted_observations:
+                observation_path = proof_output.with_name(proof_output.stem + ".observations.json")
+                if observation_path.exists() or observation_path.is_symlink():
+                    raise ValueError("Private observation slot is occupied.")
+                _atomic_write_json(observation_path, accepted_observations)
+            _atomic_write_json(proof_output, snapshot_proof)
         print(json.dumps({"artifact": output_path.name, "status": public_status}, sort_keys=True))
         return 0 if public_status == PUBLIC_STATUS_ACCEPTED else RUNNER_REJECTED_EXIT_CODE
     except (DispatchError, OSError, ValueError) as exc:
