@@ -92,6 +92,8 @@ class _PreproviderHighDistressBoundary(HTTPException):
     """Identify only the collector's own preprovider distress admission failure."""
 
     def __init__(self) -> None:
+        """Represent the preprovider distress boundary with the canonical HTTP detail."""
+
         super().__init__(status_code=400, detail="fitchef_high_distress_boundary")
 
 
@@ -486,6 +488,8 @@ def _validate_output_directory(directory: Path) -> None:
 def _admitted_task(
     context: dict[str, Any], key: str, lang: Language
 ) -> FitChefDistortionSimulatorTaskEnvelope:
+    """Validate collector admission and preserve the scenario locale before execution."""
+
     if not fitchef_structured._is_fitchef_structured_enabled():
         raise ValueError("fitchef_feature_disabled")
     mode = fitchef_structured._require_fitchef_structured_mode()
@@ -595,6 +599,8 @@ async def _collect_one(
     def observed_fallback(
         *, automatic_thought: str, goal: str | None, lang: Language = "en"
     ) -> str:
+        """Record fallback use while preserving its locale and text result contract."""
+
         nonlocal fallback_called
         fallback_called = True
         result = real_fallback(automatic_thought=automatic_thought, goal=goal, lang=lang)
@@ -730,6 +736,8 @@ async def collect(
     fitchef_key: str,
     perplexity_key: str,
 ) -> None:
+    """Collect bounded cases and preserve completion or failure evidence under the attempt ledger."""
+
     manifest = validate_manifest(cast(list[object], manifest))
     if not fitchef_key or not perplexity_key:
         raise ValueError("missing_provider_or_fitchef_key")

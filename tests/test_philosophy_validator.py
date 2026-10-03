@@ -174,6 +174,8 @@ def test_validate_llm_output_blocks_fitchef_anti_harm_lexicon(
     ],
 )
 def test_compensation_language_blocks_specific_ru_es_imperatives(text: str) -> None:
+    """Block the reviewed Russian and Spanish compensatory imperatives."""
+
     report = validate_llm_output(text, domain="fitchef_mascot")
     assert any(finding.code == "FITCHEF_COMPENSATION_LANGUAGE" for finding in report.blockers)
 
@@ -188,6 +190,8 @@ def test_compensation_language_blocks_specific_ru_es_imperatives(text: str) -> N
     ],
 )
 def test_compensation_language_leaves_safe_near_misses_unblocked(text: str) -> None:
+    """Keep the reviewed safe compensation near misses unblocked."""
+
     report = validate_llm_output(text, domain="fitchef_mascot")
     assert not any(finding.code == "FITCHEF_COMPENSATION_LANGUAGE" for finding in report.blockers)
 
@@ -196,6 +200,8 @@ def test_compensation_language_leaves_safe_near_misses_unblocked(text: str) -> N
 def test_ru_compensation_negation_accepts_whitespace_without_offset_drift(
     separator: str,
 ) -> None:
+    """Preserve immediate Russian negation and original text offsets across whitespace."""
+
     text = f"Не{separator}пропусти следующий приём пищи. Пропусти следующий прием пищи."
     report = validate_llm_output(text, domain="fitchef_mascot")
     matches = [item for item in report.blockers if item.code == "FITCHEF_COMPENSATION_LANGUAGE"]
@@ -223,6 +229,8 @@ def test_ru_compensation_negation_accepts_whitespace_without_offset_drift(
 def test_locale_safety_reviewer_witnesses_block_with_original_span(
     text: str, expected_code: str, expected_match: str
 ) -> None:
+    """Bind each reviewed locale blocker to its original matched span."""
+
     report = validate_llm_output(text, domain="fitchef_mascot")
     matches = [finding for finding in report.blockers if finding.code == expected_code]
     assert report.ok is False
@@ -314,6 +322,8 @@ _LOCALE_FITCHEF_CASES = [
 def test_reviewed_fitchef_locale_phrases_and_safe_controls(
     code: str, positive: str, matched: str, safe: str
 ) -> None:
+    """Distinguish the reviewed unsafe locale phrases from their safe controls."""
+
     report = validate_llm_output(positive, domain="fitchef_mascot")
     findings = [finding for finding in report.blockers if finding.code == code]
     assert len(findings) == 1
@@ -338,6 +348,8 @@ def test_reviewed_fitchef_locale_phrases_and_safe_controls(
     ],
 )
 def test_es_medical_safe_controls_do_not_claim_cure_or_diagnosis(text: str) -> None:
+    """Keep the reviewed Spanish informational controls outside the prohibited claims."""
+
     report = validate_llm_output(text, domain="fitchef_mascot")
     assert not any(finding.code == "WELLNESS_MEDICAL_CLAIM_ES" for finding in report.blockers)
 
@@ -351,6 +363,8 @@ def test_es_medical_safe_controls_do_not_claim_cure_or_diagnosis(text: str) -> N
     ],
 )
 def test_medical_locale_controls_keep_existing_codes(text: str, code: str) -> None:
+    """Preserve canonical warning codes for the reviewed locale controls."""
+
     report = validate_llm_output(text, domain="fitchef_mascot")
     assert report.ok is False
     assert any(finding.code == code for finding in report.blockers)
@@ -368,6 +382,8 @@ def test_medical_locale_controls_keep_existing_codes(text: str, code: str) -> No
     ],
 )
 def test_reviewed_locale_case_spacing_and_accent_variants(text: str, code: str) -> None:
+    """Recognize the reviewed variants without changing the canonical warning code."""
+
     report = validate_llm_output(text, domain="fitchef_mascot")
     assert any(finding.code == code for finding in report.blockers)
 
@@ -381,6 +397,8 @@ def test_reviewed_locale_case_spacing_and_accent_variants(text: str, code: str) 
     ],
 )
 def test_reviewed_locale_patterns_observe_word_boundaries(text: str) -> None:
+    """Avoid matches embedded inside unrelated words."""
+
     report = validate_llm_output(text, domain="fitchef_mascot")
     assert report.ok is True
 
@@ -406,6 +424,8 @@ def test_reviewed_locale_patterns_observe_word_boundaries(text: str) -> None:
 def test_reviewed_unsafe_provider_field_uses_localized_deterministic_fallback(
     lang: Language, phrase: str, field_name: str
 ) -> None:
+    """Rewrite each reviewed unsafe provider field through the localized fallback."""
+
     payload: dict[str, str | list[str]] = {
         "distortion_labels": ["catastrophizing"],
         "why_it_matches": "A small setback can feel larger than it is.",
@@ -462,6 +482,8 @@ def test_reviewed_unsafe_provider_field_uses_localized_deterministic_fallback(
 def test_quoted_unsafe_provider_phrase_still_uses_existing_fallback(
     lang: Language, phrase: str, field_name: str
 ) -> None:
+    """Keep a quoted unsafe provider phrase subject to the existing fallback."""
+
     payload = {
         "distortion_labels": ["catastrophizing"],
         "why_it_matches": "One change can feel large.",
@@ -506,6 +528,8 @@ def test_quoted_unsafe_provider_phrase_still_uses_existing_fallback(
 def test_locale_safety_alternate_tail_construction_blocks_with_exact_span(
     text: str, code: str, construction: str, prefix: str
 ) -> None:
+    """Block the reviewed alternate construction with its exact original span."""
+
     source = f"{prefix}{text}"
     report = validate_llm_output(source, domain="fitchef_mascot")
     matches = [finding for finding in report.blockers if finding.code == code]
@@ -534,5 +558,7 @@ def test_locale_safety_alternate_tail_construction_blocks_with_exact_span(
     ],
 )
 def test_reviewed_construction_near_misses_do_not_match(text: str, code: str) -> None:
+    """Leave the reviewed near misses outside the bounded construction matches."""
+
     report = validate_llm_output(text, domain="fitchef_mascot")
     assert not any(finding.code == code for finding in report.blockers)

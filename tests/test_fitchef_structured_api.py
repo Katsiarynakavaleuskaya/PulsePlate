@@ -369,6 +369,8 @@ class TestFitChefDistortionSimulatorRoute:
         captured: list[object] = []
 
         async def reached_runtime(task: object) -> FitChefDistortionSimulatorResult:
+            """Capture the admitted task and emit the runtime-reached sentinel."""
+
             captured.append(task)
             raise HTTPException(status_code=503, detail="sentinel_runtime_reached")
 
@@ -392,6 +394,8 @@ class TestFitChefDistortionSimulatorRoute:
 
     @pytest.mark.parametrize("positive_field", ["situation", "emotion", "goal"])
     def test_reviewed_negation_does_not_hide_other_pro_field(self, positive_field: str) -> None:
+        """Reject positive distress in another PRO request field despite a reviewed negation."""
+
         self.monkeypatch.setattr(
             "app.routers.fitchef_structured.fitchef_runtime.run_distortion_simulator_task",
             lambda *args, **kwargs: pytest.fail("runtime must not run"),
@@ -1879,6 +1883,8 @@ class TestFitChefIdentityLoopMapperRoute:
     def test_reviewed_negation_does_not_hide_other_identity_field(
         self, reviewed_field: str, positive_field: str
     ) -> None:
+        """Reject another identity field without broadening the finite negation exception."""
+
         self.monkeypatch.setattr(
             "app.routers.fitchef_structured.fitchef_runtime.run_identity_loop_mapper_task",
             lambda *args, **kwargs: pytest.fail("runtime must not run"),
@@ -1895,9 +1901,13 @@ class TestFitChefIdentityLoopMapperRoute:
         )
 
     def test_reviewed_negation_reaches_identity_runtime(self) -> None:
+        """Forward the admitted reviewed negation to the identity runtime."""
+
         captured: list[object] = []
 
         async def reached_runtime(task: object) -> FitChefIdentityLoopMapperResult:
+            """Capture the admitted task and emit the runtime-reached sentinel."""
+
             captured.append(task)
             raise HTTPException(status_code=503, detail="sentinel_identity_reached")
 
@@ -2285,6 +2295,8 @@ class TestFitChefStructuredRuntimeCoverage:
         from app.services import fitchef_runtime
 
         async def fail_executor(_config: object) -> object:
+            """Fail if a rejected distress input reaches the shared executor."""
+
             pytest.fail("shared executor must not run for high distress")
 
         self.monkeypatch.setattr(fitchef_runtime, "_run_fitchef_structured_task", fail_executor)
@@ -2311,6 +2323,8 @@ class TestFitChefStructuredRuntimeCoverage:
         from app.services import fitchef_runtime
 
         async def reached_executor(_config: object) -> object:
+            """Emit the sentinel proving that admitted input reached executor construction."""
+
             raise RuntimeError("sentinel_executor_reached")
 
         self.monkeypatch.setattr(fitchef_runtime, "_run_fitchef_structured_task", reached_executor)
@@ -2321,9 +2335,13 @@ class TestFitChefStructuredRuntimeCoverage:
 
     @pytest.mark.parametrize("thought", ["I don't want to die is a lie", "No quiero morir hoy"])
     def test_direct_runtime_blocks_unlisted_value_before_executor(self, thought: str) -> None:
+        """Reject an unlisted complete value before constructing the runtime executor."""
+
         from app.services import fitchef_runtime
 
         async def fail_executor(_config: object) -> object:
+            """Fail if a rejected distress input reaches the shared executor."""
+
             pytest.fail("shared executor must not run")
 
         self.monkeypatch.setattr(fitchef_runtime, "_run_fitchef_structured_task", fail_executor)
@@ -3069,6 +3087,8 @@ class TestFitChefStructuredRuntimeCoverage:
             goal: str | None,
             lang: str,
         ) -> "FitChefDistortionDraft":
+            """Record draft preparation while preserving the real preparer inputs and locale."""
+
             events.append("draft")
             return real_prepare(
                 raw_message,

@@ -8,6 +8,7 @@ import pytest
 
 from core.i18n import Language
 from core.insight.fitchef_companion import (
+    FitChefDistortionDraft,
     _build_distortion_reason,
     _extract_json_payload,
     _fallback_balanced_reframe,
@@ -48,6 +49,8 @@ def test_build_distortion_simulator_prompt_includes_rag_context() -> None:
 def test_distortion_prompt_keeps_practical_constraints_for_one_feasible_step(
     lang: Language, language_name: str, rag_context: str
 ) -> None:
+    """Preserve reported constraints and unverified goals in the bounded localized prompt."""
+
     situation = "I have ten minutes, no kitchen, and only bread and canned beans available."
     unsafe_goal = "skip dinner entirely"
     prompt = build_distortion_simulator_prompt(
@@ -146,6 +149,54 @@ def test_prepare_distortion_simulator_draft_normalizes_aliases_and_defaults() ->
             draft.next_small_action,
         ]
     )
+    assert draft.warnings == []
+
+
+@pytest.mark.parametrize(
+    ("lang", "neutral_reason"),
+    [
+        (
+            "en",
+            "This description does not establish a thought pattern; it may be only one interpretation.",
+        ),
+        (
+            "ru",
+            "По этому описанию нельзя уверенно определить шаблон мысли; это лишь одна возможная интерпретация.",
+        ),
+        (
+            "es",
+            "Esta descripción no permite identificar con seguridad un patrón de pensamiento; puede ser solo una interpretación.",
+        ),
+    ],
+)
+def test_safe_parsed_draft_replaces_unsupported_provider_reason(
+    lang: Language, neutral_reason: str
+) -> None:
+    """A parsed, otherwise safe response cannot invent a distortion label explanation."""
+
+    raw = json.dumps(
+        {
+            "distortion_labels": ["invented_pattern"],
+            "why_it_matches": "The provider says this is a named distortion.",
+            "evidence_for": ["The person reported a changed dinner."],
+            "evidence_against": ["One moment is incomplete evidence."],
+            "balanced_reframe": "One moment does not define the whole day.",
+            "next_small_action": "Write one possible next step.",
+        }
+    )
+    draft = prepare_distortion_simulator_draft(
+        raw,
+        situation="Dinner changed",
+        automatic_thought="A plain observation",
+        emotion="worry",
+        goal=None,
+        lang=lang,
+    )
+
+    assert draft.distortion_labels == []
+    assert draft.why_it_matches == neutral_reason
+    assert draft.evidence_for == ["The person reported a changed dinner."]
+    assert draft.next_small_action == "Write one possible next step."
     assert draft.warnings == []
 
 
@@ -308,6 +359,8 @@ def test_identity_loop_mapper_detects_high_distress_boundary() -> None:
 
 @pytest.mark.parametrize("text", ["Я хочу умереть", "Quiero morir"])
 def test_high_distress_boundary_catches_specific_ru_es_self_directed_text(text: str) -> None:
+    """Recognize the reviewed Russian and Spanish self-directed distress phrases."""
+
     assert has_high_distress_boundary(text)
 
 
@@ -315,6 +368,8 @@ def test_high_distress_boundary_catches_specific_ru_es_self_directed_text(text: 
     "text", ["Я хочу жить", "Quiero vivir", "No quiero morir", "Мне грустно после ужина"]
 )
 def test_high_distress_boundary_preserves_ru_es_safe_near_misses(text: str) -> None:
+    """Keep safe Russian and Spanish near misses outside the distress boundary."""
+
     assert not has_high_distress_boundary(text)
 
 
@@ -333,6 +388,8 @@ def test_high_distress_boundary_preserves_ru_es_safe_near_misses(text: str) -> N
     ],
 )
 def test_high_distress_boundary_skips_negated_occurrence(text: str) -> None:
+    """Admit the reviewed negated occurrence without losing other positive matches."""
+
     assert not has_high_distress_boundary(text)
 
 
@@ -358,6 +415,8 @@ def test_high_distress_boundary_skips_negated_occurrence(text: str) -> None:
     ],
 )
 def test_high_distress_boundary_admits_only_reviewed_complete_values(text: str) -> None:
+    """Admit each exact reviewed complete negation value."""
+
     assert not has_high_distress_boundary(text)
 
 
@@ -373,6 +432,8 @@ def test_high_distress_boundary_admits_only_reviewed_complete_values(text: str) 
     ],
 )
 def test_high_distress_boundary_normalizes_reviewed_complete_values(text: str) -> None:
+    """Preserve the reviewed values through the supported punctuation normalization."""
+
     assert not has_high_distress_boundary(text)
 
 
@@ -394,6 +455,8 @@ def test_high_distress_boundary_normalizes_reviewed_complete_values(text: str) -
     ],
 )
 def test_high_distress_boundary_rejects_unlisted_complete_values(text: str) -> None:
+    """Reject complete negations outside the finite reviewed set."""
+
     assert has_high_distress_boundary(text)
 
 
@@ -410,6 +473,8 @@ def test_high_distress_boundary_rejects_unlisted_complete_values(text: str) -> N
     ],
 )
 def test_high_distress_boundary_keeps_positive_candidates_and_other_patterns(text: str) -> None:
+    """Retain affirmative distress detection alongside the finite negation exception."""
+
     assert has_high_distress_boundary(text)
 
 
@@ -421,6 +486,8 @@ def test_high_distress_boundary_keeps_positive_candidates_and_other_patterns(tex
     ],
 )
 def test_high_distress_boundary_scans_each_field_independently(first: str, second: str) -> None:
+    """Prevent a safe field from hiding a positive match in another field."""
+
     assert has_high_distress_boundary(first, second)
     assert has_high_distress_boundary(second, first)
 
@@ -437,6 +504,8 @@ def test_high_distress_boundary_scans_each_field_independently(first: str, secon
     ],
 )
 def test_high_distress_boundary_keeps_later_and_distinct_positives(text: str) -> None:
+    """Keep later or distinct positive distress matches blocking."""
+
     assert has_high_distress_boundary(text)
 
 
@@ -445,6 +514,8 @@ def test_high_distress_boundary_keeps_later_and_distinct_positives(text: str) ->
     [("ru", "Пропусти следующий приём пищи."), ("es", "Sáltate la próxima comida.")],
 )
 def test_unsafe_ru_es_provider_json_rewrites_to_localized_fallback(lang: str, unsafe: str) -> None:
+    """Rewrite reviewed unsafe localized provider fields to the locale fallback."""
+
     raw = json.dumps(
         {
             "distortion_labels": ["all_or_nothing_thinking"],
@@ -467,6 +538,42 @@ def test_unsafe_ru_es_provider_json_rewrites_to_localized_fallback(lang: str, un
     assert draft.warnings == ["wellness_language_rewritten"]
     assert unsafe not in draft.next_small_action
     assert ("Запишите" if lang == "ru" else "Escribe") in draft.next_small_action
+
+
+def test_ru_negated_food_skip_remains_safe_but_affirmative_rewrites() -> None:
+    """The reviewed immediate Russian negation is distinct from unsafe advice."""
+
+    def draft_for_action(action: str) -> FitChefDistortionDraft:
+        """Prepare an otherwise safe Russian draft with the selected action text."""
+
+        raw = json.dumps(
+            {
+                "distortion_labels": ["all_or_nothing_thinking"],
+                "why_it_matches": "A single setback can feel absolute.",
+                "evidence_for": ["Dinner changed."],
+                "evidence_against": ["One evening is not every evening."],
+                "balanced_reframe": "A later meal can be planned separately.",
+                "next_small_action": action,
+            },
+            ensure_ascii=False,
+        )
+        return prepare_distortion_simulator_draft(
+            raw,
+            situation="Dinner changed",
+            automatic_thought="I ruined the day",
+            emotion="worry",
+            goal=None,
+            lang="ru",
+        )
+
+    negated = draft_for_action("Не пропусти следующий приём пищи.")
+    affirmative = draft_for_action("Пропусти следующий приём пищи.")
+
+    assert negated.warnings == []
+    assert negated.next_small_action == "Не пропусти следующий приём пищи."
+    assert affirmative.warnings == ["wellness_language_rewritten"]
+    assert "Пропусти следующий приём пищи." not in affirmative.next_small_action
+    assert "Запишите" in affirmative.next_small_action
 
 
 def test_extract_json_payload_accepts_fenced_and_embedded_objects() -> None:
@@ -549,11 +656,15 @@ def test_infer_distortion_labels_stays_neutral_when_no_pattern_matches() -> None
 
 @pytest.mark.parametrize("thought", ["I ate mustard", "Nevertheless I continued", "I feel hungry"])
 def test_infer_distortion_labels_rejects_substrings_and_bare_feelings(thought: str) -> None:
+    """Avoid assigning a canonical label from substrings or a bare feeling."""
+
     assert _infer_distortion_labels(thought) == []
 
 
 @pytest.mark.parametrize("thought", ["I only want a snack", "There is only one apple left"])
 def test_bare_only_is_not_mental_filtering_and_fallback_stays_neutral(thought: str) -> None:
+    """Keep a factual use of only unlabeled with a neutral fallback explanation."""
+
     assert _infer_distortion_labels(thought) == []
     draft = prepare_distortion_simulator_draft(
         "not json",
@@ -576,6 +687,8 @@ def test_bare_only_is_not_mental_filtering_and_fallback_stays_neutral(thought: s
     ],
 )
 def test_infer_distortion_labels_retains_bounded_positive_cues(thought: str, label: str) -> None:
+    """Retain canonical labels for the reviewed bounded positive cues."""
+
     assert label in _infer_distortion_labels(thought)
 
 
@@ -600,6 +713,61 @@ def test_build_distortion_reason_covers_label_branches(
         labels=labels,
         automatic_thought=automatic_thought,
     )
+
+
+@pytest.mark.parametrize(
+    ("lang", "reason"),
+    [
+        (
+            "en",
+            "The thought treats a difficult feeling as proof, though the feeling alone does not establish the conclusion.",
+        ),
+        (
+            "ru",
+            "Сильное чувство может влиять на вывод, но само по себе не доказывает его.",
+        ),
+        (
+            "es",
+            "Una emoción intensa puede influir en la conclusión, pero no la demuestra por sí sola.",
+        ),
+    ],
+)
+def test_emotional_reasoning_parse_fallback_uses_its_own_localized_reason(
+    lang: Language, reason: str
+) -> None:
+    """The fallback keeps the emotional-reasoning code and reason together."""
+
+    draft = prepare_distortion_simulator_draft(
+        "not json",
+        situation="Dinner changed",
+        automatic_thought="I feel this means it is true",
+        emotion="worry",
+        goal=None,
+        lang=lang,
+    )
+
+    assert draft.distortion_labels == ["emotional_reasoning"]
+    assert draft.why_it_matches == reason
+    assert draft.warnings == ["structured_parse_fallback"]
+
+
+def test_distortion_reason_rejects_nontext_translation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The canonical translation seam cannot inject a nontext reason."""
+
+    calls: list[tuple[Language, str]] = []
+
+    def nontext_translation(lang: Language, key: str) -> object:
+        """Record translation lookup and return a synthetic nontext negative control."""
+
+        calls.append((lang, key))
+        return 42
+
+    monkeypatch.setattr("core.insight.fitchef_companion.t", nontext_translation)
+    with pytest.raises(TypeError, match="FitChef distortion translation must be text"):
+        _build_distortion_reason(labels=[], automatic_thought="Dinner changed", lang="en")
+    assert calls == [("en", "fitchef.distortion.reason_uncertain")]
 
 
 def test_safe_helpers_cover_no_goal_and_empty_belief_branches() -> None:

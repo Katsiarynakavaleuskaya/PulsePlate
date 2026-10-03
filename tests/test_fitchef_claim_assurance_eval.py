@@ -907,6 +907,8 @@ def test_timeout_keeps_unknown_cost_reservation(tmp_path: Path) -> None:
 def test_admitted_task_uses_canonical_mode_endpoint_and_input_guard(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Keep task admission bound to the canonical mode, endpoint, guard, and locale."""
+
     monkeypatch.setenv("FEATURE_FITCHEF_STRUCTURED_COACH", "true")
     monkeypatch.setenv("FITCHEF_STRUCTURED_COACH_EXECUTION_MODE", "auto-safe")
     context = {
@@ -947,6 +949,8 @@ def test_sdk_preflight_carries_scenario_language(
     real_builder = collector.fitchef_companion.build_distortion_simulator_prompt
 
     def record_language(*args: Any, **kwargs: Any) -> str:
+        """Capture the selected locale while delegating to the real prompt builder."""
+
         observed.append(kwargs["lang"])
         return real_builder(*args, **kwargs)
 
@@ -969,6 +973,8 @@ def test_sdk_preflight_carries_scenario_language(
 def test_collector_direct_path_rejects_high_distress_before_reservation(
     thought: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    """Reject reviewed distress before any provider call or attempt reservation."""
+
     monkeypatch.setenv("FEATURE_FITCHEF_STRUCTURED_COACH", "true")
     monkeypatch.setenv("FITCHEF_STRUCTURED_COACH_EXECUTION_MODE", "auto-safe")
     scenario = _manifest_case()
@@ -978,6 +984,8 @@ def test_collector_direct_path_rejects_high_distress_before_reservation(
     )
 
     async def fail_generate(_prompt: str) -> str:
+        """Fail if a provider call escapes the tested preprovider rejection."""
+
         pytest.fail("provider must not run for high distress")
 
     monkeypatch.setattr(provider, "generate", fail_generate)
@@ -1013,6 +1021,8 @@ def test_collector_direct_path_rejects_high_distress_before_reservation(
 def test_collector_admission_preserves_negated_distress(
     thought: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    """Admit reviewed negated distress without treating it as affirmative input."""
+
     monkeypatch.setenv("FEATURE_FITCHEF_STRUCTURED_COACH", "true")
     monkeypatch.setenv("FITCHEF_STRUCTURED_COACH_EXECUTION_MODE", "auto-safe")
     context = _manifest_case()["context"]
@@ -1030,6 +1040,8 @@ def test_collector_admission_preserves_negated_distress(
 def test_collector_reviewed_negation_cannot_hide_other_field_before_reservation(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    """Keep a reviewed negation from masking distress in another collector field."""
+
     monkeypatch.setenv("FEATURE_FITCHEF_STRUCTURED_COACH", "true")
     monkeypatch.setenv("FITCHEF_STRUCTURED_COACH_EXECUTION_MODE", "auto-safe")
     scenario = _manifest_case()
@@ -1040,6 +1052,8 @@ def test_collector_reviewed_negation_cannot_hide_other_field_before_reservation(
     )
 
     async def fail_generate(_prompt: str) -> str:
+        """Fail if a provider call escapes the tested preprovider rejection."""
+
         pytest.fail("provider must not run")
 
     monkeypatch.setattr(provider, "generate", fail_generate)
@@ -1091,6 +1105,8 @@ def test_partial_collection_receipt_preserves_completed_case(
     failure: BaseException,
     expected_reason: str,
 ) -> None:
+    """Retain completed case evidence when a later admitted case fails."""
+
     manifest = _manifest_24()
     first, second = manifest[:2]
     calls = 0
@@ -1130,6 +1146,8 @@ def test_partial_collection_receipt_preserves_completed_case(
 def test_collection_receipt_classifies_only_preprovider_distress_as_validation(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    """Distinguish admission rejection from a failure raised during provider execution."""
+
     monkeypatch.setenv("FEATURE_FITCHEF_STRUCTURED_COACH", "true")
     monkeypatch.setenv("FITCHEF_STRUCTURED_COACH_EXECUTION_MODE", "auto-safe")
     manifest = _manifest_24()
@@ -1139,6 +1157,8 @@ def test_collection_receipt_classifies_only_preprovider_distress_as_validation(
     monkeypatch.setattr(collector, "validate_live_environment", lambda _key: None)
 
     async def fail_generate(*_args: Any, **_kwargs: Any) -> str:
+        """Fail if a provider call escapes the tested preprovider rejection."""
+
         pytest.fail("provider must not run for preprovider distress")
 
     monkeypatch.setattr(collector.PerplexityProvider, "generate", fail_generate)
