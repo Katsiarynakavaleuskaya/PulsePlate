@@ -11,6 +11,34 @@
 - Prefer small, focused edits; update any dependent docs or Make targets if needed.
 - Avoid adding network calls to scripts used in CI unless explicitly required.
 
+- Locked-install settings and the installer-owned direct project-page reader share default
+  `.netrc`/`_netrc` admission in `install_locked_python_requirements.py` only,
+  before its CLI dispatch or its own connection/context creation.
+  Preserve native first-existing default candidate order (`.netrc`, then `_netrc`),
+  including primary-file permission checks; never infer source absence from a
+  selected-file read failure. Delegate parsing/named-default selection to stdlib,
+  preserve effective login/account
+  and root rejection, and fail closed for indeterminate credentials or malformed
+  trusted authority. Applicable credentials require verified HTTPS; this does
+  not cover every pip authentication source. Each installer-owned pip child
+  loads its native send guard before CLI and retains that common boundary
+  through process termination. Final case-insensitive
+  Authorization membership requires verified HTTPS on the supported native
+  graph; header values and credential sources are not transport predicates.
+  This current native-client correction does not recognize arbitrary plugins,
+  monkeypatched clients or future implementations. The separate proxy
+  health checker is outside this installer contract. Probe failures, including connection
+  creation and cleanup, must expose constant/class-only diagnostics with bounded
+  retries. Docker source downloads must reuse the existing URL validator at the
+  network boundary and reject all redirects through the installed opener; tests
+  replace transport, preserving real handler dispatch. See
+  `docs/security/INLINE_NOSEC_TTL_20260930_REASSESSMENT.md` for the bounded proof.
+
+- For inline annotation reviews, verify Bandit's JSON errors and expected
+  scanned-file inventory alongside its exit status. Prove AST equality for
+  comment-only edits against the admitted base; repair any parse omission or
+  executable delta before claiming that the bounded review is complete.
+
 - Before mocking a pinned external CLI or workflow adapter, verify its real
   flags, serialization fields and permitted Actions contexts through native
   help, pinned primary source and actionlint. A fixture accepting an invented
@@ -71,6 +99,11 @@
 - The Docker source-artifact fetcher rejects symlink/nonregular cache objects
   and non-real output-directory chains before reads or mutation. Keep source
   identity, archive filename, reviewed hash and literal Docker COPY aligned.
+- PCRE2 production replacement uses only the exact reviewed PCRE2 tag and its
+  pinned upstream SLJIT gitlink in the existing source manifest/fetcher. Keep
+  old source records/dates and TLS, redirect, checksum and cache controls intact.
+  Preserve shared 8-bit SONAME, Unicode and JIT; after pruning, exercise native
+  PCRE2 and libselinux regex calls plus retained consumers under the final user.
 - When replacing a packaged native library, verify the actual extension call
   and loaded replacement under the final runtime user after package pruning.
   Package-record absence and a clean scanner report do not prove native linkage.

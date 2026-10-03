@@ -11,8 +11,9 @@ import argparse
 import re
 import shutil
 import socket
-import subprocess  # nosec B404: read-only diagnostics require bounded subprocess calls (remove-by: 2026-09-30, ref: PR-main-nightly-nosec-ttl)
+import subprocess  # nosec B404 # B404: read-only diagnostics require bounded subprocess calls (remove-by: 2026-10-30, ref: PR-main-nightly-nosec-ttl)
 from dataclasses import dataclass
+from typing import cast
 
 HTTP_TIMEOUT_SEC = 15
 SUCCESS_EXIT_CODE = 0
@@ -87,7 +88,7 @@ def _run_command(argv: list[str], *, timeout: int) -> CommandResult:
     """Execute a bounded diagnostic command and capture its text output."""
 
     try:
-        completed = subprocess.run(  # nosec B603: argv uses absolute binaries and fixed diagnostic flags (remove-by: 2026-09-30, ref: PR-main-nightly-nosec-ttl)
+        completed = subprocess.run(  # nosec B603 # B603: argv uses absolute binaries and fixed diagnostic flags (remove-by: 2026-10-30, ref: PR-main-nightly-nosec-ttl)
             argv,
             capture_output=True,
             text=True,
@@ -124,7 +125,7 @@ def _socket_answers(hostname: str, family: socket.AddressFamily) -> tuple[str, .
         infos = socket.getaddrinfo(hostname, None, family=family, type=socket.SOCK_STREAM)
     except socket.gaierror:
         return ()
-    addresses = {item[4][0] for item in infos}
+    addresses = {cast(str, item[4][0]) for item in infos}
     return tuple(sorted(addresses))
 
 

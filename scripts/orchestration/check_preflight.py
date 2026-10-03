@@ -10,7 +10,7 @@ Modes:
 from __future__ import annotations
 
 import shutil
-import subprocess  # nosec B404: fixed git commands only, no user input (remove-by: 2026-09-30, ref: PR-main-nightly-nosec-ttl)
+import subprocess  # nosec B404 # B404: fixed Git checks and current-interpreter consistency gate require subprocess (remove-by: 2026-10-30, ref: PR-main-nightly-nosec-ttl)
 import sys
 from pathlib import Path, PurePosixPath
 
@@ -75,7 +75,7 @@ SUPPRESSED_NON_DEPENDENCY_INDEX_ERROR_CODES = frozenset(
 def _run(cmd: list[str], cwd: Path | None = None) -> tuple[int, str]:
     if cmd and cmd[0] == "git":
         cmd = [GIT_EXECUTABLE, *cmd[1:]]
-    r = subprocess.run(  # nosec B603: fixed git commands only (remove-by: 2026-09-30, ref: PR-main-nightly-nosec-ttl)
+    r = subprocess.run(  # nosec B603 # B603: resolved Git or sys.executable with fixed repo consistency script and bounded argv; no shell (remove-by: 2026-10-30, ref: PR-main-nightly-nosec-ttl)
         cmd,
         cwd=cwd or ROOT,
         capture_output=True,
