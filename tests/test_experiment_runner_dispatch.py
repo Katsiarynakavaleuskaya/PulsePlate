@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from contextlib import nullcontext
+from contextlib import contextmanager, nullcontext
 import hashlib
 import json
 import os
@@ -11,7 +11,7 @@ import re
 import subprocess
 import sys
 from types import SimpleNamespace
-from typing import Any, NoReturn
+from typing import Any, Iterator, NoReturn
 
 import pytest
 
@@ -82,6 +82,294 @@ def _run_isolated_git(
 
 def _image() -> dispatch.ImageReference:
     return dispatch.ImageReference(name="pulseplate/experiment-runner:local", digest=_DIGEST)
+
+
+@pytest.fixture
+def oracle_source_checkout(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    from scripts.orchestration import experiment_runner_pr_creative_context as creative_context
+
+    root = tmp_path.resolve() / "source"
+    root.mkdir()
+    git = dispatch._git_binary()
+    for arguments in (
+        ("init", "--quiet"),
+        ("config", "user.name", "Oracle test"),
+        ("config", "user.email", "oracle-test@example.com"),
+        ("remote", "add", "origin", "git@github.com:Katsiarynakavaleuskaya/PulsePlate.git"),
+    ):
+        _run_isolated_git(git, *arguments, cwd=root)
+    (root / "tracked.py").write_text("before\n", encoding="utf-8")
+    _run_isolated_git(git, "add", "tracked.py", cwd=root)
+    _run_isolated_git(git, "commit", "--quiet", "-m", "fixture", cwd=root)
+    _run_isolated_git(git, "update-ref", "refs/remotes/origin/main", "HEAD", cwd=root)
+    monkeypatch.setattr(dispatch, "REPO_ROOT", root)
+    monkeypatch.setattr(creative_context, "REPO_ROOT", root)
+    return root
+
+
+def test_oracle_material_keeps_staging_distinct_from_reverted_worktree(
+    oracle_source_checkout: Path,
+) -> None:
+    root = oracle_source_checkout
+    initial = dispatch.capture_source_material(root)
+    (root / "tracked.py").write_text("staged\n", encoding="utf-8")
+    dispatch._git(["add", "tracked.py"], cwd=root)
+    (root / "tracked.py").write_text("before\n", encoding="utf-8")
+    changed = dispatch.capture_source_material(root)
+    assert changed["head_sha"] == initial["head_sha"]
+    assert changed["worktree_diff_sha256"] == initial["worktree_diff_sha256"]
+    assert changed["staged_diff_sha256"] != initial["staged_diff_sha256"]
+    assert changed["unstaged_diff_sha256"] != initial["unstaged_diff_sha256"]
+
+
+def test_admitted_file_reaches_second_checkout_without_source_index_write(
+    oracle_source_checkout: Path, tmp_path: Path
+) -> None:
+    root = oracle_source_checkout
+    new = root / "new.py"
+    new.write_text("exact newly admitted bytes\n", encoding="utf-8")
+    source = dispatch.capture_source_material(root, ("new.py",))
+    proof: dict[str, Any] = {}
+    snapshot = tmp_path.resolve() / "snapshot"
+    dispatch._create_snapshot(
+        root, snapshot, admitted_new_files=("new.py",), source_material=source, snapshot_proof=proof
+    )
+    assert dispatch.capture_source_material(root, ("new.py",)) == source
+    assert dispatch._git(["ls-files", "--", "new.py"], cwd=root).stdout == ""
+    assert dispatch._git(["ls-files", "--", "new.py"], cwd=snapshot).stdout == "new.py\n"
+    temporary, inner = experiment_runner._create_temp_checkout(snapshot)
+    try:
+        diff = experiment_runner._working_tree_diff_against_head(snapshot)
+        experiment_runner._apply_candidate_patch(inner, diff)
+        assert (inner / "new.py").read_bytes() == new.read_bytes()
+    finally:
+        temporary.cleanup()
+    assert proof["copied_new_files"] == source["admitted_new_files"]
+
+
+def test_capture_requires_complete_native_untracked_admission(oracle_source_checkout: Path) -> None:
+    root = oracle_source_checkout
+    paths = ("one.py", "two.py")
+    for relative in paths:
+        (root / relative).write_bytes(relative.encode())
+    index_before = dispatch._git(["ls-files", "--stage", "-z"], cwd=root).stdout
+    for incomplete in ((), paths[:1]):
+        with pytest.raises(ValueError, match="inventory must equal"):
+            dispatch.capture_source_material(root, incomplete)
+    captured = dispatch.capture_source_material(root, paths)
+    assert [row["path"] for row in captured["admitted_new_files"]] == list(paths)
+    assert dispatch._git(["ls-files", "--stage", "-z"], cwd=root).stdout == index_before
+
+
+@pytest.mark.parametrize("relative", ["space name.py", "tab\tname.py", "line\nname.py", "*.py"])
+def test_capture_uses_nul_and_literal_native_membership(
+    oracle_source_checkout: Path, relative: str
+) -> None:
+    root = oracle_source_checkout
+    (root / relative).write_bytes(b"literal admitted bytes")
+    with pytest.raises(ValueError, match="inventory must equal"):
+        dispatch.capture_source_material(root)
+    captured = dispatch.capture_source_material(root, (relative,))
+    assert captured["admitted_new_files"][0]["path"] == relative
+    assert dispatch._git(["ls-files", "--stage", "-z"], cwd=root).stdout.endswith("tracked.py\0")
+
+
+def test_capture_respects_real_git_ignore_without_artifact_exemption(
+    oracle_source_checkout: Path,
+) -> None:
+    root = oracle_source_checkout
+    (root / ".gitignore").write_text("/artifacts/ignored.json\n", encoding="utf-8")
+    dispatch._git(["add", ".gitignore"], cwd=root)
+    artifacts = root / "artifacts"
+    artifacts.mkdir()
+    (artifacts / "ignored.json").write_bytes(b"ignored fixture receipt")
+    captured = dispatch.capture_source_material(root)
+    assert captured["admitted_new_files"] == []
+    (artifacts / "unadmitted.json").write_bytes(b"nonignored fixture receipt")
+    with pytest.raises(ValueError, match="inventory must equal"):
+        dispatch.capture_source_material(root)
+
+
+@pytest.mark.parametrize("phase", ["before_copy", "during_copy"])
+def test_snapshot_rejects_new_unadmitted_inventory_at_capture_checkpoints(
+    oracle_source_checkout: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, phase: str
+) -> None:
+    root = oracle_source_checkout
+    captured = dispatch.capture_source_material(root)
+    destination = tmp_path.resolve() / "inventory-drift-snapshot"
+    if phase == "before_copy":
+        (root / "omitted.py").write_bytes(b"omitted before copy")
+    else:
+        original_digest = dispatch._tracked_content_digest
+
+        def digest(checkout: Path, admitted: tuple[str, ...] = ()) -> str:
+            value = original_digest(checkout, admitted)
+            if checkout == destination:
+                (root / "omitted.py").write_bytes(b"omitted during copy")
+            return value
+
+        monkeypatch.setattr(dispatch, "_tracked_content_digest", digest)
+    proof: dict[str, Any] = {}
+    with pytest.raises(ValueError, match="inventory must equal"):
+        dispatch._create_snapshot(root, destination, source_material=captured, snapshot_proof=proof)
+    assert proof == {}
+    if phase == "before_copy":
+        assert not destination.exists()
+
+
+def test_proofless_snapshot_retains_manual_untracked_defaults(
+    oracle_source_checkout: Path, tmp_path: Path
+) -> None:
+    root = oracle_source_checkout
+    (root / "unadmitted.py").write_bytes(b"manual default does not copy this")
+    destination = tmp_path.resolve() / "manual-snapshot"
+    assert dispatch._create_snapshot(root, destination) == ""
+    assert (destination / "tracked.py").read_bytes() == (root / "tracked.py").read_bytes()
+    assert not (destination / "unadmitted.py").exists()
+
+
+def test_capture_native_untracked_failure_is_not_empty_inventory(
+    oracle_source_checkout: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    original_git = dispatch._git
+
+    def git(arguments: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        if arguments == ["ls-files", "--others", "--exclude-standard", "-z"]:
+            raise dispatch.DispatchError("probe_execution_failed")
+        return original_git(arguments, **kwargs)
+
+    monkeypatch.setattr(dispatch, "_git", git)
+    with pytest.raises(dispatch.DispatchError, match="probe_execution_failed"):
+        dispatch.capture_source_material(oracle_source_checkout)
+
+
+def test_owned_temp_alias_is_canonicalized_before_new_file_snapshot(
+    oracle_source_checkout: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A host TMPDIR alias is resolved once; supplied material stays no-follow."""
+
+    root = oracle_source_checkout
+    (root / "new.py").write_bytes(b"explicit new snapshot material\n")
+    packet = _packet()
+    packet["mutable_candidate_surface"] = ["tracked.py"]
+    packet_path = root / "packet.json"
+    packet_path.write_text(json.dumps(packet), encoding="utf-8")
+    dispatch._git(["add", "packet.json"], cwd=root)
+    monkeypatch.setattr(experiment_contract, "REPO_ROOT", root)
+    real_parent = tmp_path.resolve() / "real-temp-parent"
+    real_parent.mkdir()
+    alias = tmp_path.resolve() / "temp-parent-alias"
+    alias.symlink_to(real_parent, target_is_directory=True)
+    original_temporary_directory = dispatch.tempfile.TemporaryDirectory
+
+    @contextmanager
+    def owned_alias_directory(*, prefix: str) -> Iterator[str]:
+        with original_temporary_directory(prefix=prefix, dir=alias) as raw:
+            yield raw
+
+    monkeypatch.setattr(dispatch.tempfile, "TemporaryDirectory", owned_alias_directory)
+    resolve_cli = dispatch._resolve_cli
+    monkeypatch.setattr(
+        dispatch,
+        "_resolve_cli",
+        lambda name: "/unused/owned-container-cli" if name == "container" else resolve_cli(name),
+    )
+    original_snapshot = dispatch._create_snapshot
+    observed: list[bytes] = []
+    proof: dict[str, Any] = {}
+
+    class SnapshotPrepared(RuntimeError):
+        pass
+
+    def snapshot_then_stop(source: Path, destination: Path, **kwargs: Any) -> str:
+        original_snapshot(source, destination, **kwargs)
+        assert destination == destination.resolve()
+        assert destination.parent.parent == real_parent
+        observed.append((destination / "new.py").read_bytes())
+        raise SnapshotPrepared("Owned snapshot observed before any container invocation")
+
+    monkeypatch.setattr(dispatch, "_create_snapshot", snapshot_then_stop)
+    monkeypatch.setattr(
+        dispatch,
+        "_create_apple_network",
+        lambda *_args: pytest.fail("Snapshot-only regression must not invoke a container"),
+    )
+    material = dispatch.capture_source_material(root, ("new.py",))
+    with pytest.raises(SnapshotPrepared):
+        dispatch._invoke_container_runner(
+            probe=_probe("apple-container", strict=True),
+            image=_image(),
+            packet_path=packet_path,
+            candidate_patch=None,
+            output_name="snapshot-only.json",
+            admitted_new_files=("new.py",),
+            snapshot_proof=proof,
+        )
+    assert observed == [b"explicit new snapshot material\n"]
+    assert proof["source_material"] == material
+    assert dispatch.capture_source_material(root, ("new.py",)) == material
+    assert not list(real_parent.iterdir())
+
+
+def test_unsafe_new_file_alias_is_rejected(oracle_source_checkout: Path) -> None:
+    root = oracle_source_checkout
+    (root / "alias.py").symlink_to(root / "tracked.py")
+    with pytest.raises(ValueError, match="symlink"):
+        dispatch.capture_source_material(root, ("alias.py",))
+
+
+@pytest.mark.parametrize("flag", ["--assume-unchanged", "--skip-worktree"])
+def test_hidden_index_flags_reject_before_snapshot(oracle_source_checkout: Path, flag: str) -> None:
+    root = oracle_source_checkout
+    dispatch._git(["update-index", flag, "tracked.py"], cwd=root)
+    (root / "tracked.py").write_text("hidden actual byte edit\n", encoding="utf-8")
+    before = dispatch._git(["ls-files", "--stage", "-z"], cwd=root).stdout
+    with pytest.raises(ValueError, match="Hidden"):
+        dispatch.capture_source_material(root)
+    assert dispatch._git(["ls-files", "--stage", "-z"], cwd=root).stdout == before
+
+
+def test_effective_filters_are_denied_before_diff_execution(oracle_source_checkout: Path) -> None:
+    root = oracle_source_checkout
+    marker = root / "filter-ran"
+    dispatch._git(["config", "filter.untrusted.clean", "touch " + str(marker)], cwd=root)
+    (root / ".gitattributes").write_text("tracked.py filter=untrusted\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="filter configuration"):
+        dispatch.capture_source_material(root)
+    assert not marker.exists()
+
+
+def test_raw_content_binding_detects_bytes_independent_of_git_diff(
+    oracle_source_checkout: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = oracle_source_checkout
+    initial = dispatch._tracked_content_digest(root)
+    (root / "tracked.py").write_bytes(b"different raw bytes\r\n")
+    assert dispatch._tracked_content_digest(root) != initial
+
+
+def test_native_gitlink_commit_and_empty_state_are_bound_without_submodule_reads(
+    oracle_source_checkout: Path, tmp_path: Path
+) -> None:
+    root = oracle_source_checkout
+    commit = dispatch._git(["rev-parse", "HEAD"], cwd=root).stdout.strip()
+    dispatch._git(
+        ["update-index", "--add", "--cacheinfo", f"160000,{commit},external-link"], cwd=root
+    )
+    dispatch._git(["commit", "--quiet", "-m", "gitlink fixture"], cwd=root)
+    (root / "external-link").mkdir()
+    material = dispatch.capture_source_material(root)
+    proof: dict[str, Any] = {}
+    dispatch._create_snapshot(
+        root,
+        tmp_path.resolve() / "gitlink-snapshot",
+        source_material=material,
+        snapshot_proof=proof,
+    )
+    assert proof["snapshot_content_sha256"] == material["tracked_content_sha256"]
+    (root / "external-link" / "ambient-file").write_text("not admitted", encoding="utf-8")
+    with pytest.raises(ValueError, match="populated Gitlink"):
+        dispatch.capture_source_material(root)
 
 
 def _results(backend: str, value: bool = True) -> dict[str, bool | None]:
@@ -3432,6 +3720,7 @@ def test_container_runner_attribution_argv_has_backend_parity_and_default_omissi
     assert captured_commands == [
         [
             dispatch.CONTAINER_PYTHON,
+            "-I",
             f"{dispatch.CONTAINER_REPO}/scripts/orchestration/experiment_runner.py",
             "--packet",
             f"{dispatch.CONTAINER_INPUT}/packet.json",
@@ -4059,3 +4348,869 @@ def test_post_start_cleanup_failure_overrides_execution_exception(
 
     assert isinstance(caught.value.__cause__, dispatch.DispatchError)
     assert caught.value.__cause__.code == "runner_execution_failed"
+
+
+@pytest.mark.parametrize("kind", ["hardlink", "fifo", "oversized"])
+def test_material_refuses_unsafe_physical_file(
+    oracle_source_checkout: Path, monkeypatch: pytest.MonkeyPatch, kind: str
+) -> None:
+    root = oracle_source_checkout
+    target = root / "new.py"
+    if kind == "hardlink":
+        os.link(root / "tracked.py", target)
+    elif kind == "fifo":
+        os.mkfifo(target)
+    else:
+        target.write_bytes(b"x" * 9)
+        monkeypatch.setattr(dispatch, "MAX_RESULT_BYTES", 8)
+    with pytest.raises(ValueError, match="regular|bounded file size"):
+        dispatch._material_file(root, "new.py")
+
+
+@pytest.mark.parametrize(
+    "paths", [("new.py", "new.py"), ("../outside.py",), ("artifacts/new.py",), ("/new.py",)]
+)
+def test_capture_refuses_invalid_new_file_inventory(
+    oracle_source_checkout: Path, paths: tuple[str, ...]
+) -> None:
+    with pytest.raises(ValueError, match="bounded and unique|unsafe"):
+        dispatch.capture_source_material(oracle_source_checkout, paths)
+
+
+def test_capture_refuses_missing_git_checkout_and_ignored_intake(
+    oracle_source_checkout: Path, tmp_path: Path
+) -> None:
+    root = oracle_source_checkout
+    with pytest.raises((ValueError, dispatch.DispatchError)):
+        dispatch.capture_source_material(tmp_path)
+    (root / ".gitignore").write_text("new.py\n", encoding="utf-8")
+    (root / "new.py").write_bytes(b"ignored private material")
+    with pytest.raises(ValueError, match="non-ignored untracked"):
+        dispatch.capture_source_material(root, ("new.py",))
+
+
+@pytest.mark.parametrize("kind", ["hardlink", "fifo", "oversized", "gitlink_symlink"])
+def test_raw_tracked_binding_refuses_physical_alias_or_type(
+    oracle_source_checkout: Path, monkeypatch: pytest.MonkeyPatch, kind: str
+) -> None:
+    root = oracle_source_checkout
+    target = root / "tracked.py"
+    if kind == "hardlink":
+        os.link(target, root / "alias")
+    elif kind == "fifo":
+        target.unlink()
+        os.mkfifo(target)
+    elif kind == "oversized":
+        monkeypatch.setattr(dispatch, "MAX_RESULT_BYTES", 1)
+        target.write_bytes(b"x" * 33)
+    else:
+        commit = dispatch._git(["rev-parse", "HEAD"], cwd=root).stdout.strip()
+        dispatch._git(
+            ["update-index", "--add", "--cacheinfo", f"160000,{commit},external-link"], cwd=root
+        )
+        (root / "external-link").symlink_to(target)
+    with pytest.raises(ValueError, match="bounded regular|Gitlink material"):
+        dispatch._tracked_content_digest(root)
+
+
+def test_raw_tracked_binding_detects_file_change_before_open(
+    oracle_source_checkout: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    real_open = dispatch.os.open
+    target = oracle_source_checkout / "tracked.py"
+
+    def change_then_open(path: Any, flags: int, *args: Any, **kwargs: Any) -> int:
+        if Path(path) == target:
+            target.write_bytes(b"changed after lstat")
+        return real_open(path, flags, *args, **kwargs)
+
+    monkeypatch.setattr(dispatch.os, "open", change_then_open)
+    with pytest.raises(ValueError, match="identity changed before"):
+        dispatch._tracked_content_digest(oracle_source_checkout)
+
+
+@pytest.mark.parametrize("new_file", [False, True])
+def test_material_read_detects_change_during_descriptor_acquisition(
+    oracle_source_checkout: Path, monkeypatch: pytest.MonkeyPatch, new_file: bool
+) -> None:
+    root = oracle_source_checkout
+    target = root / ("new.py" if new_file else "tracked.py")
+    if new_file:
+        target.write_bytes(b"before")
+    real_fstat = dispatch.os.fstat
+    calls = 0
+
+    def mutate_at_second_observation(fd: int) -> os.stat_result:
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            target.write_bytes(b"changed during read")
+        return real_fstat(fd)
+
+    monkeypatch.setattr(dispatch.os, "fstat", mutate_at_second_observation)
+    with pytest.raises(ValueError, match="changed during"):
+        if new_file:
+            dispatch._material_file(root, "new.py")
+        else:
+            dispatch._tracked_content_digest(root)
+
+
+def test_snapshot_refuses_stale_source_before_copy(
+    oracle_source_checkout: Path, tmp_path: Path
+) -> None:
+    root = oracle_source_checkout
+    captured = dispatch.capture_source_material(root)
+    (root / "tracked.py").write_bytes(b"changed before snapshot")
+    destination = tmp_path.resolve() / "refused-snapshot"
+    with pytest.raises(ValueError, match="changed before snapshot"):
+        dispatch._create_snapshot(root, destination, source_material=captured)
+    assert not destination.exists()
+
+
+@pytest.mark.parametrize("failure", ["injected_proof", "material_drift", "accepted"])
+def test_strict_producer_cross_binds_proof_and_retains_private_observations(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, failure: str
+) -> None:
+    packet_path = tmp_path / "packet.json"
+    packet_path.write_text(json.dumps(_packet()), encoding="utf-8")
+    _configure_container_runner_exit(monkeypatch, returncode=0)
+    monkeypatch.setattr(dispatch, "_require_candidate_checkout", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(dispatch, "_candidate_checkout_proof", lambda *_args, **_kwargs: {})
+    material = {"tracked_content_sha256": "a" * 64}
+    captures = 0
+
+    def capture(*_args: Any, **_kwargs: Any) -> dict[str, Any]:
+        nonlocal captures
+        captures += 1
+        return {} if failure == "material_drift" and captures > 1 else material
+
+    monkeypatch.setattr(dispatch, "capture_source_material", capture)
+
+    def snapshot(_root: Path, destination: Path, **kwargs: Any) -> str:
+        destination.mkdir()
+        kwargs["snapshot_proof"].update({"source_material": material})
+        return ""
+
+    monkeypatch.setattr(dispatch, "_create_snapshot", snapshot)
+    result = _accepted_oracle_result()
+    result["oracle_results"] = [
+        {
+            "command": "git --version",
+            "returncode": 0,
+            "timed_out": False,
+            "stdout": "bounded native observation",
+            "stderr": "",
+            "cwd": "/owned/guest",
+            "truncated": False,
+        }
+    ]
+    if failure == "injected_proof":
+        result["snapshot_proof"] = {"forged": True}
+    monkeypatch.setattr(dispatch, "_collect_result_volume", lambda **_kwargs: result)
+    proof: dict[str, Any] = {}
+    observations: dict[str, Any] = {}
+
+    def invoke() -> dict[str, Any]:
+        return dispatch._invoke_container_runner(
+            probe=_probe("apple-container", strict=True),
+            image=_image(),
+            packet_path=packet_path,
+            candidate_patch=None,
+            output_name="result.json",
+            contribution_kind="oracle_review",
+            coauthor_required=True,
+            coauthor_reason=result["coauthor_reason"],
+            snapshot_proof=proof,
+            accepted_observations=observations,
+        )
+
+    if failure != "accepted":
+        with pytest.raises(dispatch.DispatchError, match="result_validation_failed"):
+            invoke()
+        assert observations == {}
+    else:
+        sanitized = invoke()
+        assert sanitized["oracle_results"][0]["stdout"] == ""
+        assert sanitized["oracle_results"][0]["cwd"] == "owned_guest_checkout"
+        assert observations["oracle_results"][0]["stdout"] == "bounded native observation"
+        assert observations["authority"] == "local_observation_only"
+        assert proof["result_fingerprint"] == fingerprint_payload(sanitized)
+        assert proof["experiment_packet_fingerprint"] == fingerprint_payload(
+            experiment_contract.validate_experiment_packet(_packet())
+        )
+
+
+@pytest.mark.parametrize(
+    "case",
+    ["same_slot", "occupied", "new_without_proof", "outside", "success", "observation_collision"],
+)
+def test_main_snapshot_slots_intake_and_private_observation_publication(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str], case: str
+) -> None:
+    packet_path = tmp_path / "packet.json"
+    packet_path.write_text(json.dumps(_packet()), encoding="utf-8")
+    output = tmp_path / "result.json"
+    proof = output if case == "same_slot" else tmp_path / "proof.json"
+    observation = proof.with_name(proof.stem + ".observations.json")
+    if case == "occupied":
+        proof.write_text("preserved", encoding="utf-8")
+    if case == "observation_collision":
+        observation.write_text("preserved", encoding="utf-8")
+    monkeypatch.setattr(dispatch, "_require_repo_local_file", lambda *_args, **_kwargs: packet_path)
+    monkeypatch.setattr(
+        dispatch,
+        "_resolve_local_output",
+        lambda raw, **_kwargs: output if raw == "result.json" else proof,
+    )
+    probe = _probe("apple-container", strict=True)
+    monkeypatch.setattr(dispatch, "select_backend", lambda *_args: (probe, [probe]))
+    calls: list[dict[str, Any]] = []
+
+    def accepted(**kwargs: Any) -> dict[str, Any]:
+        calls.append(kwargs)
+        kwargs["snapshot_proof"].update({"authority": "evidence_only"})
+        kwargs["accepted_observations"].update({"authority": "local_observation_only"})
+        result = _accepted_oracle_result()
+        result["contribution_kind"] = "none"
+        result["coauthor_required"] = False
+        result["coauthor_reason"] = ""
+        return result
+
+    monkeypatch.setattr(dispatch, "_invoke_container_runner", accepted)
+    argv = [
+        "run",
+        "--backend",
+        "apple-container",
+        "--image",
+        f"pulseplate/experiment-runner:local@{_DIGEST}",
+        "--packet",
+        "packet.json",
+        "--output",
+        "result.json",
+    ]
+    if case != "new_without_proof":
+        argv += ["--snapshot-proof-output", "proof.json"]
+    if case in {"new_without_proof", "outside"}:
+        argv += ["--admitted-new-file", "outside.py"]
+    code = dispatch.main(argv)
+    captured = capsys.readouterr()
+    if case in {"success", "observation_collision"}:
+        assert len(calls) == 1
+        if case == "success":
+            assert code == 0
+            assert json.loads(proof.read_text())["authority"] == "evidence_only"
+            assert json.loads(observation.read_text())["authority"] == "local_observation_only"
+        else:
+            assert code == 2
+            assert "Private observation slot is occupied" in captured.err
+            assert observation.read_text() == "preserved"
+            assert not proof.exists()
+    else:
+        assert code == 2
+        assert calls == []
+        assert not output.exists()
+        if case == "occupied":
+            assert proof.read_text() == "preserved"
+
+
+@pytest.mark.parametrize("phase", ["new_read", "copied_read", "scratch_digest", "final_source"])
+def test_snapshot_detects_content_drift_at_copy_boundaries(
+    oracle_source_checkout: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, phase: str
+) -> None:
+    root = oracle_source_checkout
+    new = root / "new.py"
+    new.write_bytes(b"admitted bytes")
+    material = dispatch.capture_source_material(root, ("new.py",))
+    destination = tmp_path.resolve() / "drifting-snapshot"
+    real_read = dispatch._material_file
+    real_digest = dispatch._tracked_content_digest
+    source_reads = 0
+
+    def read(checkout: Path, relative: str) -> bytes:
+        nonlocal source_reads
+        if checkout == root:
+            source_reads += 1
+        if phase == "new_read" and checkout == root and source_reads > 1:
+            new.write_bytes(b"changed after admission")
+        if phase == "copied_read" and checkout == destination:
+            (checkout / relative).write_bytes(b"changed copied bytes")
+        return real_read(checkout, relative)
+
+    def digest(checkout: Path, admitted: tuple[str, ...] = ()) -> str:
+        if checkout == destination and phase == "scratch_digest":
+            (checkout / "tracked.py").write_bytes(b"changed scratch bytes")
+        value = real_digest(checkout, admitted)
+        if checkout == destination and phase == "final_source":
+            (root / "tracked.py").write_bytes(b"changed source during copy")
+        return value
+
+    monkeypatch.setattr(dispatch, "_material_file", read)
+    monkeypatch.setattr(dispatch, "_tracked_content_digest", digest)
+    messages = {
+        "new_read": "New-file bytes changed",
+        "copied_read": "Copied snapshot bytes differ",
+        "scratch_digest": "Copied scratch material differs",
+        "final_source": "changed during snapshot",
+    }
+    with pytest.raises(ValueError, match=messages[phase]):
+        dispatch._create_snapshot(
+            root,
+            destination,
+            admitted_new_files=("new.py",),
+            source_material=material,
+            snapshot_proof={},
+        )
+    assert dispatch._git(["ls-files", "--", "new.py"], cwd=root).stdout == ""
+
+
+@pytest.mark.parametrize("boundary", ["unsafe_path", "inventory_bound", "unmerged_membership"])
+def test_raw_material_refuses_invalid_native_membership(
+    oracle_source_checkout: Path, monkeypatch: pytest.MonkeyPatch, boundary: str
+) -> None:
+    root = oracle_source_checkout
+    real_git = dispatch._git
+    if boundary == "unmerged_membership":
+        sha = real_git(["rev-parse", "HEAD:tracked.py"], cwd=root).stdout.strip()
+        real_git(
+            ["update-index", "--index-info"],
+            cwd=root,
+            input_text=f"0 {'0' * 40}\ttracked.py\n100644 {sha} 1\ttracked.py\n",
+        )
+    else:
+
+        def native_inventory(
+            arguments: list[str], **kwargs: Any
+        ) -> subprocess.CompletedProcess[str]:
+            result = real_git(arguments, **kwargs)
+            if arguments == ["ls-tree", "-r", "-z", "--name-only", "HEAD"]:
+                result.stdout = (
+                    "../private\0"
+                    if boundary == "unsafe_path"
+                    else "\0".join(f"file-{i}" for i in range(25_001)) + "\0"
+                )
+            return result
+
+        monkeypatch.setattr(dispatch, "_git", native_inventory)
+    with pytest.raises(ValueError, match="unsafe|inventory exceeds|Unmerged tracked"):
+        dispatch._tracked_content_digest(root)
+    if boundary == "unmerged_membership":
+        with pytest.raises(ValueError, match="Unmerged index"):
+            dispatch.capture_source_material(root)
+
+
+@pytest.mark.parametrize("new_files", [True, False])
+def test_material_aggregate_byte_budget_refuses_without_source_index_write(
+    oracle_source_checkout: Path, monkeypatch: pytest.MonkeyPatch, new_files: bool
+) -> None:
+    root = oracle_source_checkout
+    paths = tuple(f"extra-{i}.py" for i in range(9 if new_files else 17))
+    for relative in paths:
+        (root / relative).write_bytes(b"x" * (1 if new_files else 32))
+    if not new_files:
+        dispatch._git(["add", "--", *paths], cwd=root)
+    index_before = dispatch._git(["ls-files", "--stage", "-z"], cwd=root).stdout
+    monkeypatch.setattr(dispatch, "MAX_RESULT_BYTES", 1)
+    with pytest.raises(ValueError, match="aggregate"):
+        if new_files:
+            dispatch.capture_source_material(root, paths)
+        else:
+            dispatch._tracked_content_digest(root)
+    assert dispatch._git(["ls-files", "--stage", "-z"], cwd=root).stdout == index_before
+
+
+def test_raw_symlink_binding_hashes_link_without_reading_target(
+    oracle_source_checkout: Path,
+) -> None:
+    root = oracle_source_checkout
+    target = root / "tracked.py"
+    target.unlink()
+    target.symlink_to("missing-private-target")
+    original = dispatch._tracked_content_digest(root)
+    target.unlink()
+    target.symlink_to("another-missing-private-target")
+    assert dispatch._tracked_content_digest(root) != original
+    assert not (root / "missing-private-target").exists()
+
+
+@pytest.mark.parametrize("backend", ["docker", "apple-container"])
+def test_separate_tool_and_material_mounts_are_readonly(backend: str, tmp_path: Path) -> None:
+    tool = tmp_path / "tool"
+    material = tmp_path / "material"
+    argv = dispatch._container_run_argv(
+        cli="/approved/container",
+        backend=backend,
+        image_ref="image@" + _DIGEST,
+        container_name="fixture",
+        result_volume="owned-result",
+        repository=tool,
+        material_repository=material,
+        input_dir=tmp_path / "input",
+        apple_network="owned-network",
+        command=[
+            dispatch.CONTAINER_PYTHON,
+            "-I",
+            "/repo/scripts/orchestration/experiment_runner.py",
+            "--execution-root",
+            "/material",
+        ],
+    )
+    mounts = [argv[index + 1] for index, token in enumerate(argv[:-1]) if token == "--mount"]
+    for source, destination in [(tool, "/repo"), (material, "/material")]:
+        selected = [mount for mount in mounts if str(source) in mount and destination in mount]
+        assert len(selected) == 1
+        assert "readonly" in selected[0]
+    assert "PYTHONPATH=/repo" in argv
+    assert "PYTHONPATH=/material" not in argv
+    assert argv[-5:] == [
+        dispatch.CONTAINER_PYTHON,
+        "-I",
+        "/repo/scripts/orchestration/experiment_runner.py",
+        "--execution-root",
+        "/material",
+    ]
+
+
+def test_existing_git_identity_reads_explicit_material_without_changing_controls(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    from scripts.orchestration import experiment_runner_pr_creative_context as context
+
+    original = context.REPO_ROOT
+    roots: list[Path] = []
+
+    def query(arguments: list[str], *, cwd: Path, check: bool) -> subprocess.CompletedProcess[str]:
+        roots.append(cwd)
+        value = (
+            "git@github.com:Katsiarynakavaleuskaya/PulsePlate.git"
+            if "remote" in arguments
+            else "a" * 40
+        )
+        return subprocess.CompletedProcess(arguments, 0, value + "\n", "")
+
+    monkeypatch.setattr(context, "run_git", query)
+    assert context._git_identity(tmp_path) == (
+        "Katsiarynakavaleuskaya/PulsePlate",
+        "a" * 40,
+        "a" * 40,
+    )
+    assert roots == [tmp_path] * 3
+    assert context.REPO_ROOT == original
+
+
+def test_runner_material_status_diff_and_checkout_do_not_change_tool_globals(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    material = tmp_path / "material"
+    material.mkdir()
+    tool_root = experiment_runner.REPO_ROOT
+    result_root = experiment_runner.RESULT_ARTIFACT_DIR
+    observations: list[tuple[str, Path]] = []
+
+    def status(root: Path) -> str:
+        observations.append(("status", root))
+        return ""
+
+    def diff(root: Path) -> str:
+        observations.append(("diff", root))
+        return ""
+
+    def checkout(root: Path) -> Any:
+        observations.append(("checkout", root))
+        raise experiment_runner.InfraFlakeError("controlled checkout unavailable")
+
+    monkeypatch.setattr(experiment_runner, "_shared_tree_status", status)
+    monkeypatch.setattr(experiment_runner, "_working_tree_diff_against_head", diff)
+    monkeypatch.setattr(experiment_runner, "_create_temp_checkout", checkout)
+    result = experiment_runner.evaluate_oracle_only_governance_reviewer(
+        _packet(), execution_root=material
+    )
+    assert result["status"] == "rejected"
+    assert observations == [
+        ("status", material),
+        ("diff", material),
+        ("checkout", material),
+        ("status", material),
+    ]
+    assert experiment_runner.REPO_ROOT == tool_root
+    assert experiment_runner.RESULT_ARTIFACT_DIR == result_root
+
+
+@pytest.mark.parametrize("drift", [None, "tool", "material"])
+def test_strict_dispatch_selects_tool_runner_and_rejects_source_drift(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, drift: str | None
+) -> None:
+    tool = tmp_path / "tool"
+    material = tmp_path / "material"
+    tool.mkdir()
+    material.mkdir()
+    packet_path = tmp_path / "packet.json"
+    packet_path.write_text(json.dumps(_packet()), encoding="utf-8")
+    _configure_container_runner_exit(monkeypatch, returncode=0)
+    monkeypatch.setattr(dispatch, "REPO_ROOT", tool)
+    monkeypatch.setattr(dispatch, "_require_candidate_checkout", lambda *args, **kwargs: None)
+    monkeypatch.setattr(dispatch, "_candidate_checkout_proof", lambda *args, **kwargs: {})
+    sources = {
+        tool: {"tracked_content_sha256": "b" * 64},
+        material: {"tracked_content_sha256": "a" * 64},
+    }
+    captured: list[Path] = []
+
+    def capture(root: Path, *args: Any) -> dict[str, Any]:
+        captured.append(root)
+        value = dict(sources[root])
+        selected = tool if drift == "tool" else material
+        if drift is not None and root == selected and captured.count(root) == 2:
+            value["tracked_content_sha256"] = "e" * 64
+        return value
+
+    snapshots: list[Path] = []
+
+    def snapshot(root: Path, destination: Path, **kwargs: Any) -> str:
+        snapshots.append(root)
+        destination.mkdir()
+        if kwargs.get("snapshot_proof") is not None:
+            kwargs["snapshot_proof"].update({"source_material": dict(sources[root])})
+        return ""
+
+    monkeypatch.setattr(dispatch, "capture_source_material", capture)
+    monkeypatch.setattr(dispatch, "_create_snapshot", snapshot)
+    monkeypatch.setattr(dispatch, "_tracked_content_digest", lambda root: "b" * 64)
+    calls: list[list[str]] = []
+    original_run = dispatch._run
+
+    def observed(arguments: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        calls.append(arguments)
+        return original_run(arguments, **kwargs)
+
+    monkeypatch.setattr(dispatch, "_run", observed)
+    result = _accepted_oracle_result()
+    monkeypatch.setattr(dispatch, "_collect_result_volume", lambda **kwargs: result)
+    proof: dict[str, Any] = {}
+    observations: dict[str, Any] = {}
+
+    def invoke() -> dict[str, Any]:
+        return dispatch._invoke_container_runner(
+            probe=_probe("apple-container", strict=True),
+            image=_image(),
+            packet_path=packet_path,
+            candidate_patch=None,
+            output_name="result.json",
+            material_root=material,
+            snapshot_proof=proof,
+            accepted_observations=observations,
+            contribution_kind="oracle_review",
+            coauthor_required=True,
+            coauthor_reason=result["coauthor_reason"],
+        )
+
+    if drift is None:
+        assert invoke()["status"] == "accepted"
+    else:
+        with pytest.raises(dispatch.DispatchError, match="result_validation_failed"):
+            invoke()
+        assert observations == {}
+    assert snapshots == [material, tool]
+    expected_captures = (
+        [material, tool, tool] if drift == "tool" else [material, tool, tool, material]
+    )
+    assert captured == expected_captures
+    runner_calls = [
+        argv for argv in calls if "/repo/scripts/orchestration/experiment_runner.py" in argv
+    ]
+    assert len(runner_calls) == 1
+    argv = runner_calls[0]
+    runner_index = argv.index("/repo/scripts/orchestration/experiment_runner.py")
+    assert argv[runner_index - 1] == "-I"
+    assert argv[argv.index("--execution-root") + 1] == "/material"
+    if drift != "tool":
+        assert proof["tool_source"] == sources[tool]
+        assert proof["tool_snapshot_content_sha256"] == "b" * 64
+    assert dispatch.REPO_ROOT == tool
+
+
+@pytest.mark.parametrize("relation", ["material_child", "material_parent"])
+def test_dispatcher_rejects_overlapping_material_before_runtime_probe(
+    oracle_source_checkout: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    relation: str,
+) -> None:
+    tool = oracle_source_checkout
+    material = tool / "nested" if relation == "material_child" else tool.parent
+    material.mkdir(exist_ok=True)
+    packet = tool / "packet.json"
+    packet.write_text(json.dumps(_packet()), encoding="utf-8")
+
+    def forbidden(*args: Any) -> Any:
+        raise AssertionError("overlap must reject before runtime selection")
+
+    monkeypatch.setattr(dispatch, "select_backend", forbidden)
+    assert (
+        dispatch.main(
+            [
+                "run",
+                "--packet",
+                packet.relative_to(tool).as_posix(),
+                "--material-root",
+                str(material),
+                "--image",
+                "test/runner@" + _DIGEST,
+                "--output",
+                "overlap.json",
+                "--backend",
+                "apple-container",
+            ]
+        )
+        == 2
+    )
+    assert "distinct" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("kind", ["relative", "file", "alias"])
+def test_material_capture_rejects_noncanonical_root_before_git_identity(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, kind: str
+) -> None:
+    from scripts.orchestration import experiment_runner_pr_creative_context as context
+
+    if kind == "relative":
+        root = Path("relative-material")
+    elif kind == "file":
+        root = tmp_path / "material-file"
+        root.write_bytes(b"not a checkout")
+    else:
+        target = tmp_path / "real-material"
+        target.mkdir()
+        root = tmp_path / "material-alias"
+        root.symlink_to(target, target_is_directory=True)
+
+    def forbidden(*args: Any) -> tuple[str, str, str]:
+        raise AssertionError("invalid root must not reach Git identity")
+
+    monkeypatch.setattr(context, "_git_identity", forbidden)
+    with pytest.raises(ValueError):
+        dispatch.capture_source_material(root)
+
+
+@pytest.mark.parametrize("kind", ["relative", "file", "alias", "canonical"])
+def test_runner_cli_execution_root_admission_precedes_material_evaluation(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    kind: str,
+) -> None:
+    material = tmp_path / "material"
+    material.mkdir()
+    root = material
+    if kind == "relative":
+        root = Path("relative-material")
+    elif kind == "file":
+        root = tmp_path / "material-file"
+        root.write_bytes(b"not a checkout")
+    elif kind == "alias":
+        root = tmp_path / "material-alias"
+        root.symlink_to(material, target_is_directory=True)
+    observed: list[Path] = []
+
+    def evaluate(packet: dict[str, Any], **kwargs: Any) -> dict[str, Any]:
+        observed.append(kwargs["execution_root"])
+        return _accepted_oracle_result()
+
+    monkeypatch.setattr(experiment_runner, "_read_json_object", lambda path: _packet())
+    output = tmp_path / "result.json"
+    monkeypatch.setattr(experiment_runner, "_resolve_output_path", lambda *args: output)
+    monkeypatch.setattr(experiment_runner, "evaluate_oracle_only_governance_reviewer", evaluate)
+    status = experiment_runner.main(
+        ["--packet", str(tmp_path / "packet.json"), "--execution-root", str(root)]
+    )
+    if kind == "canonical":
+        assert status == 0
+        assert observed == [material]
+        assert output.is_file()
+    else:
+        assert status == 1
+        assert observed == []
+        assert not output.exists()
+        assert "canonical absolute checkout" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize(
+    "backend,strict", [("apple-container", True), ("auto", True), ("auto", False)]
+)
+def test_public_probe_cli_publishes_capability_and_preserves_rejection(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    backend: str,
+    strict: bool,
+) -> None:
+    output = tmp_path / "capability.json"
+    observed = _probe("apple-container", strict=strict)
+    calls: list[str] = []
+
+    def probe_backend(selected: str, image: dispatch.ImageReference) -> dispatch.BackendProbe:
+        calls.append(selected)
+        assert image.digest == _DIGEST
+        return observed
+
+    def select_backend(
+        selected: str, image: dispatch.ImageReference
+    ) -> tuple[dispatch.BackendProbe | None, list[dispatch.BackendProbe]]:
+        calls.append(selected)
+        assert image.digest == _DIGEST
+        return (observed if strict else None), [observed]
+
+    monkeypatch.setattr(dispatch, "probe_backend", probe_backend)
+    monkeypatch.setattr(dispatch, "select_backend", select_backend)
+    monkeypatch.setattr(dispatch, "_resolve_local_output", lambda *_args, **_kwargs: output)
+    code = dispatch.main(
+        [
+            "probe",
+            "--backend",
+            backend,
+            "--image",
+            "test/runner@" + _DIGEST,
+            "--output",
+            "capability.json",
+        ]
+    )
+    assert code == (0 if strict else 2)
+    saved = json.loads(output.read_bytes())
+    assert saved["authority"] == "evidence_only"
+    assert saved["strict_isolation"] is strict
+    assert saved["image_digest"] == _DIGEST
+    assert saved["blocking_reasons"] == list(observed.blocking_reasons)
+    captured = capsys.readouterr()
+    assert json.loads(captured.out) == {"artifact": "capability.json", "strict_isolation": strict}
+    assert captured.err == ""
+    assert calls == [backend]
+
+
+@pytest.mark.parametrize("fails", [False, True])
+def test_public_build_image_cli_emits_immutable_binding_or_typed_failure(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    fails: bool,
+) -> None:
+    calls: list[tuple[str, str]] = []
+    expected = {
+        "backend": "apple-container",
+        "image": "test/runner@" + _DIGEST,
+        "sanitized": "true",
+    }
+
+    def build(backend: str, tag: str) -> dict[str, str]:
+        calls.append((backend, tag))
+        if fails:
+            raise dispatch.DispatchError("image_hygiene_failed")
+        return expected
+
+    monkeypatch.setattr(dispatch, "_build_image", build)
+    code = dispatch.main(
+        ["build-image", "--backend", "apple-container", "--tag", "test/runner:local"]
+    )
+    captured = capsys.readouterr()
+    assert calls == [("apple-container", "test/runner:local")]
+    if fails:
+        assert code == 2
+        assert captured.out == ""
+        assert captured.err == "experiment_runner_dispatch: image_hygiene_failed\n"
+    else:
+        assert code == 0
+        assert json.loads(captured.out) == expected
+        assert captured.err == ""
+
+
+@pytest.mark.parametrize("kind", ["canonical", "relative", "file", "alias"])
+def test_public_run_cli_admits_only_canonical_distinct_material_before_backend(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    kind: str,
+) -> None:
+    tool = tmp_path / "controls"
+    tool.mkdir()
+    material = tmp_path / "material"
+    material.mkdir()
+    packet = tool / "packet.json"
+    packet.write_text(json.dumps(_packet()), encoding="utf-8")
+    output = tool / "result.json"
+    selected_root = material
+    if kind == "relative":
+        selected_root = Path("relative-material")
+    elif kind == "file":
+        selected_root = tmp_path / "file"
+        selected_root.write_bytes(b"not a directory")
+    elif kind == "alias":
+        selected_root = tmp_path / "alias"
+        selected_root.symlink_to(material, target_is_directory=True)
+    calls: list[str] = []
+    observed = _probe("apple-container", strict=False)
+
+    def select(
+        backend: str, image: dispatch.ImageReference
+    ) -> tuple[None, list[dispatch.BackendProbe]]:
+        calls.append(backend)
+        assert image.digest == _DIGEST
+        return None, [observed]
+
+    monkeypatch.setattr(dispatch, "REPO_ROOT", tool)
+    monkeypatch.setattr(dispatch, "_require_repo_local_file", lambda *_args, **_kwargs: packet)
+    monkeypatch.setattr(dispatch, "_resolve_local_output", lambda *_args, **_kwargs: output)
+    monkeypatch.setattr(dispatch, "select_backend", select)
+    code = dispatch.main(
+        [
+            "run",
+            "--backend",
+            "apple-container",
+            "--packet",
+            "packet.json",
+            "--material-root",
+            str(selected_root),
+            "--image",
+            "test/runner@" + _DIGEST,
+            "--output",
+            "result.json",
+        ]
+    )
+    captured = capsys.readouterr()
+    assert code == (4 if kind == "canonical" else 2)
+    if kind == "canonical":
+        assert calls == ["apple-container"]
+        result = json.loads(output.read_bytes())
+        assert result["status"] == "rejected"
+        assert result["failure_class"] == "capability_mismatch"
+        assert result["budget_observations"]["oracle_commands_executed"] == 0
+        assert result["budget_observations"]["attempts"] == 0
+        assert result["budget_observations"]["retries_consumed"] == 0
+        assert result["promotion_ready"] is False
+        assert json.loads(captured.out)["status"] == "rejected"
+        assert captured.err == ""
+    else:
+        assert calls == []
+        assert not output.exists()
+        assert captured.out == ""
+        assert captured.err.startswith("experiment_runner_dispatch: ")
+
+
+@pytest.mark.parametrize("tracked_change", ["unchanged", "edited", "deleted"])
+def test_index_only_deleted_addition_matches_final_snapshot(
+    oracle_source_checkout: Path, tmp_path: Path, tracked_change: str
+) -> None:
+    root = oracle_source_checkout
+    new = root / "staged-new.py"
+    new.write_bytes(b"staged only\n")
+    dispatch._git(["add", "staged-new.py"], cwd=root)
+    new.unlink()
+    if tracked_change == "edited":
+        (root / "tracked.py").write_bytes(b"final edit\n")
+    elif tracked_change == "deleted":
+        (root / "tracked.py").unlink()
+    index = dispatch._git(["ls-files", "--stage", "-z"], cwd=root).stdout
+    material = dispatch.capture_source_material(root)
+    proof: dict[str, Any] = {}
+    snapshot = tmp_path.resolve() / "ad-snapshot"
+    dispatch._create_snapshot(root, snapshot, source_material=material, snapshot_proof=proof)
+    assert proof["snapshot_content_sha256"] == material["tracked_content_sha256"]
+    assert not (snapshot / "staged-new.py").exists()
+    assert dispatch._git(["ls-files", "--stage", "-z"], cwd=root).stdout == index
+    assert material["staged_diff_sha256"] != material["worktree_diff_sha256"]

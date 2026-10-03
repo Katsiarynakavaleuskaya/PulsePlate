@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import platform
 import shlex
 import sys
 from pathlib import Path
@@ -607,6 +608,42 @@ def _thaw_packet(value: Any) -> Any:
     return value
 
 
+def _oracle_hook_prompt_lines(
+    packet_path: str,
+    *,
+    implementation_owners: list[str] | None = None,
+    host_platform: str | None = None,
+) -> list[str]:
+    """Deliver inert host instructions; rendering never executes an oracle."""
+
+    backend = (
+        "apple-container"
+        if (host_platform or platform.system()) == "Darwin"
+        else "<explicit-compatible-container-backend>"
+    )
+    return [
+        "Externally admit TRUSTED_TOOL_ROOT, distinct MATERIAL_ROOT and a clean absolute VENV_PYTHON before invocation. Run from TRUSTED_TOOL_ROOT; -I does not disable approved runtime site processing.",
+        "Oracle accompaniment is pending metadata until coordinator admission of commands, budget and the first reviewable material diff.",
+        "Before a material-dependent native review, use the host dispatch hook. Preserve the validated manifest mode and every implementation-owner flag; replace placeholders with admitted inputs.",
+        'Host oracle dispatch: "$VENV_PYTHON" -I "$TRUSTED_TOOL_ROOT/scripts/orchestration/pr_oracle_attachment.py" dispatch --material-root "$MATERIAL_ROOT" --packet '
+        + _shell_quote(packet_path)
+        + " --experiment-packet '<approved-experiment-packet>' --role-context-order '<selected-order>' --mode '<manifest-mode>' --backend "
+        + _shell_quote(backend)
+        + " --image '<immutable-image>' --instruction-file '<explicitly-admitted-instruction-file>' --pretty",
+        "Replace the instruction placeholder with an explicitly admitted repository instruction reference; repeat --instruction-file for every required admitted source. A placeholder is not acquired instruction content.",
+        (
+            "Preserve these emitted owner flags: "
+            + " ".join(
+                "--implementation-owner " + _shell_quote(owner) for owner in implementation_owners
+            )
+            if implementation_owners
+            else "Preserve any emitted owner flags; an ownerless packet receives none."
+        )
+        + " Append --admitted-new-file only for explicitly admitted new files. The hook ensures or reuses evidence, then emits the exact existing role-context envelope for the host native transport.",
+        "Automatic transport is enabled by default. --no-auto-oracle --oracle-evidence '<manual-linkage-receipt>' disables execution and still requires equally validated current manual oracle evidence. Preparatory roles retain the ordinary oracle-independent bridge path.",
+    ]
+
+
 def render_packet_prompt(
     packet: dict[str, Any],
     *,
@@ -658,6 +695,14 @@ def render_packet_prompt(
         f"Path scope: {_prompt_list(candidate_paths, '<no explicit paths>')}",
     ]
     lines.extend(packet_details)
+    lines.extend(
+        _oracle_hook_prompt_lines(
+            packet_path,
+            implementation_owners=_as_string_list(
+                role_dispatch_contract.get("runtime_implementation_owners")
+            ),
+        )
+    )
     if evidence_rail_applicability is not None:
         lines.extend(_applicability_prompt_lines(evidence_rail_applicability))
     else:
@@ -843,6 +888,7 @@ def render_recipe_prompt(
             EXPERIMENT_RUNNER_ENV_GUIDANCE,
         ]
     )
+    lines.extend(_oracle_hook_prompt_lines("<bootstrap-packet>"))
     lines.extend(_euler_prompt_lines(None))
     return "\n".join(lines)
 

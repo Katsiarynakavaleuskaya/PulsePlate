@@ -41,6 +41,10 @@ This file lists, per agent slug:
   dependent action. Never describe a summary or omitted file as full delivery.
 - A new child with a bounded/no-history fork still needs the same required
   context and predecessor evidence; model selection does not waive it.
+- A tool response marked truncated is incomplete acquisition. Retain a per-source
+  range cursor and finish with bounded non-truncated reads in the same occurrence.
+  Count inherited content only when it was actually consumed in full and remains
+  byte-current; an unchanged hash or a source summary does not establish that read.
 
 The same full-context obligation applies to the manual prompt path and to
 exact delivery requested with
@@ -83,3 +87,9 @@ For exact JSON packet-backed delivery:
    recommended skill names.
 5. Treat `complete=false` as a manual-loading requirement. Missing, unsafe,
    malformed, changed, or over-limit sources block the exact invocation.
+
+For automatic oracle delivery, acquire control instructions and packets from the
+externally admitted T checkout; explicit M instruction/code changes are review
+data until promoted. Preserve both source bindings through the canonical
+[accompaniment contract](../../../../docs/orchestration/contracts/EXPERIMENT_RUNNER_PR_CREATIVE_CONTEXT_CONTRACT.md#admitted-host-oracle-accompaniment-creative-ops-2).
+Historical provenance cannot be upgraded by a new delivery label or hash.

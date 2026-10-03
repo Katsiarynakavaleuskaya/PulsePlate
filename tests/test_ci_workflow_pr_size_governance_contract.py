@@ -2369,7 +2369,7 @@ def test_node24_artifact_and_script_action_pins_use_verified_commit_shas() -> No
     """Guard remaining Node 20 action migrations against tag-object drift."""
 
     download_workflows = {
-        CI_WORKFLOW_PATH: 8,
+        CI_WORKFLOW_PATH: 9,
         CODECOV_UPLOAD_WORKFLOW_PATH: 1,
         IOS_APPSTORE_ASSETS_WORKFLOW_PATH: 1,
         NIGHTLY_WORKFLOW_PATH: 1,
@@ -3656,6 +3656,16 @@ def test_node24_artifact_migration_preserves_download_contracts() -> None:
             {
                 "name": "coverage-fitchef-eval-${{ env.PYTHON_VERSION }}",
                 "path": "./fitchef-eval-coverage",
+            },
+            None,
+        ),
+        (
+            ".github/workflows/ci.yml",
+            "diff-coverage",
+            "Download orchestration coverage artifact",
+            {
+                "name": "coverage-orchestration-${{ env.PYTHON_VERSION }}",
+                "path": "./orchestration-coverage",
             },
             None,
         ),
@@ -5397,3 +5407,214 @@ def test_fitchef_zero_hit_git_fixture_preserves_an_inherited_synthetic_parent(
     (child / "coverage-fitchef-eval.xml").write_text(xml, encoding="utf-8")
     _assert_zero_hit_diff_consumer_rejects(child)
     assert {name: (metadata / name).read_bytes() for name in before} == before
+
+
+ORCHESTRATION_COVERAGE_FILES = (
+    "scripts/orchestration/pr_oracle_attachment.py",
+    "scripts/orchestration/experiment_runner_dispatch.py",
+    "scripts/orchestration/qoder_dispatch_bridge.py",
+    "scripts/orchestration/task_bootstrap.py",
+    "scripts/orchestration/render_codex_start_prompt.py",
+    "scripts/orchestration/experiment_runner.py",
+    "scripts/orchestration/experiment_runner_pr_creative_context.py",
+)
+
+
+def test_orchestration_coverage_uses_isolated_required_same_run_numeric_report() -> None:
+    workflow = _load_ci_workflow()
+    measure = _job_step_by_name(
+        workflow, job_id="test-pr", step_name="Measure orchestration CLI coverage"
+    )
+    run = str(measure["run"])
+    assert "--rcfile=/dev/null --branch" in run
+    assert f"--include='{','.join(ORCHESTRATION_COVERAGE_FILES)}'" in run
+    assert "--data-file=.coverage.orchestration -m pytest -q -p no:xdist" in run
+    for filename in ORCHESTRATION_COVERAGE_FILES:
+        assert f"tests/test_{Path(filename).stem}.py" in run
+    assert "--data-file=.coverage.orchestration -o coverage-orchestration.xml" in run
+    assert "--append" not in run
+    assert measure["env"]["BLOCK_TEST_NETWORK"] == "true"
+    upload = _job_step_by_name(
+        workflow, job_id="test-pr", step_name="Upload orchestration coverage artifact"
+    )
+    assert upload["uses"] == f"actions/upload-artifact@{UPLOAD_ARTIFACT_NODE24_SHA}"
+    assert upload["with"] == {
+        "name": "coverage-orchestration-${{ env.PYTHON_VERSION }}",
+        "path": "coverage-orchestration.xml",
+        "if-no-files-found": "error",
+        "retention-days": 7,
+    }
+    download = _job_step_by_name(
+        workflow, job_id="diff-coverage", step_name="Download orchestration coverage artifact"
+    )
+    assert download["uses"] == f"actions/download-artifact@{DOWNLOAD_ARTIFACT_NODE24_SHA}"
+    assert download["with"] == {
+        "name": "coverage-orchestration-${{ env.PYTHON_VERSION }}",
+        "path": "./orchestration-coverage",
+    }
+    for step in (measure, upload, download):
+        assert "if" not in step and "continue-on-error" not in step
+    gate = _job_step_by_name(
+        workflow, job_id="diff-coverage", step_name="Enforce diff coverage >= 97%"
+    )
+    assert gate["env"] == {"COVERAGE_THRESHOLD": 97}
+    assert "./orchestration-coverage/coverage-orchestration.xml" in gate["run"]
+    assert "--exclude 'scripts" not in gate["run"]
+    assert '--fail-under "${{ env.COVERAGE_THRESHOLD }}"' in gate["run"]
+
+
+@pytest.mark.parametrize("filename", ORCHESTRATION_COVERAGE_FILES)
+@pytest.mark.parametrize(
+    "case",
+    [
+        "valid",
+        "zero_hit",
+        "missing_xml",
+        "malformed_xml",
+        "missing_class",
+        "duplicate_class",
+        "extra_class",
+        "empty",
+        "bad_number",
+        "zero_number",
+        "duplicate_line",
+        "bad_hits",
+        "negative_hits",
+        "missing_number",
+        "missing_hits",
+    ],
+)
+def test_orchestration_workflow_executes_exact_native_line_inventory_checker(
+    tmp_path: Path, filename: str, case: str
+) -> None:
+    import sys
+    from xml.etree import ElementTree
+
+    run = str(
+        _job_step_by_name(
+            _load_ci_workflow(), job_id="test-pr", step_name="Measure orchestration CLI coverage"
+        )["run"]
+    )
+    marker = "python - <<'PY'\n"
+    assert run.count(marker) == 1
+    checker = run.split(marker, 1)[1].rsplit("\nPY", 1)[0]
+    tree = ElementTree.Element("coverage")
+    classes = ElementTree.SubElement(tree, "classes")
+    for path in ORCHESTRATION_COVERAGE_FILES:
+        if path == filename and case == "missing_class":
+            continue
+        cls = ElementTree.SubElement(classes, "class", filename=path)
+        lines = ElementTree.SubElement(cls, "lines")
+        if path == filename and case == "empty":
+            continue
+        attrs = {"number": "1", "hits": "0" if case == "zero_hit" else "1"}
+        if path == filename:
+            if case in {"bad_number", "zero_number"}:
+                attrs["number"] = "bad" if case == "bad_number" else "0"
+            if case in {"bad_hits", "negative_hits"}:
+                attrs["hits"] = "bad" if case == "bad_hits" else "-1"
+            if case == "missing_number":
+                attrs.pop("number")
+            if case == "missing_hits":
+                attrs.pop("hits")
+        ElementTree.SubElement(lines, "line", **attrs)
+        if path == filename and case == "duplicate_line":
+            ElementTree.SubElement(lines, "line", **attrs)
+    if case in {"duplicate_class", "extra_class"}:
+        ElementTree.SubElement(
+            classes, "class", filename=filename if case == "duplicate_class" else "extra.py"
+        )
+    raw = ElementTree.tostring(tree, encoding="unicode")
+    if case == "malformed_xml":
+        raw = "<coverage"
+    if case != "missing_xml":
+        (tmp_path / "coverage-orchestration.xml").write_text(raw, encoding="utf-8")
+    result = subprocess.run(
+        [sys.executable, "-c", checker], cwd=tmp_path, capture_output=True, timeout=5, check=False
+    )
+    assert (result.returncode == 0) is (case in {"valid", "zero_hit"})
+
+
+def _consume_orchestration_diff_fixture(
+    tmp_path: Path, inventories: dict[str, list[int]]
+) -> subprocess.CompletedProcess[str]:
+    """Delegate arithmetic to real diff-cover; synthetic lines are measurement controls."""
+    import sys
+    from xml.etree import ElementTree
+
+    git = shutil.which("git")
+    assert git is not None
+    subprocess.run(
+        [git, *safe_git_config_args(), "init", "-q"],
+        cwd=tmp_path,
+        env=git_env_without_parent_state(),
+        check=True,
+        timeout=5,
+    )
+    tree = ElementTree.Element("coverage")
+    ElementTree.SubElement(ElementTree.SubElement(tree, "sources"), "source").text = "."
+    classes = ElementTree.SubElement(tree, "classes")
+    patches = []
+    for filename, hits in inventories.items():
+        source = tmp_path / filename
+        source.parent.mkdir(parents=True, exist_ok=True)
+        source.write_text("after = 1\n" * len(hits), encoding="utf-8")
+        lines = ElementTree.SubElement(
+            ElementTree.SubElement(classes, "class", filename=filename), "lines"
+        )
+        for number, hit in enumerate(hits, 1):
+            ElementTree.SubElement(lines, "line", number=str(number), hits=str(hit))
+        patches.append(
+            f"diff --git a/{filename} b/{filename}\n--- a/{filename}\n+++ b/{filename}\n"
+            f"@@ -1,{len(hits)} +1,{len(hits)} @@\n"
+            + "-before = 0\n" * len(hits)
+            + "+after = 1\n" * len(hits)
+        )
+    xml = tmp_path / "coverage-orchestration.xml"
+    xml.write_bytes(ElementTree.tostring(tree))
+    patch = tmp_path / "changed.patch"
+    patch.write_text("".join(patches), encoding="utf-8")
+    return subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "diff_cover.diff_cover_tool",
+            str(xml),
+            "--diff-file",
+            str(patch),
+            "--fail-under",
+            "97",
+        ],
+        cwd=tmp_path,
+        env=git_env_without_parent_state(),
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
+    )
+
+
+@pytest.mark.parametrize("filename", ORCHESTRATION_COVERAGE_FILES)
+def test_orchestration_numeric_diff_consumer_rejects_each_zero_hit_owner(
+    tmp_path: Path, filename: str
+) -> None:
+    result = _consume_orchestration_diff_fixture(tmp_path, {filename: [0]})
+    assert result.returncode != 0
+    assert "Total:   1 line" in result.stdout
+    assert "Coverage: 0%" in result.stdout
+
+
+@pytest.mark.parametrize("uncovered,expected_pass", [(3, True), (4, False)])
+def test_orchestration_numeric_diff_consumer_retains_aggregate_97_percent(
+    tmp_path: Path, uncovered: int, expected_pass: bool
+) -> None:
+    result = _consume_orchestration_diff_fixture(
+        tmp_path,
+        {
+            ORCHESTRATION_COVERAGE_FILES[0]: [0] * uncovered,
+            ORCHESTRATION_COVERAGE_FILES[1]: [1] * (100 - uncovered),
+        },
+    )
+    assert (result.returncode == 0) is expected_pass
+    assert "Total:   100 lines" in result.stdout
+    assert f"Coverage: {100 - uncovered}%" in result.stdout
