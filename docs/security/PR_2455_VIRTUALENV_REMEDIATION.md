@@ -377,7 +377,7 @@ The actual stock creator command is pre-commit's
 `[sys.executable, -m virtualenv, envdir]`, with no extra creator/seeder/download
 flags. Effective native pip configuration observation has only environment
 configuration, no existing global/user/site/env config file or virtualenv config
-path, explicit per-process PIP_INDEX_URL at https://packages.pulseplate.app and
+path, explicit per-process PIP_INDEX_URL at `https://packages.pulseplate.app` and
 no other ambient index override. Credential values are not recorded here.
 
 Selected pip-26.2.1-py3-none-any.whl is1,816,632 bytes, SHA256
