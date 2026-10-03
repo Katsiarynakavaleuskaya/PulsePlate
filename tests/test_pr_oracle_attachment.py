@@ -695,6 +695,18 @@ def test_actual_request_uses_canonical_selector_and_snapshot(
     )
     material_root = tmp_path.resolve() / "material"
     material_root.mkdir()
+
+    # This selector unit uses synthetic capture, not a Git repository. Native
+    # inventory correctness is proved independently by the real Git fixtures.
+    def admitted_native_prerequisite(
+        arguments: list[str], **kwargs: Any
+    ) -> subprocess.CompletedProcess[str]:
+        assert arguments[:2] == ["merge-base", "--is-ancestor"] or (
+            arguments[0] == "diff" and "--no-renames" in arguments and "-z" in arguments
+        )
+        return subprocess.CompletedProcess(arguments, 0, "", "")
+
+    monkeypatch.setattr(oracle.dispatcher, "_git", admitted_native_prerequisite)
     bound, admitted = oracle._request(
         material_root=material_root,
         packet=task_ref,
@@ -2668,3 +2680,173 @@ def test_known_oversized_attachment_rejects_before_execution(
         _ensure(request)
     assert calls == []
     assert not list(oracle.EVIDENCE_ROOT.rglob("receipt.json"))
+
+
+@pytest.mark.parametrize("kind", ["committed", "dirty", "delete", "rename_out", "rename_in"])
+def test_native_context_rejects_outside_committed_or_final_paths_before_execution(
+    admitted_request: tuple[dict[str, Any], dict[str, Any]],
+    monkeypatch: pytest.MonkeyPatch,
+    kind: str,
+) -> None:
+    arguments, _ = admitted_request
+    material = arguments["material_root"]
+    git = oracle.dispatcher._git
+    inside = "scripts/orchestration/fixture.py"
+    outside = "docs/outside.md"
+    if kind in {"delete", "rename_in"}:
+        (material / outside).write_bytes(b"baseline outside\n")
+        git(["add", outside], cwd=material)
+        git(["commit", "--quiet", "-m", "outside baseline"], cwd=material)
+        git(["update-ref", "refs/remotes/origin/main", "HEAD"], cwd=material)
+    if kind == "rename_out":
+        git(["mv", inside, outside], cwd=material)
+    elif kind == "rename_in":
+        git(["mv", outside, "scripts/orchestration/moved.py"], cwd=material)
+    elif kind == "delete":
+        git(["rm", outside], cwd=material)
+    else:
+        (material / outside).write_bytes(b"outside change\n")
+        git(["add", outside], cwd=material)
+    if kind != "dirty":
+        git(["commit", "--quiet", "-m", "actual context counterexample"], cwd=material)
+    before = git(["ls-files", "--stage", "-z"], cwd=material).stdout
+    calls: list[list[str]] = []
+    monkeypatch.setattr(oracle, "_execute_dispatch", lambda argv: calls.append(argv) or 0)
+    ensure = dict(arguments)
+    ensure["implementation_owners"] = ensure.pop("owners")
+    with pytest.raises(oracle.OracleEvidenceError):
+        oracle.ensure_oracle_evidence(**ensure, role_context_order=1)
+    assert calls == []
+    assert not oracle.EVIDENCE_ROOT.exists()
+    assert git(["ls-files", "--stage", "-z"], cwd=material).stdout == before
+
+
+@pytest.mark.parametrize("name", ["space name.py", "tab\tname.py", "line\nname.py", "*.py"])
+def test_native_context_preserves_literal_names_and_more_than_three_committed_paths(
+    admitted_request: tuple[dict[str, Any], dict[str, Any]], name: str
+) -> None:
+    arguments, experiment = admitted_request
+    experiment["budgets"]["max_changed_files"] = 3
+    (oracle.REPO_ROOT / arguments["experiment_packet"]).write_text(json.dumps(experiment))
+    material = arguments["material_root"]
+    paths = ["scripts/orchestration/" + name] + [
+        f"scripts/orchestration/allowed-{index}.py" for index in range(3)
+    ]
+    for relative in paths:
+        (material / relative).write_bytes(b"allowed committed bytes\n")
+    oracle.dispatcher._git(["--literal-pathspecs", "add", "--", *paths], cwd=material)
+    oracle.dispatcher._git(["commit", "--quiet", "-m", "four allowed paths"], cwd=material)
+    request, experiment = oracle._request(**arguments)
+    assert request["source_material"]["head_sha"] != request["source_material"]["base_sha"]
+    assert experiment["budgets"]["max_changed_files"] == 3
+
+
+@pytest.mark.parametrize("admitted", [True, False])
+def test_native_context_mapping_requires_exact_explicit_admission(
+    admitted_request: tuple[dict[str, Any], dict[str, Any]], admitted: bool
+) -> None:
+    arguments, experiment = admitted_request
+    allowed = "docs/review/PR_2464_FIXED_MAPPING.md"
+    selected = allowed if admitted else "docs/review/PR_2465_FIXED_MAPPING.md"
+    for root in [oracle.REPO_ROOT, arguments["material_root"]]:
+        path = root / selected
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b"mapping fixture\n")
+        oracle.dispatcher._git(["add", selected], cwd=root)
+    oracle.dispatcher._git(
+        ["commit", "--quiet", "-m", "mapping change"], cwd=arguments["material_root"]
+    )
+    if admitted:
+        experiment["mutable_candidate_surface"].append(allowed)
+        (oracle.REPO_ROOT / arguments["experiment_packet"]).write_text(json.dumps(experiment))
+        request, _ = oracle._request(**arguments)
+        assert request["source_material"]["head_sha"] != request["source_material"]["base_sha"]
+    else:
+        with pytest.raises(oracle.OracleEvidenceError):
+            oracle._request(**arguments)
+
+
+@pytest.mark.parametrize("failure", ["native_error", "incomplete_inventory", "nonancestor"])
+def test_native_context_uncertainty_rejects_without_execution(
+    admitted_request: tuple[dict[str, Any], dict[str, Any]],
+    monkeypatch: pytest.MonkeyPatch,
+    failure: str,
+) -> None:
+    arguments, _ = admitted_request
+    native = oracle.dispatcher._git
+
+    def controlled(arguments: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        if arguments[:2] == ["merge-base", "--is-ancestor"] and failure == "nonancestor":
+            return subprocess.CompletedProcess(arguments, 1, "", "")
+        if arguments[0] == "diff" and "--name-only" in arguments:
+            if failure == "native_error":
+                raise oracle.dispatcher.DispatchError("probe_execution_failed")
+            if failure == "incomplete_inventory":
+                return subprocess.CompletedProcess(arguments, 0, "unclosed-path", "")
+        return native(arguments, **kwargs)
+
+    monkeypatch.setattr(oracle.dispatcher, "_git", controlled)
+    with pytest.raises(oracle.OracleEvidenceError):
+        oracle._request(**arguments)
+    assert not oracle.EVIDENCE_ROOT.exists()
+
+
+@pytest.mark.parametrize("drift", ["head", "base", "content"])
+def test_native_context_acquisition_drift_rejects_exact_captured_interval(
+    admitted_request: tuple[dict[str, Any], dict[str, Any]],
+    monkeypatch: pytest.MonkeyPatch,
+    drift: str,
+) -> None:
+    arguments, _ = admitted_request
+    material = arguments["material_root"]
+    native = oracle.dispatcher._git
+    relative = "scripts/orchestration/fixture.py"
+    (material / relative).write_bytes(b"initial allowed commit\n")
+    native(["add", relative], cwd=material)
+    native(["commit", "--quiet", "-m", "initial material"], cwd=material)
+    captured = oracle.dispatcher.capture_source_material(material)
+    queries: list[list[str]] = []
+    changed = False
+
+    def change_after_inventory(args: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        nonlocal changed
+        result = native(args, **kwargs)
+        if args[0] == "diff" and "--name-only" in args:
+            queries.append(args)
+            if not changed:
+                changed = True
+                if drift == "base":
+                    native(["update-ref", "refs/remotes/origin/main", "HEAD"], cwd=material)
+                else:
+                    (material / relative).write_bytes(b"changed during acquisition\n")
+                    if drift == "head":
+                        native(["add", relative], cwd=material)
+                        native(["commit", "--quiet", "-m", "changed endpoint"], cwd=material)
+        return result
+
+    monkeypatch.setattr(oracle.dispatcher, "_git", change_after_inventory)
+    with pytest.raises(oracle.OracleEvidenceError, match="changed during context") as failure:
+        oracle._request(**arguments)
+    assert failure.value.lifecycle_state == "stale"
+    assert queries[0][-3:] == [captured["base_sha"], captured["head_sha"], "--"]
+    assert queries[1][-2:] == [captured["head_sha"], "--"]
+    assert not oracle.EVIDENCE_ROOT.exists()
+
+
+def test_native_context_real_nonancestor_base_fails_without_base_fallback(
+    admitted_request: tuple[dict[str, Any], dict[str, Any]],
+) -> None:
+    arguments, _ = admitted_request
+    material = arguments["material_root"]
+    native = oracle.dispatcher._git
+    old_head = native(["rev-parse", "HEAD"], cwd=material).stdout.strip()
+    relative = "scripts/orchestration/fixture.py"
+    (material / relative).write_bytes(b"newer base commit\n")
+    native(["add", relative], cwd=material)
+    native(["commit", "--quiet", "-m", "newer base"], cwd=material)
+    native(["update-ref", "refs/remotes/origin/main", "HEAD"], cwd=material)
+    native(["checkout", "--quiet", old_head], cwd=material)
+    with pytest.raises(oracle.OracleEvidenceError, match="not an ancestor"):
+        oracle._request(**arguments)
+    assert native(["rev-parse", "HEAD"], cwd=material).stdout.strip() == old_head
+    assert not oracle.EVIDENCE_ROOT.exists()

@@ -254,6 +254,53 @@ def _request(
     try:
         source_material = dispatcher.capture_source_material(material_root, admitted_new_files)
         tool_source = dispatcher.capture_source_material(REPO_ROOT.resolve())
+        ancestry = dispatcher._git(
+            [
+                "merge-base",
+                "--is-ancestor",
+                source_material["base_sha"],
+                source_material["head_sha"],
+            ],
+            cwd=material_root,
+            allowed_returncodes=(0, 1),
+        )
+        if ancestry.returncode != 0:
+            raise OracleEvidenceError("Captured oracle base is not an ancestor of its head.")
+        paths = set(admitted_new_files)
+        for endpoints in (
+            [source_material["base_sha"], source_material["head_sha"]],
+            [source_material["head_sha"]],
+        ):
+            inventory = dispatcher._git(
+                [
+                    "diff",
+                    "--no-ext-diff",
+                    "--no-textconv",
+                    "--no-renames",
+                    "--name-only",
+                    "-z",
+                    *endpoints,
+                    "--",
+                ],
+                cwd=material_root,
+            ).stdout
+            if inventory and not inventory.endswith("\0"):
+                raise OracleEvidenceError("Native oracle path inventory is incomplete.")
+            paths.update(inventory.split("\0")[:-1] if inventory else [])
+        if any(
+            not any(
+                path == surface or path.startswith(surface.rstrip("/") + "/")
+                for surface in experiment["mutable_candidate_surface"]
+            )
+            for path in paths
+        ):
+            raise OracleEvidenceError("Committed or final material exceeds the experiment context.")
+        if dispatcher.capture_source_material(material_root, admitted_new_files) != source_material:
+            raise OracleEvidenceError(
+                "Material changed during context admission.", lifecycle_state="stale"
+            )
+    except OracleEvidenceError:
+        raise
     except (ValueError, dispatcher.DispatchError) as exc:
         raise OracleEvidenceError(
             "Exact raw material cannot be acquired.", lifecycle_state="material_unavailable"
