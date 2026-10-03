@@ -132,8 +132,13 @@ APPROVE NON-DRAFT PR <plan-fingerprint> <patch-hash-8>
 
 There is no `--yes` flag, CI approval mode, or environment bypass.
 
-`promote` rechecks plan, validation, approval, actor, current `origin/main`,
-branch absence, and patch fingerprint before creating any remote state.
+`promote` treats the persisted validation and approval JSON as audit records,
+not authorization capabilities. Unless it is verifying an already completed
+receipt replay, it reruns the complete validation flow and collects a new
+interactive TTY approval in the same process immediately before remote
+mutation, overwriting any prebuilt copies of those artifacts. It then rechecks
+plan, validation, approval, actor, current `origin/main`, branch absence, and
+patch fingerprint before creating any remote state.
 
 ## Admission
 
