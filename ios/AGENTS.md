@@ -323,6 +323,13 @@ orders and inventories. CI output and Step Summary show family, runtime, UDID an
 - **Timeout tuning:** Do not lower the live 300-second default to address runner failures; diagnose
   simulator state before changing the bounded timeout in a dedicated CI fix.
 
+**UI matrix job budget:**
+
+- The existing `ios-ui-smoke` job has a 45-minute enclosing limit for both families.
+- Its sequential boot, Debug build, and UI test caps total 30 minutes; the remaining
+  15 minutes are nominal setup/diagnostic headroom, not a guarantee or SLA.
+- Preserve the separate phase timeouts and current-head terminal UI test evidence.
+
 **System services warmup:**
 
 - After bootstatus succeeds, CI runs `xcrun simctl launch "$UDID" com.apple.springboard` (best-effort)
