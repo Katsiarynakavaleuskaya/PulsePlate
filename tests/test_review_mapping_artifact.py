@@ -343,6 +343,17 @@ Evidence: See mapping entries below.
     assert errors == []
 
 
+def test_validate_fixed_mapping_section_rejects_malformed_preamble_disposition() -> None:
+    section = """Disposition: FIXED-BYPASS
+Commit: see mapping entries below
+Evidence: See mapping entries below.
+
+- https://github.com/org/repo/pull/1000#discussion_r1 -> abc1234
+"""
+    errors = artifact.validate_fixed_mapping_section(section)
+    assert any("Invalid Disposition value: FIXED-BYPASS" in error for error in errors)
+
+
 def test_validate_fixed_mapping_section_accepts_placeholder_preamble_with_thread_lines() -> None:
     section = """Disposition: FIXED
 Commit: see mapping entries below
