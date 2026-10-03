@@ -2014,14 +2014,14 @@ def _validate_wheelhouse(
     if graph_admission is not None and graph_admission.admission_id == VIRTUALENV_2455_ADMISSION_ID:
         _assert_graph_change_admission(graph_admission)
         for key, expected in graph_admission.artifacts.items():
-            artifact = actual.get(key)
+            admitted_artifact = actual.get(key)
             if (
-                artifact is None
+                admitted_artifact is None
                 or (
-                    artifact.path.name,
-                    artifact.snapshot.size,
-                    artifact.snapshot.digest,
-                    artifact.metadata_digest,
+                    admitted_artifact.path.name,
+                    admitted_artifact.snapshot.size,
+                    admitted_artifact.snapshot.digest,
+                    admitted_artifact.metadata_digest,
                 )
                 != expected
             ):
