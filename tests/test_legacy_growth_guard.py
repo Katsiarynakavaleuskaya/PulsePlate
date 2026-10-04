@@ -232,6 +232,7 @@ def test_retired_log_retention_tail_is_exact_and_disjoint() -> None:
 
 
 def test_retired_planning_schema_tail_is_exact_and_disjoint() -> None:
+    """Keep the four-name schema cohort exact and disjoint from the original 87."""
     assert RETIRED_PLANNING_SCHEMA_BINDINGS == (
         "TargetsIn",
         "CanonicalTargetsIn",
@@ -257,6 +258,7 @@ def test_retired_planning_schema_tail_is_exact_and_disjoint() -> None:
     ids=["assignment", "import-alias", "function", "class", "delete", "global"],
 )
 def test_retired_planning_schema_binding_carrier(binding_name: str, source_template: str) -> None:
+    """Reject each supported static binding form for every retired planning schema."""
     assert legacy_guard.validate_retired_legacy_python_bindings(
         source_template.format(name=binding_name)
     ) == [f"legacy_app.py: retired Python compatibility binding is forbidden: {binding_name}"]
@@ -283,6 +285,7 @@ def test_retired_planning_schema_binding_carrier(binding_name: str, source_templ
 def test_retired_planning_schema_guard_rejects_exact_canonical_reimport(
     binding_name: str, source: str
 ) -> None:
+    """Reject canonical schema re-imports that would restore retired facade names."""
     assert legacy_guard.validate_retired_legacy_python_bindings(source) == [
         f"legacy_app.py: retired Python compatibility binding is forbidden: {binding_name}"
     ]

@@ -135,6 +135,7 @@ def test_targets_in_rejects_invalid_values(payload: dict[str, object]) -> None:
     ids=("list", "null", "string", "boolean", "number", "overflow"),
 )
 def test_targets_in_rejects_malformed_mapping_or_overflow(field: str, bad_value: object) -> None:
+    """Reject malformed macros or micro mappings and overflowing numeric values."""
     payload: dict[str, object] = {
         "kcal": 2000,
         "macros": {"protein_g": 150.0},
@@ -150,6 +151,7 @@ def test_targets_in_rejects_malformed_mapping_or_overflow(field: str, bad_value:
 def test_targets_in_preserves_supported_mappings_and_zero(
     mapping_factory: Callable[[dict[str, object]], Mapping[str, object]],
 ) -> None:
+    """Preserve supported Mapping inputs, numeric strings and allowed zero values."""
     mapping = mapping_factory({"protein_g": "150.0", "optional_g": 0})
     targets = TargetsIn.model_validate(
         {"kcal": 2000, "macros": mapping, "micro": {}, "water_ml": 0}

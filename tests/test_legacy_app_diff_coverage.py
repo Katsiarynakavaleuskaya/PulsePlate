@@ -126,6 +126,7 @@ def _patch_long_prompt_orchestration(
 
 
 def _legacy_week_plan_request() -> LegacyWeekPlanRequest:
+    """Construct a complete profile request without running schema validation."""
     return LegacyWeekPlanRequest.model_construct(
         sex="female",
         age=30,
@@ -560,6 +561,8 @@ def test_legacy_insight_trims_prompt_text(monkeypatch: pytest.MonkeyPatch) -> No
 def test_week_plan_missing_required_fields_raises_422(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Reject missing profile fields with the direct handler's required-fields 422."""
+
     async def _run() -> None:
         """Cover the required-fields 422 branch inside api_weekly_menu.
 
