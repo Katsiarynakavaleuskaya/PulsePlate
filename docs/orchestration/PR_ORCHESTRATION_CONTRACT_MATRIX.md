@@ -250,10 +250,10 @@ retry.
 Evidence:
 - `scripts/orchestration/check_merge_ready.py:383`
 - `scripts/orchestration/check_merge_ready.py:409`
-- `scripts/ci/check_pr_merge_readiness.py:1203`
-- `scripts/ci/check_pr_merge_readiness.py:1285`
-- `scripts/ci/check_pr_merge_readiness.py:1337`
-- `scripts/ci/check_pr_merge_readiness.py:1388`
+- `scripts/ci/check_pr_merge_readiness.py:1208`
+- `scripts/ci/check_pr_merge_readiness.py:1290`
+- `scripts/ci/check_pr_merge_readiness.py:1342`
+- `scripts/ci/check_pr_merge_readiness.py:1393`
 - `scripts/orchestration/review_mapping_artifact.py:44`
 - `scripts/orchestration/review_mapping_artifact.py:84`
 - `scripts/orchestration/review_mapping_artifact.py:110`
@@ -614,8 +614,8 @@ Evidence:
 - `tests/test_pr_review_material_seal.py:7442` — linear historical base-binding negatives
 - `tests/test_pr_review_material_seal.py:7457` — invalid base-sync no-fallthrough proof
 - `tests/test_pr_review_material_seal.py:7730` — batched complete parent enumeration
-- `tests/test_pr_merge_readiness_gate.py:453` — strict merge-readiness consumer uses the shared producer
-- `tests/test_pr_merge_readiness_gate.py:486` — strict merge-readiness input wiring
+- `tests/test_pr_merge_readiness_gate.py:463` — strict merge-readiness consumer uses the shared producer
+- `tests/test_pr_merge_readiness_gate.py:496` — strict merge-readiness input wiring
 - `tests/test_review_threads_disposition_strict.py:44` — disposition consumer uses the shared producer
 - `tests/test_review_threads_disposition_strict.py:1528` — disposition input wiring and snapshot stability
 - `scripts/orchestration/check_review_threads_disposition.py:38`

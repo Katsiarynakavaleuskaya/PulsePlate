@@ -625,8 +625,13 @@ def _collect_actionable_items(
             if not _is_actionable(body):
                 continue
             url = row["html_url"]
-            created_at = row["submitted_at"] if kind == "review" else row["created_at"]
-            updated_at = row.get("updated_at", created_at)
+            created_at = _validated_review_timestamp(
+                row["submitted_at"] if kind == "review" else row["created_at"],
+                label=f"{kind} selected posted timestamp",
+            )
+            updated_at = _validated_review_timestamp(
+                row.get("updated_at", created_at), label=f"{kind} selected timestamp observation"
+            )
             if selected_raw_rows is not None:
                 # Preserve the first list observation until the shared native binder.
                 selected_raw_rows[url] = row

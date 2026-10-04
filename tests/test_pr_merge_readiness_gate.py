@@ -231,7 +231,15 @@ def test_publication_inventory_detects_member_deletion_before_precheck(
 
 @pytest.mark.parametrize(
     "mutation",
-    ["raw-lines", "missing-edit", "borrowed-submission", "duplicate", "bool-id", "lost-marker"],
+    [
+        "raw-lines",
+        "missing-edit",
+        "borrowed-submission",
+        "duplicate",
+        "bool-id",
+        "lost-marker",
+        "pending-review",
+    ],
 )
 def test_publication_inventory_rejects_unknown_or_changed_raw_members(
     monkeypatch: pytest.MonkeyPatch, mutation: str
@@ -250,6 +258,8 @@ def test_publication_inventory_rejects_unknown_or_changed_raw_members(
         state["sources"]["issue_comment"] *= 2
     elif mutation == "bool-id":
         state["sources"]["issue_comment"][0]["id"] = True
+    elif mutation == "pending-review":
+        state["sources"]["review"][0].update(state="PENDING", submitted_at=None)
     else:
         state["sources"]["issue_comment"][0]["body"] = "No actionable review comments"
         state["nodes"]["NODE_1"]["body"] = "No actionable review comments"
