@@ -3055,6 +3055,7 @@ def test_native_probe_failure_preserves_closed_reason_and_releases_listener(
         assert commands[0][:4] == ["/usr/bin/unshare", "--net", "--map-root-user", sys.executable]
     assert artifact["blocking_reasons"] == [expected_blocker]
     assert artifact["strict_isolation"] is False
+    assert artifact["probe_results"]["runtime_available"] is True
     assert artifact["probe_results"]["host_listener_ready"] is listener_ready
     assert artifact["probe_results"]["outer_host_control"] is listener_ready
     assert artifact["runtime_version"] == "test-kernel"
