@@ -531,18 +531,23 @@ def _create_temp_checkout(root: Path) -> tuple[tempfile.TemporaryDirectory[str],
     return temp_dir, checkout_root
 
 
-def _require_candidate_base_commit(packet: dict[str, Any]) -> None:
+def _require_candidate_base_commit(
+    packet: dict[str, Any], *, execution_root: Path | None = None
+) -> None:
     """Bind a fingerprinted direct runner invocation to its packet base."""
 
+    material_root = REPO_ROOT if execution_root is None else execution_root
     expected_base = packet.get("base_commit_sha")
     if expected_base is None:
         return
-    current_head = _run_git(["rev-parse", "HEAD"], cwd=REPO_ROOT).stdout.strip()
+    current_head = _run_git(["rev-parse", "HEAD"], cwd=material_root).stdout.strip()
     if current_head != expected_base:
         raise PolicyViolationError(
             "Experiment packet base_commit_sha does not match current repository HEAD."
         )
-    tracked_status = _run_git(["status", "--short", "--untracked-files=no"], cwd=REPO_ROOT).stdout
+    tracked_status = _run_git(
+        ["status", "--short", "--untracked-files=no"], cwd=material_root
+    ).stdout
     if tracked_status:
         raise PolicyViolationError(
             "Fingerprinted candidate packets require a clean tracked repository checkout."
@@ -712,10 +717,13 @@ def _evaluate_attempt(
     mutated_paths: list[str],
     budget_observations: dict[str, Any],
     candidate_patch_ref: str,
+    execution_root: Path | None = None,
 ) -> dict[str, Any]:
     """Run one isolated evaluation attempt and fail closed on cleanup errors."""
 
-    temp_dir, checkout_root = _create_temp_checkout(REPO_ROOT)
+    temp_dir, checkout_root = _create_temp_checkout(
+        REPO_ROOT if execution_root is None else execution_root
+    )
     try:
         _apply_candidate_patch(checkout_root, patch_text)
         if not _has_effective_diff(checkout_root):
@@ -752,9 +760,12 @@ def _evaluate_attempt(
             raise InfraFlakeError(f"Unable to clean temp checkout: {exc}") from exc
 
 
-def evaluate_candidate(packet: dict[str, Any], candidate_patch_path: Path) -> dict[str, Any]:
+def evaluate_candidate(
+    packet: dict[str, Any], candidate_patch_path: Path, *, execution_root: Path | None = None
+) -> dict[str, Any]:
     """Evaluate a candidate patch against a validated experiment packet."""
 
+    material_root = REPO_ROOT if execution_root is None else execution_root
     candidate_patch_ref = str(candidate_patch_path)
     try:
         packet = validate_experiment_packet(packet)
@@ -779,7 +790,7 @@ def evaluate_candidate(packet: dict[str, Any], candidate_patch_path: Path) -> di
 
     try:
         candidate_patch_ref = normalize_repo_path(candidate_patch_path)
-        shared_status_before = _shared_tree_status(REPO_ROOT)
+        shared_status_before = _shared_tree_status(material_root)
         if packet.get("runner_mode") == ORACLE_ONLY_GOVERNANCE_REVIEWER_MODE:
             raise PolicyViolationError(
                 "oracle_only_governance_reviewer mode must not evaluate candidate patches"
@@ -799,7 +810,9 @@ def evaluate_candidate(packet: dict[str, Any], candidate_patch_path: Path) -> di
                     "Candidate patch fingerprint does not match the experiment packet."
                 )
             candidate_patch_fingerprint = actual_patch_fingerprint
-            _require_candidate_base_commit(packet)
+            _require_candidate_base_commit(
+                packet, **({"execution_root": material_root} if execution_root is not None else {})
+            )
         mutated_paths = _extract_mutated_paths(patch_text)
         budget_observations["candidate_changed_files"] = len(mutated_paths)
         if not mutated_paths:
@@ -829,6 +842,7 @@ def evaluate_candidate(packet: dict[str, Any], candidate_patch_path: Path) -> di
 
             try:
                 result = _evaluate_attempt(
+                    **({"execution_root": material_root} if execution_root is not None else {}),
                     packet=packet,
                     patch_text=patch_text,
                     mutated_paths=mutated_paths,
@@ -924,7 +938,7 @@ def evaluate_candidate(packet: dict[str, Any], candidate_patch_path: Path) -> di
         return result
 
     try:
-        shared_status_after = _shared_tree_status(REPO_ROOT)
+        shared_status_after = _shared_tree_status(material_root)
     except InfraFlakeError as exc:
         result["shared_tree_untouched"] = False
         result["status"] = "rejected"
@@ -948,9 +962,11 @@ def evaluate_oracle_only_governance_reviewer(
     contribution_kind: str = "none",
     coauthor_required: bool = False,
     coauthor_reason: str = "",
+    execution_root: Path | None = None,
 ) -> dict[str, Any]:
     """Run immutable governance oracles without applying any candidate patch."""
 
+    material_root = REPO_ROOT if execution_root is None else execution_root
     try:
         contribution_kind, coauthor_required, coauthor_reason = validate_contribution_attribution(
             contribution_kind=contribution_kind,
@@ -989,8 +1005,8 @@ def evaluate_oracle_only_governance_reviewer(
     capability_signal = False
 
     try:
-        shared_status_before = _shared_tree_status(REPO_ROOT)
-        source_diff = _working_tree_diff_against_head(REPO_ROOT)
+        shared_status_before = _shared_tree_status(material_root)
+        source_diff = _working_tree_diff_against_head(material_root)
         source_diff_paths = _extract_mutated_paths(source_diff) if source_diff else []
         budget_observations["source_diff_paths"] = source_diff_paths
         context_surface = packet["mutable_candidate_surface"]
@@ -1004,7 +1020,7 @@ def evaluate_oracle_only_governance_reviewer(
             raise PolicyViolationError(
                 "Oracle-only source diff must stay within packet context surface: " f"{joined}"
             )
-        temp_dir, checkout_root = _create_temp_checkout(REPO_ROOT)
+        temp_dir, checkout_root = _create_temp_checkout(material_root)
         try:
             if source_diff:
                 _apply_candidate_patch(checkout_root, source_diff)
@@ -1098,7 +1114,7 @@ def evaluate_oracle_only_governance_reviewer(
         return result
 
     try:
-        shared_status_after = _shared_tree_status(REPO_ROOT)
+        shared_status_after = _shared_tree_status(material_root)
     except InfraFlakeError as exc:
         result["shared_tree_untouched"] = False
         result["status"] = "rejected"
@@ -1122,6 +1138,11 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         description="Evaluate a governed candidate patch or oracle-only reviewer packet.",
     )
     parser.add_argument("--packet", required=True, help="Experiment packet JSON path.")
+    parser.add_argument(
+        "--execution-root",
+        default=None,
+        help="Explicit absolute material checkout; controls and output stay with this Runner.",
+    )
     parser.add_argument("--candidate-patch", default=None, help="Unified diff patch path.")
     parser.add_argument(
         "--output",
@@ -1156,6 +1177,14 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 def main(argv: list[str] | None = None) -> int:
     args = _parse_args(argv)
     packet_path = Path(args.packet).expanduser().resolve()
+    execution_root = None if args.execution_root is None else Path(args.execution_root)
+    if execution_root is not None and (
+        not execution_root.is_absolute()
+        or execution_root.resolve() != execution_root
+        or not execution_root.is_dir()
+    ):
+        print("FAIL: execution root must be an explicit canonical absolute checkout")
+        return 1
 
     try:
         packet = validate_experiment_packet(_read_json_object(packet_path))
@@ -1178,6 +1207,7 @@ def main(argv: list[str] | None = None) -> int:
                     contribution_kind=args.contribution_kind,
                     coauthor_required=bool(args.coauthor_required),
                     coauthor_reason=args.coauthor_reason,
+                    **({"execution_root": execution_root} if execution_root is not None else {}),
                 )
             except PolicyViolationError as exc:
                 print(f"FAIL: {exc}")
@@ -1190,7 +1220,11 @@ def main(argv: list[str] | None = None) -> int:
                 print("FAIL: --candidate-patch is required for candidate_patch runner mode")
                 return 1
             candidate_patch_path = Path(args.candidate_patch).expanduser().resolve()
-            result = evaluate_candidate(packet, candidate_patch_path)
+            result = evaluate_candidate(
+                packet,
+                candidate_patch_path,
+                **({"execution_root": execution_root} if execution_root is not None else {}),
+            )
     except RunnerCapabilitySignal:
         print(RUNNER_CAPABILITY_DIAGNOSTIC)
         return RUNNER_CAPABILITY_EXIT_CODE
