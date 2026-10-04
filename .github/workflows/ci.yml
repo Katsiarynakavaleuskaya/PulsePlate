@@ -21,7 +21,7 @@ on:
     branches: [ main, feat/**, fix/** ]
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name == 'pull_request' && (github.event.action == 'edited' || github.event.action == 'labeled' || github.event.action == 'unlabeled') && 'metadata' || 'material' }}
   cancel-in-progress: true
 
 defaults:

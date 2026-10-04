@@ -498,6 +498,192 @@ def _load_workflow(path: Path) -> dict[str, object]:
     return workflow
 
 
+_METADATA_MATERIAL_CONCURRENCY_GROUP = (
+    "${{ github.workflow }}-${{ github.ref }}-"
+    "${{ github.event_name == 'pull_request' && "
+    "(github.event.action == 'edited' || github.event.action == 'labeled' || "
+    "github.event.action == 'unlabeled') && 'metadata' || 'material' }}"
+)
+_CONCURRENCY_WORKFLOW_CONTRACTS = (
+    (
+        CI_WORKFLOW_PATH,
+        ("opened", "synchronize", "reopened", "edited", "ready_for_review", "labeled", "unlabeled"),
+        ("push", "pull_request"),
+        ("edited", "labeled", "unlabeled"),
+        ("opened", "synchronize", "reopened", "ready_for_review"),
+    ),
+    (
+        FRONTEND_CI_WORKFLOW_PATH,
+        ("opened", "synchronize", "reopened", "edited"),
+        ("pull_request", "push", "workflow_dispatch"),
+        ("edited",),
+        ("opened", "synchronize", "reopened"),
+    ),
+)
+
+
+def _assert_metadata_material_concurrency_contract(
+    workflow: dict[str, object],
+    expected_pr_types: tuple[str, ...],
+    expected_events: tuple[str, ...],
+) -> None:
+    """Require the exact native event partition and unchanged declared trigger inventories."""
+    concurrency = workflow["concurrency"]
+    assert isinstance(concurrency, dict)
+    assert concurrency == {
+        "group": _METADATA_MATERIAL_CONCURRENCY_GROUP,
+        "cancel-in-progress": True,
+    }
+    assert concurrency["cancel-in-progress"] is True
+    on_section = workflow.get("on")
+    if on_section is None:
+        on_section = cast(dict[object, object], workflow).get(True)
+    assert isinstance(on_section, dict)
+    assert set(on_section) == set(expected_events)
+    pull_request = on_section["pull_request"]
+    assert isinstance(pull_request, dict)
+    assert pull_request["types"] == list(expected_pr_types)
+
+
+@pytest.mark.parametrize(
+    ("path", "pr_types", "events", "metadata_actions", "material_actions"),
+    _CONCURRENCY_WORKFLOW_CONTRACTS,
+    ids=("ci", "frontend"),
+)
+def test_ci_and_frontend_concurrency_separate_metadata_from_material(
+    path: Path,
+    pr_types: tuple[str, ...],
+    events: tuple[str, ...],
+    metadata_actions: tuple[str, ...],
+    material_actions: tuple[str, ...],
+) -> None:
+    """Pin native concurrency source shape without interpreting GitHub expressions."""
+    _assert_metadata_material_concurrency_contract(_load_workflow(path), pr_types, events)
+
+
+@pytest.mark.parametrize(
+    ("path", "pr_types", "events", "metadata_actions", "material_actions"),
+    _CONCURRENCY_WORKFLOW_CONTRACTS,
+    ids=("ci", "frontend"),
+)
+def test_ci_and_frontend_concurrency_preserve_declared_events(
+    path: Path,
+    pr_types: tuple[str, ...],
+    events: tuple[str, ...],
+    metadata_actions: tuple[str, ...],
+    material_actions: tuple[str, ...],
+) -> None:
+    """Preserve declared metadata/material actions and non-PR material fallback triggers."""
+    workflow = _load_workflow(path)
+    on_section = workflow.get("on")
+    if on_section is None:
+        on_section = cast(dict[object, object], workflow).get(True)
+    assert isinstance(on_section, dict)
+    assert set(on_section) == set(events)
+    pull_request = on_section["pull_request"]
+    assert isinstance(pull_request, dict)
+    assert pull_request["types"] == list(pr_types)
+    metadata = {"edited", "labeled", "unlabeled"}
+    assert set(pr_types).intersection(metadata) == set(metadata_actions)
+    assert set(pr_types).difference(metadata) == set(material_actions)
+    assert "push" in on_section
+    if "workflow_dispatch" in events:
+        assert on_section["workflow_dispatch"] is None
+    # The exact native expression owns event-name guarding and material fallback.
+    # These finite source inventories do not execute or simulate GitHub scheduling.
+
+
+@pytest.mark.parametrize(
+    ("path", "pr_types", "events", "metadata_actions", "material_actions"),
+    _CONCURRENCY_WORKFLOW_CONTRACTS,
+    ids=("ci", "frontend"),
+)
+@pytest.mark.parametrize(
+    "mutation",
+    (
+        "old-group",
+        "missing-workflow",
+        "missing-ref",
+        "head-sha",
+        "run-id",
+        "missing-pr-guard",
+        "predicate-or",
+        "wrong-fallback",
+        "cancel-disabled",
+        "cancel-number",
+        "extra-key",
+        "missing-edited",
+        "label-trigger-drift",
+        "missing-push",
+        "non-pr-trigger-drift",
+    ),
+)
+def test_ci_and_frontend_concurrency_contract_rejects_mutations(
+    path: Path,
+    pr_types: tuple[str, ...],
+    events: tuple[str, ...],
+    metadata_actions: tuple[str, ...],
+    material_actions: tuple[str, ...],
+    mutation: str,
+) -> None:
+    """Reject bounded group, cancellation and trigger drift through the existing YAML seam."""
+    workflow = _load_workflow(path)
+    _assert_metadata_material_concurrency_contract(workflow, pr_types, events)
+    concurrency = workflow["concurrency"]
+    assert isinstance(concurrency, dict)
+    group = concurrency["group"]
+    assert isinstance(group, str)
+    if mutation == "old-group":
+        concurrency["group"] = "${{ github.workflow }}-${{ github.ref }}"
+    elif mutation == "missing-workflow":
+        concurrency["group"] = group.replace("${{ github.workflow }}-", "", 1)
+    elif mutation == "missing-ref":
+        concurrency["group"] = group.replace("${{ github.ref }}-", "", 1)
+    elif mutation == "head-sha":
+        concurrency["group"] = group + "-${{ github.event.pull_request.head.sha }}"
+    elif mutation == "run-id":
+        concurrency["group"] = group + "-${{ github.run_id }}"
+    elif mutation == "missing-pr-guard":
+        concurrency["group"] = group.replace("github.event_name == 'pull_request' && ", "", 1)
+    elif mutation == "predicate-or":
+        concurrency["group"] = group.replace("'pull_request' &&", "'pull_request' ||", 1)
+    elif mutation == "wrong-fallback":
+        concurrency["group"] = group.replace("|| 'material'", "|| 'metadata'", 1)
+    elif mutation == "cancel-disabled":
+        concurrency["cancel-in-progress"] = False
+    elif mutation == "cancel-number":
+        concurrency["cancel-in-progress"] = 1
+    elif mutation == "extra-key":
+        concurrency["unexpected"] = True
+    else:
+        on_section = workflow.get("on")
+        if on_section is None:
+            on_section = cast(dict[object, object], workflow).get(True)
+        assert isinstance(on_section, dict)
+        pull_request = on_section["pull_request"]
+        assert isinstance(pull_request, dict)
+        types = pull_request["types"]
+        assert isinstance(types, list)
+        if mutation == "missing-edited":
+            types.remove("edited")
+        elif mutation == "label-trigger-drift":
+            if path == CI_WORKFLOW_PATH:
+                types.remove("labeled")
+            else:
+                types.append("labeled")
+        elif mutation == "missing-push":
+            del on_section["push"]
+        elif mutation == "non-pr-trigger-drift":
+            if path == CI_WORKFLOW_PATH:
+                on_section["workflow_dispatch"] = None
+            else:
+                del on_section["workflow_dispatch"]
+        else:
+            raise AssertionError(f"Unexpected concurrency mutation: {mutation}")
+    with pytest.raises(AssertionError):
+        _assert_metadata_material_concurrency_contract(workflow, pr_types, events)
+
+
 def _active_workflow_paths() -> Iterator[Path]:
     workflow_dir = REPO_ROOT / ".github" / "workflows"
     yield from sorted(workflow_dir.glob("*.yml"))

@@ -803,6 +803,17 @@ Raw `gh pr checks <PR_NUMBER>` remains diagnostic only. It can include supersede
 historical failures from older runs, so final merge triage must rely on the
 filtered current-head view emitted by `check_merge_ready.py`.
 
+`CI` and `Frontend CI` separate workflow/ref concurrency groups into `metadata`
+for PR `edited`, `labeled`, and `unlabeled` events and `material` for all other
+events. Frontend's declared metadata trigger remains only `edited`; this group
+rule adds no triggers. `cancel-in-progress: true` remains within each domain,
+so repeated metadata coalesces and newer material cancels obsolete material.
+Both domains can run concurrently; this does not eliminate extra runs or
+retroactively change already-created groups. These labels do not prove unchanged
+base/head/material. Continue strict authenticated current-head checks across
+applicable duplicate statuses: one green duplicate does not make pending,
+cancelled, failed, or ambiguous required evidence pass.
+
 Additional live-triage notes:
 
 Implementation provenance: strict current-head triage is enforced by
