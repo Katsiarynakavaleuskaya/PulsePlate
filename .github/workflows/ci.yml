@@ -73,6 +73,7 @@ jobs:
             ios: [
               'ios/**', '.github/workflows/**', '.github/actions/**',
               'scripts/ios_test_targets.sh',
+              'scripts/ci/select_ios_simulator.py',
               'scripts/ci/check_ios_swift_syntax.sh', 'scripts/release/check_ios_appstore_verify.py']
             pgvector_compat: ['.github/workflows/ci.yml', 'constraints.txt', 'requirements-ci-lite.txt', 'requirements-rag-vector.in', 'requirements-rag-vector.txt', 'requirements-rag-vector-cpu.in', 'requirements-rag-vector-cpu.txt', 'requirements-test.in', 'requirements-test.txt', 'scripts/ci/emergency_python_wheels.json', 'scripts/ci/install_locked_python_requirements.py', 'scripts/deploy.sh', 'scripts/deploy_production.sh', 'deploy/docker-compose.staging.yaml', 'deploy/systemd/pulseplate-postgres-backup.timer.example', 'deploy/docker-compose.production.selfhosted.yaml', 'deploy/postgres-pgvector/**', 'scripts/ci/check_alembic_autogenerate_completeness.py', 'core/db.py', 'core/db_alembic_comparison.py', 'core/db_rls.py', 'core/models.py', 'core/rag/vector_rag.py', 'app/models/**', 'alembic.ini', 'alembic/env.py', 'alembic/versions/**', 'alembic/versions/202602280001_add_rag_feedback_tables.py', 'alembic/versions/202602280002_enable_pgvector_extension.py', 'alembic/versions/202602280003_convert_embedding_to_vector768.py', 'alembic/versions/202603100101_enable_rag_user_rls.py', 'alembic/versions/202603110001_harden_rag_subject_principal_bigint.py', 'tests/test_deploy_contract_scripts.py', 'tests/test_alembic_autogenerate_completeness.py', 'tests/test_pgvector_compat.py', 'tests/test_pgvector_embedding_migration.py', 'tests/test_vector_rag.py', 'tests/test_db_rls.py']
       - name: Build CI risk profile
@@ -423,7 +424,7 @@ jobs:
     name: Merge readiness gate
     # Security is the stable blocking dependency and transitively requires the
     # specialized compatibility proof when the changes output selects it.
-    needs: [changes, pr_body_phase2_gates, private_python_proxy_health, security, trivy_ignore_policy_expiry]
+    needs: [changes, pr_body_phase2_gates, private_python_proxy_health, security, trivy_ignore_policy_expiry, ios-tests, ios-ui-smoke]
     if: ${{ always() && github.event_name == 'pull_request' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -443,6 +444,9 @@ jobs:
           SECURITY_RESULT: ${{ needs.security.result }}
           SECURITY_REQUIRED: ${{ needs.changes.outputs.run_security }}
           PGVECTOR_REQUIRED: ${{ needs.changes.outputs.pgvector_compat }}
+          IOS_REQUIRED: ${{ needs.changes.outputs.ios }}
+          IOS_TESTS_RESULT: ${{ needs.ios-tests.result }}
+          IOS_UI_SMOKE_RESULT: ${{ needs.ios-ui-smoke.result }}
         run: |
           if [[ "$CHANGES_RESULT" != "success" ]]; then
             echo "::error::changes did not succeed ($CHANGES_RESULT)"
@@ -467,6 +471,18 @@ jobs:
           fi
           if [[ "$SECURITY_RESULT" != "$expected_security_result" ]]; then
             echo "::error::security has an invalid selection/result pair ($SECURITY_REQUIRED/$PGVECTOR_REQUIRED:$SECURITY_RESULT)"
+            exit 1
+          fi
+          if [[ "$IOS_REQUIRED" == "true" ]]; then
+            expected_ios_result="success"
+          elif [[ "$IOS_REQUIRED" == "false" ]]; then
+            expected_ios_result="skipped"
+          else
+            echo "::error::iOS selection result is invalid ($IOS_REQUIRED)"
+            exit 1
+          fi
+          if [[ "$IOS_TESTS_RESULT" != "$expected_ios_result" || "$IOS_UI_SMOKE_RESULT" != "$expected_ios_result" ]]; then
+            echo "::error::iOS family matrix has an invalid selection/result pair ($IOS_REQUIRED:$IOS_TESTS_RESULT/$IOS_UI_SMOKE_RESULT)"
             exit 1
           fi
 
@@ -2288,8 +2304,12 @@ jobs:
 
   # iOS unit tests (enforces guard tests and thin client invariants)
   ios-tests:
-    name: iOS unit tests (xcodebuild)
+    name: iOS unit tests (${{ matrix.family }}, xcodebuild)
     runs-on: xcode-27
+    strategy:
+      fail-fast: false
+      matrix:
+        family: [iphone, ipad]
     # Explicit caps total 40m (boot 5m + Debug 10m + unit 15m + Release 10m).
     # The 60m fallback leaves nominal 20m setup/diagnostic headroom, not a guarantee or SLA;
     # IOS_TESTS_JOB_TIMEOUT_MINUTES may override it.
@@ -2393,130 +2413,14 @@ jobs:
         id: select-destination
         env:
           DEVELOPER_DIR: ${{ steps.select-xcode.outputs.developer_dir }}
-          # Allow override for testing fallback logic (e.g., PREFERRED_DEVICES="iPhone 99,iPhone 98")
-          PREFERRED_DEVICES: ${{ env.PREFERRED_DEVICES || 'iPhone 18 Pro Max,iPhone 18 Pro,iPhone 17e,iPhone 17' }}
         run: |
           set -euo pipefail
-
-          # Ensure simctl uses the pinned Xcode
           echo "=== Xcode pinning verification (select-destination) ==="
           echo "DEVELOPER_DIR: ${DEVELOPER_DIR:-<empty>}"
           xcode-select -p
           xcodebuild -version
           swift --version
-
-          echo "Preferred devices: ${PREFERRED_DEVICES}"
-
-          python3 - << 'PY'
-          import json, os, re, subprocess, sys
-
-          # Require exact iOS 27.0; never silently select an older runtime.
-          out = subprocess.check_output(["xcrun", "simctl", "list", "devices", "available", "-j"], text=True)
-          data = json.loads(out)
-          devices = data.get("devices", {})
-
-          def parse_ios_ver(runtime_id: str) -> tuple[int, int]:
-              m = re.search(r"iOS-(\d+)-(\d+)", runtime_id)
-              return (int(m.group(1)), int(m.group(2))) if m else (-1, -1)
-
-          ios_runtimes = [r for r in devices.keys() if re.search(r"SimRuntime\.iOS-\d+-\d+\b", r)]
-          if not ios_runtimes:
-              print("::error::No iOS Simulator runtimes found", file=sys.stderr)
-              sys.exit(1)
-
-          ios27 = [r for r in ios_runtimes if parse_ios_ver(r) == (27, 0)]
-          if len(ios27) != 1:
-              print(f"::error::Expected exactly one iOS 27.0 runtime, found {ios27!r}", file=sys.stderr)
-              sys.exit(1)
-          runtime = ios27[0]
-
-          major, minor = parse_ios_ver(runtime)
-          if major < 0 or minor < 0:
-              print(f"::error::Cannot parse iOS runtime version from: {runtime}", file=sys.stderr)
-              sys.exit(1)
-
-          os_ver = f"{major}.{minor}"
-          available_devices = [d for d in devices.get(runtime, []) if d.get("isAvailable", True)]
-
-          if not available_devices:
-              print(f"::error::No available devices found for runtime: {runtime}", file=sys.stderr)
-              sys.exit(1)
-
-          # Device selection with fallback:
-          # 1) Try preferred devices (from env or default)
-          # 2) Fallback: any iPhone
-          # 3) Fallback: any iOS simulator (iPad if no iPhone)
-          # Source of truth: PREFERRED_DEVICES must be provided via workflow env.
-          # This avoids duplicated defaults between YAML and Python.
-          pref_devices_str = os.environ.get("PREFERRED_DEVICES", "")
-          if not pref_devices_str:
-              print("::error::PREFERRED_DEVICES is empty", file=sys.stderr)
-              sys.exit(1)
-
-          pref_devices = [name.strip() for name in pref_devices_str.split(",") if name.strip()]
-          available_names = [d["name"] for d in available_devices]
-
-          device = None
-          device_udid = None
-
-          # Step 1: Try preferred devices
-          preferred_found = False
-          for pref_name in pref_devices:
-              if pref_name in available_names:
-                  device_obj = next((d for d in available_devices if d["name"] == pref_name), None)
-                  if device_obj:
-                      device = pref_name
-                      device_udid = device_obj["udid"]
-                      preferred_found = True
-                      break
-
-          # Step 2: Fallback to any iPhone (deterministic: sort by name, then UDID)
-          if not device_udid:
-              iphones = [d for d in available_devices if d["name"].startswith("iPhone")]
-              if iphones:
-                  iphones.sort(key=lambda d: (d["name"], d["udid"]))
-                  device_obj = iphones[0]
-                  device = device_obj["name"]
-                  device_udid = device_obj["udid"]
-                  if not preferred_found:
-                      print(f"Preferred devices not found, falling back to any iPhone: {device}", file=sys.stderr)
-
-          # Step 3: Fallback to any iOS simulator (if no iPhone available)
-          if not device_udid:
-              available_devices.sort(key=lambda d: (d["name"], d["udid"]))
-              device_obj = available_devices[0]
-              device = device_obj["name"]
-              device_udid = device_obj["udid"]
-              print(f"No iPhone available, falling back to any iOS simulator: {device}", file=sys.stderr)
-
-          # Canonical: use UDID-only destination for determinism (kills latest ambiguity, name mismatch, OS version format issues)
-          if not device_udid:
-              print("::error::No UDID found for selected device (fallback logic failed)", file=sys.stderr)
-              sys.exit(1)
-
-          dest = f"platform=iOS Simulator,id={device_udid}"
-
-          print(f"Selected runtime: {runtime} (iOS {os_ver})")
-          print(f"Selected device: {device} (UDID: {device_udid})")
-          print(f"Selected destination: {dest}")
-
-          # Export runtime ID for potential future use
-          with open(os.environ.get("GITHUB_OUTPUT", "/dev/stdout"), "a", encoding="utf-8") as f:
-              print(f"destination={dest}", file=f)
-              print(f"udid={device_udid}", file=f)
-              print(f"device_name={device}", file=f)
-              print(f"ios_runtime_id={runtime}", file=f)
-
-          # Write step summary for easy debugging
-          summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
-          if summary_path:
-              with open(summary_path, "a", encoding="utf-8") as f:
-                  f.write("### iOS Destination Selection\n\n")
-                  f.write(f"- **Runtime:** `{runtime}` (iOS {os_ver})\n")
-                  f.write(f"- **Device:** `{device}`\n")
-                  f.write(f"- **UDID:** `{device_udid}`\n")
-                  f.write(f"- **Destination:** `{dest}`\n")
-          PY
+          python3 ../scripts/ci/select_ios_simulator.py --family "${{ matrix.family }}"
 
       - name: iOS App Store repo-local verification
         run: python3 scripts/release/check_ios_appstore_verify.py
@@ -2805,16 +2709,21 @@ jobs:
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1 / Node 24
         with:
-          name: ios-unit-xcresult-${{ github.run_id }}-${{ github.run_attempt }}
+          name: ios-unit-xcresult-${{ matrix.family }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: ios/.derivedData/Logs/Test/*.xcresult
           retention-days: 7
           if-no-files-found: warn
 
   # iOS UI smoke (minimal, separate signal from unit tests)
   ios-ui-smoke:
-    name: iOS UI smoke (xcodebuild)
+    name: iOS UI smoke (${{ matrix.family }}, xcodebuild)
     runs-on: xcode-27
-    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        family: [iphone, ipad]
+    # Sequential caps total 30m; nominal 15m setup/diagnostic headroom.
+    timeout-minutes: 45
     if: |
       needs.changes.outputs.ios == 'true' && (
         github.event_name == 'pull_request' ||
@@ -2906,104 +2815,14 @@ jobs:
         id: select-destination
         env:
           DEVELOPER_DIR: ${{ steps.select-xcode.outputs.developer_dir }}
-          PREFERRED_DEVICES: ${{ env.PREFERRED_DEVICES || 'iPhone 18 Pro Max,iPhone 18 Pro,iPhone 17e,iPhone 17' }}
         run: |
           set -euo pipefail
-
-          # Ensure simctl uses the pinned Xcode
           echo "=== Xcode pinning verification (select-destination) ==="
           echo "DEVELOPER_DIR: ${DEVELOPER_DIR:-<empty>}"
           xcode-select -p
           xcodebuild -version
           swift --version
-
-          echo "Preferred devices: ${PREFERRED_DEVICES}"
-
-          python3 - << 'PY'
-          import json, os, re, subprocess, sys
-
-          # Require exact iOS 27.0; never silently select an older runtime.
-          out = subprocess.check_output(["xcrun", "simctl", "list", "devices", "available", "-j"], text=True)
-          data = json.loads(out)
-          devices = data.get("devices", {})
-
-          def parse_ios_ver(runtime_id: str) -> tuple[int, int]:
-              m = re.search(r"iOS-(\d+)-(\d+)", runtime_id)
-              return (int(m.group(1)), int(m.group(2))) if m else (-1, -1)
-
-          ios_runtimes = [r for r in devices.keys() if re.search(r"SimRuntime\.iOS-\d+-\d+\b", r)]
-          if not ios_runtimes:
-              print("::error::No iOS Simulator runtimes found", file=sys.stderr)
-              sys.exit(1)
-
-          ios27 = [r for r in ios_runtimes if parse_ios_ver(r) == (27, 0)]
-          if len(ios27) != 1:
-              print(f"::error::Expected exactly one iOS 27.0 runtime, found {ios27!r}", file=sys.stderr)
-              sys.exit(1)
-          runtime = ios27[0]
-
-          major, minor = parse_ios_ver(runtime)
-          if major < 0 or minor < 0:
-              print(f"::error::Cannot parse iOS runtime version from: {runtime}", file=sys.stderr)
-              sys.exit(1)
-
-          os_ver = f"{major}.{minor}"
-          available_devices = [d for d in devices.get(runtime, []) if d.get("isAvailable", True)]
-
-          if not available_devices:
-              print(f"::error::No available devices found for runtime: {runtime}", file=sys.stderr)
-              sys.exit(1)
-
-          pref_devices_str = os.environ.get("PREFERRED_DEVICES", "iPhone 18 Pro Max,iPhone 18 Pro,iPhone 17e,iPhone 17")
-          pref_devices = [name.strip() for name in pref_devices_str.split(",") if name.strip()]
-          available_names = [d["name"] for d in available_devices]
-
-          device = None
-          device_udid = None
-
-          preferred_found = False
-          for pref_name in pref_devices:
-              if pref_name in available_names:
-                  device_obj = next((d for d in available_devices if d["name"] == pref_name), None)
-                  if device_obj:
-                      device = pref_name
-                      device_udid = device_obj["udid"]
-                      preferred_found = True
-                      break
-
-          if not device_udid:
-              iphones = [d for d in available_devices if d["name"].startswith("iPhone")]
-              if iphones:
-                  iphones.sort(key=lambda d: (d["name"], d["udid"]))
-                  device_obj = iphones[0]
-                  device = device_obj["name"]
-                  device_udid = device_obj["udid"]
-                  if not preferred_found:
-                      print(f"Preferred devices not found, falling back to any iPhone: {device}", file=sys.stderr)
-
-          if not device_udid:
-              available_devices.sort(key=lambda d: (d["name"], d["udid"]))
-              device_obj = available_devices[0]
-              device = device_obj["name"]
-              device_udid = device_obj["udid"]
-              print(f"No iPhone available, falling back to any iOS simulator: {device}", file=sys.stderr)
-
-          if not device_udid:
-              print("::error::No UDID found for selected device (fallback logic failed)", file=sys.stderr)
-              sys.exit(1)
-
-          dest = f"platform=iOS Simulator,id={device_udid}"
-
-          print(f"Selected runtime: {runtime} (iOS {os_ver})")
-          print(f"Selected device: {device} (UDID: {device_udid})")
-          print(f"Selected destination: {dest}")
-
-          with open(os.environ.get("GITHUB_OUTPUT", "/dev/stdout"), "a", encoding="utf-8") as f:
-              print(f"destination={dest}", file=f)
-              print(f"udid={device_udid}", file=f)
-              print(f"device_name={device}", file=f)
-              print(f"ios_runtime_id={runtime}", file=f)
-          PY
+          python3 ../scripts/ci/select_ios_simulator.py --family "${{ matrix.family }}"
 
       - name: iOS UI smoke (build-for-testing + test-without-building)
         working-directory: ios
@@ -3148,6 +2967,6 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1 / Node 24
         with:
-          name: ios-ui-smoke-xcresult-${{ github.run_id }}
+          name: ios-ui-smoke-xcresult-${{ matrix.family }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: ios/.derivedData/Logs/Test/
           retention-days: 7

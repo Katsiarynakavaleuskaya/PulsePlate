@@ -7,6 +7,8 @@ import asyncio
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
+import pytest
+
 
 def test_usda_fooditem_to_menu_format():
     from core.food_apis.usda_client import USDAFoodItem
@@ -191,7 +193,7 @@ def test_update_manager_more_edges(tmp_path: Path):
     loop.close()
 
 
-def test_scheduler_remaining_edges():
+def test_scheduler_remaining_edges(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     import core.food_apis.scheduler as sched_mod
     from core.food_apis.scheduler import (
         DatabaseUpdateScheduler,
@@ -201,42 +203,49 @@ def test_scheduler_remaining_edges():
 
     # 109-110: ensure CancelledError branch by cancelling a sleeping task
     loop = asyncio.new_event_loop()
-    s = DatabaseUpdateScheduler(update_interval_hours=0)
-    # Replace background task with a long sleep so cancel triggers CancelledError
-    s.is_running = True
-    s._update_task = loop.create_task(asyncio.sleep(3600))  # type: ignore[attr-defined]
-    loop.run_until_complete(s.stop())
+    try:
+        s = DatabaseUpdateScheduler(update_interval_hours=0)
+        # Replace background task with a long sleep so cancel triggers CancelledError
+        s.is_running = True
+        s._update_task = loop.create_task(asyncio.sleep(3600))  # type: ignore[attr-defined]
+        loop.run_until_complete(s.stop())
 
-    # 164-165: _run_update_check exception path
-    s2 = DatabaseUpdateScheduler(update_interval_hours=0)
-    s2.update_manager = AsyncMock()
-    s2.update_manager.check_for_updates = AsyncMock(side_effect=RuntimeError("x"))
-    loop.run_until_complete(s2._run_update_check())
+        # 164-165: _run_update_check exception path
+        s2 = DatabaseUpdateScheduler(update_interval_hours=0)
+        s2.update_manager.versions_file = tmp_path / "database_versions.json"
+        s2.update_manager.versions = {}
+        try:
+            s2.update_manager.check_for_updates = AsyncMock(side_effect=RuntimeError("x"))
+            loop.run_until_complete(s2._run_update_check())
+            s2.update_manager.check_for_updates.assert_awaited_once()
 
-    # 186-188: _run_source_update exception path
-    s2.update_manager.update_database = AsyncMock(side_effect=RuntimeError("x"))
-    loop.run_until_complete(s2._run_source_update("usda"))
+            # 186-188: _run_source_update exception path
+            s2.update_manager.update_database = AsyncMock(side_effect=RuntimeError("x"))
+            loop.run_until_complete(s2._run_source_update("usda"))
+            s2.update_manager.update_database.assert_awaited_once_with("usda")
+        finally:
+            loop.run_until_complete(s2.update_manager.close())
 
-    # 278-281: start_background_updates hitting start
-    class _Sched:
-        def __init__(self):
-            self.is_running = False
+        # 278-281: start_background_updates hitting start
+        class _Sched:
+            def __init__(self):
+                self.is_running = False
 
-        async def start(self):
-            self.is_running = True
+            async def start(self):
+                self.is_running = True
 
-    with patch.object(sched_mod, "get_update_scheduler", new=AsyncMock(return_value=_Sched())):
-        loop.run_until_complete(start_background_updates(update_interval_hours=2))
+        with patch.object(sched_mod, "get_update_scheduler", new=AsyncMock(return_value=_Sched())):
+            loop.run_until_complete(start_background_updates(update_interval_hours=2))
 
-    # 290-292: stop_background_updates path
-    class _Sched2:
-        def __init__(self):
-            self.is_running = True
+        # 290-292: stop_background_updates path
+        class _Sched2:
+            def __init__(self):
+                self.is_running = True
 
-        async def stop(self):
-            self.is_running = False
+            async def stop(self):
+                self.is_running = False
 
-    sched_mod._scheduler_instance = _Sched2()  # type: ignore[attr-defined]
-    loop.run_until_complete(stop_background_updates())
-    sched_mod._scheduler_instance = None  # cleanup: prevent global leak to other tests
-    loop.close()
+        monkeypatch.setattr(sched_mod, "_scheduler_instance", _Sched2())
+        loop.run_until_complete(stop_background_updates())
+    finally:
+        loop.close()
