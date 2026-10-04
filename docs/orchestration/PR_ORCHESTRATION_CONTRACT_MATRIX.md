@@ -21,7 +21,7 @@ Canonical reference for PR governance. Single source of truth to reduce drift be
 Evidence:
 - Level 2: `AGENTS.md:39`, `AGENTS.md:102`, `AGENTS.md:103`, `AGENTS.md:434`, `AGENTS.md:435`
 - Level 2a: `scripts/orchestration/review_mapping_artifact.py:24`, `scripts/orchestration/review_mapping_artifact.py:84`, `scripts/orchestration/review_mapping_artifact.py:110`
-- Level 3: `scripts/ci/check_pr_merge_readiness.py:349`, `scripts/ci/check_pr_merge_readiness.py:369`, `scripts/ci/check_pr_merge_readiness.py:400`
+- Level 3: `scripts/ci/check_pr_merge_readiness.py:353`, `scripts/ci/check_pr_merge_readiness.py:373`, `scripts/ci/check_pr_merge_readiness.py:405`
 - Level 4: `scripts/ci/check_pr_body_phase2_gates.py:162`, `scripts/ci/check_pr_body_phase2_gates.py:182`
 
 ## 3. Governance Phases
@@ -250,10 +250,10 @@ retry.
 Evidence:
 - `scripts/orchestration/check_merge_ready.py:383`
 - `scripts/orchestration/check_merge_ready.py:409`
-- `scripts/ci/check_pr_merge_readiness.py:1157`
-- `scripts/ci/check_pr_merge_readiness.py:1239`
-- `scripts/ci/check_pr_merge_readiness.py:1291`
-- `scripts/ci/check_pr_merge_readiness.py:1342`
+- `scripts/ci/check_pr_merge_readiness.py:1203`
+- `scripts/ci/check_pr_merge_readiness.py:1285`
+- `scripts/ci/check_pr_merge_readiness.py:1337`
+- `scripts/ci/check_pr_merge_readiness.py:1388`
 - `scripts/orchestration/review_mapping_artifact.py:44`
 - `scripts/orchestration/review_mapping_artifact.py:84`
 - `scripts/orchestration/review_mapping_artifact.py:110`
@@ -285,11 +285,11 @@ Artifact-only governance findings are fixed in the canonical artifact itself, bu
 
 Evidence:
 - `scripts/ci/check_pr_merge_readiness.py:1`
-- `scripts/ci/check_pr_merge_readiness.py:135`
-- `scripts/ci/check_pr_merge_readiness.py:219`
-- `scripts/ci/check_pr_merge_readiness.py:349`
-- `scripts/ci/check_pr_merge_readiness.py:369`
-- `scripts/ci/check_pr_merge_readiness.py:383`
+- `scripts/ci/check_pr_merge_readiness.py:139`
+- `scripts/ci/check_pr_merge_readiness.py:223`
+- `scripts/ci/check_pr_merge_readiness.py:353`
+- `scripts/ci/check_pr_merge_readiness.py:373`
+- `scripts/ci/check_pr_merge_readiness.py:387`
 
 ## 6. FIXED / NOT-A-BUG / DEFERRED Semantics
 
@@ -499,6 +499,65 @@ records `FIXED`, not `NOT-A-BUG`: the defect was real at
 PASS, merge authority, or bypass of current CI, security, other findings,
 unresolved threads, bot actionables, ancestry, or the wait window.
 
+### Inspected historical correction publication
+
+The fifth path also has the closed two-phase extension in
+[root Review Governance rules 10–11](../../AGENTS.md#review-governance).
+Its existing OWNER comment carrier binds the historical root revision and
+current candidate before a fixing SHA exists. The full exact ASCII `I` grammar
+lives only in root AGENTS; the final existing `F(S,R)` line is unchanged.
+Scope approval and generated content receipts do not supply human inspection.
+
+The shared semantic owner derives the nearest valid prior material-to-mapping
+closeout, then the finite unchanged-mapping material/base-sync interval containing
+the genuinely stale root head. A later already-stale parent is not declared valid,
+and the correcting `R` follows the inspected current material `M`, not the older
+root head. Raw regular Git blobs, complete real PR graph, authenticated ancestry,
+selected shallow/graft/replacement certainty, exact current seal and server
+publication remain required. Evidence: `scripts/orchestration/pr_review_evidence.py:3504`.
+
+| Phase | Required evidence | Meaning |
+| --- | --- | --- |
+| Before `I` | Reviewed current candidate and exact canonical current inventory digest from the registered failing diagnostic | Preparation only; missing inspection remains a failure |
+| `I` only | Actual whole-root/candidate human inspection, immutable authenticated exact statement, current material/base/digest, bounded regular raw candidate, two exact current native inventory observations | One mapping publication may proceed; root stays unresolved and is not FIXED |
+| Actual `R`, then `I,F` | Unique direct nonempty/nontrigger regular mapping-only child of inspected `M`, exact inspected candidate blob, immutable same-ref post-inspection push, later truthful existing OWNER FIXED and supported resolution | Historical FIXED proof; all current final gates remain independent |
+
+The existing CI actionable collector and non-GHAS unresolved-first-root predicate
+own inventory membership. The shared recognizer cross-binds selected raw REST rows
+and fixed native revision witnesses, tags actionable/first-root roles explicitly,
+and hashes one transient canonical projection. It introduces no private prose
+classifier, DTO, schema, store, CLI or disposition adapter. Top-review `submittedAt`
+is posting time; native creation/update/edit remain distinct. Missing native edit
+fields are unknown, whereas present null is meaningful. Normalized body hashes or
+URL sets cannot stand in for exact raw body/revision truth. Evidence:
+`scripts/orchestration/pr_review_evidence.py:667` and
+`scripts/orchestration/pr_review_evidence.py:950`.
+
+Both actual registered pre-closeout observations must equal the single `I.H`.
+Retain command, exit and raw PASS output as mandatory procedural evidence before
+publication; a diagnostic digest while missing `I` is not PASS or authority.
+Deleting an ordinary actionable/first-root member after inspection or changing
+membership/raw revision between the observations rejects admission even if all
+remaining URLs are mapped. `I`/`F` are human replies outside those membership roles;
+bot/root text resembling their grammar is never subtracted. Exact candidate bytes
+are read with bounded regular-path proof and terminal reread, without symlink or
+newline normalization (`scripts/orchestration/pr_review_evidence.py:627`).
+
+Final ordinary activity is freshly checked after publication and resolution.
+It is not required to equal the old inventory, and no timestamp/current scalar
+reconstructs erased members or proves past gate execution. Missing procedure
+remains unknown; observed bypass is not achieved. These are two bounded current
+observations, not atomic/continuous history or cryptographic/human execution.
+Observable frozen-publication drift after posted `I` stops for coordinator
+rescope, never second `I`, edit/deletion, implicit retry or manufactured material.
+The global historical singleton census includes both legacy and inspected forms
+before URL filtering. During publication, exact `M==live head` makes a legacy
+current-closeout `M->M` mapping edge impossible; the registered consumer still
+runs the full shared legacy producer so its API/Git uncertainty blocks.
+Final coverage counts both actually eligible forms together. All other actionables, false No-actionables claims,
+unresolved threads, CI/security/coverage, current seal, wait and separate merge
+authority remain hard.
+
 A root actually covered by a canonical reply-only validator is the narrow
 exception to ordinary artifact mapping: its exact reply plus resolved thread is
 the disposition evidence, and no second mapping entry or docs commit is created.
@@ -544,19 +603,19 @@ terminal. The exception creates no docs commit and does not restart
 review/security scans.
 
 Evidence:
-- `scripts/orchestration/pr_review_evidence.py:577` — exact `OWNER FIXED` parser
-- `scripts/orchestration/pr_review_evidence.py:783` — shared reply-only producer
-- `scripts/orchestration/pr_review_evidence.py:1966` — raw-Git linear-material edge invariant
-- `scripts/orchestration/pr_review_evidence.py:2632` — closed historical topology classifier
-- `tests/test_pr_review_material_seal.py:6662` — real-Git base-sync acceptance with later sync/current reseal
-- `tests/test_pr_review_material_seal.py:6673` — real-Git linear-material acceptance
-- `tests/test_pr_review_material_seal.py:6701` — exact parser rejection matrix
-- `tests/test_pr_review_material_seal.py:6959` — linear topology negative matrix
-- `tests/test_pr_review_material_seal.py:6974` — linear historical base-binding negatives
-- `tests/test_pr_review_material_seal.py:6989` — invalid base-sync no-fallthrough proof
-- `tests/test_pr_review_material_seal.py:7262` — batched complete parent enumeration
-- `tests/test_pr_merge_readiness_gate.py:48` — strict merge-readiness consumer uses the shared producer
-- `tests/test_pr_merge_readiness_gate.py:81` — strict merge-readiness input wiring
+- `scripts/orchestration/pr_review_evidence.py:588` — exact `OWNER FIXED` parser
+- `scripts/orchestration/pr_review_evidence.py:1215` — shared reply-only producer
+- `scripts/orchestration/pr_review_evidence.py:2411` — raw-Git linear-material edge invariant
+- `scripts/orchestration/pr_review_evidence.py:3077` — closed historical topology classifier
+- `tests/test_pr_review_material_seal.py:7130` — real-Git base-sync acceptance with later sync/current reseal
+- `tests/test_pr_review_material_seal.py:7141` — real-Git linear-material acceptance
+- `tests/test_pr_review_material_seal.py:7169` — exact parser rejection matrix
+- `tests/test_pr_review_material_seal.py:7427` — linear topology negative matrix
+- `tests/test_pr_review_material_seal.py:7442` — linear historical base-binding negatives
+- `tests/test_pr_review_material_seal.py:7457` — invalid base-sync no-fallthrough proof
+- `tests/test_pr_review_material_seal.py:7730` — batched complete parent enumeration
+- `tests/test_pr_merge_readiness_gate.py:453` — strict merge-readiness consumer uses the shared producer
+- `tests/test_pr_merge_readiness_gate.py:486` — strict merge-readiness input wiring
 - `tests/test_review_threads_disposition_strict.py:44` — disposition consumer uses the shared producer
 - `tests/test_review_threads_disposition_strict.py:1528` — disposition input wiring and snapshot stability
 - `scripts/orchestration/check_review_threads_disposition.py:38`
@@ -641,8 +700,8 @@ Bot governance distinction (Tier 1 baseline):
 - Contributors must use `CI` as the canonical backend/shared PR lane for operator decisions; `pr-tests.yml` and `pr-coverage.yml` are no longer active PR lanes, `security.yml` is a scheduled/manual audit lane, and `trivy.yml` is a `main`/schedule/manual non-PR image-security lane.
 - Canonical backend/shared PR merge truth does not imply that all other PR-triggered workflows disappear. Specialized repo-level workflows such as `Frontend CI`, `CodeQL Advanced`, and Docker/image lanes may still appear on workflow/governance PRs, but they remain non-canonical unless GitHub branch protection explicitly requires them.
 Evidence:
-- `scripts/ci/check_pr_merge_readiness.py:349`
-- `scripts/ci/check_pr_merge_readiness.py:400`
+- `scripts/ci/check_pr_merge_readiness.py:353`
+- `scripts/ci/check_pr_merge_readiness.py:405`
 - `scripts/ci/check_current_head_pr_checks.py:406`
 - `scripts/orchestration/check_merge_ready.py:1`
 - `scripts/ci/check_pr_body_phase2_gates.py:162`
@@ -706,7 +765,7 @@ Evidence:
 - `docs/orchestration/COORDINATOR_MERGE_READINESS_RULES.md:45`
 - `scripts/orchestration/check_review_threads_disposition.py:9`
 - `scripts/orchestration/check_review_threads_disposition.py:623`
-- `scripts/ci/check_pr_merge_readiness.py:308`
+- `scripts/ci/check_pr_merge_readiness.py:312`
 
 ## 13. Roadmap / Future Hardening
 

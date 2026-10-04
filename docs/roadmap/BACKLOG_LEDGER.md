@@ -454,6 +454,13 @@ If it is not recorded here — it does not exist.
   - Status: CAB-03 merged in PR #2381, CAB-04 merged in PR #2408, and CAB-05
     merged in PR #2414. CAB-06 is the active iPhone/iPad CI matrix carrier;
     its checkbox remains open pending its own current-head checks and merge evidence.
+    The owner admitted the bounded historical seal ordering repair in the same
+    PR, with privileged scope expanded from 16 to exactly 20 paths. Its shared
+    recognizer separates inspected publication admission from actual later FIXED
+    proof, preserves the existing carrier and four genuine review records, and
+    requires fresh material/native/CI evidence. Whole-root/current-candidate human
+    inspection, immutable OWNER statements, actual correcting mapping publication,
+    final strict review/wait gates and exact-head squash approval remain separate.
   - Reason (EN): Keep the accepted continuation visible without mixing production Swift,
     warning-policy, device-matrix, Web or Mac work into the bounded AppIcon/Release carrier.
   - Links:

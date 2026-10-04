@@ -403,6 +403,67 @@ Backlog: docs/roadmap/BACKLOG_LEDGER.md#agent-consistency-preflight
     approval, scan, PASS, merge authority, or a bypass of current CI, security,
     mapping, unresolved
     threads, bot actionables, ancestry, or the wait window.
+    A closed inspection/publication phase extends only that historical stale-seal
+    class when real intervening material or advancing base synchronizations
+    separate `S` from the current frozen material `M`. It preserves the five
+    existing classes. The root has no ordinary mapping or canonical fingerprint
+    record, is the first trusted connector comment on the canonical mapping,
+    and has `originalCommit=S`. Before posting, the human OWNER must read the
+    complete authenticated current root revision and exact frozen candidate
+    `C`, confirm no independent actionable beyond this historical stale seal,
+    and explicitly permit one correcting publication. Scope approval, account
+    association, hashes and auto-authored content receipts do not supply that act.
+    Exactly one immutable GraphQL-authenticated OWNER comment `I` must fullmatch
+    this ASCII line, substituting positive numeric root ID, exact UTC revision,
+    lowercase full SHAs and SHA-256 digests, without extra fields or whitespace:
+    `OWNER INSPECTED: historical stale-seal root <id> revision <UTC-updated-at> body sha256:<raw-body-hash> at <S> has no independent actionable; permit one mapping-only publication from material <M> base <B> merge-base <MB> digest sha256:<D> candidate sha256:<C> inventory sha256:<H>; no disposition or merge authority.`
+    REST and GraphQL cross-bind every selected root and phase comment's native
+    identity, repository/PR/path, raw UTF-8 body and actual revision. Both `I`
+    and the later existing OWNER FIXED line `F(S,R)` require unedited timestamps
+    and present native `lastEditedAt=null`; missing fields are unknown. Root
+    revision must precede `I` and remain identical to its inspected binding.
+    The nearest genuine valid prior material-to-mapping closeout anchors the
+    mechanically derived finite first-parent interval to `M`. Every later edge
+    inherits its regular mapping byte-for-byte and is non-empty material-only
+    or a genuine advancing two-parent base sync. `S` lies in that interval with
+    a demonstrably stale seal. Invalid merges never fall through to linear;
+    missing parents, objects, pagination or API/Git certainty fail closed.
+    Local pre-closeout accepts only the `I`-only phase with exact live head `M`,
+    current base/merge-base/digest and bounded regular raw candidate bytes `C`.
+    It binds two complete current observations of the existing actionable bot
+    issue/inline/top-review inventory and validated non-GHAS unresolved first
+    roots to `I.H`. Membership stays with the existing collector/root predicate;
+    the shared recognizer binds exact raw native body/revision evidence, with
+    creation, submission and edit times distinct. The digest does not hash `I`
+    itself or infer actionability. Missing `I` may emit that current diagnostic
+    digest only while failing admission. Record the actual registered PASS,
+    command and output before publication; it is procedural evidence only.
+    Publication admission never means FIXED, resolution or readiness and does
+    not cover an independent top-level review or false No-actionables claim.
+    Final recognition requires exactly the ordered immutable OWNER pair `I,F`,
+    an actual reachable non-empty non-trigger regular mapping-only `R` as the
+    sole direct PR child of inspected `M`, its exact inspected `C` blob, and
+    same-repository/ref server publication strictly after `I` and no later than
+    `F`. The existing FIXED line selects real `S,R` only after publication; no
+    future SHA or false direct `S->R` edge is allowed. Current seal and final
+    activity/disposition/unresolved/CI/security/wait gates pass independently.
+    Supported post-publication resolution and later ordinary reviews change
+    current inventories normally; final validation does not compare them to
+    the old `H`, reconstruct erased members, or prove historical gate execution
+    from a scalar/timestamp. Missing procedure remains unknown and observed
+    bypass is not achieved. Two observations do not promise atomic/continuous
+    history or cryptographic/human execution. Any observable frozen-publication
+    drift after `I` stops for coordinator rescope: no second `I`, edit/deletion,
+    implicit retry or manufactured material/reseal is a recovery transition.
+    Global historical eligibility is counted before caller URL filtering;
+    exactly one eligible root across the legacy and inspected forms is required.
+    At publication `M` is the exact live head, so legacy current-closeout
+    eligibility would require an impossible direct `M->M` mapping edge. The
+    registered consumer still runs the full shared legacy producer first;
+    recognizable legacy API/Git uncertainty remains blocking. Final coverage
+    counts both actually eligible historical forms together.
+    This extension adds no v1 receipt/schema, store, CLI, DTO, disposition
+    adapter, mapping carrier, prose classifier or authority for merge.
     None of the reply-only paths creates another docs commit or restarts
     review/security scans.
 11. **Pre-closeout ordering gate:** after `seal` writes the local canonical
@@ -412,7 +473,8 @@ Backlog: docs/roadmap/BACKLOG_LEDGER.md#agent-consistency-preflight
     --repo Katsiarynakavaleuskaya/PulsePlate --pre-closeout --require-auth`
     with both `GH_TOKEN` and `GITHUB_TOKEN` exported. This fail-closed pass must explicitly cover
     every live actionable bot issue comment, bot inline comment, and top-level
-    bot review in the local artifact and require exactly one real same-repository
+    bot review in the local artifact, except the one independently validated
+    publication-only historical root above, and require exactly one real same-repository
     Markdown link through
     `blob/<exact-live-head-ref>/docs/review/PR_<N>_FIXED_MAPPING.md` in the live
     PR body. The ref path must exactly match the PR's authenticated `head.ref`;
@@ -421,7 +483,10 @@ Backlog: docs/roadmap/BACKLOG_LEDGER.md#agent-consistency-preflight
     invalid in PR-body context.
     Also require the first comment URL of every unresolved conversation review
     thread in the authenticated validated inventory to appear in the canonical
-    mapping, preserving the existing GHAS exclusion. This structural coverage
+    mapping, except the one independently validated publication-only historical
+    root above, preserving the existing GHAS exclusion. Its two exact native
+    inventory/candidate/root/phase checks authorize only that one correction.
+    This structural coverage
     check is independent of author and prose; a mapped reply cannot substitute
     for its root. It neither classifies a finding nor permits thread resolution.
     Mapped unresolved threads still block final merge readiness.
