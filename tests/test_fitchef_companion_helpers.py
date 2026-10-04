@@ -579,6 +579,8 @@ def test_ru_negated_food_skip_remains_safe_but_affirmative_rewrites() -> None:
 @pytest.mark.parametrize(
     ("lang", "unsafe", "supportive"),
     [
+        ("ru", "Пропусти следующий прием пищи.", "Не пропусти следующий прием пищи."),
+        ("ru", "Пропусти следующий приём пищи.", "Не пропусти следующий приём пищи."),
         ("ru", "Это плохая еда.", "Это не плохая еда."),
         ("es", "Es comida mala.", "No es comida mala."),
         ("es", "Te diagnostico con ansiedad.", "No te diagnostico con ansiedad."),
@@ -653,6 +655,56 @@ def test_reviewed_locale_claim_polarity_controls_real_structured_fallback(
         for field in fields:
             assert getattr(draft, field) == getattr(fallback, field)
         assert unsafe not in str(draft)
+
+
+@pytest.mark.parametrize("meal", ["прием", "приём"])
+@pytest.mark.parametrize("prefix", ["Не не ", "Не не не ", "Не, ", "«Не ", "Пожалуйста, не "])
+@pytest.mark.parametrize(
+    "field_name",
+    ["why_it_matches", "evidence_for", "evidence_against", "balanced_reframe", "next_small_action"],
+)
+def test_ru_compensation_stacked_or_unreviewed_denial_rewrites_each_structured_field(
+    meal: str, prefix: str, field_name: str
+) -> None:
+    """Rewrite an unadmitted denial in every prose position to the full Russian fallback."""
+
+    phrase = f"Не пропусти следующий {meal} пищи. {prefix}пропусти следующий {meal} пищи."
+    payload: dict[str, str | list[str]] = {
+        "distortion_labels": ["catastrophizing"],
+        "why_it_matches": "A small setback can feel larger than it is.",
+        "evidence_for": ["One plan did not work."],
+        "evidence_against": ["One plan can be revised."],
+        "balanced_reframe": "One setback does not settle the whole plan.",
+        "next_small_action": "Choose one small planning step today.",
+    }
+    payload[field_name] = [phrase] if field_name.startswith("evidence_") else phrase
+    draft = prepare_distortion_simulator_draft(
+        json.dumps(payload, ensure_ascii=False),
+        situation="A meal plan changed.",
+        automatic_thought="One setback means the whole plan is lost.",
+        emotion="frustrated",
+        goal="plan the next meal",
+        lang="ru",
+    )
+    fallback = prepare_distortion_simulator_draft(
+        "not-json",
+        situation="A meal plan changed.",
+        automatic_thought="One setback means the whole plan is lost.",
+        emotion="frustrated",
+        goal="plan the next meal",
+        lang="ru",
+    )
+    assert draft.warnings == ["wellness_language_rewritten"]
+    assert draft.distortion_labels == fallback.distortion_labels
+    for field in (
+        "why_it_matches",
+        "evidence_for",
+        "evidence_against",
+        "balanced_reframe",
+        "next_small_action",
+    ):
+        assert getattr(draft, field) == getattr(fallback, field)
+    assert phrase not in str(draft)
 
 
 def test_extract_json_payload_accepts_fenced_and_embedded_objects() -> None:

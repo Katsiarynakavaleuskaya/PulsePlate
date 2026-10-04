@@ -11,6 +11,18 @@ from core.insight.fitchef_companion import prepare_distortion_simulator_draft
 from core.insight.philosophy_validator import Report, validate_llm_output
 
 _REVIEWED_POLARITY_CASES: list[tuple[str, str, str, str]] = [
+    (
+        "FITCHEF_COMPENSATION_LANGUAGE",
+        "Пропусти следующий прием пищи.",
+        "Не пропусти следующий прием пищи.",
+        "Пропусти следующий прием пищи",
+    ),
+    (
+        "FITCHEF_COMPENSATION_LANGUAGE",
+        "Пропусти следующий приём пищи.",
+        "Не пропусти следующий приём пищи.",
+        "Пропусти следующий приём пищи",
+    ),
     ("FITCHEF_FOOD_MORALITY", "Это плохая еда.", "Это не плохая еда.", "плохая еда"),
     ("FITCHEF_FOOD_MORALITY", "Es comida mala.", "No es comida mala.", "comida mala"),
     (
@@ -344,6 +356,51 @@ def test_ru_compensation_negation_accepts_whitespace_without_offset_drift(
     assert matches[0].start == affirmative_start
     assert matches[0].matched == "Пропусти следующий прием пищи"
     assert matches[0].end == affirmative_start + len(matches[0].matched)
+
+
+@pytest.mark.parametrize("meal", ["прием", "приём"])
+@pytest.mark.parametrize(
+    "prefix",
+    ["Не не ", "Не не не ", "Не, ", "Не: ", '"Не ', "«Не ", "Пожалуйста, не ", "Совет: не "],
+)
+@pytest.mark.parametrize("spacing_and_case", [False, True])
+def test_ru_compensation_denial_rejects_unreviewed_prefixes_with_original_spans(
+    meal: str, prefix: str, spacing_and_case: bool
+) -> None:
+    """Keep stacked negation and unadmitted prefixes blocking on the original value."""
+
+    matched = f"пропусти следующий {meal} пищи"
+    text = f"Не пропусти следующий {meal} пищи. {prefix}{matched}."
+    if spacing_and_case:
+        text = text.upper().replace(" ", " \t")
+        matched = matched.upper().replace(" ", " \t")
+    report = validate_llm_output(text, domain="coaching")
+    named = [item for item in report.blockers if item.code == "FITCHEF_COMPENSATION_LANGUAGE"]
+    assert not report.ok
+    assert len(named) == 1
+    assert named[0].matched == matched == text[named[0].start : named[0].end]
+    assert named[0].start == text.rindex(matched)
+    assert named[0].end == named[0].start + len(matched)
+
+
+@pytest.mark.parametrize("meal", ["прием", "приём"])
+@pytest.mark.parametrize("boundary", ["", "  ", "План изменился. ", "План изменился! ", "Время? "])
+def test_ru_compensation_single_denial_at_reviewed_sentence_boundary(
+    meal: str, boundary: str
+) -> None:
+    """Retain one local denial without suppressing an independent other-code claim."""
+
+    text = f"{boundary}Не пропусти следующий {meal} пищи."
+    assert validate_llm_output(text, domain="coaching").ok
+    mixed = f"{text} Это плохая еда."
+    report = validate_llm_output(mixed, domain="coaching")
+    assert not report.ok
+    assert [item.code for item in report.blockers] == ["FITCHEF_FOOD_MORALITY"]
+    assert (
+        report.blockers[0].matched
+        == mixed[report.blockers[0].start : report.blockers[0].end]
+        == "плохая еда"
+    )
 
 
 @pytest.mark.parametrize(

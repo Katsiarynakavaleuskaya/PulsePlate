@@ -126,9 +126,18 @@ _BLOCKER_PATTERNS: List[Tuple[str, re.Pattern[str]]] = [
     ),
 ]
 
-# Only these five reviewed direct-denial prefixes exempt their own occurrence.
+# Only the reviewed code/construction pairs exempt their own occurrence.
 # Sentence anchoring rejects stacked negation and leaves later positives visible.
+_RU_COMPENSATION_DENIAL_PREFIX = re.compile(r"(?:\A|[.!?])\s*не\s+$", re.IGNORECASE)
 _REVIEWED_NEGATION_PREFIXES: dict[tuple[str, str], re.Pattern[str]] = {
+    (
+        "FITCHEF_COMPENSATION_LANGUAGE",
+        "пропусти следующий прием пищи",
+    ): _RU_COMPENSATION_DENIAL_PREFIX,
+    (
+        "FITCHEF_COMPENSATION_LANGUAGE",
+        "пропусти следующий приём пищи",
+    ): _RU_COMPENSATION_DENIAL_PREFIX,
     ("FITCHEF_FOOD_MORALITY", "плохая еда"): re.compile(
         r"(?:\A|[.!?])\s*(?:это\s+)?не\s+$", re.IGNORECASE
     ),
@@ -182,12 +191,6 @@ def validate_llm_output(text: str, *, domain: str | None = None) -> Report:
     blockers: List[Finding] = []
     for code, pattern in _BLOCKER_PATTERNS:
         for m in pattern.finditer(text):
-            if (
-                code == "FITCHEF_COMPENSATION_LANGUAGE"
-                and m.group(0).casefold().startswith("пропусти")
-                and re.search(r"\bне\s+$", text[: m.start()], re.IGNORECASE)
-            ):
-                continue
             negation_prefix = _REVIEWED_NEGATION_PREFIXES.get(
                 (code, " ".join(m.group(0).casefold().split()))
             )
