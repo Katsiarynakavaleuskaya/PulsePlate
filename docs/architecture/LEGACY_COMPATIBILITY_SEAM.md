@@ -145,7 +145,8 @@ merged on 2026-09-30T10:35:36Z as
 `6e09f4ea8cc33e8389d99075b6f6a0d10f1b725e`. Its malformed-Mapping and overflow
 validation correction remains in the canonical TargetsIn validator, with its
 regressions preserved during this import migration. The current child is
-`codex/retire-legacy-planning-schema-exports`, with its PR number pending.
+[PR #2466](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2466)
+(`codex/retire-legacy-planning-schema-exports`).
 `PROJECT_LEGACY` remains open. After this child's separately authorized merge,
 repository closeout receipts belong to the first following substantive child,
 `PR-TBD-LEGACY-RESIDUAL-PYTHON-EXPORT-RETIREMENT`; no standalone docs-only
