@@ -248,7 +248,7 @@ jobs:
 
   caddy-contract:
     needs: changes
-    if: ${{ always() && (needs.changes.outputs.caddy == 'true' || github.event_name == 'workflow_dispatch') }}
+    if: ${{ !cancelled() && (needs.changes.outputs.caddy == 'true' || github.event_name == 'workflow_dispatch') }}
     runs-on: ubuntu-latest
     permissions:
       contents: read

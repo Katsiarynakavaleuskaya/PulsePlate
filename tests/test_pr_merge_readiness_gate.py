@@ -3733,7 +3733,7 @@ def test_merge_readiness_checkout_uses_exact_pr_head_and_no_credentials() -> Non
         "ios-tests",
         "ios-ui-smoke",
     ]
-    assert job["if"] == "${{ always() && github.event_name == 'pull_request' }}"
+    assert job["if"] == "${{ !cancelled() && github.event_name == 'pull_request' }}"
     assert job["timeout-minutes"] == 15
     assert job["permissions"] == {
         "actions": "read",

@@ -684,6 +684,193 @@ def test_ci_and_frontend_concurrency_contract_rejects_mutations(
         _assert_metadata_material_concurrency_contract(workflow, pr_types, events)
 
 
+_CANCELLATION_JOB_IDS = (
+    (
+        CI_WORKFLOW_PATH,
+        (
+            "merge_readiness_gate",
+            "lint",
+            "security",
+            "openapi-sync",
+            "test-pr",
+            "pgvector_compat",
+            "test-feature",
+            "test-main",
+            "diff-coverage",
+        ),
+    ),
+    (FRONTEND_CI_WORKFLOW_PATH, ("caddy-contract",)),
+)
+_JOB_CANCELLATION_CONDITIONS = (
+    (
+        CI_WORKFLOW_PATH,
+        "merge_readiness_gate",
+        "${{ !cancelled() && github.event_name == 'pull_request' }}",
+    ),
+    (CI_WORKFLOW_PATH, "lint", "${{ !cancelled() }}"),
+    (
+        CI_WORKFLOW_PATH,
+        "security",
+        "${{ !cancelled() && (github.event_name != 'pull_request' || "
+        "needs.changes.result != 'success' || needs.changes.outputs.run_security == 'true' || "
+        "needs.changes.outputs.pgvector_compat == 'true') }}",
+    ),
+    (
+        CI_WORKFLOW_PATH,
+        "openapi-sync",
+        "${{ !cancelled() && (github.event_name != 'pull_request' || "
+        "needs.changes.result != 'success' || needs.changes.outputs.run_openapi_sync == 'true') }}",
+    ),
+    (
+        CI_WORKFLOW_PATH,
+        "test-pr",
+        "${{ !cancelled() && github.event_name == 'pull_request' && "
+        "(needs.changes.result != 'success' || needs.changes.outputs.run_backend_blocking == 'true') }}",
+    ),
+    (
+        CI_WORKFLOW_PATH,
+        "pgvector_compat",
+        "${{ !cancelled() && github.event_name == 'pull_request' && "
+        "(needs.changes.result != 'success' || needs.changes.outputs.pgvector_compat == 'true') }}",
+    ),
+    (
+        CI_WORKFLOW_PATH,
+        "test-feature",
+        "${{ !cancelled() && github.event_name == 'push' && "
+        "(startsWith(github.ref, 'refs/heads/feat/') || startsWith(github.ref, 'refs/heads/fix/') || "
+        "startsWith(github.ref, 'refs/heads/feature/')) && "
+        "(needs.changes.result != 'success' || needs.changes.outputs.run_backend_blocking == 'true') }}",
+    ),
+    (
+        CI_WORKFLOW_PATH,
+        "test-main",
+        "${{ !cancelled() && (github.ref == 'refs/heads/main' || "
+        "(github.event_name == 'pull_request' && (needs.changes.result != 'success' || "
+        "needs.changes.outputs.run_main_ci_diagnostic == 'true'))) }}",
+    ),
+    (
+        CI_WORKFLOW_PATH,
+        "diff-coverage",
+        "${{ !cancelled() && github.event_name == 'pull_request' && "
+        "(needs.changes.result != 'success' || needs.changes.outputs.run_backend_blocking == 'true') }}",
+    ),
+    (
+        FRONTEND_CI_WORKFLOW_PATH,
+        "caddy-contract",
+        "${{ !cancelled() && (needs.changes.outputs.caddy == 'true' || "
+        "github.event_name == 'workflow_dispatch') }}",
+    ),
+)
+
+
+def _assert_selected_workflow_job_cancellation_inventory(
+    workflow: dict[str, object], expected_job_ids: tuple[str, ...]
+) -> None:
+    """Require the exact selected job inventory and reject cancellation-resistant status checks."""
+    jobs = workflow["jobs"]
+    assert isinstance(jobs, dict)
+    observed: set[str] = set()
+    for job_id, job in jobs.items():
+        assert isinstance(job_id, str)
+        assert isinstance(job, dict)
+        condition = str(job.get("if", ""))
+        assert "always()" not in condition, job_id
+        if "!cancelled()" in condition:
+            observed.add(job_id)
+    assert observed == set(expected_job_ids)
+
+
+@pytest.mark.parametrize(("path", "job_ids"), _CANCELLATION_JOB_IDS, ids=("ci", "frontend"))
+def test_selected_workflow_job_cancellation_inventory_is_exact(
+    path: Path, job_ids: tuple[str, ...]
+) -> None:
+    """Keep all nine CI jobs and the Frontend caddy job in the finite cancellation cohort."""
+    expected = tuple(
+        job_id for workflow_path, job_id, _ in _JOB_CANCELLATION_CONDITIONS if workflow_path == path
+    )
+    assert expected == job_ids
+    assert len(_JOB_CANCELLATION_CONDITIONS) == 10
+    _assert_selected_workflow_job_cancellation_inventory(_load_workflow(path), job_ids)
+
+
+@pytest.mark.parametrize(("path", "job_id", "expected"), _JOB_CANCELLATION_CONDITIONS)
+def test_selected_workflow_job_cancellation_predicates_preserve_complete_tails(
+    path: Path, job_id: str, expected: str
+) -> None:
+    """Pin each complete native condition without evaluating GitHub scheduling expressions."""
+    jobs = _load_workflow(path)["jobs"]
+    assert isinstance(jobs, dict)
+    job = jobs[job_id]
+    assert isinstance(job, dict)
+    assert job["if"] == expected
+
+
+@pytest.mark.parametrize(("path", "job_id", "expected"), _JOB_CANCELLATION_CONDITIONS)
+@pytest.mark.parametrize(
+    "mutation",
+    (
+        "missing-job",
+        "extra-job",
+        "always",
+        "success-only",
+        "redundant-always",
+        "or-escape",
+        "wrong-operator",
+        "lost-parenthesis",
+        "missing-braces",
+        "lost-tail",
+    ),
+)
+def test_selected_workflow_job_cancellation_contract_rejects_drift(
+    path: Path, job_id: str, expected: str, mutation: str
+) -> None:
+    """Reject finite membership and status/tail drift through the existing YAML source seam."""
+    workflow = _load_workflow(path)
+    jobs = workflow["jobs"]
+    assert isinstance(jobs, dict)
+    job = jobs[job_id]
+    assert isinstance(job, dict)
+    assert job["if"] == expected
+    if mutation == "missing-job":
+        del jobs[job_id]
+    elif mutation == "extra-job":
+        jobs["unexpected-cancellation-job"] = {"if": "${{ !cancelled() }}"}
+    elif mutation == "always":
+        job["if"] = expected.replace("!cancelled()", "always()", 1)
+    elif mutation == "success-only":
+        job["if"] = expected.replace("!cancelled()", "success()", 1)
+    elif mutation == "redundant-always":
+        job["if"] = expected.replace("!cancelled()", "always() && !cancelled()", 1)
+    elif mutation == "or-escape":
+        job["if"] = expected.replace("!cancelled()", "!cancelled() || true", 1)
+    elif mutation == "wrong-operator":
+        job["if"] = (
+            expected.replace(" && ", " || ", 1)
+            if job_id != "lint"
+            else "${{ !cancelled() || true }}"
+        )
+    elif mutation == "lost-parenthesis":
+        job["if"] = (
+            expected.replace(" && (", " && ", 1)
+            if " && (" in expected
+            else expected.replace("!cancelled()", "!cancelled(", 1)
+        )
+    elif mutation == "missing-braces":
+        job["if"] = expected.removeprefix("${{ ").removesuffix(" }}")
+    elif mutation == "lost-tail":
+        job["if"] = "${{ !cancelled() }}" if job_id != "lint" else "${{ false }}"
+    else:
+        raise AssertionError(f"Unexpected cancellation mutation: {mutation}")
+    expected_job_ids = next(
+        ids for workflow_path, ids in _CANCELLATION_JOB_IDS if workflow_path == path
+    )
+    with pytest.raises(AssertionError):
+        _assert_selected_workflow_job_cancellation_inventory(workflow, expected_job_ids)
+        for workflow_path, selected_job_id, condition in _JOB_CANCELLATION_CONDITIONS:
+            if workflow_path == path:
+                assert jobs[selected_job_id]["if"] == condition
+
+
 def _active_workflow_paths() -> Iterator[Path]:
     workflow_dir = REPO_ROOT / ".github" / "workflows"
     yield from sorted(workflow_dir.glob("*.yml"))
@@ -5041,7 +5228,7 @@ def _assert_ci_lint_node24_frontend_hook_dependency_contract(
     assert isinstance(jobs, dict)
     lint_job = jobs["lint"]
     assert isinstance(lint_job, dict)
-    assert lint_job.get("if") == "${{ always() }}"
+    assert lint_job.get("if") == "${{ !cancelled() }}"
     for forbidden_key in (
         "continue-on-error",
         "defaults",
