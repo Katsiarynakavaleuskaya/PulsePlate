@@ -196,10 +196,18 @@ def _publication_digest_from_collector(state: dict[str, Any]) -> str:
     )
 
 
+@pytest.mark.parametrize("reply_form", ["root-rest-omitted", "root-rest-null", "reply"])
 def test_publication_inventory_uses_raw_native_affinity_revision_and_roles(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, reply_form: str
 ) -> None:
     state = _raw_publication_inventory_fixture(monkeypatch)
+    inline = state["sources"]["review_comment"][0]
+    if reply_form == "root-rest-null":
+        inline["in_reply_to_id"] = None
+    elif reply_form == "reply":
+        inline["in_reply_to_id"] = 6
+        state["nodes"]["NODE_2"]["replyTo"] = {"id": "REPLY_6", "databaseId": 6}
+        state["roots"] = [root for root in state["roots"] if root.node_id != "THREAD_2"]
     first = _publication_digest_from_collector(state)
     for rows in state["sources"].values():
         rows.reverse()
@@ -239,6 +247,26 @@ def test_publication_inventory_detects_member_deletion_before_precheck(
         "bool-id",
         "lost-marker",
         "pending-review",
+        "missing-review-commit",
+        "malformed-review-commit",
+        "missing-inline-commit",
+        "malformed-inline-commit",
+        "missing-inline-path",
+        "empty-inline-path",
+        "missing-parent-review-id",
+        "null-parent-review-id",
+        "bool-parent-review-id",
+        "string-parent-review-id",
+        "zero-parent-review-id",
+        "float-parent-review-id",
+        "native-bool-parent-review-id",
+        "malformed-reply-object",
+        "missing-native-reply",
+        "bool-reply-id",
+        "string-reply-id",
+        "zero-reply-id",
+        "float-reply-id",
+        "native-bool-reply-id",
     ],
 )
 def test_publication_inventory_rejects_unknown_or_changed_raw_members(
@@ -246,6 +274,9 @@ def test_publication_inventory_rejects_unknown_or_changed_raw_members(
 ) -> None:
     state = _raw_publication_inventory_fixture(monkeypatch)
     before = _publication_digest_from_collector(state)
+    if mutation.endswith("review-id") or "reply" in mutation or "inline" in mutation:
+        # Exercise selected inline affinity independently of first-root constraints.
+        state["roots"] = [root for root in state["roots"] if root.node_id != "THREAD_2"]
     if mutation == "raw-lines":
         row = state["sources"]["issue_comment"][0]
         row["body"] = row["body"].replace("\r\n", "\n")
@@ -260,6 +291,69 @@ def test_publication_inventory_rejects_unknown_or_changed_raw_members(
         state["sources"]["issue_comment"][0]["id"] = True
     elif mutation == "pending-review":
         state["sources"]["review"][0].update(state="PENDING", submitted_at=None)
+    elif mutation in {"missing-review-commit", "malformed-review-commit"}:
+        commit = None if mutation == "missing-review-commit" else "d" * 39
+        state["sources"]["review"][0]["commit_id"] = commit
+        state["nodes"]["NODE_3"]["commit"] = {"oid": commit}
+    elif mutation in {"missing-inline-commit", "malformed-inline-commit"}:
+        commit = None if mutation == "missing-inline-commit" else "d" * 39
+        state["sources"]["review_comment"][0]["original_commit_id"] = commit
+        state["nodes"]["NODE_2"]["originalCommit"] = {"oid": commit}
+    elif mutation in {"missing-inline-path", "empty-inline-path"}:
+        path = None if mutation == "missing-inline-path" else ""
+        state["sources"]["review_comment"][0]["path"] = path
+        state["nodes"]["NODE_2"]["path"] = path
+    elif mutation == "missing-parent-review-id":
+        state["sources"]["review_comment"][0].pop("pull_request_review_id")
+        state["nodes"]["NODE_2"]["pullRequestReview"].pop("databaseId")
+    elif mutation in {
+        "null-parent-review-id",
+        "bool-parent-review-id",
+        "string-parent-review-id",
+        "zero-parent-review-id",
+        "float-parent-review-id",
+        "native-bool-parent-review-id",
+    }:
+        parent = {
+            "null-parent-review-id": None,
+            "bool-parent-review-id": True,
+            "string-parent-review-id": "3",
+            "zero-parent-review-id": 0,
+            "float-parent-review-id": 1.0,
+            "native-bool-parent-review-id": 1,
+        }[mutation]
+        state["sources"]["review_comment"][0]["pull_request_review_id"] = parent
+        state["nodes"]["NODE_2"]["pullRequestReview"]["databaseId"] = (
+            True
+            if mutation == "native-bool-parent-review-id"
+            else 1 if mutation in {"bool-parent-review-id", "float-parent-review-id"} else parent
+        )
+    elif mutation == "malformed-reply-object":
+        state["nodes"]["NODE_2"]["replyTo"] = {}
+    elif mutation == "missing-native-reply":
+        state["nodes"]["NODE_2"].pop("replyTo")
+    elif mutation in {
+        "bool-reply-id",
+        "string-reply-id",
+        "zero-reply-id",
+        "float-reply-id",
+        "native-bool-reply-id",
+    }:
+        reply = {
+            "bool-reply-id": True,
+            "string-reply-id": "6",
+            "zero-reply-id": 0,
+            "float-reply-id": 1.0,
+            "native-bool-reply-id": 1,
+        }[mutation]
+        state["sources"]["review_comment"][0]["in_reply_to_id"] = reply
+        state["nodes"]["NODE_2"]["replyTo"] = {
+            "databaseId": (
+                True
+                if mutation == "native-bool-reply-id"
+                else 1 if mutation in {"bool-reply-id", "float-reply-id"} else reply
+            )
+        }
     else:
         state["sources"]["issue_comment"][0]["body"] = "No actionable review comments"
         state["nodes"]["NODE_1"]["body"] = "No actionable review comments"

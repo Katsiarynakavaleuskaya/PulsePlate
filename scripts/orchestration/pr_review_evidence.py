@@ -882,12 +882,17 @@ def _review_native_binding(
         ) < _parse_timestamp(times["createdAt"], label="createdAt"):
             raise ReviewEvidenceError("review is not a valid posted observation")
         commit = native.get("commit")
+        native_commit = _require_sha(
+            commit.get("oid") if isinstance(commit, dict) else None,
+            label="native review commit",
+        )
+        rest_commit = _require_sha(row.get("commit_id"), label="REST review commit")
         affinity = {
             "submittedAt": posted,
             "state": native["state"],
-            "commit": commit.get("oid") if isinstance(commit, dict) else None,
+            "commit": native_commit,
         }
-        if affinity["commit"] != row.get("commit_id"):
+        if native_commit != rest_commit:
             raise ReviewEvidenceError("review commit identity conflicts")
         pull = native.get("pullRequest")
     else:
@@ -903,19 +908,49 @@ def _review_native_binding(
             parent_review = native.get("pullRequestReview")
             original = native.get("originalCommit")
             reply_to = native.get("replyTo")
+            native_original = _require_sha(
+                original.get("oid") if isinstance(original, dict) else None,
+                label="native inline original commit",
+            )
+            rest_original = _require_sha(
+                row.get("original_commit_id"), label="REST inline original commit"
+            )
+            parent_id = parent_review.get("databaseId") if isinstance(parent_review, dict) else None
+            rest_parent_id = row.get("pull_request_review_id")
+            if (
+                type(parent_id) is not int
+                or parent_id <= 0
+                or type(rest_parent_id) is not int
+                or rest_parent_id <= 0
+                or not isinstance(native.get("path"), str)
+                or not native["path"]
+                or not isinstance(row.get("path"), str)
+                or not row["path"]
+            ):
+                raise _StaleSealEvidenceUnknown("inline required native affinity is API_UNKNOWN")
+            native_reply_id = None
+            if reply_to is not None:
+                if (
+                    not isinstance(reply_to, dict)
+                    or type(reply_to.get("databaseId")) is not int
+                    or reply_to["databaseId"] <= 0
+                ):
+                    raise _StaleSealEvidenceUnknown("inline native reply affinity is API_UNKNOWN")
+                native_reply_id = reply_to["databaseId"]
+            rest_reply_id = row.get("in_reply_to_id")
+            if rest_reply_id is not None and (type(rest_reply_id) is not int or rest_reply_id <= 0):
+                raise _StaleSealEvidenceUnknown("inline REST reply affinity is API_UNKNOWN")
             affinity = {
                 "path": native.get("path"),
-                "originalCommit": original.get("oid") if isinstance(original, dict) else None,
-                "review_id": (
-                    parent_review.get("databaseId") if isinstance(parent_review, dict) else None
-                ),
-                "reply_to": reply_to.get("databaseId") if isinstance(reply_to, dict) else None,
+                "originalCommit": native_original,
+                "review_id": parent_id,
+                "reply_to": native_reply_id,
             }
             if affinity != {
                 "path": row.get("path"),
-                "originalCommit": row.get("original_commit_id"),
-                "review_id": row.get("pull_request_review_id"),
-                "reply_to": row.get("in_reply_to_id"),
+                "originalCommit": rest_original,
+                "review_id": rest_parent_id,
+                "reply_to": rest_reply_id,
             }:
                 raise ReviewEvidenceError("inline review native affinity conflicts")
             pull = parent_review.get("pullRequest") if isinstance(parent_review, dict) else None

@@ -514,7 +514,7 @@ the genuinely stale root head. A later already-stale parent is not declared vali
 and the correcting `R` follows the inspected current material `M`, not the older
 root head. Raw regular Git blobs, complete real PR graph, authenticated ancestry,
 selected shallow/graft/replacement certainty, exact current seal and server
-publication remain required. Evidence: `scripts/orchestration/pr_review_evidence.py:3504`.
+publication remain required. Evidence: `scripts/orchestration/pr_review_evidence.py:3539`.
 
 | Phase | Required evidence | Meaning |
 | --- | --- | --- |
@@ -531,7 +531,7 @@ is posting time; native creation/update/edit remain distinct. Missing native edi
 fields are unknown, whereas present null is meaningful. Normalized body hashes or
 URL sets cannot stand in for exact raw body/revision truth. Evidence:
 `scripts/orchestration/pr_review_evidence.py:667` and
-`scripts/orchestration/pr_review_evidence.py:950`.
+`scripts/orchestration/pr_review_evidence.py:985`.
 
 Both actual registered pre-closeout observations must equal the single `I.H`.
 Retain command, exit and raw PASS output as mandatory procedural evidence before
@@ -604,9 +604,9 @@ review/security scans.
 
 Evidence:
 - `scripts/orchestration/pr_review_evidence.py:588` — exact `OWNER FIXED` parser
-- `scripts/orchestration/pr_review_evidence.py:1215` — shared reply-only producer
-- `scripts/orchestration/pr_review_evidence.py:2411` — raw-Git linear-material edge invariant
-- `scripts/orchestration/pr_review_evidence.py:3077` — closed historical topology classifier
+- `scripts/orchestration/pr_review_evidence.py:1250` — shared reply-only producer
+- `scripts/orchestration/pr_review_evidence.py:2446` — raw-Git linear-material edge invariant
+- `scripts/orchestration/pr_review_evidence.py:3112` — closed historical topology classifier
 - `tests/test_pr_review_material_seal.py:7130` — real-Git base-sync acceptance with later sync/current reseal
 - `tests/test_pr_review_material_seal.py:7141` — real-Git linear-material acceptance
 - `tests/test_pr_review_material_seal.py:7169` — exact parser rejection matrix
@@ -614,8 +614,8 @@ Evidence:
 - `tests/test_pr_review_material_seal.py:7442` — linear historical base-binding negatives
 - `tests/test_pr_review_material_seal.py:7457` — invalid base-sync no-fallthrough proof
 - `tests/test_pr_review_material_seal.py:7730` — batched complete parent enumeration
-- `tests/test_pr_merge_readiness_gate.py:463` — strict merge-readiness consumer uses the shared producer
-- `tests/test_pr_merge_readiness_gate.py:496` — strict merge-readiness input wiring
+- `tests/test_pr_merge_readiness_gate.py:557` — strict merge-readiness consumer uses the shared producer
+- `tests/test_pr_merge_readiness_gate.py:590` — strict merge-readiness input wiring
 - `tests/test_review_threads_disposition_strict.py:44` — disposition consumer uses the shared producer
 - `tests/test_review_threads_disposition_strict.py:1528` — disposition input wiring and snapshot stability
 - `scripts/orchestration/check_review_threads_disposition.py:38`
