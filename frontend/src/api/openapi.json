@@ -2109,6 +2109,16 @@
             ],
             "title": "Goal"
           },
+          "lang": {
+            "description": "Response language: ru, en, or es. Defaults to en when omitted.",
+            "enum": [
+              "ru",
+              "en",
+              "es"
+            ],
+            "title": "Lang",
+            "type": "string"
+          },
           "situation": {
             "maxLength": 500,
             "minLength": 1,

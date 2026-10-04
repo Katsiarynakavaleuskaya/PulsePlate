@@ -7,6 +7,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.schemas.shopping_list import ShoppingListDTO, ShoppingListPreferences
+from core.i18n import Language
 from core.judgment import ClaimType, EvidenceMode
 
 FitChefAgentId = Literal["fitchef-agent"]
@@ -96,6 +97,7 @@ class FitChefDistortionSimulatorInput(BaseModel):
     safe_automatic_thought: str = Field(..., min_length=1)
     safe_emotion: str = Field(..., min_length=1)
     safe_goal: str | None = None
+    lang: Language = "en"
     api_key: str = Field(..., min_length=1)
     endpoint: str = Field(..., min_length=1)
     method: str = Field(..., min_length=1)

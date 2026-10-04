@@ -25,6 +25,7 @@ from typing import Any, cast
 from unittest.mock import patch
 
 import httpx
+from fastapi import HTTPException
 from openai import AsyncOpenAI, OpenAI
 from sqlalchemy import select
 
@@ -43,6 +44,7 @@ from app.security.llm_monthly_quota import (
     require_llm_monthly_limit,
 )
 from app.services import fitchef_runtime
+from core.i18n import Language
 from core.insight import fitchef_companion
 from core.db import session_scope
 from core.rag import vector_rag
@@ -84,6 +86,15 @@ _MODEL = "sonar"
 
 class BudgetExhausted(RuntimeError):
     """The next physical request is not allowed to reach transport."""
+
+
+class _PreproviderHighDistressBoundary(HTTPException):
+    """Identify only the collector's own preprovider distress admission failure."""
+
+    def __init__(self) -> None:
+        """Represent the preprovider distress boundary with the canonical HTTP detail."""
+
+        super().__init__(status_code=400, detail="fitchef_high_distress_boundary")
 
 
 class AttemptLedger:
@@ -257,6 +268,7 @@ def _preflight_request_size(scenario: dict[str, Any]) -> None:
         context["emotion"],
         context["goal"],
         fitchef_runtime.build_fitchef_source_prompt_context(snapshot),
+        lang=scenario["language"],
     )
 
     def transport(request: httpx.Request) -> httpx.Response:
@@ -473,12 +485,20 @@ def _validate_output_directory(directory: Path) -> None:
         raise ValueError("output_ignore_unavailable")
 
 
-def _admitted_task(context: dict[str, Any], key: str) -> FitChefDistortionSimulatorTaskEnvelope:
+def _admitted_task(
+    context: dict[str, Any], key: str, lang: Language
+) -> FitChefDistortionSimulatorTaskEnvelope:
+    """Validate collector admission and preserve the scenario locale before execution."""
+
     if not fitchef_structured._is_fitchef_structured_enabled():
         raise ValueError("fitchef_feature_disabled")
     mode = fitchef_structured._require_fitchef_structured_mode()
     if mode != "auto-safe":
         raise ValueError("fitchef_mode_not_auto_safe")
+    if fitchef_companion.has_high_distress_boundary(
+        context["situation"], context["automatic_thought"], context["emotion"], context["goal"]
+    ):
+        raise _PreproviderHighDistressBoundary()
     return FitChefDistortionSimulatorTaskEnvelope(
         agent_id="fitchef-agent",
         mode=mode,
@@ -492,6 +512,7 @@ def _admitted_task(context: dict[str, Any], key: str) -> FitChefDistortionSimula
                 if context["goal"] is not None and context["goal"].strip()
                 else None
             ),
+            lang=lang,
             api_key=key,
             endpoint="/api/v1/pro/fitchef/explain",
             method="POST",
@@ -575,10 +596,14 @@ async def _collect_one(
         frozen_snapshot = real_freeze(occurrences)
         return frozen_snapshot
 
-    def observed_fallback(*, automatic_thought: str, goal: str | None) -> str:
+    def observed_fallback(
+        *, automatic_thought: str, goal: str | None, lang: Language = "en"
+    ) -> str:
+        """Record fallback use while preserving its locale and text result contract."""
+
         nonlocal fallback_called
         fallback_called = True
-        result = real_fallback(automatic_thought=automatic_thought, goal=goal)
+        result = real_fallback(automatic_thought=automatic_thought, goal=goal, lang=lang)
         if not isinstance(result, str):
             raise ValueError("fallback_response_type")
         return result
@@ -599,7 +624,7 @@ async def _collect_one(
             user_tier=kwargs["user_tier"],
         )
 
-    task = _admitted_task(context, key)
+    task = _admitted_task(context, key, scenario["language"])
     with ExitStack() as stack:
         stack.enter_context(
             patch.object(provider.client.chat.completions, "create", bounded_create)
@@ -711,6 +736,8 @@ async def collect(
     fitchef_key: str,
     perplexity_key: str,
 ) -> None:
+    """Collect bounded cases and preserve completion or failure evidence under the attempt ledger."""
+
     manifest = validate_manifest(cast(list[object], manifest))
     if not fitchef_key or not perplexity_key:
         raise ValueError("missing_provider_or_fitchef_key")
@@ -775,6 +802,8 @@ async def collect(
             reason = "reported_cost_overrun"
         elif ledger.exhausted or isinstance(exc, BudgetExhausted):
             reason = "budget_exhausted"
+        elif isinstance(exc, _PreproviderHighDistressBoundary):
+            reason = "validation_failure"
         elif ledger.transport_rejection or isinstance(exc, ValueError):
             reason = "validation_failure"
         elif not isinstance(exc, Exception):
