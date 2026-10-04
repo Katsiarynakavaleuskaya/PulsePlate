@@ -503,6 +503,15 @@ Avoid `# type: ignore[no-any-return]` and prefer typed locals over `cast()`.
   `app.make_weekly_menu` and `app.build_nutrition_targets` remain exact package
   facade exports. Repository source/runtime absence is not proof that unknown
   external Python importers do not exist.
+- The four planning-schema Python bindings `TargetsIn`, `CanonicalTargetsIn`,
+  `LegacyWeekPlanRequest`, and `WeeklyMenuResponse` are retired from
+  `legacy_app.py` and must not be recreated. Import `TargetsIn` directly from
+  `app.schemas.nutrition_targets` and the two weekly models from
+  `app.schemas.legacy_premium_weekly_plan`. The two former TargetsIn paths
+  identify one canonical class; there are three canonical models in this cohort.
+  Retained HTTP aliases continue to use their canonical router/schema owners.
+  Fresh-import absence does not establish hot-reload behavior or absence of
+  unknown external or computed Python callers.
 - Legacy AI/insight routes must not own provider orchestration in
   `legacy_app.py`. `app/schemas/insight.py` owns the request/response models,
   `app/services/insight_compat.py` owns retained compatibility callables and

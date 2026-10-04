@@ -8,11 +8,10 @@ import pytest
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
-import legacy_app
 import app.routers.legacy_premium_weekly_plan as weekly_plan_router
 import app.routers.premium_week as premium_week_router
 import app.routers.pro as pro_router
-from app.schemas.nutrition_targets import TargetsIn as CanonicalTargetsIn
+from app.schemas.nutrition_targets import TargetsIn
 
 
 def _weekly_menu_stub(*args: object, **kwargs: object) -> object:
@@ -30,42 +29,47 @@ def _weekly_menu_stub(*args: object, **kwargs: object) -> object:
     return _WeekMenu()
 
 
-def test_legacy_targets_in_is_canonical_alias() -> None:
-    """RU: Legacy TargetsIn должен быть alias на canonical (без drift).
-    EN: Legacy TargetsIn must be an alias to canonical (no drift).
-    """
-
-    assert legacy_app.TargetsIn is CanonicalTargetsIn
-
-
 @pytest.mark.parametrize(
-    "payload",
+    ("payload", "expected_macros"),
     [
-        {
-            "kcal": 2000,
-            "macros": {"protein_g": "150.0", "fat_g": "65.0", "carbs_g": "250.0"},
-            "micro": {"vitamin_c_mg": "90.0"},
-            "water_ml": 2000,
-        },
-        {
-            "kcal": 2000,
-            "macros": {"protein_g": 150.0},
-            "micro": {"vitamin_c_mg": 90.0},
-            "water_ml": 2000,
-        },
+        (
+            {
+                "kcal": 2000,
+                "macros": {"protein_g": "150.0", "fat_g": "65.0", "carbs_g": "250.0"},
+                "micro": {"vitamin_c_mg": "90.0"},
+                "water_ml": 2000,
+            },
+            {"protein_g": 150.0, "fat_g": 65.0, "carbs_g": 250.0},
+        ),
+        (
+            {
+                "kcal": 2000,
+                "macros": {"protein_g": 150.0},
+                "micro": {"vitamin_c_mg": 90.0},
+                "water_ml": 2000,
+            },
+            {"protein_g": 150.0},
+        ),
     ],
 )
-def test_targets_in_accepts_numeric_strings(payload: dict[str, object]) -> None:
+def test_targets_in_accepts_numeric_strings(
+    payload: dict[str, object], expected_macros: dict[str, float]
+) -> None:
     """RU: Числовые строки (например, '150.0') валидны.
     EN: Numeric strings (e.g. '150.0') are valid.
     """
 
-    out_canonical = CanonicalTargetsIn.model_validate(payload)
-    out_legacy = legacy_app.TargetsIn.model_validate(payload)
+    targets = TargetsIn.model_validate(payload)
 
-    assert out_canonical.model_dump() == out_legacy.model_dump()
-    assert out_canonical.kcal == 2000
-    assert out_canonical.macros["protein_g"] == 150.0
+    assert targets.model_dump() == {
+        "kcal": 2000,
+        "macros": expected_macros,
+        "micro": {"vitamin_c_mg": 90.0},
+        "water_ml": 2000,
+        "activity_week": None,
+    }
+    assert targets.kcal == 2000
+    assert targets.macros["protein_g"] == 150.0
 
 
 @pytest.mark.parametrize(
@@ -121,10 +125,7 @@ def test_targets_in_rejects_invalid_values(payload: dict[str, object]) -> None:
     """
 
     with pytest.raises(ValidationError):
-        CanonicalTargetsIn.model_validate(payload)
-
-    with pytest.raises(ValidationError):
-        legacy_app.TargetsIn.model_validate(payload)
+        TargetsIn.model_validate(payload)
 
 
 @pytest.mark.parametrize("field", ("macros", "micro"))
@@ -142,9 +143,7 @@ def test_targets_in_rejects_malformed_mapping_or_overflow(field: str, bad_value:
     payload[field] = bad_value
 
     with pytest.raises(ValidationError):
-        CanonicalTargetsIn.model_validate(payload)
-    with pytest.raises(ValidationError):
-        legacy_app.TargetsIn.model_validate(payload)
+        TargetsIn.model_validate(payload)
 
 
 @pytest.mark.parametrize("mapping_factory", (MappingProxyType, UserDict))
@@ -152,7 +151,7 @@ def test_targets_in_preserves_supported_mappings_and_zero(
     mapping_factory: Callable[[dict[str, object]], Mapping[str, object]],
 ) -> None:
     mapping = mapping_factory({"protein_g": "150.0", "optional_g": 0})
-    targets = CanonicalTargetsIn.model_validate(
+    targets = TargetsIn.model_validate(
         {"kcal": 2000, "macros": mapping, "micro": {}, "water_ml": 0}
     )
 
@@ -237,6 +236,7 @@ def test_legacy_week_endpoint_accepts_numeric_string_targets(
     }
     r = client.post("/api/v1/premium/plan/week", json=payload, headers=vip_headers)
     assert r.status_code == 200, r.text
+    assert r.headers.get("Content-Type", "").startswith("application/json")
 
     data = r.json()
     assert isinstance(data, dict)
@@ -292,3 +292,5 @@ def test_legacy_week_endpoint_rejects_invalid_targets_values(
     }
     r = client.post("/api/v1/premium/plan/week", json=payload, headers=vip_headers)
     assert r.status_code == 422, r.text
+    assert r.headers.get("Content-Type", "").startswith("application/json")
+    assert r.json() == {"detail": "Invalid weekly plan request payload"}

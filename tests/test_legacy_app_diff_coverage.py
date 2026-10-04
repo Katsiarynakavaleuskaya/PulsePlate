@@ -23,6 +23,7 @@ from sqlalchemy import create_engine
 from app.routers import legacy_premium_weekly_plan
 from app.routers import health as health_router
 from app.schemas import insight as insight_schemas
+from app.schemas.legacy_premium_weekly_plan import LegacyWeekPlanRequest
 import app.services.bmi_compat as bmi_compat_service
 import app.services.legacy_premium_weekly_plan as weekly_plan_service
 from app.services import insight_compat
@@ -124,8 +125,8 @@ def _patch_long_prompt_orchestration(
     monkeypatch.setattr(orch_mod, "retrieve_and_validate_rag", _mock_orchestration)
 
 
-def _legacy_week_plan_request() -> legacy_app.LegacyWeekPlanRequest:
-    return legacy_app.LegacyWeekPlanRequest.model_construct(
+def _legacy_week_plan_request() -> LegacyWeekPlanRequest:
+    return LegacyWeekPlanRequest.model_construct(
         sex="female",
         age=30,
         height_cm=168.0,
@@ -143,7 +144,7 @@ def _legacy_week_plan_request() -> legacy_app.LegacyWeekPlanRequest:
 
 
 def test_week_plan_schema_preserves_legacy_aliases_and_request_modes() -> None:
-    """Cover the canonical schema through the legacy_app compatibility export."""
+    """Cover the canonical schema's retained legacy goal aliases and request modes."""
 
     base_payload = {
         "sex": "female",
@@ -154,27 +155,19 @@ def test_week_plan_schema_preserves_legacy_aliases_and_request_modes() -> None:
     }
 
     assert (
-        legacy_app.LegacyWeekPlanRequest.model_validate(
-            {**base_payload, "goal": "weight_loss"}
-        ).goal
-        == "loss"
+        LegacyWeekPlanRequest.model_validate({**base_payload, "goal": "weight_loss"}).goal == "loss"
     )
     assert (
-        legacy_app.LegacyWeekPlanRequest.model_validate(
-            {**base_payload, "goal": "maintenance"}
-        ).goal
+        LegacyWeekPlanRequest.model_validate({**base_payload, "goal": "maintenance"}).goal
         == "maintain"
     )
     assert (
-        legacy_app.LegacyWeekPlanRequest.model_validate(
-            {**base_payload, "goal": "weight_gain"}
-        ).goal
-        == "gain"
+        LegacyWeekPlanRequest.model_validate({**base_payload, "goal": "weight_gain"}).goal == "gain"
     )
     with pytest.raises(ValidationError):
-        legacy_app.LegacyWeekPlanRequest.model_validate({**base_payload, "goal": "unsupported"})
+        LegacyWeekPlanRequest.model_validate({**base_payload, "goal": "unsupported"})
     with pytest.raises(ValidationError, match="Invalid targets payload"):
-        legacy_app.LegacyWeekPlanRequest.model_validate(
+        LegacyWeekPlanRequest.model_validate(
             {
                 "targets": {
                     "kcal": 2000,
@@ -185,10 +178,10 @@ def test_week_plan_schema_preserves_legacy_aliases_and_request_modes() -> None:
             }
         )
     with pytest.raises(ValidationError, match="Either 'targets' must be provided"):
-        legacy_app.LegacyWeekPlanRequest.model_validate({"goal": "maintain"})
+        LegacyWeekPlanRequest.model_validate({"goal": "maintain"})
 
-    request = legacy_app.LegacyWeekPlanRequest.model_construct(targets={"calories": 1800})
-    assert legacy_app.LegacyWeekPlanRequest._normalize_values(request) is request
+    request = LegacyWeekPlanRequest.model_construct(targets={"calories": 1800})
+    assert LegacyWeekPlanRequest._normalize_values(request) is request
 
 
 def test_week_plan_response_builder_filters_and_normalizes_malformed_values() -> None:
@@ -575,7 +568,7 @@ def test_week_plan_missing_required_fields_raises_422(
         model_construct.
         """
         monkeypatch.setenv("VIP_MODULE_ENABLED", "true")
-        req = legacy_app.LegacyWeekPlanRequest.model_construct(
+        req = LegacyWeekPlanRequest.model_construct(
             sex=None,
             age=None,
             height_cm=None,

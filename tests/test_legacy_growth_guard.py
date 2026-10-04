@@ -98,6 +98,10 @@ RETIRED_LEGACY_PYTHON_BINDINGS = (
     "get_retention_manager",
     "LogRetentionManager",
     "_log_retention_manager",
+    "TargetsIn",
+    "CanonicalTargetsIn",
+    "LegacyWeekPlanRequest",
+    "WeeklyMenuResponse",
 )
 
 RETIRED_PRO_NUTRITION_BINDINGS = RETIRED_LEGACY_PYTHON_BINDINGS[10:20]
@@ -109,6 +113,7 @@ RETIRED_TARGETS_GAPS_SERVICE_BINDINGS = RETIRED_LEGACY_PYTHON_BINDINGS[58:61]
 RETIRED_OPENAPI_BINDINGS = RETIRED_LEGACY_PYTHON_BINDINGS[61:68]
 RETIRED_NUTRITION_CONTRACT_BINDINGS = RETIRED_LEGACY_PYTHON_BINDINGS[68:83]
 RETIRED_LOG_RETENTION_BINDINGS = RETIRED_LEGACY_PYTHON_BINDINGS[83:87]
+RETIRED_PLANNING_SCHEMA_BINDINGS = RETIRED_LEGACY_PYTHON_BINDINGS[87:91]
 
 
 def test_retired_insight_binding_tail_is_exact_and_disjoint() -> None:
@@ -221,9 +226,66 @@ def test_retired_log_retention_tail_is_exact_and_disjoint() -> None:
         "LogRetentionManager",
         "_log_retention_manager",
     )
-    assert len(RETIRED_LEGACY_PYTHON_BINDINGS) == 87
-    assert len(set(RETIRED_LEGACY_PYTHON_BINDINGS)) == 87
+    assert len(RETIRED_LEGACY_PYTHON_BINDINGS[:87]) == 87
+    assert len(set(RETIRED_LEGACY_PYTHON_BINDINGS[:87])) == 87
     assert set(RETIRED_LEGACY_PYTHON_BINDINGS[:83]).isdisjoint(RETIRED_LOG_RETENTION_BINDINGS)
+
+
+def test_retired_planning_schema_tail_is_exact_and_disjoint() -> None:
+    assert RETIRED_PLANNING_SCHEMA_BINDINGS == (
+        "TargetsIn",
+        "CanonicalTargetsIn",
+        "LegacyWeekPlanRequest",
+        "WeeklyMenuResponse",
+    )
+    assert len(RETIRED_LEGACY_PYTHON_BINDINGS) == 91
+    assert len(set(RETIRED_LEGACY_PYTHON_BINDINGS)) == 91
+    assert set(RETIRED_LEGACY_PYTHON_BINDINGS[:87]).isdisjoint(RETIRED_PLANNING_SCHEMA_BINDINGS)
+
+
+@pytest.mark.parametrize("binding_name", RETIRED_PLANNING_SCHEMA_BINDINGS)
+@pytest.mark.parametrize(
+    "source_template",
+    [
+        "{name} = canonical\n",
+        "from app.schemas.nutrition_targets import canonical as {name}\n",
+        "def {name}():\n    return None\n",
+        "class {name}:\n    pass\n",
+        "del {name}\n",
+        "def mutate():\n    global {name}\n",
+    ],
+    ids=["assignment", "import-alias", "function", "class", "delete", "global"],
+)
+def test_retired_planning_schema_binding_carrier(binding_name: str, source_template: str) -> None:
+    assert legacy_guard.validate_retired_legacy_python_bindings(
+        source_template.format(name=binding_name)
+    ) == [f"legacy_app.py: retired Python compatibility binding is forbidden: {binding_name}"]
+
+
+@pytest.mark.parametrize(
+    ("binding_name", "source"),
+    (
+        ("TargetsIn", "from app.schemas.nutrition_targets import TargetsIn\n"),
+        (
+            "CanonicalTargetsIn",
+            "from app.schemas.nutrition_targets import TargetsIn as CanonicalTargetsIn\n",
+        ),
+        (
+            "LegacyWeekPlanRequest",
+            "from app.schemas.legacy_premium_weekly_plan import LegacyWeekPlanRequest\n",
+        ),
+        (
+            "WeeklyMenuResponse",
+            "from app.schemas.legacy_premium_weekly_plan import WeeklyMenuResponse\n",
+        ),
+    ),
+)
+def test_retired_planning_schema_guard_rejects_exact_canonical_reimport(
+    binding_name: str, source: str
+) -> None:
+    assert legacy_guard.validate_retired_legacy_python_bindings(source) == [
+        f"legacy_app.py: retired Python compatibility binding is forbidden: {binding_name}"
+    ]
 
 
 @pytest.mark.parametrize("binding_name", RETIRED_LOG_RETENTION_BINDINGS)
