@@ -129,6 +129,18 @@ TRANSLATIONS = {
         "activity_maintain_tip": "2–3 силовых тренировки/нед.",
         "activity_lose_tip": "6–10 тыс. шагов/день, +2–3 силовые трен./нед.",
         "activity_gain_tip": "2–3 силовых/нед; прогрессия нагрузок.",
+        # FitChef Distortion Simulator deterministic fallback
+        "fitchef.distortion.reason_uncertain": "По этому описанию нельзя уверенно определить шаблон мысли; это лишь одна возможная интерпретация.",
+        "fitchef.distortion.reason_all_or_nothing": "Мысль превращает один момент в общий вывод, не оставляя места для промежуточных вариантов.",
+        "fitchef.distortion.reason_catastrophizing": "Мысль быстро переходит от трудного момента к худшему исходу.",
+        "fitchef.distortion.reason_should_statements": "В мысли звучит жёсткое правило, которое добавляет давление.",
+        "fitchef.distortion.reason_mental_filtering": "Мысль сосредоточена на трудной части и упускает остальной контекст.",
+        "fitchef.distortion.reason_emotional_reasoning": "Сильное чувство может влиять на вывод, но само по себе не доказывает его.",
+        "fitchef.distortion.report_context": "Вы описали трудный момент и возникшую мысль; это ваш рассказ, а не доказательство вывода.",
+        "fitchef.distortion.evidence_against_moment": "Один трудный момент не описывает весь день или долгосрочный ход событий.",
+        "fitchef.distortion.evidence_against_next": "Следующий небольшой шаг всё ещё возможен.",
+        "fitchef.distortion.balanced_reframe": "Этот момент реален, но первая автоматическая мысль — не единственная интерпретация. Можно сделать паузу и выбрать спокойный следующий шаг.",
+        "fitchef.distortion.next_small_action": "Запишите одну более добрую мысль и выберите один небольшой шаг для следующего приёма пищи или привычки.",
     },
     "en": {
         # BMI Categories
@@ -249,6 +261,18 @@ TRANSLATIONS = {
         "activity_maintain_tip": "2–3 strength sessions/week.",
         "activity_lose_tip": "6–10k steps/day, +2–3 strength sessions/wk.",
         "activity_gain_tip": "2–3 strength sessions/wk; progressive overload.",
+        # FitChef Distortion Simulator deterministic fallback
+        "fitchef.distortion.reason_uncertain": "This description does not establish a thought pattern; it may be only one interpretation.",
+        "fitchef.distortion.reason_all_or_nothing": "The thought turns one moment into an all-or-total conclusion instead of leaving room for a middle ground.",
+        "fitchef.distortion.reason_catastrophizing": "The thought jumps quickly from a setback to the worst-case outcome.",
+        "fitchef.distortion.reason_should_statements": "The thought uses rigid rules that create pressure instead of workable guidance.",
+        "fitchef.distortion.reason_mental_filtering": "The thought zooms in on the negative part and screens out the rest of the picture.",
+        "fitchef.distortion.reason_emotional_reasoning": "The thought treats a difficult feeling as proof, though the feeling alone does not establish the conclusion.",
+        "fitchef.distortion.report_context": "You reported a difficult moment and a thought; that report alone does not prove the conclusion.",
+        "fitchef.distortion.evidence_against_moment": "One difficult moment does not define the full day or the long-term pattern.",
+        "fitchef.distortion.evidence_against_next": "A small next step is still possible.",
+        "fitchef.distortion.balanced_reframe": "This moment is real, but the first automatic thought is not the only interpretation. I can pause and choose one calmer next action.",
+        "fitchef.distortion.next_small_action": "Write one kinder replacement thought and pair it with one concrete next meal or habit step.",
     },
     "es": {
         # BMI Categories
@@ -372,6 +396,18 @@ TRANSLATIONS = {
         "activity_maintain_tip": "2–3 sesiones de fuerza/semana.",
         "activity_lose_tip": "6–10k pasos/día, +2–3 sesiones de fuerza/sem.",
         "activity_gain_tip": "2–3 sesiones de fuerza/sem; sobrecarga progresiva.",
+        # FitChef Distortion Simulator deterministic fallback
+        "fitchef.distortion.reason_uncertain": "Esta descripción no permite identificar con seguridad un patrón de pensamiento; puede ser solo una interpretación.",
+        "fitchef.distortion.reason_all_or_nothing": "El pensamiento convierte un momento en una conclusión total, sin dejar espacio para matices.",
+        "fitchef.distortion.reason_catastrophizing": "El pensamiento pasa rápidamente de un contratiempo al peor resultado posible.",
+        "fitchef.distortion.reason_should_statements": "El pensamiento usa una regla rígida que añade presión.",
+        "fitchef.distortion.reason_mental_filtering": "El pensamiento se centra en la parte difícil y deja fuera el resto del contexto.",
+        "fitchef.distortion.reason_emotional_reasoning": "Una emoción intensa puede influir en la conclusión, pero no la demuestra por sí sola.",
+        "fitchef.distortion.report_context": "Describiste un momento difícil y un pensamiento; ese relato por sí solo no demuestra la conclusión.",
+        "fitchef.distortion.evidence_against_moment": "Un momento difícil no define todo el día ni el patrón a largo plazo.",
+        "fitchef.distortion.evidence_against_next": "Todavía es posible dar un pequeño paso siguiente.",
+        "fitchef.distortion.balanced_reframe": "Este momento es real, pero el primer pensamiento automático no es la única interpretación. Puedo hacer una pausa y elegir un próximo paso más tranquilo.",
+        "fitchef.distortion.next_small_action": "Escribe un pensamiento alternativo más amable y elige un paso concreto para la próxima comida o hábito.",
     },
 }
 

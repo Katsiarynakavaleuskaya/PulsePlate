@@ -2723,6 +2723,12 @@ export interface components {
             emotion: string;
             /** Goal */
             goal?: string | null;
+            /**
+             * Lang
+             * @description Response language: ru, en, or es. Defaults to en when omitted.
+             * @enum {string}
+             */
+            lang?: "ru" | "en" | "es";
             /** Situation */
             situation: string;
         };
