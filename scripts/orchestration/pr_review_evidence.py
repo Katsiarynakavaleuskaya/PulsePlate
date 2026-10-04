@@ -55,6 +55,17 @@ _OWNER_STALE_SEAL_FIXED_REPLY_RE = re.compile(
     r"mapping-only reseal (?P<reseal>[0-9a-f]{40}); authenticated live PR graph "
     r"is authoritative\."
 )
+_OWNER_STALE_SEAL_INSPECTED_REPLY_RE = re.compile(
+    r"OWNER INSPECTED: historical stale-seal root (?P<root_id>[1-9][0-9]{0,19}) "
+    r"revision (?P<revision>[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z) "
+    r"body (?P<body>sha256:[0-9a-f]{64}) at (?P<stale>[0-9a-f]{40}) "
+    r"has no independent actionable; permit one mapping-only publication from "
+    r"material (?P<material>[0-9a-f]{40}) base (?P<base>[0-9a-f]{40}) "
+    r"merge-base (?P<merge_base>[0-9a-f]{40}) digest (?P<digest>sha256:[0-9a-f]{64}) "
+    r"candidate (?P<candidate>sha256:[0-9a-f]{64}) "
+    r"inventory (?P<inventory>sha256:[0-9a-f]{64}); no disposition or merge authority\."
+)
+_PUBLICATION_INVENTORY_DOMAIN = b"pulseplate-stale-seal-publication-inventory/v1\0"
 _MAX_REPOSITORY_ACTIVITY_PAGES = 100
 _GITHUB_PAGINATION_QUERY_KEYS = frozenset({"after", "before", "cursor", "page"})
 TRIGGER_ONLY_COMMIT_SUBJECT_RE = re.compile(
@@ -596,6 +607,427 @@ def parse_owner_stale_seal_fixed_reply(body: str) -> tuple[str, str]:
     if stale_head == reseal:
         raise ReviewEvidenceError("owner stale-seal FIXED reply must name two commits")
     return stale_head, reseal
+
+
+def parse_owner_stale_seal_inspected_reply(body: str) -> dict[str, str]:
+    """Parse one exact publication-only assertion; it contains no fixing SHA."""
+
+    if not isinstance(body, str) or not body.isascii() or len(body) > 2048:
+        raise ReviewEvidenceError("owner stale-seal inspection is malformed")
+    match = _OWNER_STALE_SEAL_INSPECTED_REPLY_RE.fullmatch(body)
+    if match is None:
+        raise ReviewEvidenceError("owner stale-seal inspection is malformed")
+    values = match.groupdict()
+    _parse_timestamp(values["revision"], label="inspection root revision")
+    if values["stale"] == values["material"]:
+        raise ReviewEvidenceError("inspection must select historical stale material")
+    return values
+
+
+def read_closeout_candidate_bytes(repo_root: Path, *, pr_number: int) -> bytes:
+    """Read the bounded regular canonical candidate without newline normalization."""
+
+    if not isinstance(pr_number, int) or isinstance(pr_number, bool) or pr_number <= 0:
+        raise ReviewEvidenceError("candidate PR number is malformed")
+    root_descriptor = _open_scan_root(repo_root)
+    try:
+        relative = PurePosixPath(f"docs/review/PR_{pr_number}_FIXED_MAPPING.md")
+        descriptor = _open_contained_artifact_descriptor(root_descriptor, relative)
+        try:
+            if stat.S_IMODE(os.fstat(descriptor).st_mode) != 0o644:
+                raise ReviewEvidenceError("canonical candidate must have regular 100644 mode")
+            raw = _read_regular_descriptor(
+                descriptor, max_bytes=_MAX_JSON_ARTIFACT_BYTES, label="canonical candidate"
+            )
+        finally:
+            os.close(descriptor)
+    finally:
+        os.close(root_descriptor)
+    if not raw:
+        raise ReviewEvidenceError("canonical candidate is empty")
+    try:
+        raw.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise ReviewEvidenceError("canonical candidate is not strict UTF-8") from exc
+    return raw
+
+
+def _raw_review_body_hash(body: Any) -> str:
+    if not isinstance(body, str):
+        raise _StaleSealEvidenceUnknown("review raw body is API_UNKNOWN")
+    try:
+        raw = body.encode("utf-8")
+    except UnicodeEncodeError as exc:
+        raise _StaleSealEvidenceUnknown("review raw body is API_UNKNOWN") from exc
+    if len(raw) > 256 * 1024:
+        raise _StaleSealEvidenceUnknown("review raw body is API_UNKNOWN")
+    return "sha256:" + hashlib.sha256(raw).hexdigest()
+
+
+def _review_native_binding(
+    *,
+    kind: str,
+    url: str,
+    repository: str,
+    pr_number: int,
+    token: str,
+    selected_row: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Cross-bind one selected object to fixed REST and native revision witnesses."""
+
+    from scripts.orchestration.pr_commit_identity import github_api_request, _require_repository
+
+    owner, name = _require_repository(repository)
+    suffixes = {
+        "issue_comment": ("issuecomment-", "IssueComment", "issues/comments"),
+        "review_comment": ("discussion_r", "PullRequestReviewComment", "pulls/comments"),
+        "review": ("pullrequestreview-", "PullRequestReview", f"pulls/{pr_number}/reviews"),
+    }
+    if kind not in suffixes:
+        raise ReviewEvidenceError("review member kind is malformed")
+    suffix, native_type, endpoint = suffixes[kind]
+    match = re.fullmatch(
+        rf"https://github\.com/{re.escape(owner)}/{re.escape(name)}/pull/{pr_number}"
+        rf"#{suffix}(?P<id>[1-9][0-9]{{0,19}})",
+        url,
+        flags=re.IGNORECASE,
+    )
+    if match is None:
+        raise ReviewEvidenceError("review member URL is outside the exact PR")
+    object_id = int(match.group("id"))
+    try:
+        row = github_api_request(
+            f"https://api.github.com/repos/{owner}/{name}/{endpoint}/{object_id}", token=token
+        )
+        if not isinstance(row, dict):
+            raise _StaleSealEvidenceUnknown("review member REST identity is API_UNKNOWN")
+        if selected_row is not None:
+            # The detail read cannot replace a changed initial list observation.
+            for key in (
+                "id",
+                "node_id",
+                "html_url",
+                "body",
+                "user",
+                "created_at",
+                "submitted_at",
+                "updated_at",
+                "state",
+                "path",
+                "original_commit_id",
+                "in_reply_to_id",
+                "pull_request_review_id",
+                "commit_id",
+                "pull_request_url",
+                "issue_url",
+            ):
+                left, right = selected_row.get(key), row.get(key)
+                if key == "user" and isinstance(left, dict) and isinstance(right, dict):
+                    left = {field: left.get(field) for field in ("id", "node_id", "login", "type")}
+                    right = {
+                        field: right.get(field) for field in ("id", "node_id", "login", "type")
+                    }
+                if (key in selected_row) != (key in row) or left != right:
+                    raise ReviewEvidenceError(
+                        "selected raw review row changed before native binding"
+                    )
+        node_id = row.get("node_id")
+        user = row.get("user")
+        if (
+            type(row.get("id")) is not int
+            or row["id"] != object_id
+            or row.get("html_url") != url
+            or not isinstance(node_id, str)
+            or not node_id
+            or len(node_id) > 256
+            or any(unicodedata.category(char).startswith("C") for char in node_id)
+            or not isinstance(user, dict)
+            or type(user.get("id")) is not int
+            or user["id"] <= 0
+            or user.get("type") not in {"User", "Bot"}
+            or not isinstance(user.get("login"), str)
+            or not user["login"]
+            or not isinstance(user.get("node_id"), str)
+            or not user["node_id"]
+        ):
+            raise _StaleSealEvidenceUnknown("review member REST identity is API_UNKNOWN")
+        raw_hash = _raw_review_body_hash(row.get("body"))
+        affinity_url = row.get("issue_url" if kind == "issue_comment" else "pull_request_url")
+        if not isinstance(affinity_url, str):
+            raise _StaleSealEvidenceUnknown("review REST repository/PR is API_UNKNOWN")
+        parsed_affinity = urllib.parse.urlsplit(affinity_url)
+        expected_affinity = (
+            f"/repos/{owner}/{name}/{'issues' if kind == 'issue_comment' else 'pulls'}/{pr_number}"
+        )
+        if (
+            parsed_affinity.scheme != "https"
+            or parsed_affinity.netloc != "api.github.com"
+            or parsed_affinity.query
+            or parsed_affinity.fragment
+            or parsed_affinity.path.casefold() != expected_affinity.casefold()
+        ):
+            raise _StaleSealEvidenceUnknown("review REST repository/PR conflicts")
+        query = """
+        query($id:ID!) { node(id:$id) {
+          __typename
+          ... on IssueComment {
+            id databaseId url body createdAt updatedAt lastEditedAt authorAssociation
+            author { login __typename ... on User { id } ... on Bot { id } }
+            issue { number repository { nameWithOwner } }
+            pullRequest { number repository { nameWithOwner } }
+          }
+          ... on PullRequestReviewComment {
+            id databaseId url body createdAt updatedAt lastEditedAt authorAssociation path
+            author { login __typename ... on User { id } ... on Bot { id } }
+            originalCommit { oid } replyTo { id databaseId }
+            pullRequestReview { databaseId pullRequest { number repository { nameWithOwner } } }
+          }
+          ... on PullRequestReview {
+            id databaseId url body createdAt submittedAt updatedAt lastEditedAt authorAssociation state
+            author { login __typename ... on User { id } ... on Bot { id } }
+            commit { oid } pullRequest { number repository { nameWithOwner } }
+          }
+        } }
+        """
+        response = github_api_request(
+            "https://api.github.com/graphql",
+            token=token,
+            method="POST",
+            payload={"query": query, "variables": {"id": node_id}},
+        )
+    except ReviewEvidenceError:
+        raise
+    except Exception as exc:
+        raise _StaleSealEvidenceUnknown("review native witness is API_UNKNOWN") from exc
+    if not isinstance(response, dict) or response.get("errors"):
+        raise _StaleSealEvidenceUnknown("review native witness is API_UNKNOWN")
+    data = response.get("data")
+    native = data.get("node") if isinstance(data, dict) else None
+    required = {
+        "id",
+        "databaseId",
+        "url",
+        "body",
+        "createdAt",
+        "updatedAt",
+        "lastEditedAt",
+        "author",
+        "authorAssociation",
+        "__typename",
+    }
+    required.update(
+        {
+            "issue_comment": {"pullRequest"},
+            "review_comment": {"path", "originalCommit", "replyTo", "pullRequestReview"},
+            "review": {"submittedAt", "state", "commit", "pullRequest"},
+        }[kind]
+    )
+    if not isinstance(native, dict) or not required <= native.keys():
+        raise _StaleSealEvidenceUnknown("review native revision is API_UNKNOWN")
+    actor = native["author"]
+    expected_login = user["login"]
+    if user["type"] == "Bot" and expected_login.endswith("[bot]"):
+        expected_login = expected_login[:-5]
+    if (
+        native["__typename"] != native_type
+        or native["id"] != node_id
+        or type(native["databaseId"]) is not int
+        or native["databaseId"] != object_id
+        or native["url"] != url
+        or native["body"] != row["body"]
+        or not isinstance(actor, dict)
+        or actor.get("id") != user["node_id"]
+        or actor.get("__typename") != user["type"]
+        or actor.get("login") != expected_login
+        or not isinstance(native["authorAssociation"], str)
+    ):
+        raise _StaleSealEvidenceUnknown("review REST/GraphQL identity conflicts")
+    times: dict[str, str | None] = {}
+    for field in ("createdAt", "updatedAt", "lastEditedAt"):
+        value = native[field]
+        if field == "lastEditedAt" and value is None:
+            times[field] = None
+            continue
+        if not isinstance(value, str) or not re.fullmatch(
+            r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z", value
+        ):
+            raise _StaleSealEvidenceUnknown("review native timestamp is API_UNKNOWN")
+        _parse_timestamp(value, label=field)
+        times[field] = value
+    if _parse_timestamp(times["updatedAt"], label="updatedAt") < _parse_timestamp(
+        times["createdAt"], label="createdAt"
+    ):
+        raise _StaleSealEvidenceUnknown("review native revision precedes creation")
+    if times["lastEditedAt"] is not None and not (
+        _parse_timestamp(times["createdAt"], label="createdAt")
+        <= _parse_timestamp(times["lastEditedAt"], label="lastEditedAt")
+        <= _parse_timestamp(times["updatedAt"], label="updatedAt")
+    ):
+        raise _StaleSealEvidenceUnknown("review native edit chronology conflicts")
+    if "updated_at" in row and row["updated_at"] != times["updatedAt"]:
+        raise ReviewEvidenceError("review REST/native revision conflicts")
+    affinity: dict[str, Any] = {}
+    if kind == "review":
+        posted = native.get("submittedAt")
+        if (
+            not isinstance(posted, str)
+            or posted != row.get("submitted_at")
+            or native.get("state") != row.get("state")
+            or posted is None
+        ):
+            raise _StaleSealEvidenceUnknown("posted review native identity is API_UNKNOWN")
+        _parse_timestamp(posted, label="submittedAt")
+        if native.get("state") == "PENDING" or _parse_timestamp(
+            posted, label="submittedAt"
+        ) < _parse_timestamp(times["createdAt"], label="createdAt"):
+            raise ReviewEvidenceError("review is not a valid posted observation")
+        commit = native.get("commit")
+        affinity = {
+            "submittedAt": posted,
+            "state": native["state"],
+            "commit": commit.get("oid") if isinstance(commit, dict) else None,
+        }
+        if affinity["commit"] != row.get("commit_id"):
+            raise ReviewEvidenceError("review commit identity conflicts")
+        pull = native.get("pullRequest")
+    else:
+        if (
+            row.get("created_at") != times["createdAt"]
+            or row.get("updated_at") != times["updatedAt"]
+        ):
+            raise ReviewEvidenceError("review REST/native timestamps conflict")
+        if kind == "issue_comment":
+            # Native PR issue comments expose their PR affinity explicitly.
+            pull = native.get("pullRequest")
+        else:
+            parent_review = native.get("pullRequestReview")
+            original = native.get("originalCommit")
+            reply_to = native.get("replyTo")
+            affinity = {
+                "path": native.get("path"),
+                "originalCommit": original.get("oid") if isinstance(original, dict) else None,
+                "review_id": (
+                    parent_review.get("databaseId") if isinstance(parent_review, dict) else None
+                ),
+                "reply_to": reply_to.get("databaseId") if isinstance(reply_to, dict) else None,
+            }
+            if affinity != {
+                "path": row.get("path"),
+                "originalCommit": row.get("original_commit_id"),
+                "review_id": row.get("pull_request_review_id"),
+                "reply_to": row.get("in_reply_to_id"),
+            }:
+                raise ReviewEvidenceError("inline review native affinity conflicts")
+            pull = parent_review.get("pullRequest") if isinstance(parent_review, dict) else None
+    repo = pull.get("repository") if isinstance(pull, dict) else None
+    if (
+        not isinstance(pull, dict)
+        or type(pull.get("number")) is not int
+        or pull["number"] != pr_number
+        or not isinstance(repo, dict)
+        or not isinstance(repo.get("nameWithOwner"), str)
+        or repo["nameWithOwner"].casefold() != repository.casefold()
+    ):
+        raise _StaleSealEvidenceUnknown("review native repository/PR conflicts")
+    return {
+        "kind": kind,
+        "id": object_id,
+        "node_id": node_id,
+        "url": url,
+        "actor": {
+            "id": user["id"],
+            "node_id": user["node_id"],
+            "login": user["login"],
+            "type": user["type"],
+        },
+        "association": native["authorAssociation"],
+        "body_hash": raw_hash,
+        **times,
+        **affinity,
+    }
+
+
+def publication_review_inventory_digest(
+    *,
+    actionable_items: Iterable[Any],
+    selected_rows: Mapping[str, Mapping[str, Any]],
+    unresolved_roots: Iterable[Any],
+    snapshot: Any,
+    repository: str,
+    token: str,
+) -> str:
+    """Bind the existing caller-selected current A/Q universe, never past history."""
+
+    records: list[dict[str, Any]] = []
+    bindings: dict[str, dict[str, Any]] = {}
+    seen: set[tuple[str, str]] = set()
+    for item in actionable_items:
+        if ("A", item.url) in seen or item.url not in selected_rows:
+            raise ReviewEvidenceError("selected actionable raw inventory is incomplete or repeated")
+        seen.add(("A", item.url))
+        bound = _review_native_binding(
+            kind=item.kind,
+            url=item.url,
+            repository=repository,
+            pr_number=snapshot.pr_number,
+            token=token,
+            selected_row=selected_rows[item.url],
+        )
+        if item.author != bound["actor"]["login"] or item.created_at != bound.get(
+            "submittedAt", bound["createdAt"]
+        ):
+            raise ReviewEvidenceError("selected actionable identity changed")
+        bindings[item.url] = bound
+        records.append({"role": "A", "member": bound})
+    if set(selected_rows) != {url for role, url in seen if role == "A"}:
+        raise ReviewEvidenceError("selected raw inventory contains an extra member")
+    for thread in unresolved_roots:
+        if not thread.comments:
+            raise ReviewEvidenceError("conversation first-root is absent")
+        root = thread.comments[0]
+        if ("Q", root.url) in seen:
+            raise ReviewEvidenceError("conversation first-root is repeated")
+        seen.add(("Q", root.url))
+        bound = _review_native_binding(
+            kind="review_comment",
+            url=root.url,
+            repository=repository,
+            pr_number=snapshot.pr_number,
+            token=token,
+        )
+        _review_bound_body(root, bound)
+        if root.original_commit_sha != bound["originalCommit"] or bound["reply_to"] is not None:
+            raise ReviewEvidenceError("conversation first-root identity changed")
+        if root.url in bindings and bindings[root.url] != bound:
+            raise ReviewEvidenceError("overlapping A/Q observations conflict")
+        records.append({"role": "Q", "thread": thread.node_id, "member": bound})
+    records.sort(key=lambda row: (row["role"], row["member"]["kind"], row["member"]["id"]))
+    payload = {
+        "repository": repository.casefold(),
+        "pr_number": snapshot.pr_number,
+        "base": snapshot.base_sha,
+        "material": snapshot.head_sha,
+        "records": records,
+    }
+    return (
+        "sha256:"
+        + hashlib.sha256(
+            _PUBLICATION_INVENTORY_DOMAIN + _canonical_json(payload).encode("utf-8")
+        ).hexdigest()
+    )
+
+
+def _review_bound_body(comment: Any, bound: Mapping[str, Any]) -> None:
+    if (
+        _raw_review_body_hash(comment.body) != bound["body_hash"]
+        or comment.created_at != bound["createdAt"]
+    ):
+        raise ReviewEvidenceError("review raw body changed")
+    expected_login = bound["actor"]["login"]
+    if bound["actor"]["type"] == "Bot" and expected_login.endswith("[bot]"):
+        expected_login = expected_login[:-5]
+    if comment.author_login != expected_login or comment.author_association != bound["association"]:
+        raise ReviewEvidenceError("review actor changed")
 
 
 def _is_finding_atom_char(char: str) -> bool:
@@ -1440,8 +1872,21 @@ def validated_duplicate_reply_urls(
         except (OSError, TimeoutError, http.client.HTTPException) as exc:
             raise _StaleSealEvidenceUnknown("owner stale-seal evidence is API_UNKNOWN") from exc
         stale_seal_eligible_urls.append(url)
-    if len(stale_seal_eligible_urls) == 1 and stale_seal_eligible_urls[0] in candidate_urls:
-        covered.add(stale_seal_eligible_urls[0])
+    inspected_eligible_urls = _eligible_inspected_stale_seal_urls(
+        candidate_urls=candidate_urls,
+        threads=threads,
+        fingerprint_records=fingerprint_records,
+        mapping_entries=mapping_entries,
+        material_digest=material_digest,
+        material_head_sha=material_head_sha,
+        repo_root=repo_root,
+        snapshot=snapshot,
+        repository=repository,
+        token=token,
+    )
+    historical_census = [*stale_seal_eligible_urls, *inspected_eligible_urls]
+    if len(historical_census) == 1 and historical_census[0] in candidate_urls:
+        covered.add(historical_census[0])
     return covered
 
 
@@ -3054,6 +3499,446 @@ def _validate_current_stale_seal_closeout(
         pr_number=snapshot.pr_number,
         require_provider_no_claim=True,
     )
+
+
+def _validate_inspected_stale_history(
+    *,
+    repo_root: Path,
+    snapshot: Any,
+    repository: str,
+    token: str,
+    inspection: Mapping[str, str],
+    parent_cache: dict[str, tuple[str, ...]],
+) -> None:
+    """Derive the nearest genuine seal anchor and its finite inherited interval."""
+
+    material = inspection["material"]
+    stale = inspection["stale"]
+    current_ref = _stale_seal_repository_commit(
+        snapshot.base_sha, snapshot=snapshot, token=token, require_pr_commit=False
+    )
+    inspected_base = _stale_seal_repository_commit(
+        inspection["base"], snapshot=snapshot, token=token, require_pr_commit=False
+    )
+    _stale_seal_local_ancestor(
+        repo_root, ancestor_sha=inspection["base"], descendant_sha=snapshot.base_sha
+    )
+    _stale_seal_remote_ancestor(inspected_base, current_ref, repository=repository, token=token)
+    inherited = _stale_seal_mapping_blob(
+        repo_root, commit_sha=material, pr_number=snapshot.pr_number
+    )
+    interval: list[tuple[str, tuple[str, ...]]] = []
+    cursor = material
+    seen: set[str] = set()
+    anchor: str | None = None
+    for _step in range(len(snapshot.commit_shas) + 1):
+        if cursor in seen or cursor not in snapshot.commit_shas:
+            raise ReviewEvidenceError("inspected stale history is incomplete or cyclic")
+        seen.add(cursor)
+        _stale_seal_repository_commit(
+            cursor, snapshot=snapshot, token=token, require_pr_commit=True
+        )
+        parents = _stale_seal_cached_commit_parents(repo_root, cursor, parent_cache)
+        if len(parents) not in {1, 2}:
+            raise ReviewEvidenceError("inspected stale history has an unsupported edge")
+        parent = parents[0]
+        # A missing mapping at the prior material may anchor an added closeout.
+        tree = _run_git(
+            repo_root,
+            [
+                "ls-tree",
+                "-z",
+                parent,
+                "--",
+                f":(literal)docs/review/PR_{snapshot.pr_number}_FIXED_MAPPING.md",
+            ],
+        )
+        previous = (
+            _stale_seal_mapping_blob(repo_root, commit_sha=parent, pr_number=snapshot.pr_number)
+            if tree
+            else None
+        )
+        if previous != inherited:
+            anchor = cursor
+            break
+        interval.append((cursor, parents))
+        cursor = parent
+    if anchor is None or stale not in {sha for sha, _parents in interval}:
+        raise ReviewEvidenceError("historical stale head is outside the nearest seal interval")
+    old = parse_embedded_review_seal(inherited)
+    prior_material = old["material"]["material_head_sha"]
+    prior_base = old["material"]["base_ref_oid"]
+    _validate_stale_seal_mapping_only_edge(
+        repo_root,
+        parent_sha=prior_material,
+        child_sha=anchor,
+        pr_number=snapshot.pr_number,
+        allow_mapping_add=True,
+        ban_trigger_only=False,
+    )
+    if _stale_seal_snapshot_children(
+        repo_root, snapshot=snapshot, parent_sha=prior_material, parent_cache=parent_cache
+    ) != (anchor,):
+        raise ReviewEvidenceError("historical seal anchor is not the unique material closeout")
+    prior_manifest = _stale_seal_material_manifest(
+        repo_root,
+        base_ref_oid=prior_base,
+        head_ref_oid=prior_material,
+        pr_number=snapshot.pr_number,
+    )
+    _validate_stale_seal_projection(
+        inherited,
+        repo_root=repo_root,
+        manifest=prior_manifest,
+        repository=repository,
+        pr_number=snapshot.pr_number,
+        require_provider_no_claim=False,
+    )
+    _stale_seal_repository_commit(
+        prior_material, snapshot=snapshot, token=token, require_pr_commit=False
+    )
+    selected_base = prior_base
+    for child, parents in reversed(interval):
+        parent = parents[0]
+        if (
+            _stale_seal_mapping_blob(repo_root, commit_sha=child, pr_number=snapshot.pr_number)
+            != inherited
+        ):
+            raise ReviewEvidenceError("historical interval mutates the inherited mapping")
+        child_ref = _stale_seal_repository_commit(
+            child, snapshot=snapshot, token=token, require_pr_commit=True
+        )
+        parent_ref = _stale_seal_repository_commit(
+            parent, snapshot=snapshot, token=token, require_pr_commit=True
+        )
+        _stale_seal_remote_ancestor(parent_ref, child_ref, repository=repository, token=token)
+        if len(parents) == 1:
+            _validate_stale_seal_linear_material_edge(
+                repo_root, parent_sha=parent, child_sha=child, pr_number=snapshot.pr_number
+            )
+        else:
+            advanced = parents[1]
+            if advanced == selected_base:
+                raise ReviewEvidenceError("historical base sync did not advance")
+            base_ref = _stale_seal_repository_commit(
+                selected_base, snapshot=snapshot, token=token, require_pr_commit=False
+            )
+            advanced_ref = _stale_seal_repository_commit(
+                advanced, snapshot=snapshot, token=token, require_pr_commit=False
+            )
+            _stale_seal_local_ancestor(
+                repo_root, ancestor_sha=selected_base, descendant_sha=advanced
+            )
+            _stale_seal_remote_ancestor(base_ref, advanced_ref, repository=repository, token=token)
+            _stale_seal_local_non_ancestor(repo_root, ancestor_sha=advanced, descendant_sha=parent)
+            _stale_seal_remote_non_ancestor(
+                advanced_ref, parent_ref, repository=repository, token=token
+            )
+            selected_base = advanced
+        if child == stale:
+            stale_manifest = _stale_seal_material_manifest(
+                repo_root,
+                base_ref_oid=selected_base,
+                head_ref_oid=stale,
+                pr_number=snapshot.pr_number,
+            )
+            if old["material"] == {
+                "base_ref_oid": stale_manifest.base_ref_oid,
+                "merge_base_sha": stale_manifest.merge_base_sha,
+                "material_head_sha": stale,
+                "digest": stale_manifest.digest,
+                "policy_version": MATERIAL_POLICY_VERSION,
+            }:
+                raise ReviewEvidenceError("selected historical seal was not stale")
+    if selected_base != inspection["base"]:
+        raise ReviewEvidenceError("inspected base does not match the genuine history interval")
+
+
+def _eligible_inspected_stale_seal_urls(
+    *,
+    candidate_urls: set[str],
+    threads: tuple[Any, ...],
+    fingerprint_records: Mapping[str, Any],
+    mapping_entries: Mapping[str, str],
+    material_digest: str,
+    material_head_sha: str,
+    repo_root: Path,
+    snapshot: Any,
+    repository: str,
+    token: str,
+    publication_inventory_digest: str | None = None,
+    candidate_raw: bytes | None = None,
+) -> list[str]:
+    """Recognize I-only publication or I,F final proof without historical IO claims."""
+
+    from scripts.orchestration.pr_commit_identity import (
+        CommitIdentityError,
+        CommitRefKind,
+        RepositoryCommitRef,
+        _require_repository,
+        github_api_request,
+    )
+
+    if (
+        _require_repository(repository)[0].casefold()
+        != _require_repository(snapshot.repository)[0].casefold()
+        or repository.casefold() != snapshot.repository.casefold()
+    ):
+        raise ReviewEvidenceError("inspection repository conflicts with the live snapshot")
+    publication = candidate_raw is not None
+    if publication and publication_inventory_digest is None:
+        raise ReviewEvidenceError("publication requires its exact current inventory")
+    eligible: list[str] = []
+    seen_urls: set[str] = set()
+    parent_cache: dict[str, tuple[str, ...]] = {}
+    recorded = {url.casefold() for record in fingerprint_records.values() for url in record.urls}
+    recorded.update(url.casefold() for url in mapping_entries)
+    for thread in threads:
+        if not thread.comments:
+            raise ReviewEvidenceError("inspection root inventory is incomplete")
+        root = thread.comments[0]
+        if root.url in seen_urls:
+            raise ReviewEvidenceError("inspection root inventory is repeated")
+        seen_urls.add(root.url)
+        owner_comments = [
+            comment for comment in thread.comments[1:] if comment.author_association == "OWNER"
+        ]
+        if not owner_comments or not owner_comments[0].body.startswith("OWNER INSPECTED:"):
+            continue
+        if root.url.casefold() in recorded or root.author_login != "chatgpt-codex-connector":
+            continue
+        try:
+            inspection = parse_owner_stale_seal_inspected_reply(owner_comments[0].body)
+        except ReviewEvidenceError:
+            continue
+        expected_count = 1 if publication else 2
+        if (
+            len(owner_comments) != expected_count
+            or (publication and thread.is_resolved)
+            or (not publication and not thread.is_resolved)
+        ):
+            continue
+        try:
+            bound_root = _review_native_binding(
+                kind="review_comment",
+                url=root.url,
+                repository=repository,
+                pr_number=snapshot.pr_number,
+                token=token,
+            )
+            _review_bound_body(root, bound_root)
+            if (
+                bound_root["actor"]["id"] != 199_175_422
+                or bound_root["actor"]["login"] != "chatgpt-codex-connector[bot]"
+                or bound_root["actor"]["type"] != "Bot"
+                or bound_root["reply_to"] is not None
+                or bound_root["path"] != f"docs/review/PR_{snapshot.pr_number}_FIXED_MAPPING.md"
+                or str(bound_root["id"]) != inspection["root_id"]
+                or bound_root["body_hash"] != inspection["body"]
+                or bound_root["updatedAt"] != inspection["revision"]
+                or root.original_commit_sha != inspection["stale"]
+                or bound_root["originalCommit"] != inspection["stale"]
+            ):
+                continue
+            phases = []
+            for comment in owner_comments:
+                bound = _review_native_binding(
+                    kind="review_comment",
+                    url=comment.url,
+                    repository=repository,
+                    pr_number=snapshot.pr_number,
+                    token=token,
+                )
+                _review_bound_body(comment, bound)
+                if (
+                    bound["association"] != "OWNER"
+                    or bound["reply_to"] != bound_root["id"]
+                    or bound["path"] != bound_root["path"]
+                    or bound["updatedAt"] != bound["createdAt"]
+                    or bound["lastEditedAt"] is not None
+                    or bound["actor"]["type"] != "User"
+                ):
+                    raise ReviewEvidenceError("inspection phase statement is changed or mismatched")
+                phases.append(bound)
+            inspection_time = _parse_timestamp(phases[0]["createdAt"], label="inspection createdAt")
+            if _parse_timestamp(bound_root["updatedAt"], label="root revision") >= inspection_time:
+                continue
+            if publication:
+                if (
+                    inspection["material"] != snapshot.head_sha
+                    or inspection["material"] != material_head_sha
+                    or inspection["base"] != snapshot.base_sha
+                    or inspection["digest"] != material_digest
+                    or inspection["inventory"] != publication_inventory_digest
+                ):
+                    continue
+                current_raw = read_closeout_candidate_bytes(repo_root, pr_number=snapshot.pr_number)
+                if current_raw != candidate_raw:
+                    raise ReviewEvidenceError("canonical candidate changed during admission")
+                mapping = current_raw.decode("utf-8")
+            else:
+                stale, reseal = parse_owner_stale_seal_fixed_reply(owner_comments[1].body)
+                if stale != inspection["stale"] or inspection_time >= _parse_timestamp(
+                    phases[1]["createdAt"], label="FIXED createdAt"
+                ):
+                    continue
+                reseal_ref = _stale_seal_repository_commit(
+                    reseal, snapshot=snapshot, token=token, require_pr_commit=True
+                )
+                _stale_seal_remote_ancestor(
+                    reseal_ref,
+                    RepositoryCommitRef(snapshot.head_sha, CommitRefKind.PR_HEAD),
+                    repository=repository,
+                    token=token,
+                )
+                _validate_stale_seal_mapping_only_edge(
+                    repo_root,
+                    parent_sha=inspection["material"],
+                    child_sha=reseal,
+                    pr_number=snapshot.pr_number,
+                    allow_mapping_add=False,
+                )
+                if _stale_seal_snapshot_children(
+                    repo_root,
+                    snapshot=snapshot,
+                    parent_sha=inspection["material"],
+                    parent_cache=parent_cache,
+                ) != (reseal,):
+                    continue
+                mapping = _stale_seal_mapping_blob(
+                    repo_root, commit_sha=reseal, pr_number=snapshot.pr_number
+                )
+                times = _fetch_stale_seal_reseal_push_times(
+                    repo_root=repo_root,
+                    snapshot=snapshot,
+                    repository=repository,
+                    stale_head_sha=inspection["material"],
+                    reseal_sha=reseal,
+                    token=token,
+                    request_json=github_api_request,
+                )
+                fixed_time = _parse_timestamp(phases[1]["createdAt"], label="FIXED createdAt")
+                if not any(inspection_time < pushed <= fixed_time for pushed in times):
+                    continue
+                _validate_current_stale_seal_closeout(
+                    repo_root=repo_root,
+                    snapshot=snapshot,
+                    repository=repository,
+                    token=token,
+                    material_digest=material_digest,
+                    material_head_sha=material_head_sha,
+                    parent_cache=parent_cache,
+                )
+            if (
+                "sha256:" + hashlib.sha256(mapping.encode("utf-8")).hexdigest()
+                != inspection["candidate"]
+            ):
+                continue
+            manifest = _stale_seal_material_manifest(
+                repo_root,
+                base_ref_oid=inspection["base"],
+                head_ref_oid=inspection["material"],
+                pr_number=snapshot.pr_number,
+            )
+            if (
+                manifest.merge_base_sha != inspection["merge_base"]
+                or manifest.digest != inspection["digest"]
+            ):
+                continue
+            _validate_stale_seal_projection(
+                mapping,
+                repo_root=repo_root,
+                manifest=manifest,
+                repository=repository,
+                pr_number=snapshot.pr_number,
+                require_provider_no_claim=True,
+            )
+            _validate_inspected_stale_history(
+                repo_root=repo_root,
+                snapshot=snapshot,
+                repository=repository,
+                token=token,
+                inspection=inspection,
+                parent_cache=parent_cache,
+            )
+            # Native revision fields are re-read; normalized outer inventories are insufficient.
+            if (
+                _review_native_binding(
+                    kind="review_comment",
+                    url=root.url,
+                    repository=repository,
+                    pr_number=snapshot.pr_number,
+                    token=token,
+                )
+                != bound_root
+            ):
+                raise ReviewEvidenceError("inspected root changed during validation")
+            for comment, previous in zip(owner_comments, phases, strict=True):
+                if (
+                    _review_native_binding(
+                        kind="review_comment",
+                        url=comment.url,
+                        repository=repository,
+                        pr_number=snapshot.pr_number,
+                        token=token,
+                    )
+                    != previous
+                ):
+                    raise ReviewEvidenceError("inspection phase changed during validation")
+        except _StaleSealEvidenceUnknown:
+            raise
+        except (
+            _GitCommandError,
+            CommitIdentityError,
+            OSError,
+            TimeoutError,
+            http.client.HTTPException,
+        ) as exc:
+            raise _StaleSealEvidenceUnknown("inspection proof is API_UNKNOWN") from exc
+        except ReviewEvidenceError:
+            continue
+        eligible.append(root.url)
+    return eligible
+
+
+def validated_inspected_stale_seal_urls(
+    *,
+    candidate_urls: set[str],
+    threads: tuple[Any, ...],
+    fingerprint_records: Mapping[str, Any],
+    mapping_entries: Mapping[str, str],
+    material_digest: str,
+    material_head_sha: str,
+    repo_root: Path,
+    snapshot: Any,
+    repository: str,
+    token: str,
+    publication_inventory_digest: str | None = None,
+    candidate_raw: bytes | None = None,
+) -> set[str]:
+    """Return only singleton publication admission, separate from final coverage."""
+
+    # Publication binds M == live HEAD. Legacy current-closeout eligibility
+    # would require a direct mapping-only M->M edge, which is impossible.
+    # The registered consumer still runs the full shared legacy producer first:
+    # recognizable legacy API/Git uncertainty remains terminal. Final coverage
+    # counts both actual historical forms together in that producer.
+
+    eligible = _eligible_inspected_stale_seal_urls(
+        candidate_urls=candidate_urls,
+        threads=threads,
+        fingerprint_records=fingerprint_records,
+        mapping_entries=mapping_entries,
+        material_digest=material_digest,
+        material_head_sha=material_head_sha,
+        repo_root=repo_root,
+        snapshot=snapshot,
+        repository=repository,
+        token=token,
+        publication_inventory_digest=publication_inventory_digest,
+        candidate_raw=candidate_raw,
+    )
+    return {eligible[0]} & candidate_urls if len(eligible) == 1 else set()
 
 
 def _validate_stale_seal_root_identity(

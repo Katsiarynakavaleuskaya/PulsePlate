@@ -46,6 +46,411 @@ OUTAGE_BASE_SHA = "c" * 40
 OUTAGE_HEAD_SHA = "d" * 40
 
 
+def _raw_publication_inventory_fixture(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
+    from scripts.orchestration import pr_commit_identity
+
+    for key in ("GH_TOKEN", "GITHUB_TOKEN", "GH_ENTERPRISE_TOKEN", "GITHUB_ENTERPRISE_TOKEN"):
+        monkeypatch.delenv(key, raising=False)
+    monkeypatch.setenv("GH_TOKEN", "opaque")
+    monkeypatch.setenv("GITHUB_TOKEN", "opaque")
+    target = {"number": 42, "repository": {"nameWithOwner": "owner/repo"}}
+    rows: dict[str, dict[str, Any]] = {}
+    nodes: dict[str, dict[str, Any]] = {}
+    sources: dict[str, list[dict[str, Any]]] = {
+        "issue_comment": [],
+        "review_comment": [],
+        "review": [],
+    }
+    roots = []
+    shapes = [("issue_comment", 1), ("review_comment", 2), ("review", 3), ("review_comment", 4)]
+    for kind, number in shapes:
+        suffix, native_type = {
+            "issue_comment": ("issuecomment-", "IssueComment"),
+            "review_comment": ("discussion_r", "PullRequestReviewComment"),
+            "review": ("pullrequestreview-", "PullRequestReview"),
+        }[kind]
+        url = f"https://github.com/owner/repo/pull/42#{suffix}{number}"
+        human = number == 4
+        actor = {
+            "id": number + 20,
+            "node_id": f"ACTOR_{number}",
+            "login": "owner" if human else "reviewer[bot]",
+            "type": "User" if human else "Bot",
+        }
+        body = (
+            "ordinary human first-root"
+            if human
+            else "Actionable comments posted\r\nexact raw content"
+        )
+        created = "2026-08-12T10:00:00Z"
+        updated = "2026-08-12T10:06:00Z"
+        row = {
+            "id": number,
+            "node_id": f"NODE_{number}",
+            "html_url": url,
+            "body": body,
+            "user": actor,
+        }
+        row["issue_url" if kind == "issue_comment" else "pull_request_url"] = (
+            f"https://api.github.com/repos/owner/repo/{'issues' if kind == 'issue_comment' else 'pulls'}/42"
+        )
+        node = {
+            "__typename": native_type,
+            "id": row["node_id"],
+            "databaseId": number,
+            "url": url,
+            "body": body,
+            "createdAt": created,
+            "updatedAt": updated,
+            "lastEditedAt": updated,
+            "authorAssociation": "OWNER" if human else "NONE",
+            "author": {
+                "login": "owner" if human else "reviewer",
+                "__typename": actor["type"],
+                "id": actor["node_id"],
+            },
+        }
+        if kind == "review":
+            row.update(
+                submitted_at="2026-08-12T10:05:00Z", state="COMMENTED", commit_id=OUTAGE_HEAD_SHA
+            )
+            node.update(
+                submittedAt=row["submitted_at"],
+                state="COMMENTED",
+                commit={"oid": OUTAGE_HEAD_SHA},
+                pullRequest=target,
+            )
+        else:
+            row.update(created_at=created, updated_at=updated)
+            if kind == "issue_comment":
+                node.update(issue=None, pullRequest=target)
+            else:
+                row.update(
+                    path="docs/review/PR_42_FIXED_MAPPING.md",
+                    original_commit_id=OUTAGE_HEAD_SHA,
+                    pull_request_review_id=3,
+                )
+                node.update(
+                    path=row["path"],
+                    originalCommit={"oid": OUTAGE_HEAD_SHA},
+                    replyTo=None,
+                    pullRequestReview={"databaseId": 3, "pullRequest": target},
+                )
+                root = ReviewCommentEvidence(
+                    url,
+                    body,
+                    created,
+                    node["author"]["login"],
+                    node["authorAssociation"],
+                    OUTAGE_HEAD_SHA,
+                )
+                roots.append(ReviewThreadEvidence(f"THREAD_{number}", False, (root,)))
+        rows[url] = row
+        nodes[row["node_id"]] = node
+        sources[kind].append(row)
+
+    def pages(url: str, *, token: str) -> list[Any]:
+        assert token == "opaque"
+        kind = (
+            "issue_comment"
+            if "/issues/" in url
+            else "review_comment" if "/comments?" in url else "review"
+        )
+        return json.loads(json.dumps(sources[kind]))
+
+    def native(url: str, *, token: str, method: str = "GET", payload: Any = None) -> Any:
+        assert token == "opaque"
+        if url.endswith("/graphql"):
+            assert method == "POST"
+            return {"data": {"node": json.loads(json.dumps(nodes[payload["variables"]["id"]]))}}
+        number = int(url.rsplit("/", 1)[-1])
+        kind = (
+            "issue_comment"
+            if "/issues/" in url
+            else "review_comment" if "/comments/" in url else "review"
+        )
+        return json.loads(json.dumps(next(row for row in sources[kind] if row["id"] == number)))
+
+    monkeypatch.setattr(merge_gate, "_api_request_paginated_list", pages)
+    monkeypatch.setattr(pr_commit_identity, "github_api_request", native)
+    snapshot = PrSnapshot(
+        "owner/repo",
+        42,
+        OUTAGE_BASE_SHA,
+        OUTAGE_HEAD_SHA,
+        (PrCommitEvidence(OUTAGE_HEAD_SHA, None),),
+    )
+    return {"sources": sources, "rows": rows, "nodes": nodes, "roots": roots, "snapshot": snapshot}
+
+
+def _publication_digest_from_collector(state: dict[str, Any]) -> str:
+    raw: dict[str, Any] = {}
+    items = merge_gate._collect_actionable_items("owner/repo", 42, "opaque", selected_raw_rows=raw)
+    return evidence_module.publication_review_inventory_digest(
+        actionable_items=items,
+        selected_rows=raw,
+        unresolved_roots=state["roots"],
+        snapshot=state["snapshot"],
+        repository="owner/repo",
+        token="opaque",
+    )
+
+
+def test_publication_inventory_uses_raw_native_affinity_revision_and_roles(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    state = _raw_publication_inventory_fixture(monkeypatch)
+    first = _publication_digest_from_collector(state)
+    for rows in state["sources"].values():
+        rows.reverse()
+    state["roots"].reverse()
+    assert _publication_digest_from_collector(state) == first
+    # PR issue affinity remains valid when native issue is null; top-review creation predates submission.
+    assert state["nodes"]["NODE_1"]["issue"] is None
+    assert state["nodes"]["NODE_3"]["createdAt"] < state["nodes"]["NODE_3"]["submittedAt"]
+
+
+@pytest.mark.parametrize("kind", ["issue_comment", "review_comment", "review", "human-root"])
+def test_publication_inventory_detects_member_deletion_before_precheck(
+    monkeypatch: pytest.MonkeyPatch, kind: str
+) -> None:
+    state = _raw_publication_inventory_fixture(monkeypatch)
+    inspected = _publication_digest_from_collector(state)
+    if kind == "human-root":
+        state["roots"] = [root for root in state["roots"] if root.node_id != "THREAD_4"]
+        state["sources"]["review_comment"] = [
+            row for row in state["sources"]["review_comment"] if row["id"] != 4
+        ]
+    elif kind == "review_comment":
+        state["sources"][kind] = [row for row in state["sources"][kind] if row["id"] != 2]
+        state["roots"] = [root for root in state["roots"] if root.node_id != "THREAD_2"]
+    else:
+        state["sources"][kind] = []
+    assert _publication_digest_from_collector(state) != inspected
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    ["raw-lines", "missing-edit", "borrowed-submission", "duplicate", "bool-id", "lost-marker"],
+)
+def test_publication_inventory_rejects_unknown_or_changed_raw_members(
+    monkeypatch: pytest.MonkeyPatch, mutation: str
+) -> None:
+    state = _raw_publication_inventory_fixture(monkeypatch)
+    before = _publication_digest_from_collector(state)
+    if mutation == "raw-lines":
+        row = state["sources"]["issue_comment"][0]
+        row["body"] = row["body"].replace("\r\n", "\n")
+        state["nodes"]["NODE_1"]["body"] = row["body"]
+    elif mutation == "missing-edit":
+        del state["nodes"]["NODE_3"]["lastEditedAt"]
+    elif mutation == "borrowed-submission":
+        state["sources"]["review"][0]["updated_at"] = state["sources"]["review"][0]["submitted_at"]
+    elif mutation == "duplicate":
+        state["sources"]["issue_comment"] *= 2
+    elif mutation == "bool-id":
+        state["sources"]["issue_comment"][0]["id"] = True
+    else:
+        state["sources"]["issue_comment"][0]["body"] = "No actionable review comments"
+        state["nodes"]["NODE_1"]["body"] = "No actionable review comments"
+    if mutation in {"raw-lines", "lost-marker"}:
+        assert _publication_digest_from_collector(state) != before
+    else:
+        with pytest.raises((ReviewEvidenceError, ValueError)):
+            _publication_digest_from_collector(state)
+
+
+@pytest.mark.parametrize(
+    "scenario",
+    [
+        "publication",
+        "missing-I",
+        "terminal-raw-drift",
+        "independent-root",
+        "false-no-actionables",
+        "legacy-current-impossible",
+        "legacy-API-unknown",
+    ],
+)
+def test_precloseout_inspected_history_uses_real_recognizer_and_two_observations(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    scenario: str,
+) -> None:
+    from tests.test_pr_review_material_seal import (
+        _inspected_stale_seal_fixture,
+        _mapping_artifact_with_seal,
+    )
+
+    state = _inspected_stale_seal_fixture(tmp_path, monkeypatch)
+    prior_candidate_hash = hashlib.sha256(state["candidate"]).hexdigest()
+    if scenario == "false-no-actionables":
+        state["candidate"] = _mapping_artifact_with_seal(state["seal"]).encode("utf-8")
+        state["mapping"].write_bytes(state["candidate"])
+    monkeypatch.setattr(merge_gate, "REPO_ROOT", state["repo"])
+    monkeypatch.setenv("REVIEW_MAPPING_ARTIFACT_DIR", str(state["mapping"].parent))
+    from scripts.orchestration import pr_commit_identity
+
+    monkeypatch.setattr(merge_gate, "classify_commit_ref", pr_commit_identity.classify_commit_ref)
+    monkeypatch.setattr(merge_gate, "is_ancestor", pr_commit_identity.is_ancestor)
+    monkeypatch.setattr(merge_gate, "assert_snapshot_unchanged", lambda *_a, **_k: None)
+    monkeypatch.setattr(merge_gate, "fetch_pr_snapshot", lambda *_a, **_k: state["snapshot"])
+    monkeypatch.setattr(merge_gate, "fetch_review_threads", lambda *_a, **_k: (state["thread"],))
+    context = (
+        42,
+        "owner/repo",
+        False,
+        "- [canonical artifact](https://github.com/owner/repo/blob/feature/docs/review/PR_42_FIXED_MAPPING.md)",
+        "feature",
+    )
+    monkeypatch.setattr(merge_gate, "_fetch_pr_context", lambda *_a, **_k: context)
+    monkeypatch.setattr(
+        sys, "argv", ["gate", "--pr-number", "42", "--repo", "owner/repo", "--pre-closeout"]
+    )
+    observations = 0
+
+    def pages(url: str, *, token: str) -> list[Any]:
+        nonlocal observations
+        assert token == "opaque"
+        if "/pulls/42/comments?" not in url:
+            return []
+        observations += 1
+        if scenario == "terminal-raw-drift" and observations == 3:
+            state["rows"][state["root"].url]["body"] += "\r\n"
+            state["nodes"]["REVIEW_700"]["body"] += "\r\n"
+        return json.loads(json.dumps(list(state["rows"].values())))
+
+    monkeypatch.setattr(merge_gate, "_api_request_paginated_list", pages)
+    if scenario.startswith("legacy-"):
+        seed = state["seed"]
+        legacy_root = ReviewCommentEvidence(
+            "https://github.com/owner/repo/pull/42#discussion_r650",
+            "Historical stale seal.",
+            "2026-08-12T10:00:00Z",
+            "chatgpt-codex-connector",
+            "NONE",
+            seed["stale_head"],
+        )
+        legacy_fixed = ReviewCommentEvidence(
+            "https://github.com/owner/repo/pull/42#discussion_r651",
+            f"OWNER FIXED: stale seal at {seed['stale_head']} is corrected by mapping-only reseal {seed['reseal']}; authenticated live PR graph is authoritative.",
+            "2026-08-12T12:00:00Z",
+            "owner",
+            "OWNER",
+            seed["stale_head"],
+        )
+        legacy_thread = ReviewThreadEvidence("LEGACY", True, (legacy_root, legacy_fixed))
+        for comment, original in [
+            (legacy_root, state["root"].url),
+            (legacy_fixed, state["thread"].comments[1].url),
+        ]:
+            row = json.loads(json.dumps(state["rows"][original]))
+            row.update(
+                id=int(comment.url.rsplit("r", 1)[-1]),
+                node_id=f"LEGACY_{comment.url.rsplit('r', 1)[-1]}",
+                html_url=comment.url,
+                body=comment.body,
+                created_at=comment.created_at,
+                updated_at=comment.created_at,
+                original_commit_id=seed["stale_head"],
+            )
+            if comment is legacy_fixed:
+                row["in_reply_to_id"] = 650
+            state["rows"][comment.url] = row
+        monkeypatch.setattr(
+            merge_gate, "fetch_review_threads", lambda *_a, **_k: (state["thread"], legacy_thread)
+        )
+        if scenario == "legacy-API-unknown":
+            original_request = pr_commit_identity.github_api_request
+
+            def unknown_legacy(url: str, **kwargs: Any) -> Any:
+                if url.endswith("/pulls/comments/650"):
+                    raise OSError("synthetic unavailable legacy identity")
+                return original_request(url, **kwargs)
+
+            monkeypatch.setattr(pr_commit_identity, "github_api_request", unknown_legacy)
+    raw: dict[str, Any] = {}
+    selected = merge_gate._collect_actionable_items(
+        "owner/repo", 42, "opaque", selected_raw_rows=raw
+    )
+    inventory = evidence_module.publication_review_inventory_digest(
+        actionable_items=selected,
+        selected_rows=raw,
+        unresolved_roots=(state["thread"],),
+        snapshot=state["snapshot"],
+        repository="owner/repo",
+        token="opaque",
+    )
+    old_i = state["thread"].comments[1]
+    body = old_i.body.replace(state["inventory"], inventory).replace(
+        prior_candidate_hash, hashlib.sha256(state["candidate"]).hexdigest()
+    )
+    replacement = replace(old_i, body=body)
+    state["rows"][old_i.url]["body"] = body
+    state["nodes"]["REVIEW_800"]["body"] = body
+    state["thread"] = ReviewThreadEvidence(
+        state["thread"].node_id, False, (state["root"], replacement)
+    )
+    if scenario == "missing-I":
+        state["thread"] = ReviewThreadEvidence(state["thread"].node_id, False, (state["root"],))
+        del state["rows"][old_i.url]
+    elif scenario == "independent-root":
+        independent = ReviewThreadEvidence(
+            "INDEPENDENT",
+            False,
+            (
+                ReviewCommentEvidence(
+                    "https://github.com/owner/repo/pull/42#discussion_r999",
+                    "ordinary first-root",
+                    "2026-08-12T10:00:00Z",
+                    "owner",
+                    "OWNER",
+                    state["material"],
+                ),
+            ),
+        )
+        row = json.loads(json.dumps(state["rows"][state["root"].url]))
+        row.update(
+            id=999,
+            node_id="REVIEW_999",
+            html_url=independent.comments[0].url,
+            body=independent.comments[0].body,
+            original_commit_id=state["material"],
+            user=state["rows"][old_i.url]["user"],
+        )
+        node = json.loads(json.dumps(state["nodes"]["REVIEW_700"]))
+        node.update(
+            id="REVIEW_999",
+            databaseId=999,
+            url=row["html_url"],
+            body=row["body"],
+            originalCommit={"oid": state["material"]},
+            authorAssociation="OWNER",
+            author=state["nodes"]["REVIEW_800"]["author"],
+        )
+        state["rows"][row["html_url"]] = row
+        state["nodes"]["REVIEW_999"] = node
+        monkeypatch.setattr(
+            merge_gate, "fetch_review_threads", lambda *_a, **_k: (state["thread"], independent)
+        )
+    assert merge_gate.main() == (
+        0 if scenario in {"publication", "legacy-current-impossible"} else 1
+    )
+    output = capsys.readouterr().out
+    if scenario in {"publication", "legacy-current-impossible"}:
+        assert observations == 3
+        assert "awaits actual correction/FIXED proof" in output
+        assert "not merge-readiness evidence" in output
+    else:
+        assert "failed" in output
+        assert "passed for one historical" not in output
+        if scenario == "false-no-actionables":
+            assert "No actionable review comments" in output
+        if scenario == "legacy-API-unknown":
+            assert "API_UNKNOWN" in output
+
+
 @pytest.mark.parametrize(
     ("policy_head", "material_head", "expected_exit"),
     [
@@ -609,19 +1014,27 @@ def test_pre_closeout_dirty_paths_normalizes_git_status_timeout(
 
 
 def test_pre_closeout_dirty_paths_rejects_staged_mapping_drift(
+    tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(merge_gate.shutil, "which", lambda _name: "/usr/bin/git")
-    monkeypatch.setattr(
-        merge_gate.subprocess,
-        "run",
-        lambda *_args, **_kwargs: subprocess.CompletedProcess(
-            args=["/usr/bin/git", "status"],
-            returncode=0,
-            stdout="MM docs/review/PR_42_FIXED_MAPPING.md\n",
-            stderr="",
-        ),
-    )
+    repo = tmp_path / "owning-repo"
+    repo.mkdir()
+    _git(repo, "init", "-q")
+    mapping = repo / "docs/review/PR_42_FIXED_MAPPING.md"
+    mapping.parent.mkdir(parents=True)
+    mapping.write_text("committed mapping\n", encoding="utf-8")
+    _commit(repo, "prior mapping")
+    monkeypatch.setattr(merge_gate, "REPO_ROOT", repo)
+    for key, value in {
+        "GIT_DIR": str(tmp_path / "foreign.git"),
+        "GIT_WORK_TREE": str(tmp_path / "foreign-worktree"),
+        "GIT_INDEX_FILE": str(tmp_path / "foreign.index"),
+    }.items():
+        monkeypatch.setenv(key, value)
+
+    mapping.write_text("uncommitted mapping\n", encoding="utf-8")
+    assert merge_gate._pre_closeout_dirty_paths() == {"docs/review/PR_42_FIXED_MAPPING.md"}
+    _git(repo, "add", "--", "docs/review/PR_42_FIXED_MAPPING.md")
 
     with pytest.raises(ValueError, match="staged changes are forbidden"):
         merge_gate._pre_closeout_dirty_paths()

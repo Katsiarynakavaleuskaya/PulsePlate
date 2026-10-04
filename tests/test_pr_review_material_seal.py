@@ -12,6 +12,7 @@ import shutil
 import subprocess
 import urllib.parse
 from argparse import Namespace
+from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from pathlib import Path, PurePosixPath
 from types import SimpleNamespace
@@ -6329,6 +6330,473 @@ def _merge(repo: Path, branch: str, message: str) -> str:
     )
     _git(repo, "merge", "--no-ff", branch, "-m", message, env=env)
     return _git(repo, "rev-parse", "HEAD", env=env)
+
+
+def _inspected_stale_seal_fixture(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    published: bool = False,
+) -> dict[str, Any]:
+    """Extend the existing real-Git family with an already-stale historical interval."""
+
+    for key in ("GH_TOKEN", "GITHUB_TOKEN", "GH_ENTERPRISE_TOKEN", "GITHUB_ENTERPRISE_TOKEN"):
+        monkeypatch.delenv(key, raising=False)
+    monkeypatch.setenv("GH_TOKEN", "opaque")
+    monkeypatch.setenv("GITHUB_TOKEN", "opaque")
+    _, seed = _stale_seal_reply_coverage(tmp_path, monkeypatch)
+    repo = Path(seed["repo"])
+    mapping = repo / "docs/review/PR_42_FIXED_MAPPING.md"
+    anchor = _git(repo, "rev-parse", "HEAD")
+    _git(repo, "checkout", "-q", "main")
+    (repo / "base-three.txt").write_text("three\n", encoding="utf-8")
+    _commit(repo, "advance prior base")
+    _git(repo, "checkout", "-q", "feature")
+    stale_sync = _merge(repo, "main", "genuine already-stale S3 sync")
+    source = repo / "src/policy.py"
+    source.write_text(source.read_text() + "S4 = True\n", encoding="utf-8")
+    stale = _commit(repo, "real S4 material")
+    source.write_text(source.read_text() + "S5 = True\n", encoding="utf-8")
+    intervening = _commit(repo, "real intervening S5 material")
+    _git(repo, "checkout", "-q", "main")
+    (repo / "base-four.txt").write_text("four\n", encoding="utf-8")
+    base = _commit(repo, "advance inspected base")
+    _git(repo, "checkout", "-q", "feature")
+    _merge(repo, "main", "genuine current base synchronization")
+    source.write_text(source.read_text() + "GOVERNED = True\n", encoding="utf-8")
+    material = _commit(repo, "real current governance material")
+    assert _git(repo, "show", f"{material}:docs/review/PR_42_FIXED_MAPPING.md") == _git(
+        repo, "show", f"{anchor}:docs/review/PR_42_FIXED_MAPPING.md"
+    )
+    manifest = compute_material_manifest(
+        repo, base_ref_oid=base, head_ref_oid=material, pr_number=42
+    )
+    seal = _provider_no_claim_seal_for_manifest(manifest)
+    candidate = (
+        _mapping_artifact_with_seal(seal)
+        .replace(
+            NO_ACTIONABLE_LINE,
+            "Disposition: NOT-A-BUG\nEvidence: README.md:1 synthetic ordinary proof\n"
+            "Reason: ordinary fixture is satisfied\n- https://github.com/owner/repo/pull/42#issuecomment-11",
+        )
+        .encode("utf-8")
+    )
+    mapping.write_bytes(candidate)
+    root_url = "https://github.com/owner/repo/pull/42#discussion_r700"
+    root_body = (
+        "Actionable comments posted: historical seal is stale; human inspects the whole root."
+    )
+    root = ReviewCommentEvidence(
+        root_url, root_body, "2026-08-12T10:00:00Z", "chatgpt-codex-connector", "NONE", stale
+    )
+    snapshot = PrSnapshot(
+        "owner/repo",
+        42,
+        base,
+        material,
+        tuple(
+            PrCommitEvidence(sha, None)
+            for sha in _git(repo, "rev-list", "--reverse", f"{base}..{material}").splitlines()
+        ),
+    )
+    target = {"number": 42, "repository": {"nameWithOwner": "owner/repo"}}
+    rows: dict[str, dict[str, Any]] = {}
+    nodes: dict[str, dict[str, Any]] = {}
+
+    def retain(comment: ReviewCommentEvidence, *, object_id: int, reply: bool = False) -> None:
+        actor_id = 199_175_422 if not reply else 22
+        login = "chatgpt-codex-connector[bot]" if not reply else "owner"
+        actor_type = "Bot" if not reply else "User"
+        node_id = f"REVIEW_{object_id}"
+        row = {
+            "id": object_id,
+            "node_id": node_id,
+            "html_url": comment.url,
+            "body": comment.body,
+            "created_at": comment.created_at,
+            "updated_at": comment.created_at,
+            "path": "docs/review/PR_42_FIXED_MAPPING.md",
+            "original_commit_id": stale,
+            "pull_request_review_id": 900,
+            "pull_request_url": "https://api.github.com/repos/owner/repo/pulls/42",
+            "user": {
+                "id": actor_id,
+                "node_id": f"ACTOR_{actor_id}",
+                "login": login,
+                "type": actor_type,
+            },
+        }
+        if reply:
+            row["in_reply_to_id"] = 700
+        rows[comment.url] = row
+        nodes[node_id] = {
+            "__typename": "PullRequestReviewComment",
+            "id": node_id,
+            "databaseId": object_id,
+            "url": comment.url,
+            "body": comment.body,
+            "createdAt": comment.created_at,
+            "updatedAt": comment.created_at,
+            "lastEditedAt": None,
+            "authorAssociation": comment.author_association,
+            "author": {
+                "login": comment.author_login,
+                "__typename": actor_type,
+                "id": f"ACTOR_{actor_id}",
+            },
+            "path": row["path"],
+            "originalCommit": {"oid": stale},
+            "replyTo": {"id": "REVIEW_700", "databaseId": 700} if reply else None,
+            "pullRequestReview": {"databaseId": 900, "pullRequest": target},
+        }
+
+    retain(root, object_id=700)
+
+    def request(url: str, *, token: str, method: str = "GET", payload: Any = None) -> Any:
+        assert token == "opaque"
+        if url.endswith("/graphql"):
+            assert method == "POST" and payload is not None
+            return {"data": {"node": json.loads(json.dumps(nodes[payload["variables"]["id"]]))}}
+        if url.endswith("/pulls/42"):
+            return {
+                "base": {"sha": state["snapshot"].base_sha},
+                "head": {
+                    "ref": "feature",
+                    "sha": state["snapshot"].head_sha,
+                    "repo": {"full_name": "owner/repo"},
+                },
+            }
+        object_id = int(url.rsplit("/", 1)[-1])
+        return json.loads(json.dumps(next(row for row in rows.values() if row["id"] == object_id)))
+
+    monkeypatch.setattr(identity_module, "github_api_request", request)
+    thread = ReviewThreadEvidence("THREAD_700", False, (root,))
+    state: dict[str, Any] = {
+        "repo": repo,
+        "mapping": mapping,
+        "snapshot": snapshot,
+        "manifest": manifest,
+        "seal": seal,
+        "candidate": candidate,
+        "root": root,
+        "thread": thread,
+        "rows": rows,
+        "nodes": nodes,
+        "anchor": anchor,
+        "stale_sync": stale_sync,
+        "stale": stale,
+        "intervening": intervening,
+        "material": material,
+        "reseal": None,
+        "seed": seed,
+    }
+    inventory = evidence_module.publication_review_inventory_digest(
+        actionable_items=(),
+        selected_rows={},
+        unresolved_roots=(thread,),
+        snapshot=snapshot,
+        repository="owner/repo",
+        token="opaque",
+    )
+    inspection_body = (
+        f"OWNER INSPECTED: historical stale-seal root 700 revision {root.created_at} "
+        f"body {evidence_module._raw_review_body_hash(root_body)} at {stale} "
+        f"has no independent actionable; permit one mapping-only publication from material {material} "
+        f"base {base} merge-base {manifest.merge_base_sha} digest {manifest.digest} "
+        f"candidate sha256:{hashlib.sha256(candidate).hexdigest()} inventory {inventory}; "
+        "no disposition or merge authority."
+    )
+    inspection = ReviewCommentEvidence(
+        "https://github.com/owner/repo/pull/42#discussion_r800",
+        inspection_body,
+        "2026-08-12T10:30:00Z",
+        "owner",
+        "OWNER",
+        stale,
+    )
+    retain(inspection, object_id=800, reply=True)
+    comments = (root, inspection)
+    if published:
+        reseal = _commit(repo, "docs(review): actual inspected reseal")
+        state["reseal"] = reseal
+        state["snapshot"] = PrSnapshot(
+            "owner/repo", 42, base, reseal, (*snapshot.commits, PrCommitEvidence(reseal, None))
+        )
+        fixed = ReviewCommentEvidence(
+            "https://github.com/owner/repo/pull/42#discussion_r801",
+            _owner_stale_seal_reply(stale, reseal),
+            "2026-08-12T12:00:00Z",
+            "owner",
+            "OWNER",
+            stale,
+        )
+        retain(fixed, object_id=801, reply=True)
+        comments = (*comments, fixed)
+    state["thread"] = ReviewThreadEvidence("THREAD_700", published, comments)
+    state["inventory"] = inventory
+
+    def pages(url: str, *, token: str) -> tuple[list[Any], ...]:
+        assert token == "opaque"
+        if "/activity?" in url:
+            return (
+                [
+                    {
+                        "activity_type": "push",
+                        "ref": "refs/heads/feature",
+                        "before": material,
+                        "after": state["reseal"],
+                        "timestamp": "2026-08-12T11:00:00Z",
+                    }
+                ],
+            )
+        return ([],)
+
+    monkeypatch.setattr(evidence_module, "_github_api_paginated_pages", pages)
+    return state
+
+
+def _inspected_coverage(state: dict[str, Any], *, publication: bool) -> set[str]:
+    return evidence_module.validated_inspected_stale_seal_urls(
+        candidate_urls={state["root"].url},
+        threads=(state["thread"],),
+        fingerprint_records={},
+        mapping_entries={},
+        material_digest=state["manifest"].digest,
+        material_head_sha=state["material"],
+        repo_root=state["repo"],
+        snapshot=state["snapshot"],
+        repository="owner/repo",
+        token="opaque",
+        publication_inventory_digest=state["inventory"] if publication else None,
+        candidate_raw=state["candidate"] if publication else None,
+    )
+
+
+@pytest.mark.parametrize("published", [False, True], ids=["I-only-admission", "real-R-and-F"])
+def test_inspected_stale_seal_closes_real_intervening_history(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    published: bool,
+) -> None:
+    state = _inspected_stale_seal_fixture(tmp_path, monkeypatch, published=published)
+    assert _inspected_coverage(state, publication=not published) == {state["root"].url}
+    if not published:
+        assert _inspected_coverage(state, publication=False) == set()
+        assert state["reseal"] is None
+    else:
+        assert _git(state["repo"], "rev-parse", f'{state["reseal"]}^') == state["material"]
+        assert _git(state["repo"], "rev-parse", f'{state["material"]}^') != state["stale"]
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        "raw-body",
+        "revision",
+        "missing-edit",
+        "edited-I",
+        "duplicate-I",
+        "wrong-candidate",
+        "wrong-inventory",
+    ],
+)
+def test_inspected_stale_seal_rejects_changed_inspection_epoch(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    mutation: str,
+) -> None:
+    state = _inspected_stale_seal_fixture(tmp_path, monkeypatch)
+    if mutation == "raw-body":
+        state["rows"][state["root"].url]["body"] += "\r\n"
+    elif mutation == "revision":
+        state["rows"][state["root"].url]["updated_at"] = "2026-08-12T10:00:01Z"
+        state["nodes"]["REVIEW_700"]["updatedAt"] = "2026-08-12T10:00:01Z"
+    elif mutation == "missing-edit":
+        del state["nodes"]["REVIEW_800"]["lastEditedAt"]
+    elif mutation == "edited-I":
+        state["nodes"]["REVIEW_800"]["lastEditedAt"] = "2026-08-12T10:30:00Z"
+    elif mutation == "duplicate-I":
+        state["thread"] = ReviewThreadEvidence(
+            state["thread"].node_id, False, (*state["thread"].comments, state["thread"].comments[1])
+        )
+    elif mutation == "wrong-candidate":
+        state["mapping"].write_bytes(state["candidate"].replace(b"\n", b"\r\n"))
+    else:
+        state["inventory"] = "sha256:" + "a" * 64
+    try:
+        result = _inspected_coverage(state, publication=True)
+    except ReviewEvidenceError:
+        result = set()
+    assert result == set()
+
+
+@pytest.mark.parametrize("suffix", ["\n", " ", "\r\n", " extra", "\u200b"])
+def test_inspected_stale_seal_rejects_grammar_variants(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    suffix: str,
+) -> None:
+    state = _inspected_stale_seal_fixture(tmp_path, monkeypatch)
+    with pytest.raises(ReviewEvidenceError, match="malformed"):
+        evidence_module.parse_owner_stale_seal_inspected_reply(
+            state["thread"].comments[1].body + suffix
+        )
+
+
+def test_inspected_stale_seal_candidate_rejects_symlink_and_mode(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    state = _inspected_stale_seal_fixture(tmp_path, monkeypatch)
+    state["mapping"].chmod(0o755)
+    with pytest.raises(ReviewEvidenceError, match="100644"):
+        evidence_module.read_closeout_candidate_bytes(state["repo"], pr_number=42)
+    state["mapping"].unlink()
+    state["mapping"].symlink_to(state["repo"] / "README.md")
+    with pytest.raises(ReviewEvidenceError, match="symlink"):
+        evidence_module.read_closeout_candidate_bytes(state["repo"], pr_number=42)
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        "wrong-root",
+        "wrong-actor",
+        "edited-F",
+        "before-I",
+        "material-child",
+        "mapping-interval-mutation",
+        "unknown-parent",
+    ],
+)
+def test_inspected_stale_seal_rejects_real_final_proof_defects(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    mutation: str,
+) -> None:
+    state = _inspected_stale_seal_fixture(tmp_path, monkeypatch, published=True)
+    if mutation == "wrong-root":
+        state["nodes"]["REVIEW_700"]["originalCommit"]["oid"] = state["material"]
+    elif mutation == "wrong-actor":
+        state["nodes"]["REVIEW_800"]["author"]["id"] = "OTHER_ACTOR"
+    elif mutation == "edited-F":
+        state["nodes"]["REVIEW_801"]["lastEditedAt"] = "2026-08-12T12:00:00Z"
+    elif mutation == "before-I":
+        monkeypatch.setattr(
+            evidence_module,
+            "_github_api_paginated_pages",
+            lambda *_a, **_k: (
+                [
+                    {
+                        "activity_type": "push",
+                        "ref": "refs/heads/feature",
+                        "before": state["material"],
+                        "after": state["reseal"],
+                        "timestamp": "2026-08-12T10:00:01Z",
+                    }
+                ],
+            ),
+        )
+    elif mutation == "material-child":
+        (state["repo"] / "src/policy.py").write_text("BROKEN = True\n", encoding="utf-8")
+        extra = _commit(state["repo"], "actual forbidden post-closeout material")
+        state["snapshot"] = replace(
+            state["snapshot"],
+            head_sha=extra,
+            commits=(*state["snapshot"].commits, PrCommitEvidence(extra, None)),
+        )
+    elif mutation == "mapping-interval-mutation":
+        state["nodes"]["REVIEW_700"]["originalCommit"]["oid"] = state["seed"]["stale_head"]
+        state["rows"][state["root"].url]["original_commit_id"] = state["seed"]["stale_head"]
+        state["root"] = replace(state["root"], original_commit_sha=state["seed"]["stale_head"])
+        state["thread"] = replace(
+            state["thread"], comments=(state["root"], *state["thread"].comments[1:])
+        )
+        for comment in state["thread"].comments[1:]:
+            body = comment.body.replace(state["stale"], state["seed"]["stale_head"])
+            state["rows"][comment.url]["body"] = body
+            state["nodes"][state["rows"][comment.url]["node_id"]]["body"] = body
+        state["thread"] = replace(
+            state["thread"],
+            comments=tuple(
+                replace(comment, body=state["rows"][comment.url]["body"])
+                for comment in state["thread"].comments
+            ),
+        )
+    else:
+        _git(state["repo"], "rev-parse", "--git-dir")
+        (state["repo"] / ".git/shallow").write_text(state["intervening"] + "\n", encoding="ascii")
+    try:
+        covered = _inspected_coverage(state, publication=False)
+    except ReviewEvidenceError:
+        covered = set()
+    assert covered == set()
+
+
+def test_inspected_stale_seal_counts_all_eligible_roots_before_url_filter(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    state = _inspected_stale_seal_fixture(tmp_path, monkeypatch)
+    root = replace(state["root"], url="https://github.com/owner/repo/pull/42#discussion_r701")
+    i = replace(
+        state["thread"].comments[1],
+        url="https://github.com/owner/repo/pull/42#discussion_r810",
+        body=state["thread"].comments[1].body.replace("root 700 ", "root 701 "),
+    )
+    for comment, source_id, new_id, reply_to in [
+        (root, "REVIEW_700", 701, None),
+        (i, "REVIEW_800", 810, 701),
+    ]:
+        row = json.loads(
+            json.dumps(next(row for row in state["rows"].values() if row["node_id"] == source_id))
+        )
+        row.update(id=new_id, node_id=f"REVIEW_{new_id}", html_url=comment.url, body=comment.body)
+        if reply_to is not None:
+            row["in_reply_to_id"] = reply_to
+        node = json.loads(json.dumps(state["nodes"][source_id]))
+        node.update(
+            id=row["node_id"],
+            databaseId=new_id,
+            url=comment.url,
+            body=comment.body,
+            replyTo=None if reply_to is None else {"id": "REVIEW_701", "databaseId": 701},
+        )
+        state["rows"][comment.url] = row
+        state["nodes"][row["node_id"]] = node
+    other = ReviewThreadEvidence("THREAD_701", False, (root, i))
+    digest = evidence_module.publication_review_inventory_digest(
+        actionable_items=(),
+        selected_rows={},
+        unresolved_roots=(state["thread"], other),
+        snapshot=state["snapshot"],
+        repository="owner/repo",
+        token="opaque",
+    )
+    threads = []
+    for thread in (state["thread"], other):
+        comment = thread.comments[1]
+        body = comment.body.replace(state["inventory"], digest)
+        state["rows"][comment.url]["body"] = body
+        state["nodes"][state["rows"][comment.url]["node_id"]]["body"] = body
+        threads.append(replace(thread, comments=(thread.comments[0], replace(comment, body=body))))
+    assert (
+        evidence_module.validated_inspected_stale_seal_urls(
+            candidate_urls={state["root"].url},
+            threads=tuple(threads),
+            fingerprint_records={},
+            mapping_entries={},
+            material_digest=state["manifest"].digest,
+            material_head_sha=state["material"],
+            repo_root=state["repo"],
+            snapshot=state["snapshot"],
+            repository="owner/repo",
+            token="opaque",
+            publication_inventory_digest=digest,
+            candidate_raw=state["candidate"],
+        )
+        == set()
+    )
 
 
 def _stale_seal_reply_coverage(
