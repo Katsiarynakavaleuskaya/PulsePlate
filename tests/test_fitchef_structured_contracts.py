@@ -157,6 +157,7 @@ def test_structured_fitchef_internal_task_envelopes_are_additive() -> None:
 
     assert distortion_task.task_type == "distortion_simulator"
     assert distortion_task.tool_budget == 1
+    assert distortion_task.input.lang == "en"
     assert identity_task.task_type == "identity_loop_mapper"
     assert identity_task.input.safe_trigger_context == "work runs late"
 

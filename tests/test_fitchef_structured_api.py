@@ -320,7 +320,122 @@ class TestFitChefDistortionSimulatorRoute:
         assert response.status_code == 400
         assert _json_body(response) == {"detail": "unsafe_ai_input"}
 
-    def test_route_delegates_to_runtime_with_structured_task_envelope(self) -> None:
+    @pytest.mark.parametrize(
+        "thought",
+        [
+            "I want to die",
+            "Tonight I want to die",
+            "Я хочу умереть",
+            "Quiero morir",
+            "Hoy quiero morir",
+            "I don't want to die is a lie",
+            "No quiero morir hoy",
+        ],
+    )
+    def test_distortion_high_distress_rejected_before_runtime(self, thought: str) -> None:
+        """The shared distress boundary stops this route before runtime work."""
+
+        self.monkeypatch.setattr(
+            "app.routers.fitchef_structured.fitchef_runtime.run_distortion_simulator_task",
+            lambda *args, **kwargs: pytest.fail("runtime must not run"),
+        )
+        response = self.client.post(
+            self.url,
+            json={
+                "situation": "Dinner changed",
+                "automatic_thought": thought,
+                "emotion": "panic",
+                "lang": "ru",
+            },
+            headers=self.pro_headers,
+        )
+        assert response.status_code == 400
+        assert _json_body(response) == {"detail": "fitchef_high_distress_boundary"}
+
+    @pytest.mark.parametrize(
+        ("thought", "lang"),
+        [
+            ("I do not want to die", "en"),
+            ("I don’t want to die", "en"),
+            ("No  quiero morir", "es"),
+            ("I really don't want to die", "en"),
+            ("I definitely do not want to die.", "en"),
+            ("Nunca quiero morir", "es"),
+        ],
+    )
+    def test_negated_distress_reaches_distortion_runtime(self, thought: str, lang: str) -> None:
+        """Reviewed negations must not be classified as an affirmative cue."""
+
+        captured: list[object] = []
+
+        async def reached_runtime(task: object) -> FitChefDistortionSimulatorResult:
+            """Capture the admitted task and emit the runtime-reached sentinel."""
+
+            captured.append(task)
+            raise HTTPException(status_code=503, detail="sentinel_runtime_reached")
+
+        self.monkeypatch.setattr(
+            "app.routers.fitchef_structured.fitchef_runtime.run_distortion_simulator_task",
+            reached_runtime,
+        )
+        response = self.client.post(
+            self.url,
+            json={
+                "situation": "Dinner changed",
+                "automatic_thought": thought,
+                "emotion": "worry",
+                "lang": lang,
+            },
+            headers=self.pro_headers,
+        )
+        assert response.status_code == 503
+        assert _json_body(response) == {"detail": "sentinel_runtime_reached"}
+        assert len(captured) == 1
+
+    @pytest.mark.parametrize("positive_field", ["situation", "emotion", "goal"])
+    def test_reviewed_negation_does_not_hide_other_pro_field(self, positive_field: str) -> None:
+        """Reject positive distress in another PRO request field despite a reviewed negation."""
+
+        self.monkeypatch.setattr(
+            "app.routers.fitchef_structured.fitchef_runtime.run_distortion_simulator_task",
+            lambda *args, **kwargs: pytest.fail("runtime must not run"),
+        )
+        payload = {
+            "situation": "Dinner changed",
+            "automatic_thought": "I really don't want to die",
+            "emotion": "worry",
+            "goal": "steady meals",
+        }
+        payload[positive_field] = "Tonight I want to die"
+        response = self.client.post(self.url, json=payload, headers=self.pro_headers)
+        assert response.status_code == 400
+        assert _json_body(response) == {"detail": "fitchef_high_distress_boundary"}
+
+    def test_distortion_invalid_language_returns_422(self) -> None:
+        """The public request admits only the three reviewed languages."""
+
+        self.monkeypatch.setattr(
+            "app.routers.fitchef_structured.fitchef_runtime.run_distortion_simulator_task",
+            lambda *args, **kwargs: pytest.fail("runtime must not run for invalid language"),
+        )
+        response = self.client.post(
+            self.url,
+            json={
+                "situation": "Dinner changed",
+                "automatic_thought": "I failed",
+                "emotion": "worry",
+                "lang": "de",
+            },
+            headers=self.pro_headers,
+        )
+        assert response.status_code == 422
+        assert response.headers["content-type"].startswith("application/json")
+        assert "detail" in _json_body(response)
+
+    @pytest.mark.parametrize(("provided_lang", "expected_lang"), [(None, "en"), ("es", "es")])
+    def test_route_delegates_to_runtime_with_structured_task_envelope(
+        self, provided_lang: str | None, expected_lang: str
+    ) -> None:
         """Route should delegate to runtime with the bounded distortion envelope."""
 
         captured: dict[str, object] = {}
@@ -360,16 +475,15 @@ class TestFitChefDistortionSimulatorRoute:
             _fake_run,
         )
 
-        response = self.client.post(
-            self.url,
-            json={
-                "situation": "I ate dessert after dinner",
-                "automatic_thought": "I ruined the whole day",
-                "emotion": "guilt",
-                "goal": "steady dinners",
-            },
-            headers=self.pro_headers,
-        )
+        payload = {
+            "situation": "I ate dessert after dinner",
+            "automatic_thought": "I ruined the whole day",
+            "emotion": "guilt",
+            "goal": "steady dinners",
+        }
+        if provided_lang is not None:
+            payload["lang"] = provided_lang
+        response = self.client.post(self.url, json=payload, headers=self.pro_headers)
 
         assert response.status_code == 200
         data = _json_body(response)
@@ -380,6 +494,7 @@ class TestFitChefDistortionSimulatorRoute:
         task = captured["task"]
         assert getattr(task, "task_type") == "distortion_simulator"
         assert getattr(task, "input").safe_automatic_thought == "I ruined the whole day"
+        assert getattr(task, "input").lang == expected_lang
 
     def test_quota_exhaustion_returns_429_before_provider_call(self) -> None:
         """Quota exhaustion must stop the PRO route before provider.generate()."""
@@ -437,6 +552,47 @@ class TestFitChefDistortionSimulatorRoute:
         assert cast(list[str], data["distortion_labels"])
         assert cast(list[str], data["sources"]) == []
         assert isinstance(data["balanced_reframe"], str)
+
+    @pytest.mark.parametrize(("lang", "fragment"), [("ru", "момент"), ("es", "momento")])
+    def test_invalid_json_fallback_uses_requested_language(self, lang: str, fragment: str) -> None:
+        """The public locale reaches the deterministic runtime fallback."""
+
+        mock_provider = MagicMock()
+        mock_provider.generate.return_value = "not json"
+        self.monkeypatch.setattr(
+            "app.services.fitchef_runtime.attempt_consume_llm_monthly_quota",
+            lambda *args, **kwargs: True,
+        )
+        self.monkeypatch.setattr("llm.get_provider", lambda: mock_provider)
+        response = self.client.post(
+            self.url,
+            json={
+                "situation": "Dinner changed",
+                "automatic_thought": "A plain observation",
+                "emotion": "worry",
+                "goal": "skip all meals",
+                "lang": lang,
+            },
+            headers=self.pro_headers,
+        )
+        assert response.status_code == 200
+        data = _json_body(response)
+        assert data["distortion_labels"] == []
+        assert fragment in data["balanced_reframe"]
+        assert "skip all meals" not in " ".join(
+            [
+                data["why_it_matches"],
+                *data["evidence_for"],
+                *data["evidence_against"],
+                data["balanced_reframe"],
+                data["next_small_action"],
+            ]
+        )
+        prompt = cast(str, mock_provider.generate.call_args.args[0])
+        assert (
+            f"Write the five user-facing text fields in {'Russian' if lang == 'ru' else 'Spanish'}"
+            in prompt
+        )
 
     def test_vip_caller_uses_vip_quota_bucket_on_pro_route(self) -> None:
         """VIP callers on a PRO route must keep VIP quota accounting."""
@@ -500,6 +656,25 @@ class TestFitChefDistortionSimulatorRoute:
             "properties",
         )
         assert "claim_evidence_assessment" not in public_properties
+        request_properties = _nested_object(
+            schema,
+            "components",
+            "schemas",
+            "FitChefDistortionSimulatorRequest",
+            "properties",
+        )
+        assert "Defaults to en" in request_properties["lang"]["description"]
+        request_schema = _nested_object(
+            schema, "components", "schemas", "FitChefDistortionSimulatorRequest"
+        )
+        assert "lang" not in request_schema["required"]
+        generated_types = (
+            Path(__file__).resolve().parents[1] / "frontend/src/api/schema.ts"
+        ).read_text(encoding="utf-8")
+        distortion_type = generated_types.split("FitChefDistortionSimulatorRequest: {", 1)[1].split(
+            "};", 1
+        )[0]
+        assert 'lang?: "ru" | "en" | "es";' in distortion_type
 
 
 def test_support_handoff_source_router_has_one_directly_guarded_post() -> None:
@@ -1701,6 +1876,56 @@ class TestFitChefIdentityLoopMapperRoute:
             expected_message="fitchef_high_distress_boundary",
         )
 
+    @pytest.mark.parametrize(
+        ("reviewed_field", "positive_field"),
+        [("self_talk", "trigger_context"), ("trigger_context", "self_talk")],
+    )
+    def test_reviewed_negation_does_not_hide_other_identity_field(
+        self, reviewed_field: str, positive_field: str
+    ) -> None:
+        """Reject another identity field without broadening the finite negation exception."""
+
+        self.monkeypatch.setattr(
+            "app.routers.fitchef_structured.fitchef_runtime.run_identity_loop_mapper_task",
+            lambda *args, **kwargs: pytest.fail("runtime must not run"),
+        )
+        payload = self._payload()
+        payload[reviewed_field] = "Nunca quiero morir."
+        payload[positive_field] = "Hoy quiero morir"
+        response = self.client.post(self.url, json=payload, headers=self.vip_headers)
+        _assert_vip_error_envelope(
+            response,
+            expected_status=400,
+            expected_code="fitchef_high_distress_boundary",
+            expected_message="fitchef_high_distress_boundary",
+        )
+
+    def test_reviewed_negation_reaches_identity_runtime(self) -> None:
+        """Forward the admitted reviewed negation to the identity runtime."""
+
+        captured: list[object] = []
+
+        async def reached_runtime(task: object) -> FitChefIdentityLoopMapperResult:
+            """Capture the admitted task and emit the runtime-reached sentinel."""
+
+            captured.append(task)
+            raise HTTPException(status_code=503, detail="sentinel_identity_reached")
+
+        self.monkeypatch.setattr(
+            "app.routers.fitchef_structured.fitchef_runtime.run_identity_loop_mapper_task",
+            reached_runtime,
+        )
+        payload = self._payload()
+        payload["self_talk"] = "Nunca quiero morir."
+        response = self.client.post(self.url, json=payload, headers=self.vip_headers)
+        _assert_vip_error_envelope(
+            response,
+            expected_status=503,
+            expected_code="sentinel_identity_reached",
+            expected_message="sentinel_identity_reached",
+        )
+        assert len(captured) == 1
+
     def test_high_distress_euphemism_rejected_before_runtime(self) -> None:
         """High-distress euphemisms should not reach identity-loop runtime."""
 
@@ -2063,6 +2288,69 @@ class TestFitChefStructuredRuntimeCoverage:
 
         assert exc_info.value.status_code == 503
         assert exc_info.value.detail == "rag_retrieval_unavailable"
+
+    def test_direct_distortion_runtime_blocks_high_distress_before_executor(self) -> None:
+        """Internal callers cannot bypass the route's bounded distress exit."""
+
+        from app.services import fitchef_runtime
+
+        async def fail_executor(_config: object) -> object:
+            """Fail if a rejected distress input reaches the shared executor."""
+
+            pytest.fail("shared executor must not run for high distress")
+
+        self.monkeypatch.setattr(fitchef_runtime, "_run_fitchef_structured_task", fail_executor)
+        task = self._distortion_task()
+        task.input.safe_automatic_thought = "Я хочу умереть"
+        with pytest.raises(HTTPException) as blocked:
+            asyncio.run(fitchef_runtime.run_distortion_simulator_task(task))
+        assert blocked.value.status_code == 400
+        assert blocked.value.detail == "fitchef_high_distress_boundary"
+
+    @pytest.mark.parametrize(
+        "thought",
+        [
+            "I do not want to die",
+            "No  quiero morir",
+            "I really don't want to die",
+            "I definitely do not want to die.",
+            "Nunca quiero morir",
+        ],
+    )
+    def test_direct_runtime_allows_negated_distress_to_reach_executor(self, thought: str) -> None:
+        """The internal boundary also distinguishes reviewed negated text."""
+
+        from app.services import fitchef_runtime
+
+        async def reached_executor(_config: object) -> object:
+            """Emit the sentinel proving that admitted input reached executor construction."""
+
+            raise RuntimeError("sentinel_executor_reached")
+
+        self.monkeypatch.setattr(fitchef_runtime, "_run_fitchef_structured_task", reached_executor)
+        task = self._distortion_task()
+        task.input.safe_automatic_thought = thought
+        with pytest.raises(RuntimeError, match="sentinel_executor_reached"):
+            asyncio.run(fitchef_runtime.run_distortion_simulator_task(task))
+
+    @pytest.mark.parametrize("thought", ["I don't want to die is a lie", "No quiero morir hoy"])
+    def test_direct_runtime_blocks_unlisted_value_before_executor(self, thought: str) -> None:
+        """Reject an unlisted complete value before constructing the runtime executor."""
+
+        from app.services import fitchef_runtime
+
+        async def fail_executor(_config: object) -> object:
+            """Fail if a rejected distress input reaches the shared executor."""
+
+            pytest.fail("shared executor must not run")
+
+        self.monkeypatch.setattr(fitchef_runtime, "_run_fitchef_structured_task", fail_executor)
+        task = self._distortion_task()
+        task.input.safe_automatic_thought = thought
+        with pytest.raises(HTTPException) as blocked:
+            asyncio.run(fitchef_runtime.run_distortion_simulator_task(task))
+        assert blocked.value.status_code == 400
+        assert blocked.value.detail == "fitchef_high_distress_boundary"
 
     def test_runtime_builds_sanitized_sources_and_confidence(self) -> None:
         """Structured runtime should preserve sources, confidence, and warning flags."""
@@ -2797,7 +3085,10 @@ class TestFitChefStructuredRuntimeCoverage:
             automatic_thought: str,
             emotion: str,
             goal: str | None,
+            lang: str,
         ) -> "FitChefDistortionDraft":
+            """Record draft preparation while preserving the real preparer inputs and locale."""
+
             events.append("draft")
             return real_prepare(
                 raw_message,
@@ -2805,6 +3096,7 @@ class TestFitChefStructuredRuntimeCoverage:
                 automatic_thought=automatic_thought,
                 emotion=emotion,
                 goal=goal,
+                lang=lang,
             )
 
         def _assess(
