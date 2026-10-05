@@ -9,6 +9,11 @@
 - Install: `npm install`
 - Dev: `npm run dev`
 - Typecheck: `npm run typecheck`
+- Production API/foundation lint: `npm run lint:foundation` (explicit existing config,
+  authored top-level API/premium TypeScript and analytics, zero warnings). Generated
+  `src/api/schema.ts` is excluded precisely; this command does not claim all frontend
+  or API tests are lint-clean. Frontend CI runs native controls after installation;
+  the Python workflow contracts remain runnable without Node.
 - Build: `npm run build`
 - Preview: `npm run preview`
 - Test: `npm run test`, `npm run test:ci`, `npm run test:precommit`, `npm run test:coverage`

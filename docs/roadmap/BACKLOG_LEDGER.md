@@ -450,17 +450,19 @@ If it is not recorded here — it does not exist.
   - Target PR: CAB-04 [PR #2408](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2408);
     CAB-05 [PR #2414](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2414);
     CAB-06 [PR #2460](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2460)
-    (`codex/ios-iphone-ipad-ci-matrix`).
-  - Status: CAB-03 merged in PR #2381, CAB-04 merged in PR #2408, and CAB-05
-    merged in PR #2414. CAB-06 is the active iPhone/iPad CI matrix carrier;
-    its checkbox remains open pending its own current-head checks and merge evidence.
-    The owner admitted the bounded historical seal ordering repair in the same
-    PR, with privileged scope expanded from 16 to exactly 20 paths. Its shared
-    recognizer separates inspected publication admission from actual later FIXED
-    proof, preserves the existing carrier and four genuine review records, and
-    requires fresh material/native/CI evidence. Whole-root/current-candidate human
-    inspection, immutable OWNER statements, actual correcting mapping publication,
-    final strict review/wait gates and exact-head squash approval remain separate.
+    (`codex/ios-iphone-ipad-ci-matrix`); CAB-07A current substantive implementation
+    (`codex/cab07a-eslint-foundation-api`, PR number assigned at publication).
+  - Status: CAB-03, CAB-04 and CAB-05 merged in PR #2381, #2408 and #2414.
+    Carryover: CAB-06 merged in PR #2460 at `2026-10-04T20:45:28Z`, commit
+    `fb179f54877537b69ddd0ea4bf3d8211268fab82`; its canonical merged-main
+    [CI run 37233327985](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/37233327985)
+    succeeded. CAB-07A reconciles that repository status in this substantive
+    tooling/API carrier; CAB-07A and CLIENT-ARCH-1 remain open pending their own
+    validation, review, human exact-head merge and terminal evidence. The bounded
+    same-PR brace-expansion replacement has separate real-base resolver intent;
+    it is not hidden in lint-toolchain closure. Separate CD/pgvector work retains
+    its existing owner. CAB-07B owns CAB-07A repository closeout after its genuine
+    merge/post-merge receipts; no docs-only or housekeeping PR is planned.
   - Reason (EN): Keep the accepted continuation visible without mixing production Swift,
     warning-policy, device-matrix, Web or Mac work into the bounded AppIcon/Release carrier.
   - Links:
@@ -475,8 +477,17 @@ If it is not recorded here — it does not exist.
       app/test Swift warnings and enforce warnings-as-errors for three own targets
       in Debug and Release. Attribute the separate AppIntents metadata-extraction
       processor message without claiming all Xcode output is warning-free.
-    - [ ] CAB-06: iPhone/iPad CI matrix and TARGETED_DEVICE_FAMILY cleanup.
-    - [ ] CAB-07: reserved slot; no concrete scope was specified in the retained CAB-03 handoff.
+    - [x] CAB-06: iPhone/iPad CI matrix and TARGETED_DEVICE_FAMILY cleanup;
+      merged in #2460 with the canonical main CI receipt above.
+    - [ ] CAB-07A: restore directly owned ESLint, mandatory production API/foundation
+      lint/native controls and preserved transport regressions; remediate the one
+      admitted npm:brace-expansion identity with separate recorded real-base intent.
+    - [ ] CAB-07B: next substantive UI-primitives lint slice and CAB-07A repository
+      closeout from genuine merge/post-merge receipts; fresh admission required.
+    - [ ] CAB-07C: later pages/features lint cohort; preserve product semantics.
+    - [ ] CAB-07D: later complete mandatory frontend lint coverage. Preserve the
+      original full/frontend and API-test diagnostic inventories for these slices;
+      CAB-07A's production result is not whole-frontend cleanliness.
     - [ ] CAB-08: Web bundle work; exact scope and DoD require its own admission.
     - [ ] CAB-09: Mac Catalyst/macOS admission; no platform support is changed by CAB-03.
   - DoD:
