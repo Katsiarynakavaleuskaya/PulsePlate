@@ -208,12 +208,34 @@ MOUNTPOINT_LAYER_GZIP = base64.b64decode(
 )
 
 
+CHECKPOINT_PATHS = (
+    "scripts/verify_premium_alias_telemetry.py",
+    "scripts/ops/notify_premium_alias_checkpoint_failure.py",
+    "deploy/systemd/pulseplate-premium-alias-checkpoint.service.example",
+    "deploy/systemd/pulseplate-premium-alias-checkpoint.timer.example",
+    "deploy/systemd/pulseplate-premium-alias-checkpoint-failure.service.example",
+)
+
+
+def _write_checkpoint_contract(root: Path, *, staging: bool = False) -> None:
+    for relative in CHECKPOINT_PATHS:
+        destination = root / (
+            relative.replace("deploy/systemd/", "systemd/") if staging else relative
+        )
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_bytes((REPO_ROOT / relative).read_bytes())
+        destination.chmod(0o644)
+
+
 def _write_production_host_contract(
     project_dir: Path,
     *,
     compose_text: str = PRODUCTION_COMPOSE_TEXT,
     self_hosted: bool = False,
+    include_checkpoint: bool = True,
 ) -> Path:
+    if include_checkpoint:
+        _write_checkpoint_contract(project_dir)
     deploy_dir = project_dir / "deploy"
     prometheus_dir = deploy_dir / "prometheus"
     alertmanager_dir = deploy_dir / "alertmanager"
@@ -282,6 +304,7 @@ def _write_shell_bundle_contract(
     include_redeploy: bool = True,
     include_backup_helper: bool = True,
 ) -> None:
+    _write_checkpoint_contract(shell_bundle_dir)
     deploy_dir = shell_bundle_dir / "deploy"
     prometheus_dir = deploy_dir / "prometheus"
     alertmanager_dir = deploy_dir / "alertmanager"
@@ -366,6 +389,7 @@ def _write_shell_bundle_archive(
         "scripts/diagnose_web.sh",
         "scripts/ops/postgres_backup.sh",
         "scripts/redeploy_caddy.sh",
+        *CHECKPOINT_PATHS,
     ]
     if archive_path.exists():
         archive_path.unlink()
@@ -3630,12 +3654,16 @@ def test_cd_alias_rules_use_native_promtool_and_both_staging_hash_passes() -> No
     )
     assert workflow_text.count("[ ! -L ./prometheus/alias-alerts.yml ]") == 2
     assert workflow_text.count('= "$PROMETHEUS_RULES_SHA256" ]') == 2
-    assert (
-        "deploy/postgres-pgvector/image-manifest.json \\\n"
-        "            deploy/prometheus/alias-alerts.yml \\\n"
-        "            deploy/alertmanager/alertmanager.yml \\\n"
-        "            deploy/alertmanager/trivy-ignore.yaml\n"
-    ) in workflow_text
+    members = (
+        "deploy/postgres-pgvector/image-manifest.json",
+        "deploy/prometheus/alias-alerts.yml",
+        "deploy/alertmanager/alertmanager.yml",
+        "deploy/alertmanager/trivy-ignore.yaml",
+        *CHECKPOINT_PATHS,
+    )
+    expected_archive = "".join("            " + member + " \\\n" for member in members[:-1])
+    expected_archive += "            " + members[-1] + "\n"
+    assert expected_archive in workflow_text
 
 
 @pytest.mark.parametrize(
@@ -4277,7 +4305,7 @@ def test_deploy_production_rejects_shell_bundle_without_redeploy_helper(
     project_dir.mkdir()
     shell_bundle_dir.mkdir()
     bin_dir.mkdir()
-    _write_production_host_contract(project_dir)
+    _write_production_host_contract(project_dir, include_checkpoint=False)
     (project_dir / ".env").write_text(
         "DATABASE_URL=postgresql+psycopg://pulseplate:secret@db.example.com:25060/pulseplate\n",  # pragma: allowlist secret
         encoding="utf-8",
@@ -4353,7 +4381,7 @@ def test_deploy_production_preflight_rejects_shell_bundle_without_frontend(
     project_dir.mkdir()
     shell_bundle_dir.mkdir()
     bin_dir.mkdir()
-    _write_production_host_contract(project_dir)
+    _write_production_host_contract(project_dir, include_checkpoint=False)
     (project_dir / ".env").write_text(
         "DATABASE_URL=postgresql+psycopg://pulseplate:secret@db.example.com:25060/pulseplate\n",  # pragma: allowlist secret
         encoding="utf-8",
@@ -4892,7 +4920,9 @@ def _production_preflight_fixture(
     log_file = tmp_path / "docker.log"
     project_dir.mkdir()
     bin_dir.mkdir()
-    _write_production_host_contract(project_dir, compose_text=PRODUCTION_COMPOSE_TEXT)
+    _write_production_host_contract(
+        project_dir, compose_text=PRODUCTION_COMPOSE_TEXT, include_checkpoint=not with_bundle
+    )
     (project_dir / ".env").write_text(
         "DATABASE_URL=postgresql+psycopg://pulseplate:secret@db.example.com:25060/pulseplate\n",  # pragma: allowlist secret
         encoding="utf-8",
@@ -7030,7 +7060,7 @@ def test_production_contract_publication_rejects_destination_symlinks_before_doc
     project_dir.mkdir()
     shell_bundle_dir.mkdir()
     bin_dir.mkdir()
-    _write_production_host_contract(project_dir)
+    _write_production_host_contract(project_dir, include_checkpoint=False)
     _write_shell_bundle_contract(shell_bundle_dir)
     (project_dir / ".env").write_text(
         "DATABASE_URL=postgresql+psycopg://pulseplate:secret@db.example.com:25060/pulseplate\n",  # pragma: allowlist secret
@@ -7129,7 +7159,7 @@ def test_production_archive_full_deploy_preserves_server_local_state_and_orders_
     project_dir.mkdir()
     shell_bundle_dir.mkdir()
     bin_dir.mkdir()
-    _write_production_host_contract(project_dir)
+    _write_production_host_contract(project_dir, include_checkpoint=False)
     _write_shell_bundle_contract(shell_bundle_dir)
     (shell_bundle_dir / "frontend" / "bundle-marker.txt").write_text(
         "archive-shell\n", encoding="utf-8"
@@ -7809,7 +7839,7 @@ def test_deploy_production_syncs_shell_bundle_and_prunes_stale_shell_files(tmp_p
     project_dir.mkdir()
     shell_bundle_dir.mkdir()
     bin_dir.mkdir()
-    _write_production_host_contract(project_dir)
+    _write_production_host_contract(project_dir, include_checkpoint=False)
     (project_dir / ".env").write_text(
         "\n".join(
             [
@@ -8100,7 +8130,7 @@ def test_deploy_production_syncs_shell_bundle_with_autodetected_compose_file(
     project_dir.mkdir()
     shell_bundle_dir.mkdir()
     bin_dir.mkdir()
-    _write_production_host_contract(project_dir)
+    _write_production_host_contract(project_dir, include_checkpoint=False)
     (project_dir / ".env").write_text(
         "DATABASE_URL=postgresql+psycopg://pulseplate:secret@db.example.com:25060/pulseplate\n",  # pragma: allowlist secret
         encoding="utf-8",
@@ -8181,7 +8211,7 @@ def test_deploy_production_syncs_shell_bundle_with_relative_compose_subpath(
     project_dir.mkdir()
     shell_bundle_dir.mkdir()
     bin_dir.mkdir()
-    _write_production_host_contract(project_dir)
+    _write_production_host_contract(project_dir, include_checkpoint=False)
     (project_dir / ".env").write_text(
         "DATABASE_URL=postgresql+psycopg://pulseplate:secret@db.example.com:25060/pulseplate\n",  # pragma: allowlist secret
         encoding="utf-8",
@@ -8580,7 +8610,7 @@ def test_deploy_production_keeps_shell_bundle_untouched_when_migrations_fail(
     project_dir.mkdir()
     shell_bundle_dir.mkdir()
     bin_dir.mkdir()
-    _write_production_host_contract(project_dir)
+    _write_production_host_contract(project_dir, include_checkpoint=False)
     (project_dir / ".env").write_text(
         "DATABASE_URL=postgresql+psycopg://pulseplate:secret@db.example.com:25060/pulseplate\n",  # pragma: allowlist secret
         encoding="utf-8",
@@ -8773,6 +8803,7 @@ def test_deploy_production_accepts_only_explicit_exact_self_hosted_database_cont
         project_dir,
         compose_text=self_hosted_compose,
         self_hosted=True,
+        include_checkpoint=False,
     )
     _write_shell_bundle_contract(
         shell_bundle_dir,
@@ -8974,7 +9005,9 @@ def _production_self_hosted_image_identity_fixture(
     shell_bundle_dir.mkdir()
     bin_dir.mkdir()
     compose_text = SELF_HOSTED_COMPOSE_PATH.read_text(encoding="utf-8")
-    _write_production_host_contract(project_dir, compose_text=compose_text, self_hosted=True)
+    _write_production_host_contract(
+        project_dir, compose_text=compose_text, self_hosted=True, include_checkpoint=False
+    )
     _write_shell_bundle_contract(
         shell_bundle_dir,
         compose_text=compose_text,
@@ -10550,6 +10583,7 @@ esac
             "STUB_WORKER_FULL_ID": worker_id,
         }
     )
+    _write_checkpoint_contract(project_dir, staging=True)
     return env, log_file
 
 
@@ -13578,3 +13612,188 @@ esac
         assert (state / "port-owner").read_text().strip() == legacy
         if scenario == "omit-legacy-release":
             assert "127.0.0.1:5432 already occupied" in result.stderr
+
+
+@pytest.mark.parametrize("case", ["intact", "changed", "legacy"])
+def test_checkpoint_publication_copy_binds_exact_written_bytes(tmp_path: Path, case: str) -> None:
+    script = (REPO_ROOT / "scripts/deploy_production.sh").read_text()
+    start = script.index("def copy_open_file(")
+    end = script.index("\n\ndef tree_walk(", start)
+    admitted = b"admitted checkpoint bytes\n"
+    source = tmp_path / "source"
+    destination = tmp_path / "destination"
+    actual = b"different checkpoint bytes\n" if case == "changed" else admitted
+    source.write_bytes(actual)
+    expected = "" if case == "legacy" else "sha256:" + hashlib.sha256(admitted).hexdigest()
+    program = (
+        "import hashlib, os, sys\n"
+        + script[start:end]
+        + "\nwith open(sys.argv[1], 'rb') as source, open(sys.argv[2], 'wb') as destination:\n"
+        + "    copy_open_file(source.fileno(), os.fstat(source.fileno()), destination.fileno(), "
+        + "label='fixture', expected_hash=sys.argv[3] or None)\n"
+        + "print('accepted copied bytes')\n"
+    )
+    result = subprocess.run(
+        [sys.executable, "-", str(source), str(destination), expected],
+        input=program,
+        env={"PATH": os.defpath, "LANG": "C", "HOME": str(tmp_path)},
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
+    )
+    assert destination.read_bytes() == actual
+    if case == "changed":
+        assert result.returncode != 0
+        assert result.stderr.strip() == "Checkpoint contract hash mismatch"
+        assert "accepted copied bytes" not in result.stdout
+    else:
+        assert result.returncode == 0, result.stderr
+        assert result.stdout.strip() == "accepted copied bytes"
+
+
+@pytest.mark.parametrize("relative", CHECKPOINT_PATHS)
+@pytest.mark.parametrize(
+    "fault", ["none", "absent", "symlink", "directory", "stale", "parent-link"]
+)
+def test_staging_checkpoint_admission_rejects_before_mutation(
+    tmp_path: Path, relative: str, fault: str
+) -> None:
+    project = tmp_path / "staging"
+    _write_checkpoint_contract(project, staging=True)
+    staged_relative = relative.removeprefix("deploy/")
+    target = project / staged_relative
+    original = target.read_bytes()
+    external = tmp_path / "external"
+    if fault == "parent-link":
+        target.parent.rename(external)
+        target.parent.symlink_to(external, target_is_directory=True)
+    elif fault != "none":
+        target.unlink()
+        if fault == "symlink":
+            external.write_bytes(original)
+            target.symlink_to(external)
+        elif fault == "directory":
+            target.mkdir()
+        elif fault == "stale":
+            target.write_bytes(original + b"unreviewed")
+    script = (REPO_ROOT / "scripts/deploy.sh").read_text()
+    start = script.index('"$PYTHON_BIN" - "$PROJECT_DIR" <<\'PY_CHECKPOINT\'')
+    end = script.index("\nPY_CHECKPOINT", start) + len("\nPY_CHECKPOINT")
+    assert "'sha256:" + hashlib.sha256(original).hexdigest() + "'" in script
+    bash = shutil.which("bash")
+    assert bash is not None
+    result = subprocess.run(
+        [bash, "-c", "set -euo pipefail\n" + script[start:end] + "\ntouch mutation\n"],
+        env={"PATH": os.environ["PATH"], "PYTHON_BIN": sys.executable, "PROJECT_DIR": str(project)},
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
+    )
+    assert (result.returncode == 0) is (fault == "none"), result.stderr
+    assert (tmp_path / "mutation").exists() is (fault == "none")
+
+
+@pytest.mark.parametrize("relative", CHECKPOINT_PATHS)
+@pytest.mark.parametrize(
+    "fault", ["none", "absent", "symlink", "directory", "stale", "parent-link"]
+)
+@pytest.mark.parametrize("carrier", ["installed", "bundle"])
+def test_checkpoint_admission_rejects_before_protected_publication(
+    tmp_path: Path, relative: str, fault: str, carrier: str
+) -> None:
+    project = tmp_path / "production"
+    bundle = tmp_path / "bundle"
+    _write_checkpoint_contract(project)
+    if carrier == "bundle":
+        _write_shell_bundle_contract(bundle)
+    else:
+        _write_checkpoint_contract(bundle)
+    (project / "deploy").mkdir(exist_ok=True)
+    target = (project if carrier == "installed" else bundle) / relative
+    original = target.read_bytes()
+    external = tmp_path / "external"
+    if fault == "parent-link":
+        target.parent.rename(external)
+        target.parent.symlink_to(external, target_is_directory=True)
+    elif fault != "none":
+        target.unlink()
+        if fault == "symlink":
+            external.write_bytes(original)
+            target.symlink_to(external)
+        elif fault == "directory":
+            target.mkdir()
+        elif fault == "stale":
+            target.write_bytes(original + b"unreviewed")
+    script = (REPO_ROOT / "scripts/deploy_production.sh").read_text()
+    assert "'sha256:" + hashlib.sha256(original).hexdigest() + "'" in script
+    a = script.index("contract_destination_transaction() {")
+    b = script.index("\nvalidate_contract_destinations_safely() {", a)
+    operation = "publish-contracts" if carrier == "bundle" else "validate-checkpoint-installed"
+    values = [
+        str(bundle / p)
+        for p in (
+            "deploy/docker-compose.production.yaml",
+            "deploy/prometheus/prometheus.yml",
+            "deploy/prometheus/alias-alerts.yml",
+            "deploy/prometheus/image-manifest.json",
+            "deploy/alertmanager/alertmanager.yml",
+            "deploy/alertmanager/trivy-ignore.yaml",
+            "deploy/postgres-pgvector/image-manifest.json",
+        )
+    ] + ["", "", "", "", str(bundle / "scripts/ops/postgres_backup.sh")]
+    bash = shutil.which("bash")
+    assert bash is not None
+    program = (
+        "set -euo pipefail\n"
+        + script[a:b]
+        + "\ncontract_destination_transaction "
+        + shlex.quote(operation)
+    )
+    if carrier == "bundle":
+        program += " " + " ".join(shlex.quote(value) for value in values)
+    program += "\ntouch mutation\n"
+    before_tree = sorted(
+        (
+            str(path.relative_to(project)),
+            path.lstat().st_mode,
+            path.lstat().st_dev,
+            path.lstat().st_ino,
+            path.read_bytes() if path.is_file() else None,
+        )
+        for path in project.rglob("*")
+    )
+    result = subprocess.run(
+        [bash, "-c", program],
+        env={
+            "PATH": os.environ["PATH"],
+            "PYTHON_BIN": sys.executable,
+            "REQUESTED_DEPLOY_DIR": str(project),
+            "COMPOSE_RELATIVE_IDENTITY": CANONICAL_MANAGED_COMPOSE,
+        },
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
+    )
+    assert (result.returncode == 0) is (fault == "none"), result.stderr
+    assert (tmp_path / "mutation").exists() is (fault == "none")
+    after_tree = sorted(
+        (
+            str(path.relative_to(project)),
+            path.lstat().st_mode,
+            path.lstat().st_dev,
+            path.lstat().st_ino,
+            path.read_bytes() if path.is_file() else None,
+        )
+        for path in project.rglob("*")
+    )
+    if fault != "none":
+        assert after_tree == before_tree
+    elif carrier == "bundle":
+        for member in CHECKPOINT_PATHS:
+            assert (project / member).read_bytes() == (REPO_ROOT / member).read_bytes()
+        assert not any(path.name.startswith(".pulseplate-") for path in project.rglob("*"))

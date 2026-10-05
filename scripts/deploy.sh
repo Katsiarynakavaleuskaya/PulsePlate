@@ -120,6 +120,36 @@ for required_path in \
     exit 1
   fi
 done
+# Default-off checkpoint files are admitted before any Docker/product mutation.
+"$PYTHON_BIN" - "$PROJECT_DIR" <<'PY_CHECKPOINT'
+import hashlib
+import os
+from pathlib import Path
+import stat
+import sys
+
+project = Path(sys.argv[1])
+expected = {
+    'scripts/verify_premium_alias_telemetry.py': 'sha256:897d07f49787c8a9e399e7d24d49429816fb37094746b36b65f8a8bb437b3420',
+    'scripts/ops/notify_premium_alias_checkpoint_failure.py': 'sha256:2c5e8d88d5047d2daa44d60f2ce6dbb9bf10f4a434361c62fb2d98795afa9373',
+    'systemd/pulseplate-premium-alias-checkpoint.service.example': 'sha256:a52742a89b87d02b3b75834b27db741b72a9c6c4a021711611db2a53b197a030',
+    'systemd/pulseplate-premium-alias-checkpoint.timer.example': 'sha256:f6dd053b986cf68b133cf855208b86f44fc975e84dc7acbf490b35a6bb88c9cf',
+    'systemd/pulseplate-premium-alias-checkpoint-failure.service.example': 'sha256:285c5e05bd72f4c99a22c9657a8443becfda4ff93975a21d70feb01812ed1b6d',
+}
+for relative, expected_hash in expected.items():
+    path = project / relative
+    for parent in (path, *path.parents):
+        if parent.is_symlink():
+            raise SystemExit("Checkpoint contract contains a symlink")
+    metadata = path.stat()
+    if not stat.S_ISREG(metadata.st_mode) or metadata.st_nlink != 1:
+        raise SystemExit("Checkpoint contract must be one regular file")
+    if metadata.st_size <= 0 or metadata.st_size > 4 * 1024 * 1024:
+        raise SystemExit("Checkpoint contract size is invalid")
+    if "sha256:" + hashlib.sha256(path.read_bytes()).hexdigest() != expected_hash:
+        raise SystemExit("Checkpoint contract hash mismatch")
+PY_CHECKPOINT
+
 env_file_mode="$($STAT_BIN -c '%a' "$ENV_FILE")"
 if [ "$env_file_mode" != "600" ]; then
   echo "❌ Staging env file must use mode 0600; got $env_file_mode" >&2

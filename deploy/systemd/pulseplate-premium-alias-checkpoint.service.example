@@ -1,0 +1,23 @@
+# Default-off staging example. Install only after exact monitoring approval.
+# Set the explicit Compose, evidence and admitted baseline paths for the selected contour.
+# Supported manual invocation: systemctl start pulseplate-premium-alias-checkpoint.service
+[Unit]
+Description=PulsePlate premium alias daily checkpoint
+After=docker.service
+RequiresMountsFor=/mnt/pulseplate-staging-data /srv/pulseplate-staging/secrets
+OnFailure=pulseplate-premium-alias-checkpoint-failure.service
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/srv/pulseplate-staging
+RuntimeDirectory=pulseplate-premium-alias-checkpoint
+RuntimeDirectoryMode=0700
+RuntimeDirectoryPreserve=yes
+UMask=0077
+Environment=COMPOSE_PROFILES=
+ExecStart=/usr/bin/flock --nonblock --conflict-exit-code=75 /run/pulseplate-premium-alias-checkpoint/checkpoint.lock /usr/bin/python3 /srv/pulseplate-staging/scripts/verify_premium_alias_telemetry.py checkpoint --compose-file /srv/pulseplate-staging/docker-compose.staging.yaml --evidence-dir /mnt/pulseplate-staging-data/alias-evidence --baseline-evidence /mnt/pulseplate-staging-data/alias-evidence/baseline.json
+TimeoutStartSec=10min
+TimeoutStopSec=10s
+KillMode=control-group
+Restart=no

@@ -1334,6 +1334,7 @@ contract_destination_transaction() {
 from __future__ import annotations
 
 import errno
+import hashlib
 import os
 from pathlib import Path, PurePosixPath
 import secrets
@@ -1366,8 +1367,16 @@ source_redeploy = sys.argv[23]
 redeploy_target = sys.argv[24]
 source_backup_helper = sys.argv[25]
 backup_helper_target = sys.argv[26]
+checkpoint_contracts = {
+    'scripts/verify_premium_alias_telemetry.py': 'sha256:897d07f49787c8a9e399e7d24d49429816fb37094746b36b65f8a8bb437b3420',
+    'scripts/ops/notify_premium_alias_checkpoint_failure.py': 'sha256:2c5e8d88d5047d2daa44d60f2ce6dbb9bf10f4a434361c62fb2d98795afa9373',
+    'deploy/systemd/pulseplate-premium-alias-checkpoint.service.example': 'sha256:a52742a89b87d02b3b75834b27db741b72a9c6c4a021711611db2a53b197a030',
+    'deploy/systemd/pulseplate-premium-alias-checkpoint.timer.example': 'sha256:f6dd053b986cf68b133cf855208b86f44fc975e84dc7acbf490b35a6bb88c9cf',
+    'deploy/systemd/pulseplate-premium-alias-checkpoint-failure.service.example': 'sha256:285c5e05bd72f4c99a22c9657a8443becfda4ff93975a21d70feb01812ed1b6d',
+}
 
 if operation not in {
+    "validate-checkpoint-installed",
     "validate-contracts",
     "publish-contracts",
     "validate-full",
@@ -1531,12 +1540,16 @@ def copy_open_file(
     destination_fd: int,
     *,
     label: str,
+    expected_hash: str | None = None,
 ) -> None:
+    digest = hashlib.sha256() if expected_hash is not None else None
     remaining = source_metadata.st_size
     while remaining:
         chunk = os.read(source_fd, min(1024 * 1024, remaining))
         if not chunk:
             raise SystemExit(f"{label} changed during publication")
+        if digest is not None:
+            digest.update(chunk)
         view = memoryview(chunk)
         while view:
             written = os.write(destination_fd, view)
@@ -1553,6 +1566,8 @@ def copy_open_file(
         or after.st_ctime_ns != source_metadata.st_ctime_ns
     ):
         raise SystemExit(f"{label} identity changed during publication")
+    if digest is not None and "sha256:" + digest.hexdigest() != expected_hash:
+        raise SystemExit("Checkpoint contract hash mismatch")
 
 
 def tree_walk(
@@ -1675,6 +1690,23 @@ def split_target(raw_target: str) -> tuple[str, ...]:
     return pure_path.parts
 
 
+if operation in {"validate-full", "publish-contracts", "validate-checkpoint-installed"}:
+    checkpoint_root = (
+        Path(source_backup_helper).parents[2]
+        if source_backup_helper else Path(requested_deploy_dir)
+    )
+    for target, expected_hash in checkpoint_contracts.items():
+        source_fd, metadata = open_absolute_file(
+            str(checkpoint_root / target), label="checkpoint source", max_bytes=max_contract_bytes,
+        )
+        try:
+            payload = os.read(source_fd, metadata.st_size + 1)
+            if len(payload) != metadata.st_size or "sha256:" + hashlib.sha256(payload).hexdigest() != expected_hash:
+                raise SystemExit("Checkpoint contract hash mismatch")
+        finally:
+            os.close(source_fd)
+
+
 deploy_fd = open_absolute_directory(requested_deploy_dir, label="contract destination")
 directory_fds: list[int] = [deploy_fd]
 try:
@@ -1691,6 +1723,7 @@ try:
         diagnose_target,
         redeploy_target,
         backup_helper_target,
+        *checkpoint_contracts,
     ]
     target_parts = {target: split_target(target) for target in targets}
     deploy_contract_fd = ensure_directory(
@@ -1750,6 +1783,13 @@ try:
         if scripts_ops_fd is not None:
             directory_fds.append(scripts_ops_fd)
 
+    systemd_fd = ensure_directory(
+        deploy_contract_fd, "systemd", create=operation == "publish-contracts",
+        label="checkpoint unit directory",
+    )
+    if systemd_fd is not None:
+        directory_fds.append(systemd_fd)
+
     parent_by_target: dict[str, int | None] = {
         compose_target: deploy_contract_fd,
         config_target: prometheus_fd,
@@ -1763,6 +1803,11 @@ try:
         redeploy_target: scripts_fd,
         backup_helper_target: scripts_ops_fd,
     }
+    parent_by_target.update({
+        target: systemd_fd if target.startswith("deploy/systemd/") else
+        scripts_ops_fd if target.startswith("scripts/ops/") else scripts_fd
+        for target in checkpoint_contracts
+    })
     for target in (
         compose_target,
         config_target,
@@ -1775,6 +1820,7 @@ try:
         diagnose_target,
         redeploy_target,
         backup_helper_target,
+        *checkpoint_contracts,
     ):
         parent_fd = parent_by_target[target]
         if parent_fd is not None:
@@ -1807,6 +1853,9 @@ try:
         finally:
             os.close(existing_frontend_fd)
 
+    if operation == "validate-checkpoint-installed":
+        raise SystemExit(0)
+
     if operation == "validate-contracts":
         raise SystemExit(0)
 
@@ -1829,6 +1878,7 @@ try:
             postgres_manifest_target: source_postgres_manifest,
             backup_helper_target: source_backup_helper,
         }
+        sources.update({target: str(checkpoint_root / target) for target in checkpoint_contracts})
         modes = {
             compose_target: 0o644,
             config_target: 0o644,
@@ -1839,6 +1889,7 @@ try:
             postgres_manifest_target: 0o644,
             backup_helper_target: 0o755,
         }
+        modes.update({target: 0o644 for target in checkpoint_contracts})
         prepared_contracts: list[tuple[int, str, str]] = []
         try:
             for target in (
@@ -1850,6 +1901,7 @@ try:
                 postgres_manifest_target,
                 compose_target,
                 backup_helper_target,
+                *checkpoint_contracts,
             ):
                 source_fd, source_metadata = open_absolute_file(
                     sources[target],
@@ -1881,18 +1933,19 @@ try:
                         0o600,
                         dir_fd=parent_fd,
                     )
+                    prepared_contracts.append((parent_fd, temp_name, leaf))
                     try:
                         copy_open_file(
                             source_fd,
                             source_metadata,
                             temp_fd,
                             label=f"{target} source",
+                            expected_hash=checkpoint_contracts.get(target),
                         )
                         os.fchmod(temp_fd, mode)
                         os.fsync(temp_fd)
                     finally:
                         os.close(temp_fd)
-                    prepared_contracts.append((parent_fd, temp_name, leaf))
                 finally:
                     os.close(source_fd)
 
@@ -2209,6 +2262,11 @@ required_files = {
     "deploy/alertmanager/trivy-ignore.yaml",
     "scripts/diagnose_web.sh",
     "scripts/ops/postgres_backup.sh",
+    'scripts/verify_premium_alias_telemetry.py',
+    'scripts/ops/notify_premium_alias_checkpoint_failure.py',
+    'deploy/systemd/pulseplate-premium-alias-checkpoint.service.example',
+    'deploy/systemd/pulseplate-premium-alias-checkpoint.timer.example',
+    'deploy/systemd/pulseplate-premium-alias-checkpoint-failure.service.example',
     "scripts/redeploy_caddy.sh",
 }
 allowed_directories = {
@@ -2217,6 +2275,7 @@ allowed_directories = {
     "deploy/postgres-pgvector",
     "deploy/prometheus",
     "deploy/alertmanager",
+    "deploy/systemd",
     "scripts",
     "scripts/ops",
 }
@@ -3145,6 +3204,7 @@ run_preflight() {
   if [ -n "$SHELL_BUNDLE_DIR" ]; then
     validate_shell_bundle_contract
   elif [ -z "$SHELL_BUNDLE_ARCHIVE" ]; then
+    contract_destination_transaction validate-checkpoint-installed
     validate_prometheus_contract_files
     validate_alertmanager_contract_files
     validate_prometheus_contract_identity \
@@ -3183,6 +3243,7 @@ sync_shell_bundle compose-only
 if [ "$PRODUCTION_DB_TOPOLOGY" = "self-hosted" ]; then
   validate_published_backup_helper_binding
 fi
+contract_destination_transaction validate-checkpoint-installed
 validate_prometheus_contract_files
 validate_alertmanager_contract_files
 dc config --quiet

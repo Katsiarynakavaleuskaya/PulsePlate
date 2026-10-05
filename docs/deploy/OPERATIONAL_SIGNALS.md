@@ -402,21 +402,67 @@ is `HOLD`, not zero.
 
 ## Daily checkpoint
 
-Run one checkpoint per UTC calendar day. This repository contour adds no
-production scheduler; invocation remains operator-owned unless a separate host
-scheduler is explicitly authorized.
+The default-off examples under `deploy/systemd/` schedule the existing verifier
+at **04:15 UTC / 07:15 Minsk** daily, with `Persistent=true`, one-minute
+accuracy and no random delay. Delivery does not install or enable them.
+After exact monitoring approval, set the explicit selected Compose, evidence
+and admitted baseline paths in the service, and the matching Compose/contour
+in its failure unit. The example selects staging; production remains a
+separate approved configuration. Do not import the application environment
+or duplicate its secret values into a scheduler environment file.
 
-```bash
-REPO_PYTHON="${REPO_PYTHON:?set REPO_PYTHON to the absolute repository interpreter}"
-"$REPO_PYTHON" scripts/verify_premium_alias_telemetry.py checkpoint \
-  --compose-file deploy/docker-compose.production.yaml \
-  --evidence-dir "$EVIDENCE_DIR" \
-  --baseline-evidence "$BASELINE_EVIDENCE"
-```
+Both the checkpoint and OnFailure units need independently admitted, exact
+nonsecret backend and Caddy digest references: `STAGING_IMAGE_REF` for app/worker
+and `STAGING_CADDY_IMAGE_REF` for Caddy. Supply them through the existing native
+Compose `.env` discovery or separately reviewed `Environment=` values in the
+later concrete monitoring delta. Deployment's process-local exports and the
+unit WorkingDirectory do not prove that these bindings persist for either unit.
+Native Compose retains ownership of its existing DB/role/application environment
+handling; do not shell-source, independently parse or print application secrets.
+Verify both actual unit environments after the fresh post-merge census and
+separate activation approval. The original-model native configuration fixture
+proves only synthetic configuration feasibility, not host bindings, secret
+validity, activation, runtime receipts or received mail.
 
-A missing daily receipt requires investigation. It does not itself determine
-the final disposition and never changes `T₀`; the final decision requires the
-complete TSDB range proof.
+Install root-owned mode-0644 unit files from the same admitted bundle, reload
+systemd and inspect exact loaded properties before enabling the timer.
+Supported manual invocation is
+`sudo systemctl start pulseplate-premium-alias-checkpoint.service`.
+It shares the protected mode-0700 preserved runtime directory and nonblocking
+lock with the scheduled invocation; contention exits75 and publishes no PASS.
+Never remove the lock while a cooperating holder survives.
+
+The canonical verifier receives positional `checkpoint` with explicit Compose,
+evidence and baseline arguments. Exit 1/2, invalid/missing baseline and 10 min
+startup timeout fail the service and trigger the separate OnFailure unit.
+It does not rotate the baseline, synthesize missed daily receipts or author T₀.
+Manual and Persistent catch-up runs observe current time and do not qualify as
+the first ordinary scheduled acceptance. Retain timer/journal provenance,
+actual start 04:15–04:20 UTC, canonical receipt and lock evidence separately.
+
+The failure helper submits only the fixed four-label event through the existing
+Alertmanager service. It freezes startsAt/endsAt 15 min apart and targets 15
+60-second absolute slots with 10 s command bounds and a 16 min service bound.
+Missed slots are omitted; raw native output is discarded. Notification failures
+remain separate journal failures and never clear the primary failed checkpoint.
+**Event expiry is not checkpoint recovery.** The current 30 s/5 min/24 h route can
+suppress repeated events with the same fingerprint. Submission, SMTP acceptance
+and actual mailbox receipt are separate observations.
+
+Native Linux lifecycle checks and the delayed-query challenge exercise actual
+systemd and owned Docker tasks. A task surviving the verifier's host timeout
+is HOLD for a separately admitted prerequisite; no timeout extension or
+source-container identity change is implied by this scheduler PR.
+Evidence: `scripts/ops/notify_premium_alias_checkpoint_failure.py:1`,
+`tests/test_notify_premium_alias_checkpoint_failure.py:1`.
+
+Rollback only the new timer/notifier after separately authorized activation;
+restore admitted monitoring configuration while preserving TSDB, baseline
+history, receipts, app and DB. Keep production T₀, 30-day evidence and alias retirement open.
+
+A missing daily receipt requires investigation. Its absence alone neither
+authors T₀ nor determines the final 30-day disposition or alias retirement;
+that decision still requires the complete TSDB range proof.
 
 ## Final 30-day evidence
 
