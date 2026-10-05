@@ -165,6 +165,8 @@ def test_run_plan_is_local_only_and_checklist_only() -> None:
         target="docs/prompts/cv/program.md",
     )
 
+    assert pr6.validate_run_plan(plan) == plan
+    assert (plan["run_plan_id"], plan["idempotency_key"]) == pr6._run_plan_identity(plan)
     assert plan["target_surface"] == ["docs/prompts/cv/program.md"]
     assert plan["target_surface_policy"] == {
         "required_exact_target": "docs/prompts/cv/program.md",
@@ -195,15 +197,100 @@ def test_run_plan_is_local_only_and_checklist_only() -> None:
         "record_skeptic_review_decisions",
         "finalize_specification",
     ]
+    assert [command["label"] for command in plan["commands"]["pr2_patch_builder"]] == [
+        "record_human_patch_admission",
+        "build_and_prepare_patch_admission",
+        "validate_generation_gate",
+        "generate_patch_candidate",
+        "dispatch_patch_candidate",
+        "finalize_dispatched_result",
+    ]
+    pr2_commands = [row["command"] for row in plan["commands"]["pr2_patch_builder"]]
+    assert "build-and-prepare --finalize-receipt" in pr2_commands[1]
+    assert "--human-admission REVIEWED_HUMAN_ADMISSION_REF" in pr2_commands[1]
+    assert "validate-run-plan --admission" in pr2_commands[2]
+    assert "generate-candidate --gate" in pr2_commands[3]
+    assert pr2_commands[4] == (
+        "<repo-python> -m scripts.orchestration.experiment_runner_dispatch run "
+        "--backend apple-container --packet "
+        f"artifacts/orchestration/creative_code/patch_runs/{plan['candidate_id']}-patch/"
+        "experiment_packet.json --candidate-patch VERIFIED_PATCH_REF "
+        "--image REVIEWED_IMMUTABLE_IMAGE --output REVIEWED_RESULT_FILE.json"
+    )
+    assert pr2_commands[5] == (
+        "<repo-python> -m scripts.orchestration.creative_code_patch_generation "
+        "finalize-dispatched-result --gate "
+        f"artifacts/orchestration/creative_code/patch_generation/{plan['candidate_id']}-patch/"
+        "generation_gate.json --dispatch-result "
+        "artifacts/orchestration/experiments/results/REVIEWED_RESULT_FILE.json"
+    )
+    assert not any("creative_code_patch_builder evaluate" in command for command in pr2_commands)
+    assert [row["label"] for row in plan["commands"]["pr3_promotion"]] == [
+        "plan_promotion",
+        "validate_promotion",
+        "promote_non_draft_pr",
+    ]
+    for row in plan["commands"]["pr3_promotion"][1:]:
+        assert "--trusted-dispatch-result" in row["command"]
+        assert "--trusted-generation-receipt" in row["command"]
     promote = plan["commands"]["pr3_promotion"][-1]
     assert promote["authority_owner"] == "creative_code_pr_promotion_pr3"
     assert promote["authority_effects"] == [
+        "fresh_local_validation",
+        "requires_tty_approval",
         "github_write",
         "network",
         "push",
         "open_non_draft_pr",
     ]
     assert promote["requires_human_gate"] is True
+
+
+def test_historical_direct_evaluate_plan_is_rejected_after_identity_recalculation() -> None:
+    plan = pr6.build_run_plan(launch_packet=_launch_packet(), target="docs/prompts/cv/program.md")
+    old_plan = deepcopy(plan)
+    old_plan["commands"]["pr2_patch_builder"][4]["command"] = (
+        "<repo-python> -m scripts.orchestration.creative_code_patch_builder "
+        "evaluate --run-dir cv-program-offline-eval-001-patch"
+    )
+    _refresh_run_plan_identity(old_plan)
+    with pytest.raises(pr6.CreativeCodeAppliedCandidatePR6Error, match="commands"):
+        pr6.validate_run_plan(old_plan)
+
+
+@pytest.mark.parametrize("backend", ["REVIEWED_BACKEND", "docker", "auto", "native-linux"])
+def test_run_plan_rejects_non_apple_backend_after_identity_recalculation(backend: str) -> None:
+    plan = pr6.build_run_plan(launch_packet=_launch_packet(), target="docs/prompts/cv/program.md")
+    stale_plan = deepcopy(plan)
+    dispatch = stale_plan["commands"]["pr2_patch_builder"][4]
+    dispatch["command"] = dispatch["command"].replace(
+        "--backend apple-container", f"--backend {backend}"
+    )
+    _refresh_run_plan_identity(stale_plan)
+
+    assert stale_plan["run_plan_id"] != plan["run_plan_id"]
+    assert stale_plan["idempotency_key"] != plan["idempotency_key"]
+    with pytest.raises(pr6.CreativeCodeAppliedCandidatePR6Error, match="commands"):
+        pr6.validate_run_plan(stale_plan)
+
+
+def test_read_run_plan_rejects_persisted_stale_generic_backend(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    applied = _configure_artifact_root(monkeypatch, tmp_path)
+    plan = pr6.build_run_plan(launch_packet=_launch_packet(), target="docs/prompts/cv/program.md")
+    stale_plan = deepcopy(plan)
+    dispatch = stale_plan["commands"]["pr2_patch_builder"][4]
+    dispatch["command"] = dispatch["command"].replace(
+        "--backend apple-container", "--backend REVIEWED_BACKEND"
+    )
+    _refresh_run_plan_identity(stale_plan)
+    plan_path = applied / plan["candidate_id"] / "run_plan.json"
+    _write_json(plan_path, stale_plan)
+
+    with pytest.raises(pr6.CreativeCodeAppliedCandidatePR6Error, match="commands"):
+        pr6.read_run_plan(plan_path)
 
 
 def test_run_plan_contains_no_raw_review_body_patch_prompt_or_secret() -> None:
@@ -248,6 +335,9 @@ def test_run_plan_writer_stays_under_local_artifact_root(
 
     assert output == applied / "cv-program-offline-eval-001" / "run_plan.json"
     assert pr6.read_run_plan(output) == plan
+    assert (plan["run_plan_id"], plan["idempotency_key"]) == pr6._run_plan_identity(
+        pr6.read_run_plan(output)
+    )
     packet_path = applied / "cv-program-offline-eval-001" / "candidate_packet.json"
     packet = json.loads(packet_path.read_text(encoding="utf-8"))
     assert validate_creative_code_candidate_packet(packet)["candidate_id"] == (

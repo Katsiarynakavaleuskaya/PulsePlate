@@ -2,7 +2,7 @@
 
 Status: PR-2 local sandbox candidate-patch contract. No runtime impact.
 
-PR-2 opens only isolated local candidate-patch generation and evaluation. It
+PR-2 opens isolated local candidate-patch generation and trusted native dispatch. It
 does not authorize shared repository writes, branch creation, push, PR creation,
 review-thread disposition, merge readiness, promotion, product runtime AI,
 OpenAPI/client changes, Slack/GitHub authority, or public multi-tenant use.
@@ -63,6 +63,9 @@ sufficient; PR-2 additionally requires an explicit human admission block:
 All shared repo, branch, PR, review-thread, merge, release, product runtime,
 arbitrary network, OpenAPI/client, semantic-cache, public multi-tenant, and
 Slack/GitHub authority flags remain false.
+The historical `evaluate_candidate_patch` request bit does not permit host
+execution: the builder's `evaluate` entrypoint only prepares the bound packet
+and fails closed. The existing dispatcher and finalizer own evaluation.
 
 The executor is fixed to the local Codex CLI profile:
 
@@ -121,8 +124,11 @@ python -m scripts.orchestration.creative_code_patch_generation finalize-dispatch
 
 `generate-candidate` must revalidate the gate immediately before execution,
 call only `creative_code_patch_builder.generate(run_id=...)`, recheck current
-base/tree, call only `creative_code_patch_builder.evaluate(run_id=...)`, then
-write a sanitized `generation_receipt.json` that links:
+base/tree, verify the generated patch/metadata, prepare the bound existing
+`experiment_packet.json` without executing a host oracle, and emit an explicit
+trusted-dispatch handoff. It does **not** write a result or receipt. The
+existing `finalize-dispatched-result` validates a matching native result and
+then writes the sanitized `generation_receipt.json` that links:
 
 - `generation_gate.json`;
 - existing local `candidate.patch`;
@@ -142,18 +148,18 @@ The optional shadow form requires `--shadow-forecast` and `--started-at`
 together. Under the existing cooperative run lock it validates the exact
 forecast/gate target and publishes immutable `start.json` before the first
 builder call, keeps that same lock through generation, and releases it before
-evaluation takes the existing lock. The builder receives no forecast
-probabilities. A shadow slot blocks an
-unbound invocation for that exact target; a clean retry after start publication
+preparing the bound dispatch packet under the existing per-run lock. The builder
+receives no forecast probabilities. A shadow slot blocks an unbound invocation
+for that exact target; a clean retry after start publication
 must use identical forecast/start bytes. This is local dependency ordering
 only, not routing, admission, prediction-quality, promotion, review, PR, or
 merge authority. The legacy unforecasted behavior is unchanged when no exact
 shadow slot exists. See
 `CREATIVE_CODE_LIFECYCLE_BAYESIAN_SHADOW_CONTRACT.md`.
 
-On hosts where direct candidate evaluation raises the bounded Runner capability
-signal after generation, `finalize-dispatched-result` is the only supported
-resume seam. The operator runs the existing trusted Experiment Runner dispatcher
+Direct host candidate evaluation is forbidden on every host.
+`finalize-dispatched-result` is the only supported completion seam. The
+operator runs the existing trusted Experiment Runner dispatcher
 against the already-generated `experiment_packet.json` and `candidate.patch`,
 then passes its sanitized result artifact to this command. The command does not
 generate, modify, rebase, or retry the candidate.
@@ -279,8 +285,12 @@ PR-2 rejects:
 ## Runner Integration
 
 `evaluate` builds a normal candidate-mode experiment packet with
-`experiment_bootstrap.build_experiment_packet(...)` and calls
-`experiment_runner.evaluate_candidate(packet, candidate_patch_path)` directly.
+`experiment_bootstrap.build_experiment_packet(...)` and then fails closed with
+a trusted-dispatch instruction. `generate-candidate` prepares the same packet
+through the builder's `prepare_dispatch` seam without calling `evaluate` or
+importing the host runner. Candidate code executes only in
+`experiment_runner_dispatch.py`, after strict native capability checks, and
+only the existing finalizer authors a result/receipt from its matched output.
 It must not call `experiment_pipeline.py`, oracle-only runner mode, notification
 wrappers, promotion wrappers, GitHub/Slack actions, or review-thread tooling.
 

@@ -1,6 +1,6 @@
 ARG SOURCE_DATE_EPOCH=1785349734
 
-FROM dhi.io/postgres@sha256:276224f2143616286f74af844e9508db1cd50d6393163cf9ec60940b2b90f134 AS builder
+FROM dhi.io/postgres@sha256:74cde2c2febf7d7ddacfd3d23dbc66ea0fcbc1bdb9ae4b1ed654d717d203a2a5 AS builder
 
 ARG SOURCE_DATE_EPOCH
 
@@ -11,14 +11,17 @@ COPY builder-apks/ /tmp/builder-apks/
 RUN --network=none set -eu; \
     echo "10bf9938906e5d643bbc4a7eea104b6f57ba4898e5b76b20e60484ea1d5a7f8f  /tmp/pgvector-v0.8.6.tar.gz" | sha256sum -c -; \
     test -f /tmp/builder-apk-inputs.tsv && test ! -L /tmp/builder-apk-inputs.tsv; \
-    echo "d9c5cda673f9feb4f41990eb8051f0239a57436fcdcb265bc3b0f22726071dbd  /tmp/builder-apk-inputs.tsv" | sha256sum -c -; \
+    echo "2fc2d58bb4eb48681e4dec665e461e860b8198d74bbf7771d4db32c205927739  /tmp/builder-apk-inputs.tsv" | sha256sum -c -; \
     test "$(stat -c %h /tmp/builder-apk-inputs.tsv)" = 1; \
-    test "$(find /tmp/builder-apks -type d | wc -l | tr -d '[:space:]')" = 2; \
-    test "$(find /tmp/builder-apks -type f | wc -l | tr -d '[:space:]')" = 42; \
-    test -z "$(find /tmp/builder-apks ! -type d ! -type f -print -quit)"; \
+    apk_directory_paths="$(find /tmp/builder-apks -type d)"; \
+    test "$(printf '%s\n' "$apk_directory_paths" | wc -l | tr -d '[:space:]')" = 2; \
+    apk_file_paths="$(find /tmp/builder-apks -type f)"; \
+    test "$(printf '%s\n' "$apk_file_paths" | wc -l | tr -d '[:space:]')" = 42; \
+    prohibited_apk_entry="$(find /tmp/builder-apks ! -type d ! -type f -print -quit)"; \
+    test -z "$prohibited_apk_entry"; \
     test -f /tmp/builder-apks/x86_64/APKINDEX.tar.gz; \
     test "$(stat -c %h /tmp/builder-apks/x86_64/APKINDEX.tar.gz)" = 1; \
-    echo "85417d819711b80f3507306e823850748ace65a081af14b0a0eb8f5d67bc5490  /tmp/builder-apks/x86_64/APKINDEX.tar.gz" | sha256sum -c -; \
+    echo "ecdb6930ca663e4484c5ea41bec6682889601892ec46eefd85f5a4745318d781  /tmp/builder-apks/x86_64/APKINDEX.tar.gz" | sha256sum -c -; \
     set --; \
     while IFS="$(printf '\t')" read -r digest size filename package version arch url; do \
       path="/tmp/builder-apks/x86_64/$filename"; \
@@ -33,7 +36,7 @@ RUN --network=none set -eu; \
     apk --no-network --no-cache --repositories-file /dev/null \
       --repository /tmp/builder-apks add "$@"; \
     apk info -v | sort > /tmp/builder-apk-closure.txt; \
-    echo "14d95f6af83be6516fab26f844ede7f7ba7de93bf1dd7017aff7a19188ba2782  /tmp/builder-apk-closure.txt" | sha256sum -c -; \
+    echo "671d0ef59d9a01e068f729aa68788baeede418b482ae8fabf3a0635b16e98903  /tmp/builder-apk-closure.txt" | sha256sum -c -; \
     test "$(wc -l < /tmp/builder-apk-closure.txt | tr -d '[:space:]')" = "94"; \
     test "$(/usr/libexec/postgresql15/pg_config --version)" = "PostgreSQL 15.19"; \
     test "$(/usr/libexec/postgresql15/pg_config --pkglibdir)" = "/usr/lib/postgresql15"; \
@@ -54,8 +57,8 @@ RUN --network=none set -eu; \
       echo "symlink in pgvector runtime artifact set: $first_symlink" >&2; \
       exit 1; \
     fi; \
-    find /out/usr/lib/postgresql15 /out/usr/share/postgresql15/extension /out/usr/share/licenses/pgvector -type f | \
-      sort > /tmp/runtime-artifact-paths.txt; \
+    runtime_artifact_paths="$(find /out/usr/lib/postgresql15 /out/usr/share/postgresql15/extension /out/usr/share/licenses/pgvector -type f)"; \
+    printf '%s\n' "$runtime_artifact_paths" | sort > /tmp/runtime-artifact-paths.txt; \
     : > /tmp/runtime-artifact-inventory.txt; \
     while IFS= read -r path; do \
       mode="$(stat -c %a "$path")"; \
@@ -67,9 +70,10 @@ RUN --network=none set -eu; \
     echo "a51a19ba4c626d476611205144c79c89ccdfc136acdddb9e9eb2ef5921e8ea57  /tmp/runtime-artifact-inventory.txt" | sha256sum -c -; \
     install -d -o 70 -g 70 -m 0700 /out/var/lib/postgresql/data; \
     test "$(stat -c '%u:%g:%a' /out/var/lib/postgresql/data)" = "70:70:700"; \
-    test -z "$(find /out/var/lib/postgresql/data -mindepth 1 -print -quit)"
+    mountpoint_entry="$(find /out/var/lib/postgresql/data -mindepth 1 -print -quit)"; \
+    test -z "$mountpoint_entry"
 
-FROM dhi.io/postgres@sha256:d94fee7e5e98fcb5cd58db6ad96fc6aa844f1af6dd56aba1f87d9f8e57a7a16d
+FROM dhi.io/postgres@sha256:3a241134f6d82eb6465622af948258e41806cfb4497e6c8f0f0a64ca6c4d34db
 
 ARG SOURCE_DATE_EPOCH
 
@@ -84,7 +88,7 @@ LABEL org.opencontainers.image.description="PulsePlate deployment image derived 
 LABEL org.opencontainers.image.version="15.19-pgvector0.8.6"
 LABEL org.opencontainers.image.source="https://github.com/Katsiarynakavaleuskaya/PulsePlate"
 LABEL org.opencontainers.image.licenses="Apache-2.0 AND PostgreSQL"
-LABEL com.pulseplate.postgres.base-manifest="sha256:d94fee7e5e98fcb5cd58db6ad96fc6aa844f1af6dd56aba1f87d9f8e57a7a16d"
-LABEL com.pulseplate.postgres.dev-manifest="sha256:276224f2143616286f74af844e9508db1cd50d6393163cf9ec60940b2b90f134"
+LABEL com.pulseplate.postgres.base-manifest="sha256:3a241134f6d82eb6465622af948258e41806cfb4497e6c8f0f0a64ca6c4d34db"
+LABEL com.pulseplate.postgres.dev-manifest="sha256:74cde2c2febf7d7ddacfd3d23dbc66ea0fcbc1bdb9ae4b1ed654d717d203a2a5"
 LABEL com.pulseplate.pgvector.version="0.8.6"
 LABEL com.pulseplate.pgvector.source-commit="8ee86c96f0fd72390f890aa8a336fda6d3ab4c6c"
