@@ -5647,18 +5647,19 @@ def test_python_test_jobs_install_frontend_dependencies_before_pytest() -> None:
 
 
 def test_ops_context_coverage_is_separate_and_required_by_diff_gate() -> None:
-    """Both OPS CLIs must feed the canonical diff gate."""
+    """All three OPS CLIs must feed the canonical diff gate."""
     workflow = _load_ci_workflow()
     measure = _job_step_by_name(workflow, job_id="test-pr", step_name="Measure OPS CLI coverage")
     run = str(measure["run"])
     assert "--rcfile=/dev/null --branch" in run
     assert (
-        "--include='scripts/ops/ops_context_report.py,scripts/ops/staging_runtime_diagnostics.py'"
+        "--include='scripts/ops/ops_context_report.py,scripts/ops/staging_runtime_diagnostics.py,scripts/ops/resource_cost_report.py'"
         in run
     )
     assert "--data-file=.coverage.ops-context -m pytest -q -p no:xdist" in run
     assert "tests/test_ops_context_report.py" in run
     assert "tests/test_staging_runtime_diagnostics.py" in run
+    assert "tests/test_resource_cost_report.py" in run
     assert "--data-file=.coverage.ops-context -o coverage-ops-context.xml" in run
     assert "--append" not in run
     assert "continue-on-error" not in measure and "if" not in measure
@@ -5709,6 +5710,8 @@ def test_ops_context_coverage_is_separate_and_required_by_diff_gate() -> None:
         "wrong",
         "duplicate",
         "missing_staging",
+        "missing_resource",
+        "empty_resource",
     ],
 )
 def test_ops_context_workflow_rejects_missing_line_inventory(tmp_path: Path, case: str) -> None:
@@ -5732,6 +5735,13 @@ def test_ops_context_workflow_rejects_missing_line_inventory(tmp_path: Path, cas
         raw += cls
     if case != "missing_staging":
         raw += staging
+    if case != "missing_resource":
+        resource_lines = "" if case == "empty_resource" else lines
+        raw += (
+            '<class filename="scripts/ops/resource_cost_report.py"><lines>'
+            + resource_lines
+            + "</lines></class>"
+        )
     raw += "</classes></package></packages></coverage>"
     if case == "malformed":
         raw = "<coverage"
@@ -6422,3 +6432,73 @@ def test_frontend_node24_foundation_guard_rejects_weakened_wiring(mutation: str)
         native["run"] = source.replace(old, new)
     with pytest.raises((AssertionError, KeyError)):
         _assert_frontend_node24_foundation_contract(package, workflow, config_source)
+
+
+@pytest.mark.parametrize("comment_only", [False, True])
+def test_ops_context_producer_executes_three_real_test_targets(
+    tmp_path: Path, comment_only: bool
+) -> None:
+    """Run the actual finite producer shell; comments cannot substitute for pytest argv."""
+    import sys
+
+    step = _job_step_by_name(
+        _load_ci_workflow(), job_id="test-pr", step_name="Measure OPS CLI coverage"
+    )
+    run = str(step["run"])
+    if comment_only:
+        run = run.replace(" tests/test_resource_cost_report.py", "", 1)
+        run += "\n# tests/test_resource_cost_report.py\n"
+    observer = tmp_path / "python"
+    observer.write_text(
+        "#!" + sys.executable + "\n" + """
+import json
+import os
+from pathlib import Path
+import subprocess
+import sys
+from xml.etree import ElementTree
+
+args = sys.argv[1:]
+sources = ["scripts/ops/ops_context_report.py", "scripts/ops/staging_runtime_diagnostics.py", "scripts/ops/resource_cost_report.py"]
+tests = ["tests/test_ops_context_report.py", "tests/test_staging_runtime_diagnostics.py", "tests/test_resource_cost_report.py"]
+if args == ["-"]:
+    result = subprocess.run([os.environ["OPS_TEST_PYTHON"], "-"], input=sys.stdin.buffer.read(), check=False)
+    raise SystemExit(result.returncode)
+if args[:3] == ["-m", "coverage", "run"]:
+    if [arg for arg in args if arg.startswith("--include=")] != ["--include=" + ",".join(sources)]:
+        raise SystemExit(41)
+    if args[args.index("pytest") + 1:] != ["-q", "-p", "no:xdist", *tests]:
+        raise SystemExit(42)
+    Path("observed-targets.json").write_text(json.dumps(tests))
+elif args[:3] == ["-m", "coverage", "xml"]:
+    root = ElementTree.Element("coverage")
+    classes = ElementTree.SubElement(root, "classes")
+    for source in sources:
+        cls = ElementTree.SubElement(classes, "class", filename=source)
+        lines = ElementTree.SubElement(cls, "lines")
+        ElementTree.SubElement(lines, "line", number="1", hits="1")
+    ElementTree.ElementTree(root).write("coverage-ops-context.xml")
+else:
+    raise SystemExit(43)
+""",
+        encoding="utf-8",
+    )
+    observer.chmod(0o755)
+    bash = shutil.which("bash", path=os.defpath)
+    assert bash is not None
+    result = subprocess.run(
+        [bash, "-c", run],
+        cwd=tmp_path,
+        env={"PATH": str(tmp_path) + os.pathsep + os.defpath, "OPS_TEST_PYTHON": sys.executable},
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
+    )
+    assert result.returncode == (42 if comment_only else 0), result.stderr
+    if not comment_only:
+        assert json.loads((tmp_path / "observed-targets.json").read_text()) == [
+            "tests/test_ops_context_report.py",
+            "tests/test_staging_runtime_diagnostics.py",
+            "tests/test_resource_cost_report.py",
+        ]
