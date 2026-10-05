@@ -50,6 +50,21 @@
   Fixtures must distinguish default/all-profile models and reject incorrect
   native argv, with a real read-only native observation before claiming parity.
 
+## Premium alias checkpoint adapter
+
+- Deliver the OBS2A checkpoint units disabled; supported manual invocation uses
+  the same service and preserved protected flock inode as the timer.
+- Keep the existing verifier as receipt/decision owner. Failed exit 1/2, missing
+  baseline and timeout must remain native failed invocations with OnFailure.
+- The failure helper uses only explicit Compose/contour arguments and native
+  amtool with --no-version-check and --timeout=10s. A native CLI's command
+  timeout may not cover its pre-action requests; verify actual pinned behavior.
+- Keep the fixed 15 min event, 60-second absolute cadence, max 15 attempts and 16 min unit
+  bound. Never forward native error text or treat event expiry as recovery.
+- Native Linux checks in the owning notifier test module include actual owned
+  Docker task observations; host process termination alone is insufficient.
+  Preserve a survivor as HOLD and obtain bounded prerequisite scope.
+
 ## Native RubyZip/Fastlane guard
 
 - `ruby scripts/ci/check_rubyzip_fastlane.rb` is the read-only source, lock and
