@@ -350,9 +350,12 @@ def test_docker_source_artifact_manifest_pins_sqlite_source() -> None:
     )
     artifacts = manifest["artifacts"]
     assert manifest["schema_version"] == 1
-    assert manifest["generated_at"] == "2026-09-28"
-    assert manifest["review_by"] == "2026-10-05"
+    assert manifest["generated_at"] == "2026-10-04"
+    assert manifest["review_by"] == "2026-10-21"
     assert len(artifacts) == 4
+    assert [row["name"] for row in artifacts] == ["sqlite-autoconf", "util-linux", "pcre2", "sljit"]
+    for name in ("SQLite", "util-linux", "PCRE2", "SLJIT"):
+        assert name in manifest["reason"]
 
     artifact = artifacts[0]
     parsed_url = urlparse(artifact["url"])
@@ -375,14 +378,20 @@ def test_docker_source_artifact_manifest_pins_sqlite_source() -> None:
     assert len("".join(artifact["sha3_256_parts"])) == 64
 
 
-def test_docker_source_artifact_manifest_review_window_is_inclusive() -> None:
-    """The checked-in manifest remains valid through its exact review-by date."""
+def test_docker_source_artifact_manifest_review_window_is_inclusive(tmp_path: Path) -> None:
+    """Preserve historical5/6 source rejection and current21/22 admission."""
     manifest_path = REPO_ROOT / "scripts/ci/docker_source_artifacts.json"
-
-    assert docker_sources.load_manifest(manifest_path, today=date(2026, 9, 28))
-    assert docker_sources.load_manifest(manifest_path, today=date(2026, 10, 5))
+    historical = json.loads(manifest_path.read_text())
+    historical["generated_at"] = "2026-09-28"
+    historical["review_by"] = "2026-10-05"
+    old_path = _write_docker_source_manifest(tmp_path, historical)
+    assert len(docker_sources.load_manifest(old_path, today=date(2026, 10, 5))) == 4
     with pytest.raises(RuntimeError, match="review_by is stale: 2026-10-05"):
-        docker_sources.load_manifest(manifest_path, today=date(2026, 10, 6))
+        docker_sources.load_manifest(old_path, today=date(2026, 10, 6))
+    for day in (6, 8, 21):
+        assert len(docker_sources.load_manifest(manifest_path, today=date(2026, 10, day))) == 4
+    with pytest.raises(RuntimeError, match="review_by is stale: 2026-10-21"):
+        docker_sources.load_manifest(manifest_path, today=date(2026, 10, 22))
 
 
 def _forecast_workflow_step() -> tuple[dict[str, object], str]:
@@ -480,7 +489,14 @@ def test_nightly_forecast_executes_utc_date_boundaries_and_labels(
     current_finding: bool,
     forecast_finding: bool,
 ) -> None:
-    result, summary = _run_forecast_workflow(tmp_path, today=today)
+    historical = (
+        (REPO_ROOT / "trivy/ignore-policy.rego")
+        .read_text()
+        .replace("2026-10-30", "2026-10-07")
+        .replace("2026-10-21", "2026-10-05")
+    )
+    historical += "\n# Review-by: 2026-10-07 (manual removal)\n"
+    result, summary = _run_forecast_workflow(tmp_path, today=today, policy=historical)
 
     assert result.returncode == expected_exit, result.stderr
     assert (
@@ -1422,3 +1438,28 @@ def test_pcre2_production_build_preserves_native_features_and_consumers() -> Non
     assert "grep -P" in production[smoke:]
     assert "dpkg --version" in production[smoke:]
     assert 'mkdir "${consumer_directory}/child"' in production[smoke:]
+
+
+@pytest.mark.parametrize(
+    "today,expected_exit,forecast_finding",
+    [
+        (date(2026, 10, 6), 0, False),
+        (date(2026, 10, 8), 0, False),
+        (date(2026, 10, 17), 0, False),
+        (date(2026, 10, 18), 1, True),
+    ],
+)
+def test_candidate_nightly_forecast_preserves_current_and_plus_four(
+    tmp_path: Path, today: date, expected_exit: int, forecast_finding: bool
+) -> None:
+    result, summary = _run_forecast_workflow(tmp_path, today=today, review_by="2026-10-21")
+    assert result.returncode == expected_exit, result.stderr
+    assert (
+        f"UTC today: {today}; UTC forecast date: {date.fromordinal(today.toordinal() + 4)}"
+        in summary
+    )
+    assert "### CURRENT: no finding" in summary
+    assert f"### FORECAST: {'attention required' if forecast_finding else 'no finding'}" in summary
+    if forecast_finding:
+        assert "review-by 2026-10-21" in summary
+        assert "Expired Trivy ignore policy" not in summary
