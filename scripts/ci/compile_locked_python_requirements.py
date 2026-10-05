@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from email import policy
 from email.parser import BytesParser
 import fcntl
@@ -70,6 +70,44 @@ GRAPH_CHANGE_ADMISSION_ENV = "PULSEPLATE_LOCK_GRAPH_ADMISSION_RAW"
 GRAPH_CHANGE_ADMISSION_PATH = Path("scripts/ci/python_dependency_graph_change_admissions.v1.json")
 GRAPH_CHANGE_ADMISSION_SCHEMA = "pulseplate-python-dependency-graph-change-admission.v1"
 GRAPH_CHANGE_ADMISSION_ID = "observability-refresh-2026-08-15"
+VIRTUALENV_2455_ADMISSION_ID = "virtualenv-2455-21.14.5"
+# This one fixed alternative describes a technical proposal, never native C_R.
+VIRTUALENV_2455_RECORD_SHA256 = bytes(
+    (
+        204,
+        64,
+        40,
+        18,
+        207,
+        248,
+        230,
+        138,
+        179,
+        96,
+        158,
+        124,
+        253,
+        173,
+        251,
+        129,
+        224,
+        86,
+        68,
+        67,
+        106,
+        41,
+        36,
+        123,
+        241,
+        33,
+        75,
+        57,
+        85,
+        145,
+        139,
+        96,
+    )
+).hex()
 GRAPH_CHANGE_ADMISSION_MAX_BYTES = 32 * 1024
 COMPILE_TIMEOUT_SECONDS = 300
 DOWNLOAD_TIMEOUT_SECONDS = 300
@@ -182,6 +220,7 @@ class ValidatedWheel:
     path: Path
     artifact_key: tuple[str, str]
     snapshot: FileSnapshot
+    metadata_digest: str = ""
 
 
 @dataclass(frozen=True)
@@ -211,7 +250,7 @@ class PreparedLock:
 
 @dataclass(frozen=True)
 class GraphChangeAdmission:
-    """One closed-world, removal-only lock transition authorized by the repository."""
+    """One selected closed lock transition, including its complete profile relation."""
 
     path: Path
     capture: FileCapture
@@ -220,6 +259,36 @@ class GraphChangeAdmission:
     removals: frozenset[str]
     baseline_digests: Mapping[str, str]
     runtime_target_sha256: str
+    admission_id: str = GRAPH_CHANGE_ADMISSION_ID
+    baseline_sizes: Mapping[str, int] = field(default_factory=dict)
+    source_digests: Mapping[str, str] = field(default_factory=dict)
+    source_sizes: Mapping[str, int] = field(default_factory=dict)
+    artifacts: Mapping[tuple[str, str], tuple[str, int, str, str]] = field(default_factory=dict)
+    profile_deltas: Mapping[str, Mapping[str, tuple[str | None, str]]] = field(default_factory=dict)
+
+    @property
+    def graph_changes(self) -> frozenset[str]:
+        if self.admission_id == VIRTUALENV_2455_ADMISSION_ID:
+            return frozenset({"python-discovery"})
+        return self.removals
+
+    def project_profile_pins(
+        self, profile: str | None, baseline: Mapping[str, ExactPin]
+    ) -> dict[str, ExactPin]:
+        """Apply only this selected profile's exact proposed before/after relation."""
+        projected = dict(baseline)
+        if self.admission_id != VIRTUALENV_2455_ADMISSION_ID:
+            return projected
+        if profile is None or profile not in self.profiles or profile not in self.profile_deltas:
+            raise RuntimeError("Virtualenv relation does not own the selected profile.")
+        for package, (before, after) in self.profile_deltas[profile].items():
+            expected_before = None if before is None else ExactPin(before, (), None, None)
+            if baseline.get(package) != expected_before:
+                raise RuntimeError(
+                    f"{profile}: {package} does not match the exact admitted before pin."
+                )
+            projected[package] = ExactPin(after, (), None, None)
+        return projected
 
 
 def _profile_registry() -> dict[str, DependencySurface]:
@@ -377,7 +446,7 @@ def _authorize_graph_changes(
                 "GRAPH_CHANGE_ADMISSION is forbidden when no graph change is requested."
             )
         return None
-    if selector != GRAPH_CHANGE_ADMISSION_ID:
+    if selector not in {GRAPH_CHANGE_ADMISSION_ID, VIRTUALENV_2455_ADMISSION_ID}:
         raise RuntimeError(
             "Dependency graph changes require the exact repository-owned closed v1 admission."
         )
@@ -398,11 +467,10 @@ def _authorize_graph_changes(
     except json.JSONDecodeError as exc:
         raise RuntimeError(f"Graph-change admission must be strict JSON: {exc}") from exc
 
-    root = _require_exact_keys(
-        document,
-        keys=frozenset({"schema", "record"}),
-        label="Graph-change admission",
-    )
+    root_keys = frozenset({"schema", "record"})
+    if type(document) is dict and "virtualenv_2455" in document:
+        root_keys |= {"virtualenv_2455"}
+    root = _require_exact_keys(document, keys=root_keys, label="Graph-change admission")
     if root["schema"] != GRAPH_CHANGE_ADMISSION_SCHEMA:
         raise RuntimeError("Graph-change admission schema is not the exact supported v1 schema.")
     record = _require_exact_keys(
@@ -440,7 +508,9 @@ def _authorize_graph_changes(
         ("runtime",),
         ("docker-runtime", "ci-lite", "aggregate"),
     )
-    if transactions != expected_transactions or tuple(profiles) not in transactions:
+    if transactions != expected_transactions or (
+        selector == GRAPH_CHANGE_ADMISSION_ID and tuple(profiles) not in transactions
+    ):
         raise RuntimeError(
             "Selected profiles are not one exact ordered transaction in the closed v1 admission."
         )
@@ -469,7 +539,9 @@ def _authorize_graph_changes(
         "opentelemetry-semantic-conventions": "0.65b0",
         "prometheus-client": "0.25.0",
     }
-    if raw_upgrades != expected_upgrades or dict(upgrades) != expected_upgrades:
+    if raw_upgrades != expected_upgrades or (
+        selector == GRAPH_CHANGE_ADMISSION_ID and dict(upgrades) != expected_upgrades
+    ):
         raise RuntimeError("Graph-change upgrades are not the exact admitted seven targets.")
 
     raw_graph_change = _require_exact_keys(
@@ -481,7 +553,7 @@ def _authorize_graph_changes(
     additions = _require_string_list(raw_graph_change["additions"], label="Graph-change additions")
     if removals != ("importlib-metadata", "zipp") or additions:
         raise RuntimeError("Graph-change delta is not the exact removal-only v1 transition.")
-    if graph_changes != frozenset(removals):
+    if selector == GRAPH_CHANGE_ADMISSION_ID and graph_changes != frozenset(removals):
         raise RuntimeError("GRAPH_CHANGE_PACKAGES does not match the exact admitted removals.")
 
     baselines = _require_exact_keys(
@@ -521,6 +593,188 @@ def _authorize_graph_changes(
     )
     if observation["lockfile"] != "requirements.txt":
         raise RuntimeError("Graph-change runtime target observation is invalid.")
+
+    virtualenv_record: dict[str, object] | None = None
+    virtualenv_baselines: dict[str, str] = {}
+    virtualenv_baseline_sizes: dict[str, int] = {}
+    virtualenv_sources: dict[str, str] = {}
+    virtualenv_source_sizes: dict[str, int] = {}
+    virtualenv_artifacts: dict[tuple[str, str], tuple[str, int, str, str]] = {}
+    virtualenv_deltas: dict[str, dict[str, tuple[str | None, str]]] = {}
+    if "virtualenv_2455" in root:
+        virtualenv_record = _require_exact_keys(
+            root["virtualenv_2455"],
+            keys=frozenset(
+                {
+                    "admission_id",
+                    "profile_universe",
+                    "allowed_transactions",
+                    "upgrades",
+                    "baselines",
+                    "source_inputs",
+                    "artifacts",
+                    "profile_deltas",
+                }
+            ),
+            label="Virtualenv admission record",
+        )
+        _require_string_list(virtualenv_record["profile_universe"], label="Virtualenv profiles")
+        raw_virtualenv_transactions = virtualenv_record["allowed_transactions"]
+        if type(raw_virtualenv_transactions) is not list:
+            raise RuntimeError("Virtualenv transactions must be a JSON array.")
+        for transaction in raw_virtualenv_transactions:
+            _require_string_list(transaction, label="Virtualenv transaction")
+        _require_exact_keys(
+            virtualenv_record["upgrades"],
+            keys=frozenset({"virtualenv"}),
+            label="Virtualenv upgrades",
+        )
+        new_baselines = _require_exact_keys(
+            virtualenv_record["baselines"],
+            keys=frozenset({"ci-lite", "dev", "aggregate"}),
+            label="Virtualenv baselines",
+        )
+        for profile, value in new_baselines.items():
+            baseline = _require_exact_keys(
+                value,
+                keys=frozenset({"lockfile", "bytes", "sha256_bytes"}),
+                label=f"Virtualenv {profile} baseline",
+            )
+            size = baseline["bytes"]
+            if type(size) is not int:
+                raise RuntimeError("Virtualenv baseline bytes must be a JSON integer.")
+            virtualenv_baseline_sizes[profile] = size
+            virtualenv_baselines[profile] = _require_sha256_bytes(
+                baseline["sha256_bytes"], label=f"Virtualenv {profile} baseline SHA-256"
+            )
+        new_sources = _require_exact_keys(
+            virtualenv_record["source_inputs"],
+            keys=frozenset(
+                {
+                    "requirements-ci-lite.in",
+                    "requirements-dev.in",
+                    "requirements.in",
+                    "requirements.txt",
+                }
+            ),
+            label="Virtualenv source inputs",
+        )
+        for name, value in new_sources.items():
+            source = _require_exact_keys(
+                value, keys=frozenset({"bytes", "sha256_bytes"}), label=f"Virtualenv source {name}"
+            )
+            size = source["bytes"]
+            if type(size) is not int:
+                raise RuntimeError("Virtualenv source bytes must be a JSON integer.")
+            virtualenv_source_sizes[name] = size
+            virtualenv_sources[name] = _require_sha256_bytes(
+                source["sha256_bytes"], label=f"Virtualenv source {name} SHA-256"
+            )
+        new_artifacts = _require_exact_keys(
+            virtualenv_record["artifacts"],
+            keys=frozenset({"virtualenv", "python-discovery"}),
+            label="Virtualenv artifacts",
+        )
+        for package, version in (("virtualenv", "21.14.5"), ("python-discovery", "1.6.1")):
+            artifact = _require_exact_keys(
+                new_artifacts[package],
+                keys=frozenset({"filename", "bytes", "sha256_bytes", "metadata_sha256_bytes"}),
+                label=f"Virtualenv artifact {package}",
+            )
+            filename, size = artifact["filename"], artifact["bytes"]
+            if type(filename) is not str or type(size) is not int:
+                raise RuntimeError("Virtualenv artifact filename/bytes have invalid JSON types.")
+            virtualenv_artifacts[(package, version)] = (
+                filename,
+                size,
+                _require_sha256_bytes(artifact["sha256_bytes"], label=f"{package} wheel SHA-256"),
+                _require_sha256_bytes(
+                    artifact["metadata_sha256_bytes"], label=f"{package} METADATA SHA-256"
+                ),
+            )
+        new_deltas = _require_exact_keys(
+            virtualenv_record["profile_deltas"],
+            keys=frozenset({"ci-lite", "dev", "aggregate"}),
+            label="Virtualenv profile deltas",
+        )
+        for profile, value in new_deltas.items():
+            relations = _require_exact_keys(
+                value,
+                keys=frozenset({"virtualenv", "python-discovery"}),
+                label=f"Virtualenv {profile} relation",
+            )
+            virtualenv_deltas[profile] = {}
+            for package, value in relations.items():
+                relation = _require_exact_keys(
+                    value,
+                    keys=frozenset({"before", "after"}),
+                    label=f"{profile} {package} relation",
+                )
+                before, after = relation["before"], relation["after"]
+                if (before is not None and type(before) is not str) or type(after) is not str:
+                    raise RuntimeError("Virtualenv before/after pins have invalid JSON types.")
+                if before is not None:
+                    _canonical_version(before, label=f"{profile} {package} before")
+                _canonical_version(after, label=f"{profile} {package} after")
+                virtualenv_deltas[profile][package] = (before, after)
+        record_digest = hashlib.sha256(
+            json.dumps(virtualenv_record, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        ).hexdigest()
+        if not hmac.compare_digest(record_digest, VIRTUALENV_2455_RECORD_SHA256):
+            raise RuntimeError("Virtualenv record is not the exact frozen whole v1 alternative.")
+
+    if selector == VIRTUALENV_2455_ADMISSION_ID:
+        if virtualenv_record is None:
+            raise RuntimeError("Virtualenv selector requires the fixed virtualenv_2455 slot.")
+        if tuple(profiles) != ("ci-lite", "dev", "aggregate"):
+            raise RuntimeError(
+                "Virtualenv requires exactly ordered ci-lite dev aggregate profiles."
+            )
+        if dict(upgrades) != {"virtualenv": "21.14.5"}:
+            raise RuntimeError(
+                "Virtualenv requires exactly the sole authored virtualenv==21.14.5 target."
+            )
+        if graph_changes != frozenset({"python-discovery"}):
+            raise RuntimeError(
+                "Virtualenv requires exactly its proposed python-discovery relation."
+            )
+        for profile, lockfile in (
+            ("ci-lite", "requirements-ci-lite.txt"),
+            ("dev", "requirements-dev.txt"),
+            ("aggregate", "requirements-lock.txt"),
+        ):
+            current = _capture_file(_validated_repo_file(repo_root, lockfile))
+            if (current.snapshot.digest, current.snapshot.size) != (
+                virtualenv_baselines[profile],
+                virtualenv_baseline_sizes[profile],
+            ):
+                raise RuntimeError(
+                    f"Virtualenv {profile} baseline is stale or has unexpected bytes."
+                )
+        for name, digest in virtualenv_sources.items():
+            current = _capture_file(_validated_repo_file(repo_root, name))
+            if (current.snapshot.digest, current.snapshot.size) != (
+                digest,
+                virtualenv_source_sizes[name],
+            ):
+                raise RuntimeError(f"Virtualenv source {name} is stale or has unexpected bytes.")
+        admission = GraphChangeAdmission(
+            path=path,
+            capture=capture,
+            profiles=tuple(profiles),
+            upgrades={"virtualenv": "21.14.5"},
+            removals=frozenset(),
+            baseline_digests=virtualenv_baselines,
+            runtime_target_sha256=virtualenv_sources["requirements.txt"],
+            admission_id=VIRTUALENV_2455_ADMISSION_ID,
+            baseline_sizes=virtualenv_baseline_sizes,
+            source_digests=virtualenv_sources,
+            source_sizes=virtualenv_source_sizes,
+            artifacts=virtualenv_artifacts,
+            profile_deltas=virtualenv_deltas,
+        )
+        _assert_graph_change_admission(admission)
+        return admission
 
     selected = tuple(profiles)
     profiles_requiring_baseline: tuple[str, ...]
@@ -568,7 +822,39 @@ def _assert_plans_match_graph_change_admission(
             raise RuntimeError(
                 "Captured lock input does not match the exact graph-change admission baseline."
             )
-        if profile != "runtime":
+        if admission.admission_id == VIRTUALENV_2455_ADMISSION_ID:
+            if plan.output_path.name != {
+                "ci-lite": "requirements-ci-lite.txt",
+                "dev": "requirements-dev.txt",
+                "aggregate": "requirements-lock.txt",
+            }.get(profile) or plan.output_capture.snapshot.size != admission.baseline_sizes.get(
+                profile
+            ):
+                raise RuntimeError("Captured virtualenv output does not match its exact profile.")
+            expected_sources = {
+                "ci-lite": {"requirements-ci-lite.in", "requirements.txt"},
+                "dev": {"requirements-dev.in", "requirements.txt"},
+                "aggregate": {"requirements-dev.in", "requirements.in", "requirements.txt"},
+            }[profile]
+            relative_sources = {
+                path.relative_to(plan.output_path.parent).as_posix(): capture
+                for path, capture in plan.source_captures
+            }
+            if set(relative_sources) != expected_sources or len(relative_sources) != len(
+                plan.source_captures
+            ):
+                raise RuntimeError(
+                    "Captured virtualenv source set does not match the exact profile."
+                )
+            for name, capture in relative_sources.items():
+                if (capture.snapshot.digest, capture.snapshot.size) != (
+                    admission.source_digests[name],
+                    admission.source_sizes[name],
+                ):
+                    raise RuntimeError(
+                        f"Captured virtualenv source {name} does not match the freeze."
+                    )
+        elif profile != "runtime":
             runtime_sources = [
                 capture for path, capture in plan.source_captures if path.name == "requirements.txt"
             ]
@@ -918,6 +1204,7 @@ def _capture_lock_input_plan(
     repo_root: Path,
     surface: DependencySurface,
     upgrades: Mapping[str, str],
+    graph_admission: GraphChangeAdmission | None = None,
 ) -> LockInputPlan:
     """Capture one seeded lock transaction before any credentialed network work."""
 
@@ -949,8 +1236,13 @@ def _capture_lock_input_plan(
                 f"{package}"
             )
 
+    desired_pins = (
+        graph_admission.project_profile_pins(surface.compile_profile, baseline_pins)
+        if graph_admission is not None
+        else baseline_pins
+    )
     expected_artifacts: set[tuple[str, str]] = set()
-    for package, pin in baseline_pins.items():
+    for package, pin in desired_pins.items():
         if pin.url is not None:
             raise RuntimeError(
                 f"{surface.lockfile}: seeded lock contains forbidden direct URL for {package}"
@@ -965,13 +1257,17 @@ def _capture_lock_input_plan(
                 ),
             )
         )
-    return LockInputPlan(
+    plan = LockInputPlan(
         surface=surface,
         output_path=output_path,
         output_capture=output_capture,
         source_captures=tuple(source_captures.items()),
         expected_artifacts=frozenset(expected_artifacts),
     )
+    if graph_admission is not None:
+        _assert_graph_change_admission(graph_admission)
+        _assert_plans_match_graph_change_admission((plan,), graph_admission)
+    return plan
 
 
 def _assert_lock_input_plan(plan: LockInputPlan) -> None:
@@ -1013,56 +1309,74 @@ def _validate_candidate_delta(
     upgrades: Mapping[str, str],
     graph_changes: frozenset[str],
     repo_root: Path,
+    graph_admission: GraphChangeAdmission | None = None,
 ) -> None:
     _validate_candidate_surface(surface, candidate_text)
     baseline = _exact_pin_map(baseline_text, label=f"{surface.lockfile} baseline")
     candidate = _exact_pin_map(candidate_text, label=f"{surface.lockfile} candidate")
     if "pip" in candidate:
         raise RuntimeError(f"{surface.lockfile}: generated locks must not pin pip")
-    missing = sorted(set(baseline) - set(candidate))
-    added = sorted(set(candidate) - set(baseline))
-    actual_graph_changes = set(missing) | set(added)
-    unexpected_graph_changes = sorted(actual_graph_changes - graph_changes)
-    unused_graph_changes = sorted(graph_changes - actual_graph_changes)
-    if unexpected_graph_changes or unused_graph_changes:
-        raise RuntimeError(
-            f"{surface.lockfile}: dependency graph change is not exactly authorized; "
-            f"missing={missing}, added={added}, "
-            f"unexpected={unexpected_graph_changes}, unused={unused_graph_changes}"
-        )
-    if graph_changes and (set(missing) != set(graph_changes) or added):
-        raise RuntimeError(
-            f"{surface.lockfile}: the closed v1 graph admission is removal-only; "
-            f"missing={missing}, added={added}"
-        )
-
-    changed: set[str] = set()
-    for package in sorted(set(baseline) & set(candidate)):
-        before = baseline[package]
-        after = candidate[package]
-        if (before.extras, before.marker, before.url) != (
-            after.extras,
-            after.marker,
-            after.url,
+    if graph_admission is not None and graph_admission.admission_id == VIRTUALENV_2455_ADMISSION_ID:
+        _assert_graph_change_admission(graph_admission)
+        if (
+            graph_changes != graph_admission.graph_changes
+            or dict(upgrades) != graph_admission.upgrades
         ):
-            raise RuntimeError(f"{surface.lockfile}: requirement metadata drifted for {package}")
-        if before.version != after.version:
-            changed.add(package)
+            raise RuntimeError("Virtualenv candidate does not use the selected whole transaction.")
+        expected = graph_admission.project_profile_pins(surface.compile_profile, baseline)
+        if candidate != expected:
+            raise RuntimeError(
+                f"{surface.lockfile}: candidate does not match the exact virtualenv profile delta."
+            )
+    else:
+        missing = sorted(set(baseline) - set(candidate))
+        added = sorted(set(candidate) - set(baseline))
+        actual_graph_changes = set(missing) | set(added)
+        unexpected_graph_changes = sorted(actual_graph_changes - graph_changes)
+        unused_graph_changes = sorted(graph_changes - actual_graph_changes)
+        if unexpected_graph_changes or unused_graph_changes:
+            raise RuntimeError(
+                f"{surface.lockfile}: dependency graph change is not exactly authorized; "
+                f"missing={missing}, added={added}, "
+                f"unexpected={unexpected_graph_changes}, unused={unused_graph_changes}"
+            )
+        if graph_changes and (set(missing) != set(graph_changes) or added):
+            raise RuntimeError(
+                f"{surface.lockfile}: the closed v1 graph admission is removal-only; "
+                f"missing={missing}, added={added}"
+            )
 
-    unexpected = sorted(changed - set(upgrades))
-    if unexpected:
-        raise RuntimeError(f"{surface.lockfile}: unrelated package versions changed: {unexpected}")
-    for package, expected_version in upgrades.items():
-        if package not in candidate:
+        changed: set[str] = set()
+        for package in sorted(set(baseline) & set(candidate)):
+            before = baseline[package]
+            after = candidate[package]
+            if (before.extras, before.marker, before.url) != (
+                after.extras,
+                after.marker,
+                after.url,
+            ):
+                raise RuntimeError(
+                    f"{surface.lockfile}: requirement metadata drifted for {package}"
+                )
+            if before.version != after.version:
+                changed.add(package)
+
+        unexpected = sorted(changed - set(upgrades))
+        if unexpected:
             raise RuntimeError(
-                f"{surface.lockfile}: requested upgrade package is absent from the candidate: "
-                f"{package}"
+                f"{surface.lockfile}: unrelated package versions changed: {unexpected}"
             )
-        if candidate[package].version != expected_version:
-            raise RuntimeError(
-                f"{surface.lockfile}: {package} resolved to {candidate[package].version}, "
-                f"expected {expected_version}"
-            )
+        for package, expected_version in upgrades.items():
+            if package not in candidate:
+                raise RuntimeError(
+                    f"{surface.lockfile}: requested upgrade package is absent from the candidate: "
+                    f"{package}"
+                )
+            if candidate[package].version != expected_version:
+                raise RuntimeError(
+                    f"{surface.lockfile}: {package} resolved to {candidate[package].version}, "
+                    f"expected {expected_version}"
+                )
 
     direct_names: set[str] = set()
     for source in surface.compile_sources:
@@ -1636,6 +1950,7 @@ def _validate_one_wheel(
         path=wheel_path,
         artifact_key=filename_key,
         snapshot=artifact_snapshot,
+        metadata_digest=hashlib.sha256(metadata_bytes).hexdigest(),
     )
 
 
@@ -1644,6 +1959,7 @@ def _validate_wheelhouse(
     wheelhouse: Path,
     expected_artifacts: frozenset[tuple[str, str]],
     admitted_hashes: Mapping[str, str] | None = None,
+    graph_admission: GraphChangeAdmission | None = None,
 ) -> dict[tuple[str, str], ValidatedWheel]:
     """Statically validate exact wheel identity and metadata without importing code."""
 
@@ -1695,6 +2011,23 @@ def _validate_wheelhouse(
             "Wheelhouse artifact set does not match the exact seeded lock set: "
             f"missing={missing}, extra={extra}"
         )
+    if graph_admission is not None and graph_admission.admission_id == VIRTUALENV_2455_ADMISSION_ID:
+        _assert_graph_change_admission(graph_admission)
+        for key, expected in graph_admission.artifacts.items():
+            admitted_artifact = actual.get(key)
+            if (
+                admitted_artifact is None
+                or (
+                    admitted_artifact.path.name,
+                    admitted_artifact.snapshot.size,
+                    admitted_artifact.snapshot.digest,
+                    admitted_artifact.metadata_digest,
+                )
+                != expected
+            ):
+                raise RuntimeError(
+                    f"{key[0]}: artifact does not match the exact virtualenv proposal."
+                )
     return actual
 
 
@@ -1704,6 +2037,7 @@ def _create_profile_wheelhouse_views(
     artifacts: Mapping[tuple[str, str], ValidatedWheel],
     views_root: Path,
     bootstrap_artifacts: frozenset[tuple[str, str]] = frozenset(),
+    graph_admission: GraphChangeAdmission | None = None,
 ) -> dict[str, ProfileWheelhouse]:
     """Create regular-file-only views so one profile cannot see another pin."""
 
@@ -1729,6 +2063,7 @@ def _create_profile_wheelhouse_views(
         validated_view = _validate_wheelhouse(
             wheelhouse=view,
             expected_artifacts=resolver_artifacts,
+            graph_admission=graph_admission,
         )
         views[profile] = ProfileWheelhouse(
             path=view,
@@ -1826,7 +2161,7 @@ def _prepare_lock(
 ) -> PreparedLock:
     if graph_changes and (
         graph_admission is None
-        or graph_admission.removals != graph_changes
+        or graph_admission.graph_changes != graph_changes
         or surface.compile_profile not in graph_admission.profiles
     ):
         raise RuntimeError(
@@ -1838,6 +2173,7 @@ def _prepare_lock(
         repo_root=repo_root,
         surface=surface,
         upgrades=upgrades,
+        graph_admission=graph_admission,
     )
     if plan.surface != surface:
         raise RuntimeError("Lock input plan does not match the selected dependency surface.")
@@ -1855,6 +2191,11 @@ def _prepare_lock(
     except UnicodeDecodeError as exc:
         raise RuntimeError(f"{surface.lockfile}: seeded lock must be UTF-8") from exc
     baseline_pins = _exact_pin_map(baseline_text, label=f"{surface.lockfile} baseline")
+    desired_pins = (
+        graph_admission.project_profile_pins(surface.compile_profile, baseline_pins)
+        if graph_admission is not None
+        else baseline_pins
+    )
     desired_artifacts = frozenset(
         (
             package,
@@ -1863,7 +2204,7 @@ def _prepare_lock(
                 label=f"{surface.lockfile} expected artifact {package}",
             ),
         )
-        for package, pin in baseline_pins.items()
+        for package, pin in desired_pins.items()
     )
     if desired_artifacts != plan.expected_artifacts:
         raise RuntimeError(
@@ -1940,6 +2281,7 @@ def _prepare_lock(
                 upgrades=upgrades,
                 graph_changes=graph_changes,
                 repo_root=resolver_input_root,
+                graph_admission=graph_admission,
             )
         governed_descriptor, governed_temp_name = tempfile.mkstemp(
             prefix=f".{output_path.name}.",
@@ -1955,6 +2297,7 @@ def _prepare_lock(
         candidate_snapshot = _snapshot(governed_candidate_path)
         if (
             graph_admission is not None
+            and graph_admission.admission_id == GRAPH_CHANGE_ADMISSION_ID
             and surface.compile_profile == "runtime"
             and candidate_snapshot.digest != graph_admission.runtime_target_sha256
         ):
@@ -1987,7 +2330,7 @@ def _validate_profile_transaction(
 ) -> None:
     if graph_changes and (
         graph_admission is None
-        or graph_admission.removals != graph_changes
+        or graph_admission.graph_changes != graph_changes
         or graph_admission.profiles != tuple(profiles)
     ):
         raise RuntimeError(
@@ -2144,6 +2487,7 @@ def _compile_selected_profiles_locked(
             repo_root=repo_root,
             surface=registry[profile],
             upgrades=upgrades,
+            graph_admission=graph_admission,
         )
         for profile in profiles
     )
@@ -2188,6 +2532,7 @@ def _compile_selected_profiles_locked(
             wheelhouse=wheelhouse,
             expected_artifacts=_expected_artifacts(plans) | bootstrap_artifacts,
             admitted_hashes=artifact_admissions,
+            graph_admission=graph_admission,
         )
 
         views_root = transaction_root / "profile-wheelhouses"
@@ -2197,6 +2542,7 @@ def _compile_selected_profiles_locked(
             artifacts=artifacts,
             views_root=views_root,
             bootstrap_artifacts=bootstrap_artifacts,
+            graph_admission=graph_admission,
         )
         for plan in plans:
             _assert_lock_input_plan(plan)

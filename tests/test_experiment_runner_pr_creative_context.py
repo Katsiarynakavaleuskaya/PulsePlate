@@ -46,6 +46,7 @@ from scripts.orchestration.experiment_runner_pr_creative_context_contract import
     SCHEMA_VERSION,
     ExperimentRunnerCreativeContextContractError,
     _artifact_identity,
+    _is_product_runtime_or_workflow_target,
     build_agent_consumption_summary,
     build_creative_hypothesis_coordinator_dispatch,
     build_creative_hypothesis_agent_routing,
@@ -53,6 +54,7 @@ from scripts.orchestration.experiment_runner_pr_creative_context_contract import
     build_creative_hypothesis_packet,
     build_creative_hypothesis_packet_from_model_intake,
     build_creative_protocol_context_map,
+    classify_creative_context_eligibility,
     build_creative_workflow_stage,
     build_experiment_runner_pr_oracle_attachment,
     default_creative_context_authority,
@@ -619,6 +621,40 @@ def test_model_intake_rejects_mixed_product_runtime_or_workflow_targets(
         match="must not include product runtime or workflow targets|bounded repo-relative path",
     ):
         validate_creative_hypothesis_operator_model_intake(intake, context_map=context)
+
+
+@pytest.mark.parametrize(
+    ("protected_path", "reason"),
+    [
+        ("App/main.py", "product_runtime_surface"),
+        ("CoRe/nutrition.py", "product_runtime_surface"),
+        ("FRONTEND/src/main.tsx", "product_runtime_surface"),
+        (".GitHub/WorkFlows/ci.yml", "workflow_deferred_followup"),
+    ],
+)
+def test_protected_path_case_is_consistent_across_intake_eligibility_approval_and_schema(
+    protected_path: str,
+    reason: str,
+) -> None:
+    context = _context()
+    intake = _operator_model_intake(context)
+    intake["hypotheses"][0]["target_surfaces"] = [protected_path]
+    with pytest.raises(ExperimentRunnerCreativeContextContractError):
+        validate_creative_hypothesis_operator_model_intake(intake, context_map=context)
+
+    assert _is_product_runtime_or_workflow_target(protected_path)
+    assert classify_creative_context_eligibility([protected_path])["reason_code"] == reason
+    with pytest.raises(ExperimentRunnerCreativeContextContractError):
+        build_creative_hypothesis_approval(
+            hypothesis_id="hyp-001",
+            decision="approve_for_pr1_specification",
+            hypothesis_packet=_packet(),
+            approved_target_surfaces=[protected_path],
+            next_step="create_pr1_specification",
+        )
+
+    schema = _schema("creative_hypothesis_operator_model_intake.v1.schema.json")
+    assert re.search(schema["$defs"]["repo_path"]["not"]["pattern"], protected_path)
 
 
 def test_model_intake_rejects_nonconcrete_repo_root_with_valid_target() -> None:
@@ -1436,8 +1472,13 @@ def test_operator_model_intake_schema_enforces_local_sanitized_shape() -> None:
     assert "hypothesis_count" not in schema["required"]
     assert "hypothesis_id" not in hypothesis["properties"]
     assert "hypothesis_id" not in hypothesis["required"]
-    assert "^(app|core|frontend|ios|providers|alembic)(/|$)" in repo_path_not_pattern
-    assert "^\\.github/workflows(/|$)" in repo_path_not_pattern
+    for protected_path in (
+        "app/main.py",
+        "App/main.py",
+        ".github/workflows/ci.yml",
+        ".GitHub/WorkFlows/ci.yml",
+    ):
+        assert re.search(repo_path_not_pattern, protected_path)
     assert "^\\.$" in repo_path_not_pattern
     assert hypothesis["properties"]["target_surfaces"]["items"]["$ref"] == (
         "#/$defs/concrete_target_path"

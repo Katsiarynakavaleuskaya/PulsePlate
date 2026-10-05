@@ -2,7 +2,7 @@
 
 **Topic:** Deterministic iOS simulator destination in CI
 **Type:** Hard rule + debugging pointers
-**Last updated:** 24 September 2026
+**Last updated:** 30 September 2026
 
 ---
 
@@ -28,7 +28,7 @@ UDID-only eliminates nondeterminism and runner drift:
 
 ## Current pointer
 
-CAB-05 uses the `xcode-27` image with exact Xcode 27.0, iOS 27.0 SDK and simulator runtime. The CI-selected destination remains UDID-only. A missing exact toolchain or runtime fails the job; historical Xcode 26 results do not establish current-head readiness. This capsule is a navigation aid, not CI evidence.
+CAB-05 uses the `xcode-27` image with exact Xcode 27.0, iOS 27.0 SDK and simulator runtime. CAB-06 adds separate iPhone and iPad rows to the existing unit/Release and UI smoke jobs. Each row selects within its requested `productFamily` from `simctl` device type inventory; missing family, type, runtime, or valid UDID fails that row. The CI-selected destination remains UDID-only. Four current-head job results are required for an iOS-selected PR. Historical Xcode 26 results do not establish readiness. This capsule is a navigation aid, not CI evidence.
 
 ---
 

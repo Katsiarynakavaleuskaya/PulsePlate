@@ -38,6 +38,17 @@ If it is not recorded here — it does not exist.
   - Next scheduled Dependency PR: The human assigned remaining zlib CVE-2026-27171, ncurses CVE-2025-69720 and OpenSSL CVE-2026-84782 remediation to PR-TBD-DEPENDENCY-NEXT-SUBSTANTIVE after DEP-SEC-OCT-1, with three individual outcomes in the existing family owners below. This is the next scheduled substantive dependency slice, not an extra immediate train, docs-only PR or project-wide migration. Each outcome needs fresh bounded CVE/fix/consumer admission and does not imply a fix or deadline renewal now.
   - Rollback: Coherent policy/manifest/tests/evidence revert; restored stale dates may deny admission. Wider ignores, lowered thresholds or forecast disable are not recovery.
 
+<a id="ledger-p1-postgres-pcre2-cve-2026-103111"></a>
+- [ ] P1: Restore main-CD PostgreSQL PCRE2 publication and preserve Docker build viability
+  - Owner: security-auditor / agent-coordinator
+  - Priority: P1
+  - Target PR: [#2455](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2455)
+  - Status: In progress; exact42 owner/Emergency scope admitted; measured local supplier/94-package closure/two OCI builds/four native scans are retained. Consumer assembly is authored; continuity, backend, local/current-head review and hosted-main outcomes remain pending.
+  - Reason for deferral: CD37040045738 publisher110949456047 failed on the old DHI runtime PCRE2 10.48-r0 HIGH finding; downstream admission correctly rejected incomplete publication. Local source/build/scan evidence cannot substitute for every assigned outcome or the real trusted publisher.
+  - Links: [PostgreSQL supplement evidence](../security/CVE-2026-103111-pcre2.md#postgresql-runtime-base-supplement-pr-2455), `deploy/postgres-pgvector/image-manifest.json`, `deploy/AGENTS.md`.
+  - DoD: Exact measured supplier/recipe/input/derived identities through existing owners; suppression-free four-subject inventories and original strict admission; coherent legacy/prior/current whole-tuple guards and native status conjunction; three owned same-volume/native ABI/TLS/crash/restart/restore paths; separate backend Docker/native worker viability; all original24/33/18+C25/C26/C27 individually reviewed, narrow/all-files/Oracle/premortem/scoped roles/current-head CI/review/one-closeout/strict/wait gates; separately authorized exact-head merge and actual hosted-main PostgreSQL/backend/CD-Test, continuity/archive readback and owned cleanup. No production deployment, suppression or real-volume authority.
+  - Rollback: Normal bounded repository revert; restoring affected image bytes blocks publication until an admitted remedy. No image-history picker, chown repair, runtime privilege change or gate weakening.
+
 <a id="ledger-p1-pcre2-cve-2026-103111"></a>
 - [x] P1: Replace affected production PCRE2 for CVE-2026-103111
   - Owner: security-auditor / agent-coordinator
@@ -461,11 +472,20 @@ If it is not recorded here — it does not exist.
 - [ ] P1: CLIENT-ARCH-1 / CAB-04–CAB-09 reserved continuation
   - Owner: agent-coordinator (continuation tracking; implementation owners assigned at each admission)
   - Priority: P1 (ordered client architecture and release-integrity follow-ups)
-  - Target PR: CAB-04 [PR #2408](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2408)
-    (`codex/ios-explicit-actor-boundaries`); CAB-05 is the active separate Xcode 27.0
-    and own-target warning carrier; CAB-06–CAB-09 remain reserved.
-  - Status: CAB-03 merged in PR #2381 and CAB-04 merged in PR #2408. CAB-05 is
-    active; its checkbox remains open until its own exact-head merge evidence.
+  - Target PR: CAB-04 [PR #2408](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2408);
+    CAB-05 [PR #2414](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2414);
+    CAB-06 [PR #2460](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2460)
+    (`codex/ios-iphone-ipad-ci-matrix`).
+  - Status: CAB-03 merged in PR #2381, CAB-04 merged in PR #2408, and CAB-05
+    merged in PR #2414. CAB-06 is the active iPhone/iPad CI matrix carrier;
+    its checkbox remains open pending its own current-head checks and merge evidence.
+    The owner admitted the bounded historical seal ordering repair in the same
+    PR, with privileged scope expanded from 16 to exactly 20 paths. Its shared
+    recognizer separates inspected publication admission from actual later FIXED
+    proof, preserves the existing carrier and four genuine review records, and
+    requires fresh material/native/CI evidence. Whole-root/current-candidate human
+    inspection, immutable OWNER statements, actual correcting mapping publication,
+    final strict review/wait gates and exact-head squash approval remain separate.
   - Reason (EN): Keep the accepted continuation visible without mixing production Swift,
     warning-policy, device-matrix, Web or Mac work into the bounded AppIcon/Release carrier.
   - Links:
@@ -476,7 +496,7 @@ If it is not recorded here — it does not exist.
     - [x] CAB-04: make the 28 reproducible Xcode 27 actor-isolation/Sendable warning
       boundaries explicit in the iOS client without changing behavior; use the separate
       CAB-04 PR and current-head evidence before closing this item.
-    - [ ] CAB-05: align owned iOS builds to exact Xcode 27.0/iOS 27.0; remove
+    - [x] CAB-05: align owned iOS builds to exact Xcode 27.0/iOS 27.0; remove
       app/test Swift warnings and enforce warnings-as-errors for three own targets
       in Debug and Release. Attribute the separate AppIntents metadata-extraction
       processor message without claiming all Xcode output is warning-free.
@@ -1534,12 +1554,24 @@ If it is not recorded here — it does not exist.
 - [ ] P1: Switch the hosted merge-readiness job to trusted-base policy execution
   - Owner: @katsiaryna_kavaleuskaya (CI and orchestration governance)
   - Priority: P1
-  - Target PR: CONSOL-ORCH-1 (number pending)
-  - Status: Pending prerequisite CONSOL-CI-1 merge and current-main proof
+  - Target PR: [PR #2455](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2455) (CONSOL-ORCH-1)
+  - Status: Implementation in progress after CONSOL-CI-1 (#2446) merge; exact-head ORCH proof and merge remain pending
   - Area: CI / merge governance
-  - Reason (EN): CONSOL-CI-1 adds a verified dual-checkout verifier interface, but the hosted job must continue using its existing invocation until that policy code is present in the protected base. The second consolidated PR will switch workflow execution to the exact authenticated base SHA and inspect the exact PR-head material separately.
+  - Reason (EN): CONSOL-CI-1 (#2446) supplied the verified dual-checkout verifier interface on protected main. CONSOL-ORCH-1 must now switch hosted execution to the exact authenticated base SHA and inspect exact PR-head material separately; its current-head workflow, native-dispatch, candidate-handoff, promotion, path, disposition, and Slack checks remain unproven until the implementation PR's own gates complete.
   - Links: `.github/workflows/ci.yml`, `scripts/ci/check_pr_merge_readiness.py`, `tests/test_pr_merge_readiness_gate.py`
   - DoD: Use distinct credential-free base and head checkouts, invoke only the base verifier with `--material-repo-root`, reject wrong identities or untrusted material imports, and pass current-head CI and strict merge-readiness evidence.
+
+<a id="ledger-p1-virtualenv-2455-finite-remediation"></a>
+- [ ] P1: Close the required-validation virtualenv advisory defect in PR #2455
+  - Owner: @katsiaryna_kavaleuskaya (dependency security and orchestration)
+  - Priority: P1
+  - Target PR: [PR #2455](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2455)
+  - Status: Implementation in progress; bounded native replay/version/installed/hook observations exist, final-material gates and merge pending
+  - Area: tooling dependency / required local validation
+  - Reason (EN): The operator admitted the relevant virtualenv defect into the active consolidation PR. Preserve one authored virtualenv replacement and all ten reconciled advisory postconditions; the existing compiler needed one exact profile-specific discovery closure accommodation, with no general graph or additional identity intent.
+  - Links: `docs/security/PR_2455_VIRTUALENV_REMEDIATION.md`, `docs/DEPENDENCY_MANAGEMENT.md`, `tests/test_dependency_security_guard.py`, `scripts/ci/compile_locked_python_requirements.py`
+  - Observed local proof: Two canonical Make/original16874 replay runs exited0 with three byte-identical locks and only virtualenv I_R plus necessary discovery C_R; complete S21/five occurrences satisfy all F10 ranges; owned canonical venv-sync/pip-check and real cold/fresh-warm hook creation exited0. These are local qualified observations, not current-head readiness or hosted/post-delivery proof.
+  - DoD: Preserve original24/33/18+C25/C26/C27/C28; enforce complete current carrier/F10 guard, private compatibility and actual hook seed/config limits; pass focused/narrow/sequential all-files, applicable Oracle/scoped roles, current-head CI/security/coverage and strict review/closeout; obtain protected exact-head merge and actual post-merge/continuity evidence before closure. No full local make verify, suppression, runtime virtualenv presence, Cloud bootstrap or foreign-lane closure follows.
 
 <a id="ledger-p1-scientific-writing-agent"></a>
 - [ ] P1: Scientific Writing Agent registration

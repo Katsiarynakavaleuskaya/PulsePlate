@@ -109,7 +109,7 @@ ORACLE_REQUIRED_FAILURE_CLASSES = frozenset(
 FAILING_ORACLE_REQUIRED_FAILURE_CLASSES = frozenset({"timeout", "oom", "guard_failure"})
 
 VALIDATE_RUN_PLAN_SUCCESS_OUTPUT = "PASS: creative-code patch generation gate passed"
-GENERATE_CANDIDATE_SUCCESS_OUTPUT = "PASS: creative-code patch generate/evaluate complete"
+GENERATE_CANDIDATE_SUCCESS_OUTPUT = "PASS: creative-code patch generated for trusted dispatch"
 FINALIZE_DISPATCHED_RESULT_SUCCESS_OUTPUT = (
     "PASS: trusted dispatch result finalized into creative-code patch receipt"
 )
@@ -3194,21 +3194,23 @@ def _generate_candidate(args: argparse.Namespace) -> int:
         _require_base_and_tree_for_step(gate["base_commit_sha"])
         creative_code_patch_builder.generate(run_id=gate["run_id"])
     _require_base_and_tree_for_step(gate["base_commit_sha"])
-    result = creative_code_patch_builder.evaluate(run_id=gate["run_id"])
-    result_path = resolve_run_file(
-        resolve_run_dir(gate["run_id"], create=False),
-        creative_code_patch_builder.RESULT_FILE,
-    )
-    validated_result = validate_creative_code_patch_result(
-        read_creative_code_patch_result(str(result_path))
-    )
-    if validated_result != result:
-        raise CreativeCodePatchGenerationError("evaluated result does not match result artifact.")
-    _validate_result_matches_gate(validated_result, gate)
-    receipt = _build_receipt(gate_path=gate_path, gate=gate, result=validated_result)
-    _write_json_new(receipt_path, receipt)
+    creative_code_patch_builder.prepare_dispatch(run_id=gate["run_id"])
+    _load_generated_dispatch_context(gate)
+    packet_path = resolve_run_file(run_dir, creative_code_patch_builder.EXPERIMENT_PACKET_FILE)
+    patch_path = resolve_run_file(run_dir, creative_code_patch_builder.CANDIDATE_PATCH_FILE)
     print(GENERATE_CANDIDATE_SUCCESS_OUTPUT)
-    print(_repo_ref(receipt_path))
+    print(
+        "Trusted dispatch handoff: python -m scripts.orchestration.experiment_runner_dispatch "
+        f"run --backend <reviewed-backend> --packet {_repo_ref(packet_path)} "
+        f"--candidate-patch {_repo_ref(patch_path)} "
+        "--image <reviewed-image@sha256:digest> --output <result-file>.json"
+    )
+    print(
+        "Finalize only after accepted native dispatch: python -m "
+        "scripts.orchestration.creative_code_patch_generation finalize-dispatched-result "
+        f"--gate {_repo_ref(gate_path)} "
+        "--dispatch-result artifacts/orchestration/experiments/results/<result-file>.json"
+    )
     return 0
 
 
