@@ -684,3 +684,118 @@ through schema preparation and publication (`core/db_fallback.py:246`,
 own already-issued sessions and checked-out connections; pool disposal does
 not close them or assert safe live credential rotation. This repository-level
 contract adds no host activation, pool policy, or deployment claim.
+
+## Offline resource cost and recovery context (OPS-04A)
+
+The standalone stdlib tool reconciles one supplied DigitalOcean invoice and
+explicit resource bindings. It performs no API, Git, subprocess, host, backup,
+restore or resource operation (`scripts/ops/resource_cost_report.py:1`).
+
+```bash
+VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"
+"$VENV_PYTHON" scripts/ops/resource_cost_report.py \
+  --input-dir "$OWNED_PRIVATE_INPUT_DIR" \
+  --invoice invoice-capture.json \
+  --bindings resource-bindings.json \
+  --format json
+```
+
+Select a canonical absolute private directory outside the checkout, mode
+`0700`, owned by the invoking user. Select two canonical relative paths beneath
+it; acquired files must be regular, single-link, owned by that user and have
+permissions no broader than `0600`. At-rest metadata is admitted before leaf
+open, and acquired descriptor device/inode must match that observed leaf. Symlinked ancestors/descendants, traversal,
+secret-directory paths and nonregular objects fail closed. The tool does not
+create output files; the operator owns private stdout redirection. This bounded
+descriptor read does not guarantee permanent exclusion of another same-user
+process or arbitrary-content secret detection.
+
+The local capture envelope is `pulseplate.do-invoice-capture.v1`, with
+`schema_version`, explicit `account_ref`, UTC `captured_at`, supplied
+`invoice_kind=preview|final`, native `invoice` and ordered `pages`. Selected
+header fields are `invoice_uuid`, `invoice_period=YYYY-MM` and fixed-point
+`amount`; native `updated_at` is optional. Each page has `page`, `per_page`
+(1–200), and the native `response` with required `invoice_items` and
+`meta.total`. Native `links`, `links.pages` and each pagination direction are
+optional. Completeness uses declared pages, counts and all supplied ordinals;
+present URLs are checked against selected invoice/kind/page/per-page metadata.
+Absent links provide no URL witness and imply neither authentication nor
+atomicity. Preserve zero/negative and identical legal rows. Amounts are USD strings with at most two fractional digits; floats,
+exponents and unsupported precision are refused without rounding. Explicit
+non-USD currency on a selected header or row is refused; absence retains this
+USD-only native contract without authenticating the supplied bill. Finite numeric optional metadata is decoded as Decimal and remains
+uninterpreted; native non-money metadata never calculates prices. Valid escaped
+controls in ignored native prose are omitted from output; selected identity,
+path and reference fields reject control characters.
+
+Optional `invoice_after` retains a separately acquired second native header.
+Absent means `header_observation_status=not_supplied`; equal selected fields
+mean `unchanged` only for those fields and optional update presence/value.
+Observed valid differences mean `changed`/exit 1; malformed/partial after-header
+means exit 2. Never copy the first header to fabricate an observation. Native
+pages have no independent account/period/header. A valid but incorrect global
+account or period without an independent witness remains undetectable offline.
+Equal headers, final kind, hashes and totals do not prove atomicity or provider
+authenticity. Legal tax intervals can extend beyond capture time.
+
+The binding envelope is `pulseplate.resource-cost-bindings.v1`, with
+`schema_version`, matching `account_ref`, and `bindings`. Each declaration has
+`resource_kind`, generic opaque string `resource_id`, `environment`, `service`,
+`owner_ref`, `evidence_ref`, `recovery_ref` and `utilization_ref`. Environments
+are `production|staging|shared|unknown`; services are
+`app|database|prometheus|packages|unknown`. Reference/owner fields are supplied
+strings or null, never dereferenced. This does not change OPS-01 enums.
+
+Exact recognized products bind Droplets/Droplet Backups to `droplet` via native
+`resource_id`, Droplet Snapshots to `snapshot` via native `resource_id`, and
+Volumes/Database Clusters to `volume`/`database_cluster` via native
+`resource_uuid`. Binding
+`resource_id` holds that kind's exact identifier, including database UUIDs.
+Category, names and descriptions do not determine identity or snapshot parent.
+Both populated native identity fields remain unresolved. Taxes, Uptime Health
+Check and Container Registry Subscription are known non-resource charges only
+when native identity is absent; other spellings remain unclassified. Native
+product and identity fields are optional: absent/empty product stays
+unclassified, absent IDs remain unknown and never become fake identifiers.
+Present malformed optional fields are refused; amount remains mandatory. Conflicting
+bindings retain their candidates and select no owner.
+
+Four exclusive buckets conserve every supplied page/ordinal: allocated,
+unallocated, non-resource and unclassified. Their exact Decimal sum is the
+native row total; header minus row total is the explicit residual. Accounting
+and allocation are separate: allocation uses row counts, so unbound free rows,
+canceling charges or unknown products cannot manufacture completeness. Context
+appears once per resource group; rows use short group references. Supplied
+recovery is always `not_assessed`; missing utilization remains `unknown`.
+
+Limits are 4 MiB per input, 20 pages, 4,000 rows, 512 bindings and JSON nesting
+8. Duplicate keys, nonfinite numbers, malformed Unicode and excess inventories
+are refusals, never truncated success. Errors and the fixed `operator_summary`
+omit arbitrary supplied prose, identities, references and amounts. The full
+machine JSON still contains private context and totals; it is not shareable
+merely because provider descriptions were omitted.
+
+Exit 0 means supplied accounting reconciles, even with partial allocation;
+exit 1 means a well-read capture/count/header/account discrepancy; exit 2 means
+unsafe or invalid input. Literal `authority=none`, `mutation_authority=false`
+and `savings_verified=false` preserve the observation boundary. No resource
+necessity, restore, health, savings, deployment or merge approval follows.
+
+The single report defines asset type `resource_cost_report`, schema
+`pulseplate.resource-cost-report.v1` and policy `resource-cost-policy.v1`.
+`upstream_assets` is the ordered invoice-capture/resource-bindings raw SHA-256
+pair. The idempotency key hashes the canonical JSON tuple
+`[asset_type, schema_version, policy_version, invoice_hash, bindings_hash]`.
+The report fingerprint hashes its canonical content excluding only its own
+fingerprint field. Encoding is UTF-8, sorted keys, compact comma/colon
+separators, ASCII escaping and no nonfinite numbers; the final newline is not
+hashed. Identical admitted inputs replay deterministically under that policy;
+there is no persistence, cache, deduplication or knowledge promotion. These
+hashes do not bind changed implementations or authenticate evidence/ACL/owner.
+External exact-material PR evidence owns code identity separately.
+
+OPS-04B is the next separately admitted utilization/recovery evidence candidate.
+Parent OPS-04 remains open; resource changes and verified savings require their
+own approval and before/after evidence. Upload/readback failure is
+`DRIVE_SYNC_PENDING`: preserve sole private originals, with no cleanup until
+archive identity, full readback, hashes and extracted members are verified.
