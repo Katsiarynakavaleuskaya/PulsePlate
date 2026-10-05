@@ -458,7 +458,7 @@ If it is not recorded here — it does not exist.
     CAB-05 [PR #2414](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2414);
     CAB-06 [PR #2460](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2460)
     (`codex/ios-iphone-ipad-ci-matrix`); CAB-07A current substantive implementation
-    (`codex/cab07a-eslint-foundation-api`, PR number assigned at publication).
+    (`codex/cab07a-eslint-foundation-api`, [PR #2468](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2468)).
   - Status: CAB-03, CAB-04 and CAB-05 merged in PR #2381, #2408 and #2414.
     Carryover: CAB-06 merged in PR #2460 at `2026-10-04T20:45:28Z`, commit
     `fb179f54877537b69ddd0ea4bf3d8211268fab82`; its canonical merged-main

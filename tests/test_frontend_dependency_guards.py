@@ -1504,6 +1504,8 @@ def _brace_entry(version: str) -> dict[str, str]:
 
 
 def _brace_expansion_guard_fixture() -> tuple[dict, dict]:
+    """Return synthetic current-safe scoped override outputs and installed lock entries."""
+
     return (
         {
             "overrides": {
