@@ -40,12 +40,26 @@ PROMETHEUS_PLATFORM_MANIFEST_DIGEST = (
 PROMETHEUS_RUNTIME_REF = f"prom/prometheus@{PROMETHEUS_PLATFORM_MANIFEST_DIGEST}"
 POSTGRES_RUNTIME_REF = (
     "ghcr.io/katsiarynakavaleuskaya/pulseplate:postgres-15.19-pgvector0.8.6-alpine3.23@"
-    "sha256:06c914735c70f82424a2a9b1e57790590a21d0fbfe250504ff79a1cca2559380"
+    "sha256:d4437ad4970b4099e4cb7d05b7fa625c7e6959949d1374f1f2d4bd4149ae5fa3"
 )
 POSTGRES_PLATFORM_MANIFEST_DIGEST = (
+    "sha256:d4437ad4970b4099e4cb7d05b7fa625c7e6959949d1374f1f2d4bd4149ae5fa3"
+)
+POSTGRES_CONFIG_DIGEST = "sha256:643c5c00d70c37d83a0ab6db8b0996e4c03fb82c4769a45b03eef0cf3ee2abd5"
+POSTGRES_BASE_DIGEST = "sha256:3a241134f6d82eb6465622af948258e41806cfb4497e6c8f0f0a64ca6c4d34db"
+POSTGRES_PRIOR_PLATFORM_DIGEST = (
     "sha256:06c914735c70f82424a2a9b1e57790590a21d0fbfe250504ff79a1cca2559380"
 )
-POSTGRES_CONFIG_DIGEST = "sha256:c822c68e22d0358e66cee17e06f7b3ece5d1538cb8b607c1376b59620866ceff"
+POSTGRES_PRIOR_CONFIG_DIGEST = (
+    "sha256:c822c68e22d0358e66cee17e06f7b3ece5d1538cb8b607c1376b59620866ceff"
+)
+POSTGRES_PRIOR_BASE_DIGEST = (
+    "sha256:d94fee7e5e98fcb5cd58db6ad96fc6aa844f1af6dd56aba1f87d9f8e57a7a16d"
+)
+POSTGRES_PRIOR_RUNTIME_REF = (
+    "ghcr.io/katsiarynakavaleuskaya/pulseplate:postgres-15.19-pgvector0.8.6-alpine3.23@"
+    + POSTGRES_PRIOR_PLATFORM_DIGEST
+)
 FAKE_PROMETHEUS_COMPOSE_JSON = json.dumps(
     {
         "services": {
@@ -150,7 +164,7 @@ FAKE_POSTGRES_IMAGE_INSPECT_JSON = json.dumps(
                         "8ee86c96f0fd72390f890aa8a336fda6d3ab4c6c"
                     ),
                     "com.pulseplate.postgres.base-manifest": (
-                        "sha256:d94fee7e5e98fcb5cd58db6ad96fc6aa844f1af6dd56aba1f87d9f8e57a7a16d"
+                        "sha256:3a241134f6d82eb6465622af948258e41806cfb4497e6c8f0f0a64ca6c4d34db"
                     ),
                 },
             },
@@ -188,9 +202,9 @@ CANONICAL_MANAGED_COMPOSE = "deploy/docker-compose.production.yaml"
 CANONICAL_SELF_HOSTED_COMPOSE = "deploy/docker-compose.production.selfhosted.yaml"
 METRICS_SECRET_SENTINEL = "obs1b-test-metrics-token-12345678"  # pragma: allowlist secret
 MOUNTPOINT_LAYER_GZIP = base64.b64decode(
-    "H4sIAAAAAAAA/+zSQQrCMBCF4TmKN/BNMknPM6KIUFCT6PmlYhaCG2unIMy3mV1p+N9dy5aMAcAA"  # pragma: allowlist secret
-    "PC8jv90X4hRiEIksmcCACG2S9Y9NbrVpIeDX7/SH9Psnpv7jaWe6gRn9Mwfvv4be/3Ku7VgO9To"  # pragma: allowlist secret
-    "uP4Xv+0dw8v5r+NB/r00XHcGM/kPI3t855yw9AgAA//+DTG3aAAwAAA=="  # pragma: allowlist secret
+    "H4sIAAAAAAAA/+yTTQrCMBBGcxRv4MtvzxNRRCioSfT80hQXlm7UplCYt/myCsm8b54x7VVjADrv"  # pragma: allowlist secret
+    "awLTrGftjTXOWe2CQoND7Xzrhw08colJwb/3TD+3EQb//eXQtAM/+A8E8b8Gb/+3ay7ndMr3fvkq"  # pragma: allowlist secret
+    "jP7H0WjCR877txgj/tdgxv8xlrhoCap/vvLfGdl/QRCEprwCAAD//8KRjiQADAAA"  # pragma: allowlist secret
 )
 
 
@@ -483,7 +497,7 @@ def test_postgres_pgvector_manifest_binds_reproducible_image_and_scan_contract()
     """Bind the image recipe and every deployment consumer to the same immutable subject."""
     manifest_bytes = POSTGRES_MANIFEST_PATH.read_bytes()
     assert hashlib.sha256(manifest_bytes).hexdigest() == (
-        "f5695851db7e29f4f3d70f202655ca474eddaabc6aecfb9725a4783ca09e55ce"  # pragma: allowlist secret
+        "9aa310913af9799c39182428e0170b173fe2144367b302d7d2cafd87c93c03b2"  # pragma: allowlist secret
     )
     manifest = json.loads(manifest_bytes)
     assert manifest["schema"] == "pulseplate.postgres_pgvector_image_manifest.v1"
@@ -502,10 +516,10 @@ def test_postgres_pgvector_manifest_binds_reproducible_image_and_scan_contract()
     assert manifest["compose_pgdata"] == "/var/lib/postgresql/data"
     assert manifest["compose_volume_target"] == "/var/lib/postgresql/data"
     assert manifest["runtime_base_platform_manifest_digest"] == (
-        "sha256:d94fee7e5e98fcb5cd58db6ad96fc6aa844f1af6dd56aba1f87d9f8e57a7a16d"
+        "sha256:3a241134f6d82eb6465622af948258e41806cfb4497e6c8f0f0a64ca6c4d34db"
     )
     assert manifest["builder_base_platform_manifest_digest"] == (
-        "sha256:276224f2143616286f74af844e9508db1cd50d6393163cf9ec60940b2b90f134"
+        "sha256:74cde2c2febf7d7ddacfd3d23dbc66ea0fcbc1bdb9ae4b1ed654d717d203a2a5"
     )
     assert manifest["legacy_platform_manifest_digest"] == (
         "sha256:a2c20749c564b4eb73a77bfda626f8a3cde1bbfae020fb97c616a00cdc1a2181"
@@ -518,11 +532,11 @@ def test_postgres_pgvector_manifest_binds_reproducible_image_and_scan_contract()
     )
     assert manifest["mountpoint_layer_schema"] == "pulseplate.pgvector_mountpoint_layer.v1"
     assert manifest["mountpoint_layer_digest"] == (
-        "sha256:f5a1938bd1dfbe02232ddc8fad542445d8369541f3ebcacd5892c4e52abab124"
+        "sha256:4c539aa857412d283fe8d55b40227fbd17b9fd6f06834f81fd98ec6796ee7396"
     )
-    assert manifest["mountpoint_layer_size"] == "154"
+    assert manifest["mountpoint_layer_size"] == "162"
     assert manifest["mountpoint_layer_diff_id"] == (
-        "sha256:830c8272961c65f32876a884f52d80ad05cc4534a37bd0ecd4dafcf155f656fc"
+        "sha256:8cb1ace7e0c1f48d719bbdf5b4cfe9705ef407c74a3567ddc4369a6d6f023a23"
     )
     assert manifest["mountpoint_layer_entry_count"] == "4"
     assert manifest["mountpoint_uid"] == "70"
@@ -763,12 +777,12 @@ def test_postgres_containerfile_is_exact_multistage_source_build() -> None:
     assert containerfile.count("FROM dhi.io/postgres@sha256:") == 2
     assert (
         "FROM dhi.io/postgres@sha256:"
-        "276224f2143616286f74af844e9508db1cd50d6393163cf9ec60940b2b90f134 AS builder"  # pragma: allowlist secret
+        "74cde2c2febf7d7ddacfd3d23dbc66ea0fcbc1bdb9ae4b1ed654d717d203a2a5 AS builder"  # pragma: allowlist secret
         in containerfile
     )
     assert (
         "FROM dhi.io/postgres@sha256:"
-        "d94fee7e5e98fcb5cd58db6ad96fc6aa844f1af6dd56aba1f87d9f8e57a7a16d"  # pragma: allowlist secret
+        "3a241134f6d82eb6465622af948258e41806cfb4497e6c8f0f0a64ca6c4d34db"  # pragma: allowlist secret
         in containerfile
     )
     assert "--repository /tmp/builder-apks add" in containerfile
@@ -798,7 +812,7 @@ def test_postgres_containerfile_is_exact_multistage_source_build() -> None:
     )
     final_stage = containerfile.split(
         "FROM dhi.io/postgres@sha256:"
-        "d94fee7e5e98fcb5cd58db6ad96fc6aa844f1af6dd56aba1f87d9f8e57a7a16d",  # pragma: allowlist secret
+        "3a241134f6d82eb6465622af948258e41806cfb4497e6c8f0f0a64ca6c4d34db",  # pragma: allowlist secret
         maxsplit=1,
     )[1]
     for forbidden in ("\nRUN ", "\nUSER ", "\nENV ", "\nVOLUME ", "\nENTRYPOINT ", "\nCMD "):
@@ -838,8 +852,8 @@ def test_cd_postgres_pgvector_contract_is_pr_secret_free_and_main_publish_only()
     assert "ignore-unfixed" not in publish
     assert "0.74.0" in workflow
     assert POSTGRES_PLATFORM_MANIFEST_DIGEST in workflow
-    assert "sha256:f5a1938bd1dfbe02232ddc8fad542445d8369541f3ebcacd5892c4e52abab124" in workflow
-    assert "sha256:830c8272961c65f32876a884f52d80ad05cc4534a37bd0ecd4dafcf155f656fc" in workflow
+    assert "sha256:4c539aa857412d283fe8d55b40227fbd17b9fd6f06834f81fd98ec6796ee7396" in workflow
+    assert "sha256:8cb1ace7e0c1f48d719bbdf5b4cfe9705ef407c74a3567ddc4369a6d6f023a23" in workflow
     assert 'stat -c "%u:%g:%a" /var/lib/postgresql/data' in publish
     assert "test -z" in publish
     assert (
@@ -2181,9 +2195,9 @@ def test_cd_postgres_pins_scout_and_binds_exact_dhi_source_subjects() -> None:
     assert "--verify" in verify_run and "--skip-tlog" in verify_run
     for exact_subject in (
         "pkg:docker/dhi/postgres@15-alpine3.23&platform=linux/amd64",
-        "d94fee7e5e98fcb5cd58db6ad96fc6aa844f1af6dd56aba1f87d9f8e57a7a16d",  # pragma: allowlist secret
+        "3a241134f6d82eb6465622af948258e41806cfb4497e6c8f0f0a64ca6c4d34db",  # pragma: allowlist secret
         "pkg:docker/dhi/postgres@15-alpine3.23-dev&platform=linux/amd64",
-        "276224f2143616286f74af844e9508db1cd50d6393163cf9ec60940b2b90f134",  # pragma: allowlist secret
+        "74cde2c2febf7d7ddacfd3d23dbc66ea0fcbc1bdb9ae4b1ed654d717d203a2a5",  # pragma: allowlist secret
         "https://slsa.dev/provenance/v1",
     ):
         assert exact_subject in verify_run
@@ -2286,11 +2300,11 @@ def test_postgres_scout_source_statement_consumer(
     identities = {
         "runtime": (
             "pkg:docker/dhi/postgres@15-alpine3.23&platform=linux/amd64",
-            "d94fee7e5e98fcb5cd58db6ad96fc6aa844f1af6dd56aba1f87d9f8e57a7a16d",  # pragma: allowlist secret
+            "3a241134f6d82eb6465622af948258e41806cfb4497e6c8f0f0a64ca6c4d34db",  # pragma: allowlist secret
         ),
         "builder": (
             "pkg:docker/dhi/postgres@15-alpine3.23-dev&platform=linux/amd64",
-            "276224f2143616286f74af844e9508db1cd50d6393163cf9ec60940b2b90f134",  # pragma: allowlist secret
+            "74cde2c2febf7d7ddacfd3d23dbc66ea0fcbc1bdb9ae4b1ed654d717d203a2a5",  # pragma: allowlist secret
         ),
     }
     fixtures = tmp_path / "fixtures"
@@ -3234,16 +3248,26 @@ def _generated_mountpoint_layer(
     mode: int = 0o700,
     mtime: int = 1_785_349_734,
     extra_file: bool = False,
+    parent_fault: str = "",
 ) -> tuple[bytes, str]:
     payload = io.BytesIO()
     with tarfile.open(fileobj=payload, mode="w", format=tarfile.USTAR_FORMAT) as archive:
-        for path in ("var", "var/lib", "var/lib/postgresql", "var/lib/postgresql/data"):
+        for path, owner, member_mode in (
+            ("var", 0, 0o755),
+            ("var/lib", 0, 0o755),
+            ("var/lib/postgresql", 70, 0o750),
+            ("var/lib/postgresql/data", 70, 0o700),
+        ):
             member = tarfile.TarInfo(path)
             member.type = tarfile.DIRTYPE
-            member.uid = uid
-            member.gid = 70
-            member.mode = mode
+            member.uid = owner if uid == 70 else uid
+            member.gid = owner
+            member.mode = member_mode if mode == 0o700 else mode
             member.mtime = mtime
+            if path == "var" and parent_fault == "owner":
+                member.uid = 70
+            if path == "var/lib/postgresql" and parent_fault == "mode":
+                member.mode = 0o700
             archive.addfile(member)
         if extra_file:
             member = tarfile.TarInfo("var/lib/postgresql/data/unexpected")
@@ -3268,13 +3292,14 @@ def _write_postgres_oci_verifier_fixture(
     blobs.mkdir(parents=True)
     if variant in {"valid", "arm64", "manifest-bytes"}:
         layer_bytes = MOUNTPOINT_LAYER_GZIP
-        layer_diff_id = "sha256:830c8272961c65f32876a884f52d80ad05cc4534a37bd0ecd4dafcf155f656fc"
+        layer_diff_id = "sha256:8cb1ace7e0c1f48d719bbdf5b4cfe9705ef407c74a3567ddc4369a6d6f023a23"
     else:
         layer_bytes, layer_diff_id = _generated_mountpoint_layer(
             uid=0 if variant == "uid" else 70,
             mode=0o755 if variant == "mode" else 0o700,
             mtime=1_785_349_735 if variant == "mtime" else 1_785_349_734,
             extra_file=variant == "extra",
+            parent_fault={"parent-owner": "owner", "parent-mode": "mode"}.get(variant, ""),
         )
     layer_digest = "sha256:" + hashlib.sha256(layer_bytes).hexdigest()
     (blobs / layer_digest.removeprefix("sha256:")).write_bytes(layer_bytes)
@@ -3293,7 +3318,7 @@ def _write_postgres_oci_verifier_fixture(
         },
         "rootfs": {
             "type": "layers",
-            "diff_ids": ["sha256:" + "0" * 64] * 12
+            "diff_ids": ["sha256:" + "0" * 64] * 15
             + ["sha256:" + "f" * 64 if variant == "diff-id" else layer_diff_id],
         },
     }
@@ -3313,7 +3338,7 @@ def _write_postgres_oci_verifier_fixture(
             "mediaType": "application/vnd.oci.image.config.v1+json",
             "size": len(config_bytes),
         },
-        "layers": [dummy_layer] * 12
+        "layers": [dummy_layer] * 15
         + [
             {
                 "annotations": {"buildkit/rewritten-timestamp": "1785349734"},
@@ -3385,6 +3410,8 @@ def test_cd_postgres_oci_verifier_executes_the_exact_valid_workflow_program(
         ("extra", "path inventory"),
         ("uid", "metadata"),
         ("mode", "metadata"),
+        ("parent-owner", "metadata"),
+        ("parent-mode", "metadata"),
         ("mtime", "metadata"),
         ("diff-id", "diff ID"),
     ),
@@ -9334,39 +9361,43 @@ def test_production_self_hosted_rejects_untrusted_pulled_image_before_quiescence
     assert all("alembic upgrade head" not in line for line in lines)
 
 
-def test_staging_and_production_postgres_image_parsers_have_exact_source_parity() -> None:
-    def function_source(script: str, name: str) -> str:
-        marker = f"{name}() {{\n"
-        start = script.index(marker)
-        next_header = re.search(
-            r"(?m)^[A-Za-z_][A-Za-z_0-9]*\(\) \{\n", script[start + len(marker) :]
-        )
-        assert next_header is not None
-        next_start = start + len(marker) + next_header.start()
-        closing_brace = script.rfind("\n}\n", start, next_start)
-        assert closing_brace >= 0
-        end = closing_brace + len("\n}\n")
-        assert not script[end:next_start].strip()
-        return script[start:end]
+def _postgres_function_source(script: str, name: str) -> str:
+    marker = f"{name}() {{\n"
+    start = script.index(marker)
+    next_header = re.search(r"(?m)^[A-Za-z_][A-Za-z_0-9]*\(\) \{\n", script[start + len(marker) :])
+    assert next_header is not None
+    next_start = start + len(marker) + next_header.start()
+    closing_brace = script.rfind("\n}\n", start, next_start)
+    assert closing_brace >= 0
+    end = closing_brace + len("\n}\n")
+    assert not script[end:next_start].strip()
+    return script[start:end]
 
+
+def test_staging_and_production_postgres_image_parsers_have_exact_source_parity() -> None:
     staging = (REPO_ROOT / "scripts/deploy.sh").read_text(encoding="utf-8")
     production = (REPO_ROOT / "scripts/deploy_production.sh").read_text(encoding="utf-8")
-    metadata_source = function_source(staging, "validate_postgres_image_metadata")
+    metadata_source = _postgres_function_source(staging, "validate_postgres_image_metadata")
     assert 'repo_digests = record.get("RepoDigests")' in metadata_source
     assert "Pulled PostgreSQL image is not bound to the canonical GHCR digest" in metadata_source
     final_condition = "or expected not in repo_digests"
     assert production.count(final_condition) == 1
-    assert final_condition in function_source(production, "validate_postgres_image_metadata")
-    altered_production = production.replace(final_condition, "or expected in repo_digests", 1)
-    assert function_source(staging, "validate_postgres_image_metadata") != function_source(
-        altered_production, "validate_postgres_image_metadata"
+    assert final_condition in _postgres_function_source(
+        production, "validate_postgres_image_metadata"
     )
+    altered_production = production.replace(final_condition, "or expected in repo_digests", 1)
+    assert _postgres_function_source(
+        staging, "validate_postgres_image_metadata"
+    ) != _postgres_function_source(altered_production, "validate_postgres_image_metadata")
     for function_name in (
         "validate_postgres_image_metadata",
         "validate_pulled_postgres_image",
+        "validate_pulled_postgres_mountpoint",
         "validate_existing_postgres_image_identity",
     ):
-        assert function_source(staging, function_name) == function_source(production, function_name)
+        assert _postgres_function_source(staging, function_name) == _postgres_function_source(
+            production, function_name
+        )
 
 
 def test_deploy_production_does_not_require_home_when_docker_bin_is_explicit(
@@ -12984,3 +13015,566 @@ validate_staging_database_binding --storage-only
         [bash, "-c", program], cwd=tmp_path, env=env, capture_output=True, text=True, check=False
     )
     assert result.returncode == 0, result.stderr
+
+
+@pytest.mark.parametrize("surface", ("staging", "production"))
+@pytest.mark.parametrize("image_case", ("prior", "current"))
+@pytest.mark.parametrize("id_form", ("config", "platform"))
+@pytest.mark.parametrize(
+    "fault",
+    (
+        "valid",
+        "extra-repo-digest",
+        "config-crosspair",
+        "platform-crosspair",
+        "base-crosspair",
+        "repo-crosspair",
+        "captured-crosspair",
+        "inspect-crosspair",
+        "foreign-ref",
+        "floating-ref",
+    ),
+)
+def test_postgres_metadata_selects_one_exact_derived_tuple(
+    tmp_path: Path, surface: str, image_case: str, id_form: str, fault: str
+) -> None:
+    """Execute the actual reader; independent old/new field unions must reject."""
+    bash = shutil.which("bash")
+    assert bash is not None
+    script_name = "deploy.sh" if surface == "staging" else "deploy_production.sh"
+    source = (REPO_ROOT / "scripts" / script_name).read_text(encoding="utf-8")
+    program = _postgres_function_source(source, "validate_postgres_image_metadata")
+    if image_case == "prior":
+        runtime_ref = POSTGRES_PRIOR_RUNTIME_REF
+        platform = POSTGRES_PRIOR_PLATFORM_DIGEST
+        config = POSTGRES_PRIOR_CONFIG_DIGEST
+        base = POSTGRES_PRIOR_BASE_DIGEST
+        other_ref = POSTGRES_RUNTIME_REF
+        other_platform, other_config, other_base = (
+            POSTGRES_PLATFORM_MANIFEST_DIGEST,
+            POSTGRES_CONFIG_DIGEST,
+            POSTGRES_BASE_DIGEST,
+        )
+    else:
+        runtime_ref = POSTGRES_RUNTIME_REF
+        platform, config, base = (
+            POSTGRES_PLATFORM_MANIFEST_DIGEST,
+            POSTGRES_CONFIG_DIGEST,
+            POSTGRES_BASE_DIGEST,
+        )
+        other_ref = POSTGRES_PRIOR_RUNTIME_REF
+        other_platform, other_config, other_base = (
+            POSTGRES_PRIOR_PLATFORM_DIGEST,
+            POSTGRES_PRIOR_CONFIG_DIGEST,
+            POSTGRES_PRIOR_BASE_DIGEST,
+        )
+    image_id = config if id_form == "config" else platform
+    record = json.loads(FAKE_POSTGRES_IMAGE_INSPECT_JSON)[0]
+    record["Id"] = image_id
+    record["RepoDigests"] = [f"ghcr.io/katsiarynakavaleuskaya/pulseplate@{platform}"]
+    record["Config"]["Labels"]["com.pulseplate.postgres.base-manifest"] = base
+    captured_image = image_id
+    inspect_subject = runtime_ref
+    if fault == "extra-repo-digest":
+        record["RepoDigests"].append("example.invalid/retained@sha256:" + "f" * 64)
+    elif fault in {"config-crosspair", "platform-crosspair"}:
+        record["Id"] = other_config if fault == "config-crosspair" else other_platform
+        captured_image = record["Id"]
+    elif fault == "base-crosspair":
+        record["Config"]["Labels"]["com.pulseplate.postgres.base-manifest"] = other_base
+    elif fault == "repo-crosspair":
+        record["RepoDigests"] = [f"ghcr.io/katsiarynakavaleuskaya/pulseplate@{other_platform}"]
+    elif fault == "captured-crosspair":
+        captured_image = other_config if id_form == "config" else other_platform
+    elif fault == "inspect-crosspair":
+        inspect_subject = other_ref
+    elif fault == "foreign-ref":
+        runtime_ref = runtime_ref.replace("katsiarynakavaleuskaya/pulseplate", "other/postgres")
+        inspect_subject = runtime_ref
+    elif fault == "floating-ref":
+        runtime_ref = runtime_ref.split("@", maxsplit=1)[0]
+        inspect_subject = runtime_ref
+    inspect_file = tmp_path / "inspect.json"
+    inspect_file.write_text(json.dumps([record]), encoding="utf-8")
+    log = tmp_path / "inspect-log"
+    docker = tmp_path / "postgres-tuple-inspect"
+    _write_executable(
+        docker,
+        "#!/bin/sh\n" + 'printf "%s\\n" "$*" >> "$INSPECT_LOG"\n' + 'cat "$INSPECT_FILE"\n',
+    )
+    command = "validate_postgres_image_metadata " + " ".join(
+        shlex.quote(value) for value in (runtime_ref, inspect_subject, captured_image)
+    )
+    result = subprocess.run(
+        [bash, "-c", "set -euo pipefail\n" + program + command + "\nprintf 'accepted\\n'\n"],
+        env={
+            "PATH": os.defpath,
+            "DOCKER_BIN": str(docker),
+            "PYTHON_BIN": sys.executable,
+            "POSTGRES_RUNTIME_REF": POSTGRES_RUNTIME_REF,
+            "INSPECT_FILE": str(inspect_file),
+            "INSPECT_LOG": str(log),
+        },
+        text=True,
+        capture_output=True,
+        timeout=10,
+        check=False,
+    )
+    if fault in {"valid", "extra-repo-digest"}:
+        assert result.returncode == 0, result.stderr
+        assert result.stdout == "accepted\n"
+        assert log.read_text().splitlines() == [f"image inspect {runtime_ref}"]
+    else:
+        assert result.returncode != 0
+        assert "accepted" not in result.stdout
+        if fault == "inspect-crosspair":
+            assert not log.exists(), "substituted subject must reject before native inspect"
+
+
+@pytest.mark.parametrize("surface", ("staging", "production"))
+@pytest.mark.parametrize("image_case", ("prior", "current"))
+@pytest.mark.parametrize("id_form", ("config", "platform"))
+def test_existing_postgres_prior_and_current_use_own_inspection(
+    tmp_path: Path, surface: str, image_case: str, id_form: str
+) -> None:
+    """Exercise both existing-service branches without admitting a prior candidate pull."""
+    bash = shutil.which("bash")
+    assert bash is not None
+    script_name = "deploy.sh" if surface == "staging" else "deploy_production.sh"
+    source = (REPO_ROOT / "scripts" / script_name).read_text(encoding="utf-8")
+    program = "".join(
+        _postgres_function_source(source, name)
+        for name in (
+            "validate_postgres_image_metadata",
+            "validate_pulled_postgres_image",
+            "validate_existing_postgres_image_identity",
+        )
+    )
+    if image_case == "prior":
+        runtime_ref, platform, config, base = (
+            POSTGRES_PRIOR_RUNTIME_REF,
+            POSTGRES_PRIOR_PLATFORM_DIGEST,
+            POSTGRES_PRIOR_CONFIG_DIGEST,
+            POSTGRES_PRIOR_BASE_DIGEST,
+        )
+    else:
+        runtime_ref, platform, config, base = (
+            POSTGRES_RUNTIME_REF,
+            POSTGRES_PLATFORM_MANIFEST_DIGEST,
+            POSTGRES_CONFIG_DIGEST,
+            POSTGRES_BASE_DIGEST,
+        )
+    image_id = config if id_form == "config" else platform
+    record = json.loads(FAKE_POSTGRES_IMAGE_INSPECT_JSON)[0]
+    record["Id"] = image_id
+    record["RepoDigests"] = [f"ghcr.io/katsiarynakavaleuskaya/pulseplate@{platform}"]
+    record["Config"]["Labels"]["com.pulseplate.postgres.base-manifest"] = base
+    inspect_file = tmp_path / "inspect.json"
+    inspect_file.write_text(json.dumps([record]), encoding="utf-8")
+    log = tmp_path / "inspect-log"
+    docker = tmp_path / "postgres-own-inspect"
+    _write_executable(
+        docker,
+        "#!/bin/sh\n" + 'printf "%s\\n" "$*" >> "$INSPECT_LOG"\n' + 'cat "$INSPECT_FILE"\n',
+    )
+    environment = {
+        "PATH": os.defpath,
+        "DOCKER_BIN": str(docker),
+        "PYTHON_BIN": sys.executable,
+        "POSTGRES_RUNTIME_REF": POSTGRES_RUNTIME_REF,
+        "INSPECT_FILE": str(inspect_file),
+        "INSPECT_LOG": str(log),
+    }
+    existing = subprocess.run(
+        [
+            bash,
+            "-c",
+            "set -euo pipefail\n"
+            + program
+            + "validate_existing_postgres_image_identity "
+            + shlex.quote(image_id)
+            + " "
+            + shlex.quote(runtime_ref),
+        ],
+        env=environment,
+        text=True,
+        capture_output=True,
+        timeout=10,
+        check=False,
+    )
+    assert existing.returncode == 0, existing.stderr
+    assert log.read_text().splitlines() == [f"image inspect {runtime_ref}"]
+    pulled = subprocess.run(
+        [
+            bash,
+            "-c",
+            "set -euo pipefail\n"
+            + program
+            + "validate_pulled_postgres_image "
+            + shlex.quote(runtime_ref),
+        ],
+        env=environment,
+        text=True,
+        capture_output=True,
+        timeout=10,
+        check=False,
+    )
+    assert (pulled.returncode == 0) is (image_case == "current"), pulled.stderr
+    if image_case == "prior":
+        assert log.read_text().splitlines() == [f"image inspect {runtime_ref}"]
+
+
+@pytest.mark.parametrize("surface", ("staging", "production", "cd"))
+@pytest.mark.parametrize("scenario", ("empty", "nonempty", "native-error"))
+def test_postgres_mountpoint_native_status_reaches_standalone_caller(
+    tmp_path: Path, surface: str, scenario: str
+) -> None:
+    """Native find errors cannot become empty success through the Docker caller seam."""
+    bash = shutil.which("bash")
+    find = shutil.which("find")
+    assert bash is not None and find is not None
+    if surface == "cd":
+        workflow = yaml.safe_load(CD_WORKFLOW_PATH.read_text(encoding="utf-8"))
+        run = next(
+            step["run"]
+            for step in workflow["jobs"]["postgres-pgvector-publish"]["steps"]
+            if step.get("name") == "Prove PostgreSQL 15 pgvector 0.8.6 and same-volume continuity"
+        )
+        match = next(
+            item
+            for item in re.finditer(r"-ec '([^']+)'", run)
+            if "mountpoint_entry=" in item.group(1)
+        )
+        child = match.group(1)
+        start = run.rfind("docker run --rm", 0, match.start())
+        caller = run[start : match.end()]
+        program = 'docker() { "$DOCKER_BIN" "$@"; }\n' + caller
+    else:
+        script_name = "deploy.sh" if surface == "staging" else "deploy_production.sh"
+        source = (REPO_ROOT / "scripts" / script_name).read_text(encoding="utf-8")
+        function = _postgres_function_source(source, "validate_pulled_postgres_mountpoint")
+        match = re.search(r"-ec '([^']+)'", function)
+        assert match is not None
+        child = match.group(1)
+        program = function + 'validate_pulled_postgres_mountpoint "$POSTGRES_RUNTIME_REF"\n'
+    target = tmp_path / "leaf"
+    target.mkdir()
+    if scenario == "nonempty":
+        (target / "child").write_text("retained", encoding="utf-8")
+    inspected_target = tmp_path / "missing" if scenario == "native-error" else target
+    child = child.replace("/var/lib/postgresql/data", shlex.quote(str(inspected_target)))
+    child = 'stat() { printf "70:70:700\\n"; }\n' + child
+    # Metadata is a unit seam; find itself remains the real native command.
+    docker = tmp_path / "postgres-mountpoint-probe"
+    log = tmp_path / "docker-log"
+    _write_executable(
+        docker,
+        "#!/bin/sh\n"
+        + 'printf "%s\\n" "$*" >> "$DOCKER_LOG"\n'
+        + 'exec "$PROBE_SHELL" -ec "$PROBE_PROGRAM"\n',
+    )
+    result = subprocess.run(
+        [bash, "-c", "set -euo pipefail\n" + program + "\nprintf 'accepted\\n'\n"],
+        env={
+            "PATH": os.defpath,
+            "DOCKER_BIN": str(docker),
+            "PROBE_SHELL": bash,
+            "PROBE_PROGRAM": child,
+            "DOCKER_LOG": str(log),
+            "POSTGRES_RUNTIME_REF": POSTGRES_RUNTIME_REF,
+            "PGVECTOR_FINAL_LOCAL_TAG": "synthetic-final",
+            "volume_name": "synthetic-volume",
+        },
+        text=True,
+        capture_output=True,
+        timeout=10,
+        check=False,
+    )
+    invocation = log.read_text()
+    assert "--user 70:70" in invocation and "--cap-drop ALL" in invocation
+    assert "--network none" in invocation and "no-new-privileges:true" in invocation
+    if scenario == "empty":
+        assert result.returncode == 0, result.stderr
+        assert result.stdout == "accepted\n"
+    else:
+        assert result.returncode != 0
+        assert "accepted" not in result.stdout
+        if scenario == "native-error":
+            assert "find:" in result.stderr
+
+
+@pytest.mark.parametrize("query", ("directories", "files", "artifacts"))
+@pytest.mark.parametrize("scenario", ("valid", "partial-error"))
+def test_postgres_recipe_native_find_status_precedes_count_or_sort(
+    tmp_path: Path, query: str, scenario: str
+) -> None:
+    """A real native partial enumeration cannot satisfy a downstream count or sort."""
+    bash = shutil.which("bash")
+    find = shutil.which("find")
+    assert bash is not None and find is not None
+    recipe = (POSTGRES_MANIFEST_PATH.parent / "Containerfile").read_text(encoding="utf-8")
+    variable = {
+        "directories": "apk_directory_paths",
+        "files": "apk_file_paths",
+        "artifacts": "runtime_artifact_paths",
+    }[query]
+    lines = recipe.splitlines()
+    index = next(i for i, line in enumerate(lines) if line.strip().startswith(variable + "="))
+    native_pair = "\n".join(line.strip().removesuffix(" \\") for line in lines[index : index + 2])
+    target = tmp_path / "input"
+    target.mkdir()
+    if query == "artifacts":
+        for name, count in (("lib", 21), ("extension", 21), ("license", 22)):
+            directory = target / name
+            directory.mkdir()
+            for number in range(count):
+                (directory / str(number)).write_text("synthetic", encoding="utf-8")
+        for source, name in (
+            ("/out/usr/lib/postgresql15", "lib"),
+            ("/out/usr/share/postgresql15/extension", "extension"),
+            ("/out/usr/share/licenses/pgvector", "license"),
+        ):
+            native_pair = native_pair.replace(source, shlex.quote(str(target / name)))
+        output = tmp_path / "inventory-paths"
+        native_pair = native_pair.replace(
+            "/tmp/runtime-artifact-paths.txt", shlex.quote(str(output))
+        )
+    else:
+        directory = target / "x86_64"
+        directory.mkdir()
+        for number in range(42):
+            (directory / str(number)).write_text("synthetic", encoding="utf-8")
+        native_pair = native_pair.replace("/tmp/builder-apks", shlex.quote(str(target)))
+    prefix = ""
+    if scenario == "partial-error":
+        prefix = (
+            'find() { first="$1"; shift; '
+            + shlex.quote(find)
+            + ' "$first" "$MISSING_SUBJECT" "$@"; }\n'
+        )
+    result = subprocess.run(
+        [bash, "-c", "set -euo pipefail\n" + prefix + native_pair + "\nprintf 'accepted\\n'\n"],
+        env={"PATH": os.defpath, "MISSING_SUBJECT": str(tmp_path / "missing")},
+        text=True,
+        capture_output=True,
+        timeout=10,
+        check=False,
+    )
+    if scenario == "valid":
+        assert result.returncode == 0, result.stderr
+        assert result.stdout == "accepted\n"
+        if query == "artifacts":
+            assert len(output.read_text().splitlines()) == 64
+    else:
+        assert result.returncode != 0
+        assert "find:" in result.stderr and "accepted" not in result.stdout
+        if query == "artifacts":
+            assert not output.exists(), "failed find must stop before the sort output is written"
+
+
+@pytest.mark.parametrize("scenario", ("valid", "forbidden-entry", "native-error"))
+def test_postgres_recipe_entry_census_uses_real_native_type_and_status(
+    tmp_path: Path, scenario: str
+) -> None:
+    bash = shutil.which("bash")
+    assert bash is not None
+    recipe = (POSTGRES_MANIFEST_PATH.parent / "Containerfile").read_text(encoding="utf-8")
+    lines = recipe.splitlines()
+    index = next(
+        i for i, line in enumerate(lines) if line.strip().startswith("prohibited_apk_entry=")
+    )
+    program = "\n".join(line.strip().removesuffix(" \\") for line in lines[index : index + 2])
+    target = tmp_path / "inputs"
+    target.mkdir()
+    (target / "regular").write_text("synthetic", encoding="utf-8")
+    if scenario == "forbidden-entry":
+        (target / "link").symlink_to(target / "regular")
+    if scenario == "native-error":
+        target = tmp_path / "missing"
+    program = program.replace("/tmp/builder-apks", shlex.quote(str(target)))
+    result = subprocess.run(
+        [bash, "-c", "set -euo pipefail\n" + program + "\nprintf 'accepted\\n'\n"],
+        env={"PATH": os.defpath},
+        text=True,
+        capture_output=True,
+        timeout=10,
+        check=False,
+    )
+    if scenario == "valid":
+        assert result.returncode == 0, result.stderr
+        assert result.stdout == "accepted\n"
+    else:
+        assert result.returncode != 0 and "accepted" not in result.stdout
+        if scenario == "native-error":
+            assert "find:" in result.stderr
+
+
+@pytest.mark.parametrize("scenario", ("valid", "wrong-parent", "native-error"))
+def test_cd_postgres_source_base_parent_equality_blocks_before_initialization(
+    tmp_path: Path, scenario: str
+) -> None:
+    """Execute the exact native-result binding; errors and changed parents reject."""
+    bash = shutil.which("bash")
+    assert bash is not None
+    workflow = yaml.safe_load(CD_WORKFLOW_PATH.read_text(encoding="utf-8"))
+    run = next(
+        step["run"]
+        for step in workflow["jobs"]["postgres-pgvector-publish"]["steps"]
+        if step.get("name") == "Prove PostgreSQL 15 pgvector 0.8.6 and same-volume continuity"
+    )
+    start = run.index('base_parent_metadata="$(')
+    end = run.index('if docker volume inspect "$volume_name"', start)
+    proof = run[start:end]
+    docker = tmp_path / "postgres-parent-probe"
+    parents = "/var 0:0:755\n/var/lib 0:0:755\n/var/lib/postgresql 70:70:750\n"
+    if scenario == "wrong-parent":
+        parents = parents.replace("70:70:750", "70:70:700")
+    _write_executable(
+        docker,
+        "#!/bin/sh\n"
+        + ("exit 67\n" if scenario == "native-error" else 'printf "%s" "$PARENT_METADATA"\n'),
+    )
+    result = subprocess.run(
+        [
+            bash,
+            "-c",
+            'set -euo pipefail\ndocker() { "$DOCKER_BIN" "$@"; }\n'
+            + proof
+            + "\nprintf 'initialize\\n'\n",
+        ],
+        env={"PATH": os.defpath, "DOCKER_BIN": str(docker), "PARENT_METADATA": parents},
+        text=True,
+        capture_output=True,
+        timeout=10,
+        check=False,
+    )
+    assert (result.returncode == 0) is (scenario == "valid"), result.stderr
+    assert ("initialize" in result.stdout) is (scenario == "valid")
+
+
+@pytest.mark.parametrize("scenario", ("valid", "omit-legacy-release", "legacy-proof-fails"))
+def test_cd_postgres_prior_transition_releases_fixed_port_after_legacy_proof(
+    tmp_path: Path, scenario: str
+) -> None:
+    """Execute the publisher program with an occupied-port and retained-volume model."""
+    bash = shutil.which("bash")
+    assert bash is not None
+    workflow = yaml.safe_load(CD_WORKFLOW_PATH.read_text(encoding="utf-8"))
+    run = next(
+        step["run"]
+        for step in workflow["jobs"]["postgres-pgvector-publish"]["steps"]
+        if step.get("name") == "Prove PostgreSQL 15 pgvector 0.8.6 and same-volume continuity"
+    )
+    boundary = (
+        'test "$transitioned_postgres" = "postgres (PostgreSQL) 15.19"\n'
+        'docker rm -f "$legacy_container_name" >/dev/null\n'
+    )
+    assert run.count(boundary) == 1
+    if scenario == "omit-legacy-release":
+        run = run.replace(boundary, boundary.splitlines(keepends=True)[0], 1)
+    state = tmp_path / "state"
+    state.mkdir()
+    (state / "volumes").mkdir()
+    docker = tmp_path / "postgres-port-lifecycle"
+    _write_executable(
+        docker,
+        r"""#!/bin/sh
+set -eu
+printf '%s\n' "$*" >> "$STATE_ROOT/commands"
+case "$1:$2" in
+  pull:--platform) exit 0 ;;
+  volume:inspect) test -f "$STATE_ROOT/volumes/$3" ;;
+  volume:create)
+    printf 'retained-volume-data\n' > "$STATE_ROOT/volumes/$3"
+    printf 'volume:%s\n' "$3" >> "$STATE_ROOT/lifecycle"
+    ;;
+  run:--rm)
+    case "$*" in
+      *'stat -c "%n %u:%g:%a"'*)
+        printf '/var 0:0:755\n/var/lib 0:0:755\n/var/lib/postgresql 70:70:750\n'
+        ;;
+      *mountpoint_entry=*) exit 0 ;;
+      *) exit 91 ;;
+    esac
+    ;;
+  run:--detach)
+    name=''
+    publish=''
+    while [ "$#" -gt 0 ]; do
+      case "$1" in
+        --name) name="$2"; shift ;;
+        --publish) publish="$2"; shift ;;
+      esac
+      shift
+    done
+    test "$publish" = '127.0.0.1:5432:5432'
+    if [ -f "$STATE_ROOT/port-owner" ]; then
+      printf '127.0.0.1:5432 already occupied\n' >&2
+      exit 73
+    fi
+    printf '%s\n' "$name" > "$STATE_ROOT/port-owner"
+    printf 'start:%s\n' "$name" >> "$STATE_ROOT/lifecycle"
+    ;;
+  rm:-f)
+    test "$(cat "$STATE_ROOT/port-owner")" = "$3"
+    rm "$STATE_ROOT/port-owner"
+    printf 'stop:%s\n' "$3" >> "$STATE_ROOT/lifecycle"
+    ;;
+  exec:*)
+    case "$*" in
+      *'postgres --version'*)
+        printf 'version:%s\n' "$2" >> "$STATE_ROOT/lifecycle"
+        case "$2:$CASE_SCENARIO" in
+          *-legacy-postgres:legacy-proof-fails) printf 'postgres (PostgreSQL) 0\n' ;;
+          *) printf 'postgres (PostgreSQL) 15.19\n' ;;
+        esac
+        ;;
+      *'SELECT 1'*) printf '1\n' ;;
+      *'SELECT oid FROM pg_database'*) printf '101\n' ;;
+      *'SELECT extversion FROM pg_extension'*) printf '0.8.6\n' ;;
+      *'SELECT value FROM pulseplate_pgvector_sentinel'*) printf 'persistent\n' ;;
+      *'SELECT value FROM pulseplate_legacy_sentinel'*) printf 'legacy-persistent\n' ;;
+      *'SELECT value || '*pulseplate_prior_sentinel*) printf 'prior-persistent:[1,2,3]\n' ;;
+      *'SELECT embedding <-> '*) printf '0\n' ;;
+      *'CREATE EXTENSION vector;'*|*'CREATE TABLE '*|*'INSERT INTO '*) exit 0 ;;
+      *) exit 92 ;;
+    esac
+    ;;
+  *) exit 93 ;;
+esac
+""",
+    )
+    result = subprocess.run(
+        [bash, "-c", 'docker() { "$DOCKER_BIN" "$@"; }\n' + run],
+        env={
+            "PATH": os.defpath,
+            "DOCKER_BIN": str(docker),
+            "STATE_ROOT": str(state),
+            "CASE_SCENARIO": scenario,
+            "PGVECTOR_RESOURCE_PREFIX": "pulseplate-pgvector-1234-2",
+            "PGVECTOR_FINAL_LOCAL_TAG": "synthetic-current",
+        },
+        text=True,
+        capture_output=True,
+        timeout=10,
+        check=False,
+    )
+    prefix = "pulseplate-pgvector-1234-2"
+    legacy = prefix + "-legacy-postgres"
+    prior = prefix + "-prior-postgres"
+    events = (state / "lifecycle").read_text().splitlines()
+    assert (state / "volumes" / (prefix + "-legacy-data")).read_text() == ("retained-volume-data\n")
+    legacy_version = events.index("version:" + legacy)
+    stops = [index for index, event in enumerate(events) if event == "stop:" + legacy]
+    if scenario == "valid":
+        assert result.returncode == 0, result.stderr
+        assert len(stops) == 2
+        assert legacy_version < stops[-1] < events.index("start:" + prior)
+        assert (state / "port-owner").read_text().strip() == prior
+    else:
+        assert result.returncode != 0
+        assert len(stops) == 1 and stops[0] < legacy_version
+        assert "start:" + prior not in events
+        assert (state / "port-owner").read_text().strip() == legacy
+        if scenario == "omit-legacy-release":
+            assert "127.0.0.1:5432 already occupied" in result.stderr

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 import hashlib
 import json
 import netrc
@@ -2187,6 +2188,7 @@ def test_resolver_candidate_symlink_swap_cannot_overwrite_target(
         upgrades: dict[str, str],
         graph_changes: frozenset[str],
         repo_root: Path,
+        graph_admission: compiler.GraphChangeAdmission | None = None,
     ) -> None:
         real_validate(
             surface=surface,
@@ -2195,6 +2197,7 @@ def test_resolver_candidate_symlink_swap_cannot_overwrite_target(
             upgrades=upgrades,
             graph_changes=graph_changes,
             repo_root=repo_root,
+            graph_admission=graph_admission,
         )
         resolver_candidate = next(tmp_path.glob(f".{surface.lockfile}.*.resolver"))
         resolver_candidate.unlink()
@@ -3247,3 +3250,626 @@ def test_direct_helper_invocation_requires_make_authority(
 
     with pytest.raises(RuntimeError, match="make requirements-locks"):
         compiler.main()
+
+
+# These fixtures exercise the fixed transaction with synthetic, independently
+# authored before/after data. They do not establish native resolver C_R.
+VIRTUALENV_PROFILES = ("ci-lite", "dev", "aggregate")
+VIRTUALENV_UPGRADE = {"virtualenv": "21.14.5"}
+VIRTUALENV_GRAPH = frozenset({"python-discovery"})
+
+
+def _write_virtualenv_admission_repo(
+    root: Path, monkeypatch: pytest.MonkeyPatch
+) -> tuple[dict[str, surfaces.DependencySurface], dict[str, bytes], dict[str, str]]:
+    _copy_graph_change_admission_repo(root)
+    registry = {profile: _surface(profile) for profile in VIRTUALENV_PROFILES}
+    before = {
+        "ci-lite": ("21.2.0", "1.2.1", "3.24.3"),
+        "dev": ("20.36.1", None, "3.24.3"),
+        "aggregate": ("21.4.2", "1.4.0", "3.29.1"),
+    }
+    (root / "requirements.txt").write_text("example==1.0.0\n", encoding="utf-8")
+    (root / "requirements.in").write_text("example>=1.0.0\n", encoding="utf-8")
+    for source in ("requirements-ci-lite.in", "requirements-dev.in"):
+        (root / source).write_text(
+            "-c requirements.txt\nvirtualenv>=21.14.5\nfilelock>=3.15.4\n", encoding="utf-8"
+        )
+    baselines: dict[str, bytes] = {}
+    candidates: dict[str, str] = {}
+    for profile, (virtualenv, discovery, filelock) in before.items():
+        body = f"example==1.0.0\nfilelock=={filelock}\nvirtualenv=={virtualenv}\n"
+        if discovery is not None:
+            body += f"python-discovery=={discovery}\n"
+        baselines[profile] = body.encode("utf-8")
+        (root / registry[profile].lockfile).write_bytes(baselines[profile])
+        candidates[profile] = (
+            f"example==1.0.0\nfilelock=={filelock}\n"
+            "python-discovery==1.6.1\nvirtualenv==21.14.5\n"
+        )
+    admission_path = root / compiler.GRAPH_CHANGE_ADMISSION_PATH
+    payload = json.loads(admission_path.read_text(encoding="utf-8"))
+    record = payload["virtualenv_2455"]
+    for profile in VIRTUALENV_PROFILES:
+        record["baselines"][profile]["sha256_bytes"] = list(
+            hashlib.sha256(baselines[profile]).digest()
+        )
+        record["baselines"][profile]["bytes"] = len(baselines[profile])
+    for name, source_record in record["source_inputs"].items():
+        source_bytes = (root / name).read_bytes()
+        source_record["sha256_bytes"] = list(hashlib.sha256(source_bytes).digest())
+        source_record["bytes"] = len(source_bytes)
+    proposal_dir = root / "proposal-wheels"
+    proposal_dir.mkdir(mode=0o700)
+    for package, version, requirements in (
+        ("virtualenv", "21.14.5", ("python-discovery>=1.6",)),
+        ("python-discovery", "1.6.1", ("filelock>=3.15.4",)),
+    ):
+        wheel = _write_test_wheel(
+            proposal_dir, name=package, version=version, requires_dist=requirements
+        )
+        with zipfile.ZipFile(wheel) as archive:
+            member = next(
+                name for name in archive.namelist() if name.endswith(".dist-info/METADATA")
+            )
+            metadata = archive.read(member)
+        record["artifacts"][package] = {
+            "filename": wheel.name,
+            "bytes": wheel.stat().st_size,
+            "sha256_bytes": list(hashlib.sha256(wheel.read_bytes()).digest()),
+            "metadata_sha256_bytes": list(hashlib.sha256(metadata).digest()),
+        }
+    # Rebind only the fixture's material fingerprint, never the transaction's
+    # selector, profiles, intent or before/after relation.
+    fingerprint = hashlib.sha256(
+        json.dumps(record, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+    monkeypatch.setattr(compiler, "VIRTUALENV_2455_RECORD_SHA256", fingerprint)
+    admission_path.write_text(json.dumps(payload), encoding="utf-8")
+    return registry, baselines, candidates
+
+
+def _select_virtualenv_admission(root: Path) -> compiler.GraphChangeAdmission:
+    admission = compiler._authorize_graph_changes(
+        repo_root=root,
+        profiles=VIRTUALENV_PROFILES,
+        upgrades=VIRTUALENV_UPGRADE,
+        graph_changes=VIRTUALENV_GRAPH,
+        admission_id=compiler.VIRTUALENV_2455_ADMISSION_ID,
+    )
+    assert admission is not None
+    return admission
+
+
+def test_virtualenv_whole_transaction_captures_three_distinct_relations(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    registry, baselines, candidates = _write_virtualenv_admission_repo(tmp_path, monkeypatch)
+    admission = _select_virtualenv_admission(tmp_path)
+    assert admission.removals == frozenset()
+    assert admission.upgrades == VIRTUALENV_UPGRADE
+    for profile in VIRTUALENV_PROFILES:
+        plan = compiler._capture_lock_input_plan(
+            repo_root=tmp_path,
+            surface=registry[profile],
+            upgrades=VIRTUALENV_UPGRADE,
+            graph_admission=admission,
+        )
+        assert plan.output_capture.content == baselines[profile]
+        assert ("virtualenv", "21.14.5") in plan.expected_artifacts
+        assert ("python-discovery", "1.6.1") in plan.expected_artifacts
+        assert not plan.expected_artifacts & {
+            ("virtualenv", "21.2.0"),
+            ("virtualenv", "20.36.1"),
+            ("virtualenv", "21.4.2"),
+            ("python-discovery", "1.2.1"),
+            ("python-discovery", "1.4.0"),
+        }
+        compiler._validate_candidate_delta(
+            surface=registry[profile],
+            baseline_text=baselines[profile].decode("utf-8"),
+            candidate_text=candidates[profile],
+            upgrades=VIRTUALENV_UPGRADE,
+            graph_changes=VIRTUALENV_GRAPH,
+            graph_admission=admission,
+            repo_root=tmp_path,
+        )
+    path = tmp_path / compiler.GRAPH_CHANGE_ADMISSION_PATH
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    del payload["virtualenv_2455"]
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    with pytest.raises(RuntimeError, match="fixed virtualenv_2455 slot"):
+        _select_virtualenv_admission(tmp_path)
+
+
+def test_virtualenv_fixed_record_preserves_legacy_root_and_unselected_bindings(
+    tmp_path: Path,
+) -> None:
+    _copy_graph_change_admission_repo(tmp_path)
+    path = tmp_path / compiler.GRAPH_CHANGE_ADMISSION_PATH
+    extended = json.loads(path.read_text(encoding="utf-8"))
+    for payload in (extended, {"schema": extended["schema"], "record": extended["record"]}):
+        path.write_text(json.dumps(payload), encoding="utf-8")
+        admission = compiler._authorize_graph_changes(
+            repo_root=tmp_path,
+            profiles=("runtime",),
+            upgrades=OBSERVABILITY_UPGRADES,
+            graph_changes=OBSERVABILITY_REMOVALS,
+            admission_id=compiler.GRAPH_CHANGE_ADMISSION_ID,
+        )
+        assert admission is not None
+        assert admission.graph_changes == OBSERVABILITY_REMOVALS
+        assert admission.source_digests == {}
+    assert (
+        compiler._authorize_graph_changes(
+            repo_root=tmp_path,
+            profiles=("runtime",),
+            upgrades={},
+            graph_changes=frozenset(),
+            admission_id=None,
+        )
+        is None
+    )
+
+
+@pytest.mark.parametrize(
+    "profiles,upgrades,graph,selector",
+    (
+        (("dev", "ci-lite", "aggregate"), VIRTUALENV_UPGRADE, VIRTUALENV_GRAPH, "new"),
+        (("ci-lite", "dev"), VIRTUALENV_UPGRADE, VIRTUALENV_GRAPH, "new"),
+        (("ci-lite", "dev", "aggregate", "dev"), VIRTUALENV_UPGRADE, VIRTUALENV_GRAPH, "new"),
+        (("ci-lite", "dev", "aggregate", "runtime"), VIRTUALENV_UPGRADE, VIRTUALENV_GRAPH, "new"),
+        (VIRTUALENV_PROFILES, {"virtualenv": "21.14.4"}, VIRTUALENV_GRAPH, "new"),
+        (
+            VIRTUALENV_PROFILES,
+            {"virtualenv": "21.14.5", "python-discovery": "1.6.1"},
+            VIRTUALENV_GRAPH,
+            "new",
+        ),
+        (VIRTUALENV_PROFILES, VIRTUALENV_UPGRADE, OBSERVABILITY_REMOVALS, "new"),
+        (("runtime",), OBSERVABILITY_UPGRADES, OBSERVABILITY_REMOVALS, "new"),
+        (VIRTUALENV_PROFILES, VIRTUALENV_UPGRADE, VIRTUALENV_GRAPH, "legacy"),
+        (VIRTUALENV_PROFILES, VIRTUALENV_UPGRADE, VIRTUALENV_GRAPH, "absent"),
+        (VIRTUALENV_PROFILES, VIRTUALENV_UPGRADE, VIRTUALENV_GRAPH, "foreign"),
+    ),
+)
+def test_virtualenv_wrong_or_cross_selected_request_stops_before_acquisition(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    profiles: tuple[str, ...],
+    upgrades: dict[str, str],
+    graph: frozenset[str],
+    selector: str,
+) -> None:
+    _, baselines, _ = _write_virtualenv_admission_repo(tmp_path, monkeypatch)
+
+    def acquisition_must_not_run(*_: object, **__: object) -> dict[str, str]:
+        raise AssertionError("rejected transaction reached credentialed acquisition")
+
+    monkeypatch.setattr(compiler, "_private_proxy_child_env", acquisition_must_not_run)
+    selected = {
+        "new": compiler.VIRTUALENV_2455_ADMISSION_ID,
+        "legacy": compiler.GRAPH_CHANGE_ADMISSION_ID,
+        "absent": "",
+        "foreign": "future-transaction",
+    }[selector]
+    with pytest.raises(RuntimeError):
+        compiler._compile_selected_profiles_locked(
+            repo_root=tmp_path,
+            profiles=profiles,
+            upgrades=upgrades,
+            graph_changes=graph,
+            environment={compiler.GRAPH_CHANGE_ADMISSION_ENV: selected},
+        )
+    for profile, baseline in baselines.items():
+        assert (tmp_path / _surface(profile).lockfile).read_bytes() == baseline
+
+
+@pytest.mark.parametrize(
+    "malformation",
+    (
+        "duplicate",
+        "nonfinite",
+        "unknown",
+        "list",
+        "boolean-byte",
+        "short-digest",
+        "wrong-source",
+        "wrong-artifact",
+        "wrong-metadata",
+        "wrong-relation",
+        "second-intent",
+    ),
+)
+def test_virtualenv_changed_or_malformed_record_rejects_before_acquisition(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    malformation: str,
+) -> None:
+    _write_virtualenv_admission_repo(tmp_path, monkeypatch)
+    path = tmp_path / compiler.GRAPH_CHANGE_ADMISSION_PATH
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    record = payload["virtualenv_2455"]
+    if malformation == "duplicate":
+        path.write_text(
+            path.read_text().replace(
+                '"virtualenv_2455": {', '"virtualenv_2455": {"admission_id": "duplicate",', 1
+            ),
+            encoding="utf-8",
+        )
+    else:
+        if malformation == "nonfinite":
+            record["baselines"]["dev"]["bytes"] = float("nan")
+        elif malformation == "unknown":
+            payload["arbitrary_registry"] = []
+        elif malformation == "list":
+            payload["virtualenv_2455"] = [record]
+        elif malformation == "boolean-byte":
+            record["source_inputs"]["requirements.txt"]["sha256_bytes"][0] = True
+        elif malformation == "short-digest":
+            record["baselines"]["dev"]["sha256_bytes"].pop()
+        elif malformation == "wrong-source":
+            record["source_inputs"]["requirements.in"]["sha256_bytes"][0] ^= 1
+        elif malformation == "wrong-artifact":
+            record["artifacts"]["virtualenv"]["bytes"] += 1
+        elif malformation == "wrong-metadata":
+            record["artifacts"]["python-discovery"]["metadata_sha256_bytes"][0] ^= 1
+        elif malformation == "wrong-relation":
+            record["profile_deltas"]["dev"]["python-discovery"]["before"] = "1.2.1"
+        elif malformation == "second-intent":
+            record["upgrades"]["python-discovery"] = "1.6.1"
+        path.write_text(json.dumps(payload), encoding="utf-8")
+
+    def acquisition_must_not_run(*_: object, **__: object) -> dict[str, str]:
+        raise AssertionError("malformed transaction reached credentialed acquisition")
+
+    monkeypatch.setattr(compiler, "_private_proxy_child_env", acquisition_must_not_run)
+    with pytest.raises(RuntimeError):
+        compiler._compile_selected_profiles_locked(
+            repo_root=tmp_path,
+            profiles=VIRTUALENV_PROFILES,
+            upgrades=VIRTUALENV_UPGRADE,
+            graph_changes=VIRTUALENV_GRAPH,
+            environment={
+                compiler.GRAPH_CHANGE_ADMISSION_ENV: compiler.VIRTUALENV_2455_ADMISSION_ID
+            },
+        )
+
+
+@pytest.mark.parametrize(
+    "name",
+    (
+        "requirements-ci-lite.txt",
+        "requirements-dev.txt",
+        "requirements-lock.txt",
+        "requirements-ci-lite.in",
+        "requirements-dev.in",
+        "requirements.in",
+        "requirements.txt",
+    ),
+)
+def test_virtualenv_semantic_equal_material_drift_stops_before_acquisition(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    name: str,
+) -> None:
+    _write_virtualenv_admission_repo(tmp_path, monkeypatch)
+    changed = tmp_path / name
+    changed.write_bytes(changed.read_bytes() + b"# semantic-equal byte drift\n")
+
+    def acquisition_must_not_run(*_: object, **__: object) -> dict[str, str]:
+        raise AssertionError("stale source or seed reached credentialed acquisition")
+
+    monkeypatch.setattr(compiler, "_private_proxy_child_env", acquisition_must_not_run)
+    with pytest.raises(RuntimeError, match="stale or has unexpected bytes"):
+        compiler._compile_selected_profiles_locked(
+            repo_root=tmp_path,
+            profiles=VIRTUALENV_PROFILES,
+            upgrades=VIRTUALENV_UPGRADE,
+            graph_changes=VIRTUALENV_GRAPH,
+            environment={
+                compiler.GRAPH_CHANGE_ADMISSION_ENV: compiler.VIRTUALENV_2455_ADMISSION_ID
+            },
+        )
+
+
+@pytest.mark.parametrize("profile", VIRTUALENV_PROFILES)
+@pytest.mark.parametrize(
+    "mutation",
+    (
+        "missing",
+        "unchanged",
+        "wrong-version",
+        "extra",
+        "remove",
+        "metadata",
+        "unrelated-version",
+    ),
+)
+def test_virtualenv_profile_delta_rejects_unclassified_or_incomplete_candidate(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    profile: str,
+    mutation: str,
+) -> None:
+    registry, baselines, candidates = _write_virtualenv_admission_repo(tmp_path, monkeypatch)
+    admission = _select_virtualenv_admission(tmp_path)
+    candidate = candidates[profile]
+    if mutation == "missing":
+        candidate = candidate.replace("python-discovery==1.6.1\n", "")
+    elif mutation == "unchanged":
+        old_discovery = {"ci-lite": "1.2.1", "dev": None, "aggregate": "1.4.0"}[profile]
+        candidate = candidate.replace(
+            "python-discovery==1.6.1\n",
+            ("" if old_discovery is None else f"python-discovery=={old_discovery}\n"),
+        )
+    elif mutation == "wrong-version":
+        candidate = candidate.replace("python-discovery==1.6.1", "python-discovery==1.6.0")
+    elif mutation == "extra":
+        candidate += "unclassified==1.0\n"
+    elif mutation == "remove":
+        candidate = candidate.replace("example==1.0.0\n", "")
+    elif mutation == "metadata":
+        candidate = candidate.replace(
+            "virtualenv==21.14.5", 'virtualenv==21.14.5; python_version >= "3.11"'
+        )
+    elif mutation == "unrelated-version":
+        candidate = candidate.replace("example==1.0.0", "example==2.0.0")
+    with pytest.raises(RuntimeError, match="exact virtualenv profile delta"):
+        compiler._validate_candidate_delta(
+            surface=registry[profile],
+            baseline_text=baselines[profile].decode("utf-8"),
+            candidate_text=candidate,
+            upgrades=VIRTUALENV_UPGRADE,
+            graph_changes=VIRTUALENV_GRAPH,
+            graph_admission=admission,
+            repo_root=tmp_path,
+        )
+
+
+@pytest.mark.parametrize("field", ("filename", "size", "wheel-hash", "metadata-hash"))
+def test_virtualenv_artifact_consumer_binds_every_frozen_field(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    field: str,
+) -> None:
+    _write_virtualenv_admission_repo(tmp_path, monkeypatch)
+    admission = _select_virtualenv_admission(tmp_path)
+    wheelhouse = tmp_path / "proposal-wheels"
+    expected = frozenset({("virtualenv", "21.14.5"), ("python-discovery", "1.6.1")})
+    assert set(
+        compiler._validate_wheelhouse(
+            wheelhouse=wheelhouse,
+            expected_artifacts=expected,
+            graph_admission=admission,
+        )
+    ) == set(expected)
+    changed = dict(admission.artifacts)
+    name, size, wheel_hash, metadata_hash = changed[("python-discovery", "1.6.1")]
+    changed[("python-discovery", "1.6.1")] = (
+        "foreign.whl" if field == "filename" else name,
+        size + 1 if field == "size" else size,
+        "0" * 64 if field == "wheel-hash" else wheel_hash,
+        "0" * 64 if field == "metadata-hash" else metadata_hash,
+    )
+    with pytest.raises(RuntimeError, match="exact virtualenv proposal"):
+        compiler._validate_wheelhouse(
+            wheelhouse=wheelhouse,
+            expected_artifacts=expected,
+            graph_admission=replace(admission, artifacts=changed),
+        )
+
+
+def _stub_virtualenv_artifact_transport(
+    root: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    registry: dict[str, surfaces.DependencySurface],
+    baselines: dict[str, bytes],
+    candidates: dict[str, str],
+    *,
+    fail_profile: str | None = None,
+) -> list[str]:
+    events: list[str] = []
+    credentialed_homes: list[Path] = []
+    admissions: dict[str, str] = {}
+    monkeypatch.setattr(compiler, "_profile_registry", lambda: registry)
+    monkeypatch.setattr(
+        compiler, "_resolver_bootstrap_artifacts", lambda: frozenset({("pip", "26.1.2")})
+    )
+
+    def credentialed_env(_environment: dict[str, str], *, resolver_home: Path) -> dict[str, str]:
+        events.append("acquire")
+        credentialed_homes.append(resolver_home)
+        (resolver_home / ".netrc").write_text("synthetic credential material\n", encoding="utf-8")
+        return {"HOME": str(resolver_home), "PIP_INDEX_URL": APPROVED_INDEX}
+
+    monkeypatch.setattr(compiler, "_private_proxy_child_env", credentialed_env)
+    monkeypatch.setattr(compiler, "_collect_private_proxy_artifact_hashes", lambda **_: admissions)
+
+    def download(
+        *,
+        wheelhouse: Path,
+        plans: tuple[compiler.LockInputPlan, ...],
+        bootstrap_artifacts: frozenset[tuple[str, str]],
+        **_: object,
+    ) -> None:
+        for plan in plans:
+            command = compiler._build_download_command(
+                wheelhouse=wheelhouse,
+                expected_artifacts=plan.expected_artifacts | bootstrap_artifacts,
+            )
+            assert command[0] == sys.executable
+            assert "--no-deps" in command
+        required = set(bootstrap_artifacts).union(*(plan.expected_artifacts for plan in plans))
+        for package, version in sorted(required):
+            proposal = (
+                root / "proposal-wheels" / f"{package.replace('-', '_')}-{version}-py3-none-any.whl"
+            )
+            if proposal.exists():
+                wheel = wheelhouse / proposal.name
+                wheel.write_bytes(proposal.read_bytes())
+            else:
+                wheel = _write_test_wheel(wheelhouse, name=package, version=version)
+            _admit_test_wheel(admissions, wheel)
+
+    monkeypatch.setattr(compiler, "_download_profile_wheels", download)
+    real_validate = compiler._validate_wheelhouse
+
+    def validate_after_teardown(**kwargs: object) -> object:
+        assert credentialed_homes and not credentialed_homes[0].exists()
+        events.append("static-admit")
+        return real_validate(**kwargs)
+
+    monkeypatch.setattr(compiler, "_validate_wheelhouse", validate_after_teardown)
+
+    def resolve(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        output = _candidate_output_path(command)
+        profile = next(
+            profile
+            for profile, surface in registry.items()
+            if output.name.startswith(f".{surface.lockfile}.")
+        )
+        child_env = kwargs["env"]
+        assert isinstance(child_env, dict)
+        assert child_env["PIP_NO_INDEX"] == "1"
+        assert child_env["PIP_CONFIG_FILE"] == os.devnull
+        assert "PIP_INDEX_URL" not in child_env
+        assert not (Path(child_env["HOME"]) / ".netrc").exists()
+        assert credentialed_homes and not credentialed_homes[0].exists()
+        view = Path(child_env["PIP_FIND_LINKS"])
+        assert view.name == profile
+        assert {wheel.name for wheel in view.iterdir()} == {
+            "example-1.0.0-py3-none-any.whl",
+            "pip-26.1.2-py3-none-any.whl",
+            "virtualenv-21.14.5-py3-none-any.whl",
+            "python_discovery-1.6.1-py3-none-any.whl",
+            f"filelock-{'3.29.1' if profile == 'aggregate' else '3.24.3'}-py3-none-any.whl",
+        }
+        assert command.count("--upgrade-package") == 1
+        assert command[command.index("--upgrade-package") + 1] == "virtualenv==21.14.5"
+        assert output.read_bytes() == baselines[profile]
+        events.append(f"resolve:{profile}")
+        if profile == fail_profile:
+            return subprocess.CompletedProcess(command, 1, "", "synthetic resolver failure")
+        output.write_text(candidates[profile], encoding="utf-8")
+        return subprocess.CompletedProcess(command, 0, "", "")
+
+    monkeypatch.setattr(compiler.subprocess, "run", resolve)
+    return events
+
+
+@pytest.mark.parametrize("fail_profile", (None, "dev", "aggregate"))
+def test_virtualenv_pipeline_prepares_all_candidates_with_credential_free_profile_views(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    fail_profile: str | None,
+) -> None:
+    registry, baselines, candidates = _write_virtualenv_admission_repo(tmp_path, monkeypatch)
+    events = _stub_virtualenv_artifact_transport(
+        tmp_path, monkeypatch, registry, baselines, candidates, fail_profile=fail_profile
+    )
+
+    def compile_transaction() -> None:
+        compiler._compile_selected_profiles_locked(
+            repo_root=tmp_path,
+            profiles=VIRTUALENV_PROFILES,
+            upgrades=VIRTUALENV_UPGRADE,
+            graph_changes=VIRTUALENV_GRAPH,
+            environment={
+                compiler.GRAPH_CHANGE_ADMISSION_ENV: compiler.VIRTUALENV_2455_ADMISSION_ID
+            },
+        )
+
+    if fail_profile is None:
+        compile_transaction()
+        for profile, surface in registry.items():
+            assert (tmp_path / surface.lockfile).read_text(encoding="utf-8") == (
+                surfaces.render_governed_lock_header(surface) + candidates[profile]
+            )
+    else:
+        with pytest.raises(RuntimeError, match="synthetic resolver failure"):
+            compile_transaction()
+        for profile, surface in registry.items():
+            assert (tmp_path / surface.lockfile).read_bytes() == baselines[profile]
+        assert not tuple(tmp_path.glob(".*.candidate"))
+    assert events[0] == "acquire"
+    assert events.index("static-admit") < events.index("resolve:ci-lite")
+
+
+@pytest.mark.parametrize("interrupt", (False, True))
+def test_virtualenv_pipeline_rolls_back_attempted_replacements(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    interrupt: bool,
+) -> None:
+    registry, baselines, candidates = _write_virtualenv_admission_repo(tmp_path, monkeypatch)
+    _stub_virtualenv_artifact_transport(tmp_path, monkeypatch, registry, baselines, candidates)
+    real_replace = compiler.os.replace
+    original_modes = {
+        profile: (tmp_path / surface.lockfile).stat().st_mode
+        for profile, surface in registry.items()
+    }
+
+    def fail_after_second_rename(source: Path, destination: Path) -> None:
+        real_replace(source, destination)
+        if source.suffix == ".candidate" and destination.name == "requirements-dev.txt":
+            if interrupt:
+                raise KeyboardInterrupt("synthetic post-rename interruption")
+            raise OSError("synthetic post-rename failure")
+
+    monkeypatch.setattr(compiler.os, "replace", fail_after_second_rename)
+    expected_error = KeyboardInterrupt if interrupt else RuntimeError
+    with pytest.raises(expected_error):
+        compiler._compile_selected_profiles_locked(
+            repo_root=tmp_path,
+            profiles=VIRTUALENV_PROFILES,
+            upgrades=VIRTUALENV_UPGRADE,
+            graph_changes=VIRTUALENV_GRAPH,
+            environment={
+                compiler.GRAPH_CHANGE_ADMISSION_ENV: compiler.VIRTUALENV_2455_ADMISSION_ID
+            },
+        )
+    for profile, surface in registry.items():
+        output = tmp_path / surface.lockfile
+        assert output.read_bytes() == baselines[profile]
+        assert output.stat().st_mode == original_modes[profile]
+    assert not tuple(tmp_path.glob(".*.candidate"))
+
+
+@pytest.mark.parametrize(
+    "mutation", ("missing-source", "extra-source", "wrong-source", "wrong-output")
+)
+def test_virtualenv_captured_plan_cannot_borrow_another_input_tuple(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    mutation: str,
+) -> None:
+    registry, _, _ = _write_virtualenv_admission_repo(tmp_path, monkeypatch)
+    admission = _select_virtualenv_admission(tmp_path)
+    plan = compiler._capture_lock_input_plan(
+        repo_root=tmp_path,
+        surface=registry["dev"],
+        upgrades=VIRTUALENV_UPGRADE,
+        graph_admission=admission,
+    )
+    if mutation == "missing-source":
+        changed = replace(plan, source_captures=plan.source_captures[:-1])
+    elif mutation == "extra-source":
+        extra = tmp_path / "extra.in"
+        extra.write_text("example>=1.0.0\n", encoding="utf-8")
+        changed = replace(
+            plan, source_captures=plan.source_captures + ((extra, compiler._capture_file(extra)),)
+        )
+    elif mutation == "wrong-source":
+        source = tmp_path / "requirements-dev.in"
+        source.write_bytes(source.read_bytes() + b"# captured drift\n")
+        changed = replace(
+            plan,
+            source_captures=tuple(
+                (path, compiler._capture_file(path)) for path, _ in plan.source_captures
+            ),
+        )
+    else:
+        changed = replace(plan, output_path=tmp_path / "requirements-ci-lite.txt")
+    with pytest.raises(RuntimeError, match="Captured virtualenv"):
+        compiler._assert_plans_match_graph_change_admission((changed,), admission)

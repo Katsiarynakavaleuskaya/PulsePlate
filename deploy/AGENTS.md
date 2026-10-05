@@ -185,6 +185,35 @@ PRODUCTION_DOMAIN=example.com STAGING_FALLBACK_DOMAIN=staging.example.com \
   scanner/database and subject identity, and keep newly revealed blocking
   findings open until remediated. Matching build digests do not prove a current
   clean scan or the later trusted publication path.
+- Native PostgreSQL directory admission requires successful native `find`
+  completion before consuming empty output, a count, sorted paths, or a hash-bound
+  inventory. Capture output in a standalone assignment under the existing
+  fail-fast shell; retain the native diagnostic and nonzero child/Docker/caller
+  status before initialization or product mutation. A matching partial inventory
+  or empty stdout after failure is not successful discovery. Keep the query
+  projection bounded to its existing owner and preserve independent type,
+  stat, UID/GID, mode, source and caller-order checks. Use genuine native error,
+  partial-output, forbidden-entry, nonempty and successful-empty controls;
+  wiring fixtures do not replace native execution.
+- The selected current image and one exact frozen prior derived image use whole
+  config/platform/base/required-RepoDigest tuples selected by exact full ref in
+  the existing deploy readers. Preserve the separate original Docker Hub legacy
+  case. Inspect each selected ref itself and bind its returned ID to the captured
+  container image; new candidate pulls admit only current. Do not combine tuple
+  members across cases, recognize digest suffixes, or create a history picker,
+  helper or manifest field. A recognized prior service remains only an admitted
+  forward-transition starting state, with its original vulnerability evidence.
+- OCI counts, config and layer identities come from actual reproduced bytes.
+  Bind each compatibility-layer directory's metadata separately: parents equal
+  the selected runtime base, while the empty leaf retains `70:70:0700`.
+  A Docker store may expose the exact selected config ID or platform ID; admit
+  only those two bound forms and preserve their distinct meanings.
+- For a comparable native-status repair, retain bounded process lesson metrics
+  in the existing role evidence: repeat failures and escaped native-status
+  findings, with the next comparable PR as the observation window and explicit
+  user-impact, business-risk and project-development gaps. Control counts are
+  process evidence, not measured product improvement, runtime telemetry, memory
+  promotion or graph truth.
 - In CD, `staging-postgres-native-integration` admits configuration with the
   existing checker's `--configure-only` mode before the PostgreSQL publisher and
   backend build/deploy job. Keep their literal `needs` and success predicates

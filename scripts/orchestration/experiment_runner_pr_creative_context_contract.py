@@ -946,13 +946,17 @@ def _normalize_agent_slug_list(
     return agents
 
 
+def _protected_target_family(path: str) -> str | None:
+    folded = path.casefold()
+    if folded == WORKFLOW_ROOT or folded.startswith(WORKFLOW_PREFIX):
+        return "workflow"
+    if folded in PRODUCT_RUNTIME_ROOTS or folded.startswith(PRODUCT_RUNTIME_PREFIXES):
+        return "product_runtime"
+    return None
+
+
 def _is_product_runtime_or_workflow_target(path: str) -> bool:
-    return (
-        path in PRODUCT_RUNTIME_ROOTS
-        or path.startswith(PRODUCT_RUNTIME_PREFIXES)
-        or path == WORKFLOW_ROOT
-        or path.startswith(WORKFLOW_PREFIX)
-    )
+    return _protected_target_family(path) is not None
 
 
 def _reject_product_runtime_or_workflow_targets(paths: Sequence[str], *, label: str) -> None:
@@ -1078,7 +1082,7 @@ def classify_creative_context_eligibility(
             "activation_source": "none",
             "eligible_surface": "",
         }
-    if any(path == WORKFLOW_ROOT or path.startswith(WORKFLOW_PREFIX) for path in normalized):
+    if any(_protected_target_family(path) == "workflow" for path in normalized):
         return {
             "eligible": False,
             "creative_decision": "no_creative_action",
@@ -1086,10 +1090,7 @@ def classify_creative_context_eligibility(
             "activation_source": "none",
             "eligible_surface": "",
         }
-    if any(
-        path in PRODUCT_RUNTIME_ROOTS or path.startswith(PRODUCT_RUNTIME_PREFIXES)
-        for path in normalized
-    ):
+    if any(_protected_target_family(path) == "product_runtime" for path in normalized):
         return {
             "eligible": False,
             "creative_decision": "no_creative_action",
@@ -2930,8 +2931,7 @@ def validate_creative_hypothesis_approval(payload: Mapping[str, Any]) -> dict[st
             target
             for target in normalized["approved_target_surfaces"]
             if not target.startswith(APPROVABLE_PR1_TARGET_PREFIXES)
-            or target.startswith(PRODUCT_RUNTIME_PREFIXES)
-            or target.startswith(WORKFLOW_PREFIX)
+            or _is_product_runtime_or_workflow_target(target)
         ]
         if invalid_targets:
             raise ExperimentRunnerCreativeContextContractError(

@@ -282,9 +282,59 @@ final class DesignSystemAccessibilityContractTests: XCTestCase {
                 .environment(\.colorScheme, scheme)
                 .dynamicTypeSize(typeSize)
         )
-        renderer.scale = 3
+        let scale: CGFloat = 3
+        renderer.scale = scale
         renderer.proposedSize = ProposedViewSize(width: 220, height: nil)
-        return try XCTUnwrap(renderer.uiImage)
+
+        // Materialize the raster in the supplied bitmap before pixel assertions or attachments.
+        var renderedImage: CGImage?
+        var bitmapDescription = ""
+        renderer.render(rasterizationScale: scale) { size, renderInContext in
+            guard let space = CGColorSpace(name: CGColorSpace.sRGB),
+                  let context = CGContext(
+                    data: nil,
+                    width: Int((size.width * scale).rounded(.up)),
+                    height: Int((size.height * scale).rounded(.up)),
+                    bitsPerComponent: 8,
+                    bytesPerRow: 0,
+                    space: space,
+                    bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+                        | CGBitmapInfo.byteOrder32Big.rawValue
+                  ) else {
+                return
+            }
+            context.scaleBy(x: scale, y: scale)
+            renderInContext(context)
+            renderedImage = context.makeImage()
+            bitmapDescription = """
+                callbackSize=\(size)
+                contextPixels=\(context.width)x\(context.height)
+                contextBytesPerRow=\(context.bytesPerRow)
+                contextBitsPerComponent=\(context.bitsPerComponent)
+                contextBitsPerPixel=\(context.bitsPerPixel)
+                contextColorSpace=\(String(describing: context.colorSpace?.name))
+                contextAlphaInfo=\(context.alphaInfo.rawValue)
+                contextBitmapInfo=\(context.bitmapInfo.rawValue)
+                contextByteOrder=\(context.bitmapInfo.intersection(.byteOrderMask).rawValue)
+                contextCTM=\(context.ctm)
+                """
+        }
+        let image = UIImage(cgImage: try XCTUnwrap(renderedImage), scale: scale, orientation: .up)
+        let imageDimensions = image.cgImage.map { "\($0.width)x\($0.height)" }
+        let name = "\(scheme)/\(typeSize)/loading=\(loading)"
+        XCTContext.runActivity(named: "Raster metadata: \(name)") { activity in
+            let attachment = XCTAttachment(string: """
+                \(bitmapDescription)
+                imageScale=\(image.scale)
+                imageSize=\(image.size)
+                imageOrientation=\(image.imageOrientation.rawValue)
+                imageCGImagePixels=\(String(describing: imageDimensions))
+                """)
+            attachment.name = "Raster metadata: \(name)"
+            attachment.lifetime = .keepAlways
+            activity.add(attachment)
+        }
+        return image
     }
 
     @MainActor
