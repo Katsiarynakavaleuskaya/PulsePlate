@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check retained zlib/ncurses and exact OpenSSL exceptions with native Trivy 0.74.0."""
+"""Check exact retained exceptions and util-linux retirement with native Trivy 0.74.0."""
 
 from __future__ import annotations
 
@@ -205,6 +205,75 @@ def _openssl_cases() -> list[tuple[str, dict[str, object], int | None]]:
     return cases
 
 
+def _identity_cases() -> list[tuple[str, dict[str, object], int | None]]:
+    """Challenge each legacy identity and every ncurses off-diagonal pair."""
+    cases: list[tuple[str, dict[str, object], int | None]] = []
+    for cve, package, version, _fixed in TUPLES:
+        exact: dict[str, object] = {
+            "VulnerabilityID": cve,
+            "PkgName": package,
+            "PkgID": f"{package}@{version}",
+            "InstalledVersion": version,
+            "Severity": "HIGH",
+            "Title": "synthetic fixture",
+        }
+        pkgid = f"{package}@{version}"
+        prefix = f"{cve}/{package}"
+        cases.extend(
+            (
+                (f"{prefix}/pkgid-prefix", {**exact, "PkgID": f"prefix/{pkgid}"}, 1),
+                (f"{prefix}/pkgid-suffix", {**exact, "PkgID": f"{pkgid}:suffix"}, 1),
+                (f"{prefix}/pkgid-lookalike", {**exact, "PkgID": f"{pkgid}0"}, 1),
+            )
+        )
+        if cve == "CVE-2025-69720":
+            for other_cve, other_package, other_version, _ in TUPLES:
+                if other_cve == cve and other_package != package:
+                    cases.append(
+                        (
+                            f"{prefix}/cross-pair-{other_package}",
+                            {**exact, "PkgID": f"{other_package}@{other_version}"},
+                            1,
+                        )
+                    )
+        else:
+            cases.append(
+                (
+                    f"{prefix}/pkgid-combined-affix",
+                    {**exact, "PkgID": f"prefix/{pkgid}:suffix"},
+                    1,
+                )
+            )
+    return cases
+
+
+def _retired_util_linux_cases() -> list[tuple[str, dict[str, object], int | None]]:
+    """All eight historical Debian tuples must remain visible after retirement."""
+    cases: list[tuple[str, dict[str, object], int | None]] = []
+    for package in (
+        "bsdutils",
+        "libblkid1",
+        "libmount1",
+        "libsmartcols1",
+        "libuuid1",
+        "mount",
+        "util-linux",
+        "util-linux-extra",
+    ):
+        version = "1:2.38.1-5+deb12u3" if package == "bsdutils" else "2.38.1-5+deb12u3"
+        finding: dict[str, object] = {
+            "VulnerabilityID": "CVE-2026-53615",
+            "PkgName": package,
+            "PkgID": f"{package}@{version}",
+            "InstalledVersion": version,
+            "Severity": "HIGH",
+            "Title": "synthetic fixture",
+        }
+        # Omit FixedVersion: native empty/null decoding omits that output field.
+        cases.append((f"CVE-2026-53615/{package}/retired", finding, 1))
+    return cases
+
+
 def _run_contract(binary: str, scan_copy: Path) -> int:
     argv = [
         binary,
@@ -218,7 +287,7 @@ def _run_contract(binary: str, scan_copy: Path) -> int:
         "/dev/null",
         "/dev/stdin",
     ]
-    cases = _cases() + _openssl_cases()
+    cases = _cases() + _openssl_cases() + _identity_cases() + _retired_util_linux_cases()
     for case_id, finding, expected in cases:
         result = _invoke(argv, payload=_report_bytes(finding))
         if expected is None:

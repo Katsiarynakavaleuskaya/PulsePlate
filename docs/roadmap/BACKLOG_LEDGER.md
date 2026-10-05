@@ -24,6 +24,20 @@ If it is not recorded here — it does not exist.
 
 <!-- EXPERIMENT_BACKLOG_ENTRIES:INSERT BELOW -->
 
+<a id="ledger-p1-dep-sec-oct-1"></a>
+- [ ] P1: Complete DEP-SEC-OCT-1 four-source and Trivy review window
+  - Owner: security-auditor / agent-coordinator
+  - Priority: P1
+  - Target PR: DEP-SEC-OCT-1 (`codex/dependency-october-image-review`)
+  - Status: Concrete R1 accepted by the human for all 7 exact retained tuples and preserved predicates at policy SHA256 `7dd9723bd29bf601be0db83d4d7c46d4d6a446eb315cb26215bc5cca2dab69e4`, allowing publication only after gates. Actual candidate four-source, production/staging native/inventory/raw-effective and health proof passed; exact current-material validation, CI/review and separate squash merge/post-merge remain pending. Review October 21/shared expiry October 30 remain conjunctive.
+  - Reason for deferral: A prepared review window and filtered 0 do not patch retained native CVEs or establish human risk/merge authority. All 72 accepted criteria remain required; parent PROJECT_DEPENDENCY_TECH_DEBT stays open.
+  - Carryover: Close already merged #2463 September NOSEC and PCRE2 ledger items here, binding squash `16874a7c4d991673f849e17d45e3e3da51dd5e59` and preserving its historical mapping; no repeated implementation or standalone docs-only closeout PR.
+  - Links: [zlib owner](../security/CVE-2026-27171-zlib1g.md), [ncurses owner](../security/CVE-2025-69720-ncurses.md), [util-linux retirement owner](../security/CVE-2026-53615-util-linux.md), [OpenSSL owner](../security/CVE-2026-84782-openssl.md), [four-source owner](../security/MAIN_RECOVERY_1_CONTAINER_PUBLICATION.md#docker-source-review-checkpoint--2026-10-04-candidate).
+  - DoD: Exact 4 source identities/provenance/acquisition; exact identity repair and 121 native controls; every selected candidate production/staging/filesystem subject bound to raw/effective/DB/package/native evidence; independent October 21/22 and October 30/31 plus historical October 5/6 and October 7/8 and CURRENT/+4 forecast; narrow/current-head security/review gates; concrete 7-tuple risk acceptance before publication; separate exact-head merge; same-ID continuity/archive/exact-main and owned cleanup.
+  - Terminal Carryover: This review-window item and CVE-2026-53615 retirement require this PR's actual merge/post-merge proof. Carry exactly those two closures to PR-TBD-DEPENDENCY-NEXT-SUBSTANTIVE and acknowledge the target/evidence in the existing capsule and Tracker; keep their checkboxes open until terminal proof. No standalone docs-only PR. Ultimate zlib/ncurses/OpenSSL removal and October 28/30 native/nosec obligations remain separately open.
+  - Next scheduled Dependency PR: The human assigned remaining zlib CVE-2026-27171, ncurses CVE-2025-69720 and OpenSSL CVE-2026-84782 remediation to PR-TBD-DEPENDENCY-NEXT-SUBSTANTIVE after DEP-SEC-OCT-1, with three individual outcomes in the existing family owners below. This is the next scheduled substantive dependency slice, not an extra immediate train, docs-only PR or project-wide migration. Each outcome needs fresh bounded CVE/fix/consumer admission and does not imply a fix or deadline renewal now.
+  - Rollback: Coherent policy/manifest/tests/evidence revert; restored stale dates may deny admission. Wider ignores, lowered thresholds or forecast disable are not recovery.
+
 <a id="ledger-p1-postgres-pcre2-cve-2026-103111"></a>
 - [ ] P1: Restore main-CD PostgreSQL PCRE2 publication and preserve Docker build viability
   - Owner: security-auditor / agent-coordinator
@@ -36,26 +50,26 @@ If it is not recorded here — it does not exist.
   - Rollback: Normal bounded repository revert; restoring affected image bytes blocks publication until an admitted remedy. No image-history picker, chown repair, runtime privilege change or gate weakening.
 
 <a id="ledger-p1-pcre2-cve-2026-103111"></a>
-- [ ] P1: Replace affected production PCRE2 for CVE-2026-103111
+- [x] P1: Replace affected production PCRE2 for CVE-2026-103111
   - Owner: security-auditor / agent-coordinator
   - Priority: P1
   - Target PR: [#2463](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2463)
-  - Status: In progress; direct owner admits the new finding; final governed-image/native scan, current-head gates and merge remain pending.
-  - Reason for deferral: Closure requires genuine patched production bytes and preserved native consumers, complete same-image scanner proof and terminal governed PR/main evidence; source acquisition and isolated lab success alone are insufficient.
+  - Status: Closed by PR #2463, merged as `16874a7c4d991673f849e17d45e3e3da51dd5e59`; its owned final-image/native/security and merged-main evidence is terminal. DEP-SEC-OCT-1 records this already merged closure as Carryover, without repeating its implementation or changing the historical mapping. Separate #2455 CD/pgvector recovery is not a global-green outcome.
+  - Historical reason for deferral: Closure required genuine patched production bytes and preserved native consumers, complete same-image scanner proof and terminal governed PR/main evidence; source acquisition and isolated lab success alone are insufficient.
   - Links: [PCRE2 owner evidence](../security/CVE-2026-103111-pcre2.md), [Debian tracker](https://security-tracker.debian.org/tracker/CVE-2026-103111), [upstream advisory](https://github.com/PCRE2Project/pcre2/security/advisories/GHSA-r9hj-j2rw-4q3m).
   - DoD: Exact reviewed PCRE2 10.49 plus upstream SLJIT closure through the existing source owner; unchanged old source values/dates and transport/cache protections; production-only shared8bit replacement preserving SONAME/Unicode/JIT and actual native libselinux/grep/dpkg/ls/mkdir consumers after pruning; terminal final linux/amd64 same-image full HIGH/CRITICAL/secret inventory with no applicable finding/secret; local/current-head review/readiness gates, owner-conditional match-head squash, merged-main terminal proof and same-ID continuity. No new suppression or risk waiver.
   - Rollback: Normal bounded revert; affected-byte restoration blocks publication until an admitted remedy, with no JIT disable or weakened checks.
 
 <a id="ledger-p1-remove-trivy-suppression-openssl-cve-2026-84782"></a>
 - [ ] P1: Remove the temporary Bookworm OpenSSL CVE-2026-84782 exception
-  - Owner: security-auditor / PulsePlate DevOps
+  - Owner: dependency/security (security-auditor / PulsePlate DevOps)
   - Priority: P1
-  - Target PR: [#2447](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2447) for bounded admission; follow-up removal PR when its trigger occurs.
-  - Status: Open; candidate repository exception, with exact-head human residual-risk acceptance and merge approval still pending.
-  - Reason for deferral: Debian Bookworm still lists OpenSSL `3.0.22-1~deb12u1` as vulnerable at the 2026-09-30 review, without a fixed Bookworm row. Both affected packages remain present; this is a temporary publication exception, not remediation or a false-positive finding.
-  - Review-by: 2026-10-05 inclusive; unchanged shared hard expiry: 2026-10-07. Reassess before both dates; no automatic renewal.
+  - Target PR: PR-TBD-DEPENDENCY-NEXT-SUBSTANTIVE, the next scheduled substantive Dependency PR after DEP-SEC-OCT-1; original exception admission was merged #2447.
+  - Status: Open; exception delivered in merged #2447, now locally re-reviewed by DEP-SEC-OCT-1. Both affected exact HIGH pairs remain; concrete R1 risk acceptance is recorded for publication after gates, while separate exact-head merge approval remains pending. This review is not ultimate CVE retirement.
+  - Reason for deferral: No applicable fixed Bookworm package is established at the October 4 cutoff. Both affected packages remain; a new source/backport/ABI/base route requires fresh bounded scope admission in the next scheduled Dependency PR. R1 accepts temporary retained risk, not remediation or a false-positive finding.
+  - Prepared review-by: 2026-10-21 inclusive; shared hard expiry: 2026-10-30 inclusive. Review on October 22 is stale even while expiry on October 30 is current. Weekly recheck/removal triggers and required publication gates remain mandatory; R1 grants no automatic renewal.
   - Links: `docs/security/CVE-2026-84782-openssl.md`, `trivy/ignore-policy.rego`, `scripts/ci/check_trivy_ignore_policy_native.py`, [Debian tracker](https://security-tracker.debian.org/tracker/CVE-2026-84782).
-  - DoD: Admit an applicable fixed Bookworm package or disposition a new nonempty native Trivy FixedVersion; remove only the exact CVE-2026-84782 rule and its now-obsolete native controls in the reviewed removal change. Prove the exact package/image/native linkage as applicable, suppression-free result for this CVE and all independent selected security gates; preserve unrelated rules/deadlines and OPS coverage. Complete current-head local/CI/review gates and the separately authorized post-merge main/image proof; then close this item through the canonical ledger closeout.
+  - DoD: Freshly admit an applicable patched occurrence for both retained OpenSSL pairs or executable absence; prove actual production/staging/published-image raw results, native linkage/consumer controls and suppression-free CVE-2026-84782 evidence. Delete only its obsolete exact family rule and genuinely dead exclusive controls, preserving other predicates/deadlines and OPS coverage. Complete exact-head gates and separately authorized merge/post-merge proof before closure; no broad waiver or automatic deadline renewal.
 
 <a id="ledger-p1-ops-context-inventory"></a>
 - [ ] P1: OPS-01 offline operational context inventory and separate operational follow-ups
@@ -5895,11 +5909,11 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 
 
 <a id="ledger-p1-inline-nosec-ttl-20260930"></a>
-- [ ] P1: Reassess inline nosec TTLs due 2026-09-30 before main CI expiry
+- [x] P1: Reassess inline nosec TTLs due 2026-09-30 before main CI expiry
   - Owner: Security/SRE
   - Priority: P1
   - Target PR: [#2463](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2463) (`codex/security-nosec-ttl-20260930`)
-  - Status: Implementation in review; merged #2447 main `5338465ad08d4a0c8da6ffa9d65dce9d8dbea985` adopted at `16ddaf8eb26aae5ed39e18595e859076b9619d6a` with all 23 owned cohort source blobs preserved. The direct owner admitted all ten failed nodes from canonical main run 36897887285; the bounded registry repair preserves exact typed admission and Markdown/rawHTML negative controls. Current criteria-v7 retains all 48 criteria: original 32 outcomes, M01–M10 and D01–D06 for the owner-admitted PCRE2 supplement; v4/v5 remain historical preparation references. The current owner-admitted scope is 37 paths including mapping; publication must retain required approval markers, split justification and trusted labels. The owner gave advance conditional approval to squash #2463 only after fully green applicable live-head CI/security/Docker, review disposition and fresh strict readiness, binding the exact live head at execution. Closure still awaits that merge and exact merged-main terminal evidence.
+  - Status: Closed by PR #2463, merged as `16874a7c4d991673f849e17d45e3e3da51dd5e59`, after the owned 55-record reconciliation, focused/current-head security/review gates and exact merged-main proof. DEP-SEC-OCT-1 carries over this ledger reconciliation in the substantive PR; the earlier separate ledger-only PR requirement and October 5 deadline are superseded by the direct owner. Historical PR_2463 mapping stays unchanged. No September implementation is repeated; separate CD/pgvector failure remains #2455-owned.
   - Area: security / CI / static analysis
   - Reason: The original scanner observation was 53 September entries in 22 files; full frozen reconciliation adds two root `conftest.py` entries, giving 55 in 23 files at c32e61e85c9d02e7a22bd006462435eaf7bbfe7d, unchanged at b04d2eb1c9a0ea6a86dd2db18c2b5818432f97d9. The admitted implementation removes seven stale suppressions, repairs/removes source-fetch B310 plus two avoidable label-name B105 suppressions, and individually renews 45 necessary exceptions through 2026-10-30. Root B110 and nine future-format edits are separate. This is distinct from Docker/Trivy calendar and image-CVE remediation; renewal does not establish vulnerability remediation.
   - Links: `tests/guards/test_nosec_policy_guard.py`, `AGENTS.md` (Bandit / nosec policy), and `scripts/ci/fetch_docker_source_artifacts.py:175` as one affected example.
@@ -5911,10 +5925,10 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Owner: Security/SRE
   - Priority: P1
   - Target PR: PR-TBD-NOSEC-REVIEW-20261030
-  - Status: Scheduled follow-up after the September reassessment PR merges.
+  - Status: Open scheduled follow-up after merged #2463; all 45 retained sites remain due 2026-10-30. DEP-SEC-OCT-1 does not reassess or close them.
   - Reason: Required bounded subprocess operations, one public release reason code and anonymous trusted-host compatibility still need explicit temporary Bandit exceptions. A renewed annotation is not elimination of the underlying rule finding.
   - Links: [September owner evidence](../security/INLINE_NOSEC_TTL_20260930_REASSESSMENT.md), `tests/guards/test_nosec_policy_guard.py`, and `AGENTS.md` (Bandit / nosec policy).
-  - DoD: Reassess every retained site against its live callers and safer alternatives; remove exceptions where feasible, or individually justify an authorized short TTL with real reference; preserve guards and all unrelated future dates, and verify exact-head CI. Keep October 5 source/zlib/ncurses, October 7 Trivy/util-linux and October 28 native Trivy obligations separate.
+  - DoD: Reassess every retained site against its live callers and safer alternatives; remove exceptions where feasible, or individually justify an authorized short TTL with real reference; preserve guards and all unrelated future dates, and verify exact-head CI. Keep the DEP-SEC-OCT-1 source/retained review October 21 and shared expiry October 30 decision, retired util-linux proof and October 28 native Trivy obligations separate; calendar preparation is not human risk acceptance.
 
 <a id="ledger-p1-urllib3-prometheus-handoff-20260930"></a>
 - [ ] P1: Complete the separately owned Python urllib3 advisory remediation handoff
@@ -7522,11 +7536,13 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Remove `docs/security/CVE-2026-29111-systemd.md` (or mark as resolved)
     - Trivy Code Scanning alerts `#573` and `#575` remain closed on `main`
 - [ ] Remove Trivy suppression for ncurses CVE (CVE-2025-69720)
-  - Owner: @katsiaryna_kavaleuskaya
+  - Owner: dependency/security (security-auditor / PulsePlate DevOps)
   - Priority: P1
-  - Target PR: TBD (follow-up after upstream fix)
+  - Target PR: PR-TBD-DEPENDENCY-NEXT-SUBSTANTIVE, the next scheduled substantive Dependency PR after DEP-SEC-OCT-1.
+  - Status: Ultimate remediation remains open; R1 accepted each of the four exact retained tuples for publication after gates. No applicable patched Bookworm package is established at the October 4 cutoff; any new source/backport/ABI/base route needs fresh bounded admission.
   - Review checkpoint (PR #2400, 2026-09-20): Bookworm 6.4-4 remains vulnerable/no-dsa and all four tuples remain in the selected production inventory. Existing predicates retained unchanged; Review-by 2026-09-27, hard expiry 2026-10-07. Continued risk acceptance, not remediation; fresh reduced-policy scans remain pending.
-  - Current review (2026-09-28): Bookworm `ncurses` 6.4-4 remains vulnerable/no-dsa; the four existing package/version/PkgID predicates remain unchanged, and nonempty Trivy `FixedVersion` now excludes suppression. Review-by is 2026-10-05 inclusive; hard expiry remains 2026-10-07. The daily main Nightly Tests forecast is best-effort early warning only; further evidence-based review is required before both deadlines and dates never auto-renew. Actual package upgrade/removal and suppression retirement remain open; current-head strict image/filesystem scans remain required.
+  - Historical review (2026-09-28): Bookworm `ncurses` 6.4-4 remains vulnerable/no-dsa; the four existing package/version/PkgID predicates remain unchanged, and nonempty Trivy `FixedVersion` now excludes suppression. Review-by is 2026-10-05 inclusive; hard expiry remains 2026-10-07. The daily main Nightly Tests forecast is best-effort early warning only; further evidence-based review is required before both deadlines and dates never auto-renew. Actual package upgrade/removal and suppression retirement remain open; current-head strict image/filesystem scans remain required.
+  - Candidate review (DEP-SEC-OCT-1, 2026-10-04): All 4 exact 6.4-4 ordered package/PkgID rows remain raw HIGH, infocmp is present, and native/transitive reachability is not proven absent. Exact equality fixes SEC04-01; no Severity predicate is added. R1 accepts the review October 21/shared expiry October 30 window with no automatic renewal. Actual candidate source/image/native/raw-effective proof passed; exact-head CI, separate merge/post-merge and ultimate retirement remain pending.
   - Reason: Trivy reports Debian bookworm `ncurses` family packages
     (`libncursesw6`, `libtinfo6`, `ncurses-base`, `ncurses-bin`) as vulnerable at
     `6.4-4` with no actionable fixed version in the current bookworm image line as
@@ -7537,9 +7553,9 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `docs/security/CVE-2025-69720-ncurses.md`
     - `.github/workflows/build.yml`
   - DoD:
-    - Debian bookworm publishes a fixed `ncurses` package line (or Trivy reports a
-      fixed version in our image context)
-    - Remove CVE-2025-69720 suppression from `trivy/ignore-policy.rego`
+    - Freshly admit applicable patched occurrences for all four retained rows or executable absence, including the infocmp/terminfo consumer boundary; new source/backport/ABI/base work requires an explicitly bounded scope
+    - Prove actual production/staging/published-image raw evidence and relevant native/negative controls, with no applicable CVE-2025-69720 finding and no suppression fallback
+    - Delete only the obsolete CVE-2025-69720 rule and genuinely dead exclusive controls; preserve unrelated predicates and weekly review/deadlines
     - Remove `docs/security/CVE-2025-69720-ncurses.md` (or mark as resolved)
     - Trivy Code Scanning alerts #572, #574, #576, and #577 remain closed on
       `main`
@@ -7598,24 +7614,23 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] Remove Trivy suppression for util-linux CVE (CVE-2026-53615)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: TBD (branch security/cve-2026-53615-util-linux)
+  - Target PR: DEP-SEC-OCT-1 (`codex/dependency-october-image-review`); terminal ledger closure carries to the next substantive Dependency PR.
+  - Status: RETIRE candidate; old rule/exclusive helpers removed locally, all 8 old native tuples must remain visible. Baseline production/staging/published-main/filesystem consumers support eligibility; actual candidate production/staging raw/native inventory absence and selected filesystem proof passed; merge/post-merge proof remains pending, so this item stays open.
   - Area: security / base-image / code-scanning
   - Finding Type: container base image vulnerability
-  - Reason: Trivy publish scan reports Debian bookworm `util-linux` family packages
+  - Historical reason (2026-07-09): Trivy publish scan reports Debian bookworm `util-linux` family packages
     (`bsdutils`, `libblkid1`, `libmount1`, `libsmartcols1`, `libuuid1`, `mount`,
     `util-linux`, `util-linux-extra`) as HIGH at `2.38.1-5+deb12u3` /
     `1:2.38.1-5+deb12u3` with no actionable fixed version in the current bookworm
-    image line as of 2026-07-09; we suppress narrowly in `trivy/ignore-policy.rego`
-    until Debian bookworm or Trivy metadata catches up.
+    image line as of 2026-07-09. DEP-SEC-OCT-1 removes that obsolete exception after selected-consumer absence evidence; util-linux 2.42.3 remains the source for native libuuid.
   - Links:
-    - `trivy/ignore-policy.rego` (rule for CVE-2026-53615)
+    - `trivy/ignore-policy.rego` (historical policy owner; CVE-2026-53615 rule retired in this candidate)
     - `docs/security/CVE-2026-53615-util-linux.md`
     - https://security-tracker.debian.org/tracker/CVE-2026-53615
     - https://github.com/util-linux/util-linux/security/advisories/GHSA-h4rw-gv36-wmp5
     - `.github/workflows/build.yml`
   - DoD:
-    - Debian bookworm publishes a fixed `util-linux` package line (or Trivy reports a
-      fixed version in our image context)
+    - Every selected actual production/staging/filesystem consumer proves old affected package/finding absence; native controls retain all 8 historical tuples, with complete candidate/terminal evidence
     - Remove CVE-2026-53615 suppression from `trivy/ignore-policy.rego`
     - Remove `docs/security/CVE-2026-53615-util-linux.md` (or mark as resolved)
     - Trivy Code Scanning alerts #623-#630 remain closed on `main`
@@ -7694,7 +7709,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Area: security
   - Finding Type: policy exception
   - Locations:
-    - `trivy/ignore-policy.rego` — Suppression expires: 2026-10-07 for retained residual suppressions
+    - `trivy/ignore-policy.rego` — Suppression expires: 2026-10-30 for locally prepared retained residual suppressions; individual review 2026-10-21 remains conjunctive
     - `.trivyignore` — historical review note remains out of scope for this Rego-only expiry lane
   - Reason: Retained residual unfixed/non-applicable distro CVEs require short review windows; fixed/resolved suppressions were removed instead of extended
   - Links:
@@ -7706,8 +7721,10 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Weekly monitoring for upstream fixes
     - Remove suppressions when fixed versions available
     - Update base image when fixes land
-  - Current bounded review (PR #2400, 2026-09-20): zlib1g 1:1.2.13.dfsg-1 and ncurses 6.4-4 remain vulnerable/no-dsa. Both unchanged rules retain risk with Review-by 2026-09-27 and hard expiry 2026-10-07; CVE-2026-53615 is unchanged. CVE-2026-53613 package-absence and CVE-2026-14456 metadata-correction retirements have separate open entries above. Fresh reduced-policy scans and main evidence remain pending.
-  - Current review (2026-09-28): Bookworm zlib `1:1.2.13.dfsg-1` and ncurses `6.4-4` remain independently vulnerable/no-dsa. Their existing package/version/PkgID predicates remain unchanged; each now excludes a nonempty Trivy `FixedVersion`. Both Review-by dates are 2026-10-05 inclusive; the shared hard expiry is still 2026-10-07 and CVE-2026-53615 is unchanged. The daily main Nightly Tests forecast is best-effort early warning only; further evidence-based review is required before both deadlines and dates never auto-renew. Keep package upgrade/removal and suppression retirement open, and require current-head strict image/filesystem scans before readiness.
+  - Historical bounded review (PR #2400, 2026-09-20): zlib1g 1:1.2.13.dfsg-1 and ncurses 6.4-4 remain vulnerable/no-dsa. Both unchanged rules retain risk with Review-by 2026-09-27 and hard expiry 2026-10-07; CVE-2026-53615 is unchanged. CVE-2026-53613 package-absence and CVE-2026-14456 metadata-correction retirements have separate open entries above. Fresh reduced-policy scans and main evidence remain pending.
+  - Historical review (2026-09-28): Bookworm zlib `1:1.2.13.dfsg-1` and ncurses `6.4-4` remain independently vulnerable/no-dsa. Their existing package/version/PkgID predicates remain unchanged; each now excludes a nonempty Trivy `FixedVersion`. Both Review-by dates are 2026-10-05 inclusive; the shared hard expiry is still 2026-10-07 and CVE-2026-53615 is unchanged. The daily main Nightly Tests forecast is best-effort early warning only; further evidence-based review is required before both deadlines and dates never auto-renew. Keep package upgrade/removal and suppression retirement open, and require current-head strict image/filesystem scans before readiness.
+  - Candidate review (DEP-SEC-OCT-1, 2026-10-04): Review all 4 sources and all 4 CVE families; retain exactly 7 individually R1-accepted zlib/ncurses/OpenSSL tuples, retire obsolete util-linux CVE-2026-53615 and fix exact identities through 121 native controls. zlib/ncurses have no Severity predicate; OpenSSL alone is HIGH-only. Raw 122, six HIGH, legacy MiniZip CRITICAL, zlib MEDIUM and effective 0 remain distinct. Actual candidate source/build/native/raw-effective proof passed. R1 accepts publication after gates; strict current-head CI/review and separate merge/post-merge remain pending. Ultimate removals, October 28 native exceptions, October 30 all 45 nosec sites and the parent Dependency Epic remain open.
+  - Zlib next-remediation outcome: Owner dependency/security; Priority P1; Target PR-TBD-DEPENDENCY-NEXT-SUBSTANTIVE, the next scheduled substantive Dependency PR after DEP-SEC-OCT-1. Reason: no applicable fixed Bookworm package at the October 4 cutoff; any source/backport/ABI/base route needs fresh bounded admission. DoD: admit an applicable patched zlib1g occurrence or executable absence, prove actual production/staging/published-image raw results plus CRC/native consumer and negative controls, and delete only obsolete CVE-2026-27171 rule/exclusive controls. Individually assess newly visible CVE-2026-85091 from the October 5 snapshot: reconcile Debian/upstream applicability, native consumer/reachability and applicable remedies; retain HOLD until that evidence is established, without a new suppression or extension of the CVE-2026-27171 R1 acceptance. Preserve unrelated rules, weekly monitoring and October 21/30 dates until new evidence is admitted; R1 is not remediation or an automatic renewal. Existing ncurses/OpenSSL removal records own their other two individual outcomes.
   - **Historical Rego review: 2026-08-09**
     - PR #929: Removed 4 upstream-fixed CVE suppressions (gpgv, gnutls, p11-kit)
     - PR #930: Extended review-by dates to 2026-05-27 for unfixed CVEs
