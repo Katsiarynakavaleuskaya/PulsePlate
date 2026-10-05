@@ -1686,3 +1686,13 @@ def test_index_docs_guard_rejects_unreadable_staged_blob(docs_diff_repo: Path) -
     (docs_diff_repo / "docs/note.md").write_text("Different unstaged content\n", encoding="utf-8")
     with pytest.raises(AssertionError, match="cannot read proposed Git index diff"):
         _changed_docs_diff()
+
+
+def test_resource_cost_cli_has_exact_backend_and_security_routing() -> None:
+    """The standalone operational tool cannot evade CI via a script-only diff."""
+    selected = ci_risk_profile.build_risk_profile(["scripts/ops/resource_cost_report.py"])
+    sibling = ci_risk_profile.build_risk_profile(["scripts/ops/resource_cost_report.py.bak"])
+    assert selected.backend_shared and selected.run_backend_blocking and selected.run_security
+    assert (
+        not sibling.backend_shared and not sibling.run_backend_blocking and not sibling.run_security
+    )
