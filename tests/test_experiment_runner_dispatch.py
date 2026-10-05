@@ -376,6 +376,8 @@ def _results(backend: str, value: bool = True) -> dict[str, bool | None]:
     results = dispatch._base_probe_results(backend)
     for key in dispatch.REQUIRED_PROBE_KEYS[backend]:
         results[key] = value
+    if backend == "docker" and value:
+        results["outer_host_control"] = False
     return results
 
 
@@ -2130,7 +2132,7 @@ def test_backend_probe_uses_explicit_not_applicable_values() -> None:
         reason="filesystem_isolation_unavailable",
     )
 
-    assert docker.probe_results["outer_host_control"] is None
+    assert docker.probe_results["outer_host_control"] is False
     assert native.probe_results["source_read_only"] is None
     assert docker.strict is True
     assert native.strict is False
@@ -2399,7 +2401,7 @@ def test_apple_host_bind_address_normalizes_hostname_resolution_failure(
         dispatch._discover_apple_host_bind_address(())
 
 
-def test_docker_gateway_preserves_bridge_inspection_without_host_bind_requirement(
+def test_docker_gateway_is_discovered_from_bridge_inspection(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     calls: list[list[str]] = []
@@ -2414,14 +2416,179 @@ def test_docker_gateway_preserves_bridge_inspection_without_host_bind_requiremen
         )
 
     monkeypatch.setattr(dispatch, "_run", fake_run)
-    monkeypatch.setattr(
-        dispatch,
-        "_address_is_bindable",
-        lambda _address: (_ for _ in ()).throw(AssertionError("Docker must not host-bind gateway")),
-    )
-
     assert dispatch._discover_gateway("/usr/local/bin/docker", "docker", None) == "172.17.0.1"
     assert calls == [["/usr/local/bin/docker", "network", "inspect", "bridge"]]
+
+
+@pytest.mark.parametrize("outer_reachable", [True, False])
+@pytest.mark.parametrize("host_address", ["10.0.0.20", "172.17.0.1"])
+def test_docker_canary_requires_host_reachability_and_both_guest_probes_blocked(
+    monkeypatch: pytest.MonkeyPatch, outer_reachable: bool, host_address: str
+) -> None:
+    gateway = "172.17.0.1"
+    listener_addresses: list[str | None] = []
+    codes: list[tuple[str, int]] = []
+    runs: list[list[str]] = []
+    payload = {
+        "guest_platform_supported": True,
+        "host_reachable": outer_reachable,
+        "dns_blocked": True,
+        "direct_ip_blocked": True,
+        "source_read_only": True,
+        "input_read_only": True,
+        "root_read_only": True,
+        "result_volume_writable": True,
+        "private_tmpfs": True,
+    }
+    payloads = iter((payload, {**payload, "host_reachable": False}))
+    monkeypatch.setattr(dispatch, "_discover_gateway", lambda *_args: gateway)
+    monkeypatch.setattr(dispatch, "_discover_host_bind_address", lambda: host_address)
+    monkeypatch.setattr(dispatch, "_create_result_volume", lambda *_args: "result-volume")
+    monkeypatch.setattr(dispatch, "_initialize_result_volume", lambda **_kwargs: True)
+
+    def listener(address: str | None = None) -> nullcontext[tuple[str, int, bool]]:
+        listener_addresses.append(address)
+        return nullcontext((str(address), 43123, True))
+
+    def canary(address: str, port: int) -> str:
+        codes.append((address, port))
+        return "canary-code"
+
+    def run(argv: list[str], **_kwargs: object) -> subprocess.CompletedProcess[str]:
+        runs.append(argv)
+        return subprocess.CompletedProcess(argv, 0, "", "")
+
+    monkeypatch.setattr(dispatch, "_host_listener", listener)
+    monkeypatch.setattr(dispatch, "_canary_code", canary)
+    monkeypatch.setattr(dispatch, "_run", run)
+    monkeypatch.setattr(dispatch, "_parse_canary", lambda _completed: next(payloads))
+    monkeypatch.setattr(dispatch, "_cleanup_container", lambda *_args: True)
+    monkeypatch.setattr(dispatch, "_cleanup_container_resources", lambda **_kwargs: True)
+
+    if outer_reachable:
+        with pytest.raises(dispatch.DispatchError, match="network_isolation_failed"):
+            dispatch._run_container_canary("/usr/local/bin/docker", "docker", _image())
+        assert len(runs) == 1
+    else:
+        result = dispatch._run_container_canary("/usr/local/bin/docker", "docker", _image())
+        assert result["host_listener_ready"] is True
+        assert result["outer_host_control"] is False
+        assert result["inner_host_blocked"] is True
+        assert len(runs) == 2
+    assert listener_addresses == [host_address]
+    assert codes == [(host_address, 43123)]
+    assert all(argv[argv.index("--network") + 1] == "none" for argv in runs)
+
+
+def test_docker_listener_fails_closed_when_no_unique_host_bind_address(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(dispatch, "_discover_gateway", lambda *_args: "172.17.0.1")
+    monkeypatch.setattr(
+        dispatch,
+        "_discover_host_bind_address",
+        lambda: (_ for _ in ()).throw(dispatch.DispatchError("host_listener_unavailable")),
+    )
+    with pytest.raises(dispatch.DispatchError, match="host_listener_unavailable"):
+        dispatch._run_container_canary("/usr/local/bin/docker", "docker", _image())
+
+
+@pytest.mark.parametrize("backend", ["apple-container", "docker"])
+def test_container_unready_listener_rejects_before_guest_and_cleans_owned_resources(
+    monkeypatch: pytest.MonkeyPatch, backend: str
+) -> None:
+    cli = "/usr/local/bin/container" if backend == "apple-container" else "/usr/local/bin/docker"
+    deleted: list[tuple[str, ...]] = []
+    listener_events: list[str] = []
+    monkeypatch.setattr(dispatch, "_discover_apple_runtime_subnets", lambda _cli: ())
+    monkeypatch.setattr(dispatch, "_discover_apple_host_bind_address", lambda _subnets: "10.0.0.20")
+    monkeypatch.setattr(dispatch, "_create_apple_network", lambda _cli: "owned-network")
+    monkeypatch.setattr(dispatch, "_discover_gateway", lambda *_args: "172.17.0.1")
+    monkeypatch.setattr(dispatch, "_discover_host_bind_address", lambda: "10.0.0.20")
+    monkeypatch.setattr(dispatch, "_create_result_volume", lambda *_args: "owned-volume")
+    monkeypatch.setattr(dispatch, "_initialize_result_volume", lambda **_kwargs: True)
+
+    @contextmanager
+    def listener(address: str) -> Iterator[tuple[str, int, bool]]:
+        listener_events.append(address)
+        try:
+            yield address, 43123, False
+        finally:
+            listener_events.append("closed")
+
+    def delete_volume(selected_cli: str, selected_backend: str, name: str) -> bool:
+        deleted.append((selected_cli, selected_backend, name))
+        return True
+
+    def delete_network(selected_cli: str, name: str) -> bool:
+        deleted.append((selected_cli, name))
+        return True
+
+    def unexpected_guest(*_args: object, **_kwargs: object) -> NoReturn:
+        pytest.fail("An unready host listener must reject before either guest starts")
+
+    monkeypatch.setattr(dispatch, "_host_listener", listener)
+    monkeypatch.setattr(dispatch, "_delete_result_volume", delete_volume)
+    monkeypatch.setattr(dispatch, "_delete_apple_network", delete_network)
+    monkeypatch.setattr(dispatch, "_run", unexpected_guest)
+
+    with pytest.raises(dispatch.DispatchError, match="^host_listener_unavailable$"):
+        dispatch._run_container_canary(cli, backend, _image())
+
+    assert listener_events == ["10.0.0.20", "closed"]
+    expected_deleted = [(cli, backend, "owned-volume")]
+    if backend == "apple-container":
+        expected_deleted.append((cli, "owned-network"))
+    assert deleted == expected_deleted
+
+
+@pytest.mark.parametrize("backend", ["apple-container", "docker"])
+@pytest.mark.parametrize(
+    "broken_control",
+    [
+        None,
+        "host_listener_ready",
+        "outer_host_control",
+        "outer_dns_blocked",
+        "outer_direct_ip_blocked",
+        "inner_host_blocked",
+        "inner_dns_blocked",
+        "inner_direct_ip_blocked",
+    ],
+)
+def test_container_probe_requires_every_backend_specific_network_control(
+    monkeypatch: pytest.MonkeyPatch, backend: str, broken_control: str | None
+) -> None:
+    results = _results(backend)
+    if broken_control is not None:
+        results[broken_control] = not results[broken_control]
+    monkeypatch.setattr(dispatch.platform, "system", lambda: "Darwin")
+    monkeypatch.setattr(dispatch.platform, "machine", lambda: "arm64")
+    monkeypatch.setattr(dispatch, "_resolve_cli", lambda name: f"/usr/local/bin/{name}")
+    monkeypatch.setattr(dispatch, "_runtime_version", lambda _cli: "1.1.0")
+    monkeypatch.setattr(dispatch, "_runtime_readiness_reason", lambda *_args: None)
+    monkeypatch.setattr(dispatch, "_inspect_image", lambda *_args: _DIGEST)
+    monkeypatch.setattr(dispatch, "_run_container_canary", lambda *_args: results)
+
+    probe = dispatch.probe_backend(backend, _image())
+
+    assert probe.strict is (broken_control is None)
+    assert probe.blocking_reasons == (
+        () if broken_control is None else ("network_isolation_failed",)
+    )
+    assert probe.probe_results == results
+    assert probe.image_digest == _DIGEST
+    if broken_control is None:
+        assert probe.probe_results["outer_host_control"] is (backend == "apple-container")
+    dispatch.validate_capability_artifact(probe.to_artifact())
+
+
+def test_docker_strict_capability_rejects_forged_reachable_outer_guest() -> None:
+    artifact = _probe("docker", strict=True).to_artifact()
+    forged = json.loads(json.dumps(artifact))
+    forged["probe_results"]["outer_host_control"] = True
+    with pytest.raises(ValueError, match="strict_isolation"):
+        dispatch.validate_capability_artifact(forged)
 
 
 def test_apple_canaries_share_exact_listener_address_on_unique_internal_network(
@@ -2799,6 +2966,104 @@ def test_host_listener_marks_successful_positive_control_ready(
         assert ready is True
 
 
+def test_native_canary_uses_bound_loopback_for_positive_and_isolated_controls(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    listener_addresses: list[str | None] = []
+    canary_addresses: list[tuple[str, int]] = []
+
+    def listener(address: str | None = None) -> nullcontext[tuple[str, int, bool]]:
+        listener_addresses.append(address)
+        return nullcontext((str(address), 43123, True))
+
+    def canary(address: str, port: int) -> str:
+        canary_addresses.append((address, port))
+        return "canary-code"
+
+    monkeypatch.setattr(dispatch.platform, "system", lambda: "Linux")
+    monkeypatch.setattr(dispatch.platform, "machine", lambda: "x86_64")
+    monkeypatch.setattr(dispatch, "_resolve_cli", lambda _name: "/usr/bin/unshare")
+    monkeypatch.setattr(dispatch, "_host_listener", listener)
+    monkeypatch.setattr(dispatch, "_canary_code", canary)
+    monkeypatch.setattr(
+        dispatch,
+        "_run",
+        lambda argv, **_kwargs: subprocess.CompletedProcess(
+            argv,
+            0,
+            json.dumps(
+                {
+                    "guest_platform_supported": True,
+                    "host_reachable": False,
+                    "dns_blocked": True,
+                    "direct_ip_blocked": True,
+                }
+            ),
+            "",
+        ),
+    )
+
+    probe = dispatch.probe_backend("native-linux", _image())
+
+    assert listener_addresses == ["127.0.0.1"]
+    assert canary_addresses == [("127.0.0.1", 43123)]
+    assert probe.probe_results["outer_host_control"] is True
+
+
+@pytest.mark.parametrize(
+    ("listener_ready", "runtime_error", "expected_blocker"),
+    [
+        (False, None, "host_listener_unavailable"),
+        (True, "guest_unshare_unavailable", "guest_unshare_unavailable"),
+        (True, "untrusted runtime detail at 10.0.0.20", "probe_execution_failed"),
+    ],
+)
+def test_native_probe_failure_preserves_closed_reason_and_releases_listener(
+    monkeypatch: pytest.MonkeyPatch,
+    listener_ready: bool,
+    runtime_error: str | None,
+    expected_blocker: str,
+) -> None:
+    listener_events: list[str] = []
+    commands: list[list[str]] = []
+
+    @contextmanager
+    def listener(address: str) -> Iterator[tuple[str, int, bool]]:
+        listener_events.append(address)
+        try:
+            yield address, 43123, listener_ready
+        finally:
+            listener_events.append("closed")
+
+    def failing_runtime(argv: list[str], **_kwargs: object) -> NoReturn:
+        commands.append(argv)
+        assert runtime_error is not None, "Unready listener must not execute unshare"
+        raise dispatch.DispatchError(runtime_error)
+
+    monkeypatch.setattr(dispatch.platform, "system", lambda: "Linux")
+    monkeypatch.setattr(dispatch.platform, "machine", lambda: "x86_64")
+    monkeypatch.setattr(dispatch.platform, "release", lambda: "test-kernel")
+    monkeypatch.setattr(dispatch, "_resolve_cli", lambda _name: "/usr/bin/unshare")
+    monkeypatch.setattr(dispatch, "_host_listener", listener)
+    monkeypatch.setattr(dispatch, "_run", failing_runtime)
+
+    artifact = dispatch.probe_backend("native-linux", _image()).to_artifact()
+
+    assert listener_events == ["127.0.0.1", "closed"]
+    assert len(commands) == int(listener_ready)
+    if commands:
+        assert commands[0][:4] == ["/usr/bin/unshare", "--net", "--map-root-user", sys.executable]
+    assert artifact["blocking_reasons"] == [expected_blocker]
+    assert artifact["strict_isolation"] is False
+    assert artifact["probe_results"]["runtime_available"] is True
+    assert artifact["probe_results"]["host_listener_ready"] is listener_ready
+    assert artifact["probe_results"]["outer_host_control"] is listener_ready
+    assert artifact["runtime_version"] == "test-kernel"
+    assert artifact["image_digest"] == _DIGEST
+    assert "10.0.0.20" not in json.dumps(artifact)
+    dispatch.validate_capability_artifact(artifact)
+
+
 def test_host_bind_address_is_exact_non_loopback_ipv4(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -2824,6 +3089,24 @@ def test_host_bind_address_is_exact_non_loopback_ipv4(
     )
 
     assert dispatch._discover_host_bind_address() == "192.168.100.100"
+
+
+def test_host_bind_address_rejects_multiple_bindable_candidates(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(dispatch.socket, "gethostname", lambda: "local-host")
+    monkeypatch.setattr(
+        dispatch.socket,
+        "getaddrinfo",
+        lambda *_args, **_kwargs: [
+            (dispatch.socket.AF_INET, dispatch.socket.SOCK_STREAM, 6, "", ("10.0.0.10", 0)),
+            (dispatch.socket.AF_INET, dispatch.socket.SOCK_STREAM, 6, "", ("10.0.0.20", 0)),
+        ],
+    )
+    monkeypatch.setattr(dispatch, "_address_is_bindable", lambda _address: True)
+
+    with pytest.raises(dispatch.DispatchError, match="host_listener_unavailable"):
+        dispatch._discover_host_bind_address()
 
 
 def test_probe_cli_requires_immutable_image() -> None:

@@ -44,6 +44,8 @@ setuptools>=83.0.0,<84.0.0
 
 # Control-plane CI tooling only.
 pre-commit~=4.6.1
+# virtualenv: security floor for the complete PR #2455 advisory cutoff.
+virtualenv>=21.14.5
 bandit>=1.9.4
 pip-audit>=2.10.1
 diff-cover~=10.3.0

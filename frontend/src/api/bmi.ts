@@ -1,8 +1,7 @@
 // RU: API клиент для расчета BMI (FREE tier endpoint)
 // EN: API client for BMI calculation (FREE tier endpoint)
 
-import { api } from './client';
-import type { ApiOptions } from './client';
+import { api, type ApiOptions } from './client';
 import type { components } from './schema';
 
 type BMICalculateRequest = components['schemas']['BMICalculateRequest'];

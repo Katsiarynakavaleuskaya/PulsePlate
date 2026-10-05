@@ -1,14 +1,15 @@
-import js from '@eslint/js';
-import tseslint from 'typescript-eslint';
+const js = require('@eslint/js');
+const tseslint = require('typescript-eslint');
 
-export default tseslint.config(
+module.exports = tseslint.config(
   {
     ignores: [
       'node_modules/**',
       'dist/**',
       'public/**',
       '**/*.d.ts',
-      '**/mockServiceWorker.js'
+      '**/mockServiceWorker.js',
+      'src/api/schema.ts'
     ]
   },
   js.configs.recommended,
