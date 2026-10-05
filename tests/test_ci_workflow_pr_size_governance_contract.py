@@ -5781,3 +5781,271 @@ def test_orchestration_numeric_diff_consumer_retains_aggregate_97_percent(
     assert (result.returncode == 0) is expected_pass
     assert "Total:   100 lines" in result.stdout
     assert f"Coverage: {100 - uncovered}%" in result.stdout
+
+
+FOUNDATION_LINT_COMMAND = (
+    'eslint --config eslint.config.js "src/api/*.ts" "src/api/premium/*.ts" '
+    "src/lib/analytics.ts --max-warnings=0"
+)
+FOUNDATION_NATIVE_STEP = "Verify foundation ESLint native controls"
+FOUNDATION_LINT_STEP = "Lint API and foundation scope"
+# Public SHA256 integrity digests bind the tracked config/workflow, not credentials.
+# Native ESLint/npm execution supplies tool semantics; Python does not interpret JS or shell.
+FOUNDATION_CONFIG_SHA256 = (
+    "33c678e5f8a86963dae24419a2d2e4f798d300c477ff7756046539edbe3c1214"  # pragma: allowlist secret
+)
+FOUNDATION_NATIVE_RUN_SHA256 = (
+    "034896f507c276d34d1574f02cc265e4c83c81f3f4f91dfe4d8b255b702be0c5"  # pragma: allowlist secret
+)
+
+
+def _assert_frontend_node24_foundation_contract(
+    package: dict[str, object], workflow: dict[str, object], config_source: str
+) -> None:
+    """Bind the existing exact production command and reviewed CI control carriers."""
+    scripts = package["scripts"]
+    dependencies = package["devDependencies"]
+    assert isinstance(scripts, dict)
+    assert isinstance(dependencies, dict)
+    assert scripts["lint:foundation"] == FOUNDATION_LINT_COMMAND
+    assert dependencies["@eslint/js"] == "9.39.3"
+    assert dependencies["typescript-eslint"] == "8.71.0"
+    assert "type" not in package
+    assert hashlib.sha256(config_source.encode("utf-8")).hexdigest() == FOUNDATION_CONFIG_SHA256
+    workflow_defaults = workflow.get("defaults", {})
+    assert isinstance(workflow_defaults, dict)
+    workflow_run = workflow_defaults.get("run", {})
+    assert isinstance(workflow_run, dict)
+    assert "shell" not in workflow_run
+    workflow_env = workflow.get("env", {})
+    assert isinstance(workflow_env, dict)
+    assert not {"NODE_OPTIONS", "NODE_PATH"}.intersection(workflow_env)
+    jobs = workflow["jobs"]
+    assert isinstance(jobs, dict)
+    job = jobs["build-and-test"]
+    assert isinstance(job, dict)
+    assert "if" not in job and "continue-on-error" not in job
+    assert job["defaults"] == {"run": {"working-directory": "frontend"}}
+    job_env = job.get("env", {})
+    assert isinstance(job_env, dict)
+    assert not {"NODE_OPTIONS", "NODE_PATH"}.intersection(job_env)
+    steps = job["steps"]
+    assert isinstance(steps, list)
+    installs = [
+        step
+        for step in steps
+        if isinstance(step, dict) and step.get("name") == "Install dependencies"
+    ]
+    assert len(installs) == 1
+    install = installs[0]
+    assert install == {
+        "name": "Install dependencies",
+        "uses": "./.github/actions/npm-ci-with-retry",
+        "with": {"working-directory": "frontend"},
+    }
+    native_steps = [
+        step
+        for step in steps
+        if isinstance(step, dict)
+        and (
+            step.get("name") == FOUNDATION_NATIVE_STEP
+            or isinstance(step.get("run"), str)
+            and hashlib.sha256(cast(str, step["run"]).encode("utf-8")).hexdigest()
+            == FOUNDATION_NATIVE_RUN_SHA256
+        )
+    ]
+    assert len(native_steps) == 1
+    native = native_steps[0]
+    assert set(native) == {"name", "env", "run"}
+    assert native["env"] == {"ESLINT_CONTROL_TIMEOUT_MS": "15000"}
+    assert native["name"] == FOUNDATION_NATIVE_STEP
+    assert isinstance(native["run"], str)
+    assert hashlib.sha256(native["run"].encode("utf-8")).hexdigest() == FOUNDATION_NATIVE_RUN_SHA256
+    lint_steps = [
+        step
+        for step in steps
+        if isinstance(step, dict)
+        and (
+            step.get("name") == FOUNDATION_LINT_STEP or step.get("run") == "npm run lint:foundation"
+        )
+    ]
+    assert len(lint_steps) == 1
+    lint = lint_steps[0]
+    assert lint == {"name": FOUNDATION_LINT_STEP, "run": "npm run lint:foundation"}
+    assert steps.index(install) < steps.index(native) < steps.index(lint)
+
+
+def test_frontend_node24_foundation_command_and_native_controls_are_blocking() -> None:
+    """Structural wiring remains runnable on a Python-only nightly worker."""
+    package = json.loads(FRONTEND_PACKAGE_JSON_PATH.read_text(encoding="utf-8"))
+    workflow = _load_workflow(FRONTEND_CI_WORKFLOW_PATH)
+    config_source = (REPO_ROOT / "frontend/eslint.config.js").read_text(encoding="utf-8")
+    _assert_frontend_node24_foundation_contract(package, workflow, config_source)
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    (
+        "missing_script",
+        "optional_script",
+        "masked_script",
+        "implicit_config",
+        "empty_selector",
+        "missing_premium",
+        "missing_analytics",
+        "warnings_allowed",
+        "missing_dependency",
+        "global_module_mode",
+        "broad_ignore",
+        "weakened_rule",
+        "missing_native",
+        "duplicate_native",
+        "renamed_duplicate_native",
+        "missing_lint",
+        "duplicate_lint",
+        "renamed_duplicate_lint",
+        "install_if",
+        "install_optional",
+        "native_if",
+        "native_optional",
+        "native_shell",
+        "native_cwd",
+        "native_env",
+        "lint_if",
+        "lint_optional",
+        "lint_shell",
+        "lint_cwd",
+        "lint_optional_command",
+        "lint_masked_command",
+        "controls_before_install",
+        "lint_before_controls",
+        "job_if",
+        "job_optional",
+        "job_cwd",
+        "job_shell",
+        "workflow_shell",
+        "job_startup_env",
+        "workflow_startup_env",
+        "missing_clean_control",
+        "missing_error_control",
+        "missing_warning_control",
+        "missing_script_control",
+        "missing_config_control",
+        "missing_empty_control",
+        "missing_ignored_control",
+        "ambient_child_env",
+    ),
+)
+def test_frontend_node24_foundation_guard_rejects_weakened_wiring(mutation: str) -> None:
+    """Reject the finite declared drift classes without an npm/JS/shell interpreter."""
+    package = json.loads(FRONTEND_PACKAGE_JSON_PATH.read_text(encoding="utf-8"))
+    workflow = _load_workflow(FRONTEND_CI_WORKFLOW_PATH)
+    config_source = (REPO_ROOT / "frontend/eslint.config.js").read_text(encoding="utf-8")
+    scripts = package["scripts"]
+    job = cast(dict[str, object], cast(dict[str, object], workflow["jobs"])["build-and-test"])
+    steps = cast(list[dict[str, object]], job["steps"])
+    install = next(step for step in steps if step.get("name") == "Install dependencies")
+    native = next(step for step in steps if step.get("name") == FOUNDATION_NATIVE_STEP)
+    lint = next(step for step in steps if step.get("name") == FOUNDATION_LINT_STEP)
+    if mutation == "missing_script":
+        scripts.pop("lint:foundation")
+    elif mutation in {
+        "optional_script",
+        "masked_script",
+        "implicit_config",
+        "empty_selector",
+        "missing_premium",
+        "missing_analytics",
+        "warnings_allowed",
+    }:
+        replacements = {
+            "optional_script": FOUNDATION_LINT_COMMAND + " --if-present",
+            "masked_script": FOUNDATION_LINT_COMMAND + " || true",
+            "implicit_config": FOUNDATION_LINT_COMMAND.replace("--config eslint.config.js ", ""),
+            "empty_selector": FOUNDATION_LINT_COMMAND.replace('"src/api/*.ts"', '"absent/*.ts"'),
+            "missing_premium": FOUNDATION_LINT_COMMAND.replace(' "src/api/premium/*.ts"', ""),
+            "missing_analytics": FOUNDATION_LINT_COMMAND.replace(" src/lib/analytics.ts", ""),
+            "warnings_allowed": FOUNDATION_LINT_COMMAND.replace(
+                "--max-warnings=0", "--max-warnings=1"
+            ),
+        }
+        scripts["lint:foundation"] = replacements[mutation]
+    elif mutation == "missing_dependency":
+        package["devDependencies"].pop("typescript-eslint")
+    elif mutation == "global_module_mode":
+        package["type"] = "module"
+    elif mutation == "broad_ignore":
+        config_source = config_source.replace("'src/api/schema.ts'", "'src/api/**'")
+    elif mutation == "weakened_rule":
+        config_source = config_source.replace(
+            "'no-duplicate-imports': 'error'", "'no-duplicate-imports': 'off'"
+        )
+    elif mutation in {"missing_native", "missing_lint"}:
+        steps.remove(native if mutation == "missing_native" else lint)
+    elif mutation in {
+        "duplicate_native",
+        "renamed_duplicate_native",
+        "duplicate_lint",
+        "renamed_duplicate_lint",
+    }:
+        duplicate = dict(native if "native" in mutation else lint)
+        if mutation.startswith("renamed_"):
+            duplicate["name"] = "Duplicate renamed control"
+        steps.append(duplicate)
+    elif mutation in {"install_if", "native_if", "lint_if"}:
+        {"install_if": install, "native_if": native, "lint_if": lint}[mutation][
+            "if"
+        ] = "${{ false }}"
+    elif mutation in {"install_optional", "native_optional", "lint_optional"}:
+        {"install_optional": install, "native_optional": native, "lint_optional": lint}[mutation][
+            "continue-on-error"
+        ] = True
+    elif mutation in {"native_shell", "lint_shell"}:
+        (native if mutation == "native_shell" else lint)["shell"] = "bash -c '{0} || true'"
+    elif mutation in {"native_cwd", "lint_cwd"}:
+        (native if mutation == "native_cwd" else lint)["working-directory"] = "."
+    elif mutation == "native_env":
+        native["env"] = {"NODE_OPTIONS": "--require untrusted.cjs"}
+    elif mutation == "lint_optional_command":
+        lint["run"] = "npm run lint:foundation --if-present"
+    elif mutation == "lint_masked_command":
+        lint["run"] = "npm run lint:foundation || true"
+    elif mutation == "controls_before_install":
+        steps.remove(native)
+        steps.insert(steps.index(install), native)
+    elif mutation == "lint_before_controls":
+        steps.remove(lint)
+        steps.insert(steps.index(native), lint)
+    elif mutation == "job_if":
+        job["if"] = "${{ false }}"
+    elif mutation == "job_optional":
+        job["continue-on-error"] = True
+    elif mutation == "job_cwd":
+        job["defaults"] = {"run": {"working-directory": "."}}
+    elif mutation == "job_shell":
+        job["defaults"] = {
+            "run": {"working-directory": "frontend", "shell": "bash -c '{0} || true'"}
+        }
+    elif mutation == "workflow_shell":
+        workflow["defaults"] = {"run": {"shell": "bash -c '{0} || true'"}}
+    elif mutation == "job_startup_env":
+        cast(dict[str, object], job["env"])["NODE_PATH"] = "untrusted"
+    elif mutation == "workflow_startup_env":
+        cast(dict[str, object], workflow["env"])["NODE_OPTIONS"] = "--require untrusted.cjs"
+    else:
+        changes = {
+            "missing_clean_control": ("['clean',", "['disabled-clean',"),
+            "missing_error_control": ("'no-duplicate-imports', 2, 1", "null, 0, 0"),
+            "missing_warning_control": ("'@typescript-eslint/no-explicit-any', 1, 1", "null, 0, 0"),
+            "missing_script_control": ("['run', 'lint:foundation']", "['--version']"),
+            "missing_config_control": ("missing-eslint.config.cjs", "eslint.config.js"),
+            "missing_empty_control": ("absent/*.ts", "clean.ts"),
+            "missing_ignored_control": ("ignores: ['src/api/*.ts']", "ignores: []"),
+            "ambient_child_env": ("const env = {", "const env = { ...process.env,"),
+        }
+        old, new = changes[mutation]
+        source = cast(str, native["run"])
+        assert old in source
+        native["run"] = source.replace(old, new)
+    with pytest.raises((AssertionError, KeyError)):
+        _assert_frontend_node24_foundation_contract(package, workflow, config_source)
