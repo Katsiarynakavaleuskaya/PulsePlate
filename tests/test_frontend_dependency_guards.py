@@ -95,6 +95,24 @@ BRACE_EXPANSION_CURRENT_ADVISORY_RANGE_TEXT = {
         ">=3.0.0,<3.0.6",
         ">=4.0.0,<5.0.9",
     ),
+    "GHSA-6j4f-fj2g-mc7p": (
+        "<1.1.19",
+        ">=2.0.0,<2.1.5",
+        ">=3.0.0,<3.0.7",
+        ">=4.0.0,<5.0.10",
+    ),
+    "GHSA-qhr7-859c-m2p7": (
+        "<1.1.20",
+        ">=2.0.0,<2.1.6",
+        ">=3.0.0,<3.0.8",
+        ">=4.0.0,<5.0.11",
+    ),
+    "GHSA-q2hr-2g5m-vwhr": (
+        "<1.1.21",
+        ">=2.0.0,<2.1.7",
+        ">=3.0.0,<3.0.9",
+        ">=4.0.0,<5.0.12",
+    ),
 }
 BRACE_EXPANSION_CURRENT_ADVISORY_RANGES = {
     advisory: tuple(SpecifierSet(value) for value in ranges)
@@ -1486,17 +1504,19 @@ def _brace_entry(version: str) -> dict[str, str]:
 
 
 def _brace_expansion_guard_fixture() -> tuple[dict, dict]:
+    """Return synthetic current-safe scoped override outputs and installed lock entries."""
+
     return (
         {
             "overrides": {
-                "minimatch@3": {"brace-expansion": "2.1.4"},
-                "minimatch@10": {"brace-expansion": "5.0.9"},
+                "minimatch@3": {"brace-expansion": "2.1.7"},
+                "minimatch@10": {"brace-expansion": "5.0.12"},
             }
         },
         {
             "packages": {
-                "node_modules/brace-expansion": _brace_entry("2.1.4"),
-                "node_modules/glob/node_modules/brace-expansion": _brace_entry("5.0.9"),
+                "node_modules/brace-expansion": _brace_entry("2.1.7"),
+                "node_modules/glob/node_modules/brace-expansion": _brace_entry("5.0.12"),
             }
         },
     )
@@ -2114,12 +2134,14 @@ def test_parse_version_accepts_exact_npm_semver() -> None:
 @pytest.mark.parametrize(
     ("case_id", "version", "allowed"),
     (
-        ("brace-2-below", "2.1.3", False),
-        ("brace-2-floor", "2.1.4", True),
-        ("brace-2-selected", "2.1.4", True),
-        ("brace-5-below", "5.0.8", False),
-        ("brace-5-floor", "5.0.9", True),
-        ("brace-5-selected", "5.0.9", True),
+        ("brace-2-below", "2.1.6", False),
+        ("brace-2-older-record-floor", "2.1.5", False),
+        ("brace-2-floor", "2.1.7", True),
+        ("brace-2-selected", "2.1.7", True),
+        ("brace-5-below", "5.0.11", False),
+        ("brace-5-older-record-floor", "5.0.10", False),
+        ("brace-5-floor", "5.0.12", True),
+        ("brace-5-selected", "5.0.12", True),
     ),
 )
 def test_brace_expansion_current_advisory_boundaries(
@@ -2127,13 +2149,13 @@ def test_brace_expansion_current_advisory_boundaries(
     version: str,
     allowed: bool,
 ) -> None:
-    """The successor advisory owns both exact floor and selected-target controls."""
+    """Universal current safety includes every cutoff, not an older record-local floor."""
 
     assert case_id
     if allowed:
         _assert_brace_expansion_head_postcondition({Version(version)})
         return
-    with pytest.raises(AssertionError, match="GHSA-rgw5-rvv9-x895"):
+    with pytest.raises(AssertionError, match="governed head occurrence remains affected"):
         _assert_brace_expansion_head_postcondition({Version(version)})
 
 
@@ -2461,11 +2483,11 @@ def test_brace_expansion_current_postcondition_allows_safe_graph_evolution(case:
         del package_json["overrides"]["minimatch@3"]
         del packages["node_modules/brace-expansion"]
     elif case == "safe-patch-2":
-        package_json["overrides"]["minimatch@3"]["brace-expansion"] = "2.1.5"
-        packages["node_modules/brace-expansion"].update(_brace_entry("2.1.5"))
+        package_json["overrides"]["minimatch@3"]["brace-expansion"] = "2.1.8"
+        packages["node_modules/brace-expansion"].update(_brace_entry("2.1.8"))
     elif case == "safe-patch-5":
-        package_json["overrides"]["minimatch@10"]["brace-expansion"] = "5.0.10"
-        packages["node_modules/glob/node_modules/brace-expansion"].update(_brace_entry("5.0.10"))
+        package_json["overrides"]["minimatch@10"]["brace-expansion"] = "5.0.13"
+        packages["node_modules/glob/node_modules/brace-expansion"].update(_brace_entry("5.0.13"))
     elif case == "safe-new-lock-major":
         packages["node_modules/future/node_modules/brace-expansion"] = _brace_entry("6.0.0")
     else:
@@ -2532,7 +2554,7 @@ def test_brace_expansion_targeted_head_evidence_binds_discovered_records(case: s
     assert len(nested_records) == 1, "expected exactly one discovered nested brace-expansion record"
     nested_path, nested = next(iter(nested_records.items()))
     assert (
-        nested.get("version") == BRACE_EXPANSION_APPROVED_OUTPUTS[5]
+        nested.get("version") == package_json["overrides"]["minimatch@10"]["brace-expansion"]
     ), f"{nested_path}: expected the approved nested brace-expansion record"
 
     if case == "integrity":
@@ -2820,10 +2842,10 @@ def test_brace_expansion_postcondition_includes_base_non_applicable_candidates(
     monkeypatch.setitem(
         BRACE_EXPANSION_CURRENT_ADVISORY_RANGES,
         "GHSA-f886-m6hf-6m8v",
-        (SpecifierSet("==2.1.4"),),
+        (SpecifierSet("==2.1.7"),),
     )
     with pytest.raises(AssertionError, match="GHSA-f886-m6hf-6m8v"):
-        _assert_brace_expansion_head_postcondition({Version("2.1.4"), Version("5.0.9")})
+        _assert_brace_expansion_head_postcondition({Version("2.1.7"), Version("5.0.12")})
 
 
 @pytest.mark.parametrize(
@@ -2877,7 +2899,7 @@ def test_frontend_brace_expansion_class_fails_closed(case: str, message: str) ->
     if case == "affected-lock-output":
         packages["node_modules/future-carrier/node_modules/brace-expansion"] = _brace_entry("2.0.3")
     elif case == "lock-only-safe-patch":
-        root.update(_brace_entry("2.1.5"))
+        root.update(_brace_entry("2.1.8"))
     elif case == "extra-override-carrier":
         package_json["overrides"]["future-carrier"] = {"nested": {"brace-expansion": "2.1.3"}}
     elif case == "missing-lock-output":
@@ -2972,7 +2994,7 @@ def test_frontend_brace_expansion_class_fails_closed(case: str, message: str) ->
     elif case == "integrity":
         root["integrity"] = ""
     elif case == "manifest-lock":
-        package_json["overrides"]["minimatch@3"]["brace-expansion"] = "2.1.5"
+        package_json["overrides"]["minimatch@3"]["brace-expansion"] = "2.1.8"
     elif case == "blanket":
         package_json["overrides"]["brace-expansion"] = "5.0.8"
     elif case == "selector-override":
@@ -4949,3 +4971,51 @@ def test_vitest_guard_rejects_invalid_native_expect_edge() -> None:
     _assert_vitest_security_surfaces(surfaces)
     with pytest.raises(AssertionError, match="npm virtual graph"):
         _assert_npm_virtual_lock_graphs(surfaces=surfaces)
+
+
+def test_brace_expansion_current_cutoff_retains_all_ten_candidates() -> None:
+    """The reconciled October cutoff retains applicable and base-non-applicable records."""
+    assert BRACE_EXPANSION_CURRENT_ADVISORIES == frozenset(
+        {
+            "GHSA-3jxr-9vmj-r5cp",
+            "GHSA-832h-xg76-4gv6",
+            "GHSA-f886-m6hf-6m8v",
+            "GHSA-jxxr-4gwj-5jf2",
+            "GHSA-mh99-v99m-4gvg",
+            "GHSA-v6h2-p8h4-qcjw",
+            "GHSA-rgw5-rvv9-x895",
+            "GHSA-6j4f-fj2g-mc7p",
+            "GHSA-qhr7-859c-m2p7",
+            "GHSA-q2hr-2g5m-vwhr",
+        }
+    )
+
+
+@pytest.mark.parametrize(
+    ("advisory", "range_text", "below", "floor", "selected"),
+    (
+        ("GHSA-6j4f-fj2g-mc7p", "<1.1.19", "1.1.18", "1.1.19", "1.1.21"),
+        ("GHSA-6j4f-fj2g-mc7p", ">=2.0.0,<2.1.5", "2.1.4", "2.1.5", "2.1.7"),
+        ("GHSA-6j4f-fj2g-mc7p", ">=3.0.0,<3.0.7", "3.0.6", "3.0.7", "3.0.9"),
+        ("GHSA-6j4f-fj2g-mc7p", ">=4.0.0,<5.0.10", "4.0.0", "5.0.10", "5.0.12"),
+        ("GHSA-6j4f-fj2g-mc7p", ">=4.0.0,<5.0.10", "5.0.9", "5.0.10", "5.0.12"),
+        ("GHSA-qhr7-859c-m2p7", "<1.1.20", "1.1.19", "1.1.20", "1.1.21"),
+        ("GHSA-qhr7-859c-m2p7", ">=2.0.0,<2.1.6", "2.1.5", "2.1.6", "2.1.7"),
+        ("GHSA-qhr7-859c-m2p7", ">=3.0.0,<3.0.8", "3.0.7", "3.0.8", "3.0.9"),
+        ("GHSA-qhr7-859c-m2p7", ">=4.0.0,<5.0.11", "4.0.0", "5.0.11", "5.0.12"),
+        ("GHSA-qhr7-859c-m2p7", ">=4.0.0,<5.0.11", "5.0.10", "5.0.11", "5.0.12"),
+        ("GHSA-q2hr-2g5m-vwhr", "<1.1.21", "1.1.20", "1.1.21", "1.1.21"),
+        ("GHSA-q2hr-2g5m-vwhr", ">=2.0.0,<2.1.7", "2.1.6", "2.1.7", "2.1.7"),
+        ("GHSA-q2hr-2g5m-vwhr", ">=3.0.0,<3.0.9", "3.0.8", "3.0.9", "3.0.9"),
+        ("GHSA-q2hr-2g5m-vwhr", ">=4.0.0,<5.0.12", "4.0.0", "5.0.12", "5.0.12"),
+        ("GHSA-q2hr-2g5m-vwhr", ">=4.0.0,<5.0.12", "5.0.11", "5.0.12", "5.0.12"),
+    ),
+)
+def test_brace_expansion_new_cutoff_record_boundaries(
+    advisory: str, range_text: str, below: str, floor: str, selected: str
+) -> None:
+    """Each new major branch has record-local affected, floor and selected controls."""
+    assert range_text in BRACE_EXPANSION_CURRENT_ADVISORY_RANGE_TEXT[advisory]
+    assert _version_is_affected(version=Version(below), advisory=advisory)
+    assert not _version_is_affected(version=Version(floor), advisory=advisory)
+    assert not _version_is_affected(version=Version(selected), advisory=advisory)

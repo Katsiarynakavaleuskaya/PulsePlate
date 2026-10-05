@@ -1,8 +1,7 @@
 // RU: API клиент с поддержкой серверной cookie-сессии. Обрабатывает 401 ошибки, перенаправляя на страницу входа.
 // EN: API client with server-session cookie support. Handles 401 errors by redirecting to key entry page.
 
-import { logError } from "../lib/analytics";
-import type { ClientPaywallExposureEventName } from "../lib/analytics";
+import { logError, type ClientPaywallExposureEventName } from "../lib/analytics";
 import { clearStoredApiKey } from "../auth/storage";
 import type { components } from "./schema";
 
@@ -21,7 +20,7 @@ export interface ApiClientDependencies {
 const defaultDependencies: ApiClientDependencies = {
   getStoredApiKey: () => null,
   clearStoredApiKey,
-  apiBase: ((import.meta as any).env?.VITE_API_BASE || "") as string,
+  apiBase: import.meta.env?.VITE_API_BASE || "",
 };
 
 /**
@@ -484,7 +483,7 @@ export async function api<T = unknown>(
     let forceJsonForBody = forceJson;
 
     // Serialize ONLY plain objects/arrays; keep FormData/Blob/ArrayBuffer/ReadableStream/File/Response/Request AS-IS.
-    const body = requestBody as any;
+    const body = requestBody;
     const isPlainObjectOrArray =
       body &&
       typeof body === "object" &&
@@ -500,7 +499,7 @@ export async function api<T = unknown>(
       body instanceof ArrayBuffer ||
       // ReadableStream or any object exposing arrayBuffer() (e.g., File/Response/Request):
       body instanceof ReadableStream ||
-      typeof body?.arrayBuffer === "function";
+      typeof (body as { arrayBuffer?: unknown } | null | undefined)?.arrayBuffer === "function";
 
     if (isPlainObjectOrArray && !isForbiddenBinaryLike) {
       serializedBody = JSON.stringify(body);
