@@ -5799,13 +5799,17 @@ FOUNDATION_LINT_COMMAND = (
 )
 FOUNDATION_NATIVE_STEP = "Verify foundation ESLint native controls"
 FOUNDATION_LINT_STEP = "Lint API and foundation scope"
+UI_LINT_COMMAND = (
+    'eslint --config eslint.config.js "src/components/ui/**/*.{ts,tsx}" --max-warnings=0'
+)
+UI_LINT_STEP = "Lint UI primitives"
 # Public SHA256 integrity digests bind the tracked config/workflow, not credentials.
 # Native ESLint/npm execution supplies tool semantics; Python does not interpret JS or shell.
 FOUNDATION_CONFIG_SHA256 = (
     "33c678e5f8a86963dae24419a2d2e4f798d300c477ff7756046539edbe3c1214"  # pragma: allowlist secret
 )
 FOUNDATION_NATIVE_RUN_SHA256 = (
-    "034896f507c276d34d1574f02cc265e4c83c81f3f4f91dfe4d8b255b702be0c5"  # pragma: allowlist secret
+    "540e1b891e7980920587e5d47806ddc1e8c8b45e7ffb0b3e7ec85729b7768739"  # pragma: allowlist secret
 )
 
 
@@ -5818,6 +5822,7 @@ def _assert_frontend_node24_foundation_contract(
     assert isinstance(scripts, dict)
     assert isinstance(dependencies, dict)
     assert scripts["lint:foundation"] == FOUNDATION_LINT_COMMAND
+    assert scripts["lint:ui"] == UI_LINT_COMMAND
     assert dependencies["@eslint/js"] == "9.39.3"
     assert dependencies["typescript-eslint"] == "8.71.0"
     assert "type" not in package
@@ -5844,7 +5849,11 @@ def _assert_frontend_node24_foundation_contract(
     installs = [
         step
         for step in steps
-        if isinstance(step, dict) and step.get("name") == "Install dependencies"
+        if isinstance(step, dict)
+        and (
+            step.get("name") == "Install dependencies"
+            or step.get("uses") == "./.github/actions/npm-ci-with-retry"
+        )
     ]
     assert len(installs) == 1
     install = installs[0]
@@ -5882,7 +5891,33 @@ def _assert_frontend_node24_foundation_contract(
     assert len(lint_steps) == 1
     lint = lint_steps[0]
     assert lint == {"name": FOUNDATION_LINT_STEP, "run": "npm run lint:foundation"}
-    assert steps.index(install) < steps.index(native) < steps.index(lint)
+    ui_steps = [
+        step
+        for step in steps
+        if isinstance(step, dict)
+        and (step.get("name") == UI_LINT_STEP or step.get("run") == "npm run lint:ui")
+    ]
+    assert len(ui_steps) == 1
+    ui = ui_steps[0]
+    assert ui == {"name": UI_LINT_STEP, "run": "npm run lint:ui"}
+    assert steps.index(install) < steps.index(native) < steps.index(lint) < steps.index(ui)
+    for name, command in (
+        ("Run vitest suite", "npm run test -- --coverage"),
+        ("Build frontend", "npm run build"),
+    ):
+        consumers = [
+            step
+            for step in steps
+            if isinstance(step, dict) and (step.get("name") == name or step.get("run") == command)
+        ]
+        assert len(consumers) == 1
+        consumer = consumers[0]
+        assert consumer["name"] == name and consumer["run"] == command
+        assert not {"if", "continue-on-error", "shell", "working-directory"}.intersection(consumer)
+        consumer_env = consumer.get("env", {})
+        assert isinstance(consumer_env, dict)
+        assert not {"NODE_OPTIONS", "NODE_PATH"}.intersection(consumer_env)
+        assert steps.index(ui) < steps.index(consumer)
 
 
 def test_frontend_node24_foundation_command_and_native_controls_are_blocking() -> None:
@@ -6129,3 +6164,253 @@ else:
             "tests/test_staging_runtime_diagnostics.py",
             "tests/test_resource_cost_report.py",
         ]
+
+
+def test_frontend_node24_ui_command_and_native_controls_are_blocking() -> None:
+    """UI and foundation share the reviewed carrier; native execution is separate evidence."""
+    package = json.loads(FRONTEND_PACKAGE_JSON_PATH.read_text(encoding="utf-8"))
+    workflow = _load_workflow(FRONTEND_CI_WORKFLOW_PATH)
+    config_source = (REPO_ROOT / "frontend/eslint.config.js").read_text(encoding="utf-8")
+    _assert_frontend_node24_foundation_contract(package, workflow, config_source)
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    (
+        "missing_ui_script",
+        "optional_ui_script",
+        "masked_ui_script",
+        "implicit_ui_config",
+        "shallow_ui_selector",
+        "empty_ui_selector",
+        "wrong_ui_selector",
+        "ui_warnings_allowed",
+        "missing_ui_step",
+        "duplicate_ui_step",
+        "renamed_duplicate_ui_step",
+        "ui_if",
+        "ui_optional",
+        "ui_shell",
+        "ui_cwd",
+        "ui_env",
+        "ui_optional_command",
+        "ui_masked_command",
+        "ui_before_install",
+        "ui_before_native",
+        "ui_after_vitest",
+        "ui_after_build",
+        "renamed_duplicate_install",
+        "missing_install",
+        "missing_vitest",
+        "missing_build",
+        "outer_relative_node",
+        "missing_recursion",
+        "missing_nonempty",
+        "missing_nonignore",
+        "collapsed_results",
+        "missing_equality",
+        "missing_nested",
+        "missing_omitted",
+        "missing_single_ignore",
+        "missing_all_ignore",
+        "missing_empty_directory",
+        "missing_declaration_directory",
+        "missing_clean_tsx",
+        "missing_error_tsx",
+        "missing_warning_tsx",
+        "missing_ui_script_control",
+        "missing_ui_unmatched",
+        "missing_fatal_check",
+        "missing_clean_error_count",
+        "missing_clean_warning_count",
+        "missing_message_fatal_check",
+        "missing_cleanup",
+        "missing_restored_inventory",
+        "ambient_ui_child_env",
+        "unbounded_ui_child",
+        "vitest_if",
+        "vitest_optional",
+        "vitest_shell",
+        "vitest_cwd",
+        "vitest_startup_env",
+        "renamed_duplicate_vitest",
+        "build_if",
+        "build_optional",
+        "build_shell",
+        "build_cwd",
+        "build_startup_env",
+        "renamed_duplicate_build",
+    ),
+)
+def test_frontend_node24_ui_guard_rejects_weakened_wiring(mutation: str) -> None:
+    """Finite carrier mutations run without Node and cannot claim ESLint execution."""
+    package = json.loads(FRONTEND_PACKAGE_JSON_PATH.read_text(encoding="utf-8"))
+    workflow = _load_workflow(FRONTEND_CI_WORKFLOW_PATH)
+    config_source = (REPO_ROOT / "frontend/eslint.config.js").read_text(encoding="utf-8")
+    scripts = package["scripts"]
+    job = cast(dict[str, object], cast(dict[str, object], workflow["jobs"])["build-and-test"])
+    steps = cast(list[dict[str, object]], job["steps"])
+    install = next(step for step in steps if step.get("name") == "Install dependencies")
+    native = next(step for step in steps if step.get("name") == FOUNDATION_NATIVE_STEP)
+    ui = next(step for step in steps if step.get("name") == UI_LINT_STEP)
+    vitest = next(step for step in steps if step.get("name") == "Run vitest suite")
+    build = next(step for step in steps if step.get("name") == "Build frontend")
+    script_replacements = {
+        "optional_ui_script": ("--max-warnings=0", "--max-warnings=0 --if-present"),
+        "masked_ui_script": ("--max-warnings=0", "--max-warnings=0 || true"),
+        "implicit_ui_config": ("--config eslint.config.js ", ""),
+        "shallow_ui_selector": ("ui/**/*.{ts,tsx}", "ui/*.{ts,tsx}"),
+        "empty_ui_selector": ("src/components/ui/**/*.{ts,tsx}", "absent/**/*.{ts,tsx}"),
+        "wrong_ui_selector": ("src/components/ui/**/*.{ts,tsx}", "src/api/*.ts"),
+        "ui_warnings_allowed": ("--max-warnings=0", "--max-warnings=1"),
+    }
+    if mutation == "missing_ui_script":
+        scripts.pop("lint:ui")
+    elif mutation in script_replacements:
+        old, new = script_replacements[mutation]
+        assert old in scripts["lint:ui"]
+        scripts["lint:ui"] = scripts["lint:ui"].replace(old, new)
+    elif mutation in {"missing_ui_step", "missing_install", "missing_vitest", "missing_build"}:
+        steps.remove(
+            {
+                "missing_ui_step": ui,
+                "missing_install": install,
+                "missing_vitest": vitest,
+                "missing_build": build,
+            }[mutation]
+        )
+    elif mutation in {
+        "duplicate_ui_step",
+        "renamed_duplicate_ui_step",
+        "renamed_duplicate_install",
+    }:
+        duplicate = dict(install if mutation == "renamed_duplicate_install" else ui)
+        if mutation.startswith("renamed_"):
+            duplicate["name"] = "Renamed duplicate UI carrier"
+        steps.append(duplicate)
+    elif mutation in {"ui_if", "ui_optional", "ui_shell", "ui_cwd", "ui_env"}:
+        settings: dict[str, tuple[str, object]] = {
+            "ui_if": ("if", "${{ false }}"),
+            "ui_optional": ("continue-on-error", True),
+            "ui_shell": ("shell", "bash -c '{0} || true'"),
+            "ui_cwd": ("working-directory", "."),
+            "ui_env": ("env", {"NODE_OPTIONS": "--require untrusted.cjs"}),
+        }
+        key, value = settings[mutation]
+        ui[key] = value
+    elif mutation in {"ui_optional_command", "ui_masked_command"}:
+        ui["run"] = "npm run lint:ui" + (
+            " --if-present" if mutation == "ui_optional_command" else " || true"
+        )
+    elif mutation in {"ui_before_install", "ui_before_native", "ui_after_vitest", "ui_after_build"}:
+        target = {
+            "ui_before_install": install,
+            "ui_before_native": native,
+            "ui_after_vitest": vitest,
+            "ui_after_build": build,
+        }[mutation]
+        steps.remove(ui)
+        steps.insert(steps.index(target) + (1 if mutation.startswith("ui_after_") else 0), ui)
+    elif mutation in {
+        "vitest_if",
+        "vitest_optional",
+        "vitest_shell",
+        "vitest_cwd",
+        "vitest_startup_env",
+        "renamed_duplicate_vitest",
+        "build_if",
+        "build_optional",
+        "build_shell",
+        "build_cwd",
+        "build_startup_env",
+        "renamed_duplicate_build",
+    }:
+        consumer = vitest if "vitest" in mutation else build
+        if mutation.startswith("renamed_duplicate_"):
+            duplicate = dict(consumer)
+            duplicate["name"] = "Renamed duplicate validation consumer"
+            steps.append(duplicate)
+        elif mutation.endswith("_startup_env"):
+            env = dict(cast(dict[str, object], consumer.get("env", {})))
+            env["NODE_OPTIONS"] = "--require untrusted.cjs"
+            consumer["env"] = env
+        else:
+            consumer_settings: dict[str, tuple[str, object]] = {
+                "if": ("if", "${{ false }}"),
+                "optional": ("continue-on-error", True),
+                "shell": ("shell", "bash -c '{0} || true'"),
+                "cwd": ("working-directory", "."),
+            }
+            key, value = consumer_settings[mutation.split("_", 1)[1]]
+            consumer[key] = value
+    else:
+        replacements = {
+            "outer_relative_node": ('"$node_binary" -', "node -"),
+            "missing_recursion": ("files.push(...enumerateUI(file))", "files.push(file)"),
+            "missing_nonempty": ("assert.ok(files.length > 0,", "assert.ok(true,"),
+            "missing_nonignore": (
+                "assert.ok((await engine.isPathIgnored(file)) === false,",
+                "assert.ok(true,",
+            ),
+            "collapsed_results": (
+                "report.map(result => result.filePath).sort()",
+                "[...new Set(report.map(result => result.filePath))].sort()",
+            ),
+            "missing_equality": (
+                "actual.length === inventory.length && "
+                "actual.every((file, index) => file === inventory[index])",
+                "true",
+            ),
+            "missing_nested": (
+                "await assertUIMembership(eslint, [uiPattern], nestedUI)",
+                "await eslint.lintFiles(originalUI)",
+            ),
+            "missing_omitted": ("originalUI.slice(1), originalUI", "originalUI, originalUI"),
+            "missing_single_ignore": ("ignores: [ignoredMember]", "ignores: []"),
+            "missing_all_ignore": ("ignores: ['src/components/ui/**']", "ignores: []"),
+            "missing_empty_directory": (
+                "assert.throws(() => requireUISelection(directory)",
+                "assert.throws(() => requireUISelection(uiRoot)",
+            ),
+            "missing_declaration_directory": ("name.endsWith('.d.ts')", "name.endsWith('.never')"),
+            "missing_clean_tsx": ("['ui-clean',", "['disabled-ui-clean',"),
+            "missing_error_tsx": ("['ui-error',", "['disabled-ui-error',"),
+            "missing_warning_tsx": ("['ui-warning',", "['disabled-ui-warning',"),
+            "missing_ui_script_control": ("['run', 'lint:ui']", "['--version']"),
+            "missing_ui_unmatched": ("absent-ui/**/*.tsx", "ui-clean.tsx"),
+            "missing_fatal_check": (
+                "assert.equal(report[0].fatalErrorCount, 0)",
+                "assert.ok(true)",
+            ),
+            "missing_clean_error_count": (
+                "assert.equal(report[0].errorCount, severity === 2 ? 1 : 0)",
+                "assert.ok(true)",
+            ),
+            "missing_clean_warning_count": (
+                "assert.equal(report[0].warningCount, severity === 1 ? 1 : 0)",
+                "assert.ok(true)",
+            ),
+            "missing_message_fatal_check": (
+                "assert.notEqual(messages[0].fatal, true)",
+                "assert.ok(true)",
+            ),
+            "missing_cleanup": (
+                "if (uiFixtures) fs.rmSync(uiFixtures, { recursive: true, force: true })",
+                "if (uiFixtures) console.log('left fixture')",
+            ),
+            "missing_restored_inventory": (
+                "assert.deepEqual(restoredUI, originalUI)",
+                "assert.ok(true)",
+            ),
+            "ambient_ui_child_env": ("const env = {", "const env = { ...process.env,"),
+            "unbounded_ui_child": (
+                "encoding: 'utf8', timeout, maxBuffer: 1024 * 1024",
+                "encoding: 'utf8'",
+            ),
+        }
+        old, new = replacements[mutation]
+        source = cast(str, native["run"])
+        assert old in source, mutation
+        native["run"] = source.replace(old, new)
+    with pytest.raises((AssertionError, KeyError)):
+        _assert_frontend_node24_foundation_contract(package, workflow, config_source)
