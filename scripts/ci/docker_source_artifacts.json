@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-09-28",
-  "review_by": "2026-10-05",
-  "reason": "Reviewed official SQLite and util-linux sources for the existing bounded native runtime-library build. Fetch and checksum verification precede Docker builds.",
+  "generated_at": "2026-10-04",
+  "review_by": "2026-10-21",
+  "reason": "Reviewed official SQLite 3.53.2, util-linux 2.42.3, PCRE2 10.49 and its exact upstream SLJIT gitlink sources for the existing bounded native runtime-library builds. All four archive identities and digests are retained; fetch and checksum verification precede Docker builds.",
   "artifacts": [
     {
       "name": "sqlite-autoconf",

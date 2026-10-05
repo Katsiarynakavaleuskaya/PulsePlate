@@ -154,6 +154,65 @@ Evidence: `scripts/ci/docker_source_artifacts.json:3`,
 `tests/test_docker_workflow_build_path_contract.py:344`,
 `scripts/ci/fetch_docker_source_artifacts.py:93`.
 
+## Docker source review checkpoint — 2026-10-04 candidate
+
+DEP-SEC-OCT-1 reviews all four existing source records independently: SQLite
+3.53.2/autoconf 3530200 (3,279,926 bytes), util-linux 2.42.3 (23,193,616 bytes),
+PCRE2 10.49 (3,454,764 bytes), and upstream SLJIT
+`de0259c7aaf36aa40cba8014f3fad3edde9307f9` (1,466,254 bytes).
+The retained October 4 acquisition matches each reviewed manifest digest;
+util-linux also matches the independent kernel.org SHA256 publication, and
+PCRE2's upstream tag/tree binds the exact SLJIT gitlink. Fetched-byte equality
+is separate from provenance approval, signatures or vulnerability clearance.
+
+The prepared manifest sets actual review day generated_at 2026-10-04 and
+review_by 2026-10-21 inclusive; October 22 rejects before acquisition. Its
+reason now covers all four archives. Names, versions, filenames, URLs,
+ordering and every digest part stay unchanged. TLS, rejecting every redirect,
+finite codeload identities, network-boundary URL revalidation and source/cache
+filesystem controls remain in their existing owner. util-linux stays the
+libuuid source even while its old Debian CVE-2026-53615 exception is retired.
+
+Historical source receipts remain baseline evidence. The actual candidate
+cache/digest verification now passed for all four original archives, and both
+linux/amd64 production/staging builds, final-user SQLite/UUID/PCRE2 consumers
+and native inventory/raw/effective report bindings passed. Exact-head CI and
+post-merge published/main proof remain separate requirements. No latest-release, patched-all-CVEs, raw-clean, publication or deployment
+claim follows. Evidence: `scripts/ci/docker_source_artifacts.json:3`,
+`scripts/ci/fetch_docker_source_artifacts.py:141`,
+`tests/test_docker_workflow_build_path_contract.py:346`, `Dockerfile:528`.
+
+### Observed candidate checkpoint — 2026-10-04
+
+The parent-owned candidate source fetch verified all four original archives
+through the existing cache/digest checks. Actual `linux/amd64` production and
+staging builds completed. The local image/report identities are production
+`sha256:479b9a29f9057c11fc2254a92bf4f93afb105c14616e6584906750aede4158dd`
+and staging
+`sha256:3908136c58026b847cf59f4bb4ca4c19ff8093fde1f67f43ad4513629be3bf77`.
+Native inventory and raw-report guards passed; saved inspect/raw/effective
+ImageID equality and report hashes retain the same subjects. These are local
+candidate identities, distinct from the independent published exact-main
+registry/CI baseline receipt; candidate publication is not claimed.
+
+Pinned Trivy 0.74.0 used the isolated frozen database SHA256
+`f6ec609f9d4220d61692d0ab640b06e461485b636f9b407f3784cc0fbbf2711b`.
+Each raw image report contains 122 findings: six HIGH, one independent legacy
+MiniZip CRITICAL, 64 MEDIUM, 48 LOW and three UNKNOWN, with zero secrets.
+Selected effective HIGH/CRITICAL count is zero; this is filtering, not raw-clean
+or patched-package proof. All eight old Debian util-linux family packages are
+absent in both actual candidate inventories. The selected filesystem report
+contains one LOW, no HIGH/CRITICAL, no secrets and no CVE-2026-53615 finding;
+its effective report retains zero.
+
+The unchanged Dockerfile's post-pruning native UUID and PCRE2 UTF/UCP/JIT and
+libselinux/grep/dpkg consumers passed in both targets. Runtime probes observed
+uid 999, loaded SQLite 3.53.2 and `/health` 200 with JSON Content-Type. Native
+loaded-library/consumer evidence is separate from package/report absence.
+Original logs and the immutable `candidate-admission-snapshot.json` remain
+ignored local evidence. Exact-head CI/review, separately approved squash merge
+and post-merge published/main proof are still pending.
+
 ## Native attestation inventory continuation
 
 PR #2394 merged as `b89e833af752d2b68f8d8b0fa99ab18b59e856e9`.
