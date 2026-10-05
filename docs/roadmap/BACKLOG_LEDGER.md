@@ -135,7 +135,7 @@ If it is not recorded here — it does not exist.
 - [ ] P1: OPS-04A resource cost and supplied recovery context
   - Owner: dev-operator / agent-coordinator
   - Priority: P1
-  - Target PR: Current substantive `codex/ops04a-resource-cost-recovery-context` lane; number assigned at PR open.
+  - Target PR: [#2470](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2470) (`codex/ops04a-resource-cost-recovery-context`).
   - Status: Implementation scope admitted; merge, current-head validation, native replay and continuity remain independently pending.
   - Scope: One offline stdlib DigitalOcean invoice reconciliation CLI, exact declared resource/owner context, bounded private inputs, lossless Decimal accounting, partial allocation and unassessed recovery references, integrated with the existing three-source OPS coverage producer.
   - Reason for deferral: This entry records the current implementation plan. Actual merge/closure status will be recorded by the next substantive DevOps PR under the owner's explicit decision; no standalone docs-only PR.

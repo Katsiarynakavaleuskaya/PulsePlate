@@ -115,7 +115,7 @@ def _amount(value: object) -> Decimal:
 
 
 def _money(value: Decimal) -> str:
-    return format(value, ".2f") if value else "0.00"
+    return format(value, ".2f")
 
 
 def _sum(values: list[Decimal]) -> Decimal:
@@ -213,6 +213,12 @@ def _admit_file(metadata: os.stat_result) -> None:
     _require(metadata.st_size <= MAX_BYTES, "INPUT_TOO_LARGE")
 
 
+def _outside_checkout(directory_fd: int, checkout_identity: tuple[int, int]) -> None:
+    """Reject the known checkout identity in the finite acquired input-directory walks."""
+    directory = os.fstat(directory_fd)
+    _require((directory.st_dev, directory.st_ino) != checkout_identity, "UNSAFE_INPUT_PATH")
+
+
 def _read_inputs(root: str, invoice: str, bindings: str) -> tuple[bytes, bytes]:
     root_parts = _path_parts(root, absolute=True)
     names = [_path_parts(name, absolute=False) for name in (invoice, bindings)]
@@ -226,25 +232,35 @@ def _read_inputs(root: str, invoice: str, bindings: str) -> tuple[bytes, bytes]:
     descriptors: list[int] = []
     result: list[bytes] = []
     try:
+        descriptors.append(os.open(REPO_ROOT, directory_flags))
+        checkout = os.fstat(descriptors[-1])
+        checkout_identity = checkout.st_dev, checkout.st_ino
         descriptors.append(os.open("/", directory_flags))
+        _outside_checkout(descriptors[-1], checkout_identity)
         for part in root_parts:
             descriptors.append(os.open(part, directory_flags, dir_fd=descriptors[-1]))
+            _outside_checkout(descriptors[-1], checkout_identity)
         root_fd = descriptors[-1]
         metadata = os.fstat(root_fd)
         _require(
             metadata.st_uid == os.geteuid() and stat.S_IMODE(metadata.st_mode) == 0o700,
             "UNSAFE_INPUT_PERMISSIONS",
         )
+        parent_descriptors: list[int] = []
         for parts in names:
             parent_fd = root_fd
             for part in parts[:-1]:
                 descriptors.append(os.open(part, directory_flags, dir_fd=parent_fd))
                 parent_fd = descriptors[-1]
+                _outside_checkout(parent_fd, checkout_identity)
                 directory = os.fstat(parent_fd)
                 _require(
                     directory.st_uid == os.geteuid() and stat.S_IMODE(directory.st_mode) == 0o700,
                     "UNSAFE_INPUT_PERMISSIONS",
                 )
+            parent_descriptors.append(parent_fd)
+        # Admit both parent walks before any selected leaf metadata or content acquisition.
+        for parts, parent_fd in zip(names, parent_descriptors):
             before = os.stat(parts[-1], dir_fd=parent_fd, follow_symlinks=False)
             _admit_file(before)
             descriptors.append(os.open(parts[-1], file_flags, dir_fd=parent_fd))
@@ -497,7 +513,9 @@ def _totals(report: dict[str, object]) -> None:
     with localcontext(context):
         total = _sum(amounts)
         report["total"] = _money(total)
-        report["residual"] = _money(header - total)
+        residual = header - total
+        residual_nonzero = residual != 0
+        report["residual"] = _money(residual)
         report["totals"] = {
             bucket: _money(
                 _sum(
@@ -509,7 +527,7 @@ def _totals(report: dict[str, object]) -> None:
     counts = {bucket: sum(_object(row)["bucket"] == bucket for row in rows) for bucket in BUCKETS}
     report["counts"] = counts
     errors = list(cast(list[str], report["errors"]))
-    if report["residual"] != "0.00":
+    if residual_nonzero:
         errors.append("RECONCILIATION_MISMATCH")
     report["errors"] = sorted(set(errors))
     report["accounting_status"] = "inconsistent" if errors else "reconciled"
@@ -524,6 +542,8 @@ def _totals(report: dict[str, object]) -> None:
 
 
 def _question(report: dict[str, object]) -> str | None:
+    if report["errors"] == ["ACCOUNT_MISMATCH"]:
+        return "Which resource-binding account declaration matches the supplied invoice account?"
     if report["errors"]:
         return "Which complete native capture corrects the reported accounting or pagination discrepancy?"
     for group in cast(list[dict[str, object]], report["resource_groups"]):

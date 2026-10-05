@@ -1046,3 +1046,144 @@ def test_legal_million_digit_fixed_point_capture_and_cli_exceed_default_exponent
         pytest.fail("CLI output changed supported wide fixed-point money")
     assert output.err == ""
     assert parsed["currency"] == "USD" and parsed["accounting_status"] == "reconciled"
+
+
+@pytest.mark.parametrize("native_zero", ["-0", "-0.0", "-0.00"])
+def test_signed_native_zero_preserves_header_and_row_without_false_residual(
+    native_zero: str, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    cap = capture([native_row(amount=native_zero)], total=native_zero)
+    report = reconciled(cap)
+    assert objects(report["rows"])[0]["amount"] == "-0.00"
+    assert report["header_total"] == "-0.00"
+    assert Decimal(str(report["residual"])) == 0
+    assert report["accounting_status"] == "reconciled" and report["errors"] == []
+    _, argv = private_inputs(tmp_path, cap)
+    assert cost.main(argv) == 0
+    parsed = json.loads(capsys.readouterr().out)
+    assert parsed["header_total"] == "-0.00"
+    assert parsed["rows"][0]["amount"] == "-0.00"
+    assert Decimal(parsed["residual"]) == 0 and parsed["errors"] == []
+
+
+@pytest.mark.parametrize(
+    "header,expected_status,expected_residual",
+    [
+        ("-0.00", "reconciled", "-0.00"),
+        ("0.00", "reconciled", "0.00"),
+        ("-0.10", "inconsistent", "-0.10"),
+        ("0.10", "inconsistent", "0.10"),
+    ],
+)
+def test_numeric_residual_classification_survives_signed_zero_and_cancellation(
+    header: str, expected_status: str, expected_residual: str
+) -> None:
+    cap = capture([native_row(amount="1.00"), native_row(amount="-1.00")], total=header)
+    report = reconciled(cap)
+    assert report["total"] == "0.00" and report["residual"] == expected_residual
+    assert report["accounting_status"] == expected_status
+    assert ("RECONCILIATION_MISMATCH" in report["errors"]) is (Decimal(header) != 0)
+
+
+@pytest.mark.parametrize("mixed", ["none", "residual", "pagination"])
+def test_account_mismatch_question_names_only_wrong_binding_input(
+    mixed: str, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    cap = capture(total="2.00" if mixed == "residual" else "1.00")
+    cap["account_ref"] = "CAPTURE_PRIVATE_ACCOUNT"
+    if mixed == "pagination":
+        cap["pages"][0]["response"]["meta"]["total"] = 2
+    bound = bindings(account="BINDING_PRIVATE_ACCOUNT")
+    report = reconciled(cap, bound)
+    question = report["operator_summary"]["next_question"]
+    assert question.count("?") == 1
+    assert "PRIVATE_ACCOUNT" not in question
+    if mixed == "none":
+        assert "resource-binding account declaration" in question
+        assert "complete native capture" not in question
+    else:
+        assert "complete native capture" in question
+    assert report["counts"]["allocated"] == 0
+    _, argv = private_inputs(tmp_path, cap, bound)
+    assert cost.main(argv) == 1
+    output = capsys.readouterr()
+    cli_question = json.loads(output.out)["operator_summary"]["next_question"]
+    assert cli_question == question and "PRIVATE_ACCOUNT" not in cli_question + output.err
+
+
+def observe_input_leaf_access(monkeypatch: pytest.MonkeyPatch) -> dict[str, int]:
+    """Observe real content/leaf metadata calls, never invent filesystem identities."""
+    counts = {"reads": 0, "leaf_stats": 0}
+    native_read, native_stat = cost.os.read, cost.os.stat
+
+    def read(fd: int, size: int) -> bytes:
+        counts["reads"] += 1
+        return native_read(fd, size)
+
+    def stat_call(path: object, *args: object, **kwargs: object) -> os.stat_result:
+        if isinstance(path, str) and path in {"invoice.json", "bindings.json"}:
+            counts["leaf_stats"] += 1
+        return native_stat(path, *args, **kwargs)
+
+    monkeypatch.setattr(cost.os, "read", read)
+    monkeypatch.setattr(cost.os, "stat", stat_call)
+    monkeypatch.setattr(cost.os, "supports_dir_fd", cost.os.supports_dir_fd | {stat_call})
+    return counts
+
+
+@pytest.mark.parametrize("target", ["equal_root", "ancestor"])
+def test_acquired_checkout_identity_rejects_directory_alias_before_leaf_access(
+    target: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from pathlib import PosixPath
+
+    root, _ = private_inputs(tmp_path)
+    checkout = root if target == "equal_root" else tmp_path
+
+    class CheckoutAlias(PosixPath):
+        # Portable path-transport alias: different lexical parts, real native directory fd.
+        @property
+        def path(self) -> Path:
+            return checkout
+
+        def __fspath__(self) -> str:
+            return os.fspath(self.path)
+
+    alias = CheckoutAlias(tmp_path / "different-checkout-spelling")
+    assert not Path(root).is_relative_to(alias)
+    monkeypatch.setattr(cost, "REPO_ROOT", alias)
+    counts = observe_input_leaf_access(monkeypatch)
+    with pytest.raises(cost.ReportError, match="UNSAFE_INPUT_PATH"):
+        cost._read_inputs(str(root), "invoice.json", "bindings.json")
+    assert counts == {"reads": 0, "leaf_stats": 0}
+
+
+@pytest.mark.parametrize("selected", ["invoice", "bindings", "both"])
+def test_each_selected_filename_cannot_enter_nested_checkout_before_any_leaf_access(
+    selected: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root, _ = private_inputs(tmp_path)
+    checkout = root / "repository"
+    checkout.mkdir(mode=0o700)
+    for name in ("invoice.json", "bindings.json"):
+        (checkout / name).write_bytes((root / name).read_bytes())
+        (checkout / name).chmod(0o600)
+    monkeypatch.setattr(cost, "REPO_ROOT", checkout)
+    counts = observe_input_leaf_access(monkeypatch)
+    invoice = "repository/invoice.json" if selected in {"invoice", "both"} else "invoice.json"
+    bound = "repository/bindings.json" if selected in {"bindings", "both"} else "bindings.json"
+    with pytest.raises(cost.ReportError, match="UNSAFE_INPUT_PATH"):
+        cost._read_inputs(str(root), invoice, bound)
+    assert counts == {"reads": 0, "leaf_stats": 0}
+
+
+def test_genuinely_unrelated_private_directory_remains_readable(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root, _ = private_inputs(tmp_path)
+    checkout = tmp_path / "unrelated-checkout"
+    checkout.mkdir(mode=0o700)
+    monkeypatch.setattr(cost, "REPO_ROOT", checkout)
+    first, second = cost._read_inputs(str(root), "invoice.json", "bindings.json")
+    assert json.loads(first)["schema_version"] == cost.CAPTURE_SCHEMA
+    assert json.loads(second)["schema_version"] == cost.BINDING_SCHEMA
