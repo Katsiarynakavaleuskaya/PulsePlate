@@ -1895,7 +1895,7 @@ def test_ci_compatibility_proof_is_selected_and_merge_blocking() -> None:
 
 
 def test_cd_exact_pgvector_image_proves_fresh_and_legacy_volume_contracts() -> None:
-    """Keep fresh-volume and legacy-transition evidence attached to the exact CI image."""
+    """Keep fresh, legacy, prior-derived and current continuity attached to the exact image."""
     workflow = (REPO_ROOT / ".github/workflows/cd.yml").read_text(encoding="utf-8")
     contract_job = workflow.split("\n  postgres-pgvector-contract:\n", maxsplit=1)[1].split(
         "\n  main-push-admission:\n", maxsplit=1
@@ -1903,7 +1903,7 @@ def test_cd_exact_pgvector_image_proves_fresh_and_legacy_volume_contracts() -> N
     publish_job = workflow.split("\n  postgres-pgvector-publish:\n", maxsplit=1)[1].split(
         "\n  postgres-pgvector-reuse:\n", maxsplit=1
     )[0]
-    assert "sha256:06c914735c70f82424a2a9b1e57790590a21d0fbfe250504ff79a1cca2559380" in contract_job
+    assert "sha256:d4437ad4970b4099e4cb7d05b7fa625c7e6959949d1374f1f2d4bd4149ae5fa3" in contract_job
     assert (
         "EXPECTED_PLATFORM_DIGEST: "
         "${{ needs.postgres-pgvector-contract.outputs.platform_manifest_digest }}" in publish_job
@@ -1923,6 +1923,27 @@ def test_cd_exact_pgvector_image_proves_fresh_and_legacy_volume_contracts() -> N
     assert "transitioned_oid" in publish_job
     assert "transitioned_sentinel" in publish_job
     assert 'test "$transitioned_vector" = "0.8.6"' in publish_job
+    assert (
+        "ghcr.io/katsiarynakavaleuskaya/pulseplate:postgres-15.19-pgvector0.8.6-alpine3.23@"
+        "sha256:06c914735c70f82424a2a9b1e57790590a21d0fbfe250504ff79a1cca2559380" in publish_job
+    )
+    assert (
+        'start_postgres "$prior_container_name" "$prior_volume_name" "$prior_image"' in publish_job
+    )
+    assert (
+        'start_postgres "$prior_container_name" "$prior_volume_name" "$PGVECTOR_FINAL_LOCAL_TAG"'
+        in publish_job
+    )
+    for required in (
+        'test "$prior_transitioned_oid" = "$prior_oid"',
+        'test "$prior_transitioned_data" = "prior-persistent:[1,2,3]"',
+        'test "$prior_transitioned_vector" = "0.8.6"',
+        'test "$prior_vector_distance" = "0"',
+        'test "$prior_transitioned_postgres" = "postgres (PostgreSQL) 15.19"',
+        '"${prefix}-prior-postgres"',
+        '"${prefix}-prior-data"',
+    ):
+        assert required in publish_job
     assert '--input "$PGVECTOR_OCI_OUTPUT_DIR/oci-1"' in publish_job
     assert '--input "$PGVECTOR_OCI_OUTPUT_DIR/image-1.oci.tar"' not in publish_job
 

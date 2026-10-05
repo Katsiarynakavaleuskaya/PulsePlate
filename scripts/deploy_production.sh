@@ -700,7 +700,7 @@ import stat
 import sys
 
 manifest_path = sys.argv[1]
-expected_file_sha256 = "f5695851db7e29f4f3d70f202655ca474eddaabc6aecfb9725a4783ca09e55ce"  # pragma: allowlist secret
+expected_file_sha256 = "9aa310913af9799c39182428e0170b173fe2144367b302d7d2cafd87c93c03b2"  # pragma: allowlist secret
 expected_keys = set(
     """
     schema repository tag platform platform_manifest_digest config_digest runtime_ref
@@ -728,8 +728,8 @@ expected_values = {
     "repository": "ghcr.io/katsiarynakavaleuskaya/pulseplate",
     "tag": "postgres-15.19-pgvector0.8.6-alpine3.23",
     "platform": "linux/amd64",
-    "platform_manifest_digest": "sha256:06c914735c70f82424a2a9b1e57790590a21d0fbfe250504ff79a1cca2559380",
-    "config_digest": "sha256:c822c68e22d0358e66cee17e06f7b3ece5d1538cb8b607c1376b59620866ceff",
+    "platform_manifest_digest": "sha256:d4437ad4970b4099e4cb7d05b7fa625c7e6959949d1374f1f2d4bd4149ae5fa3",
+    "config_digest": "sha256:643c5c00d70c37d83a0ab6db8b0996e4c03fb82c4769a45b03eef0cf3ee2abd5",
     "runtime_user": "70",
     "runtime_entrypoint": "/usr/local/bin/docker-entrypoint.sh",
     "runtime_default_pgdata": "/var/lib/postgresql/15/data",
@@ -739,9 +739,9 @@ expected_values = {
     "postgres_version": "15.19",
     "pgvector_version": "0.8.6",
     "mountpoint_layer_schema": "pulseplate.pgvector_mountpoint_layer.v1",
-    "mountpoint_layer_digest": "sha256:f5a1938bd1dfbe02232ddc8fad542445d8369541f3ebcacd5892c4e52abab124",
-    "mountpoint_layer_size": "154",
-    "mountpoint_layer_diff_id": "sha256:830c8272961c65f32876a884f52d80ad05cc4534a37bd0ecd4dafcf155f656fc",
+    "mountpoint_layer_digest": "sha256:4c539aa857412d283fe8d55b40227fbd17b9fd6f06834f81fd98ec6796ee7396",
+    "mountpoint_layer_size": "162",
+    "mountpoint_layer_diff_id": "sha256:8cb1ace7e0c1f48d719bbdf5b4cfe9705ef407c74a3567ddc4369a6d6f023a23",
     "mountpoint_layer_entry_count": "4",
     "mountpoint_uid": "70",
     "mountpoint_gid": "70",
@@ -1173,6 +1173,10 @@ validate_postgres_image_metadata() {
   local runtime_ref="$1"
   local inspect_subject="$2"
   local required_image_id="$3"
+  if [ "$inspect_subject" != "$runtime_ref" ]; then
+    echo "PostgreSQL inspection subject differs from the selected reference" >&2
+    return 1
+  fi
   local platform_digest="${runtime_ref##*@}"
   "$DOCKER_BIN" image inspect "$inspect_subject" | "$PYTHON_BIN" -c '
 import json
@@ -1200,10 +1204,19 @@ if type(payload) is not list or len(payload) != 1 or type(payload[0]) is not dic
     raise SystemExit("PostgreSQL image inspect must return exactly one image")
 record = payload[0]
 image_id = record.get("Id")
-frozen_image_ids = {
-    "sha256:c822c68e22d0358e66cee17e06f7b3ece5d1538cb8b607c1376b59620866ceff",
-    sys.argv[1],
-}
+if sys.argv[3] == "ghcr.io/katsiarynakavaleuskaya/pulseplate:postgres-15.19-pgvector0.8.6-alpine3.23@sha256:d4437ad4970b4099e4cb7d05b7fa625c7e6959949d1374f1f2d4bd4149ae5fa3":
+    expected_config = "sha256:643c5c00d70c37d83a0ab6db8b0996e4c03fb82c4769a45b03eef0cf3ee2abd5"
+    expected_platform = "sha256:d4437ad4970b4099e4cb7d05b7fa625c7e6959949d1374f1f2d4bd4149ae5fa3"
+    expected_base = "sha256:3a241134f6d82eb6465622af948258e41806cfb4497e6c8f0f0a64ca6c4d34db"
+elif sys.argv[3] == "ghcr.io/katsiarynakavaleuskaya/pulseplate:postgres-15.19-pgvector0.8.6-alpine3.23@sha256:06c914735c70f82424a2a9b1e57790590a21d0fbfe250504ff79a1cca2559380":
+    expected_config = "sha256:c822c68e22d0358e66cee17e06f7b3ece5d1538cb8b607c1376b59620866ceff"
+    expected_platform = "sha256:06c914735c70f82424a2a9b1e57790590a21d0fbfe250504ff79a1cca2559380"
+    expected_base = "sha256:d94fee7e5e98fcb5cd58db6ad96fc6aa844f1af6dd56aba1f87d9f8e57a7a16d"
+else:
+    raise SystemExit("PostgreSQL image reference is outside the closed transition set")
+if sys.argv[1] != expected_platform:
+    raise SystemExit("PostgreSQL selected platform identity is inconsistent")
+frozen_image_ids = {expected_config, expected_platform}
 if type(image_id) is not str or image_id not in frozen_image_ids:
     raise SystemExit("PostgreSQL image inspect ID is outside the frozen candidate")
 if sys.argv[2] and image_id != sys.argv[2]:
@@ -1235,7 +1248,7 @@ labels = config.get("Labels")
 required_labels = {
     "com.pulseplate.pgvector.version": "0.8.6",
     "com.pulseplate.pgvector.source-commit": "8ee86c96f0fd72390f890aa8a336fda6d3ab4c6c",
-    "com.pulseplate.postgres.base-manifest": "sha256:d94fee7e5e98fcb5cd58db6ad96fc6aa844f1af6dd56aba1f87d9f8e57a7a16d",
+    "com.pulseplate.postgres.base-manifest": expected_base,
 }
 if type(labels) is not dict or any(labels.get(key) != value for key, value in required_labels.items()):
     raise SystemExit("Pulled PostgreSQL image labels do not match the closed build")
@@ -1247,10 +1260,14 @@ if (
     or expected not in repo_digests
 ):
     raise SystemExit("Pulled PostgreSQL image is not bound to the canonical GHCR digest")
-' "$platform_digest" "$required_image_id"
+' "$platform_digest" "$required_image_id" "$runtime_ref"
 }
 
 validate_pulled_postgres_image() {
+  if [ "$1" != "$POSTGRES_RUNTIME_REF" ]; then
+    echo "Pulled PostgreSQL reference is not the selected current image" >&2
+    return 1
+  fi
   if validate_postgres_image_metadata "$1" "$1" "" 2>/dev/null; then
     :
   else
@@ -1269,7 +1286,7 @@ validate_pulled_postgres_mountpoint() {
     --security-opt no-new-privileges:true \
     --entrypoint /bin/sh \
     "$runtime_ref" \
-    -ec 'test "$(stat -c "%u:%g:%a" /var/lib/postgresql/data)" = "70:70:700"; test -z "$(find /var/lib/postgresql/data -mindepth 1 -print -quit)"'
+    -ec 'test "$(stat -c "%u:%g:%a" /var/lib/postgresql/data)" = "70:70:700"; mountpoint_entry="$(find /var/lib/postgresql/data -mindepth 1 -print -quit)"; test -z "$mountpoint_entry"'
 }
 
 contract_destination_transaction() {
@@ -2666,7 +2683,7 @@ validate_existing_postgres_image_identity() {
       ;;
     "$POSTGRES_RUNTIME_REF")
       local platform_image_id="${POSTGRES_RUNTIME_REF##*@}"
-      if [ "$image_id" = "sha256:c822c68e22d0358e66cee17e06f7b3ece5d1538cb8b607c1376b59620866ceff" ] || \
+      if [ "$image_id" = "sha256:643c5c00d70c37d83a0ab6db8b0996e4c03fb82c4769a45b03eef0cf3ee2abd5" ] || \
          [ "$image_id" = "$platform_image_id" ]; then
         if validate_postgres_image_metadata \
             "$POSTGRES_RUNTIME_REF" "$POSTGRES_RUNTIME_REF" "$image_id" 2>/dev/null; then
@@ -2677,6 +2694,21 @@ validate_existing_postgres_image_identity() {
         fi
       else
         echo "❌ Existing current PostgreSQL image ID does not match the frozen candidate" >&2
+        return 1
+      fi
+      ;;
+    "ghcr.io/katsiarynakavaleuskaya/pulseplate:postgres-15.19-pgvector0.8.6-alpine3.23@sha256:06c914735c70f82424a2a9b1e57790590a21d0fbfe250504ff79a1cca2559380")
+      if [ "$image_id" = "sha256:c822c68e22d0358e66cee17e06f7b3ece5d1538cb8b607c1376b59620866ceff" ] || \
+         [ "$image_id" = "sha256:06c914735c70f82424a2a9b1e57790590a21d0fbfe250504ff79a1cca2559380" ]; then
+        if validate_postgres_image_metadata \
+            "$configured_image" "$configured_image" "$image_id" 2>/dev/null; then
+          :
+        else
+          echo "Existing prior PostgreSQL image metadata is not the frozen predecessor" >&2
+          return 1
+        fi
+      else
+        echo "Existing prior PostgreSQL image ID does not match the frozen predecessor" >&2
         return 1
       fi
       ;;

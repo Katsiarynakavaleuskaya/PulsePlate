@@ -1725,7 +1725,15 @@ def test_generate_candidate_publishes_valid_start_before_builder_without_probabi
     )
     assert observed_calls == [gate["run_id"]]
     assert (forecast_path.parent / "start.json").exists()
-    assert (gate_path.parent / generation_cli.RECEIPT_FILENAME).exists()
+    run_dir = repo / "artifacts" / "orchestration" / "creative_code" / "patch_runs" / gate["run_id"]
+    for filename in (
+        creative_code_patch_builder.CANDIDATE_PATCH_FILE,
+        creative_code_patch_builder.PATCH_METADATA_FILE,
+        creative_code_patch_builder.EXPERIMENT_PACKET_FILE,
+    ):
+        assert (run_dir / filename).is_file()
+    assert not (run_dir / creative_code_patch_builder.RESULT_FILE).exists()
+    assert not (gate_path.parent / generation_cli.RECEIPT_FILENAME).exists()
 
 
 def test_generation_failure_preserves_start_blocks_unbound_and_allows_identical_retry(
@@ -1773,7 +1781,7 @@ def test_generation_failure_preserves_start_blocks_unbound_and_allows_identical_
     assert start_path.read_bytes() == start_before
 
 
-def test_legacy_generate_candidate_without_shadow_slot_is_unchanged(
+def test_generate_candidate_without_shadow_slot_publishes_dispatch_handoff(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
@@ -1787,7 +1795,15 @@ def test_legacy_generate_candidate_without_shadow_slot_is_unchanged(
 
     assert generation_cli.main(["generate-candidate", "--gate", str(gate_path)]) == 0
     assert not shadow_root.exists()
-    assert (gate_path.parent / generation_cli.RECEIPT_FILENAME).exists()
+    run_dir = repo / "artifacts" / "orchestration" / "creative_code" / "patch_runs" / run_id
+    for filename in (
+        creative_code_patch_builder.CANDIDATE_PATCH_FILE,
+        creative_code_patch_builder.PATCH_METADATA_FILE,
+        creative_code_patch_builder.EXPERIMENT_PACKET_FILE,
+    ):
+        assert (run_dir / filename).is_file()
+    assert not (run_dir / creative_code_patch_builder.RESULT_FILE).exists()
+    assert not (gate_path.parent / generation_cli.RECEIPT_FILENAME).exists()
 
 
 def test_duplicate_generate_candidate_is_serialized_by_existing_run_lock(

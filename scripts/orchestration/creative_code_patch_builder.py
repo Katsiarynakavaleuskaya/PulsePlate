@@ -5,7 +5,6 @@ from __future__ import annotations
 import argparse
 from collections.abc import Mapping
 from contextlib import contextmanager
-from importlib import import_module
 import os
 from pathlib import Path
 import sys
@@ -16,7 +15,6 @@ from core.evidence.fingerprints import fingerprint_payload
 from scripts.orchestration.creative_code_patch_contract import (
     CHANGED_LINE_METRIC,
     CreativeCodePatchContractError,
-    build_creative_code_patch_result,
     creative_code_budget_line_family,
     creative_code_patch_changed_path_statuses,
     measure_persisted_creative_code_patch,
@@ -41,7 +39,6 @@ from scripts.orchestration.creative_code_patch_workspace import (
     resolve_run_dir,
     resolve_run_file,
     run_git,
-    shared_tree_status,
     write_json_atomic,
 )
 from scripts.orchestration.creative_code_specification import (
@@ -88,33 +85,14 @@ class CreativeCodePatchBudgetError(CreativeCodePatchBuilderError):
         self.reason_code = reason_code
 
 
-RUNNER_CAPABILITY_ERROR = "Experiment Runner capability unavailable; trusted dispatch is required."
-
-
-def _import_runner_api() -> tuple[Any, Any]:
-    """Load the heavyweight runner API only after the dispatch packet exists."""
-
-    runner_module = import_module("scripts.orchestration.experiment_runner")
-    return runner_module.RunnerCapabilitySignal, runner_module.evaluate_candidate
+RUNNER_CAPABILITY_ERROR = "Direct candidate evaluation is forbidden; trusted dispatch is required."
 
 
 def evaluate_candidate(packet: dict[str, Any], patch_file: Path) -> dict[str, Any]:
-    """Evaluate through the runner without importing its application stack at CLI startup."""
+    """Keep the legacy call seam fail-closed without importing the host runner."""
 
-    try:
-        runner_capability_signal, runner_evaluate = _import_runner_api()
-    except ImportError:
-        raise CreativeCodePatchBuilderError(RUNNER_CAPABILITY_ERROR) from None
-
-    try:
-        result: object = runner_evaluate(packet, patch_file)
-    except runner_capability_signal:
-        raise CreativeCodePatchBuilderError(RUNNER_CAPABILITY_ERROR) from None
-    if not _is_string_keyed_dict(result):
-        raise CreativeCodePatchBuilderError(
-            "Experiment Runner result must be a string-keyed object."
-        )
-    return result
+    del packet, patch_file
+    raise CreativeCodePatchBuilderError(RUNNER_CAPABILITY_ERROR)
 
 
 @contextmanager
@@ -776,15 +754,18 @@ def _verified_patch_metadata(
     return patch_file, sorted(changed_paths), current_fingerprint, current_bytes, measurements
 
 
-def _evaluate_locked(*, run_id: str) -> dict[str, Any]:
-    """Evaluate the generated candidate patch with Experiment Runner candidate mode."""
+def _prepare_dispatch_locked(*, run_id: str) -> dict[str, Any]:
+    """Validate generated material and write the packet for trusted dispatch."""
 
     run_dir, state, request, bundle = _load_run_state(run_id)
     if state.get("candidate_patch_evaluated") is True:
         raise CreativeCodePatchBuilderError("candidate patch is already evaluated.")
     result_file = resolve_run_file(run_dir, RESULT_FILE, for_write=True)
-    if result_file.exists():
+    if result_file.exists() or result_file.is_symlink():
         raise CreativeCodePatchBuilderError("candidate patch result already exists.")
+    packet_file = resolve_run_file(run_dir, EXPERIMENT_PACKET_FILE, for_write=True)
+    if packet_file.exists() or packet_file.is_symlink():
+        raise CreativeCodePatchBuilderError("candidate dispatch packet already exists.")
     normalized_request = validate_creative_code_patch_build_request(request, source_bundle=bundle)
     shared_head = run_git(["rev-parse", "HEAD"], cwd=REPO_ROOT).stdout.strip()
     if shared_head != normalized_request["base_commit_sha"]:
@@ -794,7 +775,7 @@ def _evaluate_locked(*, run_id: str) -> dict[str, Any]:
     metadata = read_json(resolve_run_file(run_dir, PATCH_METADATA_FILE))
     if not isinstance(metadata, dict):
         raise CreativeCodePatchBuilderError("patch metadata must be a JSON object.")
-    patch_file, changed_paths, patch_fingerprint, patch_bytes, line_measurements = (
+    _patch_file, changed_paths, patch_fingerprint, _patch_bytes, _line_measurements = (
         _verified_patch_metadata(
             run_dir=run_dir,
             state=state,
@@ -803,69 +784,31 @@ def _evaluate_locked(*, run_id: str) -> dict[str, Any]:
             bundle=bundle,
         )
     )
-    shared_status_before = shared_tree_status()
     packet = build_pr2_experiment_packet(
         request=normalized_request,
         source_bundle=bundle,
         changed_paths=changed_paths,
         patch_fingerprint=patch_fingerprint,
     )
-    write_json_atomic(resolve_run_file(run_dir, EXPERIMENT_PACKET_FILE, for_write=True), packet)
-    failure_class: str | None = None
-    try:
-        runner_result = evaluate_candidate(packet, patch_file)
-    except CreativeCodePatchBuilderError:
-        raise
-    except Exception as exc:
-        failure_class = "infra_flake"
-        runner_error = exc.__class__.__name__
-        runner_result = {
-            "experiment_id": packet["experiment_id"],
-            "runner_mode": "candidate_patch",
-            "candidate_patch": "sanitized",
-            "status": "rejected",
-            "failure_class": "infra_flake",
-            "mutated_paths": [],
-            "oracle_results": [],
-            "budget_observations": {
-                "configured_budgets": packet["budgets"],
-                "oracle_commands_configured": len(packet["immutable_oracles"]),
-                "oracle_commands_executed": 0,
-                "candidate_changed_files": len(changed_paths),
-                "attempts": 0,
-                "retries_consumed": 0,
-                "runner_error": runner_error,
-            },
-            "shared_tree_untouched": False,
-        }
-    shared_status_after = shared_tree_status()
-    shared_untouched = shared_status_before == shared_status_after
-    result: object = build_creative_code_patch_result(
-        request=normalized_request,
-        changed_paths=changed_paths,
-        patch_fingerprint=patch_fingerprint,
-        patch_bytes=patch_bytes,
-        runner_result=runner_result,
-        checkout_destroyed=bool(state.get("checkout_destroyed") is True),
-        origin_removed=bool(state.get("workspace", {}).get("origin_removed") is True),
-        shared_tree_untouched=shared_untouched,
-        failure_class=failure_class,
-        **line_measurements,
-    )
-    if not _is_string_keyed_dict(result):
-        raise CreativeCodePatchBuilderError("patch result must be a string-keyed object.")
-    state["candidate_patch_evaluated"] = True
-    write_json_atomic(result_file, result)
-    write_json_atomic(resolve_run_file(run_dir, STATE_FILE, for_write=True), state)
-    return result
+    write_json_atomic(packet_file, packet)
+    return packet
 
 
-def evaluate(*, run_id: str) -> dict[str, Any]:
-    """Evaluate one generated candidate while holding the shared run lock."""
+def prepare_dispatch(*, run_id: str) -> dict[str, Any]:
+    """Prepare the existing packet without running candidate code on the host."""
 
     run_dir = resolve_run_dir(run_id, create=False)
     with _exclusive_evaluate_lock(run_dir):
-        return _evaluate_locked(run_id=run_id)
+        return _prepare_dispatch_locked(run_id=run_id)
+
+
+def evaluate(*, run_id: str) -> dict[str, Any]:
+    """Preserve the legacy entrypoint as a fail-closed dispatch handoff."""
+
+    run_dir = resolve_run_dir(run_id, create=False)
+    with _exclusive_evaluate_lock(run_dir):
+        _prepare_dispatch_locked(run_id=run_id)
+        raise CreativeCodePatchBuilderError(RUNNER_CAPABILITY_ERROR)
 
 
 def main(argv: list[str] | None = None) -> int:

@@ -56,6 +56,11 @@ time:
 
 - `EXPERIMENT_NOTIFICATION_SLACK_CHANNEL_ALLOWLIST`: comma-separated Slack
   channel IDs approved for operator bridge traffic.
+- `EXPERIMENT_NOTIFICATION_SLACK_SECURITY_CHANNEL_ALLOWLIST`: separate,
+  comma-separated Slack channel IDs approved for `ORACLE_VIOLATION` and
+  `SURFACE_BREACH` notifications. A sensitive notification requires the exact
+  channel in both lists; a missing or malformed security list blocks delivery
+  before any Slack send claim. Keep channel IDs in runtime configuration only.
 - `EXPERIMENT_NOTIFICATION_SLACK_USER_ALLOWLIST`: comma-separated Slack user IDs
   approved to issue the bounded command.
 - `EXPERIMENT_NOTIFICATION_SLACK_TEAM_ALLOWLIST`: optional workspace/team ID

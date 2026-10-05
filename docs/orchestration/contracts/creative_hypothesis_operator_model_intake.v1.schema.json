@@ -69,7 +69,7 @@
       "type": "string",
       "pattern": "^[A-Za-z0-9_.-][A-Za-z0-9_./-]*$",
       "not": {
-        "pattern": "(^/|^\\.$|^\\*$|^\\*\\*$|\\.\\.|\\\\|file://|^~|^\\.git/|^\\.venv/|^worktrees/|^artifacts(/|$)|^(app|core|frontend|ios|providers|alembic)(/|$)|^\\.github/workflows(/|$))"
+        "pattern": "(^/|^\\.$|^\\*$|^\\*\\*$|\\.\\.|\\\\|file://|^~|^\\.git/|^\\.venv/|^worktrees/|^artifacts(/|$)|^([aA][pP][pP]|[cC][oO][rR][eE]|[fF][rR][oO][nN][tT][eE][nN][dD]|[iI][oO][sS]|[pP][rR][oO][vV][iI][dD][eE][rR][sS]|[aA][lL][eE][mM][bB][iI][cC])(/|$)|^\\.[gG][iI][tT][hH][uU][bB]/[wW][oO][rR][kK][fF][lL][oO][wW][sS](/|$))"
       }
     },
     "concrete_target_path": {

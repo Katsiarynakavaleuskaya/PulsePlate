@@ -234,6 +234,7 @@ packaging==25.0
     #   pip-audit
     #   pip-requirements-parser
     #   pytest
+    #   virtualenv
 pillow==12.3.0
     # via
     #   -c requirements.txt
@@ -249,7 +250,6 @@ pip-requirements-parser==32.0.1
 platformdirs==4.9.4
     # via
     #   pip-audit
-    #   python-discovery
     #   virtualenv
 pluggy==1.6.0
     # via
@@ -307,7 +307,7 @@ python-dateutil==2.9.0.post0
     # via
     #   -c requirements.txt
     #   matplotlib
-python-discovery==1.2.1
+python-discovery==1.6.1
     # via virtualenv
 python-dotenv==1.2.2
     # via
@@ -406,8 +406,10 @@ uvicorn==0.42.0
     # via
     #   -c requirements.txt
     #   -r requirements-ci-lite.in
-virtualenv==21.2.0
-    # via pre-commit
+virtualenv==21.14.5
+    # via
+    #   -r requirements-ci-lite.in
+    #   pre-commit
 wrapt==2.0.1
     # via
     #   -c requirements.txt

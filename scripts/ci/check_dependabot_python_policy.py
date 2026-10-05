@@ -127,6 +127,7 @@ EXPECTED_GROUPS: dict[str, dict[str, tuple[str, ...] | str]] = {
             "pip-tools",
             "pip-audit",
             "pre-commit",
+            "virtualenv",
             "bandit",
             "detect-secrets",
             "distlib",

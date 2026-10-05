@@ -206,18 +206,8 @@ def _prepare_generated_dispatch_handoff(
     admission_path = _prepare_admission(repo=repo, base_sha=base_sha, run_id=run_id)
     _mock_successful_builder_edges(monkeypatch)
 
-    def raise_capability_signal(_packet: dict[str, Any], _patch_file: Path) -> dict[str, Any]:
-        raise creative_code_patch_builder.CreativeCodePatchBuilderError(
-            creative_code_patch_builder.RUNNER_CAPABILITY_ERROR
-        )
-
-    monkeypatch.setattr(
-        creative_code_patch_builder,
-        "evaluate_candidate",
-        raise_capability_signal,
-    )
     gate_path = _write_gate(repo=repo, admission_path=admission_path, run_id=run_id)
-    assert generation_cli.main(["generate-candidate", "--gate", str(gate_path)]) == 1
+    assert generation_cli.main(["generate-candidate", "--gate", str(gate_path)]) == 0
     run_dir = creative_code_patch_workspace.resolve_run_dir(run_id, create=False)
     metadata = json.loads(
         (run_dir / creative_code_patch_builder.PATCH_METADATA_FILE).read_text(encoding="utf-8")
@@ -291,6 +281,30 @@ def _trusted_dispatch_result(
             "preflight_status": "passed",
         },
     }
+
+
+def _finalize_generated_run(*, repo: Path, gate_path: Path, run_id: str) -> Path:
+    run_dir = creative_code_patch_workspace.resolve_run_dir(run_id, create=False)
+    packet = json.loads(
+        (run_dir / creative_code_patch_builder.EXPERIMENT_PACKET_FILE).read_text(encoding="utf-8")
+    )
+    dispatch_path = (
+        repo / "artifacts" / "orchestration" / "experiments" / "results" / f"{run_id}.json"
+    )
+    _write_json(dispatch_path, _trusted_dispatch_result(packet))
+    assert (
+        generation_cli.main(
+            [
+                "finalize-dispatched-result",
+                "--gate",
+                str(gate_path),
+                "--dispatch-result",
+                str(dispatch_path),
+            ]
+        )
+        == 0
+    )
+    return gate_path.parent / generation_cli.RECEIPT_FILENAME
 
 
 def _reset_receipt_identity(receipt: dict[str, Any]) -> None:
@@ -464,7 +478,7 @@ def test_semantic_binding_ignores_telemetry_derived_routing(
         )
 
 
-def test_generate_candidate_happy_path_writes_sanitized_receipt(
+def test_generate_candidate_happy_path_retains_dispatch_handoff_without_receipt(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
@@ -475,38 +489,22 @@ def test_generate_candidate_happy_path_writes_sanitized_receipt(
     admission_path = _prepare_admission(repo=repo, base_sha=base_sha, run_id=run_id)
     _mock_successful_builder_edges(monkeypatch)
     gate_path = _write_gate(repo=repo, admission_path=admission_path, run_id=run_id)
-    gate = validate_generation_gate(json.loads(gate_path.read_text(encoding="utf-8")))
-
     assert generation_cli.main(["generate-candidate", "--gate", str(gate_path)]) == 0
     captured = capsys.readouterr()
     assert generation_cli.GENERATE_CANDIDATE_SUCCESS_OUTPUT in captured.out
+    assert "experiment_runner_dispatch run" in captured.out
+    assert "finalize-dispatched-result" in captured.out
     receipt_path = gate_path.parent / generation_cli.RECEIPT_FILENAME
-    receipt = validate_generation_receipt(json.loads(receipt_path.read_text(encoding="utf-8")))
-
-    assert receipt["gate_id"] == gate["gate_id"]
-    assert receipt["status"] == "accepted"
-    assert receipt["promotion_ready"] is False
-    assert receipt["authority"]["open_pull_request"] is False
-    assert receipt["authority"]["resolve_review_threads"] is False
-    assert receipt["authority"]["merge"] is False
-    serialized = json.dumps(receipt, sort_keys=True)
-    assert "diff --git" not in serialized
-    assert "Do not run network commands" not in serialized
-    assert "/Users/" not in serialized
-    assert str(repo) not in serialized
-    assert str(tmp_path) not in serialized
-    assert "provider_payload" not in serialized
-
-    assert generation_cli.main(["summarize-result", "--receipt", str(receipt_path)]) == 0
-    summary = json.loads(capsys.readouterr().out)
-    assert summary["authority_boundary"] == "pr2_local_candidate_generation_only"
-    assert summary["not_merge_readiness_evidence"] is True
-    assert (
-        generation_cli.main(
-            ["validate-artifacts", "--gate", str(gate_path), "--receipt", str(receipt_path)]
-        )
-        == 0
-    )
+    run_dir = creative_code_patch_workspace.resolve_run_dir(run_id, create=False)
+    packet_path = run_dir / creative_code_patch_builder.EXPERIMENT_PACKET_FILE
+    metadata_path = run_dir / creative_code_patch_builder.PATCH_METADATA_FILE
+    assert packet_path.is_file()
+    assert metadata_path.is_file()
+    assert (run_dir / creative_code_patch_builder.CANDIDATE_PATCH_FILE).is_file()
+    assert not (run_dir / creative_code_patch_builder.RESULT_FILE).exists()
+    assert not receipt_path.exists()
+    assert str(repo) not in captured.out
+    assert str(tmp_path) not in captured.out
 
 
 def test_finalize_dispatched_result_writes_canonical_result_and_receipt(
@@ -2249,88 +2247,31 @@ def test_finalize_dispatched_result_rejects_tampered_candidate_and_duplicate_fin
     assert "generation receipt already exists" in capsys.readouterr().err
 
 
-def test_generate_candidate_persists_capability_mismatch_without_retry_or_promotion(
+def test_generate_candidate_never_invokes_host_evaluator_or_authors_receipt(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     repo, base_sha = _init_patch_repo(tmp_path)
     _patch_modules_to_repo(monkeypatch, repo)
-    run_id = "generation-capability-mismatch"
+    run_id = "generation-dispatch-only"
     admission_path = _prepare_admission(repo=repo, base_sha=base_sha, run_id=run_id)
     _mock_successful_builder_edges(monkeypatch)
-    evaluator_calls = 0
 
-    def reject_for_capability(packet: dict[str, Any], patch_file: Path) -> dict[str, Any]:
-        nonlocal evaluator_calls
-        evaluator_calls += 1
-        assert patch_file.name == creative_code_patch_builder.CANDIDATE_PATCH_FILE
-        return {
-            "experiment_id": packet["experiment_id"],
-            "status": "rejected",
-            "failure_class": "capability_mismatch",
-            "mutated_paths": [],
-            "oracle_results": [],
-            "budget_observations": {
-                "oracle_commands_configured": len(packet["immutable_oracles"]),
-                "attempts": 1,
-                "retries_consumed": 0,
-                "runner_error": "/Users/example/ghp_secretsecretsecret",
-            },
-            "shared_tree_untouched": True,
-        }
+    def fail_host_evaluation(*_args: object, **_kwargs: object) -> dict[str, Any]:
+        pytest.fail("candidate generation must never call host evaluator")
 
-    monkeypatch.setattr(creative_code_patch_builder, "evaluate_candidate", reject_for_capability)
+    monkeypatch.setattr(creative_code_patch_builder, "evaluate_candidate", fail_host_evaluation)
     gate_path = _write_gate(repo=repo, admission_path=admission_path, run_id=run_id)
 
     assert generation_cli.main(["generate-candidate", "--gate", str(gate_path)]) == 0
-    assert evaluator_calls == 1
-    assert generation_cli.GENERATE_CANDIDATE_SUCCESS_OUTPUT in capsys.readouterr().out
-
+    output = capsys.readouterr().out
+    assert "experiment_runner_dispatch run" in output
+    assert "finalize-dispatched-result" in output
     run_dir = creative_code_patch_workspace.resolve_run_dir(run_id, create=False)
-    result_path = run_dir / creative_code_patch_builder.RESULT_FILE
-    result = validate_creative_code_patch_result(
-        json.loads(result_path.read_text(encoding="utf-8"))
-    )
-    receipt_path = gate_path.parent / generation_cli.RECEIPT_FILENAME
-    receipt = validate_generation_receipt(json.loads(receipt_path.read_text(encoding="utf-8")))
-
-    assert result["status"] == "rejected"
-    assert result["failure_class"] == "capability_mismatch"
-    assert result["runner_summary"]["failure_class"] == "capability_mismatch"
-    assert result["runner_summary"]["attempts"] == 1
-    assert result["runner_summary"]["retries_consumed"] == 0
-    assert result["runner_summary"]["mutated_path_count"] == 0
-    assert result["runner_summary"]["oracle_commands_executed"] == 0
-    assert result["promotion_ready"] is False
-    assert result["authority"]["promotion"] is False
-    assert receipt["status"] == "rejected"
-    assert receipt["failure_class"] == "capability_mismatch"
-    assert receipt["result_fingerprint"] == fingerprint_payload(result)
-    assert receipt["runner_summary"]["failure_class"] == "capability_mismatch"
-    assert receipt["runner_summary"]["attempts"] == 1
-    assert receipt["runner_summary"]["retries_consumed"] == 0
-    assert receipt["runner_summary"]["mutated_path_count"] == 0
-    assert receipt["runner_summary"]["oracle_commands_executed"] == 0
-    assert receipt["promotion_ready"] is False
-    assert receipt["authority"]["promote_candidate"] is False
-
-    serialized = json.dumps({"result": result, "receipt": receipt}, sort_keys=True)
-    assert "/Users/example" not in serialized
-    assert "ghp_secret" not in serialized
-    assert "oracle_results" not in serialized
-    assert "stdout" not in serialized
-    assert "stderr" not in serialized
-    assert (
-        generation_cli.main(
-            ["validate-artifacts", "--gate", str(gate_path), "--receipt", str(receipt_path)]
-        )
-        == 0
-    )
-
-    assert generation_cli.main(["generate-candidate", "--gate", str(gate_path)]) == 1
-    assert evaluator_calls == 1
-    assert "prepared run already generated candidate patch" in capsys.readouterr().err
+    assert (run_dir / creative_code_patch_builder.EXPERIMENT_PACKET_FILE).is_file()
+    assert not (run_dir / creative_code_patch_builder.RESULT_FILE).exists()
+    assert not (gate_path.parent / generation_cli.RECEIPT_FILENAME).exists()
 
 
 def test_validate_artifacts_rejects_receipt_gate_fingerprint_mismatch(
@@ -2345,6 +2286,7 @@ def test_validate_artifacts_rejects_receipt_gate_fingerprint_mismatch(
     _mock_successful_builder_edges(monkeypatch)
     gate_path = _write_gate(repo=repo, admission_path=admission_path, run_id=run_id)
     assert generation_cli.main(["generate-candidate", "--gate", str(gate_path)]) == 0
+    _finalize_generated_run(repo=repo, gate_path=gate_path, run_id=run_id)
     receipt_path = gate_path.parent / generation_cli.RECEIPT_FILENAME
     receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
     receipt["gate_fingerprint"] = "sha256:" + ("0" * 64)
@@ -2376,6 +2318,7 @@ def test_receipt_validator_rejects_unknown_failures_and_incoherent_runner_status
     _mock_successful_builder_edges(monkeypatch)
     gate_path = _write_gate(repo=repo, admission_path=admission_path, run_id=run_id)
     assert generation_cli.main(["generate-candidate", "--gate", str(gate_path)]) == 0
+    _finalize_generated_run(repo=repo, gate_path=gate_path, run_id=run_id)
     capsys.readouterr()
     receipt_path = gate_path.parent / generation_cli.RECEIPT_FILENAME
     reference = json.loads(receipt_path.read_text(encoding="utf-8"))
@@ -2625,6 +2568,7 @@ def test_validate_artifacts_rejects_tampered_receipt_gate_ref_with_recomputed_id
     _mock_successful_builder_edges(monkeypatch)
     gate_path = _write_gate(repo=repo, admission_path=admission_path, run_id=run_id)
     assert generation_cli.main(["generate-candidate", "--gate", str(gate_path)]) == 0
+    _finalize_generated_run(repo=repo, gate_path=gate_path, run_id=run_id)
     receipt_path = gate_path.parent / generation_cli.RECEIPT_FILENAME
     receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
     receipt["gate_ref"] = (
@@ -2654,6 +2598,7 @@ def test_validate_artifacts_rejects_tampered_receipt_request_id_with_recomputed_
     _mock_successful_builder_edges(monkeypatch)
     gate_path = _write_gate(repo=repo, admission_path=admission_path, run_id=run_id)
     assert generation_cli.main(["generate-candidate", "--gate", str(gate_path)]) == 0
+    _finalize_generated_run(repo=repo, gate_path=gate_path, run_id=run_id)
     receipt_path = gate_path.parent / generation_cli.RECEIPT_FILENAME
     receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
     receipt["request_id"] = "tampered-request-id"
@@ -2681,6 +2626,7 @@ def test_validate_artifacts_rejects_receipt_authority_tamper_with_recomputed_ide
     _mock_successful_builder_edges(monkeypatch)
     gate_path = _write_gate(repo=repo, admission_path=admission_path, run_id=run_id)
     assert generation_cli.main(["generate-candidate", "--gate", str(gate_path)]) == 0
+    _finalize_generated_run(repo=repo, gate_path=gate_path, run_id=run_id)
     receipt_path = gate_path.parent / generation_cli.RECEIPT_FILENAME
     receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
     receipt["authority"]["open_pull_request"] = True
@@ -2708,6 +2654,7 @@ def test_validate_artifacts_rejects_missing_linked_candidate_patch(
     _mock_successful_builder_edges(monkeypatch)
     gate_path = _write_gate(repo=repo, admission_path=admission_path, run_id=run_id)
     assert generation_cli.main(["generate-candidate", "--gate", str(gate_path)]) == 0
+    _finalize_generated_run(repo=repo, gate_path=gate_path, run_id=run_id)
     receipt_path = gate_path.parent / generation_cli.RECEIPT_FILENAME
     run_dir = creative_code_patch_workspace.resolve_run_dir(run_id, create=False)
     (run_dir / creative_code_patch_builder.CANDIDATE_PATCH_FILE).unlink()
@@ -2733,6 +2680,7 @@ def test_validate_artifacts_rejects_stale_result_fingerprint(
     _mock_successful_builder_edges(monkeypatch)
     gate_path = _write_gate(repo=repo, admission_path=admission_path, run_id=run_id)
     assert generation_cli.main(["generate-candidate", "--gate", str(gate_path)]) == 0
+    _finalize_generated_run(repo=repo, gate_path=gate_path, run_id=run_id)
     receipt_path = gate_path.parent / generation_cli.RECEIPT_FILENAME
     run_dir = creative_code_patch_workspace.resolve_run_dir(run_id, create=False)
     result_path = run_dir / creative_code_patch_builder.RESULT_FILE
@@ -2761,6 +2709,7 @@ def test_validate_artifacts_rejects_tampered_candidate_patch(
     _mock_successful_builder_edges(monkeypatch)
     gate_path = _write_gate(repo=repo, admission_path=admission_path, run_id=run_id)
     assert generation_cli.main(["generate-candidate", "--gate", str(gate_path)]) == 0
+    _finalize_generated_run(repo=repo, gate_path=gate_path, run_id=run_id)
     receipt_path = gate_path.parent / generation_cli.RECEIPT_FILENAME
     run_dir = creative_code_patch_workspace.resolve_run_dir(run_id, create=False)
     patch_path = run_dir / creative_code_patch_builder.CANDIDATE_PATCH_FILE
@@ -2790,6 +2739,7 @@ def test_validate_artifacts_rejects_tampered_experiment_packet(
     _mock_successful_builder_edges(monkeypatch)
     gate_path = _write_gate(repo=repo, admission_path=admission_path, run_id=run_id)
     assert generation_cli.main(["generate-candidate", "--gate", str(gate_path)]) == 0
+    _finalize_generated_run(repo=repo, gate_path=gate_path, run_id=run_id)
     receipt_path = gate_path.parent / generation_cli.RECEIPT_FILENAME
     run_dir = creative_code_patch_workspace.resolve_run_dir(run_id, create=False)
     packet_path = run_dir / creative_code_patch_builder.EXPERIMENT_PACKET_FILE
@@ -2831,6 +2781,7 @@ def test_validate_artifacts_checks_patch_metadata_fingerprint_before_semantics(
     _mock_successful_builder_edges(monkeypatch)
     gate_path = _write_gate(repo=repo, admission_path=admission_path, run_id=run_id)
     assert generation_cli.main(["generate-candidate", "--gate", str(gate_path)]) == 0
+    _finalize_generated_run(repo=repo, gate_path=gate_path, run_id=run_id)
     receipt_path = gate_path.parent / generation_cli.RECEIPT_FILENAME
     run_dir = creative_code_patch_workspace.resolve_run_dir(run_id, create=False)
     metadata_path = run_dir / creative_code_patch_builder.PATCH_METADATA_FILE
@@ -2873,6 +2824,7 @@ def test_validate_artifacts_rejects_recomputed_noncanonical_experiment_packet(
     _mock_successful_builder_edges(monkeypatch)
     gate_path = _write_gate(repo=repo, admission_path=admission_path, run_id=run_id)
     assert generation_cli.main(["generate-candidate", "--gate", str(gate_path)]) == 0
+    _finalize_generated_run(repo=repo, gate_path=gate_path, run_id=run_id)
     receipt_path = gate_path.parent / generation_cli.RECEIPT_FILENAME
     run_dir = creative_code_patch_workspace.resolve_run_dir(run_id, create=False)
     packet_path = run_dir / creative_code_patch_builder.EXPERIMENT_PACKET_FILE
@@ -2917,6 +2869,7 @@ def test_validate_artifacts_rejects_cross_run_sidecar_refs(
         output_name="generation-gate-a",
     )
     assert generation_cli.main(["generate-candidate", "--gate", str(gate_a)]) == 0
+    _finalize_generated_run(repo=repo, gate_path=gate_a, run_id=run_a)
     receipt_a_path = gate_a.parent / generation_cli.RECEIPT_FILENAME
 
     run_b = "cross-run-b"
@@ -2933,6 +2886,7 @@ def test_validate_artifacts_rejects_cross_run_sidecar_refs(
         output_name="generation-gate-b",
     )
     assert generation_cli.main(["generate-candidate", "--gate", str(gate_b)]) == 0
+    _finalize_generated_run(repo=repo, gate_path=gate_b, run_id=run_b)
     receipt_b = json.loads(
         (gate_b.parent / generation_cli.RECEIPT_FILENAME).read_text(encoding="utf-8")
     )
@@ -2986,6 +2940,7 @@ def test_validate_artifacts_rejects_unsafe_patch_metadata_extra_fields(
     _mock_successful_builder_edges(monkeypatch)
     gate_path = _write_gate(repo=repo, admission_path=admission_path, run_id=run_id)
     assert generation_cli.main(["generate-candidate", "--gate", str(gate_path)]) == 0
+    _finalize_generated_run(repo=repo, gate_path=gate_path, run_id=run_id)
     receipt_path = gate_path.parent / generation_cli.RECEIPT_FILENAME
     run_dir = creative_code_patch_workspace.resolve_run_dir(run_id, create=False)
     metadata_path = run_dir / creative_code_patch_builder.PATCH_METADATA_FILE
@@ -3016,6 +2971,7 @@ def test_validate_artifacts_rejects_duplicate_patch_metadata_key_without_echoing
     _mock_successful_builder_edges(monkeypatch)
     gate_path = _write_gate(repo=repo, admission_path=admission_path, run_id=run_id)
     assert generation_cli.main(["generate-candidate", "--gate", str(gate_path)]) == 0
+    _finalize_generated_run(repo=repo, gate_path=gate_path, run_id=run_id)
     receipt_path = gate_path.parent / generation_cli.RECEIPT_FILENAME
     run_dir = creative_code_patch_workspace.resolve_run_dir(run_id, create=False)
     metadata_path = run_dir / creative_code_patch_builder.PATCH_METADATA_FILE
@@ -3049,6 +3005,7 @@ def test_validate_artifacts_rejects_forged_sidecars_outside_request_allowlist(
     _mock_successful_builder_edges(monkeypatch)
     gate_path = _write_gate(repo=repo, admission_path=admission_path, run_id=run_id)
     assert generation_cli.main(["generate-candidate", "--gate", str(gate_path)]) == 0
+    _finalize_generated_run(repo=repo, gate_path=gate_path, run_id=run_id)
     receipt_path = gate_path.parent / generation_cli.RECEIPT_FILENAME
     run_dir = creative_code_patch_workspace.resolve_run_dir(run_id, create=False)
     patch_text = (
