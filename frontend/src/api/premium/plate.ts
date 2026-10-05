@@ -1,5 +1,4 @@
-import { createPremiumEndpoint } from './types';
-import type { PlateRequest } from './types';
+import { createPremiumEndpoint, type PlateRequest } from './types';
 import type { components } from '../schema';
 
 type PlateResponse = components['schemas']['PlateResponse'];

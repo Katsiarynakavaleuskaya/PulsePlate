@@ -9,9 +9,19 @@
 - Install: `npm install`
 - Dev: `npm run dev`
 - Typecheck: `npm run typecheck`
+- Production API/foundation lint: `npm run lint:foundation` (explicit existing config,
+  authored top-level API/premium TypeScript and analytics, zero warnings). Generated
+  `src/api/schema.ts` is excluded precisely; this command does not claim all frontend
+  or API tests are lint-clean. Frontend CI runs native controls after installation;
+  the Python workflow contracts remain runnable without Node.
 - Build: `npm run build`
 - Preview: `npm run preview`
 - Test: `npm run test`, `npm run test:ci`, `npm run test:precommit`, `npm run test:coverage`
+- Full dependency guard (repo root): `tests/test_frontend_dependency_guards.py`
+  requires canonical Node/npm for registry-spec and native virtual-graph checks.
+  Python-only range/contract subsets supplement the full native guard. Derive
+  guest prerequisites from the actual selected calls and their native tools,
+  rather than the `.py` filename.
 - Generate API types: `npm run generate-types`
 - OpenAPI sync parity: when `make openapi` or frontend type generation touches
   `frontend/`, run those steps under Node `24.x` to match CI and lockfile engines.
