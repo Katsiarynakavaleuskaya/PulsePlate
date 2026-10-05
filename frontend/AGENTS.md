@@ -17,6 +17,11 @@
 - Build: `npm run build`
 - Preview: `npm run preview`
 - Test: `npm run test`, `npm run test:ci`, `npm run test:precommit`, `npm run test:coverage`
+- Full dependency guard (repo root): `tests/test_frontend_dependency_guards.py`
+  requires canonical Node/npm for registry-spec and native virtual-graph checks.
+  Python-only range/contract subsets supplement the full native guard. Derive
+  guest prerequisites from the actual selected calls and their native tools,
+  rather than the `.py` filename.
 - Generate API types: `npm run generate-types`
 - OpenAPI sync parity: when `make openapi` or frontend type generation touches
   `frontend/`, run those steps under Node `24.x` to match CI and lockfile engines.
