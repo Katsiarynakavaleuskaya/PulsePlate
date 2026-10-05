@@ -14,7 +14,7 @@ import json
 import os
 import re
 import shutil
-import subprocess  # nosec B404: bounded absolute git identity checks are required (remove-by: 2026-09-30, ref: PR-governance-material-seal)
+import subprocess  # nosec B404 # B404: bounded absolute git identity checks are required (remove-by: 2026-10-30, ref: PR-governance-material-seal)
 import sys
 import time
 import urllib.error
@@ -53,6 +53,7 @@ from scripts.orchestration.pr_commit_identity import (  # noqa: E402
 )
 from scripts.orchestration.pr_review_evidence import (  # noqa: E402
     ReviewEvidenceError,
+    _git_environment,
     build_provider_no_claim_pair,
     compute_material_manifest,
     is_provider_no_claim_review_receipt,
@@ -62,6 +63,9 @@ from scripts.orchestration.pr_review_evidence import (  # noqa: E402
     validate_mapping_only_closeout_successor,
     validate_review_seal,
     validated_duplicate_reply_urls,
+    validated_inspected_stale_seal_urls,
+    publication_review_inventory_digest,
+    read_closeout_candidate_bytes,
 )
 from scripts.ci.check_current_head_pr_checks import (  # noqa: E402
     DOCKER_SURFACE_PREFIXES,
@@ -377,13 +381,14 @@ def _pre_closeout_dirty_paths() -> set[str]:
     if not git:
         raise ValueError("git not found in PATH")
     try:
-        completed = subprocess.run(  # nosec B603: absolute git with fixed status argv only (remove-by: 2026-09-30, ref: PR-strict-closeout-precommit-guard)
+        completed = subprocess.run(  # nosec B603 # B603: absolute git with fixed status argv and owning-checkout environment (remove-by: 2026-10-30, ref: PR-strict-closeout-precommit-guard)
             [git, "status", "--porcelain=v1", "--untracked-files=all"],
             cwd=REPO_ROOT,
             capture_output=True,
             text=True,
             timeout=30,
             check=False,
+            env=_git_environment(),
         )
     except subprocess.TimeoutExpired as exc:
         raise ValueError("git status timed out during pre-closeout cleanliness check") from exc
@@ -553,7 +558,13 @@ def _api_request_paginated_list(base_url: str, token: str) -> list[Any]:
     return out
 
 
-def _collect_actionable_items(repo: str, pr_number: int, token: str) -> list[ActionableItem]:
+def _collect_actionable_items(
+    repo: str,
+    pr_number: int,
+    token: str,
+    *,
+    selected_raw_rows: dict[str, Mapping[str, Any]] | None = None,
+) -> list[ActionableItem]:
     """Fetch all issue comments, reviews, and review comments (paginated); return actionable bot items."""
     base = f"https://api.github.com/repos/{repo}"
     encoded = urllib.parse.quote(str(pr_number), safe="")
@@ -566,6 +577,8 @@ def _collect_actionable_items(repo: str, pr_number: int, token: str) -> list[Act
     review_comments = _api_request_paginated_list(review_comments_url, token=token)
 
     items: list[ActionableItem] = []
+    seen_ids: set[tuple[str, int]] = set()
+    seen_urls: set[str] = set()
 
     for source, kind in (
         (issue_comments, "issue_comment"),
@@ -573,17 +586,55 @@ def _collect_actionable_items(repo: str, pr_number: int, token: str) -> list[Act
         (review_comments, "review_comment"),
     ):
         for row in source:
-            author = str((row.get("user") or {}).get("login", ""))
+            if not isinstance(row, dict):
+                raise ValueError("review source contains a nonobject member")
+            user = row.get("user")
+            object_id = row.get("id")
+            if (
+                type(object_id) is not int
+                or object_id <= 0
+                or not isinstance(row.get("node_id"), str)
+                or not row["node_id"]
+                or not isinstance(row.get("html_url"), str)
+                or not row["html_url"]
+                or not isinstance(row.get("body"), str)
+                or not isinstance(user, dict)
+                or type(user.get("id")) is not int
+                or user["id"] <= 0
+                or not isinstance(user.get("login"), str)
+                or not user["login"]
+                or user.get("type") not in {"User", "Bot"}
+                or not isinstance(user.get("node_id"), str)
+                or not user["node_id"]
+            ):
+                raise ValueError("review source member identity is malformed")
+            key = (kind, object_id)
+            if key in seen_ids or row["html_url"] in seen_urls:
+                raise ValueError("review source contains repeated identity")
+            seen_ids.add(key)
+            seen_urls.add(row["html_url"])
+            created = row.get("submitted_at") if kind == "review" else row.get("created_at")
+            if not (kind == "review" and row.get("state") == "PENDING" and created is None):
+                _validated_review_timestamp(created, label=f"{kind} posted timestamp")
+            if kind != "review" or "updated_at" in row:
+                _validated_review_timestamp(row.get("updated_at"), label=f"{kind} revision")
+            author = row["user"]["login"]
             if not author.endswith("[bot]"):
                 continue
-            body = str(row.get("body") or "")
+            body = row["body"]
             if not _is_actionable(body):
                 continue
-            url = str(row.get("html_url") or "")
-            created_at = str(row.get("created_at") or row.get("submitted_at") or "")
-            updated_at = str(row.get("updated_at") or created_at)
-            if not url:
-                continue
+            url = row["html_url"]
+            created_at = _validated_review_timestamp(
+                row["submitted_at"] if kind == "review" else row["created_at"],
+                label=f"{kind} selected posted timestamp",
+            )
+            updated_at = _validated_review_timestamp(
+                row.get("updated_at", created_at), label=f"{kind} selected timestamp observation"
+            )
+            if selected_raw_rows is not None:
+                # Preserve the first list observation until the shared native binder.
+                selected_raw_rows[url] = row
             raw_review_id = row.get("id") if kind == "review" else row.get("pull_request_review_id")
             review_id = (
                 raw_review_id
@@ -802,22 +853,57 @@ def _event_head_sha(event_path: Path) -> str:
     return head
 
 
-def _local_head_sha() -> str:
+def _local_head_sha(repo_root: Path | None = None) -> str:
     git = shutil.which("git")
     if not git:
         raise ValueError("git not found in PATH")
-    completed = subprocess.run(  # nosec B603: absolute git with fixed rev-parse argv only (remove-by: 2026-09-30, ref: PR-governance-material-seal)
+    git_env = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
+    git_env.update(
+        GIT_NO_REPLACE_OBJECTS="1", GIT_CONFIG_GLOBAL=os.devnull, GIT_CONFIG_NOSYSTEM="1"
+    )
+    completed = subprocess.run(  # nosec B603 # B603: resolved Git with fixed rev-parse HEAD argv and ambient Git/replacement-object isolation (remove-by: 2026-10-30, ref: PR-governance-material-seal)
         [git, "rev-parse", "HEAD"],
-        cwd=REPO_ROOT,
+        cwd=REPO_ROOT if repo_root is None else repo_root,
         capture_output=True,
         text=True,
         timeout=30,
         check=False,
+        env=git_env,
     )
     head = completed.stdout.strip()
     if completed.returncode != 0 or not re.fullmatch(r"[0-9a-f]{40}", head):
         raise ValueError("local checkout HEAD is unavailable")
     return head
+
+
+def _read_material_mapping_artifact(
+    pr_number: int, *, material_repo_root: Path, head_sha: str, split_checkout: bool
+) -> str:
+    """Read the exact PR-head mapping blob when policy and material are separate."""
+    if not split_checkout:
+        artifact_text = read_mapping_artifact(pr_number)
+        if not isinstance(artifact_text, str):
+            raise ValueError("canonical review mapping artifact reader returned invalid text")
+        return artifact_text
+    git = shutil.which("git")
+    if not git:
+        raise ValueError("git not found in PATH")
+    git_env = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
+    git_env.update(
+        GIT_NO_REPLACE_OBJECTS="1", GIT_CONFIG_GLOBAL=os.devnull, GIT_CONFIG_NOSYSTEM="1"
+    )
+    artifact_path = f"docs/review/PR_{pr_number}_FIXED_MAPPING.md"
+    completed = subprocess.run(  # nosec B603 # B603: absolute git reads one fixed PR-head blob (remove-by: 2026-10-31, ref: PR-consol-ci-1)
+        [git, "cat-file", "blob", f"{head_sha}:{artifact_path}"],
+        cwd=material_repo_root,
+        capture_output=True,
+        check=False,
+        timeout=30,
+        env=git_env,
+    )
+    if completed.returncode != 0:
+        raise FileNotFoundError(f"Missing canonical review mapping blob: {artifact_path}")
+    return completed.stdout.decode("utf-8")
 
 
 def _is_ghas_thread(thread: ReviewThreadEvidence) -> bool:
@@ -1194,7 +1280,9 @@ def _validate_v1_seal(
     outage_security_wait_seconds: int = 0,
     enforce_outage_security_checks: bool = True,
     require_committed_closeout: bool = True,
+    material_repo_root: Path | None = None,
 ) -> dict[str, Any]:
+    material_repo_root = REPO_ROOT if material_repo_root is None else material_repo_root
     raw_seal = parse_embedded_review_seal(artifact_text)
     if not isinstance(raw_seal, dict):
         raise ReviewEvidenceError("embedded review seal must be a string-keyed object")
@@ -1206,7 +1294,7 @@ def _validate_v1_seal(
     if seal["repository"] != repository or seal["pr_number"] != pr_number:
         raise ReviewEvidenceError("review seal repository/PR identity mismatch")
     manifest = compute_material_manifest(
-        REPO_ROOT,
+        material_repo_root,
         base_ref_oid=snapshot.base_sha,
         head_ref_oid=snapshot.head_sha,
         pr_number=pr_number,
@@ -1215,6 +1303,7 @@ def _validate_v1_seal(
         seal,
         material_paths=(entry.path for entry in manifest.entries),
         material_diff_summary=manifest.diff_summary,
+        repo_root=material_repo_root,
     )
     material = seal["material"]
     if (
@@ -1244,7 +1333,7 @@ def _validate_v1_seal(
         raise ReviewEvidenceError("provider-neutral review no-claim receipt is stale")
     if require_committed_closeout:
         validate_mapping_only_closeout_successor(
-            REPO_ROOT,
+            material_repo_root,
             material_head_sha=material_head.sha,
             live_head_sha=snapshot.head_sha,
             pr_number=pr_number,
@@ -1322,7 +1411,9 @@ def _duplicate_reply_coverage(
     repository: str,
     pr_number: int,
     token: str,
+    material_repo_root: Path | None = None,
 ) -> set[str]:
+    material_repo_root = REPO_ROOT if material_repo_root is None else material_repo_root
     records = parse_canonical_fingerprint_records(artifact_text, pr_number=pr_number)
     candidate_urls = {
         item.url
@@ -1336,7 +1427,7 @@ def _duplicate_reply_coverage(
         mapping_entries=parse_fixed_mapping_entries(extract_fixed_mapping_section(artifact_text)),
         material_digest=str(seal["material"]["digest"]),
         material_head_sha=str(seal["material"]["material_head_sha"]),
-        repo_root=REPO_ROOT,
+        repo_root=material_repo_root,
         snapshot=snapshot,
         repository=repository,
         token=token,
@@ -1370,6 +1461,11 @@ def main() -> int:
         help="Repo full name owner/repo for local/agent run (e.g. Katsiarynakavaleuskaya/PulsePlate).",
     )
     parser.add_argument(
+        "--material-repo-root",
+        type=Path,
+        help="Separate PR-head Git checkout to inspect while this checkout provides policy code.",
+    )
+    parser.add_argument(
         "--outage-security-wait-seconds",
         type=int,
         default=_MAX_OUTAGE_SECURITY_WAIT_SECONDS,
@@ -1398,8 +1494,20 @@ def main() -> int:
         parser.error("Use either --event-path (CI) or --pr-number and --repo (local), not both.")
     if args.pre_closeout and args.event_path:
         parser.error("--pre-closeout is local-only; use --pr-number and --repo.")
+    if args.pre_closeout and args.material_repo_root is not None:
+        parser.error("--material-repo-root is incompatible with local pre-closeout")
     if (args.pr_number is not None) != bool((args.repo or "").strip()):
         parser.error("For local/agent mode provide both --pr-number and --repo.")
+    split_checkout = args.material_repo_root is not None
+    if split_checkout:
+        try:
+            material_repo_root = args.material_repo_root.resolve(strict=True)
+        except OSError as exc:
+            parser.error(f"--material-repo-root is unavailable: {exc}")
+        if material_repo_root == REPO_ROOT or not (material_repo_root / ".git").exists():
+            parser.error("--material-repo-root must be a distinct Git checkout")
+    else:
+        material_repo_root = REPO_ROOT
     token = os.getenv("GITHUB_TOKEN", "").strip()
     if not token:
         print("ERROR: GITHUB_TOKEN is required for merge-readiness gate.")
@@ -1474,7 +1582,12 @@ def main() -> int:
             raise CommitIdentityError(
                 "SNAPSHOT_CHANGED: event head does not match the live PR head"
             )
-        if _local_head_sha() != snapshot.head_sha:
+        if split_checkout:
+            if _local_head_sha() != snapshot.base_sha:
+                raise CommitIdentityError("policy checkout HEAD does not match the live PR base")
+            if _local_head_sha(material_repo_root) != snapshot.head_sha:
+                raise CommitIdentityError("material checkout HEAD does not match the live PR head")
+        elif _local_head_sha() != snapshot.head_sha:
             raise CommitIdentityError("local checkout HEAD does not match the live PR head")
         review_threads = fetch_review_threads(repo, pr_number, token=token)
     except (CommitIdentityError, OSError, ValueError) as exc:
@@ -1489,8 +1602,19 @@ def main() -> int:
             f"Unresolved review threads: {unresolved_threads}. Resolve all threads before merge."
         )
 
+    selected_raw_rows: dict[str, Mapping[str, Any]] = {}
     try:
-        actionable_items = _collect_actionable_items(repo=repo, pr_number=pr_number, token=token)
+        if args.pre_closeout:
+            actionable_items = _collect_actionable_items(
+                repo=repo,
+                pr_number=pr_number,
+                token=token,
+                selected_raw_rows=selected_raw_rows,
+            )
+        else:
+            actionable_items = _collect_actionable_items(
+                repo=repo, pr_number=pr_number, token=token
+            )
     except (urllib.error.HTTPError, OSError, ValueError) as exc:
         code = f" HTTP {exc.code}" if isinstance(exc, urllib.error.HTTPError) else ""
         print(f"ERROR: cannot query bot comments/reviews:{code} {exc}")
@@ -1498,7 +1622,12 @@ def main() -> int:
 
     # Canonical SoT: repo artifact (docs/review/PR_<N>_FIXED_MAPPING.md)
     try:
-        artifact_text = read_mapping_artifact(pr_number)
+        artifact_text = _read_material_mapping_artifact(
+            pr_number,
+            material_repo_root=material_repo_root,
+            head_sha=snapshot.head_sha,
+            split_checkout=split_checkout,
+        )
         artifact_errors = validate_mapping_artifact_text(artifact_text)
         if artifact_errors:
             raise ValueError("; ".join(artifact_errors))
@@ -1533,6 +1662,7 @@ def main() -> int:
                     outage_security_wait_seconds=args.outage_security_wait_seconds,
                     enforce_outage_security_checks=not args.pre_closeout,
                     require_committed_closeout=not args.pre_closeout,
+                    material_repo_root=material_repo_root,
                 )
                 _prove_v1_fixed_commits(
                     mapping_entries=mapping_entries,
@@ -1562,19 +1692,60 @@ def main() -> int:
                 repository=repo,
                 pr_number=pr_number,
                 token=token,
+                material_repo_root=material_repo_root,
             )
         except (CommitIdentityError, ReviewEvidenceError, ValueError) as exc:
             errors.append(f"Duplicate reply validation failed: {exc}")
 
     disposition_covered_urls = mapped_urls | duplicate_covered_urls
 
+    publication_covered_urls: set[str] = set()
+    publication_digest: str | None = None
+    candidate_raw: bytes | None = None
     if args.pre_closeout:
+        if seal is not None:
+            try:
+                candidate_raw = read_closeout_candidate_bytes(REPO_ROOT, pr_number=pr_number)
+                if candidate_raw.decode("utf-8") != artifact_text:
+                    raise ReviewEvidenceError("canonical candidate raw/text observation differs")
+                publication_digest = publication_review_inventory_digest(
+                    actionable_items=actionable_items,
+                    selected_rows=selected_raw_rows,
+                    unresolved_roots=tuple(
+                        thread
+                        for thread in review_threads
+                        if not thread.is_resolved and not _is_ghas_thread(thread)
+                    ),
+                    snapshot=snapshot,
+                    repository=repo,
+                    token=token,
+                )
+                print(f"pre-closeout current inventory: {publication_digest}")
+                publication_covered_urls = validated_inspected_stale_seal_urls(
+                    candidate_urls={thread.comments[0].url for thread in review_threads},
+                    threads=review_threads,
+                    fingerprint_records=parse_canonical_fingerprint_records(
+                        artifact_text, pr_number=pr_number
+                    ),
+                    mapping_entries=mapping_entries,
+                    material_digest=str(seal["material"]["digest"]),
+                    material_head_sha=str(seal["material"]["material_head_sha"]),
+                    repo_root=REPO_ROOT,
+                    snapshot=snapshot,
+                    repository=repo,
+                    token=token,
+                    publication_inventory_digest=publication_digest,
+                    candidate_raw=candidate_raw,
+                )
+            except (CommitIdentityError, ReviewEvidenceError, OSError, ValueError) as exc:
+                errors.append(f"Historical seal publication admission failed: {exc}")
         unmapped_roots = [
             thread.comments[0].url
             for thread in review_threads
             if not thread.is_resolved
             and not _is_ghas_thread(thread)
             and thread.comments[0].url not in mapped_urls
+            and thread.comments[0].url not in publication_covered_urls
         ]
         if unmapped_roots:
             errors.append(
@@ -1593,7 +1764,9 @@ def main() -> int:
         unmapped = [
             item
             for item in actionable_items
-            if item.url not in mapped_urls and item.url not in duplicate_covered_urls
+            if item.url not in mapped_urls
+            and item.url not in duplicate_covered_urls
+            and item.url not in publication_covered_urls
         ]
         if unmapped:
             errors.append(
@@ -1635,15 +1808,25 @@ def main() -> int:
                 outage_security_wait_seconds=0,
                 enforce_outage_security_checks=True,
                 require_committed_closeout=True,
+                material_repo_root=material_repo_root,
             )
         except (CommitIdentityError, ReviewEvidenceError, OSError, ValueError) as exc:
             errors.append(f"Post-wait material review seal validation failed: {exc}")
 
     try:
         final_pr_context = _fetch_pr_context(pr_number=pr_number, repo=repo, token=token)
-        final_actionable_items = _collect_actionable_items(
-            repo=repo, pr_number=pr_number, token=token
-        )
+        final_raw_rows: dict[str, Mapping[str, Any]] = {}
+        if args.pre_closeout:
+            final_actionable_items = _collect_actionable_items(
+                repo=repo,
+                pr_number=pr_number,
+                token=token,
+                selected_raw_rows=final_raw_rows,
+            )
+        else:
+            final_actionable_items = _collect_actionable_items(
+                repo=repo, pr_number=pr_number, token=token
+            )
         final_review_threads = fetch_review_threads(repo, pr_number, token=token)
         if final_pr_context != (pr_number, repo, is_draft, pr_body, head_ref):
             raise CommitIdentityError(
@@ -1660,6 +1843,41 @@ def main() -> int:
                 "SNAPSHOT_CHANGED: review-thread inventory changed during validation"
             )
         if args.pre_closeout and expected_mapping_path is not None:
+            if publication_digest is not None and seal is not None:
+                terminal_digest = publication_review_inventory_digest(
+                    actionable_items=final_actionable_items,
+                    selected_rows=final_raw_rows,
+                    unresolved_roots=tuple(
+                        thread
+                        for thread in final_review_threads
+                        if not thread.is_resolved and not _is_ghas_thread(thread)
+                    ),
+                    snapshot=snapshot,
+                    repository=repo,
+                    token=token,
+                )
+                if terminal_digest != publication_digest:
+                    raise ReviewEvidenceError("frozen publication inventory changed")
+                if read_closeout_candidate_bytes(REPO_ROOT, pr_number=pr_number) != candidate_raw:
+                    raise ReviewEvidenceError("canonical candidate bytes changed")
+                terminal_admission = validated_inspected_stale_seal_urls(
+                    candidate_urls={thread.comments[0].url for thread in final_review_threads},
+                    threads=final_review_threads,
+                    fingerprint_records=parse_canonical_fingerprint_records(
+                        artifact_text, pr_number=pr_number
+                    ),
+                    mapping_entries=mapping_entries,
+                    material_digest=str(seal["material"]["digest"]),
+                    material_head_sha=str(seal["material"]["material_head_sha"]),
+                    repo_root=REPO_ROOT,
+                    snapshot=snapshot,
+                    repository=repo,
+                    token=token,
+                    publication_inventory_digest=terminal_digest,
+                    candidate_raw=candidate_raw,
+                )
+                if terminal_admission != publication_covered_urls:
+                    raise ReviewEvidenceError("historical publication admission changed")
             if _local_head_sha() != snapshot.head_sha:
                 raise CommitIdentityError(
                     "SNAPSHOT_CHANGED: local HEAD changed during pre-closeout validation"
@@ -1673,8 +1891,29 @@ def main() -> int:
                     "SNAPSHOT_CHANGED: canonical mapping artifact changed during "
                     "pre-closeout validation"
                 )
+        if split_checkout:
+            if _local_head_sha() != snapshot.base_sha:
+                raise CommitIdentityError("SNAPSHOT_CHANGED: policy checkout HEAD changed")
+            if _local_head_sha(material_repo_root) != snapshot.head_sha:
+                raise CommitIdentityError("SNAPSHOT_CHANGED: material checkout HEAD changed")
+            if (
+                _read_material_mapping_artifact(
+                    pr_number,
+                    material_repo_root=material_repo_root,
+                    head_sha=snapshot.head_sha,
+                    split_checkout=True,
+                )
+                != artifact_text
+            ):
+                raise CommitIdentityError("SNAPSHOT_CHANGED: material mapping blob changed")
         assert_snapshot_unchanged(snapshot, token=token)
-    except (CommitIdentityError, OSError, ValueError, urllib.error.HTTPError) as exc:
+    except (
+        CommitIdentityError,
+        ReviewEvidenceError,
+        OSError,
+        ValueError,
+        urllib.error.HTTPError,
+    ) as exc:
         errors.append(str(exc))
 
     if errors:
@@ -1689,10 +1928,17 @@ def main() -> int:
         return 1
 
     if args.pre_closeout:
-        print(
-            "pre-closeout-review-governance: passed; all live actionable bot issue comments, "
-            "bot inline comments, and top-level bot reviews are explicitly mapped."
-        )
+        if publication_covered_urls:
+            print(
+                "pre-closeout-review-governance: passed for one historical seal publication; "
+                "its root remains unresolved and awaits actual correction/FIXED proof. "
+                "All other live actionable items and required roots are mapped."
+            )
+        else:
+            print(
+                "pre-closeout-review-governance: passed; all live actionable bot issue comments, "
+                "bot inline comments, and top-level bot reviews are explicitly mapped."
+            )
         print("pre-closeout-review-governance: not merge-readiness evidence.")
         return 0
 

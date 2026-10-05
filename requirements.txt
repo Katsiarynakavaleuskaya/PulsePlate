@@ -198,8 +198,10 @@ typing-inspection==0.4.2
     # via
     #   fastapi
     #   pydantic
-urllib3==2.7.0
-    # via requests
+urllib3==2.8.0
+    # via
+    #   -r requirements.in
+    #   requests
 uvicorn==0.42.0
     # via -r requirements.in
 wrapt==2.0.1

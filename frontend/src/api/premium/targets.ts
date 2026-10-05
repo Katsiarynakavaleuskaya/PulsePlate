@@ -1,5 +1,4 @@
-import { createPremiumEndpoint } from './types';
-import type { TargetsRequest, TargetsApiResponse } from './types';
+import { createPremiumEndpoint, type TargetsRequest, type TargetsApiResponse } from './types';
 
 /**
  * Deprecated premium client → canonical PRO route.

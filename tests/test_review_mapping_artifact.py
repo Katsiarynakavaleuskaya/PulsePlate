@@ -343,6 +343,22 @@ Evidence: See mapping entries below.
     assert errors == []
 
 
+@pytest.mark.parametrize(
+    "disposition",
+    ["Disposition: FIXED-BYPASS", "Disposition: FIXED later", "Disposition: fixed"],
+)
+def test_validate_fixed_mapping_section_rejects_nonexact_fixed_preamble(
+    disposition: str,
+) -> None:
+    section = f"""{disposition}
+Commit: see mapping entries below
+Evidence: See mapping entries below.
+
+- https://github.com/org/repo/pull/1000#discussion_r1 -> abc1234
+"""
+    assert artifact.validate_fixed_mapping_section(section)
+
+
 def test_validate_fixed_mapping_section_accepts_placeholder_preamble_with_thread_lines() -> None:
     section = """Disposition: FIXED
 Commit: see mapping entries below

@@ -146,6 +146,18 @@ PR-495:
 - Must remain one vertical user flow
 - Must not mix frontend UI with backend/API/AI runtime unless `Frontend/backend mix approval: approved` is documented and backed by `scope/frontend-backend-mix-approved`, or a trusted emergency exception is documented
 
+Each of the raw, exact Git paths `frontend/src/api/openapi.json` and
+`frontend/src/api/schema.ts` is excluded from product-client category and
+client-mix classification only when the explicit PR head tree records that
+path as a `100644 blob` and that path is not an endpoint of a rename or copy
+record emitted by the declared Git name-status diff. Both rename/copy endpoints
+retain ordinary category and approval checks. Every path still counts toward
+file caps and the advisory changed-line count; OpenAPI sync remains required.
+Symlinks, normalized aliases, neighboring paths, and other Web/iOS files
+retain the ordinary client policy. Git's finite status records do not prove
+every actual file movement or generated content. Root `AGENTS.md` owns this
+exception; this document mirrors its scope policy.
+
 ### Privileged CI / Security / Workflow PR
 
 - Target **≤10 files changed**

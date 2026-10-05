@@ -5,14 +5,16 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 import traceback
+from copy import deepcopy
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
 import httpx
 import pytest
-from openai import DefaultAsyncHttpxClient
+from openai import AsyncOpenAI, DefaultAsyncHttpxClient
 from openai._models import FinalRequestOptions
 from fastapi.testclient import TestClient
 
@@ -27,6 +29,39 @@ from providers.perplexity_agent import (
 
 MODEL = "openai/gpt-6-luna"
 PROMPT = "Give one bounded FitChef planning reflection."
+_APPROVED_MODELS = [MODEL, "openai/gpt-6-sol", "openai/gpt-6.1-sol"]
+_SDK_ENV_NAMES = (
+    "OPENAI_API_KEY",
+    "OPENAI_BASE_URL",
+    "OPENAI_ORG_ID",
+    "OPENAI_PROJECT_ID",
+    "OPENAI_WEBHOOK_SECRET",
+    "PERPLEXITY_API_KEY",
+    "OPENAI_LOG",
+)
+_NEAR_MODEL_IDS = [
+    "gpt-6.1",
+    "openai/gpt-6.1",
+    "openai/gpt-6.10-sol",
+    "openai/gpt-6.1-preview",
+    "openai/gpt-6.1-luna",
+    "OPENAI/gpt-6.1-sol",
+    "openai/GPT-6.1-sol",
+    " openai/gpt-6.1-sol",
+    "openai/gpt-6.1-sol ",
+    "openai/gpt-6.1-sol-extra",
+]
+
+
+def _clear_sdk_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep every credential assertion independent of host credential sources."""
+    for name in _SDK_ENV_NAMES:
+        monkeypatch.delenv(name, raising=False)
+
+
+@pytest.fixture(autouse=True)
+def isolated_sdk_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    _clear_sdk_environment(monkeypatch)
 
 
 def _response_body(
@@ -75,7 +110,7 @@ async def _generate_with_transport(
         return await provider.generate(prompt)
 
 
-@pytest.mark.parametrize("model", [MODEL, "openai/gpt-6-sol"])
+@pytest.mark.parametrize("model", _APPROVED_MODELS)
 @pytest.mark.parametrize("effort", ["none", "low"])
 def test_exact_tool_free_request_and_single_attempt(model: str, effort: str) -> None:
     requests: list[dict[str, object]] = []
@@ -910,6 +945,10 @@ def test_agent_route_failure_is_sanitized_without_sonar_reroute(
         ("APP_ENV", "production", "fitchef_agent_api_development_only"),
         ("ENVIRONMENT", "staging", "fitchef_agent_api_development_only"),
         ("APP_ENV", "unknown", "fitchef_agent_api_development_only"),
+        *[
+            ("FITCHEF_AGENT_API_MODEL", model, "fitchef_agent_api_configuration_invalid")
+            for model in _NEAR_MODEL_IDS
+        ],
     ],
 )
 @pytest.mark.parametrize("structured", [False, True])
@@ -1025,3 +1064,396 @@ def test_default_agent_option_preserves_existing_selector(
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("application/json")
     assert response.json()["message"] == "Plan one balanced meal."
+
+
+@pytest.mark.parametrize("requested", _APPROVED_MODELS)
+@pytest.mark.parametrize("returned", _APPROVED_MODELS)
+def test_model_identity_relation_is_exact(requested: str, returned: str) -> None:
+    """A successful response from another approved model still fails closed."""
+    calls = 0
+
+    def _handler(request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        assert json.loads(request.content)["model"] == requested
+        return httpx.Response(200, json=_response_body(model=returned))
+
+    if requested == returned:
+        assert asyncio.run(_generate_with_transport(_handler, model=requested))
+    else:
+        with pytest.raises(RuntimeError, match="FitChef Agent API unavailable"):
+            asyncio.run(_generate_with_transport(_handler, model=requested))
+    assert calls == 1
+
+
+@pytest.mark.parametrize("model", _NEAR_MODEL_IDS)
+def test_near_model_ids_fail_before_sdk_allocation(
+    monkeypatch: pytest.MonkeyPatch, model: str
+) -> None:
+    monkeypatch.setattr(
+        "providers.perplexity_agent._AgentAsyncOpenAI",
+        lambda **kwargs: pytest.fail("unapproved model must not allocate SDK"),
+    )
+    with pytest.raises(ValueError, match="model is not approved"):
+        PerplexityAgentProvider(api_key=TEST_KEY_VIP, model=model, reasoning_effort="none")
+
+
+def test_model61_factory_preserves_explicit_configuration_and_delayed_allocation(
+    monkeypatch: pytest.MonkeyPatch,
+    agent_runtime_transport: Callable[[Callable[[httpx.Request], httpx.Response]], None],
+) -> None:
+    from app.services.fitchef_runtime import _require_fitchef_llm_provider
+
+    monkeypatch.setenv("FITCHEF_AGENT_API_MODEL", "openai/gpt-6.1-sol")
+    monkeypatch.setenv("FITCHEF_AGENT_API_REASONING_EFFORT", "none")
+    monkeypatch.setattr(
+        "providers.perplexity_agent._AgentAsyncOpenAI",
+        lambda **kwargs: pytest.fail("factory must not allocate SDK before admitted generation"),
+    )
+    provider = _require_fitchef_llm_provider(PROMPT)
+    assert isinstance(provider, PerplexityAgentProvider)
+    assert provider.model == "openai/gpt-6.1-sol" and provider.reasoning_effort == "none"
+
+
+@pytest.mark.parametrize(("url", "tier", "payload", "text", "field", "expected"), _ROUTE_CASES)
+def test_model61_routes_keep_backend_envelopes_and_quota_order(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+    agent_runtime_transport: Callable[[Callable[[httpx.Request], httpx.Response]], None],
+    pro_headers: dict[str, str],
+    vip_headers: dict[str, str],
+    url: str,
+    tier: str,
+    payload: dict[str, str],
+    text: str,
+    field: str,
+    expected: str,
+) -> None:
+    monkeypatch.setenv("FITCHEF_AGENT_API_MODEL", "openai/gpt-6.1-sol")
+    events: list[str] = []
+
+    def _quota(_api_key: str, *, tier: str) -> bool:
+        events.append(tier)
+        return True
+
+    def _handler(request: httpx.Request) -> httpx.Response:
+        events.append("provider")
+        body = json.loads(request.content)
+        assert body["model"] == "openai/gpt-6.1-sol"
+        assert body["tools"] == [] and body["store"] is False
+        assert request.headers["authorization"] == "Bearer synthetic-test-key"
+        return httpx.Response(200, json=_response_body(model=body["model"], text=text))
+
+    monkeypatch.setattr("app.services.fitchef_runtime.attempt_consume_llm_monthly_quota", _quota)
+    agent_runtime_transport(_handler)
+    response = client.post(url, json=payload, headers=pro_headers if tier == "PRO" else vip_headers)
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("application/json")
+    data = response.json()
+    assert data[field] == expected and data["quota_state"] == "consumed"
+    assert "provider" not in data and events == [tier, "provider"]
+
+
+@pytest.mark.parametrize("url", [case[0] for case in _ROUTE_CASES])
+def test_model61_quota_denial_still_prevents_client_and_send(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+    agent_runtime_transport: Callable[[Callable[[httpx.Request], httpx.Response]], None],
+    pro_headers: dict[str, str],
+    vip_headers: dict[str, str],
+    url: str,
+) -> None:
+    monkeypatch.setenv("FITCHEF_AGENT_API_MODEL", "openai/gpt-6.1-sol")
+    test_agent_routes_quota_denied_makes_zero_provider_calls(
+        client, monkeypatch, agent_runtime_transport, pro_headers, vip_headers, url
+    )
+
+
+@pytest.mark.parametrize("flag", [None, "false"])
+def test_model61_configuration_does_not_enable_the_default_off_option(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+    agent_runtime_transport: Callable[[Callable[[httpx.Request], httpx.Response]], None],
+    vip_headers: dict[str, str],
+    flag: str | None,
+) -> None:
+    monkeypatch.setenv("FITCHEF_AGENT_API_MODEL", "openai/gpt-6.1-sol")
+    test_default_agent_option_preserves_existing_selector(
+        client, monkeypatch, agent_runtime_transport, vip_headers, flag
+    )
+
+
+def test_module_credential_clearing_uses_the_same_seam_before_sdk_construction(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Seed synthetic sources before clearing; never examine host values."""
+    seeded = {name: f"synthetic-{name.lower()}" for name in _SDK_ENV_NAMES}
+    for name, value in seeded.items():
+        monkeypatch.setenv(name, value)
+    calls = 0
+
+    def _handler(request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        assert request.url.host == "api.perplexity.ai"
+        assert request.headers["authorization"] == f"Bearer {TEST_KEY_VIP}"
+        assert "OpenAI-Organization" not in request.headers
+        assert "OpenAI-Project" not in request.headers
+        return httpx.Response(200, json=_response_body())
+
+    with monkeypatch.context() as cleared:
+        _clear_sdk_environment(cleared)
+        assert all(name not in os.environ for name in _SDK_ENV_NAMES)
+        assert asyncio.run(_generate_with_transport(_handler))
+    assert calls == 1
+    assert {name: os.environ[name] for name in _SDK_ENV_NAMES} == seeded
+
+
+@pytest.mark.parametrize("owned", [False, True])
+@pytest.mark.parametrize(
+    "stimulus",
+    ["OPENAI_ORG_ID", "OPENAI_PROJECT_ID", "OPENAI_WEBHOOK_SECRET", "combined"],
+)
+def test_runtime_sdk_identity_defaults_are_disabled_after_harness_clearing(
+    monkeypatch: pytest.MonkeyPatch, stimulus: str, owned: bool
+) -> None:
+    """Observe real SDK state and request with inputs deliberately still present."""
+    names = (
+        ("OPENAI_ORG_ID", "OPENAI_PROJECT_ID", "OPENAI_WEBHOOK_SECRET")
+        if stimulus == "combined"
+        else (stimulus,)
+    )
+    injected = {name: f"synthetic-runtime-{name.lower()}" for name in names}
+    for name, value in injected.items():
+        monkeypatch.setenv(name, value)
+    monkeypatch.setenv("OPENAI_API_KEY", "synthetic-unrelated-openai-key")
+    monkeypatch.setenv("OPENAI_BASE_URL", "https://example.invalid/unrelated")
+    states: list[tuple[str | None, str | None, str | None]] = []
+    created: list[httpx.AsyncClient] = []
+    calls = 0
+
+    class _ObservedSDK(_AgentAsyncOpenAI):
+        def __init__(self, **kwargs: Any) -> None:
+            super().__init__(**kwargs)
+            states.append((self.organization, self.project, self.webhook_secret))
+
+    def _handler(request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        assert request.url == httpx.URL("https://api.perplexity.ai/v1/responses")
+        assert request.headers["authorization"] == f"Bearer {TEST_KEY_VIP}"
+        assert "OpenAI-Organization" not in request.headers
+        assert "OpenAI-Project" not in request.headers
+        assert json.loads(request.content)["input"] == PROMPT
+        return httpx.Response(200, json=_response_body())
+
+    def _owned_client(**kwargs: Any) -> httpx.AsyncClient:
+        result = DefaultAsyncHttpxClient(**kwargs, transport=httpx.MockTransport(_handler))
+        created.append(result)
+        return result
+
+    monkeypatch.setattr("providers.perplexity_agent._AgentAsyncOpenAI", _ObservedSDK)
+    monkeypatch.setattr("providers.perplexity_agent.DefaultAsyncHttpxClient", _owned_client)
+
+    async def _run() -> None:
+        async with httpx.AsyncClient(transport=httpx.MockTransport(_handler)) as borrowed:
+            provider = PerplexityAgentProvider(
+                api_key=TEST_KEY_VIP,
+                model=MODEL,
+                reasoning_effort="low",
+                http_client=None if owned else borrowed,
+            )
+            assert await provider.generate(PROMPT)
+            assert not borrowed.is_closed
+
+    asyncio.run(_run())
+    assert states == [("", "", "")] and calls == 1
+    assert {name: os.environ[name] for name in names} == injected
+    assert len(created) == (1 if owned else 0)
+    if owned:
+        assert created[0].is_closed
+
+
+@pytest.mark.parametrize("owned", [False, True])
+@pytest.mark.parametrize("failure", [False, True])
+@pytest.mark.parametrize("case", ["canonical", "lower", "mixed_duplicates"])
+def test_effective_request_omits_identity_headers_without_mutating_client_defaults(
+    monkeypatch: pytest.MonkeyPatch, owned: bool, failure: bool, case: str
+) -> None:
+    """Borrowed defaults survive until build; exact names disappear on the request."""
+    identity = {
+        "canonical": [("OpenAI-Organization", "synthetic-org"), ("OpenAI-Project", "synthetic-p")],
+        "lower": [("openai-organization", "synthetic-org"), ("openai-project", "synthetic-p")],
+        "mixed_duplicates": [
+            ("OpenAI-Organization", "synthetic-org"),
+            ("OPENAI-ORGANIZATION", "synthetic-other-org"),
+            ("oPeNaI-pRoJeCt", "synthetic-p"),
+            ("OpenAI-Project", "synthetic-other-p"),
+        ],
+    }[case]
+    defaults = [*identity, ("X-OpenAI-Organization", "neighbor"), ("X-Control", "preserved")]
+    created: list[httpx.AsyncClient] = []
+    created_raw: list[list[tuple[bytes, bytes]]] = []
+    calls = 0
+
+    def _handler(request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        assert "OpenAI-Organization" not in request.headers
+        assert "OpenAI-Project" not in request.headers
+        assert request.headers["X-OpenAI-Organization"] == "neighbor"
+        assert request.headers["X-Control"] == "preserved"
+        assert request.headers["authorization"] == f"Bearer {TEST_KEY_VIP}"
+        assert request.url == httpx.URL("https://api.perplexity.ai/v1/responses")
+        body = json.loads(request.content)
+        assert body["model"] == MODEL and body["tools"] == [] and body["store"] is False
+        assert body["input"] == PROMPT
+        return httpx.Response(500 if failure else 200, json=_response_body())
+
+    def _owned_client(**kwargs: Any) -> httpx.AsyncClient:
+        result = DefaultAsyncHttpxClient(
+            **kwargs, headers=defaults, transport=httpx.MockTransport(_handler)
+        )
+        created.append(result)
+        created_raw.append(list(result.headers.raw))
+        return result
+
+    monkeypatch.setattr("providers.perplexity_agent.DefaultAsyncHttpxClient", _owned_client)
+
+    async def _run() -> None:
+        async with httpx.AsyncClient(
+            headers=defaults,
+            cookies={"synthetic-cookie": "unchanged"},
+            transport=httpx.MockTransport(_handler),
+            timeout=17.0,
+            trust_env=False,
+        ) as borrowed:
+            raw = list(borrowed.headers.raw)
+            cookies = dict(borrowed.cookies)
+            timeout = borrowed.timeout
+            auth = borrowed.auth
+            provider = PerplexityAgentProvider(
+                api_key=TEST_KEY_VIP,
+                model=MODEL,
+                reasoning_effort="low",
+                http_client=None if owned else borrowed,
+            )
+            if failure:
+                with pytest.raises(RuntimeError, match="FitChef Agent API unavailable"):
+                    await provider.generate(PROMPT)
+            else:
+                assert await provider.generate(PROMPT)
+            assert list(borrowed.headers.raw) == raw
+            assert dict(borrowed.cookies) == cookies
+            assert borrowed.timeout == timeout and borrowed.auth is auth
+            assert borrowed.follow_redirects is False and borrowed.trust_env is False
+            assert not borrowed.is_closed
+
+    asyncio.run(_run())
+    assert calls == 1 and len(created) == (1 if owned else 0)
+    if owned:
+        assert created[0].is_closed
+        assert list(created[0].headers.raw) == created_raw[0]
+
+
+@pytest.mark.parametrize("header_state", ["absent", "empty", "populated"])
+def test_identity_hook_preserves_original_native_options_header_data(header_state: str) -> None:
+    async def _run() -> None:
+        async with httpx.AsyncClient(
+            transport=httpx.MockTransport(lambda request: httpx.Response(200))
+        ) as borrowed:
+            sdk = _AgentAsyncOpenAI(api_key=TEST_KEY_VIP, http_client=borrowed)
+            kwargs: dict[str, Any] = {}
+            if header_state != "absent":
+                kwargs["headers"] = (
+                    {"OpenAI-Organization": "synthetic", "X-Control": "preserved"}
+                    if header_state == "populated"
+                    else {}
+                )
+            options = FinalRequestOptions.construct(
+                method="post", url="/responses", follow_redirects=True, **kwargs
+            )
+            original = {
+                name: deepcopy(value) if isinstance(value, dict) else value
+                for name, value in options.__dict__.items()
+            }
+            prepared = await sdk._prepare_options(options)
+            assert prepared is not options and prepared.follow_redirects is False
+            assert options.__dict__ == original and options.follow_redirects is True
+            assert prepared.headers == options.headers
+            request = borrowed.build_request(
+                "POST", "https://api.perplexity.ai/v1/responses", headers=kwargs.get("headers")
+            )
+            await sdk._prepare_request(request)
+            assert "OpenAI-Organization" not in request.headers
+            assert "OpenAI-Project" not in request.headers
+            if header_state == "populated":
+                assert request.headers["X-Control"] == "preserved"
+            assert options.__dict__ == original
+            assert not borrowed.is_closed
+
+    asyncio.run(_run())
+
+
+def test_concurrent_agent_requests_leave_independent_sdk_identity_and_client_unchanged(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("OPENAI_ORG_ID", "synthetic-independent-org")
+    monkeypatch.setenv("OPENAI_PROJECT_ID", "synthetic-independent-project")
+    monkeypatch.setenv("OPENAI_WEBHOOK_SECRET", "synthetic-independent-webhook")
+
+    async def _run() -> None:
+        both_entered = asyncio.Event()
+        requests: list[httpx.Request] = []
+
+        async def _handler(request: httpx.Request) -> httpx.Response:
+            requests.append(request)
+            if len(requests) == 2:
+                both_entered.set()
+            await asyncio.wait_for(both_entered.wait(), timeout=5.0)
+            assert "OpenAI-Organization" not in request.headers
+            assert "OpenAI-Project" not in request.headers
+            assert request.headers["X-Control"] == "preserved"
+            assert request.headers["authorization"] == f"Bearer {TEST_KEY_VIP}"
+            return httpx.Response(200, json=_response_body())
+
+        async with httpx.AsyncClient(
+            headers={
+                "OpenAI-Organization": "borrowed-org",
+                "OpenAI-Project": "borrowed-p",
+                "X-Control": "preserved",
+            },
+            transport=httpx.MockTransport(_handler),
+        ) as borrowed:
+            raw = list(borrowed.headers.raw)
+            independent = AsyncOpenAI(api_key="synthetic-independent-key", http_client=borrowed)
+            states = (independent.organization, independent.project, independent.webhook_secret)
+            providers = [
+                PerplexityAgentProvider(
+                    api_key=TEST_KEY_VIP, model=MODEL, reasoning_effort="none", http_client=borrowed
+                )
+                for _ in range(2)
+            ]
+            assert await asyncio.gather(
+                *(p.generate(f"synthetic prompt {i}") for i, p in enumerate(providers))
+            )
+            assert len(requests) == 2 and requests[0] is not requests[1]
+            assert [json.loads(r.content)["input"] for r in requests] == [
+                "synthetic prompt 0",
+                "synthetic prompt 1",
+            ]
+            assert list(borrowed.headers.raw) == raw and not borrowed.is_closed
+            assert (
+                independent.organization,
+                independent.project,
+                independent.webhook_secret,
+            ) == states
+            assert states == (
+                "synthetic-independent-org",
+                "synthetic-independent-project",
+                "synthetic-independent-webhook",
+            )
+            assert independent.default_headers["OpenAI-Organization"] == states[0]
+            assert independent.default_headers["OpenAI-Project"] == states[1]
+
+    asyncio.run(_run())

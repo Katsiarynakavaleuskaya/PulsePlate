@@ -10,12 +10,18 @@ networks:
     external: false
   observability:
     internal: true
+  alerting:
+    internal: true
+  smtp-egress:
+    driver: bridge
   database:
     internal: true
 
 secrets:
   pulseplate_metrics_scrape_key:
     file: ./secrets/pulseplate_metrics_scrape_key
+  alertmanager_smtp_key:
+    file: ./secrets/alertmanager_smtp_key
   postgres_ca:
     file: ./secrets/postgres_ca
   postgres_server_crt:
@@ -29,7 +35,7 @@ secrets:
 
 services:
   postgres:
-    image: ghcr.io/katsiarynakavaleuskaya/pulseplate:postgres-15.19-pgvector0.8.6-alpine3.23@sha256:06c914735c70f82424a2a9b1e57790590a21d0fbfe250504ff79a1cca2559380
+    image: ghcr.io/katsiarynakavaleuskaya/pulseplate:postgres-15.19-pgvector0.8.6-alpine3.23@sha256:d4437ad4970b4099e4cb7d05b7fa625c7e6959949d1374f1f2d4bd4149ae5fa3
     platform: linux/amd64
     restart: always
     networks: [database]
@@ -136,7 +142,9 @@ services:
     platform: linux/amd64
     user: "65532:65532"
     restart: unless-stopped
-    networks: [observability]
+    networks: [observability, alerting]
+    environment:
+      - PULSEPLATE_ENVIRONMENT=staging
     cap_drop: [ALL]
     security_opt:
       - no-new-privileges:true
@@ -155,6 +163,38 @@ services:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "/bin/promtool", "check", "ready", "--url=http://localhost:9090"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  alertmanager:
+    image: prom/alertmanager@sha256:84967b9b7ba45e38a9278d3e594305f43d4993c310df3905b51138b816c365f3
+    platform: linux/amd64
+    user: "65534:65534"
+    profiles: ["alerting"]
+    restart: unless-stopped
+    read_only: true
+    networks:
+      alerting:
+        gw_priority: 1
+      smtp-egress:
+        gw_priority: 2
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    command:
+      - --config.file=/etc/alertmanager/alertmanager.yml
+      - --storage.path=/alertmanager
+      - --cluster.listen-address=
+    volumes:
+      - ./alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    secrets:
+      - alertmanager_smtp_key
+    tmpfs:
+      - /alertmanager:size=16m,mode=0700,uid=65534,gid=65534,noexec,nosuid
+    healthcheck:
+      test: ["CMD", "/bin/wget", "-q", "-T", "5", "-O", "/dev/null", "http://127.0.0.1:9093/-/ready"]
       interval: 30s
       timeout: 10s
       retries: 3

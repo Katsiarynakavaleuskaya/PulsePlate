@@ -10,6 +10,35 @@
 - Treat scripts as production automation: avoid breaking flags or outputs.
 - Prefer small, focused edits; update any dependent docs or Make targets if needed.
 - Avoid adding network calls to scripts used in CI unless explicitly required.
+
+- Locked-install settings and the installer-owned direct project-page reader share default
+  `.netrc`/`_netrc` admission in `install_locked_python_requirements.py` only,
+  before its CLI dispatch or its own connection/context creation.
+  Preserve native first-existing default candidate order (`.netrc`, then `_netrc`),
+  including primary-file permission checks; never infer source absence from a
+  selected-file read failure. Delegate parsing/named-default selection to stdlib,
+  preserve effective login/account
+  and root rejection, and fail closed for indeterminate credentials or malformed
+  trusted authority. Applicable credentials require verified HTTPS; this does
+  not cover every pip authentication source. Each installer-owned pip child
+  loads its native send guard before CLI and retains that common boundary
+  through process termination. Final case-insensitive
+  Authorization membership requires verified HTTPS on the supported native
+  graph; header values and credential sources are not transport predicates.
+  This current native-client correction does not recognize arbitrary plugins,
+  monkeypatched clients or future implementations. The separate proxy
+  health checker is outside this installer contract. Probe failures, including connection
+  creation and cleanup, must expose constant/class-only diagnostics with bounded
+  retries. Docker source downloads must reuse the existing URL validator at the
+  network boundary and reject all redirects through the installed opener; tests
+  replace transport, preserving real handler dispatch. See
+  `docs/security/INLINE_NOSEC_TTL_20260930_REASSESSMENT.md` for the bounded proof.
+
+- For inline annotation reviews, verify Bandit's JSON errors and expected
+  scanned-file inventory alongside its exit status. Prove AST equality for
+  comment-only edits against the admitted base; repair any parse omission or
+  executable delta before claiming that the bounded review is complete.
+
 - Before mocking a pinned external CLI or workflow adapter, verify its real
   flags, serialization fields and permitted Actions contexts through native
   help, pinned primary source and actionlint. A fixture accepting an invented
@@ -70,6 +99,11 @@
 - The Docker source-artifact fetcher rejects symlink/nonregular cache objects
   and non-real output-directory chains before reads or mutation. Keep source
   identity, archive filename, reviewed hash and literal Docker COPY aligned.
+- PCRE2 production replacement uses only the exact reviewed PCRE2 tag and its
+  pinned upstream SLJIT gitlink in the existing source manifest/fetcher. Keep
+  old source records/dates and TLS, redirect, checksum and cache controls intact.
+  Preserve shared 8-bit SONAME, Unicode and JIT; after pruning, exercise native
+  PCRE2 and libselinux regex calls plus retained consumers under the final user.
 - When replacing a packaged native library, verify the actual extension call
   and loaded replacement under the final runtime user after package pruning.
   Package-record absence and a clean scanner report do not prove native linkage.
@@ -85,8 +119,45 @@
   gates and authentication/body-fetch operations retain 120 seconds. A timeout
   remains a blocking failure; the budget does not replace proof or authorize merge.
 
+## CI trust-boundary helper usage
+
+- `check_pr_merge_readiness.py --material-repo-root` is the staged interface for
+  executing policy from the exact authenticated PR base while reading material
+  from a distinct exact PR-head checkout. Keep ordinary local and
+  `--pre-closeout` invocations on their existing single-checkout path. The
+  hosted workflow switches to this interface only after the base contains it.
+- For `check_philosophy_source_corpus_index.py`, put `--files` last. Tokens after
+  it are file paths, including `--help`; parser configuration belongs before it.
+- A failed private Python proxy health probe blocks emergency wheel fallback.
+  Only the installer's existing package-scoped pip retry evidence may avoid a
+  new probe. Git-index discovery must neutralize executable repository Git
+  configuration while retaining a positive carrier-discovery path.
+
+- For `make requirements-locks` graph changes, select only a complete fixed
+  alternative from the existing v1 admission owner; preserve default/legacy
+  rejection and whole source/seed/artifact/profile bindings. Technical closure
+  requires native canonical output plus independent original-base replay before
+  it is called C_R. Retain no-deps acquisition, destroyed credentialed HOME,
+  offline profile views and rollback; do not add another upgrade intent, hand-edit
+  a seed/lock or rotate a baseline. Record actual hook creation/seed/config bytes
+  separately from version P and final gate success. Command procedure and the
+  finite recorded transition live in `docs/DEPENDENCY_MANAGEMENT.md`.
+
 ## Governed Experimentation Runner
 
+- Invoke the automatic helper only from externally admitted T with an approved
+  absolute Python `-I`, T cwd and explicit distinct `--material-root M`; root
+  metadata supplies continuity, never trust. Follow the canonical accompaniment
+  contract for read-only T/M guest snapshots, companion-dependent restore,
+  typed failures and bounded claims.
+- `pr_oracle_attachment.py dispatch` is the admitted local host composition
+  for ensure/reuse followed by existing exact role-context delivery. Follow the
+  [single accompaniment contract](../docs/orchestration/contracts/EXPERIMENT_RUNNER_PR_CREATIVE_CONTEXT_CONTRACT.md#admitted-host-oracle-accompaniment-creative-ops-2)
+  for snapshot proof, typed input/result conjunction, explicit attribution,
+  opt-out/manual evidence, bounded retention, interruption recovery and archive
+  dependencies. Bootstrap/rendering stay inert; the bridge validates evidence
+  and appends only outer-envelope data. The helper performs no publication or
+  provider calls. Its `body` command prepares validated local text only.
 - Canonical entrypoints for the experimentation lane are `scripts/orchestration/experiment_bootstrap.py` and `scripts/orchestration/experiment_runner.py`.
 - Run both scripts from repo root so path validation and artifact resolution stay deterministic.
 - `experiment_runner.py` accepts a validated packet plus a prebuilt unified diff
@@ -213,8 +284,10 @@
   `artifacts/orchestration/creative_code/patch_runs/`. The builder CLI
   `creative_code_patch_builder.py` is not role dispatch, PR lifecycle
   automation, merge governance, or promotion authority. Its `evaluate` command
-  may call Experiment Runner candidate-patch mode for local candidate evaluation,
-  but that result is not the mandatory PR oracle-only governance evidence and
+  must not call the host Experiment Runner for candidate evaluation. Its
+  `evaluate` command prepares only the bound packet and fails closed; the
+  existing strict native dispatcher and finalizer own execution/result truth,
+  which is not the mandatory PR oracle-only governance evidence and
   must not be used as fixed-mapping, review-disposition, or merge-readiness
   proof. New PR-2 writers must budget mutation as Git numstat additions plus
   deletions with `line_metric=numstat_added_plus_deleted_v1`; serialized U3
@@ -224,8 +297,10 @@
   `artifacts/orchestration/creative_code/patch_generation/`. The
   `creative_code_patch_generation.py` CLI may only validate an already prepared
   patch admission, emit `generation_gate.json`, call the existing PR-2 builder
-  `generate` / `evaluate` commands through `generate-candidate`, and emit a
-  sanitized `generation_receipt.json`. Receipt validation must re-read linked
+  `generate` and `prepare_dispatch` seams through `generate-candidate`, and
+  leave an explicit native-dispatch handoff without an early result or receipt.
+  Only `finalize-dispatched-result` may emit a sanitized `generation_receipt.json`
+  from matched dispatch evidence. Receipt validation must re-read linked
   `candidate.patch`, `patch_metadata.json`, `experiment_packet.json`, and
   `result.json` sidecars, require them to be the canonical files under the
   receipt's `patch_runs/<run_id>/` directory, and fail closed when any sidecar
@@ -238,15 +313,18 @@
   `artifacts/orchestration/creative_code/promotions/`. The promoter CLI
   `creative_code_pr_promotion.py` may only plan, validate, TTY-approve, and
   promote one accepted PR-2 patch into a new non-draft `experiment/*` PR. It
-  may optionally consume one exact accepted Apple Container dispatch result
-  plus its explicitly supplied canonical PR-2 generation receipt during
-  `validate`; both paths are required together and must remain under their
+  requires one exact accepted Apple Container dispatch result plus its
+  explicitly supplied canonical PR-2 generation receipt for new `validate`
+  and first `promote` operations; both paths are required together and remain under their
   canonical local artifact roots. This intake uses the existing PR-2 trusted
-  binding validator instead of direct re-evaluation, must reconstruct the gate
+  binding validator without direct host re-evaluation, must reconstruct the gate
   from canonical admission and finalized run state, and must re-read the
   packet, result, gate, and receipt after local gates. The validation artifact
-  must distinguish direct evaluation from trusted Apple dispatch and bind the
-  applicable evidence fingerprints. The intake must never regenerate or
+  records trusted Apple dispatch and binds the applicable evidence fingerprints;
+  historical direct-evaluation artifacts remain parseable but cannot authorize
+  a first promotion. `promote` reruns real validation and current-actor TTY
+  approval, then rechecks live remote main, actor, branch, patch and evidence
+  before remote effects. The intake must never regenerate or
   finalize PR-2 artifacts through this intake. It must not open drafts, update
   existing branches, force-push, request reviews, submit reviews, resolve review
   threads, edit fixed mappings, claim merge readiness, merge, release, call
@@ -331,9 +409,10 @@
   must receive paired `--shadow-forecast` / `--started-at`, publish or read back
   immutable canonical `start.json` under the existing cooperative run lock,
   recheck forecast/gate sources, hold that same lock through generation to
-  serialize duplicate invocation, release it before evaluation takes the
-  existing lock, and otherwise preserve the unchanged builder path. It must
-  never pass forecast probabilities downstream.
+  serialize duplicate invocation, release it before preparing the bound
+  dispatch packet under the existing per-run lock, and otherwise preserve the
+  builder path. Trusted native dispatch and finalization follow separately.
+  It must never pass forecast probabilities downstream.
   An occupied exact shadow slot blocks unbound generation; identical replay is
   zero-write and divergent replay preserves the first winner. Forecast/start/
   score artifacts are mode-`0600` under mode-`0700` directories and remain
@@ -357,7 +436,10 @@
   `creative_code_applied_candidate_pr6.py` CLI may only validate PR-5
   `CreativeCodeRepairLaunchPacket` inputs, bind the first applied candidate
   target to `docs/prompts/cv/program.md`, and emit a deterministic local
-  PR-1 / PR-2 / PR-3 / PR-4 command checklist. It must not execute patch
+  PR-1 / PR-2 / PR-3 / PR-4 command checklist. The PR-2 sequence must retain
+  human admission, the generation gate, native dispatch and the existing
+  finalizer; PR-3 validation and promotion carry the matched result/receipt
+  pair. Historical direct-evaluate command graphs must be regenerated. It must not execute patch
   generation, call Codex or providers, create or write branches, push, open PRs,
   resolve review threads, edit fixed mappings, claim merge readiness, merge,
   release, call product runtime, change GitHub App or Slack settings, or widen
@@ -552,6 +634,43 @@ Euler import, execution or store access is permitted.
   producer-owned verifier is tracked in
   `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-canonical-task-packet-identity-verifier`.
   Every applicability authority field remains literal `false`.
+- A coordinator may set `--creative-applicability alternatives|direct_fix|not_applicable|disabled`
+  through `start_pr_lane.sh` or manual bootstrap. The starter forwards the same
+  closed value in both its dry-run recipe and actual bootstrap. The structured
+  value is packet-identity-bearing; the sole
+  applicability selector recommends operational Creative for admitted
+  alternatives in `none` or `pre_open` phases only when the packet's structured
+  dispatch contract declares at least one runtime owner and its packet scope
+  contains a non-directory exact-file candidate, after higher-assurance
+  preemption. An execution-ready design packet without that explicit choice and a
+  `post_open_review`/`merge_ready` packet, any packet without a runtime writer,
+  and directory-only scope receive no Creative recommendation. The
+  recommendation is not native execution or writer authority. The host follows
+  the operational sequence in `.agents/skills/pulseplate-orchestration-dispatch/SKILL.md`, and
+  the additive `creative_workflow.v1` CLI validates returned intake, separate
+  review, exact-file writer handoff and sanitized capsule. The host reviews a
+  generated patch before any test execution and uses only
+  the existing strict zero-network Experiment Runner in an owned scratch
+  checkout for supported commands; unavailable containment or unsupported
+  platform commands remain pending, never a host-side fallback. Canonical
+  repository paths may contain credential-related names; secret-value checks apply to
+  their contents, while prose may name an API key without containing one.
+  Request, native-result and review prose use the same
+  route-aware local-path check before any stage is persisted. Each stage keeps
+  its predecessor's inherited request, native
+  result and review bytes; a matching predecessor hash alone is insufficient.
+  Archive export permits route literals in explicit decorator or HTTP-method
+  context while rejecting local filesystem paths, including UNC shares. Both
+  export and restore require the Git-parsed patch files to equal the exact writer
+  handoff and structured test evidence to bind its digest and admitted commands;
+  only regular patch modes and stored ZIP members are accepted, and Work Review
+  must name each accepted criterion. This continuity does not authenticate
+  test execution. Export and restore share the same UTF-8 and private-content
+  sanitizer. Restore also rechecks
+  the packet's canonical writer manifest and the criteria,
+  requirements, and Euler source digests; missing or changed evidence fails
+  closed. Legacy v1/adaptive-v2
+  hypothesis and PR-2 patch-sandbox authority remains unchanged.
 - Contract and readiness boundaries:
   `docs/orchestration/PR_EVIDENCE_SIDECAR_V1.md` and
   `docs/orchestration/AUTOMATION_READINESS_MATRIX.md`.
@@ -592,18 +711,35 @@ First-class repo wrappers:
 
 **Change detection order:**
 
-1. If upstream exists: diff `upstream..HEAD`
-2. Else: diff from merge-base against (origin/main|origin/master|main|master)
-3. If base cannot be resolved: fallback to last N commits (diagnostic mode)
+1. Native pre-commit sets `PRE_COMMIT=1` for hook execution, including its
+   pre-push stage. Nonempty `PRE_COMMIT` takes precedence: the helper combines
+   staged paths with the branch diff from the first resolved merge-base against
+   `origin/main`, `origin/master`, `main`, or `master`.
+2. With `PRE_COMMIT` unset and `BRANCH_DIFF_MODE=1`, the helper uses that same
+   branch merge-base diff. An established empty branch selection exits without
+   the recent-commit fallback. `make validate-changed` selects this mode.
+3. Otherwise, direct invocation checks the configured upstream diff, then
+   `origin/<current-branch>` and the main/master merge-base when no paths were
+   found. If no Python or governance targets are selected, the existing
+   `RECENT_COMMITS_FALLBACK` (default 10, bounded by available history) checks
+   recent commits.
 
 **Debug mode:**
 
 - Set `PREPUSH_DEBUG=1` to print resolved upstream/base and file list
 - Example: `PREPUSH_DEBUG=1 git push` will show detailed change detection info
 
+**Output and timing:**
+
+The native hook runner captures child output and prints the terminal hook row
+when that child completes. A last completed frontend `Passed` row does not
+identify the active phase or establish a frontend hang. Verify the active phase
+and its terminal result; budget the complete required hook bundle plus setup.
+The lint job in `.github/workflows/ci.yml` owns its CI execution budget.
+
 **Skip tests:**
 
-- Set `SKIP_TESTS=1` to bypass backend tests (useful for documentation-only commits)
+- For `SKIP_TESTS=1`, follow [root `AGENTS.md`](../AGENTS.md) Hard Gates and approval policy.
 
 ## Evaluation validity
 
@@ -612,6 +748,11 @@ Eval artifact sidecars with predictable filenames must use symlink-safe,
 fail-closed writers. Eval JSONL validators must reject malformed fields with
 `ValueError`, must not coerce raw values into accepted schema fields, and must
 defensively copy validated mutable containers.
+
+## NOOS-1B FitChef answer evaluation
+
+- `scripts/evals/collect_fitchef_answers.py` is opt-in and local only. At the actual `collect()` entry, revalidate/deep-copy the complete 24-case manifest, require all admitted languages in holdout and actual remaining synthetic monthly quota, suppress/restore SDK preflight logging, then require a committed clean checkout, a frozen private synthetic 24-case manifest, verified Sonar pricing/parameters, isolated synthetic PRO quota/SQLite/audit state, and the private Perplexity key. The owner-approved cap is 32 actual HTTP attempts with US$0.15 reserved before each send; retain reservations after timeout and preserve incomplete-run receipts. Do not rerun for a preferred answer.
+- `scripts/evals/fitchef_claim_assurance_eval.py` is offline. Require the same owner-private 32-byte replay key for packet-v2 preparation, validation and reporting; keep it out of candidate material, logs and Git. Preserve historical case-v1/rubric bytes and report missing captured fingerprints; new case-v2 must retain the actual observed canonical freeze fingerprint. Reuse only the pure `app.services.fitchef_claim_evidence_assurance` snapshot helpers for consistency, without copying their canonicalizer. Keep candidate packets blind, exact answer/source/rubric bindings strict, `abstain` separate from a support label, and report NOOS-1A structural output only as advisory. Private outputs must reuse the bounded no-follow JSONL reader and no-replace writer in `evidence_relation_audit.py`. See `docs/evals/FITCHEF_CLAIM_EVIDENCE_EVAL_V1.md` for the owning rubric.
 
 ## Security/dev-tooling regression guards
 

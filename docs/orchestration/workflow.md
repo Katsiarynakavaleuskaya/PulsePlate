@@ -318,6 +318,14 @@ If no suitable route exists, report that capability gap while preserving analysi
 
 #### Publish and close out
 
+- [ ] After admitted commands/budget and a coherent material diff, invoke the
+  [host oracle dispatch hook](contracts/EXPERIMENT_RUNNER_PR_CREATIVE_CONTEXT_CONTRACT.md#admitted-host-oracle-accompaniment-creative-ops-2)
+  before a material-dependent native review. Supply the exact packet,
+  experiment and occurrence with unchanged mode/owner flags. Select externally
+  admitted T and distinct explicit M before startup; use approved absolute
+  Python `-I` and T cwd under the linked contract. Pass its stdout
+  envelope to the existing native transport. Preparation remains on the
+  oracle-independent bridge. Revalidate retained evidence at each delivery.
 - [ ] Follow root `AGENTS.md` and `RUNBOOK_AGENT.md` for local narrow gates,
   actual-diff premortem, Runner oracle evidence, PR opening, post-open roles,
   exact-material review and strict current-head closeout.

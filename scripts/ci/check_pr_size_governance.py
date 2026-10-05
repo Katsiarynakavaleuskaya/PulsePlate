@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-import subprocess  # nosec B404: subprocess is required for bounded local git diff execution (remove-by: 2026-09-30, ref: PR3-risk-topology)
+import subprocess  # nosec B404 # B404: subprocess is required for bounded local git diff execution (remove-by: 2026-10-30, ref: PR3-risk-topology)
 import sys
 import re
 import shutil
@@ -77,6 +77,12 @@ BACKEND_API_AI_EXACT_PATHS = {
     "legacy_app.py",
     "mcp_pulseplate_server.py",
 }
+GENERATED_OPENAPI_CONTRACT_PATHS = frozenset(
+    {
+        "frontend/src/api/openapi.json",
+        "frontend/src/api/schema.ts",
+    }
+)
 
 TRUSTED_APPROVAL_LABELS_RAW = {
     "operator": ("scope/operator-approved", "operator-approved"),
@@ -121,7 +127,7 @@ def _fetch_pr_metadata_from_api(pr_number: int, repo_full_name: str) -> dict[str
         },
     )
 
-    with urllib.request.urlopen(  # nosec B310: fallback PR body fetch is read-only API access for size governance; remove-by: 2026-10-31, ref: PR3-risk-topology
+    with urllib.request.urlopen(  # nosec B310 # B310: fallback PR body fetch is read-only API access for size governance; remove-by: 2026-10-31, ref: PR3-risk-topology
         request,
         timeout=10,
     ) as response:
@@ -174,8 +180,12 @@ def _normalize_path(path: str) -> str:
     return normalized
 
 
-def _is_product_client_path(path: str) -> bool:
+def _is_product_client_path(
+    path: str, *, regular_generated_paths: frozenset[str] = frozenset()
+) -> bool:
     """Recognize web and native clients under the existing frontend policy vocabulary."""
+    if path in GENERATED_OPENAPI_CONTRACT_PATHS and path in regular_generated_paths:
+        return False
     return _normalize_path(path).startswith(("frontend/", "ios/"))
 
 
@@ -292,9 +302,14 @@ def has_frontend_mvp_approval(
     )
 
 
-def has_mixed_frontend_backend_runtime(changed_files: list[str]) -> bool:
+def has_mixed_frontend_backend_runtime(
+    changed_files: list[str], *, regular_generated_paths: frozenset[str] = frozenset()
+) -> bool:
     """Return True when web or native clients mix with backend/API/AI runtime files."""
-    has_frontend = any(_is_product_client_path(path) for path in changed_files)
+    has_frontend = any(
+        _is_product_client_path(path, regular_generated_paths=regular_generated_paths)
+        for path in changed_files
+    )
     has_backend_api_ai = any(_is_backend_api_ai_path(path) for path in changed_files)
     return has_frontend and has_backend_api_ai
 
@@ -305,15 +320,21 @@ def classify_pr_scope(
     changed_files: list[str],
     pr_body: str,
     trusted_approvals: set[str] | None = None,
+    regular_generated_paths: frozenset[str] = frozenset(),
 ) -> str:
     """Classify the PR under the current file-count scope policy."""
     if any(_is_privileged_path(path) for path in changed_files):
         return "privileged_ci_security_workflow"
-    has_frontend = any(_is_product_client_path(path) for path in changed_files)
+    has_frontend = any(
+        _is_product_client_path(path, regular_generated_paths=regular_generated_paths)
+        for path in changed_files
+    )
     if has_frontend and (
         counted_files > STANDARD_MAX_FILES
         or has_frontend_mvp_approval(pr_body, trusted_approvals)
-        or has_mixed_frontend_backend_runtime(changed_files)
+        or has_mixed_frontend_backend_runtime(
+            changed_files, regular_generated_paths=regular_generated_paths
+        )
     ):
         return "frontend_vertical_mvp"
     if counted_files <= MICRO_MAX_FILES:
@@ -376,14 +397,19 @@ def evaluate_pr_size_policy(
     pr_body: str,
     changed_files: list[str] | None = None,
     trusted_approvals: set[str] | None = None,
+    regular_generated_paths: frozenset[str] = frozenset(),
 ) -> tuple[int, list[str]]:
     """Evaluate scope policy and return exit code plus deterministic terminal lines."""
     changed_files = changed_files or []
+    regular_generated_paths = frozenset(regular_generated_paths).intersection(
+        GENERATED_OPENAPI_CONTRACT_PATHS
+    )
     category = classify_pr_scope(
         counted_files=counted_files,
         changed_files=changed_files,
         pr_body=pr_body,
         trusted_approvals=trusted_approvals,
+        regular_generated_paths=regular_generated_paths,
     )
     legacy_loc_bucket = classify_pr_size(total_changed_lines)
     lines = [
@@ -427,7 +453,10 @@ def evaluate_pr_size_policy(
         return 0, lines
 
     if category == "privileged_ci_security_workflow":
-        if any(_is_product_client_path(path) for path in changed_files) and not (
+        if any(
+            _is_product_client_path(path, regular_generated_paths=regular_generated_paths)
+            for path in changed_files
+        ) and not (
             has_emergency_exception(pr_body, trusted_approvals)
             or has_frontend_backend_mix_approval(pr_body, trusted_approvals)
         ):
@@ -480,7 +509,9 @@ def evaluate_pr_size_policy(
                 "How to fix: add operator approval for one vertical user flow and a non-template Split Justification.",
             )
             return 1, lines
-        if has_mixed_frontend_backend_runtime(changed_files) and not (
+        if has_mixed_frontend_backend_runtime(
+            changed_files, regular_generated_paths=regular_generated_paths
+        ) and not (
             has_emergency_exception(pr_body, trusted_approvals)
             or has_frontend_backend_mix_approval(pr_body, trusted_approvals)
         ):
@@ -547,7 +578,7 @@ def collect_numstat_output(*, base_sha: str, head_sha: str) -> str:
     """Collect git --numstat output between two revisions."""
     if GIT_BINARY is None:
         raise RuntimeError("git executable not found in PATH")
-    result = subprocess.run(  # nosec B603: fixed git argv without shell for local CI routing only (remove-by: 2026-09-30, ref: PR3-risk-topology)
+    result = subprocess.run(  # nosec B603 # B603: resolved Git, fixed diff --numstat query and workflow revision arguments; no shell (remove-by: 2026-10-30, ref: PR3-risk-topology)
         [
             GIT_BINARY,
             "diff",
@@ -562,11 +593,11 @@ def collect_numstat_output(*, base_sha: str, head_sha: str) -> str:
     return result.stdout
 
 
-def collect_changed_files(*, base_sha: str, head_sha: str) -> list[str]:
-    """Collect changed paths between two revisions, including binary and rename-only files."""
+def collect_changed_files(*, base_sha: str, head_sha: str) -> tuple[list[str], frozenset[str]]:
+    """Return all changed paths and both endpoints of emitted rename/copy records."""
     if GIT_BINARY is None:
         raise RuntimeError("git executable not found in PATH")
-    result = subprocess.run(  # nosec B603: fixed git argv without shell for local CI routing only (remove-by: 2026-09-30, ref: PR3-risk-topology)
+    result = subprocess.run(  # nosec B603 # B603: resolved Git, fixed diff --name-status -z query and workflow revision arguments; no shell (remove-by: 2026-10-30, ref: PR3-risk-topology)
         [
             GIT_BINARY,
             "diff",
@@ -580,27 +611,92 @@ def collect_changed_files(*, base_sha: str, head_sha: str) -> list[str]:
         capture_output=True,
         text=False,
     )
-    tokens = [
-        token.decode("utf-8", errors="replace") for token in result.stdout.split(b"\0") if token
-    ]
+    output = result.stdout
+    if not isinstance(output, bytes):
+        raise ValueError("Git name-status output must be bytes")
+    if output and not output.endswith(b"\0"):
+        raise ValueError("Git name-status output lacks NUL terminator")
+    tokens = output[:-1].split(b"\0") if output else []
     changed_files: list[str] = []
+    rename_copy_endpoints: set[str] = set()
     index = 0
     while index < len(tokens):
         status = tokens[index]
         index += 1
-        if status.startswith(("R", "C")):
-            if index + 1 >= len(tokens):
-                break
-            old_path = tokens[index]
-            new_path = tokens[index + 1]
-            changed_files.extend([old_path, new_path])
-            index += 2
-            continue
-        if index >= len(tokens):
-            break
-        changed_files.append(tokens[index])
-        index += 1
-    return list(dict.fromkeys(changed_files))
+        if (
+            re.fullmatch(rb"(?:[ADMT]|M(?:100|0?[0-9]{1,2})|[RC](?:100|0?[0-9]{1,2}))", status)
+            is None
+        ):
+            raise ValueError("Unsupported or malformed Git name-status token")
+        path_count = 2 if status.startswith((b"R", b"C")) else 1
+        if len(tokens) - index < path_count or any(
+            not token for token in tokens[index : index + path_count]
+        ):
+            raise ValueError("Missing Git name-status path")
+        try:
+            paths = [token.decode("utf-8") for token in tokens[index : index + path_count]]
+        except UnicodeDecodeError as error:
+            raise ValueError("Git name-status path is not valid UTF-8") from error
+        changed_files.extend(paths)
+        if path_count == 2:
+            rename_copy_endpoints.update(paths)
+        index += path_count
+    return list(dict.fromkeys(changed_files)), frozenset(rename_copy_endpoints)
+
+
+def collect_regular_generated_openapi_paths(*, head_sha: str) -> frozenset[str]:
+    """Admit exact generated paths only when the requested head records regular blobs."""
+    if GIT_BINARY is None:
+        raise RuntimeError("git executable not found in PATH")
+    result = subprocess.run(  # nosec B603 # B603: fixed Git argv reads two exact tree paths (remove-by: 2026-12-31, ref: PR-2461)
+        [
+            GIT_BINARY,
+            "ls-tree",
+            "-r",
+            "-z",
+            "--full-tree",
+            head_sha,
+            "--",
+            *sorted(GENERATED_OPENAPI_CONTRACT_PATHS),
+        ],
+        cwd=REPO_ROOT,
+        check=True,
+        capture_output=True,
+        text=False,
+    )
+    output = result.stdout
+    if not isinstance(output, bytes):
+        raise ValueError("Git tree output must be bytes")
+    if not output:
+        return frozenset()
+    if not output.endswith(b"\0"):
+        raise ValueError("Git tree output lacks NUL terminator")
+
+    exact_paths = {path.encode("utf-8"): path for path in GENERATED_OPENAPI_CONTRACT_PATHS}
+    seen: set[bytes] = set()
+    admitted: set[str] = set()
+    valid_modes = {
+        b"100644": b"blob",
+        b"100755": b"blob",
+        b"120000": b"blob",
+        b"160000": b"commit",
+    }
+    for record in output[:-1].split(b"\0"):
+        metadata, separator, raw_path = record.partition(b"\t")
+        fields = metadata.split(b" ")
+        if (
+            not separator
+            or raw_path not in exact_paths
+            or raw_path in seen
+            or len(fields) != 3
+            or valid_modes.get(fields[0]) != fields[1]
+            or re.fullmatch(rb"(?:[0-9a-f]{40}|[0-9a-f]{64})", fields[2]) is None
+        ):
+            raise ValueError("Unexpected or malformed generated OpenAPI Git tree record")
+        seen.add(raw_path)
+        if fields[0] == b"100644":
+            admitted.add(exact_paths[raw_path])
+    return frozenset(admitted)
 
 
 def extract_pr_body(event_path: Path) -> str:
@@ -724,7 +820,15 @@ def main(argv: list[str] | None = None) -> int:
     total_changed_lines, _numstat_counted_files, _numstat_changed_files = parse_numstat_details(
         collect_numstat_output(base_sha=base_sha, head_sha=head_sha),
     )
-    changed_files = collect_changed_files(base_sha=base_sha, head_sha=head_sha)
+    changed_files, rename_copy_endpoints = collect_changed_files(
+        base_sha=base_sha, head_sha=head_sha
+    )
+    regular_generated_paths = (
+        collect_regular_generated_openapi_paths(head_sha=head_sha)
+        if any(path in GENERATED_OPENAPI_CONTRACT_PATHS for path in changed_files)
+        else frozenset()
+    )
+    regular_generated_paths -= rename_copy_endpoints
     counted_files = len(changed_files)
     exit_code, lines = evaluate_pr_size_policy(
         total_changed_lines=total_changed_lines,
@@ -732,6 +836,7 @@ def main(argv: list[str] | None = None) -> int:
         pr_body=pr_body,
         changed_files=changed_files,
         trusted_approvals=trusted_approvals,
+        regular_generated_paths=regular_generated_paths,
     )
     for line in lines:
         print(line)

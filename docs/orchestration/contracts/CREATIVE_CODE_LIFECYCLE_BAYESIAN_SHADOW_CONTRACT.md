@@ -100,7 +100,7 @@ identity, not on a timestamp or baseline snapshot. The artifacts are:
 - `forecast.json`: exact baseline analytics/telemetry bindings, the fixed
   prior, three family rows, target gate, and cutoff;
 - `start.json`: the exact forecast/gate binding written by
-  `generate-candidate` before its first generate/evaluate call;
+  `generate-candidate` before builder generation;
 - `score.json`: exact forecast/start, outcome snapshot, generation receipt when
   a unique patch exists, promotion/terminal lineage, and per-family results.
 
@@ -141,9 +141,10 @@ While holding the existing cooperative per-run lock, the wrapper revalidates
 the gate and forecast, publishes or reads back identical `start.json`, and
 rechecks their sources. It keeps that same lock through the first builder
 generation mutation, preventing a duplicate invocation from reaching the
-builder, then releases it before evaluation takes the existing lock without
-nesting. Forecast probabilities are not passed to the builder, evaluator,
-provider, routing, or role agents.
+builder, then releases it before preparing the bound dispatch packet under
+the existing per-run lock without nesting. Trusted native dispatch and
+finalization occur later through their existing seams. Forecast probabilities
+are not passed to the builder, dispatcher, provider, routing, or role agents.
 
 A clean retry after a stop following start publication must use identical
 forecast and `started_at`. Once candidate generation has mutated the run

@@ -10,12 +10,12 @@ default ignore := false
 # - CI enforces a single file-level expiry (exactly one "Suppression expires: YYYY-MM-DD" per policy file)
 #
 # Suppression expires: 2026-10-07 (manual removal)
-# Last reviewed: 2026-09-20 (zlib/ncurses; CVE-2026-53615 unchanged)
+# Last reviewed: 2026-09-28 (zlib/ncurses; CVE-2026-53615 unchanged)
 # Documented in: docs/security/CVE-2026-27171-zlib1g.md, docs/security/CVE-2025-69720-ncurses.md, docs/security/CVE-2026-53615-util-linux.md
 
 # CVE-2026-27171 (zlib1g) - no fixed release for Debian bookworm at review time
-# Review-by: 2026-09-27 (manual removal)
-# Rationale: Debian bookworm still lists zlib 1:1.2.13.dfsg-1 as vulnerable/no-dsa at the 2026-09-20 review; no repository-level remediation is available until Debian publishes a fixed package or Trivy metadata gains a Fixed Version.
+# Review-by: 2026-10-05 (manual removal)
+# Rationale: Debian bookworm still lists zlib 1:1.2.13.dfsg-1 as vulnerable/no-dsa at the 2026-09-28 review, with no fixed Bookworm package currently; any source/backport/base migration requires separate reviewed evidence.
 # Note: CI expiry is enforced once per policy file (see header); do not add another "Suppression expires:" line.
 # Monitor: https://security-tracker.debian.org/tracker/CVE-2026-27171
 # Documented in: docs/security/CVE-2026-27171-zlib1g.md
@@ -34,6 +34,7 @@ ignore if {
 	input.PkgName == "zlib1g"
 	cve_2026_27171_version_match
 	cve_2026_27171_pkgid_match
+	object.get(input, "FixedVersion", "") == ""
 }
 
 # Shared exact Bookworm package family for the remaining scoped util-linux rules.
@@ -108,8 +109,8 @@ ignore if {
 }
 
 # CVE-2025-69720 (ncurses family) - no fixed release for Debian bookworm at review time
-# Review-by: 2026-09-27 (manual removal)
-# Rationale: Debian bookworm still lists ncurses 6.4-4 as vulnerable/no-dsa at the 2026-09-20 review; keep exact package/version scope while monitoring Debian/Trivy metadata.
+# Review-by: 2026-10-05 (manual removal)
+# Rationale: Debian bookworm still lists ncurses 6.4-4 as vulnerable/no-dsa at the 2026-09-28 review; keep exact package/version scope while monitoring Debian/Trivy metadata.
 # Monitor: https://security-tracker.debian.org/tracker/CVE-2025-69720
 # Documented in: docs/security/CVE-2025-69720-ncurses.md
 # Removal condition: Remove when Debian bookworm publishes a fixed ncurses package or Trivy metadata includes Fixed Version
@@ -144,4 +145,31 @@ ignore if {
 	cve_2025_69720_pkg_match
 	cve_2025_69720_version_match
 	cve_2025_69720_pkgid_match
+	object.get(input, "FixedVersion", "") == ""
+}
+
+# CVE-2026-84782 (OpenSSL) - no fixed Debian bookworm package at review time
+# Review-by: 2026-10-05 (manual removal)
+# Rationale: Bookworm 3.0.22-1~deb12u1 remains affected at the 2026-09-30 review; this HIGH-only exception retains affected-package risk and requires separate exact-head human acceptance.
+# Monitor: https://security-tracker.debian.org/tracker/CVE-2026-84782
+# Documented in: docs/security/CVE-2026-84782-openssl.md
+# Removal condition: Remove when a fixed Bookworm package is available or native Trivy reports a nonempty FixedVersion; do not extend deadlines automatically.
+
+cve_2026_84782_pkgid_match if {
+	input.PkgName == "libssl3"
+	input.PkgID == "libssl3@3.0.22-1~deb12u1"
+}
+
+cve_2026_84782_pkgid_match if {
+	input.PkgName == "openssl"
+	input.PkgID == "openssl@3.0.22-1~deb12u1"
+}
+
+ignore if {
+	input.VulnerabilityID == "CVE-2026-84782"
+	input.Severity == "HIGH"
+	input.InstalledVersion == "3.0.22-1~deb12u1"
+	cve_2026_84782_pkgid_match
+	# Native Trivy owns string decoding; raw Rego null does not equal empty.
+	object.get(input, "FixedVersion", "") == ""
 }

@@ -3,13 +3,19 @@
 from __future__ import annotations
 
 from datetime import date
+from dataclasses import replace
+from email.message import Message
 from hashlib import sha256, sha3_256
+from io import BytesIO
 import json
 import os
 import subprocess
 import sys
 from pathlib import Path
 from urllib.parse import urlparse
+from urllib.error import HTTPError
+from urllib.request import HTTPHandler, HTTPSHandler, Request
+from urllib.response import addinfourl
 
 from fastapi.testclient import TestClient
 import pytest
@@ -233,7 +239,7 @@ def test_production_dockerfile_prunes_package_manager_surface() -> None:
     assert "'perl-modules-*'" in pruning_block
     assert (
         "for package in apt gzip gpgv libacl1 libattr1 libgnutls30 "
-        "libsqlite3-0 perl-base ${perl_module_packages} bsdutils libblkid1 libmount1 "
+        "libsqlite3-0 libpcre2-8-0 perl-base ${perl_module_packages} bsdutils libblkid1 libmount1 "
         "libsmartcols1 libuuid1 mount util-linux util-linux-extra libsystemd0 libudev1; do"
     ) in pruning_block
     for package in (
@@ -244,6 +250,7 @@ def test_production_dockerfile_prunes_package_manager_surface() -> None:
         "libattr1",
         "libgnutls30",
         "libsqlite3-0",
+        "libpcre2-8-0",
         "perl-base",
     ):
         assert f"        {package} \\" in pruning_block
@@ -343,9 +350,9 @@ def test_docker_source_artifact_manifest_pins_sqlite_source() -> None:
     )
     artifacts = manifest["artifacts"]
     assert manifest["schema_version"] == 1
-    assert manifest["generated_at"] == "2026-09-20"
-    assert manifest["review_by"] == "2026-09-27"
-    assert len(artifacts) == 2
+    assert manifest["generated_at"] == "2026-09-28"
+    assert manifest["review_by"] == "2026-10-05"
+    assert len(artifacts) == 4
 
     artifact = artifacts[0]
     parsed_url = urlparse(artifact["url"])
@@ -372,10 +379,141 @@ def test_docker_source_artifact_manifest_review_window_is_inclusive() -> None:
     """The checked-in manifest remains valid through its exact review-by date."""
     manifest_path = REPO_ROOT / "scripts/ci/docker_source_artifacts.json"
 
-    assert docker_sources.load_manifest(manifest_path, today=date(2026, 9, 20))
-    assert docker_sources.load_manifest(manifest_path, today=date(2026, 9, 27))
-    with pytest.raises(RuntimeError, match="review_by is stale: 2026-09-27"):
-        docker_sources.load_manifest(manifest_path, today=date(2026, 9, 28))
+    assert docker_sources.load_manifest(manifest_path, today=date(2026, 9, 28))
+    assert docker_sources.load_manifest(manifest_path, today=date(2026, 10, 5))
+    with pytest.raises(RuntimeError, match="review_by is stale: 2026-10-05"):
+        docker_sources.load_manifest(manifest_path, today=date(2026, 10, 6))
+
+
+def _forecast_workflow_step() -> tuple[dict[str, object], str]:
+    workflow = _load_workflow(WORKFLOWS_DIR / "nightly.yml")
+    jobs = workflow["jobs"]
+    assert isinstance(jobs, dict)
+    job = jobs["review-deadline-forecast"]
+    assert isinstance(job, dict)
+    step = _step_by_name(job, "Forecast source and suppression review deadlines")
+    run = step["run"]
+    assert isinstance(run, str)
+    return job, run
+
+
+def _run_forecast_workflow(
+    tmp_path: Path, *, today: date, review_by: str = "2026-10-05", policy: str | None = None
+) -> tuple[subprocess.CompletedProcess[str], str]:
+    manifest_dir = tmp_path / "scripts" / "ci"
+    policy_dir = tmp_path / "trivy"
+    manifest_dir.mkdir(parents=True)
+    policy_dir.mkdir()
+    (manifest_dir / "docker_source_artifacts.json").write_text(
+        json.dumps(_docker_source_manifest(review_by=review_by)), encoding="utf-8"
+    )
+    (policy_dir / "ignore-policy.rego").write_text(
+        (
+            policy
+            if policy is not None
+            else (REPO_ROOT / "trivy" / "ignore-policy.rego").read_text(encoding="utf-8")
+        ),
+        encoding="utf-8",
+    )
+
+    _, run = _forecast_workflow_step()
+    marker = "python3 - <<'PY'\n"
+    assert run.startswith("set -euo pipefail\n" + marker)
+    source = run.split(marker, 1)[1].rsplit("\nPY", 1)[0]
+    assert "datetime.now(UTC).date()" in source
+    functions = source.split('if __name__ == "__main__":', 1)[0]
+    guard = (
+        "import urllib.request\n"
+        "def reject_network(*args, **kwargs):\n"
+        "    raise AssertionError('forecast must not use network')\n"
+        "urllib.request.urlopen = reject_network\n"
+    )
+    invocation = f"\nraise SystemExit(main(date.fromisoformat({today.isoformat()!r}), Path({str(tmp_path)!r})))\n"
+    summary = tmp_path / "summary.md"
+    result = subprocess.run(
+        [sys.executable, "-c", guard + functions + invocation],
+        cwd=REPO_ROOT,
+        env={**os.environ, "GITHUB_STEP_SUMMARY": str(summary)},
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    return result, summary.read_text(encoding="utf-8") if summary.exists() else ""
+
+
+def test_nightly_forecast_job_is_main_only_private_free_and_independent() -> None:
+    job, run = _forecast_workflow_step()
+    workflow = _load_workflow(WORKFLOWS_DIR / "nightly.yml")
+
+    assert workflow["jobs"]["test"] != job
+    assert job["if"] == (
+        "${{ github.ref == 'refs/heads/main' && "
+        "(github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') }}"
+    )
+    assert job["timeout-minutes"] == 2
+    assert job["permissions"] == {"contents": "read"}
+    assert job["env"] == {
+        "PULSEPLATE_PYTHON_INDEX_URL": "",
+        "PULSEPLATE_PYTHON_TRUSTED_HOST": "",
+    }
+    checkout = _step_by_name(job, "Checkout code")
+    assert checkout["with"] == {"persist-credentials": False}
+    assert "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1" == checkout["uses"]
+    assert "load_manifest" in run and "evaluate_policy_file" in run
+    assert "urlopen" not in run and "--ignore-policy" not in run
+    assert "GITHUB_STEP_SUMMARY" in run
+
+
+@pytest.mark.parametrize(
+    ("today", "expected_exit", "current_finding", "forecast_finding"),
+    [
+        (date(2026, 9, 30), 0, False, False),
+        (date(2026, 10, 2), 1, False, True),
+        (date(2026, 10, 4), 1, False, True),
+        (date(2026, 10, 6), 1, True, True),
+    ],
+)
+def test_nightly_forecast_executes_utc_date_boundaries_and_labels(
+    tmp_path: Path,
+    today: date,
+    expected_exit: int,
+    current_finding: bool,
+    forecast_finding: bool,
+) -> None:
+    result, summary = _run_forecast_workflow(tmp_path, today=today)
+
+    assert result.returncode == expected_exit, result.stderr
+    assert (
+        f"UTC today: {today}; UTC forecast date: {date.fromordinal(today.toordinal() + 4)}"
+        in summary
+    )
+    assert f"### CURRENT: {'attention required' if current_finding else 'no finding'}" in summary
+    assert f"### FORECAST: {'attention required' if forecast_finding else 'no finding'}" in summary
+    if today == date(2026, 10, 2):
+        assert "review-by 2026-10-05" in summary
+        assert "review-by 2026-10-07" not in summary
+    if today == date(2026, 10, 4):
+        assert "review-by 2026-10-07" in summary
+        assert "Expired Trivy ignore policy" in summary
+
+
+@pytest.mark.parametrize(
+    ("review_by", "policy"),
+    [
+        ("bad-date", None),
+        ("2026-10-05", "package trivy\nnot a valid policy"),
+    ],
+)
+def test_nightly_forecast_malformed_inputs_fail_closed(
+    tmp_path: Path, review_by: str, policy: str | None
+) -> None:
+    result, summary = _run_forecast_workflow(
+        tmp_path, today=date(2026, 9, 28), review_by=review_by, policy=policy
+    )
+
+    assert result.returncode == 1, result.stderr
+    assert "### CURRENT: attention required" in summary
+    assert "### FORECAST: attention required" in summary
 
 
 def test_libuuid_source_and_production_native_linkage_contract() -> None:
@@ -437,6 +575,34 @@ def test_libuuid_build_executes_both_source_digest_checks(
         assert f"{corrupt_digest.upper()} mismatch" in result.stderr
 
 
+def test_pr_build_runs_native_suppression_contract_after_pinned_scan() -> None:
+    workflow = _load_workflow(WORKFLOWS_DIR / "build.yml")
+    jobs = workflow["jobs"]
+    assert isinstance(jobs, dict)
+    build = jobs["build"]
+    assert isinstance(build, dict)
+    names = _step_names(build)
+    assert names.count("Validate native Trivy suppression semantics") == 1
+    assert names.index("Scan production image before publication eligibility") + 1 == names.index(
+        "Validate native Trivy suppression semantics"
+    )
+    assert names.index("Validate native Trivy suppression semantics") + 1 == names.index(
+        "Validate production image report and render SARIF"
+    )
+    scan = _step_by_name(build, "Scan production image before publication eligibility")
+    assert scan["uses"] == ("aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25")
+    assert scan["with"]["version"] == "v0.74.0"
+    assert scan["with"]["ignore-policy"] == ".trivy-ignore-policy.rego"
+    native = _step_by_name(build, "Validate native Trivy suppression semantics")
+    assert native == {
+        "name": "Validate native Trivy suppression semantics",
+        "if": "github.event_name == 'pull_request'",
+        "run": "set -euo pipefail\npython3 scripts/ci/check_trivy_ignore_policy_native.py\n",
+    }
+    assert "continue-on-error" not in native
+    assert "Validate native Trivy suppression semantics" not in _step_names(jobs["publish"])
+
+
 def test_pr_and_publish_share_strict_native_image_scan_predicates() -> None:
     workflow = _load_workflow(WORKFLOWS_DIR / "build.yml")
     jobs = workflow["jobs"]
@@ -482,6 +648,7 @@ def test_pr_and_publish_share_strict_native_image_scan_predicates() -> None:
         "util-linux-extra",
         "libsystemd0",
         "libudev1",
+        "libpcre2-8-0",
     )
     for job, name in (
         (build, "Check Docker runtime dependency surface"),
@@ -555,6 +722,84 @@ def test_source_manifest_rejects_ambiguous_identity_and_url_overrides(
         docker_sources.load_manifest(path, today=date(2026, 6, 14))
 
 
+def _stub_source_transport(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    payload: bytes,
+    code: int = 200,
+    location: str | None = None,
+) -> list[tuple[str, int]]:
+    """Keep the actual opener/redirect dispatch and replace only HTTP transport."""
+    calls: list[tuple[str, int]] = []
+
+    def respond(_handler: object, request: Request) -> addinfourl:
+        calls.append((request.full_url, request.timeout))
+        headers = Message()
+        if location is not None:
+            headers["Location"] = location
+        response = addinfourl(BytesIO(payload), headers, request.full_url, code)
+        response.msg = "synthetic source response"
+        return response
+
+    monkeypatch.setattr(HTTPSHandler, "https_open", respond)
+    monkeypatch.setattr(HTTPHandler, "http_open", respond)
+    return calls
+
+
+@pytest.mark.parametrize("code", [301, 302, 303, 307, 308])
+@pytest.mark.parametrize(
+    "location",
+    [
+        "/2026/another.tar.gz",
+        "https://www.sqlite.org/2026/sqlite-autoconf-3530200.tar.gz",
+        "https://www.kernel.org/another.tar.gz",
+        "https://unapproved.example/another.tar.gz",
+        "http://sqlite.org/2026/sqlite-autoconf-3530200.tar.gz",
+        "file:///tmp/another.tar.gz",
+    ],
+)
+def test_source_fetch_rejects_real_opener_redirects_without_second_request(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, code: int, location: str
+) -> None:
+    payload = b"verified source"
+    path = _write_docker_source_manifest(tmp_path, _docker_source_manifest(payload=payload))
+    artifact = docker_sources.load_manifest(path, today=date(2026, 6, 14))[0]
+    calls = _stub_source_transport(monkeypatch, payload=payload, code=code, location=location)
+    output = tmp_path / "sources"
+
+    with pytest.raises(HTTPError):
+        docker_sources._write_verified_artifact(artifact, output)
+
+    assert calls == [(artifact.url, 60)]
+    assert list(output.iterdir()) == []
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "http://sqlite.org/2026/sqlite-autoconf-3530200.tar.gz",
+        "https://unapproved.example/sqlite-autoconf-3530200.tar.gz",
+        "https://www.kernel.org/sqlite-autoconf-3530200.tar.gz",
+        "https://@sqlite.org/2026/sqlite-autoconf-3530200.tar.gz",
+        "https://sqlite.org:0/2026/sqlite-autoconf-3530200.tar.gz",
+        "https://reader@sqlite.org/2026/sqlite-autoconf-3530200.tar.gz",
+        "https://sqlite.org/2026/sqlite-autoconf-3530200.tar.gz?override=1",
+        "https://sqlite.org/2026/sqlite-autoconf-3530200.tar.gz#override",
+    ],
+)
+def test_source_fetch_revalidates_direct_artifact_before_transport(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, url: str
+) -> None:
+    path = _write_docker_source_manifest(tmp_path, _docker_source_manifest())
+    artifact = replace(docker_sources.load_manifest(path, today=date(2026, 6, 14))[0], url=url)
+    calls = _stub_source_transport(monkeypatch, payload=b"unused")
+
+    with pytest.raises(RuntimeError):
+        docker_sources._write_verified_artifact(artifact, tmp_path / "sources")
+
+    assert calls == []
+
+
 def test_docker_source_artifact_fetcher_verifies_sha3_and_reuses_existing_file(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -564,17 +809,7 @@ def test_docker_source_artifact_fetcher_verifies_sha3_and_reuses_existing_file(
     )
     artifact = docker_sources.load_manifest(manifest_path, today=date(2026, 6, 14))[0]
     output_dir = tmp_path / "docker-sources"
-    calls: list[tuple[str, int]] = []
-
-    class _Response:
-        def read(self) -> bytes:
-            return payload
-
-    def _urlopen(url: str, *, timeout: int) -> _Response:
-        calls.append((url, timeout))
-        return _Response()
-
-    monkeypatch.setattr(docker_sources, "urlopen", _urlopen)
+    calls = _stub_source_transport(monkeypatch, payload=payload)
     output_path = docker_sources._write_verified_artifact(artifact, output_dir)
 
     assert output_path == output_dir / "sqlite-autoconf-3530200.tar.gz"
@@ -582,14 +817,11 @@ def test_docker_source_artifact_fetcher_verifies_sha3_and_reuses_existing_file(
     assert output_path.stat().st_mode & 0o777 == 0o644
     assert calls == [("https://sqlite.org/2026/sqlite-autoconf-3530200.tar.gz", 60)]
 
-    def _unexpected_urlopen(_url: str, *, timeout: int) -> _Response:
-        raise AssertionError("verified artifact should be reused without a network call")
-
-    monkeypatch.setattr(docker_sources, "urlopen", _unexpected_urlopen)
     reused_path = docker_sources._write_verified_artifact(artifact, output_dir)
 
     assert reused_path == output_path
     assert output_path.read_bytes() == payload
+    assert calls == [(artifact.url, 60)]
 
 
 def test_docker_source_artifact_fetcher_rejects_digest_mismatches(
@@ -601,11 +833,7 @@ def test_docker_source_artifact_fetcher_rejects_digest_mismatches(
     )
     artifact = docker_sources.load_manifest(manifest_path, today=date(2026, 6, 14))[0]
 
-    class _Response:
-        def read(self) -> bytes:
-            return b"tampered sqlite source artifact"
-
-    monkeypatch.setattr(docker_sources, "urlopen", lambda _url, *, timeout: _Response())
+    _stub_source_transport(monkeypatch, payload=b"tampered sqlite source artifact")
 
     with pytest.raises(RuntimeError, match="SHA3 mismatch"):
         docker_sources._write_verified_artifact(artifact, tmp_path / "docker-sources")
@@ -640,7 +868,7 @@ def test_source_cache_rejects_nonregular_objects(
     def no_network(*args: object, **kwargs: object) -> None:
         pytest.fail("unsafe cache entry must be rejected before network access")
 
-    monkeypatch.setattr(docker_sources, "urlopen", no_network)
+    monkeypatch.setattr(docker_sources, "build_opener", no_network)
     with pytest.raises(RuntimeError, match="regular|symlink"):
         docker_sources._write_verified_artifact(artifact, output)
     assert referent.read_bytes() == payload
@@ -758,6 +986,7 @@ def test_docker_runtime_surface_guard_blocks_perl_runtime_packages() -> None:
         assert "--blocked-debian-package libattr1" in run_script
         assert "--blocked-debian-package libgnutls30" in run_script
         assert "--blocked-debian-package libsqlite3-0" in run_script
+        assert "--blocked-debian-package libpcre2-8-0" in run_script
         assert "--blocked-debian-package perl-base" in run_script
         assert "--blocked-debian-prefix perl-modules-" in run_script
 
@@ -964,3 +1193,232 @@ def test_publish_image_scan_fails_closed() -> None:
         attestation_step["with"]["subject-digest"]
         == "${{ steps.docker-build-push.outputs.digest }}"
     )
+
+
+@pytest.mark.parametrize(
+    "name,version,url,digest",
+    [
+        (
+            "pcre2",
+            "10.49",
+            "https://codeload.github.com/PCRE2Project/pcre2/legacy.tar.gz/refs/tags/pcre2-10.49",
+            "6510970e92ea9410b44f85c606c389c3473ba05d2d6338f0ce763cc4ccaa382c",
+        ),
+        (
+            "sljit",
+            "de0259c7aaf36aa40cba8014f3fad3edde9307f9",
+            "https://codeload.github.com/zherczeg/sljit/legacy.tar.gz/"
+            "de0259c7aaf36aa40cba8014f3fad3edde9307f9",
+            "7ad006814d4d9c698832b14541634b9cc12039bae7b3bb547909fda51ee11a80",
+        ),
+    ],
+)
+def test_pcre2_source_records_bind_exact_reviewed_closure(
+    name: str, version: str, url: str, digest: str
+) -> None:
+    artifacts = docker_sources.load_manifest(
+        REPO_ROOT / "scripts/ci/docker_source_artifacts.json", today=date(2026, 10, 2)
+    )
+    assert len(artifacts) == 4
+    matches = [artifact for artifact in artifacts if artifact.name == name]
+    assert len(matches) == 1
+    artifact = matches[0]
+    assert (artifact.version, artifact.filename, artifact.url, artifact.sha3_256) == (
+        version,
+        f"{name}-{version}.tar.gz",
+        url,
+        digest,
+    )
+
+
+@pytest.mark.parametrize("name", ["pcre2", "sljit"])
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        "repo",
+        "ref",
+        "path",
+        "version",
+        "filename",
+        "digest",
+        "cross_pair",
+        "http",
+        "credentials",
+        "empty_userinfo",
+        "port",
+        "query",
+        "fragment",
+        "unknown_name",
+        "malformed_version",
+        "malformed_digest",
+    ],
+)
+def test_pcre2_source_manifest_rejects_identity_and_metadata_cross_pairs(
+    tmp_path: Path, name: str, mutation: str
+) -> None:
+    manifest = json.loads((REPO_ROOT / "scripts/ci/docker_source_artifacts.json").read_text())
+    row = next(record for record in manifest["artifacts"] if record["name"] == name)
+    if mutation == "repo":
+        row["url"] = row["url"].replace("/legacy.tar.gz/", "-other/legacy.tar.gz/")
+    elif mutation == "ref":
+        row["url"] += "-other"
+    elif mutation == "path":
+        row["url"] = row["url"].replace("/legacy.tar.gz/", "/tar.gz/")
+    elif mutation == "version":
+        row["version"] += "-other"
+        row["filename"] = f"{name}-{row['version']}.tar.gz"
+    elif mutation == "filename":
+        row["filename"] = "different.tar.gz"
+    elif mutation == "digest":
+        row["sha3_256_parts"] = ["0" * 64]
+    elif mutation == "cross_pair":
+        other = next(
+            record
+            for record in manifest["artifacts"]
+            if record["name"] != name and record["name"] in ("pcre2", "sljit")
+        )
+        row["url"] = other["url"]
+        row["sha3_256_parts"] = other["sha3_256_parts"]
+    elif mutation == "http":
+        row["url"] = row["url"].replace("https:", "http:")
+    elif mutation == "credentials":
+        row["url"] = row["url"].replace("https://", "https://reader@")
+    elif mutation == "empty_userinfo":
+        row["url"] = row["url"].replace("https://", "https://@")
+    elif mutation == "port":
+        row["url"] = row["url"].replace("github.com/", "github.com:443/")
+    elif mutation == "query":
+        row["url"] += "?override=1"
+    elif mutation == "fragment":
+        row["url"] += "#override"
+    elif mutation == "unknown_name":
+        row["name"] = "other"
+        row["filename"] = f"other-{row['version']}.tar.gz"
+    elif mutation == "malformed_version":
+        row["version"] = 10
+    else:
+        row["sha3_256_parts"] = [None]
+    path = _write_docker_source_manifest(tmp_path, manifest)
+    with pytest.raises(RuntimeError):
+        docker_sources.load_manifest(path, today=date(2026, 10, 2))
+
+
+@pytest.mark.parametrize("name", ["pcre2", "sljit"])
+@pytest.mark.parametrize("code", [301, 302, 303, 307, 308])
+def test_pcre2_source_redirects_use_real_rejecting_handler(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, name: str, code: int
+) -> None:
+    artifact = next(
+        item
+        for item in docker_sources.load_manifest(
+            REPO_ROOT / "scripts/ci/docker_source_artifacts.json", today=date(2026, 10, 2)
+        )
+        if item.name == name
+    )
+    calls = _stub_source_transport(
+        monkeypatch, payload=b"redirected source", code=code, location=artifact.url
+    )
+    output = tmp_path / "sources"
+    with pytest.raises(HTTPError):
+        docker_sources._write_verified_artifact(artifact, output)
+    assert calls == [(artifact.url, 60)]
+    assert list(output.iterdir()) == []
+
+
+@pytest.mark.parametrize("name", ["pcre2", "sljit"])
+@pytest.mark.parametrize("field", ["url", "version", "filename", "sha3_256"])
+def test_pcre2_direct_source_revalidates_identity_before_cache_or_transport(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, name: str, field: str
+) -> None:
+    artifact = next(
+        item
+        for item in docker_sources.load_manifest(
+            REPO_ROOT / "scripts/ci/docker_source_artifacts.json", today=date(2026, 10, 2)
+        )
+        if item.name == name
+    )
+    corrupted = replace(artifact, **{field: getattr(artifact, field) + "other"})
+    calls = _stub_source_transport(monkeypatch, payload=b"unused")
+    output = tmp_path / "sources"
+    with pytest.raises(RuntimeError, match="exact reviewed identity"):
+        docker_sources._write_verified_artifact(corrupted, output)
+    assert calls == []
+    assert not output.exists()
+
+
+@pytest.mark.parametrize("name", ["pcre2", "sljit"])
+def test_pcre2_source_download_rejects_wrong_actual_bytes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, name: str
+) -> None:
+    artifact = next(
+        item
+        for item in docker_sources.load_manifest(
+            REPO_ROOT / "scripts/ci/docker_source_artifacts.json", today=date(2026, 10, 2)
+        )
+        if item.name == name
+    )
+    calls = _stub_source_transport(monkeypatch, payload=b"wrong actual source bytes")
+    output = tmp_path / "sources"
+    with pytest.raises(RuntimeError, match="SHA3"):
+        docker_sources._write_verified_artifact(artifact, output)
+    assert calls == [(artifact.url, 60)]
+    assert list(output.iterdir()) == []
+
+
+def test_pcre2_production_build_preserves_native_features_and_consumers() -> None:
+    dockerfile = (REPO_ROOT / "Dockerfile").read_text()
+    dockerignore = (REPO_ROOT / ".dockerignore").read_text()
+    builder = dockerfile.split("FROM sqlite-builder AS pcre2-builder", 1)[1].split(
+        "# Stage 2: Runtime base stage", 1
+    )[0]
+    for filename in ("pcre2-10.49.tar.gz", "sljit-de0259c7aaf36aa40cba8014f3fad3edde9307f9.tar.gz"):
+        assert f"COPY build/docker-sources/{filename}" in builder
+        assert f"!build/docker-sources/{filename}" in dockerignore
+    assert 'sha3_256(payload).hexdigest() != "".join(records[0]["sha3_256_parts"])' in builder
+    assert "RUN --network=none" in builder
+    assert "--strip-components=1 -C /tmp/pcre2-source/deps/sljit" in builder
+    for flag in (
+        "--enable-shared",
+        "--disable-static",
+        "--enable-jit",
+        "--enable-unicode",
+        "--enable-pcre2-8",
+        "--disable-pcre2-16",
+        "--disable-pcre2-32",
+        "--disable-pcre2grep-libz",
+        "--disable-pcre2grep-libbz2",
+        "--disable-pcre2test-libreadline",
+    ):
+        assert flag in builder
+    assert "make -j2 libpcre2-8.la" in builder
+    for source in ("LICENCE.md", "COPYING", "deps/sljit/LICENSE"):
+        assert f"install -m 0644 {source}" in builder
+    production = dockerfile.split("FROM runtime-base AS production", 1)[1].split(
+        "FROM runtime-base AS development", 1
+    )[0]
+    replacement = production.index("COPY --from=pcre2-builder")
+    pruning = production.index("# SECURITY: production-package-pruning-start")
+    nonroot = production.index("USER pulseplate")
+    smoke = production.index("# Exercise the actual replacement")
+    assert replacement < pruning < nonroot < smoke
+    assert "ln -s libpcre2-8.so.0.16.1 /usr/local/lib/libpcre2-8.so.0 && ldconfig" in production
+    assert "        libpcre2-8-0 \\" in production
+    assert "sha256sum --check /usr/local/share/doc/pulseplate-pcre2/SHA256SUMS" in production
+    for native_call in (
+        "pcre2_config_8",
+        "pcre2_compile_8",
+        "pcre2_jit_compile_8",
+        "pcre2_jit_match_8",
+        "pcre2_jit_stack_assign_8",
+        "selabel_open",
+        "selabel_lookup_raw",
+        "freecon",
+        "selabel_close",
+    ):
+        assert native_call in production[smoke:]
+    assert 'version.value.startswith(b"10.49 ")' in production[smoke:]
+    assert "if loaded != {expected}:" in production[smoke:]
+    assert "finally:" in production[smoke:]
+    assert "grep -P" in production[smoke:]
+    assert "dpkg --version" in production[smoke:]
+    assert 'mkdir "${consumer_directory}/child"' in production[smoke:]

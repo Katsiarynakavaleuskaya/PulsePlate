@@ -94,6 +94,10 @@ RETIRED_LEGACY_PYTHON_BINDINGS = (
     "Goal",
     "Sex",
     "build_who_targets_ui_labels",
+    "DataClass",
+    "get_retention_manager",
+    "LogRetentionManager",
+    "_log_retention_manager",
 )
 
 RETIRED_PRO_NUTRITION_BINDINGS = RETIRED_LEGACY_PYTHON_BINDINGS[10:20]
@@ -104,6 +108,7 @@ RETIRED_NUTRITION_UTILITY_BINDINGS = RETIRED_LEGACY_PYTHON_BINDINGS[51:58]
 RETIRED_TARGETS_GAPS_SERVICE_BINDINGS = RETIRED_LEGACY_PYTHON_BINDINGS[58:61]
 RETIRED_OPENAPI_BINDINGS = RETIRED_LEGACY_PYTHON_BINDINGS[61:68]
 RETIRED_NUTRITION_CONTRACT_BINDINGS = RETIRED_LEGACY_PYTHON_BINDINGS[68:83]
+RETIRED_LOG_RETENTION_BINDINGS = RETIRED_LEGACY_PYTHON_BINDINGS[83:87]
 
 
 def test_retired_insight_binding_tail_is_exact_and_disjoint() -> None:
@@ -203,9 +208,53 @@ def test_retired_nutrition_contract_tail_is_exact_and_disjoint() -> None:
         "Sex",
         "build_who_targets_ui_labels",
     )
-    assert len(RETIRED_LEGACY_PYTHON_BINDINGS) == 83
-    assert len(set(RETIRED_LEGACY_PYTHON_BINDINGS)) == 83
+    assert len(RETIRED_LEGACY_PYTHON_BINDINGS[:83]) == 83
+    assert len(set(RETIRED_LEGACY_PYTHON_BINDINGS[:83])) == 83
     assert set(RETIRED_LEGACY_PYTHON_BINDINGS[:68]).isdisjoint(RETIRED_NUTRITION_CONTRACT_BINDINGS)
+
+
+def test_retired_log_retention_tail_is_exact_and_disjoint() -> None:
+    """Pin the four-name cohort separately from earlier legacy retirements."""
+    assert RETIRED_LOG_RETENTION_BINDINGS == (
+        "DataClass",
+        "get_retention_manager",
+        "LogRetentionManager",
+        "_log_retention_manager",
+    )
+    assert len(RETIRED_LEGACY_PYTHON_BINDINGS) == 87
+    assert len(set(RETIRED_LEGACY_PYTHON_BINDINGS)) == 87
+    assert set(RETIRED_LEGACY_PYTHON_BINDINGS[:83]).isdisjoint(RETIRED_LOG_RETENTION_BINDINGS)
+
+
+@pytest.mark.parametrize("binding_name", RETIRED_LOG_RETENTION_BINDINGS)
+@pytest.mark.parametrize(
+    "source_template",
+    [
+        "{name} = canonical\n",
+        "{name}: object = canonical\n",
+        "from core.log_retention import canonical as {name}\n",
+        "def {name}():\n    return None\n",
+        "class {name}:\n    pass\n",
+        "del {name}\n",
+        "def mutate():\n    global {name}\n",
+    ],
+    ids=["assignment", "annotation", "import-alias", "function", "class", "delete", "global"],
+)
+def test_retired_log_retention_binding_carrier(binding_name: str, source_template: str) -> None:
+    """Reject each recognized static carrier of a retired retention name."""
+    assert legacy_guard.validate_retired_legacy_python_bindings(
+        source_template.format(name=binding_name)
+    ) == [f"legacy_app.py: retired Python compatibility binding is forbidden: {binding_name}"]
+
+
+@pytest.mark.parametrize("binding_name", RETIRED_LOG_RETENTION_BINDINGS[:3])
+def test_retired_log_retention_guard_rejects_exact_canonical_reimport(
+    binding_name: str,
+) -> None:
+    """Reject re-exporting a canonical core symbol through the legacy facade."""
+    assert legacy_guard.validate_retired_legacy_python_bindings(
+        f"from core.log_retention import {binding_name}\n"
+    ) == [f"legacy_app.py: retired Python compatibility binding is forbidden: {binding_name}"]
 
 
 @pytest.mark.parametrize("binding_name", RETIRED_NUTRITION_CONTRACT_BINDINGS)

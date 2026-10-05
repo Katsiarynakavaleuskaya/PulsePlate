@@ -1,5 +1,20 @@
 # Governed Creative-Code Execution Contract
 
+## CREATIVE-OPS-1 operational consumer
+
+The additive `creative_workflow.v1` host procedure binds an accepted task and
+criteria to Euler evidence, obtains three native-agent alternatives, records a
+separate coordinator review and passes one selected exact-file proposal to the
+packet-eligible writer. Its local stage files and sanitized capsule are
+procedural evidence only. A reviewed selection is not PR-1 specification
+approval, PR-2 candidate patch authority, PR-3 promotion, release, or merge
+authority. Product-platform proposals use the normal backend, web or iOS
+writer and ordinary PR gates; they do not widen the PR-2 sandbox. Existing
+v1/adaptive-v2 hypothesis contracts retain their original product and workflow
+target restrictions. See
+`docs/orchestration/contracts/EXPERIMENT_RUNNER_PR_CREATIVE_CONTEXT_CONTRACT.md#operational-creative-v1-separate-contract`
+for the operational stage and Drive handoff.
+
 <!-- markdownlint-disable MD013 -->
 
 **Status:** PR-6 first applied-candidate lane, local private-pilot loop
@@ -671,17 +686,20 @@ read gate private-pilot read access, while Actions write is optional and
 modeled solely as fixed workflow-dispatch capability. Candidate plans are
 checklist-only and remain bound to `docs/prompts/cv/program.md`.
 
-This capability gate does not automatically launch Experiment Runner in every
-PR lane. Automatic PR-lane attachment is a separate follow-up contract: a
-coordinator/packet hook may attach oracle-only Experiment Runner evidence and
-make role agents consume the resulting decisions, but only after a reviewed PR
-defines trigger rules, artifact reuse, failure behavior, co-author attribution,
-rate/quota boundaries, opt-out behavior, and PR-body evidence requirements.
+The GitHub App capability gate remains separate from the local
+[CREATIVE-OPS-2 admitted host hook](contracts/EXPERIMENT_RUNNER_PR_CREATIVE_CONTEXT_CONTRACT.md#admitted-host-oracle-accompaniment-creative-ops-2).
+That hook selects externally admitted T before host startup and reads distinct
+explicit M through the existing root-aware owners. Its frozen tracked observer
+snapshot and separately retained archive companions provide bounded continuity;
+they do not prove hostile same-UID authenticity or standalone recovery.
+That hook composes oracle execution/reuse and exact role-context delivery under
+its approved packet, strict backend, attribution, opt-out and retention contract.
+It grants no GitHub App or workflow-dispatch authority and preserves the existing
+Creative intake/generation/writer contracts.
 
 The PR creative-context layer also does not automatically launch on GitHub
 Actions in v1. It provides the local sanitized artifact and contract surface
-that a later auto-attach PR may consume after workflow trigger, permission, and
-artifact-retention rules are reviewed. GitHub App initiated
+consumed by the admitted local hook and existing host intake handoff. GitHub App initiated
 `workflow_dispatch` and Actions write remain deferred capability-gate work; the
 current model/hypothesis lane runs on the developer/operator's local machine and
 requires the operator to choose any local model/API tool outside repo authority.

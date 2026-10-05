@@ -250,10 +250,51 @@ forms require `docker image inspect` of the exact frozen reference, with the
 returned ID matching the existing container's image ID and with canonical
 repository digest, platform and runtime metadata. Missing or conflicting
 identity causes HOLD before product writers are stopped.
-After admission it waits for the database, migrates and checks an
+
+The one-shot `staging_runtime_diagnostics.py` observer separately checks the
+running app and PostgreSQL generation without deploying. For Compose versions
+affected by [docker/compose#14001](https://github.com/docker/compose/issues/14001),
+`config --hash app` may omit the app's `env_file` while the container label
+includes its resolved values. The observer keeps bounded resolved Compose
+JSON in memory, verifies its unchanged stdin roundtrip, and compares the
+resolved service hashes to the exact container labels. Every observation
+requires the installed root-owned Compose file to have the exact reviewed
+SHA-256 `f194f8c5a58fec75c9483cf6827b5e1ef5171c3571d8897202ee56d0c666cca6`.
+Those exact source bytes define one protected app `.env` file and no PostgreSQL
+`env_file`. The observer overrides stale local or protected `.env` image and
+env-file references with the backend/Caddy digest refs from the one separately
+approved staging deployment of main
+`e6d16df698ba30d14e7b40b42f6e16c4df5728b2` (attested CD run
+[`36628510436`](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/36628510436)):
+
+- Backend: `ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:a78a9d920bb917c395dff08c5bc244bd299fef803c99eca332bbc4b60fdeff26`
+- Caddy: `ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:5b99acd0ffaf7a93822341b64e053fe8d5b5a6bdf0dfd467e31e870c5f49584c`
+
+A future Compose or published image epoch requires a reviewed pin update
+in the same PR. The app's resolved hash must match its container label;
+PostgreSQL native, resolved and container hashes must all match. The observer
+rechecks both models, all four hashes, file generation and container identity
+after the app probe. Any mismatch fails without a JSON success report. It never
+publishes the rendered model or its environment; a complete observation alone
+does not assert health.
+After deploy admission, `deploy.sh` waits for the database, migrates and checks an
 actual TLS session through the application before exposure. Respect existing
 staging enablement and public-release locks; this work does not authorize a
 production rollout or public release.
+
+In external scheduler mode, the staging worker has `healthcheck: disable: true`.
+Do not use `docker compose up --wait` as its acceptance gate: Compose may reject
+a running container without a health state. The deploy starts the worker once
+with `--pull never --no-deps`, then checks the exact local backend image ID,
+unique staging app/worker labels, expected worker config hash, disabled health
+configuration, typed `Running=true`, `Status=running`, `ExitCode=0`, no OOM, and
+a stable container generation before starting Caddy. After HTTPS `/ready`, it
+rechecks that same generation without another worker `up`. Failure holds the
+deploy; a timeout or post-Caddy failure can leave a partial running state, so
+inspect before any separately authorized recovery. These checks prove container
+state and identity, not that the scheduled job completed a cycle. The native
+Docker probe and deterministic test cover this disabled-health configuration;
+they do not authorize a staging deploy.
 
 Install `deploy/systemd/pulseplate-staging-postgres-backup.service.example`
 as `pulseplate-postgres-backup.service` plus the existing daily timer. The

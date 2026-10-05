@@ -101,6 +101,24 @@ both placeholders before running; do not copy a number from an unrelated packet.
 
 ## Context and evidence boundaries
 
+After coordinator admission of commands, budget and coherent material, use
+`pr_oracle_attachment.py dispatch` before dependent material review. Preserve
+the validated packet mode and every owner flag, select the exact occurrence,
+and supply the approved experiment packet and immutable strict image. Before
+invocation externally admit `TRUSTED_TOOL_ROOT`, an explicit distinct canonical
+`MATERIAL_ROOT` and a clean absolute Python runtime; reject nested/overlapping roots
+and run the absolute `TRUSTED_TOOL_ROOT` helper with `-I` from `TRUSTED_TOOL_ROOT`.
+Current delivery supplies the caller-admitted `MATERIAL_ROOT` through the existing
+bridge's `--oracle-material-root`; a retained receipt cannot choose it. Follow the linked
+contract for the separate read-only guest observer and original-companion restore.
+A trust flag, hash or accepted output cannot supply admission. The hook
+ensures/reuses linkage, calls the existing bridge with `--oracle-evidence`, and
+returns the stdout envelope for the normal native transport. Observe actual
+child consumption; the envelope alone proves no substantive review. See the
+[single host accompaniment contract](../../../docs/orchestration/contracts/EXPERIMENT_RUNNER_PR_CREATIVE_CONTEXT_CONTRACT.md#admitted-host-oracle-accompaniment-creative-ops-2).
+Preparation keeps the oracle-independent path. Opt-out requires equally current
+manual linkage; archive/provider/merge authority remains with its existing owners.
+
 Load the full role definition, not `system_prompt_excerpt`. Exact JSON delivery
 uses the existing `pulseplate.role-context-output.v1` envelope and its bounded
 source checks. A successful complete delivery is used directly; do not reread,
@@ -121,6 +139,89 @@ The later mandatory post-open pass and exact-material closeout follow root
 `AGENTS.md`. Provider absence requires no invocation/retry and is not review,
 scan, approval or no-findings evidence. No full local verification budget or
 unscheduled role-chain repeat follows from this skill.
+
+## Operational Creative handoff
+
+When the validated packet applicability projection recommends Creative and the
+coordinator admits bounded alternatives, use the same native transport and
+packet binding. This is a host procedure, not a provider call in repository
+Python. A direct fix, disabled treatment, or higher-assurance preemption does
+not enter this procedure.
+
+1. Retain the complete accepted requirements source, criteria version, current
+   packet bytes, base/head, exact allowed paths, test budget, and validated Euler
+   reference. Build one `creative_workflow_request.v1` under the owned ignored
+   artifact directory. Run `experiment_runner_pr_creative_context.py
+   workflow-prepare --packet <packet> --request <request> --output-dir <dir>`.
+   A missing or changed source blocks preparation.
+2. Spawn the assigned native agent with the full canonical role and packet
+   context. Ask for exactly one `creative_workflow_native_result.v1` JSON object:
+   three concrete distinct variants plus an unchanged baseline, with criterion
+   IDs, exact paths, assumptions, observations, counterexamples, tests, risks,
+   Euler relation IDs, request fingerprint and packet ID. Await the actual
+   returned output. Send its bytes to `workflow-ingest --workflow
+   <workflow.prepared.json> --native-result-stdin` through host stdin. The user
+   does not transcribe or create `model_intake.json`. On malformed/incomplete
+   output the returned stage records only `INVALID_NATIVE_RESULT`; no validated
+   intake or completion claim follows. Variant `tests` may name only exact
+   commands from the coordinator-approved `request.test_commands`; model text
+   cannot introduce another executable check.
+3. Coordinator inspects content, goal coverage, Euler relation and
+   counterexample evidence. Bind the structured review to the exact validated
+   native-result fingerprint, then run
+   `workflow-review`. Only then capture one exact-file, packet-eligible writer
+   handoff and run `workflow-admit`. These stage artifacts record the host's
+   decisions; their JSON, hashes and role labels do not authenticate a human,
+   execute the writer, or grant repository/merge authority by themselves.
+4. Dispatch the selected writer under the normal packet's separate
+   implementation handoff to produce a patch in an owned isolated checkout.
+   Do not execute tests or import generated code in the host checkout yet.
+   First inspect the complete patch, compare exact changed paths and elapsed
+   time with the admitted files and budget, and reject unsafe or out-of-scope
+   changes. A reviewed patch is still untrusted executable code.
+5. Use the admitted host oracle hook over the existing strict dispatcher to execute only the
+   reviewed `request.test_commands` against that exact scratch diff inside a
+   capability-probed, zero-network container. On macOS use the runbook's
+   explicit Apple Container backend and immutable image; no direct local
+   `experiment_runner.py` fallback, host test invocation, shell interpolation,
+   model-authored environment expansion, or Drive credentials. Build the
+   existing oracle-only packet with the exact candidate paths and commands;
+   keep `network_budget=0`, 300 seconds, at most three changed files, two
+   targeted test commands and one infrastructure retry. Newly added files may
+   be marked intent-to-add only in the owned scratch checkout so its diff is
+   visible to the runner. Do not admit `make validate-changed` as a candidate
+   command: branch-diff mode ignores an uncommitted writer patch. The PR lane
+   still runs `make validate-changed` separately for its own committed diff.
+   The runner result is procedural test evidence, not
+   promotion or merge authority. If a command or required fixture cannot be
+   admitted by the strict backend, or capability/provenance is unavailable,
+   do not run the generated code on the host. Record tests `pending` and let
+   the ordinary platform owner handle its separate governed verification. A
+   fixture-bearing projection is separate evidence and never replaces the
+   selected patch's original hash or its exact-material test claim.
+6. Compare the observed sandbox command results and actual patch with each
+   accepted criterion in Work Review. Before export, write the structured
+   `creative_workflow_test_evidence.v1` sidecar from host observations: exact
+   request, selected writer occurrence, patch SHA-256, complete changed files
+   and approved commands with observed nonzero test counts. The CLI checks
+   its continuity against the Git-parsed patch and handoff at export and
+   restore, rejects non-regular patch modes and unsupported ZIP compression,
+   and requires nonempty Work Review text naming every accepted criterion ID.
+   The sidecar cannot authenticate execution by itself. A pending or
+   over-budget test result cannot support completion. Export a sanitized owned capsule using
+   `workflow-export`, then let
+   the host upload, read the same document ID, download the archive, compare its
+   SHA-256 and run `workflow-verify-archive` into a fresh owned directory. Keep
+   the bound packet available because restore rechecks the canonical writer
+   manifest; if it is unavailable, leave `storage_pending`. Until
+   this round trip passes, record `storage_pending` and retain local evidence.
+
+Reopen an existing stage only against its unchanged source and input; identical
+replay is a no-write reuse, while divergent replay or changed packet,
+requirements or Euler bytes fails. Material changes stale dependent review;
+recheck affected criteria without automatically restarting every role or
+generating a new proposal. The legacy creative-context v1 intake and PR-2
+sandbox remain separate, with their existing product and workflow target bans.
 
 ## Canonical references
 

@@ -278,6 +278,56 @@ Operator routing baseline before PR2 workflow consolidation:
 - Release/image PR: inspect `Docker Build and Push` plus any publish lane that
   the PR explicitly changes.
 
+## Nightly Docker and Trivy review-deadline forecast
+
+The independent `review-deadline-forecast` job in the existing main-only daily
+Nightly Tests workflow checks the reviewed Docker source manifest and every
+review/hard-expiry date in the current `trivy/ignore-policy.rego` at one UTC day
+plus four days
+(`.github/workflows/nightly.yml:17`). Its Actions summary labels current
+failures `CURRENT` and the future check `FORECAST`. The job uses the existing
+offline validators (`scripts/ci/fetch_docker_source_artifacts.py:81` and
+`scripts/ci/check_trivy_ignore_policy_expiry.py:480`); it does not download
+sources, scan an image, edit dates, or approve a suppression. GitHub scheduled
+runs and notifications are best-effort, so absence of a warning is not proof
+that the material remains current.
+
+On `FORECAST`, inspect the exact named deadline, current primary upstream and
+Trivy image evidence, assign the security/CI owner, and land a separately
+reviewed correction before the deadline. On `CURRENT`, treat the corresponding
+Docker or Trivy gate as failed now; repair the bounded cause before claiming
+readiness. A new fixed Bookworm package or Trivy `FixedVersion` calls for
+package remediation or suppression retirement, not a blind date extension.
+The shared October 7 hard expiry and util-linux CVE-2026-53615 remain separate
+owner decisions. The forecast does not replace current-head Docker build,
+strict image/filesystem scans, canonical CI, or merge authorization.
+
+For PR builds, the separate native Trivy policy check follows the pinned image
+scan and precedes report validation (`.github/workflows/build.yml:182`). It
+byte-binds the copied scan policy to `trivy/ignore-policy.rego`, preserves the
+45 synthetic controls for the five observed zlib/ncurses tuples, and adds 40
+controls for the two exact paired OpenSSL CVE-2026-84782 tuples. The OpenSSL
+rule requires HIGH severity, installed version `3.0.22-1~deb12u1` and the
+corresponding exact PkgName/PkgID pair. Cross-pairs, prefixes, suffixes,
+lookalikes, fixed metadata, whitespace and the same CRITICAL tuple stay visible.
+The legacy rules retain their CVE/package-name/installed-version boundaries
+and existing PkgID `contains`/`startswith` family semantics. Observed tuple
+fixtures do not prove arbitrary-input paired equality or native field coherence;
+the retained legacy test identifiers are not a stronger contract.
+
+Native Trivy 0.74.0 owns JSON decoding: `null` in string-valued `FixedVersion`
+normalizes to empty before Rego; numeric, boolean, array and object values fail
+with a decode/type error. Such errors are neither vulnerability findings nor
+ignore decisions. Raw Rego `null` is not an empty string. The checker must
+observe the relevant diagnostic, nonzero exit and absent output, and compare
+retained finding identity rather than counts alone. Its synthetic controls
+never replace actual image/filesystem or selected PostgreSQL publication scans.
+The shared October 7 expiry, new OpenSSL October 5 review and independent
+Alertmanager October 24 expiry remain separate obligations. A new applicable
+Bookworm fix or nonempty FixedVersion requires reassessment/removal, not an
+automatic deadline extension. If the native check fails, repair its first
+execution/schema/count/identity error before mapping review findings.
+
 ## Guard Coverage Step (EVMbench-inspired)
 
 **Purpose:** Ensure comprehensive coverage — address *all* related violations, not just one.

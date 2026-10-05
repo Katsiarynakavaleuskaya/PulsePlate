@@ -285,6 +285,7 @@ packaging==25.0
     #   pip-audit
     #   pip-requirements-parser
     #   pytest
+    #   virtualenv
     #   wheel
 pathspec==1.1.1
     # via
@@ -310,7 +311,6 @@ platformdirs==4.10.0
     # via
     #   black
     #   pip-audit
-    #   python-discovery
     #   virtualenv
 pluggy==1.6.0
     # via
@@ -394,7 +394,7 @@ python-dateutil==2.9.0.post0
     # via
     #   -c requirements.txt
     #   matplotlib
-python-discovery==1.4.0
+python-discovery==1.6.1
     # via virtualenv
 python-dotenv==1.2.2
     # via
@@ -506,16 +506,19 @@ typing-inspection==0.4.2
     #   -c requirements.txt
     #   fastapi
     #   pydantic
-urllib3==2.7.0
+urllib3==2.8.0
     # via
     #   -c requirements.txt
+    #   -r requirements.in
     #   requests
 uvicorn==0.42.0
     # via
     #   -c requirements.txt
     #   -r requirements.in
-virtualenv==21.4.2
-    # via pre-commit
+virtualenv==21.14.5
+    # via
+    #   -r requirements-dev.in
+    #   pre-commit
 wheel==0.47.0
     # via pip-tools
 wrapt==2.0.1

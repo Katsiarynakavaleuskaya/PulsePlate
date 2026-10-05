@@ -46,6 +46,652 @@ OUTAGE_BASE_SHA = "c" * 40
 OUTAGE_HEAD_SHA = "d" * 40
 
 
+def _raw_publication_inventory_fixture(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
+    from scripts.orchestration import pr_commit_identity
+
+    for key in ("GH_TOKEN", "GITHUB_TOKEN", "GH_ENTERPRISE_TOKEN", "GITHUB_ENTERPRISE_TOKEN"):
+        monkeypatch.delenv(key, raising=False)
+    monkeypatch.setenv("GH_TOKEN", "opaque")
+    monkeypatch.setenv("GITHUB_TOKEN", "opaque")
+    target = {"number": 42, "repository": {"nameWithOwner": "owner/repo"}}
+    rows: dict[str, dict[str, Any]] = {}
+    nodes: dict[str, dict[str, Any]] = {}
+    sources: dict[str, list[dict[str, Any]]] = {
+        "issue_comment": [],
+        "review_comment": [],
+        "review": [],
+    }
+    roots = []
+    shapes = [("issue_comment", 1), ("review_comment", 2), ("review", 3), ("review_comment", 4)]
+    for kind, number in shapes:
+        suffix, native_type = {
+            "issue_comment": ("issuecomment-", "IssueComment"),
+            "review_comment": ("discussion_r", "PullRequestReviewComment"),
+            "review": ("pullrequestreview-", "PullRequestReview"),
+        }[kind]
+        url = f"https://github.com/owner/repo/pull/42#{suffix}{number}"
+        human = number == 4
+        actor = {
+            "id": number + 20,
+            "node_id": f"ACTOR_{number}",
+            "login": "owner" if human else "reviewer[bot]",
+            "type": "User" if human else "Bot",
+        }
+        body = (
+            "ordinary human first-root"
+            if human
+            else "Actionable comments posted\r\nexact raw content"
+        )
+        created = "2026-08-12T10:00:00Z"
+        updated = "2026-08-12T10:06:00Z"
+        row = {
+            "id": number,
+            "node_id": f"NODE_{number}",
+            "html_url": url,
+            "body": body,
+            "user": actor,
+        }
+        row["issue_url" if kind == "issue_comment" else "pull_request_url"] = (
+            f"https://api.github.com/repos/owner/repo/{'issues' if kind == 'issue_comment' else 'pulls'}/42"
+        )
+        node = {
+            "__typename": native_type,
+            "id": row["node_id"],
+            "databaseId": number,
+            "url": url,
+            "body": body,
+            "createdAt": created,
+            "updatedAt": updated,
+            "lastEditedAt": updated,
+            "authorAssociation": "OWNER" if human else "NONE",
+            "author": {
+                "login": "owner" if human else "reviewer",
+                "__typename": actor["type"],
+                "id": actor["node_id"],
+            },
+        }
+        if kind == "review":
+            row.update(
+                submitted_at="2026-08-12T10:05:00Z", state="COMMENTED", commit_id=OUTAGE_HEAD_SHA
+            )
+            node.update(
+                submittedAt=row["submitted_at"],
+                state="COMMENTED",
+                commit={"oid": OUTAGE_HEAD_SHA},
+                pullRequest=target,
+            )
+        else:
+            row.update(created_at=created, updated_at=updated)
+            if kind == "issue_comment":
+                node.update(issue=None, pullRequest=target)
+            else:
+                row.update(
+                    path="docs/review/PR_42_FIXED_MAPPING.md",
+                    original_commit_id=OUTAGE_HEAD_SHA,
+                    pull_request_review_id=3,
+                )
+                node.update(
+                    path=row["path"],
+                    originalCommit={"oid": OUTAGE_HEAD_SHA},
+                    replyTo=None,
+                    pullRequestReview={"databaseId": 3, "pullRequest": target},
+                )
+                root = ReviewCommentEvidence(
+                    url,
+                    body,
+                    created,
+                    node["author"]["login"],
+                    node["authorAssociation"],
+                    OUTAGE_HEAD_SHA,
+                )
+                roots.append(ReviewThreadEvidence(f"THREAD_{number}", False, (root,)))
+        rows[url] = row
+        nodes[row["node_id"]] = node
+        sources[kind].append(row)
+
+    def pages(url: str, *, token: str) -> list[Any]:
+        assert token == "opaque"
+        kind = (
+            "issue_comment"
+            if "/issues/" in url
+            else "review_comment" if "/comments?" in url else "review"
+        )
+        return json.loads(json.dumps(sources[kind]))
+
+    def native(url: str, *, token: str, method: str = "GET", payload: Any = None) -> Any:
+        assert token == "opaque"
+        if url.endswith("/graphql"):
+            assert method == "POST"
+            return {"data": {"node": json.loads(json.dumps(nodes[payload["variables"]["id"]]))}}
+        number = int(url.rsplit("/", 1)[-1])
+        kind = (
+            "issue_comment"
+            if "/issues/" in url
+            else "review_comment" if "/comments/" in url else "review"
+        )
+        return json.loads(json.dumps(next(row for row in sources[kind] if row["id"] == number)))
+
+    monkeypatch.setattr(merge_gate, "_api_request_paginated_list", pages)
+    monkeypatch.setattr(pr_commit_identity, "github_api_request", native)
+    snapshot = PrSnapshot(
+        "owner/repo",
+        42,
+        OUTAGE_BASE_SHA,
+        OUTAGE_HEAD_SHA,
+        (PrCommitEvidence(OUTAGE_HEAD_SHA, None),),
+    )
+    return {"sources": sources, "rows": rows, "nodes": nodes, "roots": roots, "snapshot": snapshot}
+
+
+def _publication_digest_from_collector(state: dict[str, Any]) -> str:
+    raw: dict[str, Any] = {}
+    items = merge_gate._collect_actionable_items("owner/repo", 42, "opaque", selected_raw_rows=raw)
+    return evidence_module.publication_review_inventory_digest(
+        actionable_items=items,
+        selected_rows=raw,
+        unresolved_roots=state["roots"],
+        snapshot=state["snapshot"],
+        repository="owner/repo",
+        token="opaque",
+    )
+
+
+@pytest.mark.parametrize("reply_form", ["root-rest-omitted", "root-rest-null", "reply"])
+def test_publication_inventory_uses_raw_native_affinity_revision_and_roles(
+    monkeypatch: pytest.MonkeyPatch, reply_form: str
+) -> None:
+    state = _raw_publication_inventory_fixture(monkeypatch)
+    inline = state["sources"]["review_comment"][0]
+    if reply_form == "root-rest-null":
+        inline["in_reply_to_id"] = None
+    elif reply_form == "reply":
+        inline["in_reply_to_id"] = 6
+        state["nodes"]["NODE_2"]["replyTo"] = {"id": "REPLY_6", "databaseId": 6}
+        state["roots"] = [root for root in state["roots"] if root.node_id != "THREAD_2"]
+    first = _publication_digest_from_collector(state)
+    for rows in state["sources"].values():
+        rows.reverse()
+    state["roots"].reverse()
+    assert _publication_digest_from_collector(state) == first
+    # PR issue affinity remains valid when native issue is null; top-review creation predates submission.
+    assert state["nodes"]["NODE_1"]["issue"] is None
+    assert state["nodes"]["NODE_3"]["createdAt"] < state["nodes"]["NODE_3"]["submittedAt"]
+
+
+@pytest.mark.parametrize("kind", ["issue_comment", "review_comment", "review", "human-root"])
+def test_publication_inventory_detects_member_deletion_before_precheck(
+    monkeypatch: pytest.MonkeyPatch, kind: str
+) -> None:
+    state = _raw_publication_inventory_fixture(monkeypatch)
+    inspected = _publication_digest_from_collector(state)
+    if kind == "human-root":
+        state["roots"] = [root for root in state["roots"] if root.node_id != "THREAD_4"]
+        state["sources"]["review_comment"] = [
+            row for row in state["sources"]["review_comment"] if row["id"] != 4
+        ]
+    elif kind == "review_comment":
+        state["sources"][kind] = [row for row in state["sources"][kind] if row["id"] != 2]
+        state["roots"] = [root for root in state["roots"] if root.node_id != "THREAD_2"]
+    else:
+        state["sources"][kind] = []
+    assert _publication_digest_from_collector(state) != inspected
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        "raw-lines",
+        "missing-edit",
+        "borrowed-submission",
+        "duplicate",
+        "bool-id",
+        "lost-marker",
+        "pending-review",
+        "missing-review-commit",
+        "malformed-review-commit",
+        "missing-inline-commit",
+        "malformed-inline-commit",
+        "missing-inline-path",
+        "empty-inline-path",
+        "missing-parent-review-id",
+        "null-parent-review-id",
+        "bool-parent-review-id",
+        "string-parent-review-id",
+        "zero-parent-review-id",
+        "float-parent-review-id",
+        "native-bool-parent-review-id",
+        "malformed-reply-object",
+        "missing-native-reply",
+        "bool-reply-id",
+        "string-reply-id",
+        "zero-reply-id",
+        "float-reply-id",
+        "native-bool-reply-id",
+    ],
+)
+def test_publication_inventory_rejects_unknown_or_changed_raw_members(
+    monkeypatch: pytest.MonkeyPatch, mutation: str
+) -> None:
+    state = _raw_publication_inventory_fixture(monkeypatch)
+    before = _publication_digest_from_collector(state)
+    if mutation.endswith("review-id") or "reply" in mutation or "inline" in mutation:
+        # Exercise selected inline affinity independently of first-root constraints.
+        state["roots"] = [root for root in state["roots"] if root.node_id != "THREAD_2"]
+    if mutation == "raw-lines":
+        row = state["sources"]["issue_comment"][0]
+        row["body"] = row["body"].replace("\r\n", "\n")
+        state["nodes"]["NODE_1"]["body"] = row["body"]
+    elif mutation == "missing-edit":
+        del state["nodes"]["NODE_3"]["lastEditedAt"]
+    elif mutation == "borrowed-submission":
+        state["sources"]["review"][0]["updated_at"] = state["sources"]["review"][0]["submitted_at"]
+    elif mutation == "duplicate":
+        state["sources"]["issue_comment"] *= 2
+    elif mutation == "bool-id":
+        state["sources"]["issue_comment"][0]["id"] = True
+    elif mutation == "pending-review":
+        state["sources"]["review"][0].update(state="PENDING", submitted_at=None)
+    elif mutation in {"missing-review-commit", "malformed-review-commit"}:
+        commit = None if mutation == "missing-review-commit" else "d" * 39
+        state["sources"]["review"][0]["commit_id"] = commit
+        state["nodes"]["NODE_3"]["commit"] = {"oid": commit}
+    elif mutation in {"missing-inline-commit", "malformed-inline-commit"}:
+        commit = None if mutation == "missing-inline-commit" else "d" * 39
+        state["sources"]["review_comment"][0]["original_commit_id"] = commit
+        state["nodes"]["NODE_2"]["originalCommit"] = {"oid": commit}
+    elif mutation in {"missing-inline-path", "empty-inline-path"}:
+        path = None if mutation == "missing-inline-path" else ""
+        state["sources"]["review_comment"][0]["path"] = path
+        state["nodes"]["NODE_2"]["path"] = path
+    elif mutation == "missing-parent-review-id":
+        state["sources"]["review_comment"][0].pop("pull_request_review_id")
+        state["nodes"]["NODE_2"]["pullRequestReview"].pop("databaseId")
+    elif mutation in {
+        "null-parent-review-id",
+        "bool-parent-review-id",
+        "string-parent-review-id",
+        "zero-parent-review-id",
+        "float-parent-review-id",
+        "native-bool-parent-review-id",
+    }:
+        parent = {
+            "null-parent-review-id": None,
+            "bool-parent-review-id": True,
+            "string-parent-review-id": "3",
+            "zero-parent-review-id": 0,
+            "float-parent-review-id": 1.0,
+            "native-bool-parent-review-id": 1,
+        }[mutation]
+        state["sources"]["review_comment"][0]["pull_request_review_id"] = parent
+        state["nodes"]["NODE_2"]["pullRequestReview"]["databaseId"] = (
+            True
+            if mutation == "native-bool-parent-review-id"
+            else 1 if mutation in {"bool-parent-review-id", "float-parent-review-id"} else parent
+        )
+    elif mutation == "malformed-reply-object":
+        state["nodes"]["NODE_2"]["replyTo"] = {}
+    elif mutation == "missing-native-reply":
+        state["nodes"]["NODE_2"].pop("replyTo")
+    elif mutation in {
+        "bool-reply-id",
+        "string-reply-id",
+        "zero-reply-id",
+        "float-reply-id",
+        "native-bool-reply-id",
+    }:
+        reply = {
+            "bool-reply-id": True,
+            "string-reply-id": "6",
+            "zero-reply-id": 0,
+            "float-reply-id": 1.0,
+            "native-bool-reply-id": 1,
+        }[mutation]
+        state["sources"]["review_comment"][0]["in_reply_to_id"] = reply
+        state["nodes"]["NODE_2"]["replyTo"] = {
+            "databaseId": (
+                True
+                if mutation == "native-bool-reply-id"
+                else 1 if mutation in {"bool-reply-id", "float-reply-id"} else reply
+            )
+        }
+    else:
+        state["sources"]["issue_comment"][0]["body"] = "No actionable review comments"
+        state["nodes"]["NODE_1"]["body"] = "No actionable review comments"
+    if mutation in {"raw-lines", "lost-marker"}:
+        assert _publication_digest_from_collector(state) != before
+    else:
+        with pytest.raises((ReviewEvidenceError, ValueError)):
+            _publication_digest_from_collector(state)
+
+
+@pytest.mark.parametrize(
+    "scenario",
+    [
+        "publication",
+        "missing-I",
+        "terminal-raw-drift",
+        "independent-root",
+        "false-no-actionables",
+        "legacy-current-impossible",
+        "legacy-API-unknown",
+    ],
+)
+def test_precloseout_inspected_history_uses_real_recognizer_and_two_observations(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    scenario: str,
+) -> None:
+    from tests.test_pr_review_material_seal import (
+        _inspected_stale_seal_fixture,
+        _mapping_artifact_with_seal,
+    )
+
+    state = _inspected_stale_seal_fixture(tmp_path, monkeypatch)
+    prior_candidate_hash = hashlib.sha256(state["candidate"]).hexdigest()
+    if scenario == "false-no-actionables":
+        state["candidate"] = _mapping_artifact_with_seal(state["seal"]).encode("utf-8")
+        state["mapping"].write_bytes(state["candidate"])
+    monkeypatch.setattr(merge_gate, "REPO_ROOT", state["repo"])
+    monkeypatch.setenv("REVIEW_MAPPING_ARTIFACT_DIR", str(state["mapping"].parent))
+    from scripts.orchestration import pr_commit_identity
+
+    monkeypatch.setattr(merge_gate, "classify_commit_ref", pr_commit_identity.classify_commit_ref)
+    monkeypatch.setattr(merge_gate, "is_ancestor", pr_commit_identity.is_ancestor)
+    monkeypatch.setattr(merge_gate, "assert_snapshot_unchanged", lambda *_a, **_k: None)
+    monkeypatch.setattr(merge_gate, "fetch_pr_snapshot", lambda *_a, **_k: state["snapshot"])
+    monkeypatch.setattr(merge_gate, "fetch_review_threads", lambda *_a, **_k: (state["thread"],))
+    context = (
+        42,
+        "owner/repo",
+        False,
+        "- [canonical artifact](https://github.com/owner/repo/blob/feature/docs/review/PR_42_FIXED_MAPPING.md)",
+        "feature",
+    )
+    monkeypatch.setattr(merge_gate, "_fetch_pr_context", lambda *_a, **_k: context)
+    monkeypatch.setattr(
+        sys, "argv", ["gate", "--pr-number", "42", "--repo", "owner/repo", "--pre-closeout"]
+    )
+    observations = 0
+
+    def pages(url: str, *, token: str) -> list[Any]:
+        nonlocal observations
+        assert token == "opaque"
+        if "/pulls/42/comments?" not in url:
+            return []
+        observations += 1
+        if scenario == "terminal-raw-drift" and observations == 3:
+            state["rows"][state["root"].url]["body"] += "\r\n"
+            state["nodes"]["REVIEW_700"]["body"] += "\r\n"
+        return json.loads(json.dumps(list(state["rows"].values())))
+
+    monkeypatch.setattr(merge_gate, "_api_request_paginated_list", pages)
+    if scenario.startswith("legacy-"):
+        seed = state["seed"]
+        legacy_root = ReviewCommentEvidence(
+            "https://github.com/owner/repo/pull/42#discussion_r650",
+            "Historical stale seal.",
+            "2026-08-12T10:00:00Z",
+            "chatgpt-codex-connector",
+            "NONE",
+            seed["stale_head"],
+        )
+        legacy_fixed = ReviewCommentEvidence(
+            "https://github.com/owner/repo/pull/42#discussion_r651",
+            f"OWNER FIXED: stale seal at {seed['stale_head']} is corrected by mapping-only reseal {seed['reseal']}; authenticated live PR graph is authoritative.",
+            "2026-08-12T12:00:00Z",
+            "owner",
+            "OWNER",
+            seed["stale_head"],
+        )
+        legacy_thread = ReviewThreadEvidence("LEGACY", True, (legacy_root, legacy_fixed))
+        for comment, original in [
+            (legacy_root, state["root"].url),
+            (legacy_fixed, state["thread"].comments[1].url),
+        ]:
+            row = json.loads(json.dumps(state["rows"][original]))
+            row.update(
+                id=int(comment.url.rsplit("r", 1)[-1]),
+                node_id=f"LEGACY_{comment.url.rsplit('r', 1)[-1]}",
+                html_url=comment.url,
+                body=comment.body,
+                created_at=comment.created_at,
+                updated_at=comment.created_at,
+                original_commit_id=seed["stale_head"],
+            )
+            if comment is legacy_fixed:
+                row["in_reply_to_id"] = 650
+            state["rows"][comment.url] = row
+        monkeypatch.setattr(
+            merge_gate, "fetch_review_threads", lambda *_a, **_k: (state["thread"], legacy_thread)
+        )
+        if scenario == "legacy-API-unknown":
+            original_request = pr_commit_identity.github_api_request
+
+            def unknown_legacy(url: str, **kwargs: Any) -> Any:
+                if url.endswith("/pulls/comments/650"):
+                    raise OSError("synthetic unavailable legacy identity")
+                return original_request(url, **kwargs)
+
+            monkeypatch.setattr(pr_commit_identity, "github_api_request", unknown_legacy)
+    raw: dict[str, Any] = {}
+    selected = merge_gate._collect_actionable_items(
+        "owner/repo", 42, "opaque", selected_raw_rows=raw
+    )
+    inventory = evidence_module.publication_review_inventory_digest(
+        actionable_items=selected,
+        selected_rows=raw,
+        unresolved_roots=(state["thread"],),
+        snapshot=state["snapshot"],
+        repository="owner/repo",
+        token="opaque",
+    )
+    old_i = state["thread"].comments[1]
+    body = old_i.body.replace(state["inventory"], inventory).replace(
+        prior_candidate_hash, hashlib.sha256(state["candidate"]).hexdigest()
+    )
+    replacement = replace(old_i, body=body)
+    state["rows"][old_i.url]["body"] = body
+    state["nodes"]["REVIEW_800"]["body"] = body
+    state["thread"] = ReviewThreadEvidence(
+        state["thread"].node_id, False, (state["root"], replacement)
+    )
+    if scenario == "missing-I":
+        state["thread"] = ReviewThreadEvidence(state["thread"].node_id, False, (state["root"],))
+        del state["rows"][old_i.url]
+    elif scenario == "independent-root":
+        independent = ReviewThreadEvidence(
+            "INDEPENDENT",
+            False,
+            (
+                ReviewCommentEvidence(
+                    "https://github.com/owner/repo/pull/42#discussion_r999",
+                    "ordinary first-root",
+                    "2026-08-12T10:00:00Z",
+                    "owner",
+                    "OWNER",
+                    state["material"],
+                ),
+            ),
+        )
+        row = json.loads(json.dumps(state["rows"][state["root"].url]))
+        row.update(
+            id=999,
+            node_id="REVIEW_999",
+            html_url=independent.comments[0].url,
+            body=independent.comments[0].body,
+            original_commit_id=state["material"],
+            user=state["rows"][old_i.url]["user"],
+        )
+        node = json.loads(json.dumps(state["nodes"]["REVIEW_700"]))
+        node.update(
+            id="REVIEW_999",
+            databaseId=999,
+            url=row["html_url"],
+            body=row["body"],
+            originalCommit={"oid": state["material"]},
+            authorAssociation="OWNER",
+            author=state["nodes"]["REVIEW_800"]["author"],
+        )
+        state["rows"][row["html_url"]] = row
+        state["nodes"]["REVIEW_999"] = node
+        monkeypatch.setattr(
+            merge_gate, "fetch_review_threads", lambda *_a, **_k: (state["thread"], independent)
+        )
+    assert merge_gate.main() == (
+        0 if scenario in {"publication", "legacy-current-impossible"} else 1
+    )
+    output = capsys.readouterr().out
+    if scenario in {"publication", "legacy-current-impossible"}:
+        assert observations == 3
+        assert "awaits actual correction/FIXED proof" in output
+        assert "not merge-readiness evidence" in output
+    else:
+        assert "failed" in output
+        assert "passed for one historical" not in output
+        if scenario == "false-no-actionables":
+            assert "No actionable review comments" in output
+        if scenario == "legacy-API-unknown":
+            assert "API_UNKNOWN" in output
+
+
+@pytest.mark.parametrize(
+    ("policy_head", "material_head", "expected_exit"),
+    [
+        ("a" * 40, "b" * 40, 0),
+        ("c" * 40, "b" * 40, 1),
+        ("a" * 40, "c" * 40, 1),
+    ],
+)
+def test_split_checkout_main_binds_authenticated_base_and_head(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    policy_head: str,
+    material_head: str,
+    expected_exit: int,
+) -> None:
+    (tmp_path / ".git").mkdir()
+    snapshot = PrSnapshot(
+        repository="owner/repo",
+        pr_number=42,
+        base_sha="a" * 40,
+        head_sha="b" * 40,
+        commits=(PrCommitEvidence("b" * 40, None),),
+    )
+    context = (42, "owner/repo", False, "body", "feature")
+    observed_reads: list[tuple[Path, str]] = []
+
+    def read_material(
+        _number: int, *, material_repo_root: Path, head_sha: str, split_checkout: bool
+    ) -> str:
+        assert split_checkout is True
+        observed_reads.append((material_repo_root, head_sha))
+        return "artifact"
+
+    monkeypatch.setenv("GITHUB_TOKEN", "opaque")
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "check_pr_merge_readiness.py",
+            "--pr-number",
+            "42",
+            "--repo",
+            "owner/repo",
+            "--material-repo-root",
+            str(tmp_path),
+        ],
+    )
+    monkeypatch.setattr(merge_gate, "_fetch_pr_context", lambda **_kwargs: context)
+    monkeypatch.setattr(merge_gate, "fetch_pr_snapshot", lambda *_a, **_k: snapshot)
+    monkeypatch.setattr(
+        merge_gate,
+        "_local_head_sha",
+        lambda root=None: policy_head if root is None else material_head,
+    )
+    monkeypatch.setattr(merge_gate, "fetch_review_threads", lambda *_a, **_k: ())
+    monkeypatch.setattr(merge_gate, "_collect_actionable_items", lambda **_k: [])
+    monkeypatch.setattr(merge_gate, "_read_material_mapping_artifact", read_material)
+    monkeypatch.setattr(merge_gate, "validate_mapping_artifact_text", lambda _text: [])
+    monkeypatch.setattr(merge_gate, "extract_fixed_mapping_section", lambda _text: "mapping")
+    monkeypatch.setattr(merge_gate, "parse_fixed_mapping_entries", lambda _text: {})
+    monkeypatch.setattr(merge_gate, "has_no_actionable_marker", lambda _text: True)
+    monkeypatch.setattr(merge_gate, "review_seal_version", lambda _text: None)
+    monkeypatch.setattr(merge_gate, "_review_seal_v1_required", lambda *_a: False)
+    monkeypatch.setattr(merge_gate, "_canonical_artifact_markdown_link_count", lambda *_a: 1)
+    monkeypatch.setattr(merge_gate, "_wait_for_review_quiet_window", lambda **_k: (2, 0))
+    monkeypatch.setattr(merge_gate, "assert_snapshot_unchanged", lambda *_a, **_k: None)
+
+    assert merge_gate.main() == expected_exit
+    assert observed_reads == (
+        [(tmp_path.resolve(), snapshot.head_sha)] * 2 if expected_exit == 0 else []
+    )
+
+
+def test_split_material_reads_exact_git_blob_and_scoped_agents(
+    tmp_path: Path,
+) -> None:
+    git = shutil.which("git")
+    assert git is not None
+    fixture_env = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
+    fixture_env.update(
+        GIT_CONFIG_GLOBAL=os.devnull,
+        GIT_CONFIG_NOSYSTEM="1",
+        GIT_NO_REPLACE_OBJECTS="1",
+        GIT_TERMINAL_PROMPT="0",
+    )
+
+    def run_git(*argv: str) -> bytes:
+        completed = subprocess.run(  # nosec B603: fixed test-owned Git repository (remove-by: 2026-10-31, ref: PR-consol-ci-1)
+            [git, "-C", str(tmp_path), *argv],
+            check=False,
+            capture_output=True,
+            env=fixture_env,
+        )
+        if completed.returncode != 0:
+            diagnostic = completed.stderr.decode("utf-8", "replace")[:512].strip()
+            pytest.fail(
+                f"temporary fixture git {argv[0]} failed (exit {completed.returncode}): "
+                f"{diagnostic}",
+                pytrace=False,
+            )
+        return completed.stdout.strip()
+
+    run_git("init", "--quiet")
+    (tmp_path / "docs" / "review").mkdir(parents=True)
+    (tmp_path / "scripts" / "orchestration").mkdir(parents=True)
+    (tmp_path / "AGENTS.md").write_text("root", encoding="utf-8")
+    (tmp_path / "scripts" / "AGENTS.md").write_text("scripts", encoding="utf-8")
+    mapping = tmp_path / "docs" / "review" / "PR_42_FIXED_MAPPING.md"
+    mapping.write_text("committed mapping", encoding="utf-8")
+    (tmp_path / "scripts" / "orchestration" / "pr_review_evidence.py").write_text(
+        "raise RuntimeError('untrusted material code executed')\n", encoding="utf-8"
+    )
+    run_git("add", ".")
+    run_git(
+        "-c",
+        "user.name=CI Test",
+        "-c",
+        "user.email=ci@example.test",
+        "commit",
+        "--quiet",
+        "-m",
+        "fixture",
+    )
+    head = run_git("rev-parse", "HEAD").decode("ascii")
+    mapping.write_text("dirty worktree mapping", encoding="utf-8")
+
+    assert (
+        merge_gate._read_material_mapping_artifact(
+            42, material_repo_root=tmp_path, head_sha=head, split_checkout=True
+        )
+        == "committed mapping"
+    )
+    assert evidence_module._applicable_scoped_agents(
+        ["scripts/ci/example.py"], material_head_sha=head, repo_root=tmp_path
+    ) == ["AGENTS.md", "scripts/AGENTS.md"]
+
+
 def test_duplicate_reply_coverage_uses_canonical_shared_validator() -> None:
     """Real-Git producer cases plus the wiring test below cover composition."""
 
@@ -472,19 +1118,27 @@ def test_pre_closeout_dirty_paths_normalizes_git_status_timeout(
 
 
 def test_pre_closeout_dirty_paths_rejects_staged_mapping_drift(
+    tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(merge_gate.shutil, "which", lambda _name: "/usr/bin/git")
-    monkeypatch.setattr(
-        merge_gate.subprocess,
-        "run",
-        lambda *_args, **_kwargs: subprocess.CompletedProcess(
-            args=["/usr/bin/git", "status"],
-            returncode=0,
-            stdout="MM docs/review/PR_42_FIXED_MAPPING.md\n",
-            stderr="",
-        ),
-    )
+    repo = tmp_path / "owning-repo"
+    repo.mkdir()
+    _git(repo, "init", "-q")
+    mapping = repo / "docs/review/PR_42_FIXED_MAPPING.md"
+    mapping.parent.mkdir(parents=True)
+    mapping.write_text("committed mapping\n", encoding="utf-8")
+    _commit(repo, "prior mapping")
+    monkeypatch.setattr(merge_gate, "REPO_ROOT", repo)
+    for key, value in {
+        "GIT_DIR": str(tmp_path / "foreign.git"),
+        "GIT_WORK_TREE": str(tmp_path / "foreign-worktree"),
+        "GIT_INDEX_FILE": str(tmp_path / "foreign.index"),
+    }.items():
+        monkeypatch.setenv(key, value)
+
+    mapping.write_text("uncommitted mapping\n", encoding="utf-8")
+    assert merge_gate._pre_closeout_dirty_paths() == {"docs/review/PR_42_FIXED_MAPPING.md"}
+    _git(repo, "add", "--", "docs/review/PR_42_FIXED_MAPPING.md")
 
     with pytest.raises(ValueError, match="staged changes are forbidden"):
         merge_gate._pre_closeout_dirty_paths()
@@ -2100,6 +2754,32 @@ def _provider_no_claim_seal_context(
     return repo, seal, snapshot, material_head
 
 
+def test_historical_stale_seal_projection_uses_material_checkout(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo, seal, snapshot, material_head = _provider_no_claim_seal_context(tmp_path, monkeypatch)
+    manifest = compute_material_manifest(
+        repo,
+        base_ref_oid=snapshot.base_sha,
+        head_ref_oid=material_head,
+        pr_number=snapshot.pr_number,
+    )
+    policy_checkout = tmp_path / "policy-checkout"
+    policy_checkout.mkdir()
+    monkeypatch.setattr(evidence_module, "_REPO_ROOT", policy_checkout)
+
+    validated = evidence_module._validate_stale_seal_projection(
+        _artifact_with_seal(seal),
+        repo_root=repo,
+        manifest=manifest,
+        repository=snapshot.repository,
+        pr_number=snapshot.pr_number,
+        require_provider_no_claim=True,
+    )
+
+    assert validated["material"]["digest"] == manifest.digest
+
+
 def test_ci_gate_accepts_provider_no_claim_and_waits_bounded_without_providers(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -2168,6 +2848,22 @@ def test_ci_gate_accepts_provider_no_claim_and_waits_bounded_without_providers(
     assert validated["codex_security"]["scan_claim"] == "none"
     assert metadata_heads == [material_head, material_head, material_head]
     assert sleeps == [15.0, 15.0]
+
+    # The policy module may live in a different checkout; every material Git
+    # operation, including seal validation, must use the explicit PR checkout.
+    with monkeypatch.context() as isolated_policy:
+        isolated_policy.setattr(merge_gate, "REPO_ROOT", tmp_path / "policy-checkout")
+        separated = merge_gate._validate_v1_seal(
+            artifact_text=_artifact_with_seal(seal),
+            repository="owner/repo",
+            pr_number=42,
+            snapshot=snapshot,
+            token="opaque",
+            enforce_outage_security_checks=False,
+            require_committed_closeout=False,
+            material_repo_root=repo,
+        )
+    assert separated["material"]["digest"] == seal["material"]["digest"]
 
     wrong_paths_seal = json.loads(json.dumps(seal))
     self_review = wrong_paths_seal["self_review"]
@@ -3024,7 +3720,7 @@ def test_merge_readiness_main_blocks_missing_mapping(
     assert "canonical review artifact is invalid" in capsys.readouterr().out
 
 
-def test_merge_readiness_checkout_uses_exact_pr_head_and_no_credentials() -> None:
+def test_merge_readiness_executes_exact_base_policy_over_separate_head_material() -> None:
     workflow_path = Path(__file__).resolve().parents[1] / ".github" / "workflows" / "ci.yml"
     workflow = yaml.safe_load(workflow_path.read_text(encoding="utf-8"))
     job = workflow["jobs"]["merge_readiness_gate"]
@@ -3034,6 +3730,8 @@ def test_merge_readiness_checkout_uses_exact_pr_head_and_no_credentials() -> Non
         "private_python_proxy_health",
         "security",
         "trivy_ignore_policy_expiry",
+        "ios-tests",
+        "ios-ui-smoke",
     ]
     assert job["if"] == "${{ always() && github.event_name == 'pull_request' }}"
     assert job["timeout-minutes"] == 15
@@ -3044,20 +3742,116 @@ def test_merge_readiness_checkout_uses_exact_pr_head_and_no_credentials() -> Non
         "pull-requests": "read",
         "statuses": "read",
     }
+    prerequisite = next(
+        step for step in job["steps"] if step.get("name") == "Enforce prerequisite results"
+    )
+    assert prerequisite["env"]["IOS_REQUIRED"] == "${{ needs.changes.outputs.ios }}"
+    assert prerequisite["env"]["IOS_TESTS_RESULT"] == "${{ needs.ios-tests.result }}"
+    assert prerequisite["env"]["IOS_UI_SMOKE_RESULT"] == "${{ needs.ios-ui-smoke.result }}"
     steps = job["steps"]
-    checkout = next(step for step in steps if step.get("name") == "Checkout")
-    assert checkout["with"] == {
+    policy_checkout = next(step for step in steps if step.get("name") == "Checkout policy")
+    material_checkout = next(step for step in steps if step.get("name") == "Checkout material")
+    assert sum(step.get("uses", "").startswith("actions/checkout@") for step in steps) == 2
+    assert policy_checkout["with"] == {
         "fetch-depth": 0,
         "persist-credentials": False,
+        "path": "policy",
+        "ref": "${{ github.event.pull_request.base.sha }}",
+    }
+    assert material_checkout["with"] == {
+        "fetch-depth": 0,
+        "persist-credentials": False,
+        "path": "material",
         "ref": "${{ github.event.pull_request.head.sha }}",
     }
     enforcement = next(
         step for step in steps if step.get("name") == "Enforce merge readiness policy"
     )
     run = enforcement["run"]
+    assert 'cd "$GITHUB_WORKSPACE/policy"' in run
+    assert 'python "$GITHUB_WORKSPACE/policy/scripts/ci/check_pr_merge_readiness.py"' in run
+    assert '--material-repo-root "$GITHUB_WORKSPACE/material"' in run
+    assert "python scripts/ci/check_pr_merge_readiness.py" not in run
     assert '--event-path "$GITHUB_EVENT_PATH"' in run
     assert "--outage-security-wait-seconds 300" in run
     assert "--defer-outage-security-checks" not in run
+
+
+@pytest.mark.parametrize(
+    ("selected", "unit_result", "smoke_result", "passes"),
+    [
+        ("true", "success", "success", True),
+        ("true", "failure", "success", False),
+        ("true", "success", "failure", False),
+        ("true", "skipped", "success", False),
+        ("true", "success", "cancelled", False),
+        ("false", "skipped", "skipped", True),
+        ("false", "success", "skipped", False),
+        ("false", "skipped", "success", False),
+        ("", "skipped", "skipped", False),
+        ("unknown", "skipped", "skipped", False),
+    ],
+)
+def test_ios_merge_gate_executes_exact_selection_result_policy(
+    selected: str, unit_result: str, smoke_result: str, passes: bool
+) -> None:
+    workflow_path = Path(__file__).resolve().parents[1] / ".github" / "workflows" / "ci.yml"
+    workflow = yaml.safe_load(workflow_path.read_text(encoding="utf-8"))
+    step = next(
+        item
+        for item in workflow["jobs"]["merge_readiness_gate"]["steps"]
+        if item.get("name") == "Enforce prerequisite results"
+    )
+    bash = shutil.which("bash")
+    assert bash is not None
+    env = os.environ.copy()
+    env.update(
+        CHANGES_RESULT="success",
+        PR_BODY_PHASE2_GATES_RESULT="success",
+        PRIVATE_PYTHON_PROXY_HEALTH_RESULT="success",
+        TRIVY_IGNORE_POLICY_EXPIRY_RESULT="success",
+        SECURITY_RESULT="skipped",
+        SECURITY_REQUIRED="false",
+        PGVECTOR_REQUIRED="false",
+        IOS_REQUIRED=selected,
+        IOS_TESTS_RESULT=unit_result,
+        IOS_UI_SMOKE_RESULT=smoke_result,
+    )
+
+    result = subprocess.run([bash, "-e", "-c", step["run"]], env=env, capture_output=True)
+    assert (result.returncode == 0) is passes, result.stdout.decode() + result.stderr.decode()
+
+
+@pytest.mark.parametrize(
+    ("changed_path", "expected"),
+    [(".github/workflows/ci.yml", True), ("ios/AGENTS.md", False)],
+)
+def test_ci_hook_selects_prerequisite_consumer_contract(changed_path: str, expected: bool) -> None:
+    hook = Path(__file__).resolve().parents[1] / "scripts/run-backend-tests-pre-commit.sh"
+    source = hook.read_text(encoding="utf-8")
+    start = source.index("add_extra_tests_for_changed_files() {")
+    end = source.index("\n}\n\nadd_extra_tests_for_changed_files", start) + 2
+    function = source[start:end]
+    script = (
+        "set -euo pipefail\n"
+        "declare -a EXTRA_TEST_FILES=()\n"
+        "declare -a PYTHON_DEPENDENCY_TESTCLIENT_SURFACE_FILES=(unrelated)\n"
+        "declare -a REVIEW_SOURCE_QUOTA_POLICY_SURFACE_FILES=(unrelated)\n"
+        f'CHANGED_FILES=("{changed_path}")\n'
+        f"{function}\n"
+        "add_extra_tests_for_changed_files\n"
+        'printf "%s\\n" "${EXTRA_TEST_FILES[@]-}"\n'
+    )
+    bash = shutil.which("bash")
+    assert bash is not None
+    result = subprocess.run([bash, "-c", script], capture_output=True, text=True, check=True)
+    targets = (
+        "tests/test_private_python_proxy_workflow_contract.py",
+        "tests/test_ci_workflow_pr_size_governance_contract.py",
+        "tests/test_pr_merge_readiness_gate.py",
+    )
+    for target in targets:
+        assert (target in result.stdout.splitlines()) is expected
 
 
 def test_event_head_sha_is_required_and_exact(tmp_path: Path) -> None:

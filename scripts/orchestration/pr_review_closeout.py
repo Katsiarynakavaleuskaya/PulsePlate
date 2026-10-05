@@ -13,7 +13,7 @@ import json
 import os
 import re
 import shutil
-import subprocess  # nosec B404: bounded absolute git commands are required (remove-by: 2026-09-30, ref: PR-governance-material-seal)
+import subprocess  # nosec B404 # B404: bounded absolute git commands are required (remove-by: 2026-10-30, ref: PR-governance-material-seal)
 import sys
 import tempfile
 from pathlib import Path
@@ -200,7 +200,7 @@ def _git(*args: str) -> str:
     git = _git_path()
     env = _git_environment()
     try:
-        graft_lookup = subprocess.run(  # nosec B603: argv starts with resolved git and fixed subcommands (remove-by: 2026-09-30, ref: PR-governance-material-seal)
+        graft_lookup = subprocess.run(  # nosec B603 # B603: resolved Git with fixed graft-path lookup, sanitized environment and 30-second timeout (remove-by: 2026-10-30, ref: PR-governance-material-seal)
             [git, "rev-parse", "--git-path", "info/grafts"],
             cwd=REPO_ROOT,
             env=env,
@@ -226,7 +226,7 @@ def _git(*args: str) -> str:
     if active_graft:
         raise CloseoutError("legacy Git grafts are forbidden for closeout evidence")
     try:
-        result = subprocess.run(  # nosec B603: argv starts with resolved git and fixed subcommands (remove-by: 2026-09-30, ref: PR-governance-material-seal)
+        result = subprocess.run(  # nosec B603 # B603: resolved Git, fixed local object/status/hash callers, sanitized environment and 30-second timeout (remove-by: 2026-10-30, ref: PR-governance-material-seal)
             [git, *args],
             cwd=REPO_ROOT,
             env=env,

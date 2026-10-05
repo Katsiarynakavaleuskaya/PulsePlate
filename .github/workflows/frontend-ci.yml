@@ -118,7 +118,7 @@ jobs:
       caddy: ${{ steps.filter.outputs.caddy }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
           fetch-depth: 0
@@ -152,7 +152,7 @@ jobs:
         working-directory: frontend
     steps:
       - name: Checkout code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up Node.js
         uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
@@ -166,6 +166,128 @@ jobs:
         with:
           working-directory: frontend
 
+      - name: Verify foundation ESLint native controls
+        env:
+          ESLINT_CONTROL_TIMEOUT_MS: "15000"
+        run: |
+          set -euo pipefail
+          npm_binary="$(command -v npm)"
+          node - "$npm_binary" <<'NODE'
+          const assert = require('node:assert/strict');
+          const fs = require('node:fs');
+          const os = require('node:os');
+          const path = require('node:path');
+          const { spawnSync } = require('node:child_process');
+          const { ESLint } = require('eslint');
+
+          (async () => {
+            const cwd = process.cwd();
+            const timeout = Number(process.env.ESLINT_CONTROL_TIMEOUT_MS);
+            assert.ok(Number.isSafeInteger(timeout) && timeout > 0, 'Step must supply a positive integer control timeout');
+            const config = path.join(cwd, 'eslint.config.js');
+            const npm = process.argv[2];
+            assert.ok(path.isAbsolute(npm));
+            const cli = path.join(path.dirname(require.resolve('eslint/package.json')), 'bin/eslint.js');
+            const patterns = ['src/api/*.ts', 'src/api/premium/*.ts', 'src/lib/analytics.ts'];
+            const expected = ['src/api', 'src/api/premium'].flatMap(directory =>
+              fs.readdirSync(directory).filter(name => name.endsWith('.ts') && !name.endsWith('.d.ts')).map(name => path.join(directory, name))
+            ).filter(file => file !== 'src/api/schema.ts');
+            expected.push('src/lib/analytics.ts');
+            assert.ok(expected.length > 0, 'Authored foundation selection must be nonempty');
+            for (const file of expected) assert.ok(fs.lstatSync(file).isFile(), file);
+            const expectedPaths = expected.map(file => path.resolve(file)).sort();
+            const eslint = new ESLint({ overrideConfigFile: config });
+            assert.equal(await eslint.isPathIgnored('src/api/schema.ts'), true);
+            for (const file of expected) assert.equal(await eslint.isPathIgnored(file), false, file);
+            const results = await eslint.lintFiles(patterns);
+            assert.deepEqual(results.map(result => result.filePath).sort(), expectedPaths);
+            console.log(JSON.stringify({ control: 'membership', files: expected.sort() }));
+            const ignored = new ESLint({ overrideConfigFile: config, overrideConfig: [{ ignores: ['src/api/*.ts'] }] });
+            const ignoredFile = expected.find(file => path.dirname(file) === 'src/api');
+            assert.ok(ignoredFile);
+            assert.equal(await ignored.isPathIgnored(ignoredFile), true);
+            await assert.rejects(ignored.lintFiles(patterns), {
+              messageTemplate: 'all-matched-files-ignored',
+              messageData: { pattern: 'src/api/*.ts' },
+            });
+            console.log(JSON.stringify({ control: 'ignored-selection', diagnostic: 'all-matched-files-ignored', pattern: 'src/api/*.ts' }));
+
+            let fixtures;
+            let scratch;
+            try {
+              fixtures = fs.mkdtempSync(path.join(cwd, 'src/.foundation-controls-'));
+              scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'foundation-npm-controls-'));
+              const userconfig = path.join(scratch, 'user.npmrc');
+              const globalconfig = path.join(scratch, 'global.npmrc');
+              fs.writeFileSync(userconfig, '');
+              fs.writeFileSync(globalconfig, '');
+              fs.writeFileSync(path.join(scratch, 'package.json'), JSON.stringify({ name: 'foundation-startup-control', private: true, scripts: {} }));
+              const env = {
+                PATH: path.dirname(process.execPath),
+                TMPDIR: scratch,
+                CI: 'true',
+                npm_config_userconfig: userconfig,
+                npm_config_globalconfig: globalconfig,
+                npm_config_cache: path.join(scratch, 'cache'),
+                npm_config_update_notifier: 'false',
+              };
+              const options = { cwd, env, encoding: 'utf8', timeout, maxBuffer: 1024 * 1024 };
+              const cases = [
+                ['clean', 'export const value: number = 1;\n', null, 0, 0],
+                ['error', 'import { readFileSync } from "node:fs";\nimport { existsSync } from "node:fs";\nexport const read = (file: string) => existsSync(file) ? readFileSync(file, "utf8") : "";\n', 'no-duplicate-imports', 2, 1],
+                ['warning', 'export const value: any = 1;\n', '@typescript-eslint/no-explicit-any', 1, 1],
+              ];
+              for (const [name, source, ruleId, severity, exit] of cases) {
+                const file = path.join(fixtures, `${name}.ts`);
+                fs.writeFileSync(file, source);
+                const result = spawnSync(process.execPath, [cli, '--config', config, '--max-warnings=0', '--format', 'json', file], options);
+                assert.equal(result.error, undefined);
+                assert.equal(result.signal, null);
+                assert.equal(result.status, exit, result.stderr);
+                const report = JSON.parse(result.stdout);
+                assert.equal(report.length, 1);
+                assert.equal(report[0].filePath, file);
+                const messages = report[0].messages;
+                if (ruleId === null) assert.deepEqual(messages, []);
+                else {
+                  assert.equal(messages.length, 1);
+                  assert.equal(messages[0].ruleId, ruleId);
+                  assert.equal(messages[0].severity, severity);
+                  assert.equal(report[0].errorCount, severity === 2 ? 1 : 0);
+                  assert.equal(report[0].warningCount, severity === 1 ? 1 : 0);
+                }
+                console.log(JSON.stringify({ control: name, exit: result.status, messages }));
+              }
+              const missingConfig = path.join(scratch, 'missing-eslint.config.cjs');
+              const configFailure = spawnSync(process.execPath, [cli, '--config', missingConfig, path.join(fixtures, 'clean.ts')], options);
+              assert.equal(configFailure.error, undefined);
+              assert.equal(configFailure.signal, null);
+              assert.equal(configFailure.status, 2);
+              assert.match(configFailure.stderr, /ENOENT/);
+              assert.ok(configFailure.stderr.includes(missingConfig));
+              console.log(JSON.stringify({ control: 'missing-config', exit: configFailure.status, diagnostic: 'ENOENT missing-eslint.config.cjs' }));
+              const emptyFailure = spawnSync(process.execPath, [cli, '--config', config, path.join(fixtures, 'absent/*.ts')], options);
+              assert.equal(emptyFailure.error, undefined);
+              assert.equal(emptyFailure.signal, null);
+              assert.equal(emptyFailure.status, 2);
+              assert.match(emptyFailure.stderr, /No files matching/);
+              console.log(JSON.stringify({ control: 'empty-selection', exit: emptyFailure.status, diagnostic: 'No files matching' }));
+              const scriptFailure = spawnSync(npm, ['run', 'lint:foundation'], { ...options, cwd: scratch });
+              assert.equal(scriptFailure.error, undefined);
+              assert.equal(scriptFailure.signal, null);
+              assert.equal(scriptFailure.status, 1);
+              assert.match(scriptFailure.stderr, /Missing script: "lint:foundation"/);
+              console.log(JSON.stringify({ control: 'missing-script', exit: scriptFailure.status, diagnostic: 'Missing script: lint:foundation' }));
+            } finally {
+              if (fixtures) fs.rmSync(fixtures, { recursive: true, force: true });
+              if (scratch) fs.rmSync(scratch, { recursive: true, force: true });
+            }
+          })().catch(error => {
+            console.error(error);
+            process.exitCode = 1;
+          });
+          NODE
+
       - name: Setup environment variables
         run: |
           if [ -f .env.example ]; then cp .env.example .env; else : > .env; fi
@@ -178,8 +300,8 @@ jobs:
       - name: Setup Python environment
         uses: ./.github/actions/python-setup
         env:
-          DEVPI_CI_USER: ${{ github.event_name != 'pull_request' && secrets.DEVPI_CI_USER || '' }}
-          DEVPI_CI_PASSWORD: ${{ github.event_name != 'pull_request' && secrets.DEVPI_CI_PASSWORD || '' }}
+          DEVPI_CI_USER: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && secrets.DEVPI_CI_USER || '' }}
+          DEVPI_CI_PASSWORD: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && secrets.DEVPI_CI_PASSWORD || '' }}
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           requirements-profile: ci-lite
@@ -210,9 +332,8 @@ jobs:
           cd ..
           git diff --exit-code frontend/src/api/openapi.json frontend/src/api/schema.ts
 
-      - name: Run ESLint with duplication checks
-        run: |
-          npm run lint --if-present -- --max-warnings=0
+      - name: Lint API and foundation scope
+        run: npm run lint:foundation
 
       - name: Run vitest suite
         run: npm run test -- --coverage
@@ -254,7 +375,7 @@ jobs:
       contents: read
     steps:
       - name: Checkout code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 

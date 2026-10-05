@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import platform
 import shlex
 import sys
 from pathlib import Path
@@ -160,6 +161,7 @@ def _recipe_bootstrap_command(
     requested_agents: list[str],
     invariant_change_classes: list[str],
     review_invariant_family_relations_input: str | None,
+    creative_applicability: str | None,
     design_arguments: list[str],
 ) -> str:
     """Render the exact pre-bootstrap recipe inputs as one shell-safe command."""
@@ -180,6 +182,8 @@ def _recipe_bootstrap_command(
                 review_invariant_family_relations_input,
             )
         )
+    if creative_applicability is not None:
+        tokens.extend(("--creative-applicability", creative_applicability))
     for path in paths:
         tokens.append(f"--path={path}")
     for change_class in _unique(invariant_change_classes):
@@ -581,6 +585,13 @@ def _applicability_prompt_lines(value: EvidenceRailApplicability) -> list[str]:
             lines.extend(_teleology_prompt_lines(treatment))
         if rail == "euler":
             lines.extend(_euler_prompt_lines(treatment))
+        if rail == "creative" and treatment == RailTreatment.RECOMMEND:
+            lines.append(
+                "Creative is recommended for declared alternatives. Coordinator decides within "
+                "accepted scope; use pulseplate-orchestration-dispatch for an actual native "
+                "agent return, then pipe its structured result to creative workflow-ingest. "
+                "A manifest is preparation, never an agent result or writer admission."
+            )
     lines.append(
         "Applicable PR evidence sidecar rails: " + ", ".join(value.applicable_sidecar_rails)
     )
@@ -595,6 +606,42 @@ def _thaw_packet(value: Any) -> Any:
     if isinstance(value, tuple):
         return [_thaw_packet(item) for item in value]
     return value
+
+
+def _oracle_hook_prompt_lines(
+    packet_path: str,
+    *,
+    implementation_owners: list[str] | None = None,
+    host_platform: str | None = None,
+) -> list[str]:
+    """Deliver inert host instructions; rendering never executes an oracle."""
+
+    backend = (
+        "apple-container"
+        if (host_platform or platform.system()) == "Darwin"
+        else "<explicit-compatible-container-backend>"
+    )
+    return [
+        "Externally admit TRUSTED_TOOL_ROOT, distinct MATERIAL_ROOT and a clean absolute VENV_PYTHON before invocation. Run from TRUSTED_TOOL_ROOT; -I does not disable approved runtime site processing.",
+        "Oracle accompaniment is pending metadata until coordinator admission of commands, budget and the first reviewable material diff.",
+        "Before a material-dependent native review, use the host dispatch hook. Preserve the validated manifest mode and every implementation-owner flag; replace placeholders with admitted inputs.",
+        'Host oracle dispatch: "$VENV_PYTHON" -I "$TRUSTED_TOOL_ROOT/scripts/orchestration/pr_oracle_attachment.py" dispatch --material-root "$MATERIAL_ROOT" --packet '
+        + _shell_quote(packet_path)
+        + " --experiment-packet '<approved-experiment-packet>' --role-context-order '<selected-order>' --mode '<manifest-mode>' --backend "
+        + _shell_quote(backend)
+        + " --image '<immutable-image>' --instruction-file '<explicitly-admitted-instruction-file>' --pretty",
+        "Replace the instruction placeholder with an explicitly admitted repository instruction reference; repeat --instruction-file for every required admitted source. A placeholder is not acquired instruction content.",
+        (
+            "Preserve these emitted owner flags: "
+            + " ".join(
+                "--implementation-owner " + _shell_quote(owner) for owner in implementation_owners
+            )
+            if implementation_owners
+            else "Preserve any emitted owner flags; an ownerless packet receives none."
+        )
+        + " Append --admitted-new-file only for explicitly admitted new files. The hook ensures or reuses evidence, then emits the exact existing role-context envelope for the host native transport.",
+        "Automatic transport is enabled by default. --no-auto-oracle --oracle-evidence '<manual-linkage-receipt>' disables execution and still requires equally validated current manual oracle evidence. Preparatory roles retain the ordinary oracle-independent bridge path.",
+    ]
 
 
 def render_packet_prompt(
@@ -648,6 +695,14 @@ def render_packet_prompt(
         f"Path scope: {_prompt_list(candidate_paths, '<no explicit paths>')}",
     ]
     lines.extend(packet_details)
+    lines.extend(
+        _oracle_hook_prompt_lines(
+            packet_path,
+            implementation_owners=_as_string_list(
+                role_dispatch_contract.get("runtime_implementation_owners")
+            ),
+        )
+    )
     if evidence_rail_applicability is not None:
         lines.extend(_applicability_prompt_lines(evidence_rail_applicability))
     else:
@@ -715,6 +770,7 @@ def render_recipe_prompt(
     requested_agents: list[str],
     invariant_change_classes: list[str] | None = None,
     review_invariant_family_relations_input: str | None = None,
+    creative_applicability: str | None = None,
     additive_rails: list[str] | None = None,
     design_arguments: list[str] | None = None,
     preflight_ran: bool = True,
@@ -749,6 +805,18 @@ def render_recipe_prompt(
                 "--review-invariant-family-relations-input is incompatible with "
                 "--invariant-change-class"
             )
+        if creative_applicability is not None:
+            raise PromptError(
+                "--creative-applicability cannot be combined with repeated-family L2 review"
+            )
+    if creative_applicability not in {
+        None,
+        "alternatives",
+        "direct_fix",
+        "not_applicable",
+        "disabled",
+    }:
+        raise PromptError("--creative-applicability has an unsupported value")
 
     agents = _unique(["agent-coordinator", *requested_agents])
     if preflight_ran:
@@ -769,6 +837,7 @@ def render_recipe_prompt(
         requested_agents=requested_agents,
         invariant_change_classes=invariant_change_classes or [],
         review_invariant_family_relations_input=review_invariant_family_relations_input,
+        creative_applicability=creative_applicability,
         design_arguments=design_arguments or [],
     )
     applicability_command = (
@@ -787,6 +856,7 @@ def render_recipe_prompt(
             f"Branch: {_prompt_text(branch, '<branch unavailable>')}",
             f"Worktree: {_prompt_text(worktree, '<worktree unavailable>')}",
             f"Path scope: {_prompt_list(paths, '<no explicit paths>')}",
+            f"Creative applicability: {_prompt_text(creative_applicability, '<pending coordinator choice>')}",
             "Invariant change classes: "
             f"{_prompt_list(_unique(invariant_change_classes or []), '<none>')}",
             f"Requested role order seed: {_prompt_list(agents, 'agent-coordinator')}",
@@ -818,6 +888,7 @@ def render_recipe_prompt(
             EXPERIMENT_RUNNER_ENV_GUIDANCE,
         ]
     )
+    lines.extend(_oracle_hook_prompt_lines("<bootstrap-packet>"))
     lines.extend(_euler_prompt_lines(None))
     return "\n".join(lines)
 
@@ -855,6 +926,10 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=[],
     )
     recipe_parser.add_argument("--requested-agent", action="append", default=[])
+    recipe_parser.add_argument(
+        "--creative-applicability",
+        choices=("alternatives", "direct_fix", "not_applicable", "disabled"),
+    )
     recipe_parser.add_argument("--design-source", default=None)
     recipe_parser.add_argument("--source-url", default=None)
     recipe_parser.add_argument("--file-key-or-workspace", default=None)
@@ -921,6 +996,7 @@ def main(argv: list[str] | None = None) -> int:
                     if args.review_invariant_family_relations_input
                     else None
                 ),
+                creative_applicability=args.creative_applicability,
                 additive_rails=args.evidence_sidecar_rail,
                 design_arguments=_recipe_design_arguments(args),
                 preflight_ran=args.preflight_ran,

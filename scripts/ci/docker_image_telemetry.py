@@ -16,7 +16,7 @@ from pathlib import Path
 import re
 import shlex
 import shutil
-import subprocess  # nosec B404: bounded local Docker inspection is required for CI telemetry evidence (remove-by: 2026-09-30, ref: PR-docker-telemetry-baseline)
+import subprocess  # nosec B404 # B404: bounded local Docker inspection is required for CI telemetry evidence (remove-by: 2026-10-30, ref: PR-docker-telemetry-baseline)
 import sys
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -83,7 +83,7 @@ def _run_docker(args: list[str]) -> subprocess.CompletedProcess[str]:
     if DOCKER_BINARY is None:
         raise RuntimeError("docker binary is not available on PATH")
     try:
-        return subprocess.run(  # nosec B603: argv uses resolved docker path with fixed inspect/history subcommands only (remove-by: 2026-09-30, ref: PR-docker-telemetry-baseline)
+        return subprocess.run(  # nosec B603 # B603: argv uses resolved docker path with fixed inspect/history subcommands only (remove-by: 2026-10-30, ref: PR-docker-telemetry-baseline)
             [DOCKER_BINARY, *args],
             check=True,
             capture_output=True,

@@ -57,6 +57,7 @@ If a test fails due to typing:
 - LLM-generated text is not a domain oracle. Domain state, actions, and limits must be decided before any provider call.
 - FitChef fallback/templates are mandatory and deterministic so bounded guidance still works when LLM execution is disabled or unavailable.
 - Core FitChef interfaces should prefer typed structured payloads over free-form strings whenever the result drives UI actions or navigation.
+- When adding a FitChef provider-output locale, review each existing applicable category in `core.insight.philosophy_validator` for that locale. Add explicit unsafe and supportive near-miss controls, then exercise the existing structured fallback across its user-facing fields. Preserve canonical blocker and public warning codes, and state the finite lexical proof boundary; these checks do not establish general language or model safety.
 
 ## Feature map
 - See `app/AGENTS.md` for the full backend feature map covering `core/` + `app/`.

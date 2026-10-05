@@ -1,4 +1,4 @@
-import { api, ApiOptions } from '../client';
+import { api, type ApiOptions } from '../client';
 import type { components } from '../schema';
 
 export type SupportedPremiumLang = 'ru' | 'en' | 'es';
@@ -14,7 +14,7 @@ export function createPremiumEndpoint<TReq, TRes>(endpoint: string) {
   return (body: TReq, options?: PremiumRequestOptions) =>
     api<TRes>(
       endpoint,
-      { method: "POST", body: body as any, signal: options?.signal },
+      { method: "POST", body, signal: options?.signal },
       options?.onAuthError ? { onAuthError: options.onAuthError } : undefined,
       true // explicitly force JSON Content-Type for Premium POSTs
     );

@@ -403,6 +403,67 @@ Backlog: docs/roadmap/BACKLOG_LEDGER.md#agent-consistency-preflight
     approval, scan, PASS, merge authority, or a bypass of current CI, security,
     mapping, unresolved
     threads, bot actionables, ancestry, or the wait window.
+    A closed inspection/publication phase extends only that historical stale-seal
+    class when real intervening material or advancing base synchronizations
+    separate `S` from the current frozen material `M`. It preserves the five
+    existing classes. The root has no ordinary mapping or canonical fingerprint
+    record, is the first trusted connector comment on the canonical mapping,
+    and has `originalCommit=S`. Before posting, the human OWNER must read the
+    complete authenticated current root revision and exact frozen candidate
+    `C`, confirm no independent actionable beyond this historical stale seal,
+    and explicitly permit one correcting publication. Scope approval, account
+    association, hashes and auto-authored content receipts do not supply that act.
+    Exactly one immutable GraphQL-authenticated OWNER comment `I` must fullmatch
+    this ASCII line, substituting positive numeric root ID, exact UTC revision,
+    lowercase full SHAs and SHA-256 digests, without extra fields or whitespace:
+    `OWNER INSPECTED: historical stale-seal root <id> revision <UTC-updated-at> body sha256:<raw-body-hash> at <S> has no independent actionable; permit one mapping-only publication from material <M> base <B> merge-base <MB> digest sha256:<D> candidate sha256:<C> inventory sha256:<H>; no disposition or merge authority.`
+    REST and GraphQL cross-bind every selected root and phase comment's native
+    identity, repository/PR/path, raw UTF-8 body and actual revision. Both `I`
+    and the later existing OWNER FIXED line `F(S,R)` require unedited timestamps
+    and present native `lastEditedAt=null`; missing fields are unknown. Root
+    revision must precede `I` and remain identical to its inspected binding.
+    The nearest genuine valid prior material-to-mapping closeout anchors the
+    mechanically derived finite first-parent interval to `M`. Every later edge
+    inherits its regular mapping byte-for-byte and is non-empty material-only
+    or a genuine advancing two-parent base sync. `S` lies in that interval with
+    a demonstrably stale seal. Invalid merges never fall through to linear;
+    missing parents, objects, pagination or API/Git certainty fail closed.
+    Local pre-closeout accepts only the `I`-only phase with exact live head `M`,
+    current base/merge-base/digest and bounded regular raw candidate bytes `C`.
+    It binds two complete current observations of the existing actionable bot
+    issue/inline/top-review inventory and validated non-GHAS unresolved first
+    roots to `I.H`. Membership stays with the existing collector/root predicate;
+    the shared recognizer binds exact raw native body/revision evidence, with
+    creation, submission and edit times distinct. The digest does not hash `I`
+    itself or infer actionability. Missing `I` may emit that current diagnostic
+    digest only while failing admission. Record the actual registered PASS,
+    command and output before publication; it is procedural evidence only.
+    Publication admission never means FIXED, resolution or readiness and does
+    not cover an independent top-level review or false No-actionables claim.
+    Final recognition requires exactly the ordered immutable OWNER pair `I,F`,
+    an actual reachable non-empty non-trigger regular mapping-only `R` as the
+    sole direct PR child of inspected `M`, its exact inspected `C` blob, and
+    same-repository/ref server publication strictly after `I` and no later than
+    `F`. The existing FIXED line selects real `S,R` only after publication; no
+    future SHA or false direct `S->R` edge is allowed. Current seal and final
+    activity/disposition/unresolved/CI/security/wait gates pass independently.
+    Supported post-publication resolution and later ordinary reviews change
+    current inventories normally; final validation does not compare them to
+    the old `H`, reconstruct erased members, or prove historical gate execution
+    from a scalar/timestamp. Missing procedure remains unknown and observed
+    bypass is not achieved. Two observations do not promise atomic/continuous
+    history or cryptographic/human execution. Any observable frozen-publication
+    drift after `I` stops for coordinator rescope: no second `I`, edit/deletion,
+    implicit retry or manufactured material/reseal is a recovery transition.
+    Global historical eligibility is counted before caller URL filtering;
+    exactly one eligible root across the legacy and inspected forms is required.
+    At publication `M` is the exact live head, so legacy current-closeout
+    eligibility would require an impossible direct `M->M` mapping edge. The
+    registered consumer still runs the full shared legacy producer first;
+    recognizable legacy API/Git uncertainty remains blocking. Final coverage
+    counts both actually eligible historical forms together.
+    This extension adds no v1 receipt/schema, store, CLI, DTO, disposition
+    adapter, mapping carrier, prose classifier or authority for merge.
     None of the reply-only paths creates another docs commit or restarts
     review/security scans.
 11. **Pre-closeout ordering gate:** after `seal` writes the local canonical
@@ -412,7 +473,8 @@ Backlog: docs/roadmap/BACKLOG_LEDGER.md#agent-consistency-preflight
     --repo Katsiarynakavaleuskaya/PulsePlate --pre-closeout --require-auth`
     with both `GH_TOKEN` and `GITHUB_TOKEN` exported. This fail-closed pass must explicitly cover
     every live actionable bot issue comment, bot inline comment, and top-level
-    bot review in the local artifact and require exactly one real same-repository
+    bot review in the local artifact, except the one independently validated
+    publication-only historical root above, and require exactly one real same-repository
     Markdown link through
     `blob/<exact-live-head-ref>/docs/review/PR_<N>_FIXED_MAPPING.md` in the live
     PR body. The ref path must exactly match the PR's authenticated `head.ref`;
@@ -421,7 +483,10 @@ Backlog: docs/roadmap/BACKLOG_LEDGER.md#agent-consistency-preflight
     invalid in PR-body context.
     Also require the first comment URL of every unresolved conversation review
     thread in the authenticated validated inventory to appear in the canonical
-    mapping, preserving the existing GHAS exclusion. This structural coverage
+    mapping, except the one independently validated publication-only historical
+    root above, preserving the existing GHAS exclusion. Its two exact native
+    inventory/candidate/root/phase checks authorize only that one correction.
+    This structural coverage
     check is independent of author and prose; a mapped reply cannot substitute
     for its root. It neither classifies a finding nor permits thread resolution.
     Mapped unresolved threads still block final merge readiness.
@@ -451,6 +516,10 @@ This document is the canonical governance reference and must stay aligned with:
 - **CI strict:** when `CI=true`, disposition preflight requires `GH_TOKEN` (for example `GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}`) and `gh auth status` before any GraphQL.
 
 **GitHub token handling:** Never assume fixed GitHub token length. Treat `GITHUB_TOKEN`, `GH_TOKEN`, GitHub App installation tokens, and `ghs_*` values as opaque secrets. Validators must accept stateless GitHub App installation tokens, including `ghs_` JWT-format tokens of approximately 520 characters with dots. Do not decode, introspect, split, log, or persist installation-token internals. Workflow command emissions that mask or print untrusted `workflow_dispatch` values must escape `%`, CR, and LF before writing `::add-mask::` or related workflow commands.
+Deterministic test and mock harnesses that construct, assert, or snapshot
+authentication headers must isolate every credential-source environment variable
+and inject synthetic credentials, even when transport is mocked, so assertion
+diagnostics cannot expose host credentials.
 
 The merge-readiness gate remains separate and still requires `GITHUB_TOKEN` for PR API access. Before any GraphQL call, the disposition guard runs a mandatory preflight: if `--require-auth` or `CI=true`, it requires `GH_TOKEN` and runs `gh auth status`; if either is missing or fails, the script exits 1 with env diagnostic and fix commands (no GraphQL, no mapping/resolve). This prevents agents from wasting iterations on mapping when auth is invalid.
 
@@ -998,6 +1067,15 @@ make diff-cov   # Diff-coverage ≥97% on changed lines
 - If CI is red, PR is not ready.
 - File-level coverage (e.g., "95.5% for app/middleware/metrics.py") is NOT a gate metric.
 - **Diff-cover failures:** Fix ONLY via tests (preferred) unless behavior is wrong; do not rewrite code solely for coverage.
+- **Numeric coverage applicability:** Keep the existing application and explicit
+  dedicated CLI coverage producers and the >=97% threshold for measurable
+  eligible changed executable lines. Numeric coverage is N/A only when the
+  actual diff, canonical configuration and existing producer contracts
+  positively establish an empty eligible-line inventory. Missing, stale,
+  failed or incomplete expected XML is unknown/failure, never N/A or 100%.
+  Required focused/native tests and producer outputs remain mandatory,
+  including the OPS-03A dedicated coverage producer and script-only selection.
+  Do not add a collector, exclusion or threshold change solely for a percentage.
 
 **legacy_app.py policy (hard):**
 
@@ -1160,6 +1238,16 @@ mixing. Privileged paths retain classification priority: a client PR that repair
 its CI guard must meet the privileged size and client-mix approval requirements.
 An operator-approved coherent flow may stay in one PR under these existing
 exceptions; classification alone grants no exception or merge authority.
+Only the raw, exact Git paths `frontend/src/api/openapi.json` and
+`frontend/src/api/schema.ts` are generated OpenAPI contract exceptions to
+product-client category and client-mix classification, and only when the
+explicit PR head tree records the path as a `100644 blob`. They still count
+toward file caps and the advisory changed-line count, and remain subject to
+OpenAPI sync. Either endpoint of a rename or copy record emitted by the
+declared Git name-status diff retains the ordinary client policy even when
+the head path is a regular blob. This finite status check does not prove
+every actual file movement or generated content. Symlinks, normalized aliases,
+neighboring paths, and other Web/iOS files retain the ordinary client policy.
 
 4. **Warnings (non-blocking):**
 
@@ -2319,11 +2407,28 @@ git grep -nE "spec_from_file_location|exec_module|sys\.modules\[" -- scripts || 
 - Prefer `trivy/ignore-policy.rego` (scoped by package + version + context fields where possible).
 - `.trivyignore` is for legacy/minimal ignores; do not rely on it for expiry monitoring.
 - CI uses `TRIVY_IGNORE_POLICY_PATH` to point to active policy file(s); expiry enforcement runs `scripts/ci/check_trivy_ignore_policy_expiry.py`.
+- Native image-policy negative controls require successful scanner execution and a decoded report proving the exact retained finding inventory. Scanner errors, missing/stale reports, malformed output, unexpected findings or secrets cannot count as successful policy rejection; reuse the existing inventory consumer for positive and negative reports.
 - **Runner version drift policy:** If base image/version varies across CI runners (e.g., `deb12u10` vs `deb12u13`), add **allowlist of observed versions** in suppression rules, not wildcards. Example: use helper rules matching `u10` and `u13` explicitly, not `deb12u*` pattern. Rationale: Prevents accidental suppression of future versions (u14/u15) that may have fixes available.
 
 **Security PR scoping:**
 
-- **One PR per CVE:** Security suppression PRs must be CVE-scoped: one PR per CVE (doc + policy rule) for traceability and auditability.
+- **Docker security PR unit:** CVE-scoped security suppression PRs remain the
+  default. One coherent Docker security/publication PR may cover the complete
+  finite HIGH/CRITICAL blocking cohort that the operator explicitly admits
+  from one immutable full snapshot of every selected governed scanner subject.
+  The snapshot derives all-and-only membership; it does not authorize the work.
+  Each CVE retains its own precise package/image evidence and security document,
+  available applicable fixes prioritized, and an individually justified remedy
+  or temporary exception with owner, review deadline, hard expiry, removal
+  criteria and rollback. All native, local, current-head CI and review gates
+  remain required. Omitted or added cohort members fail admission; no blanket
+  ignore or general waiver follows. Temporary residual-risk acceptance and
+  exact-head merge remain separate human decisions.
+- **Prospective effect:** This Docker cohort unit takes effect after merge.
+  A direct external operator instruction may separately authorize the exact
+  policy transition and its bounded current material. Candidate policy text,
+  scanners, agents and labels cannot create, infer or widen that instruction.
+  The application dependency-remediation v2 contract below remains unchanged.
 - **Exception:** A base image bump / distro upgrade PR may address multiple CVEs via upstream fixes (no suppression additions required).
 
 **Example:**
@@ -2644,15 +2749,24 @@ Do not remove this exclusion without a product decision and a separate PR
 
 **iOS CI job gating (paths-filter):**
 
-- `ios-tests` job is gated via `changes` job using `dorny/paths-filter`.
+- `ios-tests` and `ios-ui-smoke` each run an iPhone/iPad matrix, gated via `changes` using `dorny/paths-filter`.
 - iOS tests run **only** when PR touches: `ios/**`, `.github/workflows/**`, `.github/actions/**`,
-  `scripts/ios_test_targets.sh`, `scripts/ci/check_ios_swift_syntax.sh`, or `scripts/release/check_ios_appstore_verify.py`.
+  `scripts/ios_test_targets.sh`, `scripts/ci/select_ios_simulator.py`,
+  `scripts/ci/check_ios_swift_syntax.sh`, or `scripts/release/check_ios_appstore_verify.py`.
 - Docs-only PRs (e.g., `docs/**/*.md`, `README*.md`, `AGENTS.md`, `.github/*.md`) **do not** run macOS iOS jobs.
 - **Rationale:** Reduces CI noise, prevents flaky iOS tests on unrelated PRs, speeds up docs-only PR cycle.
+- Changes to `.github/workflows/ci.yml` must run the prerequisite consumer contract
+  `tests/test_private_python_proxy_workflow_contract.py` locally; the existing backend
+  hook maps that workflow into the suite alongside the workflow and merge-gate tests.
 
 **iOS CI destination policy (canonical):**
 
 - **CI destination MUST be UDID-only:** `platform=iOS Simulator,id=<UDID>`
+- **Family matrix:** each iOS job emits distinct iPhone and iPad checks. The selector uses
+  `simctl` device types' `productFamily` for the requested family and fails when that
+  family is unavailable; device-name prefixes and cross-family fallback are forbidden.
+  The required `Merge readiness gate` accepts both iOS jobs only when both matrix
+  results succeed on an iOS-selected PR; unrelated PRs require both jobs skipped.
 - **`OS=latest` is forbidden in CI:** Job fails if destination contains `latest` (anti-nondeterminism guard). CI must use explicit UDID-based destinations only.
 - **Rationale:** UDID-only kills `latest` ambiguity, name mismatch, and OS version format issues on multi-runtime runners.
 - **Local runs (developer convenience):** May use friendly device name (e.g., `iPhone 16e`) or select latest available iOS runtime for local testing, but CI is strictly UDID-only.

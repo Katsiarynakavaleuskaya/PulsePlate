@@ -106,6 +106,51 @@ PRODUCTION_DOMAIN=example.com STAGING_FALLBACK_DOMAIN=staging.example.com \
   `STAGING_ATTESTED_DIGEST_READY`; secret bootstrap and staging/production
   activation remain human actions. Follow
   `docs/deploy/OPERATIONAL_SIGNALS.md` for the operator sequence and rollback.
+- Optional OBS2A Alertmanager is an `alerting` profile in all three contours.
+  Both readers reject every normalized incoming dependency to Alertmanager in
+  the invocation's native all-profile model, including optional and indirect
+  coupling; native Compose owns normalization and valid non-AM dependencies
+  remain allowed.
+  It is not part of ordinary app/DB/metrics startup. Its exact image, private
+  network topology, `environment` label authority, config and narrow Trivy
+  exception must pass CD and both deploy admissions before product mutation.
+  Only selected alerting requires a Compose-account-owned mode-0444 SMTP key
+  in the existing protected mode-0700 secrets directory; the bind mount makes
+  the file readable to Alertmanager UID 65534 without ownership remapping.
+  Neither the key nor its contents belongs in a bundle. Preserve an already
+  running Alertmanager across production `--remove-orphans` app/Caddy updates.
+  Each Alertmanager network attachment must retain explicit normalized
+  `gw_priority`: `alerting=1`, `smtp-egress=2`, so SMTP egress is the default
+  gateway. A Compose host that cannot preserve both values is `HOLD`.
+  `smtp-egress` is outbound networking, not a destination firewall. Actual
+  received email and host activation require separate evidence; see
+  `docs/deploy/OPERATIONAL_SIGNALS.md` and
+  `docs/security/CVE-2026-84445-alertmanager.md`.
+- OBS2A deploy admission binds the complete reviewed Prometheus config, alias
+  rules and Alertmanager Trivy ignore bytes, plus the exact reviewed
+  Alertmanager route. A change to any of these files requires reviewing the
+  complete replacement, updating both existing deploy readers and their
+  focused negative tests, and repeating native config/security admission.
+  Do not append text checks to admit an unreviewed YAML extension.
+- Runtime `COMPOSE_PROFILES` belongs to the caller. Snapshot its presence and
+  value before production env loading, reject changes introduced by that
+  load, and export the caller value for every Compose command. An absent
+  caller choice becomes an exported empty value so Compose `--env-file`
+  cannot activate a profile. Configuration-only profile rendering does not
+  authorize runtime activation. Prove precedence with native Compose;
+  arbitrary sourced-shell behavior is outside this bounded profile check.
+- The Alertmanager exception expires at `2026-10-24T00:00:00Z`; selected
+  alerting must reject at or after that UTC instant. Profile-off production
+  admission also performs a read-only all-state Docker label census of the
+  installed Compose project's Alertmanager, including on a first bundle when
+  the old installed Compose has no Alertmanager service or config files.
+  Bind the sole full container ID, project/service labels
+  and consistent Docker state; errors, multiple IDs, restarting or unknown
+  states are `HOLD`. A running instance must pass the same expiry check;
+  absent or proven stopped instances do not require an SMTP key. Rejection
+  must precede product mutation and must not automatically stop or start
+  Alertmanager. This census is an admission boundary, not continuous or
+  whole-host monitoring.
 
 ## Immutable PostgreSQL 15 plus pgvector contour
 
@@ -140,6 +185,35 @@ PRODUCTION_DOMAIN=example.com STAGING_FALLBACK_DOMAIN=staging.example.com \
   scanner/database and subject identity, and keep newly revealed blocking
   findings open until remediated. Matching build digests do not prove a current
   clean scan or the later trusted publication path.
+- Native PostgreSQL directory admission requires successful native `find`
+  completion before consuming empty output, a count, sorted paths, or a hash-bound
+  inventory. Capture output in a standalone assignment under the existing
+  fail-fast shell; retain the native diagnostic and nonzero child/Docker/caller
+  status before initialization or product mutation. A matching partial inventory
+  or empty stdout after failure is not successful discovery. Keep the query
+  projection bounded to its existing owner and preserve independent type,
+  stat, UID/GID, mode, source and caller-order checks. Use genuine native error,
+  partial-output, forbidden-entry, nonempty and successful-empty controls;
+  wiring fixtures do not replace native execution.
+- The selected current image and one exact frozen prior derived image use whole
+  config/platform/base/required-RepoDigest tuples selected by exact full ref in
+  the existing deploy readers. Preserve the separate original Docker Hub legacy
+  case. Inspect each selected ref itself and bind its returned ID to the captured
+  container image; new candidate pulls admit only current. Do not combine tuple
+  members across cases, recognize digest suffixes, or create a history picker,
+  helper or manifest field. A recognized prior service remains only an admitted
+  forward-transition starting state, with its original vulnerability evidence.
+- OCI counts, config and layer identities come from actual reproduced bytes.
+  Bind each compatibility-layer directory's metadata separately: parents equal
+  the selected runtime base, while the empty leaf retains `70:70:0700`.
+  A Docker store may expose the exact selected config ID or platform ID; admit
+  only those two bound forms and preserve their distinct meanings.
+- For a comparable native-status repair, retain bounded process lesson metrics
+  in the existing role evidence: repeat failures and escaped native-status
+  findings, with the next comparable PR as the observation window and explicit
+  user-impact, business-risk and project-development gaps. Control counts are
+  process evidence, not measured product improvement, runtime telemetry, memory
+  promotion or graph truth.
 - In CD, `staging-postgres-native-integration` admits configuration with the
   existing checker's `--configure-only` mode before the PostgreSQL publisher and
   backend build/deploy job. Keep their literal `needs` and success predicates

@@ -230,6 +230,44 @@ RUN tar -xzf /tmp/util-linux.tar.gz -C /tmp \
     && install -m 0644 libuuid/COPYING /opt/libuuid/COPYING \
     && (cd /opt/libuuid && sha256sum libuuid.so.1.3.0 > SHA256SUMS)
 
+# CVE-2026-103111: production-only PCRE2 replacement using reviewed source closure.
+FROM sqlite-builder AS pcre2-builder
+COPY build/docker-sources/pcre2-10.49.tar.gz /tmp/pcre2.tar.gz
+COPY build/docker-sources/sljit-de0259c7aaf36aa40cba8014f3fad3edde9307f9.tar.gz /tmp/sljit.tar.gz
+COPY scripts/ci/docker_source_artifacts.json /opt/pcre2/docker_source_artifacts.json
+RUN --network=none python - <<'PYCODE'
+from hashlib import sha3_256
+import json
+from pathlib import Path
+
+manifest = json.loads(Path("/opt/pcre2/docker_source_artifacts.json").read_text())
+for name, version in (
+    ("pcre2", "10.49"),
+    ("sljit", "de0259c7aaf36aa40cba8014f3fad3edde9307f9"),
+):
+    records = [record for record in manifest["artifacts"] if record["name"] == name]
+    if len(records) != 1 or records[0]["version"] != version:
+        raise SystemExit(f"Expected one reviewed {name} {version} source")
+    payload = Path(f"/tmp/{name}.tar.gz").read_bytes()
+    if sha3_256(payload).hexdigest() != "".join(records[0]["sha3_256_parts"]):
+        raise SystemExit(f"{name} source SHA3 mismatch")
+    print(name, "source SHA3:", sha3_256(payload).hexdigest())
+PYCODE
+RUN --network=none mkdir -p /tmp/pcre2-source /opt/pcre2 \
+    && tar -xzf /tmp/pcre2.tar.gz --strip-components=1 -C /tmp/pcre2-source \
+    && tar -xzf /tmp/sljit.tar.gz --strip-components=1 -C /tmp/pcre2-source/deps/sljit \
+    && cd /tmp/pcre2-source \
+    && ./configure --prefix=/usr/local --enable-shared --disable-static \
+        --enable-jit --enable-unicode --enable-pcre2-8 --disable-pcre2-16 \
+        --disable-pcre2-32 --disable-pcre2grep-libz --disable-pcre2grep-libbz2 \
+        --disable-pcre2test-libreadline \
+    && make -j2 libpcre2-8.la \
+    && install -m 0644 .libs/libpcre2-8.so.0.16.1 /opt/pcre2/libpcre2-8.so.0.16.1 \
+    && install -m 0644 LICENCE.md /opt/pcre2/PCRE2-LICENCE.md \
+    && install -m 0644 COPYING /opt/pcre2/PCRE2-COPYING \
+    && install -m 0644 deps/sljit/LICENSE /opt/pcre2/SLJIT-LICENSE \
+    && (cd /opt/pcre2 && sha256sum libpcre2-8.so.0.16.1 > SHA256SUMS)
+
 # Stage 2: Runtime base stage
 # NOTE: Keep system package manager tools here so the development stage can install tools via apt.
 FROM python:3.13.14-slim-bookworm@sha256:9d7f287598e1a5a978c015ee176d8216435aaf335ed69ac3c38dd1bbb10e8d64 AS runtime-base
@@ -396,6 +434,11 @@ COPY --from=uuid-builder /opt/libuuid/libuuid.so.1.3.0 /usr/local/lib/libuuid.so
 COPY --from=uuid-builder /opt/libuuid/COPYING /opt/libuuid/SHA256SUMS /opt/libuuid/docker_source_artifacts.json /usr/local/share/doc/pulseplate-libuuid/
 RUN ln -s libuuid.so.1.3.0 /usr/local/lib/libuuid.so.1 && ldconfig
 
+# Preserve retained grep/libselinux consumers with genuinely patched shared PCRE2.
+COPY --from=pcre2-builder /opt/pcre2/libpcre2-8.so.0.16.1 /usr/local/lib/libpcre2-8.so.0.16.1
+COPY --from=pcre2-builder /opt/pcre2/PCRE2-LICENCE.md /opt/pcre2/PCRE2-COPYING /opt/pcre2/SLJIT-LICENSE /opt/pcre2/SHA256SUMS /opt/pcre2/docker_source_artifacts.json /usr/local/share/doc/pulseplate-pcre2/
+RUN ln -s libpcre2-8.so.0.16.1 /usr/local/lib/libpcre2-8.so.0 && ldconfig
+
 # RU: Убираем pip из production-stage, но не трогаем runtime-base/development.
 # EN: Remove pip from the production stage only so shared runtime/dev topology stays intact.
 RUN /opt/venv/bin/python -m pip uninstall -y pip \
@@ -438,10 +481,12 @@ RUN perl_module_packages="$(dpkg-query -W -f='${Package}\n' 'perl-modules-*' 2>/
         libattr1 \
         libgnutls30 \
         libsqlite3-0 \
+        libpcre2-8-0 \
         perl-base \
         ${perl_module_packages} \
+    && ldconfig \
     && rm -rf /var/lib/apt/lists/* /var/cache/apt/* \
-    && for package in apt gzip gpgv libacl1 libattr1 libgnutls30 libsqlite3-0 perl-base ${perl_module_packages} bsdutils libblkid1 libmount1 libsmartcols1 libuuid1 mount util-linux util-linux-extra libsystemd0 libudev1; do \
+    && for package in apt gzip gpgv libacl1 libattr1 libgnutls30 libsqlite3-0 libpcre2-8-0 perl-base ${perl_module_packages} bsdutils libblkid1 libmount1 libsmartcols1 libuuid1 mount util-linux util-linux-extra libsystemd0 libudev1; do \
         status="$(dpkg-query -W -f='${db:Status-Abbrev}' "${package}" 2>/dev/null || true)"; \
         if [ "${status#ii}" != "${status}" ]; then \
             echo "${package} remains installed after production package pruning" >&2; \
@@ -507,6 +552,131 @@ if uuid.UUID(str(uuid.uuid4())).version != 4:
 print("Native UUID library:", expected, "coordination status:", native_status)
 PY
 done
+SH
+
+# Exercise the actual replacement and retained native consumers after package pruning.
+RUN <<'SH'
+set -eu
+(cd /usr/local/lib && sha256sum --check /usr/local/share/doc/pulseplate-pcre2/SHA256SUMS)
+for interpreter in /usr/local/bin/python /opt/venv/bin/python; do
+    "$interpreter" - <<'PYCODE'
+import ctypes as c
+from pathlib import Path
+import stat
+import tempfile
+
+lib = c.CDLL("libpcre2-8.so.0")
+lib.pcre2_config_8.argtypes = [c.c_uint32, c.c_void_p]
+lib.pcre2_config_8.restype = c.c_int
+version = c.create_string_buffer(64)
+if lib.pcre2_config_8(11, version) <= 0 or not version.value.startswith(b"10.49 "):
+    raise SystemExit("PCRE2 replacement version mismatch")
+for key in (1, 9):  # Native PCRE2_CONFIG_JIT and PCRE2_CONFIG_UNICODE.
+    enabled = c.c_uint32()
+    if lib.pcre2_config_8(key, c.byref(enabled)) != 0 or enabled.value != 1:
+        raise SystemExit("PCRE2 required JIT/Unicode feature is disabled")
+lib.pcre2_compile_8.argtypes = [
+    c.c_char_p, c.c_size_t, c.c_uint32, c.POINTER(c.c_int), c.POINTER(c.c_size_t), c.c_void_p
+]
+lib.pcre2_compile_8.restype = c.c_void_p
+lib.pcre2_jit_compile_8.argtypes = [c.c_void_p, c.c_uint32]
+lib.pcre2_jit_compile_8.restype = c.c_int
+lib.pcre2_match_data_create_from_pattern_8.argtypes = [c.c_void_p, c.c_void_p]
+lib.pcre2_match_data_create_from_pattern_8.restype = c.c_void_p
+lib.pcre2_match_context_create_8.argtypes = [c.c_void_p]
+lib.pcre2_match_context_create_8.restype = c.c_void_p
+lib.pcre2_jit_stack_create_8.argtypes = [c.c_size_t, c.c_size_t, c.c_void_p]
+lib.pcre2_jit_stack_create_8.restype = c.c_void_p
+lib.pcre2_jit_stack_assign_8.argtypes = [c.c_void_p, c.c_void_p, c.c_void_p]
+lib.pcre2_jit_stack_assign_8.restype = None
+lib.pcre2_jit_match_8.argtypes = [
+    c.c_void_p, c.c_char_p, c.c_size_t, c.c_size_t, c.c_uint32, c.c_void_p, c.c_void_p
+]
+lib.pcre2_jit_match_8.restype = c.c_int
+for name in (
+    "pcre2_jit_stack_free_8", "pcre2_match_context_free_8",
+    "pcre2_match_data_free_8", "pcre2_code_free_8",
+):
+    function = getattr(lib, name)
+    function.argtypes = [c.c_void_p]
+    function.restype = None
+code = match = context = stack = None
+try:
+    pattern = rb"^(?:\p{L}+)$"
+    error = c.c_int()
+    offset = c.c_size_t()
+    code = lib.pcre2_compile_8(
+        pattern, len(pattern), 0x00080000 | 0x00020000, c.byref(error), c.byref(offset), None
+    )  # Native PCRE2_UTF | PCRE2_UCP.
+    if not code or lib.pcre2_jit_compile_8(code, 1) != 0:
+        raise SystemExit("PCRE2 UTF/UCP compile or JIT compile failed")
+    match = lib.pcre2_match_data_create_from_pattern_8(code, None)
+    context = lib.pcre2_match_context_create_8(None)
+    stack = lib.pcre2_jit_stack_create_8(32768, 524288, None)
+    if not match or not context or not stack:
+        raise SystemExit("PCRE2 native allocation failed")
+    lib.pcre2_jit_stack_assign_8(context, None, stack)
+    for subject, expected_result in (("Привет".encode(), 1), (b"123", -1)):
+        if lib.pcre2_jit_match_8(
+            code, subject, len(subject), 0, 0, match, context
+        ) != expected_result:
+            raise SystemExit("PCRE2 UTF/UCP JIT match with assigned stack failed")
+finally:
+    for name, pointer in (
+        ("pcre2_jit_stack_free_8", stack), ("pcre2_match_context_free_8", context),
+        ("pcre2_match_data_free_8", match), ("pcre2_code_free_8", code),
+    ):
+        if pointer:
+            getattr(lib, name)(pointer)
+
+class SelabelOpt(c.Structure):
+    _fields_ = [("type", c.c_int), ("value", c.c_char_p)]
+
+selinux = c.CDLL("libselinux.so.1", use_errno=True)
+selinux.selabel_open.argtypes = [c.c_uint, c.POINTER(SelabelOpt), c.c_uint]
+selinux.selabel_open.restype = c.c_void_p
+selinux.selabel_lookup_raw.argtypes = [c.c_void_p, c.POINTER(c.c_char_p), c.c_char_p, c.c_int]
+selinux.selabel_lookup_raw.restype = c.c_int
+selinux.freecon.argtypes = [c.c_void_p]
+selinux.freecon.restype = None
+selinux.selabel_close.argtypes = [c.c_void_p]
+selinux.selabel_close.restype = None
+with tempfile.TemporaryDirectory() as directory:
+    contexts = Path(directory) / "file_contexts"
+    contexts.write_text(
+        "/tmp/pulseplate-pcre2-check(/.*)? system_u:object_r:tmp_t:s0\n", encoding="utf-8"
+    )
+    options = (SelabelOpt * 1)(SelabelOpt(3, str(contexts).encode()))  # SELABEL_OPT_PATH.
+    handle = selinux.selabel_open(0, options, 1)  # SELABEL_CTX_FILE backend.
+    if not handle:
+        raise SystemExit("libselinux native regex backend open failed")
+    label = c.c_char_p()
+    try:
+        if selinux.selabel_lookup_raw(
+            handle, c.byref(label), b"/tmp/pulseplate-pcre2-check/child", stat.S_IFREG
+        ) != 0 or label.value != b"system_u:object_r:tmp_t:s0":
+            raise SystemExit("libselinux native regex lookup failed")
+    finally:
+        if label.value is not None:
+            selinux.freecon(c.cast(label, c.c_void_p))
+        selinux.selabel_close(handle)
+expected = Path("/usr/local/lib/libpcre2-8.so.0.16.1").resolve()
+loaded = {
+    Path(line.rsplit(maxsplit=1)[-1]).resolve()
+    for line in Path("/proc/self/maps").read_text().splitlines()
+    if "libpcre2-8.so" in line
+}
+if loaded != {expected}:
+    raise SystemExit(f"Unexpected native PCRE2 library: {loaded}")
+print("PCRE2", version.value.decode(), "UTF/UCP/JIT and libselinux regex passed:", expected)
+PYCODE
+done
+printf 'abc\n' | grep -P '^\p{L}+$'
+dpkg --version
+ls /usr/local/lib/libpcre2-8.so.0
+consumer_directory="$(mktemp -d)"
+mkdir "${consumer_directory}/child"
+rmdir "${consumer_directory}/child" "${consumer_directory}"
 SH
 
 # ALEMBIC-FILESYSTEM-CARRIER-PRECHECK-START

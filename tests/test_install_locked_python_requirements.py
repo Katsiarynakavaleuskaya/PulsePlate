@@ -2,16 +2,32 @@
 
 from __future__ import annotations
 
-from contextlib import contextmanager
+import base64
+import http.client
+import io
 import json
 import os
-from pathlib import Path
 import re
 import subprocess
 import sys
+import tempfile
+import types
+from contextlib import contextmanager
+from datetime import datetime, timezone
+from email.utils import format_datetime
+from pathlib import Path
+from textwrap import dedent
 from typing import Any
+from unittest.mock import patch
+from urllib.parse import urlparse
 
 import pytest
+from pip._internal.network.session import InsecureHTTPAdapter, PipSession
+from pip._vendor import certifi
+from pip._vendor.requests import Request
+from pip._vendor.requests.adapters import HTTPAdapter
+from pip._vendor.urllib3.connectionpool import HTTPConnectionPool
+from pip._vendor.urllib3.response import HTTPResponse
 
 import scripts.ci.install_locked_python_requirements as installer
 
@@ -28,6 +44,12 @@ MAIN_PREFLIGHT_TESTS = {
 MAIN_EXECUTABLE_RESOLUTION_TESTS = {
     "test_main_normalizes_python_executable_once_before_dispatch",
 }
+
+
+@pytest.fixture(autouse=True)
+def _isolate_default_netrc_home(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """Anonymous and CLI tests must never read the operator's default netrc."""
+    monkeypatch.setenv("HOME", str(tmp_path))
 
 
 @pytest.fixture(autouse=True)
@@ -675,7 +697,7 @@ def test_private_index_project_health_rejects_root_netrc_credentials(
         )
 
 
-def test_netrc_basic_auth_header_ignores_empty_hostname(
+def test_netrc_credentials_ignores_empty_hostname(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     def fail_if_called() -> None:
@@ -683,8 +705,8 @@ def test_netrc_basic_auth_header_ignores_empty_hostname(
 
     monkeypatch.setattr(installer.netrc, "netrc", fail_if_called)
 
-    assert installer._netrc_basic_auth_header(None) is None
-    assert installer._netrc_basic_auth_header("") is None
+    assert installer._netrc_credentials(None) is None
+    assert installer._netrc_credentials("") is None
 
 
 @pytest.mark.parametrize(
@@ -795,6 +817,493 @@ def test_private_index_project_health_accepts_underscore_wheel_name(
         package="python-multipart",
         trusted_host=None,
     )
+
+
+def _write_admission_netrc(tmp_path: Path, entry: str, *, filename: str = ".netrc") -> None:
+    path = tmp_path / filename
+    path.write_text(entry + "\n", encoding="utf-8")
+    path.chmod(0o600)
+
+
+@pytest.mark.parametrize(
+    "entry",
+    [
+        "machine packages.example.internal login ci-reader password synthetic-marker",
+        "machine packages.example.internal account ci-reader password synthetic-marker",
+        "default login ci-reader password synthetic-marker",
+        "default account ci-reader password synthetic-marker",
+    ],
+)
+@pytest.mark.parametrize("transport", ["http", "trusted-https"])
+@pytest.mark.parametrize("filename", [".netrc", "_netrc"])
+@pytest.mark.parametrize(
+    "flags", [[], ["--preflight-only"], ["--upgrade-pip"], ["--upgrade-pip-only"]]
+)
+def test_main_rejects_insecure_default_netrc_before_any_cli_branch(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    entry: str,
+    transport: str,
+    flags: list[str],
+    filename: str,
+) -> None:
+    _write_admission_netrc(tmp_path, entry, filename=filename)
+    index = (
+        APPROVED_PROXY_URL
+        if transport == "trusted-https"
+        else APPROVED_PROXY_URL.replace("https:", "http:")
+    )
+    args = ["--index-url", index, *flags]
+    if transport == "trusted-https":
+        args += ["--trusted-host", "packages.example.internal"]
+    calls: list[str] = []
+
+    def forbidden(*_args: object, **_kwargs: object) -> None:
+        calls.append("downstream")
+        raise AssertionError("unsafe admission must stop before downstream execution")
+
+    for name in (
+        "upgrade_pip",
+        "run_dependency_floor_preflight",
+        "run_command",
+        "resolve_requirement_files",
+    ):
+        monkeypatch.setattr(installer, name, forbidden)
+    monkeypatch.setattr(installer.http.client, "HTTPConnection", forbidden)
+    monkeypatch.setattr(installer.http.client, "HTTPSConnection", forbidden)
+    monkeypatch.setattr(installer.ssl, "_create_unverified_context", forbidden)
+
+    assert installer.main(args) == 1
+    output = capsys.readouterr()
+    assert "require verified HTTPS" in output.out
+    assert "synthetic-marker" not in output.out + output.err
+    assert "ci-reader" not in output.out + output.err
+    assert calls == []
+
+
+@pytest.mark.parametrize(
+    "entry,message",
+    [
+        ("machine packages.example.internal password synthetic-marker", "Indeterminate"),
+        ("machine packages.example.internal", "Indeterminate"),
+        ("default account root password synthetic-marker", "Root devpi"),
+        ("machine packages.example.internal login root password synthetic-marker", "Root devpi"),
+        ("machine packages.example.internal account root password synthetic-marker", "Root devpi"),
+        (
+            "machine packages.example.internal login ci-reader password synthetic-marker",
+            "require verified HTTPS",
+        ),
+        (
+            "machine packages.example.internal account ci-reader password synthetic-marker",
+            "require verified HTTPS",
+        ),
+        ("default login ci-reader password synthetic-marker", "require verified HTTPS"),
+        ("default account ci-reader password synthetic-marker", "require verified HTTPS"),
+    ],
+)
+@pytest.mark.parametrize("filename", [".netrc", "_netrc"])
+@pytest.mark.parametrize(
+    "transport", ["http", "trusted-https", "trusted-https-dot", "trusted-https-prepared-port"]
+)
+def test_default_netrc_direct_reader_and_settings_fail_before_connection(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    entry: str,
+    message: str,
+    transport: str,
+    filename: str,
+) -> None:
+    index = (
+        APPROVED_PROXY_URL if transport != "http" else APPROVED_PROXY_URL.replace("https:", "http:")
+    )
+    if transport == "trusted-https-dot":
+        index = "https://packages.example.internal./simple"
+        entry = entry.replace("packages.example.internal", "packages.example.internal.")
+    _write_admission_netrc(tmp_path, entry, filename=filename)
+    trusted = urlparse(index).hostname if transport != "http" else None
+    if transport == "trusted-https-prepared-port":
+        index = "https://packages.example.internal:0443/simple"
+        trusted = "packages.example.internal:443"
+    calls: list[str] = []
+
+    def forbidden(*_args: object, **_kwargs: object) -> None:
+        calls.append("connection/context")
+        raise AssertionError("inadmissible credentials must stop before connection/context")
+
+    monkeypatch.setattr(installer.http.client, "HTTPConnection", forbidden)
+    monkeypatch.setattr(installer.http.client, "HTTPSConnection", forbidden)
+    monkeypatch.setattr(installer.ssl, "_create_unverified_context", forbidden)
+    for action in (
+        lambda: installer.resolve_private_proxy_settings(index_url=index, trusted_host=trusted),
+        lambda: installer._read_private_index_project_page(
+            index_url=index, package="pip", trusted_host=trusted
+        ),
+    ):
+        with pytest.raises(RuntimeError, match=message) as error:
+            action()
+        assert "synthetic-marker" not in str(error.value)
+    assert calls == []
+
+
+@pytest.mark.parametrize(
+    "entry",
+    [
+        "machine packages.example.internal login ci-reader password synthetic-marker",
+        "machine packages.example.internal account ci-reader password synthetic-marker",
+        "default login ci-reader password synthetic-marker",
+        "default account ci-reader password synthetic-marker",
+    ],
+)
+@pytest.mark.parametrize("filename", [".netrc", "_netrc"])
+@pytest.mark.parametrize(
+    "index,trusted",
+    [
+        (APPROVED_PROXY_URL, None),
+        (APPROVED_PROXY_URL, "other.example.internal"),
+        (APPROVED_PROXY_URL, "packages.example.internal:443"),
+        (APPROVED_PROXY_URL, "PACKAGES.EXAMPLE.INTERNAL."),
+        ("https://packages.example.internal./simple", "packages.example.internal"),
+        ("https://packages.example.internal:443/simple", "packages.example.internal:0443"),
+        ("https://[2001:db8::1]:443/simple", "[2001:db8::1]:0443"),
+    ],
+)
+def test_verified_https_admits_real_default_netrc_selection(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    entry: str,
+    index: str,
+    trusted: str | None,
+    filename: str,
+) -> None:
+    entry = entry.replace("packages.example.internal", str(urlparse(index).hostname))
+    _write_admission_netrc(tmp_path, entry, filename=filename)
+    observed: list[dict[str, str]] = []
+
+    class Connection:
+        def __init__(self, *_args: object, **kwargs: object) -> None:
+            assert "context" not in kwargs
+
+        def request(self, _method: str, _path: str, *, headers: dict[str, str]) -> None:
+            observed.append(headers)
+
+        def getresponse(self) -> _FakeSimpleIndexResponse:
+            return _FakeSimpleIndexResponse()
+
+        def close(self) -> None:
+            return None
+
+    monkeypatch.setattr(installer.http.client, "HTTPSConnection", Connection)
+    assert installer.resolve_private_proxy_settings(index_url=index, trusted_host=trusted) == (
+        index,
+        trusted,
+    )
+    installer._read_private_index_project_page(index_url=index, package="pip", trusted_host=trusted)
+    assert len(observed) == 1
+    assert (
+        base64.b64decode(observed[0]["Authorization"].removeprefix("Basic "))
+        == b"ci-reader:synthetic-marker"
+    )
+
+
+@pytest.mark.parametrize(
+    "entry", [None, "machine other.example.internal login reader password synthetic-marker"]
+)
+@pytest.mark.parametrize("filename", [".netrc", "_netrc"])
+@pytest.mark.parametrize(
+    "index,trusted",
+    [
+        ("http://packages.example.internal/simple", None),
+        (APPROVED_PROXY_URL, "packages.example.internal"),
+    ],
+)
+def test_anonymous_admission_requires_absent_applicable_authenticator(
+    tmp_path: Path, entry: str | None, index: str, trusted: str | None, filename: str
+) -> None:
+    if entry is not None:
+        _write_admission_netrc(tmp_path, entry, filename=filename)
+    assert installer.resolve_private_proxy_settings(index_url=index, trusted_host=trusted) == (
+        index,
+        trusted,
+    )
+    assert (
+        installer._admit_private_proxy_netrc_auth(parsed_url=urlparse(index), trusted_host=trusted)
+        is None
+    )
+
+
+@pytest.mark.parametrize("first_applies", [False, True])
+def test_default_netrc_first_existing_candidate_has_native_precedence(
+    tmp_path: Path, first_applies: bool
+) -> None:
+    first_host = "packages.example.internal" if first_applies else "other.example.internal"
+    _write_admission_netrc(tmp_path, f"machine {first_host} login first password first-marker")
+    _write_admission_netrc(
+        tmp_path,
+        "default account fallback password fallback-marker",
+        filename="_netrc",
+    )
+
+    assert installer._netrc_credentials("packages.example.internal") == (
+        ("first", "first-marker") if first_applies else None
+    )
+
+
+@pytest.mark.parametrize("filename", [".netrc", "_netrc"])
+@pytest.mark.parametrize("failure", ["read", "parse", "disappeared"])
+def test_selected_default_netrc_failure_does_not_fall_through_or_leak(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    filename: str,
+    failure: str,
+) -> None:
+    _write_admission_netrc(
+        tmp_path, "default login reader password synthetic-marker", filename=filename
+    )
+    if filename == ".netrc":
+        _write_admission_netrc(
+            tmp_path, "default login alternate password alternate-marker", filename="_netrc"
+        )
+    calls: list[object] = []
+
+    def fail_selected(file: object = None) -> None:
+        calls.append(file)
+        if failure == "parse":
+            raise installer.netrc.NetrcParseError("synthetic-secret-exception-marker")
+        if failure == "disappeared":
+            raise FileNotFoundError("synthetic-secret-exception-marker")
+        raise PermissionError("synthetic-secret-exception-marker")
+
+    monkeypatch.setattr(installer.netrc, "netrc", fail_selected)
+    with pytest.raises(RuntimeError, match="Unable to read default netrc credentials") as error:
+        installer._netrc_credentials("packages.example.internal")
+
+    assert calls == [None if filename == ".netrc" else tmp_path / "_netrc"]
+    assert error.value.__suppress_context__ is True
+    assert "synthetic-secret-exception-marker" not in str(error.value)
+
+
+def test_primary_default_netrc_preserves_stdlib_permission_rejection(tmp_path: Path) -> None:
+    _write_admission_netrc(tmp_path, "default login reader password synthetic-marker")
+    (tmp_path / ".netrc").chmod(0o644)
+    _write_admission_netrc(
+        tmp_path, "default login fallback password fallback-marker", filename="_netrc"
+    )
+
+    with pytest.raises(RuntimeError, match="NetrcParseError") as error:
+        installer._netrc_credentials("packages.example.internal")
+    assert error.value.__suppress_context__ is True
+    assert "synthetic-marker" not in str(error.value)
+
+
+def test_default_netrc_selection_uncertainty_is_not_anonymous(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    original_stat = Path.stat
+
+    def uncertain_stat(path: Path, *, follow_symlinks: bool = True) -> os.stat_result:
+        if path == tmp_path / ".netrc":
+            raise PermissionError("synthetic-secret-exception-marker")
+        return original_stat(path, follow_symlinks=follow_symlinks)
+
+    monkeypatch.setattr(Path, "stat", uncertain_stat)
+    with pytest.raises(RuntimeError, match="PermissionError") as error:
+        installer._netrc_credentials("packages.example.internal")
+    assert error.value.__suppress_context__ is True
+    assert "synthetic-secret-exception-marker" not in str(error.value)
+
+
+@pytest.mark.parametrize(
+    "trusted,url,expected",
+    [
+        (None, APPROVED_PROXY_URL, False),
+        ("PACKAGES.EXAMPLE.INTERNAL", APPROVED_PROXY_URL, True),
+        ("PACKAGES.EXAMPLE.INTERNAL.", APPROVED_PROXY_URL, False),
+        ("packages.example.internal", "https://packages.example.internal./simple", False),
+        ("packages.example.internal.", "https://packages.example.internal./simple", True),
+        ("packages.example.internal.:443", "https://packages.example.internal:443/simple", False),
+        ("packages.example.internal:443", "https://packages.example.internal:443/simple", True),
+        ("packages.example.internal:0443", "https://packages.example.internal:443/simple", False),
+        ("packages.example.internal:443", "https://packages.example.internal:0443/simple", True),
+        ("packages.example.internal:0443", "https://packages.example.internal:0443/simple", False),
+        ("packages.example.internal:443", APPROVED_PROXY_URL, False),
+        ("packages.example.internal", "https://packages.example.internal:8443/simple", True),
+        ("packages.example.internal:443", "https://packages.example.internal:8443/simple", False),
+        ("other.example.internal", APPROVED_PROXY_URL, False),
+        ("[2001:DB8::1]", "https://[2001:db8::1]:8443/simple", True),
+        ("[2001:db8::1]:443", "https://[2001:db8::1]/simple", False),
+        ("[2001:db8::1]:443", "https://[2001:db8::1]:443/simple", True),
+        ("[2001:db8::1]:0443", "https://[2001:db8::1]:443/simple", False),
+        ("[2001:db8::1]:443", "https://[2001:db8::1]:8443/simple", False),
+    ],
+)
+def test_trusted_authority_matches_native_explicit_port_semantics(
+    trusted: str | None, url: str, expected: bool
+) -> None:
+    prepared = Request("GET", url).prepare()
+    assert prepared.url is not None
+    with PipSession(trusted_hosts=[trusted] if trusted is not None else []) as session:
+        assert (type(session.get_adapter(prepared.url)) is InsecureHTTPAdapter) is expected
+    assert (
+        installer._trusted_host_matches_url(trusted_host=trusted, parsed_url=urlparse(url))
+        is expected
+    )
+
+
+@pytest.mark.parametrize(
+    "trusted",
+    [
+        "https://packages.example.internal",
+        "reader@packages.example.internal",
+        "packages.example.internal:",
+        "packages.example.internal:no",
+        "packages.example.internal:65536",
+        "packages.example.internal/path",
+        "packages.example.internal?query",
+        "packages.example.internal?",
+        "packages.example.internal#fragment",
+        "packages.example.internal#",
+        "[2001:db8::1]?",
+        "[2001:db8::1]#",
+        "packages.example.internal\x00",
+        "pack ages.example.internal",
+        "[2001:db8::1",
+        "2001:db8::1",
+        "[2001:db8::1]:",
+    ],
+)
+def test_malformed_trusted_authority_fails_settings_and_direct_admission(trusted: str) -> None:
+    with pytest.raises(RuntimeError, match="trusted-host authority"):
+        installer.resolve_private_proxy_settings(index_url=APPROVED_PROXY_URL, trusted_host=trusted)
+    with pytest.raises(RuntimeError, match="trusted-host authority"):
+        installer._read_private_index_project_page(
+            index_url=APPROVED_PROXY_URL, package="pip", trusted_host=trusted
+        )
+
+
+@pytest.mark.parametrize(
+    "credentials",
+    [
+        ("", "", "synthetic-marker"),
+        ("", "", ""),
+        ("reader", "", None),
+        ("reader",),
+        ("reader", "", "value", "extra"),
+    ],
+)
+def test_indeterminate_netrc_shape_is_never_anonymous(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, credentials: object
+) -> None:
+    _write_admission_netrc(tmp_path, "default login reader password synthetic-marker")
+
+    class AmbiguousNetrc:
+        def authenticators(self, _hostname: str) -> object:
+            return credentials
+
+    monkeypatch.setattr(installer.netrc, "netrc", AmbiguousNetrc)
+    with pytest.raises(RuntimeError, match="Indeterminate"):
+        installer.resolve_private_proxy_settings(index_url=APPROVED_PROXY_URL, trusted_host=None)
+    with pytest.raises(RuntimeError, match="Indeterminate"):
+        installer._read_private_index_project_page(
+            index_url=APPROVED_PROXY_URL, package="pip", trusted_host=None
+        )
+
+
+@pytest.mark.parametrize("kind", ["parse", "read", "decode"])
+def test_main_netrc_failures_display_only_constant_and_class(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str], kind: str
+) -> None:
+    _write_admission_netrc(tmp_path, "default login reader password synthetic-marker")
+
+    def failing_netrc() -> None:
+        if kind == "parse":
+            raise installer.netrc.NetrcParseError("synthetic-secret-exception-marker")
+        if kind == "decode":
+            raise UnicodeDecodeError("utf-8", b"synthetic-secret-exception-marker", 0, 1, "invalid")
+        raise OSError("synthetic-secret-exception-marker")
+
+    monkeypatch.setattr(installer.netrc, "netrc", failing_netrc)
+    assert installer.main(["--index-url", APPROVED_PROXY_URL, "--upgrade-pip-only"]) == 1
+    output = capsys.readouterr()
+    assert "Unable to read default netrc credentials" in output.out
+    assert "synthetic-secret-exception-marker" not in output.out + output.err
+    with pytest.raises(RuntimeError) as error:
+        installer._read_private_index_project_page(
+            index_url=APPROVED_PROXY_URL, package="pip", trusted_host=None
+        )
+    assert error.value.__suppress_context__ is True
+    assert "synthetic-secret-exception-marker" not in str(error.value)
+
+
+@pytest.mark.parametrize(
+    "stage", ["constructor", "context", "request", "response", "read", "close", "request-and-close"]
+)
+def test_project_probe_failure_and_cleanup_share_sanitized_bounded_budget(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], stage: str
+) -> None:
+    counts = {"constructed": 0, "closed": 0, "context": 0}
+    sleeps: list[float] = []
+
+    def fail() -> None:
+        raise OSError("synthetic-secret-exception-marker")
+
+    class Response:
+        status = 200
+
+        def read(self, _limit: int) -> bytes:
+            if stage == "read":
+                fail()
+            return b"simple project"
+
+    class Connection:
+        def __init__(self, *_args: object, **_kwargs: object) -> None:
+            counts["constructed"] += 1
+            if stage == "constructor":
+                fail()
+
+        def request(self, *_args: object, **_kwargs: object) -> None:
+            if stage in {"request", "request-and-close"}:
+                fail()
+
+        def getresponse(self) -> Response:
+            if stage == "response":
+                fail()
+            return Response()
+
+        def close(self) -> None:
+            counts["closed"] += 1
+            if stage in {"close", "request-and-close"}:
+                fail()
+
+    def failing_context() -> None:
+        counts["context"] += 1
+        fail()
+
+    monkeypatch.setattr(installer.http.client, "HTTPSConnection", Connection)
+    monkeypatch.setattr(installer.ssl, "_create_unverified_context", failing_context)
+    monkeypatch.setattr(installer.time, "sleep", sleeps.append)
+    trusted = "packages.example.internal" if stage == "context" else None
+    with pytest.raises(RuntimeError, match="OSError") as error:
+        installer._read_private_index_project_page(
+            index_url=APPROVED_PROXY_URL, package="pip", trusted_host=trusted
+        )
+    assert error.value.__suppress_context__ is True
+    assert "synthetic-secret-exception-marker" not in str(error.value)
+    assert len(sleeps) == installer.PIP_NETWORK_RETRIES - 1
+    expected_connections = 0 if stage == "context" else installer.PIP_NETWORK_RETRIES
+    assert counts["constructed"] == expected_connections
+    assert counts["closed"] == (0 if stage == "constructor" else expected_connections)
+    assert counts["context"] == (installer.PIP_NETWORK_RETRIES if stage == "context" else 0)
+    monkeypatch.setattr(
+        installer,
+        "upgrade_pip",
+        lambda *_args, **_kwargs: installer._read_private_index_project_page(
+            index_url=APPROVED_PROXY_URL, package="pip", trusted_host=trusted
+        ),
+    )
+    assert installer.main(["--index-url", APPROVED_PROXY_URL, "--upgrade-pip-only"]) == 1
+    output = capsys.readouterr()
+    assert "synthetic-secret-exception-marker" not in output.out + output.err
 
 
 def test_repo_emergency_manifest_is_retired_empty_compatibility_marker() -> None:
@@ -3614,9 +4123,11 @@ def test_install_from_proxy_with_emergency_fallback_keeps_health_gate_for_plain_
     assert stage_calls["count"] == 0
 
 
-def test_install_from_proxy_with_emergency_fallback_accepts_package_scoped_health_timeout(
+@pytest.mark.parametrize("health_detail", ["The read operation timed out", "HTTP 521"])
+def test_install_from_proxy_with_emergency_fallback_rejects_failed_health_probe(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
+    health_detail: str,
 ) -> None:
     requirements = tmp_path / "requirements.txt"
     requirements.write_text("aiosqlite==0.22.1\n", encoding="utf-8")
@@ -3641,6 +4152,7 @@ def test_install_from_proxy_with_emergency_fallback_accepts_package_scoped_healt
         encoding="utf-8",
     )
     observed_find_links: list[Path | None] = []
+    stage_calls = {"count": 0}
 
     def fail_then_succeed(**kwargs: object) -> None:
         find_links_dir = kwargs["find_links_dir"]
@@ -3655,33 +4167,30 @@ def test_install_from_proxy_with_emergency_fallback_accepts_package_scoped_healt
         raise RuntimeError(
             "Approved Python package proxy health check failed before emergency fallback: "
             "aiosqlite: https://packages.pulseplate.app/root/pulseplate/+simple/aiosqlite/: "
-            "The read operation timed out"
+            f"{health_detail}"
         )
 
-    def fake_stage_emergency_artifacts(**kwargs: object) -> list[Path]:
-        assert [artifact["package"] for artifact in kwargs["artifacts"]] == ["aiosqlite"]
-        wheelhouse_dir = Path(kwargs["wheelhouse_dir"])
-        staged = [wheelhouse_dir / "aiosqlite-0.22.1-py3-none-any.whl"]
-        for destination in staged:
-            destination.parent.mkdir(parents=True, exist_ok=True)
-            destination.write_bytes(b"wheel-bytes")
-        return staged
+    def fake_stage_emergency_artifacts(**_kwargs: object) -> list[Path]:
+        stage_calls["count"] += 1
+        return [tmp_path / "wheelhouse" / "aiosqlite-0.22.1-py3-none-any.whl"]
 
     monkeypatch.setattr(installer, "install_from_proxy", fail_then_succeed)
     monkeypatch.setattr(installer, "_require_private_index_project_health", fail_package_health)
     monkeypatch.setattr(installer, "_stage_emergency_artifacts", fake_stage_emergency_artifacts)
 
-    installer.install_from_proxy_with_emergency_fallback(
-        python_executable="python",
-        requirement_files=[requirements],
-        constraints_file=None,
-        index_url=APPROVED_PROXY_URL,
-        trusted_host=None,
-        emergency_wheelhouse_dir=tmp_path / "wheelhouse",
-        emergency_wheel_manifest=manifest,
-    )
+    with pytest.raises(RuntimeError, match=re.escape(health_detail)):
+        installer.install_from_proxy_with_emergency_fallback(
+            python_executable="python",
+            requirement_files=[requirements],
+            constraints_file=None,
+            index_url=APPROVED_PROXY_URL,
+            trusted_host=None,
+            emergency_wheelhouse_dir=tmp_path / "wheelhouse",
+            emergency_wheel_manifest=manifest,
+        )
 
-    assert observed_find_links == [None, tmp_path / "wheelhouse"]
+    assert observed_find_links == [None]
+    assert stage_calls["count"] == 0
 
 
 def test_install_from_proxy_with_emergency_fallback_rejects_same_line_network_resolver_failure(
@@ -5821,3 +6330,506 @@ def test_main_preflight_only_skips_requirements_file_resolution(
 
     assert result == 0
     assert preflight_called["count"] == 1
+
+
+SYNTHETIC_MARKERS = ("PHASE0_SYNTH_USER", "PHASE0_SYNTH_PASSWORD", "PHASE0_SYNTH_EXCEPTION")
+
+
+class TestLockedPipNativeTransport:
+
+    def setup_method(self) -> None:
+        self.tmp = tempfile.TemporaryDirectory(prefix="native-case-")
+        self.home = Path(self.tmp.name)
+        self.env = pytest.MonkeyPatch()
+        for key, value in {
+            "HOME": str(self.home),
+            "NETRC": str(self.home / "absent"),
+            "HTTP_PROXY": "",
+            "HTTPS_PROXY": "",
+            "ALL_PROXY": "",
+            "NO_PROXY": "*",
+        }.items():
+            self.env.setenv(key, value)
+        self.original_send = installer._install_pip_transport_guard()
+        self.calls = []
+        self.sessions = []
+        self.statuses = []
+        self.headers = []
+        self.bodies = []
+        self.transport = None
+
+    def teardown_method(self) -> None:
+        for session in self.sessions:
+            session.close()
+        if self.transport is not None:
+            self.transport.stop()
+        HTTPAdapter.send = self.original_send
+        self.env.undo()
+        self.tmp.cleanup()
+
+    def session(self, *, trusted: Any = (), cache: Any = False, auth: Any = True) -> Any:
+        s = PipSession(trusted_hosts=trusted, cache=str(self.home / "cache") if cache else None)
+        self.sessions.append(s)
+        s.auth.prompting = False
+        s.auth.keyring_provider = "disabled"
+        if not auth:
+            s.trust_env = False
+        return s
+
+    def network(self) -> None:
+        if self.transport is not None:
+            self.transport.stop()
+        outer = self
+
+        def lower(pool: Any, method: Any, url: Any, **kwargs: Any) -> Any:
+            outer.calls.append(
+                {
+                    "scheme": pool.scheme,
+                    "host": pool.host,
+                    "port": pool.port,
+                    "authorization": any((k.lower() == "authorization" for k in kwargs["headers"])),
+                    "cert_reqs": pool.cert_reqs,
+                    "if_none_match": "If-None-Match" in kwargs["headers"],
+                }
+            )
+            status = outer.statuses.pop(0) if outer.statuses else 200
+            headers = outer.headers.pop(0) if outer.headers else {}
+            body = outer.bodies.pop(0) if outer.bodies else b"ok"
+            if status != 304:
+                headers.setdefault("Content-Length", str(len(body)))
+            wire = (
+                "HTTP/1.1 "
+                + str(status)
+                + " synthetic\r\n"
+                + "".join((str(k) + ": " + str(v) + "\r\n" for k, v in headers.items()))
+                + "\r\n"
+            ).encode() + body
+            socket = types.SimpleNamespace(makefile=lambda *args, **kwargs: io.BytesIO(wire))
+            response = http.client.HTTPResponse(socket)
+            response.begin()
+            return HTTPResponse(
+                body=response,
+                original_response=response,
+                status=status,
+                headers=headers,
+                preload_content=False,
+                decode_content=False,
+                request_method=method,
+                request_url=url,
+            )
+
+        self.transport = patch.object(HTTPConnectionPool, "urlopen", lower)
+        self.transport.start()
+
+    def netrc(self, *, filename: Any = ".netrc", default: Any = False) -> Any:
+        p = self.home / filename
+        p.write_text(
+            f"{('default' if default else 'machine redirect-target.example')} login {SYNTHETIC_MARKERS[0]} password {SYNTHETIC_MARKERS[1]}\n"
+        )
+        p.chmod(384)
+        self.env.delenv("NETRC", raising=False)
+        return p
+
+    def test_native_pip_redirect_status_source_matrix(self) -> None:
+        self.network()
+        for status in (301, 302, 303, 307, 308):
+            for filename in (".netrc", "_netrc"):
+                for default in (False, True):
+                    for f in (".netrc", "_netrc"):
+                        (self.home / f).unlink(missing_ok=True)
+                    self.netrc(filename=filename, default=default)
+                    self.calls.clear()
+                    self.statuses[:] = [status]
+                    self.headers[:] = [{"Location": "http://redirect-target.example/path"}]
+                    s = self.session()
+                    with pytest.raises(installer._PipTransportRejected):
+                        s.get("https://index-origin.example/simple")
+                    assert len(self.calls) == 1
+                    assert self.calls[0]["scheme"] == "https"
+
+    def test_native_pip_trusted_port_cache_and_verified_controls(self) -> None:
+        self.network()
+        for cache in (False, True):
+            for match in (True, False):
+                self.calls.clear()
+                self.netrc()
+                s = self.session(cache=cache, trusted=("redirect-target.example:9443",))
+                destination = f"https://redirect-target.example:{(9443 if match else 9444)}/pkg"
+                if match:
+                    with pytest.raises(installer._PipTransportRejected):
+                        s.get(destination)
+                    assert self.calls == []
+                else:
+                    assert s.get(destination).status_code == 200
+                    assert len(self.calls) == 1
+                    assert self.calls[0]["cert_reqs"] == "CERT_REQUIRED"
+
+    def test_native_pip_key_membership_and_verify_native_matrix(self) -> None:
+        self.network()
+        s = self.session(auth=False)
+        for key in ("Authorization", "authorization", "aUtHoRiZaTiOn"):
+            for value in ("", SYNTHETIC_MARKERS[1]):
+                for verify in (False, None, "", 1, object(), str(self.home / "missing")):
+                    request = Request(
+                        "GET", "https://secure.example/", headers={key: value}
+                    ).prepare()
+                    with pytest.raises(installer._PipTransportRejected):
+                        s.get_adapter(request.url).send(request, False, None, verify)
+                request = Request("GET", "http://unsafe.example/", headers={key: value}).prepare()
+                with pytest.raises(installer._PipTransportRejected):
+                    s.get_adapter(request.url).send(request)
+        assert self.calls == []
+        for verify in (True, certifi.where(), str(Path(certifi.where()).parent)):
+            request = Request(
+                "GET", "https://secure.example/", headers={"Authorization": ""}
+            ).prepare()
+            assert s.get_adapter(request.url).send(request, False, None, verify).status_code == 200
+            assert self.calls[-1]["cert_reqs"] == "CERT_REQUIRED"
+
+    def test_native_pip_source_removed_after_attachment(self) -> None:
+        self.network()
+        source = self.netrc(default=True)
+        s = self.session()
+        request = s.prepare_request(Request("GET", "http://redirect-target.example/"))
+        assert "Authorization" in request.headers
+        source.unlink()
+        with pytest.raises(installer._PipTransportRejected):
+            s.send(request)
+        assert self.calls == []
+
+    def test_native_pip_native_401_direct_adapter_retry(self) -> None:
+        self.network()
+        for unsafe in (False, True):
+            self.calls.clear()
+            self.netrc()
+            s = self.session(trusted=("redirect-target.example",) if unsafe else ())
+            s.auth.prompting = True
+            s.auth.index_urls = [
+                f"https://{SYNTHETIC_MARKERS[0]}:{SYNTHETIC_MARKERS[1]}@redirect-target.example/"
+            ]
+            request = Request("GET", "https://redirect-target.example/").prepare()
+            request.register_hook("response", s.auth.handle_401)
+            self.statuses[:] = [401, 200]
+            if unsafe:
+                with pytest.raises(installer._PipTransportRejected):
+                    s.send(request)
+                assert len(self.calls) == 1
+            else:
+                assert s.send(request).status_code == 200
+                assert len(self.calls) == 2
+                assert self.calls[-1]["authorization"]
+            (self.home / ".netrc").unlink()
+            prepared = s.prepare_request(Request("GET", "https://redirect-target.example/after"))
+            assert "Authorization" in prepared.headers
+            if unsafe:
+                with pytest.raises(installer._PipTransportRejected):
+                    s.send(prepared)
+            self.statuses.clear()
+
+    def test_native_pip_cache_miss_hit_revalidation_positional_and_redirect(self) -> None:
+        self.network()
+        s = self.session(cache=True, auth=False)
+        request = Request(
+            "GET", "https://cache.example/item", headers={"Authorization": "synthetic"}
+        ).prepare()
+        self.headers[:] = [
+            {
+                "Date": format_datetime(datetime.now(timezone.utc), usegmt=True),
+                "Cache-Control": "public, max-age=3600",
+                "ETag": '"first"',
+            }
+        ]
+        assert s.send(request).content == b"ok"
+        assert len(self.calls) == 1
+        assert s.send(request).content == b"ok"
+        assert len(self.calls) == 1
+        other = Request(
+            "GET", "https://cache.example/stale", headers={"Authorization": "synthetic"}
+        ).prepare()
+        self.headers[:] = [
+            {
+                "Date": "Thu, 01 Jan 1970 00:00:00 GMT",
+                "Cache-Control": "public, max-age=0",
+                "ETag": '"stale"',
+            }
+        ]
+        assert s.send(other).content == b"ok"
+        before = len(self.calls)
+        with pytest.raises(installer._PipTransportRejected):
+            s.get_adapter(other.url).send(other, False, None, False)
+        assert len(self.calls) == before
+        self.statuses[:] = [304]
+        self.headers[:] = [{"Date": format_datetime(datetime.now(timezone.utc), usegmt=True)}]
+        assert s.send(other).status_code == 200
+        assert self.calls[-1]["if_none_match"]
+        self.netrc(default=True)
+        redirect = self.session(cache=True)
+        self.statuses[:] = [301]
+        self.headers[:] = [
+            {
+                "Location": "http://redirect-target.example/",
+                "Date": format_datetime(datetime.now(timezone.utc), usegmt=True),
+                "Cache-Control": "public, max-age=3600",
+            }
+        ]
+        before = len(self.calls)
+        with pytest.raises(installer._PipTransportRejected):
+            redirect.get("https://cache.example/redirect")
+        assert len(self.calls) == before + 1
+        before = len(self.calls)
+        with pytest.raises(installer._PipTransportRejected):
+            redirect.get("https://cache.example/redirect")
+        assert len(self.calls) == before
+
+    def test_native_pip_secure_and_anonymous_redirect_controls(self) -> None:
+        self.network()
+        for destination, auth, expected in (
+            ("/relative", False, [False, False]),
+            ("https://redirect-target.example/", True, [True, True]),
+            ("https://other-secure.example/", False, [False, False]),
+            ("http://anonymous.example/", False, [False, False]),
+            ("https://anonymous.example:9443/", False, [False, False]),
+        ):
+            for f in (".netrc", "_netrc"):
+                (self.home / f).unlink(missing_ok=True)
+            if auth:
+                self.netrc(default=True)
+            self.calls.clear()
+            self.statuses[:] = [302, 200]
+            self.headers[:] = [{"Location": destination}, {}]
+            s = self.session(trusted=("anonymous.example:9443",), auth=auth)
+            assert s.get("https://index-origin.example/start").status_code == 200
+            assert [c["authorization"] for c in self.calls] == expected
+
+    def test_native_pip_header_value_never_read_by_guard(self) -> None:
+        self.network()
+        from pip._vendor.requests.structures import CaseInsensitiveDict
+
+        s = self.session(auth=False)
+        request = Request("GET", "http://unsafe.example/", headers={"Authorization": ""}).prepare()
+        with patch.object(
+            CaseInsensitiveDict, "__getitem__", side_effect=AssertionError("header value read")
+        ):
+            with pytest.raises(installer._PipTransportRejected):
+                s.send(request)
+        assert self.calls == []
+
+    def test_native_normal_command_wrapper_reports_controlled_transport_rejection(
+        self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """The real normal pip wrapper returns ERROR without leaking a traceback."""
+        import logging
+        from pip._internal.cli import base_command, main as native_cli
+        from pip._internal.cli.status_codes import ERROR
+
+        self.network()
+        command = base_command.Command("synthetic", "Owned transport rejection")
+        options, args = command.parse_args([])
+        assert options.debug_mode is False
+
+        def rejected_run(_options: Any, _args: list[str]) -> int:
+            session = self.session(auth=False)
+            request = Request(
+                "GET",
+                "http://unsafe.example/",
+                headers={"Authorization": "PHASE0_SYNTH_PASSWORD"},
+            ).prepare()
+            try:
+                session.send(request)
+            except installer._PipTransportRejected:
+                raise
+            raise AssertionError("unsafe authenticated transport was accepted")
+
+        def normal_cli(argv: list[str]) -> int:
+            assert argv == ["--synthetic-cli"]
+            return command._run_wrapper(logging.INFO, options, args)
+
+        monkeypatch.setattr(command, "run", rejected_run)
+        monkeypatch.setattr(native_cli, "main", normal_cli)
+        with caplog.at_level(logging.INFO, logger=base_command.logger.name):
+            result = installer._run_owned_pip_child(["--synthetic-cli"])
+
+        assert result == ERROR == 1
+        assert self.calls == []
+        records = [record for record in caplog.records if record.name == base_command.logger.name]
+        assert [record.getMessage() for record in records] == [installer.PIP_TRANSPORT_ERROR]
+        assert all(record.exc_info is None for record in records)
+        assert "Traceback" not in caplog.text
+        assert not any(marker in caplog.text for marker in SYNTHETIC_MARKERS)
+
+    def test_native_pip_hostname_matcher_accepts_and_rejects(self) -> None:
+        """Exercise the native hostname matcher separately from adapter TLS settings."""
+        from pip._vendor.urllib3.util.ssl_match_hostname import CertificateError, match_hostname
+
+        peer = {"subjectAltName": (("DNS", "secure.example"),)}
+        match_hostname(peer, "secure.example")
+        with pytest.raises(CertificateError):
+            match_hostname(peer, "wrong.example")
+
+
+def test_owned_pip_child_worker_and_atexit_lifetime() -> None:
+    """Native adapters remain guarded after controlled CLI return or exception."""
+    child_source = dedent("""\
+        from __future__ import annotations
+        import atexit
+        import json
+        import sys
+        import threading
+        from unittest.mock import patch
+        from pip._vendor.requests import Request
+        from pip._vendor.urllib3.connectionpool import HTTPConnectionPool
+        from pip._internal.network.session import PipSession
+        from pip._internal.cli import main as native_cli
+
+        import scripts.ci.install_locked_python_requirements as installer
+        kind=sys.argv[1]
+        namespace=installer.main.__globals__
+        ready=threading.Event()
+        threads=[]
+        counts={'worker_blocked':0,'atexit_blocked':0,'lower':0,'cli_exception':0}
+
+        def lower(*args,**kwargs):
+            counts['lower']+=1
+            raise AssertionError('lower transport must never be entered')
+        HTTPConnectionPool.urlopen=lower
+
+        def send(label):
+            s=PipSession()
+            try:
+                req=Request('GET','http://unsafe.example/',headers={'Authorization':'PHASE0_SYNTH_PASSWORD'}).prepare()
+                try:s.get_adapter(req.url).send(req)
+                except namespace['_PipTransportRejected']:
+                    counts[label+'_blocked']+=1
+            finally:s.close()
+
+        def exit_callback():
+            send('atexit')
+            print('LIFETIME_RESULT '+json.dumps(counts,sort_keys=True),flush=True)
+
+        def worker():
+            assert ready.wait(10)
+            send('worker')
+
+        def fake_cli(args):
+            assert args==['--synthetic-cli']
+            t=threading.Thread(target=worker,daemon=False)
+            threads.append(t)
+            t.start()
+            atexit.register(exit_callback)
+            if kind=='exception':raise RuntimeError('PHASE0_SYNTH_EXCEPTION')
+            return 17
+        native_cli.main=fake_cli
+        try:
+            result=namespace['main']([namespace['PIP_CHILD_SELECTOR'],'--synthetic-cli'])
+        except RuntimeError:
+            counts['cli_exception']=1
+            result=18
+        ready.set()
+        for thread in threads:
+            thread.join(10)
+            assert not thread.is_alive()
+        assert counts['worker_blocked']==1 and counts['lower']==0
+        print('CLI_RESULT '+str(result),flush=True)
+        raise SystemExit(result)
+    """)
+    markers = (
+        *SYNTHETIC_MARKERS,
+        base64.b64encode(b"PHASE0_SYNTH_USER:PHASE0_SYNTH_PASSWORD").decode(),
+    )
+    for kind, expected in (("return", 17), ("exception", 18)):
+        result = subprocess.run(
+            [sys.executable, "-c", child_source, kind], capture_output=True, text=True, timeout=300
+        )
+        assert result.returncode == expected, result.stdout + result.stderr
+        line = next(
+            line for line in result.stdout.splitlines() if line.startswith("LIFETIME_RESULT ")
+        )
+        counts = json.loads(line.split(" ", 1)[1])
+        assert counts == {
+            "worker_blocked": 1,
+            "atexit_blocked": 1,
+            "lower": 0,
+            "cli_exception": int(kind == "exception"),
+        }
+        assert not any(marker in result.stdout + result.stderr for marker in markers)
+
+
+def test_owned_pip_launch_rewrites_once_and_preserves_tail(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Every owned pip argv shares the child entry; unrelated Python argv stay intact."""
+    calls: list[list[str]] = []
+
+    def fake_run(argv: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        calls.append(argv)
+        return subprocess.CompletedProcess(argv, 0, "", "")
+
+    monkeypatch.setattr(installer.subprocess, "run", fake_run)
+    script = str(Path(installer.__file__).resolve())
+    for tail in (
+        ["download", "--index-url", "https://index.example/simple"],
+        ["install", "--no-index"],
+        ["install", "--upgrade", "pip"],
+        ["install", "--upgrade", "--no-index", "pip"],
+        ["install", "local.whl"],
+    ):
+        original = [sys.executable, "-m", "pip", *tail]
+        installer.run_command(original)
+        assert calls[-1] == [sys.executable, script, installer.PIP_CHILD_SELECTOR, *tail]
+        assert original == [sys.executable, "-m", "pip", *tail]
+    for tail in (["-m", "venv", "owned-test-venv"], ["-c", "pass"]):
+        installer.run_command([sys.executable, *tail])
+        assert calls[-1] == [sys.executable, *tail]
+
+
+@pytest.mark.parametrize("error_type", [ImportError, ModuleNotFoundError])
+def test_owned_pip_child_import_failure_has_distinct_private_diagnostic(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    error_type: type[ImportError],
+) -> None:
+    """Missing child prerequisites expose neither synthetic credentials nor traceback."""
+
+    def missing_pip() -> object:
+        raise error_type(" ".join(SYNTHETIC_MARKERS))
+
+    monkeypatch.setattr(installer, "_install_pip_transport_guard", missing_pip)
+    assert installer._run_owned_pip_child(["install", "local.whl"]) == 1
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err == installer.PIP_CHILD_IMPORT_ERROR + "\n"
+    assert installer.PIP_TRANSPORT_ERROR not in captured.err
+    assert "Traceback" not in captured.err
+    assert not any(marker in captured.err for marker in SYNTHETIC_MARKERS)
+
+
+@pytest.mark.parametrize("error_type", [ImportError, ModuleNotFoundError])
+def test_owned_pip_execution_import_failure_has_private_phase_diagnostic(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    error_type: type[ImportError],
+) -> None:
+    """Execution import errors stay private and distinct from setup or transport errors."""
+    from pip._internal.cli import main as native_cli
+
+    setup_calls: list[bool] = []
+    execution_calls: list[list[str]] = []
+    argv = ["install", "local.whl"]
+
+    def install_guard() -> None:
+        setup_calls.append(True)
+
+    def failed_execution(args: list[str]) -> int:
+        execution_calls.append(args)
+        raise error_type(" ".join(SYNTHETIC_MARKERS))
+
+    monkeypatch.setattr(installer, "_install_pip_transport_guard", install_guard)
+    monkeypatch.setattr(native_cli, "main", failed_execution)
+    assert installer._run_owned_pip_child(argv) == 1
+    assert setup_calls == [True]
+    assert execution_calls == [argv]
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err == installer.PIP_EXECUTION_IMPORT_ERROR + "\n"
+    assert installer.PIP_CHILD_IMPORT_ERROR not in captured.err
+    assert installer.PIP_TRANSPORT_ERROR not in captured.err
+    assert "Traceback" not in captured.err
+    assert not any(marker in captured.err for marker in SYNTHETIC_MARKERS)

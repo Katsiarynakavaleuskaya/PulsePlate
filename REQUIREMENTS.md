@@ -104,7 +104,11 @@ destroys that credentialed HOME, statically validates wheel metadata, then
 compiles from profile-narrow wheelhouses with indexes disabled. It rejects
 unrelated graph movement and rolls back a multi-lock update if any replacement
 fails. Runtime must be compiled in a separate first pass before profiles
-constrained by `requirements.txt`. `GRAPH_CHANGE_PACKAGES` is intentionally
-unavailable until a versioned artifact-admission contract exists. See
-`docs/DEPENDENCY_MANAGEMENT.md` for profile procedures. Do not regenerate
-lockfiles in documentation-only or validator-only PRs.
+constrained by `requirements.txt`. `GRAPH_CHANGE_PACKAGES` is limited to the
+existing v1 carrier's two exact closed alternatives: the original observability
+transition and `virtualenv-2455-21.14.5`. Each binds its complete ordered request,
+original seed/source bytes and exact transition; it grants no arbitrary graph
+or future-baseline permission. See `docs/DEPENDENCY_MANAGEMENT.md` for the
+recorded invocations and `docs/security/PR_2455_VIRTUALENV_REMEDIATION.md` for the
+finite virtualenv replay/evidence. Do not regenerate lockfiles in
+documentation-only or validator-only PRs.

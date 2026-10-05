@@ -59,8 +59,9 @@ inventory guard's `assert-ready-for-cleanup` command to pass first.
 ```text
 accepted PR-2 patch result
 -> promotion plan
--> isolated pre-open validation
--> explicit human approval
+-> exact trusted native result and finalized generation receipt
+-> fresh isolated pre-open validation
+-> fresh interactive human approval
 -> isolated promotion checkout
 -> exact patch application
 -> new experiment/* branch
@@ -83,16 +84,19 @@ python -m scripts.orchestration.creative_code_pr_promotion plan \
 
 python -m scripts.orchestration.creative_code_pr_promotion validate \
   --promotion-id <id> \
-  [--trusted-dispatch-result artifacts/orchestration/experiments/results/<result>.json \
-   --trusted-generation-receipt \
-     artifacts/orchestration/creative_code/patch_generation/<output>/generation_receipt.json]
+  --trusted-dispatch-result artifacts/orchestration/experiments/results/<result>.json \
+  --trusted-generation-receipt \
+    artifacts/orchestration/creative_code/patch_generation/<output>/generation_receipt.json
 
 python -m scripts.orchestration.creative_code_pr_promotion approve \
   --promotion-id <id> \
   --approved-by-login <github-login>
 
 python -m scripts.orchestration.creative_code_pr_promotion promote \
-  --promotion-id <id>
+  --promotion-id <id> \
+  --trusted-dispatch-result artifacts/orchestration/experiments/results/<result>.json \
+  --trusted-generation-receipt \
+    artifacts/orchestration/creative_code/patch_generation/<output>/generation_receipt.json
 ```
 
 `plan` is side-effect-free with respect to GitHub and repository branches. It
@@ -101,14 +105,12 @@ plan and deterministic PR body, and stops.
 
 `validate` creates an isolated validation checkout at the exact PR-2 base SHA,
 applies the exact patch, creates a throwaway local commit so
-`make validate-changed` has a meaningful diff, runs fresh candidate oracle
-evaluation, runs `pre-commit run --all-files`, runs `make validate-changed`,
-and fails if gates mutate the patch. Its validation artifact records
-`oracle_evidence.source=direct_evaluation` and
-`executed_during_validation=true` for that path. The trusted dispatch result and explicit
-generation receipt options must be supplied together or both omitted. When
-supplied, `validate` consumes that result instead of calling the direct
-evaluator and records `oracle_evidence.source=trusted_apple_dispatch` with
+`make validate-changed` has a meaningful diff, verifies the exact accepted
+trusted native result and finalized generation receipt, runs
+`pre-commit run --all-files` and `make validate-changed`, and fails if gates
+mutate the patch. Both evidence paths are required together; absent or
+one-sided input fails before a validation checkout or host candidate oracle.
+New validation artifacts record `oracle_evidence.source=trusted_apple_dispatch` with
 `executed_during_validation=false`. The result must resolve without symlinks under the canonical local
 Experiment Runner result root, and the exactly named receipt must resolve
 without symlinks under the canonical PR-2 patch-generation root. The result
@@ -132,8 +134,14 @@ APPROVE NON-DRAFT PR <plan-fingerprint> <patch-hash-8>
 
 There is no `--yes` flag, CI approval mode, or environment bypass.
 
-`promote` rechecks plan, validation, approval, actor, current `origin/main`,
-branch absence, and patch fingerprint before creating any remote state.
+For a first remote effect, `promote` reruns actual `validate` with the same
+trusted pair and local gates, then collects a fresh current-actor TTY approval.
+Stored validation/approval JSON are audit records, not reusable authorization.
+It rechecks the plan, trusted result/receipt, actor, local and **live remote**
+main SHA, branch absence and patch immediately before temporary upload push
+and again before target create-ref. A verified completed receipt may be read
+back without a second promotion or TTY approval. Remote API races remain
+bounded by atomic create-ref failure, cleanup and readback.
 
 ## Admission
 

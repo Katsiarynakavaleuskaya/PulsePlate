@@ -4,14 +4,14 @@ from __future__ import annotations
 
 from contextvars import ContextVar
 import logging
-from typing import Any
+from typing import Any, Literal, cast
 
 import httpx
 from openai import APITimeoutError, AsyncOpenAI, DefaultAsyncHttpxClient
 from openai._models import FinalRequestOptions
 
 AGENT_API_BASE_URL = "https://api.perplexity.ai/v1"
-AGENT_API_MODELS = frozenset({"openai/gpt-6-luna", "openai/gpt-6-sol"})
+AGENT_API_MODELS = frozenset({"openai/gpt-6-luna", "openai/gpt-6-sol", "openai/gpt-6.1-sol"})
 AGENT_API_REASONING_EFFORTS = frozenset({"none", "low"})
 AGENT_API_MAX_PROMPT_BYTES = 32_768
 AGENT_API_MAX_OUTPUT_TOKENS = 2_048
@@ -43,11 +43,18 @@ for _sdk_logger_name in ("openai._base_client", "openai._response"):
 
 
 class _AgentAsyncOpenAI(AsyncOpenAI):
-    """Bind no-redirect behavior to a copied native SDK request option."""
+    """Bind redirects and the two OpenAI identity headers to each request."""
 
     async def _prepare_options(self, options: FinalRequestOptions) -> FinalRequestOptions:
         prepared = await super()._prepare_options(options)
         return prepared.model_copy(update={"follow_redirects": False})
+
+    async def _prepare_request(self, request: httpx.Request) -> None:
+        await super()._prepare_request(request)
+        # HTTPX merges borrowed defaults after SDK header construction. Remove
+        # only these names from the individual request, preserving the client.
+        request.headers.pop("OpenAI-Organization", None)
+        request.headers.pop("OpenAI-Project", None)
 
 
 def _item_field(item: object, name: str) -> Any:
@@ -85,7 +92,7 @@ class PerplexityAgentProvider:
         self._require_safe_http_client(http_client)
 
         self.model = model
-        self.reasoning_effort = reasoning_effort
+        self.reasoning_effort = cast(Literal["none", "low"], reasoning_effort)
         # Delay client allocation until the runtime has admitted quota. A quota
         # denial must not leave an unused connection pool behind.
         self._api_key = normalized_key
@@ -118,9 +125,14 @@ class PerplexityAgentProvider:
                         follow_redirects=False, timeout=AGENT_API_TIMEOUT_SECONDS
                     )
                     http_client = owned_http_client
+                # Empty native identity state disables unrelated SDK env defaults.
+                sdk_identity_default = ""
                 client = _AgentAsyncOpenAI(
                     api_key=self._api_key,
                     base_url=AGENT_API_BASE_URL,
+                    organization=sdk_identity_default,
+                    project=sdk_identity_default,
+                    webhook_secret=sdk_identity_default,
                     max_retries=0,
                     timeout=AGENT_API_TIMEOUT_SECONDS,
                     http_client=http_client,

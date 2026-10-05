@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-09-20",
-  "review_by": "2026-09-27",
+  "generated_at": "2026-09-28",
+  "review_by": "2026-10-05",
   "reason": "Reviewed official SQLite and util-linux sources for the existing bounded native runtime-library build. Fetch and checksum verification precede Docker builds.",
   "artifacts": [
     {
@@ -44,6 +44,38 @@
         "63d2dbb5",
         "9b20e50e",
         "d26fe89f"
+      ]
+    },
+    {
+      "name": "pcre2",
+      "version": "10.49",
+      "filename": "pcre2-10.49.tar.gz",
+      "url": "https://codeload.github.com/PCRE2Project/pcre2/legacy.tar.gz/refs/tags/pcre2-10.49",
+      "sha3_256_parts": [
+        "6510970e",
+        "92ea9410",
+        "b44f85c6",
+        "06c389c3",
+        "473ba05d",
+        "2d6338f0",
+        "ce763cc4",
+        "ccaa382c"
+      ]
+    },
+    {
+      "name": "sljit",
+      "version": "de0259c7aaf36aa40cba8014f3fad3edde9307f9",
+      "filename": "sljit-de0259c7aaf36aa40cba8014f3fad3edde9307f9.tar.gz",
+      "url": "https://codeload.github.com/zherczeg/sljit/legacy.tar.gz/de0259c7aaf36aa40cba8014f3fad3edde9307f9",
+      "sha3_256_parts": [
+        "7ad00681",
+        "4d4d9c69",
+        "8832b145",
+        "41634b9c",
+        "c12039ba",
+        "e7b3bb54",
+        "7909fda5",
+        "1ee11a80"
       ]
     }
   ]

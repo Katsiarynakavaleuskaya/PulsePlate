@@ -51,7 +51,7 @@ their order, including the `provider://default` audit target.
 | Setting or boundary | Reviewed value |
 | --- | --- |
 | API transport | Existing `AsyncOpenAI` Responses SDK; fixed `https://api.perplexity.ai/v1` |
-| Model | Exactly one of `openai/gpt-6-luna`, `openai/gpt-6-sol`; explicit configuration |
+| Model | Exactly one of `openai/gpt-6-luna`, `openai/gpt-6-sol`, `openai/gpt-6.1-sol`; explicit configuration |
 | Reasoning effort | Explicit `none` or `low` |
 | Tools and storage option | `tools=[]`, `store=false` |
 | Attempt budget | SDK retries and redirects disabled; no automatic Sonar reroute or second paid attempt |
@@ -68,6 +68,22 @@ The native SDK request-options hook copies its options and pins
 changes after admission. A redirect stops after the initial request and becomes
 the existing sanitized unavailable error; no second destination receives body
 or credentials (`providers/perplexity_agent.py:48`).
+
+Adapter-created SDK instances explicitly disable the `OPENAI_ORG_ID`,
+`OPENAI_PROJECT_ID`, and `OPENAI_WEBHOOK_SECRET` constructor defaults. The
+native request hook removes exactly `OpenAI-Organization` and `OpenAI-Project`
+from each prepared request after HTTPX merges default headers, using its
+case-insensitive header API. Borrowed client defaults remain unchanged. This
+covers the named SDK/default-header sources; arbitrary later caller auth,
+event-hook, or transport mutations are outside this guarantee. Webhook evidence
+concerns SDK state, not an outgoing webhook header
+(`providers/perplexity_agent.py:56`).
+
+The explicit 6.1 identifier is an internal configuration option, tested through
+the real SDK with mock transport. The retained single real transport smoke used
+Luna. Neither catalog naming nor deterministic acceptance proves key-specific
+6.1 availability, live reasoning support, coaching quality, billing, privacy,
+or activation. The option remains disabled by default.
 
 The provider adapter sanitizes SDK exceptions
 without attaching raw SDK errors, prompt, key, or response body to logged

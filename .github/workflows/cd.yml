@@ -68,7 +68,7 @@ jobs:
       contents: read
     steps:
       - name: Checkout staging configuration source
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -131,7 +131,7 @@ jobs:
           esac
           test "$(gh api "repos/$GITHUB_REPOSITORY/commits/$SOURCE_SHA" --jq .sha)" = "$SOURCE_SHA"
       - name: Checkout authenticated probe source
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.source_sha }}
           persist-credentials: false
@@ -494,7 +494,7 @@ jobs:
       contents: read
     steps:
       - name: Checkout immutable Prometheus contracts
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
@@ -717,6 +717,7 @@ jobs:
           docker run --rm \
             --platform linux/amd64 \
             --user 65532:65532 \
+            -e PULSEPLATE_ENVIRONMENT=staging \
             --network none \
             --read-only \
             --cap-drop ALL \
@@ -841,6 +842,211 @@ jobs:
             --ignorefile "$TRIVY_IGNORE_FILE" \
             --cache-dir /tmp/trivy-cache-prometheus-image-security \
             "$PROMETHEUS_RUNTIME_REF"
+
+      - name: Admit exact Alertmanager image, config, and narrow CVE exception
+        env:
+          TRIVY_DB_REPOSITORY: ghcr.io/aquasecurity/trivy-db
+          TRIVY_BIN: ${{ steps.prometheus_trivy.outputs.path }}
+        run: |
+          set -euo pipefail
+          alert_ref='prom/alertmanager@sha256:84967b9b7ba45e38a9278d3e594305f43d4993c310df3905b51138b816c365f3'
+          ignore='deploy/alertmanager/trivy-ignore.yaml'
+          test -f "$ignore"
+          test ! -L "$ignore"
+          docker buildx imagetools inspect --raw prom/alertmanager:v0.34.1 | python3 -c '
+          import json, sys
+          index=json.load(sys.stdin)
+          matches=[item.get("digest") for item in index.get("manifests", [])
+                   if item.get("platform", {}).get("os")=="linux"
+                   and item.get("platform", {}).get("architecture")=="amd64"]
+          if matches != ["sha256:84967b9b7ba45e38a9278d3e594305f43d4993c310df3905b51138b816c365f3"]:
+              raise SystemExit("Official Alertmanager v0.34.1 linux/amd64 digest changed")
+          '
+          docker pull --platform linux/amd64 "$alert_ref"
+          docker image inspect "$alert_ref" | python3 -c '
+          import json, sys
+          rows=json.load(sys.stdin)
+          expected="prom/alertmanager@sha256:84967b9b7ba45e38a9278d3e594305f43d4993c310df3905b51138b816c365f3"
+          assert len(rows)==1 and rows[0]["Os"]=="linux" and rows[0]["Architecture"]=="amd64"
+          assert expected in rows[0]["RepoDigests"] or "docker.io/"+expected in rows[0]["RepoDigests"]
+          '
+          docker run --rm --pull never --platform linux/amd64 --network none \
+            --read-only --entrypoint /bin/alertmanager "$alert_ref" --version \
+            | grep -F 'version 0.34.1'
+          scan="$(mktemp "${RUNNER_TEMP}/pulseplate-alertmanager-scan.XXXXXX")"
+          wrong="$(mktemp "${RUNNER_TEMP}/pulseplate-alertmanager-wrong.XXXXXX")"
+          expired="$(mktemp "${RUNNER_TEMP}/pulseplate-alertmanager-expired.XXXXXX")"
+          negative_scan="$(mktemp "${RUNNER_TEMP}/pulseplate-alertmanager-negative-scan.XXXXXX")"
+          trap 'rm -f -- "$scan" "$wrong" "$expired" "$negative_scan"' EXIT
+          docker run --rm --pull never --platform linux/amd64 --network none \
+            --read-only --user 65534:65534 --cap-drop ALL \
+            --security-opt no-new-privileges:true --entrypoint /bin/amtool \
+            --mount "type=bind,source=${GITHUB_WORKSPACE}/deploy/alertmanager/alertmanager.yml,target=/etc/alertmanager/alertmanager.yml,readonly" \
+            "$alert_ref" check-config /etc/alertmanager/alertmanager.yml
+          "$TRIVY_BIN" image --scanners vuln,secret --format json \
+            --pkg-types os,library --severity CRITICAL,HIGH --exit-code 0 \
+            --timeout 15m --output "$scan" "$alert_ref"
+          verify_alertmanager_inventory() {
+            python3 - "$1" <<'PY'
+          import json, sys
+          data=json.load(open(sys.argv[1], encoding="utf-8"))
+          if any(r.get("Secrets") for r in data.get("Results", [])):
+              raise SystemExit("Alertmanager scan contains unexpected secret findings")
+          found=[(r.get("Target"), v.get("VulnerabilityID"), (v.get("PkgIdentifier") or {}).get("PURL"))
+                 for r in data.get("Results", []) for v in (r.get("Vulnerabilities") or [])]
+          expected={(target, "CVE-2026-84445", "pkg:golang/google.golang.org/grpc@v1.83.1")
+                    for target in ("bin/alertmanager", "bin/amtool")}
+          if set(found) != expected or len(found) != len(expected):
+              raise SystemExit("Unsuppressed Alertmanager finding inventory changed")
+          PY
+          }
+          verify_alertmanager_inventory "$scan"
+          "$TRIVY_BIN" image --scanners vuln,secret --format table \
+            --pkg-types os,library --severity CRITICAL,HIGH --exit-code 1 \
+            --timeout 15m --ignorefile "$ignore" "$alert_ref"
+          sed 's|pkg:golang/google.golang.org/grpc@v1.83.1|pkg:golang/google.golang.org/grpc@v1.83.0|' "$ignore" > "$wrong"
+          sed 's/expired_at: 2026-10-24/expired_at: 2026-01-01/' "$ignore" > "$expired"
+          for negative in "$wrong" "$expired"; do
+            : > "$negative_scan"
+            "$TRIVY_BIN" image --scanners vuln,secret --format json \
+              --pkg-types os,library --severity CRITICAL,HIGH --exit-code 0 \
+              --timeout 15m --ignorefile "$negative" --output "$negative_scan" "$alert_ref"
+            verify_alertmanager_inventory "$negative_scan"
+          done
+
+      - name: Prove staging environment label reaches Alertmanager despite forged metric label
+        env:
+          PROMETHEUS_RUNTIME_REF: ${{ steps.prometheus-image.outputs.runtime_ref }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          from tempfile import TemporaryDirectory
+          import json
+          import os
+          import re
+          import shutil
+          import subprocess
+          import time
+
+          docker = shutil.which("docker")
+          if docker is None:
+              raise SystemExit("Docker CLI is unavailable")
+          run_id = os.environ["GITHUB_RUN_ID"]
+          attempt = os.environ["GITHUB_RUN_ATTEMPT"]
+          if not re.fullmatch(r"[0-9]+", run_id) or not re.fullmatch(r"[0-9]+", attempt):
+              raise SystemExit("Invalid bounded OBS2A CI resource identity")
+          name = f"pulseplate-obs2a-ci-{run_id}-{attempt}"
+          app, manager, prometheus = (f"{name}-{suffix}" for suffix in ("app", "am", "prom"))
+          alert_ref = "prom/alertmanager@sha256:84967b9b7ba45e38a9278d3e594305f43d4993c310df3905b51138b816c365f3"
+          prom_ref = os.environ["PROMETHEUS_RUNTIME_REF"]
+          root = Path(os.environ["GITHUB_WORKSPACE"])
+          created: list[str] = []
+          network_created = False
+
+          def call(arguments: list[str]) -> subprocess.CompletedProcess[str]:
+              return subprocess.run([docker, *arguments], text=True, capture_output=True, check=False)
+
+          def require(arguments: list[str]) -> str:
+              result = call(arguments)
+              if result.returncode:
+                  raise RuntimeError(f"Owned OBS2A Docker command failed: {arguments[:3]}: {result.stderr[-800:]}")
+              return result.stdout
+
+          with TemporaryDirectory(prefix="pulseplate-obs2a-label-proof-") as directory:
+              temporary = Path(directory)
+              (temporary / "www").mkdir()
+              (temporary / "www/metrics").write_text(
+                  '# TYPE http_requests_total counter\n'
+                  'http_requests_total{method="POST",route="/api/v1/premium/bmr",status="200",environment="production"} 1\n',
+                  encoding="utf-8",
+              )
+              original = (root / "deploy/prometheus/prometheus.yml").read_text(encoding="utf-8")
+              changes = (
+                  ("scrape_interval: 30s", "scrape_interval: 2s"),
+                  ("scrape_timeout: 10s", "scrape_timeout: 1s"),
+                  ("evaluation_interval: 30s", "evaluation_interval: 2s"),
+                  ("    metrics_path: /metrics\n", "    metrics_path: /metrics\n    fallback_scrape_protocol: PrometheusText0.0.4\n"),
+              )
+              config = original
+              for before, after in changes:
+                  if config.count(before) != 1:
+                      raise SystemExit("Synthetic Prometheus timing or exporter seam changed")
+                  config = config.replace(before, after, 1)
+              (temporary / "prometheus.yml").write_text(config, encoding="utf-8")
+              (temporary / "alertmanager.yml").write_text(
+                  "route:\n  receiver: sink\n  group_wait: 0s\nreceivers:\n  - name: sink\n",
+                  encoding="utf-8",
+              )
+              (temporary / "key").write_text("synthetic-only", encoding="ascii")
+              (temporary / "key").chmod(0o444)
+              primary_failure: BaseException | None = None
+              try:
+                  require(["network", "create", "--internal", name])
+                  network_created = True
+                  require(["run", "-d", "--pull", "never", "--platform", "linux/amd64", "--name", app,
+                           "--network", name, "--network-alias", "app", "--read-only", "--user", "65534:65534",
+                           "--mount", f"type=bind,source={temporary}/www,target=/www,readonly",
+                           "--entrypoint", "/bin/httpd", alert_ref, "-f", "-p", "8000", "-h", "/www"])
+                  created.append(app)
+                  require(["run", "-d", "--pull", "never", "--platform", "linux/amd64", "--name", manager,
+                           "--network", name, "--network-alias", "alertmanager", "--read-only", "--user", "65534:65534",
+                           "--tmpfs", "/alertmanager:size=16m,mode=0700,uid=65534,gid=65534,noexec,nosuid",
+                           "--mount", f"type=bind,source={temporary}/alertmanager.yml,target=/etc/alertmanager/alertmanager.yml,readonly",
+                           alert_ref, "--config.file=/etc/alertmanager/alertmanager.yml", "--storage.path=/alertmanager",
+                           "--cluster.listen-address="])
+                  created.append(manager)
+                  require(["run", "-d", "--pull", "never", "--platform", "linux/amd64", "--name", prometheus,
+                           "--network", name, "--network-alias", "prometheus", "--read-only", "--user", "65532:65532",
+                           "--tmpfs", "/prometheus:size=64m,mode=0700,uid=65532,gid=65532,noexec,nosuid",
+                           "--mount", f"type=bind,source={temporary}/prometheus.yml,target=/etc/prometheus/prometheus.yml,readonly",
+                           "--mount", f"type=bind,source={root}/deploy/prometheus/alias-alerts.yml,target=/etc/prometheus/alias-alerts.yml,readonly",
+                           "--mount", f"type=bind,source={temporary}/key,target=/run/secrets/pulseplate_metrics_scrape_key,readonly",
+                           "-e", "PULSEPLATE_ENVIRONMENT=staging", prom_ref,
+                           "--config.file=/etc/prometheus/prometheus.yml", "--storage.tsdb.path=/prometheus",
+                           "--web.listen-address=:9090"])
+                  created.append(prometheus)
+                  deadline = time.monotonic() + 90
+                  while time.monotonic() < deadline:
+                      for container in created:
+                          state = call(["inspect", "--format", "{{.State.Running}}", container])
+                          if state.returncode or state.stdout.strip() != "true":
+                              raise RuntimeError(f"Owned OBS2A container exited: {container}: {call(['logs', '--tail', '20', container]).stderr[-800:]}")
+                      response = call(["exec", manager, "/bin/wget", "-q", "-T", "5", "-O", "-",
+                                       "http://127.0.0.1:9093/api/v2/alerts"])
+                      if response.returncode == 0:
+                          matches = [item for item in json.loads(response.stdout)
+                                     if item.get("labels", {}).get("alertname") == "PulsePlateAliasRecentPost"]
+                          if matches:
+                              labels = matches[0]["labels"]
+                              if labels.get("environment") != "staging" or labels.get("route") != "/api/v1/premium/bmr":
+                                  raise RuntimeError("Forged metric environment reached Alertmanager")
+                              metric = require(["exec", manager, "/bin/wget", "-q", "-T", "5", "-O", "-",
+                                                "http://prometheus:9090/api/v1/query?query=http_requests_total"])
+                              series = json.loads(metric)["data"]["result"]
+                              if not any(item["metric"].get("route") == "/api/v1/premium/bmr"
+                                         and "environment" not in item["metric"] for item in series):
+                                  raise RuntimeError("Forged input label was not dropped before ingestion")
+                              print("PASS: forged production metric label dropped; staging alert label reached Alertmanager")
+                              break
+                      time.sleep(1)
+                  else:
+                      raise RuntimeError("Bounded native Alertmanager label proof timed out")
+              except BaseException as error:
+                  primary_failure = error
+                  raise
+              finally:
+                  cleanup_errors = []
+                  for container in reversed(created):
+                      if call(["stop", container]).returncode or call(["rm", container]).returncode:
+                          cleanup_errors.append(container)
+                  if network_created and call(["network", "rm", name]).returncode:
+                      cleanup_errors.append(name)
+                  if cleanup_errors:
+                      if primary_failure is None:
+                          raise RuntimeError(f"Owned OBS2A cleanup failed: {cleanup_errors}")
+                      print(f"Owned OBS2A cleanup also failed: {cleanup_errors}", file=__import__("sys").stderr)
+          PY
 
       - name: Prove synthetic non-root header and named-volume runtime
         env:
@@ -1002,7 +1208,7 @@ jobs:
       mountpoint_path: ${{ steps.postgres-contract.outputs.mountpoint_path }}
     steps:
       - name: Checkout immutable PostgreSQL image contracts
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
@@ -1027,7 +1233,7 @@ jobs:
               raise SystemExit("PostgreSQL Containerfile must be one regular file")
           manifest_bytes = manifest_path.read_bytes()
           if hashlib.sha256(manifest_bytes).hexdigest() != (
-              "f5695851db7e29f4f3d70f202655ca474eddaabc6aecfb9725a4783ca09e55ce"
+              "9aa310913af9799c39182428e0170b173fe2144367b302d7d2cafd87c93c03b2"
           ):
               raise SystemExit("PostgreSQL image manifest bytes drifted")
           manifest = json.loads(manifest_bytes)
@@ -1036,12 +1242,12 @@ jobs:
               "repository": "ghcr.io/katsiarynakavaleuskaya/pulseplate",
               "tag": "postgres-15.19-pgvector0.8.6-alpine3.23",
               "platform": "linux/amd64",
-              "platform_manifest_digest": "sha256:06c914735c70f82424a2a9b1e57790590a21d0fbfe250504ff79a1cca2559380",
-              "config_digest": "sha256:c822c68e22d0358e66cee17e06f7b3ece5d1538cb8b607c1376b59620866ceff",
+              "platform_manifest_digest": "sha256:d4437ad4970b4099e4cb7d05b7fa625c7e6959949d1374f1f2d4bd4149ae5fa3",
+              "config_digest": "sha256:643c5c00d70c37d83a0ab6db8b0996e4c03fb82c4769a45b03eef0cf3ee2abd5",
               "source_date_epoch": "1785349734",
-              "containerfile_sha256": "sha256:7820095e552a9a5aeb1709563fb47cfe79307e1954af8eda58829180d28c183c",
-              "builder_apk_inputs_sha256": "sha256:d9c5cda673f9feb4f41990eb8051f0239a57436fcdcb265bc3b0f22726071dbd",
-              "builder_apk_index_sha256": "sha256:85417d819711b80f3507306e823850748ace65a081af14b0a0eb8f5d67bc5490",
+              "containerfile_sha256": "sha256:aae2bfb779a3139d402d1e0a70085ab5bd565e938c46dcab024bad817b6d5c42",
+              "builder_apk_inputs_sha256": "sha256:2fc2d58bb4eb48681e4dec665e461e860b8198d74bbf7771d4db32c205927739",
+              "builder_apk_index_sha256": "sha256:ecdb6930ca663e4484c5ea41bec6682889601892ec46eefd85f5a4745318d781",
               "builder_apk_input_count": "41",
               "buildkit_platform_manifest_digest": "sha256:040d34121c27906c4ff9ac152a30d52bf2c5d328d3bb748916bb3d2743c02528",
               "buildkit_version": "0.32.2",
@@ -1050,9 +1256,9 @@ jobs:
               "postgres_version": "15.19",
               "pgvector_version": "0.8.6",
               "mountpoint_layer_schema": "pulseplate.pgvector_mountpoint_layer.v1",
-              "mountpoint_layer_digest": "sha256:f5a1938bd1dfbe02232ddc8fad542445d8369541f3ebcacd5892c4e52abab124",
-              "mountpoint_layer_size": "154",
-              "mountpoint_layer_diff_id": "sha256:830c8272961c65f32876a884f52d80ad05cc4534a37bd0ecd4dafcf155f656fc",
+              "mountpoint_layer_digest": "sha256:4c539aa857412d283fe8d55b40227fbd17b9fd6f06834f81fd98ec6796ee7396",
+              "mountpoint_layer_size": "162",
+              "mountpoint_layer_diff_id": "sha256:8cb1ace7e0c1f48d719bbdf5b4cfe9705ef407c74a3567ddc4369a6d6f023a23",
               "mountpoint_layer_entry_count": "4",
               "mountpoint_uid": "70",
               "mountpoint_gid": "70",
@@ -1182,7 +1388,7 @@ jobs:
       changed: ${{ steps.classify.outputs.changed }}
     steps:
       - name: Checkout exact main history
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -1243,7 +1449,7 @@ jobs:
           --health-retries 12
     steps:
       - name: Checkout exact main compatibility source
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
@@ -1314,7 +1520,7 @@ jobs:
       packages: write
     steps:
       - name: Checkout exact trusted main source
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
@@ -1432,8 +1638,8 @@ jobs:
           : "${DOCKER_SCOUT_HUB_USER:?Docker Scout Hub user is required}"
           : "${DOCKER_SCOUT_HUB_PASSWORD:?Docker Scout Hub authentication is required}"
           test -f "$SCOUT_BIN" && test ! -L "$SCOUT_BIN" && test -x "$SCOUT_BIN"
-          runtime_base='registry://dhi.io/postgres@sha256:d94fee7e5e98fcb5cd58db6ad96fc6aa844f1af6dd56aba1f87d9f8e57a7a16d'
-          builder_base='registry://dhi.io/postgres@sha256:276224f2143616286f74af844e9508db1cd50d6393163cf9ec60940b2b90f134'
+          runtime_base='registry://dhi.io/postgres@sha256:3a241134f6d82eb6465622af948258e41806cfb4497e6c8f0f0a64ca6c4d34db'
+          builder_base='registry://dhi.io/postgres@sha256:74cde2c2febf7d7ddacfd3d23dbc66ea0fcbc1bdb9ae4b1ed654d717d203a2a5'
           "$SCOUT_BIN" attestation get \
             --predicate-type https://slsa.dev/provenance/v1 \
             --verify \
@@ -1461,12 +1667,12 @@ jobs:
               (
                   Path("dhi-postgres-runtime-provenance.json"),
                   "pkg:docker/dhi/postgres@15-alpine3.23&platform=linux/amd64",
-                  "d94fee7e5e98fcb5cd58db6ad96fc6aa844f1af6dd56aba1f87d9f8e57a7a16d",
+                  "3a241134f6d82eb6465622af948258e41806cfb4497e6c8f0f0a64ca6c4d34db",
               ),
               (
                   Path("dhi-postgres-builder-provenance.json"),
                   "pkg:docker/dhi/postgres@15-alpine3.23-dev&platform=linux/amd64",
-                  "276224f2143616286f74af844e9508db1cd50d6393163cf9ec60940b2b90f134",
+                  "74cde2c2febf7d7ddacfd3d23dbc66ea0fcbc1bdb9ae4b1ed654d717d203a2a5",
               ),
           )
           for path, expected_name, expected_digest in expected:
@@ -1667,7 +1873,7 @@ jobs:
               raise SystemExit("Reproduced PostgreSQL manifest bytes have the wrong digest")
           manifest = json.loads(manifest_bytes)
           layers = manifest.get("layers")
-          if not isinstance(layers, list) or len(layers) != 13:
+          if not isinstance(layers, list) or len(layers) != 16:
               raise SystemExit("Reproduced PostgreSQL layer count drifted")
           mountpoint_descriptor = layers[-1]
           expected_mountpoint_descriptor = {
@@ -1711,12 +1917,21 @@ jobs:
           expected_gid = int(os.environ["EXPECTED_MOUNTPOINT_GID"])
           expected_mode = int(os.environ["EXPECTED_MOUNTPOINT_MODE"], 8)
           expected_mtime = int(os.environ["SOURCE_DATE_EPOCH"])
+          expected_metadata = {
+              "var": (0, 0, 0o755),
+              "var/lib": (0, 0, 0o755),
+              "var/lib/postgresql": (70, 70, 0o750),
+              "var/lib/postgresql/data": (expected_uid, expected_gid, expected_mode),
+          }
+          if expected_paths != list(expected_metadata):
+              raise SystemExit("PostgreSQL mountpoint parent inventory drifted")
           for member in members:
+              member_uid, member_gid, member_mode = expected_metadata[member.name]
               if (
                   not member.isdir()
-                  or member.uid != expected_uid
-                  or member.gid != expected_gid
-                  or member.mode != expected_mode
+                  or member.uid != member_uid
+                  or member.gid != member_gid
+                  or member.mode != member_mode
                   or member.size != 0
                   or member.mtime != expected_mtime
                   or member.linkname
@@ -1735,7 +1950,7 @@ jobs:
           if (
               not isinstance(rootfs, dict)
               or not isinstance(rootfs.get("diff_ids"), list)
-              or len(rootfs["diff_ids"]) != 13
+              or len(rootfs["diff_ids"]) != 16
               or rootfs["diff_ids"][-1] != expected_mountpoint_diff_id
           ):
               raise SystemExit("PostgreSQL mountpoint layer diff ID drifted")
@@ -1793,15 +2008,19 @@ jobs:
             "$SOURCE_CONTEXT"
           test "$(docker image inspect "$final_tag" --format '{{.Os}}/{{.Architecture}}')" = \
             "linux/amd64"
-          test "$(docker image inspect "$final_tag" --format '{{.Id}}')" = \
-            "$EXPECTED_CONFIG_DIGEST"
+          loaded_image_id="$(docker image inspect "$final_tag" --format '{{.Id}}')"
+          if [ "$loaded_image_id" != "$EXPECTED_CONFIG_DIGEST" ] && \
+             [ "$loaded_image_id" != "$EXPECTED_PLATFORM_DIGEST" ]; then
+            echo "Loaded PostgreSQL image ID differs from its frozen config/platform tuple" >&2
+            exit 1
+          fi
           loaded_rootfs="$(docker image inspect "$final_tag" --format '{{json .RootFS.Layers}}')"
           python3 - "$loaded_rootfs" "$EXPECTED_MOUNTPOINT_LAYER_DIFF_ID" <<'PY'
           import json
           import sys
 
           layers = json.loads(sys.argv[1])
-          if not isinstance(layers, list) or len(layers) != 13:
+          if not isinstance(layers, list) or len(layers) != 16:
               raise SystemExit("Loaded PostgreSQL image rootfs cardinality drifted")
           if layers[-1] != sys.argv[2]:
               raise SystemExit("Loaded PostgreSQL image mountpoint diff ID drifted")
@@ -1854,8 +2073,8 @@ jobs:
           test -x "$TRIVY_BIN" && test ! -L "$TRIVY_BIN"
           test -f "$TRIVY_IGNORE_FILE" && test ! -L "$TRIVY_IGNORE_FILE" \
             && test ! -s "$TRIVY_IGNORE_FILE"
-          runtime_base='dhi.io/postgres@sha256:d94fee7e5e98fcb5cd58db6ad96fc6aa844f1af6dd56aba1f87d9f8e57a7a16d'
-          builder_base='dhi.io/postgres@sha256:276224f2143616286f74af844e9508db1cd50d6393163cf9ec60940b2b90f134'
+          runtime_base='dhi.io/postgres@sha256:3a241134f6d82eb6465622af948258e41806cfb4497e6c8f0f0a64ca6c4d34db'
+          builder_base='dhi.io/postgres@sha256:74cde2c2febf7d7ddacfd3d23dbc66ea0fcbc1bdb9ae4b1ed654d717d203a2a5'
           docker pull --platform linux/amd64 "$runtime_base"
           docker pull --platform linux/amd64 "$builder_base"
           scan_number=0
@@ -1899,6 +2118,9 @@ jobs:
           legacy_container_name="${prefix}-legacy-postgres"
           legacy_volume_name="${prefix}-legacy-data"
           legacy_image='postgres:15-alpine@sha256:a2c20749c564b4eb73a77bfda626f8a3cde1bbfae020fb97c616a00cdc1a2181'
+          prior_container_name="${prefix}-prior-postgres"
+          prior_volume_name="${prefix}-prior-data"
+          prior_image='ghcr.io/katsiarynakavaleuskaya/pulseplate:postgres-15.19-pgvector0.8.6-alpine3.23@sha256:06c914735c70f82424a2a9b1e57790590a21d0fbfe250504ff79a1cca2559380'
           database_name="pgvector_compat"
           database_user="pgvector_compat"
           database_password="pgvector_compat_test_password" # pragma: allowlist secret
@@ -1936,6 +2158,16 @@ jobs:
               exit 1
             fi
           }
+          base_parent_metadata="$(docker run --rm \
+            --platform linux/amd64 \
+            --user 70:70 \
+            --network none \
+            --cap-drop ALL \
+            --security-opt no-new-privileges:true \
+            --entrypoint /bin/sh \
+            dhi.io/postgres@sha256:3a241134f6d82eb6465622af948258e41806cfb4497e6c8f0f0a64ca6c4d34db \
+            -ec 'stat -c "%n %u:%g:%a" /var /var/lib /var/lib/postgresql')"
+          test "$base_parent_metadata" = $'/var 0:0:755\n/var/lib 0:0:755\n/var/lib/postgresql 70:70:750'
           if docker volume inspect "$volume_name" >/dev/null 2>&1; then
             echo "Synthetic fresh-volume name already exists" >&2
             exit 1
@@ -1950,7 +2182,7 @@ jobs:
             --entrypoint /bin/sh \
             --mount "type=volume,source=${volume_name},target=/var/lib/postgresql/data" \
             "$PGVECTOR_FINAL_LOCAL_TAG" \
-            -ec 'test "$(stat -c "%u:%g:%a" /var/lib/postgresql/data)" = "70:70:700"; test -z "$(find /var/lib/postgresql/data -mindepth 1 -print -quit)"'
+            -ec 'test "$(stat -c "%u:%g:%a" /var/lib/postgresql/data)" = "70:70:700"; mountpoint_entry="$(find /var/lib/postgresql/data -mindepth 1 -print -quit)"; test -z "$mountpoint_entry"'
           start_postgres "$container_name" "$volume_name" "$PGVECTOR_FINAL_LOCAL_TAG"
           docker exec "$container_name" psql \
             --username "$database_user" --dbname "$database_name" \
@@ -2030,6 +2262,50 @@ jobs:
           test "$transitioned_sentinel" = "legacy-persistent"
           test "$transitioned_vector" = "0.8.6"
           test "$transitioned_postgres" = "postgres (PostgreSQL) 15.19"
+          docker rm -f "$legacy_container_name" >/dev/null
+
+          docker pull --platform linux/amd64 "$prior_image"
+          if docker volume inspect "$prior_volume_name" >/dev/null 2>&1; then
+            echo "Synthetic prior-volume name already exists" >&2
+            exit 1
+          fi
+          docker volume create "$prior_volume_name" >/dev/null
+          start_postgres "$prior_container_name" "$prior_volume_name" "$prior_image"
+          docker exec "$prior_container_name" psql \
+            --username "$database_user" --dbname "$database_name" \
+            --set ON_ERROR_STOP=1 \
+            --command 'CREATE EXTENSION vector;' \
+            --command 'CREATE TABLE pulseplate_prior_sentinel (value text PRIMARY KEY, embedding vector(3));' \
+            --command "INSERT INTO pulseplate_prior_sentinel VALUES ('prior-persistent', '[1,2,3]');"
+          prior_oid="$(docker exec "$prior_container_name" psql \
+            --username "$database_user" --dbname "$database_name" \
+            --set ON_ERROR_STOP=1 --tuples-only --no-align \
+            --command 'SELECT oid FROM pg_database WHERE datname = current_database();')"
+          [[ "$prior_oid" =~ ^[0-9]+$ ]]
+          docker rm -f "$prior_container_name" >/dev/null
+          start_postgres "$prior_container_name" "$prior_volume_name" "$PGVECTOR_FINAL_LOCAL_TAG"
+          prior_transitioned_oid="$(docker exec "$prior_container_name" psql \
+            --username "$database_user" --dbname "$database_name" \
+            --set ON_ERROR_STOP=1 --tuples-only --no-align \
+            --command 'SELECT oid FROM pg_database WHERE datname = current_database();')"
+          prior_transitioned_data="$(docker exec "$prior_container_name" psql \
+            --username "$database_user" --dbname "$database_name" \
+            --set ON_ERROR_STOP=1 --tuples-only --no-align \
+            --command "SELECT value || ':' || embedding::text FROM pulseplate_prior_sentinel;")"
+          prior_transitioned_vector="$(docker exec "$prior_container_name" psql \
+            --username "$database_user" --dbname "$database_name" \
+            --set ON_ERROR_STOP=1 --tuples-only --no-align \
+            --command "SELECT extversion FROM pg_extension WHERE extname = 'vector';")"
+          prior_vector_distance="$(docker exec "$prior_container_name" psql \
+            --username "$database_user" --dbname "$database_name" \
+            --set ON_ERROR_STOP=1 --tuples-only --no-align \
+            --command "SELECT embedding <-> '[1,2,3]'::vector FROM pulseplate_prior_sentinel;")"
+          prior_transitioned_postgres="$(docker exec "$prior_container_name" postgres --version)"
+          test "$prior_transitioned_oid" = "$prior_oid"
+          test "$prior_transitioned_data" = "prior-persistent:[1,2,3]"
+          test "$prior_transitioned_vector" = "0.8.6"
+          test "$prior_vector_distance" = "0"
+          test "$prior_transitioned_postgres" = "postgres (PostgreSQL) 15.19"
 
       - name: Verify existing public GHCR package identity before candidate write
         env:
@@ -2415,7 +2691,8 @@ jobs:
               && [[ "${GITHUB_RUN_ATTEMPT:-}" =~ ^[0-9]+$ ]]; then
               for synthetic_container in \
                 "${prefix}-postgres" \
-                "${prefix}-legacy-postgres"; do
+                "${prefix}-legacy-postgres" \
+                "${prefix}-prior-postgres"; do
                 if inventory_contains "$synthetic_container" docker container ls --all --format '{{.Names}}'; then
                   if ! docker rm -f "$synthetic_container" >/dev/null; then
                     cleanup_failed=1
@@ -2424,7 +2701,8 @@ jobs:
               done
               for synthetic_volume in \
                 "${prefix}-data" \
-                "${prefix}-legacy-data"; do
+                "${prefix}-legacy-data" \
+                "${prefix}-prior-data"; do
                 if inventory_contains "$synthetic_volume" docker volume ls --format '{{.Name}}'; then
                   if ! docker volume rm "$synthetic_volume" >/dev/null; then
                     cleanup_failed=1
@@ -2527,7 +2805,7 @@ jobs:
       packages: read
     steps:
       - name: Checkout immutable PostgreSQL admission contract
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -2822,7 +3100,7 @@ jobs:
       cancel-in-progress: false
     steps:
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
 
@@ -3191,6 +3469,8 @@ jobs:
             echo "prometheus_config_sha256=$(sha256sum deploy/prometheus/prometheus.yml | cut -d' ' -f1)"
             echo "prometheus_rules_sha256=$(sha256sum deploy/prometheus/alias-alerts.yml | cut -d' ' -f1)"
             echo "prometheus_image_manifest_sha256=$(sha256sum deploy/prometheus/image-manifest.json | cut -d' ' -f1)"
+            echo "alertmanager_config_sha256=$(sha256sum deploy/alertmanager/alertmanager.yml | cut -d' ' -f1)"
+            echo "alertmanager_trivy_ignore_sha256=$(sha256sum deploy/alertmanager/trivy-ignore.yaml | cut -d' ' -f1)"
             echo "postgres_image_manifest_sha256=$(sha256sum deploy/postgres-pgvector/image-manifest.json | cut -d' ' -f1)"
             echo "staging_caddyfile_sha256=$(sha256sum deploy/Caddyfile | cut -d' ' -f1)"
             echo "backup_helper_sha256=$(sha256sum scripts/ops/postgres_backup.sh | cut -d' ' -f1)"
@@ -3222,6 +3502,8 @@ jobs:
           PROMETHEUS_CONFIG_SHA256: ${{ steps.staging-contract.outputs.prometheus_config_sha256 }}
           PROMETHEUS_RULES_SHA256: ${{ steps.staging-contract.outputs.prometheus_rules_sha256 }}
           PROMETHEUS_IMAGE_MANIFEST_SHA256: ${{ steps.staging-contract.outputs.prometheus_image_manifest_sha256 }}
+          ALERTMANAGER_CONFIG_SHA256: ${{ steps.staging-contract.outputs.alertmanager_config_sha256 }}
+          ALERTMANAGER_TRIVY_IGNORE_SHA256: ${{ steps.staging-contract.outputs.alertmanager_trivy_ignore_sha256 }}
           POSTGRES_IMAGE_MANIFEST_SHA256: ${{ steps.staging-contract.outputs.postgres_image_manifest_sha256 }}
           STAGING_CADDYFILE_SHA256: ${{ steps.staging-contract.outputs.staging_caddyfile_sha256 }}
           BACKUP_HELPER_SHA256: ${{ steps.staging-contract.outputs.backup_helper_sha256 }}
@@ -3238,7 +3520,7 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
           fingerprint: ${{ secrets.SSH_HOST_STAGING_FINGERPRINT }}
-          envs: STAGING_DOMAIN,STAGING_IMAGE_REF,STAGING_CADDY_IMAGE_REF,DEPLOY_SCRIPT_SHA256,STAGING_COMPOSE_SHA256,PROMETHEUS_CONFIG_SHA256,PROMETHEUS_RULES_SHA256,PROMETHEUS_IMAGE_MANIFEST_SHA256,POSTGRES_IMAGE_MANIFEST_SHA256,STAGING_CADDYFILE_SHA256,BACKUP_HELPER_SHA256,RESTORE_HELPER_SHA256,STAGING_SECURITY_HELPER_SHA256,PGVECTOR_ATTESTATION_HELPER_SHA256,NATIVE_ATTESTATION_HELPER_SHA256,POSTGRES_HBA_SHA256,STAGING_STORAGE_SYSTEMD_SHA256,STAGING_BACKUP_SYSTEMD_SHA256,STAGING_BACKUP_TIMER_SHA256
+          envs: STAGING_DOMAIN,STAGING_IMAGE_REF,STAGING_CADDY_IMAGE_REF,DEPLOY_SCRIPT_SHA256,STAGING_COMPOSE_SHA256,PROMETHEUS_CONFIG_SHA256,PROMETHEUS_RULES_SHA256,PROMETHEUS_IMAGE_MANIFEST_SHA256,ALERTMANAGER_CONFIG_SHA256,ALERTMANAGER_TRIVY_IGNORE_SHA256,POSTGRES_IMAGE_MANIFEST_SHA256,STAGING_CADDYFILE_SHA256,BACKUP_HELPER_SHA256,RESTORE_HELPER_SHA256,STAGING_SECURITY_HELPER_SHA256,PGVECTOR_ATTESTATION_HELPER_SHA256,NATIVE_ATTESTATION_HELPER_SHA256,POSTGRES_HBA_SHA256,STAGING_STORAGE_SYSTEMD_SHA256,STAGING_BACKUP_SYSTEMD_SHA256,STAGING_BACKUP_TIMER_SHA256
           script: |
             set -euo pipefail
             cd /srv/pulseplate-staging
@@ -3264,6 +3546,12 @@ jobs:
             [ ! -L ./prometheus/image-manifest.json ]
             [ -f ./prometheus/image-manifest.json ]
             [ "$(sha256sum ./prometheus/image-manifest.json | cut -d' ' -f1)" = "$PROMETHEUS_IMAGE_MANIFEST_SHA256" ]
+            [ ! -L ./alertmanager/alertmanager.yml ]
+            [ -f ./alertmanager/alertmanager.yml ]
+            [ "$(sha256sum ./alertmanager/alertmanager.yml | cut -d' ' -f1)" = "$ALERTMANAGER_CONFIG_SHA256" ]
+            [ ! -L ./alertmanager/trivy-ignore.yaml ]
+            [ -f ./alertmanager/trivy-ignore.yaml ]
+            [ "$(sha256sum ./alertmanager/trivy-ignore.yaml | cut -d' ' -f1)" = "$ALERTMANAGER_TRIVY_IGNORE_SHA256" ]
             [ ! -L ./postgres-pgvector/image-manifest.json ]
             [ -f ./postgres-pgvector/image-manifest.json ]
             [ "$(sha256sum ./postgres-pgvector/image-manifest.json | cut -d' ' -f1)" = "$POSTGRES_IMAGE_MANIFEST_SHA256" ]
@@ -3321,6 +3609,8 @@ jobs:
           PROMETHEUS_CONFIG_SHA256: ${{ steps.staging-contract.outputs.prometheus_config_sha256 }}
           PROMETHEUS_RULES_SHA256: ${{ steps.staging-contract.outputs.prometheus_rules_sha256 }}
           PROMETHEUS_IMAGE_MANIFEST_SHA256: ${{ steps.staging-contract.outputs.prometheus_image_manifest_sha256 }}
+          ALERTMANAGER_CONFIG_SHA256: ${{ steps.staging-contract.outputs.alertmanager_config_sha256 }}
+          ALERTMANAGER_TRIVY_IGNORE_SHA256: ${{ steps.staging-contract.outputs.alertmanager_trivy_ignore_sha256 }}
           POSTGRES_IMAGE_MANIFEST_SHA256: ${{ steps.staging-contract.outputs.postgres_image_manifest_sha256 }}
           STAGING_CADDYFILE_SHA256: ${{ steps.staging-contract.outputs.staging_caddyfile_sha256 }}
           BACKUP_HELPER_SHA256: ${{ steps.staging-contract.outputs.backup_helper_sha256 }}
@@ -3337,7 +3627,7 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
           fingerprint: ${{ secrets.SSH_HOST_STAGING_FINGERPRINT }}
-          envs: GHCR_USER,GHCR_TOKEN,STAGING_DOMAIN,STAGING_IMAGE_REF,STAGING_CADDY_IMAGE_REF,DEPLOY_SCRIPT_SHA256,STAGING_COMPOSE_SHA256,PROMETHEUS_CONFIG_SHA256,PROMETHEUS_RULES_SHA256,PROMETHEUS_IMAGE_MANIFEST_SHA256,POSTGRES_IMAGE_MANIFEST_SHA256,STAGING_CADDYFILE_SHA256,BACKUP_HELPER_SHA256,RESTORE_HELPER_SHA256,STAGING_SECURITY_HELPER_SHA256,PGVECTOR_ATTESTATION_HELPER_SHA256,NATIVE_ATTESTATION_HELPER_SHA256,POSTGRES_HBA_SHA256,STAGING_STORAGE_SYSTEMD_SHA256,STAGING_BACKUP_SYSTEMD_SHA256,STAGING_BACKUP_TIMER_SHA256
+          envs: GHCR_USER,GHCR_TOKEN,STAGING_DOMAIN,STAGING_IMAGE_REF,STAGING_CADDY_IMAGE_REF,DEPLOY_SCRIPT_SHA256,STAGING_COMPOSE_SHA256,PROMETHEUS_CONFIG_SHA256,PROMETHEUS_RULES_SHA256,PROMETHEUS_IMAGE_MANIFEST_SHA256,ALERTMANAGER_CONFIG_SHA256,ALERTMANAGER_TRIVY_IGNORE_SHA256,POSTGRES_IMAGE_MANIFEST_SHA256,STAGING_CADDYFILE_SHA256,BACKUP_HELPER_SHA256,RESTORE_HELPER_SHA256,STAGING_SECURITY_HELPER_SHA256,PGVECTOR_ATTESTATION_HELPER_SHA256,NATIVE_ATTESTATION_HELPER_SHA256,POSTGRES_HBA_SHA256,STAGING_STORAGE_SYSTEMD_SHA256,STAGING_BACKUP_SYSTEMD_SHA256,STAGING_BACKUP_TIMER_SHA256
           script: |
             set -euo pipefail
             cd /srv/pulseplate-staging
@@ -3363,6 +3653,12 @@ jobs:
             [ ! -L ./prometheus/image-manifest.json ]
             [ -f ./prometheus/image-manifest.json ]
             [ "$(sha256sum ./prometheus/image-manifest.json | cut -d' ' -f1)" = "$PROMETHEUS_IMAGE_MANIFEST_SHA256" ]
+            [ ! -L ./alertmanager/alertmanager.yml ]
+            [ -f ./alertmanager/alertmanager.yml ]
+            [ "$(sha256sum ./alertmanager/alertmanager.yml | cut -d' ' -f1)" = "$ALERTMANAGER_CONFIG_SHA256" ]
+            [ ! -L ./alertmanager/trivy-ignore.yaml ]
+            [ -f ./alertmanager/trivy-ignore.yaml ]
+            [ "$(sha256sum ./alertmanager/trivy-ignore.yaml | cut -d' ' -f1)" = "$ALERTMANAGER_TRIVY_IGNORE_SHA256" ]
             [ ! -L ./postgres-pgvector/image-manifest.json ]
             [ -f ./postgres-pgvector/image-manifest.json ]
             [ "$(sha256sum ./postgres-pgvector/image-manifest.json | cut -d' ' -f1)" = "$POSTGRES_IMAGE_MANIFEST_SHA256" ]
@@ -3449,7 +3745,7 @@ jobs:
       contents: read
     steps:
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Build release-control-plane fixture evidence
         run: |
@@ -3568,7 +3864,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
 
@@ -3656,7 +3952,7 @@ jobs:
       cancel-in-progress: true
     steps:
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Free disk space (Ubuntu hosted runner)
         run: |
@@ -3946,7 +4242,7 @@ jobs:
       contents: read
     steps:
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
 
@@ -4099,7 +4395,7 @@ jobs:
       cancel-in-progress: false
     steps:
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Encode deploy script for SSH
         id: deploy-script
@@ -4145,7 +4441,9 @@ jobs:
             scripts/redeploy_caddy.sh \
             scripts/ops/postgres_backup.sh \
             deploy/postgres-pgvector/image-manifest.json \
-            deploy/prometheus/alias-alerts.yml
+            deploy/prometheus/alias-alerts.yml \
+            deploy/alertmanager/alertmanager.yml \
+            deploy/alertmanager/trivy-ignore.yaml
 
           scp -i "$key_path" \
             "$archive_path" \
@@ -4202,7 +4500,7 @@ jobs:
       cancel-in-progress: false
     steps:
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Preflight production deploy on self-hosted runner
         shell: bash

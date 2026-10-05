@@ -30,11 +30,11 @@ def _review_dir() -> Path:
     return base
 
 
-DISCUSSION_THREAD_PASS_HEADING = "## Discussion Thread Pass"  # nosec B105: doc heading (remove-by: 2026-09-30, ref: PR-main-nightly-nosec-ttl)
+DISCUSSION_THREAD_HEADING = "## Discussion Thread Pass"
 # Canonical artifact uses ##; PR-body mirror/fallback may use ### (AGENTS.md)
 FIXED_MAPPING_HEADINGS = ("## Fixed in Commit Mapping", "### Fixed in Commit Mapping")
 
-CHECKBOX_DISCUSSION_PASS = "- [x] Discussion-thread pass completed"  # nosec B105: checkbox label (remove-by: 2026-09-30, ref: PR-main-nightly-nosec-ttl)
+CHECKBOX_DISCUSSION_COMPLETED = "- [x] Discussion-thread pass completed"
 CHECKBOX_FIXED_MAPPING = "- [x] Fixed in commit mapping completed"
 
 MAPPING_LINE_RE = re.compile(r"^\s*-\s+(https://github\.com/\S+)\s+->\s+([0-9a-f]{7,40})\s*$")
@@ -307,7 +307,7 @@ def _is_mapping_entries_preamble(lines: list[str]) -> bool:
     return (
         not _block_has_sha_mapping(lines)
         and any(line == "Commit: see mapping entries below" for line in lines)
-        and any(line.startswith("Disposition: FIXED") for line in lines)
+        and any(line == "Disposition: FIXED" for line in lines)
         and any(line.startswith("Evidence:") for line in lines)
     )
 
@@ -402,7 +402,7 @@ def extract_section(markdown_text: str, heading: str) -> str:
 
 def extract_discussion_thread_pass_section(markdown_text: str) -> str:
     """Extract ## Discussion Thread Pass section."""
-    return extract_section(markdown_text, DISCUSSION_THREAD_PASS_HEADING)
+    return extract_section(markdown_text, DISCUSSION_THREAD_HEADING)
 
 
 def extract_fixed_mapping_section(markdown_text: str) -> str:
@@ -422,7 +422,7 @@ def validate_discussion_thread_pass_section(section: str) -> list[str]:
         errors.append("Missing '## Discussion Thread Pass' section.")
         return errors
 
-    if CHECKBOX_DISCUSSION_PASS not in section:
+    if CHECKBOX_DISCUSSION_COMPLETED not in section:
         errors.append("Missing checkbox: '- [x] Discussion-thread pass completed'.")
 
     if CHECKBOX_FIXED_MAPPING not in section:
@@ -649,8 +649,8 @@ def render_phase2_body_mirror(pr_number: int, *, repository: str, ref: str) -> s
     artifact_url = f"https://github.com/{normalized_repository}/blob/{encoded_ref}/{artifact_path}"
     return "\n".join(
         [
-            DISCUSSION_THREAD_PASS_HEADING,
-            CHECKBOX_DISCUSSION_PASS,
+            DISCUSSION_THREAD_HEADING,
+            CHECKBOX_DISCUSSION_COMPLETED,
             CHECKBOX_FIXED_MAPPING,
             "",
             "### Fixed in Commit Mapping",

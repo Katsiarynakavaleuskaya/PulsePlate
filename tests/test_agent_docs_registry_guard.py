@@ -434,7 +434,7 @@ def _extract_dependency_security_sections(agents_md: str, lessons_md: str) -> tu
 # Only platform line-ending differences are normalized. A reviewed normative change
 # must update its document and this digest together.
 _EXPECTED_SECTION_DIGESTS = {
-    "AGENTS Security parent region": "ae55676b8b2d9d7d99ceae7910665c491f5acba992da36b3ef119f7ab32c1fb8",  # pragma: allowlist secret
+    "AGENTS Security parent region": "d1600d6987b05af35fdfd1585627dde68c6afd6f42f6dfa17db01dc48b0fd621",  # pragma: allowlist secret
     "engineering lesson 33": "538729c57c7c927a8418a231d79a340f790f8f55767ca55e9eebce152bbe9653",  # pragma: allowlist secret
     "historical evidence authority summary": "1f0975a81cc4ddd2e262854ac103e1f8aacbba4deff674ec6540a83c08cbb5a8",  # pragma: allowlist secret
 }
@@ -1387,10 +1387,16 @@ def test_bug_hunter_invocation_is_coordinator_scoped(surface: str) -> None:
 
 
 _SUPPRESSION_MUTATIONS = (
-    pytest.param("must be CVE-scoped", "may be CVE-scoped", id="optional-suppression"),
     pytest.param(
-        "one PR per CVE (doc + policy rule)",
-        "one PR may cover multiple CVEs with one policy rule",
+        "CVE-scoped security suppression PRs remain the\n  default.",
+        "CVE-scoped security suppression PRs may replace the\n  default.",
+        id="optional-suppression",
+    ),
+    pytest.param(
+        "Omitted or added cohort members fail admission; no blanket\n"
+        "  ignore or general waiver follows.",
+        "Omitted or added cohort members may be admitted; a blanket\n"
+        "  ignore or general waiver follows.",
         id="multi-CVE-suppression",
     ),
     pytest.param(
@@ -1972,7 +1978,7 @@ def test_dependency_security_policy_ignores_non_authority_prose_outside_region()
 def test_dependency_security_policy_preserves_suppression_scope(old: str, new: str) -> None:
     agents_md, lessons_md = _current_dependency_policy_docs()
     mutated_agents = _replace_unique(agents_md, old, new)
-    with pytest.raises(AssertionError):
+    with pytest.raises(AssertionError, match="AGENTS Security parent region changed"):
         _validate_dependency_security_policy(mutated_agents, lessons_md)
 
 

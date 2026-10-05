@@ -237,11 +237,14 @@ Canonical contract for shared CI/Docker/bootstrap paths:
   references do not churn in the same PR. Reintroducing entries requires
   security sign-off, exact package/version/filename metadata, pinned `sha256`,
   expiry, package-scoped mirror evidence, and a removal plan.
-- The installer may use an exact manifest wheel after pip reports both an exact
-  resolver miss and either a package-scoped retry/timeout against that approved
-  simple project path or a package-scoped approved-proxy health-probe timeout.
-  Plain resolver misses without package-scoped proxy evidence remain
-  proxy-health gated; generic proxy outages remain fail-closed.
+- The installer may use an exact manifest wheel after pip reports an exact
+  resolver miss and either a verified package-scoped pip retry/timeout against
+  that approved simple project path or a successful approved-proxy health probe
+  for the requested project. Every failed health probe, including a timeout or
+  HTTP 5xx, blocks fallback; a plain resolver miss alone grants no bypass.
+- Every CI job that depends directly on private-proxy health uses `always()`
+  and checks `needs.private_python_proxy_health.result` before substantive work.
+  Failed or cancelled health checks produce explicit downstream failures.
 - Production-target Docker workflows pass `PULSEPLATE_REQUIREMENTS_FILE=requirements-docker-runtime.txt`
   so the backend image stays on the Docker runtime surface instead of `requirements-ci-lite.txt`.
 
@@ -397,9 +400,10 @@ targets, missing direct owners, and any unrelated version movement.
 
 ### Add or remove a dependency graph entry
 
-`GRAPH_CHANGE_PACKAGES` remains fail-closed except for the single repository-owned
-`observability-refresh-2026-08-15` v1 transition. That record admits only removal
-of `importlib-metadata` and `zipp` while upgrading the exact seven declared
+`GRAPH_CHANGE_PACKAGES` remains fail-closed except for two fixed alternatives
+in the existing `python_dependency_graph_change_admissions.v1.json` carrier.
+The original `observability-refresh-2026-08-15` record admits only removal of
+`importlib-metadata` and `zipp` while upgrading the exact seven declared
 OpenTelemetry/Prometheus packages. It is bound to the four seeded lock byte
 digests and is consumed in exactly two ordered invocations:
 
@@ -432,6 +436,37 @@ existing rollback behavior, but the two-invocation four-lock sequence is not a
 crash-atomic transaction. This record creates no reusable authority for another
 dependency identity or future baseline; do not bypass it with direct pip or
 resolver commands.
+
+### Recorded virtualenv #2455 transition
+
+The fixed sibling `virtualenv_2455` selects only this ordered transaction:
+
+```bash
+LOCK_PROFILES="ci-lite dev aggregate" \
+  UPGRADE_PACKAGES="virtualenv==21.14.5" \
+  GRAPH_CHANGE_PACKAGES="python-discovery" \
+  GRAPH_CHANGE_ADMISSION="virtualenv-2455-21.14.5" \
+  make requirements-locks
+```
+
+This is the recorded one-time invocation over the original admitted seeds,
+not permission to replay from already-generated locks or rotate baselines.
+Its exact source/constraint/artifact tuple and profile relations admit the sole
+virtualenv replacement plus necessary discovery1.6.1 closure: dev addition,
+ci-lite1.2.1 and aggregate1.4.0 replacements. There is no discovery source pin or
+second upgrade target. Other pins/metadata remain unchanged; unsupported closure,
+wrong order, missing/mixed selector or stale bytes fail before acquisition.
+The legacy root and original observability rules remain valid independently.
+
+The original-base canonical replay, full delta and observed private install/
+actual hook seed limits are recorded in
+[the single virtualenv evidence owner](security/PR_2455_VIRTUALENV_REMEDIATION.md).
+Both complete three-lock Make results matched byte-for-byte locally; required
+final-material/CI/review/merge gates remain separate. Retain captured inputs,
+exact no-deps acquisition, credentialed HOME destruction, static native metadata
+checks, offline profile views, all-candidate preparation and existing rollback.
+No raw resolver, manual seed, arbitrary graph, future baseline or root security
+policy authority follows from this fixed alternative.
 
 ## CI/CD Integration
 

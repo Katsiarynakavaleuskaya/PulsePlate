@@ -134,6 +134,21 @@ REMEDIATION_FIXED_FLOORS = {
     "anyio": Version("4.14.2"),
     "httpcore2": Version("2.12.0"),
     "httpx2": Version("2.12.0"),
+    "urllib3": Version("2.8.0"),
+    "virtualenv": Version("21.14.4"),
+}
+
+VIRTUALENV_F_CUTOFF = {
+    "GHSA-3jhc-wjqf-5f2c": "<1.5",
+    "GHSA-597g-3phw-6986": "<20.36.1",
+    "GHSA-5vjq-rrrf-7h2q": "<=21.14.3",
+    "GHSA-8rjx-v5ww-45pp": "<=21.14.1,>=20.26.6",
+    "GHSA-94p9-xgh2-xp45": "<=21.7.11",
+    "GHSA-9h9j-4vrj-gf7g": "<=21.7.10",
+    "GHSA-c947-3pg5-gm8q": "<=21.14.1",
+    "GHSA-p58f-9548-mpm2": "<=21.7.12",
+    "GHSA-rqc4-2hc7-8c8v": "<20.26.6",
+    "GHSA-x78j-v8h9-3j2q": "<=21.7.11",
 }
 
 CURRENT_BLOCKED_VERSION_SPECIFIERS = {
@@ -142,6 +157,7 @@ CURRENT_BLOCKED_VERSION_SPECIFIERS = {
     "httpx2": f"<{REMEDIATION_FIXED_FLOORS['httpx2']}",
     "python-multipart": "<0.0.31",
     "setuptools": "<83.0.0",
+    "urllib3": f"<{REMEDIATION_FIXED_FLOORS['urllib3']}",
 }
 
 PIP_DIRECTIVE_PREFIXES = (
@@ -2802,6 +2818,8 @@ def _assert_remediated_dependency_surface(
     label = "AnyIO" if package == "anyio" else package
     _minima, carriers = _requirement_evidence_per_package(path)
     occurrences = carriers.get(package, ())
+    if package == "virtualenv":
+        assert "virtual-env" not in carriers, f"{path.name}: virtualenv alias is not canonical"
     if forbidden:
         assert not occurrences, f"{path.name}: {label} is outside its owned profiles"
         return
@@ -2816,6 +2834,10 @@ def _assert_remediated_dependency_surface(
         assert (
             len(specifiers) == 1 and specifiers[0].operator == "=="
         ), f"{path.name}: {label} lock requires exactly one == pin"
+    if package == "virtualenv":
+        assert all(
+            spec.operator != "===" for spec in specifiers
+        ), f"{path.name}: arbitrary equality cannot establish virtualenv range evidence"
     candidate = _min_version_for_pkg(requirement, package, pinned=pinned)
     assert candidate is not None, f"{path.name}: {label} requires a comparable floor or pin"
     version = Version(candidate)
@@ -3205,3 +3227,469 @@ def test_idna_consumer_requires_real_registry_discovery_parity(
         _git_command(["add", "requirements-extra.txt"])
     with pytest.raises(AssertionError, match="idna carrier inventory differs from registry"):
         test_http_client_idna_runtime_constraints_are_compatible()
+
+
+# Frozen advisory data, not an incident lock graph. Evidence owner:
+# docs/security/PR_2447_URLLIB3_REMEDIATION.md
+URLLIB3_F_CUTOFF = {
+    "GHSA-2xpw-w6gg-jr37": ("<2.6.0,>=1.0",),
+    "GHSA-34jh-p97f-mpxf": ("<=1.26.18", "<=2.2.1"),
+    "GHSA-38jv-5279-wg99": ("<2.6.3,>=1.22",),
+    "GHSA-48p4-8xcf-vxj5": ("<2.5.0,>=2.2.0",),
+    "GHSA-5phf-pp7p-vc2r": ("<=1.26.3,>=1.26.0",),
+    "GHSA-8988-9cw3-xx77": ("<2.8.0,>=1.26.0",),
+    "GHSA-g4mx-q9vg-27p4": ("<=2.0.6,>=2", "<=1.26.17"),
+    "GHSA-gh4c-6fx4-qh6g": ("<2.8.0,>=2.6.2",),
+    "GHSA-gm62-xv2j-4w53": ("<2.6.0,>=1.24",),
+    "GHSA-mf9v-mfxr-j63j": ("<2.7.0,>=2.6.0",),
+    "GHSA-pq67-6m6q-mj2v": ("<2.5.0",),
+    "GHSA-q2q7-5pp4-w6pg": ("<1.26.5",),
+    "GHSA-qccp-gfcp-xxvc": ("<2.7.0,>=1.23",),
+    "GHSA-v845-jxx5-vc9f": ("<=2.0.5,>2", "<=1.26.16"),
+    "GHSA-vxq7-64xx-v4gw": ("<2.8.0,>=1.10.3",),
+}
+
+URLLIB3_REQUIRED_COMPILE_PROFILES = frozenset(
+    {"runtime", "docker-runtime", "ci-lite", "dev", "aggregate", "rag-vector", "rag-vector-cpu"}
+)
+
+
+def _assert_urllib3_surface(path: Path, *, required: bool, pinned: bool) -> None:
+    """Reuse canonical carriers and check every retained advisory interval."""
+    if path.exists() or path.is_symlink():
+        assert (
+            not path.is_symlink() and path.is_file()
+        ), f"{path.name}: urllib3 carrier must be a regular non-symlink file"
+    _assert_remediated_dependency_surface(path, package="urllib3", required=required, pinned=pinned)
+    minima, carriers = _requirement_evidence_per_package(path)
+    occurrences = carriers.get("urllib3", ())
+    if not occurrences:
+        return
+    requirement = occurrences[0]
+    assert all(
+        spec.operator != "===" for spec in requirement.specifier
+    ), f"{path.name}: arbitrary equality cannot establish urllib3 range evidence"
+    version = minima["urllib3"]
+    for advisory, ranges in URLLIB3_F_CUTOFF.items():
+        for affected in ranges:
+            assert not SpecifierSet(affected).contains(
+                version, prereleases=True
+            ), f"{path.name}: urllib3 {version} matches {advisory} range {affected}"
+
+
+def test_urllib3_current_governed_surfaces_are_safe() -> None:
+    """Discover current owners and preserve optional-present validation."""
+    registered = registered_dependabot_requirement_carriers()
+    discovered = discover_dependabot_requirement_carriers(REPO_ROOT)
+    assert discovered == registered, "urllib3 carrier inventory differs from registry"
+    compiled = compiled_dependency_surfaces()
+    assert URLLIB3_REQUIRED_COMPILE_PROFILES <= {
+        surface.compile_profile for surface in compiled
+    }, "urllib3 required compile profile is missing from registry"
+    locks = {surface.lockfile for surface in compiled}
+    required = {"requirements.in"} | {
+        surface.lockfile
+        for surface in compiled
+        if surface.compile_profile in URLLIB3_REQUIRED_COMPILE_PROFILES
+    }
+    assert required <= discovered, "urllib3 required carrier is missing from inventory"
+    for name in sorted(discovered):
+        _assert_urllib3_surface(REPO_ROOT / name, required=name in required, pinned=name in locks)
+
+
+@pytest.mark.parametrize(
+    ("name", "text"),
+    [
+        ("requirements.txt", "# missing\n"),
+        ("requirements.txt", "urllib3==2.7.0\n"),
+        ("requirements.txt", "urllib3==1.26.3\n"),
+        ("requirements.txt", "urllib3==2.8.0rc1\n"),
+        ("requirements.txt", "urllib3==2.8.0.dev1\n"),
+        ("requirements.txt", "urllib3==2.8.0\nURLLIB3==2.8.0\n"),
+        ("requirements.txt", "urllib3==2.*\n"),
+        ("requirements.txt", "urllib3>=2.8.0\n"),
+        ("requirements.txt", "urllib3===2.8.0\n"),
+        ("requirements.txt", 'urllib3==2.8.0; python_version < "0"\n'),
+        ("requirements.txt", "urllib3[extra]==2.8.0\n"),
+        ("requirements.in", "urllib3\n"),
+        ("requirements.in", "urllib3>=2.7.0,<3\n"),
+        ("requirements.in", "urllib3>=2.8.0,!=2.8.0,<3\n"),
+        ("requirements.in", "urllib3>=2.8.0,===2.8.0\n"),
+    ],
+)
+def test_urllib3_surface_rejects_unsafe_or_noncanonical_carriers(
+    tmp_path: Path, name: str, text: str
+) -> None:
+    """Challenge complete carriers, including the exclusive-boundary prerelease gap."""
+    path = tmp_path / name
+    path.write_text(text, encoding="utf-8")
+    with pytest.raises((AssertionError, InvalidVersion)):
+        _assert_urllib3_surface(path, required=True, pinned=name.endswith(".txt"))
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "urllib3==2..8.0\n",
+        "urllib3 @ https://example.invalid/urllib3.whl\n",
+        "-e git+https://example.invalid/urllib3.git\n",
+    ],
+)
+def test_urllib3_surface_rejects_malformed_url_or_editable_carriers(
+    tmp_path: Path, text: str
+) -> None:
+    """Use the existing fail-closed requirement parser for invalid sources."""
+    path = tmp_path / "requirements.txt"
+    path.write_text(text, encoding="utf-8")
+    with pytest.raises(pytest.fail.Exception):
+        _assert_urllib3_surface(path, required=True, pinned=True)
+
+
+@pytest.mark.parametrize(
+    ("name", "text", "required", "pinned"),
+    [
+        ("requirements.txt", "urllib3==2.8.1\n", True, True),
+        ("requirements.txt", "urllib3==2.9.0\n", True, True),
+        ("requirements.in", "urllib3>=2.8.0,<3.0.0\n", True, False),
+        ("requirements.in", "urllib3>=2.9.0,<3.0.0\n", True, False),
+        ("requirements-evals.txt", "# optional absence\n", False, True),
+        ("requirements-data.txt", "urllib3==2.8.1\n", False, True),
+    ],
+)
+def test_urllib3_surface_allows_future_versions_and_optional_absence(
+    tmp_path: Path, name: str, text: str, required: bool, pinned: bool
+) -> None:
+    """Permit later authorized safe versions without freezing the incident pin."""
+    path = tmp_path / name
+    path.write_text(text, encoding="utf-8")
+    _assert_urllib3_surface(path, required=required, pinned=pinned)
+
+
+@pytest.mark.parametrize(
+    "lockfile", ("requirements-test.txt", "requirements-data.txt", "requirements-evals.txt")
+)
+@pytest.mark.parametrize(
+    "text",
+    (
+        "urllib3==2.7.0\n",
+        "urllib3==2.8.0rc1\n",
+        "urllib3==2.8.0\nURLLIB3==2.8.0\n",
+        "urllib3==2..8.0\n",
+        "urllib3 @ https://example.invalid/urllib3.whl\n",
+    ),
+)
+def test_urllib3_consumer_rejects_unsafe_or_malformed_present_optional_carriers(
+    idna_consumer_repo: Path, lockfile: str, text: str
+) -> None:
+    """Reuse the existing tracked carrier fixture to exercise the actual consumer."""
+    (idna_consumer_repo / lockfile).write_text(text, encoding="utf-8")
+    with pytest.raises((AssertionError, pytest.fail.Exception)):
+        test_urllib3_current_governed_surfaces_are_safe()
+
+
+@pytest.mark.parametrize(
+    "lockfile", ("requirements-test.txt", "requirements-data.txt", "requirements-evals.txt")
+)
+@pytest.mark.parametrize("text", ("# optional absence\n", "urllib3==2.9.0\n"))
+def test_urllib3_consumer_allows_optional_absence_and_future_safe_pins(
+    idna_consumer_repo: Path, lockfile: str, text: str
+) -> None:
+    """Prove optional absence does not exempt a future present safe carrier."""
+    (idna_consumer_repo / lockfile).write_text(text, encoding="utf-8")
+    test_urllib3_current_governed_surfaces_are_safe()
+
+
+@pytest.mark.parametrize("mutation", ("omit-registered", "add-unregistered"))
+def test_urllib3_consumer_requires_registry_discovery_parity(
+    idna_consumer_repo: Path, mutation: str
+) -> None:
+    """Exercise real indexed inventory changes in the existing temporary fixture."""
+    if mutation == "omit-registered":
+        _git_command(["rm", "--cached", "requirements-all.txt"])
+    else:
+        (idna_consumer_repo / "requirements-extra.txt").write_text(
+            "urllib3==2.8.0\n", encoding="utf-8"
+        )
+        _git_command(["add", "requirements-extra.txt"])
+    with pytest.raises(AssertionError, match="urllib3 carrier inventory differs from registry"):
+        test_urllib3_current_governed_surfaces_are_safe()
+
+
+def test_urllib3_inventory_rejects_removed_required_profile(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Missing one formerly owned profile cannot collapse the universal postcondition."""
+    compiled = tuple(
+        surface
+        for surface in compiled_dependency_surfaces()
+        if surface.compile_profile != "rag-vector-cpu"
+    )
+    monkeypatch.setattr(f"{__name__}.compiled_dependency_surfaces", lambda: compiled)
+    with pytest.raises(AssertionError, match="urllib3 required compile profile is missing"):
+        test_urllib3_current_governed_surfaces_are_safe()
+
+
+def test_urllib3_surface_rejects_missing_file(tmp_path: Path) -> None:
+    """A missing carrier is failure rather than optional absence."""
+    with pytest.raises(pytest.fail.Exception, match="Missing requirement surface"):
+        _assert_urllib3_surface(tmp_path / "requirements.txt", required=False, pinned=True)
+
+
+@pytest.mark.parametrize("kind", ("symlink", "directory"))
+def test_urllib3_consumer_rejects_nonregular_indexed_carriers(
+    idna_consumer_repo: Path, kind: str
+) -> None:
+    """Canonical descriptor discovery rejects nonregular optional carrier paths."""
+    path = idna_consumer_repo / "requirements-data.txt"
+    path.unlink()
+    if kind == "symlink":
+        path.symlink_to(idna_consumer_repo / "requirements.txt")
+    else:
+        path.mkdir()
+    with pytest.raises(AssertionError, match="regular non-symlink"):
+        test_urllib3_current_governed_surfaces_are_safe()
+
+
+def test_urllib3_inventory_rejects_missing_required_source(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Registry parity cannot hide removal of the required authored source."""
+    missing_source = registered_dependabot_requirement_carriers() - {"requirements.in"}
+    monkeypatch.setattr(
+        f"{__name__}.registered_dependabot_requirement_carriers", lambda: missing_source
+    )
+    monkeypatch.setattr(
+        f"{__name__}.discover_dependabot_requirement_carriers", lambda _root: missing_source
+    )
+    with pytest.raises(AssertionError, match="urllib3 required carrier is missing"):
+        test_urllib3_current_governed_surfaces_are_safe()
+
+
+# Only tooling owners require this identity. Other current registered carriers
+# are checked whenever present, without adding a runtime dependency.
+VIRTUALENV_REQUIRED_COMPILE_PROFILES = frozenset({"ci-lite", "dev", "aggregate"})
+
+
+def test_virtualenv_current_governed_surfaces_are_safe() -> None:
+    """Check the current complete carrier universe against every frozen advisory."""
+    registered = registered_dependabot_requirement_carriers()
+    discovered = discover_dependabot_requirement_carriers(REPO_ROOT)
+    assert discovered == registered, "virtualenv carrier inventory differs from registry"
+    compiled = compiled_dependency_surfaces()
+    assert VIRTUALENV_REQUIRED_COMPILE_PROFILES <= {
+        surface.compile_profile for surface in compiled
+    }, "virtualenv required compile profile is missing from registry"
+    required = {"requirements-ci-lite.in", "requirements-dev.in"} | {
+        surface.lockfile
+        for surface in compiled
+        if surface.compile_profile in VIRTUALENV_REQUIRED_COMPILE_PROFILES
+    }
+    assert required <= discovered, "virtualenv required carrier is missing from inventory"
+    schema = _load_schema(SCHEMA_PATH)
+    assert "virtualenv" not in schema["min_versions"], "virtualenv must not force runtime presence"
+    assert schema["blocked_versions"]["virtualenv"] == sorted(
+        VIRTUALENV_F_CUTOFF.values()
+    ), "virtualenv schema must retain all ten advisory range members"
+    locks = {surface.lockfile for surface in compiled}
+    for name in sorted(discovered):
+        _assert_remediated_dependency_surface(
+            REPO_ROOT / name, package="virtualenv", required=name in required, pinned=name in locks
+        )
+
+
+@pytest.mark.parametrize(
+    "advisory,affected",
+    (
+        ("GHSA-3jhc-wjqf-5f2c", "1.4.9"),
+        ("GHSA-597g-3phw-6986", "20.36.0"),
+        ("GHSA-5vjq-rrrf-7h2q", "21.14.3"),
+        ("GHSA-8rjx-v5ww-45pp", "20.26.6"),
+        ("GHSA-94p9-xgh2-xp45", "21.7.11"),
+        ("GHSA-9h9j-4vrj-gf7g", "21.7.10"),
+        ("GHSA-c947-3pg5-gm8q", "21.14.1"),
+        ("GHSA-p58f-9548-mpm2", "21.7.12"),
+        ("GHSA-rqc4-2hc7-8c8v", "20.26.5"),
+        ("GHSA-x78j-v8h9-3j2q", "21.7.11"),
+    ),
+)
+def test_virtualenv_each_cutoff_advisory_rejects_affected_occurrence(
+    tmp_path: Path, advisory: str, affected: str
+) -> None:
+    """All F10 members matter, including the three base-inapplicable candidates."""
+    assert SpecifierSet(VIRTUALENV_F_CUTOFF[advisory]).contains(affected, prereleases=True)
+    path = tmp_path / "requirements.txt"
+    path.write_text(f"virtualenv=={affected}\n", encoding="utf-8")
+    with pytest.raises(AssertionError, match="matches blocked range"):
+        _assert_remediated_dependency_surface(
+            path, package="virtualenv", required=True, pinned=True
+        )
+
+
+@pytest.mark.parametrize(
+    "name,text",
+    (
+        ("requirements.txt", "# missing required identity\n"),
+        ("requirements.txt", "virtualenv==21.7.13\n"),
+        ("requirements.txt", "virtualenv==21.14.4rc1\n"),
+        ("requirements.txt", "virtualenv==21.14.4.dev1\n"),
+        ("requirements.txt", "virtualenv==21.14.5\nVirtualEnv==21.14.5\n"),
+        ("requirements.txt", "virtualenv==21.*\n"),
+        ("requirements.txt", "virtualenv>=21.14.5\n"),
+        ("requirements.txt", "virtualenv===21.14.5\n"),
+        ("requirements.txt", 'virtualenv==21.14.5; python_version < "0"\n'),
+        ("requirements.txt", "virtualenv[extra]==21.14.5\n"),
+        ("requirements.in", "virtualenv\n"),
+        ("requirements.in", "virtualenv>=21.14.3\n"),
+        ("requirements.in", "virtualenv>=21.14.4,!=21.14.4\n"),
+        ("requirements.in", "virtualenv>=21.14.4,===21.14.4\n"),
+        ("requirements-evals.txt", "virtual_env==21.14.5\n"),
+        ("requirements-evals.txt", "virtual.env==21.14.5\n"),
+        ("requirements-evals.txt", "virtual-env==21.14.5\n"),
+    ),
+)
+def test_virtualenv_surface_rejects_unsafe_or_noncanonical_carriers(
+    tmp_path: Path, name: str, text: str
+) -> None:
+    """Exercise complete carrier and native prerelease/version semantics."""
+    path = tmp_path / name
+    path.write_text(text, encoding="utf-8")
+    with pytest.raises((AssertionError, InvalidVersion)):
+        _assert_remediated_dependency_surface(
+            path,
+            package="virtualenv",
+            required=name != "requirements-evals.txt",
+            pinned=name.endswith(".txt"),
+        )
+
+
+@pytest.mark.parametrize(
+    "text",
+    (
+        "virtualenv==21..14.5\n",
+        "virtualenv @ https://example.invalid/virtualenv.whl\n",
+        "-e git+https://example.invalid/virtualenv.git\n",
+    ),
+)
+def test_virtualenv_surface_rejects_malformed_url_or_editable_carriers(
+    tmp_path: Path, text: str
+) -> None:
+    path = tmp_path / "requirements.txt"
+    path.write_text(text, encoding="utf-8")
+    with pytest.raises(pytest.fail.Exception):
+        _assert_remediated_dependency_surface(
+            path, package="virtualenv", required=True, pinned=True
+        )
+
+
+@pytest.mark.parametrize(
+    "name,text,required,pinned",
+    (
+        ("requirements.txt", "virtualenv==21.14.4\n", True, True),
+        ("requirements.txt", "virtualenv==21.14.5\n", True, True),
+        ("requirements.txt", "virtualenv==22.0.0\n", True, True),
+        ("requirements.in", "virtualenv>=21.14.4,<23\n", True, False),
+        ("requirements-evals.txt", "# optional absence\n", False, True),
+        ("requirements-all.txt", "virtualenv>=22.0.0\n", False, False),
+    ),
+)
+def test_virtualenv_surface_accepts_safe_future_versions_and_optional_absence(
+    tmp_path: Path, name: str, text: str, required: bool, pinned: bool
+) -> None:
+    """The head guard does not freeze the incident's exact chosen version."""
+    path = tmp_path / name
+    path.write_text(text, encoding="utf-8")
+    _assert_remediated_dependency_surface(
+        path, package="virtualenv", required=required, pinned=pinned
+    )
+
+
+@pytest.mark.parametrize(
+    "lockfile",
+    (
+        "requirements-test.txt",
+        "requirements-data.txt",
+        "requirements-evals.txt",
+        "requirements-all.txt",
+    ),
+)
+@pytest.mark.parametrize(
+    "text",
+    (
+        "virtualenv==21.14.3\n",
+        "virtualenv==21.14.4rc1\n",
+        "virtualenv==21..14.5\n",
+        "virtual_env==22.0.0\n",
+        "virtualenv @ https://example.invalid/virtualenv.whl\n",
+    ),
+)
+def test_virtualenv_consumer_rejects_unsafe_or_malformed_present_optional_carriers(
+    idna_consumer_repo: Path, lockfile: str, text: str
+) -> None:
+    """Drive the actual whole-universe consumer through existing indexed fixtures."""
+    (idna_consumer_repo / lockfile).write_text(text, encoding="utf-8")
+    with pytest.raises((AssertionError, pytest.fail.Exception)):
+        test_virtualenv_current_governed_surfaces_are_safe()
+
+
+@pytest.mark.parametrize("lockfile", ("requirements-data.txt", "requirements-evals.txt"))
+@pytest.mark.parametrize("text", ("# optional absence\n", "virtualenv==22.0.0\n"))
+def test_virtualenv_consumer_accepts_optional_absence_and_future_safe_pins(
+    idna_consumer_repo: Path, lockfile: str, text: str
+) -> None:
+    (idna_consumer_repo / lockfile).write_text(text, encoding="utf-8")
+    test_virtualenv_current_governed_surfaces_are_safe()
+
+
+@pytest.mark.parametrize("mutation", ("omit-registered", "add-unregistered"))
+def test_virtualenv_consumer_requires_registry_discovery_parity(
+    idna_consumer_repo: Path, mutation: str
+) -> None:
+    if mutation == "omit-registered":
+        _git_command(["rm", "--cached", "requirements-all.txt"])
+    else:
+        (idna_consumer_repo / "requirements-extra.txt").write_text(
+            "virtualenv==22.0.0\n", encoding="utf-8"
+        )
+        _git_command(["add", "requirements-extra.txt"])
+    with pytest.raises(AssertionError, match="virtualenv carrier inventory differs from registry"):
+        test_virtualenv_current_governed_surfaces_are_safe()
+
+
+@pytest.mark.parametrize("profile", ("ci-lite", "dev", "aggregate"))
+def test_virtualenv_inventory_rejects_missing_required_compile_profile(
+    monkeypatch: pytest.MonkeyPatch, profile: str
+) -> None:
+    compiled = tuple(
+        surface for surface in compiled_dependency_surfaces() if surface.compile_profile != profile
+    )
+    monkeypatch.setattr(f"{__name__}.compiled_dependency_surfaces", lambda: compiled)
+    with pytest.raises(AssertionError, match="virtualenv required compile profile is missing"):
+        test_virtualenv_current_governed_surfaces_are_safe()
+
+
+@pytest.mark.parametrize("source", ("requirements-ci-lite.in", "requirements-dev.in"))
+def test_virtualenv_inventory_rejects_missing_required_source(
+    monkeypatch: pytest.MonkeyPatch, source: str
+) -> None:
+    missing = registered_dependabot_requirement_carriers() - {source}
+    monkeypatch.setattr(f"{__name__}.registered_dependabot_requirement_carriers", lambda: missing)
+    monkeypatch.setattr(
+        f"{__name__}.discover_dependabot_requirement_carriers", lambda _root: missing
+    )
+    with pytest.raises(AssertionError, match="virtualenv required carrier is missing"):
+        test_virtualenv_current_governed_surfaces_are_safe()
+
+
+def test_virtualenv_surface_rejects_missing_file(tmp_path: Path) -> None:
+    with pytest.raises(pytest.fail.Exception, match="Missing requirement surface"):
+        _assert_remediated_dependency_surface(
+            tmp_path / "requirements-evals.txt", package="virtualenv", required=False, pinned=True
+        )
+
+
+def test_virtualenv_consumer_rejects_omitted_advisory_member(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    schema = deepcopy(_load_schema(SCHEMA_PATH))
+    schema["blocked_versions"]["virtualenv"].pop()
+    monkeypatch.setattr(f"{__name__}._load_schema", lambda _path: schema)
+    with pytest.raises(AssertionError, match="retain all ten advisory range members"):
+        test_virtualenv_current_governed_surfaces_are_safe()

@@ -1,4 +1,8 @@
 import math
+from collections import UserDict
+from collections.abc import Callable, Mapping
+from types import MappingProxyType
+from unittest.mock import Mock
 
 import pytest
 from fastapi.testclient import TestClient
@@ -6,6 +10,8 @@ from pydantic import ValidationError
 
 import legacy_app
 import app.routers.legacy_premium_weekly_plan as weekly_plan_router
+import app.routers.premium_week as premium_week_router
+import app.routers.pro as pro_router
 from app.schemas.nutrition_targets import TargetsIn as CanonicalTargetsIn
 
 
@@ -119,6 +125,84 @@ def test_targets_in_rejects_invalid_values(payload: dict[str, object]) -> None:
 
     with pytest.raises(ValidationError):
         legacy_app.TargetsIn.model_validate(payload)
+
+
+@pytest.mark.parametrize("field", ("macros", "micro"))
+@pytest.mark.parametrize(
+    "bad_value",
+    ([], None, "private-structured-target-marker", True, 42, {"amount": 10**400}),
+    ids=("list", "null", "string", "boolean", "number", "overflow"),
+)
+def test_targets_in_rejects_malformed_mapping_or_overflow(field: str, bad_value: object) -> None:
+    payload: dict[str, object] = {
+        "kcal": 2000,
+        "macros": {"protein_g": 150.0},
+        "micro": {"vitamin_c_mg": 90.0},
+    }
+    payload[field] = bad_value
+
+    with pytest.raises(ValidationError):
+        CanonicalTargetsIn.model_validate(payload)
+    with pytest.raises(ValidationError):
+        legacy_app.TargetsIn.model_validate(payload)
+
+
+@pytest.mark.parametrize("mapping_factory", (MappingProxyType, UserDict))
+def test_targets_in_preserves_supported_mappings_and_zero(
+    mapping_factory: Callable[[dict[str, object]], Mapping[str, object]],
+) -> None:
+    mapping = mapping_factory({"protein_g": "150.0", "optional_g": 0})
+    targets = CanonicalTargetsIn.model_validate(
+        {"kcal": 2000, "macros": mapping, "micro": {}, "water_ml": 0}
+    )
+
+    assert targets.macros == {"protein_g": 150.0, "optional_g": 0.0}
+    assert targets.micro == {}
+    assert targets.water_ml == 0
+
+
+@pytest.mark.parametrize("field", ("macros", "micro"))
+@pytest.mark.parametrize(
+    "bad_value",
+    ([], None, "private-structured-target-marker", True, 42, {"amount": 10**400}),
+    ids=("list", "null", "string", "boolean", "number", "overflow"),
+)
+@pytest.mark.parametrize(
+    ("route", "module", "getter_name"),
+    (
+        ("/api/v1/pro/meal/weekly", pro_router, "get_food_db"),
+        ("/api/v1/premium/plan/week-flexible", premium_week_router, "_get_food_db"),
+    ),
+    ids=("pro", "flexible"),
+)
+def test_weekly_routes_reject_invalid_targets_before_work(
+    client: TestClient,
+    pro_headers: dict[str, str],
+    monkeypatch: pytest.MonkeyPatch,
+    route: str,
+    module: object,
+    getter_name: str,
+    field: str,
+    bad_value: object,
+) -> None:
+    getter = Mock()
+    monkeypatch.setattr(module, getter_name, getter)
+    targets: dict[str, object] = {
+        "kcal": 2000,
+        "macros": {"protein_g": 150.0},
+        "micro": {"vitamin_c_mg": 90.0},
+    }
+    targets[field] = bad_value
+
+    response = client.post(route, json={"targets": targets}, headers=pro_headers)
+
+    assert response.status_code == 422, response.text
+    assert response.headers.get("Content-Type", "").startswith("application/json")
+    detail = response.json()["detail"]
+    assert isinstance(detail, list)
+    assert len(detail) == 1
+    assert detail[0]["loc"] == ["body", "targets", field]
+    getter.assert_not_called()
 
 
 def test_legacy_week_endpoint_accepts_numeric_string_targets(

@@ -6,8 +6,11 @@ from collections.abc import Iterator
 import fnmatch
 import hashlib
 import json
+import os
 from pathlib import Path
 import re
+import shutil
+import subprocess
 from typing import cast
 
 import pytest
@@ -15,6 +18,10 @@ import yaml
 from yaml.nodes import MappingNode, Node, ScalarNode, SequenceNode
 
 from scripts.ci import ci_risk_profile
+from scripts.orchestration.creative_code_patch_workspace import (
+    git_env_without_parent_state,
+    safe_git_config_args,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 ACTIONLINT_WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "actionlint.yml"
@@ -43,18 +50,18 @@ RUNBOOK_PATH = REPO_ROOT / "RUNBOOK_AGENT.md"
 ORCHESTRATION_CONTRACT_PATH = (
     REPO_ROOT / "docs" / "orchestration" / "PR_ORCHESTRATION_CONTRACT_MATRIX.md"
 )
-CHECKOUT_NODE24_SHA = "".join(
+CHECKOUT_V7_SHA = "".join(
     (
-        "de0f",
-        "ac2e",
-        "4500",
-        "dabe",
-        "0009",
-        "e672",
-        "14ff",
-        "5f54",
-        "47ce",
-        "83dd",
+        "3d3c",
+        "42e5",
+        "aac5",
+        "ba80",
+        "5825",
+        "da76",
+        "410c",
+        "1812",
+        "73ba",
+        "90b1",
     )
 )
 SETUP_NODE_NODE24_SHA = "".join(
@@ -497,6 +504,12 @@ def _active_workflow_paths() -> Iterator[Path]:
     yield from sorted(workflow_dir.glob("*.yaml"))
 
 
+def _active_composite_action_paths() -> Iterator[Path]:
+    actions_dir = REPO_ROOT / ".github" / "actions"
+    yield from sorted(actions_dir.rglob("action.yml"))
+    yield from sorted(actions_dir.rglob("action.yaml"))
+
+
 def _iter_job_steps(path: Path) -> Iterator[tuple[str, dict[str, object]]]:
     workflow = _load_workflow(path)
     jobs = workflow["jobs"]
@@ -546,11 +559,124 @@ def _assert_yaml_mapping_keys_are_unique(source: str) -> None:
     visit(document, ())
 
 
+def _iter_uses_source_mappings(node: Node) -> Iterator[tuple[ScalarNode, ScalarNode]]:
+    """Visit every parsed uses field, including nested composite action steps."""
+
+    if isinstance(node, MappingNode):
+        for key_node, value_node in node.value:
+            if isinstance(key_node, ScalarNode) and key_node.value == "uses":
+                assert isinstance(value_node, ScalarNode), "uses must be a YAML scalar"
+                assert value_node.tag == "tag:yaml.org,2002:str", "uses must be a string"
+                yield key_node, value_node
+            yield from _iter_uses_source_mappings(value_node)
+    elif isinstance(node, SequenceNode):
+        for value_node in node.value:
+            yield from _iter_uses_source_mappings(value_node)
+
+
 def test_all_active_workflows_declare_unique_yaml_keys() -> None:
     """Duplicate keys must not silently override any active workflow configuration."""
 
     for workflow_path in _active_workflow_paths():
         _assert_yaml_mapping_keys_are_unique(workflow_path.read_text(encoding="utf-8"))
+
+
+def _assert_no_unsafe_checkout_input(value: object) -> None:
+    """Reject the unsafe v7 opt-in regardless of action-input key casing."""
+
+    if isinstance(value, dict):
+        assert all(
+            not isinstance(key, str) or key.casefold() != "allow-unsafe-pr-checkout"
+            for key in value
+        )
+        for child in value.values():
+            _assert_no_unsafe_checkout_input(child)
+    elif isinstance(value, list):
+        for child in value:
+            _assert_no_unsafe_checkout_input(child)
+
+
+@pytest.mark.parametrize("key", ["allow-unsafe-pr-checkout", "Allow-Unsafe-Pr-Checkout"])
+def test_checkout_unsafe_input_rejects_case_variants(key: str) -> None:
+    """A casing variant cannot bypass the parsed workflow input guard."""
+
+    with pytest.raises(AssertionError):
+        _assert_no_unsafe_checkout_input({"jobs": [{"with": {key: True}}]})
+
+
+def test_all_active_checkout_uses_have_one_exact_v7_pin() -> None:
+    """Enumerate checkout uses in every active workflow and local composite action."""
+
+    workflow_paths = list(_active_workflow_paths())
+    composite_paths = list(_active_composite_action_paths())
+    assert workflow_paths, "Active workflow inventory must not be empty"
+    assert len({path.name for path in workflow_paths}) == len(workflow_paths)
+    assert len({path.parent for path in composite_paths}) == len(composite_paths)
+    workflow_path_set = set(workflow_paths)
+
+    expected_uses = f"actions/checkout@{CHECKOUT_V7_SHA}"
+    expected_source_lines = {
+        f"uses: {expected_uses} # v7.0.1",
+        f"uses: {expected_uses} # v7.0.1 / Node 24",
+    }
+    observed_checkout_uses: list[tuple[str, int]] = []
+    for path in (*workflow_paths, *composite_paths):
+        source = path.read_text(encoding="utf-8")
+        _assert_yaml_mapping_keys_are_unique(source)
+        payload = yaml.safe_load(source)
+        assert isinstance(payload, dict), f"{path}: YAML root must be a mapping"
+        _assert_no_unsafe_checkout_input(payload)
+        if path in workflow_path_set:
+            assert (
+                isinstance(payload.get("jobs"), dict) and payload["jobs"]
+            ), f"{path}: active workflow jobs inventory must be nonempty"
+        else:
+            runs = payload.get("runs")
+            assert isinstance(runs, dict) and runs.get("using") == "composite", path
+            assert isinstance(runs.get("steps"), list) and runs["steps"], path
+        document = yaml.compose(source)
+        assert isinstance(document, MappingNode), f"{path}: YAML root must be a mapping"
+        for key_node, value_node in _iter_uses_source_mappings(document):
+            uses = value_node.value
+            if uses.split("@", maxsplit=1)[0].casefold() != "actions/checkout":
+                continue
+            relative_path = str(path.relative_to(REPO_ROOT))
+            observed_checkout_uses.append((relative_path, key_node.start_mark.line + 1))
+            assert uses == expected_uses, f"{relative_path}:{key_node.start_mark.line + 1}: {uses}"
+            source_line = source.splitlines()[key_node.start_mark.line].strip().removeprefix("- ")
+            assert (
+                source_line in expected_source_lines
+            ), f"{relative_path}:{key_node.start_mark.line + 1}: {source_line}"
+
+    expected_checkout_workflows = {
+        ".github/workflows/accessibility.yml",
+        ".github/workflows/actionlint.yml",
+        ".github/workflows/build-equivalence-evidence.yml",
+        ".github/workflows/build.yml",
+        ".github/workflows/cd-test.yml",
+        ".github/workflows/cd.yml",
+        ".github/workflows/ci-metrics.yml",
+        ".github/workflows/ci.yml",
+        ".github/workflows/codecov-upload.yml",
+        ".github/workflows/codeql.yml",
+        ".github/workflows/devcontainer-smoke.yml",
+        ".github/workflows/experiment-runner-dispatch.yml",
+        ".github/workflows/experiment-runner-slack-socket-smoke.yml",
+        ".github/workflows/frontend-ci.yml",
+        ".github/workflows/greenlight-ios.yml",
+        ".github/workflows/ios-appstore-assets.yml",
+        ".github/workflows/nightly-tests.yml",
+        ".github/workflows/nightly.yml",
+        ".github/workflows/npm-dependency-submission.yml",
+        ".github/workflows/python-dependency-submission.yml",
+        ".github/workflows/rag-release-gates.yml",
+        ".github/workflows/release-control-plane-evidence.yml",
+        ".github/workflows/release-manifest-evidence.yml",
+        ".github/workflows/security.yml",
+        ".github/workflows/trivy.yml",
+    }
+    assert len(observed_checkout_uses) == 76
+    assert {path for path, _ in observed_checkout_uses} == expected_checkout_workflows
 
 
 def _job_step_by_name(
@@ -1765,7 +1891,7 @@ def test_nightly_full_tests_uses_process_shards_without_xdist() -> None:
     assert "continue-on-error" not in job
 
     checkout_step = _job_step_by_name(workflow, job_id="tests", step_name="Checkout")
-    assert checkout_step["uses"] == f"actions/checkout@{CHECKOUT_NODE24_SHA}"
+    assert checkout_step["uses"] == f"actions/checkout@{CHECKOUT_V7_SHA}"
     assert checkout_step["with"]["fetch-depth"] == 0
     assert checkout_step["with"]["persist-credentials"] is False
 
@@ -1955,8 +2081,9 @@ def test_docs_phase1_gates_include_schema_only_contract_changes() -> None:
     assert docs_phase1_section.index('BASE_REF="$(git rev-parse HEAD^1)"') < (
         docs_phase1_section.index("github.event.pull_request.base.sha")
     )
-    assert 'git diff --name-status -z --diff-filter=ACDMRT "$BASE_REF"...HEAD' in (
-        docs_phase1_section
+    assert (
+        'git diff --name-status -z --find-renames --find-copies-harder --diff-filter=ACDMRT "$BASE_REF"...HEAD'
+        in (docs_phase1_section)
     )
     assert 'case "$status" in' in docs_phase1_section
     assert "R*|C*)" in docs_phase1_section
@@ -1981,7 +2108,9 @@ def test_docs_phase1_gates_include_schema_only_contract_changes() -> None:
     for pr5_companion_input in (
         "docs/orchestration/contracts/PHILOSOPHY_SOURCE_CORPUS_INDEX.json",
         "docs/orchestration/contracts/PHILOSOPHY_SOURCE_CORPUS_INDEX.schema.json",
+        "docs/orchestration/contracts/PHILOSOPHY_GATE_OPEN_PRECONDITIONS_REPORT.json",
         "docs/orchestration/PHILOSOPHY_EPIC_V2_PR5_SOURCE_CORPUS_INDEX_PACKET_2026-05-24.md",
+        "docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md",
         "scripts/ci/check_philosophy_source_corpus_index.py",
         "tests/test_philosophy_source_corpus_index.py",
     ):
@@ -1994,14 +2123,15 @@ def test_docs_phase1_gates_include_schema_only_contract_changes() -> None:
     )
     for pr5_companion_input in (
         "docs/orchestration/contracts/PHILOSOPHY_SOURCE_CORPUS_INDEX.schema.json",
+        "docs/orchestration/contracts/PHILOSOPHY_GATE_OPEN_PRECONDITIONS_REPORT.json",
         "docs/orchestration/PHILOSOPHY_EPIC_V2_PR5_SOURCE_CORPUS_INDEX_PACKET_2026-05-24.md",
+        "docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md",
         "scripts/ci/check_philosophy_source_corpus_index.py",
         "tests/test_philosophy_source_corpus_index.py",
     ):
         assert pr5_companion_input in pr5_case
     for unrelated_pr5_trigger in (
         "docs/roadmap/BACKLOG_LEDGER.md",
-        "docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md",
         "scripts/ci/check_docs_phase1_gates.py",
     ):
         assert unrelated_pr5_trigger not in pr5_case
@@ -2010,13 +2140,112 @@ def test_docs_phase1_gates_include_schema_only_contract_changes() -> None:
         in docs_phase1_section
     )
     assert (
-        "python scripts/ci/check_philosophy_source_corpus_index.py --check --files"
+        'python scripts/ci/check_philosophy_source_corpus_index.py --check \\\n              --base-ref "$BASE_REF" --files "${ALL_CHANGED_FILES[@]}"'
         in docs_phase1_section
     )
     assert (
         'python scripts/ci/check_docs_phase1_gates.py --files "${CHANGED_DOCS[@]}"'
         not in docs_phase1_section
     )
+
+
+@pytest.mark.parametrize(
+    ("operation", "source_path", "expected_trigger"),
+    [
+        ("copy", "docs/orchestration/contracts/PHILOSOPHY_SOURCE_CORPUS_INDEX.json", "1"),
+        ("copy", "docs/evidence/unrelated.json", "0"),
+        ("modify", "docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md", "1"),
+        (
+            "modify",
+            "docs/orchestration/contracts/PHILOSOPHY_GATE_OPEN_PRECONDITIONS_REPORT.json",
+            "1",
+        ),
+        ("modify", "docs/evidence/unrelated.json", "0"),
+    ],
+)
+def test_docs_phase1_corpus_input_discovery_executes_workflow_path_loop(
+    tmp_path: Path, operation: str, source_path: str, expected_trigger: str
+) -> None:
+    git = shutil.which("git")
+    bash = shutil.which("bash")
+    assert git is not None and bash is not None
+    fixture_env = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
+    fixture_env.update(GIT_CONFIG_GLOBAL=os.devnull, GIT_CONFIG_NOSYSTEM="1")
+
+    def run_git(*args: str) -> str:
+        result = subprocess.run(  # nosec B603: resolved Git in test-owned repository (remove-by: 2026-10-31, ref: PR-2446)
+            [git, "-C", str(tmp_path), *args],
+            check=True,
+            capture_output=True,
+            text=True,
+            env=fixture_env,
+        )
+        return result.stdout.strip()
+
+    run_git("init", "--quiet")
+    source = tmp_path / source_path
+    source.parent.mkdir(parents=True)
+    source.write_text("safe source corpus evidence\n", encoding="utf-8")
+    run_git("add", ".")
+    run_git(
+        "-c",
+        "user.name=CI Test",
+        "-c",
+        "user.email=ci@example.test",
+        "commit",
+        "--quiet",
+        "-m",
+        "base",
+    )
+    base_ref = run_git("rev-parse", "HEAD")
+    destination_path: str | None = None
+    if operation == "copy":
+        destination_path = "docs/evidence/copied.json"
+        destination = tmp_path / destination_path
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_bytes(source.read_bytes())
+        run_git("add", destination_path)
+    else:
+        source.write_text("safe updated corpus evidence\n", encoding="utf-8")
+        run_git("add", source_path)
+    run_git(
+        "-c",
+        "user.name=CI Test",
+        "-c",
+        "user.email=ci@example.test",
+        "commit",
+        "--quiet",
+        "-m",
+        operation,
+    )
+
+    workflow = yaml.safe_load(CI_WORKFLOW_PATH.read_text(encoding="utf-8"))
+    steps = workflow["jobs"]["docs_phase1_gates"]["steps"]
+    run_script = next(step["run"] for step in steps if step.get("name") == "Run Phase1 docs gates")
+    start = run_script.index("CHANGED_MD=()")
+    end = run_script.index("\n", run_script.index("done < <(git diff --name-status", start))
+    path_loop = run_script[start:end]
+    assert "--find-copies-harder" in path_loop
+    result = subprocess.run(  # nosec B603: resolved Bash runs extracted fixed workflow loop (remove-by: 2026-10-31, ref: PR-2446)
+        [
+            bash,
+            "-c",
+            "set -euo pipefail\n"
+            + path_loop
+            + "\nprintf 'FLAG=%s\\n' \"$PR5_SOURCE_CORPUS_CHANGED\"\n"
+            + "printf 'PATH=%s\\n' \"${ALL_CHANGED_FILES[@]}\"\n",
+        ],
+        cwd=tmp_path,
+        env={**fixture_env, "BASE_REF": base_ref},
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    assert f"FLAG={expected_trigger}" in result.stdout.splitlines()
+    assert f"PATH={source_path}" in result.stdout.splitlines()
+    if destination_path is not None:
+        assert f"PATH={destination_path}" in result.stdout.splitlines()
 
 
 def test_semantic_cache_contract_suites_include_philosophy_policy_oracle() -> None:
@@ -2073,10 +2302,12 @@ def test_changes_job_uses_node24_paths_filter_pin_and_keeps_ios_filters() -> Non
         ".github/workflows/**",
         ".github/actions/**",
         "scripts/ios_test_targets.sh",
+        "scripts/ci/select_ios_simulator.py",
         "scripts/ci/check_ios_swift_syntax.sh",
         "scripts/release/check_ios_appstore_verify.py",
     ]
     for path, expected in (
+        ("scripts/ci/select_ios_simulator.py", True),
         ("scripts/release/check_ios_appstore_verify.py", True),
         ("scripts/release/release_manifest.py", False),
     ):
@@ -2113,7 +2344,11 @@ def test_changes_job_uses_node24_paths_filter_pin_and_keeps_ios_filters() -> Non
         assert 'if [ "$XCODE_VERSION" != "27.0" ]; then' in executable_xcode_lines
         assert 'if [ "$sdk_version" != "27.0" ]; then' in executable_xcode_lines
         assert "Apple Swift version 6.4" in executable_xcode_lines
-        assert "parse_ios_ver(r) == (27, 0)" in job_steps[3]["run"]
+        assert (
+            'python3 ../scripts/ci/select_ios_simulator.py --family "${{ matrix.family }}"'
+            in job_steps[3]["run"]
+        )
+        assert "simctl list devices" not in job_steps[3]["run"]
         assert job["runs-on"] == "xcode-27"
 
 
@@ -2140,7 +2375,7 @@ def test_node24_artifact_and_script_action_pins_use_verified_commit_shas() -> No
     """Guard remaining Node 20 action migrations against tag-object drift."""
 
     download_workflows = {
-        CI_WORKFLOW_PATH: 8,
+        CI_WORKFLOW_PATH: 10,
         CODECOV_UPLOAD_WORKFLOW_PATH: 1,
         IOS_APPSTORE_ASSETS_WORKFLOW_PATH: 1,
         NIGHTLY_WORKFLOW_PATH: 1,
@@ -2250,7 +2485,7 @@ def test_cd_test_published_image_health_smoke_is_trusted_and_fail_closed() -> No
     assert isinstance(validate_steps, list)
     validate_checkout = validate_steps[0]
     assert isinstance(validate_checkout, dict)
-    assert validate_checkout["uses"] == f"actions/checkout@{CHECKOUT_NODE24_SHA}"
+    assert validate_checkout["uses"] == f"actions/checkout@{CHECKOUT_V7_SHA}"
     assert validate_checkout["with"] == {
         "ref": "${{ github.event.workflow_run.head_sha }}",
         "persist-credentials": False,
@@ -2435,7 +2670,7 @@ def test_cd_test_published_image_health_smoke_is_trusted_and_fail_closed() -> No
     assert isinstance(production_steps, list)
     production_checkout = production_steps[0]
     assert isinstance(production_checkout, dict)
-    assert production_checkout["uses"] == f"actions/checkout@{CHECKOUT_NODE24_SHA}"
+    assert production_checkout["uses"] == f"actions/checkout@{CHECKOUT_V7_SHA}"
     assert "with" not in production_checkout
     production_validation = _job_step_by_name(
         workflow,
@@ -2492,7 +2727,7 @@ def test_node24_checkout_and_docker_action_pins_use_verified_commit_shas() -> No
         IOS_APPSTORE_ASSETS_WORKFLOW_PATH: 3,
         SECURITY_WORKFLOW_PATH: 1,
     }
-    expected_checkout_line = f"actions/checkout@{CHECKOUT_NODE24_SHA} # v6.0.2 / Node 24"
+    expected_checkout_line = f"actions/checkout@{CHECKOUT_V7_SHA} # v7.0.1 / Node 24"
 
     observed_checkout_steps = 0
     for workflow_path, expected_count in checkout_workflows.items():
@@ -2503,7 +2738,7 @@ def test_node24_checkout_and_docker_action_pins_use_verified_commit_shas() -> No
             uses = step.get("uses")
             if isinstance(uses, str) and uses.startswith("actions/checkout@"):
                 observed_checkout_steps += 1
-                assert uses == f"actions/checkout@{CHECKOUT_NODE24_SHA}"
+                assert uses == f"actions/checkout@{CHECKOUT_V7_SHA}"
 
     assert observed_checkout_steps == sum(checkout_workflows.values())
 
@@ -2921,17 +3156,6 @@ def test_active_upload_artifact_refs_all_use_node24_sha() -> None:
 def test_active_sbom_action_refs_use_verified_v0_24_0_sha_and_preserve_contracts() -> None:
     """Guard every active SBOM action use and its fail-closed generation contract."""
 
-    def iter_uses_source_mappings(node: Node) -> Iterator[tuple[ScalarNode, ScalarNode]]:
-        if isinstance(node, MappingNode):
-            for key_node, value_node in node.value:
-                if isinstance(key_node, ScalarNode) and key_node.value == "uses":
-                    if isinstance(value_node, ScalarNode):
-                        yield key_node, value_node
-                yield from iter_uses_source_mappings(value_node)
-        elif isinstance(node, SequenceNode):
-            for value_node in node.value:
-                yield from iter_uses_source_mappings(value_node)
-
     expected_uses = f"anchore/sbom-action@{SBOM_ACTION_NODE24_SHA}"
     expected_line = f"{expected_uses} # v0.24.0"
     expected_counts = {
@@ -2954,7 +3178,7 @@ def test_active_sbom_action_refs_use_verified_v0_24_0_sha_and_preserve_contracts
         workflow_document = yaml.compose(workflow_text)
         assert isinstance(workflow_document, Node)
         sbom_source_node_count = 0
-        for uses_key_node, uses_value_node in iter_uses_source_mappings(workflow_document):
+        for uses_key_node, uses_value_node in _iter_uses_source_mappings(workflow_document):
             uses = uses_value_node.value
             if not uses.casefold().startswith("anchore/sbom-action@"):
                 continue
@@ -3082,17 +3306,6 @@ def test_active_sbom_action_refs_use_verified_v0_24_0_sha_and_preserve_contracts
 def test_active_codeql_action_refs_use_verified_v4_37_1_sha() -> None:
     """Guard every active CodeQL action ref against pin and location drift."""
 
-    def iter_uses_source_mappings(node: Node) -> Iterator[tuple[ScalarNode, ScalarNode]]:
-        if isinstance(node, MappingNode):
-            for key_node, value_node in node.value:
-                if isinstance(key_node, ScalarNode) and key_node.value == "uses":
-                    if isinstance(value_node, ScalarNode):
-                        yield key_node, value_node
-                yield from iter_uses_source_mappings(value_node)
-        elif isinstance(node, SequenceNode):
-            for value_node in node.value:
-                yield from iter_uses_source_mappings(value_node)
-
     expected_uses_by_component = {
         "init": f"github/codeql-action/init@{CODEQL_ACTION_V4_37_1_SHA}",
         "analyze": f"github/codeql-action/analyze@{CODEQL_ACTION_V4_37_1_SHA}",
@@ -3129,7 +3342,7 @@ def test_active_codeql_action_refs_use_verified_v4_37_1_sha() -> None:
         }
         workflow_document = yaml.compose(workflow_text)
         assert isinstance(workflow_document, Node)
-        for uses_key_node, uses_value_node in iter_uses_source_mappings(workflow_document):
+        for uses_key_node, uses_value_node in _iter_uses_source_mappings(workflow_document):
             uses = uses_value_node.value
             normalized_uses = uses.casefold()
             if not normalized_uses.startswith("github/codeql-action/"):
@@ -3439,6 +3652,26 @@ def test_node24_artifact_migration_preserves_download_contracts() -> None:
             {
                 "name": "coverage-ops-context-${{ env.PYTHON_VERSION }}",
                 "path": "./ops-context-coverage",
+            },
+            None,
+        ),
+        (
+            ".github/workflows/ci.yml",
+            "diff-coverage",
+            "Download FitChef eval coverage artifact",
+            {
+                "name": "coverage-fitchef-eval-${{ env.PYTHON_VERSION }}",
+                "path": "./fitchef-eval-coverage",
+            },
+            None,
+        ),
+        (
+            ".github/workflows/ci.yml",
+            "diff-coverage",
+            "Download orchestration coverage artifact",
+            {
+                "name": "coverage-orchestration-${{ env.PYTHON_VERSION }}",
+                "path": "./orchestration-coverage",
             },
             None,
         ),
@@ -3975,6 +4208,10 @@ IOS_UNIT_RUN_SHA256 = (
 IOS_RELEASE_BUILD_RUN_SHA256 = (
     "c3aa3d5582fa3e4261156f9f4aaa8acfbc4d34641bf8842fa3c10b94468910bb"  # pragma: allowlist secret
 )
+# Non-secret SHA-256 of the exact yaml.safe_load() UI smoke run scalar; no normalization.
+IOS_UI_SMOKE_RUN_SHA256 = (
+    "bf9a94c226d1e42c30f111737c343591afbca7eb8f7559e3861cadded28cbb65"  # pragma: allowlist secret
+)
 
 
 def _assert_ios_release_build_contract(workflow: dict[str, object]) -> None:
@@ -3986,8 +4223,17 @@ def _assert_ios_release_build_contract(workflow: dict[str, object]) -> None:
     assert isinstance(jobs, dict)
     ios_tests = jobs["ios-tests"]
     assert isinstance(ios_tests, dict)
-    assert set(ios_tests) == {"name", "runs-on", "timeout-minutes", "if", "needs", "steps"}
-    assert ios_tests["name"] == "iOS unit tests (xcodebuild)"
+    assert set(ios_tests) == {
+        "name",
+        "runs-on",
+        "strategy",
+        "timeout-minutes",
+        "if",
+        "needs",
+        "steps",
+    }
+    assert ios_tests["name"] == "iOS unit tests (${{ matrix.family }}, xcodebuild)"
+    assert ios_tests["strategy"] == {"fail-fast": False, "matrix": {"family": ["iphone", "ipad"]}}
     assert ios_tests["runs-on"] == "xcode-27"
     assert ios_tests["needs"] == ["changes"]
     assert ios_tests["if"] == IOS_TESTS_JOB_IF
@@ -4023,7 +4269,7 @@ def _assert_ios_release_build_contract(workflow: dict[str, object]) -> None:
         "if": "always()",
         "uses": f"actions/upload-artifact@{UPLOAD_ARTIFACT_NODE24_SHA}",
         "with": {
-            "name": "ios-unit-xcresult-${{ github.run_id }}-${{ github.run_attempt }}",
+            "name": "ios-unit-xcresult-${{ matrix.family }}-${{ github.run_id }}-${{ github.run_attempt }}",
             "path": "ios/.derivedData/Logs/Test/*.xcresult",
             "retention-days": 7,
             "if-no-files-found": "warn",
@@ -4078,6 +4324,150 @@ def test_ios_release_simulator_build_stays_blocking_after_complete_unit_run() ->
     workflow = _load_ci_workflow()
 
     _assert_ios_release_build_contract(workflow)
+
+
+def _assert_ios_family_matrix_contract(workflow: dict[str, object]) -> None:
+    jobs = workflow["jobs"]
+    assert isinstance(jobs, dict)
+    observed_names: set[str] = set()
+    observed_artifacts: set[str] = set()
+    for job_id, label, artifact_step in (
+        ("ios-tests", "iOS unit tests", "Retain iOS unit result bundles and crash diagnostics"),
+        ("ios-ui-smoke", "iOS UI smoke", "Upload xcresult on failure (crash evidence)"),
+    ):
+        job = jobs[job_id]
+        assert isinstance(job, dict)
+        assert job["strategy"] == {
+            "fail-fast": False,
+            "matrix": {"family": ["iphone", "ipad"]},
+        }
+        assert job["name"] == f"{label} (${{{{ matrix.family }}}}, xcodebuild)"
+        assert job["needs"] == ["changes"]
+        assert job["if"] == IOS_TESTS_JOB_IF
+        assert "continue-on-error" not in job
+        assert "permissions" not in job
+        steps = job["steps"]
+        assert isinstance(steps, list)
+        selection = next(step for step in steps if step.get("id") == "select-destination")
+        assert selection["working-directory"] == "ios"
+        assert selection["env"] == {
+            "DEVELOPER_DIR": "${{ steps.select-xcode.outputs.developer_dir }}"
+        }
+        assert (
+            'python3 ../scripts/ci/select_ios_simulator.py --family "${{ matrix.family }}"'
+            in selection["run"]
+        )
+        if job_id == "ios-ui-smoke":
+            assert job["timeout-minutes"] == 45
+            smoke_step = next(
+                step
+                for step in steps
+                if step.get("name") == "iOS UI smoke (build-for-testing + test-without-building)"
+            )
+            smoke_run = smoke_step["run"]
+            assert isinstance(smoke_run, str)
+            assert hashlib.sha256(smoke_run.encode("utf-8")).hexdigest() == IOS_UI_SMOKE_RUN_SHA256
+            assert 'DESTINATION="${{ steps.select-destination.outputs.destination }}"' in smoke_run
+            assert smoke_run.count('"-destination", destination') == 2
+        artifact = next(step for step in steps if step.get("name") == artifact_step)
+        artifact_name = artifact["with"]["name"]
+        assert "${{ matrix.family }}" in artifact_name
+        assert "${{ github.run_id }}" in artifact_name
+        assert "${{ github.run_attempt }}" in artifact_name
+        for family in ("iphone", "ipad"):
+            observed_names.add(job["name"].replace("${{ matrix.family }}", family))
+            observed_artifacts.add(artifact_name.replace("${{ matrix.family }}", family))
+    assert len(observed_names) == 4
+    assert len(observed_artifacts) == 4
+
+
+def test_ios_family_matrix_has_four_distinct_blocking_checks_and_artifacts() -> None:
+    _assert_ios_family_matrix_contract(_load_ci_workflow())
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        "hard-code-selector-output",
+        "build-default",
+        "test-default",
+        "build-env-default",
+        "test-env-default",
+    ],
+)
+def test_ios_matrix_contract_rejects_ui_destination_bypass(mutation: str) -> None:
+    workflow = _load_ci_workflow()
+    jobs = workflow["jobs"]
+    assert isinstance(jobs, dict)
+    smoke = jobs["ios-ui-smoke"]
+    assert isinstance(smoke, dict)
+    steps = smoke["steps"]
+    assert isinstance(steps, list)
+    step = next(
+        step
+        for step in steps
+        if step.get("name") == "iOS UI smoke (build-for-testing + test-without-building)"
+    )
+    run = step["run"]
+    assert isinstance(run, str)
+    if mutation == "hard-code-selector-output":
+        step["run"] = run.replace(
+            'DESTINATION="${{ steps.select-destination.outputs.destination }}"',
+            'DESTINATION="platform=iOS Simulator,name=iPhone 16"',
+        )
+    elif mutation in {"build-env-default", "test-env-default"}:
+        before, between, after = run.split('destination = os.environ.get("DESTINATION", "")')
+        substituted = 'destination = "platform=iOS Simulator,name=iPhone 16"'
+        original = 'destination = os.environ.get("DESTINATION", "")'
+        if mutation == "build-env-default":
+            step["run"] = before + substituted + between + original + after
+        else:
+            step["run"] = before + original + between + substituted + after
+    else:
+        before, between, after = run.split('"-destination", destination')
+        substituted = '"-destination", "platform=iOS Simulator,name=iPhone 16"'
+        if mutation == "build-default":
+            step["run"] = before + substituted + between + '"-destination", destination' + after
+        else:
+            step["run"] = before + '"-destination", destination' + between + substituted + after
+
+    with pytest.raises(AssertionError):
+        _assert_ios_family_matrix_contract(workflow)
+
+
+def test_ios_matrix_contract_rejects_ui_job_budget_below_sequential_caps() -> None:
+    workflow = _load_ci_workflow()
+    jobs = workflow["jobs"]
+    assert isinstance(jobs, dict)
+    smoke = jobs["ios-ui-smoke"]
+    assert isinstance(smoke, dict)
+    smoke["timeout-minutes"] = 25
+
+    with pytest.raises(AssertionError):
+        _assert_ios_family_matrix_contract(workflow)
+
+
+@pytest.mark.parametrize("mutation", ["drop-ipad", "allow-fail-fast", "collide-artifact"])
+def test_ios_matrix_contract_rejects_missing_family_or_artifact_collision(mutation: str) -> None:
+    workflow = _load_ci_workflow()
+    jobs = workflow["jobs"]
+    assert isinstance(jobs, dict)
+    unit = jobs["ios-tests"]
+    assert isinstance(unit, dict)
+    if mutation == "drop-ipad":
+        unit["strategy"]["matrix"]["family"] = ["iphone"]
+    elif mutation == "allow-fail-fast":
+        unit["strategy"]["fail-fast"] = True
+    else:
+        artifact = next(
+            step
+            for step in unit["steps"]
+            if step.get("name") == "Retain iOS unit result bundles and crash diagnostics"
+        )
+        artifact["with"]["name"] = "ios-unit-xcresult-${{ github.run_id }}"
+
+    with pytest.raises(AssertionError):
+        _assert_ios_release_build_contract(workflow)
 
 
 @pytest.mark.parametrize(
@@ -4417,7 +4807,7 @@ def test_ci_lint_all_files_pre_commit_uses_full_history_checkout() -> None:
     workflow = _load_ci_workflow()
 
     checkout_step = _job_step_by_name(workflow, job_id="lint", step_name="Checkout")
-    assert checkout_step["uses"] == f"actions/checkout@{CHECKOUT_NODE24_SHA}"
+    assert checkout_step["uses"] == f"actions/checkout@{CHECKOUT_V7_SHA}"
     assert checkout_step["with"]["fetch-depth"] == 0
 
     pre_commit_step = _job_step_by_name(
@@ -4432,8 +4822,19 @@ def test_ci_main_matrix_uses_full_history_for_git_evidence_guards() -> None:
     workflow = _load_ci_workflow()
 
     checkout_step = _job_step_by_name(workflow, job_id="test-main", step_name="Checkout")
-    assert checkout_step["uses"] == f"actions/checkout@{CHECKOUT_NODE24_SHA}"
+    assert checkout_step["uses"] == f"actions/checkout@{CHECKOUT_V7_SHA}"
     assert checkout_step["with"]["fetch-depth"] == 0
+
+
+@pytest.mark.parametrize("job_id", ("test-pr", "test-feature"))
+def test_ci_history_jobs_do_not_persist_checkout_credentials(job_id: str) -> None:
+    workflow = _load_ci_workflow()
+    checkout_step = _job_step_by_name(workflow, job_id=job_id, step_name="Checkout")
+    assert checkout_step == {
+        "name": "Checkout",
+        "uses": f"actions/checkout@{CHECKOUT_V7_SHA}",
+        "with": {"fetch-depth": 0, "persist-credentials": False},
+    }
 
 
 def test_ci_lint_all_files_pre_commit_uses_project_node_version() -> None:
@@ -4464,8 +4865,8 @@ def _assert_ci_lint_node24_frontend_hook_dependency_contract(
     assert isinstance(jobs, dict)
     lint_job = jobs["lint"]
     assert isinstance(lint_job, dict)
+    assert lint_job.get("if") == "${{ always() }}"
     for forbidden_key in (
-        "if",
         "continue-on-error",
         "defaults",
         "permissions",
@@ -4475,6 +4876,12 @@ def _assert_ci_lint_node24_frontend_hook_dependency_contract(
     lint_steps = lint_job["steps"]
     assert isinstance(lint_steps, list)
     assert all(isinstance(step, dict) for step in lint_steps)
+    health_gate = lint_steps[0]
+    assert health_gate["name"] == "Enforce prerequisite results"
+    assert health_gate["env"] == {
+        "PRIVATE_PYTHON_PROXY_HEALTH_RESULT": ("${{ needs.private_python_proxy_health.result }}")
+    }
+    assert '"$PRIVATE_PYTHON_PROXY_HEALTH_RESULT" != "success"' in health_gate["run"]
 
     def unique_step(step_name: str) -> dict[str, object]:
         matches = [step for step in lint_steps if step.get("name") == step_name]
@@ -4484,7 +4891,7 @@ def _assert_ci_lint_node24_frontend_hook_dependency_contract(
     checkout_step = unique_step("Checkout")
     assert checkout_step == {
         "name": "Checkout",
-        "uses": f"actions/checkout@{CHECKOUT_NODE24_SHA}",
+        "uses": f"actions/checkout@{CHECKOUT_V7_SHA}",
         "with": {"fetch-depth": 0, "persist-credentials": False},
     }
 
@@ -4734,9 +5141,13 @@ def test_main_branch_python_sharded_runner_preserves_required_check_policy() -> 
 
     setup_python_step = next(step for step in steps if step["name"] == "Setup Python environment")
     assert setup_python_step["env"] == {
-        "DEVPI_CI_USER": "${{ github.event_name != 'pull_request' && secrets.DEVPI_CI_USER || '' }}",
+        "DEVPI_CI_USER": (
+            "${{ github.event_name != 'pull_request' && "
+            "github.ref == 'refs/heads/main' && secrets.DEVPI_CI_USER || '' }}"
+        ),
         "DEVPI_CI_PASSWORD": (
-            "${{ github.event_name != 'pull_request' && secrets.DEVPI_CI_PASSWORD || '' }}"
+            "${{ github.event_name != 'pull_request' && "
+            "github.ref == 'refs/heads/main' && secrets.DEVPI_CI_PASSWORD || '' }}"
         ),
     }
 
@@ -4783,6 +5194,7 @@ def test_main_branch_python_sharded_runner_preserves_required_check_policy() -> 
 
     assert "MAIN_TEST_SHARDS=4" in py311_block
     assert "MAIN_TEST_MAX_PARALLEL=4" in py311_block
+    assert "export MAIN_TEST_SHARD_TIMEOUT_SECONDS=2400" in py311_block
     assert "PYTEST_XDIST_ARGS=(-p no:xdist)" not in py311_block
     assert "PYTEST_XDIST_ARGS=(-n 2 --dist=loadscope)" not in py311_block
     assert "PYTEST_XDIST_ARGS=(-n 4 --dist=loadscope)" not in py311_block
@@ -4966,6 +5378,687 @@ def test_ops_context_workflow_rejects_missing_line_inventory(tmp_path: Path, cas
         [sys.executable, "-c", check], cwd=tmp_path, capture_output=True, timeout=5, check=False
     )
     assert (result.returncode == 0) is (case in {"valid", "zero_hit"})
+
+
+def test_fitchef_eval_coverage_is_separate_and_required_by_numeric_diff_gate() -> None:
+    workflow = _load_ci_workflow()
+    measure = _job_step_by_name(
+        workflow, job_id="test-pr", step_name="Measure FitChef eval CLI coverage"
+    )
+    run = str(measure["run"])
+    assert "--rcfile=/dev/null --branch" in run
+    assert (
+        "--include='scripts/evals/collect_fitchef_answers.py,scripts/evals/fitchef_claim_assurance_eval.py'"
+        in run
+    )
+    assert "--data-file=.coverage.fitchef-eval -m pytest -q -p no:xdist" in run
+    assert "tests/test_fitchef_claim_assurance_eval.py" in run
+    assert "--data-file=.coverage.fitchef-eval -o coverage-fitchef-eval.xml" in run
+    assert measure["env"]["BLOCK_TEST_NETWORK"] == "true"
+    assert "--append" not in run
+    assert "continue-on-error" not in measure and "if" not in measure
+    upload = _job_step_by_name(
+        workflow, job_id="test-pr", step_name="Upload FitChef eval coverage artifact"
+    )
+    assert upload["uses"] == f"actions/upload-artifact@{UPLOAD_ARTIFACT_NODE24_SHA}"
+    assert upload["with"] == {
+        "name": "coverage-fitchef-eval-${{ env.PYTHON_VERSION }}",
+        "path": "coverage-fitchef-eval.xml",
+        "if-no-files-found": "error",
+        "retention-days": 7,
+    }
+    download = _job_step_by_name(
+        workflow, job_id="diff-coverage", step_name="Download FitChef eval coverage artifact"
+    )
+    assert download["uses"] == f"actions/download-artifact@{DOWNLOAD_ARTIFACT_NODE24_SHA}"
+    assert download["with"] == {
+        "name": "coverage-fitchef-eval-${{ env.PYTHON_VERSION }}",
+        "path": "./fitchef-eval-coverage",
+    }
+    for step in (upload, download):
+        assert "continue-on-error" not in step and "if" not in step
+    gate = _job_step_by_name(
+        workflow, job_id="diff-coverage", step_name="Enforce diff coverage >= 97%"
+    )
+    assert gate["env"] == {"COVERAGE_THRESHOLD": 97}
+    assert "./fitchef-eval-coverage/coverage-fitchef-eval.xml" in gate["run"]
+    assert "--exclude 'scripts" not in gate["run"]
+    assert '--fail-under "${{ env.COVERAGE_THRESHOLD }}"' in gate["run"]
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        "valid",
+        "zero_hit",
+        "missing",
+        "malformed",
+        "empty",
+        "no_class",
+        "wrong",
+        "duplicate",
+        "extra",
+        "missing_evaluator",
+        "bad_line",
+        "negative_hits",
+        "duplicate_line",
+    ],
+)
+def test_fitchef_eval_workflow_executes_exact_file_and_line_inventory_checker(
+    tmp_path: Path,
+    case: str,
+) -> None:
+    import subprocess
+    import sys
+
+    measure = _job_step_by_name(
+        _load_ci_workflow(), job_id="test-pr", step_name="Measure FitChef eval CLI coverage"
+    )
+    marker = "python - <<'PY'\n"
+    run = str(measure["run"])
+    assert run.count(marker) == 1
+    checker = run.split(marker, 1)[1].rsplit("\nPY", 1)[0]
+    filename = "other.py" if case == "wrong" else "scripts/evals/collect_fitchef_answers.py"
+    hits = "0" if case == "zero_hit" else "-1" if case == "negative_hits" else "1"
+    number = "bad" if case == "bad_line" else "1"
+    lines = "" if case == "empty" else f'<line number="{number}" hits="{hits}"/>'
+    if case == "duplicate_line":
+        lines += lines
+    first = f'<class filename="{filename}"><lines>{lines}</lines></class>'
+    second = f'<class filename="scripts/evals/fitchef_claim_assurance_eval.py"><lines>{lines}</lines></class>'
+    raw = "<coverage><sources><source>.</source></sources><packages><package><classes>"
+    if case != "no_class":
+        raw += first
+        if case == "duplicate":
+            raw += first
+        if case == "extra":
+            raw += '<class filename="extra.py"><lines><line number="1" hits="1"/></lines></class>'
+        if case != "missing_evaluator":
+            raw += second
+    raw += "</classes></package></packages></coverage>"
+    if case == "malformed":
+        raw = "<coverage"
+    if case != "missing":
+        (tmp_path / "coverage-fitchef-eval.xml").write_text(raw, encoding="utf-8")
+    result = subprocess.run(
+        [sys.executable, "-c", checker], cwd=tmp_path, capture_output=True, timeout=5, check=False
+    )
+    assert (result.returncode == 0) is (case in {"valid", "zero_hit"})
+    if case == "zero_hit":
+        _assert_zero_hit_diff_consumer_rejects(tmp_path)
+
+
+def _assert_zero_hit_diff_consumer_rejects(tmp_path: Path) -> None:
+    import shutil
+    import subprocess
+    import sys
+
+    git = shutil.which("git")
+    assert git is not None
+    subprocess.run(
+        [git, *safe_git_config_args(), "init", "-q"],
+        cwd=tmp_path,
+        env=git_env_without_parent_state(),
+        check=True,
+        timeout=5,
+    )
+    source = tmp_path / "scripts/evals/collect_fitchef_answers.py"
+    source.parent.mkdir(parents=True)
+    source.write_text("after = 1\n", encoding="utf-8")
+    patch = tmp_path / "changed.patch"
+    patch.write_text(
+        "diff --git a/scripts/evals/collect_fitchef_answers.py b/scripts/evals/collect_fitchef_answers.py\n"
+        "--- a/scripts/evals/collect_fitchef_answers.py\n+++ b/scripts/evals/collect_fitchef_answers.py\n"
+        "@@ -1 +1 @@\n-before = 0\n+after = 1\n",
+        encoding="utf-8",
+    )
+    consumed = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "diff_cover.diff_cover_tool",
+            "coverage-fitchef-eval.xml",
+            "--diff-file",
+            str(patch),
+            "--fail-under",
+            "97",
+        ],
+        cwd=tmp_path,
+        env=git_env_without_parent_state(),
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
+    )
+    assert consumed.returncode != 0
+    assert "Coverage: 0%" in consumed.stdout + consumed.stderr
+
+
+def test_fitchef_zero_hit_git_fixture_preserves_an_inherited_synthetic_parent(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import shutil
+    import subprocess
+
+    git = shutil.which("git")
+    assert git is not None
+    parent = tmp_path / "synthetic-parent"
+    parent.mkdir()
+    clean = git_env_without_parent_state()
+    subprocess.run(
+        [git, *safe_git_config_args(), "init", "-q"], cwd=parent, env=clean, check=True, timeout=5
+    )
+    tracked = parent / "tracked.txt"
+    tracked.write_text("synthetic unchanged parent\n", encoding="utf-8")
+    subprocess.run(
+        [git, *safe_git_config_args(), "add", "--", tracked.name],
+        cwd=parent,
+        env=clean,
+        check=True,
+        timeout=5,
+    )
+    metadata = parent / ".git"
+    before = {name: (metadata / name).read_bytes() for name in ("config", "HEAD", "index")}
+    inherited = {
+        "GIT_DIR": str(metadata),
+        "GIT_WORK_TREE": str(parent),
+        "GIT_INDEX_FILE": str(metadata / "index"),
+        "GIT_COMMON_DIR": str(metadata),
+    }
+    for name, value in inherited.items():
+        monkeypatch.setenv(name, value)
+    child = tmp_path / "synthetic-child"
+    child.mkdir()
+    xml = "<coverage><sources><source>.</source></sources><packages><package><classes>"
+    for filename in (
+        "scripts/evals/collect_fitchef_answers.py",
+        "scripts/evals/fitchef_claim_assurance_eval.py",
+    ):
+        xml += f'<class filename="{filename}"><lines><line number="1" hits="0"/></lines></class>'
+    xml += "</classes></package></packages></coverage>"
+    (child / "coverage-fitchef-eval.xml").write_text(xml, encoding="utf-8")
+    _assert_zero_hit_diff_consumer_rejects(child)
+    assert {name: (metadata / name).read_bytes() for name in before} == before
+
+
+ORCHESTRATION_COVERAGE_FILES = (
+    "scripts/orchestration/pr_oracle_attachment.py",
+    "scripts/orchestration/experiment_runner_dispatch.py",
+    "scripts/orchestration/qoder_dispatch_bridge.py",
+    "scripts/orchestration/task_bootstrap.py",
+    "scripts/orchestration/render_codex_start_prompt.py",
+    "scripts/orchestration/experiment_runner.py",
+    "scripts/orchestration/experiment_runner_pr_creative_context.py",
+)
+
+
+def test_orchestration_coverage_uses_isolated_required_same_run_numeric_report() -> None:
+    workflow = _load_ci_workflow()
+    measure = _job_step_by_name(
+        workflow, job_id="test-pr", step_name="Measure orchestration CLI coverage"
+    )
+    run = str(measure["run"])
+    assert "--rcfile=/dev/null --branch" in run
+    assert f"--include='{','.join(ORCHESTRATION_COVERAGE_FILES)}'" in run
+    assert "--data-file=.coverage.orchestration -m pytest -q -p no:xdist" in run
+    for filename in ORCHESTRATION_COVERAGE_FILES:
+        assert f"tests/test_{Path(filename).stem}.py" in run
+    assert "--data-file=.coverage.orchestration -o coverage-orchestration.xml" in run
+    assert "--append" not in run
+    assert measure["env"]["BLOCK_TEST_NETWORK"] == "true"
+    upload = _job_step_by_name(
+        workflow, job_id="test-pr", step_name="Upload orchestration coverage artifact"
+    )
+    assert upload["uses"] == f"actions/upload-artifact@{UPLOAD_ARTIFACT_NODE24_SHA}"
+    assert upload["with"] == {
+        "name": "coverage-orchestration-${{ env.PYTHON_VERSION }}",
+        "path": "coverage-orchestration.xml",
+        "if-no-files-found": "error",
+        "retention-days": 7,
+    }
+    download = _job_step_by_name(
+        workflow, job_id="diff-coverage", step_name="Download orchestration coverage artifact"
+    )
+    assert download["uses"] == f"actions/download-artifact@{DOWNLOAD_ARTIFACT_NODE24_SHA}"
+    assert download["with"] == {
+        "name": "coverage-orchestration-${{ env.PYTHON_VERSION }}",
+        "path": "./orchestration-coverage",
+    }
+    for step in (measure, upload, download):
+        assert "if" not in step and "continue-on-error" not in step
+    gate = _job_step_by_name(
+        workflow, job_id="diff-coverage", step_name="Enforce diff coverage >= 97%"
+    )
+    assert gate["env"] == {"COVERAGE_THRESHOLD": 97}
+    assert "./orchestration-coverage/coverage-orchestration.xml" in gate["run"]
+    assert "--exclude 'scripts" not in gate["run"]
+    assert '--fail-under "${{ env.COVERAGE_THRESHOLD }}"' in gate["run"]
+
+
+@pytest.mark.parametrize("filename", ORCHESTRATION_COVERAGE_FILES)
+@pytest.mark.parametrize(
+    "case",
+    [
+        "valid",
+        "zero_hit",
+        "missing_xml",
+        "malformed_xml",
+        "missing_class",
+        "duplicate_class",
+        "extra_class",
+        "empty",
+        "bad_number",
+        "zero_number",
+        "duplicate_line",
+        "bad_hits",
+        "negative_hits",
+        "missing_number",
+        "missing_hits",
+    ],
+)
+def test_orchestration_workflow_executes_exact_native_line_inventory_checker(
+    tmp_path: Path, filename: str, case: str
+) -> None:
+    import sys
+    from xml.etree import ElementTree
+
+    run = str(
+        _job_step_by_name(
+            _load_ci_workflow(), job_id="test-pr", step_name="Measure orchestration CLI coverage"
+        )["run"]
+    )
+    marker = "python - <<'PY'\n"
+    assert run.count(marker) == 1
+    checker = run.split(marker, 1)[1].rsplit("\nPY", 1)[0]
+    tree = ElementTree.Element("coverage")
+    classes = ElementTree.SubElement(tree, "classes")
+    for path in ORCHESTRATION_COVERAGE_FILES:
+        if path == filename and case == "missing_class":
+            continue
+        cls = ElementTree.SubElement(classes, "class", filename=path)
+        lines = ElementTree.SubElement(cls, "lines")
+        if path == filename and case == "empty":
+            continue
+        attrs = {"number": "1", "hits": "0" if case == "zero_hit" else "1"}
+        if path == filename:
+            if case in {"bad_number", "zero_number"}:
+                attrs["number"] = "bad" if case == "bad_number" else "0"
+            if case in {"bad_hits", "negative_hits"}:
+                attrs["hits"] = "bad" if case == "bad_hits" else "-1"
+            if case == "missing_number":
+                attrs.pop("number")
+            if case == "missing_hits":
+                attrs.pop("hits")
+        ElementTree.SubElement(lines, "line", **attrs)
+        if path == filename and case == "duplicate_line":
+            ElementTree.SubElement(lines, "line", **attrs)
+    if case in {"duplicate_class", "extra_class"}:
+        ElementTree.SubElement(
+            classes, "class", filename=filename if case == "duplicate_class" else "extra.py"
+        )
+    raw = ElementTree.tostring(tree, encoding="unicode")
+    if case == "malformed_xml":
+        raw = "<coverage"
+    if case != "missing_xml":
+        (tmp_path / "coverage-orchestration.xml").write_text(raw, encoding="utf-8")
+    result = subprocess.run(
+        [sys.executable, "-c", checker], cwd=tmp_path, capture_output=True, timeout=5, check=False
+    )
+    assert (result.returncode == 0) is (case in {"valid", "zero_hit"})
+
+
+def _consume_orchestration_diff_fixture(
+    tmp_path: Path, inventories: dict[str, list[int]]
+) -> subprocess.CompletedProcess[str]:
+    """Delegate arithmetic to real diff-cover; synthetic lines are measurement controls."""
+    import sys
+    from xml.etree import ElementTree
+
+    git = shutil.which("git")
+    assert git is not None
+    subprocess.run(
+        [git, *safe_git_config_args(), "init", "-q"],
+        cwd=tmp_path,
+        env=git_env_without_parent_state(),
+        check=True,
+        timeout=5,
+    )
+    tree = ElementTree.Element("coverage")
+    ElementTree.SubElement(ElementTree.SubElement(tree, "sources"), "source").text = "."
+    classes = ElementTree.SubElement(tree, "classes")
+    patches = []
+    for filename, hits in inventories.items():
+        source = tmp_path / filename
+        source.parent.mkdir(parents=True, exist_ok=True)
+        source.write_text("after = 1\n" * len(hits), encoding="utf-8")
+        lines = ElementTree.SubElement(
+            ElementTree.SubElement(classes, "class", filename=filename), "lines"
+        )
+        for number, hit in enumerate(hits, 1):
+            ElementTree.SubElement(lines, "line", number=str(number), hits=str(hit))
+        patches.append(
+            f"diff --git a/{filename} b/{filename}\n--- a/{filename}\n+++ b/{filename}\n"
+            f"@@ -1,{len(hits)} +1,{len(hits)} @@\n"
+            + "-before = 0\n" * len(hits)
+            + "+after = 1\n" * len(hits)
+        )
+    xml = tmp_path / "coverage-orchestration.xml"
+    xml.write_bytes(ElementTree.tostring(tree))
+    patch = tmp_path / "changed.patch"
+    patch.write_text("".join(patches), encoding="utf-8")
+    return subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "diff_cover.diff_cover_tool",
+            str(xml),
+            "--diff-file",
+            str(patch),
+            "--fail-under",
+            "97",
+        ],
+        cwd=tmp_path,
+        env=git_env_without_parent_state(),
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
+    )
+
+
+@pytest.mark.parametrize("filename", ORCHESTRATION_COVERAGE_FILES)
+def test_orchestration_numeric_diff_consumer_rejects_each_zero_hit_owner(
+    tmp_path: Path, filename: str
+) -> None:
+    result = _consume_orchestration_diff_fixture(tmp_path, {filename: [0]})
+    assert result.returncode != 0
+    assert "Total:   1 line" in result.stdout
+    assert "Coverage: 0%" in result.stdout
+
+
+@pytest.mark.parametrize("uncovered,expected_pass", [(3, True), (4, False)])
+def test_orchestration_numeric_diff_consumer_retains_aggregate_97_percent(
+    tmp_path: Path, uncovered: int, expected_pass: bool
+) -> None:
+    result = _consume_orchestration_diff_fixture(
+        tmp_path,
+        {
+            ORCHESTRATION_COVERAGE_FILES[0]: [0] * uncovered,
+            ORCHESTRATION_COVERAGE_FILES[1]: [1] * (100 - uncovered),
+        },
+    )
+    assert (result.returncode == 0) is expected_pass
+    assert "Total:   100 lines" in result.stdout
+    assert f"Coverage: {100 - uncovered}%" in result.stdout
+
+
+FOUNDATION_LINT_COMMAND = (
+    'eslint --config eslint.config.js "src/api/*.ts" "src/api/premium/*.ts" '
+    "src/lib/analytics.ts --max-warnings=0"
+)
+FOUNDATION_NATIVE_STEP = "Verify foundation ESLint native controls"
+FOUNDATION_LINT_STEP = "Lint API and foundation scope"
+# Public SHA256 integrity digests bind the tracked config/workflow, not credentials.
+# Native ESLint/npm execution supplies tool semantics; Python does not interpret JS or shell.
+FOUNDATION_CONFIG_SHA256 = (
+    "33c678e5f8a86963dae24419a2d2e4f798d300c477ff7756046539edbe3c1214"  # pragma: allowlist secret
+)
+FOUNDATION_NATIVE_RUN_SHA256 = (
+    "034896f507c276d34d1574f02cc265e4c83c81f3f4f91dfe4d8b255b702be0c5"  # pragma: allowlist secret
+)
+
+
+def _assert_frontend_node24_foundation_contract(
+    package: dict[str, object], workflow: dict[str, object], config_source: str
+) -> None:
+    """Bind the existing exact production command and reviewed CI control carriers."""
+    scripts = package["scripts"]
+    dependencies = package["devDependencies"]
+    assert isinstance(scripts, dict)
+    assert isinstance(dependencies, dict)
+    assert scripts["lint:foundation"] == FOUNDATION_LINT_COMMAND
+    assert dependencies["@eslint/js"] == "9.39.3"
+    assert dependencies["typescript-eslint"] == "8.71.0"
+    assert "type" not in package
+    assert hashlib.sha256(config_source.encode("utf-8")).hexdigest() == FOUNDATION_CONFIG_SHA256
+    workflow_defaults = workflow.get("defaults", {})
+    assert isinstance(workflow_defaults, dict)
+    workflow_run = workflow_defaults.get("run", {})
+    assert isinstance(workflow_run, dict)
+    assert "shell" not in workflow_run
+    workflow_env = workflow.get("env", {})
+    assert isinstance(workflow_env, dict)
+    assert not {"NODE_OPTIONS", "NODE_PATH"}.intersection(workflow_env)
+    jobs = workflow["jobs"]
+    assert isinstance(jobs, dict)
+    job = jobs["build-and-test"]
+    assert isinstance(job, dict)
+    assert "if" not in job and "continue-on-error" not in job
+    assert job["defaults"] == {"run": {"working-directory": "frontend"}}
+    job_env = job.get("env", {})
+    assert isinstance(job_env, dict)
+    assert not {"NODE_OPTIONS", "NODE_PATH"}.intersection(job_env)
+    steps = job["steps"]
+    assert isinstance(steps, list)
+    installs = [
+        step
+        for step in steps
+        if isinstance(step, dict) and step.get("name") == "Install dependencies"
+    ]
+    assert len(installs) == 1
+    install = installs[0]
+    assert install == {
+        "name": "Install dependencies",
+        "uses": "./.github/actions/npm-ci-with-retry",
+        "with": {"working-directory": "frontend"},
+    }
+    native_steps = [
+        step
+        for step in steps
+        if isinstance(step, dict)
+        and (
+            step.get("name") == FOUNDATION_NATIVE_STEP
+            or isinstance(step.get("run"), str)
+            and hashlib.sha256(cast(str, step["run"]).encode("utf-8")).hexdigest()
+            == FOUNDATION_NATIVE_RUN_SHA256
+        )
+    ]
+    assert len(native_steps) == 1
+    native = native_steps[0]
+    assert set(native) == {"name", "env", "run"}
+    assert native["env"] == {"ESLINT_CONTROL_TIMEOUT_MS": "15000"}
+    assert native["name"] == FOUNDATION_NATIVE_STEP
+    assert isinstance(native["run"], str)
+    assert hashlib.sha256(native["run"].encode("utf-8")).hexdigest() == FOUNDATION_NATIVE_RUN_SHA256
+    lint_steps = [
+        step
+        for step in steps
+        if isinstance(step, dict)
+        and (
+            step.get("name") == FOUNDATION_LINT_STEP or step.get("run") == "npm run lint:foundation"
+        )
+    ]
+    assert len(lint_steps) == 1
+    lint = lint_steps[0]
+    assert lint == {"name": FOUNDATION_LINT_STEP, "run": "npm run lint:foundation"}
+    assert steps.index(install) < steps.index(native) < steps.index(lint)
+
+
+def test_frontend_node24_foundation_command_and_native_controls_are_blocking() -> None:
+    """Structural wiring remains runnable on a Python-only nightly worker."""
+    package = json.loads(FRONTEND_PACKAGE_JSON_PATH.read_text(encoding="utf-8"))
+    workflow = _load_workflow(FRONTEND_CI_WORKFLOW_PATH)
+    config_source = (REPO_ROOT / "frontend/eslint.config.js").read_text(encoding="utf-8")
+    _assert_frontend_node24_foundation_contract(package, workflow, config_source)
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    (
+        "missing_script",
+        "optional_script",
+        "masked_script",
+        "implicit_config",
+        "empty_selector",
+        "missing_premium",
+        "missing_analytics",
+        "warnings_allowed",
+        "missing_dependency",
+        "global_module_mode",
+        "broad_ignore",
+        "weakened_rule",
+        "missing_native",
+        "duplicate_native",
+        "renamed_duplicate_native",
+        "missing_lint",
+        "duplicate_lint",
+        "renamed_duplicate_lint",
+        "install_if",
+        "install_optional",
+        "native_if",
+        "native_optional",
+        "native_shell",
+        "native_cwd",
+        "native_env",
+        "lint_if",
+        "lint_optional",
+        "lint_shell",
+        "lint_cwd",
+        "lint_optional_command",
+        "lint_masked_command",
+        "controls_before_install",
+        "lint_before_controls",
+        "job_if",
+        "job_optional",
+        "job_cwd",
+        "job_shell",
+        "workflow_shell",
+        "job_startup_env",
+        "workflow_startup_env",
+        "missing_clean_control",
+        "missing_error_control",
+        "missing_warning_control",
+        "missing_script_control",
+        "missing_config_control",
+        "missing_empty_control",
+        "missing_ignored_control",
+        "ambient_child_env",
+    ),
+)
+def test_frontend_node24_foundation_guard_rejects_weakened_wiring(mutation: str) -> None:
+    """Reject the finite declared drift classes without an npm/JS/shell interpreter."""
+    package = json.loads(FRONTEND_PACKAGE_JSON_PATH.read_text(encoding="utf-8"))
+    workflow = _load_workflow(FRONTEND_CI_WORKFLOW_PATH)
+    config_source = (REPO_ROOT / "frontend/eslint.config.js").read_text(encoding="utf-8")
+    scripts = package["scripts"]
+    job = cast(dict[str, object], cast(dict[str, object], workflow["jobs"])["build-and-test"])
+    steps = cast(list[dict[str, object]], job["steps"])
+    install = next(step for step in steps if step.get("name") == "Install dependencies")
+    native = next(step for step in steps if step.get("name") == FOUNDATION_NATIVE_STEP)
+    lint = next(step for step in steps if step.get("name") == FOUNDATION_LINT_STEP)
+    if mutation == "missing_script":
+        scripts.pop("lint:foundation")
+    elif mutation in {
+        "optional_script",
+        "masked_script",
+        "implicit_config",
+        "empty_selector",
+        "missing_premium",
+        "missing_analytics",
+        "warnings_allowed",
+    }:
+        replacements = {
+            "optional_script": FOUNDATION_LINT_COMMAND + " --if-present",
+            "masked_script": FOUNDATION_LINT_COMMAND + " || true",
+            "implicit_config": FOUNDATION_LINT_COMMAND.replace("--config eslint.config.js ", ""),
+            "empty_selector": FOUNDATION_LINT_COMMAND.replace('"src/api/*.ts"', '"absent/*.ts"'),
+            "missing_premium": FOUNDATION_LINT_COMMAND.replace(' "src/api/premium/*.ts"', ""),
+            "missing_analytics": FOUNDATION_LINT_COMMAND.replace(" src/lib/analytics.ts", ""),
+            "warnings_allowed": FOUNDATION_LINT_COMMAND.replace(
+                "--max-warnings=0", "--max-warnings=1"
+            ),
+        }
+        scripts["lint:foundation"] = replacements[mutation]
+    elif mutation == "missing_dependency":
+        package["devDependencies"].pop("typescript-eslint")
+    elif mutation == "global_module_mode":
+        package["type"] = "module"
+    elif mutation == "broad_ignore":
+        config_source = config_source.replace("'src/api/schema.ts'", "'src/api/**'")
+    elif mutation == "weakened_rule":
+        config_source = config_source.replace(
+            "'no-duplicate-imports': 'error'", "'no-duplicate-imports': 'off'"
+        )
+    elif mutation in {"missing_native", "missing_lint"}:
+        steps.remove(native if mutation == "missing_native" else lint)
+    elif mutation in {
+        "duplicate_native",
+        "renamed_duplicate_native",
+        "duplicate_lint",
+        "renamed_duplicate_lint",
+    }:
+        duplicate = dict(native if "native" in mutation else lint)
+        if mutation.startswith("renamed_"):
+            duplicate["name"] = "Duplicate renamed control"
+        steps.append(duplicate)
+    elif mutation in {"install_if", "native_if", "lint_if"}:
+        {"install_if": install, "native_if": native, "lint_if": lint}[mutation][
+            "if"
+        ] = "${{ false }}"
+    elif mutation in {"install_optional", "native_optional", "lint_optional"}:
+        {"install_optional": install, "native_optional": native, "lint_optional": lint}[mutation][
+            "continue-on-error"
+        ] = True
+    elif mutation in {"native_shell", "lint_shell"}:
+        (native if mutation == "native_shell" else lint)["shell"] = "bash -c '{0} || true'"
+    elif mutation in {"native_cwd", "lint_cwd"}:
+        (native if mutation == "native_cwd" else lint)["working-directory"] = "."
+    elif mutation == "native_env":
+        native["env"] = {"NODE_OPTIONS": "--require untrusted.cjs"}
+    elif mutation == "lint_optional_command":
+        lint["run"] = "npm run lint:foundation --if-present"
+    elif mutation == "lint_masked_command":
+        lint["run"] = "npm run lint:foundation || true"
+    elif mutation == "controls_before_install":
+        steps.remove(native)
+        steps.insert(steps.index(install), native)
+    elif mutation == "lint_before_controls":
+        steps.remove(lint)
+        steps.insert(steps.index(native), lint)
+    elif mutation == "job_if":
+        job["if"] = "${{ false }}"
+    elif mutation == "job_optional":
+        job["continue-on-error"] = True
+    elif mutation == "job_cwd":
+        job["defaults"] = {"run": {"working-directory": "."}}
+    elif mutation == "job_shell":
+        job["defaults"] = {
+            "run": {"working-directory": "frontend", "shell": "bash -c '{0} || true'"}
+        }
+    elif mutation == "workflow_shell":
+        workflow["defaults"] = {"run": {"shell": "bash -c '{0} || true'"}}
+    elif mutation == "job_startup_env":
+        cast(dict[str, object], job["env"])["NODE_PATH"] = "untrusted"
+    elif mutation == "workflow_startup_env":
+        cast(dict[str, object], workflow["env"])["NODE_OPTIONS"] = "--require untrusted.cjs"
+    else:
+        changes = {
+            "missing_clean_control": ("['clean',", "['disabled-clean',"),
+            "missing_error_control": ("'no-duplicate-imports', 2, 1", "null, 0, 0"),
+            "missing_warning_control": ("'@typescript-eslint/no-explicit-any', 1, 1", "null, 0, 0"),
+            "missing_script_control": ("['run', 'lint:foundation']", "['--version']"),
+            "missing_config_control": ("missing-eslint.config.cjs", "eslint.config.js"),
+            "missing_empty_control": ("absent/*.ts", "clean.ts"),
+            "missing_ignored_control": ("ignores: ['src/api/*.ts']", "ignores: []"),
+            "ambient_child_env": ("const env = {", "const env = { ...process.env,"),
+        }
+        old, new = changes[mutation]
+        source = cast(str, native["run"])
+        assert old in source
+        native["run"] = source.replace(old, new)
+    with pytest.raises((AssertionError, KeyError)):
+        _assert_frontend_node24_foundation_contract(package, workflow, config_source)
 
 
 def test_fitchef_agent_coverage_is_separate_and_required_by_existing_diff_gate() -> None:
@@ -5191,6 +6284,8 @@ def test_fitchef_agent_structural_acceptance_still_requires_numeric_diff_coverag
     for report in (
         "coverage-artifacts/coverage.xml",
         "ops-context-coverage/coverage-ops-context.xml",
+        "fitchef-eval-coverage/coverage-fitchef-eval.xml",
+        "orchestration-coverage/coverage-orchestration.xml",
         "fitchef-agent-coverage/coverage-fitchef-agent.xml",
     ):
         path = tmp_path / report

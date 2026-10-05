@@ -73,6 +73,7 @@ from core.insight.fitchef_companion import (
     build_distortion_simulator_prompt,
     build_slip_support_prompt,
     build_weekly_reflection_prompt,
+    has_high_distress_boundary,
     prepare_distortion_simulator_draft,
     prepare_identity_loop_mapper_draft,
     prepare_mascot_draft,
@@ -1078,6 +1079,9 @@ async def run_distortion_simulator_task(
     safe_automatic_thought = task.input.safe_automatic_thought
     safe_emotion = task.input.safe_emotion
     safe_goal = task.input.safe_goal
+    lang = task.input.lang
+    if has_high_distress_boundary(safe_situation, safe_automatic_thought, safe_emotion, safe_goal):
+        raise HTTPException(status_code=400, detail="fitchef_high_distress_boundary")
     retrieval_text = _build_distortion_simulator_query(
         safe_situation,
         safe_automatic_thought,
@@ -1100,6 +1104,7 @@ async def run_distortion_simulator_task(
                 safe_emotion,
                 safe_goal,
                 rag_context,
+                lang=lang,
             ),
             draft_builder=lambda raw_message: prepare_distortion_simulator_draft(
                 raw_message,
@@ -1107,6 +1112,7 @@ async def run_distortion_simulator_task(
                 automatic_thought=safe_automatic_thought,
                 emotion=safe_emotion,
                 goal=safe_goal,
+                lang=lang,
             ),
             unavailable_detail="fitchef_distortion_simulator_unavailable",
             log_label="FitChef distortion simulator",

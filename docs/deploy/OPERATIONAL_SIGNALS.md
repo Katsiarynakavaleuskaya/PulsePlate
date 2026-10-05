@@ -84,6 +84,65 @@ and create a new epoch after the config change; leave eligibility `HOLD` when
 any exact series is absent or positive. No rule-file merge alone proves that
 the host loaded the new rules.
 
+### Optional Alertmanager email routing (OBS2A PR2)
+
+The three Compose contours declare the `alerting` profile, which remains off
+for ordinary app and metrics startup. Its official Alertmanager v0.34.1
+linux/amd64 image is pinned by platform digest in the Compose files. The
+service has no host port or Caddy route, runs as UID 65534 with a read-only
+root, dropped capabilities, a 16 MiB temporary store, and no cluster listener.
+Prometheus and Alertmanager share only the internal `alerting` network;
+Alertmanager alone also joins `smtp-egress`. Its explicit gateway priority 2
+exceeds the internal `alerting` attachment's priority 1, making SMTP egress
+the default route. That bridge permits outbound networking and is not a
+firewall restricting traffic to Resend. The installed Compose host must retain
+both priority values in its normalized config before activation.
+
+Prometheus sets the literal `staging` or `production` external `environment`
+label, and drops the same name from scraped metric labels before ingestion.
+Deploy admission rejects a missing, duplicate, crossed or shadowed contour
+label. Existing seven target and alias rules retain their exact expressions
+and send to the private `alertmanager:9093` target. The Resend route uses
+`smtp.resend.com:2465` with implicit TLS, sender
+`alerts@alerts.pulseplate.app`, recipient `pulseplate@pm.me`, a 30-second
+group wait, five-minute group interval and 24-hour repeat interval. Resolved
+messages are disabled. A restart loses temporary Alertmanager deduplication
+state and may produce a duplicate notification.
+
+Only a deliberately selected `alerting` profile requires the server-local
+`secrets/alertmanager_smtp_key`, mounted only into Alertmanager at
+`/run/secrets/alertmanager_smtp_key`. The file must be regular, non-symlink,
+owned by the Compose account and mode `0444` under its mode-`0700` secrets
+directory. Compose bind mounts do not remap file ownership; this lets runtime
+UID 65534 read the key without granting the app or Prometheus the mount.
+Create a Resend Free account, verify only `alerts.pulseplate.app`, and place
+the separate SMTP key directly on the host; never place its value in Git,
+logs, chat or Drive. Repository merge does not create the key or select the
+profile. The exception for the exact bundled gRPC finding is recorded in
+`docs/security/CVE-2026-84445-alertmanager.md`; a suppressed scan is not a
+clean scan.
+
+Keep `MERGED_REPO`, `MAIN_VERIFIED`, `HOST_ACTIVATED`, received Prometheus
+email, received checkpoint-failure email and scheduled checkpoint as separate
+evidence states. After both OBS2A PR2 and PR3 merge, conduct a fresh host
+census and a separately authorized monitoring-only activation. Verify the
+Compose project, current image/config hashes, actual SMTP 2465 reachability,
+`alias-alerts.yml`, protected secret metadata and the existing
+`prometheus_data` mount before changing any monitoring service. Save the old
+config and hashes for rollback; preserve the TSDB, app, DB and #2404 receipts.
+After a Prometheus config change, create a new baseline epoch. Test email
+delivery with disposable Prometheus data and a separate checkpoint test
+baseline; an accepted Alertmanager API call is not proof of mailbox receipt.
+On failure, disable only the new profile/timer and restore the verified
+previous Prometheus config. Do not run the general staging `deploy.sh` as a
+monitoring-only activation or infer production `T₀` from staging evidence.
+If a production contract publication stops between file replacements, treat
+the mixed installed files as `HOLD`: the direct-host preflight rejects an
+Alertmanager config or ignore that differs from the admitted contract. Preserve
+app, DB and TSDB, then replay only the complete CI bundle through the existing
+safe publication transaction and rerun preflight. Never repair one file by an
+unverified manual copy or infer that a partly published bundle activated mail.
+
 Managed versus colocated PostgreSQL remains product-topology truth. Runner
 transport such as `PROD_DEPLOY_MODE=self-hosted` does not select a database
 contour. Only an exact canonical `COMPOSE_FILE` does so.
@@ -253,6 +312,13 @@ change is merged. It never starts the production clock.
    is `HOLD`; only proven volume absence is a fresh path. PostgreSQL health,
    migration, app, worker, Caddy, and external readiness complete before
    Prometheus starts.
+   For the external scheduler, worker acceptance is a bounded native Docker
+   running/identity check because its Compose healthcheck is disabled. One
+   `up -d --pull never --no-deps worker` precedes Caddy; the same app/worker
+   generation is observed again after HTTPS `/ready`, without a second `up`.
+   `Running=true` and numeric `ExitCode=0` do not prove a scheduler cycle or
+   alert delivery. A failed gate is `HOLD`, and a post-Caddy failure may leave
+   partial host state; any recovery needs a new operator decision.
 7. Run canonical BMR and gaps API smoke plus Web Nutrition Setup smoke.
 8. Create a private mode-`0700` staging evidence directory and run the
    verifier in `baseline` mode.
@@ -548,10 +614,19 @@ The CLI uses the dedicated `pulseplate-ops` key and known-hosts record named
 in `docs/deploy/STAGING.md`. The fixed SSH probe calls the installed full
 `check_staging_security.py` on the selected all-profile Compose render, then
 requires one running, non-one-off `app` and `postgres` under exact staging
-Compose labels. It binds their configured images and compares container ID,
-image ID, the native `docker compose config --hash` result for each selected
-service, and start time before and after the observation. A changed or
-ambiguous hash fails closed. From the selected app container it requests
+Compose labels. The installed staging Compose source must match the exact
+reviewed SHA-256, and a controlled process environment pins the backend and
+Caddy references to the attested merge. This rejects a stale host `.env` image
+reference without reading it as image authority. The probe keeps the bounded
+resolved Compose JSON in memory, verifies its stdin roundtrip, and compares
+resolved app/PostgreSQL hashes with the selected container labels. PostgreSQL
+also requires native `config --hash` equality. For the app, the native hash may
+differ because [docker/compose#14001](https://github.com/docker/compose/issues/14001)
+omits service `env_file` values on affected versions; the exact pinned Compose
+source witnesses that app-only exception. It compares container ID, image ID,
+configured image and start time, then rerenders, roundtrips and recomputes all
+four hashes after the app probe. Any source, model, hash or generation change
+fails closed. From the selected app container it requests
 `/health` and `/ready` separately with redirects and ambient proxies disabled
 and opens a short-lived PostgreSQL read-only session with the existing CA and
 passfile under `sslmode=verify-full`. Ambient libpq overrides fail closed before

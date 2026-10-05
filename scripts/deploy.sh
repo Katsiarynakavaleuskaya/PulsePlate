@@ -52,6 +52,12 @@ STAGING_DEPLOY_MARKER="${STAGING_DEPLOY_MARKER:-${PROJECT_DIR}/.attested-digest-
 PROMETHEUS_CONFIG="${PROMETHEUS_CONFIG:-${PROJECT_DIR}/prometheus/prometheus.yml}"
 PROMETHEUS_RULES="${PROJECT_DIR}/prometheus/alias-alerts.yml"
 PROMETHEUS_IMAGE_MANIFEST="${PROMETHEUS_IMAGE_MANIFEST:-${PROJECT_DIR}/prometheus/image-manifest.json}"
+ALERTMANAGER_CONFIG="${PROJECT_DIR}/alertmanager/alertmanager.yml"
+ALERTMANAGER_TRIVY_IGNORE="${PROJECT_DIR}/alertmanager/trivy-ignore.yaml"
+ALERTMANAGER_SMTP_KEY="${PROJECT_DIR}/secrets/alertmanager_smtp_key"
+# Keep the caller's profile choice authoritative over Compose --env-file values.
+COMPOSE_PROFILES="${COMPOSE_PROFILES-}"
+export COMPOSE_PROFILES
 POSTGRES_IMAGE_MANIFEST="${POSTGRES_IMAGE_MANIFEST:-${PROJECT_DIR}/postgres-pgvector/image-manifest.json}"
 METRICS_SECRET_DIR="${METRICS_SECRET_DIR:-${PROJECT_DIR}/secrets}"
 METRICS_SECRET_FILE="${METRICS_SECRET_FILE:-${METRICS_SECRET_DIR}/pulseplate_metrics_scrape_key}"
@@ -106,6 +112,8 @@ for required_path in \
   "$PROMETHEUS_CONFIG" \
   "$PROMETHEUS_RULES" \
   "$PROMETHEUS_IMAGE_MANIFEST" \
+  "$ALERTMANAGER_CONFIG" \
+  "$ALERTMANAGER_TRIVY_IGNORE" \
   "$POSTGRES_IMAGE_MANIFEST"; do
   if [ -L "$required_path" ] || [ ! -f "$required_path" ]; then
     echo "❌ Staging file must be a regular non-symlink file: $required_path" >&2
@@ -257,6 +265,254 @@ if prometheus.get("image") != sys.argv[1] or prometheus.get("platform") != "linu
 ' "$runtime_ref"
 }
 
+validate_alertmanager_contract() {
+  "${COMPOSE[@]}" --profile '*' config --format json | "$PYTHON_BIN" -c '
+import hashlib
+import json
+from pathlib import Path
+import re
+import sys
+
+def unique(pairs):
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError("duplicate rendered Compose key")
+        result[key] = value
+    return result
+
+compose, prometheus_config, rules, alert_config, ignore = map(Path, sys.argv[1:6])
+expected_environment = sys.argv[6]
+image = "prom/alertmanager@sha256:84967b9b7ba45e38a9278d3e594305f43d4993c310df3905b51138b816c365f3"
+try:
+    payload = json.load(sys.stdin, object_pairs_hook=unique)
+except (ValueError, TypeError) as exc:
+    raise SystemExit("Alertmanager rendered Compose is malformed") from exc
+services = payload.get("services", {})
+prometheus = services.get("prometheus", {})
+alertmanager = services.get("alertmanager", {})
+app = services.get("app", {})
+networks = payload.get("networks", {})
+if not all(isinstance(part, dict) for part in (services, prometheus, alertmanager, app, networks)):
+    raise SystemExit("Alertmanager Compose topology is malformed")
+raw = compose.read_text(encoding="utf-8")
+marker = "- PULSEPLATE_ENVIRONMENT=" + expected_environment
+if (len(re.findall(r"(?m)^\s*(?:-\s*)?PULSEPLATE_ENVIRONMENT\s*(?::|=)", raw)) != 1
+        or raw.count(marker) != 1):
+    raise SystemExit("Prometheus environment must be one literal contour value")
+if raw.count(image) != 1:
+    raise SystemExit("Raw Alertmanager image must use the admitted platform digest")
+if prometheus.get("environment", {}).get("PULSEPLATE_ENVIRONMENT") != expected_environment:
+    raise SystemExit("Rendered Prometheus environment is wrong")
+# Public canonical admission fingerprints; update only after reviewing source file changes.
+if hashlib.sha256(prometheus_config.read_bytes()).hexdigest() != (
+    "77c5d05a" "45798582" "decb02b0" "55e5a15e"
+    "93f7ce73" "471ee079" "39e818b4" "a0757960"
+):
+    raise SystemExit("Prometheus configuration differs from the admitted complete file")
+if hashlib.sha256(rules.read_bytes()).hexdigest() != (
+    "82ae2fb2" "c68b7d58" "0b71fe81" "b507de64"
+    "d5e4037d" "8b62da63" "1449b88f" "f4fd8e74"
+):
+    raise SystemExit("Prometheus rules differ from the admitted complete file")
+if alertmanager.get("image") != image or alertmanager.get("platform") != "linux/amd64":
+    raise SystemExit("Alertmanager image identity differs from the admitted platform digest")
+if alertmanager.get("profiles") != ["alerting"] or alertmanager.get("ports") not in (None, []):
+    raise SystemExit("Alertmanager must be private and profile selected")
+if set(alertmanager.get("networks", {})) != {"alerting", "smtp-egress"}:
+    raise SystemExit("Alertmanager networks are not canonical")
+alertmanager_networks = alertmanager["networks"]
+if (type(alertmanager_networks["alerting"]) is not dict
+        or type(alertmanager_networks["smtp-egress"]) is not dict
+        or type(alertmanager_networks["alerting"].get("gw_priority")) is not int
+        or type(alertmanager_networks["smtp-egress"].get("gw_priority")) is not int
+        or alertmanager_networks["alerting"]["gw_priority"] != 1
+        or alertmanager_networks["smtp-egress"]["gw_priority"] != 2):
+    raise SystemExit("Alertmanager SMTP egress must be the explicit highest-priority gateway")
+if set(prometheus.get("networks", {})) != {"observability", "alerting"}:
+    raise SystemExit("Prometheus networks are not canonical")
+expected_app_networks = {"web", "observability", "database"} if expected_environment == "staging" else {"web", "observability"}
+if set(app.get("networks", {})) != expected_app_networks:
+    raise SystemExit("Product app networks changed or gained SMTP egress")
+if networks.get("alerting", {}).get("internal") is not True:
+    raise SystemExit("Alerting network must be internal")
+smtp_egress = networks.get("smtp-egress")
+if (type(smtp_egress) is not dict or smtp_egress.get("driver") != "bridge"
+        or smtp_egress.get("internal") not in (None, False)
+        or smtp_egress.get("external") not in (None, False)):
+    raise SystemExit("SMTP egress must be a non-internal, non-external bridge")
+commands = alertmanager.get("command", [])
+if commands != ["--config.file=/etc/alertmanager/alertmanager.yml", "--storage.path=/alertmanager", "--cluster.listen-address="] or alertmanager.get("entrypoint"):
+    raise SystemExit("Alertmanager command or disabled cluster listener changed")
+if alertmanager.get("environment") or alertmanager.get("env_file") or alertmanager.get("extra_hosts"):
+    raise SystemExit("Alertmanager gained an unreviewed environment or host mapping")
+if alertmanager.get("read_only") is not True or alertmanager.get("user") != "65534:65534":
+    raise SystemExit("Alertmanager runtime isolation changed")
+if alertmanager.get("cap_drop") != ["ALL"] or alertmanager.get("security_opt") != ["no-new-privileges:true"]:
+    raise SystemExit("Alertmanager capabilities or privilege policy changed")
+if alertmanager.get("tmpfs") != ["/alertmanager:size=16m,mode=0700,uid=65534,gid=65534,noexec,nosuid"]:
+    raise SystemExit("Alertmanager temporary storage contract changed")
+if alertmanager.get("healthcheck", {}).get("test") != ["CMD", "/bin/wget", "-q", "-T", "5", "-O", "/dev/null", "http://127.0.0.1:9093/-/ready"]:
+    raise SystemExit("Alertmanager readiness command is not the bounded native probe")
+if alertmanager.get("depends_on") or alertmanager.get("privileged") or alertmanager.get("network_mode"):
+    raise SystemExit("Alertmanager gained a dependency or privileged network")
+mounts = alertmanager.get("volumes", [])
+if len(mounts) != 1 or mounts[0].get("type") != "bind" or mounts[0].get("source") != str(alert_config) or mounts[0].get("target") != "/etc/alertmanager/alertmanager.yml" or mounts[0].get("read_only") is not True:
+    raise SystemExit("Alertmanager configuration mount changed")
+expected_secret = [{"source": "alertmanager_smtp_key", "target": "/run/secrets/alertmanager_smtp_key"}]
+if alertmanager.get("secrets") != expected_secret:
+    raise SystemExit("Alertmanager SMTP secret mount changed")
+secret_records = payload.get("secrets", {})
+if type(secret_records) is not dict:
+    raise SystemExit("Rendered Compose secrets are malformed")
+smtp_key_path = str(compose.parent / "secrets/alertmanager_smtp_key")
+for service_name, service in services.items():
+    if type(service) is not dict:
+        raise SystemExit("Rendered Compose service is malformed")
+    dependencies = service.get("depends_on", {})
+    if type(dependencies) is not dict or any(type(edge) is not dict for edge in dependencies.values()):
+        raise SystemExit("Rendered Compose dependency map is malformed")
+    if service_name != "alertmanager" and "alertmanager" in dependencies:
+        raise SystemExit("Another service may not depend on Alertmanager")
+    if service_name != "alertmanager":
+        if "network_mode" in service:
+            raise SystemExit("Another service may not share Alertmanager network namespace")
+        if "smtp-egress" in service.get("networks", {}):
+            raise SystemExit("SMTP egress leaked to another service")
+        for mount in service.get("volumes", []):
+            if type(mount) is not dict:
+                raise SystemExit("Rendered Compose service volume is malformed")
+            if (mount.get("type") == "bind"
+                    and (mount.get("source") == smtp_key_path
+                         or mount.get("target") == "/run/secrets/alertmanager_smtp_key")):
+                raise SystemExit("SMTP key bind mount leaked to another service")
+        for secret in service.get("secrets", []):
+            if type(secret) is not dict:
+                raise SystemExit("Rendered Compose service secret is malformed")
+            source = secret.get("source")
+            source_record = secret_records.get(source, {})
+            if (source == "alertmanager_smtp_key"
+                    or secret.get("target") == "/run/secrets/alertmanager_smtp_key"
+                    or (type(source_record) is dict and source_record.get("file") == smtp_key_path)):
+                raise SystemExit("SMTP secret leaked to another service")
+secret_record = secret_records.get("alertmanager_smtp_key", {})
+if type(secret_record) is not dict or secret_record.get("file") != smtp_key_path:
+    raise SystemExit("Alertmanager SMTP secret source changed")
+alert_text = alert_config.read_text(encoding="utf-8")
+for required in ("smtp.resend.com:2465", "alerts@alerts.pulseplate.app", "pulseplate@pm.me",
+                 "smtp_auth_username: resend",
+                 "smtp_auth_password_file: /run/secrets/alertmanager_smtp_key",
+                 "smtp_require_tls: true", "smtp_force_implicit_tls: true",
+                 "group_wait: 30s", "group_interval: 5m", "repeat_interval: 24h",
+                 "send_resolved: false"):
+    if alert_text.count(required) != 1:
+        raise SystemExit("Alertmanager SMTP or route contract changed")
+# Finite exact-line recognizer for the reviewed SMTP route and sole recipient.
+expected_alertmanager_lines = (
+    "global:",
+    "  smtp_smarthost: smtp.resend.com:2465",
+    "  smtp_from: alerts@alerts.pulseplate.app",
+    "  smtp_auth_username: resend",
+    "  smtp_auth_password_file: /run/secrets/alertmanager_smtp_key",
+    "  smtp_require_tls: true",
+    "  smtp_force_implicit_tls: true",
+    "",
+    "route:",
+    "  receiver: pulseplate-email",
+    "  group_by: [alertname, environment, alias]",
+    "  group_wait: 30s",
+    "  group_interval: 5m",
+    "  repeat_interval: 24h",
+    "",
+    "receivers:",
+    "  - name: pulseplate-email",
+    "    email_configs:",
+    "      - to: pulseplate@pm.me",
+    "        send_resolved: false",
+    "        force_implicit_tls: true",
+    "        text: PulsePlate alert {{ .CommonLabels.alertname }} ({{ .CommonLabels.environment }}).",
+)
+if (len(re.findall(r"(?m)^route:\s*$", alert_text)) != 1
+    or len(re.findall(r"(?m)^  receiver: pulseplate-email\s*$", alert_text)) != 1
+    or len(re.findall(r"(?m)^receivers:\s*$", alert_text)) != 1
+    or len(re.findall(r"(?m)^  - name: pulseplate-email\s*$", alert_text)) != 1
+    or len(re.findall(r"(?m)^    email_configs:\s*$", alert_text)) != 1
+    or len(re.findall(r"(?m)^      - to: pulseplate@pm[.]me\s*$", alert_text)) != 1
+    or len(re.findall(r"(?m)^\s*(?:-\s*)?to\s*:", alert_text)) != 1
+    or re.search(r"(?m)^\s*smtp_auth_password\s*:", alert_text)
+    or tuple(alert_text.splitlines()) != expected_alertmanager_lines
+    or not alert_text.endswith(chr(10))):
+    raise SystemExit("Alertmanager route and sole recipient are not the exact reviewed config")
+if hashlib.sha256(ignore.read_bytes()).hexdigest() != (
+    "7d6d70d6" "fcc07612" "1b82a7b5" "75a4c384"
+    "87aca24d" "11d037db" "42740b28" "9ab17e40"
+):
+    raise SystemExit("Alertmanager Trivy exception differs from the admitted complete file")
+' "$COMPOSE_FILE" "$PROMETHEUS_CONFIG" "$PROMETHEUS_RULES" \
+  "$ALERTMANAGER_CONFIG" "$ALERTMANAGER_TRIVY_IGNORE" staging
+}
+
+alertmanager_selected() {
+  local remaining="${COMPOSE_PROFILES:-}"
+  local token
+  while :; do
+    token="${remaining%%,*}"
+    token="${token#"${token%%[![:space:]]*}"}"
+    token="${token%"${token##*[![:space:]]}"}"
+    if [ "$token" = alerting ]; then
+      return 0
+    fi
+    case "$remaining" in
+      *,*) remaining="${remaining#*,}" ;;
+      *) return 1 ;;
+    esac
+  done
+}
+
+validate_alertmanager_exception_time() {
+  "$PYTHON_BIN" - <<'PY'
+from datetime import datetime, timezone
+if datetime.now(timezone.utc) >= datetime(2026, 10, 24, tzinfo=timezone.utc):
+    raise SystemExit("Selected or running Alertmanager Trivy exception has expired")
+PY
+}
+
+validate_alertmanager_secret_if_selected() {
+  if "$PYTHON_BIN" - "$ENV_FILE" <<'PY'
+from pathlib import Path
+import re
+import sys
+text = Path(sys.argv[1]).read_text(encoding="utf-8")
+if re.search(r"(?m)^\s*COMPOSE_PROFILES\s*=", text):
+    raise SystemExit("COMPOSE_PROFILES must be selected by the operator, not the env file")
+PY
+  then
+    :
+  else
+    return 1
+  fi
+  if ! alertmanager_selected; then
+    return 0
+  fi
+  validate_alertmanager_exception_time
+  if [ -L "$ALERTMANAGER_SMTP_KEY" ] || [ ! -f "$ALERTMANAGER_SMTP_KEY" ]; then
+    echo "❌ Selected Alertmanager requires a regular non-symlink SMTP key" >&2
+    return 1
+  fi
+  if [ "$($STAT_BIN -c '%u:%a' "$ALERTMANAGER_SMTP_KEY")" != "${EUID}:444" ]; then
+    echo "❌ Alertmanager SMTP key must be owned by the Compose account with mode 0444" >&2
+    return 1
+  fi
+  "$PYTHON_BIN" - "$ALERTMANAGER_SMTP_KEY" <<'PY'
+import os
+import stat
+import sys
+metadata = os.lstat(sys.argv[1])
+if not stat.S_ISREG(metadata.st_mode) or metadata.st_size <= 0:
+    raise SystemExit("Selected Alertmanager requires a nonempty regular SMTP key")
+PY
+}
+
 validate_postgres_image_manifest() {
   local manifest_path="$1"
   "$PYTHON_BIN" - "$manifest_path" <<'PY'
@@ -270,7 +526,7 @@ import stat
 import sys
 
 manifest_path = sys.argv[1]
-expected_file_sha256 = "f5695851db7e29f4f3d70f202655ca474eddaabc6aecfb9725a4783ca09e55ce"  # pragma: allowlist secret
+expected_file_sha256 = "9aa310913af9799c39182428e0170b173fe2144367b302d7d2cafd87c93c03b2"  # pragma: allowlist secret
 expected_keys = set(
     """
     schema repository tag platform platform_manifest_digest config_digest runtime_ref
@@ -298,8 +554,8 @@ expected_values = {
     "repository": "ghcr.io/katsiarynakavaleuskaya/pulseplate",
     "tag": "postgres-15.19-pgvector0.8.6-alpine3.23",
     "platform": "linux/amd64",
-    "platform_manifest_digest": "sha256:06c914735c70f82424a2a9b1e57790590a21d0fbfe250504ff79a1cca2559380",
-    "config_digest": "sha256:c822c68e22d0358e66cee17e06f7b3ece5d1538cb8b607c1376b59620866ceff",
+    "platform_manifest_digest": "sha256:d4437ad4970b4099e4cb7d05b7fa625c7e6959949d1374f1f2d4bd4149ae5fa3",
+    "config_digest": "sha256:643c5c00d70c37d83a0ab6db8b0996e4c03fb82c4769a45b03eef0cf3ee2abd5",
     "runtime_user": "70",
     "runtime_entrypoint": "/usr/local/bin/docker-entrypoint.sh",
     "runtime_default_pgdata": "/var/lib/postgresql/15/data",
@@ -309,9 +565,9 @@ expected_values = {
     "postgres_version": "15.19",
     "pgvector_version": "0.8.6",
     "mountpoint_layer_schema": "pulseplate.pgvector_mountpoint_layer.v1",
-    "mountpoint_layer_digest": "sha256:f5a1938bd1dfbe02232ddc8fad542445d8369541f3ebcacd5892c4e52abab124",
-    "mountpoint_layer_size": "154",
-    "mountpoint_layer_diff_id": "sha256:830c8272961c65f32876a884f52d80ad05cc4534a37bd0ecd4dafcf155f656fc",
+    "mountpoint_layer_digest": "sha256:4c539aa857412d283fe8d55b40227fbd17b9fd6f06834f81fd98ec6796ee7396",
+    "mountpoint_layer_size": "162",
+    "mountpoint_layer_diff_id": "sha256:8cb1ace7e0c1f48d719bbdf5b4cfe9705ef407c74a3567ddc4369a6d6f023a23",
     "mountpoint_layer_entry_count": "4",
     "mountpoint_uid": "70",
     "mountpoint_gid": "70",
@@ -456,6 +712,10 @@ validate_postgres_image_metadata() {
   local runtime_ref="$1"
   local inspect_subject="$2"
   local required_image_id="$3"
+  if [ "$inspect_subject" != "$runtime_ref" ]; then
+    echo "PostgreSQL inspection subject differs from the selected reference" >&2
+    return 1
+  fi
   local platform_digest="${runtime_ref##*@}"
   "$DOCKER_BIN" image inspect "$inspect_subject" | "$PYTHON_BIN" -c '
 import json
@@ -483,10 +743,19 @@ if type(payload) is not list or len(payload) != 1 or type(payload[0]) is not dic
     raise SystemExit("PostgreSQL image inspect must return exactly one image")
 record = payload[0]
 image_id = record.get("Id")
-frozen_image_ids = {
-    "sha256:c822c68e22d0358e66cee17e06f7b3ece5d1538cb8b607c1376b59620866ceff",
-    sys.argv[1],
-}
+if sys.argv[3] == "ghcr.io/katsiarynakavaleuskaya/pulseplate:postgres-15.19-pgvector0.8.6-alpine3.23@sha256:d4437ad4970b4099e4cb7d05b7fa625c7e6959949d1374f1f2d4bd4149ae5fa3":
+    expected_config = "sha256:643c5c00d70c37d83a0ab6db8b0996e4c03fb82c4769a45b03eef0cf3ee2abd5"
+    expected_platform = "sha256:d4437ad4970b4099e4cb7d05b7fa625c7e6959949d1374f1f2d4bd4149ae5fa3"
+    expected_base = "sha256:3a241134f6d82eb6465622af948258e41806cfb4497e6c8f0f0a64ca6c4d34db"
+elif sys.argv[3] == "ghcr.io/katsiarynakavaleuskaya/pulseplate:postgres-15.19-pgvector0.8.6-alpine3.23@sha256:06c914735c70f82424a2a9b1e57790590a21d0fbfe250504ff79a1cca2559380":
+    expected_config = "sha256:c822c68e22d0358e66cee17e06f7b3ece5d1538cb8b607c1376b59620866ceff"
+    expected_platform = "sha256:06c914735c70f82424a2a9b1e57790590a21d0fbfe250504ff79a1cca2559380"
+    expected_base = "sha256:d94fee7e5e98fcb5cd58db6ad96fc6aa844f1af6dd56aba1f87d9f8e57a7a16d"
+else:
+    raise SystemExit("PostgreSQL image reference is outside the closed transition set")
+if sys.argv[1] != expected_platform:
+    raise SystemExit("PostgreSQL selected platform identity is inconsistent")
+frozen_image_ids = {expected_config, expected_platform}
 if type(image_id) is not str or image_id not in frozen_image_ids:
     raise SystemExit("PostgreSQL image inspect ID is outside the frozen candidate")
 if sys.argv[2] and image_id != sys.argv[2]:
@@ -518,7 +787,7 @@ labels = config.get("Labels")
 required_labels = {
     "com.pulseplate.pgvector.version": "0.8.6",
     "com.pulseplate.pgvector.source-commit": "8ee86c96f0fd72390f890aa8a336fda6d3ab4c6c",
-    "com.pulseplate.postgres.base-manifest": "sha256:d94fee7e5e98fcb5cd58db6ad96fc6aa844f1af6dd56aba1f87d9f8e57a7a16d",
+    "com.pulseplate.postgres.base-manifest": expected_base,
 }
 if type(labels) is not dict or any(labels.get(key) != value for key, value in required_labels.items()):
     raise SystemExit("Pulled PostgreSQL image labels do not match the closed build")
@@ -530,10 +799,14 @@ if (
     or expected not in repo_digests
 ):
     raise SystemExit("Pulled PostgreSQL image is not bound to the canonical GHCR digest")
-' "$platform_digest" "$required_image_id"
+' "$platform_digest" "$required_image_id" "$runtime_ref"
 }
 
 validate_pulled_postgres_image() {
+  if [ "$1" != "$POSTGRES_RUNTIME_REF" ]; then
+    echo "Pulled PostgreSQL reference is not the selected current image" >&2
+    return 1
+  fi
   if validate_postgres_image_metadata "$1" "$1" "" 2>/dev/null; then
     :
   else
@@ -558,7 +831,7 @@ validate_pulled_postgres_mountpoint() {
     --security-opt no-new-privileges:true \
     --entrypoint /bin/sh \
     "$runtime_ref" \
-    -ec 'test "$(stat -c "%u:%g:%a" /var/lib/postgresql/data)" = "70:70:700"; test -z "$(find /var/lib/postgresql/data -mindepth 1 -print -quit)"'
+    -ec 'test "$(stat -c "%u:%g:%a" /var/lib/postgresql/data)" = "70:70:700"; mountpoint_entry="$(find /var/lib/postgresql/data -mindepth 1 -print -quit)"; test -z "$mountpoint_entry"'
 }
 
 read_rendered_postgres_volume_name() {
@@ -676,7 +949,7 @@ validate_existing_postgres_image_identity() {
       ;;
     "$POSTGRES_RUNTIME_REF")
       local platform_image_id="${POSTGRES_RUNTIME_REF##*@}"
-      if [ "$image_id" = "sha256:c822c68e22d0358e66cee17e06f7b3ece5d1538cb8b607c1376b59620866ceff" ] || \
+      if [ "$image_id" = "sha256:643c5c00d70c37d83a0ab6db8b0996e4c03fb82c4769a45b03eef0cf3ee2abd5" ] || \
          [ "$image_id" = "$platform_image_id" ]; then
         if validate_postgres_image_metadata \
             "$POSTGRES_RUNTIME_REF" "$POSTGRES_RUNTIME_REF" "$image_id" 2>/dev/null; then
@@ -687,6 +960,21 @@ validate_existing_postgres_image_identity() {
         fi
       else
         echo "❌ Existing current PostgreSQL image ID does not match the frozen candidate" >&2
+        return 1
+      fi
+      ;;
+    "ghcr.io/katsiarynakavaleuskaya/pulseplate:postgres-15.19-pgvector0.8.6-alpine3.23@sha256:06c914735c70f82424a2a9b1e57790590a21d0fbfe250504ff79a1cca2559380")
+      if [ "$image_id" = "sha256:c822c68e22d0358e66cee17e06f7b3ece5d1538cb8b607c1376b59620866ceff" ] || \
+         [ "$image_id" = "sha256:06c914735c70f82424a2a9b1e57790590a21d0fbfe250504ff79a1cca2559380" ]; then
+        if validate_postgres_image_metadata \
+            "$configured_image" "$configured_image" "$image_id" 2>/dev/null; then
+          :
+        else
+          echo "Existing prior PostgreSQL image metadata is not the frozen predecessor" >&2
+          return 1
+        fi
+      else
+        echo "Existing prior PostgreSQL image ID does not match the frozen predecessor" >&2
         return 1
       fi
       ;;
@@ -753,6 +1041,224 @@ capture_running_service_container() {
       return 1
       ;;
   esac
+}
+
+worker_runtime_generation() {
+  local deadline_ns="$1"
+  "$PYTHON_BIN" - "$DOCKER_BIN" "$BACKEND_IMAGE_REF" "$BACKEND_RUNTIME_IMAGE_ID" \
+    "$deadline_ns" "${COMPOSE[@]}" <<'PY_WORKER_GATE'
+import hashlib
+import json
+import os
+import re
+import selectors
+import signal
+import subprocess
+import sys
+import time
+
+
+class GateError(Exception):
+    def __init__(self, code: str) -> None:
+        self.code = code
+
+
+class GatePending(Exception):
+    pass
+
+
+def fail(code: str) -> None:
+    raise GateError(code)
+
+
+def unique(pairs: list[tuple[str, object]]) -> dict[str, object]:
+    value: dict[str, object] = {}
+    for key, item in pairs:
+        if key in value:
+            fail("WORKER_JSON_UNTRUSTED")
+        value[key] = item
+    return value
+
+
+def parse(raw: bytes) -> object:
+    try:
+        return json.loads(raw, object_pairs_hook=unique,
+            parse_constant=lambda _: (_ for _ in ()).throw(ValueError("nonfinite")))
+    except (ValueError, TypeError, UnicodeError, RecursionError):
+        fail("WORKER_JSON_UNTRUSTED")
+
+
+def native(argv: list[str], *, maximum: int) -> bytes:
+    remaining = (deadline_ns - time.monotonic_ns()) / 1_000_000_000
+    if remaining <= 0:
+        fail("WORKER_GATE_TIMEOUT")
+    process = None
+    completed = False
+    selector = selectors.DefaultSelector()
+    output = bytearray()
+    try:
+        process = subprocess.Popen(argv, stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+            start_new_session=True)
+        if process.stdout is None:
+            fail("WORKER_NATIVE_FAILED")
+        os.set_blocking(process.stdout.fileno(), False)
+        selector.register(process.stdout, selectors.EVENT_READ)
+        command_deadline = min(time.monotonic() + 8, time.monotonic() + remaining)
+        while selector.get_map():
+            wait = command_deadline - time.monotonic()
+            if wait <= 0:
+                fail("WORKER_GATE_TIMEOUT")
+            for key, _ in selector.select(wait):
+                part = os.read(key.fileobj.fileno(), 8192)
+                if not part:
+                    selector.unregister(key.fileobj)
+                else:
+                    output.extend(part)
+                    if len(output) > maximum:
+                        fail("WORKER_NATIVE_OVERSIZE")
+        wait = command_deadline - time.monotonic()
+        if wait <= 0:
+            fail("WORKER_GATE_TIMEOUT")
+        if process.wait(timeout=wait) != 0:
+            fail("WORKER_NATIVE_FAILED")
+        completed = True
+        return bytes(output)
+    except (OSError, subprocess.TimeoutExpired):
+        fail("WORKER_NATIVE_FAILED")
+    finally:
+        selector.close()
+        if process is not None:
+            if not completed:
+                try:
+                    os.killpg(process.pid, signal.SIGKILL)
+                except OSError:
+                    pass
+            try:
+                process.wait(timeout=0.5)
+            except (OSError, subprocess.TimeoutExpired):
+                pass
+            if process.stdout is not None:
+                process.stdout.close()
+
+
+def census(service: str) -> str:
+    raw = native([docker, "ps", "--all", "--quiet", "--no-trunc",
+        "--filter", "label=com.docker.compose.project=pulseplate-staging",
+        "--filter", "label=com.docker.compose.service=" + service,
+        "--filter", "label=com.docker.compose.oneoff=False"], maximum=256)
+    try:
+        ids = raw.decode("ascii").splitlines()
+    except UnicodeError:
+        fail("WORKER_CENSUS_UNTRUSTED")
+    if service == "worker" and not ids:
+        raise GatePending()
+    if len(ids) != 1 or re.fullmatch(r"[a-f0-9]{64}", ids[0]) is None:
+        fail("WORKER_CENSUS_UNTRUSTED")
+    return ids[0]
+
+
+def inspect(container_id: str, record: object, service: str, worker_hash: str) -> dict[str, object]:
+    if type(record) is not dict:
+        fail("WORKER_INSPECT_UNTRUSTED")
+    config = record.get("config")
+    labels = record.get("labels")
+    state = record.get("state")
+    if type(config) is not dict or type(labels) is not dict or type(state) is not dict:
+        fail("WORKER_INSPECT_UNTRUSTED")
+    config_hash = labels.get("com.docker.compose.config-hash")
+    if (record.get("gate") != "worker_v1" or record.get("id") != container_id
+        or labels.get("com.docker.compose.project") != "pulseplate-staging"
+        or labels.get("com.docker.compose.service") != service
+        or labels.get("com.docker.compose.oneoff") != "False"
+        or config.get("image") != expected_ref
+        or record.get("image") != expected_image_id
+        or type(config_hash) is not str
+        or re.fullmatch(r"[a-f0-9]{64}", config_hash) is None
+        or service == "worker" and config_hash != worker_hash):
+        fail("WORKER_IDENTITY_UNTRUSTED")
+    running = state.get("running")
+    status = state.get("status")
+    exit_code = state.get("exit_code")
+    oom = state.get("oom")
+    dead = state.get("dead")
+    restarting = state.get("restarting")
+    paused = state.get("paused")
+    pid = state.get("pid")
+    restarts = record.get("restart_count")
+    started = state.get("started_at")
+    if (type(running) is not bool or type(status) is not str
+        or type(exit_code) is not int or type(oom) is not bool
+        or type(dead) is not bool or type(restarting) is not bool
+        or type(paused) is not bool or type(pid) is not int
+        or type(restarts) is not int or not 0 <= restarts <= 1_000_000):
+        fail("WORKER_STATE_UNTRUSTED")
+    if service == "worker" and status == "created" and not running and exit_code == 0:
+        raise GatePending()
+    if (not running or status != "running" or exit_code != 0
+        or oom or dead or restarting or paused or pid <= 0
+        or type(started) is not str or not started or started.startswith("0001-")):
+        fail("WORKER_STATE_UNTRUSTED")
+    if service == "worker":
+        healthcheck = config.get("healthcheck")
+        if (type(healthcheck) is not dict
+            or healthcheck.get("Test") != ["NONE"]
+            or state.get("health") is not None):
+            fail("WORKER_HEALTH_UNTRUSTED")
+    return {"id": container_id, "image": record["image"],
+        "config_hash": config_hash, "started_at": started,
+        "pid": pid, "restart_count": restarts}
+
+
+try:
+    docker, expected_ref, expected_image_id, deadline_text, *compose = sys.argv[1:]
+    if (not os.path.isabs(docker) or not os.access(docker, os.X_OK)
+        or compose[:2] != [docker, "compose"]
+        or re.fullmatch(r"ghcr\.io/katsiarynakavaleuskaya/pulseplate@sha256:[a-f0-9]{64}",
+                        expected_ref) is None
+        or re.fullmatch(r"sha256:[a-f0-9]{64}", expected_image_id) is None
+        or re.fullmatch(r"[0-9]{1,20}", deadline_text) is None):
+        fail("WORKER_GATE_INPUT_UNTRUSTED")
+    deadline_ns = int(deadline_text)
+    worker_hash_raw = native([*compose, "--profile", "*", "config", "--hash", "worker"],
+                             maximum=128)
+    if re.fullmatch(rb"worker [a-f0-9]{64}\n", worker_hash_raw) is None:
+        fail("WORKER_HASH_UNTRUSTED")
+    worker_hash = worker_hash_raw.decode("ascii").split(" ", 1)[1].strip()
+    app_id = census("app")
+    worker_id = census("worker")
+    fmt = ('{"gate":"worker_v1","id":{{json .Id}},"image":{{json .Image}},'
+        '"config":{"image":{{json .Config.Image}},'
+        '"healthcheck":{{json (index .Config "Healthcheck")}}},'
+        '"labels":{{json .Config.Labels}},'
+        '"restart_count":{{json .RestartCount}},'
+        '"state":{"running":{{json .State.Running}},'
+        '"status":{{json .State.Status}},'
+        '"exit_code":{{json .State.ExitCode}},'
+        '"oom":{{json .State.OOMKilled}},'
+        '"dead":{{json .State.Dead}},'
+        '"restarting":{{json .State.Restarting}},'
+        '"paused":{{json .State.Paused}},'
+        '"pid":{{json .State.Pid}},'
+        '"started_at":{{json .State.StartedAt}},'
+        '"health":{{json (index .State "Health")}}}}')
+    raw = native([docker, "inspect", "--format", fmt, app_id, worker_id],
+                 maximum=8192)
+    rows = raw.splitlines()
+    if len(rows) != 2:
+        fail("WORKER_INSPECT_UNTRUSTED")
+    app = inspect(app_id, parse(rows[0]), "app", worker_hash)
+    worker = inspect(worker_id, parse(rows[1]), "worker", worker_hash)
+    identity = json.dumps({"app": app, "worker": worker},
+        sort_keys=True, separators=(",", ":")).encode()
+    print(hashlib.sha256(identity).hexdigest())
+except GatePending:
+    raise SystemExit(75)
+except GateError as error:
+    raise SystemExit(error.code) from None
+except (OSError, ValueError, TypeError, IndexError, RecursionError):
+    raise SystemExit("WORKER_GATE_UNTRUSTED") from None
+PY_WORKER_GATE
 }
 
 restart_captured_product_containers() {
@@ -840,6 +1346,7 @@ allowed = {
     f"prom/prometheus@{sys.argv[1]}",
     f"docker.io/prom/prometheus@{sys.argv[1]}",
 }
+
 if record.get("Os") != "linux" or record.get("Architecture") != "amd64":
     raise SystemExit("Pulled Prometheus image platform is not linux/amd64")
 if type(repo_digests) is not list or any(type(item) is not str for item in repo_digests):
@@ -847,6 +1354,116 @@ if type(repo_digests) is not list or any(type(item) is not str for item in repo_
 if not allowed.intersection(repo_digests):
     raise SystemExit("Pulled Prometheus image is not bound to the canonical platform digest")
 ' "$PROMETHEUS_PLATFORM_MANIFEST_DIGEST"
+}
+
+validate_pulled_alertmanager_image() {
+  "$DOCKER_BIN" image inspect 'prom/alertmanager@sha256:84967b9b7ba45e38a9278d3e594305f43d4993c310df3905b51138b816c365f3' | \
+    "$PYTHON_BIN" -c '
+import json
+import sys
+rows = json.load(sys.stdin)
+expected = "prom/alertmanager@sha256:84967b9b7ba45e38a9278d3e594305f43d4993c310df3905b51138b816c365f3"
+if type(rows) is not list or len(rows) != 1 or type(rows[0]) is not dict:
+    raise SystemExit("Alertmanager image inspect must contain one image")
+row = rows[0]
+if row.get("Os") != "linux" or row.get("Architecture") != "amd64":
+    raise SystemExit("Alertmanager image platform is not linux/amd64")
+digests = row.get("RepoDigests")
+if type(digests) is not list or not ({expected, "docker.io/" + expected} & set(digests)):
+    raise SystemExit("Alertmanager image is not bound to the admitted platform digest")
+'
+}
+
+
+read_pulled_backend_image_id() {
+  local runtime_ref="$1"
+  "$PYTHON_BIN" - "$DOCKER_BIN" "$runtime_ref" <<'PY_BACKEND_IMAGE'
+import json
+import os
+import re
+import selectors
+import signal
+import subprocess
+import sys
+import time
+
+def unique(pairs):
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError("duplicate")
+        result[key] = value
+    return result
+
+process = None
+completed = False
+selector = selectors.DefaultSelector()
+try:
+    docker, expected_ref = sys.argv[1:]
+    if not os.path.isabs(docker) or not os.access(docker, os.X_OK):
+        raise ValueError("docker")
+    process = subprocess.Popen(
+        [docker, "image", "inspect", expected_ref],
+        stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+        start_new_session=True,
+    )
+    if process.stdout is None:
+        raise ValueError("stdout")
+    os.set_blocking(process.stdout.fileno(), False)
+    selector.register(process.stdout, selectors.EVENT_READ)
+    deadline = time.monotonic() + 8
+    output = bytearray()
+    while selector.get_map():
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise ValueError("timeout")
+        for key, _ in selector.select(remaining):
+            chunk = os.read(key.fileobj.fileno(), 8192)
+            if not chunk:
+                selector.unregister(key.fileobj)
+            else:
+                output.extend(chunk)
+                if len(output) > 65536:
+                    raise ValueError("oversize")
+    remaining = deadline - time.monotonic()
+    if remaining <= 0 or process.wait(timeout=remaining) != 0:
+        raise ValueError("native")
+    raw = bytes(output)
+    if not raw:
+        raise ValueError("oversize")
+    payload = json.loads(raw, object_pairs_hook=unique,
+        parse_constant=lambda _: (_ for _ in ()).throw(ValueError("nonfinite")))
+    if type(payload) is not list or len(payload) != 1 or type(payload[0]) is not dict:
+        raise ValueError("cardinality")
+    item = payload[0]
+    image_id = item.get("Id")
+    digests = item.get("RepoDigests")
+    if (item.get("Os") != "linux" or item.get("Architecture") != "amd64"
+        or type(image_id) is not str
+        or re.fullmatch(r"sha256:[a-f0-9]{64}", image_id) is None
+        or type(digests) is not list
+        or not all(type(value) is str for value in digests)
+        or expected_ref not in digests):
+        raise ValueError("identity")
+    completed = True
+except (ValueError, TypeError, UnicodeError, OSError, subprocess.TimeoutExpired):
+    raise SystemExit("WORKER_BACKEND_IMAGE_UNTRUSTED") from None
+finally:
+    selector.close()
+    if process is not None:
+        if not completed:
+            try:
+                os.killpg(process.pid, signal.SIGKILL)
+            except OSError:
+                pass
+        try:
+            process.wait(timeout=0.5)
+        except (OSError, subprocess.TimeoutExpired):
+            pass
+        if process.stdout is not None:
+            process.stdout.close()
+print(image_id)
+PY_BACKEND_IMAGE
 }
 
 export STAGING_IMAGE_REF="$BACKEND_IMAGE_REF"
@@ -896,6 +1513,18 @@ case "$scheduler_mode" in
 esac
 FOOD_UPDATE_SCHEDULER_MODE="$scheduler_mode"
 export FOOD_UPDATE_SCHEDULER_MODE
+WORKER_TIMEOUT_BIN=""
+if [ "$FOOD_UPDATE_SCHEDULER_MODE" = "external" ]; then
+  if ! WORKER_TIMEOUT_BIN="$(command -v timeout)"; then
+    echo "❌ Bounded worker start requires an absolute timeout executable" >&2
+    exit 1
+  fi
+  if [[ "$WORKER_TIMEOUT_BIN" != /* ]] || [ ! -x "$WORKER_TIMEOUT_BIN" ]; then
+    echo "❌ Bounded worker start requires an absolute timeout executable" >&2
+    exit 1
+  fi
+fi
+readonly WORKER_TIMEOUT_BIN
 
 STAGING_DOMAIN=${STAGING_DOMAIN:?"STAGING_DOMAIN not set"}
 
@@ -903,8 +1532,8 @@ DOCKER_BIN="${DOCKER_BIN:-}"
 if [ -z "$DOCKER_BIN" ]; then
   DOCKER_BIN="$(command -v docker || :)"
 fi
-if [ -z "$DOCKER_BIN" ] || [ ! -x "$DOCKER_BIN" ]; then
-  echo "❌ docker executable is required" >&2
+if [[ "$DOCKER_BIN" != /* ]] || [ ! -x "$DOCKER_BIN" ]; then
+  echo "❌ An absolute docker executable is required" >&2
   exit 1
 fi
 
@@ -933,6 +1562,8 @@ esac
 
 "${COMPOSE[@]}" config --quiet
 validate_prometheus_compose_identity "$PROMETHEUS_RUNTIME_REF"
+validate_alertmanager_contract
+validate_alertmanager_secret_if_selected
 validate_postgres_compose_identity "$POSTGRES_RUNTIME_REF"
 validate_staging_database_binding
 admitted_backup_dir="$("$PYTHON_BIN" "$PROJECT_DIR/scripts/ops/check_staging_security.py" --project-dir "$PROJECT_DIR" --storage-only --print-backup-dir)"
@@ -1003,8 +1634,20 @@ echo "[2/5] Pull exact backend, Caddy, PostgreSQL, and Prometheus digests"
 "${COMPOSE[@]}" pull app caddy postgres prometheus
 echo "Pull scheduler worker from the exact backend digest"
 "${COMPOSE[@]}" pull worker
+if alertmanager_selected; then
+  "${COMPOSE[@]}" --profile alerting pull alertmanager
+fi
+if BACKEND_RUNTIME_IMAGE_ID="$(read_pulled_backend_image_id "$BACKEND_IMAGE_REF")"; then
+  readonly BACKEND_RUNTIME_IMAGE_ID
+else
+  echo "❌ Pulled backend image identity is untrusted; HOLD before product mutation" >&2
+  exit 1
+fi
 echo "Validating the pulled Prometheus platform manifest before product mutation"
 validate_pulled_prometheus_image "$PROMETHEUS_RUNTIME_REF"
+if alertmanager_selected; then
+  validate_pulled_alertmanager_image
+fi
 echo "Validating the pulled PostgreSQL platform manifest before product mutation"
 validate_pulled_postgres_image "$POSTGRES_RUNTIME_REF"
 echo "Validating the pulled PostgreSQL empty UID 70 mountpoint before product mutation"
@@ -1050,6 +1693,15 @@ echo "Validating the exact Prometheus configuration before product mutation"
   --mount "type=bind,source=$PROMETHEUS_RULES,target=/etc/prometheus/alias-alerts.yml,readonly" \
   --entrypoint /bin/promtool "$PROMETHEUS_RUNTIME_REF" \
   check rules /etc/prometheus/alias-alerts.yml
+
+if alertmanager_selected; then
+  "$DOCKER_BIN" run --rm --pull never --platform linux/amd64 --network none --read-only \
+    --user 65534:65534 --cap-drop ALL --security-opt no-new-privileges:true \
+    --mount "type=bind,source=$ALERTMANAGER_CONFIG,target=/etc/alertmanager/alertmanager.yml,readonly" \
+    --entrypoint /bin/amtool \
+    'prom/alertmanager@sha256:84967b9b7ba45e38a9278d3e594305f43d4993c310df3905b51138b816c365f3' \
+    check-config /etc/alertmanager/alertmanager.yml
+fi
 
 echo "Invoking the canonical application production invariant before product mutation"
 "${COMPOSE[@]}" run --rm --no-deps app python -c \
@@ -1235,7 +1887,44 @@ fi
 
 if [ "$FOOD_UPDATE_SCHEDULER_MODE" = "external" ]; then
   echo "Starting scheduler worker after app readiness"
-  "${COMPOSE[@]}" up -d --pull never --wait --wait-timeout 30 worker
+  worker_deadline_ns="$("$PYTHON_BIN" -c 'import time; print(time.monotonic_ns() + 30_000_000_000)')"
+  if "$WORKER_TIMEOUT_BIN" --signal=TERM --kill-after=2s 25s \
+      "${COMPOSE[@]}" up -d --pull never --no-deps worker >/dev/null 2>&1; then
+    :
+  else
+    echo "❌ Worker start failed or timed out; outcome may be partial; HOLD before Caddy" >&2
+    exit 1
+  fi
+  worker_generation=""
+  worker_stable=0
+  worker_attempt=0
+  while [ "$worker_attempt" -lt 5 ]; do
+    if worker_sample="$(worker_runtime_generation "$worker_deadline_ns")"; then
+      if [ -n "$worker_generation" ]; then
+        if [ "$worker_sample" != "$worker_generation" ]; then
+          echo "❌ Worker or app generation changed during startup; HOLD before Caddy" >&2
+          exit 1
+        fi
+        worker_stable=1
+        break
+      fi
+      worker_generation="$worker_sample"
+    else
+      worker_gate_status=$?
+      if [ "$worker_gate_status" -ne 75 ]; then
+        echo "❌ Worker running/identity gate rejected startup; HOLD before Caddy" >&2
+        exit 1
+      fi
+    fi
+    worker_attempt=$((worker_attempt + 1))
+    sleep 1
+  done
+  if [ "$worker_stable" -ne 1 ]; then
+    echo "❌ Worker did not hold one stable running generation; HOLD before Caddy" >&2
+    exit 1
+  fi
+  validate_staging_database_binding --storage-only
+  readonly worker_generation
 else
   echo "Scheduler mode is disabled; worker container remains absent"
   "${COMPOSE[@]}" rm -f worker
@@ -1277,8 +1966,17 @@ while [ "$attempt" -lt "$HEALTH_MAX_ATTEMPTS" ]; do
 done
 
 if [ "$FOOD_UPDATE_SCHEDULER_MODE" = "external" ]; then
-  echo "Confirming scheduler worker process is running"
-  "${COMPOSE[@]}" up -d --pull never --no-recreate --wait --wait-timeout 30 worker
+  echo "Rechecking the same worker and app generation after HTTPS"
+  worker_recheck_deadline_ns="$("$PYTHON_BIN" -c 'import time; print(time.monotonic_ns() + 10_000_000_000)')"
+  if worker_after_https="$(worker_runtime_generation "$worker_recheck_deadline_ns")"; then
+    if [ "$worker_after_https" != "$worker_generation" ]; then
+      echo "❌ Worker or app generation changed after HTTPS; Caddy may be running; HOLD" >&2
+      exit 1
+    fi
+  else
+    echo "❌ Worker running/identity recheck failed after HTTPS; Caddy may be running; HOLD" >&2
+    exit 1
+  fi
 fi
 
 validate_staging_database_binding --storage-only
