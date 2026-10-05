@@ -100,7 +100,7 @@ If it is not recorded here — it does not exist.
   - Priority: P1
   - Target PR: [#2415](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2415) (`codex/ops03a-staging-runtime-diagnostics`); corrective PR [#2454](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2454) (`codex/ops03a-compose-hash-fix`).
   - Status: PR #2415 merged as `ff95fffe60653f66bbc0ac16a5641e926b4d7520` on 2026-09-26; OPS-03B PR #2443 merged as `4f0548328bc24fc59c8d951868b18c4ec276e15b`; corrective PR #2454 merged as `314995c81283a99d268e5e7e504c0353ac437720` on 2026-09-28. The separately authorized read-only live pass at 17:58 UTC returned exit 0, `complete`, `/health=200`, `/ready=200`, DB/role match and PostgreSQL TLSv1.3 without errors or unknowns. Its sanitized archive was downloaded and verified byte-for-byte (SHA-256 `65cf8ab3271dc8d68e6019d201bddc6a50befd190285757384cb78a2b0e71784`); the same INFRA plan/capsule and Execution Tracker IDs were updated and read back.
-  - Image-epoch pin follow-up ([PR #2462](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2462)): After one separately approved staging deployment from main `e6d16df698ba30d14e7b40b42f6e16c4df5728b2` and attested CD run `36628510436`, this PR updates only the diagnostic's backend/Caddy digest pins to the deployed pair. The reviewed Compose source SHA `9e9ed40ec219f926d85daabef57b571b501c5bc3478820462cc2a24958839db4` remains unchanged. Repository review and a new full one-shot diagnostic against these pins remain pending; the sanitized postdeploy targeted observation is bounded evidence, not that full result.
+  - Carryover (EN), image-epoch pin follow-up [PR #2462](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2462): Merged on 2026-09-30 at `b04d2eb1c9a0ea6a86dd2db18c2b5818432f97d9`. Its historical Compose source SHA `9e9ed40ec219f926d85daabef57b571b501c5bc3478820462cc2a24958839db4` belongs to that admitted epoch. The retained INFRA receipt records one full diagnostic at `2026-09-30T07:30:18.760018Z` with `complete`, health/readiness 200, DB/role match, TLSv1.3 and no errors/unknowns, plus verified historical archive readback. This carryover reads that stored receipt; it neither reruns the host observation nor re-downloads the historical archive. Later merged [PR #2447](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2447) changed the diagnostic pin. Current pin-epoch host observation remains unknown and separately owned; historical proof is not a current live or main-green claim.
   - Residual scope: [Docker Compose issue #14001](https://github.com/docker/compose/issues/14001) explains the former app `env_file` config-hash mismatch. Any later image/Compose epoch needs a reviewed pin update. One complete observation does not prove worker scheduling, alert delivery, production activation or broader OPS-03/OPS-04 closure.
   - Links: `docs/deploy/OPERATIONAL_SIGNALS.md`, `docs/deploy/STAGING.md`, `scripts/ops/staging_runtime_diagnostics.py`.
   - DoD: Exact staging SSH/receipt and unique container identity, app resolved-model hash with an exact `env_file` source and independent PostgreSQL native/resolved/hash-label control, separate `/health` and `/ready` results, verify-full file-backed read-only DB observations with unknown visibility, sanitized versioned JSON and deterministic failure codes; focused/CI coverage and review gates; after authorized merge, preserve an owner-only verified archive and same-ID sanitized Drive readback. No deployment or alert-delivery claim.
@@ -144,6 +144,28 @@ If it is not recorded here — it does not exist.
   - Reason for deferral: Storage usage, costs and recovery constraints require measured current-host evidence and separately admitted decisions; OPS-03A does not alter resources.
   - Links: `docs/deploy/STAGING.md`, `docs/deploy/OPERATIONAL_SIGNALS.md`.
   - DoD: Record exact storage/resource identity, measured utilization and costs, preserve backup/restore and data continuity, and obtain separate approval before any resource mutation.
+
+<a id="ledger-p1-ops04a-resource-cost-recovery-context"></a>
+- [ ] P1: OPS-04A resource cost and supplied recovery context
+  - Owner: dev-operator / agent-coordinator
+  - Priority: P1
+  - Target PR: [#2470](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2470) (`codex/ops04a-resource-cost-recovery-context`).
+  - Status: Implementation scope admitted; merge, current-head validation, native replay and continuity remain independently pending.
+  - Scope: One offline stdlib DigitalOcean invoice reconciliation CLI, exact declared resource/owner context, bounded private inputs, lossless Decimal accounting, partial allocation and unassessed recovery references, integrated with the existing three-source OPS coverage producer.
+  - Reason for deferral: This entry records the current implementation plan. Actual merge/closure status will be recorded by the next substantive DevOps PR under the owner's explicit decision; no standalone docs-only PR.
+  - Links: [Parent OPS-04](#ledger-p1-ops04-storage-finops), `scripts/ops/resource_cost_report.py`, `tests/test_resource_cost_report.py`, `docs/deploy/OPERATIONAL_SIGNALS.md`.
+  - DoD: Preserve all OPS04A.criteria.v1 T01-T22 and original acceptance requirements; prove native row/total replay, separately measured allocation, actual operator rehearsal, exact routing/nonempty coverage, local/current-head CI/review gates, separately approved exact-head merge, current-main proof and same-ID/ACL-safe archive readback before owned cleanup. No authenticity, utilization, restore or savings conclusion follows from reconciliation.
+  - Rollback: Stop invoking or reviewed bounded revert of CLI/tests/CI/scoped usage; no resource mutation.
+
+<a id="ledger-p1-ops04b-utilization-recovery-evidence"></a>
+- [ ] P1: OPS-04B utilization and recovery evidence
+  - Owner: dev-operator / agent-coordinator
+  - Priority: P1
+  - Target PR: Next separately admitted substantive DevOps PR after OPS-04A.
+  - Status: Candidate, not started; parent OPS-04 remains open.
+  - Reason for deferral: Invoice accounting and supplied references do not establish current utilization or recovery. Fresh evidence needs its own finite resource/signal inventory and any applicable explicit host/provider access approval.
+  - Links: [OPS-04A](#ledger-p1-ops04a-resource-cost-recovery-context), [Parent OPS-04](#ledger-p1-ops04-storage-finops), `docs/deploy/OPERATIONAL_SIGNALS.md`.
+  - DoD: Fresh-admit exact current base/ownership; collect bounded read-only dated utilization/recovery evidence for unresolved OPS-04A resource context, preserving unknowns and independently assessing supplied references. Record OPS-04A's actual merge/closure receipt in this substantive PR. Keep resource mutation and verified savings outside this evidence-only outcome; obtain separate approval for any host observation and later cost change, with rollback and before/after proof.
 
 <a id="ledger-p1-main-idna-installer-regression"></a>
 - [ ] P1: Retire the installer test's historical idna pin assertion
