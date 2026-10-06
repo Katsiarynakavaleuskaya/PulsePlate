@@ -297,14 +297,20 @@ class TestFitChefMascotRuntimeBehavior:
 
         class _FakeAgent:
             def __init__(self, *, api_key: str, model: str, reasoning_effort: str) -> None:
+                """Record the synthetic constructor settings used by FitChef provider selection."""
+
                 assert api_key == os.environ["PERPLEXITY_API_KEY"]
                 calls.append((model, reasoning_effort))
 
             @staticmethod
             def require_prompt_in_budget(prompt: str) -> None:
+                """Record prompt preflight before the route consumes quota."""
+
                 assert "Need support with dinner" in prompt
 
             async def generate(self, prompt: str) -> str:
+                """Record admitted generation and return deterministic mascot text."""
+
                 assert "Need support with dinner" in prompt
                 calls.append(("generate", "once"))
                 return "FitChef says: choose one balanced next meal."
@@ -2813,6 +2819,8 @@ class TestFitChefCoachInsightRuntimeCoverage:
             name = "baseline"
 
             async def generate(self, prompt: str) -> str:
+                """Return CBT baseline text without consulting FitChef Agent configuration."""
+
                 calls.append("baseline")
                 return "Plan one small next step."
 

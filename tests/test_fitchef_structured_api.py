@@ -242,6 +242,8 @@ class TestFitChefDistortionSimulatorRoute:
         self.monkeypatch.setenv("PERPLEXITY_API_KEY", "synthetic-test-key")
 
         async def _generate(self: object, prompt: str) -> str:
+            """Return unstructured Agent text to exercise the structured draft fallback."""
+
             return "This is not a structured JSON draft."
 
         self.monkeypatch.setattr(

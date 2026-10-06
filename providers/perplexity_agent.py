@@ -30,6 +30,8 @@ class _AgentSDKLogFilter(logging.Filter):
     """Suppress all exact-SDK-logger records in active or inherited Agent contexts."""
 
     def filter(self, record: logging.LogRecord) -> bool:
+        """Allow SDK diagnostics only outside active or inherited Agent request contexts."""
+
         return not _AGENT_REQUEST_ACTIVE.get()
 
 
@@ -46,10 +48,14 @@ class _AgentAsyncOpenAI(AsyncOpenAI):
     """Bind redirects and the two OpenAI identity headers to each request."""
 
     async def _prepare_options(self, options: FinalRequestOptions) -> FinalRequestOptions:
+        """Copy prepared native options and disable redirects for this request."""
+
         prepared = await super()._prepare_options(options)
         return prepared.model_copy(update={"follow_redirects": False})
 
     async def _prepare_request(self, request: httpx.Request) -> None:
+        """Remove OpenAI identity headers after HTTPX merges the request headers."""
+
         await super()._prepare_request(request)
         # HTTPX merges borrowed defaults after SDK header construction. Remove
         # only these names from the individual request, preserving the client.
@@ -78,6 +84,8 @@ class PerplexityAgentProvider:
         reasoning_effort: str,
         http_client: httpx.AsyncClient | None = None,
     ) -> None:
+        """Validate explicit transport settings without allocating an HTTP client."""
+
         normalized_key = api_key.strip()
         if (
             not normalized_key
@@ -100,6 +108,8 @@ class PerplexityAgentProvider:
 
     @staticmethod
     def _require_safe_http_client(client: httpx.AsyncClient | None) -> None:
+        """Reject closed or redirect-following borrowed clients."""
+
         if client is not None and (client.follow_redirects is not False or client.is_closed):
             raise ValueError("FitChef Agent API HTTP client is not configured safely")
 
@@ -113,6 +123,8 @@ class PerplexityAgentProvider:
             raise ValueError("FitChef Agent API prompt exceeds the byte budget")
 
     async def generate(self, text: str) -> str:
+        """Send one bounded request, admit final assistant text, and close owned resources."""
+
         self.require_prompt_in_budget(text)
         log_context = _AGENT_REQUEST_ACTIVE.set(True)
         try:

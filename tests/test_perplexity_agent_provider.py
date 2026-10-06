@@ -61,6 +61,8 @@ def _clear_sdk_environment(monkeypatch: pytest.MonkeyPatch) -> None:
 
 @pytest.fixture(autouse=True)
 def isolated_sdk_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Clear every SDK credential and identity source before each synthetic test."""
+
     _clear_sdk_environment(monkeypatch)
 
 
@@ -72,6 +74,8 @@ def _response_body(
     output: list[dict[str, object]] | None = None,
     error: object = None,
 ) -> dict[str, object]:
+    """Build a synthetic completed Responses payload with selectable status and text."""
+
     if output is None:
         output = [
             {
@@ -100,6 +104,8 @@ async def _generate_with_transport(
     model: str = MODEL,
     effort: str = "low",
 ) -> str:
+    """Exercise generation through an injected mock transport and borrowed client."""
+
     async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http_client:
         provider = PerplexityAgentProvider(
             api_key=TEST_KEY_VIP,
@@ -113,9 +119,13 @@ async def _generate_with_transport(
 @pytest.mark.parametrize("model", _APPROVED_MODELS)
 @pytest.mark.parametrize("effort", ["none", "low"])
 def test_exact_tool_free_request_and_single_attempt(model: str, effort: str) -> None:
+    """Assert the fixed tool-free request contract and exactly one physical send."""
+
     requests: list[dict[str, object]] = []
 
     def _handler(request: httpx.Request) -> httpx.Response:
+        """Capture the request body and return one synthetic completed response."""
+
         assert str(request.url) == "https://api.perplexity.ai/v1/responses"
         assert request.method == "POST"
         assert request.headers["authorization"] == f"Bearer {TEST_KEY_VIP}"
@@ -140,9 +150,13 @@ def test_exact_tool_free_request_and_single_attempt(model: str, effort: str) -> 
 
 @pytest.mark.parametrize("status", ["failed", "incomplete", "cancelled", "queued"])
 def test_http_200_noncompleted_status_fails_closed(status: str) -> None:
+    """Reject noncompleted Responses statuses even when the HTTP status is 200."""
+
     calls = 0
 
     def _handler(_request: httpx.Request) -> httpx.Response:
+        """Return the selected noncompleted status and count the physical send."""
+
         nonlocal calls
         calls += 1
         return httpx.Response(200, json=_response_body(status=status))
@@ -187,7 +201,11 @@ def test_http_200_noncompleted_status_fails_closed(status: str) -> None:
     ],
 )
 def test_malformed_or_unexpected_result_fails_closed(body: dict[str, object]) -> None:
+    """Reject malformed or unexpected Responses payloads through the native SDK seam."""
+
     def _handler(_request: httpx.Request) -> httpx.Response:
+        """Return the selected malformed synthetic response body."""
+
         return httpx.Response(200, json=body)
 
     with pytest.raises(RuntimeError, match="FitChef Agent API unavailable"):
@@ -195,9 +213,13 @@ def test_malformed_or_unexpected_result_fails_closed(body: dict[str, object]) ->
 
 
 def test_sdk_error_is_sanitized_without_retry_or_secret_traceback() -> None:
+    """Sanitize SDK failures without retries or secret-bearing tracebacks."""
+
     calls = 0
 
     def _handler(_request: httpx.Request) -> httpx.Response:
+        """Count the send and return a synthetic server error containing private details."""
+
         nonlocal calls
         calls += 1
         return httpx.Response(
@@ -222,11 +244,15 @@ def test_sdk_error_is_sanitized_without_retry_or_secret_traceback() -> None:
     ],
 )
 def test_invalid_configuration_fails_before_client(key: str, model: str, effort: str) -> None:
+    """Reject invalid explicit configuration before any SDK client can be allocated."""
+
     with pytest.raises(ValueError):
         PerplexityAgentProvider(api_key=key, model=model, reasoning_effort=effort)
 
 
 def test_prompt_byte_budget_is_preflighted() -> None:
+    """Enforce the UTF-8 prompt limit before quota or provider execution."""
+
     with pytest.raises(ValueError, match="byte budget"):
         PerplexityAgentProvider.require_prompt_in_budget(
             "é" * (AGENT_API_MAX_PROMPT_BYTES // 2 + 1)
@@ -277,7 +303,11 @@ def test_prompt_byte_budget_is_preflighted() -> None:
     ],
 )
 def test_only_completed_final_assistant_text_is_admitted(output: list[dict[str, object]]) -> None:
+    """Accept only one completed final assistant text message."""
+
     def _handler(_request: httpx.Request) -> httpx.Response:
+        """Return the selected assistant message shape for admission checks."""
+
         return httpx.Response(200, json=_response_body(output=output))
 
     with pytest.raises(RuntimeError, match="FitChef Agent API unavailable"):
@@ -285,12 +315,16 @@ def test_only_completed_final_assistant_text_is_admitted(output: list[dict[str, 
 
 
 def test_reasoning_then_one_final_message_is_admitted() -> None:
+    """Allow reasoning output followed by one completed final assistant message."""
+
     body = _response_body()
     output = body["output"]
     assert isinstance(output, list)
     output.insert(0, {"type": "reasoning", "id": "reason_1", "summary": []})
 
     def _handler(_request: httpx.Request) -> httpx.Response:
+        """Return reasoning and final text in the same synthetic response."""
+
         return httpx.Response(200, json=body)
 
     assert asyncio.run(_generate_with_transport(_handler)) == "Choose one balanced next meal."
@@ -298,6 +332,8 @@ def test_reasoning_then_one_final_message_is_admitted() -> None:
 
 @pytest.mark.parametrize("mode", ["too_large", "incomplete_details", "multiple", "malformed_json"])
 def test_other_invalid_response_bodies_are_rejected(mode: str) -> None:
+    """Reject invalid JSON, empty text, oversized text, and response-level errors."""
+
     body = _response_body()
     if mode == "too_large":
         body = _response_body(text="é" * (AGENT_API_MAX_OUTPUT_BYTES // 2 + 1))
@@ -309,6 +345,8 @@ def test_other_invalid_response_bodies_are_rejected(mode: str) -> None:
         output.append(output[0])
 
     def _handler(_request: httpx.Request) -> httpx.Response:
+        """Return the selected invalid body or response-level error fixture."""
+
         if mode == "malformed_json":
             return httpx.Response(200, content=b"not-json secret-provider-body")
         return httpx.Response(200, json=body)
@@ -319,9 +357,13 @@ def test_other_invalid_response_bodies_are_rejected(mode: str) -> None:
 
 
 def test_timeout_is_sanitized_and_not_retried() -> None:
+    """Sanitize a transport timeout and preserve the single-send boundary."""
+
     calls = 0
 
     def _handler(request: httpx.Request) -> httpx.Response:
+        """Count the send and raise a synthetic timeout containing private details."""
+
         nonlocal calls
         calls += 1
         raise httpx.ReadTimeout("secret prompt and credential", request=request)
@@ -342,6 +384,8 @@ def test_redirect_is_rejected_after_one_physical_send(
     cross_origin: bool,
     owned: bool,
 ) -> None:
+    """Reject same-origin and cross-origin redirects after one physical send."""
+
     calls: list[httpx.Request] = []
     created: list[httpx.AsyncClient] = []
     caplog.set_level(logging.DEBUG, logger="openai._base_client")
@@ -353,6 +397,8 @@ def test_redirect_is_rejected_after_one_physical_send(
     )
 
     def _handler(request: httpx.Request) -> httpx.Response:
+        """Record the request and return the selected redirect target and status."""
+
         calls.append(request)
         if len(calls) == 1:
             return httpx.Response(
@@ -363,6 +409,8 @@ def test_redirect_is_rejected_after_one_physical_send(
         return httpx.Response(200, json=_response_body())
 
     def _owned_client(**kwargs: Any) -> httpx.AsyncClient:
+        """Allocate and track the owned mock client for redirect cleanup assertions."""
+
         assert kwargs["follow_redirects"] is False
         client = DefaultAsyncHttpxClient(**kwargs, transport=httpx.MockTransport(_handler))
         created.append(client)
@@ -371,6 +419,8 @@ def test_redirect_is_rejected_after_one_physical_send(
     monkeypatch.setattr("providers.perplexity_agent.DefaultAsyncHttpxClient", _owned_client)
 
     async def _run() -> None:
+        """Exercise owned or borrowed redirect rejection and verify client ownership."""
+
         async with httpx.AsyncClient(transport=httpx.MockTransport(_handler)) as borrowed:
             provider = PerplexityAgentProvider(
                 api_key=TEST_KEY_VIP,
@@ -404,6 +454,8 @@ def test_unsafe_borrowed_client_rejected_without_send_allocation_or_owner_effect
     monkeypatch: pytest.MonkeyPatch,
     stage: str,
 ) -> None:
+    """Reject unsafe borrowed clients without sends, allocation, or owner-state changes."""
+
     monkeypatch.setattr(
         "providers.perplexity_agent.DefaultAsyncHttpxClient",
         lambda **kwargs: pytest.fail("unsafe borrowed client must not allocate owned HTTPX"),
@@ -414,6 +466,8 @@ def test_unsafe_borrowed_client_rejected_without_send_allocation_or_owner_effect
     )
 
     async def _run() -> None:
+        """Exercise unsafe-client rejection while preserving borrowed client state."""
+
         borrowed = httpx.AsyncClient(
             transport=httpx.MockTransport(
                 lambda request: pytest.fail("unsafe client must not send")
@@ -456,10 +510,16 @@ def test_request_bound_redirect_option_survives_late_borrowed_flag_mutation(
     status: int,
     cross_origin: bool,
 ) -> None:
+    """Keep redirects disabled after a borrowed client flag changes during preparation."""
+
     calls: list[httpx.Request] = []
 
     async def _run() -> None:
+        """Mutate the borrowed flag after option preparation and assert one redirect response."""
+
         def _handler(request: httpx.Request) -> httpx.Response:
+            """Capture the admitted request before returning the redirect fixture."""
+
             calls.append(request)
             return httpx.Response(
                 status,
@@ -475,6 +535,8 @@ def test_request_bound_redirect_option_survives_late_borrowed_flag_mutation(
             async def _mutate_after_options(
                 self: _AgentAsyncOpenAI, request: httpx.Request
             ) -> None:
+                """Change the borrowed redirect flag after native request options are copied."""
+
                 borrowed.follow_redirects = True
 
             monkeypatch.setattr(_AgentAsyncOpenAI, "_prepare_request", _mutate_after_options)
@@ -490,7 +552,11 @@ def test_request_bound_redirect_option_survives_late_borrowed_flag_mutation(
 
 
 def test_native_sdk_redirect_hook_copies_options_and_borrowed_success_stays_open() -> None:
+    """Preserve original native options and keep a successful borrowed client open."""
+
     async def _run() -> None:
+        """Assert copied redirect options and successful generation through the borrowed client."""
+
         async with httpx.AsyncClient(
             transport=httpx.MockTransport(
                 lambda request: httpx.Response(200, json=_response_body())
@@ -519,19 +585,27 @@ def test_client_ownership_includes_allocation_error_and_cancellation(
     outcome: str,
     owned: bool,
 ) -> None:
+    """Close owned resources on success, SDK allocation error, and cancellation."""
+
     created: list[httpx.AsyncClient] = []
 
     async def _run() -> None:
+        """Exercise the selected outcome and verify owned versus borrowed cleanup."""
+
         entered = asyncio.Event()
         release = asyncio.Event()
 
         async def _handler(request: httpx.Request) -> httpx.Response:
+            """Signal transport entry and wait when the selected outcome is cancellation."""
+
             entered.set()
             if outcome == "cancelled":
                 await release.wait()
             return httpx.Response(200, json=_response_body())
 
         def _factory(**kwargs: Any) -> httpx.AsyncClient:
+            """Allocate and track the owned mock client used by the cleanup scenario."""
+
             client = DefaultAsyncHttpxClient(**kwargs, transport=httpx.MockTransport(_handler))
             created.append(client)
             return client
@@ -540,6 +614,8 @@ def test_client_ownership_includes_allocation_error_and_cancellation(
         if outcome == "sdk_allocation_error":
 
             def _fail_sdk(**kwargs: Any) -> _AgentAsyncOpenAI:
+                """Raise an SDK allocation failure containing synthetic private details."""
+
                 raise RuntimeError("secret SDK allocation details")
 
             monkeypatch.setattr("providers.perplexity_agent._AgentAsyncOpenAI", _fail_sdk)
@@ -575,19 +651,27 @@ def test_client_ownership_includes_allocation_error_and_cancellation(
 def test_inherited_sdk_log_context_remains_private_after_parent_reset(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
+    """Keep inherited Agent diagnostics private after the parent context is reset."""
+
     caplog.set_level(logging.DEBUG, logger="openai._base_client")
     caplog.set_level(logging.DEBUG, logger="openai._response")
 
     async def _run() -> None:
+        """Compare inherited child logging with independent logging after generation."""
+
         release_child = asyncio.Event()
         children: list[asyncio.Task[None]] = []
 
         async def _child() -> None:
+            """Emit inherited SDK diagnostics after the parent releases the child task."""
+
             await release_child.wait()
             for name in ("openai._base_client", "openai._response"):
                 logging.getLogger(name).warning("inherited Agent child diagnostic")
 
         def _handler(request: httpx.Request) -> httpx.Response:
+            """Spawn the inherited child and emit an active Agent diagnostic."""
+
             children.append(asyncio.create_task(_child()))
             logging.getLogger("openai._base_client").warning("nested Agent diagnostic")
             return httpx.Response(200, json=_response_body())
@@ -610,15 +694,21 @@ def test_inherited_sdk_log_context_remains_private_after_parent_reset(
 def test_sdk_debug_logs_are_private_and_concurrent_diagnostics_are_preserved(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
+    """Suppress Agent SDK logs while preserving independent concurrent diagnostics."""
+
     caplog.set_level(logging.DEBUG, logger="openai._base_client")
     caplog.set_level(logging.DEBUG, logger="openai._response")
     sdk_logger = logging.getLogger("openai._base_client")
 
     async def _run() -> None:
+        """Coordinate a failing Agent task and independent SDK logging contexts."""
+
         entered = asyncio.Event()
         release = asyncio.Event()
 
         async def _handler(request: httpx.Request) -> httpx.Response:
+            """Emit private SDK text, await release, and raise the synthetic timeout."""
+
             sdk_logger.debug("secret prompt and credential")
             entered.set()
             await release.wait()
@@ -655,6 +745,8 @@ def test_invalid_prompt_does_not_allocate_client(
     monkeypatch: pytest.MonkeyPatch,
     prompt: str,
 ) -> None:
+    """Reject invalid prompts before allocating any owned HTTP client."""
+
     monkeypatch.setattr(
         "providers.perplexity_agent._AgentAsyncOpenAI",
         lambda **kwargs: pytest.fail("bad prompt must not allocate a client"),
@@ -705,7 +797,11 @@ def agent_runtime_transport(
     )
 
     def _install(handler: Callable[[httpx.Request], httpx.Response]) -> None:
+        """Install a mock client factory bound to the supplied synthetic request handler."""
+
         def _client(**kwargs: Any) -> httpx.AsyncClient:
+            """Build a mock SDK HTTP client without permitting redirects."""
+
             assert kwargs["follow_redirects"] is False
             return DefaultAsyncHttpxClient(**kwargs, transport=httpx.MockTransport(handler))
 
@@ -793,10 +889,14 @@ def test_agent_fitchef_routes_preserve_envelopes_and_quota_order(
     monkeypatch.setenv("AGENT_CONTROL_AUDIT_LOG_PATH", str(audit_path))
 
     def _quota(_api_key: str, *, tier: str) -> bool:
+        """Record quota admission before the route calls the mock provider."""
+
         events.append(tier)
         return True
 
     def _handler(request: httpx.Request) -> httpx.Response:
+        """Record the provider call and render the route-specific synthetic output."""
+
         events.append("provider")
         body = json.loads(request.content)
         assert body["model"] == MODEL
@@ -827,6 +927,8 @@ def test_agent_routes_quota_denied_makes_zero_provider_calls(
     vip_headers: dict[str, str],
     url: str,
 ) -> None:
+    """Prevent client allocation and provider calls when monthly quota is denied."""
+
     case = next(case for case in _ROUTE_CASES if case[0] == url)
     monkeypatch.setattr(
         "app.services.fitchef_runtime.attempt_consume_llm_monthly_quota",
@@ -871,6 +973,8 @@ def test_agent_route_failure_is_sanitized_without_sonar_reroute(
     vip_headers: dict[str, str],
     failure: str,
 ) -> None:
+    """Preserve sanitized route errors without retrying or rerouting to Sonar."""
+
     calls = 0
     monkeypatch.setattr(
         "app.services.fitchef_runtime.attempt_consume_llm_monthly_quota",
@@ -878,6 +982,8 @@ def test_agent_route_failure_is_sanitized_without_sonar_reroute(
     )
 
     def _handler(request: httpx.Request) -> httpx.Response:
+        """Emit the selected timeout, server error, redirect, or invalid output fixture."""
+
         nonlocal calls
         calls += 1
         if failure == "timeout":
@@ -964,6 +1070,8 @@ def test_agent_bad_configuration_stops_before_quota_and_client(
     structured: bool,
 ) -> None:
     # Isolate provider admission; audit permissions are a separate earlier gate.
+    """Reject invalid Agent runtime settings before quota consumption or allocation."""
+
     monkeypatch.setattr(
         "app.services.fitchef_runtime._persist_privileged_action_audit", lambda **kwargs: None
     )
@@ -1040,6 +1148,8 @@ def test_default_agent_option_preserves_existing_selector(
     vip_headers: dict[str, str],
     flag: str | None,
 ) -> None:
+    """Preserve the existing provider selector when the Agent option is disabled."""
+
     if flag is None:
         monkeypatch.delenv("FITCHEF_AGENT_API_ENABLED")
     else:
@@ -1049,6 +1159,8 @@ def test_default_agent_option_preserves_existing_selector(
         name = "baseline"
 
         async def generate(self, prompt: str) -> str:
+            """Return deterministic baseline text from the existing selector."""
+
             return "Plan one balanced meal."
 
     monkeypatch.setattr("llm.get_provider", lambda: _BaselineProvider())
@@ -1073,6 +1185,8 @@ def test_model_identity_relation_is_exact(requested: str, returned: str) -> None
     calls = 0
 
     def _handler(request: httpx.Request) -> httpx.Response:
+        """Capture the requested model and return the selected response model identity."""
+
         nonlocal calls
         calls += 1
         assert json.loads(request.content)["model"] == requested
@@ -1090,6 +1204,8 @@ def test_model_identity_relation_is_exact(requested: str, returned: str) -> None
 def test_near_model_ids_fail_before_sdk_allocation(
     monkeypatch: pytest.MonkeyPatch, model: str
 ) -> None:
+    """Reject near-match model identifiers before SDK allocation."""
+
     monkeypatch.setattr(
         "providers.perplexity_agent._AgentAsyncOpenAI",
         lambda **kwargs: pytest.fail("unapproved model must not allocate SDK"),
@@ -1102,6 +1218,8 @@ def test_model61_factory_preserves_explicit_configuration_and_delayed_allocation
     monkeypatch: pytest.MonkeyPatch,
     agent_runtime_transport: Callable[[Callable[[httpx.Request], httpx.Response]], None],
 ) -> None:
+    """Keep the explicit 6.1 settings and defer allocation until generation."""
+
     from app.services.fitchef_runtime import _require_fitchef_llm_provider
 
     monkeypatch.setenv("FITCHEF_AGENT_API_MODEL", "openai/gpt-6.1-sol")
@@ -1129,14 +1247,20 @@ def test_model61_routes_keep_backend_envelopes_and_quota_order(
     field: str,
     expected: str,
 ) -> None:
+    """Preserve backend envelopes and quota-before-provider ordering for model 6.1."""
+
     monkeypatch.setenv("FITCHEF_AGENT_API_MODEL", "openai/gpt-6.1-sol")
     events: list[str] = []
 
     def _quota(_api_key: str, *, tier: str) -> bool:
+        """Record model 6.1 quota admission before the mock provider send."""
+
         events.append(tier)
         return True
 
     def _handler(request: httpx.Request) -> httpx.Response:
+        """Record the 6.1 provider request and return route-specific synthetic output."""
+
         events.append("provider")
         body = json.loads(request.content)
         assert body["model"] == "openai/gpt-6.1-sol"
@@ -1163,6 +1287,8 @@ def test_model61_quota_denial_still_prevents_client_and_send(
     vip_headers: dict[str, str],
     url: str,
 ) -> None:
+    """Prevent client allocation and sends when model 6.1 quota is denied."""
+
     monkeypatch.setenv("FITCHEF_AGENT_API_MODEL", "openai/gpt-6.1-sol")
     test_agent_routes_quota_denied_makes_zero_provider_calls(
         client, monkeypatch, agent_runtime_transport, pro_headers, vip_headers, url
@@ -1177,6 +1303,8 @@ def test_model61_configuration_does_not_enable_the_default_off_option(
     vip_headers: dict[str, str],
     flag: str | None,
 ) -> None:
+    """Keep Agent selection disabled when only the 6.1 configuration is present."""
+
     monkeypatch.setenv("FITCHEF_AGENT_API_MODEL", "openai/gpt-6.1-sol")
     test_default_agent_option_preserves_existing_selector(
         client, monkeypatch, agent_runtime_transport, vip_headers, flag
@@ -1193,6 +1321,8 @@ def test_module_credential_clearing_uses_the_same_seam_before_sdk_construction(
     calls = 0
 
     def _handler(request: httpx.Request) -> httpx.Response:
+        """Assert synthetic-only authentication and no inherited identity headers."""
+
         nonlocal calls
         calls += 1
         assert request.url.host == "api.perplexity.ai"
@@ -1234,10 +1364,14 @@ def test_runtime_sdk_identity_defaults_are_disabled_after_harness_clearing(
 
     class _ObservedSDK(_AgentAsyncOpenAI):
         def __init__(self, **kwargs: Any) -> None:
+            """Record native SDK identity state after its constructor completes."""
+
             super().__init__(**kwargs)
             states.append((self.organization, self.project, self.webhook_secret))
 
     def _handler(request: httpx.Request) -> httpx.Response:
+        """Assert the fixed Agent endpoint and synthetic authentication on the wire."""
+
         nonlocal calls
         calls += 1
         assert request.url == httpx.URL("https://api.perplexity.ai/v1/responses")
@@ -1248,6 +1382,8 @@ def test_runtime_sdk_identity_defaults_are_disabled_after_harness_clearing(
         return httpx.Response(200, json=_response_body())
 
     def _owned_client(**kwargs: Any) -> httpx.AsyncClient:
+        """Allocate and track the owned client for SDK identity isolation checks."""
+
         result = DefaultAsyncHttpxClient(**kwargs, transport=httpx.MockTransport(_handler))
         created.append(result)
         return result
@@ -1256,6 +1392,8 @@ def test_runtime_sdk_identity_defaults_are_disabled_after_harness_clearing(
     monkeypatch.setattr("providers.perplexity_agent.DefaultAsyncHttpxClient", _owned_client)
 
     async def _run() -> None:
+        """Exercise native SDK defaults with an owned or borrowed synthetic transport."""
+
         async with httpx.AsyncClient(transport=httpx.MockTransport(_handler)) as borrowed:
             provider = PerplexityAgentProvider(
                 api_key=TEST_KEY_VIP,
@@ -1297,6 +1435,8 @@ def test_effective_request_omits_identity_headers_without_mutating_client_defaul
     calls = 0
 
     def _handler(request: httpx.Request) -> httpx.Response:
+        """Capture all effective headers and assert exact identity-header absence."""
+
         nonlocal calls
         calls += 1
         assert "OpenAI-Organization" not in request.headers
@@ -1311,6 +1451,8 @@ def test_effective_request_omits_identity_headers_without_mutating_client_defaul
         return httpx.Response(500 if failure else 200, json=_response_body())
 
     def _owned_client(**kwargs: Any) -> httpx.AsyncClient:
+        """Build an owned mock client with the same synthetic default-header fixture."""
+
         result = DefaultAsyncHttpxClient(
             **kwargs, headers=defaults, transport=httpx.MockTransport(_handler)
         )
@@ -1321,6 +1463,8 @@ def test_effective_request_omits_identity_headers_without_mutating_client_defaul
     monkeypatch.setattr("providers.perplexity_agent.DefaultAsyncHttpxClient", _owned_client)
 
     async def _run() -> None:
+        """Compare effective request headers with the unchanged client defaults."""
+
         async with httpx.AsyncClient(
             headers=defaults,
             cookies={"synthetic-cookie": "unchanged"},
@@ -1358,7 +1502,11 @@ def test_effective_request_omits_identity_headers_without_mutating_client_defaul
 
 @pytest.mark.parametrize("header_state", ["absent", "empty", "populated"])
 def test_identity_hook_preserves_original_native_options_header_data(header_state: str) -> None:
+    """Preserve the original native option headers while preparing the wire request."""
+
     async def _run() -> None:
+        """Compare original options, prepared options, and the final request headers."""
+
         async with httpx.AsyncClient(
             transport=httpx.MockTransport(lambda request: httpx.Response(200))
         ) as borrowed:
@@ -1398,15 +1546,21 @@ def test_identity_hook_preserves_original_native_options_header_data(header_stat
 def test_concurrent_agent_requests_leave_independent_sdk_identity_and_client_unchanged(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Keep concurrent Agent calls from mutating an independent SDK or its client."""
+
     monkeypatch.setenv("OPENAI_ORG_ID", "synthetic-independent-org")
     monkeypatch.setenv("OPENAI_PROJECT_ID", "synthetic-independent-project")
     monkeypatch.setenv("OPENAI_WEBHOOK_SECRET", "synthetic-independent-webhook")
 
     async def _run() -> None:
+        """Coordinate two Agent requests and inspect independent SDK and client state."""
+
         both_entered = asyncio.Event()
         requests: list[httpx.Request] = []
 
         async def _handler(request: httpx.Request) -> httpx.Response:
+            """Hold both Agent sends until their effective identity headers are captured."""
+
             requests.append(request)
             if len(requests) == 2:
                 both_entered.set()
