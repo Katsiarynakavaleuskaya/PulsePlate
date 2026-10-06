@@ -87,13 +87,13 @@ BINDING_KEYS = {
 def _text(value: object, *, nullable: bool = False) -> str | None:
     if nullable and value is None:
         return None
-    result = cost._text(value)
+    result = cast(str, cost._text(value))
     cost._require(len(result) <= MAX_TEXT)
     return result
 
 
 def _hash(value: object) -> str:
-    text = cost._text(value)
+    text = cast(str, cost._text(value))
     cost._require(SHA.fullmatch(text) is not None)
     return text
 
@@ -149,7 +149,7 @@ def _binding(value: object, *, bounded: bool) -> dict[str, object]:
     for key in ("owner_ref", "evidence_ref", "recovery_ref", "utilization_ref"):
         if obj[key] is not None:
             (_text if bounded else cost._text)(obj[key])
-    return obj
+    return cast(dict[str, object], obj)
 
 
 def validate_cost(value: object) -> dict[str, object]:
@@ -369,7 +369,7 @@ def _target(value: object) -> dict[str, object]:
     obj = cost._keys(value, {"kind", "ref"})
     cost._require(type(obj["kind"]) is str and obj["kind"] in TARGETS)
     _text(obj["ref"])
-    return obj
+    return cast(dict[str, object], obj)
 
 
 def _validate_record(value: object) -> dict[str, object]:
@@ -422,7 +422,7 @@ def _validate_record(value: object) -> dict[str, object]:
                 "SOURCE_NOT_ACQUIRED",
             }
         )
-        return record
+        return cast(dict[str, object], record)
     cost._require(record["reason_code"] is None)
     kind = record["record_kind"]
     if kind == "identity":
@@ -480,7 +480,7 @@ def _validate_record(value: object) -> dict[str, object]:
         )
         for item in _list(data["checks"], 32):
             _text(item)
-    return record
+    return cast(dict[str, object], record)
 
 
 def validate_observations(value: object) -> dict[str, object]:
@@ -743,7 +743,7 @@ def assess(
         & set(cast(list[str], topology["volume_ids"]))
         & {g["resource_id"] for g in groups if g["resource_kind"] == "volume"}
     )
-    assessments = []
+    assessments: list[dict[str, object]] = []
     for record in records:
         reasons = _target_reasons(record) + _chronology(record, assessment)
         matched = (record["account_ref"], record["resource_kind"], record["resource_id"]) == (
@@ -937,7 +937,9 @@ def assess(
             item["status"] = "conflict"
             if item["applicability"] == "compatible_supplied_scope":
                 item["applicability"] = "not_established"
-            item["reasons"] = sorted(set(item["reasons"] + ["GLOBAL_CONTEXT_CONFLICT", *conflicts]))
+            item["reasons"] = sorted(
+                set(cast(list[str], item["reasons"]) + ["GLOBAL_CONTEXT_CONFLICT", *conflicts])
+            )
     return {
         "schema_version": SCHEMA,
         "policy_version": POLICY,
@@ -1019,8 +1021,8 @@ def _question_inventory(
             if not metrics:
                 questions.append("dated_utilization")
             elif any(
-                "REQUESTED_HISTORY_INCOMPLETE" in item["reasons"]
-                or "REPRESENTATIVE_WORKLOAD_NOT_ASSESSED" in item["reasons"]
+                "REQUESTED_HISTORY_INCOMPLETE" in cast(list[str], item["reasons"])
+                or "REPRESENTATIVE_WORKLOAD_NOT_ASSESSED" in cast(list[str], item["reasons"])
                 for item in metrics
             ):
                 questions.append("representative_utilization_history")
@@ -1034,7 +1036,10 @@ def _question_inventory(
             ):
                 questions.append("applicable_restore_receipt")
             if (
-                any("FILESYSTEM_VOLUME_WITNESS_MISSING" in item["reasons"] for item in entries)
+                any(
+                    "FILESYSTEM_VOLUME_WITNESS_MISSING" in cast(list[str], item["reasons"])
+                    for item in entries
+                )
                 or related
                 and not entries
             ):
@@ -1086,7 +1091,7 @@ def render_report(report: dict[str, object], cost_raw: bytes, observations_raw: 
         cost._canonical([ASSET, SCHEMA, POLICY, *hashes])
     ).hexdigest()
     result["report_fingerprint"] = hashlib.sha256(cost._canonical(result)).hexdigest()
-    return cost._canonical(result) + b"\n"
+    return cast(bytes, cost._canonical(result)) + b"\n"
 
 
 def main(argv: list[str] | None = None) -> int:
