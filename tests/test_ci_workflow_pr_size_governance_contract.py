@@ -6269,6 +6269,7 @@ def _assert_ci_diff_coverage_exclusion_contract(workflow: dict[str, object]) -> 
 
 
 def test_ci_diff_coverage_node24_preserves_exact_exclusions_and_required_inputs() -> None:
+    """Bind the reviewed exclusion vector and mandatory coverage-report wiring."""
     _assert_ci_diff_coverage_exclusion_contract(_load_ci_workflow())
 
 
@@ -6296,6 +6297,7 @@ def test_ci_diff_coverage_node24_preserves_exact_exclusions_and_required_inputs(
     ),
 )
 def test_ci_diff_coverage_node24_rejects_carrier_or_blocking_drift(mutation: str) -> None:
+    """Reject finite carrier mutations and optional or error-masked coverage wiring."""
     workflow = _load_ci_workflow()
     jobs = cast(dict[str, object], workflow["jobs"])
     job = cast(dict[str, object], jobs["diff-coverage"])
@@ -6378,6 +6380,7 @@ def _native_ci_diff_coverage_args(root: Path) -> tuple[str, ...]:
 def test_ci_diff_coverage_native_parser_and_path_boundaries(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    """Check actual CI argv and native matching across the declared path boundaries."""
     from diff_cover.diff_cover_tool import parse_coverage_args
     from diff_cover.diff_reporter import GitDiffReporter
 
@@ -6469,6 +6472,7 @@ def test_ci_diff_coverage_native_parser_and_path_boundaries(
 def test_ci_diff_coverage_native_cli_excludes_each_intended_class(
     tmp_path: Path, filename: str
 ) -> None:
+    """Prove each class is measurable unfiltered before its excluded no-lines result."""
     args = _native_ci_diff_coverage_args(tmp_path)
     unfiltered = _consume_orchestration_diff_fixture(
         tmp_path,
@@ -6500,6 +6504,7 @@ def test_ci_diff_coverage_native_cli_excludes_each_intended_class(
     ),
 )
 def test_ci_diff_coverage_native_cli_retains_zero_hit_owners(tmp_path: Path, filename: str) -> None:
+    """Keep zero-hit application and dedicated tooling sources measurable."""
     args = _native_ci_diff_coverage_args(tmp_path)
     result = _consume_orchestration_diff_fixture(
         tmp_path, {filename: [0]}, coverage_args=args, report_files=CI_DIFF_COVERAGE_REPORTS
@@ -6513,6 +6518,7 @@ def test_ci_diff_coverage_native_cli_retains_zero_hit_owners(tmp_path: Path, fil
 def test_ci_diff_coverage_native_cli_preserves_97_boundary(
     tmp_path: Path, uncovered: int, expected_pass: bool
 ) -> None:
+    """Check native 97% acceptance and 96% refusal at a working root with spaces."""
     root = tmp_path / "root with spaces"
     root.mkdir()
     args = _native_ci_diff_coverage_args(root)
@@ -6534,6 +6540,7 @@ def test_ci_diff_coverage_native_cli_preserves_97_boundary(
 def test_ci_diff_coverage_native_cli_refuses_each_invalid_report(
     tmp_path: Path, report: str, error: str, diagnostic: str
 ) -> None:
+    """Reject each missing or malformed mandatory XML without coverage-success output."""
     args = _native_ci_diff_coverage_args(tmp_path)
     result = _consume_orchestration_diff_fixture(
         tmp_path,
@@ -6559,6 +6566,7 @@ def test_ci_diff_coverage_native_cli_refuses_each_invalid_report(
 def test_ci_diff_coverage_native_prerequisites_are_not_coverage_rejection(
     tmp_path: Path, case: str, diagnostic: str
 ) -> None:
+    """Distinguish CLI, config, Git, and import failures from coverage-threshold refusal."""
     import sys
 
     args = _native_ci_diff_coverage_args(tmp_path)
