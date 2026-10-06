@@ -201,8 +201,8 @@ was verified before cleanup. The exact terminal receipts are
 foreign master contents and private observer data remain local.
 
 These completed-child receipts are carried in this next substantive utility
-child, `PR-TBD-LEGACY-RESIDUAL-PYTHON-EXPORT-RETIREMENT`, whose real PR number is
-pending publication. `PROJECT_LEGACY` remains OPEN. There is no standalone
+child, [PR #2475](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2475)
+(`codex/retire-legacy-core-utility-exports`). `PROJECT_LEGACY` remains OPEN. There is no standalone
 docs-only closeout PR and no additional cohort authority.
 Rollback is a reviewed revert of the whole planning-schema retirement PR,
 including its facade, inventories, tests, documentation, and directly approved
@@ -262,8 +262,8 @@ timeout, and diagnostics. It checks namespace absence, `AttributeError`, direct
 `ImportError`, canonical Literal/float/function owners, and retained package and
 health identities.
 
-The prospective utility child is `codex/retire-legacy-core-utility-exports`, with
-its actual PR number pending publication. Parent `PROJECT_LEGACY` remains OPEN.
+The current utility child is [PR #2475](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2475)
+(`codex/retire-legacy-core-utility-exports`). Parent `PROJECT_LEGACY` remains OPEN.
 Unknown external Python callers must migrate to the owners above; these fresh
 imports make no hot-reload guarantee. Rollback is a reviewed whole-material
 revert of this utility PR, excluding the inherited #2466 workflow repair.
