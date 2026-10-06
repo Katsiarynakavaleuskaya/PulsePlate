@@ -275,10 +275,12 @@ runs:
 
         sources = load_manifest(Path(os.environ["GITHUB_WORKSPACE"], "scripts/ci/docker_source_artifacts.json"))
         selected = {source.name: source.version for source in sources}
-        expected_ssl = tuple(int(part) for part in selected["openssl"].split("."))
+        ssl_major, ssl_minor, ssl_patch = (int(part) for part in selected["openssl"].split("."))
+        expected_ssl = (ssl_major, ssl_minor, 0, ssl_patch, 0)
         pq_major, pq_minor = (int(part) for part in selected["postgresql"].split("."))
         expected_pq = pq_major * 10000 + pq_minor
-        if ssl.OPENSSL_VERSION_INFO[:3] != expected_ssl:
+        print("Loaded shared OpenSSL", ssl.OPENSSL_VERSION_INFO, ssl.OPENSSL_VERSION, hex(ssl.OPENSSL_VERSION_NUMBER))
+        if ssl.OPENSSL_VERSION_INFO != expected_ssl:
             raise SystemExit("Python did not load the source-selected shared OpenSSL")
         if not ssl.create_default_context().get_ca_certs():
             raise SystemExit("Python default CA verification has no trust roots")

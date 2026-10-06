@@ -851,7 +851,8 @@ if cryptography.__version__ != "50.0.2" or not backend.openssl_version_text().st
     raise SystemExit("Cryptography bundled OpenSSL mismatch")
 if psycopg.__version__ != "3.3.4" or pq.__impl__ != "c" or pq.version() != 180006:
     raise SystemExit("Psycopg C/system client mismatch")
-if ssl.OPENSSL_VERSION_INFO[:3] != (3, 5, 9):
+print("Loaded shared OpenSSL", ssl.OPENSSL_VERSION_INFO, ssl.OPENSSL_VERSION, hex(ssl.OPENSSL_VERSION_NUMBER))
+if ssl.OPENSSL_VERSION_INFO != (3, 5, 0, 9, 0):
     raise SystemExit("Psycopg runtime shared OpenSSL mismatch")
 if any(distribution.metadata["Name"].lower() == "psycopg-binary" for distribution in metadata.distributions()):
     raise SystemExit("The binary Psycopg carrier remains installed")

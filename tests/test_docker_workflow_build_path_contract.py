@@ -642,6 +642,64 @@ def test_libpq_lineage_guard_requires_exact_source_topology_and_bytes(
         assert "Psycopg" in result.stderr
 
 
+@pytest.mark.parametrize(
+    "version_info,expected_exit",
+    (
+        ((3, 5, 0, 9, 0), 0),
+        ((3, 5, 0, 8, 0), 1),
+        ((3, 6, 0, 9, 0), 1),
+        ((4, 0, 0, 9, 0), 1),
+        ((3, 5, 9, 0, 0), 1),
+        ((3, 5, 0, 9, 15), 1),
+    ),
+)
+def test_runtime_openssl_guard_uses_openssl3_patch_field_and_release_status(
+    tmp_path: Path, version_info: tuple[int, ...], expected_exit: int
+) -> None:
+    """Execute the shipped version guard against the public OpenSSL 3 tuple shape."""
+    dockerfile = (REPO_ROOT / "Dockerfile").read_text(encoding="utf-8")
+    source = dockerfile.split("<<'PY_NATIVE_PSYCOPG'\n", 1)[1].split("\nPY_NATIVE_PSYCOPG", 1)[0]
+    statements = [
+        node
+        for node in ast.parse(source).body
+        if (
+            isinstance(node, ast.Expr)
+            and isinstance(node.value, ast.Call)
+            and node.value.args
+            and isinstance(node.value.args[0], ast.Constant)
+            and node.value.args[0].value == "Loaded shared OpenSSL"
+        )
+        or (
+            isinstance(node, ast.If)
+            and "Psycopg runtime shared OpenSSL mismatch" in ast.unparse(node)
+        )
+    ]
+    assert len(statements) == 2
+    assert isinstance(statements[0], ast.Expr) and isinstance(statements[1], ast.If)
+    program = (
+        "import types\n"
+        f"ssl = types.SimpleNamespace(OPENSSL_VERSION_INFO={version_info!r}, "
+        "OPENSSL_VERSION='synthetic OpenSSL observation', OPENSSL_VERSION_NUMBER=0x30500090)\n"
+        + "\n".join(ast.unparse(node) for node in statements)
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", program],
+        cwd=tmp_path,
+        env={"PATH": os.defpath, "HOME": str(tmp_path), "LANG": "C.UTF-8"},
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+    assert result.returncode == expected_exit, result.stdout + result.stderr
+    assert repr(version_info) in result.stdout
+    assert "synthetic OpenSSL observation" in result.stdout and "0x30500090" in result.stdout
+    if expected_exit:
+        assert "Psycopg runtime shared OpenSSL mismatch" in result.stderr
+    else:
+        assert not result.stderr
+
+
 def test_dockerfile_builds_verified_sqlite_runtime_library() -> None:
     """Dockerfile builds pre-fetched SQLite 3.53.2 before removing Debian SQLite."""
     dockerfile = (REPO_ROOT / "Dockerfile").read_text(encoding="utf-8")
