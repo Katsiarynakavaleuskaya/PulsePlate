@@ -4,13 +4,11 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-from datetime import datetime, timedelta, timezone
 import hashlib
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import os
+import re
 import shlex
-from pathlib import Path
 import shutil
 import signal
 import socket
@@ -21,6 +19,9 @@ import tempfile
 import threading
 import time
 import uuid
+from datetime import datetime, timedelta, timezone
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
 
 import pytest
 
@@ -33,6 +34,8 @@ PROMETHEUS_IMAGE = json.loads((ROOT / "deploy/prometheus/image-manifest.json").r
 ALERTMANAGER_IMAGE = (
     "prom/alertmanager@sha256:84967b9b7ba45e38a9278d3e594305f43d4993c310df3905b51138b816c365f3"
 )
+SYSTEMD_UNIT_DIRECTORY = Path("/run/systemd/system")
+
 UNITS = tuple(
     ROOT / "deploy/systemd" / ("pulseplate-premium-alias-checkpoint" + suffix + ".example")
     for suffix in (".service", ".timer", "-failure.service")
@@ -280,7 +283,12 @@ def _native(
 ) -> subprocess.CompletedProcess[str]:
     resolved = shutil.which(argv[0])
     assert resolved is not None and os.path.isabs(resolved), f"native binary missing: {argv[0]}"
-    environment = {"PATH": os.defpath, "LANG": "C", "HOME": str(cwd) if cwd else "/tmp"}
+    environment = {
+        "PATH": os.defpath,
+        "LANG": "C",
+        "HOME": str(cwd) if cwd else "/tmp",
+        "COMPOSE_PROFILES": "",
+    }
     if cwd is not None:
         environment["COMPOSE_PROFILES"] = ""
     result = subprocess.run(
@@ -309,7 +317,7 @@ def _property(unit: str, interface: str, name: str, signature: str) -> object:
 
 def _native_checkpoint_fixture(case: str, directory: Path) -> int:
     from scripts import verify_premium_alias_telemetry as verifier
-    from tests.test_premium_alias_telemetry_verifier import _FakePromtoolClient, _T0, _live_snapshot
+    from tests.test_premium_alias_telemetry_verifier import _T0, _FakePromtoolClient, _live_snapshot
 
     if case == "stall":
         child = subprocess.Popen(
@@ -363,6 +371,29 @@ def _native_checkpoint_fixture(case: str, directory: Path) -> int:
         )
 
 
+def _reset_failed_invocation(unit: str, previous_state: str) -> None:
+    """Reset only a known failed scratch invocation; start owns loading otherwise."""
+    assert previous_state in {"inactive", "failed"}
+    if previous_state == "failed":
+        assert _property(unit, "Unit", "ActiveState", "s") == "failed"
+        result = _property(unit, "Service", "Result", "s")
+        assert isinstance(result, str) and result and result != "success"
+        _native(["sudo", "systemctl", "reset-failed", unit])
+
+
+def _finish_failure_handler(unit: str, marker: Path) -> None:
+    """The disclosed remain-after-exit scratch handler gives typed completion proof."""
+    deadline = time.monotonic() + 10
+    while time.monotonic() < deadline:
+        if marker.exists() and _property(unit, "Unit", "ActiveState", "s") == "active":
+            assert _property(unit, "Service", "Result", "s") == "success"
+            assert _property(unit, "Service", "ExecMainStatus", "i") == 0
+            _native(["sudo", "systemctl", "stop", unit])
+            return
+        time.sleep(0.05)
+    raise AssertionError("owned failure handler did not complete within its observation bound")
+
+
 def _native_systemd(directory: Path) -> None:
     token = "obs2a" + uuid.uuid4().hex
     service_name, failure_name, timer_name = (
@@ -370,16 +401,20 @@ def _native_systemd(directory: Path) -> None:
         token + "failure.service",
         token + ".timer",
     )
-    unit_dir = Path("/run/systemd/system")
+    unit_dir = SYSTEMD_UNIT_DIRECTORY
     source_service, source_timer, source_failure = (p.read_text() for p in UNITS)
     files = [unit_dir / name for name in (service_name, timer_name, failure_name)]
-    for source, destination in zip((source_service, source_timer, source_failure), files):
-        local = directory / destination.name
-        local.write_text(source)
-        _native(["sudo", "install", "-m", "0644", str(local), str(destination)])
     runtime = Path("/run") / token
     primary_failure: BaseException | None = None
+    installed: list[Path] = []
+    previous_state = "inactive"
     try:
+        for source, destination in zip((source_service, source_timer, source_failure), files):
+            local = directory / destination.name
+            local.write_text(source)
+            # This exclusive name may exist even if install reports a partial failure.
+            installed.append(destination)
+            _native(["sudo", "install", "-m", "0644", str(local), str(destination)])
         _native(["sudo", "systemctl", "daemon-reload"])
         command = _property(service_name, "Service", "ExecStart", "a(sasbttttuii)")
         expected = shlex.split(
@@ -419,7 +454,9 @@ def _native_systemd(directory: Path) -> None:
         # Declared scratch overrides exercise lifecycle; original properties above remain separate.
         failure_marker = directory / "onfailure"
         local = directory / failure_name
-        local.write_text(f"[Service]\nType=oneshot\nExecStart=/usr/bin/touch {failure_marker}\n")
+        local.write_text(
+            f"[Service]\nType=oneshot\nRemainAfterExit=yes\nExecStart=/usr/bin/touch {failure_marker}\n"
+        )
         _native(["sudo", "install", "-m", "0644", str(local), str(files[2])])
         assert _native_checkpoint_fixture("baseline", directory) == 0
         baseline_hash = hashlib.sha256((directory / "baseline.json").read_bytes()).hexdigest()
@@ -449,7 +486,7 @@ def _native_systemd(directory: Path) -> None:
             )
             _native(["sudo", "install", "-m", "0644", str(local), str(files[0])])
             _native(["sudo", "systemctl", "daemon-reload"])
-            _native(["sudo", "systemctl", "reset-failed", service_name])
+            _reset_failed_invocation(service_name, previous_state)
             _native(["sudo", "systemctl", "start", service_name], check=expected == 0)
             assert _property(service_name, "Service", "ExecMainStatus", "i") == expected
             assert _property(service_name, "Unit", "ActiveState", "s") == (
@@ -459,6 +496,9 @@ def _native_systemd(directory: Path) -> None:
             while expected != 0 and not failure_marker.exists() and time.monotonic() < deadline:
                 time.sleep(0.1)
             assert failure_marker.exists() is (expected != 0)
+            previous_state = "inactive" if expected == 0 else "failed"
+            if expected != 0:
+                _finish_failure_handler(failure_name, failure_marker)
             if case in {"pass", "hold"}:
                 assert json.loads(receipt.read_text())["decision"] == (
                     "PASS" if case == "pass" else "HOLD"
@@ -474,14 +514,20 @@ def _native_systemd(directory: Path) -> None:
             fcntl.flock(holder, fcntl.LOCK_EX | fcntl.LOCK_NB)
             inode = lock.stat().st_ino
             receipt.unlink(missing_ok=True)
-            _native(["sudo", "systemctl", "reset-failed", service_name])
+            failure_marker.unlink(missing_ok=True)
+            _reset_failed_invocation(service_name, previous_state)
             _native(["sudo", "systemctl", "start", service_name], check=False)
             assert _property(service_name, "Service", "ExecMainStatus", "i") == 75
+            assert _property(service_name, "Unit", "ActiveState", "s") == "failed"
+            _finish_failure_handler(failure_name, failure_marker)
+            assert failure_marker.exists() and not receipt.exists()
             _native(["sudo", "systemctl", "stop", service_name])
+            previous_state = _property(service_name, "Unit", "ActiveState", "s")
             assert lock.stat().st_ino == inode and not receipt.exists()
-        _native(["sudo", "systemctl", "reset-failed", service_name])
+        _reset_failed_invocation(service_name, previous_state)
         _native(["sudo", "systemctl", "start", service_name], check=False)
         assert _property(service_name, "Service", "ExecMainStatus", "i") == 0
+        previous_state = _property(service_name, "Unit", "ActiveState", "s")
         # Real host descendant cleanup under a disclosed accelerated timeout,
         # then explicit interruption under the unchanged10min/10s properties.
         scratch_service = local.read_text()
@@ -495,7 +541,7 @@ def _native_systemd(directory: Path) -> None:
             local.write_text(text)
             _native(["sudo", "install", "-m", "0644", str(local), str(files[0])])
             _native(["sudo", "systemctl", "daemon-reload"])
-            _native(["sudo", "systemctl", "reset-failed", service_name])
+            _reset_failed_invocation(service_name, previous_state)
             _native(["sudo", "systemctl", "start", "--no-block", service_name])
             deadline = time.monotonic() + 10
             while not pid_file.exists() and time.monotonic() < deadline:
@@ -523,6 +569,9 @@ def _native_systemd(directory: Path) -> None:
                 if alive:
                     time.sleep(0.05)
             assert not alive and not receipt.exists()
+            previous_state = _property(service_name, "Unit", "ActiveState", "s")
+            if previous_state == "failed":
+                _finish_failure_handler(failure_name, failure_marker)
         # Restore the real canonical receipt fixture. These accelerated timer
         # calendars prove origin/catch-up only, not staging04:15 acceptance.
         text = (
@@ -550,7 +599,7 @@ def _native_systemd(directory: Path) -> None:
                 stamp.touch()
                 os.utime(stamp, (at.timestamp() - 60, at.timestamp() - 60))
             _native(["sudo", "systemctl", "daemon-reload"])
-            _native(["sudo", "systemctl", "reset-failed", service_name])
+            _reset_failed_invocation(service_name, previous_state)
             _native(["sudo", "systemctl", "start", timer_name])
             deadline = time.monotonic() + 15
             while not receipt.exists() and time.monotonic() < deadline:
@@ -567,29 +616,51 @@ def _native_systemd(directory: Path) -> None:
                 + str(trigger),
                 flush=True,
             )
+            while (
+                _property(service_name, "Unit", "ActiveState", "s") == "activating"
+                and time.monotonic() < deadline
+            ):
+                time.sleep(0.05)
+            assert _property(service_name, "Unit", "ActiveState", "s") == "inactive"
+            assert _property(service_name, "Service", "Result", "s") == "success"
             _native(["sudo", "systemctl", "stop", timer_name])
+            previous_state = "inactive"
             stamp.unlink(missing_ok=True)
     except BaseException as exc:
         primary_failure = exc
         raise
     finally:
+        cleanup_errors: list[Exception] = []
+        stopped: set[str] = set()
+        stop_order = sorted(
+            installed, key=lambda path: {timer_name: 0, service_name: 1, failure_name: 2}[path.name]
+        )
+        for path in stop_order:
+            try:
+                _native(["sudo", "systemctl", "stop", path.name])
+                stopped.add(path.name)
+            except Exception as cleanup_error:
+                cleanup_errors.append(cleanup_error)
+        all_stopped = all(path.name in stopped for path in installed)
+        for path in installed:
+            if all_stopped:
+                try:
+                    _native(["sudo", "rm", "--", str(path)])
+                except Exception as cleanup_error:
+                    cleanup_errors.append(cleanup_error)
         try:
-            for name in (service_name, failure_name, timer_name):
-                _native(["sudo", "systemctl", "stop", name])
-            _native(["sudo", "rm", "--", *(str(path) for path in files)])
             _native(["sudo", "systemctl", "daemon-reload"])
-            if runtime.exists():
-                _native(["sudo", "rm", "-r", "--", str(runtime)])
         except Exception as cleanup_error:
-            print(
-                "native_cleanup_failure="
-                + type(cleanup_error).__name__
-                + ":"
-                + str(cleanup_error)[:2048],
-                flush=True,
-            )
-            if primary_failure is None:
-                raise
+            cleanup_errors.append(cleanup_error)
+        if runtime.exists() and all_stopped:
+            try:
+                _native(["sudo", "rm", "-r", "--", str(runtime)])
+            except Exception as cleanup_error:
+                cleanup_errors.append(cleanup_error)
+        for cleanup_error in cleanup_errors:
+            print("native_cleanup_failure=systemd:" + type(cleanup_error).__name__, flush=True)
+        if cleanup_errors and primary_failure is None:
+            raise cleanup_errors[0]
 
 
 def _owned_task_stopped(cid: str, command: str, started: float, probe: str) -> bool:
@@ -605,20 +676,28 @@ def _owned_task_stopped(cid: str, command: str, started: float, probe: str) -> b
         remaining = deadline - time.monotonic()
         if remaining <= 0:
             break
-        result = _native(["docker", "top", cid, "-eo", "comm"], timeout=min(2, remaining))
+        result = _native(["docker", "top", cid, "-eo", "pid,comm"], timeout=min(2, remaining))
         terminal = result.stdout
         observed = time.monotonic()
         if immediate is None:
             immediate = terminal
         rows = terminal.splitlines()
-        tasks = [row.strip() for row in rows[1:]]
+        records = [row.split() for row in rows[1:]]
         valid = (
             result.returncode == 0
             and len(rows) >= 2
-            and rows[0].strip() == "COMMAND"
-            and tasks.count(main) == 1
-            and all(task in {main, command} for task in tasks)
+            and rows[0].split() == ["PID", "COMMAND"]
+            and all(len(row) == 2 and re.fullmatch(r"[1-9][0-9]*", row[0]) for row in records)
         )
+        tasks: list[str] = []
+        if valid:
+            pids = [row[0] for row in records]
+            tasks = [row[1] for row in records]
+            valid = (
+                len(set(pids)) == len(pids)
+                and tasks.count(main) == 1
+                and all(task in {main, command} for task in tasks)
+            )
         if not valid:
             reason = "invalid_census"
             break
@@ -672,22 +751,29 @@ def _native_query_lifetime(directory: Path) -> None:
         def log_message(self, format: str, *args: object) -> None:
             del format, args
 
-    server = ThreadingHTTPServer(("127.0.0.1", 9090), Handler)
-    server.daemon_threads = True
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
-    thread.start()
-    config = directory / "prometheus.yml"
-    config.write_text("global:\n  scrape_interval: 30s\nscrape_configs: []\n")
+    server: ThreadingHTTPServer | None = None
+    thread: threading.Thread | None = None
     cid = ""
+    container_name = "obs2aquery" + uuid.uuid4().hex
+    container_attempted = False
     unit = "obs2aquery" + uuid.uuid4().hex + ".service"
-    unit_file = Path("/run/systemd/system") / unit
-    failures: list[str] = []
+    unit_file = SYSTEMD_UNIT_DIRECTORY / unit
     primary_failure: BaseException | None = None
     try:
+        server = ThreadingHTTPServer(("127.0.0.1", 9090), Handler)
+        server.daemon_threads = True
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        config = directory / "prometheus.yml"
+        config.write_text("global:\n  scrape_interval: 30s\nscrape_configs: []\n")
+        failures: list[str] = []
+        container_attempted = True
         cid = _native(
             [
                 "docker",
                 "run",
+                "--name",
+                container_name,
                 "-d",
                 "--network",
                 "host",
@@ -725,15 +811,9 @@ def _native_query_lifetime(directory: Path) -> None:
         if not stopped:
             failures.append("owned promtool cleanup not proved within timeout plus10s stop bound")
         release.set()
-        deadline = time.monotonic() + 10
-        while time.monotonic() < deadline:
-            tasks = _native(["docker", "top", cid, "-eo", "comm"]).stdout.splitlines()[1:]
-            if "promtool" not in [row.strip() for row in tasks]:
-                break
-            time.sleep(0.1)
-        assert "promtool" not in [
-            row.strip() for row in tasks
-        ], "ordinary fixture response failed to finish task"
+        assert _owned_task_stopped(
+            cid, "promtool", time.monotonic(), "P02_released_response"
+        ), "ordinary fixture response failed to finish task"
         release.clear()
         entered.clear()
         unit_file.write_text(
@@ -753,27 +833,51 @@ def _native_query_lifetime(directory: Path) -> None:
         primary_failure = exc
         raise
     finally:
-        try:
-            release.set()
-            server.shutdown()
-            server.server_close()
-            thread.join(5)
-            if unit_file.exists():
+        cleanup_errors: list[Exception] = []
+        release.set()
+        if server is not None and thread is not None and thread.is_alive():
+            try:
+                server.shutdown()
+            except Exception as cleanup_error:
+                cleanup_errors.append(cleanup_error)
+        if server is not None:
+            try:
+                server.server_close()
+            except Exception as cleanup_error:
+                cleanup_errors.append(cleanup_error)
+        if thread is not None and thread.ident is not None:
+            try:
+                thread.join(5)
+                assert not thread.is_alive(), "owned server thread did not stop"
+            except Exception as cleanup_error:
+                cleanup_errors.append(cleanup_error)
+        if unit_file.exists():
+            unit_stopped = False
+            try:
                 _native(["sudo", "systemctl", "stop", unit])
-                unit_file.unlink()
+                unit_stopped = True
+            except Exception as cleanup_error:
+                cleanup_errors.append(cleanup_error)
+            if unit_stopped:
+                try:
+                    unit_file.unlink()
+                except Exception as cleanup_error:
+                    cleanup_errors.append(cleanup_error)
+            try:
                 _native(["sudo", "systemctl", "daemon-reload"])
-            if cid:
-                _native(["docker", "rm", "-f", cid])
-        except Exception as cleanup_error:
+            except Exception as cleanup_error:
+                cleanup_errors.append(cleanup_error)
+        if container_attempted:
+            try:
+                _native(["docker", "rm", "-f", container_name])
+            except Exception as cleanup_error:
+                cleanup_errors.append(cleanup_error)
+        for cleanup_error in cleanup_errors:
             print(
-                "native_cleanup_failure="
-                + type(cleanup_error).__name__
-                + ":"
-                + str(cleanup_error)[:2048],
-                flush=True,
+                "native_cleanup_failure=owned_fixture:" + type(cleanup_error).__name__, flush=True
             )
-            if primary_failure is None:
-                raise
+        if cleanup_errors and primary_failure is None:
+            raise cleanup_errors[0]
 
 
 def _native_amtool_lifetime(directory: Path) -> None:
@@ -797,24 +901,28 @@ def _native_amtool_lifetime(directory: Path) -> None:
         def log_message(self, format: str, *args: object) -> None:
             del format, args
 
-    server = ThreadingHTTPServer(("127.0.0.1", 9093), Handler)
-    server.daemon_threads = True
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
-    thread.start()
-    config = directory / "amtool-lifetime.yml"
-    config.write_text("route:\n  receiver: synthetic\nreceivers:\n  - name: synthetic\n")
-    config.chmod(0o444)
-    compose = directory / "amtool-compose.yaml"
-    compose.write_text(
-        f"services:\n  alertmanager:\n    image: {ALERTMANAGER_IMAGE}\n    platform: linux/amd64\n    user: '65534:65534'\n    cap_drop: [ALL]\n    security_opt: ['no-new-privileges:true']\n    read_only: true\n    network_mode: host\n    tmpfs: ['/alertmanager:uid=65534,gid=65534,mode=0700,size=16m']\n    command: ['--config.file=/etc/alertmanager/alertmanager.yml', '--storage.path=/alertmanager', '--cluster.listen-address=', '--web.listen-address=127.0.0.1:19093']\n    volumes: ['{config}:/etc/alertmanager/alertmanager.yml:ro']\n"
-    )
-    prefix = ["docker", "compose", "-f", str(compose)]
+    server: ThreadingHTTPServer | None = None
+    thread: threading.Thread | None = None
     cid = ""
+    compose_attempted = False
     unit = "obs2aamtool" + uuid.uuid4().hex + ".service"
-    unit_file = Path("/run/systemd/system") / unit
-    failures: list[str] = []
+    unit_file = SYSTEMD_UNIT_DIRECTORY / unit
     primary_failure: BaseException | None = None
     try:
+        server = ThreadingHTTPServer(("127.0.0.1", 9093), Handler)
+        server.daemon_threads = True
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        config = directory / "amtool-lifetime.yml"
+        config.write_text("route:\n  receiver: synthetic\nreceivers:\n  - name: synthetic\n")
+        config.chmod(0o444)
+        compose = directory / "amtool-compose.yaml"
+        compose.write_text(
+            f"services:\n  alertmanager:\n    profiles: [alerting]\n    image: {ALERTMANAGER_IMAGE}\n    platform: linux/amd64\n    user: '65534:65534'\n    cap_drop: [ALL]\n    security_opt: ['no-new-privileges:true']\n    read_only: true\n    network_mode: host\n    tmpfs: ['/alertmanager:uid=65534,gid=65534,mode=0700,size=16m']\n    command: ['--config.file=/etc/alertmanager/alertmanager.yml', '--storage.path=/alertmanager', '--cluster.listen-address=', '--web.listen-address=127.0.0.1:19093']\n    volumes: ['{config}:/etc/alertmanager/alertmanager.yml:ro']\n"
+        )
+        prefix = ["docker", "compose", "-f", str(compose)]
+        failures: list[str] = []
+        compose_attempted = True
         _native([*prefix, "up", "-d", "--no-deps", "alertmanager"], timeout=120)
         cid = _native([*prefix, "ps", "-q", "alertmanager"]).stdout.strip()
         assert len(cid) == 64 and all(c in "0123456789abcdef" for c in cid)
@@ -840,15 +948,9 @@ def _native_amtool_lifetime(directory: Path) -> None:
         if not stopped:
             failures.append("owned amtool cleanup not proved within timeout plus10s stop bound")
         release.set()
-        deadline = time.monotonic() + 10
-        while time.monotonic() < deadline:
-            tasks = _native(["docker", "top", cid, "-eo", "comm"]).stdout.splitlines()[1:]
-            if "amtool" not in [row.strip() for row in tasks]:
-                break
-            time.sleep(0.1)
-        assert "amtool" not in [
-            row.strip() for row in tasks
-        ], "ordinary fixture response failed to finish task"
+        assert _owned_task_stopped(
+            cid, "amtool", time.monotonic(), "P01_released_response"
+        ), "ordinary fixture response failed to finish task"
         release.clear()
         entered.clear()
         unit_file.write_text(
@@ -868,216 +970,313 @@ def _native_amtool_lifetime(directory: Path) -> None:
         primary_failure = exc
         raise
     finally:
-        try:
-            release.set()
-            server.shutdown()
-            server.server_close()
-            thread.join(5)
-            if unit_file.exists():
+        cleanup_errors: list[Exception] = []
+        release.set()
+        if server is not None and thread is not None and thread.is_alive():
+            try:
+                server.shutdown()
+            except Exception as cleanup_error:
+                cleanup_errors.append(cleanup_error)
+        if server is not None:
+            try:
+                server.server_close()
+            except Exception as cleanup_error:
+                cleanup_errors.append(cleanup_error)
+        if thread is not None and thread.ident is not None:
+            try:
+                thread.join(5)
+                assert not thread.is_alive(), "owned server thread did not stop"
+            except Exception as cleanup_error:
+                cleanup_errors.append(cleanup_error)
+        if unit_file.exists():
+            unit_stopped = False
+            try:
                 _native(["sudo", "systemctl", "stop", unit])
-                unit_file.unlink()
+                unit_stopped = True
+            except Exception as cleanup_error:
+                cleanup_errors.append(cleanup_error)
+            if unit_stopped:
+                try:
+                    unit_file.unlink()
+                except Exception as cleanup_error:
+                    cleanup_errors.append(cleanup_error)
+            try:
                 _native(["sudo", "systemctl", "daemon-reload"])
-            if cid:
+            except Exception as cleanup_error:
+                cleanup_errors.append(cleanup_error)
+        if cid:
+            try:
                 _native(["docker", "rm", "-f", cid])
-        except Exception as cleanup_error:
+            except Exception as cleanup_error:
+                cleanup_errors.append(cleanup_error)
+        elif compose_attempted:
+            for operation in ("stop", "rm"):
+                try:
+                    argv = [*prefix, operation]
+                    if operation == "rm":
+                        argv.append("-f")
+                    _native([*argv, "alertmanager"])
+                except Exception as cleanup_error:
+                    cleanup_errors.append(cleanup_error)
+        for cleanup_error in cleanup_errors:
             print(
-                "native_cleanup_failure="
-                + type(cleanup_error).__name__
-                + ":"
-                + str(cleanup_error)[:2048],
-                flush=True,
+                "native_cleanup_failure=owned_fixture:" + type(cleanup_error).__name__, flush=True
             )
-            if primary_failure is None:
-                raise
+        if cleanup_errors and primary_failure is None:
+            raise cleanup_errors[0]
 
 
 def _native_alertmanager(directory: Path) -> None:
     """Actual pinned AM, exact route timings, private synthetic TLS SMTP receiver."""
-    from socketserver import ThreadingTCPServer, StreamRequestHandler
+    from socketserver import StreamRequestHandler, ThreadingTCPServer
 
-    received: list[bytes] = []
-    cert, key = directory / "smtp.crt", directory / "smtp.key"
-    _native(
-        [
-            "openssl",
-            "req",
-            "-x509",
-            "-newkey",
-            "rsa:2048",
-            "-nodes",
-            "-keyout",
-            str(key),
-            "-out",
-            str(cert),
-            "-days",
-            "1",
-            "-subj",
-            "/CN=smtp.resend.com",
-            "-addext",
-            "subjectAltName=DNS:smtp.resend.com",
-        ],
-        timeout=30,
-    )
-    cert.chmod(0o444)
-    key.chmod(0o600)
-    context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-    context.load_cert_chain(cert, key)
-
-    class Handler(StreamRequestHandler):
-        def handle(self) -> None:
-            self.wfile.write(b"220 synthetic fixture\r\n")
-            while True:
-                line = self.rfile.readline(4097)
-                if not line or len(line) > 4096:
-                    return
-                command = line.split(b" ", 1)[0].strip().upper()
-                if command == b"EHLO":
-                    self.wfile.write(b"250-fixture\r\n250 AUTH PLAIN\r\n")
-                elif command == b"AUTH":
-                    self.wfile.write(b"235 authenticated synthetic account\r\n")
-                elif command in {b"MAIL", b"RCPT", b"RSET"}:
-                    self.wfile.write(b"250 ok\r\n")
-                elif command == b"DATA":
-                    self.wfile.write(b"354 data\r\n")
-                    payload = bytearray()
-                    while True:
-                        row = self.rfile.readline(4097)
-                        if row == b".\r\n":
-                            break
-                        if not row or len(row) > 4096 or len(payload) + len(row) > 65536:
-                            return
-                        payload.extend(row)
-                    received.append(bytes(payload))
-                    self.wfile.write(b"250 received\r\n")
-                elif command == b"QUIT":
-                    self.wfile.write(b"221 closing\r\n")
-                    return
-                else:
-                    self.wfile.write(b"500 unsupported fixture command\r\n")
-
-    class Server(ThreadingTCPServer):
-        allow_reuse_address = True
-        daemon_threads = True
-
-        def get_request(self) -> tuple[socket.socket, tuple[str, int]]:
-            sock, address = super().get_request()
-            sock.settimeout(10)
-            return context.wrap_socket(sock, server_side=True), address
-
-    server = Server(("127.0.0.1", 2465), Handler)
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
-    thread.start()
-    configuration = directory / "alertmanager.yml"
-    configuration.write_bytes((ROOT / "deploy/alertmanager/alertmanager.yml").read_bytes())
-    configuration.chmod(0o444)
-    secret = directory / "synthetic-smtp"
-    secret.write_text("synthetic-smtp")
-    secret.chmod(0o444)
-    compose = directory / "compose.yaml"
-    compose.write_text(
-        f"services:\n  alertmanager:\n    image: {ALERTMANAGER_IMAGE}\n    platform: linux/amd64\n    user: '65534:65534'\n    read_only: true\n    cap_drop: [ALL]\n    security_opt: ['no-new-privileges:true']\n    network_mode: host\n    extra_hosts: ['smtp.resend.com:127.0.0.1']\n    command: ['--config.file=/etc/alertmanager/alertmanager.yml', '--storage.path=/alertmanager', '--cluster.listen-address=', '--web.listen-address=127.0.0.1:9093']\n    tmpfs: ['/alertmanager:uid=65534,gid=65534,mode=0700,size=16m']\n    volumes:\n      - {configuration}:/etc/alertmanager/alertmanager.yml:ro\n      - {secret}:/run/secrets/alertmanager_smtp_key:ro\n      - {cert}:/etc/ssl/certs/ca-certificates.crt:ro\n"
-    )
-    docker = shutil.which("docker")
-    assert docker is not None
-    prefix = ["docker", "compose", "-f", str(compose)]
-    cid = ""
-    primary_failure: BaseException | None = None
-    try:
-        _native([*prefix, "up", "-d", "--no-deps", "alertmanager"], timeout=120)
-        cid = _native([*prefix, "ps", "-q", "alertmanager"]).stdout.strip()
-        assert len(cid) == 64 and all(c in "0123456789abcdef" for c in cid)
-        query = [
-            *prefix,
-            "exec",
-            "-T",
-            "alertmanager",
-            "/bin/amtool",
-            "--alertmanager.url=http://127.0.0.1:9093",
-            "--no-version-check",
-            "--timeout=10s",
-            "-o",
-            "json",
-            "alert",
-            "query",
-            "alertname=PulsePlateAliasCheckpointFailed",
-        ]
-        setup_started = time.monotonic()
-        setup_deadline = setup_started + 30
-        while time.monotonic() < setup_deadline:
-            result = _native(query, timeout=min(10, setup_deadline - time.monotonic()), check=False)
-            if result.returncode == 0:
-                assert (
-                    time.monotonic() <= setup_deadline
-                ), "native Alertmanager API readiness deadline exceeded"
-                assert json.loads(result.stdout) == [], "fixture has unexpected pre-event alerts"
-                break
-            time.sleep(min(0.1, max(0, setup_deadline - time.monotonic())))
-        else:
-            raise AssertionError("native Alertmanager API readiness deadline exceeded")
-        print(
-            "native_alertmanager_api_ready_seconds=" + str(time.monotonic() - setup_started),
-            flush=True,
+    with pytest.MonkeyPatch.context() as profile_environment:
+        profile_environment.setenv("COMPOSE_PROFILES", "")
+        received: list[bytes] = []
+        cert, key = directory / "smtp.crt", directory / "smtp.key"
+        _native(
+            [
+                "openssl",
+                "req",
+                "-x509",
+                "-newkey",
+                "rsa:2048",
+                "-nodes",
+                "-keyout",
+                str(key),
+                "-out",
+                str(cert),
+                "-days",
+                "1",
+                "-subj",
+                "/CN=smtp.resend.com",
+                "-addext",
+                "subjectAltName=DNS:smtp.resend.com",
+            ],
+            timeout=30,
         )
-        start = datetime.now(timezone.utc)
-        end = start + timedelta(seconds=900)
-        argv = notifier._argv(
-            docker, compose, "staging", notifier._timestamp(start), notifier._timestamp(end)
-        )
-        # Real native command, then an actual same-event resend and later event.
-        assert notifier._send(argv)
-        first = json.loads(_native(query).stdout)
-        assert len(first) == 1 and first[0]["labels"] == {
-            "alertname": "PulsePlateAliasCheckpointFailed",
-            "environment": "staging",
-            "alias": "all",
-            "severity": "warning",
-        }
-        fingerprint = first[0]["fingerprint"]
-        epoch = time.monotonic()
-        for slot in range(1, 15):
-            time.sleep(max(0, epoch + slot * 60 - time.monotonic()))
+        cert.chmod(0o444)
+        key.chmod(0o600)
+        context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        context.load_cert_chain(cert, key)
+
+        class Handler(StreamRequestHandler):
+            def handle(self) -> None:
+                self.wfile.write(b"220 synthetic fixture\r\n")
+                while True:
+                    line = self.rfile.readline(4097)
+                    if not line or len(line) > 4096:
+                        return
+                    command = line.split(b" ", 1)[0].strip().upper()
+                    if command == b"EHLO":
+                        self.wfile.write(b"250-fixture\r\n250 AUTH PLAIN\r\n")
+                    elif command == b"AUTH":
+                        self.wfile.write(b"235 authenticated synthetic account\r\n")
+                    elif command in {b"MAIL", b"RCPT", b"RSET"}:
+                        self.wfile.write(b"250 ok\r\n")
+                    elif command == b"DATA":
+                        self.wfile.write(b"354 data\r\n")
+                        payload = bytearray()
+                        while True:
+                            row = self.rfile.readline(4097)
+                            if row == b".\r\n":
+                                break
+                            if not row or len(row) > 4096 or len(payload) + len(row) > 65536:
+                                return
+                            payload.extend(row)
+                        received.append(bytes(payload))
+                        self.wfile.write(b"250 received\r\n")
+                    elif command == b"QUIT":
+                        self.wfile.write(b"221 closing\r\n")
+                        return
+                    else:
+                        self.wfile.write(b"500 unsupported fixture command\r\n")
+
+        class Server(ThreadingTCPServer):
+            allow_reuse_address = True
+            daemon_threads = True
+
+            def get_request(self) -> tuple[socket.socket, tuple[str, int]]:
+                sock, address = super().get_request()
+                sock.settimeout(10)
+                return context.wrap_socket(sock, server_side=True), address
+
+        server: ThreadingTCPServer | None = None
+        thread: threading.Thread | None = None
+        cid = ""
+        compose_attempted = False
+        primary_failure: BaseException | None = None
+        try:
+            server = Server(("127.0.0.1", 2465), Handler)
+            thread = threading.Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            configuration = directory / "alertmanager.yml"
+            configuration.write_bytes((ROOT / "deploy/alertmanager/alertmanager.yml").read_bytes())
+            configuration.chmod(0o444)
+            secret = directory / "synthetic-smtp"
+            secret.write_text("synthetic-smtp")
+            secret.chmod(0o444)
+            compose = directory / "compose.yaml"
+            compose.write_text(
+                f"services:\n  alertmanager:\n    profiles: [alerting]\n    image: {ALERTMANAGER_IMAGE}\n    platform: linux/amd64\n    user: '65534:65534'\n    read_only: true\n    cap_drop: [ALL]\n    security_opt: ['no-new-privileges:true']\n    network_mode: host\n    extra_hosts: ['smtp.resend.com:127.0.0.1']\n    command: ['--config.file=/etc/alertmanager/alertmanager.yml', '--storage.path=/alertmanager', '--cluster.listen-address=', '--web.listen-address=127.0.0.1:9093']\n    tmpfs: ['/alertmanager:uid=65534,gid=65534,mode=0700,size=16m']\n    volumes:\n      - {configuration}:/etc/alertmanager/alertmanager.yml:ro\n      - {secret}:/run/secrets/alertmanager_smtp_key:ro\n      - {cert}:/etc/ssl/certs/ca-certificates.crt:ro\n"
+            )
+            docker = shutil.which("docker")
+            assert docker is not None
+            prefix = ["docker", "compose", "-f", str(compose)]
+            compose_attempted = True
+            _native([*prefix, "up", "-d", "--no-deps", "alertmanager"], timeout=120)
+            cid = _native([*prefix, "ps", "-q", "alertmanager"]).stdout.strip()
+            assert len(cid) == 64 and all(c in "0123456789abcdef" for c in cid)
+            query = [
+                *prefix,
+                "exec",
+                "-T",
+                "alertmanager",
+                "/bin/amtool",
+                "--alertmanager.url=http://127.0.0.1:9093",
+                "--no-version-check",
+                "--timeout=10s",
+                "-o",
+                "json",
+                "alert",
+                "query",
+                "alertname=PulsePlateAliasCheckpointFailed",
+            ]
+            setup_started = time.monotonic()
+            setup_deadline = setup_started + 30
+            while time.monotonic() < setup_deadline:
+                result = _native(
+                    query, timeout=min(10, setup_deadline - time.monotonic()), check=False
+                )
+                if result.returncode == 0:
+                    assert (
+                        time.monotonic() <= setup_deadline
+                    ), "native Alertmanager API readiness deadline exceeded"
+                    assert (
+                        json.loads(result.stdout) == []
+                    ), "fixture has unexpected pre-event alerts"
+                    break
+                time.sleep(min(0.1, max(0, setup_deadline - time.monotonic())))
+            else:
+                raise AssertionError("native Alertmanager API readiness deadline exceeded")
+            print(
+                "native_alertmanager_api_ready_seconds=" + str(time.monotonic() - setup_started),
+                flush=True,
+            )
+            start = datetime.now(timezone.utc)
+            end = start + timedelta(seconds=900)
+            argv = notifier._argv(
+                docker, compose, "staging", notifier._timestamp(start), notifier._timestamp(end)
+            )
+            # Real native command, then an actual same-event resend and later event.
             assert notifier._send(argv)
+            first = json.loads(_native(query).stdout)
+            assert len(first) == 1 and first[0]["labels"] == {
+                "alertname": "PulsePlateAliasCheckpointFailed",
+                "environment": "staging",
+                "alias": "all",
+                "severity": "warning",
+            }
+            fingerprint = first[0]["fingerprint"]
+            epoch = time.monotonic()
+            for slot in range(1, 15):
+                time.sleep(max(0, epoch + slot * 60 - time.monotonic()))
+                assert notifier._send(argv)
+                assert json.loads(_native(query).stdout)[0]["fingerprint"] == fingerprint
+            assert (
+                len(received) == 1
+            ), "actual 30s/5m/24h route did not deliver one deduplicated event"
+            time.sleep(max(0, epoch + 905 - time.monotonic()))
+            assert json.loads(_native(query).stdout) == [], "bounded event did not expire"
+            later = datetime.now(timezone.utc)
+            assert notifier._send(
+                notifier._argv(
+                    docker,
+                    compose,
+                    "staging",
+                    notifier._timestamp(later),
+                    notifier._timestamp(later + timedelta(seconds=900)),
+                )
+            )
             assert json.loads(_native(query).stdout)[0]["fingerprint"] == fingerprint
-        assert len(received) == 1, "actual 30s/5m/24h route did not deliver one deduplicated event"
-        time.sleep(max(0, epoch + 905 - time.monotonic()))
-        assert json.loads(_native(query).stdout) == [], "bounded event did not expire"
-        later = datetime.now(timezone.utc)
-        assert notifier._send(
-            notifier._argv(
+            time.sleep(325)
+            # Preserve observed repeat suppression; this is not a second mailbox claim.
+            print("native_same_fingerprint_repeat_notifications=" + str(len(received)), flush=True)
+            assert (
+                len(received) == 1
+            ), "same-fingerprint repeated event escaped the admitted24h dedup after a full5min group cycle"
+            _native([*prefix, "stop", "alertmanager"])
+            assert (
+                json.loads(
+                    _native(
+                        ["docker", "inspect", "--format", "{{json .State.Running}}", cid]
+                    ).stdout
+                )
+                is False
+            )
+            failed_argv = notifier._argv(
                 docker,
                 compose,
                 "staging",
                 notifier._timestamp(later),
                 notifier._timestamp(later + timedelta(seconds=900)),
             )
-        )
-        assert json.loads(_native(query).stdout)[0]["fingerprint"] == fingerprint
-        time.sleep(325)
-        # Preserve observed repeat suppression; this is not a second mailbox claim.
-        print("native_same_fingerprint_repeat_notifications=" + str(len(received)), flush=True)
-        assert (
-            len(received) == 1
-        ), "same-fingerprint repeated event escaped the admitted24h dedup after a full5min group cycle"
-    except BaseException as exc:
-        primary_failure = exc
-        raise
-    finally:
-        try:
-            if cid:
-                _native(["docker", "rm", "-f", cid])
-            server.shutdown()
-            server.server_close()
-            thread.join(5)
-        except Exception as cleanup_error:
-            print(
-                "native_cleanup_failure="
-                + type(cleanup_error).__name__
-                + ":"
-                + str(cleanup_error)[:2048],
-                flush=True,
+            assert notifier._send(failed_argv) is False
+            assert (
+                json.loads(
+                    _native(
+                        ["docker", "inspect", "--format", "{{json .State.Running}}", cid]
+                    ).stdout
+                )
+                is False
             )
-            if primary_failure is None:
-                raise
+            _native(["docker", "rm", cid])
+            cid = ""
+            assert notifier._send(failed_argv) is False
+            assert _native([*prefix, "ps", "-a", "-q", "alertmanager"]).stdout.strip() == ""
+            print("native_profile_off_exec=running_submit_stopped_absent_rejection", flush=True)
+        except BaseException as exc:
+            primary_failure = exc
+            raise
+        finally:
+            cleanup_errors: list[Exception] = []
+            if server is not None and thread is not None and thread.is_alive():
+                try:
+                    server.shutdown()
+                except Exception as cleanup_error:
+                    cleanup_errors.append(cleanup_error)
+            if server is not None:
+                try:
+                    server.server_close()
+                except Exception as cleanup_error:
+                    cleanup_errors.append(cleanup_error)
+            if thread is not None and thread.ident is not None:
+                try:
+                    thread.join(5)
+                    assert not thread.is_alive(), "owned server thread did not stop"
+                except Exception as cleanup_error:
+                    cleanup_errors.append(cleanup_error)
+            if cid:
+                try:
+                    _native(["docker", "rm", "-f", cid])
+                except Exception as cleanup_error:
+                    cleanup_errors.append(cleanup_error)
+            elif compose_attempted:
+                for operation in ("stop", "rm"):
+                    try:
+                        argv = [*prefix, operation]
+                        if operation == "rm":
+                            argv.append("-f")
+                        _native([*argv, "alertmanager"])
+                    except Exception as cleanup_error:
+                        cleanup_errors.append(cleanup_error)
+            for cleanup_error in cleanup_errors:
+                print(
+                    "native_cleanup_failure=owned_fixture:" + type(cleanup_error).__name__,
+                    flush=True,
+                )
+            if cleanup_errors and primary_failure is None:
+                raise cleanup_errors[0]
 
 
 def _native_compose_configuration(directory: Path) -> None:
@@ -1104,7 +1303,13 @@ def _native_compose_configuration(directory: Path) -> None:
     docker = shutil.which("docker")
     assert docker is not None and os.path.isabs(docker), "native Compose binary unavailable"
     client = verifier.DockerPromtoolClient(docker=docker, compose_file=compose)
-    argv = [*client._compose_prefix, "config", "--format", "json"]
+    argv = [*client._compose_prefix, "--profile", "*", "config", "--format", "json"]
+    (fixture / ".env").write_text("".join(f"{key}={value}\n" for key, value in inputs.items()))
+    default = _native(
+        [*client._compose_prefix, "config", "--format", "json"], cwd=fixture, check=False
+    )
+    assert default.returncode == 0, "native default-profile configuration failed"
+    assert "worker" not in json.loads(default.stdout)["services"]
     for missing in (None, "STAGING_IMAGE_REF", "STAGING_CADDY_IMAGE_REF"):
         (fixture / ".env").write_text(
             "".join(f"{key}={value}\n" for key, value in inputs.items() if key != missing)
@@ -1160,15 +1365,11 @@ def test_checkpoint_original_compose_fixture_classifies_only_synthetic_configura
 
     def config(argv: list[str], *, cwd: Path, check: bool) -> subprocess.CompletedProcess[str]:
         assert check is False
-        assert argv == [
-            "/absolute/docker",
-            "compose",
-            "-f",
-            str(cwd / "docker-compose.staging.yaml"),
-            "config",
-            "--format",
-            "json",
-        ]
+        prefix = ["/absolute/docker", "compose", "-f", str(cwd / "docker-compose.staging.yaml")]
+        if argv == [*prefix, "config", "--format", "json"]:
+            assert not calls
+            return subprocess.CompletedProcess(argv, 0, json.dumps({"services": {"app": {}}}), "")
+        assert argv == [*prefix, "--profile", "*", "config", "--format", "json"]
         assert (cwd / "docker-compose.staging.yaml").read_bytes() == (
             ROOT / "deploy/docker-compose.staging.yaml"
         ).read_bytes()
@@ -1271,6 +1472,13 @@ def test_checkpoint_native_config_command_uses_only_fixture_environment(
         "COMMAND\nalertmanager\nother\n",
         "COMMAND\nalertmanager\nalertmanager\n",
         "COMMAND\nalertmanager amtool\n",
+        "PID COMMAND\n0 alertmanager\n",
+        "PID COMMAND\n01 alertmanager\n",
+        "PID COMMAND\n١ alertmanager\n",
+        "PID COMMAND\n1 alertmanager\n1 amtool\n",
+        "PID COMMAND\n1 alertmanager\n2 alertmanager\n",
+        "PID COMMAND\n1 alertmanager\n2 other\n",
+        "PID COMMAND\n1 alertmanager extra\n",
     ],
 )
 def test_owned_task_census_rejects_malformed_output(
@@ -1300,7 +1508,7 @@ def test_owned_task_census_absence_requires_timely_observation(
     expected: bool,
 ) -> None:
     times = iter([0, 0, observed])
-    output = "COMMAND\n" + main + "\n"
+    output = "PID COMMAND\n1 " + main + "\n"
     monkeypatch.setattr(time, "monotonic", lambda: next(times))
     monkeypatch.setattr(
         sys.modules[__name__],
@@ -1322,7 +1530,9 @@ def test_owned_task_census_rejects_failed_execution(
     monkeypatch.setattr(
         sys.modules[__name__],
         "_native",
-        lambda *args, **kwargs: subprocess.CompletedProcess(args, 1, "COMMAND\nalertmanager\n", ""),
+        lambda *args, **kwargs: subprocess.CompletedProcess(
+            args, 1, "PID COMMAND\n1 alertmanager\n", ""
+        ),
     )
     assert not _owned_task_stopped("a" * 64, "amtool", 0, "fixture_execution_failed")
     assert json.loads(capsys.readouterr().out)["reason"] == "invalid_census"
@@ -1352,8 +1562,8 @@ def test_owned_task_census_tracks_real_survival_shape(
     terminates: bool,
 ) -> None:
     times = iter([0, 0, 1, 9, 9, 9.5, 10])
-    first = "COMMAND\n" + main + "\n" + command + "\n"
-    terminal = "COMMAND\n" + main + "\n" + ("" if terminates else command + "\n")
+    first = "PID COMMAND\n1 " + main + "\n2 " + command + "\n"
+    terminal = "PID COMMAND\n1 " + main + "\n" + ("" if terminates else "2 " + command + "\n")
     outputs = iter([first, terminal])
     monkeypatch.setattr(time, "monotonic", lambda: next(times))
     monkeypatch.setattr(time, "sleep", lambda delay: None)
@@ -1505,6 +1715,304 @@ def test_native_receipt_fixture_has_real_canonical_stimulus(
     assert _native_checkpoint_fixture(case, tmp_path) == expected
     if case in {"pass", "hold", "drift", "publication"}:
         assert baseline.read_bytes() == raw
+
+
+@pytest.mark.parametrize("family", ["builtin", "legacy"])
+@pytest.mark.parametrize("case", ["send", "reap", "cancel", "vanished"])
+def test_checkpoint_timeout_families_preserve_cleanup_and_primary(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], family: str, case: str
+) -> None:
+    class LegacyTimeout(Exception):
+        pass
+
+    monkeypatch.setattr(notifier.asyncio, "TimeoutError", LegacyTimeout)
+    exception = TimeoutError if family == "builtin" else LegacyTimeout
+    waits: list[int] = []
+    kills: list[tuple[int, int]] = []
+
+    class Process:
+        pid = 123
+
+        async def wait(self) -> int:
+            waits.append(1)
+            if len(waits) == 1:
+                if case == "cancel":
+                    raise asyncio.CancelledError
+                raise exception("synthetic-secret-sentinel")
+            if case in {"reap", "cancel"}:
+                raise exception("synthetic-secret-sentinel")
+            return -9
+
+    async def spawn(*args: str, **kwargs: object) -> Process:
+        del args, kwargs
+        return Process()
+
+    def kill(pid: int, sig: int) -> None:
+        kills.append((pid, sig))
+        if case == "vanished":
+            raise ProcessLookupError("synthetic-secret-sentinel")
+
+    monkeypatch.setattr(notifier.asyncio, "create_subprocess_exec", spawn)
+    monkeypatch.setattr(notifier.os, "killpg", kill)
+    if case == "cancel":
+        with pytest.raises(asyncio.CancelledError):
+            notifier._send(["/absolute/docker"])
+    elif case == "reap":
+        with pytest.raises(OSError, match="notification_cleanup_incomplete"):
+            notifier._send(["/absolute/docker"])
+    else:
+        assert notifier._send(["/absolute/docker"]) is False
+    assert waits == [1, 1] and kills == [(123, signal.SIGKILL)]
+    assert capsys.readouterr().out == (notifier.ERROR + "\n" if case == "cancel" else "")
+
+
+@pytest.mark.parametrize("state", ["inactive", "failed"])
+@pytest.mark.parametrize("reset_error", [False, True])
+def test_checkpoint_failed_reset_requires_positive_typed_state(
+    monkeypatch: pytest.MonkeyPatch, state: str, reset_error: bool
+) -> None:
+    calls: list[object] = []
+
+    def property_value(unit: str, interface: str, name: str, signature: str) -> object:
+        assert (
+            state == "failed"
+        ), "inactive first/success invocation must not query an unloaded unit"
+        calls.append((unit, interface, name, signature))
+        return "failed" if name == "ActiveState" else "exit-code"
+
+    def native(argv: list[str]) -> subprocess.CompletedProcess[str]:
+        calls.append(argv)
+        if reset_error:
+            raise RuntimeError("synthetic reset failure")
+        return subprocess.CompletedProcess(argv, 0, "", "")
+
+    monkeypatch.setattr(sys.modules[__name__], "_property", property_value)
+    monkeypatch.setattr(sys.modules[__name__], "_native", native)
+    if state == "failed" and reset_error:
+        with pytest.raises(RuntimeError, match="synthetic reset failure"):
+            _reset_failed_invocation("owned.service", state)
+    else:
+        _reset_failed_invocation("owned.service", state)
+    assert len(calls) == (3 if state == "failed" else 0)
+
+
+def test_checkpoint_failed_reset_rejects_inconsistent_success(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        sys.modules[__name__],
+        "_property",
+        lambda unit, interface, name, signature: "failed" if name == "ActiveState" else "success",
+    )
+    monkeypatch.setattr(
+        sys.modules[__name__],
+        "_native",
+        lambda *args, **kwargs: pytest.fail("invalid reset reached native command"),
+    )
+    with pytest.raises(AssertionError):
+        _reset_failed_invocation("owned.service", "failed")
+
+
+@pytest.mark.parametrize("stop_error", [False, True])
+def test_checkpoint_partial_unit_setup_preserves_primary_and_safe_owned_files(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    stop_error: bool,
+) -> None:
+    units = tmp_path / "units"
+    units.mkdir()
+    monkeypatch.setattr(sys.modules[__name__], "SYSTEMD_UNIT_DIRECTORY", units)
+    calls: list[list[str]] = []
+    installed: list[Path] = []
+
+    def native(argv: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        del kwargs
+        calls.append(argv)
+        if "install" in argv:
+            target = Path(argv[-1])
+            target.write_text("owned scratch unit")
+            installed.append(target)
+            if len(installed) == 2:
+                raise RuntimeError("synthetic partial install failure")
+        elif "stop" in argv and stop_error:
+            raise OSError("synthetic stop failure")
+        elif "rm" in argv:
+            Path(argv[-1]).unlink()
+        return subprocess.CompletedProcess(argv, 0, "", "")
+
+    monkeypatch.setattr(sys.modules[__name__], "_native", native)
+    with pytest.raises(RuntimeError, match="synthetic partial install failure"):
+        _native_systemd(tmp_path)
+    stops = [argv for argv in calls if "stop" in argv]
+    assert len(stops) == 2 and "daemon-reload" in calls[-1]
+    assert all(path.exists() is stop_error for path in installed)
+    assert not any("reset-failed" in argv for argv in calls)
+    assert "synthetic stop failure" not in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("fixture", ["query", "amtool"])
+@pytest.mark.parametrize("shutdown_error", [False, True])
+def test_checkpoint_partial_server_setup_attempts_independent_release(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    fixture: str,
+    shutdown_error: bool,
+) -> None:
+    calls: list[str] = []
+
+    class Server:
+        daemon_threads = False
+
+        def __init__(self, *args: object) -> None:
+            del args
+            calls.append("acquire")
+
+        def serve_forever(self) -> None:
+            return None
+
+        def shutdown(self) -> None:
+            calls.append("shutdown")
+            if shutdown_error:
+                raise OSError("synthetic secondary shutdown")
+
+        def server_close(self) -> None:
+            calls.append("close")
+
+    class Thread:
+        ident: int | None = None
+        running = False
+
+        def __init__(self, **kwargs: object) -> None:
+            del kwargs
+
+        def start(self) -> None:
+            self.ident = 1
+            self.running = True
+            calls.append("start")
+
+        def is_alive(self) -> bool:
+            return self.running
+
+        def join(self, timeout: float) -> None:
+            assert timeout == 5
+            calls.append("join")
+            self.running = False
+
+    monkeypatch.setattr(sys.modules[__name__], "ThreadingHTTPServer", Server)
+    monkeypatch.setattr(threading, "Thread", Thread)
+    monkeypatch.setattr(sys.modules[__name__], "SYSTEMD_UNIT_DIRECTORY", tmp_path)
+
+    def native(argv: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        del kwargs
+        if "run" in argv or "up" in argv:
+            calls.append("setup-error")
+            raise RuntimeError("synthetic primary setup")
+        calls.append("owned-release:" + ("rm" if "rm" in argv else "stop"))
+        return subprocess.CompletedProcess(argv, 0, "", "")
+
+    monkeypatch.setattr(sys.modules[__name__], "_native", native)
+    with pytest.raises(RuntimeError, match="synthetic primary setup"):
+        (_native_query_lifetime if fixture == "query" else _native_amtool_lifetime)(tmp_path)
+    assert calls[:3] == ["acquire", "start", "setup-error"]
+    assert "shutdown" in calls and "close" in calls and "join" in calls
+    assert any(call.startswith("owned-release:") for call in calls)
+    assert "synthetic secondary shutdown" not in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("fixture", ["query", "amtool"])
+@pytest.mark.parametrize("fault", ["shutdown", "container"])
+def test_checkpoint_cleanup_failure_without_primary_is_not_success(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fixture: str, fault: str
+) -> None:
+    from scripts import verify_premium_alias_telemetry as verifier
+
+    released: list[str] = []
+
+    class Event:
+        def set(self) -> None:
+            return None
+
+        def clear(self) -> None:
+            return None
+
+        def is_set(self) -> bool:
+            return True
+
+        def wait(self, timeout: float) -> bool:
+            del timeout
+            return True
+
+    class Server:
+        daemon_threads = True
+
+        def __init__(self, *args: object) -> None:
+            del args
+
+        def serve_forever(self) -> None:
+            return None
+
+        def shutdown(self) -> None:
+            released.append("shutdown")
+            if fault == "shutdown":
+                raise OSError("synthetic cleanup-only failure")
+
+        def server_close(self) -> None:
+            released.append("close")
+
+    class Thread:
+        ident: int | None = None
+        running = False
+
+        def __init__(self, **kwargs: object) -> None:
+            del kwargs
+
+        def start(self) -> None:
+            self.ident = 1
+            self.running = True
+
+        def is_alive(self) -> bool:
+            return self.running
+
+        def join(self, timeout: float) -> None:
+            assert timeout == 5
+            released.append("join")
+            self.running = False
+
+    monkeypatch.setattr(sys.modules[__name__], "ThreadingHTTPServer", Server)
+    monkeypatch.setattr(threading, "Thread", Thread)
+    monkeypatch.setattr(threading, "Event", Event)
+    monkeypatch.setattr(shutil, "which", lambda name: "/absolute/" + name)
+    monkeypatch.setattr(sys.modules[__name__], "SYSTEMD_UNIT_DIRECTORY", tmp_path)
+    monkeypatch.setattr(sys.modules[__name__], "_owned_task_stopped", lambda *args: True)
+    sends = iter([True, False])
+    monkeypatch.setattr(notifier, "_send", lambda argv: next(sends))
+    queries = 0
+
+    def query(self: object, args: list[str]) -> subprocess.CompletedProcess[str]:
+        nonlocal queries
+        del self
+        queries += 1
+        if queries == 2:
+            raise verifier.VerificationError("docker_timeout")
+        return subprocess.CompletedProcess(args, 0, "", "")
+
+    monkeypatch.setattr(verifier.DockerPromtoolClient, "_run_promtool", query)
+
+    def native(argv: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        del kwargs
+        if "rm" in argv:
+            released.append("container")
+            if fault == "container":
+                raise OSError("synthetic cleanup-only failure")
+        stdout = "f" * 64 if "run" in argv or "ps" in argv else ""
+        return subprocess.CompletedProcess(argv, 0, stdout, "")
+
+    monkeypatch.setattr(sys.modules[__name__], "_native", native)
+    with pytest.raises(OSError, match="synthetic cleanup-only failure"):
+        (_native_query_lifetime if fixture == "query" else _native_amtool_lifetime)(tmp_path)
+    assert all(operation in released for operation in ("shutdown", "close", "join", "container"))
 
 
 if __name__ == "__main__":

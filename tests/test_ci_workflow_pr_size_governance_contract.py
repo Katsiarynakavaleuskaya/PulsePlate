@@ -1048,7 +1048,7 @@ def test_all_active_checkout_uses_have_one_exact_v7_pin() -> None:
         ".github/workflows/security.yml",
         ".github/workflows/trivy.yml",
     }
-    assert len(observed_checkout_uses) == 76
+    assert len(observed_checkout_uses) == 77
     assert {path for path, _ in observed_checkout_uses} == expected_checkout_workflows
 
 
@@ -3628,6 +3628,7 @@ def test_active_sbom_action_refs_use_verified_v0_24_0_sha_and_preserve_contracts
             },
             "!cancelled() && github.event_name == 'push' && github.ref == 'refs/heads/main' && "
             "needs.prometheus-image-security.result == 'success' && "
+            "needs.obs2a-checkpoint-native.result == 'success' && "
             "needs.main-push-admission.result == 'success' && "
             "needs.staging-postgres-native-integration.result == 'success'",
             None,
@@ -3649,6 +3650,7 @@ def test_active_sbom_action_refs_use_verified_v0_24_0_sha_and_preserve_contracts
             },
             "!cancelled() && github.event_name == 'push' && github.ref == 'refs/heads/main' && "
             "needs.prometheus-image-security.result == 'success' && "
+            "needs.obs2a-checkpoint-native.result == 'success' && "
             "needs.main-push-admission.result == 'success' && "
             "needs.staging-postgres-native-integration.result == 'success'",
             None,

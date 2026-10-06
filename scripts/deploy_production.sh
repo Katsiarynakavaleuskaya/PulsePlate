@@ -1369,7 +1369,7 @@ source_backup_helper = sys.argv[25]
 backup_helper_target = sys.argv[26]
 checkpoint_contracts = {
     'scripts/verify_premium_alias_telemetry.py': 'sha256:897d07f49787c8a9e399e7d24d49429816fb37094746b36b65f8a8bb437b3420',
-    'scripts/ops/notify_premium_alias_checkpoint_failure.py': 'sha256:6d60b7d02fb75370d876fc3c7d7739fbf6cd8bab63000978c36eebcefc50dca1',
+    'scripts/ops/notify_premium_alias_checkpoint_failure.py': 'sha256:10a6f48b9c5d0eb5b2928481f1574ea013fc4e94cf062a7455042c2cbc06d157',
     'deploy/systemd/pulseplate-premium-alias-checkpoint.service.example': 'sha256:a52742a89b87d02b3b75834b27db741b72a9c6c4a021711611db2a53b197a030',
     'deploy/systemd/pulseplate-premium-alias-checkpoint.timer.example': 'sha256:f6dd053b986cf68b133cf855208b86f44fc975e84dc7acbf490b35a6bb88c9cf',
     'deploy/systemd/pulseplate-premium-alias-checkpoint-failure.service.example': 'sha256:285c5e05bd72f4c99a22c9657a8443becfda4ff93975a21d70feb01812ed1b6d',

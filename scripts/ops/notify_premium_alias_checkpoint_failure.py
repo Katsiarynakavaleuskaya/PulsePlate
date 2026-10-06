@@ -5,12 +5,12 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-from datetime import datetime, timedelta, timezone
 import os
-from pathlib import Path
 import shutil
 import signal
 import time
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from typing import NoReturn, Sequence
 
 EVENT_SECONDS = 900
@@ -69,7 +69,7 @@ async def _stop(process: asyncio.subprocess.Process) -> None:
 async def _reap(process: asyncio.subprocess.Process) -> None:
     try:
         await asyncio.wait_for(process.wait(), timeout=CLEANUP_TIMEOUT_SECONDS)
-    except TimeoutError:
+    except (TimeoutError, asyncio.TimeoutError):
         raise OSError("notification_cleanup_incomplete") from None
 
 
@@ -87,7 +87,7 @@ async def _send_async(argv: list[str]) -> bool:
         return False
     try:
         return await asyncio.wait_for(process.wait(), timeout=COMMAND_TIMEOUT_SECONDS) == 0
-    except TimeoutError:
+    except (TimeoutError, asyncio.TimeoutError):
         await _stop(process)
         return False
     except asyncio.CancelledError:

@@ -1180,6 +1180,26 @@ jobs:
             exit 1
           fi
 
+  obs2a-checkpoint-native:
+    name: OBS2A checkpoint native admission
+    needs: prometheus-image-security
+    if: >-
+      !cancelled()
+      && github.event_name == 'push'
+      && github.ref == 'refs/heads/main'
+      && needs.prometheus-image-security.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: ${{ fromJSON(vars.OBS2A_NATIVE_JOB_TIMEOUT_MINUTES || '40') }}
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout immutable OBS2A native contracts
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ github.sha }}
+
       - name: Select main OBS2A native controls
         id: checkpoint-native
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -3147,9 +3167,10 @@ jobs:
       && github.event_name == 'push'
       && github.ref == 'refs/heads/main'
       && needs.prometheus-image-security.result == 'success'
+      && needs.obs2a-checkpoint-native.result == 'success'
       && needs.main-push-admission.result == 'success'
       && needs.staging-postgres-native-integration.result == 'success'
-    needs: [prometheus-image-security, main-push-admission, staging-postgres-native-integration]
+    needs: [prometheus-image-security, obs2a-checkpoint-native, main-push-admission, staging-postgres-native-integration]
     runs-on: ubuntu-latest
     env:
       PULSEPLATE_PYTHON_INDEX_URL: ${{ secrets.PULSEPLATE_PYTHON_INDEX_URL || vars.PULSEPLATE_PYTHON_INDEX_URL }}

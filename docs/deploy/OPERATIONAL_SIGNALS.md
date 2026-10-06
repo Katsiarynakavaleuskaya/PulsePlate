@@ -429,7 +429,7 @@ systemd and inspect exact loaded properties before enabling the timer.
 Supported manual invocation is
 `sudo systemctl start pulseplate-premium-alias-checkpoint.service`.
 It shares the protected mode-0700 preserved runtime directory and nonblocking
-lock with the scheduled invocation; contention exits75 and publishes no PASS.
+lock with the scheduled invocation; contention exits with status 75 and publishes no PASS.
 Never remove the lock while a cooperating holder survives.
 
 The canonical verifier receives positional `checkpoint` with explicit Compose,
@@ -526,7 +526,6 @@ cannot establish a production baseline or `T₀`.
 in-process hooks remain separate from the private Prometheus retention
 contour. Centralized error reporting remains follow-up work; its absence does
 not mean health, metrics, tracing, or request telemetry are absent.
-
 
 ## Offline operational context report (OPS-01)
 

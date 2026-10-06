@@ -1057,6 +1057,7 @@ def test_cd_postgres_pgvector_main_event_state_machine_is_closed_and_terminal() 
     assert "needs.postgres-pgvector-reuse.result == 'success'" in prometheus_gate["if"]
     assert jobs["build"]["needs"] == [
         "prometheus-image-security",
+        "obs2a-checkpoint-native",
         "main-push-admission",
         "staging-postgres-native-integration",
     ]
@@ -4580,29 +4581,7 @@ FAKE_STAGING_COMPOSE_JSON = _staging_compose_fixture_json()
 
 def _write_executable(path: Path, content: str) -> None:
     if path.name == "docker":
-        contract_responses = f"""case \"$*\" in
-  *pg_restore\\ --list*)
-    if [ "${{STUB_PG_RESTORE_LIST_STATUS:-0}}" -ne 0 ]; then exit "${{STUB_PG_RESTORE_LIST_STATUS}}"; fi
-    printf '%s\\n' "${{STUB_ARCHIVE_LIST:-214; 1259 16387 TABLE public items user}}"
-    ;;
-  *pg_restore\\ --file=/dev/null*)
-    if [ "${{STUB_PG_RESTORE_BODY_STATUS:-0}}" -ne 0 ]; then exit "${{STUB_PG_RESTORE_BODY_STATUS}}"; fi
-    cat >/dev/null
-    ;;
-  *pg_catalog.pg_tables*) printf '1\\n' ;;
-  run\\ --rm\\ --network\\ none\\ --entrypoint\\ python\\ *) printf '%s\\n' "${{STUB_BACKEND_IDS:-1000:1000}}" ;;
-  *\"config --format json\"*)
-    if [ \"${{STUB_COMPOSE_CONFIG_STATUS:-0}}\" -ne 0 ]; then
-      exit \"${{STUB_COMPOSE_CONFIG_STATUS}}\"
-    fi
-    all_profiles=false
-    previous=""
-    for argument in "$@"; do
-      if [ "$previous" = --profile ] && [ "$argument" = '*' ]; then all_profiles=true; fi
-      previous="$argument"
-    done
-    STUB_ALL_PROFILES="$all_profiles" STUB_COMPOSE_ARGS="$*" {shlex.quote(sys.executable)} - <<'PY_COMPOSE_MODEL'
-import json, os, re
+        model_code = f"""import json, os, re
 from pathlib import Path
 default = ({FAKE_STAGING_COMPOSE_JSON!r} if "docker-compose.staging.yaml" in os.environ["STUB_COMPOSE_ARGS"]
            else {FAKE_PROMETHEUS_COMPOSE_JSON!r})
@@ -4633,7 +4612,29 @@ if os.environ["STUB_ALL_PROFILES"] != "true" and isinstance(payload, dict):
     services = payload.get("services")
     if isinstance(services, dict): services.pop("worker", None)
 print(json.dumps(payload))
-PY_COMPOSE_MODEL
+"""
+        contract_responses = f"""case \"$*\" in
+  *pg_restore\\ --list*)
+    if [ "${{STUB_PG_RESTORE_LIST_STATUS:-0}}" -ne 0 ]; then exit "${{STUB_PG_RESTORE_LIST_STATUS}}"; fi
+    printf '%s\\n' "${{STUB_ARCHIVE_LIST:-214; 1259 16387 TABLE public items user}}"
+    ;;
+  *pg_restore\\ --file=/dev/null*)
+    if [ "${{STUB_PG_RESTORE_BODY_STATUS:-0}}" -ne 0 ]; then exit "${{STUB_PG_RESTORE_BODY_STATUS}}"; fi
+    cat >/dev/null
+    ;;
+  *pg_catalog.pg_tables*) printf '1\\n' ;;
+  run\\ --rm\\ --network\\ none\\ --entrypoint\\ python\\ *) printf '%s\\n' "${{STUB_BACKEND_IDS:-1000:1000}}" ;;
+  *\"config --format json\"*)
+    if [ \"${{STUB_COMPOSE_CONFIG_STATUS:-0}}\" -ne 0 ]; then
+      exit \"${{STUB_COMPOSE_CONFIG_STATUS}}\"
+    fi
+    all_profiles=false
+    previous=""
+    for argument in "$@"; do
+      if [ "$previous" = --profile ] && [ "$argument" = '*' ]; then all_profiles=true; fi
+      previous="$argument"
+    done
+    STUB_ALL_PROFILES="$all_profiles" STUB_COMPOSE_ARGS="$*" {shlex.quote(sys.executable)} -c {shlex.quote(model_code)}
     ;;
   *"ps --all --quiet alertmanager"*)
     printf '%s\\n' 'no such service: alertmanager' >&2
@@ -7810,6 +7811,8 @@ printf 'curl %s\\n' "$*" >> "{log_file}"
         env=env,
         text=True,
         capture_output=True,
+        stdin=subprocess.DEVNULL,
+        timeout=30,
         check=True,
     )
 

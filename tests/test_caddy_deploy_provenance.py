@@ -2,14 +2,15 @@
 
 from __future__ import annotations
 
-import os
 import hashlib
 import json
+import os
 import re
 import shutil
 import stat
 import subprocess
 import sys
+from copy import deepcopy
 from pathlib import Path
 
 import pytest
@@ -1550,13 +1551,32 @@ def test_checkpoint_hash_rejection_precedes_privileged_mutation(
     assert (tmp_path / "mutation").exists() is (fault == "none")
 
 
-def test_checkpoint_native_main_runs_only_in_existing_bounded_main_image_job() -> None:
-    workflow = _workflow(CD_WORKFLOW)
-    job = _job(workflow, "prometheus-image-security")
-    assert job["timeout-minutes"] == 30
+def _assert_checkpoint_native_job(workflow: dict[str, object]) -> None:
+    scan = _job(workflow, "prometheus-image-security")
+    assert scan["timeout-minutes"] == 30
+    assert not any(step.get("id") == "checkpoint-native" for step in _steps(scan))
+    job = _job(workflow, "obs2a-checkpoint-native")
+    assert job["needs"] == "prometheus-image-security"
+    assert (
+        job["if"]
+        == "!cancelled() && github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.prometheus-image-security.result == 'success'"
+    )
+    assert (
+        job["timeout-minutes"] == "${{ fromJSON(vars.OBS2A_NATIVE_JOB_TIMEOUT_MINUTES || '40') }}"
+    )
     assert job["permissions"] == {"contents": "read"}
+    assert "environment" not in job and "secrets." not in str(job)
+    build = _job(workflow, "build")
+    assert build["needs"] == [
+        "prometheus-image-security",
+        "obs2a-checkpoint-native",
+        "main-push-admission",
+        "staging-postgres-native-integration",
+    ]
+    assert "needs.obs2a-checkpoint-native.result == 'success'" in build["if"]
     steps = _steps(job)
-    checkout = _named_step(steps, "Checkout immutable Prometheus contracts")
+    checkout = _named_step(steps, "Checkout immutable OBS2A native contracts")
+    assert checkout["with"]["persist-credentials"] is False
     assert checkout["with"]["fetch-depth"] == 0
     assert checkout["with"]["ref"] == "${{ github.sha }}"
     selection = _named_step(steps, "Select main OBS2A native controls")
@@ -1599,7 +1619,7 @@ def test_checkpoint_native_main_pipeline_preserves_both_statuses(
     tee = shutil.which("tee")
     assert bash is not None and tee is not None
     native = _named_step(
-        _steps(_job(_workflow(CD_WORKFLOW), "prometheus-image-security")),
+        _steps(_job(_workflow(CD_WORKFLOW), "obs2a-checkpoint-native")),
         "Native main OBS2A checkpoint lifecycle and owned-task challenge",
     )
     fixture = (
@@ -1684,7 +1704,7 @@ def test_native_main_selection_uses_real_git_exit_status(tmp_path: Path, case: s
         }
     )
     step = _named_step(
-        _steps(_job(_workflow(CD_WORKFLOW), "prometheus-image-security")),
+        _steps(_job(_workflow(CD_WORKFLOW), "obs2a-checkpoint-native")),
         "Select main OBS2A native controls",
     )
     result = subprocess.run(
@@ -1703,3 +1723,173 @@ def test_native_main_selection_uses_real_git_exit_status(tmp_path: Path, case: s
         assert output.read_text() == (
             "selected=true\n" if case == "changed" else "selected=false\n"
         )
+
+
+def test_checkpoint_native_main_has_separate_scan_and_build_admission() -> None:
+    _assert_checkpoint_native_job(_workflow(CD_WORKFLOW))
+
+
+@pytest.mark.parametrize(
+    "fault",
+    ["scan-edge", "scan-result", "permissions", "environment", "build-edge", "build-result"],
+)
+def test_checkpoint_native_dag_rejects_lost_admission(fault: str) -> None:
+    workflow = deepcopy(_workflow(CD_WORKFLOW))
+    native = _job(workflow, "obs2a-checkpoint-native")
+    build = _job(workflow, "build")
+    if fault == "scan-edge":
+        native["needs"] = []
+    elif fault == "scan-result":
+        native["if"] = native["if"].replace(
+            " && needs.prometheus-image-security.result == 'success'", ""
+        )
+    elif fault == "permissions":
+        del native["permissions"]
+    elif fault == "environment":
+        native["environment"] = "production"
+    elif fault == "build-edge":
+        build["needs"].remove("obs2a-checkpoint-native")
+    else:
+        build["if"] = build["if"].replace(
+            " && needs.obs2a-checkpoint-native.result == 'success'", ""
+        )
+    with pytest.raises((AssertionError, KeyError)):
+        _assert_checkpoint_native_job(workflow)
+
+
+@pytest.mark.parametrize("scan_result", ["success", "failure", "cancelled", "skipped"])
+@pytest.mark.parametrize("native_result", ["success", "failure", "cancelled", "skipped"])
+@pytest.mark.parametrize("cancelled", [False, True])
+def test_checkpoint_native_required_results_do_not_publish_after_failure(
+    scan_result: str, native_result: str, cancelled: bool
+) -> None:
+    workflow = _workflow(CD_WORKFLOW)
+    _assert_checkpoint_native_job(workflow)
+    # Evaluate the actual finite result conjuncts through the existing Bash control semantics.
+    expression = _job(workflow, "build")["if"]
+    native_expression = _job(workflow, "obs2a-checkpoint-native")["if"]
+    replacements = {
+        "!cancelled()": "1 == 0" if cancelled else "1 == 1",
+        "github.event_name": "'push'",
+        "github.ref": "'refs/heads/main'",
+        "needs.prometheus-image-security.result": repr(scan_result),
+        "needs.obs2a-checkpoint-native.result": repr(native_result),
+        "needs.main-push-admission.result": "'success'",
+        "needs.staging-postgres-native-integration.result": "'success'",
+    }
+    for key, value in replacements.items():
+        expression = expression.replace(key, value)
+        native_expression = native_expression.replace(key, value)
+    bash = shutil.which("bash")
+    assert bash is not None
+    result = subprocess.run(
+        [bash, "-c", "[[ " + expression + " ]]"],
+        env={"PATH": os.defpath},
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
+    )
+    admission = subprocess.run(
+        [bash, "-c", "[[ " + native_expression + " ]]"],
+        env={"PATH": os.defpath},
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
+    )
+    assert (admission.returncode == 0) is (not cancelled and scan_result == "success")
+    assert (result.returncode == 0) is (not cancelled and scan_result == native_result == "success")
+
+
+@pytest.mark.parametrize("case", ["base-only", "own", "empty", "invalid", "unrelated", "ambiguous"])
+def test_checkpoint_pr_selection_uses_unique_real_merge_base(tmp_path: Path, case: str) -> None:
+    git = shutil.which("git")
+    bash = shutil.which("bash")
+    assert git is not None and bash is not None
+    env = {
+        "PATH": os.defpath,
+        "LANG": "C",
+        "HOME": str(tmp_path),
+        "GIT_CONFIG_NOSYSTEM": "1",
+        "GIT_CONFIG_GLOBAL": os.devnull,
+        "GIT_TERMINAL_PROMPT": "0",
+        "GIT_AUTHOR_NAME": "Fixture",
+        "GIT_AUTHOR_EMAIL": "fixture@example.invalid",
+        "GIT_COMMITTER_NAME": "Fixture",
+        "GIT_COMMITTER_EMAIL": "fixture@example.invalid",
+    }
+
+    def call(*args: str) -> str:
+        completed = subprocess.run(
+            [git, "-c", "core.hooksPath=" + os.devnull, "-c", "commit.gpgsign=false", *args],
+            cwd=tmp_path,
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
+        )
+        assert completed.returncode == 0, completed.stderr
+        return completed.stdout.strip()
+
+    call("init", "--template=", "-q")
+    selected = tmp_path / ".github/workflows/ci.yml"
+    selected.parent.mkdir(parents=True)
+    selected.write_text("common\n")
+    call("add", ".")
+    call("commit", "-qm", "common")
+    common = call("rev-parse", "HEAD")
+    tree = call("rev-parse", "HEAD^{tree}")
+    selected.write_text("new main\n")
+    call("add", ".")
+    call("commit", "-qm", "main")
+    base = call("rev-parse", "HEAD")
+    call("checkout", "-qb", "fixture-pr", common)
+    (tmp_path / "unrelated.txt").write_text("own unrelated\n")
+    if case == "own":
+        selected.write_text("own selected\n")
+    call("add", ".")
+    call("commit", "-qm", "pr")
+    head = call("rev-parse", "HEAD")
+    if case == "base-only":
+        assert (
+            call("diff", "--name-only", base, head, "--", ".github/workflows/ci.yml")
+            == ".github/workflows/ci.yml"
+        )
+    if case == "empty":
+        base = head = common
+    elif case == "invalid":
+        base = "0" * 40
+    elif case == "unrelated":
+        base = call("commit-tree", tree, "-m", "unrelated")
+    elif case == "ambiguous":
+        left, right = base, head
+        base = call("commit-tree", tree, "-p", left, "-p", right, "-m", "left merge")
+        head = call("commit-tree", tree, "-p", right, "-p", left, "-m", "right merge")
+    env.update(
+        {
+            "OBS2A_BASE_SHA": base,
+            "OBS2A_HEAD_SHA": head,
+            "NATIVE_CALLS": str(tmp_path / "native-calls"),
+        }
+    )
+    step = _named_step(
+        _steps(_job(_workflow(REPO_ROOT / ".github/workflows/ci.yml"), "test-pr")),
+        "Native OBS2A checkpoint lifecycle and owned-task challenge",
+    )
+    fixture = 'python() { :; }\nsudo() { printf native >> "$NATIVE_CALLS"; }\n'
+    result = subprocess.run(
+        [bash, "-c", fixture + step["run"]],
+        cwd=tmp_path,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
+    )
+    if case in {"invalid", "unrelated", "ambiguous"}:
+        assert result.returncode != 0 and not (tmp_path / "native-calls").exists()
+    else:
+        assert result.returncode == 0, result.stderr
+        assert (tmp_path / "native-calls").exists() is (case == "own")
