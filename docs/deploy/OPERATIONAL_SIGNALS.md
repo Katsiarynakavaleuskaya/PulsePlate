@@ -844,7 +844,7 @@ sole attachment.
 
 Each `restore_expectations` entry has exactly `target`, `artifact_sha256` and
 `target_ref`. The source `target` identifies the Droplet/filesystem/Volume being
-assessed; the required bounded literal `target_ref` independently names the
+assessed; `target_ref` must be a bounded literal that independently names the
 isolated restore destination. It must match receipt `data.target_ref`, and may
 differ from source `target.ref`. A receipt cannot establish its own expectation.
 Conflicting artifact/destination pairs for one source target select no winner;
