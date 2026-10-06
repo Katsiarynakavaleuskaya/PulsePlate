@@ -116,6 +116,7 @@ BACKEND_SHARED_EXACT: tuple[str, ...] = (
     "scripts/ops/ops_context_report.py",
     "scripts/ops/staging_runtime_diagnostics.py",
     "scripts/ops/resource_cost_report.py",
+    "scripts/ops/resource_evidence_report.py",
     "requirements.txt",
 )
 # Provider implementations can change auth, network, or model routing behavior,

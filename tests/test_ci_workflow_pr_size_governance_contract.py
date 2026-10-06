@@ -5647,19 +5647,20 @@ def test_python_test_jobs_install_frontend_dependencies_before_pytest() -> None:
 
 
 def test_ops_context_coverage_is_separate_and_required_by_diff_gate() -> None:
-    """All three OPS CLIs must feed the canonical diff gate."""
+    """All four OPS CLIs must feed the canonical diff gate."""
     workflow = _load_ci_workflow()
     measure = _job_step_by_name(workflow, job_id="test-pr", step_name="Measure OPS CLI coverage")
     run = str(measure["run"])
     assert "--rcfile=/dev/null --branch" in run
     assert (
-        "--include='scripts/ops/ops_context_report.py,scripts/ops/staging_runtime_diagnostics.py,scripts/ops/resource_cost_report.py'"
+        "--include='scripts/ops/ops_context_report.py,scripts/ops/staging_runtime_diagnostics.py,scripts/ops/resource_cost_report.py,scripts/ops/resource_evidence_report.py'"
         in run
     )
     assert "--data-file=.coverage.ops-context -m pytest -q -p no:xdist" in run
     assert "tests/test_ops_context_report.py" in run
     assert "tests/test_staging_runtime_diagnostics.py" in run
     assert "tests/test_resource_cost_report.py" in run
+    assert "tests/test_resource_evidence_report.py" in run
     assert "--data-file=.coverage.ops-context -o coverage-ops-context.xml" in run
     assert "--append" not in run
     assert "continue-on-error" not in measure and "if" not in measure
@@ -5712,6 +5713,8 @@ def test_ops_context_coverage_is_separate_and_required_by_diff_gate() -> None:
         "missing_staging",
         "missing_resource",
         "empty_resource",
+        "missing_evidence",
+        "empty_evidence",
     ],
 )
 def test_ops_context_workflow_rejects_missing_line_inventory(tmp_path: Path, case: str) -> None:
@@ -5740,6 +5743,13 @@ def test_ops_context_workflow_rejects_missing_line_inventory(tmp_path: Path, cas
         raw += (
             '<class filename="scripts/ops/resource_cost_report.py"><lines>'
             + resource_lines
+            + "</lines></class>"
+        )
+    if case != "missing_evidence":
+        evidence_lines = "" if case == "empty_evidence" else lines
+        raw += (
+            '<class filename="scripts/ops/resource_evidence_report.py"><lines>'
+            + evidence_lines
             + "</lines></class>"
         )
     raw += "</classes></package></packages></coverage>"
@@ -6434,9 +6444,10 @@ def test_frontend_node24_foundation_guard_rejects_weakened_wiring(mutation: str)
         _assert_frontend_node24_foundation_contract(package, workflow, config_source)
 
 
-@pytest.mark.parametrize("comment_only", [False, True])
-def test_ops_context_producer_executes_three_real_test_targets(
-    tmp_path: Path, comment_only: bool
+@pytest.mark.parametrize("omitted_index", [None, 0, 1, 2, 3])
+@pytest.mark.parametrize("omit_source", [False, True])
+def test_ops_context_producer_executes_four_real_test_targets(
+    tmp_path: Path, omitted_index: int | None, omit_source: bool
 ) -> None:
     """Run the actual finite producer shell; comments cannot substitute for pytest argv."""
     import sys
@@ -6445,9 +6456,20 @@ def test_ops_context_producer_executes_three_real_test_targets(
         _load_ci_workflow(), job_id="test-pr", step_name="Measure OPS CLI coverage"
     )
     run = str(step["run"])
-    if comment_only:
-        run = run.replace(" tests/test_resource_cost_report.py", "", 1)
-        run += "\n# tests/test_resource_cost_report.py\n"
+    if omitted_index is not None:
+        suffix = (
+            "ops_context_report",
+            "staging_runtime_diagnostics",
+            "resource_cost_report",
+            "resource_evidence_report",
+        )[omitted_index]
+        token = "scripts/ops/" + suffix + ".py" if omit_source else "tests/test_" + suffix + ".py"
+        run = (
+            run.replace(token + ",", "", 1)
+            if omit_source and omitted_index < 3
+            else run.replace("," + token, "", 1) if omit_source else run.replace(token, "", 1)
+        )
+        run += "\n# " + token + "\n"
     observer = tmp_path / "python"
     observer.write_text(
         "#!" + sys.executable + "\n" + """
@@ -6459,8 +6481,8 @@ import sys
 from xml.etree import ElementTree
 
 args = sys.argv[1:]
-sources = ["scripts/ops/ops_context_report.py", "scripts/ops/staging_runtime_diagnostics.py", "scripts/ops/resource_cost_report.py"]
-tests = ["tests/test_ops_context_report.py", "tests/test_staging_runtime_diagnostics.py", "tests/test_resource_cost_report.py"]
+sources = ["scripts/ops/ops_context_report.py", "scripts/ops/staging_runtime_diagnostics.py", "scripts/ops/resource_cost_report.py", "scripts/ops/resource_evidence_report.py"]
+tests = ["tests/test_ops_context_report.py", "tests/test_staging_runtime_diagnostics.py", "tests/test_resource_cost_report.py", "tests/test_resource_evidence_report.py"]
 if args == ["-"]:
     result = subprocess.run([os.environ["OPS_TEST_PYTHON"], "-"], input=sys.stdin.buffer.read(), check=False)
     raise SystemExit(result.returncode)
@@ -6495,10 +6517,15 @@ else:
         timeout=10,
         check=False,
     )
-    assert result.returncode == (42 if comment_only else 0), result.stderr
-    if not comment_only:
+    assert (
+        result.returncode == (41 if omit_source else 42)
+        if omitted_index is not None
+        else result.returncode == 0
+    ), result.stderr
+    if omitted_index is None:
         assert json.loads((tmp_path / "observed-targets.json").read_text()) == [
             "tests/test_ops_context_report.py",
             "tests/test_staging_runtime_diagnostics.py",
             "tests/test_resource_cost_report.py",
+            "tests/test_resource_evidence_report.py",
         ]
