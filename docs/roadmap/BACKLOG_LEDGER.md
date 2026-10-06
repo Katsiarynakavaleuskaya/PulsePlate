@@ -1604,9 +1604,9 @@ If it is not recorded here — it does not exist.
   - Owner: @katsiaryna_kavaleuskaya (CI and orchestration governance)
   - Priority: P1
   - Target PR: [PR #2455](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2455) (CONSOL-ORCH-1)
-  - Status: Implementation in progress after CONSOL-CI-1 (#2446) merge; exact-head ORCH proof and merge remain pending
+  - Status: Implementation PR #2455 merged as `5e09142246cd05de7ff7ebba918b5b804dc4f742`; the substantive Legacy consolidation carries this merge receipt. This does not close the complete CONSOL-ORCH-1/v1 outcome: Cloud applied runtime remains unknown, the separate Cloud migration question is unanswered, historical evidence gaps and verified owned cleanup remain unproven. The ledger item stays open until its individually required evidence is reconciled.
   - Area: CI / merge governance
-  - Reason (EN): CONSOL-CI-1 (#2446) supplied the verified dual-checkout verifier interface on protected main. CONSOL-ORCH-1 must now switch hosted execution to the exact authenticated base SHA and inspect exact PR-head material separately; its current-head workflow, native-dispatch, candidate-handoff, promotion, path, disposition, and Slack checks remain unproven until the implementation PR's own gates complete.
+  - Reason (EN): CONSOL-CI-1 (#2446) supplied the verified dual-checkout verifier interface on protected main, and merged CONSOL-ORCH-1 (#2455) supplied the implementation carrier. Retained exact-head and post-merge receipts have their own scope and cutoffs; they do not substitute for missing historical proof, Cloud runtime/migration evidence, all79 individual outcome criteria or verified recovery and cleanup. The remaining outcome is reconciled through the substantive Legacy carrier, without a standalone docs-only closeout PR or new work on the merged branch.
   - Links: `.github/workflows/ci.yml`, `scripts/ci/check_pr_merge_readiness.py`, `tests/test_pr_merge_readiness_gate.py`
   - DoD: Use distinct credential-free base and head checkouts, invoke only the base verifier with `--material-repo-root`, reject wrong identities or untrusted material imports, and pass current-head CI and strict merge-readiness evidence.
 
@@ -9460,6 +9460,21 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     consumer paths, and exclusions are in
     `docs/architecture/LEGACY_COMPATIBILITY_SEAM.md`. This child extended the
     finite guard to 87 and preserved HTTP, auth, OpenAPI, and app identity.
+    Guard consolidation (EN): `codex/consolidate-legacy-ownership-guard` repairs
+    the original class-mapping, lexical OpenAPI, exception-type/header and
+    full-owner API-key recognizer mechanisms from source PR #2433–#2436 in their
+    existing seams. Source implementation is separate from native behavior,
+    current-head gates and review. Each source PR remains open until the
+    consolidated separately authorized merge and its individual semantic
+    transfer/disposition; no source cherry-pick or premature closure is implied.
+    Preserve the original87-name prefix AND the independently inherited four-name
+    retirement tail, every admitted negative/allowed control and unchanged loop
+    budgets. Carryover #2447 and #2455 are already merged; #2455's merge receipt
+    is `5e09142246cd05de7ff7ebba918b5b804dc4f742`. Cloud applied runtime remains
+    unknown, its separate migration question unanswered, and all79 individual
+    outcomes, historical evidence and verified owned cleanup remain separately
+    required. This substantive carrier does not close `PROJECT_LEGACY` or open
+    a new retirement cohort or docs-only PR.
     Carryover: [PR #2457](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2457)
     merged on 2026-09-30T10:35:36Z with squash
     `6e09f4ea8cc33e8389d99075b6f6a0d10f1b725e`; its canonical TargetsIn

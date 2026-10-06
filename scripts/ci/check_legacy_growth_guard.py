@@ -13,7 +13,7 @@ from importlib.util import resolve_name
 from pathlib import Path
 import re
 import sys
-from typing import AbstractSet, cast
+from typing import AbstractSet, Literal, cast
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 LEGACY_APP = "legacy_app.py"
@@ -25,7 +25,16 @@ CANONICAL_APPLICATION_METADATA = "app/application_metadata.py"
 CANONICAL_OPENAPI = "app/bootstrap/openapi.py"
 CANONICAL_MAIN = "app/main.py"
 APP_FACADE = "app/__init__.py"
-CANONICAL_API_KEY_SYMBOLS = frozenset({"get_api_key", "_get_api_key_dynamic"})
+CANONICAL_API_KEY_SYMBOLS = frozenset(
+    {
+        "api_key_header",
+        "get_api_key",
+        "_get_api_key_dynamic",
+        "validate_app_api_key",
+        "require_app_api_key",
+    }
+)
+LEGACY_API_KEY_REEXPORTS = frozenset({"get_api_key", "_get_api_key_dynamic"})
 CANONICAL_OPENAPI_SYMBOLS = frozenset(
     {
         "_OPENAPI_ALLOWED_PREFIXES",
@@ -2999,8 +3008,19 @@ def _iter_function_parameters(arguments: ast.arguments) -> tuple[ast.arg, ...]:
     )
 
 
+def _has_postponed_annotations(tree: ast.Module) -> bool:
+    return any(
+        isinstance(statement, ast.ImportFrom)
+        and statement.module == "__future__"
+        and any(alias.name == "annotations" for alias in statement.names)
+        for statement in tree.body
+    )
+
+
 def _function_local_binding_names(
     node: ast.FunctionDef | ast.AsyncFunctionDef | ast.Lambda,
+    *,
+    postponed_annotations: bool = False,
 ) -> frozenset[str]:
     """Return Python-local binders without descending into nested scopes."""
 
@@ -3022,17 +3042,40 @@ def _function_local_binding_names(
                 if alias.name != "*":
                     names.add(alias.asname or alias.name)
 
+        def _visit_function_header(self, child: ast.FunctionDef | ast.AsyncFunctionDef) -> None:
+            for expression in (
+                *child.decorator_list,
+                *child.args.defaults,
+                *child.args.kw_defaults,
+            ):
+                if expression is not None:
+                    self.visit(expression)
+            if not postponed_annotations:
+                for argument in _iter_function_parameters(child.args):
+                    if argument.annotation is not None:
+                        self.visit(argument.annotation)
+                if child.returns is not None:
+                    self.visit(child.returns)
+
         def visit_FunctionDef(self, child: ast.FunctionDef) -> None:
             names.add(child.name)
+            self._visit_function_header(child)
 
         def visit_AsyncFunctionDef(self, child: ast.AsyncFunctionDef) -> None:
             names.add(child.name)
+            self._visit_function_header(child)
 
         def visit_ClassDef(self, child: ast.ClassDef) -> None:
             names.add(child.name)
+            for expression in (*child.decorator_list, *child.bases):
+                self.visit(expression)
+            for keyword in child.keywords:
+                self.visit(keyword.value)
 
         def visit_Lambda(self, child: ast.Lambda) -> None:
-            return
+            for default in (*child.args.defaults, *child.args.kw_defaults):
+                if default is not None:
+                    self.visit(default)
 
         def _visit_comprehension_parts(
             self,
@@ -3080,6 +3123,8 @@ def _function_local_binding_names(
             nonlocal_names.update(child.names)
 
         def visit_ExceptHandler(self, child: ast.ExceptHandler) -> None:
+            if child.type is not None:
+                self.visit(child.type)
             if child.name is not None:
                 names.add(child.name)
             for statement in child.body:
@@ -3125,7 +3170,9 @@ def _function_outward_binding_names(
     return frozenset(global_names), frozenset(nonlocal_names)
 
 
-def _statement_binding_names(statements: Sequence[ast.stmt]) -> frozenset[str]:
+def _statement_binding_names(
+    statements: Sequence[ast.stmt], *, postponed_annotations: bool = False
+) -> frozenset[str]:
     synthetic = ast.FunctionDef(
         name="<statement-bindings>",
         args=ast.arguments(
@@ -3138,7 +3185,7 @@ def _statement_binding_names(statements: Sequence[ast.stmt]) -> frozenset[str]:
         body=list(statements),
         decorator_list=[],
     )
-    return _function_local_binding_names(synthetic)
+    return _function_local_binding_names(synthetic, postponed_annotations=postponed_annotations)
 
 
 def _statement_outward_binding_names(
@@ -3198,6 +3245,7 @@ _ROUTE_DECORATOR_REFERENCE_PREFIX = "pulseplate.app.route.decorator:"
 _POSSIBLE_MIDDLEWARE_DECORATOR_REFERENCE = "<possible:pulseplate.app.middleware.decorator>"
 _POSSIBLE_GETATTR_REFERENCE = "<possible:builtins.getattr>"
 _POSSIBLE_API_KEY_SYMBOL = "<possible:api_key_symbol>"
+_POSSIBLE_OPENAPI_SYMBOL = "<possible:openapi_symbol>"
 _POSSIBLE_ROUTE_METHOD = "<possible:route_method>"
 _CONFLICTED_ROUTE_METHOD = "<conflicted:route_method>"
 _DYNAMIC_STRING_BINDING = "<dynamic:string>"
@@ -3331,8 +3379,12 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         module_late_references: Mapping[str, str] | None = None,
         module_late_strings: Mapping[str, str] | None = None,
         analyze_function_bodies: bool = True,
+        ownership_family: Literal["api_key", "openapi"] = "api_key",
     ) -> None:
+        if ownership_family not in {"api_key", "openapi"}:
+            raise ValueError("unsupported ownership symbol family")
         self.filename = filename
+        self.ownership_family = ownership_family
         self.errors = errors
         self.reference_snapshots = reference_snapshots
         self.string_snapshots = string_snapshots
@@ -3436,17 +3488,8 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             self.scope.bind(name, reference=reference, string=None)
 
     def visit_Module(self, node: ast.Module) -> None:
-        previous = self._postponed_annotations
-        self._postponed_annotations = any(
-            isinstance(statement, ast.ImportFrom)
-            and statement.module == "__future__"
-            and any(alias.name == "annotations" for alias in statement.names)
-            for statement in node.body
-        )
-        try:
-            self._visit_statements(node.body)
-        finally:
-            self._postponed_annotations = previous
+        self._postponed_annotations = _has_postponed_annotations(node)
+        self._visit_statements(node.body)
 
     def visit(self, node: ast.AST) -> object:
         if self.reference_snapshots is not None or self.string_snapshots is not None:
@@ -3477,6 +3520,15 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
     @staticmethod
     def _is_legacy_namespace_reference(reference: str | None) -> bool:
         return reference in {"legacy_app.__dict__", _POSSIBLE_LEGACY_REFERENCE}
+
+    def _is_protected_ownership_symbol(self, name: str | None) -> bool:
+        if self.ownership_family == "api_key":
+            return name in CANONICAL_API_KEY_SYMBOLS or name == _POSSIBLE_API_KEY_SYMBOL
+        return name is not None and (
+            name in CANONICAL_OPENAPI_SYMBOLS
+            or name == _POSSIBLE_OPENAPI_SYMBOL
+            or "openapi" in name.casefold()
+        )
 
     def _record_snapshot(self, node: ast.AST) -> None:
         node_id = id(node)
@@ -3972,6 +4024,11 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 return collection_reference
         if isinstance(node, ast.Attribute):
             owner_reference = self._resolve_reference(node.value)
+            if self._is_legacy_namespace_reference(owner_reference) and node.attr in {
+                "get",
+                "__getitem__",
+            }:
+                return f"legacy_app.__dict__.{node.attr}"
             if owner_reference == _KNOWN_NON_APP_REFERENCE:
                 return None
             if owner_reference == "builtins" and node.attr == "dict":
@@ -4007,6 +4064,13 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             if self._resolve_reference(node.func) == _CAPTURED_POSSIBLE_APP_FACTORY_REFERENCE:
                 return _POSSIBLE_APP_REFERENCE
             importer_reference = self._resolve_reference(node.func)
+            if (
+                importer_reference == "builtins.vars"
+                and len(node.args) == 1
+                and not node.keywords
+                and self._is_legacy_module_reference(self._resolve_reference(node.args[0]))
+            ):
+                return "legacy_app.__dict__"
             module_strings: list[str | None] = []
             positional_arguments, unresolved_positional_sources = (
                 _expand_static_positional_arguments(node.args)
@@ -4458,8 +4522,12 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 for value in values
             ):
                 joined_strings[name] = _POSSIBLE_ROUTE_METHOD
-            elif any(value in CANONICAL_API_KEY_SYMBOLS for value in values):
-                joined_strings[name] = _POSSIBLE_API_KEY_SYMBOL
+            elif any(self._is_protected_ownership_symbol(value) for value in values):
+                joined_strings[name] = (
+                    _POSSIBLE_API_KEY_SYMBOL
+                    if self.ownership_family == "api_key"
+                    else _POSSIBLE_OPENAPI_SYMBOL
+                )
         self.scope.strings = joined_strings
 
         callable_names = set().union(*(set(outcome.callables) for outcome in outcomes))
@@ -5076,6 +5144,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         value: ast.AST,
         *,
         dynamic_unknown_string: bool,
+        visit_only: bool = False,
     ) -> None:
         if (
             isinstance(target, (ast.Tuple, ast.List))
@@ -5093,7 +5162,11 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                         child_target,
                         child_value,
                         dynamic_unknown_string=dynamic_unknown_string,
+                        visit_only=visit_only,
                     )
+                return
+            if visit_only:
+                self.visit(value)
                 return
             if len(starred_targets) == 1 and len(value.elts) >= len(target.elts) - 1:
                 starred_index = starred_targets[0]
@@ -5129,6 +5202,9 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                             dynamic_unknown_string=dynamic_unknown_string,
                         )
                 return
+        if visit_only:
+            self.visit(value)
+            return
         if isinstance(target, (ast.Tuple, ast.List)):
             value_binding = self._capture_argument_binding(value)
             if self._bind_indexed_pair_target(target, value_binding):
@@ -5449,10 +5525,14 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             preserve_lifecycle_conflicts=self.preserve_lifecycle_conflicts,
             preserve_route_method_conflicts=self.preserve_route_method_conflicts,
             analyze_function_bodies=False,
+            ownership_family=self.ownership_family,
         )
+        summary_visitor._postponed_annotations = self._postponed_annotations
         summary_visitor.scope = _LexicalBindings(
             parent=lexical_parent,
-            local_names=_function_local_binding_names(node),
+            local_names=_function_local_binding_names(
+                node, postponed_annotations=self._postponed_annotations
+            ),
             scope_kind="function",
         )
         summary_visitor._visit_statements(node.body)
@@ -5469,7 +5549,9 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         previous_return_binding_collectors = self._return_binding_collectors
         self.scope = _LexicalBindings(
             parent=lexical_parent,
-            local_names=_function_local_binding_names(node),
+            local_names=_function_local_binding_names(
+                node, postponed_annotations=self._postponed_annotations
+            ),
             scope_kind="function",
         )
         self._loop_controls = []
@@ -5512,6 +5594,9 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
 
     def visit_Lambda(self, node: ast.Lambda) -> None:
         if not self.analyze_function_bodies:
+            for default in (*node.args.defaults, *node.args.kw_defaults):
+                if default is not None:
+                    self.visit(default)
             return
         synthetic = self._lambda_function_bindings.get(id(node))
         if synthetic is None:
@@ -5665,6 +5750,15 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         self.scope = _LexicalBindings(parent=previous, scope_kind="class")
         self._visit_statements(node.body)
         class_scope = self.scope
+        global_names, nonlocal_names = _statement_outward_binding_names(node.body)
+        outward_names = global_names | nonlocal_names
+        current_member_names = class_scope.possibly_bound_names - outward_names
+        for member_name, mapping in tuple(class_scope.mappings.items()):
+            if (
+                member_name in current_member_names
+                and class_scope.mappings.get(member_name) is mapping
+            ):
+                self._invalidate_mapping(mapping)
         self.scope = previous
         result_binding = _ResolvedBinding(None, None)
         if metaclass_targets:
@@ -5728,9 +5822,6 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         self._class_mro_complete[class_reference] = mro_complete and (
             not seen_class_site or self._class_mro_complete[class_reference]
         )
-        global_names, nonlocal_names = _statement_outward_binding_names(node.body)
-        outward_names = global_names | nonlocal_names
-        current_member_names = class_scope.possibly_bound_names - outward_names
         prior_member_names = {
             member_name
             for owner_reference, member_name in self._class_direct_member_presence
@@ -6010,7 +6101,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         loop_head = incoming.clone()
         for target_name in {
             *_assignment_target_names(node.target),
-            *_statement_binding_names(node.body),
+            *_statement_binding_names(node.body, postponed_annotations=self._postponed_annotations),
         }:
             loop_head.possibly_bound_names.add(target_name)
         break_scopes: list[_LexicalBindings] = []
@@ -6810,7 +6901,12 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             self._bind_name(local_name, reference=reference, string=None)
 
     def visit_Assign(self, node: ast.Assign) -> None:
-        self.visit(node.value)
+        if len(node.targets) == 1:
+            self._bind_target_value(
+                node.targets[0], node.value, dynamic_unknown_string=True, visit_only=True
+            )
+        else:
+            self.visit(node.value)
         value_mapping = self._resolve_mapping(node.value)
         value_reference = self._resolve_reference(node.value)
         for target in node.targets:
@@ -7549,8 +7645,11 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             preserve_lifecycle_conflicts=self.preserve_lifecycle_conflicts,
             preserve_route_method_conflicts=self.preserve_route_method_conflicts,
             analyze_function_bodies=False,
+            ownership_family=self.ownership_family,
         )
+        evaluator._postponed_annotations = self._postponed_annotations
         evaluator.scope = self.scope.detached_clone()
+        evaluator._call_result_bindings = dict(self._call_result_bindings)
         evaluator.visit(callable_expr)
 
         keyword_bindings: list[tuple[str, _ResolvedBinding]] = []
@@ -8138,42 +8237,46 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             isinstance(node.func, ast.Attribute) and mutated_mapping is not None
         )
         mapping_lookup_receiver = self._capture_mapping_lookup_receiver(node)
+        namespace_name: ast.AST | None = None
         if (
             isinstance(node.func, ast.Attribute)
             and node.func.attr in {"get", "__getitem__"}
             and node.args
             and self._is_legacy_namespace_reference(self._resolve_reference(node.func.value))
         ):
-            symbol_name = self._resolve_string(node.args[0])
-            if (
-                symbol_name in CANONICAL_API_KEY_SYMBOLS
-                or symbol_name in {_POSSIBLE_API_KEY_SYMBOL, _DYNAMIC_STRING_BINDING}
-                or (symbol_name is None and not isinstance(node.args[0], ast.Name))
-            ):
-                self.errors.append(
-                    f"{self.filename}: legacy API-key dependency namespace lookup is forbidden: "
-                    f"{symbol_name if symbol_name in CANONICAL_API_KEY_SYMBOLS else '<dynamic>'}"
-                )
-        if (
-            self.filename != CANONICAL_API_KEY
-            and self._resolve_reference(node.func)
-            in {"builtins.getattr", _POSSIBLE_GETATTR_REFERENCE}
-            and len(node.args) >= 2
-            and self._is_legacy_module_reference(self._resolve_reference(node.args[0]))
+            namespace_name = node.args[0]
+        elif (
+            self._resolve_reference(node.func)
+            in {"legacy_app.__dict__.get", "legacy_app.__dict__.__getitem__"}
+            and node.args
         ):
-            symbol_name = self._resolve_string(node.args[1])
+            namespace_name = node.args[0]
+        elif (
+            self._resolve_reference(node.func) == "builtins.dict.get"
+            and len(node.args) >= 2
+            and self._is_legacy_namespace_reference(self._resolve_reference(node.args[0]))
+        ):
+            namespace_name = node.args[1]
+        namespace_symbol_name = (
+            self._resolve_string(namespace_name) if namespace_name is not None else None
+        )
+        getattr_name = (
+            node.args[1]
             if (
-                symbol_name in CANONICAL_API_KEY_SYMBOLS
-                or symbol_name in {_POSSIBLE_API_KEY_SYMBOL, _DYNAMIC_STRING_BINDING}
-                or (symbol_name is None and not isinstance(node.args[1], ast.Name))
-            ):
-                self.errors.append(
-                    f"{self.filename}: dynamic legacy API-key dependency lookup is forbidden: "
-                    f"{symbol_name if symbol_name in CANONICAL_API_KEY_SYMBOLS else '<dynamic>'}"
-                )
+                self._resolve_reference(node.func)
+                in {"builtins.getattr", _POSSIBLE_GETATTR_REFERENCE}
+                and len(node.args) >= 2
+                and self._is_legacy_module_reference(self._resolve_reference(node.args[0]))
+            )
+            else None
+        )
+        getattr_symbol_name = (
+            self._resolve_string(getattr_name) if getattr_name is not None else None
+        )
         deferred_calls = self._capture_deferred_calls(node)
         if deferred_calls:
             self._deferred_call_bindings[id(node)] = deferred_calls
+        argument_scope = self.scope.detached_clone()
         initial_replay_inputs = self._prepare_function_replay_inputs(node)
         initial_arguments = {target: arguments for target, arguments in initial_replay_inputs}
         prepared_targets = set(initial_arguments)
@@ -8444,6 +8547,46 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 self._awaited_call_ids.remove(id(gathered_call))
             if iterated_argument is not None and not iterated_argument_was_marked:
                 self._iterated_call_ids.remove(id(iterated_argument))
+        if namespace_name is not None:
+            if (
+                isinstance(namespace_name, ast.Call)
+                and id(namespace_name) in self._call_result_bindings
+            ):
+                namespace_symbol_name = self._call_result_bindings[id(namespace_name)].string
+            if (
+                namespace_symbol_name in CANONICAL_API_KEY_SYMBOLS
+                or namespace_symbol_name in {_POSSIBLE_API_KEY_SYMBOL, _DYNAMIC_STRING_BINDING}
+                or (namespace_symbol_name is None and not isinstance(namespace_name, ast.Name))
+            ):
+                displayed_name = (
+                    namespace_symbol_name
+                    if namespace_symbol_name in CANONICAL_API_KEY_SYMBOLS
+                    else "<dynamic>"
+                )
+                self.errors.append(
+                    f"{self.filename}: legacy API-key dependency namespace lookup is forbidden: "
+                    f"{displayed_name}"
+                )
+        if getattr_name is not None:
+            if (
+                isinstance(getattr_name, ast.Call)
+                and id(getattr_name) in self._call_result_bindings
+            ):
+                getattr_symbol_name = self._call_result_bindings[id(getattr_name)].string
+            if (
+                getattr_symbol_name in CANONICAL_API_KEY_SYMBOLS
+                or getattr_symbol_name in {_POSSIBLE_API_KEY_SYMBOL, _DYNAMIC_STRING_BINDING}
+                or (getattr_symbol_name is None and not isinstance(getattr_name, ast.Name))
+            ):
+                displayed_name = (
+                    getattr_symbol_name
+                    if getattr_symbol_name in CANONICAL_API_KEY_SYMBOLS
+                    else "<dynamic>"
+                )
+                self.errors.append(
+                    f"{self.filename}: dynamic legacy API-key dependency lookup is forbidden: "
+                    f"{displayed_name}"
+                )
         self._record_object_namespace_call_mutation(node)
         if mapping_copy is None and bound_mapping_copy and isinstance(node.func, ast.Attribute):
             mapping_copy = self._resolve_mapping(node.func.value)
@@ -8672,6 +8815,16 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                     else self._join_resolved_bindings([existing_snapshot, projected_result])
                 )
         replay_inputs: list[tuple[_FunctionNode, dict[str, _ResolvedBinding]]] = []
+        active_scope = self.scope
+        self.scope = argument_scope
+        try:
+            prepared_arguments = {
+                target: arguments
+                for target, arguments in self._prepare_function_replay_inputs(node)
+                if target in prepared_targets
+            }
+        finally:
+            self.scope = active_scope
         for target in sorted(
             prepared_targets,
             key=lambda candidate: (
@@ -8680,27 +8833,8 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 candidate.name,
             ),
         ):
-            arguments = self._resolve_call_argument_bindings(target, node)
-            if arguments is None:
-                replay_inputs.append((target, initial_arguments[target]))
-                continue
             replay_inputs.append(
-                (
-                    target,
-                    {
-                        name: (
-                            initial_arguments[target][name]
-                            if (
-                                initial_arguments[target][name].reference is not None
-                                or initial_arguments[target][name].string is not None
-                                or initial_arguments[target][name].callables
-                                or initial_arguments[target][name].deferred_calls
-                            )
-                            else binding
-                        )
-                        for name, binding in arguments.items()
-                    },
-                )
+                (target, prepared_arguments.get(target, initial_arguments[target]))
             )
         replay_inputs.extend(
             self._prepare_function_replay_inputs(
@@ -9010,7 +9144,13 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 nonlocal_scope = nonlocal_scope.parent
         self.scope = _LexicalBindings(
             parent=lexical_parent,
-            local_names=(_function_local_binding_names(node) | global_names | nonlocal_names),
+            local_names=(
+                _function_local_binding_names(
+                    node, postponed_annotations=self._postponed_annotations
+                )
+                | global_names
+                | nonlocal_names
+            ),
             scope_kind="function",
         )
         for name, target in outward_targets.items():
@@ -9153,6 +9293,7 @@ def _collect_module_final_bindings(
     preserve_fastapi_conflicts: bool = False,
     preserve_lifecycle_conflicts: bool = False,
     preserve_route_method_conflicts: bool = False,
+    ownership_family: Literal["api_key", "openapi"] = "api_key",
 ) -> tuple[Mapping[str, str], Mapping[str, str]]:
     visitor = _ApiKeyLookupVisitor(
         filename=filename,
@@ -9162,6 +9303,7 @@ def _collect_module_final_bindings(
         preserve_lifecycle_conflicts=preserve_lifecycle_conflicts,
         preserve_route_method_conflicts=preserve_route_method_conflicts,
         analyze_function_bodies=False,
+        ownership_family=ownership_family,
     )
     visitor.visit(tree)
     return visitor.scope.visible_references(), visitor.scope.visible_strings()
@@ -9171,6 +9313,8 @@ def _collect_lexical_binding_snapshots(
     tree: ast.Module,
     *,
     initial_references: Mapping[str, str],
+    filename: str = LEGACY_APP,
+    ownership_family: Literal["api_key", "openapi"] = "api_key",
     preserve_fastapi_conflicts: bool = False,
     preserve_lifecycle_conflicts: bool = False,
     preserve_route_method_conflicts: bool = False,
@@ -9186,14 +9330,15 @@ def _collect_lexical_binding_snapshots(
     call_result_snapshots: dict[int, _ResolvedBinding] = {}
     module_late_references, module_late_strings = _collect_module_final_bindings(
         tree,
-        filename=LEGACY_APP,
+        filename=filename,
         initial_references=initial_references,
         preserve_fastapi_conflicts=preserve_fastapi_conflicts,
         preserve_lifecycle_conflicts=preserve_lifecycle_conflicts,
         preserve_route_method_conflicts=preserve_route_method_conflicts,
+        ownership_family=ownership_family,
     )
     _ApiKeyLookupVisitor(
-        filename=LEGACY_APP,
+        filename=filename,
         errors=[],
         initial_references=initial_references,
         reference_snapshots=reference_snapshots,
@@ -9202,6 +9347,7 @@ def _collect_lexical_binding_snapshots(
         preserve_fastapi_conflicts=preserve_fastapi_conflicts,
         preserve_lifecycle_conflicts=preserve_lifecycle_conflicts,
         preserve_route_method_conflicts=preserve_route_method_conflicts,
+        ownership_family=ownership_family,
         module_late_references=module_late_references,
         module_late_strings=module_late_strings,
     ).visit(tree)
@@ -9212,26 +9358,46 @@ def validate_api_key_dependency_ownership(
     legacy_source: str,
     app_sources: Mapping[str, str],
 ) -> list[str]:
-    """Keep client API-key dependency ownership canonical and identity-preserving."""
+    """Require the real full owner and only the two absolute compatibility re-exports."""
 
     errors: list[str] = []
+    app_trees: dict[str, ast.Module] = {}
+    for filename, source_text in sorted(app_sources.items()):
+        tree, source_errors = _parse_source(source_text, filename=filename)
+        errors.extend(source_errors)
+        if tree is not None:
+            app_trees[filename] = tree
+    if CANONICAL_API_KEY not in app_sources:
+        errors.append(f"{CANONICAL_API_KEY}: canonical API-key owner source is missing")
+    elif (owner_tree := app_trees.get(CANONICAL_API_KEY)) is not None:
+        owner_visitor = _ApiKeyLookupVisitor(
+            filename=CANONICAL_API_KEY, errors=[], analyze_function_bodies=False
+        )
+        owner_visitor.visit(owner_tree)
+        for name in sorted(CANONICAL_API_KEY_SYMBOLS - owner_visitor.scope.bound_names):
+            errors.append(f"{CANONICAL_API_KEY}: canonical API-key owner symbol is missing: {name}")
+
     legacy_tree, parse_errors = _parse_source(legacy_source, filename=LEGACY_APP)
     errors.extend(parse_errors)
     if legacy_tree is not None:
         locally_defined: set[str] = set()
+        postponed_annotations = _has_postponed_annotations(legacy_tree)
 
         class _ModuleApiKeyDefinitionVisitor(ast.NodeVisitor):
-            def _visit_function_header(
-                self,
-                node: ast.FunctionDef | ast.AsyncFunctionDef,
-            ) -> None:
-                for decorator in node.decorator_list:
-                    self.visit(decorator)
-                for default in (*node.args.defaults, *node.args.kw_defaults):
-                    if default is not None:
-                        self.visit(default)
-                if node.returns is not None:
-                    self.visit(node.returns)
+            def _visit_function_header(self, node: ast.FunctionDef | ast.AsyncFunctionDef) -> None:
+                for expression in (
+                    *node.decorator_list,
+                    *node.args.defaults,
+                    *node.args.kw_defaults,
+                ):
+                    if expression is not None:
+                        self.visit(expression)
+                if not postponed_annotations:
+                    for argument in _iter_function_parameters(node.args):
+                        if argument.annotation is not None:
+                            self.visit(argument.annotation)
+                    if node.returns is not None:
+                        self.visit(node.returns)
 
             def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
                 if node.name in CANONICAL_API_KEY_SYMBOLS:
@@ -9244,15 +9410,15 @@ def validate_api_key_dependency_ownership(
                 self._visit_function_header(node)
 
             def visit_ClassDef(self, node: ast.ClassDef) -> None:
-                for decorator in node.decorator_list:
-                    self.visit(decorator)
-                for base in node.bases:
-                    self.visit(base)
+                for expression in (*node.decorator_list, *node.bases):
+                    self.visit(expression)
                 for keyword in node.keywords:
                     self.visit(keyword.value)
 
             def visit_Lambda(self, node: ast.Lambda) -> None:
-                return
+                for default in (*node.args.defaults, *node.args.kw_defaults):
+                    if default is not None:
+                        self.visit(default)
 
         definition_visitor = _ModuleApiKeyDefinitionVisitor()
         for statement in legacy_tree.body:
@@ -9264,16 +9430,14 @@ def validate_api_key_dependency_ownership(
         for statement in legacy_tree.body:
             if (
                 not isinstance(statement, ast.ImportFrom)
+                or statement.level != 0
                 or statement.module != "app.routers.api_key"
             ):
                 continue
             for alias in statement.names:
-                if alias.name in CANONICAL_API_KEY_SYMBOLS and alias.asname in {
-                    None,
-                    alias.name,
-                }:
+                if alias.name in LEGACY_API_KEY_REEXPORTS and alias.asname in {None, alias.name}:
                     exact_aliases.add(alias.name)
-        for name in sorted(CANONICAL_API_KEY_SYMBOLS - exact_aliases):
+        for name in sorted(LEGACY_API_KEY_REEXPORTS - exact_aliases):
             errors.append(
                 f"{LEGACY_APP}: canonical API-key compatibility re-export must preserve "
                 f"identity: {name}"
@@ -9281,22 +9445,27 @@ def validate_api_key_dependency_ownership(
 
         rebound_names: set[str] = set()
 
-        class _TopLevelBindingVisitor(ast.NodeVisitor):
+        class _TopLevelBindingVisitor(_ModuleApiKeyDefinitionVisitor):
             def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
-                return
+                self._visit_function_header(node)
 
             def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
-                return
+                self._visit_function_header(node)
 
             def visit_ClassDef(self, node: ast.ClassDef) -> None:
                 rebound_names.add(node.name)
-
-            def visit_Lambda(self, node: ast.Lambda) -> None:
-                return
+                super().visit_ClassDef(node)
 
             def visit_Name(self, node: ast.Name) -> None:
-                if isinstance(node.ctx, ast.Store):
+                if isinstance(node.ctx, (ast.Store, ast.Del)):
                     rebound_names.add(node.id)
+
+            def visit_AnnAssign(self, node: ast.AnnAssign) -> None:
+                if not postponed_annotations:
+                    self.visit(node.annotation)
+                if node.value is not None:
+                    self.visit(node.value)
+                    self.visit(node.target)
 
             def visit_Import(self, node: ast.Import) -> None:
                 for alias in node.names:
@@ -9306,8 +9475,9 @@ def validate_api_key_dependency_ownership(
                 for alias in node.names:
                     bound_name = alias.asname or alias.name
                     if (
-                        node.module == "app.routers.api_key"
-                        and alias.name in CANONICAL_API_KEY_SYMBOLS
+                        node.level == 0
+                        and node.module == "app.routers.api_key"
+                        and alias.name in LEGACY_API_KEY_REEXPORTS
                         and bound_name == alias.name
                     ):
                         continue
@@ -9315,6 +9485,8 @@ def validate_api_key_dependency_ownership(
                         rebound_names.add(bound_name)
 
             def visit_ExceptHandler(self, node: ast.ExceptHandler) -> None:
+                if node.type is not None:
+                    self.visit(node.type)
                 if node.name is not None:
                     rebound_names.add(node.name)
                 for statement in node.body:
@@ -9324,26 +9496,23 @@ def validate_api_key_dependency_ownership(
         for statement in legacy_tree.body:
             binding_visitor.visit(statement)
         for name in sorted(rebound_names & CANONICAL_API_KEY_SYMBOLS):
-            errors.append(
-                f"{LEGACY_APP}: canonical API-key compatibility re-export must not be "
-                f"rebound: {name}"
+            description = (
+                "canonical API-key compatibility re-export"
+                if name in LEGACY_API_KEY_REEXPORTS
+                else "canonical API-key dependency"
             )
+            errors.append(f"{LEGACY_APP}: {description} must not be rebound: {name}")
 
-    for filename, source_text in sorted(app_sources.items()):
-        tree, source_errors = _parse_source(source_text, filename=filename)
-        errors.extend(source_errors)
-        if tree is not None:
-            module_late_references, module_late_strings = _collect_module_final_bindings(
-                tree,
-                filename=filename,
-                initial_references={},
-            )
-            _ApiKeyLookupVisitor(
-                filename=filename,
-                errors=errors,
-                module_late_references=module_late_references,
-                module_late_strings=module_late_strings,
-            ).visit(tree)
+    for filename, tree in sorted(app_trees.items()):
+        module_late_references, module_late_strings = _collect_module_final_bindings(
+            tree, filename=filename, initial_references={}
+        )
+        _ApiKeyLookupVisitor(
+            filename=filename,
+            errors=errors,
+            module_late_references=module_late_references,
+            module_late_strings=module_late_strings,
+        ).visit(tree)
     return sorted(set(errors))
 
 
@@ -10865,24 +11034,50 @@ def _references_legacy_openapi_installer(tree: ast.Module) -> bool:
     return False
 
 
-def _function_references_legacy_openapi_symbol(tree: ast.Module) -> bool:
-    for function in ast.walk(tree):
-        if not isinstance(function, (ast.FunctionDef, ast.AsyncFunctionDef)):
+def _record_main_legacy_openapi_lookups(tree: ast.Module, errors: list[str]) -> None:
+    """Report only each visited node's existing lexical and resolved-call evidence."""
+
+    references, strings, results = _collect_lexical_binding_snapshots(
+        tree, filename=CANONICAL_MAIN, initial_references={}, ownership_family="openapi"
+    )
+    evaluator = _ApiKeyLookupVisitor(
+        filename=CANONICAL_MAIN,
+        errors=[],
+        analyze_function_bodies=False,
+        ownership_family="openapi",
+    )
+    evaluator._postponed_annotations = _has_postponed_annotations(tree)
+    evaluator._call_result_bindings = dict(results)
+    for node in ast.walk(tree):
+        node_id = id(node)
+        if node_id not in references or node_id not in strings:
             continue
-        for node in ast.walk(function):
-            if _static_string(node) in CANONICAL_OPENAPI_SYMBOLS:
-                return True
-            if isinstance(node, ast.Name) and node.id in CANONICAL_OPENAPI_SYMBOLS:
-                return True
-            if isinstance(node, ast.Attribute) and node.attr in CANONICAL_OPENAPI_SYMBOLS:
-                return True
-            if (
-                isinstance(node, ast.Constant)
-                and isinstance(node.value, str)
-                and node.value in CANONICAL_OPENAPI_SYMBOLS
-            ):
-                return True
-    return False
+        evaluator.scope = _LexicalBindings(parent=None)
+        evaluator.scope.references = dict(references[node_id])
+        evaluator.scope.strings = dict(strings[node_id])
+        if isinstance(node, ast.ImportFrom) and node.level == 0 and node.module == "legacy_app":
+            for alias in node.names:
+                if evaluator._is_protected_ownership_symbol(alias.name):
+                    errors.append(
+                        f"{CANONICAL_MAIN}: OpenAPI symbol must not be imported through legacy: "
+                        f"{alias.name}"
+                    )
+        elif (
+            isinstance(node, ast.Attribute)
+            and isinstance(node.ctx, ast.Load)
+            and evaluator._is_protected_ownership_symbol(node.attr)
+            and evaluator._is_legacy_module_reference(evaluator._resolve_reference(node.value))
+        ):
+            errors.append(f"{CANONICAL_MAIN}: OpenAPI symbol must not be accessed through legacy")
+        elif (
+            isinstance(node, ast.Call)
+            and len(node.args) >= 2
+            and evaluator._resolve_reference(node.func)
+            in {"builtins.getattr", _POSSIBLE_GETATTR_REFERENCE}
+            and evaluator._is_legacy_module_reference(evaluator._resolve_reference(node.args[0]))
+            and evaluator._is_protected_ownership_symbol(evaluator._resolve_string(node.args[1]))
+        ):
+            errors.append(f"{CANONICAL_MAIN}: OpenAPI symbol must not be accessed through legacy")
 
 
 def _parses_environment_directly(tree: ast.Module) -> bool:
@@ -11010,102 +11205,7 @@ def validate_application_metadata_openapi_ownership(
     }
     for name in sorted(required_main_imports - main_imports):
         errors.append(f"{CANONICAL_MAIN}: canonical OpenAPI import is required: {name}")
-    for node in main_tree.body:
-        if not isinstance(node, ast.ImportFrom) or node.module != "legacy_app":
-            continue
-        for alias in node.names:
-            if "openapi" in alias.name.casefold():
-                errors.append(
-                    f"{CANONICAL_MAIN}: OpenAPI symbol must not be imported through legacy: "
-                    f"{alias.name}"
-                )
-    main_module_aliases: dict[str, str] = {}
-    main_import_module_aliases: set[str] = set()
-    main_string_bindings: dict[str, str] = {}
-
-    def record_main_legacy_openapi_lookups(expression: ast.AST) -> None:
-        def is_legacy_module(node: ast.AST) -> bool:
-            return (
-                _static_module_reference(
-                    node,
-                    module_aliases=main_module_aliases,
-                    import_module_aliases=main_import_module_aliases,
-                    static_string_bindings=main_string_bindings,
-                )
-                == "legacy_app"
-            )
-
-        for walk_node in ast.walk(expression):
-            if (
-                isinstance(walk_node, ast.Attribute)
-                and is_legacy_module(walk_node.value)
-                and "openapi" in walk_node.attr.casefold()
-            ):
-                errors.append(
-                    f"{CANONICAL_MAIN}: OpenAPI symbol must not be accessed through legacy: "
-                    f"{walk_node.attr}"
-                )
-            elif (
-                isinstance(walk_node, ast.Call)
-                and isinstance(walk_node.func, ast.Name)
-                and walk_node.func.id == "getattr"
-                and len(walk_node.args) >= 2
-                and is_legacy_module(walk_node.args[0])
-            ):
-                attribute_name = _static_string(walk_node.args[1], main_string_bindings)
-                if attribute_name is not None and "openapi" in attribute_name.casefold():
-                    errors.append(
-                        f"{CANONICAL_MAIN}: OpenAPI symbol must not be accessed through legacy"
-                    )
-
-    for statement in main_tree.body:
-        record_main_legacy_openapi_lookups(statement)
-        if isinstance(statement, ast.Import):
-            for alias in statement.names:
-                bound_name = alias.asname or alias.name.split(".", maxsplit=1)[0]
-                if alias.name in {"importlib", "legacy_app"}:
-                    main_module_aliases[bound_name] = alias.name
-                else:
-                    main_module_aliases.pop(bound_name, None)
-            continue
-        if isinstance(statement, ast.ImportFrom):
-            for alias in statement.names:
-                bound_name = alias.asname or alias.name
-                main_module_aliases.pop(bound_name, None)
-                if statement.module == "importlib" and alias.name == "import_module":
-                    main_import_module_aliases.add(bound_name)
-            continue
-
-        value: ast.AST | None = None
-        targets: Sequence[ast.expr] = ()
-        if isinstance(statement, ast.Assign):
-            value = statement.value
-            targets = statement.targets
-        elif isinstance(statement, ast.AnnAssign):
-            value = statement.value
-            targets = (statement.target,)
-        if value is None:
-            continue
-        reference = _static_module_reference(
-            value,
-            module_aliases=main_module_aliases,
-            import_module_aliases=main_import_module_aliases,
-            static_string_bindings=main_string_bindings,
-        )
-        static_string = _static_string(value, main_string_bindings)
-        for target in targets:
-            for target_name in _assignment_target_names(target):
-                if reference == "legacy_app":
-                    main_module_aliases[target_name] = reference
-                else:
-                    main_module_aliases.pop(target_name, None)
-                if static_string is None:
-                    main_string_bindings.pop(target_name, None)
-                else:
-                    main_string_bindings[target_name] = static_string
-
-    if _function_references_legacy_openapi_symbol(main_tree):
-        errors.append(f"{CANONICAL_MAIN}: OpenAPI symbol must not be accessed through legacy")
+    _record_main_legacy_openapi_lookups(main_tree, errors)
 
     facade_tree = trees[APP_FACADE]
     facade_binds_namespace_alias = _binds_namespace_alias(facade_tree)

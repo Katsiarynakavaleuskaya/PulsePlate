@@ -45,9 +45,13 @@ runtime resources or wrap `app.router.lifespan_context`.
 
 App-client API-key extraction and validation dependencies are canonically owned
 by `app/routers/api_key.py`. Canonical routers and bootstrap code import those
-callables directly. `legacy_app.py` may only re-export the exact same callable
-objects while compatibility imports remain; wrappers or mutable legacy-owned
-warning state would break FastAPI dependency identity.
+callables directly. Only `get_api_key` and `_get_api_key_dynamic` remain permitted
+and required identity-preserving compatibility re-exports from `legacy_app.py`.
+The separate protected set also includes `api_key_header`, `validate_app_api_key`
+and `require_app_api_key`; protection does not authorize additional re-exports.
+Wrappers or mutable legacy-owned warning state would break FastAPI dependency
+identity. The strict source witness and absolute-import boundary are enforced by
+`scripts/ci/check_legacy_growth_guard.py:9357`.
 
 Application metadata is canonically owned by
 `app/application_metadata.py:56` and constructed through the environment-aware
@@ -624,11 +628,46 @@ recognizer separately rejects reintroduction of the former exact dynamic
 `app.routers.plan_export -> _plan_mod` fact; this does not widen the ordinary
 binding rule or certify arbitrary namespace mutation.
 
-The same guard now verifies application-metadata/OpenAPI ownership: extracted
+The same guard verifies application-metadata/OpenAPI ownership: extracted
 functions cannot be redefined or rebound in legacy, `app/main.py` must import
 the canonical OpenAPI lifecycle directly, the package facade cannot install OpenAPI,
-and canonical modules cannot reverse-import the compatibility app. The check is
-bounded AST analysis and intentionally does not interpret arbitrary Python.
+and canonical modules cannot reverse-import the compatibility app. The main
+reporting adapter uses only the visited node's existing lexical reference,
+string and resolved-call snapshots; absent own-node evidence is not filled from
+an outer or final-module environment. API-key and OpenAPI strings use separate
+closed families and absorbing possible markers in the existing join. The
+OpenAPI family is the exact seven compatibility names or a name containing
+`openapi` after case folding. Receiver, member and builtin-callee provenance
+remain independent, including deferred/local/nonlocal and postponed-annotation
+contexts (`scripts/ci/check_legacy_growth_guard.py:11037`).
+
+The strict API-key source validator requires readable, parseable
+`app/routers/api_key.py` and all five actual module bindings from the existing
+visitor's `bound_names`; nested-only, possibly-bound, bare-annotation and deleted
+names are not owner witnesses. Both compatibility-import witnesses and permitted
+binder skips require level zero, the exact owner module and the same exported
+name, with no alias or an explicit same-name alias. Defining defaults and finite
+headers, and exception types before their aliases/bodies, are inspected in the
+containing scope; lambda bodies remain local. Eager versus postponed annotations
+and positional/keyword defaults preserve their current execution boundary.
+These source witnesses do not establish configured keys or runtime authorization
+(`scripts/ci/check_legacy_growth_guard.py:3020`,
+`scripts/ci/check_legacy_growth_guard.py:9357`).
+
+Resolved matching tuple/list/nested local assignments preserve their mapping
+identity through the existing paired binder; generic collection escapes and
+unmatched/starred constructions retain their separate conservative handling.
+Actual class members invalidate shared mapping identity before class-scope
+restoration, excluding global/nonlocal declarations and avoiding repeated
+invalidation of already-removed aliases. Copied mappings and ordered snapshots
+remain distinct (`scripts/ci/check_legacy_growth_guard.py:5141`,
+`scripts/ci/check_legacy_growth_guard.py:5724`). Builtin `vars`, `dict.get` and
+stored namespace getters retain actual legacy-namespace provenance in the
+existing reference/call seams; shadowed builtins, unrelated receivers and safe
+member names remain independent controls. The per-loop32 and total128 transfer
+budgets are unchanged (`scripts/ci/check_legacy_growth_guard.py:4367`). These
+bounded repairs do not widen the independent87-name baseline and inherited
+four-name retirement tail, and do not certify arbitrary Python reflection.
 
 The guard does not authorize runtime behavior. It only prevents unreviewed seam
 growth while later extraction PRs move routes behind canonical routers.
@@ -664,11 +703,12 @@ Retire this seam only when all are true:
 
 ## Validation
 
-Use:
+Resolve the repo-approved absolute `VENV_PYTHON` through the interpreter
+procedure in `RUNBOOK_AGENT.md`, then use explicit guard/module arguments:
 
 ```bash
-python3 scripts/ci/check_legacy_growth_guard.py
-pytest -q tests/test_legacy_growth_guard.py
+"$VENV_PYTHON" scripts/ci/check_legacy_growth_guard.py --repo-root "$PWD"
+"$VENV_PYTHON" -m pytest -q tests/test_legacy_growth_guard.py
 ```
 
 This guard does not open runtime behavior, OpenAPI, semantic-cache serving,
