@@ -21,7 +21,7 @@ on:
     branches: [ main, feat/**, fix/** ]
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name == 'pull_request' && (github.event.action == 'edited' || github.event.action == 'labeled' || github.event.action == 'unlabeled') && 'metadata' || 'material' }}
   cancel-in-progress: true
 
 defaults:
@@ -425,7 +425,7 @@ jobs:
     # Security is the stable blocking dependency and transitively requires the
     # specialized compatibility proof when the changes output selects it.
     needs: [changes, pr_body_phase2_gates, private_python_proxy_health, security, trivy_ignore_policy_expiry, ios-tests, ios-ui-smoke]
-    if: ${{ always() && github.event_name == 'pull_request' }}
+    if: ${{ !cancelled() && github.event_name == 'pull_request' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -715,7 +715,7 @@ jobs:
           fi
   lint:
     needs: [private_python_proxy_health]
-    if: ${{ always() }}
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     timeout-minutes: 40
     steps:
@@ -755,7 +755,7 @@ jobs:
 
   security:
     needs: [changes, private_python_proxy_health, pgvector_compat]
-    if: ${{ always() && (github.event_name != 'pull_request' || needs.changes.result != 'success' || needs.changes.outputs.run_security == 'true' || needs.changes.outputs.pgvector_compat == 'true') }}
+    if: ${{ !cancelled() && (github.event_name != 'pull_request' || needs.changes.result != 'success' || needs.changes.outputs.run_security == 'true' || needs.changes.outputs.pgvector_compat == 'true') }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -841,7 +841,7 @@ jobs:
   openapi-sync:
     name: OpenAPI sync (backend -> frontend artifacts)
     needs: [changes, private_python_proxy_health]
-    if: always() && (github.event_name != 'pull_request' || needs.changes.result != 'success' || needs.changes.outputs.run_openapi_sync == 'true')
+    if: ${{ !cancelled() && (github.event_name != 'pull_request' || needs.changes.result != 'success' || needs.changes.outputs.run_openapi_sync == 'true') }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
@@ -898,7 +898,7 @@ jobs:
 
   # Tier 1 PR testing: critical smoke + contract/risk suites
   test-pr:
-    if: always() && github.event_name == 'pull_request' && (needs.changes.result != 'success' || needs.changes.outputs.run_backend_blocking == 'true')
+    if: ${{ !cancelled() && github.event_name == 'pull_request' && (needs.changes.result != 'success' || needs.changes.outputs.run_backend_blocking == 'true') }}
     needs: [changes, pr_scope_guard, private_python_proxy_health]
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -1389,7 +1389,7 @@ jobs:
   pgvector_compat:
     name: pgvector-compat
     needs: [changes, private_python_proxy_health]
-    if: always() && github.event_name == 'pull_request' && (needs.changes.result != 'success' || needs.changes.outputs.pgvector_compat == 'true')
+    if: ${{ !cancelled() && github.event_name == 'pull_request' && (needs.changes.result != 'success' || needs.changes.outputs.pgvector_compat == 'true') }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -1490,7 +1490,7 @@ jobs:
 
   # Fast testing for feature branches (single Python version)
   test-feature:
-    if: always() && github.event_name == 'push' && (startsWith(github.ref, 'refs/heads/feat/') || startsWith(github.ref, 'refs/heads/fix/') || startsWith(github.ref, 'refs/heads/feature/')) && (needs.changes.result != 'success' || needs.changes.outputs.run_backend_blocking == 'true')
+    if: ${{ !cancelled() && github.event_name == 'push' && (startsWith(github.ref, 'refs/heads/feat/') || startsWith(github.ref, 'refs/heads/fix/') || startsWith(github.ref, 'refs/heads/feature/')) && (needs.changes.result != 'success' || needs.changes.outputs.run_backend_blocking == 'true') }}
     needs: [changes, private_python_proxy_health]
     runs-on: ubuntu-latest
     timeout-minutes: 90
@@ -1876,7 +1876,7 @@ jobs:
   # Comprehensive testing for main branch
   test-main:
     needs: [changes, private_python_proxy_health]
-    if: always() && (github.ref == 'refs/heads/main' || (github.event_name == 'pull_request' && (needs.changes.result != 'success' || needs.changes.outputs.run_main_ci_diagnostic == 'true')))
+    if: ${{ !cancelled() && (github.ref == 'refs/heads/main' || (github.event_name == 'pull_request' && (needs.changes.result != 'success' || needs.changes.outputs.run_main_ci_diagnostic == 'true'))) }}
     runs-on: ubuntu-latest
     timeout-minutes: ${{ matrix.timeout-minutes }}
     permissions:
@@ -2166,7 +2166,7 @@ jobs:
 
   diff-coverage:
     name: diff-coverage
-    if: always() && github.event_name == 'pull_request' && (needs.changes.result != 'success' || needs.changes.outputs.run_backend_blocking == 'true')
+    if: ${{ !cancelled() && github.event_name == 'pull_request' && (needs.changes.result != 'success' || needs.changes.outputs.run_backend_blocking == 'true') }}
     needs: [changes, pr_scope_guard, private_python_proxy_health, test-pr]
     runs-on: ubuntu-latest
     timeout-minutes: 15

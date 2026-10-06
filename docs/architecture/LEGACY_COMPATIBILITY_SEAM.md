@@ -27,13 +27,13 @@ test-only reassignment of `legacy_app.app` cannot rebind package, bootstrap, or
 not import `legacy_app`. Resolving `app.app` imports `app.main` without loading
 `legacy_app`; the canonical bootstrap no longer reverse-imports the compatibility
 facade. The eight former paid/BMI registration mirrors are absent from `app`,
-`app.main`, and `legacy_app.py`. Ten bounded Python-binding retirements remove
-only the exact 87 `legacy_app.py` Python bindings enumerated below; they do not
+`app.main`, and `legacy_app.py`. Eleven bounded Python-binding retirements remove
+only the exact 91 `legacy_app.py` Python bindings enumerated below; they do not
 remove or redirect any HTTP path, change auth, alter OpenAPI, or change FastAPI
 object identity. Repository census found no tracked supported production
 consumer of the second ten-name, third eleven-name, fourth eight-name, fifth
 twelve-name, sixth seven-name, seventh three-name, eighth seven-name, ninth
-fifteen-name, or tenth four-name cohort;
+fifteen-name, tenth four-name, or eleventh four-name cohort;
 it does not prove that no external or dynamic Python consumer exists.
 
 Application startup/shutdown behavior is canonically owned by
@@ -111,7 +111,54 @@ and extends the exact-name guard from 83 to 87. It does not alter log cleanup,
 HTTP routes, auth, OpenAPI, or FastAPI object identity. Unknown external or
 computed imports remain a compatibility risk and must migrate to the core owner.
 
+## Planning-schema Python export retirement
+
+The eleventh cohort retires exactly `TargetsIn`, `CanonicalTargetsIn`,
+`LegacyWeekPlanRequest`, and `WeeklyMenuResponse` from `legacy_app.py`. Both
+former TargetsIn paths identify the one canonical class at
+`app/schemas/nutrition_targets.py:41`; the other two classes remain at
+`app/schemas/legacy_premium_weekly_plan.py:14` and
+`app/schemas/legacy_premium_weekly_plan.py:83`. The canonical schema files and
+their validation rules remain unchanged. The independently declared retired
+inventory is the original 87 plus these four names, exactly 91. The guard's
+recognizer is unchanged; only its four protected-name literals are added.
+
+At admitted base `4ec4a8c3a15cb0bd925d919800840bbe12cdc6d4`, the bounded census
+identified 17 selected-name sites in three test files and no recognized
+production consumer. Rechecking those three files after canonical-import
+migration finds zero selected legacy-name sites: `tests/test_targets_in_parity.py`,
+`tests/test_legacy_weekly_plan_alias_api.py`, and
+`tests/test_legacy_app_diff_coverage.py`. The static module-symbol count shrinks
+from 56 to 52. This cohort check does not establish a complete Python consumer
+inventory or authorize another retirement.
+
+The existing retirement probe in `tests/test_legacy_bmi_shims.py` covers both
+fresh import orders, ordinary attributes, `vars`, and from-import failures;
+it retains network denial and its credential-excluding child environment.
+Canonical validation, weekly request modes/goal normalization, response
+serialization, and retained HTTP/auth/OpenAPI/app identity contracts remain
+required. Unknown external or computed callers must migrate to the canonical
+schema modules; these fresh-import checks make no hot-reload guarantee.
+
+Carryover: [PR #2457](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2457)
+merged on 2026-09-30T10:35:36Z as
+`6e09f4ea8cc33e8389d99075b6f6a0d10f1b725e`. Its malformed-Mapping and overflow
+validation correction remains in the canonical TargetsIn validator, with its
+regressions preserved during this import migration. The current child is
+[PR #2466](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2466)
+(`codex/retire-legacy-planning-schema-exports`).
+`PROJECT_LEGACY` remains open. After this child's separately authorized merge,
+repository closeout receipts belong to the first following substantive child,
+`PR-TBD-LEGACY-RESIDUAL-PYTHON-EXPORT-RETIREMENT`; no standalone docs-only
+closeout PR is planned, and that pointer grants no additional cohort admission.
+Rollback is a reviewed revert of the whole planning-schema retirement PR,
+including its facade, inventories, tests, and documentation.
+
 ## Residual Python facade census (log-retention child)
+
+This section preserves the historical log-retention child's census and exact
+56-name result. Its tables are historical evidence, not the current 52-name
+planning-schema retirement projection.
 
 The exact base is `0dccc2ee18d5f88d0753a5cdff384838bd080af7` (`origin/main`
 at lane admission). Python's `symtable.symtable(..., "exec")` counted names with
@@ -552,9 +599,9 @@ implementations and canonical `app/**` reverse imports or dynamic lookups for
 those callables. Current facts may disappear as the seam shrinks; new facts fail
 closed with repo-relative diagnostics.
 
-For the 87 retired Python bindings, the guard has a deliberately bounded
+For the 91 retired Python bindings, the guard has a deliberately bounded
 finite mechanical claim over the exact repo-relative `legacy_app.py` source
-only. It freezes the exact 87-name set, uses the existing `_assigned_names`
+only. It freezes the exact 91-name set, uses the existing `_assigned_names`
 collector for statically visible ordinary module-scope `Name` Store/Del
 bindings, rejects explicit `global` declarations for a protected name, rejects
 all star imports, and rejects a statically bound module-level `__getattr__`.
@@ -572,7 +619,7 @@ import hooks, reflection, arbitrary helpers, and external monkeypatching. The
 rule neither accepts nor certifies those families and makes no completeness
 claim about them. Any new or changed dynamic namespace carrier in
 `legacy_app.py`, and any dynamic carrier intended to bind or rebind one of the
-87 protected names, requires manual STOP and review. The existing router-import
+91 protected names, requires manual STOP and review. The existing router-import
 recognizer separately rejects reintroduction of the former exact dynamic
 `app.routers.plan_export -> _plan_mod` fact; this does not widen the ordinary
 binding rule or certify arbitrary namespace mutation.
