@@ -805,7 +805,7 @@ def test_build_fallback_plate_invalid_fiber_uses_fiber_min() -> None:
         targets_builder=lambda _profile: _Targets(),
     )
 
-    assert out.macros["fiber_g"] == int(round(legacy_app.FIBER_MIN_G))
+    assert out.macros["fiber_g"] == int(round(resolve_module("core.targets").FIBER_MIN_G))
 
 
 def test_aggregate_day_micros_awaits_resolved_callable() -> None:
