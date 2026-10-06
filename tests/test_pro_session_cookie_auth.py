@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from datetime import datetime, timezone
 from typing import Any
 
 import pytest
 from fastapi import HTTPException, Response
 from fastapi.testclient import TestClient
-from httpx import Response as HTTPXResponse
 from starlette.requests import Request
 
 import app.routers.pro_session as pro_session_mod
@@ -19,6 +19,8 @@ from app.security.web_session import (
     issue_web_session,
     set_web_session_cookie,
 )
+from tests._client import Response as HTTPXResponse
+from tests._client import open_test_client
 
 
 @pytest.fixture(autouse=True)
@@ -32,10 +34,10 @@ def _session_cookie_env(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.fixture
-def isolated_client() -> TestClient:
-    """Isolated TestClient without shared fixture overrides."""
+def isolated_client(_session_cookie_env: None) -> Iterator[TestClient]:
+    """Open a managed client without shared auth fixture overrides."""
 
-    with TestClient(main_app) as test_client:
+    with open_test_client(main_app) as test_client:
         yield test_client
 
 
