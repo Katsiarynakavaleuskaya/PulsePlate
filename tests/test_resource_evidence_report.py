@@ -286,21 +286,29 @@ def test_missing_null_empty_distinct(case: str, reason: str) -> None:
 
 
 @pytest.mark.parametrize(
-    "name,unit",
-    [("new.metric", "widgets"), ("memory.total", "bytes"), ("pressure.cpu.full.avg10", "percent")],
+    "name,unit,value",
+    [
+        ("new.metric", "widgets", 0),
+        ("new.metric", "widgets", 257),
+        ("memory.total", "bytes", 0),
+        ("memory.total", "bytes", 257),
+        ("pressure.cpu.full.avg10", "percent", "0.00"),
+        ("pressure.cpu.full.avg10", "percent", "12.375"),
+    ],
 )
-def test_unsupported_metric_preserves_values(name: str, unit: str) -> None:
+def test_unsupported_metric_preserves_values(name: str, unit: str, value: int | str) -> None:
     raw = cost_bytes()
     r = record()
     r["data"] = {
         "name": name,
         "unit": unit,
         "cadence_seconds": None,
-        "samples": [{"observed_at": T, "value": "0.00" if unit == "percent" else 0}],
+        "samples": [{"observed_at": T, "value": value}],
     }
     entry = run(raw, observations(raw, [r]))["evidence"][0]
     assert entry["status"] == "unsupported"
-    assert entry["record"]["data"]["samples"][0]["value"] in (0, "0.00")
+    preserved = entry["record"]["data"]["samples"][0]["value"]
+    assert preserved == value and type(preserved) is type(value)
 
 
 @pytest.mark.parametrize(
@@ -443,7 +451,9 @@ def test_exact_current_receipt_and_artifact_mismatch() -> None:
     r = restore()
     obj = observations(raw, [r])
     obj["assessment_window"] = {"started_at": T, "completed_at": "2026-10-06T11:01:00Z"}
-    obj["restore_expectations"] = [{"target": r["target"], "artifact_sha256": A}]
+    obj["restore_expectations"] = [
+        {"target": r["target"], "artifact_sha256": A, "target_ref": "synthetic-restore-db"}
+    ]
     assert run(raw, obj)["evidence"][0]["reasons"] == []
     obj["restore_expectations"][0]["artifact_sha256"] = "b" * 64
     assert "RESTORE_ARTIFACT_CONFLICT" in run(raw, obj)["conflicts"]
@@ -995,8 +1005,8 @@ def test_conflicting_restore_expectations_and_links_select_no_winner() -> None:
     obj = observations(raw, [restore()])
     target = {"kind": "droplet", "ref": "d1"}
     obj["restore_expectations"] = [
-        {"target": target, "artifact_sha256": A},
-        {"target": target, "artifact_sha256": "b" * 64},
+        {"target": target, "artifact_sha256": A, "target_ref": "synthetic-restore-db"},
+        {"target": target, "artifact_sha256": "b" * 64, "target_ref": "synthetic-restore-db"},
     ]
     assert "RESTORE_EXPECTATION_CONFLICT" in run(raw, obj)["conflicts"]
     obj["topology"]["volume_ids"].append("v2")
@@ -1289,7 +1299,9 @@ def test_complete_receipt_applicability_requires_whole_context(conflict: str | N
     receipt = restore()
     obj = observations(raw, [receipt])
     obj["assessment_window"] = {"started_at": T, "completed_at": "2026-10-06T11:01:00Z"}
-    obj["restore_expectations"] = [{"target": receipt["target"], "artifact_sha256": A}]
+    obj["restore_expectations"] = [
+        {"target": receipt["target"], "artifact_sha256": A, "target_ref": "synthetic-restore-db"}
+    ]
     if conflict == "raw_cost_hash":
         obj["cost_report_sha256"] = "b" * 64
     elif conflict == "account":
@@ -1298,7 +1310,11 @@ def test_complete_receipt_applicability_requires_whole_context(conflict: str | N
         obj["topology"]["epoch_ref"] = "other-epoch"
     elif conflict == "expectations":
         obj["restore_expectations"].append(
-            {"target": receipt["target"], "artifact_sha256": "b" * 64}
+            {
+                "target": receipt["target"],
+                "artifact_sha256": "b" * 64,
+                "target_ref": "synthetic-restore-db",
+            }
         )
     elif conflict == "unselected_record":
         obj["records"].append(
@@ -1327,4 +1343,158 @@ def test_complete_receipt_applicability_requires_whole_context(conflict: str | N
         assert set(result["conflicts"]) <= set(entry["reasons"])
         assert all(
             item["applicability"] != "compatible_supplied_scope" for item in result["evidence"]
+        )
+
+
+@pytest.mark.parametrize(
+    "row_pages,widths,page_count,valid",
+    [
+        ([2], [1], 2, False),
+        ([1, 3], [1, 1], 3, False),
+        ([1], [1], 2, False),
+        ([1], [201], 1, False),
+        ([1, 2, 3], [1, 2, 1], 3, False),
+        ([], [], 2, False),
+        ([1, 2], [1, 2], 2, False),
+        ([1, 2], [201, 1], 2, False),
+        ([1], [1], 1, True),
+        ([1], [200], 1, True),
+        ([1, 2], [2, 1], 2, True),
+        ([1, 2, 3], [2, 2, 2], 3, True),
+        ([1, 2], [200, 200], 2, True),
+        ([], [], 1, True),
+    ],
+)
+def test_complete_cost_projection_page_conservation(
+    row_pages: list[int], widths: list[int], page_count: int, valid: bool
+) -> None:
+    report = json.loads(
+        cost_bytes(
+            rows=[{"product": "Droplets", "resource_id": "d1", "amount": "0.00"}] * sum(widths),
+            total="0.00",
+        )
+    )
+    report["errors"] = []
+    report["page_count"] = page_count
+    offset = 0
+    for page, width in zip(row_pages, widths):
+        for ordinal, row in enumerate(report["rows"][offset : offset + width], 1):
+            row.update(page=page, ordinal=ordinal)
+        offset += width
+    cost._totals(report)
+    raw = rehash(report)
+    if valid:
+        assert cost._canonical(evidence.validate_cost(cost._parse(raw))) + b"\n" == raw
+    else:
+        with pytest.raises(cost.ReportError, match="INVALID_INPUT"):
+            evidence.validate_cost(cost._parse(raw))
+
+
+def test_native_incomplete_empty_page_and_zero_inventory_preserved() -> None:
+    capture = {
+        "schema_version": cost.CAPTURE_SCHEMA,
+        "account_ref": "synthetic-account",
+        "captured_at": T,
+        "invoice_kind": "final",
+        "invoice": {
+            "invoice_uuid": "00000000-0000-4000-8000-000000000001",
+            "invoice_period": "2026-09",
+            "amount": "0.00",
+        },
+        "pages": [
+            {"page": 1, "per_page": 1, "response": {"invoice_items": [], "meta": {"total": 2}}},
+            {
+                "page": 2,
+                "per_page": 1,
+                "response": {
+                    "invoice_items": [
+                        {"product": "Droplets", "resource_id": "d1", "amount": "0.00"}
+                    ],
+                    "meta": {"total": 2},
+                },
+            },
+        ],
+    }
+    bindings = {
+        "schema_version": cost.BINDING_SCHEMA,
+        "account_ref": "synthetic-account",
+        "bindings": [],
+    }
+    raw = cost.render_report(
+        cost.attach_resource_context(cost.reconcile_invoice(capture), bindings),
+        cost._canonical(capture),
+        cost._canonical(bindings),
+    )
+    validated = evidence.validate_cost(cost._parse(raw))
+    assert validated["errors"] == ["INCOMPLETE_CAPTURE"]
+    assert validated["rows"][0]["page"] == 2
+    assert cost._canonical(validated) + b"\n" == raw
+    result = run(raw, observations(raw))
+    assert result["cost_inventory"] == validated
+    assert "COST_ACCOUNTING_CONFLICT" in result["conflicts"]
+    zero_raw = cost_bytes(rows=[], total="0.00")
+    zero = evidence.validate_cost(cost._parse(zero_raw))
+    assert zero["rows"] == [] and zero["page_count"] == 1 and zero["errors"] == []
+    assert cost._canonical(zero) + b"\n" == zero_raw
+
+
+@pytest.mark.parametrize("destination", ["missing", None, False, 257, "", "a\n", "x" * 513])
+def test_restore_expectation_destination_is_required_bounded_literal(destination: object) -> None:
+    raw = cost_bytes()
+    obj = observations(raw, [restore()])
+    expectation = {"target": {"kind": "droplet", "ref": "d1"}, "artifact_sha256": A}
+    if destination != "missing":
+        expectation["target_ref"] = destination
+    obj["restore_expectations"] = [expectation]
+    with pytest.raises(cost.ReportError, match="INVALID_INPUT"):
+        evidence.validate_observations(obj)
+
+
+@pytest.mark.parametrize("reverse", [False, True])
+@pytest.mark.parametrize(
+    "conflict", [None, "receipt_destination", "expectation_destination", "artifact"]
+)
+def test_restore_destination_binding_and_global_revocation(
+    conflict: str | None, reverse: bool
+) -> None:
+    raw = cost_bytes()
+    first, second = restore(), restore()
+    obj = observations(raw, [first, second])
+    obj["assessment_window"] = {"started_at": T, "completed_at": "2026-10-06T11:01:00Z"}
+    expectation = {
+        "target": first["target"],
+        "artifact_sha256": A,
+        "target_ref": "synthetic-restore-db",
+    }
+    assert expectation["target_ref"] != first["target"]["ref"]
+    obj["restore_expectations"] = [expectation, copy.deepcopy(expectation)]
+    if conflict == "receipt_destination":
+        second["data"]["target_ref"] = "other-isolated-destination"
+    elif conflict == "expectation_destination":
+        obj["restore_expectations"][1]["target_ref"] = "other-isolated-destination"
+    elif conflict == "artifact":
+        obj["restore_expectations"][1]["artifact_sha256"] = "b" * 64
+    if reverse:
+        obj["records"].reverse()
+        obj["restore_expectations"].reverse()
+    before = copy.deepcopy(obj)
+    result = run(raw, obj)
+    assert obj == before
+    assert [entry["record"] for entry in result["evidence"]] == obj["records"]
+    if conflict is None:
+        assert result["conflicts"] == []
+        assert all(
+            entry["applicability"] == "compatible_supplied_scope" for entry in result["evidence"]
+        )
+    else:
+        expected_reason = (
+            "RESTORE_TARGET_CONFLICT"
+            if conflict == "receipt_destination"
+            else "RESTORE_EXPECTATION_CONFLICT"
+        )
+        assert expected_reason in result["conflicts"]
+        assert all(
+            (entry["association"], entry["status"], entry["applicability"])
+            == ("unmatched", "conflict", "not_established")
+            for entry in result["evidence"]
         )

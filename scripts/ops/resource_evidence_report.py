@@ -252,6 +252,7 @@ def validate_cost(value: object) -> dict[str, object]:
     cost._require(row_count == report["declared_row_count"] or "INCOMPLETE_CAPTURE" in errors)
     seen_groups: list[str] = []
     previous_page, previous_ordinal = 0, 0
+    page_widths: dict[int, int] = {}
     for raw in rows:
         row = cost._keys(
             raw, {"page", "ordinal", "amount", "product", "bucket", "identity_status", "group_ref"}
@@ -260,6 +261,7 @@ def validate_cost(value: object) -> dict[str, object]:
         cost._require(0 < page <= pages and ordinal > 0 and page >= previous_page)
         cost._require(ordinal == previous_ordinal + 1 if page == previous_page else ordinal == 1)
         previous_page, previous_ordinal = page, ordinal
+        page_widths[page] = ordinal
         cost._require(cost._money(cost._amount(row["amount"])) == row["amount"])
         product, status, ref = row["product"], row["identity_status"], row["group_ref"]
         cost._require(
@@ -311,6 +313,16 @@ def validate_cost(value: object) -> dict[str, object]:
                 status != "supplied"
                 and (status == "not_applicable") == (expected_bucket == "non_resource")
             )
+    if "INCOMPLETE_CAPTURE" not in errors:
+        if rows:
+            cost._require(list(page_widths) == list(range(1, pages + 1)))
+            widths = list(page_widths.values())
+            common_width = widths[0]
+            cost._require(1 <= common_width <= 200)
+            cost._require(all(width == common_width for width in widths[:-1]))
+            cost._require(1 <= widths[-1] <= common_width)
+        else:
+            cost._require(pages == 1)
     cost._require(seen_groups == list(group_index))
     for key in ("totals", "counts"):
         obj = cost._keys(report[key], set(cost.BUCKETS))
@@ -529,9 +541,10 @@ def validate_observations(value: object) -> dict[str, object]:
             _text(link[key])
         _hash(link["source_sha256"])
     for raw in _list(obj["restore_expectations"], MAX_MEMBERS):
-        expectation = cost._keys(raw, {"target", "artifact_sha256"})
+        expectation = cost._keys(raw, {"target", "artifact_sha256", "target_ref"})
         _target(expectation["target"])
         _hash(expectation["artifact_sha256"])
+        _text(expectation["target_ref"])
     sample_count = 0
     for raw in _list(obj["records"], MAX_RECORDS):
         record = _validate_record(raw)
@@ -699,7 +712,7 @@ def assess(
         if (
             len(
                 {
-                    e["artifact_sha256"]
+                    (e["artifact_sha256"], e["target_ref"])
                     for e in expectations
                     if cost._canonical(e["target"]) == target
                 }
@@ -874,8 +887,13 @@ def assess(
                 expected = [e for e in expectations if e["target"] == target]
                 if not expected:
                     gaps.append("CURRENT_ARTIFACT_MISSING")
-                elif data["artifact_sha256"] != expected[0]["artifact_sha256"]:
-                    reasons.append("RESTORE_ARTIFACT_CONFLICT")
+                elif len({(e["artifact_sha256"], e["target_ref"]) for e in expected}) > 1:
+                    reasons.append("RESTORE_EXPECTATION_CONFLICT")
+                else:
+                    if data["artifact_sha256"] != expected[0]["artifact_sha256"]:
+                        reasons.append("RESTORE_ARTIFACT_CONFLICT")
+                    if data["target_ref"] != expected[0]["target_ref"]:
+                        reasons.append("RESTORE_TARGET_CONFLICT")
                 if not data["checks"]:
                     gaps.append("RESTORE_CHECKS_MISSING")
                 if not history[0] <= _time(data["performed_at"]) <= history[1]:
