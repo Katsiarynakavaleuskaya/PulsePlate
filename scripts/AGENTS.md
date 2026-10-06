@@ -64,6 +64,12 @@
 - Native Linux checks in the owning notifier test module include actual owned
   Docker task observations; host process termination alone is insufficient.
   Preserve a survivor as HOLD and obtain bounded prerequisite scope.
+  Native fixtures render all profiles only for configuration checks and use the
+  single owned PID/COMMAND census with the unchanged stop deadline. Reset only a
+  positively observed failed invocation; preserve independent owned cleanup and
+  primary errors. The main CD native admission job has its own vars-defined
+  budget, explicit read-only permissions and successful image-scan prerequisite;
+  main build also requires that native job to succeed.
 
 ## Native RubyZip/Fastlane guard
 
