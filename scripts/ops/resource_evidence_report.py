@@ -345,7 +345,7 @@ def validate_cost(value: object) -> dict[str, object]:
         "operator_summary",
     ):
         cost._require(derived[key] == report[key])
-    cost._require((report["residual"] != "0.00") == ("RECONCILIATION_MISMATCH" in errors))
+    cost._require((cost._amount(report["residual"]) != 0) == ("RECONCILIATION_MISMATCH" in errors))
     upstreams = _list(report["upstream_assets"], 2)
     cost._require(len(upstreams) == 2)
     hashes = []
@@ -934,6 +934,10 @@ def assess(
         related_volumes = set()
         for item in assessments:
             item["association"] = "unmatched"
+            item["status"] = "conflict"
+            if item["applicability"] == "compatible_supplied_scope":
+                item["applicability"] = "not_established"
+            item["reasons"] = sorted(set(item["reasons"] + ["GLOBAL_CONTEXT_CONFLICT", *conflicts]))
     return {
         "schema_version": SCHEMA,
         "policy_version": POLICY,

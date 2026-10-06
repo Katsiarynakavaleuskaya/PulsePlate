@@ -1252,3 +1252,79 @@ def test_self_hashed_unresolved_binding_cannot_duplicate_matched_identity() -> N
     report["unresolved_bindings"].append(declaration())
     with pytest.raises(cost.ReportError):
         evidence.validate_cost(cost._parse(rehash(report)))
+
+
+def test_signed_zero_producer_report_keeps_original_values_and_bytes() -> None:
+    raw = cost_bytes(total="-0.00")
+    original = cost._parse(raw)
+    assert {
+        key: original[key]
+        for key in ("header_total", "total", "residual", "errors", "accounting_status")
+    } == {
+        "header_total": "-0.00",
+        "total": "0.00",
+        "residual": "-0.00",
+        "errors": [],
+        "accounting_status": "reconciled",
+    }
+    validated = evidence.validate_cost(original)
+    assert cost._canonical(validated) + b"\n" == raw
+    result = run(raw, observations(raw))
+    assert result["conflicts"] == [] and result["cost_inventory"] == original
+
+
+def test_self_hashed_signed_zero_cannot_claim_reconciliation_mismatch() -> None:
+    report = json.loads(cost_bytes(total="-0.00"))
+    report["errors"] = ["RECONCILIATION_MISMATCH"]
+    cost._totals(report)
+    with pytest.raises(cost.ReportError):
+        evidence.validate_cost(cost._parse(rehash(report)))
+
+
+@pytest.mark.parametrize(
+    "conflict", [None, "raw_cost_hash", "account", "epoch", "expectations", "unselected_record"]
+)
+def test_complete_receipt_applicability_requires_whole_context(conflict: str | None) -> None:
+    raw = cost_bytes()
+    receipt = restore()
+    obj = observations(raw, [receipt])
+    obj["assessment_window"] = {"started_at": T, "completed_at": "2026-10-06T11:01:00Z"}
+    obj["restore_expectations"] = [{"target": receipt["target"], "artifact_sha256": A}]
+    if conflict == "raw_cost_hash":
+        obj["cost_report_sha256"] = "b" * 64
+    elif conflict == "account":
+        obj["account_ref"] = "foreign-account"
+    elif conflict == "epoch":
+        obj["topology"]["epoch_ref"] = "other-epoch"
+    elif conflict == "expectations":
+        obj["restore_expectations"].append(
+            {"target": receipt["target"], "artifact_sha256": "b" * 64}
+        )
+    elif conflict == "unselected_record":
+        obj["records"].append(
+            record(resource_id="other", target={"kind": "droplet", "ref": "wrong"})
+        )
+    result = run(raw, obj)
+    entry = result["evidence"][0]
+    assert entry["record"] == receipt
+    assert entry["record"]["data"]["result"] == "succeeded"
+    if conflict is None:
+        assert result["conflicts"] == []
+        assert (
+            entry["association"],
+            entry["status"],
+            entry["applicability"],
+            entry["reasons"],
+        ) == ("selected", "observed", "compatible_supplied_scope", [])
+    else:
+        assert result["conflicts"]
+        assert (entry["association"], entry["status"], entry["applicability"]) == (
+            "unmatched",
+            "conflict",
+            "not_established",
+        )
+        assert "GLOBAL_CONTEXT_CONFLICT" in entry["reasons"]
+        assert set(result["conflicts"]) <= set(entry["reasons"])
+        assert all(
+            item["applicability"] != "compatible_supplied_scope" for item in result["evidence"]
+        )
