@@ -11,8 +11,15 @@ The dependency security guard prevents vulnerable dependency versions from enter
 The guard runs as part of the focused dependency-security test bundle and validates
 the canonical shared requirement surfaces listed by
 `tests/test_dependency_security_guard.py::REQUIREMENT_SURFACES`.
-The current `cryptography` 50.0.0 floor is recorded at
+The current `cryptography` 50.0.2 floor is recorded at
 `tests/fixtures/dependency_security_schema.json:4`.
+
+`psycopg-binary` is retired through the same schema's `blocked_packages`.
+The existing blocked-package guard also reconciles the complete current carrier
+inventory from the canonical registry with independent Git-based discovery,
+including optional and noncompiled carriers. Package aliases and inactive markers
+cannot hide the retired identity. This permanent absence check does not freeze
+the historical solver graph or replace the original-base transition replay.
 
 ## Schema Location
 
@@ -22,10 +29,10 @@ The current `cryptography` 50.0.0 floor is recorded at
 {
   "min_versions": {
     "click": "8.3.3",
-    "cryptography": "50.0.0",
+    "cryptography": "50.0.2",
     "pillow": "12.3.0"
   },
-  "blocked_packages": [],
+  "blocked_packages": ["psycopg-binary"],
   "blocked_versions": {}
 }
 ```
@@ -75,6 +82,16 @@ must be covered by explicit contract/audit checks, but they are not part of the
 `min_versions` all-surfaces requirement until the guard supports per-surface
 targeting.
 
+An unconditional source range may declare a stronger minimum than the schema
+floor. The guard checks that declared lower bound against the schema and checks
+that the range actually includes its own lower bound. Testing inclusion of the
+older schema floor would incorrectly reject a stronger source range. Exact
+compiled pins keep their existing minimum/version checks. Cryptography source
+carriers retain exactly one `>=` lower bound and `<` the schema's next major;
+the constraint carrier retains `>=` only. Duplicate carriers, extras, markers,
+direct URLs, excluded lower bounds and empty/noncanonical ranges fail closed.
+Evidence: `tests/test_dependency_security_guard.py:1272`.
+
 ### 2a. Preflight source availability before install
 
 Before full dependency install in CI, run fail-fast availability preflight through the same
@@ -100,7 +117,11 @@ the proxy is stale.
    Docker-runtime, CI-lite, and aggregate locks, update exactly those surfaces:
    ```bash
    export PULSEPLATE_PYTHON_INDEX_URL="https://packages.pulseplate.app/root/pulseplate/+simple/"
-   LOCK_PROFILES="runtime docker-runtime ci-lite aggregate" \
+   LOCK_PROFILES="runtime" \
+     UPGRADE_PACKAGES="package-name==fixed.version" \
+     make requirements-locks
+   # Commit the validated runtime result before its constrained profiles.
+   LOCK_PROFILES="docker-runtime ci-lite aggregate" \
      UPGRADE_PACKAGES="package-name==fixed.version" \
      make requirements-locks
    ```
@@ -144,7 +165,7 @@ pre-commit run --all-files
 
 ### Example 1: Minimum Version Floors (Click, Pillow, and cryptography)
 
-**Scenario:** current scanner findings require Click 8.3.3, cryptography 50.0.0,
+**Scenario:** current scanner findings require Click 8.3.3, cryptography 50.0.2,
 and Pillow 12.3.0.
 
 **Schema update:**
@@ -152,18 +173,18 @@ and Pillow 12.3.0.
 {
   "min_versions": {
     "click": "8.3.3",
-    "cryptography": "50.0.0",
+    "cryptography": "50.0.2",
     "pillow": "12.3.0"
   }
 }
 ```
 
 **Requirement updates:**
-- `requirements.in`: `click>=8.3.3,<9.0.0`, `cryptography>=50.0.0,<51.0.0`,
+- `requirements.in`: `click>=8.3.3,<9.0.0`, `cryptography>=50.0.2,<51.0.0`,
   and `pillow>=12.3.0,<13.0.0`
 - `requirements-dev.in`: `click>=8.3.3,<9.0.0`,
-  `cryptography>=50.0.0,<51.0.0`, and `pillow>=12.3.0,<13.0.0`
-- `constraints.txt`: `click==8.3.3`, `cryptography>=50.0.0`, and
+  `cryptography>=50.0.2,<51.0.0`, and `pillow>=12.3.0,<13.0.0`
+- `constraints.txt`: `click==8.3.3`, `cryptography>=50.0.2`, and
   `pillow==12.3.0`
 - Regenerate locks
 

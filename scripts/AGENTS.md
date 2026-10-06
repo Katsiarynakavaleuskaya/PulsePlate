@@ -92,6 +92,23 @@
 
 ## Native Docker image evidence
 
+- The exact Psycopg C source operation belongs to
+  `install_locked_python_requirements.py`; compiler and proxy-health consumers
+  delegate to that owner. Separate verified archive/binary acquisition from
+  actual backend execution in a Linux amd64 guest with kernel network isolation
+  and no registry credentials, host HOME, configuration, socket or secret mounts.
+  Dormant kernel interfaces require native DOWN flags and absence of external
+  addresses/routes; interface names alone grant no exception. Other packages
+  retain binary-only admission. Consume genuine matching SDK wheels, never
+  metadata-only resolver substitutes.
+- Container helper copies must preserve their `scripts/ci` repository depth and
+  adjacent imports. Exercise the real CLI and its operation parsing from the
+  actual copied layout before a build; command-text assertions alone cannot
+  detect import-time repository-root failures.
+- A native patch must change the expected source bytes before compilation.
+  Check its exact resulting file digest and the unchanged remainder of the
+  source inventory. A patch tool's successful exit alone is insufficient;
+  Git object IDs and whole-file SHA-256 digests are distinct representations.
 - `check_docker_runtime_dependency_surface.py --trivy-report` binds the finite
   native Trivy v2 image-report projection to the selected local Docker image.
   Trivy owns vulnerability decisions and JSON-to-SARIF conversion; report

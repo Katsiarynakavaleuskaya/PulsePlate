@@ -278,6 +278,49 @@ Operator routing baseline before PR2 workflow consolidation:
 - Release/image PR: inspect `Docker Build and Push` plus any publish lane that
   the PR explicitly changes.
 
+## Native Python client build and lock refresh
+
+Use the existing `Dockerfile` target `psycopg-sdk` for the exact supported
+Linux amd64 CPython family. The shared Python setup action chooses its matching
+immutable guest, exports the genuine wheel/native SDK and passes
+`PULSEPLATE_PSYCOPG_C_SDK` through the next-step environment. On an ARM host,
+an admitted local image proof must explicitly select `linux/amd64`; record
+emulation and keep resource-heavy compatibility evidence on native CI when
+available. Stop Docker Desktop after the owned build/observation block.
+
+During a frozen image-input block, stage every modified image input before an
+ordinary Git commit: native pre-commit temporarily stashes unstaged tracked
+changes. Check the actual unstaged path inventory before the hook. A generated
+baseline-only commit must wait until that owned block ends if it would leave
+modified image inputs unstaged. Matching hashes before and after a hook do not
+prove that the inputs remained unchanged throughout its execution.
+
+Keep binary/archive acquisition and actual backend execution separate.
+`install_locked_python_requirements.py --prefetch-only` produces an explicit
+new exact wheelhouse; `--consume-only` reads an existing validated wheelhouse
+and performs no proxy acquisition. The source operation has one reviewed
+archive/metadata transform and matching client SDK; other packages remain
+binary only. The kernel network boundary and clean guest mounts/environment
+must be real, independently observed properties, not an environment marker.
+
+Refresh runtime alone with `make requirements-locks`, collect its complete
+input/output/delta evidence, run the focused host gates and commit runtime.
+Only then refresh the constrained Docker-runtime, CI-lite, dev and aggregate
+profiles. A stronger source floor is valid when it exceeds the current schema
+floor and its canonical range contains its own declared minimum. Raise the
+live schema after all affected locks reach the selected target; never relax a
+guard or restore weaker intent bytes to pass hooks. Full local `make verify`
+retains the root human-authorization rule.
+
+Native image proof must exercise consumers under the final non-root user after
+pruning and retain loaded paths/hashes, embedded copies, CA/provider behavior
+and disposable-database compatibility. Version labels or scanner disappearance
+alone do not complete remediation. Retire the exact obsolete Rego rules only
+after the corresponding candidate production/staging evidence exists.
+Evidence: `scripts/ci/install_locked_python_requirements.py:70`,
+`scripts/ci/compile_locked_python_requirements.py:74`,
+`tests/test_dependency_security_guard.py:1272`.
+
 ## Nightly Docker and Trivy review-deadline forecast
 
 The independent `review-deadline-forecast` job in the existing main-only daily

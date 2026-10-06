@@ -400,7 +400,7 @@ targets, missing direct owners, and any unrelated version movement.
 
 ### Add or remove a dependency graph entry
 
-`GRAPH_CHANGE_PACKAGES` remains fail-closed except for two fixed alternatives
+`GRAPH_CHANGE_PACKAGES` remains fail-closed except for three fixed alternatives
 in the existing `python_dependency_graph_change_admissions.v1.json` carrier.
 The original `observability-refresh-2026-08-15` record admits only removal of
 `importlib-metadata` and `zipp` while upgrading the exact seven declared
@@ -429,6 +429,49 @@ line endings; semantic pin equivalence is insufficient. The recorded target
 was established by two byte-identical canonical TX1 runs in independent
 disposable detached worktrees. That bounded discovery did not mutate the lane
 locks and is not final replay, commit-binding, or merge evidence.
+
+The `dep-sec-oct2-psycopg-c-3.3.4` alternative owns only the reviewed Psycopg
+installation variant migration: parent version 3.3.4 stays fixed, `[binary]`
+becomes `[c]`, the binary leaf is removed and the genuine C leaf is added.
+Its fixed record binds the exact seeded locks and source bytes. It accepts only
+the Psycopg-only replay or the accepted combined Cryptography 50.0.2 intent;
+other package, version, extra, marker and URL transitions fail closed. Dev has
+Cryptography and no Psycopg parent or leaf. Historical records remain unchanged.
+
+This one source exception uses `install_locked_python_requirements.py` as its
+artifact/SDK owner. The original `psycopg_c-3.3.4.tar.gz` is accepted only at its
+reviewed digest and member inventory. The reproducible source adaptation changes
+only the Setuptools 80.3.1 build pin to 83.0.0. The verified binary build closure
+is Setuptools 83.0.0, Wheel 0.47.0 and Packaging 25.0. Source acquisition never
+invokes the backend. Actual backend builds require an isolated Linux amd64
+CPython 3.11, 3.12 or 3.13 guest with no usable external network or credentials,
+and matching real client headers, `pg_config`, libpq and shared OpenSSL.
+
+The Docker `psycopg-sdk` target exports the genuine matching wheel and input
+receipt. The compiler and installer consume it through
+`PULSEPLATE_PSYCOPG_C_SDK`; this is source/build provenance, not a private-index
+wheel or a metadata-only resolver artifact. All other dependencies stay binary
+only. `--prefetch-only --wheelhouse-dir <new-directory>` acquires the exact
+compiled binary inventory; `--consume-only --wheelhouse-dir <existing-directory>`
+performs no acquisition and retains the startup-hook guard.
+
+```bash
+# Run inside the matching admitted Linux compiler environment with a genuine SDK.
+LOCK_PROFILES="runtime" UPGRADE_PACKAGES="cryptography==50.0.2" \
+  GRAPH_CHANGE_PACKAGES="psycopg-binary psycopg-c" \
+  GRAPH_CHANGE_ADMISSION="dep-sec-oct2-psycopg-c-3.3.4" make requirements-locks
+# Validate and commit runtime before the constrained transaction.
+LOCK_PROFILES="docker-runtime ci-lite dev aggregate" \
+  UPGRADE_PACKAGES="cryptography==50.0.2" \
+  GRAPH_CHANGE_PACKAGES="psycopg-binary psycopg-c" \
+  GRAPH_CHANGE_ADMISSION="dep-sec-oct2-psycopg-c-3.3.4" make requirements-locks
+```
+
+Record the complete original-base per-intent resolver replay and delta separately;
+admission of this fixed relation is not executed solver closure or image proof.
+After all affected locks are generated, raise the live security schema floor.
+The ordinary source guard accepts a stronger canonical declared minimum without
+requiring the older schema floor itself to remain in that source range.
 Wrong order, subsets, permutations, combined/repeated invocations, additions,
 or stale baseline bytes fail before credentialed network access. Each invocation
 prepares and validates all of its candidates before replacement and retains the
