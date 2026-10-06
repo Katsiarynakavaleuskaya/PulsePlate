@@ -11,7 +11,7 @@ from pathlib import Path
 import shutil
 import signal
 import time
-from typing import Sequence
+from typing import NoReturn, Sequence
 
 EVENT_SECONDS = 900
 INTERVAL_SECONDS = 60
@@ -148,7 +148,7 @@ def notify(*, docker: str, compose_file: Path, environment: str) -> int:
 
 
 class _Parser(argparse.ArgumentParser):
-    def error(self, message: str) -> None:
+    def error(self, message: str) -> NoReturn:
         del message
         self.exit(2, ERROR + "\n")
 
