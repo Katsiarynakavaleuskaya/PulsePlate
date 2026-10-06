@@ -30,11 +30,6 @@ from app.services.bmi_compat import (
     add_visualization_if_requested,
     generate_bmi_visualization,
 )
-from core.db import get_session
-from core.i18n import Language, normalize_lang, t
-from core.targets import FIBER_MIN_G
-from app.utils.helpers import _short_git_sha as _short_git_sha
-from app.utils.feature_flags import _is_truthy
 
 # Preserve the declared lexical legacy surface while re-exporting the exact canonical object.
 app = cast(Any, _canonical_app)
@@ -48,14 +43,6 @@ _BMI_COMPAT_REEXPORTS = (
 _BMI_SCHEMA_COMPAT_REEXPORTS = (
     BMIRequest,
     BMIRequestV1,
-)
-
-_LEGACY_IMPORT_COMPAT_REEXPORTS = (
-    get_session,
-    Language,
-    normalize_lang,
-    _short_git_sha,
-    _is_truthy,
 )
 
 # Rate limiting imports (PR-628)
