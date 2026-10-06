@@ -399,12 +399,10 @@ def test_legacy_weekly_alias_returns_503_when_builder_is_unavailable(
 
 
 def test_legacy_weekly_plan_contracts_are_canonically_owned() -> None:
-    """legacy_app keeps import compatibility, while app modules own the contracts."""
+    """The canonical schema, router and service own the retained HTTP contracts."""
 
     import app.routers.legacy_premium_weekly_plan as weekly_plan_router
 
-    assert legacy_app.LegacyWeekPlanRequest is LegacyWeekPlanRequest
-    assert legacy_app.WeeklyMenuResponse is WeeklyMenuResponse
     assert weekly_plan_router.LegacyWeekPlanRequest is LegacyWeekPlanRequest
     assert weekly_plan_router.WeeklyMenuResponse is WeeklyMenuResponse
     assert weekly_plan_router.build_legacy_weekly_menu_response is (
