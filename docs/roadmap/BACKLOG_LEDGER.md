@@ -9390,6 +9390,35 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Implementation — separate PRs after backend/VIP stabilization
 
 
+<a id="ledger-p1-shared-runtime-admission-fail-fast"></a>
+
+- [ ] P1: Make shared-runtime admission fail-fast before dependent local probes and Oracle launches
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-SHARED-RUNTIME-ADMISSION-FAIL-FAST
+  - Status: OPEN; proposal-only learning follow-up from O1.
+  - Reason for deferral: O1 executed a preservation probe after a failed busy check
+    because its shell lacked fail-fast. The direct human v1.1 amendment accepts
+    that historical incident without retrospective PASS or future waiver.
+    Durable scripts instruction/process promotion exceeds this exact Legacy
+    retirement scope; subsequent dependent launches require successful admission.
+  - Links:
+    - [Implementation admission](../orchestration/workflow.md#admit-tracked-implementation)
+    - [Existing runner instruction owner](../../scripts/AGENTS.md#governed-experimentation-runner)
+    - [Legacy carryover and bounded retirement](../architecture/LEGACY_COMPATIBILITY_SEAM.md)
+    - Current substantive carrier: PR-TBD-LEGACY-RESIDUAL-PYTHON-EXPORT-RETIREMENT
+  - DoD:
+    - Promote reviewed minimal guidance at the existing scripts instruction owner,
+      with no parallel authority schema or automatic execution framework.
+    - Preserve the raw failure and prove busy/nonzero admission stops before any
+      dependent probe/Oracle launch using a bounded deterministic negative control
+      and a successful-path control.
+    - Keep foreign processes, containers, caches, and worktrees untouched;
+      introduce no automatic stop/restart/fallback authority.
+    - Record proposal-only `repeat_failure_reduction` for the next comparable PR;
+      do not claim measured benefit, retrospective PASS, product/runtime,
+      semantic-cache, or graph-truth effects.
+
 - [ ] P2: Complete legacy_app.py migration (delete legacy endpoints)
   - Project: `PROJECT_LEGACY` (open)
   - Owner: @katsiaryna_kavaleuskaya
@@ -9464,21 +9493,54 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     merged on 2026-09-30T10:35:36Z with squash
     `6e09f4ea8cc33e8389d99075b6f6a0d10f1b725e`; its canonical TargetsIn
     malformed-Mapping/overflow correction and regressions remain unchanged.
-    The current child
-    [PR #2466](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2466)
-    (`codex/retire-legacy-planning-schema-exports`) retires exactly four
-    planning-schema Python exports and extends
-    the independent finite inventory from 87 to 91. Its three canonical models,
-    retained HTTP/auth/OpenAPI contracts and app identity remain required.
-    This child does not adopt the separately owned recognizer fixes in
-    PR #2433–#2436 or the CD/PostgreSQL remediation in PR #2455. The direct
-    owner red-main start exception is limited to that separate CD/PG failure
-    and waives none of this child's validation or review requirements.
-    Post-merge repository receipts must be carried by the first following
-    substantive Legacy child,
-    `PR-TBD-LEGACY-RESIDUAL-PYTHON-EXPORT-RETIREMENT`, replacing that pointer
-    with its real PR number after a separate fresh cohort admission. No
-    standalone docs-only closeout PR or additional retirement is authorized.
+    Completed child [PR #2466](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2466)
+    (`codex/retire-legacy-planning-schema-exports`) merged on
+    2026-10-06T10:47:48Z from approved final head
+    `96a73949f107ac77ddb507e47520da925e74efda`, with squash
+    `0b4afbf32a6d1d177c7d4f2e3abb0f9be08b1d1a`. Status: CLOSED for this
+    completed planning-schema child only. It retired exactly four Python paths,
+    preserving the original 87 plus four inventory of 91, three canonical models,
+    the #2457 malformed-Mapping/overflow/HTTP 422 regressions, retained
+    HTTP/auth/OpenAPI contracts, and app identity. The directly approved 18-path
+    concurrency repair remains inherited and supplies no new scope authority.
+    Historical R29 remains PARTIAL / UNWAIVED, never retrospective execution.
+    Merged-main sanity records clean squash main, 0 ahead / 0 behind, full-tree
+    equality to approved R4, and eight-family focused sanity exit 0.
+    [Main CI 37452144570](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/37452144570)
+    finished SUCCESS (14 successful jobs / 12 intentional conditional skips /
+    0 failures / 0 cancellations; Python 3.11 / 3.12 / 3.13 total coverage
+    97.63% / 97.66% / 97.65%, raw log lines 1857 / 2012 / 1972).
+    [CD 37452144603](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/37452144603)
+    finished SUCCESS with production jobs intentionally SKIPPED; no deployment
+    or global health claim follows. No own-caused R39 fallout was observed in
+    these boundaries. Separate dependency-updater `unexpected_external_code`
+    and undici `security_update_not_possible` diagnostics keep their owners.
+    The verified archive folder is
+    [1ndorbw9PcjdFOjG2wFpyqZQP0Ztlgvk2](https://drive.google.com/drive/folders/1ndorbw9PcjdFOjG2wFpyqZQP0Ztlgvk2).
+    The final outcome/continuity package `1pD8CAhQP3boW0Zbpc5154ppnuaRhzGNr`
+    contains 46,175 bytes, SHA-256
+    `4edbea75bb408dff3f79bb66a1cf339ae68655f0cf8d93317818b459851fdb12`,
+    with 12 regular members / 11 manifest members. Its historical native receipt
+    at 2026-10-06T12:34:00.166117Z records download/upload and complete extracted
+    byte/hash equality, preserving final QA and terminal continuity.
+    Exact bundle, implementation archive, terminal supplement identities/hashes,
+    native restoration and downloaded/extracted equivalence, private preservation,
+    and actual owned M/T7 branch/worktree/temporary-resource cleanup are recorded
+    in [the existing seam](../architecture/LEGACY_COMPATIBILITY_SEAM.md#planning-schema-python-export-retirement).
+    Foreign worktrees/caches remain untouched; no global prune occurred.
+    Carryover receipts land in the current substantive utility child,
+    `PR-TBD-LEGACY-RESIDUAL-PYTHON-EXPORT-RETIREMENT`
+    (`codex/retire-legacy-core-utility-exports`), whose actual number remains
+    pending publication. This prospective child removes only seven canonical
+    utility re-exports plus the facade-only tuple, extending 91 to 99 while
+    preserving canonical owners and HTTP/OpenAPI/app identity. Its own gates,
+    review, merge, archive, same-ID continuity, and cleanup remain pending.
+    After this utility child's actual separately approved merge and verified
+    post-merge/archive/final same-ID continuity, its exact outgoing repository
+    receipt delta must be carried in the first next substantive Legacy child
+    after fresh admission. The utility merge SHA/timestamp remain unobserved;
+    future carrier identity and cohort require their own admission.
+    No standalone docs-only closeout PR or additional retirement is authorized.
     `PROJECT_LEGACY` stays open: telemetry-admitted versioned aliases, retained Insight HTTP aliases,
     root-alias auth/sunset, and final facade deletion remain separate lanes.
   - Reason: After all critical security fixes and endpoint migrations complete, eventually delete `legacy_app.py` entirely. Legacy business and route logic should move to its canonical owners: modular routers (`app/routers/*`), services (`app/services/*`), bootstrap modules (`app/bootstrap/*`), or core modules (`core/*`) according to responsibility. The current train has extracted lifecycle ownership and now cuts canonical `app/*` dependencies on legacy compatibility symbols before app-factory/OpenAPI ownership inversion and final facade removal.
