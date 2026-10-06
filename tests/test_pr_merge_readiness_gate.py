@@ -3733,7 +3733,7 @@ def test_merge_readiness_executes_exact_base_policy_over_separate_head_material(
         "ios-tests",
         "ios-ui-smoke",
     ]
-    assert job["if"] == "${{ always() && github.event_name == 'pull_request' }}"
+    assert job["if"] == "${{ !cancelled() && github.event_name == 'pull_request' }}"
     assert job["timeout-minutes"] == 15
     assert job["permissions"] == {
         "actions": "read",

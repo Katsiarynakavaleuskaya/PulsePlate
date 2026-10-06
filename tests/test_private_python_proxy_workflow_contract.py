@@ -314,7 +314,7 @@ def test_proxy_dependent_jobs_fail_before_work_on_invalid_needs(job_name: str) -
     gate_env = {key: value for gate in gate_steps for key, value in gate["env"].items()}
     gate_script = "\n".join(gate["run"] for gate in gate_steps)
     if len(needs) > 1:
-        assert "always()" in str(job["if"])
+        assert "!cancelled()" in str(job["if"])
     if "changes" in needs and job_name not in {"merge_readiness_gate", "test-main"}:
         assert "needs.changes.result != 'success'" in str(job["if"])
 

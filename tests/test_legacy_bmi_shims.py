@@ -114,6 +114,10 @@ RETIRED_LEGACY_PYTHON_BINDINGS = {
     "get_retention_manager",
     "LogRetentionManager",
     "_log_retention_manager",
+    "TargetsIn",
+    "CanonicalTargetsIn",
+    "LegacyWeekPlanRequest",
+    "WeeklyMenuResponse",
 }
 
 RETIRED_PLATE_HELPER_BINDINGS = (
@@ -251,6 +255,8 @@ def test_retired_legacy_python_bindings_are_absent_with_canonical_owners_present
     import app.schemas.bmr as bmr_schemas
     import app.bootstrap.openapi as canonical_openapi
     import app.schemas.insight as insight_schemas
+    import app.schemas.legacy_premium_weekly_plan as planning_schemas
+    import app.schemas.nutrition_targets as planning_targets
     import app.schemas.premium_contracts as premium_contracts
     import app.services.admin_operations as admin_operations
     import app.services.bmi_compat as bmi_compat
@@ -355,6 +361,10 @@ def test_retired_legacy_python_bindings_are_absent_with_canonical_owners_present
         "get_retention_manager": log_retention.get_retention_manager,
         "LogRetentionManager": log_retention.LogRetentionManager,
         "_log_retention_manager": None,
+        "TargetsIn": planning_targets.TargetsIn,
+        "CanonicalTargetsIn": planning_targets.TargetsIn,
+        "LegacyWeekPlanRequest": planning_schemas.LegacyWeekPlanRequest,
+        "WeeklyMenuResponse": planning_schemas.WeeklyMenuResponse,
     }
     canonical_constants = {
         "DB_TO_ALIAS_NUTRIENT_MAP": plate_service.DB_TO_ALIAS_NUTRIENT_MAP,
@@ -374,7 +384,25 @@ def test_retired_legacy_python_bindings_are_absent_with_canonical_owners_present
 
     assert canonical_migrations.keys() == RETIRED_LEGACY_PYTHON_BINDINGS
     assert RETIRED_LEGACY_PYTHON_BINDINGS == legacy_guard.RETIRED_LEGACY_PYTHON_BINDINGS
-    assert len(RETIRED_LEGACY_PYTHON_BINDINGS) == 87
+    assert len(RETIRED_LEGACY_PYTHON_BINDINGS) == 91
+    assert canonical_migrations["TargetsIn"] is canonical_migrations["CanonicalTargetsIn"]
+    assert (
+        len(
+            {
+                canonical_migrations[name]
+                for name in (
+                    "TargetsIn",
+                    "CanonicalTargetsIn",
+                    "LegacyWeekPlanRequest",
+                    "WeeklyMenuResponse",
+                )
+            }
+        )
+        == 3
+    )
+    assert planning_targets.TargetsIn.__module__ == planning_targets.__name__
+    assert planning_schemas.LegacyWeekPlanRequest.__module__ == planning_schemas.__name__
+    assert planning_schemas.WeeklyMenuResponse.__module__ == planning_schemas.__name__
     assert RETIRED_OPENAPI_BINDINGS == tuple(
         name for name in canonical_migrations if name in RETIRED_OPENAPI_BINDINGS
     )
@@ -507,7 +535,21 @@ def test_canonical_nutrition_contracts_remain_importable_in_fresh_process() -> N
     }
 
 
-def test_retired_legacy_python_bindings_fail_closed_in_a_fresh_process() -> None:
+@pytest.mark.parametrize(
+    "import_sequence",
+    (
+        "import legacy_app\n"
+        "import app.schemas.nutrition_targets as planning_targets\n"
+        "import app.schemas.legacy_premium_weekly_plan as planning_schemas\n",
+        "import app.schemas.nutrition_targets as planning_targets\n"
+        "import app.schemas.legacy_premium_weekly_plan as planning_schemas\n"
+        "import legacy_app\n",
+    ),
+    ids=("legacy-first", "canonical-first"),
+)
+def test_retired_legacy_python_bindings_fail_closed_in_a_fresh_process(
+    import_sequence: str,
+) -> None:
     """Prove fresh-import retirement and canonical helper availability."""
     retired_bindings = tuple(sorted(RETIRED_LEGACY_PYTHON_BINDINGS))
     import_failure_checks = "\n".join(textwrap.dedent(f"""
@@ -518,9 +560,8 @@ def test_retired_legacy_python_bindings_fail_closed_in_a_fresh_process() -> None
             else:
                 raise AssertionError("legacy from-import remains: {binding_name}")
             """) for binding_name in retired_bindings)
-    scenario = textwrap.dedent(f"""
+    scenario = import_sequence + textwrap.dedent(f"""
         import json
-        import legacy_app
         import app as app_facade
         import app.bootstrap.openapi as canonical_openapi
         import app.services.pro_nutrition_plate as plate_service
@@ -538,6 +579,17 @@ def test_retired_legacy_python_bindings_fail_closed_in_a_fresh_process() -> None
             "analyze_nutrient_gaps_response",
         )
         assert set(retired).isdisjoint(vars(legacy_app))
+        planning_migrations = {{
+            "TargetsIn": planning_targets.TargetsIn,
+            "CanonicalTargetsIn": planning_targets.TargetsIn,
+            "LegacyWeekPlanRequest": planning_schemas.LegacyWeekPlanRequest,
+            "WeeklyMenuResponse": planning_schemas.WeeklyMenuResponse,
+        }}
+        assert planning_migrations["TargetsIn"] is planning_migrations["CanonicalTargetsIn"]
+        assert len(set(planning_migrations.values())) == 3
+        assert planning_targets.TargetsIn.__module__ == planning_targets.__name__
+        assert planning_schemas.LegacyWeekPlanRequest.__module__ == planning_schemas.__name__
+        assert planning_schemas.WeeklyMenuResponse.__module__ == planning_schemas.__name__
         assert app_facade._macros_to_kcal is plate_service._macros_to_kcal
         assert log_retention.DataClass.__module__ == log_retention.__name__
         assert log_retention.LogRetentionManager.__module__ == log_retention.__name__

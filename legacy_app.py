@@ -21,14 +21,6 @@ from app.routers.api_key import (  # noqa: F401 - identity-preserving compatibil
     get_api_key as get_api_key,
 )
 from app.schemas.bmi_compat import BMIRequest, BMIRequestV1
-from app.schemas.nutrition_targets import TargetsIn as CanonicalTargetsIn
-
-# LegacyWeekPlanRequest is a compat re-export contract asserted by
-# tests/test_legacy_weekly_plan_alias_api.py; WeeklyMenuResponse is also used below.
-from app.schemas.legacy_premium_weekly_plan import (  # noqa: F401
-    LegacyWeekPlanRequest,
-    WeeklyMenuResponse,
-)
 from app.services.scheduler_access import (  # noqa: F401 - compatibility re-export
     get_update_scheduler as get_update_scheduler,
 )
@@ -65,9 +57,6 @@ _LEGACY_IMPORT_COMPAT_REEXPORTS = (
     _short_git_sha,
     _is_truthy,
 )
-
-# PR-633: thin alias to canonical import-safe schema (no local validation).
-TargetsIn = CanonicalTargetsIn
 
 # Rate limiting imports (PR-628)
 # RU: Импорты для rate-limiting (медленные imports только если slowapi доступен).
@@ -151,15 +140,6 @@ _api_description = _application_metadata.description
 
 
 # ---------- Core logic ----------
-
-
-# WHO-Based Nutrition Models
-#
-# NOTE (PR-633): `TargetsIn` is canonical in `app.schemas.nutrition_targets` (import-safe).
-# Legacy endpoints must not define a second validation path to avoid drift.
-#
-# NOTE: Legacy weekly-plan contracts are now owned by
-# `app.schemas.legacy_premium_weekly_plan`; `legacy_app` only re-exports them.
 
 
 # Bodyfat, BMI, and BMI Pro route registration is owned by app.main canonical bootstrap.
