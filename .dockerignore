@@ -60,3 +60,10 @@
 
 !build/docker-sources/pcre2-10.49.tar.gz
 !build/docker-sources/sljit-de0259c7aaf36aa40cba8014f3fad3edde9307f9.tar.gz
+
+!scripts/ci/check_private_python_proxy_health.py
+!build/docker-sources/zlib-1.3.2.tar.gz
+!build/docker-sources/ncurses-6.6.tar.gz
+!build/docker-sources/openssl-3.5.9.tar.gz
+!build/docker-sources/postgresql-18.6.tar.gz
+!build/docker-sources/zlib-gzwrite-fix-df84af25dc1942490e1d1c899a07619152a46148.patch

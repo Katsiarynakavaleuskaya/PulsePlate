@@ -37,6 +37,39 @@ def job_uses_python_setup(job: dict[str, Any]) -> bool:
     )
 
 
+def test_shared_setup_builds_only_the_exact_isolated_client_sdk() -> None:
+    action = yaml.safe_load((REPO_ROOT / ".github/actions/python-setup/action.yml").read_text())
+    steps = action["runs"]["steps"]
+    sdk = next(step for step in steps if step.get("name") == "Build exact Psycopg C client SDK")
+    assert sdk["if"] == "${{ inputs.skip-base-install != 'true' }}"
+    script = sdk["run"]
+    assert "--platform linux/amd64 --target psycopg-sdk" in script
+    assert "PSYCOPG_SDK_PYTHON_IMAGE=$sdk_image" in script
+    for digest in (
+        "9fd63080" "3ec34469" "20ed6b64" "d20150bd" "724c1751" "e7181729" "3a423052" "2c1a384a",
+        "a594f7e9" "df8a4c43" "1265125b" "5f5d90cd" "1b81c8a8" "797fefee" "69d5b354" "4be11111",
+        "7a6b87c0" "2e1f4d6b" "b572e379" "235cbbdd" "7892add0" "572442c9" "b0b860a3" "f5aa9857",
+    ):
+        assert "python@sha256:" + digest in script
+    assert "uname -s" in script and "uname -m" in script
+    assert 'test ! -e "$sdk_root"' in script
+    assert "--secret id=pp_py_index,env=PULSEPLATE_PYTHON_INDEX_URL" in script
+    assert "id=pp_netrc,src=$HOME/.netrc" in script
+    assert "PULSEPLATE_PSYCOPG_C_SDK=$sdk_root/psycopg-sdk" in script
+    assert '>> "$GITHUB_ENV"' in script
+    names = [step.get("name") for step in steps]
+    assert names.index("Configure private Python index authentication") < names.index(sdk["name"])
+    assert names.index(sdk["name"]) < names.index("Install base dependencies")
+    dockerfile = (REPO_ROOT / "Dockerfile").read_text()
+    builder = dockerfile.split("FROM native-builder AS psycopg-wheel-builder", 1)[1].split(
+        "FROM scratch AS psycopg-sdk", 1
+    )[0]
+    assert "RUN --network=none /usr/bin/env -i" in builder
+    assert "--build-psycopg-c" in builder
+    assert "--mount=type=secret" not in builder
+    assert "DEVPI_CI_PASSWORD" not in builder and "GH_TOKEN" not in builder
+
+
 def test_private_proxy_health_job_is_stdlib_fail_fast_gate() -> None:
     workflow = load_ci_workflow()
     jobs = workflow["jobs"]

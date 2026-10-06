@@ -132,7 +132,10 @@ def _validate_output(raw: bytes, finding: dict[str, object], expected_count: int
     vulnerabilities = row.get("Vulnerabilities", [])
     if not isinstance(vulnerabilities, list) or len(vulnerabilities) != expected_count:
         raise ValueError("Native Trivy returned an unexpected finding count")
-    if expected_count == 1 and vulnerabilities != [finding]:
+    expected_finding = dict(finding)
+    if expected_finding.get("FixedVersion") in (None, ""):
+        expected_finding.pop("FixedVersion", None)
+    if expected_count == 1 and vulnerabilities != [expected_finding]:
         raise ValueError("Native Trivy returned a different finding identity")
 
 

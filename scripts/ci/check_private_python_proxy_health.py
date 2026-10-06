@@ -893,6 +893,43 @@ def probe_project(
                 status=status,
                 bytes_read=len(body),
             )
+        if normalized_project == "psycopg-c" and expected_version == "3.3.4":
+            if __package__:
+                from scripts.ci.install_locked_python_requirements import (
+                    admitted_psycopg_source_url,
+                )
+            else:
+                from install_locked_python_requirements import admitted_psycopg_source_url
+
+            targets = normalize_target_python_versions(target_python_versions)
+            try:
+                if not set(targets) <= {"cp311", "cp312", "cp313"}:
+                    raise RuntimeError("unsupported interpreter for the exact source operation")
+                if len(body) > max_bytes:
+                    raise RuntimeError("truncated source project page")
+                admitted_psycopg_source_url(body=body, project_url=url)
+            except (RuntimeError, ValueError):
+                return ProbeResult(
+                    project=project,
+                    normalized_project=normalized_project,
+                    project_url=url,
+                    expected_version=expected_version,
+                    ok=False,
+                    reason="exact_source_admission_failed",
+                    status=status,
+                    bytes_read=len(body),
+                )
+            return ProbeResult(
+                project=project,
+                normalized_project=normalized_project,
+                project_url=url,
+                expected_version=expected_version,
+                ok=True,
+                reason="ok_exact_source_build_required",
+                status=status,
+                bytes_read=len(body),
+                detail="The exact reviewed archive is available; genuine matching SDK build remains required.",
+            )
         exact_wheels = exact_pin_wheel_filenames(
             body=body,
             normalized_project=normalized_project,

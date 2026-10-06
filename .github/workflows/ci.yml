@@ -686,6 +686,7 @@ jobs:
             --python-version 3.13 \
             --project aiosqlite \
             --project cryptography \
+            --project psycopg-c \
             --project requests \
             --project pytest-xdist \
             --project hypothesis \

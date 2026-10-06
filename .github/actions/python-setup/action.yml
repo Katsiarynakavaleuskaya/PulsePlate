@@ -100,6 +100,47 @@ runs:
           password ${DEVPI_CI_PASSWORD}
         EOF
 
+    - name: Build exact Psycopg C client SDK
+      if: ${{ inputs.skip-base-install != 'true' }}
+      shell: bash
+      run: |
+        set -euo pipefail
+        : "${RUNNER_TEMP:?RUNNER_TEMP is required for the isolated SDK output.}"
+        : "${PULSEPLATE_PYTHON_INDEX_URL:?Set the approved private Python proxy.}"
+        sdk_python="$(python -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')"
+        case "$sdk_python" in
+          3.11) sdk_image='python@sha256:9fd630803ec3446920ed6b64d20150bd724c1751e71817293a4230522c1a384a' ;;
+          3.12) sdk_image='python@sha256:a594f7e9df8a4c431265125b5f5d90cd1b81c8a8797fefee69d5b3544be11111' ;;
+          3.13) sdk_image='python@sha256:7a6b87c02e1f4d6bb572e379235cbbdd7892add0572442c9b0b860a3f5aa9857' ;;
+          *) echo "::error::This source-build operation supports CPython 3.11-3.13 only."; exit 1 ;;
+        esac
+        if [[ "$(uname -s)" != Linux || "$(uname -m)" != x86_64 ]]; then
+          echo "::error::The genuine Psycopg C SDK operation requires Linux amd64."
+          exit 1
+        fi
+        sdk_root="$RUNNER_TEMP/pulseplate-psycopg-sdk-$sdk_python"
+        test ! -e "$sdk_root"
+        python "$GITHUB_WORKSPACE/scripts/ci/fetch_docker_source_artifacts.py" \
+          --manifest "$GITHUB_WORKSPACE/scripts/ci/docker_source_artifacts.json" \
+          --output-dir "$GITHUB_WORKSPACE/build/docker-sources"
+        sdk_args=(--platform linux/amd64 --target psycopg-sdk)
+        sdk_args+=(--build-arg "PSYCOPG_SDK_PYTHON_IMAGE=$sdk_image")
+        sdk_args+=(--secret id=pp_py_index,env=PULSEPLATE_PYTHON_INDEX_URL)
+        if [[ -f "$HOME/.netrc" ]]; then
+          sdk_args+=(--secret "id=pp_netrc,src=$HOME/.netrc")
+        fi
+        docker buildx build "${sdk_args[@]}" \
+          --file "$GITHUB_WORKSPACE/Dockerfile" \
+          --output "type=local,dest=$sdk_root" "$GITHUB_WORKSPACE"
+        sudo cp -a "$sdk_root/usr/local/lib/." /usr/local/lib/
+        sudo cp -a "$sdk_root/usr/local/include/." /usr/local/include/
+        sudo cp -a "$sdk_root/usr/local/bin/." /usr/local/bin/
+        sudo cp -a "$sdk_root/usr/local/share/terminfo/." /usr/local/share/terminfo/
+        sudo ldconfig
+        python "$GITHUB_WORKSPACE/scripts/ci/install_locked_python_requirements.py" \
+          --preflight-only --index-url "$PULSEPLATE_PYTHON_INDEX_URL"
+        echo "PULSEPLATE_PSYCOPG_C_SDK=$sdk_root/psycopg-sdk" >> "$GITHUB_ENV"
+
     - name: Install base dependencies
       if: ${{ inputs.skip-base-install != 'true' }}
       shell: bash

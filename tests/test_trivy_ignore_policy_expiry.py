@@ -664,7 +664,59 @@ def _native_report_output(finding: dict[str, object], count: int) -> bytes:
     report = json.loads(native_policy._report_bytes(finding))
     if count == 0:
         del report["Results"][0]["Vulnerabilities"]
+    elif finding.get("FixedVersion") in (None, ""):
+        report["Results"][0]["Vulnerabilities"][0].pop("FixedVersion", None)
     return json.dumps(report).encode()
+
+
+def test_exact_terminal_policy_is_expiry_free_at_current_and_forecast(tmp_path: Path) -> None:
+    policy = tmp_path / "terminal.rego"
+    policy.write_bytes(b"package trivy\n\nimport rego.v1\n\ndefault ignore := false\n")
+    for today in (date(2026, 10, 21), date(2026, 10, 25), date(2027, 1, 1)):
+        assert evaluate_policy_file(policy, today=today) == []
+
+
+@pytest.mark.parametrize(
+    "body",
+    (
+        b"default ignore := false\n",
+        b"package trivy\n\ndefault ignore := false\n",
+        b"package trivy\n\nimport rego.v1\n\ndefault ignore := false\n# extra\n",
+        b"package trivy\n\nimport rego.v1\n\ndefault ignore := false\nother := true\n",
+        b"package trivy\n\nimport rego.v1\n\ndefault ignore := false\nignore if { true }\n",
+        b"package trivy\r\n\r\nimport rego.v1\r\n\r\ndefault ignore := false\r\n",
+        b"\xff",
+    ),
+)
+def test_partial_or_extra_policy_has_no_terminal_exemption(tmp_path: Path, body: bytes) -> None:
+    policy = tmp_path / "policy.rego"
+    policy.write_bytes(body)
+    assert evaluate_policy_file(policy, today=date(2026, 10, 6))
+
+
+def test_terminal_text_cannot_replace_missing_or_unreadable_policy(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    canonical = "package trivy\n\nimport rego.v1\n\ndefault ignore := false\n"
+    policy = tmp_path / "missing.rego"
+    assert evaluate_policy_file(policy, today=date(2026, 10, 6), text=canonical)
+    policy.write_text(canonical)
+
+    def unreadable(path: Path) -> bytes:
+        raise PermissionError("unreadable policy")
+
+    monkeypatch.setattr(Path, "read_bytes", unreadable)
+    assert evaluate_policy_file(policy, today=date(2026, 10, 6), text=canonical)
+
+
+@pytest.mark.parametrize("fixed", (None, ""))
+def test_native_retained_finding_uses_real_fixedversion_omission(fixed: object) -> None:
+    finding = {**native_policy._cases()[0][1], "FixedVersion": fixed}
+    native_policy._validate_output(_native_report_output(finding, 1), finding, 1)
+    raw = json.loads(_native_report_output(finding, 1))
+    raw["Results"][0]["Vulnerabilities"][0]["PkgID"] = "different@0"
+    with pytest.raises(ValueError, match="different finding identity"):
+        native_policy._validate_output(json.dumps(raw).encode(), finding, 1)
 
 
 def test_native_trivy_case_inventory_is_exact_and_bounded() -> None:
@@ -1051,18 +1103,16 @@ def test_rego_os_read_error_returns_stable_failure(
     policy_path = tmp_path / "trivy" / "ignore-policy.rego"
     policy_path.parent.mkdir()
     policy_path.write_text("package trivy\n", encoding="utf-8")
-    original_read_text = Path.read_text
+    original_read_bytes = Path.read_bytes
 
     def deny_policy_read(
         path: Path,
-        encoding: str | None = None,
-        errors: str | None = None,
-    ) -> str:
+    ) -> bytes:
         if path == policy_path:
             raise PermissionError("test denial")
-        return original_read_text(path, encoding=encoding, errors=errors)
+        return original_read_bytes(path)
 
-    monkeypatch.setattr(Path, "read_text", deny_policy_read)
+    monkeypatch.setattr(Path, "read_bytes", deny_policy_read)
 
     assert evaluate_policy_file(policy_path, today=date(2026, 7, 27)) == [
         f"Unable to read Trivy ignore policy {policy_path}: test denial"
@@ -1104,23 +1154,21 @@ def test_trivy_main_reuses_one_rego_snapshot(
 ) -> None:
     _write_expiry_wrapper_policy(tmp_path)
     policy_path = tmp_path / "trivy" / "ignore-policy.rego"
-    original_read_text = Path.read_text
+    original_read_bytes = Path.read_bytes
     read_count = 0
 
     def read_policy_once(
         path: Path,
-        encoding: str | None = None,
-        errors: str | None = None,
-    ) -> str:
+    ) -> bytes:
         nonlocal read_count
         if path == policy_path:
             read_count += 1
             if read_count > 1:
                 raise PermissionError("second read must not occur")
-        return original_read_text(path, encoding=encoding, errors=errors)
+        return original_read_bytes(path)
 
     monkeypatch.delenv("TRIVY_IGNORE_POLICY_PATH", raising=False)
-    monkeypatch.setattr(Path, "read_text", read_policy_once)
+    monkeypatch.setattr(Path, "read_bytes", read_policy_once)
     monkeypatch.setattr(expiry_guard, "REPO_ROOT", tmp_path)
 
     assert expiry_guard.main() == 0

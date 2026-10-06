@@ -1282,8 +1282,16 @@ def _validate_live_cryptography_intent_carrier(
         pytest.fail(f"{surface.name}: cryptography I_R must not declare extras")
     if requirement.url is not None:
         pytest.fail(f"{surface.name}: cryptography I_R must not use a direct URL")
+    if requirement.marker is not None:
+        pytest.fail(f"{surface.name}: cryptography I_R must not use a marker")
 
-    expected_specifiers = {(">=", required_min)}
+    declared = _min_version_for_pkg(requirement, "cryptography", pinned=False)
+    if declared is None or Version(declared) < required_min:
+        pytest.fail(f"{surface.name}: cryptography I_R must declare at least the schema minimum")
+    declared_min = Version(declared)
+    if not requirement.specifier.contains(str(declared_min), prereleases=True):
+        pytest.fail(f"{surface.name}: cryptography I_R excludes its declared minimum")
+    expected_specifiers = {(">=", declared_min)}
     if surface.name != "constraints.txt":
         expected_specifiers.add(("<", Version(f"{required_min.major + 1}.0.0")))
     specifiers = tuple(requirement.specifier)
@@ -1334,8 +1342,11 @@ def test_dependency_security_guard_enforces_min_versions(surface: Path) -> None:
                     f"{surface.name}: {pkg} security-floor requirement must be unconditional; "
                     f"marker {requirement.marker!s} is not allowed."
                 )
-            version_to_check = required_min
-            version_label = "required safe floor"
+            declared = _min_version_for_pkg(requirement, pkg, pinned=False)
+            if declared is None:
+                pytest.fail(f"{surface.name}: {pkg} source carrier has no declared safe floor.")
+            version_to_check = Version(declared)
+            version_label = "declared safe floor"
             if pinned:
                 specifiers = tuple(requirement.specifier)
                 if len(specifiers) != 1 or specifiers[0].operator != "==":
@@ -1356,6 +1367,46 @@ def test_dependency_security_guard_enforces_min_versions(surface: Path) -> None:
             surface,
             carriers.get("cryptography", ()),
             Version(str(min_versions["cryptography"])),
+        )
+
+
+def test_live_source_floor_accepts_a_stronger_canonical_minimum(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    schema = _load_schema(SCHEMA_PATH)
+    schema["min_versions"] = {**schema["min_versions"], "cryptography": "50.0.0"}
+    monkeypatch.setattr(f"{__name__}._load_schema", lambda path: schema)
+    surface = tmp_path / "requirements.in"
+    rows = []
+    for package, version in schema["min_versions"].items():
+        if package == "cryptography":
+            rows.append("cryptography>=50.0.2,<51.0.0")
+        else:
+            rows.append(f"{package}>={version}")
+    surface.write_text("\n".join(rows) + "\n", encoding="utf-8")
+    test_dependency_security_guard_enforces_min_versions(surface)
+    _validate_live_cryptography_intent_carrier(
+        tmp_path / "constraints.txt", (Requirement("cryptography>=50.0.2"),), Version("50.0.0")
+    )
+
+
+@pytest.mark.parametrize(
+    "text",
+    (
+        "cryptography>=49.0.0,<51.0.0",
+        "cryptography>=50.0.2,<50.0.2",
+        "cryptography>=51.0.0,<51.0.0",
+        "cryptography>=50.0.2,!=50.0.2,<51.0.0",
+        "cryptography>=50.0.2,>=50.0.3,<51.0.0",
+        "cryptography==50.0.2",
+        "cryptography[extra]>=50.0.2,<51.0.0",
+        'cryptography>=50.0.2,<51.0.0; python_version>"3.10"',
+    ),
+)
+def test_live_source_floor_rejects_weaker_excluded_or_noncanonical_ranges(text: str) -> None:
+    with pytest.raises(pytest.fail.Exception):
+        _validate_live_cryptography_intent_carrier(
+            Path("requirements.in"), (Requirement(text),), Version("50.0.0")
         )
 
 
@@ -1399,7 +1450,7 @@ def test_dependency_security_guard_rejects_former_cryptography_floor(
         pytest.fail.Exception,
         match=(
             r"requirements\.txt: cryptography has 48\.0\.1, but minimum safe "
-            r"version is 50\.0\.0"
+            rf"version is {re.escape(str(schema['min_versions']['cryptography']))}"
         ),
     ):
         test_dependency_security_guard_enforces_min_versions(former_surface)
@@ -1410,7 +1461,7 @@ def test_dependency_security_guard_rejects_former_cryptography_floor(
     [
         (
             ("cryptography>=50.0.0,!=50.0.0,<51.0.0",),
-            r"cryptography requirement .* excludes required safe floor 50\.0\.0",
+            r"cryptography requirement .* excludes declared safe floor 50\.0\.0",
         ),
         (
             ('cryptography>=50.0.0; python_version < "0"',),
@@ -1447,12 +1498,15 @@ def test_dependency_security_guard_rejects_former_cryptography_floor(
 )
 def test_dependency_security_guard_rejects_noncanonical_live_floor_carrier(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
     cryptography_carriers: tuple[str, ...],
     expected_error: str,
 ) -> None:
     """The live all-surfaces path validates the complete floor carrier."""
 
     schema = _load_schema(SCHEMA_PATH)
+    schema["min_versions"] = {**schema["min_versions"], "cryptography": "50.0.0"}
+    monkeypatch.setattr(f"{__name__}._load_schema", lambda path: schema)
     source_surface = tmp_path / "requirements.in"
     source_surface.write_text(
         "\n".join(

@@ -17,6 +17,135 @@ ARG SQLITE_AUTOCONF_SHA3_256_PART_6="bed2bd81"
 ARG SQLITE_AUTOCONF_SHA3_256_PART_7="d47e98ba"
 ARG SQLITE_AUTOCONF_SHA3_256_PART_8="1b72983b"
 
+# Exact Linux/amd64 SDK interpreter family; runtime Python keeps its existing pin.
+ARG PSYCOPG_SDK_PYTHON_IMAGE="python@sha256:7a6b87c02e1f4d6bb572e379235cbbdd7892add0572442c9b0b860a3f5aa9857"
+
+FROM ${PSYCOPG_SDK_PYTHON_IMAGE} AS native-builder
+ARG PSYCOPG_SDK_PYTHON_IMAGE
+RUN case "${PSYCOPG_SDK_PYTHON_IMAGE}" in \
+      python@sha256:9fd630803ec3446920ed6b64d20150bd724c1751e71817293a4230522c1a384a|python@sha256:a594f7e9df8a4c431265125b5f5d90cd1b81c8a8797fefee69d5b3544be11111|python@sha256:7a6b87c02e1f4d6bb572e379235cbbdd7892add0572442c9b0b860a3f5aa9857) ;; \
+      *) echo "Unsupported Psycopg SDK interpreter image" >&2; exit 1 ;; \
+    esac \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends build-essential bison flex libkrb5-dev ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+COPY scripts/ci/docker_source_artifacts.json scripts/ci/fetch_docker_source_artifacts.py /tooling/
+COPY build/docker-sources/zlib-1.3.2.tar.gz build/docker-sources/ncurses-6.6.tar.gz build/docker-sources/openssl-3.5.9.tar.gz build/docker-sources/postgresql-18.6.tar.gz build/docker-sources/zlib-gzwrite-fix-df84af25dc1942490e1d1c899a07619152a46148.patch /input/native/
+RUN --network=none python - <<'PY'
+import sys
+sys.path.insert(0, "/tooling")
+from pathlib import Path
+import tarfile
+from fetch_docker_source_artifacts import load_manifest, validate_source_payload
+
+records = load_manifest(Path("/tooling/docker_source_artifacts.json"))
+for name in ("zlib", "ncurses", "openssl", "postgresql", "zlib-gzwrite-fix"):
+    matches = [record for record in records if record.name == name]
+    if len(matches) != 1:
+        raise SystemExit("Native source identity is missing or duplicated")
+    record = matches[0]
+    payload = Path("/input/native", record.filename).read_bytes()
+    validate_source_payload(record, payload)
+    if name != "zlib-gzwrite-fix":
+        with tarfile.open(Path("/input/native", record.filename), "r:gz") as archive:
+            archive.extractall("/build/source", filter="data")
+PY
+RUN --network=none <<'SH'
+set -eu
+cd /build/source/zlib-1.3.2
+python - <<'PY'
+from hashlib import sha256
+from pathlib import Path
+import json
+rows = {p.as_posix(): sha256(p.read_bytes()).hexdigest() for p in Path(".").rglob("*") if p.is_file() and not p.is_symlink()}
+Path("/tmp/zlib-original-members.json").write_text(json.dumps(rows))
+PY
+patch --batch --forward -p1 --input /input/native/zlib-gzwrite-fix-df84af25dc1942490e1d1c899a07619152a46148.patch
+python - <<'PY'
+from hashlib import sha256
+from pathlib import Path
+import json
+before = json.loads(Path("/tmp/zlib-original-members.json").read_text())
+after = {p.as_posix(): sha256(p.read_bytes()).hexdigest() for p in Path(".").rglob("*") if p.is_file() and not p.is_symlink()}
+if set(before) != set(after) or {name for name in before if before[name] != after[name]} != {"gzwrite.c"}:
+    raise SystemExit("zlib patch changed another source member or failed to apply")
+if len(before) != 254 or after["gzwrite.c"] != ('31d0da14' '0edf382b' '82b13e2d' '87a22f59' 'e158d901' '4ee02645' '9e01cf43' '7d0ab07d'):
+    raise SystemExit("zlib patched source fingerprint mismatch")
+PY
+./configure --prefix=/usr/local --libdir=/usr/local/lib --shared
+make -j2
+make DESTDIR=/native install
+cp -a /native/usr/local/. /usr/local/
+cd /build/source/ncurses-6.6
+./configure --prefix=/usr/local --with-shared --without-debug --without-ada \
+    --enable-widec --with-abi-version=6 --with-termlib=tinfo --enable-pc-files \
+    --with-pkg-config-libdir=/usr/local/lib/pkgconfig
+make -j2
+make DESTDIR=/native install
+cp -a /native/usr/local/. /usr/local/
+cd /build/source/openssl-openssl-45e844f
+perl ./Configure linux-x86_64 shared --prefix=/usr/local --libdir=lib --openssldir=/usr/lib/ssl
+make -j2 build_sw
+make DESTDIR=/native install_sw
+cp -a /native/usr/local/. /usr/local/
+ldconfig
+cd /build/source/postgresql-18.6
+CPPFLAGS=-I/usr/local/include LDFLAGS='-L/usr/local/lib -Wl,-rpath,/usr/local/lib' \
+    ./configure --prefix=/usr/local --libdir=/usr/local/lib --with-ssl=openssl \
+    --with-gssapi --without-ldap --without-icu --without-readline
+make -j2 -C src/include all
+make -j2 -C src/interfaces/libpq all
+make -j2 -C src/bin/pg_config all
+make -C src/interfaces/libpq DESTDIR=/native install
+make -C src/bin/pg_config DESTDIR=/native install
+install -d /native/usr/local/include/libpq
+install -m 644 src/include/postgres_ext.h src/include/pg_config.h src/include/pg_config_os.h src/include/pg_config_manual.h /native/usr/local/include/
+install -m 644 src/include/libpq/libpq-fs.h /native/usr/local/include/libpq/
+cp -a /native/usr/local/. /usr/local/
+ldconfig
+install -d /native/usr/local/share/doc/pulseplate-native
+install -m 644 /build/source/zlib-1.3.2/LICENSE /native/usr/local/share/doc/pulseplate-native/ZLIB-LICENSE
+install -m 644 /build/source/ncurses-6.6/COPYING /native/usr/local/share/doc/pulseplate-native/NCURSES-COPYING
+install -m 644 /build/source/openssl-openssl-45e844f/LICENSE.txt /native/usr/local/share/doc/pulseplate-native/OPENSSL-LICENSE
+install -m 644 /build/source/openssl-openssl-45e844f/apps/openssl.cnf /native/usr/local/share/doc/pulseplate-native/openssl.cnf
+install -m 644 /build/source/postgresql-18.6/COPYRIGHT /native/usr/local/share/doc/pulseplate-native/LIBPQ-COPYRIGHT
+install -m 644 /tooling/docker_source_artifacts.json /native/usr/local/share/doc/pulseplate-native/docker_source_artifacts.json
+SH
+
+# Archive and binary build inputs are acquired without running source metadata.
+FROM ${PSYCOPG_SDK_PYTHON_IMAGE} AS psycopg-inputs
+ARG PULSEPLATE_PYTHON_INDEX_URL
+COPY scripts/ci/install_locked_python_requirements.py scripts/ci/check_private_python_proxy_health.py /tooling/
+RUN --mount=type=secret,id=pp_py_index,required=false \
+    --mount=type=secret,id=pp_netrc,required=false <<'SH'
+set -eu
+index="${PULSEPLATE_PYTHON_INDEX_URL:-}"
+if [ -f /run/secrets/pp_py_index ]; then index="$(cat /run/secrets/pp_py_index)"; fi
+if [ -f /run/secrets/pp_netrc ]; then
+    test ! -e /root/.netrc
+    cp /run/secrets/pp_netrc /root/.netrc
+    chmod 600 /root/.netrc
+fi
+trap 'rm -f /root/.netrc' EXIT
+test -n "$index"
+python /tooling/install_locked_python_requirements.py --index-url "$index" --prefetch-psycopg-source /input/source
+python /tooling/install_locked_python_requirements.py --index-url "$index" --prefetch-psycopg-build-wheels /input/build-wheels
+SH
+
+# No credentialed HOME, configuration, cache or environment crosses into this build.
+FROM native-builder AS psycopg-wheel-builder
+COPY --from=psycopg-inputs /input/ /input/psycopg/
+COPY scripts/ci/install_locked_python_requirements.py /tooling/install_locked_python_requirements.py
+RUN --network=none /usr/bin/env -i HOME=/tmp PATH=/usr/local/bin:/usr/bin:/bin LANG=C.UTF-8 TMPDIR=/tmp \
+    /usr/local/bin/python /tooling/install_locked_python_requirements.py --build-psycopg-c \
+    --psycopg-source-archive /input/psycopg/source/psycopg_c-3.3.4.tar.gz \
+    --psycopg-build-wheels /input/psycopg/build-wheels --psycopg-native-root / \
+    --psycopg-wheel-output /output/psycopg-sdk
+
+FROM scratch AS psycopg-sdk
+COPY --from=native-builder /native/ /
+COPY --from=psycopg-wheel-builder /output/psycopg-sdk/ /psycopg-sdk/
+
 # Stage 1: Build stage
 FROM python:3.13.14-slim-bookworm@sha256:9d7f287598e1a5a978c015ee176d8216435aaf335ed69ac3c38dd1bbb10e8d64 AS builder
 
@@ -31,6 +160,7 @@ ARG PULSEPLATE_REQUIREMENTS_FILE="requirements-docker-runtime.txt"
 RUN apt-get update && apt-get install -y \
     build-essential \
     ca-certificates \
+    libgssapi-krb5-2 \
     && rm -rf /var/lib/apt/lists/*
 
 # Create virtual environment
@@ -89,9 +219,13 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     fi && \
     rm -rf /tmp/pulseplate-ci
 
+COPY --from=native-builder /native/usr/local/lib/*.so* /usr/local/lib/
+COPY --from=psycopg-wheel-builder /output/psycopg-sdk/ /opt/psycopg-sdk/
+RUN ldconfig
+
 # Copy requirements and install Python dependencies
 COPY requirements.txt requirements-ci-lite.txt requirements-docker-runtime.txt constraints.txt ./
-COPY scripts/ci/check_python_startup_hooks.py scripts/ci/install_locked_python_requirements.py scripts/ci/emergency_python_wheels.json /tmp/pulseplate-ci/
+COPY scripts/ci/check_python_startup_hooks.py scripts/ci/install_locked_python_requirements.py scripts/ci/emergency_python_wheels.json scripts/ci/check_private_python_proxy_health.py /tmp/pulseplate-ci/
 RUN --mount=type=cache,target=/root/.cache/pip \
     --mount=type=secret,id=pp_py_index,required=false \
     --mount=type=secret,id=pp_py_host,required=false \
@@ -125,6 +259,7 @@ RUN --mount=type=cache,target=/root/.cache/pip \
         --guard-script /tmp/pulseplate-ci/check_python_startup_hooks.py \
         --constraints-file constraints.txt \
         --install-mode direct-proxy \
+        --prefetch-only --wheelhouse-dir /opt/runtime-wheelhouse --psycopg-sdk /opt/psycopg-sdk \
         --emergency-wheel-manifest /tmp/pulseplate-ci/emergency_python_wheels.json \
         --index-url "${PULSEPLATE_PYTHON_INDEX_URL}" \
         --trusted-host "${PULSEPLATE_PYTHON_TRUSTED_HOST}"; \
@@ -135,9 +270,15 @@ RUN --mount=type=cache,target=/root/.cache/pip \
         --guard-script /tmp/pulseplate-ci/check_python_startup_hooks.py \
         --constraints-file constraints.txt \
         --install-mode direct-proxy \
+        --prefetch-only --wheelhouse-dir /opt/runtime-wheelhouse --psycopg-sdk /opt/psycopg-sdk \
         --emergency-wheel-manifest /tmp/pulseplate-ci/emergency_python_wheels.json \
         --index-url "${PULSEPLATE_PYTHON_INDEX_URL}"; \
-    fi && \
+    fi
+RUN --network=none /opt/venv/bin/python /tmp/pulseplate-ci/install_locked_python_requirements.py \
+    --python-executable /opt/venv/bin/python --consume-only \
+    --wheelhouse-dir /opt/runtime-wheelhouse --psycopg-sdk /opt/psycopg-sdk \
+    --requirements-file "${PULSEPLATE_REQUIREMENTS_FILE}" --constraints-file constraints.txt \
+    --guard-script /tmp/pulseplate-ci/check_python_startup_hooks.py && \
     # Remove setuptools from runtime image to fix GHSA-58pv-8j8x-9vj2 (jaraco.context vulnerability)
     # setuptools is only needed for build-time (pip install), not runtime
     /opt/venv/bin/pip uninstall -y setuptools wheel && \
@@ -348,6 +489,7 @@ RUN apt-get update \
         libc6 \
         libgnutls30 \
         libpcre2-8-0 \
+        libgssapi-krb5-2 \
         libssl3 \
         openssl \
     && for package in libc6 libc-bin; do \
@@ -379,6 +521,16 @@ if version < (3, 53, 2):
     )
     sys.exit(1)
 PY
+
+# Shared source builds own the native runtime and matching client linkage.
+COPY --from=native-builder /native/usr/local/lib/*.so* /usr/local/lib/
+COPY --from=native-builder /native/usr/local/lib/ossl-modules/ /usr/local/lib/ossl-modules/
+COPY --from=native-builder /native/usr/local/lib/engines-3/ /usr/local/lib/engines-3/
+COPY --from=native-builder /native/usr/local/bin/openssl /native/usr/local/bin/infocmp /usr/local/bin/
+COPY --from=native-builder /native/usr/local/share/terminfo/ /usr/local/share/terminfo/
+COPY --from=native-builder /native/usr/local/share/doc/pulseplate-native/ /usr/local/share/doc/pulseplate-native/
+COPY --from=psycopg-wheel-builder /output/psycopg-sdk/psycopg-c-sdk.json /usr/local/share/doc/pulseplate-native/psycopg-c-sdk.json
+RUN ldconfig
 
 # Copy virtual environment from builder stage
 COPY --from=builder /opt/venv /opt/venv
@@ -438,6 +590,43 @@ RUN ln -s libuuid.so.1.3.0 /usr/local/lib/libuuid.so.1 && ldconfig
 COPY --from=pcre2-builder /opt/pcre2/libpcre2-8.so.0.16.1 /usr/local/lib/libpcre2-8.so.0.16.1
 COPY --from=pcre2-builder /opt/pcre2/PCRE2-LICENCE.md /opt/pcre2/PCRE2-COPYING /opt/pcre2/SLJIT-LICENSE /opt/pcre2/SHA256SUMS /opt/pcre2/docker_source_artifacts.json /usr/local/share/doc/pulseplate-pcre2/
 RUN ln -s libpcre2-8.so.0.16.1 /usr/local/lib/libpcre2-8.so.0 && ldconfig
+
+# Remove the original package-owned native bytes after the genuine replacements exist.
+RUN dpkg --purge --force-depends --force-remove-essential \
+        zlib1g libncurses6 libncursesw6 libtinfo6 ncurses-base ncurses-bin libssl3 openssl \
+    && ldconfig
+RUN python - <<'PY'
+from pathlib import Path
+import shutil
+import subprocess
+
+rows = subprocess.run(
+    ["/usr/bin/dpkg-query", "-W", "-f=${db:Status-Abbrev} ${binary:Package}\n"],
+    check=True, capture_output=True, text=True,
+).stdout.splitlines()
+retired = {"zlib1g", "libncurses6", "libncursesw6", "libtinfo6", "ncurses-base", "ncurses-bin", "libssl3", "openssl"}
+for row in rows:
+    fields = row.split()
+    if len(fields) != 2:
+        raise SystemExit("Package inventory is malformed after native replacement")
+    if fields[0].startswith("ii") and fields[1].split(":", 1)[0] in retired:
+        raise SystemExit("An original native package remains installed")
+ssl_root = Path("/usr/lib/ssl")
+ssl_root.mkdir(parents=True, exist_ok=True)
+Path("/etc/ssl/private").mkdir(mode=0o700, exist_ok=True)
+shutil.copyfile("/usr/local/share/doc/pulseplate-native/openssl.cnf", "/etc/ssl/openssl.cnf")
+for name, target in {
+    "cert.pem": "/etc/ssl/certs/ca-certificates.crt",
+    "certs": "/etc/ssl/certs", "private": "/etc/ssl/private",
+    "openssl.cnf": "/etc/ssl/openssl.cnf",
+}.items():
+    path = ssl_root / name
+    if path.is_symlink():
+        path.unlink()
+    if path.exists():
+        raise SystemExit("Unexpected real entry at an OpenSSL compatibility path")
+    path.symlink_to(target)
+PY
 
 # RU: Убираем pip из production-stage, но не трогаем runtime-base/development.
 # EN: Remove pip from the production stage only so shared runtime/dev topology stays intact.
@@ -526,6 +715,77 @@ PY
 # RU: Финальный runtime остаётся non-root как и в runtime-base.
 # EN: Final runtime stays non-root, matching the runtime-base contract.
 USER pulseplate
+
+# Exercise ordinary native calls and the actual loaded replacement paths after pruning.
+RUN --network=none <<'SH'
+set -eu
+openssl version
+openssl list -providers
+openssl list -providers -provider legacy
+infocmp -V
+infocmp xterm >/dev/null
+for interpreter in /usr/local/bin/python /opt/venv/bin/python; do
+    "$interpreter" - <<'PY'
+import curses
+import curses.panel
+import gzip
+import hashlib
+from pathlib import Path
+import readline
+import ssl
+import zlib
+
+if zlib.ZLIB_RUNTIME_VERSION != "1.3.2" or not ssl.OPENSSL_VERSION.startswith("OpenSSL 3.5.9 "):
+    raise SystemExit("System native replacement version mismatch")
+if curses.ncurses_version[:2] != (6, 6):
+    raise SystemExit("Ncurses replacement version mismatch")
+payload = b"pulseplate native compression round trip"
+if gzip.decompress(gzip.compress(payload, mtime=0)) != payload:
+    raise SystemExit("Native gzip round trip failed")
+if zlib.decompress(zlib.compress(payload)) != payload:
+    raise SystemExit("Native zlib round trip failed")
+curses.setupterm("xterm")
+if curses.tigetnum("colors") < 8:
+    raise SystemExit("Retained terminal data is unavailable")
+readline.get_current_history_length()
+curses.panel.bottom_panel()
+ssl.create_default_context()
+paths = {Path(line.rsplit(maxsplit=1)[-1]).resolve() for line in Path("/proc/self/maps").read_text().splitlines() if "/" in line}
+for family in ("libz.so", "libncursesw.so", "libpanelw.so", "libtinfo.so", "libssl.so", "libcrypto.so"):
+    loaded = {path for path in paths if path.name.startswith(family)}
+    if not loaded or any(path.parent != Path("/usr/local/lib") for path in loaded):
+        raise SystemExit("A retained consumer loaded unexpected native bytes")
+    print(family, [(str(path), hashlib.sha256(path.read_bytes()).hexdigest()) for path in sorted(loaded)])
+PY
+done
+/opt/venv/bin/python - <<'PY'
+import importlib.metadata as metadata
+from pathlib import Path
+import cryptography
+from cryptography.hazmat.backends.openssl.backend import backend
+from PIL import Image
+import psycopg
+from psycopg import pq
+
+if cryptography.__version__ != "50.0.2" or not backend.openssl_version_text().startswith("OpenSSL 4.0.3 "):
+    raise SystemExit("Cryptography bundled OpenSSL mismatch")
+if psycopg.__version__ != "3.3.4" or pq.__impl__ != "c" or pq.version() != 180006:
+    raise SystemExit("Psycopg C/system client mismatch")
+if any(distribution.metadata["Name"].lower() == "psycopg-binary" for distribution in metadata.distributions()):
+    raise SystemExit("The binary Psycopg carrier remains installed")
+import io
+image = Image.new("RGB", (2, 2), color=(1, 2, 3))
+data = io.BytesIO()
+image.save(data, format="PNG")
+data.seek(0)
+if Image.open(data).getpixel((0, 0)) != (1, 2, 3):
+    raise SystemExit("Pillow native PNG round trip failed")
+loaded = {Path(line.rsplit(maxsplit=1)[-1]).resolve() for line in Path("/proc/self/maps").read_text().splitlines() if "libpq.so" in line}
+if loaded != {Path("/usr/local/lib/libpq.so.5.18")}:
+    raise SystemExit("Psycopg loaded an unexpected libpq path")
+print("Psycopg C", pq.version(), "Cryptography bundled", backend.openssl_version_text())
+PY
+SH
 
 RUN <<'SH'
 set -eu
@@ -851,6 +1111,7 @@ FROM production AS staging
 
 # Stage 5: Development stage
 FROM runtime-base AS development
+COPY --from=psycopg-wheel-builder /output/psycopg-sdk/ /opt/psycopg-sdk/
 
 ARG PULSEPLATE_PYTHON_INDEX_URL
 ARG PULSEPLATE_PYTHON_TRUSTED_HOST=""
@@ -891,6 +1152,7 @@ RUN --mount=type=secret,id=pp_py_index,required=false \
         --guard-script /tmp/pulseplate-ci/check_python_startup_hooks.py \
         --constraints-file constraints.txt \
         --install-dev \
+        --psycopg-sdk /opt/psycopg-sdk \
         --emergency-wheel-manifest /tmp/pulseplate-ci/emergency_python_wheels.json \
         --index-url "${PULSEPLATE_PYTHON_INDEX_URL}" \
         --trusted-host "${PULSEPLATE_PYTHON_TRUSTED_HOST}"; \
@@ -902,6 +1164,7 @@ RUN --mount=type=secret,id=pp_py_index,required=false \
         --guard-script /tmp/pulseplate-ci/check_python_startup_hooks.py \
         --constraints-file constraints.txt \
         --install-dev \
+        --psycopg-sdk /opt/psycopg-sdk \
         --emergency-wheel-manifest /tmp/pulseplate-ci/emergency_python_wheels.json \
         --index-url "${PULSEPLATE_PYTHON_INDEX_URL}"; \
     fi

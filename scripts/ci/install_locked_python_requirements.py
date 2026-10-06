@@ -4,6 +4,17 @@
 from __future__ import annotations
 
 import argparse
+from dataclasses import dataclass
+from email import policy
+from email.parser import BytesParser
+import io
+import errno
+import fcntl
+import stat
+import struct
+import tarfile
+import tomllib
+import zipfile
 import base64
 import http.client
 import hashlib
@@ -16,14 +27,15 @@ import os
 import re
 import shutil
 import ssl
+import socket
 import subprocess  # nosec B404 # B404: subprocess is required for bounded pip/python invocations during locked installation (remove-by: 2026-10-31, ref: PR-litellm-hardening)
 import sys
 import sysconfig
 import tempfile
 import time
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Iterator, Sequence, cast
-from urllib.parse import ParseResult, quote, urlparse
+from urllib.parse import ParseResult, quote, unquote, urljoin, urlparse
 from urllib.request import urlopen
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -72,6 +84,961 @@ PRIVATE_INDEX_HEALTH_TIMEOUT_SECONDS = 15
 PRIVATE_INDEX_HEALTH_RETRY_BACKOFF_SECONDS: tuple[float, ...] = (1.0, 2.0, 4.0, 8.0)
 DOCKER_SINGLE_PASS_LOCKED_INSTALL_ENV = "PULSEPLATE_DOCKER_SINGLE_PASS_LOCKED_INSTALL"  # nosec B105 # B105: public env key contract, not a password (remove-by: 2026-12-31, ref: PR-docker-gha-buildx-pip-cache)
 DOCKER_PIP_LAYER_CACHE_ENV = "PULSEPLATE_DOCKER_PIP_LAYER_CACHE"
+PSYCOPG_SDK_ENV = "PULSEPLATE_PSYCOPG_C_SDK"
+PSYCOPG_C_VERSION = "3.3.4"
+PSYCOPG_C_SOURCE_NAME = "psycopg_c-3.3.4.tar.gz"
+PSYCOPG_C_SOURCE_SHA256 = (
+    "ed810612" "8b2d0435" "9c185fc9" "641b4409" "abfce4d0" "b6fb1d1f" "f6800646" "e27f1a22"
+)
+PSYCOPG_C_PYPROJECT_SHA256 = (
+    "6183883f" "8db769e5" "db8f4549" "668c6488" "1add1ea8" "a5eb858c" "1db7a98e" "c075499b"
+)
+PSYCOPG_C_DERIVED_PYPROJECT_SHA256 = (
+    "1664ff74" "10add8ce" "f6f7d379" "bef9db8f" "f3c0d4df" "86ebf473" "5c97ce6c" "19f9edc8"
+)
+PSYCOPG_C_MEMBER_SHA256 = (
+    "5275940e" "632aa2d0" "56835aa3" "70e7cb8e" "8bf0f6af" "3b029abc" "33fd973c" "bb2a2338"
+)
+PSYCOPG_C_DERIVED_MEMBER_SHA256 = (
+    "deb4b2ac" "73779709" "621ecfbb" "e3f2947f" "32f22da5" "cc8871e9" "2e462d6c" "ce8f83f7"
+)
+PSYCOPG_C_BUILD_PINS = frozenset(
+    {("setuptools", "83.0.0"), ("wheel", "0.47.0"), ("packaging", "25.0")}
+)
+PSYCOPG_C_SOURCE_MAX_BYTES = 8 * 1024 * 1024
+
+PSYCOPG_C_BUILD_ARTIFACTS = {
+    "packaging-25.0-py3-none-any.whl": (
+        66469,
+        ("29572ef2" "b1f17581" "046b3a22" "27d5c611" "fb25ec70" "ca1ba855" "4b24b0e6" "9331a484"),
+        ("5b611a60" "9c38fefc" "3d616bf4" "5d20aec9" "8fb7d53f" "245daca9" "e2c30fc8" "5c7ac282"),
+    ),
+    "setuptools-83.0.0-py3-none-any.whl": (
+        1008090,
+        ("29b23c36" "0f22f414" "dc7336bb" "39178cc7" "bcbf6021" "ed2733cd" "e173f09d" "ba19abb3"),
+        ("26e45e90" "de763c69" "38d93d1d" "f2ecd678" "2a0f1514" "d41cbd22" "ebef4e0a" "b6475771"),
+    ),
+    "wheel-0.47.0-py3-none-any.whl": (
+        32218,
+        ("212281ca" "b4dff978" "f6cedd49" "9cd893e1" "f620791c" "a6ff7107" "cf270781" "e587eced"),
+        ("d6e8cbbf" "a21513ed" "46be4027" "e61784b1" "31b12c5c" "afacbde6" "913ce5ad" "01767643"),
+    ),
+}
+
+
+def admitted_psycopg_source_url(*, body: bytes, project_url: str) -> str:
+    """Select one exact reviewed source from the existing Simple-page decoder."""
+    if __package__:
+        from scripts.ci.check_private_python_proxy_health import _parse_simple_page_anchors
+    else:
+        from check_private_python_proxy_health import _parse_simple_page_anchors
+
+    project = urlparse(project_url)
+    if (
+        project.scheme != "https"
+        or not project.hostname
+        or project.username is not None
+        or project.password is not None
+        or project.query
+        or project.fragment
+    ):
+        raise RuntimeError("Psycopg source admission requires a verified HTTPS project origin.")
+    anchors, malformed = _parse_simple_page_anchors(body)
+    if malformed:
+        raise RuntimeError("Psycopg source project page contains an ambiguous anchor.")
+    selected: list[str] = []
+    for anchor in anchors:
+        resolved = urlparse(urljoin(project_url, anchor.href))
+        filename = unquote(resolved.path.rsplit("/", 1)[-1])
+        if filename != PSYCOPG_C_SOURCE_NAME:
+            continue
+        if (
+            resolved.scheme != "https"
+            or resolved.netloc.lower() != project.netloc.lower()
+            or resolved.username is not None
+            or resolved.password is not None
+            or resolved.query
+            or resolved.fragment != f"sha256={PSYCOPG_C_SOURCE_SHA256}"
+        ):
+            raise RuntimeError("Psycopg source URL/hash differs from the exact approved origin.")
+        selected.append(resolved._replace(fragment="").geturl())
+    if len(selected) != 1:
+        raise RuntimeError("The private proxy must advertise exactly one reviewed Psycopg source.")
+    return selected[0]
+
+
+def prefetch_psycopg_source(*, output: Path, index_url: str, trusted_host: str | None) -> None:
+    """Fetch archive bytes directly, without pip metadata or a build-backend invocation."""
+    if trusted_host:
+        raise RuntimeError("Psycopg source acquisition requires verified HTTPS.")
+    project_url, body = _read_private_index_project_page(
+        index_url=index_url, package="psycopg-c", trusted_host=None
+    )
+    source_url = admitted_psycopg_source_url(body=body, project_url=project_url)
+    parsed = urlparse(source_url)
+    if parsed.hostname is None:
+        raise RuntimeError("The admitted Psycopg source has no HTTPS host.")
+    headers: dict[str, str] = {}
+    authorization = _admit_private_proxy_netrc_auth(parsed_url=parsed, trusted_host=None)
+    if authorization is not None:
+        headers["Authorization"] = authorization
+    if output.exists() or output.is_symlink():
+        raise RuntimeError("Psycopg source output directory must be new.")
+    output.mkdir(parents=True, mode=0o700)
+    connection = http.client.HTTPSConnection(
+        parsed.hostname, port=parsed.port, timeout=PRIVATE_INDEX_HEALTH_TIMEOUT_SECONDS
+    )
+    try:
+        connection.request("GET", parsed.path, headers=headers)
+        response = connection.getresponse()
+        if response.status != 200:
+            raise RuntimeError(f"Psycopg source acquisition rejected HTTP {response.status}.")
+        payload = response.read(PSYCOPG_C_SOURCE_MAX_BYTES + 1)
+    finally:
+        connection.close()
+    if (
+        len(payload) > PSYCOPG_C_SOURCE_MAX_BYTES
+        or hashlib.sha256(payload).hexdigest() != PSYCOPG_C_SOURCE_SHA256
+    ):
+        raise RuntimeError("Psycopg source bytes do not match the reviewed archive.")
+    destination = output / PSYCOPG_C_SOURCE_NAME
+    with destination.open("xb") as stream:
+        stream.write(payload)
+    inspect_psycopg_source(destination)
+
+
+def _read_regular_input(path: Path, *, maximum: int) -> bytes:
+    """Read bounded cooperative inputs without following a leaf or ancestor link."""
+    absolute = path.absolute()
+    if ".." in absolute.parts or any(parent.is_symlink() for parent in absolute.parents):
+        raise RuntimeError("Input path must contain only real directories.")
+    flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
+    if not hasattr(os, "O_NOFOLLOW"):
+        raise RuntimeError("Exact source admission requires no-follow filesystem reads.")
+    with os.fdopen(os.open(absolute, flags), "rb") as stream:
+        before = os.fstat(stream.fileno())
+        if not stat.S_ISREG(before.st_mode) or before.st_nlink != 1 or before.st_size > maximum:
+            raise RuntimeError("Input must be a bounded regular single-link file.")
+        content = stream.read(maximum + 1)
+        after = os.fstat(stream.fileno())
+    current = absolute.lstat()
+    if len(content) > maximum or before != after or after != current:
+        raise RuntimeError("Input identity changed during acquisition.")
+    return content
+
+
+def inspect_psycopg_source(path: Path) -> dict[str, bytes]:
+    """Recognize only the reviewed release, without importing its build backend."""
+    if path.name != PSYCOPG_C_SOURCE_NAME:
+        raise RuntimeError("Only the exact reviewed Psycopg C source name is supported.")
+    payload = _read_regular_input(path, maximum=PSYCOPG_C_SOURCE_MAX_BYTES)
+    if hashlib.sha256(payload).hexdigest() != PSYCOPG_C_SOURCE_SHA256:
+        raise RuntimeError("Psycopg C original source SHA-256 mismatch.")
+    files: dict[str, bytes] = {}
+    seen: set[str] = set()
+    expanded = 0
+    with tarfile.open(fileobj=io.BytesIO(payload), mode="r:gz") as archive:
+        for member in archive:
+            name = PurePosixPath(member.name)
+            if (
+                member.name in seen
+                or "\\" in member.name
+                or name.is_absolute()
+                or ".." in name.parts
+                or not name.parts
+                or name.parts[0] != "psycopg_c-3.3.4"
+                or not (member.isfile() or member.isdir())
+                or len(seen) >= 34
+            ):
+                raise RuntimeError("Psycopg source member layout is not the exact release.")
+            seen.add(member.name)
+            expanded += member.size
+            if expanded > 6_665_795:
+                raise RuntimeError("Psycopg source exceeds its reviewed expanded size.")
+            if member.isfile():
+                stream = archive.extractfile(member)
+                if stream is None:
+                    raise RuntimeError("Psycopg source member cannot be read.")
+                files[member.name] = stream.read(member.size + 1)
+                if len(files[member.name]) != member.size:
+                    raise RuntimeError("Psycopg source member is truncated.")
+    if len(seen) != 34 or expanded != 6_665_795:
+        raise RuntimeError("Psycopg source inventory differs from the reviewed release.")
+    if _psycopg_member_digest(files) != PSYCOPG_C_MEMBER_SHA256:
+        raise RuntimeError("Psycopg source member identity mismatch.")
+    pyproject = files["psycopg_c-3.3.4/pyproject.toml"]
+    if hashlib.sha256(pyproject).hexdigest() != PSYCOPG_C_PYPROJECT_SHA256:
+        raise RuntimeError("Psycopg build metadata differs from the reviewed original.")
+    expected = {
+        "requires": [
+            "setuptools == 80.3.1",
+            "wheel >= 0.37",
+            "tomli >= 2.0.1; python_version < '3.11'",
+        ],
+        "build-backend": "cython_backend",
+        "backend-path": ["build_backend"],
+    }
+    if tomllib.loads(pyproject.decode("utf-8"))["build-system"] != expected:
+        raise RuntimeError("Psycopg build backend or requirements are not supported.")
+    return files
+
+
+def _psycopg_member_digest(files: dict[str, bytes]) -> str:
+    inventory = [
+        {"name": name, "bytes": len(content), "sha256": hashlib.sha256(content).hexdigest()}
+        for name, content in files.items()
+    ]
+    return hashlib.sha256(
+        json.dumps(inventory, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+
+
+def derive_psycopg_source(path: Path, destination: Path) -> dict[str, str]:
+    """Change one exact build pin; all runtime, backend and license bytes stay bound."""
+    original = inspect_psycopg_source(path)
+    derived = dict(original)
+    member = "psycopg_c-3.3.4/pyproject.toml"
+    derived[member] = original[member].replace(b"setuptools == 80.3.1", b"setuptools == 83.0.0")
+    if (
+        hashlib.sha256(derived[member]).hexdigest() != PSYCOPG_C_DERIVED_PYPROJECT_SHA256
+        or _psycopg_member_digest(derived) != PSYCOPG_C_DERIVED_MEMBER_SHA256
+        or [name for name in original if original[name] != derived[name]] != [member]
+    ):
+        raise RuntimeError("Psycopg source transform is not the sole admitted metadata change.")
+    if destination.exists() or destination.is_symlink():
+        raise RuntimeError("Derived Psycopg source destination must be new.")
+    destination.mkdir(parents=True, mode=0o700)
+    for name, content in derived.items():
+        target = destination.joinpath(*PurePosixPath(name).parts[1:])
+        target.parent.mkdir(parents=True, exist_ok=True)
+        with target.open("xb") as stream:
+            stream.write(content)
+    return {
+        "original_source_sha256": PSYCOPG_C_SOURCE_SHA256,
+        "original_members_sha256": PSYCOPG_C_MEMBER_SHA256,
+        "derived_members_sha256": PSYCOPG_C_DERIVED_MEMBER_SHA256,
+        "derived_pyproject_sha256": PSYCOPG_C_DERIVED_PYPROJECT_SHA256,
+    }
+
+
+def prefetch_psycopg_build_wheels(
+    *, output: Path, python_executable: str, index_url: str, trusted_host: str | None
+) -> None:
+    """Acquire the reviewed binary tools and Wheel's existing Packaging closure."""
+    if __package__:
+        from scripts.ci.check_private_python_proxy_health import trusted_exact_pin_wheel_hashes
+    else:
+        from check_private_python_proxy_health import trusted_exact_pin_wheel_hashes
+
+    if output.exists():
+        raise RuntimeError("Psycopg build input destination must be new.")
+    output.mkdir(parents=True, mode=0o700)
+    admitted: dict[str, str] = {}
+    for package, version in sorted(PSYCOPG_C_BUILD_PINS):
+        project_url, body = _read_private_index_project_page(
+            index_url=index_url, package=package, trusted_host=trusted_host
+        )
+        admitted.update(
+            trusted_exact_pin_wheel_hashes(
+                body=body,
+                normalized_project=package,
+                expected_version=version,
+                project_url=project_url,
+            )
+        )
+    command = [
+        python_executable,
+        "-m",
+        "pip",
+        "download",
+        "--no-deps",
+        "--only-binary=:all:",
+        "--index-url",
+        index_url,
+        "--dest",
+        str(output),
+        "setuptools==83.0.0",
+        "wheel==0.47.0",
+        "packaging==25.0",
+    ]
+    if trusted_host:
+        command.extend(["--trusted-host", trusted_host])
+    run_command(command, timeout=300)
+    artifacts = [
+        inspect_locked_wheel(wheel_path=p, expected_artifacts=PSYCOPG_C_BUILD_PINS)
+        for p in output.iterdir()
+    ]
+    if {a.artifact_key for a in artifacts} != PSYCOPG_C_BUILD_PINS or len(artifacts) != 3:
+        raise RuntimeError("Psycopg build input inventory is incomplete or duplicated.")
+    for artifact in artifacts:
+        if admitted.get(artifact.path.name.lower()) != artifact.snapshot.digest:
+            raise RuntimeError("Psycopg binary build tool lacks private-proxy hash admission.")
+    _validate_psycopg_build_closure(artifacts)
+
+
+def _validate_psycopg_build_closure(artifacts: Sequence[ValidatedWheel]) -> None:
+    """Reject missing or additional active build requirements on each admitted ABI."""
+    from pip._vendor.packaging.markers import default_environment
+    from pip._vendor.packaging.requirements import Requirement
+
+    if len(artifacts) != 3 or {a.artifact_key for a in artifacts} != PSYCOPG_C_BUILD_PINS:
+        raise RuntimeError("Psycopg binary build input inventory is incomplete.")
+    for artifact in artifacts:
+        if PSYCOPG_C_BUILD_ARTIFACTS.get(artifact.path.name) != (
+            artifact.snapshot.size,
+            artifact.snapshot.digest,
+            artifact.metadata_digest,
+        ):
+            raise RuntimeError(
+                "Psycopg binary build input fingerprint differs from the reviewed wheel."
+            )
+    pins = dict(PSYCOPG_C_BUILD_PINS)
+    for minor in (11, 12, 13):
+        environment = {
+            **default_environment(),
+            "extra": "",
+            "python_version": f"3.{minor}",
+            "python_full_version": f"3.{minor}.0",
+            "sys_platform": "linux",
+        }
+        for artifact in artifacts:
+            for raw in artifact.requires_dist:
+                requirement = Requirement(raw)
+                if requirement.marker is not None and not requirement.marker.evaluate(environment):
+                    continue
+                name = _normalized_package_name(requirement.name)
+                if (
+                    requirement.url
+                    or requirement.extras
+                    or name not in pins
+                    or pins[name] not in requirement.specifier
+                ):
+                    raise RuntimeError(
+                        "Psycopg binary build-tool closure differs from the admitted pins."
+                    )
+
+
+def _process_network_inventory() -> dict[str, tuple[int, bytes | None]]:
+    """Read interface flags and IPv4 addresses from this process's native namespace."""
+    inventory: dict[str, tuple[int, bytes | None]] = {}
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as descriptor:
+        for _, name in socket.if_nameindex():
+            encoded = name.encode("utf-8")
+            if len(encoded) > 15:
+                raise RuntimeError("Backend network interface identity cannot be represented.")
+            request = struct.pack("16sH14x", encoded, 0)
+            flags_reply = fcntl.ioctl(descriptor.fileno(), 0x8913, request)
+            flags = struct.unpack_from("H", flags_reply, 16)[0]
+            try:
+                address_reply = fcntl.ioctl(descriptor.fileno(), 0x8915, request)
+            except OSError as exc:
+                if exc.errno != errno.EADDRNOTAVAIL:
+                    raise RuntimeError("Backend IPv4 interface state is unavailable.") from exc
+                address = None
+            else:
+                address = address_reply[20:24]
+                if len(address) != 4:
+                    raise RuntimeError("Backend IPv4 interface result is malformed.")
+            inventory[name] = (flags, address)
+    return inventory
+
+
+def _network_table_lines(path: str) -> list[list[str]]:
+    with Path(path).open("rb") as stream:
+        payload = stream.read(64 * 1024 + 1)
+    if len(payload) > 64 * 1024:
+        raise RuntimeError("Backend network table exceeds the bounded inspection size.")
+    return [line.split() for line in payload.decode("ascii").splitlines() if line.strip()]
+
+
+def _assert_backend_network_isolated() -> None:
+    """Require no usable external interface, address or route; names grant no exemption."""
+    interfaces = _process_network_inventory()
+    if "lo" not in interfaces or any(
+        name != "lo" and (flags & 1 or address is not None)
+        for name, (flags, address) in interfaces.items()
+    ):
+        raise RuntimeError("Psycopg backend requires kernel network isolation.")
+    ipv4 = _network_table_lines("/proc/net/route")
+    if not ipv4 or ipv4[0] != [
+        "Iface",
+        "Destination",
+        "Gateway",
+        "Flags",
+        "RefCnt",
+        "Use",
+        "Metric",
+        "Mask",
+        "MTU",
+        "Window",
+        "IRTT",
+    ]:
+        raise RuntimeError("Backend IPv4 route table is unavailable or malformed.")
+    if any(len(row) != 11 or row[0] != "lo" for row in ipv4[1:]):
+        raise RuntimeError("Psycopg backend has an external or malformed IPv4 route.")
+    if any(len(row) != 6 or row[-1] != "lo" for row in _network_table_lines("/proc/net/if_inet6")):
+        raise RuntimeError("Psycopg backend has an external or malformed IPv6 address.")
+    if any(
+        len(row) != 10 or row[-1] != "lo" for row in _network_table_lines("/proc/net/ipv6_route")
+    ):
+        raise RuntimeError("Psycopg backend has an external or malformed IPv6 route.")
+
+
+def _psycopg_build_environment(native_root: Path, work: Path) -> dict[str, str]:
+    """Require the admitted Linux guest's actual isolated backend execution boundary."""
+    if (
+        sys.platform != "linux"
+        or platform.machine() != "x86_64"
+        or sys.version_info[:2] not in {(3, 11), (3, 12), (3, 13)}
+    ):
+        raise RuntimeError("Psycopg C build supports only admitted Linux amd64 CPython 3.11-3.13.")
+    _assert_backend_network_isolated()
+    if any((Path.home() / name).exists() for name in (".netrc", "_netrc", ".docker")):
+        raise RuntimeError("Psycopg backend cannot inherit credential material.")
+    forbidden = {
+        "GH_TOKEN",
+        "GITHUB_TOKEN",
+        "NETRC",
+        "PULSEPLATE_PYTHON_INDEX_URL",
+        "DEVPI_CI_PASSWORD",
+        "DEVPI_CI_USER",
+    }
+    if any(os.environ.get(name) for name in forbidden):
+        raise RuntimeError("Psycopg backend environment contains acquisition credentials/settings.")
+    local = native_root / "usr/local"
+    for relative in (
+        "bin/pg_config",
+        "include/libpq-fe.h",
+        "lib/libpq.so.5",
+        "lib/libssl.so.3",
+        "lib/libcrypto.so.3",
+    ):
+        if not (local / relative).is_file():
+            raise RuntimeError("Psycopg backend requires the complete admitted native client SDK.")
+    home = work / "home"
+    home.mkdir(mode=0o700)
+    return {
+        "HOME": str(home),
+        "PATH": f"{local}/bin:/usr/local/bin:/usr/bin:/bin",
+        "LANG": "C.UTF-8",
+        "TMPDIR": str(work),
+        "PIP_NO_INDEX": "1",
+        "PIP_DISABLE_PIP_VERSION_CHECK": "1",
+        "PIP_CONFIG_FILE": os.devnull,
+        "CPPFLAGS": f"-I{local}/include",
+        "LDFLAGS": f"-L{local}/lib -Wl,-rpath,/usr/local/lib",
+        "LD_LIBRARY_PATH": str(local / "lib"),
+        "PKG_CONFIG_PATH": str(local / "lib/pkgconfig"),
+    }
+
+
+def build_psycopg_c_sdk(
+    *, source: Path, build_wheels: Path, native_root: Path, output: Path
+) -> None:
+    """Produce a genuine wheel in the admitted secret-free network-disabled guest."""
+    if output.exists() or output.is_symlink():
+        raise RuntimeError("Psycopg wheel output must be new.")
+    build_artifacts = [
+        inspect_locked_wheel(wheel_path=p, expected_artifacts=PSYCOPG_C_BUILD_PINS)
+        for p in build_wheels.iterdir()
+    ]
+    if (
+        len(build_artifacts) != 3
+        or {a.artifact_key for a in build_artifacts} != PSYCOPG_C_BUILD_PINS
+    ):
+        raise RuntimeError("Psycopg source build requires exactly the verified binary build tools.")
+    _validate_psycopg_build_closure(build_artifacts)
+    output.mkdir(parents=True, mode=0o700)
+    with tempfile.TemporaryDirectory(prefix="psycopg-c-build-") as temporary:
+        work = Path(temporary)
+        environment = _psycopg_build_environment(native_root, work)
+        derived = work / "psycopg_c-3.3.4"
+        fingerprints = derive_psycopg_source(source, derived)
+        venv = work / "build-venv"
+        run_command(
+            [sys.executable, "-I", "-m", "venv", str(venv)],
+            environment=environment,
+            cwd=work,
+            timeout=120,
+        )
+        build_python = str(venv / "bin/python")
+        run_command(
+            [
+                build_python,
+                "-I",
+                "-m",
+                "pip",
+                "install",
+                "--no-index",
+                "--no-deps",
+                "--only-binary=:all:",
+                "--find-links",
+                str(build_wheels),
+                "setuptools==83.0.0",
+                "wheel==0.47.0",
+                "packaging==25.0",
+            ],
+            environment=environment,
+            cwd=work,
+            timeout=120,
+        )
+        run_command(
+            [
+                build_python,
+                "-I",
+                "-m",
+                "pip",
+                "wheel",
+                "--no-index",
+                "--no-deps",
+                "--no-build-isolation",
+                "--wheel-dir",
+                str(output),
+                str(derived),
+            ],
+            environment=environment,
+            cwd=work,
+            timeout=1800,
+        )
+    wheels = list(output.glob("*.whl"))
+    if len(wheels) != 1:
+        raise RuntimeError("Psycopg source build did not produce exactly one wheel.")
+    wheel = inspect_locked_wheel(
+        wheel_path=wheels[0], expected_artifacts=frozenset({("psycopg-c", "3.3.4")})
+    )
+    native = _inspect_psycopg_c_extensions(wheel.path)
+    receipt = {
+        **fingerprints,
+        "python_tag": f"cp{sys.version_info.major}{sys.version_info.minor}",
+        "platform": "linux_x86_64",
+        "filename": wheel.path.name,
+        "wheel_sha256": wheel.snapshot.digest,
+        "metadata_sha256": wheel.metadata_digest,
+        "extensions": native,
+        "build_wheels": {a.path.name: a.snapshot.digest for a in build_artifacts},
+        "native_libraries": {
+            name: hashlib.sha256((native_root / "usr/local/lib" / name).read_bytes()).hexdigest()
+            for name in ("libpq.so.5", "libssl.so.3", "libcrypto.so.3")
+        },
+    }
+    (output / "psycopg-c-sdk.json").write_text(
+        json.dumps(receipt, sort_keys=True, indent=2) + "\n", encoding="utf-8"
+    )
+    read_psycopg_c_sdk(output)
+
+
+def _inspect_psycopg_c_extensions(wheel: Path) -> dict[str, str]:
+    with zipfile.ZipFile(wheel) as archive:
+        extensions = {
+            name: archive.read(name) for name in archive.namelist() if name.endswith(".so")
+        }
+    if len(extensions) != 2 or {
+        PurePosixPath(name).name.split(".", 1)[0] for name in extensions
+    } != {"_psycopg", "pq"}:
+        raise RuntimeError("Psycopg C wheel requires both actual native extension modules.")
+    for payload in extensions.values():
+        if (
+            len(payload) < 64
+            or payload[:5] != b"\x7fELF\x02"
+            or payload[18:20] != b"\x3e\x00"
+            or b"libpq.so.5\x00" not in payload
+        ):
+            raise RuntimeError("Psycopg C extension is not a Linux amd64 libpq-linked ELF.")
+    return {name: hashlib.sha256(payload).hexdigest() for name, payload in extensions.items()}
+
+
+def read_psycopg_c_sdk(directory: Path) -> ValidatedWheel:
+    """Cross-bind the one exact generated wheel, original/derived source and SDK inputs."""
+    raw = _read_regular_input(directory / "psycopg-c-sdk.json", maximum=64 * 1024)
+
+    def unique(pairs: list[tuple[str, object]]) -> dict[str, object]:
+        result: dict[str, object] = {}
+        for key, value in pairs:
+            if key in result:
+                raise RuntimeError("Psycopg SDK contains duplicate fields.")
+            result[key] = value
+        return result
+
+    receipt = json.loads(raw, object_pairs_hook=unique)
+    expected_fields = {
+        "original_source_sha256",
+        "original_members_sha256",
+        "derived_members_sha256",
+        "derived_pyproject_sha256",
+        "python_tag",
+        "platform",
+        "filename",
+        "wheel_sha256",
+        "metadata_sha256",
+        "extensions",
+        "build_wheels",
+        "native_libraries",
+    }
+    if type(receipt) is not dict or set(receipt) != expected_fields:
+        raise RuntimeError("Psycopg SDK fields differ from the exact supported operation.")
+    bindings = {
+        "original_source_sha256": PSYCOPG_C_SOURCE_SHA256,
+        "original_members_sha256": PSYCOPG_C_MEMBER_SHA256,
+        "derived_members_sha256": PSYCOPG_C_DERIVED_MEMBER_SHA256,
+        "derived_pyproject_sha256": PSYCOPG_C_DERIVED_PYPROJECT_SHA256,
+        "python_tag": f"cp{sys.version_info.major}{sys.version_info.minor}",
+        "platform": "linux_x86_64",
+    }
+    if (
+        sys.platform != "linux"
+        or platform.machine() != "x86_64"
+        or any(receipt.get(k) != v for k, v in bindings.items())
+    ):
+        raise RuntimeError("Psycopg SDK source, platform or interpreter binding mismatch.")
+    filename = receipt["filename"]
+    tag = bindings["python_tag"]
+    if filename != f"psycopg_c-3.3.4-{tag}-{tag}-linux_x86_64.whl":
+        raise RuntimeError("Psycopg SDK wheel filename is not the exact native ABI.")
+    wheel = inspect_locked_wheel(
+        wheel_path=directory / filename, expected_artifacts=frozenset({("psycopg-c", "3.3.4")})
+    )
+    if (
+        wheel.snapshot.digest != receipt["wheel_sha256"]
+        or wheel.metadata_digest != receipt["metadata_sha256"]
+        or _inspect_psycopg_c_extensions(wheel.path) != receipt["extensions"]
+    ):
+        raise RuntimeError("Psycopg SDK wheel/member/METADATA identity mismatch.")
+    build = receipt["build_wheels"]
+    if type(build) is not dict or set(build) != {
+        "setuptools-83.0.0-py3-none-any.whl",
+        "wheel-0.47.0-py3-none-any.whl",
+        "packaging-25.0-py3-none-any.whl",
+    }:
+        raise RuntimeError("Psycopg SDK binary build input binding mismatch.")
+    if build != {name: value[1] for name, value in PSYCOPG_C_BUILD_ARTIFACTS.items()}:
+        raise RuntimeError("Psycopg SDK build-wheel fingerprints differ from the reviewed inputs.")
+    libraries = receipt["native_libraries"]
+    if type(libraries) is not dict or set(libraries) != {
+        "libpq.so.5",
+        "libssl.so.3",
+        "libcrypto.so.3",
+    }:
+        raise RuntimeError("Psycopg SDK native library binding mismatch.")
+    if any(
+        type(value) is not str or re.fullmatch(r"[0-9a-f]{64}", value) is None
+        for value in [*build.values(), *libraries.values()]
+    ):
+        raise RuntimeError("Psycopg SDK hashes must be complete SHA-256 values.")
+    return wheel
+
+
+MAX_WHEEL_METADATA_BYTES = 2 * 1024 * 1024
+MAX_WHEEL_MEMBERS = 100_000
+MAX_WHEEL_CENTRAL_DIRECTORY_BYTES = 32 * 1024 * 1024
+ZIP_END_OF_CENTRAL_DIRECTORY_SIZE = 22
+ZIP_MAX_COMMENT_BYTES = 65_535
+ZIP_END_OF_CENTRAL_DIRECTORY_SIGNATURE = b"PK\x05\x06"
+
+
+@dataclass(frozen=True)
+class FileSnapshot:
+    """Content and filesystem identity captured before resolver work."""
+
+    digest: str
+    mode: int
+    device: int
+    inode: int
+    owner_uid: int
+    size: int
+
+
+@dataclass(frozen=True)
+class ValidatedWheel:
+    """One statically validated wheel bound to immutable filesystem identity."""
+
+    path: Path
+    artifact_key: tuple[str, str]
+    snapshot: FileSnapshot
+    metadata_digest: str = ""
+    requires_dist: tuple[str, ...] = ()
+
+
+def _canonical_wheel_version(raw_version: str, *, label: str) -> str:
+    from pip._vendor.packaging.version import InvalidVersion, Version
+
+    try:
+        return str(Version(raw_version))
+    except InvalidVersion as exc:
+        raise RuntimeError(f"{label}: invalid package version") from exc
+
+
+def _validate_wheel_member_name(wheel_path: Path, member_name: str) -> PurePosixPath:
+    if "\\" in member_name:
+        raise RuntimeError(f"{wheel_path.name}: wheel member contains a backslash")
+    member_path = PurePosixPath(member_name)
+    if member_path.is_absolute() or ".." in member_path.parts:
+        raise RuntimeError(f"{wheel_path.name}: wheel member escapes the archive root")
+    return member_path
+
+
+def _validate_zip_central_directory_bounds(
+    *,
+    descriptor: int,
+    wheel_path: Path,
+    file_size: int,
+) -> None:
+    """Bound parser work before ``ZipFile`` materializes the central directory."""
+
+    if file_size < ZIP_END_OF_CENTRAL_DIRECTORY_SIZE:
+        raise RuntimeError(f"{wheel_path.name}: malformed wheel archive")
+    tail_size = min(
+        file_size,
+        ZIP_END_OF_CENTRAL_DIRECTORY_SIZE + ZIP_MAX_COMMENT_BYTES,
+    )
+    pread = getattr(os, "pread", None)
+    if not callable(pread):
+        raise RuntimeError("Wheel validation requires POSIX descriptor-bound reads.")
+    tail = pread(descriptor, tail_size, file_size - tail_size)
+    search_end = len(tail)
+    while True:
+        offset = tail.rfind(
+            ZIP_END_OF_CENTRAL_DIRECTORY_SIGNATURE,
+            0,
+            search_end,
+        )
+        if offset < 0:
+            raise RuntimeError(f"{wheel_path.name}: malformed wheel archive")
+        if offset + ZIP_END_OF_CENTRAL_DIRECTORY_SIZE <= len(tail):
+            (
+                signature,
+                disk_number,
+                central_directory_disk,
+                entries_on_disk,
+                total_entries,
+                central_directory_size,
+                central_directory_offset,
+                comment_size,
+            ) = struct.unpack_from("<4s4H2LH", tail, offset)
+            if (
+                signature == ZIP_END_OF_CENTRAL_DIRECTORY_SIGNATURE
+                and offset + ZIP_END_OF_CENTRAL_DIRECTORY_SIZE + comment_size == len(tail)
+            ):
+                break
+        search_end = offset
+
+    if disk_number or central_directory_disk or entries_on_disk != total_entries:
+        raise RuntimeError(f"{wheel_path.name}: multi-disk wheel archives are forbidden")
+    if (
+        total_entries == 0xFFFF
+        or central_directory_size == 0xFFFFFFFF
+        or central_directory_offset == 0xFFFFFFFF
+    ):
+        raise RuntimeError(f"{wheel_path.name}: ZIP64 wheel archives are forbidden")
+    if total_entries > MAX_WHEEL_MEMBERS:
+        raise RuntimeError(f"{wheel_path.name}: wheel contains too many archive members")
+    if central_directory_size > MAX_WHEEL_CENTRAL_DIRECTORY_BYTES:
+        raise RuntimeError(f"{wheel_path.name}: wheel central directory exceeds the size limit")
+    end_of_central_directory = file_size - tail_size + offset
+    if central_directory_offset + central_directory_size != end_of_central_directory:
+        raise RuntimeError(f"{wheel_path.name}: malformed wheel central directory bounds")
+
+
+def _single_metadata_header(
+    *,
+    wheel_path: Path,
+    metadata: object,
+    header_name: str,
+) -> str:
+    get_all = getattr(metadata, "get_all", None)
+    values = get_all(header_name, []) if callable(get_all) else []
+    if len(values) != 1 or not isinstance(values[0], str) or not values[0].strip():
+        raise RuntimeError(
+            f"{wheel_path.name}: METADATA must contain exactly one {header_name} header"
+        )
+    return values[0].strip()
+
+
+def inspect_locked_wheel(
+    *,
+    wheel_path: Path,
+    expected_artifacts: frozenset[tuple[str, str]],
+) -> ValidatedWheel:
+    from pip._vendor.packaging.requirements import InvalidRequirement, Requirement
+    from pip._vendor.packaging.utils import (
+        InvalidWheelFilename,
+        canonicalize_name,
+        parse_wheel_filename,
+    )
+
+    try:
+        filename_name, filename_version, _, _ = parse_wheel_filename(wheel_path.name)
+    except (InvalidWheelFilename, ValueError) as exc:
+        raise RuntimeError(f"{wheel_path.name}: malformed wheel filename") from exc
+    filename_key = (
+        str(canonicalize_name(filename_name)),
+        str(filename_version),
+    )
+    if filename_key not in expected_artifacts:
+        raise RuntimeError(
+            f"{wheel_path.name}: unexpected wheel artifact " f"{filename_key[0]}=={filename_key[1]}"
+        )
+
+    no_follow = getattr(os, "O_NOFOLLOW", None)
+    nonblocking = getattr(os, "O_NONBLOCK", None)
+    if no_follow is None or nonblocking is None:
+        raise RuntimeError("Wheel validation requires POSIX no-follow nonblocking reads.")
+    try:
+        descriptor = os.open(wheel_path, os.O_RDONLY | no_follow | nonblocking)
+    except OSError as exc:
+        raise RuntimeError(
+            f"{wheel_path.name}: wheel must remain a regular non-symlink file"
+        ) from exc
+    try:
+        wheel_stat = os.fstat(descriptor)
+        if not stat.S_ISREG(wheel_stat.st_mode):
+            raise RuntimeError(f"{wheel_path.name}: wheel artifact is not a regular file")
+        digest = hashlib.sha256()
+        while chunk := os.read(descriptor, 1024 * 1024):
+            digest.update(chunk)
+        _validate_zip_central_directory_bounds(
+            descriptor=descriptor,
+            wheel_path=wheel_path,
+            file_size=wheel_stat.st_size,
+        )
+        os.lseek(descriptor, 0, os.SEEK_SET)
+        with os.fdopen(descriptor, "rb") as wheel_stream:
+            descriptor = -1
+            try:
+                with zipfile.ZipFile(wheel_stream, "r") as wheel:
+                    metadata_members: list[zipfile.ZipInfo] = []
+                    members = wheel.infolist()
+                    if len(members) > MAX_WHEEL_MEMBERS:
+                        raise RuntimeError(
+                            f"{wheel_path.name}: wheel member count changed during parsing"
+                        )
+                    member_names: set[str] = set()
+                    for member in members:
+                        if member.filename in member_names:
+                            raise RuntimeError(
+                                f"{wheel_path.name}: wheel contains duplicate archive members"
+                            )
+                        member_names.add(member.filename)
+                        member_path = _validate_wheel_member_name(wheel_path, member.filename)
+                        member_mode = member.external_attr >> 16
+                        if member_mode and stat.S_ISLNK(member_mode):
+                            raise RuntimeError(
+                                f"{wheel_path.name}: wheel contains a symlink member"
+                            )
+                        if (
+                            len(member_path.parts) == 2
+                            and member_path.parts[0].endswith(".dist-info")
+                            and member_path.parts[1] == "METADATA"
+                        ):
+                            metadata_members.append(member)
+                    if len(metadata_members) != 1:
+                        raise RuntimeError(
+                            f"{wheel_path.name}: wheel must contain exactly one "
+                            "*.dist-info/METADATA"
+                        )
+                    metadata_member = metadata_members[0]
+                    if metadata_member.file_size > MAX_WHEEL_METADATA_BYTES:
+                        raise RuntimeError(
+                            f"{wheel_path.name}: METADATA exceeds the static size limit"
+                        )
+                    metadata_bytes = wheel.read(metadata_member)
+                final_metadata = os.fstat(wheel_stream.fileno())
+            except zipfile.BadZipFile as exc:
+                raise RuntimeError(f"{wheel_path.name}: malformed wheel archive") from exc
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
+    path_metadata = wheel_path.lstat()
+    identity = (
+        wheel_stat.st_dev,
+        wheel_stat.st_ino,
+        wheel_stat.st_size,
+        wheel_stat.st_mode,
+        wheel_stat.st_uid,
+    )
+    if (
+        stat.S_ISLNK(path_metadata.st_mode)
+        or identity
+        != (
+            final_metadata.st_dev,
+            final_metadata.st_ino,
+            final_metadata.st_size,
+            final_metadata.st_mode,
+            final_metadata.st_uid,
+        )
+        or identity
+        != (
+            path_metadata.st_dev,
+            path_metadata.st_ino,
+            path_metadata.st_size,
+            path_metadata.st_mode,
+            path_metadata.st_uid,
+        )
+    ):
+        raise RuntimeError(f"{wheel_path.name}: wheel identity changed during validation")
+    artifact_snapshot = FileSnapshot(
+        digest=digest.hexdigest(),
+        mode=stat.S_IMODE(wheel_stat.st_mode),
+        device=wheel_stat.st_dev,
+        inode=wheel_stat.st_ino,
+        owner_uid=wheel_stat.st_uid,
+        size=wheel_stat.st_size,
+    )
+
+    metadata_message = BytesParser(policy=policy.default).parsebytes(metadata_bytes)
+    if metadata_message.defects:
+        raise RuntimeError(f"{wheel_path.name}: malformed wheel METADATA headers")
+    metadata_name = _single_metadata_header(
+        wheel_path=wheel_path,
+        metadata=metadata_message,
+        header_name="Name",
+    )
+    metadata_version = _single_metadata_header(
+        wheel_path=wheel_path,
+        metadata=metadata_message,
+        header_name="Version",
+    )
+    metadata_key = (
+        str(canonicalize_name(metadata_name)),
+        _canonical_wheel_version(metadata_version, label=f"{wheel_path.name} METADATA"),
+    )
+    if metadata_key != filename_key:
+        raise RuntimeError(f"{wheel_path.name}: filename and METADATA Name/Version do not match")
+
+    metadata_path = PurePosixPath(metadata_member.filename)
+    dist_info_stem = metadata_path.parts[0][: -len(".dist-info")]
+    if "-" not in dist_info_stem:
+        raise RuntimeError(f"{wheel_path.name}: malformed dist-info directory")
+    dist_info_name, dist_info_version = dist_info_stem.rsplit("-", 1)
+    dist_info_key = (
+        str(canonicalize_name(dist_info_name)),
+        _canonical_wheel_version(dist_info_version, label=f"{wheel_path.name} dist-info"),
+    )
+    if dist_info_key != filename_key:
+        raise RuntimeError(f"{wheel_path.name}: dist-info and filename Name/Version do not match")
+
+    dependency_links = metadata_message.get_all("Dependency-Link", [])
+    if dependency_links:
+        raise RuntimeError(f"{wheel_path.name}: Dependency-Link metadata is forbidden")
+    for raw_requirement in metadata_message.get_all("Requires-Dist", []):
+        if not isinstance(raw_requirement, str):
+            raise RuntimeError(f"{wheel_path.name}: malformed Requires-Dist metadata")
+        try:
+            requirement = Requirement(raw_requirement)
+        except InvalidRequirement as exc:
+            raise RuntimeError(
+                f"{wheel_path.name}: malformed Requires-Dist metadata: {raw_requirement!r}"
+            ) from exc
+        if requirement.url is not None:
+            raise RuntimeError(
+                f"{wheel_path.name}: direct-reference Requires-Dist metadata is forbidden"
+            )
+    return ValidatedWheel(
+        path=wheel_path,
+        artifact_key=filename_key,
+        snapshot=artifact_snapshot,
+        metadata_digest=hashlib.sha256(metadata_bytes).hexdigest(),
+        requires_dist=tuple(metadata_message.get_all("Requires-Dist", [])),
+    )
 
 
 def _env_truthy(name: str) -> bool:
@@ -223,6 +1190,16 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
             "without installing any requirements."
         ),
     )
+    parser.add_argument("--prefetch-psycopg-build-wheels", type=Path)
+    parser.add_argument("--prefetch-psycopg-source", type=Path)
+    parser.add_argument("--build-psycopg-c", action="store_true")
+    parser.add_argument("--psycopg-source-archive", type=Path)
+    parser.add_argument("--psycopg-build-wheels", type=Path)
+    parser.add_argument("--psycopg-native-root", type=Path)
+    parser.add_argument("--psycopg-wheel-output", type=Path)
+    parser.add_argument("--psycopg-sdk", type=Path)
+    parser.add_argument("--prefetch-only", action="store_true")
+    parser.add_argument("--consume-only", action="store_true")
     return parser.parse_args(argv)
 
 
@@ -312,7 +1289,7 @@ def _parse_iso_date(value: str, *, field_name: str) -> date:
 def _validate_sha256(value: str, *, filename: str) -> str:
     """Return a normalized sha256 digest or fail closed."""
     digest = value.strip().lower()
-    if len(digest) != 64 or any(ch not in "0123456789abcdef" for ch in digest):
+    if len(digest) != 64 or any(ch not in "01234567" "89abcdef" for ch in digest):
         raise RuntimeError(
             f"Emergency wheel manifest sha256 is invalid for {filename!r}: {value!r}"
         )
@@ -984,6 +1961,7 @@ def build_pip_download_command(
     constraints_file: Path | None,
     index_url: str,
     trusted_host: str | None,
+    no_dependencies: bool = False,
 ) -> list[str]:
     constraints_file = validate_constraints_file(constraints_file)
     command = [
@@ -1005,6 +1983,8 @@ def build_pip_download_command(
         str(requirement_file),
     ]
     command.extend(["--index-url", index_url])
+    if no_dependencies:
+        command.append("--no-deps")
     if trusted_host:
         command.extend(["--trusted-host", trusted_host])
     if constraints_file is not None:
@@ -1668,6 +2648,9 @@ def _private_index_project_has_version(
             "Approved Python package proxy health check failed before dependency floor preflight: "
             f"{package}: {safe_url}: invalid simple-index project page"
         )
+    if package == "psycopg-c" and version == PSYCOPG_C_VERSION:
+        admitted_psycopg_source_url(body=body, project_url=safe_url)
+        return True
     return _simple_project_page_has_version(package=package, version=version, body=body)
 
 
@@ -1951,7 +2934,13 @@ def _run_owned_pip_child(argv: Sequence[str]) -> int:
         return 1
 
 
-def run_command(command: Sequence[str]) -> None:
+def run_command(
+    command: Sequence[str],
+    *,
+    environment: dict[str, str] | None = None,
+    cwd: Path | None = None,
+    timeout: int | None = None,
+) -> None:
     """Run a subprocess command; include captured stdout/stderr on failure for pip diagnostics."""
     if not command:
         raise RuntimeError("Command failed: empty command")
@@ -1964,12 +2953,13 @@ def run_command(command: Sequence[str]) -> None:
         detail = _redact_url_credentials_in_text(str(exc))
         raise RuntimeError(f"Command failed: {command_text}: {detail}") from exc
     argv = [resolved_python, *original_argv[1:]]
-    if original_argv[1:3] == ["-m", "pip"]:
+    pip_offset = 2 if original_argv[1:2] == ["-I"] else 1
+    if original_argv[pip_offset : pip_offset + 2] == ["-m", "pip"]:
         argv = [
             resolved_python,
             str(Path(__file__).resolve()),
             PIP_CHILD_SELECTOR,
-            *original_argv[3:],
+            *original_argv[pip_offset + 2 :],
         ]
     try:
         result = subprocess.run(  # nosec B603 # B603: commands are built internally from pinned requirement/install helpers only (remove-by: 2026-10-31, ref: PR-litellm-hardening)
@@ -1977,6 +2967,9 @@ def run_command(command: Sequence[str]) -> None:
             check=False,
             capture_output=True,
             text=True,
+            env=environment,
+            cwd=cwd,
+            timeout=timeout,
         )
     except FileNotFoundError as exc:
         detail = _redact_url_credentials_in_text(str(exc))
@@ -2175,6 +3168,7 @@ def build_wheelhouse(
     wheelhouse_dir: Path,
     index_url: str,
     trusted_host: str | None,
+    no_dependencies: bool = False,
 ) -> None:
     wheelhouse_dir.mkdir(parents=True, exist_ok=True)
     for requirement_file in requirement_files:
@@ -2190,6 +3184,7 @@ def build_wheelhouse(
                     constraints_file=effective_constraints_file,
                     index_url=index_url,
                     trusted_host=trusted_host,
+                    **({"no_dependencies": True} if no_dependencies else {}),
                 )
             )
 
@@ -2373,16 +3368,18 @@ def install_with_guard(
     index_url: str,
     trusted_host: str | None,
     emergency_wheel_manifest: Path | None,
+    consume_only: bool = False,
 ) -> int:
-    build_wheelhouse_with_emergency_fallback(
-        python_executable=python_executable,
-        requirement_files=requirement_files,
-        constraints_file=constraints_file,
-        wheelhouse_dir=wheelhouse_dir,
-        index_url=index_url,
-        trusted_host=trusted_host,
-        emergency_wheel_manifest=emergency_wheel_manifest,
-    )
+    if not consume_only:
+        build_wheelhouse_with_emergency_fallback(
+            python_executable=python_executable,
+            requirement_files=requirement_files,
+            constraints_file=constraints_file,
+            wheelhouse_dir=wheelhouse_dir,
+            index_url=index_url,
+            trusted_host=trusted_host,
+            emergency_wheel_manifest=emergency_wheel_manifest,
+        )
 
     with staged_python_environment(python_executable) as staging_python:
         install_from_wheelhouse(
@@ -2408,6 +3405,110 @@ def install_with_guard(
         wheelhouse_dir=wheelhouse_dir,
     )
     return 0
+
+
+def _exact_locked_artifacts(requirement_files: Sequence[Path]) -> frozenset[tuple[str, str]]:
+    """Use native requirement semantics for the bounded SDK/prefetch/consume operation."""
+    from pip._vendor.packaging.requirements import Requirement
+    from pip._vendor.packaging.utils import canonicalize_name
+    from pip._vendor.packaging.version import Version
+
+    pins: dict[str, str] = {}
+    for path in requirement_files:
+        for raw in path.read_text(encoding="utf-8").splitlines():
+            line = raw.split("#", 1)[0].strip()
+            if not line:
+                continue
+            requirement = Requirement(line)
+            specifiers = tuple(requirement.specifier)
+            name = str(canonicalize_name(requirement.name))
+            if (
+                len(specifiers) != 1
+                or specifiers[0].operator != "=="
+                or "*" in specifiers[0].version
+                or requirement.marker
+                or requirement.url
+                or (requirement.extras and (name != "psycopg" or requirement.extras != {"c"}))
+            ):
+                raise RuntimeError(
+                    "Exact SDK installation requires ordinary unmarked compiled pins."
+                )
+            version = str(Version(specifiers[0].version))
+            if name in pins and pins[name] != version:
+                raise RuntimeError("Selected compiled profiles contain conflicting exact pins.")
+            pins[name] = version
+    return frozenset(pins.items())
+
+
+def _validate_exact_wheelhouse(
+    *, wheelhouse: Path, expected: frozenset[tuple[str, str]]
+) -> tuple[ValidatedWheel, ...]:
+    if wheelhouse.is_symlink() or not wheelhouse.is_dir():
+        raise RuntimeError("Consume-only requires an existing regular wheelhouse directory.")
+    artifacts = tuple(
+        inspect_locked_wheel(wheel_path=path, expected_artifacts=expected)
+        for path in sorted(wheelhouse.iterdir())
+    )
+    if len(artifacts) != len(expected) or {a.artifact_key for a in artifacts} != expected:
+        raise RuntimeError("Wheelhouse does not contain exactly the selected compiled artifacts.")
+    return artifacts
+
+
+def _stage_psycopg_sdk_wheel(*, sdk: Path, wheelhouse: Path) -> ValidatedWheel:
+    artifact = read_psycopg_c_sdk(sdk)
+    wheelhouse.mkdir(parents=True, exist_ok=True)
+    destination = wheelhouse / artifact.path.name
+    if destination.exists() or destination.is_symlink():
+        raise RuntimeError("Psycopg SDK wheel cannot replace an existing wheelhouse member.")
+    payload = _read_regular_input(artifact.path, maximum=16 * 1024 * 1024)
+    if hashlib.sha256(payload).hexdigest() != artifact.snapshot.digest:
+        raise RuntimeError("Psycopg SDK wheel changed before acquisition.")
+    with destination.open("xb") as stream:
+        stream.write(payload)
+    return artifact
+
+
+def acquire_locked_wheelhouse(
+    *,
+    python_executable: str,
+    requirement_files: Sequence[Path],
+    constraints_file: Path | None,
+    wheelhouse: Path,
+    index_url: str,
+    trusted_host: str | None,
+    sdk: Path | None,
+) -> None:
+    """Acquire binary pins and the exact genuine SDK wheel, without source execution."""
+    expected = _exact_locked_artifacts(requirement_files)
+    needs_c = ("psycopg-c", PSYCOPG_C_VERSION) in expected
+    if any(name == "psycopg-c" and version != PSYCOPG_C_VERSION for name, version in expected):
+        raise RuntimeError("Only the admitted Psycopg C version can use source-built admission.")
+    if needs_c and sdk is None:
+        raise RuntimeError("This compiled profile requires its genuine matching Psycopg C SDK.")
+    if wheelhouse.exists() or wheelhouse.is_symlink():
+        raise RuntimeError("Prefetch wheelhouse destination must be new.")
+    wheelhouse.mkdir(parents=True, mode=0o700)
+    admitted_c = None
+    if needs_c:
+        if sdk is None:
+            raise RuntimeError("The exact C profile has no admitted SDK.")
+        admitted_c = _stage_psycopg_sdk_wheel(sdk=sdk, wheelhouse=wheelhouse)
+    build_wheelhouse(
+        python_executable=python_executable,
+        requirement_files=requirement_files,
+        constraints_file=constraints_file,
+        wheelhouse_dir=wheelhouse,
+        index_url=index_url,
+        trusted_host=trusted_host,
+        no_dependencies=True,
+    )
+    artifacts = _validate_exact_wheelhouse(wheelhouse=wheelhouse, expected=expected)
+    if admitted_c is not None and not any(
+        a.artifact_key == admitted_c.artifact_key
+        and a.snapshot.digest == admitted_c.snapshot.digest
+        for a in artifacts
+    ):
+        raise RuntimeError("The acquired profile lost its admitted Psycopg C wheel.")
 
 
 def install_with_guard_from_proxy(
@@ -2502,6 +3603,29 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         args = parse_args(argv)
         args.python_executable = resolve_python_executable(args.python_executable)
+        if args.build_psycopg_c:
+            inputs = (
+                args.psycopg_source_archive,
+                args.psycopg_build_wheels,
+                args.psycopg_native_root,
+                args.psycopg_wheel_output,
+            )
+            if (
+                any(value is None for value in inputs)
+                or args.consume_only
+                or args.prefetch_only
+                or args.prefetch_psycopg_build_wheels
+            ):
+                raise RuntimeError(
+                    "Exact Psycopg build requires all four explicit inputs and no acquisition/install mode."
+                )
+            build_psycopg_c_sdk(
+                source=args.psycopg_source_archive,
+                build_wheels=args.psycopg_build_wheels,
+                native_root=args.psycopg_native_root,
+                output=args.psycopg_wheel_output,
+            )
+            return 0
         if args.requirements_profile and (args.install_dev or args.install_test):
             print(
                 "ERROR: requirements-profile cannot be combined with "
@@ -2509,10 +3633,46 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
             return 1
 
-        index_url, trusted_host = resolve_private_proxy_settings(
-            index_url=args.index_url,
-            trusted_host=args.trusted_host,
-        )
+        if args.prefetch_only and args.consume_only:
+            raise RuntimeError("Prefetch-only and consume-only are distinct operations.")
+        if args.consume_only:
+            if (
+                args.index_url
+                or args.trusted_host
+                or args.upgrade_pip
+                or args.upgrade_pip_only
+                or args.preflight_only
+                or args.prefetch_psycopg_build_wheels
+                or args.prefetch_psycopg_source
+                or args.wheelhouse_dir is None
+            ):
+                raise RuntimeError(
+                    "Consume-only requires an explicit wheelhouse and no acquisition flags."
+                )
+            index_url, trusted_host = "", None
+        else:
+            index_url, trusted_host = resolve_private_proxy_settings(
+                index_url=args.index_url,
+                trusted_host=args.trusted_host,
+            )
+
+        if args.prefetch_psycopg_build_wheels is not None:
+            if args.consume_only or args.prefetch_only:
+                raise RuntimeError("Build-wheel prefetch is a separate acquisition operation.")
+            prefetch_psycopg_build_wheels(
+                output=args.prefetch_psycopg_build_wheels,
+                python_executable=args.python_executable,
+                index_url=index_url,
+                trusted_host=trusted_host,
+            )
+            return 0
+        if args.prefetch_psycopg_source is not None:
+            if args.consume_only or args.prefetch_only:
+                raise RuntimeError("Source prefetch is a separate archive acquisition operation.")
+            prefetch_psycopg_source(
+                output=args.prefetch_psycopg_source, index_url=index_url, trusted_host=trusted_host
+            )
+            return 0
 
         if args.require_virtualenv and not is_virtualenv_python(args.python_executable):
             print("ERROR: refusing to install packages with a non-virtualenv interpreter.")
@@ -2550,6 +3710,73 @@ def main(argv: Sequence[str] | None = None) -> int:
             install_test=args.install_test,
             requirements_profile=args.requirements_profile,
         )
+
+        sdk = args.psycopg_sdk
+        if sdk is None and os.environ.get(PSYCOPG_SDK_ENV):
+            sdk = Path(os.environ[PSYCOPG_SDK_ENV])
+        contains_c = any(
+            "psycopg-c"
+            in _collect_unmarked_exact_requirement_pin_versions(
+                path.read_text(encoding="utf-8").splitlines()
+            )
+            for path in requirement_files
+        )
+        if args.consume_only or args.prefetch_only or sdk is not None or contains_c:
+            expected = _exact_locked_artifacts(requirement_files)
+            if sdk is not None and not contains_c:
+                raise RuntimeError("The selected profile has no Psycopg C SDK consumer.")
+            if args.prefetch_only:
+                if args.wheelhouse_dir is None:
+                    raise RuntimeError(
+                        "Prefetch-only requires its explicit new wheelhouse destination."
+                    )
+                acquire_locked_wheelhouse(
+                    python_executable=args.python_executable,
+                    requirement_files=requirement_files,
+                    constraints_file=validated_constraints_file,
+                    wheelhouse=args.wheelhouse_dir,
+                    index_url=index_url,
+                    trusted_host=trusted_host,
+                    sdk=sdk,
+                )
+                return 0
+            with tempfile.TemporaryDirectory(prefix="pulseplate-sdk-wheelhouse-") as temporary:
+                wheelhouse = args.wheelhouse_dir or (Path(temporary) / "wheels")
+                if not args.consume_only:
+                    acquire_locked_wheelhouse(
+                        python_executable=args.python_executable,
+                        requirement_files=requirement_files,
+                        constraints_file=validated_constraints_file,
+                        wheelhouse=wheelhouse,
+                        index_url=index_url,
+                        trusted_host=trusted_host,
+                        sdk=sdk,
+                    )
+                _validate_exact_wheelhouse(wheelhouse=wheelhouse, expected=expected)
+                if contains_c:
+                    if sdk is None:
+                        raise RuntimeError(
+                            "Consume-only requires the matching genuine Psycopg C SDK."
+                        )
+                    admitted_c = read_psycopg_c_sdk(sdk)
+                    current_c = inspect_locked_wheel(
+                        wheel_path=wheelhouse / admitted_c.path.name, expected_artifacts=expected
+                    )
+                    if current_c.snapshot.digest != admitted_c.snapshot.digest:
+                        raise RuntimeError(
+                            "Consumed Psycopg C differs from the admitted SDK wheel."
+                        )
+                return install_with_guard(
+                    python_executable=args.python_executable,
+                    requirement_files=requirement_files,
+                    constraints_file=validated_constraints_file,
+                    wheelhouse_dir=wheelhouse,
+                    guard_script=args.guard_script,
+                    index_url="",
+                    trusted_host=None,
+                    emergency_wheel_manifest=None,
+                    consume_only=True,
+                )
 
         if args.install_mode == "direct-proxy":
             return install_with_guard_from_proxy(

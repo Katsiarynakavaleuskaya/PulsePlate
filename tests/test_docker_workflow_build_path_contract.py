@@ -282,7 +282,7 @@ def test_build_workflow_blocks_removed_acl_attr_runtime_packages() -> None:
 
 
 def test_dockerfile_pins_all_backend_python_stages_to_one_oci_index() -> None:
-    """All external Python stages use the same immutable, ordered base."""
+    """Runtime bases stay fixed; only the exact isolated SDK family varies."""
     dockerfile = (REPO_ROOT / "Dockerfile").read_text(encoding="utf-8")
     trivyignore = (REPO_ROOT / ".trivyignore").read_text(encoding="utf-8")
     python_from_lines = tuple(
@@ -291,8 +291,16 @@ def test_dockerfile_pins_all_backend_python_stages_to_one_oci_index() -> None:
         if line.lstrip().casefold().startswith("from ") and "python" in line.casefold()
     )
 
-    assert len(python_from_lines) == 3
-    assert python_from_lines == EXPECTED_BACKEND_PYTHON_FROM_LINES
+    sdk_from_lines = (
+        "FROM ${PSYCOPG_SDK_PYTHON_IMAGE} AS native-builder",
+        "FROM ${PSYCOPG_SDK_PYTHON_IMAGE} AS psycopg-inputs",
+    )
+    assert len(python_from_lines) == 5
+    assert (
+        tuple(line for line in python_from_lines if line not in sdk_from_lines)
+        == EXPECTED_BACKEND_PYTHON_FROM_LINES
+    )
+    assert tuple(line for line in python_from_lines if line in sdk_from_lines) == sdk_from_lines
     assert "3.13.13" not in dockerfile
     assert f"FROM {BACKEND_PYTHON_BASE_IMAGE.partition('@')[0]} AS" not in dockerfile
     assert BACKEND_PYTHON_BASE_IMAGE.partition("@")[0] in trivyignore
@@ -352,8 +360,13 @@ def test_docker_source_artifact_manifest_pins_sqlite_source() -> None:
     assert manifest["schema_version"] == 1
     assert manifest["generated_at"] == "2026-10-04"
     assert manifest["review_by"] == "2026-10-21"
-    assert len(artifacts) == 4
-    assert [row["name"] for row in artifacts] == ["sqlite-autoconf", "util-linux", "pcre2", "sljit"]
+    assert len(artifacts) == 9
+    assert [row["name"] for row in artifacts[:4]] == [
+        "sqlite-autoconf",
+        "util-linux",
+        "pcre2",
+        "sljit",
+    ]
     for name in ("SQLite", "util-linux", "PCRE2", "SLJIT"):
         assert name in manifest["reason"]
 
@@ -385,11 +398,11 @@ def test_docker_source_artifact_manifest_review_window_is_inclusive(tmp_path: Pa
     historical["generated_at"] = "2026-09-28"
     historical["review_by"] = "2026-10-05"
     old_path = _write_docker_source_manifest(tmp_path, historical)
-    assert len(docker_sources.load_manifest(old_path, today=date(2026, 10, 5))) == 4
+    assert len(docker_sources.load_manifest(old_path, today=date(2026, 10, 5))) == 9
     with pytest.raises(RuntimeError, match="review_by is stale: 2026-10-05"):
         docker_sources.load_manifest(old_path, today=date(2026, 10, 6))
     for day in (6, 8, 21):
-        assert len(docker_sources.load_manifest(manifest_path, today=date(2026, 10, day))) == 4
+        assert len(docker_sources.load_manifest(manifest_path, today=date(2026, 10, day))) == 9
     with pytest.raises(RuntimeError, match="review_by is stale: 2026-10-21"):
         docker_sources.load_manifest(manifest_path, today=date(2026, 10, 22))
 
@@ -1235,7 +1248,7 @@ def test_pcre2_source_records_bind_exact_reviewed_closure(
     artifacts = docker_sources.load_manifest(
         REPO_ROOT / "scripts/ci/docker_source_artifacts.json", today=date(2026, 10, 2)
     )
-    assert len(artifacts) == 4
+    assert len(artifacts) == 9
     matches = [artifact for artifact in artifacts if artifact.name == name]
     assert len(matches) == 1
     artifact = matches[0]

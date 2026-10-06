@@ -16,6 +16,7 @@ _REVIEW_BY_RE = re.compile(r"Review-by:\s*(\d{4}-\d{2}-\d{2})(?:\s|$)")
 _CANONICAL_IGNORE_HEAD_LINE_RE = re.compile(r"[ \t]*ignore[ \t]+if[ \t]*\{[ \t]*(?:#.*)?")
 _DEFAULT_IGNORE_LINE_RE = re.compile(r"[ \t]*default[ \t]+ignore[ \t]*:=[ \t]*false[ \t]*(?:#.*)?")
 _RETIRED_REACT_ROUTER_RSC_ADVISORY = "GHSA-qwww-vcr4-c8h2"
+_CANONICAL_NEVER_IGNORE_POLICY = "package trivy\n\nimport rego.v1\n\ndefault ignore := false\n"
 
 
 @dataclass(frozen=True)
@@ -369,7 +370,7 @@ def _read_rego_text(policy_file: Path) -> str:
     """Read one Rego policy or raise a stable validation failure."""
 
     try:
-        return policy_file.read_text(encoding="utf-8")
+        return policy_file.read_bytes().decode("utf-8")
     except (OSError, UnicodeDecodeError) as exc:
         raise ValueError(f"Unable to read Trivy ignore policy {policy_file}: {exc}") from exc
 
@@ -483,11 +484,15 @@ def evaluate_policy_file(
     today: date,
     text: str | None = None,
 ) -> list[str]:
-    if text is None:
-        try:
-            text = _read_rego_text(policy_file)
-        except ValueError as exc:
-            return [str(exc)]
+    try:
+        actual = _read_rego_text(policy_file)
+    except ValueError as exc:
+        return [str(exc)]
+    if text is not None and text != actual:
+        return [f"Trivy ignore policy text does not match its acquired file: {policy_file}"]
+    text = actual
+    if text == _CANONICAL_NEVER_IGNORE_POLICY:
+        return []
 
     failures = _validate_react_router_rsc_suppression_absent(policy_file, text=text)
     try:
@@ -568,12 +573,7 @@ def main() -> int:
         )
 
     for policy_file in policy_files:
-        try:
-            text = _read_rego_text(policy_file)
-        except ValueError as exc:
-            failures.append(str(exc))
-            continue
-        failures.extend(evaluate_policy_file(policy_file, today=today, text=text))
+        failures.extend(evaluate_policy_file(policy_file, today=today))
 
     if failures:
         print("ERROR: Trivy ignore policy expiry check failed:")

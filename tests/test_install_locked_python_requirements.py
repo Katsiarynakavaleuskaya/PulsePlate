@@ -12,6 +12,7 @@ import subprocess
 import sys
 import tempfile
 import types
+import zipfile
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from email.utils import format_datetime
@@ -113,6 +114,224 @@ def _exact_requirement_pairs(contents: str) -> set[tuple[str, str]]:
         version = version_and_markers.split(";", 1)[0].strip()
         pairs.add((package.strip(), version))
     return pairs
+
+
+def test_psycopg_source_url_admits_only_the_reviewed_archive() -> None:
+    project = DEVPI_SIMPLE_URL + "psycopg-c/"
+    href = f"../../+f/source/{installer.PSYCOPG_C_SOURCE_NAME}#sha256={installer.PSYCOPG_C_SOURCE_SHA256}"
+    body = f'<a href="{href}">source</a>'.encode()
+    assert installer.admitted_psycopg_source_url(body=body, project_url=project) == (
+        "https://packages.pulseplate.app/root/pulseplate/+f/source/"
+        + installer.PSYCOPG_C_SOURCE_NAME
+    )
+
+
+@pytest.mark.parametrize(
+    "variation", ("missing_hash", "wrong_hash", "foreign_origin", "duplicate", "different_version")
+)
+def test_psycopg_source_url_rejects_unadmitted_input(variation: str) -> None:
+    href = f"../../+f/source/{installer.PSYCOPG_C_SOURCE_NAME}#sha256={installer.PSYCOPG_C_SOURCE_SHA256}"
+    if variation == "missing_hash":
+        href = href.split("#", 1)[0]
+    elif variation == "wrong_hash":
+        href = href.split("#", 1)[0] + "#sha256=" + "0" * 64
+    elif variation == "foreign_origin":
+        href = "https://packages.example.invalid/" + href.rsplit("/", 1)[-1]
+    elif variation == "different_version":
+        href = href.replace("3.3.4", "3.3.5")
+    body = f'<a href="{href}">source</a>'.encode()
+    if variation == "duplicate":
+        body += body
+    with pytest.raises(RuntimeError):
+        installer.admitted_psycopg_source_url(
+            body=body, project_url=DEVPI_SIMPLE_URL + "psycopg-c/"
+        )
+
+
+def test_psycopg_source_refuses_other_names_and_changed_release_bytes(tmp_path: Path) -> None:
+    with pytest.raises(RuntimeError, match="exact reviewed Psycopg C source name"):
+        installer.inspect_psycopg_source(tmp_path / "another-source.tar.gz")
+    archive = tmp_path / installer.PSYCOPG_C_SOURCE_NAME
+    archive.write_bytes(b"unrecognized release bytes")
+    with pytest.raises(RuntimeError, match="original source SHA-256 mismatch"):
+        installer.inspect_psycopg_source(archive)
+
+
+def test_psycopg_build_tools_include_only_the_actual_binary_closure() -> None:
+    assert installer.PSYCOPG_C_BUILD_PINS == frozenset(
+        {
+            ("setuptools", "83.0.0"),
+            ("wheel", "0.47.0"),
+            ("packaging", "25.0"),
+        }
+    )
+    assert set(installer.PSYCOPG_C_BUILD_ARTIFACTS) == {
+        "setuptools-83.0.0-py3-none-any.whl",
+        "wheel-0.47.0-py3-none-any.whl",
+        "packaging-25.0-py3-none-any.whl",
+    }
+    with pytest.raises(RuntimeError, match="inventory is incomplete"):
+        installer._validate_psycopg_build_closure([])
+
+
+def test_psycopg_profile_requires_a_genuine_sdk_before_acquisition(tmp_path: Path) -> None:
+    requirements = tmp_path / "requirements.txt"
+    requirements.write_text("psycopg[c]==3.3.4\npsycopg-c==3.3.4\n", encoding="utf-8")
+    with pytest.raises(RuntimeError, match="genuine matching Psycopg C SDK"):
+        installer.acquire_locked_wheelhouse(
+            python_executable=sys.executable,
+            requirement_files=[requirements],
+            constraints_file=None,
+            wheelhouse=tmp_path / "wheels",
+            index_url=APPROVED_PROXY_URL,
+            trusted_host=None,
+            sdk=None,
+        )
+    assert not (tmp_path / "wheels").exists()
+
+
+def test_exact_prefetch_requests_only_declared_pins_and_preserves_legacy_resolution(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    requirements = tmp_path / "requirements.txt"
+    requirements.write_text("tool==1.0.0\n", encoding="utf-8")
+    wheelhouse = tmp_path / "wheels"
+    commands: list[list[str]] = []
+
+    def download(command: list[str], **kwargs: object) -> None:
+        assert "--no-deps" in command
+        assert "--only-binary" in command
+        commands.append(command)
+        with zipfile.ZipFile(wheelhouse / "tool-1.0.0-py3-none-any.whl", "w") as wheel:
+            wheel.writestr(
+                "tool-1.0.0.dist-info/METADATA",
+                "Metadata-Version: 2.4\nName: tool\nVersion: 1.0.0\nRequires-Dist: pip>=22.2\n\n",
+            )
+
+    monkeypatch.setattr(installer, "run_command", download)
+    installer.acquire_locked_wheelhouse(
+        python_executable=sys.executable,
+        requirement_files=[requirements],
+        constraints_file=None,
+        wheelhouse=wheelhouse,
+        index_url=APPROVED_PROXY_URL,
+        trusted_host=None,
+        sdk=None,
+    )
+    assert len(commands) == 1
+    assert [path.name for path in wheelhouse.iterdir()] == ["tool-1.0.0-py3-none-any.whl"]
+    legacy = installer.build_pip_download_command(
+        python_executable=sys.executable,
+        requirement_file=requirements,
+        constraints_file=None,
+        wheelhouse_dir=wheelhouse,
+        index_url=APPROVED_PROXY_URL,
+        trusted_host=None,
+    )
+    assert "--no-deps" not in legacy
+
+
+@pytest.mark.parametrize(
+    "line",
+    ("example>=1", "example==1; python_version>'3.10'", "example[feature]==1", "example==1.*"),
+)
+def test_exact_sdk_profiles_reject_noncanonical_pins(tmp_path: Path, line: str) -> None:
+    requirements = tmp_path / "requirements.txt"
+    requirements.write_text(line + "\n", encoding="utf-8")
+    with pytest.raises(RuntimeError, match="ordinary unmarked compiled pins"):
+        installer._exact_locked_artifacts([requirements])
+
+
+def test_consume_only_has_no_acquisition_dispatch(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    requirements = tmp_path / "requirements.txt"
+    requirements.write_text("example==1.0\n", encoding="utf-8")
+    wheelhouse = tmp_path / "wheels"
+    wheelhouse.mkdir()
+    constraints = tmp_path / "constraints.txt"
+    constraints.write_text("", encoding="utf-8")
+    observed: list[dict[str, object]] = []
+    monkeypatch.setattr(installer, "_validate_exact_wheelhouse", lambda **kwargs: ())
+    monkeypatch.setattr(installer, "resolve_python_executable", lambda value: value)
+
+    def reject_acquisition(**kwargs: object) -> None:
+        raise AssertionError("Consume-only must not dispatch proxy or prefetch work")
+
+    monkeypatch.setattr(installer, "resolve_private_proxy_settings", reject_acquisition)
+    monkeypatch.setattr(installer, "acquire_locked_wheelhouse", reject_acquisition)
+
+    def consume(**kwargs: object) -> int:
+        observed.append(kwargs)
+        return 0
+
+    monkeypatch.setattr(installer, "install_with_guard", consume)
+    assert (
+        installer.main(
+            [
+                "--consume-only",
+                "--wheelhouse-dir",
+                str(wheelhouse),
+                "--requirements-file",
+                str(requirements),
+                "--constraints-file",
+                str(constraints),
+            ]
+        )
+        == 0
+    )
+    assert observed[0]["consume_only"] is True
+    assert observed[0]["index_url"] == ""
+
+
+def test_consume_only_rejects_mixed_modes_and_missing_store() -> None:
+    assert installer.main(["--consume-only", "--prefetch-only"]) == 1
+    assert installer.main(["--consume-only"]) == 1
+
+
+@pytest.mark.parametrize(
+    "condition", ("dormant", "active", "ipv4_address", "ipv4_route", "ipv6_address", "ipv6_route")
+)
+def test_psycopg_backend_checks_native_network_state(
+    monkeypatch: pytest.MonkeyPatch, condition: str
+) -> None:
+    interfaces = {"lo": (73, b"\x7f\x00\x00\x01"), "default-device": (128, None)}
+    tables = {
+        "/proc/net/route": [
+            [
+                "Iface",
+                "Destination",
+                "Gateway",
+                "Flags",
+                "RefCnt",
+                "Use",
+                "Metric",
+                "Mask",
+                "MTU",
+                "Window",
+                "IRTT",
+            ]
+        ],
+        "/proc/net/if_inet6": [["0" * 31 + "1", "01", "80", "10", "80", "lo"]],
+        "/proc/net/ipv6_route": [[*(["0"] * 9), "lo"]],
+    }
+    if condition == "active":
+        interfaces["default-device"] = (129, None)
+    elif condition == "ipv4_address":
+        interfaces["default-device"] = (128, b"\x0a\x00\x00\x01")
+    elif condition == "ipv4_route":
+        tables["/proc/net/route"].append(["default-device", *(["0"] * 10)])
+    elif condition == "ipv6_address":
+        tables["/proc/net/if_inet6"][0][-1] = "default-device"
+    elif condition == "ipv6_route":
+        tables["/proc/net/ipv6_route"][0][-1] = "default-device"
+    monkeypatch.setattr(installer, "_process_network_inventory", lambda: interfaces)
+    monkeypatch.setattr(installer, "_network_table_lines", lambda path: tables[path])
+    if condition == "dormant":
+        installer._assert_backend_network_isolated()
+    else:
+        with pytest.raises(RuntimeError, match="network isolation|external or malformed"):
+            installer._assert_backend_network_isolated()
 
 
 def _ci_linux_cp313_tags() -> set[str]:
