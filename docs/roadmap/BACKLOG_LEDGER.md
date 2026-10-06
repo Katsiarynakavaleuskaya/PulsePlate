@@ -506,7 +506,7 @@ If it is not recorded here — it does not exist.
     CAB-06 [PR #2460](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2460)
     (`codex/ios-iphone-ipad-ci-matrix`); CAB-07A merged implementation
     (`codex/cab07a-eslint-foundation-api`, [PR #2468](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2468));
-    CAB-07B `PR-TBD-CAB07B` (`codex/cab07b-eslint-ui-primitives`).
+    CAB-07B [PR #2471](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2471) (`codex/cab07b-eslint-ui-primitives`).
   - Status: CAB-03, CAB-04 and CAB-05 merged in PR #2381, #2408 and #2414.
     Carryover: CAB-06 merged in PR #2460 at `2026-10-04T20:45:28Z`, commit
     `fb179f54877537b69ddd0ea4bf3d8211268fab82`; its canonical merged-main
@@ -519,7 +519,11 @@ If it is not recorded here — it does not exist.
     [Frontend CI 37307261956](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/37307261956)
     successful on attempt 1. Original QA35/archive and failure/retry history remain
     predecessor receipts, not new CAB-07B validation. CLIENT-ARCH-1 remains open.
-    CAB-07B is active under accepted CAB07B/v1.1; its own validation, review,
+    CAB-07B is active under owner-amended CAB07B/v1.2, with exactly nineteen admitted
+    paths and a bounded repair of the existing canonical diff-cover exclusion argv.
+    The seventeen intended exclusion classes, four required XML producers/inputs,
+    threshold 97 and merged PR #2466 concurrency/cancellation changes remain required.
+    Its own validation, review,
     separate human exact-head merge and terminal evidence remain pending. The bounded
     same-PR brace-expansion replacement has separate real-base resolver intent;
     it is not hidden in lint-toolchain closure. The one current

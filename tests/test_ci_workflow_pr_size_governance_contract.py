@@ -6082,7 +6082,12 @@ def test_orchestration_workflow_executes_exact_native_line_inventory_checker(
 
 
 def _consume_orchestration_diff_fixture(
-    tmp_path: Path, inventories: dict[str, list[int]]
+    tmp_path: Path,
+    inventories: dict[str, list[int]],
+    *,
+    coverage_args: tuple[str, ...] | None = None,
+    report_files: tuple[str, ...] = ("coverage-orchestration.xml",),
+    report_error: tuple[str, str] | None = None,
 ) -> subprocess.CompletedProcess[str]:
     """Delegate arithmetic to real diff-cover; synthetic lines are measurement controls."""
     import sys
@@ -6116,21 +6121,27 @@ def _consume_orchestration_diff_fixture(
             + "-before = 0\n" * len(hits)
             + "+after = 1\n" * len(hits)
         )
-    xml = tmp_path / "coverage-orchestration.xml"
-    xml.write_bytes(ElementTree.tostring(tree))
+    for filename in report_files:
+        xml = tmp_path / filename
+        xml.parent.mkdir(parents=True, exist_ok=True)
+        xml.write_bytes(ElementTree.tostring(tree))
+    if report_error is not None:
+        filename, error = report_error
+        assert filename in report_files
+        if error == "missing":
+            (tmp_path / filename).unlink()
+        else:
+            assert error == "malformed"
+            (tmp_path / filename).write_text("<coverage>", encoding="utf-8")
     patch = tmp_path / "changed.patch"
     patch.write_text("".join(patches), encoding="utf-8")
+    args = (
+        coverage_args
+        if coverage_args is not None
+        else (*(str(tmp_path / name) for name in report_files), "--fail-under", "97")
+    )
     return subprocess.run(
-        [
-            sys.executable,
-            "-m",
-            "diff_cover.diff_cover_tool",
-            str(xml),
-            "--diff-file",
-            str(patch),
-            "--fail-under",
-            "97",
-        ],
+        [sys.executable, "-m", "diff_cover.diff_cover_tool", *args, "--diff-file", str(patch)],
         cwd=tmp_path,
         env=git_env_without_parent_state(),
         capture_output=True,
@@ -6164,6 +6175,414 @@ def test_orchestration_numeric_diff_consumer_retains_aggregate_97_percent(
     assert (result.returncode == 0) is expected_pass
     assert "Total:   100 lines" in result.stdout
     assert f"Coverage: {100 - uncovered}%" in result.stdout
+
+
+CI_DIFF_COVERAGE_REPORTS = (
+    "./coverage-artifacts/coverage.xml",
+    "./ops-context-coverage/coverage-ops-context.xml",
+    "./fitchef-eval-coverage/coverage-fitchef-eval.xml",
+    "./orchestration-coverage/coverage-orchestration.xml",
+)
+CI_DIFF_COVERAGE_RUN = r"""coverage_root="$(pwd -P)"
+coverage_excludes=(
+  "${coverage_root}/frontend/**"
+  "${coverage_root}/alembic/**"
+  "${coverage_root}/releases/**"
+  "${coverage_root}/cache/**"
+  "${coverage_root}/data/**"
+  "${coverage_root}/external/**"
+  "${coverage_root}/htmlcov/**"
+  "${coverage_root}/coverage/**"
+  'conftest.py'
+  "${coverage_root}/tests/**"
+  '*.json'
+  '*.lock'
+  '*.md'
+  '*.yml'
+  '*.yaml'
+  '*.toml'
+  '*.txt'
+)
+diff-cover ./coverage-artifacts/coverage.xml \
+  ./ops-context-coverage/coverage-ops-context.xml \
+  ./fitchef-eval-coverage/coverage-fitchef-eval.xml \
+  ./orchestration-coverage/coverage-orchestration.xml \
+  --compare-branch "${{ github.base_ref }}" \
+  --fail-under "${{ env.COVERAGE_THRESHOLD }}" \
+  --exclude "${coverage_excludes[@]}"
+"""
+
+
+def _assert_ci_diff_coverage_exclusion_contract(workflow: dict[str, object]) -> None:
+    """Bind the actual ordered carrier and blocking seam; do not interpret Bash."""
+    jobs = cast(dict[str, object], workflow["jobs"])
+    job = cast(dict[str, object], jobs["diff-coverage"])
+    assert "continue-on-error" not in job and "defaults" not in job
+    assert workflow["defaults"] == {"run": {"shell": "bash"}}
+    assert job["if"] == (
+        "${{ !cancelled() && github.event_name == 'pull_request' && "
+        "(needs.changes.result != 'success' || "
+        "needs.changes.outputs.run_backend_blocking == 'true') }}"
+    )
+    assert job["needs"] == ["changes", "pr_scope_guard", "private_python_proxy_health", "test-pr"]
+    steps = cast(list[dict[str, object]], job["steps"])
+    matching = [step for step in steps if step.get("name") == "Enforce diff coverage >= 97%"]
+    assert len(matching) == 1
+    gate = matching[0]
+    assert gate == {
+        "name": "Enforce diff coverage >= 97%",
+        "env": {"COVERAGE_THRESHOLD": 97},
+        "run": CI_DIFF_COVERAGE_RUN,
+    }
+    downloads = [
+        step
+        for step in steps
+        if step.get("uses") == f"actions/download-artifact@{DOWNLOAD_ARTIFACT_NODE24_SHA}"
+    ]
+    assert [step["with"] for step in downloads] == [
+        {"name": "coverage-xml-${{ env.PYTHON_VERSION }}", "path": "./coverage-artifacts"},
+        {
+            "name": "coverage-ops-context-${{ env.PYTHON_VERSION }}",
+            "path": "./ops-context-coverage",
+        },
+        {
+            "name": "coverage-fitchef-eval-${{ env.PYTHON_VERSION }}",
+            "path": "./fitchef-eval-coverage",
+        },
+        {
+            "name": "coverage-orchestration-${{ env.PYTHON_VERSION }}",
+            "path": "./orchestration-coverage",
+        },
+    ]
+    assert all("if" not in step and "continue-on-error" not in step for step in downloads)
+    assert all(steps.index(step) < steps.index(gate) for step in downloads)
+    base = _job_step_by_name(workflow, job_id="diff-coverage", step_name="Fetch base branch")
+    assert base == {
+        "name": "Fetch base branch",
+        "run": (
+            "git fetch --no-tags --prune origin "
+            '"${{ github.base_ref }}":"${{ github.base_ref }}"\n'
+            'git branch --force base "${{ github.base_ref }}"\n'
+        ),
+    }
+    assert steps.index(base) < steps.index(gate)
+
+
+def test_ci_diff_coverage_node24_preserves_exact_exclusions_and_required_inputs() -> None:
+    _assert_ci_diff_coverage_exclusion_contract(_load_ci_workflow())
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    (
+        "repeated",
+        "missing",
+        "duplicate",
+        "extra",
+        "relative",
+        "broad",
+        "unquoted",
+        "report",
+        "threshold",
+        "base",
+        "optional",
+        "masked",
+        "duplicate_step",
+        "job_optional",
+        "job_if",
+        "job_defaults",
+        "workflow_defaults",
+        "download",
+    ),
+)
+def test_ci_diff_coverage_node24_rejects_carrier_or_blocking_drift(mutation: str) -> None:
+    workflow = _load_ci_workflow()
+    jobs = cast(dict[str, object], workflow["jobs"])
+    job = cast(dict[str, object], jobs["diff-coverage"])
+    steps = cast(list[dict[str, object]], job["steps"])
+    gate = _job_step_by_name(
+        workflow, job_id="diff-coverage", step_name="Enforce diff coverage >= 97%"
+    )
+    run = cast(str, gate["run"])
+    changes = {
+        "repeated": ('--exclude "${coverage_excludes[@]}"', "--exclude '*.json' --exclude '*.txt'"),
+        "missing": ('  "${coverage_root}/frontend/**"\n', ""),
+        "duplicate": ("  '*.txt'\n", "  '*.txt'\n  '*.txt'\n"),
+        "extra": ("  '*.txt'\n", "  '*.txt'\n  '*.py'\n"),
+        "relative": ('"${coverage_root}/frontend/**"', "'frontend/**'"),
+        "broad": ('"${coverage_root}/frontend/**"', "'*/frontend/**'"),
+        "unquoted": ('"${coverage_excludes[@]}"', "${coverage_excludes[@]}"),
+        "report": ("  ./ops-context-coverage/coverage-ops-context.xml \\\n", ""),
+        "threshold": ('--fail-under "${{ env.COVERAGE_THRESHOLD }}"', "--fail-under 96"),
+        "base": ('--compare-branch "${{ github.base_ref }}"', "--compare-branch HEAD"),
+        "masked": (
+            '--exclude "${coverage_excludes[@]}"',
+            '--exclude "${coverage_excludes[@]}" || true',
+        ),
+    }
+    if mutation in changes:
+        before, after = changes[mutation]
+        assert before in run
+        gate["run"] = run.replace(before, after, 1)
+    elif mutation == "optional":
+        gate["if"] = "${{ false }}"
+    elif mutation == "duplicate_step":
+        steps.append(dict(gate))
+    elif mutation == "job_optional":
+        job["continue-on-error"] = True
+    elif mutation == "job_if":
+        job["if"] = "${{ false }}"
+    elif mutation == "job_defaults":
+        job["defaults"] = {"run": {"working-directory": "frontend"}}
+    elif mutation == "workflow_defaults":
+        workflow["defaults"] = {"run": {"shell": "bash {0} || true"}}
+    else:
+        assert mutation == "download"
+        steps.remove(
+            _job_step_by_name(
+                workflow,
+                job_id="diff-coverage",
+                step_name="Download OPS context coverage artifact",
+            )
+        )
+    with pytest.raises(AssertionError):
+        _assert_ci_diff_coverage_exclusion_contract(workflow)
+
+
+def _native_ci_diff_coverage_args(root: Path) -> tuple[str, ...]:
+    """Run actual production Bash, capturing argv without a coverage result claim."""
+    bash = shutil.which("bash")
+    assert bash is not None
+    gate = _job_step_by_name(
+        _load_ci_workflow(), job_id="diff-coverage", step_name="Enforce diff coverage >= 97%"
+    )
+    run = (
+        cast(str, gate["run"])
+        .replace("${{ github.base_ref }}", "base")
+        .replace("${{ env.COVERAGE_THRESHOLD }}", "97")
+    )
+    result = subprocess.run(
+        [bash, "--noprofile", "--norc", "-c", "diff-cover() { printf '%s\\0' \"$@\"; }\n" + run],
+        cwd=root,
+        env={"PATH": os.defpath},
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=5,
+    )
+    assert result.returncode == 0, (result.stdout, result.stderr)
+    assert result.stderr == "" and result.stdout.endswith("\0")
+    return tuple(result.stdout[:-1].split("\0"))
+
+
+def test_ci_diff_coverage_native_parser_and_path_boundaries(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from diff_cover.diff_cover_tool import parse_coverage_args
+    from diff_cover.diff_reporter import GitDiffReporter
+
+    root = tmp_path / "working root with spaces"
+    root.mkdir()
+    monkeypatch.chdir(root)
+    argv = _native_ci_diff_coverage_args(root)
+    assert argv.count("--exclude") == 1
+    parsed = parse_coverage_args(list(argv))
+    directories = (
+        "frontend",
+        "alembic",
+        "releases",
+        "cache",
+        "data",
+        "external",
+        "htmlcov",
+        "coverage",
+    )
+    expected = [f"{root.resolve()}/{name}/**" for name in directories]
+    expected += [
+        "conftest.py",
+        f"{root.resolve()}/tests/**",
+        "*.json",
+        "*.lock",
+        "*.md",
+        "*.yml",
+        "*.yaml",
+        "*.toml",
+        "*.txt",
+    ]
+    assert parsed["exclude"] == expected and len(parsed["exclude"]) == 17
+    assert parsed["coverage_files"] == list(CI_DIFF_COVERAGE_REPORTS)
+    assert parsed["compare_branch"] == "base" and parsed["fail_under"] == 97
+    reporter = GitDiffReporter(exclude=parsed["exclude"])
+    excluded = [f"{name}/nested/helper.py" for name in (*directories, "tests")]
+    excluded += [
+        "app/nested/conftest.py",
+        *(f"app/item.{suffix}" for suffix in ("json", "lock", "md", "yml", "yaml", "toml", "txt")),
+    ]
+    retained = [
+        "app/helper.py",
+        "app/frontend/helper.py",
+        "scripts/ops/ops_context_report.py",
+        "scripts/evals/collect_fitchef_answers.py",
+        *ORCHESTRATION_COVERAGE_FILES,
+    ]
+    retained += [f"{name}-backup/helper.py" for name in (*directories, "tests")]
+    retained += [f"app/{name}/helper.py" for name in (*directories, "tests")]
+    retained += [f"../outside/{name}/helper.py" for name in (*directories, "tests")]
+    retained += [str(root.resolve()) + "-prefix/frontend/helper.py", "app/helper with spaces.py"]
+    for name in excluded:
+        assert reporter._is_path_excluded(name), name
+        assert reporter._is_path_excluded(os.path.abspath(name)), name
+    for name in retained:
+        assert not reporter._is_path_excluded(name), name
+        assert not reporter._is_path_excluded(os.path.abspath(name)), name
+    repeated = parse_coverage_args(
+        [*argv[: argv.index("--exclude")], "--exclude", *expected[:-1], "--exclude", expected[-1]]
+    )
+    assert repeated["exclude"] == ["*.txt"]
+    assert not GitDiffReporter(exclude=repeated["exclude"])._is_path_excluded("frontend/helper.py")
+    assert not GitDiffReporter(exclude=["frontend/**"])._is_path_excluded("frontend/helper.py")
+    assert GitDiffReporter(exclude=["*/frontend/**"])._is_path_excluded("app/frontend/helper.py")
+
+
+@pytest.mark.parametrize(
+    "filename",
+    (
+        "frontend/helper.py",
+        "alembic/helper.py",
+        "releases/helper.py",
+        "cache/helper.py",
+        "data/helper.py",
+        "external/helper.py",
+        "htmlcov/helper.py",
+        "coverage/helper.py",
+        "conftest.py",
+        "tests/helper.py",
+        "app/item.json",
+        "app/item.lock",
+        "app/item.md",
+        "app/item.yml",
+        "app/item.yaml",
+        "app/item.toml",
+        "app/item.txt",
+    ),
+)
+def test_ci_diff_coverage_native_cli_excludes_each_intended_class(
+    tmp_path: Path, filename: str
+) -> None:
+    args = _native_ci_diff_coverage_args(tmp_path)
+    unfiltered = _consume_orchestration_diff_fixture(
+        tmp_path,
+        {filename: [0]},
+        coverage_args=args[: args.index("--exclude")],
+        report_files=CI_DIFF_COVERAGE_REPORTS,
+    )
+    assert unfiltered.returncode == 1, (unfiltered.stdout, unfiltered.stderr)
+    assert "Total:   1 line" in unfiltered.stdout
+    assert "Coverage: 0%" in unfiltered.stdout
+    assert "Failure. Coverage is below 97%." in unfiltered.stderr
+    result = _consume_orchestration_diff_fixture(
+        tmp_path, {filename: [0]}, coverage_args=args, report_files=CI_DIFF_COVERAGE_REPORTS
+    )
+    assert result.returncode == 0, (result.stdout, result.stderr)
+    assert "No lines with coverage information in this diff." in result.stdout
+    assert "Coverage: 100%" not in result.stdout
+
+
+@pytest.mark.parametrize(
+    "filename",
+    (
+        "app/helper.py",
+        "app/frontend/helper.py",
+        "frontend-backup/helper.py",
+        "scripts/ops/ops_context_report.py",
+        "scripts/evals/collect_fitchef_answers.py",
+        *ORCHESTRATION_COVERAGE_FILES,
+    ),
+)
+def test_ci_diff_coverage_native_cli_retains_zero_hit_owners(tmp_path: Path, filename: str) -> None:
+    args = _native_ci_diff_coverage_args(tmp_path)
+    result = _consume_orchestration_diff_fixture(
+        tmp_path, {filename: [0]}, coverage_args=args, report_files=CI_DIFF_COVERAGE_REPORTS
+    )
+    assert result.returncode == 1, (result.stdout, result.stderr)
+    assert "Total:   1 line" in result.stdout and "Coverage: 0%" in result.stdout
+    assert "Failure. Coverage is below 97%." in result.stderr
+
+
+@pytest.mark.parametrize("uncovered,expected_pass", ((3, True), (4, False)))
+def test_ci_diff_coverage_native_cli_preserves_97_boundary(
+    tmp_path: Path, uncovered: int, expected_pass: bool
+) -> None:
+    root = tmp_path / "root with spaces"
+    root.mkdir()
+    args = _native_ci_diff_coverage_args(root)
+    result = _consume_orchestration_diff_fixture(
+        root,
+        {"app/helper.py": [0] * uncovered + [1] * (100 - uncovered)},
+        coverage_args=args,
+        report_files=CI_DIFF_COVERAGE_REPORTS,
+    )
+    assert (result.returncode == 0) is expected_pass, (result.stdout, result.stderr)
+    assert "Total:   100 lines" in result.stdout
+    assert f"Coverage: {100 - uncovered}%" in result.stdout
+
+
+@pytest.mark.parametrize("report", CI_DIFF_COVERAGE_REPORTS)
+@pytest.mark.parametrize(
+    "error,diagnostic", (("missing", "FileNotFoundError"), ("malformed", "ParseError"))
+)
+def test_ci_diff_coverage_native_cli_refuses_each_invalid_report(
+    tmp_path: Path, report: str, error: str, diagnostic: str
+) -> None:
+    args = _native_ci_diff_coverage_args(tmp_path)
+    result = _consume_orchestration_diff_fixture(
+        tmp_path,
+        {"app/helper.py": [1]},
+        coverage_args=args,
+        report_files=CI_DIFF_COVERAGE_REPORTS,
+        report_error=(report, error),
+    )
+    assert result.returncode != 0 and diagnostic in result.stderr, (result.stdout, result.stderr)
+    assert "Coverage:" not in result.stdout
+    assert "No lines with coverage information" not in result.stdout
+
+
+@pytest.mark.parametrize(
+    "case,diagnostic",
+    (
+        ("cli", "invalid float value"),
+        ("config", "FileNotFoundError"),
+        ("git", "Could not find the branch to compare to. Does 'base' exist?"),
+        ("import", "No module named 'diff_cover'"),
+    ),
+)
+def test_ci_diff_coverage_native_prerequisites_are_not_coverage_rejection(
+    tmp_path: Path, case: str, diagnostic: str
+) -> None:
+    import sys
+
+    args = _native_ci_diff_coverage_args(tmp_path)
+    prepared = _consume_orchestration_diff_fixture(
+        tmp_path, {"app/helper.py": [1]}, coverage_args=args, report_files=CI_DIFF_COVERAGE_REPORTS
+    )
+    assert prepared.returncode == 0, (prepared.stdout, prepared.stderr)
+    python_flags = ("-I", "-S") if case == "import" else ()
+    if case == "cli":
+        args += ("--fail-under", "invalid")
+    elif case == "config":
+        args += ("--config-file", "missing-config.toml")
+    result = subprocess.run(
+        [sys.executable, *python_flags, "-m", "diff_cover.diff_cover_tool", *args],
+        cwd=tmp_path,
+        env=git_env_without_parent_state(),
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=10,
+    )
+    assert result.returncode != 0 and diagnostic in result.stderr, (result.stdout, result.stderr)
+    assert "Coverage:" not in result.stdout
+    assert "Failure. Coverage is below 97%." not in result.stderr
 
 
 FOUNDATION_LINT_COMMAND = (

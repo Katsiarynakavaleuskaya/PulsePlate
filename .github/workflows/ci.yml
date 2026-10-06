@@ -2216,29 +2216,33 @@ jobs:
         env:
           COVERAGE_THRESHOLD: 97
         run: |
+          coverage_root="$(pwd -P)"
+          coverage_excludes=(
+            "${coverage_root}/frontend/**"
+            "${coverage_root}/alembic/**"
+            "${coverage_root}/releases/**"
+            "${coverage_root}/cache/**"
+            "${coverage_root}/data/**"
+            "${coverage_root}/external/**"
+            "${coverage_root}/htmlcov/**"
+            "${coverage_root}/coverage/**"
+            'conftest.py'
+            "${coverage_root}/tests/**"
+            '*.json'
+            '*.lock'
+            '*.md'
+            '*.yml'
+            '*.yaml'
+            '*.toml'
+            '*.txt'
+          )
           diff-cover ./coverage-artifacts/coverage.xml \
             ./ops-context-coverage/coverage-ops-context.xml \
             ./fitchef-eval-coverage/coverage-fitchef-eval.xml \
             ./orchestration-coverage/coverage-orchestration.xml \
             --compare-branch "${{ github.base_ref }}" \
             --fail-under "${{ env.COVERAGE_THRESHOLD }}" \
-            --exclude 'frontend/**' \
-            --exclude 'alembic/**' \
-            --exclude 'releases/**' \
-            --exclude 'cache/**' \
-            --exclude 'data/**' \
-            --exclude 'external/**' \
-            --exclude 'htmlcov/**' \
-            --exclude 'coverage/**' \
-            --exclude 'conftest.py' \
-            --exclude 'tests/**' \
-            --exclude '*.json' \
-            --exclude '*.lock' \
-            --exclude '*.md' \
-            --exclude '*.yml' \
-            --exclude '*.yaml' \
-            --exclude '*.toml' \
-            --exclude '*.txt'
+            --exclude "${coverage_excludes[@]}"
 
   # Coverage reporting for feature branches
   coverage-feature:
