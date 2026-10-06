@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ast
 from datetime import date
 from dataclasses import replace
 from email.message import Message
@@ -390,6 +391,139 @@ def test_native_helper_stage_layout_executes_real_cli(
             assert expected_error in result.stdout, result.stdout + result.stderr
         assert not (tmp_path / "source").exists()
         assert not (tmp_path / "wheels").exists()
+
+
+def test_ncurses_replacement_preserves_debian_versioned_consumers() -> None:
+    """ABI6 keeps its symbol namespaces and checks actual consumers after pruning."""
+    dockerfile = (REPO_ROOT / "Dockerfile").read_text(encoding="utf-8")
+    configuration = dockerfile.split("cd /build/source/ncurses-6.6", 1)[1].split("make -j2", 1)[0]
+    for option in ("--with-versioned-syms", "--with-abi-version=6", "--enable-widec"):
+        assert option in configuration
+    assert "--with-termlib=tinfo" in configuration
+    source = dockerfile.split("<<'PY_NATIVE_TERMINAL'\n", 1)[1].split("\nPY_NATIVE_TERMINAL", 1)[0]
+    assert dockerfile.index(
+        "USER pulseplate", dockerfile.index("production-package-pruning-end")
+    ) < (dockerfile.index("<<'PY_NATIVE_TERMINAL'"))
+    assert 'run_checked_consumer(["/bin/bash", "--noprofile", "--norc"' in source
+    assert 'for interpreter in ("/usr/local/bin/python", "/opt/venv/bin/python"):' in source
+    assert "run_checked_consumer([interpreter" in source
+    assert "curses.setupterm" in source and "import curses.panel" in source
+    assert 'check_native_empty_panel_stack(ctypes.CDLL("libpanelw.so.6"))' in source
+    assert "curses.panel.bottom_panel" not in source
+    assert "readline.get_current_history_length" in source
+    assert "actual_ncurses = ncurses.curses_version()" in source
+    assert "linker.dlvsym(handle._handle, symbol, version)" in source
+    for version in (
+        "NCURSES6_TINFO_5.0.19991023",
+        "NCURSESW6_5.1.20000708",
+        "NCURSESW6_5.3.20021019",
+    ):
+        assert version in source
+    assert 'Path("/proc/self/maps")' in source and "hashlib.sha256" in source
+    assert "LD_LIBRARY_PATH" not in source and "LD_PRELOAD" not in source
+
+
+@pytest.mark.parametrize(
+    ("producer", "expected_exit", "diagnostic"),
+    (
+        ("print('ordinary terminal consumer')", 0, ""),
+        (
+            "import sys; sys.stderr.write('no version information available\\n')",
+            1,
+            "no version information available",
+        ),
+        (
+            "import sys; sys.stderr.write('version NCURSES6_TINFO not found\\n')",
+            1,
+            "version NCURSES6_TINFO not found",
+        ),
+        ("raise SystemExit(2)", 1, "Native terminal consumer returned an error"),
+        (
+            "import sys; print('ordinary output'); sys.stderr.write('other diagnostic\\n')",
+            1,
+            "other diagnostic",
+        ),
+    ),
+)
+def test_real_terminal_consumer_adapter_rejects_diagnostics(
+    tmp_path: Path, producer: str, expected_exit: int, diagnostic: str
+) -> None:
+    """Execute the shipped adapter with real child exits and stdout/stderr streams."""
+    dockerfile = (REPO_ROOT / "Dockerfile").read_text(encoding="utf-8")
+    source = dockerfile.split("<<'PY_NATIVE_TERMINAL'\n", 1)[1].split("\nPY_NATIVE_TERMINAL", 1)[0]
+    parsed = ast.parse(source)
+    declarations = ast.Module(
+        body=[node for node in parsed.body if isinstance(node, (ast.Import, ast.FunctionDef))],
+        type_ignores=[],
+    )
+    command = [sys.executable, "-c", producer]
+    program = ast.unparse(declarations) + f"\nrun_checked_consumer({command!r})\n"
+    result = subprocess.run(
+        [sys.executable, "-c", program],
+        cwd=tmp_path,
+        env={"PATH": os.defpath, "HOME": str(tmp_path), "LANG": "C.UTF-8"},
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+    assert result.returncode == expected_exit, result.stdout + result.stderr
+    if diagnostic:
+        assert diagnostic in result.stderr
+    else:
+        assert result.stdout == "ordinary terminal consumer\n"
+        assert not result.stderr
+
+
+@pytest.mark.parametrize("above,below,expected_exit", ((None, None, 0), (1, None, 1), (None, 1, 1)))
+def test_native_panel_null_boundary_rejects_nonempty_results(
+    tmp_path: Path, above: int | None, below: int | None, expected_exit: int
+) -> None:
+    """The shipped NULL-result checker rejects either unexpected panel pointer."""
+    dockerfile = (REPO_ROOT / "Dockerfile").read_text(encoding="utf-8")
+    wrapper = dockerfile.split("<<'PY_NATIVE_TERMINAL'\n", 1)[1].split("\nPY_NATIVE_TERMINAL", 1)[0]
+    assignment = next(
+        node
+        for node in ast.parse(wrapper).body
+        if isinstance(node, ast.Assign)
+        and any(
+            isinstance(target, ast.Name) and target.id == "consumer_source"
+            for target in node.targets
+        )
+    )
+    assert isinstance(assignment.value, ast.Constant) and isinstance(assignment.value.value, str)
+    helper = next(
+        node
+        for node in ast.parse(assignment.value.value).body
+        if isinstance(node, ast.FunctionDef) and node.name == "check_native_empty_panel_stack"
+    )
+    source = "import ctypes\nimport types\n" + ast.unparse(helper)
+    source += f"""
+class SyntheticPanelOperation:
+    def __init__(self, value):
+        self.value = value
+    def __call__(self, pointer):
+        assert pointer is None
+        assert self.argtypes == [ctypes.c_void_p] and self.restype is ctypes.c_void_p
+        return self.value
+panel = types.SimpleNamespace(panel_above=SyntheticPanelOperation({above!r}),
+                              panel_below=SyntheticPanelOperation({below!r}))
+check_native_empty_panel_stack(panel)
+"""
+    result = subprocess.run(
+        [sys.executable, "-c", source],
+        cwd=tmp_path,
+        env={"PATH": os.defpath, "HOME": str(tmp_path), "LANG": "C.UTF-8"},
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+    assert result.returncode == expected_exit, result.stdout + result.stderr
+    if expected_exit:
+        assert "Native panel empty-stack boundary returned a non-NULL panel" in result.stderr
+    else:
+        assert not result.stdout and not result.stderr
 
 
 def test_dockerfile_builds_verified_sqlite_runtime_library() -> None:

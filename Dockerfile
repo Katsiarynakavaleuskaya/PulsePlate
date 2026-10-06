@@ -78,11 +78,25 @@ make DESTDIR=/native install
 cp -a /native/usr/local/. /usr/local/
 cd /build/source/ncurses-6.6
 ./configure --prefix=/usr/local --with-shared --without-debug --without-ada \
-    --enable-widec --with-abi-version=6 --with-termlib=tinfo --enable-pc-files \
+    --enable-widec --with-abi-version=6 --with-termlib=tinfo --with-versioned-syms --enable-pc-files \
     --with-pkg-config-libdir=/usr/local/lib/pkgconfig
 make -j2
 make DESTDIR=/native install
 cp -a /native/usr/local/. /usr/local/
+ldconfig
+python - <<'PY'
+import subprocess
+import sys
+
+result = subprocess.run(
+    ["/bin/bash", "--noprofile", "--norc", "-c", "printf 'pulseplate terminal ABI\\n'"],
+    capture_output=True, text=True, check=False,
+)
+sys.stdout.write(result.stdout)
+sys.stderr.write(result.stderr)
+if result.returncode != 0 or result.stderr or result.stdout != "pulseplate terminal ABI\n":
+    raise SystemExit("Debian bash rejected the replacement terminal ABI")
+PY
 cd /build/source/openssl-openssl-45e844f
 perl ./Configure linux-x86_64 shared --prefix=/usr/local --libdir=lib --openssldir=/usr/lib/ssl
 make -j2 build_sw
@@ -724,8 +738,12 @@ openssl list -providers
 openssl list -providers -provider legacy
 infocmp -V
 infocmp xterm >/dev/null
-for interpreter in /usr/local/bin/python /opt/venv/bin/python; do
-    "$interpreter" - <<'PY'
+python - <<'PY_NATIVE_TERMINAL'
+import subprocess
+import sys
+
+consumer_source = r'''
+import ctypes
 import curses
 import curses.panel
 import gzip
@@ -735,10 +753,23 @@ import readline
 import ssl
 import zlib
 
+def check_native_empty_panel_stack(panel: ctypes.CDLL) -> None:
+    for operation in ("panel_above", "panel_below"):
+        function = getattr(panel, operation)
+        function.argtypes = [ctypes.c_void_p]
+        function.restype = ctypes.c_void_p
+        if function(None) is not None:
+            raise SystemExit("Native panel empty-stack boundary returned a non-NULL panel")
+
 if zlib.ZLIB_RUNTIME_VERSION != "1.3.2" or not ssl.OPENSSL_VERSION.startswith("OpenSSL 3.5.9 "):
     raise SystemExit("System native replacement version mismatch")
-if curses.ncurses_version[:2] != (6, 6):
+ncurses = ctypes.CDLL("libncursesw.so.6")
+ncurses.curses_version.argtypes = []
+ncurses.curses_version.restype = ctypes.c_char_p
+actual_ncurses = ncurses.curses_version().decode("ascii")
+if not actual_ncurses.startswith("ncurses 6.6"):
     raise SystemExit("Ncurses replacement version mismatch")
+print("Ncurses runtime", actual_ncurses, "Python metadata", tuple(curses.ncurses_version))
 payload = b"pulseplate native compression round trip"
 if gzip.decompress(gzip.compress(payload, mtime=0)) != payload:
     raise SystemExit("Native gzip round trip failed")
@@ -748,16 +779,42 @@ curses.setupterm("xterm")
 if curses.tigetnum("colors") < 8:
     raise SystemExit("Retained terminal data is unavailable")
 readline.get_current_history_length()
-curses.panel.bottom_panel()
+check_native_empty_panel_stack(ctypes.CDLL("libpanelw.so.6"))
 ssl.create_default_context()
+linker = ctypes.CDLL(None)
+linker.dlvsym.argtypes = [ctypes.c_void_p, ctypes.c_char_p, ctypes.c_char_p]
+linker.dlvsym.restype = ctypes.c_void_p
+for library, symbols in (
+    ("libtinfo.so.6", ((b"tgetent", b"NCURSES6_TINFO_5.0.19991023"),
+                       (b"tigetstr", b"NCURSES6_TINFO_5.0.19991023"))),
+    ("libncursesw.so.6", ((b"initscr", b"NCURSESW6_5.1.20000708"),
+                          (b"wadd_wch", b"NCURSESW6_5.3.20021019"))),
+    ("libpanelw.so.6", ((b"new_panel", b"NCURSESW6_5.1.20000708"),)),
+):
+    handle = ctypes.CDLL(library)
+    for symbol, version in symbols:
+        if not linker.dlvsym(handle._handle, symbol, version):
+            raise SystemExit("A required Debian terminal symbol version is missing")
+        print(library, symbol.decode(), version.decode())
 paths = {Path(line.rsplit(maxsplit=1)[-1]).resolve() for line in Path("/proc/self/maps").read_text().splitlines() if "/" in line}
 for family in ("libz.so", "libncursesw.so", "libpanelw.so", "libtinfo.so", "libssl.so", "libcrypto.so"):
     loaded = {path for path in paths if path.name.startswith(family)}
     if not loaded or any(path.parent != Path("/usr/local/lib") for path in loaded):
         raise SystemExit("A retained consumer loaded unexpected native bytes")
     print(family, [(str(path), hashlib.sha256(path.read_bytes()).hexdigest()) for path in sorted(loaded)])
-PY
-done
+'''
+
+def run_checked_consumer(command: list[str], source: str | None = None) -> None:
+    result = subprocess.run(command, input=source, capture_output=True, text=True, check=False)
+    sys.stdout.write(result.stdout)
+    sys.stderr.write(result.stderr)
+    if result.returncode != 0 or result.stderr:
+        raise SystemExit("Native terminal consumer returned an error or loader diagnostic")
+
+run_checked_consumer(["/bin/bash", "--noprofile", "--norc", "-c", "printf 'pulseplate terminal ABI\\n'"])
+for interpreter in ("/usr/local/bin/python", "/opt/venv/bin/python"):
+    run_checked_consumer([interpreter, "-"], consumer_source)
+PY_NATIVE_TERMINAL
 /opt/venv/bin/python - <<'PY'
 import importlib.metadata as metadata
 from pathlib import Path
