@@ -264,8 +264,10 @@ health identities.
 
 The current utility child is [PR #2475](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2475)
 (`codex/retire-legacy-core-utility-exports`). Parent `PROJECT_LEGACY` remains OPEN.
-Unknown external Python callers must migrate to the owners above; these fresh
-imports make no hot-reload guarantee. Rollback is a reviewed whole-material
+Callers of `_LEGACY_IMPORT_COMPAT_REEXPORTS` must remove that dependency; it
+has no canonical replacement. Callers of the other seven names must migrate
+to their listed canonical owners. These fresh imports make no hot-reload
+guarantee. Rollback is a reviewed whole-material
 revert of this utility PR, excluding the inherited #2466 workflow repair.
 
 After this utility child's actual separately authorized merge, post-merge proof,
