@@ -9,9 +9,10 @@ from hashlib import sha256, sha3_256
 from io import BytesIO
 import json
 import os
+import shlex
 import subprocess
 import sys
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from urllib.parse import urlparse
 from urllib.error import HTTPError
 from urllib.request import HTTPHandler, HTTPSHandler, Request
@@ -305,6 +306,90 @@ def test_dockerfile_pins_all_backend_python_stages_to_one_oci_index() -> None:
     assert f"FROM {BACKEND_PYTHON_BASE_IMAGE.partition('@')[0]} AS" not in dockerfile
     assert BACKEND_PYTHON_BASE_IMAGE.partition("@")[0] in trivyignore
     assert "3.13.13" not in trivyignore
+
+
+@pytest.mark.parametrize(
+    ("stage", "helpers"),
+    (
+        ("native-builder", ("fetch_docker_source_artifacts.py",)),
+        (
+            "psycopg-inputs",
+            ("install_locked_python_requirements.py", "check_private_python_proxy_health.py"),
+        ),
+        ("psycopg-wheel-builder", ("install_locked_python_requirements.py",)),
+    ),
+)
+def test_native_helper_stage_layout_executes_real_cli(
+    tmp_path: Path, stage: str, helpers: tuple[str, ...]
+) -> None:
+    """Actual COPY layouts preserve helper roots and parse operations without acquisition."""
+    dockerfile = (REPO_ROOT / "Dockerfile").read_text(encoding="utf-8")
+    section = dockerfile.split(f" AS {stage}\n", 1)[1].split("\nFROM ", 1)[0]
+    stage_root = tmp_path / stage
+    staged: dict[str, Path] = {}
+    for line in section.splitlines():
+        if not line.startswith("COPY scripts/ci/"):
+            continue
+        tokens = shlex.split(line)
+        destination = PurePosixPath(tokens[-1])
+        for source in tokens[1:-1]:
+            source_path = REPO_ROOT / source
+            target = destination / source_path.name if tokens[-1].endswith("/") else destination
+            assert target.parents[2] == PurePosixPath(
+                "/tooling"
+            ), "Native helper COPY lost the repository-root depth required by the real CLI"
+            materialized = stage_root / target.relative_to("/")
+            materialized.parent.mkdir(parents=True, exist_ok=True)
+            materialized.write_bytes(source_path.read_bytes())
+            staged[source_path.name] = materialized
+    home = tmp_path / "empty-home"
+    home.mkdir()
+    environment = {"PATH": os.defpath, "HOME": str(home), "LANG": "C.UTF-8"}
+    for name in helpers:
+        result = subprocess.run(
+            [sys.executable, str(staged[name]), "--help"],
+            cwd=stage_root,
+            env=environment,
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+        )
+        assert result.returncode == 0, result.stderr
+        assert "usage:" in result.stdout
+    installer = staged.get("install_locked_python_requirements.py")
+    if installer is not None:
+        operations = (
+            (["--build-psycopg-c"], "Exact Psycopg build requires all four explicit inputs"),
+            (
+                ["--prefetch-psycopg-source", str(tmp_path / "source"), "--prefetch-only"],
+                "Source prefetch is a separate archive acquisition operation.",
+            ),
+            (
+                ["--prefetch-psycopg-build-wheels", str(tmp_path / "wheels"), "--prefetch-only"],
+                "Build-wheel prefetch is a separate acquisition operation.",
+            ),
+        )
+        for flags, expected_error in operations:
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(installer),
+                    "--index-url",
+                    "https://packages.pulseplate.app/root/pulseplate/+simple/",
+                    *flags,
+                ],
+                cwd=stage_root,
+                env=environment,
+                capture_output=True,
+                text=True,
+                timeout=30,
+                check=False,
+            )
+            assert result.returncode == 1
+            assert expected_error in result.stdout, result.stdout + result.stderr
+        assert not (tmp_path / "source").exists()
+        assert not (tmp_path / "wheels").exists()
 
 
 def test_dockerfile_builds_verified_sqlite_runtime_library() -> None:

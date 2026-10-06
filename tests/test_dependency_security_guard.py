@@ -123,7 +123,7 @@ CRYPTOGRAPHY_F_CUTOFF = {
 
 CURRENT_ENFORCED_RUNTIME_FLOORS = {
     "click": "8.3.3",
-    "cryptography": "50.0.0",
+    "cryptography": "50.0.2",
     "pillow": "12.3.0",
     "python-multipart": "0.0.31",
     "setuptools": "83.0.0",
@@ -2074,13 +2074,13 @@ def test_dependency_security_guard_allows_schema_driven_live_floor_rotation(
 @pytest.mark.parametrize(
     ("cryptography_carriers", "expected_error"),
     [
-        (("cryptography==50.0.1",), None),
+        (("cryptography=={higher}",), None),
         (
-            ("cryptography>=50.0.0,==50.0.1",),
+            ("cryptography>={floor},=={higher}",),
             r"cryptography security-floor lock carrier must contain exactly one == pin",
         ),
         (
-            ("cryptography==50.0.1", "cryptography==50.0.2"),
+            ("cryptography=={higher}", "cryptography=={next_patch}"),
             r"cryptography security-floor lock must contain exactly one carrier",
         ),
     ],
@@ -2093,6 +2093,12 @@ def test_dependency_security_guard_enforces_live_lock_carrier_class(
 ) -> None:
     """Live C_R permits a higher pin but rejects hybrid or conflicting carriers."""
     schema = _load_schema(SCHEMA_PATH)
+    minimum = Version(schema["min_versions"]["cryptography"])
+    substitutions = {
+        "floor": str(minimum),
+        "higher": f"{minimum.major}.{minimum.minor}.{minimum.micro + 1}",
+        "next_patch": f"{minimum.major}.{minimum.minor}.{minimum.micro + 2}",
+    }
     lock_surface = tmp_path / "requirements.txt"
     lock_surface.write_text(
         "\n".join(
@@ -2101,7 +2107,7 @@ def test_dependency_security_guard_enforces_live_lock_carrier_class(
                 for package, version in schema["min_versions"].items()
                 if package != "cryptography"
             ]
-            + list(cryptography_carriers)
+            + [carrier.format(**substitutions) for carrier in cryptography_carriers]
         )
         + "\n",
         encoding="utf-8",
@@ -2627,6 +2633,72 @@ def test_dependency_security_guard_enforces_blocked_packages(surface: Path) -> N
                 f"{surface.name}: package {pkg!r} is blocked by security policy. "
                 f"Remove it from this surface."
             )
+
+
+def test_blocked_packages_cover_the_complete_current_carrier_inventory() -> None:
+    """Retired leaves stay absent in optional and noncompiled carriers too."""
+    registered = registered_dependabot_requirement_carriers()
+    discovered = discover_dependabot_requirement_carriers(REPO_ROOT)
+    assert discovered == registered, "blocked-package carrier inventory differs from registry"
+    blocked = {
+        _normalized_package_name(package)
+        for package in _load_schema(SCHEMA_PATH).get("blocked_packages", ())
+    }
+    for name in sorted(discovered):
+        present = _packages_present_in_file(REPO_ROOT / name)
+        assert not (present & blocked), (
+            f"{name}: blocked packages remain in the current governed carrier: "
+            f"{sorted(present & blocked)}"
+        )
+
+
+def test_psycopg_binary_retirement_remains_in_the_security_schema() -> None:
+    """A future lock refresh must not silently reintroduce bundled libpq/OpenSSL."""
+    schema = _load_schema(SCHEMA_PATH)
+    assert "psycopg-binary" in schema["blocked_packages"]
+
+
+@pytest.fixture
+def blocked_dependency_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """Exercise real Git-based carrier discovery with synthetic package rows."""
+    for name in registered_dependabot_requirement_carriers():
+        destination = tmp_path / name
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_text("# synthetic empty carrier\n", encoding="utf-8")
+    monkeypatch.setattr(f"{__name__}.REPO_ROOT", tmp_path)
+    _git_command(["init", "--quiet"])
+    _git_command(["add", "."])
+    return tmp_path
+
+
+@pytest.mark.parametrize("carrier", ("requirements-evals.txt", "requirements-all.txt"))
+@pytest.mark.parametrize(
+    "text",
+    (
+        "psycopg-binary\n",
+        "Psycopg_Binary==3.3.4\n",
+        "psycopg.binary>=3.3.4\n",
+        'psycopg-binary==3.3.4; python_version < "0"\n',
+    ),
+)
+def test_retired_psycopg_binary_is_rejected_in_optional_carriers(
+    blocked_dependency_repo: Path, carrier: str, text: str
+) -> None:
+    """Normalization and inactive markers cannot hide the removed identity."""
+    (blocked_dependency_repo / carrier).write_text(text, encoding="utf-8")
+    with pytest.raises(AssertionError, match="blocked packages remain"):
+        test_blocked_packages_cover_the_complete_current_carrier_inventory()
+
+
+def test_blocked_package_guard_rejects_carrier_inventory_drift(
+    blocked_dependency_repo: Path,
+) -> None:
+    """An unregistered tracked source cannot fall outside the absence proof."""
+    extra = blocked_dependency_repo / "requirements-extra.txt"
+    extra.write_text("# synthetic extra carrier\n", encoding="utf-8")
+    _git_command(["add", str(extra)])
+    with pytest.raises(AssertionError, match="carrier inventory differs"):
+        test_blocked_packages_cover_the_complete_current_carrier_inventory()
 
 
 def test_blocked_packages_detects_unpinned_requirements(tmp_path: Path) -> None:

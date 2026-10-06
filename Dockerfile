@@ -29,16 +29,16 @@ RUN case "${PSYCOPG_SDK_PYTHON_IMAGE}" in \
     && apt-get update \
     && apt-get install -y --no-install-recommends build-essential bison flex libkrb5-dev ca-certificates \
     && rm -rf /var/lib/apt/lists/*
-COPY scripts/ci/docker_source_artifacts.json scripts/ci/fetch_docker_source_artifacts.py /tooling/
+COPY scripts/ci/docker_source_artifacts.json scripts/ci/fetch_docker_source_artifacts.py /tooling/scripts/ci/
 COPY build/docker-sources/zlib-1.3.2.tar.gz build/docker-sources/ncurses-6.6.tar.gz build/docker-sources/openssl-3.5.9.tar.gz build/docker-sources/postgresql-18.6.tar.gz build/docker-sources/zlib-gzwrite-fix-df84af25dc1942490e1d1c899a07619152a46148.patch /input/native/
 RUN --network=none python - <<'PY'
 import sys
-sys.path.insert(0, "/tooling")
+sys.path.insert(0, "/tooling/scripts/ci")
 from pathlib import Path
 import tarfile
 from fetch_docker_source_artifacts import load_manifest, validate_source_payload
 
-records = load_manifest(Path("/tooling/docker_source_artifacts.json"))
+records = load_manifest(Path("/tooling/scripts/ci/docker_source_artifacts.json"))
 for name in ("zlib", "ncurses", "openssl", "postgresql", "zlib-gzwrite-fix"):
     matches = [record for record in records if record.name == name]
     if len(matches) != 1:
@@ -109,13 +109,13 @@ install -m 644 /build/source/ncurses-6.6/COPYING /native/usr/local/share/doc/pul
 install -m 644 /build/source/openssl-openssl-45e844f/LICENSE.txt /native/usr/local/share/doc/pulseplate-native/OPENSSL-LICENSE
 install -m 644 /build/source/openssl-openssl-45e844f/apps/openssl.cnf /native/usr/local/share/doc/pulseplate-native/openssl.cnf
 install -m 644 /build/source/postgresql-18.6/COPYRIGHT /native/usr/local/share/doc/pulseplate-native/LIBPQ-COPYRIGHT
-install -m 644 /tooling/docker_source_artifacts.json /native/usr/local/share/doc/pulseplate-native/docker_source_artifacts.json
+install -m 644 /tooling/scripts/ci/docker_source_artifacts.json /native/usr/local/share/doc/pulseplate-native/docker_source_artifacts.json
 SH
 
 # Archive and binary build inputs are acquired without running source metadata.
 FROM ${PSYCOPG_SDK_PYTHON_IMAGE} AS psycopg-inputs
 ARG PULSEPLATE_PYTHON_INDEX_URL
-COPY scripts/ci/install_locked_python_requirements.py scripts/ci/check_private_python_proxy_health.py /tooling/
+COPY scripts/ci/install_locked_python_requirements.py scripts/ci/check_private_python_proxy_health.py /tooling/scripts/ci/
 RUN --mount=type=secret,id=pp_py_index,required=false \
     --mount=type=secret,id=pp_netrc,required=false <<'SH'
 set -eu
@@ -128,16 +128,16 @@ if [ -f /run/secrets/pp_netrc ]; then
 fi
 trap 'rm -f /root/.netrc' EXIT
 test -n "$index"
-python /tooling/install_locked_python_requirements.py --index-url "$index" --prefetch-psycopg-source /input/source
-python /tooling/install_locked_python_requirements.py --index-url "$index" --prefetch-psycopg-build-wheels /input/build-wheels
+python /tooling/scripts/ci/install_locked_python_requirements.py --index-url "$index" --prefetch-psycopg-source /input/source
+python /tooling/scripts/ci/install_locked_python_requirements.py --index-url "$index" --prefetch-psycopg-build-wheels /input/build-wheels
 SH
 
 # No credentialed HOME, configuration, cache or environment crosses into this build.
 FROM native-builder AS psycopg-wheel-builder
 COPY --from=psycopg-inputs /input/ /input/psycopg/
-COPY scripts/ci/install_locked_python_requirements.py /tooling/install_locked_python_requirements.py
+COPY scripts/ci/install_locked_python_requirements.py /tooling/scripts/ci/install_locked_python_requirements.py
 RUN --network=none /usr/bin/env -i HOME=/tmp PATH=/usr/local/bin:/usr/bin:/bin LANG=C.UTF-8 TMPDIR=/tmp \
-    /usr/local/bin/python /tooling/install_locked_python_requirements.py --build-psycopg-c \
+    /usr/local/bin/python /tooling/scripts/ci/install_locked_python_requirements.py --build-psycopg-c \
     --psycopg-source-archive /input/psycopg/source/psycopg_c-3.3.4.tar.gz \
     --psycopg-build-wheels /input/psycopg/build-wheels --psycopg-native-root / \
     --psycopg-wheel-output /output/psycopg-sdk

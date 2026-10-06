@@ -70,6 +70,34 @@ def test_shared_setup_builds_only_the_exact_isolated_client_sdk() -> None:
     assert "DEVPI_CI_PASSWORD" not in builder and "GH_TOKEN" not in builder
 
 
+def test_shared_setup_observes_real_consumers_after_locked_install() -> None:
+    """Every selected ABI observes loaded components after the actual SDK/install."""
+    action = yaml.safe_load((REPO_ROOT / ".github/actions/python-setup/action.yml").read_text())
+    steps = action["runs"]["steps"]
+    names = [step.get("name") for step in steps]
+    observe = next(
+        step for step in steps if step.get("name") == "Observe installed native Python consumers"
+    )
+    assert observe["if"] == "${{ inputs.skip-base-install != 'true' }}"
+    assert names.index("Install base dependencies") < names.index(observe["name"])
+    script = observe["run"]
+    assert "ssl.OPENSSL_VERSION_INFO" in script
+    assert "psycopg.pq.__impl__" in script and "pq.version()" in script
+    assert "backend.openssl_version_number()" in script
+    assert "backend.openssl_version_text()" in script
+    assert 'if importlib.util.find_spec("psycopg") is not None:' in script
+    assert 'if importlib.util.find_spec("cryptography") is not None:' in script
+    assert "load_manifest" in script and 'selected["openssl"]' in script
+    assert 'selected["postgresql"]' in script
+    assert 'sdk_root / "usr/local/lib" / name' in script
+    assert "ssl.create_default_context().get_ca_certs()" in script
+    assert 'Path("/proc/self/maps").read_text()' in script
+    assert "hashlib.sha256(path.read_bytes()).hexdigest()" in script
+    assert "len(paths) != 1" in script
+    assert "raise SystemExit" in script
+    assert "--mount" not in script and "subprocess" not in script
+
+
 def test_private_proxy_health_job_is_stdlib_fail_fast_gate() -> None:
     workflow = load_ci_workflow()
     jobs = workflow["jobs"]

@@ -257,6 +257,78 @@ runs:
           --emergency-wheel-manifest "${{ github.workspace }}/scripts/ci/emergency_python_wheels.json" \
           "${install_args[@]}"
 
+    - name: Observe installed native Python consumers
+      if: ${{ inputs.skip-base-install != 'true' }}
+      shell: bash
+      run: |
+        set -euo pipefail
+        python - <<'PY'
+        import hashlib
+        import importlib.util
+        import json
+        import os
+        from pathlib import Path
+        import ssl
+        import sys
+
+        from scripts.ci.fetch_docker_source_artifacts import load_manifest
+
+        sources = load_manifest(Path(os.environ["GITHUB_WORKSPACE"], "scripts/ci/docker_source_artifacts.json"))
+        selected = {source.name: source.version for source in sources}
+        expected_ssl = tuple(int(part) for part in selected["openssl"].split("."))
+        pq_major, pq_minor = (int(part) for part in selected["postgresql"].split("."))
+        expected_pq = pq_major * 10000 + pq_minor
+        if ssl.OPENSSL_VERSION_INFO[:3] != expected_ssl:
+            raise SystemExit("Python did not load the source-selected shared OpenSSL")
+        if not ssl.create_default_context().get_ca_certs():
+            raise SystemExit("Python default CA verification has no trust roots")
+        record = {"python": sys.version.split()[0], "system_openssl": ssl.OPENSSL_VERSION,
+                  "cryptography": "absent", "psycopg": "absent"}
+        modules = []
+        native_names = ["libssl.so.3", "libcrypto.so.3"]
+        if importlib.util.find_spec("cryptography") is not None:
+            import cryptography
+            from cryptography.hazmat.backends.openssl.backend import backend
+            from cryptography.hazmat.bindings import _rust
+            bundled = backend.openssl_version_number()
+            if not 0x40000030 <= bundled < 0x40100000:
+                raise SystemExit("Cryptography did not load the corrected OpenSSL 4.0 line")
+            record.update(cryptography=cryptography.__version__, bundled_openssl=backend.openssl_version_text())
+            modules.append(_rust)
+        if importlib.util.find_spec("psycopg") is not None:
+            import psycopg
+            from psycopg_c import _psycopg, pq
+            if psycopg.__version__ != "3.3.4" or psycopg.pq.__impl__ != "c" or pq.version() != expected_pq:
+                raise SystemExit("Psycopg did not load the source-selected C/libpq client")
+            record.update(psycopg=psycopg.__version__, pq_impl=psycopg.pq.__impl__, libpq=pq.version())
+            native_names.append("libpq.so.5")
+            modules.extend((_psycopg, pq))
+        loaded = {}
+        sdk_root = Path(os.environ["PULSEPLATE_PSYCOPG_C_SDK"]).parent
+        for name in native_names:
+            paths = set()
+            for line in Path("/proc/self/maps").read_text().splitlines():
+                fields = line.split(maxsplit=5)
+                if len(fields) == 6 and fields[5].startswith("/"):
+                    path = Path(fields[5])
+                    if path.name == name or path.name.startswith(name + "."):
+                        paths.add(path)
+            if len(paths) != 1:
+                raise SystemExit("Native consumer library identity is missing or ambiguous")
+            path = paths.pop()
+            digest = hashlib.sha256(path.read_bytes()).hexdigest()
+            exported = sdk_root / "usr/local/lib" / name
+            if path.parent != Path("/usr/local/lib") or digest != hashlib.sha256(exported.read_bytes()).hexdigest():
+                raise SystemExit("Loaded native library differs from the source SDK output")
+            loaded[name] = {"path": str(path), "sha256": digest}
+        extensions = {}
+        for module in modules:
+            path = Path(module.__file__)
+            extensions[module.__name__] = {"path": str(path), "sha256": hashlib.sha256(path.read_bytes()).hexdigest()}
+        record.update(loaded=loaded, extensions=extensions)
+        print(json.dumps(record, sort_keys=True))
+        PY
+
     # Backward-compatibility no-op: requirements-dev.txt is installed above via
     # install_locked_python_requirements.py when workflows still pass install-dev-deps.
     - name: Install development dependencies
