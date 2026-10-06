@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name == 'pull_request' && (github.event.action == 'edited' || github.event.action == 'labeled' || github.event.action == 'unlabeled') && 'metadata' || 'material' }}
   cancel-in-progress: true
 
 on:
@@ -490,7 +490,7 @@ jobs:
 
   caddy-contract:
     needs: changes
-    if: ${{ always() && (needs.changes.outputs.caddy == 'true' || github.event_name == 'workflow_dispatch') }}
+    if: ${{ !cancelled() && (needs.changes.outputs.caddy == 'true' || github.event_name == 'workflow_dispatch') }}
     runs-on: ubuntu-latest
     permissions:
       contents: read

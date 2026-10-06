@@ -126,6 +126,10 @@ RETIRED_LEGACY_PYTHON_BINDINGS = frozenset(
         "get_retention_manager",
         "LogRetentionManager",
         "_log_retention_manager",
+        "TargetsIn",
+        "CanonicalTargetsIn",
+        "LegacyWeekPlanRequest",
+        "WeeklyMenuResponse",
     }
 )
 ALLOWED_CANONICAL_LIFESPAN_APP_IMPORTS = frozenset(
