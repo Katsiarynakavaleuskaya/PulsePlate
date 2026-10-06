@@ -512,6 +512,15 @@ Avoid `# type: ignore[no-any-return]` and prefer typed locals over `cast()`.
   Retained HTTP aliases continue to use their canonical router/schema owners.
   Fresh-import absence does not establish hot-reload behavior or absence of
   unknown external or computed Python callers.
+- Core/utility imports use their canonical owners: `core.db.get_session`,
+  `core.i18n.Language`, `core.i18n.normalize_lang`, `core.i18n.t`,
+  `core.targets.FIBER_MIN_G`, `app.utils.helpers._short_git_sha`, and
+  `app.utils.feature_flags._is_truthy`. These seven `legacy_app.py` bindings
+  and its facade-only `_LEGACY_IMPORT_COMPAT_REEXPORTS` tuple are retired;
+  the tuple has no replacement. `Language` remains a `Literal` type alias and
+  the fiber constant remains owned by `core.targets`. Keep the separate
+  package `app._is_truthy` alias and canonical health dependency/helper object
+  identities unchanged; do not restore legacy bindings or add wrappers.
 - Legacy AI/insight routes must not own provider orchestration in
   `legacy_app.py`. `app/schemas/insight.py` owns the request/response models,
   `app/services/insight_compat.py` owns retained compatibility callables and

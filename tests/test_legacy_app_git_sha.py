@@ -1,14 +1,14 @@
 # -*- coding: utf-8 -*-
 """
-Tests for _short_git_sha function in legacy_app.py.
+Tests for _short_git_sha function in app.utils.helpers.
 
-RU: Тесты для функции _short_git_sha в legacy_app.py.
-EN: Tests for _short_git_sha function in legacy_app.py.
+RU: Тесты для функции _short_git_sha в app.utils.helpers.
+EN: Tests for _short_git_sha function in app.utils.helpers.
 """
 
 from __future__ import annotations
 
-from legacy_app import _short_git_sha
+from app.utils.helpers import _short_git_sha
 
 
 class TestShortGitSha:
