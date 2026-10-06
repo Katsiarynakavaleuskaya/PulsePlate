@@ -164,7 +164,14 @@
   absolute Python `-I`, T cwd and explicit distinct `--material-root M`; root
   metadata supplies continuity, never trust. Follow the canonical accompaniment
   contract for read-only T/M guest snapshots, companion-dependent restore,
-  typed failures and bounded claims.
+  typed failures and bounded claims. For a lane that may span a reboot, keep its
+  admitted trusted tool checkout, governing and experiment packets, and required
+  original companions in durable task-owned local storage outside temporary
+  directories; keep these assets untracked and ownership-scoped. Surviving reports,
+  fingerprints or a ZIP cannot establish recoverability or current validation when
+  required originals are unavailable. Preserve that missing-evidence state and use
+  the existing admission/archive/restore consumers; storage relocation alone is not
+  a reason to repeat Runner or reconstruct historical receipts.
 - `pr_oracle_attachment.py dispatch` is the admitted local host composition
   for ensure/reuse followed by existing exact role-context delivery. Follow the
   [single accompaniment contract](../docs/orchestration/contracts/EXPERIMENT_RUNNER_PR_CREATIVE_CONTEXT_CONTRACT.md#admitted-host-oracle-accompaniment-creative-ops-2)
