@@ -160,6 +160,11 @@ FROM scratch AS psycopg-sdk
 COPY --from=native-builder /native/ /
 COPY --from=psycopg-wheel-builder /output/psycopg-sdk/ /psycopg-sdk/
 
+# Preserve the source-built relative SONAME aliases without exporting static archives.
+FROM native-builder AS native-shared-runtime
+RUN --network=none mkdir -p /native-shared-libraries \
+    && cp -a /native/usr/local/lib/*.so* /native-shared-libraries/
+
 # Stage 1: Build stage
 FROM python:3.13.14-slim-bookworm@sha256:9d7f287598e1a5a978c015ee176d8216435aaf335ed69ac3c38dd1bbb10e8d64 AS builder
 
@@ -233,7 +238,7 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     fi && \
     rm -rf /tmp/pulseplate-ci
 
-COPY --from=native-builder /native/usr/local/lib/*.so* /usr/local/lib/
+COPY --from=native-shared-runtime /native-shared-libraries/ /usr/local/lib/
 COPY --from=psycopg-wheel-builder /output/psycopg-sdk/ /opt/psycopg-sdk/
 RUN ldconfig
 
@@ -537,7 +542,7 @@ if version < (3, 53, 2):
 PY
 
 # Shared source builds own the native runtime and matching client linkage.
-COPY --from=native-builder /native/usr/local/lib/*.so* /usr/local/lib/
+COPY --from=native-shared-runtime /native-shared-libraries/ /usr/local/lib/
 COPY --from=native-builder /native/usr/local/lib/ossl-modules/ /usr/local/lib/ossl-modules/
 COPY --from=native-builder /native/usr/local/lib/engines-3/ /usr/local/lib/engines-3/
 COPY --from=native-builder /native/usr/local/bin/openssl /native/usr/local/bin/infocmp /usr/local/bin/
@@ -815,19 +820,39 @@ run_checked_consumer(["/bin/bash", "--noprofile", "--norc", "-c", "printf 'pulse
 for interpreter in ("/usr/local/bin/python", "/opt/venv/bin/python"):
     run_checked_consumer([interpreter, "-"], consumer_source)
 PY_NATIVE_TERMINAL
-/opt/venv/bin/python - <<'PY'
+/opt/venv/bin/python - <<'PY_NATIVE_PSYCOPG'
 import importlib.metadata as metadata
+import hashlib
+import json
 from pathlib import Path
+import ssl
 import cryptography
 from cryptography.hazmat.backends.openssl.backend import backend
 from PIL import Image
 import psycopg
 from psycopg import pq
 
+def check_libpq_lineage(loaded: set[Path], library_root: Path, sdk_receipt: Path) -> None:
+    expected_hash = json.loads(sdk_receipt.read_text())["native_libraries"]["libpq.so.5"]
+    expected = library_root / "libpq.so.5.18"
+    print("Psycopg actual mapped libpq paths", sorted(str(path) for path in loaded), "Psycopg source DSO hash", expected_hash)
+    if loaded != {expected} or not expected.is_file() or expected.is_symlink():
+        raise SystemExit("Psycopg loaded an unexpected canonical libpq path")
+    for name in ("libpq.so", "libpq.so.5"):
+        alias = library_root / name
+        if not alias.is_symlink() or alias.readlink() != Path("libpq.so.5.18"):
+            raise SystemExit("Psycopg source-built libpq relative alias was not preserved")
+    actual_hash = hashlib.sha256(expected.read_bytes()).hexdigest()
+    print("Psycopg source DSO hash", expected_hash, "loaded DSO hash", actual_hash)
+    if not isinstance(expected_hash, str) or actual_hash != expected_hash:
+        raise SystemExit("Psycopg loaded libpq bytes differ from the native source SDK")
+
 if cryptography.__version__ != "50.0.2" or not backend.openssl_version_text().startswith("OpenSSL 4.0.3 "):
     raise SystemExit("Cryptography bundled OpenSSL mismatch")
 if psycopg.__version__ != "3.3.4" or pq.__impl__ != "c" or pq.version() != 180006:
     raise SystemExit("Psycopg C/system client mismatch")
+if ssl.OPENSSL_VERSION_INFO[:3] != (3, 5, 9):
+    raise SystemExit("Psycopg runtime shared OpenSSL mismatch")
 if any(distribution.metadata["Name"].lower() == "psycopg-binary" for distribution in metadata.distributions()):
     raise SystemExit("The binary Psycopg carrier remains installed")
 import io
@@ -838,10 +863,9 @@ data.seek(0)
 if Image.open(data).getpixel((0, 0)) != (1, 2, 3):
     raise SystemExit("Pillow native PNG round trip failed")
 loaded = {Path(line.rsplit(maxsplit=1)[-1]).resolve() for line in Path("/proc/self/maps").read_text().splitlines() if "libpq.so" in line}
-if loaded != {Path("/usr/local/lib/libpq.so.5.18")}:
-    raise SystemExit("Psycopg loaded an unexpected libpq path")
+check_libpq_lineage(loaded, Path("/usr/local/lib"), Path("/usr/local/share/doc/pulseplate-native/psycopg-c-sdk.json"))
 print("Psycopg C", pq.version(), "Cryptography bundled", backend.openssl_version_text())
-PY
+PY_NATIVE_PSYCOPG
 SH
 
 RUN <<'SH'

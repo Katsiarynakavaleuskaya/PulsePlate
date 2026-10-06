@@ -295,6 +295,13 @@ baseline-only commit must wait until that owned block ends if it would leave
 modified image inputs unstaged. Matching hashes before and after a hook do not
 prove that the inputs remained unchanged throughout its execution.
 
+Export shared libraries into one curated directory with their source-produced
+relative SONAME aliases, then copy that directory's contents into consumers.
+The observed Docker wildcard COPY materialized individual `.so` aliases as
+regular duplicates. Require the exact canonical loaded path, preserved relative
+aliases and current native SDK DSO hash alongside the real library version;
+matching bytes under a flattened alias do not establish source topology.
+
 Keep binary/archive acquisition and actual backend execution separate.
 `install_locked_python_requirements.py --prefetch-only` produces an explicit
 new exact wheelhouse; `--consume-only` reads an existing validated wheelhouse

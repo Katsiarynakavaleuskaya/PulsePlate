@@ -11,6 +11,7 @@ from io import BytesIO
 import json
 import os
 import shlex
+import shutil
 import subprocess
 import sys
 from pathlib import Path, PurePosixPath
@@ -524,6 +525,121 @@ check_native_empty_panel_stack(panel)
         assert "Native panel empty-stack boundary returned a non-NULL panel" in result.stderr
     else:
         assert not result.stdout and not result.stderr
+
+
+def test_native_shared_export_preserves_source_aliases_and_excludes_static_inputs(
+    tmp_path: Path,
+) -> None:
+    """Real cp -a preserves the source SDK topology before directory-content COPY."""
+    dockerfile = (REPO_ROOT / "Dockerfile").read_text(encoding="utf-8")
+    section = dockerfile.split(" AS native-shared-runtime\n", 1)[1].split("\nFROM ", 1)[0]
+    assert "RUN --network=none mkdir -p /native-shared-libraries" in section
+    assert "cp -a /native/usr/local/lib/*.so* /native-shared-libraries/" in section
+    assert (
+        dockerfile.count(
+            "COPY --from=native-shared-runtime /native-shared-libraries/ /usr/local/lib/"
+        )
+        == 2
+    )
+    assert "COPY --from=native-builder /native/usr/local/lib/*.so*" not in dockerfile
+    source = tmp_path / "source"
+    export = tmp_path / "export"
+    source.mkdir()
+    export.mkdir()
+    payload = b"synthetic canonical shared DSO bytes"
+    (source / "libpq.so.5.18").write_bytes(payload)
+    for name in ("libpq.so", "libpq.so.5"):
+        (source / name).symlink_to("libpq.so.5.18")
+    (source / "libpq.a").write_bytes(b"static archive excluded")
+    (source / "pkgconfig").mkdir()
+    (source / "pkgconfig/libpq.pc").write_text("excluded package configuration")
+    copy_binary = shutil.which("cp")
+    assert copy_binary is not None
+    result = subprocess.run(
+        [copy_binary, "-a", *(str(path) for path in sorted(source.glob("*.so*"))), str(export)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert {path.name for path in export.iterdir()} == {"libpq.so", "libpq.so.5", "libpq.so.5.18"}
+    assert (export / "libpq.so.5.18").is_file() and not (export / "libpq.so.5.18").is_symlink()
+    for name in ("libpq.so", "libpq.so.5"):
+        assert (export / name).is_symlink()
+        assert (export / name).readlink() == Path("libpq.so.5.18")
+        assert (export / name).read_bytes() == payload
+
+
+@pytest.mark.parametrize(
+    "scenario",
+    ("canonical", "wrong_path", "extra_path", "flattened_alias", "absolute_alias", "wrong_hash"),
+)
+def test_libpq_lineage_guard_requires_exact_source_topology_and_bytes(
+    tmp_path: Path, scenario: str
+) -> None:
+    """The shipped guard rejects valid-version libraries with the wrong source identity."""
+    dockerfile = (REPO_ROOT / "Dockerfile").read_text(encoding="utf-8")
+    source = dockerfile.split("<<'PY_NATIVE_PSYCOPG'\n", 1)[1].split("\nPY_NATIVE_PSYCOPG", 1)[0]
+    assert 'psycopg.__version__ != "3.3.4"' in source
+    assert 'pq.__impl__ != "c" or pq.version() != 180006' in source
+    assert "OpenSSL 4.0.3" in source
+    assert "Psycopg actual mapped libpq paths" in source
+    assert "Psycopg source DSO hash" in source
+    helper = next(
+        node
+        for node in ast.parse(source).body
+        if isinstance(node, ast.FunctionDef) and node.name == "check_libpq_lineage"
+    )
+    root = tmp_path / "native-lib"
+    root.mkdir()
+    canonical = root / "libpq.so.5.18"
+    payload = b"synthetic reviewed canonical DSO"
+    canonical.write_bytes(payload)
+    for name in ("libpq.so", "libpq.so.5"):
+        (root / name).symlink_to("libpq.so.5.18")
+    loaded = [canonical]
+    if scenario == "wrong_path":
+        loaded = [tmp_path / "wrong-lib/libpq.so.5.18"]
+    elif scenario == "extra_path":
+        loaded.append(tmp_path / "extra-lib/libpq.so.5")
+    elif scenario == "flattened_alias":
+        (root / "libpq.so.5").unlink()
+        (root / "libpq.so.5").write_bytes(payload)
+    elif scenario == "absolute_alias":
+        (root / "libpq.so.5").unlink()
+        (root / "libpq.so.5").symlink_to(canonical)
+    receipt = tmp_path / "sdk.json"
+    receipt.write_text(
+        json.dumps(
+            {
+                "native_libraries": {
+                    "libpq.so.5": sha256(
+                        b"different bytes" if scenario == "wrong_hash" else payload
+                    ).hexdigest()
+                }
+            }
+        )
+    )
+    program = "import hashlib, json\nfrom pathlib import Path\n" + ast.unparse(helper)
+    program += (
+        f"\ncheck_libpq_lineage({{Path(name) for name in {[str(path) for path in loaded]!r}}}, "
+        f"Path({str(root)!r}), Path({str(receipt)!r}))\n"
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", program],
+        cwd=tmp_path,
+        env={"PATH": os.defpath, "HOME": str(tmp_path), "LANG": "C.UTF-8"},
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+    assert result.returncode == (0 if scenario == "canonical" else 1), result.stdout + result.stderr
+    assert "Psycopg actual mapped libpq paths" in result.stdout
+    if scenario in ("canonical", "wrong_hash"):
+        assert "Psycopg source DSO hash" in result.stdout
+    if scenario != "canonical":
+        assert "Psycopg" in result.stderr
 
 
 def test_dockerfile_builds_verified_sqlite_runtime_library() -> None:
