@@ -498,6 +498,379 @@ def _load_workflow(path: Path) -> dict[str, object]:
     return workflow
 
 
+_METADATA_MATERIAL_CONCURRENCY_GROUP = (
+    "${{ github.workflow }}-${{ github.ref }}-"
+    "${{ github.event_name == 'pull_request' && "
+    "(github.event.action == 'edited' || github.event.action == 'labeled' || "
+    "github.event.action == 'unlabeled') && 'metadata' || 'material' }}"
+)
+_CONCURRENCY_WORKFLOW_CONTRACTS = (
+    (
+        CI_WORKFLOW_PATH,
+        ("opened", "synchronize", "reopened", "edited", "ready_for_review", "labeled", "unlabeled"),
+        ("push", "pull_request"),
+        ("edited", "labeled", "unlabeled"),
+        ("opened", "synchronize", "reopened", "ready_for_review"),
+    ),
+    (
+        FRONTEND_CI_WORKFLOW_PATH,
+        ("opened", "synchronize", "reopened", "edited"),
+        ("pull_request", "push", "workflow_dispatch"),
+        ("edited",),
+        ("opened", "synchronize", "reopened"),
+    ),
+)
+
+
+def _assert_metadata_material_concurrency_contract(
+    workflow: dict[str, object],
+    expected_pr_types: tuple[str, ...],
+    expected_events: tuple[str, ...],
+) -> None:
+    """Require the exact native event partition and unchanged declared trigger inventories."""
+    concurrency = workflow["concurrency"]
+    assert isinstance(concurrency, dict)
+    assert concurrency == {
+        "group": _METADATA_MATERIAL_CONCURRENCY_GROUP,
+        "cancel-in-progress": True,
+    }
+    assert concurrency["cancel-in-progress"] is True
+    on_section = workflow.get("on")
+    if on_section is None:
+        on_section = cast(dict[object, object], workflow).get(True)
+    assert isinstance(on_section, dict)
+    assert set(on_section) == set(expected_events)
+    pull_request = on_section["pull_request"]
+    assert isinstance(pull_request, dict)
+    assert pull_request["types"] == list(expected_pr_types)
+
+
+@pytest.mark.parametrize(
+    ("path", "pr_types", "events", "metadata_actions", "material_actions"),
+    _CONCURRENCY_WORKFLOW_CONTRACTS,
+    ids=("ci", "frontend"),
+)
+def test_ci_and_frontend_concurrency_separate_metadata_from_material(
+    path: Path,
+    pr_types: tuple[str, ...],
+    events: tuple[str, ...],
+    metadata_actions: tuple[str, ...],
+    material_actions: tuple[str, ...],
+) -> None:
+    """Pin native concurrency source shape without interpreting GitHub expressions."""
+    _assert_metadata_material_concurrency_contract(_load_workflow(path), pr_types, events)
+
+
+@pytest.mark.parametrize(
+    ("path", "pr_types", "events", "metadata_actions", "material_actions"),
+    _CONCURRENCY_WORKFLOW_CONTRACTS,
+    ids=("ci", "frontend"),
+)
+def test_ci_and_frontend_concurrency_preserve_declared_events(
+    path: Path,
+    pr_types: tuple[str, ...],
+    events: tuple[str, ...],
+    metadata_actions: tuple[str, ...],
+    material_actions: tuple[str, ...],
+) -> None:
+    """Preserve declared metadata/material actions and non-PR material fallback triggers."""
+    workflow = _load_workflow(path)
+    on_section = workflow.get("on")
+    if on_section is None:
+        on_section = cast(dict[object, object], workflow).get(True)
+    assert isinstance(on_section, dict)
+    assert set(on_section) == set(events)
+    pull_request = on_section["pull_request"]
+    assert isinstance(pull_request, dict)
+    assert pull_request["types"] == list(pr_types)
+    metadata = {"edited", "labeled", "unlabeled"}
+    assert set(pr_types).intersection(metadata) == set(metadata_actions)
+    assert set(pr_types).difference(metadata) == set(material_actions)
+    assert "push" in on_section
+    if "workflow_dispatch" in events:
+        assert on_section["workflow_dispatch"] is None
+    # The exact native expression owns event-name guarding and material fallback.
+    # These finite source inventories do not execute or simulate GitHub scheduling.
+
+
+@pytest.mark.parametrize(
+    ("path", "pr_types", "events", "metadata_actions", "material_actions"),
+    _CONCURRENCY_WORKFLOW_CONTRACTS,
+    ids=("ci", "frontend"),
+)
+@pytest.mark.parametrize(
+    "mutation",
+    (
+        "old-group",
+        "missing-workflow",
+        "missing-ref",
+        "head-sha",
+        "run-id",
+        "missing-pr-guard",
+        "predicate-or",
+        "wrong-fallback",
+        "cancel-disabled",
+        "cancel-number",
+        "extra-key",
+        "missing-edited",
+        "label-trigger-drift",
+        "missing-push",
+        "non-pr-trigger-drift",
+    ),
+)
+def test_ci_and_frontend_concurrency_contract_rejects_mutations(
+    path: Path,
+    pr_types: tuple[str, ...],
+    events: tuple[str, ...],
+    metadata_actions: tuple[str, ...],
+    material_actions: tuple[str, ...],
+    mutation: str,
+) -> None:
+    """Reject bounded group, cancellation and trigger drift through the existing YAML seam."""
+    workflow = _load_workflow(path)
+    _assert_metadata_material_concurrency_contract(workflow, pr_types, events)
+    concurrency = workflow["concurrency"]
+    assert isinstance(concurrency, dict)
+    group = concurrency["group"]
+    assert isinstance(group, str)
+    if mutation == "old-group":
+        concurrency["group"] = "${{ github.workflow }}-${{ github.ref }}"
+    elif mutation == "missing-workflow":
+        concurrency["group"] = group.replace("${{ github.workflow }}-", "", 1)
+    elif mutation == "missing-ref":
+        concurrency["group"] = group.replace("${{ github.ref }}-", "", 1)
+    elif mutation == "head-sha":
+        concurrency["group"] = group + "-${{ github.event.pull_request.head.sha }}"
+    elif mutation == "run-id":
+        concurrency["group"] = group + "-${{ github.run_id }}"
+    elif mutation == "missing-pr-guard":
+        concurrency["group"] = group.replace("github.event_name == 'pull_request' && ", "", 1)
+    elif mutation == "predicate-or":
+        concurrency["group"] = group.replace("'pull_request' &&", "'pull_request' ||", 1)
+    elif mutation == "wrong-fallback":
+        concurrency["group"] = group.replace("|| 'material'", "|| 'metadata'", 1)
+    elif mutation == "cancel-disabled":
+        concurrency["cancel-in-progress"] = False
+    elif mutation == "cancel-number":
+        concurrency["cancel-in-progress"] = 1
+    elif mutation == "extra-key":
+        concurrency["unexpected"] = True
+    else:
+        on_section = workflow.get("on")
+        if on_section is None:
+            on_section = cast(dict[object, object], workflow).get(True)
+        assert isinstance(on_section, dict)
+        pull_request = on_section["pull_request"]
+        assert isinstance(pull_request, dict)
+        types = pull_request["types"]
+        assert isinstance(types, list)
+        if mutation == "missing-edited":
+            types.remove("edited")
+        elif mutation == "label-trigger-drift":
+            if path == CI_WORKFLOW_PATH:
+                types.remove("labeled")
+            else:
+                types.append("labeled")
+        elif mutation == "missing-push":
+            del on_section["push"]
+        elif mutation == "non-pr-trigger-drift":
+            if path == CI_WORKFLOW_PATH:
+                on_section["workflow_dispatch"] = None
+            else:
+                del on_section["workflow_dispatch"]
+        else:
+            raise AssertionError(f"Unexpected concurrency mutation: {mutation}")
+    with pytest.raises(AssertionError):
+        _assert_metadata_material_concurrency_contract(workflow, pr_types, events)
+
+
+_CANCELLATION_JOB_IDS = (
+    (
+        CI_WORKFLOW_PATH,
+        (
+            "merge_readiness_gate",
+            "lint",
+            "security",
+            "openapi-sync",
+            "test-pr",
+            "pgvector_compat",
+            "test-feature",
+            "test-main",
+            "diff-coverage",
+        ),
+    ),
+    (FRONTEND_CI_WORKFLOW_PATH, ("caddy-contract",)),
+)
+_JOB_CANCELLATION_CONDITIONS = (
+    (
+        CI_WORKFLOW_PATH,
+        "merge_readiness_gate",
+        "${{ !cancelled() && github.event_name == 'pull_request' }}",
+    ),
+    (CI_WORKFLOW_PATH, "lint", "${{ !cancelled() }}"),
+    (
+        CI_WORKFLOW_PATH,
+        "security",
+        "${{ !cancelled() && (github.event_name != 'pull_request' || "
+        "needs.changes.result != 'success' || needs.changes.outputs.run_security == 'true' || "
+        "needs.changes.outputs.pgvector_compat == 'true') }}",
+    ),
+    (
+        CI_WORKFLOW_PATH,
+        "openapi-sync",
+        "${{ !cancelled() && (github.event_name != 'pull_request' || "
+        "needs.changes.result != 'success' || needs.changes.outputs.run_openapi_sync == 'true') }}",
+    ),
+    (
+        CI_WORKFLOW_PATH,
+        "test-pr",
+        "${{ !cancelled() && github.event_name == 'pull_request' && "
+        "(needs.changes.result != 'success' || needs.changes.outputs.run_backend_blocking == 'true') }}",
+    ),
+    (
+        CI_WORKFLOW_PATH,
+        "pgvector_compat",
+        "${{ !cancelled() && github.event_name == 'pull_request' && "
+        "(needs.changes.result != 'success' || needs.changes.outputs.pgvector_compat == 'true') }}",
+    ),
+    (
+        CI_WORKFLOW_PATH,
+        "test-feature",
+        "${{ !cancelled() && github.event_name == 'push' && "
+        "(startsWith(github.ref, 'refs/heads/feat/') || startsWith(github.ref, 'refs/heads/fix/') || "
+        "startsWith(github.ref, 'refs/heads/feature/')) && "
+        "(needs.changes.result != 'success' || needs.changes.outputs.run_backend_blocking == 'true') }}",
+    ),
+    (
+        CI_WORKFLOW_PATH,
+        "test-main",
+        "${{ !cancelled() && (github.ref == 'refs/heads/main' || "
+        "(github.event_name == 'pull_request' && (needs.changes.result != 'success' || "
+        "needs.changes.outputs.run_main_ci_diagnostic == 'true'))) }}",
+    ),
+    (
+        CI_WORKFLOW_PATH,
+        "diff-coverage",
+        "${{ !cancelled() && github.event_name == 'pull_request' && "
+        "(needs.changes.result != 'success' || needs.changes.outputs.run_backend_blocking == 'true') }}",
+    ),
+    (
+        FRONTEND_CI_WORKFLOW_PATH,
+        "caddy-contract",
+        "${{ !cancelled() && (needs.changes.outputs.caddy == 'true' || "
+        "github.event_name == 'workflow_dispatch') }}",
+    ),
+)
+
+
+def _assert_selected_workflow_job_cancellation_inventory(
+    workflow: dict[str, object], expected_job_ids: tuple[str, ...]
+) -> None:
+    """Require the exact selected job inventory and reject cancellation-resistant status checks."""
+    jobs = workflow["jobs"]
+    assert isinstance(jobs, dict)
+    observed: set[str] = set()
+    for job_id, job in jobs.items():
+        assert isinstance(job_id, str)
+        assert isinstance(job, dict)
+        condition = str(job.get("if", ""))
+        assert "always()" not in condition, job_id
+        if "!cancelled()" in condition:
+            observed.add(job_id)
+    assert observed == set(expected_job_ids)
+
+
+@pytest.mark.parametrize(("path", "job_ids"), _CANCELLATION_JOB_IDS, ids=("ci", "frontend"))
+def test_selected_workflow_job_cancellation_inventory_is_exact(
+    path: Path, job_ids: tuple[str, ...]
+) -> None:
+    """Keep all nine CI jobs and the Frontend caddy job in the finite cancellation cohort."""
+    expected = tuple(
+        job_id for workflow_path, job_id, _ in _JOB_CANCELLATION_CONDITIONS if workflow_path == path
+    )
+    assert expected == job_ids
+    assert len(_JOB_CANCELLATION_CONDITIONS) == 10
+    _assert_selected_workflow_job_cancellation_inventory(_load_workflow(path), job_ids)
+
+
+@pytest.mark.parametrize(("path", "job_id", "expected"), _JOB_CANCELLATION_CONDITIONS)
+def test_selected_workflow_job_cancellation_predicates_preserve_complete_tails(
+    path: Path, job_id: str, expected: str
+) -> None:
+    """Pin each complete native condition without evaluating GitHub scheduling expressions."""
+    jobs = _load_workflow(path)["jobs"]
+    assert isinstance(jobs, dict)
+    job = jobs[job_id]
+    assert isinstance(job, dict)
+    assert job["if"] == expected
+
+
+@pytest.mark.parametrize(("path", "job_id", "expected"), _JOB_CANCELLATION_CONDITIONS)
+@pytest.mark.parametrize(
+    "mutation",
+    (
+        "missing-job",
+        "extra-job",
+        "always",
+        "success-only",
+        "redundant-always",
+        "or-escape",
+        "wrong-operator",
+        "lost-parenthesis",
+        "missing-braces",
+        "lost-tail",
+    ),
+)
+def test_selected_workflow_job_cancellation_contract_rejects_drift(
+    path: Path, job_id: str, expected: str, mutation: str
+) -> None:
+    """Reject finite membership and status/tail drift through the existing YAML source seam."""
+    workflow = _load_workflow(path)
+    jobs = workflow["jobs"]
+    assert isinstance(jobs, dict)
+    job = jobs[job_id]
+    assert isinstance(job, dict)
+    assert job["if"] == expected
+    if mutation == "missing-job":
+        del jobs[job_id]
+    elif mutation == "extra-job":
+        jobs["unexpected-cancellation-job"] = {"if": "${{ !cancelled() }}"}
+    elif mutation == "always":
+        job["if"] = expected.replace("!cancelled()", "always()", 1)
+    elif mutation == "success-only":
+        job["if"] = expected.replace("!cancelled()", "success()", 1)
+    elif mutation == "redundant-always":
+        job["if"] = expected.replace("!cancelled()", "always() && !cancelled()", 1)
+    elif mutation == "or-escape":
+        job["if"] = expected.replace("!cancelled()", "!cancelled() || true", 1)
+    elif mutation == "wrong-operator":
+        job["if"] = (
+            expected.replace(" && ", " || ", 1)
+            if job_id != "lint"
+            else "${{ !cancelled() || true }}"
+        )
+    elif mutation == "lost-parenthesis":
+        job["if"] = (
+            expected.replace(" && (", " && ", 1)
+            if " && (" in expected
+            else expected.replace("!cancelled()", "!cancelled(", 1)
+        )
+    elif mutation == "missing-braces":
+        job["if"] = expected.removeprefix("${{ ").removesuffix(" }}")
+    elif mutation == "lost-tail":
+        job["if"] = "${{ !cancelled() }}" if job_id != "lint" else "${{ false }}"
+    else:
+        raise AssertionError(f"Unexpected cancellation mutation: {mutation}")
+    expected_job_ids = next(
+        ids for workflow_path, ids in _CANCELLATION_JOB_IDS if workflow_path == path
+    )
+    with pytest.raises(AssertionError):
+        _assert_selected_workflow_job_cancellation_inventory(workflow, expected_job_ids)
+        for workflow_path, selected_job_id, condition in _JOB_CANCELLATION_CONDITIONS:
+            if workflow_path == path:
+                assert jobs[selected_job_id]["if"] == condition
+
+
 def _active_workflow_paths() -> Iterator[Path]:
     workflow_dir = REPO_ROOT / ".github" / "workflows"
     yield from sorted(workflow_dir.glob("*.yml"))
@@ -4855,7 +5228,7 @@ def _assert_ci_lint_node24_frontend_hook_dependency_contract(
     assert isinstance(jobs, dict)
     lint_job = jobs["lint"]
     assert isinstance(lint_job, dict)
-    assert lint_job.get("if") == "${{ always() }}"
+    assert lint_job.get("if") == "${{ !cancelled() }}"
     for forbidden_key in (
         "continue-on-error",
         "defaults",

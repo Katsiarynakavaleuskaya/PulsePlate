@@ -1167,7 +1167,7 @@ def test_frontend_caddy_contract_is_non_publishing_and_unprivileged() -> None:
     changes_steps = _steps(_job(workflow, "changes"))
     job = _job(workflow, "caddy-contract")
     assert job["if"] == (
-        "${{ always() && (needs.changes.outputs.caddy == 'true' "
+        "${{ !cancelled() && (needs.changes.outputs.caddy == 'true' "
         "|| github.event_name == 'workflow_dispatch') }}"
     )
     assert job["permissions"] == {"contents": "read"}
