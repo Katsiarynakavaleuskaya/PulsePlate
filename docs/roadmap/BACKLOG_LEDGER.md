@@ -161,8 +161,8 @@ If it is not recorded here — it does not exist.
 - [ ] P1: OPS-04B utilization and recovery evidence
   - Owner: dev-operator / agent-coordinator
   - Priority: P1
-  - Target PR: Current substantive OPS-04B lane (`codex/ops04b-utilization-recovery-evidence`); number assigned at PR open.
-  - Status: Active implementation and evidence lane; exact-head CI/review, merge approval and same-ID continuity remain pending. Parent OPS-04 remains open.
+  - Target PR: [#2474](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2474) (`codex/ops04b-utilization-recovery-evidence`).
+  - Status: Active PR #2474 / OPERATIONAL_EVIDENCE_PENDING; post-open corrections are implemented and current-head validation is in progress. Review dispositions, exact-head merge approval and final same-ID continuity remain pending. OPS-04B and parent OPS-04 remain open.
   - Evidence gaps: The separately approved short current host observation and provider policy/object evidence do not establish representative seven-day history, an exact filesystem-to-provider-Volume witness or applicable current restore. The backup-directory read attempt was unavailable; it does not prove backup absence or a confirmed Volume source. Resource changes and verified savings remain a separately approved follow-up.
   - Links: [OPS-04A](#ledger-p1-ops04a-resource-cost-recovery-context), [Parent OPS-04](#ledger-p1-ops04-storage-finops), `docs/deploy/OPERATIONAL_SIGNALS.md`.
   - DoD: Fresh-admit exact current base/ownership; collect bounded read-only dated utilization/recovery evidence for unresolved OPS-04A resource context, preserving unknowns and independently assessing supplied references. Record OPS-04A's actual merge/closure receipt in this substantive PR. Keep resource mutation and verified savings outside this evidence-only outcome; obtain separate approval for any host observation and later cost change, with rollback and before/after proof.

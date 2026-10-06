@@ -840,8 +840,16 @@ environment or service conflicts select no silent winner. `topology` contains
 The first two are strings or null. Volume IDs are a duplicate-free list. Each
 link has `filesystem_ref`, `volume_id`, `source_ref`, `source_sha256`; it is an
 explicit supplied witness, never inferred from names, mount paths, size or a
-sole attachment. `restore_expectations` entries contain `target` and current
-`artifact_sha256`; a receipt does not establish its own current expectation.
+sole attachment.
+
+Each `restore_expectations` entry has exactly `target`, `artifact_sha256` and
+`target_ref`. The source `target` identifies the Droplet/filesystem/Volume being
+assessed; the required bounded literal `target_ref` independently names the
+isolated restore destination. It must match receipt `data.target_ref`, and may
+differ from source `target.ref`. A receipt cannot establish its own expectation.
+Conflicting artifact/destination pairs for one source target select no winner;
+identical pairs remain equivalent. A context conflict revokes every positive
+association and receipt applicability while preserving raw receipt data/result.
 
 All records have exactly `record_kind`, `account_ref`, `resource_kind`,
 `resource_id`, `source_ref`, `source_sha256`, `acquisition_window`,
@@ -905,9 +913,9 @@ Unknown metric names/units are unsupported without guessed conversions. [Linux P
 
 Root backup policy/object does not cover attached Volume. Listing does not
 establish restore. Receipt `result` and `applicability` are separate: only a
-matching current expected artifact/storage target, known matching epoch,
-performed time within the explicit assessment window, known acquisition and
-observation timing, and nonempty checks can yield
+matching current expected artifact and independently expected isolated restore
+destination, known matching epoch, performed time within the explicit assessment
+window, known acquisition and observation timing, and nonempty checks can yield
 `compatible_supplied_scope`. This means supplied scope compatibility, not
 validated recovery sufficiency or authentic execution. Missing link, epoch,
 artifact, checks or timing stays a gap; historical receipt stays visible as
@@ -915,13 +923,20 @@ stale applicability. No aggregate recovery PASS or new restore operation.
 
 Bounds: 4 MiB per input and nesting 8 through the existing reader/parser;
 128 records, 512 declarations, 64 membership/link/expectation entries, 32 receipt
-check refs, 4,000 samples per metric and across records, 512 characters for O
-strings and 64 characters for O decimal tokens. Every record validates before
-filtering. Duplicate JSON keys, unsafe files, unsupported schema versions and
+check refs, 4,000 samples per metric and across records, 512 characters for
+observations packet strings and 64 characters for its decimal tokens. Every
+record validates before filtering. Duplicate JSON keys, unsafe files,
+unsupported schema versions and
 excess inventories are refusals. Old cost money/references retain their original
-domain. Complete C validation checks original row/group/ordinal conservation,
-candidate/allocation rules, delegated counts/totals/status/summary and source
-hash/idempotency/fingerprint relationships; it preserves C without rewriting it.
+domain. Complete OPS-04A cost report validation checks original row/group/ordinal
+conservation, candidate/allocation rules, delegated counts/totals/status/summary
+and source hash/idempotency/fingerprint relationships; it preserves the cost report without
+rewriting it. When `INCOMPLETE_CAPTURE` is absent, nonzero rows cover every page
+from 1 through `page_count`; nonfinal pages share a width from 1 through 200, and
+the final width is from 1 through that width. A complete single page has at most
+200 rows; a complete zero-row report has exactly one page. These predicates
+recognize a possible complete producer shape; they do not authenticate provider
+completeness. Genuine incomplete captures retain their original readable state.
 
 Output asset/schema/policy are `resource_evidence_report`,
 `pulseplate.resource-evidence-report.v1`, `resource-evidence-policy.v1`.
