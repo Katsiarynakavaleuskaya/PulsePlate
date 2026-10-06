@@ -330,6 +330,7 @@ If it is not recorded here — it does not exist.
   - Owner decision (EN): On 2026-09-14 the owner explicitly authorized this bounded PR start while a colleague owns CD recovery. CD is not this lane's start blocker; that decision does not assert successful CD/current-head CI or authorize merge. No CD or other-owner files are included.
   - Reason (EN): The complete 2026-09-14T10:30:36Z–10:30:42Z census contains 16 open alerts over six identities. Only js-yaml alert #291 / GHSA-2883-xcg3-v3hh belongs to DEP-SEC-01. smol-toml, vitest/@vitest/mocker, httpx2 and httpcore2 remain separate sequential stages; Python ownership census PYDEP-1A stays deferred after security remediation. Historical updater failure remains separately tracked for fresh diagnosis; no updater protection or alert is disabled here.
   - Validation checkpoint (EN): Full focused frontend/root dependency guard suites pass after corrected guard-fixture failures; native npm ci, canonical OpenAPI no-drift checks, frontend typecheck/build, coverage run and applicable token/CSS checks pass. Frontend coverage is reported separately from the required current-PR diff coverage ≥97%; one existing JSDOM color-contrast skip remains covered by the browser accessibility lane, with no skip added in this PR. Local narrow gates and current-head CI/review admission remain required.
+  - Accessibility evidence correction (EN, 2026-10-07, #2471): The preceding historical browser-coverage assertion is unverified and superseded. `frontend/src/components/__tests__/Accessibility.test.tsx:229` retains a JSDOM-only color-contrast skip; its cited `frontend/tests/accessibility.spec.ts` is absent, and the current Accessibility workflow invokes Vitest/JSDOM. No browser color-contrast result is established. Track the missing browser execution in [the dedicated P1 follow-up](#ledger-p1-web-color-contrast-browser-coverage); this correction changes no dependency evidence or runtime behavior.
   - Carryover (EN): Repository evidence and ledger updates belong in the substantive implementation PR. Unavoidable post-merge receipts are reconciled in the next substantive PR under the owner's explicit decision; do not create a standalone docs-only closeout PR. Four existing Drive documents must receive same-ID plan/open/terminal/post-merge checkpoints; do not mark closure before observed merge and post-merge evidence.
   - Links: `docs/security/GHSA-h67p-54hq-rp68-js-yaml.md`; `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-depsec2-multi-ecosystem-dependency-closure`; `https://github.com/Katsiarynakavaleuskaya/PulsePlate/security/dependabot/291`; `https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/34311002924`
   - DoD: For each admitted identity, reconcile complete exact-base/head surfaces and immutable advisory inventory, prove nonempty applicability and universal head safety, reproduce the complete native resolver delta, and enforce negative regressions. Obtain focused/narrow local gates, exact-head canonical CI/security/diff coverage, actual-diff premortem/Runner, post-open role review, native self-review/provider-neutral seal, strict authenticated readiness/wait and separate human merge decision. Observe merged-main sanity and alert indexing without dismissal, four same-ID Drive readbacks, archive and owned cleanup. Separately investigate the updater failure without weakening external-code protections; no partial identity result closes the entire epic.
@@ -497,6 +498,16 @@ If it is not recorded here — it does not exist.
   - Rollback (EN): Revert the CAB-03 carrier. No database, API, user-data, payment, deployment, or
     asset-source restoration is required.
 
+<a id="ledger-p1-web-color-contrast-browser-coverage"></a>
+- [ ] P1: Add real browser color-contrast coverage for the existing Toggle fixture
+  - Owner: frontend-engineer / qa-engineer-agent
+  - Priority: P1 (test-evidence integrity / accessibility coverage gap)
+  - Target PR: `PR-TBD-WEB-COLOR-CONTRAST-COVERAGE`, dedicated substantive test implementation after fresh admission; no automatic start or docs-only PR
+  - Status: OPEN; the existing JSDOM color-contrast case remains intentionally skipped because JSDOM does not compute the real styles required by axe. Browser coverage is not implemented or claimed.
+  - Reason for deferral (EN): CAB07B restores the truthful existing test/ledger explanation. Building a browser fixture and attaching actual browser execution is a separate implementation outcome, outside the admitted lint cleanup; no observed product contrast violation is established by the missing coverage alone.
+  - Links: `frontend/src/components/__tests__/Accessibility.test.tsx:229`; `frontend/playwright.config.ts:4`; `.github/workflows/accessibility.yml`; [PR #2471](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2471)
+  - DoD: Replace the skipped assurance with an actual browser-rendered Toggle fixture and native axe color-contrast execution; prove a known failing contrast fixture is rejected and the intended fixture passes; attach the check to its owning CI lane and retain exact-head outcomes. Remove the obsolete skipped JSDOM case only after the real browser replacement is proved. Keep absence of coverage distinct from a verified product contrast violation and preserve existing lint/security gates.
+
 <a id="ledger-client-arch-1-continuation"></a>
 - [ ] P1: CLIENT-ARCH-1 / CAB-04–CAB-09 reserved continuation
   - Owner: agent-coordinator (continuation tracking; implementation owners assigned at each admission)
@@ -519,8 +530,9 @@ If it is not recorded here — it does not exist.
     [Frontend CI 37307261956](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/37307261956)
     successful on attempt 1. Original QA35/archive and failure/retry history remain
     predecessor receipts, not new CAB-07B validation. CLIENT-ARCH-1 remains open.
-    CAB-07B is active under owner-amended CAB07B/v1.2, with exactly nineteen admitted
-    paths and a bounded repair of the existing canonical diff-cover exclusion argv.
+    CAB-07B is active under owner-amended CAB07B/v1.3, with exactly twenty admitted
+    paths: the existing lint/coverage repair plus the bounded correction of false
+    browser color-contrast evidence and explicit tracking of the existing JSDOM skip.
     The seventeen intended exclusion classes, four required XML producers/inputs,
     threshold 97 and merged PR #2466 concurrency/cancellation changes remain required.
     Its own validation, review,

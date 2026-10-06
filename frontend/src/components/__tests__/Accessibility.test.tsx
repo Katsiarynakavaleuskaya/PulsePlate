@@ -228,7 +228,8 @@ describe('Accessibility Tests', () => {
 
     it.skip('should pass color contrast accessibility checks', async () => {
       // JSDOM does not compute real styles, so axe color-contrast rule reports false negatives.
-      // Covered by browser-based axe run in Playwright suite (frontend/tests/accessibility.spec.ts).
+      // Browser color-contrast coverage is not implemented; follow-up:
+      // docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-web-color-contrast-browser-coverage
       const { container } = render(
         <div>
           <Toggle
