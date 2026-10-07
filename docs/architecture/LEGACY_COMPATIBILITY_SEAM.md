@@ -27,13 +27,13 @@ test-only reassignment of `legacy_app.app` cannot rebind package, bootstrap, or
 not import `legacy_app`. Resolving `app.app` imports `app.main` without loading
 `legacy_app`; the canonical bootstrap no longer reverse-imports the compatibility
 facade. The eight former paid/BMI registration mirrors are absent from `app`,
-`app.main`, and `legacy_app.py`. Eleven bounded Python-binding retirements remove
-only the exact 91 `legacy_app.py` Python bindings enumerated below; they do not
+`app.main`, and `legacy_app.py`. Twelve bounded Python-binding retirements remove
+only the exact 99 `legacy_app.py` Python bindings enumerated below; they do not
 remove or redirect any HTTP path, change auth, alter OpenAPI, or change FastAPI
 object identity. Repository census found no tracked supported production
 consumer of the second ten-name, third eleven-name, fourth eight-name, fifth
 twelve-name, sixth seven-name, seventh three-name, eighth seven-name, ninth
-fifteen-name, tenth four-name, or eleventh four-name cohort;
+fifteen-name, tenth four-name, eleventh four-name, or twelfth eight-name cohort;
 it does not prove that no external or dynamic Python consumer exists.
 
 Application startup/shutdown behavior is canonically owned by
@@ -148,21 +148,144 @@ Carryover: [PR #2457](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/
 merged on 2026-09-30T10:35:36Z as
 `6e09f4ea8cc33e8389d99075b6f6a0d10f1b725e`. Its malformed-Mapping and overflow
 validation correction remains in the canonical TargetsIn validator, with its
-regressions preserved during this import migration. The current child is
+regressions preserved during this import migration.
 [PR #2466](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2466)
-(`codex/retire-legacy-planning-schema-exports`).
-`PROJECT_LEGACY` remains open. After this child's separately authorized merge,
-repository closeout receipts belong to the first following substantive child,
-`PR-TBD-LEGACY-RESIDUAL-PYTHON-EXPORT-RETIREMENT`; no standalone docs-only
-closeout PR is planned, and that pointer grants no additional cohort admission.
+(`codex/retire-legacy-planning-schema-exports`) merged on
+2026-10-06T10:47:48Z from approved final head
+`96a73949f107ac77ddb507e47520da925e74efda`, with squash
+`0b4afbf32a6d1d177c7d4f2e3abb0f9be08b1d1a`. Its directly approved
+18-path concurrency repair is inherited material; it supplies no approval to
+expand this utility child. Historical R29 remains **PARTIAL / UNWAIVED**, with
+no retrospective execution claim.
+
+The predecessor's post-merge receipt records clean main at that squash,
+0 ahead / 0 behind, complete tree equality with its approved R4 state, and
+focused sanity across eight test families with exit 0. Canonical main
+[CI run 37452144570](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/37452144570)
+finished SUCCESS: 14 successful jobs, 12 intentional conditional skips,
+0 failures, and 0 cancellations. Python 3.11 / 3.12 / 3.13 total coverage was
+97.63% / 97.66% / 97.65%, recorded at raw log lines 1857 / 2012 / 1972.
+[CD run 37452144603](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/37452144603)
+finished SUCCESS with production jobs intentionally SKIPPED; this establishes
+no production deployment or global health claim. No own-caused R39 fallout was
+observed within those CI, sanity, and CD boundaries. Separate dependency-updater
+`unexpected_external_code` and undici `security_update_not_possible` diagnostics
+retain their dependency owners and unchanged manifest/lock/configuration proof.
+
+The verified predecessor archive is
+[folder 1ndorbw9PcjdFOjG2wFpyqZQP0Ztlgvk2](https://drive.google.com/drive/folders/1ndorbw9PcjdFOjG2wFpyqZQP0Ztlgvk2):
+
+- Git bundle `1gI3o_yyoWclmkpURYB3m9Ib2C8a7kzB-`: 69,702,946 downloaded bytes;
+  SHA-256 `deb3bc74f5845e25b34ed950fcea9838c8464e413ca1046a68ab4bd39c115828`;
+  native verification exited 0 and restoration recovered the exact R4 head/tree.
+- Implementation archive `1Rqx4-8vxuyj6ZNNbT_UbvGepSFicugKT`: 545,235 bytes;
+  SHA-256 `688886ceaa3891175bb9af08fa7fd52f21186948bec3012c68077a1fb068e26a`;
+  88 regular members / 87 manifest members, with complete downloaded/extracted
+  byte and hash equivalence.
+- Terminal supplement `1oCzydUZzMfFlz_1vfUXG8JDCZ-ZXYYX4`: 135,093 bytes;
+  SHA-256 `e44d9eebccfc61901894fafa6e7fd34106524d2312a68ded6631df7b71a1201e`;
+  29 regular members / 28 manifest members, with complete downloaded/extracted
+  byte and hash equivalence. It carries actual main CI and owned cleanup receipts.
+- Final outcome/continuity package `1pD8CAhQP3boW0Zbpc5154ppnuaRhzGNr`:
+  46,175 bytes;
+  SHA-256 `4edbea75bb408dff3f79bb66a1cf339ae68655f0cf8d93317818b459851fdb12`;
+  12 regular members / 11 manifest members. The historical native
+  `postmerge_cloud_outcome_archive_receipt.json`, observed at
+  2026-10-06T12:34:00.166117Z, records download/upload equality and every extracted
+  member's exact raw bytes and hash, preserving final QA and terminal continuity.
+  This is retained predecessor evidence, not a new verification of its archive.
+
+Predecessor owned M/T7 checkouts and local/remote branches are absent. Guarded
+local-ref deletion followed native branch-deletion refusal after squash and
+verified tree/recovery equivalence. Exact owned temporary resources and stale
+Git registrations were removed; foreign worktrees/caches were preserved, with
+no global worktree prune. Private preservation of 1,971 files / 359,779,942 bytes
+was verified before cleanup. The exact terminal receipts are
+`postmerge_owned_cleanup_receipt.json` and `cleanup_owned_stale_metadata_receipt.json`;
+foreign master contents and private observer data remain local.
+
+These completed-child receipts are carried in this next substantive utility
+child, [PR #2475](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2475)
+(`codex/retire-legacy-core-utility-exports`). `PROJECT_LEGACY` remains OPEN. There is no standalone
+docs-only closeout PR and no additional cohort authority.
 Rollback is a reviewed revert of the whole planning-schema retirement PR,
-including its facade, inventories, tests, and documentation.
+including its facade, inventories, tests, documentation, and directly approved
+concurrency repair.
+
+## Core/utility Python export retirement
+
+The twelfth cohort removes exactly `get_session`, `Language`, `normalize_lang`,
+`t`, `FIBER_MIN_G`, `_short_git_sha`, `_is_truthy`, and
+`_LEGACY_IMPORT_COMPAT_REEXPORTS` from `legacy_app.py`. The tuple was facade-only
+and has no replacement. The first seven objects retain these canonical owners:
+
+| Retired legacy binding | Canonical owner and defining source |
+| --- | --- |
+| `get_session` | `core.db.get_session`, `core/db.py:961` |
+| `Language` | `core.i18n.Language`, `core/i18n.py:415` |
+| `normalize_lang` | `core.i18n.normalize_lang`, `core/i18n.py:522` |
+| `t` | `core.i18n.t`, `core/i18n.py:481` |
+| `FIBER_MIN_G` | `core.targets.FIBER_MIN_G`, `core/targets.py:486` |
+| `_short_git_sha` | `app.utils.helpers._short_git_sha`, `app/utils/helpers.py:15` |
+| `_is_truthy` | `app.utils.feature_flags._is_truthy`, `app/utils/feature_flags.py:15` |
+
+`Language` remains `Literal["ru", "en", "es"]`, checked through its origin and
+arguments. Fiber remains the existing float from `core.targets`; an equal value
+in another constants module does not establish owner identity. The package
+`app._is_truthy` export remains the exact feature-flags callable. Health retains
+the canonical `get_session` dependency key and `_short_git_sha` helper imports
+(`app/routers/health.py:13`, `app/routers/health.py:14`); import availability does
+not require calling the DB. Canonical implementations and generated clients
+remain unchanged.
+
+At admitted base `0b4afbf32a6d1d177c7d4f2e3abb0f9be08b1d1a`, the bounded
+tracked-Python census has 1,807 files and two recognized selected consumers:
+`tests/test_legacy_app_git_sha.py:11` and
+`tests/test_legacy_app_diff_coverage.py:808`. The SHA suite imports the canonical
+helper and preserves every digest, whitespace, case, invalid, and short-input
+assertion. The fiber assertion resolves `core.targets` at use time and keeps
+`int(round(...))` plus its result check. Rechecking tracked imports, aliases,
+attributes, literal lookups, and literal patch targets finds no remaining
+selected direct consumer or parse error. The discovered computed lookups in
+`tests/test_legacy_bmi_shims.py` are explicit absence assertions; the existing
+`tests/test_app_public_surface.py:96` loop covers the prior OpenAPI cohort.
+Negative fixture strings and historical documentation are preserved. This
+bounded census does not prove absence of unknown external or arbitrary
+computed callers. The static module-symbol count shrinks from 52 to 44;
+that count includes scaffolding and is not a supported public export inventory.
+
+The independent test inventory preserves the previous 91-name prefix and every
+historical cohort assertion, then appends exactly these eight unique names for
+99. Only eight protected-name literals change in
+`scripts/ci/check_legacy_growth_guard.py:133`; its recognition algorithm and
+separately owned PR #2433 / #2434 hunks are unchanged. Existing supported binding
+forms and exact canonical imports have negative controls. The existing fresh
+process probe extends both actual import-order strings while retaining planning
+imports, scenario IDs, network denial, credential exclusion, interpreter,
+timeout, and diagnostics. It checks namespace absence, `AttributeError`, direct
+`ImportError`, canonical Literal/float/function owners, and retained package and
+health identities.
+
+The current utility child is [PR #2475](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2475)
+(`codex/retire-legacy-core-utility-exports`). Parent `PROJECT_LEGACY` remains OPEN.
+Callers of `_LEGACY_IMPORT_COMPAT_REEXPORTS` must remove that dependency; it
+has no canonical replacement. Callers of the other seven names must migrate
+to their listed canonical owners. These fresh imports make no hot-reload
+guarantee. Rollback is a reviewed whole-material
+revert of this utility PR, excluding the inherited #2466 workflow repair.
+
+After this utility child's actual separately authorized merge, post-merge proof,
+verified archive, and final same-ID continuity, its exact outgoing repository
+receipt delta belongs to the **first next substantive Legacy child** following
+fresh admission. That future carrier receives the actual merge/archive/continuity
+facts once observed. No standalone docs-only closeout PR or additional cohort
+authority follows; the current utility merge identity and timestamp remain pending.
 
 ## Residual Python facade census (log-retention child)
 
 This section preserves the historical log-retention child's census and exact
-56-name result. Its tables are historical evidence, not the current 52-name
-planning-schema retirement projection.
+56-name result. Its tables are historical evidence, not the historical 52-name
+planning-schema retirement projection or the current utility projection.
 
 The exact base is `0dccc2ee18d5f88d0753a5cdff384838bd080af7` (`origin/main`
 at lane admission). Python's `symtable.symtable(..., "exec")` counted names with
@@ -603,9 +726,9 @@ implementations and canonical `app/**` reverse imports or dynamic lookups for
 those callables. Current facts may disappear as the seam shrinks; new facts fail
 closed with repo-relative diagnostics.
 
-For the 91 retired Python bindings, the guard has a deliberately bounded
+For the 99 retired Python bindings, the guard has a deliberately bounded
 finite mechanical claim over the exact repo-relative `legacy_app.py` source
-only. It freezes the exact 91-name set, uses the existing `_assigned_names`
+only. It freezes the exact 99-name set, uses the existing `_assigned_names`
 collector for statically visible ordinary module-scope `Name` Store/Del
 bindings, rejects explicit `global` declarations for a protected name, rejects
 all star imports, and rejects a statically bound module-level `__getattr__`.
@@ -623,7 +746,7 @@ import hooks, reflection, arbitrary helpers, and external monkeypatching. The
 rule neither accepts nor certifies those families and makes no completeness
 claim about them. Any new or changed dynamic namespace carrier in
 `legacy_app.py`, and any dynamic carrier intended to bind or rebind one of the
-91 protected names, requires manual STOP and review. The existing router-import
+99 protected names, requires manual STOP and review. The existing router-import
 recognizer separately rejects reintroduction of the former exact dynamic
 `app.routers.plan_export -> _plan_mod` fact; this does not widen the ordinary
 binding rule or certify arbitrary namespace mutation.

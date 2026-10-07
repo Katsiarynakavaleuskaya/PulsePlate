@@ -172,6 +172,14 @@ RETIRED_LEGACY_PYTHON_BINDINGS = (
     "CanonicalTargetsIn",
     "LegacyWeekPlanRequest",
     "WeeklyMenuResponse",
+    "get_session",
+    "Language",
+    "normalize_lang",
+    "t",
+    "FIBER_MIN_G",
+    "_short_git_sha",
+    "_is_truthy",
+    "_LEGACY_IMPORT_COMPAT_REEXPORTS",
 )
 
 RETIRED_PRO_NUTRITION_BINDINGS = RETIRED_LEGACY_PYTHON_BINDINGS[10:20]
@@ -184,6 +192,7 @@ RETIRED_OPENAPI_BINDINGS = RETIRED_LEGACY_PYTHON_BINDINGS[61:68]
 RETIRED_NUTRITION_CONTRACT_BINDINGS = RETIRED_LEGACY_PYTHON_BINDINGS[68:83]
 RETIRED_LOG_RETENTION_BINDINGS = RETIRED_LEGACY_PYTHON_BINDINGS[83:87]
 RETIRED_PLANNING_SCHEMA_BINDINGS = RETIRED_LEGACY_PYTHON_BINDINGS[87:91]
+RETIRED_CORE_UTILITY_BINDINGS = RETIRED_LEGACY_PYTHON_BINDINGS[91:99]
 
 
 def test_retired_insight_binding_tail_is_exact_and_disjoint() -> None:
@@ -309,9 +318,83 @@ def test_retired_planning_schema_tail_is_exact_and_disjoint() -> None:
         "LegacyWeekPlanRequest",
         "WeeklyMenuResponse",
     )
-    assert len(RETIRED_LEGACY_PYTHON_BINDINGS) == 91
-    assert len(set(RETIRED_LEGACY_PYTHON_BINDINGS)) == 91
+    assert len(RETIRED_LEGACY_PYTHON_BINDINGS[:91]) == 91
+    assert len(set(RETIRED_LEGACY_PYTHON_BINDINGS[:91])) == 91
     assert set(RETIRED_LEGACY_PYTHON_BINDINGS[:87]).isdisjoint(RETIRED_PLANNING_SCHEMA_BINDINGS)
+
+
+def test_retired_core_utility_tail_is_exact_and_disjoint() -> None:
+    """Preserve the original 91 names and append only the exact utility cohort."""
+    assert RETIRED_CORE_UTILITY_BINDINGS == (
+        "get_session",
+        "Language",
+        "normalize_lang",
+        "t",
+        "FIBER_MIN_G",
+        "_short_git_sha",
+        "_is_truthy",
+        "_LEGACY_IMPORT_COMPAT_REEXPORTS",
+    )
+    assert len(RETIRED_LEGACY_PYTHON_BINDINGS[:91]) == 91
+    assert len(set(RETIRED_LEGACY_PYTHON_BINDINGS[:91])) == 91
+    assert set(RETIRED_LEGACY_PYTHON_BINDINGS[:91]).isdisjoint(RETIRED_CORE_UTILITY_BINDINGS)
+    assert len(RETIRED_LEGACY_PYTHON_BINDINGS) == 99
+    assert len(set(RETIRED_LEGACY_PYTHON_BINDINGS)) == 99
+
+
+@pytest.mark.parametrize("binding_name", RETIRED_CORE_UTILITY_BINDINGS)
+@pytest.mark.parametrize(
+    "source_template",
+    [
+        "{name} = canonical\n",
+        "{name}: object = canonical\n",
+        "{name}: object\n",
+        "from core.i18n import canonical as {name}\n",
+        "def {name}():\n    return None\n",
+        "class {name}:\n    pass\n",
+        "del {name}\n",
+        "def mutate():\n    global {name}\n",
+    ],
+    ids=[
+        "assignment",
+        "annotation",
+        "uninitialized-annotation",
+        "import-alias",
+        "function",
+        "class",
+        "delete",
+        "global",
+    ],
+)
+def test_retired_core_utility_binding_carrier(binding_name: str, source_template: str) -> None:
+    """Reject each existing supported static carrier, including the facade-only tuple."""
+    assert legacy_guard.validate_retired_legacy_python_bindings(
+        source_template.format(name=binding_name)
+    ) == [f"legacy_app.py: retired Python compatibility binding is forbidden: {binding_name}"]
+
+
+@pytest.mark.parametrize(
+    ("binding_name", "canonical_module"),
+    (
+        ("get_session", "core.db"),
+        ("Language", "core.i18n"),
+        ("normalize_lang", "core.i18n"),
+        ("t", "core.i18n"),
+        ("FIBER_MIN_G", "core.targets"),
+        ("_short_git_sha", "app.utils.helpers"),
+        ("_is_truthy", "app.utils.feature_flags"),
+    ),
+)
+@pytest.mark.parametrize("same_name_alias", (False, True), ids=("direct", "same-name-alias"))
+def test_retired_core_utility_guard_rejects_exact_canonical_reimport(
+    binding_name: str, canonical_module: str, same_name_alias: bool
+) -> None:
+    """Canonical imports cannot restore a retired utility name in the facade."""
+    suffix = f" as {binding_name}" if same_name_alias else ""
+    source = f"from {canonical_module} import {binding_name}{suffix}\n"
+    assert legacy_guard.validate_retired_legacy_python_bindings(source) == [
+        f"legacy_app.py: retired Python compatibility binding is forbidden: {binding_name}"
+    ]
 
 
 @pytest.mark.parametrize("binding_name", RETIRED_PLANNING_SCHEMA_BINDINGS)

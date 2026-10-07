@@ -139,6 +139,14 @@ RETIRED_LEGACY_PYTHON_BINDINGS = frozenset(
         "CanonicalTargetsIn",
         "LegacyWeekPlanRequest",
         "WeeklyMenuResponse",
+        "get_session",
+        "Language",
+        "normalize_lang",
+        "t",
+        "FIBER_MIN_G",
+        "_short_git_sha",
+        "_is_truthy",
+        "_LEGACY_IMPORT_COMPAT_REEXPORTS",
     }
 )
 ALLOWED_CANONICAL_LIFESPAN_APP_IMPORTS = frozenset(

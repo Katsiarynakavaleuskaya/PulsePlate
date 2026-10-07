@@ -14,7 +14,7 @@ import subprocess
 import sys
 import textwrap
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal, get_args, get_origin
 
 import pytest
 from fastapi.testclient import TestClient
@@ -118,6 +118,14 @@ RETIRED_LEGACY_PYTHON_BINDINGS = {
     "CanonicalTargetsIn",
     "LegacyWeekPlanRequest",
     "WeeklyMenuResponse",
+    "get_session",
+    "Language",
+    "normalize_lang",
+    "t",
+    "FIBER_MIN_G",
+    "_short_git_sha",
+    "_is_truthy",
+    "_LEGACY_IMPORT_COMPAT_REEXPORTS",
 }
 
 RETIRED_PLATE_HELPER_BINDINGS = (
@@ -164,6 +172,17 @@ RETIRED_OPENAPI_BINDINGS = (
     "_prune_unreferenced_schema_components",
     "_build_canonical_openapi",
     "_install_openapi_builder",
+)
+
+RETIRED_CORE_UTILITY_BINDINGS = (
+    "get_session",
+    "Language",
+    "normalize_lang",
+    "t",
+    "FIBER_MIN_G",
+    "_short_git_sha",
+    "_is_truthy",
+    "_LEGACY_IMPORT_COMPAT_REEXPORTS",
 )
 
 _NETWORK_DISABLED_PREAMBLE = textwrap.dedent("""
@@ -248,6 +267,27 @@ def test_legacy_retirement_probe_excludes_ambient_credentials(
     assert _run_legacy_retirement_probe(scenario) == {"ambient_credentials_present": False}
 
 
+@pytest.mark.parametrize("binding_name", RETIRED_CORE_UTILITY_BINDINGS)
+def test_retired_core_utility_bindings_are_absent(binding_name: str) -> None:
+    """Require each selected binding to disappear independently of guard data."""
+    import legacy_app
+
+    assert binding_name not in vars(legacy_app)
+    with pytest.raises(AttributeError):
+        getattr(legacy_app, binding_name)
+    scenario = textwrap.dedent(f"""
+        import json
+        try:
+            from legacy_app import {binding_name}
+        except ImportError:
+            pass
+        else:
+            raise AssertionError("legacy from-import remains: {binding_name}")
+        print("LEGACY_RETIREMENT_RESULT=" + json.dumps({{"absent": {binding_name!r}}}))
+        """)
+    assert _run_legacy_retirement_probe(scenario) == {"absent": binding_name}
+
+
 def test_retired_legacy_python_bindings_are_absent_with_canonical_owners_present() -> None:
     """Verify retired-name absence while preserving canonical objects and retained schemas."""
     import app as app_facade
@@ -263,6 +303,12 @@ def test_retired_legacy_python_bindings_are_absent_with_canonical_owners_present
     import app.services.insight_compat as insight_compat
     import app.services.pro_nutrition_plate as plate_service
     import app.services.pro_nutrition_targets as targets_service
+    import app.routers.health as health
+    import app.utils.feature_flags as feature_flags
+    import app.utils.helpers as helpers
+    import core.db as core_db
+    import core.i18n as core_i18n
+    import core.targets as core_targets
     import core.exports as exports
     import core.log_retention as log_retention
     import core.menu_engine as menu_engine
@@ -365,6 +411,14 @@ def test_retired_legacy_python_bindings_are_absent_with_canonical_owners_present
         "CanonicalTargetsIn": planning_targets.TargetsIn,
         "LegacyWeekPlanRequest": planning_schemas.LegacyWeekPlanRequest,
         "WeeklyMenuResponse": planning_schemas.WeeklyMenuResponse,
+        "get_session": core_db.get_session,
+        "Language": core_i18n.Language,
+        "normalize_lang": core_i18n.normalize_lang,
+        "t": core_i18n.t,
+        "FIBER_MIN_G": core_targets.FIBER_MIN_G,
+        "_short_git_sha": helpers._short_git_sha,
+        "_is_truthy": feature_flags._is_truthy,
+        "_LEGACY_IMPORT_COMPAT_REEXPORTS": None,
     }
     canonical_constants = {
         "DB_TO_ALIAS_NUTRIENT_MAP": plate_service.DB_TO_ALIAS_NUTRIENT_MAP,
@@ -380,11 +434,13 @@ def test_retired_legacy_python_bindings_are_absent_with_canonical_owners_present
         "DietFlag": premium_contracts.DietFlag,
         "Goal": premium_contracts.Goal,
         "Sex": premium_contracts.Sex,
+        "Language": core_i18n.Language,
+        "FIBER_MIN_G": core_targets.FIBER_MIN_G,
     }
 
     assert canonical_migrations.keys() == RETIRED_LEGACY_PYTHON_BINDINGS
     assert RETIRED_LEGACY_PYTHON_BINDINGS == legacy_guard.RETIRED_LEGACY_PYTHON_BINDINGS
-    assert len(RETIRED_LEGACY_PYTHON_BINDINGS) == 91
+    assert len(RETIRED_LEGACY_PYTHON_BINDINGS) == 99
     assert canonical_migrations["TargetsIn"] is canonical_migrations["CanonicalTargetsIn"]
     assert (
         len(
@@ -436,6 +492,21 @@ def test_retired_legacy_python_bindings_are_absent_with_canonical_owners_present
     }
     assert RETIRED_LEGACY_PYTHON_BINDINGS.isdisjoint(vars(legacy_app))
     assert app_facade._macros_to_kcal is plate_service._macros_to_kcal
+    assert app_facade._is_truthy is feature_flags._is_truthy
+    assert health.get_session is core_db.get_session
+    assert health._short_git_sha is helpers._short_git_sha
+    assert type(core_targets.FIBER_MIN_G) is float
+    assert plate_service.FIBER_MIN_G is core_targets.FIBER_MIN_G
+    assert get_origin(core_i18n.Language) is Literal
+    assert get_args(core_i18n.Language) == ("ru", "en", "es")
+    for function, owner in (
+        (core_db.get_session, core_db),
+        (core_i18n.normalize_lang, core_i18n),
+        (core_i18n.t, core_i18n),
+        (helpers._short_git_sha, helpers),
+        (feature_flags._is_truthy, feature_flags),
+    ):
+        assert function.__module__ == owner.__name__
     assert legacy_app.BMIRequest is bmi_schemas.BMIRequest
     assert legacy_app.BMIRequestV1 is bmi_schemas.BMIRequestV1
     assert {
@@ -446,6 +517,7 @@ def test_retired_legacy_python_bindings_are_absent_with_canonical_owners_present
         "_resolve_build_targets_callable",
         "WeeklyPlanFlexibleRequest",
         "_log_retention_manager",
+        "_LEGACY_IMPORT_COMPAT_REEXPORTS",
     }
     assert log_retention.DataClass.__module__ == log_retention.__name__
     assert log_retention.LogRetentionManager.__module__ == log_retention.__name__
@@ -453,7 +525,7 @@ def test_retired_legacy_python_bindings_are_absent_with_canonical_owners_present
     for binding_name, canonical_migration in canonical_migrations.items():
         if binding_name in canonical_constants:
             assert canonical_migration == canonical_constants[binding_name]
-            if binding_name not in {"Activity", "DietFlag", "Goal", "Sex"}:
+            if binding_name not in {"Activity", "DietFlag", "Goal", "Sex", "Language"}:
                 assert not callable(canonical_migration)
         elif canonical_migration is not None:
             assert callable(canonical_migration)
@@ -540,9 +612,19 @@ def test_canonical_nutrition_contracts_remain_importable_in_fresh_process() -> N
     (
         "import legacy_app\n"
         "import app.schemas.nutrition_targets as planning_targets\n"
-        "import app.schemas.legacy_premium_weekly_plan as planning_schemas\n",
+        "import app.schemas.legacy_premium_weekly_plan as planning_schemas\n"
+        "import core.db as core_db\n"
+        "import core.i18n as core_i18n\n"
+        "import core.targets as core_targets\n"
+        "import app.utils.helpers as helpers\n"
+        "import app.utils.feature_flags as feature_flags\n",
         "import app.schemas.nutrition_targets as planning_targets\n"
         "import app.schemas.legacy_premium_weekly_plan as planning_schemas\n"
+        "import core.db as core_db\n"
+        "import core.i18n as core_i18n\n"
+        "import core.targets as core_targets\n"
+        "import app.utils.helpers as helpers\n"
+        "import app.utils.feature_flags as feature_flags\n"
         "import legacy_app\n",
     ),
     ids=("legacy-first", "canonical-first"),
@@ -568,6 +650,42 @@ def test_retired_legacy_python_bindings_fail_closed_in_a_fresh_process(
         import app.services.pro_nutrition_targets as targets_service
         import core.log_retention as log_retention
         import core.nutrition_utils as nutrition_utils
+
+        import app.routers.health as health
+        from typing import Literal, get_args, get_origin
+
+        utility_migrations = {{
+            "get_session": core_db.get_session,
+            "Language": core_i18n.Language,
+            "normalize_lang": core_i18n.normalize_lang,
+            "t": core_i18n.t,
+            "FIBER_MIN_G": core_targets.FIBER_MIN_G,
+            "_short_git_sha": helpers._short_git_sha,
+            "_is_truthy": feature_flags._is_truthy,
+            "_LEGACY_IMPORT_COMPAT_REEXPORTS": None,
+        }}
+        utility_owners = {{
+            "get_session": "core.db", "Language": "core.i18n",
+            "normalize_lang": "core.i18n", "t": "core.i18n",
+            "FIBER_MIN_G": "core.targets", "_short_git_sha": "app.utils.helpers",
+            "_is_truthy": "app.utils.feature_flags",
+        }}
+        assert tuple(utility_migrations) == {RETIRED_CORE_UTILITY_BINDINGS!r}
+        assert utility_migrations["_LEGACY_IMPORT_COMPAT_REEXPORTS"] is None
+        assert get_origin(core_i18n.Language) is Literal
+        assert get_args(core_i18n.Language) == ("ru", "en", "es")
+        assert type(core_targets.FIBER_MIN_G) is float
+        assert plate_service.FIBER_MIN_G is core_targets.FIBER_MIN_G
+        for name, module in utility_owners.items():
+            if name not in {{"Language", "FIBER_MIN_G"}}:
+                assert callable(utility_migrations[name])
+                assert utility_migrations[name].__module__ == module
+        assert app_facade._is_truthy is feature_flags._is_truthy
+        assert health.get_session is core_db.get_session
+        assert health._short_git_sha is helpers._short_git_sha
+        for route in health.router.routes:
+            if route.path in {{"/ready", "/health/db"}}:
+                assert any(d.call is core_db.get_session for d in route.dependant.dependencies)
 
         retired = {retired_bindings!r}
         plate_helpers = {RETIRED_PLATE_HELPER_BINDINGS!r}
@@ -644,6 +762,10 @@ def test_retired_legacy_python_bindings_fail_closed_in_a_fresh_process(
                 "canonical_nutrition_utilities": list(nutrition_utilities),
                 "canonical_openapi_helpers": list(openapi_helpers),
                 "canonical_targets_gaps_service": list(targets_gaps_service),
+                "canonical_core_utility_owners": utility_owners,
+                "package_truthy_identity_preserved": True,
+                "health_dependency_identity_preserved": True,
+                "health_helper_identity_preserved": True,
                 "package_macro_identity_preserved": True,
             })
         )
@@ -659,6 +781,18 @@ def test_retired_legacy_python_bindings_fail_closed_in_a_fresh_process(
             "fallback_targets_response",
             "analyze_nutrient_gaps_response",
         ],
+        "canonical_core_utility_owners": {
+            "get_session": "core.db",
+            "Language": "core.i18n",
+            "normalize_lang": "core.i18n",
+            "t": "core.i18n",
+            "FIBER_MIN_G": "core.targets",
+            "_short_git_sha": "app.utils.helpers",
+            "_is_truthy": "app.utils.feature_flags",
+        },
+        "package_truthy_identity_preserved": True,
+        "health_dependency_identity_preserved": True,
+        "health_helper_identity_preserved": True,
         "package_macro_identity_preserved": True,
     }
 
