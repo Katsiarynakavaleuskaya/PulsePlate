@@ -14,6 +14,8 @@ Run from the repository root:
 ```bash
 python -m scripts.evals.evidence_relation_audit validate --input SNAPSHOT.jsonl
 python -m scripts.evals.evidence_relation_audit report --input SNAPSHOT.jsonl --output REPORT.json
+python -m scripts.evals.evidence_relation_audit inspect --input SNAPSHOT.jsonl \
+  --claim-ref CLAIM --context-ref CONTEXT --time-scope PERIOD --output NEIGHBORHOOD.json
 ```
 
 `validate` checks the entire snapshot without writing. `report` writes one
@@ -31,6 +33,13 @@ world-writable. The CLI creates a 0600 stage in that parent, syncs it, publishes
 with a no-replace hard link, then syncs and removes the stage. It never
 overwrites an existing destination. A post-link durability error returns a
 failure while retaining the complete linked destination for inspection.
+
+For invocations whose first argument is exactly inspect, native root and
+subparser argument errors return 2 with only
+evidence_relation_audit: argument_error, before reading or writing.
+Native argparse owns grammar and normal help. Legacy validate/report
+argument-error, exit and report-byte contracts remain unchanged. Invalid
+literal query tokens delegate to the canonical relation token recognizer.
 
 ## Snapshot records
 
@@ -106,6 +115,100 @@ integrity, output preservation, local-only behavior and derived-output bounds.
 
 This contract extends the existing offline eval lane. It introduces no
 FitChef/RAG runtime, API/OpenAPI, client, DB, provider, semantic-cache,
-Evidence Graph serving, knowledge promotion, or sidecar authority. The next
-NOOS-1B slice must separately evaluate concrete FitChef answer content and
-business outcomes; this structural baseline makes no such measurement claim.
+Evidence Graph serving, knowledge promotion, or sidecar authority. NOOS-1B
+owns the separate evaluation of concrete FitChef answer content and business
+outcomes; this structural baseline makes no such measurement claim.
+
+## GRAPH-FED-1 read-only inspection
+
+core/evidence/federation.py reuses the whole canonical snapshot parser and
+structural audit before selection. Public interfaces are
+build_evidence_projection(snapshot) and select_claim_neighborhood(projection,
+claim_ref=..., context_ref=..., time_scope=...).
+The immutable QualifiedEvidenceRefV1 identity is exactly namespace plus
+canonical snapshot fingerprint plus local ID. Namespaces are evidence.asset,
+evidence.link, evidence.assertion, and evidence.assessment. Qualification
+does not relax v1's globally unique original IDs. Assessments use their
+assertion's local ID in the separate derived namespace.
+
+Direct snapshot/projection/result objects undergo exact original
+class/container/primitive admission before conversion or serialization.
+Existing source aggregate 10,000, per-reference 512 and combined world-reference
+512 bounds reject before adapter materialization. The complete canonical
+parser and whole audit, including its 50,000 adverse-reference bound, still
+run even for an absent query. Raw assessment causal flags require exact bool;
+legitimate canonical True is preserved. Authority/answer-change flags must be
+literally False, rejecting True and numeric 0/1 before masked serialization
+or ordinary equality. Every derived field must match the one canonical audit.
+
+For one literal query, main contains **every** exact claim/context/time link
+and assertion, including positive links unlisted by any assertion. A claim is
+known only through a link/assertion claim_ref occurrence; assets and opaque
+world endpoints are not a claim registry.
+
+| Lookup state | Exact main seeds |
+| --- | --- |
+| claim_absent | No claim occurrence in the supplied inventory. |
+| scope_absent | Claim occurs elsewhere; no exact links or assertions. |
+| no_epistemic_links | Exact assertions exist, but no exact links. |
+| present | Exact links exist, with any number of exact assertions. |
+
+All four are successful data outcomes. History never changes the seed state.
+Selection closes iteratively over the complete bidirectional same-namespace
+revision components, including predecessors, successors and sibling forks.
+Selected assertions add all explicit epistemic-link and canonical assessment
+references; those links' revision components are included too. Required
+evidence/context/method/review assets close over explicit upstream IDs.
+Main is exactly the query seeds; history is selected records outside those
+seeds. Unreferenced positives/assertions sharing only a historical key remain
+excluded. Original periods, timestamps, fingerprints and declarations survive;
+there is no latest-is-truth rule or added upstream-cycle policy.
+
+Every selected assertion retains its separate canonical assessment and every
+emitted qualified reference resolves. Internal tuples are immutable;
+serialization returns fresh nested containers. complete_for_supplied_inventory
+quantifies these exact seed/closure/reference sets, not external knowledge.
+Overbounds reject whole without truncation. The existing CLI reader and
+private no-replace writer remain the only I/O owners; core has no I/O or
+runtime/provider/cache integration and no general facade export.
+
+### One informational result envelope
+
+ClaimNeighborhoodV1 is one plain offline presentation report, classified
+gate_report, advisory, v1, policy graph-fed1-inspection-v1. Its qualified
+informational upstream_refs equal the selected asset/upstream closure and
+preserve original asset rails and fingerprints. These references are not
+E1 admitted lineage. Full canonical input fingerprint binds even an empty
+lookup. No synthetic source asset, E1 asset helper, per-rail result duplicate,
+registry, event, promotion, cache write or serving permission is introduced.
+
+result_fingerprint is fingerprint_payload of **every public field except
+only** result_fingerprint and idempotency_key. This includes full input
+binding, literal query, lookup state, original/derived main/history records,
+assets and qualified references, metadata, completeness, replay/admission
+meanings and false authority flags. The deterministic idempotency_key is
+fingerprint_payload of:
+
+    {
+      "purpose": "graph-fed1-read-only-replay",
+      "policy_version": "graph-fed1-inspection-v1",
+      "input_fingerprint": "<canonical F>",
+      "query": {"claim_ref": "<claim>", "context_ref": "<context>", "time_scope": "<period>"},
+      "result_fingerprint": "<result R>"
+    }
+
+This is a read-only replay identity, not an E1 asset-write key. Replay derives
+identical bytes for identical canonical source/query/policy; an existing output
+path still fails no-replace. Original reference-array order remains bound.
+Raw input-file bytes/hash are separate unchanged-input evidence. Producer
+source fingerprints, asset fingerprints, record fingerprints, input F, result R
+and replay identity have different subjects; none is a signature, source
+authentication, currentness, scientific truth or approval.
+
+The existing frozen symbolic corpus is a fixture-only inspection source.
+For C2, its declared context and T1, the exact main is link L1, assertion
+W8 and its negative assessment, four required assets and empty history.
+An actual observed CLI invocation plus independent full record/reference
+reconciliation and unchanged input is required before claiming consumer proof.
+Removing projection/inspect preserves sources and legacy validate/report;
+there is no data migration or provider switch.

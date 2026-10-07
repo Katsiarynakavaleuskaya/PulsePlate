@@ -31,6 +31,15 @@ JSONL reader and private report writer belong only to
 `scripts/evals/evidence_relation_audit.py`; do not move I/O into this package
 or export these new types through the general `core.evidence` facade.
 
+The read-only federation projection must re-admit original exact classes,
+tuple containers, primitives and literal-false authority fields before any
+serializer replaces fields with constants or equality can alias bool/int.
+Preserve canonical causal structural True with exact bool type. Reject existing
+raw source/reference cardinality overbounds before materialization, then reuse
+the whole canonical parser/audit. Exact seeds and explicit revision/dependency
+closure remain finite; inspection metadata and source rail references are
+informational only, never E1 lineage, promotion, serving or answer authority.
+
 E3 promotion ledger/replay changes may add append-only promotion contracts and
 dry-run replay summaries only. They must not write files, call runtime stores,
 create promotion side effects, or duplicate `core/knowledge/promotion.py`.
