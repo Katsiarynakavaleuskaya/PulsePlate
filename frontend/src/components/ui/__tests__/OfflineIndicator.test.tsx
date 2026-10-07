@@ -1,5 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent, cleanup, act } from '@testing-library/react';
+import { render as renderWithI18n, screen, fireEvent, cleanup, act } from '@testing-library/react';
+import { createInstance } from 'i18next';
+import { I18nextProvider } from 'react-i18next';
+import en from '../../../locales/en.json';
 import { OfflineIndicator } from '../OfflineIndicator';
 
 // Mock navigator.onLine
@@ -10,7 +13,19 @@ const mockNavigator = {
 describe('OfflineIndicator', () => {
   const originalNavigator = window.navigator;
 
-  beforeEach(() => {
+  let testI18n: ReturnType<typeof createInstance>;
+  const render = (ui: Parameters<typeof renderWithI18n>[0]) => renderWithI18n(
+    <I18nextProvider i18n={testI18n}>{ui}</I18nextProvider>
+  );
+
+  beforeEach(async () => {
+    testI18n = createInstance();
+    await testI18n.init({
+      lng: 'en',
+      fallbackLng: 'en',
+      resources: { en: { translation: { offlineIndicator: { ...en.offlineIndicator } } } },
+      interpolation: { escapeValue: false },
+    });
     Object.defineProperty(window, 'navigator', {
       value: mockNavigator,
       writable: true,

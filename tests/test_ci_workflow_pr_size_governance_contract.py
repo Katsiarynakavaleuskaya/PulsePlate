@@ -6070,11 +6070,15 @@ ORCHESTRATION_COVERAGE_OWNERS = {
     ),
     "scripts/orchestration/pr_review_evidence.py": "tests/test_pr_merge_readiness_gate.py",
     "scripts/orchestration/pr_review_closeout.py": "tests/test_pr_review_closeout.py",
+    "scripts/orchestration/experiment_runner_pr_creative_context_contract.py": (
+        "tests/test_experiment_runner_pr_creative_context.py"
+    ),
 }
 ORCHESTRATION_COVERAGE_FILES = tuple(ORCHESTRATION_COVERAGE_OWNERS)
 
 
 def test_orchestration_coverage_uses_isolated_required_same_run_numeric_report() -> None:
+    """Bind producer ownership, existing test aliases and mandatory same-run numeric inputs."""
     workflow = _load_ci_workflow()
     measure = _job_step_by_name(
         workflow, job_id="test-pr", step_name="Measure orchestration CLI coverage"
@@ -6146,7 +6150,7 @@ def test_orchestration_producer_executes_actual_source_owner_arguments(
         if mutation.startswith("comment"):
             run += f"\n# {token}\n"
     sources = list(ORCHESTRATION_COVERAGE_OWNERS)
-    targets = list(ORCHESTRATION_COVERAGE_OWNERS.values())
+    targets = list(dict.fromkeys(ORCHESTRATION_COVERAGE_OWNERS.values()))
     observer = tmp_path / "python"
     observer.write_text(
         "#!"
@@ -6274,7 +6278,12 @@ def test_orchestration_workflow_executes_exact_native_line_inventory_checker(
 
 
 def _consume_orchestration_diff_fixture(
-    tmp_path: Path, inventories: dict[str, list[int]]
+    tmp_path: Path,
+    inventories: dict[str, list[int]],
+    *,
+    coverage_args: tuple[str, ...] | None = None,
+    report_files: tuple[str, ...] = ("coverage-orchestration.xml",),
+    report_error: tuple[str, str] | None = None,
 ) -> subprocess.CompletedProcess[str]:
     """Delegate arithmetic to real diff-cover; synthetic lines are measurement controls."""
     import sys
@@ -6308,21 +6317,27 @@ def _consume_orchestration_diff_fixture(
             + "-before = 0\n" * len(hits)
             + "+after = 1\n" * len(hits)
         )
-    xml = tmp_path / "coverage-orchestration.xml"
-    xml.write_bytes(ElementTree.tostring(tree))
+    for filename in report_files:
+        xml = tmp_path / filename
+        xml.parent.mkdir(parents=True, exist_ok=True)
+        xml.write_bytes(ElementTree.tostring(tree))
+    if report_error is not None:
+        filename, error = report_error
+        assert filename in report_files
+        if error == "missing":
+            (tmp_path / filename).unlink()
+        else:
+            assert error == "malformed"
+            (tmp_path / filename).write_text("<coverage>", encoding="utf-8")
     patch = tmp_path / "changed.patch"
     patch.write_text("".join(patches), encoding="utf-8")
+    args = (
+        coverage_args
+        if coverage_args is not None
+        else (*(str(tmp_path / name) for name in report_files), "--fail-under", "97")
+    )
     return subprocess.run(
-        [
-            sys.executable,
-            "-m",
-            "diff_cover.diff_cover_tool",
-            str(xml),
-            "--diff-file",
-            str(patch),
-            "--fail-under",
-            "97",
-        ],
+        [sys.executable, "-m", "diff_cover.diff_cover_tool", *args, "--diff-file", str(patch)],
         cwd=tmp_path,
         env=git_env_without_parent_state(),
         capture_output=True,
@@ -6358,19 +6373,445 @@ def test_orchestration_numeric_diff_consumer_retains_aggregate_97_percent(
     assert f"Coverage: {100 - uncovered}%" in result.stdout
 
 
+CI_DIFF_COVERAGE_REPORTS = (
+    "./coverage-artifacts/coverage.xml",
+    "./ops-context-coverage/coverage-ops-context.xml",
+    "./fitchef-eval-coverage/coverage-fitchef-eval.xml",
+    "./orchestration-coverage/coverage-orchestration.xml",
+    "./fitchef-agent-coverage/coverage-fitchef-agent.xml",
+)
+CI_DIFF_COVERAGE_RUN = r"""coverage_root="$(pwd -P)"
+coverage_excludes=(
+  "${coverage_root}/frontend/**"
+  "${coverage_root}/alembic/**"
+  "${coverage_root}/releases/**"
+  "${coverage_root}/cache/**"
+  "${coverage_root}/data/**"
+  "${coverage_root}/external/**"
+  "${coverage_root}/htmlcov/**"
+  "${coverage_root}/coverage/**"
+  'conftest.py'
+  "${coverage_root}/tests/**"
+  '*.json'
+  '*.lock'
+  '*.md'
+  '*.yml'
+  '*.yaml'
+  '*.toml'
+  '*.txt'
+)
+diff-cover ./coverage-artifacts/coverage.xml \
+  ./ops-context-coverage/coverage-ops-context.xml \
+  ./fitchef-eval-coverage/coverage-fitchef-eval.xml \
+  ./orchestration-coverage/coverage-orchestration.xml \
+  ./fitchef-agent-coverage/coverage-fitchef-agent.xml \
+  --compare-branch "${{ github.base_ref }}" \
+  --fail-under "${{ env.COVERAGE_THRESHOLD }}" \
+  --exclude "${coverage_excludes[@]}"
+"""
+
+
+def _assert_ci_diff_coverage_exclusion_contract(workflow: dict[str, object]) -> None:
+    """Bind the actual ordered carrier and blocking seam; do not interpret Bash."""
+    jobs = cast(dict[str, object], workflow["jobs"])
+    job = cast(dict[str, object], jobs["diff-coverage"])
+    assert "continue-on-error" not in job and "defaults" not in job
+    assert workflow["defaults"] == {"run": {"shell": "bash"}}
+    assert job["if"] == (
+        "${{ !cancelled() && github.event_name == 'pull_request' && "
+        "(needs.changes.result != 'success' || "
+        "needs.changes.outputs.run_backend_blocking == 'true') }}"
+    )
+    assert job["needs"] == ["changes", "pr_scope_guard", "private_python_proxy_health", "test-pr"]
+    steps = cast(list[dict[str, object]], job["steps"])
+    matching = [step for step in steps if step.get("name") == "Enforce diff coverage >= 97%"]
+    assert len(matching) == 1
+    gate = matching[0]
+    assert gate == {
+        "name": "Enforce diff coverage >= 97%",
+        "env": {"COVERAGE_THRESHOLD": 97},
+        "run": CI_DIFF_COVERAGE_RUN,
+    }
+    downloads = [
+        step
+        for step in steps
+        if step.get("uses") == f"actions/download-artifact@{DOWNLOAD_ARTIFACT_NODE24_SHA}"
+    ]
+    assert [step["with"] for step in downloads] == [
+        {"name": "coverage-xml-${{ env.PYTHON_VERSION }}", "path": "./coverage-artifacts"},
+        {
+            "name": "coverage-ops-context-${{ env.PYTHON_VERSION }}",
+            "path": "./ops-context-coverage",
+        },
+        {
+            "name": "coverage-fitchef-eval-${{ env.PYTHON_VERSION }}",
+            "path": "./fitchef-eval-coverage",
+        },
+        {
+            "name": "coverage-orchestration-${{ env.PYTHON_VERSION }}",
+            "path": "./orchestration-coverage",
+        },
+        {
+            "name": "coverage-fitchef-agent-${{ env.PYTHON_VERSION }}",
+            "path": "./fitchef-agent-coverage",
+        },
+    ]
+    assert all("if" not in step and "continue-on-error" not in step for step in downloads)
+    assert all(steps.index(step) < steps.index(gate) for step in downloads)
+    base = _job_step_by_name(workflow, job_id="diff-coverage", step_name="Fetch base branch")
+    assert base == {
+        "name": "Fetch base branch",
+        "run": (
+            "git fetch --no-tags --prune origin "
+            '"${{ github.base_ref }}":"${{ github.base_ref }}"\n'
+            'git branch --force base "${{ github.base_ref }}"\n'
+        ),
+    }
+    assert steps.index(base) < steps.index(gate)
+
+
+def test_ci_diff_coverage_node24_preserves_exact_exclusions_and_required_inputs() -> None:
+    """Bind the reviewed exclusion vector and mandatory coverage-report wiring."""
+    _assert_ci_diff_coverage_exclusion_contract(_load_ci_workflow())
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    (
+        "repeated",
+        "missing",
+        "duplicate",
+        "extra",
+        "relative",
+        "broad",
+        "unquoted",
+        "report",
+        "threshold",
+        "base",
+        "optional",
+        "masked",
+        "duplicate_step",
+        "job_optional",
+        "job_if",
+        "job_defaults",
+        "workflow_defaults",
+        "download",
+    ),
+)
+def test_ci_diff_coverage_node24_rejects_carrier_or_blocking_drift(mutation: str) -> None:
+    """Reject finite carrier mutations and optional or error-masked coverage wiring."""
+    workflow = _load_ci_workflow()
+    jobs = cast(dict[str, object], workflow["jobs"])
+    job = cast(dict[str, object], jobs["diff-coverage"])
+    steps = cast(list[dict[str, object]], job["steps"])
+    gate = _job_step_by_name(
+        workflow, job_id="diff-coverage", step_name="Enforce diff coverage >= 97%"
+    )
+    run = cast(str, gate["run"])
+    changes = {
+        "repeated": ('--exclude "${coverage_excludes[@]}"', "--exclude '*.json' --exclude '*.txt'"),
+        "missing": ('  "${coverage_root}/frontend/**"\n', ""),
+        "duplicate": ("  '*.txt'\n", "  '*.txt'\n  '*.txt'\n"),
+        "extra": ("  '*.txt'\n", "  '*.txt'\n  '*.py'\n"),
+        "relative": ('"${coverage_root}/frontend/**"', "'frontend/**'"),
+        "broad": ('"${coverage_root}/frontend/**"', "'*/frontend/**'"),
+        "unquoted": ('"${coverage_excludes[@]}"', "${coverage_excludes[@]}"),
+        "report": ("  ./ops-context-coverage/coverage-ops-context.xml \\\n", ""),
+        "threshold": ('--fail-under "${{ env.COVERAGE_THRESHOLD }}"', "--fail-under 96"),
+        "base": ('--compare-branch "${{ github.base_ref }}"', "--compare-branch HEAD"),
+        "masked": (
+            '--exclude "${coverage_excludes[@]}"',
+            '--exclude "${coverage_excludes[@]}" || true',
+        ),
+    }
+    if mutation in changes:
+        before, after = changes[mutation]
+        assert before in run
+        gate["run"] = run.replace(before, after, 1)
+    elif mutation == "optional":
+        gate["if"] = "${{ false }}"
+    elif mutation == "duplicate_step":
+        steps.append(dict(gate))
+    elif mutation == "job_optional":
+        job["continue-on-error"] = True
+    elif mutation == "job_if":
+        job["if"] = "${{ false }}"
+    elif mutation == "job_defaults":
+        job["defaults"] = {"run": {"working-directory": "frontend"}}
+    elif mutation == "workflow_defaults":
+        workflow["defaults"] = {"run": {"shell": "bash {0} || true"}}
+    else:
+        assert mutation == "download"
+        steps.remove(
+            _job_step_by_name(
+                workflow,
+                job_id="diff-coverage",
+                step_name="Download OPS context coverage artifact",
+            )
+        )
+    with pytest.raises(AssertionError):
+        _assert_ci_diff_coverage_exclusion_contract(workflow)
+
+
+def _native_ci_diff_coverage_args(root: Path) -> tuple[str, ...]:
+    """Run actual production Bash, capturing argv without a coverage result claim."""
+    bash = shutil.which("bash")
+    assert bash is not None
+    gate = _job_step_by_name(
+        _load_ci_workflow(), job_id="diff-coverage", step_name="Enforce diff coverage >= 97%"
+    )
+    run = (
+        cast(str, gate["run"])
+        .replace("${{ github.base_ref }}", "base")
+        .replace("${{ env.COVERAGE_THRESHOLD }}", "97")
+    )
+    result = subprocess.run(
+        [bash, "--noprofile", "--norc", "-c", "diff-cover() { printf '%s\\0' \"$@\"; }\n" + run],
+        cwd=root,
+        env={"PATH": os.defpath},
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=5,
+    )
+    assert result.returncode == 0, (result.stdout, result.stderr)
+    assert result.stderr == "" and result.stdout.endswith("\0")
+    return tuple(result.stdout[:-1].split("\0"))
+
+
+def test_ci_diff_coverage_native_parser_and_path_boundaries(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Check actual CI argv and native matching across the declared path boundaries."""
+    from diff_cover.diff_cover_tool import parse_coverage_args
+    from diff_cover.diff_reporter import GitDiffReporter
+
+    root = tmp_path / "working root with spaces"
+    root.mkdir()
+    monkeypatch.chdir(root)
+    argv = _native_ci_diff_coverage_args(root)
+    assert argv.count("--exclude") == 1
+    parsed = parse_coverage_args(list(argv))
+    directories = (
+        "frontend",
+        "alembic",
+        "releases",
+        "cache",
+        "data",
+        "external",
+        "htmlcov",
+        "coverage",
+    )
+    expected = [f"{root.resolve()}/{name}/**" for name in directories]
+    expected += [
+        "conftest.py",
+        f"{root.resolve()}/tests/**",
+        "*.json",
+        "*.lock",
+        "*.md",
+        "*.yml",
+        "*.yaml",
+        "*.toml",
+        "*.txt",
+    ]
+    assert parsed["exclude"] == expected and len(parsed["exclude"]) == 17
+    assert parsed["coverage_files"] == list(CI_DIFF_COVERAGE_REPORTS)
+    assert parsed["compare_branch"] == "base" and parsed["fail_under"] == 97
+    reporter = GitDiffReporter(exclude=parsed["exclude"])
+    excluded = [f"{name}/nested/helper.py" for name in (*directories, "tests")]
+    excluded += [
+        "app/nested/conftest.py",
+        *(f"app/item.{suffix}" for suffix in ("json", "lock", "md", "yml", "yaml", "toml", "txt")),
+    ]
+    retained = [
+        "app/helper.py",
+        "app/frontend/helper.py",
+        "scripts/ops/ops_context_report.py",
+        "scripts/evals/collect_fitchef_answers.py",
+        *ORCHESTRATION_COVERAGE_FILES,
+    ]
+    retained += [f"{name}-backup/helper.py" for name in (*directories, "tests")]
+    retained += [f"app/{name}/helper.py" for name in (*directories, "tests")]
+    retained += [f"../outside/{name}/helper.py" for name in (*directories, "tests")]
+    retained += [str(root.resolve()) + "-prefix/frontend/helper.py", "app/helper with spaces.py"]
+    for name in excluded:
+        assert reporter._is_path_excluded(name), name
+        assert reporter._is_path_excluded(os.path.abspath(name)), name
+    for name in retained:
+        assert not reporter._is_path_excluded(name), name
+        assert not reporter._is_path_excluded(os.path.abspath(name)), name
+    repeated = parse_coverage_args(
+        [*argv[: argv.index("--exclude")], "--exclude", *expected[:-1], "--exclude", expected[-1]]
+    )
+    assert repeated["exclude"] == ["*.txt"]
+    assert not GitDiffReporter(exclude=repeated["exclude"])._is_path_excluded("frontend/helper.py")
+    assert not GitDiffReporter(exclude=["frontend/**"])._is_path_excluded("frontend/helper.py")
+    assert GitDiffReporter(exclude=["*/frontend/**"])._is_path_excluded("app/frontend/helper.py")
+
+
+@pytest.mark.parametrize(
+    "filename",
+    (
+        "frontend/helper.py",
+        "alembic/helper.py",
+        "releases/helper.py",
+        "cache/helper.py",
+        "data/helper.py",
+        "external/helper.py",
+        "htmlcov/helper.py",
+        "coverage/helper.py",
+        "conftest.py",
+        "tests/helper.py",
+        "app/item.json",
+        "app/item.lock",
+        "app/item.md",
+        "app/item.yml",
+        "app/item.yaml",
+        "app/item.toml",
+        "app/item.txt",
+    ),
+)
+def test_ci_diff_coverage_native_cli_excludes_each_intended_class(
+    tmp_path: Path, filename: str
+) -> None:
+    """Prove each class is measurable unfiltered before its excluded no-lines result."""
+    args = _native_ci_diff_coverage_args(tmp_path)
+    unfiltered = _consume_orchestration_diff_fixture(
+        tmp_path,
+        {filename: [0]},
+        coverage_args=args[: args.index("--exclude")],
+        report_files=CI_DIFF_COVERAGE_REPORTS,
+    )
+    assert unfiltered.returncode == 1, (unfiltered.stdout, unfiltered.stderr)
+    assert "Total:   1 line" in unfiltered.stdout
+    assert "Coverage: 0%" in unfiltered.stdout
+    assert "Failure. Coverage is below 97%." in unfiltered.stderr
+    result = _consume_orchestration_diff_fixture(
+        tmp_path, {filename: [0]}, coverage_args=args, report_files=CI_DIFF_COVERAGE_REPORTS
+    )
+    assert result.returncode == 0, (result.stdout, result.stderr)
+    assert "No lines with coverage information in this diff." in result.stdout
+    assert "Coverage: 100%" not in result.stdout
+
+
+@pytest.mark.parametrize(
+    "filename",
+    (
+        "app/helper.py",
+        "app/frontend/helper.py",
+        "frontend-backup/helper.py",
+        "scripts/ops/ops_context_report.py",
+        "scripts/evals/collect_fitchef_answers.py",
+        *ORCHESTRATION_COVERAGE_FILES,
+    ),
+)
+def test_ci_diff_coverage_native_cli_retains_zero_hit_owners(tmp_path: Path, filename: str) -> None:
+    """Keep zero-hit application and dedicated tooling sources measurable."""
+    args = _native_ci_diff_coverage_args(tmp_path)
+    result = _consume_orchestration_diff_fixture(
+        tmp_path, {filename: [0]}, coverage_args=args, report_files=CI_DIFF_COVERAGE_REPORTS
+    )
+    assert result.returncode == 1, (result.stdout, result.stderr)
+    assert "Total:   1 line" in result.stdout and "Coverage: 0%" in result.stdout
+    assert "Failure. Coverage is below 97%." in result.stderr
+
+
+@pytest.mark.parametrize("uncovered,expected_pass", ((3, True), (4, False)))
+def test_ci_diff_coverage_native_cli_preserves_97_boundary(
+    tmp_path: Path, uncovered: int, expected_pass: bool
+) -> None:
+    """Check native 97% acceptance and 96% refusal at a working root with spaces."""
+    root = tmp_path / "root with spaces"
+    root.mkdir()
+    args = _native_ci_diff_coverage_args(root)
+    result = _consume_orchestration_diff_fixture(
+        root,
+        {"app/helper.py": [0] * uncovered + [1] * (100 - uncovered)},
+        coverage_args=args,
+        report_files=CI_DIFF_COVERAGE_REPORTS,
+    )
+    assert (result.returncode == 0) is expected_pass, (result.stdout, result.stderr)
+    assert "Total:   100 lines" in result.stdout
+    assert f"Coverage: {100 - uncovered}%" in result.stdout
+
+
+@pytest.mark.parametrize("report", CI_DIFF_COVERAGE_REPORTS)
+@pytest.mark.parametrize(
+    "error,diagnostic", (("missing", "FileNotFoundError"), ("malformed", "ParseError"))
+)
+def test_ci_diff_coverage_native_cli_refuses_each_invalid_report(
+    tmp_path: Path, report: str, error: str, diagnostic: str
+) -> None:
+    """Reject each missing or malformed mandatory XML without coverage-success output."""
+    args = _native_ci_diff_coverage_args(tmp_path)
+    result = _consume_orchestration_diff_fixture(
+        tmp_path,
+        {"app/helper.py": [1]},
+        coverage_args=args,
+        report_files=CI_DIFF_COVERAGE_REPORTS,
+        report_error=(report, error),
+    )
+    assert result.returncode != 0 and diagnostic in result.stderr, (result.stdout, result.stderr)
+    assert "Coverage:" not in result.stdout
+    assert "No lines with coverage information" not in result.stdout
+
+
+@pytest.mark.parametrize(
+    "case,diagnostic",
+    (
+        ("cli", "invalid float value"),
+        ("config", "FileNotFoundError"),
+        ("git", "Could not find the branch to compare to. Does 'base' exist?"),
+        ("import", "No module named 'diff_cover'"),
+    ),
+)
+def test_ci_diff_coverage_native_prerequisites_are_not_coverage_rejection(
+    tmp_path: Path, case: str, diagnostic: str
+) -> None:
+    """Distinguish CLI, config, Git, and import failures from coverage-threshold refusal."""
+    import sys
+
+    args = _native_ci_diff_coverage_args(tmp_path)
+    prepared = _consume_orchestration_diff_fixture(
+        tmp_path, {"app/helper.py": [1]}, coverage_args=args, report_files=CI_DIFF_COVERAGE_REPORTS
+    )
+    assert prepared.returncode == 0, (prepared.stdout, prepared.stderr)
+    python_flags = ("-I", "-S") if case == "import" else ()
+    if case == "cli":
+        args += ("--fail-under", "invalid")
+    elif case == "config":
+        args += ("--config-file", "missing-config.toml")
+    result = subprocess.run(
+        [sys.executable, *python_flags, "-m", "diff_cover.diff_cover_tool", *args],
+        cwd=tmp_path,
+        env=git_env_without_parent_state(),
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=10,
+    )
+    assert result.returncode != 0 and diagnostic in result.stderr, (result.stdout, result.stderr)
+    assert "Coverage:" not in result.stdout
+    assert "Failure. Coverage is below 97%." not in result.stderr
+
+
 FOUNDATION_LINT_COMMAND = (
     'eslint --config eslint.config.js "src/api/*.ts" "src/api/premium/*.ts" '
     "src/lib/analytics.ts --max-warnings=0"
 )
 FOUNDATION_NATIVE_STEP = "Verify foundation ESLint native controls"
 FOUNDATION_LINT_STEP = "Lint API and foundation scope"
+UI_LINT_COMMAND = (
+    'eslint --config eslint.config.js "src/components/ui/**/*.{ts,tsx}" --max-warnings=0'
+)
+UI_LINT_STEP = "Lint UI primitives"
 # Public SHA256 integrity digests bind the tracked config/workflow, not credentials.
 # Native ESLint/npm execution supplies tool semantics; Python does not interpret JS or shell.
 FOUNDATION_CONFIG_SHA256 = (
     "33c678e5f8a86963dae24419a2d2e4f798d300c477ff7756046539edbe3c1214"  # pragma: allowlist secret
 )
 FOUNDATION_NATIVE_RUN_SHA256 = (
-    "034896f507c276d34d1574f02cc265e4c83c81f3f4f91dfe4d8b255b702be0c5"  # pragma: allowlist secret
+    "540e1b891e7980920587e5d47806ddc1e8c8b45e7ffb0b3e7ec85729b7768739"  # pragma: allowlist secret
 )
 
 
@@ -6383,6 +6824,7 @@ def _assert_frontend_node24_foundation_contract(
     assert isinstance(scripts, dict)
     assert isinstance(dependencies, dict)
     assert scripts["lint:foundation"] == FOUNDATION_LINT_COMMAND
+    assert scripts["lint:ui"] == UI_LINT_COMMAND
     assert dependencies["@eslint/js"] == "9.39.3"
     assert dependencies["typescript-eslint"] == "8.71.0"
     assert "type" not in package
@@ -6409,7 +6851,11 @@ def _assert_frontend_node24_foundation_contract(
     installs = [
         step
         for step in steps
-        if isinstance(step, dict) and step.get("name") == "Install dependencies"
+        if isinstance(step, dict)
+        and (
+            step.get("name") == "Install dependencies"
+            or step.get("uses") == "./.github/actions/npm-ci-with-retry"
+        )
     ]
     assert len(installs) == 1
     install = installs[0]
@@ -6447,7 +6893,33 @@ def _assert_frontend_node24_foundation_contract(
     assert len(lint_steps) == 1
     lint = lint_steps[0]
     assert lint == {"name": FOUNDATION_LINT_STEP, "run": "npm run lint:foundation"}
-    assert steps.index(install) < steps.index(native) < steps.index(lint)
+    ui_steps = [
+        step
+        for step in steps
+        if isinstance(step, dict)
+        and (step.get("name") == UI_LINT_STEP or step.get("run") == "npm run lint:ui")
+    ]
+    assert len(ui_steps) == 1
+    ui = ui_steps[0]
+    assert ui == {"name": UI_LINT_STEP, "run": "npm run lint:ui"}
+    assert steps.index(install) < steps.index(native) < steps.index(lint) < steps.index(ui)
+    for name, command in (
+        ("Run vitest suite", "npm run test -- --coverage"),
+        ("Build frontend", "npm run build"),
+    ):
+        consumers = [
+            step
+            for step in steps
+            if isinstance(step, dict) and (step.get("name") == name or step.get("run") == command)
+        ]
+        assert len(consumers) == 1
+        consumer = consumers[0]
+        assert consumer["name"] == name and consumer["run"] == command
+        assert not {"if", "continue-on-error", "shell", "working-directory"}.intersection(consumer)
+        consumer_env = consumer.get("env", {})
+        assert isinstance(consumer_env, dict)
+        assert not {"NODE_OPTIONS", "NODE_PATH"}.intersection(consumer_env)
+        assert steps.index(ui) < steps.index(consumer)
 
 
 def test_frontend_node24_foundation_command_and_native_controls_are_blocking() -> None:
@@ -6713,6 +7185,256 @@ else:
         ]
 
 
+def test_frontend_node24_ui_command_and_native_controls_are_blocking() -> None:
+    """UI and foundation share the reviewed carrier; native execution is separate evidence."""
+    package = json.loads(FRONTEND_PACKAGE_JSON_PATH.read_text(encoding="utf-8"))
+    workflow = _load_workflow(FRONTEND_CI_WORKFLOW_PATH)
+    config_source = (REPO_ROOT / "frontend/eslint.config.js").read_text(encoding="utf-8")
+    _assert_frontend_node24_foundation_contract(package, workflow, config_source)
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    (
+        "missing_ui_script",
+        "optional_ui_script",
+        "masked_ui_script",
+        "implicit_ui_config",
+        "shallow_ui_selector",
+        "empty_ui_selector",
+        "wrong_ui_selector",
+        "ui_warnings_allowed",
+        "missing_ui_step",
+        "duplicate_ui_step",
+        "renamed_duplicate_ui_step",
+        "ui_if",
+        "ui_optional",
+        "ui_shell",
+        "ui_cwd",
+        "ui_env",
+        "ui_optional_command",
+        "ui_masked_command",
+        "ui_before_install",
+        "ui_before_native",
+        "ui_after_vitest",
+        "ui_after_build",
+        "renamed_duplicate_install",
+        "missing_install",
+        "missing_vitest",
+        "missing_build",
+        "outer_relative_node",
+        "missing_recursion",
+        "missing_nonempty",
+        "missing_nonignore",
+        "collapsed_results",
+        "missing_equality",
+        "missing_nested",
+        "missing_omitted",
+        "missing_single_ignore",
+        "missing_all_ignore",
+        "missing_empty_directory",
+        "missing_declaration_directory",
+        "missing_clean_tsx",
+        "missing_error_tsx",
+        "missing_warning_tsx",
+        "missing_ui_script_control",
+        "missing_ui_unmatched",
+        "missing_fatal_check",
+        "missing_clean_error_count",
+        "missing_clean_warning_count",
+        "missing_message_fatal_check",
+        "missing_cleanup",
+        "missing_restored_inventory",
+        "ambient_ui_child_env",
+        "unbounded_ui_child",
+        "vitest_if",
+        "vitest_optional",
+        "vitest_shell",
+        "vitest_cwd",
+        "vitest_startup_env",
+        "renamed_duplicate_vitest",
+        "build_if",
+        "build_optional",
+        "build_shell",
+        "build_cwd",
+        "build_startup_env",
+        "renamed_duplicate_build",
+    ),
+)
+def test_frontend_node24_ui_guard_rejects_weakened_wiring(mutation: str) -> None:
+    """Finite carrier mutations run without Node and cannot claim ESLint execution."""
+    package = json.loads(FRONTEND_PACKAGE_JSON_PATH.read_text(encoding="utf-8"))
+    workflow = _load_workflow(FRONTEND_CI_WORKFLOW_PATH)
+    config_source = (REPO_ROOT / "frontend/eslint.config.js").read_text(encoding="utf-8")
+    scripts = package["scripts"]
+    job = cast(dict[str, object], cast(dict[str, object], workflow["jobs"])["build-and-test"])
+    steps = cast(list[dict[str, object]], job["steps"])
+    install = next(step for step in steps if step.get("name") == "Install dependencies")
+    native = next(step for step in steps if step.get("name") == FOUNDATION_NATIVE_STEP)
+    ui = next(step for step in steps if step.get("name") == UI_LINT_STEP)
+    vitest = next(step for step in steps if step.get("name") == "Run vitest suite")
+    build = next(step for step in steps if step.get("name") == "Build frontend")
+    script_replacements = {
+        "optional_ui_script": ("--max-warnings=0", "--max-warnings=0 --if-present"),
+        "masked_ui_script": ("--max-warnings=0", "--max-warnings=0 || true"),
+        "implicit_ui_config": ("--config eslint.config.js ", ""),
+        "shallow_ui_selector": ("ui/**/*.{ts,tsx}", "ui/*.{ts,tsx}"),
+        "empty_ui_selector": ("src/components/ui/**/*.{ts,tsx}", "absent/**/*.{ts,tsx}"),
+        "wrong_ui_selector": ("src/components/ui/**/*.{ts,tsx}", "src/api/*.ts"),
+        "ui_warnings_allowed": ("--max-warnings=0", "--max-warnings=1"),
+    }
+    if mutation == "missing_ui_script":
+        scripts.pop("lint:ui")
+    elif mutation in script_replacements:
+        old, new = script_replacements[mutation]
+        assert old in scripts["lint:ui"]
+        scripts["lint:ui"] = scripts["lint:ui"].replace(old, new)
+    elif mutation in {"missing_ui_step", "missing_install", "missing_vitest", "missing_build"}:
+        steps.remove(
+            {
+                "missing_ui_step": ui,
+                "missing_install": install,
+                "missing_vitest": vitest,
+                "missing_build": build,
+            }[mutation]
+        )
+    elif mutation in {
+        "duplicate_ui_step",
+        "renamed_duplicate_ui_step",
+        "renamed_duplicate_install",
+    }:
+        duplicate = dict(install if mutation == "renamed_duplicate_install" else ui)
+        if mutation.startswith("renamed_"):
+            duplicate["name"] = "Renamed duplicate UI carrier"
+        steps.append(duplicate)
+    elif mutation in {"ui_if", "ui_optional", "ui_shell", "ui_cwd", "ui_env"}:
+        settings: dict[str, tuple[str, object]] = {
+            "ui_if": ("if", "${{ false }}"),
+            "ui_optional": ("continue-on-error", True),
+            "ui_shell": ("shell", "bash -c '{0} || true'"),
+            "ui_cwd": ("working-directory", "."),
+            "ui_env": ("env", {"NODE_OPTIONS": "--require untrusted.cjs"}),
+        }
+        key, value = settings[mutation]
+        ui[key] = value
+    elif mutation in {"ui_optional_command", "ui_masked_command"}:
+        ui["run"] = "npm run lint:ui" + (
+            " --if-present" if mutation == "ui_optional_command" else " || true"
+        )
+    elif mutation in {"ui_before_install", "ui_before_native", "ui_after_vitest", "ui_after_build"}:
+        target = {
+            "ui_before_install": install,
+            "ui_before_native": native,
+            "ui_after_vitest": vitest,
+            "ui_after_build": build,
+        }[mutation]
+        steps.remove(ui)
+        steps.insert(steps.index(target) + (1 if mutation.startswith("ui_after_") else 0), ui)
+    elif mutation in {
+        "vitest_if",
+        "vitest_optional",
+        "vitest_shell",
+        "vitest_cwd",
+        "vitest_startup_env",
+        "renamed_duplicate_vitest",
+        "build_if",
+        "build_optional",
+        "build_shell",
+        "build_cwd",
+        "build_startup_env",
+        "renamed_duplicate_build",
+    }:
+        consumer = vitest if "vitest" in mutation else build
+        if mutation.startswith("renamed_duplicate_"):
+            duplicate = dict(consumer)
+            duplicate["name"] = "Renamed duplicate validation consumer"
+            steps.append(duplicate)
+        elif mutation.endswith("_startup_env"):
+            env = dict(cast(dict[str, object], consumer.get("env", {})))
+            env["NODE_OPTIONS"] = "--require untrusted.cjs"
+            consumer["env"] = env
+        else:
+            consumer_settings: dict[str, tuple[str, object]] = {
+                "if": ("if", "${{ false }}"),
+                "optional": ("continue-on-error", True),
+                "shell": ("shell", "bash -c '{0} || true'"),
+                "cwd": ("working-directory", "."),
+            }
+            key, value = consumer_settings[mutation.split("_", 1)[1]]
+            consumer[key] = value
+    else:
+        replacements = {
+            "outer_relative_node": ('"$node_binary" -', "node -"),
+            "missing_recursion": ("files.push(...enumerateUI(file))", "files.push(file)"),
+            "missing_nonempty": ("assert.ok(files.length > 0,", "assert.ok(true,"),
+            "missing_nonignore": (
+                "assert.ok((await engine.isPathIgnored(file)) === false,",
+                "assert.ok(true,",
+            ),
+            "collapsed_results": (
+                "report.map(result => result.filePath).sort()",
+                "[...new Set(report.map(result => result.filePath))].sort()",
+            ),
+            "missing_equality": (
+                "actual.length === inventory.length && "
+                "actual.every((file, index) => file === inventory[index])",
+                "true",
+            ),
+            "missing_nested": (
+                "await assertUIMembership(eslint, [uiPattern], nestedUI)",
+                "await eslint.lintFiles(originalUI)",
+            ),
+            "missing_omitted": ("originalUI.slice(1), originalUI", "originalUI, originalUI"),
+            "missing_single_ignore": ("ignores: [ignoredMember]", "ignores: []"),
+            "missing_all_ignore": ("ignores: ['src/components/ui/**']", "ignores: []"),
+            "missing_empty_directory": (
+                "assert.throws(() => requireUISelection(directory)",
+                "assert.throws(() => requireUISelection(uiRoot)",
+            ),
+            "missing_declaration_directory": ("name.endsWith('.d.ts')", "name.endsWith('.never')"),
+            "missing_clean_tsx": ("['ui-clean',", "['disabled-ui-clean',"),
+            "missing_error_tsx": ("['ui-error',", "['disabled-ui-error',"),
+            "missing_warning_tsx": ("['ui-warning',", "['disabled-ui-warning',"),
+            "missing_ui_script_control": ("['run', 'lint:ui']", "['--version']"),
+            "missing_ui_unmatched": ("absent-ui/**/*.tsx", "ui-clean.tsx"),
+            "missing_fatal_check": (
+                "assert.equal(report[0].fatalErrorCount, 0)",
+                "assert.ok(true)",
+            ),
+            "missing_clean_error_count": (
+                "assert.equal(report[0].errorCount, severity === 2 ? 1 : 0)",
+                "assert.ok(true)",
+            ),
+            "missing_clean_warning_count": (
+                "assert.equal(report[0].warningCount, severity === 1 ? 1 : 0)",
+                "assert.ok(true)",
+            ),
+            "missing_message_fatal_check": (
+                "assert.notEqual(messages[0].fatal, true)",
+                "assert.ok(true)",
+            ),
+            "missing_cleanup": (
+                "if (uiFixtures) fs.rmSync(uiFixtures, { recursive: true, force: true })",
+                "if (uiFixtures) console.log('left fixture')",
+            ),
+            "missing_restored_inventory": (
+                "assert.deepEqual(restoredUI, originalUI)",
+                "assert.ok(true)",
+            ),
+            "ambient_ui_child_env": ("const env = {", "const env = { ...process.env,"),
+            "unbounded_ui_child": (
+                "encoding: 'utf8', timeout, maxBuffer: 1024 * 1024",
+                "encoding: 'utf8'",
+            ),
+        }
+        old, new = replacements[mutation]
+        source = cast(str, native["run"])
+        assert old in source, mutation
+        native["run"] = source.replace(old, new)
+    with pytest.raises((AssertionError, KeyError)):
+        _assert_frontend_node24_foundation_contract(package, workflow, config_source)
+
+
 def test_fitchef_agent_coverage_is_separate_and_required_by_existing_diff_gate() -> None:
     """Bind the sole provider producer and mandatory artifact to the 97% gate."""
     import shlex
@@ -6848,7 +7570,6 @@ def test_fitchef_agent_structural_acceptance_still_requires_numeric_diff_coverag
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Feed retained zero/positive hits through the actual canonical diff command."""
-    import shlex
     import shutil
     import subprocess
     import sys
@@ -6950,21 +7671,9 @@ def test_fitchef_agent_structural_acceptance_still_requires_numeric_diff_coverag
             ),
             encoding="utf-8",
         )
-    gate = _job_step_by_name(
-        workflow, job_id="diff-coverage", step_name="Enforce diff coverage >= 97%"
-    )
-    command = (
-        str(gate["run"])
-        .replace("${{ github.base_ref }}", "base")
-        .replace(
-            "${{ env.COVERAGE_THRESHOLD }}",
-            str(gate["env"]["COVERAGE_THRESHOLD"]),
-        )
-    )
-    argv = shlex.split(command.replace("\\\n", ""))
-    assert argv[0] == "diff-cover"
+    argv = _native_ci_diff_coverage_args(tmp_path)
     result = subprocess.run(
-        [diff_cover, *argv[1:]],
+        [diff_cover, *argv],
         cwd=tmp_path,
         capture_output=True,
         text=True,
