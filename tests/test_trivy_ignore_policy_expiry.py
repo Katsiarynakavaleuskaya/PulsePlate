@@ -222,12 +222,20 @@ def test_historical_and_candidate_hard_expiry_isolated_from_reviews(
 
 
 @pytest.mark.parametrize("day", [6, 8, 21, 22, 30, 31])
-def test_candidate_review_and_expiry_remain_conjunctive(day: int) -> None:
-    policy_lines = _policy_text().splitlines()
+def test_active_review_and_expiry_remain_conjunctive(tmp_path: Path, day: int) -> None:
+    policy = tmp_path / "active.rego"
+    policy.write_text(
+        "package trivy\n\nimport rego.v1\n"
+        "# Suppression expires: 2026-10-30 (manual removal)\n"
+        + "# Review-by: 2026-10-21 (manual removal)\n" * 3
+        + 'default ignore := false\nignore if {\n\tinput.VulnerabilityID == "CVE-0000-0000"\n}\n',
+        encoding="utf-8",
+    )
+    policy_lines = policy.read_text(encoding="utf-8").splitlines()
     assert [line for line in policy_lines if line.startswith("# Review-by:")] == [
         "# Review-by: 2026-10-21 (manual removal)"
     ] * 3
-    failures = evaluate_policy_file(POLICY_PATH, today=date(2026, 10, day))
+    failures = evaluate_policy_file(policy, today=date(2026, 10, day))
     if day <= 21:
         assert failures == []
     elif day <= 30:
@@ -237,7 +245,7 @@ def test_candidate_review_and_expiry_remain_conjunctive(day: int) -> None:
             if line.startswith("# Review-by:")
         ]
         assert failures == [
-            f"Stale Trivy suppression review date: {POLICY_PATH}:{number} "
+            f"Stale Trivy suppression review date: {policy}:{number} "
             f"(review-by 2026-10-21, today 2026-10-{day:02d})"
             for number in review_lines
         ]
@@ -392,7 +400,7 @@ def test_trivy_policy_guard_reports_invalid_file_expiry_dates(tmp_path: Path) ->
 def test_removed_perl_runtime_cves_are_not_suppressed_in_rego_policy() -> None:
     policy = _policy_text()
 
-    assert len(re.findall(r"^# Suppression expires:", policy, flags=re.MULTILINE)) == 1
+    assert policy == expiry_guard._CANONICAL_NEVER_IGNORE_POLICY
     for cve in (
         REMOVED_PERL_RUNTIME_CVES
         + REMEDIATED_SQLITE_CVES
@@ -621,43 +629,28 @@ def test_gemfile_scan_fails_closed_on_traversal_error(
         _repository_gemfile_locks(tmp_path)
 
 
-def test_zlib_suppression_requires_exact_pkgid_scope() -> None:
-    """Retain the exact CVE/name/version/PkgID conjunction without affixes."""
+@pytest.mark.parametrize(
+    "cve,exclusive_helpers",
+    (
+        ("CVE-2026-27171", ("cve_2026_27171_version_match", "cve_2026_27171_pkgid_match")),
+        (
+            "CVE-2025-69720",
+            (
+                "cve_2025_69720_pkg_match",
+                "cve_2025_69720_version_match",
+                "cve_2025_69720_pkgid_match",
+            ),
+        ),
+        ("CVE-2026-84782", ("cve_2026_84782_pkgid_match",)),
+    ),
+)
+def test_retired_r1_families_and_exclusive_helpers_are_absent(
+    cve: str, exclusive_helpers: tuple[str, ...]
+) -> None:
     policy = _policy_text()
-    start = policy.index('ignore if {\n\tinput.VulnerabilityID == "CVE-2026-27171"')
-    zlib_ignore_rule = policy[start : policy.index("\n}", start) + 2]
-
-    assert 'input.InstalledVersion == "1:1.2.13.dfsg-1"' in policy
-    assert 'input.PkgID == "zlib1g@1:1.2.13.dfsg-1"' in policy
-    assert "contains(input.PkgID" not in policy
-    assert "input.Severity" not in zlib_ignore_rule
-    assert 'input.PkgName == "zlib1g"' in zlib_ignore_rule
-    assert "cve_2026_27171_version_match" in zlib_ignore_rule
-    assert "cve_2026_27171_pkgid_match" in zlib_ignore_rule
-    assert zlib_ignore_rule.count('object.get(input, "FixedVersion", "") == ""') == 1
-
-
-def test_ncurses_suppression_requires_fixed_version_and_exact_tuple_scope() -> None:
-    """Each ncurses helper branch binds one exact ordered package/PkgID pair."""
-    policy = _policy_text()
-    start = policy.index('ignore if {\n\tinput.VulnerabilityID == "CVE-2025-69720"')
-    ncurses_ignore_rule = policy[start : policy.index("\n}", start) + 2]
-    helper_region = policy[policy.index("cve_2025_69720_pkg_match if {") : start]
-
-    assert 'input.VulnerabilityID == "CVE-2025-69720"' in ncurses_ignore_rule
-    assert "cve_2025_69720_pkg_match" in ncurses_ignore_rule
-    assert "cve_2025_69720_version_match" in ncurses_ignore_rule
-    assert "cve_2025_69720_pkgid_match" in ncurses_ignore_rule
-    assert ncurses_ignore_rule.count('object.get(input, "FixedVersion", "") == ""') == 1
-    assert 'input.InstalledVersion == "6.4-4"' in helper_region
-    helpers = re.findall(r"cve_2025_69720_pkgid_match if \{(.*?)\n\}", helper_region, re.S)
-    assert {block.strip() for block in helpers} == {
-        f'input.PkgName == "{package}"\n\tinput.PkgID == "{package}@6.4-4"'
-        for package in ("libncursesw6", "libtinfo6", "ncurses-base", "ncurses-bin")
-    }
-    assert len(helpers) == 4
-    assert "startswith(input.PkgID" not in helper_region
-    assert "input.Severity" not in ncurses_ignore_rule
+    assert policy == expiry_guard._CANONICAL_NEVER_IGNORE_POLICY
+    assert cve not in policy
+    assert all(helper not in policy for helper in exclusive_helpers)
 
 
 def _native_report_output(finding: dict[str, object], count: int) -> bytes:
@@ -887,6 +880,7 @@ def test_native_trivy_contract_runs_each_case_with_fixed_argv(
         + native_policy._openssl_cases()
         + native_policy._identity_cases()
         + native_policy._retired_util_linux_cases()
+        + native_policy._visible_source_cases()
     )
     calls: list[list[str]] = []
 
@@ -903,8 +897,8 @@ def test_native_trivy_contract_runs_each_case_with_fixed_argv(
         return subprocess.CompletedProcess(argv, 0, _native_report_output(finding, expected), b"")
 
     monkeypatch.setattr(native_policy, "_invoke", convert)
-    assert native_policy._run_contract("/usr/bin/trivy", Path("/tmp/policy.rego")) == 121
-    assert len(calls) == 121
+    assert native_policy._run_contract("/usr/bin/trivy", Path("/tmp/policy.rego")) == 122
+    assert len(calls) == 122
     assert all(
         call
         == [
@@ -940,7 +934,7 @@ def test_native_trivy_contract_rejects_other_errors_and_wrong_counts(
     def wrong_count(
         argv: list[str], *, payload: bytes | None = None
     ) -> subprocess.CompletedProcess[bytes]:
-        return subprocess.CompletedProcess(argv, 0, _native_report_output(finding, 1), b"")
+        return subprocess.CompletedProcess(argv, 0, _native_report_output(finding, 0), b"")
 
     monkeypatch.setattr(native_policy, "_invoke", wrong_count)
     with pytest.raises(ValueError, match="finding count"):
@@ -980,9 +974,9 @@ def test_native_trivy_main_fails_closed_and_passes_bound_inputs(
     monkeypatch.setattr(native_policy, "SCAN_POLICY", scan_copy)
     monkeypatch.setattr(native_policy, "_trivy_binary", lambda: "/usr/bin/trivy")
     monkeypatch.setattr(native_policy, "_require_version", lambda _binary: None)
-    monkeypatch.setattr(native_policy, "_run_contract", lambda _binary, _policy: 121)
+    monkeypatch.setattr(native_policy, "_run_contract", lambda _binary, _policy: 122)
     assert native_policy.main() == 0
-    assert "passed: 121 cases" in capsys.readouterr().out
+    assert "passed: 122 cases" in capsys.readouterr().out
     scan_copy.write_bytes(b"drift")
     assert native_policy.main() == 1
     assert "differs" in capsys.readouterr().err
@@ -1038,7 +1032,7 @@ def test_openssl_cve_2026_14456_document_and_removal_ledger_are_coupled() -> Non
         assert evidence in security_doc
 
     assert "CVE-2026-14456" not in policy
-    assert policy.count("Suppression expires: 2026-10-30") == 1
+    assert policy == expiry_guard._CANONICAL_NEVER_IGNORE_POLICY
     assert "Owner: @katsiaryna_kavaleuskaya (Security/SRE)" in ledger_entry
     assert "Priority: P1" in ledger_entry
     assert "Target PR: PR #2400" in ledger_entry
@@ -1569,26 +1563,9 @@ def test_current_policy_uses_only_supported_ignore_rule_heads() -> None:
     assert evaluate_policy_file(POLICY_PATH, today=date(2026, 7, 27)) == []
 
 
-def test_openssl_suppression_requires_paired_high_unfixed_scope() -> None:
-    policy = _policy_text()
-    start = policy.index("cve_2026_84782_pkgid_match if {")
-    openssl_region = policy[start:]
-    helpers = re.findall(r"cve_2026_84782_pkgid_match if \{(.*?)\n\}", openssl_region, re.S)
-    assert len(helpers) == 2
-    assert {block.strip() for block in helpers} == {
-        'input.PkgName == "libssl3"\n\tinput.PkgID == "libssl3@3.0.22-1~deb12u1"',
-        'input.PkgName == "openssl"\n\tinput.PkgID == "openssl@3.0.22-1~deb12u1"',
-    }
-    rule = openssl_region[openssl_region.index("ignore if {") :]
-    assert 'input.VulnerabilityID == "CVE-2026-84782"' in rule
-    assert 'input.Severity == "HIGH"' in rule
-    assert 'input.InstalledVersion == "3.0.22-1~deb12u1"' in rule
-    assert "cve_2026_84782_pkgid_match" in rule
-    assert rule.count('object.get(input, "FixedVersion", "") == ""') == 1
-    assert "contains(" not in openssl_region
-    assert "startswith(" not in openssl_region
-    assert "== null" not in openssl_region
-    assert policy.count("Suppression expires: 2026-10-30") == 1
+def test_terminal_policy_has_no_executable_suppression() -> None:
+    assert _policy_text() == "package trivy\n\nimport rego.v1\n\ndefault ignore := false\n"
+    assert "ignore if" not in _policy_text()
 
 
 def test_openssl_native_cases_keep_distinct_members_and_adversarial_inputs() -> None:
@@ -1644,11 +1621,7 @@ def test_openssl_native_cases_keep_distinct_members_and_adversarial_inputs() -> 
         assert group["pkgid-lookalike"][0]["PkgID"] == f"{pkgid}0"
         assert group["critical"][0]["Severity"] == "CRITICAL"
         assert group["fixed-whitespace"][0]["FixedVersion"] == " "
-        assert {kind for kind, (_, expected) in group.items() if expected == 0} == {
-            "missing",
-            "empty",
-            "null",
-        }
+        assert not {kind for kind, (_, expected) in group.items() if expected == 0}
         assert {kind for kind, (_, expected) in group.items() if expected is None} == {
             "integer",
             "float",
@@ -1660,7 +1633,7 @@ def test_openssl_native_cases_keep_distinct_members_and_adversarial_inputs() -> 
             type(group[kind][0]["FixedVersion"])
             for kind in ("integer", "float", "bool", "array", "object")
         } == {int, float, bool, list, dict}
-        assert sum(expected == 1 for _, expected in group.values()) == 12
+        assert sum(expected == 1 for _, expected in group.values()) == 15
 
 
 @pytest.mark.parametrize("kind", ("integer", "float", "bool", "array", "object"))
@@ -1673,6 +1646,7 @@ def test_openssl_native_type_controls_require_actual_decode_rejection(
         + native_policy._openssl_cases()
         + native_policy._identity_cases()
         + native_policy._retired_util_linux_cases()
+        + native_policy._visible_source_cases()
     )
     target = f"CVE-2026-84782/libssl3/{kind}"
     calls = 0
@@ -1726,6 +1700,7 @@ def test_openssl_native_negatives_require_retained_finding_identity(
         + native_policy._openssl_cases()
         + native_policy._identity_cases()
         + native_policy._retired_util_linux_cases()
+        + native_policy._visible_source_cases()
     )
     target = f"CVE-2026-84782/{package}/{kind}"
     calls = 0
@@ -1755,8 +1730,14 @@ def test_openssl_native_negatives_require_retained_finding_identity(
 def test_native_identity_and_retirement_inventory_is_complete() -> None:
     identity = native_policy._identity_cases()
     retired = native_policy._retired_util_linux_cases()
-    all_cases = native_policy._cases() + native_policy._openssl_cases() + identity + retired
-    assert len(all_cases) == len({case_id for case_id, _, _ in all_cases}) == 121
+    all_cases = (
+        native_policy._cases()
+        + native_policy._openssl_cases()
+        + identity
+        + retired
+        + native_policy._visible_source_cases()
+    )
+    assert len(all_cases) == len({case_id for case_id, _, _ in all_cases}) == 122
     assert len(identity) == 28
     assert len(retired) == 8
     assert all(
@@ -1807,7 +1788,9 @@ def test_native_identity_and_retirement_inventory_is_complete() -> None:
 
 @pytest.mark.parametrize(
     "case",
-    native_policy._identity_cases() + native_policy._retired_util_linux_cases(),
+    native_policy._identity_cases()
+    + native_policy._retired_util_linux_cases()
+    + native_policy._visible_source_cases(),
     ids=lambda case: case[0],
 )
 @pytest.mark.parametrize("fault", ["count", "identity", "absent-output", "execution"])
@@ -1820,6 +1803,7 @@ def test_new_native_negatives_fail_closed_on_output_or_execution_error(
         + native_policy._openssl_cases()
         + native_policy._identity_cases()
         + native_policy._retired_util_linux_cases()
+        + native_policy._visible_source_cases()
     )
     calls = 0
 

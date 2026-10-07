@@ -896,12 +896,12 @@ def test_nightly_forecast_executes_utc_date_boundaries_and_labels(
     forecast_finding: bool,
 ) -> None:
     historical = (
-        (REPO_ROOT / "trivy/ignore-policy.rego")
-        .read_text()
-        .replace("2026-10-30", "2026-10-07")
-        .replace("2026-10-21", "2026-10-05")
+        "package trivy\n\nimport rego.v1\n"
+        "# Suppression expires: 2026-10-07 (manual removal)\n"
+        "# Review-by: 2026-10-05 (manual removal)\n"
+        "# Review-by: 2026-10-07 (manual removal)\n"
+        'default ignore := false\nignore if {\n\tinput.VulnerabilityID == "CVE-0000-0000"\n}\n'
     )
-    historical += "\n# Review-by: 2026-10-07 (manual removal)\n"
     result, summary = _run_forecast_workflow(tmp_path, today=today, policy=historical)
 
     assert result.returncode == expected_exit, result.stderr
@@ -1867,8 +1867,12 @@ def test_candidate_nightly_forecast_preserves_current_and_plus_four(
     assert "### CURRENT: no finding" in summary
     assert f"### FORECAST: {'attention required' if forecast_finding else 'no finding'}" in summary
     if forecast_finding:
-        assert "review-by 2026-10-21" in summary
+        assert (
+            "Docker sources: Docker source artifact manifest review_by is stale: 2026-10-21"
+            in summary
+        )
         assert "Expired Trivy ignore policy" not in summary
+    assert "Trivy policy:" not in summary
 
 
 def test_native_client_omits_unused_gss_closure_and_separates_pg_build() -> None:
