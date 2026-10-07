@@ -317,7 +317,7 @@ def main(argv: list[str] | None = None) -> int:
         if effective_argv and effective_argv[0] == "inspect"
         else argparse.ArgumentParser
     )
-    parser = parser_type(description=__doc__)
+    parser = parser_type(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     commands = parser.add_subparsers(dest="command", required=True)
     for command in ("validate", "report", "inspect"):
         sub = commands.add_parser(command)

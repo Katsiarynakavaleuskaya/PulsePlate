@@ -821,3 +821,46 @@ def test_source_inspect_usage_is_one_copyable_logical_command(tmp_path: Path) ->
         "REPORT.json": str(tmp_path / "copied-usage.json"),
     }
     assert cli.main([replacements.get(value, value) for value in command[3:]]) == 0
+
+
+@pytest.mark.parametrize("width", [52, 120])
+def test_rendered_root_help_inspect_command_executes_at_two_widths(
+    width: int,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setenv("COLUMNS", str(width))
+    monkeypatch.setattr(cli.sys, "argv", ["evidence_relation_audit.py", "--help"])
+    with pytest.raises(SystemExit) as stopped:
+        cli.main()
+    assert stopped.value.code == 0
+    rendered = capsys.readouterr()
+    assert rendered.err == ""
+    help_lines = rendered.out.splitlines()
+    first = next(
+        index
+        for index, line in enumerate(help_lines)
+        if line.strip().startswith("python -m scripts.evals.evidence_relation_audit inspect")
+    )
+    assert help_lines[first].endswith("\\")
+    assert help_lines[first + 1].strip().startswith("--claim-ref CLAIM")
+    assert help_lines[first + 1].endswith("REPORT.json")
+    assert help_lines[first + 2] == ""
+    assert help_lines[first + 3].startswith("Limits:")
+    command = shlex.split(help_lines[first][:-1] + help_lines[first + 1])
+    assert command[:3] == ["python", "-m", "scripts.evals.evidence_relation_audit"]
+    target = tmp_path / "rendered-help-report.json"
+    replacements = {
+        "SNAPSHOT.jsonl": str(FIXTURE),
+        "CLAIM": "C2",
+        "CONTEXT": INSPECT_CONTEXT,
+        "PERIOD": "T1",
+        "REPORT.json": str(target),
+    }
+    assert cli.main([replacements.get(value, value) for value in command[3:]]) == 0
+    captured = capsys.readouterr()
+    assert captured.err == ""
+    assert captured.out == "evidence_relation_audit: neighborhood published\n"
+    assert len(target.read_bytes()) == 8309
+    assert stat.S_IMODE(target.stat().st_mode) == 0o600
