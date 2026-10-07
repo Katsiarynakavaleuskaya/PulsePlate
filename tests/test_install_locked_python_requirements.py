@@ -286,6 +286,7 @@ def test_main_rejects_mixed_operations_before_any_acquisition_build_or_preflight
         ["--index-url", APPROVED_PROXY_URL],
         ["--upgrade-pip"],
         ["--require-virtualenv"],
+        ["--python-executable", sys.executable],
     ),
 )
 def test_main_source_build_rejects_install_modifiers_even_at_default_values(
@@ -372,6 +373,115 @@ def test_main_rejects_build_inputs_without_build_operation_before_effects(
         monkeypatch.setattr(installer, name, forbidden)
     assert installer.main([*operation, build_input, "input"]) == 1
     assert "build inputs require the explicit --build-psycopg-c" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize(
+    "selector", ("--prefetch-psycopg-source", "--prefetch-psycopg-build-wheels")
+)
+@pytest.mark.parametrize(
+    "modifier",
+    (
+        ["--requirements-file", "requirements.txt"],
+        ["--dev-requirements-file", "requirements-dev.txt"],
+        ["--test-requirements-file", "requirements-test.txt"],
+        ["--ci-lite-requirements-file", "requirements-ci-lite.txt"],
+        ["--rag-vector-requirements-file", "requirements-rag-vector.txt"],
+        ["--constraints-file", "constraints.txt"],
+        ["--requirements-profile=ci-test"],
+        ["--install-dev"],
+        ["--install-test"],
+        ["--require-virtualenv"],
+        ["--upgrade-pip"],
+        ["--upgrade-pip-spec", "pip"],
+        ["--guard-script", "guard.py"],
+        ["--emergency-wheel-manifest", "manifest.json"],
+        ["--install-mode=wheelhouse"],
+        ["--psycopg-sdk", "sdk"],
+        ["--wheelhouse-dir=wheels"],
+    ),
+)
+def test_main_psycopg_prefetch_rejects_install_modifiers_before_resolution(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    selector: str,
+    modifier: list[str],
+) -> None:
+    def forbidden(*args: object, **kwargs: object) -> None:
+        raise AssertionError("Rejected prefetch modifiers must cause no acquisition or resolution")
+
+    for name in (
+        "resolve_python_executable",
+        "resolve_private_proxy_settings",
+        "prefetch_psycopg_source",
+        "prefetch_psycopg_build_wheels",
+        "upgrade_pip",
+        "read_psycopg_c_sdk",
+        "install_with_guard",
+        "run_command",
+    ):
+        monkeypatch.setattr(installer, name, forbidden)
+    assert installer.main([selector, "new-input", *modifier]) == 1
+    assert "do not accept install modifiers" in capsys.readouterr().out
+
+
+def test_main_psycopg_source_prefetch_rejects_unused_explicit_python(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    def forbidden(*args: object, **kwargs: object) -> None:
+        raise AssertionError("Source prefetch must reject its unused target before effects")
+
+    for name in (
+        "resolve_python_executable",
+        "resolve_private_proxy_settings",
+        "prefetch_psycopg_source",
+    ):
+        monkeypatch.setattr(installer, name, forbidden)
+    assert (
+        installer.main(
+            [
+                "--prefetch-psycopg-source",
+                "source",
+                "--python-executable=" + sys.executable,
+            ]
+        )
+        == 1
+    )
+    assert "unused target Python" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("operation", ("source", "build-wheels"))
+def test_main_psycopg_prefetch_preserves_acquisition_inputs_and_used_target(
+    monkeypatch: pytest.MonkeyPatch, operation: str
+) -> None:
+    observed: list[dict[str, object]] = []
+    monkeypatch.setattr(
+        installer,
+        "resolve_private_proxy_settings",
+        lambda **kwargs: (kwargs["index_url"], kwargs["trusted_host"]),
+    )
+    monkeypatch.setattr(
+        installer,
+        "prefetch_psycopg_" + operation.replace("-", "_"),
+        lambda **kwargs: observed.append(kwargs),
+    )
+    argv = [
+        "--prefetch-psycopg-" + operation,
+        "output",
+        "--index-url",
+        APPROVED_PROXY_URL,
+        "--trusted-host",
+        "packages.example.internal",
+    ]
+    expected: dict[str, object] = {
+        "output": Path("output"),
+        "index_url": APPROVED_PROXY_URL,
+        "trusted_host": "packages.example.internal",
+    }
+    if operation == "build-wheels":
+        argv.extend(("--python-executable", sys.executable))
+        expected["python_executable"] = sys.executable
+    assert installer.main(argv) == 0
+    assert observed == [expected]
 
 
 def test_main_single_source_build_preserves_the_four_explicit_inputs(
@@ -626,7 +736,7 @@ def test_consume_only_rejects_mixed_modes_and_missing_store() -> None:
 
 
 @pytest.mark.parametrize("sdk_source", ("environment", "argument"))
-@pytest.mark.parametrize("operation", ("install", "prefetch", "consume"))
+@pytest.mark.parametrize("operation", ("install", "prefetch", "consume", "install-upgrade"))
 def test_main_rejects_sdk_without_c_consumer_before_side_effects(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -650,8 +760,10 @@ def test_main_rejects_sdk_without_c_consumer_before_side_effects(
         monkeypatch.setenv(installer.PSYCOPG_SDK_ENV, str(sdk))
     else:
         arguments.extend(("--psycopg-sdk", str(sdk)))
-    if operation != "install":
+    if operation in ("prefetch", "consume"):
         arguments.extend((f"--{operation}-only", "--wheelhouse-dir", str(wheelhouse)))
+    elif operation == "install-upgrade":
+        arguments.append("--upgrade-pip")
     monkeypatch.setattr(
         installer, "resolve_private_proxy_settings", lambda **kwargs: (APPROVED_PROXY_URL, None)
     )
@@ -663,6 +775,7 @@ def test_main_rejects_sdk_without_c_consumer_before_side_effects(
 
     for name in (
         "run_dependency_floor_preflight",
+        "upgrade_pip",
         "acquire_locked_wheelhouse",
         "_validate_exact_wheelhouse",
         "read_psycopg_c_sdk",
@@ -678,6 +791,219 @@ def test_main_rejects_sdk_without_c_consumer_before_side_effects(
     )
     assert not sdk.exists()
     assert not wheelhouse.exists()
+
+
+@pytest.mark.parametrize("sdk_source", ("environment", "argument"))
+@pytest.mark.parametrize("operation", ("install", "prefetch", "consume", "install-upgrade"))
+def test_main_psycopg_sdk_rejects_other_interpreter_before_sdk_effects(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    sdk_source: str,
+    operation: str,
+) -> None:
+    requirements = tmp_path / "requirements.txt"
+    requirements.write_text("psycopg[c]==3.3.4\npsycopg-c==3.3.4\n", encoding="utf-8")
+    constraints = tmp_path / "constraints.txt"
+    constraints.write_text("", encoding="utf-8")
+    target = _write_executable(tmp_path / "different-python")
+    sdk = tmp_path / "unread-sdk"
+    wheelhouse = tmp_path / "uncreated-wheelhouse"
+    arguments = [
+        "--python-executable",
+        str(target),
+        "--requirements-file",
+        str(requirements),
+        "--constraints-file",
+        str(constraints),
+    ]
+    if sdk_source == "environment":
+        monkeypatch.setenv(installer.PSYCOPG_SDK_ENV, str(sdk))
+    else:
+        arguments.extend(("--psycopg-sdk", str(sdk)))
+    if operation in ("prefetch", "consume"):
+        arguments.extend(("--" + operation + "-only", "--wheelhouse-dir", str(wheelhouse)))
+    elif operation == "install-upgrade":
+        arguments.append("--upgrade-pip")
+    monkeypatch.setattr(
+        installer, "resolve_private_proxy_settings", lambda **kwargs: (APPROVED_PROXY_URL, None)
+    )
+
+    def forbidden(*args: object, **kwargs: object) -> None:
+        raise AssertionError(
+            "Cross-interpreter SDK input must fail before source or install effects"
+        )
+
+    for name in (
+        "read_psycopg_c_sdk",
+        "_stage_psycopg_sdk_wheel",
+        "acquire_locked_wheelhouse",
+        "_validate_exact_wheelhouse",
+        "upgrade_pip",
+        "install_with_guard",
+        "run_command",
+    ):
+        monkeypatch.setattr(installer, name, forbidden)
+    assert installer.main(arguments) == 1
+    assert "require the installer interpreter or its venv symlink" in capsys.readouterr().out
+    assert not sdk.exists()
+    assert not wheelhouse.exists()
+
+
+def test_psycopg_sdk_direct_acquisition_rejects_other_interpreter_before_directory_creation(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    requirements = tmp_path / "requirements.txt"
+    requirements.write_text("psycopg[c]==3.3.4\npsycopg-c==3.3.4\n", encoding="utf-8")
+    target = _write_executable(tmp_path / "different-python")
+    wheelhouse = tmp_path / "new-wheelhouse"
+    sdk = tmp_path / "unread-sdk"
+
+    def forbidden(*args: object, **kwargs: object) -> None:
+        raise AssertionError("Direct SDK acquisition must reject before staging or download")
+
+    monkeypatch.setattr(installer, "_stage_psycopg_sdk_wheel", forbidden)
+    monkeypatch.setattr(installer, "build_wheelhouse", forbidden)
+    with pytest.raises(RuntimeError, match="require the installer interpreter or its venv symlink"):
+        installer.acquire_locked_wheelhouse(
+            python_executable=str(target),
+            requirement_files=[requirements],
+            constraints_file=None,
+            wheelhouse=wheelhouse,
+            index_url=APPROVED_PROXY_URL,
+            trusted_host=None,
+            sdk=sdk,
+        )
+    assert not wheelhouse.exists()
+    assert not sdk.exists()
+
+
+def test_psycopg_sdk_disappearing_target_is_runtime_error_before_acquisition(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    requirements = tmp_path / "requirements.txt"
+    requirements.write_text("psycopg[c]==3.3.4\npsycopg-c==3.3.4\n", encoding="utf-8")
+    target = _write_executable(tmp_path / "disappearing-python")
+    sdk = tmp_path / "unread-sdk"
+    wheelhouse = tmp_path / "uncreated-wheelhouse"
+    real_resolve = installer.resolve_python_executable
+    resolutions: list[str] = []
+
+    def resolve_then_remove(value: str) -> str:
+        resolved = real_resolve(value)
+        resolutions.append(resolved)
+        target.unlink()
+        return resolved
+
+    def forbidden(*args: object, **kwargs: object) -> None:
+        raise AssertionError("Disappearing SDK target must fail before SDK read or acquisition")
+
+    monkeypatch.setattr(installer, "resolve_python_executable", resolve_then_remove)
+    monkeypatch.setattr(installer, "read_psycopg_c_sdk", forbidden)
+    monkeypatch.setattr(installer, "_stage_psycopg_sdk_wheel", forbidden)
+    monkeypatch.setattr(installer, "build_wheelhouse", forbidden)
+    with pytest.raises(RuntimeError, match="Unable to compare the Psycopg SDK target interpreter"):
+        installer.acquire_locked_wheelhouse(
+            python_executable=str(target),
+            requirement_files=[requirements],
+            constraints_file=None,
+            wheelhouse=wheelhouse,
+            index_url=APPROVED_PROXY_URL,
+            trusted_host=None,
+            sdk=sdk,
+        )
+    assert resolutions == [str(target)]
+    assert not target.exists()
+    assert not sdk.exists()
+    assert not wheelhouse.exists()
+
+
+def test_psycopg_sdk_accepts_the_loader_interpreters_real_venv_symlink(tmp_path: Path) -> None:
+    invocation = tmp_path / "venv" / "bin" / "python"
+    invocation.parent.mkdir(parents=True)
+    invocation.symlink_to(sys.executable)
+    installer._require_psycopg_sdk_interpreter(str(invocation))
+
+
+def test_main_without_sdk_preserves_a_different_target_interpreter(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    requirements = tmp_path / "requirements.txt"
+    requirements.write_text("example==1.0\n", encoding="utf-8")
+    constraints = tmp_path / "constraints.txt"
+    constraints.write_text("", encoding="utf-8")
+    target = _write_executable(tmp_path / "different-python")
+    observed: list[str] = []
+    monkeypatch.setattr(
+        installer, "resolve_private_proxy_settings", lambda **kwargs: (APPROVED_PROXY_URL, None)
+    )
+    monkeypatch.setattr(
+        installer,
+        "install_with_guard_from_proxy",
+        lambda **kwargs: observed.append(kwargs["python_executable"]) or 0,
+    )
+    assert (
+        installer.main(
+            [
+                "--python-executable",
+                str(target),
+                "--requirements-file",
+                str(requirements),
+                "--constraints-file",
+                str(constraints),
+                "--install-mode",
+                "direct-proxy",
+            ]
+        )
+        == 0
+    )
+    assert observed == [str(target)]
+
+
+@pytest.mark.parametrize(
+    ("operation", "expected"),
+    (
+        (["--preflight-only"], ["preflight"]),
+        (["--preflight-only", "--upgrade-pip"], ["upgrade", "preflight"]),
+        (["--upgrade-pip-only"], ["upgrade"]),
+    ),
+)
+def test_main_sdk_target_guard_does_not_widen_standalone_operations(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    operation: list[str],
+    expected: list[str],
+) -> None:
+    target = _write_executable(tmp_path / "different-python")
+    observed: list[str] = []
+    monkeypatch.setattr(
+        installer, "resolve_private_proxy_settings", lambda **kwargs: (APPROVED_PROXY_URL, None)
+    )
+    monkeypatch.setattr(
+        installer, "upgrade_pip", lambda *args, **kwargs: observed.append("upgrade")
+    )
+    monkeypatch.setattr(
+        installer, "run_dependency_floor_preflight", lambda **kwargs: observed.append("preflight")
+    )
+
+    def forbidden(*args: object, **kwargs: object) -> None:
+        raise AssertionError("Standalone operations must not resolve ordinary install profiles")
+
+    monkeypatch.setattr(installer, "resolve_requirement_files", forbidden)
+    monkeypatch.setattr(installer, "read_psycopg_c_sdk", forbidden)
+    assert (
+        installer.main(
+            [
+                "--python-executable",
+                str(target),
+                "--psycopg-sdk",
+                str(tmp_path / "unread-sdk"),
+                *operation,
+            ]
+        )
+        == 0
+    )
+    assert observed == expected
 
 
 @pytest.mark.parametrize(

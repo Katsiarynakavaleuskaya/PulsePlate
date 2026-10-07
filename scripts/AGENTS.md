@@ -114,6 +114,14 @@
   addresses/routes; interface names alone grant no exception. Other packages
   retain binary-only admission. Consume genuine matching SDK wheels, never
   metadata-only resolver substitutes.
+  Dedicated source/build-wheel prefetch operations reject explicit install modifiers
+  before interpreter/proxy resolution; only build-wheel prefetch consumes a target
+  Python option. Ordinary SDK install/prefetch/consume operations use the installer
+  interpreter or its venv symlink and reject another interpreter before pip upgrade,
+  SDK staging or wheelhouse creation. Preflight-only and upgrade-only modes retain
+  their existing behavior; binary-only installs retain target-Python selection.
+  Dedicated SDK builds reject an explicit target-Python option because the
+  unchanged four-input build uses its loader interpreter.
 - Before closing a native SDK dependency migration, enumerate every governed compiled profile
   and real CI/local caller. Verify actual extras, matching SDK/platform handoff and the owning
   workflow tests; a selected-profile pass cannot establish complete caller coverage. Inspect

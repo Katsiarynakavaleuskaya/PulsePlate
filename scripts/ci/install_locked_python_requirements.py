@@ -1717,6 +1717,19 @@ def _path_qualified_python_executable_for_probe(python_executable: str) -> str:
     return resolve_python_executable(python_executable)
 
 
+def _require_psycopg_sdk_interpreter(python_executable: str) -> None:
+    """Allow this loader interpreter, including its venv symlinks, for the exact SDK."""
+    target = Path(_path_qualified_python_executable_for_probe(python_executable))
+    try:
+        matches_loader = target.samefile(sys.executable)
+    except OSError as exc:
+        raise RuntimeError("Unable to compare the Psycopg SDK target interpreter.") from exc
+    if not matches_loader:
+        raise RuntimeError(
+            "Psycopg C SDK operations require the installer interpreter or its venv symlink."
+        )
+
+
 def _target_python_wheel_tag_payload(python_executable: str) -> dict[str, object]:
     """Probe wheel-tag data from the requested target interpreter."""
     probe_python = _path_qualified_python_executable_for_probe(python_executable)
@@ -3504,6 +3517,8 @@ def acquire_locked_wheelhouse(
         raise RuntimeError("Only the admitted Psycopg C version can use source-built admission.")
     if needs_c and sdk is None:
         raise RuntimeError("This compiled profile requires its genuine matching Psycopg C SDK.")
+    if needs_c:
+        _require_psycopg_sdk_interpreter(python_executable)
     if wheelhouse.exists() or wheelhouse.is_symlink():
         raise RuntimeError("Prefetch wheelhouse destination must be new.")
     wheelhouse.mkdir(parents=True, mode=0o700)
@@ -3642,32 +3657,41 @@ def main(argv: Sequence[str] | None = None) -> int:
             raise RuntimeError(
                 "Psycopg build inputs require the explicit --build-psycopg-c operation."
             )
+        explicit_options = {value.split("=", 1)[0] for value in child_args}
+        psycopg_install_options = {
+            "--requirements-file",
+            "--dev-requirements-file",
+            "--test-requirements-file",
+            "--ci-lite-requirements-file",
+            "--rag-vector-requirements-file",
+            "--constraints-file",
+            "--requirements-profile",
+            "--install-dev",
+            "--install-test",
+            "--require-virtualenv",
+            "--upgrade-pip",
+            "--upgrade-pip-spec",
+            "--guard-script",
+            "--emergency-wheel-manifest",
+            "--install-mode",
+            "--psycopg-sdk",
+            "--wheelhouse-dir",
+        }
+        if (
+            args.prefetch_psycopg_source is not None
+            or args.prefetch_psycopg_build_wheels is not None
+        ):
+            forbidden_options = psycopg_install_options
+            if args.prefetch_psycopg_source is not None:
+                forbidden_options = forbidden_options | {"--python-executable"}
+            if explicit_options & forbidden_options:
+                raise RuntimeError(
+                    "Psycopg prefetch operations do not accept install modifiers or unused target Python."
+                )
         args.python_executable = resolve_python_executable(args.python_executable)
         if args.build_psycopg_c:
-            if any(value is None for value in build_inputs) or any(
-                value.split("=", 1)[0]
-                in {
-                    "--requirements-file",
-                    "--dev-requirements-file",
-                    "--test-requirements-file",
-                    "--ci-lite-requirements-file",
-                    "--rag-vector-requirements-file",
-                    "--constraints-file",
-                    "--requirements-profile",
-                    "--install-dev",
-                    "--install-test",
-                    "--require-virtualenv",
-                    "--upgrade-pip",
-                    "--upgrade-pip-spec",
-                    "--guard-script",
-                    "--emergency-wheel-manifest",
-                    "--index-url",
-                    "--trusted-host",
-                    "--install-mode",
-                    "--psycopg-sdk",
-                    "--wheelhouse-dir",
-                }
-                for value in child_args
+            if any(value is None for value in build_inputs) or explicit_options & (
+                psycopg_install_options | {"--index-url", "--trusted-host", "--python-executable"}
             ):
                 raise RuntimeError(
                     "Exact Psycopg build requires all four explicit inputs and no acquisition/install mode."
@@ -3722,14 +3746,15 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"Python executable: {args.python_executable}")
             return 1
 
-        if args.upgrade_pip or args.upgrade_pip_only:
-            upgrade_pip(
-                args.python_executable,
-                pip_spec=args.upgrade_pip_spec,
-                index_url=index_url,
-                trusted_host=trusted_host,
-                emergency_wheel_manifest=args.emergency_wheel_manifest,
-            )
+        if args.preflight_only or args.upgrade_pip_only:
+            if args.upgrade_pip or args.upgrade_pip_only:
+                upgrade_pip(
+                    args.python_executable,
+                    pip_spec=args.upgrade_pip_spec,
+                    index_url=index_url,
+                    trusted_host=trusted_host,
+                    emergency_wheel_manifest=args.emergency_wheel_manifest,
+                )
         if args.upgrade_pip_only:
             return 0
 
@@ -3764,10 +3789,20 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
             for path in requirement_files
         )
+        if sdk is not None and not contains_c:
+            raise RuntimeError("The selected profile has no Psycopg C SDK consumer.")
+        if contains_c and sdk is not None:
+            _require_psycopg_sdk_interpreter(args.python_executable)
+        if args.upgrade_pip:
+            upgrade_pip(
+                args.python_executable,
+                pip_spec=args.upgrade_pip_spec,
+                index_url=index_url,
+                trusted_host=trusted_host,
+                emergency_wheel_manifest=args.emergency_wheel_manifest,
+            )
         if args.consume_only or args.prefetch_only or sdk is not None or contains_c:
             expected = _exact_locked_artifacts(requirement_files)
-            if sdk is not None and not contains_c:
-                raise RuntimeError("The selected profile has no Psycopg C SDK consumer.")
             if args.prefetch_only:
                 if args.wheelhouse_dir is None:
                     raise RuntimeError(
