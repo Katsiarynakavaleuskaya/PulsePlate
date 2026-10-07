@@ -280,6 +280,13 @@ Operator routing baseline before PR2 workflow consolidation:
 
 ## Native Python client build and lock refresh
 
+After proven candidate remediation, retire only the obsolete policy family and
+its exclusive dead rules. Copy exact tracked policy bytes through the existing
+scan-copy contract, run native historical visibility and typed-decoder controls,
+and convert the preserved full raw report with the terminal policy. Retain raw
+and effective finding identities and all residuals; zero effective findings or
+a version label cannot replace source/native proof or published-image repeat.
+
 Use the existing `Dockerfile` target `psycopg-sdk` for the exact supported
 Linux amd64 CPython family. The shared Python setup action chooses its matching
 immutable guest, exports the genuine wheel/native SDK and passes

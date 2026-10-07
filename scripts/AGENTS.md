@@ -92,6 +92,13 @@
 
 ## Native Docker image evidence
 
+- Retired native families remain real Trivy conversion controls with retained
+  findings. The full canonical `package trivy` / `import rego.v1` /
+  `default ignore := false` file alone is expiry-free. Missing, unreadable,
+  malformed or extra executable policies never inherit that exemption; active
+  suppressions retain review and hard-expiry validation. Scanner/decode errors
+  are errors, never successful negative controls or native-remediation proof.
+
 - Keep the client-only PostgreSQL SDK limited to configured password/SCRAM and
   verified TLS consumers. Unused GSS/LDAP features and their native package
   closure stay disabled; enabling them requires explicit scope and fresh
