@@ -37,6 +37,9 @@ services:
       - PERPLEXITY_API_KEY=${PERPLEXITY_API_KEY:-__replace_me__}
       - PERPLEXITY_ENDPOINT=${PERPLEXITY_ENDPOINT:-https://api.perplexity.ai}
       - PERPLEXITY_MODEL=${PERPLEXITY_MODEL:-sonar}
+      - FITCHEF_AGENT_API_ENABLED=${FITCHEF_AGENT_API_ENABLED:-false}
+      - FITCHEF_AGENT_API_MODEL=${FITCHEF_AGENT_API_MODEL:-}
+      - FITCHEF_AGENT_API_REASONING_EFFORT=${FITCHEF_AGENT_API_REASONING_EFFORT:-}
     volumes:
       - ./data:/app/data:ro
       - artifacts-volume:/app/artifacts:rw
@@ -90,6 +93,9 @@ services:
       - PERPLEXITY_API_KEY=${PERPLEXITY_API_KEY:-__replace_me__}
       - PERPLEXITY_ENDPOINT=${PERPLEXITY_ENDPOINT:-https://api.perplexity.ai}
       - PERPLEXITY_MODEL=${PERPLEXITY_MODEL:-sonar}
+      - FITCHEF_AGENT_API_ENABLED=${FITCHEF_AGENT_API_ENABLED:-false}
+      - FITCHEF_AGENT_API_MODEL=${FITCHEF_AGENT_API_MODEL:-}
+      - FITCHEF_AGENT_API_REASONING_EFFORT=${FITCHEF_AGENT_API_REASONING_EFFORT:-}
     volumes:
       - .:/app:rw
       - /app/__pycache__

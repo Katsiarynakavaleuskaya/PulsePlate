@@ -32,6 +32,84 @@ providers/
 
 ---
 
+### Development-only FitChef Agent API option
+
+The optional `PerplexityAgentProvider` is selected only by the two shared
+FitChef text/structured execution paths in `app/services/fitchef_runtime.py:224`.
+`FITCHEF_AGENT_API_ENABLED` defaults to `false`; absent/false keeps the existing
+`llm.get_provider()` selection, including the configured Sonar baseline. CBT
+coach insight and generic insight retain their existing selectors. This option
+does not change public routes, response models, OpenAPI, or retrieval ownership.
+
+Enabled requests require explicit developer-like raw environment labels through
+`settings.is_raw_explicit_developer_env()`. Production, staging, unknown, or
+absent labels fail closed before quota consumption or client allocation. Missing
+or invalid key, model, reasoning effort, flag, or oversized prompt also fails
+before quota consumption. The current feature/tier/input/RAG/audit gates retain
+their order, including the `provider://default` audit target.
+
+| Setting or boundary | Reviewed value |
+| --- | --- |
+| API transport | Existing `AsyncOpenAI` Responses SDK; fixed `https://api.perplexity.ai/v1` |
+| Model | Exactly one of `openai/gpt-6-luna`, `openai/gpt-6-sol`, `openai/gpt-6.1-sol`; explicit configuration |
+| Reasoning effort | Explicit `none` or `low` |
+| Tools and storage option | `tools=[]`, `store=false` |
+| Attempt budget | SDK retries and redirects disabled; no automatic Sonar reroute or second paid attempt |
+| Limits | 45-second SDK timeout; 32,768-byte prompt and output bounds; 2,048 output tokens |
+| Response admission | Completed, error-free, exact requested model, one final assistant text message; no tool output |
+
+The provider allocates an explicitly redirect-disabled owned HTTPX client only
+inside quota-admitted generation and closes owned resources on success, failure,
+SDK allocation error, and cancellation. Injected clients remain caller-owned:
+unsafe redirect-following or closed clients fail before quota/client allocation,
+are rechecked before generation, and are never mutated or closed by the adapter.
+The native SDK request-options hook copies its options and pins
+`follow_redirects=False` for each send, including when a borrowed client flag
+changes after admission. A redirect stops after the initial request and becomes
+the existing sanitized unavailable error; no second destination receives body
+or credentials (`providers/perplexity_agent.py:48`).
+
+Adapter-created SDK instances explicitly disable the `OPENAI_ORG_ID`,
+`OPENAI_PROJECT_ID`, and `OPENAI_WEBHOOK_SECRET` constructor defaults. The
+native request hook removes exactly `OpenAI-Organization` and `OpenAI-Project`
+from each prepared request after HTTPX merges default headers, using its
+case-insensitive header API. Borrowed client defaults remain unchanged. This
+covers the named SDK/default-header sources; arbitrary later caller auth,
+event-hook, or transport mutations are outside this guarantee. Webhook evidence
+concerns SDK state, not an outgoing webhook header
+(`providers/perplexity_agent.py:56`).
+
+The explicit 6.1 identifier is an internal configuration option, tested through
+the real SDK with mock transport. The retained single real transport smoke used
+Luna. Neither catalog naming nor deterministic acceptance proves key-specific
+6.1 availability, live reasoning support, coaching quality, billing, privacy,
+or activation. The option remains disabled by default.
+
+The provider adapter sanitizes SDK exceptions
+without attaching raw SDK errors, prompt, key, or response body to logged
+tracebacks. A request-local `ContextVar` filter suppresses all records on exactly
+`openai._base_client` and `openai._response` during the entire active or inherited
+Agent request context, including nested SDK calls and child tasks that outlive
+the parent context reset. Independent contexts outside Agent retain diagnostics;
+this makes no broader concurrent/nested SDK observability promise
+(`providers/perplexity_agent.py:25`).
+Existing public timeout `504`,
+provider-unavailable `503`, and user quota `429` contracts remain unchanged.
+Text still enters the current structured draft, wellness validation, and
+template fallback path. It supplies no planner, nutrition, entitlement, action,
+source-support, or clinical authority. Deterministic SDK/route tests live in
+`tests/test_perplexity_agent_provider.py:81`.
+
+This option is admitted only for synthetic development experiments. Agent API
+`store=false` must not be treated as proof of zero retention, privacy consent,
+answer quality, or release readiness. Real-user activation remains blocked on
+reviewed Agent privacy/consent and the separately owned high-distress validator
+prerequisite #2430. Three exploratory development cases are transport/comparison
+evidence only; NOOS-1C owns later locale, task-specific routing, and Luna/Sol
+promotion. Search API research remains a separate retrieval lane.
+
+---
+
 ## 🔍 Implementation Details
 
 ### 1. ProviderBase Protocol
@@ -268,20 +346,27 @@ def get_provider():
 - `docs/finetune/README.md` — mentions providers
 - `docs/archive/2025-09-16/` — historical docs
 
-### Where Providers Are NOT Used (directly)
+### Direct Provider Imports
 
-**Verified via (reproducible check):**
-- Run: `rg -n --type=py 'providers\.' app/routers app/services`
-- Expected outcome: **no matches** (no direct `providers.*` imports in those directories).
+FitChef runtime lazily imports the development-only Agent adapter at
+`app/services/fitchef_runtime.py:241`; ordinary default selection continues
+through `llm.get_provider()`. Route handlers retain service delegation.
 
 **1. `app/routers/` (directly):**
-- No direct imports of `providers/*` (LLM wiring for insight currently lives in `legacy_app.py`)
+- `app/routers/legacy_insight.py:50` delegates to
+  `app/services/insight_compat.py:13` and the shared app service seam; provider
+  preparation remains
+  in `core/ai/insight_runtime.py` and ordinary selection in `llm.py`.
 
 **2. `app/services/` (directly):**
-- No direct `providers/*` usage (LLM integration is routed through `llm.py` and called from `legacy_app.py`)
+- The optional FitChef selector imports `providers.perplexity_agent` only after
+  explicit flag and development-environment admission.
 
 **3. Core domain:**
-- No LLM calls in `core/` modules
+- AI runtime preparation lives in `core/ai/insight_runtime.py:174`; the deeper
+  philosophical runtime executes `provider.generate(...)` at
+  `core/insight/philosophical_runtime.py:490`. Provider text remains advisory
+  and does not own nutrition, planner, or entitlement calculations.
 
 ---
 
