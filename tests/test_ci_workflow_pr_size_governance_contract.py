@@ -4257,6 +4257,17 @@ def test_ci_changes_outputs_cover_risk_profile_outputs() -> None:
     )
 
 
+MERGE_GOVERNANCE_OWNER_TARGETS = (
+    "tests/test_check_pr_size_governance.py",
+    "tests/test_ci_risk_profile.py",
+    "tests/test_orchestration_merge_ready.py",
+    "tests/test_pr_body_phase2_gates.py",
+    "tests/test_pr_merge_readiness_gate.py",
+    "tests/test_pr_review_closeout.py",
+    "tests/test_review_threads_disposition_strict.py",
+)
+
+
 def test_contract_risk_suite_blocks_stay_in_sync_and_cover_required_targets() -> None:
     workflow = _load_ci_workflow()
     test_pr_groups = _contract_suite_targets_by_group(workflow, job_id="test-pr")
@@ -4300,6 +4311,7 @@ def test_contract_risk_suite_blocks_stay_in_sync_and_cover_required_targets() ->
     assert "tests/test_scheduler_final_coverage.py" in test_feature_groups["food_catalog"]
     assert set(ci_risk_profile.ALL_RISK_GROUPS).issubset(test_pr_groups)
     assert test_pr_groups["operator_plane_slack"] == expected_slack_operator_targets
+    assert test_pr_groups["merge_governance"] == MERGE_GOVERNANCE_OWNER_TARGETS
     for groups in (test_pr_groups, test_feature_groups):
         route_targets = groups["route_contract_safety"]
         db_targets = tuple(
@@ -4324,6 +4336,77 @@ def test_contract_risk_suite_blocks_stay_in_sync_and_cover_required_targets() ->
     )
     assert "tests/test_legacy_weekly_plan_alias_api.py" in test_pr_groups["route_contract_safety"]
     assert "tests/test_route_family_bootstrap.py" in test_pr_groups["route_contract_safety"]
+
+
+@pytest.mark.parametrize("job_id", ["test-pr", "test-feature"])
+@pytest.mark.parametrize("mutation", ["valid", "omitted", "commented"])
+def test_closeout_owner_is_an_executed_merge_governance_argument(
+    tmp_path: Path, job_id: str, mutation: str
+) -> None:
+    """Execute each declared group selector and observe its actual pytest argv."""
+    import sys
+
+    workflow = _load_ci_workflow()
+    step = _job_step_by_name(workflow, job_id=job_id, step_name="Contract and risk suites")
+    run = str(step["run"])
+    target = "tests/test_pr_review_closeout.py"
+    line = next(line for line in run.splitlines(keepends=True) if line.strip() == f"{target} \\")
+    assert run.count(line) == 1
+    if mutation != "valid":
+        run = run.replace(line, "", 1)
+        if mutation == "commented":
+            header = "merge_governance)\n"
+            assert run.count(header) == 1
+            run = run.replace(header, f"{header}  # {target}\n", 1)
+    step["run"] = run
+    parsed = _contract_suite_targets_by_group(workflow, job_id=job_id)["merge_governance"]
+    assert (target in parsed) is (mutation == "valid")
+    observer = tmp_path / "python"
+    observer.write_text(
+        "#!"
+        + sys.executable
+        + "\n"
+        + "import json, sys\nfrom pathlib import Path\n"
+        + 'Path("observed-argv.json").write_text(json.dumps(sys.argv[1:]))\n',
+        encoding="utf-8",
+    )
+    observer.chmod(0o755)
+    bash = shutil.which("bash")
+    assert bash is not None
+    result = subprocess.run(
+        [bash, "-c", run],
+        cwd=tmp_path,
+        env={
+            "PATH": str(tmp_path) + os.pathsep + os.defpath,
+            "CONTRACT_RISK_GROUPS": "merge_governance",
+            "GH_TOKEN": "opaque",
+            "GITHUB_TOKEN": "opaque",
+        },
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    argv = json.loads((tmp_path / "observed-argv.json").read_text())
+    expected = [
+        owner for owner in MERGE_GOVERNANCE_OWNER_TARGETS if mutation == "valid" or owner != target
+    ]
+    assert argv == [
+        "-m",
+        "coverage",
+        "run",
+        "--append",
+        "-m",
+        "pytest",
+        "-q",
+        "-p",
+        "no:xdist",
+        *sorted(expected),
+        "--junitxml=tests/contract-results-1.xml",
+        "-o",
+        "junit_family=legacy",
+    ]
 
 
 @pytest.mark.parametrize("job_id", ["test-pr", "test-feature"])
@@ -5965,15 +6048,20 @@ def test_fitchef_zero_hit_git_fixture_preserves_an_inherited_synthetic_parent(
     assert {name: (metadata / name).read_bytes() for name in before} == before
 
 
-ORCHESTRATION_COVERAGE_FILES = (
-    "scripts/orchestration/pr_oracle_attachment.py",
-    "scripts/orchestration/experiment_runner_dispatch.py",
-    "scripts/orchestration/qoder_dispatch_bridge.py",
-    "scripts/orchestration/task_bootstrap.py",
-    "scripts/orchestration/render_codex_start_prompt.py",
-    "scripts/orchestration/experiment_runner.py",
-    "scripts/orchestration/experiment_runner_pr_creative_context.py",
-)
+ORCHESTRATION_COVERAGE_OWNERS = {
+    "scripts/orchestration/pr_oracle_attachment.py": "tests/test_pr_oracle_attachment.py",
+    "scripts/orchestration/experiment_runner_dispatch.py": "tests/test_experiment_runner_dispatch.py",
+    "scripts/orchestration/qoder_dispatch_bridge.py": "tests/test_qoder_dispatch_bridge.py",
+    "scripts/orchestration/task_bootstrap.py": "tests/test_task_bootstrap.py",
+    "scripts/orchestration/render_codex_start_prompt.py": "tests/test_render_codex_start_prompt.py",
+    "scripts/orchestration/experiment_runner.py": "tests/test_experiment_runner.py",
+    "scripts/orchestration/experiment_runner_pr_creative_context.py": (
+        "tests/test_experiment_runner_pr_creative_context.py"
+    ),
+    "scripts/orchestration/pr_review_evidence.py": "tests/test_pr_merge_readiness_gate.py",
+    "scripts/orchestration/pr_review_closeout.py": "tests/test_pr_review_closeout.py",
+}
+ORCHESTRATION_COVERAGE_FILES = tuple(ORCHESTRATION_COVERAGE_OWNERS)
 
 
 def test_orchestration_coverage_uses_isolated_required_same_run_numeric_report() -> None:
@@ -5985,8 +6073,8 @@ def test_orchestration_coverage_uses_isolated_required_same_run_numeric_report()
     assert "--rcfile=/dev/null --branch" in run
     assert f"--include='{','.join(ORCHESTRATION_COVERAGE_FILES)}'" in run
     assert "--data-file=.coverage.orchestration -m pytest -q -p no:xdist" in run
-    for filename in ORCHESTRATION_COVERAGE_FILES:
-        assert f"tests/test_{Path(filename).stem}.py" in run
+    for target in ORCHESTRATION_COVERAGE_OWNERS.values():
+        assert target in run
     assert "--data-file=.coverage.orchestration -o coverage-orchestration.xml" in run
     assert "--append" not in run
     assert measure["env"]["BLOCK_TEST_NETWORK"] == "true"
@@ -6017,6 +6105,90 @@ def test_orchestration_coverage_uses_isolated_required_same_run_numeric_report()
     assert "./orchestration-coverage/coverage-orchestration.xml" in gate["run"]
     assert "--exclude 'scripts" not in gate["run"]
     assert '--fail-under "${{ env.COVERAGE_THRESHOLD }}"' in gate["run"]
+
+
+@pytest.mark.parametrize("filename", ORCHESTRATION_COVERAGE_FILES)
+@pytest.mark.parametrize(
+    "mutation", ["valid", "omit-target", "comment-target", "omit-source", "comment-source"]
+)
+def test_orchestration_producer_executes_actual_source_owner_arguments(
+    tmp_path: Path, filename: str, mutation: str
+) -> None:
+    """Observe real shell argv; the existing native XML checker executes unchanged."""
+    import sys
+
+    step = _job_step_by_name(
+        _load_ci_workflow(), job_id="test-pr", step_name="Measure orchestration CLI coverage"
+    )
+    run = str(step["run"])
+    token = filename if mutation.endswith("source") else ORCHESTRATION_COVERAGE_OWNERS[filename]
+    if mutation != "valid":
+        if mutation.endswith("source"):
+            includes = ",".join(ORCHESTRATION_COVERAGE_FILES)
+            replacement = ",".join(
+                path for path in ORCHESTRATION_COVERAGE_FILES if path != filename
+            )
+            assert run.count(includes) == 1
+            run = run.replace(includes, replacement, 1)
+        else:
+            assert run.count(token) == 1
+            run = run.replace(token, "", 1)
+        if mutation.startswith("comment"):
+            run += f"\n# {token}\n"
+    sources = list(ORCHESTRATION_COVERAGE_OWNERS)
+    targets = list(ORCHESTRATION_COVERAGE_OWNERS.values())
+    observer = tmp_path / "python"
+    observer.write_text(
+        "#!"
+        + sys.executable
+        + "\n"
+        + "import json, os, subprocess, sys\nfrom pathlib import Path\n"
+        + "from xml.etree import ElementTree\n"
+        + f"sources = {sources!r}\ntargets = {targets!r}\n"
+        + """
+args = sys.argv[1:]
+if args == ["-"]:
+    result = subprocess.run([os.environ["ORCHESTRATION_TEST_PYTHON"], "-"], input=sys.stdin.buffer.read(), check=False)
+    raise SystemExit(result.returncode)
+if args[:3] == ["-m", "coverage", "run"]:
+    if [arg for arg in args if arg.startswith("--include=")] != ["--include=" + ",".join(sources)]:
+        raise SystemExit(41)
+    if args[args.index("pytest") + 1:] != ["-q", "-p", "no:xdist", *targets]:
+        raise SystemExit(42)
+    Path("observed-targets.json").write_text(json.dumps(targets))
+elif args[:3] == ["-m", "coverage", "xml"]:
+    root = ElementTree.Element("coverage")
+    classes = ElementTree.SubElement(root, "classes")
+    for source in sources:
+        lines = ElementTree.SubElement(ElementTree.SubElement(classes, "class", filename=source), "lines")
+        ElementTree.SubElement(lines, "line", number="1", hits="0")
+    ElementTree.ElementTree(root).write("coverage-orchestration.xml")
+else:
+    raise SystemExit(43)
+""",
+        encoding="utf-8",
+    )
+    observer.chmod(0o755)
+    bash = shutil.which("bash", path=os.defpath)
+    assert bash is not None
+    result = subprocess.run(
+        [bash, "-c", run],
+        cwd=tmp_path,
+        env={
+            "PATH": str(tmp_path) + os.pathsep + os.defpath,
+            "ORCHESTRATION_TEST_PYTHON": sys.executable,
+            "GH_TOKEN": "opaque",
+            "GITHUB_TOKEN": "opaque",
+        },
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
+    )
+    expected = 0 if mutation == "valid" else 41 if mutation.endswith("source") else 42
+    assert result.returncode == expected, result.stderr
+    if mutation == "valid":
+        assert json.loads((tmp_path / "observed-targets.json").read_text()) == targets
 
 
 @pytest.mark.parametrize("filename", ORCHESTRATION_COVERAGE_FILES)

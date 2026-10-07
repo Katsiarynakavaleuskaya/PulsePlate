@@ -336,6 +336,45 @@ def test_governance_tests_hit_merge_governance_group() -> None:
     assert profile.contract_risk_groups == ("merge_governance",)
 
 
+@pytest.mark.parametrize(
+    "changed_file",
+    [
+        "scripts/orchestration/pr_review_evidence.py",
+        "scripts/orchestration/pr_review_closeout.py",
+        "tests/test_pr_review_closeout.py",
+    ],
+)
+def test_closeout_owners_independently_select_merge_governance(changed_file: str) -> None:
+    profile = risk_profile.build_risk_profile([changed_file])
+    assert profile.backend_shared is True
+    assert profile.run_security is True
+    assert profile.merge_governance is True
+    assert profile.contract_risk_groups == ("merge_governance",)
+
+
+@pytest.mark.parametrize(
+    "changed_file",
+    [
+        "scripts/orchestration/pr_review_evidence_helper.py",
+        "scripts/orchestration/pr_review_evidence.py.bak",
+        "scripts/orchestration/pr_review_evidence.txt",
+        "scripts/orchestration/nested/pr_review_evidence.py",
+        "scripts/orchestration/pr_review_closeout_helper.py",
+        "scripts/orchestration/pr_review_closeout.py.bak",
+        "scripts/orchestration/pr_review_closeout.txt",
+        "scripts/orchestration/nested/pr_review_closeout.py",
+        "tests/test_pr_review_closeout_helper.py",
+        "tests/test_pr_review_closeout.py.bak",
+        "tests/test_pr_review_closeout.txt",
+        "tests/nested/test_pr_review_closeout.py",
+    ],
+)
+def test_closeout_owner_lookalikes_do_not_select_merge_governance(changed_file: str) -> None:
+    profile = risk_profile.build_risk_profile([changed_file])
+    assert profile.merge_governance is False
+    assert "merge_governance" not in profile.contract_risk_groups
+
+
 def test_billing_router_change_hits_billing_and_openapi_groups() -> None:
     profile = risk_profile.build_risk_profile(
         ["app/routers/billing.py"],

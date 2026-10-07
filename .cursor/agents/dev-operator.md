@@ -110,10 +110,21 @@ Before repeating workflow or test edits, locate a unique owning-section anchor
 and inspect the complete affected section. Require the intended match count
 before replacement, then inspect that section's diff for neighboring changes.
 
+For admission repairs, compare the registered producer with its strict consumer
+under root `AGENTS.md` Review Governance and
+`docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md`. Preserve distinct native
+posting and revision witnesses. Verify the actual generated candidate through
+its consumer; manually changing candidate bytes or permissions does not repair
+the producer.
+
 Use separate stdout/stderr capture destinations for each command attempt.
 Retain the original failed capture before rerunning. If a full log is unavailable,
 label any recovered raw excerpt as an excerpt and keep the missing full-log
 boundary explicit; a successful rerun does not reconstruct earlier output.
+
+Serialize validation that reads unstaged source with Git commit hooks: pre-commit
+temporarily stashes those files. Wait for source restoration and verify the
+intended snapshot before rerunning a check that observed mixed source versions.
 
 ## Synthetic Git fixture isolation
 
