@@ -14278,3 +14278,2103 @@ def test_consol_nested_api_namespace_member_call_uses_existing_result_binding(
         )
         == expected
     )
+
+
+@pytest.mark.parametrize(
+    ("case_name", "assignment", "mutation", "observed_mapping", "scope", "expected_method"),
+    [
+        pytest.param(
+            "direct-attribute",
+            "Holder.route_map = routes",
+            'Holder.route_map["route"] = app.get',
+            "routes",
+            "module",
+            "dynamic",
+            id="direct-attribute",
+        ),
+        pytest.param(
+            "tuple-attribute",
+            "Holder.route_map, ignored = routes, 0",
+            'Holder.route_map["route"] = app.get',
+            "routes",
+            "module",
+            "dynamic",
+            id="tuple-attribute",
+        ),
+        pytest.param(
+            "list-attribute",
+            "[Holder.route_map, ignored] = [routes, 0]",
+            'Holder.route_map["route"] = app.get',
+            "routes",
+            "module",
+            "dynamic",
+            id="list-attribute",
+        ),
+        pytest.param(
+            "nested-tuple-list-attribute",
+            "ignored, [Holder.route_map] = 0, [routes]",
+            'Holder.route_map["route"] = app.get',
+            "routes",
+            "module",
+            "dynamic",
+            id="nested-tuple-list-attribute",
+        ),
+        pytest.param(
+            "nested-list-tuple-attribute",
+            "[(Holder.route_map,), ignored] = [(routes,), 0]",
+            'Holder.route_map["route"] = app.get',
+            "routes",
+            "module",
+            "dynamic",
+            id="nested-list-tuple-attribute",
+        ),
+        pytest.param(
+            "direct-subscript",
+            'holder_values["map"] = routes',
+            'holder_values["map"]["route"] = app.get',
+            "routes",
+            "module",
+            "dynamic",
+            id="direct-subscript",
+        ),
+        pytest.param(
+            "tuple-subscript",
+            'holder_values["map"], ignored = routes, 0',
+            'holder_values["map"]["route"] = app.get',
+            "routes",
+            "module",
+            "dynamic",
+            id="tuple-subscript",
+        ),
+        pytest.param(
+            "list-subscript",
+            '[holder_values["map"], ignored] = [routes, 0]',
+            'holder_values["map"]["route"] = app.get',
+            "routes",
+            "module",
+            "dynamic",
+            id="list-subscript",
+        ),
+        pytest.param(
+            "nested-tuple-list-subscript",
+            'ignored, [holder_values["map"]] = 0, [routes]',
+            'holder_values["map"]["route"] = app.get',
+            "routes",
+            "module",
+            "dynamic",
+            id="nested-tuple-list-subscript",
+        ),
+        pytest.param(
+            "nested-list-tuple-subscript",
+            '[(holder_values["map"],), ignored] = [(routes,), 0]',
+            'holder_values["map"]["route"] = app.get',
+            "routes",
+            "module",
+            "dynamic",
+            id="nested-list-tuple-subscript",
+        ),
+        pytest.param(
+            "starred-attribute",
+            "Holder.route_map, *ignored = routes, 0",
+            'Holder.route_map["route"] = app.get',
+            "routes",
+            "module",
+            "dynamic",
+            id="starred-attribute",
+        ),
+        pytest.param(
+            "starred-subscript",
+            'holder_values["map"], *ignored = routes, 0',
+            'holder_values["map"]["route"] = app.get',
+            "routes",
+            "module",
+            "dynamic",
+            id="starred-subscript",
+        ),
+        pytest.param(
+            "chained-attribute",
+            "Holder.route_map, ignored = alias, other = routes, 0",
+            'Holder.route_map["route"] = app.get',
+            "routes",
+            "module",
+            "dynamic",
+            id="chained-attribute",
+        ),
+        pytest.param(
+            "chained-subscript",
+            'holder_values["map"], ignored = alias, other = routes, 0',
+            'holder_values["map"]["route"] = app.get',
+            "routes",
+            "module",
+            "dynamic",
+            id="chained-subscript",
+        ),
+        pytest.param(
+            "unmatched-rhs-attribute",
+            "sequence = (routes, 0)\nHolder.route_map, ignored = sequence",
+            'Holder.route_map["route"] = app.get',
+            "routes",
+            "module",
+            "dynamic",
+            id="unmatched-rhs-attribute",
+        ),
+        pytest.param(
+            "unmatched-rhs-subscript",
+            'sequence = (routes, 0)\nholder_values["map"], ignored = sequence',
+            'holder_values["map"]["route"] = app.get',
+            "routes",
+            "module",
+            "dynamic",
+            id="unmatched-rhs-subscript",
+        ),
+        pytest.param(
+            "local-tuple",
+            "alias, ignored = routes, 0",
+            'Holder.unrelated["route"] = app.get',
+            "alias",
+            "module",
+            None,
+            id="local-tuple",
+        ),
+        pytest.param(
+            "local-list",
+            "[alias, ignored] = [routes, 0]",
+            'Holder.unrelated["route"] = app.get',
+            "alias",
+            "module",
+            None,
+            id="local-list",
+        ),
+        pytest.param(
+            "local-nested",
+            "ignored, [alias] = 0, [routes]",
+            'Holder.unrelated["route"] = app.get',
+            "alias",
+            "module",
+            None,
+            id="local-nested",
+        ),
+        pytest.param(
+            "copy-tuple",
+            "Holder.route_map, ignored = copied, 0",
+            'Holder.route_map["route"] = app.get',
+            "routes",
+            "module",
+            None,
+            id="copy-tuple",
+        ),
+        pytest.param(
+            "copy-list",
+            "[Holder.route_map, ignored] = [copied, 0]",
+            'Holder.route_map["route"] = app.get',
+            "routes",
+            "module",
+            None,
+            id="copy-list",
+        ),
+        pytest.param(
+            "copy-nested",
+            "ignored, [Holder.route_map] = 0, [copied]",
+            'Holder.route_map["route"] = app.get',
+            "routes",
+            "module",
+            None,
+            id="copy-nested",
+        ),
+        pytest.param(
+            "nonlocal-outward",
+            "alias = None\nclass Scope:\n    nonlocal alias\n    ([alias],) = ([routes],)",
+            'Holder.unrelated["route"] = app.get',
+            "alias",
+            "function",
+            None,
+            id="nonlocal-outward",
+        ),
+    ],
+)
+def test_consol_paired_attribute_publication_preserves_mapping_escape(
+    case_name: str,
+    assignment: str,
+    mutation: str,
+    observed_mapping: str,
+    scope: Literal["module", "function"],
+    expected_method: Literal["dynamic"] | None,
+) -> None:
+    """Paired escape withdraws certainty only for the published mutable identity."""
+    route = f"/api/v1/paired-publication-{case_name}"
+    body = (
+        'routes = {"route": None}\n'
+        "copied = {**routes}\n"
+        "holder_values = {}\n"
+        "class Holder:\n    pass\n"
+        'Holder.unrelated = {"route": None}\n'
+        + assignment
+        + "\n"
+        + mutation
+        + "\n"
+        + f'register = {{"route": app.get, **{observed_mapping}}}["route"]\n'
+        + f'register("{route}")(handler)\n'
+    )
+    source = (
+        "def configure():\n" + textwrap.indent(body, "    ") + "configure()\n"
+        if scope == "function"
+        else body
+    )
+    expected = (
+        [f"legacy_app.py: unexpected legacy route growth: registration:{expected_method}:{route}"]
+        if expected_method is not None
+        else []
+    )
+    assert legacy_guard.validate_legacy_growth(source) == expected
+
+
+@pytest.mark.parametrize(
+    ("case_name", "assignment", "observed_mappings", "expected_methods"),
+    [
+        pytest.param(
+            "tuple-swap",
+            "routes, safe = safe, routes",
+            ("routes", "safe"),
+            (None, "get"),
+            id="tuple-swap",
+        ),
+        pytest.param(
+            "list-swap",
+            "[routes, safe] = [safe, routes]",
+            ("routes", "safe"),
+            (None, "get"),
+            id="list-swap",
+        ),
+        pytest.param(
+            "nested-swap",
+            "([routes], safe) = ([safe], routes)",
+            ("routes", "safe"),
+            (None, "get"),
+            id="nested-swap",
+        ),
+        pytest.param(
+            "tuple-overlap",
+            "safe, previous = routes, safe",
+            ("safe", "previous"),
+            ("get", None),
+            id="tuple-overlap",
+        ),
+        pytest.param(
+            "list-overlap",
+            "[safe, previous] = [routes, safe]",
+            ("safe", "previous"),
+            ("get", None),
+            id="list-overlap",
+        ),
+        pytest.param(
+            "nested-overlap",
+            "([safe], previous) = ([routes], safe)",
+            ("safe", "previous"),
+            ("get", None),
+            id="nested-overlap",
+        ),
+        pytest.param(
+            "tuple-self-safe",
+            "safe, other = safe, safe",
+            ("safe", "other"),
+            (None, None),
+            id="tuple-self-safe",
+        ),
+        pytest.param(
+            "list-self-safe",
+            "[safe, other] = [safe, safe]",
+            ("safe", "other"),
+            (None, None),
+            id="list-self-safe",
+        ),
+        pytest.param(
+            "nested-self-safe",
+            "([safe], other) = ([safe], safe)",
+            ("safe", "other"),
+            (None, None),
+            id="nested-self-safe",
+        ),
+        pytest.param(
+            "tuple-nonoverlapping-safe",
+            'first, second = safe, {"route": None}',
+            ("first", "second"),
+            (None, None),
+            id="tuple-nonoverlapping-safe",
+        ),
+        pytest.param(
+            "list-nonoverlapping-safe",
+            '[first, second] = [safe, {"route": None}]',
+            ("first", "second"),
+            (None, None),
+            id="list-nonoverlapping-safe",
+        ),
+        pytest.param(
+            "nested-nonoverlapping-safe",
+            '([first], second) = ([safe], {"route": None})',
+            ("first", "second"),
+            (None, None),
+            id="nested-nonoverlapping-safe",
+        ),
+        pytest.param(
+            "tuple-protected-before-safe-namedexpr",
+            "first, second = routes, (routes := safe)",
+            ("first", "second"),
+            ("get", None),
+            id="tuple-protected-before-safe-namedexpr",
+        ),
+        pytest.param(
+            "list-protected-before-safe-namedexpr",
+            "[first, second] = [routes, (routes := safe)]",
+            ("first", "second"),
+            ("get", None),
+            id="list-protected-before-safe-namedexpr",
+        ),
+        pytest.param(
+            "nested-protected-before-safe-namedexpr",
+            "([first], second) = ([routes], (routes := safe))",
+            ("first", "second"),
+            ("get", None),
+            id="nested-protected-before-safe-namedexpr",
+        ),
+        pytest.param(
+            "tuple-safe-before-protected-namedexpr",
+            "first, second = safe, (safe := routes)",
+            ("first", "second"),
+            (None, "get"),
+            id="tuple-safe-before-protected-namedexpr",
+        ),
+        pytest.param(
+            "list-safe-before-protected-namedexpr",
+            "[first, second] = [safe, (safe := routes)]",
+            ("first", "second"),
+            (None, "get"),
+            id="list-safe-before-protected-namedexpr",
+        ),
+        pytest.param(
+            "nested-safe-before-protected-namedexpr",
+            "([first], second) = ([safe], (safe := routes))",
+            ("first", "second"),
+            (None, "get"),
+            id="nested-safe-before-protected-namedexpr",
+        ),
+    ],
+)
+def test_consol_simultaneous_local_mapping_assignment_preserves_rhs_identity(
+    case_name: str,
+    assignment: str,
+    observed_mappings: tuple[str, str],
+    expected_methods: tuple[Literal["get"] | None, Literal["get"] | None],
+) -> None:
+    """Each RHS retains its evaluated identity before later RHS effects or target writes."""
+    source = 'routes = {"route": app.get}\nsafe = {"route": None}\n' + assignment + "\n"
+    expected: list[str] = []
+    for index, (mapping, method) in enumerate(
+        zip(observed_mappings, expected_methods, strict=True)
+    ):
+        route = f"/api/v1/paired-identity-{case_name}-{index}"
+        source += f'register_{index} = {mapping}["route"]\n'
+        source += f'register_{index}("{route}")(handler)\n'
+        if method is not None:
+            expected.append(
+                f"legacy_app.py: unexpected legacy route growth: registration:{method}:{route}"
+            )
+    assert legacy_guard.validate_legacy_growth(source) == expected
+
+
+@pytest.mark.parametrize(
+    ("case_name", "source", "expected_methods"),
+    [
+        pytest.param(
+            "module-global-safe",
+            'alias = {"route": app.get}\nclass Scope:\n    global alias\n    alias = {"route": None}\nregister_0 = {"route": app.get, **alias}["route"]\nregister_0("/api/v1/class-owner-__CASE__-0")(handler)\n',
+            (None,),
+            id="module-global-safe",
+        ),
+        pytest.param(
+            "global-module-not-function",
+            'alias = {"route": app.get}\ndef configure():\n    alias = {"route": app.get}\n    class Scope:\n        global alias\n        alias = {"route": None}\n    return alias\nlocal_result = configure()\nregister_0 = {"route": app.get, **alias}["route"]\nregister_0("/api/v1/class-owner-__CASE__-0")(handler)\nregister_1 = {"route": app.get, **local_result}["route"]\nregister_1("/api/v1/class-owner-__CASE__-1")(handler)\n',
+            (None, "get"),
+            id="global-module-not-function",
+        ),
+        pytest.param(
+            "global-through-nested-classes",
+            'alias = {"route": app.get}\ndef configure():\n    alias = {"route": app.get}\n    class Outer:\n        class Inner:\n            global alias\n            alias = {"route": None}\n    return alias\nlocal_result = configure()\nregister_0 = {"route": app.get, **alias}["route"]\nregister_0("/api/v1/class-owner-__CASE__-0")(handler)\nregister_1 = {"route": app.get, **local_result}["route"]\nregister_1("/api/v1/class-owner-__CASE__-1")(handler)\n',
+            (None, "get"),
+            id="global-through-nested-classes",
+        ),
+        pytest.param(
+            "nearest-nonlocal-safe",
+            'def configure():\n    alias = None\n    routes = {"route": None}\n    class Scope:\n        nonlocal alias\n        ([alias],) = ([routes],)\n    return alias\nresult = configure()\nregister_0 = {"route": app.get, **result}["route"]\nregister_0("/api/v1/class-owner-__CASE__-0")(handler)\n',
+            (None,),
+            id="nearest-nonlocal-safe",
+        ),
+        pytest.param(
+            "nearest-nonlocal-protected",
+            'def configure():\n    alias = {"route": None}\n    routes = {"route": app.get}\n    class Scope:\n        nonlocal alias\n        alias = routes\n    return alias\nresult = configure()\nregister_0 = {"route": app.get, **result}["route"]\nregister_0("/api/v1/class-owner-__CASE__-0")(handler)\n',
+            ("get",),
+            id="nearest-nonlocal-protected",
+        ),
+        pytest.param(
+            "nested-class-member-is-not-safe-owner",
+            'def configure():\n    alias = {"route": app.get}\n    routes = {"route": None}\n    class Outer:\n        alias = {"route": None}\n        class Inner:\n            nonlocal alias\n            alias = routes\n    return alias\nresult = configure()\nregister_0 = {"route": app.get, **result}["route"]\nregister_0("/api/v1/class-owner-__CASE__-0")(handler)\n',
+            (None,),
+            id="nested-class-member-is-not-safe-owner",
+        ),
+        pytest.param(
+            "nested-class-member-is-not-protected-owner",
+            'def configure():\n    alias = {"route": None}\n    routes = {"route": app.get}\n    class Outer:\n        alias = {"route": None}\n        class Inner:\n            nonlocal alias\n            alias = routes\n    return alias\nresult = configure()\nregister_0 = {"route": app.get, **result}["route"]\nregister_0("/api/v1/class-owner-__CASE__-0")(handler)\n',
+            ("get",),
+            id="nested-class-member-is-not-protected-owner",
+        ),
+        pytest.param(
+            "skip-nonowning-intermediate-function",
+            'def outer():\n    alias = {"route": None}\n    def middle():\n        observed_before = alias\n        class Scope:\n            nonlocal alias\n            alias = {"route": app.get}\n    middle()\n    return alias\nresult = outer()\nregister_0 = {"route": app.get, **result}["route"]\nregister_0("/api/v1/class-owner-__CASE__-0")(handler)\n',
+            ("get",),
+            id="skip-nonowning-intermediate-function",
+        ),
+        pytest.param(
+            "intermediate-genuine-local-owner",
+            'def outer():\n    alias = {"route": app.get}\n    def middle():\n        alias = {"route": app.get}\n        class Scope:\n            nonlocal alias\n            alias = {"route": None}\n        return alias\n    inner_result = middle()\n    register_0 = {"route": app.get, **inner_result}["route"]\n    register_0("/api/v1/class-owner-__CASE__-0")(handler)\n    return alias\nresult = outer()\nregister_1 = {"route": app.get, **result}["route"]\nregister_1("/api/v1/class-owner-__CASE__-1")(handler)\n',
+            (None, "get"),
+            id="intermediate-genuine-local-owner",
+        ),
+        pytest.param(
+            "active-nonlocal-redirect",
+            'def outer():\n    alias = {"route": None}\n    def middle():\n        nonlocal alias\n        class Scope:\n            nonlocal alias\n            alias = {"route": app.get}\n        register_0 = {"route": app.get, **alias}["route"]\n        register_0("/api/v1/class-owner-__CASE__-0")(handler)\n    middle()\n    return alias\nresult = outer()\nregister_1 = {"route": app.get, **result}["route"]\nregister_1("/api/v1/class-owner-__CASE__-1")(handler)\n',
+            ("get", "get"),
+            id="active-nonlocal-redirect",
+        ),
+        pytest.param(
+            "active-global-redirect",
+            'alias = {"route": app.get}\ndef outer():\n    alias = {"route": app.get}\n    def middle():\n        global alias\n        class Scope:\n            global alias\n            alias = {"route": None}\n        register_0 = {"route": app.get, **alias}["route"]\n        register_0("/api/v1/class-owner-__CASE__-0")(handler)\n    middle()\n    return alias\nlocal_result = outer()\nregister_1 = {"route": app.get, **alias}["route"]\nregister_1("/api/v1/class-owner-__CASE__-1")(handler)\nregister_2 = {"route": app.get, **local_result}["route"]\nregister_2("/api/v1/class-owner-__CASE__-2")(handler)\n',
+            (None, None, "get"),
+            id="active-global-redirect",
+        ),
+        pytest.param(
+            "nonlocal-declaration-only-safe",
+            'def configure():\n    alias = {"route": None}\n    class Scope:\n        nonlocal alias\n    return alias\nresult = configure()\nregister_0 = {"route": app.get, **result}["route"]\nregister_0("/api/v1/class-owner-__CASE__-0")(handler)\n',
+            (None,),
+            id="nonlocal-declaration-only-safe",
+        ),
+        pytest.param(
+            "nonlocal-declaration-only-protected",
+            'def configure():\n    alias = {"route": app.get}\n    class Scope:\n        nonlocal alias\n    return alias\nresult = configure()\nregister_0 = {"route": app.get, **result}["route"]\nregister_0("/api/v1/class-owner-__CASE__-0")(handler)\n',
+            ("get",),
+            id="nonlocal-declaration-only-protected",
+        ),
+        pytest.param(
+            "global-declaration-only-protected",
+            'alias = {"route": app.get}\nclass Scope:\n    global alias\nregister_0 = {"route": app.get, **alias}["route"]\nregister_0("/api/v1/class-owner-__CASE__-0")(handler)\n',
+            ("get",),
+            id="global-declaration-only-protected",
+        ),
+        pytest.param(
+            "independent-copy",
+            'alias = {"route": None}\ncopied = {**alias}\nclass Scope:\n    global alias\n    alias = {"route": app.get}\nregister_0 = {"route": app.get, **alias}["route"]\nregister_0("/api/v1/class-owner-__CASE__-0")(handler)\nregister_1 = {"route": app.get, **copied}["route"]\nregister_1("/api/v1/class-owner-__CASE__-1")(handler)\n',
+            ("get", None),
+            id="independent-copy",
+        ),
+        pytest.param(
+            "later-mutation-shared-identity",
+            'def configure():\n    alias = None\n    routes = {"route": None}\n    class Scope:\n        nonlocal alias\n        alias = routes\n    alias["route"] = app.get\n    return routes\nresult = configure()\nregister_0 = {"route": app.get, **result}["route"]\nregister_0("/api/v1/class-owner-__CASE__-0")(handler)\n',
+            ("dynamic",),
+            id="later-mutation-shared-identity",
+        ),
+        pytest.param(
+            "nonlocal-conditional-assignment",
+            'def configure():\n    alias = {"route": None}\n    class Scope:\n        nonlocal alias\n        if enabled:\n            alias = {"route": app.get}\n    return alias\nresult = configure()\nregister_0 = {"route": app.get, **result}["route"]\nregister_0("/api/v1/class-owner-__CASE__-0")(handler)\n',
+            ("dynamic",),
+            id="nonlocal-conditional-assignment",
+        ),
+        pytest.param(
+            "nonlocal-unconditional-deletion",
+            'def configure():\n    alias = {"route": app.get}\n    class Scope:\n        nonlocal alias\n        del alias\n    return alias\nresult = configure()\nregister_0 = {"route": app.get, **result}["route"]\nregister_0("/api/v1/class-owner-__CASE__-0")(handler)\n',
+            ("dynamic",),
+            id="nonlocal-unconditional-deletion",
+        ),
+        pytest.param(
+            "nonlocal-conditional-deletion",
+            'def configure():\n    alias = {"route": app.get}\n    class Scope:\n        nonlocal alias\n        if enabled:\n            del alias\n    return alias\nresult = configure()\nregister_0 = {"route": app.get, **result}["route"]\nregister_0("/api/v1/class-owner-__CASE__-0")(handler)\n',
+            ("dynamic",),
+            id="nonlocal-conditional-deletion",
+        ),
+        pytest.param(
+            "nonlocal-unbound-annotation-owner",
+            'def configure():\n    alias: dict\n    class Scope:\n        nonlocal alias\n    return alias\nresult = configure()\nregister_0 = {"route": app.get, **result}["route"]\nregister_0("/api/v1/class-owner-__CASE__-0")(handler)\n',
+            ("dynamic",),
+            id="nonlocal-unbound-annotation-owner",
+        ),
+        pytest.param(
+            "global-missing-binding-declaration-only",
+            'class Scope:\n    global alias\nregister_0 = {"route": app.get, **alias}["route"]\nregister_0("/api/v1/class-owner-__CASE__-0")(handler)\n',
+            ("dynamic",),
+            id="global-missing-binding-declaration-only",
+        ),
+        pytest.param(
+            "global-unconditional-deletion",
+            'alias = {"route": app.get}\nclass Scope:\n    global alias\n    del alias\nregister_0 = {"route": app.get, **alias}["route"]\nregister_0("/api/v1/class-owner-__CASE__-0")(handler)\n',
+            ("dynamic",),
+            id="global-unconditional-deletion",
+        ),
+        pytest.param(
+            "global-conditional-deletion",
+            'alias = {"route": None}\nclass Scope:\n    global alias\n    if enabled:\n        del alias\nregister_0 = {"route": app.get, **alias}["route"]\nregister_0("/api/v1/class-owner-__CASE__-0")(handler)\n',
+            ("dynamic",),
+            id="global-conditional-deletion",
+        ),
+        pytest.param(
+            "global-conditional-assignment",
+            'alias = {"route": None}\nclass Scope:\n    global alias\n    if enabled:\n        alias = {"route": app.get}\nregister_0 = {"route": app.get, **alias}["route"]\nregister_0("/api/v1/class-owner-__CASE__-0")(handler)\n',
+            ("dynamic",),
+            id="global-conditional-assignment",
+        ),
+    ],
+)
+def test_consol_class_outward_binding_uses_genuine_destination(
+    case_name: str,
+    source: str,
+    expected_methods: tuple[Literal["get", "dynamic"] | None, ...],
+) -> None:
+    """Declarations select actual function/module owners, retaining precise or uncertain values."""
+    source = source.replace("__CASE__", case_name)
+    expected = [
+        "legacy_app.py: unexpected legacy route growth: "
+        f"registration:{method}:/api/v1/class-owner-{case_name}-{index}"
+        for index, method in enumerate(expected_methods)
+        if method is not None
+    ]
+    assert legacy_guard.validate_legacy_growth(source) == expected
+
+
+@pytest.mark.parametrize(
+    ("case_name", "setup", "body", "expected_bound", "expected_possible", "expected_method"),
+    [
+        pytest.param(
+            "declaration-only-definite-safe",
+            'alias = {"route": None}\n',
+            "pass",
+            True,
+            True,
+            None,
+            id="declaration-only-definite-safe",
+        ),
+        pytest.param(
+            "declaration-only-definite-protected",
+            'alias = {"route": app.get}\n',
+            "pass",
+            True,
+            True,
+            "get",
+            id="declaration-only-definite-protected",
+        ),
+        pytest.param(
+            "declaration-only-possible",
+            'if enabled:\n    alias = {"route": None}\n',
+            "pass",
+            False,
+            True,
+            "dynamic",
+            id="declaration-only-possible",
+        ),
+        pytest.param(
+            "declaration-only-unbound",
+            "",
+            "pass",
+            False,
+            False,
+            "dynamic",
+            id="declaration-only-unbound",
+        ),
+        pytest.param(
+            "unconditional-safe-store",
+            "",
+            'alias = {"route": None}',
+            True,
+            True,
+            None,
+            id="unconditional-safe-store",
+        ),
+        pytest.param(
+            "unconditional-protected-store",
+            "",
+            'alias = {"route": app.get}',
+            True,
+            True,
+            "get",
+            id="unconditional-protected-store",
+        ),
+        pytest.param(
+            "conditional-safe-store",
+            "",
+            'if enabled:\n    alias = {"route": None}',
+            False,
+            True,
+            "dynamic",
+            id="conditional-safe-store",
+        ),
+        pytest.param(
+            "conditional-protected-replacement",
+            'alias = {"route": None}\n',
+            'if enabled:\n    alias = {"route": app.get}',
+            True,
+            True,
+            "dynamic",
+            id="conditional-protected-replacement",
+        ),
+        pytest.param(
+            "unconditional-delete",
+            'alias = {"route": app.get}\n',
+            "del alias",
+            False,
+            False,
+            "dynamic",
+            id="unconditional-delete",
+        ),
+        pytest.param(
+            "conditional-delete",
+            'alias = {"route": None}\n',
+            "if enabled:\n    del alias",
+            False,
+            True,
+            "dynamic",
+            id="conditional-delete",
+        ),
+    ],
+)
+def test_consol_class_outward_binding_preserves_module_binding_state(
+    case_name: str,
+    setup: str,
+    body: str,
+    expected_bound: bool,
+    expected_possible: bool,
+    expected_method: Literal["get", "dynamic"] | None,
+) -> None:
+    """Class global declarations transfer existing fields and actual bound/possible/unbound state."""
+    route = f"/api/v1/class-state-{case_name}"
+    source = (
+        setup
+        + "class Scope:\n    global alias\n"
+        + textwrap.indent(body, "    ")
+        + '\nregister = {"route": app.get, **alias}["route"]\n'
+        + f'register("{route}")(handler)\n'
+    )
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="legacy_app.py",
+        errors=[],
+        initial_references={"app": "pulseplate.app"},
+        analyze_function_bodies=False,
+        preserve_route_method_conflicts=True,
+    )
+    visitor.visit(ast.parse(source))
+    assert ("alias" in visitor.scope.bound_names) is expected_bound
+    assert ("alias" in visitor.scope.possibly_bound_names) is expected_possible
+    assert not any(name == "alias" for _owner, name in visitor._class_direct_member_presence)
+    assert visitor.errors == []
+    expected = (
+        [f"legacy_app.py: unexpected legacy route growth: registration:{expected_method}:{route}"]
+        if expected_method is not None
+        else []
+    )
+    assert legacy_guard.validate_legacy_growth(source) == expected
+
+
+@pytest.mark.parametrize("symbol", (*_CONSOL_OPENAPI_SYMBOLS, "CustomOPENapiHook"))
+@pytest.mark.parametrize(
+    ("kind", "setup", "lookup"),
+    [
+        pytest.param("dict-subscript", "", "legacy.__dict__[member]", id="dict-subscript"),
+        pytest.param("dict-get", "", "legacy.__dict__.get(member)", id="dict-get"),
+        pytest.param("dict-getitem", "", "legacy.__dict__.__getitem__(member)", id="dict-getitem"),
+        pytest.param("vars-subscript", "", "vars(legacy)[member]", id="vars-subscript"),
+        pytest.param("vars-get", "", "vars(legacy).get(member)", id="vars-get"),
+        pytest.param(
+            "namespace-alias-subscript",
+            "namespace = legacy.__dict__\n",
+            "namespace[member]",
+            id="namespace-alias-subscript",
+        ),
+        pytest.param(
+            "namespace-alias-get",
+            "namespace = vars(legacy)\n",
+            "namespace.get(member)",
+            id="namespace-alias-get",
+        ),
+        pytest.param("stored-get", "pick = vars(legacy).get\n", "pick(member)", id="stored-get"),
+        pytest.param(
+            "stored-getitem",
+            "pick = legacy.__dict__.__getitem__\n",
+            "pick(member)",
+            id="stored-getitem",
+        ),
+        pytest.param(
+            "unbound-dict-get", "", "dict.get(vars(legacy), member)", id="unbound-dict-get"
+        ),
+        pytest.param(
+            "vars-alias-get", "inspect = vars\n", "inspect(legacy).get(member)", id="vars-alias-get"
+        ),
+        pytest.param("attribute", "", "legacy.{symbol}", id="attribute"),
+        pytest.param("getattr", "", "getattr(legacy, member)", id="getattr"),
+        pytest.param("import", "", "", id="import"),
+    ],
+)
+def test_consol_openapi_namespace_lookup_covers_closed_protected_inventory(
+    symbol: str, kind: str, setup: str, lookup: str
+) -> None:
+    """All seven independent names and casefold membership use existing namespace identities."""
+    if kind == "import":
+        source = f"from legacy_app import {symbol}\n"
+        expected = [f"app/main.py: OpenAPI symbol must not be imported through legacy: {symbol}"]
+    else:
+        source = (
+            "import legacy_app as legacy\n"
+            + f"member = {symbol!r}\n"
+            + setup
+            + f"value = {lookup.format(symbol=symbol)}\n"
+        )
+        expected = ["app/main.py: OpenAPI symbol must not be accessed through legacy"]
+    assert _consol_openapi_errors(source) == expected
+
+
+@pytest.mark.parametrize(
+    ("case_name", "source", "forbidden"),
+    [
+        pytest.param(
+            "safe-dict-receiver",
+            "import legacy_app as legacy\nclass Other:\n    pass\nother = Other()\nvalue = other.__dict__.get('_install_openapi_builder')\n",
+            False,
+            id="safe-dict-receiver",
+        ),
+        pytest.param(
+            "shadowed-vars",
+            "import legacy_app as legacy\nvars = lambda owner: {'_install_openapi_builder': None}\nvalue = vars(legacy).get('_install_openapi_builder')\n",
+            False,
+            id="shadowed-vars",
+        ),
+        pytest.param(
+            "shadowed-dict",
+            "import legacy_app as legacy\nclass Other:\n    def get(self, owner, member):\n        return None\ndict = Other()\nvalue = dict.get(vars(legacy), '_install_openapi_builder')\n",
+            False,
+            id="shadowed-dict",
+        ),
+        pytest.param(
+            "safe-stored-callee",
+            "import legacy_app as legacy\ndef pick(member):\n    return None\nvalue = pick('_install_openapi_builder')\n",
+            False,
+            id="safe-stored-callee",
+        ),
+        pytest.param(
+            "safe-stored-method-spelling",
+            "import legacy_app as legacy\nclass Other:\n    def get(self, member):\n        return None\nother = Other()\npick = other.get\nvalue = pick('_install_openapi_builder')\n",
+            False,
+            id="safe-stored-method-spelling",
+        ),
+        pytest.param(
+            "safe-local-member",
+            "import legacy_app as legacy\nmember = 'other'\nvalue = legacy.__dict__.get(member)\n",
+            False,
+            id="safe-local-member",
+        ),
+        pytest.param(
+            "unknown-local-member",
+            "import legacy_app as legacy\nmember = external_member()\nvalue = legacy.__dict__.get(member)\n",
+            False,
+            id="unknown-local-member",
+        ),
+        pytest.param(
+            "api-family-only-member",
+            "import legacy_app as legacy\nmember = 'get_api_key'\nvalue = vars(legacy).get(member)\n",
+            False,
+            id="api-family-only-member",
+        ),
+        pytest.param(
+            "api-possible-family-only",
+            "import legacy_app as legacy\nmember = 'get_api_key' if enabled else 'other'\nvalue = vars(legacy).get(member)\n",
+            False,
+            id="api-possible-family-only",
+        ),
+        pytest.param(
+            "safe-possible-members",
+            "import legacy_app as legacy\nmember = 'other' if enabled else 'different'\nvalue = vars(legacy).get(member)\n",
+            False,
+            id="safe-possible-members",
+        ),
+        pytest.param(
+            "protected-possible-member",
+            "import legacy_app as legacy\nmember = '_install_openapi_builder' if enabled else 'other'\nvalue = vars(legacy).get(member)\n",
+            True,
+            id="protected-possible-member",
+        ),
+        pytest.param(
+            "protected-then-missing-join",
+            "import legacy_app as legacy\nif enabled:\n    member = '_install_openapi_builder'\nif delete_member:\n    del member\nvalue = vars(legacy).get(member)\n",
+            True,
+            id="protected-then-missing-join",
+        ),
+        pytest.param(
+            "possible-legacy-receiver",
+            "import legacy_app as legacy\nclass Other:\n    pass\nother = Other()\nreceiver = legacy if enabled else other\nvalue = vars(receiver).get('_install_openapi_builder')\n",
+            True,
+            id="possible-legacy-receiver",
+        ),
+        pytest.param(
+            "safe-receiver-unknown-member",
+            "import legacy_app as legacy\nnamespace = {'_install_openapi_builder': None}\nvalue = namespace.get(external_member())\n",
+            False,
+            id="safe-receiver-unknown-member",
+        ),
+        pytest.param(
+            "safe-unbound-dict-namespace",
+            "import legacy_app as legacy\nnamespace = {'_install_openapi_builder': None}\nvalue = dict.get(namespace, '_install_openapi_builder')\n",
+            False,
+            id="safe-unbound-dict-namespace",
+        ),
+        pytest.param(
+            "namespace-store-is-not-load",
+            "import legacy_app as legacy\nlegacy.__dict__['_install_openapi_builder'] = replacement\n",
+            False,
+            id="namespace-store-is-not-load",
+        ),
+        pytest.param(
+            "namespace-delete-is-not-load",
+            "import legacy_app as legacy\ndel legacy.__dict__['_install_openapi_builder']\n",
+            False,
+            id="namespace-delete-is-not-load",
+        ),
+        pytest.param(
+            "safe-shadowed-getattr",
+            "import legacy_app as legacy\ndef getattr(owner, member):\n    return None\nvalue = getattr(legacy, '_install_openapi_builder')\n",
+            False,
+            id="safe-shadowed-getattr",
+        ),
+    ],
+)
+def test_consol_openapi_namespace_lookup_preserves_independent_controls(
+    case_name: str, source: str, forbidden: bool
+) -> None:
+    """Receiver, callee, member family and Load context remain independent predicates."""
+    expected = (
+        ["app/main.py: OpenAPI symbol must not be accessed through legacy"] if forbidden else []
+    )
+    assert _consol_openapi_errors(source) == expected
+
+
+@pytest.mark.parametrize(
+    ("case_name", "source", "forbidden"),
+    [
+        pytest.param(
+            "dict-subscript-safe",
+            "import legacy_app as legacy\ndef member():\n    return 'other'\ndef passthrough(value):\n    return value\nvalue = legacy.__dict__[passthrough(member())]\n",
+            False,
+            id="dict-subscript-safe",
+        ),
+        pytest.param(
+            "dict-subscript-protected",
+            "import legacy_app as legacy\ndef member():\n    return '_install_openapi_builder'\ndef passthrough(value):\n    return value\nvalue = legacy.__dict__[passthrough(member())]\n",
+            True,
+            id="dict-subscript-protected",
+        ),
+        pytest.param(
+            "dict-subscript-unknown",
+            "import legacy_app as legacy\ndef member():\n    return external_member()\ndef passthrough(value):\n    return value\nvalue = legacy.__dict__[passthrough(member())]\n",
+            False,
+            id="dict-subscript-unknown",
+        ),
+        pytest.param(
+            "dict-subscript-possible-protected",
+            "import legacy_app as legacy\ndef member():\n    return '_install_openapi_builder' if enabled else 'other'\ndef passthrough(value):\n    return value\nvalue = legacy.__dict__[passthrough(member())]\n",
+            True,
+            id="dict-subscript-possible-protected",
+        ),
+        pytest.param(
+            "dict-get-safe",
+            "import legacy_app as legacy\ndef member():\n    return 'other'\ndef passthrough(value):\n    return value\nvalue = legacy.__dict__.get(passthrough(member()))\n",
+            False,
+            id="dict-get-safe",
+        ),
+        pytest.param(
+            "dict-get-protected",
+            "import legacy_app as legacy\ndef member():\n    return '_install_openapi_builder'\ndef passthrough(value):\n    return value\nvalue = legacy.__dict__.get(passthrough(member()))\n",
+            True,
+            id="dict-get-protected",
+        ),
+        pytest.param(
+            "dict-get-unknown",
+            "import legacy_app as legacy\ndef member():\n    return external_member()\ndef passthrough(value):\n    return value\nvalue = legacy.__dict__.get(passthrough(member()))\n",
+            False,
+            id="dict-get-unknown",
+        ),
+        pytest.param(
+            "dict-get-possible-protected",
+            "import legacy_app as legacy\ndef member():\n    return '_install_openapi_builder' if enabled else 'other'\ndef passthrough(value):\n    return value\nvalue = legacy.__dict__.get(passthrough(member()))\n",
+            True,
+            id="dict-get-possible-protected",
+        ),
+        pytest.param(
+            "dict-getitem-safe",
+            "import legacy_app as legacy\ndef member():\n    return 'other'\ndef passthrough(value):\n    return value\nvalue = legacy.__dict__.__getitem__(passthrough(member()))\n",
+            False,
+            id="dict-getitem-safe",
+        ),
+        pytest.param(
+            "dict-getitem-protected",
+            "import legacy_app as legacy\ndef member():\n    return '_install_openapi_builder'\ndef passthrough(value):\n    return value\nvalue = legacy.__dict__.__getitem__(passthrough(member()))\n",
+            True,
+            id="dict-getitem-protected",
+        ),
+        pytest.param(
+            "dict-getitem-unknown",
+            "import legacy_app as legacy\ndef member():\n    return external_member()\ndef passthrough(value):\n    return value\nvalue = legacy.__dict__.__getitem__(passthrough(member()))\n",
+            False,
+            id="dict-getitem-unknown",
+        ),
+        pytest.param(
+            "dict-getitem-possible-protected",
+            "import legacy_app as legacy\ndef member():\n    return '_install_openapi_builder' if enabled else 'other'\ndef passthrough(value):\n    return value\nvalue = legacy.__dict__.__getitem__(passthrough(member()))\n",
+            True,
+            id="dict-getitem-possible-protected",
+        ),
+        pytest.param(
+            "vars-get-safe",
+            "import legacy_app as legacy\ndef member():\n    return 'other'\ndef passthrough(value):\n    return value\nvalue = vars(legacy).get(passthrough(member()))\n",
+            False,
+            id="vars-get-safe",
+        ),
+        pytest.param(
+            "vars-get-protected",
+            "import legacy_app as legacy\ndef member():\n    return '_install_openapi_builder'\ndef passthrough(value):\n    return value\nvalue = vars(legacy).get(passthrough(member()))\n",
+            True,
+            id="vars-get-protected",
+        ),
+        pytest.param(
+            "vars-get-unknown",
+            "import legacy_app as legacy\ndef member():\n    return external_member()\ndef passthrough(value):\n    return value\nvalue = vars(legacy).get(passthrough(member()))\n",
+            False,
+            id="vars-get-unknown",
+        ),
+        pytest.param(
+            "vars-get-possible-protected",
+            "import legacy_app as legacy\ndef member():\n    return '_install_openapi_builder' if enabled else 'other'\ndef passthrough(value):\n    return value\nvalue = vars(legacy).get(passthrough(member()))\n",
+            True,
+            id="vars-get-possible-protected",
+        ),
+        pytest.param(
+            "namespace-alias-get-safe",
+            "import legacy_app as legacy\ndef member():\n    return 'other'\ndef passthrough(value):\n    return value\nnamespace = vars(legacy)\nvalue = namespace.get(passthrough(member()))\n",
+            False,
+            id="namespace-alias-get-safe",
+        ),
+        pytest.param(
+            "namespace-alias-get-protected",
+            "import legacy_app as legacy\ndef member():\n    return '_install_openapi_builder'\ndef passthrough(value):\n    return value\nnamespace = vars(legacy)\nvalue = namespace.get(passthrough(member()))\n",
+            True,
+            id="namespace-alias-get-protected",
+        ),
+        pytest.param(
+            "namespace-alias-get-unknown",
+            "import legacy_app as legacy\ndef member():\n    return external_member()\ndef passthrough(value):\n    return value\nnamespace = vars(legacy)\nvalue = namespace.get(passthrough(member()))\n",
+            False,
+            id="namespace-alias-get-unknown",
+        ),
+        pytest.param(
+            "namespace-alias-get-possible-protected",
+            "import legacy_app as legacy\ndef member():\n    return '_install_openapi_builder' if enabled else 'other'\ndef passthrough(value):\n    return value\nnamespace = vars(legacy)\nvalue = namespace.get(passthrough(member()))\n",
+            True,
+            id="namespace-alias-get-possible-protected",
+        ),
+        pytest.param(
+            "stored-get-safe",
+            "import legacy_app as legacy\ndef member():\n    return 'other'\ndef passthrough(value):\n    return value\npick = vars(legacy).get\nvalue = pick(passthrough(member()))\n",
+            False,
+            id="stored-get-safe",
+        ),
+        pytest.param(
+            "stored-get-protected",
+            "import legacy_app as legacy\ndef member():\n    return '_install_openapi_builder'\ndef passthrough(value):\n    return value\npick = vars(legacy).get\nvalue = pick(passthrough(member()))\n",
+            True,
+            id="stored-get-protected",
+        ),
+        pytest.param(
+            "stored-get-unknown",
+            "import legacy_app as legacy\ndef member():\n    return external_member()\ndef passthrough(value):\n    return value\npick = vars(legacy).get\nvalue = pick(passthrough(member()))\n",
+            False,
+            id="stored-get-unknown",
+        ),
+        pytest.param(
+            "stored-get-possible-protected",
+            "import legacy_app as legacy\ndef member():\n    return '_install_openapi_builder' if enabled else 'other'\ndef passthrough(value):\n    return value\npick = vars(legacy).get\nvalue = pick(passthrough(member()))\n",
+            True,
+            id="stored-get-possible-protected",
+        ),
+        pytest.param(
+            "unbound-dict-get-safe",
+            "import legacy_app as legacy\ndef member():\n    return 'other'\ndef passthrough(value):\n    return value\nvalue = dict.get(vars(legacy), passthrough(member()))\n",
+            False,
+            id="unbound-dict-get-safe",
+        ),
+        pytest.param(
+            "unbound-dict-get-protected",
+            "import legacy_app as legacy\ndef member():\n    return '_install_openapi_builder'\ndef passthrough(value):\n    return value\nvalue = dict.get(vars(legacy), passthrough(member()))\n",
+            True,
+            id="unbound-dict-get-protected",
+        ),
+        pytest.param(
+            "unbound-dict-get-unknown",
+            "import legacy_app as legacy\ndef member():\n    return external_member()\ndef passthrough(value):\n    return value\nvalue = dict.get(vars(legacy), passthrough(member()))\n",
+            False,
+            id="unbound-dict-get-unknown",
+        ),
+        pytest.param(
+            "unbound-dict-get-possible-protected",
+            "import legacy_app as legacy\ndef member():\n    return '_install_openapi_builder' if enabled else 'other'\ndef passthrough(value):\n    return value\nvalue = dict.get(vars(legacy), passthrough(member()))\n",
+            True,
+            id="unbound-dict-get-possible-protected",
+        ),
+        pytest.param(
+            "vars-get-nested-receiver-legacy",
+            "import legacy_app as legacy\nclass Other:\n    pass\nother = Other()\ndef owner():\n    return legacy\ndef passthrough(value):\n    return value\nvalue = vars(passthrough(owner())).get('_install_openapi_builder')\n",
+            True,
+            id="vars-get-nested-receiver-legacy",
+        ),
+        pytest.param(
+            "vars-get-nested-receiver-other",
+            "import legacy_app as legacy\nclass Other:\n    pass\nother = Other()\ndef owner():\n    return other\ndef passthrough(value):\n    return value\nvalue = vars(passthrough(owner())).get('_install_openapi_builder')\n",
+            False,
+            id="vars-get-nested-receiver-other",
+        ),
+        pytest.param(
+            "namespace-alias-get-nested-receiver-legacy",
+            "import legacy_app as legacy\nclass Other:\n    pass\nother = Other()\ndef owner():\n    return legacy\ndef passthrough(value):\n    return value\nnamespace = vars(passthrough(owner()))\nvalue = namespace.get('_install_openapi_builder')\n",
+            True,
+            id="namespace-alias-get-nested-receiver-legacy",
+        ),
+        pytest.param(
+            "namespace-alias-get-nested-receiver-other",
+            "import legacy_app as legacy\nclass Other:\n    pass\nother = Other()\ndef owner():\n    return other\ndef passthrough(value):\n    return value\nnamespace = vars(passthrough(owner()))\nvalue = namespace.get('_install_openapi_builder')\n",
+            False,
+            id="namespace-alias-get-nested-receiver-other",
+        ),
+        pytest.param(
+            "stored-get-nested-receiver-legacy",
+            "import legacy_app as legacy\nclass Other:\n    pass\nother = Other()\ndef owner():\n    return legacy\ndef passthrough(value):\n    return value\npick = vars(passthrough(owner())).get\nvalue = pick('_install_openapi_builder')\n",
+            True,
+            id="stored-get-nested-receiver-legacy",
+        ),
+        pytest.param(
+            "stored-get-nested-receiver-other",
+            "import legacy_app as legacy\nclass Other:\n    pass\nother = Other()\ndef owner():\n    return other\ndef passthrough(value):\n    return value\npick = vars(passthrough(owner())).get\nvalue = pick('_install_openapi_builder')\n",
+            False,
+            id="stored-get-nested-receiver-other",
+        ),
+        pytest.param(
+            "unbound-dict-get-nested-receiver-legacy",
+            "import legacy_app as legacy\nclass Other:\n    pass\nother = Other()\ndef owner():\n    return legacy\ndef passthrough(value):\n    return value\nvalue = dict.get(vars(passthrough(owner())), '_install_openapi_builder')\n",
+            True,
+            id="unbound-dict-get-nested-receiver-legacy",
+        ),
+        pytest.param(
+            "unbound-dict-get-nested-receiver-other",
+            "import legacy_app as legacy\nclass Other:\n    pass\nother = Other()\ndef owner():\n    return other\ndef passthrough(value):\n    return value\nvalue = dict.get(vars(passthrough(owner())), '_install_openapi_builder')\n",
+            False,
+            id="unbound-dict-get-nested-receiver-other",
+        ),
+    ],
+)
+def test_consol_openapi_namespace_lookup_preserves_nested_call_results(
+    case_name: str, source: str, forbidden: bool
+) -> None:
+    """Known results refine through existing CallResults without turning unknowns into OpenAPI."""
+    expected = (
+        ["app/main.py: OpenAPI symbol must not be accessed through legacy"] if forbidden else []
+    )
+    assert _consol_openapi_errors(source) == expected
+
+
+@pytest.mark.parametrize(
+    ("case_name", "source", "forbidden", "postponed"),
+    [
+        pytest.param(
+            "receiver-before-safe-default",
+            "import legacy_app as legacy_module\nlegacy = legacy_module\nclass Other:\n    pass\nother = Other()\nvalue = legacy.__dict__.get('_install_openapi_builder', (legacy := other))\n",
+            True,
+            False,
+            id="receiver-before-safe-default",
+        ),
+        pytest.param(
+            "safe-receiver-before-legacy-default",
+            "import legacy_app as legacy_module\nlegacy = legacy_module\nclass Other:\n    pass\nother = Other()\nlegacy = other\nvalue = legacy.__dict__.get('_install_openapi_builder', (legacy := legacy_module))\n",
+            False,
+            False,
+            id="safe-receiver-before-legacy-default",
+        ),
+        pytest.param(
+            "member-before-safe-default",
+            "import legacy_app as legacy_module\nlegacy = legacy_module\nclass Other:\n    pass\nother = Other()\nmember = '_install_openapi_builder'\nvalue = legacy.__dict__.get(member, (member := 'other'))\n",
+            True,
+            False,
+            id="member-before-safe-default",
+        ),
+        pytest.param(
+            "safe-member-before-protected-default",
+            "import legacy_app as legacy_module\nlegacy = legacy_module\nclass Other:\n    pass\nother = Other()\nmember = 'other'\nvalue = legacy.__dict__.get(member, (member := '_install_openapi_builder'))\n",
+            False,
+            False,
+            id="safe-member-before-protected-default",
+        ),
+        pytest.param(
+            "stored-callee-before-safe-default",
+            "import legacy_app as legacy_module\nlegacy = legacy_module\nclass Other:\n    pass\nother = Other()\ndef safe(member, default):\n    return None\npick = legacy.__dict__.get\nvalue = pick('_install_openapi_builder', (pick := safe))\n",
+            True,
+            False,
+            id="stored-callee-before-safe-default",
+        ),
+        pytest.param(
+            "safe-stored-callee-before-legacy-default",
+            "import legacy_app as legacy_module\nlegacy = legacy_module\nclass Other:\n    pass\nother = Other()\ndef safe(member, default):\n    return None\npick = safe\nvalue = pick('_install_openapi_builder', (pick := legacy.__dict__.get))\n",
+            False,
+            False,
+            id="safe-stored-callee-before-legacy-default",
+        ),
+        pytest.param(
+            "builtin-dict-before-shadow-default",
+            "import legacy_app as legacy_module\nlegacy = legacy_module\nclass Other:\n    pass\nother = Other()\nclass SafeDict:\n    def get(self, namespace, member, default):\n        return None\nsafe_dict = SafeDict()\nvalue = dict.get(vars(legacy), '_install_openapi_builder', (dict := safe_dict))\n",
+            True,
+            False,
+            id="builtin-dict-before-shadow-default",
+        ),
+        pytest.param(
+            "shadowed-dict-before-builtin-default",
+            "import legacy_app as legacy_module\nlegacy = legacy_module\nclass Other:\n    pass\nother = Other()\nbuiltin_dict = dict\nclass SafeDict:\n    def get(self, namespace, member, default):\n        return None\ndict = SafeDict()\nvalue = dict.get(vars(legacy), '_install_openapi_builder', (dict := builtin_dict))\n",
+            False,
+            False,
+            id="shadowed-dict-before-builtin-default",
+        ),
+        pytest.param(
+            "namespace-callee-before-member-rebind",
+            "import legacy_app as legacy_module\nlegacy = legacy_module\nclass Other:\n    pass\nother = Other()\nnamespace = legacy.__dict__\nvalue = namespace.get('_install_openapi_builder' if (namespace := other.__dict__) else '_install_openapi_builder')\n",
+            True,
+            False,
+            id="namespace-callee-before-member-rebind",
+        ),
+        pytest.param(
+            "safe-namespace-callee-before-member-rebind",
+            "import legacy_app as legacy_module\nlegacy = legacy_module\nclass Other:\n    pass\nother = Other()\nnamespace = other.__dict__\nvalue = namespace.get('_install_openapi_builder' if (namespace := legacy.__dict__) else '_install_openapi_builder')\n",
+            False,
+            False,
+            id="safe-namespace-callee-before-member-rebind",
+        ),
+        pytest.param(
+            "ordered-before-safe-dict-subscript",
+            "import legacy_app as legacy\nvalue = legacy.__dict__['_install_openapi_builder']\nlegacy = object()\n",
+            True,
+            False,
+            id="ordered-before-safe-dict-subscript",
+        ),
+        pytest.param(
+            "ordered-before-safe-dict-get",
+            "import legacy_app as legacy\nvalue = legacy.__dict__.get('_install_openapi_builder')\nlegacy = object()\n",
+            True,
+            False,
+            id="ordered-before-safe-dict-get",
+        ),
+        pytest.param(
+            "ordered-before-safe-vars-get",
+            "import legacy_app as legacy\nvalue = vars(legacy).get('_install_openapi_builder')\nlegacy = object()\n",
+            True,
+            False,
+            id="ordered-before-safe-vars-get",
+        ),
+        pytest.param(
+            "ordered-before-safe-unbound-dict-get",
+            "import legacy_app as legacy\nvalue = dict.get(vars(legacy), '_install_openapi_builder')\nlegacy = object()\n",
+            True,
+            False,
+            id="ordered-before-safe-unbound-dict-get",
+        ),
+        pytest.param(
+            "ordered-before-legacy-dict-subscript",
+            "legacy = object()\nvalue = legacy.__dict__['_install_openapi_builder']\nimport legacy_app as legacy\n",
+            False,
+            False,
+            id="ordered-before-legacy-dict-subscript",
+        ),
+        pytest.param(
+            "ordered-before-legacy-dict-get",
+            "legacy = object()\nvalue = legacy.__dict__.get('_install_openapi_builder')\nimport legacy_app as legacy\n",
+            False,
+            False,
+            id="ordered-before-legacy-dict-get",
+        ),
+        pytest.param(
+            "ordered-before-legacy-vars-get",
+            "legacy = object()\nvalue = vars(legacy).get('_install_openapi_builder')\nimport legacy_app as legacy\n",
+            False,
+            False,
+            id="ordered-before-legacy-vars-get",
+        ),
+        pytest.param(
+            "ordered-before-legacy-unbound-dict-get",
+            "legacy = object()\nvalue = dict.get(vars(legacy), '_install_openapi_builder')\nimport legacy_app as legacy\n",
+            False,
+            False,
+            id="ordered-before-legacy-unbound-dict-get",
+        ),
+        pytest.param(
+            "deferred-function-dict-subscript",
+            "def lookup():\n    return legacy.__dict__['_install_openapi_builder']\nimport legacy_app as legacy\n",
+            True,
+            False,
+            id="deferred-function-dict-subscript",
+        ),
+        pytest.param(
+            "deferred-function-dict-get",
+            "def lookup():\n    return legacy.__dict__.get('_install_openapi_builder')\nimport legacy_app as legacy\n",
+            True,
+            False,
+            id="deferred-function-dict-get",
+        ),
+        pytest.param(
+            "deferred-function-vars-get",
+            "def lookup():\n    return vars(legacy).get('_install_openapi_builder')\nimport legacy_app as legacy\n",
+            True,
+            False,
+            id="deferred-function-vars-get",
+        ),
+        pytest.param(
+            "deferred-function-unbound-dict-get",
+            "def lookup():\n    return dict.get(vars(legacy), '_install_openapi_builder')\nimport legacy_app as legacy\n",
+            True,
+            False,
+            id="deferred-function-unbound-dict-get",
+        ),
+        pytest.param(
+            "deferred-lambda-dict-subscript",
+            "lookup = lambda: legacy.__dict__['_install_openapi_builder']\nimport legacy_app as legacy\n",
+            True,
+            False,
+            id="deferred-lambda-dict-subscript",
+        ),
+        pytest.param(
+            "deferred-lambda-dict-get",
+            "lookup = lambda: legacy.__dict__.get('_install_openapi_builder')\nimport legacy_app as legacy\n",
+            True,
+            False,
+            id="deferred-lambda-dict-get",
+        ),
+        pytest.param(
+            "deferred-lambda-vars-get",
+            "lookup = lambda: vars(legacy).get('_install_openapi_builder')\nimport legacy_app as legacy\n",
+            True,
+            False,
+            id="deferred-lambda-vars-get",
+        ),
+        pytest.param(
+            "deferred-lambda-unbound-dict-get",
+            "lookup = lambda: dict.get(vars(legacy), '_install_openapi_builder')\nimport legacy_app as legacy\n",
+            True,
+            False,
+            id="deferred-lambda-unbound-dict-get",
+        ),
+        pytest.param(
+            "deferred-method-dict-subscript",
+            "class Lookup:\n    def value(self):\n        return legacy.__dict__['_install_openapi_builder']\nimport legacy_app as legacy\n",
+            True,
+            False,
+            id="deferred-method-dict-subscript",
+        ),
+        pytest.param(
+            "deferred-method-dict-get",
+            "class Lookup:\n    def value(self):\n        return legacy.__dict__.get('_install_openapi_builder')\nimport legacy_app as legacy\n",
+            True,
+            False,
+            id="deferred-method-dict-get",
+        ),
+        pytest.param(
+            "deferred-method-vars-get",
+            "class Lookup:\n    def value(self):\n        return vars(legacy).get('_install_openapi_builder')\nimport legacy_app as legacy\n",
+            True,
+            False,
+            id="deferred-method-vars-get",
+        ),
+        pytest.param(
+            "deferred-method-unbound-dict-get",
+            "class Lookup:\n    def value(self):\n        return dict.get(vars(legacy), '_install_openapi_builder')\nimport legacy_app as legacy\n",
+            True,
+            False,
+            id="deferred-method-unbound-dict-get",
+        ),
+        pytest.param(
+            "genuine-local-receiver-dict-subscript",
+            "import legacy_app as legacy\nclass Other:\n    pass\ndef lookup():\n    legacy = Other()\n    return legacy.__dict__['_install_openapi_builder']\n",
+            False,
+            False,
+            id="genuine-local-receiver-dict-subscript",
+        ),
+        pytest.param(
+            "genuine-local-receiver-dict-get",
+            "import legacy_app as legacy\nclass Other:\n    pass\ndef lookup():\n    legacy = Other()\n    return legacy.__dict__.get('_install_openapi_builder')\n",
+            False,
+            False,
+            id="genuine-local-receiver-dict-get",
+        ),
+        pytest.param(
+            "genuine-local-receiver-vars-get",
+            "import legacy_app as legacy\nclass Other:\n    pass\ndef lookup():\n    legacy = Other()\n    return vars(legacy).get('_install_openapi_builder')\n",
+            False,
+            False,
+            id="genuine-local-receiver-vars-get",
+        ),
+        pytest.param(
+            "genuine-local-receiver-unbound-dict-get",
+            "import legacy_app as legacy\nclass Other:\n    pass\ndef lookup():\n    legacy = Other()\n    return dict.get(vars(legacy), '_install_openapi_builder')\n",
+            False,
+            False,
+            id="genuine-local-receiver-unbound-dict-get",
+        ),
+        pytest.param(
+            "sibling-local-does-not-poison-dict-subscript",
+            "import legacy_app as legacy\nclass Other:\n    pass\ndef safe():\n    legacy = Other()\n    return legacy.__dict__['_install_openapi_builder']\ndef protected():\n    return legacy.__dict__['_install_openapi_builder']\n",
+            True,
+            False,
+            id="sibling-local-does-not-poison-dict-subscript",
+        ),
+        pytest.param(
+            "sibling-local-does-not-poison-dict-get",
+            "import legacy_app as legacy\nclass Other:\n    pass\ndef safe():\n    legacy = Other()\n    return legacy.__dict__.get('_install_openapi_builder')\ndef protected():\n    return legacy.__dict__.get('_install_openapi_builder')\n",
+            True,
+            False,
+            id="sibling-local-does-not-poison-dict-get",
+        ),
+        pytest.param(
+            "sibling-local-does-not-poison-vars-get",
+            "import legacy_app as legacy\nclass Other:\n    pass\ndef safe():\n    legacy = Other()\n    return vars(legacy).get('_install_openapi_builder')\ndef protected():\n    return vars(legacy).get('_install_openapi_builder')\n",
+            True,
+            False,
+            id="sibling-local-does-not-poison-vars-get",
+        ),
+        pytest.param(
+            "sibling-local-does-not-poison-unbound-dict-get",
+            "import legacy_app as legacy\nclass Other:\n    pass\ndef safe():\n    legacy = Other()\n    return dict.get(vars(legacy), '_install_openapi_builder')\ndef protected():\n    return dict.get(vars(legacy), '_install_openapi_builder')\n",
+            True,
+            False,
+            id="sibling-local-does-not-poison-unbound-dict-get",
+        ),
+        pytest.param(
+            "nonlocal-receiver-before-safe-dict-subscript",
+            "def outer():\n    import legacy_app as legacy\n    def inner():\n        nonlocal legacy\n        value = legacy.__dict__['_install_openapi_builder']\n        legacy = object()\n        return value\n    return inner\n",
+            True,
+            False,
+            id="nonlocal-receiver-before-safe-dict-subscript",
+        ),
+        pytest.param(
+            "nonlocal-receiver-before-safe-dict-get",
+            "def outer():\n    import legacy_app as legacy\n    def inner():\n        nonlocal legacy\n        value = legacy.__dict__.get('_install_openapi_builder')\n        legacy = object()\n        return value\n    return inner\n",
+            True,
+            False,
+            id="nonlocal-receiver-before-safe-dict-get",
+        ),
+        pytest.param(
+            "nonlocal-receiver-before-safe-vars-get",
+            "def outer():\n    import legacy_app as legacy\n    def inner():\n        nonlocal legacy\n        value = vars(legacy).get('_install_openapi_builder')\n        legacy = object()\n        return value\n    return inner\n",
+            True,
+            False,
+            id="nonlocal-receiver-before-safe-vars-get",
+        ),
+        pytest.param(
+            "nonlocal-receiver-before-safe-unbound-dict-get",
+            "def outer():\n    import legacy_app as legacy\n    def inner():\n        nonlocal legacy\n        value = dict.get(vars(legacy), '_install_openapi_builder')\n        legacy = object()\n        return value\n    return inner\n",
+            True,
+            False,
+            id="nonlocal-receiver-before-safe-unbound-dict-get",
+        ),
+        pytest.param(
+            "nonlocal-member-before-safe-dict-subscript",
+            "import legacy_app as legacy\ndef outer():\n    member = '_install_openapi_builder'\n    def inner():\n        nonlocal member\n        value = legacy.__dict__[member]\n        member = 'other'\n        return value\n    return inner\n",
+            True,
+            False,
+            id="nonlocal-member-before-safe-dict-subscript",
+        ),
+        pytest.param(
+            "nonlocal-member-before-safe-dict-get",
+            "import legacy_app as legacy\ndef outer():\n    member = '_install_openapi_builder'\n    def inner():\n        nonlocal member\n        value = legacy.__dict__.get(member)\n        member = 'other'\n        return value\n    return inner\n",
+            True,
+            False,
+            id="nonlocal-member-before-safe-dict-get",
+        ),
+        pytest.param(
+            "nonlocal-member-before-safe-vars-get",
+            "import legacy_app as legacy\ndef outer():\n    member = '_install_openapi_builder'\n    def inner():\n        nonlocal member\n        value = vars(legacy).get(member)\n        member = 'other'\n        return value\n    return inner\n",
+            True,
+            False,
+            id="nonlocal-member-before-safe-vars-get",
+        ),
+        pytest.param(
+            "nonlocal-member-before-safe-unbound-dict-get",
+            "import legacy_app as legacy\ndef outer():\n    member = '_install_openapi_builder'\n    def inner():\n        nonlocal member\n        value = dict.get(vars(legacy), member)\n        member = 'other'\n        return value\n    return inner\n",
+            True,
+            False,
+            id="nonlocal-member-before-safe-unbound-dict-get",
+        ),
+        pytest.param(
+            "defining-default-dict-subscript",
+            "import legacy_app as legacy\ndef lookup(legacy, value=legacy.__dict__['_install_openapi_builder']):\n    return value\n",
+            True,
+            False,
+            id="defining-default-dict-subscript",
+        ),
+        pytest.param(
+            "defining-default-dict-get",
+            "import legacy_app as legacy\ndef lookup(legacy, value=legacy.__dict__.get('_install_openapi_builder')):\n    return value\n",
+            True,
+            False,
+            id="defining-default-dict-get",
+        ),
+        pytest.param(
+            "defining-default-vars-get",
+            "import legacy_app as legacy\ndef lookup(legacy, value=vars(legacy).get('_install_openapi_builder')):\n    return value\n",
+            True,
+            False,
+            id="defining-default-vars-get",
+        ),
+        pytest.param(
+            "defining-default-unbound-dict-get",
+            "import legacy_app as legacy\ndef lookup(legacy, value=dict.get(vars(legacy), '_install_openapi_builder')):\n    return value\n",
+            True,
+            False,
+            id="defining-default-unbound-dict-get",
+        ),
+        pytest.param(
+            "lambda-defining-default-dict-subscript",
+            "import legacy_app as legacy\nlookup = lambda legacy, value=legacy.__dict__['_install_openapi_builder']: value\n",
+            True,
+            False,
+            id="lambda-defining-default-dict-subscript",
+        ),
+        pytest.param(
+            "lambda-defining-default-dict-get",
+            "import legacy_app as legacy\nlookup = lambda legacy, value=legacy.__dict__.get('_install_openapi_builder'): value\n",
+            True,
+            False,
+            id="lambda-defining-default-dict-get",
+        ),
+        pytest.param(
+            "lambda-defining-default-vars-get",
+            "import legacy_app as legacy\nlookup = lambda legacy, value=vars(legacy).get('_install_openapi_builder'): value\n",
+            True,
+            False,
+            id="lambda-defining-default-vars-get",
+        ),
+        pytest.param(
+            "lambda-defining-default-unbound-dict-get",
+            "import legacy_app as legacy\nlookup = lambda legacy, value=dict.get(vars(legacy), '_install_openapi_builder'): value\n",
+            True,
+            False,
+            id="lambda-defining-default-unbound-dict-get",
+        ),
+        pytest.param(
+            "parameter-annotation-active-dict-subscript",
+            "import legacy_app as legacy\ndef lookup(value: legacy.__dict__['_install_openapi_builder']):\n    return value\n",
+            True,
+            False,
+            id="parameter-annotation-active-dict-subscript",
+        ),
+        pytest.param(
+            "parameter-annotation-active-dict-get",
+            "import legacy_app as legacy\ndef lookup(value: legacy.__dict__.get('_install_openapi_builder')):\n    return value\n",
+            True,
+            False,
+            id="parameter-annotation-active-dict-get",
+        ),
+        pytest.param(
+            "parameter-annotation-active-vars-get",
+            "import legacy_app as legacy\ndef lookup(value: vars(legacy).get('_install_openapi_builder')):\n    return value\n",
+            True,
+            False,
+            id="parameter-annotation-active-vars-get",
+        ),
+        pytest.param(
+            "parameter-annotation-active-unbound-dict-get",
+            "import legacy_app as legacy\ndef lookup(value: dict.get(vars(legacy), '_install_openapi_builder')):\n    return value\n",
+            True,
+            False,
+            id="parameter-annotation-active-unbound-dict-get",
+        ),
+        pytest.param(
+            "parameter-annotation-postponed-dict-subscript",
+            "import legacy_app as legacy\ndef lookup(value: legacy.__dict__['_install_openapi_builder']):\n    return value\n",
+            False,
+            True,
+            id="parameter-annotation-postponed-dict-subscript",
+        ),
+        pytest.param(
+            "parameter-annotation-postponed-dict-get",
+            "import legacy_app as legacy\ndef lookup(value: legacy.__dict__.get('_install_openapi_builder')):\n    return value\n",
+            False,
+            True,
+            id="parameter-annotation-postponed-dict-get",
+        ),
+        pytest.param(
+            "parameter-annotation-postponed-vars-get",
+            "import legacy_app as legacy\ndef lookup(value: vars(legacy).get('_install_openapi_builder')):\n    return value\n",
+            False,
+            True,
+            id="parameter-annotation-postponed-vars-get",
+        ),
+        pytest.param(
+            "parameter-annotation-postponed-unbound-dict-get",
+            "import legacy_app as legacy\ndef lookup(value: dict.get(vars(legacy), '_install_openapi_builder')):\n    return value\n",
+            False,
+            True,
+            id="parameter-annotation-postponed-unbound-dict-get",
+        ),
+        pytest.param(
+            "return-annotation-active-dict-subscript",
+            "import legacy_app as legacy\ndef lookup() -> legacy.__dict__['_install_openapi_builder']:\n    pass\n",
+            True,
+            False,
+            id="return-annotation-active-dict-subscript",
+        ),
+        pytest.param(
+            "return-annotation-active-dict-get",
+            "import legacy_app as legacy\ndef lookup() -> legacy.__dict__.get('_install_openapi_builder'):\n    pass\n",
+            True,
+            False,
+            id="return-annotation-active-dict-get",
+        ),
+        pytest.param(
+            "return-annotation-active-vars-get",
+            "import legacy_app as legacy\ndef lookup() -> vars(legacy).get('_install_openapi_builder'):\n    pass\n",
+            True,
+            False,
+            id="return-annotation-active-vars-get",
+        ),
+        pytest.param(
+            "return-annotation-active-unbound-dict-get",
+            "import legacy_app as legacy\ndef lookup() -> dict.get(vars(legacy), '_install_openapi_builder'):\n    pass\n",
+            True,
+            False,
+            id="return-annotation-active-unbound-dict-get",
+        ),
+        pytest.param(
+            "return-annotation-postponed-dict-subscript",
+            "import legacy_app as legacy\ndef lookup() -> legacy.__dict__['_install_openapi_builder']:\n    pass\n",
+            False,
+            True,
+            id="return-annotation-postponed-dict-subscript",
+        ),
+        pytest.param(
+            "return-annotation-postponed-dict-get",
+            "import legacy_app as legacy\ndef lookup() -> legacy.__dict__.get('_install_openapi_builder'):\n    pass\n",
+            False,
+            True,
+            id="return-annotation-postponed-dict-get",
+        ),
+        pytest.param(
+            "return-annotation-postponed-vars-get",
+            "import legacy_app as legacy\ndef lookup() -> vars(legacy).get('_install_openapi_builder'):\n    pass\n",
+            False,
+            True,
+            id="return-annotation-postponed-vars-get",
+        ),
+        pytest.param(
+            "return-annotation-postponed-unbound-dict-get",
+            "import legacy_app as legacy\ndef lookup() -> dict.get(vars(legacy), '_install_openapi_builder'):\n    pass\n",
+            False,
+            True,
+            id="return-annotation-postponed-unbound-dict-get",
+        ),
+    ],
+)
+def test_consol_openapi_namespace_lookup_preserves_temporal_and_deferred_context(
+    case_name: str, source: str, forbidden: bool, postponed: bool
+) -> None:
+    """Each component retains its evaluation identity and original annotation/scope boundary."""
+    expected = (
+        ["app/main.py: OpenAPI symbol must not be accessed through legacy"] if forbidden else []
+    )
+    assert _consol_openapi_errors(source, postponed_annotations=postponed) == expected
+
+
+@pytest.mark.parametrize("omitted", ["reference", "string"])
+@pytest.mark.parametrize(
+    "lookup",
+    [
+        pytest.param("legacy.__dict__['_install_openapi_builder']", id="dict-subscript"),
+        pytest.param("legacy.__dict__.get('_install_openapi_builder')", id="dict-get"),
+        pytest.param("legacy.__dict__.__getitem__('_install_openapi_builder')", id="dict-getitem"),
+        pytest.param("dict.get(vars(legacy), '_install_openapi_builder')", id="unbound-dict-get"),
+    ],
+)
+def test_consol_openapi_namespace_lookup_requires_own_reference_and_string_snapshots(
+    omitted: str, lookup: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    collect = legacy_guard._collect_lexical_binding_snapshots
+    removed_nodes: list[int] = []
+
+    def collect_without_own_lookup(tree: ast.Module, **kwargs: Any) -> tuple[
+        Mapping[int, Mapping[str, str]],
+        Mapping[int, Mapping[str, str]],
+        Mapping[int, legacy_guard._ResolvedBinding],
+    ]:
+        references, strings, results = collect(tree, **kwargs)
+        selected = {
+            id(statement.value)
+            for statement in tree.body
+            if isinstance(statement, ast.Assign)
+            and any(
+                isinstance(target, ast.Name) and target.id == "value"
+                for target in statement.targets
+            )
+        }
+        removed_nodes.extend(selected)
+        if omitted == "reference":
+            references = {key: value for key, value in references.items() if key not in selected}
+        else:
+            strings = {key: value for key, value in strings.items() if key not in selected}
+        return references, strings, results
+
+    monkeypatch.setattr(
+        legacy_guard, "_collect_lexical_binding_snapshots", collect_without_own_lookup
+    )
+    source = "import legacy_app as legacy\n" + f"value = {lookup}\n"
+    assert _consol_openapi_errors(source) == []
+    assert removed_nodes, "the existing collector must acquire the actual lookup before omission"
+
+
+@pytest.mark.parametrize("marker_family", ["api", "openapi"])
+@pytest.mark.parametrize(
+    ("setup", "lookup"),
+    [
+        pytest.param("", "legacy.__dict__[probe_name]", id="dict-subscript"),
+        pytest.param("", "legacy.__dict__.get(probe_name)", id="dict-get"),
+        pytest.param("", "legacy.__dict__.__getitem__(probe_name)", id="dict-getitem"),
+        pytest.param("", "vars(legacy).get(probe_name)", id="vars-get"),
+        pytest.param("pick = vars(legacy).get\n", "pick(probe_name)", id="stored-get"),
+        pytest.param("", "dict.get(vars(legacy), probe_name)", id="unbound-dict-get"),
+    ],
+)
+def test_consol_openapi_namespace_lookup_keeps_possible_marker_families_separate(
+    marker_family: str, setup: str, lookup: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    marker = (
+        legacy_guard._POSSIBLE_API_KEY_SYMBOL
+        if marker_family == "api"
+        else legacy_guard._POSSIBLE_OPENAPI_SYMBOL
+    )
+    collect = legacy_guard._collect_lexical_binding_snapshots
+    injected_nodes: list[int] = []
+
+    def collect_with_marker(tree: ast.Module, **kwargs: Any) -> tuple[
+        Mapping[int, Mapping[str, str]],
+        Mapping[int, Mapping[str, str]],
+        Mapping[int, legacy_guard._ResolvedBinding],
+    ]:
+        references, strings, results = collect(tree, **kwargs)
+        injected_nodes.extend(strings)
+        return (
+            references,
+            {key: {**values, "probe_name": marker} for key, values in strings.items()},
+            results,
+        )
+
+    monkeypatch.setattr(legacy_guard, "_collect_lexical_binding_snapshots", collect_with_marker)
+    source = "import legacy_app as legacy\nprobe_name = 'other'\n" + setup + f"value = {lookup}\n"
+    expected = (
+        ["app/main.py: OpenAPI symbol must not be accessed through legacy"]
+        if marker_family == "openapi"
+        else []
+    )
+    assert _consol_openapi_errors(source) == expected
+    assert injected_nodes
+
+
+@pytest.mark.parametrize("binding_kind", ["direct", "tuple", "list", "nested"])
+@pytest.mark.parametrize(
+    ("case_name", "initial", "mutation", "expected_method"),
+    [
+        pytest.param(
+            "update-protected",
+            '{"route": None}',
+            'routes.update({"route": app.get})',
+            "get",
+            id="update-protected",
+        ),
+        pytest.param(
+            "update-safe",
+            '{"route": app.get}',
+            'routes.update({"route": None})',
+            None,
+            id="update-safe",
+        ),
+        pytest.param(
+            "update-safe-no-change",
+            '{"route": None}',
+            'routes.update({"route": None})',
+            None,
+            id="update-safe-no-change",
+        ),
+        pytest.param(
+            "update-other-key",
+            '{"route": None}',
+            'routes.update({"other": app.get})',
+            None,
+            id="update-other-key",
+        ),
+        pytest.param(
+            "clear-protected", '{"route": app.get}', "routes.clear()", None, id="clear-protected"
+        ),
+        pytest.param("clear-safe", '{"route": None}', "routes.clear()", None, id="clear-safe"),
+        pytest.param(
+            "pop-selected-protected",
+            '{"route": app.get, "other": None}',
+            'routes.pop("route")',
+            None,
+            id="pop-selected-protected",
+        ),
+        pytest.param(
+            "pop-other-key",
+            '{"route": app.get, "other": None}',
+            'routes.pop("other")',
+            "get",
+            id="pop-other-key",
+        ),
+        pytest.param(
+            "setdefault-existing-safe",
+            '{"route": None}',
+            'routes.setdefault("route", app.get)',
+            None,
+            id="setdefault-existing-safe",
+        ),
+        pytest.param(
+            "setdefault-existing-protected",
+            '{"route": app.get}',
+            'routes.setdefault("route", None)',
+            "get",
+            id="setdefault-existing-protected",
+        ),
+        pytest.param(
+            "setdefault-new-selected",
+            '{"other": None}',
+            'routes.setdefault("route", app.get)',
+            "get",
+            id="setdefault-new-selected",
+        ),
+        pytest.param(
+            "setdefault-other-key",
+            '{"route": None}',
+            'routes.setdefault("other", app.get)',
+            None,
+            id="setdefault-other-key",
+        ),
+    ],
+)
+def test_consol_paired_pending_mapping_tracks_known_mutation(
+    binding_kind: str,
+    case_name: str,
+    initial: str,
+    mutation: str,
+    expected_method: Literal["get", "dynamic"] | None,
+) -> None:
+    """Direct aliases stay precise; unsupported paired mutation sources reject conservatively."""
+    assignments = {
+        "direct": f"alias = routes\nignored = {mutation}\n",
+        "tuple": f"alias, ignored = routes, {mutation}\n",
+        "list": f"[alias, ignored] = [routes, {mutation}]\n",
+        "nested": f"([alias], ignored) = ([routes], {mutation})\n",
+    }
+    route = f"/api/v1/paired-known-{binding_kind}-{case_name}"
+    source = (
+        f"routes = {initial}\n"
+        + assignments[binding_kind]
+        + 'register = {"route": None, **alias}["route"]\n'
+        + f'register("{route}")(handler)\n'
+    )
+    if binding_kind in {"tuple", "list", "nested"}:
+        expected_method = "dynamic"
+    expected = (
+        [f"legacy_app.py: unexpected legacy route growth: registration:{expected_method}:{route}"]
+        if expected_method is not None
+        else []
+    )
+    assert legacy_guard.validate_legacy_growth(source) == expected
+
+
+@pytest.mark.parametrize("binding_kind", ["direct", "tuple", "list", "nested"])
+@pytest.mark.parametrize(
+    ("case_name", "initial", "setup", "captured_name", "effect", "expected_method"),
+    [
+        pytest.param(
+            "independent-safe-copy",
+            '{"route": None}',
+            "copied = {**routes}\n",
+            "copied",
+            'routes.update({"route": app.get})',
+            None,
+            id="independent-safe-copy",
+        ),
+        pytest.param(
+            "independent-protected-copy",
+            '{"route": app.get}',
+            "copied = {**routes}\n",
+            "copied",
+            'routes.update({"route": None})',
+            "get",
+            id="independent-protected-copy",
+        ),
+        pytest.param(
+            "different-object-safe",
+            '{"route": None}',
+            'other = {"route": None}\n',
+            "routes",
+            'other.update({"route": app.get})',
+            None,
+            id="different-object-safe",
+        ),
+        pytest.param(
+            "different-object-protected",
+            '{"route": app.get}',
+            'other = {"route": app.get}\n',
+            "routes",
+            "other.clear()",
+            "get",
+            id="different-object-protected",
+        ),
+        pytest.param(
+            "rebind-preserves-protected-object",
+            '{"route": app.get}',
+            "",
+            "routes",
+            '(routes := {"route": None})',
+            "get",
+            id="rebind-preserves-protected-object",
+        ),
+        pytest.param(
+            "rebind-preserves-safe-object",
+            '{"route": None}',
+            "",
+            "routes",
+            '(routes := {"route": app.get})',
+            None,
+            id="rebind-preserves-safe-object",
+        ),
+    ],
+)
+def test_consol_paired_pending_mapping_distinguishes_mutation_from_rebinding_and_copies(
+    binding_kind: str,
+    case_name: str,
+    initial: str,
+    setup: str,
+    captured_name: str,
+    effect: str,
+    expected_method: Literal["get", "dynamic"] | None,
+) -> None:
+    """Keep transparent rebinding precise and reject unsupported paired effect sources."""
+    assignments = {
+        "direct": f"alias = {captured_name}\nignored = {effect}\n",
+        "tuple": f"alias, ignored = {captured_name}, {effect}\n",
+        "list": f"[alias, ignored] = [{captured_name}, {effect}]\n",
+        "nested": f"([alias], ignored) = ([{captured_name}], {effect})\n",
+    }
+    route = f"/api/v1/paired-identity-effect-{binding_kind}-{case_name}"
+    source = (
+        f"routes = {initial}\n"
+        + setup
+        + assignments[binding_kind]
+        + 'register = {"route": None, **alias}["route"]\n'
+        + f'register("{route}")(handler)\n'
+    )
+    if binding_kind in {"tuple", "list", "nested"} and case_name in {
+        "independent-safe-copy",
+        "independent-protected-copy",
+        "different-object-safe",
+        "different-object-protected",
+        "rebind-preserves-safe-object",
+    }:
+        expected_method = "dynamic"
+    expected = (
+        [f"legacy_app.py: unexpected legacy route growth: registration:{expected_method}:{route}"]
+        if expected_method is not None
+        else []
+    )
+    assert legacy_guard.validate_legacy_growth(source) == expected
+
+
+@pytest.mark.parametrize(
+    ("kind", "definition", "invocation", "expected_flag", "expected_deferred"),
+    [
+        pytest.param(
+            "sync",
+            "def mutate():\n    global flag\n    flag = 'after'\n    return 'result'\n",
+            "result = mutate()\n",
+            "after",
+            False,
+            id="explicit-sync",
+        ),
+        pytest.param(
+            "async",
+            "async def mutate():\n    global flag\n    flag = 'after'\n    return 'result'\n",
+            "pending = mutate()\n",
+            "before",
+            True,
+            id="dormant-async-creation",
+        ),
+        pytest.param(
+            "generator",
+            "def mutate():\n    global flag\n    flag = 'after'\n    yield 'result'\n",
+            "pending = mutate()\n",
+            "before",
+            True,
+            id="dormant-generator-creation",
+        ),
+        pytest.param(
+            "async",
+            "async def mutate():\n    global flag\n    flag = 'after'\n    return 'result'\n",
+            "import asyncio\nresult = asyncio.run(mutate())\n",
+            "after",
+            False,
+            id="explicit-async-execution",
+        ),
+        pytest.param(
+            "generator",
+            "def mutate():\n    global flag\n    flag = 'after'\n    yield 'result'\n",
+            "result = next(mutate())\n",
+            "after",
+            False,
+            id="explicit-generator-iteration",
+        ),
+    ],
+)
+def test_consol_body_disabled_analysis_preserves_explicit_and_deferred_call_semantics(
+    kind: str,
+    definition: str,
+    invocation: str,
+    expected_flag: str,
+    expected_deferred: bool,
+) -> None:
+    """Skipping unused bodies must not erase explicit calls or execute dormant bodies."""
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="legacy_app.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(ast.parse("flag = 'before'\n" + definition))
+    assert visitor.scope.strings["flag"] == "before"
+    invocation_tree = ast.parse(invocation)
+    visitor.visit(invocation_tree)
+    assert visitor.scope.strings["flag"] == expected_flag
+    assert bool(visitor.scope.resolve_deferred_calls("pending")) is expected_deferred
+    assert visitor.errors == []
+    if kind == "sync":
+        call = cast(ast.Call, cast(ast.Assign, invocation_tree.body[0]).value)
+        assert visitor._call_result_bindings[id(call)].string == "result"
+
+
+@pytest.mark.parametrize("owner_kind", ["global", "nonlocal"])
+def test_consol_unused_definition_analysis_isolates_real_outward_owners(owner_kind: str) -> None:
+    """A stored closure's real definition scope remains unchanged by detached unused analysis."""
+    visitor = legacy_guard._ApiKeyLookupVisitor(filename="legacy_app.py", errors=[])
+    if owner_kind == "global":
+        source = "flag = 'before'\n" "def helper():\n    global flag\n    flag = 'after'\n"
+    else:
+        source = (
+            "def make():\n    flag = 'before'\n"
+            "    def helper():\n        nonlocal flag\n        flag = 'after'\n"
+            "    return helper\nhelper = make()\n"
+        )
+    visitor.visit(ast.parse(source))
+    if owner_kind == "global":
+        owner = visitor.scope
+    else:
+        (helper_node,) = visitor.scope.resolve_callables("helper")
+        owner = visitor._function_definition_scopes[helper_node]
+    before = (
+        dict(owner.references),
+        dict(owner.strings),
+        dict(owner.callables),
+        dict(owner.deferred_calls),
+        dict(owner.mappings),
+        dict(owner.class_references),
+        dict(owner.descriptors),
+        dict(owner.iterable_elements),
+        set(owner.bound_names),
+        set(owner.possibly_bound_names),
+    )
+    assert owner.strings["flag"] == "before"
+    visitor.visit(ast.parse("def unused():\n    helper()\n"))
+    after = (
+        dict(owner.references),
+        dict(owner.strings),
+        dict(owner.callables),
+        dict(owner.deferred_calls),
+        dict(owner.mappings),
+        dict(owner.class_references),
+        dict(owner.descriptors),
+        dict(owner.iterable_elements),
+        set(owner.bound_names),
+        set(owner.possibly_bound_names),
+    )
+    if owner_kind == "global":
+        registered = visitor.scope.resolve_callables("unused")
+        assert len(registered) == 1
+        assert next(iter(registered)).name == "unused"
+        assert "unused" in owner.bound_names
+        assert "unused" in owner.possibly_bound_names
+        after = (
+            {name: value for name, value in after[0].items() if name != "unused"},
+            {name: value for name, value in after[1].items() if name != "unused"},
+            {name: value for name, value in after[2].items() if name != "unused"},
+            {name: value for name, value in after[3].items() if name != "unused"},
+            {name: value for name, value in after[4].items() if name != "unused"},
+            {name: value for name, value in after[5].items() if name != "unused"},
+            {name: value for name, value in after[6].items() if name != "unused"},
+            {name: value for name, value in after[7].items() if name != "unused"},
+            after[8] - {"unused"},
+            after[9] - {"unused"},
+        )
+    assert after == before
+    visitor.visit(ast.parse("helper()\n"))
+    assert owner.strings["flag"] == "after"
+    assert visitor.errors == []
+
+
+@pytest.mark.parametrize("invoked", [False, True], ids=["dormant", "invoked"])
+@pytest.mark.parametrize(
+    ("helper", "execution"),
+    [
+        pytest.param(
+            "async def install(registrar):\n    registrar(handler)\n",
+            'asyncio.run(install(app.middleware("http")))',
+            id="async-call",
+        ),
+        pytest.param(
+            "async def install(registrar):\n    registrar(handler)\n",
+            'pending = install(app.middleware("http"))\nasyncio.run(pending)',
+            id="async-alias",
+        ),
+        pytest.param(
+            "def install(registrar):\n    registrar(handler)\n    yield None\n",
+            'list(install(app.middleware("http")))',
+            id="generator-call",
+        ),
+        pytest.param(
+            "def install(registrar):\n    registrar(handler)\n    yield None\n",
+            'pending = install(app.middleware("http"))\nlist(pending)',
+            id="generator-alias",
+        ),
+    ],
+)
+def test_consol_unused_sync_wrapper_preserves_deferred_body_execution_boundary(
+    helper: str, execution: str, invoked: bool
+) -> None:
+    """A nested sync helper must retain the dormant phase until an actual wrapper call."""
+    source = (
+        "import asyncio\n\n"
+        + helper
+        + "\ndef relay():\n"
+        + textwrap.indent(execution + "\n", "    ")
+        + "\ndef wrapper():\n    relay()\n"
+        + ("\nwrapper()\n" if invoked else "")
+    )
+    expected = (
+        ["legacy_app.py: unexpected legacy route growth: registration:middleware:http"]
+        if invoked
+        else []
+    )
+    assert legacy_guard.validate_legacy_growth(source) == expected

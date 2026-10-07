@@ -51,7 +51,7 @@ The separate protected set also includes `api_key_header`, `validate_app_api_key
 and `require_app_api_key`; protection does not authorize additional re-exports.
 Wrappers or mutable legacy-owned warning state would break FastAPI dependency
 identity. The strict source witness and absolute-import boundary are enforced by
-`scripts/ci/check_legacy_growth_guard.py:9357`.
+`scripts/ci/check_legacy_growth_guard.py:9611`.
 
 Application metadata is canonically owned by
 `app/application_metadata.py:56` and constructed through the environment-aware
@@ -639,7 +639,7 @@ closed families and absorbing possible markers in the existing join. The
 OpenAPI family is the exact seven compatibility names or a name containing
 `openapi` after case folding. Receiver, member and builtin-callee provenance
 remain independent, including deferred/local/nonlocal and postponed-annotation
-contexts (`scripts/ci/check_legacy_growth_guard.py:11037`).
+contexts (`scripts/ci/check_legacy_growth_guard.py:11291`).
 
 The strict API-key source validator requires readable, parseable
 `app/routers/api_key.py` and all five actual module bindings from the existing
@@ -651,8 +651,8 @@ headers, and exception types before their aliases/bodies, are inspected in the
 containing scope; lambda bodies remain local. Eager versus postponed annotations
 and positional/keyword defaults preserve their current execution boundary.
 These source witnesses do not establish configured keys or runtime authorization
-(`scripts/ci/check_legacy_growth_guard.py:3020`,
-`scripts/ci/check_legacy_growth_guard.py:9357`).
+(`scripts/ci/check_legacy_growth_guard.py:3028`,
+`scripts/ci/check_legacy_growth_guard.py:9611`).
 
 Resolved matching tuple/list/nested local assignments preserve their mapping
 identity through the existing paired binder; generic collection escapes and
@@ -660,12 +660,12 @@ unmatched/starred constructions retain their separate conservative handling.
 Actual class members invalidate shared mapping identity before class-scope
 restoration, excluding global/nonlocal declarations and avoiding repeated
 invalidation of already-removed aliases. Copied mappings and ordered snapshots
-remain distinct (`scripts/ci/check_legacy_growth_guard.py:5141`,
-`scripts/ci/check_legacy_growth_guard.py:5724`). Builtin `vars`, `dict.get` and
+remain distinct (`scripts/ci/check_legacy_growth_guard.py:5157`,
+`scripts/ci/check_legacy_growth_guard.py:5912`). Builtin `vars`, `dict.get` and
 stored namespace getters retain actual legacy-namespace provenance in the
 existing reference/call seams; shadowed builtins, unrelated receivers and safe
 member names remain independent controls. The per-loop32 and total128 transfer
-budgets are unchanged (`scripts/ci/check_legacy_growth_guard.py:4367`). These
+budgets are unchanged (`scripts/ci/check_legacy_growth_guard.py:4383`). These
 bounded repairs do not widen the independent87-name baseline and inherited
 four-name retirement tail, and do not certify arbitrary Python reflection.
 
