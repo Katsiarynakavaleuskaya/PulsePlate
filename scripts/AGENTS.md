@@ -122,6 +122,10 @@
   their existing behavior; binary-only installs retain target-Python selection.
   Dedicated SDK builds reject an explicit target-Python option because the
   unchanged four-input build uses its loader interpreter.
+- `make dc-up` credential forwarding is explicit opt-in through
+  `PULSEPLATE_NATIVE_SDK_NETRC_FILE`, defaulting to `/dev/null`. Use only a temporary
+  read-only file scoped to the approved package host after reviewing/trusting the
+  checkout; do not automatically forward or copy host `HOME/.netrc`, `_netrc` or HOME.
 - Before closing a native SDK dependency migration, enumerate every governed compiled profile
   and real CI/local caller. Verify actual extras, matching SDK/platform handoff and the owning
   workflow tests; a selected-profile pass cannot establish complete caller coverage. Inspect

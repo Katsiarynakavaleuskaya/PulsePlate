@@ -79,6 +79,15 @@ source scripts/dev_shell.sh
 make dev
 ```
 
+`make dc-up` uses `/dev/null` for the package `pp_netrc` secret unless
+`PULSEPLATE_NATIVE_SDK_NETRC_FILE` is explicitly set. If proxy credentials are
+needed, review and trust the checkout before opting in with a temporary read-only
+netrc file containing credentials only for the approved package host. Remove that
+temporary file and unset the selector after artifact acquisition. Host
+`HOME/.netrc` and `_netrc` are not automatically forwarded or copied; do not
+select those general-purpose credential files or mount host HOME. Offline
+bootstrap consumes the verified artifacts without registry credentials.
+
 `make venv` and `make venv-sync` also run inside this container. The tooling and
 root development images provide the matching genuine Psycopg C SDK and verified
 runtime/dev wheelhouse; manual bootstrap consumes them offline. Named venv

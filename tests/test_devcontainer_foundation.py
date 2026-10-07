@@ -464,6 +464,73 @@ def test_make_bootstrap_and_sync_execute_offline_handoff_from_empty_volume(
     assert (fixture / ".venv/pyvenv.cfg").is_file()
 
 
+@pytest.mark.parametrize("explicit_netrc", (False, True))
+def test_dc_up_netrc_selection_is_explicit_and_does_not_forward_ambient_home(
+    tmp_path: Path, explicit_netrc: bool
+) -> None:
+    """Execute the real dc-up recipe with synthetic prerequisites and Docker transport."""
+    fixture, environment, _ = _standalone_bootstrap_fixture(tmp_path)
+    control = Path(environment["PATH"].split(os.pathsep)[0])
+    ambient = tmp_path / ".netrc"
+    alternate = tmp_path / "_netrc"
+    ambient_bytes = b"machine unrelated.example login fixture-user\n"
+    ambient.write_bytes(ambient_bytes)
+    alternate.write_bytes(ambient_bytes)
+    explicit = tmp_path / "package-proxy.netrc"
+    explicit.write_text("machine packages.example login fixture-user\n")
+    explicit.chmod(0o400)
+    log = tmp_path / "docker-call.json"
+    docker = control / "docker"
+    docker.write_text(
+        f"#!{sys.executable}\n"
+        "import json, os, pathlib, sys\n"
+        "auth_keys = ('DOCKER_HOST', 'DOCKER_CONTEXT', 'DOCKER_CONFIG', 'COMPOSE_FILE', "
+        "'COMPOSE_PROFILES', 'PIP_CONFIG_FILE', 'NETRC')\n"
+        "record = {'argv': sys.argv[1:], "
+        "'netrc_file': os.environ.get('PULSEPLATE_NATIVE_SDK_NETRC_FILE'), "
+        "'auth_environment_keys': [key for key in auth_keys if key in os.environ]}\n"
+        "pathlib.Path(os.environ['DOCKER_CALL_LOG']).write_text(json.dumps(record))\n"
+    )
+    docker.chmod(0o755)
+    environment["DOCKER_CALL_LOG"] = str(log)
+    if explicit_netrc:
+        environment["PULSEPLATE_NATIVE_SDK_NETRC_FILE"] = str(explicit)
+    prerequisites = fixture / "synthetic-prerequisites.mk"
+    prerequisites.write_text(
+        "ensure-python-proxy:\n\t@echo synthetic-proxy-prerequisite\n"
+        "docker-source-artifacts:\n\t@echo synthetic-source-prerequisite\n"
+    )
+    make = shutil.which("make")
+    assert make is not None
+    result = subprocess.run(
+        [make, "-f", "Makefile", "-f", str(prerequisites), "dc-up"],
+        cwd=fixture,
+        env=environment,
+        capture_output=True,
+        text=True,
+        timeout=15,
+        check=False,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "synthetic-proxy-prerequisite" in result.stdout
+    assert "synthetic-source-prerequisite" in result.stdout
+    record = json.loads(log.read_text())
+    assert record["argv"] == [
+        "compose",
+        "-f",
+        ".devcontainer/docker-compose.devcontainer.yml",
+        "up",
+        "-d",
+        "--build",
+        "devcontainer",
+    ]
+    assert record["netrc_file"] == (str(explicit) if explicit_netrc else "/dev/null")
+    assert record["auth_environment_keys"] == []
+    assert ambient.read_bytes() == alternate.read_bytes() == ambient_bytes
+    assert explicit.read_text() == "machine packages.example login fixture-user\n"
+    assert not (fixture / "build").exists()
+
+
 def test_source_backend_shell_initializes_existing_empty_volume_and_then_activates(
     tmp_path: Path,
 ) -> None:

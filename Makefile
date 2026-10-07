@@ -610,7 +610,6 @@ devcontainer-bootstrap: venv ## Canonical venv install + hooks inside dev contai
 
 dc-up: ensure-python-proxy docker-source-artifacts ## Start dev container (build + detach)
 	@netrc_file="$${PULSEPLATE_NATIVE_SDK_NETRC_FILE:-/dev/null}"; \
-	if [[ "$$netrc_file" == /dev/null && -f "$$HOME/.netrc" ]]; then netrc_file="$$HOME/.netrc"; fi; \
 	PULSEPLATE_NATIVE_SDK_NETRC_FILE="$$netrc_file" docker compose -f "$(DEVCONTAINER_COMPOSE)" up -d --build devcontainer
 
 dc-shell: ## Open shell inside dev container
