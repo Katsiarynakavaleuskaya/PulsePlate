@@ -218,13 +218,15 @@ assets and qualified references, metadata, completeness, replay/admission
 meanings and false authority flags. The deterministic idempotency_key is
 fingerprint_payload of:
 
-    {
-      "purpose": "graph-fed1-read-only-replay",
-      "policy_version": "graph-fed1-inspection-v1",
-      "input_fingerprint": "<canonical F>",
-      "query": {"claim_ref": "<claim>", "context_ref": "<context>", "time_scope": "<period>"},
-      "result_fingerprint": "<result R>"
-    }
+```json
+{
+  "purpose": "graph-fed1-read-only-replay",
+  "policy_version": "graph-fed1-inspection-v1",
+  "input_fingerprint": "<canonical F>",
+  "query": {"claim_ref": "<claim>", "context_ref": "<context>", "time_scope": "<period>"},
+  "result_fingerprint": "<result R>"
+}
+```
 
 This is a read-only replay identity, not an E1 asset-write key. Replay derives
 identical bytes for identical canonical source/query/policy; an existing output
