@@ -1036,7 +1036,8 @@ If it is not recorded here — it does not exist.
 - [ ] P1: GRAPH-FED-1 typed read-only evidence projection
   - Owner: backend-engineer / architecture-specialist / security-auditor
   - Priority: P1
-  - Target PR: PR-TBD on codex/graph-fed-1-evidence-projection
+  - Target PR: [#2480](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2480)
+    on codex/graph-fed-1-evidence-projection
   - Status: In implementation; focused material validation and the required
     PR/review/current-head CI lifecycle remain pending.
   - Area: pure core / offline evidence inspection
