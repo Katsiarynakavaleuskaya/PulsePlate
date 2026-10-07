@@ -3,13 +3,15 @@
 from __future__ import annotations
 
 from copy import deepcopy
+import hashlib
 import json
 import os
 from pathlib import Path
 import socket
 import stat
 import subprocess
-from typing import NoReturn, cast
+from typing import Iterator, NoReturn, cast
+import shlex
 
 import pytest
 
@@ -20,6 +22,7 @@ from core.evidence.fingerprints import (
     fingerprint_payload,
 )
 from core.evidence.relations import audit_snapshot, parse_snapshot
+from core.evidence import federation as fed
 from scripts.evals import evidence_relation_audit as cli
 
 FIXTURE = Path(__file__).parent / "fixtures/evidence_relation_audit_v1.jsonl"
@@ -711,3 +714,110 @@ def test_inspect_has_no_network_or_subprocess_activity(
     monkeypatch.setattr(socket, "create_connection", forbidden)
     monkeypatch.setattr(subprocess, "run", forbidden)
     assert cli.main(_inspect_args(FIXTURE, tmp_path / "offline-inspect.json")) == 0
+
+
+def test_inspect_positive_fanout_budget_rejects_before_material_and_writer(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    rows = _basic_rows()
+    world = rows[-1]
+    evidence = next(_asset_id(row) for row in rows[:-1] if row["use_kind"] == "evidence")
+    identifiers = [f"P{index:02d}" for index in range(16)]
+    for identifier in identifiers:
+        link: dict[str, object] = {
+            "kind": "epistemic_link",
+            "id": identifier,
+            "claim_ref": "C1",
+            "evidence_ref": evidence,
+            "relation": "supported_by",
+            "context_ref": world["context_ref"],
+            "time_scope": "T1",
+            "attribution": "actor-1",
+            "produced_at": "2026-01-01T00:00:00+00:00",
+            "source_fingerprint": "sha256:" + "0" * 64,
+            "revision_of_ref": None,
+        }
+        _seal(link)
+        rows.append(link)
+    world["epistemic_link_refs"] = identifiers
+    _seal(world)
+    duplicate = deepcopy(world)
+    duplicate["id"] = "W-repeat"
+    _seal(duplicate)
+    rows.append(duplicate)
+    assert all(
+        not item.unresolved_link_refs for item in audit_snapshot(parse_snapshot(rows)).assessments
+    )
+    source = tmp_path / "positive-fanout.jsonl"
+    _write(source, rows)
+    target = tmp_path / "unpublished.json"
+
+    def forbidden(*_args: object, **_kwargs: object) -> NoReturn:
+        raise AssertionError("derived material or publication reached")
+
+    monkeypatch.setattr(fed, "MAX_DERIVED_BYTES", 1, raising=False)
+    monkeypatch.setattr(fed, "_projection_material", forbidden)
+    monkeypatch.setattr(cli, "write_report", forbidden)
+    assert cli.main(_inspect_args(source, target, claim="missing")) == 2
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err == "evidence_relation_audit: report_limit\n"
+    assert not target.exists()
+
+
+def test_inspect_retains_original_fixture_canonical_bytes() -> None:
+    data = cli._inspect_bytes(
+        cli.read_jsonl(FIXTURE), claim_ref="C2", context_ref=INSPECT_CONTEXT, time_scope="T1"
+    )
+    assert len(data) == 8309
+    assert f"sha256:{hashlib.sha256(data).hexdigest()}" == (
+        "sha256:d5c54b50b78cf1221963bca1f4f0cbe42708b496014564544e6fee44ed111f26"
+    )
+
+
+def test_inspect_final_encoding_stops_before_overflowing_chunk(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    rows = cli.read_jsonl(FIXTURE)
+    real_iterencode = json.JSONEncoder.iterencode
+    final_chunks: list[str] = []
+
+    def observe(
+        encoder: json.JSONEncoder,
+        value: object,
+        _one_shot: bool = False,
+    ) -> Iterator[str]:
+        for part in real_iterencode(encoder, value, _one_shot):
+            if not _one_shot:
+                final_chunks.append(part)
+            yield part
+
+    monkeypatch.setattr(json.JSONEncoder, "iterencode", observe)
+    monkeypatch.setattr(cli, "MAX_BYTES", 1)
+    with pytest.raises(ValueError, match="^report_limit$"):
+        cli._inspect_bytes(rows, claim_ref="C2", context_ref=INSPECT_CONTEXT, time_scope="T1")
+    assert final_chunks == ["{"]
+
+
+def test_source_inspect_usage_is_one_copyable_logical_command(tmp_path: Path) -> None:
+    source_lines = Path(cast(str, cli.__file__)).read_text(encoding="utf-8").splitlines()
+    first = next(
+        index
+        for index, line in enumerate(source_lines)
+        if "python -m scripts.evals.evidence_relation_audit inspect" in line
+    )
+    assert source_lines[first].endswith("\\")
+    assert cli.__doc__ is not None
+    assert next(line for line in cli.__doc__.splitlines() if " inspect " in line).endswith("\\")
+    command = shlex.split(source_lines[first][:-1] + source_lines[first + 1])
+    assert command[:3] == ["python", "-m", "scripts.evals.evidence_relation_audit"]
+    replacements = {
+        "SNAPSHOT.jsonl": str(FIXTURE),
+        "CLAIM": "C2",
+        "CONTEXT": INSPECT_CONTEXT,
+        "PERIOD": "T1",
+        "REPORT.json": str(tmp_path / "copied-usage.json"),
+    }
+    assert cli.main([replacements.get(value, value) for value in command[3:]]) == 0

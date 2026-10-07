@@ -7,7 +7,7 @@ from dataclasses import dataclass, fields, replace
 from typing import Literal, Sequence, cast
 
 from core.evidence.assets import EvidenceAssetRef
-from core.evidence.fingerprints import JsonValue, fingerprint_payload
+from core.evidence.fingerprints import JsonValue, _canonical_json_bytes, fingerprint_payload
 from core.evidence.relations import (
     EpistemicLinkV1,
     EvidenceRelationSnapshotV1,
@@ -21,6 +21,7 @@ from core.evidence.relations import (
 )
 
 POLICY_VERSION = "graph-fed1-inspection-v1"
+MAX_DERIVED_BYTES = 8 * 1024 * 1024
 RecordNamespace = Literal[
     "evidence.asset", "evidence.link", "evidence.assertion", "evidence.assessment"
 ]
@@ -245,8 +246,95 @@ def _ref(namespace: RecordNamespace, fingerprint: str, local_id: str) -> Qualifi
     return QualifiedEvidenceRefV1(namespace, fingerprint, local_id)
 
 
+def _check_derived_budget(
+    snapshot: EvidenceRelationSnapshotV1,
+    assessments: tuple[WorldRelationAssessmentV1, ...],
+) -> None:
+    """Bound both hash/report representations before allocating qualified records."""
+    # Fixed envelopes/query/identity material fit 2 KiB. Wrapper keys/syntax fit
+    # 192 bytes per record; raw rows are encoded one bounded (<=512 refs) item
+    # at a time by the canonical encoder. No whole derived material is built.
+    material_bytes = 2048
+    projection_refs = 0
+    informational_refs = 0
+
+    def reference_bytes(namespace: RecordNamespace, identifier: str) -> int:
+        # All three values are canonical ASCII tokens. The extra byte covers
+        # an array comma, so this never understates the actual reference size.
+        return (
+            len('{"local_id":"","namespace":"","snapshot_fingerprint":""}')
+            + len(namespace)
+            + len(identifier)
+            + len(snapshot.input_fingerprint)
+            + 1
+        )
+
+    def check() -> None:
+        # Projection inventory and neighborhood informational refs are separate
+        # representations; use their maximum, not a source-row cardinality cap.
+        if material_bytes + max(projection_refs, informational_refs) > MAX_DERIVED_BYTES:
+            raise ValueError("report_limit")
+
+    check()
+    for item in snapshot.assets:
+        own_ref = reference_bytes("evidence.asset", item.asset.asset_id)
+        material_bytes += 192 + len(_canonical_json_bytes(_asset_row(item))) + own_ref
+        material_bytes += sum(
+            reference_bytes("evidence.asset", identifier) for identifier in item.asset.upstream_ids
+        )
+        projection_refs += own_ref
+        informational_refs += (
+            64
+            + own_ref
+            + len(_canonical_json_bytes(item.asset.rail))
+            + len(_canonical_json_bytes(item.asset.fingerprint))
+        )
+        check()
+    for records, namespace in (
+        (snapshot.links, "evidence.link"),
+        (snapshot.assertions, "evidence.assertion"),
+    ):
+        for source_record in records:
+            record = source_record
+            kind = cast(RecordNamespace, namespace)
+            own_ref = reference_bytes(kind, record.id)
+            material_bytes += 192 + len(_canonical_json_bytes(_record_row(record))) + own_ref
+            material_bytes += reference_bytes("evidence.asset", record.context_ref)
+            projection_refs += own_ref
+            if type(record) is EpistemicLinkV1:
+                material_bytes += reference_bytes("evidence.asset", record.evidence_ref)
+            else:
+                assertion = cast(WorldRelationAssertionV1, record)
+                material_bytes += sum(
+                    reference_bytes("evidence.asset", identifier)
+                    for identifier in (*assertion.method_refs, *assertion.independent_review_refs)
+                )
+                material_bytes += sum(
+                    reference_bytes("evidence.link", identifier)
+                    for identifier in assertion.epistemic_link_refs
+                )
+            if record.revision_of_ref is not None:
+                material_bytes += reference_bytes(kind, record.revision_of_ref)
+            check()
+    for assessment in assessments:
+        own_ref = reference_bytes("evidence.assessment", assessment.assertion_id)
+        material_bytes += (
+            192
+            + len(_canonical_json_bytes(cast(JsonValue, assessment.to_dict())))
+            + own_ref
+            + reference_bytes("evidence.assertion", assessment.assertion_id)
+        )
+        material_bytes += sum(
+            reference_bytes("evidence.link", identifier)
+            for identifier in assessment.unresolved_link_refs
+        )
+        projection_refs += own_ref
+        check()
+
+
 def _project(snapshot: EvidenceRelationSnapshotV1) -> EvidenceProjectionV1:
     report = audit_snapshot(snapshot)
+    _check_derived_budget(snapshot, report.assessments)
     fingerprint = snapshot.input_fingerprint
     refs = (
         *(_ref("evidence.asset", fingerprint, item.asset.asset_id) for item in snapshot.assets),

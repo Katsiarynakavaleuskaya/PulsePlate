@@ -1,8 +1,8 @@
-"""Offline NOOS-1A JSONL validator and deterministic structural report.
+r"""Offline NOOS-1A JSONL validator and deterministic structural report.
 
 Usage: python -m scripts.evals.evidence_relation_audit validate --input SNAPSHOT.jsonl
        python -m scripts.evals.evidence_relation_audit report --input SNAPSHOT.jsonl --output REPORT.json
-       python -m scripts.evals.evidence_relation_audit inspect --input SNAPSHOT.jsonl
+       python -m scripts.evals.evidence_relation_audit inspect --input SNAPSHOT.jsonl \
            --claim-ref CLAIM --context-ref CONTEXT --time-scope PERIOD --output REPORT.json
 
 Limits: 8 MiB input and report, 256 KiB per line, 10,000 records, JSON depth
@@ -235,15 +235,17 @@ def _inspect_bytes(
     report = select_claim_neighborhood(
         projection, claim_ref=claim_ref, context_ref=context_ref, time_scope=time_scope
     ).to_dict()
-    data = (
-        json.dumps(
-            report, sort_keys=True, separators=(",", ":"), ensure_ascii=True, allow_nan=False
-        )
-        + "\n"
-    ).encode("utf-8")
-    if len(data) > MAX_BYTES:
-        raise ValueError("report_limit")
-    return data
+    data = bytearray()
+    encoder = json.JSONEncoder(
+        sort_keys=True, separators=(",", ":"), ensure_ascii=True, allow_nan=False
+    )
+    for part in encoder.iterencode(report):
+        encoded = part.encode("utf-8")
+        if len(data) + len(encoded) + 1 > MAX_BYTES:
+            raise ValueError("report_limit")
+        data.extend(encoded)
+    data.extend(b"\n")
+    return bytes(data)
 
 
 def write_report(path: Path, data: bytes) -> None:

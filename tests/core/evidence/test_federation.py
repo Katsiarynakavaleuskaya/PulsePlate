@@ -6,7 +6,7 @@ from copy import deepcopy
 from dataclasses import replace
 import json
 from pathlib import Path
-from typing import cast
+from typing import NoReturn, Sequence, cast
 
 import pytest
 
@@ -15,6 +15,7 @@ from core.evidence.assets import EvidenceAssetRef, Rail, create_evidence_asset_r
 from core.evidence.fingerprints import JsonValue, fingerprint_payload
 from core.evidence.relations import (
     EvidenceRelationSnapshotV1,
+    EvidenceRelationReportV1,
     EpistemicLinkV1,
     InventoryAssetV1,
     WorldRelationAssessmentV1,
@@ -629,5 +630,104 @@ def test_whole_audit_bound_cannot_be_evaded_by_absent_query() -> None:
     rows += [_link(identifier, relation="contradicted_by") for identifier in identifiers]
     rows += [_world(f"W{index:03d}", links=identifiers) for index in range(101)]
     source: EvidenceRelationSnapshotV1 = parse_snapshot(rows)
+    with pytest.raises(ValueError, match="^report_limit$"):
+        fed.build_evidence_projection(source)
+
+
+@pytest.mark.parametrize("entry", ["build", "select", "projection", "neighborhood", "absent"])
+def test_positive_fanout_budget_rejects_before_whole_qualification_and_hashing(
+    entry: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    rows = [row for row in _rows() if row.get("kind") == "asset"]
+    identifiers = tuple(f"P{index:02d}" for index in range(16))
+    rows += [_link(identifier) for identifier in identifiers]
+    rows += [_world(f"W{index}", links=identifiers) for index in range(2)]
+    source = parse_snapshot(rows)
+    projection = fed.build_evidence_projection(source)
+    neighborhood = fed.select_claim_neighborhood(
+        projection, claim_ref="C2", context_ref=CONTEXT, time_scope="T1"
+    )
+    assert all(not item.unresolved_link_refs for item in projection.assessments)
+    observed: list[str] = []
+    real_parse = fed.parse_snapshot
+    real_audit = fed.audit_snapshot
+
+    def canonical_parse(values: Sequence[object]) -> EvidenceRelationSnapshotV1:
+        observed.append("parse")
+        assert len(values) == 22
+        return real_parse(values)
+
+    def canonical_audit(value: EvidenceRelationSnapshotV1) -> EvidenceRelationReportV1:
+        observed.append("audit")
+        assert len(value.links) == 16 and len(value.assertions) == 2
+        return real_audit(value)
+
+    def forbidden(*_args: object, **_kwargs: object) -> NoReturn:
+        raise AssertionError("whole derived qualification/material/fingerprint was reached")
+
+    monkeypatch.setattr(fed, "MAX_DERIVED_BYTES", 1, raising=False)
+    monkeypatch.setattr(fed, "parse_snapshot", canonical_parse)
+    monkeypatch.setattr(fed, "audit_snapshot", canonical_audit)
+    monkeypatch.setattr(fed, "_qualified_record", forbidden)
+    monkeypatch.setattr(fed, "_projection_material", forbidden)
+    monkeypatch.setattr(fed, "fingerprint_payload", forbidden)
+    try:
+        with pytest.raises(ValueError, match="^report_limit$"):
+            if entry == "build":
+                fed.build_evidence_projection(source)
+            elif entry == "projection":
+                projection.to_dict()
+            elif entry == "neighborhood":
+                neighborhood.to_dict()
+            else:
+                fed.select_claim_neighborhood(
+                    projection,
+                    claim_ref="missing" if entry == "absent" else "C2",
+                    context_ref=CONTEXT,
+                    time_scope="T1",
+                )
+    finally:
+        assert observed == ["parse", "audit"]
+
+
+def test_derived_budget_boundary_preserves_complete_positive_material(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    rows = [row for row in _rows() if row.get("kind") == "asset"]
+    identifiers = tuple(f"P{index:02d}" for index in range(16))
+    rows += [_link(identifier) for identifier in identifiers]
+    rows += [_world(f"W{index}", links=identifiers) for index in range(2)]
+    source = parse_snapshot(rows)
+    original = _select(rows).to_dict()
+    lower, upper = 0, fed.MAX_DERIVED_BYTES
+    while lower + 1 < upper:
+        candidate = (lower + upper) // 2
+        monkeypatch.setattr(fed, "MAX_DERIVED_BYTES", candidate)
+        try:
+            fed.build_evidence_projection(source)
+        except ValueError as exc:
+            assert str(exc) == "report_limit"
+            lower = candidate
+        else:
+            upper = candidate
+    monkeypatch.setattr(fed, "MAX_DERIVED_BYTES", upper)
+    projection = fed.build_evidence_projection(source)
+    result = fed.select_claim_neighborhood(
+        projection, claim_ref="C2", context_ref=CONTEXT, time_scope="T1"
+    )
+    assert {item.id for item in result.main_links} == set(identifiers)
+    assert {item.id for item in result.main_assertions} == {"W0", "W1"}
+    assert not result.history_links and not result.history_assertions
+    assert all(item.causal_structural_pass is True for item in result.main_assessments)
+    assert result.to_dict() == original
+    assert (
+        len(json.dumps(result.to_dict(), separators=(",", ":"), sort_keys=True).encode()) <= upper
+    )
+    assert (
+        len(json.dumps(projection.to_dict(), separators=(",", ":"), sort_keys=True).encode())
+        <= upper
+    )
+    monkeypatch.setattr(fed, "MAX_DERIVED_BYTES", lower)
     with pytest.raises(ValueError, match="^report_limit$"):
         fed.build_evidence_projection(source)
