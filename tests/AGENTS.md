@@ -16,6 +16,13 @@
 ## Conventions
 
 - Use pytest fixtures from `conftest.py`; keep tests isolated.
+- Temporary Git repositories must use `git_env_without_parent_state()` and
+  `safe_git_config_args()` from `scripts/orchestration/creative_code_patch_workspace.py`
+  for Git subprocesses. Pass the sanitized environment to tools such as
+  `diff-cover` that invoke Git internally. A temporary `cwd` alone does not
+  isolate inherited commit-hook Git state. Regressions must point inherited
+  Git variables at a separate synthetic parent and preserve its config, HEAD
+  and existing index bytes; never use the real checkout as the negative fixture.
 - The [docs path-leakage guard](guards/test_security_devtooling_regression_guards.py)
   checks the proposed Git index only for local `PRE_COMMIT=1` with empty
   `CI` and `GITHUB_ACTIONS`; it requires a real `origin/main` merge-base and
