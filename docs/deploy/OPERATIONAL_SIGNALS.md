@@ -852,3 +852,162 @@ Parent OPS-04 remains open; resource changes and verified savings require their
 own approval and before/after evidence. Upload/readback failure is
 `DRIVE_SYNC_PENDING`: preserve sole private originals, with no cleanup until
 archive identity, full readback, hashes and extracted members are verified.
+
+## Dated utilization and recovery evidence (OPS-04B)
+
+The offline stdlib companion reads a preserved OPS-04A report and one finite
+observations packet (`scripts/ops/resource_evidence_report.py:1`). Acquisition
+uses existing separately admitted tools; this CLI performs no network, SSH,
+SQL, subprocess, source-text execution or referenced-file reads.
+
+```bash
+VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"
+"$VENV_PYTHON" scripts/ops/resource_evidence_report.py \
+  --input-dir "$OWNED_PRIVATE_INPUT_DIR" \
+  --cost-report cost-report.json --observations observations.json --format json
+```
+
+Use the same owner-private, outside-checkout, mode-0700 root and single-link
+regular mode-0600 inputs as OPS-04A. Stdout redirection remains operator-owned.
+The unchanged original reader admits both parent walks before leaf reads and
+binds acquired descriptors. This is bounded file admission, not permanent
+same-user exclusion or arbitrary-content DLP.
+
+### Closed observations grammar
+
+Root keys are exactly `schema_version`, `policy_version`, `asset_type`,
+`cost_report_sha256`, `cost_report_fingerprint`, `account_ref`, `assessment_at`,
+`assessment_window`, `selected_resource`, `declarations`, `topology`,
+`restore_expectations`, and `records`. Their fixed identities are
+`pulseplate.resource-observations.v1`, `resource-evidence-policy.v1`, and
+`resource_observations`. Both cost hashes are lowercase 64-character SHA-256;
+the raw-byte hash and recomputed content fingerprint must independently match.
+`selected_resource` contains `resource_kind=droplet` and opaque `resource_id`
+and must match an actual cost group. Local `g1`, names, amounts and running
+state do not select or associate a resource.
+
+`declarations` uses the existing exact eight-field OPS-04A binding grammar.
+Original candidates and reference-only conflicts remain preserved; new owner,
+environment or service conflicts select no silent winner. `topology` contains
+`epoch_ref`, `root_filesystem_ref`, `volume_ids`, `filesystem_volume_links`.
+The first two are strings or null. Volume IDs are a duplicate-free list. Each
+link has `filesystem_ref`, `volume_id`, `source_ref`, `source_sha256`; it is an
+explicit supplied witness, never inferred from names, mount paths, size or a
+sole attachment.
+
+Each `restore_expectations` entry has exactly `target`, `artifact_sha256` and
+`target_ref`. The source `target` identifies the Droplet/filesystem/Volume being
+assessed; `target_ref` must be a bounded literal that independently names the
+isolated restore destination. It must match receipt `data.target_ref`, and may
+differ from source `target.ref`. A receipt cannot establish its own expectation.
+Conflicting artifact/destination pairs for one source target select no winner;
+identical pairs remain equivalent. A context conflict revokes every positive
+association and receipt applicability while preserving raw receipt data/result.
+
+All records have exactly `record_kind`, `account_ref`, `resource_kind`,
+`resource_id`, `source_ref`, `source_sha256`, `acquisition_window`,
+`observation_window`, `topology_ref`, `target`, `availability`, `reason_code`,
+`data`. References are inert strings. Hashes bind supplied bytes, not provider
+truth. `target` has `kind` and `ref`; kinds are `droplet`, `root_filesystem`,
+`filesystem`, `volume`. A Droplet/Volume target matches its own record identity
+before selected-resource association. Known CPU/memory/pressure families require
+a Droplet target; filesystem metrics require a root/filesystem target, including
+when their unit is unsupported. Other valid records remain unmatched.
+
+Windows are `{started_at, completed_at}` or null for unrecorded acquisition or
+observation timing. Observation timestamps use UTC `Z` with at most six fractional
+digits; malformed types/timestamps are refused. Equal-time points are valid.
+Ordered intervals and samples must not exceed assessment time; own-interval,
+future or known topology conflicts remain readable conflicts. The explicit
+`assessment_window` has positive duration ending no later than `assessment_at`.
+There is no ambient clock, mtime freshness or hidden TTL. Original cost timestamp
+and money/reference domains remain unchanged.
+
+`availability=observed` requires typed data and null `reason_code`.
+`unavailable|not_acquired` requires null data and one of `PERMISSION_DENIED`,
+`HISTORY_NOT_ACQUIRED`, `RECEIPT_NOT_ACQUIRED`, `SOURCE_NOT_ACQUIRED`.
+Observed/attempted sources have refs/hashes; a not-acquired source may have null
+refs/hashes. An unavailable directory attempt proves no source absence and
+cannot be called a confirmed provider-Volume backup source without that witness.
+
+| Record kind | Exact data keys and meaning |
+| --- | --- |
+| `identity` | `root_filesystem_ref`, `volume_ids`, `backup_ids`; null means unknown, empty array means supplied empty, known conflicts remain visible. Ownership stays in declarations. |
+| `metric` | `name`, `unit`, `cadence_seconds`, optional `samples`; absent, null, empty and measured zero remain distinct. Samples have `observed_at`, `value`. |
+| `backup_policy` | Boolean `enabled`, `plan=weekly|daily|unknown`; policy configuration only. |
+| `backup_object` | `object_kind=backup|snapshot`, `object_id`, `created_at`, `status=available|unavailable|unknown`, `membership_ids`; backup association needs the independent Droplet `identity.backup_ids`, not self-membership. Snapshot parent remains unestablished. |
+| `archive_listing` | `artifact_sha256`, `listed_at`, nonnegative `entry_count`; supplied archive listing only. |
+| `restore_receipt` | `artifact_sha256`, `target_ref`, `performed_at`, `result=succeeded|failed|unknown`, `checks`; existing scoped supplied operation result, never execution authentication. |
+
+Metric values are nonnegative integers, bounded nonnegative fixed-point decimal
+strings or null; bool, floating JSON numbers, exponents and nonfinite values are
+refused. Supported counters/bytes/kB require integers; percent requires a decimal
+string in 0–100. Cadence is null or a positive fixed-point seconds string.
+Strictly ordered sample timestamps and internal cadence gaps remain explicit.
+Wide metadata bounds or first/last samples do not prove uninterrupted history
+or representative backup/update/build workloads. A current short observation
+after the requested historical window remains observed with a history gap.
+
+### Native units, recovery boundaries and limits
+
+Aggregate `/proc/stat` CPU columns use `cpu.user`, `cpu.nice`, `cpu.system`,
+`cpu.idle`, `cpu.iowait`, `cpu.irq`, `cpu.softirq`, `cpu.steal`, `cpu.guest`,
+`cpu.guest_nice` and unit `USER_HZ`; counters stay unconverted. Do not infer
+CPU percentage or reject every iowait decrease. `memory.available|total` use
+native `MemAvailable|MemTotal` kB. `filesystem.available|free|size` retain
+statvfs bytes and observed filesystem identity. The kernel documents CPU column
+semantics and available memory as an estimate. [Linux proc documentation](https://www.kernel.org/doc/html/latest/filesystems/proc.html)
+
+`pressure.<cpu|memory|io>.<some|full>.<avg10|avg60|avg300>` uses percent;
+`.total` uses microseconds. Native trend windows remain distinct from acquisition.
+System CPU full is undefined compatibility output; its values are preserved as
+`unsupported` with `SYSTEM_CPU_FULL_UNDEFINED`, including measured zero.
+Unknown metric names/units are unsupported without guessed conversions. [Linux PSI documentation](https://www.kernel.org/doc/html/latest/accounting/psi.html)
+
+Root backup policy/object does not cover attached Volume. Listing does not
+establish restore. Receipt `result` and `applicability` are separate: only a
+matching current expected artifact and independently expected isolated restore
+destination, known matching epoch, performed time within the explicit assessment
+window, known acquisition and observation timing, and nonempty checks can yield
+`compatible_supplied_scope`. This means supplied scope compatibility, not
+validated recovery sufficiency or authentic execution. Missing link, epoch,
+artifact, checks or timing stays a gap; historical receipt stays visible as
+stale applicability. No aggregate recovery PASS or new restore operation.
+
+Bounds: 4 MiB per input and nesting 8 through the existing reader/parser;
+128 records, 512 declarations, 64 membership/link/expectation entries, 32 receipt
+check refs, 4,000 samples per metric and across records, 512 characters for
+observations packet strings and 64 characters for its decimal tokens. Every
+record validates before filtering. Duplicate JSON keys, unsafe files,
+unsupported schema versions and
+excess inventories are refusals. Old cost money/references retain their original
+domain. Complete OPS-04A cost report validation checks original row/group/ordinal
+conservation, candidate/allocation rules, delegated counts/totals/status/summary
+and source hash/idempotency/fingerprint relationships; it preserves the cost report without
+rewriting it. When `INCOMPLETE_CAPTURE` is absent, nonzero rows cover every page
+from 1 through `page_count`; nonfinal pages share a width from 1 through 200, and
+the final width is from 1 through that width. A complete single page has at most
+200 rows; a complete zero-row report has exactly one page. These predicates
+recognize a possible complete producer shape; they do not authenticate provider
+completeness. Genuine incomplete captures retain their original readable state.
+
+Output asset/schema/policy are `resource_evidence_report`,
+`pulseplate.resource-evidence-report.v1`, `resource-evidence-policy.v1`.
+Ordered upstream assets bind the actual cost-report and observations raw hashes;
+idempotency hashes their canonical asset/schema/policy tuple, and the output
+fingerprint excludes only itself. Encoding follows OPS-04A canonical JSON and
+newline convention. Identical bytes replay without writes or cache.
+
+Exit 0 means processing with visible gaps, exit 1 a readable binding/context
+conflict with no conflicting association, exit 2 constant `INVALID_INPUT`
+refusal. Every output includes literal `authority=none`,
+`mutation_authority=false`, `savings_verified=false`. Full JSON is private;
+fixed operator summary/codes/counts omit identities, amounts, paths and source
+prose. No source authenticity, resource necessity, rightsizing, savings,
+production or merge authority follows. Rollback is stop invocation or reviewed
+bounded revert; servers, data and monitoring are unchanged.
+
+Existing OPS coverage measures all four tools in the same producer/XML/artifact
+and existing 97% changed-line consumer. Missing or empty source inventory fails;
+application total coverage and actual operational/lifecycle outcomes remain
+separate. Keep parent OPS-04 open until its original outcome is proven.
