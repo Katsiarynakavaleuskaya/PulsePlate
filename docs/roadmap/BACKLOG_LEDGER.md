@@ -9584,7 +9584,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     R29 remains PARTIAL / UNWAIVED and P1 admission learning stays OPEN.
     This receipt delta is carried once by the separately admitted
     `LEGACY-BMI-ALIAS-VALIDATION-1/v1` prerequisite
-    (`codex/fix-legacy-bmi-alias-overflow`); its PR number is pending publication.
+    (`codex/fix-legacy-bmi-alias-overflow`), published as [PR #2478](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2478).
     No standalone docs-only closeout PR or additional retirement is authorized.
     `PROJECT_LEGACY` stays open: telemetry-admitted versioned aliases, retained Insight HTTP aliases,
     root-alias auth/sunset, and final facade deletion remain separate lanes.
@@ -9619,7 +9619,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] **Legacy BMI alias validation prerequisite (LEGACY-BMI-ALIAS-VALIDATION-1/v1)**
   - Owner: @katsiaryna_kavaleuskaya (backend and Legacy consolidation)
   - Priority: P1
-  - Target PR: PR-TBD-LEGACY-BMI-ALIAS-VALIDATION (`codex/fix-legacy-bmi-alias-overflow`)
+  - Target PR: [PR #2478](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2478) (`codex/fix-legacy-bmi-alias-overflow`)
   - Status: Implementation in progress; own current-head gates, review, separately authorized merge, post-merge proof, archive, final same-ID continuity and owned cleanup remain pending.
   - Area: Backend compatibility validation
   - Reason (EN): Three admitted integer-overflow aliases escaped the existing before-validator conversions. The separately admitted prerequisite repairs only the two exception tuples before the retained BMI export removal. It proceeds independently with owned utility receipt/tracking anchors; actual #2476 overlap requires scoped handoff, not a predetermined wait or imported guard repair.

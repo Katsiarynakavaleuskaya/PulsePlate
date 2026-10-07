@@ -291,7 +291,9 @@ closeout PR or new cohort authority follows.
 ## Legacy BMI alias validation prerequisite
 
 The bounded prerequisite `LEGACY-BMI-ALIAS-VALIDATION-1/v1`, branch
-`codex/fix-legacy-bmi-alias-overflow` (PR number pending), adds `OverflowError`
+`codex/fix-legacy-bmi-alias-overflow`
+([PR #2478](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2478)),
+adds `OverflowError`
 only to the two existing conversion catches in
 `app/schemas/bmi_compat.py:43` and `app/schemas/bmi_compat.py:50`.
 Failed `weight`, `height`, and `height_cm` conversion still leaves the canonical
