@@ -196,6 +196,303 @@ def _publication_digest_from_collector(state: dict[str, Any]) -> str:
     )
 
 
+@pytest.mark.parametrize(
+    "posted",
+    [
+        "2026-08-12T09:55:00Z",
+        "2026-08-12T09:59:59Z",
+        "2026-08-12T10:00:00Z",
+        "2026-08-12T10:10:00Z",
+    ],
+    ids=["five-minutes-before", "one-second-before", "equal", "after-update"],
+)
+def test_publication_inventory_posting_is_distinct_from_native_revision(
+    monkeypatch: pytest.MonkeyPatch, posted: str
+) -> None:
+    state = _raw_publication_inventory_fixture(monkeypatch)
+    row, node = state["sources"]["review"][0], state["nodes"]["NODE_3"]
+    row["submitted_at"] = node["submittedAt"] = posted
+    digest = _publication_digest_from_collector(state)
+    assert re.fullmatch(r"[0-9a-f]{64}", digest.removeprefix("sha256:"))
+    assert row["submitted_at"] == node["submittedAt"] == posted
+    assert node["createdAt"] == "2026-08-12T10:00:00Z"
+    assert node["updatedAt"] == node["lastEditedAt"] == "2026-08-12T10:06:00Z"
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        "missing-posting",
+        "null-posting",
+        "malformed-posting",
+        "timezone-less-posting",
+        "integer-posting",
+        "posting-mismatch",
+        "pending",
+        "state-mismatch",
+        "commit-mismatch",
+        "raw-body-mismatch",
+        "actor-mismatch",
+        "repository-mismatch",
+        "pr-mismatch",
+        "node-mismatch",
+        "numeric-id-mismatch",
+        "rest-affinity-mismatch",
+        "missing-edit",
+        "update-before-create",
+        "edit-before-create",
+        "edit-after-update",
+        "list-detail-posting-drift",
+    ],
+)
+def test_publication_inventory_posted_review_retains_exact_negative_bindings(
+    monkeypatch: pytest.MonkeyPatch, mutation: str
+) -> None:
+    from scripts.orchestration import pr_commit_identity
+
+    state = _raw_publication_inventory_fixture(monkeypatch)
+    row, node = state["sources"]["review"][0], state["nodes"]["NODE_3"]
+    if mutation == "missing-posting":
+        row.pop("submitted_at")
+        node.pop("submittedAt")
+    elif mutation in {
+        "null-posting",
+        "malformed-posting",
+        "timezone-less-posting",
+        "integer-posting",
+    }:
+        value = {
+            "null-posting": None,
+            "malformed-posting": "not-a-timestamp",
+            "timezone-less-posting": "2026-08-12T10:05:00",
+            "integer-posting": 1,
+        }[mutation]
+        row["submitted_at"] = node["submittedAt"] = value
+    elif mutation == "posting-mismatch":
+        node["submittedAt"] = "2026-08-12T10:05:01Z"
+    elif mutation == "pending":
+        row["state"] = node["state"] = "PENDING"
+    elif mutation == "state-mismatch":
+        node["state"] = "APPROVED"
+    elif mutation == "commit-mismatch":
+        node["commit"]["oid"] = OUTAGE_BASE_SHA
+    elif mutation == "raw-body-mismatch":
+        node["body"] = node["body"].replace("\r\n", "\n")
+    elif mutation == "actor-mismatch":
+        node["author"]["id"] = "OTHER_ACTOR"
+    elif mutation == "repository-mismatch":
+        node["pullRequest"]["repository"]["nameWithOwner"] = "owner/other"
+    elif mutation == "pr-mismatch":
+        node["pullRequest"]["number"] = 43
+    elif mutation == "node-mismatch":
+        node["id"] = "OTHER_NODE"
+    elif mutation == "numeric-id-mismatch":
+        node["databaseId"] = 99
+    elif mutation == "rest-affinity-mismatch":
+        row["pull_request_url"] = "https://api.github.com/repos/owner/other/pulls/42"
+    elif mutation == "missing-edit":
+        node.pop("lastEditedAt")
+    elif mutation == "update-before-create":
+        node["updatedAt"] = "2026-08-12T09:59:59Z"
+    elif mutation == "edit-before-create":
+        node["lastEditedAt"] = "2026-08-12T09:59:59Z"
+    elif mutation == "edit-after-update":
+        node["lastEditedAt"] = "2026-08-12T10:06:01Z"
+    else:
+        request = pr_commit_identity.github_api_request
+
+        def changed_detail(url: str, **kwargs: Any) -> Any:
+            value = request(url, **kwargs)
+            if url.endswith("/reviews/3"):
+                value["submitted_at"] = "2026-08-12T10:05:01Z"
+            return value
+
+        monkeypatch.setattr(pr_commit_identity, "github_api_request", changed_detail)
+    with pytest.raises((ReviewEvidenceError, ValueError)):
+        _publication_digest_from_collector(state)
+
+
+@pytest.mark.parametrize("field", ["createdAt", "updatedAt", "lastEditedAt"])
+def test_publication_inventory_digest_retains_native_revision_witnesses(
+    monkeypatch: pytest.MonkeyPatch, field: str
+) -> None:
+    state = _raw_publication_inventory_fixture(monkeypatch)
+    before = _publication_digest_from_collector(state)
+    state["nodes"]["NODE_3"][field] = {
+        "createdAt": "2026-08-12T09:59:00Z",
+        "updatedAt": "2026-08-12T10:07:00Z",
+        "lastEditedAt": "2026-08-12T10:05:30Z",
+    }[field]
+    assert _publication_digest_from_collector(state) != before
+    assert state["nodes"]["NODE_3"]["submittedAt"] == "2026-08-12T10:05:00Z"
+
+
+@pytest.mark.parametrize(
+    "scenario",
+    [
+        "before",
+        "equal",
+        "after",
+        "member-deleted",
+        "member-added",
+        "edit-drift",
+        "native-drift",
+        "candidate-drift",
+    ],
+)
+def test_publication_inventory_ordinary_v1_precloseout_observes_native_inventory_twice(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    scenario: str,
+) -> None:
+    from scripts.orchestration import pr_commit_identity
+    from scripts.orchestration import pr_review_closeout
+    from tests.test_pr_review_closeout import _publication_closeout_fixture
+
+    raw = _raw_publication_inventory_fixture(monkeypatch)
+    fixture = _publication_closeout_fixture(tmp_path, monkeypatch)
+    snapshot = fixture["snapshot"]
+    raw["snapshot"] = snapshot
+    for row in raw["sources"]["review"]:
+        row["commit_id"] = snapshot.head_sha
+    raw["nodes"]["NODE_3"]["commit"]["oid"] = snapshot.head_sha
+    for row in raw["sources"]["review_comment"]:
+        row["original_commit_id"] = snapshot.head_sha
+        raw["nodes"][row["node_id"]]["originalCommit"]["oid"] = snapshot.head_sha
+    raw["roots"] = [
+        replace(
+            thread, comments=(replace(thread.comments[0], original_commit_sha=snapshot.head_sha),)
+        )
+        for thread in raw["roots"]
+    ]
+    posted = {
+        "before": "2026-08-12T09:55:00Z",
+        "equal": "2026-08-12T10:00:00Z",
+    }.get(scenario, "2026-08-12T10:05:00Z")
+    raw["sources"]["review"][0]["submitted_at"] = posted
+    raw["nodes"]["NODE_3"]["submittedAt"] = posted
+    urls = sorted(raw["rows"])
+    fixture["state"]["dispositions"] = [
+        {
+            "url": url,
+            "disposition": "NOT-A-BUG",
+            "evidence": "README.md:1",
+            "reason": "Synthetic fixture",
+        }
+        for url in urls
+    ]
+    candidate = pr_review_closeout._render_mapping(fixture["state"], fixture["seal"])
+    # This fixture authors a synthetic v1 candidate, not a registered producer output.
+    fixture["target"].write_text(candidate, encoding="utf-8")
+    fixture["target"].chmod(0o644)
+    monkeypatch.setattr(merge_gate, "REPO_ROOT", fixture["repo"])
+    monkeypatch.setattr(merge_gate, "REVIEW_SEAL_REQUIRED_FROM_PR", 1)
+    monkeypatch.setattr(merge_gate, "fetch_pr_snapshot", lambda *_a, **_k: snapshot)
+    monkeypatch.setattr(merge_gate, "fetch_review_threads", lambda *_a, **_k: tuple(raw["roots"]))
+    monkeypatch.setattr(merge_gate, "assert_snapshot_unchanged", lambda *_a, **_k: None)
+    context = (
+        42,
+        "owner/repo",
+        False,
+        "- [canonical artifact](https://github.com/owner/repo/blob/feature/docs/review/PR_42_FIXED_MAPPING.md)",
+        "feature",
+    )
+    monkeypatch.setattr(merge_gate, "_fetch_pr_context", lambda *_a, **_k: context)
+    monkeypatch.setattr(
+        sys, "argv", ["gate", "--pr-number", "42", "--repo", "owner/repo", "--pre-closeout"]
+    )
+
+    def commit_api(url: str, *, token: str) -> dict[str, Any]:
+        assert token == "opaque"
+        if "/commits/" in url:
+            assert url.endswith(snapshot.head_sha)
+            return {"sha": snapshot.head_sha}
+        assert "/compare/" in url
+        return {
+            "status": "identical",
+            "ahead_by": 0,
+            "behind_by": 0,
+            "total_commits": 0,
+            "base_commit": {"sha": snapshot.head_sha},
+            "merge_base_commit": {"sha": snapshot.head_sha},
+            "commits": [],
+        }
+
+    monkeypatch.setattr(
+        merge_gate,
+        "classify_commit_ref",
+        lambda value, snap, *, token: pr_commit_identity.classify_commit_ref(
+            value, snap, token=token, request_json=commit_api
+        ),
+    )
+    monkeypatch.setattr(
+        merge_gate,
+        "is_ancestor",
+        lambda ancestor, descendant, *, repository, token: pr_commit_identity.is_ancestor(
+            ancestor, descendant, repository=repository, token=token, request_json=commit_api
+        ),
+    )
+    pages_request = merge_gate._api_request_paginated_list
+    native_request = pr_commit_identity.github_api_request
+    observations = 0
+    review_reads: list[dict[str, Any]] = []
+
+    def pages(url: str, *, token: str) -> list[Any]:
+        nonlocal observations
+        if "/issues/42/comments?" in url:
+            observations += 1
+            if observations == 2:
+                if scenario == "member-deleted":
+                    raw["sources"]["issue_comment"] = []
+                elif scenario == "member-added":
+                    added = json.loads(json.dumps(raw["sources"]["issue_comment"][0]))
+                    added.update(
+                        id=5,
+                        node_id="NODE_5",
+                        html_url="https://github.com/owner/repo/pull/42#issuecomment-5",
+                    )
+                    raw["sources"]["issue_comment"].append(added)
+                elif scenario == "edit-drift":
+                    row = raw["sources"]["review"][0]
+                    row["body"] += "\r\nchanged raw revision"
+                    raw["nodes"]["NODE_3"]["body"] = row["body"]
+                    raw["nodes"]["NODE_3"]["lastEditedAt"] = "2026-08-12T10:05:30Z"
+                elif scenario == "native-drift":
+                    raw["nodes"]["NODE_3"]["lastEditedAt"] = "2026-08-12T10:05:30Z"
+                elif scenario == "candidate-drift":
+                    fixture["target"].write_text(candidate + "\n", encoding="utf-8")
+        return pages_request(url, token=token)
+
+    def native(url: str, **kwargs: Any) -> Any:
+        response = native_request(url, **kwargs)
+        if url.endswith("/graphql") and kwargs["payload"]["variables"]["id"] == "NODE_3":
+            review_reads.append(response["data"]["node"])
+        return response
+
+    monkeypatch.setattr(merge_gate, "_api_request_paginated_list", pages)
+    monkeypatch.setattr(pr_commit_identity, "github_api_request", native)
+    result = merge_gate.main()
+    output = capsys.readouterr().out
+    assert observations == 2
+    if scenario in {"before", "equal", "after"}:
+        assert result == 0, output
+        assert len(review_reads) == 2
+        assert all(node["submittedAt"] == posted for node in review_reads)
+        assert "pre-closeout current inventory:" in output
+    else:
+        assert result == 1, output
+        assert "changed" in output
+        if scenario in {"native-drift", "candidate-drift"}:
+            assert len(review_reads) == 2
+            expected_error = (
+                "frozen publication inventory changed"
+                if scenario == "native-drift"
+                else "canonical candidate bytes changed"
+            )
+            assert expected_error in output
+
+
 @pytest.mark.parametrize("reply_form", ["root-rest-omitted", "root-rest-null", "reply"])
 def test_publication_inventory_uses_raw_native_affinity_revision_and_roles(
     monkeypatch: pytest.MonkeyPatch, reply_form: str

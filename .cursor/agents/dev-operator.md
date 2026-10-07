@@ -104,6 +104,28 @@ For every run provide:
 - `Fix plan`: minimal remediation sequence.
 - `Rerun`: exact next commands.
 
+## Scoped edits and run captures
+
+Before repeating workflow or test edits, locate a unique owning-section anchor
+and inspect the complete affected section. Require the intended match count
+before replacement, then inspect that section's diff for neighboring changes.
+
+For admission repairs, compare the registered producer with its strict consumer
+under root `AGENTS.md` Review Governance and
+`docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md`. Preserve distinct native
+posting and revision witnesses. Verify the actual generated candidate through
+its consumer; manually changing candidate bytes or permissions does not repair
+the producer.
+
+Use separate stdout/stderr capture destinations for each command attempt.
+Retain the original failed capture before rerunning. If a full log is unavailable,
+label any recovered raw excerpt as an excerpt and keep the missing full-log
+boundary explicit; a successful rerun does not reconstruct earlier output.
+
+Serialize validation that reads unstaged source with Git commit hooks: pre-commit
+temporarily stashes those files. Wait for source restoration and verify the
+intended snapshot before rerunning a check that observed mixed source versions.
+
 ## Synthetic Git fixture isolation
 
 Every synthetic Git init, commit and other setup subprocess must receive an explicit
@@ -166,3 +188,25 @@ Before constructing mocked resource joins, verify which native identity field
 is populated for each admitted product using its current provider contract and
 a sanitized native observation. Field types alone do not establish the
 kind-to-field mapping; retain per-product positive and wrong-field negatives.
+
+## Dated resource evidence companion (OPS-04B)
+
+After separately admitted native acquisition, run
+`scripts/ops/resource_evidence_report.py --input-dir "$OWNED_PRIVATE_INPUT_DIR"`
+with relative `--cost-report`, `--observations` and `--format json` inputs.
+Reuse the OPS-04A private root/file protections. This companion reads exactly
+two selected files and retains the original cost inventory; it never acquires
+provider/host data or follows supplied refs. The closed observations grammar,
+native units and gaps live in `docs/deploy/OPERATIONAL_SIGNALS.md`.
+
+Exit 0 is processing with explicit gaps; exit 1 is a readable binding/context
+conflict without a conflicting join; exit 2 is constant invalid-input refusal.
+All outputs retain `authority=none`, `mutation_authority=false` and
+`savings_verified=false`. Current short samples remain visible separately from
+missing requested history. Policy, object, archive listing and scoped supplied
+restore result are separate; none proves representative workload or recovery
+sufficiency. Root filesystem and provider Volume require an explicit link witness.
+System CPU full pressure zero is compatibility output and remains unsupported.
+Keep the full report private; only fixed counts/codes/summary are shared-safe.
+Missing evidence calls for a bounded next question or DEFER, never automatic
+agent installation, privileged acquisition, restore, resize or deletion.
