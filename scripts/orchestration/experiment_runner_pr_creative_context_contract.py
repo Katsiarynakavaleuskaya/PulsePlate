@@ -263,6 +263,7 @@ _LOCAL_FILESYSTEM_ROOTS = frozenset(
 
 
 def contains_local_path_outside_route_context(value: str) -> bool:
+    """Screen recognized local-path forms while retaining bounded Unix route context."""
     if _UNC_PATH_RE.search(value):
         return True
     for match in LOCAL_ABSOLUTE_PATH_RE.finditer(value):

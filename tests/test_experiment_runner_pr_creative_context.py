@@ -2895,6 +2895,7 @@ def test_operational_admitted_stage_rejects_unvalidated_handoff(handoff: Any) ->
 def test_operational_stage_and_archive_reject_false_completion_and_unsafe_files(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    """Reject false completion and private members while preserving approved public bytes."""
     request = _operational_request()
     prepared = {
         "schema_version": "creative_workflow.v1",

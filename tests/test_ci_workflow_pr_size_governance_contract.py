@@ -5978,6 +5978,7 @@ ORCHESTRATION_COVERAGE_FILES = (
 
 
 def test_orchestration_coverage_uses_isolated_required_same_run_numeric_report() -> None:
+    """Bind producer ownership, existing test aliases and mandatory same-run numeric inputs."""
     workflow = _load_ci_workflow()
     measure = _job_step_by_name(
         workflow, job_id="test-pr", step_name="Measure orchestration CLI coverage"
