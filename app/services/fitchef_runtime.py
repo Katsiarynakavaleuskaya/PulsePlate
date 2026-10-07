@@ -81,10 +81,16 @@ from core.insight.fitchef_companion import (
     prepare_weekly_reflection_draft,
 )
 from core.pii_redaction import redact_pii_from_text
+from settings import is_raw_explicit_developer_env
 
 logger = logging.getLogger(__name__)
 
 LLM_TIMEOUT_SECONDS: float = 60.0
+FITCHEF_AGENT_API_ENABLED_ENV = "FITCHEF_AGENT_API_ENABLED"
+FITCHEF_AGENT_API_MODEL_ENV = "FITCHEF_AGENT_API_MODEL"
+FITCHEF_AGENT_API_REASONING_EFFORT_ENV = "FITCHEF_AGENT_API_REASONING_EFFORT"
+_FITCHEF_AGENT_API_TRUE = frozenset({"1", "true", "yes", "on"})
+_FITCHEF_AGENT_API_FALSE = frozenset({"", "0", "false", "no", "off"})
 CBT_POLICY_ALLOWLIST = {
     ("rag.retrieve", "corpus://cbt-agent"),
     ("rag.retrieve", "corpus://fitchef-agent"),
@@ -213,6 +219,40 @@ def _require_llm_provider() -> Any:
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="LLM provider not available",
         )
+    return provider
+
+
+def _require_fitchef_llm_provider(prompt: str) -> Any:
+    """Select the optional, development-only Agent API for FitChef tasks."""
+
+    enabled = (os.getenv(FITCHEF_AGENT_API_ENABLED_ENV) or "").strip().lower()
+    if enabled in _FITCHEF_AGENT_API_FALSE:
+        return _require_llm_provider()
+    if enabled not in _FITCHEF_AGENT_API_TRUE:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="fitchef_agent_api_configuration_invalid",
+        )
+    if not is_raw_explicit_developer_env():
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="fitchef_agent_api_development_only",
+        )
+
+    from providers.perplexity_agent import PerplexityAgentProvider
+
+    try:
+        provider = PerplexityAgentProvider(
+            api_key=os.getenv("PERPLEXITY_API_KEY", ""),
+            model=os.getenv(FITCHEF_AGENT_API_MODEL_ENV, ""),
+            reasoning_effort=os.getenv(FITCHEF_AGENT_API_REASONING_EFFORT_ENV, ""),
+        )
+        provider.require_prompt_in_budget(prompt)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="fitchef_agent_api_configuration_invalid",
+        ) from None
     return provider
 
 
@@ -600,7 +640,7 @@ async def _run_fitchef_vip_text_task(
         ) from exc
 
     try:
-        provider = _require_llm_provider()
+        provider = _require_fitchef_llm_provider(prompt)
 
         allowed = await run_in_threadpool(
             attempt_consume_llm_monthly_quota,
@@ -780,7 +820,7 @@ async def _run_fitchef_structured_task(
         ) from exc
 
     try:
-        provider = _require_llm_provider()
+        provider = _require_fitchef_llm_provider(prompt)
         allowed = await run_in_threadpool(
             attempt_consume_llm_monthly_quota,
             config.api_key,
