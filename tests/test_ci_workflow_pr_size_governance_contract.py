@@ -2748,7 +2748,7 @@ def test_node24_artifact_and_script_action_pins_use_verified_commit_shas() -> No
     """Guard remaining Node 20 action migrations against tag-object drift."""
 
     download_workflows = {
-        CI_WORKFLOW_PATH: 9,
+        CI_WORKFLOW_PATH: 10,
         CODECOV_UPLOAD_WORKFLOW_PATH: 1,
         IOS_APPSTORE_ASSETS_WORKFLOW_PATH: 1,
         NIGHTLY_WORKFLOW_PATH: 1,
@@ -4045,6 +4045,16 @@ def test_node24_artifact_migration_preserves_download_contracts() -> None:
             {
                 "name": "coverage-orchestration-${{ env.PYTHON_VERSION }}",
                 "path": "./orchestration-coverage",
+            },
+            None,
+        ),
+        (
+            ".github/workflows/ci.yml",
+            "diff-coverage",
+            "Download FitChef Agent coverage artifact",
+            {
+                "name": "coverage-fitchef-agent-${{ env.PYTHON_VERSION }}",
+                "path": "./fitchef-agent-coverage",
             },
             None,
         ),
@@ -6182,6 +6192,7 @@ CI_DIFF_COVERAGE_REPORTS = (
     "./ops-context-coverage/coverage-ops-context.xml",
     "./fitchef-eval-coverage/coverage-fitchef-eval.xml",
     "./orchestration-coverage/coverage-orchestration.xml",
+    "./fitchef-agent-coverage/coverage-fitchef-agent.xml",
 )
 CI_DIFF_COVERAGE_RUN = r"""coverage_root="$(pwd -P)"
 coverage_excludes=(
@@ -6207,6 +6218,7 @@ diff-cover ./coverage-artifacts/coverage.xml \
   ./ops-context-coverage/coverage-ops-context.xml \
   ./fitchef-eval-coverage/coverage-fitchef-eval.xml \
   ./orchestration-coverage/coverage-orchestration.xml \
+  ./fitchef-agent-coverage/coverage-fitchef-agent.xml \
   --compare-branch "${{ github.base_ref }}" \
   --fail-under "${{ env.COVERAGE_THRESHOLD }}" \
   --exclude "${coverage_excludes[@]}"
@@ -6252,6 +6264,10 @@ def _assert_ci_diff_coverage_exclusion_contract(workflow: dict[str, object]) -> 
         {
             "name": "coverage-orchestration-${{ env.PYTHON_VERSION }}",
             "path": "./orchestration-coverage",
+        },
+        {
+            "name": "coverage-fitchef-agent-${{ env.PYTHON_VERSION }}",
+            "path": "./fitchef-agent-coverage",
         },
     ]
     assert all("if" not in step and "continue-on-error" not in step for step in downloads)
@@ -7214,3 +7230,256 @@ def test_frontend_node24_ui_guard_rejects_weakened_wiring(mutation: str) -> None
         native["run"] = source.replace(old, new)
     with pytest.raises((AssertionError, KeyError)):
         _assert_frontend_node24_foundation_contract(package, workflow, config_source)
+
+
+def test_fitchef_agent_coverage_is_separate_and_required_by_existing_diff_gate() -> None:
+    """Bind the sole provider producer and mandatory artifact to the 97% gate."""
+    import shlex
+
+    workflow = _load_ci_workflow()
+    measure = _job_step_by_name(
+        workflow, job_id="test-pr", step_name="Measure FitChef Agent provider coverage"
+    )
+    run = str(measure["run"])
+    commands = run.split("python - <<'PY'\n", 1)[0].replace("\\\n", "").splitlines()
+    assert [shlex.split(command) for command in commands] == [
+        ["set", "-euo", "pipefail"],
+        [
+            "python",
+            "-m",
+            "coverage",
+            "run",
+            "--rcfile=/dev/null",
+            "--branch",
+            "--include=providers/perplexity_agent.py",
+            "--data-file=.coverage.fitchef-agent",
+            "-m",
+            "pytest",
+            "-q",
+            "-p",
+            "no:xdist",
+            "tests/test_perplexity_agent_provider.py",
+        ],
+        [
+            "python",
+            "-m",
+            "coverage",
+            "xml",
+            "--rcfile=/dev/null",
+            "--data-file=.coverage.fitchef-agent",
+            "-o",
+            "coverage-fitchef-agent.xml",
+        ],
+    ]
+    assert measure["env"] == {
+        "PYTHONPATH": "${{ github.workspace }}:${{ github.workspace }}/tests",
+        "BLOCK_TEST_NETWORK": "true",
+    }
+    assert "if" not in measure and "continue-on-error" not in measure
+    upload = _job_step_by_name(
+        workflow, job_id="test-pr", step_name="Upload FitChef Agent coverage artifact"
+    )
+    assert upload["uses"] == f"actions/upload-artifact@{UPLOAD_ARTIFACT_NODE24_SHA}"
+    assert upload["with"] == {
+        "name": "coverage-fitchef-agent-${{ env.PYTHON_VERSION }}",
+        "path": "coverage-fitchef-agent.xml",
+        "if-no-files-found": "error",
+        "retention-days": 7,
+    }
+    assert "if" not in upload and "continue-on-error" not in upload
+    download = _job_step_by_name(
+        workflow, job_id="diff-coverage", step_name="Download FitChef Agent coverage artifact"
+    )
+    assert download["uses"] == f"actions/download-artifact@{DOWNLOAD_ARTIFACT_NODE24_SHA}"
+    assert download["with"] == {
+        "name": "coverage-fitchef-agent-${{ env.PYTHON_VERSION }}",
+        "path": "./fitchef-agent-coverage",
+    }
+    assert "if" not in download and "continue-on-error" not in download
+    gate = _job_step_by_name(
+        workflow, job_id="diff-coverage", step_name="Enforce diff coverage >= 97%"
+    )
+    assert gate["env"] == {"COVERAGE_THRESHOLD": 97}
+    assert "if" not in gate and "continue-on-error" not in gate
+    assert "./coverage-artifacts/coverage.xml" in str(gate["run"])
+    assert "./ops-context-coverage/coverage-ops-context.xml" in str(gate["run"])
+    assert "./fitchef-agent-coverage/coverage-fitchef-agent.xml" in str(gate["run"])
+    assert '--fail-under "${{ env.COVERAGE_THRESHOLD }}"' in str(gate["run"])
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        "valid",
+        "zero_hit",
+        "missing",
+        "malformed",
+        "empty",
+        "no_class",
+        "wrong",
+        "duplicate",
+        "extra",
+    ],
+)
+def test_fitchef_agent_workflow_executes_exact_singleton_inventory_check(
+    tmp_path: Path,
+    case: str,
+) -> None:
+    """Run the actual embedded checker, retaining zero hits as structural evidence."""
+    import subprocess
+    import sys
+
+    measure = _job_step_by_name(
+        _load_ci_workflow(), job_id="test-pr", step_name="Measure FitChef Agent provider coverage"
+    )
+    run = str(measure["run"])
+    marker = "python - <<'PY'\n"
+    assert run.count(marker) == 1
+    check = run.split(marker, 1)[1].rsplit("\nPY", 1)[0]
+    filename = "providers/other.py" if case == "wrong" else "providers/perplexity_agent.py"
+    hits = "0" if case == "zero_hit" else "1"
+    lines = "" if case == "empty" else f'<line number="1" hits="{hits}"/>'
+    cls = f'<class filename="{filename}"><lines>{lines}</lines></class>'
+    raw = "<coverage><packages><package><classes>" + ("" if case == "no_class" else cls)
+    if case == "duplicate":
+        raw += cls
+    if case == "extra":
+        raw += '<class filename="providers/other.py"><lines><line number="1" hits="1"/></lines></class>'
+    raw += "</classes></package></packages></coverage>"
+    if case == "malformed":
+        raw = "<coverage"
+    if case != "missing":
+        (tmp_path / "coverage-fitchef-agent.xml").write_text(raw, encoding="utf-8")
+    result = subprocess.run(
+        [sys.executable, "-c", check],
+        cwd=tmp_path,
+        capture_output=True,
+        timeout=5,
+        check=False,
+    )
+    assert (result.returncode == 0) is (case in {"valid", "zero_hit"})
+
+
+@pytest.mark.parametrize("hits", [0, 1])
+def test_fitchef_agent_structural_acceptance_still_requires_numeric_diff_coverage(
+    tmp_path: Path,
+    hits: int,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Feed retained zero/positive hits through the actual canonical diff command."""
+    import shutil
+    import subprocess
+    import sys
+
+    from scripts.orchestration.creative_code_patch_workspace import (
+        git_env_without_parent_state,
+        safe_git_config_args,
+    )
+
+    git = shutil.which("git")
+    diff_cover = shutil.which("diff-cover", path=str(Path(sys.executable).parent))
+    assert git is not None and diff_cover is not None
+    parent_repo = tmp_path / "protected-parent"
+    parent_repo.mkdir()
+    parent_env = git_env_without_parent_state()
+    for args in (
+        ["init", "--initial-branch=protected"],
+        ["config", "user.name", "Protected Parent Fixture"],
+        ["config", "user.email", "protected-parent@example.invalid"],
+    ):
+        subprocess.run(
+            [git, *safe_git_config_args(), *args],
+            cwd=parent_repo,
+            env=parent_env,
+            capture_output=True,
+            timeout=10,
+            check=True,
+        )
+    (parent_repo / "protected.txt").write_text("protected fixture content\n", encoding="utf-8")
+    subprocess.run(
+        [git, *safe_git_config_args(), "add", "protected.txt"],
+        cwd=parent_repo,
+        env=parent_env,
+        capture_output=True,
+        timeout=10,
+        check=True,
+    )
+    parent_git = parent_repo / ".git"
+    protected_paths = (parent_git / "config", parent_git / "HEAD", parent_git / "index")
+    parent_before = {path: path.read_bytes() for path in protected_paths}
+    for name, value in {
+        "GIT_DIR": str(parent_git),
+        "GIT_COMMON_DIR": str(parent_git),
+        "GIT_WORK_TREE": str(parent_repo),
+        "GIT_INDEX_FILE": str(parent_git / "index"),
+        "GIT_PREFIX": "protected-parent/",
+    }.items():
+        monkeypatch.setenv(name, value)
+    fixture_env = git_env_without_parent_state()
+    source = tmp_path / "providers" / "perplexity_agent.py"
+    source.parent.mkdir()
+    source.write_text("baseline = 0\n", encoding="utf-8")
+    for args in (
+        ["init", "--initial-branch=base"],
+        ["config", "user.name", "Coverage Fixture"],
+        ["config", "user.email", "coverage-fixture@example.invalid"],
+        ["add", "providers/perplexity_agent.py"],
+        ["commit", "-m", "fixture base"],
+    ):
+        subprocess.run(
+            [git, *safe_git_config_args(), *args],
+            cwd=tmp_path,
+            env=fixture_env,
+            capture_output=True,
+            timeout=10,
+            check=True,
+        )
+    source.write_text("baseline = 0\nfirst_changed = 1\nsecond_changed = 2\n", encoding="utf-8")
+    lines = "".join(f'<line number="{number}" hits="{hits}"/>' for number in (1, 2, 3))
+    raw = (
+        "<coverage><sources><source>.</source></sources><packages><package><classes>"
+        '<class filename="providers/perplexity_agent.py"><lines>'
+        + lines
+        + "</lines></class></classes></package></packages></coverage>"
+    )
+    workflow = _load_ci_workflow()
+    measure = _job_step_by_name(
+        workflow, job_id="test-pr", step_name="Measure FitChef Agent provider coverage"
+    )
+    check = str(measure["run"]).split("python - <<'PY'\n", 1)[1].rsplit("\nPY", 1)[0]
+    (tmp_path / "coverage-fitchef-agent.xml").write_text(raw, encoding="utf-8")
+    subprocess.run(
+        [sys.executable, "-c", check], cwd=tmp_path, capture_output=True, timeout=5, check=True
+    )
+    for report in (
+        "coverage-artifacts/coverage.xml",
+        "ops-context-coverage/coverage-ops-context.xml",
+        "fitchef-eval-coverage/coverage-fitchef-eval.xml",
+        "orchestration-coverage/coverage-orchestration.xml",
+        "fitchef-agent-coverage/coverage-fitchef-agent.xml",
+    ):
+        path = tmp_path / report
+        path.parent.mkdir()
+        path.write_text(
+            (
+                raw
+                if report.startswith("fitchef-agent-")
+                else "<coverage><sources><source>.</source></sources><packages/></coverage>"
+            ),
+            encoding="utf-8",
+        )
+    argv = _native_ci_diff_coverage_args(tmp_path)
+    result = subprocess.run(
+        [diff_cover, *argv],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
+        env=fixture_env,
+    )
+    assert result.returncode == (1 if hits == 0 else 0), result.stdout + result.stderr
+    assert "providers/perplexity_agent.py" in result.stdout
+    assert "No lines with coverage information" not in result.stdout
+    assert f"Coverage: {0 if hits == 0 else 100}%" in result.stdout
+    assert {path: path.read_bytes() for path in protected_paths} == parent_before
