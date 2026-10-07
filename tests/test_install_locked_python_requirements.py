@@ -625,6 +625,61 @@ def test_consume_only_rejects_mixed_modes_and_missing_store() -> None:
     assert installer.main(["--consume-only"]) == 1
 
 
+@pytest.mark.parametrize("sdk_source", ("environment", "argument"))
+@pytest.mark.parametrize("operation", ("install", "prefetch", "consume"))
+def test_main_rejects_sdk_without_c_consumer_before_side_effects(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    sdk_source: str,
+    operation: str,
+) -> None:
+    requirements = tmp_path / "requirements.txt"
+    requirements.write_text("example==1.0\n", encoding="utf-8")
+    constraints = tmp_path / "constraints.txt"
+    constraints.write_text("", encoding="utf-8")
+    sdk = tmp_path / "unread-sdk"
+    wheelhouse = tmp_path / "uncreated-wheelhouse"
+    arguments = [
+        "--requirements-file",
+        str(requirements),
+        "--constraints-file",
+        str(constraints),
+    ]
+    if sdk_source == "environment":
+        monkeypatch.setenv(installer.PSYCOPG_SDK_ENV, str(sdk))
+    else:
+        arguments.extend(("--psycopg-sdk", str(sdk)))
+    if operation != "install":
+        arguments.extend((f"--{operation}-only", "--wheelhouse-dir", str(wheelhouse)))
+    monkeypatch.setattr(
+        installer, "resolve_private_proxy_settings", lambda **kwargs: (APPROVED_PROXY_URL, None)
+    )
+
+    def forbidden(*args: object, **kwargs: object) -> None:
+        raise AssertionError(
+            "A profile without a C consumer must reject its SDK before side effects"
+        )
+
+    for name in (
+        "run_dependency_floor_preflight",
+        "acquire_locked_wheelhouse",
+        "_validate_exact_wheelhouse",
+        "read_psycopg_c_sdk",
+        "install_with_guard",
+        "install_with_guard_from_proxy",
+        "run_command",
+    ):
+        monkeypatch.setattr(installer, name, forbidden)
+
+    assert installer.main(arguments) == 1
+    assert capsys.readouterr().out == (
+        "ERROR: locked install failed: The selected profile has no Psycopg C SDK consumer.\n"
+    )
+    assert not sdk.exists()
+    assert not wheelhouse.exists()
+
+
 @pytest.mark.parametrize(
     "condition", ("dormant", "active", "ipv4_address", "ipv4_route", "ipv6_address", "ipv6_route")
 )
@@ -2544,18 +2599,20 @@ def _dockerfile_stage(dockerfile: str, stage_name: str) -> str:
 
 def test_repo_docker_runtime_install_uses_locked_installer_fallback() -> None:
     dockerfile = (REPO_ROOT / "Dockerfile").read_text(encoding="utf-8")
+    builder = _dockerfile_stage(dockerfile, "builder")
 
     assert (
         "COPY scripts/ci/check_python_startup_hooks.py "
         "scripts/ci/install_locked_python_requirements.py "
-        "scripts/ci/emergency_python_wheels.json /tmp/pulseplate-ci/"
-    ) in dockerfile
+        "scripts/ci/emergency_python_wheels.json "
+        "scripts/ci/check_private_python_proxy_health.py /tmp/pulseplate-ci/"
+    ) in builder
     assert re.search(
         r"/tmp/pulseplate-ci/install_locked_python_requirements\.py\s+\\\n"
         r"\s*--python-executable (?:/opt/venv/bin/python|python)\s+\\\n"
         r'\s*--requirements-file "\$\{PULSEPLATE_REQUIREMENTS_FILE\}"\s+\\\n'
         r"\s*--guard-script /tmp/pulseplate-ci/check_python_startup_hooks\.py",
-        dockerfile,
+        builder,
     )
 
 
@@ -2577,6 +2634,7 @@ def isolate_proxy_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv(installer.TRUSTED_HOST_ENV_VAR, raising=False)
     monkeypatch.delenv(installer.DOCKER_SINGLE_PASS_LOCKED_INSTALL_ENV, raising=False)
     monkeypatch.delenv(installer.DOCKER_PIP_LAYER_CACHE_ENV, raising=False)
+    monkeypatch.delenv(installer.PSYCOPG_SDK_ENV, raising=False)
     for env_var in installer.AMBIENT_INDEX_OVERRIDE_ENV_VARS:
         monkeypatch.delenv(env_var, raising=False)
 

@@ -324,6 +324,10 @@ def test_dockerfile_pins_all_backend_python_stages_to_one_oci_index() -> None:
             "dev-bootstrap-inputs",
             ("install_locked_python_requirements.py", "check_private_python_proxy_health.py"),
         ),
+        (
+            "development",
+            ("install_locked_python_requirements.py", "check_python_startup_hooks.py"),
+        ),
     ),
 )
 def test_native_helper_stage_layout_executes_real_cli(

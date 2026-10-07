@@ -9,7 +9,7 @@
 #           Do NOT run pip install for project requirements during build.
 # ---------------------------------------------------------------------------
 
-FROM mcr.microsoft.com/devcontainers/python:1-3.13-bookworm
+FROM mcr.microsoft.com/devcontainers/python:1-3.13-bookworm AS tooling
 
 USER root
 
@@ -33,6 +33,13 @@ RUN rm -f /etc/apt/sources.list.d/yarn.list \
 ENV PIP_DISABLE_PIP_VERSION_CHECK=1 \
     PIP_NO_PYTHON_VERSION_WARNING=1 \
     PYTHONDONTWRITEBYTECODE=1
+
+USER vscode
+WORKDIR /workspaces/PulsePlate
+
+# The full consumer remains the default target and requires the genuine SDK context.
+FROM tooling AS devcontainer
+USER root
 
 # Native SDK and verified binary wheelhouse from the existing source producer.
 # This image build only copies artifacts; the user installs into a venv offline.

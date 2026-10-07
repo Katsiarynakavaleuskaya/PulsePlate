@@ -301,6 +301,50 @@ def test_devcontainer_sdk_artifacts_keep_source_build_and_auth_in_the_producer()
         assert root["services"][service]["platform"] == "linux/amd64"
 
 
+def test_root_development_consumes_prefetched_sdk_offline_and_provides_make() -> None:
+    dockerfile = (REPO_ROOT / "Dockerfile").read_text(encoding="utf-8")
+    development = dockerfile.split("FROM runtime-base AS development\n", 1)[1]
+    install = development.split("RUN --network=none ", 1)[1].split("\n\n", 1)[0]
+    assert shlex.split(install.replace("\\\n", "")) == [
+        "/opt/venv/bin/python",
+        "/tooling/scripts/ci/install_locked_python_requirements.py",
+        "--python-executable",
+        "/opt/venv/bin/python",
+        "--requirements-file",
+        "requirements.txt",
+        "--dev-requirements-file",
+        "requirements-dev.txt",
+        "--guard-script",
+        "/tooling/scripts/ci/check_python_startup_hooks.py",
+        "--constraints-file",
+        "constraints.txt",
+        "--install-dev",
+        "--psycopg-sdk",
+        "/opt/psycopg-sdk",
+        "--wheelhouse-dir",
+        "/opt/dev-wheelhouse",
+        "--consume-only",
+        "--require-virtualenv",
+    ]
+    for forbidden in (
+        "ARG ",
+        "--mount=type=secret",
+        "PULSEPLATE_PYTHON_INDEX_URL",
+        "PULSEPLATE_PYTHON_TRUSTED_HOST",
+        "/run/secrets",
+        ".netrc",
+        "--prefetch-only",
+        "--build-psycopg-c",
+    ):
+        assert forbidden not in development
+    tools = development.split("RUN apt-get update && apt-get install -y ", 1)[1].split(
+        "&& rm -rf", 1
+    )[0]
+    assert shlex.split(tools.replace("\\\n", "")) == ["git", "make", "vim"]
+    assert development.index("RUN --network=none") < development.index("USER pulseplate")
+    assert development.index("apt-get install") < development.index("USER pulseplate")
+
+
 @pytest.mark.parametrize("platform", ("Darwin", "Linux"))
 def test_backend_shell_refusal_preserves_caller_and_has_no_venv_side_effect(
     tmp_path: Path, platform: str

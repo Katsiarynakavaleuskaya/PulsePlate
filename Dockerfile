@@ -1247,9 +1247,6 @@ COPY --from=dev-bootstrap-sdk /wheelhouse/ /opt/dev-wheelhouse/
 ENV PULSEPLATE_PSYCOPG_C_SDK=/opt/psycopg-sdk \
     PULSEPLATE_BOOTSTRAP_WHEELHOUSE=/opt/dev-wheelhouse
 
-ARG PULSEPLATE_PYTHON_INDEX_URL
-ARG PULSEPLATE_PYTHON_TRUSTED_HOST=""
-
 # Switch back to root for development tools
 USER root
 RUN test -f /opt/psycopg-sdk/psycopg-c-sdk.json \
@@ -1265,56 +1262,26 @@ RUN test -f /opt/psycopg-sdk/psycopg-c-sdk.json \
 # Install development dependencies
 # Copy both requirements files as requirements-dev.txt includes requirements.txt via -r
 COPY requirements.txt requirements-dev.txt constraints.txt ./
-COPY scripts/ci/check_python_startup_hooks.py scripts/ci/install_locked_python_requirements.py scripts/ci/emergency_python_wheels.json /tmp/pulseplate-ci/
+COPY scripts/ci/check_python_startup_hooks.py scripts/ci/install_locked_python_requirements.py /tooling/scripts/ci/
 # SECURITY NOTE: Do NOT uninstall setuptools/wheel in development stage.
 # They are required runtime dependencies of pip-tools for lockfile generation (pip-compile).
 # Security mitigation (GHSA-58pv-8j8x-9vj2) applies to runtime/production images only.
-RUN --mount=type=secret,id=pp_py_index,required=false \
-    --mount=type=secret,id=pp_py_host,required=false \
-    --mount=type=secret,id=pp_netrc,required=false \
-    PULSEPLATE_PYTHON_INDEX_URL="$(cat /run/secrets/pp_py_index 2>/dev/null || printf '%s' "${PULSEPLATE_PYTHON_INDEX_URL:-}")"; \
-    PULSEPLATE_PYTHON_TRUSTED_HOST="$(cat /run/secrets/pp_py_host 2>/dev/null || printf '%s' "${PULSEPLATE_PYTHON_TRUSTED_HOST:-}")"; \
-    if [ -f /run/secrets/pp_netrc ]; then \
-      if [ -e /root/.netrc ]; then \
-        echo "Refusing to overwrite an existing /root/.netrc." >&2; \
-        exit 1; \
-      fi; \
-      cp /run/secrets/pp_netrc /root/.netrc; \
-      chmod 600 /root/.netrc; \
-    fi; \
-    trap 'rm -f /root/.netrc' EXIT; \
-    if [ -z "${PULSEPLATE_PYTHON_INDEX_URL:-}" ]; then \
-      echo "PULSEPLATE_PYTHON_INDEX_URL is required for Docker builds." >&2; \
-      exit 1; \
-    fi; \
-    if [ -n "${PULSEPLATE_PYTHON_TRUSTED_HOST:-}" ]; then \
-      python /tmp/pulseplate-ci/install_locked_python_requirements.py \
-        --python-executable python \
-        --requirements-file requirements.txt \
-        --dev-requirements-file requirements-dev.txt \
-        --guard-script /tmp/pulseplate-ci/check_python_startup_hooks.py \
-        --constraints-file constraints.txt \
-        --install-dev \
-        --psycopg-sdk /opt/psycopg-sdk \
-        --emergency-wheel-manifest /tmp/pulseplate-ci/emergency_python_wheels.json \
-        --index-url "${PULSEPLATE_PYTHON_INDEX_URL}" \
-        --trusted-host "${PULSEPLATE_PYTHON_TRUSTED_HOST}"; \
-    else \
-      python /tmp/pulseplate-ci/install_locked_python_requirements.py \
-        --python-executable python \
-        --requirements-file requirements.txt \
-        --dev-requirements-file requirements-dev.txt \
-        --guard-script /tmp/pulseplate-ci/check_python_startup_hooks.py \
-        --constraints-file constraints.txt \
-        --install-dev \
-        --psycopg-sdk /opt/psycopg-sdk \
-        --emergency-wheel-manifest /tmp/pulseplate-ci/emergency_python_wheels.json \
-        --index-url "${PULSEPLATE_PYTHON_INDEX_URL}"; \
-    fi
+RUN --network=none /opt/venv/bin/python /tooling/scripts/ci/install_locked_python_requirements.py \
+    --python-executable /opt/venv/bin/python \
+    --requirements-file requirements.txt \
+    --dev-requirements-file requirements-dev.txt \
+    --guard-script /tooling/scripts/ci/check_python_startup_hooks.py \
+    --constraints-file constraints.txt \
+    --install-dev \
+    --psycopg-sdk /opt/psycopg-sdk \
+    --wheelhouse-dir /opt/dev-wheelhouse \
+    --consume-only \
+    --require-virtualenv
 
 # Install additional development tools
 RUN apt-get update && apt-get install -y \
     git \
+    make \
     vim \
     && rm -rf /var/lib/apt/lists/*
 
