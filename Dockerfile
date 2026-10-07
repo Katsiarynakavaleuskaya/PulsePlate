@@ -27,7 +27,7 @@ RUN case "${PSYCOPG_SDK_PYTHON_IMAGE}" in \
       *) echo "Unsupported Psycopg SDK interpreter image" >&2; exit 1 ;; \
     esac \
     && apt-get update \
-    && apt-get install -y --no-install-recommends build-essential bison flex libkrb5-dev ca-certificates \
+    && apt-get install -y --no-install-recommends build-essential bison flex ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 COPY scripts/ci/docker_source_artifacts.json scripts/ci/fetch_docker_source_artifacts.py /tooling/scripts/ci/
 COPY build/docker-sources/zlib-1.3.2.tar.gz build/docker-sources/ncurses-6.6.tar.gz build/docker-sources/openssl-3.5.9.tar.gz build/docker-sources/postgresql-18.6.tar.gz build/docker-sources/zlib-gzwrite-fix-df84af25dc1942490e1d1c899a07619152a46148.patch /input/native/
@@ -103,10 +103,15 @@ make -j2 build_sw
 make DESTDIR=/native install_sw
 cp -a /native/usr/local/. /usr/local/
 ldconfig
+SH
+
+# PostgreSQL client flags have a separate cache boundary from Z/N/OpenSSL.
+RUN --network=none <<'SH'
+set -eu
 cd /build/source/postgresql-18.6
 CPPFLAGS=-I/usr/local/include LDFLAGS='-L/usr/local/lib -Wl,-rpath,/usr/local/lib' \
     ./configure --prefix=/usr/local --libdir=/usr/local/lib --with-ssl=openssl \
-    --with-gssapi --without-ldap --without-icu --without-readline
+    --without-gssapi --without-ldap --without-icu --without-readline
 make -j2 -C src/include all
 make -j2 -C src/interfaces/libpq all
 make -j2 -C src/bin/pg_config all
@@ -179,7 +184,6 @@ ARG PULSEPLATE_REQUIREMENTS_FILE="requirements-docker-runtime.txt"
 RUN apt-get update && apt-get install -y \
     build-essential \
     ca-certificates \
-    libgssapi-krb5-2 \
     && rm -rf /var/lib/apt/lists/*
 
 # Create virtual environment
@@ -508,7 +512,6 @@ RUN apt-get update \
         libc6 \
         libgnutls30 \
         libpcre2-8-0 \
-        libgssapi-krb5-2 \
         libssl3 \
         openssl \
     && for package in libc6 libc-bin; do \
@@ -623,7 +626,7 @@ rows = subprocess.run(
     ["/usr/bin/dpkg-query", "-W", "-f=${db:Status-Abbrev} ${binary:Package}\n"],
     check=True, capture_output=True, text=True,
 ).stdout.splitlines()
-retired = {"zlib1g", "libncurses6", "libncursesw6", "libtinfo6", "ncurses-base", "ncurses-bin", "libssl3", "openssl"}
+retired = {"zlib1g", "libncurses6", "libncursesw6", "libtinfo6", "ncurses-base", "ncurses-bin", "libssl3", "openssl", "libgssapi-krb5-2", "libk5crypto3", "libkrb5-3", "libkrb5support0"}
 for row in rows:
     fields = row.split()
     if len(fields) != 2:
@@ -824,6 +827,7 @@ PY_NATIVE_TERMINAL
 import importlib.metadata as metadata
 import hashlib
 import json
+import os
 from pathlib import Path
 import ssl
 import cryptography
@@ -854,6 +858,12 @@ if psycopg.__version__ != "3.3.4" or pq.__impl__ != "c" or pq.version() != 18000
 print("Loaded shared OpenSSL", ssl.OPENSSL_VERSION_INFO, ssl.OPENSSL_VERSION, hex(ssl.OPENSSL_VERSION_NUMBER))
 if ssl.OPENSSL_VERSION_INFO != (3, 5, 0, 9, 0):
     raise SystemExit("Psycopg runtime shared OpenSSL mismatch")
+gss_probe = pq.PGconn.connect_start(b"host=/tmp gssencmode=require")
+try:
+    if gss_probe.status != psycopg.pq.ConnStatus.BAD or b"not compiled in" not in gss_probe.error_message:
+        raise SystemExit("Unused libpq GSSAPI feature remains enabled")
+finally:
+    gss_probe.finish()
 if any(distribution.metadata["Name"].lower() == "psycopg-binary" for distribution in metadata.distributions()):
     raise SystemExit("The binary Psycopg carrier remains installed")
 import io
@@ -865,6 +875,13 @@ if Image.open(data).getpixel((0, 0)) != (1, 2, 3):
     raise SystemExit("Pillow native PNG round trip failed")
 loaded = {Path(line.rsplit(maxsplit=1)[-1]).resolve() for line in Path("/proc/self/maps").read_text().splitlines() if "libpq.so" in line}
 check_libpq_lineage(loaded, Path("/usr/local/lib"), Path("/usr/local/share/doc/pulseplate-native/psycopg-c-sdk.json"))
+gss_families = ("libgssapi_krb5.so", "libk5crypto.so", "libkrb5.so", "libkrb5support.so")
+if any(Path(line.rsplit(maxsplit=1)[-1]).name.startswith(gss_families) for line in Path("/proc/self/maps").read_text().splitlines() if "/" in line):
+    raise SystemExit("Unused Kerberos native runtime remains loaded")
+for directory in ("/usr/local/lib", "/usr/lib/x86_64-linux-gnu"):
+    with os.scandir(directory) as entries:
+        if any(entry.name.startswith(gss_families) for entry in entries):
+            raise SystemExit("Unused Kerberos library remains in a required native directory")
 print("Psycopg C", pq.version(), "Cryptography bundled", backend.openssl_version_text())
 PY_NATIVE_PSYCOPG
 SH

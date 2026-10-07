@@ -288,6 +288,13 @@ an admitted local image proof must explicitly select `linux/amd64`; record
 emulation and keep resource-heavy compatibility evidence on native CI when
 available. Stop Docker Desktop after the owned build/observation block.
 
+The PostgreSQL client RUN is separate from the zlib/ncurses/OpenSSL build RUN.
+Changing an early toolchain package still invalidates that native prefix;
+the first split cannot reuse a prior monolithic RUN by command similarity.
+Only observed BuildKit CACHED records support reuse. Retain old SDK/wheel
+proofs under their original GSS configuration; generate fresh output slots
+for the revised client rather than copying native bytes to avoid a rebuild.
+
 During a frozen image-input block, stage every modified image input before an
 ordinary Git commit: native pre-commit temporarily stashes unstaged tracked
 changes. Check the actual unstaged path inventory before the hook. A generated

@@ -92,6 +92,12 @@
 
 ## Native Docker image evidence
 
+- Keep the client-only PostgreSQL SDK limited to configured password/SCRAM and
+  verified TLS consumers. Unused GSS/LDAP features and their native package
+  closure stay disabled; enabling them requires explicit scope and fresh
+  source/SDK/library/physical/scanner/behavior evidence. Preserve public API
+  names while rejecting unsupported required feature requests.
+
 - The exact Psycopg C source operation belongs to
   `install_locked_python_requirements.py`; compiler and proxy-health consumers
   delegate to that owner. Separate verified archive/binary acquisition from

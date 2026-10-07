@@ -1869,3 +1869,239 @@ def test_candidate_nightly_forecast_preserves_current_and_plus_four(
     if forecast_finding:
         assert "review-by 2026-10-21" in summary
         assert "Expired Trivy ignore policy" not in summary
+
+
+def test_native_client_omits_unused_gss_closure_and_separates_pg_build() -> None:
+    dockerfile = (REPO_ROOT / "Dockerfile").read_text(encoding="utf-8")
+    native = dockerfile.split(" AS native-builder\n", 1)[1].split("\nFROM ", 1)[0]
+    assert "libkrb5-dev" not in dockerfile and "libgssapi-krb5-2 \\\n" not in dockerfile
+    assert "--without-gssapi --without-ldap" in native and "--with-gssapi" not in native
+    split = "ldconfig\nSH\n\n# PostgreSQL client flags have a separate cache boundary from Z/N/OpenSSL.\nRUN --network=none <<'SH'\nset -eu\ncd /build/source/postgresql-18.6"
+    assert split in native
+    prefix, client = native.split(split, 1)
+    assert "cd /build/source/zlib-1.3.2" in prefix
+    assert "--with-versioned-syms" in prefix and "make -j2 build_sw" in prefix
+    assert "make -j2 -C src/interfaces/libpq all" in client
+    for package in ("libgssapi-krb5-2", "libk5crypto3", "libkrb5-3", "libkrb5support0"):
+        assert package in dockerfile.split("retired = ", 1)[1].split("\nfor row", 1)[0]
+    source = dockerfile.split("<<'PY_NATIVE_PSYCOPG'\n", 1)[1].split("\nPY_NATIVE_PSYCOPG", 1)[0]
+    assert "gssencmode=require" in source and "not compiled in" in source
+    assert (
+        "gss_probe.finish()" in source and "Unused Kerberos native runtime remains loaded" in source
+    )
+
+
+@pytest.mark.parametrize(
+    "status,error_message,expected_exit",
+    (
+        (1, b'gssencmode value "require" invalid when GSSAPI support is not compiled in', 0),
+        (1, b"GSSAPI encryption required but no credential cache", 1),
+        (0, b"not compiled in", 1),
+        (0, b"GSSAPI enabled", 1),
+    ),
+)
+def test_shipped_libpq_gss_feature_probe_rejects_enabled_client_and_always_finishes(
+    tmp_path: Path, status: int, error_message: bytes, expected_exit: int
+) -> None:
+    """Execute the exact shipped public API probe, including cleanup on rejection."""
+    dockerfile = (REPO_ROOT / "Dockerfile").read_text(encoding="utf-8")
+    source = dockerfile.split("<<'PY_NATIVE_PSYCOPG'\n", 1)[1].split("\nPY_NATIVE_PSYCOPG", 1)[0]
+    statements = [
+        node
+        for node in ast.parse(source).body
+        if (
+            isinstance(node, ast.Assign)
+            and any(
+                isinstance(target, ast.Name) and target.id == "gss_probe" for target in node.targets
+            )
+        )
+        or (
+            isinstance(node, ast.Try)
+            and "Unused libpq GSSAPI feature remains enabled" in ast.unparse(node)
+        )
+    ]
+    assert len(statements) == 2
+    program = f"""import atexit, json, types
+observed = {{"finish_calls": 0, "connect_arguments": []}}
+class SyntheticConnection:
+    status = {status!r}
+    error_message = {error_message!r}
+    def finish(self):
+        observed["finish_calls"] += 1
+def connect_start(conninfo):
+    observed["connect_arguments"].append(conninfo.decode("ascii"))
+    return SyntheticConnection()
+pq = types.SimpleNamespace(PGconn=types.SimpleNamespace(connect_start=connect_start))
+psycopg = types.SimpleNamespace(pq=types.SimpleNamespace(ConnStatus=types.SimpleNamespace(BAD=1)))
+atexit.register(lambda: print(json.dumps(observed)))
+""" + "\n".join(ast.unparse(node) for node in statements)
+    result = subprocess.run(
+        [sys.executable, "-c", program],
+        cwd=tmp_path,
+        env={"PATH": os.defpath, "HOME": str(tmp_path), "LANG": "C.UTF-8"},
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+    assert result.returncode == expected_exit, result.stdout + result.stderr
+    assert json.loads(result.stdout) == {
+        "finish_calls": 1,
+        "connect_arguments": ["host=/tmp gssencmode=require"],
+    }
+    if expected_exit:
+        assert "Unused libpq GSSAPI feature remains enabled" in result.stderr
+    else:
+        assert not result.stderr
+
+
+@pytest.mark.parametrize(
+    "library,expected_exit",
+    (
+        ("libpq.so.5.18", 0),
+        ("libkrb5support-helper.so.1", 0),
+        ("libgssapi_krb5.so.2.2", 1),
+        ("libk5crypto.so.3.1", 1),
+        ("libkrb5.so.3.3", 1),
+        ("libkrb5support.so.0.1", 1),
+    ),
+)
+def test_shipped_loaded_native_guard_rejects_each_unused_gss_family(
+    tmp_path: Path, library: str, expected_exit: int
+) -> None:
+    """Real fixture map data exercises the shipped family guard without host maps."""
+    dockerfile = (REPO_ROOT / "Dockerfile").read_text(encoding="utf-8")
+    source = dockerfile.split("<<'PY_NATIVE_PSYCOPG'\n", 1)[1].split("\nPY_NATIVE_PSYCOPG", 1)[0]
+    statements = [
+        node
+        for node in ast.parse(source).body
+        if (
+            isinstance(node, ast.Assign)
+            and any(
+                isinstance(target, ast.Name) and target.id == "gss_families"
+                for target in node.targets
+            )
+        )
+        or (
+            isinstance(node, ast.If)
+            and "Unused Kerberos native runtime remains loaded" in ast.unparse(node)
+        )
+    ]
+    assert len(statements) == 2
+    fixture = tmp_path / "synthetic-maps.txt"
+    fixture.write_text(f"1000-2000 r--p 00000000 00:00 0 /usr/local/lib/{library}\n")
+    program = "from pathlib import Path\n" + "\n".join(ast.unparse(node) for node in statements)
+    program = program.replace("'/proc/self/maps'", repr(str(fixture)))
+    result = subprocess.run(
+        [sys.executable, "-c", program],
+        cwd=tmp_path,
+        env={"PATH": os.defpath, "HOME": str(tmp_path), "LANG": "C.UTF-8"},
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+    assert result.returncode == expected_exit, result.stdout + result.stderr
+    if expected_exit:
+        assert "Unused Kerberos native runtime remains loaded" in result.stderr
+    else:
+        assert not result.stderr
+
+
+@pytest.mark.parametrize(
+    "scenario,library,expected_message",
+    (
+        ("empty", "unrelated.so.1", None),
+        ("present", "libgssapi_krb5.so.2.2", "Unused Kerberos library remains"),
+        ("present", "libk5crypto.so.3.1", "Unused Kerberos library remains"),
+        ("present", "libkrb5.so.3.3", "Unused Kerberos library remains"),
+        ("present", "libkrb5support.so.0.1", "Unused Kerberos library remains"),
+        ("missing_directory", "unrelated.so.1", "FileNotFoundError"),
+        ("non_directory", "unrelated.so.1", "NotADirectoryError"),
+    ),
+)
+def test_shipped_physical_gss_guard_rejects_files_and_required_directory_errors(
+    tmp_path: Path, scenario: str, library: str, expected_message: str | None
+) -> None:
+    """Real scandir input cannot turn an unavailable mandatory directory into absence."""
+    dockerfile = (REPO_ROOT / "Dockerfile").read_text(encoding="utf-8")
+    source = dockerfile.split("<<'PY_NATIVE_PSYCOPG'\n", 1)[1].split("\nPY_NATIVE_PSYCOPG", 1)[0]
+    statements = [
+        node
+        for node in ast.parse(source).body
+        if (
+            isinstance(node, ast.Assign)
+            and any(
+                isinstance(target, ast.Name) and target.id == "gss_families"
+                for target in node.targets
+            )
+        )
+        or (
+            isinstance(node, ast.For)
+            and "Unused Kerberos library remains in a required native directory"
+            in ast.unparse(node)
+        )
+    ]
+    assert len(statements) == 2
+    native = tmp_path / "native-library-directory"
+    system = tmp_path / "system-library-directory"
+    native.mkdir()
+    if scenario == "non_directory":
+        system.write_text("synthetic non-directory")
+    elif scenario != "missing_directory":
+        system.mkdir()
+        (system / library).write_bytes(b"synthetic physical native bytes")
+    program = "import os\n" + "\n".join(ast.unparse(node) for node in statements)
+    program = program.replace("'/usr/local/lib'", repr(str(native)))
+    program = program.replace("'/usr/lib/x86_64-linux-gnu'", repr(str(system)))
+    result = subprocess.run(
+        [sys.executable, "-c", program],
+        cwd=tmp_path,
+        env={"PATH": os.defpath, "HOME": str(tmp_path), "LANG": "C.UTF-8"},
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+    assert result.returncode == (1 if expected_message else 0), result.stdout + result.stderr
+    if expected_message:
+        assert expected_message in result.stderr
+    else:
+        assert not result.stderr
+
+
+@pytest.mark.parametrize(
+    "inventory,expected_message",
+    (
+        (["ii libgssapi-krb5-2"], "An original native package remains installed"),
+        (["ii libk5crypto3"], "An original native package remains installed"),
+        (["ii libkrb5-3:amd64"], "An original native package remains installed"),
+        (["ii libkrb5support0"], "An original native package remains installed"),
+        (["rc libkrb5-3", "ii libkrb5-helper"], None),
+        ([""], "Package inventory is malformed after native replacement"),
+        (["ii"], "Package inventory is malformed after native replacement"),
+        (["ii libkrb5-3 extra"], "Package inventory is malformed after native replacement"),
+    ),
+)
+def test_existing_package_guard_rejects_kerberos_and_preserves_typed_inventory_errors(
+    tmp_path: Path, inventory: list[str], expected_message: str | None
+) -> None:
+    """Execute the existing retirement loop, preserving exact package membership."""
+    dockerfile = (REPO_ROOT / "Dockerfile").read_text(encoding="utf-8")
+    source = dockerfile.split('retired = {"zlib1g"', 1)[1].split("\nssl_root", 1)[0]
+    source = 'retired = {"zlib1g"' + source
+    program = f"rows = {inventory!r}\n" + source
+    result = subprocess.run(
+        [sys.executable, "-c", program],
+        cwd=tmp_path,
+        env={"PATH": os.defpath, "HOME": str(tmp_path), "LANG": "C.UTF-8"},
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+    assert result.returncode == (1 if expected_message else 0), result.stdout + result.stderr
+    if expected_message:
+        assert expected_message in result.stderr
+    else:
+        assert not result.stderr
