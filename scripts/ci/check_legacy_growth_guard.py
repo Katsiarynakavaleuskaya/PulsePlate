@@ -4088,10 +4088,10 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                     if owner_reference == "legacy_app"
                     else _POSSIBLE_LEGACY_REFERENCE
                 )
-            if self._is_legacy_namespace_reference(owner_reference) and node.attr in {
-                "get",
-                "__getitem__",
-            }:
+            if (
+                self._is_legacy_namespace_reference(owner_reference)
+                and node.attr in _DICT_NAMESPACE_LOOKUP_METHODS
+            ):
                 return f"legacy_app.__dict__.{node.attr}"
             if owner_reference == _KNOWN_NON_APP_REFERENCE:
                 return None
@@ -7373,9 +7373,9 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             self._invalidate_mapping(value_mapping)
 
     def visit_AnnAssign(self, node: ast.AnnAssign) -> None:
-        if not self._postponed_annotations:
-            self.visit(node.annotation)
         if node.value is None:
+            if not self._postponed_annotations:
+                self.visit(node.annotation)
             if not isinstance(node.target, ast.Name):
                 self.visit(node.target)
             return
@@ -7393,6 +7393,8 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         )
         if value_mapping is not None and _assignment_target_escapes_value(node.target):
             self._invalidate_mapping(value_mapping)
+        if not self._postponed_annotations:
+            self.visit(node.annotation)
 
     def visit_AugAssign(self, node: ast.AugAssign) -> None:
         self.visit(node.target)
@@ -11583,7 +11585,13 @@ def _record_main_legacy_openapi_lookups(tree: ast.Module, errors: list[str]) -> 
         elif isinstance(node, ast.Call):
             function_reference = own_reference(node.func)
             if (
-                function_reference in {"builtins.getattr", _POSSIBLE_GETATTR_REFERENCE}
+                function_reference
+                in {
+                    "builtins.getattr",
+                    _POSSIBLE_GETATTR_REFERENCE,
+                    "builtins.setattr",
+                    "builtins.delattr",
+                }
                 and len(node.args) >= 2
                 and evaluator._is_legacy_module_reference(own_reference(node.args[0]))
                 and evaluator._is_protected_ownership_symbol(own_string(node.args[1]))

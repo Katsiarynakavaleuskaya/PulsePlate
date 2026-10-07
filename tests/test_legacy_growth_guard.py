@@ -18499,6 +18499,11 @@ def test_consol_namespace_pop_setdefault_reject_full_protected_inventory(
             id="stored-bound-method",
         ),
         pytest.param(
+            "pick = vars(legacy).{method}\n",
+            "pick({symbol!r}, None)",
+            id="stored-direct-vars-method",
+        ),
+        pytest.param(
             "def owner():\n    return legacy\n",
             "dict.{method}(owner().__dict__, {symbol!r}, None)",
             id="unbound-returned-receiver",
@@ -18711,3 +18716,309 @@ def test_consol_protected_binding_replay_keeps_supported_outward_and_local_owner
     compile(source, "<protected-binding-supported-call-fixture>", "exec")
     expected = [_CONSOL_API_KEY_REBINDING_ERRORS["require_app_api_key"]] if forbidden else []
     assert _validate_api_key_dependency_ownership(source, {}) == expected
+
+
+@pytest.mark.parametrize(
+    ("family", "symbol"),
+    [
+        *[pytest.param("api", symbol, id=f"api-{symbol}") for symbol in _CONSOL_API_KEY_SYMBOLS],
+        *[
+            pytest.param("openapi", symbol, id=f"openapi-{symbol}")
+            for symbol in (*_CONSOL_OPENAPI_SYMBOLS, "CustomOPENapiHook")
+        ],
+    ],
+)
+@pytest.mark.parametrize("method", ["pop", "setdefault"])
+def test_consol_stored_direct_vars_methods_cover_full_protected_inventory(
+    family: Literal["api", "openapi"], symbol: str, method: str
+) -> None:
+    source = (
+        "import legacy_app as legacy\n"
+        + f"pick = vars(legacy).{method}\nvalue = pick({symbol!r}, None)\n"
+    )
+    compile(source, "<stored-direct-vars-method-fixture>", "exec")
+    if family == "api":
+        assert _validate_api_key_dependency_ownership(
+            _CONSOL_GETTER_IMPORTS, {"app/routers/example.py": source}
+        ) == [
+            "app/routers/example.py: legacy API-key dependency namespace lookup "
+            f"is forbidden: {symbol}"
+        ]
+    else:
+        assert _consol_openapi_errors(source) == [
+            "app/main.py: OpenAPI symbol must not be accessed through legacy"
+        ]
+
+
+@pytest.mark.parametrize("family", ["api", "openapi"])
+@pytest.mark.parametrize("method", ["pop", "setdefault"])
+@pytest.mark.parametrize("control", ["safe-member", "unrelated-receiver", "shadowed-vars"])
+def test_consol_stored_direct_vars_methods_keep_real_provenance_controls(
+    family: Literal["api", "openapi"], method: str, control: str
+) -> None:
+    symbol = "get_api_key" if family == "api" else "_install_openapi_builder"
+    canonical = "app.routers.api_key" if family == "api" else "app.bootstrap.openapi"
+    setup = "import legacy_app as legacy\n"
+    if control == "unrelated-receiver":
+        setup += f"import {canonical} as legacy\n"
+    elif control == "shadowed-vars":
+        setup += f"def vars(receiver):\n    return {{{symbol!r}: None}}\n"
+    member = "__name__" if control == "safe-member" else symbol
+    source = setup + f"pick = vars(legacy).{method}\nvalue = pick({member!r}, None)\n"
+    compile(source, "<stored-vars-independent-control-fixture>", "exec")
+    if family == "api":
+        assert (
+            _validate_api_key_dependency_ownership(
+                _CONSOL_GETTER_IMPORTS, {"app/routers/example.py": source}
+            )
+            == []
+        )
+    else:
+        assert _consol_openapi_errors(source) == []
+
+
+@pytest.mark.parametrize("family", ["api", "openapi"])
+@pytest.mark.parametrize("method", ["get", "__getitem__"])
+def test_consol_stored_direct_vars_getter_siblings_retain_provenance(
+    family: Literal["api", "openapi"], method: str
+) -> None:
+    symbol = "get_api_key" if family == "api" else "_install_openapi_builder"
+    source = (
+        "import legacy_app as legacy\n"
+        + f"pick = vars(legacy).{method}\nvalue = pick({symbol!r})\n"
+    )
+    compile(source, "<stored-vars-getter-sibling-fixture>", "exec")
+    if family == "api":
+        assert _validate_api_key_dependency_ownership(
+            _CONSOL_GETTER_IMPORTS, {"app/routers/example.py": source}
+        ) == [
+            "app/routers/example.py: legacy API-key dependency namespace lookup "
+            f"is forbidden: {symbol}"
+        ]
+    else:
+        assert _consol_openapi_errors(source) == [
+            "app/main.py: OpenAPI symbol must not be accessed through legacy"
+        ]
+
+
+@pytest.mark.parametrize("symbol", (*_CONSOL_OPENAPI_SYMBOLS, "CustomOPENapiHook"))
+@pytest.mark.parametrize("method", ["setattr", "delattr"])
+def test_consol_openapi_builtin_mutations_cover_full_protected_inventory(
+    symbol: str, method: str
+) -> None:
+    arguments = f"legacy, {symbol!r}" + (", None" if method == "setattr" else "")
+    source = "import legacy_app as legacy\n" + f"{method}({arguments})\n"
+    compile(source, "<openapi-builtin-mutation-fixture>", "exec")
+    assert _consol_openapi_errors(source) == [
+        "app/main.py: OpenAPI symbol must not be accessed through legacy"
+    ]
+
+
+@pytest.mark.parametrize("method", ["setattr", "delattr"])
+@pytest.mark.parametrize("form", ["qualified", "stored", "invoked-helper", "unused-helper"])
+def test_consol_openapi_builtin_mutations_preserve_supported_callees_and_audit_context(
+    method: str, form: str
+) -> None:
+    arguments = "legacy, '_install_openapi_builder'" + (", None" if method == "setattr" else "")
+    source = "import legacy_app as legacy\n"
+    if form == "qualified":
+        source += f"import builtins as bi\nbi.{method}({arguments})\n"
+    elif form == "stored":
+        source += f"pick = {method}\npick({arguments})\n"
+    else:
+        source += f"def mutate():\n    {method}({arguments})\n"
+        if form == "invoked-helper":
+            source += "mutate()\n"
+    compile(source, "<openapi-builtin-mutation-context-fixture>", "exec")
+    assert _consol_openapi_errors(source) == [
+        "app/main.py: OpenAPI symbol must not be accessed through legacy"
+    ]
+
+
+@pytest.mark.parametrize("method", ["setattr", "delattr"])
+@pytest.mark.parametrize(
+    "control",
+    ["safe-member", "unrelated-receiver", "canonical-receiver", "shadowed-callee", "local"],
+)
+def test_consol_openapi_builtin_mutations_keep_independent_safe_controls(
+    method: str, control: str
+) -> None:
+    member = "__name__" if control == "safe-member" else "_install_openapi_builder"
+    arguments = f"legacy, {member!r}" + (", None" if method == "setattr" else "")
+    source = "import legacy_app as legacy\n"
+    if control == "unrelated-receiver":
+        source += "class Other:\n    pass\nlegacy = Other()\n"
+    elif control == "canonical-receiver":
+        source += "import app.bootstrap.openapi as legacy\n"
+    elif control == "shadowed-callee":
+        source += f"def {method}(*arguments):\n    return None\n"
+    elif control == "local":
+        source += (
+            "import app.bootstrap.openapi as canonical\ndef mutate():\n    legacy = canonical\n"
+            + f"    {method}({arguments})\nmutate()\n"
+        )
+    if control != "local":
+        source += f"{method}({arguments})\n"
+    compile(source, "<openapi-builtin-mutation-control-fixture>", "exec")
+    assert _consol_openapi_errors(source) == []
+
+
+@pytest.mark.parametrize("method", ["setattr", "delattr"])
+@pytest.mark.parametrize("component", ["callee", "receiver", "member"])
+@pytest.mark.parametrize("snapshot_kind", ["reference", "string"])
+def test_consol_openapi_builtin_mutations_require_own_component_snapshots(
+    method: str, component: str, snapshot_kind: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    collect = legacy_guard._collect_lexical_binding_snapshots
+    selected_nodes: list[int] = []
+
+    def collect_without_component(tree: ast.Module, **kwargs: Any) -> tuple[
+        Mapping[int, Mapping[str, str]],
+        Mapping[int, Mapping[str, str]],
+        Mapping[int, legacy_guard._ResolvedBinding],
+    ]:
+        references, strings, results = collect(tree, **kwargs)
+        selected = {
+            id(
+                node.func
+                if component == "callee"
+                else node.args[0 if component == "receiver" else 1]
+            )
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id == method
+        }
+        selected_nodes.extend(selected)
+        if snapshot_kind == "reference":
+            references = {key: value for key, value in references.items() if key not in selected}
+        else:
+            strings = {key: value for key, value in strings.items() if key not in selected}
+        return references, strings, results
+
+    monkeypatch.setattr(
+        legacy_guard, "_collect_lexical_binding_snapshots", collect_without_component
+    )
+    arguments = "legacy, '_install_openapi_builder'" + (", None" if method == "setattr" else "")
+    source = "import legacy_app as legacy\n" + f"{method}({arguments})\n"
+    compile(source, "<openapi-builtin-mutation-own-snapshot-fixture>", "exec")
+    assert _consol_openapi_errors(source) == []
+    assert selected_nodes, "the actual builtin call component must be selected for omission"
+
+
+@pytest.mark.parametrize("target_kind", ["attribute", "subscript"])
+@pytest.mark.parametrize(
+    ("initial", "rhs_owner", "annotation_owner", "postponed", "target_owner"),
+    [
+        pytest.param(
+            "genuine", None, "canonical", False, "legacy_app", id="legacy-before-annotation"
+        ),
+        pytest.param(
+            "canonical",
+            None,
+            "genuine",
+            False,
+            "app.bootstrap.openapi",
+            id="safe-before-annotation",
+        ),
+        pytest.param(
+            "genuine",
+            "canonical",
+            "genuine",
+            False,
+            "app.bootstrap.openapi",
+            id="rhs-safe-annotation-legacy",
+        ),
+        pytest.param(
+            "canonical",
+            "genuine",
+            "canonical",
+            False,
+            "legacy_app",
+            id="rhs-legacy-annotation-safe",
+        ),
+        pytest.param("genuine", None, "canonical", True, "legacy_app", id="postponed-legacy"),
+        pytest.param(
+            "canonical", None, "genuine", True, "app.bootstrap.openapi", id="postponed-safe"
+        ),
+        pytest.param(
+            "genuine",
+            "canonical",
+            "genuine",
+            True,
+            "app.bootstrap.openapi",
+            id="postponed-rhs-safe",
+        ),
+        pytest.param(
+            "canonical", "genuine", "canonical", True, "legacy_app", id="postponed-rhs-legacy"
+        ),
+    ],
+)
+def test_consol_valued_annassign_captures_rhs_and_target_before_annotation_effects(
+    target_kind: str,
+    initial: str,
+    rhs_owner: str | None,
+    annotation_owner: str,
+    postponed: bool,
+    target_owner: str,
+) -> None:
+    source = (
+        "import legacy_app as genuine\nimport app.bootstrap.openapi as canonical\n"
+        + f"legacy = {initial}\nmember = '_install_openapi_builder'\n"
+        + f"def annotation():\n    global legacy\n    legacy = {annotation_owner}\n    return object\n"
+    )
+    if rhs_owner is not None:
+        source += f"def rhs():\n    global legacy\n    legacy = {rhs_owner}\n    return None\n"
+    target = (
+        "legacy._install_openapi_builder"
+        if target_kind == "attribute"
+        else "legacy.__dict__[member]"
+    )
+    source += f"{target}: annotation() = {'rhs()' if rhs_owner is not None else 'None'}\n"
+    if postponed:
+        source = "from __future__ import annotations\n" + source
+    compile(source, "<valued-annassign-own-point-order-fixture>", "exec")
+    tree = ast.parse(source)
+    references, strings, _results = legacy_guard._collect_lexical_binding_snapshots(
+        tree,
+        filename="app/main.py",
+        initial_references={},
+        ownership_family="openapi",
+        purpose="ownership_audit",
+    )
+    assignment = next(node for node in tree.body if isinstance(node, ast.AnnAssign))
+    leaf = cast(ast.Attribute | ast.Subscript, assignment.target)
+    assert id(leaf) in references and id(leaf) in strings
+    assert id(leaf.value) in references and id(leaf.value) in strings
+    assert references[id(leaf)]["legacy"] == target_owner
+    assert references[id(leaf.value)]["legacy"] == target_owner
+    final_references, _final_strings = legacy_guard._collect_module_final_bindings(
+        tree, filename="app/main.py", initial_references={}, ownership_family="openapi"
+    )
+    final_owner = (
+        target_owner
+        if postponed
+        else "legacy_app" if annotation_owner == "genuine" else "app.bootstrap.openapi"
+    )
+    assert final_references["legacy"] == final_owner
+    diagnostic = "app/main.py: OpenAPI symbol must not be accessed through legacy"
+    raw_errors: list[str] = []
+    legacy_guard._record_main_legacy_openapi_lookups(tree, raw_errors)
+    assert raw_errors == ([diagnostic] if target_owner == "legacy_app" else [])
+    assert _consol_openapi_errors(source) == ([diagnostic] if target_owner == "legacy_app" else [])
+
+
+@pytest.mark.parametrize("target_kind", ["attribute", "subscript"])
+def test_consol_valued_annassign_keeps_real_local_receiver_boundary(target_kind: str) -> None:
+    target = (
+        "legacy._install_openapi_builder"
+        if target_kind == "attribute"
+        else "legacy.__dict__[member]"
+    )
+    source = (
+        "import legacy_app as legacy\nimport app.bootstrap.openapi as canonical\n"
+        "member = '_install_openapi_builder'\ndef annotation():\n    return object\n"
+        + f"def update(legacy):\n    {target}: annotation() = None\nupdate(canonical)\n"
+    )
+    compile(source, "<valued-annassign-local-receiver-fixture>", "exec")
+    assert _consol_openapi_errors(source) == []
