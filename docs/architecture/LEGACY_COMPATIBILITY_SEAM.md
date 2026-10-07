@@ -762,20 +762,31 @@ closed families and absorbing possible markers in the existing join. The
 OpenAPI family is the exact seven compatibility names or a name containing
 `openapi` after case folding. Receiver, member and builtin-callee provenance
 remain independent, including deferred/local/nonlocal and postponed-annotation
-contexts (`scripts/ci/check_legacy_growth_guard.py:11417`).
+contexts (`scripts/ci/check_legacy_growth_guard.py:11499`). Protected attribute
+and namespace writes and deletions use the target's own evidence as well as
+the receiver and member evidence; comprehension targets remain local while
+genuine containing-scope protected-name bindings remain rejected.
 
 The strict API-key source validator requires readable, parseable
 `app/routers/api_key.py` and all five actual module bindings from the existing
 visitor's `bound_names`; nested-only, possibly-bound, bare-annotation and deleted
 names are not owner witnesses. Both compatibility-import witnesses and permitted
 binder skips require level zero, the exact owner module and the same exported
-name, with no alias or an explicit same-name alias. Defining defaults and finite
-headers, and exception types before their aliases/bodies, are inspected in the
-containing scope; lambda bodies remain local. Eager versus postponed annotations
+name, with no alias or an explicit same-name alias. Defining defaults and
+exception types before their aliases/bodies are inspected in the containing
+scope; lambda bodies remain local. Generic declarations mask type-parameter
+names in their actual parameter scope. Function annotations and class bases
+and keywords use that scope; function defaults and decorators and class
+decorators retain their containing scope. Lazy bounds, constraints and defaults
+receive independent detached ownership-audit evidence without changing ordinary
+execution or transferring effects between independent lazy expressions.
+Ordinary method bodies retain parameter masks without inheriting class-only
+visibility (`scripts/ci/check_legacy_growth_guard.py:2843`,
+`scripts/ci/check_legacy_growth_guard.py:5419`). Eager versus postponed annotations
 and positional/keyword defaults preserve their current execution boundary.
 These source witnesses do not establish configured keys or runtime authorization
-(`scripts/ci/check_legacy_growth_guard.py:3036`,
-`scripts/ci/check_legacy_growth_guard.py:9721`).
+(`scripts/ci/check_legacy_growth_guard.py:3049`,
+`scripts/ci/check_legacy_growth_guard.py:9798`).
 
 Resolved matching tuple/list/nested local assignments preserve their mapping
 identity through the existing paired binder; generic collection escapes and
@@ -783,12 +794,12 @@ unmatched/starred constructions retain their separate conservative handling.
 Actual class members invalidate shared mapping identity before class-scope
 restoration, excluding global/nonlocal declarations and avoiding repeated
 invalidation of already-removed aliases. Copied mappings and ordered snapshots
-remain distinct (`scripts/ci/check_legacy_growth_guard.py:5188`,
-`scripts/ci/check_legacy_growth_guard.py:5944`). Builtin `vars`, `dict.get` and
+remain distinct (`scripts/ci/check_legacy_growth_guard.py:5205`,
+`scripts/ci/check_legacy_growth_guard.py:6019`). Builtin `vars`, `dict.get` and
 stored namespace getters retain actual legacy-namespace provenance in the
 existing reference/call seams; shadowed builtins, unrelated receivers and safe
-member names remain independent controls. The per-loop32 and total128 transfer
-budgets are unchanged (`scripts/ci/check_legacy_growth_guard.py:4414`). These
+member names remain independent controls. The per-loop 32 and total 128 transfer
+budgets are unchanged (`scripts/ci/check_legacy_growth_guard.py:4427`). These
 bounded repairs preserve the original independent 87-name baseline plus the
 inherited four-name subset. The eight utility names inherited from main extend
 that preserved 91-name prefix to the current exact 99-name inventory. This
