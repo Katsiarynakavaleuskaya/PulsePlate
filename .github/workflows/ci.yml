@@ -1436,48 +1436,15 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Setup Python
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+      - name: Setup Python environment
+        uses: ./.github/actions/python-setup
+        env:
+          DEVPI_CI_USER: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && secrets.DEVPI_CI_USER || '' }}
+          DEVPI_CI_PASSWORD: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && secrets.DEVPI_CI_PASSWORD || '' }}
         with:
           python-version: "3.13.14"
-          cache: "pip"
-          cache-dependency-path: |
-            requirements-ci-lite.txt
-            requirements-test.txt
-
-      - name: Install locked ci-test dependencies
-        run: |
-          set -euo pipefail
-          index_url="${PULSEPLATE_PYTHON_INDEX_URL:-}"
-          trusted_host="${PULSEPLATE_PYTHON_TRUSTED_HOST:-}"
-          if [[ -z "$index_url" ]]; then
-            echo "::error::Set credential-free PULSEPLATE_PYTHON_INDEX_URL for pgvector compatibility."
-            exit 1
-          fi
-          case "$index_url" in
-            *://*@*)
-              echo "::error::PULSEPLATE_PYTHON_INDEX_URL must be credential-free."
-              exit 1
-              ;;
-          esac
-          case "$index_url$trusted_host" in
-            *$'\n'*|*$'\r'*)
-              echo "::error::Python package proxy settings must be single-line values."
-              exit 1
-              ;;
-          esac
-          install_args=()
-          if [[ -n "$trusted_host" ]]; then
-            install_args+=(--trusted-host "$trusted_host")
-          fi
-          python scripts/ci/install_locked_python_requirements.py \
-            --python-executable python \
-            --constraints-file constraints.txt \
-            --emergency-wheel-manifest scripts/ci/emergency_python_wheels.json \
-            --requirements-profile ci-test \
-            --install-mode direct-proxy \
-            --index-url "$index_url" \
-            "${install_args[@]}"
+          requirements-profile: ci-test
+          install-mode: direct-proxy
 
       - name: Prove pgvector binding, extension, and RLS compatibility
         run: |

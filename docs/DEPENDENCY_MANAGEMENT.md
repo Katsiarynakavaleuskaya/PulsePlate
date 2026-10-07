@@ -132,26 +132,38 @@ install contexts; it is not a substitute for the compiled lock surfaces.
 
 ### Local Development Bootstrap
 
-The devcontainer remains the recommended path for backend/web/docs/orchestration
-work. A host `.venv` is supported only when the approved proxy provides a
-compatible binary wheel for that host platform.
+Backend bootstrap uses the Linux amd64 container SDK and verified runtime/dev
+wheelhouse. Native macOS backend `make venv`, `make venv-sync` and
+`source scripts/dev_shell.sh` bootstrap fail before creating or activating a
+host venv. An existing host venv is preserved; this migration does not supply
+a Darwin SDK. iOS/Xcode work remains host-native on macOS.
 
-The bounded 2026-08-04 `cryptography==50.0.0` proxy snapshot provided macOS
-arm64 wheels but no macOS `x86_64` or `universal2` wheel. Apple Silicon exact-50
-bootstrap was validated; Intel macOS backend bootstrap must use the
-devcontainer at this floor. The canonical installer is binary-only, so
-source-build fallback is not supported. This observation is dated and does not
-claim future platform compatibility. iOS/Xcode development remains host-native
-on macOS.
-
-`make venv-sync` refreshes the repo `.venv` through the locked installer path
-and the approved private package proxy. Use it after lockfile changes or when a
-compatible host environment has stale wrappers or missing pins.
+From the host, prepare the existing approved proxy access and explicitly start
+and enter the devcontainer:
 
 ```bash
 export PULSEPLATE_PYTHON_INDEX_URL="https://packages.pulseplate.app/root/pulseplate/+simple/"
-make venv-sync
+make dc-up
+make dc-shell
 ```
+
+Inside the container, run `make devcontainer-bootstrap` or `make venv`, then
+`make venv-sync` for refreshes. Both consume the matching genuine SDK and exact
+binary wheelhouse offline through the locked installer; no registry access is
+needed for this consumption. `source scripts/dev_shell.sh` initializes a fresh
+or empty container venv and activates it. The development image supplies the
+same SDK/wheelhouse handoff for its manual callers. Named venv volumes isolate
+container environments from the host checkout.
+
+The source producer supports the exact Linux amd64 CPython SDK family. On an
+ARM host, Docker/Compose select `linux/amd64` explicitly; emulated local builds
+retain their resource limits and native CI remains the compatibility signal.
+Stop Docker Desktop after an owned build/observation session. Actual SDK,
+wheelhouse and final-user import checks are required; file presence alone is
+not successful bootstrap evidence.
+
+The August 4 cryptography50.0.0 macOS-arm64 wheel observation is historical;
+it does not establish current native-host support for this source migration.
 
 Direct `pip-sync` remains a manual/debugging tool only; do not present it as the
 canonical local refresh path in repo workflows.
@@ -308,21 +320,19 @@ entries. When the manifest is the retired empty marker, it succeeds with
 
 ## Canonical Clean-Clone Bootstrap For Local Verify
 
-For this repo, the canonical local path is still the Makefile bootstrap:
+Use the container flow above before the canonical Makefile bootstrap. Inside
+that container:
 
 ```bash
-export PULSEPLATE_PYTHON_INDEX_URL="https://packages.pulseplate.app/root/pulseplate/+simple/"
 make venv
-make verify
+make validate-changed
+.venv/bin/python -m pre_commit run --all-files
 ```
 
-If an existing `.venv` looks stale or `make verify` fails early on a missing
-locked dependency such as `opentelemetry-*`, refresh the environment with:
-
-```bash
-make venv-sync
-make verify
-```
+For a stale container environment, refresh it with `make venv-sync` and run
+the required focused/narrow gates. Full local `make verify` requires the root
+policy's explicit single-invocation human authorization; it is not the default
+bootstrap or PR verification step.
 
 `make verify` includes a fail-fast `verify-env` preflight so incomplete
 clean-clone environments fail before the longer lint/typecheck/test gates. Run

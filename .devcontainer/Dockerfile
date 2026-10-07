@@ -34,5 +34,26 @@ ENV PIP_DISABLE_PIP_VERSION_CHECK=1 \
     PIP_NO_PYTHON_VERSION_WARNING=1 \
     PYTHONDONTWRITEBYTECODE=1
 
+# Native SDK and verified binary wheelhouse from the existing source producer.
+# This image build only copies artifacts; the user installs into a venv offline.
+COPY --from=native_sdk /usr/local/lib/ /usr/local/lib/
+COPY --from=native_sdk /usr/local/include/ /usr/local/include/
+COPY --from=native_sdk /usr/local/bin/ /usr/local/bin/
+COPY --from=native_sdk /usr/local/share/terminfo/ /usr/local/share/terminfo/
+COPY --from=native_sdk /psycopg-sdk/ /opt/psycopg-sdk/
+COPY --from=native_sdk /wheelhouse/ /opt/dev-wheelhouse/
+RUN test -f /opt/psycopg-sdk/psycopg-c-sdk.json \
+    && test ! -L /opt/psycopg-sdk/psycopg-c-sdk.json \
+    && test -f /opt/psycopg-sdk/psycopg_c-3.3.4-cp313-cp313-linux_x86_64.whl \
+    && test ! -L /opt/psycopg-sdk/psycopg_c-3.3.4-cp313-cp313-linux_x86_64.whl \
+    && chmod 755 /opt/psycopg-sdk \
+    && chmod 644 /opt/psycopg-sdk/psycopg-c-sdk.json /opt/psycopg-sdk/psycopg_c-3.3.4-cp313-cp313-linux_x86_64.whl \
+    && chmod 755 /opt/dev-wheelhouse \
+    && chmod 644 /opt/dev-wheelhouse/*.whl \
+    && ldconfig \
+    && install -d -o vscode -g vscode /workspaces/PulsePlate/.venv
+ENV PULSEPLATE_PSYCOPG_C_SDK=/opt/psycopg-sdk \
+    PULSEPLATE_BOOTSTRAP_WHEELHOUSE=/opt/dev-wheelhouse
+
 USER vscode
 WORKDIR /workspaces/PulsePlate

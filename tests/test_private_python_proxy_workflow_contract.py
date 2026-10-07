@@ -11,6 +11,8 @@ import sys
 import pytest
 import yaml
 
+from scripts.ci import install_locked_python_requirements as locked_installer
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 CI_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "ci.yml"
 HEALTH_JOB = "private_python_proxy_health"
@@ -385,6 +387,7 @@ def test_python_setup_jobs_depend_on_private_proxy_health_gate() -> None:
         "security",
         "openapi-sync",
         "test-pr",
+        "pgvector_compat",
         "test-feature",
         "test-main",
         "diff-coverage",
@@ -393,6 +396,85 @@ def test_python_setup_jobs_depend_on_private_proxy_health_gate() -> None:
         job = jobs[job_name]
         assert isinstance(job, dict)
         assert HEALTH_JOB in as_needs_set(job), f"{job_name} must need {HEALTH_JOB}"
+
+
+@pytest.mark.parametrize(
+    "workflow_name,job_name,profile,consumer_name",
+    (
+        ("rag-release-gates.yml", "rag-release-gates-smoke", "ci-lite", "Run cheap smoke lane"),
+        (
+            "rag-release-gates.yml",
+            "rag-release-gates-weekly",
+            "ci-lite",
+            "Run strict weekly/manual lane",
+        ),
+        (
+            "ci.yml",
+            "pgvector_compat",
+            "ci-test",
+            "Prove pgvector binding, extension, and RLS compatibility",
+        ),
+    ),
+)
+def test_native_profile_callers_use_the_existing_sdk_and_exact_profile(
+    workflow_name: str, job_name: str, profile: str, consumer_name: str
+) -> None:
+    workflow = yaml.safe_load((REPO_ROOT / ".github/workflows" / workflow_name).read_text())
+    job = workflow["jobs"][job_name]
+    steps = job["steps"]
+    setup_indexes = [
+        index
+        for index, step in enumerate(steps)
+        if step.get("uses") == "./.github/actions/python-setup"
+    ]
+    assert len(setup_indexes) == 1
+    setup_index = setup_indexes[0]
+    setup = steps[setup_index]
+    inputs = setup["with"]
+    assert inputs["python-version"] == "3.13.14"
+    assert inputs["requirements-profile"] == profile
+    assert inputs["install-mode"] == "direct-proxy"
+    assert inputs.get("skip-base-install", "false") == "false"
+    assert (
+        inputs.get("ci-lite-requirements-file", "requirements-ci-lite.txt")
+        == "requirements-ci-lite.txt"
+    )
+    assert inputs.get("test-requirements-file", "requirements-test.txt") == "requirements-test.txt"
+    assert inputs.get("constraints-file", "constraints.txt") == "constraints.txt"
+    assert setup.get("if") is None and setup.get("continue-on-error") is None
+    assert job.get("continue-on-error") is None
+    checkout_index = next(
+        index
+        for index, step in enumerate(steps)
+        if str(step.get("uses", "")).startswith("actions/checkout@")
+    )
+    consumer_index = next(
+        index for index, step in enumerate(steps) if step.get("name") == consumer_name
+    )
+    assert checkout_index < setup_index < consumer_index
+    assert not any(str(step.get("uses", "")).startswith("actions/setup-python@") for step in steps)
+    run_blocks = "\n".join(str(step.get("run", "")) for step in steps)
+    assert "install_locked_python_requirements.py" not in run_blocks
+    assert "PULSEPLATE_PSYCOPG_C_SDK" not in run_blocks
+    for env in (workflow.get("env", {}), job.get("env", {}), setup.get("env", {})):
+        assert "PULSEPLATE_PSYCOPG_C_SDK" not in env
+    selected = locked_installer.resolve_requirement_files(
+        requirements_file=REPO_ROOT / "requirements.txt",
+        dev_requirements_file=REPO_ROOT / "requirements-dev.txt",
+        test_requirements_file=REPO_ROOT / "requirements-test.txt",
+        ci_lite_requirements_file=REPO_ROOT
+        / inputs.get("ci-lite-requirements-file", "requirements-ci-lite.txt"),
+        rag_vector_requirements_file=REPO_ROOT / "requirements-rag-vector.txt",
+        install_dev=False,
+        install_test=False,
+        requirements_profile=profile,
+    )
+    expected = [REPO_ROOT / "requirements-ci-lite.txt"]
+    if profile == "ci-test":
+        expected.append(REPO_ROOT / "requirements-test.txt")
+    assert selected == expected
+    pins = locked_installer._exact_locked_artifacts(selected)
+    assert {("psycopg", "3.3.4"), ("psycopg-c", "3.3.4")} <= pins
 
 
 def test_python_setup_jobs_receive_devpi_credentials_on_main_push_only() -> None:

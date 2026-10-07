@@ -64,24 +64,36 @@ requires Docker from inside the devcontainer, use a separate reviewed local
 override after the workspace is trusted rather than committing socket access to
 the default configuration.
 
-### Host .venv compatibility path
+### Backend SDK bootstrap
+
+Use the Linux amd64 backend container, with the existing approved proxy access
+available only to artifact acquisition:
 
 ```bash
 export PULSEPLATE_PYTHON_INDEX_URL="https://packages.pulseplate.app/root/pulseplate/+simple/"
-make venv
-source .venv/bin/activate
+make dc-up
+make dc-shell
+# Inside the trusted container:
+make devcontainer-bootstrap
+source scripts/dev_shell.sh
 make dev
 ```
 
-The devcontainer remains the recommended backend/web/docs/orchestration path.
-Host `.venv` bootstrap is supported only when the approved proxy provides a
-compatible binary wheel for the host platform. In the bounded 2026-08-04
-`cryptography==50.0.0` snapshot, the proxy provided macOS arm64 wheels but no
-macOS `x86_64` or `universal2` wheel. Apple Silicon exact-50 bootstrap was
-validated; Intel macOS backend bootstrap must use the devcontainer at this
-floor. The installer remains binary-only, so source-build fallback is not
-supported. This is a dated artifact snapshot, not a permanent compatibility
-claim. iOS/Xcode development stays host-native on macOS.
+`make venv` and `make venv-sync` also run inside this container. The tooling and
+root development images provide the matching genuine Psycopg C SDK and verified
+runtime/dev wheelhouse; manual bootstrap consumes them offline. Named venv
+volumes preserve the host checkout's existing `.venv`. Native macOS backend
+bootstrap has no Darwin SDK and fails before creating or activating a host venv.
+iOS/Xcode development stays host-native on macOS. On ARM hosts, build callers
+explicitly select `linux/amd64`; stop Docker Desktop after owned work completes.
+
+Historical binary-wheel observation: In the bounded 2026-08-04
+`cryptography==50.0.0` approved proxy snapshot, a compatible binary wheel was
+available for macOS arm64 but no macOS `x86_64` or `universal2` wheel. Apple
+Silicon exact-50 bootstrap was validated then; Intel macOS used the devcontainer
+at that historical floor. This does not establish current native-host Psycopg
+SDK support. Other packages remain binary-only; source-build fallback is not
+supported outside the exact isolated SDK operation.
 
 Generic developer targets (`make test`, `make lint`, `make typecheck`, `make cov`,
 `make openapi`, etc.) use `DEV_PYTHON`, which auto-detects `.venv/bin/python` or

@@ -779,11 +779,17 @@ def test_local_bootstrap_surfaces_use_locked_installer_and_virtualenv_guard() ->
     assert "Export PULSEPLATE_PYTHON_INDEX_URL" in makefile_text
     assert "PIP_REQUIRE_VIRTUALENV=1" in dev_shell_text
     assert "install_locked_python_requirements.py" in dev_shell_text
-    assert "Export PULSEPLATE_PYTHON_INDEX_URL" in dev_shell_text
+    for text in (makefile_text, dev_shell_text):
+        assert "--consume-only" in text
+        assert "--psycopg-sdk" in text and "--wheelhouse-dir" in text
+        assert "PULSEPLATE_PSYCOPG_C_SDK" in text
+        assert "PULSEPLATE_BOOTSTRAP_WHEELHOUSE" in text
+    assert "venv: ensure-native-sdk" in makefile_text
+    assert "venv-sync: ensure-native-sdk" in makefile_text
     assert "PULSEPLATE_PYTHON_INDEX_URL" in installer_text
 
 
-def test_local_bootstrap_docs_bind_cryptography_50_binary_wheel_boundary() -> None:
+def test_local_bootstrap_docs_bind_source_sdk_and_historical_crypto_proof() -> None:
     contributing = (REPO_ROOT / "CONTRIBUTING.md").read_text(encoding="utf-8")
     dependency_docs = (REPO_ROOT / "docs" / "DEPENDENCY_MANAGEMENT.md").read_text(encoding="utf-8")
     runbook = (REPO_ROOT / "RUNBOOK_AGENT.md").read_text(encoding="utf-8")
@@ -794,13 +800,10 @@ def test_local_bootstrap_docs_bind_cryptography_50_binary_wheel_boundary() -> No
     approved_proxy_export = 'export PULSEPLATE_PYTHON_INDEX_URL="https://packages.pulseplate.app/root/pulseplate/+simple/"'
     assert approved_proxy_export in contributing
     assert approved_proxy_export in dependency_docs
-    assert (
-        f"{approved_proxy_export}\nmake venv\nsource .venv/bin/activate\nmake dev"
-    ) in contributing
     assert "make venv-sync" in dependency_docs
     assert "Local Development Bootstrap" in dependency_docs
 
-    for document in (contributing, dependency_docs, advisory):
+    for document in (contributing, advisory):
         normalized = " ".join(document.casefold().split())
         assert "2026-08-04" in normalized
         assert "50.0.0" in normalized
@@ -818,6 +821,21 @@ def test_local_bootstrap_docs_bind_cryptography_50_binary_wheel_boundary() -> No
     assert "x86_64" in normalized_advisory
     assert "universal2" in normalized_advisory
     assert "133 consumer tests" in normalized_advisory
+
+    normalized_dependency = " ".join(dependency_docs.casefold().split())
+    for boundary in (
+        "linux amd64 container sdk",
+        "verified runtime/dev wheelhouse",
+        "offline",
+        "native macos",
+        "does not supply a darwin sdk",
+        "ios/xcode",
+        "host-native",
+        "make dc-up",
+        "make dc-shell",
+        "make devcontainer-bootstrap",
+    ):
+        assert boundary in normalized_dependency
 
     normalized_runbook = " ".join(runbook.casefold().split())
     for recovery_boundary in (
@@ -1339,29 +1357,26 @@ def test_frontend_ci_workflow_uses_ci_lite_python_setup() -> None:
             assert expected_path in event_paths
 
 
-@pytest.mark.parametrize(
-    "job_name, step_name",
-    (
-        ("rag-release-gates-smoke", "Install CI-lite dependencies for smoke lane"),
-        ("rag-release-gates-weekly", "Install CI-lite dependencies for strict import path"),
-    ),
-)
-def test_rag_release_gates_use_locked_ci_lite_installer(job_name: str, step_name: str) -> None:
-    install_step = _workflow_step_by_name(
-        ".github/workflows/rag-release-gates.yml",
-        job_name,
-        step_name,
-    )
-    install_script = install_step["run"]
+@pytest.mark.parametrize("job_name", ("rag-release-gates-smoke", "rag-release-gates-weekly"))
+def test_rag_release_gates_use_locked_ci_lite_installer(job_name: str) -> None:
+    setup_step = _python_setup_step(".github/workflows/rag-release-gates.yml", job_name)
+    settings = setup_step["with"]
 
     assert APPROVED_PROXY_ENV_EXPRESSION in (
         REPO_ROOT / ".github" / "workflows" / "rag-release-gates.yml"
     ).read_text(encoding="utf-8")
-    assert "scripts/ci/install_locked_python_requirements.py" in install_script
-    assert "--requirements-profile ci-lite" in install_script
-    assert "--install-mode direct-proxy" in install_script
-    assert "--emergency-wheel-manifest scripts/ci/emergency_python_wheels.json" in install_script
-    assert "python3 -m pip install" not in install_script
+    assert settings["python-version"] == "3.13.14"
+    assert settings["requirements-profile"] == "ci-lite"
+    assert settings["ci-lite-requirements-file"] == "requirements-ci-lite.txt"
+    assert settings["constraints-file"] == "constraints.txt"
+    assert settings["install-mode"] == "direct-proxy"
+    assert settings["skip-base-install"] == "false"
+    run_blocks = "\n".join(
+        str(step.get("run", ""))
+        for step in _workflow_steps(".github/workflows/rag-release-gates.yml", job_name)
+    )
+    assert "scripts/ci/install_locked_python_requirements.py" not in run_blocks
+    assert "python3 -m pip install" not in run_blocks
 
 
 def test_frontend_build_keeps_codecov_token_out_of_branch_controlled_build() -> None:

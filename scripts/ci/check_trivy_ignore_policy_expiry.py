@@ -475,6 +475,8 @@ def _parse_review_by_dates(path: Path, *, text: str) -> list[tuple[int, date]]:
                     f"Invalid 'Review-by' date in {path}:{line_number}: "
                     f"{found.group(1)} ({exc})"
                 ) from exc
+    if not review_dates:
+        raise ValueError(f"Missing 'Review-by: YYYY-MM-DD' in {path}")
     return review_dates
 
 

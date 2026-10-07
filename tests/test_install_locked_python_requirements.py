@@ -157,6 +157,254 @@ def test_psycopg_source_refuses_other_names_and_changed_release_bytes(tmp_path: 
         installer.inspect_psycopg_source(archive)
 
 
+def test_regular_input_accepts_read_induced_atime_change(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = tmp_path / "input"
+    path.write_bytes(b"controlled input")
+    real_fstat = os.fstat
+    calls = 0
+
+    def observe_read(descriptor: int) -> os.stat_result:
+        nonlocal calls
+        calls += 1
+        value = real_fstat(descriptor)
+        if calls == 2:
+            fields = list(value)
+            fields[7] += 10
+            return os.stat_result(
+                fields,
+                {
+                    "st_atime_ns": value.st_atime_ns + 10_000_000_000,
+                    "st_mtime_ns": value.st_mtime_ns,
+                    "st_ctime_ns": value.st_ctime_ns,
+                },
+            )
+        return value
+
+    monkeypatch.setattr(installer.os, "fstat", observe_read)
+    assert installer._read_regular_input(path, maximum=64) == b"controlled input"
+    assert calls == 2
+
+
+def test_regular_input_rejects_path_replacement_after_descriptor_read(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = tmp_path / "input"
+    path.write_bytes(b"original input")
+    replacement = tmp_path / "replacement"
+    replacement.write_bytes(b"different input")
+    real_fstat = os.fstat
+    calls = 0
+
+    def replace_after_read(descriptor: int) -> os.stat_result:
+        nonlocal calls
+        calls += 1
+        value = real_fstat(descriptor)
+        if calls == 2:
+            os.replace(replacement, path)
+        return value
+
+    monkeypatch.setattr(installer.os, "fstat", replace_after_read)
+    with pytest.raises(RuntimeError, match="Input identity changed"):
+        installer._read_regular_input(path, maximum=64)
+    assert path.read_bytes() == b"different input"
+
+
+@pytest.mark.parametrize("changed_field", (0, 1, 2, 3, 4, 5, 6, 8, 9))
+def test_regular_input_rejects_identity_or_nonaccess_metadata_changes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, changed_field: int
+) -> None:
+    path = tmp_path / "input"
+    path.write_bytes(b"controlled input")
+    real_fstat = os.fstat
+    calls = 0
+
+    def observe_changed_metadata(descriptor: int) -> os.stat_result:
+        nonlocal calls
+        calls += 1
+        value = real_fstat(descriptor)
+        if calls == 2:
+            fields = list(value)
+            fields[changed_field] += 1
+            return os.stat_result(
+                fields,
+                {
+                    "st_atime_ns": value.st_atime_ns,
+                    "st_mtime_ns": value.st_mtime_ns + (changed_field == 8),
+                    "st_ctime_ns": value.st_ctime_ns + (changed_field == 9),
+                },
+            )
+        return value
+
+    monkeypatch.setattr(installer.os, "fstat", observe_changed_metadata)
+    with pytest.raises(RuntimeError, match="Input identity changed"):
+        installer._read_regular_input(path, maximum=64)
+
+
+@pytest.mark.parametrize(
+    "selectors",
+    (
+        ["--prefetch-psycopg-source", "source", "--prefetch-psycopg-build-wheels", "wheels"],
+        ["--prefetch-psycopg-source", "source", "--preflight-only"],
+        ["--prefetch-psycopg-build-wheels", "wheels", "--preflight-only"],
+        ["--build-psycopg-c", "--prefetch-psycopg-source", "source"],
+        ["--build-psycopg-c", "--preflight-only"],
+        ["--build-psycopg-c", "--prefetch-only"],
+        ["--build-psycopg-c", "--consume-only"],
+        ["--build-psycopg-c", "--upgrade-pip-only"],
+    ),
+)
+def test_main_rejects_mixed_operations_before_any_acquisition_build_or_preflight(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], selectors: list[str]
+) -> None:
+    def forbidden(**kwargs: object) -> None:
+        raise AssertionError("No operation may execute for conflicting selectors")
+
+    for name in (
+        "prefetch_psycopg_source",
+        "prefetch_psycopg_build_wheels",
+        "build_psycopg_c_sdk",
+        "run_dependency_floor_preflight",
+    ):
+        monkeypatch.setattr(installer, name, forbidden)
+    assert installer.main(selectors) == 1
+    assert "operation selectors are mutually exclusive" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize(
+    "modifier",
+    (
+        ["--install-dev"],
+        ["--install-test"],
+        ["--requirements-profile", "ci-lite"],
+        ["--requirements-profile=ci-test"],
+        ["--requirements-file", "requirements.txt"],
+        ["--constraints-file", "constraints.txt"],
+        ["--install-mode", "wheelhouse"],
+        ["--psycopg-sdk", "sdk"],
+        ["--index-url", APPROVED_PROXY_URL],
+        ["--upgrade-pip"],
+        ["--require-virtualenv"],
+    ),
+)
+def test_main_source_build_rejects_install_modifiers_even_at_default_values(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], modifier: list[str]
+) -> None:
+    def forbidden(**kwargs: object) -> None:
+        raise AssertionError("Source backend must not run with install modifiers")
+
+    monkeypatch.setattr(installer, "build_psycopg_c_sdk", forbidden)
+    argv = [
+        "--build-psycopg-c",
+        "--psycopg-source-archive",
+        "source.tar.gz",
+        "--psycopg-build-wheels",
+        "build-wheels",
+        "--psycopg-native-root",
+        "native",
+        "--psycopg-wheel-output",
+        "output",
+        *modifier,
+    ]
+    assert installer.main(argv) == 1
+    assert "no acquisition/install mode" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("abbreviation", ("--requirements-prof=ci-lite", "--const=constraints.txt"))
+def test_main_source_build_rejects_abbreviated_install_options_before_backend(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    abbreviation: str,
+) -> None:
+    def forbidden(**kwargs: object) -> None:
+        raise AssertionError("Source backend must not run for unrecognized options")
+
+    monkeypatch.setattr(installer, "build_psycopg_c_sdk", forbidden)
+    with pytest.raises(SystemExit) as rejected:
+        installer.main(
+            [
+                "--build-psycopg-c",
+                "--psycopg-source-archive",
+                "source.tar.gz",
+                "--psycopg-build-wheels",
+                "build-wheels",
+                "--psycopg-native-root",
+                "native",
+                "--psycopg-wheel-output",
+                "output",
+                abbreviation,
+            ]
+        )
+    assert rejected.value.code == 2
+    assert "unrecognized arguments" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize(
+    "operation", ([], ["--preflight-only"], ["--prefetch-psycopg-source", "prefetch"])
+)
+@pytest.mark.parametrize(
+    "build_input",
+    (
+        "--psycopg-source-archive",
+        "--psycopg-build-wheels",
+        "--psycopg-native-root",
+        "--psycopg-wheel-output",
+    ),
+)
+def test_main_rejects_build_inputs_without_build_operation_before_effects(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    operation: list[str],
+    build_input: str,
+) -> None:
+    def forbidden(**kwargs: object) -> None:
+        raise AssertionError("No operation may consume stray source-build inputs")
+
+    for name in (
+        "prefetch_psycopg_source",
+        "prefetch_psycopg_build_wheels",
+        "build_psycopg_c_sdk",
+        "run_dependency_floor_preflight",
+        "install_with_guard",
+        "resolve_private_proxy_settings",
+    ):
+        monkeypatch.setattr(installer, name, forbidden)
+    assert installer.main([*operation, build_input, "input"]) == 1
+    assert "build inputs require the explicit --build-psycopg-c" in capsys.readouterr().out
+
+
+def test_main_single_source_build_preserves_the_four_explicit_inputs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    observed: list[dict[str, object]] = []
+    monkeypatch.setattr(installer, "build_psycopg_c_sdk", lambda **kwargs: observed.append(kwargs))
+    assert (
+        installer.main(
+            [
+                "--build-psycopg-c",
+                "--psycopg-source-archive",
+                "source.tar.gz",
+                "--psycopg-build-wheels",
+                "build-wheels",
+                "--psycopg-native-root",
+                "native",
+                "--psycopg-wheel-output",
+                "output",
+            ]
+        )
+        == 0
+    )
+    assert observed == [
+        {
+            "source": Path("source.tar.gz"),
+            "build_wheels": Path("build-wheels"),
+            "native_root": Path("native"),
+            "output": Path("output"),
+        }
+    ]
+
+
 def test_psycopg_build_tools_include_only_the_actual_binary_closure() -> None:
     assert installer.PSYCOPG_C_BUILD_PINS == frozenset(
         {
@@ -233,13 +481,101 @@ def test_exact_prefetch_requests_only_declared_pins_and_preserves_legacy_resolut
 
 @pytest.mark.parametrize(
     "line",
-    ("example>=1", "example==1; python_version>'3.10'", "example[feature]==1", "example==1.*"),
+    (
+        "example>=1",
+        "example==1; python_version>'3.10'",
+        "example @ https://packages.example.invalid/example-1-py3-none-any.whl",
+        "example==1.*",
+        "psycopg==3.3.4",
+        "psycopg[binary]==3.3.4",
+        "psycopg[c,binary]==3.3.4",
+        "psycopg[other]==3.3.4",
+        "psycopg-c[other]==3.3.4",
+    ),
 )
 def test_exact_sdk_profiles_reject_noncanonical_pins(tmp_path: Path, line: str) -> None:
     requirements = tmp_path / "requirements.txt"
     requirements.write_text(line + "\n", encoding="utf-8")
     with pytest.raises(RuntimeError, match="ordinary unmarked compiled pins"):
         installer._exact_locked_artifacts([requirements])
+
+
+@pytest.mark.parametrize(
+    "name,extra,version",
+    (("cachecontrol", "filecache", "0.14.4"), ("coverage", "toml", "7.15.4")),
+)
+def test_exact_prefetch_admits_compiled_binary_extras_through_wheel_validation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, name: str, extra: str, version: str
+) -> None:
+    requirements = tmp_path / "requirements.txt"
+    pin = f"{name}[{extra}]=={version}"
+    requirements.write_text(pin + "\n", encoding="utf-8")
+    wheelhouse = tmp_path / "wheels"
+    commands: list[list[str]] = []
+
+    def download(command: list[str], **kwargs: object) -> None:
+        commands.append(command)
+        assert command[command.index("--only-binary") + 1] == ":all:"
+        assert "--no-deps" in command
+        selected = Path(command[command.index("--requirement") + 1])
+        assert selected.read_text(encoding="utf-8").strip() == pin
+        with zipfile.ZipFile(wheelhouse / f"{name}-{version}-py3-none-any.whl", "w") as wheel:
+            wheel.writestr(
+                f"{name}-{version}.dist-info/METADATA",
+                f"Metadata-Version: 2.4\nName: {name}\nVersion: {version}\n"
+                f"Provides-Extra: {extra}\n\n",
+            )
+
+    monkeypatch.setattr(installer, "run_command", download)
+    installer.acquire_locked_wheelhouse(
+        python_executable=sys.executable,
+        requirement_files=[requirements],
+        constraints_file=None,
+        wheelhouse=wheelhouse,
+        index_url=APPROVED_PROXY_URL,
+        trusted_host=None,
+        sdk=None,
+    )
+    assert len(commands) == 1
+    assert installer._exact_locked_artifacts([requirements]) == frozenset({(name, version)})
+    assert installer._validate_exact_wheelhouse(
+        wheelhouse=wheelhouse, expected=frozenset({(name, version)})
+    )[0].artifact_key == (name, version)
+
+
+def test_real_compiled_ci_test_pins_keep_extras_and_exact_sdk_requirement(tmp_path: Path) -> None:
+    selected = [REPO_ROOT / "requirements-ci-lite.txt", REPO_ROOT / "requirements-test.txt"]
+    pins = installer._exact_locked_artifacts(selected)
+    assert {("cachecontrol", "0.14.4"), ("coverage", "7.15.4"), ("psycopg-c", "3.3.4")} <= pins
+    with pytest.raises(RuntimeError, match="genuine matching Psycopg C SDK"):
+        installer.acquire_locked_wheelhouse(
+            python_executable=sys.executable,
+            requirement_files=selected,
+            constraints_file=REPO_ROOT / "constraints.txt",
+            wheelhouse=tmp_path / "wheels",
+            index_url=APPROVED_PROXY_URL,
+            trusted_host=None,
+            sdk=None,
+        )
+    assert not (tmp_path / "wheels").exists()
+
+
+def test_exact_source_leaf_still_rejects_unadmitted_version_before_acquisition(
+    tmp_path: Path,
+) -> None:
+    requirements = tmp_path / "requirements.txt"
+    requirements.write_text("psycopg[c]==3.3.4\npsycopg-c==3.3.5\n", encoding="utf-8")
+    with pytest.raises(RuntimeError, match="Only the admitted Psycopg C version"):
+        installer.acquire_locked_wheelhouse(
+            python_executable=sys.executable,
+            requirement_files=[requirements],
+            constraints_file=None,
+            wheelhouse=tmp_path / "wheels",
+            index_url=APPROVED_PROXY_URL,
+            trusted_host=None,
+            sdk=None,
+        )
+    assert not (tmp_path / "wheels").exists()
 
 
 def test_consume_only_has_no_acquisition_dispatch(

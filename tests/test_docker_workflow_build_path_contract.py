@@ -297,8 +297,9 @@ def test_dockerfile_pins_all_backend_python_stages_to_one_oci_index() -> None:
     sdk_from_lines = (
         "FROM ${PSYCOPG_SDK_PYTHON_IMAGE} AS native-builder",
         "FROM ${PSYCOPG_SDK_PYTHON_IMAGE} AS psycopg-inputs",
+        "FROM ${PSYCOPG_SDK_PYTHON_IMAGE} AS dev-bootstrap-inputs",
     )
-    assert len(python_from_lines) == 5
+    assert len(python_from_lines) == 6
     assert (
         tuple(line for line in python_from_lines if line not in sdk_from_lines)
         == EXPECTED_BACKEND_PYTHON_FROM_LINES
@@ -319,6 +320,10 @@ def test_dockerfile_pins_all_backend_python_stages_to_one_oci_index() -> None:
             ("install_locked_python_requirements.py", "check_private_python_proxy_health.py"),
         ),
         ("psycopg-wheel-builder", ("install_locked_python_requirements.py",)),
+        (
+            "dev-bootstrap-inputs",
+            ("install_locked_python_requirements.py", "check_private_python_proxy_health.py"),
+        ),
     ),
 )
 def test_native_helper_stage_layout_executes_real_cli(
@@ -365,11 +370,11 @@ def test_native_helper_stage_layout_executes_real_cli(
             (["--build-psycopg-c"], "Exact Psycopg build requires all four explicit inputs"),
             (
                 ["--prefetch-psycopg-source", str(tmp_path / "source"), "--prefetch-only"],
-                "Source prefetch is a separate archive acquisition operation.",
+                "Locked installer operation selectors are mutually exclusive.",
             ),
             (
                 ["--prefetch-psycopg-build-wheels", str(tmp_path / "wheels"), "--prefetch-only"],
-                "Build-wheel prefetch is a separate acquisition operation.",
+                "Locked installer operation selectors are mutually exclusive.",
             ),
         )
         for flags, expected_error in operations:

@@ -165,6 +165,38 @@ FROM scratch AS psycopg-sdk
 COPY --from=native-builder /native/ /
 COPY --from=psycopg-wheel-builder /output/psycopg-sdk/ /psycopg-sdk/
 
+# Developer bootstrap artifacts reuse the exact SDK and binary-only installer.
+# Authentication is available only to this acquisition stage, never its consumer.
+FROM ${PSYCOPG_SDK_PYTHON_IMAGE} AS dev-bootstrap-inputs
+ARG PULSEPLATE_PYTHON_INDEX_URL
+COPY --from=psycopg-sdk /psycopg-sdk/ /opt/psycopg-sdk/
+COPY requirements.txt requirements-dev.txt constraints.txt /input/
+COPY scripts/ci/install_locked_python_requirements.py scripts/ci/check_private_python_proxy_health.py /tooling/scripts/ci/
+RUN --mount=type=secret,id=pp_py_index,required=false \
+    --mount=type=secret,id=pp_netrc,required=false <<'SH'
+set -eu
+index="${PULSEPLATE_PYTHON_INDEX_URL:-}"
+if [ -f /run/secrets/pp_py_index ]; then index="$(cat /run/secrets/pp_py_index)"; fi
+if [ -f /run/secrets/pp_netrc ]; then
+    test ! -e /root/.netrc
+    cp /run/secrets/pp_netrc /root/.netrc
+    chmod 600 /root/.netrc
+fi
+trap 'rm -f /root/.netrc' EXIT
+test -n "$index"
+python /tooling/scripts/ci/install_locked_python_requirements.py \
+    --python-executable /usr/local/bin/python \
+    --requirements-file /input/requirements.txt \
+    --dev-requirements-file /input/requirements-dev.txt \
+    --constraints-file /input/constraints.txt --install-dev \
+    --prefetch-only --wheelhouse-dir /output/dev-wheelhouse \
+    --psycopg-sdk /opt/psycopg-sdk --index-url "$index"
+SH
+
+FROM scratch AS dev-bootstrap-sdk
+COPY --from=psycopg-sdk / /
+COPY --from=dev-bootstrap-inputs /output/dev-wheelhouse/ /wheelhouse/
+
 # Preserve the source-built relative SONAME aliases without exporting static archives.
 FROM native-builder AS native-shared-runtime
 RUN --network=none mkdir -p /native-shared-libraries \
@@ -1211,12 +1243,24 @@ FROM production AS staging
 # Stage 5: Development stage
 FROM runtime-base AS development
 COPY --from=psycopg-wheel-builder /output/psycopg-sdk/ /opt/psycopg-sdk/
+COPY --from=dev-bootstrap-sdk /wheelhouse/ /opt/dev-wheelhouse/
+ENV PULSEPLATE_PSYCOPG_C_SDK=/opt/psycopg-sdk \
+    PULSEPLATE_BOOTSTRAP_WHEELHOUSE=/opt/dev-wheelhouse
 
 ARG PULSEPLATE_PYTHON_INDEX_URL
 ARG PULSEPLATE_PYTHON_TRUSTED_HOST=""
 
 # Switch back to root for development tools
 USER root
+RUN test -f /opt/psycopg-sdk/psycopg-c-sdk.json \
+    && test ! -L /opt/psycopg-sdk/psycopg-c-sdk.json \
+    && test -f /opt/psycopg-sdk/psycopg_c-3.3.4-cp313-cp313-linux_x86_64.whl \
+    && test ! -L /opt/psycopg-sdk/psycopg_c-3.3.4-cp313-cp313-linux_x86_64.whl \
+    && chmod 755 /opt/psycopg-sdk \
+    && chmod 644 /opt/psycopg-sdk/psycopg-c-sdk.json /opt/psycopg-sdk/psycopg_c-3.3.4-cp313-cp313-linux_x86_64.whl \
+    && chmod 755 /opt/dev-wheelhouse \
+    && chmod 644 /opt/dev-wheelhouse/*.whl \
+    && install -d -o pulseplate -g pulseplate /app/.venv
 
 # Install development dependencies
 # Copy both requirements files as requirements-dev.txt includes requirements.txt via -r

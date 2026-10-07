@@ -114,6 +114,12 @@
   addresses/routes; interface names alone grant no exception. Other packages
   retain binary-only admission. Consume genuine matching SDK wheels, never
   metadata-only resolver substitutes.
+- Before closing a native SDK dependency migration, enumerate every governed compiled profile
+  and real CI/local caller. Verify actual extras, matching SDK/platform handoff and the owning
+  workflow tests; a selected-profile pass cannot establish complete caller coverage. Inspect
+  the full Docker stage inheritance before reporting a missing library, and verify actual
+  final-user calls after the build. Keep corrected runtime behavior, required gates and bot
+  dispositions ahead of closure metadata.
 - Container helper copies must preserve their `scripts/ci` repository depth and
   adjacent imports. Exercise the real CLI and its operation parsing from the
   actual copied layout before a build; command-text assertions alone cannot

@@ -288,7 +288,14 @@ and effective finding identities and all residuals; zero effective findings or
 a version label cannot replace source/native proof or published-image repeat.
 
 Use the existing `Dockerfile` target `psycopg-sdk` for the exact supported
-Linux amd64 CPython family. The shared Python setup action chooses its matching
+Linux amd64 CPython family. Local backend bootstrap uses `make dc-up`, then
+`make dc-shell`, then `make devcontainer-bootstrap` inside the container.
+`make venv`, `make venv-sync` and `source scripts/dev_shell.sh` consume its exact
+SDK and verified runtime/dev wheelhouse offline. Native macOS fresh bootstrap
+is unsupported and fails before host venv changes; existing host venvs are
+preserved. Both the tooling and root development images supply readable
+artifacts, and named volumes isolate their venvs from the host checkout.
+The shared Python setup action chooses its matching
 immutable guest, exports the genuine wheel/native SDK and passes
 `PULSEPLATE_PSYCOPG_C_SDK` through the next-step environment. On an ARM host,
 an admitted local image proof must explicitly select `linux/amd64`; record
@@ -323,6 +330,11 @@ and performs no proxy acquisition. The source operation has one reviewed
 archive/metadata transform and matching client SDK; other packages remain
 binary only. The kernel network boundary and clean guest mounts/environment
 must be real, independently observed properties, not an environment marker.
+Use complete CLI option names and exactly one explicit operation selector.
+The four Psycopg source-build inputs require `--build-psycopg-c`; that operation
+rejects acquisition/install selectors and explicitly supplied install/profile
+options, including values equal to installation defaults. Mixed selectors or
+stray build inputs fail before acquisition, preflight or backend execution.
 
 Refresh runtime alone with `make requirements-locks`, collect its complete
 input/output/delta evidence, run the focused host gates and commit runtime.
@@ -345,74 +357,53 @@ Evidence: `scripts/ci/install_locked_python_requirements.py:70`,
 ## Nightly Docker and Trivy review-deadline forecast
 
 The independent `review-deadline-forecast` job in the existing main-only daily
-Nightly Tests workflow checks the reviewed Docker source manifest and every
-review/hard-expiry date in `trivy/ignore-policy.rego` at UTC today and today plus
-four days (`.github/workflows/nightly.yml:17`). Its Actions summary labels the
-current check `CURRENT` and the future check `FORECAST`. The job uses the existing
-offline validators (`scripts/ci/fetch_docker_source_artifacts.py:141` and
-`scripts/ci/check_trivy_ignore_policy_expiry.py:480`); it does not download
-sources, scan an image, edit dates, or approve a suppression. GitHub scheduled
-runs and notifications are best-effort, so absence of a warning is not proof
-that the material remains current.
+Nightly Tests workflow checks the reviewed Docker source manifest and any active
+suppression review/hard-expiry dates at UTC today and today plus four days
+(`.github/workflows/nightly.yml:17`). Its summary labels the current check
+`CURRENT` and the future check `FORECAST`. The existing offline validators do
+not download sources, scan images, edit dates or supply suppression/merge
+approval. Scheduled runs and notifications are best-effort; no warning does not
+prove the material remains current.
 
-The Docker source manifest and all three retained zlib/ncurses/OpenSSL review
-deadlines are October 21, 2026 inclusive; October 22 rejects stale reviews.
-The shared Rego hard expiry is October 30 inclusive and rejects October 31.
-Review and hard-expiry checks are conjunctive: the later hard expiry does not
-extend the October 21 review window. Evidence: `scripts/ci/docker_source_artifacts.json:4`,
-`trivy/ignore-policy.rego:12`, `trivy/ignore-policy.rego:17`,
-`trivy/ignore-policy.rego:41`, and `trivy/ignore-policy.rego:85`.
+The nine-source manifest review is October 21, 2026 inclusive; October 22 rejects
+stale source review (`scripts/ci/docker_source_artifacts.json:4`). The current
+`trivy/ignore-policy.rego:1` is the complete canonical never-ignore file, with no
+R1 rules or exclusive helpers. Only those exact complete bytes are expiry-free.
+Missing, unreadable, malformed, partial or additional executable policies do
+not receive that exemption. Active suppressions still require nonempty review
+and hard-expiry bounds; review and expiry are conjunctive, and a later expiry
+never renews an earlier review window. Independently owned native/nosec
+obligations remain October 28/30; terminal-policy retirement does not renew them.
+Evidence: `scripts/ci/check_trivy_ignore_policy_expiry.py:481`.
 
-On `FORECAST`, inspect the exact named deadline, current primary upstream and
-Trivy image evidence, assign the security/CI owner, and land a separately
-reviewed correction before the deadline. On `CURRENT`, treat the corresponding
-Docker or Trivy gate as failed now; repair the bounded cause before claiming
-readiness. A new fixed Bookworm package or Trivy `FixedVersion` calls for
-package remediation or suppression retirement, not a blind date extension.
-Review upstream and removal triggers weekly. The seven-tuple R1 acceptance
-covers the retained predicates and October 21/30 dates with publication after
-the required gates; exact-head merge requires a separate human decision.
-The forecast does not replace current-head Docker build, strict image/filesystem
-scans, canonical CI, or merge authorization. The independent Alertmanager
-exception still expires at `2026-10-24T00:00:00Z`
-(`deploy/alertmanager/trivy-ignore.yaml:5`).
+For `FORECAST`, inspect the named deadline and current primary source/image
+proof, assign the existing owner and land a reviewed correction before the
+boundary. A `CURRENT` finding fails its corresponding gate now; fix the bounded
+cause before readiness. Applicable upstream fixes call for remediation and
+proven suppression retirement, not blind date extension. Review source/removal
+triggers weekly. Forecast output does not replace native build/scanner proof,
+current-head CI or human merge authority. The independent Alertmanager exception
+retains its own expiry (`deploy/alertmanager/trivy-ignore.yaml:5`).
 
-For PR builds, the separate native Trivy policy check follows the pinned image
-scan and precedes report validation (`.github/workflows/build.yml:183`). It
-byte-binds the copied scan policy to `trivy/ignore-policy.rego`
-(`scripts/ci/check_trivy_ignore_policy_native.py:43`). The original 85 controls
-(45 zlib/ncurses and 40 OpenSSL) remain, with 28 identity controls and eight
-retired util-linux inputs, for 121 distinct controls. Their outcomes are 21
-suppressed fixtures, 85 retained-finding fixtures, and 15 intentional native
-decoder rejection contracts; those 15 errors are separate from finding visibility.
-Evidence: `scripts/ci/check_trivy_ignore_policy_native.py:139`,
-`scripts/ci/check_trivy_ignore_policy_native.py:167`,
-`scripts/ci/check_trivy_ignore_policy_native.py:208`, and
-`scripts/ci/check_trivy_ignore_policy_native.py:250`.
+For PR builds, native Trivy policy controls follow the pinned image scan and
+precede report validation (`.github/workflows/build.yml:183`). Byte-bind the
+regular single-link scan copy to the tracked source policy through the existing
+copy contract (`scripts/ci/check_trivy_ignore_policy_native.py:43`). Preserve all
+historical zlib/ncurses/OpenSSL and util-linux controls plus the independent
+CVE-2026-85091 finding. The 122 distinct controls expect 107 visible findings,
+zero suppressed fixtures and 15 native typed-decoder errors. Every historical
+ordered pair, affix/lookalike/cross-pair and severity control remains visible;
+retired R1 predicates are not current instructions. The dated family owner
+security documents retain their historical policy records.
 
-Zlib now requires exact `PkgID == "zlib1g@1:1.2.13.dfsg-1"`; ncurses requires
-one of four exact ordered PkgName/PkgID pairs, with installed version `6.4-4`.
-These equalities replace the former `contains`/`startswith` family predicates
-(`trivy/ignore-policy.rego:28`, `trivy/ignore-policy.rego:56`). Affixes, lookalikes
-and all 12 ncurses cross-pairs stay visible. OpenSSL remains HIGH-only at
-`3.0.22-1~deb12u1` with its two exact ordered pairs; the same CRITICAL tuples
-stay visible (`trivy/ignore-policy.rego:91`). Zlib/ncurses still have no Severity
-predicate; their unchanged behavior does not establish universal CRITICAL visibility.
-All retained rules require absent/empty native FixedVersion metadata; nonempty
-metadata, including whitespace, stays visible. CVE-2026-53615's rule and exclusive
-helpers are retired after selected production/staging/filesystem absence proof;
-all eight historical util-linux inputs must remain visible in the native controls.
-
-Native Trivy 0.74.0 owns JSON decoding: `null` in string-valued `FixedVersion`
-normalizes to empty before Rego; numeric, boolean, array and object values fail
-with a decode/type error. Such errors are neither vulnerability findings nor
-ignore decisions. Raw Rego `null` is not an empty string. The checker must
-observe the relevant diagnostic, nonzero exit and absent output, and compare
-retained finding identity rather than counts alone
-(`scripts/ci/check_trivy_ignore_policy_native.py:277`). Its synthetic controls
-never replace actual image/filesystem or selected PostgreSQL publication scans.
-If the native check fails, repair its first execution/schema/count/identity
-error before mapping review findings.
+Native Trivy 0.74.0 owns JSON decoding. A `null` string-valued `FixedVersion`
+normalizes to empty; numeric, boolean, array and object values must produce the
+expected decoder diagnostic, nonzero exit and absent output. These errors are
+separate from visibility and cannot count as successful negative findings.
+Compare retained finding identities as well as counts. The synthetic controls
+never replace actual selected production/staging/filesystem or PostgreSQL
+publication proof. When a native control fails, repair the first execution,
+schema, count or identity defect before mapping/resolving review findings.
 
 ## Guard Coverage Step (EVMbench-inspired)
 

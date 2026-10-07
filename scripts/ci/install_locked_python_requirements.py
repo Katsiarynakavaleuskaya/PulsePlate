@@ -215,6 +215,20 @@ def _read_regular_input(path: Path, *, maximum: int) -> bytes:
     flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
     if not hasattr(os, "O_NOFOLLOW"):
         raise RuntimeError("Exact source admission requires no-follow filesystem reads.")
+
+    def identity(value: os.stat_result) -> tuple[int, ...]:
+        return (
+            value.st_dev,
+            value.st_ino,
+            value.st_mode,
+            value.st_nlink,
+            value.st_uid,
+            value.st_gid,
+            value.st_size,
+            value.st_mtime_ns,
+            value.st_ctime_ns,
+        )
+
     with os.fdopen(os.open(absolute, flags), "rb") as stream:
         before = os.fstat(stream.fileno())
         if not stat.S_ISREG(before.st_mode) or before.st_nlink != 1 or before.st_size > maximum:
@@ -222,7 +236,11 @@ def _read_regular_input(path: Path, *, maximum: int) -> bytes:
         content = stream.read(maximum + 1)
         after = os.fstat(stream.fileno())
     current = absolute.lstat()
-    if len(content) > maximum or before != after or after != current:
+    if (
+        len(content) > maximum
+        or identity(before) != identity(after)
+        or identity(after) != identity(current)
+    ):
         raise RuntimeError("Input identity changed during acquisition.")
     return content
 
@@ -1058,7 +1076,7 @@ def docker_pip_layer_cache_enabled() -> bool:
 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
     parser.add_argument(
         "--python-executable",
         default=sys.executable,
@@ -3428,7 +3446,8 @@ def _exact_locked_artifacts(requirement_files: Sequence[Path]) -> frozenset[tupl
                 or "*" in specifiers[0].version
                 or requirement.marker
                 or requirement.url
-                or (requirement.extras and (name != "psycopg" or requirement.extras != {"c"}))
+                or (name == "psycopg" and requirement.extras != {"c"})
+                or (name == "psycopg-c" and requirement.extras)
             ):
                 raise RuntimeError(
                     "Exact SDK installation requires ordinary unmarked compiled pins."
@@ -3602,19 +3621,53 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _run_owned_pip_child(child_args[1:])
     try:
         args = parse_args(argv)
+        operation_selectors = (
+            args.build_psycopg_c,
+            args.prefetch_psycopg_source is not None,
+            args.prefetch_psycopg_build_wheels is not None,
+            args.preflight_only,
+            args.prefetch_only,
+            args.consume_only,
+            args.upgrade_pip_only,
+        )
+        if sum(operation_selectors) > 1:
+            raise RuntimeError("Locked installer operation selectors are mutually exclusive.")
+        build_inputs = (
+            args.psycopg_source_archive,
+            args.psycopg_build_wheels,
+            args.psycopg_native_root,
+            args.psycopg_wheel_output,
+        )
+        if not args.build_psycopg_c and any(value is not None for value in build_inputs):
+            raise RuntimeError(
+                "Psycopg build inputs require the explicit --build-psycopg-c operation."
+            )
         args.python_executable = resolve_python_executable(args.python_executable)
         if args.build_psycopg_c:
-            inputs = (
-                args.psycopg_source_archive,
-                args.psycopg_build_wheels,
-                args.psycopg_native_root,
-                args.psycopg_wheel_output,
-            )
-            if (
-                any(value is None for value in inputs)
-                or args.consume_only
-                or args.prefetch_only
-                or args.prefetch_psycopg_build_wheels
+            if any(value is None for value in build_inputs) or any(
+                value.split("=", 1)[0]
+                in {
+                    "--requirements-file",
+                    "--dev-requirements-file",
+                    "--test-requirements-file",
+                    "--ci-lite-requirements-file",
+                    "--rag-vector-requirements-file",
+                    "--constraints-file",
+                    "--requirements-profile",
+                    "--install-dev",
+                    "--install-test",
+                    "--require-virtualenv",
+                    "--upgrade-pip",
+                    "--upgrade-pip-spec",
+                    "--guard-script",
+                    "--emergency-wheel-manifest",
+                    "--index-url",
+                    "--trusted-host",
+                    "--install-mode",
+                    "--psycopg-sdk",
+                    "--wheelhouse-dir",
+                }
+                for value in child_args
             ):
                 raise RuntimeError(
                     "Exact Psycopg build requires all four explicit inputs and no acquisition/install mode."
@@ -3633,17 +3686,11 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
             return 1
 
-        if args.prefetch_only and args.consume_only:
-            raise RuntimeError("Prefetch-only and consume-only are distinct operations.")
         if args.consume_only:
             if (
                 args.index_url
                 or args.trusted_host
                 or args.upgrade_pip
-                or args.upgrade_pip_only
-                or args.preflight_only
-                or args.prefetch_psycopg_build_wheels
-                or args.prefetch_psycopg_source
                 or args.wheelhouse_dir is None
             ):
                 raise RuntimeError(
@@ -3657,8 +3704,6 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
 
         if args.prefetch_psycopg_build_wheels is not None:
-            if args.consume_only or args.prefetch_only:
-                raise RuntimeError("Build-wheel prefetch is a separate acquisition operation.")
             prefetch_psycopg_build_wheels(
                 output=args.prefetch_psycopg_build_wheels,
                 python_executable=args.python_executable,
@@ -3667,8 +3712,6 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
             return 0
         if args.prefetch_psycopg_source is not None:
-            if args.consume_only or args.prefetch_only:
-                raise RuntimeError("Source prefetch is a separate archive acquisition operation.")
             prefetch_psycopg_source(
                 output=args.prefetch_psycopg_source, index_url=index_url, trusted_host=trusted_host
             )

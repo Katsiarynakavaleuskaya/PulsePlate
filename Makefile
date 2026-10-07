@@ -4,12 +4,21 @@ all: lint test cov-check
 validate-data: ensure-database-versions
 	python3 scripts/validate_data.py
 
-.PHONY: all ensure-database-versions ensure-python-proxy requirements-locks docker-source-artifacts
+.PHONY: all ensure-database-versions ensure-python-proxy ensure-native-sdk requirements-locks docker-source-artifacts
 ensure-database-versions:
 	python3 scripts/ensure_database_versions.py
 
 ensure-python-proxy:
 	@test -n "$$PULSEPLATE_PYTHON_INDEX_URL" || (echo "❌ Export PULSEPLATE_PYTHON_INDEX_URL to the approved private package proxy before continuing." && exit 1)
+
+# Offline backend bootstrap requires the artifacts supplied by the Linux container.
+ensure-native-sdk:
+	@if [[ "$$(uname -s):$$(uname -m)" != "Linux:x86_64" ]]; then \
+		echo "Backend bootstrap requires Linux amd64. Use make dc-up and make dc-shell." >&2; exit 1; \
+	fi
+	@test -n "$$PULSEPLATE_PSYCOPG_C_SDK" && test -f "$$PULSEPLATE_PSYCOPG_C_SDK/psycopg-c-sdk.json" && \
+		test -n "$$PULSEPLATE_BOOTSTRAP_WHEELHOUSE" && test -d "$$PULSEPLATE_BOOTSTRAP_WHEELHOUSE" || \
+		(echo "Use the devcontainer genuine SDK and verified wheelhouse; no ambient fallback." >&2; exit 1)
 
 # Docker targets
 # 🐳 Docker Best Practices:
@@ -20,14 +29,14 @@ docker-source-artifacts: ## Prepare verified Docker source artifacts
 	$(DEV_PYTHON) scripts/ci/fetch_docker_source_artifacts.py
 
 docker-build: ensure-python-proxy docker-source-artifacts ## Build production Docker image
-	docker build -t pulseplate:latest --target production \
+	docker build --platform linux/amd64 -t pulseplate:latest --target production \
 		--build-arg PULSEPLATE_PYTHON_INDEX_URL="$$PULSEPLATE_PYTHON_INDEX_URL" \
 		--build-arg PULSEPLATE_PYTHON_TRUSTED_HOST="$${PULSEPLATE_PYTHON_TRUSTED_HOST:-}" \
 		.
 	docker tag pulseplate:latest pulseplate:$(shell git rev-parse --short HEAD)
 
 docker-build-dev: ensure-python-proxy docker-source-artifacts ## Build development Docker image
-	docker build -t pulseplate:dev --target development \
+	docker build --platform linux/amd64 -t pulseplate:dev --target development \
 		--build-arg PULSEPLATE_PYTHON_INDEX_URL="$$PULSEPLATE_PYTHON_INDEX_URL" \
 		--build-arg PULSEPLATE_PYTHON_TRUSTED_HOST="$${PULSEPLATE_PYTHON_TRUSTED_HOST:-}" \
 		.
@@ -119,9 +128,9 @@ help:
 	@awk 'BEGIN{FS=":.*##"} /^[a-zA-Z0-9_.-]+:.*##/{printf "$(GREEN)%-22s$(NC) %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
 ## Create & install venv deps + setup automation
-venv: ensure-python-proxy ## Create venv, install requirements & setup git hooks
+venv: ensure-native-sdk ## Create venv, install requirements & setup git hooks
 	@test -x $(VENV_PYTHON) || python3 -m venv .venv
-	PIP_REQUIRE_VIRTUALENV=1 $(VENV_PYTHON) scripts/ci/install_locked_python_requirements.py --python-executable $(VENV_PYTHON) --constraints-file constraints.txt --install-dev --require-virtualenv
+	PIP_REQUIRE_VIRTUALENV=1 $(VENV_PYTHON) scripts/ci/install_locked_python_requirements.py --python-executable $(VENV_PYTHON) --constraints-file constraints.txt --install-dev --consume-only --wheelhouse-dir "$$PULSEPLATE_BOOTSTRAP_WHEELHOUSE" --psycopg-sdk "$$PULSEPLATE_PSYCOPG_C_SDK" --require-virtualenv
 	@echo "$(YELLOW)🔧 Настройка автоматизации...$(NC)"
 	$(VENV_PYTHON) -m pre_commit install
 	$(VENV_PYTHON) -m pre_commit install --hook-type pre-push
@@ -130,9 +139,9 @@ venv: ensure-python-proxy ## Create venv, install requirements & setup git hooks
 	@echo "$(GREEN)✅ Окружение готово!$(NC)"
 
 ## Refresh locked dependencies inside the existing .venv
-venv-sync: ensure-python-proxy ## Refresh .venv from locked requirements without recreating it
+venv-sync: ensure-native-sdk ## Refresh .venv from locked requirements without recreating it
 	@test -x $(VENV_PYTHON) || (echo "$(RED)❌ .venv missing. Run 'make venv' first.$(NC)" && exit 1)
-	PIP_REQUIRE_VIRTUALENV=1 $(VENV_PYTHON) scripts/ci/install_locked_python_requirements.py --python-executable $(VENV_PYTHON) --constraints-file constraints.txt --install-dev --require-virtualenv
+	PIP_REQUIRE_VIRTUALENV=1 $(VENV_PYTHON) scripts/ci/install_locked_python_requirements.py --python-executable $(VENV_PYTHON) --constraints-file constraints.txt --install-dev --consume-only --wheelhouse-dir "$$PULSEPLATE_BOOTSTRAP_WHEELHOUSE" --psycopg-sdk "$$PULSEPLATE_PSYCOPG_C_SDK" --require-virtualenv
 	@echo "$(GREEN)✅ .venv refreshed from locked requirements$(NC)"
 
 ## Setup automation only (git hooks & aliases)
@@ -596,23 +605,13 @@ ios-appstore-verify: ## Verify repo-local App Store release gates (no upload)
 
 # --- Dev Container targets ---------------------------------------------------
 
-devcontainer-bootstrap: ensure-python-proxy ## Install deps + hooks inside dev container
-	@echo "$(YELLOW)Installing locked deps into container Python...$(NC)"
-	python3 scripts/ci/install_locked_python_requirements.py \
-		--python-executable "$$(command -v python3)" \
-		--constraints-file constraints.txt \
-		--install-dev
-	@# Create .venv so existing VENV_PYTHON targets and activate scripts work
-	@python3 -m venv .venv --without-pip 2>/dev/null || true
-	@ln -sf "$$(command -v python3)" .venv/bin/python
-	python3 -m pre_commit install
-	python3 -m pre_commit install --hook-type pre-push
-	chmod +x scripts/*.sh
-	./scripts/setup_git_aliases.sh
+devcontainer-bootstrap: venv ## Canonical venv install + hooks inside dev container
 	@echo "$(GREEN)Devcontainer bootstrap complete$(NC)"
 
-dc-up: ## Start dev container (build + detach)
-	docker compose -f "$(DEVCONTAINER_COMPOSE)" up -d --build
+dc-up: ensure-python-proxy docker-source-artifacts ## Start dev container (build + detach)
+	@netrc_file="$${PULSEPLATE_NATIVE_SDK_NETRC_FILE:-/dev/null}"; \
+	if [[ "$$netrc_file" == /dev/null && -f "$$HOME/.netrc" ]]; then netrc_file="$$HOME/.netrc"; fi; \
+	PULSEPLATE_NATIVE_SDK_NETRC_FILE="$$netrc_file" docker compose -f "$(DEVCONTAINER_COMPOSE)" up -d --build devcontainer
 
 dc-shell: ## Open shell inside dev container
 	docker compose -f "$(DEVCONTAINER_COMPOSE)" exec devcontainer bash

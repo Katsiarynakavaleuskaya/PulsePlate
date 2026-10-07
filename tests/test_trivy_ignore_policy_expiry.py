@@ -270,6 +270,21 @@ def test_trivy_policy_guard_accepts_unexpired_policy_and_review_dates(tmp_path: 
     assert evaluate_policy_file(policy, today=date(2026, 5, 19)) == []
 
 
+@pytest.mark.parametrize("review", ("", "# Review-by:\n", "# Review-by: next-week\n"))
+def test_active_policy_requires_a_valid_nonempty_review_bound(tmp_path: Path, review: str) -> None:
+    policy = tmp_path / "active.rego"
+    policy.write_text(
+        "package trivy\n\nimport rego.v1\n\n"
+        "# Suppression expires: 2099-01-01\n"
+        + review
+        + 'default ignore := false\nignore if {\n    input.VulnerabilityID == "CVE-0000-0000"\n}\n',
+        encoding="utf-8",
+    )
+    assert evaluate_policy_file(policy, today=date(2026, 10, 7)) == [
+        f"Missing 'Review-by: YYYY-MM-DD' in {policy}"
+    ]
+
+
 @pytest.mark.parametrize(
     "decoy",
     (
