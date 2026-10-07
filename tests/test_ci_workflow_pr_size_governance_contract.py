@@ -5973,6 +5973,7 @@ ORCHESTRATION_COVERAGE_FILES = (
     "scripts/orchestration/render_codex_start_prompt.py",
     "scripts/orchestration/experiment_runner.py",
     "scripts/orchestration/experiment_runner_pr_creative_context.py",
+    "scripts/orchestration/experiment_runner_pr_creative_context_contract.py",
 )
 
 
@@ -5986,7 +5987,12 @@ def test_orchestration_coverage_uses_isolated_required_same_run_numeric_report()
     assert f"--include='{','.join(ORCHESTRATION_COVERAGE_FILES)}'" in run
     assert "--data-file=.coverage.orchestration -m pytest -q -p no:xdist" in run
     for filename in ORCHESTRATION_COVERAGE_FILES:
-        assert f"tests/test_{Path(filename).stem}.py" in run
+        owning_target = (
+            "tests/test_experiment_runner_pr_creative_context.py"
+            if filename == "scripts/orchestration/experiment_runner_pr_creative_context_contract.py"
+            else f"tests/test_{Path(filename).stem}.py"
+        )
+        assert owning_target in run
     assert "--data-file=.coverage.orchestration -o coverage-orchestration.xml" in run
     assert "--append" not in run
     assert measure["env"]["BLOCK_TEST_NETWORK"] == "true"

@@ -530,10 +530,14 @@ If it is not recorded here — it does not exist.
     [Frontend CI 37307261956](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/37307261956)
     successful on attempt 1. Original QA35/archive and failure/retry history remain
     predecessor receipts, not new CAB-07B validation. CLIENT-ARCH-1 remains open.
-    CAB-07B is active under owner-amended CAB07B/v1.3, with exactly twenty admitted
-    paths: the existing lint/coverage repair plus the bounded correction of false
-    browser color-contrast evidence and explicit tracking of the existing JSDOM skip.
-    The seventeen intended exclusion classes, four required XML producers/inputs,
+    CAB-07B is active under owner-amended CAB07B/v1.4, with exactly twenty-five admitted
+    paths: the existing lint/coverage repair, truthful browser-evidence tracking,
+    the bounded shared component-boundary and Unix-only route-exemption corrections
+    required by native artifact preservation, and real isolated i18n, focus-act and
+    DOM-prop test harness corrections. The same orchestration producer measures its original
+    seven owners plus the affected contract through the seven existing test targets.
+    Candidate tests do not promote trusted controls or claim native archive completion.
+    The seventeen intended exclusion classes, five required XML producers/inputs,
     threshold 97 and merged PR #2466 concurrency/cancellation changes remain required.
     Its own validation, review,
     separate human exact-head merge and terminal evidence remain pending. The bounded
@@ -15620,3 +15624,12 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 **Last updated:** 2026-07-27 (legacy guard remains; provider retirement ownership transferred)
 **Maintainer:** @katsiaryna_kavaleuskaya
 <!-- markdownlint-enable MD013 -->
+
+<a id="ledger-p2-guard-context-match-crossproduct-guidance"></a>
+- [ ] **P2 — Review guard match-form/context cross-product guidance in the next substantive orchestration implementation PR**
+  - **Owner:** agent-coordinator + logic-agent.
+  - **Priority:** P2.
+  - **Target PR:** Next substantive orchestration implementation PR after fresh admission; no automatic docs-only PR.
+  - **Reason for deferral:** CAB-07B's actual same-recognizer Security finding showed the pre-fix pass named Windows/tilde rejection but missed the route-context × match-form cross-product. The current shared conditional and real native-consumer regressions own the defect closure; instruction promotion is separate and outside this bounded implementation.
+  - **Source/evidence:** `scripts/orchestration/experiment_runner_pr_creative_context_contract.py:265`, `scripts/orchestration/experiment_runner_pr_creative_context.py:875`, `.cursor/agents/logic-agent.md`, and CAB-07B PR #2471's reviewed native before/after controls and redacted learning proposal.
+  - **DoD:** Review the smallest authoritative logic-role guidance against the current finite recognizer alternatives, exemptions and deny-before-exemption control flow; require explicit representative context × match-form counterexamples and actual canonical-consumer observations while retaining finite/open-world claim limits. Promote only a reviewed, non-duplicative instruction delta in that substantive PR; preserve current guard ownership, source-reading requirements, provider-neutral evidence and human authority. Do not introduce another parser, carrier, validator family or runtime framework.

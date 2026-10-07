@@ -224,7 +224,7 @@ LEAK_TEXT_RE = re.compile(
     re.IGNORECASE | re.MULTILINE,
 )
 LOCAL_ABSOLUTE_PATH_RE = re.compile(
-    r"(?<![A-Za-z0-9:/])/(?!dev/null(?:\s|$))[A-Za-z0-9._-]+"
+    r"(?<![A-Za-z0-9._:/-])/(?!dev/null(?:\s|$))[A-Za-z0-9._-]+"
     r"(?:/[A-Za-z0-9._-]+)*|~[/\\]|[A-Za-z]:[\\/]",
     re.IGNORECASE | re.MULTILINE,
 )
@@ -273,7 +273,9 @@ def contains_local_path_outside_route_context(value: str) -> bool:
         ):
             return True
         line_start = value.rfind("\n", 0, match.start()) + 1
-        if _ROUTE_LITERAL_CONTEXT_RE.search(value[line_start : match.start()]):
+        if matched_path.startswith("/") and _ROUTE_LITERAL_CONTEXT_RE.search(
+            value[line_start : match.start()]
+        ):
             continue
         return True
     return False

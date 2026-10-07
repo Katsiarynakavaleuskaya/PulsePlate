@@ -55,6 +55,7 @@ from scripts.orchestration.experiment_runner_pr_creative_context_contract import
     build_creative_hypothesis_packet_from_model_intake,
     build_creative_protocol_context_map,
     classify_creative_context_eligibility,
+    contains_local_path_outside_route_context,
     build_creative_workflow_stage,
     build_experiment_runner_pr_oracle_attachment,
     default_creative_context_authority,
@@ -1893,6 +1894,51 @@ def test_operational_request_accepts_credential_related_repo_paths() -> None:
             validate_creative_workflow_request(request)
 
 
+@pytest.mark.parametrize(
+    "relative_path",
+    [
+        "frontend/src/components/__tests__/Accessibility.test.tsx",
+        "src/segment_/member.py",
+        "src/segment./member.py",
+        "src/segment-/member.py",
+    ],
+)
+def test_shared_privacy_lexer_preserves_component_boundaries(relative_path: str) -> None:
+    """Separate continuous repo tokens from their genuinely rooted adversarial twins."""
+    assert not contains_local_path_outside_route_context(relative_path)
+    for rooted in ("/" + relative_path, "See '/" + relative_path + "'", "(/" + relative_path + ")"):
+        assert contains_local_path_outside_route_context(rooted)
+    request = _operational_request()
+    request["criteria"][0]["description"] = "Review " + relative_path
+    assert validate_creative_workflow_request(request) == request
+
+
+_ROUTE_PREFIXED_PRIVATE_FORMS: tuple[str, ...] = (
+    r"GET C:\private\file.txt",
+    "GET C:/private/file",
+    r"GET ~\private\file",
+    "GET ~/private/file",
+    r'@router.get("C:\private\file.txt")',
+    '@router.get("C:/private/file")',
+    r'@router.get("~\private\file")',
+    '@router.get("~/private/file")',
+)
+
+
+@pytest.mark.parametrize("text", _ROUTE_PREFIXED_PRIVATE_FORMS)
+def test_shared_privacy_route_context_rejects_drive_and_tilde_forms(text: str) -> None:
+    """Public-route prose must never exempt recognized filesystem-rooted alternatives."""
+    assert contains_local_path_outside_route_context(text)
+
+
+@pytest.mark.parametrize("route", ["GET /api/v1/items", '@router.get("/api/v1/items")'])
+def test_shared_privacy_route_context_preserves_unix_route_forms(route: str) -> None:
+    """Retain benign slash-leading route literals through the actual common decoder."""
+    assert not contains_local_path_outside_route_context(route)
+    raw = json.dumps({"nested": [{route: "benign"}, {"value": route}]}).encode("utf-8")
+    cli._require_safe_workflow_archive_member("experiment_packet.json", raw)
+
+
 def test_operational_stage_inputs_reject_local_paths_before_persistence() -> None:
     request = _operational_request()
     request["criteria"][0]["description"] = "Use /home/alice/PulsePlate/file.py"
@@ -2892,6 +2938,10 @@ def test_operational_stage_and_archive_reject_false_completion_and_unsafe_files(
             "--- a/app/routers/api_key.py\n+++ b/app/routers/api_key.py\n",
         ),
         ("work_review.md", "Reviewed app/routers/api_key.py without credential values"),
+        ("work_review.md", "Reviewed frontend/src/components/__tests__/Accessibility.test.tsx"),
+        ("work_review.md", "Reviewed src/segment_/member.py"),
+        ("work_review.md", "Reviewed src/segment./member.py"),
+        ("work_review.md", "Reviewed src/segment-/member.py"),
     ):
         (output / name).write_text(content, encoding="utf-8")
         assert cli._workflow_archive_inputs(output, include)[name] == content.encode("utf-8")
@@ -2902,6 +2952,10 @@ def test_operational_stage_and_archive_reject_false_completion_and_unsafe_files(
         ("work_review.md", "Observed /opt/local/PulsePlate and /mnt/build/PulsePlate"),
         ("work_review.md", "Observed /srv/alice/PulsePlate"),
         ("work_review.md", "GET /srv/alice/PulsePlate remains a local path"),
+        ("work_review.md", "Observed /frontend/src/components/__tests__/Accessibility.test.tsx"),
+        ("work_review.md", "Observed /src/segment_/member.py"),
+        ("work_review.md", "Observed /src/segment./member.py"),
+        ("work_review.md", "Observed /src/segment-/member.py"),
         ("work_review.md", r"Observed \\server\share\PulsePlate\file.py"),
         ("test_evidence.json", '{"source":"//server/share/PulsePlate/file.py"}'),
         ("test_evidence.json", '{"credential":"DATABASE_PASSWORD=not-a-real-secret"}'),
@@ -2956,6 +3010,7 @@ def test_archive_json_native_invalidity_rejects(data: bytes) -> None:
         "\\\\server\\share\\file.txt",
         "//server/share/file.txt",
         "/Users/alice/file",
+        "/frontend/src/components/__tests__/Accessibility.test.tsx",
         "file:///home/alice/file",
         "https://example.test/object?signature=synthetic",
         "Authorization: Bearer synthetic-value",
@@ -2970,6 +3025,49 @@ def test_archive_json_screens_escaped_nested_strings(text: str, position: str) -
     raw = raw.replace(json.dumps(text).encode(), ('"' + encoded + '"').encode())
     with pytest.raises(cli.ExperimentRunnerCreativeContextCliError, match="private"):
         cli._require_safe_workflow_archive_member("result.json", raw)
+
+
+@pytest.mark.parametrize(
+    "relative_path",
+    [
+        "frontend/src/components/__tests__/Accessibility.test.tsx",
+        "src/segment_/member.py",
+        "src/segment./member.py",
+        "src/segment-/member.py",
+    ],
+)
+@pytest.mark.parametrize("position", ["key", "value"])
+@pytest.mark.parametrize("escaped", [False, True])
+def test_archive_json_preserves_relative_component_tokens(
+    relative_path: str, position: str, escaped: bool
+) -> None:
+    """Screen real nested member bytes through native decoding without path exceptions."""
+    payload = (
+        {"mutable_candidate_surface": [relative_path]}
+        if position == "value"
+        else {"nested": [{relative_path: "benign"}]}
+    )
+    raw = json.dumps(payload).encode("utf-8")
+    if escaped:
+        encoded = "".join("\\u%04x" % ord(char) for char in relative_path)
+        raw = raw.replace(json.dumps(relative_path).encode(), ('"' + encoded + '"').encode())
+    cli._require_safe_workflow_archive_member("experiment_packet.json", raw)
+
+
+@pytest.mark.parametrize("text", _ROUTE_PREFIXED_PRIVATE_FORMS)
+@pytest.mark.parametrize("position", ["key", "value"])
+@pytest.mark.parametrize("escaped", [False, True])
+def test_archive_json_route_context_rejects_drive_and_tilde_forms(
+    text: str, position: str, escaped: bool
+) -> None:
+    """Reject prefixed private forms in real nested decoded keys and values."""
+    payload = {"nested": [{text: "benign"} if position == "key" else {"value": text}]}
+    raw = json.dumps(payload).encode("utf-8")
+    if escaped:
+        encoded = "".join("\\u%04x" % ord(char) for char in text)
+        raw = raw.replace(json.dumps(text).encode(), ('"' + encoded + '"').encode())
+    with pytest.raises(cli.ExperimentRunnerCreativeContextCliError, match="private"):
+        cli._require_safe_workflow_archive_member("experiment_packet.json", raw)
 
 
 @pytest.mark.parametrize("key", ["password", "SERVER_SALT", "api_key"])
