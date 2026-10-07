@@ -411,6 +411,14 @@ in its failure unit. The example selects staging; production remains a
 separate approved configuration. Do not import the application environment
 or duplicate its secret values into a scheduler environment file.
 
+For first production adoption, deliver all five checkpoint files through a
+reviewed `SHELL_BUNDLE_DIR` or `SHELL_BUNDLE_ARCHIVE`. A later production deploy
+with neither bundle input set requires the verifier, notifier and three unit
+examples to already exist at their exact admitted paths under `DEPLOY_DIR`
+as regular, non-symlink files with the expected hashes. Missing files,
+symlink substitution or hash drift fail admission before protected mutation.
+Bundle delivery copies these files; it does not install or enable systemd units.
+
 Both the checkpoint and OnFailure units need independently admitted, exact
 nonsecret backend and Caddy digest references: `STAGING_IMAGE_REF` for app/worker
 and `STAGING_CADDY_IMAGE_REF` for Caddy. Supply them through the existing native
