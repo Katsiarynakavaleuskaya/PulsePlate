@@ -1,5 +1,4 @@
-import { useId } from 'react';
-import type { InputHTMLAttributes, PropsWithChildren, ReactElement, ReactNode } from 'react';
+import { useId, type InputHTMLAttributes, type PropsWithChildren, type ReactElement, type ReactNode } from 'react';
 import { hasInvalidState } from './fieldState';
 
 interface RadioGroupProps extends PropsWithChildren {

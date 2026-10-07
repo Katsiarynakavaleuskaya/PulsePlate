@@ -1,5 +1,4 @@
-import { Fragment } from 'react';
-import type { AnchorHTMLAttributes, ButtonHTMLAttributes, PropsWithChildren, ReactElement, ReactNode } from 'react';
+import { Fragment, type AnchorHTMLAttributes, type ButtonHTMLAttributes, type PropsWithChildren, type ReactElement, type ReactNode } from 'react';
 import { Menu, MenuButton, MenuItem, MenuItems, Transition } from '@headlessui/react';
 import { ChevronDown } from 'lucide-react';
 import { buttonClasses } from './Button';

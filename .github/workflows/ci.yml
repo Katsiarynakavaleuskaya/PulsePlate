@@ -1267,7 +1267,7 @@ jobs:
         run: |
           set -euo pipefail
           python -m coverage run --rcfile=/dev/null --branch \
-            --include='scripts/orchestration/pr_oracle_attachment.py,scripts/orchestration/experiment_runner_dispatch.py,scripts/orchestration/qoder_dispatch_bridge.py,scripts/orchestration/task_bootstrap.py,scripts/orchestration/render_codex_start_prompt.py,scripts/orchestration/experiment_runner.py,scripts/orchestration/experiment_runner_pr_creative_context.py,scripts/orchestration/pr_review_evidence.py,scripts/orchestration/pr_review_closeout.py' \
+            --include='scripts/orchestration/pr_oracle_attachment.py,scripts/orchestration/experiment_runner_dispatch.py,scripts/orchestration/qoder_dispatch_bridge.py,scripts/orchestration/task_bootstrap.py,scripts/orchestration/render_codex_start_prompt.py,scripts/orchestration/experiment_runner.py,scripts/orchestration/experiment_runner_pr_creative_context.py,scripts/orchestration/pr_review_evidence.py,scripts/orchestration/pr_review_closeout.py,scripts/orchestration/experiment_runner_pr_creative_context_contract.py' \
             --data-file=.coverage.orchestration -m pytest -q -p no:xdist \
             tests/test_pr_oracle_attachment.py tests/test_experiment_runner_dispatch.py \
             tests/test_qoder_dispatch_bridge.py tests/test_task_bootstrap.py \
@@ -1291,6 +1291,7 @@ jobs:
               "scripts/orchestration/experiment_runner_pr_creative_context.py",
               "scripts/orchestration/pr_review_evidence.py",
               "scripts/orchestration/pr_review_closeout.py",
+              "scripts/orchestration/experiment_runner_pr_creative_context_contract.py",
           }
           if len(classes) != len(expected) or {c.get("filename") for c in classes} != expected:
               raise SystemExit("Orchestration coverage has missing or unexpected source files")
@@ -2226,6 +2227,26 @@ jobs:
         env:
           COVERAGE_THRESHOLD: 97
         run: |
+          coverage_root="$(pwd -P)"
+          coverage_excludes=(
+            "${coverage_root}/frontend/**"
+            "${coverage_root}/alembic/**"
+            "${coverage_root}/releases/**"
+            "${coverage_root}/cache/**"
+            "${coverage_root}/data/**"
+            "${coverage_root}/external/**"
+            "${coverage_root}/htmlcov/**"
+            "${coverage_root}/coverage/**"
+            'conftest.py'
+            "${coverage_root}/tests/**"
+            '*.json'
+            '*.lock'
+            '*.md'
+            '*.yml'
+            '*.yaml'
+            '*.toml'
+            '*.txt'
+          )
           diff-cover ./coverage-artifacts/coverage.xml \
             ./ops-context-coverage/coverage-ops-context.xml \
             ./fitchef-eval-coverage/coverage-fitchef-eval.xml \
@@ -2233,23 +2254,7 @@ jobs:
             ./fitchef-agent-coverage/coverage-fitchef-agent.xml \
             --compare-branch "${{ github.base_ref }}" \
             --fail-under "${{ env.COVERAGE_THRESHOLD }}" \
-            --exclude 'frontend/**' \
-            --exclude 'alembic/**' \
-            --exclude 'releases/**' \
-            --exclude 'cache/**' \
-            --exclude 'data/**' \
-            --exclude 'external/**' \
-            --exclude 'htmlcov/**' \
-            --exclude 'coverage/**' \
-            --exclude 'conftest.py' \
-            --exclude 'tests/**' \
-            --exclude '*.json' \
-            --exclude '*.lock' \
-            --exclude '*.md' \
-            --exclude '*.yml' \
-            --exclude '*.yaml' \
-            --exclude '*.toml' \
-            --exclude '*.txt'
+            --exclude "${coverage_excludes[@]}"
 
   # Coverage reporting for feature branches
   coverage-feature:

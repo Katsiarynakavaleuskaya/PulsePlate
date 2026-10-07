@@ -1,5 +1,4 @@
-import { cloneElement, useId, useState } from 'react';
-import type { ReactElement, ReactNode } from 'react';
+import { cloneElement, useId, useState, type ReactElement, type ReactNode } from 'react';
 
 interface TooltipChildProps {
   'aria-describedby'?: string;

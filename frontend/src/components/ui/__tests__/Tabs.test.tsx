@@ -59,7 +59,9 @@ describe('Tabs', (): void => {
     );
 
     const firstTab = screen.getByRole('tab', { name: 'Overview' });
-    firstTab.focus();
+    act(() => {
+      firstTab.focus();
+    });
     await act(async () => {
       await user.keyboard('{ArrowRight}');
     });
