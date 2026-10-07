@@ -877,9 +877,7 @@ def _review_native_binding(
         ):
             raise _StaleSealEvidenceUnknown("posted review native identity is API_UNKNOWN")
         _parse_timestamp(posted, label="submittedAt")
-        if native.get("state") == "PENDING" or _parse_timestamp(
-            posted, label="submittedAt"
-        ) < _parse_timestamp(times["createdAt"], label="createdAt"):
+        if native.get("state") == "PENDING":
             raise ReviewEvidenceError("review is not a valid posted observation")
         commit = native.get("commit")
         native_commit = _require_sha(
