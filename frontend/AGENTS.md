@@ -14,6 +14,14 @@
   `src/api/schema.ts` is excluded precisely; this command does not claim all frontend
   or API tests are lint-clean. Frontend CI runs native controls after installation;
   the Python workflow contracts remain runnable without Node.
+- Authored UI lint: `npm run lint:ui` (explicit existing config, recursive
+  `src/components/ui/**/*.{ts,tsx}`, including stories, tests and nested sources,
+  zero warnings). Existing `.d.ts` exclusion and test-specific rule exceptions
+  remain unchanged; this does not claim the entire frontend is lint-clean.
+  The same Frontend CI native-control step independently enumerates nonempty
+  regular UI membership, rejects ignored/omitted members and checks exact native
+  lint/startup outcomes with owned fixture cleanup. Python `node24` workflow
+  contracts bind reviewed wiring only; actual ESLint execution is separate evidence.
 - Build: `npm run build`
 - Preview: `npm run preview`
 - Test: `npm run test`, `npm run test:ci`, `npm run test:precommit`, `npm run test:coverage`

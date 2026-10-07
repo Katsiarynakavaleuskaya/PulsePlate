@@ -172,7 +172,10 @@ jobs:
         run: |
           set -euo pipefail
           npm_binary="$(command -v npm)"
-          node - "$npm_binary" <<'NODE'
+          node_binary="$(command -v node)"
+          case "$npm_binary" in /*) ;; *) exit 1 ;; esac
+          case "$node_binary" in /*) ;; *) exit 1 ;; esac
+          "$node_binary" - "$npm_binary" <<'NODE'
           const assert = require('node:assert/strict');
           const fs = require('node:fs');
           const os = require('node:os');
@@ -182,6 +185,8 @@ jobs:
 
           (async () => {
             const cwd = process.cwd();
+            assert.ok(path.isAbsolute(process.execPath));
+            assert.match(process.versions.node, /^24\./);
             const timeout = Number(process.env.ESLINT_CONTROL_TIMEOUT_MS);
             assert.ok(Number.isSafeInteger(timeout) && timeout > 0, 'Step must supply a positive integer control timeout');
             const config = path.join(cwd, 'eslint.config.js');
@@ -212,11 +217,95 @@ jobs:
             });
             console.log(JSON.stringify({ control: 'ignored-selection', diagnostic: 'all-matched-files-ignored', pattern: 'src/api/*.ts' }));
 
+            const uiPattern = 'src/components/ui/**/*.{ts,tsx}';
+            const uiRoot = path.join(cwd, 'src/components/ui');
+            function enumerateUI(directory) {
+              assert.ok(fs.lstatSync(directory).isDirectory(), directory);
+              const files = [];
+              for (const name of fs.readdirSync(directory).sort()) {
+                const file = path.join(directory, name);
+                const stat = fs.lstatSync(file);
+                assert.equal(stat.isSymbolicLink(), false, `Unsupported UI symlink: ${file}`);
+                if (stat.isDirectory()) files.push(...enumerateUI(file));
+                else if ((name.endsWith('.ts') || name.endsWith('.tsx')) && !name.endsWith('.d.ts')) {
+                  assert.ok(stat.isFile(), `Unsupported UI member: ${file}`);
+                  files.push(file);
+                }
+              }
+              return files.sort();
+            }
+            function requireUISelection(directory) {
+              const files = enumerateUI(directory);
+              assert.ok(files.length > 0, 'Authored UI selection must be nonempty');
+              return files;
+            }
+            function assertUIResults(report, inventory) {
+              const actual = report.map(result => result.filePath).sort();
+              assert.ok(actual.every((file, index) => index === 0 || file !== actual[index - 1]), 'UI result paths must be unique');
+              assert.ok(actual.length === inventory.length && actual.every((file, index) => file === inventory[index]), 'UI membership mismatch');
+              for (const result of report) assert.equal(result.fatalErrorCount, 0, result.filePath);
+            }
+            async function assertUIMembership(engine, selection, inventory) {
+              assert.ok(inventory.length > 0, 'Authored UI selection must be nonempty');
+              for (const file of inventory) {
+                assert.ok(fs.lstatSync(file).isFile(), file);
+                assert.ok((await engine.isPathIgnored(file)) === false, `Ignored UI member: ${file}`);
+              }
+              const report = await engine.lintFiles(selection);
+              assertUIResults(report, inventory);
+              return report;
+            }
+            const originalUI = requireUISelection(uiRoot);
+            const uiReport = await assertUIMembership(eslint, [uiPattern], originalUI);
+            console.log(JSON.stringify({ control: 'ui-membership', files: originalUI.map(file => path.relative(cwd, file)) }));
+            const omittedMember = originalUI[0];
+            await assert.rejects(assertUIMembership(eslint, originalUI.slice(1), originalUI), {
+              name: 'AssertionError', message: 'UI membership mismatch',
+            });
+            console.log(JSON.stringify({ control: 'ui-omitted-member', file: omittedMember, diagnostic: 'UI membership mismatch' }));
+            assert.throws(() => assertUIResults([...uiReport, uiReport[0]], originalUI), {
+              name: 'AssertionError', message: 'UI result paths must be unique',
+            });
+            console.log(JSON.stringify({ control: 'ui-duplicate-result', diagnostic: 'UI result paths must be unique', evidence: 'assertion control over observed native results' }));
+            const ignoredMember = path.relative(cwd, originalUI[0]).split(path.sep).join('/');
+            const singleIgnoredUI = new ESLint({ overrideConfigFile: config, overrideConfig: [{ ignores: [ignoredMember] }] });
+            assert.equal(await singleIgnoredUI.isPathIgnored(originalUI[0]), true);
+            await assert.rejects(assertUIMembership(singleIgnoredUI, [uiPattern], originalUI), {
+              name: 'AssertionError', message: `Ignored UI member: ${originalUI[0]}`,
+            });
+            console.log(JSON.stringify({ control: 'ui-ignored-member', file: ignoredMember, diagnostic: 'Ignored UI member' }));
+            const allIgnoredUI = new ESLint({ overrideConfigFile: config, overrideConfig: [{ ignores: ['src/components/ui/**'] }] });
+            await assert.rejects(allIgnoredUI.lintFiles([uiPattern]), {
+              messageTemplate: 'all-matched-files-ignored', messageData: { pattern: uiPattern },
+            });
+            console.log(JSON.stringify({ control: 'ui-all-ignored', diagnostic: 'all-matched-files-ignored', pattern: uiPattern }));
+
             let fixtures;
             let scratch;
+            let uiFixtures;
             try {
               fixtures = fs.mkdtempSync(path.join(cwd, 'src/.foundation-controls-'));
               scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'foundation-npm-controls-'));
+              uiFixtures = fs.mkdtempSync(path.join(uiRoot, 'cab07b-native-'));
+              const nestedDirectory = path.join(uiFixtures, 'nested');
+              fs.mkdirSync(nestedDirectory);
+              const nestedFile = path.join(nestedDirectory, 'clean.tsx');
+              fs.writeFileSync(nestedFile, 'export const Nested = () => <div />;\n');
+              const nestedUI = requireUISelection(uiRoot);
+              assert.deepEqual(nestedUI, [...originalUI, nestedFile].sort());
+              await assertUIMembership(eslint, [uiPattern], nestedUI);
+              console.log(JSON.stringify({ control: 'ui-nested-tsx', file: nestedFile }));
+              const emptyDirectory = path.join(fixtures, 'empty-ui');
+              const declarationDirectory = path.join(fixtures, 'declaration-only-ui');
+              fs.mkdirSync(emptyDirectory);
+              fs.mkdirSync(declarationDirectory);
+              fs.writeFileSync(path.join(declarationDirectory, 'only.d.ts'), 'declare const value: number;\n');
+              for (const [control, directory] of [['ui-empty-inventory', emptyDirectory], ['ui-declaration-only', declarationDirectory]]) {
+                assert.throws(() => requireUISelection(directory), {
+                  name: 'AssertionError', message: 'Authored UI selection must be nonempty',
+                });
+                console.log(JSON.stringify({ control, diagnostic: 'Authored UI selection must be nonempty' }));
+              }
               const userconfig = path.join(scratch, 'user.npmrc');
               const globalconfig = path.join(scratch, 'global.npmrc');
               fs.writeFileSync(userconfig, '');
@@ -237,8 +326,14 @@ jobs:
                 ['error', 'import { readFileSync } from "node:fs";\nimport { existsSync } from "node:fs";\nexport const read = (file: string) => existsSync(file) ? readFileSync(file, "utf8") : "";\n', 'no-duplicate-imports', 2, 1],
                 ['warning', 'export const value: any = 1;\n', '@typescript-eslint/no-explicit-any', 1, 1],
               ];
-              for (const [name, source, ruleId, severity, exit] of cases) {
-                const file = path.join(fixtures, `${name}.ts`);
+              const tsxCases = [
+                ['ui-clean', 'export const Sample = () => <div />;\n', null, 0, 0],
+                ['ui-error', 'import { readFileSync } from "node:fs";\nimport { existsSync } from "node:fs";\nexport const Sample = () => <div>{existsSync("x") ? readFileSync("x", "utf8") : ""}</div>;\n', 'no-duplicate-imports', 2, 1],
+                ['ui-warning', 'export const Sample = (props: any) => <div>{props.value}</div>;\n', '@typescript-eslint/no-explicit-any', 1, 1],
+              ];
+              for (const [name, source, ruleId, severity, exit] of [...cases, ...tsxCases]) {
+                const extension = name.startsWith('ui-') ? 'tsx' : 'ts';
+                const file = path.join(fixtures, `${name}.${extension}`);
                 fs.writeFileSync(file, source);
                 const result = spawnSync(process.execPath, [cli, '--config', config, '--max-warnings=0', '--format', 'json', file], options);
                 assert.equal(result.error, undefined);
@@ -247,14 +342,17 @@ jobs:
                 const report = JSON.parse(result.stdout);
                 assert.equal(report.length, 1);
                 assert.equal(report[0].filePath, file);
+                assert.equal(report[0].fatalErrorCount, 0);
+                assert.equal(report[0].errorCount, severity === 2 ? 1 : 0);
+                assert.equal(report[0].warningCount, severity === 1 ? 1 : 0);
+                assert.deepEqual(report[0].suppressedMessages, []);
                 const messages = report[0].messages;
                 if (ruleId === null) assert.deepEqual(messages, []);
                 else {
                   assert.equal(messages.length, 1);
                   assert.equal(messages[0].ruleId, ruleId);
                   assert.equal(messages[0].severity, severity);
-                  assert.equal(report[0].errorCount, severity === 2 ? 1 : 0);
-                  assert.equal(report[0].warningCount, severity === 1 ? 1 : 0);
+                  assert.notEqual(messages[0].fatal, true);
                 }
                 console.log(JSON.stringify({ control: name, exit: result.status, messages }));
               }
@@ -271,6 +369,7 @@ jobs:
               assert.equal(emptyFailure.signal, null);
               assert.equal(emptyFailure.status, 2);
               assert.match(emptyFailure.stderr, /No files matching/);
+              assert.ok(emptyFailure.stderr.includes(path.join(fixtures, 'absent/*.ts')));
               console.log(JSON.stringify({ control: 'empty-selection', exit: emptyFailure.status, diagnostic: 'No files matching' }));
               const scriptFailure = spawnSync(npm, ['run', 'lint:foundation'], { ...options, cwd: scratch });
               assert.equal(scriptFailure.error, undefined);
@@ -278,10 +377,29 @@ jobs:
               assert.equal(scriptFailure.status, 1);
               assert.match(scriptFailure.stderr, /Missing script: "lint:foundation"/);
               console.log(JSON.stringify({ control: 'missing-script', exit: scriptFailure.status, diagnostic: 'Missing script: lint:foundation' }));
+              const uiScriptFailure = spawnSync(npm, ['run', 'lint:ui'], { ...options, cwd: scratch });
+              assert.equal(uiScriptFailure.error, undefined);
+              assert.equal(uiScriptFailure.signal, null);
+              assert.equal(uiScriptFailure.status, 1);
+              assert.match(uiScriptFailure.stderr, /Missing script: "lint:ui"/);
+              console.log(JSON.stringify({ control: 'ui-missing-script', exit: uiScriptFailure.status, diagnostic: 'Missing script: lint:ui' }));
+              const emptyUIPattern = path.join(fixtures, 'absent-ui/**/*.tsx');
+              const emptyUIFailure = spawnSync(process.execPath, [cli, '--config', config, emptyUIPattern], options);
+              assert.equal(emptyUIFailure.error, undefined);
+              assert.equal(emptyUIFailure.signal, null);
+              assert.equal(emptyUIFailure.status, 2);
+              assert.match(emptyUIFailure.stderr, /No files matching/);
+              assert.ok(emptyUIFailure.stderr.includes(emptyUIPattern));
+              console.log(JSON.stringify({ control: 'ui-unmatched-pattern', exit: emptyUIFailure.status, diagnostic: 'No files matching', pattern: emptyUIPattern }));
             } finally {
               if (fixtures) fs.rmSync(fixtures, { recursive: true, force: true });
               if (scratch) fs.rmSync(scratch, { recursive: true, force: true });
+              if (uiFixtures) fs.rmSync(uiFixtures, { recursive: true, force: true });
             }
+            const restoredUI = requireUISelection(uiRoot);
+            assert.deepEqual(restoredUI, originalUI);
+            await assertUIMembership(eslint, [uiPattern], restoredUI);
+            console.log(JSON.stringify({ control: 'ui-restored-inventory', files: restoredUI.map(file => path.relative(cwd, file)) }));
           })().catch(error => {
             console.error(error);
             process.exitCode = 1;
@@ -334,6 +452,9 @@ jobs:
 
       - name: Lint API and foundation scope
         run: npm run lint:foundation
+
+      - name: Lint UI primitives
+        run: npm run lint:ui
 
       - name: Run vitest suite
         run: npm run test -- --coverage

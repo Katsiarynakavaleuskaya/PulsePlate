@@ -13,8 +13,8 @@ vi.mock('react-hot-toast', () => {
 
   return {
     default: mockToast,
-    Toaster: vi.fn(({ children, ...props }: any) => (
-      <div data-testid="toaster" {...props}>
+    Toaster: vi.fn(({ children }: any) => (
+      <div data-testid="toaster">
         {children}
       </div>
     )),

@@ -1,5 +1,4 @@
-import { forwardRef } from 'react';
-import type { SelectHTMLAttributes } from 'react';
+import { forwardRef, type SelectHTMLAttributes } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { hasInvalidState } from './fieldState';
 
