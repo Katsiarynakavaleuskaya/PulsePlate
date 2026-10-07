@@ -281,8 +281,8 @@ Full-main native TOTAL coverage for Python3.11/3.12/3.13 was
 97.62%/97.65%/97.65%; numeric diff coverage was N/A from an independently
 proven empty eligible-line inventory. Deployment jobs were skipped.
 Verified recovery, final same-ID continuity and later owned cleanup receipts
-are retained in archive folder1viMSIUDcDmizMEKUIDOtkofEMe5o7SKi.
-All accepted D1-D8 outcomes require the retained individual41-item final QA
+are retained in archive folder `1viMSIUDcDmizMEKUIDOtkofEMe5o7SKi`.
+All accepted D1-D8 outcomes require the retained individual 41-item final QA
 receipt. PROJECT_LEGACY remains OPEN; R29 remains PARTIAL / UNWAIVED and
 the shared-runtime fail-fast learning follow-up remains OPEN. Unknown external
 and computed callers remain a bounded residual risk. No standalone docs-only
