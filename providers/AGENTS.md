@@ -16,6 +16,21 @@
 - Unit tests must use `providers/stub.py` or monkeypatched transports.
 - Secrets must be read from env/config only; never hardcode tokens.
 
+### FitChef Agent API experiment
+
+- `perplexity_agent.py` is a default-off, development-only FitChef text adapter.
+  Keep selection at the existing two FitChef runtime seams; it must not enter
+  the global `llm.py` selector or change CBT insight selection.
+- Preserve fixed Responses API transport, explicit reviewed model and effort,
+  empty tools, `store=False`, bounded input/output/timeout, and zero SDK retries.
+  Provider failure must not trigger a second paid call or automatic Sonar reroute.
+- Validate configuration and prompt budget before quota consumption; allocate
+  the client only for admitted generation. Accept only completed, error-free,
+  exact-model final assistant text and keep SDK exception content out of logs.
+- Production/staging and real-user activation remain blocked pending reviewed
+  Agent privacy/consent and the separately owned high-distress prerequisite.
+  `store=False` is not evidence of zero retention or release readiness.
+
 ### Pre-commit verification
 ```bash
 # 1. No dynamic imports
