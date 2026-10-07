@@ -5957,9 +5957,9 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         class_scope = _LexicalBindings(
             parent=previous, local_names=outward_names, scope_kind="class"
         )
-        for name, target in outward_targets.items():
+        for name, binding_owner in outward_targets.items():
             self._transfer_outward_binding_state(
-                name, self._outward_binding_source(name, target), class_scope
+                name, self._outward_binding_source(name, binding_owner), class_scope
             )
         self.scope = class_scope
         self._outward_binding_targets.append(outward_targets)
@@ -7240,13 +7240,13 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         self.visit(node.value)
         value_mapping = self._resolve_mapping(node.value)
         value_reference = self._resolve_reference(node.value)
-        for target in node.targets:
-            self._visit_object_namespace_target_expressions(target)
-            self._invalidate_mapping_target(target)
-            self._record_object_namespace_target(target)
-            self._refine_object_namespace_assignment(target, value_reference)
+        for assignment_target in node.targets:
+            self._visit_object_namespace_target_expressions(assignment_target)
+            self._invalidate_mapping_target(assignment_target)
+            self._record_object_namespace_target(assignment_target)
+            self._refine_object_namespace_assignment(assignment_target, value_reference)
             self._bind_target_value(
-                target,
+                assignment_target,
                 node.value,
                 dynamic_unknown_string=True,
             )
