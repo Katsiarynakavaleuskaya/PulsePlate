@@ -901,9 +901,9 @@ def probe_project(
             else:
                 from install_locked_python_requirements import admitted_psycopg_source_url
 
-            targets = normalize_target_python_versions(target_python_versions)
+            source_targets = normalize_target_python_versions(target_python_versions)
             try:
-                if not set(targets) <= {"cp311", "cp312", "cp313"}:
+                if not set(source_targets) <= {"cp311", "cp312", "cp313"}:
                     raise RuntimeError("unsupported interpreter for the exact source operation")
                 if len(body) > max_bytes:
                     raise RuntimeError("truncated source project page")
