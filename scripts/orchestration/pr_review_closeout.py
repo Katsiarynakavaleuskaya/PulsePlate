@@ -111,7 +111,7 @@ def _canonical_json(value: Any) -> str:
     return json.dumps(value, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
 
 
-def _atomic_write(path: Path, text: str) -> None:
+def _atomic_write(path: Path, text: str, *, mode: int = 0o600) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary_name: str | None = None
     try:
@@ -126,6 +126,7 @@ def _atomic_write(path: Path, text: str) -> None:
             temporary_name = handle.name
             handle.write(text)
             handle.flush()
+            os.fchmod(handle.fileno(), mode)
             os.fsync(handle.fileno())
         os.replace(temporary_name, path)
     finally:
@@ -712,7 +713,7 @@ def _cmd_seal(args: argparse.Namespace) -> None:
             raise CloseoutError(
                 "existing canonical mapping material head is not reachable from live PR head"
             )
-    _atomic_write(target, markdown)
+    _atomic_write(target, markdown, mode=0o644)
     assert_snapshot_unchanged(snapshot, token=token)
     print(f"CONTENT_BOUND_RECEIPT_VALID {manifest.digest}")
     print(f"closeout-seal: wrote {target}")

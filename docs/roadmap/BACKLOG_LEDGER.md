@@ -146,13 +146,13 @@ If it is not recorded here — it does not exist.
   - DoD: Record exact storage/resource identity, measured utilization and costs, preserve backup/restore and data continuity, and obtain separate approval before any resource mutation.
 
 <a id="ledger-p1-ops04a-resource-cost-recovery-context"></a>
-- [ ] P1: OPS-04A resource cost and supplied recovery context
+- [x] P1: OPS-04A resource cost and supplied recovery context
   - Owner: dev-operator / agent-coordinator
   - Priority: P1
   - Target PR: [#2470](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2470) (`codex/ops04a-resource-cost-recovery-context`).
-  - Status: Implementation scope admitted; merge, current-head validation, native replay and continuity remain independently pending.
+  - Status: CLOSED / merged #2470 at `5f87a8a5dcb0f516fb7d3a5e8be250e643598bd8`; exact-main CI, focused sanity, native byte-equal replay, same-ID document/readback preservation and archive recovery were separately observed on 2026-10-06.
   - Scope: One offline stdlib DigitalOcean invoice reconciliation CLI, exact declared resource/owner context, bounded private inputs, lossless Decimal accounting, partial allocation and unassessed recovery references, integrated with the existing three-source OPS coverage producer.
-  - Reason for deferral: This entry records the current implementation plan. Actual merge/closure status will be recorded by the next substantive DevOps PR under the owner's explicit decision; no standalone docs-only PR.
+  - Carryover: Actual closure bookkeeping lands in the substantive OPS-04B lane under the owner's explicit decision; no standalone docs-only PR. Final native receipt [13xS1uMllMcp8kTCoCcCUS6N9Gly2jh2_](https://drive.google.com/file/d/13xS1uMllMcp8kTCoCcCUS6N9Gly2jh2_/view), SHA-256 `560c3f721ff2c5cb21bc54834a2ef54265f5f446572e6f161ef64aa5275578c3`, was completely read back byte-equal; it preserves individual terminal QA and metadata observations.
   - Links: [Parent OPS-04](#ledger-p1-ops04-storage-finops), `scripts/ops/resource_cost_report.py`, `tests/test_resource_cost_report.py`, `docs/deploy/OPERATIONAL_SIGNALS.md`.
   - DoD: Preserve all OPS04A.criteria.v1 T01-T22 and original acceptance requirements; prove native row/total replay, separately measured allocation, actual operator rehearsal, exact routing/nonempty coverage, local/current-head CI/review gates, separately approved exact-head merge, current-main proof and same-ID/ACL-safe archive readback before owned cleanup. No authenticity, utilization, restore or savings conclusion follows from reconciliation.
   - Rollback: Stop invoking or reviewed bounded revert of CLI/tests/CI/scoped usage; no resource mutation.
@@ -161,9 +161,9 @@ If it is not recorded here — it does not exist.
 - [ ] P1: OPS-04B utilization and recovery evidence
   - Owner: dev-operator / agent-coordinator
   - Priority: P1
-  - Target PR: Next separately admitted substantive DevOps PR after OPS-04A.
-  - Status: Candidate, not started; parent OPS-04 remains open.
-  - Reason for deferral: Invoice accounting and supplied references do not establish current utilization or recovery. Fresh evidence needs its own finite resource/signal inventory and any applicable explicit host/provider access approval.
+  - Target PR: [#2474](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2474) (`codex/ops04b-utilization-recovery-evidence`).
+  - Status: Active PR #2474 / OPERATIONAL_EVIDENCE_PENDING; post-open corrections are implemented and current-head validation is in progress. Review dispositions, exact-head merge approval and final same-ID continuity remain pending. OPS-04B and parent OPS-04 remain open.
+  - Evidence gaps: The separately approved short current host observation and provider policy/object evidence do not establish representative seven-day history, an exact filesystem-to-provider-Volume witness or applicable current restore. The backup-directory read attempt was unavailable; it does not prove backup absence or a confirmed Volume source. Resource changes and verified savings remain a separately approved follow-up.
   - Links: [OPS-04A](#ledger-p1-ops04a-resource-cost-recovery-context), [Parent OPS-04](#ledger-p1-ops04-storage-finops), `docs/deploy/OPERATIONAL_SIGNALS.md`.
   - DoD: Fresh-admit exact current base/ownership; collect bounded read-only dated utilization/recovery evidence for unresolved OPS-04A resource context, preserving unknowns and independently assessing supplied references. Record OPS-04A's actual merge/closure receipt in this substantive PR. Keep resource mutation and verified savings outside this evidence-only outcome; obtain separate approval for any host observation and later cost change, with rollback and before/after proof.
 
@@ -534,8 +534,8 @@ If it is not recorded here — it does not exist.
     paths: the existing lint/coverage repair, truthful browser-evidence tracking,
     the bounded shared component-boundary and Unix-only route-exemption corrections
     required by native artifact preservation, and real isolated i18n, focus-act and
-    DOM-prop test harness corrections. The same orchestration producer measures its original
-    seven owners plus the affected contract through the seven existing test targets.
+    DOM-prop test harness corrections. The same orchestration producer preserves the incoming
+    nine owners plus the affected contract through nine distinct owning test targets.
     Candidate tests do not promote trusted controls or claim native archive completion.
     The seventeen intended exclusion classes, five required XML producers/inputs,
     threshold 97 and merged PR #2466 concurrency/cancellation changes remain required.
