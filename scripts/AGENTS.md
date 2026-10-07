@@ -790,6 +790,11 @@ explicit corrupt or missing owner inputs must reach the strict production
 validator. Preserve independent allowed counterexamples and the retired-name
 inventory when repairing a recognizer; source counts do not prove behavior.
 
+Capture callee, receiver and member facts at their own evaluation points; later
+argument effects must not rewrite earlier facts. Keep `ownership_audit` purpose
+distinct from symbol-family selection and ordinary runtime analysis. Preserve
+required unused ownership evidence and dormant execution boundaries.
+
 Provide focused commands with an explicit `tests/test_legacy_growth_guard.py`
 module or literal node selectors and the repo-approved Python interpreter.
 A shell continuation must be continuous: no blank line may detach selectors
