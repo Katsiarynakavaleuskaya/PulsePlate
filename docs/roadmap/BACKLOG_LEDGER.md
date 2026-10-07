@@ -9534,11 +9534,11 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     current-head gates and review. Each source PR remains open until the
     consolidated separately authorized merge and its individual semantic
     transfer/disposition; no source cherry-pick or premature closure is implied.
-    Preserve the original87-name prefix AND the independently inherited four-name
+    Preserve the original 87-name prefix AND the independently inherited four-name
     retirement tail, every admitted negative/allowed control and unchanged loop
     budgets. Carryover #2447 and #2455 are already merged; #2455's merge receipt
     is `5e09142246cd05de7ff7ebba918b5b804dc4f742`. Cloud applied runtime remains
-    unknown, its separate migration question unanswered, and all79 individual
+    unknown, its separate migration question unanswered, and all 79 individual
     outcomes, historical evidence and verified owned cleanup remain separately
     required. This substantive carrier does not close `PROJECT_LEGACY` or open
     a new retirement cohort or docs-only PR.

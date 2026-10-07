@@ -3293,6 +3293,7 @@ _POSSIBLE_OBJECT_NAMESPACE_REFERENCE = "<possible:namespace:object>"
 _POSSIBLE_NAMESPACE_MUTATOR_REFERENCE_PREFIX = "<possible:namespace-mutator>."
 _MAX_LOOP_BINDING_ITERATIONS = 32
 _MAX_TOTAL_LOOP_BINDING_ITERATIONS = 128
+_UNBOUND_DICT_LOOKUP_REFERENCES = frozenset({"builtins.dict.get", "builtins.dict.__getitem__"})
 _MAPPING_MUTATOR_METHODS = frozenset(
     {
         "__delitem__",
@@ -3396,11 +3397,15 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         module_late_strings: Mapping[str, str] | None = None,
         analyze_function_bodies: bool = True,
         ownership_family: Literal["api_key", "openapi"] = "api_key",
+        purpose: Literal["ordinary", "ownership_audit"] = "ordinary",
     ) -> None:
         if ownership_family not in {"api_key", "openapi"}:
             raise ValueError("unsupported ownership symbol family")
+        if purpose not in {"ordinary", "ownership_audit"}:
+            raise ValueError("unsupported legacy analysis purpose")
         self.filename = filename
         self.ownership_family = ownership_family
+        self._analysis_purpose = purpose
         self.errors = errors
         self.reference_snapshots = reference_snapshots
         self.string_snapshots = string_snapshots
@@ -4161,6 +4166,18 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             return _KNOWN_NON_APP_REFERENCE
         if isinstance(node, ast.Name):
             return None
+        if isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name):
+            attribute_parent_reference = self.scope.resolve_reference(node.value.id)
+            return _static_module_reference(
+                node,
+                module_aliases=(
+                    {node.value.id: attribute_parent_reference}
+                    if attribute_parent_reference is not None
+                    else {}
+                ),
+                import_module_aliases=frozenset(),
+                static_string_bindings={},
+            )
         references = self.scope.visible_references()
         strings = self.scope.visible_strings()
         reference = _static_module_reference(
@@ -5457,6 +5474,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             preserve_route_method_conflicts=self.preserve_route_method_conflicts,
             analyze_function_bodies=analyze_function_bodies,
             ownership_family=self.ownership_family,
+            purpose=self._analysis_purpose,
         )
         # A short-lived graph-copy memo preserves genuine owner relationships only.
         # It is not an evaluation/result cache and is discarded after detachment.
@@ -8303,8 +8321,10 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             ),
         ):
             generator = _function_is_generator(target)
-            if self._sync_only_body_analysis and (
-                generator or isinstance(target, ast.AsyncFunctionDef)
+            if (
+                self._sync_only_body_analysis
+                and self._analysis_purpose != "ownership_audit"
+                and (generator or isinstance(target, ast.AsyncFunctionDef))
             ):
                 continue
             if generator and not iterated:
@@ -8319,8 +8339,10 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             if target in excluded_targets:
                 continue
             generator = _function_is_generator(target)
-            if self._sync_only_body_analysis and (
-                generator or isinstance(target, ast.AsyncFunctionDef)
+            if (
+                self._sync_only_body_analysis
+                and self._analysis_purpose != "ownership_audit"
+                and (generator or isinstance(target, ast.AsyncFunctionDef))
             ):
                 continue
             if generator and not iterated:
@@ -8337,7 +8359,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         node: ast.Call,
     ) -> frozenset[_DeferredFunctionCall]:
         if not self._replay_calls_enabled or (
-            not self._sync_only_body_analysis
+            (not self._sync_only_body_analysis or self._analysis_purpose == "ownership_audit")
             and (id(node) in self._awaited_call_ids or id(node) in self._iterated_call_ids)
         ):
             return frozenset()
@@ -8402,7 +8424,9 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         *,
         execution: str,
     ) -> _ResolvedBinding | None:
-        if not self._replay_calls_enabled or self._sync_only_body_analysis:
+        if not self._replay_calls_enabled or (
+            self._sync_only_body_analysis and self._analysis_purpose != "ownership_audit"
+        ):
             return None
         eligible_calls = {
             call
@@ -8454,21 +8478,31 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         return self._join_resolved_bindings(result_bindings)
 
     def _execute_deferred_call(self, call: _DeferredFunctionCall) -> _ResolvedBinding:
-        deferred_expression = self._deferred_generator_expression_for(call.function)
-        if deferred_expression is None:
-            return self._replay_function_call(call.function, dict(call.arguments))
-        expression, expression_scope, outer_binding = deferred_expression
-        previous = self.scope
-        self.scope = expression_scope
+        previous_sync_only = self._sync_only_body_analysis
+        if (
+            previous_sync_only
+            and self._replay_calls_enabled
+            and self._analysis_purpose == "ownership_audit"
+        ):
+            self._sync_only_body_analysis = False
         try:
-            self._visit_comprehension(
-                expression.generators,
-                [expression.elt],
-                outer_binding=outer_binding,
-            )
+            deferred_expression = self._deferred_generator_expression_for(call.function)
+            if deferred_expression is None:
+                return self._replay_function_call(call.function, dict(call.arguments))
+            expression, expression_scope, outer_binding = deferred_expression
+            previous = self.scope
+            self.scope = expression_scope
+            try:
+                self._visit_comprehension(
+                    expression.generators,
+                    [expression.elt],
+                    outer_binding=outer_binding,
+                )
+            finally:
+                self.scope = previous
+            return _ResolvedBinding(None, None)
         finally:
-            self.scope = previous
-        return _ResolvedBinding(None, None)
+            self._sync_only_body_analysis = previous_sync_only
 
     def _deferred_generator_expression_for(
         self,
@@ -8547,7 +8581,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         receiver_reference: str | None,
     ) -> ast.AST | None:
         if (
-            function_reference == "builtins.dict.get"
+            function_reference in _UNBOUND_DICT_LOOKUP_REFERENCES
             and len(node.args) >= 2
             and self._is_legacy_namespace_reference(receiver_reference)
         ):
@@ -8606,34 +8640,36 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         namespace_function_reference = self._resolve_reference(node.func)
         namespace_receiver = (
             node.args[0]
-            if namespace_function_reference == "builtins.dict.get" and node.args
+            if namespace_function_reference in _UNBOUND_DICT_LOOKUP_REFERENCES and node.args
             else node.func.value if isinstance(node.func, ast.Attribute) else None
         )
-        namespace_name = self._legacy_namespace_call_name(
-            node,
-            function_reference=namespace_function_reference,
-            receiver_reference=(
-                self._resolve_reference(namespace_receiver)
-                if namespace_receiver is not None
-                else None
-            ),
+        unbound_namespace_candidate = (
+            namespace_function_reference in _UNBOUND_DICT_LOOKUP_REFERENCES and len(node.args) >= 2
+        )
+        namespace_name = (
+            node.args[1]
+            if unbound_namespace_candidate
+            else self._legacy_namespace_call_name(
+                node,
+                function_reference=namespace_function_reference,
+                receiver_reference=(
+                    self._resolve_reference(namespace_receiver)
+                    if namespace_receiver is not None
+                    else None
+                ),
+            )
         )
         namespace_symbol_name = (
             self._resolve_string(namespace_name) if namespace_name is not None else None
         )
-        getattr_name = (
-            node.args[1]
-            if (
-                self._resolve_reference(node.func)
-                in {"builtins.getattr", _POSSIBLE_GETATTR_REFERENCE}
-                and len(node.args) >= 2
-                and self._is_legacy_module_reference(self._resolve_reference(node.args[0]))
-            )
-            else None
+        getattr_candidate = (
+            namespace_function_reference in {"builtins.getattr", _POSSIBLE_GETATTR_REFERENCE}
+            and len(node.args) >= 2
         )
-        getattr_symbol_name = (
-            self._resolve_string(getattr_name) if getattr_name is not None else None
-        )
+        getattr_name = node.args[1] if getattr_candidate else None
+        getattr_function_reference = namespace_function_reference
+        getattr_receiver_binding: _ResolvedBinding | None = None
+        getattr_member_binding: _ResolvedBinding | None = None
         deferred_calls = self._capture_deferred_calls(node)
         if deferred_calls:
             self._deferred_call_bindings[id(node)] = deferred_calls
@@ -8896,7 +8932,19 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         if mapping_lookup_attribute is not None:
             self._previsited_call_receiver_attribute_ids.add(id(mapping_lookup_attribute))
         try:
-            self.generic_visit(node)
+            if getattr_candidate or unbound_namespace_candidate:
+                self.visit(node.func)
+                getattr_function_reference = self._resolve_reference(node.func)
+                for getattr_argument_index, getattr_argument in enumerate(node.args):
+                    self.visit(getattr_argument)
+                    if getattr_argument_index == 0:
+                        getattr_receiver_binding = self._capture_argument_binding(getattr_argument)
+                    elif getattr_argument_index == 1:
+                        getattr_member_binding = self._capture_argument_binding(getattr_argument)
+                for getattr_keyword in node.keywords:
+                    self.visit(getattr_keyword)
+            else:
+                self.generic_visit(node)
         finally:
             if mapping_lookup_attribute is not None:
                 self._previsited_call_receiver_attribute_ids.remove(id(mapping_lookup_attribute))
@@ -8908,9 +8956,24 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 self._awaited_call_ids.remove(id(gathered_call))
             if iterated_argument is not None and not iterated_argument_was_marked:
                 self._iterated_call_ids.remove(id(iterated_argument))
+        if unbound_namespace_candidate:
+            namespace_name = (
+                node.args[1]
+                if (
+                    getattr_function_reference in _UNBOUND_DICT_LOOKUP_REFERENCES
+                    and getattr_receiver_binding is not None
+                    and getattr_member_binding is not None
+                    and self._is_legacy_namespace_reference(getattr_receiver_binding.reference)
+                )
+                else None
+            )
+            namespace_symbol_name = (
+                getattr_member_binding.string if getattr_member_binding is not None else None
+            )
         if namespace_name is not None:
             if (
-                isinstance(namespace_name, ast.Call)
+                not unbound_namespace_candidate
+                and isinstance(namespace_name, ast.Call)
                 and id(namespace_name) in self._call_result_bindings
             ):
                 namespace_symbol_name = self._call_result_bindings[id(namespace_name)].string
@@ -8928,12 +8991,14 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                     f"{self.filename}: legacy API-key dependency namespace lookup is forbidden: "
                     f"{displayed_name}"
                 )
-        if getattr_name is not None:
-            if (
-                isinstance(getattr_name, ast.Call)
-                and id(getattr_name) in self._call_result_bindings
-            ):
-                getattr_symbol_name = self._call_result_bindings[id(getattr_name)].string
+        if (
+            getattr_name is not None
+            and getattr_function_reference in {"builtins.getattr", _POSSIBLE_GETATTR_REFERENCE}
+            and getattr_receiver_binding is not None
+            and getattr_member_binding is not None
+            and self._is_legacy_module_reference(getattr_receiver_binding.reference)
+        ):
+            getattr_symbol_name = getattr_member_binding.string
             if (
                 getattr_symbol_name in CANONICAL_API_KEY_SYMBOLS
                 or getattr_symbol_name in {_POSSIBLE_API_KEY_SYMBOL, _DYNAMIC_STRING_BINDING}
@@ -9271,9 +9336,20 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 )
                 is not None
             )
-        replay_results = [
-            self._replay_function_call(target, arguments) for target, arguments in replay_inputs
-        ]
+        previous_sync_only = self._sync_only_body_analysis
+        if (
+            previous_sync_only
+            and self._replay_calls_enabled
+            and self._analysis_purpose == "ownership_audit"
+            and (id(node) in self._awaited_call_ids or id(node) in self._iterated_call_ids)
+        ):
+            self._sync_only_body_analysis = False
+        try:
+            replay_results = [
+                self._replay_function_call(target, arguments) for target, arguments in replay_inputs
+            ]
+        finally:
+            self._sync_only_body_analysis = previous_sync_only
         if replay_results:
             result_binding = self._join_resolved_bindings(replay_results)
             self._call_result_bindings[id(node)] = result_binding
@@ -9333,6 +9409,21 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                     if existing_snapshot is None
                     else self._join_resolved_bindings([existing_snapshot, partial_binding])
                 )
+        if (
+            self._analysis_purpose == "ownership_audit"
+            and wrapper_reference == "asyncio.run"
+            and wrapped_call is not None
+        ):
+            wrapped_result = self._call_result_bindings.get(id(wrapped_call))
+            if wrapped_result is not None:
+                self._call_result_bindings[id(node)] = wrapped_result
+                if self.call_result_snapshots is not None:
+                    existing_snapshot = self.call_result_snapshots.get(id(node))
+                    self.call_result_snapshots[id(node)] = (
+                        wrapped_result
+                        if existing_snapshot is None
+                        else self._join_resolved_bindings([existing_snapshot, wrapped_result])
+                    )
         if executes_async and node.args and wrapped_call is None:
             deferred_result = self._replay_deferred_calls(
                 self._resolve_deferred_calls(node.args[0]),
@@ -9562,6 +9653,7 @@ def _collect_module_final_bindings(
     preserve_lifecycle_conflicts: bool = False,
     preserve_route_method_conflicts: bool = False,
     ownership_family: Literal["api_key", "openapi"] = "api_key",
+    purpose: Literal["ordinary", "ownership_audit"] = "ordinary",
 ) -> tuple[Mapping[str, str], Mapping[str, str]]:
     visitor = _ApiKeyLookupVisitor(
         filename=filename,
@@ -9572,6 +9664,7 @@ def _collect_module_final_bindings(
         preserve_route_method_conflicts=preserve_route_method_conflicts,
         analyze_function_bodies=False,
         ownership_family=ownership_family,
+        purpose=purpose,
     )
     visitor.visit(tree)
     return visitor.scope.visible_references(), visitor.scope.visible_strings()
@@ -9586,6 +9679,7 @@ def _collect_lexical_binding_snapshots(
     preserve_fastapi_conflicts: bool = False,
     preserve_lifecycle_conflicts: bool = False,
     preserve_route_method_conflicts: bool = False,
+    purpose: Literal["ordinary", "ownership_audit"] = "ordinary",
 ) -> tuple[
     Mapping[int, Mapping[str, str]],
     Mapping[int, Mapping[str, str]],
@@ -9604,6 +9698,7 @@ def _collect_lexical_binding_snapshots(
         preserve_lifecycle_conflicts=preserve_lifecycle_conflicts,
         preserve_route_method_conflicts=preserve_route_method_conflicts,
         ownership_family=ownership_family,
+        purpose=purpose,
     )
     _ApiKeyLookupVisitor(
         filename=filename,
@@ -9618,6 +9713,7 @@ def _collect_lexical_binding_snapshots(
         ownership_family=ownership_family,
         module_late_references=module_late_references,
         module_late_strings=module_late_strings,
+        purpose=purpose,
     ).visit(tree)
     return reference_snapshots, string_snapshots, call_result_snapshots
 
@@ -9728,6 +9824,21 @@ def validate_api_key_dependency_ownership(
                 if isinstance(node.ctx, (ast.Store, ast.Del)):
                     rebound_names.add(node.id)
 
+            def visit_MatchAs(self, node: ast.MatchAs) -> None:
+                if node.name is not None:
+                    rebound_names.add(node.name)
+                if node.pattern is not None:
+                    self.visit(node.pattern)
+
+            def visit_MatchStar(self, node: ast.MatchStar) -> None:
+                if node.name is not None:
+                    rebound_names.add(node.name)
+
+            def visit_MatchMapping(self, node: ast.MatchMapping) -> None:
+                if node.rest is not None:
+                    rebound_names.add(node.rest)
+                self.generic_visit(node)
+
             def visit_AnnAssign(self, node: ast.AnnAssign) -> None:
                 if not postponed_annotations:
                     self.visit(node.annotation)
@@ -9773,13 +9884,14 @@ def validate_api_key_dependency_ownership(
 
     for filename, tree in sorted(app_trees.items()):
         module_late_references, module_late_strings = _collect_module_final_bindings(
-            tree, filename=filename, initial_references={}
+            tree, filename=filename, initial_references={}, purpose="ownership_audit"
         )
         _ApiKeyLookupVisitor(
             filename=filename,
             errors=errors,
             module_late_references=module_late_references,
             module_late_strings=module_late_strings,
+            purpose="ownership_audit",
         ).visit(tree)
     return sorted(set(errors))
 
@@ -11306,7 +11418,11 @@ def _record_main_legacy_openapi_lookups(tree: ast.Module, errors: list[str]) -> 
     """Report only each visited node's existing lexical and resolved-call evidence."""
 
     references, strings, results = _collect_lexical_binding_snapshots(
-        tree, filename=CANONICAL_MAIN, initial_references={}, ownership_family="openapi"
+        tree,
+        filename=CANONICAL_MAIN,
+        initial_references={},
+        ownership_family="openapi",
+        purpose="ownership_audit",
     )
     evaluator = _ApiKeyLookupVisitor(
         filename=CANONICAL_MAIN,
@@ -11370,7 +11486,7 @@ def _record_main_legacy_openapi_lookups(tree: ast.Module, errors: list[str]) -> 
                 continue
             receiver = (
                 node.args[0]
-                if function_reference == "builtins.dict.get" and node.args
+                if function_reference in _UNBOUND_DICT_LOOKUP_REFERENCES and node.args
                 else node.func.value if isinstance(node.func, ast.Attribute) else None
             )
             namespace_name = evaluator._legacy_namespace_call_name(
