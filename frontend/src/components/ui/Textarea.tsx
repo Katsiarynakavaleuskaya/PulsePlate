@@ -1,5 +1,4 @@
-import { forwardRef } from 'react';
-import type { TextareaHTMLAttributes } from 'react';
+import { forwardRef, type TextareaHTMLAttributes } from 'react';
 import { hasInvalidState } from './fieldState';
 
 interface TextareaProps extends TextareaHTMLAttributes<HTMLTextAreaElement> {

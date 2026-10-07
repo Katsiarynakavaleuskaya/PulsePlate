@@ -1,5 +1,4 @@
-import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
-import type { InputHTMLAttributes } from 'react';
+import { forwardRef, useEffect, useImperativeHandle, useRef, type InputHTMLAttributes } from 'react';
 import { hasInvalidState } from './fieldState';
 
 interface CheckboxProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'type'> {
