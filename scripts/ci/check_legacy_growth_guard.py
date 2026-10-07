@@ -3306,7 +3306,10 @@ _POSSIBLE_OBJECT_NAMESPACE_REFERENCE = "<possible:namespace:object>"
 _POSSIBLE_NAMESPACE_MUTATOR_REFERENCE_PREFIX = "<possible:namespace-mutator>."
 _MAX_LOOP_BINDING_ITERATIONS = 32
 _MAX_TOTAL_LOOP_BINDING_ITERATIONS = 128
-_UNBOUND_DICT_LOOKUP_REFERENCES = frozenset({"builtins.dict.get", "builtins.dict.__getitem__"})
+_DICT_NAMESPACE_LOOKUP_METHODS = frozenset({"get", "__getitem__", "pop", "setdefault"})
+_UNBOUND_DICT_LOOKUP_REFERENCES = frozenset(
+    f"builtins.dict.{method}" for method in _DICT_NAMESPACE_LOOKUP_METHODS
+)
 _MAPPING_MUTATOR_METHODS = frozenset(
     {
         "__delitem__",
@@ -3593,6 +3596,23 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         if self.string_snapshots is not None:
             self.string_snapshots[node_id] = current_strings
 
+    def _record_outward_api_key_rebinding(self, name: str) -> None:
+        if (
+            self.filename != LEGACY_APP
+            or not self._active_function_replays
+            or name not in CANONICAL_API_KEY_SYMBOLS
+        ):
+            return
+        target = self._active_outward_targets_for_scope(self.scope).get(name)
+        if target is None or target.scope_kind != "module":
+            return
+        description = (
+            "canonical API-key compatibility re-export"
+            if name in LEGACY_API_KEY_REEXPORTS
+            else "canonical API-key dependency"
+        )
+        self.errors.append(f"{LEGACY_APP}: {description} must not be rebound: {name}")
+
     def _bind_name(
         self,
         name: str,
@@ -3608,6 +3628,8 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         iterable_element: _ResolvedBinding | None = None,
         runtime_binding: bool = True,
     ) -> None:
+        if runtime_binding:
+            self._record_outward_api_key_rebinding(name)
         if self.preserve_fastapi_conflicts and not overwrite_conflicts:
             current = self.scope.references.get(name)
             fastapi_references = {
@@ -7452,6 +7474,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 self._invalidate_mapping_target(target)
                 continue
             for name in names:
+                self._record_outward_api_key_rebinding(name)
                 self.scope.unbind(name)
                 outward_target = (
                     self._outward_binding_targets[-1].get(name)
@@ -8665,16 +8688,15 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             return node.args[1]
         if (
             isinstance(node.func, ast.Attribute)
-            and node.func.attr in {"get", "__getitem__"}
+            and node.func.attr in _DICT_NAMESPACE_LOOKUP_METHODS
             and node.args
             and self._is_legacy_namespace_reference(receiver_reference)
         ):
             return node.args[0]
-        if (
-            function_reference in {"legacy_app.__dict__.get", "legacy_app.__dict__.__getitem__"}
-            and node.args
-        ):
-            return node.args[0]
+        if function_reference is not None and node.args:
+            namespace, _separator, method = function_reference.rpartition(".")
+            if namespace == "legacy_app.__dict__" and method in _DICT_NAMESPACE_LOOKUP_METHODS:
+                return node.args[0]
         return None
 
     def visit_Call(self, node: ast.Call) -> None:
@@ -9956,13 +9978,19 @@ def validate_api_key_dependency_ownership(
         binding_visitor = _TopLevelBindingVisitor()
         for statement in legacy_tree.body:
             binding_visitor.visit(statement)
-        for name in sorted(rebound_names & CANONICAL_API_KEY_SYMBOLS):
+        execution_visitor = _ApiKeyLookupVisitor(
+            filename=LEGACY_APP, errors=[], analyze_function_bodies=False
+        )
+        execution_visitor.visit(legacy_tree)
+        for name in sorted(CANONICAL_API_KEY_SYMBOLS):
             description = (
                 "canonical API-key compatibility re-export"
                 if name in LEGACY_API_KEY_REEXPORTS
                 else "canonical API-key dependency"
             )
-            errors.append(f"{LEGACY_APP}: {description} must not be rebound: {name}")
+            diagnostic = f"{LEGACY_APP}: {description} must not be rebound: {name}"
+            if name in rebound_names or diagnostic in execution_visitor.errors:
+                errors.append(diagnostic)
 
     for filename, tree in sorted(app_trees.items()):
         module_late_references, module_late_strings = _collect_module_final_bindings(
@@ -11478,7 +11506,7 @@ def _references_legacy_openapi_installer(tree: ast.Module) -> bool:
             continue
         if (
             isinstance(node.func, ast.Attribute)
-            and node.func.attr in {"get", "__getitem__"}
+            and node.func.attr in _DICT_NAMESPACE_LOOKUP_METHODS
             and _is_namespace_mapping(node.func.value)
         ):
             if not node.args:

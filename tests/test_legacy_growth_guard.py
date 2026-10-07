@@ -18457,3 +18457,257 @@ def test_consol_generic_lazy_default_uses_the_declared_receiver_mask(
         )
     else:
         assert _consol_openapi_errors(source) == []
+
+
+@pytest.mark.parametrize(
+    ("family", "symbol"),
+    [
+        *[pytest.param("api", symbol, id=f"api-{symbol}") for symbol in _CONSOL_API_KEY_SYMBOLS],
+        *[
+            pytest.param("openapi", symbol, id=f"openapi-{symbol}")
+            for symbol in (*_CONSOL_OPENAPI_SYMBOLS, "CustomOPENapiHook")
+        ],
+    ],
+)
+@pytest.mark.parametrize("method", ["pop", "setdefault"])
+def test_consol_namespace_pop_setdefault_reject_full_protected_inventory(
+    family: Literal["api", "openapi"], symbol: str, method: str
+) -> None:
+    source = f"import legacy_app as legacy\nvalue = legacy.__dict__.{method}({symbol!r})\n"
+    compile(source, "<namespace-mutating-lookup-fixture>", "exec")
+    if family == "api":
+        assert _validate_api_key_dependency_ownership(
+            _CONSOL_GETTER_IMPORTS, {"app/routers/example.py": source}
+        ) == [
+            "app/routers/example.py: legacy API-key dependency namespace lookup "
+            f"is forbidden: {symbol}"
+        ]
+    else:
+        assert _consol_openapi_errors(source) == [
+            "app/main.py: OpenAPI symbol must not be accessed through legacy"
+        ]
+
+
+@pytest.mark.parametrize("family", ["api", "openapi"])
+@pytest.mark.parametrize("method", ["pop", "setdefault"])
+@pytest.mark.parametrize(
+    ("setup", "lookup"),
+    [
+        pytest.param(
+            "namespace = vars(legacy)\npick = namespace.{method}\n",
+            "pick({symbol!r}, None)",
+            id="stored-bound-method",
+        ),
+        pytest.param(
+            "def owner():\n    return legacy\n",
+            "dict.{method}(owner().__dict__, {symbol!r}, None)",
+            id="unbound-returned-receiver",
+        ),
+        pytest.param(
+            "def owner():\n    return legacy\npick = dict.{method}\n",
+            "pick(vars(owner()), {symbol!r}, None)",
+            id="stored-unbound-method",
+        ),
+        pytest.param(
+            "import builtins as bi\n",
+            "bi.dict.{method}(vars(legacy), {symbol!r}, None)",
+            id="builtin-module-alias",
+        ),
+    ],
+)
+def test_consol_namespace_pop_setdefault_preserve_supported_alias_and_returned_receivers(
+    family: Literal["api", "openapi"], method: str, setup: str, lookup: str
+) -> None:
+    symbol = "get_api_key" if family == "api" else "_install_openapi_builder"
+    source = (
+        "import legacy_app as legacy\n"
+        + setup.format(method=method)
+        + f"value = {lookup.format(method=method, symbol=symbol)}\n"
+    )
+    compile(source, "<namespace-method-alias-fixture>", "exec")
+    if family == "api":
+        assert _validate_api_key_dependency_ownership(
+            _CONSOL_GETTER_IMPORTS, {"app/routers/example.py": source}
+        ) == [
+            "app/routers/example.py: legacy API-key dependency namespace lookup "
+            f"is forbidden: {symbol}"
+        ]
+    else:
+        assert _consol_openapi_errors(source) == [
+            "app/main.py: OpenAPI symbol must not be accessed through legacy"
+        ]
+
+
+@pytest.mark.parametrize("family", ["api", "openapi"])
+@pytest.mark.parametrize("method", ["pop", "setdefault"])
+@pytest.mark.parametrize(
+    ("setup", "lookup"),
+    [
+        pytest.param("", "legacy.__dict__.{method}('__name__', None)", id="safe-member"),
+        pytest.param(
+            "namespace = {{{symbol!r}: None}}\n",
+            "namespace.{method}({symbol!r}, None)",
+            id="unrelated-mapping",
+        ),
+        pytest.param(
+            "class Other:\n    def {method}(self, namespace, name, default):\n"
+            "        return None\ndict = Other()\n",
+            "dict.{method}(vars(legacy), {symbol!r}, None)",
+            id="shadowed-builtin",
+        ),
+    ],
+)
+def test_consol_namespace_pop_setdefault_keep_independent_safe_controls(
+    family: Literal["api", "openapi"], method: str, setup: str, lookup: str
+) -> None:
+    symbol = "get_api_key" if family == "api" else "_install_openapi_builder"
+    source = (
+        "import legacy_app as legacy\n"
+        + setup.format(method=method, symbol=symbol)
+        + f"value = {lookup.format(method=method, symbol=symbol)}\n"
+    )
+    compile(source, "<namespace-method-control-fixture>", "exec")
+    if family == "api":
+        assert (
+            _validate_api_key_dependency_ownership(
+                _CONSOL_GETTER_IMPORTS, {"app/routers/example.py": source}
+            )
+            == []
+        )
+    else:
+        assert _consol_openapi_errors(source) == []
+
+
+@pytest.mark.parametrize("family", ["api", "openapi"])
+@pytest.mark.parametrize("method", ["pop", "setdefault"])
+@pytest.mark.parametrize("initially_legacy", [True, False])
+def test_consol_namespace_pop_setdefault_capture_bound_receiver_before_member_effects(
+    family: Literal["api", "openapi"], method: str, initially_legacy: bool
+) -> None:
+    symbol = "get_api_key" if family == "api" else "_install_openapi_builder"
+    initial = "vars(legacy)" if initially_legacy else "{}"
+    replacement = "{}" if initially_legacy else "vars(legacy)"
+    source = (
+        "import legacy_app as legacy\n"
+        + f"namespace = {initial}\ndef member():\n    global namespace\n"
+        + f"    namespace = {replacement}\n    return {symbol!r}\n"
+        + f"value = namespace.{method}(member(), None)\n"
+    )
+    compile(source, "<namespace-method-ordered-receiver-fixture>", "exec")
+    if family == "api":
+        expected = (
+            [
+                "app/routers/example.py: legacy API-key dependency namespace lookup "
+                f"is forbidden: {symbol}"
+            ]
+            if initially_legacy
+            else []
+        )
+        assert (
+            _validate_api_key_dependency_ownership(
+                _CONSOL_GETTER_IMPORTS, {"app/routers/example.py": source}
+            )
+            == expected
+        )
+    else:
+        expected = (
+            ["app/main.py: OpenAPI symbol must not be accessed through legacy"]
+            if initially_legacy
+            else []
+        )
+        assert _consol_openapi_errors(source) == expected
+
+
+@pytest.mark.parametrize("symbol", _CONSOL_API_KEY_SYMBOLS)
+@pytest.mark.parametrize("operation", ["replace", "delete"])
+@pytest.mark.parametrize("scope", ["invoked-global", "dormant-global", "invoked-local"])
+def test_consol_protected_module_bindings_follow_actual_helper_invocation(
+    symbol: str, operation: str, scope: str
+) -> None:
+    declaration = f"    global {symbol}\n" if scope != "invoked-local" else ""
+    mutation = (
+        f"    {symbol} = None\n"
+        if operation == "replace"
+        else (
+            (f"    {symbol} = None\n" if scope == "invoked-local" else "") + f"    del {symbol}\n"
+        )
+    )
+    source = (
+        _CONSOL_GETTER_IMPORTS
+        + "def replace():\n"
+        + declaration
+        + mutation
+        + ("replace()\n" if scope != "dormant-global" else "")
+    )
+    compile(source, "<protected-binding-helper-fixture>", "exec")
+    expected = [_CONSOL_API_KEY_REBINDING_ERRORS[symbol]] if scope == "invoked-global" else []
+    assert _validate_api_key_dependency_ownership(source, {}) == expected
+
+
+@pytest.mark.parametrize(
+    ("definition", "invocation", "forbidden"),
+    [
+        pytest.param(
+            "def replace():\n    global require_app_api_key\n    require_app_api_key = None\n"
+            "alias = replace\n",
+            "alias()\n",
+            True,
+            id="direct-call-alias",
+        ),
+        pytest.param(
+            "def replace():\n    global require_app_api_key\n    require_app_api_key = None\n"
+            "alias = replace\n",
+            "",
+            False,
+            id="dormant-call-alias",
+        ),
+        pytest.param(
+            "def configure():\n    def replace():\n        global require_app_api_key\n"
+            "        require_app_api_key = None\n    replace()\n",
+            "configure()\n",
+            True,
+            id="nested-invoked-global",
+        ),
+        pytest.param(
+            "def configure():\n    require_app_api_key = None\n    def replace():\n"
+            "        nonlocal require_app_api_key\n        require_app_api_key = object\n"
+            "    replace()\n",
+            "configure()\n",
+            False,
+            id="genuine-nonlocal-owner",
+        ),
+        pytest.param(
+            "class Configuration:\n    def replace(self):\n        global require_app_api_key\n"
+            "        require_app_api_key = None\n",
+            "Configuration().replace()\n",
+            True,
+            id="invoked-method-global",
+        ),
+        pytest.param(
+            "class Configuration:\n    def replace(self):\n        global require_app_api_key\n"
+            "        require_app_api_key = None\n",
+            "",
+            False,
+            id="dormant-method-global",
+        ),
+        pytest.param(
+            "class Configuration:\n    require_app_api_key = None\n",
+            "",
+            False,
+            id="class-local-binding",
+        ),
+        pytest.param(
+            "def replace():\n    global require_app_api_key\n    require_app_api_key = None\n",
+            "class Configuration:\n    replace()\n",
+            True,
+            id="class-body-invoked-global",
+        ),
+    ],
+)
+def test_consol_protected_binding_replay_keeps_supported_outward_and_local_owners_distinct(
+    definition: str, invocation: str, forbidden: bool
+) -> None:
+    source = _CONSOL_GETTER_IMPORTS + definition + invocation
+    compile(source, "<protected-binding-supported-call-fixture>", "exec")
+    expected = [_CONSOL_API_KEY_REBINDING_ERRORS["require_app_api_key"]] if forbidden else []
+    assert _validate_api_key_dependency_ownership(source, {}) == expected
