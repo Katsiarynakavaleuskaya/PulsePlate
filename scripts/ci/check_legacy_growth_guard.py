@@ -4159,6 +4159,8 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                     return self._resolve_reference(selected)
         if self._is_definitely_non_app_value(node):
             return _KNOWN_NON_APP_REFERENCE
+        if isinstance(node, ast.Name):
+            return None
         references = self.scope.visible_references()
         strings = self.scope.visible_strings()
         reference = _static_module_reference(
@@ -4279,6 +4281,10 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             mapping_binding, _unresolved = self._resolve_mapping_subscript_binding(node)
             if mapping_binding is not None:
                 return mapping_binding.string
+        if isinstance(node, ast.Name):
+            return self.scope.resolve_string(node.id)
+        if isinstance(node, ast.Constant):
+            return node.value if isinstance(node.value, str) else None
         return _resolve_static_string(node, self.scope.visible_strings())
 
     def _join_expression_bindings(
