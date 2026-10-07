@@ -16,6 +16,8 @@ from pathlib import Path
 import pytest
 import yaml
 
+from scripts.ci.ci_risk_profile import build_risk_profile
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DOCKERFILE = REPO_ROOT / "frontend" / "Dockerfile.caddy-spa"
 BACKLOG_LEDGER = REPO_ROOT / "docs" / "roadmap" / "BACKLOG_LEDGER.md"
@@ -1802,11 +1804,21 @@ def test_checkpoint_native_required_results_do_not_publish_after_failure(
     assert (result.returncode == 0) is (not cancelled and scan_result == native_result == "success")
 
 
-@pytest.mark.parametrize("case", ["base-only", "own", "empty", "invalid", "unrelated", "ambiguous"])
-def test_checkpoint_pr_selection_uses_unique_real_merge_base(tmp_path: Path, case: str) -> None:
+def _assert_checkpoint_pr_selection_uses_real_git(
+    tmp_path: Path,
+    case: str,
+    selected_path: str = ".github/workflows/ci.yml",
+    *,
+    expected_selected: bool = True,
+    native_status: int = 0,
+    capture_status: int = 0,
+    capture_log: bool = True,
+) -> None:
     git = shutil.which("git")
     bash = shutil.which("bash")
-    assert git is not None and bash is not None
+    tee = shutil.which("tee")
+    cat = shutil.which("cat")
+    assert git is not None and bash is not None and tee is not None and cat is not None
     env = {
         "PATH": os.defpath,
         "LANG": "C",
@@ -1834,8 +1846,8 @@ def test_checkpoint_pr_selection_uses_unique_real_merge_base(tmp_path: Path, cas
         return completed.stdout.strip()
 
     call("init", "--template=", "-q")
-    selected = tmp_path / ".github/workflows/ci.yml"
-    selected.parent.mkdir(parents=True)
+    selected = tmp_path / selected_path
+    selected.parent.mkdir(parents=True, exist_ok=True)
     selected.write_text("common\n")
     call("add", ".")
     call("commit", "-qm", "common")
@@ -1853,10 +1865,7 @@ def test_checkpoint_pr_selection_uses_unique_real_merge_base(tmp_path: Path, cas
     call("commit", "-qm", "pr")
     head = call("rev-parse", "HEAD")
     if case == "base-only":
-        assert (
-            call("diff", "--name-only", base, head, "--", ".github/workflows/ci.yml")
-            == ".github/workflows/ci.yml"
-        )
+        assert call("diff", "--name-only", base, head, "--", selected_path) == selected_path
     if case == "empty":
         base = head = common
     elif case == "invalid":
@@ -1872,13 +1881,28 @@ def test_checkpoint_pr_selection_uses_unique_real_merge_base(tmp_path: Path, cas
             "OBS2A_BASE_SHA": base,
             "OBS2A_HEAD_SHA": head,
             "NATIVE_CALLS": str(tmp_path / "native-calls"),
+            "GITHUB_OUTPUT": str(tmp_path / "github-output"),
+            "NATIVE_STATUS": str(native_status),
+            "CAPTURE_STATUS": str(capture_status),
+            "CAPTURE_LOG": "1" if capture_log else "0",
+            "FIXTURE_TEE": tee,
+            "FIXTURE_CAT": cat,
+            "FIXTURE_GIT": git,
         }
     )
     step = _named_step(
-        _steps(_job(_workflow(REPO_ROOT / ".github/workflows/ci.yml"), "test-pr")),
+        _steps(_job(_workflow(REPO_ROOT / ".github/workflows/ci.yml"), "lint")),
         "Native OBS2A checkpoint lifecycle and owned-task challenge",
     )
-    fixture = 'python() { :; }\nsudo() { printf native >> "$NATIVE_CALLS"; }\n'
+    fixture = (
+        "python() { :; }\n"
+        'sudo() { printf native >> "$NATIVE_CALLS"; printf "native output\\n"; '
+        'printf "native diagnostic\\n" >&2; return "$NATIVE_STATUS"; }\n'
+        'tee() { if [ "$CAPTURE_LOG" = 1 ]; then "$FIXTURE_TEE" "$@"; '
+        'else "$FIXTURE_CAT" >/dev/null; fi; return "$CAPTURE_STATUS"; }\n'
+    )
+    if case == "discovery-error":
+        fixture += 'git() { if [ "$1" = diff ]; then return 2; fi; "$FIXTURE_GIT" "$@"; }\n'
     result = subprocess.run(
         [bash, "-c", fixture + step["run"]],
         cwd=tmp_path,
@@ -1888,8 +1912,277 @@ def test_checkpoint_pr_selection_uses_unique_real_merge_base(tmp_path: Path, cas
         timeout=10,
         check=False,
     )
-    if case in {"invalid", "unrelated", "ambiguous"}:
+    output = tmp_path / "github-output"
+    log = tmp_path / "artifacts/orchestration/obs2a_pr3/native-result.log"
+    if case in {"invalid", "unrelated", "ambiguous", "discovery-error"}:
         assert result.returncode != 0 and not (tmp_path / "native-calls").exists()
+        assert not output.exists() and not log.exists()
     else:
-        assert result.returncode == 0, result.stderr
-        assert (tmp_path / "native-calls").exists() is (case == "own")
+        selected = case == "own" and expected_selected
+        expected_status = (native_status or capture_status) if selected else 0
+        assert result.returncode == expected_status, result.stderr
+        assert (tmp_path / "native-calls").exists() is selected
+        assert output.read_text() == ("selected=true\n" if selected else "selected=false\n")
+        assert log.exists() is (selected and capture_log)
+        if selected and capture_log:
+            assert log.read_text() == "native output\nnative diagnostic\n"
+
+
+@pytest.mark.parametrize(
+    "case", ["base-only", "own", "empty", "invalid", "unrelated", "ambiguous", "discovery-error"]
+)
+def test_checkpoint_pr_selection_uses_unique_real_merge_base(tmp_path: Path, case: str) -> None:
+    _assert_checkpoint_pr_selection_uses_real_git(tmp_path, case)
+
+
+@pytest.mark.parametrize(
+    "selected_path",
+    [
+        "scripts/ops/notify_premium_alias_checkpoint_failure.py",
+        "deploy/systemd/pulseplate-premium-alias-checkpoint.service.example",
+        "deploy/systemd/pulseplate-premium-alias-checkpoint.timer.example",
+        "deploy/systemd/pulseplate-premium-alias-checkpoint-failure.service.example",
+    ],
+)
+def test_checkpoint_pr_native_is_independent_of_backend_risk_admission(
+    tmp_path: Path, selected_path: str
+) -> None:
+    # The actual classifier rejects this outer route while the real inner Git selector selects it.
+    assert build_risk_profile([selected_path]).run_backend_blocking is False
+    _assert_checkpoint_pr_selection_uses_real_git(tmp_path, "own", selected_path)
+    workflow = _workflow(REPO_ROOT / ".github/workflows/ci.yml")
+    jobs = workflow.get("jobs")
+    assert isinstance(jobs, dict)
+    holders = [
+        name
+        for name in jobs
+        if any(
+            step.get("name") == "Native OBS2A checkpoint lifecycle and owned-task challenge"
+            for step in _steps(_job(workflow, name))
+        )
+    ]
+    assert holders == ["lint"], holders
+    _assert_checkpoint_pr_native_job(workflow)
+
+
+def _assert_checkpoint_pr_native_job(workflow: dict[str, object]) -> None:
+    lint = _job(workflow, "lint")
+    assert lint["needs"] == ["private_python_proxy_health"]
+    assert lint["if"] == "${{ !cancelled() }}"
+    assert lint["timeout-minutes"] == "${{ fromJSON(vars.CI_LINT_TIMEOUT_MINUTES || '90') }}"
+    steps = _steps(lint)
+    prerequisite = _named_step(steps, "Enforce prerequisite results")
+    assert (
+        'if [[ "$PRIVATE_PYTHON_PROXY_HEALTH_RESULT" != "success" ]]; then' in prerequisite["run"]
+    )
+    assert "exit 1" in prerequisite["run"]
+    assert prerequisite["env"] == {
+        "PRIVATE_PYTHON_PROXY_HEALTH_RESULT": "${{ needs.private_python_proxy_health.result }}"
+    }
+    checkout = _named_step(steps, "Checkout")
+    assert checkout["with"] == {"fetch-depth": 0, "persist-credentials": False}
+    setup = _named_step(steps, "Setup Python environment")
+    assert setup["with"] == {
+        "python-version": "${{ env.PYTHON_VERSION }}",
+        "requirements-profile": "ci-lite",
+        "install-mode": "direct-proxy",
+    }
+    assert setup["env"] == {
+        "DEVPI_CI_USER": "${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && secrets.DEVPI_CI_USER || '' }}",
+        "DEVPI_CI_PASSWORD": "${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && secrets.DEVPI_CI_PASSWORD || '' }}",
+    }
+    precommit = _named_step(steps, "Pre-commit (lint/format/security quick checks)")
+    assert (
+        precommit["timeout-minutes"]
+        == "${{ fromJSON(vars.CI_LINT_CHECKS_TIMEOUT_MINUTES || '40') }}"
+    )
+    native = _named_step(steps, "Native OBS2A checkpoint lifecycle and owned-task challenge")
+    assert native["id"] == "checkpoint-native"
+    assert native["if"] == "github.event_name == 'pull_request'"
+    # The actual existing CD owner supplies native budget parity; this PR does not redefine it.
+    assert (
+        native["timeout-minutes"]
+        == _job(_workflow(CD_WORKFLOW), "obs2a-checkpoint-native")["timeout-minutes"]
+    )
+    assert native["env"] == {
+        "OBS2A_BASE_SHA": "${{ github.event.pull_request.base.sha }}",
+        "OBS2A_HEAD_SHA": "${{ github.event.pull_request.head.sha }}",
+    }
+    assert "secrets." not in str(native)
+    retention = _named_step(steps, "Retain selected PR OBS2A native observations")
+    assert retention["if"] == (
+        "always() && github.event_name == 'pull_request' "
+        "&& steps.checkpoint-native.outputs.selected == 'true'"
+    )
+    assert retention["uses"] == "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
+    assert retention["with"] == {
+        "name": "obs2a-native-pr-${{ github.event.pull_request.number }}-${{ github.run_attempt }}",
+        "path": "artifacts/orchestration/obs2a_pr3/native-result.log",
+        "if-no-files-found": "error",
+        "retention-days": 7,
+    }
+    assert steps.index(prerequisite) < steps.index(checkout) < steps.index(setup)
+    assert (
+        steps.index(setup) < steps.index(precommit) < steps.index(native) < steps.index(retention)
+    )
+    jobs = workflow.get("jobs")
+    assert isinstance(jobs, dict)
+    holders = [
+        name
+        for name in jobs
+        if any(step.get("name") == native["name"] for step in _steps(_job(workflow, name)))
+    ]
+    assert holders == ["lint"]
+    junit = _named_step(_steps(_job(workflow, "test-pr")), "Upload JUnit test report")
+    assert "native-result.log" not in junit["with"]["path"]
+
+
+@pytest.mark.parametrize(
+    "selected_path,expected_selected",
+    [
+        ("deploy/systemd/pulseplate-premium-alias-checkpoint.service.example", True),
+        ("deploy/systemd/pulseplate-premium-alias-checkpoint.timer.example", True),
+        ("deploy/systemd/pulseplate-premium-alias-checkpoint-failure.service.example", True),
+        ("scripts/ops/notify_premium_alias_checkpoint_failure.py", True),
+        ("scripts/verify_premium_alias_telemetry.py", True),
+        ("scripts/deploy.sh", True),
+        ("scripts/deploy_production.sh", True),
+        ("tests/test_notify_premium_alias_checkpoint_failure.py", True),
+        (".github/workflows/ci.yml", True),
+        (".github/workflows/cd.yml", True),
+        ("docs/unrelated.md", False),
+        ("unrelated.txt", False),
+    ],
+)
+def test_checkpoint_pr_native_surface_membership_uses_real_selector(
+    tmp_path: Path, selected_path: str, expected_selected: bool
+) -> None:
+    _assert_checkpoint_pr_native_job(_workflow(REPO_ROOT / ".github/workflows/ci.yml"))
+    _assert_checkpoint_pr_selection_uses_real_git(
+        tmp_path, "own", selected_path, expected_selected=expected_selected
+    )
+
+
+@pytest.mark.parametrize("native_status,capture_status", [(0, 0), (7, 0), (0, 9), (7, 9)])
+def test_checkpoint_pr_native_preserves_status_and_actual_raw_log(
+    tmp_path: Path, native_status: int, capture_status: int
+) -> None:
+    _assert_checkpoint_pr_native_job(_workflow(REPO_ROOT / ".github/workflows/ci.yml"))
+    _assert_checkpoint_pr_selection_uses_real_git(
+        tmp_path, "own", native_status=native_status, capture_status=capture_status
+    )
+
+
+def test_checkpoint_pr_missing_capture_is_failure_with_selected_invocation(tmp_path: Path) -> None:
+    _assert_checkpoint_pr_native_job(_workflow(REPO_ROOT / ".github/workflows/ci.yml"))
+    _assert_checkpoint_pr_selection_uses_real_git(
+        tmp_path, "own", capture_status=9, capture_log=False
+    )
+
+
+@pytest.mark.parametrize("event", ["pull_request", "push", "workflow_dispatch"])
+@pytest.mark.parametrize("cancelled", [False, True])
+def test_checkpoint_pr_native_event_and_outer_job_admission(event: str, cancelled: bool) -> None:
+    workflow = _workflow(REPO_ROOT / ".github/workflows/ci.yml")
+    _assert_checkpoint_pr_native_job(workflow)
+    lint = _job(workflow, "lint")
+    native = _named_step(_steps(lint), "Native OBS2A checkpoint lifecycle and owned-task challenge")
+    outer = lint["if"].removeprefix("${{").removesuffix("}}").strip()
+    outer = outer.replace("!cancelled()", "1 == 0" if cancelled else "1 == 1")
+    inner = native["if"].replace("github.event_name", repr(event))
+    bash = shutil.which("bash")
+    assert bash is not None
+    result = subprocess.run(
+        [bash, "-c", "[[ " + outer + " ]] && [[ " + inner + " ]]"],
+        env={"PATH": os.defpath},
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
+    )
+    assert (result.returncode == 0) is (not cancelled and event == "pull_request")
+
+
+@pytest.mark.parametrize("proxy_result", ["success", "failure", "cancelled", "skipped"])
+def test_checkpoint_pr_native_proxy_prerequisite_fails_closed(proxy_result: str) -> None:
+    workflow = _workflow(REPO_ROOT / ".github/workflows/ci.yml")
+    _assert_checkpoint_pr_native_job(workflow)
+    prerequisite = _named_step(_steps(_job(workflow, "lint")), "Enforce prerequisite results")
+    bash = shutil.which("bash")
+    assert bash is not None
+    result = subprocess.run(
+        [bash, "-c", prerequisite["run"]],
+        env={"PATH": os.defpath, "PRIVATE_PYTHON_PROXY_HEALTH_RESULT": proxy_result},
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
+    )
+    assert (result.returncode == 0) is (proxy_result == "success")
+
+
+@pytest.mark.parametrize(
+    "fault",
+    [
+        "outer-risk",
+        "proxy-edge",
+        "proxy-check",
+        "shallow",
+        "persisted-credentials",
+        "profile",
+        "native-event",
+        "duplicate",
+        "log-cross-runner",
+        "retention-status",
+        "missing-log",
+        "job-budget",
+        "precommit-budget",
+        "native-budget",
+    ],
+)
+def test_checkpoint_pr_native_contract_rejects_lost_admission(fault: str) -> None:
+    workflow = deepcopy(_workflow(REPO_ROOT / ".github/workflows/ci.yml"))
+    lint = _job(workflow, "lint")
+    steps = _steps(lint)
+    native = _named_step(steps, "Native OBS2A checkpoint lifecycle and owned-task challenge")
+    retention = _named_step(steps, "Retain selected PR OBS2A native observations")
+    if fault == "outer-risk":
+        lint["if"] = _job(workflow, "test-pr")["if"]
+    elif fault == "proxy-edge":
+        lint["needs"] = []
+    elif fault == "proxy-check":
+        _named_step(steps, "Enforce prerequisite results")["run"] = "exit 0\n"
+    elif fault in {"shallow", "persisted-credentials"}:
+        options = _named_step(steps, "Checkout")["with"]
+        assert isinstance(options, dict)
+        options["fetch-depth" if fault == "shallow" else "persist-credentials"] = (
+            1 if fault == "shallow" else True
+        )
+    elif fault == "profile":
+        options = _named_step(steps, "Setup Python environment")["with"]
+        assert isinstance(options, dict)
+        options["requirements-profile"] = "ci-test"
+    elif fault == "native-event":
+        del native["if"]
+    elif fault == "duplicate":
+        duplicate_steps = _job(workflow, "test-pr")["steps"]
+        assert isinstance(duplicate_steps, list)
+        duplicate_steps.append(deepcopy(native))
+    elif fault == "log-cross-runner":
+        options = _named_step(_steps(_job(workflow, "test-pr")), "Upload JUnit test report")["with"]
+        assert isinstance(options, dict)
+        options["path"] += "artifacts/orchestration/obs2a_pr3/native-result.log\n"
+    elif fault == "retention-status":
+        retention["if"] = native["if"]
+    elif fault == "missing-log":
+        options = retention["with"]
+        assert isinstance(options, dict)
+        options["if-no-files-found"] = "ignore"
+    elif fault == "job-budget":
+        lint["timeout-minutes"] = 40
+    elif fault == "precommit-budget":
+        del _named_step(steps, "Pre-commit (lint/format/security quick checks)")["timeout-minutes"]
+    else:
+        native["timeout-minutes"] = "${{ fromJSON(vars.OBS2A_NATIVE_JOB_TIMEOUT_MINUTES || '41') }}"
+    with pytest.raises((AssertionError, KeyError)):
+        _assert_checkpoint_pr_native_job(workflow)

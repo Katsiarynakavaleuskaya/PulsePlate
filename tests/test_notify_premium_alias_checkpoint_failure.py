@@ -133,7 +133,8 @@ def test_fixed_payload_native_flags_and_frozen_event(
         "alertmanager",
         "/bin/amtool",
     ]
-    assert "--no-version-check" in argv and "--timeout=10s" in argv
+    assert "--no-version-check" in argv and "--timeout=8s" in argv
+    assert notifier.COMMAND_TIMEOUT_SECONDS == 10
     assert argv[-4:] == [
         "alertname=PulsePlateAliasCheckpointFailed",
         f"environment={contour}",
@@ -663,9 +664,38 @@ def _native_systemd(directory: Path) -> None:
             raise cleanup_errors[0]
 
 
-def _owned_task_stopped(cid: str, command: str, started: float, probe: str) -> bool:
+def _owned_census_records(
+    result: subprocess.CompletedProcess[str],
+) -> list[tuple[str, str]] | None:
+    """Decode the single finite PID/COMMAND census used by all owned subjects."""
+    rows = result.stdout.splitlines()
+    records = [row.split() for row in rows[1:]]
+    if (
+        result.returncode != 0
+        or len(rows) < 2
+        or rows[0].split() != ["PID", "COMMAND"]
+        or any(len(row) != 2 or re.fullmatch(r"[1-9][0-9]*", row[0]) is None for row in records)
+        or len({row[0] for row in records}) != len(records)
+    ):
+        return None
+    return [(row[0], row[1]) for row in records]
+
+
+def _owned_task_stopped(
+    cid: str,
+    command: str,
+    started: float,
+    probe: str,
+    *,
+    main_identity: tuple[str, str] | None = None,
+    task_identity: tuple[str, str] | None = None,
+) -> bool:
     """Observe the finite owned fixture census within the original 10s stop bound."""
-    main = {"amtool": "alertmanager", "promtool": "prometheus"}[command]
+    main = (
+        main_identity[1]
+        if main_identity
+        else {"amtool": "alertmanager", "promtool": "prometheus"}[command]
+    )
     deadline = started + 10
     immediate: str | None = None
     terminal = ""
@@ -676,41 +706,46 @@ def _owned_task_stopped(cid: str, command: str, started: float, probe: str) -> b
         remaining = deadline - time.monotonic()
         if remaining <= 0:
             break
-        result = _native(["docker", "top", cid, "-eo", "pid,comm"], timeout=min(2, remaining))
+        try:
+            result = _native(["docker", "top", cid, "-eo", "pid,comm"], timeout=min(2, remaining))
+        except subprocess.TimeoutExpired:
+            observed = time.monotonic()
+            reason = "census_timeout"
+            break
         terminal = result.stdout
         observed = time.monotonic()
         if immediate is None:
             immediate = terminal
-        rows = terminal.splitlines()
-        records = [row.split() for row in rows[1:]]
-        valid = (
-            result.returncode == 0
-            and len(rows) >= 2
-            and rows[0].split() == ["PID", "COMMAND"]
-            and all(len(row) == 2 and re.fullmatch(r"[1-9][0-9]*", row[0]) for row in records)
-        )
-        tasks: list[str] = []
-        if valid:
-            pids = [row[0] for row in records]
-            tasks = [row[1] for row in records]
-            valid = (
-                len(set(pids)) == len(pids)
-                and tasks.count(main) == 1
-                and all(task in {main, command} for task in tasks)
-            )
+        records = _owned_census_records(result)
+        valid = records is not None
+        task_present = True
+        if records is not None:
+            if main_identity is not None:
+                valid = (
+                    task_identity is not None
+                    and main_identity[0] != task_identity[0]
+                    and task_identity[1] == command
+                    and main_identity in records
+                    and all(row in {main_identity, task_identity} for row in records)
+                )
+                task_present = task_identity in records
+            else:
+                tasks = [row[1] for row in records]
+                valid = tasks.count(main) == 1 and all(task in {main, command} for task in tasks)
+                task_present = command in tasks
         if not valid:
             reason = "invalid_census"
             break
         if observed > deadline:
             reason = "observation_after_deadline"
             break
-        if command not in tasks:
+        if not task_present:
             stopped = True
             reason = "stopped"
             break
         reason = "task_present"
         time.sleep(min(0.1, max(0, deadline - observed)))
-    if immediate is None:
+    if immediate is None and reason == "no_census_within_deadline":
         observed = entered
     print(
         json.dumps(
@@ -729,33 +764,55 @@ def _owned_task_stopped(cid: str, command: str, started: float, probe: str) -> b
 
 
 def _native_query_lifetime(directory: Path) -> None:
+    from urllib.parse import parse_qs, urlsplit
+
     from scripts import verify_premium_alias_telemetry as verifier
 
     release = threading.Event()
     entered = threading.Event()
+    scalar_seen = threading.Event()
+    vector_seen = threading.Event()
+    fixture_time = "2026-08-22T12:00:00Z"
+    fixture_timestamp = datetime.fromisoformat(fixture_time.replace("Z", "+00:00")).timestamp()
 
     class Handler(BaseHTTPRequestHandler):
-        def do_POST(self) -> None:
+        def do_GET(self) -> None:
+            query = parse_qs(urlsplit(self.path).query)
             entered.set()
             release.wait(130)
+            expression = query.get("query", [""])[0]
+            if expression == "sum(up)":
+                assert query == {"query": ["sum(up)"], "time": [fixture_time]}
+            kind = "scalar" if expression == "time()" else "vector"
+            result: object = (
+                [fixture_timestamp, str(fixture_timestamp)]
+                if kind == "scalar"
+                else [{"metric": {}, "value": [fixture_timestamp, "2.5"]}]
+            )
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.end_headers()
             try:
-                self.wfile.write(b'{"status":"success","data":{"resultType":"vector","result":[]}}')
-            except BrokenPipeError:
+                self.wfile.write(
+                    json.dumps(
+                        {"status": "success", "data": {"resultType": kind, "result": result}}
+                    ).encode()
+                )
+                (scalar_seen if kind == "scalar" else vector_seen).set()
+            except (BrokenPipeError, ConnectionResetError):
                 self.close_connection = True
-
-        do_GET = do_POST
 
         def log_message(self, format: str, *args: object) -> None:
             del format, args
 
     server: ThreadingHTTPServer | None = None
     thread: threading.Thread | None = None
-    cid = ""
-    container_name = "obs2aquery" + uuid.uuid4().hex
-    container_attempted = False
+    query_thread: threading.Thread | None = None
+    prometheus_cid = ""
+    app_cid = ""
+    prometheus_name = "obs2aquery" + uuid.uuid4().hex
+    app_name = "obs2aqueryapp" + uuid.uuid4().hex
+    attempted: list[str] = []
     unit = "obs2aquery" + uuid.uuid4().hex + ".service"
     unit_file = SYSTEMD_UNIT_DIRECTORY / unit
     primary_failure: BaseException | None = None
@@ -767,13 +824,13 @@ def _native_query_lifetime(directory: Path) -> None:
         config = directory / "prometheus.yml"
         config.write_text("global:\n  scrape_interval: 30s\nscrape_configs: []\n")
         failures: list[str] = []
-        container_attempted = True
-        cid = _native(
+        attempted.append(prometheus_name)
+        prometheus_cid = _native(
             [
                 "docker",
                 "run",
                 "--name",
-                container_name,
+                prometheus_name,
                 "-d",
                 "--network",
                 "host",
@@ -794,39 +851,133 @@ def _native_query_lifetime(directory: Path) -> None:
                 "--storage.tsdb.path=/prometheus",
             ]
         ).stdout.strip()
-        assert len(cid) == 64 and all(c in "0123456789abcdef" for c in cid)
+        runtime_bases = re.findall(
+            r"^FROM (\S+) AS runtime-base\s*$", (ROOT / "Dockerfile").read_text(), re.MULTILINE
+        )
+        assert len(runtime_bases) == 1, "governed Python runtime base is unavailable"
+        python_image = runtime_bases[0]
+        assert re.fullmatch(r"python:[A-Za-z0-9.-]+@sha256:[0-9a-f]{64}", python_image)
+        attempted.append(app_name)
+        app_cid = _native(
+            [
+                "docker",
+                "run",
+                "--name",
+                app_name,
+                "-d",
+                "--network",
+                "host",
+                "--add-host",
+                "prometheus:127.0.0.1",
+                "--cap-drop",
+                "ALL",
+                "--security-opt",
+                "no-new-privileges:true",
+                "--read-only",
+                "--user",
+                "65532:65532",
+                "-e",
+                "PYTHONDONTWRITEBYTECODE=1",
+                python_image,
+                "/usr/local/bin/python",
+                "-I",
+                "-c",
+                "import signal; signal.pause()",
+            ]
+        ).stdout.strip()
+        assert all(re.fullmatch(r"[0-9a-f]{64}", cid) for cid in (prometheus_cid, app_cid))
+        assert prometheus_cid != app_cid, "native query requires distinct actual bound subjects"
+        main_records = _owned_census_records(_native(["docker", "top", app_cid, "-eo", "pid,comm"]))
+        assert main_records is not None and len(main_records) == 1
+        main_identity = main_records[0]
         docker = shutil.which("docker")
         assert docker is not None
         client = verifier.DockerPromtoolClient(docker=docker, compose_file=config)
-        client._bound_prometheus_container_id = cid
-        arguments = ["query", "instant", "-o", "json", "http://localhost:9090", "time()"]
+        client._bound_prometheus_container_id = prometheus_cid
+        client._bound_app_container_id = app_cid
         release.set()
-        assert client._run_promtool(arguments).returncode == 0
+        assert client.get_evaluation_anchor() == datetime.fromtimestamp(
+            fixture_timestamp, timezone.utc
+        )
+        assert scalar_seen.is_set(), "actual scalar query response was not observed"
+        assert client.query_scalar("sum(up)", evaluation_time=fixture_time) == 2.5
+        assert vector_seen.is_set(), "actual vector query/explicit UTC response was not observed"
         release.clear()
         entered.clear()
-        with pytest.raises(verifier.VerificationError, match="docker_timeout"):
-            client._run_promtool(arguments)
-        assert entered.is_set()
-        stopped = _owned_task_stopped(cid, "promtool", time.monotonic(), "P02_command_timeout")
-        if not stopped:
-            failures.append("owned promtool cleanup not proved within timeout plus10s stop bound")
+        query_errors: list[Exception] = []
+
+        def blocked_query() -> None:
+            try:
+                client.get_evaluation_anchor()
+            except Exception as error:
+                query_errors.append(error)
+
+        query_thread = threading.Thread(target=blocked_query, daemon=True)
+        query_thread.start()
+        assert entered.wait(10), "actual bounded query never reached the fixture endpoint"
+        live_records = _owned_census_records(_native(["docker", "top", app_cid, "-eo", "pid,comm"]))
+        assert live_records is not None and len(live_records) == 2 and main_identity in live_records
+        task_identity = next(row for row in live_records if row != main_identity)
+        query_thread.join(10)
+        assert (
+            not query_thread.is_alive()
+        ), "bounded query did not finish under its admitted deadline"
+        assert len(query_errors) == 1 and isinstance(query_errors[0], verifier.VerificationError)
+        print(
+            "native_query_binding="
+            + json.dumps(
+                {
+                    "prometheus_cid": prometheus_cid,
+                    "app_cid": app_cid,
+                    "main_identity": main_identity,
+                    "relay_identity": task_identity,
+                }
+            ),
+            flush=True,
+        )
+        if not _owned_task_stopped(
+            app_cid,
+            task_identity[1],
+            time.monotonic(),
+            "P02_command_timeout",
+            main_identity=main_identity,
+            task_identity=task_identity,
+        ):
+            failures.append(
+                "owned query relay cleanup not proved within timeout plus10s stop bound"
+            )
         release.set()
         assert _owned_task_stopped(
-            cid, "promtool", time.monotonic(), "P02_released_response"
+            app_cid,
+            task_identity[1],
+            time.monotonic(),
+            "P02_released_response",
+            main_identity=main_identity,
+            task_identity=task_identity,
         ), "ordinary fixture response failed to finish task"
         release.clear()
         entered.clear()
         unit_file.write_text(
-            f"[Service]\nType=oneshot\nWorkingDirectory={ROOT}\nExecStart={sys.executable} -m tests.test_notify_premium_alias_checkpoint_failure --query-container {cid}\nTimeoutStartSec=10min\nTimeoutStopSec=10s\nKillMode=control-group\nRestart=no\n"
+            f"[Service]\nType=oneshot\nWorkingDirectory={ROOT}\nExecStart={sys.executable} -m tests.test_notify_premium_alias_checkpoint_failure --query-container {prometheus_cid} {app_cid}\nTimeoutStartSec=10min\nTimeoutStopSec=10s\nKillMode=control-group\nRestart=no\n"
         )
         _native(["sudo", "systemctl", "daemon-reload"])
         _native(["sudo", "systemctl", "start", "--no-block", unit])
-        assert entered.wait(10), "actual interrupted Docker query never reached endpoint"
+        assert entered.wait(10), "actual interrupted query relay never reached endpoint"
+        live_records = _owned_census_records(_native(["docker", "top", app_cid, "-eo", "pid,comm"]))
+        assert live_records is not None and len(live_records) == 2 and main_identity in live_records
+        task_identity = next(row for row in live_records if row != main_identity)
         stopped_at = time.monotonic()
         _native(["sudo", "systemctl", "stop", unit])
-        if not _owned_task_stopped(cid, "promtool", stopped_at, "P02_systemd_interruption"):
+        if not _owned_task_stopped(
+            app_cid,
+            task_identity[1],
+            stopped_at,
+            "P02_systemd_interruption",
+            main_identity=main_identity,
+            task_identity=task_identity,
+        ):
             failures.append(
-                "owned promtool cleanup not proved within interruption plus10s stop bound"
+                "owned query relay cleanup not proved within interruption plus10s stop bound"
             )
         assert not failures, "P02 readiness HOLD: " + "; ".join(failures)
     except BaseException as exc:
@@ -867,9 +1018,15 @@ def _native_query_lifetime(directory: Path) -> None:
                 _native(["sudo", "systemctl", "daemon-reload"])
             except Exception as cleanup_error:
                 cleanup_errors.append(cleanup_error)
-        if container_attempted:
+        for container_name in reversed(attempted):
             try:
                 _native(["docker", "rm", "-f", container_name])
+            except Exception as cleanup_error:
+                cleanup_errors.append(cleanup_error)
+        if query_thread is not None and query_thread.ident is not None:
+            try:
+                query_thread.join(5)
+                assert not query_thread.is_alive(), "owned query caller did not stop"
             except Exception as cleanup_error:
                 cleanup_errors.append(cleanup_error)
         for cleanup_error in cleanup_errors:
@@ -1538,6 +1695,66 @@ def test_owned_task_census_rejects_failed_execution(
     assert json.loads(capsys.readouterr().out)["reason"] == "invalid_census"
 
 
+@pytest.mark.parametrize(
+    "output,observed,expected,reason",
+    [
+        ("PID COMMAND\n101 python\n", 1, True, "stopped"),
+        ("PID COMMAND\n101 python\n202 python\n", 1, False, "task_present"),
+        ("PID COMMAND\n202 python\n", 1, False, "invalid_census"),
+        ("PID COMMAND\n101 python\n303 python\n", 1, False, "invalid_census"),
+        ("PID COMMAND\n101 other\n", 1, False, "invalid_census"),
+        ("PID COMMAND\n101 python\n202 other\n", 1, False, "invalid_census"),
+        ("PID COMMAND\n101 python\n101 python\n", 1, False, "invalid_census"),
+        ("PID COMMAND\n101 python\n", 11, False, "observation_after_deadline"),
+    ],
+)
+def test_bound_python_census_uses_actual_main_and_relay_identity(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    output: str,
+    observed: int,
+    expected: bool,
+    reason: str,
+) -> None:
+    ticks = iter([0, 0, observed, 10])
+    monkeypatch.setattr(time, "monotonic", lambda: next(ticks))
+    monkeypatch.setattr(time, "sleep", lambda seconds: None)
+    monkeypatch.setattr(
+        sys.modules[__name__],
+        "_native",
+        lambda *args, **kwargs: subprocess.CompletedProcess(args, 0, output, ""),
+    )
+    assert (
+        _owned_task_stopped(
+            "a" * 64,
+            "python",
+            0,
+            "fixture_bound_python",
+            main_identity=("101", "python"),
+            task_identity=("202", "python"),
+        )
+        is expected
+    )
+    assert json.loads(capsys.readouterr().out)["reason"] == reason
+
+
+def test_owned_census_timeout_is_unknown_not_absence(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    ticks = iter([0, 0, 11])
+    monkeypatch.setattr(time, "monotonic", lambda: next(ticks))
+
+    def timed_out(argv: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        del kwargs
+        raise subprocess.TimeoutExpired(argv, 0.005)
+
+    monkeypatch.setattr(sys.modules[__name__], "_native", timed_out)
+    assert not _owned_task_stopped("a" * 64, "amtool", 0, "fixture_census_timeout")
+    evidence = json.loads(capsys.readouterr().out)
+    assert evidence["reason"] == "census_timeout" and evidence["stopped"] is False
+    assert evidence["elapsed_seconds"] == 11
+
+
 def test_owned_task_census_never_probes_after_stop_deadline(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -1966,17 +2183,19 @@ def test_checkpoint_cleanup_failure_without_primary_is_not_success(
         running = False
 
         def __init__(self, **kwargs: object) -> None:
-            del kwargs
+            self.target = kwargs["target"]
+            assert callable(self.target)
 
         def start(self) -> None:
             self.ident = 1
             self.running = True
+            self.target()
 
         def is_alive(self) -> bool:
             return self.running
 
         def join(self, timeout: float) -> None:
-            assert timeout == 5
+            assert timeout in (5, 10)
             released.append("join")
             self.running = False
 
@@ -1985,28 +2204,61 @@ def test_checkpoint_cleanup_failure_without_primary_is_not_success(
     monkeypatch.setattr(threading, "Event", Event)
     monkeypatch.setattr(shutil, "which", lambda name: "/absolute/" + name)
     monkeypatch.setattr(sys.modules[__name__], "SYSTEMD_UNIT_DIRECTORY", tmp_path)
-    monkeypatch.setattr(sys.modules[__name__], "_owned_task_stopped", lambda *args: True)
+    monkeypatch.setattr(sys.modules[__name__], "_owned_task_stopped", lambda *args, **kwargs: True)
     sends = iter([True, False])
     monkeypatch.setattr(notifier, "_send", lambda argv: next(sends))
     queries = 0
 
-    def query(self: object, args: list[str]) -> subprocess.CompletedProcess[str]:
+    def query(
+        self: object,
+        operation: str,
+        *,
+        expression: str | None = None,
+        evaluation_time: str | None = None,
+    ) -> verifier._CommandResult:
         nonlocal queries
-        del self
+        del self, operation, evaluation_time
         queries += 1
-        if queries == 2:
+        if queries == 3:
             raise verifier.VerificationError("docker_timeout")
-        return subprocess.CompletedProcess(args, 0, "", "")
+        timestamp = datetime(2026, 8, 22, 12, tzinfo=timezone.utc).timestamp()
+        scalar = expression == "time()"
+        payload = {
+            "status": "success",
+            "data": {
+                "resultType": "scalar" if scalar else "vector",
+                "result": (
+                    [timestamp, str(timestamp)]
+                    if scalar
+                    else [{"metric": {}, "value": [timestamp, "2.5"]}]
+                ),
+            },
+        }
+        return verifier._CommandResult(0, json.dumps(payload).encode(), b"")
 
-    monkeypatch.setattr(verifier.DockerPromtoolClient, "_run_promtool", query)
+    monkeypatch.setattr(verifier.DockerPromtoolClient, "_run_prometheus_http", query)
+
+    runs = 0
+    tops = 0
 
     def native(argv: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        nonlocal runs, tops
         del kwargs
         if "rm" in argv:
             released.append("container")
             if fault == "container":
                 raise OSError("synthetic cleanup-only failure")
-        stdout = "f" * 64 if "run" in argv or "ps" in argv else ""
+        stdout = ""
+        if "run" in argv:
+            runs += 1
+            stdout = ("f" if runs == 1 else "e") * 64
+        elif "ps" in argv:
+            stdout = "f" * 64
+        elif "top" in argv:
+            tops += 1
+            stdout = "PID COMMAND\n101 python\n"
+            if tops > 1:
+                stdout += "202 python\n"
         return subprocess.CompletedProcess(argv, 0, stdout, "")
 
     monkeypatch.setattr(sys.modules[__name__], "_native", native)
@@ -2014,11 +2266,13 @@ def test_checkpoint_cleanup_failure_without_primary_is_not_success(
         (_native_query_lifetime if fixture == "query" else _native_amtool_lifetime)(tmp_path)
     assert all(operation in released for operation in ("shutdown", "close", "join", "container"))
 
+    assert released.count("container") == (2 if fixture == "query" else 1)
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--native", action="store_true")
-    parser.add_argument("--query-container")
+    parser.add_argument("--query-container", nargs=2, metavar=("PROMETHEUS_CID", "APP_CID"))
     parser.add_argument("--native-fixture")
     parser.add_argument("--directory", type=Path)
     args = parser.parse_args()
@@ -2027,13 +2281,15 @@ if __name__ == "__main__":
     elif args.query_container:
         from scripts import verify_premium_alias_telemetry as verifier
 
-        cid = args.query_container
-        assert len(cid) == 64 and all(c in "0123456789abcdef" for c in cid)
+        prometheus_cid, app_cid = args.query_container
+        assert all(re.fullmatch(r"[0-9a-f]{64}", cid) for cid in (prometheus_cid, app_cid))
+        assert prometheus_cid != app_cid
         docker = shutil.which("docker")
         assert docker is not None
         client = verifier.DockerPromtoolClient(docker=docker, compose_file=Path("unused.yaml"))
-        client._bound_prometheus_container_id = cid
-        client._run_promtool(["query", "instant", "-o", "json", "http://localhost:9090", "time()"])
+        client._bound_prometheus_container_id = prometheus_cid
+        client._bound_app_container_id = app_cid
+        client.get_evaluation_anchor()
     elif args.native_fixture and args.directory:
         raise SystemExit(_native_checkpoint_fixture(args.native_fixture, args.directory))
     else:

@@ -56,9 +56,13 @@
   the same service and preserved protected flock inode as the timer.
 - Keep the existing verifier as receipt/decision owner. Failed exit 1/2, missing
   baseline and timeout must remain native failed invocations with OnFailure.
+  Queries use the existing bound-app raw HTTP relay with an internal 8-second
+  bound through flush inside the existing verifier host bound; no unbounded
+  query fallback is allowed. Actual native owned-task observations prove exit.
 - The failure helper uses only explicit Compose/contour arguments and native
-  amtool with --no-version-check and --timeout=10s. A native CLI's command
-  timeout may not cover its pre-action requests; verify actual pinned behavior.
+  amtool with --no-version-check and --timeout=8s inside the unchanged 10-second
+  host command ceiling as an internal margin. A native CLI's command timeout may
+  not cover its pre-action requests; verify actual pinned behavior.
 - Keep the fixed 15 min event, 60-second absolute cadence, max 15 attempts and 16 min unit
   bound. Never forward native error text or treat event expiry as recovery.
 - Native Linux checks in the owning notifier test module include actual owned
@@ -70,6 +74,12 @@
   primary errors. The main CD native admission job has its own vars-defined
   budget, explicit read-only permissions and successful image-scan prerequisite;
   main build also requires that native job to succeed.
+- Check the outer CI job admission and inner native Git selector together:
+  checkpoint-only changes must reach the required PR native lane without a
+  workflow-file change. Keep its explicit PR guard and raw failure-log retention
+  on the same runner. Validate the owning module in its declared ci-lite profile
+  before relocating native checks, and bound lint/pre-commit/native phases through
+  their named timeout sources; selected execution or expiry is not native PASS.
 
 ## Native RubyZip/Fastlane guard
 

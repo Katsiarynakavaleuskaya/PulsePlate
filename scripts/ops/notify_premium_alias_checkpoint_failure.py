@@ -41,7 +41,7 @@ def _argv(docker: str, compose_file: Path, environment: str, start: str, end: st
         "alertmanager",
         "/bin/amtool",
         "--alertmanager.url=http://127.0.0.1:9093",
-        "--timeout=10s",
+        "--timeout=8s",
         "--no-version-check",
         "alert",
         "add",

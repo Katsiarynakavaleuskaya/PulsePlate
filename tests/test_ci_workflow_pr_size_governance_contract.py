@@ -5284,6 +5284,7 @@ def _assert_ci_lint_node24_frontend_hook_dependency_contract(
     pre_commit_step = unique_step("Pre-commit (lint/format/security quick checks)")
     assert pre_commit_step == {
         "name": "Pre-commit (lint/format/security quick checks)",
+        "timeout-minutes": "${{ fromJSON(vars.CI_LINT_CHECKS_TIMEOUT_MINUTES || '40') }}",
         "run": "pre-commit run --all-files --show-diff-on-failure",
         "env": {"SKIP": "no-commit-to-branch"},
     }
