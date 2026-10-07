@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import ast
 from collections.abc import Mapping
+from importlib.util import resolve_name
 import json
 import os
 from pathlib import Path
@@ -832,6 +833,9 @@ def test_evidence_relation_audit_stays_offline_and_uses_private_no_replace_write
     core_source = core_path.read_text(encoding="utf-8")
     tree = ast.parse(source)
     core_tree = ast.parse(core_source)
+    federation_path = REPO_ROOT / "core/evidence/federation.py"
+    federation_source = federation_path.read_text(encoding="utf-8")
+    federation_tree = ast.parse(federation_source)
     forbidden_roots = {
         "socket",
         "subprocess",
@@ -843,7 +847,7 @@ def test_evidence_relation_audit_stays_offline_and_uses_private_no_replace_write
         "sqlalchemy",
         "redis",
     }
-    for module_tree in (tree, core_tree):
+    for module_tree in (tree, core_tree, federation_tree):
         imports = (
             node.module.split(".")[0]
             for node in ast.walk(module_tree)
@@ -856,6 +860,46 @@ def test_evidence_relation_audit_stays_offline_and_uses_private_no_replace_write
             for alias in node.names
         )
         assert not forbidden_roots.intersection((*imports, *names))
+    federation_imports: set[str] = set()
+    for node in ast.walk(federation_tree):
+        if isinstance(node, ast.Import):
+            federation_imports.update(alias.name for alias in node.names)
+        elif isinstance(node, ast.ImportFrom):
+            base = resolve_name("." * node.level + (node.module or ""), "core.evidence")
+            federation_imports.add(base)
+            federation_imports.update(
+                base + "." + alias.name for alias in node.names if alias.name != "*"
+            )
+    pure_forbidden = {
+        "os",
+        "pathlib",
+        "io",
+        "scripts",
+        "core.db",
+        "core.cache",
+        "core.semantic_cache",
+        "core.rag",
+        "core.knowledge",
+        "core.evidence.wiki_bridge",
+    }
+    assert not any(
+        module == denied or module.startswith(denied + ".")
+        for module in federation_imports
+        for denied in pure_forbidden
+    )
+    assert "create_evidence_asset_ref(" not in federation_source
+    assert "build_idempotency_key(" not in federation_source
+    assert "build_asset_id(" not in federation_source
+    facade = (REPO_ROOT / "core/evidence/__init__.py").read_text(encoding="utf-8")
+    assert "federation" not in facade
+    assert "QualifiedEvidenceRefV1" not in facade
+    main_source = _function_source(module_path, "main")
+    inspect_source = _function_source(module_path, "_inspect_bytes")
+    assert "read_jsonl(args.input)" in main_source
+    assert "write_report(args.output, data)" in main_source
+    assert "_inspect_bytes(" in main_source
+    assert "build_evidence_projection(parse_snapshot(rows))" in inspect_source
+    assert "select_claim_neighborhood(" in inspect_source
     writer = _function_source(module_path, "write_report")
     assert "os.O_NOFOLLOW" in writer
     assert "os.O_EXCL" in writer
@@ -866,6 +910,59 @@ def test_evidence_relation_audit_stays_offline_and_uses_private_no_replace_write
     assert "os.replace" not in source
     assert "os.rename" not in source
     assert ".write_text(" not in writer
+
+
+@pytest.mark.parametrize(
+    "import_statement,expected_error",
+    [
+        ("from core import db", AssertionError),
+        ("from core import db as database", AssertionError),
+        ("from core.evidence import wiki_bridge", AssertionError),
+        ("from core.evidence import wiki_bridge as advisory", AssertionError),
+        ("from .. import db", AssertionError),
+        ("from .. import db as database", AssertionError),
+        ("from . import wiki_bridge", AssertionError),
+        ("from . import wiki_bridge as advisory", AssertionError),
+        ("from ..db import get_session as read_session", AssertionError),
+        ("import core.db as database", AssertionError),
+        ("import core.evidence.wiki_bridge as advisory", AssertionError),
+        ("from core.db import get_session", AssertionError),
+        ("import os as filesystem", AssertionError),
+        ("from pathlib import Path", AssertionError),
+        ("from core.evidence.relations import parse_snapshot as canonical", None),
+        ("from .relations import parse_snapshot as canonical", None),
+        ("from . import relations as canonical", None),
+        ("from ... import db", ImportError),
+    ],
+)
+def test_evidence_federation_import_inventory_resolves_explicit_targets(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    import_statement: str,
+    expected_error: type[Exception] | None,
+) -> None:
+    """Parse controlled copies through the owning guard; never execute imports."""
+    original_root = REPO_ROOT
+    for relative in (
+        "scripts/evals/evidence_relation_audit.py",
+        "core/evidence/relations.py",
+        "core/evidence/federation.py",
+        "core/evidence/__init__.py",
+    ):
+        source = (original_root / relative).read_text(encoding="utf-8")
+        destination = tmp_path / relative
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        if relative == "core/evidence/federation.py":
+            source += "\n" + import_statement + "\n"
+        destination.write_text(source, encoding="utf-8")
+    with monkeypatch.context() as controlled:
+        controlled.setattr(f"{__name__}.REPO_ROOT", tmp_path)
+        if expected_error is None:
+            test_evidence_relation_audit_stays_offline_and_uses_private_no_replace_writer()
+        else:
+            with pytest.raises(expected_error):
+                test_evidence_relation_audit_stays_offline_and_uses_private_no_replace_writer()
+    assert REPO_ROOT == original_root
 
 
 def test_fitchef_claim_eval_reuses_bounded_reader_and_private_no_replace_writer() -> None:

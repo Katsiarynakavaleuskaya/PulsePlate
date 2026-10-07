@@ -2,6 +2,8 @@
 
 Usage: python -m scripts.evals.evidence_relation_audit validate --input SNAPSHOT.jsonl
        python -m scripts.evals.evidence_relation_audit report --input SNAPSHOT.jsonl --output REPORT.json
+       python -m scripts.evals.evidence_relation_audit inspect --input SNAPSHOT.jsonl
+           --claim-ref CLAIM --context-ref CONTEXT --time-scope PERIOD --output REPORT.json
 
 Limits: 8 MiB input and report, 256 KiB per line, 10,000 records, JSON depth
 32, and 512 references per record. Successful report publication may include
@@ -17,8 +19,9 @@ from pathlib import Path
 import secrets
 import stat
 import sys
-from typing import cast
+from typing import NoReturn, cast
 
+from core.evidence.federation import build_evidence_projection, select_claim_neighborhood
 from core.evidence.relations import audit_snapshot, parse_snapshot
 
 MAX_BYTES = 8 * 1024 * 1024
@@ -221,6 +224,28 @@ def _report_bytes(rows: list[object]) -> bytes:
     return data
 
 
+def _inspect_bytes(
+    rows: list[object],
+    *,
+    claim_ref: str,
+    context_ref: str,
+    time_scope: str,
+) -> bytes:
+    projection = build_evidence_projection(parse_snapshot(rows))
+    report = select_claim_neighborhood(
+        projection, claim_ref=claim_ref, context_ref=context_ref, time_scope=time_scope
+    ).to_dict()
+    data = (
+        json.dumps(
+            report, sort_keys=True, separators=(",", ":"), ensure_ascii=True, allow_nan=False
+        )
+        + "\n"
+    ).encode("utf-8")
+    if len(data) > MAX_BYTES:
+        raise ValueError("report_limit")
+    return data
+
+
 def write_report(path: Path, data: bytes) -> None:
     """Publish one private complete report with a same-directory no-replace link."""
     if len(data) > MAX_BYTES:
@@ -278,19 +303,42 @@ def write_report(path: Path, data: bytes) -> None:
         raise failure
 
 
+class _InspectArgumentParser(argparse.ArgumentParser):
+    def error(self, message: str) -> NoReturn:
+        raise ValueError("argument_error")
+
+
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
+    effective_argv = sys.argv[1:] if argv is None else argv
+    parser_type = (
+        _InspectArgumentParser
+        if effective_argv and effective_argv[0] == "inspect"
+        else argparse.ArgumentParser
+    )
+    parser = parser_type(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
-    for command in ("validate", "report"):
+    for command in ("validate", "report", "inspect"):
         sub = commands.add_parser(command)
         sub.add_argument("--input", required=True, type=Path)
-        if command == "report":
+        if command in ("report", "inspect"):
             sub.add_argument("--output", required=True, type=Path)
-    args = parser.parse_args(argv)
+        if command == "inspect":
+            sub.add_argument("--claim-ref", required=True)
+            sub.add_argument("--context-ref", required=True)
+            sub.add_argument("--time-scope", required=True)
     try:
+        args = parser.parse_args(effective_argv)
         rows = read_jsonl(args.input)
         if args.command == "validate":
             parse_snapshot(rows)
+        elif args.command == "inspect":
+            data = _inspect_bytes(
+                rows,
+                claim_ref=args.claim_ref,
+                context_ref=args.context_ref,
+                time_scope=args.time_scope,
+            )
+            write_report(args.output, data)
         else:
             data = _report_bytes(rows)
             write_report(args.output, data)
@@ -303,7 +351,11 @@ def main(argv: list[str] | None = None) -> int:
     print(
         "evidence_relation_audit: valid snapshot"
         if args.command == "validate"
-        else "evidence_relation_audit: report published"
+        else (
+            "evidence_relation_audit: neighborhood published"
+            if args.command == "inspect"
+            else "evidence_relation_audit: report published"
+        )
     )
     return 0
 
