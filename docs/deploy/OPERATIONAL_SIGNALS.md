@@ -449,8 +449,8 @@ the first ordinary scheduled acceptance. Retain timer/journal provenance,
 actual start 04:15–04:20 UTC, canonical receipt and lock evidence separately.
 
 The failure helper submits only the fixed four-label event through the existing
-Alertmanager service. It freezes startsAt/endsAt 15 min apart and targets 15
-60-second absolute slots with 10 s command bounds and a 16 min service bound.
+Alertmanager service. It freezes startsAt/endsAt 15 min apart and targets
+15 absolute slots spaced 60 seconds apart, with 10 s command bounds and a 16 min service bound.
 Missed slots are omitted; raw native output is discarded. Notification failures
 remain separate journal failures and never clear the primary failed checkpoint.
 **Event expiry is not checkpoint recovery.** The current 30 s/5 min/24 h route can
