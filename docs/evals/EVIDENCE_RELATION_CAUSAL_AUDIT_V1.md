@@ -141,6 +141,35 @@ legitimate canonical True is preserved. Authority/answer-change flags must be
 literally False, rejecting True and numeric 0/1 before masked serialization
 or ordinary equality. Every derived field must match the one canonical audit.
 
+After whole canonical parsing and audit, but before any whole qualified
+projection or hash preimage is allocated, construction applies an 8 MiB
+conservative derived-material byte estimate. Build, selection and both public
+serializers reuse this same check, including absent queries over the supplied
+source. A canonical-valid source can therefore produce report_limit when its
+derived representation exceeds this budget; its source validity is unchanged.
+
+The estimate counts each bounded raw record's actual canonical JSON bytes,
+192 bytes for that record's fixed wrapper keys/syntax, and the full encoded
+ASCII size of every qualified reference occurrence, including repeated F
+values and array commas. It reserves 2 KiB for the fixed projection/report,
+maximum literal query and derived identity envelopes. It then adds the larger
+of the projection reference inventory or the informational asset-reference
+inventory, whose entries reserve 64 syntax bytes plus their actual qualified
+reference, rail and fingerprint bytes. This upper estimate covers the whole
+projection and any exact main/history neighborhood subset without constructing
+the expanded dictionaries. Raw records are encoded one at a time, under the
+existing canonical 512-reference limit; canonical grammar/audit owners and
+their bounds are unchanged.
+
+An exceeded derived budget rejects the whole operation with report_limit
+before qualification/fingerprinting. There is no trimming, dropped reference,
+new raw-source cap, raised limit or MemoryError-only recovery. Final inspect
+encoding separately uses native incremental JSON chunks and a byte buffer
+bounded by the existing 8 MiB output limit, counting the terminal newline
+before extending the buffer. Private publication occurs only after complete
+successful encoding. Budget constants are not new public metadata: successful
+canonical report bytes, source F, result R and replay identity remain unchanged.
+
 For one literal query, main contains **every** exact claim/context/time link
 and assertion, including positive links unlisted by any assertion. A claim is
 known only through a link/assertion claim_ref occurrence; assets and opaque

@@ -40,6 +40,14 @@ the whole canonical parser/audit. Exact seeds and explicit revision/dependency
 closure remain finite; inspection metadata and source rail references are
 informational only, never E1 lineage, promotion, serving or answer authority.
 
+Canonical input/adverse-reference limits do not bound derived fanout. Before
+whole qualification, serialization or fingerprint material allocation, budget
+the actual derived representation, including repeated non-adverse references.
+Apply that bound to every public reconstruction/serialization entry point,
+after canonical whole-source admission/audit. Reject the whole operation;
+retain complete records and successful canonical bytes rather than truncating
+or substituting a new raw-source cap.
+
 E3 promotion ledger/replay changes may add append-only promotion contracts and
 dry-run replay summaries only. They must not write files, call runtime stores,
 create promotion side effects, or duplicate `core/knowledge/promotion.py`.
