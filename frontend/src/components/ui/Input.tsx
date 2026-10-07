@@ -1,5 +1,4 @@
-import { forwardRef } from 'react';
-import type { InputHTMLAttributes } from 'react';
+import { forwardRef, type InputHTMLAttributes } from 'react';
 import { hasInvalidState } from './fieldState';
 
 export type InputSize = 'sm' | 'md' | 'lg';

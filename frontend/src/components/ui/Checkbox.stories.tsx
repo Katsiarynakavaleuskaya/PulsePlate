@@ -1,6 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react';
-import { useState } from 'react';
-import type { ChangeEvent, ReactElement } from 'react';
+import { useState, type ChangeEvent, type ReactElement } from 'react';
 import { Checkbox } from './Checkbox';
 
 interface CheckboxDemoProps {

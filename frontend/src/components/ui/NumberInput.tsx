@@ -1,7 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
-import type { ChangeEvent, FocusEvent } from 'react';
-import { Input } from './Input';
-import type { InputProps } from './Input';
+import { useEffect, useMemo, useState, type ChangeEvent, type FocusEvent } from 'react';
+import { Input, type InputProps } from './Input';
 
 type NumberInputValue = number | '';
 type NumberInputLocale = 'ru' | 'en';
