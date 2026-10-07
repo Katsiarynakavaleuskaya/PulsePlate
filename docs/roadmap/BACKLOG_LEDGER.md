@@ -330,6 +330,7 @@ If it is not recorded here — it does not exist.
   - Owner decision (EN): On 2026-09-14 the owner explicitly authorized this bounded PR start while a colleague owns CD recovery. CD is not this lane's start blocker; that decision does not assert successful CD/current-head CI or authorize merge. No CD or other-owner files are included.
   - Reason (EN): The complete 2026-09-14T10:30:36Z–10:30:42Z census contains 16 open alerts over six identities. Only js-yaml alert #291 / GHSA-2883-xcg3-v3hh belongs to DEP-SEC-01. smol-toml, vitest/@vitest/mocker, httpx2 and httpcore2 remain separate sequential stages; Python ownership census PYDEP-1A stays deferred after security remediation. Historical updater failure remains separately tracked for fresh diagnosis; no updater protection or alert is disabled here.
   - Validation checkpoint (EN): Full focused frontend/root dependency guard suites pass after corrected guard-fixture failures; native npm ci, canonical OpenAPI no-drift checks, frontend typecheck/build, coverage run and applicable token/CSS checks pass. Frontend coverage is reported separately from the required current-PR diff coverage ≥97%; one existing JSDOM color-contrast skip remains covered by the browser accessibility lane, with no skip added in this PR. Local narrow gates and current-head CI/review admission remain required.
+  - Accessibility evidence correction (EN, 2026-10-07, #2471): The preceding historical browser-coverage assertion is unverified and superseded. `frontend/src/components/__tests__/Accessibility.test.tsx:229` retains a JSDOM-only color-contrast skip; its cited `frontend/tests/accessibility.spec.ts` is absent, and the current Accessibility workflow invokes Vitest/JSDOM. No browser color-contrast result is established. Track the missing browser execution in [the dedicated P1 follow-up](#ledger-p1-web-color-contrast-browser-coverage); this correction changes no dependency evidence or runtime behavior.
   - Carryover (EN): Repository evidence and ledger updates belong in the substantive implementation PR. Unavoidable post-merge receipts are reconciled in the next substantive PR under the owner's explicit decision; do not create a standalone docs-only closeout PR. Four existing Drive documents must receive same-ID plan/open/terminal/post-merge checkpoints; do not mark closure before observed merge and post-merge evidence.
   - Links: `docs/security/GHSA-h67p-54hq-rp68-js-yaml.md`; `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-depsec2-multi-ecosystem-dependency-closure`; `https://github.com/Katsiarynakavaleuskaya/PulsePlate/security/dependabot/291`; `https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/34311002924`
   - DoD: For each admitted identity, reconcile complete exact-base/head surfaces and immutable advisory inventory, prove nonempty applicability and universal head safety, reproduce the complete native resolver delta, and enforce negative regressions. Obtain focused/narrow local gates, exact-head canonical CI/security/diff coverage, actual-diff premortem/Runner, post-open role review, native self-review/provider-neutral seal, strict authenticated readiness/wait and separate human merge decision. Observe merged-main sanity and alert indexing without dismissal, four same-ID Drive readbacks, archive and owned cleanup. Separately investigate the updater failure without weakening external-code protections; no partial identity result closes the entire epic.
@@ -344,7 +345,7 @@ If it is not recorded here — it does not exist.
   - DEP-AUTO-DOCX-1 carryover outcome (EN, verified 2026-09-24): [PR #2411](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2411) squash-merged at `b9f2818684fec734fabdaa7ab582d87809c46181` on 2026-09-24T12:40:01Z. Exact-merge [main CI run 36000500322](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/36000500322) completed success on that SHA. The retained owner receipt records `docx 9.7.1` and five passing merged-tree tests; the [redacted evidence ZIP](https://drive.google.com/file/d/17W4mxoDrGGuhshJVmrdsmk4jB2X0H31h/view) was verified under its existing Drive ID. Earlier pre-open pending statements above are historical and do not describe #2411's terminal repository state. This carryover does not certify production/CD or close the parent Dependency Epic.
   - DEP-AUTO-RUBY-1 local checkpoint (EN, 2026-09-24 before PR open): From exact base `b9f2818684fec734fabdaa7ab582d87809c46181`, the canonical iOS Gemfile compatibility ceiling moves `public_suffix <7 → <8` and the native lock selects `6.0.2 → 7.0.5`. Two clean Ruby 3.4.10/Bundler 2.4.22 targeted resolver replays produced byte-identical locks; the complete lock delta is only the selected version and direct constraint, with the maintained Fastlane fork/revision, Addressable 2.9.0 and other pins unchanged. A separate clean 97-gem install activated `public_suffix 7.0.5`, Addressable 2.9.0 and Fastlane 2.237.0 from the task-owned bundle; no-auth Fastlane version and six consumer/domain/error cases passed. The native guard and 58 fixtures passed. This is compatibility maintenance, not an applicable-CVE remediation or a `public_suffix` security floor. Local narrow gates, actual-diff premortem/Runner, PR/current-head CI/review/readiness, separate human merge decision, same-ID Drive updates, Ruby archive, post-merge proof and #2329 supersession decision remain pending; the parent epic stays open.
   - DEP-AUTO-RUBY-1 carryover and DEP-AUTO-CHECKOUT-1 checkpoint (EN, verified 2026-09-27): [PR #2418](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2418) merged at `0dccc2ee18d5f88d0753a5cdff384838bd080af7` on 2026-09-27T07:24:40Z; its exact-merge [main CI run 36303013150](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/36303013150) completed success. On that base, the checkout maintenance lane replaces the one `actions/checkout` identity in 74 steps across 25 active workflows with verified v7.0.1 commit `3d3c42e5aac5ba805825da76410c181273ba90b1`, updates four existing exact-pin test contracts (including the dependency-submission guard), and adds a finite active-workflow/composite-action inventory guard for the exact 74 uses and 25 checkout-bearing workflows. The local narrow gates, initial actual-diff premortem/Runner, PR #2450 publication, and same-ID Drive checkpoints are complete; current-head CI, exact-material review/seal/readiness, separate human merge decision, final evidence archive, and post-merge proof remain pending. Current-head Python 3.12 CI exposed fallback-test state pollution: the publishing tests left a mock engine and DB selectors behind, causing the planner integration flush to fail. The same PR restores the fallback test class bindings/selectors and verifies the previously failing ordered pair and both modules; the owner authorized 32 files including mapping. CI trust remediation in #2446/#2423 belongs to separate owners and must be confirmed before checkout PR readiness. This is action maintenance, not a CVE-remediation or production-compatibility claim; the parent Dependency Epic remains open.
-  - CAB07A checkpoint (EN, 2026-10-05): The same substantive CLIENT-ARCH-1 carrier replaces only npm:brace-expansion outputs 2.1.4/5.0.9 → 2.1.7/5.0.12, from real P1 `dc97010241233c4d809ad90739c2547555361d10`, with independent exact-base replay and complete ten-advisory/three-applicable proof in [the current owner](../security/CAB07A_NPM_BRACE_EXPANSION_REMEDIATION.md). Genuine dependency-transaction P2 is `279daa90aac3eb16ec59a57f153148168d362fd2`; parent independently confirmed all five Git npm surfaces equal the validated resolver snapshots. Local cutoff/current-guard/native checks and pre-P2 all-files/accepted49+25 Oracle observations are recorded in the owner. Final-material/hosted current-head governance, review and human exact-head merge remain pending; this item and the parent dependency epic stay open.
+  - CAB07A checkpoint (EN, 2026-10-05): The same substantive CLIENT-ARCH-1 carrier replaces only npm:brace-expansion outputs 2.1.4/5.0.9 → 2.1.7/5.0.12, from real P1 `dc97010241233c4d809ad90739c2547555361d10`, with independent exact-base replay and complete ten-advisory/three-applicable proof in [the current owner](../security/CAB07A_NPM_BRACE_EXPANSION_REMEDIATION.md). Genuine dependency-transaction P2 is `279daa90aac3eb16ec59a57f153148168d362fd2`; parent independently confirmed all five Git npm surfaces equal the validated resolver snapshots. Local cutoff/current-guard/native checks and pre-P2 all-files/accepted49+25 Oracle observations are recorded in the owner. CAB07A terminal reconciliation (EN): PR #2468 merged at `2026-10-05T12:06:27Z` as `4c3ead960f74ac714d8a64596e47d932c8f2f7b9`; exact-merge canonical CI [37307261728](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/37307261728) succeeded on attempt 3 and Frontend CI [37307261956](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/37307261956) succeeded on attempt 1. Its execution CLOSED and original QA35/archive receipts are historical evidence; substantive CAB07B reconciles repository records without rerunning predecessor QA or rewriting failures. This item and the parent dependency epic stay open for the separately owned remaining identities.
     Owner: dependency/security + frontend tooling. Priority: P1. Target PR: `PR-TBD-DEPENDENCY-NEXT-SUBSTANTIVE`, requiring its own fresh admission; no automatic new PR or docs-only closeout is authorized.
     Current native audit exited1 with valid report-v2 JSON and brace-expansion absent. It retains 9 keys: braces/high, chokidar/high, dompurify/low, fast-glob/high, jsdom/moderate, jspdf/low, micromatch/high, tailwindcss/high and undici/high (6 high,1 moderate,2 low,0 critical). Historical full P0=13 keys, parent minimal real-P1=8 keys/three brace nodes, and this current 9-key report are distinct contexts; no whole-audit success or same-inventory improvement is claimed.
     Selected native dependency paths are tailwindcss → chokidar/braces and fast-glob/micromatch/braces; jsdom/vitest → undici; jspdf → dompurify. No ESLint/typescript-eslint ancestor appears in that selected projection. This is bounded path evidence, not complete consumer triage or an exemption for test/build dependencies. No other identity action, blanket override, suppression or check weakening is admitted by CAB07A.
@@ -497,6 +498,16 @@ If it is not recorded here — it does not exist.
   - Rollback (EN): Revert the CAB-03 carrier. No database, API, user-data, payment, deployment, or
     asset-source restoration is required.
 
+<a id="ledger-p1-web-color-contrast-browser-coverage"></a>
+- [ ] P1: Add real browser color-contrast coverage for the existing Toggle fixture
+  - Owner: frontend-engineer / qa-engineer-agent
+  - Priority: P1 (test-evidence integrity / accessibility coverage gap)
+  - Target PR: `PR-TBD-WEB-COLOR-CONTRAST-COVERAGE`, dedicated substantive test implementation after fresh admission; no automatic start or docs-only PR
+  - Status: OPEN; the existing JSDOM color-contrast case remains intentionally skipped because JSDOM does not compute the real styles required by axe. Browser coverage is not implemented or claimed.
+  - Reason for deferral (EN): CAB07B restores the truthful existing test/ledger explanation. Building a browser fixture and attaching actual browser execution is a separate implementation outcome, outside the admitted lint cleanup; no observed product contrast violation is established by the missing coverage alone.
+  - Links: `frontend/src/components/__tests__/Accessibility.test.tsx:229`; `frontend/playwright.config.ts:4`; `.github/workflows/accessibility.yml`; [PR #2471](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2471)
+  - DoD: Replace the skipped assurance with an actual browser-rendered Toggle fixture and native axe color-contrast execution; prove a known failing contrast fixture is rejected and the intended fixture passes; attach the check to its owning CI lane and retain exact-head outcomes. Remove the obsolete skipped JSDOM case only after the real browser replacement is proved. Keep absence of coverage distinct from a verified product contrast violation and preserve existing lint/security gates.
+
 <a id="ledger-client-arch-1-continuation"></a>
 - [ ] P1: CLIENT-ARCH-1 / CAB-04–CAB-09 reserved continuation
   - Owner: agent-coordinator (continuation tracking; implementation owners assigned at each admission)
@@ -504,27 +515,45 @@ If it is not recorded here — it does not exist.
   - Target PR: CAB-04 [PR #2408](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2408);
     CAB-05 [PR #2414](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2414);
     CAB-06 [PR #2460](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2460)
-    (`codex/ios-iphone-ipad-ci-matrix`); CAB-07A current substantive implementation
-    (`codex/cab07a-eslint-foundation-api`, [PR #2468](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2468)).
+    (`codex/ios-iphone-ipad-ci-matrix`); CAB-07A merged implementation
+    (`codex/cab07a-eslint-foundation-api`, [PR #2468](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2468));
+    CAB-07B [PR #2471](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2471) (`codex/cab07b-eslint-ui-primitives`).
   - Status: CAB-03, CAB-04 and CAB-05 merged in PR #2381, #2408 and #2414.
     Carryover: CAB-06 merged in PR #2460 at `2026-10-04T20:45:28Z`, commit
     `fb179f54877537b69ddd0ea4bf3d8211268fab82`; its canonical merged-main
     [CI run 37233327985](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/37233327985)
     succeeded. CAB-07A reconciles that repository status in this substantive
-    tooling/API carrier; CAB-07A and CLIENT-ARCH-1 remain open pending their own
-    validation, review, human exact-head merge and terminal evidence. The bounded
+    tooling/API carrier. CAB-07A merged in #2468 at `2026-10-05T12:06:27Z` as
+    `4c3ead960f74ac714d8a64596e47d932c8f2f7b9`; execution is CLOSED, with
+    exact-merge [CI 37307261728](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/37307261728)
+    successful on attempt 3 and
+    [Frontend CI 37307261956](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/37307261956)
+    successful on attempt 1. Original QA35/archive and failure/retry history remain
+    predecessor receipts, not new CAB-07B validation. CLIENT-ARCH-1 remains open.
+    CAB-07B is active under owner-amended CAB07B/v1.4, with exactly twenty-five admitted
+    paths: the existing lint/coverage repair, truthful browser-evidence tracking,
+    the bounded shared component-boundary and Unix-only route-exemption corrections
+    required by native artifact preservation, and real isolated i18n, focus-act and
+    DOM-prop test harness corrections. The same orchestration producer preserves the incoming
+    nine owners plus the affected contract through nine distinct owning test targets.
+    Candidate tests do not promote trusted controls or claim native archive completion.
+    The seventeen intended exclusion classes, five required XML producers/inputs,
+    threshold 97 and merged PR #2466 concurrency/cancellation changes remain required.
+    Its own validation, review,
+    separate human exact-head merge and terminal evidence remain pending. The bounded
     same-PR brace-expansion replacement has separate real-base resolver intent;
     it is not hidden in lint-toolchain closure. The one current
     [CAB07A brace evidence owner](../security/CAB07A_NPM_BRACE_EXPANSION_REMEDIATION.md)
     records real P0/P1/P2, complete ten-record applicability, the distinct brace
     replacement/replay and observed local native/gate proof. Genuine P2 is
     `279daa90aac3eb16ec59a57f153148168d362fd2`, with all five npm surface bytes
-    equal to validated snapshots; final-material/hosted current-head proof,
-    review and human exact-head merge remain pending.
+    equal to validated snapshots; the earlier pending-stage checkpoint is
+    superseded only by CAB-07A's genuine terminal receipts above.
     The owner-admitted
     red-main start exception changes no CAB07A gate. Separate CD/pgvector work
-    retains its existing owner. CAB-07B owns CAB-07A repository closeout after its genuine
-    merge/post-merge receipts; no docs-only or housekeeping PR is planned.
+    retains its existing owner. CAB-07B carries CAB-07A repository closeout here;
+    CAB-07C carries CAB-07B's own actual merge/post-merge repository closeout.
+    No standalone docs-only, backlog-only or housekeeping PR is planned.
   - Reason (EN): Keep the accepted continuation visible without mixing production Swift,
     warning-policy, device-matrix, Web or Mac work into the bounded AppIcon/Release carrier.
   - Links:
@@ -542,14 +571,18 @@ If it is not recorded here — it does not exist.
       processor message without claiming all Xcode output is warning-free.
     - [x] CAB-06: iPhone/iPad CI matrix and TARGETED_DEVICE_FAMILY cleanup;
       merged in #2460 with the canonical main CI receipt above.
-    - [ ] CAB-07A: restore directly owned ESLint, mandatory production API/foundation
-      lint/native controls and preserved transport regressions; remediate the one
-      admitted npm:brace-expansion identity with separate recorded real-base intent.
-    - [ ] CAB-07B: next substantive UI-primitives lint slice and CAB-07A repository
-      closeout from genuine merge/post-merge receipts; fresh admission required.
-    - [ ] CAB-07C: later pages/features lint cohort; preserve product semantics.
+    - [x] CAB-07A: directly owned ESLint, mandatory production API/foundation
+      lint/native controls, preserved transport regressions and the one admitted
+      npm:brace-expansion replacement merged in #2468; terminal receipts above.
+    - [ ] CAB-07B: active UI-primitives lint cleanup and mandatory recursive cohort
+      in the existing Frontend CI, carrying CAB-07A repository reconciliation.
+      Own current-head gates, separate human merge and terminal proof remain pending.
+    - [ ] CAB-07C: next substantive pages/features lint cohort plus CAB-07B repository
+      closeout from actual merge/post-merge receipts; preserve product semantics.
+      Fresh admission required; no separate docs-only closeout PR.
     - [ ] CAB-07D: later complete mandatory frontend lint coverage. Preserve the
-      original full/frontend and API-test diagnostic inventories for these slices;
+      original full/frontend and five residual API-test diagnostics for these slices;
+      CAB-07D stays open until those and every admitted remaining surface are closed.
       CAB-07A's production result is not whole-frontend cleanliness.
     - [ ] CAB-08: Web bundle work; exact scope and DoD require its own admission.
     - [ ] CAB-09: Mac Catalyst/macOS admission; no platform support is changed by CAB-03.
@@ -15591,3 +15624,12 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 **Last updated:** 2026-07-27 (legacy guard remains; provider retirement ownership transferred)
 **Maintainer:** @katsiaryna_kavaleuskaya
 <!-- markdownlint-enable MD013 -->
+
+<a id="ledger-p2-guard-context-match-crossproduct-guidance"></a>
+- [ ] **P2 — Review guard match-form/context cross-product guidance in the next substantive orchestration implementation PR**
+  - **Owner:** agent-coordinator + logic-agent.
+  - **Priority:** P2.
+  - **Target PR:** Next substantive orchestration implementation PR after fresh admission; no automatic docs-only PR.
+  - **Reason for deferral:** CAB-07B's actual same-recognizer Security finding showed the pre-fix pass named Windows/tilde rejection but missed the route-context × match-form cross-product. The current shared conditional and real native-consumer regressions own the defect closure; instruction promotion is separate and outside this bounded implementation.
+  - **Source/evidence:** `scripts/orchestration/experiment_runner_pr_creative_context_contract.py:265`, `scripts/orchestration/experiment_runner_pr_creative_context.py:875`, `.cursor/agents/logic-agent.md`, and CAB-07B PR #2471's reviewed native before/after controls and redacted learning proposal.
+  - **DoD:** Review the smallest authoritative logic-role guidance against the current finite recognizer alternatives, exemptions and deny-before-exemption control flow; require explicit representative context × match-form counterexamples and actual canonical-consumer observations while retaining finite/open-world claim limits. Promote only a reviewed, non-duplicative instruction delta in that substantive PR; preserve current guard ownership, source-reading requirements, provider-neutral evidence and human authority. Do not introduce another parser, carrier, validator family or runtime framework.
