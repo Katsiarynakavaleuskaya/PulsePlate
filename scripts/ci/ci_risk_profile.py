@@ -116,6 +116,7 @@ BACKEND_SHARED_EXACT: tuple[str, ...] = (
     "scripts/ops/ops_context_report.py",
     "scripts/ops/staging_runtime_diagnostics.py",
     "scripts/ops/resource_cost_report.py",
+    "scripts/ops/resource_evidence_report.py",
     "requirements.txt",
 )
 # Provider implementations can change auth, network, or model routing behavior,
@@ -276,11 +277,14 @@ RISK_GROUP_PATTERNS: dict[str, tuple[str, ...]] = {
         "scripts/orchestration/check_agent_consistency.py",
         "scripts/orchestration/check_merge_ready.py",
         "scripts/orchestration/check_review_threads_disposition.py",
+        "scripts/orchestration/pr_review_evidence.py",
+        "scripts/orchestration/pr_review_closeout.py",
         "tests/test_check_pr_size_governance.py",
         "tests/test_ci_risk_profile.py",
         "tests/test_orchestration_merge_ready.py",
         "tests/test_pr_body_phase2_gates.py",
         "tests/test_pr_merge_readiness_gate.py",
+        "tests/test_pr_review_closeout.py",
         "tests/test_review_threads_disposition_strict.py",
     ),
     "operator_plane_slack": (
