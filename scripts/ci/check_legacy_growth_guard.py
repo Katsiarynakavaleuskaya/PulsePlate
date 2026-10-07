@@ -3597,11 +3597,15 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             self.string_snapshots[node_id] = current_strings
 
     def _record_outward_api_key_rebinding(self, name: str) -> None:
-        if (
-            self.filename != LEGACY_APP
-            or not self._active_function_replays
-            or name not in CANONICAL_API_KEY_SYMBOLS
+        if self.filename != LEGACY_APP or name not in CANONICAL_API_KEY_SYMBOLS:
+            return
+        execution_scope = self.scope
+        while (
+            execution_scope.scope_kind in {"class", "type_parameters"}
+            and execution_scope.parent is not None
         ):
+            execution_scope = execution_scope.parent
+        if not self._active_function_replays and execution_scope.scope_kind != "module":
             return
         target = self._active_outward_targets_for_scope(self.scope).get(name)
         if target is None or target.scope_kind != "module":
@@ -10405,6 +10409,8 @@ def _mutates_protected_namespace(
     references: Mapping[str, str],
     static_string_bindings: Mapping[str, str],
     static_mapping_bindings: Mapping[str, ast.Dict],
+    name_resolver: Callable[[ast.AST], str | None] | None = None,
+    name_predicate: Callable[[str | None], bool] | None = None,
 ) -> bool:
     arguments = list(node.args)
     if isinstance(node.func, ast.Attribute) and _is_object_namespace_mapping(
@@ -10434,7 +10440,15 @@ def _mutates_protected_namespace(
         method_name = function_reference.removeprefix(dict_method_prefix)
         arguments = arguments[1:]
     if method_name in {"__ior__", "update"}:
-        if any(keyword.arg in protected_names for keyword in node.keywords):
+        if any(
+            (
+                name_predicate(keyword.arg)
+                if name_predicate is not None
+                else keyword.arg in protected_names
+            )
+            for keyword in node.keywords
+            if keyword.arg is not None
+        ):
             return True
         mapping_arguments = [
             *arguments,
@@ -10446,6 +10460,8 @@ def _mutates_protected_namespace(
                 protected_names=protected_names,
                 static_string_bindings=static_string_bindings,
                 static_mapping_bindings=static_mapping_bindings,
+                name_resolver=name_resolver,
+                name_predicate=name_predicate,
             ):
                 return True
         return False
@@ -10453,8 +10469,14 @@ def _mutates_protected_namespace(
         return True
     if method_name in {"__delitem__", "__setitem__", "pop", "setdefault"}:
         if not arguments:
-            return True
-        key_name = _resolve_static_string(arguments[0], static_string_bindings)
+            return name_resolver is None
+        key_name = (
+            name_resolver(arguments[0])
+            if name_resolver is not None
+            else _resolve_static_string(arguments[0], static_string_bindings)
+        )
+        if name_predicate is not None:
+            return name_predicate(key_name)
         return key_name is None or key_name in protected_names
     return False
 
@@ -10465,15 +10487,27 @@ def _mapping_may_mutate_protected_namespace(
     protected_names: AbstractSet[str],
     static_string_bindings: Mapping[str, str],
     static_mapping_bindings: Mapping[str, ast.Dict],
+    name_resolver: Callable[[ast.AST], str | None] | None = None,
+    name_predicate: Callable[[str | None], bool] | None = None,
 ) -> bool:
     mapping = _resolve_static_mapping(node, static_mapping_bindings)
     if mapping is None:
-        return True
+        return name_resolver is None
     for key, _value in mapping:
         if key is None:
-            return True
-        resolved_key = _resolve_static_string(key, static_string_bindings)
-        if resolved_key is None or resolved_key in protected_names:
+            if name_resolver is None:
+                return True
+            continue
+        resolved_key = (
+            name_resolver(key)
+            if name_resolver is not None
+            else _resolve_static_string(key, static_string_bindings)
+        )
+        if (
+            name_predicate(resolved_key)
+            if name_predicate is not None
+            else resolved_key is None or resolved_key in protected_names
+        ):
             return True
     return False
 
@@ -11584,6 +11618,39 @@ def _record_main_legacy_openapi_lookups(tree: ast.Module, errors: list[str]) -> 
             errors.append(f"{CANONICAL_MAIN}: OpenAPI symbol must not be accessed through legacy")
         elif isinstance(node, ast.Call):
             function_reference = own_reference(node.func)
+            unbound_mutator = function_reference in {
+                "builtins.dict.__setitem__",
+                "builtins.dict.update",
+            }
+            mutation_receiver = (
+                node.args[0]
+                if unbound_mutator and node.args
+                else (
+                    node.func.value
+                    if isinstance(node.func, ast.Attribute)
+                    and node.func.attr in {"__setitem__", "update"}
+                    else None
+                )
+            )
+            if (
+                mutation_receiver is not None
+                and select_own_environment(node.func)
+                and evaluator._is_legacy_namespace_reference(own_reference(mutation_receiver))
+                and all(select_own_environment(keyword.value) for keyword in node.keywords)
+                and _mutates_protected_namespace(
+                    node,
+                    protected_names=CANONICAL_OPENAPI_SYMBOLS,
+                    references=references[id(node.func)],
+                    static_string_bindings=strings[id(node.func)],
+                    static_mapping_bindings={},
+                    name_resolver=own_string,
+                    name_predicate=evaluator._is_protected_ownership_symbol,
+                )
+            ):
+                errors.append(
+                    f"{CANONICAL_MAIN}: OpenAPI symbol must not be accessed through legacy"
+                )
+                continue
             if (
                 function_reference
                 in {

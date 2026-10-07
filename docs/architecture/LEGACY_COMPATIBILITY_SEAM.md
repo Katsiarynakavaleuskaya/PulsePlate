@@ -51,7 +51,7 @@ The separate protected set also includes `api_key_header`, `validate_app_api_key
 and `require_app_api_key`; protection does not authorize additional re-exports.
 Wrappers or mutable legacy-owned warning state would break FastAPI dependency
 identity. The strict source witness and absolute-import boundary are enforced by
-`scripts/ci/check_legacy_growth_guard.py:9822`.
+`scripts/ci/check_legacy_growth_guard.py:9826`.
 
 Application metadata is canonically owned by
 `app/application_metadata.py:56` and constructed through the environment-aware
@@ -762,7 +762,7 @@ closed families and absorbing possible markers in the existing join. The
 OpenAPI family is the exact seven compatibility names or a name containing
 `openapi` after case folding. Receiver, member and builtin-callee provenance
 remain independent, including deferred/local/nonlocal and postponed-annotation
-contexts (`scripts/ci/check_legacy_growth_guard.py:11535`). Protected attribute
+contexts (`scripts/ci/check_legacy_growth_guard.py:11569`). Protected attribute
 and namespace writes and deletions use the target's own evidence as well as
 the receiver and member evidence; comprehension targets remain local while
 genuine containing-scope protected-name bindings remain rejected.
@@ -787,11 +787,11 @@ receive independent detached ownership-audit evidence without changing ordinary
 execution or transferring effects between independent lazy expressions.
 Ordinary method bodies retain parameter masks without inheriting class-only
 visibility (`scripts/ci/check_legacy_growth_guard.py:2843`,
-`scripts/ci/check_legacy_growth_guard.py:5441`). Eager versus postponed annotations
+`scripts/ci/check_legacy_growth_guard.py:5445`). Eager versus postponed annotations
 and positional/keyword defaults preserve their current execution boundary.
 These source witnesses do not establish configured keys or runtime authorization
 (`scripts/ci/check_legacy_growth_guard.py:3049`,
-`scripts/ci/check_legacy_growth_guard.py:9822`).
+`scripts/ci/check_legacy_growth_guard.py:9826`).
 
 Resolved matching tuple/list/nested local assignments preserve their mapping
 identity through the existing paired binder; generic collection escapes and
@@ -799,13 +799,13 @@ unmatched/starred constructions retain their separate conservative handling.
 Actual class members invalidate shared mapping identity before class-scope
 restoration, excluding global/nonlocal declarations and avoiding repeated
 invalidation of already-removed aliases. Copied mappings and ordered snapshots
-remain distinct (`scripts/ci/check_legacy_growth_guard.py:5227`,
-`scripts/ci/check_legacy_growth_guard.py:6041`). Built-in `vars`, the finite
+remain distinct (`scripts/ci/check_legacy_growth_guard.py:5231`,
+`scripts/ci/check_legacy_growth_guard.py:6045`). Built-in `vars`, the finite
 `dict.get`, `dict.__getitem__`, `dict.pop` and `dict.setdefault` method set, and
 stored namespace methods retain actual legacy-namespace provenance in the
 existing reference/call seams; shadowed builtins, unrelated receivers and safe
 member names remain independent controls. The per-loop 32 and total 128 transfer
-budgets are unchanged (`scripts/ci/check_legacy_growth_guard.py:4449`). These
+budgets are unchanged (`scripts/ci/check_legacy_growth_guard.py:4453`). These
 bounded repairs preserve the original independent 87-name baseline plus the
 inherited four-name subset. The eight utility names inherited from main extend
 that preserved 91-name prefix to the current exact 99-name inventory. This

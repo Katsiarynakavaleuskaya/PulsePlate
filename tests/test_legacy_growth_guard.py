@@ -19022,3 +19022,302 @@ def test_consol_valued_annassign_keeps_real_local_receiver_boundary(target_kind:
     )
     compile(source, "<valued-annassign-local-receiver-fixture>", "exec")
     assert _consol_openapi_errors(source) == []
+
+
+@pytest.mark.parametrize("symbol", (*_CONSOL_OPENAPI_SYMBOLS, "CustomOPENapiHook"))
+@pytest.mark.parametrize("method", ["setitem", "update-mapping", "update-keyword"])
+@pytest.mark.parametrize("context", ["module", "invoked-helper"])
+def test_consol_openapi_namespace_writes_cover_full_inventory_and_executed_helpers(
+    symbol: str, method: str, context: str
+) -> None:
+    statement = (
+        f"legacy.__dict__.__setitem__({symbol!r}, None)\n"
+        if method == "setitem"
+        else (
+            f"legacy.__dict__.update({{{symbol!r}: None}})\n"
+            if method == "update-mapping"
+            else f"legacy.__dict__.update({symbol}=None)\n"
+        )
+    )
+    source = "import legacy_app as legacy\n"
+    source += (
+        statement
+        if context == "module"
+        else "def mutate():\n" + textwrap.indent(statement, "    ") + "mutate()\n"
+    )
+    compile(source, "<openapi-namespace-write-inventory-fixture>", "exec")
+    assert _consol_openapi_errors(source) == [
+        "app/main.py: OpenAPI symbol must not be accessed through legacy"
+    ]
+
+
+@pytest.mark.parametrize(
+    ("setup", "statement"),
+    [
+        pytest.param("", "vars(legacy).__setitem__(member, None)\n", id="computed-vars-setitem"),
+        pytest.param("", "vars(legacy).update({member: None})\n", id="computed-vars-update"),
+        pytest.param("", "dict.__setitem__(vars(legacy), member, None)\n", id="unbound-setitem"),
+        pytest.param("", "dict.update(vars(legacy), {member: None})\n", id="unbound-update"),
+        pytest.param(
+            "pick = dict.__setitem__\n",
+            "pick(vars(legacy), member, None)\n",
+            id="stored-unbound-setitem",
+        ),
+        pytest.param(
+            "pick = dict.update\n",
+            "pick(vars(legacy), {member: None})\n",
+            id="stored-unbound-update",
+        ),
+        pytest.param(
+            "import builtins as bi\n",
+            "bi.dict.update(vars(legacy), {member: None})\n",
+            id="qualified-dict-update",
+        ),
+    ],
+)
+def test_consol_openapi_namespace_writes_preserve_supported_receiver_and_builtin_forms(
+    setup: str, statement: str
+) -> None:
+    source = (
+        "import legacy_app as legacy\nmember = '_install_openapi_builder'\n" + setup + statement
+    )
+    compile(source, "<openapi-namespace-write-provenance-fixture>", "exec")
+    assert _consol_openapi_errors(source) == [
+        "app/main.py: OpenAPI symbol must not be accessed through legacy"
+    ]
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        pytest.param(
+            "import legacy_app as legacy\nlegacy.__dict__.update(other=None)\n", id="safe-keyword"
+        ),
+        pytest.param(
+            "import legacy_app as legacy\nlegacy.__dict__.__setitem__('other', None)\n",
+            id="safe-key",
+        ),
+        pytest.param(
+            "namespace = {}\nnamespace.update({'_install_openapi_builder': None})\n",
+            id="unrelated-mapping",
+        ),
+        pytest.param(
+            "import app.bootstrap.openapi as canonical\nvars(canonical).update({'_install_openapi_builder': None})\n",
+            id="canonical-namespace",
+        ),
+        pytest.param(
+            "import legacy_app as legacy\nclass Other:\n    def update(self, namespace, changes):\n"
+            "        pass\ndict = Other()\ndict.update(vars(legacy), {'_install_openapi_builder': None})\n",
+            id="shadowed-dict-method",
+        ),
+        pytest.param(
+            "import legacy_app as legacy\ndef vars(receiver):\n    return {}\n"
+            "vars(legacy).__setitem__('_install_openapi_builder', None)\n",
+            id="shadowed-vars",
+        ),
+        pytest.param(
+            "import legacy_app as legacy\nimport app.bootstrap.openapi as canonical\n"
+            "def mutate(legacy):\n    vars(legacy).update({'_install_openapi_builder': None})\n"
+            "mutate(canonical)\n",
+            id="real-local-receiver",
+        ),
+    ],
+)
+def test_consol_openapi_namespace_write_controls_require_actual_legacy_identity(
+    source: str,
+) -> None:
+    compile(source, "<openapi-namespace-write-control-fixture>", "exec")
+    assert _consol_openapi_errors(source) == []
+
+
+@pytest.mark.parametrize("invoked", [False, True])
+def test_consol_openapi_namespace_write_audit_keeps_ordinary_dormant_effects_separate(
+    invoked: bool,
+) -> None:
+    source = (
+        "import legacy_app as legacy\nstate = 'unchanged'\ndef mutate():\n"
+        "    legacy.__dict__.update({'_install_openapi_builder': None})\n"
+        "    global state\n    state = 'changed'\n" + ("mutate()\n" if invoked else "")
+    )
+    compile(source, "<openapi-namespace-write-purpose-fixture>", "exec")
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="app/main.py", errors=[], analyze_function_bodies=False, ownership_family="openapi"
+    )
+    visitor.visit(ast.parse(source))
+    assert visitor.scope.resolve_string("state") == ("changed" if invoked else "unchanged")
+    assert _consol_openapi_errors(source) == [
+        "app/main.py: OpenAPI symbol must not be accessed through legacy"
+    ]
+
+
+@pytest.mark.parametrize("initially_legacy", [True, False])
+@pytest.mark.parametrize("method", ["setitem", "update"])
+def test_consol_openapi_namespace_write_receiver_precedes_key_effects(
+    initially_legacy: bool, method: str
+) -> None:
+    source = (
+        "import legacy_app as genuine\nimport app.bootstrap.openapi as canonical\n"
+        + f"legacy = {'genuine' if initially_legacy else 'canonical'}\n"
+        + "def member():\n    global legacy\n"
+        + f"    legacy = {'canonical' if initially_legacy else 'genuine'}\n"
+        + "    return '_install_openapi_builder'\n"
+        + (
+            "legacy.__dict__.__setitem__(member(), None)\n"
+            if method == "setitem"
+            else "legacy.__dict__.update({member(): None})\n"
+        )
+    )
+    compile(source, "<openapi-namespace-write-order-fixture>", "exec")
+    diagnostic = "app/main.py: OpenAPI symbol must not be accessed through legacy"
+    assert _consol_openapi_errors(source) == ([diagnostic] if initially_legacy else [])
+
+
+@pytest.mark.parametrize("method", ["setitem", "update"])
+@pytest.mark.parametrize("component", ["call", "callee", "receiver", "key"])
+@pytest.mark.parametrize("snapshot_kind", ["reference", "string"])
+def test_consol_openapi_namespace_writes_require_own_call_and_key_evidence(
+    method: str, component: str, snapshot_kind: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    collect = legacy_guard._collect_lexical_binding_snapshots
+    selected_nodes: list[int] = []
+    method_name = "__setitem__" if method == "setitem" else "update"
+
+    def collect_without_component(tree: ast.Module, **kwargs: Any) -> tuple[
+        Mapping[int, Mapping[str, str]],
+        Mapping[int, Mapping[str, str]],
+        Mapping[int, legacy_guard._ResolvedBinding],
+    ]:
+        references, strings, results = collect(tree, **kwargs)
+        selected: set[int] = set()
+        for node in ast.walk(tree):
+            if not (
+                isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Attribute)
+                and node.func.attr == method_name
+            ):
+                continue
+            if component == "call":
+                selected.add(id(node))
+            elif component == "callee":
+                selected.add(id(node.func))
+            elif component == "receiver":
+                selected.add(id(node.func.value))
+            else:
+                key = node.args[0] if method == "setitem" else cast(ast.Dict, node.args[0]).keys[0]
+                assert key is not None
+                selected.add(id(key))
+        selected_nodes.extend(selected)
+        if snapshot_kind == "reference":
+            references = {key: value for key, value in references.items() if key not in selected}
+        else:
+            strings = {key: value for key, value in strings.items() if key not in selected}
+        return references, strings, results
+
+    monkeypatch.setattr(
+        legacy_guard, "_collect_lexical_binding_snapshots", collect_without_component
+    )
+    source = "import legacy_app as legacy\nmember = '_install_openapi_builder'\n" + (
+        "legacy.__dict__.__setitem__(member, None)\n"
+        if method == "setitem"
+        else "legacy.__dict__.update({member: None})\n"
+    )
+    compile(source, "<openapi-namespace-write-own-evidence-fixture>", "exec")
+    assert _consol_openapi_errors(source) == []
+    assert selected_nodes, "the actual namespace call component must be selected for omission"
+
+
+@pytest.mark.parametrize("symbol", _CONSOL_API_KEY_SYMBOLS)
+@pytest.mark.parametrize("operation", ["assignment", "delete"])
+def test_consol_class_global_api_rebinding_covers_full_protected_inventory(
+    symbol: str, operation: str
+) -> None:
+    statement = f"{symbol} = None\n" if operation == "assignment" else f"del {symbol}\n"
+    source = (
+        _CONSOL_GETTER_IMPORTS
+        + f"class Scope:\n    global {symbol}\n"
+        + textwrap.indent(statement, "    ")
+    )
+    compile(source, "<class-global-protected-binding-fixture>", "exec")
+    assert _validate_api_key_dependency_ownership(source, {}) == [
+        _CONSOL_API_KEY_REBINDING_ERRORS[symbol]
+    ]
+
+
+@pytest.mark.parametrize(
+    ("body", "invocation", "forbidden"),
+    [
+        pytest.param(
+            "class Scope:\n    global require_app_api_key\n    if enabled:\n"
+            "        require_app_api_key = None\n",
+            "",
+            True,
+            id="conditional-class-global",
+        ),
+        pytest.param(
+            "class Outer:\n    class Inner:\n        global require_app_api_key\n"
+            "        require_app_api_key = None\n",
+            "",
+            True,
+            id="nested-class-global",
+        ),
+        pytest.param(
+            "def configure():\n    class Scope:\n        global require_app_api_key\n"
+            "        require_app_api_key = None\n",
+            "",
+            False,
+            id="uncalled-class-wrapper",
+        ),
+        pytest.param(
+            "def configure():\n    class Scope:\n        global require_app_api_key\n"
+            "        require_app_api_key = None\n",
+            "configure()\n",
+            True,
+            id="called-class-wrapper",
+        ),
+        pytest.param(
+            "class Scope:\n    global require_app_api_key\n",
+            "",
+            False,
+            id="global-declaration-only",
+        ),
+        pytest.param(
+            "class Scope:\n    global unrelated\n    unrelated = None\n",
+            "",
+            False,
+            id="unrelated-global",
+        ),
+        pytest.param(
+            "def configure():\n    require_app_api_key = None\n    class Scope:\n"
+            "        nonlocal require_app_api_key\n        require_app_api_key = object\n",
+            "configure()\n",
+            False,
+            id="genuine-enclosing-nonlocal",
+        ),
+    ],
+)
+def test_consol_class_outward_api_reporting_preserves_execution_and_real_owner_boundaries(
+    body: str, invocation: str, forbidden: bool
+) -> None:
+    source = _CONSOL_GETTER_IMPORTS + body + invocation
+    compile(source, "<class-outward-execution-boundary-fixture>", "exec")
+    expected = [_CONSOL_API_KEY_REBINDING_ERRORS["require_app_api_key"]] if forbidden else []
+    assert _validate_api_key_dependency_ownership(source, {}) == expected
+
+
+@pytest.mark.parametrize("symbol", _CONSOL_API_KEY_SYMBOLS)
+@pytest.mark.parametrize("operation", ["assignment", "valued-annotation", "delete"])
+def test_consol_class_local_api_spellings_are_not_module_rebindings(
+    symbol: str, operation: str
+) -> None:
+    statement = (
+        f"{symbol}: object = None\n"
+        if operation == "valued-annotation"
+        else (
+            f"{symbol} = None\n"
+            if operation == "assignment"
+            else f"{symbol} = None\ndel {symbol}\n"
+        )
+    )
+    source = _CONSOL_GETTER_IMPORTS + "class Scope:\n" + textwrap.indent(statement, "    ")
+    compile(source, "<class-local-protected-spelling-fixture>", "exec")
+    assert _validate_api_key_dependency_ownership(source, {}) == []
