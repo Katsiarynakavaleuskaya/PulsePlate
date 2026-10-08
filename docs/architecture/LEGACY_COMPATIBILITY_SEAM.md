@@ -372,7 +372,8 @@ not repeat #2475 reconciliation or import #2476's algorithmic repair.
 
 ## Legacy BMI Python export retirement
 
-The admitted `LEGACY-BMI-PYTHON-EXPORT-RETIREMENT-1/v1` child removes exactly
+The admitted `LEGACY-BMI-PYTHON-EXPORT-RETIREMENT-1/v1` child
+([PR #2483](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2483)) removes exactly
 `BMIRequest`, `BMIRequestV1`, `MATPLOTLIB_AVAILABLE`,
 `generate_bmi_visualization`, `add_visualization_if_requested`,
 `_BMI_COMPAT_REEXPORTS`, and `_BMI_SCHEMA_COMPAT_REEXPORTS` from ordinary

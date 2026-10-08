@@ -9698,7 +9698,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] **Legacy BMI schema and visualization export removal successor (LEGACY-BMI-PYTHON-EXPORT-RETIREMENT-1/v1)**
   - Owner: @katsiaryna_kavaleuskaya (backend and Legacy consolidation)
   - Priority: P1
-  - Target PR: PR-TBD-LEGACY-BMI-PYTHON-EXPORT-RETIREMENT (`codex/retire-legacy-bmi-schema-visualization-exports`)
+  - Target PR: [PR #2483](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2483) (`codex/retire-legacy-bmi-schema-visualization-exports`)
   - Status: Admitted implementation in progress; exact seven-binding removal and prior99-to106 inventories are under own validation. Incoming PR #2478 terminal repository-doc reconciliation is carried once in this substantive child. Own gates/review/Oracle/current-head CI and separately authorized merge/post-main/archive/continuity/cleanup/outgoing remain pending; PROJECT_LEGACY stays OPEN. Operator explicitly permits continuation from pending main while another employee monitors it; this lane-specific start exception transfers no main PASS, readiness or merge authority.
   - Area: Legacy Python export retirement
   - Reason (EN): PR #2478 completed its prerequisite lifecycle; this successor received fresh consumer census and ownership admission. No predetermined #2476 wait or transfer of its algorithmic repair follows. Completed #2475 reconciliation must not be repeated.
