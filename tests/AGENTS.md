@@ -23,6 +23,11 @@
   isolate inherited commit-hook Git state. Regressions must point inherited
   Git variables at a separate synthetic parent and preserve its config, HEAD
   and existing index bytes; never use the real checkout as the negative fixture.
+- Before copying an isolated fixture's `.git` directory, disable automatic
+  housekeeping locally with `maintenance.auto=false` and `gc.auto=0` before
+  its first object-writing Git command. Preserve the existing sanitized
+  environment, config clamps and complete copy/admission assertions; do not
+  repair copy races by ignoring disappearing Git lock files.
 - The [docs path-leakage guard](guards/test_security_devtooling_regression_guards.py)
   checks the proposed Git index only for local `PRE_COMMIT=1` with empty
   `CI` and `GITHUB_ACTIONS`; it requires a real `origin/main` merge-base and
