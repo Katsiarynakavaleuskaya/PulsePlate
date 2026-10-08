@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 from collections.abc import Iterator
+from copy import deepcopy
+from functools import lru_cache
+import io
 import fnmatch
 import hashlib
 import json
@@ -492,10 +495,100 @@ def _load_ci_workflow() -> dict[str, object]:
     return _load_workflow(CI_WORKFLOW_PATH)
 
 
-def _load_workflow(path: Path) -> dict[str, object]:
-    workflow = yaml.safe_load(path.read_text(encoding="utf-8"))
+@lru_cache(maxsize=8)
+def _parse_workflow_bytes(raw: bytes) -> dict[str, object]:
+    with io.TextIOWrapper(io.BytesIO(raw), encoding="utf-8") as source:
+        workflow = yaml.safe_load(source.read())
     assert isinstance(workflow, dict)
     return workflow
+
+
+def _load_workflow(path: Path) -> dict[str, object]:
+    return deepcopy(_parse_workflow_bytes(path.read_bytes()))
+
+
+def test_workflow_parse_reuse_reads_fresh_bytes_and_returns_isolated_alias_graphs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = tmp_path / "workflow.yml"
+    path.write_bytes(b"items: &shared\r\n  - nested: [one]\r\nalias: *shared\r\n")
+    _parse_workflow_bytes.cache_clear()
+    original_load = yaml.safe_load
+    observed: list[str] = []
+
+    def observe_load(source: str) -> object:
+        observed.append(source)
+        return original_load(source)
+
+    monkeypatch.setattr(yaml, "safe_load", observe_load)
+    try:
+        first = _load_workflow(path)
+        second = _load_workflow(path)
+        assert len(observed) == 1 and "\r" not in observed[0]
+        assert first["items"] is first["alias"] and second["items"] is second["alias"]
+        assert first["items"] is not second["items"]
+        cast(list[dict[str, list[str]]], first["items"])[0]["nested"].append("mutated")
+        assert cast(list[dict[str, list[str]]], second["items"])[0]["nested"] == ["one"]
+        stat = path.stat()
+        path.write_bytes(b"items: &shared\n  - nested: [two]\nalias: *shared\n")
+        os.utime(path, ns=(stat.st_atime_ns, stat.st_mtime_ns))
+        changed = _load_workflow(path)
+        assert len(observed) == 2 and cast(list[dict[str, list[str]]], changed["items"])[0][
+            "nested"
+        ] == ["two"]
+        original_read = Path.read_bytes
+
+        def unreadable(candidate: Path) -> bytes:
+            if candidate == path:
+                raise PermissionError("synthetic unreadable workflow")
+            return original_read(candidate)
+
+        with monkeypatch.context() as read_failure:
+            read_failure.setattr(Path, "read_bytes", unreadable)
+            with pytest.raises(PermissionError, match="synthetic unreadable"):
+                _load_workflow(path)
+        path.unlink()
+        with pytest.raises(FileNotFoundError):
+            _load_workflow(path)
+    finally:
+        _parse_workflow_bytes.cache_clear()
+
+
+@pytest.mark.parametrize(
+    "invalid_bytes,error",
+    [(b"\xff", UnicodeDecodeError), (b"jobs: [", yaml.YAMLError), (b"- scalar", AssertionError)],
+)
+def test_workflow_parse_reuse_preserves_decode_parse_and_shape_errors(
+    tmp_path: Path, invalid_bytes: bytes, error: type[Exception]
+) -> None:
+    path = tmp_path / "workflow.yml"
+    _parse_workflow_bytes.cache_clear()
+    try:
+        path.write_text("jobs: {}\n")
+        assert _load_workflow(path) == {"jobs": {}}
+        path.write_bytes(invalid_bytes)
+        for _ in range(2):
+            with pytest.raises(error):
+                _load_workflow(path)
+        assert _parse_workflow_bytes.cache_info().currsize == 1
+    finally:
+        _parse_workflow_bytes.cache_clear()
+
+
+def test_workflow_parse_reuse_evicts_after_eight_exact_byte_entries(tmp_path: Path) -> None:
+    path = tmp_path / "workflow.yml"
+    _parse_workflow_bytes.cache_clear()
+    try:
+        for value in range(9):
+            path.write_text(f"value: {value}\n")
+            assert _load_workflow(path) == {"value": value}
+        info = _parse_workflow_bytes.cache_info()
+        assert info.currsize == info.maxsize == 8 and info.misses == 9
+        path.write_text("value: 0\n")
+        assert _load_workflow(path) == {"value": 0}
+        assert _parse_workflow_bytes.cache_info().misses == 10
+    finally:
+        _parse_workflow_bytes.cache_clear()
 
 
 _METADATA_MATERIAL_CONCURRENCY_GROUP = (
@@ -4378,8 +4471,14 @@ def test_closeout_owner_is_an_executed_merge_governance_argument(
         "#!"
         + sys.executable
         + "\n"
-        + "import json, sys\nfrom pathlib import Path\n"
-        + 'Path("observed-argv.json").write_text(json.dumps(sys.argv[1:]))\n',
+        + "import json, os, sys\nfrom pathlib import Path\n"
+        + "args = sys.argv[1:]\n"
+        + 'if args[:3] == ["-m", "coverage", "run"]:\n'
+        + '    Path("observed-argv.json").write_text(json.dumps(args))\n'
+        + '    Path(os.environ["COVERAGE_FILE"]).write_text("batch data")\n'
+        + 'elif args[:5] == ["-W", "error", "-m", "coverage", "combine"]:\n'
+        + '    Path("observed-combine.json").write_text(json.dumps(args))\n'
+        + "else:\n    raise SystemExit(91)\n",
         encoding="utf-8",
     )
     observer.chmod(0o755)
@@ -4391,6 +4490,8 @@ def test_closeout_owner_is_an_executed_merge_governance_argument(
         env={
             "PATH": str(tmp_path) + os.pathsep + os.defpath,
             "CONTRACT_RISK_GROUPS": "merge_governance",
+            "RUNNER_TEMP": str(tmp_path / "runner-temp"),
+            "CONTRACT_RISK_CLEANUP_SECONDS": str(workflow["env"]["CONTRACT_RISK_CLEANUP_SECONDS"]),
             "GH_TOKEN": "opaque",
             "GITHUB_TOKEN": "opaque",
         },
@@ -4416,8 +4517,19 @@ def test_closeout_owner_is_an_executed_merge_governance_argument(
         "no:xdist",
         *sorted(expected),
         "--junitxml=tests/contract-results-1.xml",
+        f"--basetemp={tmp_path / 'runner-temp' / 'contract-risk' / 'batch-1'}",
         "-o",
         "junit_family=legacy",
+    ]
+    assert json.loads((tmp_path / "observed-combine.json").read_text()) == [
+        "-W",
+        "error",
+        "-m",
+        "coverage",
+        "combine",
+        "--append",
+        "--keep",
+        ".coverage.contract-risk-1",
     ]
 
 
@@ -4444,8 +4556,296 @@ def test_contract_risk_suite_ignores_commented_db_target(job_id: str) -> None:
     assert target not in route_targets
 
 
+@pytest.mark.parametrize("job_id", ["test-pr", "test-feature"])
+@pytest.mark.parametrize(
+    "failed_batch,missing_data,terminate_run,stale_data",
+    [
+        (0, 0, False, False),
+        (1, 0, False, False),
+        (2, 0, False, False),
+        (0, 2, False, False),
+        (0, 0, True, False),
+        (0, 0, False, True),
+        (0, 0, "ignore", False),
+    ],
+)
+def test_contract_batches_wait_all_statuses_and_combine_only_complete_isolated_inventory(
+    tmp_path: Path,
+    job_id: str,
+    failed_batch: int,
+    missing_data: int,
+    terminate_run: bool | str,
+    stale_data: bool,
+) -> None:
+    """Run the actual paired shell steps with rendezvous, real SQLite and failure controls."""
+    import sys
+
+    workflow = _load_ci_workflow()
+    step = _job_step_by_name(workflow, job_id=job_id, step_name="Contract and risk suites")
+    groups = _contract_suite_targets_by_group(workflow, job_id=job_id)
+    expected_targets = sorted({target for targets in groups.values() for target in targets})
+    batch_count = (len(expected_targets) + 23) // 24
+    assert batch_count >= 3
+    events = tmp_path / "events"
+    events.mkdir()
+    (tmp_path / ".coverage").write_text("existing smoke coverage")
+    if stale_data:
+        (tmp_path / ".coverage.contract-risk-1").write_text("stale batch data")
+    observer = tmp_path / "python"
+    observer.write_text(
+        "#!"
+        + sys.executable
+        + "\n"
+        + "import json, os, signal, sqlite3, sys, time\nfrom pathlib import Path\n"
+        + f"batch_count = {batch_count}\nfailed_batch = {failed_batch}\nmissing_data = {missing_data}\n"
+        + f"terminate_run = {terminate_run!r}\n"
+        + r"""
+args = sys.argv[1:]
+events = Path("events")
+if args[:5] == ["-W", "error", "-m", "coverage", "combine"]:
+    assert [p.name for p in sorted(events.glob("done-*.json"))] == sorted(
+        f"done-{i}.json" for i in range(1, batch_count + 1)
+    )
+    assert not list(events.glob("running-*"))
+    assert failed_batch == 0 and missing_data == 0
+    Path("observed-combine.json").write_text(json.dumps(args))
+    raise SystemExit(0)
+assert args[:3] == ["-m", "coverage", "run"]
+junit = next(a for a in args if a.startswith("--junitxml="))
+index = int(Path(junit.split("=", 1)[1]).stem.rsplit("-", 1)[1])
+if index % 2 == 1 and index > 1:
+    assert all((events / f"done-{i}.json").exists() for i in (index - 2, index - 1))
+def stopped(signum, frame):
+    (events / f"signalled-{index}.json").write_text(json.dumps({"signal": signum}))
+    (events / f"running-{index}").unlink()
+    raise SystemExit(143)
+signal.signal(signal.SIGTERM, signal.SIG_IGN if terminate_run == "ignore" else stopped)
+assert os.getpgid(0) == os.getpid(), "batch did not receive its own Bash job group"
+if terminate_run == "ignore" and index == 1:
+    child = os.fork()
+    if child == 0:
+        signal.signal(signal.SIGTERM, signal.SIG_IGN)
+        while True:
+            signal.pause()
+    (events / "grandchild.json").write_text(json.dumps({"pid": child, "pgid": os.getpgid(0)}))
+(events / f"running-{index}").write_text(str(os.getpid()))
+start = {
+    "pid": os.getpid(),
+    "pgid": os.getpgid(0),
+    "args": args,
+    "coverage": os.environ["COVERAGE_FILE"],
+    "coverage_core": os.environ["COV_CORE_DATAFILE"],
+    "database": os.environ["TEST_DB_PATH"],
+    "database_url": os.environ["DATABASE_URL"],
+    "fallback_url": os.environ["DB_FALLBACK_URL"],
+}
+(events / f"start-{index}.json").write_text(json.dumps(start))
+assert len(list(events.glob("running-*"))) <= 2
+partner = index + 1 if index % 2 else index - 1
+if partner <= batch_count:
+    deadline = time.monotonic() + 10
+    while not (events / f"start-{partner}.json").exists():
+        assert time.monotonic() < deadline, "paired batch never started"
+        time.sleep(0.01)
+if terminate_run:
+    if index == 2:
+        os.kill(os.getppid(), signal.SIGTERM)
+    signal.pause()
+    raise SystemExit(92)
+with sqlite3.connect(start["database"]) as db:
+    db.execute("CREATE TABLE batch_identity (value INTEGER)")
+    db.execute("INSERT INTO batch_identity VALUES (?)", (index,))
+if index != missing_data:
+    Path(start["coverage"]).write_text(f"coverage batch {index}")
+    Path(start["coverage"] + ".child").write_text(f"subprocess coverage batch {index}")
+Path(junit.split("=", 1)[1]).write_text("<testsuite/>")
+status = 7 if index == failed_batch else 0
+(events / f"running-{index}").unlink()
+(events / f"done-{index}.json").write_text(json.dumps({"status": status}))
+raise SystemExit(status)
+""",
+        encoding="utf-8",
+    )
+    observer.chmod(0o755)
+    bash = shutil.which("bash")
+    assert bash is not None
+    result = subprocess.run(
+        [bash, "-c", str(step["run"])],
+        cwd=tmp_path,
+        env={
+            "PATH": str(tmp_path) + os.pathsep + os.defpath,
+            "RUNNER_TEMP": str(tmp_path / "runner-temp"),
+            "CONTRACT_RISK_CLEANUP_SECONDS": str(workflow["env"]["CONTRACT_RISK_CLEANUP_SECONDS"]),
+            "CONTRACT_RISK_GROUPS": ",".join(groups),
+        },
+        capture_output=True,
+        text=True,
+        timeout=60,
+        check=False,
+    )
+    expected_exit = (
+        143 if terminate_run else (1 if failed_batch or missing_data or stale_data else 0)
+    )
+    assert result.returncode == expected_exit, result.stderr
+    if terminate_run != "ignore":
+        assert not list(events.glob("running-*"))
+    if stale_data:
+        assert not list(events.glob("start-*.json"))
+        assert not (tmp_path / "observed-combine.json").exists()
+        assert (tmp_path / ".coverage.contract-risk-1").read_text() == "stale batch data"
+        assert (tmp_path / ".coverage").read_text() == "existing smoke coverage"
+        return
+    if terminate_run:
+        assert sorted(path.name for path in events.glob("start-*.json")) == [
+            "start-1.json",
+            "start-2.json",
+        ]
+        if terminate_run != "ignore":
+            assert sorted(path.name for path in events.glob("signalled-*.json")) == [
+                "signalled-1.json",
+                "signalled-2.json",
+            ]
+        else:
+            grandchild = json.loads((events / "grandchild.json").read_text())
+            with pytest.raises(ProcessLookupError):
+                os.kill(grandchild["pid"], 0)
+            with pytest.raises(ProcessLookupError):
+                os.killpg(grandchild["pgid"], 0)
+        assert result.stdout.count("Reaped owned contract/risk batch pid") == 2
+        for index in (1, 2):
+            child = json.loads((events / f"start-{index}.json").read_text())
+            with pytest.raises(ProcessLookupError):
+                os.kill(child["pid"], 0)
+            with pytest.raises(ProcessLookupError):
+                os.killpg(child["pgid"], 0)
+        assert not (tmp_path / "observed-combine.json").exists()
+        assert (tmp_path / ".coverage").read_text() == "existing smoke coverage"
+        return
+    seen_targets: list[str] = []
+    databases: set[str] = set()
+    for index in range(1, batch_count + 1):
+        start = json.loads((events / f"start-{index}.json").read_text())
+        argv = start["args"]
+        assert argv[:9] == [
+            "-m",
+            "coverage",
+            "run",
+            "--append",
+            "-m",
+            "pytest",
+            "-q",
+            "-p",
+            "no:xdist",
+        ]
+        targets = [argument for argument in argv[9:] if argument.startswith("tests/")]
+        assert targets == expected_targets[(index - 1) * 24 : index * 24]
+        seen_targets.extend(targets)
+        assert start["coverage"] == start["coverage_core"] == f".coverage.contract-risk-{index}"
+        expected_database = str(
+            tmp_path / "runner-temp" / "contract-risk" / f"batch-{index}.sqlite"
+        )
+        assert start["database"] == expected_database
+        assert start["database_url"] == start["fallback_url"] == "sqlite:///" + expected_database
+        databases.add(expected_database)
+        assert f"--basetemp={tmp_path / 'runner-temp' / 'contract-risk' / f'batch-{index}'}" in argv
+        assert f"--junitxml=tests/contract-results-{index}.xml" in argv
+        status = 7 if index == failed_batch else 0
+        assert f"Contract/risk batch {index} exited {status}" in result.stdout
+        assert json.loads((events / f"done-{index}.json").read_text())["status"] == status
+        with pytest.raises(ProcessLookupError):
+            os.kill(start["pid"], 0)
+    assert len(databases) == batch_count and seen_targets == expected_targets
+    assert (tmp_path / ".coverage").read_text() == "existing smoke coverage"
+    combine = tmp_path / "observed-combine.json"
+    if failed_batch or missing_data:
+        assert not combine.exists()
+    else:
+        assert json.loads(combine.read_text()) == [
+            "-W",
+            "error",
+            "-m",
+            "coverage",
+            "combine",
+            "--append",
+            "--keep",
+            *[
+                path
+                for index in range(1, batch_count + 1)
+                for path in (
+                    f".coverage.contract-risk-{index}",
+                    f".coverage.contract-risk-{index}.child",
+                )
+            ],
+        ]
+
+
+@pytest.mark.parametrize("corrupt_input", [False, True])
+def test_contract_coverage_native_append_refuses_mixed_corrupt_data(
+    tmp_path: Path, corrupt_input: bool
+) -> None:
+    """Native coverage must preserve smoke data, combine all valid arcs and reject partial input."""
+    import sys
+    from coverage import CoverageData
+
+    source = tmp_path / "sample.py"
+    source.write_text("a=1\nb=2\nc=3\n")
+    base = tmp_path / ".coverage"
+    valid = tmp_path / ".coverage.batch-valid"
+    extra = tmp_path / ".coverage.batch-subprocess"
+    for path, line in ((base, 1), (valid, 2)):
+        data = CoverageData(basename=str(path))
+        data.add_arcs({str(source): {(-1, line), (line, -1)}})
+        data.write()
+    if corrupt_input:
+        extra.write_bytes(b"not sqlite coverage data")
+    else:
+        data = CoverageData(basename=str(extra))
+        data.add_arcs({str(source): {(-1, 3), (3, -1)}})
+        data.write()
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-W",
+            "error",
+            "-m",
+            "coverage",
+            "combine",
+            "--rcfile=/dev/null",
+            "--data-file=" + str(base),
+            "--append",
+            "--keep",
+            str(valid),
+            str(extra),
+        ],
+        cwd=tmp_path,
+        env={"PATH": os.defpath, "HOME": str(tmp_path), "LANG": "C.UTF-8"},
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+    observed = CoverageData(basename=str(base))
+    observed.read()
+    if corrupt_input:
+        assert result.returncode == 1 and "CoverageWarning" in result.stderr
+        assert set(observed.arcs(str(source)) or []) == {(-1, 1), (1, -1)}
+    else:
+        assert result.returncode == 0, result.stderr
+        assert set(observed.arcs(str(source)) or []) == {
+            (-1, 1),
+            (1, -1),
+            (-1, 2),
+            (2, -1),
+            (-1, 3),
+            (3, -1),
+        }
+    assert valid.exists() and extra.exists()
+
+
 def test_contract_risk_suites_use_bounded_coverage_batches() -> None:
     workflow = _load_ci_workflow()
+    cleanup_seconds = int(workflow["env"]["CONTRACT_RISK_CLEANUP_SECONDS"])
+    assert 0 < cleanup_seconds <= 5
     for job_id in ("test-pr", "test-feature"):
         step = _job_step_by_name(
             workflow,
@@ -4455,6 +4855,13 @@ def test_contract_risk_suites_use_bounded_coverage_batches() -> None:
         run_script = step["run"]
         assert isinstance(run_script, str)
         assert "contract_batch_size=24" in run_script
+        assert "contract_max_parallel=2" in run_script
+        assert "contract_cleanup_seconds=5" not in run_script
+        assert "${CONTRACT_RISK_CLEANUP_SECONDS:?" in run_script
+        assert (
+            'python -W error -m coverage combine --append --keep "${contract_combine_files[@]}"'
+            in run_script
+        )
         assert "for ((batch_start=0;" in run_script
         assert "batch_targets=(" in run_script
         assert "python -m coverage run --append -m pytest -q" in run_script

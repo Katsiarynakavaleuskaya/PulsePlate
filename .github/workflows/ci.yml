@@ -7,6 +7,7 @@ name: CI
 env:
   PYTHON_VERSION: "3.13.14"
   FRONTEND_NODE_VERSION_FILE: ".nvmrc"
+  CONTRACT_RISK_CLEANUP_SECONDS: "5"
   PULSEPLATE_PYTHON_INDEX_URL: ${{ vars.PULSEPLATE_PYTHON_INDEX_URL }}
   PULSEPLATE_PYTHON_TRUSTED_HOST: ${{ vars.PULSEPLATE_PYTHON_TRUSTED_HOST }}
 
@@ -1246,21 +1247,170 @@ jobs:
           printf 'Selected contract/risk suites:\n'
           printf '  - %s\n' "${SELECTED_TARGETS[@]}"
 
+          : "${RUNNER_TEMP:?RUNNER_TEMP is required for isolated contract batches.}"
+          set -m
+          shopt -s nullglob
           contract_batch_size=24
+          contract_max_parallel=2
+          contract_cleanup_seconds="${CONTRACT_RISK_CLEANUP_SECONDS:?Set CONTRACT_RISK_CLEANUP_SECONDS.}"
           contract_batch_index=0
+          contract_failures=0
+          contract_launching=0
+          contract_signal_status=0
+          contract_pids=()
+          contract_batch_ids=()
+          contract_coverage_files=()
+          contract_temp_root="$RUNNER_TEMP/contract-risk"
+          mkdir -p "$contract_temp_root" tests
+
+          wait_contract_batches() {
+            for index in "${!contract_pids[@]}"; do
+              if wait "${contract_pids[$index]}"; then
+                batch_status=0
+              else
+                batch_status=$?
+                contract_failures=$((contract_failures + 1))
+              fi
+              printf 'Contract/risk batch %s exited %s\n' \
+                "${contract_batch_ids[$index]}" "$batch_status"
+            done
+            contract_pids=()
+            contract_batch_ids=()
+          }
+
+          cleanup_contract_batches() {
+            original_status="$1"
+            cleanup_failures=0
+            for pid in "${contract_pids[@]}"; do
+              if kill -0 -- "-$pid" 2>/dev/null; then
+                if kill -TERM -- "-$pid"; then
+                  :
+                else
+                  cleanup_failures=$((cleanup_failures + 1))
+                  echo "::error::Failed to stop owned contract/risk group $pid"
+                fi
+              fi
+            done
+            cleanup_deadline=$((SECONDS + contract_cleanup_seconds))
+            while [ "$SECONDS" -lt "$cleanup_deadline" ]; do
+              groups_alive=0
+              for pid in "${contract_pids[@]}"; do
+                if kill -0 -- "-$pid" 2>/dev/null; then
+                  groups_alive=1
+                fi
+              done
+              if [ "$groups_alive" -eq 0 ]; then
+                break
+              fi
+              sleep 0.1
+            done
+            for pid in "${contract_pids[@]}"; do
+              if kill -0 -- "-$pid" 2>/dev/null; then
+                if kill -KILL -- "-$pid"; then
+                  :
+                else
+                  cleanup_failures=$((cleanup_failures + 1))
+                  echo "::error::Failed to kill owned contract/risk group $pid"
+                fi
+              fi
+            done
+            cleanup_deadline=$((SECONDS + contract_cleanup_seconds))
+            while [ "$SECONDS" -lt "$cleanup_deadline" ]; do
+              groups_alive=0
+              for pid in "${contract_pids[@]}"; do
+                if kill -0 -- "-$pid" 2>/dev/null; then
+                  groups_alive=1
+                fi
+              done
+              if [ "$groups_alive" -eq 0 ]; then
+                break
+              fi
+              sleep 0.1
+            done
+            running_jobs="$(jobs -pr)"
+            for pid in "${contract_pids[@]}"; do
+              leader_running=0
+              for running_pid in $running_jobs; do
+                if [ "$running_pid" = "$pid" ]; then
+                  leader_running=1
+                fi
+              done
+              if [ "$leader_running" -ne 0 ] && kill -0 -- "-$pid" 2>/dev/null; then
+                cleanup_failures=$((cleanup_failures + 1))
+                echo "::error::Owned contract/risk leader $pid survived cleanup."
+              else
+                if wait "$pid"; then
+                  cleanup_status=0
+                else
+                  cleanup_status=$?
+                fi
+                printf 'Reaped owned contract/risk batch pid %s (status %s)\n' \
+                  "$pid" "$cleanup_status"
+              fi
+              if kill -0 -- "-$pid" 2>/dev/null; then
+                cleanup_failures=$((cleanup_failures + 1))
+                echo "::error::Owned contract/risk group $pid survived cleanup."
+              fi
+            done
+            if [ "$original_status" -eq 0 ] && [ "$cleanup_failures" -ne 0 ]; then
+              exit 1
+            fi
+          }
+          trap 'cleanup_contract_batches "$?"' EXIT
+          trap 'contract_signal_status=130; if [ "$contract_launching" -eq 0 ]; then exit 130; fi' INT
+          trap 'contract_signal_status=143; if [ "$contract_launching" -eq 0 ]; then exit 143; fi' TERM
+
           for ((batch_start=0; batch_start<${#SELECTED_TARGETS[@]}; batch_start+=contract_batch_size)); do
             contract_batch_index=$((contract_batch_index + 1))
             batch_targets=("${SELECTED_TARGETS[@]:batch_start:contract_batch_size}")
             junit_path="tests/contract-results-${contract_batch_index}.xml"
+            coverage_path=".coverage.contract-risk-${contract_batch_index}"
+            existing_batch_data=("$coverage_path" "$coverage_path".*)
+            for data_path in "${existing_batch_data[@]}"; do
+              if [ -e "$data_path" ] || [ -L "$data_path" ]; then
+                echo "::error::Contract/risk coverage data already exists: $data_path"
+                exit 1
+              fi
+            done
+            database_path="$contract_temp_root/batch-${contract_batch_index}.sqlite"
+            contract_coverage_files+=("$coverage_path")
             printf 'Running contract/risk suite batch %s (%s target(s)):\n' \
               "$contract_batch_index" "${#batch_targets[@]}"
             printf '  - %s\n' "${batch_targets[@]}"
-            python -m coverage run --append -m pytest -q \
+            contract_launching=1
+            COVERAGE_FILE="$coverage_path" COV_CORE_DATAFILE="$coverage_path" \
+              TEST_DB_PATH="$database_path" DATABASE_URL="sqlite:///$database_path" \
+              DB_FALLBACK_URL="sqlite:///$database_path" \
+              python -m coverage run --append -m pytest -q \
               -p no:xdist \
               "${batch_targets[@]}" \
               --junitxml="${junit_path}" \
-              -o junit_family=legacy
+              --basetemp="$contract_temp_root/batch-${contract_batch_index}" \
+              -o junit_family=legacy &
+            contract_pids+=("$!")
+            contract_batch_ids+=("$contract_batch_index")
+            contract_launching=0
+            if [ "$contract_signal_status" -ne 0 ]; then
+              exit "$contract_signal_status"
+            fi
+            if [ "${#contract_pids[@]}" -eq "$contract_max_parallel" ]; then
+              wait_contract_batches
+            fi
           done
+          wait_contract_batches
+          if [ "$contract_failures" -ne 0 ]; then
+            echo "::error::$contract_failures contract/risk batch(es) failed."
+            exit 1
+          fi
+          contract_combine_files=()
+          for coverage_path in "${contract_coverage_files[@]}"; do
+            if [ ! -s "$coverage_path" ]; then
+              echo "::error::Missing contract/risk coverage data: $coverage_path"
+              exit 1
+            fi
+            contract_combine_files+=("$coverage_path" "$coverage_path".*)
+          done
+          python -W error -m coverage combine --append --keep "${contract_combine_files[@]}"
 
       - name: Measure OPS CLI coverage
         env:
@@ -1815,21 +1965,170 @@ jobs:
           printf 'Selected contract/risk suites:\n'
           printf '  - %s\n' "${SELECTED_TARGETS[@]}"
 
+          : "${RUNNER_TEMP:?RUNNER_TEMP is required for isolated contract batches.}"
+          set -m
+          shopt -s nullglob
           contract_batch_size=24
+          contract_max_parallel=2
+          contract_cleanup_seconds="${CONTRACT_RISK_CLEANUP_SECONDS:?Set CONTRACT_RISK_CLEANUP_SECONDS.}"
           contract_batch_index=0
+          contract_failures=0
+          contract_launching=0
+          contract_signal_status=0
+          contract_pids=()
+          contract_batch_ids=()
+          contract_coverage_files=()
+          contract_temp_root="$RUNNER_TEMP/contract-risk"
+          mkdir -p "$contract_temp_root" tests
+
+          wait_contract_batches() {
+            for index in "${!contract_pids[@]}"; do
+              if wait "${contract_pids[$index]}"; then
+                batch_status=0
+              else
+                batch_status=$?
+                contract_failures=$((contract_failures + 1))
+              fi
+              printf 'Contract/risk batch %s exited %s\n' \
+                "${contract_batch_ids[$index]}" "$batch_status"
+            done
+            contract_pids=()
+            contract_batch_ids=()
+          }
+
+          cleanup_contract_batches() {
+            original_status="$1"
+            cleanup_failures=0
+            for pid in "${contract_pids[@]}"; do
+              if kill -0 -- "-$pid" 2>/dev/null; then
+                if kill -TERM -- "-$pid"; then
+                  :
+                else
+                  cleanup_failures=$((cleanup_failures + 1))
+                  echo "::error::Failed to stop owned contract/risk group $pid"
+                fi
+              fi
+            done
+            cleanup_deadline=$((SECONDS + contract_cleanup_seconds))
+            while [ "$SECONDS" -lt "$cleanup_deadline" ]; do
+              groups_alive=0
+              for pid in "${contract_pids[@]}"; do
+                if kill -0 -- "-$pid" 2>/dev/null; then
+                  groups_alive=1
+                fi
+              done
+              if [ "$groups_alive" -eq 0 ]; then
+                break
+              fi
+              sleep 0.1
+            done
+            for pid in "${contract_pids[@]}"; do
+              if kill -0 -- "-$pid" 2>/dev/null; then
+                if kill -KILL -- "-$pid"; then
+                  :
+                else
+                  cleanup_failures=$((cleanup_failures + 1))
+                  echo "::error::Failed to kill owned contract/risk group $pid"
+                fi
+              fi
+            done
+            cleanup_deadline=$((SECONDS + contract_cleanup_seconds))
+            while [ "$SECONDS" -lt "$cleanup_deadline" ]; do
+              groups_alive=0
+              for pid in "${contract_pids[@]}"; do
+                if kill -0 -- "-$pid" 2>/dev/null; then
+                  groups_alive=1
+                fi
+              done
+              if [ "$groups_alive" -eq 0 ]; then
+                break
+              fi
+              sleep 0.1
+            done
+            running_jobs="$(jobs -pr)"
+            for pid in "${contract_pids[@]}"; do
+              leader_running=0
+              for running_pid in $running_jobs; do
+                if [ "$running_pid" = "$pid" ]; then
+                  leader_running=1
+                fi
+              done
+              if [ "$leader_running" -ne 0 ] && kill -0 -- "-$pid" 2>/dev/null; then
+                cleanup_failures=$((cleanup_failures + 1))
+                echo "::error::Owned contract/risk leader $pid survived cleanup."
+              else
+                if wait "$pid"; then
+                  cleanup_status=0
+                else
+                  cleanup_status=$?
+                fi
+                printf 'Reaped owned contract/risk batch pid %s (status %s)\n' \
+                  "$pid" "$cleanup_status"
+              fi
+              if kill -0 -- "-$pid" 2>/dev/null; then
+                cleanup_failures=$((cleanup_failures + 1))
+                echo "::error::Owned contract/risk group $pid survived cleanup."
+              fi
+            done
+            if [ "$original_status" -eq 0 ] && [ "$cleanup_failures" -ne 0 ]; then
+              exit 1
+            fi
+          }
+          trap 'cleanup_contract_batches "$?"' EXIT
+          trap 'contract_signal_status=130; if [ "$contract_launching" -eq 0 ]; then exit 130; fi' INT
+          trap 'contract_signal_status=143; if [ "$contract_launching" -eq 0 ]; then exit 143; fi' TERM
+
           for ((batch_start=0; batch_start<${#SELECTED_TARGETS[@]}; batch_start+=contract_batch_size)); do
             contract_batch_index=$((contract_batch_index + 1))
             batch_targets=("${SELECTED_TARGETS[@]:batch_start:contract_batch_size}")
             junit_path="tests/contract-results-${contract_batch_index}.xml"
+            coverage_path=".coverage.contract-risk-${contract_batch_index}"
+            existing_batch_data=("$coverage_path" "$coverage_path".*)
+            for data_path in "${existing_batch_data[@]}"; do
+              if [ -e "$data_path" ] || [ -L "$data_path" ]; then
+                echo "::error::Contract/risk coverage data already exists: $data_path"
+                exit 1
+              fi
+            done
+            database_path="$contract_temp_root/batch-${contract_batch_index}.sqlite"
+            contract_coverage_files+=("$coverage_path")
             printf 'Running contract/risk suite batch %s (%s target(s)):\n' \
               "$contract_batch_index" "${#batch_targets[@]}"
             printf '  - %s\n' "${batch_targets[@]}"
-            python -m coverage run --append -m pytest -q \
+            contract_launching=1
+            COVERAGE_FILE="$coverage_path" COV_CORE_DATAFILE="$coverage_path" \
+              TEST_DB_PATH="$database_path" DATABASE_URL="sqlite:///$database_path" \
+              DB_FALLBACK_URL="sqlite:///$database_path" \
+              python -m coverage run --append -m pytest -q \
               -p no:xdist \
               "${batch_targets[@]}" \
               --junitxml="${junit_path}" \
-              -o junit_family=legacy
+              --basetemp="$contract_temp_root/batch-${contract_batch_index}" \
+              -o junit_family=legacy &
+            contract_pids+=("$!")
+            contract_batch_ids+=("$contract_batch_index")
+            contract_launching=0
+            if [ "$contract_signal_status" -ne 0 ]; then
+              exit "$contract_signal_status"
+            fi
+            if [ "${#contract_pids[@]}" -eq "$contract_max_parallel" ]; then
+              wait_contract_batches
+            fi
           done
+          wait_contract_batches
+          if [ "$contract_failures" -ne 0 ]; then
+            echo "::error::$contract_failures contract/risk batch(es) failed."
+            exit 1
+          fi
+          contract_combine_files=()
+          for coverage_path in "${contract_coverage_files[@]}"; do
+            if [ ! -s "$coverage_path" ]; then
+              echo "::error::Missing contract/risk coverage data: $coverage_path"
+              exit 1
+            fi
+            contract_combine_files+=("$coverage_path" "$coverage_path".*)
+          done
+          python -W error -m coverage combine --append --keep "${contract_combine_files[@]}"
 
       - name: Finalize coverage artifacts
         env:

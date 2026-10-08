@@ -544,8 +544,9 @@ pytest -q tests/test_repo_policy_guards.py
     at the canonical owner: optional absence must not exempt present optional
     carriers from the retained validation rules.
   - **What it enforces**:
-    - `cryptography` must stay at or above the current floor (`50.0.0`) across
-      the canonical closed inventory declared by
+    - `cryptography` must stay at or above the current floor declared in
+      `tests/fixtures/dependency_security_schema.json` across the canonical
+      closed inventory declared by
       `tests/test_dependency_security_guard.py::REQUIREMENT_SURFACES`, currently
       ten shared requirement surfaces.
     - Optional dependency profiles are outside the `min_versions` all-surfaces

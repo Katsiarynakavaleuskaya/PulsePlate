@@ -50,6 +50,11 @@
   Fixtures must distinguish default/all-profile models and reject incorrect
   native argv, with a real read-only native observation before claiming parity.
 
+- CI Contract/Risk suites retain their complete sorted target inventory and batches of 24.
+  Run at most two isolated batch processes with separate coverage, JUnit, basetemp and
+  SQLite identities. Wait for every declared exit status and combine only complete data
+  after all batches pass; preserve existing producers, thresholds and job budgets.
+
 ## Premium alias checkpoint adapter
 
 - Deliver the OBS2A checkpoint units disabled; supported manual invocation uses
