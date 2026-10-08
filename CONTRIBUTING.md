@@ -23,11 +23,12 @@ This repo uses a simple branch model designed to keep `main` always green.
 # Required before every push
 pre-commit run --all-files
 
-# Standard verification bundle
-make verify
-
-# Operator-approved machine-heavy exception only: run and document narrow gates
+# Required narrow local bundle; run task preflight/consistency and focused tests
+# as defined by AGENTS.md and RUNBOOK_AGENT.md.
 make validate-changed
+
+# Current-head CI supplies full lint/typecheck/tests/coverage/security/governance.
+# Full local verification requires an explicit human override for one invocation.
 
 # Docker tests (if Docker files changed)
 make docker-build
@@ -50,14 +51,24 @@ export PULSEPLATE_PYTHON_INDEX_URL=https://packages.example.internal/simple
 # Optional, only if the approved proxy requires pip trusted-host behavior:
 export PULSEPLATE_PYTHON_TRUSTED_HOST=
 
+# HOST: from a reviewed/trusted checkout, prepare verified native source inputs first.
+make docker-source-artifacts
 # VS Code: Cmd/Ctrl+Shift+P -> "Dev Containers: Reopen in Container"
-# CLI: make dc-up && make dc-shell
+# CLI: make dc-up && make dc-shell (dc-up already includes this prerequisite)
 # After reviewing/trusting the workspace, run bootstrap manually inside the container:
 make devcontainer-bootstrap
 [ -f .env ] || cp .env.example .env
 # Fill required local-only values such as SERVER_SALT before starting the app.
 make dev
 ```
+
+Run the native-source prerequisite on the host before VS Code attempts its first
+build from a fresh checkout. It uses an existing approved host interpreter via
+`DEV_PYTHON`; override that Make variable if the automatic interpreter selection
+is unavailable. This step delegates source verification/acquisition to the existing
+fetcher only. It does not install a native macOS SDK, create/activate a host venv,
+or transfer the project `.env`, credentials or general host HOME. Repository
+bootstrap remains a separate manual step inside the trusted container.
 
 Host Docker daemon access is intentionally not enabled by default. If a task
 requires Docker from inside the devcontainer, use a separate reviewed local

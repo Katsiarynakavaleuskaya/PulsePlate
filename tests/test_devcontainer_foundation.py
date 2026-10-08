@@ -103,6 +103,7 @@ def test_devcontainer_json_does_not_auto_execute_workspace_bootstrap() -> None:
     """Opening the devcontainer must not auto-run repository-controlled code."""
     data = json.loads((DEVCONTAINER_DIR / "devcontainer.json").read_text(encoding="utf-8"))
 
+    assert "initializeCommand" not in data
     assert "postCreateCommand" not in data
     assert "onCreateCommand" not in data
     assert "updateContentCommand" not in data
@@ -414,6 +415,8 @@ def _standalone_bootstrap_fixture(tmp_path: Path) -> tuple[Path, dict[str, str],
         "    executable = directory / 'bin/python'\n"
         "    executable.write_text(pathlib.Path(sys.argv[0]).read_text()); executable.chmod(0o755)\n"
         "    (directory / 'bin/activate').write_text('export VIRTUAL_ENV=' + shlex.quote(str(directory.resolve())) + '\\n')\n"
+        "elif args == ['scripts/ci/fetch_docker_source_artifacts.py']:\n"
+        "    if not pathlib.Path(args[0]).is_file() or not pathlib.Path('scripts/ci/docker_source_artifacts.json').is_file(): raise SystemExit(6)\n"
         "elif args and args[0].endswith('install_locked_python_requirements.py'):\n"
         "    required = {'--consume-only', '--install-dev', '--require-virtualenv', '--wheelhouse-dir', '--psycopg-sdk'}\n"
         "    if not required.issubset(args) or os.environ.get('PIP_REQUIRE_VIRTUALENV') != '1':\n"
@@ -438,6 +441,58 @@ def _standalone_bootstrap_fixture(tmp_path: Path) -> tuple[Path, dict[str, str],
         "PULSEPLATE_BOOTSTRAP_WHEELHOUSE": str(wheelhouse),
     }
     return fixture, environment, log
+
+
+@pytest.mark.parametrize("override_interpreter", (False, True))
+def test_host_native_sources_prerequisite_hands_off_only_to_canonical_fetcher(
+    tmp_path: Path, override_interpreter: bool
+) -> None:
+    """Prove the documented pre-Reopen Make transport; owning fetcher tests prove verification."""
+    guide = (
+        (REPO_ROOT / "CONTRIBUTING.md")
+        .read_text()
+        .split("### Dev Container (recommended)", 1)[1]
+        .split("### Backend SDK bootstrap", 1)[0]
+    )
+    assert guide.index("make docker-source-artifacts") < guide.index(
+        "Dev Containers: Reopen in Container"
+    )
+    fixture, environment, log = _standalone_bootstrap_fixture(tmp_path)
+    control = Path(environment["PATH"].split(os.pathsep)[0])
+    (control / "uname").write_text(
+        '#!/bin/sh\nif [ "$1" = -s ]; then echo Darwin; else echo arm64; fi\n'
+    )
+    for key in ("PULSEPLATE_PSYCOPG_C_SDK", "PULSEPLATE_BOOTSTRAP_WHEELHOUSE"):
+        environment.pop(key)
+    fetcher = "scripts/ci/fetch_docker_source_artifacts.py"
+    manifest = "scripts/ci/docker_source_artifacts.json"
+    for path in (fetcher, manifest):
+        (fixture / path).write_bytes((REPO_ROOT / path).read_bytes())
+    docker = control / "docker"
+    docker.write_text("#!/bin/sh\necho unexpected-docker > docker-called\nexit 99\n")
+    docker.chmod(0o755)
+    assert not (fixture / "build").exists()
+    assert not (fixture / ".venv/pyvenv.cfg").exists()
+    make = shutil.which("make")
+    assert make is not None
+    argv = [make, "docker-source-artifacts"]
+    if override_interpreter:
+        argv.append("DEV_PYTHON=" + str(control / "python3"))
+    result = subprocess.run(
+        argv,
+        cwd=fixture,
+        env=environment,
+        capture_output=True,
+        text=True,
+        timeout=15,
+        check=False,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert [json.loads(line) for line in log.read_text().splitlines()] == [[fetcher]]
+    assert not (fixture / ".venv/pyvenv.cfg").exists()
+    assert not (fixture / "docker-called").exists()
+    # The synthetic interpreter records delegation only; it does not author source-verification truth.
+    assert not (fixture / "build").exists()
 
 
 @pytest.mark.parametrize("target", ("venv", "devcontainer-bootstrap"))

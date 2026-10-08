@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any
 import os
 import shutil
+import shlex
 import subprocess
 import sys
 
@@ -179,6 +180,79 @@ def test_shared_setup_openssl_guard_binds_source_patch_and_release_status(
         assert "Python did not load the source-selected shared OpenSSL" in result.stderr
     else:
         assert not result.stderr
+
+
+@pytest.mark.parametrize("include_sdk_cli", (True, False))
+def test_native_checkpoint_selects_the_matching_sdk_cli_before_child_env_isolation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, include_sdk_cli: bool
+) -> None:
+    """Exercise the actual resolver with SDK/distro sentinels and a negative path control."""
+    from tests.test_notify_premium_alias_checkpoint_failure import _native
+
+    workflow = load_ci_workflow()
+    steps = workflow["jobs"]["lint"]["steps"]
+    setup_index = next(
+        index
+        for index, step in enumerate(steps)
+        if step.get("uses") == "./.github/actions/python-setup"
+    )
+    native_index = next(
+        index for index, step in enumerate(steps) if step.get("id") == "checkpoint-native"
+    )
+    assert setup_index < native_index
+    script = steps[native_index]["run"]
+    invocation = next(
+        line.strip().removesuffix("\\").strip()
+        for line in script.splitlines()
+        if line.strip().startswith("sudo /usr/bin/env -i ")
+    )
+    tokens = shlex.split(invocation)
+    assert tokens == [
+        "sudo",
+        "/usr/bin/env",
+        "-i",
+        "PATH=/usr/local/bin:/usr/bin:/bin",
+        "LANG=C",
+        "HOME=/tmp",
+        "PYTHONDONTWRITEBYTECODE=1",
+    ]
+    assert (
+        '"$native_python" -m tests.test_notify_premium_alias_checkpoint_failure --native' in script
+    )
+    action = yaml.safe_load((REPO_ROOT / ".github/actions/python-setup/action.yml").read_text())
+    sdk = next(
+        step
+        for step in action["runs"]["steps"]
+        if step.get("name") == "Build exact Psycopg C client SDK"
+    )
+    assert 'sudo cp -a "$sdk_root/usr/local/lib/." /usr/local/lib/' in sdk["run"]
+    assert 'sudo cp -a "$sdk_root/usr/local/bin/." /usr/local/bin/' in sdk["run"]
+
+    directories = {
+        "/usr/local/bin": tmp_path / "sdk-bin",
+        "/usr/bin": tmp_path / "distro-bin",
+        "/bin": tmp_path / "base-bin",
+    }
+    for directory in directories.values():
+        directory.mkdir()
+    for identity, result in (
+        ("/usr/local/bin", "synthetic-sdk-openssl"),
+        ("/usr/bin", "synthetic-distro-openssl"),
+    ):
+        executable = directories[identity] / "openssl"
+        executable.write_text("#!/bin/sh\nprintf '%s\\n' '" + result + "'\n")
+        executable.chmod(0o755)
+    invocation_path = tokens[3].removeprefix("PATH=")
+    fixture_path = os.pathsep.join(
+        str(directories[identity])
+        for identity in invocation_path.split(":")
+        if include_sdk_cli or identity != "/usr/local/bin"
+    )
+    monkeypatch.setenv("PATH", fixture_path)
+    result = _native(["openssl", "version"], cwd=tmp_path)
+    expected = "synthetic-sdk-openssl" if include_sdk_cli else "synthetic-distro-openssl"
+    assert result.returncode == 0 and result.stdout == expected + "\n"
+    assert result.stderr == ""
 
 
 def test_private_proxy_health_job_is_stdlib_fail_fast_gate() -> None:

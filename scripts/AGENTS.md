@@ -153,6 +153,12 @@
   their existing behavior; binary-only installs retain target-Python selection.
   Dedicated SDK builds reject an explicit target-Python option because the
   unchanged four-input build uses its loader interpreter.
+- Before VS Code Reopen builds a fresh trusted checkout, run the existing
+  `make docker-source-artifacts` target on the host using an approved existing
+  `DEV_PYTHON` interpreter. CLI `dc-up` already owns that prerequisite. This is
+  source verification/acquisition only; do not install/activate a host backend
+  venv or native macOS SDK, transfer `.env`/credentials/HOME, or add automatic
+  repository-code initialization. Container bootstrap remains manual after trust.
 - `make dc-up` credential forwarding is explicit opt-in through
   `PULSEPLATE_NATIVE_SDK_NETRC_FILE`, defaulting to `/dev/null`. Use only a temporary
   read-only file scoped to the approved package host after reviewing/trusting the
@@ -161,7 +167,9 @@
   and real CI/local caller. Verify actual extras, matching SDK/platform handoff and the owning
   workflow tests; a selected-profile pass cannot establish complete caller coverage. Inspect
   the full Docker stage inheritance before reporting a missing library, and verify actual
-  final-user calls after the build. Keep corrected runtime behavior, required gates and bot
+  final-user calls after the build. CI native callers must select the matching SDK CLI in
+  `/usr/local/bin` before distro tools when setup installs its shared libraries there.
+  Keep corrected runtime behavior, required gates and bot
   dispositions ahead of closure metadata.
 - Container helper copies must preserve their `scripts/ci` repository depth and
   adjacent imports. Exercise the real CLI and its operation parsing from the
