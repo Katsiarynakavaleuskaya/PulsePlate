@@ -374,11 +374,13 @@ def test_prometheus_security_job_owns_only_pr_and_schedule_execution() -> None:
     assert " ".join(jobs["build"]["if"].split()) == (
         "!cancelled() && github.event_name == 'push' && github.ref == 'refs/heads/main' "
         "&& needs.prometheus-image-security.result == 'success' "
+        "&& needs.obs2a-checkpoint-native.result == 'success' "
         "&& needs.main-push-admission.result == 'success' "
         "&& needs.staging-postgres-native-integration.result == 'success'"
     )
     assert set(jobs["build"]["needs"]) == {
         "prometheus-image-security",
+        "obs2a-checkpoint-native",
         "main-push-admission",
         "staging-postgres-native-integration",
     }
