@@ -517,7 +517,9 @@ If it is not recorded here — it does not exist.
     CAB-06 [PR #2460](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2460)
     (`codex/ios-iphone-ipad-ci-matrix`); CAB-07A merged implementation
     (`codex/cab07a-eslint-foundation-api`, [PR #2468](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2468));
-    CAB-07B [PR #2471](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2471) (`codex/cab07b-eslint-ui-primitives`).
+    CAB-07B merged [PR #2471](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2471)
+    (`codex/cab07b-eslint-ui-primitives`); CAB-07C pending PR
+    (`codex/cab07c-eslint-pages-features`).
   - Status: CAB-03, CAB-04 and CAB-05 merged in PR #2381, #2408 and #2414.
     Carryover: CAB-06 merged in PR #2460 at `2026-10-04T20:45:28Z`, commit
     `fb179f54877537b69ddd0ea4bf3d8211268fab82`; its canonical merged-main
@@ -530,7 +532,8 @@ If it is not recorded here — it does not exist.
     [Frontend CI 37307261956](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/37307261956)
     successful on attempt 1. Original QA35/archive and failure/retry history remain
     predecessor receipts, not new CAB-07B validation. CLIENT-ARCH-1 remains open.
-    CAB-07B is active under owner-amended CAB07B/v1.4, with exactly twenty-five admitted
+    Historical CAB-07B checkpoint, superseded by its terminal receipts below:
+    owner-amended CAB07B/v1.4 had exactly twenty-five admitted
     paths: the existing lint/coverage repair, truthful browser-evidence tracking,
     the bounded shared component-boundary and Unix-only route-exemption corrections
     required by native artifact preservation, and real isolated i18n, focus-act and
@@ -539,8 +542,8 @@ If it is not recorded here — it does not exist.
     Candidate tests do not promote trusted controls or claim native archive completion.
     The seventeen intended exclusion classes, five required XML producers/inputs,
     threshold 97 and merged PR #2466 concurrency/cancellation changes remain required.
-    Its own validation, review,
-    separate human exact-head merge and terminal evidence remain pending. The bounded
+    At that checkpoint its own validation, review,
+    separate human exact-head merge and terminal evidence remained pending. The bounded
     same-PR brace-expansion replacement has separate real-base resolver intent;
     it is not hidden in lint-toolchain closure. The one current
     [CAB07A brace evidence owner](../security/CAB07A_NPM_BRACE_EXPANSION_REMEDIATION.md)
@@ -553,6 +556,22 @@ If it is not recorded here — it does not exist.
     red-main start exception changes no CAB07A gate. Separate CD/pgvector work
     retains its existing owner. CAB-07B carries CAB-07A repository closeout here;
     CAB-07C carries CAB-07B's own actual merge/post-merge repository closeout.
+    CAB-07B merged in #2471 at `2026-10-07T16:35:14Z` as
+    `7744af5cf3919b768a868497ae6d41e46952c484`; its exact-merge
+    [CI 37653218970](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/37653218970)
+    and [Frontend CI 37653218985](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/37653218985)
+    completed successfully. Its
+    [living plan](https://drive.google.com/file/d/1yOPTp_kdtP-7IUEVr5kpim46_GmyIzQ4/view)
+    records execution CLOSED. Retained QA11/11, the
+    [evidence archive](https://drive.google.com/file/d/156XFt8TmpesuTPKF_90PY0Q9CNNXJXIH/view)
+    and [closure supplement](https://drive.google.com/file/d/1p06VkPIu_VN6B4K5cbVSSw5awJNKKnBc/view)
+    remain predecessor receipts, not CAB-07C tests or a new archive verification.
+    CAB-07C is active under accepted CAB07C/v1.0: exactly seventeen admitted paths
+    for behavior-preserving pages/features lint cleanup, mandatory recursive
+    native coverage in the existing Frontend CI, and this CAB-07B reconciliation.
+    Its local/current-head validation, review, separate exact-head human merge,
+    post-merge proof and continuity/archive/cleanup outcomes remain pending.
+    CLIENT-ARCH-1, CapEOS, CAB-07D, CAB-08 and CAB-09 remain open.
     No standalone docs-only, backlog-only or housekeeping PR is planned.
   - Reason (EN): Keep the accepted continuation visible without mixing production Swift,
     warning-policy, device-matrix, Web or Mac work into the bounded AppIcon/Release carrier.
@@ -574,12 +593,12 @@ If it is not recorded here — it does not exist.
     - [x] CAB-07A: directly owned ESLint, mandatory production API/foundation
       lint/native controls, preserved transport regressions and the one admitted
       npm:brace-expansion replacement merged in #2468; terminal receipts above.
-    - [ ] CAB-07B: active UI-primitives lint cleanup and mandatory recursive cohort
-      in the existing Frontend CI, carrying CAB-07A repository reconciliation.
-      Own current-head gates, separate human merge and terminal proof remain pending.
-    - [ ] CAB-07C: next substantive pages/features lint cohort plus CAB-07B repository
+    - [x] CAB-07B: UI-primitives lint cleanup and mandatory recursive cohort
+      merged in #2471, carrying CAB-07A repository reconciliation; execution CLOSED
+      with its own merge, post-merge and retained terminal receipts above.
+    - [ ] CAB-07C: active admitted pages/features lint cohort plus CAB-07B repository
       closeout from actual merge/post-merge receipts; preserve product semantics.
-      Fresh admission required; no separate docs-only closeout PR.
+      Own acceptance and lifecycle evidence remain pending; no separate docs-only closeout PR.
     - [ ] CAB-07D: later complete mandatory frontend lint coverage. Preserve the
       original full/frontend and five residual API-test diagnostics for these slices;
       CAB-07D stays open until those and every admitted remaining surface are closed.

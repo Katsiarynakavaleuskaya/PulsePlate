@@ -1,7 +1,6 @@
 /** @vitest-environment jsdom */
 import "@testing-library/jest-dom/vitest";
-import { describe, it, expect, vi } from "vitest";
-import type { Mock } from "vitest";
+import { describe, it, expect, vi, type Mock } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import ResultView from "../ResultView";

@@ -26,7 +26,8 @@
     "test:e2e:headed": "playwright test --headed",
     "generate-types": "openapi-typescript src/api/openapi.json --output src/api/schema.ts --alphabetize",
     "lint:foundation": "eslint --config eslint.config.js \"src/api/*.ts\" \"src/api/premium/*.ts\" src/lib/analytics.ts --max-warnings=0",
-    "lint:ui": "eslint --config eslint.config.js \"src/components/ui/**/*.{ts,tsx}\" --max-warnings=0"
+    "lint:ui": "eslint --config eslint.config.js \"src/components/ui/**/*.{ts,tsx}\" --max-warnings=0",
+    "lint:pages-features": "eslint --config eslint.config.js \"src/pages/**/*.{ts,tsx}\" \"src/features/**/*.{ts,tsx}\" --max-warnings=0"
   },
   "dependencies": {
     "@capacitor/core": "7.5.0",

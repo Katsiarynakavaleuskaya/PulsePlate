@@ -6808,13 +6808,18 @@ UI_LINT_COMMAND = (
     'eslint --config eslint.config.js "src/components/ui/**/*.{ts,tsx}" --max-warnings=0'
 )
 UI_LINT_STEP = "Lint UI primitives"
+PAGES_FEATURES_LINT_COMMAND = (
+    'eslint --config eslint.config.js "src/pages/**/*.{ts,tsx}" '
+    '"src/features/**/*.{ts,tsx}" --max-warnings=0'
+)
+PAGES_FEATURES_LINT_STEP = "Lint pages and features"
 # Public SHA256 integrity digests bind the tracked config/workflow, not credentials.
 # Native ESLint/npm execution supplies tool semantics; Python does not interpret JS or shell.
 FOUNDATION_CONFIG_SHA256 = (
     "33c678e5f8a86963dae24419a2d2e4f798d300c477ff7756046539edbe3c1214"  # pragma: allowlist secret
 )
 FOUNDATION_NATIVE_RUN_SHA256 = (
-    "540e1b891e7980920587e5d47806ddc1e8c8b45e7ffb0b3e7ec85729b7768739"  # pragma: allowlist secret
+    "307ed3bc8f867e79a6f8b4090dd517072096291c807da42b54717401e3743605"  # pragma: allowlist secret
 )
 
 
@@ -6828,6 +6833,7 @@ def _assert_frontend_node24_foundation_contract(
     assert isinstance(dependencies, dict)
     assert scripts["lint:foundation"] == FOUNDATION_LINT_COMMAND
     assert scripts["lint:ui"] == UI_LINT_COMMAND
+    assert scripts["lint:pages-features"] == PAGES_FEATURES_LINT_COMMAND
     assert dependencies["@eslint/js"] == "9.39.3"
     assert dependencies["typescript-eslint"] == "8.71.0"
     assert "type" not in package
@@ -6905,7 +6911,28 @@ def _assert_frontend_node24_foundation_contract(
     assert len(ui_steps) == 1
     ui = ui_steps[0]
     assert ui == {"name": UI_LINT_STEP, "run": "npm run lint:ui"}
-    assert steps.index(install) < steps.index(native) < steps.index(lint) < steps.index(ui)
+    page_feature_steps = [
+        step
+        for step in steps
+        if isinstance(step, dict)
+        and (
+            step.get("name") == PAGES_FEATURES_LINT_STEP
+            or step.get("run") == "npm run lint:pages-features"
+        )
+    ]
+    assert len(page_feature_steps) == 1
+    pages_features = page_feature_steps[0]
+    assert pages_features == {
+        "name": PAGES_FEATURES_LINT_STEP,
+        "run": "npm run lint:pages-features",
+    }
+    assert (
+        steps.index(install)
+        < steps.index(native)
+        < steps.index(lint)
+        < steps.index(ui)
+        < steps.index(pages_features)
+    )
     for name, command in (
         ("Run vitest suite", "npm run test -- --coverage"),
         ("Build frontend", "npm run build"),
@@ -6922,7 +6949,7 @@ def _assert_frontend_node24_foundation_contract(
         consumer_env = consumer.get("env", {})
         assert isinstance(consumer_env, dict)
         assert not {"NODE_OPTIONS", "NODE_PATH"}.intersection(consumer_env)
-        assert steps.index(ui) < steps.index(consumer)
+        assert steps.index(pages_features) < steps.index(consumer)
 
 
 def test_frontend_node24_foundation_command_and_native_controls_are_blocking() -> None:
@@ -7196,6 +7223,211 @@ def test_frontend_node24_ui_command_and_native_controls_are_blocking() -> None:
     _assert_frontend_node24_foundation_contract(package, workflow, config_source)
 
 
+def test_frontend_node24_pages_features_command_and_native_controls_are_blocking() -> None:
+    """Bind both recursive roots to the reviewed carrier, separately from native execution."""
+    package = json.loads(FRONTEND_PACKAGE_JSON_PATH.read_text(encoding="utf-8"))
+    workflow = _load_workflow(FRONTEND_CI_WORKFLOW_PATH)
+    config_source = (REPO_ROOT / "frontend/eslint.config.js").read_text(encoding="utf-8")
+    _assert_frontend_node24_foundation_contract(package, workflow, config_source)
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    (
+        "missing_script",
+        "missing_pages",
+        "missing_features",
+        "shallow_pages",
+        "shallow_features",
+        "implicit_config",
+        "warnings_allowed",
+        "quiet",
+        "ignored_warnings_hidden",
+        "unmatched_allowed",
+        "empty_allowed",
+        "optional_script",
+        "masked_script",
+        "missing_step",
+        "duplicate_step",
+        "renamed_duplicate_step",
+        "step_if",
+        "step_optional",
+        "step_shell",
+        "step_cwd",
+        "step_env",
+        "optional_command",
+        "masked_command",
+        "before_foundation",
+        "before_ui",
+        "after_vitest",
+        "after_build",
+        "missing_root_nonempty",
+        "missing_recursion",
+        "unsupported_entry_accepted",
+        "declarations_counted",
+        "missing_ignore_check",
+        "collapsed_results",
+        "missing_membership",
+        "missing_fatal",
+        "missing_foreign",
+        "missing_root_omission",
+        "missing_nested",
+        "missing_root_negatives",
+        "missing_fifo",
+        "relative_fifo",
+        "shell_fifo",
+        "missing_warning_control",
+        "missing_script_control",
+        "missing_byte_readback",
+        "missing_changed_bytes",
+        "missing_failure_cleanup",
+        "swallowed_cleanup_error",
+        "sentinel_not_identity",
+    ),
+)
+def test_frontend_node24_pages_features_guard_rejects_weakened_wiring(mutation: str) -> None:
+    """Reject finite selector, ordering and native-carrier drift without interpreting JS."""
+    package = json.loads(FRONTEND_PACKAGE_JSON_PATH.read_text(encoding="utf-8"))
+    workflow = _load_workflow(FRONTEND_CI_WORKFLOW_PATH)
+    config_source = (REPO_ROOT / "frontend/eslint.config.js").read_text(encoding="utf-8")
+    scripts = package["scripts"]
+    job = cast(dict[str, object], cast(dict[str, object], workflow["jobs"])["build-and-test"])
+    steps = cast(list[dict[str, object]], job["steps"])
+    native = next(step for step in steps if step.get("name") == FOUNDATION_NATIVE_STEP)
+    lint = next(step for step in steps if step.get("name") == PAGES_FEATURES_LINT_STEP)
+    script_changes = {
+        "missing_pages": ('"src/pages/**/*.{ts,tsx}" ', ""),
+        "missing_features": (' "src/features/**/*.{ts,tsx}"', ""),
+        "shallow_pages": ("pages/**/*", "pages/*"),
+        "shallow_features": ("features/**/*", "features/*"),
+        "implicit_config": ("--config eslint.config.js ", ""),
+        "warnings_allowed": ("--max-warnings=0", "--max-warnings=1"),
+        "quiet": ("--max-warnings=0", "--max-warnings=0 --quiet"),
+        "ignored_warnings_hidden": ("--max-warnings=0", "--max-warnings=0 --no-warn-ignored"),
+        "unmatched_allowed": (
+            "--max-warnings=0",
+            "--max-warnings=0 --no-error-on-unmatched-pattern",
+        ),
+        "empty_allowed": ("--max-warnings=0", "--max-warnings=0 --pass-on-no-patterns"),
+        "optional_script": ("--max-warnings=0", "--max-warnings=0 --if-present"),
+        "masked_script": ("--max-warnings=0", "--max-warnings=0 || true"),
+    }
+    if mutation == "missing_script":
+        scripts.pop("lint:pages-features")
+    elif mutation in script_changes:
+        old, new = script_changes[mutation]
+        assert old in scripts["lint:pages-features"]
+        scripts["lint:pages-features"] = scripts["lint:pages-features"].replace(old, new)
+    elif mutation == "missing_step":
+        steps.remove(lint)
+    elif mutation in {"duplicate_step", "renamed_duplicate_step"}:
+        duplicate = dict(lint)
+        if mutation == "renamed_duplicate_step":
+            duplicate["name"] = "Renamed pages/features carrier"
+        steps.append(duplicate)
+    elif mutation.startswith("step_"):
+        settings: dict[str, tuple[str, object]] = {
+            "step_if": ("if", "${{ false }}"),
+            "step_optional": ("continue-on-error", True),
+            "step_shell": ("shell", "bash -c '{0} || true'"),
+            "step_cwd": ("working-directory", "."),
+            "step_env": ("env", {"NODE_OPTIONS": "--require untrusted.cjs"}),
+        }
+        key, value = settings[mutation]
+        lint[key] = value
+    elif mutation in {"optional_command", "masked_command"}:
+        lint["run"] = "npm run lint:pages-features" + (
+            " --if-present" if mutation == "optional_command" else " || true"
+        )
+    elif mutation in {"before_foundation", "before_ui", "after_vitest", "after_build"}:
+        target_name = {
+            "before_foundation": FOUNDATION_LINT_STEP,
+            "before_ui": UI_LINT_STEP,
+            "after_vitest": "Run vitest suite",
+            "after_build": "Build frontend",
+        }[mutation]
+        target = next(step for step in steps if step.get("name") == target_name)
+        steps.remove(lint)
+        steps.insert(steps.index(target) + (1 if mutation.startswith("after_") else 0), lint)
+    else:
+        changes = {
+            "missing_root_nonempty": (
+                "assert.ok(files.length > 0, `Authored ${root.name} selection must be nonempty`)",
+                "assert.ok(true)",
+            ),
+            "missing_recursion": ("files.push(...enumeratePageFeature(file))", "files.push(file)"),
+            "unsupported_entry_accepted": (
+                "assert.ok(stat.isDirectory() || stat.isFile(),",
+                "assert.ok(true,",
+            ),
+            "declarations_counted": ("!name.endsWith('.d.ts')", "true"),
+            "missing_ignore_check": (
+                "assert.ok((await engine.isPathIgnored(file)) === false, "
+                "`Ignored pages/features member:",
+                "assert.ok(true, `Ignored pages/features member:",
+            ),
+            "collapsed_results": (
+                "report.map(result => result.filePath).sort()",
+                "[...new Set(report.map(result => result.filePath))].sort()",
+            ),
+            "missing_membership": (
+                "assert.deepEqual(actual, inventory, 'Pages/features membership mismatch')",
+                "assert.ok(true)",
+            ),
+            "missing_fatal": (
+                "assert.equal(result.fatalErrorCount, 0, 'Pages/features fatal result')",
+                "assert.ok(true)",
+            ),
+            "missing_foreign": (
+                "filePath: path.join(cwd, 'foreign.ts')",
+                "filePath: pageFeatureReport[0].filePath",
+            ),
+            "missing_root_omission": (
+                "assertPageFeatureResults(otherResults, originalPageFeaturePaths)",
+                "assertPageFeatureResults(pageFeatureReport, originalPageFeaturePaths)",
+            ),
+            "missing_nested": (
+                "await assertPageFeatureMembership(eslint, pageFeaturePatterns, nestedInventory)",
+                "await eslint.lintFiles(originalPageFeaturePaths)",
+            ),
+            "missing_root_negatives": ("['missing', 'empty', 'declaration-only']", "[]"),
+            "missing_fifo": ("['.d.ts', '.txt']", "[]"),
+            "relative_fifo": (
+                "spawnSync(mkfifo, [special], options)",
+                "spawnSync('mkfifo', [special], options)",
+            ),
+            "shell_fifo": (
+                "spawnSync(mkfifo, [special], options)",
+                "spawnSync(mkfifo, [special], { ...options, shell: true })",
+            ),
+            "missing_warning_control": ("...tsxCases, ...pageFeatureCases", "...tsxCases"),
+            "missing_script_control": ("['run', 'lint:pages-features']", "['--version']"),
+            "missing_byte_readback": (
+                "assertSourceHashes(new Map([[file, originalSources.get(file)]]))",
+                "assert.ok(true)",
+            ),
+            "missing_changed_bytes": (
+                "assertSourceHashes(specimenSnapshot)",
+                "assertSourceHashes(sourceHashes([specimen]))",
+            ),
+            "missing_failure_cleanup": ("throw sentinel;", "return;"),
+            "swallowed_cleanup_error": (
+                "if (cleanupErrors.length) throw new AggregateError",
+                "if (false) throw new AggregateError",
+            ),
+            "sentinel_not_identity": (
+                "error => error === sentinel",
+                "error => error instanceof Error",
+            ),
+        }
+        old, new = changes[mutation]
+        source = cast(str, native["run"])
+        assert old in source, mutation
+        native["run"] = source.replace(old, new)
+    with pytest.raises((AssertionError, KeyError)):
+        _assert_frontend_node24_foundation_contract(package, workflow, config_source)
+
+
 @pytest.mark.parametrize(
     "mutation",
     (
@@ -7417,11 +7649,11 @@ def test_frontend_node24_ui_guard_rejects_weakened_wiring(mutation: str) -> None
                 "assert.ok(true)",
             ),
             "missing_cleanup": (
-                "if (uiFixtures) fs.rmSync(uiFixtures, { recursive: true, force: true })",
-                "if (uiFixtures) console.log('left fixture')",
+                "fs.rmSync(directory, { recursive: true, force: true })",
+                "console.log('left fixture', directory)",
             ),
             "missing_restored_inventory": (
-                "assert.deepEqual(restoredUI, originalUI)",
+                "assert.deepEqual(restored, inventory)",
                 "assert.ok(true)",
             ),
             "ambient_ui_child_env": ("const env = {", "const env = { ...process.env,"),
