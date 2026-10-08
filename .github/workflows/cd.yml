@@ -1246,7 +1246,7 @@ jobs:
           native_python="$(command -v python)"
           mkdir -p artifacts/orchestration/obs2a_pr3
           if {
-            sudo /usr/bin/env -i PATH=/usr/bin:/bin LANG=C HOME=/tmp PYTHONDONTWRITEBYTECODE=1 \
+            sudo /usr/bin/env -i PATH=/usr/local/bin:/usr/bin:/bin LANG=C HOME=/tmp PYTHONDONTWRITEBYTECODE=1 \
             "$native_python" -m tests.test_notify_premium_alias_checkpoint_failure --native
           } 2>&1 | tee artifacts/orchestration/obs2a_pr3/native-result.log; then
             pipeline_status=("${PIPESTATUS[@]}")

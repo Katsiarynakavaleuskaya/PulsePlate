@@ -183,21 +183,42 @@ def test_shared_setup_openssl_guard_binds_source_patch_and_release_status(
 
 
 @pytest.mark.parametrize("include_sdk_cli", (True, False))
+@pytest.mark.parametrize(
+    "workflow_filename,job_id,native_step_key,native_step_value",
+    (
+        ("ci.yml", "lint", "id", "checkpoint-native"),
+        (
+            "cd.yml",
+            "obs2a-checkpoint-native",
+            "name",
+            "Native main OBS2A checkpoint lifecycle and owned-task challenge",
+        ),
+    ),
+)
 def test_native_checkpoint_selects_the_matching_sdk_cli_before_child_env_isolation(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, include_sdk_cli: bool
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    include_sdk_cli: bool,
+    workflow_filename: str,
+    job_id: str,
+    native_step_key: str,
+    native_step_value: str,
 ) -> None:
     """Exercise the actual resolver with SDK/distro sentinels and a negative path control."""
     from tests.test_notify_premium_alias_checkpoint_failure import _native
 
-    workflow = load_ci_workflow()
-    steps = workflow["jobs"]["lint"]["steps"]
+    workflow = yaml.safe_load(
+        (REPO_ROOT / ".github" / "workflows" / workflow_filename).read_text(encoding="utf-8")
+    )
+    assert isinstance(workflow, dict)
+    steps = workflow["jobs"][job_id]["steps"]
     setup_index = next(
         index
         for index, step in enumerate(steps)
         if step.get("uses") == "./.github/actions/python-setup"
     )
     native_index = next(
-        index for index, step in enumerate(steps) if step.get("id") == "checkpoint-native"
+        index for index, step in enumerate(steps) if step.get(native_step_key) == native_step_value
     )
     assert setup_index < native_index
     script = steps[native_index]["run"]

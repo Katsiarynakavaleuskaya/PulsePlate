@@ -850,6 +850,10 @@ def admitted_request(
     )
     for arguments in (
         ["init", "--quiet"],
+        # Keep automatic Git housekeeping out of the isolated repository copy.
+        # A background maintenance.lock may disappear while copytree reads it.
+        ["config", "maintenance.auto", "false"],
+        ["config", "gc.auto", "0"],
         ["config", "user.name", "Oracle admission fixture"],
         ["config", "user.email", "oracle-test@example.com"],
         ["remote", "add", "origin", "git@github.com:Katsiarynakavaleuskaya/PulsePlate.git"],
