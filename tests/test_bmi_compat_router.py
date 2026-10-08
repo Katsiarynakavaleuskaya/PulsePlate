@@ -502,10 +502,12 @@ def test_bmi_route_uses_service_visualization_bindings_not_facades(
     facade_calls: list[str] = []
 
     def _facade_visualization(**_: Any) -> dict[str, Any]:
+        """Record unexpected facade calls and return the facade sentinel."""
         facade_calls.append("called")
         return {"available": True, "source": "facade"}
 
     def _service_visualization(**_: Any) -> dict[str, Any]:
+        """Return the service sentinel so the route can distinguish it from facade output."""
         return {"available": True, "source": "service"}
 
     legacy_names = ("MATPLOTLIB_AVAILABLE", "generate_bmi_visualization")

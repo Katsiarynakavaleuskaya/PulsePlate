@@ -466,6 +466,7 @@ def test_add_visualization_calls_generate_bmi_visualization(
     monkeypatch.setattr(bmi_compat_service, "MATPLOTLIB_AVAILABLE", True)
 
     def _viz(**_kw: Any) -> dict[str, Any]:
+        """Return a successful synthetic renderer payload for the canonical helper."""
         return {"available": True, "ok": True}
 
     monkeypatch.setattr(bmi_compat_service, "generate_bmi_visualization", _viz)
