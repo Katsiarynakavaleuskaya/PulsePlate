@@ -887,7 +887,12 @@ def test_native_integration_is_a_required_publication_and_deploy_dependency(
         "postgres-pgvector-ci-admission",
         native_name,
     ]
-    assert builder["needs"] == ["prometheus-image-security", "main-push-admission", native_name]
+    assert builder["needs"] == [
+        "prometheus-image-security",
+        "obs2a-checkpoint-native",
+        "main-push-admission",
+        native_name,
+    ]
     assert " ".join(publisher["if"].split()) == (
         "github.event_name == 'push' && github.ref == 'refs/heads/main' "
         "&& needs.postgres-pgvector-material-change.outputs.changed == 'true' "
@@ -897,6 +902,7 @@ def test_native_integration_is_a_required_publication_and_deploy_dependency(
     assert " ".join(builder["if"].split()) == (
         "!cancelled() && github.event_name == 'push' && github.ref == 'refs/heads/main' "
         "&& needs.prometheus-image-security.result == 'success' "
+        "&& needs.obs2a-checkpoint-native.result == 'success' "
         "&& needs.main-push-admission.result == 'success' && "
         "needs.staging-postgres-native-integration.result == 'success'"
     )
@@ -919,7 +925,7 @@ def test_native_integration_is_a_required_publication_and_deploy_dependency(
     assert not runtime_step.get("continue-on-error", False)
     # Closed projection of the exact expressions/needs above, not an Actions
     # expression interpreter. Other prerequisites are successful and workflow
-    # cancellation is false in this matrix.
+    # cancellation is false in this matrix, including successful checkpoint admission.
     admitted_main = event == "push" and ref == "refs/heads/main"
     native_succeeded = native_result == "success"
     assert (admitted_main and native_succeeded and changed) is publish
@@ -931,12 +937,14 @@ def test_build_admission_requires_all_direct_successes_without_implicit_status()
     builder = jobs["build"]
     assert builder["needs"] == [
         "prometheus-image-security",
+        "obs2a-checkpoint-native",
         "main-push-admission",
         "staging-postgres-native-integration",
     ]
     assert " ".join(builder["if"].split()) == (
         "!cancelled() && github.event_name == 'push' && github.ref == 'refs/heads/main' "
         "&& needs.prometheus-image-security.result == 'success' "
+        "&& needs.obs2a-checkpoint-native.result == 'success' "
         "&& needs.main-push-admission.result == 'success' "
         "&& needs.staging-postgres-native-integration.result == 'success'"
     )
@@ -951,16 +959,17 @@ def test_build_admission_requires_all_direct_successes_without_implicit_status()
         ("workflow_dispatch", "refs/heads/main"),
         ("schedule", "refs/heads/main"),
     )
+    dependency_count = len(builder["needs"])
     cases: list[tuple[bool, tuple[str, str], tuple[str, ...], bool]] = [
-        (False, events[0], ("success",) * 3, True)
+        (False, events[0], ("success",) * dependency_count, True)
     ]
-    for dependency in range(3):
+    for dependency in range(dependency_count):
         for result in results[1:]:
-            direct = ["success"] * 3
+            direct = ["success"] * dependency_count
             direct[dependency] = result
             cases.append((False, events[0], tuple(direct), False))
-    cases.append((True, events[0], ("success",) * 3, False))
-    cases.extend((False, event, ("success",) * 3, False) for event in events[1:])
+    cases.append((True, events[0], ("success",) * dependency_count, False))
+    cases.extend((False, event, ("success",) * dependency_count, False) for event in events[1:])
     for cancelled, (event, ref), direct, expected in cases:
         admitted = (
             not cancelled
@@ -969,6 +978,7 @@ def test_build_admission_requires_all_direct_successes_without_implicit_status()
             and direct[0] == "success"
             and direct[1] == "success"
             and direct[2] == "success"
+            and direct[3] == "success"
         )
         assert admitted is expected
     join = jobs["postgres-pgvector-admission"]["steps"][0]["run"]

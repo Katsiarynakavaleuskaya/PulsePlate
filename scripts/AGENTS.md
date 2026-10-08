@@ -50,6 +50,37 @@
   Fixtures must distinguish default/all-profile models and reject incorrect
   native argv, with a real read-only native observation before claiming parity.
 
+## Premium alias checkpoint adapter
+
+- Deliver the OBS2A checkpoint units disabled; supported manual invocation uses
+  the same service and preserved protected flock inode as the timer.
+- Keep the existing verifier as receipt/decision owner. Failed exit 1/2, missing
+  baseline and timeout must remain native failed invocations with OnFailure.
+  Queries use the existing bound-app raw HTTP relay with an internal 8-second
+  bound through flush inside the existing verifier host bound; no unbounded
+  query fallback is allowed. Actual native owned-task observations prove exit.
+- The failure helper uses only explicit Compose/contour arguments and native
+  amtool with --no-version-check and --timeout=8s inside the unchanged 10-second
+  host command ceiling as an internal margin. A native CLI's command timeout may
+  not cover its pre-action requests; verify actual pinned behavior.
+- Keep the fixed 15 min event, 60-second absolute cadence, max 15 attempts and 16 min unit
+  bound. Never forward native error text or treat event expiry as recovery.
+- Native Linux checks in the owning notifier test module include actual owned
+  Docker task observations; host process termination alone is insufficient.
+  Preserve a survivor as HOLD and obtain bounded prerequisite scope.
+  Native fixtures render all profiles only for configuration checks and use the
+  single owned PID/COMMAND census with the unchanged stop deadline. Reset only a
+  positively observed failed invocation; preserve independent owned cleanup and
+  primary errors. The main CD native admission job has its own vars-defined
+  budget, explicit read-only permissions and successful image-scan prerequisite;
+  main build also requires that native job to succeed.
+- Check the outer CI job admission and inner native Git selector together:
+  checkpoint-only changes must reach the required PR native lane without a
+  workflow-file change. Keep its explicit PR guard and raw failure-log retention
+  on the same runner. Validate the owning module in its declared ci-lite profile
+  before relocating native checks, and bound lint/pre-commit/native phases through
+  their named timeout sources; selected execution or expiry is not native PASS.
+
 ## Native RubyZip/Fastlane guard
 
 - `ruby scripts/ci/check_rubyzip_fastlane.rb` is the read-only source, lock and
@@ -149,7 +180,14 @@
   absolute Python `-I`, T cwd and explicit distinct `--material-root M`; root
   metadata supplies continuity, never trust. Follow the canonical accompaniment
   contract for read-only T/M guest snapshots, companion-dependent restore,
-  typed failures and bounded claims.
+  typed failures and bounded claims. For a lane that may span a reboot, keep its
+  admitted trusted tool checkout, governing and experiment packets, and required
+  original companions in durable task-owned local storage outside temporary
+  directories; keep these assets untracked and ownership-scoped. Surviving reports,
+  fingerprints or a ZIP cannot establish recoverability or current validation when
+  required originals are unavailable. Preserve that missing-evidence state and use
+  the existing admission/archive/restore consumers; storage relocation alone is not
+  a reason to repeat Runner or reconstruct historical receipts.
 - `pr_oracle_attachment.py dispatch` is the admitted local host composition
   for ensure/reuse followed by existing exact role-context delivery. Follow the
   [single accompaniment contract](../docs/orchestration/contracts/EXPERIMENT_RUNNER_PR_CREATIVE_CONTEXT_CONTRACT.md#admitted-host-oracle-accompaniment-creative-ops-2)

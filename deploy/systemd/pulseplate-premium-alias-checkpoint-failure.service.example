@@ -1,0 +1,16 @@
+# Default-off staging example. Keep contour and Compose path aligned with checkpoint.
+[Unit]
+Description=PulsePlate bounded checkpoint failure event
+After=docker.service
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/srv/pulseplate-staging
+UMask=0077
+Environment=COMPOSE_PROFILES=
+ExecStart=/usr/bin/python3 /srv/pulseplate-staging/scripts/ops/notify_premium_alias_checkpoint_failure.py --compose-file /srv/pulseplate-staging/docker-compose.staging.yaml --environment staging
+TimeoutStartSec=16min
+TimeoutStopSec=10s
+KillMode=control-group
+Restart=no
