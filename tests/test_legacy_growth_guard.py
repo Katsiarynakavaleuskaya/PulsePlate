@@ -19321,3 +19321,552 @@ def test_consol_class_local_api_spellings_are_not_module_rebindings(
     source = _CONSOL_GETTER_IMPORTS + "class Scope:\n" + textwrap.indent(statement, "    ")
     compile(source, "<class-local-protected-spelling-fixture>", "exec")
     assert _validate_api_key_dependency_ownership(source, {}) == []
+
+
+@pytest.mark.parametrize("symbol", _CONSOL_API_KEY_SYMBOLS)
+@pytest.mark.parametrize("target_kind", ["attribute", "subscript"])
+@pytest.mark.parametrize("operation", ["assignment", "annotation", "augmented", "delete"])
+def test_consol_api_protected_targets_cover_full_inventory(
+    symbol: str, target_kind: str, operation: str
+) -> None:
+    target = f"legacy.{symbol}" if target_kind == "attribute" else f"legacy.__dict__[{symbol!r}]"
+    statements = {
+        "assignment": f"{target} = None\n",
+        "annotation": f"{target}: object = None\n",
+        "augmented": f"{target} += replacement\n",
+        "delete": f"del {target}\n",
+    }
+    source = "import legacy_app as legacy\n" + statements[operation]
+    compile(source, "<api-protected-target-fixture>", "exec")
+    diagnostic = (
+        "app/routers/example.py: legacy API-key dependency attribute access "
+        if target_kind == "attribute"
+        else "app/routers/example.py: legacy API-key dependency namespace lookup "
+    ) + f"is forbidden: {symbol}"
+    assert _validate_api_key_dependency_ownership(
+        _CONSOL_GETTER_IMPORTS, {"app/routers/example.py": source}
+    ) == [diagnostic]
+
+
+@pytest.mark.parametrize("symbol", _CONSOL_API_KEY_SYMBOLS)
+@pytest.mark.parametrize("carrier", ["setattr", "delattr", "setitem", "update"])
+def test_consol_api_protected_mutating_calls_cover_full_inventory(
+    symbol: str, carrier: str
+) -> None:
+    statements = {
+        "setattr": f"setattr(legacy, {symbol!r}, None)\n",
+        "delattr": f"delattr(legacy, {symbol!r})\n",
+        "setitem": f"legacy.__dict__.__setitem__({symbol!r}, None)\n",
+        "update": f"legacy.__dict__.update({{{symbol!r}: None}})\n",
+    }
+    source = "import legacy_app as legacy\n" + statements[carrier]
+    compile(source, "<api-protected-mutation-fixture>", "exec")
+    diagnostic = (
+        "app/routers/example.py: dynamic legacy API-key dependency lookup "
+        if carrier in {"setattr", "delattr"}
+        else "app/routers/example.py: legacy API-key dependency namespace lookup "
+    ) + f"is forbidden: {symbol}"
+    assert _validate_api_key_dependency_ownership(
+        _CONSOL_GETTER_IMPORTS, {"app/routers/example.py": source}
+    ) == [diagnostic]
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "import legacy_app as legacy\nlegacy.other = None\n",
+        "import app.routers.api_key as canonical\ncanonical.require_app_api_key = None\n",
+        "class Other:\n    pass\nother = Other()\ndel other.require_app_api_key\n",
+        "import legacy_app as legacy\nsetattr(legacy, 'other', None)\n",
+        "import legacy_app as legacy\ndef setattr(*arguments):\n    pass\nsetattr(legacy, 'require_app_api_key', None)\n",
+        "import legacy_app as legacy\ndef delattr(*arguments):\n    pass\ndelattr(legacy, 'require_app_api_key')\n",
+        "import legacy_app as legacy\nlegacy.__dict__.update(other=None)\n",
+        "import legacy_app as legacy\nimport app.routers.api_key as canonical\ndef mutate(legacy):\n    legacy.require_app_api_key = None\nmutate(canonical)\n",
+    ],
+)
+def test_consol_api_protected_writes_keep_independent_safe_and_shadow_controls(source: str) -> None:
+    compile(source, "<api-mutation-independent-control-fixture>", "exec")
+    assert (
+        _validate_api_key_dependency_ownership(
+            _CONSOL_GETTER_IMPORTS, {"app/routers/example.py": source}
+        )
+        == []
+    )
+
+
+@pytest.mark.parametrize("invoked", [False, True])
+def test_consol_api_target_audit_preserves_ordinary_dormant_outward_effects(invoked: bool) -> None:
+    source = (
+        "import legacy_app as legacy\nstate = 'unchanged'\ndef mutate():\n"
+        "    legacy.require_app_api_key = None\n    global state\n    state = 'changed'\n"
+        + ("mutate()\n" if invoked else "")
+    )
+    compile(source, "<api-target-purpose-fixture>", "exec")
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="app/routers/example.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(ast.parse(source))
+    assert visitor.scope.resolve_string("state") == ("changed" if invoked else "unchanged")
+    assert _validate_api_key_dependency_ownership(
+        _CONSOL_GETTER_IMPORTS, {"app/routers/example.py": source}
+    ) == [
+        "app/routers/example.py: legacy API-key dependency attribute access is forbidden: require_app_api_key"
+    ]
+
+
+@pytest.mark.parametrize(
+    ("statement", "initial", "replacement", "forbidden"),
+    [
+        pytest.param(
+            "legacy.require_app_api_key = rhs()\n",
+            "genuine",
+            "canonical",
+            False,
+            id="rhs-before-store",
+        ),
+        pytest.param(
+            "legacy.require_app_api_key: object = rhs()\n",
+            "canonical",
+            "genuine",
+            True,
+            id="rhs-before-annotated-store",
+        ),
+        pytest.param(
+            "legacy.require_app_api_key += rhs()\n",
+            "genuine",
+            "canonical",
+            True,
+            id="augmented-target-before-rhs",
+        ),
+        pytest.param(
+            "legacy.__dict__[member()] = None\n",
+            "genuine",
+            "canonical",
+            True,
+            id="receiver-before-member",
+        ),
+    ],
+)
+def test_consol_api_target_reports_keep_actual_evaluation_order(
+    statement: str, initial: str, replacement: str, forbidden: bool
+) -> None:
+    source = (
+        "import legacy_app as genuine\nimport app.routers.api_key as canonical\n"
+        + f"legacy = {initial}\ndef rhs():\n    global legacy\n    legacy = {replacement}\n    return None\n"
+        + f"def member():\n    global legacy\n    legacy = {replacement}\n    return 'require_app_api_key'\n"
+        + statement
+    )
+    compile(source, "<api-target-own-order-fixture>", "exec")
+    kind = "namespace lookup" if "__dict__" in statement else "attribute access"
+    diagnostic = f"app/routers/example.py: legacy API-key dependency {kind} is forbidden: require_app_api_key"
+    assert _validate_api_key_dependency_ownership(
+        _CONSOL_GETTER_IMPORTS, {"app/routers/example.py": source}
+    ) == ([diagnostic] if forbidden else [])
+
+
+@pytest.mark.parametrize(
+    "statement",
+    [
+        pytest.param("legacy.__dict__.__setitem__(member, None)\n", id="setitem"),
+        pytest.param("legacy.__dict__.__delitem__(member)\n", id="delitem"),
+        pytest.param("legacy.__dict__.pop(member, None)\n", id="pop"),
+        pytest.param("legacy.__dict__.setdefault(member, None)\n", id="setdefault"),
+        pytest.param("legacy.__dict__.update({member: None})\n", id="update"),
+        pytest.param("legacy.__dict__.__ior__({member: None})\n", id="ior"),
+        pytest.param(
+            "legacy.__dict__.__init__(_install_openapi_builder=None)\n", id="init-supplied-key"
+        ),
+        pytest.param("legacy.__dict__.clear()\n", id="clear"),
+        pytest.param("legacy.__dict__.popitem()\n", id="popitem"),
+    ],
+)
+def test_consol_openapi_current_nine_mutator_operations_keep_distinct_key_semantics(
+    statement: str,
+) -> None:
+    source = "import legacy_app as legacy\nmember = '_install_openapi_builder'\n" + statement
+    compile(source, "<current-nine-mutator-fixture>", "exec")
+    assert _consol_openapi_errors(source) == [
+        "app/main.py: OpenAPI symbol must not be accessed through legacy"
+    ]
+
+
+@pytest.mark.parametrize("method", ["clear", "popitem", "__delitem__"])
+@pytest.mark.parametrize("form", ["computed-bound", "stored-unbound"])
+def test_consol_openapi_destructive_methods_keep_proven_computed_and_builtin_aliases(
+    method: str, form: str
+) -> None:
+    arguments = "'_install_openapi_builder'" if method == "__delitem__" else ""
+    source = "import legacy_app as legacy\n" + (
+        f"vars(legacy).{method}({arguments})\n"
+        if form == "computed-bound"
+        else f"pick = dict.{method}\npick(vars(legacy){', ' + arguments if arguments else ''})\n"
+    )
+    compile(source, "<destructive-method-provenance-fixture>", "exec")
+    assert _consol_openapi_errors(source) == [
+        "app/main.py: OpenAPI symbol must not be accessed through legacy"
+    ]
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "import legacy_app as legacy\nlegacy.__dict__.__init__()\n",
+        "import legacy_app as legacy\nlegacy.__dict__.update()\n",
+        "import legacy_app as legacy\nlegacy.__dict__.__ior__({})\n",
+        "import legacy_app as legacy\nlegacy.__dict__.__delitem__('other')\n",
+        "import legacy_app as legacy\nlegacy.__dict__.__init__(other=None)\n",
+        "namespace = {}\nnamespace.clear()\n",
+        "import app.bootstrap.openapi as canonical\nvars(canonical).popitem()\n",
+        "import legacy_app as legacy\ndef vars(receiver):\n    return {}\nvars(legacy).clear()\n",
+    ],
+)
+def test_consol_mutator_empty_supplied_safe_and_unrelated_controls(source: str) -> None:
+    compile(source, "<mutator-operation-control-fixture>", "exec")
+    assert _consol_openapi_errors(source) == []
+
+
+@pytest.mark.parametrize(
+    ("statement", "forbidden"),
+    [
+        ("obj.__dict__.clear()", True),
+        ("obj.__dict__.popitem()", True),
+        ("obj.__dict__.__delitem__('owner')", True),
+        ("obj.__dict__.__delitem__('other')", False),
+        ("obj.__dict__.update(unknown)", True),
+        ("obj.__dict__.update()", False),
+        ("obj.__dict__.__init__()", False),
+    ],
+)
+def test_consol_default_namespace_mutation_helper_keeps_conservative_unknown_and_empty_boundaries(
+    statement: str, forbidden: bool
+) -> None:
+    tree = ast.parse(statement)
+    call = cast(ast.Call, cast(ast.Expr, tree.body[0]).value)
+    assert (
+        legacy_guard._mutates_protected_namespace(
+            call,
+            protected_names={"owner"},
+            references={},
+            static_string_bindings={},
+            static_mapping_bindings={},
+        )
+        is forbidden
+    )
+
+
+@pytest.mark.parametrize("family", ["api", "openapi"])
+@pytest.mark.parametrize(
+    ("lookup", "namespace"),
+    [
+        ("getattr(*(legacy, {member!r}))", False),
+        ("getattr(*[legacy, {member!r}])", False),
+        ("getattr(*[legacy, *({member!r},)])", False),
+        ("getattr(legacy, *({member!r},))", False),
+        ("dict.get(*(vars(legacy), {member!r}))", True),
+        ("dict.__getitem__(*[vars(legacy), {member!r}])", True),
+        ("dict.pop(*(vars(legacy), {member!r}, None))", True),
+        ("dict.setdefault(*[vars(legacy), {member!r}, None])", True),
+    ],
+)
+def test_consol_literal_starred_lookups_use_original_ordered_leaf_evidence(
+    family: Literal["api", "openapi"], lookup: str, namespace: bool
+) -> None:
+    member = "get_api_key" if family == "api" else "_install_openapi_builder"
+    source = "import legacy_app as legacy\nvalue = " + lookup.format(member=member) + "\n"
+    compile(source, "<literal-starred-lookup-fixture>", "exec")
+    if family == "api":
+        kind = (
+            "legacy API-key dependency namespace lookup"
+            if namespace
+            else "dynamic legacy API-key dependency lookup"
+        )
+        assert _validate_api_key_dependency_ownership(
+            _CONSOL_GETTER_IMPORTS, {"app/routers/example.py": source}
+        ) == [f"app/routers/example.py: {kind} is forbidden: {member}"]
+    else:
+        assert _consol_openapi_errors(source) == [
+            "app/main.py: OpenAPI symbol must not be accessed through legacy"
+        ]
+
+
+@pytest.mark.parametrize("family", ["api", "openapi"])
+@pytest.mark.parametrize(
+    ("statement", "namespace"),
+    [
+        ("setattr(*(legacy, {member!r}, None))", False),
+        ("delattr(*[legacy, {member!r}])", False),
+        ("dict.__setitem__(*(vars(legacy), {member!r}, None))", True),
+        ("dict.update(*[vars(legacy), {{{member!r}: None}}])", True),
+    ],
+)
+def test_consol_literal_starred_mutations_share_existing_positional_normalization(
+    family: Literal["api", "openapi"], statement: str, namespace: bool
+) -> None:
+    member = "get_api_key" if family == "api" else "_install_openapi_builder"
+    source = "import legacy_app as legacy\n" + statement.format(member=member) + "\n"
+    compile(source, "<literal-starred-mutation-fixture>", "exec")
+    if family == "api":
+        kind = (
+            "legacy API-key dependency namespace lookup"
+            if namespace
+            else "dynamic legacy API-key dependency lookup"
+        )
+        assert _validate_api_key_dependency_ownership(
+            _CONSOL_GETTER_IMPORTS, {"app/routers/example.py": source}
+        ) == [f"app/routers/example.py: {kind} is forbidden: {member}"]
+    else:
+        assert _consol_openapi_errors(source) == [
+            "app/main.py: OpenAPI symbol must not be accessed through legacy"
+        ]
+
+
+@pytest.mark.parametrize("family", ["api", "openapi"])
+@pytest.mark.parametrize(
+    "control",
+    [
+        "safe-receiver",
+        "safe-member",
+        "shadowed-getattr",
+        "unknown-name",
+        "unknown-call",
+        "generator",
+        "comprehension",
+        "unknown-namespace",
+        "depth-exhausted",
+    ],
+)
+def test_consol_starred_controls_never_drop_unresolved_sources_and_reindex_known_nodes(
+    family: Literal["api", "openapi"], control: str
+) -> None:
+    member = "get_api_key" if family == "api" else "_install_openapi_builder"
+    canonical = "app.routers.api_key" if family == "api" else "app.bootstrap.openapi"
+    source = "import legacy_app as legacy\n"
+    if control == "safe-receiver":
+        source += f"import {canonical} as canonical\ngetattr(*(canonical, {member!r}))\n"
+    elif control == "safe-member":
+        source += "getattr(*[legacy, 'other'])\n"
+    elif control == "shadowed-getattr":
+        source += f"def getattr(*arguments):\n    return None\ngetattr(*(legacy, {member!r}))\n"
+    elif control == "unknown-namespace":
+        source += f"dict.get(*unknown, vars(legacy), {member!r})\n"
+    elif control == "depth-exhausted":
+        value = f"(legacy, {member!r})"
+        for _ in range(9):
+            value = f"(*{value},)"
+        source += f"getattr(*{value})\n"
+    else:
+        value = {
+            "unknown-name": "unknown",
+            "unknown-call": "values()",
+            "generator": "(item for item in unknown)",
+            "comprehension": "[item for item in unknown]",
+        }[control]
+        source += f"getattr(*{value}, legacy, {member!r})\n"
+    compile(source, "<unresolved-starred-control-fixture>", "exec")
+    if family == "api":
+        assert (
+            _validate_api_key_dependency_ownership(
+                _CONSOL_GETTER_IMPORTS, {"app/routers/example.py": source}
+            )
+            == []
+        )
+    else:
+        assert _consol_openapi_errors(source) == []
+
+
+@pytest.mark.parametrize("component", ["callee", "receiver", "member"])
+@pytest.mark.parametrize("snapshot_kind", ["reference", "string"])
+def test_consol_starred_openapi_calls_require_each_original_leaf_snapshot(
+    component: str, snapshot_kind: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    collect = legacy_guard._collect_lexical_binding_snapshots
+    selected_nodes: list[int] = []
+
+    def collect_without_leaf(tree: ast.Module, **kwargs: Any) -> tuple[
+        Mapping[int, Mapping[str, str]],
+        Mapping[int, Mapping[str, str]],
+        Mapping[int, legacy_guard._ResolvedBinding],
+    ]:
+        references, strings, results = collect(tree, **kwargs)
+        selected: set[int] = set()
+        for node in ast.walk(tree):
+            if (
+                isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Name)
+                and node.func.id == "getattr"
+            ):
+                leaves = cast(ast.Tuple, cast(ast.Starred, node.args[0]).value).elts
+                selected.add(
+                    id(
+                        node.func
+                        if component == "callee"
+                        else leaves[0 if component == "receiver" else 1]
+                    )
+                )
+        selected_nodes.extend(selected)
+        if snapshot_kind == "reference":
+            references = {key: value for key, value in references.items() if key not in selected}
+        else:
+            strings = {key: value for key, value in strings.items() if key not in selected}
+        return references, strings, results
+
+    monkeypatch.setattr(legacy_guard, "_collect_lexical_binding_snapshots", collect_without_leaf)
+    source = "import legacy_app as legacy\ngetattr(*(legacy, '_install_openapi_builder'))\n"
+    assert _consol_openapi_errors(source) == []
+    assert selected_nodes, "the original expanded leaf must be selected for omission"
+
+
+@pytest.mark.parametrize("family", ["api", "openapi"])
+def test_consol_starred_lookup_children_execute_once_before_later_default_effects(
+    family: Literal["api", "openapi"],
+) -> None:
+    member = "get_api_key" if family == "api" else "_install_openapi_builder"
+    source = (
+        "import legacy_app as legacy\ntrace = ''\ndef receiver():\n    global trace\n"
+        "    trace = trace + 'r'\n    return legacy\ndef member():\n    global trace\n"
+        + f"    trace = trace + 'k'\n    return {member!r}\n"
+        + "def default():\n    global trace\n    trace = trace + 'd'\n    return None\n"
+        + "getattr(*(receiver(), member()), default())\n"
+    )
+    compile(source, "<starred-once-only-child-order-fixture>", "exec")
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="app/routers/example.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(ast.parse(source))
+    assert visitor.scope.resolve_string("trace") == "rkd"
+    if family == "api":
+        assert _validate_api_key_dependency_ownership(
+            _CONSOL_GETTER_IMPORTS, {"app/routers/example.py": source}
+        ) == [
+            f"app/routers/example.py: dynamic legacy API-key dependency lookup is forbidden: {member}"
+        ]
+    else:
+        assert _consol_openapi_errors(source) == [
+            "app/main.py: OpenAPI symbol must not be accessed through legacy"
+        ]
+
+
+@pytest.mark.parametrize("initially_protected", [True, False])
+def test_consol_api_update_key_fact_precedes_later_value_rebinding(
+    initially_protected: bool,
+) -> None:
+    initial = "require_app_api_key" if initially_protected else "other"
+    replacement = "other" if initially_protected else "require_app_api_key"
+    source = (
+        "import legacy_app as legacy\n"
+        + f"member = {initial!r}\ndef replace_member():\n    global member\n"
+        + f"    member = {replacement!r}\n    return None\n"
+        + "legacy.__dict__.update({member: replace_member()})\n"
+    )
+    compile(source, "<api-own-key-before-value-fixture>", "exec")
+    diagnostic = "app/routers/example.py: legacy API-key dependency namespace lookup is forbidden: require_app_api_key"
+    assert _validate_api_key_dependency_ownership(
+        _CONSOL_GETTER_IMPORTS, {"app/routers/example.py": source}
+    ) == ([diagnostic] if initially_protected else [])
+
+
+def test_consol_api_update_uses_already_visited_returned_key_result() -> None:
+    source = (
+        "import legacy_app as legacy\nstate = 'unchanged'\ndef member():\n    global state\n"
+        "    state = 'visited'\n    return 'require_app_api_key'\n"
+        "def value():\n    global state\n    state = 'unchanged'\n    return None\n"
+        "legacy.__dict__.update({member(): value()})\n"
+    )
+    compile(source, "<api-returned-own-key-fixture>", "exec")
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="app/routers/example.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(ast.parse(source))
+    assert visitor.scope.resolve_string("state") == "unchanged"
+    assert _validate_api_key_dependency_ownership(
+        _CONSOL_GETTER_IMPORTS, {"app/routers/example.py": source}
+    ) == [
+        "app/routers/example.py: legacy API-key dependency namespace lookup is forbidden: require_app_api_key"
+    ]
+
+
+@pytest.mark.parametrize("key_kind", ["name", "returned-call"])
+@pytest.mark.parametrize("missing_snapshot", ["reference", "string"])
+def test_consol_own_key_resolver_requires_both_actual_node_snapshots(
+    key_kind: str, missing_snapshot: str
+) -> None:
+    source = (
+        "member = 'require_app_api_key'\ndef read():\n    return member\n"
+        "first = member\nsecond = read()\nmember = 'other'\n"
+    )
+    compile(source, "<own-key-missing-component-fixture>", "exec")
+    tree = ast.parse(source)
+    references: dict[int, dict[str, str]] = {}
+    strings: dict[int, dict[str, str]] = {}
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="app/routers/example.py",
+        errors=[],
+        analyze_function_bodies=False,
+        reference_snapshots=references,
+        string_snapshots=strings,
+    )
+    visitor.visit(tree)
+    key = cast(ast.Assign, tree.body[2 if key_kind == "name" else 3]).value
+    assert id(key) in references and id(key) in strings
+    original_scope = visitor.scope
+    (references if missing_snapshot == "reference" else strings).pop(id(key))
+    assert visitor._resolve_string(key, own_environment=True) is None
+    assert visitor.scope is original_scope
+    assert visitor.scope.resolve_string("member") == "other"
+
+
+@pytest.mark.parametrize("key_kind", ["name", "returned-call"])
+def test_consol_own_key_resolver_restores_scope_and_never_replays_key_children(
+    key_kind: str,
+) -> None:
+    source = (
+        "member = 'require_app_api_key'\nstate = 'unchanged'\ndef read():\n    global state\n"
+        "    state = 'visited'\n    return member\nfirst = member\nsecond = read()\n"
+        "member = 'other'\nstate = 'unchanged'\n"
+    )
+    compile(source, "<own-key-restoration-fixture>", "exec")
+    tree = ast.parse(source)
+    references: dict[int, dict[str, str]] = {}
+    strings: dict[int, dict[str, str]] = {}
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="app/routers/example.py",
+        errors=[],
+        analyze_function_bodies=False,
+        reference_snapshots=references,
+        string_snapshots=strings,
+    )
+    visitor.visit(tree)
+    key = cast(ast.Assign, tree.body[3 if key_kind == "name" else 4]).value
+    original_scope = visitor.scope
+    assert visitor._resolve_string(key, own_environment=True) == "require_app_api_key"
+    assert visitor.scope is original_scope
+    assert visitor.scope.resolve_string("member") == "other"
+    assert visitor.scope.resolve_string("state") == "unchanged"
+
+
+def test_consol_own_key_resolver_restores_scope_on_resolution_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source = "first = 'require_' + 'app_api_key'\nmember = 'other'\n"
+    tree = ast.parse(source)
+    references: dict[int, dict[str, str]] = {}
+    strings: dict[int, dict[str, str]] = {}
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="app/routers/example.py",
+        errors=[],
+        analyze_function_bodies=False,
+        reference_snapshots=references,
+        string_snapshots=strings,
+    )
+    visitor.visit(tree)
+    key = cast(ast.Assign, tree.body[0]).value
+    original_scope = visitor.scope
+
+    def reject_resolution(node: ast.AST, bindings: Mapping[str, str]) -> str | None:
+        raise RuntimeError("synthetic key-resolution failure")
+
+    monkeypatch.setattr(legacy_guard, "_resolve_static_string", reject_resolution)
+    with pytest.raises(RuntimeError, match="synthetic key-resolution failure"):
+        visitor._resolve_string(key, own_environment=True)
+    assert visitor.scope is original_scope
+    assert visitor.scope.resolve_string("member") == "other"

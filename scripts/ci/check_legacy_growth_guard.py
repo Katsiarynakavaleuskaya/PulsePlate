@@ -4317,7 +4317,24 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 return "pulseplate.app"
         return None
 
-    def _resolve_string(self, node: ast.AST) -> str | None:
+    def _resolve_string(self, node: ast.AST, *, own_environment: bool = False) -> str | None:
+        if own_environment:
+            node_id = id(node)
+            if (
+                self.reference_snapshots is None
+                or self.string_snapshots is None
+                or node_id not in self.reference_snapshots
+                or node_id not in self.string_snapshots
+            ):
+                return None
+            previous = self.scope
+            self.scope = _LexicalBindings(parent=None)
+            self.scope.references = dict(self.reference_snapshots[node_id])
+            self.scope.strings = dict(self.string_snapshots[node_id])
+            try:
+                return self._resolve_string(node)
+            finally:
+                self.scope = previous
         if id(node) in self._call_result_bindings:
             return self._call_result_bindings[id(node)].string
         if isinstance(node, ast.Await):
@@ -4962,10 +4979,33 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             self._record_snapshot(target)
         if isinstance(target, ast.Attribute):
             self.visit(target.value)
+            if (
+                self.ownership_family == "api_key"
+                and target.attr in CANONICAL_API_KEY_SYMBOLS
+                and self._is_legacy_module_reference(self._resolve_reference(target.value))
+            ):
+                self.errors.append(
+                    f"{self.filename}: legacy API-key dependency attribute access is forbidden: "
+                    f"{target.attr}"
+                )
             return
         if isinstance(target, ast.Subscript):
             self.visit(target.value)
+            receiver_reference = self._resolve_reference(target.value)
             self.visit(target.slice)
+            if self.ownership_family == "api_key" and self._is_legacy_namespace_reference(
+                receiver_reference
+            ):
+                symbol_name = self._resolve_string(target.slice)
+                if symbol_name in CANONICAL_API_KEY_SYMBOLS or symbol_name in {
+                    None,
+                    _DYNAMIC_STRING_BINDING,
+                    _POSSIBLE_API_KEY_SYMBOL,
+                }:
+                    self.errors.append(
+                        f"{self.filename}: legacy API-key dependency namespace lookup is forbidden: "
+                        f"{symbol_name if symbol_name in CANONICAL_API_KEY_SYMBOLS else '<dynamic>'}"
+                    )
 
     def _record_object_namespace_target(
         self,
@@ -8686,29 +8726,32 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         function_reference: str | None,
         receiver_reference: str | None,
     ) -> ast.AST | None:
+        expanded_arguments, unresolved = _expand_static_positional_arguments(node.args)
+        arguments: Sequence[ast.expr] = node.args if unresolved else expanded_arguments
         if (
             function_reference in _UNBOUND_DICT_LOOKUP_REFERENCES
-            and len(node.args) >= 2
+            and len(arguments) >= 2
             and self._is_legacy_namespace_reference(receiver_reference)
         ):
-            return node.args[1]
+            return arguments[1]
         if (
             isinstance(node.func, ast.Attribute)
             and node.func.attr in _DICT_NAMESPACE_LOOKUP_METHODS
-            and node.args
+            and arguments
             and self._is_legacy_namespace_reference(receiver_reference)
         ):
-            return node.args[0]
-        if function_reference is not None and node.args:
+            return arguments[0]
+        if function_reference is not None and arguments:
             namespace, _separator, method = function_reference.rpartition(".")
             if namespace == "legacy_app.__dict__" and method in _DICT_NAMESPACE_LOOKUP_METHODS:
-                return node.args[0]
+                return arguments[0]
         return None
 
     def visit_Call(self, node: ast.Call) -> None:
         positional_arguments, unresolved_positional_sources = _expand_static_positional_arguments(
             node.args
         )
+        lookup_arguments = node.args if unresolved_positional_sources else positional_arguments
         mapping_lookup_attribute = self._mapping_lookup_attribute(node)
         if mapping_lookup_attribute is not None:
             self.visit(mapping_lookup_attribute.value)
@@ -8743,16 +8786,26 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         )
         mapping_lookup_receiver = self._capture_mapping_lookup_receiver(node)
         namespace_function_reference = self._resolve_reference(node.func)
+        unbound_mutator_candidate = (
+            namespace_function_reference is not None
+            and namespace_function_reference.startswith("builtins.dict.")
+            and namespace_function_reference.rpartition(".")[2] in _MAPPING_MUTATOR_METHODS
+        )
+        bound_mutator_candidate = (
+            isinstance(node.func, ast.Attribute) and node.func.attr in _MAPPING_MUTATOR_METHODS
+        )
+        mutation_receiver_binding: _ResolvedBinding | None = None
         namespace_receiver = (
-            node.args[0]
-            if namespace_function_reference in _UNBOUND_DICT_LOOKUP_REFERENCES and node.args
+            lookup_arguments[0]
+            if namespace_function_reference in _UNBOUND_DICT_LOOKUP_REFERENCES and lookup_arguments
             else node.func.value if isinstance(node.func, ast.Attribute) else None
         )
         unbound_namespace_candidate = (
-            namespace_function_reference in _UNBOUND_DICT_LOOKUP_REFERENCES and len(node.args) >= 2
+            namespace_function_reference in _UNBOUND_DICT_LOOKUP_REFERENCES
+            and len(lookup_arguments) >= 2
         )
         namespace_name = (
-            node.args[1]
+            lookup_arguments[1]
             if unbound_namespace_candidate
             else self._legacy_namespace_call_name(
                 node,
@@ -8768,10 +8821,16 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             self._resolve_string(namespace_name) if namespace_name is not None else None
         )
         getattr_candidate = (
-            namespace_function_reference in {"builtins.getattr", _POSSIBLE_GETATTR_REFERENCE}
-            and len(node.args) >= 2
+            namespace_function_reference
+            in {
+                "builtins.getattr",
+                _POSSIBLE_GETATTR_REFERENCE,
+                "builtins.setattr",
+                "builtins.delattr",
+            }
+            and len(lookup_arguments) >= 2
         )
-        getattr_name = node.args[1] if getattr_candidate else None
+        getattr_name = lookup_arguments[1] if getattr_candidate else None
         getattr_function_reference = namespace_function_reference
         getattr_receiver_binding: _ResolvedBinding | None = None
         getattr_member_binding: _ResolvedBinding | None = None
@@ -9037,13 +9096,22 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         if mapping_lookup_attribute is not None:
             self._previsited_call_receiver_attribute_ids.add(id(mapping_lookup_attribute))
         try:
-            if getattr_candidate or unbound_namespace_candidate:
+            if (
+                getattr_candidate
+                or unbound_namespace_candidate
+                or unbound_mutator_candidate
+                or bound_mutator_candidate
+            ):
                 self.visit(node.func)
                 getattr_function_reference = self._resolve_reference(node.func)
-                for getattr_argument_index, getattr_argument in enumerate(node.args):
+                if bound_mutator_candidate and isinstance(node.func, ast.Attribute):
+                    mutation_receiver_binding = self._capture_argument_binding(node.func.value)
+                for getattr_argument_index, getattr_argument in enumerate(lookup_arguments):
                     self.visit(getattr_argument)
                     if getattr_argument_index == 0:
                         getattr_receiver_binding = self._capture_argument_binding(getattr_argument)
+                        if unbound_mutator_candidate:
+                            mutation_receiver_binding = getattr_receiver_binding
                     elif getattr_argument_index == 1:
                         getattr_member_binding = self._capture_argument_binding(getattr_argument)
                 for getattr_keyword in node.keywords:
@@ -9063,7 +9131,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 self._iterated_call_ids.remove(id(iterated_argument))
         if unbound_namespace_candidate:
             namespace_name = (
-                node.args[1]
+                lookup_arguments[1]
                 if (
                     getattr_function_reference in _UNBOUND_DICT_LOOKUP_REFERENCES
                     and getattr_receiver_binding is not None
@@ -9098,7 +9166,13 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 )
         if (
             getattr_name is not None
-            and getattr_function_reference in {"builtins.getattr", _POSSIBLE_GETATTR_REFERENCE}
+            and getattr_function_reference
+            in {
+                "builtins.getattr",
+                _POSSIBLE_GETATTR_REFERENCE,
+                "builtins.setattr",
+                "builtins.delattr",
+            }
             and getattr_receiver_binding is not None
             and getattr_member_binding is not None
             and self._is_legacy_module_reference(getattr_receiver_binding.reference)
@@ -9118,6 +9192,41 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                     f"{self.filename}: dynamic legacy API-key dependency lookup is forbidden: "
                     f"{displayed_name}"
                 )
+        if (
+            self.ownership_family == "api_key"
+            and namespace_name is None
+            and not unresolved_positional_sources
+            and mutation_receiver_binding is not None
+            and self._is_legacy_namespace_reference(mutation_receiver_binding.reference)
+        ):
+
+            def record_protected_mutation_name(name: str | None) -> bool:
+                if not self._is_protected_ownership_symbol(name):
+                    return False
+                self.errors.append(
+                    f"{self.filename}: legacy API-key dependency namespace lookup is forbidden: "
+                    f"{name if name in CANONICAL_API_KEY_SYMBOLS else '<dynamic>'}"
+                )
+                return True
+
+            if _mutates_protected_namespace(
+                node,
+                protected_names=CANONICAL_API_KEY_SYMBOLS,
+                references=(self.reference_snapshots or {}).get(id(node.func), {}),
+                static_string_bindings={},
+                static_mapping_bindings={},
+                name_resolver=lambda key: self._resolve_string(key, own_environment=True),
+                name_predicate=record_protected_mutation_name,
+            ):
+                if (
+                    isinstance(node.func, ast.Attribute)
+                    and node.func.attr in {"clear", "popitem"}
+                    or getattr_function_reference
+                    in {"builtins.dict.clear", "builtins.dict.popitem"}
+                ):
+                    self.errors.append(
+                        f"{self.filename}: legacy API-key dependency namespace lookup is forbidden: <dynamic>"
+                    )
         self._record_object_namespace_call_mutation(node)
         if mapping_copy is None and bound_mapping_copy and isinstance(node.func, ast.Attribute):
             mapping_copy = self._resolve_mapping(node.func.value)
@@ -10005,6 +10114,8 @@ def validate_api_key_dependency_ownership(
         _ApiKeyLookupVisitor(
             filename=filename,
             errors=errors,
+            reference_snapshots={},
+            string_snapshots={},
             module_late_references=module_late_references,
             module_late_strings=module_late_strings,
             purpose="ownership_audit",
@@ -10412,7 +10523,8 @@ def _mutates_protected_namespace(
     name_resolver: Callable[[ast.AST], str | None] | None = None,
     name_predicate: Callable[[str | None], bool] | None = None,
 ) -> bool:
-    arguments = list(node.args)
+    positional_arguments, unresolved = _expand_static_positional_arguments(node.args)
+    arguments = list(positional_arguments)
     if isinstance(node.func, ast.Attribute) and _is_object_namespace_mapping(
         node.func.value,
         references=references,
@@ -10438,8 +10550,12 @@ def _mutates_protected_namespace(
         ):
             return False
         method_name = function_reference.removeprefix(dict_method_prefix)
+        if unresolved:
+            return False
         arguments = arguments[1:]
-    if method_name in {"__ior__", "update"}:
+    if unresolved:
+        return name_resolver is None
+    if method_name in {"__ior__", "update", "__init__"}:
         if any(
             (
                 name_predicate(keyword.arg)
@@ -10465,7 +10581,7 @@ def _mutates_protected_namespace(
             ):
                 return True
         return False
-    if method_name == "clear":
+    if method_name in {"clear", "popitem"}:
         return True
     if method_name in {"__delitem__", "__setitem__", "pop", "setdefault"}:
         if not arguments:
@@ -11617,18 +11733,22 @@ def _record_main_legacy_openapi_lookups(tree: ast.Module, errors: list[str]) -> 
         ):
             errors.append(f"{CANONICAL_MAIN}: OpenAPI symbol must not be accessed through legacy")
         elif isinstance(node, ast.Call):
+            arguments, unresolved = _expand_static_positional_arguments(node.args)
+            if unresolved:
+                continue
             function_reference = own_reference(node.func)
-            unbound_mutator = function_reference in {
-                "builtins.dict.__setitem__",
-                "builtins.dict.update",
-            }
+            unbound_mutator = (
+                function_reference is not None
+                and function_reference.startswith("builtins.dict.")
+                and function_reference.rpartition(".")[2] in _MAPPING_MUTATOR_METHODS
+            )
             mutation_receiver = (
-                node.args[0]
-                if unbound_mutator and node.args
+                arguments[0]
+                if unbound_mutator and arguments
                 else (
                     node.func.value
                     if isinstance(node.func, ast.Attribute)
-                    and node.func.attr in {"__setitem__", "update"}
+                    and node.func.attr in _MAPPING_MUTATOR_METHODS
                     else None
                 )
             )
@@ -11659,17 +11779,17 @@ def _record_main_legacy_openapi_lookups(tree: ast.Module, errors: list[str]) -> 
                     "builtins.setattr",
                     "builtins.delattr",
                 }
-                and len(node.args) >= 2
-                and evaluator._is_legacy_module_reference(own_reference(node.args[0]))
-                and evaluator._is_protected_ownership_symbol(own_string(node.args[1]))
+                and len(arguments) >= 2
+                and evaluator._is_legacy_module_reference(own_reference(arguments[0]))
+                and evaluator._is_protected_ownership_symbol(own_string(arguments[1]))
             ):
                 errors.append(
                     f"{CANONICAL_MAIN}: OpenAPI symbol must not be accessed through legacy"
                 )
                 continue
             receiver = (
-                node.args[0]
-                if function_reference in _UNBOUND_DICT_LOOKUP_REFERENCES and node.args
+                arguments[0]
+                if function_reference in _UNBOUND_DICT_LOOKUP_REFERENCES and arguments
                 else node.func.value if isinstance(node.func, ast.Attribute) else None
             )
             namespace_name = evaluator._legacy_namespace_call_name(
