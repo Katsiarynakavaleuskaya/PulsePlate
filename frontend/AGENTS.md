@@ -22,6 +22,18 @@
   regular UI membership, rejects ignored/omitted members and checks exact native
   lint/startup outcomes with owned fixture cleanup. Python `node24` workflow
   contracts bind reviewed wiring only; actual ESLint execution is separate evidence.
+- Authored pages/features lint: `npm run lint:pages-features` (explicit existing
+  config, recursive `src/pages/**/*.{ts,tsx}` and `src/features/**/*.{ts,tsx}`,
+  including nested sources, stories and tests, zero warnings). Regular `.d.ts`
+  exclusion and test-specific rule exceptions remain unchanged. The existing
+  native-control step independently requires each root to be nonempty, rejects
+  symlinks/nonregular entries before suffix filtering, and checks native ignore
+  and exact unique result membership. Real CLI outcomes and synthetic result
+  assertion controls are distinct evidence. Owned fixture cleanup and original
+  inventory/content readback run in `finally`, including deliberate failure;
+  before/after observations do not prove continuous filesystem exclusivity.
+  Python contracts bind the reviewed command, carrier and required order before
+  tests/build; their digest does not prove native execution or whole-frontend health.
 - Build: `npm run build`
 - Preview: `npm run preview`
 - Test: `npm run test`, `npm run test:ci`, `npm run test:precommit`, `npm run test:coverage`
