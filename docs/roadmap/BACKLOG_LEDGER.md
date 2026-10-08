@@ -302,7 +302,7 @@ If it is not recorded here — it does not exist.
 - [ ] P1: Complete staging host visibility and tested failure notifications
   - Owner: @katsiaryna_kavaleuskaya with DevOps and security-auditor
   - Priority: P1 (operational detection and diagnosis)
-  - Target PR: OBS2A-PR1 #2416 exact alias/target rules (merged); CD provenance carryover [#2421](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2421) (merged); OBS2A-PR2 [#2447](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2447) email routing (merged); OBS2A-PR3 [#2472](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2472) daily checkpoint (merged); admitted substantive email-runbook corrective PR (number pending). Later host visibility remains separate.
+  - Target PR: OBS2A-PR1 #2416 exact alias/target rules (merged); CD provenance carryover [#2421](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2421) (merged); OBS2A-PR2 [#2447](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2447) email routing (merged); OBS2A-PR3 [#2472](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2472) daily checkpoint (merged); admitted substantive email-runbook corrective PR [#2481](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2481). Later host visibility remains separate.
   - Status: OBS2A-PR1 merged as `ddfdbce31ba33d1f7360281a3bdf0ef02c8353a2`; CD provenance repair #2421 and PR2 #2447 are merged. PR3 #2472 merged as `59e894ec1bd3678eba55822bbcbef22988243205` with separate merged-main proof. Monitoring-only private staging activation and actual old-template emails A at 07:24 Minsk and corrected checkpoint B at 09:41 Minsk were observed on 2026-10-08. First ordinary 04:15–04:20 UTC checkpoint on 2026-10-09 remains pending; corrected-template mail/link-opening, final continuity, recoverable archive and owned cleanup remain open. Production `T₀`, 30-day evidence, alias retirement and whole-Droplet visibility remain separate.
   - OBS2A-PR2 scope (EN): The owner approved one combined 37-path privileged Alertmanager/Resend and Docker-security carrier (36 material paths plus the canonical mapping), consolidating all blocking HIGH/CRITICAL Docker findings and the single-identity urllib3 replacement. Preserve the exact staging Compose pin in `scripts/ops/staging_runtime_diagnostics.py`, its `docs/deploy/STAGING.md` mirror, the independent `tests/test_staging_runtime_diagnostics.py` literal retained after main #2462, and the one-for-one `.secrets.baseline` fingerprint update. The exact official v0.34.1 gRPC exception requires weekly review and removal by 2026-10-24 or earlier when a fixed official release is admitted; at the historical PR2 cutoff, the OpenSSL exception had its 2026-10-05 review and 2026-10-07 hard expiry; merged #2465's canonical OpenSSL owner now governs its separate review/expiry. The urllib3 2.8.0 replacement spans the owning source and all seven existing locks without another package transition or suppression. Evidence: [Alertmanager note](../security/CVE-2026-84445-alertmanager.md), [OpenSSL note](../security/CVE-2026-84782-openssl.md), and [urllib3 evidence owner](../security/PR_2447_URLLIB3_REMEDIATION.md). PR2 repository work and PR3 #2472 are merged. Resend bootstrap, monitoring-only private staging activation and actual old-template A/B receipt are observed; PR3's first ordinary 04:15 UTC timer run and the separately admitted corrected-template mail/link-opening remain pending. Independent whole-Droplet visibility remains deferred to its separately owned lane.
   - Carryover (EN): This substantive corrective carrier records observed #2472 repository/main/activation/A/B progress without a standalone docs-only or ledger-only PR. Preserve the original publication-failure exit 2 and 09:24 mail, the corrected missing-test-baseline failure exit 1 and 09:41 mail, genuine baseline equality and every original R01–R44 criterion; old-template receipts do not establish corrected content.
@@ -1034,6 +1034,34 @@ If it is not recorded here — it does not exist.
   - Rollback (EN): Revert the implementation PR; no migration or product data
     are changed.
 
+<a id="ledger-p1-graph-fed-1-read-only-evidence-projection"></a>
+- [ ] P1: GRAPH-FED-1 typed read-only evidence projection
+  - Owner: backend-engineer / architecture-specialist / security-auditor
+  - Priority: P1
+  - Target PR: [#2480](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2480)
+    on codex/graph-fed-1-evidence-projection
+  - Status: In implementation; focused material validation and the required
+    PR/review/current-head CI lifecycle remain pending.
+  - Area: pure core / offline evidence inspection
+  - Reason (EN): Return the complete represented exact claim/context/time
+    neighborhood and explicit revision/dependency closure in one inspection,
+    preserving adverse evidence and separate structural assessments.
+  - Links: docs/evals/EVIDENCE_RELATION_CAUSAL_AUDIT_V1.md,
+    docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-noos-1a-evidence-relations,
+    docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-evidence-graph-runtime
+  - DoD: Immutable namespace/snapshot/local-ID references; canonical whole-source
+    admission/audit; all exact seeds plus explicit revision/dependency/upstream
+    closure; four literal lookup states; unchanged sources and deterministic
+    informational report; actual fixture-only inspect and independent complete
+    record/reference reconciliation; safe existing private no-replace I/O;
+    narrow gates/current-head CI/review, same-PR #2459 reconciliation and
+    governed document/postmerge/archive closeout.
+  - Out of scope (EN): Runtime/API/OpenAPI/DB/providers/clients, scientific
+    truth, claim extraction, E1 lineage/promotion, OCW, cache serving and the
+    broader Evidence Graph umbrella.
+  - Rollback (EN): Revert projection/inspect while preserving source v1 and
+    legacy validate/report; no migration or provider switch.
+
 <a id="ledger-p1-noos-1b-fitchef-answer-evaluation"></a>
 - [x] P1: NOOS-1B FitChef answer-content evaluation
   - Owner: product AI / evaluation owner
@@ -1065,14 +1093,19 @@ If it is not recorded here — it does not exist.
     provider calls and semantic-cache serving.
 
 <a id="ledger-p1-noos-1c-fitchef-response-quality-routing"></a>
-- [ ] P1: NOOS-1C FitChef response quality
+- [x] P1: NOOS-1C FitChef response quality
   - Owner: product AI / backend-engineer / evaluation owner
   - Priority: P1
   - Target PR: [#2459](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2459)
     on `codex/noos-fitchef-response-quality-routing`
-  - Status: Open PR #2459; post-open findings and current-head CI/governance
-    remain pending. Current Sonar selection is unchanged. This item remains
-    open until its own PR merges.
+  - Status: Merged in PR #2459 as 4ec4a8c3a15cb0bd925d919800840bbe12cdc6d4
+    on 2026-10-04T05:39:25Z; exact post-merge CI
+    [37180522670](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/37180522670)
+    completed successfully. Current Sonar selection is unchanged.
+  - Carryover (EN): Fresh bounded ledger reconciliation in GRAPH-FED-1 records
+    the implemented locale/fallback/context/high-distress DoD. It does not close
+    live-model quality, cost-aware routing, production activation or the
+    Evidence Graph umbrella.
   - Area: FitChef product behavior / model evaluation
   - Reason (EN): The first controlled-source comparison found an RU language
     mismatch for Sonar and default Agent responses, a cheaper RU Agent response
