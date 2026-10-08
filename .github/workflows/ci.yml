@@ -717,7 +717,7 @@ jobs:
     needs: [private_python_proxy_health]
     if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: ${{ fromJSON(vars.CI_LINT_TIMEOUT_MINUTES || '90') }}
     steps:
       - name: Enforce prerequisite results
         env:
@@ -749,9 +749,72 @@ jobs:
 
       - {uses: ./.github/actions/npm-ci-with-retry, with: {working-directory: frontend}}
       - name: Pre-commit (lint/format/security quick checks)
+        timeout-minutes: ${{ fromJSON(vars.CI_LINT_CHECKS_TIMEOUT_MINUTES || '40') }}
         run: pre-commit run --all-files --show-diff-on-failure
         env:
           SKIP: no-commit-to-branch
+
+      - name: Native OBS2A checkpoint lifecycle and owned-task challenge
+        id: checkpoint-native
+        if: github.event_name == 'pull_request'
+        timeout-minutes: ${{ fromJSON(vars.OBS2A_NATIVE_JOB_TIMEOUT_MINUTES || '40') }}
+        env:
+          OBS2A_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          OBS2A_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          diff_status=0
+          git rev-parse --verify "$OBS2A_BASE_SHA^{commit}" >/dev/null
+          git rev-parse --verify "$OBS2A_HEAD_SHA^{commit}" >/dev/null
+          merge_base="$(git merge-base --all "$OBS2A_BASE_SHA" "$OBS2A_HEAD_SHA")"
+          case "$merge_base" in
+            '' | *$'\n'*) echo "Native PR ancestry is missing or ambiguous" >&2; exit 1 ;;
+          esac
+          git rev-parse --verify "$merge_base^{commit}" >/dev/null
+          if git diff --quiet "$merge_base" "$OBS2A_HEAD_SHA" -- \
+            deploy/systemd scripts/ops/notify_premium_alias_checkpoint_failure.py \
+            scripts/verify_premium_alias_telemetry.py tests/test_notify_premium_alias_checkpoint_failure.py \
+            .github/workflows/ci.yml .github/workflows/cd.yml scripts/deploy.sh scripts/deploy_production.sh; then
+            diff_status=0
+          else
+            diff_status=$?
+          fi
+          case "$diff_status" in
+            0)
+              echo "selected=false" >> "$GITHUB_OUTPUT"
+              echo "No OBS2A native surface selected."
+              ;;
+            1)
+              echo "selected=true" >> "$GITHUB_OUTPUT"
+              native_python="$(command -v python)"
+              mkdir -p artifacts/orchestration/obs2a_pr3
+              if {
+                sudo /usr/bin/env -i PATH=/usr/bin:/bin LANG=C HOME=/tmp PYTHONDONTWRITEBYTECODE=1 \
+                "$native_python" -m tests.test_notify_premium_alias_checkpoint_failure --native
+              } 2>&1 | tee artifacts/orchestration/obs2a_pr3/native-result.log; then
+                pipeline_status=("${PIPESTATUS[@]}")
+              else
+                pipeline_status=("${PIPESTATUS[@]}")
+              fi
+              native_status="${pipeline_status[0]}"
+              capture_status="${pipeline_status[1]}"
+              if [ "$native_status" -ne 0 ]; then
+                exit "$native_status"
+              fi
+              exit "$capture_status"
+              ;;
+            *) echo "Native surface discovery failed" >&2; exit "$diff_status" ;;
+          esac
+
+      - name: Retain selected PR OBS2A native observations
+        if: always() && github.event_name == 'pull_request' && steps.checkpoint-native.outputs.selected == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1 / Node 24
+        with:
+          name: obs2a-native-pr-${{ github.event.pull_request.number }}-${{ github.run_attempt }}
+          path: artifacts/orchestration/obs2a_pr3/native-result.log
+          if-no-files-found: error
+          retention-days: 7
+
 
   security:
     needs: [changes, private_python_proxy_health, pgvector_compat]

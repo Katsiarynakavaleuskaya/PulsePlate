@@ -7,9 +7,7 @@ from pathlib import Path
 import yaml
 
 from scripts.ci import check_release_control_plane
-from scripts.release import build_equivalence
-from scripts.release import release_manifest
-from scripts.release import reviewer_packet_hashes
+from scripts.release import build_equivalence, release_manifest, reviewer_packet_hashes
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 HASH_RE = re.compile(r"^[0-9a-f]{64}$")
@@ -640,6 +638,7 @@ def test_workflow_integration_enforces_real_evidence_before_production_paths() -
     assert " ".join(yaml.safe_load(workflow)["jobs"]["build"]["if"].split()) == (
         "!cancelled() && github.event_name == 'push' && github.ref == 'refs/heads/main' "
         "&& needs.prometheus-image-security.result == 'success' "
+        "&& needs.obs2a-checkpoint-native.result == 'success' "
         "&& needs.main-push-admission.result == 'success' "
         "&& needs.staging-postgres-native-integration.result == 'success'"
     )
