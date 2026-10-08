@@ -498,6 +498,7 @@ def test_bmi_route_uses_service_visualization_bindings_not_facades(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Prove the live BMI route ignores temporary facade state and restores it afterward."""
     facade_calls: list[str] = []
 
     def _facade_visualization(**_: Any) -> dict[str, Any]:

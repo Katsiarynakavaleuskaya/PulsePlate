@@ -134,6 +134,7 @@ RETIRED_BMI_COMPAT_BINDINGS = RETIRED_LEGACY_PYTHON_BINDINGS[99:106]
 
 
 def test_retired_bmi_compat_tail_is_exact_and_disjoint() -> None:
+    """Preserve the previous 99 bindings and append only the exact seven-name BMI cohort."""
     assert RETIRED_BMI_COMPAT_BINDINGS == (
         "BMIRequest",
         "BMIRequestV1",
@@ -165,6 +166,7 @@ def test_retired_bmi_compat_tail_is_exact_and_disjoint() -> None:
     ),
 )
 def test_retired_bmi_compat_binding_carrier(binding_name: str, source_template: str) -> None:
+    """Reject each supported static carrier of a retired BMI compatibility binding."""
     assert legacy_guard.validate_retired_legacy_python_bindings(
         source_template.format(name=binding_name)
     ) == [f"legacy_app.py: retired Python compatibility binding is forbidden: {binding_name}"]
@@ -186,6 +188,7 @@ def test_retired_bmi_guard_rejects_canonical_reimport(
     canonical_module: str,
     same_name_alias: bool,
 ) -> None:
+    """Reject canonical imports that would restore a retired BMI facade binding."""
     suffix = f" as {binding_name}" if same_name_alias else ""
     assert legacy_guard.validate_retired_legacy_python_bindings(
         f"from {canonical_module} import {binding_name}{suffix}\n"
@@ -194,6 +197,7 @@ def test_retired_bmi_guard_rejects_canonical_reimport(
 
 @pytest.mark.parametrize("binding_name", RETIRED_BMI_COMPAT_BINDINGS)
 def test_retired_bmi_guard_allows_canonical_and_harmless_mentions(binding_name: str) -> None:
+    """Allow canonical owners and harmless mentions without restoring facade bindings."""
     assert (
         legacy_guard.validate_retired_legacy_python_bindings(
             f"{binding_name} = canonical\n", filename="app/services/bmi_compat.py"
