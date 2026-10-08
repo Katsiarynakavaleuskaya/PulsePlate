@@ -5,26 +5,25 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-from contextlib import suppress
-from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
-from decimal import Decimal, InvalidOperation
 import hashlib
 import io
 import json
 import math
 import os
-from pathlib import Path, PurePosixPath
 import re
 import shutil
 import stat
 import tarfile
-from typing import cast, Protocol, Sequence
+from contextlib import suppress
+from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
+from decimal import Decimal, InvalidOperation
+from pathlib import Path, PurePosixPath
+from typing import Protocol, Sequence, cast
 
 SCHEMA = "pulseplate.premium_alias_telemetry_evidence.v1"
 ASSET_TYPE = "pulseplate.premium_alias_telemetry_evidence"
 POLICY_VERSION = "prod-obs-1.telemetry-evidence.v1"
-PROMETHEUS_URL = "http://localhost:9090"
 SCRAPE_INTERVAL_SECONDS = 30
 SCRAPE_TIMEOUT_SECONDS = 10
 MIN_RETENTION_DAYS = 45
@@ -45,23 +44,39 @@ TARGET_SCHEME = "http"
 TARGET_METRICS_PATH = "/metrics"
 TARGET_JOB_SELECTOR = f'job="{TARGET_JOB}"'
 TARGET_INSTANCE_SELECTOR = f'{TARGET_JOB_SELECTOR},instance="{TARGET_ADDRESS}"'
-_LOADED_TARGET_SCRIPT = f"""import http.client
+_LOADED_TARGET_SCRIPT = f"""import signal
+signal.signal(signal.SIGALRM, signal.SIG_DFL)
+signal.setitimer(signal.ITIMER_REAL, 8.0)
+import http.client
 import sys
+import time
+from urllib.parse import urlencode
 
+operation = sys.argv[1] if len(sys.argv) > 1 else "targets"
+if operation == "query" and len(sys.argv) in (3, 4):
+    evaluation_time = sys.argv[3] if len(sys.argv) == 4 else str(time.time())
+    path = "/api/v1/query?" + urlencode({{"query": sys.argv[2], "time": evaluation_time}})
+elif operation in ("targets", "healthy", "ready") and len(sys.argv) <= 2:
+    path = {{"targets": "/api/v1/targets?state=active", "healthy": "/-/healthy", "ready": "/-/ready"}}[operation]
+else:
+    raise SystemExit(2)
 connection = http.client.HTTPConnection("prometheus", 9090, timeout=5)
 try:
-    connection.request("GET", "/api/v1/targets?state=active")
+    connection.request("GET", path)
     response = connection.getresponse()
     content_type = response.getheader("Content-Type", "").split(";", 1)[0].strip().lower()
-    if response.status != 200 or content_type != "application/json":
+    if response.status != 200 or (operation in ("targets", "query") and content_type != "application/json"):
         raise SystemExit(2)
-    payload = response.read({MAX_JSON_BYTES + 1})
+    payload = response.read({MAX_JSON_BYTES} + 1)
     if len(payload) > {MAX_JSON_BYTES}:
         raise SystemExit(3)
     sys.stdout.buffer.write(payload)
+    sys.stdout.buffer.flush()
 finally:
     connection.close()
+# Keep SIGALRM armed through stdout flushing and interpreter finalization.
 """
+
 AUTHORITY = {
     "sets_t0": False,
     "authorizes_deploy": False,
@@ -430,10 +445,30 @@ def _normalize_promtool_token(token: str, *, value_field: bool) -> float:
     return normalized
 
 
-def _parse_promtool_sample(payload: bytes) -> tuple[float, float]:
-    """Parse exactly native v3.14 scalar or one-sample instant-vector JSON."""
-
+def _parse_promtool_sample(payload: bytes, *, api_envelope: bool = False) -> tuple[float, float]:
+    """Use the same strict number-preserving loader for either admitted carrier."""
     decoded = _load_promtool_native_json(payload)
+    declared_kind: str | None = None
+    if api_envelope:
+        if not isinstance(decoded, dict) or decoded.get("status") != "success":
+            raise VerificationError("promtool_result_invalid")
+        data = decoded.get("data")
+        if (
+            not isinstance(data, dict)
+            or type(data.get("resultType")) is not str
+            or data["resultType"] not in {"scalar", "vector"}
+            or "result" not in data
+        ):
+            raise VerificationError("promtool_result_invalid")
+        declared_kind = data["resultType"]
+        decoded = data["result"]
+    return _parse_promtool_decoded_sample(decoded, declared_kind=declared_kind)
+
+
+def _parse_promtool_decoded_sample(
+    decoded: object, *, declared_kind: str | None = None
+) -> tuple[float, float]:
+    """The existing decoded scalar/vector recognizer, without numeric re-encoding."""
     value: object
     if (
         isinstance(decoded, list)
@@ -441,8 +476,12 @@ def _parse_promtool_sample(payload: bytes) -> tuple[float, float]:
         and isinstance(decoded[0], _PromtoolJsonNumber)
         and type(decoded[1]) is str
     ):
+        if declared_kind == "vector":
+            raise VerificationError("promtool_result_invalid")
         value = decoded
     else:
+        if declared_kind == "scalar":
+            raise VerificationError("promtool_result_invalid")
         if not isinstance(decoded, list):
             raise VerificationError("promtool_result_invalid")
         if not decoded or (len(decoded) > 1 and all(isinstance(item, dict) for item in decoded)):
@@ -470,10 +509,10 @@ def _parse_promtool_sample(payload: bytes) -> tuple[float, float]:
     return timestamp, numeric
 
 
-def _parse_promtool_vector(payload: bytes) -> float:
-    """Return the numeric component of one canonical native promtool sample."""
+def _parse_promtool_vector(payload: bytes, *, api_envelope: bool = False) -> float:
+    """Return the numeric component through the single canonical sample recognizer."""
 
-    return _parse_promtool_sample(payload)[1]
+    return _parse_promtool_sample(payload, api_envelope=api_envelope)[1]
 
 
 def _hash_container_config_tar(payload: bytes) -> str:
@@ -879,14 +918,14 @@ class DockerPromtoolClient:
                 process.wait(),
                 timeout=PROCESS_CLEANUP_TIMEOUT_SECONDS,
             )
-        except TimeoutError:
+        except (TimeoutError, asyncio.TimeoutError):
             process.kill()
             try:
                 await asyncio.wait_for(
                     process.wait(),
                     timeout=PROCESS_CLEANUP_TIMEOUT_SECONDS,
                 )
-            except TimeoutError as exc:
+            except (TimeoutError, asyncio.TimeoutError) as exc:
                 raise VerificationError("docker_termination_failed") from exc
 
     async def _cancel_readers_and_stop(
@@ -946,7 +985,7 @@ class DockerPromtoolClient:
             with suppress(Exception):
                 cleanup_task.result()
             raise
-        except TimeoutError as exc:
+        except (TimeoutError, asyncio.TimeoutError) as exc:
             await self._cancel_readers_and_stop(process, readers)
             raise VerificationError("docker_timeout") from exc
         except VerificationError:
@@ -969,6 +1008,14 @@ class DockerPromtoolClient:
     def _run_promtool(self, arguments: list[str]) -> _CommandResult:
         if self._bound_prometheus_container_id is None:
             raise VerificationError("prometheus_container_unbound")
+        if arguments != [
+            "check",
+            "service-discovery",
+            "--timeout=1s",
+            "/etc/prometheus/prometheus.yml",
+            TARGET_JOB,
+        ]:
+            raise VerificationError("promtool_operation_unsupported")
         return self._run_docker(
             [
                 "exec",
@@ -994,9 +1041,22 @@ class DockerPromtoolClient:
             raise VerificationError("prometheus_target_discovery_unavailable") from exc
         return _parse_target_discovery(result.stdout)
 
-    def _collect_loaded_target_binding(self) -> _TargetBinding:
-        if self._bound_app_container_id is None:
+    def _run_prometheus_http(
+        self,
+        operation: str,
+        *,
+        expression: str | None = None,
+        evaluation_time: str | None = None,
+    ) -> _CommandResult:
+        if self._bound_app_container_id is None or self._bound_prometheus_container_id is None:
             raise VerificationError("prometheus_loaded_target_unavailable")
+        arguments: list[str] = [] if operation == "targets" else [operation]
+        if operation == "query":
+            if expression is None:
+                raise VerificationError("promtool_query_failed")
+            arguments.append(expression)
+            if evaluation_time is not None:
+                arguments.append(evaluation_time)
         result = self._run_docker(
             [
                 "exec",
@@ -1004,9 +1064,17 @@ class DockerPromtoolClient:
                 "/usr/local/bin/python",
                 "-c",
                 _LOADED_TARGET_SCRIPT,
+                *arguments,
             ],
-            error_code="prometheus_loaded_target_unavailable",
+            error_code="promtool_execution_failed",
         )
+        return result
+
+    def _collect_loaded_target_binding(self) -> _TargetBinding:
+        try:
+            result = self._run_prometheus_http("targets")
+        except VerificationError as exc:
+            raise VerificationError("prometheus_loaded_target_unavailable") from exc
         return _parse_loaded_target(result.stdout)
 
     def collect_live_snapshot(self) -> LiveRuntimeSnapshot:
@@ -1142,26 +1210,24 @@ class DockerPromtoolClient:
 
     def check_healthy(self) -> bool:
         try:
-            self._run_promtool(["check", "healthy", f"--url={PROMETHEUS_URL}"])
+            self._run_prometheus_http("healthy")
         except VerificationError:
             return False
         return True
 
     def check_ready(self) -> bool:
         try:
-            self._run_promtool(["check", "ready", f"--url={PROMETHEUS_URL}"])
+            self._run_prometheus_http("ready")
         except VerificationError:
             return False
         return True
 
     def get_evaluation_anchor(self) -> datetime:
         try:
-            result = self._run_promtool(
-                ["query", "instant", "-o", "json", PROMETHEUS_URL, "time()"]
-            )
+            result = self._run_prometheus_http("query", expression="time()")
         except VerificationError as exc:
             raise VerificationError("evaluation_anchor_unavailable") from exc
-        sample_timestamp, value = _parse_promtool_sample(result.stdout)
+        sample_timestamp, value = _parse_promtool_sample(result.stdout, api_envelope=True)
         if abs(sample_timestamp - value) > 0.001:
             raise VerificationError("evaluation_anchor_invalid")
         try:
@@ -1179,20 +1245,12 @@ class DockerPromtoolClient:
         if _canonical_timestamp(parsed_time) != evaluation_time:
             raise VerificationError("evaluation_anchor_invalid")
         try:
-            result = self._run_promtool(
-                [
-                    "query",
-                    "instant",
-                    "-o",
-                    "json",
-                    f"--time={evaluation_time}",
-                    PROMETHEUS_URL,
-                    expression,
-                ]
+            result = self._run_prometheus_http(
+                "query", expression=expression, evaluation_time=evaluation_time
             )
         except VerificationError as exc:
             raise VerificationError("promtool_query_failed") from exc
-        return _parse_promtool_vector(result.stdout)
+        return _parse_promtool_vector(result.stdout, api_envelope=True)
 
 
 def _identity_snapshot(snapshot: LiveRuntimeSnapshot) -> dict[str, str]:
