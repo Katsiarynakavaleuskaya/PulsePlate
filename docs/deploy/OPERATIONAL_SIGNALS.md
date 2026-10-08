@@ -109,6 +109,24 @@ group wait, five-minute group interval and 24-hour repeat interval. Resolved
 messages are disabled. A restart loses temporary Alertmanager deduplication
 state and may produce a duplicate notification.
 
+Email content uses explicit inline HTML and a plaintext alternative with the
+same fixed [monitoring runbook](https://github.com/Katsiarynakavaleuskaya/PulsePlate/blob/main/docs/deploy/OPERATIONAL_SIGNALS.md#daily-checkpoint)
+destination. Alertname and environment remain visible; native GoHTML escapes
+their display text. The authored href is independent of labels, annotations,
+`ExternalURL` and `GeneratorURL`, so the default private Alertmanager and
+Prometheus Source/footer links are absent. Both deployment readers admit the
+complete reviewed UTF-8 configuration bytes, including LF line endings and the
+terminal LF, before protected effects. A logically equivalent CRLF spelling or
+an extra template/link is not an admitted replacement.
+
+The owning native TLS SMTP fixture decodes its actual received MIME bytes and
+checks both alternatives and the single ordered runbook href. Separate inert
+label rendering exercises the pinned native GoHTML producer without another
+alert event. These controls establish the supported synthetic producer output;
+they do not establish provider delivery, human mailbox receipt, an opened
+runbook link or a deployed host configuration. Those observations remain
+separate after exact repository proof and the existing host approval.
+
 Only a deliberately selected `alerting` profile requires the server-local
 `secrets/alertmanager_smtp_key`, mounted only into Alertmanager at
 `/run/secrets/alertmanager_smtp_key`. The file must be regular, non-symlink,
@@ -456,6 +474,12 @@ remain separate journal failures and never clear the primary failed checkpoint.
 **Event expiry is not checkpoint recovery.** The current 30 s/5 min/24 h route can
 suppress repeated events with the same fingerprint. Submission, SMTP acceptance
 and actual mailbox receipt are separate observations.
+
+For a corrected-template content acceptance, record the actual received
+message and the opened fixed runbook destination separately. Earlier mail from
+the default HTML template does not prove the corrected content. Neither email
+observation substitutes for the ordinary scheduled checkpoint's journal,
+canonical receipt and shared-lock evidence.
 
 Native Linux lifecycle checks and the delayed-query challenge exercise actual
 systemd and owned Docker tasks. A task surviving the verifier's host timeout
