@@ -4,16 +4,16 @@ from __future__ import annotations
 
 import asyncio
 import copy
-from datetime import datetime, timedelta, timezone
 import hashlib
 import io
 import json
 import os
-from pathlib import Path
 import re
 import stat
 import sys
 import tarfile
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 import pytest
 
@@ -1763,42 +1763,37 @@ elif "/bin/promtool" in args and "service-discovery" in args:
     }}
     print(json.dumps([{{"discoveredLabels": {{**common, "__meta_extra": "ignored"}}, "labels": {{**common, "instance": "app:8000", "extra": "ignored"}}}}], separators=(",", ":")))
 elif args[:4] == ["exec", {app_id!r}, "/usr/local/bin/python", "-c"]:
-    common = {{
-        "__address__": "app:8000",
-        "__scheme__": "http",
-        "__metrics_path__": "/metrics",
-        "__scrape_interval__": "30s",
-        "__scrape_timeout__": "10s",
-        "job": "pulseplate-api",
-    }}
-    target = {{
-        "discoveredLabels": {{**common, "__meta_extra": "ignored"}},
-        "labels": {{"instance": "app:8000", "job": "pulseplate-api", "extra": "ignored"}},
-        "scrapePool": "pulseplate-api",
-        "scrapeUrl": "http://app:8000/metrics",
-        "globalUrl": "http://app:8000/metrics",
-        "scrapeInterval": "30s",
-        "scrapeTimeout": "10s",
-        "health": "up",
-        "lastScrape": "ignored",
-    }}
-    print(json.dumps({{"status": "success", "data": {{"activeTargets": [target]}}}}, separators=(",", ":")))
-elif "/bin/promtool" in args and "query" in args:
-    expression = args[-1]
-    timestamp = {_T0.timestamp()!r}
-    if expression == "time()":
-        value = timestamp
-        print(json.dumps([timestamp, str(value)], separators=(",", ":")))
-    elif expression.startswith("count(up") or expression.startswith("min(up"):
-        value = 1.0
-    elif expression.startswith("count_over_time"):
-        value = {float(verifier.FINAL_MIN_SAMPLES)!r}
+    operation = args[5] if len(args) > 5 else "targets"
+    if operation == "query":
+        expression = args[6]
+        timestamp = {_T0.timestamp()!r}
+        if expression == "time()":
+            result = [timestamp, str(timestamp)]
+            kind = "scalar"
+        else:
+            value = 1.0 if expression.startswith(("count(up", "min(up")) else 0.0
+            if expression.startswith("count_over_time"):
+                value = {float(verifier.FINAL_MIN_SAMPLES)!r}
+            result = [{{"metric": {{}}, "value": [timestamp, str(value)]}}]
+            kind = "vector"
+        print(json.dumps({{"status": "success", "data": {{"resultType": kind, "result": result}}}}, separators=(",", ":")))
+    elif operation in ("healthy", "ready"):
+        print("Prometheus is Healthy.")
+    elif operation == "targets":
+        common = {{
+            "__address__": "app:8000", "__scheme__": "http", "__metrics_path__": "/metrics",
+            "__scrape_interval__": "30s", "__scrape_timeout__": "10s", "job": "pulseplate-api",
+        }}
+        target = {{
+            "discoveredLabels": {{**common, "__meta_extra": "ignored"}},
+            "labels": {{"instance": "app:8000", "job": "pulseplate-api", "extra": "ignored"}},
+            "scrapePool": "pulseplate-api", "scrapeUrl": "http://app:8000/metrics",
+            "globalUrl": "http://app:8000/metrics", "scrapeInterval": "30s", "scrapeTimeout": "10s",
+            "health": "up", "lastScrape": "ignored",
+        }}
+        print(json.dumps({{"status": "success", "data": {{"activeTargets": [target]}}}}, separators=(",", ":")))
     else:
-        value = 0.0
-    if expression != "time()":
-        print(json.dumps([{{"metric": {{}}, "value": [timestamp, str(value)]}}], separators=(",", ":")))
-elif "/bin/promtool" in args:
-    print("Prometheus is Healthy.")
+        raise SystemExit(9)
 else:
     raise SystemExit(9)
 """,
@@ -1878,7 +1873,7 @@ else:
         "-c",
         verifier._LOADED_TARGET_SCRIPT,
     ]
-    assert all(call[:3] == ["exec", prometheus_id, "/bin/promtool"] for call in calls[7:])
+    assert all(call[:4] == ["exec", app_id, "/usr/local/bin/python", "-c"] for call in calls[7:])
     assert calls[5][3:] == [
         "check",
         "service-discovery",
@@ -1886,8 +1881,10 @@ else:
         "/etc/prometheus/prometheus.yml",
         "pulseplate-api",
     ]
-    assert "--time=2026-08-22T12:00:00Z" not in calls[9]
-    assert "--time=2026-08-22T12:00:00Z" in calls[10]
+    assert calls[7][5:] == ["healthy"]
+    assert calls[8][5:] == ["ready"]
+    assert calls[9][5:] == ["query", "time()"]
+    assert calls[10][5:] == ["query", "sum(up)", "2026-08-22T12:00:00Z"]
 
 
 def test_evidence_writer_is_private_and_identical_replay_is_no_write(tmp_path: Path) -> None:
@@ -2469,3 +2466,212 @@ def test_writer_rejects_recomputed_invalid_pass_cross_fields(
 
     with pytest.raises(verifier.VerificationError, match="evidence_asset_invalid"):
         verifier.write_evidence_new_only(tmp_path, f"invalid-pass-{mutation}.json", evidence)
+
+
+@pytest.mark.parametrize(
+    "result_type,result",
+    [
+        ("scalar", b'[123.25,"0"]'),
+        ("vector", b'[{"metric":{},"value":[123.25,"2.5"]}]'),
+    ],
+)
+def test_query_api_carrier_uses_same_decoded_sample_grammar(
+    result_type: str, result: bytes
+) -> None:
+    envelope = (
+        b'{"status":"success","data":{"resultType":'
+        + json.dumps(result_type).encode()
+        + b',"result":'
+        + result
+        + b"}}"
+    )
+    assert verifier._parse_promtool_sample(
+        envelope, api_envelope=True
+    ) == verifier._parse_promtool_sample(result)
+    with pytest.raises(verifier.VerificationError, match="promtool_result_invalid"):
+        verifier._parse_promtool_sample(envelope)
+
+
+@pytest.mark.parametrize(
+    "payload,error",
+    [
+        (
+            b'{"status":"success","status":"success","data":{"resultType":"scalar","result":[1,"0"]}}',
+            "promtool_result_invalid",
+        ),
+        (
+            b'{"status":"success","data":{"resultType":"scalar","result":[1e-9999,"0"]}}',
+            "promtool_result_invalid",
+        ),
+        (
+            b'{"status":"success","data":{"resultType":"scalar","result":[1,"1e-9999"]}}',
+            "promtool_result_invalid",
+        ),
+        (
+            b'{"status":"success","data":{"resultType":"scalar","result":[1,"NaN"]}}',
+            "promtool_value_nonfinite",
+        ),
+        (
+            b'{"status":"success","data":{"resultType":"scalar","result":[true,"0"]}}',
+            "promtool_result_invalid",
+        ),
+        (
+            b'{"status":"success","data":{"resultType":"scalar","result":[1,0]}}',
+            "promtool_result_invalid",
+        ),
+        (
+            b'{"status":"success","data":{"resultType":"vector","result":[]}}',
+            "promtool_vector_missing",
+        ),
+        (
+            b'{"status":"success","data":{"resultType":"matrix","result":[]}}',
+            "promtool_result_invalid",
+        ),
+        (b'{"status":"success","data":{"resultType":[],"result":[]}}', "promtool_result_invalid"),
+        (
+            b'{"status":"success","data":{"resultType":"scalar","result":[{"metric":{},"value":[1,"0"]}]}}',
+            "promtool_result_invalid",
+        ),
+        (
+            b'{"status":"success","data":{"resultType":"vector","result":[1,"0"]}}',
+            "promtool_result_invalid",
+        ),
+        (b'{"status":"success","data":{"resultType":{},"result":[]}}', "promtool_result_invalid"),
+        (b'{"status":"success","data":{"resultType":42,"result":[]}}', "promtool_result_invalid"),
+        (b'{"status":"success","data":{"resultType":true,"result":[]}}', "promtool_result_invalid"),
+        (b'{"status":"success","data":{"resultType":null,"result":[]}}', "promtool_result_invalid"),
+        (b"\xff", "promtool_result_invalid"),
+        (
+            b'{"status":"error","data":{"resultType":"scalar","result":[1,"0"]}}',
+            "promtool_result_invalid",
+        ),
+    ],
+)
+def test_query_api_carrier_preserves_strict_numbers_missing_and_shape(
+    payload: bytes, error: str
+) -> None:
+    with pytest.raises(verifier.VerificationError, match=error):
+        verifier._parse_promtool_sample(payload, api_envelope=True)
+
+
+def test_unbounded_promtool_http_operations_are_not_executable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = verifier.DockerPromtoolClient(
+        docker="/absolute/docker", compose_file=Path("compose.yaml")
+    )
+    client._bound_prometheus_container_id = _PROMETHEUS_CONTAINER_A
+
+    def unexpected(arguments: list[str], *, error_code: str) -> verifier._CommandResult:
+        raise AssertionError("rejected operation executed")
+
+    monkeypatch.setattr(client, "_run_docker", unexpected)
+    with pytest.raises(verifier.VerificationError, match="promtool_operation_unsupported"):
+        client._run_promtool(["query", "instant", "-o", "json", "http://localhost:9090", "time()"])
+
+
+@pytest.mark.parametrize("missing", ["app", "prometheus"])
+def test_http_relay_requires_existing_bound_container_pair(
+    monkeypatch: pytest.MonkeyPatch, missing: str
+) -> None:
+    client = verifier.DockerPromtoolClient(
+        docker="/absolute/docker", compose_file=Path("compose.yaml")
+    )
+    client._bound_app_container_id = None if missing == "app" else _APP_CONTAINER_A
+    client._bound_prometheus_container_id = (
+        None if missing == "prometheus" else _PROMETHEUS_CONTAINER_A
+    )
+
+    def unexpected(arguments: list[str], *, error_code: str) -> verifier._CommandResult:
+        raise AssertionError("unbound relay executed")
+
+    monkeypatch.setattr(client, "_run_docker", unexpected)
+    with pytest.raises(verifier.VerificationError, match="prometheus_loaded_target_unavailable"):
+        client._run_prometheus_http("query", expression="time()")
+
+
+@pytest.mark.parametrize("trickle", [False, True])
+def test_bound_http_relay_absolute_alarm_outlives_socket_activity(trickle: bool) -> None:
+    """A disclosed accelerated alarm exercises the actual HTTP reader over fixture IPC."""
+    import signal
+    import socket
+    import subprocess
+    import threading
+    from http.server import BaseHTTPRequestHandler
+    from socketserver import BaseServer
+
+    release = threading.Event()
+    entered = threading.Event()
+    body_flowed = threading.Event()
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_GET(self) -> None:
+            entered.set()
+            if not trickle:
+                release.wait(2)
+            try:
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", "100000")
+                self.end_headers()
+                while not release.is_set():
+                    self.wfile.write(b" ")
+                    self.wfile.flush()
+                    body_flowed.set()
+                    release.wait(0.02)
+            except (BrokenPipeError, ConnectionResetError):
+                pass
+
+        def log_message(self, format: str, *args: object) -> None:
+            del format, args
+
+    child_socket, server_socket = socket.socketpair(socket.AF_UNIX, socket.SOCK_STREAM)
+    server = BaseServer(("owned-fixture", 0), Handler)
+    thread = threading.Thread(
+        target=lambda: Handler(server_socket, ("owned-fixture", 0), server), daemon=True
+    )
+    try:
+        thread.start()
+        fixture_connect = """import http.client as _fixture_http
+import socket as _fixture_socket
+import sys as _fixture_sys
+_fixture_fd = int(_fixture_sys.argv.pop(1))
+_fixture_original_connection = _fixture_http.HTTPConnection
+def _fixture_connection(host: str, port: int, *, timeout: float) -> _fixture_original_connection:
+    assert (host, port, timeout) == ("prometheus", 9090, 5)
+    connection = _fixture_original_connection(host, port, timeout=timeout)
+    def connect() -> None:
+        connection.sock = _fixture_socket.socket(fileno=_fixture_fd)
+        connection.sock.settimeout(connection.timeout)
+    connection.connect = connect
+    return connection
+_fixture_http.HTTPConnection = _fixture_connection
+"""
+        assert verifier._LOADED_TARGET_SCRIPT.count("signal.ITIMER_REAL, 8.0") == 1
+        script = fixture_connect + verifier._LOADED_TARGET_SCRIPT.replace(
+            "signal.ITIMER_REAL, 8.0", "signal.ITIMER_REAL, 1.0"
+        )
+        result = subprocess.run(
+            [sys.executable, "-I", "-c", script, str(child_socket.fileno()), "query", "time()"],
+            pass_fds=(child_socket.fileno(),),
+            stdin=subprocess.DEVNULL,
+            env={"PATH": os.defpath, "PYTHONDONTWRITEBYTECODE": "1"},
+            capture_output=True,
+            timeout=4,
+            check=False,
+        )
+        assert entered.is_set(), "alarm fired before the fixture HTTP endpoint was reached"
+        if trickle:
+            assert body_flowed.is_set(), "trickle fixture delivered no body bytes"
+        assert result.returncode == -signal.SIGALRM
+        assert result.stdout == b""
+    finally:
+        release.set()
+        child_socket.close()
+        try:
+            if thread.ident is not None:
+                thread.join(3)
+        finally:
+            server_socket.close()
+            server.server_close()
+        assert not thread.is_alive()

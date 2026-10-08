@@ -497,6 +497,8 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ github.sha }}
 
       - name: Validate closed Prometheus image record
         id: prometheus-image
@@ -1177,6 +1179,95 @@ jobs:
             docker logs --tail 100 "$container_name" >&2
             exit 1
           fi
+
+  obs2a-checkpoint-native:
+    name: OBS2A checkpoint native admission
+    needs: prometheus-image-security
+    if: >-
+      !cancelled()
+      && github.event_name == 'push'
+      && github.ref == 'refs/heads/main'
+      && needs.prometheus-image-security.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: ${{ fromJSON(vars.OBS2A_NATIVE_JOB_TIMEOUT_MINUTES || '40') }}
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout immutable OBS2A native contracts
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ github.sha }}
+
+      - name: Select main OBS2A native controls
+        id: checkpoint-native
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          OBS2A_BASE_SHA: ${{ github.event.before }}
+          OBS2A_HEAD_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$OBS2A_HEAD_SHA"
+          git rev-parse --verify "$OBS2A_BASE_SHA^{commit}" >/dev/null
+          git rev-parse --verify "$OBS2A_HEAD_SHA^{commit}" >/dev/null
+          diff_status=0
+          if git diff --quiet "$OBS2A_BASE_SHA" "$OBS2A_HEAD_SHA" -- \
+            deploy/systemd scripts/ops/notify_premium_alias_checkpoint_failure.py \
+            scripts/verify_premium_alias_telemetry.py tests/test_notify_premium_alias_checkpoint_failure.py \
+            .github/workflows/ci.yml .github/workflows/cd.yml scripts/deploy.sh scripts/deploy_production.sh; then
+            diff_status=0
+          else
+            diff_status=$?
+          fi
+          case "$diff_status" in
+            0) echo "selected=false" >> "$GITHUB_OUTPUT" ;;
+            1) echo "selected=true" >> "$GITHUB_OUTPUT" ;;
+            *) echo "Native surface discovery failed" >&2; exit "$diff_status" ;;
+          esac
+
+      - name: Setup bounded checkpoint native Python
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.checkpoint-native.outputs.selected == 'true'
+        uses: ./.github/actions/python-setup
+        env:
+          PULSEPLATE_PYTHON_INDEX_URL: ${{ vars.PULSEPLATE_PYTHON_INDEX_URL }}
+          PULSEPLATE_PYTHON_TRUSTED_HOST: ${{ vars.PULSEPLATE_PYTHON_TRUSTED_HOST }}
+          DEVPI_CI_USER: ''
+          DEVPI_CI_PASSWORD: ''
+        with:
+          python-version: '3.13.14'
+          requirements-profile: ci-lite
+          install-mode: direct-proxy
+
+      - name: Native main OBS2A checkpoint lifecycle and owned-task challenge
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.checkpoint-native.outputs.selected == 'true'
+        run: |
+          set -euo pipefail
+          native_python="$(command -v python)"
+          mkdir -p artifacts/orchestration/obs2a_pr3
+          if {
+            sudo /usr/bin/env -i PATH=/usr/bin:/bin LANG=C HOME=/tmp PYTHONDONTWRITEBYTECODE=1 \
+            "$native_python" -m tests.test_notify_premium_alias_checkpoint_failure --native
+          } 2>&1 | tee artifacts/orchestration/obs2a_pr3/native-result.log; then
+            pipeline_status=("${PIPESTATUS[@]}")
+          else
+            pipeline_status=("${PIPESTATUS[@]}")
+          fi
+          native_status="${pipeline_status[0]}"
+          capture_status="${pipeline_status[1]}"
+          if [ "$native_status" -ne 0 ]; then
+            exit "$native_status"
+          fi
+          exit "$capture_status"
+
+      - name: Retain selected main OBS2A native observations
+        if: always() && github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.checkpoint-native.outputs.selected == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1 / Node 24
+        with:
+          name: obs2a-native-main-${{ github.sha }}
+          path: artifacts/orchestration/obs2a_pr3/native-result.log
+          if-no-files-found: error
+          retention-days: 7
 
   postgres-pgvector-contract:
     runs-on: ubuntu-latest
@@ -3076,9 +3167,10 @@ jobs:
       && github.event_name == 'push'
       && github.ref == 'refs/heads/main'
       && needs.prometheus-image-security.result == 'success'
+      && needs.obs2a-checkpoint-native.result == 'success'
       && needs.main-push-admission.result == 'success'
       && needs.staging-postgres-native-integration.result == 'success'
-    needs: [prometheus-image-security, main-push-admission, staging-postgres-native-integration]
+    needs: [prometheus-image-security, obs2a-checkpoint-native, main-push-admission, staging-postgres-native-integration]
     runs-on: ubuntu-latest
     env:
       PULSEPLATE_PYTHON_INDEX_URL: ${{ secrets.PULSEPLATE_PYTHON_INDEX_URL || vars.PULSEPLATE_PYTHON_INDEX_URL }}
@@ -3481,6 +3573,11 @@ jobs:
             echo "postgres_hba_sha256=$(sha256sum deploy/postgres-pgvector/pg_hba.conf | cut -d' ' -f1)"
             echo "staging_storage_systemd_sha256=$(sha256sum deploy/systemd/pulseplate-staging-storage.conf | cut -d' ' -f1)"
             echo "staging_backup_systemd_sha256=$(sha256sum deploy/systemd/pulseplate-staging-postgres-backup.service.example | cut -d' ' -f1)"
+            echo "checkpoint_verifier_sha256=$(sha256sum scripts/verify_premium_alias_telemetry.py | cut -d' ' -f1)"
+            echo "checkpoint_notifier_sha256=$(sha256sum scripts/ops/notify_premium_alias_checkpoint_failure.py | cut -d' ' -f1)"
+            echo "checkpoint_service_sha256=$(sha256sum deploy/systemd/pulseplate-premium-alias-checkpoint.service.example | cut -d' ' -f1)"
+            echo "checkpoint_timer_sha256=$(sha256sum deploy/systemd/pulseplate-premium-alias-checkpoint.timer.example | cut -d' ' -f1)"
+            echo "checkpoint_failure_sha256=$(sha256sum deploy/systemd/pulseplate-premium-alias-checkpoint-failure.service.example | cut -d' ' -f1)"
             echo "staging_backup_timer_sha256=$(sha256sum deploy/systemd/pulseplate-postgres-backup.timer.example | cut -d' ' -f1)"
           } >> "$GITHUB_OUTPUT"
 
@@ -3515,12 +3612,17 @@ jobs:
           STAGING_STORAGE_SYSTEMD_SHA256: ${{ steps.staging-contract.outputs.staging_storage_systemd_sha256 }}
           STAGING_BACKUP_SYSTEMD_SHA256: ${{ steps.staging-contract.outputs.staging_backup_systemd_sha256 }}
           STAGING_BACKUP_TIMER_SHA256: ${{ steps.staging-contract.outputs.staging_backup_timer_sha256 }}
+          CHECKPOINT_VERIFIER_SHA256: ${{ steps.staging-contract.outputs.checkpoint_verifier_sha256 }}
+          CHECKPOINT_NOTIFIER_SHA256: ${{ steps.staging-contract.outputs.checkpoint_notifier_sha256 }}
+          CHECKPOINT_SERVICE_SHA256: ${{ steps.staging-contract.outputs.checkpoint_service_sha256 }}
+          CHECKPOINT_TIMER_SHA256: ${{ steps.staging-contract.outputs.checkpoint_timer_sha256 }}
+          CHECKPOINT_FAILURE_SHA256: ${{ steps.staging-contract.outputs.checkpoint_failure_sha256 }}
         with:
           host: ${{ secrets.SSH_HOST_STAGING }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
           fingerprint: ${{ secrets.SSH_HOST_STAGING_FINGERPRINT }}
-          envs: STAGING_DOMAIN,STAGING_IMAGE_REF,STAGING_CADDY_IMAGE_REF,DEPLOY_SCRIPT_SHA256,STAGING_COMPOSE_SHA256,PROMETHEUS_CONFIG_SHA256,PROMETHEUS_RULES_SHA256,PROMETHEUS_IMAGE_MANIFEST_SHA256,ALERTMANAGER_CONFIG_SHA256,ALERTMANAGER_TRIVY_IGNORE_SHA256,POSTGRES_IMAGE_MANIFEST_SHA256,STAGING_CADDYFILE_SHA256,BACKUP_HELPER_SHA256,RESTORE_HELPER_SHA256,STAGING_SECURITY_HELPER_SHA256,PGVECTOR_ATTESTATION_HELPER_SHA256,NATIVE_ATTESTATION_HELPER_SHA256,POSTGRES_HBA_SHA256,STAGING_STORAGE_SYSTEMD_SHA256,STAGING_BACKUP_SYSTEMD_SHA256,STAGING_BACKUP_TIMER_SHA256
+          envs: STAGING_DOMAIN,STAGING_IMAGE_REF,STAGING_CADDY_IMAGE_REF,DEPLOY_SCRIPT_SHA256,STAGING_COMPOSE_SHA256,PROMETHEUS_CONFIG_SHA256,PROMETHEUS_RULES_SHA256,PROMETHEUS_IMAGE_MANIFEST_SHA256,ALERTMANAGER_CONFIG_SHA256,ALERTMANAGER_TRIVY_IGNORE_SHA256,POSTGRES_IMAGE_MANIFEST_SHA256,STAGING_CADDYFILE_SHA256,BACKUP_HELPER_SHA256,RESTORE_HELPER_SHA256,STAGING_SECURITY_HELPER_SHA256,PGVECTOR_ATTESTATION_HELPER_SHA256,NATIVE_ATTESTATION_HELPER_SHA256,POSTGRES_HBA_SHA256,STAGING_STORAGE_SYSTEMD_SHA256,STAGING_BACKUP_SYSTEMD_SHA256,STAGING_BACKUP_TIMER_SHA256,CHECKPOINT_VERIFIER_SHA256,CHECKPOINT_NOTIFIER_SHA256,CHECKPOINT_SERVICE_SHA256,CHECKPOINT_TIMER_SHA256,CHECKPOINT_FAILURE_SHA256
           script: |
             set -euo pipefail
             cd /srv/pulseplate-staging
@@ -3576,6 +3678,27 @@ jobs:
             [ ! -L ./postgres-pgvector/pg_hba.conf ]
             [ -f ./postgres-pgvector/pg_hba.conf ]
             [ "$(sha256sum ./postgres-pgvector/pg_hba.conf | cut -d' ' -f1)" = "$POSTGRES_HBA_SHA256" ]
+            [ ! -L ./scripts ]
+            [ -d ./scripts ]
+            [ ! -L ./scripts/ops ]
+            [ -d ./scripts/ops ]
+            [ ! -L ./systemd ]
+            [ -d ./systemd ]
+            [ ! -L ./scripts/verify_premium_alias_telemetry.py ]
+            [ -f ./scripts/verify_premium_alias_telemetry.py ]
+            [ "$(sha256sum ./scripts/verify_premium_alias_telemetry.py | cut -d' ' -f1)" = "$CHECKPOINT_VERIFIER_SHA256" ]
+            [ ! -L ./scripts/ops/notify_premium_alias_checkpoint_failure.py ]
+            [ -f ./scripts/ops/notify_premium_alias_checkpoint_failure.py ]
+            [ "$(sha256sum ./scripts/ops/notify_premium_alias_checkpoint_failure.py | cut -d' ' -f1)" = "$CHECKPOINT_NOTIFIER_SHA256" ]
+            [ ! -L ./systemd/pulseplate-premium-alias-checkpoint.service.example ]
+            [ -f ./systemd/pulseplate-premium-alias-checkpoint.service.example ]
+            [ "$(sha256sum ./systemd/pulseplate-premium-alias-checkpoint.service.example | cut -d' ' -f1)" = "$CHECKPOINT_SERVICE_SHA256" ]
+            [ ! -L ./systemd/pulseplate-premium-alias-checkpoint.timer.example ]
+            [ -f ./systemd/pulseplate-premium-alias-checkpoint.timer.example ]
+            [ "$(sha256sum ./systemd/pulseplate-premium-alias-checkpoint.timer.example | cut -d' ' -f1)" = "$CHECKPOINT_TIMER_SHA256" ]
+            [ ! -L ./systemd/pulseplate-premium-alias-checkpoint-failure.service.example ]
+            [ -f ./systemd/pulseplate-premium-alias-checkpoint-failure.service.example ]
+            [ "$(sha256sum ./systemd/pulseplate-premium-alias-checkpoint-failure.service.example | cut -d' ' -f1)" = "$CHECKPOINT_FAILURE_SHA256" ]
             [ ! -L ./systemd/pulseplate-staging-storage.conf ]
             [ -f ./systemd/pulseplate-staging-storage.conf ]
             [ "$(sha256sum ./systemd/pulseplate-staging-storage.conf | cut -d' ' -f1)" = "$STAGING_STORAGE_SYSTEMD_SHA256" ]
@@ -3622,12 +3745,17 @@ jobs:
           STAGING_STORAGE_SYSTEMD_SHA256: ${{ steps.staging-contract.outputs.staging_storage_systemd_sha256 }}
           STAGING_BACKUP_SYSTEMD_SHA256: ${{ steps.staging-contract.outputs.staging_backup_systemd_sha256 }}
           STAGING_BACKUP_TIMER_SHA256: ${{ steps.staging-contract.outputs.staging_backup_timer_sha256 }}
+          CHECKPOINT_VERIFIER_SHA256: ${{ steps.staging-contract.outputs.checkpoint_verifier_sha256 }}
+          CHECKPOINT_NOTIFIER_SHA256: ${{ steps.staging-contract.outputs.checkpoint_notifier_sha256 }}
+          CHECKPOINT_SERVICE_SHA256: ${{ steps.staging-contract.outputs.checkpoint_service_sha256 }}
+          CHECKPOINT_TIMER_SHA256: ${{ steps.staging-contract.outputs.checkpoint_timer_sha256 }}
+          CHECKPOINT_FAILURE_SHA256: ${{ steps.staging-contract.outputs.checkpoint_failure_sha256 }}
         with:
           host: ${{ secrets.SSH_HOST_STAGING }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
           fingerprint: ${{ secrets.SSH_HOST_STAGING_FINGERPRINT }}
-          envs: GHCR_USER,GHCR_TOKEN,STAGING_DOMAIN,STAGING_IMAGE_REF,STAGING_CADDY_IMAGE_REF,DEPLOY_SCRIPT_SHA256,STAGING_COMPOSE_SHA256,PROMETHEUS_CONFIG_SHA256,PROMETHEUS_RULES_SHA256,PROMETHEUS_IMAGE_MANIFEST_SHA256,ALERTMANAGER_CONFIG_SHA256,ALERTMANAGER_TRIVY_IGNORE_SHA256,POSTGRES_IMAGE_MANIFEST_SHA256,STAGING_CADDYFILE_SHA256,BACKUP_HELPER_SHA256,RESTORE_HELPER_SHA256,STAGING_SECURITY_HELPER_SHA256,PGVECTOR_ATTESTATION_HELPER_SHA256,NATIVE_ATTESTATION_HELPER_SHA256,POSTGRES_HBA_SHA256,STAGING_STORAGE_SYSTEMD_SHA256,STAGING_BACKUP_SYSTEMD_SHA256,STAGING_BACKUP_TIMER_SHA256
+          envs: GHCR_USER,GHCR_TOKEN,STAGING_DOMAIN,STAGING_IMAGE_REF,STAGING_CADDY_IMAGE_REF,DEPLOY_SCRIPT_SHA256,STAGING_COMPOSE_SHA256,PROMETHEUS_CONFIG_SHA256,PROMETHEUS_RULES_SHA256,PROMETHEUS_IMAGE_MANIFEST_SHA256,ALERTMANAGER_CONFIG_SHA256,ALERTMANAGER_TRIVY_IGNORE_SHA256,POSTGRES_IMAGE_MANIFEST_SHA256,STAGING_CADDYFILE_SHA256,BACKUP_HELPER_SHA256,RESTORE_HELPER_SHA256,STAGING_SECURITY_HELPER_SHA256,PGVECTOR_ATTESTATION_HELPER_SHA256,NATIVE_ATTESTATION_HELPER_SHA256,POSTGRES_HBA_SHA256,STAGING_STORAGE_SYSTEMD_SHA256,STAGING_BACKUP_SYSTEMD_SHA256,STAGING_BACKUP_TIMER_SHA256,CHECKPOINT_VERIFIER_SHA256,CHECKPOINT_NOTIFIER_SHA256,CHECKPOINT_SERVICE_SHA256,CHECKPOINT_TIMER_SHA256,CHECKPOINT_FAILURE_SHA256
           script: |
             set -euo pipefail
             cd /srv/pulseplate-staging
@@ -3683,6 +3811,27 @@ jobs:
             [ ! -L ./postgres-pgvector/pg_hba.conf ]
             [ -f ./postgres-pgvector/pg_hba.conf ]
             [ "$(sha256sum ./postgres-pgvector/pg_hba.conf | cut -d' ' -f1)" = "$POSTGRES_HBA_SHA256" ]
+            [ ! -L ./scripts ]
+            [ -d ./scripts ]
+            [ ! -L ./scripts/ops ]
+            [ -d ./scripts/ops ]
+            [ ! -L ./systemd ]
+            [ -d ./systemd ]
+            [ ! -L ./scripts/verify_premium_alias_telemetry.py ]
+            [ -f ./scripts/verify_premium_alias_telemetry.py ]
+            [ "$(sha256sum ./scripts/verify_premium_alias_telemetry.py | cut -d' ' -f1)" = "$CHECKPOINT_VERIFIER_SHA256" ]
+            [ ! -L ./scripts/ops/notify_premium_alias_checkpoint_failure.py ]
+            [ -f ./scripts/ops/notify_premium_alias_checkpoint_failure.py ]
+            [ "$(sha256sum ./scripts/ops/notify_premium_alias_checkpoint_failure.py | cut -d' ' -f1)" = "$CHECKPOINT_NOTIFIER_SHA256" ]
+            [ ! -L ./systemd/pulseplate-premium-alias-checkpoint.service.example ]
+            [ -f ./systemd/pulseplate-premium-alias-checkpoint.service.example ]
+            [ "$(sha256sum ./systemd/pulseplate-premium-alias-checkpoint.service.example | cut -d' ' -f1)" = "$CHECKPOINT_SERVICE_SHA256" ]
+            [ ! -L ./systemd/pulseplate-premium-alias-checkpoint.timer.example ]
+            [ -f ./systemd/pulseplate-premium-alias-checkpoint.timer.example ]
+            [ "$(sha256sum ./systemd/pulseplate-premium-alias-checkpoint.timer.example | cut -d' ' -f1)" = "$CHECKPOINT_TIMER_SHA256" ]
+            [ ! -L ./systemd/pulseplate-premium-alias-checkpoint-failure.service.example ]
+            [ -f ./systemd/pulseplate-premium-alias-checkpoint-failure.service.example ]
+            [ "$(sha256sum ./systemd/pulseplate-premium-alias-checkpoint-failure.service.example | cut -d' ' -f1)" = "$CHECKPOINT_FAILURE_SHA256" ]
             [ ! -L ./systemd/pulseplate-staging-storage.conf ]
             [ -f ./systemd/pulseplate-staging-storage.conf ]
             [ "$(sha256sum ./systemd/pulseplate-staging-storage.conf | cut -d' ' -f1)" = "$STAGING_STORAGE_SYSTEMD_SHA256" ]
@@ -4443,7 +4592,12 @@ jobs:
             deploy/postgres-pgvector/image-manifest.json \
             deploy/prometheus/alias-alerts.yml \
             deploy/alertmanager/alertmanager.yml \
-            deploy/alertmanager/trivy-ignore.yaml
+            deploy/alertmanager/trivy-ignore.yaml \
+            scripts/verify_premium_alias_telemetry.py \
+            scripts/ops/notify_premium_alias_checkpoint_failure.py \
+            deploy/systemd/pulseplate-premium-alias-checkpoint.service.example \
+            deploy/systemd/pulseplate-premium-alias-checkpoint.timer.example \
+            deploy/systemd/pulseplate-premium-alias-checkpoint-failure.service.example
 
           scp -i "$key_path" \
             "$archive_path" \
