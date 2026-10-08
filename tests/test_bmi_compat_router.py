@@ -7,6 +7,7 @@ from pathlib import Path
 import subprocess
 import sys
 from typing import Any
+from unittest.mock import AsyncMock, Mock
 
 from fastapi.testclient import TestClient
 import pytest
@@ -292,6 +293,119 @@ def test_bmi_request_alias_conversion_failures_fall_through_to_validation(
 ) -> None:
     with pytest.raises(ValidationError):
         BMIRequest.model_validate(payload)
+
+
+@pytest.mark.parametrize(
+    ("alias", "missing_field"),
+    [("weight", "weight_kg"), ("height", "height_m"), ("height_cm", "height_m")],
+)
+def test_bmi_request_overflowing_alias_falls_through_to_missing_validation(
+    alias: str,
+    missing_field: str,
+) -> None:
+    from app.schemas.bmi_compat import BMIRequest as CurrentBMIRequest
+
+    payload = {"height_m": 1.75} if alias == "weight" else {"weight_kg": 70.0}
+    payload[alias] = 10**400
+
+    with pytest.raises(ValidationError) as caught:
+        CurrentBMIRequest.model_validate(dict(payload))
+
+    errors = caught.value.errors()
+    assert len(errors) == 1
+    assert errors[0]["type"] == "missing"
+    assert errors[0]["msg"] == "Field required"
+    assert errors[0]["loc"] == (missing_field,)
+
+
+@pytest.mark.parametrize("path", ["/bmi", "/plan"])
+@pytest.mark.parametrize(
+    ("alias", "missing_field"),
+    [("weight", "weight_kg"), ("height", "height_m"), ("height_cm", "height_m")],
+)
+def test_bmi_compat_routes_reject_overflowing_alias_before_service_execution(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+    path: str,
+    alias: str,
+    missing_field: str,
+) -> None:
+    import app.services.bmi_compat as current_service
+
+    matching_routes = [
+        route
+        for route in iter_effective_route_candidates(client.app.routes)
+        if is_api_route_candidate(route)
+        and route_path(route) == path
+        and "POST" in route_methods(route)
+    ]
+    assert len(matching_routes) == 1
+    endpoint = route_endpoint(matching_routes[0])
+    assert endpoint.__module__ == "app.routers.bmi_compat"
+    assert endpoint.__globals__["bmi_compat_service"] is current_service
+
+    bmi_spy = AsyncMock(side_effect=AssertionError("BMI service must not run"))
+    plan_spy = AsyncMock(side_effect=AssertionError("plan service must not run"))
+    calculation_spy = AsyncMock(side_effect=AssertionError("calculation consumer must not run"))
+    visualization_spy = Mock(side_effect=AssertionError("visualization must not run"))
+    monkeypatch.setattr(current_service, "bmi_endpoint", bmi_spy)
+    monkeypatch.setattr(current_service, "plan_endpoint", plan_spy)
+    monkeypatch.setattr(current_service, "bmi_calculate_handler", calculation_spy)
+    monkeypatch.setattr(current_service, "generate_bmi_visualization", visualization_spy)
+
+    payload = {"height_m": 1.75} if alias == "weight" else {"weight_kg": 70.0}
+    payload[alias] = 10**400
+    payload["include_chart"] = True
+    response = client.post(path, json=dict(payload))
+
+    assert response.status_code == 422
+    assert response.headers["content-type"].startswith("application/json")
+    detail = response.json()["detail"]
+    assert len(detail) == 1
+    assert detail[0]["type"] == "missing"
+    assert detail[0]["msg"] == "Field required"
+    assert detail[0]["loc"] == ["body", missing_field]
+    for spy in (bmi_spy, plan_spy, calculation_spy):
+        assert spy.call_count == 0
+        assert spy.await_count == 0
+    assert visualization_spy.call_count == 0
+
+
+@pytest.mark.parametrize("alias", ["weight", "height", "height_cm"])
+def test_bmi_request_canonical_fields_take_precedence_over_overflowing_alias(
+    alias: str,
+) -> None:
+    from app.schemas.bmi_compat import BMIRequest as CurrentBMIRequest
+
+    payload = {"weight_kg": 70.0, "height_m": 1.75}
+    canonical = CurrentBMIRequest.model_validate(dict(payload))
+    payload[alias] = 10**400
+    request = CurrentBMIRequest.model_validate(dict(payload))
+
+    assert request.weight_kg == 70.0
+    assert request.height_m == 1.75
+    assert request.model_dump() == canonical.model_dump()
+
+
+@pytest.mark.parametrize("path", ["/bmi", "/plan"])
+@pytest.mark.parametrize("alias", ["weight", "height", "height_cm"])
+def test_bmi_compat_routes_ignore_overflowing_alias_when_canonical_fields_are_valid(
+    client: TestClient,
+    path: str,
+    alias: str,
+) -> None:
+    payload = {"weight_kg": 70.0, "height_m": 1.75}
+    canonical_response = client.post(path, json=dict(payload))
+    assert canonical_response.status_code == 200
+    assert canonical_response.headers["content-type"].startswith("application/json")
+    canonical_result = canonical_response.json()
+
+    payload[alias] = 10**400
+    response = client.post(path, json=dict(payload))
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("application/json")
+    assert response.json() == canonical_result
 
 
 def test_bmi_request_accepts_existing_model_instance() -> None:
