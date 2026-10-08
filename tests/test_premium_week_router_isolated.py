@@ -13,7 +13,8 @@ from typing import Any
 
 import pytest
 from fastapi import FastAPI
-from fastapi.testclient import TestClient
+
+from tests._client import open_test_client
 
 
 def test_premium_week_pipeline_type_mismatch_raises_typeerror(
@@ -40,12 +41,11 @@ def test_premium_week_pipeline_type_mismatch_raises_typeerror(
 
     monkeypatch.setattr(premium_mod, "run_weekly_pipeline_guarded", _fake_pipeline)
 
-    client = TestClient(app)
     try:
-        with pytest.raises(TypeError, match=r"Expected PremiumWeekPlanResponse"):
-            _ = client.post("/api/v1/premium/plan/week-flexible", json={})
+        with open_test_client(app) as client:
+            with pytest.raises(TypeError, match=r"Expected PremiumWeekPlanResponse"):
+                _ = client.post("/api/v1/premium/plan/week-flexible", json={})
     finally:
-        client.close()
         app.dependency_overrides.clear()
 
 
@@ -79,12 +79,11 @@ def test_premium_week_pipeline_invalid_payload_surfaces_postprocess_error(
 
     monkeypatch.setattr(premium_mod, "run_weekly_pipeline_guarded", _fake_pipeline)
 
-    client = TestClient(app)
     try:
-        response = client.post("/api/v1/premium/plan/week-flexible", json={})
-        assert response.status_code == 500, response.text
-        assert response.headers.get("content-type", "").startswith("application/json")
-        assert response.json()["code"] == "weekly_postprocess_failed"
+        with open_test_client(app) as client:
+            response = client.post("/api/v1/premium/plan/week-flexible", json={})
+            assert response.status_code == 500, response.text
+            assert response.headers.get("content-type", "").startswith("application/json")
+            assert response.json()["code"] == "weekly_postprocess_failed"
     finally:
-        client.close()
         app.dependency_overrides.clear()
