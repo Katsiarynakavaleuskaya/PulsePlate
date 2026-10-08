@@ -512,6 +512,17 @@ Avoid `# type: ignore[no-any-return]` and prefer typed locals over `cast()`.
   Retained HTTP aliases continue to use their canonical router/schema owners.
   Fresh-import absence does not establish hot-reload behavior or absence of
   unknown external or computed Python callers.
+- The seven BMI schema/visualization bindings `BMIRequest`, `BMIRequestV1`,
+  `MATPLOTLIB_AVAILABLE`, `generate_bmi_visualization`,
+  `add_visualization_if_requested`, `_BMI_COMPAT_REEXPORTS`, and
+  `_BMI_SCHEMA_COMPAT_REEXPORTS` are retired from `legacy_app.py` and must not
+  be recreated. Import the two distinct models from `app.schemas.bmi_compat`,
+  the helper from `app.services.bmi_compat`, and renderer/flag from
+  `bmi_visualization`; the service keeps its existing local renderer bindings.
+  The two tuples have no replacement. The separate sixteen-name `app` package
+  facade remains unchanged, including its BMI model and visualization exports.
+  Fresh-process absence does not prove hot-reload or external/computed-caller
+  absence.
 - Core/utility imports use their canonical owners: `core.db.get_session`,
   `core.i18n.Language`, `core.i18n.normalize_lang`, `core.i18n.t`,
   `core.targets.FIBER_MIN_G`, `app.utils.helpers._short_git_sha`, and

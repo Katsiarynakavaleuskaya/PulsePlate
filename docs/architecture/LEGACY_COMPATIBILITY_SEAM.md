@@ -27,13 +27,14 @@ test-only reassignment of `legacy_app.app` cannot rebind package, bootstrap, or
 not import `legacy_app`. Resolving `app.app` imports `app.main` without loading
 `legacy_app`; the canonical bootstrap no longer reverse-imports the compatibility
 facade. The eight former paid/BMI registration mirrors are absent from `app`,
-`app.main`, and `legacy_app.py`. Twelve bounded Python-binding retirements remove
-only the exact 99 `legacy_app.py` Python bindings enumerated below; they do not
+`app.main`, and `legacy_app.py`. Thirteen bounded Python-binding retirements remove
+only the exact 106 `legacy_app.py` Python bindings enumerated below; they do not
 remove or redirect any HTTP path, change auth, alter OpenAPI, or change FastAPI
 object identity. Repository census found no tracked supported production
 consumer of the second ten-name, third eleven-name, fourth eight-name, fifth
 twelve-name, sixth seven-name, seventh three-name, eighth seven-name, ninth
-fifteen-name, tenth four-name, eleventh four-name, or twelfth eight-name cohort;
+fifteen-name, tenth four-name, eleventh four-name, twelfth eight-name, or
+thirteenth seven-name cohort;
 it does not prove that no external or dynamic Python consumer exists.
 
 Application startup/shutdown behavior is canonically owned by
@@ -309,9 +310,45 @@ route/service binding, zero calls and awaits, and real canonical-precedence
 success controls. This prerequisite preserves the distinct `BMIRequest` and
 `BMIRequestV1` models, aliases, height units, defaults, route/auth/OpenAPI and
 app identities, all seven selected BMI bindings, and both independent 99-name
-retired inventories. Its own current-head gates, review, separately approved
-merge, post-merge proof, archive, final same-ID continuity, and cleanup remain
-pending; the utility child's historical receipts supply no new PASS.
+retired inventories. PR #2478 is CLOSED / MERGED: reviewed head
+`6257bb615d92bd94d6cab6e0328eb81ff0c53adf`, material head
+`65c8a231cb43cc4fc714dab9a4778ad3c120201f`, base
+`59e894ec1bd3678eba55822bbcbef22988243205`, actual squash
+`e025db557f49214e1a11e82838813bdaf72baca7`, merged at
+`2026-10-08T11:38:37Z`. Its own narrow gates, current-head CI/security,
+100% numeric diff coverage on two eligible lines, native self-review,
+provider-neutral seal, dispositions and strict review window preceded the
+separately authorized squash. The explicit owner exception for current
+Sourcery absence was limited to this PR; absence is not PASS, and no fresh
+review request was sent. Exact-head Nightly TOTAL was 97.65%.
+
+Own merged-main sanity passed 115 cases without failures, errors or skips;
+main CI37771412318 succeeded on the actual squash with native TOTAL
+97.63%/97.66%/97.65% for Python3.11/3.12/3.13. Archive folder
+`1TcW-6MLDRxUrMAG2Vj416uMyl7aWcOHl` retains downloaded/hash-verified
+payloads and historical native Oracle lineage checks. The compact Git bundle
+(20,360 bytes, SHA-256
+`8416ea35a3ca48be4a5a922952a43bd52b1d524d656a1a188361c67a7b53e396`)
+was restored from its actual downloaded bytes against the separately retained
+exact base; this is dependent recovery, not standalone cloud recovery.
+The 1,012,172-byte evidence ZIP, SHA-256
+`b7204bcf492392beda97c53713e8da036c42b2fe0ebe942dd5c7239f5fad6848`,
+has 48 members with all 47 payload hashes verified. Independent private custody
+preserves the full Git history and original companions outside deleted worktrees.
+
+The one final same-ID Doc/capsule pass and full readbacks preceded cleanup.
+File IDs, parents and ACL remain unchanged; capsule bytes outside PROJECT_LEGACY
+are identical. Native semantic structure and known references are preserved;
+one Google-generated historical heading ID changed, with zero known old-ID
+references in the complete Doc/capsule or repository. Full heading-ID equality
+is false and external bookmarks remain unknown. Actual owned cleanup removed
+three worktrees, their three temporary Git receivers and the local branch;
+the remote branch was already absent. Eight resource absences are evidenced;
+foreign resources remain untouched and no global prune occurred. Terminal
+individual QA, cleanup and outgoing receipts are retained in the same archive.
+This closes only the prerequisite. All seven BMI bindings and both independent
+99-name inventories remain. The utility child's historical receipts supply no
+new PASS; no deployment or provider-approval claim follows.
 
 This substantive child carries the completed #2475 utility receipt once.
 It does not reclose #2466 or change the independent #2476 guard repair.
@@ -332,6 +369,45 @@ for 99 to 106 retired names while preserving canonical models, rendering,
 package exports and HTTP contracts. Original successor D1-D8 remain required;
 removal is not implemented or admitted by this prerequisite. The successor does
 not repeat #2475 reconciliation or import #2476's algorithmic repair.
+
+## Legacy BMI Python export retirement
+
+The admitted `LEGACY-BMI-PYTHON-EXPORT-RETIREMENT-1/v1` child removes exactly
+`BMIRequest`, `BMIRequestV1`, `MATPLOTLIB_AVAILABLE`,
+`generate_bmi_visualization`, `add_visualization_if_requested`,
+`_BMI_COMPAT_REEXPORTS`, and `_BMI_SCHEMA_COMPAT_REEXPORTS` from ordinary
+`legacy_app.py` bindings without replacement. The previous 99 retirement
+members remain; the current exact inventory is 106
+(`scripts/ci/check_legacy_growth_guard.py:40`). The two tuples have no
+replacement. The two distinct canonical classes remain in
+`app/schemas/bmi_compat.py:21` and `app/schemas/bmi_compat.py:120`; the service
+helper stays at `app/services/bmi_compat.py:26`, and renderer ownership stays in
+`bmi_visualization.py`. The separate sixteen-name package facade remains
+unchanged at `app/__init__.py:32`.
+
+Three admitted test consumers use canonical owners. Fresh-process retirement
+and package/renderer identity assertions reuse the protected probe in
+`tests/test_legacy_bmi_shims.py`; the named live-route independence oracle in
+`tests/test_bmi_compat_router.py` confines its two temporary legacy attributes
+to a child monkeypatch context with before/inside/after controls. All eighteen
+PR #2478 rejection/non-entry/precedence cases remain unchanged. HTTP routes,
+public access, OpenAPI operation/schema visibility and app identity are
+preservation surfaces, not a sunset. Unknown external/computed callers and
+already-loaded module dictionaries remain outside this bounded proof.
+
+Incoming PR #2478 terminal repository-doc reconciliation is carried once in
+this substantive child. Its historical 99-name preservation statement remains
+historical; #2475 reconciliation and #2466 closure are not repeated. The current
+child's own validation, review, Oracle, exact-head CI and separately authorized
+merge/terminal lifecycle remain pending. PROJECT_LEGACY stays OPEN, R29 stays
+PARTIAL / UNWAIVED, O1 stays historical NOT_ADMITTED, and the shared-runtime P1
+follow-up stays OPEN. Rollback reverts only new removal material, preserving
+both PR #2478 OverflowError catches.
+
+The operator explicitly permits this existing lane to continue from pending
+main; another employee monitors main. This lane-specific start exception
+transfers no main PASS, publication validation, merge-readiness or merge
+permission, and grants no bypass of this PR's required gates.
 
 ## Residual Python facade census (log-retention child)
 
@@ -466,9 +542,11 @@ The following direct-call Python bindings are retired from `legacy_app.py`:
 implementations remain callable in `app/services/admin_operations.py:27` and
 `app/services/bmi_compat.py:138`; HTTP ownership remains in
 `app/routers/admin_operations.py:34` and `app/routers/bmi_compat.py:21`.
-The `BMIRequest` / `BMIRequestV1` schema compatibility exports and BMI
-visualization exports remain explicit in `legacy_app.py:28` and
-`legacy_app.py:55`. Unknown external or reflective callers remain residual
+At the historical direct-call extraction cutoff, the `BMIRequest` /
+`BMIRequestV1` schema and visualization exports remained explicit in the then
+`legacy_app.py:28` and `legacy_app.py:55`. The current seven schema/visualization
+projections are retired; their canonical schema/service/renderer owners and
+separate package exports remain preserved. Unknown external or reflective callers remain residual
 compatibility risk; this lane makes no telemetry or consumer-census claim for
 them and grants no authority to retire HTTP aliases. Runtime-absence tests prove
 only the imported module state produced by the current checked source and test
@@ -749,8 +827,8 @@ Forbidden in `legacy_app.py`:
 | Planning direct-call runtime | `core/menu_engine.py` + `core/plate.py` + `core/recommendations.py` | Canonical implementations remain callable; the eleven-name planning/export cohort stays absent from `legacy_app.py`, while the finite `app` package facade retains only its reviewed exports. |
 | Export direct-call runtime | `core/exports.py` | All four byte-returning CSV/PDF implementations remain canonical; no `legacy_app.py` placeholders or aliases. |
 | Plan-export HTTP routes | `app/routers/plan_export.py` + `app/main.py` | Canonical routers retain exact endpoint, auth, signed-token, rate-limit, response, operation-identity, and public-OpenAPI behavior; no synthetic `legacy_app.routers.plan_export` namespace. |
-| Legacy BMI visualization access | `bmi_visualization.py` + `app/services/bmi_compat.py` | The renderer owns chart generation; the service consumes local bindings and normalizes compatibility responses; facade exports are compatibility only. |
-| Legacy BMI routes and direct-call runtime | `app/routers/bmi_compat.py` + `app/services/bmi_compat.py` | HTTP routes remain unchanged; the three former `legacy_app.py` endpoint bindings are retired while schemas and visualization exports remain. |
+| Legacy BMI visualization access | `bmi_visualization.py` + `app/services/bmi_compat.py` | The renderer owns chart generation; the service consumes local bindings and normalizes compatibility responses. The separate `app` package visualization exports remain compatibility projections; the `legacy_app.py` projections are retired. |
+| Legacy BMI routes and direct-call runtime | `app/routers/bmi_compat.py` + `app/services/bmi_compat.py` | HTTP routes remain unchanged; the three former `legacy_app.py` endpoint bindings are retired while the seven schema/visualization projections are also retired; canonical and package owners remain. |
 | Insight API contract | `app/schemas/insight.py` | Canonical request/response ownership and wire shape remain; the four former schema/constants projections are retired from `legacy_app.py`. |
 | Insight compatibility routes | `app/routers/legacy_insight.py` | The two hidden VIP routes own route-level guards and consume canonical adapter attributes at request time; the legacy facade is not a runtime dependency. |
 | Insight compatibility runtime | `app/services/insight_compat.py` + `app/services/insight_application_service.py` | The adapter owns retained callables and HTTP/error seams; the application service and `core/ai` retain orchestration truth. The four former callable/message projections stay absent from `legacy_app.py`; facade rebinding and reverse imports are forbidden. |
@@ -778,9 +856,9 @@ implementations and canonical `app/**` reverse imports or dynamic lookups for
 those callables. Current facts may disappear as the seam shrinks; new facts fail
 closed with repo-relative diagnostics.
 
-For the 99 retired Python bindings, the guard has a deliberately bounded
+For the 106 retired Python bindings, the guard has a deliberately bounded
 finite mechanical claim over the exact repo-relative `legacy_app.py` source
-only. It freezes the exact 99-name set, uses the existing `_assigned_names`
+only. It freezes the exact 106-name set, uses the existing `_assigned_names`
 collector for statically visible ordinary module-scope `Name` Store/Del
 bindings, rejects explicit `global` declarations for a protected name, rejects
 all star imports, and rejects a statically bound module-level `__getattr__`.
@@ -798,7 +876,7 @@ import hooks, reflection, arbitrary helpers, and external monkeypatching. The
 rule neither accepts nor certifies those families and makes no completeness
 claim about them. Any new or changed dynamic namespace carrier in
 `legacy_app.py`, and any dynamic carrier intended to bind or rebind one of the
-99 protected names, requires manual STOP and review. The existing router-import
+106 protected names, requires manual STOP and review. The existing router-import
 recognizer separately rejects reintroduction of the former exact dynamic
 `app.routers.plan_export -> _plan_mod` fact; this does not widen the ordinary
 binding rule or certify arbitrary namespace mutation.

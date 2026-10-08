@@ -117,6 +117,17 @@
   finite over canonical modules, the exact retired-name set, the two route
   models, and the sibling runtime-test family; do not grow a partial Python
   interpreter to chase assignment or spelling variants.
+- BMI retirement tests reuse `_run_legacy_retirement_probe` with its finite
+  environment, network denial and genuinely different import sequences.
+  Only `test_bmi_route_uses_service_visualization_bindings_not_facades` may
+  temporarily inject the absent `legacy_app.MATPLOTLIB_AVAILABLE` and
+  `legacy_app.generate_bmi_visualization` attributes with `raising=False`.
+  Use one child `monkeypatch.context()`; assert both absent before and after,
+  controlled identities inside, exact JSON service result and zero facade calls.
+  Patch existing package attributes with ordinary raising behavior and assert
+  restored identity/value after the context. Patch the canonical service at its
+  actual consumer; do not restore model/tuple bindings, mutate dictionaries or
+  `sys.modules`, or extend this exception to ordinary consumers/fixtures.
 - **When fixing `@patch` tests, scan ALL sibling files** for the same pattern
   (e.g., `_boost.py`, `_v2.py` variants). Fixing one file and missing its twin is a recurring incident.
 - Repo policy guards must not reference temporary/untracked files; AST scan path lists must filter by `.exists()`.
