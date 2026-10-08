@@ -3496,6 +3496,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         self.scope.bind("setattr", reference="builtins.setattr", string=None)
         self.scope.bind("delattr", reference="builtins.delattr", string=None)
         self.scope.bind("vars", reference="builtins.vars", string=None)
+        self.scope.bind("anext", reference="builtins.anext", string=None)
         for builtin_name in sorted(
             {
                 reference.removeprefix("builtins.")
@@ -4096,7 +4097,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 )
             if (
                 self._is_legacy_namespace_reference(owner_reference)
-                and node.attr in _DICT_NAMESPACE_LOOKUP_METHODS
+                and node.attr in _DICT_NAMESPACE_LOOKUP_METHODS | _MAPPING_MUTATOR_METHODS
             ):
                 return f"legacy_app.__dict__.{node.attr}"
             if owner_reference == _KNOWN_NON_APP_REFERENCE:
@@ -4487,135 +4488,147 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             return
         reference_names = set().union(*(set(outcome.references) for outcome in outcomes))
         joined_references: dict[str, str] = {}
-        for name in reference_names:
-            values = [outcome.references.get(name) for outcome in outcomes]
-            namespace_values = {
-                value
-                for value in values
-                if value
-                in {
-                    _BUILTINS_NAMESPACE_REFERENCE,
-                    _POSSIBLE_BUILTINS_NAMESPACE_REFERENCE,
-                    _MODULE_NAMESPACE_REFERENCE,
-                    _POSSIBLE_OBJECT_NAMESPACE_REFERENCE,
-                }
-            }
-            if all(value == values[0] for value in values) and values[0] is not None:
-                joined_references[name] = values[0]
-            elif namespace_values and all(
-                value is None or value in namespace_values for value in values
-            ):
-                joined_references[name] = (
-                    next(iter(namespace_values))
-                    if len(namespace_values) == 1
-                    else _POSSIBLE_OBJECT_NAMESPACE_REFERENCE
-                )
-            elif namespace_mutator_values := {
-                value
-                for value in values
-                if value is not None and _namespace_mutator_method(value) is not None
-            }:
-                if any(_is_registration_callable_reference(value) for value in values):
-                    joined_references[name] = _POSSIBLE_APP_CALL_REFERENCE
-                elif len(namespace_mutator_values) == 1:
-                    joined_references[name] = next(iter(namespace_mutator_values))
-                else:
-                    methods = {
-                        method
-                        for value in namespace_mutator_values
-                        if (method := _namespace_mutator_method(value)) is not None
-                    }
-                    method = next(iter(methods)) if len(methods) == 1 else "*"
-                    joined_references[name] = (
-                        f"{_POSSIBLE_NAMESPACE_MUTATOR_REFERENCE_PREFIX}{method}"
-                    )
-            elif self.preserve_lifecycle_conflicts and any(
-                value
-                in {
-                    "builtins.__import__",
-                    "importlib.import_module",
-                    _POSSIBLE_IMPORT_CALLABLE_REFERENCE,
-                }
-                for value in values
-            ):
-                joined_references[name] = _POSSIBLE_IMPORT_CALLABLE_REFERENCE
-            elif self.preserve_fastapi_conflicts and any(
-                value
-                in {
-                    "fastapi.FastAPI",
-                    "fastapi.applications.FastAPI",
-                    _POSSIBLE_FASTAPI_REFERENCE,
-                    _CONFLICTED_FASTAPI_REFERENCE,
-                }
-                for value in values
-            ):
-                joined_references[name] = _POSSIBLE_FASTAPI_REFERENCE
-            elif any(
-                value in {"builtins.getattr", _POSSIBLE_GETATTR_REFERENCE} for value in values
-            ):
-                joined_references[name] = _POSSIBLE_GETATTR_REFERENCE
-            elif any(self._may_reference_legacy(value) for value in values):
-                joined_references[name] = _POSSIBLE_LEGACY_REFERENCE
-            elif any(
-                value
-                in {
-                    _ITERABLE_APP_ELEMENT_REFERENCE,
-                    _ITERABLE_SENSITIVE_ELEMENT_REFERENCE,
-                    _MAPPING_APP_VALUE_REFERENCE,
-                    _MAPPING_SENSITIVE_VALUE_REFERENCE,
-                }
-                for value in values
-            ):
-                if _MAPPING_APP_VALUE_REFERENCE in values:
-                    joined_references[name] = _MAPPING_APP_VALUE_REFERENCE
-                elif _MAPPING_SENSITIVE_VALUE_REFERENCE in values:
-                    joined_references[name] = _MAPPING_SENSITIVE_VALUE_REFERENCE
-                elif _ITERABLE_APP_ELEMENT_REFERENCE in values:
-                    joined_references[name] = _ITERABLE_APP_ELEMENT_REFERENCE
-                else:
-                    joined_references[name] = _ITERABLE_SENSITIVE_ELEMENT_REFERENCE
-            elif any(
-                value == _POSSIBLE_APP_CALL_REFERENCE
-                or (
-                    value is not None
-                    and value.startswith("pulseplate.app.")
-                    and value.rsplit(".", maxsplit=1)[-1]
-                    in APP_ROUTE_METHODS | APP_REGISTRATION_METHODS
-                )
-                for value in values
-            ):
-                joined_references[name] = _POSSIBLE_APP_CALL_REFERENCE
-            elif self.preserve_route_method_conflicts and any(
-                value == _POSSIBLE_MIDDLEWARE_DECORATOR_REFERENCE
-                or (value is not None and value.startswith(_MIDDLEWARE_DECORATOR_REFERENCE_PREFIX))
-                for value in values
-            ):
-                middleware_values = {
+        if all(outcome.references == outcomes[0].references for outcome in outcomes) and all(
+            value is not None for value in outcomes[0].references.values()
+        ):
+            joined_references = dict(outcomes[0].references)
+        else:
+            for name in reference_names:
+                values = [outcome.references.get(name) for outcome in outcomes]
+                if values.count(values[0]) == len(values):
+                    if values[0] is not None:
+                        joined_references[name] = values[0]
+                    continue
+                namespace_values = {
                     value
                     for value in values
-                    if value is not None
-                    and value.startswith(_MIDDLEWARE_DECORATOR_REFERENCE_PREFIX)
+                    if value
+                    in {
+                        _BUILTINS_NAMESPACE_REFERENCE,
+                        _POSSIBLE_BUILTINS_NAMESPACE_REFERENCE,
+                        _MODULE_NAMESPACE_REFERENCE,
+                        _POSSIBLE_OBJECT_NAMESPACE_REFERENCE,
+                    }
                 }
-                joined_references[name] = (
-                    next(iter(middleware_values))
-                    if len(middleware_values) == 1
-                    and _POSSIBLE_MIDDLEWARE_DECORATOR_REFERENCE not in values
-                    else _POSSIBLE_MIDDLEWARE_DECORATOR_REFERENCE
-                )
-            elif any(value in {"pulseplate.app", _POSSIBLE_APP_REFERENCE} for value in values):
-                joined_references[name] = _POSSIBLE_APP_REFERENCE
-            elif any(
-                value in {"pulseplate.app.router", _POSSIBLE_ROUTER_REFERENCE} for value in values
-            ):
-                joined_references[name] = _POSSIBLE_ROUTER_REFERENCE
+                if namespace_values and all(
+                    value is None or value in namespace_values for value in values
+                ):
+                    joined_references[name] = (
+                        next(iter(namespace_values))
+                        if len(namespace_values) == 1
+                        else _POSSIBLE_OBJECT_NAMESPACE_REFERENCE
+                    )
+                elif namespace_mutator_values := {
+                    value
+                    for value in values
+                    if value is not None and _namespace_mutator_method(value) is not None
+                }:
+                    if any(_is_registration_callable_reference(value) for value in values):
+                        joined_references[name] = _POSSIBLE_APP_CALL_REFERENCE
+                    elif len(namespace_mutator_values) == 1:
+                        joined_references[name] = next(iter(namespace_mutator_values))
+                    else:
+                        methods = {
+                            method
+                            for value in namespace_mutator_values
+                            if (method := _namespace_mutator_method(value)) is not None
+                        }
+                        method = next(iter(methods)) if len(methods) == 1 else "*"
+                        joined_references[name] = (
+                            f"{_POSSIBLE_NAMESPACE_MUTATOR_REFERENCE_PREFIX}{method}"
+                        )
+                elif self.preserve_lifecycle_conflicts and any(
+                    value
+                    in {
+                        "builtins.__import__",
+                        "importlib.import_module",
+                        _POSSIBLE_IMPORT_CALLABLE_REFERENCE,
+                    }
+                    for value in values
+                ):
+                    joined_references[name] = _POSSIBLE_IMPORT_CALLABLE_REFERENCE
+                elif self.preserve_fastapi_conflicts and any(
+                    value
+                    in {
+                        "fastapi.FastAPI",
+                        "fastapi.applications.FastAPI",
+                        _POSSIBLE_FASTAPI_REFERENCE,
+                        _CONFLICTED_FASTAPI_REFERENCE,
+                    }
+                    for value in values
+                ):
+                    joined_references[name] = _POSSIBLE_FASTAPI_REFERENCE
+                elif any(
+                    value in {"builtins.getattr", _POSSIBLE_GETATTR_REFERENCE} for value in values
+                ):
+                    joined_references[name] = _POSSIBLE_GETATTR_REFERENCE
+                elif any(self._may_reference_legacy(value) for value in values):
+                    joined_references[name] = _POSSIBLE_LEGACY_REFERENCE
+                elif any(
+                    value
+                    in {
+                        _ITERABLE_APP_ELEMENT_REFERENCE,
+                        _ITERABLE_SENSITIVE_ELEMENT_REFERENCE,
+                        _MAPPING_APP_VALUE_REFERENCE,
+                        _MAPPING_SENSITIVE_VALUE_REFERENCE,
+                    }
+                    for value in values
+                ):
+                    if _MAPPING_APP_VALUE_REFERENCE in values:
+                        joined_references[name] = _MAPPING_APP_VALUE_REFERENCE
+                    elif _MAPPING_SENSITIVE_VALUE_REFERENCE in values:
+                        joined_references[name] = _MAPPING_SENSITIVE_VALUE_REFERENCE
+                    elif _ITERABLE_APP_ELEMENT_REFERENCE in values:
+                        joined_references[name] = _ITERABLE_APP_ELEMENT_REFERENCE
+                    else:
+                        joined_references[name] = _ITERABLE_SENSITIVE_ELEMENT_REFERENCE
+                elif any(
+                    value == _POSSIBLE_APP_CALL_REFERENCE
+                    or (
+                        value is not None
+                        and value.startswith("pulseplate.app.")
+                        and value.rsplit(".", maxsplit=1)[-1]
+                        in APP_ROUTE_METHODS | APP_REGISTRATION_METHODS
+                    )
+                    for value in values
+                ):
+                    joined_references[name] = _POSSIBLE_APP_CALL_REFERENCE
+                elif self.preserve_route_method_conflicts and any(
+                    value == _POSSIBLE_MIDDLEWARE_DECORATOR_REFERENCE
+                    or (
+                        value is not None
+                        and value.startswith(_MIDDLEWARE_DECORATOR_REFERENCE_PREFIX)
+                    )
+                    for value in values
+                ):
+                    middleware_values = {
+                        value
+                        for value in values
+                        if value is not None
+                        and value.startswith(_MIDDLEWARE_DECORATOR_REFERENCE_PREFIX)
+                    }
+                    joined_references[name] = (
+                        next(iter(middleware_values))
+                        if len(middleware_values) == 1
+                        and _POSSIBLE_MIDDLEWARE_DECORATOR_REFERENCE not in values
+                        else _POSSIBLE_MIDDLEWARE_DECORATOR_REFERENCE
+                    )
+                elif any(value in {"pulseplate.app", _POSSIBLE_APP_REFERENCE} for value in values):
+                    joined_references[name] = _POSSIBLE_APP_REFERENCE
+                elif any(
+                    value in {"pulseplate.app.router", _POSSIBLE_ROUTER_REFERENCE}
+                    for value in values
+                ):
+                    joined_references[name] = _POSSIBLE_ROUTER_REFERENCE
         self.scope.references = joined_references
 
         string_names = set().union(*(set(outcome.strings) for outcome in outcomes))
         joined_strings: dict[str, str] = {}
         for name in string_names:
             values = [outcome.strings.get(name) for outcome in outcomes]
-            if all(value == values[0] for value in values) and values[0] is not None:
-                joined_strings[name] = values[0]
+            if values.count(values[0]) == len(values):
+                if values[0] is not None:
+                    joined_strings[name] = values[0]
             elif self.preserve_route_method_conflicts and any(
                 value
                 in {
@@ -5486,7 +5499,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
 
     def _type_parameter_scope(
         self,
-        node: ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef,
+        node: ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef | ast.TypeAlias,
     ) -> _LexicalBindings:
         type_parameters = getattr(node, "type_params", ())
         if not type_parameters:
@@ -5519,6 +5532,27 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                     finally:
                         self._remaining_loop_iterations = visitor._remaining_loop_iterations
         return parameter_scope
+
+    def visit_TypeAlias(self, node: ast.TypeAlias) -> None:
+        self.visit(node.name)
+        self._bind_name(node.name.id, reference=None, string=None)
+        parameter_scope = self._type_parameter_scope(node)
+        if self._analysis_purpose != "ownership_audit":
+            return
+        visitor = self._detached_analysis_visitor(
+            parameter_scope,
+            original_parent=parameter_scope,
+            analyze_function_bodies=self.analyze_function_bodies,
+        )
+        visitor.reference_snapshots = self.reference_snapshots
+        visitor.string_snapshots = self.string_snapshots
+        visitor.call_result_snapshots = self.call_result_snapshots
+        visitor._remaining_loop_iterations = self._remaining_loop_iterations
+        try:
+            visitor.visit(node.value)
+            self.errors.extend(visitor.errors)
+        finally:
+            self._remaining_loop_iterations = visitor._remaining_loop_iterations
 
     def _visit_function_header(
         self,
@@ -8793,10 +8827,18 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             and namespace_function_reference.startswith("builtins.dict.")
             and namespace_function_reference.rpartition(".")[2] in _MAPPING_MUTATOR_METHODS
         )
+        stored_legacy_mutator = (
+            namespace_function_reference is not None
+            and namespace_function_reference.rpartition(".")[0] == "legacy_app.__dict__"
+            and namespace_function_reference.rpartition(".")[2] in _MAPPING_MUTATOR_METHODS
+        )
         bound_mutator_candidate = (
             isinstance(node.func, ast.Attribute) and node.func.attr in _MAPPING_MUTATOR_METHODS
+        ) or stored_legacy_mutator
+        mutation_receiver_binding: _ResolvedBinding | None = (
+            _ResolvedBinding("legacy_app.__dict__", None) if stored_legacy_mutator else None
         )
-        mutation_receiver_binding: _ResolvedBinding | None = None
+        mutation_function_references: dict[str, str] = {}
         namespace_receiver = (
             lookup_arguments[0]
             if namespace_function_reference in _UNBOUND_DICT_LOOKUP_REFERENCES and lookup_arguments
@@ -8845,6 +8887,15 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         prepared_targets = set(initial_arguments)
 
         wrapper_reference = self._resolve_reference(node.func)
+        keys_callback = (
+            wrapper_reference in {"builtins.sorted", "builtins.min", "builtins.max"}
+            and bool(positional_arguments)
+            and not unresolved_positional_sources
+            and (wrapper_reference != "builtins.sorted" or len(positional_arguments) == 1)
+            and any(keyword.arg == "key" for keyword in node.keywords)
+        )
+        key_input_binding: _ResolvedBinding | None = None
+        key_replay_inputs: list[tuple[_FunctionNode, dict[str, _ResolvedBinding]]] = []
         if (
             not node.args
             and not node.keywords
@@ -9093,6 +9144,22 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         )
         if iterated_argument is not None:
             self._iterated_call_ids.add(id(iterated_argument))
+        async_iteration_candidate = id(node) in self._awaited_call_ids and (
+            (
+                wrapper_reference == "builtins.anext"
+                and len(positional_arguments) in {1, 2}
+                and not unresolved_positional_sources
+                and not node.keywords
+            )
+            or (
+                isinstance(node.func, ast.Attribute)
+                and node.func.attr == "__anext__"
+                and not node.args
+                and not node.keywords
+            )
+        )
+        async_iteration_callee: str | None = None
+        async_iteration_operand: _ResolvedBinding | None = None
         if defer_mapping_mutation:
             self._deferred_mapping_mutator_attribute_ids.add(id(node.func))
         if mapping_lookup_attribute is not None:
@@ -9103,21 +9170,73 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 or unbound_namespace_candidate
                 or unbound_mutator_candidate
                 or bound_mutator_candidate
+                or async_iteration_candidate
             ):
                 self.visit(node.func)
                 getattr_function_reference = self._resolve_reference(node.func)
+                mutation_function_references = dict(
+                    (self.reference_snapshots or {}).get(id(node.func), {})
+                )
+                if isinstance(node.func, ast.Name) and getattr_function_reference is not None:
+                    mutation_function_references[node.func.id] = getattr_function_reference
+                if async_iteration_candidate:
+                    async_iteration_callee = getattr_function_reference
+                    if isinstance(node.func, ast.Attribute) and node.func.attr == "__anext__":
+                        async_iteration_operand = self._capture_argument_binding(node.func.value)
                 if bound_mutator_candidate and isinstance(node.func, ast.Attribute):
                     mutation_receiver_binding = self._capture_argument_binding(node.func.value)
                 for getattr_argument_index, getattr_argument in enumerate(lookup_arguments):
                     self.visit(getattr_argument)
                     if getattr_argument_index == 0:
                         getattr_receiver_binding = self._capture_argument_binding(getattr_argument)
+                        if async_iteration_candidate:
+                            async_iteration_operand = getattr_receiver_binding
                         if unbound_mutator_candidate:
                             mutation_receiver_binding = getattr_receiver_binding
                     elif getattr_argument_index == 1:
                         getattr_member_binding = self._capture_argument_binding(getattr_argument)
                 for getattr_keyword in node.keywords:
                     self.visit(getattr_keyword)
+            elif keys_callback:
+                self.visit(node.func)
+                key_input_bindings: list[_ResolvedBinding] = []
+                key_input_empty = False
+                for argument in lookup_arguments:
+                    self.visit(argument)
+                    key_input_bindings.append(self._capture_argument_binding(argument))
+                    if len(lookup_arguments) == 1:
+                        key_input_empty = self._is_proven_empty_iterable(argument)
+                key_input_binding = (
+                    key_input_bindings[0].iterable_element or self._conservative_argument_binding()
+                    if len(key_input_bindings) == 1
+                    else self._join_resolved_bindings(key_input_bindings)
+                )
+                for keyword in node.keywords:
+                    self.visit(keyword)
+                    if keyword.arg != "key" or key_input_empty or not self._replay_calls_enabled:
+                        continue
+                    key_replay_inputs.extend(
+                        (target, arguments)
+                        for target in sorted(
+                            self._resolve_callables(keyword.value),
+                            key=lambda candidate: (
+                                candidate.lineno,
+                                candidate.col_offset,
+                                candidate.name,
+                            ),
+                        )
+                        if not isinstance(target, ast.AsyncFunctionDef)
+                        if not _function_is_generator(target)
+                        if (
+                            arguments := self._resolve_call_argument_bindings(
+                                target,
+                                node,
+                                callable_expr=keyword.value,
+                                positional_override=[key_input_binding],
+                            )
+                        )
+                        is not None
+                    )
             else:
                 self.generic_visit(node)
         finally:
@@ -9214,7 +9333,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             if _mutates_protected_namespace(
                 node,
                 protected_names=CANONICAL_API_KEY_SYMBOLS,
-                references=(self.reference_snapshots or {}).get(id(node.func), {}),
+                references=mutation_function_references,
                 static_string_bindings={},
                 static_mapping_bindings={},
                 name_resolver=lambda key: self._resolve_string(key, own_environment=True),
@@ -9224,7 +9343,12 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                     isinstance(node.func, ast.Attribute)
                     and node.func.attr in {"clear", "popitem"}
                     or getattr_function_reference
-                    in {"builtins.dict.clear", "builtins.dict.popitem"}
+                    in {
+                        "builtins.dict.clear",
+                        "builtins.dict.popitem",
+                        "legacy_app.__dict__.clear",
+                        "legacy_app.__dict__.popitem",
+                    }
                 ):
                     self.errors.append(
                         f"{self.filename}: legacy API-key dependency namespace lookup is forbidden: <dynamic>"
@@ -9372,9 +9496,13 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 projected_result = self._variadic_iterable_binding([])
             else:
                 element = (
-                    self._conservative_argument_binding()
-                    if unresolved_positional_sources
-                    else self._resolve_iterable_element_binding(positional_arguments[0])
+                    key_input_binding
+                    if keys_callback
+                    else (
+                        self._conservative_argument_binding()
+                        if unresolved_positional_sources
+                        else self._resolve_iterable_element_binding(positional_arguments[0])
+                    )
                 )
                 if element is not None:
                     projected_result = self._variadic_iterable_binding([element])
@@ -9389,8 +9517,15 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 wrapper_reference in {"builtins.max", "builtins.min"}
                 and len(positional_arguments) != 1
             ):
-                projected_result = self._join_resolved_bindings(
-                    [self._capture_argument_binding(argument) for argument in positional_arguments]
+                projected_result = (
+                    key_input_binding
+                    if keys_callback
+                    else self._join_resolved_bindings(
+                        [
+                            self._capture_argument_binding(argument)
+                            for argument in positional_arguments
+                        ]
+                    )
                 )
             else:
                 projected_result = (
@@ -9403,8 +9538,10 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                     else None
                 )
                 if projected_result is None:
-                    projected_result = self._resolve_iterable_element_binding(
-                        positional_arguments[0]
+                    projected_result = (
+                        key_input_binding
+                        if keys_callback
+                        else self._resolve_iterable_element_binding(positional_arguments[0])
                     )
                 if (
                     wrapper_reference == "builtins.next"
@@ -9666,6 +9803,27 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                     self._resolve_deferred_calls(source),
                     execution="iterate",
                 )
+        key_previous_sync_only = self._sync_only_body_analysis
+        self._sync_only_body_analysis = previous_sync_only
+        try:
+            for target, arguments in key_replay_inputs:
+                self._replay_function_call(target, arguments)
+        finally:
+            self._sync_only_body_analysis = key_previous_sync_only
+        if async_iteration_operand is not None and (
+            async_iteration_callee == "builtins.anext"
+            or isinstance(node.func, ast.Attribute)
+            and node.func.attr == "__anext__"
+        ):
+            self._replay_deferred_calls(
+                frozenset(
+                    call
+                    for call in async_iteration_operand.deferred_calls
+                    if isinstance(call.function, ast.AsyncFunctionDef)
+                    and _function_is_generator(call.function)
+                ),
+                execution="iterate",
+            )
         if (
             wrapper_reference in _ZIPPING_ITERABLE_BUILTIN_REFERENCES
             and id(node) in self._iterated_call_ids
@@ -10539,22 +10697,30 @@ def _mutates_protected_namespace(
             references=references,
             static_string_bindings=static_string_bindings,
         )
+        namespace_method_prefix = "legacy_app.__dict__."
         dict_method_prefix = "builtins.dict."
         if (
-            function_reference is None
-            or not function_reference.startswith(dict_method_prefix)
-            or not arguments
-            or not _is_object_namespace_mapping(
-                arguments[0],
-                references=references,
-                static_string_bindings=static_string_bindings,
-            )
+            function_reference is not None
+            and function_reference.startswith(namespace_method_prefix)
+            and function_reference.removeprefix(namespace_method_prefix) in _MAPPING_MUTATOR_METHODS
         ):
-            return False
-        method_name = function_reference.removeprefix(dict_method_prefix)
-        if unresolved:
-            return False
-        arguments = arguments[1:]
+            method_name = function_reference.removeprefix(namespace_method_prefix)
+        else:
+            if (
+                function_reference is None
+                or not function_reference.startswith(dict_method_prefix)
+                or not arguments
+                or not _is_object_namespace_mapping(
+                    arguments[0],
+                    references=references,
+                    static_string_bindings=static_string_bindings,
+                )
+            ):
+                return False
+            method_name = function_reference.removeprefix(dict_method_prefix)
+            if unresolved:
+                return False
+            arguments = arguments[1:]
     if unresolved:
         return name_resolver is None
     if method_name in {"__ior__", "update", "__init__"}:
@@ -11744,6 +11910,12 @@ def _record_main_legacy_openapi_lookups(tree: ast.Module, errors: list[str]) -> 
                 and function_reference.startswith("builtins.dict.")
                 and function_reference.rpartition(".")[2] in _MAPPING_MUTATOR_METHODS
             )
+            stored_legacy_mutator = (
+                isinstance(node.func, ast.Name)
+                and function_reference is not None
+                and function_reference.rpartition(".")[0] == "legacy_app.__dict__"
+                and function_reference.rpartition(".")[2] in _MAPPING_MUTATOR_METHODS
+            )
             mutation_receiver = (
                 arguments[0]
                 if unbound_mutator and arguments
@@ -11755,9 +11927,12 @@ def _record_main_legacy_openapi_lookups(tree: ast.Module, errors: list[str]) -> 
                 )
             )
             if (
-                mutation_receiver is not None
-                and select_own_environment(node.func)
-                and evaluator._is_legacy_namespace_reference(own_reference(mutation_receiver))
+                select_own_environment(node.func)
+                and (
+                    stored_legacy_mutator
+                    or mutation_receiver is not None
+                    and evaluator._is_legacy_namespace_reference(own_reference(mutation_receiver))
+                )
                 and all(select_own_environment(keyword.value) for keyword in node.keywords)
                 and _mutates_protected_namespace(
                     node,

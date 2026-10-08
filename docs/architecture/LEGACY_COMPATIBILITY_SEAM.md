@@ -51,7 +51,7 @@ The separate protected set also includes `api_key_header`, `validate_app_api_key
 and `require_app_api_key`; protection does not authorize additional re-exports.
 Wrappers or mutable legacy-owned warning state would break FastAPI dependency
 identity. The strict source witness and absolute-import boundary are enforced by
-`scripts/ci/check_legacy_growth_guard.py:9937`.
+`scripts/ci/check_legacy_growth_guard.py:10095`.
 
 Application metadata is canonically owned by
 `app/application_metadata.py:56` and constructed through the environment-aware
@@ -274,12 +274,68 @@ to their listed canonical owners. These fresh imports make no hot-reload
 guarantee. Rollback is a reviewed whole-material
 revert of this utility PR, excluding the inherited #2466 workflow repair.
 
-After this utility child's actual separately authorized merge, post-merge proof,
-verified archive, and final same-ID continuity, its exact outgoing repository
-receipt delta belongs to the **first next substantive Legacy child** following
-fresh admission. That future carrier receives the actual merge/archive/continuity
-facts once observed. No standalone docs-only closeout PR or additional cohort
-authority follows; the current utility merge identity and timestamp remain pending.
+The utility child PR #2475 is CLOSED / MERGED: reviewed head
+`d5caf6dee5feddd01014443d373a63cde4e1fc20`, actual squash
+`483fc220a18d5a413dc355b2cd5441d667bd2ddc`, merged at
+`2026-10-06T23:36:51Z`. Its own local narrow gates, exact-head canonical
+CI/security, provider-neutral seal, dispositions, strict wrapper and review
+window preceded the approved race-protected squash. Merged-main focused sanity
+passed; main CI37547524358 and all seven selected specialized runs succeeded.
+Full-main native TOTAL coverage for Python3.11/3.12/3.13 was
+97.62%/97.65%/97.65%; numeric diff coverage was N/A from an independently
+proven empty eligible-line inventory. Deployment jobs were skipped.
+Verified recovery, final same-ID continuity and later owned cleanup receipts
+are retained in archive folder `1viMSIUDcDmizMEKUIDOtkofEMe5o7SKi`.
+All accepted D1-D8 outcomes require the retained individual 41-item final QA
+receipt. PROJECT_LEGACY remains OPEN; R29 remains PARTIAL / UNWAIVED and
+the shared-runtime fail-fast learning follow-up remains OPEN. Unknown external
+and computed callers remain a bounded residual risk. No standalone docs-only
+closeout PR or new cohort authority follows.
+
+## Legacy BMI alias validation prerequisite
+
+The bounded prerequisite `LEGACY-BMI-ALIAS-VALIDATION-1/v1`, branch
+`codex/fix-legacy-bmi-alias-overflow`
+([PR #2478](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2478)),
+adds `OverflowError`
+only to the two existing conversion catches in
+`app/schemas/bmi_compat.py:43` and `app/schemas/bmi_compat.py:50`.
+Failed `weight`, `height`, and `height_cm` conversion still leaves the canonical
+field absent for ordinary Pydantic validation; retained `/bmi` and `/plan`
+reject the admitted integer-overflow cases with JSON HTTP 422 before service,
+calculation consumer, or visualization entry. Valid canonical `weight_kg` and
+`height_m` retain priority over unused overflowing aliases. This is bounded
+conversion containment, not a universal numeric or external-import safety claim.
+
+Regression evidence belongs to the existing `tests/test_bmi_compat_router.py`
+model and HTTP cases, including exact missing-field errors, current registered
+route/service binding, zero calls and awaits, and real canonical-precedence
+success controls. This prerequisite preserves the distinct `BMIRequest` and
+`BMIRequestV1` models, aliases, height units, defaults, route/auth/OpenAPI and
+app identities, all seven selected BMI bindings, and both independent 99-name
+retired inventories. Its own current-head gates, review, separately approved
+merge, post-merge proof, archive, final same-ID continuity, and cleanup remain
+pending; the utility child's historical receipts supply no new PASS.
+
+This substantive child carries the completed #2475 utility receipt once.
+It does not reclose #2466 or change the independent #2476 guard repair.
+`PROJECT_LEGACY` remains OPEN, R29 PARTIAL / UNWAIVED, historical O1
+NOT_ADMITTED, and the shared-runtime P1 follow-up OPEN. Shared-document edits
+stay within these utility/prerequisite anchors and require a fresh live #2476
+comparison before edit, push, and freeze. Actual overlap requires scoped handoff.
+Rollback is a reviewed revert of the prerequisite material; the future removal
+has a separate rollback boundary.
+
+After this prerequisite's complete lifecycle, the retained removal successor
+`LEGACY-BMI-PYTHON-EXPORT-RETIREMENT-1/v1` requires fresh consumer census and
+ownership admission, with no predetermined wait for #2476. It removes exactly
+`BMIRequest`, `BMIRequestV1`, `MATPLOTLIB_AVAILABLE`,
+`generate_bmi_visualization`, `add_visualization_if_requested`,
+`_BMI_COMPAT_REEXPORTS`, and `_BMI_SCHEMA_COMPAT_REEXPORTS` from `legacy_app.py`,
+for 99 to 106 retired names while preserving canonical models, rendering,
+package exports and HTTP contracts. Original successor D1-D8 remain required;
+removal is not implemented or admitted by this prerequisite. The successor does
+not repeat #2475 reconciliation or import #2476's algorithmic repair.
 
 ## Residual Python facade census (log-retention child)
 
@@ -762,7 +818,7 @@ closed families and absorbing possible markers in the existing join. The
 OpenAPI family is the exact seven compatibility names or a name containing
 `openapi` after case folding. Receiver, member and builtin-callee provenance
 remain independent, including deferred/local/nonlocal and postponed-annotation
-contexts (`scripts/ci/check_legacy_growth_guard.py:11687`). Protected attribute
+contexts (`scripts/ci/check_legacy_growth_guard.py:11847`). Protected attribute
 and namespace writes and deletions use the target's own evidence as well as
 the receiver and member evidence; comprehension targets remain local while
 genuine containing-scope protected-name bindings remain rejected.
@@ -777,7 +833,10 @@ structural binding presence, not declaration shape, binding origin, runtime
 values or callable signatures. Writes and deletions from explicitly invoked
 helpers use the existing replay's real outward module target; dormant helpers
 and genuine local bindings remain separate
-(`scripts/ci/check_legacy_growth_guard.py:3601`). Defining defaults and
+(`scripts/ci/check_legacy_growth_guard.py:3602`). Immediate awaited calls to proven
+builtin `anext` or direct `__anext__` on a captured async generator reuse deferred
+replay after argument evaluation, while unawaited consumers remain dormant in
+ordinary analysis. Defining defaults and
 exception types before their aliases/bodies are inspected in the containing
 scope; lambda bodies remain local. Generic declarations mask type-parameter
 names in their actual parameter scope. Function annotations and class bases
@@ -785,13 +844,16 @@ and keywords use that scope; function defaults and decorators and class
 decorators retain their containing scope. Lazy bounds, constraints and defaults
 receive independent detached ownership-audit evidence without changing ordinary
 execution or transferring effects between independent lazy expressions.
+Type aliases bind their actual names in the containing scope and audit lazy
+values independently under declared parameter masks and the real class parent,
+preserving ordinary lazy execution and isolation between independent audits.
 Ordinary method bodies retain parameter masks without inheriting class-only
 visibility (`scripts/ci/check_legacy_growth_guard.py:2843`,
-`scripts/ci/check_legacy_growth_guard.py:5487`). Eager versus postponed annotations
+`scripts/ci/check_legacy_growth_guard.py:5500`). Eager versus postponed annotations
 and positional/keyword defaults preserve their current execution boundary.
 These source witnesses do not establish configured keys or runtime authorization
 (`scripts/ci/check_legacy_growth_guard.py:3049`,
-`scripts/ci/check_legacy_growth_guard.py:9937`).
+`scripts/ci/check_legacy_growth_guard.py:10095`).
 
 Resolved matching tuple/list/nested local assignments preserve their mapping
 identity through the existing paired binder; generic collection escapes and
@@ -799,13 +861,21 @@ unmatched/starred constructions retain their separate conservative handling.
 Actual class members invalidate shared mapping identity before class-scope
 restoration, excluding global/nonlocal declarations and avoiding repeated
 invalidation of already-removed aliases. Copied mappings and ordered snapshots
-remain distinct (`scripts/ci/check_legacy_growth_guard.py:5273`,
-`scripts/ci/check_legacy_growth_guard.py:6087`). Built-in `vars`, the finite
+remain distinct (`scripts/ci/check_legacy_growth_guard.py:5286`,
+`scripts/ci/check_legacy_growth_guard.py:6121`). Built-in `vars`, the finite
 `dict.get`, `dict.__getitem__`, `dict.pop` and `dict.setdefault` method set, and
 stored namespace methods retain actual legacy-namespace provenance in the
-existing reference/call seams; shadowed builtins, unrelated receivers and safe
-member names remain independent controls. The per-loop 32 and total 128 transfer
-budgets are unchanged (`scripts/ci/check_legacy_growth_guard.py:4472`). These
+existing reference/call seams. The four lookup methods and nine mutator methods
+remain separate finite sets; stored mutators retain their existing destructive
+or supplied-key semantics and capture the bound callee and receiver before
+later argument effects. Proven builtin `sorted`, `min` and `max` key callables
+reuse the existing replay with captured input-element and key bindings after
+argument evaluation and iterable consumption. Key returns are discarded;
+consumer results retain input
+element provenance. Shadowed builtins, unrelated receivers, safe member names,
+proven empty inputs and `key=None` remain independent controls. The per-loop 32
+and total 128 transfer
+budgets are unchanged (`scripts/ci/check_legacy_growth_guard.py:4473`). These
 bounded repairs preserve the original independent 87-name baseline plus the
 inherited four-name subset. The eight utility names inherited from main extend
 that preserved 91-name prefix to the current exact 99-name inventory. This

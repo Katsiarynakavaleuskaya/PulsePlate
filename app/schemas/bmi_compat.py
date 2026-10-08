@@ -40,14 +40,14 @@ class BMIRequest(BaseModel):
         if "weight_kg" not in values and "weight" in values:
             try:
                 values["weight_kg"] = float(values["weight"])
-            except (TypeError, ValueError):
+            except (TypeError, ValueError, OverflowError):
                 pass
         if "height_m" not in values:
             raw_height = values.get("height_m") or values.get("height") or values.get("height_cm")
             if raw_height is not None:
                 try:
                     height_val = float(raw_height)
-                except (TypeError, ValueError):
+                except (TypeError, ValueError, OverflowError):
                     height_val = None
                 if height_val is not None:
                     values["height_m"] = height_val / 100.0 if height_val > 10 else height_val
