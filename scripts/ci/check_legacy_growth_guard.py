@@ -3578,7 +3578,9 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         existing_strings = (
             self.string_snapshots.get(node_id) if self.string_snapshots is not None else None
         )
-        if existing_references is not None or existing_strings is not None:
+        if (existing_references is not None or existing_strings is not None) and (
+            existing_references != current_references or existing_strings != current_strings
+        ):
             existing = _LexicalBindings(parent=None)
             existing.references = dict(existing_references or {})
             existing.strings = dict(existing_strings or {})

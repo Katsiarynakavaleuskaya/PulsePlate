@@ -19870,3 +19870,431 @@ def test_consol_own_key_resolver_restores_scope_on_resolution_error(
         visitor._resolve_string(key, own_environment=True)
     assert visitor.scope is original_scope
     assert visitor.scope.resolve_string("member") == "other"
+
+
+@pytest.mark.parametrize("ownership_family", ["api_key", "openapi"])
+@pytest.mark.parametrize(
+    "preservation_flags",
+    [
+        (False, False, False),
+        (True, False, False),
+        (False, True, False),
+        (False, False, True),
+        (True, True, False),
+        (True, False, True),
+        (False, True, True),
+        (True, True, True),
+    ],
+)
+def test_consol_repeated_snapshot_preserves_equal_markers_and_live_state(
+    ownership_family: Literal["api_key", "openapi"],
+    preservation_flags: tuple[bool, bool, bool],
+) -> None:
+    node = cast(ast.Expr, ast.parse("member\n").body[0]).value
+    function = cast(ast.FunctionDef, ast.parse("def unused():\n    return 'changed'\n").body[0])
+    references = {
+        "legacy": "legacy_app",
+        "possible_legacy": "<possible:legacy_app>",
+        "builtin": "builtins.getattr",
+        "possible_builtin": "<possible:builtins.getattr>",
+        "builtin_namespace": "<namespace:builtins>",
+        "possible_builtin_namespace": "<possible:namespace:builtins>",
+        "module_namespace": "<namespace:module>",
+        "possible_object_namespace": "<possible:namespace:object>",
+        "fastapi": "fastapi.FastAPI",
+        "possible_fastapi": "<possible:fastapi>",
+        "conflicted_fastapi": "<conflicted:fastapi>",
+        "importer": "builtins.__import__",
+        "possible_importer": "<possible:import_callable>",
+        "possible_mutator": "<possible:namespace-mutator>.update",
+        "safe": "math",
+    }
+    strings = {
+        "header": "api_key_header",
+        "getter": "get_api_key",
+        "dynamic_getter": "_get_api_key_dynamic",
+        "validator": "validate_app_api_key",
+        "required": "require_app_api_key",
+        "openapi": "_install_openapi_builder",
+        "casefold": "debugOPENAPIhook",
+        "possible_api_key": "<possible:api_key_symbol>",
+        "possible_openapi": "<possible:openapi_symbol>",
+        "route": "get",
+        "possible_route": "<possible:route_method>",
+        "conflicted_route": "<conflicted:route_method>",
+        "empty": "",
+        "state": "unchanged",
+    }
+    reference_snapshots = {id(node): dict(references)}
+    string_snapshots = {id(node): dict(strings)}
+    saved_references = reference_snapshots[id(node)]
+    saved_strings = string_snapshots[id(node)]
+    errors = ["prior diagnostic"]
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="app/routers/example.py",
+        errors=errors,
+        ownership_family=ownership_family,
+        preserve_fastapi_conflicts=preservation_flags[0],
+        preserve_lifecycle_conflicts=preservation_flags[1],
+        preserve_route_method_conflicts=preservation_flags[2],
+        reference_snapshots=reference_snapshots,
+        string_snapshots=string_snapshots,
+    )
+    scope = legacy_guard._LexicalBindings(parent=None, local_names=frozenset({"masked"}))
+    scope.references = dict(references)
+    scope.strings = dict(strings)
+    scope.callables = {"unused": frozenset({function})}
+    scope.bound_names = {"member"}
+    scope.possibly_bound_names = {"conditional"}
+    visitor.scope = scope
+    visitor._active_function_replays.add(function)
+    visitor._remaining_loop_iterations = 17
+    loop_controls = visitor._loop_controls
+
+    visitor._record_snapshot(node)
+
+    assert reference_snapshots[id(node)] == {
+        "legacy": "legacy_app",
+        "possible_legacy": "<possible:legacy_app>",
+        "builtin": "builtins.getattr",
+        "possible_builtin": "<possible:builtins.getattr>",
+        "builtin_namespace": "<namespace:builtins>",
+        "possible_builtin_namespace": "<possible:namespace:builtins>",
+        "module_namespace": "<namespace:module>",
+        "possible_object_namespace": "<possible:namespace:object>",
+        "fastapi": "fastapi.FastAPI",
+        "possible_fastapi": "<possible:fastapi>",
+        "conflicted_fastapi": "<conflicted:fastapi>",
+        "importer": "builtins.__import__",
+        "possible_importer": "<possible:import_callable>",
+        "possible_mutator": "<possible:namespace-mutator>.update",
+        "safe": "math",
+    }
+    assert string_snapshots[id(node)] == {
+        "header": "api_key_header",
+        "getter": "get_api_key",
+        "dynamic_getter": "_get_api_key_dynamic",
+        "validator": "validate_app_api_key",
+        "required": "require_app_api_key",
+        "openapi": "_install_openapi_builder",
+        "casefold": "debugOPENAPIhook",
+        "possible_api_key": "<possible:api_key_symbol>",
+        "possible_openapi": "<possible:openapi_symbol>",
+        "route": "get",
+        "possible_route": "<possible:route_method>",
+        "conflicted_route": "<conflicted:route_method>",
+        "empty": "",
+        "state": "unchanged",
+    }
+    assert reference_snapshots[id(node)] is not saved_references
+    assert string_snapshots[id(node)] is not saved_strings
+    assert reference_snapshots[id(node)] is not scope.references
+    assert string_snapshots[id(node)] is not scope.strings
+    assert visitor.scope is scope
+    assert visitor.errors is errors and errors == ["prior diagnostic"]
+    assert scope.callables == {"unused": frozenset({function})}
+    assert scope.local_names == frozenset({"masked"})
+    assert scope.bound_names == {"member"}
+    assert scope.possibly_bound_names == {"conditional"}
+    assert visitor._active_function_replays == {function}
+    assert visitor._remaining_loop_iterations == 17
+    assert visitor._loop_controls is loop_controls and loop_controls == []
+
+
+@pytest.mark.parametrize("ownership_family", ["api_key", "openapi"])
+@pytest.mark.parametrize("snapshot_selection", ["references", "strings", "both"])
+@pytest.mark.parametrize("populated", [False, True])
+def test_consol_repeated_snapshot_preserves_equal_empty_and_selected_maps(
+    ownership_family: Literal["api_key", "openapi"],
+    snapshot_selection: str,
+    populated: bool,
+) -> None:
+    node = cast(ast.Expr, ast.parse("member\n").body[0]).value
+    reference_snapshots = (
+        {id(node): {"receiver": "legacy_app"} if populated else {}}
+        if snapshot_selection != "strings"
+        else None
+    )
+    string_snapshots = (
+        {id(node): {"member": "", "state": "unchanged"} if populated else {}}
+        if snapshot_selection != "references"
+        else None
+    )
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="app/routers/example.py",
+        errors=[],
+        ownership_family=ownership_family,
+        reference_snapshots=reference_snapshots,
+        string_snapshots=string_snapshots,
+    )
+    scope = legacy_guard._LexicalBindings(parent=None)
+    scope.references = {"receiver": "legacy_app"} if populated else {}
+    scope.strings = {"member": "", "state": "unchanged"} if populated else {}
+    visitor.scope = scope
+
+    visitor._record_snapshot(node)
+    visitor._record_snapshot(node)
+
+    if reference_snapshots is not None:
+        assert reference_snapshots[id(node)] == ({"receiver": "legacy_app"} if populated else {})
+    if string_snapshots is not None:
+        assert string_snapshots[id(node)] == (
+            {"member": "", "state": "unchanged"} if populated else {}
+        )
+    assert visitor.scope is scope
+    assert visitor.errors == []
+
+
+@pytest.mark.parametrize(
+    "ownership_family,old_references,old_strings,new_references,new_strings,expected_references,expected_strings",
+    [
+        (
+            "api_key",
+            {"receiver": "legacy_app"},
+            {"member": "get_api_key"},
+            {"receiver": "legacy_app"},
+            {"member": "other"},
+            {"receiver": "legacy_app"},
+            {"member": "<possible:api_key_symbol>"},
+        ),
+        (
+            "api_key",
+            {"receiver": "legacy_app"},
+            {"member": "other"},
+            {"receiver": "legacy_app"},
+            {"member": "get_api_key"},
+            {"receiver": "legacy_app"},
+            {"member": "<possible:api_key_symbol>"},
+        ),
+        (
+            "api_key",
+            {"receiver": "legacy_app"},
+            {"member": "get_api_key"},
+            {"receiver": "math"},
+            {"member": "get_api_key"},
+            {"receiver": "<possible:legacy_app>"},
+            {"member": "get_api_key"},
+        ),
+        (
+            "api_key",
+            {"receiver": "math"},
+            {"member": "get_api_key"},
+            {"receiver": "legacy_app"},
+            {"member": "get_api_key"},
+            {"receiver": "<possible:legacy_app>"},
+            {"member": "get_api_key"},
+        ),
+        (
+            "api_key",
+            {"receiver": "legacy_app", "removed": "math"},
+            {"member": "get_api_key", "removed": "other"},
+            {"receiver": "legacy_app"},
+            {"member": "get_api_key"},
+            {"receiver": "legacy_app"},
+            {"member": "get_api_key"},
+        ),
+        (
+            "api_key",
+            {},
+            {},
+            {"receiver": "legacy_app"},
+            {"member": "get_api_key"},
+            {"receiver": "<possible:legacy_app>"},
+            {"member": "<possible:api_key_symbol>"},
+        ),
+        (
+            "api_key",
+            {"receiver": "legacy_app"},
+            {"member": "get_api_key"},
+            {},
+            {},
+            {"receiver": "<possible:legacy_app>"},
+            {"member": "<possible:api_key_symbol>"},
+        ),
+        (
+            "openapi",
+            {"receiver": "legacy_app"},
+            {"member": "debugOPENAPIhook"},
+            {"receiver": "legacy_app"},
+            {"member": "other"},
+            {"receiver": "legacy_app"},
+            {"member": "<possible:openapi_symbol>"},
+        ),
+        (
+            "openapi",
+            {"receiver": "legacy_app"},
+            {"member": "other"},
+            {"receiver": "legacy_app"},
+            {"member": "debugOPENAPIhook"},
+            {"receiver": "legacy_app"},
+            {"member": "<possible:openapi_symbol>"},
+        ),
+        (
+            "openapi",
+            {"receiver": "legacy_app"},
+            {"member": "_install_openapi_builder"},
+            {"receiver": "math"},
+            {"member": "_install_openapi_builder"},
+            {"receiver": "<possible:legacy_app>"},
+            {"member": "_install_openapi_builder"},
+        ),
+        (
+            "openapi",
+            {"receiver": "math"},
+            {"member": "_install_openapi_builder"},
+            {"receiver": "legacy_app"},
+            {"member": "_install_openapi_builder"},
+            {"receiver": "<possible:legacy_app>"},
+            {"member": "_install_openapi_builder"},
+        ),
+        (
+            "openapi",
+            {"receiver": "legacy_app", "removed": "math"},
+            {"member": "_install_openapi_builder", "removed": "other"},
+            {"receiver": "legacy_app"},
+            {"member": "_install_openapi_builder"},
+            {"receiver": "legacy_app"},
+            {"member": "_install_openapi_builder"},
+        ),
+        (
+            "openapi",
+            {},
+            {},
+            {"receiver": "legacy_app"},
+            {"member": "_install_openapi_builder"},
+            {"receiver": "<possible:legacy_app>"},
+            {"member": "<possible:openapi_symbol>"},
+        ),
+        (
+            "openapi",
+            {"receiver": "legacy_app"},
+            {"member": "_install_openapi_builder"},
+            {},
+            {},
+            {"receiver": "<possible:legacy_app>"},
+            {"member": "<possible:openapi_symbol>"},
+        ),
+    ],
+)
+def test_consol_repeated_snapshot_keeps_unequal_and_missing_key_conservative_results(
+    ownership_family: Literal["api_key", "openapi"],
+    old_references: dict[str, str],
+    old_strings: dict[str, str],
+    new_references: dict[str, str],
+    new_strings: dict[str, str],
+    expected_references: dict[str, str],
+    expected_strings: dict[str, str],
+) -> None:
+    node = cast(ast.Expr, ast.parse("member\n").body[0]).value
+    reference_snapshots = {id(node): dict(old_references)}
+    string_snapshots = {id(node): dict(old_strings)}
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="app/routers/example.py",
+        errors=[],
+        ownership_family=ownership_family,
+        reference_snapshots=reference_snapshots,
+        string_snapshots=string_snapshots,
+    )
+    scope = legacy_guard._LexicalBindings(parent=None)
+    scope.references = dict(new_references)
+    scope.strings = dict(new_strings)
+    visitor.scope = scope
+
+    visitor._record_snapshot(node)
+
+    assert reference_snapshots[id(node)] == expected_references
+    assert string_snapshots[id(node)] == expected_strings
+    assert scope.references == new_references
+    assert scope.strings == new_strings
+    assert visitor.scope is scope
+    assert visitor.errors == []
+
+
+@pytest.mark.parametrize("ownership_family", ["api_key", "openapi"])
+@pytest.mark.parametrize("snapshot_selection", ["references", "strings", "both", "neither"])
+def test_consol_first_snapshot_keeps_missing_node_separate_from_empty_observation(
+    ownership_family: Literal["api_key", "openapi"],
+    snapshot_selection: str,
+) -> None:
+    tree = ast.parse("member\nother\n")
+    node = cast(ast.Expr, tree.body[0]).value
+    other = cast(ast.Expr, tree.body[1]).value
+    reference_snapshots = {id(other): {}} if snapshot_selection in {"references", "both"} else None
+    string_snapshots = {id(other): {}} if snapshot_selection in {"strings", "both"} else None
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="app/routers/example.py",
+        errors=[],
+        ownership_family=ownership_family,
+        reference_snapshots=reference_snapshots,
+        string_snapshots=string_snapshots,
+    )
+    scope = legacy_guard._LexicalBindings(parent=None)
+    scope.references = {"receiver": "legacy_app"}
+    scope.strings = {"member": "get_api_key", "schema": "_install_openapi_builder"}
+    visitor.scope = scope
+
+    visitor._record_snapshot(node)
+
+    if reference_snapshots is not None:
+        assert reference_snapshots == {id(other): {}, id(node): {"receiver": "legacy_app"}}
+    if string_snapshots is not None:
+        assert string_snapshots == {
+            id(other): {},
+            id(node): {"member": "get_api_key", "schema": "_install_openapi_builder"},
+        }
+    assert visitor.scope is scope
+    assert visitor.errors == []
+
+
+@pytest.mark.parametrize("ownership_family", ["api_key", "openapi"])
+@pytest.mark.parametrize("snapshot_selection", ["references", "strings", "both"])
+def test_consol_repeated_snapshot_detaches_parent_and_local_masked_environments(
+    ownership_family: Literal["api_key", "openapi"],
+    snapshot_selection: str,
+) -> None:
+    node = cast(ast.Expr, ast.parse("member\n").body[0]).value
+    parent = legacy_guard._LexicalBindings(parent=None)
+    parent.references = {"inherited": "legacy_app", "masked": "legacy_app"}
+    parent.strings = {"member": "get_api_key", "masked": "get_api_key"}
+    scope = legacy_guard._LexicalBindings(
+        parent=parent,
+        local_names=frozenset({"masked"}),
+        scope_kind="function",
+    )
+    scope.references = {"receiver": "legacy_app.__dict__"}
+    scope.strings = {"local": "unchanged"}
+    old_references = {"inherited": "legacy_app", "receiver": "legacy_app.__dict__"}
+    old_strings = {"member": "get_api_key", "local": "unchanged"}
+    reference_snapshots = {id(node): old_references} if snapshot_selection != "strings" else None
+    string_snapshots = {id(node): old_strings} if snapshot_selection != "references" else None
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="app/routers/example.py",
+        errors=[],
+        ownership_family=ownership_family,
+        reference_snapshots=reference_snapshots,
+        string_snapshots=string_snapshots,
+    )
+    visitor.scope = scope
+
+    visitor._record_snapshot(node)
+    parent.references["inherited"] = "math"
+    parent.strings["member"] = "other"
+    scope.references["receiver"] = "math.__dict__"
+    scope.strings["local"] = "changed"
+
+    if reference_snapshots is not None:
+        assert reference_snapshots[id(node)] == {
+            "inherited": "legacy_app",
+            "receiver": "legacy_app.__dict__",
+        }
+        assert reference_snapshots[id(node)] is not old_references
+    if string_snapshots is not None:
+        assert string_snapshots[id(node)] == {"member": "get_api_key", "local": "unchanged"}
+        assert string_snapshots[id(node)] is not old_strings
+    assert old_references == {"inherited": "legacy_app", "receiver": "legacy_app.__dict__"}
+    assert old_strings == {"member": "get_api_key", "local": "unchanged"}
+    assert visitor.scope is scope and scope.parent is parent
+    assert scope.local_names == frozenset({"masked"})
+    assert scope.resolve_reference("masked") is None
+    assert scope.resolve_string("masked") is None
+    assert visitor.errors == []
