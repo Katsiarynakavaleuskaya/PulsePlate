@@ -4486,13 +4486,13 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         self.scope = incoming
         if not outcomes:
             return
-        reference_names = set().union(*(set(outcome.references) for outcome in outcomes))
         joined_references: dict[str, str] = {}
         if all(outcome.references == outcomes[0].references for outcome in outcomes) and all(
             value is not None for value in outcomes[0].references.values()
         ):
             joined_references = dict(outcomes[0].references)
         else:
+            reference_names = set().union(*(set(outcome.references) for outcome in outcomes))
             for name in reference_names:
                 values = [outcome.references.get(name) for outcome in outcomes]
                 if values.count(values[0]) == len(values):
