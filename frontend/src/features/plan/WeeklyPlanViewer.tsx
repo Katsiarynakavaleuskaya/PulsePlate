@@ -41,11 +41,14 @@ async function copyToClipboard(text: string): Promise<boolean> {
     textarea.style.position = "fixed";
     textarea.style.opacity = "0";
     document.body.appendChild(textarea);
-    textarea.focus();
-    textarea.select();
-    const ok = document.execCommand("copy");
-    document.body.removeChild(textarea);
-    return ok;
+    try {
+      textarea.focus();
+      textarea.select();
+      const ok = document.execCommand("copy");
+      return ok;
+    } finally {
+      document.body.removeChild(textarea);
+    }
   } catch {
     return false;
   }

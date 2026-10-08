@@ -71,6 +71,11 @@
 
 ### Canonical local checks
 
+- For DOM clipboard fallback edits, preserve boolean results and error mapping;
+  remove the owned temporary textarea in `finally`, including throwing or unavailable
+  browser copy APIs. Retain targeted failure-case evidence: compiler-output parity
+  alone does not establish correctness of existing error paths.
+
 ```bash
 # Run guard tests (thin-client policy enforcement)
 npm test -- --run src/api/__tests__/thin-client-guards.test.ts
