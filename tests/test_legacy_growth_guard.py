@@ -21393,3 +21393,754 @@ def test_consol_key_callback_runs_after_stored_deferred_iteration(
         if family == "api"
         else []
     )
+
+
+@pytest.mark.parametrize("ownership_family", ["api_key", "openapi"])
+@pytest.mark.parametrize("outcome_order", ["forward", "reverse", "duplicate"])
+@pytest.mark.parametrize(
+    ("values", "expected", "flags"),
+    [
+        ((), None, (False, False, False)),
+        ((None, None), None, (False, False, False)),
+        (("", ""), "", (False, False, False)),
+        (("ordinary", "other"), None, (False, False, False)),
+        (("<possible:legacy_app>",) * 2, "<possible:legacy_app>", (False, False, False)),
+        (("<namespace:builtins>", None), "<namespace:builtins>", (False, False, False)),
+        (
+            ("<namespace:builtins>", "<possible:namespace:builtins>", "<namespace:module>"),
+            "<possible:namespace:object>",
+            (False, False, False),
+        ),
+        (
+            ("<possible:namespace:object>", None),
+            "<possible:namespace:object>",
+            (False, False, False),
+        ),
+        (("<namespace:module>", "ordinary"), None, (False, False, False)),
+        (("<namespace:module>", "builtins.dict.pop"), "builtins.dict.pop", (False, False, False)),
+        (
+            ("<namespace:builtins>.pop", "<namespace:module>.pop"),
+            "<possible:namespace-mutator>.pop",
+            (False, False, False),
+        ),
+        (
+            ("builtins.dict.pop", "<possible:namespace-mutator>.clear"),
+            "<possible:namespace-mutator>.*",
+            (False, False, False),
+        ),
+        (
+            ("builtins.dict.future_custom", "ordinary"),
+            "builtins.dict.future_custom",
+            (False, False, False),
+        ),
+        (
+            ("<possible:namespace-mutator>.future_custom", "pulseplate.app.router.include_router"),
+            "<possible:pulseplate.app.call>",
+            (False, False, False),
+        ),
+        (
+            ("builtins.dict.pop", "pulseplate.app.middleware.decorator:future_custom"),
+            "<possible:pulseplate.app.call>",
+            (False, False, False),
+        ),
+        (("builtins.dict.pop", "importlib.import_module"), "builtins.dict.pop", (True, True, True)),
+        (
+            ("builtins.__import__", "fastapi.FastAPI"),
+            "<possible:import_callable>",
+            (True, True, True),
+        ),
+        (
+            ("importlib.import_module", "<possible:import_callable>"),
+            "<possible:import_callable>",
+            (True, False, False),
+        ),
+        (("builtins.__import__", "fastapi.FastAPI"), "<possible:fastapi>", (False, True, False)),
+        (("builtins.__import__", "fastapi.FastAPI"), None, (False, False, False)),
+        (
+            ("fastapi.applications.FastAPI", "builtins.getattr"),
+            "<possible:fastapi>",
+            (False, True, False),
+        ),
+        (
+            ("<possible:fastapi>", "<conflicted:fastapi>"),
+            "<possible:fastapi>",
+            (False, True, False),
+        ),
+        (
+            ("fastapi.FastAPI", "builtins.getattr"),
+            "<possible:builtins.getattr>",
+            (False, False, False),
+        ),
+        (("builtins.getattr", "legacy_app"), "<possible:builtins.getattr>", (True, True, True)),
+        (
+            ("<possible:builtins.getattr>", "ordinary"),
+            "<possible:builtins.getattr>",
+            (False, False, False),
+        ),
+        (
+            ("legacy_app.future_custom", "<iterable:possible-app>"),
+            "<possible:legacy_app>",
+            (False, False, False),
+        ),
+        (("legacy_application", "ordinary"), None, (False, False, False)),
+        (
+            (
+                "<mapping:possible-app>",
+                "<mapping:possible-app-call>",
+                "<iterable:possible-app>",
+                "<iterable:possible-app-call>",
+            ),
+            "<mapping:possible-app>",
+            (False, False, False),
+        ),
+        (
+            (
+                "<mapping:possible-app-call>",
+                "<iterable:possible-app>",
+                "<iterable:possible-app-call>",
+            ),
+            "<mapping:possible-app-call>",
+            (False, False, False),
+        ),
+        (
+            ("<iterable:possible-app>", "<iterable:possible-app-call>"),
+            "<iterable:possible-app>",
+            (False, False, False),
+        ),
+        (
+            ("<iterable:possible-app-call>", "ordinary"),
+            "<iterable:possible-app-call>",
+            (False, False, False),
+        ),
+        (
+            ("<iterable:possible-app>", "pulseplate.app.get"),
+            "<iterable:possible-app>",
+            (False, False, True),
+        ),
+        (
+            (
+                "pulseplate.app.router.post",
+                "pulseplate.app.middleware.decorator:http",
+                "pulseplate.app",
+            ),
+            "<possible:pulseplate.app.call>",
+            (False, False, True),
+        ),
+        (
+            ("pulseplate.app.middleware.decorator:future_custom", "pulseplate.app"),
+            "pulseplate.app.middleware.decorator:future_custom",
+            (False, False, True),
+        ),
+        (
+            (
+                "pulseplate.app.middleware.decorator:http",
+                "pulseplate.app.middleware.decorator:other",
+            ),
+            "<possible:pulseplate.app.middleware.decorator>",
+            (False, False, True),
+        ),
+        (
+            (
+                "pulseplate.app.middleware.decorator:http",
+                "<possible:pulseplate.app.middleware.decorator>",
+            ),
+            "<possible:pulseplate.app.middleware.decorator>",
+            (False, False, True),
+        ),
+        (
+            ("pulseplate.app.middleware.decorator:http", "pulseplate.app"),
+            "<possible:pulseplate.app>",
+            (False, False, False),
+        ),
+        (
+            ("pulseplate.app", "pulseplate.app.router"),
+            "<possible:pulseplate.app>",
+            (False, False, True),
+        ),
+        (
+            ("pulseplate.app.router", "ordinary"),
+            "<possible:pulseplate.app.router>",
+            (False, False, False),
+        ),
+        (
+            ("<possible:pulseplate.app.router>", "ordinary"),
+            "<possible:pulseplate.app.router>",
+            (False, False, False),
+        ),
+        (("pulseplate.app.future_custom", "ordinary"), None, (False, False, True)),
+    ],
+)
+def test_consol_finite_join_reference_markers_preserve_priority_and_inputs(
+    ownership_family: Literal["api_key", "openapi"],
+    outcome_order: str,
+    values: tuple[str | None, ...],
+    expected: str | None,
+    flags: tuple[bool, bool, bool],
+) -> None:
+    outcomes = [legacy_guard._LexicalBindings(parent=None) for _ in values]
+    for outcome, value in zip(outcomes, values):
+        outcome.references = {} if value is None else {"binding": value}
+    originals = [dict(outcome.references) for outcome in outcomes]
+    ordered = list(reversed(outcomes)) if outcome_order == "reverse" else outcomes
+    if outcome_order == "duplicate":
+        ordered = ordered + ordered
+    errors = ["prior diagnostic"]
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="app/routers/example.py",
+        errors=errors,
+        ownership_family=ownership_family,
+        preserve_lifecycle_conflicts=flags[0],
+        preserve_fastapi_conflicts=flags[1],
+        preserve_route_method_conflicts=flags[2],
+    )
+    incoming = visitor.scope
+    original_incoming_references = dict(incoming.references)
+    remaining_iterations = visitor._remaining_loop_iterations
+
+    visitor._merge_outcomes(incoming, ordered)
+
+    assert visitor.scope is incoming
+    assert incoming.references == (
+        original_incoming_references
+        if not ordered
+        else ({} if expected is None else {"binding": expected})
+    )
+    assert [outcome.references for outcome in outcomes] == originals
+    assert visitor.errors is errors and errors == ["prior diagnostic"]
+    assert visitor._remaining_loop_iterations == remaining_iterations
+
+
+@pytest.mark.parametrize("ownership_family", ["api_key", "openapi"])
+@pytest.mark.parametrize("outcome_order", ["forward", "reverse", "duplicate"])
+@pytest.mark.parametrize(
+    ("values", "routes", "api_expected", "openapi_expected"),
+    [
+        ((None, None), False, None, None),
+        (("", ""), True, "", ""),
+        (("ordinary", "other"), True, None, None),
+        (("get_api_key",) * 2, True, "get_api_key", "get_api_key"),
+        (("require_app_api_key", None), False, "<possible:api_key_symbol>", None),
+        (("_install_openapi_builder", None), False, None, "<possible:openapi_symbol>"),
+        (
+            ("require_app_api_key", "_install_openapi_builder"),
+            False,
+            "<possible:api_key_symbol>",
+            "<possible:openapi_symbol>",
+        ),
+        (("CUSTOM_OpEnApI_FUTURE", "ordinary"), False, None, "<possible:openapi_symbol>"),
+        (("<possible:api_key_symbol>", "ordinary"), False, "<possible:api_key_symbol>", None),
+        (("<possible:openapi_symbol>", "ordinary"), False, None, "<possible:openapi_symbol>"),
+        (
+            ("get", "require_app_api_key"),
+            True,
+            "<possible:route_method>",
+            "<possible:route_method>",
+        ),
+        (
+            ("include_router", "CUSTOM_OpEnApI_FUTURE"),
+            True,
+            "<possible:route_method>",
+            "<possible:route_method>",
+        ),
+        (("get", "require_app_api_key"), False, "<possible:api_key_symbol>", None),
+        (("post", "CUSTOM_OpEnApI_FUTURE"), False, None, "<possible:openapi_symbol>"),
+        (
+            ("<possible:route_method>", "<conflicted:route_method>"),
+            True,
+            "<possible:route_method>",
+            "<possible:route_method>",
+        ),
+        (("<possible:route_method>", "<conflicted:route_method>"), False, None, None),
+    ],
+)
+def test_consol_finite_join_string_markers_preserve_priority_and_inputs(
+    ownership_family: Literal["api_key", "openapi"],
+    outcome_order: str,
+    values: tuple[str | None, ...],
+    routes: bool,
+    api_expected: str | None,
+    openapi_expected: str | None,
+) -> None:
+    outcomes = [legacy_guard._LexicalBindings(parent=None) for _ in values]
+    for outcome, value in zip(outcomes, values):
+        outcome.strings = {} if value is None else {"binding": value}
+    originals = [dict(outcome.strings) for outcome in outcomes]
+    ordered = list(reversed(outcomes)) if outcome_order == "reverse" else outcomes
+    if outcome_order == "duplicate":
+        ordered = ordered + ordered
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="app/routers/example.py",
+        errors=[],
+        ownership_family=ownership_family,
+        preserve_route_method_conflicts=routes,
+    )
+    incoming = visitor.scope
+    expected = api_expected if ownership_family == "api_key" else openapi_expected
+
+    visitor._merge_outcomes(incoming, ordered)
+
+    assert visitor.scope is incoming
+    assert incoming.strings == ({} if expected is None else {"binding": expected})
+    assert [outcome.strings for outcome in outcomes] == originals
+    assert visitor.errors == []
+
+
+@pytest.mark.parametrize("family", ["api", "openapi"])
+@pytest.mark.parametrize(
+    ("setup", "invocation", "forbidden"),
+    [
+        ("", "list(zip(map(access, [legacy])))", True),
+        ("", "list(zip(filter(access, [legacy])))", True),
+        ("import builtins as b\n", "list(b.zip(b.map(access, [legacy])))", True),
+        ("", "list(zip(zip(map(access, [legacy]))))", True),
+        ("", "zip(map(access, [legacy]))", False),
+        ("", "list(zip(map(access, [])))", False),
+        ("", "list(zip([], map(access, [legacy])))", False),
+        ("", "list(zip(map(access, [legacy]), []))", True),
+        ("", "list(zip(filter(access, [])))", False),
+        ("", "list(zip(map(access, [canonical])))", False),
+        (
+            "def zip(*items):\n    return items\n",
+            "list(zip(map(access, [legacy])))",
+            False,
+        ),
+        (
+            "def map(callback, items):\n    return items\n",
+            "list(zip(map(access, [legacy])))",
+            False,
+        ),
+        (
+            "def filter(callback, items):\n    return items\n",
+            "list(zip(filter(access, [legacy])))",
+            False,
+        ),
+        (
+            "def access(owner):\n    return owner.ordinary\n",
+            "list(zip(map(access, [legacy])))",
+            False,
+        ),
+        (
+            "def access(owner):\n    yield owner.{member}\n",
+            "list(zip(map(access, [legacy])))",
+            False,
+        ),
+    ],
+)
+def test_consol_late3_zip_callbacks_preserve_consumption_and_controls(
+    family: Literal["api", "openapi"], setup: str, invocation: str, forbidden: bool
+) -> None:
+    member = "require_app_api_key" if family == "api" else "_install_openapi_builder"
+    owner = "app.routers.api_key" if family == "api" else "app.bootstrap.openapi"
+    source = (
+        "import legacy_app as legacy\n"
+        f"import {owner} as canonical\ndef access(owner):\n    return owner.{member}\n"
+        + setup.format(member=member)
+        + invocation
+        + "\n"
+    )
+    compile(source, "<late3-zip-control>", "exec")
+    if family == "api":
+        expected = (
+            [
+                "app/routers/example.py: legacy API-key dependency attribute access "
+                "is forbidden: require_app_api_key"
+            ]
+            if forbidden
+            else []
+        )
+        assert (
+            _validate_api_key_dependency_ownership(
+                _CONSOL_GETTER_IMPORTS, {"app/routers/example.py": source}
+            )
+            == expected
+        )
+    else:
+        expected = (
+            ["app/main.py: OpenAPI symbol must not be accessed through legacy"] if forbidden else []
+        )
+        assert _consol_openapi_errors(source) == expected
+
+
+@pytest.mark.parametrize("family", ["api", "openapi"])
+@pytest.mark.parametrize("mapper", ["map", "filter"])
+@pytest.mark.parametrize("initially_legacy", [False, True])
+def test_consol_late3_zip_captures_callback_and_input_before_later_creation_effects(
+    family: Literal["api", "openapi"], mapper: str, initially_legacy: bool
+) -> None:
+    member = "require_app_api_key" if family == "api" else "_install_openapi_builder"
+    owner = "app.routers.api_key" if family == "api" else "app.bootstrap.openapi"
+    initial = "legacy" if initially_legacy else "canonical"
+    replacement = "canonical" if initially_legacy else "legacy"
+    source = (
+        "import legacy_app as legacy\n"
+        f"import {owner} as canonical\ntrace = ''\ninputs = [{initial}]\n"
+        "def identity(item):\n    return item\n"
+        "def access(item):\n    global trace\n    trace = trace + 'C'\n"
+        f"    return item.{member}\npicked = access\n"
+        "def later():\n    global trace, inputs, picked\n    trace = trace + 'L'\n"
+        f"    inputs = [{replacement}]\n    picked = identity\n    return [0]\n"
+        f"list(zip({mapper}(picked, inputs), later()))\n"
+    )
+    compile(source, "<late3-zip-creation-order>", "exec")
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="app/routers/example.py",
+        errors=[],
+        analyze_function_bodies=False,
+        ownership_family="api_key" if family == "api" else "openapi",
+        purpose="ownership_audit",
+    )
+    visitor.visit(ast.parse(source))
+    assert visitor.scope.resolve_string("trace") == "LC"
+    if family == "api":
+        expected = (
+            [
+                "app/routers/example.py: legacy API-key dependency attribute access "
+                "is forbidden: require_app_api_key"
+            ]
+            if initially_legacy
+            else []
+        )
+        assert (
+            _validate_api_key_dependency_ownership(
+                _CONSOL_GETTER_IMPORTS, {"app/routers/example.py": source}
+            )
+            == expected
+        )
+    else:
+        expected = (
+            ["app/main.py: OpenAPI symbol must not be accessed through legacy"]
+            if initially_legacy
+            else []
+        )
+        assert _consol_openapi_errors(source) == expected
+
+
+@pytest.mark.parametrize("family", ["api", "openapi"])
+@pytest.mark.parametrize("join_kind", ["expression", "statement"])
+@pytest.mark.parametrize(
+    ("method", "arguments", "dynamic"),
+    [
+        ("clear", "", True),
+        ("popitem", "", True),
+        ("__delitem__", "{member!r}", False),
+        ("__setitem__", "{member!r}, None", False),
+        ("pop", "{member!r}, None", False),
+        ("setdefault", "{member!r}, None", False),
+        ("update", "{{{member!r}: None}}", False),
+        ("__ior__", "{{{member!r}: None}}", False),
+        ("__init__", "{member}=None", False),
+    ],
+)
+def test_consol_late3_joined_legacy_mutators_preserve_nine_method_semantics(
+    family: Literal["api", "openapi"],
+    join_kind: str,
+    method: str,
+    arguments: str,
+    dynamic: bool,
+) -> None:
+    member = "require_app_api_key" if family == "api" else "_install_openapi_builder"
+    selection = (
+        f"    wipe = vars(legacy).{method} if flag else other\n"
+        if join_kind == "expression"
+        else f"    if flag:\n        wipe = vars(legacy).{method}\n    else:\n        wipe = other\n"
+    )
+    source = (
+        "import legacy_app as legacy\ndef other(*args, **kwargs):\n    pass\n"
+        "def mutate(flag):\n"
+        + selection
+        + f"    wipe({arguments.format(member=member)})\nmutate(True)\n"
+    )
+    compile(source, "<late3-joined-mutator>", "exec")
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="app/routers/example.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(ast.parse(source))
+    assert visitor.scope.resolve_reference("<state:builtins.object>") == "<safe:builtins.object>"
+    if family == "api":
+        displayed = "<dynamic>" if dynamic else member
+        assert _validate_api_key_dependency_ownership(
+            _CONSOL_GETTER_IMPORTS, {"app/routers/example.py": source}
+        ) == [
+            "app/routers/example.py: legacy API-key dependency namespace lookup "
+            f"is forbidden: {displayed}"
+        ]
+    else:
+        assert _consol_openapi_errors(source) == [
+            "app/main.py: OpenAPI symbol must not be accessed through legacy"
+        ]
+
+
+@pytest.mark.parametrize("family", ["api", "openapi"])
+@pytest.mark.parametrize(
+    ("setup", "selection", "invocation", "forbidden"),
+    [
+        ("", "vars(legacy).clear if flag else vars(legacy).popitem", "wipe()", True),
+        ("", "vars(legacy).update if flag else other", "wipe()", False),
+        ("", "vars(legacy).__init__ if flag else other", "wipe()", False),
+        ("", "vars(legacy).__ior__ if flag else other", "wipe({})", False),
+        ("", "vars(legacy).__delitem__ if flag else other", "wipe('ordinary')", False),
+        ("namespace = {}\n", "namespace.clear if flag else other", "wipe()", False),
+        (
+            "def vars(owner):\n    return {}\n",
+            "vars(legacy).clear if flag else other",
+            "wipe()",
+            False,
+        ),
+        ("", "vars(legacy).clear if False else other", "wipe()", False),
+    ],
+)
+def test_consol_late3_joined_mutators_keep_wildcard_and_independent_safe_controls(
+    family: Literal["api", "openapi"],
+    setup: str,
+    selection: str,
+    invocation: str,
+    forbidden: bool,
+) -> None:
+    source = (
+        "import legacy_app as legacy\ndef other(*args, **kwargs):\n    pass\n"
+        + setup
+        + f"def mutate(flag):\n    wipe = {selection}\n    {invocation}\nmutate(True)\n"
+    )
+    compile(source, "<late3-mutator-control>", "exec")
+    if family == "api":
+        expected = (
+            [
+                "app/routers/example.py: legacy API-key dependency namespace lookup "
+                "is forbidden: <dynamic>"
+            ]
+            if forbidden
+            else []
+        )
+        assert (
+            _validate_api_key_dependency_ownership(
+                _CONSOL_GETTER_IMPORTS, {"app/routers/example.py": source}
+            )
+            == expected
+        )
+    else:
+        expected = (
+            ["app/main.py: OpenAPI symbol must not be accessed through legacy"] if forbidden else []
+        )
+        assert _consol_openapi_errors(source) == expected
+
+
+@pytest.mark.parametrize(
+    ("addition", "expected"),
+    [
+        (
+            "from app.routers.api_key import *\n",
+            ["legacy_app.py: canonical API-key dependency star import is forbidden"],
+        ),
+        ("", []),
+        ("from unrelated_module import *\n", []),
+        ("note = 'from app.routers.api_key import *'\n", []),
+    ],
+)
+def test_consol_late3_direct_api_owner_star_import_keeps_explicit_reexport_boundary(
+    addition: str, expected: list[str]
+) -> None:
+    source = _CONSOL_GETTER_IMPORTS + addition
+    compile(source, "<late3-canonical-star>", "exec")
+    assert _validate_api_key_dependency_ownership(source, {}) == expected
+
+
+@pytest.mark.parametrize("family", ["api", "openapi"])
+@pytest.mark.parametrize("generator_first", [False, True])
+def test_consol_late3_final2_zip_interleaves_generators_and_callbacks_in_argument_order(
+    family: Literal["api", "openapi"], generator_first: bool
+) -> None:
+    member = "require_app_api_key" if family == "api" else "_install_openapi_builder"
+    module = "app.routers.api_key" if family == "api" else "app.bootstrap.openapi"
+    arguments = (
+        "change_owner_generator(), map(access, [0])"
+        if generator_first
+        else "map(access, [0]), change_owner_generator()"
+    )
+    source = (
+        "import legacy_app as legacy\n"
+        f"import {module} as canonical\ntrace = ''\nowner = canonical\n"
+        "def change_owner_generator():\n    global trace, owner\n"
+        "    trace = trace + 'G'\n    owner = legacy\n    yield 0\n"
+        "def access(item):\n    global trace\n    trace = trace + 'C'\n"
+        f"    return owner.{member}\nlist(zip({arguments}))\n"
+    )
+    compile(source, "<final2-zip-generator-order>", "exec")
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="app/routers/example.py",
+        errors=[],
+        analyze_function_bodies=False,
+        ownership_family="api_key" if family == "api" else "openapi",
+    )
+    visitor.visit(ast.parse(source))
+    assert visitor.scope.resolve_string("trace") == ("GC" if generator_first else "CG")
+    # Full ownership admission also preserves required unused-definition evidence.
+    if family == "api":
+        assert _validate_api_key_dependency_ownership(
+            _CONSOL_GETTER_IMPORTS, {"app/routers/example.py": source}
+        ) == [
+            "app/routers/example.py: legacy API-key dependency attribute access "
+            "is forbidden: require_app_api_key"
+        ]
+    else:
+        assert _consol_openapi_errors(source) == [
+            "app/main.py: OpenAPI symbol must not be accessed through legacy"
+        ]
+
+
+@pytest.mark.parametrize("family", ["api", "openapi"])
+@pytest.mark.parametrize("join_kind", ["expression", "statement"])
+@pytest.mark.parametrize("legacy_candidate", [False, True])
+def test_consol_late3_final2_mixed_unbound_mutator_preserves_legacy_and_safe_receiver(
+    family: Literal["api", "openapi"], join_kind: str, legacy_candidate: bool
+) -> None:
+    first = "vars(legacy).clear" if legacy_candidate else "dict.clear"
+    second = "dict.clear" if legacy_candidate else "other"
+    selection = (
+        f"    wipe = {first} if flag else {second}\n"
+        if join_kind == "expression"
+        else f"    if flag:\n        wipe = {first}\n    else:\n        wipe = {second}\n"
+    )
+    invocation = "wipe()" if legacy_candidate else "wipe({})"
+    source = (
+        "import legacy_app as legacy\ndef other(*args):\n    pass\ndef mutate(flag):\n"
+        + selection
+        + f"    {invocation}\nmutate(True)\n"
+    )
+    compile(source, "<final2-mixed-mutator>", "exec")
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="app/routers/example.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(ast.parse(source))
+    assert visitor.scope.resolve_reference("<state:builtins.object>") == "<safe:builtins.object>"
+    if family == "api":
+        expected = (
+            [
+                "app/routers/example.py: legacy API-key dependency namespace lookup "
+                "is forbidden: <dynamic>"
+            ]
+            if legacy_candidate
+            else []
+        )
+        assert (
+            _validate_api_key_dependency_ownership(
+                _CONSOL_GETTER_IMPORTS, {"app/routers/example.py": source}
+            )
+            == expected
+        )
+    else:
+        expected = (
+            ["app/main.py: OpenAPI symbol must not be accessed through legacy"]
+            if legacy_candidate
+            else []
+        )
+        assert _consol_openapi_errors(source) == expected
+
+
+@pytest.mark.parametrize(
+    ("values", "expected", "method"),
+    [
+        (
+            ("legacy_app.__dict__.clear", "builtins.dict.clear"),
+            "builtins.dict.<possible:legacy_app>.__dict__.clear",
+            "clear",
+        ),
+        (
+            ("legacy_app.__dict__.pop", "builtins.dict.clear"),
+            "builtins.dict.<possible:legacy_app>.__dict__.*",
+            "*",
+        ),
+        (
+            ("legacy_app.__dict__.clear", "<namespace:builtins>.clear"),
+            "<namespace:builtins>.<possible:legacy_app>.__dict__.clear",
+            "clear",
+        ),
+        (
+            ("legacy_app.__dict__.clear", "<namespace:module>.clear"),
+            "<namespace:module>.<possible:legacy_app>.__dict__.clear",
+            "clear",
+        ),
+        (
+            ("legacy_app.__dict__.clear", "<namespace:builtins>.clear", "<namespace:module>.pop"),
+            "<possible:namespace-mutator>.<possible:legacy_app>.__dict__.*",
+            "*",
+        ),
+    ],
+)
+def test_consol_late3_final2_closed_qualified_join_keeps_both_method_provenances(
+    values: tuple[str, ...], expected: str, method: str
+) -> None:
+    visitor = legacy_guard._ApiKeyLookupVisitor(filename="app/routers/example.py", errors=[])
+    outcomes = [legacy_guard._LexicalBindings(parent=None) for _ in values]
+    for outcome, value in zip(outcomes, values):
+        outcome.references = {"wipe": value}
+    incoming = visitor.scope
+    visitor._merge_outcomes(incoming, outcomes)
+    assert incoming.references == {"wipe": expected}
+    assert [outcome.references for outcome in outcomes] == [{"wipe": value} for value in values]
+    assert legacy_guard._namespace_mutator_method(expected) == method
+    assert legacy_guard._namespace_mutator_method(expected, legacy_only=True) == method
+    stable = legacy_guard._LexicalBindings(parent=None)
+    stable.references = {"wipe": expected}
+    visitor._merge_outcomes(incoming, [stable, legacy_guard._LexicalBindings(parent=None)])
+    assert incoming.references == {"wipe": expected}
+    assert (
+        legacy_guard._namespace_mutator_method(
+            "<possible:namespace-mutator>.clear", legacy_only=True
+        )
+        is None
+    )
+    assert legacy_guard._namespace_mutator_method("builtins.dict.clear", legacy_only=True) is None
+    assert (
+        legacy_guard._namespace_mutator_method("<namespace:builtins>.future_custom")
+        == "future_custom"
+    )
+    assert (
+        legacy_guard._namespace_mutator_method(
+            "builtins.dict.<possible:legacy_app>.__dict__.future_custom"
+        )
+        is None
+    )
+
+
+@pytest.mark.parametrize(
+    ("generic_method", "arguments", "builtin_state", "object_reference"),
+    [
+        (
+            "vars(builtins).clear",
+            "",
+            "<poisoned:builtins.object>",
+            "<captured-possible-app-factory>",
+        ),
+        (
+            "globals().clear",
+            "",
+            "<safe:builtins.object>",
+            "<captured-possible-app-factory>",
+        ),
+        (
+            "dict.clear",
+            "vars(builtins)",
+            "<poisoned:builtins.object>",
+            "<captured-possible-app-factory>",
+        ),
+        ("dict.clear", "", "<safe:builtins.object>", "builtins.object"),
+    ],
+)
+def test_consol_late3_final2_mixed_namespace_effects_retain_generic_owner_semantics(
+    generic_method: str, arguments: str, builtin_state: str, object_reference: str
+) -> None:
+    source = (
+        "import builtins\nimport legacy_app as legacy\ndef mutate(flag):\n"
+        f"    wipe = vars(legacy).clear if flag else {generic_method}\n"
+        f"    wipe({arguments})\nmutate(True)\n"
+    )
+    compile(source, "<final2-mixed-namespace-effects>", "exec")
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="app/routers/example.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(ast.parse(source))
+    assert visitor.scope.resolve_reference("<state:builtins.object>") == builtin_state
+    assert visitor.scope.resolve_reference("object") == object_reference
+    assert visitor.errors == [
+        "app/routers/example.py: legacy API-key dependency namespace lookup is forbidden: <dynamic>"
+    ]

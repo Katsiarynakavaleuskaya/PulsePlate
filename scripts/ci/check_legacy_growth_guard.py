@@ -3349,9 +3349,15 @@ _ITERABLE_PRESERVING_WRAPPER_REFERENCES = _ITERABLE_PRESERVING_BUILTIN_REFERENCE
 }
 
 
-def _namespace_mutator_method(reference: str | None) -> str | None:
+def _namespace_mutator_method(reference: str | None, *, legacy_only: bool = False) -> str | None:
     if reference is None:
         return None
+    legacy_qualifier = f"{_POSSIBLE_LEGACY_REFERENCE}.__dict__."
+    if legacy_only:
+        for prefix in ("legacy_app.__dict__.", legacy_qualifier):
+            if reference.startswith(prefix):
+                method = reference.removeprefix(prefix)
+                return method if method in _MAPPING_MUTATOR_METHODS | {"*"} else None
     for prefix in (
         f"{_BUILTINS_NAMESPACE_REFERENCE}.",
         f"{_MODULE_NAMESPACE_REFERENCE}.",
@@ -3359,7 +3365,11 @@ def _namespace_mutator_method(reference: str | None) -> str | None:
         "builtins.dict.",
     ):
         if reference.startswith(prefix):
-            return reference.removeprefix(prefix)
+            method = reference.removeprefix(prefix)
+            if method.startswith(legacy_qualifier):
+                method = method.removeprefix(legacy_qualifier)
+                return method if method in _MAPPING_MUTATOR_METHODS | {"*"} else None
+            return None if legacy_only else method
     return None
 
 
@@ -3530,7 +3540,14 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         self._postponed_annotations = _has_postponed_annotations(node)
         self._visit_statements(node.body)
 
-    def visit(self, node: ast.AST) -> object:
+    def visit(
+        self,
+        node: ast.AST,
+        *,
+        iterable_callback_inputs: (
+            list[tuple[ast.Call, str, _FunctionNode, dict[str, _ResolvedBinding]]] | None
+        ) = None,
+    ) -> object:
         if self.reference_snapshots is not None or self.string_snapshots is not None:
             self._record_snapshot(node)
         records_exception_state = (
@@ -3540,7 +3557,11 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         )
         if records_exception_state:
             self._record_exception_scope()
-        result = super().visit(node)
+        if isinstance(node, ast.Call) and iterable_callback_inputs is not None:
+            self.visit_Call(node, iterable_callback_inputs=iterable_callback_inputs)
+            result: object = None
+        else:
+            result = super().visit(node)
         if records_exception_state:
             self._record_exception_scope()
         return result
@@ -3549,7 +3570,15 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
     def _may_reference_legacy(reference: str | None) -> bool:
         return reference == _POSSIBLE_LEGACY_REFERENCE or (
             reference is not None
-            and (reference == "legacy_app" or reference.startswith("legacy_app."))
+            and (
+                reference == "legacy_app"
+                or reference.startswith("legacy_app.")
+                or reference.startswith(f"{_POSSIBLE_LEGACY_REFERENCE}.__dict__.")
+                or (
+                    _POSSIBLE_LEGACY_REFERENCE in reference
+                    and _namespace_mutator_method(reference, legacy_only=True) is not None
+                )
+            )
         )
 
     @staticmethod
@@ -4494,25 +4523,19 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         else:
             reference_names = set().union(*(set(outcome.references) for outcome in outcomes))
             for name in reference_names:
-                values = [outcome.references.get(name) for outcome in outcomes]
-                if values.count(values[0]) == len(values):
-                    if values[0] is not None:
-                        joined_references[name] = values[0]
+                values = {outcome.references.get(name) for outcome in outcomes}
+                if len(values) == 1:
+                    reference_value = next(iter(values))
+                    if reference_value is not None:
+                        joined_references[name] = reference_value
                     continue
                 namespace_values = {
-                    value
-                    for value in values
-                    if value
-                    in {
-                        _BUILTINS_NAMESPACE_REFERENCE,
-                        _POSSIBLE_BUILTINS_NAMESPACE_REFERENCE,
-                        _MODULE_NAMESPACE_REFERENCE,
-                        _POSSIBLE_OBJECT_NAMESPACE_REFERENCE,
-                    }
-                }
-                if namespace_values and all(
-                    value is None or value in namespace_values for value in values
-                ):
+                    _BUILTINS_NAMESPACE_REFERENCE,
+                    _POSSIBLE_BUILTINS_NAMESPACE_REFERENCE,
+                    _MODULE_NAMESPACE_REFERENCE,
+                    _POSSIBLE_OBJECT_NAMESPACE_REFERENCE,
+                } & values
+                if namespace_values and values <= namespace_values | {None}:
                     joined_references[name] = (
                         next(iter(namespace_values))
                         if len(namespace_values) == 1
@@ -4523,8 +4546,40 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                     for value in values
                     if value is not None and _namespace_mutator_method(value) is not None
                 }:
+                    legacy_methods = {
+                        method
+                        for value in values
+                        if (method := _namespace_mutator_method(value, legacy_only=True))
+                        is not None
+                    }
                     if any(_is_registration_callable_reference(value) for value in values):
                         joined_references[name] = _POSSIBLE_APP_CALL_REFERENCE
+                    elif legacy_methods:
+                        methods = legacy_methods | {
+                            method
+                            for value in namespace_mutator_values
+                            if (method := _namespace_mutator_method(value)) is not None
+                        }
+                        prefixes = {
+                            prefix
+                            for value in namespace_mutator_values
+                            for prefix in (
+                                f"{_BUILTINS_NAMESPACE_REFERENCE}.",
+                                f"{_MODULE_NAMESPACE_REFERENCE}.",
+                                _POSSIBLE_NAMESPACE_MUTATOR_REFERENCE_PREFIX,
+                                "builtins.dict.",
+                            )
+                            if value.startswith(prefix)
+                        }
+                        prefix = (
+                            next(iter(prefixes))
+                            if len(prefixes) == 1
+                            else _POSSIBLE_NAMESPACE_MUTATOR_REFERENCE_PREFIX
+                        )
+                        method = next(iter(methods)) if len(methods) == 1 else "*"
+                        joined_references[name] = (
+                            f"{prefix}{_POSSIBLE_LEGACY_REFERENCE}.__dict__.{method}"
+                        )
                     elif len(namespace_mutator_values) == 1:
                         joined_references[name] = next(iter(namespace_mutator_values))
                     else:
@@ -4537,43 +4592,42 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                         joined_references[name] = (
                             f"{_POSSIBLE_NAMESPACE_MUTATOR_REFERENCE_PREFIX}{method}"
                         )
-                elif self.preserve_lifecycle_conflicts and any(
-                    value
-                    in {
-                        "builtins.__import__",
-                        "importlib.import_module",
-                        _POSSIBLE_IMPORT_CALLABLE_REFERENCE,
-                    }
-                    for value in values
-                ):
+                elif self.preserve_lifecycle_conflicts and values & {
+                    "builtins.__import__",
+                    "importlib.import_module",
+                    _POSSIBLE_IMPORT_CALLABLE_REFERENCE,
+                }:
                     joined_references[name] = _POSSIBLE_IMPORT_CALLABLE_REFERENCE
-                elif self.preserve_fastapi_conflicts and any(
-                    value
-                    in {
-                        "fastapi.FastAPI",
-                        "fastapi.applications.FastAPI",
-                        _POSSIBLE_FASTAPI_REFERENCE,
-                        _CONFLICTED_FASTAPI_REFERENCE,
-                    }
-                    for value in values
-                ):
+                elif self.preserve_fastapi_conflicts and values & {
+                    "fastapi.FastAPI",
+                    "fastapi.applications.FastAPI",
+                    _POSSIBLE_FASTAPI_REFERENCE,
+                    _CONFLICTED_FASTAPI_REFERENCE,
+                }:
                     joined_references[name] = _POSSIBLE_FASTAPI_REFERENCE
-                elif any(
-                    value in {"builtins.getattr", _POSSIBLE_GETATTR_REFERENCE} for value in values
-                ):
+                elif values & {"builtins.getattr", _POSSIBLE_GETATTR_REFERENCE}:
                     joined_references[name] = _POSSIBLE_GETATTR_REFERENCE
                 elif any(self._may_reference_legacy(value) for value in values):
-                    joined_references[name] = _POSSIBLE_LEGACY_REFERENCE
-                elif any(
-                    value
-                    in {
-                        _ITERABLE_APP_ELEMENT_REFERENCE,
-                        _ITERABLE_SENSITIVE_ELEMENT_REFERENCE,
-                        _MAPPING_APP_VALUE_REFERENCE,
-                        _MAPPING_SENSITIVE_VALUE_REFERENCE,
+                    legacy_mutator_methods = {
+                        value.rpartition(".")[2]
+                        for value in values
+                        if value is not None
+                        and value.rpartition(".")[0]
+                        in {"legacy_app.__dict__", f"{_POSSIBLE_LEGACY_REFERENCE}.__dict__"}
+                        and value.rpartition(".")[2] in _MAPPING_MUTATOR_METHODS | {"*"}
                     }
-                    for value in values
-                ):
+                    joined_references[name] = (
+                        f"{_POSSIBLE_LEGACY_REFERENCE}.__dict__."
+                        f"{next(iter(legacy_mutator_methods)) if len(legacy_mutator_methods) == 1 else '*'}"
+                        if legacy_mutator_methods
+                        else _POSSIBLE_LEGACY_REFERENCE
+                    )
+                elif values & {
+                    _ITERABLE_APP_ELEMENT_REFERENCE,
+                    _ITERABLE_SENSITIVE_ELEMENT_REFERENCE,
+                    _MAPPING_APP_VALUE_REFERENCE,
+                    _MAPPING_SENSITIVE_VALUE_REFERENCE,
+                }:
                     if _MAPPING_APP_VALUE_REFERENCE in values:
                         joined_references[name] = _MAPPING_APP_VALUE_REFERENCE
                     elif _MAPPING_SENSITIVE_VALUE_REFERENCE in values:
@@ -4613,32 +4667,26 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                         and _POSSIBLE_MIDDLEWARE_DECORATOR_REFERENCE not in values
                         else _POSSIBLE_MIDDLEWARE_DECORATOR_REFERENCE
                     )
-                elif any(value in {"pulseplate.app", _POSSIBLE_APP_REFERENCE} for value in values):
+                elif values & {"pulseplate.app", _POSSIBLE_APP_REFERENCE}:
                     joined_references[name] = _POSSIBLE_APP_REFERENCE
-                elif any(
-                    value in {"pulseplate.app.router", _POSSIBLE_ROUTER_REFERENCE}
-                    for value in values
-                ):
+                elif values & {"pulseplate.app.router", _POSSIBLE_ROUTER_REFERENCE}:
                     joined_references[name] = _POSSIBLE_ROUTER_REFERENCE
         self.scope.references = joined_references
 
         string_names = set().union(*(set(outcome.strings) for outcome in outcomes))
         joined_strings: dict[str, str] = {}
         for name in string_names:
-            values = [outcome.strings.get(name) for outcome in outcomes]
-            if values.count(values[0]) == len(values):
-                if values[0] is not None:
-                    joined_strings[name] = values[0]
-            elif self.preserve_route_method_conflicts and any(
-                value
-                in {
-                    *APP_ROUTE_METHODS,
-                    *APP_REGISTRATION_METHODS,
-                    _POSSIBLE_ROUTE_METHOD,
-                    _CONFLICTED_ROUTE_METHOD,
-                }
-                for value in values
-            ):
+            values = {outcome.strings.get(name) for outcome in outcomes}
+            if len(values) == 1:
+                string_value = next(iter(values))
+                if string_value is not None:
+                    joined_strings[name] = string_value
+            elif self.preserve_route_method_conflicts and values & {
+                *APP_ROUTE_METHODS,
+                *APP_REGISTRATION_METHODS,
+                _POSSIBLE_ROUTE_METHOD,
+                _CONFLICTED_ROUTE_METHOD,
+            }:
                 joined_strings[name] = _POSSIBLE_ROUTE_METHOD
             elif any(self._is_protected_ownership_symbol(value) for value in values):
                 joined_strings[name] = (
@@ -5160,8 +5208,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         method = _namespace_mutator_method(function_reference)
         dict_method_prefix = "builtins.dict."
         if function_reference is not None and function_reference.startswith(dict_method_prefix):
-            method = function_reference.removeprefix(dict_method_prefix)
-            if method not in _MAPPING_MUTATOR_METHODS or not arguments:
+            if method not in _MAPPING_MUTATOR_METHODS | {"*"} or not arguments:
                 return
             direct_namespace_kind = self._object_namespace_mapping_kind(arguments[0])
             if direct_namespace_kind is None:
@@ -7990,8 +8037,21 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         if not isinstance(node, ast.Call) or node.keywords:
             return False
         positional_arguments, unresolved_sources = _expand_static_positional_arguments(node.args)
+        function_reference = self._resolve_reference(node.func)
+        if not unresolved_sources:
+            if function_reference == "builtins.map" and len(positional_arguments) >= 2:
+                return any(
+                    self._is_proven_empty_iterable(argument)
+                    for argument in positional_arguments[1:]
+                )
+            if function_reference == "builtins.filter" and len(positional_arguments) == 2:
+                return self._is_proven_empty_iterable(positional_arguments[1])
+            if function_reference in _ZIPPING_ITERABLE_BUILTIN_REFERENCES:
+                return not positional_arguments or any(
+                    self._is_proven_empty_iterable(argument) for argument in positional_arguments
+                )
         return (
-            self._resolve_reference(node.func) == "builtins.iter"
+            function_reference == "builtins.iter"
             and not unresolved_sources
             and len(positional_arguments) == 1
             and self._is_proven_empty_iterable(positional_arguments[0])
@@ -8783,7 +8843,14 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 return arguments[0]
         return None
 
-    def visit_Call(self, node: ast.Call) -> None:
+    def visit_Call(
+        self,
+        node: ast.Call,
+        *,
+        iterable_callback_inputs: (
+            list[tuple[ast.Call, str, _FunctionNode, dict[str, _ResolvedBinding]]] | None
+        ) = None,
+    ) -> None:
         positional_arguments, unresolved_positional_sources = _expand_static_positional_arguments(
             node.args
         )
@@ -8828,9 +8895,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             and namespace_function_reference.rpartition(".")[2] in _MAPPING_MUTATOR_METHODS
         )
         stored_legacy_mutator = (
-            namespace_function_reference is not None
-            and namespace_function_reference.rpartition(".")[0] == "legacy_app.__dict__"
-            and namespace_function_reference.rpartition(".")[2] in _MAPPING_MUTATOR_METHODS
+            _namespace_mutator_method(namespace_function_reference, legacy_only=True) is not None
         )
         bound_mutator_candidate = (
             isinstance(node.func, ast.Attribute) and node.func.attr in _MAPPING_MUTATOR_METHODS
@@ -8887,6 +8952,28 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         prepared_targets = set(initial_arguments)
 
         wrapper_reference = self._resolve_reference(node.func)
+        collects_zip_callbacks = (
+            wrapper_reference in _ZIPPING_ITERABLE_BUILTIN_REFERENCES
+            and (id(node) in self._iterated_call_ids or iterable_callback_inputs is not None)
+            and not unresolved_positional_sources
+            and not any(isinstance(argument, ast.Starred) for argument in node.args)
+        )
+        zip_callback_inputs = (
+            iterable_callback_inputs if iterable_callback_inputs is not None else []
+        )
+        owns_zip_callback_inputs = collects_zip_callbacks and iterable_callback_inputs is None
+        zip_callback_end_indices: list[int] = []
+        captures_lazy_callback = (
+            iterable_callback_inputs is not None
+            and wrapper_reference in {"builtins.map", "builtins.filter"}
+            and not unresolved_positional_sources
+            and not node.keywords
+            and not any(isinstance(argument, ast.Starred) for argument in node.args)
+        )
+        captured_callback_targets: frozenset[_FunctionNode] = frozenset()
+        captured_callback_scope: _LexicalBindings | None = None
+        captured_callback_arguments: list[_ResolvedBinding] = []
+        captured_callback_empty = False
         keys_callback = (
             wrapper_reference in {"builtins.sorted", "builtins.min", "builtins.max"}
             and bool(positional_arguments)
@@ -9191,7 +9278,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                         getattr_receiver_binding = self._capture_argument_binding(getattr_argument)
                         if async_iteration_candidate:
                             async_iteration_operand = getattr_receiver_binding
-                        if unbound_mutator_candidate:
+                        if unbound_mutator_candidate and not stored_legacy_mutator:
                             mutation_receiver_binding = getattr_receiver_binding
                     elif getattr_argument_index == 1:
                         getattr_member_binding = self._capture_argument_binding(getattr_argument)
@@ -9237,6 +9324,38 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                         )
                         is not None
                     )
+            elif collects_zip_callbacks:
+                self.visit(node.func)
+                exhausted_prefix = False
+                for argument in node.args:
+                    if (
+                        not exhausted_prefix
+                        and isinstance(argument, ast.Call)
+                        and self._resolve_reference(argument.func)
+                        in {"builtins.zip", "builtins.map", "builtins.filter"}
+                    ):
+                        self.visit(argument, iterable_callback_inputs=zip_callback_inputs)
+                    else:
+                        self.visit(argument)
+                    zip_callback_end_indices.append(len(zip_callback_inputs))
+                    exhausted_prefix = exhausted_prefix or self._is_proven_empty_iterable(argument)
+                for keyword in node.keywords:
+                    self.visit(keyword)
+            elif captures_lazy_callback:
+                self.visit(node.func)
+                for argument_index, argument in enumerate(node.args):
+                    self.visit(argument)
+                    if argument_index == 0:
+                        captured_callback_targets = self._resolve_callables(argument)
+                        captured_callback_scope = self.scope.detached_clone()
+                    else:
+                        captured_callback_arguments.append(
+                            self._resolve_iterable_element_binding(argument)
+                            or self._conservative_argument_binding()
+                        )
+                        captured_callback_empty = (
+                            captured_callback_empty or self._is_proven_empty_iterable(argument)
+                        )
             else:
                 self.generic_visit(node)
         finally:
@@ -9348,7 +9467,12 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                         "builtins.dict.popitem",
                         "legacy_app.__dict__.clear",
                         "legacy_app.__dict__.popitem",
+                        f"{_POSSIBLE_LEGACY_REFERENCE}.__dict__.clear",
+                        f"{_POSSIBLE_LEGACY_REFERENCE}.__dict__.popitem",
+                        f"{_POSSIBLE_LEGACY_REFERENCE}.__dict__.*",
                     }
+                    or _namespace_mutator_method(getattr_function_reference, legacy_only=True)
+                    in {"clear", "popitem", "*"}
                 ):
                     self.errors.append(
                         f"{self.filename}: legacy API-key dependency namespace lookup is forbidden: <dynamic>"
@@ -9621,74 +9745,102 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 excluded_targets=prepared_targets,
             )
         )
-        maps_callback = id(node) in self._iterated_call_ids and wrapper_reference == "builtins.map"
-        if maps_callback and len(node.args) >= 2:
-            iterable_bindings = [
-                (
-                    self._resolve_iterable_element_binding(
-                        argument.value if isinstance(argument, ast.Starred) else argument
-                    )
-                    or self._conservative_argument_binding()
-                )
-                for argument in node.args[1:]
-            ]
-            replay_inputs.extend(
-                (target, arguments)
-                for target in sorted(
-                    self._resolve_callables(node.args[0]),
-                    key=lambda candidate: (
-                        candidate.lineno,
-                        candidate.col_offset,
-                        candidate.name,
-                    ),
-                )
-                if not isinstance(target, ast.AsyncFunctionDef)
-                if not _function_is_generator(target)
-                if (
-                    arguments := self._resolve_call_argument_bindings(
-                        target,
-                        node,
-                        callable_expr=node.args[0],
-                        positional_override=iterable_bindings,
-                    )
-                )
-                is not None
+        callback_active_scope = self.scope
+        if captures_lazy_callback and captured_callback_scope is not None:
+            self.scope = captured_callback_scope
+        try:
+            maps_callback = (
+                (id(node) in self._iterated_call_ids or captures_lazy_callback)
+                and wrapper_reference == "builtins.map"
+                and not captured_callback_empty
             )
-        filters_callback = (
-            id(node) in self._iterated_call_ids and wrapper_reference == "builtins.filter"
-        )
-        if (
-            filters_callback
-            and len(node.args) == 2
-            and not isinstance(node.args[0], ast.Constant)
-            and not self._is_proven_empty_iterable(node.args[1])
-        ):
-            iterable_binding = (
-                self._resolve_iterable_element_binding(node.args[1])
-                or self._conservative_argument_binding()
-            )
-            replay_inputs.extend(
-                (target, arguments)
-                for target in sorted(
-                    self._resolve_callables(node.args[0]),
-                    key=lambda candidate: (
-                        candidate.lineno,
-                        candidate.col_offset,
-                        candidate.name,
-                    ),
+            if maps_callback and len(node.args) >= 2:
+                iterable_bindings = (
+                    captured_callback_arguments
+                    if captures_lazy_callback
+                    else [
+                        (
+                            self._resolve_iterable_element_binding(
+                                argument.value if isinstance(argument, ast.Starred) else argument
+                            )
+                            or self._conservative_argument_binding()
+                        )
+                        for argument in node.args[1:]
+                    ]
                 )
-                if not isinstance(target, ast.AsyncFunctionDef)
-                if not _function_is_generator(target)
-                if (
-                    arguments := self._resolve_call_argument_bindings(
-                        target,
-                        node,
-                        callable_expr=node.args[0],
-                        positional_override=[iterable_binding],
+                replay_inputs.extend(
+                    (target, arguments)
+                    for target in sorted(
+                        (
+                            captured_callback_targets
+                            if captures_lazy_callback
+                            else self._resolve_callables(node.args[0])
+                        ),
+                        key=lambda candidate: (
+                            candidate.lineno,
+                            candidate.col_offset,
+                            candidate.name,
+                        ),
+                    )
+                    if not isinstance(target, ast.AsyncFunctionDef)
+                    if not _function_is_generator(target)
+                    if (
+                        arguments := self._resolve_call_argument_bindings(
+                            target,
+                            node,
+                            callable_expr=node.args[0],
+                            positional_override=iterable_bindings,
+                        )
+                    )
+                    is not None
+                )
+            filters_callback = (
+                (id(node) in self._iterated_call_ids or captures_lazy_callback)
+                and wrapper_reference == "builtins.filter"
+                and not captured_callback_empty
+            )
+            if (
+                filters_callback
+                and len(node.args) == 2
+                and not isinstance(node.args[0], ast.Constant)
+                and (captures_lazy_callback or not self._is_proven_empty_iterable(node.args[1]))
+            ):
+                iterable_binding = (
+                    captured_callback_arguments[0]
+                    if captures_lazy_callback
+                    else (
+                        self._resolve_iterable_element_binding(node.args[1])
+                        or self._conservative_argument_binding()
                     )
                 )
-                is not None
-            )
+                replay_inputs.extend(
+                    (target, arguments)
+                    for target in sorted(
+                        (
+                            captured_callback_targets
+                            if captures_lazy_callback
+                            else self._resolve_callables(node.args[0])
+                        ),
+                        key=lambda candidate: (
+                            candidate.lineno,
+                            candidate.col_offset,
+                            candidate.name,
+                        ),
+                    )
+                    if not isinstance(target, ast.AsyncFunctionDef)
+                    if not _function_is_generator(target)
+                    if (
+                        arguments := self._resolve_call_argument_bindings(
+                            target,
+                            node,
+                            callable_expr=node.args[0],
+                            positional_override=[iterable_binding],
+                        )
+                    )
+                    is not None
+                )
+        finally:
+            self.scope = callback_active_scope
         previous_sync_only = self._sync_only_body_analysis
         if (
             previous_sync_only
@@ -9698,9 +9850,21 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         ):
             self._sync_only_body_analysis = False
         try:
-            replay_results = [
-                self._replay_function_call(target, arguments) for target, arguments in replay_inputs
-            ]
+            if (
+                captures_lazy_callback
+                and iterable_callback_inputs is not None
+                and wrapper_reference is not None
+            ):
+                iterable_callback_inputs.extend(
+                    (node, wrapper_reference, target, arguments)
+                    for target, arguments in replay_inputs
+                )
+                replay_results = []
+            else:
+                replay_results = [
+                    self._replay_function_call(target, arguments)
+                    for target, arguments in replay_inputs
+                ]
         finally:
             self._sync_only_body_analysis = previous_sync_only
         if replay_results:
@@ -9828,11 +9992,41 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             wrapper_reference in _ZIPPING_ITERABLE_BUILTIN_REFERENCES
             and id(node) in self._iterated_call_ids
         ):
-            for argument in positional_arguments:
-                self._replay_deferred_calls(
-                    self._resolve_deferred_calls(argument),
-                    execution="iterate",
-                )
+            zip_previous_sync_only = self._sync_only_body_analysis
+            if owns_zip_callback_inputs and self._analysis_purpose == "ownership_audit":
+                self._sync_only_body_analysis = False
+            try:
+                callback_results: dict[ast.Call, list[_ResolvedBinding]] = {}
+                callback_start = 0
+                for argument_index, argument in enumerate(positional_arguments):
+                    self._replay_deferred_calls(
+                        self._resolve_deferred_calls(argument),
+                        execution="iterate",
+                    )
+                    if not owns_zip_callback_inputs:
+                        continue
+                    callback_end = zip_callback_end_indices[argument_index]
+                    for original_call, callback_reference, target, arguments in zip_callback_inputs[
+                        callback_start:callback_end
+                    ]:
+                        was_iterated = id(original_call) in self._iterated_call_ids
+                        self._iterated_call_ids.add(id(original_call))
+                        try:
+                            callback_result = self._replay_function_call(target, arguments)
+                        finally:
+                            if not was_iterated:
+                                self._iterated_call_ids.remove(id(original_call))
+                        if callback_reference == "builtins.map":
+                            callback_results.setdefault(original_call, []).append(callback_result)
+                    callback_start = callback_end
+                for original_call, results in callback_results.items():
+                    if id(original_call) not in self._call_result_bindings:
+                        callback_result = self._join_resolved_bindings(results)
+                        self._call_result_bindings[id(original_call)] = callback_result
+                        if self.call_result_snapshots is not None:
+                            self.call_result_snapshots[id(original_call)] = callback_result
+            finally:
+                self._sync_only_body_analysis = zip_previous_sync_only
         escaped_mappings.extend(
             mapping
             for argument in node.args
@@ -10232,6 +10426,15 @@ def validate_api_key_dependency_ownership(
             def visit_ImportFrom(self, node: ast.ImportFrom) -> None:
                 for alias in node.names:
                     bound_name = alias.asname or alias.name
+                    if (
+                        node.level == 0
+                        and node.module == "app.routers.api_key"
+                        and alias.name == "*"
+                    ):
+                        errors.append(
+                            f"{LEGACY_APP}: canonical API-key dependency star import is forbidden"
+                        )
+                        continue
                     if (
                         node.level == 0
                         and node.module == "app.routers.api_key"
@@ -10697,14 +10900,10 @@ def _mutates_protected_namespace(
             references=references,
             static_string_bindings=static_string_bindings,
         )
-        namespace_method_prefix = "legacy_app.__dict__."
+        legacy_method = _namespace_mutator_method(function_reference, legacy_only=True)
         dict_method_prefix = "builtins.dict."
-        if (
-            function_reference is not None
-            and function_reference.startswith(namespace_method_prefix)
-            and function_reference.removeprefix(namespace_method_prefix) in _MAPPING_MUTATOR_METHODS
-        ):
-            method_name = function_reference.removeprefix(namespace_method_prefix)
+        if legacy_method is not None:
+            method_name = legacy_method
         else:
             if (
                 function_reference is None
@@ -10749,7 +10948,7 @@ def _mutates_protected_namespace(
             ):
                 return True
         return False
-    if method_name in {"clear", "popitem"}:
+    if method_name in {"clear", "popitem", "*"}:
         return True
     if method_name in {"__delitem__", "__setitem__", "pop", "setdefault"}:
         if not arguments:
@@ -11912,9 +12111,7 @@ def _record_main_legacy_openapi_lookups(tree: ast.Module, errors: list[str]) -> 
             )
             stored_legacy_mutator = (
                 isinstance(node.func, ast.Name)
-                and function_reference is not None
-                and function_reference.rpartition(".")[0] == "legacy_app.__dict__"
-                and function_reference.rpartition(".")[2] in _MAPPING_MUTATOR_METHODS
+                and _namespace_mutator_method(function_reference, legacy_only=True) is not None
             )
             mutation_receiver = (
                 arguments[0]
