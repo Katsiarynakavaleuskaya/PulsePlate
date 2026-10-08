@@ -52,7 +52,7 @@ _PINNED_CODELOAD_SOURCES = {
 _PINNED_NATIVE_SOURCES = {
     "zlib": (
         "1.3.2",
-        "https://zlib.net/zlib-1.3.2.tar.gz",
+        "https://zlib.net/fossils/zlib-1.3.2.tar.gz",
         "zlib-1.3.2.tar.gz",
         ("451bedbd" "cd78dec3" "704df673" "c976fab2" "5beaef6a" "db9433fe" "84665e7b" "f946e325"),
     ),
