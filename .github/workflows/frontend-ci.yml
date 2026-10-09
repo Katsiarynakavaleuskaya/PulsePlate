@@ -173,10 +173,13 @@ jobs:
           set -euo pipefail
           npm_binary="$(command -v npm)"
           node_binary="$(command -v node)"
+          mkfifo_binary="$(command -v mkfifo)"
           case "$npm_binary" in /*) ;; *) exit 1 ;; esac
           case "$node_binary" in /*) ;; *) exit 1 ;; esac
-          "$node_binary" - "$npm_binary" <<'NODE'
+          case "$mkfifo_binary" in /*) ;; *) exit 1 ;; esac
+          "$node_binary" - "$npm_binary" "$mkfifo_binary" <<'NODE'
           const assert = require('node:assert/strict');
+          const { createHash } = require('node:crypto');
           const fs = require('node:fs');
           const os = require('node:os');
           const path = require('node:path');
@@ -192,12 +195,16 @@ jobs:
             const config = path.join(cwd, 'eslint.config.js');
             const npm = process.argv[2];
             assert.ok(path.isAbsolute(npm));
+            const mkfifo = process.argv[3];
+            assert.ok(path.isAbsolute(mkfifo));
             const cli = path.join(path.dirname(require.resolve('eslint/package.json')), 'bin/eslint.js');
             const patterns = ['src/api/*.ts', 'src/api/premium/*.ts', 'src/lib/analytics.ts'];
-            const expected = ['src/api', 'src/api/premium'].flatMap(directory =>
-              fs.readdirSync(directory).filter(name => name.endsWith('.ts') && !name.endsWith('.d.ts')).map(name => path.join(directory, name))
-            ).filter(file => file !== 'src/api/schema.ts');
-            expected.push('src/lib/analytics.ts');
+            function enumerateFoundation() {
+              return [...['src/api', 'src/api/premium'].flatMap(directory =>
+                fs.readdirSync(directory).filter(name => name.endsWith('.ts') && !name.endsWith('.d.ts')).map(name => path.join(directory, name))
+              ).filter(file => file !== 'src/api/schema.ts'), 'src/lib/analytics.ts'];
+            }
+            const expected = enumerateFoundation();
             assert.ok(expected.length > 0, 'Authored foundation selection must be nonempty');
             for (const file of expected) assert.ok(fs.lstatSync(file).isFile(), file);
             const expectedPaths = expected.map(file => path.resolve(file)).sort();
@@ -280,13 +287,141 @@ jobs:
             });
             console.log(JSON.stringify({ control: 'ui-all-ignored', diagnostic: 'all-matched-files-ignored', pattern: uiPattern }));
 
-            let fixtures;
-            let scratch;
-            let uiFixtures;
-            try {
-              fixtures = fs.mkdtempSync(path.join(cwd, 'src/.foundation-controls-'));
-              scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'foundation-npm-controls-'));
-              uiFixtures = fs.mkdtempSync(path.join(uiRoot, 'cab07b-native-'));
+            const pageFeatureRoots = ['pages', 'features'].map(name => ({
+              name, directory: path.join(cwd, 'src', name), pattern: `src/${name}/**/*.{ts,tsx}`,
+            }));
+            function enumeratePageFeature(directory) {
+              assert.ok(fs.lstatSync(directory).isDirectory(), `Unsupported pages/features root: ${directory}`);
+              const files = [];
+              for (const name of fs.readdirSync(directory).sort()) {
+                const file = path.join(directory, name);
+                const stat = fs.lstatSync(file);
+                assert.ok(stat.isDirectory() || stat.isFile(), `Unsupported pages/features entry: ${file}`);
+                if (stat.isDirectory()) files.push(...enumeratePageFeature(file));
+                else if ((name.endsWith('.ts') || name.endsWith('.tsx')) && !name.endsWith('.d.ts')) files.push(file);
+              }
+              return files.sort();
+            }
+            function requirePageFeatureRoots(roots) {
+              return roots.map(root => {
+                const files = enumeratePageFeature(root.directory);
+                assert.ok(files.length > 0, `Authored ${root.name} selection must be nonempty`);
+                return { ...root, files };
+              });
+            }
+            function assertPageFeatureResults(report, inventory) {
+              const actual = report.map(result => result.filePath).sort();
+              assert.ok(actual.every((file, index) => index === 0 || file !== actual[index - 1]), 'Pages/features result paths must be unique');
+              assert.deepEqual(actual, inventory, 'Pages/features membership mismatch');
+              for (const result of report) {
+                assert.equal(result.fatalErrorCount, 0, 'Pages/features fatal result');
+                assert.equal(result.errorCount, 0, result.filePath);
+                assert.equal(result.warningCount, 0, result.filePath);
+                assert.deepEqual(result.messages, [], result.filePath);
+                assert.deepEqual(result.suppressedMessages, [], result.filePath);
+              }
+            }
+            async function assertPageFeatureMembership(engine, selection, inventory) {
+              for (const file of inventory) {
+                assert.ok(fs.lstatSync(file).isFile(), file);
+                assert.ok((await engine.isPathIgnored(file)) === false, `Ignored pages/features member: ${file}`);
+              }
+              const report = await engine.lintFiles(selection);
+              assertPageFeatureResults(report, inventory);
+              return report;
+            }
+            const originalPageFeatures = requirePageFeatureRoots(pageFeatureRoots);
+            const pageFeaturePatterns = pageFeatureRoots.map(root => root.pattern);
+            const originalPageFeaturePaths = originalPageFeatures.flatMap(root => root.files).sort();
+            const pageFeatureReport = await assertPageFeatureMembership(eslint, pageFeaturePatterns, originalPageFeaturePaths);
+            for (const root of originalPageFeatures) {
+              console.log(JSON.stringify({ control: `${root.name}-membership`, files: root.files.map(file => path.relative(cwd, file)) }));
+              const otherResults = pageFeatureReport.filter(result => !root.files.includes(result.filePath));
+              assert.throws(() => assertPageFeatureResults(otherResults, originalPageFeaturePaths), { name: 'AssertionError' });
+              console.log(JSON.stringify({ control: `${root.name}-omitted-root`, evidence: 'synthetic assertion over observed native results' }));
+              const member = root.files[0];
+              const ignoredPath = path.relative(cwd, member).split(path.sep).join('/');
+              const singleIgnored = new ESLint({ overrideConfigFile: config, overrideConfig: [{ ignores: [ignoredPath] }] });
+              await assert.rejects(assertPageFeatureMembership(singleIgnored, pageFeaturePatterns, originalPageFeaturePaths), {
+                name: 'AssertionError', message: `Ignored pages/features member: ${member}`,
+              });
+              console.log(JSON.stringify({ control: `${root.name}-ignored-member`, file: member }));
+              const allIgnored = new ESLint({ overrideConfigFile: config, overrideConfig: [{ ignores: [`src/${root.name}/**`] }] });
+              await assert.rejects(allIgnored.lintFiles(pageFeaturePatterns), {
+                messageTemplate: 'all-matched-files-ignored', messageData: { pattern: root.pattern },
+              });
+              console.log(JSON.stringify({ control: `${root.name}-all-ignored`, diagnostic: 'all-matched-files-ignored' }));
+            }
+            for (const [name, report] of [
+              ['omitted-member', pageFeatureReport.slice(1)],
+              ['foreign-result', [{ ...pageFeatureReport[0], filePath: path.join(cwd, 'foreign.ts') }, ...pageFeatureReport.slice(1)]],
+              ['duplicate-result', [...pageFeatureReport, pageFeatureReport[0]]],
+              ['fatal-result', [{ ...pageFeatureReport[0], fatalErrorCount: 1 }, ...pageFeatureReport.slice(1)]],
+            ]) {
+              assert.throws(() => assertPageFeatureResults(report, originalPageFeaturePaths), { name: 'AssertionError' });
+              console.log(JSON.stringify({ control: `pages-features-${name}`, evidence: 'synthetic assertion over observed native results' }));
+            }
+            function sourceHashes(files) {
+              return new Map(files.map(file => [file, createHash('sha256').update(fs.readFileSync(file)).digest('hex')]));
+            }
+            function assertSourceHashes(snapshot) {
+              for (const [file, digest] of snapshot) {
+                assert.ok(fs.lstatSync(file).isFile(), `Source is not regular: ${file}`);
+                assert.ok(createHash('sha256').update(fs.readFileSync(file)).digest('hex') === digest, `Source bytes changed: ${file}`);
+              }
+            }
+            const originalSources = sourceHashes([...expectedPaths, ...originalUI, ...originalPageFeaturePaths]);
+            async function withOwnedCleanup(phase, action) {
+              const owned = [];
+              let primaryError;
+              const cleanupErrors = [];
+              try {
+                await action(owned);
+              } catch (error) {
+                primaryError = error;
+              } finally {
+                for (const directory of [...owned].reverse()) {
+                  try {
+                    fs.rmSync(directory, { recursive: true, force: true });
+                    assert.equal(fs.existsSync(directory), false, directory);
+                  } catch (error) { cleanupErrors.push(error); }
+                }
+                const restorations = [
+                  ['foundation', () => enumerateFoundation().map(file => path.resolve(file)).sort(), expectedPaths],
+                  ['ui', () => requireUISelection(uiRoot), originalUI],
+                  ...originalPageFeatures.map(root => [root.name, () => requirePageFeatureRoots([root])[0].files, root.files]),
+                ];
+                for (const [name, enumerate, inventory] of restorations) {
+                  const failuresBefore = cleanupErrors.length;
+                  let restored;
+                  try {
+                    restored = enumerate();
+                    assert.deepEqual(restored, inventory);
+                  } catch (error) { cleanupErrors.push(error); }
+                  for (const file of inventory) {
+                    try { assertSourceHashes(new Map([[file, originalSources.get(file)]])); }
+                    catch (error) { cleanupErrors.push(error); }
+                  }
+                  if (name === 'ui' && restored) {
+                    try { await assertUIMembership(eslint, [uiPattern], restored); }
+                    catch (error) { cleanupErrors.push(error); }
+                  }
+                  if (cleanupErrors.length === failuresBefore) {
+                    console.log(JSON.stringify({ control: phase === 'normal' ? `${name}-restored-inventory` : `${phase}-restored-${name}`, files: restored.map(file => path.relative(cwd, file)), sourceHashesUnchanged: true }));
+                  }
+                }
+              }
+              if (cleanupErrors.length) throw new AggregateError(primaryError ? [primaryError, ...cleanupErrors] : cleanupErrors, 'Owned cleanup or source readback failed');
+              if (primaryError) throw primaryError;
+            }
+
+            await withOwnedCleanup('normal', async owned => {
+              const fixtures = fs.mkdtempSync(path.join(cwd, 'src/.foundation-controls-'));
+              owned.push(fixtures);
+              const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'foundation-npm-controls-'));
+              owned.push(scratch);
+              const uiFixtures = fs.mkdtempSync(path.join(uiRoot, 'cab07b-native-'));
+              owned.push(uiFixtures);
               const nestedDirectory = path.join(uiFixtures, 'nested');
               fs.mkdirSync(nestedDirectory);
               const nestedFile = path.join(nestedDirectory, 'clean.tsx');
@@ -321,6 +456,67 @@ jobs:
                 npm_config_update_notifier: 'false',
               };
               const options = { cwd, env, encoding: 'utf8', timeout, maxBuffer: 1024 * 1024 };
+              const pageFeatureFixtures = new Map();
+              for (const root of pageFeatureRoots) {
+                const directory = fs.mkdtempSync(path.join(root.directory, 'cab07c-native-'));
+                owned.push(directory);
+                pageFeatureFixtures.set(root.name, directory);
+                fs.mkdirSync(path.join(directory, 'nested', '__tests__'), { recursive: true });
+                const nestedMembers = ['nested/clean.tsx', 'nested/sample.stories.tsx', 'nested/__tests__/sample.test.ts'];
+                for (const member of nestedMembers) fs.writeFileSync(path.join(directory, member), 'export const sample = 1;\n');
+                const nestedInventory = requirePageFeatureRoots(pageFeatureRoots).flatMap(item => item.files).sort();
+                for (const member of nestedMembers) assert.ok(nestedInventory.includes(path.join(directory, member)));
+                await assertPageFeatureMembership(eslint, pageFeaturePatterns, nestedInventory);
+                console.log(JSON.stringify({ control: `${root.name}-nested-members`, files: nestedMembers }));
+
+                for (const kind of ['missing', 'empty', 'declaration-only']) {
+                  const negative = path.join(fixtures, `${root.name}-${kind}`);
+                  if (kind !== 'missing') fs.mkdirSync(negative);
+                  if (kind === 'declaration-only') fs.writeFileSync(path.join(negative, 'only.d.ts'), 'declare const value: number;\n');
+                  const roots = pageFeatureRoots.map(item => item.name === root.name ? { ...item, directory: negative } : item);
+                  assert.throws(() => requirePageFeatureRoots(roots), kind === 'missing'
+                    ? { code: 'ENOENT', path: negative }
+                    : { name: 'AssertionError', message: `Authored ${root.name} selection must be nonempty` });
+                  console.log(JSON.stringify({ control: `${root.name}-${kind}`, evidence: 'real filesystem with other root nonempty' }));
+                }
+                const specialDirectory = path.join(fixtures, `${root.name}-unsupported`);
+                fs.mkdirSync(specialDirectory);
+                const regular = path.join(specialDirectory, 'clean.ts');
+                fs.writeFileSync(regular, 'export const sample = 1;\n');
+                const symlink = path.join(specialDirectory, 'alias.d.ts');
+                fs.symlinkSync(regular, symlink);
+                assert.throws(() => enumeratePageFeature(specialDirectory), {
+                  name: 'AssertionError', message: `Unsupported pages/features entry: ${symlink}`,
+                });
+                fs.unlinkSync(symlink);
+                const rootAlias = path.join(fixtures, `${root.name}-root-alias`);
+                fs.symlinkSync(specialDirectory, rootAlias);
+                assert.throws(() => enumeratePageFeature(rootAlias), {
+                  name: 'AssertionError', message: `Unsupported pages/features root: ${rootAlias}`,
+                });
+                console.log(JSON.stringify({ control: `${root.name}-symlinks`, evidence: 'real root and descendant symlinks' }));
+                for (const suffix of ['.d.ts', '.txt']) {
+                  const special = path.join(specialDirectory, `special${suffix}`);
+                  const created = spawnSync(mkfifo, [special], options);
+                  assert.equal(created.error, undefined);
+                  assert.equal(created.signal, null);
+                  assert.equal(created.status, 0, created.stderr);
+                  assert.ok(fs.lstatSync(special).isFIFO());
+                  assert.throws(() => enumeratePageFeature(specialDirectory), {
+                    name: 'AssertionError', message: `Unsupported pages/features entry: ${special}`,
+                  });
+                  fs.unlinkSync(special);
+                  console.log(JSON.stringify({ control: `${root.name}-fifo${suffix}`, evidence: 'real POSIX FIFO rejected before suffix filtering' }));
+                }
+              }
+              const specimen = path.join(fixtures, 'byte-readback.ts');
+              fs.writeFileSync(specimen, 'export const sample = 1;\n');
+              const specimenSnapshot = sourceHashes([specimen]);
+              fs.writeFileSync(specimen, 'export const sample = 2;\n');
+              assert.throws(() => assertSourceHashes(specimenSnapshot), {
+                name: 'AssertionError', message: `Source bytes changed: ${specimen}`,
+              });
+              console.log(JSON.stringify({ control: 'pages-features-changed-bytes', evidence: 'assertion control over changed owned specimen; originals untouched' }));
               const cases = [
                 ['clean', 'export const value: number = 1;\n', null, 0, 0],
                 ['error', 'import { readFileSync } from "node:fs";\nimport { existsSync } from "node:fs";\nexport const read = (file: string) => existsSync(file) ? readFileSync(file, "utf8") : "";\n', 'no-duplicate-imports', 2, 1],
@@ -331,9 +527,11 @@ jobs:
                 ['ui-error', 'import { readFileSync } from "node:fs";\nimport { existsSync } from "node:fs";\nexport const Sample = () => <div>{existsSync("x") ? readFileSync("x", "utf8") : ""}</div>;\n', 'no-duplicate-imports', 2, 1],
                 ['ui-warning', 'export const Sample = (props: any) => <div>{props.value}</div>;\n', '@typescript-eslint/no-explicit-any', 1, 1],
               ];
-              for (const [name, source, ruleId, severity, exit] of [...cases, ...tsxCases]) {
-                const extension = name.startsWith('ui-') ? 'tsx' : 'ts';
-                const file = path.join(fixtures, `${name}.${extension}`);
+              const pageFeatureCases = pageFeatureRoots.flatMap(root => tsxCases.map(([name, ...rest]) => [name.replace('ui-', `${root.name}-`), ...rest]));
+              for (const [name, source, ruleId, severity, exit] of [...cases, ...tsxCases, ...pageFeatureCases]) {
+                const scope = name.split('-')[0];
+                const extension = name.includes('-') ? 'tsx' : 'ts';
+                const file = path.join(pageFeatureFixtures.get(scope) ?? fixtures, `${name}.${extension}`);
                 fs.writeFileSync(file, source);
                 const result = spawnSync(process.execPath, [cli, '--config', config, '--max-warnings=0', '--format', 'json', file], options);
                 assert.equal(result.error, undefined);
@@ -383,6 +581,12 @@ jobs:
               assert.equal(uiScriptFailure.status, 1);
               assert.match(uiScriptFailure.stderr, /Missing script: "lint:ui"/);
               console.log(JSON.stringify({ control: 'ui-missing-script', exit: uiScriptFailure.status, diagnostic: 'Missing script: lint:ui' }));
+              const pageFeatureScriptFailure = spawnSync(npm, ['run', 'lint:pages-features'], { ...options, cwd: scratch });
+              assert.equal(pageFeatureScriptFailure.error, undefined);
+              assert.equal(pageFeatureScriptFailure.signal, null);
+              assert.equal(pageFeatureScriptFailure.status, 1);
+              assert.match(pageFeatureScriptFailure.stderr, /Missing script: "lint:pages-features"/);
+              console.log(JSON.stringify({ control: 'pages-features-missing-script', exit: pageFeatureScriptFailure.status, diagnostic: 'Missing script: lint:pages-features' }));
               const emptyUIPattern = path.join(fixtures, 'absent-ui/**/*.tsx');
               const emptyUIFailure = spawnSync(process.execPath, [cli, '--config', config, emptyUIPattern], options);
               assert.equal(emptyUIFailure.error, undefined);
@@ -391,15 +595,17 @@ jobs:
               assert.match(emptyUIFailure.stderr, /No files matching/);
               assert.ok(emptyUIFailure.stderr.includes(emptyUIPattern));
               console.log(JSON.stringify({ control: 'ui-unmatched-pattern', exit: emptyUIFailure.status, diagnostic: 'No files matching', pattern: emptyUIPattern }));
-            } finally {
-              if (fixtures) fs.rmSync(fixtures, { recursive: true, force: true });
-              if (scratch) fs.rmSync(scratch, { recursive: true, force: true });
-              if (uiFixtures) fs.rmSync(uiFixtures, { recursive: true, force: true });
-            }
-            const restoredUI = requireUISelection(uiRoot);
-            assert.deepEqual(restoredUI, originalUI);
-            await assertUIMembership(eslint, [uiPattern], restoredUI);
-            console.log(JSON.stringify({ control: 'ui-restored-inventory', files: restoredUI.map(file => path.relative(cwd, file)) }));
+            });
+            const sentinel = new Error('Deliberate owned-fixture failure');
+            await assert.rejects(withOwnedCleanup('deliberate-failure', async owned => {
+              for (const directory of [uiRoot, ...pageFeatureRoots.map(root => root.directory)]) {
+                const fixture = fs.mkdtempSync(path.join(directory, 'cab07c-failure-'));
+                owned.push(fixture);
+                fs.writeFileSync(path.join(fixture, 'clean.ts'), 'export const sample = 1;\n');
+              }
+              throw sentinel;
+            }), error => error === sentinel);
+            console.log(JSON.stringify({ control: 'pages-features-deliberate-failure-cleanup', diagnostic: sentinel.message, evidence: 'real owned cleanup/readback; sentinel identity only accepted' }));
           })().catch(error => {
             console.error(error);
             process.exitCode = 1;
@@ -455,6 +661,9 @@ jobs:
 
       - name: Lint UI primitives
         run: npm run lint:ui
+
+      - name: Lint pages and features
+        run: npm run lint:pages-features
 
       - name: Run vitest suite
         run: npm run test -- --coverage

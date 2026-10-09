@@ -1,5 +1,4 @@
-import type { JSX, PropsWithChildren } from 'react';
-import { useLayoutEffect } from 'react';
+import { useLayoutEffect, type JSX, type PropsWithChildren } from 'react';
 import { MemoryRouter } from 'react-router-dom';
 import {
   PRO_SESSION_PATH,

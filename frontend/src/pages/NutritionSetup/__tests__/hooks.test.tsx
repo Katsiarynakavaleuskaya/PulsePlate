@@ -1,10 +1,11 @@
 /** @vitest-environment jsdom */
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { getBmr, getPlate } from '../../../api/premium';
-import type {
-  BmrApiResponse,
-  PlateResponse as ApiPlateResponse,
+import {
+  getBmr,
+  getPlate,
+  type BmrApiResponse,
+  type PlateResponse as ApiPlateResponse
 } from '../../../api/premium';
 import { useSetupCalc } from '../hooks';
 import type { SetupFormValues } from '../schema';
