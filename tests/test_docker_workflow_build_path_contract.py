@@ -762,7 +762,7 @@ def test_docker_source_artifact_manifest_pins_sqlite_source() -> None:
     assert manifest["schema_version"] == 1
     assert manifest["generated_at"] == "2026-10-04"
     assert manifest["review_by"] == "2026-10-21"
-    assert len(artifacts) == 14
+    assert len(artifacts) == 15
     assert [row["name"] for row in artifacts[:4]] == [
         "sqlite-autoconf",
         "util-linux",
@@ -800,11 +800,11 @@ def test_docker_source_artifact_manifest_review_window_is_inclusive(tmp_path: Pa
     historical["generated_at"] = "2026-09-28"
     historical["review_by"] = "2026-10-05"
     old_path = _write_docker_source_manifest(tmp_path, historical)
-    assert len(docker_sources.load_manifest(old_path, today=date(2026, 10, 5))) == 14
+    assert len(docker_sources.load_manifest(old_path, today=date(2026, 10, 5))) == 15
     with pytest.raises(RuntimeError, match="review_by is stale: 2026-10-05"):
         docker_sources.load_manifest(old_path, today=date(2026, 10, 6))
     for day in (6, 8, 21):
-        assert len(docker_sources.load_manifest(manifest_path, today=date(2026, 10, day))) == 14
+        assert len(docker_sources.load_manifest(manifest_path, today=date(2026, 10, day))) == 15
     with pytest.raises(RuntimeError, match="review_by is stale: 2026-10-21"):
         docker_sources.load_manifest(manifest_path, today=date(2026, 10, 22))
 
@@ -1650,7 +1650,7 @@ def test_pcre2_source_records_bind_exact_reviewed_closure(
     artifacts = docker_sources.load_manifest(
         REPO_ROOT / "scripts/ci/docker_source_artifacts.json", today=date(2026, 10, 2)
     )
-    assert len(artifacts) == 14
+    assert len(artifacts) == 15
     matches = [artifact for artifact in artifacts if artifact.name == name]
     assert len(matches) == 1
     artifact = matches[0]
@@ -2151,6 +2151,12 @@ _ZLIB_MAINTENANCE_PATCHES = (
         ("adf2578c" "eaa4d9a5" "2ccfa8d7" "4f8b8792" "cce3084f" "9f770944" "39450eec" "2a7a214c"),
         ("a786b2b0" "84126860" "08c7fe12" "47e90701" "cebde564" "037806bd" "9935f849" "07737cc4"),
     ),
+    (
+        "zlib-errno-order-fix",
+        ("a82e0db3" "92178a3e" "05fb27bf" "551a6ce7" "57a47898"),
+        ("70b0fb7e" "333c5757" "807407f1" "d88ef2ff" "71f757b5" "59926b73" "22a1a8d7" "84811cbc"),
+        ("6d02eb6c" "5403c491" "9076cc89" "ae6609ac" "421aa27d" "e116457a" "ca1554c3" "85296a2b"),
+    ),
 )
 
 
@@ -2283,14 +2289,14 @@ def test_zlib_maintenance_docker_recipe_binds_exact_order_and_source_fingerprint
         (
             "gzguts.h",
             (
-                "4e576db3"
-                "49bfbda6"
-                "2a00671a"
-                "cd9292f2"
-                "42325286"
-                "2b9241e9"
-                "2bbd3fb1"
-                "408f23c4"
+                "6c366344"
+                "bc1f1e25"
+                "3892a33e"
+                "06a01e97"
+                "005c9340"
+                "f9a44f93"
+                "1e6cec8c"
+                "b9878ffc"
             ),
         ),
         (

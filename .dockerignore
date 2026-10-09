@@ -72,3 +72,4 @@
 !build/docker-sources/zlib-gzprintf-return-fix-7235b0a581227c56a79a43ff828f8ef6794194c8.patch
 !build/docker-sources/zlib-blocked-errno-fix-813dac5dcb5902ed241e9b0d38abd2d847a335a9.patch
 !build/docker-sources/zlib-gzprintf-contract-fix-d81c2d7eb705c62294ba03299255672078e89115.patch
+!build/docker-sources/zlib-errno-order-fix-a82e0db392178a3e05fb27bf551a6ce757a47898.patch

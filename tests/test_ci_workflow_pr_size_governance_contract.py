@@ -6074,7 +6074,7 @@ def test_main_branch_python_sharded_runner_preserves_required_check_policy() -> 
     assert "TEST_STEP_STARTED_AT=" in test_main_section
     assert "TEST_STEP_FINISHED_AT=" in shared_shard_runner_block
 
-    assert "MAIN_TEST_SHARDS=8" in py313_block
+    assert "MAIN_TEST_SHARDS=16" in py313_block
     assert "MAIN_TEST_MAX_PARALLEL=4" in py313_block
     assert "export MAIN_TEST_SHARD_TIMEOUT_SECONDS=4800" in py313_block
     assert "PYTEST_XDIST_ARGS=(-p no:xdist)" not in py313_block

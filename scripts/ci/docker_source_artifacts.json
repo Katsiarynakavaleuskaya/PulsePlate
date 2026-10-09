@@ -2,7 +2,7 @@
   "schema_version": 1,
   "generated_at": "2026-10-04",
   "review_by": "2026-10-21",
-  "reason": "Reviewed official SQLite 3.53.2, util-linux 2.42.3, PCRE2 10.49 and its exact upstream SLJIT gitlink sources for the existing bounded native runtime-library builds. All four archive identities and digests are retained; fetch and checksum verification precede Docker builds. Exact reviewed zlib 1.3.2 plus df84 gzwrite fix, ncurses 6.6, shared OpenSSL 3.5.9 and client-only PostgreSQL 18.6 inputs extend this manifest; the prior four identities and source review date remain unchanged. Five exact adjacent official zlib maintenance commits complete the retained public gzip-write and printf contract; the original nine input records are unchanged.",
+  "reason": "Reviewed official SQLite 3.53.2, util-linux 2.42.3, PCRE2 10.49 and its exact upstream SLJIT gitlink sources for the existing bounded native runtime-library builds. All four archive identities and digests are retained; fetch and checksum verification precede Docker builds. Exact reviewed zlib 1.3.2 plus df84 gzwrite fix, ncurses 6.6, shared OpenSSL 3.5.9 and client-only PostgreSQL 18.6 inputs extend this manifest; the prior four identities and source review date remain unchanged. Five exact adjacent official zlib maintenance commits support the retained public gzip-write and printf contract; the original nine input records are unchanged. The exact official a82e include-order correction follows d81; all prior fourteen records and bytes remain unchanged.",
   "artifacts": [
     {
       "name": "sqlite-autoconf",
@@ -372,6 +372,38 @@
         "94ba0329",
         "92556720",
         "78e89115"
+      ]
+    },
+    {
+      "name": "zlib-errno-order-fix",
+      "filename": "zlib-errno-order-fix-a82e0db392178a3e05fb27bf551a6ce757a47898.patch",
+      "url": "https://github.com/madler/zlib/commit/a82e0db392178a3e05fb27bf551a6ce757a47898.patch",
+      "sha3_256_parts": [
+        "70b0fb7e",
+        "333c5757",
+        "807407f1",
+        "d88ef2ff",
+        "71f757b5",
+        "59926b73",
+        "22a1a8d7",
+        "84811cbc"
+      ],
+      "sha256_parts": [
+        "6d02eb6c",
+        "5403c491",
+        "9076cc89",
+        "ae6609ac",
+        "421aa27d",
+        "e116457a",
+        "ca1554c3",
+        "85296a2b"
+      ],
+      "version_parts": [
+        "a82e0db3",
+        "92178a3e",
+        "05fb27bf",
+        "551a6ce7",
+        "57a47898"
       ]
     }
   ]
