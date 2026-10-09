@@ -818,3 +818,25 @@ evidence without inferring missing J, time or outcomes. These operations grant
 no downstream authority. Follow the
 [episode contract](../docs/orchestration/contracts/INVARIANT_FAMILY_REVIEW_EPISODE_CONTRACT.md#optional-lifecycle-supervision-euler-ops-1)
 and its [focused tests](../tests/test_invariant_family_review_episode.py).
+
+## Legacy compatibility guard repair
+
+For `scripts/ci/check_legacy_growth_guard.py`, preserve the existing mapping,
+lexical snapshot, binding and loop-budget seams. Keep the full canonical API-key
+owner fixture and the separate five-protected-name/two-re-export inventories;
+explicit corrupt or missing owner inputs must reach the strict production
+validator. Preserve independent allowed counterexamples and the retired-name
+inventory when repairing a recognizer; source counts do not prove behavior.
+
+Capture callee, receiver and member facts at their own evaluation points; later
+argument effects must not rewrite earlier facts. Keep `ownership_audit` purpose
+distinct from symbol-family selection and ordinary runtime analysis. Preserve
+required unused ownership evidence and dormant execution boundaries.
+
+Provide focused commands with an explicit `tests/test_legacy_growth_guard.py`
+module or literal node selectors and the repo-approved Python interpreter.
+A shell continuation must be continuous: no blank line may detach selectors
+from its command. Never propose selector-free pytest for this guard repair.
+A command proposal or successful AST parse is not a native test receipt; record
+actual argv, output, exit status and source identity under the root local narrow
+validation budget. See `RUNBOOK_AGENT.md` for interpreter and gate procedures.
