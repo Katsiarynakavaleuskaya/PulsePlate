@@ -1,9 +1,13 @@
 from __future__ import annotations
 
 import ast
+import hashlib
+import json
+import resource
 import subprocess
 import sys
 import textwrap
+import time
 from pathlib import Path
 from typing import Any, Literal, Mapping, cast
 
@@ -13505,22 +13509,113 @@ def test_api_key_ownership_guard_preserves_annotation_execution_context(postpone
 
 def test_legacy_growth_guard_real_current_root_cli() -> None:
     """Invoke the actual script and filesystem owner with the current absolute interpreter."""
-    result = subprocess.run(
-        [
-            sys.executable,
-            "-I",
-            "-B",
-            str(REPO_ROOT / "scripts/ci/check_legacy_growth_guard.py"),
-            "--repo-root",
-            str(REPO_ROOT),
-        ],
-        cwd=REPO_ROOT,
-        env={"PYTHONDONTWRITEBYTECODE": "1"},
-        capture_output=True,
-        text=True,
-        check=False,
-        timeout=120,
-    )
+
+    def fingerprint_inputs() -> dict[str, object]:
+        try:
+            explicit_owners = {
+                "scripts/ci/check_legacy_growth_guard.py",
+                legacy_guard.LEGACY_APP,
+                legacy_guard.LEGACY_SEAM_DOC,
+                legacy_guard.FOOD_SEARCH_BOOTSTRAP,
+                legacy_guard.CANONICAL_LIFESPAN,
+                legacy_guard.CANONICAL_APPLICATION_METADATA,
+                legacy_guard.CANONICAL_OPENAPI,
+                legacy_guard.CANONICAL_MAIN,
+                legacy_guard.APP_FACADE,
+            }
+            app_root = REPO_ROOT / "app"
+            if not app_root.is_dir():
+                return {"state": "unknown"}
+            app_paths = {path.relative_to(REPO_ROOT).as_posix() for path in app_root.rglob("*.py")}
+            input_paths = explicit_owners | app_paths
+            aggregate = hashlib.sha256()
+            owner_hashes: dict[str, str] = {}
+            byte_count = 0
+            for relative in sorted(input_paths):
+                contents = (REPO_ROOT / relative).read_bytes()
+                digest = hashlib.sha256(contents).hexdigest()
+                aggregate.update(f"{relative}\0{digest}\0".encode("utf-8"))
+                byte_count += len(contents)
+                if relative in explicit_owners:
+                    owner_hashes[relative] = digest
+            return {
+                "state": "known",
+                "app_py_count": len(app_paths),
+                "input_path_count": len(input_paths),
+                "input_byte_count": byte_count,
+                "raw_file_inputs_sha256": aggregate.hexdigest(),
+                "explicit_owner_sha256": owner_hashes,
+            }
+        except Exception:
+            return {"state": "unknown"}
+
+    inputs_before = fingerprint_inputs()
+    cpu_before: tuple[float, float] | None = None
+    try:
+        started: float | None = time.monotonic()
+    except Exception:
+        started = None
+    try:
+        usage_before = resource.getrusage(resource.RUSAGE_CHILDREN)
+        cpu_before = (usage_before.ru_utime, usage_before.ru_stime)
+    except Exception:
+        pass
+    try:
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-I",
+                "-B",
+                str(REPO_ROOT / "scripts/ci/check_legacy_growth_guard.py"),
+                "--repo-root",
+                str(REPO_ROOT),
+            ],
+            cwd=REPO_ROOT,
+            env={"PYTHONDONTWRITEBYTECODE": "1"},
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=120,
+        )
+    except subprocess.TimeoutExpired:
+        try:
+            elapsed = time.monotonic() - started if started is not None else None
+        except Exception:
+            elapsed = None
+        cpu_delta: dict[str, float] | None = None
+        try:
+            usage_after = resource.getrusage(resource.RUSAGE_CHILDREN)
+            if cpu_before is not None:
+                cpu_delta = {
+                    "user_seconds": usage_after.ru_utime - cpu_before[0],
+                    "system_seconds": usage_after.ru_stime - cpu_before[1],
+                }
+        except Exception:
+            pass
+        try:
+            inputs_after = fingerprint_inputs()
+            diagnostic = {
+                "event": "legacy_guard_cli_timeout",
+                "elapsed_seconds": elapsed,
+                "reaped_children_accounting_window_cpu_delta": cpu_delta,
+                "cpu_scope": "accounting_window_not_pid_exclusive",
+                "host_cause": "unknown",
+                "fingerprint_scope": "non_atomic_raw_file_read_set",
+                "inputs_before": inputs_before,
+                "inputs_after": inputs_after,
+                "readback_equal": (
+                    inputs_before == inputs_after
+                    if inputs_before.get("state") == inputs_after.get("state") == "known"
+                    else None
+                ),
+            }
+            sys.stderr.write(json.dumps(diagnostic, sort_keys=True, allow_nan=False) + "\n")
+        except Exception:
+            try:
+                sys.stderr.write('{"event":"legacy_guard_cli_timeout","diagnostic":"unknown"}\n')
+            except Exception:
+                pass
+        raise
     assert result.returncode == 0, result.stderr
     assert result.stdout.strip() == "legacy compatibility seam guard passed"
     assert result.stderr == ""
