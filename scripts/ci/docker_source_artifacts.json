@@ -2,7 +2,7 @@
   "schema_version": 1,
   "generated_at": "2026-10-04",
   "review_by": "2026-10-21",
-  "reason": "Reviewed official SQLite 3.53.2, util-linux 2.42.3, PCRE2 10.49 and its exact upstream SLJIT gitlink sources for the existing bounded native runtime-library builds. All four archive identities and digests are retained; fetch and checksum verification precede Docker builds. Exact reviewed zlib 1.3.2 plus df84 gzwrite fix, ncurses 6.6, shared OpenSSL 3.5.9 and client-only PostgreSQL 18.6 inputs extend this manifest; the prior four identities and source review date remain unchanged.",
+  "reason": "Reviewed official SQLite 3.53.2, util-linux 2.42.3, PCRE2 10.49 and its exact upstream SLJIT gitlink sources for the existing bounded native runtime-library builds. All four archive identities and digests are retained; fetch and checksum verification precede Docker builds. Exact reviewed zlib 1.3.2 plus df84 gzwrite fix, ncurses 6.6, shared OpenSSL 3.5.9 and client-only PostgreSQL 18.6 inputs extend this manifest; the prior four identities and source review date remain unchanged. Five exact adjacent official zlib maintenance commits complete the retained public gzip-write and printf contract; the original nine input records are unchanged.",
   "artifacts": [
     {
       "name": "sqlite-autoconf",
@@ -212,6 +212,166 @@
         "0e1d1c89",
         "9a076191",
         "52a46148"
+      ]
+    },
+    {
+      "name": "zlib-gzwrite-null-fix",
+      "filename": "zlib-gzwrite-null-fix-e3dc0a85b7032e98380dec011bc8f2c2ee0d8fca.patch",
+      "url": "https://github.com/madler/zlib/commit/e3dc0a85b7032e98380dec011bc8f2c2ee0d8fca.patch",
+      "sha3_256_parts": [
+        "63adc22e",
+        "cebf8bbe",
+        "e7b9aaf4",
+        "f0587657",
+        "68948996",
+        "ca4b26fa",
+        "260d8b80",
+        "6a64e7d3"
+      ],
+      "sha256_parts": [
+        "183bc8b9",
+        "dd078a41",
+        "a62de5c2",
+        "d905d9b0",
+        "196b45bc",
+        "46f100d7",
+        "e4147ec2",
+        "28207c74"
+      ],
+      "version_parts": [
+        "e3dc0a85",
+        "b7032e98",
+        "380dec01",
+        "1bc8f2c2",
+        "ee0d8fca"
+      ]
+    },
+    {
+      "name": "zlib-gzvprintf-return-fix",
+      "filename": "zlib-gzvprintf-return-fix-bbc2ccf3d0de267576b524b875c769a724a513b0.patch",
+      "url": "https://github.com/madler/zlib/commit/bbc2ccf3d0de267576b524b875c769a724a513b0.patch",
+      "sha3_256_parts": [
+        "55b2edac",
+        "2662134a",
+        "37863f6d",
+        "1e11fb97",
+        "d6e63e03",
+        "5d8d0d3d",
+        "70ec6d8a",
+        "3b669734"
+      ],
+      "sha256_parts": [
+        "7d00ee29",
+        "be5e636d",
+        "30da2890",
+        "961e83e3",
+        "5cee0b15",
+        "2333ecd9",
+        "7a46ae2e",
+        "71eb5d47"
+      ],
+      "version_parts": [
+        "bbc2ccf3",
+        "d0de2675",
+        "76b524b8",
+        "75c769a7",
+        "24a513b0"
+      ]
+    },
+    {
+      "name": "zlib-gzprintf-return-fix",
+      "filename": "zlib-gzprintf-return-fix-7235b0a581227c56a79a43ff828f8ef6794194c8.patch",
+      "url": "https://github.com/madler/zlib/commit/7235b0a581227c56a79a43ff828f8ef6794194c8.patch",
+      "sha3_256_parts": [
+        "274bce56",
+        "61e7c7cc",
+        "9c47e21f",
+        "100c7078",
+        "7cad6d8c",
+        "0c04104a",
+        "ff8d8d84",
+        "baced7a7"
+      ],
+      "sha256_parts": [
+        "96040ee8",
+        "4d0d1879",
+        "05283912",
+        "dbd3f7b6",
+        "6ac20339",
+        "76a2ceef",
+        "e9b8cca6",
+        "3143d9c2"
+      ],
+      "version_parts": [
+        "7235b0a5",
+        "81227c56",
+        "a79a43ff",
+        "828f8ef6",
+        "794194c8"
+      ]
+    },
+    {
+      "name": "zlib-blocked-errno-fix",
+      "filename": "zlib-blocked-errno-fix-813dac5dcb5902ed241e9b0d38abd2d847a335a9.patch",
+      "url": "https://github.com/madler/zlib/commit/813dac5dcb5902ed241e9b0d38abd2d847a335a9.patch",
+      "sha3_256_parts": [
+        "438d0e57",
+        "75f15081",
+        "a3339eed",
+        "38d4b207",
+        "b100f5cf",
+        "4f68db0e",
+        "619ef9b3",
+        "054e3e4a"
+      ],
+      "sha256_parts": [
+        "6475806c",
+        "db638378",
+        "8a03e7af",
+        "5617188e",
+        "f2692803",
+        "889cded1",
+        "fcb01482",
+        "5923d16c"
+      ],
+      "version_parts": [
+        "813dac5d",
+        "cb5902ed",
+        "241e9b0d",
+        "38abd2d8",
+        "47a335a9"
+      ]
+    },
+    {
+      "name": "zlib-gzprintf-contract-fix",
+      "filename": "zlib-gzprintf-contract-fix-d81c2d7eb705c62294ba03299255672078e89115.patch",
+      "url": "https://github.com/madler/zlib/commit/d81c2d7eb705c62294ba03299255672078e89115.patch",
+      "sha3_256_parts": [
+        "adf2578c",
+        "eaa4d9a5",
+        "2ccfa8d7",
+        "4f8b8792",
+        "cce3084f",
+        "9f770944",
+        "39450eec",
+        "2a7a214c"
+      ],
+      "sha256_parts": [
+        "a786b2b0",
+        "84126860",
+        "08c7fe12",
+        "47e90701",
+        "cebde564",
+        "037806bd",
+        "9935f849",
+        "07737cc4"
+      ],
+      "version_parts": [
+        "d81c2d7e",
+        "b705c622",
+        "94ba0329",
+        "92556720",
+        "78e89115"
       ]
     }
   ]

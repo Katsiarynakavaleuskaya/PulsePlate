@@ -365,7 +365,7 @@ not download sources, scan images, edit dates or supply suppression/merge
 approval. Scheduled runs and notifications are best-effort; no warning does not
 prove the material remains current.
 
-The nine-source manifest review is October 21, 2026 inclusive; October 22 rejects
+The source manifest review is October 21, 2026 inclusive; October 22 rejects
 stale source review (`scripts/ci/docker_source_artifacts.json:4`). The current
 `trivy/ignore-policy.rego:1` is the complete canonical never-ignore file, with no
 R1 rules or exclusive helpers. Only those exact complete bytes are expiry-free.

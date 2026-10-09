@@ -80,6 +80,36 @@ _PINNED_NATIVE_SOURCES = {
         "zlib-gzwrite-fix-df84af25dc1942490e1d1c899a07619152a46148.patch",
         ("78aa4480" "48a5cc72" "d29156cf" "77483dd8" "f142018a" "7783a4fe" "9f73ea5f" "a02f034d"),
     ),
+    "zlib-gzwrite-null-fix": (
+        ("e3dc0a85" "b7032e98" "380dec01" "1bc8f2c2" "ee0d8fca"),
+        "https://github.com/madler/zlib/commit/e3dc0a85b7032e98380dec011bc8f2c2ee0d8fca.patch",
+        "zlib-gzwrite-null-fix-e3dc0a85b7032e98380dec011bc8f2c2ee0d8fca.patch",
+        ("63adc22e" "cebf8bbe" "e7b9aaf4" "f0587657" "68948996" "ca4b26fa" "260d8b80" "6a64e7d3"),
+    ),
+    "zlib-gzvprintf-return-fix": (
+        ("bbc2ccf3" "d0de2675" "76b524b8" "75c769a7" "24a513b0"),
+        "https://github.com/madler/zlib/commit/bbc2ccf3d0de267576b524b875c769a724a513b0.patch",
+        "zlib-gzvprintf-return-fix-bbc2ccf3d0de267576b524b875c769a724a513b0.patch",
+        ("55b2edac" "2662134a" "37863f6d" "1e11fb97" "d6e63e03" "5d8d0d3d" "70ec6d8a" "3b669734"),
+    ),
+    "zlib-gzprintf-return-fix": (
+        ("7235b0a5" "81227c56" "a79a43ff" "828f8ef6" "794194c8"),
+        "https://github.com/madler/zlib/commit/7235b0a581227c56a79a43ff828f8ef6794194c8.patch",
+        "zlib-gzprintf-return-fix-7235b0a581227c56a79a43ff828f8ef6794194c8.patch",
+        ("274bce56" "61e7c7cc" "9c47e21f" "100c7078" "7cad6d8c" "0c04104a" "ff8d8d84" "baced7a7"),
+    ),
+    "zlib-blocked-errno-fix": (
+        ("813dac5d" "cb5902ed" "241e9b0d" "38abd2d8" "47a335a9"),
+        "https://github.com/madler/zlib/commit/813dac5dcb5902ed241e9b0d38abd2d847a335a9.patch",
+        "zlib-blocked-errno-fix-813dac5dcb5902ed241e9b0d38abd2d847a335a9.patch",
+        ("438d0e57" "75f15081" "a3339eed" "38d4b207" "b100f5cf" "4f68db0e" "619ef9b3" "054e3e4a"),
+    ),
+    "zlib-gzprintf-contract-fix": (
+        ("d81c2d7e" "b705c622" "94ba0329" "92556720" "78e89115"),
+        "https://github.com/madler/zlib/commit/d81c2d7eb705c62294ba03299255672078e89115.patch",
+        "zlib-gzprintf-contract-fix-d81c2d7eb705c62294ba03299255672078e89115.patch",
+        ("adf2578c" "eaa4d9a5" "2ccfa8d7" "4f8b8792" "cce3084f" "9f770944" "39450eec" "2a7a214c"),
+    ),
 }
 _PINNED_EXACT_SOURCES = {**_PINNED_CODELOAD_SOURCES, **_PINNED_NATIVE_SOURCES}
 _NATIVE_ARCHIVE_INVENTORIES = {
@@ -105,6 +135,29 @@ _PINNED_NATIVE_SHA256 = {
     "zlib-gzwrite-fix": (
         "110ff143" "75733173" "d8aa5457" "4473424f" "bd7dfe4b" "81f1ca34" "a759c6fe" "14b15b14"
     ),
+    "zlib-gzwrite-null-fix": (
+        "183bc8b9" "dd078a41" "a62de5c2" "d905d9b0" "196b45bc" "46f100d7" "e4147ec2" "28207c74"
+    ),
+    "zlib-gzvprintf-return-fix": (
+        "7d00ee29" "be5e636d" "30da2890" "961e83e3" "5cee0b15" "2333ecd9" "7a46ae2e" "71eb5d47"
+    ),
+    "zlib-gzprintf-return-fix": (
+        "96040ee8" "4d0d1879" "05283912" "dbd3f7b6" "6ac20339" "76a2ceef" "e9b8cca6" "3143d9c2"
+    ),
+    "zlib-blocked-errno-fix": (
+        "6475806c" "db638378" "8a03e7af" "5617188e" "f2692803" "889cded1" "fcb01482" "5923d16c"
+    ),
+    "zlib-gzprintf-contract-fix": (
+        "a786b2b0" "84126860" "08c7fe12" "47e90701" "cebde564" "037806bd" "9935f849" "07737cc4"
+    ),
+}
+_PINNED_ZLIB_PATCH_SIZES = {
+    "zlib-gzwrite-fix": 854,
+    "zlib-gzwrite-null-fix": 773,
+    "zlib-gzvprintf-return-fix": 749,
+    "zlib-gzprintf-return-fix": 764,
+    "zlib-blocked-errno-fix": 2449,
+    "zlib-gzprintf-contract-fix": 1990,
 }
 
 
@@ -242,7 +295,8 @@ def load_manifest(path: Path, *, today: date | None = None) -> tuple[DockerSourc
         if "version_parts" in raw_artifact:
             parts = raw_artifact["version_parts"]
             if (
-                name != "zlib-gzwrite-fix"
+                not isinstance(name, str)
+                or name not in _PINNED_ZLIB_PATCH_SIZES
                 or version is not None
                 or type(parts) is not list
                 or len(parts) != 5
@@ -251,9 +305,7 @@ def load_manifest(path: Path, *, today: date | None = None) -> tuple[DockerSourc
                     for part in parts
                 )
             ):
-                raise RuntimeError(
-                    "Only the exact zlib patch uses the reviewed version-parts form."
-                )
+                raise RuntimeError("Only exact reviewed zlib patches use the version-parts form.")
             version = "".join(parts)
         filename = raw_artifact.get("filename")
         url = raw_artifact.get("url")
@@ -310,8 +362,8 @@ def validate_source_payload(artifact: DockerSourceArtifact, payload: bytes) -> N
         raise RuntimeError(f"{artifact.name} SHA3 mismatch")
     if artifact.sha256 is not None and sha256(payload).hexdigest() != artifact.sha256:
         raise RuntimeError(f"{artifact.name} SHA256 mismatch")
-    if artifact.name == "zlib-gzwrite-fix":
-        if len(payload) != 854:
+    if artifact.name in _PINNED_ZLIB_PATCH_SIZES:
+        if len(payload) != _PINNED_ZLIB_PATCH_SIZES[artifact.name]:
             raise RuntimeError("The exact zlib patch size differs from its reviewed identity.")
         return
     if artifact.name not in _NATIVE_ARCHIVE_INVENTORIES:

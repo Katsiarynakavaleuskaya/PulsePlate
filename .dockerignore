@@ -67,3 +67,8 @@
 !build/docker-sources/openssl-3.5.9.tar.gz
 !build/docker-sources/postgresql-18.6.tar.gz
 !build/docker-sources/zlib-gzwrite-fix-df84af25dc1942490e1d1c899a07619152a46148.patch
+!build/docker-sources/zlib-gzwrite-null-fix-e3dc0a85b7032e98380dec011bc8f2c2ee0d8fca.patch
+!build/docker-sources/zlib-gzvprintf-return-fix-bbc2ccf3d0de267576b524b875c769a724a513b0.patch
+!build/docker-sources/zlib-gzprintf-return-fix-7235b0a581227c56a79a43ff828f8ef6794194c8.patch
+!build/docker-sources/zlib-blocked-errno-fix-813dac5dcb5902ed241e9b0d38abd2d847a335a9.patch
+!build/docker-sources/zlib-gzprintf-contract-fix-d81c2d7eb705c62294ba03299255672078e89115.patch

@@ -31,6 +31,7 @@ RUN case "${PSYCOPG_SDK_PYTHON_IMAGE}" in \
     && rm -rf /var/lib/apt/lists/*
 COPY scripts/ci/docker_source_artifacts.json scripts/ci/fetch_docker_source_artifacts.py /tooling/scripts/ci/
 COPY build/docker-sources/zlib-1.3.2.tar.gz build/docker-sources/ncurses-6.6.tar.gz build/docker-sources/openssl-3.5.9.tar.gz build/docker-sources/postgresql-18.6.tar.gz build/docker-sources/zlib-gzwrite-fix-df84af25dc1942490e1d1c899a07619152a46148.patch /input/native/
+COPY build/docker-sources/zlib-gzwrite-null-fix-e3dc0a85b7032e98380dec011bc8f2c2ee0d8fca.patch build/docker-sources/zlib-gzvprintf-return-fix-bbc2ccf3d0de267576b524b875c769a724a513b0.patch build/docker-sources/zlib-gzprintf-return-fix-7235b0a581227c56a79a43ff828f8ef6794194c8.patch build/docker-sources/zlib-blocked-errno-fix-813dac5dcb5902ed241e9b0d38abd2d847a335a9.patch build/docker-sources/zlib-gzprintf-contract-fix-d81c2d7eb705c62294ba03299255672078e89115.patch /input/native/
 RUN --network=none python - <<'PY'
 import sys
 sys.path.insert(0, "/tooling/scripts/ci")
@@ -39,14 +40,14 @@ import tarfile
 from fetch_docker_source_artifacts import load_manifest, validate_source_payload
 
 records = load_manifest(Path("/tooling/scripts/ci/docker_source_artifacts.json"))
-for name in ("zlib", "ncurses", "openssl", "postgresql", "zlib-gzwrite-fix"):
+for name in ("zlib", "ncurses", "openssl", "postgresql", "zlib-gzwrite-fix", "zlib-gzwrite-null-fix", "zlib-gzvprintf-return-fix", "zlib-gzprintf-return-fix", "zlib-blocked-errno-fix", "zlib-gzprintf-contract-fix"):
     matches = [record for record in records if record.name == name]
     if len(matches) != 1:
         raise SystemExit("Native source identity is missing or duplicated")
     record = matches[0]
     payload = Path("/input/native", record.filename).read_bytes()
     validate_source_payload(record, payload)
-    if name != "zlib-gzwrite-fix":
+    if name in ("zlib", "ncurses", "openssl", "postgresql"):
         with tarfile.open(Path("/input/native", record.filename), "r:gz") as archive:
             archive.extractall("/build/source", filter="data")
 PY
@@ -60,16 +61,27 @@ import json
 rows = {p.as_posix(): sha256(p.read_bytes()).hexdigest() for p in Path(".").rglob("*") if p.is_file() and not p.is_symlink()}
 Path("/tmp/zlib-original-members.json").write_text(json.dumps(rows))
 PY
-patch --batch --forward -p1 --input /input/native/zlib-gzwrite-fix-df84af25dc1942490e1d1c899a07619152a46148.patch
+patch --batch --forward --fuzz=0 --no-backup-if-mismatch -p1 --input /input/native/zlib-gzwrite-null-fix-e3dc0a85b7032e98380dec011bc8f2c2ee0d8fca.patch
+patch --batch --forward --fuzz=0 --no-backup-if-mismatch -p1 --input /input/native/zlib-gzvprintf-return-fix-bbc2ccf3d0de267576b524b875c769a724a513b0.patch
+patch --batch --forward --fuzz=0 --no-backup-if-mismatch -p1 --input /input/native/zlib-gzwrite-fix-df84af25dc1942490e1d1c899a07619152a46148.patch
+patch --batch --forward --fuzz=0 --no-backup-if-mismatch -p1 --input /input/native/zlib-gzprintf-return-fix-7235b0a581227c56a79a43ff828f8ef6794194c8.patch
+patch --batch --forward --fuzz=0 --no-backup-if-mismatch -p1 --input /input/native/zlib-blocked-errno-fix-813dac5dcb5902ed241e9b0d38abd2d847a335a9.patch
+patch --batch --forward --fuzz=0 --no-backup-if-mismatch -p1 --input /input/native/zlib-gzprintf-contract-fix-d81c2d7eb705c62294ba03299255672078e89115.patch
 python - <<'PY'
 from hashlib import sha256
 from pathlib import Path
 import json
 before = json.loads(Path("/tmp/zlib-original-members.json").read_text())
 after = {p.as_posix(): sha256(p.read_bytes()).hexdigest() for p in Path(".").rglob("*") if p.is_file() and not p.is_symlink()}
-if set(before) != set(after) or {name for name in before if before[name] != after[name]} != {"gzwrite.c"}:
-    raise SystemExit("zlib patch changed another source member or failed to apply")
-if len(before) != 254 or after["gzwrite.c"] != ('31d0da14' '0edf382b' '82b13e2d' '87a22f59' 'e158d901' '4ee02645' '9e01cf43' '7d0ab07d'):
+expected = {
+    "gzguts.h": ('4e576db3' '49bfbda6' '2a00671a' 'cd9292f2' '42325286' '2b9241e9' '2bbd3fb1' '408f23c4'),
+    "gzread.c": ('22178dd5' '092c89bc' '46e0a3eb' 'bcd808f0' '3e8aafa3' '15c2a452' '4a6a0a2f' 'f7c65038'),
+    "gzwrite.c": ('548eb543' '23313b70' 'b74a5564' 'a61ccd4b' '968200ef' '89cbb70a' '6152d50b' '373515c5'),
+    "zlib.h": ('648069fd' 'ae548705' 'c3a1c02d' 'ac97a1dd' '7794e9e0' 'bd32b46f' 'b2afb357' '164b8037'),
+}
+if set(before) != set(after) or {name for name in before if before[name] != after[name]} != set(expected):
+    raise SystemExit("zlib patches changed another source member or failed to apply")
+if len(before) != 254 or any(after[name] != digest for name, digest in expected.items()):
     raise SystemExit("zlib patched source fingerprint mismatch")
 PY
 ./configure --prefix=/usr/local --libdir=/usr/local/lib --shared

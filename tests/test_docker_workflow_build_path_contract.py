@@ -762,7 +762,7 @@ def test_docker_source_artifact_manifest_pins_sqlite_source() -> None:
     assert manifest["schema_version"] == 1
     assert manifest["generated_at"] == "2026-10-04"
     assert manifest["review_by"] == "2026-10-21"
-    assert len(artifacts) == 9
+    assert len(artifacts) == 14
     assert [row["name"] for row in artifacts[:4]] == [
         "sqlite-autoconf",
         "util-linux",
@@ -800,11 +800,11 @@ def test_docker_source_artifact_manifest_review_window_is_inclusive(tmp_path: Pa
     historical["generated_at"] = "2026-09-28"
     historical["review_by"] = "2026-10-05"
     old_path = _write_docker_source_manifest(tmp_path, historical)
-    assert len(docker_sources.load_manifest(old_path, today=date(2026, 10, 5))) == 9
+    assert len(docker_sources.load_manifest(old_path, today=date(2026, 10, 5))) == 14
     with pytest.raises(RuntimeError, match="review_by is stale: 2026-10-05"):
         docker_sources.load_manifest(old_path, today=date(2026, 10, 6))
     for day in (6, 8, 21):
-        assert len(docker_sources.load_manifest(manifest_path, today=date(2026, 10, day))) == 9
+        assert len(docker_sources.load_manifest(manifest_path, today=date(2026, 10, day))) == 14
     with pytest.raises(RuntimeError, match="review_by is stale: 2026-10-21"):
         docker_sources.load_manifest(manifest_path, today=date(2026, 10, 22))
 
@@ -1650,7 +1650,7 @@ def test_pcre2_source_records_bind_exact_reviewed_closure(
     artifacts = docker_sources.load_manifest(
         REPO_ROOT / "scripts/ci/docker_source_artifacts.json", today=date(2026, 10, 2)
     )
-    assert len(artifacts) == 9
+    assert len(artifacts) == 14
     matches = [artifact for artifact in artifacts if artifact.name == name]
     assert len(matches) == 1
     artifact = matches[0]
@@ -2118,3 +2118,234 @@ def test_existing_package_guard_rejects_kerberos_and_preserves_typed_inventory_e
         assert expected_message in result.stderr
     else:
         assert not result.stderr
+
+
+_ZLIB_MAINTENANCE_PATCHES = (
+    (
+        "zlib-gzwrite-null-fix",
+        ("e3dc0a85" "b7032e98" "380dec01" "1bc8f2c2" "ee0d8fca"),
+        ("63adc22e" "cebf8bbe" "e7b9aaf4" "f0587657" "68948996" "ca4b26fa" "260d8b80" "6a64e7d3"),
+        ("183bc8b9" "dd078a41" "a62de5c2" "d905d9b0" "196b45bc" "46f100d7" "e4147ec2" "28207c74"),
+    ),
+    (
+        "zlib-gzvprintf-return-fix",
+        ("bbc2ccf3" "d0de2675" "76b524b8" "75c769a7" "24a513b0"),
+        ("55b2edac" "2662134a" "37863f6d" "1e11fb97" "d6e63e03" "5d8d0d3d" "70ec6d8a" "3b669734"),
+        ("7d00ee29" "be5e636d" "30da2890" "961e83e3" "5cee0b15" "2333ecd9" "7a46ae2e" "71eb5d47"),
+    ),
+    (
+        "zlib-gzprintf-return-fix",
+        ("7235b0a5" "81227c56" "a79a43ff" "828f8ef6" "794194c8"),
+        ("274bce56" "61e7c7cc" "9c47e21f" "100c7078" "7cad6d8c" "0c04104a" "ff8d8d84" "baced7a7"),
+        ("96040ee8" "4d0d1879" "05283912" "dbd3f7b6" "6ac20339" "76a2ceef" "e9b8cca6" "3143d9c2"),
+    ),
+    (
+        "zlib-blocked-errno-fix",
+        ("813dac5d" "cb5902ed" "241e9b0d" "38abd2d8" "47a335a9"),
+        ("438d0e57" "75f15081" "a3339eed" "38d4b207" "b100f5cf" "4f68db0e" "619ef9b3" "054e3e4a"),
+        ("6475806c" "db638378" "8a03e7af" "5617188e" "f2692803" "889cded1" "fcb01482" "5923d16c"),
+    ),
+    (
+        "zlib-gzprintf-contract-fix",
+        ("d81c2d7e" "b705c622" "94ba0329" "92556720" "78e89115"),
+        ("adf2578c" "eaa4d9a5" "2ccfa8d7" "4f8b8792" "cce3084f" "9f770944" "39450eec" "2a7a214c"),
+        ("a786b2b0" "84126860" "08c7fe12" "47e90701" "cebde564" "037806bd" "9935f849" "07737cc4"),
+    ),
+)
+
+
+@pytest.mark.parametrize("name,commit,sha3,sha2", _ZLIB_MAINTENANCE_PATCHES)
+def test_zlib_maintenance_manifest_keeps_exact_official_patch_identities(
+    name: str, commit: str, sha3: str, sha2: str
+) -> None:
+    artifacts = docker_sources.load_manifest(
+        REPO_ROOT / "scripts/ci/docker_source_artifacts.json", today=date(2026, 10, 9)
+    )
+    matches = [artifact for artifact in artifacts if artifact.name == name]
+    assert len(matches) == 1
+    artifact = matches[0]
+    assert (
+        artifact.version,
+        artifact.url,
+        artifact.filename,
+        artifact.sha3_256,
+        artifact.sha256,
+    ) == (
+        commit,
+        f"https://github.com/madler/zlib/commit/{commit}.patch",
+        f"{name}-{commit}.patch",
+        sha3,
+        sha2,
+    )
+
+
+@pytest.mark.parametrize("name,commit,sha3,sha2", _ZLIB_MAINTENANCE_PATCHES)
+@pytest.mark.parametrize("field", ["version", "url", "filename", "sha3_256", "sha256"])
+def test_zlib_maintenance_identity_drift_rejected_before_cache_or_transport(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    name: str,
+    commit: str,
+    sha3: str,
+    sha2: str,
+    field: str,
+) -> None:
+    artifact = docker_sources.DockerSourceArtifact(
+        name=name,
+        version=commit,
+        filename=f"{name}-{commit}.patch",
+        url=f"https://github.com/madler/zlib/commit/{commit}.patch",
+        sha3_256=sha3,
+        sha256=sha2,
+    )
+    value = getattr(artifact, field)
+    assert isinstance(value, str)
+    corrupted = replace(artifact, **{field: value + "other"})
+    calls = _stub_source_transport(monkeypatch, payload=b"unused")
+    output = tmp_path / "sources"
+    with pytest.raises(RuntimeError, match="reviewed identity"):
+        docker_sources._write_verified_artifact(corrupted, output)
+    assert calls == []
+    assert not output.exists()
+
+
+@pytest.mark.parametrize("name,commit,sha3,sha2", _ZLIB_MAINTENANCE_PATCHES)
+@pytest.mark.parametrize("code", [301, 302, 303, 307, 308])
+def test_zlib_maintenance_redirects_use_real_rejecting_handler(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    name: str,
+    commit: str,
+    sha3: str,
+    sha2: str,
+    code: int,
+) -> None:
+    artifact = docker_sources.DockerSourceArtifact(
+        name=name,
+        version=commit,
+        filename=f"{name}-{commit}.patch",
+        url=f"https://github.com/madler/zlib/commit/{commit}.patch",
+        sha3_256=sha3,
+        sha256=sha2,
+    )
+    calls = _stub_source_transport(
+        monkeypatch, payload=b"redirected patch", code=code, location=artifact.url
+    )
+    output = tmp_path / "sources"
+    with pytest.raises(HTTPError):
+        docker_sources._write_verified_artifact(artifact, output)
+    assert calls == [(artifact.url, 60)]
+    assert list(output.iterdir()) == []
+
+
+@pytest.mark.parametrize("name,commit,sha3,sha2", _ZLIB_MAINTENANCE_PATCHES)
+def test_zlib_maintenance_payload_rejects_wrong_actual_bytes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, name: str, commit: str, sha3: str, sha2: str
+) -> None:
+    artifact = docker_sources.DockerSourceArtifact(
+        name=name,
+        version=commit,
+        filename=f"{name}-{commit}.patch",
+        url=f"https://github.com/madler/zlib/commit/{commit}.patch",
+        sha3_256=sha3,
+        sha256=sha2,
+    )
+    calls = _stub_source_transport(monkeypatch, payload=b"different actual patch bytes")
+    output = tmp_path / "sources"
+    with pytest.raises(RuntimeError, match="SHA3 mismatch"):
+        docker_sources._write_verified_artifact(artifact, output)
+    assert calls == [(artifact.url, 60)]
+    assert list(output.iterdir()) == []
+
+
+def test_zlib_maintenance_docker_recipe_binds_exact_order_and_source_fingerprints() -> None:
+    dockerfile = (REPO_ROOT / "Dockerfile").read_text()
+    native = dockerfile.split(" AS native-builder\n", 1)[1].split("\nFROM ", 1)[0]
+    prefix = native.split("./configure --prefix=/usr/local --libdir=/usr/local/lib --shared", 1)[0]
+    commits = [record[1] for record in _ZLIB_MAINTENANCE_PATCHES]
+    names = [record[0] for record in _ZLIB_MAINTENANCE_PATCHES]
+    names.insert(2, "zlib-gzwrite-fix")
+    commits.insert(2, ("df84af25" "dc194249" "0e1d1c89" "9a076191" "52a46148"))
+    expected = [
+        f"patch --batch --forward --fuzz=0 --no-backup-if-mismatch -p1 --input /input/native/{name}-{commit}.patch"
+        for name, commit in zip(names, commits)
+    ]
+    assert [line for line in prefix.splitlines() if line.startswith("patch ")] == expected
+    dockerignore = (REPO_ROOT / ".dockerignore").read_text()
+    for name, commit in zip(names, commits):
+        filename = f"{name}-{commit}.patch"
+        assert f"build/docker-sources/{filename}" in prefix
+        assert f"!build/docker-sources/{filename}" in dockerignore
+    assert "set(before) != set(after)" in prefix
+    assert "len(before) != 254" in prefix
+    assert "!= set(expected)" in prefix
+    for name, digest in (
+        (
+            "gzguts.h",
+            (
+                "4e576db3"
+                "49bfbda6"
+                "2a00671a"
+                "cd9292f2"
+                "42325286"
+                "2b9241e9"
+                "2bbd3fb1"
+                "408f23c4"
+            ),
+        ),
+        (
+            "gzread.c",
+            (
+                "22178dd5"
+                "092c89bc"
+                "46e0a3eb"
+                "bcd808f0"
+                "3e8aafa3"
+                "15c2a452"
+                "4a6a0a2f"
+                "f7c65038"
+            ),
+        ),
+        (
+            "gzwrite.c",
+            (
+                "548eb543"
+                "23313b70"
+                "b74a5564"
+                "a61ccd4b"
+                "968200ef"
+                "89cbb70a"
+                "6152d50b"
+                "373515c5"
+            ),
+        ),
+        (
+            "zlib.h",
+            (
+                "648069fd"
+                "ae548705"
+                "c3a1c02d"
+                "ac97a1dd"
+                "7794e9e0"
+                "bd32b46f"
+                "b2afb357"
+                "164b8037"
+            ),
+        ),
+    ):
+        assert name in prefix
+        assert all(part in prefix for part in [digest[i : i + 8] for i in range(0, 64, 8)])
+
+
+@pytest.mark.parametrize("bad_name", [[], {}])
+def test_zlib_maintenance_manifest_refuses_unhashable_names(
+    tmp_path: Path, bad_name: object
+) -> None:
+    manifest = json.loads((REPO_ROOT / "scripts/ci/docker_source_artifacts.json").read_text())
+    row = next(
+        record for record in manifest["artifacts"] if record["name"] == "zlib-gzwrite-null-fix"
+    )
+    row["name"] = bad_name
+    path = _write_docker_source_manifest(tmp_path, manifest)
+    with pytest.raises(RuntimeError, match="Only exact reviewed zlib patches"):
+        docker_sources.load_manifest(path, today=date(2026, 10, 9))
