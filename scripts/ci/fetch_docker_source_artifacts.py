@@ -22,6 +22,8 @@ import stat
 import sys
 import tarfile
 import tempfile
+import time
+from urllib.error import HTTPError
 from urllib.parse import urlparse
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
@@ -456,11 +458,31 @@ def _write_verified_artifact(artifact: DockerSourceArtifact, output_dir: Path) -
     _validate_source_identity(artifact)
     source_url = _validate_source_url(artifact.url, artifact_name=artifact.name)
     print(f"{artifact.name}: fetching {source_url}")
-    with build_opener(_NoRedirectHandler()).open(source_url, timeout=60) as response:
-        if artifact.name in _PINNED_NATIVE_SOURCES:
-            payload = response.read(_NATIVE_ARCHIVE_MAX_BYTES + 1)
-        else:
-            payload = response.read()
+    first_http_error: HTTPError | None = None
+    attempt = 1
+    while True:
+        try:
+            with build_opener(_NoRedirectHandler()).open(source_url, timeout=60) as response:
+                if artifact.name in _PINNED_NATIVE_SOURCES:
+                    payload = response.read(_NATIVE_ARCHIVE_MAX_BYTES + 1)
+                else:
+                    payload = response.read()
+            break
+        except HTTPError as error:
+            if type(error.code) is not int or error.code not in (502, 503, 504):
+                raise
+            if first_http_error is None:
+                first_http_error = error
+            print(
+                f"{artifact.name}: source HTTP {error.code} on attempt {attempt}/3",
+                file=sys.stderr,
+                flush=True,
+            )
+            error.close()
+            if attempt == 3:
+                raise first_http_error
+            time.sleep(attempt)
+            attempt += 1
     actual_digest = sha3_256(payload).hexdigest()
     if actual_digest != artifact.sha3_256:
         raise RuntimeError(

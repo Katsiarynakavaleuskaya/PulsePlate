@@ -309,6 +309,13 @@ Only observed BuildKit CACHED records support reuse. Retain old SDK/wheel
 proofs under their original GSS configuration; generate fresh output slots
 for the revised client rather than copying native bytes to avoid a rebuild.
 
+Verified Docker source acquisition retries only HTTP 502/503/504, at most
+three attempts against the same reviewed URL with one- and two-second waits.
+Every failed attempt remains observable. TLS, redirects, other HTTP statuses,
+checksum/content/archive/license and unsafe-cache/path failures remain terminal;
+exhaustion preserves the original HTTP failure. Retain the failed capture before
+bounded recovery; never change a digest or source identity to satisfy transport.
+
 During a frozen image-input block, stage every modified image input before an
 ordinary Git commit: native pre-commit temporarily stashes unstaged tracked
 changes. Check the actual unstaged path inventory before the hook. A generated

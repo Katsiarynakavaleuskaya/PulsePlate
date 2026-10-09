@@ -12,11 +12,12 @@ import json
 import os
 import shlex
 import shutil
+from ssl import SSLCertVerificationError
 import subprocess
 import sys
 from pathlib import Path, PurePosixPath
 from urllib.parse import urlparse
-from urllib.error import HTTPError
+from urllib.error import HTTPError, URLError
 from urllib.request import HTTPHandler, HTTPSHandler, Request
 from urllib.response import addinfourl
 
@@ -1159,6 +1160,7 @@ def _stub_source_transport(
     payload: bytes,
     code: int = 200,
     location: str | None = None,
+    response_codes: tuple[int, ...] | None = None,
 ) -> list[tuple[str, int]]:
     """Keep the actual opener/redirect dispatch and replace only HTTP transport."""
     calls: list[tuple[str, int]] = []
@@ -1168,7 +1170,12 @@ def _stub_source_transport(
         headers = Message()
         if location is not None:
             headers["Location"] = location
-        response = addinfourl(BytesIO(payload), headers, request.full_url, code)
+        status = code
+        if response_codes is not None:
+            if len(calls) > len(response_codes):
+                pytest.fail("source transport exceeded its finite response inventory")
+            status = response_codes[len(calls) - 1]
+        response = addinfourl(BytesIO(payload), headers, request.full_url, status)
         response.msg = "synthetic source response"
         return response
 
@@ -1229,6 +1236,174 @@ def test_source_fetch_revalidates_direct_artifact_before_transport(
         docker_sources._write_verified_artifact(artifact, tmp_path / "sources")
 
     assert calls == []
+
+
+@pytest.mark.parametrize("status", (502, 503, 504))
+def test_source_fetch_retries_gateway_error_then_verifies_same_payload(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    status: int,
+) -> None:
+    payload = b"verified sqlite source artifact"
+    manifest = _write_docker_source_manifest(tmp_path, _docker_source_manifest(payload=payload))
+    artifact = docker_sources.load_manifest(manifest, today=date(2026, 6, 14))[0]
+    calls = _stub_source_transport(monkeypatch, payload=payload, response_codes=(status, 200))
+    waits: list[int] = []
+    monkeypatch.setattr(docker_sources.time, "sleep", waits.append)
+
+    output = docker_sources._write_verified_artifact(artifact, tmp_path / "sources")
+
+    assert output.read_bytes() == payload
+    assert output.stat().st_mode & 0o777 == 0o644
+    assert calls == [(artifact.url, 60)] * 2
+    assert waits == [1]
+    assert capsys.readouterr().err == f"sqlite-autoconf: source HTTP {status} on attempt 1/3\n"
+
+
+def test_source_fetch_gateway_exhaustion_preserves_first_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    manifest = _write_docker_source_manifest(tmp_path, _docker_source_manifest())
+    artifact = docker_sources.load_manifest(manifest, today=date(2026, 6, 14))[0]
+    calls = _stub_source_transport(
+        monkeypatch, payload=b"untrusted gateway body", response_codes=(502, 503, 504)
+    )
+    waits: list[int] = []
+    monkeypatch.setattr(docker_sources.time, "sleep", waits.append)
+    output = tmp_path / "sources"
+
+    with pytest.raises(HTTPError) as raised:
+        docker_sources._write_verified_artifact(artifact, output)
+
+    assert raised.value.code == 502
+    assert raised.value.fp.closed
+    assert calls == [(artifact.url, 60)] * 3
+    assert waits == [1, 2]
+    assert list(output.iterdir()) == []
+    assert capsys.readouterr().err.splitlines() == [
+        "sqlite-autoconf: source HTTP 502 on attempt 1/3",
+        "sqlite-autoconf: source HTTP 503 on attempt 2/3",
+        "sqlite-autoconf: source HTTP 504 on attempt 3/3",
+    ]
+
+
+@pytest.mark.parametrize("status", (400, 401, 403, 404, 429, 500, 501, 505))
+def test_source_fetch_permanent_http_error_is_not_retried(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, status: int
+) -> None:
+    manifest = _write_docker_source_manifest(tmp_path, _docker_source_manifest())
+    artifact = docker_sources.load_manifest(manifest, today=date(2026, 6, 14))[0]
+    calls = _stub_source_transport(monkeypatch, payload=b"permanent failure", code=status)
+    waits: list[int] = []
+    monkeypatch.setattr(docker_sources.time, "sleep", waits.append)
+    output = tmp_path / "sources"
+
+    with pytest.raises(HTTPError) as raised:
+        docker_sources._write_verified_artifact(artifact, output)
+
+    assert raised.value.code == status
+    assert calls == [(artifact.url, 60)]
+    assert waits == []
+    assert list(output.iterdir()) == []
+
+
+def test_source_fetch_gateway_then_redirect_still_fails_without_following(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    manifest = _write_docker_source_manifest(tmp_path, _docker_source_manifest())
+    artifact = docker_sources.load_manifest(manifest, today=date(2026, 6, 14))[0]
+    calls = _stub_source_transport(
+        monkeypatch, payload=b"redirected source", location=artifact.url, response_codes=(504, 302)
+    )
+    waits: list[int] = []
+    monkeypatch.setattr(docker_sources.time, "sleep", waits.append)
+    output = tmp_path / "sources"
+
+    with pytest.raises(HTTPError) as raised:
+        docker_sources._write_verified_artifact(artifact, output)
+
+    assert raised.value.code == 302
+    assert calls == [(artifact.url, 60)] * 2
+    assert waits == [1]
+    assert list(output.iterdir()) == []
+
+
+def test_source_fetch_gateway_then_bad_digest_is_terminal(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    manifest = _write_docker_source_manifest(
+        tmp_path, _docker_source_manifest(payload=b"verified source")
+    )
+    artifact = docker_sources.load_manifest(manifest, today=date(2026, 6, 14))[0]
+    calls = _stub_source_transport(monkeypatch, payload=b"bad source", response_codes=(503, 200))
+    waits: list[int] = []
+    monkeypatch.setattr(docker_sources.time, "sleep", waits.append)
+    output = tmp_path / "sources"
+
+    with pytest.raises(RuntimeError, match="SHA3 mismatch"):
+        docker_sources._write_verified_artifact(artifact, output)
+
+    assert calls == [(artifact.url, 60)] * 2
+    assert waits == [1]
+    assert list(output.iterdir()) == []
+
+
+@pytest.mark.parametrize("code", (504.0, "504", None, True))
+def test_source_fetch_malformed_http_status_is_not_retried(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, code: object
+) -> None:
+    manifest = _write_docker_source_manifest(tmp_path, _docker_source_manifest())
+    artifact = docker_sources.load_manifest(manifest, today=date(2026, 6, 14))[0]
+    failure = HTTPError(artifact.url, 504, "synthetic malformed status", Message(), BytesIO())
+    setattr(failure, "code", code)
+    calls: list[str] = []
+
+    def reject(_handler: object, request: Request) -> addinfourl:
+        calls.append(request.full_url)
+        raise failure
+
+    monkeypatch.setattr(HTTPSHandler, "https_open", reject)
+    waits: list[int] = []
+    monkeypatch.setattr(docker_sources.time, "sleep", waits.append)
+
+    with pytest.raises(HTTPError) as raised:
+        docker_sources._write_verified_artifact(artifact, tmp_path / "sources")
+
+    assert raised.value is failure
+    assert calls == [artifact.url]
+    assert waits == []
+
+
+@pytest.mark.parametrize(
+    "failure",
+    (
+        SSLCertVerificationError("synthetic TLS verification failure"),
+        URLError("synthetic connection failure"),
+        TypeError("synthetic malformed response"),
+    ),
+)
+def test_source_fetch_non_http_failure_is_not_retried(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, failure: Exception
+) -> None:
+    manifest = _write_docker_source_manifest(tmp_path, _docker_source_manifest())
+    artifact = docker_sources.load_manifest(manifest, today=date(2026, 6, 14))[0]
+    calls: list[str] = []
+
+    def reject(_handler: object, request: Request) -> addinfourl:
+        calls.append(request.full_url)
+        raise failure
+
+    monkeypatch.setattr(HTTPSHandler, "https_open", reject)
+    waits: list[int] = []
+    monkeypatch.setattr(docker_sources.time, "sleep", waits.append)
+
+    with pytest.raises(type(failure)) as raised:
+        docker_sources._write_verified_artifact(artifact, tmp_path / "sources")
+
+    assert raised.value is failure
+    assert calls == [artifact.url]
+    assert waits == []
 
 
 def test_docker_source_artifact_fetcher_verifies_sha3_and_reuses_existing_file(
