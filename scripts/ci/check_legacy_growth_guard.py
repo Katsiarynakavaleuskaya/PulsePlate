@@ -4516,10 +4516,10 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         if not outcomes:
             return
         joined_references: dict[str, str] = {}
-        if all(outcome.references == outcomes[0].references for outcome in outcomes) and all(
-            value is not None for value in outcomes[0].references.values()
-        ):
-            joined_references = dict(outcomes[0].references)
+        if all(outcome.references == outcomes[0].references for outcome in outcomes):
+            joined_references = {
+                name: value for name, value in outcomes[0].references.items() if value is not None
+            }
         else:
             reference_names = set().union(*(set(outcome.references) for outcome in outcomes))
             for name in reference_names:
@@ -4673,27 +4673,32 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                     joined_references[name] = _POSSIBLE_ROUTER_REFERENCE
         self.scope.references = joined_references
 
-        string_names = set().union(*(set(outcome.strings) for outcome in outcomes))
         joined_strings: dict[str, str] = {}
-        for name in string_names:
-            values = {outcome.strings.get(name) for outcome in outcomes}
-            if len(values) == 1:
-                string_value = next(iter(values))
-                if string_value is not None:
-                    joined_strings[name] = string_value
-            elif self.preserve_route_method_conflicts and values & {
-                *APP_ROUTE_METHODS,
-                *APP_REGISTRATION_METHODS,
-                _POSSIBLE_ROUTE_METHOD,
-                _CONFLICTED_ROUTE_METHOD,
-            }:
-                joined_strings[name] = _POSSIBLE_ROUTE_METHOD
-            elif any(self._is_protected_ownership_symbol(value) for value in values):
-                joined_strings[name] = (
-                    _POSSIBLE_API_KEY_SYMBOL
-                    if self.ownership_family == "api_key"
-                    else _POSSIBLE_OPENAPI_SYMBOL
-                )
+        if all(outcome.strings == outcomes[0].strings for outcome in outcomes):
+            joined_strings = {
+                name: value for name, value in outcomes[0].strings.items() if value is not None
+            }
+        else:
+            string_names = set().union(*(set(outcome.strings) for outcome in outcomes))
+            for name in string_names:
+                values = {outcome.strings.get(name) for outcome in outcomes}
+                if len(values) == 1:
+                    string_value = next(iter(values))
+                    if string_value is not None:
+                        joined_strings[name] = string_value
+                elif self.preserve_route_method_conflicts and values & {
+                    *APP_ROUTE_METHODS,
+                    *APP_REGISTRATION_METHODS,
+                    _POSSIBLE_ROUTE_METHOD,
+                    _CONFLICTED_ROUTE_METHOD,
+                }:
+                    joined_strings[name] = _POSSIBLE_ROUTE_METHOD
+                elif any(self._is_protected_ownership_symbol(value) for value in values):
+                    joined_strings[name] = (
+                        _POSSIBLE_API_KEY_SYMBOL
+                        if self.ownership_family == "api_key"
+                        else _POSSIBLE_OPENAPI_SYMBOL
+                    )
         self.scope.strings = joined_strings
 
         callable_names = set().union(*(set(outcome.callables) for outcome in outcomes))
