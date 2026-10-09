@@ -345,6 +345,13 @@ live schema after all affected locks reach the selected target; never relax a
 guard or restore weaker intent bytes to pass hooks. Full local `make verify`
 retains the root human-authorization rule.
 
+When a native API probe fails, retain its observed public return value,
+immediate errno and public error code in the same bounded failure report before
+changing assertions. Inspect the exact applied source and the selected
+toolchain's header/include order; source identity and actual post-pruning
+behavior require their separate evidence. Preserve each failed epoch, and
+review any source-derived observer correction before its next execution.
+
 Native image proof must exercise consumers under the final non-root user after
 pruning and retain loaded paths/hashes, embedded copies, CA/provider behavior
 and disposable-database compatibility. Version labels or scanner disappearance
