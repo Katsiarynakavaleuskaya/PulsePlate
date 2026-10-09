@@ -8,6 +8,7 @@ import gzip
 import io
 import json
 from pathlib import Path
+import signal
 import tarfile
 from typing import Any
 from urllib.request import HTTPSHandler, ProxyHandler, build_opener
@@ -455,7 +456,15 @@ def test_diagnostics_retain_constant_code_without_remote_text(
             "120",
         ],
     )
-    assert source.main() == 1
+    previous_handlers = {
+        signum: signal.getsignal(signum) for signum in (signal.SIGINT, signal.SIGTERM)
+    }
+    try:
+        assert source.main() == 1
+    finally:
+        for signum, handler in previous_handlers.items():
+            signal.signal(signum, handler)
+    assert all(signal.getsignal(signum) == handler for signum, handler in previous_handlers.items())
     stderr = capsys.readouterr().err
     assert "source_lock_changed" in stderr and "sig=" not in stderr
 
@@ -583,3 +592,57 @@ def test_early_cleanup_has_one_shared_window_without_later_native_launch(
     assert launched == [["/usr/bin/docker", "ps"]]
     with pytest.raises(source.QualificationError, match="cleanup_deadline_already_started"):
         native.begin_cleanup()
+
+
+@pytest.mark.parametrize("missing_read", (1, 2))
+def test_missing_archive_stream_preserves_failure_before_output_creation(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, missing_read: int
+) -> None:
+    path = tmp_path / "archive.tar.gz"
+    artifact = make_archive(path, [("a/b", b"content", tarfile.REGTYPE)])
+    original = tarfile.TarFile.extractfile
+    calls = 0
+
+    def missing_stream(archive: tarfile.TarFile, member: tarfile.TarInfo) -> Any:
+        nonlocal calls
+        calls += 1
+        return None if calls == missing_read else original(archive, member)
+
+    monkeypatch.setattr(source.tarfile.TarFile, "extractfile", missing_stream)
+    code = "archive_member_missing" if missing_read == 1 else "extract_member_missing"
+    destination = tmp_path / "result"
+    with pytest.raises(source.QualificationError, match=code):
+        source.extract(artifact, path, destination)
+    assert calls == missing_read
+    assert not (destination / "a/b").exists()
+    if missing_read == 1:
+        assert not destination.exists()
+
+
+@pytest.mark.parametrize("path", (None, 0, False, "", []))
+def test_native_package_identity_rejects_nonstring_or_empty_path(path: Any) -> None:
+    objects = [json.loads(line) for line in package_stream("prometheus").splitlines()]
+    objects[-1]["ImportPath"] = path
+    with pytest.raises(source.QualificationError, match="package_identity"):
+        source.decode_packages(
+            b"\n".join(json.dumps(obj).encode() for obj in objects), "prometheus"
+        )
+
+
+def test_missing_native_docker_stops_before_acquisition(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setattr(source.platform, "system", lambda: "Linux")
+    monkeypatch.setattr(source.platform, "machine", lambda: "x86_64")
+    monkeypatch.setenv("GITHUB_ACTIONS", "true")
+    monkeypatch.setenv("RUNNER_OS", "Linux")
+    monkeypatch.setattr(source.shutil, "which", lambda name: None)
+
+    def forbidden(*args: Any, **kwargs: Any) -> None:
+        raise AssertionError("Missing native Docker must stop before any source acquisition")
+
+    monkeypatch.setattr(source, "acquire", forbidden)
+    work = tmp_path / "qualification"
+    with pytest.raises(source.QualificationError, match="native_Docker_missing"):
+        source.qualify(work, 900, 120)
+    assert not (work / "docker-config").exists()

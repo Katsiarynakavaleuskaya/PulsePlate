@@ -457,7 +457,8 @@ def extract(
                     "archive_expanded_size",
                 )
                 stream = source.extractfile(member)
-                require(stream is not None, "archive_member_missing")
+                if stream is None:
+                    raise QualificationError("archive_member_missing")
                 data = stream.read(member.size + 1)
                 require(len(data) == member.size, "archive_member_short")
                 rows.append(
@@ -504,7 +505,8 @@ def extract(
             else:
                 require(not target.exists() and not target.is_symlink(), "extract_output_collision")
                 stream = source.extractfile(member)
-                require(stream is not None, "extract_member_missing")
+                if stream is None:
+                    raise QualificationError("extract_member_missing")
                 with target.open("xb") as output:
                     shutil.copyfileobj(stream, output, 1024**2)
                 target.chmod(0o755 if member.mode & 0o111 else 0o644)
@@ -638,7 +640,8 @@ def decode_packages(raw: bytes, command: str) -> dict[str, Any]:
     for value in decode_objects(raw):
         require(isinstance(value, dict), "package_not_object")
         path = value.get("ImportPath")
-        require(type(path) is str and bool(path) and path not in packages, "package_identity")
+        if type(path) is not str or not path or path in packages:
+            raise QualificationError("package_identity")
         require(
             "Error" not in value
             and value.get("DepsErrors", []) == []
@@ -995,7 +998,8 @@ def qualify(work: Path, seconds: int, cleanup: int) -> dict[str, Any]:
     }
     owned: dict[str, dict[str, Any]] = {}
     docker_path = shutil.which("docker")
-    require(docker_path is not None, "native_Docker_missing")
+    if docker_path is None:
+        raise QualificationError("native_Docker_missing")
     docker = str(Path(docker_path).resolve())
     config = work / "docker-config"
     fresh_directory(config)
