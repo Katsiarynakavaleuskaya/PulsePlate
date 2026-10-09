@@ -9683,11 +9683,11 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 
 <a id="ledger-p1-legacy-bmi-alias-validation"></a>
 
-- [ ] **Legacy BMI alias validation prerequisite (LEGACY-BMI-ALIAS-VALIDATION-1/v1)**
+- [x] **Legacy BMI alias validation prerequisite (LEGACY-BMI-ALIAS-VALIDATION-1/v1)**
   - Owner: @katsiaryna_kavaleuskaya (backend and Legacy consolidation)
   - Priority: P1
   - Target PR: [PR #2478](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2478) (`codex/fix-legacy-bmi-alias-overflow`)
-  - Status: Implementation in progress; own current-head gates, review, separately authorized merge, post-merge proof, archive, final same-ID continuity and owned cleanup remain pending.
+  - Status: CLOSED / MERGED in PR #2478, actual squash `e025db557f49214e1a11e82838813bdaf72baca7` at `2026-10-08T11:38:37Z`; own exact-head gates, review/dispositions, post-main proof, verified dependent archive, final same-ID continuity and eight owned resource absences are observed. Terminal individual QA and outgoing carryover are retained in archive `1TcW-6MLDRxUrMAG2Vj416uMyl7aWcOHl`. This closes the validation prerequisite only; PROJECT_LEGACY stays OPEN and the separately admitted seven-binding removal remains future.
   - Area: Backend compatibility validation
   - Reason (EN): Three admitted integer-overflow aliases escaped the existing before-validator conversions. The separately admitted prerequisite repairs only the two exception tuples before the retained BMI export removal. It proceeds independently with owned utility receipt/tracking anchors; actual #2476 overlap requires scoped handoff, not a predetermined wait or imported guard repair.
   - Links: `app/schemas/bmi_compat.py:43`, `app/schemas/bmi_compat.py:50`, `tests/test_bmi_compat_router.py`, [existing seam](../architecture/LEGACY_COMPATIBILITY_SEAM.md#legacy-bmi-alias-validation-prerequisite)
@@ -9698,10 +9698,10 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] **Legacy BMI schema and visualization export removal successor (LEGACY-BMI-PYTHON-EXPORT-RETIREMENT-1/v1)**
   - Owner: @katsiaryna_kavaleuskaya (backend and Legacy consolidation)
   - Priority: P1
-  - Target PR: PR-TBD-LEGACY-BMI-PYTHON-EXPORT-RETIREMENT (`codex/retire-legacy-bmi-schema-visualization-exports`)
-  - Status: Retained successor; not implemented or admitted by the validation prerequisite.
+  - Target PR: [PR #2483](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2483) (`codex/retire-legacy-bmi-schema-visualization-exports`)
+  - Status: Admitted implementation in progress; exact seven-binding removal and prior99-to106 inventories are under own validation. Incoming PR #2478 terminal repository-doc reconciliation is carried once in this substantive child. Own gates/review/Oracle/current-head CI and separately authorized merge/post-main/archive/continuity/cleanup/outgoing remain pending; PROJECT_LEGACY stays OPEN. Operator explicitly permits continuation from pending main while another employee monitors it; this lane-specific start exception transfers no main PASS, readiness or merge authority.
   - Area: Legacy Python export retirement
-  - Reason (EN): Deferred until the validation prerequisite completes its full lifecycle and this successor receives fresh consumer census and ownership admission. No predetermined #2476 wait or transfer of its algorithmic repair follows. Completed #2475 reconciliation must not be repeated.
+  - Reason (EN): PR #2478 completed its prerequisite lifecycle; this successor received fresh consumer census and ownership admission. No predetermined #2476 wait or transfer of its algorithmic repair follows. Completed #2475 reconciliation must not be repeated.
   - Links: [validation prerequisite](#ledger-p1-legacy-bmi-alias-validation), [existing seam](../architecture/LEGACY_COMPATIBILITY_SEAM.md#legacy-bmi-alias-validation-prerequisite)
   - DoD: Retain every original D1-D8 criterion: D1 exact five exports and two tuple removals; D2 distinct canonical models/rendering/package exports preserved; D3 prior 99 names preserved and result 106; D4 discovered consumers migrated with substantive/adversarial assertions; D5 validation admission and HTTP/auth/rendering/OpenAPI/app identity proof; D6 own gates/review/Oracle without transferred PASS; D7 evidence that #2475 reconciliation was completed by the prerequisite; D8 separately approved merge, post-merge/archive/continuity/owned cleanup and outgoing carryover with PROJECT_LEGACY OPEN. Require fresh admission and a separate whole-removal rollback boundary.
 
