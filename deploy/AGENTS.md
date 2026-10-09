@@ -61,6 +61,15 @@ PRODUCTION_DOMAIN=example.com STAGING_FALLBACK_DOMAIN=staging.example.com \
 - Keep its Python base tag pinned by OCI digest, install only locked
   `runtime-dev` requirements through BuildKit secrets, and keep the final user
   non-root.
+- Image builds require the genuine Linux aarch64 CPython 3.13 SDK export,
+  qualified against its actual pinned producer and complete payload before
+  passing `--psycopg-sdk-root` to the dispatcher. Curated context transport is
+  separate from canonical in-UBI SDK/wheel admission. Never run a source backend
+  with proxy secrets or copy libc, libpython, loaders, host HOME or credentials.
+- Preserve the actual original UBI default CA bundle and connect the SDK OpenSSL
+  compiled default paths to it. Native system `_ssl`, HTTP/default trust,
+  providers, loaded DSO hashes and database consumers must be observed on the
+  final image; a custom test CA or matching version is not that proof.
 - Image builds may use the approved private proxy. Experiment runs must use a
   prebuilt immutable `name@sha256:<digest>` reference and must not install
   dependencies or pull images after the strict backend probe.

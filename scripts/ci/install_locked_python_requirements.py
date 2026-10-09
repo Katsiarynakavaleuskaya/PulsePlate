@@ -502,14 +502,94 @@ def _assert_backend_network_isolated() -> None:
         raise RuntimeError("Psycopg backend has an external or malformed IPv6 route.")
 
 
+@dataclass(frozen=True)
+class PsycopgSdkTarget:
+    """One finite SDK target descriptor; native origin and ABI proof stay separate."""
+
+    machine: str
+    minor: int
+    elf_machine: int
+    openssl_target: str
+    source_image: str
+
+    @property
+    def python_tag(self) -> str:
+        return f"cp3{self.minor}"
+
+    @property
+    def wheel_platform(self) -> str:
+        return "linux_" + self.machine
+
+    @property
+    def soabi(self) -> str:
+        return f"cpython-3{self.minor}-{self.machine}-linux-gnu"
+
+
+PSYCOPG_SDK_TARGETS = (
+    PsycopgSdkTarget(
+        "x86_64",
+        11,
+        62,
+        "linux-x86_64",
+        "python@sha256:9fd630803ec3446920ed6b64d20150bd724c1751e71817293a4230522c1a384a",
+    ),
+    PsycopgSdkTarget(
+        "x86_64",
+        12,
+        62,
+        "linux-x86_64",
+        "python@sha256:a594f7e9df8a4c431265125b5f5d90cd1b81c8a8797fefee69d5b3544be11111",
+    ),
+    PsycopgSdkTarget(
+        "x86_64",
+        13,
+        62,
+        "linux-x86_64",
+        "python@sha256:7a6b87c02e1f4d6bb572e379235cbbdd7892add0572442c9b0b860a3f5aa9857",
+    ),
+    PsycopgSdkTarget(
+        "aarch64",
+        13,
+        183,
+        "linux-aarch64",
+        "python@sha256:f0320b9bf735a4c4db05e7578e487cbed66c097e36b59a3864ca6d3e7c7dcea9",
+    ),
+)
+
+
+def _psycopg_sdk_target(source_image: str | None = None) -> PsycopgSdkTarget:
+    """Recognize actual loader ABI before SDK effects; never normalize aliases."""
+    candidates = [
+        target
+        for target in PSYCOPG_SDK_TARGETS
+        if sys.platform == "linux"
+        and platform.machine() == target.machine
+        and sys.version_info[:2] == (3, target.minor)
+    ]
+    if len(candidates) != 1:
+        raise RuntimeError(
+            "Unsupported Psycopg C SDK target; only the four admitted Linux tuples are supported."
+        )
+    target = candidates[0]
+    gil_disabled = sysconfig.get_config_var("Py_GIL_DISABLED")
+    if (
+        sys.implementation.name != "cpython"
+        or sys.implementation.cache_tag != f"cpython-3{target.minor}"
+        or struct.calcsize("P") != 8
+        or type(gil_disabled) not in (int, type(None))
+        or gil_disabled not in (0, None)
+        or sys.abiflags != ""
+        or sysconfig.get_config_var("SOABI") != target.soabi
+        or sysconfig.get_config_var("EXT_SUFFIX") != "." + target.soabi + ".so"
+        or (source_image is not None and source_image != target.source_image)
+    ):
+        raise RuntimeError("Psycopg C SDK actual CPython ABI/source-image binding mismatch.")
+    return target
+
+
 def _psycopg_build_environment(native_root: Path, work: Path) -> dict[str, str]:
     """Require the admitted Linux guest's actual isolated backend execution boundary."""
-    if (
-        sys.platform != "linux"
-        or platform.machine() != "x86_64"
-        or sys.version_info[:2] not in {(3, 11), (3, 12), (3, 13)}
-    ):
-        raise RuntimeError("Psycopg C build supports only admitted Linux amd64 CPython 3.11-3.13.")
+    _psycopg_sdk_target()
     _assert_backend_network_isolated()
     if any((Path.home() / name).exists() for name in (".netrc", "_netrc", ".docker")):
         raise RuntimeError("Psycopg backend cannot inherit credential material.")
@@ -554,6 +634,7 @@ def build_psycopg_c_sdk(
     *, source: Path, build_wheels: Path, native_root: Path, output: Path
 ) -> None:
     """Produce a genuine wheel in the admitted secret-free network-disabled guest."""
+    target = _psycopg_sdk_target()
     if output.exists() or output.is_symlink():
         raise RuntimeError("Psycopg wheel output must be new.")
     build_artifacts = [
@@ -627,8 +708,8 @@ def build_psycopg_c_sdk(
     native = _inspect_psycopg_c_extensions(wheel.path)
     receipt = {
         **fingerprints,
-        "python_tag": f"cp{sys.version_info.major}{sys.version_info.minor}",
-        "platform": "linux_x86_64",
+        "python_tag": target.python_tag,
+        "platform": target.wheel_platform,
         "filename": wheel.path.name,
         "wheel_sha256": wheel.snapshot.digest,
         "metadata_sha256": wheel.metadata_digest,
@@ -646,27 +727,46 @@ def build_psycopg_c_sdk(
 
 
 def _inspect_psycopg_c_extensions(wheel: Path) -> dict[str, str]:
+    """Check the bounded SDK headers/tags; native readelf/loaded calls prove linkage."""
+    target = _psycopg_sdk_target()
     with zipfile.ZipFile(wheel) as archive:
-        extensions = {
-            name: archive.read(name) for name in archive.namelist() if name.endswith(".so")
-        }
-    if len(extensions) != 2 or {
-        PurePosixPath(name).name.split(".", 1)[0] for name in extensions
-    } != {"_psycopg", "pq"}:
-        raise RuntimeError("Psycopg C wheel requires both actual native extension modules.")
+        try:
+            info = archive.getinfo("psycopg_c-3.3.4.dist-info/WHEEL")
+            if info.file_size > 16 * 1024:
+                raise RuntimeError("Psycopg SDK WHEEL metadata exceeds its bound.")
+            metadata = BytesParser(policy=policy.default).parsebytes(archive.read(info))
+        except (KeyError, zipfile.BadZipFile) as error:
+            raise RuntimeError("Psycopg SDK WHEEL metadata is missing or malformed.") from error
+        if (
+            metadata.defects
+            or metadata.get_all("Wheel-Version", []) != ["1.0"]
+            or metadata.get_all("Root-Is-Purelib", []) != ["false"]
+            or metadata.get_all("Tag", [])
+            != [f"{target.python_tag}-{target.python_tag}-{target.wheel_platform}"]
+        ):
+            raise RuntimeError("Psycopg SDK WHEEL tag is not the selected native ABI.")
+        members = [info for info in archive.infolist() if info.filename.endswith(".so")]
+        expected = {f"psycopg_c/{name}.{target.soabi}.so" for name in ("_psycopg", "pq")}
+        if len(members) != 2 or {info.filename for info in members} != expected:
+            raise RuntimeError("Psycopg C wheel requires both exact native extension members.")
+        if any(info.file_size > 16 * 1024 * 1024 for info in members):
+            raise RuntimeError("Psycopg C extension exceeds the bounded SDK member size.")
+        extensions = {info.filename: archive.read(info) for info in members}
     for payload in extensions.values():
         if (
             len(payload) < 64
-            or payload[:5] != b"\x7fELF\x02"
-            or payload[18:20] != b"\x3e\x00"
+            or payload[:7] != b"\x7fELF\x02\x01\x01"
+            or struct.unpack_from("<HHI", payload, 16) != (3, target.elf_machine, 1)
+            or struct.unpack_from("<H", payload, 52)[0] != 64
             or b"libpq.so.5\x00" not in payload
         ):
-            raise RuntimeError("Psycopg C extension is not a Linux amd64 libpq-linked ELF.")
+            raise RuntimeError("Psycopg C extension lacks the selected ELF64 header/libpq marker.")
     return {name: hashlib.sha256(payload).hexdigest() for name, payload in extensions.items()}
 
 
 def read_psycopg_c_sdk(directory: Path) -> ValidatedWheel:
     """Cross-bind the one exact generated wheel, original/derived source and SDK inputs."""
+    target = _psycopg_sdk_target()
     raw = _read_regular_input(directory / "psycopg-c-sdk.json", maximum=64 * 1024)
 
     def unique(pairs: list[tuple[str, object]]) -> dict[str, object]:
@@ -699,18 +799,14 @@ def read_psycopg_c_sdk(directory: Path) -> ValidatedWheel:
         "original_members_sha256": PSYCOPG_C_MEMBER_SHA256,
         "derived_members_sha256": PSYCOPG_C_DERIVED_MEMBER_SHA256,
         "derived_pyproject_sha256": PSYCOPG_C_DERIVED_PYPROJECT_SHA256,
-        "python_tag": f"cp{sys.version_info.major}{sys.version_info.minor}",
-        "platform": "linux_x86_64",
+        "python_tag": target.python_tag,
+        "platform": target.wheel_platform,
     }
-    if (
-        sys.platform != "linux"
-        or platform.machine() != "x86_64"
-        or any(receipt.get(k) != v for k, v in bindings.items())
-    ):
+    if any(receipt.get(k) != v for k, v in bindings.items()):
         raise RuntimeError("Psycopg SDK source, platform or interpreter binding mismatch.")
     filename = receipt["filename"]
     tag = bindings["python_tag"]
-    if filename != f"psycopg_c-3.3.4-{tag}-{tag}-linux_x86_64.whl":
+    if filename != f"psycopg_c-3.3.4-{tag}-{tag}-{target.wheel_platform}.whl":
         raise RuntimeError("Psycopg SDK wheel filename is not the exact native ABI.")
     wheel = inspect_locked_wheel(
         wheel_path=directory / filename, expected_artifacts=frozenset({("psycopg-c", "3.3.4")})
@@ -1719,6 +1815,7 @@ def _path_qualified_python_executable_for_probe(python_executable: str) -> str:
 
 def _require_psycopg_sdk_interpreter(python_executable: str) -> None:
     """Allow this loader interpreter, including its venv symlinks, for the exact SDK."""
+    _psycopg_sdk_target()
     target = Path(_path_qualified_python_executable_for_probe(python_executable))
     try:
         matches_loader = target.samefile(sys.executable)
@@ -3791,8 +3888,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
         if sdk is not None and not contains_c:
             raise RuntimeError("The selected profile has no Psycopg C SDK consumer.")
-        if contains_c and sdk is not None:
+        if contains_c:
+            if sdk is None:
+                raise RuntimeError(
+                    "This compiled profile requires its genuine matching Psycopg C SDK."
+                )
             _require_psycopg_sdk_interpreter(args.python_executable)
+            read_psycopg_c_sdk(sdk)
         if args.upgrade_pip:
             upgrade_pip(
                 args.python_executable,

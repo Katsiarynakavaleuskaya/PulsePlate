@@ -646,3 +646,118 @@ def test_missing_native_docker_stops_before_acquisition(
     with pytest.raises(source.QualificationError, match="native_Docker_missing"):
         source.qualify(work, 900, 120)
     assert not (work / "docker-config").exists()
+
+
+@pytest.mark.parametrize("changed_lock", (None, "go.mod", "go.sum"))
+def test_main_prefetch_uses_no_explicit_module_args_and_rejects_lock_drift(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    changed_lock: str | None,
+) -> None:
+    """Exercise the real main/qualify flow through prefetch with synthetic native I/O.
+
+    This proves argv and the real post-download lock guard, not native Go closure.
+    No Docker or Go process is launched; the unchanged case stops at mod verify.
+    """
+    monkeypatch.setattr(source.platform, "system", lambda: "Linux")
+    monkeypatch.setattr(source.platform, "machine", lambda: "x86_64")
+    monkeypatch.setenv("GITHUB_ACTIONS", "true")
+    monkeypatch.setenv("RUNNER_OS", "Linux")
+    monkeypatch.setattr(source.shutil, "which", lambda name: "/usr/bin/docker")
+    locks = {"go.mod": b"synthetic module lock\n", "go.sum": b"synthetic sums\n"}
+    monkeypatch.setattr(source, "LOCKS", {name: source.sha(data) for name, data in locks.items()})
+    monkeypatch.setattr(source, "GO_LICENSE", source.sha(b"synthetic license"))
+    monkeypatch.setattr(source, "SOURCE_LICENSES", {"LICENSE": source.sha(b"synthetic license")})
+
+    def acquire_fixture(artifact: source.Artifact, target: Path, deadline: float) -> dict[str, Any]:
+        target.write_text(
+            source.UI.digest + "  prometheus-web-ui-3.15.0.tar.gz\n"
+            if artifact.name == "checksums"
+            else "synthetic archive"
+        )
+        return {"synthetic": True}
+
+    def extract_fixture(
+        artifact: source.Artifact, archive: Path, target: Path, deadline: float
+    ) -> list[dict[str, Any]]:
+        target.mkdir()
+        if artifact.name in ("source", "go"):
+            (target / "LICENSE").write_bytes(b"synthetic license")
+            (target / "VERSION").write_bytes(
+                b"3.15.0\n"
+                if artifact.name == "source"
+                else b"go1.27.2\ntime 2026-10-02T20:28:03Z\n"
+            )
+        if artifact.name == "source":
+            for name, data in locks.items():
+                (target / name).write_bytes(data)
+        return []
+
+    calls: list[tuple[list[str], str]] = []
+
+    def native_fixture(
+        native: source.Native,
+        argv: list[str],
+        name: str,
+        env: dict[str, str],
+        *,
+        cwd: Path,
+        cleaning: bool = False,
+    ) -> bytes:
+        calls.append((argv, name))
+        assert not cleaning
+        assert env["GOTOOLCHAIN"] == "local" and env["GOFLAGS"] == "-mod=readonly"
+        if name == "online-go-version":
+            return source.GO_VERSION.encode()
+        if name == "public-module-download":
+            if changed_lock is not None:
+                (cwd / changed_lock).write_bytes(b"unexpected native lock mutation\n")
+            return b'{"Path":"example.org/synthetic-module","Version":"v1.0.0"}'
+        assert name == "online-module-verify"
+        raise source.QualificationError("synthetic_stop_before_Docker")
+
+    monkeypatch.setattr(source, "acquire", acquire_fixture)
+    monkeypatch.setattr(source, "extract", extract_fixture)
+    monkeypatch.setattr(source, "stage_ui", lambda *args: {"synthetic": True})
+    monkeypatch.setattr(source.Native, "run", native_fixture)
+    work = tmp_path / "qualification"
+    monkeypatch.setattr(
+        source.sys,
+        "argv",
+        [
+            "qualifier",
+            "--work-dir",
+            str(work),
+            "--timeout-seconds",
+            "900",
+            "--cleanup-seconds",
+            "120",
+        ],
+    )
+    previous = {signum: signal.getsignal(signum) for signum in (signal.SIGINT, signal.SIGTERM)}
+    try:
+        assert source.main() == 1
+    finally:
+        for signum, handler in previous.items():
+            signal.signal(signum, handler)
+    assert calls[1] == (
+        [str(work / "go/bin/go"), "mod", "download", "-json"],
+        "public-module-download",
+    )
+    report = json.loads((work / "evidence/qualification.json").read_text())
+    expected = "source_lock_changed" if changed_lock else "synthetic_stop_before_Docker"
+    assert report["failure"] == {
+        "class": "QualificationError",
+        "code": expected,
+        "stage": "public_native_Go_prefetch",
+    }
+    assert expected in capsys.readouterr().err
+    assert report["status"] == "failed_or_unknown" and report["cleanup"] == []
+    assert [name for _, name in calls] == (
+        ["online-go-version", "public-module-download"]
+        if changed_lock
+        else ["online-go-version", "public-module-download", "online-module-verify"]
+    )
+    if changed_lock:
+        assert (work / "source" / changed_lock).read_bytes() == b"unexpected native lock mutation\n"

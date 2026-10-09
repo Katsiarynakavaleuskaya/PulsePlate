@@ -1122,6 +1122,13 @@ gh api -X PUT repos/<OWNER>/<REPO>/actions/permissions/workflow -f default_workf
 Before editing imports / `__init__` / sys.path / sys.modules:
 **Run guard checks first.** If guards fail, fix the policy violation before anything else.
 
+For a helper that uses multiprocessing, put execution under `main()` and an
+`if __name__ == "__main__":` guard so spawned workers can import it safely.
+Inspect captured stderr promptly after launch and throughout a long command.
+Worker replacement or CPU activity alone does not establish useful progress.
+A repeated traceback requires an owned stop and root-cause repair; a larger
+elapsed deadline does not repair the failure.
+
 ## 1) Fast Local Triage (run from repo root)
 
 ```bash

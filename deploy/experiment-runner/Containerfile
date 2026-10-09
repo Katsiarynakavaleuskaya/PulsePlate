@@ -43,6 +43,36 @@ RUN --mount=type=bind,from=verified-sources,source=/verified,target=/run/verifie
     test "$(printf '%s\n' "${rpm_inventory}" | sha256sum | cut -d ' ' -f 1)" = \
       "${expected_rpm_inventory_sha256}"
 
+# Bind the existing UBI trustbundle before any replacement SDK library is loaded.
+# These are native build observations; later final-user loaded-library and TLS
+# qualification still has to confirm the actual successor image.
+RUN python3.13 -I - <<'TRUST_PY'
+import hashlib, json
+from pathlib import Path
+import ssl
+paths = ssl.get_default_verify_paths()
+if not paths.cafile:
+    raise SystemExit("UBI default CA file is unavailable")
+original = Path(paths.cafile).resolve(strict=True)
+payload = original.read_bytes()
+if not original.is_file() or not payload:
+    raise SystemExit("UBI default CA file is not a nonempty regular file")
+compiled_defaults = Path("/usr/lib/ssl")
+if compiled_defaults.is_symlink():
+    raise SystemExit("SDK default trust directory is unexpectedly linked")
+compiled_defaults.mkdir(exist_ok=True)
+for name, source in (("cert.pem", original), ("certs", Path(paths.capath).resolve(strict=True) if paths.capath else None)):
+    if source is None:
+        continue
+    target = compiled_defaults / name
+    if target.exists() or target.is_symlink():
+        if target.resolve(strict=True) != source:
+            raise SystemExit("SDK default trust path conflicts with existing UBI trust")
+    else:
+        target.symlink_to(source)
+print(json.dumps({"ubi_default_cafile": str(original), "bytes": len(payload), "sha256": hashlib.sha256(payload).hexdigest(), "sdk_default_cafile": "/usr/lib/ssl/cert.pem"}, sort_keys=True))
+TRUST_PY
+
 FROM python-runtime AS builder
 
 ENV PIP_DISABLE_PIP_VERSION_CHECK=1 \
@@ -70,7 +100,14 @@ COPY requirements-lock.txt constraints.txt /build/
 COPY scripts/ci/check_python_startup_hooks.py \
      scripts/ci/emergency_python_wheels.json \
      scripts/ci/install_locked_python_requirements.py \
+     scripts/ci/check_private_python_proxy_health.py \
      /build/scripts/ci/
+COPY tests/fixtures/dependency_security_schema.json /build/tests/fixtures/
+COPY sdk-inputs/psycopg-sdk/ /opt/psycopg-sdk/
+COPY sdk-inputs/usr/local/lib/ /usr/local/lib/
+COPY sdk-inputs/usr/local/share/doc/pulseplate-native/ /usr/local/share/doc/pulseplate-native/
+ENV LD_LIBRARY_PATH=/usr/local/lib \
+    OPENSSL_CONF=/usr/local/share/doc/pulseplate-native/openssl.cnf
 
 RUN --mount=type=cache,target=/root/.cache/pip \
     --mount=type=secret,id=pp_py_index,required=true \
@@ -93,7 +130,7 @@ RUN --mount=type=cache,target=/root/.cache/pip \
         --constraints-file /build/constraints.txt \
         --guard-script /build/scripts/ci/check_python_startup_hooks.py \
         --emergency-wheel-manifest /build/scripts/ci/emergency_python_wheels.json \
-        --install-mode direct-proxy \
+        --psycopg-sdk /opt/psycopg-sdk \
         --require-virtualenv \
         --index-url "${index_url}" \
         --trusted-host "${trusted_host}"; \
@@ -104,7 +141,7 @@ RUN --mount=type=cache,target=/root/.cache/pip \
         --constraints-file /build/constraints.txt \
         --guard-script /build/scripts/ci/check_python_startup_hooks.py \
         --emergency-wheel-manifest /build/scripts/ci/emergency_python_wheels.json \
-        --install-mode direct-proxy \
+        --psycopg-sdk /opt/psycopg-sdk \
         --require-virtualenv \
         --index-url "${index_url}"; \
     fi; \
@@ -149,9 +186,13 @@ RUN set -eu; \
     mkdir -p /repo/artifacts/orchestration/experiments/results; \
     chown -R 65532:65532 /repo
 
+COPY sdk-inputs/usr/local/lib/ /usr/local/lib/
+COPY sdk-inputs/usr/local/share/doc/pulseplate-native/ /usr/local/share/doc/pulseplate-native/
 COPY --from=builder /opt/venv /opt/venv
 
-ENV HOME=/tmp \
+ENV LD_LIBRARY_PATH=/usr/local/lib \
+    OPENSSL_CONF=/usr/local/share/doc/pulseplate-native/openssl.cnf \
+    HOME=/tmp \
     PATH="/opt/venv/bin:/usr/bin:/bin" \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1

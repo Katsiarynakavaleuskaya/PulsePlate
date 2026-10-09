@@ -4,21 +4,25 @@ all: lint test cov-check
 validate-data: ensure-database-versions
 	python3 scripts/validate_data.py
 
-.PHONY: all ensure-database-versions ensure-python-proxy ensure-native-sdk requirements-locks docker-source-artifacts
+.PHONY: all ensure-database-versions ensure-python-proxy ensure-native-sdk-inputs ensure-native-sdk requirements-locks docker-source-artifacts
 ensure-database-versions:
 	python3 scripts/ensure_database_versions.py
 
 ensure-python-proxy:
 	@test -n "$$PULSEPLATE_PYTHON_INDEX_URL" || (echo "❌ Export PULSEPLATE_PYTHON_INDEX_URL to the approved private package proxy before continuing." && exit 1)
 
-# Offline backend bootstrap requires the artifacts supplied by the Linux container.
-ensure-native-sdk:
+# Backend SDK callers retain the existing Linux amd64 boundary.
+ensure-native-sdk-inputs:
 	@if [[ "$$(uname -s):$$(uname -m)" != "Linux:x86_64" ]]; then \
 		echo "Backend bootstrap requires Linux amd64. Use make dc-up and make dc-shell." >&2; exit 1; \
 	fi
-	@test -n "$$PULSEPLATE_PSYCOPG_C_SDK" && test -f "$$PULSEPLATE_PSYCOPG_C_SDK/psycopg-c-sdk.json" && \
-		test -n "$$PULSEPLATE_BOOTSTRAP_WHEELHOUSE" && test -d "$$PULSEPLATE_BOOTSTRAP_WHEELHOUSE" || \
-		(echo "Use the devcontainer genuine SDK and verified wheelhouse; no ambient fallback." >&2; exit 1)
+	@test -n "$$PULSEPLATE_PSYCOPG_C_SDK" && test -f "$$PULSEPLATE_PSYCOPG_C_SDK/psycopg-c-sdk.json" || \
+		(echo "Use the devcontainer genuine SDK; no ambient fallback." >&2; exit 1)
+
+# Ordinary offline bootstrap additionally requires its verified baked wheelhouse.
+ensure-native-sdk: ensure-native-sdk-inputs
+	@test -n "$$PULSEPLATE_BOOTSTRAP_WHEELHOUSE" && test -d "$$PULSEPLATE_BOOTSTRAP_WHEELHOUSE" || \
+		(echo "Use the devcontainer verified wheelhouse; no ambient fallback." >&2; exit 1)
 
 # Docker targets
 # 🐳 Docker Best Practices:
@@ -41,10 +45,10 @@ docker-build-dev: ensure-python-proxy docker-source-artifacts ## Build developme
 		--build-arg PULSEPLATE_PYTHON_TRUSTED_HOST="$${PULSEPLATE_PYTHON_TRUSTED_HOST:-}" \
 		.
 
-docker-run: ensure-python-proxy ## Run Docker containers in background
+docker-run: ensure-python-proxy docker-source-artifacts ## Run Docker containers in background
 	docker compose up -d
 
-docker-run-dev: ensure-python-proxy ## Run development Docker containers
+docker-run-dev: ensure-python-proxy docker-source-artifacts ## Run development Docker containers
 	docker compose --profile dev up -d
 
 docker-stop: ## Stop and remove Docker containers
@@ -139,9 +143,9 @@ venv: ensure-native-sdk ## Create venv, install requirements & setup git hooks
 	@echo "$(GREEN)✅ Окружение готово!$(NC)"
 
 ## Refresh locked dependencies inside the existing .venv
-venv-sync: ensure-native-sdk ## Refresh .venv from locked requirements without recreating it
-	@test -x $(VENV_PYTHON) || (echo "$(RED)❌ .venv missing. Run 'make venv' first.$(NC)" && exit 1)
-	PIP_REQUIRE_VIRTUALENV=1 $(VENV_PYTHON) scripts/ci/install_locked_python_requirements.py --python-executable $(VENV_PYTHON) --constraints-file constraints.txt --install-dev --consume-only --wheelhouse-dir "$$PULSEPLATE_BOOTSTRAP_WHEELHOUSE" --psycopg-sdk "$$PULSEPLATE_PSYCOPG_C_SDK" --require-virtualenv
+venv-sync: ensure-native-sdk-inputs ensure-python-proxy ## Refresh .venv from locked requirements without recreating it
+	@test -x "$(VENV_PYTHON)" || (echo "$(RED)❌ .venv missing. Run 'make venv' first.$(NC)" && exit 1)
+	PIP_REQUIRE_VIRTUALENV=1 "$(VENV_PYTHON)" scripts/ci/install_locked_python_requirements.py --python-executable "$(VENV_PYTHON)" --constraints-file constraints.txt --install-dev --psycopg-sdk "$$PULSEPLATE_PSYCOPG_C_SDK" --require-virtualenv
 	@echo "$(GREEN)✅ .venv refreshed from locked requirements$(NC)"
 
 ## Setup automation only (git hooks & aliases)

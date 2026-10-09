@@ -17,15 +17,13 @@ ARG SQLITE_AUTOCONF_SHA3_256_PART_6="bed2bd81"
 ARG SQLITE_AUTOCONF_SHA3_256_PART_7="d47e98ba"
 ARG SQLITE_AUTOCONF_SHA3_256_PART_8="1b72983b"
 
-# Exact Linux/amd64 SDK interpreter family; runtime Python keeps its existing pin.
+# Exact SDK target family; default and runtime Python keep their existing amd64 pin.
 ARG PSYCOPG_SDK_PYTHON_IMAGE="python@sha256:7a6b87c02e1f4d6bb572e379235cbbdd7892add0572442c9b0b860a3f5aa9857"
 
 FROM ${PSYCOPG_SDK_PYTHON_IMAGE} AS native-builder
 ARG PSYCOPG_SDK_PYTHON_IMAGE
-RUN case "${PSYCOPG_SDK_PYTHON_IMAGE}" in \
-      python@sha256:9fd630803ec3446920ed6b64d20150bd724c1751e71817293a4230522c1a384a|python@sha256:a594f7e9df8a4c431265125b5f5d90cd1b81c8a8797fefee69d5b3544be11111|python@sha256:7a6b87c02e1f4d6bb572e379235cbbdd7892add0572442c9b0b860a3f5aa9857) ;; \
-      *) echo "Unsupported Psycopg SDK interpreter image" >&2; exit 1 ;; \
-    esac \
+COPY scripts/ci/install_locked_python_requirements.py /tooling/scripts/ci/
+RUN python -I -c 'import os, sys; sys.path.insert(0, "/tooling/scripts/ci"); from install_locked_python_requirements import _psycopg_sdk_target; _psycopg_sdk_target(os.environ["PSYCOPG_SDK_PYTHON_IMAGE"])' \
     && apt-get update \
     && apt-get install -y --no-install-recommends build-essential bison flex ca-certificates \
     && rm -rf /var/lib/apt/lists/*
@@ -111,7 +109,8 @@ if result.returncode != 0 or result.stderr or result.stdout != "pulseplate termi
     raise SystemExit("Debian bash rejected the replacement terminal ABI")
 PY
 cd /build/source/openssl-openssl-45e844f
-perl ./Configure linux-x86_64 shared --prefix=/usr/local --libdir=lib --openssldir=/usr/lib/ssl
+openssl_target="$(python -I -c 'import sys; sys.path.insert(0, "/tooling/scripts/ci"); from install_locked_python_requirements import _psycopg_sdk_target; print(_psycopg_sdk_target().openssl_target)')"
+perl ./Configure "$openssl_target" shared --prefix=/usr/local --libdir=lib --openssldir=/usr/lib/ssl
 make -j2 build_sw
 make DESTDIR=/native install_sw
 cp -a /native/usr/local/. /usr/local/
@@ -167,7 +166,6 @@ SH
 # No credentialed HOME, configuration, cache or environment crosses into this build.
 FROM native-builder AS psycopg-wheel-builder
 COPY --from=psycopg-inputs /input/ /input/psycopg/
-COPY scripts/ci/install_locked_python_requirements.py /tooling/scripts/ci/install_locked_python_requirements.py
 RUN --network=none /usr/bin/env -i HOME=/tmp PATH=/usr/local/bin:/usr/bin:/bin LANG=C.UTF-8 TMPDIR=/tmp \
     /usr/local/bin/python /tooling/scripts/ci/install_locked_python_requirements.py --build-psycopg-c \
     --psycopg-source-archive /input/psycopg/source/psycopg_c-3.3.4.tar.gz \

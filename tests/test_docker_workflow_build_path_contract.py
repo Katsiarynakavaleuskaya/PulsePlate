@@ -337,6 +337,10 @@ def test_native_helper_stage_layout_executes_real_cli(
     """Actual COPY layouts preserve helper roots and parse operations without acquisition."""
     dockerfile = (REPO_ROOT / "Dockerfile").read_text(encoding="utf-8")
     section = dockerfile.split(f" AS {stage}\n", 1)[1].split("\nFROM ", 1)[0]
+    if stage == "psycopg-wheel-builder":
+        assert "FROM native-builder AS psycopg-wheel-builder" in dockerfile
+        parent = dockerfile.split(" AS native-builder\n", 1)[1].split("\nFROM ", 1)[0]
+        section = parent + "\n" + section
     stage_root = tmp_path / stage
     staged: dict[str, Path] = {}
     for line in section.splitlines():

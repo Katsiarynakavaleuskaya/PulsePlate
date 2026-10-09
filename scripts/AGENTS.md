@@ -154,8 +154,14 @@
 - The exact Psycopg C source operation belongs to
   `install_locked_python_requirements.py`; compiler and proxy-health consumers
   delegate to that owner. Separate verified archive/binary acquisition from
-  actual backend execution in a Linux amd64 guest with kernel network isolation
-  and no registry credentials, host HOME, configuration, socket or secret mounts.
+  actual backend execution in a supported Linux guest with kernel network
+  isolation and no registry credentials, host HOME, configuration, socket or
+  secret mounts. The canonical installer owns the exact four SDK tuples:
+  x86_64 CPython 3.11/3.12/3.13 and aarch64 CPython 3.13. Reject unsupported
+  interpreter/ABI targets before SDK reads, pip upgrade or wheelhouse creation.
+  During SDK admission, validate the exact source-image pin, wheel tag and both
+  extension ELF targets; aliases are not extra targets.
+  Backend Make/devcontainer callers retain their Linux amd64 boundary.
   Dormant kernel interfaces require native DOWN flags and absence of external
   addresses/routes; interface names alone grant no exception. Other packages
   retain binary-only admission. Consume genuine matching SDK wheels, never
@@ -170,7 +176,8 @@
   unchanged four-input build uses its loader interpreter.
 - Before VS Code Reopen builds a fresh trusted checkout, run the existing
   `make docker-source-artifacts` target on the host using an approved existing
-  `DEV_PYTHON` interpreter. CLI `dc-up` already owns that prerequisite. This is
+  `DEV_PYTHON` interpreter. CLI `dc-up`, `docker-run` and `docker-run-dev` own
+  that prerequisite; a source-preparation failure stops before Compose. This is
   source verification/acquisition only; do not install/activate a host backend
   venv or native macOS SDK, transfer `.env`/credentials/HOME, or add automatic
   repository-code initialization. Container bootstrap remains manual after trust.
@@ -249,6 +256,15 @@
 
 ## Governed Experimentation Runner
 
+- `experiment_runner_dispatch.py build-image` requires `--psycopg-sdk-root`
+  pointing to the private, externally qualified genuine ARM SDK export. The
+  host stages only the finite declared helpers, schema, locks and SDK members,
+  then checks actual destination bytes, modes and internal alias before reading
+  proxy secrets. Host transport checks do not authenticate SDK origin or ABI;
+  the canonical installer inside UBI owns those semantic checks. Preserve the
+  original build timeout, history/config hygiene and immutable Apple alias
+  readback. Qualify the successor's native consumers and full scanner inventory
+  before selecting it for an oracle; a build or copied receipt alone is insufficient.
 - Invoke the automatic helper only from externally admitted T with an approved
   absolute Python `-I`, T cwd and explicit distinct `--material-root M`; root
   metadata supplies continuity, never trust. Follow the canonical accompaniment

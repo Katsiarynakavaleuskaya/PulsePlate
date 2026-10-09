@@ -1058,7 +1058,7 @@ def qualify(work: Path, seconds: int, cleanup: int) -> dict[str, Any]:
             "native_Go_version",
         )
         module_raw = native.run(
-            [go_binary, "mod", "download", "-json", "all"],
+            [go_binary, "mod", "download", "-json"],
             "public-module-download",
             online,
             cwd=source,

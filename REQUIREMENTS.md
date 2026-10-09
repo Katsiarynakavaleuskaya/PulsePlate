@@ -9,10 +9,18 @@ Executable validation lives in `scripts/ci/check_python_dependency_surfaces.py`.
 
 ## Shared Install Profiles
 
-Use the locked installer for shared runtime and CI installs:
+Use the locked installer for shared runtime and CI installs. Profiles containing
+Psycopg C require a genuine SDK from the matching supported Linux interpreter
+and immutable source image. Enter that SDK image and export
+`PULSEPLATE_PSYCOPG_C_SDK` to its supplied SDK directory first; native macOS is
+unsupported. The presence check below is only an environment prerequisite:
+the canonical installer validates the SDK receipt, wheel and actual ABI.
 
 ```bash
+: "${PULSEPLATE_PSYCOPG_C_SDK:?Enter the matching Linux SDK image first}"
+export PULSEPLATE_PYTHON_INDEX_URL="https://packages.pulseplate.app/root/pulseplate/+simple/"
 python scripts/ci/install_locked_python_requirements.py \
+  --psycopg-sdk "$PULSEPLATE_PSYCOPG_C_SDK" \
   --requirements-profile runtime \
   --requirements-file requirements.txt \
   --constraints-file constraints.txt

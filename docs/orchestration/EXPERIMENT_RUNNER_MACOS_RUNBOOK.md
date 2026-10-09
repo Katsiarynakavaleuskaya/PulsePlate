@@ -39,6 +39,23 @@ Do not add `CAP_SYS_ADMIN`, mount a runtime socket, or change
 
 ## Build the immutable runner image
 
+First qualify the genuine Linux aarch64 CPython 3.13 SDK from its matching
+immutable source image. Bind the actual producer operation, exported complete
+payload and private owned `0700` root before any secret-bearing Runner build.
+The required `--psycopg-sdk-root` directory carries the receipt and one opaque
+wheel under `psycopg-sdk/`, the declared libpq/OpenSSL files and internal libpq
+alias, and native licenses/configuration under `usr/local/`. The dispatcher
+rejects additional members and rechecks the actual private staged context
+before proxy-secret lookup. Directory names and self-hashes do not prove origin;
+the canonical installer inside UBI performs SDK, source and ABI admission.
+
+Both backend build commands below use that same admitted root. Preserve the
+original UBI default CA bundle when connecting the custom OpenSSL defaults.
+Observe final system `_ssl` and HTTP default trust, provider behavior, actual
+loaded DSO hashes, Psycopg/database calls, full native inventory and strict
+Apple isolation before selecting a successor image. The historical admitted
+image remains selected until that complete qualification passes.
+
 The admitted source recipe starts from the pinned official UBI 10 minimal
 multi-architecture digest
 `registry.access.redhat.com/ubi10/ubi-minimal@sha256:04140c8d78c6c6915b5c1fdad2f16d10eac3630c3339999ccdf659d8c903be50`.
@@ -53,6 +70,7 @@ image digest and the complete sequence below.
 ```bash
 python3 scripts/orchestration/experiment_runner_dispatch.py build-image \
   --backend apple-container \
+  --psycopg-sdk-root /absolute/private/qualified-arm-sdk \
   --tag pulseplate/experiment-runner:mac-local
 ```
 
@@ -64,6 +82,7 @@ Docker fallback build:
 ```bash
 python3 scripts/orchestration/experiment_runner_dispatch.py build-image \
   --backend docker \
+  --psycopg-sdk-root /absolute/private/qualified-arm-sdk \
   --tag pulseplate/experiment-runner:docker-local
 ```
 

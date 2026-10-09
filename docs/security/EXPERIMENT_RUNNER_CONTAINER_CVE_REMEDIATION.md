@@ -1,6 +1,6 @@
 # Experiment Runner container CVE remediation
 
-**Status:** Exact image admitted locally; final oracle and current-head PR/merge evidence pending
+**Status:** Historical image admitted locally; SDK successor and final PR/merge evidence pending
 **Suppression expires:** N/A (no suppression added)
 **Last reviewed:** 2026-07-23
 
@@ -74,6 +74,23 @@ accepted build locks 107 packages in `python-runtime`, 108 in `builder`, and
 129 in the final runner. Any repository-side change to a direct or transitive
 RPM now fails the build even if its package name and direct request remain
 unchanged.
+
+## Current SDK caller repair — PR #2477
+
+The revised build path consumes a genuine Linux aarch64 CPython 3.13 SDK through
+both dispatcher backends. The dispatcher stages the finite public helper/schema
+and opaque SDK payload before proxy-secret lookup; SDK origin is a prior native
+producer/export admission, while the canonical UBI installer owns source-image,
+ABI, wheel tag and ELF checks. It preserves the original UBI CA bundle and
+connects the custom OpenSSL default paths without a new operator startup variable.
+
+Code and synthetic transport contracts do not admit a successor image. Actual
+ARM SDK production, UBI system `_ssl`/HTTP default trust and providers, loaded
+library hashes, Psycopg/TLS/database consumers, full findings/secrets inventory
+and strict Apple qualification remain required. The exact image receipts below
+retain their original historical producer and are not proof of this revised recipe.
+Evidence: `scripts/orchestration/experiment_runner_dispatch.py:2458`,
+`deploy/experiment-runner/Containerfile:1`.
 
 ## Exact image evidence
 

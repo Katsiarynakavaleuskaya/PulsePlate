@@ -785,7 +785,7 @@ def test_local_bootstrap_surfaces_use_locked_installer_and_virtualenv_guard() ->
         assert "PULSEPLATE_PSYCOPG_C_SDK" in text
         assert "PULSEPLATE_BOOTSTRAP_WHEELHOUSE" in text
     assert "venv: ensure-native-sdk" in makefile_text
-    assert "venv-sync: ensure-native-sdk" in makefile_text
+    assert "venv-sync: ensure-native-sdk-inputs ensure-python-proxy" in makefile_text
     assert "PULSEPLATE_PYTHON_INDEX_URL" in installer_text
 
 

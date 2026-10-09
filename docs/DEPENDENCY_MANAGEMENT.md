@@ -147,17 +147,26 @@ make dc-up
 make dc-shell
 ```
 
-Inside the container, run `make devcontainer-bootstrap` or `make venv`, then
-`make venv-sync` for refreshes. Both consume the matching genuine SDK and exact
-binary wheelhouse offline through the locked installer; no registry access is
-needed for this consumption. `source scripts/dev_shell.sh` initializes a fresh
-or empty container venv and activates it. The development image supplies the
-same SDK/wheelhouse handoff for its manual callers. Named venv volumes isolate
-container environments from the host checkout.
+Inside the container, `make devcontainer-bootstrap`, `make venv` and
+`source scripts/dev_shell.sh` consume the matching genuine SDK and verified
+baked wheelhouse offline. The sourced shell initializes a fresh or empty venv
+and activates it. Named venv volumes isolate container environments from the
+host checkout.
 
-The source producer supports the exact Linux amd64 CPython SDK family. On an
-ARM host, Docker/Compose select `linux/amd64` explicitly; emulated local builds
-retain their resource limits and native CI remains the compatibility signal.
+For an existing venv, `make venv-sync` requires Linux amd64, the genuine SDK and
+approved proxy access. It acquires a fresh private binary wheelhouse, validates
+its exact locked membership and startup hooks, then installs into the existing
+venv. A stale or missing baked wheelhouse does not block this refresh, and the
+baked wheelhouse is never overwritten. Failures before target installation leave
+the venv unchanged; a final pip failure propagates and may leave a partial target
+update. No success message or automatic rollback is supplied for that failure.
+
+The source producer accepts exactly Linux x86_64 CPython 3.11, 3.12 and 3.13,
+and Linux aarch64 CPython 3.13, with their matching immutable source-image pins,
+interpreter ABI and ELF target. The ARM SDK is for the isolated Experiment
+Runner; backend Make/devcontainer callers retain Linux amd64. On an ARM host,
+Docker/Compose select `linux/amd64` explicitly; emulated local builds retain
+their resource limits and native CI remains the compatibility signal.
 Stop Docker Desktop after an owned build/observation session. Actual SDK,
 wheelhouse and final-user import checks are required; file presence alone is
 not successful bootstrap evidence.
@@ -170,16 +179,22 @@ canonical local refresh path in repo workflows.
 
 ### CI/CD or Standard pip Environments
 
-If `pip-tools` is not available or you need standard pip compatibility, use constraints files for deterministic builds:
+Run this shared runtime/dev example inside a supported Linux SDK image using
+its matching interpreter and genuine SDK. Export `PULSEPLATE_PSYCOPG_C_SDK` to
+the supplied SDK directory first; native macOS is unsupported. Constraints do
+not replace the SDK or compiled locks, and the installer owns actual SDK/ABI
+admission.
 
 ```bash
 # Install pinned dependencies through a local wheelhouse
+: "${PULSEPLATE_PSYCOPG_C_SDK:?Enter the matching Linux SDK image first}"
 export PULSEPLATE_PYTHON_INDEX_URL="https://packages.pulseplate.app/root/pulseplate/+simple/"
 # Optional: only when the approved proxy requires an explicit trusted host.
 # Keep unset when TLS verification succeeds.
 export PULSEPLATE_PYTHON_TRUSTED_HOST=""
 python scripts/ci/install_locked_python_requirements.py \
   --python-executable python \
+  --psycopg-sdk "$PULSEPLATE_PSYCOPG_C_SDK" \
   --constraints-file constraints.txt \
   --install-dev
 ```
@@ -526,7 +541,9 @@ policy authority follows from this fixed alternative.
 ### Option 1: Locked wheelhouse installer (Current Implementation)
 
 GitHub Actions workflows should use the shared installer instead of ad hoc
-`pip install` blocks:
+`pip install` blocks. An earlier matching native SDK producer must supply the
+genuine SDK and export `PULSEPLATE_PSYCOPG_C_SDK` through `GITHUB_ENV` for the
+selected supported Linux interpreter before this step:
 
 ```yaml
 - name: Install dependencies
@@ -534,8 +551,10 @@ GitHub Actions workflows should use the shared installer instead of ad hoc
     PULSEPLATE_PYTHON_INDEX_URL: ${{ vars.PULSEPLATE_PYTHON_INDEX_URL }}
     PULSEPLATE_PYTHON_TRUSTED_HOST: ${{ vars.PULSEPLATE_PYTHON_TRUSTED_HOST }}
   run: |
+    : "${PULSEPLATE_PSYCOPG_C_SDK:?Run the matching native SDK producer first}"
     python scripts/ci/install_locked_python_requirements.py \
       --python-executable python \
+      --psycopg-sdk "$PULSEPLATE_PSYCOPG_C_SDK" \
       --constraints-file constraints.txt \
       --install-dev
 ```

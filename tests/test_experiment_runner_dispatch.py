@@ -8,6 +8,7 @@ import json
 import os
 from pathlib import Path
 import re
+import stat
 import subprocess
 import sys
 from types import SimpleNamespace
@@ -885,7 +886,13 @@ def test_runner_containerfile_preserves_secret_and_non_root_hygiene() -> None:
     assert "trap 'rm -f /root/.netrc' EXIT" in containerfile
     assert "--requirements-file /build/requirements-lock.txt" in containerfile
     assert "--constraints-file /build/constraints.txt" in containerfile
-    assert "--install-mode direct-proxy" in containerfile
+    assert containerfile.count("--psycopg-sdk /opt/psycopg-sdk") == 2
+    assert "--install-mode direct-proxy" not in containerfile
+    assert "scripts/ci/check_private_python_proxy_health.py" in containerfile
+    assert (
+        "COPY tests/fixtures/dependency_security_schema.json /build/tests/fixtures/"
+        in containerfile
+    )
     assert "--require-virtualenv" in containerfile
     assert "pip install" not in containerfile
     assert "COPY /run/secrets" not in containerfile
@@ -2084,6 +2091,7 @@ def test_backend_specific_runtime_refs_prevent_apple_digest_pull() -> None:
 
 def test_apple_build_registers_exact_local_digest_reference(
     monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
 ) -> None:
     digest = "sha256:" + "a" * 64
     tag = "pulseplate/experiment-runner:test"
@@ -2106,7 +2114,8 @@ def test_apple_build_registers_exact_local_digest_reference(
     monkeypatch.setattr(dispatch, "_runtime_readiness_reason", lambda _cli, _backend: None)
     monkeypatch.setattr(dispatch, "_run", fake_run)
 
-    result = dispatch._build_image("apple-container", tag)
+    monkeypatch.setattr(dispatch, "_runner_build_context", lambda raw: nullcontext(tmp_path))
+    result = dispatch._build_image("apple-container", tag, psycopg_sdk_root=str(tmp_path))
 
     assert result["image"] == immutable_ref
     assert [
@@ -5374,25 +5383,33 @@ def test_public_build_image_cli_emits_immutable_binding_or_typed_failure(
     capsys: pytest.CaptureFixture[str],
     fails: bool,
 ) -> None:
-    calls: list[tuple[str, str]] = []
+    calls: list[tuple[str, str, str]] = []
     expected = {
         "backend": "apple-container",
         "image": "test/runner@" + _DIGEST,
         "sanitized": "true",
     }
 
-    def build(backend: str, tag: str) -> dict[str, str]:
-        calls.append((backend, tag))
+    def build(backend: str, tag: str, *, psycopg_sdk_root: str) -> dict[str, str]:
+        calls.append((backend, tag, psycopg_sdk_root))
         if fails:
             raise dispatch.DispatchError("image_hygiene_failed")
         return expected
 
     monkeypatch.setattr(dispatch, "_build_image", build)
     code = dispatch.main(
-        ["build-image", "--backend", "apple-container", "--tag", "test/runner:local"]
+        [
+            "build-image",
+            "--backend",
+            "apple-container",
+            "--tag",
+            "test/runner:local",
+            "--psycopg-sdk-root",
+            "/owned-qualified-sdk",
+        ]
     )
     captured = capsys.readouterr()
-    assert calls == [("apple-container", "test/runner:local")]
+    assert calls == [("apple-container", "test/runner:local", "/owned-qualified-sdk")]
     if fails:
         assert code == 2
         assert captured.out == ""
@@ -5497,3 +5514,651 @@ def test_index_only_deleted_addition_matches_final_snapshot(
     assert not (snapshot / "staged-new.py").exists()
     assert dispatch._git(["ls-files", "--stage", "-z"], cwd=root).stdout == index
     assert material["staged_diff_sha256"] != material["worktree_diff_sha256"]
+
+
+def _runner_sdk_transport_fixture(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> tuple[Path, Path]:
+    """Synthetic bytes test transport only; they cannot qualify source, ABI or native origin."""
+    controls = tmp_path / "controls"
+    controls.mkdir(mode=0o700)
+    for relative in (
+        "deploy/experiment-runner/Containerfile",
+        "requirements-lock.txt",
+        "constraints.txt",
+        "scripts/ci/install_locked_python_requirements.py",
+        "scripts/ci/check_python_startup_hooks.py",
+        "scripts/ci/emergency_python_wheels.json",
+        "scripts/ci/check_private_python_proxy_health.py",
+        "tests/fixtures/dependency_security_schema.json",
+    ):
+        target = controls / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes((_REPO_ROOT / relative).read_bytes())
+        target.chmod(0o644)
+    sdk = tmp_path / "sdk"
+    sdk.mkdir(mode=0o700)
+    for relative in (
+        "psycopg-sdk/psycopg-c-sdk.json",
+        "psycopg-sdk/opaque.whl",
+        "usr/local/lib/libpq.so.5.18",
+        "usr/local/lib/libssl.so.3",
+        "usr/local/lib/libcrypto.so.3",
+        "usr/local/share/doc/pulseplate-native/OPENSSL-LICENSE",
+        "usr/local/share/doc/pulseplate-native/LIBPQ-COPYRIGHT",
+        "usr/local/share/doc/pulseplate-native/openssl.cnf",
+    ):
+        target = sdk / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(b"synthetic transport only: " + relative.encode())
+        target.chmod(0o644)
+    (sdk / "usr/local/lib/libpq.so.5").symlink_to("libpq.so.5.18")
+    monkeypatch.setattr(dispatch, "REPO_ROOT", controls)
+    monkeypatch.setattr(
+        dispatch, "CONTAINERFILE", controls / "deploy/experiment-runner/Containerfile"
+    )
+    for key in (
+        "PULSEPLATE_PYTHON_INDEX_URL",
+        "PULSEPLATE_PYTHON_TRUSTED_HOST",
+        "PULSEPLATE_PYTHON_NETRC",
+        "PIP_INDEX_URL",
+        "PIP_EXTRA_INDEX_URL",
+        "PIP_TRUSTED_HOST",
+        "PIP_CONFIG_FILE",
+        "GH_TOKEN",
+        "GITHUB_TOKEN",
+        "NETRC",
+        "DEVPI_CI_USER",
+        "DEVPI_CI_PASSWORD",
+    ):
+        monkeypatch.delenv(key, raising=False)
+    return controls.resolve(), sdk.resolve()
+
+
+def test_private_runner_context_preserves_exact_bytes_modes_and_internal_alias(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    controls, sdk = _runner_sdk_transport_fixture(tmp_path, monkeypatch)
+    provider = sdk / "usr/local/lib/ossl-modules/legacy.so"
+    provider.parent.mkdir()
+    provider.write_bytes(b"prior-qualified-provider transport fixture")
+    provider.chmod(0o644)
+    with dispatch._runner_build_context(str(sdk)) as context:
+        assert context != controls and not context.is_relative_to(controls)
+        assert context.stat().st_mode & 0o777 == 0o700
+        assert (context / "sdk-inputs/usr/local/lib/libpq.so.5").is_symlink()
+        assert os.readlink(context / "sdk-inputs/usr/local/lib/libpq.so.5") == "libpq.so.5.18"
+        assert stat.S_IMODE(
+            (context / "sdk-inputs/usr/local/lib/libpq.so.5").lstat().st_mode
+        ) == stat.S_IMODE((sdk / "usr/local/lib/libpq.so.5").lstat().st_mode)
+        for source_root, destination in ((controls, context), (sdk, context / "sdk-inputs")):
+            for source_path in source_root.rglob("*"):
+                target = destination / source_path.relative_to(source_root)
+                if source_path.is_file() and not source_path.is_symlink():
+                    assert target.read_bytes() == source_path.read_bytes()
+                    assert target.stat().st_mode & 0o777 == source_path.stat().st_mode & 0o777
+        assert not any(
+            (context / name).exists() for name in (".git", ".netrc", ".env", ".dockerignore")
+        )
+    assert not context.exists()
+
+
+@pytest.mark.parametrize("backend", ("docker", "apple-container"))
+def test_runner_build_consumes_only_verified_private_context_before_secrets(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, backend: str
+) -> None:
+    controls, sdk = _runner_sdk_transport_fixture(tmp_path, monkeypatch)
+    monkeypatch.setenv("PULSEPLATE_PYTHON_INDEX_URL", "https://packages.example/simple")
+    monkeypatch.setattr(dispatch, "_resolve_cli", lambda name: "/usr/local/bin/" + name)
+    monkeypatch.setattr(dispatch, "_runtime_readiness_reason", lambda cli, kind: None)
+    contexts: list[Path] = []
+    calls: list[list[str]] = []
+
+    def native(argv: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        calls.append(argv)
+        if argv[1] == "build":
+            context = Path(argv[-1])
+            contexts.append(context)
+            assert context != controls and context.exists()
+            assert (
+                Path(argv[argv.index("--file") + 1])
+                == context / "deploy/experiment-runner/Containerfile"
+            )
+            assert (context / "requirements-lock.txt").read_bytes() == (
+                controls / "requirements-lock.txt"
+            ).read_bytes()
+            assert (context / "sdk-inputs/psycopg-sdk/opaque.whl").read_bytes() == (
+                sdk / "psycopg-sdk/opaque.whl"
+            ).read_bytes()
+            assert kwargs["timeout"] == 1800
+            assert kwargs["secret_env_keys"] == ("PULSEPLATE_PYTHON_INDEX_URL",)
+        payload = json.dumps([{"Id": _DIGEST}]) if argv[1:3] == ["image", "inspect"] else ""
+        return subprocess.CompletedProcess(argv, 0, payload, "")
+
+    monkeypatch.setattr(dispatch, "_run", native)
+    result = dispatch._build_image(backend, "test/runner:local", psycopg_sdk_root=str(sdk))
+    assert result == {
+        "backend": backend,
+        "image": "test/runner:local@" + _DIGEST,
+        "sanitized": "true",
+    }
+    assert len(contexts) == 1 and not contexts[0].exists()
+    if backend == "docker":
+        assert any(argv[1] == "history" for argv in calls)
+    else:
+        assert any(argv[1:3] == ["image", "tag"] for argv in calls)
+
+
+@pytest.mark.parametrize(
+    "fault",
+    (
+        "missing_receipt",
+        "unknown_file",
+        "unknown_directory",
+        "extra_wheel",
+        "receipt_link",
+        "wheel_link",
+        "bad_alias",
+        "alias_cycle",
+        "missing_target",
+        "hardlink",
+        "fifo",
+        "file_mode",
+        "directory_mode",
+        "oversize",
+    ),
+)
+def test_invalid_runner_sdk_transport_fails_before_runtime_or_secret_stage(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fault: str
+) -> None:
+    _, sdk = _runner_sdk_transport_fixture(tmp_path, monkeypatch)
+    receipt = sdk / "psycopg-sdk/psycopg-c-sdk.json"
+    wheel = sdk / "psycopg-sdk/opaque.whl"
+    library = sdk / "usr/local/lib/libssl.so.3"
+    alias = sdk / "usr/local/lib/libpq.so.5"
+    if fault == "missing_receipt":
+        receipt.unlink()
+    elif fault == "unknown_file":
+        (sdk / ".netrc").write_bytes(b"must never read this unadmitted file")
+    elif fault == "unknown_directory":
+        (sdk / "unadmitted-directory").mkdir()
+    elif fault == "extra_wheel":
+        (sdk / "psycopg-sdk/extra.whl").write_bytes(b"another transport wheel")
+    elif fault in ("receipt_link", "wheel_link"):
+        selected = receipt if fault == "receipt_link" else wheel
+        selected.unlink()
+        selected.symlink_to(library)
+    elif fault in ("bad_alias", "alias_cycle"):
+        alias.unlink()
+        alias.symlink_to("../escape" if fault == "bad_alias" else alias.name)
+    elif fault == "missing_target":
+        (sdk / "usr/local/lib/libpq.so.5.18").unlink()
+    elif fault == "hardlink":
+        library.unlink()
+        os.link(sdk / "usr/local/lib/libcrypto.so.3", library)
+    elif fault == "fifo":
+        library.unlink()
+        os.mkfifo(library)
+    elif fault == "file_mode":
+        library.chmod(0o666)
+    elif fault == "directory_mode":
+        (sdk / "usr").chmod(0o777)
+    elif fault == "oversize":
+        with library.open("wb") as output:
+            output.truncate(16 * 1024**2 + 1)
+
+    def forbidden(*args: Any, **kwargs: Any) -> NoReturn:
+        raise AssertionError(
+            "Invalid SDK must stop before runtime readiness/build and secret forwarding"
+        )
+
+    monkeypatch.setattr(dispatch, "_resolve_cli", forbidden)
+    monkeypatch.setattr(dispatch, "_run", forbidden)
+    original_read = dispatch._material_file
+
+    def admitted_read(root: Path, relative: str, **kwargs: Any) -> bytes:
+        assert relative != ".netrc"
+        return original_read(root, relative, **kwargs)
+
+    monkeypatch.setattr(dispatch, "_material_file", admitted_read)
+    with pytest.raises((ValueError, OSError)):
+        dispatch._build_image("docker", "test/runner:local", psycopg_sdk_root=str(sdk))
+
+
+@pytest.mark.parametrize(
+    "fault",
+    (
+        "relative",
+        "linked_root",
+        "linked_ancestor",
+        "lexical_parent",
+        "double_slash",
+        "file",
+        "permissions",
+        "missing",
+    ),
+)
+def test_runner_sdk_root_requires_canonical_private_directory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fault: str
+) -> None:
+    _, sdk = _runner_sdk_transport_fixture(tmp_path, monkeypatch)
+    raw = str(sdk)
+    if fault == "relative":
+        raw = sdk.name
+    elif fault == "linked_root":
+        link = tmp_path / "alias"
+        link.symlink_to(sdk, target_is_directory=True)
+        raw = str(link)
+    elif fault == "linked_ancestor":
+        link = tmp_path / "parent-alias"
+        link.symlink_to(tmp_path, target_is_directory=True)
+        raw = str(link / "sdk")
+    elif fault == "lexical_parent":
+        raw += "/../sdk"
+    elif fault == "double_slash":
+        raw = "/" + raw
+    elif fault == "file":
+        raw = str(sdk / "psycopg-sdk/opaque.whl")
+    elif fault == "permissions":
+        sdk.chmod(0o755)
+    elif fault == "missing":
+        raw = str(tmp_path / "absent")
+    with pytest.raises((ValueError, OSError)):
+        with dispatch._runner_build_context(raw):
+            raise AssertionError("Unsafe root was yielded")
+
+
+def test_runner_staged_destination_drift_stops_before_runtime(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _, sdk = _runner_sdk_transport_fixture(tmp_path, monkeypatch)
+    original = dispatch._runner_stage_census
+
+    def census(root: Path, **kwargs: Any) -> Any:
+        if root != sdk:
+            (root / "requirements-lock.txt").write_bytes(b"changed destination")
+        return original(root, **kwargs)
+
+    monkeypatch.setattr(dispatch, "_runner_stage_census", census)
+
+    def forbidden(*args: Any, **kwargs: Any) -> NoReturn:
+        raise AssertionError("Destination drift must stop before runtime/secret handoff")
+
+    monkeypatch.setattr(dispatch, "_resolve_cli", forbidden)
+    with pytest.raises(ValueError, match="actual staged transport changed"):
+        dispatch._build_image("docker", "test/runner:local", psycopg_sdk_root=str(sdk))
+
+
+def test_copied_runner_installer_finds_schema_and_adjacent_helper_without_checkout(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    controls, _ = _runner_sdk_transport_fixture(tmp_path, monkeypatch)
+    env = {"PATH": os.defpath, "HOME": str(tmp_path), "PYTHONPATH": str(controls)}
+    script = controls / "scripts/ci/install_locked_python_requirements.py"
+    argv = [
+        sys.executable,
+        str(script),
+        "--preflight-only",
+        "--index-url",
+        "https://packages.pulseplate.app/root/pulseplate/+simple/",
+        "--requirements-file",
+        str(controls / "requirements-lock.txt"),
+        "--constraints-file",
+        str(controls / "constraints.txt"),
+    ]
+    result = subprocess.run(
+        argv, cwd=controls, env=env, capture_output=True, text=True, timeout=15, check=False
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    pure_helper = "from scripts.ci import install_locked_python_requirements as i; print(i.admitted_psycopg_source_url(body=('<a href=\"../../+f/source/' + i.PSYCOPG_C_SOURCE_NAME + '#sha256=' + i.PSYCOPG_C_SOURCE_SHA256 + '\">source</a>').encode(), project_url='https://packages.example/simple/psycopg-c/'))"
+    parsed = subprocess.run(
+        [sys.executable, "-c", pure_helper],
+        cwd=controls,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=15,
+        check=False,
+    )
+    assert parsed.returncode == 0 and parsed.stdout.startswith("https://packages.example/")
+    (controls / "tests/fixtures/dependency_security_schema.json").unlink()
+    failed = subprocess.run(
+        argv, cwd=controls, env=env, capture_output=True, text=True, timeout=15, check=False
+    )
+    assert failed.returncode != 0
+    assert not (controls / "build").exists()
+
+
+def test_sdk_argument_is_required_only_by_build_image_cli() -> None:
+    with pytest.raises(SystemExit):
+        dispatch._parse_args(["build-image", "--backend", "docker", "--tag", "test/runner:local"])
+    with pytest.raises(SystemExit):
+        dispatch._parse_args(
+            [
+                "probe",
+                "--backend",
+                "docker",
+                "--image",
+                "test/runner@" + _DIGEST,
+                "--output",
+                "probe.json",
+                "--psycopg-sdk-root",
+                "/some-root",
+            ]
+        )
+
+
+def test_runner_source_sdk_drift_stops_before_native_or_secret_handoff(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _, sdk = _runner_sdk_transport_fixture(tmp_path, monkeypatch)
+    original = dispatch._runner_stage_census
+    observations = 0
+
+    def census(root: Path, **kwargs: Any) -> Any:
+        nonlocal observations
+        if root == sdk:
+            observations += 1
+            if observations == 2:
+                (sdk / "usr/local/lib/libcrypto.so.3").write_bytes(b"changed source after staging")
+        return original(root, **kwargs)
+
+    monkeypatch.setattr(dispatch, "_runner_stage_census", census)
+
+    def forbidden(*args: Any, **kwargs: Any) -> NoReturn:
+        raise AssertionError("Source drift must stop before native or secret handoff")
+
+    monkeypatch.setattr(dispatch, "_resolve_cli", forbidden)
+    with pytest.raises(ValueError, match="actual staged transport changed"):
+        dispatch._build_image("docker", "test/runner:local", psycopg_sdk_root=str(sdk))
+    assert observations == 2
+
+
+@pytest.mark.parametrize("kind", ("symlink", "hardlink"))
+def test_runner_copied_helper_rejects_linked_repo_source_before_native(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, kind: str
+) -> None:
+    controls, sdk = _runner_sdk_transport_fixture(tmp_path, monkeypatch)
+    helper = controls / "scripts/ci/check_private_python_proxy_health.py"
+    helper.unlink()
+    original = controls / "scripts/ci/check_python_startup_hooks.py"
+    if kind == "symlink":
+        helper.symlink_to(original)
+    else:
+        os.link(original, helper)
+
+    def forbidden(*args: Any, **kwargs: Any) -> NoReturn:
+        raise AssertionError("Linked source helper must stop before native or secret handoff")
+
+    monkeypatch.setattr(dispatch, "_resolve_cli", forbidden)
+    with pytest.raises((ValueError, OSError)):
+        dispatch._build_image("docker", "test/runner:local", psycopg_sdk_root=str(sdk))
+
+
+@pytest.mark.parametrize("bound", (0, -1, True, "16", 16 * 1024**2 + 1))
+def test_material_explicit_invalid_bound_stops_before_descriptor_open(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, bound: Any
+) -> None:
+    target = tmp_path / "payload"
+    target.write_bytes(b"synthetic bytes")
+
+    def forbidden(*args: Any, **kwargs: Any) -> NoReturn:
+        raise AssertionError("Invalid bound must not open a material descriptor")
+
+    monkeypatch.setattr(dispatch.os, "open", forbidden)
+    with pytest.raises(ValueError, match="invalid byte bound"):
+        dispatch._material_file(tmp_path, target.name, maximum_bytes=bound)
+
+
+def test_material_namespace_mode_change_after_read_is_rejected_and_fd_closed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    target = tmp_path / "payload"
+    target.write_bytes(b"unchanged payload")
+    target.chmod(0o644)
+    original_open, original_lstat = os.open, Path.lstat
+    descriptors: list[int] = []
+
+    def observed_open(path: Any, *args: Any, **kwargs: Any) -> int:
+        descriptor = original_open(path, *args, **kwargs)
+        if Path(path) == target:
+            descriptors.append(descriptor)
+        return descriptor
+
+    def changed_namespace(path: Path, *args: Any, **kwargs: Any) -> os.stat_result:
+        if path == target and descriptors:
+            target.chmod(0o600)
+        return original_lstat(path, *args, **kwargs)
+
+    monkeypatch.setattr(dispatch.os, "open", observed_open)
+    monkeypatch.setattr(Path, "lstat", changed_namespace)
+    with pytest.raises(ValueError, match="namespace or metadata changed"):
+        dispatch._material_file(tmp_path, target.name)
+    assert len(descriptors) == 1
+    with pytest.raises(OSError):
+        os.fstat(descriptors[0])
+    assert target.read_bytes() == b"unchanged payload"
+
+
+@pytest.mark.parametrize(
+    "fault", ("members", "total_bytes", "directory_in_file_slot", "repo_mode", "foreign_owner")
+)
+def test_runner_transport_rejects_resource_and_namespace_faults_before_runtime(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fault: str
+) -> None:
+    """Real filesystem limits and a synthetic UID observation, never native SDK proof."""
+    controls, sdk = _runner_sdk_transport_fixture(tmp_path, monkeypatch)
+    messages = {
+        "members": "too many members",
+        "total_bytes": "total byte bound",
+        "directory_in_file_slot": "finite curated export",
+        "repo_mode": "unsafe owner or permissions",
+        "foreign_owner": "not owned by this operator",
+    }
+    if fault == "members":
+        for number in range(65):
+            (sdk / f"psycopg-sdk/extra-{number}.whl").touch()
+    elif fault == "total_bytes":
+        for relative in sorted(dispatch._RUNNER_SDK_FILES)[:5]:
+            with (sdk / relative).open("wb") as stream:
+                stream.truncate(15 * 1024**2)
+    elif fault == "directory_in_file_slot":
+        library = sdk / "usr/local/lib/libssl.so.3"
+        library.unlink()
+        library.mkdir()
+    elif fault == "repo_mode":
+        (controls / "requirements-lock.txt").chmod(0o666)
+    else:
+        library = sdk / "usr/local/lib/libssl.so.3"
+        original = Path.lstat
+
+        def foreign_uid(path: Path, *args: Any, **kwargs: Any) -> os.stat_result:
+            info = original(path, *args, **kwargs)
+            if path == library:
+                values = list(info)
+                values[4] = os.getuid() + 1
+                return os.stat_result(values)
+            return info
+
+        monkeypatch.setattr(Path, "lstat", foreign_uid)
+
+    def forbidden(*args: Any, **kwargs: Any) -> NoReturn:
+        raise AssertionError("Transport rejection must precede runtime and secret forwarding")
+
+    monkeypatch.setattr(dispatch, "_resolve_cli", forbidden)
+    monkeypatch.setattr(dispatch, "_run", forbidden)
+    with pytest.raises(ValueError, match=messages[fault]):
+        dispatch._build_image("docker", "test/runner:local", psycopg_sdk_root=str(sdk))
+
+
+def test_runner_alias_replacement_during_inspection_is_rejected_before_runtime(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _, sdk = _runner_sdk_transport_fixture(tmp_path, monkeypatch)
+    alias = sdk / "usr/local/lib/libpq.so.5"
+    original = os.readlink
+    raced = False
+
+    def replace_alias(path: Any, *args: Any, **kwargs: Any) -> str:
+        nonlocal raced
+        value = original(path, *args, **kwargs)
+        assert isinstance(value, str)
+        if Path(path) == alias and not raced:
+            raced = True
+            alias.unlink()
+            alias.symlink_to(value)
+        return value
+
+    def forbidden(*args: Any, **kwargs: Any) -> NoReturn:
+        raise AssertionError("Alias race must stop before runtime and secret forwarding")
+
+    monkeypatch.setattr(dispatch.os, "readlink", replace_alias)
+    monkeypatch.setattr(dispatch, "_resolve_cli", forbidden)
+    with pytest.raises(ValueError, match="alias changed during inspection"):
+        dispatch._build_image("docker", "test/runner:local", psycopg_sdk_root=str(sdk))
+    assert raced and os.readlink(alias) == "libpq.so.5.18"
+
+
+def test_runner_repo_source_drift_after_staging_stops_before_secrets_and_cleans_context(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    controls, sdk = _runner_sdk_transport_fixture(tmp_path, monkeypatch)
+    original = dispatch._runner_stage_census
+    sdk_reads = 0
+    contexts: list[Path] = []
+
+    def drift(root: Path, **kwargs: Any) -> dict[str, tuple[str, int, bytes | str | None]]:
+        nonlocal sdk_reads
+        rows = original(root, **kwargs)
+        if root == sdk:
+            sdk_reads += 1
+            if sdk_reads == 2:
+                target = controls / "requirements-lock.txt"
+                target.write_bytes(target.read_bytes() + b"\n# concurrent source edit\n")
+        else:
+            contexts.append(root)
+        return rows
+
+    def forbidden(*args: Any, **kwargs: Any) -> NoReturn:
+        raise AssertionError("Repository drift must stop before runtime and secret forwarding")
+
+    monkeypatch.setattr(dispatch, "_runner_stage_census", drift)
+    monkeypatch.setattr(dispatch, "_resolve_cli", forbidden)
+    with pytest.raises(ValueError, match="source changed before the secret-bearing build"):
+        dispatch._build_image("docker", "test/runner:local", psycopg_sdk_root=str(sdk))
+    assert sdk_reads == 2 and contexts and all(not root.exists() for root in contexts)
+
+
+@pytest.mark.parametrize("tag", ("test/runner@sha256:" + "a" * 64, "bad tag"))
+def test_runner_invalid_build_tag_stops_before_sdk_or_runtime(
+    monkeypatch: pytest.MonkeyPatch, tag: str
+) -> None:
+    def forbidden(*args: Any, **kwargs: Any) -> NoReturn:
+        raise AssertionError("Invalid tag must stop before SDK and runtime access")
+
+    monkeypatch.setattr(dispatch, "_runner_build_context", forbidden)
+    with pytest.raises(ValueError, match="--tag"):
+        dispatch._build_image("docker", tag)
+
+
+@pytest.mark.parametrize(
+    "backend,fault,code",
+    (
+        ("docker", "cli_missing", "runtime_cli_missing"),
+        ("docker", "runtime_not_ready", "runtime_not_ready"),
+        ("docker", "build", "probe_execution_failed"),
+        ("docker", "inspect", "image_missing"),
+        ("docker", "inspect_json", "image_missing"),
+        ("docker", "history", "image_hygiene_failed"),
+        ("docker", "secret_name", "image_hygiene_failed"),
+        ("docker", "secret_value", "image_hygiene_failed"),
+        ("apple-container", "alias_registration", "image_digest_drift"),
+        ("apple-container", "alias_inspect", "image_digest_drift"),
+        ("apple-container", "alias_json", "image_digest_drift"),
+        ("apple-container", "alias_digest", "image_digest_drift"),
+    ),
+)
+def test_runner_build_failures_preserve_error_and_remove_private_staged_context(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, backend: str, fault: str, code: str
+) -> None:
+    """Mock native transport only: real context isolation/cleanup, no image admission."""
+    _, sdk = _runner_sdk_transport_fixture(tmp_path, monkeypatch)
+    synthetic_index = "https://packages.example/simple"
+    monkeypatch.setenv("PULSEPLATE_PYTHON_INDEX_URL", synthetic_index)
+    monkeypatch.setattr(
+        dispatch,
+        "_resolve_cli",
+        lambda name: None if fault == "cli_missing" else "/usr/bin/" + name,
+    )
+    monkeypatch.setattr(
+        dispatch,
+        "_runtime_readiness_reason",
+        lambda *args: "runtime_not_ready" if fault == "runtime_not_ready" else None,
+    )
+    original_census = dispatch._runner_stage_census
+    contexts: list[Path] = []
+    calls: list[list[str]] = []
+
+    def observe(root: Path, **kwargs: Any) -> dict[str, tuple[str, int, bytes | str | None]]:
+        result = original_census(root, **kwargs)
+        if root != sdk:
+            contexts.append(root)
+        return result
+
+    def native(argv: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        calls.append(argv)
+        payload = json.dumps([{"Id": _DIGEST}])
+        exit_code = 0
+        if argv[1] == "build":
+            assert Path(argv[-1]).exists() and kwargs["timeout"] == 1800
+            assert kwargs["secret_env_keys"] == ("PULSEPLATE_PYTHON_INDEX_URL",)
+            exit_code = int(fault == "build")
+        elif argv[1] == "history":
+            exit_code = int(fault == "history")
+            payload = ""
+        elif argv[1:3] == ["image", "tag"]:
+            exit_code = int(fault == "alias_registration")
+            payload = ""
+        elif argv[1:3] == ["image", "inspect"]:
+            immutable = "@sha256:" in argv[-1]
+            if immutable:
+                exit_code = int(fault == "alias_inspect")
+                if fault == "alias_json":
+                    payload = "{"
+                elif fault == "alias_digest":
+                    payload = json.dumps([{"Id": _OTHER_DIGEST}])
+            else:
+                exit_code = int(fault == "inspect")
+                if fault == "inspect_json":
+                    payload = "{"
+                elif fault in ("secret_name", "secret_value"):
+                    payload = json.dumps(
+                        [
+                            {
+                                "Id": _DIGEST,
+                                "Config": {
+                                    "Env": [
+                                        (
+                                            "PULSEPLATE_PYTHON_INDEX_URL"
+                                            if fault == "secret_name"
+                                            else synthetic_index
+                                        )
+                                    ]
+                                },
+                            }
+                        ]
+                    )
+        else:
+            raise AssertionError(argv)
+        return subprocess.CompletedProcess(argv, exit_code, payload, "")
+
+    monkeypatch.setattr(dispatch, "_runner_stage_census", observe)
+    monkeypatch.setattr(dispatch, "_run", native)
+    with pytest.raises(dispatch.DispatchError) as caught:
+        dispatch._build_image(backend, "test/runner:local", psycopg_sdk_root=str(sdk))
+    assert caught.value.code == code
+    assert contexts and all(not context.exists() for context in contexts)
+    if fault in ("cli_missing", "runtime_not_ready"):
+        assert calls == []
+    elif fault == "build":
+        assert len(calls) == 1

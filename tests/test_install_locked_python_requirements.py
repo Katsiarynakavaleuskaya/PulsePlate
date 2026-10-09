@@ -9,6 +9,7 @@ import json
 import os
 import re
 import subprocess
+import struct
 import sys
 import tempfile
 import types
@@ -802,6 +803,7 @@ def test_main_psycopg_sdk_rejects_other_interpreter_before_sdk_effects(
     sdk_source: str,
     operation: str,
 ) -> None:
+    _select_sdk_test_loader(monkeypatch)
     requirements = tmp_path / "requirements.txt"
     requirements.write_text("psycopg[c]==3.3.4\npsycopg-c==3.3.4\n", encoding="utf-8")
     constraints = tmp_path / "constraints.txt"
@@ -853,6 +855,7 @@ def test_main_psycopg_sdk_rejects_other_interpreter_before_sdk_effects(
 def test_psycopg_sdk_direct_acquisition_rejects_other_interpreter_before_directory_creation(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
+    _select_sdk_test_loader(monkeypatch)
     requirements = tmp_path / "requirements.txt"
     requirements.write_text("psycopg[c]==3.3.4\npsycopg-c==3.3.4\n", encoding="utf-8")
     target = _write_executable(tmp_path / "different-python")
@@ -881,6 +884,7 @@ def test_psycopg_sdk_direct_acquisition_rejects_other_interpreter_before_directo
 def test_psycopg_sdk_disappearing_target_is_runtime_error_before_acquisition(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
+    _select_sdk_test_loader(monkeypatch)
     requirements = tmp_path / "requirements.txt"
     requirements.write_text("psycopg[c]==3.3.4\npsycopg-c==3.3.4\n", encoding="utf-8")
     target = _write_executable(tmp_path / "disappearing-python")
@@ -918,7 +922,10 @@ def test_psycopg_sdk_disappearing_target_is_runtime_error_before_acquisition(
     assert not wheelhouse.exists()
 
 
-def test_psycopg_sdk_accepts_the_loader_interpreters_real_venv_symlink(tmp_path: Path) -> None:
+def test_psycopg_sdk_accepts_the_loader_interpreters_real_venv_symlink(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _select_sdk_test_loader(monkeypatch)
     invocation = tmp_path / "venv" / "bin" / "python"
     invocation.parent.mkdir(parents=True)
     invocation.symlink_to(sys.executable)
@@ -7772,3 +7779,377 @@ def test_owned_pip_execution_import_failure_has_private_phase_diagnostic(
     assert installer.PIP_TRANSPORT_ERROR not in captured.err
     assert "Traceback" not in captured.err
     assert not any(marker in captured.err for marker in SYNTHETIC_MARKERS)
+
+
+def _select_sdk_test_loader(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    machine: str = "x86_64",
+    minor: int = 13,
+    system: str = "linux",
+    abi_overrides: dict[str, object] | None = None,
+) -> None:
+    """Synthetic loader identity tests recognition only, never actual source/ABI qualification."""
+    values: dict[str, object] = {
+        "Py_GIL_DISABLED": 0,
+        "SOABI": f"cpython-3{minor}-{machine}-linux-gnu",
+        "EXT_SUFFIX": f".cpython-3{minor}-{machine}-linux-gnu.so",
+    }
+    values.update(abi_overrides or {})
+    monkeypatch.setattr(
+        installer,
+        "sys",
+        types.SimpleNamespace(
+            platform=system,
+            version_info=(3, minor),
+            executable=sys.executable,
+            implementation=types.SimpleNamespace(name="cpython", cache_tag=f"cpython-3{minor}"),
+            abiflags="",
+        ),
+    )
+    monkeypatch.setattr(installer.platform, "machine", lambda: machine)
+    monkeypatch.setattr(installer.sysconfig, "get_config_var", values.get)
+
+
+@pytest.mark.parametrize(
+    "machine,minor,elf_machine,configure_target,source_image",
+    (
+        (
+            "x86_64",
+            11,
+            62,
+            "linux-x86_64",
+            "python@sha256:9fd630803ec3446920ed6b64d20150bd724c1751e71817293a4230522c1a384a",
+        ),
+        (
+            "x86_64",
+            12,
+            62,
+            "linux-x86_64",
+            "python@sha256:a594f7e9df8a4c431265125b5f5d90cd1b81c8a8797fefee69d5b3544be11111",
+        ),
+        (
+            "x86_64",
+            13,
+            62,
+            "linux-x86_64",
+            "python@sha256:7a6b87c02e1f4d6bb572e379235cbbdd7892add0572442c9b0b860a3f5aa9857",
+        ),
+        (
+            "aarch64",
+            13,
+            183,
+            "linux-aarch64",
+            "python@sha256:f0320b9bf735a4c4db05e7578e487cbed66c097e36b59a3864ca6d3e7c7dcea9",
+        ),
+    ),
+)
+def test_sdk_four_actual_loader_tuples_select_matching_source_and_abi(
+    monkeypatch: pytest.MonkeyPatch,
+    machine: str,
+    minor: int,
+    elf_machine: int,
+    configure_target: str,
+    source_image: str,
+) -> None:
+    _select_sdk_test_loader(monkeypatch, machine=machine, minor=minor)
+    target = installer._psycopg_sdk_target(source_image)
+    assert (target.machine, target.minor, target.elf_machine) == (machine, minor, elf_machine)
+    assert target.openssl_target == configure_target
+    assert target.python_tag == f"cp3{minor}"
+    assert target.wheel_platform == f"linux_{machine}"
+    assert target.soabi == f"cpython-3{minor}-{machine}-linux-gnu"
+
+
+@pytest.mark.parametrize(
+    "system,machine,minor",
+    (
+        ("darwin", "arm64", 13),
+        ("darwin", "x86_64", 13),
+        ("linux", "arm64", 13),
+        ("linux", "AMD64", 13),
+        ("linux", "armv8l", 13),
+        ("linux", "i686", 13),
+        ("linux", "aarch64", 11),
+        ("linux", "aarch64", 12),
+        ("linux", "aarch64", 14),
+        ("linux", "x86_64", 14),
+    ),
+)
+def test_sdk_unadmitted_tuple_rejects_before_source_read_mkdir_or_backend(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+    system: str,
+    machine: str,
+    minor: int,
+) -> None:
+    _select_sdk_test_loader(monkeypatch, machine=machine, minor=minor, system=system)
+
+    def forbidden(*args: object, **kwargs: object) -> None:
+        raise AssertionError(
+            "Unsupported target must reject before source, pip, or backend effects"
+        )
+
+    for name in (
+        "_read_regular_input",
+        "inspect_locked_wheel",
+        "derive_psycopg_source",
+        "run_command",
+    ):
+        monkeypatch.setattr(installer, name, forbidden)
+    requirements = tmp_path / "requirements.txt"
+    requirements.write_text("psycopg[c]==3.3.4\npsycopg-c==3.3.4\n")
+    constraints = tmp_path / "constraints.txt"
+    constraints.write_text("")
+    monkeypatch.setattr(installer, "run_dependency_floor_preflight", lambda **kwargs: None)
+    monkeypatch.setattr(
+        installer, "resolve_private_proxy_settings", lambda **kwargs: (APPROVED_PROXY_URL, None)
+    )
+    for name in ("read_psycopg_c_sdk", "upgrade_pip", "build_wheelhouse", "install_with_guard"):
+        # The read-path call below must still reach the real target recognizer.
+        if name != "read_psycopg_c_sdk":
+            monkeypatch.setattr(installer, name, forbidden)
+    wheelhouse = tmp_path / "uncreated-wheelhouse"
+    with pytest.raises(RuntimeError, match="four admitted Linux tuples"):
+        installer.acquire_locked_wheelhouse(
+            python_executable=sys.executable,
+            requirement_files=[requirements],
+            constraints_file=constraints,
+            wheelhouse=wheelhouse,
+            index_url=APPROVED_PROXY_URL,
+            trusted_host=None,
+            sdk=tmp_path / "unread-sdk",
+        )
+    assert (
+        installer.main(
+            [
+                "--python-executable",
+                sys.executable,
+                "--requirements-file",
+                str(requirements),
+                "--constraints-file",
+                str(constraints),
+                "--psycopg-sdk",
+                str(tmp_path / "unread-sdk"),
+                "--upgrade-pip",
+                "--prefetch-only",
+                "--wheelhouse-dir",
+                str(wheelhouse),
+            ]
+        )
+        == 1
+    )
+    assert "four admitted Linux tuples" in capsys.readouterr().out
+    assert not wheelhouse.exists()
+    output = tmp_path / "uncreated-sdk"
+    with pytest.raises(RuntimeError, match="four admitted Linux tuples"):
+        installer.build_psycopg_c_sdk(
+            source=tmp_path / "unread-source",
+            build_wheels=tmp_path / "unread-build-wheels",
+            native_root=tmp_path / "unread-native",
+            output=output,
+        )
+    with pytest.raises(RuntimeError, match="four admitted Linux tuples"):
+        installer.read_psycopg_c_sdk(tmp_path / "unread-sdk")
+    assert not output.exists()
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    (
+        {"Py_GIL_DISABLED": 1},
+        {"Py_GIL_DISABLED": False},
+        {"Py_GIL_DISABLED": "0"},
+        {"SOABI": "cpython-313-x86_64-linux-gnu"},
+        {"EXT_SUFFIX": ".cpython-313-aarch64-linux-gnu.debug.so"},
+    ),
+)
+def test_sdk_rejects_actual_loader_abi_drift(
+    monkeypatch: pytest.MonkeyPatch,
+    overrides: dict[str, object],
+) -> None:
+    _select_sdk_test_loader(monkeypatch, machine="aarch64", abi_overrides=overrides)
+    with pytest.raises(RuntimeError, match="actual CPython ABI/source-image"):
+        installer._psycopg_sdk_target()
+
+
+@pytest.mark.parametrize("drift", ("pointer", "implementation", "cache-tag", "abiflags", "source"))
+def test_sdk_rejects_loader_or_source_identity_drift(
+    monkeypatch: pytest.MonkeyPatch,
+    drift: str,
+) -> None:
+    _select_sdk_test_loader(monkeypatch)
+    source = None
+    if drift == "pointer":
+        monkeypatch.setattr(installer, "struct", types.SimpleNamespace(calcsize=lambda fmt: 4))
+    elif drift == "implementation":
+        installer.sys.implementation.name = "pypy"
+    elif drift == "cache-tag":
+        installer.sys.implementation.cache_tag = "cpython-313t"
+    elif drift == "abiflags":
+        installer.sys.abiflags = "t"
+    else:
+        source = "python@sha256:f0320b9bf735a4c4db05e7578e487cbed66c097e36b59a3864ca6d3e7c7dcea9"
+    with pytest.raises(RuntimeError, match="actual CPython ABI/source-image"):
+        installer._psycopg_sdk_target(source)
+
+
+def _synthetic_sdk_extension_wheel(
+    path: Path,
+    *,
+    machine: str,
+    minor: int,
+    elf_machine: int,
+    fault: str = "",
+) -> dict[str, str]:
+    """Minimal headers exercise static checks; these are never executable native proof."""
+    payload = bytearray(64)
+    payload[:7] = b"\x7fELF\x02\x01\x01"
+    struct.pack_into("<HHI", payload, 16, 3, elf_machine, 1)
+    struct.pack_into("<H", payload, 52, 64)
+    payload.extend(b"libpq.so.5\x00")
+    if fault == "class":
+        payload[4] = 1
+    elif fault == "endianness":
+        payload[5] = 2
+    elif fault == "machine":
+        struct.pack_into("<H", payload, 18, 183 if elf_machine == 62 else 62)
+    elif fault == "type":
+        struct.pack_into("<H", payload, 16, 2)
+    elif fault == "version":
+        struct.pack_into("<I", payload, 20, 0)
+    elif fault == "ehsize":
+        struct.pack_into("<H", payload, 52, 0)
+    elif fault == "libpq":
+        payload[64:] = b"another-library\x00"
+    soabi = f"cpython-3{minor}-{machine}-linux-gnu"
+    members = {f"psycopg_c/{name}.{soabi}.so": bytes(payload) for name in ("_psycopg", "pq")}
+    tag = f"cp3{minor}-cp3{minor}-linux_{machine}"
+    if fault == "tag":
+        tag = f"cp3{minor}-cp3{minor}-linux_other"
+    if fault == "name":
+        members["psycopg_c/unexpected.so"] = members.pop(f"psycopg_c/pq.{soabi}.so")
+    if fault == "missing":
+        members.pop(f"psycopg_c/pq.{soabi}.so")
+    with zipfile.ZipFile(path, "w") as archive:
+        archive.writestr(
+            "psycopg_c-3.3.4.dist-info/WHEEL",
+            f"Wheel-Version: 1.0\nRoot-Is-Purelib: false\nTag: {tag}\n",
+        )
+        for name, data in members.items():
+            archive.writestr(name, data)
+    return {name: installer.hashlib.sha256(data).hexdigest() for name, data in members.items()}
+
+
+@pytest.mark.parametrize(
+    "machine,minor,elf_machine",
+    (("x86_64", 11, 62), ("x86_64", 12, 62), ("x86_64", 13, 62), ("aarch64", 13, 183)),
+)
+def test_sdk_static_extension_headers_match_each_selected_tuple(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    machine: str,
+    minor: int,
+    elf_machine: int,
+) -> None:
+    _select_sdk_test_loader(monkeypatch, machine=machine, minor=minor)
+    wheel = tmp_path / "synthetic.whl"
+    expected = _synthetic_sdk_extension_wheel(
+        wheel, machine=machine, minor=minor, elf_machine=elf_machine
+    )
+    assert installer._inspect_psycopg_c_extensions(wheel) == expected
+
+
+@pytest.mark.parametrize("machine,elf_machine", (("x86_64", 62), ("aarch64", 183)))
+@pytest.mark.parametrize(
+    "fault",
+    (
+        "class",
+        "endianness",
+        "machine",
+        "type",
+        "version",
+        "ehsize",
+        "libpq",
+        "tag",
+        "name",
+        "missing",
+    ),
+)
+def test_sdk_static_extension_rejects_cross_target_or_malformed_members(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    machine: str,
+    elf_machine: int,
+    fault: str,
+) -> None:
+    _select_sdk_test_loader(monkeypatch, machine=machine)
+    wheel = tmp_path / "synthetic.whl"
+    _synthetic_sdk_extension_wheel(
+        wheel, machine=machine, minor=13, elf_machine=elf_machine, fault=fault
+    )
+    with pytest.raises(RuntimeError):
+        installer._inspect_psycopg_c_extensions(wheel)
+
+
+def test_sdk_supported_tuple_universe_is_exact() -> None:
+    assert {(target.machine, target.minor) for target in installer.PSYCOPG_SDK_TARGETS} == {
+        ("x86_64", 11),
+        ("x86_64", 12),
+        ("x86_64", 13),
+        ("aarch64", 13),
+    }
+    assert len(installer.PSYCOPG_SDK_TARGETS) == 4
+
+
+@pytest.mark.parametrize("sdk_state", ("missing", "malformed"))
+def test_main_sdk_prerequisite_blocks_pip_upgrade_and_target_install(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    sdk_state: str,
+) -> None:
+    _select_sdk_test_loader(monkeypatch)
+    monkeypatch.delenv(installer.PSYCOPG_SDK_ENV, raising=False)
+    requirements = tmp_path / "requirements.txt"
+    requirements.write_text("psycopg[c]==3.3.4\npsycopg-c==3.3.4\n")
+    constraints = tmp_path / "constraints.txt"
+    constraints.write_text("")
+    monkeypatch.setattr(
+        installer, "resolve_private_proxy_settings", lambda **kwargs: (APPROVED_PROXY_URL, None)
+    )
+
+    def forbidden(*args: object, **kwargs: object) -> None:
+        raise AssertionError(
+            "SDK failure must precede pip upgrade, acquisition or target installation"
+        )
+
+    for name in (
+        "upgrade_pip",
+        "acquire_locked_wheelhouse",
+        "_validate_exact_wheelhouse",
+        "install_with_guard",
+        "install_with_guard_from_proxy",
+        "run_command",
+    ):
+        monkeypatch.setattr(installer, name, forbidden)
+    args = [
+        "--python-executable",
+        sys.executable,
+        "--requirements-file",
+        str(requirements),
+        "--constraints-file",
+        str(constraints),
+        "--upgrade-pip",
+    ]
+    if sdk_state == "malformed":
+        sdk = tmp_path / "sdk"
+        sdk.mkdir()
+        (sdk / "psycopg-c-sdk.json").write_text('{"unexpected": true}\n')
+        args.extend(("--psycopg-sdk", str(sdk)))
+    assert installer.main(args) == 1
+    message = capsys.readouterr().out
+    assert (
+        "requires its genuine matching" if sdk_state == "missing" else "SDK fields differ"
+    ) in message
