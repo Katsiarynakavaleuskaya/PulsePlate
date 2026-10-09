@@ -4521,7 +4521,16 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 name: value for name, value in outcomes[0].references.items() if value is not None
             }
         else:
-            reference_names = set().union(*(set(outcome.references) for outcome in outcomes))
+            reference_names = {
+                name
+                for outcome in outcomes[1:]
+                for name, _value in outcomes[0].references.items() ^ outcome.references.items()
+            }
+            joined_references = {
+                name: value
+                for name, value in outcomes[0].references.items()
+                if value is not None and name not in reference_names
+            }
             for name in reference_names:
                 values = {outcome.references.get(name) for outcome in outcomes}
                 if len(values) == 1:
@@ -4679,7 +4688,16 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 name: value for name, value in outcomes[0].strings.items() if value is not None
             }
         else:
-            string_names = set().union(*(set(outcome.strings) for outcome in outcomes))
+            string_names = {
+                name
+                for outcome in outcomes[1:]
+                for name, _value in outcomes[0].strings.items() ^ outcome.strings.items()
+            }
+            joined_strings = {
+                name: value
+                for name, value in outcomes[0].strings.items()
+                if value is not None and name not in string_names
+            }
             for name in string_names:
                 values = {outcome.strings.get(name) for outcome in outcomes}
                 if len(values) == 1:

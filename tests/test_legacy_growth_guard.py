@@ -22239,3 +22239,115 @@ def test_consol_late3_final2_mixed_namespace_effects_retain_generic_owner_semant
     assert visitor.errors == [
         "app/routers/example.py: legacy API-key dependency namespace lookup is forbidden: <dynamic>"
     ]
+
+
+@pytest.mark.parametrize("ownership_family", ["api_key", "openapi"])
+@pytest.mark.parametrize("outcome_order", ["forward", "reverse", "duplicate"])
+def test_consol_finite_join_partial_differences_preserve_common_entries(
+    ownership_family: Literal["api_key", "openapi"], outcome_order: str
+) -> None:
+    member = "require_app_api_key" if ownership_family == "api_key" else "_install_openapi_builder"
+    possible_member = (
+        "<possible:api_key_symbol>"
+        if ownership_family == "api_key"
+        else "<possible:openapi_symbol>"
+    )
+    common_references = {
+        "stable": "ordinary.stable",
+        "stable_sensitive": "legacy_app",
+        "empty": "",
+        "none": None,
+    }
+    common_strings = {"stable": "unchanged", "stable_sensitive": member, "empty": "", "none": None}
+    references = [
+        {
+            **common_references,
+            "safe_change": "ordinary.first",
+            "removed_safe": "ordinary.removed",
+            "legacy_change": "legacy_app",
+            "getattr_change": "builtins.getattr",
+            "missing_none": None,
+        },
+        {
+            **common_references,
+            "safe_change": "ordinary.second",
+            "legacy_change": "ordinary",
+            "getattr_change": "ordinary",
+            "added_legacy": "legacy_app",
+        },
+        {
+            **common_references,
+            "safe_change": "ordinary.third",
+            "legacy_change": None,
+            "getattr_change": None,
+            "added_legacy": None,
+            "missing_none": None,
+        },
+    ]
+    strings = [
+        {
+            **common_strings,
+            "safe_change": "ordinary.first",
+            "removed_safe": "ordinary.removed",
+            "protected_change": member,
+            "route_change": "get",
+            "missing_none": None,
+        },
+        {
+            **common_strings,
+            "safe_change": "ordinary.second",
+            "protected_change": "ordinary",
+            "route_change": member,
+            "added_protected": member,
+        },
+        {
+            **common_strings,
+            "safe_change": "ordinary.third",
+            "protected_change": None,
+            "route_change": None,
+            "added_protected": None,
+            "missing_none": None,
+        },
+    ]
+    outcomes = [legacy_guard._LexicalBindings(parent=None) for _ in range(3)]
+    for outcome, reference_map, string_map in zip(outcomes, references, strings, strict=True):
+        outcome.references = cast(dict[str, str], dict(reference_map))
+        outcome.strings = cast(dict[str, str], dict(string_map))
+    ordered = list(reversed(outcomes)) if outcome_order == "reverse" else outcomes
+    if outcome_order == "duplicate":
+        ordered = ordered + ordered
+    errors = ["prior diagnostic"]
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="app/routers/example.py",
+        errors=errors,
+        ownership_family=ownership_family,
+        preserve_route_method_conflicts=True,
+    )
+    incoming = visitor.scope
+    remaining_iterations = visitor._remaining_loop_iterations
+
+    visitor._merge_outcomes(incoming, ordered)
+
+    assert visitor.scope is incoming
+    assert incoming.references == {
+        "stable": "ordinary.stable",
+        "stable_sensitive": "legacy_app",
+        "empty": "",
+        "legacy_change": "<possible:legacy_app>",
+        "getattr_change": "<possible:builtins.getattr>",
+        "added_legacy": "<possible:legacy_app>",
+    }
+    assert incoming.strings == {
+        "stable": "unchanged",
+        "stable_sensitive": member,
+        "empty": "",
+        "protected_change": possible_member,
+        "route_change": "<possible:route_method>",
+        "added_protected": possible_member,
+    }
+    assert [outcome.references for outcome in outcomes] == references
+    assert [outcome.strings for outcome in outcomes] == strings
+    assert all(incoming.references is not outcome.references for outcome in outcomes)
+    assert all(incoming.strings is not outcome.strings for outcome in outcomes)
+    assert visitor.errors is errors and errors == ["prior diagnostic"]
+    assert visitor._remaining_loop_iterations == remaining_iterations
