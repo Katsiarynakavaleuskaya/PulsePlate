@@ -1141,7 +1141,7 @@ def test_all_active_checkout_uses_have_one_exact_v7_pin() -> None:
         ".github/workflows/security.yml",
         ".github/workflows/trivy.yml",
     }
-    assert len(observed_checkout_uses) == 77
+    assert len(observed_checkout_uses) == 78
     assert {path for path, _ in observed_checkout_uses} == expected_checkout_workflows
 
 
@@ -3892,7 +3892,7 @@ def test_node24_setup_go_and_upload_artifact_pins_preserve_workflow_contracts() 
 
     expected_action_lines = {
         BUILD_WORKFLOW_PATH: {
-            f"actions/upload-artifact@{UPLOAD_ARTIFACT_NODE24_SHA} # v7.0.1 / Node 24": 6,
+            f"actions/upload-artifact@{UPLOAD_ARTIFACT_NODE24_SHA} # v7.0.1 / Node 24": 7,
         },
         GREENLIGHT_IOS_WORKFLOW_PATH: {
             f"actions/setup-go@{SETUP_GO_NODE24_SHA} # v7.0.0 / Node 24": 1,
@@ -4037,6 +4037,24 @@ def test_node24_setup_go_and_upload_artifact_pins_preserve_workflow_contracts() 
             f"actions/upload-artifact@{UPLOAD_ARTIFACT_NODE24_SHA}",
             {"name": "sbom", "path": "sbom.spdx.json", "retention-days": 30},
             None,
+            None,
+            None,
+        ),
+        (
+            ".github/workflows/build.yml",
+            "prometheus-source-qualification",
+            "Retain complete qualification evidence",
+            f"actions/upload-artifact@{UPLOAD_ARTIFACT_NODE24_SHA}",
+            {
+                "name": "prometheus-source-qualification-${{ github.run_id }}-${{ github.run_attempt }}",
+                "path": (
+                    "${{ runner.temp }}/prometheus-source-${{ github.run_id }}-"
+                    "${{ github.run_attempt }}/evidence/"
+                ),
+                "if-no-files-found": "error",
+                "retention-days": 30,
+            },
+            "${{ always() }}",
             None,
             None,
         ),

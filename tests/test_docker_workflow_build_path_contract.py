@@ -2530,3 +2530,38 @@ def test_zlib_maintenance_manifest_refuses_unhashable_names(
     path = _write_docker_source_manifest(tmp_path, manifest)
     with pytest.raises(RuntimeError, match="Only exact reviewed zlib patches"):
         docker_sources.load_manifest(path, today=date(2026, 10, 9))
+
+
+def test_prometheus_metadata_mode_is_explicit_and_independent() -> None:
+    """The qualifier cannot select or publish a Prometheus runtime."""
+    workflow = _load_workflow(WORKFLOWS_DIR / "build.yml")
+    events = workflow.get("on", workflow.get(True))
+    assert events["workflow_dispatch"]["inputs"]["mode"]["options"] == [
+        "disabled",
+        "normal",
+        "prometheus-source-qualify",
+    ]
+    jobs = workflow["jobs"]
+    qualification = jobs["prometheus-source-qualification"]
+    assert "needs" not in qualification
+    assert qualification["permissions"] == {"contents": "read"}
+    assert qualification["timeout-minutes"] == (
+        "${{ fromJSON(vars.PROMETHEUS_SOURCE_QUALIFICATION_TIMEOUT_MINUTES || '20') }}"
+    )
+    assert qualification["if"] == (
+        "github.event_name == 'workflow_dispatch' && "
+        "inputs.mode == 'prometheus-source-qualify' && "
+        "github.repository == 'Katsiarynakavaleuskaya/PulsePlate'"
+    )
+    assert jobs["build"]["if"] == (
+        "github.event_name != 'workflow_dispatch' || inputs.mode == 'normal'"
+    )
+    assert jobs["publish"]["needs"] == ["build", "security-scan"]
+    command = _step_by_name(qualification, "Qualify Prometheus package metadata only")["run"]
+    assert "-m scripts.ci.prometheus_source_image" in command
+    assert "$PROMETHEUS_QUALIFICATION_SECONDS" in command
+    assert "$PROMETHEUS_CLEANUP_SECONDS" in command
+    assert "buildx" not in command and "secrets." not in command
+    assert not any("secrets." in str(step) for step in qualification["steps"])
+    checkout = _step_by_name(qualification, "Checkout qualification source")
+    assert checkout["with"]["persist-credentials"] is False

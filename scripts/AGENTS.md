@@ -118,10 +118,20 @@
   suppression-free OS and both-binary scan evidence plus exact-image promtool
   and synthetic runtime checks. Registry metadata or a local syntax probe is
   not current-head CI or production activation evidence.
-- `build.yml` contains only the ordinary build/security/publish chain.
+- `build.yml` keeps the ordinary build/security/publish chain unchanged.
   Manual execution defaults to `disabled`; explicit `normal` uses native
-  GitHub Actions equality. Keep PR publication denial, existing dependencies,
-  permissions, private-index handling, and same-SHA serialization.
+  GitHub Actions equality. The separately selected `prometheus-source-qualify`
+  mode runs only the bounded hosted metadata qualifier in
+  `scripts/ci/prometheus_source_image.py`, without backend authentication or
+  publication dependencies. It verifies fixed source/Go/prebuilt-UI bytes and
+  native Go module/package metadata for both commands with unchanged locks.
+  Its offline containers are non-root, read-only and network-isolated; no
+  local Go, BuildKit, source build, registry write or DHI credential follows.
+  Preserve complete raw errors/JSON, source/cache/path/redirect checks and all
+  retained advisory references. Package observations require separate security
+  review and later binary proof; they do not admit a runtime image.
+  Keep PR publication denial, existing dependencies, permissions,
+  private-index handling, and same-SHA serialization.
 - Do not restore the retired Prometheus candidate publisher or heavy local
   compiler. Historical private receipts remain evidence only; do not rewrite
   them, fabricate publication, or treat selector updates as deployment.

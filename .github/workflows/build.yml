@@ -13,7 +13,7 @@ on:
         type: choice
         required: true
         default: disabled
-        options: [disabled, normal]
+        options: [disabled, normal, prometheus-source-qualify]
 
 concurrency:
   # Serialize runs that can publish the same commit artifacts across refs (branch + tag)
@@ -874,3 +874,52 @@ jobs:
   #         # - kubectl apply -f k8s/staging/
   #         # - docker-compose -f docker-compose.staging.yml up -d
   #         # - helm upgrade --install pulseplate-staging ./helm-chart
+
+  prometheus-source-qualification:
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      inputs.mode == 'prometheus-source-qualify' &&
+      github.repository == 'Katsiarynakavaleuskaya/PulsePlate'
+    runs-on: ubuntu-24.04
+    timeout-minutes: ${{ fromJSON(vars.PROMETHEUS_SOURCE_QUALIFICATION_TIMEOUT_MINUTES || '20') }}
+    permissions:
+      contents: read
+    env:
+      PROMETHEUS_QUALIFICATION_SECONDS: '900'
+      PROMETHEUS_CLEANUP_SECONDS: '120'
+    steps:
+      - name: Require first explicit metadata attempt
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$GITHUB_RUN_ATTEMPT" != '1' ]]; then
+            echo '::error::Metadata qualification reruns require a new reviewed dispatch.'
+            exit 1
+          fi
+      - name: Checkout qualification source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: ${{ github.sha }}
+      - name: Set up qualification Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: '3.13.14'
+      - name: Qualify Prometheus package metadata only
+        shell: bash
+        run: |
+          set -euo pipefail
+          : "${RUNNER_TEMP:?RUNNER_TEMP is required}"
+          python_bin="$(command -v python)"
+          "$python_bin" -m scripts.ci.prometheus_source_image \
+            --work-dir "$RUNNER_TEMP/prometheus-source-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" \
+            --timeout-seconds "$PROMETHEUS_QUALIFICATION_SECONDS" \
+            --cleanup-seconds "$PROMETHEUS_CLEANUP_SECONDS"
+      - name: Retain complete qualification evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1 / Node 24
+        with:
+          name: prometheus-source-qualification-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/prometheus-source-${{ github.run_id }}-${{ github.run_attempt }}/evidence/
+          if-no-files-found: error
+          retention-days: 30
