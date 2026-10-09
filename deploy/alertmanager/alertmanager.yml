@@ -19,4 +19,9 @@ receivers:
       - to: pulseplate@pm.me
         send_resolved: false
         force_implicit_tls: true
-        text: PulsePlate alert {{ .CommonLabels.alertname }} ({{ .CommonLabels.environment }}).
+        text: |
+          PulsePlate alert {{ .CommonLabels.alertname }} ({{ .CommonLabels.environment }}).
+          Open PulsePlate monitoring runbook: https://github.com/Katsiarynakavaleuskaya/PulsePlate/blob/main/docs/deploy/OPERATIONAL_SIGNALS.md#daily-checkpoint
+        html: |
+          <p>PulsePlate alert {{ .CommonLabels.alertname }} ({{ .CommonLabels.environment }}).</p>
+          <p><a href="https://github.com/Katsiarynakavaleuskaya/PulsePlate/blob/main/docs/deploy/OPERATIONAL_SIGNALS.md#daily-checkpoint">Open PulsePlate monitoring runbook</a></p>
