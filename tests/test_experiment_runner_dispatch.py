@@ -5792,8 +5792,63 @@ def test_runner_staged_destination_drift_stops_before_runtime(
 def test_copied_runner_installer_finds_schema_and_adjacent_helper_without_checkout(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    from scripts.ci import install_locked_python_requirements as installer
+
     controls, _ = _runner_sdk_transport_fixture(tmp_path, monkeypatch)
-    env = {"PATH": os.defpath, "HOME": str(tmp_path), "PYTHONPATH": str(controls)}
+    # Synthetic HTTP responses isolate transport only. The copied CLI still
+    # loads its actual schema and runs canonical floor/page/source admission.
+    floors = installer.load_dependency_security_floors(
+        controls / "tests/fixtures/dependency_security_schema.json"
+    )
+    pages = {}
+    for package, version in floors.items():
+        filename = f"{package.replace('-', '_')}-{version}-py3-none-any.whl"
+        anchor = f'<a href="{filename}">{filename}</a>'
+        if package == "psycopg-c":
+            source = installer.PSYCOPG_C_SOURCE_NAME
+            anchor = (
+                f'<a href="../../+f/source/{source}#sha256='
+                f'{installer.PSYCOPG_C_SOURCE_SHA256}">{source}</a>'
+            )
+        pages[f"/root/pulseplate/+simple/{package}/"] = anchor
+    fixture = controls / "synthetic-project-pages.json"
+    fixture.write_text(json.dumps(pages))
+    calls = controls / "synthetic-http-calls.jsonl"
+    (controls / "sitecustomize.py").write_text(
+        "import http.client, json, os, pathlib, socket\n"
+        "pages = json.loads(pathlib.Path(os.environ['SYNTHETIC_PAGES']).read_text())\n"
+        "calls = pathlib.Path(os.environ['SYNTHETIC_HTTP_CALLS'])\n"
+        "class Response:\n"
+        "    status = 200\n"
+        "    def __init__(self, path): self.body = pages[path].encode()\n"
+        "    def read(self, maximum):\n"
+        "        assert len(self.body) <= maximum\n"
+        "        return self.body\n"
+        "class HTTPSConnection:\n"
+        "    def __init__(self, host, *, port=None, timeout=None, context=None):\n"
+        "        assert host == 'packages.pulseplate.app' and port is None and context is None\n"
+        "    def request(self, method, path, *, headers):\n"
+        "        assert method == 'GET' and headers == {} and path in pages\n"
+        "        self.path = path\n"
+        "        with calls.open('a') as stream: stream.write(json.dumps(path) + '\\n')\n"
+        "    def getresponse(self): return Response(self.path)\n"
+        "    def close(self): pass\n"
+        "def forbidden_http(*args, **kwargs):\n"
+        "    raise AssertionError('Only declared synthetic HTTPS pages are available')\n"
+        "http.client.HTTPSConnection = HTTPSConnection\n"
+        "http.client.HTTPConnection = forbidden_http\n"
+        "socket.create_connection = forbidden_http\n"
+        "socket.getaddrinfo = forbidden_http\n"
+        "socket.socket.connect = forbidden_http\n"
+        "socket.socket.connect_ex = forbidden_http\n"
+    )
+    env = {
+        "PATH": os.defpath,
+        "HOME": str(tmp_path),
+        "PYTHONPATH": str(controls),
+        "SYNTHETIC_PAGES": str(fixture),
+        "SYNTHETIC_HTTP_CALLS": str(calls),
+    }
     script = controls / "scripts/ci/install_locked_python_requirements.py"
     argv = [
         sys.executable,
@@ -5810,6 +5865,8 @@ def test_copied_runner_installer_finds_schema_and_adjacent_helper_without_checko
         argv, cwd=controls, env=env, capture_output=True, text=True, timeout=15, check=False
     )
     assert result.returncode == 0, result.stdout + result.stderr
+    observed_calls = calls.read_bytes()
+    assert [json.loads(line) for line in observed_calls.splitlines()] == sorted(pages)
     pure_helper = "from scripts.ci import install_locked_python_requirements as i; print(i.admitted_psycopg_source_url(body=('<a href=\"../../+f/source/' + i.PSYCOPG_C_SOURCE_NAME + '#sha256=' + i.PSYCOPG_C_SOURCE_SHA256 + '\">source</a>').encode(), project_url='https://packages.example/simple/psycopg-c/'))"
     parsed = subprocess.run(
         [sys.executable, "-c", pure_helper],
@@ -5826,6 +5883,8 @@ def test_copied_runner_installer_finds_schema_and_adjacent_helper_without_checko
         argv, cwd=controls, env=env, capture_output=True, text=True, timeout=15, check=False
     )
     assert failed.returncode != 0
+    assert "Dependency security schema not found" in failed.stdout + failed.stderr
+    assert calls.read_bytes() == observed_calls  # Missing schema fails before HTTP transport.
     assert not (controls / "build").exists()
 
 

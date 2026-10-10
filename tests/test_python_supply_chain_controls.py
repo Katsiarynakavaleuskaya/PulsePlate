@@ -10,6 +10,7 @@ from pathlib import Path
 import runpy
 import shutil
 import subprocess
+import sys
 from typing import Any, cast
 
 from packaging.requirements import InvalidRequirement
@@ -23,6 +24,10 @@ from scripts.ci import dependabot_requirement_carriers as carriers
 from scripts.ci import check_python_dependency_surfaces as dependency_surfaces
 from scripts.ci.check_docker_provenance_attestation import SBOM_PREDICATE_TYPE
 from tests.runtime_toolchain_versions import CANONICAL_PYTHON
+from scripts.orchestration.creative_code_patch_workspace import (
+    git_env_without_parent_state,
+    safe_git_config_args,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 LOCKED_INSTALL_WORKFLOW_PATHS: tuple[str, ...] = (
@@ -2879,3 +2884,394 @@ def test_dependabot_git_discovery_isolated_from_executable_config(
         assert environment["GIT_CONFIG_GLOBAL"] == os.devnull
         assert environment["GIT_CONFIG_NOSYSTEM"] == "1"
         assert environment["GIT_TERMINAL_PROMPT"] == "0"
+
+
+def _bandit_gate_test_repo(tmp_path: Path) -> tuple[Path, str, dict[str, str], Path]:
+    """Real Make/Git; synthetic scanner bytes are explicit transport fixtures."""
+    root = tmp_path / "repo"
+    root.mkdir()
+    (root / "Makefile").write_bytes((REPO_ROOT / "Makefile").read_bytes())
+    (root / ".bandit").write_bytes((REPO_ROOT / ".bandit").read_bytes())
+    helper = Path("scripts/orchestration/creative_code_patch_workspace.py")
+    (root / helper).parent.mkdir(parents=True, exist_ok=True)
+    (root / helper).write_bytes((REPO_ROOT / helper).read_bytes())
+    git, make = shutil.which("git"), shutil.which("make")
+    assert git is not None and make is not None
+    fixture_env = git_env_without_parent_state()
+    fixture_env["HOME"] = str(tmp_path)
+    subprocess.run(
+        [git, *safe_git_config_args(), "-c", "init.templateDir=", "init", "--quiet", str(root)],
+        env=fixture_env,
+        check=True,
+    )
+    tracked = [
+        "src/regular.py",
+        "src/with spaces.py",
+        "scripts/ci/fetch_docker_source_artifacts.py",
+        "-leading.py",
+        "src/with\nnewline.py",
+    ]
+    for relative in tracked + ["untracked.py", "artifacts/private.py", "worktrees/foreign.py"]:
+        path = root / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("pass\n")
+    subprocess.run(
+        [git, *safe_git_config_args(), "add", "--", *tracked],
+        cwd=root,
+        env=fixture_env,
+        check=True,
+    )
+    control = tmp_path / "control"
+    control.mkdir()
+    log = tmp_path / "scanner-argv.json"
+    # This test-owned startup shim intercepts exactly [approved Python, -m, bandit].
+    # Native Git/config/discovery remain real; synthetic reports are not native proof.
+    scanner = control / "sitecustomize.py"
+    scanner.write_text(
+        "import json, os, pathlib, subprocess, sys\n"
+        "native_run = subprocess.run\n"
+        "\n"
+        "def fixture_bandit(argv, *args, **kwargs):\n"
+        '    if argv[:3] != [sys.executable, "-m", "bandit"]:\n'
+        "        return native_run(argv, *args, **kwargs)\n"
+        "    arguments = argv[3:]\n"
+        '    pathlib.Path(os.environ["SCANNER_LOG"]).write_text(json.dumps(arguments))\n'
+        '    output = pathlib.Path(arguments[arguments.index("-o") + 1])\n'
+        '    paths = arguments[arguments.index("--") + 1:]\n'
+        "    from bandit.core.config import BanditConfig\n"
+        "    from bandit.core.manager import BanditManager\n"
+        "    from bandit.core.metrics import Metrics\n"
+        '    manager = BanditManager(BanditConfig(".bandit"), "file")\n'
+        "    manager.discover_files(paths)\n"
+        "    eligible_paths = manager.files_list\n"
+        "    metrics = Metrics()\n"
+        "    for path in eligible_paths:\n"
+        '        metrics.data[path] = dict(metrics.data["_totals"])\n'
+        '        metrics.data[path]["loc"] = 1\n'
+        "    metrics.aggregate()\n"
+        '    report = {"errors": [], "results": [], "generated_at": "2000-01-01T00:00:00Z", "metrics": metrics.data}\n'
+        '    mode = os.environ.get("REPORT_MODE", "complete")\n'
+        '    if mode == "errors": report["errors"] = [{"filename": eligible_paths[0], "reason": "syntax error"}]\n'
+        '    if mode == "findings": report["results"] = [{"issue_severity": "MEDIUM"}]\n'
+        '    if mode == "partial": report["metrics"].pop(eligible_paths[0])\n'
+        '    if mode == "extra": report["metrics"]["./untracked.py"] = {}\n'
+        '    if mode in ("missing-errors", "missing-results", "missing-metrics", "missing-generated_at"): report.pop(mode.removeprefix("missing-"))\n'
+        '    if mode == "wrong-metrics-type": report["metrics"] = list(report["metrics"])\n'
+        '    if mode == "wrong-row-type": report["metrics"][eligible_paths[0]] = []\n'
+        '    if mode == "missing-counter": report["metrics"][eligible_paths[0]].pop("loc")\n'
+        '    if mode == "missing-issue-counter": report["metrics"][eligible_paths[0]].pop("SEVERITY.LOW")\n'
+        '    if mode == "empty-row": report["metrics"][eligible_paths[0]] = {}\n'
+        '    if mode == "float-counter": report["metrics"][eligible_paths[0]]["loc"] = 1.0\n'
+        '    if mode == "bool-counter": report["metrics"][eligible_paths[0]]["loc"] = True\n'
+        '    if mode == "negative-counter": report["metrics"][eligible_paths[0]]["loc"] = -1\n'
+        '    if mode == "inconsistent-total": report["metrics"]["_totals"]["loc"] += 1\n'
+        '    if mode == "hidden-medium":\n'
+        '        report["metrics"][eligible_paths[0]]["SEVERITY.MEDIUM"] = 1\n'
+        '        report["metrics"]["_totals"]["SEVERITY.MEDIUM"] = 1\n'
+        '    if mode == "drift-source": pathlib.Path(eligible_paths[0]).write_text("changed = 1\\n")\n'
+        '    if mode == "drift-config": pathlib.Path(".bandit").write_text(pathlib.Path(".bandit").read_text() + "\\n")\n'
+        '    if mode == "drift-index":\n'
+        "        import shutil\n"
+        "        from scripts.orchestration.creative_code_patch_workspace import git_env_without_parent_state, safe_git_config_args\n"
+        '        native_run([shutil.which("git"), *safe_git_config_args(), "add", "--", "untracked.py"], env=git_env_without_parent_state(), check=True)\n'
+        '    if mode == "symlink": output.symlink_to(os.environ["SCANNER_LOG"])\n'
+        '    elif mode == "duplicate": output.write_text(\'{"errors":[],"errors":[],"results":[]}\')\n'
+        '    elif mode == "invalid": output.write_text("{")\n'
+        '    elif mode != "absent": output.write_text(json.dumps(report))\n'
+        '    return subprocess.CompletedProcess(argv, int(os.environ.get("SCANNER_EXIT", "0")))\n'
+        "\n"
+        "subprocess.run = fixture_bandit\n"
+    )
+    environment = {
+        "PATH": str(control) + os.pathsep + os.defpath,
+        "HOME": str(tmp_path),
+        "SCANNER_LOG": str(log),
+        "PYTHONPATH": str(control),
+    }
+    return root, make, environment, log
+
+
+@pytest.mark.parametrize("ci", (None, "true", "false"))
+@pytest.mark.parametrize("scanner_exit", (0, 1, 2))
+def test_full_bandit_make_gate_uses_complete_tracked_paths_and_preserves_failures(
+    tmp_path: Path, ci: str | None, scanner_exit: int
+) -> None:
+    """Synthetic scanner status proves propagation, never a security verdict."""
+    root, make, environment, log = _bandit_gate_test_repo(tmp_path)
+    environment["SCANNER_EXIT"] = str(scanner_exit)
+    if ci is not None:
+        environment["CI"] = ci
+    result = subprocess.run(
+        [make, "bandit-full", "DEV_PYTHON=" + sys.executable],
+        cwd=root,
+        env=environment,
+        capture_output=True,
+        text=True,
+        timeout=20,
+        check=False,
+    )
+    assert (result.returncode == 0) is (scanner_exit == 0), result.stdout + result.stderr
+    argv = json.loads(log.read_text())
+    report_argument = argv[argv.index("-o") + 1]
+    assert Path(report_argument).name == "bandit-report.json"
+    assert Path(report_argument).parent.name.startswith(".bandit-full-")
+    assert not Path(report_argument).parent.exists()
+    assert argv[: argv.index("--")] == [
+        "-c",
+        ".bandit",
+        "--severity-level",
+        "medium",
+        "-f",
+        "json",
+        "-o",
+        report_argument,
+    ]
+    assert argv[argv.index("--") + 1 :] == [
+        "./-leading.py",
+        "./scripts/ci/fetch_docker_source_artifacts.py",
+        "./src/regular.py",
+        "./src/with\nnewline.py",
+        "./src/with spaces.py",
+    ]
+    if scanner_exit:
+        assert "✅ Bandit отчет" not in result.stdout
+
+
+@pytest.mark.parametrize(
+    "mode",
+    (
+        "absent",
+        "invalid",
+        "errors",
+        "findings",
+        "partial",
+        "extra",
+        "missing-errors",
+        "missing-results",
+        "missing-metrics",
+        "symlink",
+        "duplicate",
+        "wrong-metrics-type",
+        "wrong-row-type",
+        "drift-source",
+        "drift-config",
+        "drift-index",
+        "missing-generated_at",
+        "missing-counter",
+        "missing-issue-counter",
+        "empty-row",
+        "float-counter",
+        "bool-counter",
+        "negative-counter",
+        "inconsistent-total",
+        "hidden-medium",
+    ),
+)
+def test_full_bandit_zero_exit_cannot_accept_missing_partial_or_erroneous_report(
+    tmp_path: Path,
+    mode: str,
+) -> None:
+    root, make, environment, log = _bandit_gate_test_repo(tmp_path)
+    report = root / "bandit-report.json"
+    report.write_text('{"errors": [], "results": [], "metrics": {"stale": {}}}')
+    environment["REPORT_MODE"] = mode
+    result = subprocess.run(
+        [make, "bandit-full", "DEV_PYTHON=" + sys.executable],
+        cwd=root,
+        env=environment,
+        capture_output=True,
+        text=True,
+        timeout=20,
+        check=False,
+    )
+    assert log.is_file(), result.stdout + result.stderr
+    assert result.returncode != 0 and "✅ Bandit отчет" not in result.stdout
+    expected_diagnostic = {
+        "absent": "Bandit report is missing, unsafe",
+        "invalid": "JSONDecodeError",
+        "errors": "scanner errors/findings",
+        "findings": "scanner errors/findings",
+        "partial": "exact configured tracked inventory",
+        "extra": "exact configured tracked inventory",
+        "missing-errors": "scanner errors/findings",
+        "missing-results": "scanner errors/findings",
+        "missing-metrics": "exact configured tracked inventory",
+        "symlink": "Bandit report is missing, unsafe",
+        "duplicate": "duplicate JSON keys",
+        "wrong-metrics-type": "exact configured tracked inventory",
+        "wrong-row-type": "exact configured tracked inventory",
+        "drift-source": "changed during the scan",
+        "drift-config": "changed during the scan",
+        "drift-index": "changed during the scan",
+        "missing-generated_at": "missing its native generation metadata",
+        "missing-counter": "incomplete or malformed native metrics",
+        "missing-issue-counter": "incomplete or malformed native metrics",
+        "empty-row": "incomplete or malformed native metrics",
+        "float-counter": "incomplete or malformed native metrics",
+        "bool-counter": "incomplete or malformed native metrics",
+        "negative-counter": "incomplete or malformed native metrics",
+        "inconsistent-total": "totals are inconsistent",
+        "hidden-medium": "totals are inconsistent",
+    }[mode]
+    assert expected_diagnostic in result.stderr, result.stdout + result.stderr
+    if mode == "absent":
+        assert not report.exists()  # Old bytes cannot supply the missing new result.
+
+
+def test_full_bandit_rejects_missing_tracked_file_before_scanner(tmp_path: Path) -> None:
+    root, make, environment, log = _bandit_gate_test_repo(tmp_path)
+    (root / "src/regular.py").unlink()
+    result = subprocess.run(
+        [make, "bandit-full", "DEV_PYTHON=" + sys.executable],
+        cwd=root,
+        env=environment,
+        capture_output=True,
+        text=True,
+        timeout=20,
+        check=False,
+    )
+    assert result.returncode != 0 and not log.exists()
+    assert "src/regular.py" in result.stderr
+
+
+@pytest.mark.parametrize(
+    ("raw", "git_exit"),
+    (
+        (b"", 0),
+        (b"src/regular.py", 0),
+        (b"src/regular.py\0\0", 0),
+        (b"src/regular.py\0src/regular.py\0", 0),
+        (b"src/regular.py\0", 2),
+    ),
+)
+def test_full_bandit_rejects_invalid_native_inventory_before_scanner(
+    tmp_path: Path,
+    raw: bytes,
+    git_exit: int,
+) -> None:
+    root, make, environment, log = _bandit_gate_test_repo(tmp_path)
+    git = tmp_path / "control/git"
+    actual_git = shutil.which("git")
+    assert actual_git is not None
+    git.write_text(
+        f"#!{sys.executable}\n"
+        "import os, sys\n"
+        "if sys.argv[-4:] == ['ls-files', '-z', '--', '*.py']:\n"
+        f"    sys.stdout.buffer.write({raw!r})\n"
+        f"    raise SystemExit({git_exit})\n"
+        "else:\n"
+        f"    os.execv({actual_git!r}, [{actual_git!r}, *sys.argv[1:]])\n"
+    )
+    git.chmod(0o755)
+    result = subprocess.run(
+        [make, "bandit-full", "DEV_PYTHON=" + sys.executable],
+        cwd=root,
+        env=environment,
+        capture_output=True,
+        text=True,
+        timeout=20,
+        check=False,
+    )
+    assert result.returncode != 0 and not log.exists()
+    if git_exit:
+        assert "CalledProcessError" in result.stderr, result.stdout + result.stderr
+    else:
+        assert "Tracked Python security inventory" in result.stderr
+
+
+def test_full_bandit_quotes_developer_interpreter_path(tmp_path: Path) -> None:
+    root, make, environment, log = _bandit_gate_test_repo(tmp_path)
+    wrapper = tmp_path / "python directory/interpreter"
+    wrapper.parent.mkdir()
+    wrapper.write_text(f'#!/bin/sh\nexec "{sys.executable}" "$@"\n')
+    wrapper.chmod(0o755)
+    result = subprocess.run(
+        [make, "bandit-full", "DEV_PYTHON=" + str(wrapper)],
+        cwd=root,
+        env=environment,
+        capture_output=True,
+        text=True,
+        timeout=20,
+        check=False,
+    )
+    assert result.returncode == 0 and log.is_file(), result.stdout + result.stderr
+
+
+@pytest.mark.parametrize(
+    "bad", ("import pickle\npickle.loads(b'never-executed fixture')\n", "def invalid(:\n")
+)
+def test_full_bandit_native_report_rejects_findings_and_scanner_errors(
+    tmp_path: Path,
+    bad: str,
+) -> None:
+    """Actual Bandit scans fixtures but never executes their Python code."""
+    root = tmp_path / "repo"
+    root.mkdir()
+    (root / "Makefile").write_bytes((REPO_ROOT / "Makefile").read_bytes())
+    (root / ".bandit").write_bytes((REPO_ROOT / ".bandit").read_bytes())
+    helper = Path("scripts/orchestration/creative_code_patch_workspace.py")
+    (root / helper).parent.mkdir(parents=True, exist_ok=True)
+    (root / helper).write_bytes((REPO_ROOT / helper).read_bytes())
+    git, make = shutil.which("git"), shutil.which("make")
+    assert git is not None and make is not None
+    fixture_env = git_env_without_parent_state()
+    fixture_env["HOME"] = str(tmp_path)
+    subprocess.run(
+        [git, *safe_git_config_args(), "-c", "init.templateDir=", "init", "--quiet", str(root)],
+        env=fixture_env,
+        check=True,
+    )
+    source = root / "fetch_docker_source_artifacts.py"
+    source.write_text(bad)
+    excluded = root / "tests/excluded.py"
+    excluded.parent.mkdir()
+    excluded.write_text(bad)
+    (root / "artifacts").mkdir()
+    (root / "artifacts/untracked.py").write_text(bad)
+    subprocess.run(
+        [git, *safe_git_config_args(), "add", "--", source.name, "tests/excluded.py"],
+        cwd=root,
+        env=fixture_env,
+        check=True,
+    )
+    environment = {
+        "PATH": str(Path(sys.executable).parent) + os.pathsep + os.defpath,
+        "HOME": str(tmp_path),
+        "CI": "true",
+    }
+    argv = [make, "bandit-full", "DEV_PYTHON=" + sys.executable]
+    rejected = subprocess.run(
+        argv,
+        cwd=root,
+        env=environment,
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+    assert rejected.returncode != 0, rejected.stdout + rejected.stderr
+    report = json.loads((root / "bandit-report.json").read_text())
+    if bad.startswith("import"):
+        assert report["errors"] == [] and report["results"]
+        assert all(Path(row["filename"]).name == source.name for row in report["results"])
+        assert any(
+            row["test_id"] == "B301" and row["issue_severity"] == "MEDIUM"
+            for row in report["results"]
+        )
+    else:
+        assert report["errors"] and report["results"] == []
+        assert "scanner errors" in rejected.stderr
+    source.write_text("pass\n")
+    accepted = subprocess.run(
+        argv,
+        cwd=root,
+        env=environment,
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+    assert accepted.returncode == 0, accepted.stdout + accepted.stderr
+    report = json.loads((root / "bandit-report.json").read_text())
+    assert report["errors"] == report["results"] == []
+    assert (root / "artifacts/untracked.py").read_text() == bad
