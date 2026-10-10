@@ -107,6 +107,15 @@ def test_finite_arm_sdk_origin_is_manual_canonical_static_and_not_tool_trust() -
     assert "test \"$GITHUB_RUN_ATTEMPT\" = '1'" in guard
     assert "test \"$GITHUB_REPOSITORY_ID\" = '1043311030'" in guard
     assert 'test "$(uname -m)" = aarch64' in guard
+    acquisition = _step_by_name(job, "Prepare existing private acquisition credentials")
+    assert acquisition["env"] == {
+        "DEVPI_CI_USER": "${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && secrets.DEVPI_CI_USER || '' }}",
+        "DEVPI_CI_PASSWORD": "${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && secrets.DEVPI_CI_PASSWORD || '' }}",
+    }
+    assert (
+        'if [[ -z "${DEVPI_CI_USER:-}" && -z "${DEVPI_CI_PASSWORD:-}" ]]; then exit 0; fi'
+        in acquisition["run"]
+    )
     built = _step_by_name(job, "Build genuine ARM cp313 SDK using its existing target")
     assert built["with"]["target"] == "psycopg-sdk"
     assert built["with"]["platforms"] == "linux/arm64"
