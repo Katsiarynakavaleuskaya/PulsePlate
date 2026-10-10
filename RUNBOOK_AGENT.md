@@ -323,6 +323,15 @@ baseline-only commit must wait until that owned block ends if it would leave
 modified image inputs unstaged. Matching hashes before and after a hook do not
 prove that the inputs remained unchanged throughout its execution.
 
+During a scoped commit's hooks, the live worktree may temporarily show HEAD
+bytes while the tested candidate remains in stage zero. For concurrent advisory
+review, retain an owned ignored carrier of the exact tested regular stage-zero
+Git blobs, binding repository paths, modes, complete bytes/digests and their
+material coordinate. Read that frozen carrier without interrupting the writer;
+rebind after hook restoration and authenticated publication. A temporary view
+mismatch remains pending, not evidence of semantic removal or published-head
+identity. This troubleshooting procedure adds no validation or review authority.
+
 Export shared libraries into one curated directory with their source-produced
 relative SONAME aliases, then copy that directory's contents into consumers.
 The observed Docker wildcard COPY materialized individual `.so` aliases as

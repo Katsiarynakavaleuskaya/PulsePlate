@@ -66,6 +66,15 @@ PRODUCTION_DOMAIN=example.com STAGING_FALLBACK_DOMAIN=staging.example.com \
   passing `--psycopg-sdk-root` to the dispatcher. Curated context transport is
   separate from canonical in-UBI SDK/wheel admission. Never run a source backend
   with proxy secrets or copy libc, libpython, loaders, host HOME or credentials.
+- Acquire the Runner profile with existing `--prefetch-only` while only static
+  SDK wheel/receipt data is present. No supplied DSO/provider/config or SDK
+  loader state may be active with proxy credentials. Complete owned acquisition
+  HOME/TMP/cache cleanup, then use trusted-base `--validate-psycopg-sdk` with
+  explicit SDK/native-root operands under actual network-none and clean startup.
+  Activate only the checked qualified payload and consume the exact wheelhouse
+  offline. Final native COPY comes from that builder, never external inputs
+  again. Static hashes prove consistency; producer/export origin and final
+  loaded-library/kernel/TLS/strict-successor admission remain independent.
 - Preserve the actual original UBI default CA bundle and connect the SDK OpenSSL
   compiled default paths to it. Native system `_ssl`, HTTP/default trust,
   providers, loaded DSO hashes and database consumers must be observed on the
