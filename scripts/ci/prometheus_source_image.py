@@ -31,7 +31,7 @@ import subprocess  # nosec B404: # fixed native Go/Docker metadata commands requ
 import sys
 import tarfile
 import time
-from typing import Any
+from typing import Any, BinaryIO, cast
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
 from urllib.request import HTTPRedirectHandler, HTTPSHandler, ProxyHandler, Request, build_opener
@@ -80,7 +80,7 @@ PROMETHEUS_METADATA = (
     "-X github.com/prometheus/common/version.BuildUser=pulseplate "
     "-X github.com/prometheus/common/version.BuildDate=20260925-07:25:38"
 )
-BASE_LAYER_CONTRACTS = [
+BASE_LAYER_CONTRACTS: list[dict[str, Any]] = [
     {
         "descriptor": {
             "size": 124525,
@@ -2746,7 +2746,7 @@ def tool_input_projection(root: Path) -> dict[str, Any]:
     }
 
 
-def producer_projection(root: Path, acquired: dict[str, Any]) -> dict[str, Any]:
+def producer_projection(root: Path, acquired: object) -> dict[str, Any]:
     """No selection, artifact-output ID, wrapper head or timestamp is a build input."""
     recipe = root / "deploy/prometheus/Containerfile"
     require(recipe.read_bytes() == finite_recipe(), "finite_recipe_bytes")
@@ -2761,6 +2761,7 @@ def producer_projection(root: Path, acquired: dict[str, Any]) -> dict[str, Any]:
         and set(acquired) == {"source", "go", "modules", "UI_transform", "tool_implementations"},
         "acquired_input_inventory",
     )
+    acquired = cast(dict[str, Any], acquired)
     for name in ("source", "go", "modules"):
         require(
             type(acquired[name]) is str
@@ -2835,7 +2836,7 @@ def _digest(value: Any) -> str:
         type(value) is str and re.fullmatch(r"sha256:[0-9a-f]{64}", value) is not None,
         "sha256_digest_shape",
     )
-    return value
+    return cast(str, value)
 
 
 def _descriptor(value: Any, media: str) -> dict[str, Any]:
@@ -2849,7 +2850,7 @@ def _descriptor(value: Any, media: str) -> dict[str, Any]:
         "descriptor_media_or_size",
     )
     _digest(value["digest"])
-    return value
+    return cast(dict[str, Any], value)
 
 
 def _blob(layout: Path, descriptor: dict[str, Any]) -> bytes:
@@ -2934,6 +2935,7 @@ def base_graph(layout: Path) -> dict[str, Any]:
                 if member.isreg():
                     stream = archive.extractfile(member)
                     require(stream is not None, "vendor_member_stream")
+                    stream = cast(BinaryIO, stream)
                     data = stream.read(member.size + 1)
                     require(len(data) == member.size, "vendor_member_size")
                     row["sha256"] = sha(data)
@@ -3310,7 +3312,8 @@ def validate_candidate_coordinates(value: Any) -> None:
 
 def _layout_inventory(layout: Path, blobs: set[str]) -> None:
     real_directory(layout)
-    files, directories = set(), set()
+    files: set[str] = set()
+    directories: set[str] = set()
     for path in layout.rglob("*"):
         info = path.lstat()
         relative = path.relative_to(layout).as_posix()
@@ -3385,6 +3388,7 @@ def _payload_files(expanded: bytes) -> dict[str, bytes]:
                 )
                 stream = archive.extractfile(member)
                 require(stream is not None, "payload_file_stream")
+                stream = cast(BinaryIO, stream)
                 raw = stream.read(member.size + 1)
                 require(len(raw) == member.size, "payload_file_size")
                 values[name] = raw
@@ -3644,17 +3648,20 @@ class GitHubRead:
                 process.stdout is not None and process.stderr is not None, "GitHub_capture_streams"
             )
             with selectors.DefaultSelector() as selector:
-                for index, stream in enumerate((process.stdout, process.stderr)):
+                for index, stream in enumerate(
+                    (cast(BinaryIO, process.stdout), cast(BinaryIO, process.stderr))
+                ):
                     os.set_blocking(stream.fileno(), False)
                     selector.register(stream, selectors.EVENT_READ, index)
                 offset = 0
                 if input_data is not None:
                     require(process.stdin is not None, "GitHub_capture_stdin")
-                    os.set_blocking(process.stdin.fileno(), False)
+                    stdin_stream = cast(BinaryIO, process.stdin)
+                    os.set_blocking(stdin_stream.fileno(), False)
                     if input_data:
-                        selector.register(process.stdin, selectors.EVENT_WRITE, 2)
+                        selector.register(stdin_stream, selectors.EVENT_WRITE, 2)
                     else:
-                        process.stdin.close()
+                        stdin_stream.close()
                 while selector.get_map():
                     check_deadline(self.deadline)
                     owned_members(process, self.seen, self.deadline, tokens)
@@ -3673,7 +3680,7 @@ class GitHubRead:
                             offset += written
                             if offset == len(input_data):
                                 selector.unregister(key.fileobj)
-                                key.fileobj.close()
+                                cast(BinaryIO, key.fileobj).close()
                             continue
                         raw = os.read(key.fd, 65536)
                         if raw:
@@ -3706,9 +3713,9 @@ class GitHubRead:
                     cleanup_error = error
                 finally:
                     CLEANING = previous_cleaning
-            for stream in (process.stdin, process.stdout, process.stderr):
-                if stream is not None and not stream.closed:
-                    stream.close()
+            for cleanup_stream in (process.stdin, process.stdout, process.stderr):
+                if cleanup_stream is not None and not cleanup_stream.closed:
+                    cleanup_stream.close()
         if primary is not None:
             if cleanup_error is not None:
                 print(
@@ -3718,14 +3725,14 @@ class GitHubRead:
                 )
             raise primary
         require(cleanup_error is None, "GitHub_cleanup_failed")
-        raw, error = bytes(streams[0]), bytes(streams[1])
+        raw, stderr_raw = bytes(streams[0]), bytes(streams[1])
         require(
-            all(value not in raw and value not in error for value in tokens),
+            all(value not in raw and value not in stderr_raw for value in tokens),
             "GitHub_credential_reflection_HOLD",
         )
         self.sequence += 1
         stem = "GitHub-" + str(self.sequence)
-        (self.evidence / (stem + ".stderr")).write_bytes(error)
+        (self.evidence / (stem + ".stderr")).write_bytes(stderr_raw)
         if len(raw) <= 16 * 1024**2:
             (self.evidence / (stem + ".stdout")).write_bytes(raw)
         (self.evidence / (stem + ".json")).write_bytes(
@@ -3735,7 +3742,7 @@ class GitHubRead:
                     "exit": code,
                     "stdout_bytes": len(raw),
                     "stdout_sha256": sha(raw),
-                    "stderr_sha256": sha(error),
+                    "stderr_sha256": sha(stderr_raw),
                 }
             )
         )
@@ -3901,7 +3908,7 @@ MANIFEST_PATH = "deploy/prometheus/image-manifest.json"
 
 
 def authenticate_pr_source(
-    api: GitHubRead, number: int, source: str, final: str, source_ref: str
+    api: GitHubRead, number: object, source: str, final: str, source_ref: str
 ) -> dict[str, Any]:
     require(type(number) is int and number > 0, "candidate_PR_number")
     pr = api.json(f"/repos/{GHCR_REPOSITORY}/pulls/{number}")
@@ -3930,7 +3937,7 @@ def authenticate_pr_source(
             require(type(row.get("parents")) is list, "PR_native_parent_inventory")
             pending.extend(parent["sha"] for parent in row["parents"] if parent["sha"] in graph)
     require(source in visited, "producer_ancestor_within_PR")
-    return pr
+    return cast(dict[str, Any], pr)
 
 
 def authenticate_producer_inputs(
@@ -3947,6 +3954,7 @@ def authenticate_producer_inputs(
         source_manifest.get("schema") == IMAGE_SCHEMA and type(source_inputs) is dict,
         "producer_source_manifest_inputs",
     )
+    source_inputs = cast(dict[str, Any], source_inputs)
     if tool:
         source_inputs["oras"]["retained"] = None
         current_inputs["oras"]["retained"] = None
@@ -4012,6 +4020,7 @@ def event_admission(
             type(before) is str and re.fullmatch(r"[0-9a-f]{40}", before) is not None,
             "main_before_SHA",
         )
+        before = cast(str, before)
         previous = api.source_files(before, (MANIFEST_PATH,))
         if previous[MANIFEST_PATH] != (root / MANIFEST_PATH).read_bytes():
             pr = authenticate_pr_source(
@@ -4271,6 +4280,7 @@ def unpack_layout(raw: bytes, destination: Path) -> None:
             )
             source = archive.extractfile(member)
             require(source is not None, "layout_transport_member")
+            source = cast(BinaryIO, source)
             with (destination / name).open("xb") as output:
                 shutil.copyfileobj(source, output, 1024**2)
             (destination / name).chmod(0o600)
@@ -4475,19 +4485,19 @@ def prefetch_modules(
 
 def tool_packages(raw: bytes) -> dict[str, Any]:
     packages = decode_objects(raw)
-    indexed = {}
+    indexed: dict[str, dict[str, Any]] = {}
     for value in packages:
         path = value.get("ImportPath")
         require(
             type(path) is str
-            and path
+            and bool(path)
             and path not in indexed
             and not value.get("Error")
             and not value.get("DepsErrors")
             and not value.get("Incomplete"),
             "ORAS_package_identity_error",
         )
-        indexed[path] = value
+        indexed[cast(str, path)] = value
     require(
         ORAS_COMMAND in indexed and indexed[ORAS_COMMAND].get("Name") == "main",
         "ORAS_command_graph",
@@ -4683,9 +4693,9 @@ def native_import(
                 compressed.open("xb") as target,
                 gzip.GzipFile(
                     filename="", fileobj=target, mode="wb", mtime=0, compresslevel=6
-                ) as output,
+                ) as gzip_output,
             ):
-                output.write(raw)
+                gzip_output.write(raw)
             require(
                 _gunzip(compressed.read_bytes(), 257 * 1024**2) == raw,
                 "native_copy_lossless_retention",
@@ -4907,6 +4917,7 @@ def tool_scan_inventory(raw: bytes, subject: str) -> dict[str, Any]:
 def scan_tool(native: Native, work: Path, binary: Path, env: dict[str, str]) -> dict[str, Any]:
     scanner = shutil.which("trivy")
     require(scanner is not None and Path(scanner).is_absolute(), "tool_native_scanner_missing")
+    scanner = cast(str, scanner)
     version = native.run([scanner, "--version"], "tool-scanner-version", env, cwd=work)
     require(
         re.search(rb"^Version: 0\.74\.0$", version, re.MULTILINE) is not None,
@@ -5035,6 +5046,7 @@ def qualify_tool(work: Path, root: Path, seconds: int, cleanup: int) -> dict[str
     }
     docker = shutil.which("docker")
     require(docker is not None and Path(docker).is_absolute(), "tool_Docker_missing")
+    docker = cast(str, docker)
     config = work / "docker-config"
     fresh_directory(config)
     env = {
@@ -5337,6 +5349,7 @@ def retained_tool(api: GitHubRead, root: Path, work: Path) -> tuple[Path, dict[s
         and all(row.get("native_absent") is True for row in report["cleanup"]),
         "retained_tool_positive_native_predecessors",
     )
+    commands = cast(list[dict[str, Any]], commands)
     scans = [row for row in commands if row.get("argv") == scan.get("native_argv")]
     require(
         len(scans) == 1
@@ -5411,6 +5424,7 @@ def build_pair(work: Path, root: Path, seconds: int, cleanup: int) -> dict[str, 
     require(file_hash(go / "LICENSE") == GO_LICENSE, "pair_Go_license")
     docker = shutil.which("docker")
     require(docker is not None and Path(docker).is_absolute(), "pair_Docker_missing")
+    docker = cast(str, docker)
     config = work / "docker-config"
     fresh_directory(config)
     env = {
@@ -5775,6 +5789,7 @@ def candidate_payload(api: GitHubRead, root: Path, work: Path) -> dict[str, Any]
         == sha(canonical_data(projection)),
         "candidate_projection_positive_equivalence",
     )
+    projection = cast(dict[str, Any], projection)
     exact_data(projection, producer_projection(root, projection.get("acquired")))
     exact_data(report.get("admission", {}).get("head"), producer["source_head"])
     exact_data(report["admission"].get("ref"), producer["source_ref"])
@@ -5902,6 +5917,7 @@ def consume_image(work: Path, root: Path, seconds: int, cleanup: int) -> dict[st
     selection = read_image_manifest(root / MANIFEST_PATH)["selection"]
     docker = shutil.which("docker")
     require(docker is not None and Path(docker).is_absolute(), "consumer_native_Docker_missing")
+    docker = cast(str, docker)
     config = work / "docker-config"
     fresh_directory(config)
     env = {
@@ -5950,6 +5966,7 @@ def consume_image(work: Path, root: Path, seconds: int, cleanup: int) -> dict[st
                 isinstance(owner, str) and owner.lower() == GHCR_OWNER.lower(),
                 "consumer_registry_owner",
             )
+            owner = cast(str, owner)
             runner = Path(os.environ["RUNNER_TEMP"])
             real_directory(runner)
             name = (
@@ -6252,6 +6269,7 @@ def promote_image(work: Path, root: Path, seconds: int, cleanup: int) -> dict[st
             require(present, "unchanged_published_subject_missing")
         docker = shutil.which("docker")
         require(docker is not None and Path(docker).is_absolute(), "publisher_Docker_missing")
+        docker = cast(str, docker)
         owner = os.environ.get("GITHUB_REPOSITORY_OWNER")
         if not isinstance(owner, str) or owner.lower() != GHCR_OWNER.lower():
             raise QualificationError("publisher_registry_owner")
@@ -6472,7 +6490,7 @@ def promote_image(work: Path, root: Path, seconds: int, cleanup: int) -> dict[st
     if cleanup_error is not None:
         raise cleanup_error
     require(result is not None, "publisher_result_missing")
-    return result
+    return cast(dict[str, Any], result)
 
 
 def main() -> int:

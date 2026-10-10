@@ -630,7 +630,7 @@ validate_postgres_contract_files() {
 }
 
 PROMETHEUS_CONTRACT_HELPER="${PROMETHEUS_CONTRACT_HELPER:-${DEPLOY_DIR}/scripts/ci/prometheus_source_image.py}"
-PROMETHEUS_CONTRACT_HELPER_SHA256="17e470a5ec81b7b61ad47c8a86d67f58b58d4ae70082db5c318f0058e2bc4fad" # Public source digest; pragma: allowlist secret
+PROMETHEUS_CONTRACT_HELPER_SHA256="d51f8aaee0b1c671da4910031fbd568cc5938b0335a2199e2825db53b8a0bb38" # Public source digest; pragma: allowlist secret
 readonly PROMETHEUS_CONTRACT_HELPER PROMETHEUS_CONTRACT_HELPER_SHA256
 
 run_prometheus_contract() {
