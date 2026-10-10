@@ -13,7 +13,7 @@ on:
         type: choice
         required: true
         default: disabled
-        options: [disabled, normal, prometheus-source-qualify]
+        options: [disabled, normal, prometheus-source-qualify, backend-sdk-qualify, prometheus-oras-qualify, prometheus-source-pair]
       prometheus_module_action:
         description: Explicit Prometheus metadata module action; unchanged retains original locks
         type: choice
@@ -111,6 +111,7 @@ jobs:
           } > "$auth_file"
 
       - name: Build Docker image (local, for tests)
+        id: production-native-build
         uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7.0.0
         env:
           PULSEPLATE_PYTHON_INDEX_URL: ${{ vars.PULSEPLATE_PYTHON_INDEX_URL }}
@@ -133,6 +134,29 @@ jobs:
           provenance: false
           target: production
 
+      - name: Build staging image from the same qualified backend inputs
+        id: staging-native-build
+        uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7.0.0
+        env:
+          PULSEPLATE_PYTHON_INDEX_URL: ${{ vars.PULSEPLATE_PYTHON_INDEX_URL }}
+          PULSEPLATE_PYTHON_TRUSTED_HOST: ${{ vars.PULSEPLATE_PYTHON_TRUSTED_HOST }}
+        with:
+          context: .
+          target: staging
+          build-args: |
+            PULSEPLATE_REQUIREMENTS_FILE=requirements-docker-runtime.txt
+          secret-envs: |
+            pp_py_index=PULSEPLATE_PYTHON_INDEX_URL
+            pp_py_host=PULSEPLATE_PYTHON_TRUSTED_HOST
+          secret-files: |
+            pp_netrc=${{ runner.temp }}/pulseplate-docker-netrc
+          platforms: linux/amd64
+          push: false
+          load: true
+          tags: pulseplate:staging-native
+          cache-from: type=gha,scope=build-production-${{ github.ref_name }}
+          provenance: false
+
       - name: Remove private Python index Docker authentication
         if: ${{ always() }}
         shell: bash
@@ -141,6 +165,100 @@ jobs:
           if [ -n "${RUNNER_TEMP:-}" ]; then
             rm -f "$RUNNER_TEMP/pulseplate-docker-netrc"
           fi
+
+      - name: Retain exact production and staging native image bytes
+        id: backend-native-export
+        env:
+          PRODUCTION_IMAGE_ID: ${{ steps.production-native-build.outputs.imageid }}
+          STAGING_IMAGE_ID: ${{ steps.staging-native-build.outputs.imageid }}
+          PRODUCTION_BUILD_METADATA: ${{ steps.production-native-build.outputs.metadata }}
+          STAGING_BUILD_METADATA: ${{ steps.staging-native-build.outputs.metadata }}
+        run: |
+          set -euo pipefail
+          test ! -e "$RUNNER_TEMP/pulseplate-docker-netrc"
+          umask 077
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib
+          import json
+          import os
+          import re
+          import shutil
+          import stat
+          import subprocess
+
+          root = Path.cwd()
+          output = Path(os.environ["RUNNER_TEMP"]) / ("backend-native-images-" + os.environ["GITHUB_RUN_ID"] + "-" + os.environ["GITHUB_RUN_ATTEMPT"])
+          output.mkdir(mode=0o700)
+          docker, git = shutil.which("docker"), shutil.which("git")
+          if not docker or not git or not Path(docker).is_absolute() or not Path(git).is_absolute():
+              raise SystemExit("Native image export binaries unavailable")
+
+          def run(argv, name, timeout=120):
+              result = subprocess.run(argv, capture_output=True, timeout=timeout, check=False)
+              (output / (name + ".stdout")).write_bytes(result.stdout)
+              (output / (name + ".stderr")).write_bytes(result.stderr)
+              if result.returncode:
+                  raise SystemExit("Native image export failed: " + name)
+              return result.stdout
+
+          def digest(path):
+              value = hashlib.sha256()
+              with path.open("rb") as stream:
+                  for chunk in iter(lambda: stream.read(1048576), b""):
+                      value.update(chunk)
+              return value.hexdigest()
+
+          event = json.loads(Path(os.environ["GITHUB_EVENT_PATH"]).read_text())
+          if event["repository"]["id"] != 1043311030 or os.environ["GITHUB_REPOSITORY"] != "Katsiarynakavaleuskaya/PulsePlate":
+              raise SystemExit("Native image export repository mismatch")
+          records = {}
+          for target, tag, variable in (("production", "pulseplate:test", "PRODUCTION"),
+                                        ("staging", "pulseplate:staging-native", "STAGING")):
+              expected = os.environ[variable + "_IMAGE_ID"]
+              if re.fullmatch(r"sha256:[0-9a-f]{64}", expected) is None:
+                  raise SystemExit("Native image build ID missing")
+              observed = json.loads(run([docker, "image", "inspect", tag], target + "-inspect"))
+              if len(observed) != 1 or (observed[0]["Id"], observed[0]["Os"], observed[0]["Architecture"]) != (expected, "linux", "amd64"):
+                  raise SystemExit("Native image/config/platform mismatch")
+              archive = output / (target + ".docker.tar")
+              run([docker, "image", "save", "--output", str(archive), tag], target + "-save", 900)
+              info = archive.lstat()
+              if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1 or not 0 < info.st_size <= 2147483648:
+                  raise SystemExit("Native image archive outside bound")
+              again = json.loads(run([docker, "image", "inspect", tag], target + "-recheck"))
+              if again != observed:
+                  raise SystemExit("Native image changed during export")
+              records[target] = {"image_config_id": expected, "platform": "linux/amd64",
+                                 "archive": archive.name, "archive_bytes": info.st_size,
+                                 "archive_sha256": digest(archive), "native_inspect": observed[0],
+                                 "build_metadata": json.loads(os.environ[variable + "_BUILD_METADATA"])}
+          sources = {}
+          for name in ("Dockerfile", ".dockerignore", "scripts/ci/docker_source_artifacts.json"):
+              path = root / name
+              if path.is_symlink() or not path.is_file():
+                  raise SystemExit("Native image source is not regular")
+              sources[name] = {"bytes": path.stat().st_size, "sha256": digest(path)}
+          origin = {"repository_id": 1043311030, "repository": os.environ["GITHUB_REPOSITORY"],
+                    "source_head": run([git, "rev-parse", "HEAD"], "source-head").decode().strip(),
+                    "source_tree": run([git, "rev-parse", "HEAD^{tree}"], "source-tree").decode().strip(),
+                    "source_ref": os.environ["GITHUB_REF"], "run_id": int(os.environ["GITHUB_RUN_ID"]),
+                    "run_attempt": int(os.environ["GITHUB_RUN_ATTEMPT"]), "job": os.environ["GITHUB_JOB"],
+                    "source_files": sources, "images": records,
+                    "claim": "Exact hosted image bytes only; fresh native/security acceptance and published-image proof remain separate. No registry publication or guest execution in this export step."}
+          (output / "origin.json").write_text(json.dumps(origin, sort_keys=True, indent=2) + "\n")
+          with Path(os.environ["GITHUB_OUTPUT"]).open("a") as stream:
+              stream.write("complete=true\n")
+          PY
+
+      - name: Preserve exact backend native images for pullback qualification
+        if: ${{ always() && steps.backend-native-export.outputs.complete == 'true' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1 / Node 24
+        with:
+          name: backend-native-images-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/backend-native-images-${{ github.run_id }}-${{ github.run_attempt }}/
+          if-no-files-found: error
+          retention-days: 30
 
       - name: Check Docker runtime dependency surface
         run: |
@@ -170,7 +288,7 @@ jobs:
             --output-json docker-runtime-dependency-surface.json
 
       - name: Scan production image before publication eligibility
-        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0 / Node 24 cache path
         env:
           TRIVY_DB_REPOSITORY: ghcr.io/aquasecurity/trivy-db
         with:
@@ -995,3 +1113,396 @@ jobs:
           path: ${{ runner.temp }}/ghcr-public-${{ github.run_id }}-${{ github.run_attempt }}/qualification.json
           if-no-files-found: error
           retention-days: 30
+
+  backend-arm-sdk-qualification:
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      inputs.mode == 'backend-sdk-qualify' &&
+      github.repository == 'Katsiarynakavaleuskaya/PulsePlate' &&
+      github.repository_id == '1043311030'
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: ${{ fromJSON(vars.BACKEND_SDK_QUALIFICATION_TIMEOUT_MINUTES || '60') }}
+    permissions:
+      contents: read
+      actions: read
+    env:
+      SDK_SOURCE_IMAGE: python@sha256:f0320b9bf735a4c4db05e7578e487cbed66c097e36b59a3864ca6d3e7c7dcea9
+    steps:
+      - name: Require one explicit genuine ARM SDK producer attempt
+        run: |
+          set -euo pipefail
+          test "$GITHUB_RUN_ATTEMPT" = '1'
+          test "$GITHUB_REPOSITORY_ID" = '1043311030'
+          test "$(uname -s)" = Linux
+          test "$(uname -m)" = aarch64
+      - name: Checkout exact SDK source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Set up stock ARM SDK validation Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: '3.13.14'
+      - name: Observe the canonical stock ARM source image before SDK acquisition
+        run: |
+          set -euo pipefail
+          umask 077
+          evidence="$RUNNER_TEMP/arm-sdk-$GITHUB_RUN_ID-1/evidence"
+          mkdir -p "$evidence"
+          docker pull --platform linux/arm64 "$SDK_SOURCE_IMAGE"
+          docker image inspect "$SDK_SOURCE_IMAGE" > "$evidence/source-image.json"
+          docker run --rm --platform linux/arm64 --network none --read-only --cap-drop ALL \
+            --security-opt no-new-privileges:true --entrypoint /usr/local/bin/python \
+            "$SDK_SOURCE_IMAGE" -I -c \
+            'import json,platform,struct,sys,sysconfig; from pathlib import Path; p=Path(sys.executable).resolve(); b=p.read_bytes(); assert sys.platform=="linux" and platform.machine()=="aarch64" and sys.version_info[:2]==(3,13) and struct.calcsize("P")==8 and sysconfig.get_config_var("SOABI")=="cpython-313-aarch64-linux-gnu" and b[:6]==b"\x7fELF\x02\x01" and b[18:20]==b"\xb7\x00"; print(json.dumps({"python":sys.version,"machine":platform.machine(),"SOABI":sysconfig.get_config_var("SOABI"),"ELF_machine":183}))' \
+            > "$evidence/source-ABI.stdout" 2> "$evidence/source-ABI.stderr"
+      - name: Prepare Docker source artifacts
+        run: |
+          set -euo pipefail
+          python3 scripts/ci/fetch_docker_source_artifacts.py
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0 / Node 24
+      - name: Prepare existing private acquisition credentials
+        env:
+          DEVPI_CI_USER: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && secrets.DEVPI_CI_USER || '' }}
+          DEVPI_CI_PASSWORD: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && secrets.DEVPI_CI_PASSWORD || '' }}
+        run: |
+          set -euo pipefail
+          umask 077
+          test ! -e "$RUNNER_TEMP/arm-sdk.netrc"
+          : > "$RUNNER_TEMP/arm-sdk.netrc"
+          if [[ -z "${DEVPI_CI_USER:-}" && -z "${DEVPI_CI_PASSWORD:-}" ]]; then exit 0; fi
+          test -n "${DEVPI_CI_USER:-}" && test -n "${DEVPI_CI_PASSWORD:-}"
+          case "$DEVPI_CI_USER$DEVPI_CI_PASSWORD" in *[[:space:]]*) exit 1 ;; esac
+          case "$DEVPI_CI_USER" in [Rr][Oo][Oo][Tt]) exit 1 ;; esac
+          printf 'machine packages.pulseplate.app\n  login %s\n  password %s\n' \
+            "$DEVPI_CI_USER" "$DEVPI_CI_PASSWORD" > "$RUNNER_TEMP/arm-sdk.netrc"
+      - name: Build genuine ARM cp313 SDK using its existing target
+        id: sdk-build
+        uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7.0.0
+        env:
+          PULSEPLATE_PYTHON_INDEX_URL: ${{ vars.PULSEPLATE_PYTHON_INDEX_URL }}
+        with:
+          context: .
+          target: psycopg-sdk
+          platforms: linux/arm64
+          build-args: |
+            PSYCOPG_SDK_PYTHON_IMAGE=${{ env.SDK_SOURCE_IMAGE }}
+          secret-envs: |
+            pp_py_index=PULSEPLATE_PYTHON_INDEX_URL
+          secret-files: |
+            pp_netrc=${{ runner.temp }}/arm-sdk.netrc
+          push: false
+          load: true
+          outputs: type=local,dest=${{ runner.temp }}/arm-sdk-${{ github.run_id }}-1/sdk-root
+          tags: pulseplate-sdk:arm-cp313
+          provenance: false
+      - name: Remove acquisition credentials before static SDK validation
+        if: ${{ always() }}
+        run: |
+          set -euo pipefail
+          rm -f -- "$RUNNER_TEMP/arm-sdk.netrc"
+          test ! -e "$RUNNER_TEMP/arm-sdk.netrc"
+      - name: Bind genuine SDK origin, image and exported payload bytes
+        id: sdk-origin
+        env:
+          SDK_IMAGE_ID: ${{ steps.sdk-build.outputs.imageid }}
+          SDK_BUILD_METADATA: ${{ steps.sdk-build.outputs.metadata }}
+        run: |
+          set -euo pipefail
+          test ! -e "$RUNNER_TEMP/arm-sdk.netrc"
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib
+          import io
+          import json
+          import os
+          import platform
+          import re
+          import shutil
+          import stat
+          import subprocess
+          import tarfile
+          import sys
+          from scripts.ci.install_locked_python_requirements import _psycopg_sdk_target, read_psycopg_c_sdk
+
+          root = Path.cwd()
+          area = Path(os.environ["RUNNER_TEMP"]) / ("arm-sdk-" + os.environ["GITHUB_RUN_ID"] + "-1")
+          sdk = area / "sdk-root"
+          evidence = area / "evidence"
+          if evidence.is_symlink() or not evidence.is_dir():
+              raise SystemExit("SDK source observation directory missing")
+          target = _psycopg_sdk_target(os.environ["SDK_SOURCE_IMAGE"])
+          if (target.machine, target.python_tag, target.elf_machine) != ("aarch64", "cp313", 183):
+              raise SystemExit("Actual SDK target differs from canonical ARM tuple")
+          event = json.loads(Path(os.environ["GITHUB_EVENT_PATH"]).read_text())
+          if event["repository"]["id"] != 1043311030:
+              raise SystemExit("SDK producer repository mismatch")
+          # Static wheel/receipt/DSO recognition only. No supplied SDK library,
+          # provider or OpenSSL configuration is activated in this stock Python.
+          wheel = read_psycopg_c_sdk(sdk / "psycopg-sdk", native_root=sdk)
+          docker, git = shutil.which("docker"), shutil.which("git")
+          if not docker or not git or not Path(docker).is_absolute() or not Path(git).is_absolute():
+              raise SystemExit("SDK native transport tool missing")
+
+          def run(argv, name, timeout=120):
+              result = subprocess.run(argv, capture_output=True, timeout=timeout, check=False)
+              (evidence / (name + ".stdout")).write_bytes(result.stdout)
+              (evidence / (name + ".stderr")).write_bytes(result.stderr)
+              if result.returncode:
+                  raise SystemExit("SDK native origin operation failed: " + name)
+              return result.stdout
+
+          inspected = json.loads(run([docker, "image", "inspect", "pulseplate-sdk:arm-cp313"], "sdk-image"))
+          if len(inspected) != 1 or (inspected[0]["Id"], inspected[0]["Os"], inspected[0]["Architecture"]) != (os.environ["SDK_IMAGE_ID"], "linux", "arm64"):
+              raise SystemExit("SDK image/config/platform mismatch")
+          name = "pp-sdk-export-" + os.environ["GITHUB_RUN_ID"]
+          owner = "io.pulseplate.sdk-export=" + os.environ["GITHUB_RUN_ID"]
+          image_id = inspected[0]["Id"]
+          before = run([docker, "ps", "--all", "--format", "{{.Names}}"], "sdk-export-before").decode().splitlines()
+          if name in before:
+              raise SystemExit("SDK export container name collision")
+          try:
+              run([docker, "create", "--name", name, "--label", owner, "--platform", "linux/arm64",
+                   "--network", "none", "--read-only", "--cap-drop", "ALL", "--security-opt", "no-new-privileges:true",
+                   "--entrypoint", "/not-executed", image_id], "sdk-export-create")
+              paths = ("usr/local/lib/libpq.so.5.18", "usr/local/lib/libssl.so.3", "usr/local/lib/libcrypto.so.3",
+                       "psycopg-sdk/psycopg-c-sdk.json", "psycopg-sdk/" + wheel.path.name)
+              for index, relative in enumerate(paths):
+                  observed = run([docker, "cp", name + ":/" + relative, "-"], "sdk-export-member-" + str(index))
+                  with tarfile.open(fileobj=io.BytesIO(observed), mode="r:") as archive:
+                      members = archive.getmembers()
+                      if len(members) != 1 or not members[0].isreg() or members[0].size > 16777216:
+                          raise SystemExit("SDK native member export shape unsupported")
+                      stream = archive.extractfile(members[0])
+                      if stream is None or stream.read() != (sdk / relative).read_bytes():
+                          raise SystemExit("SDK image and local exporter bytes differ")
+              run([docker, "image", "save", "--output", str(area / "sdk.docker.tar"), image_id], "sdk-image-save", 900)
+          finally:
+              current = run([docker, "ps", "--all", "--format", "{{.Names}}"], "sdk-export-cleanup-inventory").decode().splitlines()
+              if name in current:
+                  container = json.loads(run([docker, "inspect", name], "sdk-export-owned-inspect"))[0]
+                  if container["Image"] != image_id or container["Config"]["Labels"].get("io.pulseplate.sdk-export") != os.environ["GITHUB_RUN_ID"] or container["State"]["Running"]:
+                      raise SystemExit("SDK export container ownership changed")
+                  run([docker, "rm", name], "sdk-export-remove")
+              names = run([docker, "ps", "--all", "--format", "{{.Names}}"], "sdk-export-absence").decode().splitlines()
+              if name in names:
+                  raise SystemExit("SDK export container survives")
+          inventory = []
+          for path in sorted(sdk.rglob("*")):
+              info = path.lstat()
+              relative = path.relative_to(sdk).as_posix()
+              if stat.S_ISLNK(info.st_mode):
+                  inventory.append({"path": relative, "type": "symlink", "target": os.readlink(path), "mode": stat.S_IMODE(info.st_mode)})
+              elif stat.S_ISREG(info.st_mode):
+                  inventory.append({"path": relative, "type": "file", "bytes": info.st_size,
+                                    "sha256": hashlib.sha256(path.read_bytes()).hexdigest(), "mode": stat.S_IMODE(info.st_mode)})
+              elif not stat.S_ISDIR(info.st_mode):
+                  raise SystemExit("Unexpected SDK filesystem member")
+          source_files = {}
+          for relative in ("Dockerfile", ".dockerignore", "scripts/ci/install_locked_python_requirements.py",
+                           "scripts/ci/fetch_docker_source_artifacts.py", "scripts/ci/docker_source_artifacts.json",
+                           "scripts/ci/check_private_python_proxy_health.py", ".github/workflows/build.yml"):
+              path = root / relative
+              if path.is_symlink() or not path.is_file():
+                  raise SystemExit("SDK producer input is not regular")
+              source_files[relative] = {"bytes": path.stat().st_size, "sha256": hashlib.sha256(path.read_bytes()).hexdigest()}
+          source_image = json.loads((evidence / "source-image.json").read_bytes())
+          if len(source_image) != 1 or (source_image[0]["Os"], source_image[0]["Architecture"]) != ("linux", "arm64"):
+              raise SystemExit("SDK source-image platform differs")
+          if not {target.source_image, "docker.io/library/" + target.source_image}.intersection(source_image[0].get("RepoDigests", [])):
+              raise SystemExit("SDK source-image digest differs")
+          record = {"repository_id": 1043311030, "source_head": run([git, "rev-parse", "HEAD"], "sdk-source-head").decode().strip(),
+                    "source_ref": os.environ["GITHUB_REF"], "run_id": int(os.environ["GITHUB_RUN_ID"]), "run_attempt": 1,
+                    "source_image": target.source_image, "source_image_native": source_image[0], "target": target.__dict__, "native_image": inspected[0],
+                    "build_metadata": json.loads(os.environ["SDK_BUILD_METADATA"]), "source_files": source_files,
+                    "export_members": inventory, "stock_python": sys.version, "kernel_machine": platform.machine(),
+                    "claim": "Genuine hosted producer/export and static consistency only. External clean supporting-tool-root admission, UBI secret-free quarantine/offline consumption/final COPY and immutable Apple Oracle remain separate; no trust authority from these hashes."}
+          (area / "sdk-origin.json").write_text(json.dumps(record, sort_keys=True, indent=2) + "\n")
+          with Path(os.environ["GITHUB_OUTPUT"]).open("a") as stream:
+              stream.write("complete=true\n")
+          PY
+      - name: Retain ARM SDK raw origin and export evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1 / Node 24
+        with:
+          name: backend-arm-cp313-sdk-${{ github.run_id }}-1
+          path: ${{ runner.temp }}/arm-sdk-${{ github.run_id }}-1/
+          if-no-files-found: error
+          retention-days: 30
+
+  prometheus-oras-qualification:
+    if: >-
+      github.event_name == 'workflow_dispatch' && inputs.mode == 'prometheus-oras-qualify' &&
+      github.repository == 'Katsiarynakavaleuskaya/PulsePlate' && github.repository_id == '1043311030'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    permissions:
+      contents: read
+      actions: read
+    env:
+      PROMETHEUS_TOOL_SECONDS: '1800'
+      PROMETHEUS_CLEANUP_SECONDS: '120'
+      PROMETHEUS_TOOL_TRIVY_CACHE: /tmp/trivy-cache-prometheus-tool
+    steps:
+      - name: Require first explicit tool attempt
+        run: |
+          set -euo pipefail
+          test "$GITHUB_RUN_ATTEMPT" = '1'
+      - name: Checkout exact tool producer
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Set up producer Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: '3.13.14'
+      - name: Install pinned tool scanner and acquire DB
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0 / Node 24 cache path
+        with:
+          version: v0.74.0
+          image-ref: gcr.io/distroless/static-debian13@sha256:2293b36c7c9082bf4115aab724b4d2cddec82c8eba39bf27ac0517e159acf150
+          format: table
+          severity: UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL
+          exit-code: '0'
+          cache-dir: /tmp/trivy-cache-prometheus-tool
+      - name: Compile one ORAS tool and qualify native format
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          python_bin="$(command -v python)"
+          "$python_bin" -m scripts.ci.prometheus_source_image --operation tool \
+            --work-dir "$RUNNER_TEMP/prometheus-oras-$GITHUB_RUN_ID-1" \
+            --timeout-seconds "$PROMETHEUS_TOOL_SECONDS" --cleanup-seconds "$PROMETHEUS_CLEANUP_SECONDS"
+      - name: Retain tool source and native observations
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1 / Node 24
+        with:
+          name: prometheus-oras-${{ github.run_id }}-1
+          path: ${{ runner.temp }}/prometheus-oras-${{ github.run_id }}-1/evidence/
+          if-no-files-found: error
+          retention-days: 90
+
+  prometheus-source-build-pair:
+    if: >-
+      github.event_name == 'workflow_dispatch' && inputs.mode == 'prometheus-source-pair' &&
+      github.repository == 'Katsiarynakavaleuskaya/PulsePlate' && github.repository_id == '1043311030'
+    runs-on: ubuntu-24.04
+    # 15m shared preparation + two 60m builds + two 5m native checks + cleanup,
+    # with bounded setup/SPDX/attestation/upload reserve. Build caps stay 3600s.
+    timeout-minutes: 180
+    permissions:
+      contents: read
+      actions: read
+      attestations: write
+      id-token: write
+    env:
+      PROMETHEUS_BUILD_SECONDS_EACH: '3600'
+      PROMETHEUS_CLEANUP_SECONDS: '120'
+    steps:
+      - name: Require first explicit pair attempt
+        run: |
+          set -euo pipefail
+          test "$GITHUB_RUN_ATTEMPT" = '1'
+      - name: Checkout exact frozen producer
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Set up producer Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: '3.13.14'
+      - name: Execute exactly two serial source-image builds
+        id: pair
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          python_bin="$(command -v python)"
+          "$python_bin" -m scripts.ci.prometheus_source_image --operation pair \
+            --work-dir "$RUNNER_TEMP/prometheus-pair-$GITHUB_RUN_ID-1" \
+            --timeout-seconds "$PROMETHEUS_BUILD_SECONDS_EACH" --cleanup-seconds "$PROMETHEUS_CLEANUP_SECONDS"
+      - name: Generate SPDX from the retained OCI bytes
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
+        with:
+          image: oci-archive:${{ runner.temp }}/prometheus-pair-${{ github.run_id }}-1/evidence/image.oci.tar
+          format: spdx-json
+          output-file: ${{ runner.temp }}/prometheus-pair-${{ github.run_id }}-1/evidence/sbom.spdx.json
+      - name: Attest the original source producer
+        id: original-provenance
+        uses: actions/attest@59d89421af93a897026c735860bf21b6eb4f7b26 # v4.1.0
+        with:
+          subject-name: ghcr.io/katsiarynakavaleuskaya/pulseplate
+          subject-digest: ${{ steps.pair.outputs.manifest_digest }}
+          push-to-registry: false
+          create-storage-record: false
+      - name: Attest the original SPDX
+        id: original-sbom
+        uses: actions/attest@59d89421af93a897026c735860bf21b6eb4f7b26 # v4.1.0
+        with:
+          subject-name: ghcr.io/katsiarynakavaleuskaya/pulseplate
+          subject-digest: ${{ steps.pair.outputs.manifest_digest }}
+          sbom-path: ${{ runner.temp }}/prometheus-pair-${{ github.run_id }}-1/evidence/sbom.spdx.json
+          push-to-registry: false
+          create-storage-record: false
+      - name: Retain original signed bundles
+        env:
+          PROVENANCE_BUNDLE: ${{ steps.original-provenance.outputs.bundle-path }}
+          SBOM_BUNDLE: ${{ steps.original-sbom.outputs.bundle-path }}
+        run: |
+          set -euo pipefail
+          cp -- "$PROVENANCE_BUNDLE" "$RUNNER_TEMP/prometheus-pair-$GITHUB_RUN_ID-1/evidence/provenance-bundle.jsonl"
+          cp -- "$SBOM_BUNDLE" "$RUNNER_TEMP/prometheus-pair-$GITHUB_RUN_ID-1/evidence/sbom-bundle.jsonl"
+      - name: Retain complete real pair evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1 / Node 24
+        with:
+          name: prometheus-source-candidate-${{ github.run_id }}-1
+          path: ${{ runner.temp }}/prometheus-pair-${{ github.run_id }}-1/evidence/
+          if-no-files-found: error
+          retention-days: 90
+
+  prometheus-publish:
+    if: >-
+      github.event_name == 'push' && github.ref == 'refs/heads/main' &&
+      github.repository == 'Katsiarynakavaleuskaya/PulsePlate' && github.repository_id == '1043311030'
+    needs: [build, security-scan]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    permissions:
+      contents: read
+      actions: read
+      packages: write
+    env:
+      PROMETHEUS_PUBLICATION_SECONDS: '1800'
+      PROMETHEUS_CLEANUP_SECONDS: '120'
+    steps:
+      - name: Checkout exact main producer
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Promote precise retained bytes and pull them back
+        id: published
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          python3 -m scripts.ci.prometheus_source_image --operation promote \
+            --work-dir "$RUNNER_TEMP/prometheus-publication-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" \
+            --timeout-seconds "$PROMETHEUS_PUBLICATION_SECONDS" --cleanup-seconds "$PROMETHEUS_CLEANUP_SECONDS"
+      - name: Retain main publication and pullback
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1 / Node 24
+        with:
+          name: prometheus-publication-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/prometheus-publication-${{ github.run_id }}-${{ github.run_attempt }}/evidence/
+          if-no-files-found: error
+          retention-days: 90

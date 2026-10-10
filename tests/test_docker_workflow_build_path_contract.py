@@ -47,6 +47,86 @@ EXPECTED_DOCKER_SOURCE_PREP_BUILD_STEPS = {
 }
 
 
+def test_finite_backend_exports_follow_credential_cleanup_and_do_not_publish() -> None:
+    workflow = _load_workflow(WORKFLOWS_DIR / "build.yml")
+    job = workflow["jobs"]["build"]
+    assert job["permissions"] == {"actions": "read", "contents": "read"}
+    production = _step_by_name(job, "Build Docker image (local, for tests)")
+    staging = _step_by_name(job, "Build staging image from the same qualified backend inputs")
+    assert production["with"]["target"] == "production"
+    assert staging["with"]["target"] == "staging"
+    for step in (production, staging):
+        assert step["with"]["push"] is False and step["with"]["load"] is True
+        assert step["with"]["platforms"] == "linux/amd64"
+        assert (
+            step["with"]["build-args"]
+            == "PULSEPLATE_REQUIREMENTS_FILE=requirements-docker-runtime.txt\n"
+        )
+        assert "pp_netrc=${{ runner.temp }}/pulseplate-docker-netrc" in step["with"]["secret-files"]
+    export_name = "Retain exact production and staging native image bytes"
+    assert (
+        _step_index(job, production["name"])
+        < _step_index(job, staging["name"])
+        < _step_index(job, "Remove private Python index Docker authentication")
+        < _step_index(job, export_name)
+    )
+    exported = _step_by_name(job, export_name)
+    run = exported["run"]
+    assert 'test ! -e "$RUNNER_TEMP/pulseplate-docker-netrc"' in run
+    assert '[docker, "image", "save", "--output", str(archive), tag]' in run
+    assert "again != observed" in run and '"archive_sha256": digest(archive)' in run
+    assert "No registry publication or guest execution in this export step" in run
+    assert "docker login" not in run and '"push"' not in run
+    python_source = run.split("python3 - <<'PY'\n", 1)[1].split("\nPY\n", 1)[0]
+    ast.parse(python_source)
+    uploaded = _step_by_name(job, "Preserve exact backend native images for pullback qualification")
+    assert (
+        uploaded["if"]
+        == "${{ always() && steps.backend-native-export.outputs.complete == 'true' }}"
+    )
+
+
+def test_finite_arm_sdk_origin_is_manual_canonical_static_and_not_tool_trust() -> None:
+    from scripts.ci.install_locked_python_requirements import PSYCOPG_SDK_TARGETS
+
+    workflow = _load_workflow(WORKFLOWS_DIR / "build.yml")
+    job = workflow["jobs"]["backend-arm-sdk-qualification"]
+    assert job["runs-on"] == "ubuntu-24.04-arm"
+    assert job["permissions"] == {"contents": "read", "actions": "read"}
+    assert job["if"] == (
+        "github.event_name == 'workflow_dispatch' && inputs.mode == 'backend-sdk-qualify' && "
+        "github.repository == 'Katsiarynakavaleuskaya/PulsePlate' && github.repository_id == '1043311030'"
+    )
+    targets = [
+        target
+        for target in PSYCOPG_SDK_TARGETS
+        if (target.machine, target.minor) == ("aarch64", 13)
+    ]
+    assert len(targets) == 1 and job["env"]["SDK_SOURCE_IMAGE"] == targets[0].source_image
+    guard = _step_by_name(job, "Require one explicit genuine ARM SDK producer attempt")["run"]
+    assert "test \"$GITHUB_RUN_ATTEMPT\" = '1'" in guard
+    assert "test \"$GITHUB_REPOSITORY_ID\" = '1043311030'" in guard
+    assert 'test "$(uname -m)" = aarch64' in guard
+    built = _step_by_name(job, "Build genuine ARM cp313 SDK using its existing target")
+    assert built["with"]["target"] == "psycopg-sdk"
+    assert built["with"]["platforms"] == "linux/arm64"
+    assert built["with"]["push"] is False
+    name = "Bind genuine SDK origin, image and exported payload bytes"
+    assert (
+        _step_index(job, built["name"])
+        < _step_index(job, "Remove acquisition credentials before static SDK validation")
+        < _step_index(job, name)
+    )
+    run = _step_by_name(job, name)["run"]
+    assert 'read_psycopg_c_sdk(sdk / "psycopg-sdk", native_root=sdk)' in run
+    assert "SDK image and local exporter bytes differ" in run
+    assert "External clean supporting-tool-root admission" in run
+    assert "# Static wheel/receipt/DSO recognition only. No supplied SDK library," in run
+    assert '"--entrypoint", "/not-executed", image_id' in run
+    python_source = run.split("python3 - <<'PY'\n", 1)[1].split("\nPY\n", 1)[0]
+    ast.parse(python_source)
+
+
 def _load_workflow(path: Path) -> dict[str, object]:
     workflow = yaml.safe_load(path.read_text(encoding="utf-8"))
     assert isinstance(workflow, dict)
@@ -2544,6 +2624,9 @@ def test_prometheus_metadata_mode_is_explicit_and_independent() -> None:
         "disabled",
         "normal",
         "prometheus-source-qualify",
+        "backend-sdk-qualify",
+        "prometheus-oras-qualify",
+        "prometheus-source-pair",
     ]
     assert events["workflow_dispatch"]["inputs"]["prometheus_module_action"] == {
         "description": "Explicit Prometheus metadata module action; unchanged retains original locks",
@@ -2582,3 +2665,34 @@ def test_prometheus_metadata_mode_is_explicit_and_independent() -> None:
     assert not any("secrets." in str(step) for step in qualification["steps"])
     checkout = _step_by_name(qualification, "Checkout qualification source")
     assert checkout["with"]["persist-credentials"] is False
+
+
+def test_prometheus_publisher_verifies_retained_original_signed_bundles() -> None:
+    workflow = _load_workflow(WORKFLOWS_DIR / "build.yml")
+    jobs = workflow["jobs"]
+    pair = jobs["prometheus-source-build-pair"]
+    attestations = [
+        step for step in pair["steps"] if step.get("uses", "").startswith("actions/attest@")
+    ]
+    assert len(attestations) == 2
+    for step in attestations:
+        assert step["with"]["push-to-registry"] is False
+        assert step["with"]["create-storage-record"] is False
+    publisher = jobs["prometheus-publish"]
+    assert [step["name"] for step in publisher["steps"]] == [
+        "Checkout exact main producer",
+        "Promote precise retained bytes and pull them back",
+        "Retain main publication and pullback",
+    ]
+    promote = _step_by_name(publisher, "Promote precise retained bytes and pull them back")
+    assert promote["id"] == "published"
+    assert promote["env"] == {
+        "GH_TOKEN": "${{ secrets.GITHUB_TOKEN }}",
+        "GITHUB_TOKEN": "${{ secrets.GITHUB_TOKEN }}",
+    }
+    assert "--operation promote" in promote["run"]
+    assert '--cleanup-seconds "$PROMETHEUS_CLEANUP_SECONDS"' in promote["run"]
+    assert "DOCKER_CONFIG" not in str(publisher)
+    assert not any(
+        step.get("uses", "").startswith("docker/login-action@") for step in publisher["steps"]
+    )

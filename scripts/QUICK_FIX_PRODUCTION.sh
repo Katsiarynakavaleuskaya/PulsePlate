@@ -58,6 +58,90 @@ dc() {
     docker compose --env-file .env -f "$COMPOSE_FILE" "$@"
 }
 
+# Read the installed canonical image choice before any Compose operation.
+# Scoped deploy-tool interpreter input; no PATH discovery or origin claim.
+PYTHON_BIN_OVERRIDE="${PYTHON_BIN:-}"
+TRUSTED_PYTHON_CANDIDATES=(
+  "/usr/bin/python3"
+  "/usr/local/bin/python3"
+  "/opt/homebrew/bin/python3"
+  "/opt/homebrew/opt/python@3.14/libexec/bin/python3"
+)
+if [ -n "$PYTHON_BIN_OVERRIDE" ]; then
+  if [[ "$PYTHON_BIN_OVERRIDE" != /* ]]; then
+    echo "❌ PYTHON_BIN override must be an absolute path" >&2
+    exit 1
+  fi
+  if [ ! -x "$PYTHON_BIN_OVERRIDE" ]; then
+    echo "❌ PYTHON_BIN override is not executable" >&2
+    exit 1
+  fi
+  PYTHON_CANDIDATES=("$PYTHON_BIN_OVERRIDE")
+else
+  PYTHON_CANDIDATES=("${TRUSTED_PYTHON_CANDIDATES[@]}")
+fi
+PYTHON_BIN=""
+for candidate in "${PYTHON_CANDIDATES[@]}"; do
+  if [ ! -x "$candidate" ]; then
+    continue
+  fi
+  if python_identity="$("$candidate" -I -S -c 'import sys; print(sys.implementation.name + ":" + str(sys.version_info.major) + "." + str(sys.version_info.minor))')"; then
+    case "$python_identity" in
+      cpython:3.11|cpython:3.12|cpython:3.13|cpython:3.14)
+        PYTHON_BIN="$candidate"
+        break
+        ;;
+    esac
+  fi
+  if [ -n "$PYTHON_BIN_OVERRIDE" ]; then
+    echo "❌ PYTHON_BIN override requires isolated CPython 3.11, 3.12, 3.13 or 3.14: $candidate" >&2
+    exit 1
+  fi
+done
+if [ -z "$PYTHON_BIN" ]; then
+  echo "❌ PYTHON_BIN requires isolated CPython 3.11, 3.12, 3.13 or 3.14 at a trusted absolute path" >&2
+  exit 1
+fi
+readonly PYTHON_BIN
+
+PROMETHEUS_CONTRACT_HELPER="$DEPLOY_DIR/scripts/ci/prometheus_source_image.py"
+PROMETHEUS_CONTRACT_HELPER_SHA256="17e470a5ec81b7b61ad47c8a86d67f58b58d4ae70082db5c318f0058e2bc4fad" # Public source digest; pragma: allowlist secret
+run_prometheus_contract() {
+  "$PYTHON_BIN" -I -c '
+import hashlib
+import os
+from pathlib import Path
+import re
+import stat
+import sys
+path, expected = sys.argv[1:3]
+if not os.path.isabs(path) or re.fullmatch(r"[0-9a-f]{64}", expected) is None:
+    raise SystemExit("Invalid trusted Prometheus helper operand")
+for parent in Path(path).parents:
+    if parent.is_symlink() or not parent.is_dir():
+        raise SystemExit("Trusted Prometheus helper parent is not a real directory")
+fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+before = os.fstat(fd)
+if (not stat.S_ISREG(before.st_mode) or before.st_nlink != 1 or before.st_uid not in (0, os.getuid())
+        or before.st_mode & 0o022 or not 0 < before.st_size <= 1048576):
+    raise SystemExit("Trusted Prometheus helper leaf is invalid")
+raw = os.read(fd, before.st_size + 1)
+after, current = os.fstat(fd), os.lstat(path)
+if len(raw) != before.st_size or hashlib.sha256(raw).hexdigest() != expected or any(
+    getattr(before, key) != getattr(after, key) or getattr(before, key) != getattr(current, key)
+    for key in ("st_dev", "st_ino", "st_mode", "st_nlink", "st_size", "st_mtime_ns", "st_ctime_ns")
+):
+    raise SystemExit("Trusted current-source Prometheus helper binding changed")
+os.lseek(fd, 0, os.SEEK_SET)
+os.set_inheritable(fd, True)
+os.execv(sys.executable, [sys.executable, "-I", "/dev/fd/" + str(fd), *sys.argv[3:]])
+' "$PROMETHEUS_CONTRACT_HELPER" "$PROMETHEUS_CONTRACT_HELPER_SHA256" "$@"
+}
+
+PROMETHEUS_RUNTIME_REF="$(run_prometheus_contract --operation read-manifest --manifest "$DEPLOY_DIR/prometheus/image-manifest.json" --field runtime_ref)"
+export PROMETHEUS_RUNTIME_REF
+readonly PROMETHEUS_RUNTIME_REF
+
 # Check for duplicates
 echo "=== Step 1: Check for duplicate env vars ==="
 DUPLICATE_KEY_LINES="$(awk '

@@ -681,7 +681,19 @@ def test_ci_and_frontend_concurrency_preserve_declared_events(
     assert set(pr_types).difference(metadata) == set(material_actions)
     assert "push" in on_section
     if "workflow_dispatch" in events:
-        assert on_section["workflow_dispatch"] is None
+        if path == FRONTEND_CI_WORKFLOW_PATH:
+            assert on_section["workflow_dispatch"] == {
+                "inputs": {
+                    "caddy_action": {
+                        "description": "Explicit metadata qualification; never compiles a Caddy candidate",
+                        "type": "choice",
+                        "default": "contract",
+                        "options": ["contract", "xnet060-metadata"],
+                    }
+                }
+            }
+        else:
+            assert on_section["workflow_dispatch"] is None
     # The exact native expression owns event-name guarding and material fallback.
     # These finite source inventories do not execute or simulate GitHub scheduling.
 
@@ -1141,7 +1153,7 @@ def test_all_active_checkout_uses_have_one_exact_v7_pin() -> None:
         ".github/workflows/security.yml",
         ".github/workflows/trivy.yml",
     }
-    assert len(observed_checkout_uses) == 79
+    assert len(observed_checkout_uses) == 83
     assert {path for path, _ in observed_checkout_uses} == expected_checkout_workflows
 
 
@@ -2162,7 +2174,10 @@ def _assert_node24_frontend_builder_workflow_contract(
     assert isinstance(jobs, dict)
     job = jobs["build-and-test"]
     assert isinstance(job, dict)
-    assert "if" not in job
+    assert (
+        job.get("if")
+        == "${{ github.event_name != 'workflow_dispatch' || inputs.caddy_action != 'xnet060-metadata' }}"
+    )
     assert "continue-on-error" not in job
 
     defaults = job["defaults"]
@@ -3210,7 +3225,7 @@ def test_node24_checkout_and_docker_action_pins_use_verified_commit_shas() -> No
 
     expected_docker_lines = {
         BUILD_WORKFLOW_PATH: {
-            f"docker/setup-buildx-action@{DOCKER_SETUP_BUILDX_NODE24_SHA} # v4.1.0 / Node 24": 2,
+            f"docker/setup-buildx-action@{DOCKER_SETUP_BUILDX_NODE24_SHA} # v4.1.0 / Node 24": 3,
             f"docker/login-action@{DOCKER_LOGIN_NODE24_SHA} # v4.2.0 / Node 24": 1,
             f"docker/metadata-action@{DOCKER_METADATA_NODE24_SHA} # v6.1.0 / Node 24": 1,
         },
@@ -3230,7 +3245,7 @@ def test_node24_checkout_and_docker_action_pins_use_verified_commit_shas() -> No
     expected_trivy_lines = {
         BUILD_WORKFLOW_PATH: {
             f"aquasecurity/trivy-action@{TRIVY_ACTION_NODE24_CACHE_SHA} "
-            "# v0.36.0 / Node 24 cache path": 2,
+            "# v0.36.0 / Node 24 cache path": 4,
         },
         CD_WORKFLOW_PATH: {
             f"aquasecurity/trivy-action@{TRIVY_ACTION_NODE24_CACHE_SHA} "
@@ -3267,7 +3282,7 @@ def test_node24_checkout_and_docker_action_pins_use_verified_commit_shas() -> No
                 )
             )
 
-    assert observed_docker_contracts == [
+    expected_docker_contracts = [
         (
             ".github/workflows/build.yml",
             "build",
@@ -3381,6 +3396,19 @@ def test_node24_checkout_and_docker_action_pins_use_verified_commit_shas() -> No
             None,
         ),
     ]
+    expected_docker_contracts[4:4] = [
+        (
+            ".github/workflows/build.yml",
+            "backend-arm-sdk-qualification",
+            "Set up Docker Buildx",
+            f"docker/setup-buildx-action@{DOCKER_SETUP_BUILDX_NODE24_SHA}",
+            None,
+            None,
+            None,
+            None,
+        ),
+    ]
+    assert observed_docker_contracts == expected_docker_contracts
 
     observed_trivy_contracts = []
     for workflow_path in (BUILD_WORKFLOW_PATH, CD_WORKFLOW_PATH, TRIVY_WORKFLOW_PATH):
@@ -3400,7 +3428,7 @@ def test_node24_checkout_and_docker_action_pins_use_verified_commit_shas() -> No
                     )
                 )
 
-    assert observed_trivy_contracts == [
+    expected_trivy_contracts = [
         (
             ".github/workflows/build.yml",
             "build",
@@ -3540,7 +3568,28 @@ def test_node24_checkout_and_docker_action_pins_use_verified_commit_shas() -> No
             None,
         ),
     ]
-    assert len(observed_trivy_contracts) == 6
+    expected_trivy_contracts.insert(
+        3,
+        (
+            ".github/workflows/build.yml",
+            "prometheus-oras-qualification",
+            "Install pinned tool scanner and acquire DB",
+            f"aquasecurity/trivy-action@{TRIVY_ACTION_NODE24_CACHE_SHA}",
+            {
+                "version": "v0.74.0",
+                "image-ref": "gcr.io/distroless/static-debian13@sha256:2293b36c7c9082bf4115aab724b4d2cddec82c8eba39bf27ac0517e159acf150",
+                "format": "table",
+                "severity": "UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL",
+                "exit-code": "0",
+                "cache-dir": "/tmp/trivy-cache-prometheus-tool",
+            },
+            None,
+            None,
+            None,
+        ),
+    )
+    assert observed_trivy_contracts == expected_trivy_contracts
+    assert len(observed_trivy_contracts) == 7
 
 
 def test_build_workflow_trivy_fs_sarif_is_temp_isolated_before_upload() -> None:
@@ -3625,7 +3674,7 @@ def test_active_sbom_action_refs_use_verified_v0_24_0_sha_and_preserve_contracts
     expected_uses = f"anchore/sbom-action@{SBOM_ACTION_NODE24_SHA}"
     expected_line = f"{expected_uses} # v0.24.0"
     expected_counts = {
-        ".github/workflows/build.yml": 1,
+        ".github/workflows/build.yml": 2,
         ".github/workflows/cd.yml": 3,
     }
     observed_counts: dict[str, int] = {}
@@ -3688,7 +3737,7 @@ def test_active_sbom_action_refs_use_verified_v0_24_0_sha_and_preserve_contracts
             observed_counts[workflow_relative_path] = workflow_sbom_count
 
     assert observed_counts == expected_counts
-    assert observed_contracts == [
+    expected_contracts = [
         (
             ".github/workflows/build.yml",
             "publish",
@@ -3769,6 +3818,25 @@ def test_active_sbom_action_refs_use_verified_v0_24_0_sha_and_preserve_contracts
             None,
         ),
     ]
+    expected_contracts.insert(
+        1,
+        (
+            ".github/workflows/build.yml",
+            "prometheus-source-build-pair",
+            "Generate SPDX from the retained OCI bytes",
+            expected_uses,
+            {
+                "image": "oci-archive:${{ runner.temp }}/prometheus-pair-${{ github.run_id }}-1/evidence/image.oci.tar",
+                "format": "spdx-json",
+                "output-file": "${{ runner.temp }}/prometheus-pair-${{ github.run_id }}-1/evidence/sbom.spdx.json",
+            },
+            "github.event_name == 'workflow_dispatch' && inputs.mode == 'prometheus-source-pair' && github.repository == 'Katsiarynakavaleuskaya/PulsePlate' && github.repository_id == '1043311030'",
+            None,
+            None,
+            None,
+        ),
+    )
+    assert observed_contracts == expected_contracts
 
 
 def test_active_codeql_action_refs_use_verified_v4_37_1_sha() -> None:
@@ -3892,7 +3960,7 @@ def test_node24_setup_go_and_upload_artifact_pins_preserve_workflow_contracts() 
 
     expected_action_lines = {
         BUILD_WORKFLOW_PATH: {
-            f"actions/upload-artifact@{UPLOAD_ARTIFACT_NODE24_SHA} # v7.0.1 / Node 24": 8,
+            f"actions/upload-artifact@{UPLOAD_ARTIFACT_NODE24_SHA} # v7.0.1 / Node 24": 13,
         },
         GREENLIGHT_IOS_WORKFLOW_PATH: {
             f"actions/setup-go@{SETUP_GO_NODE24_SHA} # v7.0.0 / Node 24": 1,
@@ -3938,7 +4006,7 @@ def test_node24_setup_go_and_upload_artifact_pins_preserve_workflow_contracts() 
                 )
             )
 
-    assert observed_contracts == [
+    expected_contracts = [
         (
             ".github/workflows/build.yml",
             "build",
@@ -4129,6 +4197,87 @@ def test_node24_setup_go_and_upload_artifact_pins_preserve_workflow_contracts() 
             None,
         ),
     ]
+    expected_contracts.insert(
+        0,
+        (
+            ".github/workflows/build.yml",
+            "build",
+            "Preserve exact backend native images for pullback qualification",
+            f"actions/upload-artifact@{UPLOAD_ARTIFACT_NODE24_SHA}",
+            {
+                "name": "backend-native-images-${{ github.run_id }}-${{ github.run_attempt }}",
+                "path": "${{ runner.temp }}/backend-native-images-${{ github.run_id }}-${{ github.run_attempt }}/",
+                "if-no-files-found": "error",
+                "retention-days": 30,
+            },
+            "${{ always() && steps.backend-native-export.outputs.complete == 'true' }}",
+            None,
+            None,
+        ),
+    )
+    expected_contracts[9:9] = [
+        (
+            ".github/workflows/build.yml",
+            "backend-arm-sdk-qualification",
+            "Retain ARM SDK raw origin and export evidence",
+            f"actions/upload-artifact@{UPLOAD_ARTIFACT_NODE24_SHA}",
+            {
+                "name": "backend-arm-cp313-sdk-${{ github.run_id }}-1",
+                "path": "${{ runner.temp }}/arm-sdk-${{ github.run_id }}-1/",
+                "if-no-files-found": "error",
+                "retention-days": 30,
+            },
+            "${{ always() }}",
+            None,
+            None,
+        ),
+        (
+            ".github/workflows/build.yml",
+            "prometheus-oras-qualification",
+            "Retain tool source and native observations",
+            f"actions/upload-artifact@{UPLOAD_ARTIFACT_NODE24_SHA}",
+            {
+                "name": "prometheus-oras-${{ github.run_id }}-1",
+                "path": "${{ runner.temp }}/prometheus-oras-${{ github.run_id }}-1/evidence/",
+                "if-no-files-found": "error",
+                "retention-days": 90,
+            },
+            "${{ always() }}",
+            None,
+            None,
+        ),
+        (
+            ".github/workflows/build.yml",
+            "prometheus-source-build-pair",
+            "Retain complete real pair evidence",
+            f"actions/upload-artifact@{UPLOAD_ARTIFACT_NODE24_SHA}",
+            {
+                "name": "prometheus-source-candidate-${{ github.run_id }}-1",
+                "path": "${{ runner.temp }}/prometheus-pair-${{ github.run_id }}-1/evidence/",
+                "if-no-files-found": "error",
+                "retention-days": 90,
+            },
+            "${{ always() }}",
+            None,
+            None,
+        ),
+        (
+            ".github/workflows/build.yml",
+            "prometheus-publish",
+            "Retain main publication and pullback",
+            f"actions/upload-artifact@{UPLOAD_ARTIFACT_NODE24_SHA}",
+            {
+                "name": "prometheus-publication-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}",
+                "path": "${{ runner.temp }}/prometheus-publication-${{ github.run_id }}-${{ github.run_attempt }}/evidence/",
+                "if-no-files-found": "error",
+                "retention-days": 90,
+            },
+            "${{ always() }}",
+            None,
+            None,
+        ),
+    ]
+    assert observed_contracts == expected_contracts
 
 
 def test_node24_artifact_migration_preserves_download_contracts() -> None:
@@ -5767,10 +5916,18 @@ def _assert_ci_lint_node24_frontend_hook_dependency_contract(
     lint_job = jobs["lint"]
     assert isinstance(lint_job, dict)
     assert lint_job.get("if") == "${{ !cancelled() }}"
+    assert lint_job.get("permissions") == {
+        "contents": "read",
+        "actions": "read",
+        "packages": "read",
+    }, "ci_lint_reader_permissions"
+    assert lint_job["env"] == {
+        "PROMETHEUS_CONSUME_SECONDS": "900",
+        "PROMETHEUS_CLEANUP_SECONDS": "120",
+    }
     for forbidden_key in (
         "continue-on-error",
         "defaults",
-        "permissions",
         "environment",
     ):
         assert forbidden_key not in lint_job
@@ -5873,6 +6030,7 @@ def test_ci_lint_node24_frontend_hook_dependency_guard_rejects_drift(
     """Every bounded install, order, cache, or privilege drift must fail closed."""
 
     workflow = _load_ci_workflow()
+    _assert_ci_lint_node24_frontend_hook_dependency_contract(workflow)
     jobs = workflow["jobs"]
     assert isinstance(jobs, dict)
     lint_job = jobs["lint"]
@@ -5955,8 +6113,12 @@ def test_ci_lint_node24_frontend_hook_dependency_guard_rejects_drift(
     if mutation == "job_environment":
         lint_job["environment"] = "production"
 
-    with pytest.raises(AssertionError):
-        _assert_ci_lint_node24_frontend_hook_dependency_contract(workflow)
+    if mutation == "job_permissions":
+        with pytest.raises(AssertionError, match=r"^ci_lint_reader_permissions(?:\n|$)"):
+            _assert_ci_lint_node24_frontend_hook_dependency_contract(workflow)
+    else:
+        with pytest.raises(AssertionError):
+            _assert_ci_lint_node24_frontend_hook_dependency_contract(workflow)
 
 
 def test_main_branch_python_sharded_runner_preserves_required_check_policy() -> None:
@@ -7287,7 +7449,11 @@ def _assert_frontend_node24_foundation_contract(
     assert isinstance(jobs, dict)
     job = jobs["build-and-test"]
     assert isinstance(job, dict)
-    assert "if" not in job and "continue-on-error" not in job
+    assert (
+        job.get("if")
+        == "${{ github.event_name != 'workflow_dispatch' || inputs.caddy_action != 'xnet060-metadata' }}"
+    )
+    assert "continue-on-error" not in job
     assert job["defaults"] == {"run": {"working-directory": "frontend"}}
     job_env = job.get("env", {})
     assert isinstance(job_env, dict)

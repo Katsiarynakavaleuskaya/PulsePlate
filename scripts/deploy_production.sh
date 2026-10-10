@@ -53,7 +53,12 @@ TRUSTED_DOCKER_CANDIDATES=(
   "/snap/bin/docker"
 )
 TRUSTED_DOCKER_CANDIDATES_TEXT="/usr/bin/docker, /usr/local/bin/docker, /snap/bin/docker"
-TRUSTED_PYTHON_CANDIDATES=("/usr/bin/python3" "/usr/local/bin/python3")
+TRUSTED_PYTHON_CANDIDATES=(
+  "/usr/bin/python3"
+  "/usr/local/bin/python3"
+  "/opt/homebrew/bin/python3"
+  "/opt/homebrew/opt/python@3.14/libexec/bin/python3"
+)
 TRUSTED_STAT_CANDIDATES=("/usr/bin/stat" "/bin/stat")
 TRUSTED_CURL_CANDIDATES=("/usr/bin/curl" "/usr/local/bin/curl")
 ARCHIVE_EXTRACT_DIR=""
@@ -103,6 +108,7 @@ resolve_absolute_executable() {
   local label="$2"
   shift 2
   local candidate
+  local python_identity
 
   if [ -n "$override" ]; then
     if [[ "$override" != /* ]]; then
@@ -113,17 +119,36 @@ resolve_absolute_executable() {
       echo "❌ ${label} override is not executable" >&2
       return 1
     fi
-    printf '%s\n' "$override"
-    return 0
+    set -- "$override"
   fi
 
   for candidate in "$@"; do
     if [ -x "$candidate" ]; then
+      if [ "$label" = "PYTHON_BIN" ]; then
+        # Scoped deploy-tool compatibility, not interpreter-origin authority.
+        if python_identity="$("$candidate" -I -S -c 'import sys; print(sys.implementation.name + ":" + str(sys.version_info.major) + "." + str(sys.version_info.minor))')"; then
+          case "$python_identity" in
+            cpython:3.11|cpython:3.12|cpython:3.13|cpython:3.14)
+              printf '%s\n' "$candidate"
+              return 0
+              ;;
+          esac
+        fi
+        if [ -n "$override" ]; then
+          echo "❌ PYTHON_BIN override requires isolated CPython 3.11, 3.12, 3.13 or 3.14: $candidate" >&2
+          return 1
+        fi
+        continue
+      fi
       printf '%s\n' "$candidate"
       return 0
     fi
   done
-  echo "❌ ${label} executable is required" >&2
+  if [ "$label" = "PYTHON_BIN" ]; then
+    echo "❌ PYTHON_BIN requires isolated CPython 3.11, 3.12, 3.13 or 3.14 at a trusted absolute path" >&2
+  else
+    echo "❌ ${label} executable is required" >&2
+  fi
   return 1
 }
 
@@ -604,87 +629,45 @@ validate_postgres_contract_files() {
     "PostgreSQL image manifest"
 }
 
-read_prometheus_runtime_ref() {
-  local manifest_path="$1"
-  "$PYTHON_BIN" - "$manifest_path" <<'PY'
-from __future__ import annotations
+PROMETHEUS_CONTRACT_HELPER="${PROMETHEUS_CONTRACT_HELPER:-${DEPLOY_DIR}/scripts/ci/prometheus_source_image.py}"
+PROMETHEUS_CONTRACT_HELPER_SHA256="17e470a5ec81b7b61ad47c8a86d67f58b58d4ae70082db5c318f0058e2bc4fad" # Public source digest; pragma: allowlist secret
+readonly PROMETHEUS_CONTRACT_HELPER PROMETHEUS_CONTRACT_HELPER_SHA256
 
-import json
+run_prometheus_contract() {
+  "$PYTHON_BIN" -I -c '
+import hashlib
 import os
+from pathlib import Path
 import re
 import stat
 import sys
-
-manifest_path = sys.argv[1]
-expected = {
-    "schema": "pulseplate.prometheus_image_manifest.v2",
-    "repository": "prom/prometheus",
-    "source_revision": "53144df54e01b689bf6c45e811c6230631b132e7",
-    "index_digest": "sha256:62464aea89547566d3e26b33566a40d8a9d2ddef947fde9d37454040c9c636b1",
-    "platform": "linux/amd64",
-    "platform_manifest_digest": "sha256:76f21be0a8e8c825cccb0e2021699dcbfb02037cc594c1f48d44993f8a415f2d",
-    "runtime_ref": (
-        "prom/prometheus@"
-        "sha256:76f21be0a8e8c825cccb0e2021699dcbfb02037cc594c1f48d44993f8a415f2d"
-    ),
+path, expected = sys.argv[1:3]
+if not os.path.isabs(path) or re.fullmatch(r"[0-9a-f]{64}", expected) is None:
+    raise SystemExit("Invalid trusted Prometheus helper operand")
+for parent in Path(path).parents:
+    if parent.is_symlink() or not parent.is_dir():
+        raise SystemExit("Trusted Prometheus helper parent is not a real directory")
+fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+before = os.fstat(fd)
+if (not stat.S_ISREG(before.st_mode) or before.st_nlink != 1 or before.st_uid not in (0, os.getuid())
+        or before.st_mode & 0o022 or not 0 < before.st_size <= 1048576):
+    raise SystemExit("Trusted Prometheus helper leaf is invalid")
+raw = os.read(fd, before.st_size + 1)
+after, current = os.fstat(fd), os.lstat(path)
+if len(raw) != before.st_size or hashlib.sha256(raw).hexdigest() != expected or any(
+    getattr(before, key) != getattr(after, key) or getattr(before, key) != getattr(current, key)
+    for key in ("st_dev", "st_ino", "st_mode", "st_nlink", "st_size", "st_mtime_ns", "st_ctime_ns")
+):
+    raise SystemExit("Trusted current-source Prometheus helper binding changed")
+os.lseek(fd, 0, os.SEEK_SET)
+os.set_inheritable(fd, True)
+os.execv(sys.executable, [sys.executable, "-I", "/dev/fd/" + str(fd), *sys.argv[3:]])
+' "$PROMETHEUS_CONTRACT_HELPER" "$PROMETHEUS_CONTRACT_HELPER_SHA256" "$@"
 }
 
-def reject_duplicate_keys(pairs: list[tuple[str, object]]) -> dict[str, object]:
-    result: dict[str, object] = {}
-    for key, value in pairs:
-        if key in result:
-            raise ValueError("duplicate Prometheus manifest key")
-        result[key] = value
-    return result
-
-
-no_follow = getattr(os, "O_NOFOLLOW", 0)
-if no_follow <= 0 or not os.path.isabs(manifest_path):
-    raise SystemExit("Prometheus manifest path is not a safe absolute path")
-descriptor = os.open(
-    manifest_path,
-    os.O_RDONLY | no_follow | getattr(os, "O_CLOEXEC", 0),
-)
-try:
-    metadata = os.fstat(descriptor)
-    if (
-        not stat.S_ISREG(metadata.st_mode)
-        or metadata.st_nlink != 1
-        or metadata.st_size <= 0
-        or metadata.st_size > 64 * 1024
-    ):
-        raise SystemExit("Prometheus manifest must be one bounded regular file")
-    payload = os.read(descriptor, metadata.st_size + 1)
-    if len(payload) != metadata.st_size:
-        raise SystemExit("Prometheus manifest changed while being read")
-finally:
-    os.close(descriptor)
-
-try:
-    manifest = json.loads(
-        payload.decode("utf-8"),
-        object_pairs_hook=reject_duplicate_keys,
-        parse_constant=lambda value: (_ for _ in ()).throw(
-            ValueError(f"invalid JSON constant: {value}")
-        ),
-    )
-except (UnicodeDecodeError, ValueError, json.JSONDecodeError) as exc:
-    raise SystemExit("Prometheus manifest is malformed") from exc
-if type(manifest) is not dict or set(manifest) != set(expected):
-    raise SystemExit("Prometheus manifest fields do not match the closed contract")
-if any(type(manifest[key]) is not str for key in expected):
-    raise SystemExit("Prometheus manifest values must be strings")
-if not re.fullmatch(r"[0-9a-f]{40}", manifest["source_revision"]):
-    raise SystemExit("Prometheus manifest source revision is malformed")
-if not re.fullmatch(r"sha256:[0-9a-f]{64}", manifest["index_digest"]):
-    raise SystemExit("Prometheus index digest is malformed")
-if not re.fullmatch(r"sha256:[0-9a-f]{64}", manifest["platform_manifest_digest"]):
-    raise SystemExit("Prometheus platform digest is malformed")
-derived_ref = f'{manifest["repository"]}@{manifest["platform_manifest_digest"]}'
-if manifest["runtime_ref"] != derived_ref or manifest != expected:
-    raise SystemExit("Prometheus manifest identity does not match the canonical record")
-print(manifest["runtime_ref"])
-PY
+read_prometheus_runtime_ref() {
+  local manifest_path="$1"
+  run_prometheus_contract --operation read-manifest --manifest "$manifest_path" --field runtime_ref
 }
 
 read_postgres_runtime_ref() {
@@ -1066,6 +1049,9 @@ validate_prometheus_contract_identity() {
   local compose_path="$2"
   local runtime_ref
   runtime_ref="$(read_prometheus_runtime_ref "$manifest_path")"
+  if [ "${PROMETHEUS_RUNTIME_REF-}" != "$runtime_ref" ]; then
+    export PROMETHEUS_RUNTIME_REF="$runtime_ref"
+  fi
   validate_prometheus_compose_identity "$compose_path" "$runtime_ref"
 }
 
@@ -1123,31 +1109,8 @@ validate_postgres_contract_identity() {
 
 validate_pulled_prometheus_image() {
   local runtime_ref="$1"
-  "$DOCKER_BIN" image inspect "$runtime_ref" | "$PYTHON_BIN" -c '
-import json
-import sys
-
-try:
-    payload = json.load(sys.stdin)
-except (TypeError, ValueError, json.JSONDecodeError) as exc:
-    raise SystemExit("Prometheus image inspect JSON is malformed") from exc
-if type(payload) is not list or len(payload) != 1 or type(payload[0]) is not dict:
-    raise SystemExit("Prometheus image inspect must return exactly one image")
-record = payload[0]
-repo_digests = record.get("RepoDigests")
-allowed = {
-    f"prom/prometheus@{sys.argv[1]}",
-    f"docker.io/prom/prometheus@{sys.argv[1]}",
-}
-
-
-if record.get("Os") != "linux" or record.get("Architecture") != "amd64":
-    raise SystemExit("Pulled Prometheus image platform is not linux/amd64")
-if type(repo_digests) is not list or any(type(item) is not str for item in repo_digests):
-    raise SystemExit("Pulled Prometheus RepoDigests are malformed")
-if not allowed.intersection(repo_digests):
-    raise SystemExit("Pulled Prometheus image is not bound to the canonical platform digest")
-' "$PROMETHEUS_PLATFORM_MANIFEST_DIGEST"
+  "$DOCKER_BIN" image inspect "$runtime_ref" | \
+    run_prometheus_contract --operation inspect-image --manifest "$PROMETHEUS_IMAGE_MANIFEST"
 }
 
 validate_pulled_alertmanager_image() {
@@ -1330,7 +1293,8 @@ contract_destination_transaction() {
     "$source_redeploy" \
     "scripts/redeploy_caddy.sh" \
     "$source_backup_helper" \
-    "scripts/ops/postgres_backup.sh" <<'PY'
+    "scripts/ops/postgres_backup.sh" \
+    "$PROMETHEUS_CONTRACT_HELPER_SHA256" <<'PY'
 from __future__ import annotations
 
 import errno
@@ -1367,6 +1331,9 @@ source_redeploy = sys.argv[23]
 redeploy_target = sys.argv[24]
 source_backup_helper = sys.argv[25]
 backup_helper_target = sys.argv[26]
+prometheus_helper_target = "scripts/ci/prometheus_source_image.py"
+prometheus_helper_hash = "sha256:" + sys.argv[27]
+prometheus_helper_source = str(Path(source_backup_helper).parents[2] / prometheus_helper_target) if source_backup_helper else ""
 checkpoint_contracts = {
     'scripts/verify_premium_alias_telemetry.py': 'sha256:03790f78a259cc2a6759aa81001ae6d50997b0235f92b7abeda4aeec04216ee0',
     'scripts/ops/notify_premium_alias_checkpoint_failure.py': 'sha256:615efa585e9ce5b285506ff7af0c53640be97a2285bfadd0a23ca09cb459a214',
@@ -1690,6 +1657,15 @@ def split_target(raw_target: str) -> tuple[str, ...]:
     return pure_path.parts
 
 
+if operation in {"validate-full", "publish-contracts"}:
+    source_fd, metadata = open_absolute_file(prometheus_helper_source, label="Prometheus helper data source", max_bytes=max_contract_bytes)
+    try:
+        raw = os.read(source_fd, metadata.st_size + 1)
+        if len(raw) != metadata.st_size or "sha256:" + hashlib.sha256(raw).hexdigest() != prometheus_helper_hash:
+            raise SystemExit("Incoming helper data differs from the separately trusted current-source helper")
+    finally:
+        os.close(source_fd)
+
 if operation in {"validate-full", "publish-contracts", "validate-checkpoint-installed"}:
     checkpoint_root = (
         Path(source_backup_helper).parents[2]
@@ -1723,6 +1699,7 @@ try:
         diagnose_target,
         redeploy_target,
         backup_helper_target,
+        prometheus_helper_target,
         *checkpoint_contracts,
     ]
     target_parts = {target: split_target(target) for target in targets}
@@ -1783,6 +1760,12 @@ try:
         if scripts_ops_fd is not None:
             directory_fds.append(scripts_ops_fd)
 
+    scripts_ci_fd = None
+    if scripts_fd is not None:
+        scripts_ci_fd = ensure_directory(scripts_fd, "ci", create=operation == "publish-contracts", label="Prometheus contract helper directory")
+        if scripts_ci_fd is not None:
+            directory_fds.append(scripts_ci_fd)
+
     systemd_fd = ensure_directory(
         deploy_contract_fd, "systemd", create=operation == "publish-contracts",
         label="checkpoint unit directory",
@@ -1802,6 +1785,7 @@ try:
         diagnose_target: scripts_fd,
         redeploy_target: scripts_fd,
         backup_helper_target: scripts_ops_fd,
+        prometheus_helper_target: scripts_ci_fd,
     }
     parent_by_target.update({
         target: systemd_fd if target.startswith("deploy/systemd/") else
@@ -1820,6 +1804,7 @@ try:
         diagnose_target,
         redeploy_target,
         backup_helper_target,
+        prometheus_helper_target,
         *checkpoint_contracts,
     ):
         parent_fd = parent_by_target[target]
@@ -1877,6 +1862,7 @@ try:
             alertmanager_ignore_target: source_alertmanager_ignore,
             postgres_manifest_target: source_postgres_manifest,
             backup_helper_target: source_backup_helper,
+            prometheus_helper_target: prometheus_helper_source,
         }
         sources.update({target: str(checkpoint_root / target) for target in checkpoint_contracts})
         modes = {
@@ -1888,6 +1874,7 @@ try:
             alertmanager_ignore_target: 0o644,
             postgres_manifest_target: 0o644,
             backup_helper_target: 0o755,
+            prometheus_helper_target: 0o644,
         }
         modes.update({target: 0o644 for target in checkpoint_contracts})
         prepared_contracts: list[tuple[int, str, str]] = []
@@ -1901,6 +1888,7 @@ try:
                 postgres_manifest_target,
                 compose_target,
                 backup_helper_target,
+                prometheus_helper_target,
                 *checkpoint_contracts,
             ):
                 source_fd, source_metadata = open_absolute_file(
@@ -1940,7 +1928,7 @@ try:
                             source_metadata,
                             temp_fd,
                             label=f"{target} source",
-                            expected_hash=checkpoint_contracts.get(target),
+                            expected_hash=prometheus_helper_hash if target == prometheus_helper_target else checkpoint_contracts.get(target),
                         )
                         os.fchmod(temp_fd, mode)
                         os.fsync(temp_fd)
@@ -2261,6 +2249,7 @@ required_files = {
     "deploy/alertmanager/alertmanager.yml",
     "deploy/alertmanager/trivy-ignore.yaml",
     "scripts/diagnose_web.sh",
+    "scripts/ci/prometheus_source_image.py",
     "scripts/ops/postgres_backup.sh",
     'scripts/verify_premium_alias_telemetry.py',
     'scripts/ops/notify_premium_alias_checkpoint_failure.py',
@@ -2278,6 +2267,7 @@ allowed_directories = {
     "deploy/systemd",
     "scripts",
     "scripts/ops",
+    "scripts/ci",
 }
 max_members = 20_000
 max_expanded_bytes = 512 * 1024 * 1024
@@ -3248,6 +3238,7 @@ validate_prometheus_contract_files
 validate_alertmanager_contract_files
 dc config --quiet
 PROMETHEUS_RUNTIME_REF="$(read_prometheus_runtime_ref "$PROMETHEUS_IMAGE_MANIFEST")"
+export PROMETHEUS_RUNTIME_REF
 readonly PROMETHEUS_RUNTIME_REF
 PROMETHEUS_PLATFORM_MANIFEST_DIGEST="${PROMETHEUS_RUNTIME_REF##*@}"
 readonly PROMETHEUS_PLATFORM_MANIFEST_DIGEST

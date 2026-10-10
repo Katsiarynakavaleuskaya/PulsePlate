@@ -29,6 +29,10 @@ def test_build_workflow_keeps_only_ordinary_fail_closed_topology() -> None:
         "publish",
         "prometheus-source-qualification",
         "prometheus-ghcr-package-qualification",
+        "backend-arm-sdk-qualification",
+        "prometheus-oras-qualification",
+        "prometheus-source-build-pair",
+        "prometheus-publish",
     }
     inputs = workflow.get("on", workflow.get(True))["workflow_dispatch"]["inputs"]
     assert inputs == {
@@ -37,7 +41,14 @@ def test_build_workflow_keeps_only_ordinary_fail_closed_topology() -> None:
             "type": "choice",
             "required": True,
             "default": "disabled",
-            "options": ["disabled", "normal", "prometheus-source-qualify"],
+            "options": [
+                "disabled",
+                "normal",
+                "prometheus-source-qualify",
+                "backend-sdk-qualify",
+                "prometheus-oras-qualify",
+                "prometheus-source-pair",
+            ],
         },
         "prometheus_module_action": {
             "description": "Explicit Prometheus metadata module action; unchanged retains original locks",
@@ -63,11 +74,15 @@ def test_build_workflow_keeps_only_ordinary_fail_closed_topology() -> None:
     ):
         assert retired not in str(workflow)
     for retired_path in (
-        "deploy/prometheus/Containerfile",
         "scripts/ci/prometheus_derivative_candidate.py",
         "scripts/ci/_prometheus_derivative_transport.py",
     ):
         assert not (REPO_ROOT / retired_path).exists()
+    assert (
+        (REPO_ROOT / "deploy/prometheus/Containerfile")
+        .read_text()
+        .startswith("# Finite payload declaration;")
+    )
     # These two manual, same-repository qualification sidecars cannot enter
     # the retained ordinary build/security/publish dependency chain.
     qualification_condition = (
@@ -211,6 +226,7 @@ def test_production_deploy_syncs_shell_bundle_for_caddy_rebuild() -> None:
         r"\s+deploy/docker-compose\.production\.selfhosted\.yaml \\\n"
         r"\s+deploy/prometheus/prometheus\.yml \\\n"
         r"\s+deploy/prometheus/image-manifest\.json \\\n"
+        r"\s+scripts/ci/prometheus_source_image\.py \\\n"
         r"\s+scripts/diagnose_web\.sh \\\n"
         r"\s+scripts/redeploy_caddy\.sh \\\n"
         r"\s+scripts/ops/postgres_backup\.sh \\\n"
@@ -246,7 +262,7 @@ def test_production_deploy_jobs_delegate_registry_login_to_deploy_script() -> No
     self_hosted_section = workflow_text.split("deploy-production-self-hosted:", maxsplit=1)[1]
 
     assert (
-        "envs: DEPLOY_SCRIPT_B64,IMAGE_REF,TAG,PRODUCTION_DOMAIN,DEPLOY_DIR,GHCR_USER,GHCR_TOKEN"
+        "envs: DEPLOY_SCRIPT_SHA256,PROMETHEUS_HELPER_SHA256,IMAGE_REF,TAG,PRODUCTION_DOMAIN,DEPLOY_DIR,GHCR_USER,GHCR_TOKEN"
         in ssh_section
     )
     assert (
@@ -289,11 +305,11 @@ def test_production_deploy_jobs_run_preflight_before_live_deploy() -> None:
     archive_export = '            export SHELL_BUNDLE_ARCHIVE="/tmp/${bundle_name}.tgz"'
     assert archive_export in ssh_lines
     assert ssh_lines.index(archive_export) < ssh_lines.index(
-        '            "$tmp_script" --preflight-only'
+        '            /bin/bash "$tmp_script" --preflight-only'
     )
-    assert ssh_lines.index('            "$tmp_script" --preflight-only') < ssh_lines.index(
-        '            "$tmp_script"'
-    )
+    assert ssh_lines.index(
+        '            /bin/bash "$tmp_script" --preflight-only'
+    ) < ssh_lines.index('            /bin/bash "$tmp_script"')
 
     assert "Preflight production deploy on self-hosted runner" in self_hosted_section
     assert 'export SHELL_BUNDLE_DIR="${GITHUB_WORKSPACE}"' in self_hosted_section
@@ -318,10 +334,15 @@ def test_prometheus_security_job_owns_only_pr_and_schedule_execution() -> None:
     assert isinstance(jobs, dict)
     security_job = jobs.get("prometheus-image-security")
     assert isinstance(security_job, dict)
-    assert security_job["permissions"] == {"contents": "read"}
-    assert "environment" not in security_job
+    assert security_job["permissions"] == {
+        "contents": "read",
+        "actions": "read",
+        "packages": "read",
+    }
+    assert security_job["environment"] == "staging"
     security_text = str(security_job)
-    assert "secrets." not in security_text
+    assert "secrets.GHCR_READ_TOKEN" in security_text
+    assert "scripts.ci.prometheus_source_image --operation consume" in security_text
     assert "persist-credentials': False" in security_text
     assert ".trivyignore" not in security_text
     assert "ignore-policy" not in security_text
@@ -547,3 +568,39 @@ def test_self_hosted_preflight_and_deploy_bind_same_exact_image_ref() -> None:
     )
     assert "${IMAGE_REF:-" not in preflight
     assert "PROD_DEPLOY_MODE" not in preflight
+
+
+@pytest.mark.parametrize(
+    "filename,job,credential",
+    [
+        ("ci.yml", "lint", "${{ secrets.GITHUB_TOKEN }}"),
+        ("cd.yml", "obs2a-checkpoint-native", "${{ secrets.GHCR_READ_TOKEN }}"),
+    ],
+)
+def test_checkpoint_native_consumer_precedes_secret_free_child(
+    filename: str, job: str, credential: str
+) -> None:
+    workflow = yaml.safe_load((REPO_ROOT / ".github/workflows" / filename).read_text())
+    selected = workflow["jobs"][job]
+    assert selected["permissions"] == {"contents": "read", "actions": "read", "packages": "read"}
+    assert selected.get("environment") == (None if filename == "ci.yml" else "staging")
+    step = next(
+        s
+        for s in selected["steps"]
+        if s.get("name", "").startswith("Native ") and "OBS2A" in s["name"]
+    )
+    assert step["env"]["GHCR_READ_TOKEN"] == credential
+    assert step["env"]["GH_TOKEN"] == step["env"]["GITHUB_TOKEN"] == "${{ secrets.GITHUB_TOKEN }}"
+    script = step["run"]
+    assert script.index("--operation consume") < script.index("sudo /usr/bin/env -i ")
+    child = next(
+        line.strip()
+        for line in script.splitlines()
+        if line.strip().startswith("sudo /usr/bin/env -i ")
+    )
+    assert not any(
+        value in child for value in ("GH_TOKEN", "GITHUB_TOKEN", "GHCR_READ_TOKEN", "DOCKER_CONFIG")
+    )
+    assert 'native_python="$(command -v python)"' in script
+    assert 'exit "$native_status"' in script and 'exit "$capture_status"' in script
+    assert not any("login-action" in str(s.get("uses", "")) for s in selected["steps"])

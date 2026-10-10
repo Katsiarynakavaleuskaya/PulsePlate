@@ -25,12 +25,10 @@ from pathlib import Path
 
 import pytest
 
+from scripts.ci import prometheus_source_image as prometheus_image
 from scripts.ops import notify_premium_alias_checkpoint_failure as notifier
 
 ROOT = Path(__file__).resolve().parents[1]
-PROMETHEUS_IMAGE = json.loads((ROOT / "deploy/prometheus/image-manifest.json").read_text())[
-    "runtime_ref"
-]
 ALERTMANAGER_IMAGE = (
     "prom/alertmanager@sha256:84967b9b7ba45e38a9278d3e594305f43d4993c310df3905b51138b816c365f3"
 )
@@ -763,7 +761,7 @@ def _owned_task_stopped(
     return stopped
 
 
-def _native_query_lifetime(directory: Path) -> None:
+def _native_query_lifetime(directory: Path, prometheus_image_id: str) -> None:
     from urllib.parse import parse_qs, urlsplit
 
     from scripts import verify_premium_alias_telemetry as verifier
@@ -829,6 +827,8 @@ def _native_query_lifetime(directory: Path) -> None:
             [
                 "docker",
                 "run",
+                "--pull",
+                "never",
                 "--name",
                 prometheus_name,
                 "-d",
@@ -845,7 +845,7 @@ def _native_query_lifetime(directory: Path) -> None:
                 "65532:65532",
                 "-v",
                 f"{config}:/etc/prometheus/prometheus.yml:ro",
-                PROMETHEUS_IMAGE,
+                prometheus_image_id,
                 "--config.file=/etc/prometheus/prometheus.yml",
                 "--web.listen-address=127.0.0.1:19090",
                 "--storage.tsdb.path=/prometheus",
@@ -1489,14 +1489,22 @@ def _native_compose_configuration(directory: Path) -> None:
 
 
 def native_main() -> None:
+    selection = prometheus_image.read_image_manifest(ROOT / prometheus_image.MANIFEST_PATH)[
+        "selection"
+    ]
+    image_id = selection["config_digest"]
     assert sys.platform == "linux", "native mode requires the existing Linux CI runner"
+    image = prometheus_image.one_object(
+        _native(["docker", "image", "inspect", "--format", "{{json .}}", image_id]).stdout.encode()
+    )
+    prometheus_image.native_image_contract(image, selection, local=True)
     with tempfile.TemporaryDirectory(prefix="pulseplate-obs2a-native-") as raw:
         directory = Path(raw)
         failures: list[str] = []
         for name, check in (
             ("compose_configuration", _native_compose_configuration),
             ("systemd", _native_systemd),
-            ("query_lifetime", _native_query_lifetime),
+            ("query_lifetime", lambda directory: _native_query_lifetime(directory, image_id)),
             ("amtool_lifetime", _native_amtool_lifetime),
             ("alertmanager", _native_alertmanager),
         ):
@@ -1571,11 +1579,171 @@ def test_checkpoint_original_compose_fixture_classifies_only_synthetic_configura
     assert "synthetic_db" not in output and "postgresql" not in output
 
 
+def _checkpoint_prometheus_fixture(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> tuple[dict[str, object], dict[str, object]]:
+    """Complete parser/native-shape data only; no artifact or native admission."""
+    from tests.test_deploy_contract_scripts import _synthetic_prometheus_manifest
+
+    root = tmp_path / "checkpoint-source"
+    path = root / prometheus_image.MANIFEST_PATH
+    path.parent.mkdir(parents=True)
+    path.write_text(json.dumps(_synthetic_prometheus_manifest()))
+    (root / "Dockerfile").write_bytes((ROOT / "Dockerfile").read_bytes())
+    selection = prometheus_image.read_image_manifest(path)["selection"]
+    image = {
+        "Id": selection["config_digest"],
+        "Os": "linux",
+        "Architecture": "amd64",
+        "RootFS": {"Layers": selection["diff_ids"]},
+        "Config": {
+            "User": "65532:65532",
+            "Entrypoint": ["/bin/prometheus"],
+            "WorkingDir": "/prometheus",
+            "Cmd": [
+                "--config.file=/etc/prometheus/prometheus.yml",
+                "--storage.tsdb.path=/prometheus",
+            ],
+            "Volumes": None,
+        },
+    }
+    prometheus_image.native_image_contract(image, selection, local=True)
+    monkeypatch.setattr(sys.modules[__name__], "ROOT", root)
+    return selection, image
+
+
+def test_checkpoint_helper_import_does_not_activate_source_prepared_manifest(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "import-source"
+    for relative in (
+        "tests/__init__.py",
+        "tests/test_notify_premium_alias_checkpoint_failure.py",
+        "scripts/ci/prometheus_source_image.py",
+        "scripts/ops/notify_premium_alias_checkpoint_failure.py",
+    ):
+        target = root / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes((ROOT / relative).read_bytes())
+    path = root / prometheus_image.MANIFEST_PATH
+    path.parent.mkdir(parents=True)
+    path.write_text(
+        json.dumps(
+            {
+                "schema": prometheus_image.IMAGE_SCHEMA,
+                "phase": "source_prepared",
+                "inputs": prometheus_image.declared_inputs(),
+                "selection": None,
+                "candidate": None,
+            }
+        )
+    )
+    prometheus_image.read_image_manifest(path, preparation=True)
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-B",
+            "-c",
+            "from tests.test_notify_premium_alias_checkpoint_failure import _native; "
+            "assert callable(_native); print('import_without_activation')",
+        ],
+        cwd=root,
+        env={
+            "PATH": os.defpath,
+            "HOME": str(tmp_path),
+            "LANG": "C",
+            "PYTHONDONTWRITEBYTECODE": "1",
+        },
+        stdin=subprocess.DEVNULL,
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    assert result.stdout == "import_without_activation\n" and not result.stderr
+
+
+def test_checkpoint_prepared_activation_rejects_before_effects(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _checkpoint_prometheus_fixture(tmp_path, monkeypatch)
+    path = ROOT / prometheus_image.MANIFEST_PATH
+    data = json.loads(path.read_text())
+    data.update(phase="source_prepared", selection=None, candidate=None)
+    data["inputs"]["oras"]["retained"] = None
+    path.write_text(json.dumps(data))
+    prometheus_image.read_image_manifest(path, preparation=True)
+    monkeypatch.setattr(
+        sys.modules[__name__],
+        "_native",
+        lambda *args, **kwargs: pytest.fail("prepared native effect"),
+    )
+    monkeypatch.setattr(
+        tempfile,
+        "TemporaryDirectory",
+        lambda *args, **kwargs: pytest.fail("prepared scratch effect"),
+    )
+    with pytest.raises(
+        prometheus_image.QualificationError, match="^source_prepared_not_consumable$"
+    ):
+        native_main()
+
+
+@pytest.mark.parametrize("fault", ["config-id", "platform", "diff-ids", "runtime-user"])
+def test_checkpoint_loaded_image_contract_rejects_before_controls(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fault: str
+) -> None:
+    selection, image = _checkpoint_prometheus_fixture(tmp_path, monkeypatch)
+    if fault == "config-id":
+        image["Id"] = "sha256:" + "4" * 64
+    elif fault == "platform":
+        image["Architecture"] = "arm64"
+    elif fault == "diff-ids":
+        image["RootFS"] = {"Layers": ["sha256:" + "4" * 64]}
+    else:
+        image["Config"]["User"] = "0"
+    observed: list[list[str]] = []
+
+    def inspect(argv: list[str]) -> subprocess.CompletedProcess[str]:
+        observed.append(argv)
+        assert argv == [
+            "docker",
+            "image",
+            "inspect",
+            "--format",
+            "{{json .}}",
+            selection["config_digest"],
+        ]
+        return subprocess.CompletedProcess(argv, 0, json.dumps(image), "")
+
+    monkeypatch.setattr(sys, "platform", "linux")
+    monkeypatch.setattr(sys.modules[__name__], "_native", inspect)
+    monkeypatch.setattr(
+        tempfile, "TemporaryDirectory", lambda *args, **kwargs: pytest.fail("invalid-image effect")
+    )
+    diagnostic = (
+        "consumer_native_runtime_contract"
+        if fault == "runtime-user"
+        else "consumer_native_config_layers"
+    )
+    with pytest.raises(prometheus_image.QualificationError, match="^" + diagnostic + "$"):
+        native_main()
+    assert len(observed) == 1
+
+
 def test_checkpoint_native_main_selects_original_model_configuration_control(
+    tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    selection, image = _checkpoint_prometheus_fixture(tmp_path, monkeypatch)
     calls: list[str] = []
     monkeypatch.setattr(sys, "platform", "linux")
+    monkeypatch.setattr(
+        sys.modules[__name__],
+        "_native",
+        lambda argv: subprocess.CompletedProcess(argv, 0, json.dumps(image), ""),
+    )
     for name in (
         "_native_compose_configuration",
         "_native_systemd",
@@ -1583,9 +1751,17 @@ def test_checkpoint_native_main_selects_original_model_configuration_control(
         "_native_amtool_lifetime",
         "_native_alertmanager",
     ):
-        monkeypatch.setattr(
-            sys.modules[__name__], name, lambda directory, selected=name: calls.append(selected)
-        )
+        if name == "_native_query_lifetime":
+
+            def query(directory: Path, image_id: str) -> None:
+                assert image_id == selection["config_digest"]
+                calls.append("_native_query_lifetime")
+
+            monkeypatch.setattr(sys.modules[__name__], name, query)
+        else:
+            monkeypatch.setattr(
+                sys.modules[__name__], name, lambda directory, selected=name: calls.append(selected)
+            )
     native_main()
     assert calls == [
         "_native_compose_configuration",
@@ -2077,6 +2253,10 @@ def test_checkpoint_partial_server_setup_attempts_independent_release(
     fixture: str,
     shutdown_error: bool,
 ) -> None:
+    image_id = ""
+    if fixture == "query":
+        selection, _image = _checkpoint_prometheus_fixture(tmp_path, monkeypatch)
+        image_id = selection["config_digest"]
     calls: list[str] = []
 
     class Server:
@@ -2124,6 +2304,9 @@ def test_checkpoint_partial_server_setup_attempts_independent_release(
     def native(argv: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
         del kwargs
         if "run" in argv or "up" in argv:
+            if fixture == "query":
+                assert argv[:4] == ["docker", "run", "--pull", "never"]
+                assert image_id in argv and selection["runtime_ref"] not in argv
             calls.append("setup-error")
             raise RuntimeError("synthetic primary setup")
         calls.append("owned-release:" + ("rm" if "rm" in argv else "stop"))
@@ -2131,7 +2314,10 @@ def test_checkpoint_partial_server_setup_attempts_independent_release(
 
     monkeypatch.setattr(sys.modules[__name__], "_native", native)
     with pytest.raises(RuntimeError, match="synthetic primary setup"):
-        (_native_query_lifetime if fixture == "query" else _native_amtool_lifetime)(tmp_path)
+        if fixture == "query":
+            _native_query_lifetime(tmp_path, image_id)
+        else:
+            _native_amtool_lifetime(tmp_path)
     assert calls[:3] == ["acquire", "start", "setup-error"]
     assert "shutdown" in calls and "close" in calls and "join" in calls
     assert any(call.startswith("owned-release:") for call in calls)
@@ -2145,6 +2331,10 @@ def test_checkpoint_cleanup_failure_without_primary_is_not_success(
 ) -> None:
     from scripts import verify_premium_alias_telemetry as verifier
 
+    image_id = ""
+    if fixture == "query":
+        selection, _image = _checkpoint_prometheus_fixture(tmp_path, monkeypatch)
+        image_id = selection["config_digest"]
     released: list[str] = []
 
     class Event:
@@ -2263,7 +2453,10 @@ def test_checkpoint_cleanup_failure_without_primary_is_not_success(
 
     monkeypatch.setattr(sys.modules[__name__], "_native", native)
     with pytest.raises(OSError, match="synthetic cleanup-only failure"):
-        (_native_query_lifetime if fixture == "query" else _native_amtool_lifetime)(tmp_path)
+        if fixture == "query":
+            _native_query_lifetime(tmp_path, image_id)
+        else:
+            _native_amtool_lifetime(tmp_path)
     assert all(operation in released for operation in ("shutdown", "close", "join", "container"))
 
     assert released.count("container") == (2 if fixture == "query" else 1)
