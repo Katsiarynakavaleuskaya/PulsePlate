@@ -110,31 +110,61 @@
 
 ## Official Prometheus image selection
 
-- `deploy/prometheus/image-manifest.json` is the sole selected-image record.
-  Keep its existing closed v2 shape and cross-bind the official Docker Hub
-  index, linux/amd64 manifest, inspected config, repository digest, and binary
-  revision through the existing CD/deploy readers.
-- An image update must change all three Compose consumers together and retain
-  suppression-free OS and both-binary scan evidence plus exact-image promtool
-  and synthetic runtime checks. Registry metadata or a local syntax probe is
-  not current-head CI or production activation evidence.
-- `build.yml` keeps the ordinary build/security/publish chain unchanged.
-  Manual execution defaults to `disabled`; explicit `normal` uses native
-  GitHub Actions equality. The separately selected `prometheus-source-qualify`
-  mode runs only the bounded hosted metadata qualifier in
-  `scripts/ci/prometheus_source_image.py`, without backend authentication or
-  publication dependencies. It verifies fixed source/Go/prebuilt-UI bytes and
-  native Go module/package metadata for both commands with unchanged locks.
-  Its offline containers are non-root, read-only and network-isolated; no
-  local Go, BuildKit, source build, registry write or DHI credential follows.
-  Preserve complete raw errors/JSON, source/cache/path/redirect checks and all
-  retained advisory references. Package observations require separate security
-  review and later binary proof; they do not admit a runtime image.
-  Keep PR publication denial, existing dependencies, permissions,
-  private-index handling, and same-SHA serialization.
-- Do not restore the retired Prometheus candidate publisher or heavy local
-  compiler. Historical private receipts remain evidence only; do not rewrite
-  them, fabricate publication, or treat selector updates as deployment.
+- `deploy/prometheus/image-manifest.json` is the sole v3 image record.
+  `source_prepared` admits producer preparation only; ordinary image consumers
+  must reject its null selection/candidate. `candidate_selected` requires real
+  retained output coordinates. Do not manufacture output digests or future SHAs.
+- The existing `prometheus_source_image.py` owns the finite declared recipe,
+  typed input projection, retained OCI/Docker archive checks and event admission.
+  `deploy/prometheus/Containerfile` is declared data, not executable Dockerfile
+  syntax. Keep vendor base layers intact and append one deterministic payload;
+  Docker's native import/copy observations own physical alias conformance.
+- Manual `prometheus-source-qualify` remains metadata-only. Separately admitted
+  `prometheus-oras-qualify` compiles one same-source ORAS tool with unchanged
+  upstream locks. It must prove the exact command graph, compiler/buildinfo,
+  full scanner inventory and synthetic native format before tool selection.
+  Never substitute the affected upstream prebuilt binary or rebuild the tool
+  during a Prometheus pair or promotion.
+- Manual `prometheus-source-pair` permits exactly two serial logical image
+  builds, each containing the two named commands and bounded to 3600 seconds.
+  Use independent empty source/cache/output areas, no automatic retries,
+  no local Go compiler and no BuildKit Prometheus producer. Invocation history
+  is nonrenewable when inputs change. Complete the raw helper and `build.yml`,
+  including SDK and backend export seams, before spending the pair.
+- A changed PR consumes only its authenticated same-repository retained artifact
+  after full raw producer/input equivalence and source ancestry within the PR.
+  A new main selection additionally binds the actual squash and final PR head;
+  the PR producer is not required to be an ancestor of the squash commit.
+  Unchanged published components use the immutable subject and a positive
+  publication predecessor. Missing publication is a hold, never a pull fallback.
+- Main-only promotion reuses the retained qualified copier and copies precise
+  OCI bytes into the existing public package; it never rebuilds or executes a
+  candidate with registry credentials. Preserve original producer provenance,
+  SPDX, immutable tag collision checks and byte-identical pullback. Existing
+  promtool/runtime/security checks remain mandatory and suppression-free.
+- Deploy readers execute only the separately SHA-bound standalone helper;
+  incoming archives are material/data. Root merge, deployment, credentials,
+  volume changes and observation clocks retain their existing authority gates.
+
+## Deploy-tool Python selection
+
+The three deploy callers (`deploy_production.sh`, `deploy.sh` and
+`QUICK_FIX_PRODUCTION.sh`) admit CPython 3.11, 3.12, 3.13 or 3.14 for their
+standalone stdlib helper. This scoped compatibility set does not change project,
+CI/container 3.13.14 or SDK interpreter/ABI tuples. An explicit absolute
+`PYTHON_BIN` takes precedence; unsupported, non-executable or relative overrides
+fail before helper loading or mutation, without fallback. Defaults inspect only
+the four trusted absolute literals in the callers, including Homebrew's public
+Python and managed 3.14 alias, and skip unsupported defaults. The isolated
+`-I -S` implementation/version probe establishes compatibility input only, not
+binary provenance or security admission. Do not discover Python through PATH,
+cwd, virtualenvs, pyenv or another manager.
+
+For a local caller check, pass the owning repository interpreter explicitly as
+`PYTHON_BIN`; server operators may pass their independently managed supported
+absolute interpreter. Preserve the SHA-bound helper/FD and trusted-tool versus
+incoming-material boundary. Do not substitute an incoming archive's interpreter
+or claim that passing this probe validates the application on Python 3.14.
 
 ## Native Docker image evidence
 

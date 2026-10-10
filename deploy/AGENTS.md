@@ -439,11 +439,17 @@ PRODUCTION_DOMAIN=example.com STAGING_FALLBACK_DOMAIN=staging.example.com \
 
 ### Official Prometheus image updates
 
-- Keep the selected image in the existing seven-field v2 record; update the
-  exact official index, linux/amd64 manifest and source revision together.
-- The selected-image verification and ordinary workflow rules live in
+- The v3 record distinguishes preparation from a real selected candidate.
+  All three Compose contours require the canonical reader's exported
+  `PROMETHEUS_RUNTIME_REF`; an ambient value or floating fallback is insufficient.
+  Keep the same non-root user, network, storage and retention contracts.
+- The producer and event rules live in
   [scripts/AGENTS.md](../scripts/AGENTS.md#official-prometheus-image-selection).
-  Image selection does not deploy or migrate a host, change volume ownership,
+  Staging contract version 6 also binds the installed standalone helper hash.
+  Production transfers that helper separately as trusted code, then checks and
+  syncs the archive copy as data through the existing destination transaction.
+  An incoming archive must never choose executable host code for its own checks.
+- Image selection does not deploy or migrate a host, change volume ownership,
   enable staging attestation flags, or start the production observation clock.
 
 

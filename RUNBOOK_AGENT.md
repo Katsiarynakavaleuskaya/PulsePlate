@@ -1510,3 +1510,28 @@ git reset --soft <commit-sha>
 # Review changes
 git diff HEAD
 ```
+
+## Source-image qualification continuation
+
+The Prometheus v3 route and finite event table are defined in `scripts/AGENTS.md`.
+Finish helper/workflow inputs and SDK/backend export qualification before the
+nonrenewable source-build pair. A failed tool/format/graph/scan observation stops
+its transition; retain raw output and fix the cause without an extra compiler
+start. `source_prepared` intentionally cannot run in CD or deployment. Select
+real outputs only after the observed pair, then reuse the same OCI bytes for PR
+checks, main promotion and published pullback.
+
+Caddy's explicit `xnet060-metadata` dispatch stays inside its existing contract
+job. Its two fresh fixed-path replays are counterfactual recipe baselines; they
+cannot reconstruct lost historical ephemeral locks. The only additional Go
+intent is x/net 0.60.0. Compiler, full advisory inventory and the separate signed
+Alpine zlib remedy need actual qualification before final recipe parameters.
+Unexpected closure or relevant cel-go/OpenTelemetry residue requires bounded
+coordinator rescope, never a silent extra get or suppression.
+
+The ordinary backend job retains production/staging Docker bytes and the ARM
+SDK job retains genuine producer/export identity. These exports alone do not
+prove the reviewed clean supporting-tool root, network-none SDK validation,
+offline Runner consumption/final COPY, Apple Oracle or final native runtime.
+Use those independent owning checks before closeout. No local C++ rebuild or
+new registry package is implied by retaining hosted image bytes.
