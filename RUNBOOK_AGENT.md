@@ -532,6 +532,13 @@ This metrics section provides **quantitative targets**; the evaluation contract 
 
 ## Pre-push hygiene checklist (mandatory)
 
+`make bandit-full` runs one strict MEDIUM/HIGH scan of the complete native Git-tracked
+Python path list under the unchanged `.bandit` filters, in both local and CI mode.
+Untracked local evidence and worktrees are outside this Git-selected input universe.
+Git enumeration and every tracked input must be available; scanner exit zero also
+requires a fresh JSON report without errors/findings and with the exact configured
+Bandit file inventory. A missing, stale or partial report is a failed gate.
+
 ### Linked-worktree hook Python resolution
 
 Checked-in hooks call `resolve_repo_python <repo_root>` from
