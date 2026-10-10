@@ -2545,6 +2545,13 @@ def test_prometheus_metadata_mode_is_explicit_and_independent() -> None:
         "normal",
         "prometheus-source-qualify",
     ]
+    assert events["workflow_dispatch"]["inputs"]["prometheus_module_action"] == {
+        "description": "Explicit Prometheus metadata module action; unchanged retains original locks",
+        "type": "choice",
+        "required": True,
+        "default": "unchanged",
+        "options": ["unchanged", "xnet060-replay"],
+    }
     jobs = workflow["jobs"]
     qualification = jobs["prometheus-source-qualification"]
     assert "needs" not in qualification
@@ -2565,6 +2572,12 @@ def test_prometheus_metadata_mode_is_explicit_and_independent() -> None:
     assert "-m scripts.ci.prometheus_source_image" in command
     assert "$PROMETHEUS_QUALIFICATION_SECONDS" in command
     assert "$PROMETHEUS_CLEANUP_SECONDS" in command
+    step = _step_by_name(qualification, "Qualify Prometheus package metadata only")
+    assert step["env"] == {"PROMETHEUS_MODULE_ACTION": "${{ inputs.prometheus_module_action }}"}
+    assert 'case "$PROMETHEUS_MODULE_ACTION" in' in command
+    assert "xnet060-replay) module_args+=(--derive-xnet060)" in command
+    assert '"${module_args[@]}"' in command
+    assert "${{ inputs.prometheus_module_action }}" not in command
     assert "buildx" not in command and "secrets." not in command
     assert not any("secrets." in str(step) for step in qualification["steps"])
     checkout = _step_by_name(qualification, "Checkout qualification source")

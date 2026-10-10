@@ -38,7 +38,14 @@ def test_build_workflow_keeps_only_ordinary_fail_closed_topology() -> None:
             "required": True,
             "default": "disabled",
             "options": ["disabled", "normal", "prometheus-source-qualify"],
-        }
+        },
+        "prometheus_module_action": {
+            "description": "Explicit Prometheus metadata module action; unchanged retains original locks",
+            "type": "choice",
+            "required": True,
+            "default": "unchanged",
+            "options": ["unchanged", "xnet060-replay"],
+        },
     }
     assert workflow["concurrency"] == {
         "group": "ghcr-build-push-${{ github.sha }}",

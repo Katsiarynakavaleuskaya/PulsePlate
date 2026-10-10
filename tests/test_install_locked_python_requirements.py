@@ -8153,3 +8153,202 @@ def test_main_sdk_prerequisite_blocks_pip_upgrade_and_target_install(
     assert (
         "requires its genuine matching" if sdk_state == "missing" else "SDK fields differ"
     ) in message
+
+
+@pytest.mark.parametrize(
+    "modifier",
+    [
+        ["--prefetch-only"],
+        ["--consume-only"],
+        ["--build-psycopg-c"],
+        ["--upgrade-pip"],
+        ["--python-executable", "python"],
+        ["--install-mode", "wheelhouse"],
+        ["--index-url", "https://synthetic.invalid/simple/"],
+        ["--trusted-host", "synthetic.invalid"],
+        ["--upgrade-pip-spec", "pip"],
+        ["--require-virtualenv"],
+        ["--requirements-profile", "runtime"],
+    ],
+)
+def test_sdk_static_validation_rejects_explicit_modifiers_before_effects(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, modifier: list[str]
+) -> None:
+    def forbidden(*args: object, **kwargs: object) -> None:
+        raise AssertionError("Validation selector rejected too late")
+
+    for name in (
+        "resolve_python_executable",
+        "resolve_private_proxy_settings",
+        "read_psycopg_c_sdk",
+        "acquire_locked_wheelhouse",
+        "install_with_guard",
+        "build_psycopg_c_sdk",
+    ):
+        monkeypatch.setattr(installer, name, forbidden)
+    assert (
+        installer.main(
+            [
+                "--validate-psycopg-sdk",
+                "--psycopg-sdk",
+                str(tmp_path / "sdk"),
+                "--psycopg-native-root",
+                str(tmp_path / "native"),
+                *modifier,
+            ]
+        )
+        == 1
+    )
+    assert not (tmp_path / "sdk").exists() and not (tmp_path / "native").exists()
+
+
+def test_sdk_static_validation_selector_is_not_abbreviated() -> None:
+    with pytest.raises(SystemExit) as error:
+        installer.parse_args(["--validate-psycopg-s"])
+    assert error.value.code == 2
+
+
+def test_sdk_static_validation_uses_canonical_reader_without_install_or_resolver(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    fresh_home = tmp_path / "fresh-home"
+    fresh_home.mkdir(mode=0o700)
+    monkeypatch.setenv("HOME", str(fresh_home))
+    for name in (
+        "GH_TOKEN",
+        "GITHUB_TOKEN",
+        "NETRC",
+        "PULSEPLATE_PYTHON_NETRC",
+        "PULSEPLATE_PYTHON_INDEX_URL",
+        "PULSEPLATE_PYTHON_TRUSTED_HOST",
+        "DEVPI_CI_USER",
+        "DEVPI_CI_PASSWORD",
+        "PIP_INDEX_URL",
+        "PIP_EXTRA_INDEX_URL",
+        "UV_INDEX_URL",
+        "UV_EXTRA_INDEX_URL",
+        "HTTP_PROXY",
+        "HTTPS_PROXY",
+        "ALL_PROXY",
+        "http_proxy",
+        "https_proxy",
+        "all_proxy",
+        "PIP_PROXY",
+        "LD_LIBRARY_PATH",
+        "LD_PRELOAD",
+        "LD_AUDIT",
+        "OPENSSL_CONF",
+        "OPENSSL_MODULES",
+        installer.PSYCOPG_SDK_ENV,
+        "PIP_CONFIG_FILE",
+    ):
+        monkeypatch.delenv(name, raising=False)
+    calls: list[object] = []
+    monkeypatch.setattr(installer, "_psycopg_sdk_target", lambda: calls.append("tuple"))
+    monkeypatch.setattr(
+        installer, "_assert_backend_network_isolated", lambda: calls.append("kernel")
+    )
+    monkeypatch.setattr(
+        installer,
+        "read_psycopg_c_sdk",
+        lambda path, *, native_root: calls.append((path, native_root)),
+    )
+
+    def forbidden(*args: object, **kwargs: object) -> None:
+        raise AssertionError("Static validation cannot resolve, install or acquire")
+
+    for name in (
+        "resolve_python_executable",
+        "resolve_private_proxy_settings",
+        "acquire_locked_wheelhouse",
+        "install_with_guard",
+        "build_psycopg_c_sdk",
+        "run_command",
+    ):
+        monkeypatch.setattr(installer, name, forbidden)
+    sdk, native = tmp_path / "sdk", tmp_path / "native"
+    assert (
+        installer.main(
+            [
+                "--validate-psycopg-sdk",
+                "--psycopg-sdk",
+                str(sdk),
+                "--psycopg-native-root",
+                str(native),
+            ]
+        )
+        == 0
+    )
+    assert calls == ["tuple", "kernel", (sdk, native)]
+    assert not sdk.exists() and not native.exists()
+    monkeypatch.setenv("LD_LIBRARY_PATH", "/synthetic/untrusted")
+    calls.clear()
+    assert (
+        installer.main(
+            [
+                "--validate-psycopg-sdk",
+                "--psycopg-sdk",
+                str(sdk),
+                "--psycopg-native-root",
+                str(native),
+            ]
+        )
+        == 1
+    )
+    assert calls == []
+    monkeypatch.delenv("LD_LIBRARY_PATH")
+    (fresh_home / ".docker").mkdir()
+    capsys.readouterr()
+    assert (
+        installer.main(
+            [
+                "--validate-psycopg-sdk",
+                "--psycopg-sdk",
+                str(sdk),
+                "--psycopg-native-root",
+                str(native),
+            ]
+        )
+        == 1
+    )
+    assert calls == []
+    assert "Static SDK validation HOME contains acquisition carriers." in capsys.readouterr().out
+
+
+@pytest.mark.parametrize(
+    "fault", ["none", "bytes", "alias", "leaf-link", "multilink", "oversize", "missing"]
+)
+def test_sdk_native_hash_check_is_static_and_preserves_exact_soname_rule(
+    tmp_path: Path, fault: str
+) -> None:
+    root = tmp_path / "native"
+    directory = root / "usr/local/lib"
+    directory.mkdir(parents=True)
+    payloads = {
+        "libpq.so.5": b"inert libpq fixture",
+        "libssl.so.3": b"inert ssl fixture",
+        "libcrypto.so.3": b"inert crypto fixture",
+    }
+    for name, data in payloads.items():
+        (directory / ("libpq.so.5.18" if name == "libpq.so.5" else name)).write_bytes(data)
+    (directory / "libpq.so.5").symlink_to("libpq.so.5.18")
+    expected = {name: installer.hashlib.sha256(data).hexdigest() for name, data in payloads.items()}
+    if fault == "bytes":
+        (directory / "libssl.so.3").write_bytes(b"altered")
+    elif fault == "alias":
+        (directory / "libpq.so.5").unlink()
+        (directory / "libpq.so.5").symlink_to("../libpq.so.5.18")
+    elif fault == "leaf-link":
+        (directory / "libssl.so.3").unlink()
+        (directory / "libssl.so.3").symlink_to(directory / "libcrypto.so.3")
+    elif fault == "multilink":
+        (directory / "extra").hardlink_to(directory / "libcrypto.so.3")
+    elif fault == "oversize":
+        (directory / "libssl.so.3").write_bytes(b"x" * (16 * 1024**2 + 1))
+    elif fault == "missing":
+        (directory / "libcrypto.so.3").unlink()
+    if fault == "none":
+        assert installer._check_psycopg_native_libraries(root, expected) is None
+    else:
+        with pytest.raises((RuntimeError, OSError)):
+            installer._check_psycopg_native_libraries(root, expected)

@@ -76,9 +76,7 @@ TRUST_PY
 FROM python-runtime AS builder
 
 ENV PIP_DISABLE_PIP_VERSION_CHECK=1 \
-    PIP_NO_PYTHON_VERSION_WARNING=1 \
-    PULSEPLATE_DOCKER_SINGLE_PASS_LOCKED_INSTALL=1 \
-    PULSEPLATE_DOCKER_PIP_LAYER_CACHE=1
+    PIP_NO_PYTHON_VERSION_WARNING=1
 
 RUN set -eu; \
     microdnf install -y --setopt=install_weak_deps=0 \
@@ -104,48 +102,129 @@ COPY scripts/ci/check_python_startup_hooks.py \
      /build/scripts/ci/
 COPY tests/fixtures/dependency_security_schema.json /build/tests/fixtures/
 COPY sdk-inputs/psycopg-sdk/ /opt/psycopg-sdk/
-COPY sdk-inputs/usr/local/lib/ /usr/local/lib/
-COPY sdk-inputs/usr/local/share/doc/pulseplate-native/ /usr/local/share/doc/pulseplate-native/
-ENV LD_LIBRARY_PATH=/usr/local/lib \
-    OPENSSL_CONF=/usr/local/share/doc/pulseplate-native/openssl.cnf
-
-RUN --mount=type=cache,target=/root/.cache/pip \
+# Static SDK wheel/receipt only; no supplied DSO/provider/config is active here.
+RUN --mount=type=tmpfs,target=/run/acquisition \
     --mount=type=secret,id=pp_py_index,required=true \
     --mount=type=secret,id=pp_py_host,required=false \
     --mount=type=secret,id=pp_netrc,required=false \
     set -eu; \
-    index_url="$(cat /run/secrets/pp_py_index)"; \
-    trusted_host=""; \
-    if [ -f /run/secrets/pp_py_host ]; then \
-      trusted_host="$(cat /run/secrets/pp_py_host)"; \
-    fi; \
-    if [ -f /run/secrets/pp_netrc ]; then \
-      install -m 0600 /run/secrets/pp_netrc /root/.netrc; \
-    fi; \
-    trap 'rm -f /root/.netrc' EXIT; \
+    set +x; umask 077; \
+    home=/run/acquisition/home; temporary=/run/acquisition/tmp; cache=/run/acquisition/cache; \
+    owned_home=0; owned_temporary=0; owned_cache=0; \
+    cleanup_acquisition() { \
+      primary=$?; trap - EXIT INT TERM; cleanup=0; \
+      for pair in "$owned_home:$home" "$owned_temporary:$temporary" "$owned_cache:$cache"; do \
+        owned=${pair%%:*}; directory=${pair#*:}; \
+        if [ "$owned" = 1 ]; then \
+          if [ -L "$directory" ] || [ ! -d "$directory" ]; then cleanup=1; \
+          elif ! rm -rf -- "$directory"; then cleanup=1; fi; \
+          if [ -e "$directory" ] || [ -L "$directory" ]; then cleanup=1; fi; \
+        fi; \
+      done; \
+      printf 'PP_SDK_ACQUISITION_STATUS primary=%s cleanup=%s\n' "$primary" "$cleanup"; \
+      if [ "$primary" -ne 0 ]; then exit "$primary"; fi; \
+      if [ "$cleanup" -ne 0 ]; then exit 1; fi; \
+    }; \
+    trap cleanup_acquisition EXIT; trap 'exit 130' INT; trap 'exit 143' TERM; \
+    for directory in "$home" "$temporary" "$cache"; do test ! -e "$directory"; test ! -L "$directory"; done; \
+    mkdir -m 700 "$home"; owned_home=1; \
+    mkdir -m 700 "$temporary"; owned_temporary=1; \
+    mkdir -m 700 "$cache"; owned_cache=1; \
+    index_url="$(cat /run/secrets/pp_py_index)"; trusted_host=""; \
+    if [ -f /run/secrets/pp_py_host ]; then trusted_host="$(cat /run/secrets/pp_py_host)"; fi; \
+    if [ -f /run/secrets/pp_netrc ]; then install -m 0600 /run/secrets/pp_netrc "$home/.netrc"; fi; \
     if [ -n "${trusted_host}" ]; then \
-      /opt/venv/bin/python /build/scripts/ci/install_locked_python_requirements.py \
+      /usr/bin/env -i HOME="$home" TMPDIR="$temporary" XDG_CACHE_HOME="$cache" PIP_CACHE_DIR="$cache/pip" \
+        PATH=/usr/bin:/bin LANG=C.UTF-8 PIP_CONFIG_FILE=/dev/null PIP_NO_CACHE_DIR=1 \
+        PIP_DISABLE_PIP_VERSION_CHECK=1 PYTHONDONTWRITEBYTECODE=1 \
+        /opt/venv/bin/python /build/scripts/ci/install_locked_python_requirements.py \
         --python-executable /opt/venv/bin/python \
-        --requirements-file /build/requirements-lock.txt \
-        --constraints-file /build/constraints.txt \
+        --requirements-file /build/requirements-lock.txt --constraints-file /build/constraints.txt \
         --guard-script /build/scripts/ci/check_python_startup_hooks.py \
         --emergency-wheel-manifest /build/scripts/ci/emergency_python_wheels.json \
-        --psycopg-sdk /opt/psycopg-sdk \
-        --require-virtualenv \
-        --index-url "${index_url}" \
-        --trusted-host "${trusted_host}"; \
+        --psycopg-sdk /opt/psycopg-sdk --require-virtualenv \
+        --prefetch-only --wheelhouse-dir /build/wheelhouse \
+        --index-url "${index_url}" --trusted-host "${trusted_host}"; \
     else \
-      /opt/venv/bin/python /build/scripts/ci/install_locked_python_requirements.py \
+      /usr/bin/env -i HOME="$home" TMPDIR="$temporary" XDG_CACHE_HOME="$cache" PIP_CACHE_DIR="$cache/pip" \
+        PATH=/usr/bin:/bin LANG=C.UTF-8 PIP_CONFIG_FILE=/dev/null PIP_NO_CACHE_DIR=1 \
+        PIP_DISABLE_PIP_VERSION_CHECK=1 PYTHONDONTWRITEBYTECODE=1 \
+        /opt/venv/bin/python /build/scripts/ci/install_locked_python_requirements.py \
         --python-executable /opt/venv/bin/python \
-        --requirements-file /build/requirements-lock.txt \
-        --constraints-file /build/constraints.txt \
+        --requirements-file /build/requirements-lock.txt --constraints-file /build/constraints.txt \
         --guard-script /build/scripts/ci/check_python_startup_hooks.py \
         --emergency-wheel-manifest /build/scripts/ci/emergency_python_wheels.json \
-        --psycopg-sdk /opt/psycopg-sdk \
-        --require-virtualenv \
-        --index-url "${index_url}"; \
-    fi; \
-    /opt/venv/bin/pip uninstall -y setuptools wheel
+        --psycopg-sdk /opt/psycopg-sdk --require-virtualenv \
+        --prefetch-only --wheelhouse-dir /build/wheelhouse --index-url "${index_url}"; \
+    fi
+
+# Quarantine is not a loader/provider/config search location. No secret mounts.
+COPY sdk-inputs/usr/local/lib/ /opt/sdk-quarantine/usr/local/lib/
+COPY sdk-inputs/usr/local/share/doc/pulseplate-native/ /opt/sdk-quarantine/usr/local/share/doc/pulseplate-native/
+RUN --network=none set -eu; \
+    for path in /run/acquisition/home /run/acquisition/tmp /run/acquisition/cache /run/secrets/pp_py_index /run/secrets/pp_py_host /run/secrets/pp_netrc; do \
+      test ! -e "$path"; test ! -L "$path"; \
+    done; \
+    /usr/bin/env -i HOME=/tmp PATH=/usr/bin:/bin LANG=C.UTF-8 PYTHONDONTWRITEBYTECODE=1 \
+      /opt/venv/bin/python -I /build/scripts/ci/install_locked_python_requirements.py \
+      --validate-psycopg-sdk --psycopg-sdk /opt/psycopg-sdk --psycopg-native-root /opt/sdk-quarantine
+
+# Finite transport copy only; canonical SDK semantics/origin remain separate.
+RUN --network=none /usr/bin/env -i HOME=/tmp PATH=/usr/bin:/bin LANG=C.UTF-8 \
+    /opt/venv/bin/python -I - <<'ACTIVATE_NATIVE_PY'
+import os, runpy, stat
+from pathlib import Path, PurePosixPath
+read = runpy.run_path('/build/scripts/ci/install_locked_python_requirements.py', run_name='static_native_copy')['_read_regular_input']
+origin = Path('/opt/sdk-quarantine/usr/local')
+target = Path('/usr/local')
+regular = {'lib/libpq.so.5.18','lib/libssl.so.3','lib/libcrypto.so.3',
+           'share/doc/pulseplate-native/OPENSSL-LICENSE','share/doc/pulseplate-native/LIBPQ-COPYRIGHT',
+           'share/doc/pulseplate-native/openssl.cnf'}
+provider = 'lib/ossl-modules/legacy.so'
+if (origin/provider).exists() or (origin/provider).is_symlink(): regular.add(provider)
+alias = 'lib/libpq.so.5'
+seen = set()
+actual_dirs = set()
+expected_dirs = {str(parent) for name in regular | {alias} for parent in PurePosixPath(name).parents if str(parent) != '.'}
+def discovery_error(error): raise error
+for directory, dirs, files in os.walk(origin, followlinks=False, onerror=discovery_error):
+    for name in dirs + files:
+        path = Path(directory)/name
+        info = path.lstat()
+        relative = path.relative_to(origin).as_posix()
+        if stat.S_ISDIR(info.st_mode): actual_dirs.add(relative)
+        else: seen.add(relative)
+if seen != regular | {alias} or actual_dirs != expected_dirs:
+    raise RuntimeError('Exact qualified native transport membership changed')
+if not (origin/alias).is_symlink() or os.readlink(origin/alias) != 'libpq.so.5.18':
+    raise RuntimeError('Exact qualified native alias changed')
+snapshot = {name:(read(origin/name,maximum=16*1024**2),stat.S_IMODE((origin/name).lstat().st_mode)) for name in regular}
+lib = target/'lib'
+lib.mkdir(exist_ok=True)
+if any(lib.iterdir()): raise RuntimeError('Active native destination is not empty')
+for name,(payload,mode) in snapshot.items():
+    path = target/name
+    path.parent.mkdir(parents=True,exist_ok=True)
+    fd = os.open(path,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,mode)
+    with os.fdopen(fd,'wb') as stream: stream.write(payload)
+    if read(path,maximum=16*1024**2) != payload or read(origin/name,maximum=16*1024**2) != payload:
+        raise RuntimeError('Validated native transport bytes changed during activation')
+(target/alias).symlink_to('libpq.so.5.18')
+(target/'lib/ossl-modules').mkdir(exist_ok=True)
+if os.readlink(target/alias) != os.readlink(origin/alias): raise RuntimeError('Native alias activation changed')
+print('PP_SDK_VALIDATED_NATIVE_COPY_COMPLETE')
+ACTIVATE_NATIVE_PY
+
+ENV LD_LIBRARY_PATH=/usr/local/lib \
+    OPENSSL_CONF=/usr/local/share/doc/pulseplate-native/openssl.cnf
+RUN --network=none /usr/bin/env -i HOME=/tmp PATH=/usr/bin:/bin LANG=C.UTF-8 \
+    LD_LIBRARY_PATH=/usr/local/lib OPENSSL_CONF=/usr/local/share/doc/pulseplate-native/openssl.cnf \
+    PIP_CONFIG_FILE=/dev/null PIP_DISABLE_PIP_VERSION_CHECK=1 PYTHONDONTWRITEBYTECODE=1 \
+    /opt/venv/bin/python /build/scripts/ci/install_locked_python_requirements.py \
+      --python-executable /opt/venv/bin/python --requirements-file /build/requirements-lock.txt \
+      --constraints-file /build/constraints.txt --guard-script /build/scripts/ci/check_python_startup_hooks.py \
+      --psycopg-sdk /opt/psycopg-sdk --require-virtualenv --consume-only --wheelhouse-dir /build/wheelhouse
+RUN --network=none /opt/venv/bin/pip uninstall -y setuptools wheel
 
 FROM python-runtime AS runner
 
@@ -186,8 +265,8 @@ RUN set -eu; \
     mkdir -p /repo/artifacts/orchestration/experiments/results; \
     chown -R 65532:65532 /repo
 
-COPY sdk-inputs/usr/local/lib/ /usr/local/lib/
-COPY sdk-inputs/usr/local/share/doc/pulseplate-native/ /usr/local/share/doc/pulseplate-native/
+COPY --from=builder /usr/local/lib/ /usr/local/lib/
+COPY --from=builder /usr/local/share/doc/pulseplate-native/ /usr/local/share/doc/pulseplate-native/
 COPY --from=builder /opt/venv /opt/venv
 
 ENV LD_LIBRARY_PATH=/usr/local/lib \

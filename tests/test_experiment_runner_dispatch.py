@@ -883,10 +883,11 @@ def test_runner_containerfile_preserves_secret_and_non_root_hygiene() -> None:
     assert "--mount=type=secret,id=pp_py_index,required=true" in containerfile
     assert "--mount=type=secret,id=pp_py_host,required=false" in containerfile
     assert "--mount=type=secret,id=pp_netrc,required=false" in containerfile
-    assert "trap 'rm -f /root/.netrc' EXIT" in containerfile
+    assert "trap cleanup_acquisition EXIT" in containerfile
+    assert "PP_SDK_ACQUISITION_STATUS primary=%s cleanup=%s" in containerfile
     assert "--requirements-file /build/requirements-lock.txt" in containerfile
     assert "--constraints-file /build/constraints.txt" in containerfile
-    assert containerfile.count("--psycopg-sdk /opt/psycopg-sdk") == 2
+    assert containerfile.count("--psycopg-sdk /opt/psycopg-sdk") == 4
     assert "--install-mode direct-proxy" not in containerfile
     assert "scripts/ci/check_private_python_proxy_health.py" in containerfile
     assert (
@@ -6221,3 +6222,39 @@ def test_runner_build_failures_preserve_error_and_remove_private_staged_context(
         assert calls == []
     elif fault == "build":
         assert len(calls) == 1
+
+
+def test_runner_sdk_phase_barrier_prevents_external_loader_activation_with_credentials() -> None:
+    text = _runner_containerfile_text()
+    start = text.index("# Static SDK wheel/receipt only")
+    quarantine = text.index("# Quarantine is not a loader/provider/config search location")
+    acquisition = text[start:quarantine]
+    assert acquisition.count("--prefetch-only --wheelhouse-dir /build/wheelhouse") == 2
+    for forbidden in (
+        "LD_LIBRARY_PATH",
+        "OPENSSL_CONF",
+        "OPENSSL_MODULES",
+        "--consume-only",
+        "pip uninstall",
+        "--build-psycopg-c",
+        "--upgrade-pip",
+        "COPY sdk-inputs/usr/local",
+    ):
+        assert forbidden not in acquisition
+    assert "--mount=type=cache" not in acquisition
+    assert "--mount=type=tmpfs,target=/run/acquisition" in acquisition
+    assert "PIP_CONFIG_FILE=/dev/null PIP_NO_CACHE_DIR=1" in acquisition
+    assert "owned_home=0; owned_temporary=0; owned_cache=0" in acquisition
+    assert "rm -rf --" in acquisition and "cleanup=1" in acquisition
+    validation = text.index("--validate-psycopg-sdk", quarantine)
+    activation = text.index("# Finite transport copy only", validation)
+    loader = text.index("ENV LD_LIBRARY_PATH", activation)
+    consume = text.index("--consume-only", loader)
+    uninstall = text.index("pip uninstall", consume)
+    assert quarantine < validation < activation < loader < consume < uninstall
+    assert "RUN --network=none" in text[quarantine:validation]
+    assert "--mount=type=secret" not in text[quarantine:uninstall]
+    final = text.split("FROM python-runtime AS runner", 1)[1]
+    assert "COPY sdk-inputs/" not in final
+    assert "COPY --from=builder /usr/local/lib/ /usr/local/lib/" in final
+    assert "COPY --from=builder /usr/local/share/doc/pulseplate-native/" in final

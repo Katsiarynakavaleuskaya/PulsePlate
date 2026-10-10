@@ -489,6 +489,8 @@ jobs:
           retention-days: 7
 
   caddy-contract:
+    env:
+      CADDY_FULL_SCAN_TIMEOUT_SECONDS: '300'
     needs: changes
     if: ${{ !cancelled() && (needs.changes.outputs.caddy == 'true' || github.event_name == 'workflow_dispatch') }}
     runs-on: ubuntu-latest
@@ -504,6 +506,7 @@ jobs:
         uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0 / Node 24
 
       - name: Build hardened Caddy shell image
+        id: caddy-build
         uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7.0.0
         with:
           context: ./frontend
@@ -513,6 +516,91 @@ jobs:
           tags: pulseplate-caddy:contract
           cache-from: type=gha,scope=frontend-caddy-contract
           cache-to: type=gha,scope=frontend-caddy-contract,mode=min,ignore-error=true
+
+      - name: Capture next loaded Caddy image identity
+        id: caddy-image
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from datetime import datetime, timezone
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+          import re
+          import shutil
+          import stat
+          import subprocess
+          import tempfile
+
+          try:
+              root = Path.cwd().resolve(strict=True)
+              docker = shutil.which("docker")
+              if docker is None or not Path(docker).is_absolute():
+                  raise ValueError("docker_unavailable")
+
+              def run(arguments):
+                  result = subprocess.run([docker, *arguments], capture_output=True, timeout=60, check=False)
+                  if result.returncode or len(result.stdout) > 1048576:
+                      raise ValueError("native_image_observation_failed")
+                  return result.stdout
+
+              inspected = json.loads(run(["image", "inspect", "--format", "{{json .}}", "pulseplate-caddy:contract"]))
+              image = inspected["Id"]
+              if re.fullmatch(r"sha256:[0-9a-f]{64}", image) is None:
+                  raise ValueError("image_config_id_invalid")
+              if (inspected.get("Os"), inspected.get("Architecture")) != ("linux", "amd64"):
+                  raise ValueError("image_platform_invalid")
+              binary = run(["run", "--rm", "--network", "none", "--read-only", "--cap-drop", "ALL",
+                            "--entrypoint", "/bin/busybox", image, "sha256sum", "/usr/bin/caddy"]).decode("ascii")
+              if re.fullmatch(r"[0-9a-f]{64}  /usr/bin/caddy\n", binary) is None:
+                  raise ValueError("binary_identity_invalid")
+              # This literal measured source set describes the observed recipe epoch;
+              # it does not prove all upstream inputs or a prior ephemeral image equal.
+              paths = ("frontend/Dockerfile.caddy-spa", "frontend/package.json", "frontend/package-lock.json",
+                       "frontend/.dockerignore", ".github/workflows/frontend-ci.yml",
+                       "deploy/Caddyfile", "deploy/Caddyfile.production",
+                       "scripts/ci/check_docker_runtime_dependency_surface.py")
+              sources = {}
+              for name in paths:
+                  path = root / name
+                  if path.is_symlink() or not stat.S_ISREG(path.stat().st_mode):
+                      raise ValueError("source_identity_invalid")
+                  sources[name] = {"bytes": path.stat().st_size, "sha256": hashlib.sha256(path.read_bytes()).hexdigest()}
+              private = Path(tempfile.mkdtemp(prefix="caddy-full-private-", dir=Path(os.environ["RUNNER_TEMP"]).resolve(strict=True)))
+              private.chmod(0o700)
+              projection_directory = private / "native-projections"
+              projection_directory.mkdir(mode=0o700)
+              projections = {}
+              for name, command in (("version.txt", ("version",)),
+                                    ("build-info.txt", ("build-info",)),
+                                    ("rebuilt-modules.txt", ("list-modules", "--packages"))):
+                  arguments = ["run", "--rm", "--network", "none", "--read-only", "--cap-drop", "ALL",
+                               "--cap-add", "NET_BIND_SERVICE", "--entrypoint", "/usr/bin/caddy", image, *command]
+                  observed = run(arguments)
+                  if not observed:
+                      raise ValueError("native_projection_empty")
+                  # run() requires native success and at most 1MiB stdout before retention.
+                  # This is a retained-output bound, not a live host-process byte ceiling.
+                  path = projection_directory / name
+                  with path.open("xb") as output:
+                      output.write(observed)
+                  path.chmod(0o600)
+                  projections[name] = {"image_config_id": image, "argv": [docker, *arguments],
+                                       "bytes": len(observed), "sha256": hashlib.sha256(observed).hexdigest()}
+              state = private / "subject.json"
+              state.write_text(json.dumps({"image_config_id": image, "platform": "linux/amd64",
+                                           "binary_sha256": binary.split()[0], "sources": sources,
+                                           "native_projections": projections,
+                                           "root": str(root), "docker": docker,
+                                           "observed_at_utc": datetime.now(timezone.utc).isoformat()}, sort_keys=True))
+              state.chmod(0o600)
+              with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as output:
+                  output.write(f"image_id={image}\nstate={state}\n")
+          except Exception as error:
+              print("Caddy subject capture failed: " + type(error).__name__)
+              raise SystemExit(1)
+          PY
 
       - name: Verify hardened Caddy runtime and module parity
         run: |
@@ -617,6 +705,7 @@ jobs:
           PY
 
       - name: Scan hardened Caddy shell image
+        id: caddy-security
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0 / Node 24 cache path
         with:
           version: v0.74.0
@@ -626,6 +715,271 @@ jobs:
           severity: CRITICAL,HIGH
           exit-code: '1'
           cache-dir: /tmp/trivy-cache-caddy-contract
+
+      - name: Prepare same-epoch full Caddy observation
+        id: caddy-full-prep
+        if: ${{ !cancelled() && steps.caddy-build.outcome == 'success' && steps.caddy-image.outcome == 'success' && (steps.caddy-security.outcome == 'success' || steps.caddy-security.outcome == 'failure') }}
+        env:
+          CADDY_OBSERVATION_STATE: ${{ steps.caddy-image.outputs.state }}
+          CADDY_HC_OUTCOME: ${{ steps.caddy-security.outcome }}
+          CADDY_TRIVY_CACHE: /tmp/trivy-cache-caddy-contract
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+          import re
+          import shutil
+          import stat
+          import subprocess
+
+          try:
+              state_path = Path(os.environ["CADDY_OBSERVATION_STATE"])
+              if state_path.is_symlink() or not stat.S_ISREG(state_path.stat().st_mode):
+                  raise ValueError("subject_state_invalid")
+              subject = json.loads(state_path.read_text())
+              private = state_path.parent
+              scanner_command = shutil.which("trivy")
+              if scanner_command is None:
+                  raise ValueError("installed_scanner_missing")
+              scanner = Path(scanner_command).resolve(strict=True)
+              selected_command = os.environ.get("TRIVY_CMD", "").strip()
+              if selected_command:
+                  selected = shutil.which(selected_command)
+                  if selected is None or Path(selected).resolve(strict=True) != scanner:
+                      raise ValueError("HC_scanner_override_differs")
+              if not scanner.is_file() or not os.access(scanner, os.X_OK):
+                  raise ValueError("installed_scanner_invalid")
+              home = private / "home"
+              home.mkdir(mode=0o700)
+              # Only these explicit host process values reach the diagnostic scanner.
+              # No TRIVY_*, proxy, registry credential, native skip/VEX or plugin setting
+              # survives from the action or job. Explicit config/ignore files below
+              # avoid cwd/HOME defaults without adding another configuration parser.
+              clean = {"PATH": str(Path(subject["docker"]).parent) + ":/usr/local/bin:/usr/bin:/bin",
+                       "HOME": str(home), "LANG": "C.UTF-8"}
+              version = subprocess.run([str(scanner), "--version"], env=clean, capture_output=True, timeout=30, check=False)
+              if version.returncode or len(version.stdout) > 65536 or re.search(rb"^Version: 0\.74\.0$", version.stdout, re.MULTILINE) is None:
+                  raise ValueError("native_scanner_version_invalid")
+              cache = Path(os.environ["CADDY_TRIVY_CACHE"])
+              db = {}
+              for name in ("db/trivy.db", "db/metadata.json"):
+                  path = cache / name
+                  if path.is_symlink() or not stat.S_ISREG(path.stat().st_mode) or path.stat().st_size == 0:
+                      raise ValueError("post_HC_DB_missing")
+                  digest = hashlib.sha256()
+                  with path.open("rb") as stream:
+                      for chunk in iter(lambda: stream.read(1048576), b""):
+                          digest.update(chunk)
+                  db[name] = {"bytes": path.stat().st_size, "sha256": digest.hexdigest()}
+              metadata = json.loads((cache / "db/metadata.json").read_text())
+              if not isinstance(metadata, dict) or not metadata:
+                  raise ValueError("post_HC_DB_metadata_invalid")
+              config = private / "empty-trivy.yaml"
+              ignore = private / "empty.trivyignore"
+              config.write_text("{}\n")
+              ignore.write_text("")
+              for path in (config, ignore):
+                  path.chmod(0o600)
+              report = private / "full.raw.json"
+              if report.exists() or report.is_symlink():
+                  raise ValueError("full_report_not_fresh")
+              subject.update(scanner=str(scanner), scanner_sha256=hashlib.sha256(scanner.read_bytes()).hexdigest(),
+                             scanner_version_stdout_sha256=hashlib.sha256(version.stdout).hexdigest(),
+                             post_HC_db=db, post_HC_db_metadata=metadata, clean_env=clean, cache=str(cache),
+                             original_HC_outcome=os.environ["CADDY_HC_OUTCOME"])
+              if subject["original_HC_outcome"] not in ("success", "failure"):
+                  raise ValueError("HC_was_not_attempted")
+              subject["full_argv"] = [str(scanner), "image", "--config", str(config), "--cache-dir", str(cache),
+                                      "--skip-db-update", "--skip-java-db-update", "--skip-vex-repo-update",
+                                      "--offline-scan", "--skip-version-check", "--disable-telemetry",
+                                      "--image-src", "docker", "--platform", "linux/amd64",
+                                      "--scanners", "vuln,secret", "--pkg-types", "os,library",
+                                      "--severity", "UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL", "--format", "json",
+                                      "--list-all-pkgs", "--exit-code", "0", "--ignore-unfixed=false",
+                                      "--ignorefile", str(ignore), "--timeout", os.environ["CADDY_FULL_SCAN_TIMEOUT_SECONDS"] + "s", "--output", str(report),
+                                      subject["image_config_id"]]
+              state_path.write_text(json.dumps(subject, sort_keys=True))
+          except Exception as error:
+              print("Caddy full-scan preparation failed: " + type(error).__name__)
+              raise SystemExit(1)
+          PY
+
+      - name: Observe all-severity Caddy native report
+        id: caddy-full-scan
+        if: ${{ !cancelled() && steps.caddy-full-prep.outcome == 'success' }}
+        env:
+          CADDY_OBSERVATION_STATE: ${{ steps.caddy-image.outputs.state }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+          import stat
+          import subprocess
+
+          try:
+              state_path = Path(os.environ["CADDY_OBSERVATION_STATE"])
+              subject = json.loads(state_path.read_text())
+              scanner = Path(subject["scanner"])
+              if hashlib.sha256(scanner.read_bytes()).hexdigest() != subject["scanner_sha256"]:
+                  raise ValueError("scanner_changed_before_full_scan")
+              for name, expected in subject["post_HC_db"].items():
+                  path = Path(subject["cache"]) / name
+                  digest = hashlib.sha256()
+                  if path.is_symlink() or not stat.S_ISREG(path.stat().st_mode):
+                      raise ValueError("DB_changed_before_full_scan")
+                  with path.open("rb") as stream:
+                      for chunk in iter(lambda: stream.read(1048576), b""):
+                          digest.update(chunk)
+                  if {"bytes": path.stat().st_size, "sha256": digest.hexdigest()} != expected:
+                      raise ValueError("DB_changed_before_full_scan")
+              # The scanner writes raw output outside the always-upload tree. Never echo
+              # stdout/stderr or partial JSON, even if the native invocation fails.
+              with (state_path.parent / "scan.stdout.private").open("xb") as stdout, (state_path.parent / "scan.stderr.private").open("xb") as stderr:
+                  result = subprocess.run(subject["full_argv"], env=subject["clean_env"],
+                                          cwd=state_path.parent, stdout=stdout, stderr=stderr,
+                                          timeout=int(os.environ["CADDY_FULL_SCAN_TIMEOUT_SECONDS"]) + 30, check=False)
+              if result.returncode:
+                  raise ValueError("native_full_scan_failed")
+          except Exception as error:
+              print("Caddy full-scan observation failed: " + type(error).__name__)
+              raise SystemExit(1)
+          PY
+
+      - name: Validate and publish full Caddy observation
+        id: caddy-full-publish
+        if: ${{ !cancelled() && steps.caddy-full-prep.outcome == 'success' && steps.caddy-full-scan.outcome == 'success' }}
+        env:
+          CADDY_OBSERVATION_STATE: ${{ steps.caddy-image.outputs.state }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from datetime import datetime, timezone
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+          import re
+          import stat
+          import subprocess
+          import sys
+
+          try:
+              state_path = Path(os.environ["CADDY_OBSERVATION_STATE"])
+              subject = json.loads(state_path.read_text())
+              private = state_path.parent
+              root = Path(subject["root"])
+              report = private / "full.raw.json"
+              if report.is_symlink() or not stat.S_ISREG(report.stat().st_mode) or not 0 < report.stat().st_size <= 134217728:
+                  raise ValueError("fresh_full_report_invalid")
+              for name, expected in subject["sources"].items():
+                  path = root / name
+                  if path.is_symlink() or {"bytes": path.stat().st_size, "sha256": hashlib.sha256(path.read_bytes()).hexdigest()} != expected:
+                      raise ValueError("measured_source_epoch_changed")
+              if (private / "empty-trivy.yaml").read_bytes() != b"{}\n" or (private / "empty.trivyignore").read_bytes() != b"":
+                  raise ValueError("selected_native_configuration_changed")
+              scanner = Path(subject["scanner"])
+              if hashlib.sha256(scanner.read_bytes()).hexdigest() != subject["scanner_sha256"]:
+                  raise ValueError("scanner_changed_after_full_scan")
+              for name, expected in subject["post_HC_db"].items():
+                  path = Path(subject["cache"]) / name
+                  if path.is_symlink() or not stat.S_ISREG(path.stat().st_mode):
+                      raise ValueError("DB_changed_after_full_scan")
+                  digest = hashlib.sha256()
+                  with path.open("rb") as stream:
+                      for chunk in iter(lambda: stream.read(1048576), b""):
+                          digest.update(chunk)
+                  if {"bytes": path.stat().st_size, "sha256": digest.hexdigest()} != expected:
+                      raise ValueError("DB_changed_after_full_scan")
+
+              def run(arguments):
+                  result = subprocess.run([subject["docker"], *arguments], capture_output=True, timeout=60, check=False)
+                  if result.returncode or len(result.stdout) > 1048576:
+                      raise ValueError("native_subject_recheck_failed")
+                  return result.stdout
+
+              for reference in ("pulseplate-caddy:contract", subject["image_config_id"]):
+                  inspected = json.loads(run(["image", "inspect", "--format", "{{json .}}", reference]))
+                  if (inspected.get("Id"), inspected.get("Os"), inspected.get("Architecture")) != (subject["image_config_id"], "linux", "amd64"):
+                      raise ValueError("image_or_tag_binding_changed")
+              binary = run(["run", "--rm", "--network", "none", "--read-only", "--cap-drop", "ALL",
+                            "--entrypoint", "/bin/busybox", subject["image_config_id"], "sha256sum", "/usr/bin/caddy"]).decode("ascii")
+              if binary != subject["binary_sha256"] + "  /usr/bin/caddy\n":
+                  raise ValueError("native_binary_changed")
+              projection_directory = private / "native-projections"
+              expected_projections = (("version.txt", ("version",)),
+                                      ("build-info.txt", ("build-info",)),
+                                      ("rebuilt-modules.txt", ("list-modules", "--packages")))
+              names = {name for name, _command in expected_projections}
+              if (projection_directory.is_symlink() or not projection_directory.is_dir()
+                      or {path.name for path in projection_directory.iterdir()} != names
+                      or set(subject["native_projections"]) != names):
+                  raise ValueError("native_projection_inventory_changed")
+              for name, command in expected_projections:
+                  expected = subject["native_projections"][name]
+                  arguments = [subject["docker"], "run", "--rm", "--network", "none", "--read-only",
+                               "--cap-drop", "ALL", "--cap-add", "NET_BIND_SERVICE", "--entrypoint",
+                               "/usr/bin/caddy", subject["image_config_id"], *command]
+                  if expected["image_config_id"] != subject["image_config_id"] or expected["argv"] != arguments:
+                      raise ValueError("native_projection_image_binding_changed")
+                  path = projection_directory / name
+                  if (path.is_symlink() or not stat.S_ISREG(path.stat().st_mode)
+                          or not 0 < path.stat().st_size <= 1048576):
+                      raise ValueError("native_projection_file_invalid")
+                  observed = path.read_bytes()
+                  if {"bytes": len(observed), "sha256": hashlib.sha256(observed).hexdigest()} != {
+                          "bytes": expected["bytes"], "sha256": expected["sha256"]}:
+                      raise ValueError("native_projection_bytes_changed")
+              sys.path.insert(0, str(root))
+              from scripts.ci.check_docker_runtime_dependency_surface import validate_trivy_image_report
+              validate_trivy_image_report(subject["image_config_id"], report)
+              native = json.loads(report.read_text())
+              missing_secrets = 0
+              for result in native["Results"]:
+                  if "Secrets" in result:
+                      secrets = result["Secrets"]
+                      if not isinstance(secrets, list) or secrets:
+                          raise ValueError("native_Secrets_not_empty_array")
+                  else:
+                      missing_secrets += 1
+              os_rows = [row for row in native["Results"] if row["Class"] == "os-pkgs"]
+              caddy_rows = [row for row in native["Results"] if row["Target"] == "usr/bin/caddy" and row["Type"] == "gobinary"]
+              if len(caddy_rows) != 1 or not os_rows:
+                  raise ValueError("configured_package_target_inventory_missing")
+              for result in [*os_rows, *caddy_rows]:
+                  packages = result.get("Packages")
+                  if not isinstance(packages, list) or not packages:
+                      raise ValueError("listed_packages_missing")
+                  if not all(isinstance(package, dict) and all(isinstance(package.get(key), str) and package[key] for key in ("Name", "Version")) for package in packages):
+                      raise ValueError("listed_package_identity_incomparable")
+              metadata = {"observed_at_utc": datetime.now(timezone.utc).isoformat(),
+                          "subject": subject, "full_report_sha256": hashlib.sha256(report.read_bytes()).hexdigest(),
+                          "full_scan_native_exit": 0, "capture_checks": "completed",
+                          "Results_Secrets_fields_absent": missing_secrets,
+                          "Secrets_scope": "Present Results fields are empty arrays; absent fields retain native serialization omission, not forced zero.",
+                          "claim_boundary": "Next observed local config/image ID, not prior ephemeral image or OCI manifest. Post-HC DB pre/post binding is not retroactive HC DB proof. Full native package/advisory reconciliation remains separate; diagnostic capture does not pass the blocking HC gate."}
+              payload = private / "validated-publication"
+              payload.mkdir(mode=0o700)
+              (payload / "observation.json").write_text(json.dumps(metadata, indent=2))
+              os.rename(report, payload / "full.raw.json")
+              os.rename(projection_directory, payload / "native-projections")
+              evidence = Path(os.environ["RUNNER_TEMP"]).resolve(strict=True) / "caddy-contract"
+              if evidence.is_symlink() or not evidence.is_dir():
+                  raise ValueError("existing_evidence_directory_invalid")
+              destination = evidence / "full-observation"
+              if destination.exists() or destination.is_symlink():
+                  raise ValueError("publication_destination_not_fresh")
+              # Final operation: only fully checked raw/metadata enter always-upload.
+              os.rename(payload, destination)
+          except Exception as error:
+              print("Caddy full-scan publication rejected: " + type(error).__name__)
+              raise SystemExit(1)
+          PY
 
       - name: Upload Caddy contract evidence
         if: ${{ always() }}

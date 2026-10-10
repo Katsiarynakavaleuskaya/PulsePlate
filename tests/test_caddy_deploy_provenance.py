@@ -2186,3 +2186,406 @@ def test_checkpoint_pr_native_contract_rejects_lost_admission(fault: str) -> Non
         native["timeout-minutes"] = "${{ fromJSON(vars.OBS2A_NATIVE_JOB_TIMEOUT_MINUTES || '41') }}"
     with pytest.raises((AssertionError, KeyError)):
         _assert_checkpoint_pr_native_job(workflow)
+
+
+def test_caddy_full_observation_preserves_blocking_scan_and_exact_conditions() -> None:
+    job = _job(_workflow(FRONTEND_WORKFLOW), "caddy-contract")
+    steps = _steps(job)
+    build = _named_step(steps, "Build hardened Caddy shell image")
+    original = _named_step(steps, "Scan hardened Caddy shell image")
+    assert build["id"] == "caddy-build"
+    assert original["id"] == "caddy-security"
+    assert original["uses"] == TRIVY_ACTION
+    assert original["with"] == {
+        "version": TRIVY_VERSION,
+        "image-ref": "pulseplate-caddy:contract",
+        "format": "table",
+        "vuln-type": "os,library",
+        "severity": "CRITICAL,HIGH",
+        "exit-code": "1",
+        "cache-dir": "/tmp/trivy-cache-caddy-contract",
+    }
+    assert "continue-on-error" not in original
+    assert job["permissions"] == {"contents": "read"}
+    assert job["env"] == {"CADDY_FULL_SCAN_TIMEOUT_SECONDS": "300"}
+    assert (
+        _step_index(steps, "Capture next loaded Caddy image identity")
+        == _step_index(steps, "Build hardened Caddy shell image") + 1
+    )
+    expected = {
+        "Prepare same-epoch full Caddy observation": (
+            "${{ !cancelled() && steps.caddy-build.outcome == 'success' && "
+            "steps.caddy-image.outcome == 'success' && "
+            "(steps.caddy-security.outcome == 'success' || steps.caddy-security.outcome == 'failure') }}"
+        ),
+        "Observe all-severity Caddy native report": (
+            "${{ !cancelled() && steps.caddy-full-prep.outcome == 'success' }}"
+        ),
+        "Validate and publish full Caddy observation": (
+            "${{ !cancelled() && steps.caddy-full-prep.outcome == 'success' && "
+            "steps.caddy-full-scan.outcome == 'success' }}"
+        ),
+    }
+    for name, condition in expected.items():
+        step = _named_step(steps, name)
+        assert step["if"] == condition
+        assert "continue-on-error" not in step
+        assert "uses" not in step  # No second setup/cache restore or provider.
+    upload = _named_step(steps, "Upload Caddy contract evidence")
+    assert upload["if"] == "${{ always() }}"
+    assert upload["with"]["path"] == "${{ runner.temp }}/caddy-contract"
+    assert (
+        _step_index(steps, "Scan hardened Caddy shell image")
+        < _step_index(steps, "Prepare same-epoch full Caddy observation")
+        < _step_index(steps, "Observe all-severity Caddy native report")
+        < _step_index(steps, "Validate and publish full Caddy observation")
+        < _step_index(steps, "Upload Caddy contract evidence")
+    )
+
+
+@pytest.mark.parametrize("HC", ["success", "failure"])
+def test_caddy_native_full_observation_captures_findings_without_passing_HC(
+    tmp_path: Path, HC: str
+) -> None:
+    result, published, metadata, command = _run_caddy_full_observation_fixture(
+        tmp_path, "valid", HC
+    )
+    assert result.returncode == 0
+    assert published
+    assert metadata["subject"]["original_HC_outcome"] == HC
+    assert metadata["full_scan_native_exit"] == 0
+    assert metadata["Results_Secrets_fields_absent"] == 1
+    assert metadata["subject"]["image_config_id"] == "sha256:" + "a" * 64
+    assert command["argv"][-1] == "sha256:" + "a" * 64
+    projections = metadata["subject"]["native_projections"]
+    expected_projections = {
+        "version.txt": ["version"],
+        "build-info.txt": ["build-info"],
+        "rebuilt-modules.txt": ["list-modules", "--packages"],
+    }
+    assert set(projections) == set(expected_projections)
+    assert set(command["published_projection_hashes"]) == set(expected_projections)
+    image = metadata["subject"]["image_config_id"]
+    for name, native_arguments in expected_projections.items():
+        projection = projections[name]
+        assert projection["image_config_id"] == image
+        assert projection["argv"][1:] == [
+            "run",
+            "--rm",
+            "--network",
+            "none",
+            "--read-only",
+            "--cap-drop",
+            "ALL",
+            "--cap-add",
+            "NET_BIND_SERVICE",
+            "--entrypoint",
+            "/usr/bin/caddy",
+            image,
+            *native_arguments,
+        ]
+        assert projection["argv"][1:] in command["docker_argv"]
+        assert 0 < projection["bytes"] <= 1048576
+        assert command["published_projection_hashes"][name] == projection["sha256"]
+    assert (
+        len(
+            [
+                args
+                for args in command["docker_argv"]
+                if "--entrypoint" in args
+                and args[args.index("--entrypoint") + 1] == "/usr/bin/caddy"
+            ]
+        )
+        == 3
+    )
+    clean_environment = metadata["subject"]["clean_env"]
+    assert set(clean_environment) == {"PATH", "HOME", "LANG"}
+    # The interpreter may add platform state after exec (for example macOS CF
+    # text encoding). Compare the exact native outcome, without filtering fields
+    # or widening the three-key environment supplied by the workflow.
+    environment_control = subprocess.run(
+        [sys.executable, "-c", "import json, os; print(json.dumps(dict(os.environ)))"],
+        env=clean_environment,
+        capture_output=True,
+        text=True,
+        check=True,
+        timeout=30,
+    )
+    assert not environment_control.stderr
+    assert command["env"] == json.loads(environment_control.stdout)
+    for flag in (
+        "--skip-db-update",
+        "--skip-java-db-update",
+        "--skip-vex-repo-update",
+        "--offline-scan",
+        "--skip-version-check",
+        "--disable-telemetry",
+        "--list-all-pkgs",
+        "--ignore-unfixed=false",
+    ):
+        assert flag in command["argv"]
+    assert command["argv"][command["argv"].index("--exit-code") + 1] == "0"
+    assert command["argv"][command["argv"].index("--severity") + 1] == (
+        "UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL"
+    )
+    assert "does not pass the blocking HC gate" in metadata["claim_boundary"]
+
+
+@pytest.mark.parametrize(
+    "scenario",
+    (
+        "retag",
+        "platform",
+        "binary",
+        "source",
+        "scanner",
+        "db",
+        "missing-db",
+        "scan-error",
+        "truncated",
+        "wrong-image",
+        "wrong-schema",
+        "missing-os",
+        "missing-caddy",
+        "empty-packages",
+        "secrets",
+        "secrets-null",
+        "secrets-object",
+        "override",
+        "version-image-id",
+        "build-info-image-id",
+        "modules-image-id",
+        "missing-version",
+        "missing-build-info",
+        "missing-modules",
+        "version-mismatch",
+        "build-info-mismatch",
+        "modules-mismatch",
+    ),
+)
+def test_caddy_native_full_observation_rejects_unbound_or_unsafe_publication(
+    tmp_path: Path, scenario: str
+) -> None:
+    result, published, _metadata, _command = _run_caddy_full_observation_fixture(
+        tmp_path, scenario, "failure"
+    )
+    assert result.returncode != 0
+    assert not published
+    assert "synthetic-secret-sentinel" not in result.stdout + result.stderr
+
+
+def _run_caddy_full_observation_fixture(
+    tmp_path: Path, scenario: str, HC: str
+) -> tuple[subprocess.CompletedProcess[str], bool, dict[str, object], dict[str, object]]:
+    """Execute actual inline workflow scripts with finite synthetic native outcomes."""
+    workflow = _workflow(FRONTEND_WORKFLOW)
+    steps = _steps(_job(workflow, "caddy-contract"))
+    workspace = tmp_path / "workspace"
+    binaries = tmp_path / "bin"
+    runner = tmp_path / "runner"
+    cache = tmp_path / "cache"
+    for path in (workspace, binaries, runner, cache / "db", runner / "caddy-contract"):
+        path.mkdir(parents=True, exist_ok=True)
+    paths = (
+        "frontend/Dockerfile.caddy-spa",
+        "frontend/package.json",
+        "frontend/package-lock.json",
+        "frontend/.dockerignore",
+        ".github/workflows/frontend-ci.yml",
+        "deploy/Caddyfile",
+        "deploy/Caddyfile.production",
+        "scripts/ci/check_docker_runtime_dependency_surface.py",
+    )
+    for name in paths:
+        target = workspace / name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(REPO_ROOT / name, target)
+    for name in ("scripts/__init__.py", "scripts/ci/__init__.py"):
+        (workspace / name).touch()
+    (cache / "db/trivy.db").write_bytes(b"synthetic-database-epoch")
+    (cache / "db/metadata.json").write_text('{"Version":2,"UpdatedAt":"2026-10-10T00:00:00Z"}')
+    command_record = tmp_path / "native-command.json"
+    docker_record = tmp_path / "docker-commands.json"
+    docker = binaries / "docker"
+    docker.write_text(
+        f"#!{sys.executable}\n"
+        "import json,sys\nfrom pathlib import Path\n"
+        f"scenario={scenario!r}\n"
+        "args=sys.argv[1:]\n"
+        f"trace=Path({str(docker_record)!r})\n"
+        "history=json.loads(trace.read_text()) if trace.exists() else []\n"
+        "history.append(args);trace.write_text(json.dumps(history))\n"
+        "if args[:2]==['image','inspect']:\n"
+        " image='sha256:'+'a'*64\n"
+        " if scenario=='retag' and ("
+        + repr(str(tmp_path / "seen"))
+        + ") and Path("
+        + repr(str(tmp_path / "seen"))
+        + ").exists():image='sha256:'+'b'*64\n"
+        " Path(" + repr(str(tmp_path / "seen")) + ").touch()\n"
+        " if '--format' in args and args[args.index('--format')+1]=='{{.Id}}':print(image)\n"
+        " else:print(json.dumps({'Id':image,'Os':'linux','Architecture':'arm64' if scenario=='platform' else 'amd64'}))\n"
+        "elif '--entrypoint' in args and args[args.index('--entrypoint')+1]=='/usr/bin/caddy':\n"
+        " index=args.index('--entrypoint')\n"
+        " if args[index+2]!='sha256:'+'a'*64:sys.exit(3)\n"
+        " command=tuple(args[index+3:])\n"
+        " outputs={('version',):'v2.11.4 synthetic\\n',('build-info',):'go\\tgo1.26.6\\n',('list-modules','--packages'):'http.handlers.file_server github.com/caddyserver/caddy/v2\\n'}\n"
+        " if command not in outputs:sys.exit(4)\n"
+        " print(outputs[command],end='')\n"
+        "else:\n"
+        " print(('c' if scenario=='binary' else 'd')*64+'  /usr/bin/caddy')\n",
+        encoding="utf-8",
+    )
+    # These are native-shape fixtures, not real scanner execution proof.
+    report = {
+        "SchemaVersion": 2,
+        "ArtifactType": "container_image",
+        "ArtifactName": "sha256:" + "a" * 64,
+        "Metadata": {"ImageID": "sha256:" + "a" * 64},
+        "Results": [
+            {
+                "Target": "Alpine",
+                "Class": "os-pkgs",
+                "Type": "alpine",
+                "Secrets": [],
+                "Packages": [{"Name": "libssl3", "Version": "3.5.8-r0"}],
+                "Vulnerabilities": [],
+            },
+            {
+                "Target": "usr/bin/caddy",
+                "Class": "lang-pkgs",
+                "Type": "gobinary",
+                "Packages": [{"Name": "golang.org/x/net", "Version": "v0.58.0"}],
+                "Vulnerabilities": [{"VulnerabilityID": "CVE-2026-78669", "Severity": "HIGH"}],
+            },
+        ],
+    }
+    if scenario == "wrong-image":
+        report["Metadata"]["ImageID"] = "sha256:" + "b" * 64
+    if scenario == "wrong-schema":
+        report["SchemaVersion"] = 1
+    if scenario == "missing-os":
+        report["Results"] = report["Results"][1:]
+    if scenario == "missing-caddy":
+        report["Results"] = report["Results"][:1]
+    if scenario == "empty-packages":
+        report["Results"][1]["Packages"] = []
+    if scenario.startswith("secrets"):
+        report["Results"][0]["Secrets"] = {
+            "secrets": [{"Match": "synthetic-secret-sentinel"}],
+            "secrets-null": None,
+            "secrets-object": {},
+        }[scenario]
+    scanner = binaries / "trivy"
+    scanner.write_text(
+        f"#!{sys.executable}\n"
+        "import json,os,sys\nfrom pathlib import Path\n"
+        f"scenario={scenario!r}\nreport={report!r}\n"
+        "args=sys.argv[1:]\n"
+        "if args==['--version']:\n print('Version: 0.74.0');sys.exit(0)\n"
+        f"Path({str(command_record)!r}).write_text(json.dumps({{'argv':args,'env':dict(os.environ)}}))\n"
+        "output=Path(args[args.index('--output')+1])\n"
+        "output.write_text('{truncated' if scenario=='truncated' else json.dumps(report))\n"
+        "if scenario=='db':\n (Path(args[args.index('--cache-dir')+1])/'db/trivy.db').write_bytes(b'changed')\n"
+        "if scenario=='scanner':\n Path(__file__).write_text('changed-scanner')\n"
+        "sys.exit(2 if scenario=='scan-error' else 0)\n",
+        encoding="utf-8",
+    )
+    docker.chmod(0o755)
+    scanner.chmod(0o755)
+    github_output = tmp_path / "github-output"
+    github_output.touch()
+    # Explicit synthetic environment prevents credential leakage in mocked
+    # headers, child diagnostics or full native-command snapshots.
+    environment = {
+        "PATH": str(binaries) + os.pathsep + os.defpath,
+        "RUNNER_TEMP": str(runner),
+        "GITHUB_OUTPUT": str(github_output),
+        "CADDY_HC_OUTCOME": HC,
+        "CADDY_TRIVY_CACHE": str(cache),
+        "CADDY_FULL_SCAN_TIMEOUT_SECONDS": "5",
+        "TRIVY_SEVERITY": "HIGH",
+        "TRIVY_EXIT_CODE": "1",
+        "TRIVY_SCANNERS": "vuln",
+        "TRIVY_SKIP_FILES": "usr/bin/caddy",
+        "TRIVY_VEX": "synthetic-vex",
+    }
+    if scenario == "override":
+        environment["TRIVY_CMD"] = str(binaries / "different-scanner")
+    last = None
+    for name in (
+        "Capture next loaded Caddy image identity",
+        "Prepare same-epoch full Caddy observation",
+        "Observe all-severity Caddy native report",
+        "Validate and publish full Caddy observation",
+    ):
+        script = (
+            _named_step(steps, name)["run"].split("python3 - <<'PY'\n", 1)[1].rsplit("\nPY", 1)[0]
+        )
+        last = subprocess.run(
+            [sys.executable, "-c", script],
+            env=environment,
+            cwd=workspace,
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+        )
+        if last.returncode:
+            break
+        if name == "Capture next loaded Caddy image identity":
+            outputs = dict(line.split("=", 1) for line in github_output.read_text().splitlines())
+            environment["CADDY_OBSERVATION_STATE"] = outputs["state"]
+            if scenario == "source":
+                (workspace / "frontend/package.json").write_text("changed-source")
+            if scenario == "missing-db":
+                (cache / "db/trivy.db").unlink()
+            if scenario == "binary":
+                docker.write_text(
+                    docker.read_text().replace("scenario='binary'", "scenario='valid'")
+                )
+            projection_faults = {
+                "version-image-id": ("version.txt", "image-id"),
+                "build-info-image-id": ("build-info.txt", "image-id"),
+                "modules-image-id": ("rebuilt-modules.txt", "image-id"),
+                "missing-version": ("version.txt", "missing"),
+                "missing-build-info": ("build-info.txt", "missing"),
+                "missing-modules": ("rebuilt-modules.txt", "missing"),
+                "version-mismatch": ("version.txt", "mismatch"),
+                "build-info-mismatch": ("build-info.txt", "mismatch"),
+                "modules-mismatch": ("rebuilt-modules.txt", "mismatch"),
+            }
+            if scenario in projection_faults:
+                filename, fault = projection_faults[scenario]
+                state_path = Path(outputs["state"])
+                subject = json.loads(state_path.read_text())
+                if fault == "image-id":
+                    projection = subject["native_projections"][filename]
+                    projection["argv"][
+                        projection["argv"].index(subject["image_config_id"])
+                    ] = "pulseplate-caddy:contract"
+                    state_path.write_text(json.dumps(subject))
+                elif fault == "missing":
+                    (state_path.parent / "native-projections" / filename).unlink()
+                else:
+                    (state_path.parent / "native-projections" / filename).write_bytes(
+                        b"changed-native-projection"
+                    )
+    assert last is not None
+    published = runner / "caddy-contract/full-observation"
+    result_metadata = (
+        json.loads((published / "observation.json").read_text()) if published.exists() else {}
+    )
+    native_command = json.loads(command_record.read_text()) if command_record.exists() else {}
+    native_command["docker_argv"] = (
+        json.loads(docker_record.read_text()) if docker_record.exists() else []
+    )
+    native_command["published_projection_hashes"] = (
+        {
+            path.name: hashlib.sha256(path.read_bytes()).hexdigest()
+            for path in (published / "native-projections").iterdir()
+        }
+        if published.exists()
+        else {}
+    )
+    return last, published.exists(), result_metadata, native_command

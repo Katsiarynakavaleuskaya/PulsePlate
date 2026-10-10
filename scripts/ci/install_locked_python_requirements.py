@@ -764,7 +764,7 @@ def _inspect_psycopg_c_extensions(wheel: Path) -> dict[str, str]:
     return {name: hashlib.sha256(payload).hexdigest() for name, payload in extensions.items()}
 
 
-def read_psycopg_c_sdk(directory: Path) -> ValidatedWheel:
+def read_psycopg_c_sdk(directory: Path, *, native_root: Path | None = None) -> ValidatedWheel:
     """Cross-bind the one exact generated wheel, original/derived source and SDK inputs."""
     target = _psycopg_sdk_target()
     raw = _read_regular_input(directory / "psycopg-c-sdk.json", maximum=64 * 1024)
@@ -838,7 +838,46 @@ def read_psycopg_c_sdk(directory: Path) -> ValidatedWheel:
         for value in [*build.values(), *libraries.values()]
     ):
         raise RuntimeError("Psycopg SDK hashes must be complete SHA-256 values.")
+    if native_root is not None:
+        _check_psycopg_native_libraries(native_root, libraries)
     return wheel
+
+
+def _check_psycopg_native_libraries(native_root: Path, libraries: dict[str, str]) -> None:
+    """Static three-DSO consistency only; independent qualified export owns origin."""
+    directory = native_root / "usr/local/lib"
+    alias = directory / "libpq.so.5"
+    absolute = directory.absolute()
+    if ".." in absolute.parts or any(part.is_symlink() for part in (absolute, *absolute.parents)):
+        raise RuntimeError("Psycopg native root must contain only real directories.")
+    before = alias.lstat()
+    if not stat.S_ISLNK(before.st_mode) or os.readlink(alias) != "libpq.so.5.18":
+        raise RuntimeError("Psycopg SDK requires the exact internal libpq SONAME alias.")
+    targets = {
+        "libpq.so.5": "libpq.so.5.18",
+        "libssl.so.3": "libssl.so.3",
+        "libcrypto.so.3": "libcrypto.so.3",
+    }
+    for name, target in targets.items():
+        payload = _read_regular_input(directory / target, maximum=16 * 1024**2)
+        if hashlib.sha256(payload).hexdigest() != libraries[name]:
+            raise RuntimeError("Psycopg SDK actual native library bytes differ from receipt.")
+    after = alias.lstat()
+    fields = (
+        "st_dev",
+        "st_ino",
+        "st_mode",
+        "st_nlink",
+        "st_uid",
+        "st_gid",
+        "st_size",
+        "st_mtime_ns",
+        "st_ctime_ns",
+    )
+    if os.readlink(alias) != "libpq.so.5.18" or any(
+        getattr(before, k) != getattr(after, k) for k in fields
+    ):
+        raise RuntimeError("Psycopg SDK SONAME alias changed during static validation.")
 
 
 MAX_WHEEL_METADATA_BYTES = 2 * 1024 * 1024
@@ -1307,6 +1346,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--prefetch-psycopg-build-wheels", type=Path)
     parser.add_argument("--prefetch-psycopg-source", type=Path)
     parser.add_argument("--build-psycopg-c", action="store_true")
+    parser.add_argument("--validate-psycopg-sdk", action="store_true")
     parser.add_argument("--psycopg-source-archive", type=Path)
     parser.add_argument("--psycopg-build-wheels", type=Path)
     parser.add_argument("--psycopg-native-root", type=Path)
@@ -3735,6 +3775,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         args = parse_args(argv)
         operation_selectors = (
             args.build_psycopg_c,
+            args.validate_psycopg_sdk,
             args.prefetch_psycopg_source is not None,
             args.prefetch_psycopg_build_wheels is not None,
             args.preflight_only,
@@ -3744,6 +3785,61 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
         if sum(operation_selectors) > 1:
             raise RuntimeError("Locked installer operation selectors are mutually exclusive.")
+        if args.validate_psycopg_sdk:
+            supplied = {value.split("=", 1)[0] for value in child_args if value.startswith("--")}
+            if (
+                supplied != {"--validate-psycopg-sdk", "--psycopg-sdk", "--psycopg-native-root"}
+                or args.psycopg_sdk is None
+                or args.psycopg_native_root is None
+            ):
+                raise RuntimeError(
+                    "Static SDK validation requires only explicit SDK/native-root operands."
+                )
+            forbidden = {
+                "GH_TOKEN",
+                "GITHUB_TOKEN",
+                "NETRC",
+                "PULSEPLATE_PYTHON_NETRC",
+                "PULSEPLATE_PYTHON_INDEX_URL",
+                "PULSEPLATE_PYTHON_TRUSTED_HOST",
+                "DEVPI_CI_USER",
+                "DEVPI_CI_PASSWORD",
+                "PIP_INDEX_URL",
+                "PIP_EXTRA_INDEX_URL",
+                "UV_INDEX_URL",
+                "UV_EXTRA_INDEX_URL",
+                "HTTP_PROXY",
+                "HTTPS_PROXY",
+                "ALL_PROXY",
+                "http_proxy",
+                "https_proxy",
+                "all_proxy",
+                "PIP_PROXY",
+                "LD_LIBRARY_PATH",
+                "LD_PRELOAD",
+                "LD_AUDIT",
+                "OPENSSL_CONF",
+                "OPENSSL_MODULES",
+                PSYCOPG_SDK_ENV,
+            }
+            if any(os.environ.get(name) for name in forbidden) or os.environ.get(
+                "PIP_CONFIG_FILE"
+            ) not in (None, os.devnull):
+                raise RuntimeError(
+                    "Static SDK validation cannot inherit credential or SDK loader state."
+                )
+            if any(
+                (Path.home() / name).exists() or (Path.home() / name).is_symlink()
+                for name in (".netrc", "_netrc", ".docker", ".config/pip/pip.conf", ".pip/pip.conf")
+            ):
+                raise RuntimeError("Static SDK validation HOME contains acquisition carriers.")
+            _psycopg_sdk_target()
+            _assert_backend_network_isolated()
+            read_psycopg_c_sdk(args.psycopg_sdk, native_root=args.psycopg_native_root)
+            print(
+                "Psycopg SDK static bytes checked; independent origin/native proof remains required."
+            )
+            return 0
         build_inputs = (
             args.psycopg_source_archive,
             args.psycopg_build_wheels,

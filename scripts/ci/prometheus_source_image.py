@@ -968,7 +968,501 @@ def cleanup_owned(
     return removals
 
 
-def qualify(work: Path, seconds: int, cleanup: int) -> dict[str, Any]:
+def decode_selected_modules(raw: bytes) -> dict[str, dict[str, Any]]:
+    """Full native list objects; Main has different identity from download rows."""
+    result: dict[str, dict[str, Any]] = {}
+    roots = 0
+    for value in decode_objects(raw):
+        path = value.get("Path")
+        if type(path) is not str or not path or path in result or "Error" in value:
+            raise QualificationError("selected_module_identity_or_error")
+        require("Main" not in value or type(value["Main"]) is bool, "selected_module_Main_type")
+        if value.get("Main") is True:
+            roots += 1
+            require(path == ROOT_MODULE, "selected_module_root")
+            require(
+                "Version" not in value or type(value["Version"]) is str,
+                "selected_root_version_type",
+            )
+        else:
+            require(
+                type(value.get("Version")) is str and bool(value["Version"]),
+                "selected_module_version",
+            )
+        if "Replace" in value:
+            replacement = value["Replace"]
+            require(
+                type(replacement) is dict
+                and "Error" not in replacement
+                and type(replacement.get("Path")) is str
+                and bool(replacement["Path"]),
+                "selected_replacement_identity_or_error",
+            )
+            require(
+                "Version" not in replacement
+                or (type(replacement["Version"]) is str and bool(replacement["Version"])),
+                "selected_replacement_version_type",
+            )
+        result[path] = value
+    require(roots == 1, "exact_one_selected_Main")
+    return result
+
+
+def replay_coordinates(
+    value: dict[str, Any], source: Path, modules: Path, *, download: bool
+) -> dict[str, Any]:
+    """Only named native coordinate fields; retain all raw objects separately."""
+    from copy import deepcopy
+
+    result = deepcopy(value)
+    roots = ((str(source), "source"), (str(modules), "modules"))
+
+    def coordinates(obj: dict[str, Any], fields: tuple[str, ...]) -> None:
+        for field in fields:
+            if field not in obj:
+                continue
+            raw = obj[field]
+            require(
+                type(raw) is str
+                and bool(raw)
+                and raw.startswith("/")
+                and str(PurePosixPath(raw)) == raw
+                and ".." not in PurePosixPath(raw).parts,
+                "unsupported_native_coordinate",
+            )
+            matches = [
+                (root, role) for root, role in roots if raw == root or raw.startswith(root + "/")
+            ]
+            require(len(matches) == 1, "unbound_native_coordinate")
+            root, role = matches[0]
+            obj[field] = {"owned_root_role": role, "relative_suffix": raw[len(root) :]}
+
+    coordinates(result, ("Dir", "Info", "GoMod", "Zip") if download else ("Dir", "GoMod"))
+    if "Replace" in result:
+        require(type(result["Replace"]) is dict, "native_Replace_shape")
+        coordinates(result["Replace"], ("Dir", "GoMod"))
+    return result
+
+
+def _derivation_locks(source: Path) -> dict[str, bytes]:
+    result = {}
+    for name in LOCKS:
+        digest = file_hash(source / name)
+        raw = (source / name).read_bytes()
+        require(sha(raw) == digest, "derivation_lock_read_changed")
+        result[name] = raw
+    return result
+
+
+def _derivation_nonlocks(source: Path, deadline: float) -> list[dict[str, Any]]:
+    return [row for row in tree_inventory(source, deadline=deadline) if row["path"] not in LOCKS]
+
+
+def _derivation_guard(
+    source: Path,
+    expected: dict[str, bytes],
+    remainder: list[dict[str, Any]],
+    go: Path,
+    go_hash: str,
+    deadline: float,
+) -> None:
+    require(_derivation_locks(source) == expected, "frozen_derivation_locks_changed")
+    require(
+        _derivation_nonlocks(source, deadline) == remainder, "derivation_nonlock_source_changed"
+    )
+    require(file_hash(go / "bin/go", deadline) == go_hash, "derivation_Go_binary_changed")
+
+
+def _derivation_phase(
+    native: Native,
+    source: Path,
+    go: Path,
+    modules: Path,
+    environment: dict[str, str],
+    label: str,
+    expected: dict[str, bytes],
+    remainder: list[dict[str, Any]],
+    go_hash: str,
+) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    commands = (
+        ("version", ["version"]),
+        ("edit", ["mod", "edit", "-json"]),
+        ("download", ["mod", "download", "-json"]),
+        ("verify", ["mod", "verify"]),
+        ("selected", ["list", "-m", "-json", "all"]),
+        ("graph", ["mod", "graph"]),
+    )
+    # Observe full selected objects after readonly acquisition so pre-get cache
+    # hydration cannot masquerade as get-produced module metadata transitions.
+    for key, command in commands:
+        _derivation_guard(source, expected, remainder, go, go_hash, native.deadline)
+        raw = native.run([str(go / "bin/go"), *command], label + "-" + key, environment, cwd=source)
+        _derivation_guard(source, expected, remainder, go, go_hash, native.deadline)
+        if key == "version":
+            require(raw.decode() == GO_VERSION, "derivation_native_Go_version")
+        elif key == "edit":
+            objects = decode_objects(raw)
+            require(
+                len(objects) == 1
+                and "Error" not in objects[0]
+                and type(objects[0].get("Module")) is dict
+                and objects[0]["Module"].get("Path") == ROOT_MODULE,
+                "native_mod_edit_identity",
+            )
+            result[key] = objects[0]
+        elif key == "selected":
+            result[key] = decode_selected_modules(raw)
+        elif key == "download":
+            result[key] = decode_modules(raw)
+        else:
+            result[key] = raw.decode("utf-8", errors="strict")
+    require(bool(result["graph"]), "empty_native_module_graph")
+    return result
+
+
+def _derivation_comparison(phase: dict[str, Any], source: Path, modules: Path) -> dict[str, Any]:
+    return {
+        "edit": phase["edit"],
+        "selected": {
+            key: replay_coordinates(value, source, modules, download=False)
+            for key, value in phase["selected"].items()
+        },
+        "download": sorted(
+            (
+                replay_coordinates(value, source, modules, download=True)
+                for value in phase["download"]
+            ),
+            key=lambda value: (value["Path"], value["Version"]),
+        ),
+        "graph_complete_line_multiset": sorted(phase["graph"].splitlines(keepends=True)),
+        "verify": phase["verify"],
+    }
+
+
+def _derivation_offline(
+    native: Native,
+    source: Path,
+    go: Path,
+    modules: Path,
+    expected_locks: dict[str, bytes],
+    remainder: list[dict[str, Any]],
+    go_hash: str,
+    label: str,
+    docker: str,
+    config: Path,
+    image: dict[str, Any],
+    owner: str,
+    before_names: list[str],
+    owned: dict[str, dict[str, Any]],
+    docker_env: dict[str, str],
+    work: Path,
+) -> dict[str, Any]:
+    for path in modules.rglob("*"):
+        check_deadline(native.deadline)
+        info = path.lstat()
+        require(stat.S_ISDIR(info.st_mode) or stat.S_ISREG(info.st_mode), "module_cache_member")
+        path.chmod(0o555 if stat.S_ISDIR(info.st_mode) else 0o444)
+    modules.chmod(0o555)
+    cache = tree_inventory(modules, deadline=native.deadline)
+    require(bool(cache), "empty_module_cache")
+    (native.evidence / (label + "-module-cache-members.json")).write_text(
+        json.dumps(cache, sort_keys=True) + "\n"
+    )
+    observations: dict[str, Any] = {}
+    full_packages: dict[str, Any] = {}
+    completions: dict[str, Any] = {}
+    for command_name, command in (
+        ("version", ["version"]),
+        ("verify", ["mod", "verify"]),
+        ("prometheus", ["list", "-deps", "-json", "-tags=netgo,builtinassets", "./cmd/prometheus"]),
+        ("promtool", ["list", "-deps", "-json", "-tags=netgo,builtinassets", "./cmd/promtool"]),
+    ):
+        _derivation_guard(source, expected_locks, remainder, go, go_hash, native.deadline)
+        require(
+            tree_inventory(modules, deadline=native.deadline) == cache,
+            "readonly_derivation_cache_changed",
+        )
+        stage = label + "-offline-" + command_name
+        name = "pp-prom-derive-" + owner[:12] + "-" + label + "-" + command_name
+        argv = (
+            sandbox_arguments(docker, config, image["Id"], name, owner, source, go, modules)
+            + command
+        )
+        require(name not in before_names, "owned_container_collision")
+        environment = dict(value.split("=", 1) for value in image["Config"].get("Env", []))
+        environment.update(
+            clean_environment(
+                GUEST_TMP, GUEST_TMP, GUEST_TMP / "gocache", Path("/modules"), offline=True
+            )
+        )
+        expected = {
+            "image": image["Id"],
+            "owner": owner,
+            "command": command,
+            "environment": environment,
+            "mounts": {"/src": str(source), "/usr/local/go": str(go), "/modules": str(modules)},
+        }
+        create_owned(native, argv, name, expected, owned, stage, docker_env, work)
+        actual = json.loads(
+            native.run(
+                [docker, "--config", str(config), "inspect", name],
+                stage + "-inspect",
+                docker_env,
+                cwd=work,
+            )
+        )[0]
+        validate_container(actual, name, expected)
+        raw, completed = start_owned(
+            native, docker, config, name, expected, stage, docker_env, work
+        )
+        completions[command_name] = completed
+        _derivation_guard(source, expected_locks, remainder, go, go_hash, native.deadline)
+        require(
+            tree_inventory(modules, deadline=native.deadline) == cache,
+            "readonly_derivation_cache_changed",
+        )
+        if command_name == "version":
+            require(raw.decode() == GO_VERSION, "sandbox_Go_version")
+        elif command_name in ("prometheus", "promtool"):
+            observations[command_name] = decode_packages(raw, command_name)
+            full_packages[command_name] = {
+                value["ImportPath"]: value for value in decode_objects(raw)
+            }
+    require(set(observations) == {"prometheus", "promtool"}, "both_command_graphs_required")
+    return {
+        "command_observations": observations,
+        "full_native_package_objects": full_packages,
+        "container_completion": completions,
+        "module_inventory_sha256": sha(json.dumps(cache, sort_keys=True).encode()),
+    }
+
+
+def derive_xnet060_observe(
+    native: Native,
+    work: Path,
+    downloads: Path,
+    source_a: Path,
+    go: Path,
+    ui: Path,
+    owned: dict[str, dict[str, Any]],
+    docker: str,
+    config: Path,
+    docker_env: dict[str, str],
+    report: dict[str, Any],
+) -> None:
+    """Exactly two original-source fixed-get replays inside this existing Native lease."""
+    import difflib
+
+    owner = uuid.uuid4().hex
+    before_names = (
+        native.run(
+            [docker, "--config", str(config), "ps", "--all", "--format", "{{.Names}}"],
+            "derive-containers-before",
+            docker_env,
+            cwd=work,
+        )
+        .decode()
+        .splitlines()
+    )
+    native.run(
+        [docker, "--config", str(config), "pull", "--platform", "linux/amd64", BASE],
+        "derive-base-pull",
+        docker_env,
+        cwd=work,
+    )
+    image = json.loads(
+        native.run(
+            [docker, "--config", str(config), "image", "inspect", BASE],
+            "derive-base-inspect",
+            docker_env,
+            cwd=work,
+        )
+    )[0]
+    require(
+        image["Os"] == "linux"
+        and image["Architecture"] == "amd64"
+        and BASE in image["RepoDigests"]
+        and image["Id"] == BASE_CONFIG
+        and not image["Config"].get("Volumes"),
+        "base_native_identity",
+    )
+    report["runtime_base_native"] = image
+    report["module_action"] = "xnet060-replay"
+    report["module_derivation"] = {"authored_action": "golang.org/x/net@v0.60.0", "replays": []}
+    go_hash = file_hash(go / "bin/go", native.deadline)
+    original_remainder = _derivation_nonlocks(source_a, native.deadline)
+    prior: dict[str, Any] | None = None
+    for label in ("a", "b"):
+        report["derivation_stage"] = label + "-original-source"
+        source = source_a if label == "a" else work / "source-b"
+        if label == "b":
+            rows = extract(SOURCE, downloads / SOURCE.name, source, native.deadline)
+            (native.evidence / "source-b-members.json").write_text(
+                json.dumps(rows, sort_keys=True) + "\n"
+            )
+            require(
+                stage_ui(source, ui, native.deadline) == report["UI_transform"],
+                "matching_replay_UI",
+            )
+        locks_unchanged(source)
+        require(
+            _derivation_nonlocks(source, native.deadline) == original_remainder,
+            "replay_original_nonlocks",
+        )
+        area = work / ("replay-" + label)
+        fresh_directory(area)
+        home, tmp, cache, modules = (area / name for name in ("home", "tmp", "gocache", "modules"))
+        for target in (home, tmp, cache, modules):
+            fresh_directory(target, 0o755 if target == modules else 0o700)
+        online = clean_environment(home, tmp, cache, modules, offline=False)
+        original = _derivation_locks(source)
+        for name, raw in original.items():
+            (native.evidence / (label + "-original-" + name)).write_bytes(raw)
+        report["derivation_stage"] = label + "-base-readonly"
+        before = _derivation_phase(
+            native,
+            source,
+            go,
+            modules,
+            online,
+            label + "-base",
+            original,
+            original_remainder,
+            go_hash,
+        )
+        old = before["selected"].get("golang.org/x/net")
+        require(
+            old is not None and old["Version"] == "v0.58.0" and "Replace" not in old,
+            "original_xnet_identity",
+        )
+        writable = dict(online, GOFLAGS="")
+        report["derivation_stage"] = label + "-sole-fixed-get"
+        try:
+            native.run(
+                [str(go / "bin/go"), "get", "golang.org/x/net@v0.60.0"],
+                label + "-sole-get",
+                writable,
+                cwd=source,
+            )
+        except BaseException:
+            for name, raw in _derivation_locks(source).items():
+                (native.evidence / (label + "-failed-get-" + name)).write_bytes(raw)
+            raise
+        # Freeze exactly ONCE, immediately after successful get. Never after download.
+        derived = _derivation_locks(source)
+        require(derived != original, "empty_authored_module_delta")
+        for name, raw in derived.items():
+            (native.evidence / (label + "-derived-" + name)).write_bytes(raw)
+        (native.evidence / (label + "-postget-source-members.json")).write_text(
+            json.dumps(tree_inventory(source, deadline=native.deadline), sort_keys=True) + "\n"
+        )
+        _derivation_guard(source, derived, original_remainder, go, go_hash, native.deadline)
+        patch = b"".join(
+            b"".join(
+                difflib.diff_bytes(
+                    difflib.unified_diff,
+                    original[name].splitlines(keepends=True),
+                    derived[name].splitlines(keepends=True),
+                    fromfile=("a/" + name).encode(),
+                    tofile=("b/" + name).encode(),
+                )
+            )
+            for name in LOCKS
+        )
+        (native.evidence / (label + "-module-derivation.patch")).write_bytes(patch)
+        report["derivation_stage"] = label + "-derived-readonly"
+        after = _derivation_phase(
+            native,
+            source,
+            go,
+            modules,
+            online,
+            label + "-derived",
+            derived,
+            original_remainder,
+            go_hash,
+        )
+        selected = after["selected"].get("golang.org/x/net")
+        require(
+            selected is not None and selected["Version"] == "v0.60.0" and "Replace" not in selected,
+            "derived_xnet_identity",
+        )
+        transitions = [
+            {
+                "Path": path,
+                "before": before["selected"].get(path),
+                "after": after["selected"].get(path),
+                "class": (
+                    "I_R"
+                    if path == "golang.org/x/net"
+                    else "C_R_candidate_pending_independent_review"
+                ),
+            }
+            for path in sorted(set(before["selected"]) | set(after["selected"]))
+            if before["selected"].get(path) != after["selected"].get(path)
+        ]
+        report["derivation_stage"] = label + "-offline-both-commands"
+        offline = _derivation_offline(
+            native,
+            source,
+            go,
+            modules,
+            derived,
+            original_remainder,
+            go_hash,
+            label,
+            docker,
+            config,
+            image,
+            owner,
+            before_names,
+            owned,
+            docker_env,
+            work,
+        )
+        record = {
+            "replay": label,
+            "original_locks": {name: sha(raw) for name, raw in original.items()},
+            "derived_locks": {name: sha(raw) for name, raw in derived.items()},
+            "patch_sha256": sha(patch),
+            "before": before,
+            "after": after,
+            "complete_module_transitions": transitions,
+            "native_directives_before": before["edit"],
+            "native_directives_after": after["edit"],
+            "offline": offline,
+            "nonlock_source_inventory_sha256": sha(
+                json.dumps(original_remainder, sort_keys=True).encode()
+            ),
+        }
+        report["module_derivation"]["replays"].append(record)
+        comparison = {
+            "original": original,
+            "derived": derived,
+            "patch": patch,
+            "before": _derivation_comparison(before, source, modules),
+            "after": _derivation_comparison(after, source, modules),
+            "full_native_package_objects": offline["full_native_package_objects"],
+            "nonlock_source": original_remainder,
+        }
+        if prior is not None:
+            require(comparison == prior, "independent_derivation_replay_mismatch")
+        prior = comparison
+    require(
+        len(report["module_derivation"]["replays"]) == 2, "two_complete_derivation_replays_required"
+    )
+    report["module_derivation"][
+        "replay_equality"
+    ] = "observed_under_explicit_coordinate_correspondence_only"
+    report["module_derivation"][
+        "closure_disposition"
+    ] = "pending independent complete delta/fullF review; metadata only"
+
+
+def qualify(
+    work: Path, seconds: int, cleanup: int, *, derive_xnet060: bool = False
+) -> dict[str, Any]:
     require(
         platform.system() == "Linux"
         and platform.machine() in ("x86_64", "amd64")
@@ -1046,135 +1540,152 @@ def qualify(work: Path, seconds: int, cleanup: int) -> dict[str, Any]:
         report["UI_transform"] = stage_ui(source, ui, deadline)
         locks_unchanged(source)
         initial_source = tree_inventory(source, deadline=deadline)
-        modules = work / "modules"
-        fresh_directory(modules, 0o755)
-        home, tmp, cache = work / "online-home", work / "online-tmp", work / "online-cache"
-        for target in (home, tmp, cache):
-            fresh_directory(target)
-        online = clean_environment(home, tmp, cache, modules, offline=False)
-        stage = "public_native_Go_prefetch"
-        go_binary = str(go / "bin/go")
-        require(
-            native.run([go_binary, "version"], "online-go-version", online, cwd=source).decode()
-            == GO_VERSION,
-            "native_Go_version",
-        )
-        module_raw = native.run(
-            [go_binary, "mod", "download", "-json"],
-            "public-module-download",
-            online,
-            cwd=source,
-        )
-        report["native_module_objects"] = decode_modules(module_raw)
-        locks_unchanged(source)
-        native.run([go_binary, "mod", "verify"], "online-module-verify", online, cwd=source)
-        locks_unchanged(source)
-        for target in modules.rglob("*"):
-            info = target.lstat()
-            require(stat.S_ISDIR(info.st_mode) or stat.S_ISREG(info.st_mode), "module_cache_member")
-            target.chmod(0o555 if stat.S_ISDIR(info.st_mode) else 0o444)
-        modules.chmod(0o555)
-        module_inventory = tree_inventory(modules, deadline=deadline)
-        require(bool(module_inventory), "empty_module_cache")
-        (evidence / "module-cache-members.json").write_text(
-            json.dumps(module_inventory, sort_keys=True, indent=2) + "\n"
-        )
-        before_names = (
-            native.run(
-                [docker, "--config", str(config), "ps", "--all", "--format", "{{.Names}}"],
-                "containers-before",
-                docker_env,
-                cwd=work,
+        if derive_xnet060:
+            stage = "xnet060_replay"
+            derive_xnet060_observe(
+                native, work, downloads, source, go, ui, owned, docker, config, docker_env, report
             )
-            .decode()
-            .splitlines()
-        )
-        native.run(
-            [docker, "--config", str(config), "pull", "--platform", "linux/amd64", BASE],
-            "public-base-pull",
-            docker_env,
-            cwd=work,
-        )
-        image = json.loads(
-            native.run(
-                [docker, "--config", str(config), "image", "inspect", BASE],
-                "base-native-inspect",
-                docker_env,
-                cwd=work,
+        else:
+            modules = work / "modules"
+            fresh_directory(modules, 0o755)
+            home, tmp, cache = work / "online-home", work / "online-tmp", work / "online-cache"
+            for target in (home, tmp, cache):
+                fresh_directory(target)
+            online = clean_environment(home, tmp, cache, modules, offline=False)
+            stage = "public_native_Go_prefetch"
+            go_binary = str(go / "bin/go")
+            require(
+                native.run([go_binary, "version"], "online-go-version", online, cwd=source).decode()
+                == GO_VERSION,
+                "native_Go_version",
             )
-        )[0]
-        require(
-            image["Os"] == "linux"
-            and image["Architecture"] == "amd64"
-            and BASE in image["RepoDigests"]
-            and image["Id"] == BASE_CONFIG
-            and not image["Config"].get("Volumes"),
-            "base_native_identity",
-        )
-        report["runtime_base_native"] = image
-        owner = uuid.uuid4().hex
-        captures = [
-            ("go-version", ["version"]),
-            ("module-verify", ["mod", "verify"]),
-            (
-                "prometheus",
-                ["list", "-deps", "-json", "-tags=netgo,builtinassets", "./cmd/prometheus"],
-            ),
-            ("promtool", ["list", "-deps", "-json", "-tags=netgo,builtinassets", "./cmd/promtool"]),
-        ]
-        observations = {}
-        report["container_completion"] = {}
-        for label, command in captures:
-            name = "pp-prom-source-" + owner[:12] + "-" + label
-            argv = (
-                sandbox_arguments(docker, config, image["Id"], name, owner, source, go, modules)
-                + command
+            module_raw = native.run(
+                [go_binary, "mod", "download", "-json"],
+                "public-module-download",
+                online,
+                cwd=source,
             )
-            require(name not in before_names, "owned_container_collision")
-            expected_env = dict(v.split("=", 1) for v in image["Config"].get("Env", []))
-            expected_env.update(
-                clean_environment(
-                    GUEST_TMP, GUEST_TMP, GUEST_TMP / "gocache", Path("/modules"), offline=True
+            report["native_module_objects"] = decode_modules(module_raw)
+            locks_unchanged(source)
+            native.run([go_binary, "mod", "verify"], "online-module-verify", online, cwd=source)
+            locks_unchanged(source)
+            for target in modules.rglob("*"):
+                info = target.lstat()
+                require(
+                    stat.S_ISDIR(info.st_mode) or stat.S_ISREG(info.st_mode), "module_cache_member"
                 )
+                target.chmod(0o555 if stat.S_ISDIR(info.st_mode) else 0o444)
+            modules.chmod(0o555)
+            module_inventory = tree_inventory(modules, deadline=deadline)
+            require(bool(module_inventory), "empty_module_cache")
+            (evidence / "module-cache-members.json").write_text(
+                json.dumps(module_inventory, sort_keys=True, indent=2) + "\n"
             )
-            expected = {
-                "image": image["Id"],
-                "owner": owner,
-                "command": command,
-                "environment": expected_env,
-                "mounts": {"/src": str(source), "/usr/local/go": str(go), "/modules": str(modules)},
-            }
-            stage = "offline_" + label
-            create_owned(native, argv, name, expected, owned, label, docker_env, work)
-            actual = json.loads(
+            before_names = (
                 native.run(
-                    [docker, "--config", str(config), "inspect", name],
-                    label + "-inspect",
+                    [docker, "--config", str(config), "ps", "--all", "--format", "{{.Names}}"],
+                    "containers-before",
+                    docker_env,
+                    cwd=work,
+                )
+                .decode()
+                .splitlines()
+            )
+            native.run(
+                [docker, "--config", str(config), "pull", "--platform", "linux/amd64", BASE],
+                "public-base-pull",
+                docker_env,
+                cwd=work,
+            )
+            image = json.loads(
+                native.run(
+                    [docker, "--config", str(config), "image", "inspect", BASE],
+                    "base-native-inspect",
                     docker_env,
                     cwd=work,
                 )
             )[0]
-            validate_container(actual, name, expected)
-            raw, completion = start_owned(
-                native, docker, config, name, expected, label, docker_env, work
+            require(
+                image["Os"] == "linux"
+                and image["Architecture"] == "amd64"
+                and BASE in image["RepoDigests"]
+                and image["Id"] == BASE_CONFIG
+                and not image["Config"].get("Volumes"),
+                "base_native_identity",
             )
-            report["container_completion"][label] = completion
-            if label == "go-version":
-                require(raw.decode() == GO_VERSION, "sandbox_Go_version")
-            elif label in ("prometheus", "promtool"):
-                observations[label] = decode_packages(raw, label)
-        require(set(observations) == {"prometheus", "promtool"}, "both_command_graphs_required")
-        locks_unchanged(source)
-        require(
-            tree_inventory(source, deadline=deadline) == initial_source
-            and tree_inventory(modules, deadline=deadline) == module_inventory,
-            "readonly_inputs_changed",
-        )
-        report["command_observations"] = observations
-        report["source_inventory_sha256"] = sha(json.dumps(initial_source, sort_keys=True).encode())
-        report["module_inventory_sha256"] = sha(
-            json.dumps(module_inventory, sort_keys=True).encode()
-        )
+            report["runtime_base_native"] = image
+            owner = uuid.uuid4().hex
+            captures = [
+                ("go-version", ["version"]),
+                ("module-verify", ["mod", "verify"]),
+                (
+                    "prometheus",
+                    ["list", "-deps", "-json", "-tags=netgo,builtinassets", "./cmd/prometheus"],
+                ),
+                (
+                    "promtool",
+                    ["list", "-deps", "-json", "-tags=netgo,builtinassets", "./cmd/promtool"],
+                ),
+            ]
+            observations = {}
+            report["container_completion"] = {}
+            for label, command in captures:
+                name = "pp-prom-source-" + owner[:12] + "-" + label
+                argv = (
+                    sandbox_arguments(docker, config, image["Id"], name, owner, source, go, modules)
+                    + command
+                )
+                require(name not in before_names, "owned_container_collision")
+                expected_env = dict(v.split("=", 1) for v in image["Config"].get("Env", []))
+                expected_env.update(
+                    clean_environment(
+                        GUEST_TMP, GUEST_TMP, GUEST_TMP / "gocache", Path("/modules"), offline=True
+                    )
+                )
+                expected = {
+                    "image": image["Id"],
+                    "owner": owner,
+                    "command": command,
+                    "environment": expected_env,
+                    "mounts": {
+                        "/src": str(source),
+                        "/usr/local/go": str(go),
+                        "/modules": str(modules),
+                    },
+                }
+                stage = "offline_" + label
+                create_owned(native, argv, name, expected, owned, label, docker_env, work)
+                actual = json.loads(
+                    native.run(
+                        [docker, "--config", str(config), "inspect", name],
+                        label + "-inspect",
+                        docker_env,
+                        cwd=work,
+                    )
+                )[0]
+                validate_container(actual, name, expected)
+                raw, completion = start_owned(
+                    native, docker, config, name, expected, label, docker_env, work
+                )
+                report["container_completion"][label] = completion
+                if label == "go-version":
+                    require(raw.decode() == GO_VERSION, "sandbox_Go_version")
+                elif label in ("prometheus", "promtool"):
+                    observations[label] = decode_packages(raw, label)
+            require(set(observations) == {"prometheus", "promtool"}, "both_command_graphs_required")
+            locks_unchanged(source)
+            require(
+                tree_inventory(source, deadline=deadline) == initial_source
+                and tree_inventory(modules, deadline=deadline) == module_inventory,
+                "readonly_inputs_changed",
+            )
+            report["command_observations"] = observations
+            report["source_inventory_sha256"] = sha(
+                json.dumps(initial_source, sort_keys=True).encode()
+            )
+            report["module_inventory_sha256"] = sha(
+                json.dumps(module_inventory, sort_keys=True).encode()
+            )
         report["producer"] = {str(p): file_hash(p) for p in producer_paths()}
     except BaseException as error:
         report["failure"] = {
@@ -1702,13 +2213,18 @@ def qualify_existing_ghcr_package(
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
+    parser.add_argument("--derive-xnet060", action="store_true")
     parser.add_argument("--work-dir", required=True, type=Path)
     parser.add_argument("--timeout-seconds", required=True, type=int)
     parser.add_argument("--cleanup-seconds", required=True, type=int)
     parser.add_argument("--qualify-existing-ghcr-package", action="store_true")
     parser.add_argument("--public-output", type=Path)
     args = parser.parse_args()
+    if args.derive_xnet060 and (
+        args.qualify_existing_ghcr_package or args.public_output is not None
+    ):
+        parser.error("Module derivation cannot combine with GHCR/public output")
     if args.qualify_existing_ghcr_package != (args.public_output is not None):
         parser.error("GHCR selector and public output are required together")
     signal.signal(signal.SIGTERM, interrupt)
@@ -1719,7 +2235,12 @@ def main() -> int:
                 args.work_dir, args.public_output, args.timeout_seconds, args.cleanup_seconds
             )
         else:
-            qualify(args.work_dir, args.timeout_seconds, args.cleanup_seconds)
+            if args.derive_xnet060:
+                qualify(
+                    args.work_dir, args.timeout_seconds, args.cleanup_seconds, derive_xnet060=True
+                )
+            else:
+                qualify(args.work_dir, args.timeout_seconds, args.cleanup_seconds)
     except (Exception, KeyboardInterrupt) as error:
         code = diagnostic_code(error)
         print(

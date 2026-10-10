@@ -1266,3 +1266,385 @@ def test_GHCR_observation_job_has_only_read_permission_and_exact_public_artifact
     ):
         assert forbidden not in serialized
     # Real heavy jobs are absent at this stage; this test makes no heavy dependency claim.
+
+
+def test_selected_Main_object_is_distinct_from_download_identity() -> None:
+    objects = [
+        {"Path": source.ROOT_MODULE, "Main": True, "UnknownNativeField": {"retained": 1}},
+        {"Path": "golang.org/x/net", "Version": "v0.60.0", "GoModSum": "h1:synthetic"},
+    ]
+    raw = b"\n".join(json.dumps(value).encode() for value in objects)
+    assert source.decode_selected_modules(raw) == {value["Path"]: value for value in objects}
+    with pytest.raises(source.QualificationError):
+        source.decode_modules(raw)
+
+
+@pytest.mark.parametrize(
+    "fault",
+    [
+        "missing-root",
+        "wrong-root",
+        "duplicate-path",
+        "Main-int",
+        "dependency-no-version",
+        "Path-none",
+        "Path-int",
+        "Replace-error",
+    ],
+)
+def test_selected_modules_reject_incomplete_or_conflicting_native_identity(fault: str) -> None:
+    values = [{"Path": source.ROOT_MODULE, "Main": True}, {"Path": "x", "Version": "v1.0.0"}]
+    if fault == "missing-root":
+        values.pop(0)
+    elif fault == "wrong-root":
+        values[0]["Path"] = "other/root"
+    elif fault == "duplicate-path":
+        values.append({"Path": "x", "Version": "v2.0.0"})
+    elif fault == "Main-int":
+        values[0]["Main"] = 1
+    elif fault == "dependency-no-version":
+        values[1].pop("Version")
+    elif fault == "Path-none":
+        values[1]["Path"] = None
+    elif fault == "Path-int":
+        values[1]["Path"] = 1
+    else:
+        values[1]["Replace"] = {"Path": "replacement", "Error": {"Err": "synthetic"}}
+    with pytest.raises(source.QualificationError):
+        source.decode_selected_modules(b"\n".join(json.dumps(value).encode() for value in values))
+
+
+def test_replay_coordinate_correspondence_retains_every_other_native_field(tmp_path: Path) -> None:
+    a, b = tmp_path / "a", tmp_path / "b"
+    left = {
+        "Path": "x",
+        "Version": "v1",
+        "Dir": str(a / "modules/x"),
+        "GoMod": str(a / "modules/x/go.mod"),
+        "Origin": {"URL": "https://example.invalid/x"},
+        "Replace": {"Path": "replacement", "Dir": str(a / "source/local")},
+        "Unknown": [1, 2],
+    }
+    right = json.loads(json.dumps(left).replace(str(a), str(b)))
+    observed = source.replay_coordinates(left, a / "source", a / "modules", download=False)
+    assert observed == source.replay_coordinates(right, b / "source", b / "modules", download=False)
+    assert observed["Origin"] == left["Origin"] and observed["Unknown"] == [1, 2]
+    assert left["Dir"] == str(a / "modules/x")
+    right["Unknown"] = [2, 1]
+    assert observed != source.replay_coordinates(right, b / "source", b / "modules", download=False)
+    left["Unknown"] = "arbitrary text containing " + str(a / "source")
+    right["Unknown"] = "arbitrary text containing " + str(b / "source")
+    assert source.replay_coordinates(
+        left, a / "source", a / "modules", download=False
+    ) != source.replay_coordinates(right, b / "source", b / "modules", download=False)
+    for path in (str(a / "modules") + "/../escape", str(a / "modules") + "-alias/x", "/unbound/x"):
+        with pytest.raises(source.QualificationError):
+            source.replay_coordinates({"Dir": path}, a / "source", a / "modules", download=False)
+
+
+@pytest.mark.parametrize(
+    "extra",
+    [
+        ["--qualify-existing-ghcr-package", "--public-output", "public.json"],
+        ["--public-output", "public.json"],
+        ["--derive-xnet06"],
+    ],
+)
+def test_fixed_derivation_selector_rejects_mixed_or_abbreviated_modes_before_effects(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, extra: list[str]
+) -> None:
+    def forbidden(*args: Any, **kwargs: Any) -> None:
+        raise AssertionError("Selector rejected after protected effect")
+
+    monkeypatch.setattr(source, "qualify", forbidden)
+    monkeypatch.setattr(source, "qualify_existing_ghcr_package", forbidden)
+    monkeypatch.setattr(source.signal, "signal", forbidden)
+    args = [
+        "qualifier",
+        "--work-dir",
+        str(tmp_path / "uncreated"),
+        "--timeout-seconds",
+        "900",
+        "--cleanup-seconds",
+        "120",
+    ]
+    if extra != ["--derive-xnet06"]:
+        args.append("--derive-xnet060")
+    monkeypatch.setattr(source.sys, "argv", args + extra)
+    with pytest.raises(SystemExit) as error:
+        source.main()
+    assert error.value.code == 2
+    assert not (tmp_path / "uncreated").exists()
+
+
+@pytest.mark.parametrize(
+    "fault",
+    ["none", "base-lock", "get-error", "derived-download-sum", "b-lock-mismatch", "get-nonlock"],
+)
+def test_derivation_controller_uses_two_clean_original_fixed_get_replays_or_stops(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, fault: str
+) -> None:
+    """Synthetic native transcript only; it cannot qualify Go, source or closure."""
+    work = tmp_path / "work"
+    work.mkdir()
+    evidence = work / "evidence"
+    evidence.mkdir()
+    original = {"go.mod": b"original module\n", "go.sum": b"original sums\n"}
+    derived = {"go.mod": b"derived module\n", "go.sum": b"derived sums\n"}
+    monkeypatch.setattr(source, "LOCKS", {name: source.sha(raw) for name, raw in original.items()})
+    go = work / "go"
+    (go / "bin").mkdir(parents=True)
+    (go / "bin/go").write_bytes(b"inert Go fixture")
+    ui = work / "ui"
+    ui.mkdir()
+    downloads = work / "downloads"
+    downloads.mkdir()
+    a = work / "source"
+    a.mkdir()
+
+    def populate(target: Path) -> None:
+        for name, raw in original.items():
+            (target / name).write_bytes(raw)
+        (target / "retained.go").write_bytes(b"inert source\n")
+
+    populate(a)
+
+    def extracted(
+        artifact: source.Artifact, archive: Path, target: Path, deadline: float
+    ) -> list[dict[str, Any]]:
+        assert not target.exists()
+        target.mkdir()
+        populate(target)
+        return []
+
+    monkeypatch.setattr(source, "extract", extracted)
+    monkeypatch.setattr(source, "stage_ui", lambda *args: {"synthetic": True})
+    transcript: list[tuple[list[str], dict[str, str], Path]] = []
+
+    class FakeNative:
+        deadline = source.time.monotonic() + 900
+
+        def __init__(self) -> None:
+            self.evidence = evidence
+
+        def run(
+            self, argv: list[str], name: str, env: dict[str, str], *, cwd: Path, **kwargs: Any
+        ) -> bytes:
+            transcript.append((argv, dict(env), cwd))
+            if argv[0] == "/usr/bin/docker":
+                if "ps" in argv:
+                    return b""
+                if "pull" in argv:
+                    return b""
+                return json.dumps(
+                    [
+                        {
+                            "Id": source.BASE_CONFIG,
+                            "Os": "linux",
+                            "Architecture": "amd64",
+                            "RepoDigests": [source.BASE],
+                            "Config": {"Env": []},
+                        }
+                    ]
+                ).encode()
+            command = argv[1:]
+            changed = (cwd / "go.mod").read_bytes() != original["go.mod"]
+            version = "v0.60.0" if changed else "v0.58.0"
+            if command == ["get", "golang.org/x/net@v0.60.0"]:
+                assert env["GOFLAGS"] == "" and not changed
+                if fault == "get-error":
+                    raise source.QualificationError("synthetic_get_failure")
+                for file, raw in derived.items():
+                    (cwd / file).write_bytes(
+                        raw
+                        + (
+                            b"different\n"
+                            if fault == "b-lock-mismatch"
+                            and cwd.name == "source-b"
+                            and file == "go.sum"
+                            else b""
+                        )
+                    )
+                if fault == "get-nonlock":
+                    (cwd / "retained.go").write_bytes(b"unexpected source")
+                return b""
+            assert env["GOFLAGS"] == "-mod=readonly"
+            if command == ["version"]:
+                return source.GO_VERSION.encode()
+            if command == ["mod", "edit", "-json"]:
+                if fault == "base-lock" and not changed:
+                    (cwd / "go.sum").write_bytes(b"unexpected sum")
+                return json.dumps(
+                    {
+                        "Module": {"Path": source.ROOT_MODULE},
+                        "Go": "1.26.0",
+                        "Unknown": {"retain": True},
+                    }
+                ).encode()
+            if command == ["mod", "download", "-json"]:
+                directory = Path(env["GOMODCACHE"]) / ("xnet@" + version)
+                directory.mkdir(exist_ok=True)
+                (directory / "go.mod").write_bytes(b"inert cache")
+                if changed and fault == "derived-download-sum":
+                    (cwd / "go.sum").write_bytes(b"late sum write")
+                return json.dumps(
+                    {
+                        "Path": "golang.org/x/net",
+                        "Version": version,
+                        "Dir": str(directory),
+                        "GoMod": str(directory / "go.mod"),
+                    }
+                ).encode()
+            if command == ["mod", "verify"]:
+                return b"all modules verified\n"
+            if command == ["list", "-m", "-json", "all"]:
+                values = [
+                    {
+                        "Path": source.ROOT_MODULE,
+                        "Main": True,
+                        "Dir": str(cwd),
+                        "GoMod": str(cwd / "go.mod"),
+                    },
+                    {
+                        "Path": "golang.org/x/net",
+                        "Version": version,
+                        "Dir": str(Path(env["GOMODCACHE"]) / ("xnet@" + version)),
+                    },
+                ]
+                return b"\n".join(json.dumps(value).encode() for value in values)
+            if command == ["mod", "graph"]:
+                return (source.ROOT_MODULE + " golang.org/x/net@" + version + "\n").encode()
+            raise AssertionError(command)
+
+    offline: list[tuple[str, Path]] = []
+
+    def observed(
+        native: Any, root: Path, tool: Path, modules: Path, expected: dict[str, bytes], *args: Any
+    ) -> dict[str, Any]:
+        assert source._derivation_locks(root) == expected
+        offline.append((root.name, modules))
+        return {
+            "full_native_package_objects": {
+                "prometheus": {"p": {"ImportPath": "p"}},
+                "promtool": {"t": {"ImportPath": "t"}},
+            }
+        }
+
+    monkeypatch.setattr(source, "_derivation_offline", observed)
+    report: dict[str, Any] = {"UI_transform": {"synthetic": True}}
+    native = FakeNative()
+    if fault == "none":
+        source.derive_xnet060_observe(
+            native, work, downloads, a, go, ui, {}, "/usr/bin/docker", work, {}, report
+        )
+        assert len(report["module_derivation"]["replays"]) == 2
+        assert len(offline) == 2 and offline[0][1] != offline[1][1]
+        assert (evidence / "a-module-derivation.patch").read_bytes() == (
+            evidence / "b-module-derivation.patch"
+        ).read_bytes()
+    else:
+        with pytest.raises(source.QualificationError):
+            source.derive_xnet060_observe(
+                native, work, downloads, a, go, ui, {}, "/usr/bin/docker", work, {}, report
+            )
+    gets = [(argv, env, cwd) for argv, env, cwd in transcript if argv[1:2] == ["get"]]
+    assert len(gets) == (
+        2 if fault in ("none", "b-lock-mismatch") else 0 if fault == "base-lock" else 1
+    )
+    for argv, env, cwd in gets:
+        assert argv[1:] == ["get", "golang.org/x/net@v0.60.0"] and env["GOFLAGS"] == ""
+    for argv, env, cwd in transcript:
+        if argv[0] != "/usr/bin/docker" and argv[1:2] != ["get"]:
+            assert env["GOFLAGS"] == "-mod=readonly"
+        if argv[1:3] == ["mod", "download"]:
+            assert argv[1:] == ["mod", "download", "-json"]
+
+
+@pytest.mark.parametrize("missing", [False, True])
+def test_derivation_offline_keeps_both_production_graphs_and_existing_sandbox_contract(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, missing: bool
+) -> None:
+    """Synthetic owned-container outcomes; no native executable is started."""
+    root, go, modules, evidence = [
+        tmp_path / name for name in ("source", "go", "modules", "evidence")
+    ]
+    for path in (root, go / "bin", modules, evidence):
+        path.mkdir(parents=True)
+    (root / "go.mod").write_bytes(b"frozen mod")
+    (root / "go.sum").write_bytes(b"frozen sum")
+    (go / "bin/go").write_bytes(b"inert tool")
+    (modules / "cache").write_bytes(b"inert cache")
+    frozen = source._derivation_locks(root)
+    remainder = source._derivation_nonlocks(root, source.time.monotonic() + 900)
+    created: list[list[str]] = []
+
+    class FakeNative:
+        deadline = source.time.monotonic() + 900
+
+        def __init__(self) -> None:
+            self.evidence = evidence
+
+        def run(self, argv: list[str], *args: Any, **kwargs: Any) -> bytes:
+            if "create" in argv:
+                created.append(argv)
+                return b"owned"
+            return b"[{}]"
+
+    monkeypatch.setattr(source, "validate_container", lambda *args: None)
+
+    def completed(
+        native: Any,
+        docker: str,
+        config: Path,
+        name: str,
+        expected: dict[str, Any],
+        label: str,
+        *args: Any,
+    ) -> tuple[bytes, dict[str, Any]]:
+        command = expected["command"]
+        if command == ["version"]:
+            raw = source.GO_VERSION.encode()
+        elif command == ["mod", "verify"]:
+            raw = b"all modules verified"
+        else:
+            selected = command[-1].rsplit("/", 1)[-1]
+            raw = package_stream("prometheus" if missing and selected == "promtool" else selected)
+        return raw, {"Running": False, "ExitCode": 0, "OOMKilled": False}
+
+    monkeypatch.setattr(source, "start_owned", completed)
+    arguments = (
+        FakeNative(),
+        root,
+        go,
+        modules,
+        frozen,
+        remainder,
+        source.file_hash(go / "bin/go"),
+        "a",
+        "/usr/bin/docker",
+        tmp_path,
+        {"Id": source.BASE_CONFIG, "Config": {"Env": []}},
+        "synthetic-owner",
+        [],
+        {},
+        {},
+        tmp_path,
+    )
+    if missing:
+        with pytest.raises(source.QualificationError):
+            source._derivation_offline(*arguments)
+    else:
+        result = source._derivation_offline(*arguments)
+        assert set(result["command_observations"]) == {"prometheus", "promtool"}
+        assert set(result["full_native_package_objects"]) == {"prometheus", "promtool"}
+        assert len(result["container_completion"]) == 4
+    assert len(created) == 4
+    for argv in created:
+        assert argv[argv.index("--network") + 1] == "none"
+        assert argv[argv.index("--user") + 1] == "65532:65532"
+        assert "--read-only" in argv
+        assert all(
+            value.endswith(",readonly")
+            for index, value in enumerate(argv)
+            if index and argv[index - 1] == "--mount"
+        )
