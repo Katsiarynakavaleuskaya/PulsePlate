@@ -1141,7 +1141,7 @@ def test_all_active_checkout_uses_have_one_exact_v7_pin() -> None:
         ".github/workflows/security.yml",
         ".github/workflows/trivy.yml",
     }
-    assert len(observed_checkout_uses) == 78
+    assert len(observed_checkout_uses) == 79
     assert {path for path, _ in observed_checkout_uses} == expected_checkout_workflows
 
 
@@ -3892,7 +3892,7 @@ def test_node24_setup_go_and_upload_artifact_pins_preserve_workflow_contracts() 
 
     expected_action_lines = {
         BUILD_WORKFLOW_PATH: {
-            f"actions/upload-artifact@{UPLOAD_ARTIFACT_NODE24_SHA} # v7.0.1 / Node 24": 7,
+            f"actions/upload-artifact@{UPLOAD_ARTIFACT_NODE24_SHA} # v7.0.1 / Node 24": 8,
         },
         GREENLIGHT_IOS_WORKFLOW_PATH: {
             f"actions/setup-go@{SETUP_GO_NODE24_SHA} # v7.0.0 / Node 24": 1,
@@ -4055,6 +4055,24 @@ def test_node24_setup_go_and_upload_artifact_pins_preserve_workflow_contracts() 
                 "retention-days": 30,
             },
             "${{ always() }}",
+            None,
+            None,
+        ),
+        (
+            ".github/workflows/build.yml",
+            "prometheus-ghcr-package-qualification",
+            "Retain exact validated package observation",
+            f"actions/upload-artifact@{UPLOAD_ARTIFACT_NODE24_SHA}",
+            {
+                "name": "prometheus-ghcr-package-${{ github.run_id }}-${{ github.run_attempt }}",
+                "path": (
+                    "${{ runner.temp }}/ghcr-public-${{ github.run_id }}-"
+                    "${{ github.run_attempt }}/qualification.json"
+                ),
+                "if-no-files-found": "error",
+                "retention-days": 30,
+            },
+            "${{ success() && steps.package.outputs.qualified == 'true' }}",
             None,
             None,
         ),

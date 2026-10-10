@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 from dataclasses import dataclass
+from datetime import datetime, timezone
 import gzip
 import hashlib
 import json
@@ -18,6 +19,7 @@ from pathlib import Path, PurePosixPath
 import platform
 import re
 import shutil
+import selectors
 import signal
 import ssl
 import stat
@@ -1258,16 +1260,466 @@ def validate_container(actual: dict[str, Any], name: str, expected: dict[str, An
     )
 
 
+# Preparation only. No authenticated invocation or native-format parity claim.
+GHCR_REPOSITORY = "Katsiarynakavaleuskaya/PulsePlate"
+GHCR_OWNER = "Katsiarynakavaleuskaya"
+GHCR_PACKAGE = "pulseplate"
+GHCR_REQUESTS = (
+    "/repos/Katsiarynakavaleuskaya/PulsePlate",
+    "/users/Katsiarynakavaleuskaya/packages/container/pulseplate",
+)
+GHCR_OUTPUT_LIMIT = 1024**2
+
+
+def ghcr_response(raw: bytes) -> tuple[int, dict[str, Any]]:
+    """Consume one bounded native --include response; never publish its fields wholesale."""
+    require(0 < len(raw) <= GHCR_OUTPUT_LIMIT, "GHCR_response_size")
+    header, separator, body = raw.partition(b"\r\n\r\n")
+    require(bool(separator) and len(header) <= 32768, "GHCR_HTTP_header")
+    status_line, status_lf, fields = header.partition(b"\n")
+    require(status_lf == b"\n" and b"\r" not in status_line, "GHCR_HTTP_status")
+    require(bool(fields), "GHCR_HTTP_header")
+    lines = fields.split(b"\r\n")
+    match = re.fullmatch(rb"HTTP/(?:1\.1|2(?:\.0)?) ([1-5][0-9]{2})(?: [\x20-\x7e]+)?", status_line)
+    if match is None:
+        raise QualificationError("GHCR_HTTP_status")
+    status_code = int(match.group(1))
+    require(
+        all(re.fullmatch(rb"[A-Za-z0-9!#$%&'*+.^_`|~-]+: [\x20-\x7e]*", line) for line in lines),
+        "GHCR_HTTP_header",
+    )
+    require(status_code == 200, "GHCR_HTTP_status_" + str(status_code))
+    value = json.loads(
+        body.decode("utf-8", errors="strict"),
+        object_pairs_hook=unique_object,
+        parse_constant=reject_constant,
+    )
+    require(type(value) is dict, "GHCR_JSON_not_object")
+    return status_code, value
+
+
+def ghcr_identity(repository: dict[str, Any], package: dict[str, Any]) -> dict[str, Any]:
+    def positive(value: Any) -> int:
+        if type(value) is not int or value <= 0:
+            raise QualificationError("GHCR_positive_ID")
+        return value
+
+    def expected(value: Any, literal: str) -> None:
+        require(
+            type(value) is str and value.isascii() and value.lower() == literal.lower(),
+            "GHCR_expected_identity",
+        )
+
+    repo_owner = repository.get("owner")
+    package_owner, linked_repository = package.get("owner"), package.get("repository")
+    if type(repo_owner) is not dict:
+        raise QualificationError("GHCR_identity_objects")
+    if type(package_owner) is not dict:
+        raise QualificationError("GHCR_identity_objects")
+    if type(linked_repository) is not dict:
+        raise QualificationError("GHCR_identity_objects")
+    repo_id, owner_id, package_id = (
+        positive(repository.get("id")),
+        positive(repo_owner.get("id")),
+        positive(package.get("id")),
+    )
+    expected(repository.get("full_name"), GHCR_REPOSITORY)
+    expected(repo_owner.get("login"), GHCR_OWNER)
+    expected(package_owner.get("login"), GHCR_OWNER)
+    expected(linked_repository.get("full_name"), GHCR_REPOSITORY)
+    require(
+        positive(package_owner.get("id")) == owner_id
+        and positive(linked_repository.get("id")) == repo_id,
+        "GHCR_cross_ID",
+    )
+    require(
+        package.get("name") == GHCR_PACKAGE
+        and package.get("package_type") == "container"
+        and package.get("visibility") == "public",
+        "GHCR_package_properties",
+    )
+    return {
+        "repository": {"id": repo_id, "full_name": GHCR_REPOSITORY},
+        "owner": {"id": owner_id, "login": GHCR_OWNER},
+        "package": {
+            "id": package_id,
+            "name": GHCR_PACKAGE,
+            "package_type": "container",
+            "visibility": "public",
+            "source_repository_id": repo_id,
+        },
+    }
+
+
+def qualify_existing_ghcr_package(
+    work: Path, public: Path, seconds: int, cleanup: int
+) -> dict[str, Any]:
+    """Exactly one auth status and two fixed API commands, with memory-first output capture."""
+    global CLEANING
+    require(not INTERRUPTIONS, "GHCR_interrupted")
+    require(
+        type(seconds) is int and 0 < seconds <= 90 and type(cleanup) is int and 0 < cleanup <= 30,
+        "GHCR_budget",
+    )
+    require(
+        os.environ.get("GITHUB_ACTIONS") == "true" and os.environ.get("RUNNER_OS") == "Linux",
+        "GHCR_hosted_only",
+    )
+    require(
+        os.environ.get("GITHUB_REPOSITORY") == GHCR_REPOSITORY
+        and os.environ.get("GITHUB_JOB") == "prometheus-ghcr-package-qualification",
+        "GHCR_job_context",
+    )
+    run, attempt, head = (
+        os.environ.get(key, "") for key in ("GITHUB_RUN_ID", "GITHUB_RUN_ATTEMPT", "GITHUB_SHA")
+    )
+    require(
+        re.fullmatch(r"[1-9][0-9]{0,19}", run) is not None
+        and attempt == "1"
+        and re.fullmatch(r"[0-9a-f]{40}", head) is not None,
+        "GHCR_run_context",
+    )
+    runner = Path(os.environ.get("RUNNER_TEMP", ""))
+    real_directory(runner)
+    require(
+        work == runner / ("ghcr-private-" + run + "-" + attempt)
+        and public == runner / ("ghcr-public-" + run + "-" + attempt) / "qualification.json",
+        "GHCR_output_coordinates",
+    )
+    require(not public.parent.exists() and not public.parent.is_symlink(), "GHCR_public_not_fresh")
+    credential = os.environ.get("GH_TOKEN")
+    if type(credential) is not str or not credential:
+        raise QualificationError("GHCR_step_credential_missing")
+    known = credential.encode("utf-8", errors="strict")
+    gh = shutil.which("gh")
+    if gh is None or not Path(gh).is_absolute():
+        raise QualificationError("GHCR_native_missing")
+    private = [work / name for name in ("home", "config", "cache", "tmp")]
+    identities: dict[Path, tuple[int, int]] = {}
+    environment = {
+        "PATH": "/usr/bin:/bin",
+        "LANG": "C.UTF-8",
+        "LC_ALL": "C.UTF-8",
+        "GH_HOST": "github.com",
+        "GH_TOKEN": credential,
+        "GH_PROMPT_DISABLED": "1",
+        "GH_PAGER": "cat",
+        "PAGER": "cat",
+        "GH_NO_UPDATE_NOTIFIER": "1",
+        "GH_NO_EXTENSION_UPDATE_NOTIFIER": "1",
+        "GH_TELEMETRY": "0",
+        "DO_NOT_TRACK": "1",
+        "HOME": str(private[0]),
+        "GH_CONFIG_DIR": str(private[1]),
+        "XDG_CONFIG_HOME": str(private[1]),
+        "XDG_CACHE_HOME": str(private[2]),
+        "TMPDIR": str(private[3]),
+    }
+    deadline = time.monotonic() + seconds
+    cleanup_deadline: float | None = None
+    process: subprocess.Popen[bytes] | None = None
+
+    def begin_cleanup() -> float:
+        nonlocal cleanup_deadline
+        if cleanup_deadline is None:
+            cleanup_deadline = min(deadline + cleanup, time.monotonic() + cleanup)
+        return cleanup_deadline
+
+    seen: dict[int, tuple[Any, ...]] = {}
+
+    def process_census(cap: float) -> dict[int, dict[str, Any]]:
+        check_deadline(cap)
+        observed = subprocess.run(
+            ["/bin/ps", "-axo", "pid,ppid,pgid,uid,lstart,state,comm"],
+            capture_output=True,
+            env={"PATH": "/usr/bin:/bin", "LC_ALL": "C"},
+            timeout=min(1, max(0.001, cap - time.monotonic())),
+            check=False,
+        )  # nosec B603 # B603: fixed absolute ps ownership census; closed env, bounded capture before credential inspection (remove-by: 2026-10-28, ref: PR-2477)
+        require(
+            observed.returncode == 0
+            and len(observed.stdout) + len(observed.stderr) <= GHCR_OUTPUT_LIMIT,
+            "GHCR_process_census",
+        )
+        require(
+            known not in observed.stdout and known not in observed.stderr,
+            "GHCR_credential_reflection_HOLD",
+        )
+        rows: dict[int, dict[str, Any]] = {}
+        for line in observed.stdout.decode("utf-8", errors="strict").splitlines()[1:]:
+            fields = line.split(None, 10)
+            require(len(fields) == 11, "GHCR_process_census_row")
+            pid, ppid, pgid, uid = (int(value) for value in fields[:4])
+            require(pid > 0 and pid not in rows, "GHCR_process_census_identity")
+            rows[pid] = {
+                "pid": pid,
+                "ppid": ppid,
+                "pgid": pgid,
+                "uid": uid,
+                "start": " ".join(fields[4:9]),
+                "state": fields[9],
+                "comm": fields[10],
+            }
+        return rows
+
+    def process_identity(row: dict[str, Any]) -> tuple[Any, ...]:
+        return (row["pid"], row["pgid"], row["uid"], row["start"], row["comm"])
+
+    def owned_members(cap: float) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+        if process is None or not seen:
+            raise QualificationError("GHCR_owned_group_unverified")
+        process.poll()
+        rows = process_census(cap)
+        leader = rows.get(process.pid)
+        if leader is not None and process_identity(leader) != seen.get(process.pid):
+            # An exited direct child can have a transient kernel comm before reap.
+            # Native wait/absence resolves it; a live changed identity still rejects.
+            try:
+                process.wait(timeout=min(0.05, max(0.001, cap - time.monotonic())))
+            except subprocess.TimeoutExpired:
+                pass
+            if process.returncode is not None:
+                rows = process_census(cap)
+        live = {
+            pid
+            for pid, identity in seen.items()
+            if pid in rows and process_identity(rows[pid]) == identity
+        }
+        while True:
+            children = {
+                pid
+                for pid, row in rows.items()
+                if row["ppid"] in live and row["uid"] == os.getuid()
+            } - live
+            if not children:
+                break
+            for pid in children:
+                seen[pid] = process_identity(rows[pid])
+            live |= children
+        group = [row for row in rows.values() if row["pgid"] == process.pid]
+        active = [row for row in group if not row["state"].startswith("Z")]
+        require(
+            all(row["pid"] in live and row["uid"] == os.getuid() for row in active),
+            "GHCR_unknown_or_reused_group_member",
+        )
+        return group, active
+
+    def cleanup_process(cap: float) -> None:
+        if process is None:
+            return
+        process.poll()
+        for signum in (signal.SIGTERM, signal.SIGKILL):
+            group, active = owned_members(cap)
+            if not group:
+                break
+            if active:
+                os.killpg(process.pid, signum)
+            wait_until = min(cap, time.monotonic() + 5)
+            while time.monotonic() < wait_until:
+                process.poll()
+                # Observation of absence sends no signal and makes no ownership claim.
+                # Revalidate every live identity before any subsequent signal above.
+                group = [row for row in process_census(cap).values() if row["pgid"] == process.pid]
+                if not group:
+                    break
+                time.sleep(0.05)
+        while time.monotonic() < cap:
+            group = [row for row in process_census(cap).values() if row["pgid"] == process.pid]
+            if not group:
+                break
+            time.sleep(0.05)
+        require(
+            not any(row["pgid"] == process.pid for row in process_census(cap).values()),
+            "GHCR_owned_group_cleanup_absence",
+        )
+        for stream in (process.stdout, process.stderr):
+            if stream is not None:
+                stream.close()
+
+    def capture(argv: list[str]) -> bytes:
+        nonlocal process
+        check_deadline(deadline)
+        streams = [bytearray(), bytearray()]
+        # This fixed seam deliberately does not call Native.run or serialize environment/raw output.
+        process = subprocess.Popen(
+            argv,
+            cwd=work,
+            env=environment,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            start_new_session=True,
+        )  # nosec B603 # B603: fixed absolute gh auth/API argv; bounded memory before inspection (remove-by: 2026-10-28, ref: PR-2477)
+        if process.stdout is None or process.stderr is None:
+            raise QualificationError("GHCR_capture_streams_missing")
+        seen.clear()
+        row = process_census(deadline).get(process.pid)
+        if (
+            row is None
+            or row["ppid"] != os.getpid()
+            or row["pgid"] != process.pid
+            or row["uid"] != os.getuid()
+        ):
+            raise QualificationError("GHCR_owned_group_unverified")
+        seen[process.pid] = process_identity(row)
+        owned_members(deadline)
+        try:
+            with selectors.DefaultSelector() as selector:
+                for index, stream in enumerate((process.stdout, process.stderr)):
+                    os.set_blocking(stream.fileno(), False)
+                    selector.register(stream, selectors.EVENT_READ, index)
+                while selector.get_map():
+                    check_deadline(deadline)
+                    owned_members(deadline)
+                    for key, _ in selector.select(min(0.1, max(0, deadline - time.monotonic()))):
+                        block = os.read(key.fd, 65536)
+                        if not block:
+                            selector.unregister(key.fileobj)
+                        else:
+                            require(
+                                sum(map(len, streams)) + len(block) <= GHCR_OUTPUT_LIMIT,
+                                "GHCR_native_output_bound",
+                            )
+                            streams[key.data].extend(block)
+        except BaseException:
+            require(
+                all(known not in bytes(stream) for stream in streams),
+                "GHCR_credential_reflection_HOLD",
+            )
+            raise
+        code = process.wait(timeout=max(0.001, deadline - time.monotonic()))
+        process.stdout.close()
+        process.stderr.close()
+        require(
+            all(known not in bytes(stream) for stream in streams), "GHCR_credential_reflection_HOLD"
+        )
+        require(not owned_members(deadline)[0], "GHCR_owned_group_survived")
+        exit_code = "GHCR_native_exit_" + ("signal_" + str(-code) if code < 0 else str(code))
+        if code != 0 and argv[1] == "api":
+            try:
+                ghcr_response(bytes(streams[0]))
+            except (QualificationError, ValueError, UnicodeError) as error:
+                raise QualificationError(
+                    exit_code + "_" + (diagnostic_code(error) or type(error).__name__)
+                ) from None
+        require(code == 0, exit_code)
+        process = None
+        return bytes(streams[0])
+
+    primary: BaseException | None = None
+    cleanup_error: BaseException | None = None
+    result: dict[str, Any] | None = None
+    try:
+        for directory in [work, *private]:
+            fresh_directory(directory)
+            info = directory.lstat()
+            identities[directory] = (info.st_dev, info.st_ino)
+        capture([gh, "auth", "status", "--hostname", "github.com"])
+        responses = [
+            ghcr_response(
+                capture(
+                    [
+                        gh,
+                        "api",
+                        "--hostname",
+                        "github.com",
+                        "--method",
+                        "GET",
+                        "--include",
+                        "-H",
+                        "Accept:application/vnd.github+json",
+                        endpoint,
+                    ]
+                )
+            )
+            for endpoint in GHCR_REQUESTS
+        ]
+        identity = ghcr_identity(responses[0][1], responses[1][1])
+        result = {
+            "purpose": "One existing GHCR package identity observation only",
+            "qualified": True,
+            "observed_utc": datetime.now(timezone.utc).isoformat(),
+            "source_head": head,
+            "run_id": int(run),
+            "run_attempt": 1,
+            "job": "prometheus-ghcr-package-qualification",
+            "native_auth_exit": 0,
+            "requests": [
+                {"path": endpoint, "native_exit": 0, "HTTP_status": response[0]}
+                for endpoint, response in zip(GHCR_REQUESTS, responses, strict=True)
+            ],
+            "repository": identity["repository"],
+            "owner": identity["owner"],
+            "package": identity["package"],
+        }
+    except BaseException as error:
+        primary = error
+    finally:
+        cap = begin_cleanup()
+        CLEANING = True
+        try:
+            cleanup_process(cap)
+            if work in identities:
+                require(
+                    set(work.iterdir()) == set(identities) - {work}, "GHCR_private_members_changed"
+                )
+            for directory in reversed(identities):
+                check_deadline(cap)
+                info = directory.lstat()
+                require(
+                    stat.S_ISDIR(info.st_mode)
+                    and info.st_uid == os.getuid()
+                    and stat.S_IMODE(info.st_mode) == 0o700
+                    and (info.st_dev, info.st_ino) == identities[directory],
+                    "GHCR_private_directory_identity",
+                )
+                directory.rmdir()
+            require(not work.exists() and not work.is_symlink(), "GHCR_private_cleanup_absence")
+        except BaseException as error:
+            cleanup_error = error
+        finally:
+            CLEANING = False
+    if primary is not None:
+        if cleanup_error is not None:
+            print(
+                "GHCR cleanup also failed:"
+                + (diagnostic_code(cleanup_error) or type(cleanup_error).__name__),
+                file=sys.stderr,
+            )
+        raise primary
+    require(cleanup_error is None, "GHCR_cleanup_failed")
+    require(not INTERRUPTIONS, "GHCR_interrupted")
+    if result is None:
+        raise QualificationError("GHCR_result_missing")
+    encoded = (json.dumps(result, sort_keys=True, indent=2) + "\n").encode()
+    require(known not in encoded and len(encoded) <= 16384, "GHCR_public_projection_HOLD")
+    check_deadline(cap)
+    fresh_directory(public.parent)
+    descriptor = os.open(public, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+    with os.fdopen(descriptor, "wb") as stream:
+        stream.write(encoded)
+    return result
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--work-dir", required=True, type=Path)
     parser.add_argument("--timeout-seconds", required=True, type=int)
     parser.add_argument("--cleanup-seconds", required=True, type=int)
+    parser.add_argument("--qualify-existing-ghcr-package", action="store_true")
+    parser.add_argument("--public-output", type=Path)
     args = parser.parse_args()
+    if args.qualify_existing_ghcr_package != (args.public_output is not None):
+        parser.error("GHCR selector and public output are required together")
     signal.signal(signal.SIGTERM, interrupt)
     signal.signal(signal.SIGINT, interrupt)
     try:
-        qualify(args.work_dir, args.timeout_seconds, args.cleanup_seconds)
+        if args.qualify_existing_ghcr_package:
+            qualify_existing_ghcr_package(
+                args.work_dir, args.public_output, args.timeout_seconds, args.cleanup_seconds
+            )
+        else:
+            qualify(args.work_dir, args.timeout_seconds, args.cleanup_seconds)
     except (Exception, KeyboardInterrupt) as error:
         code = diagnostic_code(error)
         print(
@@ -1277,7 +1729,11 @@ def main() -> int:
             file=sys.stderr,
         )
         return 1
-    print("Prometheus package metadata captured; advisory and binary review pending.")
+    print(
+        "Existing GHCR identity observed."
+        if args.qualify_existing_ghcr_package
+        else "Prometheus package metadata captured; advisory and binary review pending."
+    )
     return 0
 
 

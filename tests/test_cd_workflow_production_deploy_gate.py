@@ -23,7 +23,13 @@ WEB_IOS_RELEASE_READY_ENV_FETCH = (
 def test_build_workflow_keeps_only_ordinary_fail_closed_topology() -> None:
     workflow = yaml.safe_load((REPO_ROOT / ".github/workflows/build.yml").read_text())
     jobs = workflow["jobs"]
-    assert set(jobs) == {"build", "security-scan", "publish"}
+    assert set(jobs) == {
+        "build",
+        "security-scan",
+        "publish",
+        "prometheus-source-qualification",
+        "prometheus-ghcr-package-qualification",
+    }
     inputs = workflow.get("on", workflow.get(True))["workflow_dispatch"]["inputs"]
     assert inputs == {
         "mode": {
@@ -31,7 +37,7 @@ def test_build_workflow_keeps_only_ordinary_fail_closed_topology() -> None:
             "type": "choice",
             "required": True,
             "default": "disabled",
-            "options": ["disabled", "normal"],
+            "options": ["disabled", "normal", "prometheus-source-qualify"],
         }
     }
     assert workflow["concurrency"] == {
@@ -55,6 +61,50 @@ def test_build_workflow_keeps_only_ordinary_fail_closed_topology() -> None:
         "scripts/ci/_prometheus_derivative_transport.py",
     ):
         assert not (REPO_ROOT / retired_path).exists()
+    # These two manual, same-repository qualification sidecars cannot enter
+    # the retained ordinary build/security/publish dependency chain.
+    qualification_condition = (
+        "github.event_name == 'workflow_dispatch' && "
+        "inputs.mode == 'prometheus-source-qualify' && "
+        "github.repository == 'Katsiarynakavaleuskaya/PulsePlate'"
+    )
+    for name, permissions in (
+        ("prometheus-source-qualification", {"contents": "read"}),
+        ("prometheus-ghcr-package-qualification", {"contents": "read", "packages": "read"}),
+    ):
+        job = jobs[name]
+        assert " ".join(job["if"].split()) == qualification_condition
+        assert job["permissions"] == permissions
+        assert "needs" not in job
+        assert "environment" not in job
+        assert "continue-on-error" not in job
+        steps = job["steps"]
+        assert all("continue-on-error" not in step for step in steps)
+        checkout = [
+            step for step in steps if str(step.get("uses", "")).startswith("actions/checkout@")
+        ]
+        assert len(checkout) == 1
+        assert checkout[0]["with"] == {"persist-credentials": False, "ref": "${{ github.sha }}"}
+        assert "if [[ \"$GITHUB_RUN_ATTEMPT\" != '1' ]]; then" in steps[0]["run"]
+        assert "scripts.ci.prometheus_source_image" in str(steps)
+        for forbidden in (
+            "docker/login-action",
+            "docker/build-push-action",
+            "packages: write",
+            "--push",
+        ):
+            assert forbidden not in str(job)
+    source_steps = jobs["prometheus-source-qualification"]["steps"]
+    assert "secrets." not in str(source_steps)
+    package_steps = jobs["prometheus-ghcr-package-qualification"]["steps"]
+    package = next(step for step in package_steps if step.get("id") == "package")
+    assert package["env"] == {"GH_TOKEN": "${{ secrets.GITHUB_TOKEN }}"}
+    assert "--qualify-existing-ghcr-package" in package["run"]
+    upload = package_steps[-1]
+    assert upload["if"] == "${{ success() && steps.package.outputs.qualified == 'true' }}"
+    assert upload["with"]["path"] == (
+        "${{ runner.temp }}/ghcr-public-${{ github.run_id }}-${{ github.run_attempt }}/qualification.json"
+    )
     listener = (REPO_ROOT / ".github/workflows/cd-test.yml").read_text()
     assert "github.event.workflow_run.event == 'push'" in listener
 

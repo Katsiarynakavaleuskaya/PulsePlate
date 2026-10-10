@@ -24,6 +24,13 @@ def isolated_credentials(monkeypatch: pytest.MonkeyPatch) -> None:
     for name in (
         "GH_TOKEN",
         "GITHUB_TOKEN",
+        "GH_ENTERPRISE_TOKEN",
+        "GITHUB_ENTERPRISE_TOKEN",
+        "GH_CONFIG_DIR",
+        "GH_HOST",
+        "GH_DEBUG",
+        "GIT_TRACE",
+        "GIT_CURL_VERBOSE",
         "DEVPI_CI_USER",
         "DEVPI_CI_PASSWORD",
         "PULSEPLATE_PYTHON_INDEX_URL",
@@ -761,3 +768,501 @@ def test_main_prefetch_uses_no_explicit_module_args_and_rejects_lock_drift(
     )
     if changed_lock:
         assert (work / "source" / changed_lock).read_bytes() == b"unexpected native lock mutation\n"
+
+
+def ghcr_synthetic_responses() -> tuple[dict[str, Any], dict[str, Any]]:
+    """Synthetic fields; delimiter shape matches host observation f1459cf, not hosted parity."""
+    repository = {
+        "id": 123,
+        "full_name": source.GHCR_REPOSITORY,
+        "owner": {"id": 456, "login": source.GHCR_OWNER},
+    }
+    package = {
+        "id": 789,
+        "name": "pulseplate",
+        "package_type": "container",
+        "visibility": "public",
+        "owner": {"id": 456, "login": source.GHCR_OWNER},
+        "repository": {"id": 123, "full_name": source.GHCR_REPOSITORY},
+    }
+    return repository, package
+
+
+def ghcr_synthetic_HTTP(value: Any) -> bytes:
+    return b"HTTP/2.0 200 OK\nContent-Type: application/json\r\n\r\n" + json.dumps(value).encode()
+
+
+def test_ghcr_typed_projection_does_not_copy_unused_fields() -> None:
+    repository, package = ghcr_synthetic_responses()
+    repository["description"] = "synthetic private unused field"
+    package["url"] = "https://synthetic.invalid/unused"
+    projection = source.ghcr_identity(repository, package)
+    assert projection == {
+        "repository": {"id": 123, "full_name": source.GHCR_REPOSITORY},
+        "owner": {"id": 456, "login": source.GHCR_OWNER},
+        "package": {
+            "id": 789,
+            "name": "pulseplate",
+            "package_type": "container",
+            "visibility": "public",
+            "source_repository_id": 123,
+        },
+    }
+    assert source.ghcr_response(ghcr_synthetic_HTTP(repository)) == (200, repository)
+    assert "synthetic" not in json.dumps(projection)
+
+
+@pytest.mark.parametrize("value", [True, False, 0, -1, "123", None, 1.25])
+@pytest.mark.parametrize(
+    "location", ["repository", "owner", "package", "package_owner", "linked_repository"]
+)
+def test_ghcr_IDs_are_positive_JSON_integers(value: Any, location: str) -> None:
+    repository, package = ghcr_synthetic_responses()
+    targets = {
+        "repository": repository,
+        "owner": repository["owner"],
+        "package": package,
+        "package_owner": package["owner"],
+        "linked_repository": package["repository"],
+    }
+    targets[location]["id"] = value
+    with pytest.raises(source.QualificationError, match="GHCR_positive_ID"):
+        source.ghcr_identity(repository, package)
+
+
+@pytest.mark.parametrize(
+    "location,field,value",
+    [
+        ("package", "visibility", "private"),
+        ("package", "package_type", "npm"),
+        ("package", "name", "pulseplate-other"),
+        ("package_owner", "id", 457),
+        ("linked_repository", "id", 124),
+        ("repository", "full_name", "other/PulsePlate"),
+        ("owner", "login", "Katsiarynakavaleuskayа"),
+    ],
+)
+def test_ghcr_cross_identity_and_public_conditions_fail_closed(
+    location: str, field: str, value: Any
+) -> None:
+    repository, package = ghcr_synthetic_responses()
+    targets = {
+        "repository": repository,
+        "owner": repository["owner"],
+        "package": package,
+        "package_owner": package["owner"],
+        "linked_repository": package["repository"],
+    }
+    targets[location][field] = value
+    with pytest.raises(source.QualificationError):
+        source.ghcr_identity(repository, package)
+
+
+@pytest.mark.parametrize("body", [b'{"id":1,"id":2}', b'{"id":NaN}', b"{}{}", b"[]", b"{", b""])
+def test_ghcr_requires_one_complete_unique_finite_JSON_object(body: bytes) -> None:
+    with pytest.raises((source.QualificationError, ValueError)):
+        source.ghcr_response(b"HTTP/2.0 200 OK\nContent-Type: application/json\r\n\r\n" + body)
+
+
+@pytest.mark.parametrize(
+    "raw,diagnostic",
+    [
+        (b"{}", "GHCR_HTTP_header"),
+        (
+            b"HTTP/2.0 403 Forbidden\nContent-Type: application/json\r\n\r\n{}",
+            "GHCR_HTTP_status_403",
+        ),
+        (b"HTTP/2.0 302 Found\nContent-Type: application/json\r\n\r\n{}", "GHCR_HTTP_status_302"),
+        (b"HTTP/2.0 200 OK\r\nContent-Type: application/json\r\n\r\n{}", "GHCR_HTTP_status"),
+        (b"HTTP/2.0 200 OK\n\nContent-Type: application/json\r\n\r\n{}", "GHCR_HTTP_header"),
+        (
+            b"HTTP/2.0 200 OK\nContent-Type: application/json\nX-Test: value\r\n\r\n{}",
+            "GHCR_HTTP_header",
+        ),
+        (
+            b"HTTP/2.0 200 OK\nContent-Type: application/json\rX-Test: value\r\n\r\n{}",
+            "GHCR_HTTP_header",
+        ),
+        (b"HTTP/2.0 200 OK\nContent-Type: application/json\r\n\n{}", "GHCR_HTTP_header"),
+        (
+            b"HTTP/2.0 200 OK trailing\x00\nContent-Type: application/json\r\n\r\n{}",
+            "GHCR_HTTP_status",
+        ),
+    ],
+)
+def test_ghcr_requires_observed_native_delimiters_and_success(raw: bytes, diagnostic: str) -> None:
+    with pytest.raises(source.QualificationError, match="^" + diagnostic + "$"):
+        source.ghcr_response(raw)
+
+
+def test_ghcr_host_observed_status_LF_and_strict_header_CRLF_shape() -> None:
+    repository, _ = ghcr_synthetic_responses()
+    status = bytes.fromhex("485454502f322e3020323030204f4b0a")
+    raw = (
+        status
+        + b"Content-Type: application/json\r\nX-Synthetic: unused\r\n\r\n"
+        + json.dumps(repository).encode()
+    )
+    assert source.ghcr_response(raw) == (200, repository)
+    # Only status/delimiter shape is native-observed; body/headers are synthetic.
+    with pytest.raises(source.QualificationError, match="GHCR_HTTP_header"):
+        source.ghcr_response(status + b"X-Synthetic: " + b"x" * 32768 + b"\r\n\r\n{}")
+
+
+def test_ghcr_mode_cannot_fall_through_to_source_qualify(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    called: list[str] = []
+    monkeypatch.setattr(source, "qualify", lambda *args: called.append("source"))
+    monkeypatch.setattr(
+        source, "qualify_existing_ghcr_package", lambda *args: called.append("GHCR")
+    )
+    monkeypatch.setattr(
+        source.sys,
+        "argv",
+        [
+            "qualifier",
+            "--qualify-existing-ghcr-package",
+            "--public-output",
+            str(tmp_path / "public.json"),
+            "--work-dir",
+            str(tmp_path / "private"),
+            "--timeout-seconds",
+            "90",
+            "--cleanup-seconds",
+            "30",
+        ],
+    )
+    previous = {sig: signal.getsignal(sig) for sig in (signal.SIGINT, signal.SIGTERM)}
+    try:
+        assert source.main() == 0
+    finally:
+        for sig, handler in previous.items():
+            signal.signal(sig, handler)
+    assert called == ["GHCR"]
+
+
+@pytest.mark.parametrize("selector", [[], ["--qualify-existing-ghcr-package"]])
+def test_ghcr_mixed_flags_reject_before_auth(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, selector: list[str]
+) -> None:
+    monkeypatch.setattr(source, "qualify", lambda *args: pytest.fail("source operation"))
+    monkeypatch.setattr(
+        source,
+        "qualify_existing_ghcr_package",
+        lambda *args: pytest.fail("authenticated operation"),
+    )
+    args = [
+        "qualifier",
+        "--work-dir",
+        str(tmp_path / "private"),
+        "--timeout-seconds",
+        "90",
+        "--cleanup-seconds",
+        "30",
+        *selector,
+    ]
+    if not selector:
+        args += ["--public-output", str(tmp_path / "public.json")]
+    monkeypatch.setattr(source.sys, "argv", args)
+    with pytest.raises(SystemExit) as error:
+        source.main()
+    assert error.value.code == 2
+
+
+@pytest.mark.parametrize(
+    "mode",
+    [
+        "immediate_exit",
+        "auth_nonzero",
+        "API_nonzero",
+        "API_403",
+        "auth_reflection",
+        "header_reflection",
+        "unused_body_reflection",
+        "stderr_reflection",
+        "output_bound",
+        "deadline",
+        "cleanup_failure",
+        "owned_residual",
+        "owned_residual_exec_exit",
+    ],
+)
+def test_ghcr_fixed_native_capture_and_hygiene(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, mode: str
+) -> None:
+    """Real child pipes/processes, synthetic GH program; not an authenticated API proof."""
+    runner = tmp_path.resolve()
+    repository, package = ghcr_synthetic_responses()
+    trace = runner / "synthetic-command-trace.jsonl"
+    gh = runner / "synthetic-gh"
+    child_code = (
+        "import os,signal,time\nfrom pathlib import Path\n"
+        + "marker=Path("
+        + repr(str(trace.with_suffix(".child-signal")))
+        + ")\n"
+        + "ready=Path("
+        + repr(str(trace.with_suffix(".child-ready")))
+        + ")\n"
+        + "def terminate(signum, frame):\n marker.write_text('SIGTERM\\n')\n"
+        + (
+            " os.execv('/bin/sleep', ['/bin/sleep', '0.2'])\n"
+            if mode == "owned_residual_exec_exit"
+            else " raise SystemExit(128+signum)\n"
+        )
+        + "signal.signal(signal.SIGTERM, terminate)\nready.write_text('ready')\ntime.sleep(5)\n"
+    )
+    gh.write_text(
+        "#!"
+        + source.sys.executable
+        + "\n"
+        + "import os,sys,json,time,subprocess\nfrom pathlib import Path\n"
+        + "mode="
+        + repr(mode)
+        + "\nrepository="
+        + repr(repository)
+        + "\npackage="
+        + repr(package)
+        + "\n"
+        + "trace=Path("
+        + repr(str(trace))
+        + ")\n"
+        + "child_code="
+        + repr(child_code)
+        + "\n"
+        + "with trace.open('a') as output: output.write(json.dumps({'argv':sys.argv[1:],'environment_keys':sorted(os.environ)})+'\\n')\n"
+        + "token=os.environ['GH_TOKEN']\n"
+        + "if sys.argv[1:]==['auth','status','--hostname','github.com']:\n"
+        + " if mode in ('owned_residual','owned_residual_exec_exit'):\n"
+        + "  child=subprocess.Popen([sys.executable,'-c',child_code],stdin=subprocess.DEVNULL,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)\n"
+        + "  trace.with_suffix('.child-pid').write_text(str(child.pid))\n"
+        + "  ready=trace.with_suffix('.child-ready'); ready_deadline=time.monotonic()+1\n"
+        + "  while not ready.exists():\n"
+        + "   assert time.monotonic()<ready_deadline\n"
+        + "   time.sleep(0.01)\n"
+        + "  time.sleep(0.5)\n"
+        + " if mode=='deadline': time.sleep(3)\n"
+        + " if mode=='output_bound': sys.stdout.write('x'*(1024**2+1))\n"
+        + " elif mode=='auth_reflection': sys.stdout.write(token)\n"
+        + " else: sys.stdout.write('synthetic auth status')\n"
+        + " sys.exit(1 if mode=='auth_nonzero' else 0)\n"
+        + "assert sys.argv[1:9]==['api','--hostname','github.com','--method','GET','--include','-H','Accept:application/vnd.github+json']\n"
+        + "endpoint=sys.argv[9]\nvalue=repository if endpoint=='/repos/Katsiarynakavaleuskaya/PulsePlate' else package\n"
+        + "if mode=='unused_body_reflection': value['unused']=token\n"
+        + "header='HTTP/2.0 200 OK\\nContent-Type: application/json\\r\\n'\n"
+        + "if mode=='header_reflection': header+='X-Synthetic: '+token+'\\r\\n'\n"
+        + "if mode=='API_403': header='HTTP/2.0 403 Forbidden\\nContent-Type: application/json\\r\\n'; value={'message':'synthetic forbidden'}\n"
+        + "sys.stdout.write(header+'\\r\\n'+json.dumps(value))\n"
+        + "if mode=='stderr_reflection': sys.stderr.write(token)\n"
+        + "if mode=='cleanup_failure': (Path.cwd()/'home'/'unexpected').write_text('synthetic empty-state violation')\n"
+        + "sys.exit(1 if mode in ('API_nonzero','API_403') else 0)\n"
+    )
+    gh.chmod(0o700)
+    monkeypatch.setattr(source, "INTERRUPTIONS", [])
+    credential = "synthetic.opaque.step.credential.without.length.assumptions"
+    for key, value in {
+        "GITHUB_ACTIONS": "true",
+        "RUNNER_OS": "Linux",
+        "GITHUB_REPOSITORY": source.GHCR_REPOSITORY,
+        "GITHUB_JOB": "prometheus-ghcr-package-qualification",
+        "GITHUB_RUN_ID": "123",
+        "GITHUB_RUN_ATTEMPT": "1",
+        "GITHUB_SHA": "a" * 40,
+        "RUNNER_TEMP": str(runner),
+        "GH_TOKEN": credential,
+    }.items():
+        monkeypatch.setenv(key, value)
+    monkeypatch.setattr(source.shutil, "which", lambda name: str(gh) if name == "gh" else None)
+    monkeypatch.setattr(
+        source.Native, "run", lambda *args, **kwargs: pytest.fail("credential-bearing Native.run")
+    )
+    work, public = (
+        runner / "ghcr-private-123-1",
+        runner / "ghcr-public-123-1" / "qualification.json",
+    )
+    real_popen = source.subprocess.Popen
+    declared_environment_keys: list[set[str]] = []
+    declared_commands: list[list[str]] = []
+
+    def observe_environment(argv: list[str], *args: Any, **kwargs: Any) -> Any:
+        if argv and argv[0] == str(gh):
+            environment = kwargs["env"]
+            declared_environment_keys.append(set(environment))
+            declared_commands.append(argv[1:])
+            assert environment["GH_TOKEN"] == credential  # Explicit synthetic fixture only.
+            assert environment["HOME"] == str(work / "home")
+            assert environment["GH_CONFIG_DIR"] == str(work / "config")
+        return real_popen(argv, *args, **kwargs)
+
+    monkeypatch.setattr(source.subprocess, "Popen", observe_environment)
+    if mode == "immediate_exit":
+        result = source.qualify_existing_ghcr_package(work, public, 8, 2)
+        assert result == json.loads(public.read_bytes()) and result["qualified"] is True
+        assert result["package"]["id"] == 789
+        assert credential.encode() not in public.read_bytes()
+    else:
+        errors = (source.QualificationError, TimeoutError)
+        if mode == "deadline":
+            errors += (source.subprocess.TimeoutExpired,)
+        with pytest.raises(errors) as failure:
+            source.qualify_existing_ghcr_package(work, public, 1 if mode == "deadline" else 8, 2)
+        assert not public.exists() and not public.parent.exists()
+        if mode == "deadline":
+            if isinstance(failure.value, source.subprocess.TimeoutExpired):
+                assert failure.value.cmd == [
+                    "/bin/ps",
+                    "-axo",
+                    "pid,ppid,pgid,uid,lstart,state,comm",
+                ]
+                assert 0 < failure.value.timeout <= 1
+            else:
+                assert isinstance(failure.value, source.QualificationError)
+                assert str(failure.value) == "qualification_deadline"
+        if mode == "API_403":
+            assert isinstance(failure.value, source.QualificationError)
+            assert str(failure.value) == "GHCR_native_exit_1_GHCR_HTTP_status_403"
+        if mode in {"owned_residual", "owned_residual_exec_exit"}:
+            assert isinstance(failure.value, source.QualificationError)
+            assert str(failure.value) == "GHCR_owned_group_survived"
+            assert trace.with_suffix(".child-signal").read_bytes() == b"SIGTERM\n"
+    assert trace.exists() or mode == "deadline"
+    commands = (
+        [json.loads(line) for line in trace.read_text().splitlines()] if trace.exists() else []
+    )
+    if mode == "deadline":
+        # A real deadline may kill the child before its first Python trace write.
+        assert len(commands) in {0, 1}
+        assert declared_commands in ([], [["auth", "status", "--hostname", "github.com"]])
+    else:
+        assert len(commands) == (
+            3
+            if mode in {"immediate_exit", "cleanup_failure"}
+            else (
+                2
+                if mode
+                in {
+                    "API_nonzero",
+                    "API_403",
+                    "header_reflection",
+                    "unused_body_reflection",
+                    "stderr_reflection",
+                }
+                else 1
+            )
+        )
+    if commands:
+        assert commands[0]["argv"] == ["auth", "status", "--hostname", "github.com"]
+    assert [command["argv"] for command in commands] == declared_commands[: len(commands)]
+    expected_environment_keys = {
+        "PATH",
+        "LANG",
+        "LC_ALL",
+        "GH_HOST",
+        "GH_TOKEN",
+        "GH_PROMPT_DISABLED",
+        "GH_PAGER",
+        "PAGER",
+        "GH_NO_UPDATE_NOTIFIER",
+        "GH_NO_EXTENSION_UPDATE_NOTIFIER",
+        "GH_TELEMETRY",
+        "DO_NOT_TRACK",
+        "HOME",
+        "GH_CONFIG_DIR",
+        "XDG_CONFIG_HOME",
+        "XDG_CACHE_HOME",
+        "TMPDIR",
+    }
+    assert len(declared_environment_keys) == len(declared_commands)
+    if mode != "deadline":
+        assert len(declared_commands) == len(commands)
+    assert all(keys == expected_environment_keys for keys in declared_environment_keys)
+    # The OS/runtime can inject non-selected metadata (observed macOS CF key).
+    # Check credential/config selectors in the real child without authorizing an OS-key allowlist.
+    selectors = {
+        "NETRC",
+        "HTTP_PROXY",
+        "HTTPS_PROXY",
+        "ALL_PROXY",
+        "http_proxy",
+        "https_proxy",
+        "all_proxy",
+        "DEBUG",
+        "GIT_TRACE",
+        "GIT_CURL_VERBOSE",
+        "PYTHONPATH",
+        "PYTHONHOME",
+        "LD_PRELOAD",
+        "DYLD_INSERT_LIBRARIES",
+        "BASH_ENV",
+        "ENV",
+        "SSH_ASKPASS",
+        "GIT_ASKPASS",
+    }
+    for command in commands:
+        selected = {
+            key
+            for key in command["environment_keys"]
+            if key.startswith(("GH_", "GITHUB_")) or key in selectors
+        }
+        assert selected == {key for key in expected_environment_keys if key.startswith("GH_")}
+    assert not any("GITHUB_TOKEN" in command["environment_keys"] for command in commands)
+    assert not work.exists() if mode != "cleanup_failure" else work.exists()
+    assert not list(runner.glob("**/*.stdout")) and not list(runner.glob("**/*.stderr"))
+    if mode in {"owned_residual", "owned_residual_exec_exit"}:
+        child_pid = int(trace.with_suffix(".child-pid").read_text())
+        with pytest.raises(ProcessLookupError):
+            source.os.kill(child_pid, 0)
+
+
+def test_GHCR_observation_job_has_only_read_permission_and_exact_public_artifact() -> None:
+    import yaml
+
+    workflow = yaml.safe_load(
+        (Path(__file__).resolve().parents[1] / ".github/workflows/build.yml").read_text()
+    )
+    job = workflow["jobs"]["prometheus-ghcr-package-qualification"]
+    assert (
+        job["if"]
+        == "github.event_name == 'workflow_dispatch' && inputs.mode == 'prometheus-source-qualify' && github.repository == 'Katsiarynakavaleuskaya/PulsePlate'"
+    )
+    assert job["permissions"] == {"contents": "read", "packages": "read"}
+    assert (
+        job["timeout-minutes"]
+        == "${{ fromJSON(vars.PROMETHEUS_GHCR_QUALIFICATION_TIMEOUT_MINUTES || '3') }}"
+    )
+    assert job["env"] == {
+        "PROMETHEUS_GHCR_QUALIFICATION_SECONDS": "90",
+        "PROMETHEUS_GHCR_CLEANUP_SECONDS": "30",
+    }
+    steps = job["steps"]
+    assert steps[1]["with"] == {"persist-credentials": False, "ref": "${{ github.sha }}"}
+    assert "\"$GITHUB_RUN_ATTEMPT\" != '1'" in steps[0]["run"]
+    assert [step.get("env") for step in steps if "env" in step] == [
+        {"GH_TOKEN": "${{ secrets.GITHUB_TOKEN }}"}
+    ]
+    observe, retain = steps[3], steps[4]
+    assert observe["id"] == "package" and "--qualify-existing-ghcr-package" in observe["run"]
+    assert '--timeout-seconds "$PROMETHEUS_GHCR_QUALIFICATION_SECONDS"' in observe["run"]
+    assert '--cleanup-seconds "$PROMETHEUS_GHCR_CLEANUP_SECONDS"' in observe["run"]
+    assert retain["if"] == "${{ success() && steps.package.outputs.qualified == 'true' }}"
+    assert (
+        retain["with"]["path"]
+        == "${{ runner.temp }}/ghcr-public-${{ github.run_id }}-${{ github.run_attempt }}/qualification.json"
+    )
+    assert retain["with"]["if-no-files-found"] == "error"
+    assert job["outputs"] == {"qualified": "${{ steps.package.outputs.qualified }}"}
+    serialized = json.dumps(job)
+    for forbidden in (
+        "packages: write",
+        "docker login",
+        "docker build",
+        "go build",
+        "GHCR_READ_TOKEN",
+        "DHI",
+        "GITHUB_ENV",
+        "always()",
+        "*.stdout",
+        "*.stderr",
+    ):
+        assert forbidden not in serialized
+    # Real heavy jobs are absent at this stage; this test makes no heavy dependency claim.

@@ -923,3 +923,61 @@ jobs:
           path: ${{ runner.temp }}/prometheus-source-${{ github.run_id }}-${{ github.run_attempt }}/evidence/
           if-no-files-found: error
           retention-days: 30
+
+  prometheus-ghcr-package-qualification:
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      inputs.mode == 'prometheus-source-qualify' &&
+      github.repository == 'Katsiarynakavaleuskaya/PulsePlate'
+    runs-on: ubuntu-24.04
+    timeout-minutes: ${{ fromJSON(vars.PROMETHEUS_GHCR_QUALIFICATION_TIMEOUT_MINUTES || '3') }}
+    permissions:
+      contents: read
+      packages: read
+    env:
+      PROMETHEUS_GHCR_QUALIFICATION_SECONDS: '90'
+      PROMETHEUS_GHCR_CLEANUP_SECONDS: '30'
+    outputs:
+      qualified: ${{ steps.package.outputs.qualified }}
+    steps:
+      - name: Require first explicit package observation
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$GITHUB_RUN_ATTEMPT" != '1' ]]; then
+            echo '::error::Package qualification reruns require a new reviewed dispatch.'
+            exit 1
+          fi
+      - name: Checkout fixed qualification source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: ${{ github.sha }}
+      - name: Set up package qualification Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: '3.13.14'
+      - name: Observe existing package identity only
+        id: package
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          : "${RUNNER_TEMP:?RUNNER_TEMP is required}"
+          python_bin="$(command -v python)"
+          "$python_bin" -m scripts.ci.prometheus_source_image \
+            --qualify-existing-ghcr-package \
+            --work-dir "$RUNNER_TEMP/ghcr-private-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" \
+            --public-output "$RUNNER_TEMP/ghcr-public-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT/qualification.json" \
+            --timeout-seconds "$PROMETHEUS_GHCR_QUALIFICATION_SECONDS" \
+            --cleanup-seconds "$PROMETHEUS_GHCR_CLEANUP_SECONDS"
+          printf 'qualified=true\n' >> "$GITHUB_OUTPUT"
+      - name: Retain exact validated package observation
+        if: ${{ success() && steps.package.outputs.qualified == 'true' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1 / Node 24
+        with:
+          name: prometheus-ghcr-package-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/ghcr-public-${{ github.run_id }}-${{ github.run_attempt }}/qualification.json
+          if-no-files-found: error
+          retention-days: 30

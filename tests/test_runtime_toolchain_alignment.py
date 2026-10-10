@@ -51,6 +51,8 @@ SEPARATELY_GOVERNED_PYTHON_SETUP_WORKFLOWS = frozenset(
     }
 )
 EXPECTED_AUXILIARY_PYTHON_SETUP_OWNERS = (
+    (".github/workflows/build.yml", "prometheus-source-qualification"),
+    (".github/workflows/build.yml", "prometheus-ghcr-package-qualification"),
     (".github/workflows/build-equivalence-evidence.yml", "publish-build-equivalence-evidence"),
     (".github/workflows/cd.yml", "postgres-pgvector-ci-admission"),
     (".github/workflows/cd.yml", "obs2a-checkpoint-native"),
