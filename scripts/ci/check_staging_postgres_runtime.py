@@ -128,6 +128,7 @@ def render_contract(root: Path, manifest: dict[str, Any]) -> dict[str, Any]:
         "POSTGRES_DB": DATABASE,
         "STAGING_IMAGE_REF": manifest["runtime_ref"],
         "STAGING_CADDY_IMAGE_REF": manifest["runtime_ref"],
+        "PROMETHEUS_RUNTIME_REF": manifest["runtime_ref"],
         "STAGING_DOMAIN": "localhost",
         "STAGING_ENV_FILE": "/dev/null",
     }

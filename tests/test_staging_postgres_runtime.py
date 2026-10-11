@@ -465,11 +465,13 @@ def test_render_uses_native_compose_with_synthetic_variables_and_real_source_ass
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     rendered, manifest = selected_fixture()
+    monkeypatch.setenv("PROMETHEUS_RUNTIME_REF", "parent-conflicting-prometheus-ref")
 
     def native(args: list[str], **kwargs: Any) -> subprocess.CompletedProcess[bytes]:
         assert "compose" in args and "--no-env-resolution" in args
         assert kwargs["environment"]["POSTGRES_USER"] == runtime.USER
         assert kwargs["environment"]["STAGING_ENV_FILE"] == "/dev/null"
+        assert kwargs["environment"]["PROMETHEUS_RUNTIME_REF"] == manifest["runtime_ref"]
         return subprocess.CompletedProcess(args, 0, json.dumps(rendered).encode(), b"")
 
     monkeypatch.setattr(runtime, "native", native)

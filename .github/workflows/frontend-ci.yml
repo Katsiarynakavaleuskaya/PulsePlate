@@ -645,7 +645,6 @@ jobs:
               owned.append(vendor_name)
               vendor_script = '''set -eu
           /sbin/apk --version > /output/apk-version.txt
-          /sbin/apk verify --help > /output/apk-verify-help.txt 2>&1
           cp /etc/apk/repositories /output/compiler-repositories.txt
           mkdir /output/keys
           cp /etc/apk/keys/* /output/keys/

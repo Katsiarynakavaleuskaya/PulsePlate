@@ -1207,7 +1207,6 @@ jobs:
       - name: Bind genuine SDK origin, image and exported payload bytes
         id: sdk-origin
         env:
-          SDK_IMAGE_ID: ${{ steps.sdk-build.outputs.imageid }}
           SDK_BUILD_METADATA: ${{ steps.sdk-build.outputs.metadata }}
         run: |
           set -euo pipefail
@@ -1254,8 +1253,12 @@ jobs:
                   raise SystemExit("SDK native origin operation failed: " + name)
               return result.stdout
 
+          build_metadata = json.loads(os.environ["SDK_BUILD_METADATA"])
+          config_digest = build_metadata.get("containerimage.config.digest") if type(build_metadata) is dict else None
+          if type(config_digest) is not str or re.fullmatch(r"sha256:[0-9a-f]{64}", config_digest) is None:
+              raise SystemExit("SDK build metadata config digest missing or malformed")
           inspected = json.loads(run([docker, "image", "inspect", "pulseplate-sdk:arm-cp313"], "sdk-image"))
-          if len(inspected) != 1 or (inspected[0]["Id"], inspected[0]["Os"], inspected[0]["Architecture"]) != (os.environ["SDK_IMAGE_ID"], "linux", "arm64"):
+          if len(inspected) != 1 or (inspected[0]["Id"], inspected[0]["Os"], inspected[0]["Architecture"]) != (config_digest, "linux", "arm64"):
               raise SystemExit("SDK image/config/platform mismatch")
           name = "pp-sdk-export-" + os.environ["GITHUB_RUN_ID"]
           owner = "io.pulseplate.sdk-export=" + os.environ["GITHUB_RUN_ID"]
@@ -1316,7 +1319,7 @@ jobs:
           record = {"repository_id": 1043311030, "source_head": run([git, "rev-parse", "HEAD"], "sdk-source-head").decode().strip(),
                     "source_ref": os.environ["GITHUB_REF"], "run_id": int(os.environ["GITHUB_RUN_ID"]), "run_attempt": 1,
                     "source_image": target.source_image, "source_image_native": source_image[0], "target": target.__dict__, "native_image": inspected[0],
-                    "build_metadata": json.loads(os.environ["SDK_BUILD_METADATA"]), "source_files": source_files,
+                    "build_metadata": build_metadata, "source_files": source_files,
                     "export_members": inventory, "stock_python": sys.version, "kernel_machine": platform.machine(),
                     "claim": "Genuine hosted producer/export and static consistency only. External clean supporting-tool-root admission, UBI secret-free quarantine/offline consumption/final COPY and immutable Apple Oracle remain separate; no trust authority from these hashes."}
           (area / "sdk-origin.json").write_text(json.dumps(record, sort_keys=True, indent=2) + "\n")

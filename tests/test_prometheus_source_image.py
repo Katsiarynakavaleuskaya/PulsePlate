@@ -1904,13 +1904,40 @@ def test_github_fixed_native_capture_and_hygiene(
     evidence.mkdir()
     private = runner / "private"
     adapter = source.GitHubRead.__new__(source.GitHubRead)
+    deadline_witnesses: list[tuple[float, float, int, tuple[int, ...]]] = []
+    if mode == "owned_held_pipes":
+        real_owned_members = source.owned_members
+
+        def observe_ready_members(
+            process: Any,
+            seen: dict[int, tuple[Any, ...]],
+            cap: float,
+            known: tuple[bytes, ...],
+        ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+            members = real_owned_members(process, seen, cap, known)
+            if (
+                not source.CLEANING
+                and process is adapter.process
+                and not deadline_witnesses
+                and trace.with_suffix(".child-ready").exists()
+                and trace.with_suffix(".child-pid").exists()
+            ):
+                child_pid = int(trace.with_suffix(".child-pid").read_text())
+                active_pids = tuple(row["pid"] for row in members[1])
+                if child_pid in active_pids:
+                    previous = adapter.deadline
+                    adapter.deadline = min(previous, source.time.monotonic() + 1)
+                    deadline_witnesses.append((previous, adapter.deadline, child_pid, active_pids))
+            return members
+
+        monkeypatch.setattr(source, "owned_members", observe_ready_members)
 
     def observe() -> None:
         source.GitHubRead.__init__(
             adapter,
             private,
             evidence,
-            source.time.monotonic() + (1 if mode in {"deadline", "owned_held_pipes"} else 8),
+            source.time.monotonic() + (1 if mode == "deadline" else 8),
             2,
         )
         adapter.json("/repos/" + source.GHCR_REPOSITORY)
@@ -1941,6 +1968,11 @@ def test_github_fixed_native_capture_and_hygiene(
         if mode in {"owned_residual", "owned_residual_exec_exit", "owned_held_pipes"}:
             assert trace.with_suffix(".child-signal").read_bytes() == b"SIGTERM\n"
             child = int(trace.with_suffix(".child-pid").read_text())
+            if mode == "owned_held_pipes":
+                assert len(deadline_witnesses) == 1
+                previous, tightened, witnessed_child, active_pids = deadline_witnesses[0]
+                assert tightened <= previous
+                assert witnessed_child == child and child in active_pids
             with pytest.raises(ProcessLookupError):
                 source.os.kill(child, 0)
         assert private.exists() is (mode == "cleanup_failure")
@@ -1988,26 +2020,32 @@ def test_github_fixed_native_capture_retains_private_on_identity_uncertainty(
                 row["uid"] += 1
         return rows
 
-    with monkeypatch.context() as context:
-        context.setattr(source.subprocess, "Popen", start)
-        context.setattr(source, "process_census", uncertain)
-        context.setattr(source.os, "killpg", lambda *args: pytest.fail("uncertain identity signal"))
-        with pytest.raises(source.QualificationError) as failure:
-            source.GitHubRead(private, evidence, source.time.monotonic() + 8, 2)
-        assert str(failure.value) == (
-            "GHCR_process_census"
-            if uncertainty == "census_failure"
-            else "GHCR_unknown_or_reused_group_member"
-        )
-        assert private.is_dir()
-    # The fixture's exact own child expires naturally; no uncertainty-based signal.
-    for child in children:
-        child.wait(timeout=5)
-        assert not any(
-            row["pgid"] == child.pid
-            for row in real_census(source.time.monotonic() + 1, ()).values()
-        )
-    assert "GitHub cleanup also failed:" in capsys.readouterr().err
+    try:
+        with monkeypatch.context() as context:
+            context.setattr(source.subprocess, "Popen", start)
+            context.setattr(source, "process_census", uncertain)
+            context.setattr(
+                source.os, "killpg", lambda *args: pytest.fail("uncertain identity signal")
+            )
+            with pytest.raises(source.QualificationError) as failure:
+                source.GitHubRead(private, evidence, source.time.monotonic() + 8, 2)
+            assert str(failure.value) == (
+                "GHCR_process_census"
+                if uncertainty == "census_failure"
+                else "GHCR_unknown_or_reused_group_member"
+            )
+            assert private.is_dir()
+        assert "GitHub cleanup also failed:" in capsys.readouterr().err
+    finally:
+        # Fixture-owned cleanup begins after the production context has been restored.
+        for child in children:
+            if child.poll() is None:
+                child.terminate()
+            child.wait(timeout=5)
+            assert not any(
+                row["pgid"] == child.pid
+                for row in real_census(source.time.monotonic() + 1, ()).values()
+            )
 
 
 def test_github_fixed_native_capture_drains_output_while_writing_opaque_stdin(

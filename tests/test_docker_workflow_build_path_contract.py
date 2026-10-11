@@ -126,7 +126,9 @@ def test_finite_arm_sdk_origin_is_manual_canonical_static_and_not_tool_trust() -
         < _step_index(job, "Remove acquisition credentials before static SDK validation")
         < _step_index(job, name)
     )
-    run = _step_by_name(job, name)["run"]
+    origin = _step_by_name(job, name)
+    assert origin["env"] == {"SDK_BUILD_METADATA": "${{ steps.sdk-build.outputs.metadata }}"}
+    run = origin["run"]
     assert 'read_psycopg_c_sdk(sdk / "psycopg-sdk", native_root=sdk)' in run
     assert "SDK image and local exporter bytes differ" in run
     assert "External clean supporting-tool-root admission" in run
@@ -134,6 +136,66 @@ def test_finite_arm_sdk_origin_is_manual_canonical_static_and_not_tool_trust() -
     assert '"--entrypoint", "/not-executed", image_id' in run
     python_source = run.split("python3 - <<'PY'\n", 1)[1].split("\nPY\n", 1)[0]
     ast.parse(python_source)
+    assert python_source.count('json.loads(os.environ["SDK_BUILD_METADATA"])') == 1
+    assert '"build_metadata": build_metadata' in python_source
+    start = python_source.index('build_metadata = json.loads(os.environ["SDK_BUILD_METADATA"])')
+    binding = python_source[start : python_source.index('name = "pp-sdk-export-', start)]
+    child_source = (
+        "import json, os, re\n"
+        'docker = "/qualified/docker"\n'
+        "def run(argv: list[str], name: str) -> bytes:\n"
+        '    assert argv == [docker, "image", "inspect", "pulseplate-sdk:arm-cp313"]\n'
+        '    assert name == "sdk-image"\n'
+        '    return os.environ["NATIVE_SDK_INSPECT"].encode()\n'
+        + binding
+        + '\nprint("SDK binding complete")\n'
+    )
+    config = "sha256:" + "a" * 64
+    manifest = "sha256:" + "b" * 64
+    metadata: dict[str, object] = {
+        "containerimage.config.digest": config,
+        "containerimage.digest": manifest,
+    }
+    inspected = [{"Id": config, "Os": "linux", "Architecture": "arm64"}]
+    cases: list[tuple[dict[str, object], list[dict[str, str]], str | None]] = [
+        (metadata, inspected, None),
+        (
+            {"containerimage.digest": manifest},
+            inspected,
+            "SDK build metadata config digest missing or malformed",
+        ),
+        (
+            metadata,
+            [{**inspected[0], "Id": manifest}],
+            "SDK image/config/platform mismatch",
+        ),
+    ]
+    cases.extend(
+        (
+            {**metadata, "containerimage.config.digest": malformed},
+            inspected,
+            "SDK build metadata config digest missing or malformed",
+        )
+        for malformed in (None, "", "sha256:" + "a" * 63, "sha256:" + "A" * 64, 42)
+    )
+    for current_metadata, current_inspected, expected_error in cases:
+        result = subprocess.run(
+            [sys.executable, "-I", "-S", "-c", child_source],
+            env={
+                "SDK_IMAGE_ID": "",
+                "SDK_BUILD_METADATA": json.dumps(current_metadata),
+                "NATIVE_SDK_INSPECT": json.dumps(current_inspected),
+            },
+            capture_output=True,
+            timeout=10,
+            check=False,
+        )
+        if expected_error is None:
+            assert result.returncode == 0, result.stderr
+            assert result.stdout == b"SDK binding complete\n"
+        else:
+            assert result.returncode != 0
+            assert result.stderr.decode().strip() == expected_error
 
 
 def _load_workflow(path: Path) -> dict[str, object]:

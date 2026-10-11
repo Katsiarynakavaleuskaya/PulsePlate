@@ -3634,7 +3634,7 @@ class GitHubRead:
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             start_new_session=True,
-        )  # nosec B603 # fixed absolute authenticated gh/native argv; bounded memory and stdin, secret reflection checked before retention (remove-by: 2026-10-28, ref: PR-2477)
+        )  # nosec B603: fixed absolute authenticated gh/native argv; bounded memory and stdin, secret reflection checked before retention (remove-by: 2026-10-28, ref: PR-2477)
         self.process = process
         streams = [bytearray(), bytearray()]
         primary: BaseException | None = None

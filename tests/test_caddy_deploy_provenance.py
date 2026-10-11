@@ -2727,6 +2727,20 @@ def test_caddy_counterfactual_metadata_owns_no_compiler_or_final_recipe_mutation
     assert "C_R_candidate" in source and "pending independent source/security review" in source
     assert "Counterfactual recipe baselines" in source
     assert "zlib=1.3.2-r1" in source and "apk verify /output/zlib-1.3.2-r1.apk" in source
+    vendor = source.split("vendor_script = '''", 1)[1].split("'''", 1)[0]
+    assert "apk verify --help" not in vendor
+    commands = [line.strip() for line in vendor.splitlines() if line.strip()]
+    assert commands == [
+        "set -eu",
+        "/sbin/apk --version > /output/apk-version.txt",
+        "cp /etc/apk/repositories /output/compiler-repositories.txt",
+        "mkdir /output/keys",
+        "cp /etc/apk/keys/* /output/keys/",
+        "wget -q -O /output/APKINDEX.tar.gz https://dl-cdn.alpinelinux.org/alpine/v3.23/main/x86_64/APKINDEX.tar.gz",
+        "/sbin/apk verify /output/APKINDEX.tar.gz > /output/index-signature.txt",
+        "/sbin/apk fetch --no-cache --repository https://dl-cdn.alpinelinux.org/alpine/v3.23/main --output /output zlib=1.3.2-r1",
+        "/sbin/apk verify /output/zlib-1.3.2-r1.apk > /output/package-signature.txt",
+    ]
     # Selection follows actual hosted replay; preparation cannot silently add the fourth get.
     recipe = DOCKERFILE.read_text()
     assert "go get golang.org/x/net@v0.60.0" not in recipe
