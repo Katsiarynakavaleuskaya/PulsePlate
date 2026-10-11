@@ -650,7 +650,7 @@ jobs:
           cp /etc/apk/keys/* /output/keys/
           wget -q -O /output/APKINDEX.tar.gz https://dl-cdn.alpinelinux.org/alpine/v3.23/main/x86_64/APKINDEX.tar.gz
           /sbin/apk verify /output/APKINDEX.tar.gz > /output/index-signature.txt
-          /sbin/apk fetch --no-cache --repository https://dl-cdn.alpinelinux.org/alpine/v3.23/main --output /output zlib=1.3.2-r1
+          /sbin/apk fetch --no-cache --repository https://dl-cdn.alpinelinux.org/alpine/v3.23/main --match package --output /output zlib-1.3.2-r1
           /sbin/apk verify /output/zlib-1.3.2-r1.apk > /output/package-signature.txt
           '''
               native.run([docker, "--config", str(config), "create", "--pull", "never", "--name", vendor_name,
