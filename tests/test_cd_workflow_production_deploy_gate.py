@@ -504,6 +504,95 @@ def test_cd_has_no_prometheus_candidate_publication_carrier() -> None:
         assert rejected_carrier not in workflow_text
 
 
+def test_prometheus_cd_registry_credential_route_preserves_base_execution_boundary() -> None:
+    workflow = yaml.safe_load(CD_WORKFLOW_PATH.read_text(encoding="utf-8"))
+    job = workflow["jobs"]["prometheus-image-security"]
+    ordered = job["steps"]
+    steps = {step["name"]: step for step in ordered}
+    names = [step["name"] for step in ordered]
+    initial = steps["Checkout immutable Prometheus contracts"]
+    assert initial["with"] == {
+        "persist-credentials": False,
+        "fetch-depth": 0,
+        "ref": "${{ steps.prometheus-event.outputs.checkout_ref }}",
+    }
+    event = steps["Validate exact Prometheus checkout revisions"]
+    assert "secrets." not in str(event)
+    assert 'head, base = sha(pr["head"].get("sha")), sha(pr["base"].get("sha"))' in event["run"]
+    assert 'output.write("checkout_ref=" + base' in event["run"]
+    route = steps["Classify the fixed regular Prometheus manifest blobs"]
+    assert route["id"] == "prometheus-route" and "secrets." not in str(route)
+    assert '"--no-replace-objects"' in route["run"]
+    assert '"GIT_CONFIG_NOSYSTEM": "1"' in route["run"]
+    assert '"GIT_CONFIG_GLOBAL": "/dev/null"' in route["run"]
+    assert 'fields[:2] == [b"100644", b"blob"]' in route["run"]
+    assert "if manifest(base) == manifest(head):" in route["run"]
+    assert 'regular_blob(base, "scripts/ci/prometheus_source_image.py")' in route["run"]
+    assert 'elif os.environ["GITHUB_EVENT_NAME"] in ("push", "schedule"):' in route["run"]
+    consumer = steps["Admit retained PR candidate or published immutable subject"]
+    assert consumer["id"] == "prometheus-image"
+    assert (
+        consumer["env"]["GHCR_READ_TOKEN"]
+        == "${{ (steps.prometheus-route.outputs.mode == 'unchanged_pr_published' || steps.prometheus-route.outputs.mode == 'trusted_published') && secrets.GHCR_READ_TOKEN || '' }}"
+    )
+    assert 'changed_pr_candidate) test -z "${GHCR_READ_TOKEN:-}"' in consumer["run"]
+    assert '*) echo "Prometheus credential route HOLD" >&2; exit 1' in consumer["run"]
+    assert "scripts.ci.prometheus_source_image --operation consume" in consumer["run"]
+    for name, mode in (
+        ("Checkout exact changed PR Prometheus contracts", "changed_pr_candidate"),
+        ("Checkout exact unchanged PR contracts after trusted cleanup", "unchanged_pr_published"),
+    ):
+        step = steps[name]
+        assert (
+            step["if"]
+            == "${{ success() && steps.prometheus-route.outputs.mode == '" + mode + "' }}"
+        )
+        assert step["with"] == {
+            "persist-credentials": False,
+            "fetch-depth": 0,
+            "ref": "${{ steps.prometheus-route.outputs.head }}",
+        }
+    capability = steps["Require the trusted base published consumer capability"]
+    handoff = steps["Bind the unchanged PR admission after trusted cleanup"]
+    assert (
+        capability["if"]
+        == handoff["if"]
+        == "${{ success() && steps.prometheus-route.outputs.mode == 'unchanged_pr_published' }}"
+    )
+    assert "--operation read-manifest --field selection" in capability["run"]
+    assert "secrets." not in str(capability) + str(handoff)
+    assert 'admission.get("mode") != "unchanged_published"' in handoff["run"]
+    assert 'admission.get("head") != os.environ["PROMETHEUS_EVENT_HEAD"]' in handoff["run"]
+    assert (
+        'admission.get("publisher_head") != os.environ["PROMETHEUS_EVENT_BASE"]' in handoff["run"]
+    )
+    assert [
+        names.index(name)
+        for name in (
+            event["name"],
+            initial["name"],
+            route["name"],
+            capability["name"],
+            consumer["name"],
+            handoff["name"],
+            "Checkout exact unchanged PR contracts after trusted cleanup",
+            "Check canonical Prometheus config with exact-image promtool",
+        )
+    ] == sorted(
+        names.index(name)
+        for name in (
+            event["name"],
+            initial["name"],
+            route["name"],
+            capability["name"],
+            consumer["name"],
+            handoff["name"],
+            "Checkout exact unchanged PR contracts after trusted cleanup",
+            "Check canonical Prometheus config with exact-image promtool",
+        )
+    )
+
+
 def test_prometheus_security_smoke_reuses_canonical_native_parser() -> None:
     workflow = yaml.safe_load(CD_WORKFLOW_PATH.read_text(encoding="utf-8"))
     jobs = workflow.get("jobs")

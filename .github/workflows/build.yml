@@ -547,9 +547,9 @@ jobs:
 
       # PAT may be present but expired/revoked; anonymous pull still works for public trivy-db.
       - name: Log in to GHCR (Trivy DB)
-        if: ${{ env.GHCR_READ_TOKEN_AVAILABLE == 'true' }}
+        if: ${{ github.event_name != 'pull_request' && env.GHCR_READ_TOKEN_AVAILABLE == 'true' }}
         env:
-          GHCR_READ_TOKEN: ${{ secrets.GHCR_READ_TOKEN }}
+          GHCR_READ_TOKEN: ${{ github.event_name != 'pull_request' && secrets.GHCR_READ_TOKEN || '' }}
         run: |
           set -euo pipefail
           if ! echo "$GHCR_READ_TOKEN" | docker login ghcr.io -u "${{ github.repository_owner }}" --password-stdin

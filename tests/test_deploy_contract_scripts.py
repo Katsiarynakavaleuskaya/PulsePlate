@@ -18,6 +18,10 @@ import pytest
 import yaml
 
 from scripts.ci import prometheus_source_image as prometheus_source
+from scripts.orchestration.creative_code_patch_workspace import (
+    git_env_without_parent_state,
+    safe_git_config_args,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 CD_WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "cd.yml"
@@ -3858,7 +3862,8 @@ def test_prometheus_cd_uses_authenticated_finite_consumer_and_retains_strict_sca
     assert consumer["env"] == {
         "GH_TOKEN": "${{ secrets.GITHUB_TOKEN }}",
         "GITHUB_TOKEN": "${{ secrets.GITHUB_TOKEN }}",
-        "GHCR_READ_TOKEN": "${{ secrets.GHCR_READ_TOKEN }}",
+        "GHCR_READ_TOKEN": "${{ (steps.prometheus-route.outputs.mode == 'unchanged_pr_published' || steps.prometheus-route.outputs.mode == 'trusted_published') && secrets.GHCR_READ_TOKEN || '' }}",
+        "PROMETHEUS_CREDENTIAL_ROUTE": "${{ steps.prometheus-route.outputs.mode }}",
     }
     assert not any(
         step.get("uses", "").startswith("docker/login-action@")
@@ -3881,6 +3886,425 @@ def test_prometheus_cd_uses_authenticated_finite_consumer_and_retains_strict_sca
             assert "GHCR_READ_TOKEN" not in step.get("env", {})
             assert "GITHUB_TOKEN" not in step.get("env", {})
             assert "DOCKER_CONFIG" not in step.get("env", {})
+
+
+def _prometheus_cd_python(step: dict[str, object]) -> str:
+    run = str(step["run"])
+    return run.split("<<'PY'\n", 1)[1].split("\nPY", 1)[0]
+
+
+def _prometheus_cd_route_fixture(tmp_path: Path, variant: str) -> tuple[Path, dict[str, str]]:
+    repository = tmp_path / "repository"
+    repository.mkdir()
+    environment = git_env_without_parent_state()
+    environment.update(
+        {
+            "PATH": str(Path(sys.executable).parent) + os.pathsep + os.defpath,
+            "HOME": str(tmp_path),
+            "LANG": "C",
+            "GIT_CONFIG_NOSYSTEM": "1",
+            "GIT_CONFIG_GLOBAL": os.devnull,
+            "GIT_CONFIG_COUNT": "0",
+            "GIT_AUTHOR_NAME": "Synthetic Fixture",
+            "GIT_COMMITTER_NAME": "Synthetic Fixture",
+            "GIT_AUTHOR_EMAIL": "fixture@example.invalid",
+            "GIT_COMMITTER_EMAIL": "fixture@example.invalid",
+            "GITHUB_REPOSITORY": "Katsiarynakavaleuskaya/PulsePlate",
+            "GITHUB_EVENT_NAME": "pull_request",
+            "GITHUB_REF": "refs/pull/2477/merge",
+            "GITHUB_RUN_ID": "123",
+            "GITHUB_RUN_ATTEMPT": "1",
+            "RUNNER_TEMP": str(tmp_path),
+            "PROMETHEUS_CONSUME_SECONDS": "900",
+            "PROMETHEUS_CLEANUP_SECONDS": "120",
+            "SYNTHETIC_TRACE": str(tmp_path / "trace.jsonl"),
+            "SYNTHETIC_OUTCOME": variant,
+        }
+    )
+
+    def git(*arguments: str) -> str:
+        result = subprocess.run(
+            ["/usr/bin/git", *safe_git_config_args(), *arguments],
+            cwd=repository,
+            env=environment,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        return result.stdout.strip()
+
+    git("init", "-q")
+    manifest = repository / "deploy/prometheus/image-manifest.json"
+    manifest.parent.mkdir(parents=True)
+    manifest.write_text('{"synthetic": "published"}')
+    package = repository / "scripts/ci"
+    package.mkdir(parents=True)
+    (package.parent / "__init__.py").write_text("")
+    (package / "__init__.py").write_text("")
+    helper = package / "prometheus_source_image.py"
+    helper.write_text(
+        "import json,os,sys\nfrom pathlib import Path\n"
+        "trace=Path(os.environ['SYNTHETIC_TRACE'])\n"
+        "def record(value):\n with trace.open('a') as stream: stream.write(json.dumps(value)+'\\n')\n"
+        "def one_object(raw): return json.loads(raw)\n"
+        "record('BASE-import')\n"
+        "if __name__=='__main__':\n"
+        " operation=sys.argv[sys.argv.index('--operation')+1]\n"
+        " if operation=='read-manifest':\n"
+        "  assert not os.environ.get('GHCR_READ_TOKEN')\n"
+        "  record('BASE-read-manifest')\n"
+        "  if os.environ['SYNTHETIC_OUTCOME']=='unsupported-base':\n"
+        "   print('synthetic_base_capability_unsupported',file=sys.stderr); sys.exit(1)\n"
+        "  sys.exit(0)\n"
+        " assert operation=='consume' and os.environ['GHCR_READ_TOKEN']=='synthetic.registry.reader'\n"
+        " record('BASE-consume')\n"
+        " private=Path(os.environ['RUNNER_TEMP'])/'synthetic-registry-state'\n"
+        " private.write_text('synthetic config placeholder')\n"
+        " outcome=os.environ['SYNTHETIC_OUTCOME']\n"
+        " if outcome=='cleanup-failure':\n"
+        "  print('synthetic_owned_cleanup_failed',file=sys.stderr); sys.exit(1)\n"
+        " private.unlink(); record('BASE-cleanup')\n"
+        " if outcome=='consume-failure':\n"
+        "  print('synthetic_original_consumer_failed',file=sys.stderr); sys.exit(1)\n"
+        " work=Path(sys.argv[sys.argv.index('--work-dir')+1]); (work/'evidence').mkdir(parents=True)\n"
+        " admission={'mode':'unchanged_published','head':os.environ['PROMETHEUS_EVENT_HEAD'],'publisher_head':os.environ['PROMETHEUS_EVENT_BASE']}\n"
+        " if outcome=='head-drift': admission['head']='f'*40\n"
+        " if outcome=='base-drift': admission['publisher_head']='f'*40\n"
+        " if outcome=='mode-drift': admission['mode']='changed_pr_candidate'\n"
+        " raw=json.dumps({'admission':admission})\n"
+        " if outcome=='malformed-result': raw='{invalid'\n"
+        " if outcome!='missing-result': (work/'evidence'/'consumer.json').write_text(raw)\n"
+    )
+    if variant == "missing-helper":
+        helper.unlink()
+    if variant == "base-wrong-mode":
+        manifest.unlink()
+        manifest.symlink_to("untrusted-manifest")
+    git("add", ".")
+    git("commit", "-qm", "synthetic base")
+    base = git("rev-parse", "HEAD")
+    if variant in {"changed", "wrong-mode"}:
+        manifest.write_text('{"synthetic": "candidate"}')
+    if variant == "wrong-mode":
+        manifest.unlink()
+        manifest.symlink_to("untrusted-manifest")
+    if variant == "executable-manifest":
+        manifest.chmod(0o755)
+    if variant == "missing-manifest":
+        manifest.unlink()
+    if variant == "base-wrong-mode":
+        manifest.unlink()
+        manifest.write_text('{"synthetic": "candidate"}')
+    helper.write_text(
+        "import json,os,sys\nfrom pathlib import Path\n"
+        "trace=Path(os.environ['SYNTHETIC_TRACE'])\n"
+        "with trace.open('a') as stream: stream.write(json.dumps('PR-import')+'\\n')\n"
+        "if os.environ.get('GHCR_READ_TOKEN'): raise SystemExit('PR_registry_credential_overlap')\n"
+        "if __name__=='__main__':\n"
+        " with trace.open('a') as stream: stream.write(json.dumps('PR-consume')+'\\n')\n"
+    )
+    git("add", ".")
+    if variant == "submodule-manifest":
+        git(
+            "update-index",
+            "--cacheinfo",
+            "160000," + base + ",deploy/prometheus/image-manifest.json",
+        )
+    git("commit", "-qm", "synthetic PR")
+    head = git("rev-parse", "HEAD")
+    identity = {"id": 1043311030, "full_name": "Katsiarynakavaleuskaya/PulsePlate"}
+    event = {
+        "repository": identity,
+        "number": 2477,
+        "pull_request": {
+            "head": {"sha": head, "repo": dict(identity)},
+            "base": {"sha": base, "ref": "main", "repo": dict(identity)},
+        },
+    }
+    if variant == "fork":
+        event["pull_request"]["head"]["repo"]["id"] = 999
+    if variant == "bad-sha":
+        event["pull_request"]["base"]["sha"] = ""
+    if variant == "missing-object":
+        event["pull_request"]["head"]["sha"] = "f" * 40
+    event_file = tmp_path / "event.json"
+    event_file.write_text(json.dumps(event))
+    environment.update(GITHUB_EVENT_PATH=str(event_file), GITHUB_SHA="a" * 40)
+    git("checkout", "--detach", "-q", head if variant == "wrong-checkout" else base)
+    return repository, environment
+
+
+@pytest.mark.parametrize(
+    "variant,diagnostic",
+    [
+        ("changed", None),
+        ("unchanged", None),
+        ("fork", "Prometheus_event_identity_HOLD"),
+        ("bad-sha", "Prometheus_event_identity_HOLD"),
+        ("missing-object", "Prometheus_git_object_HOLD"),
+        ("wrong-mode", "Prometheus_regular_blob_HOLD"),
+        ("executable-manifest", "Prometheus_regular_blob_HOLD"),
+        ("missing-manifest", "Prometheus_regular_blob_HOLD"),
+        ("submodule-manifest", "Prometheus_regular_blob_HOLD"),
+        ("base-wrong-mode", "Prometheus_regular_blob_HOLD"),
+        ("wrong-checkout", "Prometheus_checkout_binding_HOLD"),
+        ("missing-helper", "Prometheus_regular_blob_HOLD"),
+        ("unsupported-base", "synthetic_base_capability_unsupported"),
+        ("unknown-mode", "Prometheus credential route HOLD"),
+        ("head-drift", "Prometheus_unchanged_admission_HOLD"),
+        ("base-drift", "Prometheus_unchanged_admission_HOLD"),
+        ("mode-drift", "Prometheus_unchanged_admission_HOLD"),
+        ("missing-result", "Prometheus_unchanged_result_HOLD"),
+        ("malformed-result", "JSONDecodeError"),
+        ("consume-failure", "synthetic_original_consumer_failed"),
+        ("cleanup-failure", "synthetic_owned_cleanup_failed"),
+    ],
+)
+def test_prometheus_cd_classifies_before_pr_code_and_binds_trusted_handoff(
+    tmp_path: Path, variant: str, diagnostic: str | None
+) -> None:
+    """Actual fixed workflow/Git controls, with a synthetic consumer; no publisher/native proof."""
+    repository, environment = _prometheus_cd_route_fixture(tmp_path, variant)
+    steps = {
+        step["name"]: step
+        for step in yaml.safe_load(CD_WORKFLOW_PATH.read_text())["jobs"][
+            "prometheus-image-security"
+        ]["steps"]
+    }
+    output_file = tmp_path / "outputs"
+
+    def python_step(name: str, *, isolated: bool = True) -> subprocess.CompletedProcess[str]:
+        output_file.write_text("")
+        environment["GITHUB_OUTPUT"] = str(output_file)
+        return subprocess.run(
+            [
+                sys.executable,
+                *(["-I", "-S"] if isolated else []),
+                "-c",
+                _prometheus_cd_python(steps[name]),
+            ],
+            cwd=repository,
+            env=environment,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+    result = python_step("Validate exact Prometheus checkout revisions")
+    if result.returncode == 0:
+        event_outputs = dict(line.split("=", 1) for line in output_file.read_text().splitlines())
+        environment.update(
+            PROMETHEUS_EVENT_HEAD=event_outputs["head"], PROMETHEUS_EVENT_BASE=event_outputs["base"]
+        )
+        result = python_step("Classify the fixed regular Prometheus manifest blobs")
+    mode = None
+    if result.returncode == 0:
+        route = dict(line.split("=", 1) for line in output_file.read_text().splitlines())
+        mode = "unknown" if variant == "unknown-mode" else route["mode"]
+        if mode == "changed_pr_candidate":
+            subprocess.run(
+                [
+                    "/usr/bin/git",
+                    *safe_git_config_args(),
+                    "checkout",
+                    "--detach",
+                    "-q",
+                    route["head"],
+                ],
+                cwd=repository,
+                env=environment,
+                check=True,
+            )
+        if mode == "unchanged_pr_published":
+            result = subprocess.run(
+                [
+                    "/bin/bash",
+                    "-c",
+                    steps["Require the trusted base published consumer capability"]["run"],
+                ],
+                cwd=repository,
+                env=environment,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+        if result.returncode == 0:
+            consumer_env = dict(
+                environment,
+                GH_TOKEN="synthetic.ephemeral.reader",
+                GITHUB_TOKEN="synthetic.ephemeral.reader",
+                GHCR_READ_TOKEN=(
+                    "synthetic.registry.reader"
+                    if mode in ("unchanged_pr_published", "trusted_published")
+                    else ""
+                ),
+                PROMETHEUS_CREDENTIAL_ROUTE=mode,
+            )
+            result = subprocess.run(
+                [
+                    "/bin/bash",
+                    "-c",
+                    steps["Admit retained PR candidate or published immutable subject"]["run"],
+                ],
+                cwd=repository,
+                env=consumer_env,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+        if result.returncode == 0 and mode == "unchanged_pr_published":
+            result = python_step(
+                "Bind the unchanged PR admission after trusted cleanup", isolated=False
+            )
+            if result.returncode == 0:
+                subprocess.run(
+                    [
+                        "/usr/bin/git",
+                        *safe_git_config_args(),
+                        "checkout",
+                        "--detach",
+                        "-q",
+                        route["head"],
+                    ],
+                    cwd=repository,
+                    env=environment,
+                    check=True,
+                )
+                result = subprocess.run(
+                    [sys.executable, "-c", "import scripts.ci.prometheus_source_image"],
+                    cwd=repository,
+                    env=environment,
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                )
+    trace = tmp_path / "trace.jsonl"
+    observed = (
+        [json.loads(line) for line in trace.read_text().splitlines()] if trace.exists() else []
+    )
+    assert "synthetic.registry.reader" not in result.stdout + result.stderr
+    if diagnostic is None:
+        assert result.returncode == 0, result.stderr
+        assert "PR-import" in observed
+        if variant == "unchanged":
+            assert observed.index("BASE-cleanup") < observed.index("PR-import")
+            assert not (tmp_path / "synthetic-registry-state").exists()
+        else:
+            assert observed == ["PR-import", "PR-consume"]
+    else:
+        assert result.returncode != 0
+        assert diagnostic in result.stderr
+        assert "PR-import" not in observed
+
+
+def test_prometheus_cd_git_fixture_preserves_separate_inherited_parent(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    parent = tmp_path / "synthetic-parent"
+    parent.mkdir()
+    environment = git_env_without_parent_state()
+    environment.update(
+        HOME=str(tmp_path),
+        GIT_AUTHOR_NAME="Synthetic Parent",
+        GIT_COMMITTER_NAME="Synthetic Parent",
+        GIT_AUTHOR_EMAIL="parent@example.invalid",
+        GIT_COMMITTER_EMAIL="parent@example.invalid",
+    )
+
+    def git(*arguments: str) -> bytes:
+        return subprocess.run(
+            ["/usr/bin/git", *safe_git_config_args(), *arguments],
+            cwd=parent,
+            env=environment,
+            capture_output=True,
+            check=True,
+        ).stdout
+
+    git("init", "-q")
+    (parent / "kept.txt").write_text("synthetic parent must remain unchanged")
+    git("add", "kept.txt")
+    git("commit", "-qm", "synthetic parent")
+    git("config", "--local", "fixture.sentinel", "keep-parent-config")
+    protected = {
+        name: (parent / ".git" / name).read_bytes() for name in ("HEAD", "config", "index")
+    }
+    head = git("rev-parse", "HEAD")
+    for key, value in {
+        "GIT_DIR": str(parent / ".git"),
+        "GIT_WORK_TREE": str(parent),
+        "GIT_INDEX_FILE": str(parent / ".git" / "index"),
+        "GIT_CONFIG_COUNT": "1",
+        "GIT_CONFIG_KEY_0": "core.hooksPath",
+        "GIT_CONFIG_VALUE_0": str(parent / "synthetic-unreachable-hooks"),
+    }.items():
+        monkeypatch.setenv(key, value)
+    child = tmp_path / "synthetic-child"
+    child.mkdir()
+    test_prometheus_cd_classifies_before_pr_code_and_binds_trusted_handoff(child, "unchanged", None)
+    assert git("rev-parse", "HEAD") == head
+    assert {name: (parent / ".git" / name).read_bytes() for name in protected} == protected
+
+
+@pytest.mark.parametrize(
+    "event_name,reference,admitted",
+    [
+        ("push", "refs/heads/main", True),
+        ("push", "refs/tags/v1.2.3", True),
+        ("schedule", "refs/heads/main", True),
+        ("workflow_dispatch", "refs/heads/main", False),
+        ("push", "refs/heads/foreign", False),
+        ("schedule", "refs/tags/v1.2.3", False),
+    ],
+)
+def test_prometheus_cd_preserves_closed_non_pr_checkout_events(
+    tmp_path: Path, event_name: str, reference: str, admitted: bool
+) -> None:
+    steps = yaml.safe_load(CD_WORKFLOW_PATH.read_text())["jobs"]["prometheus-image-security"][
+        "steps"
+    ]
+    step = next(
+        item for item in steps if item["name"] == "Validate exact Prometheus checkout revisions"
+    )
+    event_file, output = tmp_path / "event.json", tmp_path / "outputs"
+    output.write_text("")
+    event_file.write_text(
+        json.dumps(
+            {
+                "repository": {"id": 1043311030, "full_name": "Katsiarynakavaleuskaya/PulsePlate"},
+                "ref": reference,
+            }
+        )
+    )
+    environment = {
+        "HOME": str(tmp_path),
+        "PATH": os.defpath,
+        "LANG": "C",
+        "GITHUB_REPOSITORY": "Katsiarynakavaleuskaya/PulsePlate",
+        "GITHUB_EVENT_PATH": str(event_file),
+        "GITHUB_EVENT_NAME": event_name,
+        "GITHUB_REF": reference,
+        "GITHUB_SHA": "a" * 40,
+        "GITHUB_OUTPUT": str(output),
+    }
+    result = subprocess.run(
+        [sys.executable, "-I", "-S", "-c", _prometheus_cd_python(step)],
+        cwd=tmp_path,
+        env=environment,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    if admitted:
+        assert result.returncode == 0, result.stderr
+        assert dict(line.split("=", 1) for line in output.read_text().splitlines()) == {
+            "checkout_ref": "a" * 40,
+            "head": "a" * 40,
+            "base": "a" * 40,
+        }
+    else:
+        assert result.returncode != 0
+        assert "Prometheus_event_identity_HOLD" in result.stderr
+        assert output.read_bytes() == b""
 
 
 @pytest.mark.parametrize("additional_finding", (False, True))
@@ -5729,6 +6153,147 @@ def _assert_dependency_admission_has_no_product_effect(log_file: Path) -> None:
             "postgres_backup",
         )
     )
+
+
+def _alertmanager_email_drift(data: bytes, variant: str) -> bytes:
+    """Change one admitted email contract or byte spelling in a synthetic source."""
+    runbook = (
+        b"https://github.com/Katsiarynakavaleuskaya/PulsePlate/blob/main/"
+        b"docs/deploy/OPERATIONAL_SIGNALS.md#daily-checkpoint"
+    )
+    anchor = b'<a href="' + runbook + b'">'
+    assert data.count(anchor) == 1
+    if variant == "old-text-only":
+        prefix, marker, _tail = data.partition(b"        text: |\n")
+        assert marker
+        return prefix + (
+            b"        text: PulsePlate alert {{ .CommonLabels.alertname }} "
+            b"({{ .CommonLabels.environment }}).\n"
+        )
+    if variant == "missing-html":
+        prefix, marker, _tail = data.partition(b"        html: |\n")
+        assert marker
+        return prefix
+    if variant == "default-html":
+        prefix, marker, _tail = data.partition(b"        html: |\n")
+        assert marker
+        return prefix + b"        html: '{{ template \"email.default.html\" . }}'\n"
+    if variant == "extra-href":
+        return data + b'          <a href="http://private-container:9093">extra</a>\n'
+    if variant == "crlf":
+        return data.replace(b"\n", b"\r\n")
+    if variant == "unicode-separator":
+        return data.replace(b"\n          <p>", b"\xe2\x80\xa8          <p>", 1)
+    if variant == "missing-terminal-lf":
+        assert data.endswith(b"\n")
+        return data[:-1]
+    if variant == "extra-blank-line":
+        return data + b"\n"
+    if variant == "invalid-utf8":
+        return data.replace(b"Open PulsePlate monitoring runbook", b"Open \xff runbook", 1)
+    replacements = {
+        "private-href": (anchor, b'<a href="http://private-container:9093">'),
+        "external-href": (anchor, b'<a href="{{ .ExternalURL }}">'),
+        "generator-href": (anchor, b'<a href="{{ (index .Alerts 0).GeneratorURL }}">'),
+        "label-href": (anchor, b'<a href="{{ .CommonLabels.environment }}">'),
+        "recipient": (b"      - to: pulseplate@pm.me", b"      - to: other@example.invalid"),
+        "smtp": (b"smtp.resend.com:2465", b"other.example.invalid:2465"),
+        "tls": (b"  smtp_require_tls: true", b"  smtp_require_tls: false"),
+        "copy": (b"PulsePlate alert {{", b"Changed alert {{"),
+    }
+    old, new = replacements[variant]
+    assert old in data
+    return data.replace(old, new, 1)
+
+
+ALERTMANAGER_EMAIL_DRIFT = (
+    "old-text-only",
+    "missing-html",
+    "default-html",
+    "extra-href",
+    "private-href",
+    "external-href",
+    "generator-href",
+    "label-href",
+    "recipient",
+    "smtp",
+    "tls",
+    "copy",
+    "crlf",
+    "unicode-separator",
+    "missing-terminal-lf",
+    "extra-blank-line",
+    "invalid-utf8",
+)
+
+
+@pytest.mark.parametrize("contour", ["staging", "production-installed", "production-bundle"])
+def test_alertmanager_email_canonical_bytes_pass_both_deploy_readers(
+    tmp_path: Path, contour: str
+) -> None:
+    """The actual shell admissions accept the complete new source in every source mode."""
+    if contour == "staging":
+        env, argv, _log_file, project = _alertmanager_dependency_fixture(tmp_path, "staging")
+        source = project / "alertmanager/alertmanager.yml"
+    else:
+        env, project, _log_file, bundle = _production_preflight_fixture(
+            tmp_path, with_bundle=contour == "production-bundle"
+        )
+        env["COMPOSE_PROFILES"] = ""
+        source = (bundle or project) / "deploy/alertmanager/alertmanager.yml"
+        argv = [str(REPO_ROOT / "scripts/deploy_production.sh"), "--preflight-only"]
+    assert source.read_bytes() == ALERTMANAGER_CONFIG_PATH.read_bytes()
+    completed = subprocess.run(
+        argv, cwd=REPO_ROOT, env=env, capture_output=True, text=True, check=False
+    )
+    assert completed.returncode == 0, completed.stderr
+
+
+@pytest.mark.parametrize("contour", ["staging", "production-installed", "production-bundle"])
+@pytest.mark.parametrize("variant", ALERTMANAGER_EMAIL_DRIFT)
+def test_alertmanager_email_noncanonical_bytes_reject_before_product_effects(
+    tmp_path: Path, contour: str, variant: str
+) -> None:
+    """Both full deploy paths refuse drift before login, publication or product mutation."""
+    if contour == "staging":
+        env, argv, log_file, project = _alertmanager_dependency_fixture(tmp_path, "staging")
+        source = project / "alertmanager/alertmanager.yml"
+        argv.remove("--preflight-only")
+        installed_paths = (
+            "docker-compose.staging.yaml",
+            "prometheus/prometheus.yml",
+            "alertmanager/alertmanager.yml",
+        )
+    else:
+        env, project, log_file, bundle = _production_preflight_fixture(
+            tmp_path, with_bundle=contour == "production-bundle"
+        )
+        env.update(
+            {
+                "COMPOSE_PROFILES": "",
+                "IMAGE_REF": "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "a" * 64,
+                "TAG": "prod-vtest",
+            }
+        )
+        source = (bundle or project) / "deploy/alertmanager/alertmanager.yml"
+        argv = [str(REPO_ROOT / "scripts/deploy_production.sh")]
+        installed_paths = (
+            "deploy/docker-compose.production.yaml",
+            "deploy/prometheus/prometheus.yml",
+            "deploy/alertmanager/alertmanager.yml",
+        )
+    faulty = _alertmanager_email_drift(source.read_bytes(), variant)
+    source.write_bytes(faulty)
+    installed = {name: (project / name).read_bytes() for name in installed_paths}
+    completed = subprocess.run(
+        argv, cwd=REPO_ROOT, env=env, capture_output=True, text=True, check=False
+    )
+    assert completed.returncode != 0
+    assert "Alertmanager" in completed.stderr or "UnicodeDecodeError" in completed.stderr
+    _assert_dependency_admission_has_no_product_effect(log_file)
+    assert source.read_bytes() == faulty
+    assert {name: (project / name).read_bytes() for name in installed_paths} == installed
+    assert not list(project.rglob(".pulseplate-*.tmp-*"))
 
 
 @pytest.mark.parametrize("contour", ["staging", "production"])

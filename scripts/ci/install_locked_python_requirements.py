@@ -2614,7 +2614,7 @@ def _netrc_credentials(hostname: str | None) -> tuple[str, str] | None:
     # Native pip's requests selects account when login is empty. stdlib owns
     # named-machine/default-stanza selection; do not parse another auth source.
     principal = login or account
-    if not principal.strip():
+    if not principal.strip() or not password:
         raise RuntimeError("Indeterminate default netrc credentials are forbidden.")
     if principal.strip().lower() == "root":
         raise RuntimeError("Root devpi credentials are forbidden in default netrc.")

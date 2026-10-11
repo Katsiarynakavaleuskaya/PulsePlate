@@ -1153,7 +1153,7 @@ def test_all_active_checkout_uses_have_one_exact_v7_pin() -> None:
         ".github/workflows/security.yml",
         ".github/workflows/trivy.yml",
     }
-    assert len(observed_checkout_uses) == 83
+    assert len(observed_checkout_uses) == 85
     assert {path for path, _ in observed_checkout_uses} == expected_checkout_workflows
 
 
@@ -6272,7 +6272,7 @@ def test_main_branch_python_sharded_runner_preserves_required_check_policy() -> 
     assert "TEST_STEP_STARTED_AT=" in test_main_section
     assert "TEST_STEP_FINISHED_AT=" in shared_shard_runner_block
 
-    assert "MAIN_TEST_SHARDS=16" in py313_block
+    assert "MAIN_TEST_SHARDS=32" in py313_block
     assert "MAIN_TEST_MAX_PARALLEL=8" in py313_block
     assert "export MAIN_TEST_SHARD_TIMEOUT_SECONDS=4800" in py313_block
     assert "PYTEST_XDIST_ARGS=(-p no:xdist)" not in py313_block

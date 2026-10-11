@@ -1768,6 +1768,151 @@ def _write_admission_netrc(tmp_path: Path, entry: str, *, filename: str = ".netr
     path.chmod(0o600)
 
 
+@pytest.mark.parametrize("filename", [".netrc", "_netrc"])
+@pytest.mark.parametrize("selector", ["machine packages.example.internal", "default"])
+@pytest.mark.parametrize("principal", ["login ci-reader", "account ci-reader"])
+@pytest.mark.parametrize("password_clause", ['password ""', ""])
+def test_default_netrc_empty_password_blocks_settings_reader_and_cli(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    filename: str,
+    selector: str,
+    principal: str,
+    password_clause: str,
+) -> None:
+    for key in (
+        *installer.AMBIENT_INDEX_OVERRIDE_ENV_VARS,
+        installer.APPROVED_INDEX_ENV_VAR,
+        installer.TRUSTED_HOST_ENV_VAR,
+        "NETRC",
+        "GH_TOKEN",
+        "GITHUB_TOKEN",
+        "GHCR_READ_TOKEN",
+        "GHCR_TOKEN",
+        "DEVPI_CI_USER",
+        "DEVPI_CI_PASSWORD",
+        "PIP_CONFIG_FILE",
+    ):
+        monkeypatch.delenv(key, raising=False)
+    _write_admission_netrc(tmp_path, f"{selector} {principal} {password_clause}", filename=filename)
+    if filename == ".netrc":
+        _write_admission_netrc(
+            tmp_path,
+            "default login alternate-reader password alternate-synthetic-marker",
+            filename="_netrc",
+        )
+    calls: list[str] = []
+
+    def forbidden(*_args: object, **_kwargs: object) -> None:
+        calls.append("authorization/connection/context/command/downstream")
+        raise AssertionError("empty selected password must stop before downstream effects")
+
+    monkeypatch.setattr(installer.base64, "b64encode", forbidden)
+    monkeypatch.setattr(installer.http.client, "HTTPConnection", forbidden)
+    monkeypatch.setattr(installer.http.client, "HTTPSConnection", forbidden)
+    monkeypatch.setattr(installer.ssl, "_create_unverified_context", forbidden)
+    monkeypatch.setattr(installer.ssl, "create_default_context", forbidden)
+    monkeypatch.setattr(installer.subprocess, "run", forbidden)
+    for name in (
+        "upgrade_pip",
+        "run_dependency_floor_preflight",
+        "run_command",
+        "resolve_requirement_files",
+        "install_with_guard_from_proxy",
+    ):
+        monkeypatch.setattr(installer, name, forbidden)
+    diagnostic = "Indeterminate default netrc credentials are forbidden."
+    for action in (
+        lambda: installer._netrc_credentials("packages.example.internal"),
+        lambda: installer.resolve_private_proxy_settings(
+            index_url=APPROVED_PROXY_URL, trusted_host=None
+        ),
+        lambda: installer._read_private_index_project_page(
+            index_url=APPROVED_PROXY_URL, package="pip", trusted_host=None
+        ),
+    ):
+        with pytest.raises(RuntimeError) as failure:
+            action()
+        assert str(failure.value) == diagnostic
+    for flags in ([], ["--preflight-only"], ["--upgrade-pip"], ["--upgrade-pip-only"]):
+        assert installer.main(["--index-url", APPROVED_PROXY_URL, *flags]) == 1
+        output = capsys.readouterr()
+        assert output.out == "ERROR: locked install failed: " + diagnostic + "\n"
+        assert output.err == ""
+        assert all(
+            value not in output.out
+            for value in ("ci-reader", "alternate-reader", "alternate-synthetic-marker", "Basic ")
+        )
+    assert calls == []
+
+
+@pytest.mark.parametrize("filename", [".netrc", "_netrc"])
+@pytest.mark.parametrize("selector", ["machine packages.example.internal", "default"])
+@pytest.mark.parametrize("principal", ["login", "account"])
+@pytest.mark.parametrize("password", [" opaque synthetic value ", "   "])
+def test_default_netrc_preserves_nonempty_opaque_password(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    filename: str,
+    selector: str,
+    principal: str,
+    password: str,
+) -> None:
+    for key in (
+        *installer.AMBIENT_INDEX_OVERRIDE_ENV_VARS,
+        installer.APPROVED_INDEX_ENV_VAR,
+        installer.TRUSTED_HOST_ENV_VAR,
+        "NETRC",
+        "GH_TOKEN",
+        "GITHUB_TOKEN",
+        "GHCR_READ_TOKEN",
+        "GHCR_TOKEN",
+        "DEVPI_CI_USER",
+        "DEVPI_CI_PASSWORD",
+        "PIP_CONFIG_FILE",
+    ):
+        monkeypatch.delenv(key, raising=False)
+    _write_admission_netrc(
+        tmp_path, f'{selector} {principal} ci-reader password "{password}"', filename=filename
+    )
+    assert installer._netrc_credentials("packages.example.internal") == ("ci-reader", password)
+    observed: list[dict[str, str]] = []
+
+    class Connection:
+        def __init__(self, *_args: object, **kwargs: object) -> None:
+            assert "context" not in kwargs
+
+        def request(self, _method: str, _path: str, *, headers: dict[str, str]) -> None:
+            observed.append(headers)
+
+        def getresponse(self) -> _FakeSimpleIndexResponse:
+            return _FakeSimpleIndexResponse()
+
+        def close(self) -> None:
+            return None
+
+    monkeypatch.setattr(installer.http.client, "HTTPSConnection", Connection)
+    assert installer.resolve_private_proxy_settings(
+        index_url=APPROVED_PROXY_URL, trusted_host=None
+    ) == (APPROVED_PROXY_URL, None)
+    installer._read_private_index_project_page(
+        index_url=APPROVED_PROXY_URL, package="pip", trusted_host=None
+    )
+    assert len(observed) == 1
+    assert (
+        base64.b64decode(observed[0]["Authorization"].removeprefix("Basic "))
+        == ("ci-reader:" + password).encode()
+    )
+    admitted: list[dict[str, object]] = []
+    monkeypatch.setattr(
+        installer, "run_dependency_floor_preflight", lambda **kwargs: admitted.append(kwargs)
+    )
+    assert installer.main(["--index-url", APPROVED_PROXY_URL, "--preflight-only"]) == 0
+    assert len(admitted) == 1 and admitted[0]["index_url"] == APPROVED_PROXY_URL
+    assert installer._netrc_credentials("packages.example.internal") == ("ci-reader", password)
+
+
 @pytest.mark.parametrize(
     "entry",
     [
@@ -2892,6 +3037,7 @@ def test_repo_rag_vector_profiles_use_fastembed_without_torch_backend() -> None:
 
 def test_repo_docker_pip_upgrade_uses_locked_installer_fallback() -> None:
     dockerfile = (REPO_ROOT / "Dockerfile").read_text(encoding="utf-8")
+    assert 'ARG PIP_VERSION_RANGE="pip>=26.1,<27.0"' in dockerfile
     builder_stage = _dockerfile_stage(dockerfile, "builder")
     runtime_stage = _dockerfile_stage(dockerfile, "runtime-base")
 

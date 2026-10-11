@@ -2767,3 +2767,36 @@ def test_prometheus_publisher_verifies_retained_original_signed_bundles() -> Non
     assert not any(
         step.get("uses", "").startswith("docker/login-action@") for step in publisher["steps"]
     )
+
+
+def test_security_scan_excludes_pr_registry_credentials_even_when_token_available() -> None:
+    """Exact event guards exclude PR credentials while retaining non-PR DB behavior."""
+    workflow = _load_workflow(WORKFLOWS_DIR / "build.yml")
+    job = workflow["jobs"]["security-scan"]
+    assert job["env"] == {"GHCR_READ_TOKEN_AVAILABLE": "${{ secrets.GHCR_READ_TOKEN != '' }}"}
+    login = _step_by_name(job, "Log in to GHCR (Trivy DB)")
+    assert login["if"] == (
+        "${{ github.event_name != 'pull_request' && env.GHCR_READ_TOKEN_AVAILABLE == 'true' }}"
+    )
+    assert login["env"] == {
+        "GHCR_READ_TOKEN": (
+            "${{ github.event_name != 'pull_request' && secrets.GHCR_READ_TOKEN || '' }}"
+        )
+    }
+    assert (
+        'docker login ghcr.io -u "${{ github.repository_owner }}" --password-stdin' in login["run"]
+    )
+    assert "continuing without registry auth" in login["run"]
+    scan = _step_by_name(job, "Run Trivy vulnerability scanner (filesystem scan)")
+    assert scan["with"]["version"] == "v0.74.0"
+    assert scan["with"]["severity"] == "CRITICAL,HIGH"
+    assert scan["with"]["exit-code"] == "1"
+    assert scan["with"]["scanners"] == "vuln"
+    assert scan["with"]["ignore-policy"] == ".trivy-ignore-policy.rego"
+    assert "continue-on-error" not in scan
+    sarif = _step_by_name(job, "Check Trivy filesystem SARIF output")
+    assert sarif["if"] == "${{ always() }}"
+    assert 'echo "present=false"' in sarif["run"]
+    upload = _step_by_name(job, "Upload Trivy scan results to GitHub Security tab")
+    assert upload["if"] == "${{ always() && steps.trivy_fs_sarif.outputs.present == 'true' }}"
+    assert upload["continue-on-error"] is True
