@@ -52,7 +52,7 @@ The separate protected set also includes `api_key_header`, `validate_app_api_key
 and `require_app_api_key`; protection does not authorize additional re-exports.
 Wrappers or mutable legacy-owned warning state would break FastAPI dependency
 identity. The strict source witness and absolute-import boundary are enforced by
-`scripts/ci/check_legacy_growth_guard.py:10312`.
+`scripts/ci/check_legacy_growth_guard.py:10319`.
 
 Application metadata is canonically owned by
 `app/application_metadata.py:56` and constructed through the environment-aware
@@ -897,7 +897,7 @@ closed families and absorbing possible markers in the existing join. The
 OpenAPI family is the exact seven compatibility names or a name containing
 `openapi` after case folding. Receiver, member and builtin-callee provenance
 remain independent, including deferred/local/nonlocal and postponed-annotation
-contexts (`scripts/ci/check_legacy_growth_guard.py:12069`). Protected attribute
+contexts (`scripts/ci/check_legacy_growth_guard.py:12076`). Protected attribute
 and namespace writes and deletions use the target's own evidence as well as
 the receiver and member evidence; comprehension targets remain local while
 genuine containing-scope protected-name bindings remain rejected.
@@ -914,7 +914,7 @@ structural binding presence, not declaration shape, binding origin, runtime
 values or callable signatures. Writes and deletions from explicitly invoked
 helpers use the existing replay's real outward module target; dormant helpers
 and genuine local bindings remain separate
-(`scripts/ci/check_legacy_growth_guard.py:3631`). Immediate awaited calls to proven
+(`scripts/ci/check_legacy_growth_guard.py:3638`). Immediate awaited calls to proven
 builtin `anext` or direct `__anext__` on a captured async generator reuse deferred
 replay after argument evaluation, while unawaited consumers remain dormant in
 ordinary analysis. Defining defaults and
@@ -929,12 +929,12 @@ Type aliases bind their actual names in the containing scope and audit lazy
 values independently under declared parameter masks and the real class parent,
 preserving ordinary lazy execution and isolation between independent audits.
 Ordinary method bodies retain parameter masks without inheriting class-only
-visibility (`scripts/ci/check_legacy_growth_guard.py:2843`,
-`scripts/ci/check_legacy_growth_guard.py:5570`). Eager versus postponed annotations
+visibility (`scripts/ci/check_legacy_growth_guard.py:2850`,
+`scripts/ci/check_legacy_growth_guard.py:5577`). Eager versus postponed annotations
 and positional/keyword defaults preserve their current execution boundary.
 These source witnesses do not establish configured keys or runtime authorization
-(`scripts/ci/check_legacy_growth_guard.py:3049`,
-`scripts/ci/check_legacy_growth_guard.py:10312`).
+(`scripts/ci/check_legacy_growth_guard.py:3056`,
+`scripts/ci/check_legacy_growth_guard.py:10319`).
 
 Resolved matching tuple/list/nested local assignments preserve their mapping
 identity through the existing paired binder; generic collection escapes and
@@ -942,8 +942,8 @@ unmatched/starred constructions retain their separate conservative handling.
 Actual class members invalidate shared mapping identity before class-scope
 restoration, excluding global/nonlocal declarations and avoiding repeated
 invalidation of already-removed aliases. Copied mappings and ordered snapshots
-remain distinct (`scripts/ci/check_legacy_growth_guard.py:5356`,
-`scripts/ci/check_legacy_growth_guard.py:6191`). Built-in `vars`, the finite
+remain distinct (`scripts/ci/check_legacy_growth_guard.py:5363`,
+`scripts/ci/check_legacy_growth_guard.py:6198`). Built-in `vars`, the finite
 `dict.get`, `dict.__getitem__`, `dict.pop` and `dict.setdefault` method set, and
 stored namespace methods retain actual legacy-namespace provenance in the
 existing reference/call seams. The four lookup methods and nine mutator methods
@@ -963,10 +963,11 @@ consumer results retain input
 element provenance. Shadowed builtins, unrelated receivers, safe member names,
 proven empty inputs and `key=None` remain independent controls. The per-loop 32
 and total 128 transfer
-budgets are unchanged (`scripts/ci/check_legacy_growth_guard.py:4502`). These
+budgets are unchanged (`scripts/ci/check_legacy_growth_guard.py:4509`). These
 bounded repairs preserve the original independent 87-name baseline plus the
-inherited four-name subset. The eight utility names inherited from main extend
-that preserved 91-name prefix to the current exact 99-name inventory. This
+inherited four-name subset. The eight utility names inherited from main extended
+that preserved 91-name prefix to the historical 99-name inventory. The seven BMI
+names inherited from PR #2483 bring the current exact inventory to 106. This
 ownership repair introduces no further retirement and does not certify arbitrary
 Python reflection.
 
