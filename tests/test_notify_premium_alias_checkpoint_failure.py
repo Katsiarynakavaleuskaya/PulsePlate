@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import base64
 import hashlib
 import json
 import os
@@ -20,10 +21,16 @@ import threading
 import time
 import uuid
 from datetime import datetime, timedelta, timezone
+from email import policy
+from email.message import EmailMessage
+from email.parser import BytesParser
+from html import escape
+from html.parser import HTMLParser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 import pytest
+import yaml
 
 from scripts.ops import notify_premium_alias_checkpoint_failure as notifier
 
@@ -35,6 +42,14 @@ ALERTMANAGER_IMAGE = (
     "prom/alertmanager@sha256:84967b9b7ba45e38a9278d3e594305f43d4993c310df3905b51138b816c365f3"
 )
 SYSTEMD_UNIT_DIRECTORY = Path("/run/systemd/system")
+RUNBOOK_URL = (
+    "https://github.com/Katsiarynakavaleuskaya/PulsePlate/blob/main/"
+    "docs/deploy/OPERATIONAL_SIGNALS.md#daily-checkpoint"
+)
+RENDER_LABELS = (
+    'PulsePlate <em>checkpoint</em> & "quoted" {{ .ExternalURL }}',
+    "staging <strong>inert</strong> & 'quoted'",
+)
 
 UNITS = tuple(
     ROOT / "deploy/systemd" / ("pulseplate-premium-alias-checkpoint" + suffix + ".example")
@@ -67,6 +82,211 @@ def isolated_credentials(monkeypatch: pytest.MonkeyPatch) -> None:
         "PIP_EXTRA_INDEX_URL",
     ):
         monkeypatch.delenv(key, raising=False)
+
+
+class _EmailHTML(HTMLParser):
+    """Observe every tag and href occurrence in the fixed native email fragment."""
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.events: list[tuple[str, str, list[tuple[str, str | None]]]] = []
+        self.hrefs: list[str | None] = []
+        self.text: list[str] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        self.events.append(("start", tag, attrs))
+        self.hrefs.extend(value for name, value in attrs if name == "href")
+
+    def handle_endtag(self, tag: str) -> None:
+        self.events.append(("end", tag, []))
+
+    def handle_data(self, data: str) -> None:
+        self.text.append(data)
+
+    def handle_comment(self, data: str) -> None:
+        raise AssertionError("Unexpected comment in the fixed email fragment")
+
+    def handle_decl(self, decl: str) -> None:
+        raise AssertionError("Unexpected declaration in the fixed email fragment")
+
+
+def _assert_alertmanager_html(html: str, alertname: str, environment: str) -> None:
+    """Require the authored scaffold, singleton ordered href and visible label meaning."""
+    observer = _EmailHTML()
+    observer.feed(html.replace("\r\n", "\n"))
+    observer.close()
+    assert observer.hrefs == [RUNBOOK_URL]
+    assert observer.events == [
+        ("start", "p", []),
+        ("end", "p", []),
+        ("start", "p", []),
+        ("start", "a", [("href", RUNBOOK_URL)]),
+        ("end", "a", []),
+        ("end", "p", []),
+    ]
+    assert "".join(observer.text).strip("\n") == (
+        f"PulsePlate alert {alertname} ({environment}).\nOpen PulsePlate monitoring runbook"
+    )
+
+
+def _assert_alertmanager_email(payload: bytes, alertname: str, environment: str) -> None:
+    """Inspect actual MIME alternatives with strict UTF-8 decoding and no defect fallback."""
+    message = BytesParser(policy=policy.default).parsebytes(payload)
+    assert isinstance(message, EmailMessage)
+    assert not any(part.defects for part in message.walk())
+    assert message.get_all("MIME-Version") == ["1.0"]
+    assert len(message.get_all("Content-Type", [])) == 1
+    assert message.get_content_type() == "multipart/alternative"
+    parts = list(message.iter_parts())
+    assert len(parts) == 2
+    assert sorted(part.get_content_type() for part in parts) == ["text/html", "text/plain"]
+    bodies: dict[str, str] = {}
+    for part in parts:
+        assert not part.is_multipart()
+        assert part.get_all("Content-Disposition", []) == []
+        assert len(part.get_all("Content-Type", [])) == 1
+        assert part.get_content_charset() == "utf-8"
+        assert len(part.get_all("Content-Transfer-Encoding", [])) == 1
+        assert str(part["Content-Transfer-Encoding"]).lower() in {
+            "7bit",
+            "8bit",
+            "quoted-printable",
+            "base64",
+        }
+        decoded = part.get_payload(decode=True)
+        assert isinstance(decoded, bytes)
+        assert not part.defects
+        bodies[part.get_content_type()] = decoded.decode("utf-8", errors="strict").replace(
+            "\r\n", "\n"
+        )
+    assert not any(part.defects for part in message.walk())
+    assert bodies["text/plain"].rstrip("\n") == (
+        f"PulsePlate alert {alertname} ({environment}).\n"
+        f"Open PulsePlate monitoring runbook: {RUNBOOK_URL}"
+    )
+    _assert_alertmanager_html(bodies["text/html"], alertname, environment)
+
+
+def _email_fixture(*, cte: str = "quoted-printable") -> EmailMessage:
+    """Construct synthetic decoder controls, never a substitute for native SMTP capture."""
+    message = EmailMessage(policy=policy.SMTP)
+    message.set_content(
+        "PulsePlate alert PulsePlateAliasCheckpointFailed (staging).\n"
+        f"Open PulsePlate monitoring runbook: {RUNBOOK_URL}\n",
+        cte=cte,
+    )
+    message.add_alternative(
+        "<p>PulsePlate alert PulsePlateAliasCheckpointFailed (staging).</p>\n"
+        f'<p><a href="{RUNBOOK_URL}">Open PulsePlate monitoring runbook</a></p>\n',
+        subtype="html",
+        cte=cte,
+    )
+    return message
+
+
+@pytest.mark.parametrize("cte", ["7bit", "8bit", "quoted-printable", "base64"])
+def test_alertmanager_email_mime_accepts_expected_alternatives(cte: str) -> None:
+    """The observer decodes supported native body encodings before evaluating content."""
+    _assert_alertmanager_email(
+        _email_fixture(cte=cte).as_bytes(), "PulsePlateAliasCheckpointFailed", "staging"
+    )
+
+
+def test_alertmanager_html_observer_keeps_escaped_label_text() -> None:
+    """Synthetic escaping checks the observer; the native producer has its own render control."""
+    alertname, environment = RENDER_LABELS
+    html = (
+        f"<p>PulsePlate alert {escape(alertname)} ({escape(environment)}).</p>\n"
+        f'<p><a href="{RUNBOOK_URL}">Open PulsePlate monitoring runbook</a></p>\n'
+    )
+    _assert_alertmanager_html(html, alertname, environment)
+
+
+@pytest.mark.parametrize("cte", ["quoted-printable", "base64"])
+@pytest.mark.parametrize(
+    "fault",
+    [
+        "missing-plain",
+        "missing-html",
+        "extra-part",
+        "attachment",
+        "boundary",
+        "charset",
+        "unknown-encoding",
+        "invalid-base64",
+        "invalid-utf8",
+        "private-href",
+        "extra-private-href",
+        "duplicate-href",
+        "duplicate-href-attribute",
+        "missing-href",
+        "missing-plain-link",
+        "wrong-plain-link",
+        "raw-sentinel",
+        "label-markup",
+        "comment",
+        "declaration",
+    ],
+)
+def test_alertmanager_email_mime_rejects_content_drift(fault: str, cte: str) -> None:
+    """Malformed, extra and encoded wrong content cannot pass through a good URL substring."""
+    message = _email_fixture(cte=cte)
+    plain, html = message.get_payload()
+    if fault in {"missing-plain", "missing-html"}:
+        message.set_payload([html if fault == "missing-plain" else plain])
+    elif fault == "extra-part":
+        extra = EmailMessage()
+        extra.set_content("extra body")
+        message.attach(extra)
+    elif fault == "attachment":
+        html.add_header("Content-Disposition", "attachment", filename="email.html")
+    elif fault == "boundary":
+        message.set_boundary("synthetic-email-boundary")
+    elif fault == "charset":
+        html.replace_header("Content-Type", 'text/html; charset="unknown-charset"')
+    elif fault == "unknown-encoding":
+        html.replace_header("Content-Transfer-Encoding", "unknown-transfer")
+    elif fault == "invalid-base64":
+        html.replace_header("Content-Transfer-Encoding", "base64")
+        html.set_payload("%%%")
+    elif fault == "invalid-utf8":
+        plain.replace_header("Content-Transfer-Encoding", "base64")
+        plain.set_payload(base64.b64encode(b"\xff").decode("ascii"))
+    elif fault in {"missing-plain-link", "wrong-plain-link", "raw-sentinel"}:
+        text = plain.get_content()
+        replacement = "" if fault == "missing-plain-link" else "http://private-container:9090"
+        text = (
+            text + "raw-secret-sentinel"
+            if fault == "raw-sentinel"
+            else text.replace(RUNBOOK_URL, replacement)
+        )
+        plain.set_content(text, cte=cte)
+    else:
+        text = html.get_content()
+        anchor = f'<a href="{RUNBOOK_URL}">'
+        if fault == "private-href":
+            text = text.replace(RUNBOOK_URL, "http://private-container:9093")
+        elif fault == "extra-private-href":
+            text += '<a href="http://private-container:9093">private</a>'
+        elif fault == "duplicate-href":
+            text += f'<a href="{RUNBOOK_URL}">duplicate</a>'
+        elif fault == "duplicate-href-attribute":
+            text = text.replace(anchor, f'<a href="{RUNBOOK_URL}" href="{RUNBOOK_URL}">')
+        elif fault == "missing-href":
+            text = text.replace(anchor, "<a>")
+        elif fault == "label-markup":
+            text = text.replace("PulsePlateAliasCheckpointFailed", "<em>injected label</em>")
+        elif fault == "comment":
+            text += "<!-- unexpected -->"
+        else:
+            assert fault == "declaration"
+            text = "<!DOCTYPE html>" + text
+        html.set_content(text, subtype="html", cte=cte)
+    payload = message.as_bytes()
+    if fault == "boundary":
+        payload = payload.replace(b"--synthetic-email-boundary--\r\n", b"")
+    with pytest.raises((AssertionError, UnicodeDecodeError)):
+        _assert_alertmanager_email(payload, "PulsePlateAliasCheckpointFailed", "staging")
 
 
 class Clock:
@@ -1183,6 +1403,32 @@ def _native_amtool_lifetime(directory: Path) -> None:
             raise cleanup_errors[0]
 
 
+def _native_alertmanager_render(prefix: list[str]) -> None:
+    """Render current repo HTML with inert labels in the already-owned pinned AM fixture."""
+    config = yaml.safe_load((ROOT / "deploy/alertmanager/alertmanager.yml").read_text("utf-8"))
+    html = config["receivers"][0]["email_configs"][0]["html"]
+    assert isinstance(html, str)
+    rendered = _native(
+        [
+            *prefix,
+            "exec",
+            "-T",
+            "alertmanager",
+            "/bin/amtool",
+            "--no-version-check",
+            "template",
+            "render",
+            "--template.glob=/dev/null",
+            "--template.type=html",
+            "--template.text=" + html,
+            "--template.data=/email-template-data.json",
+        ],
+        timeout=20,
+    )
+    _assert_alertmanager_html(rendered.stdout, *RENDER_LABELS)
+    print("native_alertmanager_html_escape=pass", flush=True)
+
+
 def _native_alertmanager(directory: Path) -> None:
     """Actual pinned AM, exact route timings, private synthetic TLS SMTP receiver."""
     from socketserver import StreamRequestHandler, ThreadingTCPServer
@@ -1273,9 +1519,33 @@ def _native_alertmanager(directory: Path) -> None:
             secret = directory / "synthetic-smtp"
             secret.write_text("synthetic-smtp")
             secret.chmod(0o444)
+            template_data = directory / "email-template-data.json"
+            template_data.write_text(
+                json.dumps(
+                    {
+                        "receiver": "pulseplate-email",
+                        "status": "firing",
+                        "alerts": [
+                            {
+                                "status": "firing",
+                                "labels": {},
+                                "annotations": {},
+                                "generatorURL": "http://synthetic-private-prometheus:9090",
+                            }
+                        ],
+                        "groupLabels": {},
+                        "commonLabels": dict(zip(("alertname", "environment"), RENDER_LABELS)),
+                        "commonAnnotations": {"description": "raw-secret-sentinel"},
+                        "externalURL": "http://synthetic-private-alertmanager:9093",
+                    }
+                ),
+                encoding="utf-8",
+            )
+            template_data.chmod(0o444)
             compose = directory / "compose.yaml"
             compose.write_text(
                 f"services:\n  alertmanager:\n    profiles: [alerting]\n    image: {ALERTMANAGER_IMAGE}\n    platform: linux/amd64\n    user: '65534:65534'\n    read_only: true\n    cap_drop: [ALL]\n    security_opt: ['no-new-privileges:true']\n    network_mode: host\n    extra_hosts: ['smtp.resend.com:127.0.0.1']\n    command: ['--config.file=/etc/alertmanager/alertmanager.yml', '--storage.path=/alertmanager', '--cluster.listen-address=', '--web.listen-address=127.0.0.1:9093']\n    tmpfs: ['/alertmanager:uid=65534,gid=65534,mode=0700,size=16m']\n    volumes:\n      - {configuration}:/etc/alertmanager/alertmanager.yml:ro\n      - {secret}:/run/secrets/alertmanager_smtp_key:ro\n      - {cert}:/etc/ssl/certs/ca-certificates.crt:ro\n"
+                f"      - {template_data}:/email-template-data.json:ro\n"
             )
             docker = shutil.which("docker")
             assert docker is not None
@@ -1320,6 +1590,7 @@ def _native_alertmanager(directory: Path) -> None:
                 "native_alertmanager_api_ready_seconds=" + str(time.monotonic() - setup_started),
                 flush=True,
             )
+            _native_alertmanager_render(prefix)
             start = datetime.now(timezone.utc)
             end = start + timedelta(seconds=900)
             argv = notifier._argv(
@@ -1343,6 +1614,8 @@ def _native_alertmanager(directory: Path) -> None:
             assert (
                 len(received) == 1
             ), "actual 30s/5m/24h route did not deliver one deduplicated event"
+            _assert_alertmanager_email(received[0], "PulsePlateAliasCheckpointFailed", "staging")
+            print("native_alertmanager_mime_runbook=pass", flush=True)
             time.sleep(max(0, epoch + 905 - time.monotonic()))
             assert json.loads(_native(query).stdout) == [], "bounded event did not expire"
             later = datetime.now(timezone.utc)

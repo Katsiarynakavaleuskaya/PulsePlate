@@ -428,7 +428,8 @@ for service_name, service in services.items():
 secret_record = secret_records.get("alertmanager_smtp_key", {})
 if type(secret_record) is not dict or secret_record.get("file") != smtp_key_path:
     raise SystemExit("Alertmanager SMTP secret source changed")
-alert_text = alert_config.read_text(encoding="utf-8")
+alert_bytes = alert_config.read_bytes()
+alert_text = alert_bytes.decode("utf-8")
 for required in ("smtp.resend.com:2465", "alerts@alerts.pulseplate.app", "pulseplate@pm.me",
                  "smtp_auth_username: resend",
                  "smtp_auth_password_file: /run/secrets/alertmanager_smtp_key",
@@ -437,7 +438,7 @@ for required in ("smtp.resend.com:2465", "alerts@alerts.pulseplate.app", "pulsep
                  "send_resolved: false"):
     if alert_text.count(required) != 1:
         raise SystemExit("Alertmanager SMTP or route contract changed")
-# Finite exact-line recognizer for the reviewed SMTP route and sole recipient.
+# Finite complete-byte recognizer for the reviewed SMTP route and sole recipient.
 expected_alertmanager_lines = (
     "global:",
     "  smtp_smarthost: smtp.resend.com:2465",
@@ -460,7 +461,12 @@ expected_alertmanager_lines = (
     "      - to: pulseplate@pm.me",
     "        send_resolved: false",
     "        force_implicit_tls: true",
-    "        text: PulsePlate alert {{ .CommonLabels.alertname }} ({{ .CommonLabels.environment }}).",
+    "        text: |",
+    "          PulsePlate alert {{ .CommonLabels.alertname }} ({{ .CommonLabels.environment }}).",
+    "          Open PulsePlate monitoring runbook: https://github.com/Katsiarynakavaleuskaya/PulsePlate/blob/main/docs/deploy/OPERATIONAL_SIGNALS.md#daily-checkpoint",
+    "        html: |",
+    "          <p>PulsePlate alert {{ .CommonLabels.alertname }} ({{ .CommonLabels.environment }}).</p>",
+    "          <p><a href=\"https://github.com/Katsiarynakavaleuskaya/PulsePlate/blob/main/docs/deploy/OPERATIONAL_SIGNALS.md#daily-checkpoint\">Open PulsePlate monitoring runbook</a></p>",
 )
 if (len(re.findall(r"(?m)^route:\s*$", alert_text)) != 1
     or len(re.findall(r"(?m)^  receiver: pulseplate-email\s*$", alert_text)) != 1
@@ -470,8 +476,7 @@ if (len(re.findall(r"(?m)^route:\s*$", alert_text)) != 1
     or len(re.findall(r"(?m)^      - to: pulseplate@pm[.]me\s*$", alert_text)) != 1
     or len(re.findall(r"(?m)^\s*(?:-\s*)?to\s*:", alert_text)) != 1
     or re.search(r"(?m)^\s*smtp_auth_password\s*:", alert_text)
-    or tuple(alert_text.splitlines()) != expected_alertmanager_lines
-    or not alert_text.endswith(chr(10))):
+    or alert_bytes != (chr(10).join(expected_alertmanager_lines) + chr(10)).encode("utf-8")):
     raise SystemExit("Alertmanager route and sole recipient are not the exact reviewed config")
 if hashlib.sha256(ignore.read_bytes()).hexdigest() != (
     "7d6d70d6" "fcc07612" "1b82a7b5" "75a4c384"
