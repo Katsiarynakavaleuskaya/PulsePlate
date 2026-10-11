@@ -9539,6 +9539,14 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
       do not claim measured benefit, retrospective PASS, product/runtime,
       semantic-cache, or graph-truth effects.
 
+- [ ] P2: Supplier prefetch entrypoint lesson promotion
+  - Owner: agent-coordinator/dev-operator
+  - Priority: P2
+  - Target PR: next owner-agreed substantive Dependency PR; target carrier PR not yet assigned
+  - Reason: Current PR fixes the repeated explicit-all prefetch defect and owning controls; promotion of the process lesson into instructions is out of this runtime/security scope.
+  - Evidence: [PR #2477](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2477), failed ORAS run 38170923494, `tests/test_prometheus_source_image.py`. Python3.13 job 114555766390 accumulated 90m27s before cancellation, including 487s Python setup; queued shard waves and coverage/publication work share the overall envelope.
+  - DoD: Review the redacted `agent_learning_record.v1` proposal, exercise each admitted supplier entrypoint/argv with original-lock and failure-evidence controls, and promote only the smallest scoped instruction if separately accepted; measure `repeat_failure_reduction`/`review_actionable_escape_reduction` in the next comparable Dependency PR. Assess measured setup/test/shard-wave/coverage costs and development headroom there before further scheduling changes; the current overall 90/120/120 matrix allowances do not establish lower work or hosted PASS.
+
 - [ ] P2: Complete legacy_app.py migration (delete legacy endpoints)
   - Project: `PROJECT_LEGACY` (open)
   - Owner: @katsiaryna_kavaleuskaya

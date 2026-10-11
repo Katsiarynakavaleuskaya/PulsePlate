@@ -125,6 +125,14 @@
   full scanner inventory and synthetic native format before tool selection.
   Never substitute the affected upstream prebuilt binary or rebuild the tool
   during a Prometheus pair or promotion.
+- An explicitly selected `tool_prefetch_predecessor` is historical evidence,
+  never retry approval. Only the authenticated singleton known failed precompile
+  job may support one separately admitted correcting hosted job; retain that
+  spent invocation and the one-total actual tool compiler cap. Ordinary retained
+  tool/candidate readers remain success-only. Preserve pre/post prefetch locks,
+  modes and source inventories, plus diagnostic errors alongside primary failures;
+  missing historical post-state remains unknown. Publish and review the correction
+  before any separately coordinated recovery dispatch.
 - Manual `prometheus-source-pair` permits exactly two serial logical image
   builds, each containing the two named commands and bounded to 3600 seconds.
   Use independent empty source/cache/output areas, no automatic retries,
