@@ -1,9 +1,352 @@
 {
-  "schema": "pulseplate.prometheus_image_manifest.v2",
-  "repository": "prom/prometheus",
-  "source_revision": "53144df54e01b689bf6c45e811c6230631b132e7",
-  "index_digest": "sha256:62464aea89547566d3e26b33566a40d8a9d2ddef947fde9d37454040c9c636b1",
-  "platform": "linux/amd64",
-  "platform_manifest_digest": "sha256:76f21be0a8e8c825cccb0e2021699dcbfb02037cc594c1f48d44993f8a415f2d",
-  "runtime_ref": "prom/prometheus@sha256:76f21be0a8e8c825cccb0e2021699dcbfb02037cc594c1f48d44993f8a415f2d"
+  "schema": "pulseplate.prometheus_image_manifest.v3",
+  "phase": "source_prepared",
+  "inputs": {
+    "source": {
+      "version": "3.15.0",
+      "revision": "5241a27fe3c6983549fccc32f6e65917408c63cd",
+      "tree": "ffa0c7e9512071483f6c40a95aba9b97fbd86583",
+      "epoch": 1790321138,
+      "archive": {
+        "name": "source",
+        "url": "https://codeload.github.com/prometheus/prometheus/tar.gz/5241a27fe3c6983549fccc32f6e65917408c63cd",
+        "size": 6163228,
+        "digest": "eee7ec029ffdba7d9ee59171cad5ddaff10e71514b0bae1a6fde6dc1ae99e181",
+        "root": "prometheus-5241a27fe3c6983549fccc32f6e65917408c63cd",
+        "members": 1951,
+        "files": 1686,
+        "expanded": 33554432,
+        "release": false
+      },
+      "original_locks": {
+        "go.mod": "94e39d68d3abd10168c4b1944a63356a1d9a467ddeceee46aea75fc14e4381d1",
+        "go.sum": "2b0f11cdccdc6605922c8f48d7afc68ae44fdc90df6b5d2f6f677b447b07d99e"
+      },
+      "derived_locks": {
+        "go.mod": "d85af091d5bf9ba19f98e4d92e24b368d3e5537af086521ef10c7dd669695fd7",
+        "go.sum": "eaeb5e4f16a9edcab1aeeb2b1a90a0f85decbd0065b3bf63e03729d324f7fc1f"
+      }
+    },
+    "go": {
+      "archive": {
+        "name": "go",
+        "url": "https://dl.google.com/go/go1.27.2.linux-amd64.tar.gz",
+        "size": 70590635,
+        "digest": "ecbadb99091a3f46e31f5f934b068b1864eafa7995211b39eaddf76996045fe5",
+        "root": "go",
+        "members": 17373,
+        "files": 15657,
+        "expanded": 314572800,
+        "release": false
+      },
+      "version": "go version go1.27.2 linux/amd64\n"
+    },
+    "ui": {
+      "archive": {
+        "name": "ui",
+        "url": "https://github.com/prometheus/prometheus/releases/download/v3.15.0/prometheus-web-ui-3.15.0.tar.gz",
+        "size": 3343738,
+        "digest": "fa8c918ed05e3f89e232e9b69eccd6ed074602cd9e8a2cab7a92bec9651974ae",
+        "root": "",
+        "members": 18,
+        "files": 18,
+        "expanded": 16777216,
+        "release": true
+      },
+      "checksums": {
+        "name": "checksums",
+        "url": "https://github.com/prometheus/prometheus/releases/download/v3.15.0/sha256sums.txt",
+        "size": 3725,
+        "digest": "023cab1e6b275ee1b8f5f64215a01d74bbb1b19c45183b7296ced4aa4532707b",
+        "root": "",
+        "members": 0,
+        "files": 0,
+        "expanded": 0,
+        "release": true
+      },
+      "files": {
+        "static/react-app/manifest.json": {
+          "size": 318,
+          "sha256": "976d3997489cdc4998a52e6e6245cdd9487a1af915d5c068fd790c5dc4a5df7a"
+        },
+        "static/react-app/static/js/main.5b2d3908.js.LICENSE.txt": {
+          "size": 3152,
+          "sha256": "c6472c3954f3ac3117d32db6b0f026236708b835ad52ee1acbc3f378cbd17a66"
+        },
+        "static/react-app/static/js/main.5b2d3908.js.map": {
+          "size": 7267253,
+          "sha256": "9dd0a666b35cdfd61eb2719615add94d64cbe476c00b8838ce6d0c6a626b4903"
+        },
+        "static/react-app/static/js/main.5b2d3908.js": {
+          "size": 2195301,
+          "sha256": "b4fe2ab290b349c142a755d217591a44a44bda65e625d17257ac22bfe09ba558"
+        },
+        "static/react-app/static/css/main.3a01f811.css.map": {
+          "size": 340286,
+          "sha256": "8cad096102e1780946316d1eb69bc2e9ec437faae425d383b4bab17a3defb73e"
+        },
+        "static/react-app/static/css/main.3a01f811.css": {
+          "size": 414406,
+          "sha256": "5352633a20e078eafc288d4aa7e7593918c2e8803bdff80be10e29c2d98ab966"
+        },
+        "static/react-app/static/media/index.f6d03137e8c9dd0de04c.cjs": {
+          "size": 329,
+          "sha256": "1dd6e0edcfd633f8b90187b580982bc3ba7308d3050da2988ba2271368f5569a"
+        },
+        "static/react-app/static/media/prometheus_logo_grey.3cf697e5443028ca5e5255b93c7906c5.svg": {
+          "size": 1533,
+          "sha256": "584958f7b25abe6db5f9dff2b6743c60311571feaa2c3f5047d831ae92e74489"
+        },
+        "static/react-app/static/media/codicon.b3726f0165bf67ac6849.ttf": {
+          "size": 61024,
+          "sha256": "1b55f12eca93ba6743e7a196adb0fd4828a4f85311d17f21d03a65a6fe763b6e"
+        },
+        "static/react-app/index.html": {
+          "size": 751,
+          "sha256": "80358a376abe4495010d10c5f03aec56dd0bb5baaf25eb0e5f0e186ee8a550b5"
+        },
+        "static/react-app/favicon.ico": {
+          "size": 15086,
+          "sha256": "d72fc7b0bd1a4c1c4a016dfa4bfd594b2fb65a409575ec8f857864d4bdc658be"
+        },
+        "static/react-app/asset-manifest.json": {
+          "size": 657,
+          "sha256": "bf3d5f3fb1c3dc7eada20b561603a754288190c68e0f35f68bf1bc69a86d4122"
+        },
+        "static/mantine-ui/favicon.svg": {
+          "size": 2777,
+          "sha256": "cb3a90f7f2449b1696f6e253c03ba3eecefe174fca96b67a7f238e3b0345cea5"
+        },
+        "static/mantine-ui/assets/codicon-B_nZgZYP.ttf": {
+          "size": 61024,
+          "sha256": "1b55f12eca93ba6743e7a196adb0fd4828a4f85311d17f21d03a65a6fe763b6e"
+        },
+        "static/mantine-ui/assets/third-party-licenses.txt": {
+          "size": 100441,
+          "sha256": "5f9909113990a31a464a36362831b9eca44ce48084edb51484a8d58ef4850871"
+        },
+        "static/mantine-ui/assets/index-MKGKlG4_.js": {
+          "size": 1931373,
+          "sha256": "a931767fe023a9076a56663d43cc453f1a2e020037ebbdb3e5231072e3c05d06"
+        },
+        "static/mantine-ui/assets/index-BV7pz6k1.css": {
+          "size": 286212,
+          "sha256": "a70076684eaf0dff3e809211397bad284a2fafaa5f6605c902afdf5620bc8fd8"
+        },
+        "static/mantine-ui/index.html": {
+          "size": 1832,
+          "sha256": "266f63a42dcaf55fe74c264aaa037b17d74adc7c501da6a9fcc3218714cedb48"
+        }
+      },
+      "compression": "Python GzipFile filename-empty mtime0 level6 OS255"
+    },
+    "base": {
+      "runtime_ref": "gcr.io/distroless/static-debian13@sha256:2293b36c7c9082bf4115aab724b4d2cddec82c8eba39bf27ac0517e159acf150",
+      "config_digest": "sha256:55a757dc8ab862a4eb634c434261dcd26f17c186b54f7bce845404a335456110",
+      "root_media_type": "application/vnd.oci.image.manifest.v1+json",
+      "layers": [
+        {
+          "descriptor": {
+            "size": 124525,
+            "digest": "sha256:2cc7ee286bf3a9e6af5f71756d7fc8e22e23ce65fec9047d774511ffcef79fa8",
+            "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip"
+          },
+          "diff_id": "sha256:9486261b5a13f63ca6904b36721527ac8f19df53d300560138d69ae9b4c203de",
+          "expanded": 491520,
+          "members": 102,
+          "inventory_sha256": "5354f3b705a681bdbdd9c2b69a894e0f56954ab3f420a50bfbd6aa4fb18fbf9e"
+        },
+        {
+          "descriptor": {
+            "size": 12675,
+            "digest": "sha256:c172f21841dff4c8cf45cde46589c1c2616cefe7e819965e92e6d3475c428aa0",
+            "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip"
+          },
+          "diff_id": "sha256:621c35e751a51a9a9dc3e80aa0b7fe8be2a93402ea6ccd307d30852cd7776cda",
+          "expanded": 40960,
+          "members": 17,
+          "inventory_sha256": "6f3a3c9fc89cc96f1c51a98e5f0925c523f4bb6057fec51f39d59451f3bb63c3"
+        },
+        {
+          "descriptor": {
+            "size": 288057,
+            "digest": "sha256:218cf840d0d95a86231eb9d33d26ac8a520a4299c6096cb70a0c2fb2a87c9e0a",
+            "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip"
+          },
+          "diff_id": "sha256:763a77745f27b86cf26b97887b6842d83720e63b1c48848c0ba9ee54e351d63a",
+          "expanded": 1157120,
+          "members": 528,
+          "inventory_sha256": "e66fb0f75e7ff8ae210c3789b509bb89634006d53ae9e8b0681c21a32c2d81be"
+        },
+        {
+          "descriptor": {
+            "size": 254668,
+            "digest": "sha256:f6069939f718601b38d25ec5ed5631ed047e4da24acec2e252f8f29d251be718",
+            "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip"
+          },
+          "diff_id": "sha256:f0d0eff4c2312a7bd6e21797bdfea5eb35f60e76b555ce2b22794424af2cad36",
+          "expanded": 1331200,
+          "members": 761,
+          "inventory_sha256": "355355459c8f97843266dfc9af93a9b7d3772dac464b73432613912f725fd644"
+        },
+        {
+          "descriptor": {
+            "size": 32093,
+            "digest": "sha256:d6b1b89eccacc15c2420b2776d72c1dae334a00805ed9af54bf2f71e4d536f28",
+            "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip"
+          },
+          "diff_id": "sha256:275a30dd8ce958b21daa9ad962c6fbc09f98306ee2f486b65c9075dc257b1412",
+          "expanded": 102400,
+          "members": 17,
+          "inventory_sha256": "19cce3cc56c3a63abfe14f9a31a51c2f5b9a5c52b38a7c8234c4d3e62c0a0701"
+        },
+        {
+          "descriptor": {
+            "size": 67,
+            "digest": "sha256:2780920e5dbfbe103d03a583ed75345306e572ec5a48cb10361f046767d9f29a",
+            "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip"
+          },
+          "diff_id": "sha256:4d049f83d9cf21d1f5cc0e11deaf36df02790d0e60c1a3829538fb4b61685368",
+          "expanded": 1536,
+          "members": 1,
+          "inventory_sha256": "b405415ec34e6efa906c1c4e58460fc1aee3ed44c30c2fe4690a847ccedb8df8"
+        },
+        {
+          "descriptor": {
+            "size": 188,
+            "digest": "sha256:7c12895b777bcaa8ccae0605b4de635b68fc32d60fa08f421dc3818bf55ee212",
+            "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip"
+          },
+          "diff_id": "sha256:af5aa97ebe6ce1604747ec1e21af7136ded391bcabe4acef882e718a87c86bcc",
+          "expanded": 2560,
+          "members": 2,
+          "inventory_sha256": "84b6b049b5ebabbfc9550909a1cb652795bbe444725387ff47ab1ba26590b5ab"
+        },
+        {
+          "descriptor": {
+            "size": 123,
+            "digest": "sha256:3214acf345c0cc6bbdb56b698a41ccdefc624a09d6beb0d38b5de0b2303ecaf4",
+            "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip"
+          },
+          "diff_id": "sha256:6f1cdceb6a3146f0ccb986521156bef8a422cdbb0863396f7f751f575ba308f4",
+          "expanded": 2560,
+          "members": 3,
+          "inventory_sha256": "d814686c93c24fd85eec8c12aa3aedb03f5eca52f8936a9f8e2dfe815c8a893f"
+        },
+        {
+          "descriptor": {
+            "size": 162,
+            "digest": "sha256:52630fc75a18675c530ed9eba5f55eca09b03e91bd5bc15307918bbc1a7e7296",
+            "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip"
+          },
+          "diff_id": "sha256:bd3cdfae1d3fdd83a2231d608969b38b82349777c2fff9a7c12d54f8ac5c9b38",
+          "expanded": 2560,
+          "members": 2,
+          "inventory_sha256": "b56bbd4d385ce7a38ae96b3ac9d5c894b9b2d1a7e81cb751c318d127fd26c809"
+        },
+        {
+          "descriptor": {
+            "size": 80,
+            "digest": "sha256:dd64bf2dd177757451a98fcdc999a339c35dee5d9872d8f4dc69c8f3c4dd0112",
+            "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip"
+          },
+          "diff_id": "sha256:4cde6b0bb6f50a5f255eef7b2a42162c661cf776b803225dcac9a659e396bb6b",
+          "expanded": 1536,
+          "members": 1,
+          "inventory_sha256": "52718246e6fcb9b4e631cfd4b581bc299afb4ae98589b6a6d1f932c7c1c2d9f6"
+        },
+        {
+          "descriptor": {
+            "size": 351,
+            "digest": "sha256:b839dfae01f66e15c6a8b63520557ed315bdfe036342fa7a0c537259f10d7a9a",
+            "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip"
+          },
+          "diff_id": "sha256:ad51d0769d16ba578106a177987dfe3d2e02c1668c852b795b2f6b024068242a",
+          "expanded": 2048,
+          "members": 1,
+          "inventory_sha256": "8a452647660cfe3e5a620f3fdb7ee33334bbe8a0aa5f04a2f54cc2cbcd583b93"
+        },
+        {
+          "descriptor": {
+            "size": 311,
+            "digest": "sha256:ebddc55facdc6b1f7e0f30816a5fc7cc62f38abdf76c0a8b0a0ce52085754795",
+            "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip"
+          },
+          "diff_id": "sha256:187cfc6d1e3e8a40a5e64653bcd3239c140807dcf1c09e48021178705a5a6139",
+          "expanded": 3072,
+          "members": 3,
+          "inventory_sha256": "6869ca4e9b4c88ef56f14fcd7afc596d2a6550da6577b580fc4a0f3b0f100cbc"
+        },
+        {
+          "descriptor": {
+            "size": 143338,
+            "digest": "sha256:c4bc6f35ff5e25aa1afe7a148a0b6f10a760f54e298f86a4a4d44b91f1afbfab",
+            "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip"
+          },
+          "diff_id": "sha256:f2392a9484bf6b18f06beaf705b994e31dbb2716c99cf7d03c9c495cd107f364",
+          "expanded": 276480,
+          "members": 15,
+          "inventory_sha256": "31d48342ff6ca53acaa34c50f6cf4721f1a3b9276e073ef41dffecca5ed51b90"
+        }
+      ]
+    },
+    "oras": {
+      "identity": "PulsePlate-rebuilt upstream ORAS; not the upstream release binary",
+      "version": "1.3.4",
+      "revision": "db9e29505c3059f2b8fde34ae8cae266c5c765e9",
+      "tree": "fa717b77576c315f859d3178977920f935533dee",
+      "source": {
+        "name": "oras-source",
+        "url": "https://codeload.github.com/oras-project/oras/tar.gz/db9e29505c3059f2b8fde34ae8cae266c5c765e9",
+        "size": 406029,
+        "digest": "df21c91ff25c13b9c5c5d26b43dd3830fb978c9a93605f641d1e4d25a871b1ee",
+        "root": "oras-db9e29505c3059f2b8fde34ae8cae266c5c765e9",
+        "members": 507,
+        "files": 411,
+        "expanded": 4194304,
+        "release": false
+      },
+      "canonical_inventory_sha256": "69577a4027743fd734c33c678cdc62c93de4392e65a75e41d6f9f2d9c92c75b9",
+      "raw_headers_sha256": "6f59a7b473ab3f4a6e47c77169ae31258301c28d6c73192d1f692aa8ff180236",
+      "original_locks": {
+        "go.mod": "02f8c886457ca22d404a2c0f8ce90a2d98cc42350bd08ab1bd43a91b6f13760f",
+        "go.sum": "4f30ae58ea70de3be56e6befa2d9b737dc37379261fd812a8b51236a216d654f"
+      },
+      "license_sha256": "eccb04b94c71454ea03f00ecb518b997952c4f2f23aca50baab98230f5c8dc00",
+      "compiler": "go1.27.2 linux/amd64 CGO_ENABLED=0",
+      "command": "oras.land/oras/cmd/oras",
+      "flags": [
+        "-mod=readonly",
+        "-p=1",
+        "-trimpath",
+        "-buildvcs=false",
+        "-ldflags=-X oras.land/oras/internal/version.Version=1.3.4 -X oras.land/oras/internal/version.GitCommit=db9e29505c3059f2b8fde34ae8cae266c5c765e9 -X oras.land/oras/internal/version.BuildMetadata= -X oras.land/oras/internal/version.GitTreeState=clean"
+      ],
+      "retained": null
+    },
+    "platform": "linux/amd64",
+    "recipe_sha256": "544b1a116963f57ef3f4fe59e4aac41c03a26029babd36496e9e39ed3d514778",
+    "compiler": {
+      "user": "65532:65532",
+      "network": "none",
+      "CGO_ENABLED": "0",
+      "commands": [
+        "./cmd/prometheus",
+        "./cmd/promtool"
+      ],
+      "flags": [
+        "-p=1",
+        "-trimpath",
+        "-buildvcs=false",
+        "-tags=netgo,builtinassets"
+      ],
+      "ldflags": "-X github.com/prometheus/common/version.Version=3.15.0 -X github.com/prometheus/common/version.Revision=5241a27fe3c6983549fccc32f6e65917408c63cd -X github.com/prometheus/common/version.Branch=HEAD -X github.com/prometheus/common/version.BuildUser=pulseplate -X github.com/prometheus/common/version.BuildDate=20260925-07:25:38",
+      "cache": "fresh-per-logical-image-build; shared only by its two named commands",
+      "maximum_seconds_each": 3600,
+      "total_serial_invocations": 2,
+      "automatic_retries": 0
+    }
+  },
+  "selection": null,
+  "candidate": null
 }

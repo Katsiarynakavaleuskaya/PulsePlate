@@ -17,6 +17,8 @@ from pathlib import Path
 import pytest
 import yaml
 
+from scripts.ci import prometheus_source_image as prometheus_source
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 CD_WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "cd.yml"
 PRODUCTION_COMPOSE_PATH = REPO_ROOT / "deploy" / "docker-compose.production.yaml"
@@ -32,12 +34,392 @@ ALERTMANAGER_RUNTIME_REF = (
     "prom/alertmanager@sha256:84967b9b7ba45e38a9278d3e594305f43d4993c310df3905b51138b816c365f3"
 )
 POSTGRES_MANIFEST_PATH = REPO_ROOT / "deploy" / "postgres-pgvector" / "image-manifest.json"
-PROMETHEUS_SOURCE_REVISION = "53144df54e01b689bf6c45e811c6230631b132e7"
-PROMETHEUS_INDEX_DIGEST = "sha256:62464aea89547566d3e26b33566a40d8a9d2ddef947fde9d37454040c9c636b1"
-PROMETHEUS_PLATFORM_MANIFEST_DIGEST = (
-    "sha256:76f21be0a8e8c825cccb0e2021699dcbfb02037cc594c1f48d44993f8a415f2d"
+# Parser/caller fixtures only: these coordinates do not claim an artifact or native build.
+PROMETHEUS_SOURCE_REVISION = prometheus_source.REVISION
+PROMETHEUS_INDEX_DIGEST = "sha256:" + "1" * 64  # Synthetic transport identity.
+PROMETHEUS_PLATFORM_MANIFEST_DIGEST = "sha256:" + "2" * 64
+PROMETHEUS_CONFIG_DIGEST = "sha256:" + "3" * 64
+PROMETHEUS_RUNTIME_REF = (
+    prometheus_source.IMAGE_REPOSITORY + "@" + PROMETHEUS_PLATFORM_MANIFEST_DIGEST
 )
-PROMETHEUS_RUNTIME_REF = f"prom/prometheus@{PROMETHEUS_PLATFORM_MANIFEST_DIGEST}"
+
+
+def _synthetic_prometheus_manifest() -> dict[str, object]:
+    """Static manifest/caller data, never a successful native or API receipt."""
+    inputs = prometheus_source.declared_inputs()
+    inputs["oras"]["retained"] = {
+        "source_head": "1" * 40,
+        "run_id": 1,
+        "artifact_id": 1,
+        "artifact_name": "prometheus-oras-1-1",
+        "artifact_digest": "sha256:" + "a" * 64,
+        "binary_sha256": "b" * 64,
+        "binary_bytes": 1,
+        "input_digest": "sha256:" + "c" * 64,
+    }
+    selection = {
+        "repository": prometheus_source.IMAGE_REPOSITORY,
+        "platform": "linux/amd64",
+        "root_media_type": prometheus_source.OCI_MANIFEST,
+        "manifest_digest": PROMETHEUS_PLATFORM_MANIFEST_DIGEST,
+        "config_digest": PROMETHEUS_CONFIG_DIGEST,
+        "layers": [row["descriptor"] for row in prometheus_source.BASE_LAYER_CONTRACTS]
+        + [{"mediaType": prometheus_source.OCI_LAYER, "size": 1, "digest": "sha256:" + "4" * 64}],
+        "diff_ids": [row["diff_id"] for row in prometheus_source.BASE_LAYER_CONTRACTS]
+        + ["sha256:" + "5" * 64],
+        "runtime_ref": PROMETHEUS_RUNTIME_REF,
+        "binaries": {
+            name: {"sha256": "6" * 64, "version": "3.15.0"} for name in ("prometheus", "promtool")
+        },
+        "ui_inventory_sha256": prometheus_source.sha(
+            prometheus_source.canonical_data(prometheus_source.UI_FILES)
+        ),
+        "source_revision": PROMETHEUS_SOURCE_REVISION,
+        "version": "3.15.0",
+    }
+    candidate = {
+        "repository": {"id": 1043311030, "full_name": prometheus_source.GHCR_REPOSITORY},
+        "producer": {
+            "workflow_id": 1,
+            "workflow_path": ".github/workflows/build.yml",
+            "source_head": "1" * 40,
+            "source_ref": "refs/heads/synthetic-parser-fixture",
+            "pr_number": 2477,
+            "run_id": 1,
+            "run_attempt": 1,
+            "job_ids": [1],
+            "raw_producer": {
+                name: {
+                    "bytes": (REPO_ROOT / name).stat().st_size,
+                    "sha256": hashlib.sha256((REPO_ROOT / name).read_bytes()).hexdigest(),
+                }
+                for name in prometheus_source.PRODUCER_FILES
+            },
+            "input_projection_sha256": "7" * 64,
+        },
+        "artifact": {
+            "id": 1,
+            "name": "prometheus-source-candidate-1-1",
+            "digest": "sha256:" + "8" * 64,
+            "size": 1,
+            "expires_at": "2099-01-01T00:00:00Z",
+            "archive_sha256": "8" * 64,
+        },
+        "outputs": {
+            name: "9" * 64
+            for name in (
+                "oci_archive_sha256",
+                "docker_archive_sha256",
+                "native_report_sha256",
+                "pair_report_sha256",
+                "spdx_sha256",
+                "provenance_bundle_sha256",
+                "sbom_bundle_sha256",
+            )
+        },
+    }
+    return {
+        "schema": prometheus_source.IMAGE_SCHEMA,
+        "phase": "candidate_selected",
+        "inputs": inputs,
+        "selection": selection,
+        "candidate": candidate,
+    }
+
+
+PROMETHEUS_MANIFEST_ERRORS = {
+    "malformed": "JSONDecodeError",
+    "duplicate": "QualificationError:duplicate_JSON_key",
+    "missing": "QualificationError:selection_keys",
+    "extra": "QualificationError:image_manifest_keys",
+    "wrong-platform-digest": "QualificationError:selection_distinct_identity",
+    "wrong-source-revision": "QualificationError:selection_fixed_identity",
+    "wrong-runtime-ref": "QualificationError:selection_distinct_identity",
+    "index-digest-runtime-ref": "QualificationError:selection_distinct_identity",
+    "wrong-type": "QualificationError:selection_fixed_identity",
+}
+
+
+def _synthetic_prometheus_manifest_text() -> str:
+    return json.dumps(_synthetic_prometheus_manifest(), indent=2) + "\n"
+
+
+def _write_prometheus_helper(root: Path) -> None:
+    target = root / "scripts/ci/prometheus_source_image.py"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_bytes((REPO_ROOT / "scripts/ci/prometheus_source_image.py").read_bytes())
+    target.chmod(0o644)
+
+
+DEPLOY_PYTHON_CALLERS = (
+    "scripts/deploy_production.sh",
+    "scripts/deploy.sh",
+    "scripts/QUICK_FIX_PRODUCTION.sh",
+)
+DEPLOY_PYTHON_DEFAULTS = (
+    "/usr/bin/python3",
+    "/usr/local/bin/python3",
+    "/opt/homebrew/bin/python3",
+    "/opt/homebrew/opt/python@3.14/libexec/bin/python3",
+)
+
+
+def _deploy_python_program(relative: str, candidates: list[Path]) -> str:
+    """Execute the actual finite caller seam using synthetic candidate paths."""
+    text = (REPO_ROOT / relative).read_text()
+    if relative == "scripts/deploy_production.sh":
+        start = text.index("resolve_absolute_executable() {")
+        end = text.index("\nif ! DOCKER_BIN=", start)
+        body = text[start:end] + '\nPYTHON_BIN_OVERRIDE="${PYTHON_BIN:-}"\n'
+        body += 'PYTHON_BIN="$(resolve_absolute_executable "$PYTHON_BIN_OVERRIDE" PYTHON_BIN '
+        body += " ".join(shlex.quote(str(path)) for path in candidates) + ')"\n'
+    else:
+        start = text.index("# Scoped deploy-tool interpreter input;")
+        end = text.index("\nreadonly PYTHON_BIN", start) + len("\nreadonly PYTHON_BIN")
+        body = text[start:end]
+        array_start = body.index("TRUSTED_PYTHON_CANDIDATES=(")
+        array_end = body.index("\n)", array_start) + len("\n)")
+        body = (
+            body[:array_start]
+            + "TRUSTED_PYTHON_CANDIDATES=("
+            + " ".join(shlex.quote(str(path)) for path in candidates)
+            + ")"
+            + body[array_end:]
+        )
+    touch = shutil.which("touch")
+    assert touch is not None and Path(touch).is_absolute()
+    return (
+        "set -euo pipefail\n"
+        + body
+        + '\nprintf "selected=%s\\n" "$PYTHON_BIN"\n'
+        + shlex.quote(touch)
+        + ' "$MUTATION_MARKER"\n'
+    )
+
+
+def _synthetic_python_probe(path: Path, identity: str, trace: Path, *, status: int = 0) -> None:
+    """Probe test data only; this wrapper has no interpreter-origin authority."""
+    path.write_text(
+        "#!/bin/sh\n"
+        'test "$#" -eq 4 && test "$1" = -I && test "$2" = -S && test "$3" = -c || exit 98\n'
+        "printf '%s\\n' " + shlex.quote(path.name) + " >> " + shlex.quote(str(trace)) + "\n"
+        "printf '%s' " + shlex.quote(identity) + "\n"
+        f"exit {status}\n"
+    )
+    path.chmod(0o755)
+
+
+@pytest.mark.parametrize("relative", DEPLOY_PYTHON_CALLERS)
+@pytest.mark.parametrize("version", ["3.11", "3.12", "3.13", "3.14", "actual-repo"])
+def test_deploy_tool_python_supported_explicit_override(
+    tmp_path: Path, relative: str, version: str
+) -> None:
+    trace = tmp_path / "probes"
+    override = tmp_path / "explicit-python"
+    fallback = tmp_path / "fallback-python"
+    _synthetic_python_probe(fallback, "cpython:3.14\n", trace)
+    if version == "actual-repo":
+        override = Path(sys.executable)
+    else:
+        _synthetic_python_probe(override, "cpython:" + version + "\n", trace)
+    bash = shutil.which("bash")
+    assert bash is not None
+    result = subprocess.run(
+        [bash, "-c", _deploy_python_program(relative, [fallback])],
+        env={
+            "PATH": os.defpath,
+            "PYTHON_BIN": str(override),
+            "MUTATION_MARKER": str(tmp_path / "admitted"),
+        },
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    assert result.stdout == f"selected={override}\n"
+    assert (tmp_path / "admitted").exists()
+    assert (
+        not trace.exists() if version == "actual-repo" else trace.read_text() == "explicit-python\n"
+    )
+
+
+@pytest.mark.parametrize("relative", DEPLOY_PYTHON_CALLERS)
+@pytest.mark.parametrize(
+    "fault",
+    [
+        "3.9",
+        "3.10",
+        "3.15",
+        "non-CPython",
+        "startup-failure",
+        "empty",
+        "true",
+        "relative",
+        "not-executable",
+    ],
+)
+def test_deploy_tool_python_unsupported_explicit_never_falls_back(
+    tmp_path: Path, relative: str, fault: str
+) -> None:
+    trace = tmp_path / "probes"
+    override = tmp_path / "explicit-python"
+    fallback = tmp_path / "fallback-python"
+    _synthetic_python_probe(fallback, "cpython:3.14\n", trace)
+    identity = "pypy:3.13\n" if fault == "non-CPython" else "cpython:" + fault + "\n"
+    if fault in ("empty", "startup-failure"):
+        identity = "" if fault == "empty" else "cpython:3.14\n"
+    _synthetic_python_probe(
+        override, identity, trace, status=7 if fault == "startup-failure" else 0
+    )
+    if fault == "relative":
+        override = Path("python3")
+    elif fault == "not-executable":
+        override.chmod(0o644)
+    elif fault == "true":
+        binary = shutil.which("true")
+        assert binary is not None and Path(binary).is_absolute()
+        override = Path(binary)
+    bash = shutil.which("bash")
+    assert bash is not None
+    result = subprocess.run(
+        [bash, "-c", _deploy_python_program(relative, [fallback])],
+        env={
+            "PATH": os.defpath,
+            "PYTHON_BIN": str(override),
+            "MUTATION_MARKER": str(tmp_path / "admitted"),
+        },
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
+    )
+    assert result.returncode != 0
+    assert "PYTHON_BIN" in result.stderr
+    assert (
+        "absolute path" in result.stderr
+        if fault == "relative"
+        else (
+            "not executable" in result.stderr
+            if fault == "not-executable"
+            else "CPython 3.11, 3.12, 3.13 or 3.14" in result.stderr
+        )
+    )
+    assert not (tmp_path / "admitted").exists()
+    assert not trace.exists() or "fallback-python" not in trace.read_text()
+
+
+@pytest.mark.parametrize("relative", DEPLOY_PYTHON_CALLERS)
+@pytest.mark.parametrize("supported_default", [True, False])
+def test_deploy_tool_python_skips_old_default_without_PATH_discovery(
+    tmp_path: Path, relative: str, supported_default: bool
+) -> None:
+    trace = tmp_path / "probes"
+    old, missing, current = (
+        tmp_path / name for name in ("old-python", "missing", "current-python")
+    )
+    _synthetic_python_probe(old, "cpython:3.9\n", trace)
+    _synthetic_python_probe(
+        current, "cpython:3.14\n" if supported_default else "pypy:3.13\n", trace
+    )
+    injection = tmp_path / "path-bin"
+    injection.mkdir()
+    _synthetic_python_probe(injection / "python3", "cpython:3.14\n", trace)
+    bash = shutil.which("bash")
+    assert bash is not None
+    result = subprocess.run(
+        [bash, "-c", _deploy_python_program(relative, [old, missing, current])],
+        env={
+            "PATH": str(injection) + os.pathsep + os.defpath,
+            "MUTATION_MARKER": str(tmp_path / "admitted"),
+        },
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
+    )
+    assert (result.returncode == 0) is supported_default, result.stderr
+    assert (tmp_path / "admitted").exists() is supported_default
+    assert trace.read_text() == "old-python\ncurrent-python\n"
+    assert result.stdout == (f"selected={current}\n" if supported_default else "")
+
+
+def test_deploy_tool_python_default_catalogue_and_early_boundary() -> None:
+    for relative in DEPLOY_PYTHON_CALLERS:
+        text = (REPO_ROOT / relative).read_text()
+        start = text.index("TRUSTED_PYTHON_CANDIDATES=(")
+        end = text.index("\n)", start)
+        assert re.findall(r'"([^"]+)"', text[start:end]) == list(DEPLOY_PYTHON_DEFAULTS)
+        assert "command -v python" not in text
+        assert text.index("sys.implementation.name") < text.index("run_prometheus_contract() {")
+        if relative == "scripts/deploy_production.sh":
+            assert text.index("if ! PYTHON_BIN=") < text.index("run_prometheus_contract() {")
+
+
+def test_prometheus_trusted_helper_callers_bind_current_source_bytes() -> None:
+    """Caller consistency only; a hash is not independent source/trust authority."""
+    expected = hashlib.sha256(
+        (REPO_ROOT / "scripts/ci/prometheus_source_image.py").read_bytes()
+    ).hexdigest()
+    for relative in DEPLOY_PYTHON_CALLERS:
+        text = (REPO_ROOT / relative).read_text()
+        assert re.findall(r'PROMETHEUS_CONTRACT_HELPER_SHA256="([0-9a-f]{64})"', text) == [expected]
+
+
+@pytest.mark.parametrize("relative", DEPLOY_PYTHON_CALLERS)
+def test_deploy_tool_python_callers_reject_before_helper_or_mutation(
+    tmp_path: Path, relative: str
+) -> None:
+    trace = tmp_path / "probes"
+    override = tmp_path / "old-python"
+    _synthetic_python_probe(override, "cpython:3.9\n", trace)
+    if relative == "scripts/deploy.sh":
+        env, log = _staging_deploy_fixture(tmp_path)
+        project = Path(env["PROJECT_DIR"])
+        arguments = [
+            "--preflight-only",
+            "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "a" * 64,
+            "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "b" * 64,
+        ]
+    elif relative == "scripts/deploy_production.sh":
+        env, project, log, _bundle = _production_preflight_fixture(tmp_path, with_bundle=False)
+        arguments = ["--preflight-only"]
+    else:
+        project = tmp_path / "quick-production"
+        project.mkdir()
+        (project / "docker-compose.production.yaml").write_text("services: {}\n")
+        (project / ".env").write_text("unchanged=synthetic\n")
+        directory = tmp_path / "bin"
+        directory.mkdir()
+        log = tmp_path / "docker.log"
+        docker = directory / "docker"
+        docker.write_text(
+            "#!/bin/sh\nprintf '%s\\n' \"$*\" >> " + shlex.quote(str(log)) + "\nexit 0\n"
+        )
+        docker.chmod(0o755)
+        env = {"PATH": str(directory) + os.pathsep + os.defpath, "DEPLOY_DIR": str(project)}
+        arguments = []
+    env["PYTHON_BIN"] = str(override)
+    env_file = project / ".env"
+    before = (env_file.read_bytes(), stat.S_IMODE(env_file.stat().st_mode))
+    bash = shutil.which("bash")
+    assert bash is not None
+    result = subprocess.run(
+        [bash, str(REPO_ROOT / relative), *arguments],
+        env=env,
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
+    )
+    assert result.returncode != 0
+    assert "CPython 3.11, 3.12, 3.13 or 3.14" in result.stderr
+    assert trace.read_text() == "old-python\n"
+    assert (env_file.read_bytes(), stat.S_IMODE(env_file.stat().st_mode)) == before
+    assert not log.exists() or log.read_text() == "compose version\n"
+
+
 POSTGRES_RUNTIME_REF = (
     "ghcr.io/katsiarynakavaleuskaya/pulseplate:postgres-15.19-pgvector0.8.6-alpine3.23@"
     "sha256:d4437ad4970b4099e4cb7d05b7fa625c7e6959949d1374f1f2d4bd4149ae5fa3"
@@ -130,9 +512,23 @@ FAKE_PROMETHEUS_COMPOSE_JSON = json.dumps(
 FAKE_PROMETHEUS_IMAGE_INSPECT_JSON = json.dumps(
     [
         {
+            "Id": PROMETHEUS_CONFIG_DIGEST,
             "Os": "linux",
             "Architecture": "amd64",
-            "RepoDigests": [f"prom/prometheus@{PROMETHEUS_PLATFORM_MANIFEST_DIGEST}"],
+            "RepoDigests": [PROMETHEUS_RUNTIME_REF],
+            "RootFS": {
+                "Type": "layers",
+                "Layers": _synthetic_prometheus_manifest()["selection"]["diff_ids"],
+            },
+            "Config": {
+                "User": "65532:65532",
+                "Entrypoint": ["/bin/prometheus"],
+                "WorkingDir": "/prometheus",
+                "Cmd": [
+                    "--config.file=/etc/prometheus/prometheus.yml",
+                    "--storage.tsdb.path=/prometheus",
+                ],
+            },
         }
     ],
     separators=(",", ":"),
@@ -236,6 +632,7 @@ def _write_production_host_contract(
 ) -> Path:
     if include_checkpoint:
         _write_checkpoint_contract(project_dir)
+    _write_prometheus_helper(project_dir)
     deploy_dir = project_dir / "deploy"
     prometheus_dir = deploy_dir / "prometheus"
     alertmanager_dir = deploy_dir / "alertmanager"
@@ -261,7 +658,7 @@ def _write_production_host_contract(
         PROMETHEUS_RULES_PATH.read_text(encoding="utf-8"), encoding="utf-8"
     )
     (prometheus_dir / "image-manifest.json").write_text(
-        PROMETHEUS_MANIFEST_PATH.read_text(encoding="utf-8"), encoding="utf-8"
+        _synthetic_prometheus_manifest_text(), encoding="utf-8"
     )
     (alertmanager_dir / "alertmanager.yml").write_text(
         ALERTMANAGER_CONFIG_PATH.read_text(encoding="utf-8"), encoding="utf-8"
@@ -305,6 +702,7 @@ def _write_shell_bundle_contract(
     include_backup_helper: bool = True,
 ) -> None:
     _write_checkpoint_contract(shell_bundle_dir)
+    _write_prometheus_helper(shell_bundle_dir)
     deploy_dir = shell_bundle_dir / "deploy"
     prometheus_dir = deploy_dir / "prometheus"
     alertmanager_dir = deploy_dir / "alertmanager"
@@ -338,7 +736,7 @@ def _write_shell_bundle_contract(
         PROMETHEUS_RULES_PATH.read_text(encoding="utf-8"), encoding="utf-8"
     )
     (prometheus_dir / "image-manifest.json").write_text(
-        PROMETHEUS_MANIFEST_PATH.read_text(encoding="utf-8"), encoding="utf-8"
+        _synthetic_prometheus_manifest_text(), encoding="utf-8"
     )
     (alertmanager_dir / "alertmanager.yml").write_text(
         ALERTMANAGER_CONFIG_PATH.read_text(encoding="utf-8"), encoding="utf-8"
@@ -386,6 +784,7 @@ def _write_shell_bundle_archive(
         "deploy/prometheus/image-manifest.json",
         "deploy/alertmanager/alertmanager.yml",
         "deploy/alertmanager/trivy-ignore.yaml",
+        "scripts/ci/prometheus_source_image.py",
         "scripts/diagnose_web.sh",
         "scripts/ops/postgres_backup.sh",
         "scripts/redeploy_caddy.sh",
@@ -500,21 +899,18 @@ def test_production_compose_source_of_truth_matches_split_contract() -> None:
     assert caddy_build_args["VITE_API_BASE"] == "${VITE_API_BASE:-/api/v1}"
 
 
-def test_prometheus_image_manifest_is_one_closed_exact_record() -> None:
-    manifest_bytes = PROMETHEUS_MANIFEST_PATH.read_bytes()
-    assert hashlib.sha256(manifest_bytes).hexdigest() == (
-        "4ed16abd263dabd23f4df04aa60401324efd34dd5d93a9fdbb58c60e2081dc75"  # pragma: allowlist secret
-    )
-    manifest = json.loads(manifest_bytes)
-    assert manifest == {
-        "schema": "pulseplate.prometheus_image_manifest.v2",
-        "repository": "prom/prometheus",
-        "source_revision": PROMETHEUS_SOURCE_REVISION,
-        "index_digest": PROMETHEUS_INDEX_DIGEST,
-        "platform": "linux/amd64",
-        "platform_manifest_digest": PROMETHEUS_PLATFORM_MANIFEST_DIGEST,
-        "runtime_ref": PROMETHEUS_RUNTIME_REF,
-    }
+def test_prometheus_image_manifest_preparation_cannot_select_a_runtime() -> None:
+    observed = prometheus_source.read_image_manifest(PROMETHEUS_MANIFEST_PATH, preparation=True)
+    assert observed["schema"] == prometheus_source.IMAGE_SCHEMA
+    if observed["phase"] == "source_prepared":
+        assert observed["selection"] is None and observed["candidate"] is None
+        with pytest.raises(
+            prometheus_source.QualificationError, match="source_prepared_not_consumable"
+        ):
+            prometheus_source.read_image_manifest(PROMETHEUS_MANIFEST_PATH)
+    else:
+        prometheus_source.validate_selection(observed["selection"])
+        prometheus_source.validate_candidate_coordinates(observed["candidate"])
 
 
 def test_postgres_pgvector_manifest_binds_reproducible_image_and_scan_contract() -> None:
@@ -2923,9 +3319,6 @@ def _staging_cleanup_program() -> str:
         ("prometheus", "0", "0", 0),
         ("prometheus", "0", "72", 1),
         ("prometheus", "33", "72", 33),
-        ("prometheus-oci", "0", "0", 0),
-        ("prometheus-oci", "0", "72", 1),
-        ("prometheus-oci", "33", "72", 33),
         ("reuse", "0", "0", 0),
         ("reuse", "0", "72", 1),
         ("reuse", "33", "72", 33),
@@ -2984,12 +3377,6 @@ def test_other_bounded_cleanup_traps_preserve_primary_and_account_for_rm(
             suffix='exit "$TEST_PRIMARY_STATUS"\n',
         )
         expected_dir_prefix = "pulseplate-obs1b-ci-123-1."
-    elif surface == "prometheus-oci":
-        program = _workflow_trap_prefix(
-            "Cross-bind immutable index, linux amd64 manifest, and local image config",
-            suffix='exit "$TEST_PRIMARY_STATUS"\n',
-        )
-        expected_dir_prefix = "pulseplate-obs1b-oci."
     elif surface == "reuse":
         program = _workflow_trap_prefix(
             "Read-only admit the existing exact PostgreSQL digest",
@@ -3458,46 +3845,28 @@ def test_cd_postgres_oci_verifier_rejects_exact_invalid_fixtures(
     assert message in completed.stderr
 
 
-def test_prometheus_cd_security_job_cross_binds_v2_digest_and_revision() -> None:
+def test_prometheus_cd_uses_authenticated_finite_consumer_and_retains_strict_scan() -> None:
     workflow = yaml.safe_load(CD_WORKFLOW_PATH.read_text(encoding="utf-8"))
     job = workflow["jobs"]["prometheus-image-security"]
     steps = {step["name"]: step for step in job["steps"]}
-
-    validate_run = steps["Validate closed Prometheus image record"]["run"]
-    assert '"schema": "pulseplate.prometheus_image_manifest.v2"' in validate_run
-    assert f'"source_revision": "{PROMETHEUS_SOURCE_REVISION}"' in validate_run
-    assert f'"index_digest": "{PROMETHEUS_INDEX_DIGEST}"' in validate_run
-    assert f'"platform_manifest_digest": "{PROMETHEUS_PLATFORM_MANIFEST_DIGEST}"' in validate_run
-    assert f'"runtime_ref": "{PROMETHEUS_RUNTIME_REF}"' in validate_run
-    assert "f\"index_ref={manifest['repository']}@{manifest['index_digest']}\"" in validate_run
-    assert "f\"{manifest['repository']}@{manifest['platform_manifest_digest']}\"" in validate_run
-
-    cross_bind = steps["Cross-bind immutable index, linux amd64 manifest, and local image config"]
-    assert cross_bind["env"] == {
-        "PROMETHEUS_INDEX_REF": "${{ steps.prometheus-image.outputs.index_ref }}",
-        "PROMETHEUS_INDEX_DIGEST": "${{ steps.prometheus-image.outputs.index_digest }}",
-        "PROMETHEUS_PLATFORM_MANIFEST_DIGEST": (
-            "${{ steps.prometheus-image.outputs.platform_manifest_digest }}"
-        ),
-        "PROMETHEUS_RUNTIME_REF": "${{ steps.prometheus-image.outputs.runtime_ref }}",
-        "PROMETHEUS_SOURCE_REVISION": "${{ steps.prometheus-image.outputs.source_revision }}",
+    consumer = steps["Admit retained PR candidate or published immutable subject"]
+    assert "scripts.ci.prometheus_source_image --operation consume" in consumer["run"]
+    assert consumer["id"] == "prometheus-image"
+    assert job["permissions"] == {"contents": "read", "actions": "read", "packages": "read"}
+    assert job["environment"] == "staging"
+    assert job["env"] == {"PROMETHEUS_CONSUME_SECONDS": "900", "PROMETHEUS_CLEANUP_SECONDS": "120"}
+    assert consumer["env"] == {
+        "GH_TOKEN": "${{ secrets.GITHUB_TOKEN }}",
+        "GITHUB_TOKEN": "${{ secrets.GITHUB_TOKEN }}",
+        "GHCR_READ_TOKEN": "${{ secrets.GHCR_READ_TOKEN }}",
     }
-    cross_bind_run = cross_bind["run"]
-    for required in (
-        'docker buildx imagetools inspect --raw "$PROMETHEUS_INDEX_REF"',
-        'docker buildx imagetools inspect --raw "$PROMETHEUS_RUNTIME_REF"',
-        'docker pull --platform linux/amd64 "$PROMETHEUS_RUNTIME_REF"',
-        "--entrypoint /bin/prometheus",
-        '--version > "$evidence_dir/version.txt" 2>&1',
-        r're.findall(r"\brevision: ([0-9a-f]{40})\b", version_text)',
-        "if revisions != [expected_revision]:",
-        'image.get("Id") != config_digest',
-    ):
-        assert required in cross_bind_run
-    assert "PROMETHEUS_TAG_REF" not in cross_bind_run
-    assert "main-distroless" not in cross_bind_run
-
-    scan_run = steps["Scan exact Prometheus image without suppressions"]["run"]
+    assert not any(
+        step.get("uses", "").startswith("docker/login-action@")
+        or "docker login" in step.get("run", "")
+        or "DOCKER_CONFIG" in step.get("env", {})
+        for step in job["steps"]
+    )
+    scan = steps["Scan exact Prometheus image without suppressions"]
     for required in (
         "--scanners vuln,secret",
         "--severity CRITICAL,HIGH",
@@ -3505,9 +3874,13 @@ def test_prometheus_cd_security_job_cross_binds_v2_digest_and_revision() -> None
         '--ignorefile "$TRIVY_IGNORE_FILE"',
         '"$PROMETHEUS_RUNTIME_REF"',
     ):
-        assert required in scan_run
-    assert "--ignore-unfixed" not in scan_run
-    assert "continue-on-error" not in scan_run
+        assert required in scan["run"]
+    assert "continue-on-error" not in str(job)
+    for step in job["steps"]:
+        if "docker run" in step.get("run", ""):
+            assert "GHCR_READ_TOKEN" not in step.get("env", {})
+            assert "GITHUB_TOKEN" not in step.get("env", {})
+            assert "DOCKER_CONFIG" not in step.get("env", {})
 
 
 @pytest.mark.parametrize("additional_finding", (False, True))
@@ -4082,7 +4455,10 @@ def test_three_compose_contours_normalize_to_one_private_prometheus_contract(
         "PULSEPLATE_ENVIRONMENT="
         + ("staging" if compose_path == STAGING_COMPOSE_PATH else "production")
     ]
-    assert prometheus["image"] == PROMETHEUS_RUNTIME_REF
+    assert (
+        prometheus["image"]
+        == "${PROMETHEUS_RUNTIME_REF:?Set the canonical manifest-derived Prometheus immutable subject}"
+    )
     assert prometheus["platform"] == "linux/amd64"
     assert prometheus["user"] == "65532:65532"
     assert prometheus["restart"] == "unless-stopped"
@@ -4326,6 +4702,7 @@ set -euo pipefail
     env = os.environ.copy()
     env["PATH"] = f"{bin_dir}:{env['PATH']}"
     env["DOCKER_BIN"] = str(bin_dir / "docker")
+    env["PYTHON_BIN"] = sys.executable
     env["DEPLOY_DIR"] = str(project_dir)
     env["ENV_FILE"] = str(project_dir / ".env")
     env["COMPOSE_FILE"] = CANONICAL_MANAGED_COMPOSE
@@ -4402,6 +4779,7 @@ set -euo pipefail
     env = os.environ.copy()
     env["PATH"] = f"{bin_dir}:{env['PATH']}"
     env["DOCKER_BIN"] = str(bin_dir / "docker")
+    env["PYTHON_BIN"] = sys.executable
     env["DEPLOY_DIR"] = str(project_dir)
     env["ENV_FILE"] = str(project_dir / ".env")
     env["COMPOSE_FILE"] = CANONICAL_MANAGED_COMPOSE
@@ -4801,6 +5179,16 @@ print(json.dumps(payload))
   image\\ inspect\\ {POSTGRES_PLATFORM_MANIFEST_DIGEST})
     printf '%s\\n' 'unexpected bare-ID image inspect' >&2
     exit 92 ;;
+  image\\ inspect\\ {PROMETHEUS_RUNTIME_REF})
+    if [ \"${{STUB_IMAGE_INSPECT_STATUS:-0}}\" -ne 0 ]; then
+      exit \"${{STUB_IMAGE_INSPECT_STATUS}}\"
+    fi
+    if [ -n \"${{STUB_PROMETHEUS_IMAGE_INSPECT_JSON+x}}\" ]; then
+      printf '%s\\n' \"$STUB_PROMETHEUS_IMAGE_INSPECT_JSON\"
+    else
+      printf '%s\\n' '{FAKE_PROMETHEUS_IMAGE_INSPECT_JSON}'
+    fi
+    ;;
   image\\ inspect\\ ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:*)
     if [ "${{STUB_BACKEND_IMAGE_INSPECT_HANG:-0}}" = "1" ]; then
       printf '%s' "$$" > "$STUB_HUNG_PID_FILE"
@@ -4818,16 +5206,7 @@ print(json.dumps(payload))
       exit 94
     fi
     ;;
-  image\\ inspect\\ *)
-    if [ \"${{STUB_IMAGE_INSPECT_STATUS:-0}}\" -ne 0 ]; then
-      exit \"${{STUB_IMAGE_INSPECT_STATUS}}\"
-    fi
-    if [ -n \"${{STUB_PROMETHEUS_IMAGE_INSPECT_JSON+x}}\" ]; then
-      printf '%s\\n' \"$STUB_PROMETHEUS_IMAGE_INSPECT_JSON\"
-    else
-      printf '%s\\n' '{FAKE_PROMETHEUS_IMAGE_INSPECT_JSON}'
-    fi
-    ;;
+
 esac
 """
         marker = "set -euo pipefail\n"
@@ -4851,7 +5230,7 @@ def _assert_log_index(
 
 
 def _write_prometheus_manifest_variant(path: Path, variant: str) -> None:
-    canonical = json.loads(PROMETHEUS_MANIFEST_PATH.read_text(encoding="utf-8"))
+    canonical = json.loads(_synthetic_prometheus_manifest_text())
     if variant == "malformed":
         path.write_text("{", encoding="utf-8")
         return
@@ -4863,21 +5242,21 @@ def _write_prometheus_manifest_variant(path: Path, variant: str) -> None:
         )
         return
     if variant == "missing":
-        canonical.pop("index_digest")
+        canonical["selection"].pop("manifest_digest")
     elif variant == "extra":
         canonical["unexpected"] = "forbidden"
     elif variant == "wrong-platform-digest":
-        canonical["platform_manifest_digest"] = "sha256:" + "b" * 64
+        canonical["selection"]["manifest_digest"] = "sha256:" + "b" * 64
     elif variant == "wrong-source-revision":
-        canonical["source_revision"] = "A" * 40
+        canonical["selection"]["source_revision"] = "A" * 40
     elif variant == "wrong-runtime-ref":
-        canonical["runtime_ref"] = (
+        canonical["selection"]["runtime_ref"] = (
             "prom/prometheus:main-distroless@" + PROMETHEUS_PLATFORM_MANIFEST_DIGEST
         )
     elif variant == "index-digest-runtime-ref":
-        canonical["runtime_ref"] = f"prom/prometheus@{PROMETHEUS_INDEX_DIGEST}"
+        canonical["selection"]["runtime_ref"] = f"prom/prometheus@{PROMETHEUS_INDEX_DIGEST}"
     elif variant == "wrong-type":
-        canonical["source_revision"] = 314
+        canonical["selection"]["source_revision"] = 314
     else:
         raise AssertionError(f"unsupported manifest variant: {variant}")
     path.write_text(json.dumps(canonical), encoding="utf-8")
@@ -6092,6 +6471,9 @@ def test_production_partial_alertmanager_publication_holds_then_readmits_exact_b
         "SOURCE_ALERTMANAGER_IGNORE": str(source / "deploy/alertmanager/trivy-ignore.yaml"),
         "SOURCE_POSTGRES_MANIFEST": str(source / "deploy/postgres-pgvector/image-manifest.json"),
         "SOURCE_BACKUP_HELPER": str(source / "scripts/ops/postgres_backup.sh"),
+        "PROMETHEUS_CONTRACT_HELPER_SHA256": hashlib.sha256(
+            (REPO_ROOT / "scripts/ci/prometheus_source_image.py").read_bytes()
+        ).hexdigest(),
     }
     published = subprocess.run(
         ["/bin/bash", "-euc", program],
@@ -6185,7 +6567,10 @@ def test_staging_deploy_rejects_noncanonical_prometheus_manifest_before_docker(
     )
 
     assert completed.returncode != 0
-    assert "Prometheus manifest" in completed.stderr
+    assert (
+        completed.stderr
+        == "Prometheus qualification failed: " + PROMETHEUS_MANIFEST_ERRORS[variant] + "\n"
+    )
     assert not log_file.exists()
 
 
@@ -6265,7 +6650,10 @@ def test_production_deploy_rejects_noncanonical_prometheus_manifest_before_docke
     )
 
     assert completed.returncode != 0
-    assert "Prometheus manifest" in completed.stderr
+    assert (
+        completed.stderr
+        == "Prometheus qualification failed: " + PROMETHEUS_MANIFEST_ERRORS[variant] + "\n"
+    )
     assert not log_file.exists()
 
 
@@ -6461,61 +6849,41 @@ def test_production_deploy_rejects_rendered_prometheus_identity_drift_before_pul
     )
 
 
+def _prometheus_image_inspect_variant(variant: str) -> str:
+    payload = json.loads(FAKE_PROMETHEUS_IMAGE_INSPECT_JSON)
+    record = payload[0]
+    if variant == "multiple":
+        payload.append(dict(record))
+    elif variant == "wrong-os":
+        record["Os"] = "windows"
+    elif variant == "wrong-platform":
+        record["Architecture"] = "arm64"
+    elif variant == "missing-repository":
+        record["RepoDigests"] = []
+    elif variant == "index-digest":
+        record["RepoDigests"] = [prometheus_source.IMAGE_REPOSITORY + "@" + PROMETHEUS_INDEX_DIGEST]
+    elif variant == "foreign-repository":
+        record["RepoDigests"] = [
+            "example.invalid/prometheus@" + PROMETHEUS_PLATFORM_MANIFEST_DIGEST
+        ]
+    else:
+        raise AssertionError("Unknown synthetic Prometheus inspect variant")
+    return json.dumps(payload)
+
+
 IMAGE_INSPECT_REJECTIONS = (
     "{",
     "[]",
-    json.dumps(
-        [
-            {
-                "Os": "linux",
-                "Architecture": "amd64",
-                "RepoDigests": [f"prom/prometheus@{PROMETHEUS_PLATFORM_MANIFEST_DIGEST}"],
-            },
-            {
-                "Os": "linux",
-                "Architecture": "amd64",
-                "RepoDigests": [f"prom/prometheus@{PROMETHEUS_PLATFORM_MANIFEST_DIGEST}"],
-            },
-        ]
-    ),
-    json.dumps(
-        [
-            {
-                "Os": "windows",
-                "Architecture": "amd64",
-                "RepoDigests": [f"prom/prometheus@{PROMETHEUS_PLATFORM_MANIFEST_DIGEST}"],
-            }
-        ]
-    ),
-    json.dumps(
-        [
-            {
-                "Os": "linux",
-                "Architecture": "arm64",
-                "RepoDigests": [f"prom/prometheus@{PROMETHEUS_PLATFORM_MANIFEST_DIGEST}"],
-            }
-        ]
-    ),
-    json.dumps([{"Os": "linux", "Architecture": "amd64", "RepoDigests": []}]),
-    json.dumps(
-        [
-            {
-                "Os": "linux",
-                "Architecture": "amd64",
-                "RepoDigests": [f"prom/prometheus@{PROMETHEUS_INDEX_DIGEST}"],
-            }
-        ]
-    ),
-    json.dumps(
-        [
-            {
-                "Os": "linux",
-                "Architecture": "amd64",
-                "RepoDigests": [
-                    f"example.invalid/prometheus@{PROMETHEUS_PLATFORM_MANIFEST_DIGEST}"
-                ],
-            }
-        ]
+    *(
+        _prometheus_image_inspect_variant(variant)
+        for variant in (
+            "multiple",
+            "wrong-os",
+            "wrong-platform",
+            "missing-repository",
+            "index-digest",
+            "foreign-repository",
+        )
     ),
 )
 
@@ -6710,9 +7078,10 @@ def test_production_env_cannot_override_manifest_derived_prometheus_digest(
             "STUB_PROMETHEUS_IMAGE_INSPECT_JSON": json.dumps(
                 [
                     {
-                        "Os": "linux",
-                        "Architecture": "amd64",
-                        "RepoDigests": [f"prom/prometheus@{conflicting_digest}"],
+                        **json.loads(FAKE_PROMETHEUS_IMAGE_INSPECT_JSON)[0],
+                        "RepoDigests": [
+                            prometheus_source.IMAGE_REPOSITORY + "@" + conflicting_digest
+                        ],
                     }
                 ]
             ),
@@ -6729,7 +7098,7 @@ def test_production_env_cannot_override_manifest_derived_prometheus_digest(
     )
 
     assert completed.returncode != 0
-    assert "canonical platform digest" in completed.stderr
+    assert "QualificationError:consumer_published_immutable_subject" in completed.stderr
     log_lines = log_file.read_text(encoding="utf-8").splitlines()
     assert any("image inspect" in line for line in log_lines)
     assert all("promtool" not in line for line in log_lines)
@@ -6772,18 +7141,22 @@ def test_production_full_bundle_rejects_hostile_destination_before_docker(
         external.mkdir()
         (external / "sentinel").write_text("external-scripts\n", encoding="utf-8")
         hostile = project_dir / "scripts"
+        shutil.rmtree(
+            hostile
+        )  # Exact synthetic installed-data directory; trusted T stays separate.
+        env["PROMETHEUS_CONTRACT_HELPER"] = str(REPO_ROOT / "scripts/ci/prometheus_source_image.py")
         hostile.symlink_to(external, target_is_directory=True)
         expected = (external / "sentinel").read_bytes()
     elif destination_variant == "redeploy-leaf-symlink":
         scripts_dir = project_dir / "scripts"
-        scripts_dir.mkdir()
+        scripts_dir.mkdir(exist_ok=True)
         external.write_text("external-helper\n", encoding="utf-8")
         hostile = scripts_dir / "redeploy_caddy.sh"
         hostile.symlink_to(external)
         expected = external.read_bytes()
     elif destination_variant == "ops-directory-symlink":
         scripts_dir = project_dir / "scripts"
-        scripts_dir.mkdir()
+        scripts_dir.mkdir(exist_ok=True)
         external.mkdir()
         (external / "sentinel").write_text("external-ops\n", encoding="utf-8")
         hostile = scripts_dir / "ops"
@@ -7213,6 +7586,7 @@ printf 'curl %s\n' "$*" >> "{log_file}"
         {
             "PATH": f"{bin_dir}:{env['PATH']}",
             "DOCKER_BIN": str(bin_dir / "docker"),
+            "PYTHON_BIN": sys.executable,
             "CURL_BIN": str(bin_dir / "curl"),
             "DEPLOY_DIR": str(project_dir),
             "ENV_FILE": str(project_dir / ".env"),
@@ -7360,6 +7734,7 @@ printf 'curl %s\n' "$*" >> "{log_file}"
         {
             "PATH": f"{bin_dir}:{env['PATH']}",
             "DOCKER_BIN": str(bin_dir / "docker"),
+            "PYTHON_BIN": sys.executable,
             "CURL_BIN": str(bin_dir / "curl"),
             "DEPLOY_DIR": str(project_dir),
             "ENV_FILE": str(project_dir / ".env"),
@@ -7602,6 +7977,7 @@ printf 'curl %s\\n' "$*" >> "{log_file}"
     env = os.environ.copy()
     env["PATH"] = f"{bin_dir}:{env['PATH']}"
     env["DOCKER_BIN"] = str(bin_dir / "docker")
+    env["PYTHON_BIN"] = sys.executable
     env["DEPLOY_DIR"] = str(project_dir)
     env["ENV_FILE"] = str(project_dir / ".env")
     env["COMPOSE_FILE"] = CANONICAL_MANAGED_COMPOSE
@@ -7673,6 +8049,7 @@ printf 'docker %s\\n' "$*" >> "{log_file}"
     env = os.environ.copy()
     env["PATH"] = f"{bin_dir}:{env['PATH']}"
     env["DOCKER_BIN"] = str(bin_dir / "docker")
+    env["PYTHON_BIN"] = sys.executable
     env["DEPLOY_DIR"] = str(project_dir)
     env["COMPOSE_FILE"] = CANONICAL_MANAGED_COMPOSE
 
@@ -7721,6 +8098,7 @@ printf 'docker %s\\n' "$*" >> "{log_file}"
     env = os.environ.copy()
     env["PATH"] = f"{bin_dir}:{env['PATH']}"
     env["DOCKER_BIN"] = str(bin_dir / "docker")
+    env["PYTHON_BIN"] = sys.executable
     env["DEPLOY_DIR"] = str(project_dir)
     env["ENV_FILE"] = str(project_dir / ".env")
     env["COMPOSE_FILE"] = CANONICAL_MANAGED_COMPOSE
@@ -7795,6 +8173,7 @@ printf 'curl %s\\n' "$*" >> "{log_file}"
     env = os.environ.copy()
     env["PATH"] = f"{bin_dir}:{env['PATH']}"
     env["DOCKER_BIN"] = str(docker_dir / "docker")
+    env["PYTHON_BIN"] = sys.executable
     env["DEPLOY_DIR"] = str(project_dir)
     env["ENV_FILE"] = str(project_dir / ".env")
     env["COMPOSE_FILE"] = CANONICAL_MANAGED_COMPOSE
@@ -7862,7 +8241,7 @@ def test_deploy_production_syncs_shell_bundle_and_prunes_stale_shell_files(tmp_p
     )
     (project_dir / "frontend").mkdir()
     (project_dir / "frontend" / "stale.txt").write_text("old-shell\n", encoding="utf-8")
-    (project_dir / "scripts").mkdir()
+    (project_dir / "scripts").mkdir(exist_ok=True)
     (project_dir / "scripts" / "diagnose_web.sh").write_text("stale-diagnose\n", encoding="utf-8")
     (project_dir / "scripts" / "redeploy_caddy.sh").write_text("stale-redeploy\n", encoding="utf-8")
     destination_ops_dir = project_dir / "scripts" / "ops"
@@ -7903,6 +8282,7 @@ printf 'curl %s\\n' "$*" >> "{log_file}"
     env = os.environ.copy()
     env["PATH"] = f"{bin_dir}:{env['PATH']}"
     env["DOCKER_BIN"] = str(bin_dir / "docker")
+    env["PYTHON_BIN"] = sys.executable
     env["DEPLOY_DIR"] = str(project_dir)
     env["ENV_FILE"] = str(project_dir / ".env")
     env["COMPOSE_FILE"] = CANONICAL_MANAGED_COMPOSE
@@ -7950,9 +8330,7 @@ printf 'curl %s\\n' "$*" >> "{log_file}"
     assert published_rules.read_text(encoding="utf-8") == PROMETHEUS_RULES_PATH.read_text(
         encoding="utf-8"
     )
-    assert published_manifest.read_text(encoding="utf-8") == PROMETHEUS_MANIFEST_PATH.read_text(
-        encoding="utf-8"
-    )
+    assert published_manifest.read_text(encoding="utf-8") == _synthetic_prometheus_manifest_text()
     assert published_alert_config.read_text(encoding="utf-8") == ALERTMANAGER_CONFIG_PATH.read_text(
         encoding="utf-8"
     )
@@ -8113,7 +8491,7 @@ esac
     assert source_compose.read_text(encoding="utf-8") == tampered_compose
     assert (project_dir / "deploy" / "prometheus" / "image-manifest.json").read_text(
         encoding="utf-8"
-    ) == PROMETHEUS_MANIFEST_PATH.read_text(encoding="utf-8")
+    ) == _synthetic_prometheus_manifest_text()
     assert (project_dir / "deploy" / "prometheus" / "alias-alerts.yml").read_text(
         encoding="utf-8"
     ) == PROMETHEUS_RULES_PATH.read_text(encoding="utf-8")
@@ -8170,6 +8548,7 @@ printf 'curl %s\\n' "$*" >> "{log_file}"
     env = os.environ.copy()
     env["PATH"] = f"{bin_dir}:{env['PATH']}"
     env["DOCKER_BIN"] = str(bin_dir / "docker")
+    env["PYTHON_BIN"] = sys.executable
     env["DEPLOY_DIR"] = str(project_dir)
     env["ENV_FILE"] = str(project_dir / ".env")
     env.pop("COMPOSE_FILE", None)
@@ -8251,6 +8630,7 @@ printf 'curl %s\\n' "$*" >> "{log_file}"
     env = os.environ.copy()
     env["PATH"] = f"{bin_dir}:{env['PATH']}"
     env["DOCKER_BIN"] = str(bin_dir / "docker")
+    env["PYTHON_BIN"] = sys.executable
     env["DEPLOY_DIR"] = str(project_dir)
     env["ENV_FILE"] = str(project_dir / ".env")
     env["COMPOSE_FILE"] = "deploy/docker-compose.production.yaml"
@@ -8328,6 +8708,7 @@ printf 'curl %s\\n' "$*" >> "{log_file}"
     env = os.environ.copy()
     env["PATH"] = f"{bin_dir}:{env['PATH']}"
     env["DOCKER_BIN"] = str(bin_dir / "docker")
+    env["PYTHON_BIN"] = sys.executable
     env["DEPLOY_DIR"] = str(project_dir)
     env.pop("COMPOSE_FILE", None)
     env.pop("ENV_FILE", None)
@@ -8407,6 +8788,7 @@ printf 'curl %s\\n' "$*" >> "{log_file}"
     env = os.environ.copy()
     env["PATH"] = f"{bin_dir}:{env['PATH']}"
     env["DOCKER_BIN"] = str(bin_dir / "docker")
+    env["PYTHON_BIN"] = sys.executable
     env["DEPLOY_DIR"] = str(project_dir)
     env["COMPOSE_FILE"] = str(compose_file)
     env.pop("ENV_FILE", None)
@@ -8503,6 +8885,7 @@ printf 'curl %s\\n' "$*" >> "{log_file}"
     env = os.environ.copy()
     env["PATH"] = f"{bin_dir}:{env['PATH']}"
     env["DOCKER_BIN"] = str(bin_dir / "docker")
+    env["PYTHON_BIN"] = sys.executable
     env["DEPLOY_DIR"] = str(project_dir)
     env["ENV_FILE"] = str(project_dir / ".env")
     env["COMPOSE_FILE"] = str(outside_dir / "docker-compose.production.yaml")
@@ -8573,6 +8956,7 @@ printf 'curl %s\\n' "$*" >> "{log_file}"
     env = os.environ.copy()
     env["PATH"] = f"{bin_dir}:{env['PATH']}"
     env["DOCKER_BIN"] = str(bin_dir / "docker")
+    env["PYTHON_BIN"] = sys.executable
     env["DEPLOY_DIR"] = str(project_dir)
     env["ENV_FILE"] = str(project_dir / ".env")
     env["COMPOSE_FILE"] = CANONICAL_MANAGED_COMPOSE
@@ -8624,7 +9008,7 @@ def test_deploy_production_keeps_shell_bundle_untouched_when_migrations_fail(
     )
     (project_dir / "frontend").mkdir()
     (project_dir / "frontend" / "stale.txt").write_text("old-shell\n", encoding="utf-8")
-    (project_dir / "scripts").mkdir()
+    (project_dir / "scripts").mkdir(exist_ok=True)
     (project_dir / "scripts" / "diagnose_web.sh").write_text("stale-diagnose\n", encoding="utf-8")
     (project_dir / "scripts" / "redeploy_caddy.sh").write_text("stale-redeploy\n", encoding="utf-8")
 
@@ -8648,6 +9032,7 @@ printf 'curl %s\\n' "$*" >> "{log_file}"
     env = os.environ.copy()
     env["PATH"] = f"{bin_dir}:{env['PATH']}"
     env["DOCKER_BIN"] = str(bin_dir / "docker")
+    env["PYTHON_BIN"] = sys.executable
     env["DEPLOY_DIR"] = str(project_dir)
     env["ENV_FILE"] = str(project_dir / ".env")
     env["COMPOSE_FILE"] = CANONICAL_MANAGED_COMPOSE
@@ -8707,6 +9092,7 @@ def test_deploy_production_rejects_compose_local_postgres_dsn(
     env["PYTHON_BIN"] = sys.executable
     env["PATH"] = f"{bin_dir}:{env['PATH']}"
     env["DOCKER_BIN"] = str(bin_dir / "docker")
+    env["PYTHON_BIN"] = sys.executable
     env["CURL_BIN"] = str(bin_dir / "curl")
     env["DEPLOY_DIR"] = str(project_dir)
     env["ENV_FILE"] = str(project_dir / ".env")
@@ -8758,6 +9144,7 @@ esac
     env["PYTHON_BIN"] = sys.executable
     env["PATH"] = f"{bin_dir}:{env['PATH']}"
     env["DOCKER_BIN"] = str(bin_dir / "docker")
+    env["PYTHON_BIN"] = sys.executable
     env["CURL_BIN"] = str(bin_dir / "curl")
     env["DEPLOY_DIR"] = str(project_dir)
     env["ENV_FILE"] = str(project_dir / ".env")
@@ -8838,7 +9225,7 @@ def test_deploy_production_accepts_only_explicit_exact_self_hosted_database_cont
     if destination_helper_variant == "absent":
         destination_backup_helper.unlink()
         destination_backup_helper.parent.rmdir()
-        destination_backup_helper.parent.parent.rmdir()
+        assert not destination_backup_helper.parent.exists()
     else:
         destination_backup_helper.write_bytes(stale_helper_bytes)
         destination_backup_helper.chmod(
@@ -9477,6 +9864,7 @@ printf 'curl %s\\n' "$*" >> "{log_file}"
     env = os.environ.copy()
     env["PATH"] = f"{bin_dir}:{env['PATH']}"
     env["DOCKER_BIN"] = str(bin_dir / "docker")
+    env["PYTHON_BIN"] = sys.executable
     env.pop("HOME", None)
     env["DEPLOY_DIR"] = str(project_dir)
     env["ENV_FILE"] = str(project_dir / ".env")
@@ -10313,6 +10701,7 @@ def _staging_deploy_fixture(tmp_path: Path) -> tuple[dict[str, str], Path]:
     bin_dir = tmp_path / "bin"
     log_file = tmp_path / "deploy.log"
     project_dir.mkdir()
+    _write_prometheus_helper(project_dir)
     bin_dir.mkdir()
     (project_dir / "scripts" / "ops").mkdir(parents=True)
     (project_dir / "prometheus").mkdir()
@@ -10338,7 +10727,7 @@ def _staging_deploy_fixture(tmp_path: Path) -> tuple[dict[str, str], Path]:
         PROMETHEUS_RULES_PATH.read_text(encoding="utf-8"), encoding="utf-8"
     )
     (project_dir / "prometheus" / "image-manifest.json").write_text(
-        PROMETHEUS_MANIFEST_PATH.read_text(encoding="utf-8"), encoding="utf-8"
+        _synthetic_prometheus_manifest_text(), encoding="utf-8"
     )
     (project_dir / "postgres-pgvector" / "image-manifest.json").write_text(
         POSTGRES_MANIFEST_PATH.read_text(encoding="utf-8"), encoding="utf-8"
@@ -13775,6 +14164,9 @@ def test_checkpoint_admission_rejects_before_protected_publication(
             "PYTHON_BIN": sys.executable,
             "REQUESTED_DEPLOY_DIR": str(project),
             "COMPOSE_RELATIVE_IDENTITY": CANONICAL_MANAGED_COMPOSE,
+            "PROMETHEUS_CONTRACT_HELPER_SHA256": hashlib.sha256(
+                (REPO_ROOT / "scripts/ci/prometheus_source_image.py").read_bytes()
+            ).hexdigest(),
         },
         cwd=tmp_path,
         capture_output=True,

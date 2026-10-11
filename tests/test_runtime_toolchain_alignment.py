@@ -51,6 +51,11 @@ SEPARATELY_GOVERNED_PYTHON_SETUP_WORKFLOWS = frozenset(
     }
 )
 EXPECTED_AUXILIARY_PYTHON_SETUP_OWNERS = (
+    (".github/workflows/build.yml", "prometheus-source-qualification"),
+    (".github/workflows/build.yml", "prometheus-ghcr-package-qualification"),
+    (".github/workflows/build.yml", "prometheus-oras-qualification"),
+    (".github/workflows/build.yml", "prometheus-source-build-pair"),
+    (".github/workflows/build.yml", "backend-arm-sdk-qualification"),
     (".github/workflows/build-equivalence-evidence.yml", "publish-build-equivalence-evidence"),
     (".github/workflows/cd.yml", "postgres-pgvector-ci-admission"),
     (".github/workflows/cd.yml", "obs2a-checkpoint-native"),
@@ -359,6 +364,7 @@ def test_auxiliary_python_setup_discovery_rejects_unlisted_mixed_case_stale_work
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     baseline = _discover_auxiliary_python_setup_steps()
+    _assert_expected_auxiliary_python_setup_steps(baseline)
     workflow_dir = tmp_path / ".github" / "workflows"
     workflow_dir.mkdir(parents=True)
     (workflow_dir / "unlisted.yaml").write_text(

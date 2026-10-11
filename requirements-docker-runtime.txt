@@ -48,7 +48,7 @@ click==8.3.3
     #   -c requirements.txt
     #   -r requirements-docker-runtime.in
     #   uvicorn
-cryptography==50.0.0
+cryptography==50.0.2
     # via
     #   -c requirements.txt
     #   -r requirements-docker-runtime.in
@@ -80,6 +80,7 @@ greenlet==3.5.5
     # via
     #   -c requirements.txt
     #   -r requirements-docker-runtime.in
+    #   sqlalchemy
 h11==0.16.0
     # via
     #   -c requirements.txt
@@ -173,11 +174,11 @@ protobuf==6.33.5
     #   -c requirements.txt
     #   googleapis-common-protos
     #   opentelemetry-proto
-psycopg[binary]==3.3.4
+psycopg[c]==3.3.4
     # via
     #   -c requirements.txt
     #   -r requirements-docker-runtime.in
-psycopg-binary==3.3.4
+psycopg-c==3.3.4
     # via
     #   -c requirements.txt
     #   psycopg

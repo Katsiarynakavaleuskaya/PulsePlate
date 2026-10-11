@@ -328,3 +328,29 @@ index/platform digests, binary revision, both binary module inventories,
 runtime/config contract, and suppression-free scan satisfy the existing v2
 admission checks. Neither exit may be inferred from the other component's
 release or scan.
+
+## DEP-SEC-OCT-2 v3 producer preparation
+
+This continuation supersedes the v2 selector instructions for new material;
+prior receipts above remain historical observations. The canonical record at
+`deploy/prometheus/image-manifest.json:1` is currently `source_prepared`, with
+null image/candidate outputs. The finite producer in
+`scripts/ci/prometheus_source_image.py:1` prepares authentic Prometheus 3.15.0,
+Go 1.27.2, the matching official UI and the preserved distroless vendor graph.
+No corrected runtime image, final scan, merge or publication is claimed here.
+
+The source route uses one separately qualified PulsePlate rebuild of ORAS 1.3.4
+from its exact upstream commit and unchanged locks. Complete command-graph
+absence of affected SSH/OpenPGP imports, native buildinfo, all finding inventory,
+secret-scanner execution and synthetic OCI/Docker conformance remain prerequisites.
+The affected upstream prebuilt tool is not admitted. Exactly two later serial
+logical Prometheus builds retain independent caches, outputs and native equality;
+changing inputs cannot renew that budget.
+
+Caddy remains 2.11.4. Its existing workflow now prepares two counterfactual
+baseline/xnet-0.60 derivations and a distinct signed Alpine zlib 1.3.2-r1 input.
+The final compiler/get/floor assertions remain unchanged until actual replay and
+source/security admission. All 29 retained baseline findings, including cel-go,
+OpenTelemetry and zlib, still need individual final evidence or bounded rescope.
+No additional authored Go action, ignore, empty Secrets list or zero-secret
+claim follows from metadata preparation or native JSON omission.

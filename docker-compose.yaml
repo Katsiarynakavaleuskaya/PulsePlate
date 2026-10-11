@@ -3,6 +3,7 @@
 services:
   # Main application service
   pulseplate:
+    platform: linux/amd64
     build:
       context: .
       target: production
@@ -60,6 +61,7 @@ services:
 
   # Development service
   pulseplate-dev:
+    platform: linux/amd64
     build:
       context: .
       target: development
@@ -98,6 +100,7 @@ services:
       - FITCHEF_AGENT_API_REASONING_EFFORT=${FITCHEF_AGENT_API_REASONING_EFFORT:-}
     volumes:
       - .:/app:rw
+      - pulseplate-dev-venv:/app/.venv
       - /app/__pycache__
       - /app/.pytest_cache
     restart: unless-stopped
@@ -138,6 +141,7 @@ services:
       - pulseplate-network
 
 volumes:
+  pulseplate-dev-venv:
   redis-data:
     driver: local
   postgres-data:

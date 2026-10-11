@@ -278,77 +278,155 @@ Operator routing baseline before PR2 workflow consolidation:
 - Release/image PR: inspect `Docker Build and Push` plus any publish lane that
   the PR explicitly changes.
 
+## Native Python client build and lock refresh
+
+After proven candidate remediation, retire only the obsolete policy family and
+its exclusive dead rules. Copy exact tracked policy bytes through the existing
+scan-copy contract, run native historical visibility and typed-decoder controls,
+and convert the preserved full raw report with the terminal policy. Retain raw
+and effective finding identities and all residuals; zero effective findings or
+a version label cannot replace source/native proof or published-image repeat.
+
+Use the existing `Dockerfile` target `psycopg-sdk` for the exact supported
+Linux amd64 CPython family. Local backend bootstrap uses `make dc-up`, then
+`make dc-shell`, then `make devcontainer-bootstrap` inside the container.
+`make venv`, `make venv-sync` and `source scripts/dev_shell.sh` consume its exact
+SDK and verified runtime/dev wheelhouse offline. Native macOS fresh bootstrap
+is unsupported and fails before host venv changes; existing host venvs are
+preserved. Both the tooling and root development images supply readable
+artifacts, and named volumes isolate their venvs from the host checkout.
+The shared Python setup action chooses its matching
+immutable guest, exports the genuine wheel/native SDK and passes
+`PULSEPLATE_PSYCOPG_C_SDK` through the next-step environment. On an ARM host,
+an admitted local image proof must explicitly select `linux/amd64`; record
+emulation and keep resource-heavy compatibility evidence on native CI when
+available. Stop Docker Desktop after the owned build/observation block.
+
+The PostgreSQL client RUN is separate from the zlib/ncurses/OpenSSL build RUN.
+Changing an early toolchain package still invalidates that native prefix;
+the first split cannot reuse a prior monolithic RUN by command similarity.
+Only observed BuildKit CACHED records support reuse. Retain old SDK/wheel
+proofs under their original GSS configuration; generate fresh output slots
+for the revised client rather than copying native bytes to avoid a rebuild.
+
+Verified Docker source acquisition retries only HTTP 502/503/504, at most
+three attempts against the same reviewed URL with one- and two-second waits.
+Every failed attempt remains observable. TLS, redirects, other HTTP statuses,
+checksum/content/archive/license and unsafe-cache/path failures remain terminal;
+exhaustion preserves the original HTTP failure. Retain the failed capture before
+bounded recovery; never change a digest or source identity to satisfy transport.
+
+During a frozen image-input block, stage every modified image input before an
+ordinary Git commit: native pre-commit temporarily stashes unstaged tracked
+changes. Check the actual unstaged path inventory before the hook. A generated
+baseline-only commit must wait until that owned block ends if it would leave
+modified image inputs unstaged. Matching hashes before and after a hook do not
+prove that the inputs remained unchanged throughout its execution.
+
+During a scoped commit's hooks, the live worktree may temporarily show HEAD
+bytes while the tested candidate remains in stage zero. For concurrent advisory
+review, retain an owned ignored carrier of the exact tested regular stage-zero
+Git blobs, binding repository paths, modes, complete bytes/digests and their
+material coordinate. Read that frozen carrier without interrupting the writer;
+rebind after hook restoration and authenticated publication. A temporary view
+mismatch remains pending, not evidence of semantic removal or published-head
+identity. This troubleshooting procedure adds no validation or review authority.
+
+Export shared libraries into one curated directory with their source-produced
+relative SONAME aliases, then copy that directory's contents into consumers.
+The observed Docker wildcard COPY materialized individual `.so` aliases as
+regular duplicates. Require the exact canonical loaded path, preserved relative
+aliases and current native SDK DSO hash alongside the real library version;
+matching bytes under a flattened alias do not establish source topology.
+
+Keep binary/archive acquisition and actual backend execution separate.
+`install_locked_python_requirements.py --prefetch-only` produces an explicit
+new exact wheelhouse; `--consume-only` reads an existing validated wheelhouse
+and performs no proxy acquisition. The source operation has one reviewed
+archive/metadata transform and matching client SDK; other packages remain
+binary only. The kernel network boundary and clean guest mounts/environment
+must be real, independently observed properties, not an environment marker.
+Use complete CLI option names and exactly one explicit operation selector.
+The four Psycopg source-build inputs require `--build-psycopg-c`; that operation
+rejects acquisition/install selectors and explicitly supplied install/profile
+options, including values equal to installation defaults. Mixed selectors or
+stray build inputs fail before acquisition, preflight or backend execution.
+
+Refresh runtime alone with `make requirements-locks`, collect its complete
+input/output/delta evidence, run the focused host gates and commit runtime.
+Only then refresh the constrained Docker-runtime, CI-lite, dev and aggregate
+profiles. A stronger source floor is valid when it exceeds the current schema
+floor and its canonical range contains its own declared minimum. Raise the
+live schema after all affected locks reach the selected target; never relax a
+guard or restore weaker intent bytes to pass hooks. Full local `make verify`
+retains the root human-authorization rule.
+
+When a native API probe fails, retain its observed public return value,
+immediate errno and public error code in the same bounded failure report before
+changing assertions. Inspect the exact applied source and the selected
+toolchain's header/include order; source identity and actual post-pruning
+behavior require their separate evidence. Preserve each failed epoch, and
+review any source-derived observer correction before its next execution.
+
+Native image proof must exercise consumers under the final non-root user after
+pruning and retain loaded paths/hashes, embedded copies, CA/provider behavior
+and disposable-database compatibility. Version labels or scanner disappearance
+alone do not complete remediation. Retire the exact obsolete Rego rules only
+after the corresponding candidate production/staging evidence exists.
+Evidence: `scripts/ci/install_locked_python_requirements.py:70`,
+`scripts/ci/compile_locked_python_requirements.py:74`,
+`tests/test_dependency_security_guard.py:1272`.
+
 ## Nightly Docker and Trivy review-deadline forecast
 
 The independent `review-deadline-forecast` job in the existing main-only daily
-Nightly Tests workflow checks the reviewed Docker source manifest and every
-review/hard-expiry date in `trivy/ignore-policy.rego` at UTC today and today plus
-four days (`.github/workflows/nightly.yml:17`). Its Actions summary labels the
-current check `CURRENT` and the future check `FORECAST`. The job uses the existing
-offline validators (`scripts/ci/fetch_docker_source_artifacts.py:141` and
-`scripts/ci/check_trivy_ignore_policy_expiry.py:480`); it does not download
-sources, scan an image, edit dates, or approve a suppression. GitHub scheduled
-runs and notifications are best-effort, so absence of a warning is not proof
-that the material remains current.
+Nightly Tests workflow checks the reviewed Docker source manifest and any active
+suppression review/hard-expiry dates at UTC today and today plus four days
+(`.github/workflows/nightly.yml:17`). Its summary labels the current check
+`CURRENT` and the future check `FORECAST`. The existing offline validators do
+not download sources, scan images, edit dates or supply suppression/merge
+approval. Scheduled runs and notifications are best-effort; no warning does not
+prove the material remains current.
 
-The Docker source manifest and all three retained zlib/ncurses/OpenSSL review
-deadlines are October 21, 2026 inclusive; October 22 rejects stale reviews.
-The shared Rego hard expiry is October 30 inclusive and rejects October 31.
-Review and hard-expiry checks are conjunctive: the later hard expiry does not
-extend the October 21 review window. Evidence: `scripts/ci/docker_source_artifacts.json:4`,
-`trivy/ignore-policy.rego:12`, `trivy/ignore-policy.rego:17`,
-`trivy/ignore-policy.rego:41`, and `trivy/ignore-policy.rego:85`.
+The source manifest review is October 21, 2026 inclusive; October 22 rejects
+stale source review (`scripts/ci/docker_source_artifacts.json:4`). The current
+`trivy/ignore-policy.rego:1` is the complete canonical never-ignore file, with no
+R1 rules or exclusive helpers. Only those exact complete bytes are expiry-free.
+Missing, unreadable, malformed, partial or additional executable policies do
+not receive that exemption. Active suppressions still require nonempty review
+and hard-expiry bounds; review and expiry are conjunctive, and a later expiry
+never renews an earlier review window. Independently owned native/nosec
+obligations remain October 28/30; terminal-policy retirement does not renew them.
+Evidence: `scripts/ci/check_trivy_ignore_policy_expiry.py:481`.
 
-On `FORECAST`, inspect the exact named deadline, current primary upstream and
-Trivy image evidence, assign the security/CI owner, and land a separately
-reviewed correction before the deadline. On `CURRENT`, treat the corresponding
-Docker or Trivy gate as failed now; repair the bounded cause before claiming
-readiness. A new fixed Bookworm package or Trivy `FixedVersion` calls for
-package remediation or suppression retirement, not a blind date extension.
-Review upstream and removal triggers weekly. The seven-tuple R1 acceptance
-covers the retained predicates and October 21/30 dates with publication after
-the required gates; exact-head merge requires a separate human decision.
-The forecast does not replace current-head Docker build, strict image/filesystem
-scans, canonical CI, or merge authorization. The independent Alertmanager
-exception still expires at `2026-10-24T00:00:00Z`
-(`deploy/alertmanager/trivy-ignore.yaml:5`).
+For `FORECAST`, inspect the named deadline and current primary source/image
+proof, assign the existing owner and land a reviewed correction before the
+boundary. A `CURRENT` finding fails its corresponding gate now; fix the bounded
+cause before readiness. Applicable upstream fixes call for remediation and
+proven suppression retirement, not blind date extension. Review source/removal
+triggers weekly. Forecast output does not replace native build/scanner proof,
+current-head CI or human merge authority. The independent Alertmanager exception
+retains its own expiry (`deploy/alertmanager/trivy-ignore.yaml:5`).
 
-For PR builds, the separate native Trivy policy check follows the pinned image
-scan and precedes report validation (`.github/workflows/build.yml:183`). It
-byte-binds the copied scan policy to `trivy/ignore-policy.rego`
-(`scripts/ci/check_trivy_ignore_policy_native.py:43`). The original 85 controls
-(45 zlib/ncurses and 40 OpenSSL) remain, with 28 identity controls and eight
-retired util-linux inputs, for 121 distinct controls. Their outcomes are 21
-suppressed fixtures, 85 retained-finding fixtures, and 15 intentional native
-decoder rejection contracts; those 15 errors are separate from finding visibility.
-Evidence: `scripts/ci/check_trivy_ignore_policy_native.py:139`,
-`scripts/ci/check_trivy_ignore_policy_native.py:167`,
-`scripts/ci/check_trivy_ignore_policy_native.py:208`, and
-`scripts/ci/check_trivy_ignore_policy_native.py:250`.
+For PR builds, native Trivy policy controls follow the pinned image scan and
+precede report validation (`.github/workflows/build.yml:183`). Byte-bind the
+regular single-link scan copy to the tracked source policy through the existing
+copy contract (`scripts/ci/check_trivy_ignore_policy_native.py:43`). Preserve all
+historical zlib/ncurses/OpenSSL and util-linux controls plus the independent
+CVE-2026-85091 finding. The 122 distinct controls expect 107 visible findings,
+zero suppressed fixtures and 15 native typed-decoder errors. Every historical
+ordered pair, affix/lookalike/cross-pair and severity control remains visible;
+retired R1 predicates are not current instructions. The dated family owner
+security documents retain their historical policy records.
 
-Zlib now requires exact `PkgID == "zlib1g@1:1.2.13.dfsg-1"`; ncurses requires
-one of four exact ordered PkgName/PkgID pairs, with installed version `6.4-4`.
-These equalities replace the former `contains`/`startswith` family predicates
-(`trivy/ignore-policy.rego:28`, `trivy/ignore-policy.rego:56`). Affixes, lookalikes
-and all 12 ncurses cross-pairs stay visible. OpenSSL remains HIGH-only at
-`3.0.22-1~deb12u1` with its two exact ordered pairs; the same CRITICAL tuples
-stay visible (`trivy/ignore-policy.rego:91`). Zlib/ncurses still have no Severity
-predicate; their unchanged behavior does not establish universal CRITICAL visibility.
-All retained rules require absent/empty native FixedVersion metadata; nonempty
-metadata, including whitespace, stays visible. CVE-2026-53615's rule and exclusive
-helpers are retired after selected production/staging/filesystem absence proof;
-all eight historical util-linux inputs must remain visible in the native controls.
-
-Native Trivy 0.74.0 owns JSON decoding: `null` in string-valued `FixedVersion`
-normalizes to empty before Rego; numeric, boolean, array and object values fail
-with a decode/type error. Such errors are neither vulnerability findings nor
-ignore decisions. Raw Rego `null` is not an empty string. The checker must
-observe the relevant diagnostic, nonzero exit and absent output, and compare
-retained finding identity rather than counts alone
-(`scripts/ci/check_trivy_ignore_policy_native.py:277`). Its synthetic controls
-never replace actual image/filesystem or selected PostgreSQL publication scans.
-If the native check fails, repair its first execution/schema/count/identity
-error before mapping review findings.
+Native Trivy 0.74.0 owns JSON decoding. A `null` string-valued `FixedVersion`
+normalizes to empty; numeric, boolean, array and object values must produce the
+expected decoder diagnostic, nonzero exit and absent output. These errors are
+separate from visibility and cannot count as successful negative findings.
+Compare retained finding identities as well as counts. The synthetic controls
+never replace actual selected production/staging/filesystem or PostgreSQL
+publication proof. When a native control fails, repair the first execution,
+schema, count or identity defect before mapping/resolving review findings.
 
 ## Guard Coverage Step (EVMbench-inspired)
 
@@ -462,6 +540,13 @@ Full success criteria per task class are defined in:
 This metrics section provides **quantitative targets**; the evaluation contract provides **qualitative gates**.
 
 ## Pre-push hygiene checklist (mandatory)
+
+`make bandit-full` runs one strict MEDIUM/HIGH scan of the complete native Git-tracked
+Python path list under the unchanged `.bandit` filters, in both local and CI mode.
+Untracked local evidence and worktrees are outside this Git-selected input universe.
+Git enumeration and every tracked input must be available; scanner exit zero also
+requires a fresh JSON report without errors/findings and with the exact configured
+Bandit file inventory. A missing, stale or partial report is a failed gate.
 
 ### Linked-worktree hook Python resolution
 
@@ -1053,6 +1138,13 @@ gh api -X PUT repos/<OWNER>/<REPO>/actions/permissions/workflow -f default_workf
 Before editing imports / `__init__` / sys.path / sys.modules:
 **Run guard checks first.** If guards fail, fix the policy violation before anything else.
 
+For a helper that uses multiprocessing, put execution under `main()` and an
+`if __name__ == "__main__":` guard so spawned workers can import it safely.
+Inspect captured stderr promptly after launch and throughout a long command.
+Worker replacement or CPU activity alone does not establish useful progress.
+A repeated traceback requires an owned stop and root-cause repair; a larger
+elapsed deadline does not repair the failure.
+
 ## 1) Fast Local Triage (run from repo root)
 
 ```bash
@@ -1418,3 +1510,28 @@ git reset --soft <commit-sha>
 # Review changes
 git diff HEAD
 ```
+
+## Source-image qualification continuation
+
+The Prometheus v3 route and finite event table are defined in `scripts/AGENTS.md`.
+Finish helper/workflow inputs and SDK/backend export qualification before the
+nonrenewable source-build pair. A failed tool/format/graph/scan observation stops
+its transition; retain raw output and fix the cause without an extra compiler
+start. `source_prepared` intentionally cannot run in CD or deployment. Select
+real outputs only after the observed pair, then reuse the same OCI bytes for PR
+checks, main promotion and published pullback.
+
+Caddy's explicit `xnet060-metadata` dispatch stays inside its existing contract
+job. Its two fresh fixed-path replays are counterfactual recipe baselines; they
+cannot reconstruct lost historical ephemeral locks. The only additional Go
+intent is x/net 0.60.0. Compiler, full advisory inventory and the separate signed
+Alpine zlib remedy need actual qualification before final recipe parameters.
+Unexpected closure or relevant cel-go/OpenTelemetry residue requires bounded
+coordinator rescope, never a silent extra get or suppression.
+
+The ordinary backend job retains production/staging Docker bytes and the ARM
+SDK job retains genuine producer/export identity. These exports alone do not
+prove the reviewed clean supporting-tool root, network-none SDK validation,
+offline Runner consumption/final COPY, Apple Oracle or final native runtime.
+Use those independent owning checks before closeout. No local C++ rebuild or
+new registry package is implied by retaining hosted image bytes.

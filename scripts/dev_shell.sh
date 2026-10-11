@@ -2,6 +2,19 @@
 # Usage: source scripts/dev_shell.sh
 # Инициализирует .venv (если отсутствует), активирует его и настраивает ключевые переменные окружения.
 
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+  echo "Source scripts/dev_shell.sh inside the supported backend container." >&2
+  exit 1
+fi
+if [[ "$(uname -s):$(uname -m)" != "Linux:x86_64" ]]; then
+  echo "Backend shell requires Linux amd64. Use make dc-up and make dc-shell; native macOS SDK is not provided." >&2
+  return 1
+fi
+if [[ -z "${PULSEPLATE_PSYCOPG_C_SDK:-}" || -z "${PULSEPLATE_BOOTSTRAP_WHEELHOUSE:-}" ]]; then
+  echo "The backend container must supply its genuine SDK and verified wheelhouse." >&2
+  return 1
+fi
+
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -9,20 +22,10 @@ VENV_DIR="$ROOT_DIR/.venv"
 PYTHON_BIN="${PYTHON_BIN:-python3}"
 INSTALLER_SCRIPT="$ROOT_DIR/scripts/ci/install_locked_python_requirements.py"
 
-if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
-  echo "❌ Запустите скрипт через 'source scripts/dev_shell.sh' (или '. scripts/dev_shell.sh')"
-  exit 1
-fi
-
 create_venv() {
-  if [[ ! -d "$VENV_DIR" ]]; then
+  if [[ ! -f "$VENV_DIR/pyvenv.cfg" || ! -x "$VENV_DIR/bin/python" ]]; then
     echo "🆕 Создаём виртуальное окружение в $VENV_DIR"
     "$PYTHON_BIN" -m venv "$VENV_DIR"
-  fi
-
-  if [[ -z "${PULSEPLATE_PYTHON_INDEX_URL:-}" ]]; then
-    echo "❌ Export PULSEPLATE_PYTHON_INDEX_URL to the approved private package proxy before bootstrapping."
-    return 1
   fi
 
   echo "⬆️  Обновление зависимостей через locked installer"
@@ -30,7 +33,9 @@ create_venv() {
     "$VENV_DIR/bin/python" "$INSTALLER_SCRIPT" \
     --python-executable "$VENV_DIR/bin/python" \
     --constraints-file "$ROOT_DIR/constraints.txt" \
-    --install-dev \
+    --install-dev --consume-only \
+    --wheelhouse-dir "$PULSEPLATE_BOOTSTRAP_WHEELHOUSE" \
+    --psycopg-sdk "$PULSEPLATE_PSYCOPG_C_SDK" \
     --require-virtualenv >/dev/null
 }
 

@@ -1,6 +1,6 @@
 # Experiment Runner container CVE remediation
 
-**Status:** Exact image admitted locally; final oracle and current-head PR/merge evidence pending
+**Status:** Historical image admitted locally; SDK successor and final PR/merge evidence pending
 **Suppression expires:** N/A (no suppression added)
 **Last reviewed:** 2026-07-23
 
@@ -74,6 +74,47 @@ accepted build locks 107 packages in `python-runtime`, 108 in `builder`, and
 129 in the final runner. Any repository-side change to a direct or transitive
 RPM now fails the build even if its package name and direct request remain
 unchanged.
+
+## Current SDK caller repair — PR #2477
+
+The revised build path consumes a genuine Linux aarch64 CPython 3.13 SDK through
+both dispatcher backends. The dispatcher stages the finite public helper/schema
+and opaque SDK payload before proxy-secret lookup; SDK origin is a prior native
+producer/export admission, while the canonical UBI installer owns source-image,
+ABI, wheel tag and ELF checks. It preserves the original UBI CA bundle and
+connects the custom OpenSSL default paths without a new operator startup variable.
+
+Code and synthetic transport contracts do not admit a successor image. Actual
+ARM SDK production, UBI system `_ssl`/HTTP default trust and providers, loaded
+library hashes, Psycopg/TLS/database consumers, full findings/secrets inventory
+and strict Apple qualification remain required. The exact image receipts below
+retain their original historical producer and are not proof of this revised recipe.
+Evidence: `scripts/orchestration/experiment_runner_dispatch.py:2458`,
+`deploy/experiment-runner/Containerfile:1`.
+
+### SDK-before-auth successor phase barrier
+
+The successor source separates trusted binary acquisition from supplied native
+SDK activation. The credential RUN receives only static SDK receipt/wheel data
+and invokes the existing prefetch-only operation in both proxy branches. It
+uses a fresh exact wheelhouse and owned ephemeral HOME/TMP/cache; primary and
+cleanup statuses are independently blocking. Supplied libraries, optional
+provider and OpenSSL configuration enter an inactive quarantine only afterward.
+
+A clean trusted-base interpreter then runs the canonical static SDK validation
+under network-none, before loader activation. The existing reader compares the
+actual three regular DSO targets and exact internal libpq alias; it does not
+authenticate origin or claim coverage of provider/config/docs from three hashes.
+The complete Root-qualified curated transport is copied with byte/member checks,
+then consumed offline and copied from the validated builder into the final image.
+Evidence: `deploy/experiment-runner/Containerfile:103`,
+`scripts/ci/install_locked_python_requirements.py:767`.
+
+This source procedure has no new native admission result. Actual acquisition
+loaded maps/configuration and credential cleanup, quarantine/activation endpoint
+identity, genuine SDK/SOABI/TLS/default CA/provider/database consumers, complete
+scanner coverage and strict immutable successor admission remain required. The
+historical image receipts below retain their original source and authority.
 
 ## Exact image evidence
 
@@ -218,9 +259,10 @@ complete, digest-bound build and admission receipt.
   `deploy/experiment-runner/Containerfile:7` starts checksum-pinned external
   sources; `deploy/experiment-runner/Containerfile:19` verifies EPEL/Python;
   `deploy/experiment-runner/Containerfile:37` begins the three complete RPM
-  inventory checks; `deploy/experiment-runner/Containerfile:75` preserves the
-  private-index installer; and `deploy/experiment-runner/Containerfile:119`
-  defines the exact non-root runtime package contract.
+  inventory checks; `deploy/experiment-runner/Containerfile:105` starts static
+  SDK acquisition; `deploy/experiment-runner/Containerfile:251` defines the
+  runtime package inventory; and `deploy/experiment-runner/Containerfile:279`
+  selects the non-root runtime user.
 - `tests/test_experiment_runner_dispatch.py:345` proves complete layer
   verification; `tests/test_experiment_runner_dispatch.py:370` rejects
   incomplete or changed blobs; `tests/test_experiment_runner_dispatch.py:409`

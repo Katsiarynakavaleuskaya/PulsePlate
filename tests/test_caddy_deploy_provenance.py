@@ -49,7 +49,7 @@ def test_alertmanager_cd_contract_carries_exact_files_and_keeps_scans_separate()
     assert "Admit exact Alertmanager image, config, and narrow CVE exception" in workflow
     assert '--ignorefile "$TRIVY_IGNORE_FILE"' in workflow  # Prometheus stays separate.
     assert '--ignorefile "$ignore"' in workflow  # Alertmanager only.
-    assert "-e PULSEPLATE_ENVIRONMENT=staging" in workflow
+    assert '"-e", "PULSEPLATE_ENVIRONMENT=staging"' in workflow
     assert "CVE-2026-84445" in ALERTMANAGER_IGNORE.read_text(encoding="utf-8")
     assert "group_interval: 5m" in ALERTMANAGER_CONFIG.read_text(encoding="utf-8")
     for required in (
@@ -877,7 +877,7 @@ def test_cd_builds_attests_scans_and_deploys_both_same_job_digests() -> None:
         "STAGING_DOMAIN,STAGING_IMAGE_REF,STAGING_CADDY_IMAGE_REF,"
         "DEPLOY_SCRIPT_SHA256,STAGING_COMPOSE_SHA256,"
         "PROMETHEUS_CONFIG_SHA256,PROMETHEUS_RULES_SHA256,"
-        "PROMETHEUS_IMAGE_MANIFEST_SHA256,"
+        "PROMETHEUS_IMAGE_MANIFEST_SHA256,PROMETHEUS_CONTRACT_HELPER_SHA256,"
         "ALERTMANAGER_CONFIG_SHA256,ALERTMANAGER_TRIVY_IGNORE_SHA256,"
         "POSTGRES_IMAGE_MANIFEST_SHA256,"
         "STAGING_CADDYFILE_SHA256,BACKUP_HELPER_SHA256,RESTORE_HELPER_SHA256,"
@@ -903,7 +903,7 @@ def test_cd_builds_attests_scans_and_deploys_both_same_job_digests() -> None:
         "GHCR_USER,GHCR_TOKEN,STAGING_DOMAIN,STAGING_IMAGE_REF,"
         "STAGING_CADDY_IMAGE_REF,DEPLOY_SCRIPT_SHA256,STAGING_COMPOSE_SHA256,"
         "PROMETHEUS_CONFIG_SHA256,PROMETHEUS_RULES_SHA256,"
-        "PROMETHEUS_IMAGE_MANIFEST_SHA256,"
+        "PROMETHEUS_IMAGE_MANIFEST_SHA256,PROMETHEUS_CONTRACT_HELPER_SHA256,"
         "ALERTMANAGER_CONFIG_SHA256,ALERTMANAGER_TRIVY_IGNORE_SHA256,"
         "POSTGRES_IMAGE_MANIFEST_SHA256,"
         "STAGING_CADDYFILE_SHA256,BACKUP_HELPER_SHA256,RESTORE_HELPER_SHA256,"
@@ -965,7 +965,7 @@ def test_remote_contract_preflight_has_no_registry_secret_and_checks_current_fil
     assert with_block["envs"] == (
         "STAGING_DOMAIN,STAGING_IMAGE_REF,STAGING_CADDY_IMAGE_REF,DEPLOY_SCRIPT_SHA256,"
         "STAGING_COMPOSE_SHA256,PROMETHEUS_CONFIG_SHA256,PROMETHEUS_RULES_SHA256,"
-        "PROMETHEUS_IMAGE_MANIFEST_SHA256,ALERTMANAGER_CONFIG_SHA256,"
+        "PROMETHEUS_IMAGE_MANIFEST_SHA256,PROMETHEUS_CONTRACT_HELPER_SHA256,ALERTMANAGER_CONFIG_SHA256,"
         "ALERTMANAGER_TRIVY_IGNORE_SHA256,POSTGRES_IMAGE_MANIFEST_SHA256,"
         "STAGING_CADDYFILE_SHA256,BACKUP_HELPER_SHA256,RESTORE_HELPER_SHA256,"
         "STAGING_SECURITY_HELPER_SHA256,PGVECTOR_ATTESTATION_HELPER_SHA256,"
@@ -977,13 +977,14 @@ def test_remote_contract_preflight_has_no_registry_secret_and_checks_current_fil
     script = with_block["script"]
     assert ".attested-digest-deploy-v1" in script
     assert "pulseplate-staging-attested-digest-v1" in script
-    assert 'STAGING_DEPLOY_CONTRACT_VERSION="5"' in script
+    assert 'STAGING_DEPLOY_CONTRACT_VERSION="6"' in script
     for filename in (
         "deploy.sh",
         "docker-compose.staging.yaml",
         "prometheus/prometheus.yml",
         "prometheus/alias-alerts.yml",
         "prometheus/image-manifest.json",
+        "scripts/ci/prometheus_source_image.py",
         "alertmanager/alertmanager.yml",
         "alertmanager/trivy-ignore.yaml",
         "postgres-pgvector/image-manifest.json",
@@ -1109,7 +1110,7 @@ def test_credentialed_deploy_revalidates_the_preflighted_remote_contract() -> No
     assert with_block["envs"].endswith(
         "DEPLOY_SCRIPT_SHA256,STAGING_COMPOSE_SHA256,PROMETHEUS_CONFIG_SHA256,"
         "PROMETHEUS_RULES_SHA256,"
-        "PROMETHEUS_IMAGE_MANIFEST_SHA256,ALERTMANAGER_CONFIG_SHA256,"
+        "PROMETHEUS_IMAGE_MANIFEST_SHA256,PROMETHEUS_CONTRACT_HELPER_SHA256,ALERTMANAGER_CONFIG_SHA256,"
         "ALERTMANAGER_TRIVY_IGNORE_SHA256,POSTGRES_IMAGE_MANIFEST_SHA256,"
         "STAGING_CADDYFILE_SHA256,BACKUP_HELPER_SHA256,RESTORE_HELPER_SHA256,"
         "STAGING_SECURITY_HELPER_SHA256,PGVECTOR_ATTESTATION_HELPER_SHA256,"
@@ -1121,13 +1122,14 @@ def test_credentialed_deploy_revalidates_the_preflighted_remote_contract() -> No
     script = with_block["script"]
     deploy_call = "/bin/bash /srv/pulseplate-staging/deploy.sh"
     assert script.index(".attested-digest-deploy-v1") < script.index(deploy_call)
-    assert script.index('STAGING_DEPLOY_CONTRACT_VERSION="5"') < script.index(deploy_call)
+    assert script.index('STAGING_DEPLOY_CONTRACT_VERSION="6"') < script.index(deploy_call)
     for filename, expected_hash in (
         ("deploy.sh", "DEPLOY_SCRIPT_SHA256"),
         ("docker-compose.staging.yaml", "STAGING_COMPOSE_SHA256"),
         ("prometheus/prometheus.yml", "PROMETHEUS_CONFIG_SHA256"),
         ("prometheus/alias-alerts.yml", "PROMETHEUS_RULES_SHA256"),
         ("prometheus/image-manifest.json", "PROMETHEUS_IMAGE_MANIFEST_SHA256"),
+        ("scripts/ci/prometheus_source_image.py", "PROMETHEUS_CONTRACT_HELPER_SHA256"),
         ("alertmanager/alertmanager.yml", "ALERTMANAGER_CONFIG_SHA256"),
         ("alertmanager/trivy-ignore.yaml", "ALERTMANAGER_TRIVY_IGNORE_SHA256"),
         ("postgres-pgvector/image-manifest.json", "POSTGRES_IMAGE_MANIFEST_SHA256"),
@@ -1155,7 +1157,7 @@ def test_credentialed_deploy_revalidates_the_preflighted_remote_contract() -> No
 
 def test_staging_deploy_script_embeds_marker_and_two_digest_contract() -> None:
     text = (REPO_ROOT / "scripts" / "deploy.sh").read_text(encoding="utf-8")
-    assert 'STAGING_DEPLOY_CONTRACT_VERSION="5"' in text
+    assert 'STAGING_DEPLOY_CONTRACT_VERSION="6"' in text
     assert 'STAGING_DEPLOY_MARKER_CONTENT="pulseplate-staging-attested-digest-v1"' in text
     assert "0:0:644" in text
     assert "STAGING_IMAGE_REF" in text
@@ -1386,6 +1388,16 @@ def _run_production_quick_fix(
     deploy_dir.mkdir()
     bin_dir.mkdir()
     (deploy_dir / "docker-compose.production.yaml").write_text("services: {}\n", encoding="utf-8")
+    from tests.test_deploy_contract_scripts import (
+        _synthetic_prometheus_manifest_text,
+        _write_prometheus_helper,
+    )
+
+    _write_prometheus_helper(deploy_dir)
+    (deploy_dir / "prometheus").mkdir()
+    (deploy_dir / "prometheus/image-manifest.json").write_text(
+        _synthetic_prometheus_manifest_text(), encoding="utf-8"
+    )
     if create_env:
         (deploy_dir / ".env").write_text(
             (
@@ -1555,27 +1567,37 @@ def test_checkpoint_hash_rejection_precedes_privileged_mutation(
 
 def _assert_checkpoint_native_job(workflow: dict[str, object]) -> None:
     scan = _job(workflow, "prometheus-image-security")
-    assert scan["timeout-minutes"] == 30
+    assert (
+        scan["timeout-minutes"]
+        == "${{ fromJSON(vars.PROMETHEUS_IMAGE_SECURITY_TIMEOUT_MINUTES || '55') }}"
+    )
     assert not any(step.get("id") == "checkpoint-native" for step in _steps(scan))
     job = _job(workflow, "obs2a-checkpoint-native")
-    assert job["needs"] == "prometheus-image-security"
+    assert job["needs"] == "prometheus-image-security", "checkpoint_native_scan_edge"
     assert (
         job["if"]
         == "!cancelled() && github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.prometheus-image-security.result == 'success'"
-    )
+    ), "checkpoint_native_scan_result"
     assert (
         job["timeout-minutes"] == "${{ fromJSON(vars.OBS2A_NATIVE_JOB_TIMEOUT_MINUTES || '40') }}"
     )
-    assert job["permissions"] == {"contents": "read"}
-    assert "environment" not in job and "secrets." not in str(job)
+    assert job.get("permissions") == {
+        "contents": "read",
+        "actions": "read",
+        "packages": "read",
+    }, "checkpoint_native_reader_permissions"
+    assert job.get("environment") == "staging", "checkpoint_native_reader_environment"
+    assert job["env"] == {"PROMETHEUS_CONSUME_SECONDS": "900", "PROMETHEUS_CLEANUP_SECONDS": "120"}
     build = _job(workflow, "build")
     assert build["needs"] == [
         "prometheus-image-security",
         "obs2a-checkpoint-native",
         "main-push-admission",
         "staging-postgres-native-integration",
-    ]
-    assert "needs.obs2a-checkpoint-native.result == 'success'" in build["if"]
+    ], "checkpoint_native_build_edges"
+    assert (
+        "needs.obs2a-checkpoint-native.result == 'success'" in build["if"]
+    ), "checkpoint_native_build_result"
     steps = _steps(job)
     checkout = _named_step(steps, "Checkout immutable OBS2A native contracts")
     assert checkout["with"]["persist-credentials"] is False
@@ -1597,6 +1619,16 @@ def _assert_checkpoint_native_job(workflow: dict[str, object]) -> None:
     native = _named_step(steps, "Native main OBS2A checkpoint lifecycle and owned-task challenge")
     assert native["if"] == setup["if"]
     assert "steps.checkpoint-native.outputs.selected == 'true'" in native["if"]
+    assert native["env"] == {
+        "GH_TOKEN": "${{ secrets.GITHUB_TOKEN }}",
+        "GITHUB_TOKEN": "${{ secrets.GITHUB_TOKEN }}",
+        "GHCR_READ_TOKEN": "${{ secrets.GHCR_READ_TOKEN }}",
+    }
+    assert native["run"].index("--operation consume") < native["run"].index("sudo /usr/bin/env -i")
+    child = native["run"].split("sudo /usr/bin/env -i", 1)[1].split("} 2>&1", 1)[0]
+    assert (
+        "GH_TOKEN" not in child and "GITHUB_TOKEN" not in child and "GHCR_READ_TOKEN" not in child
+    )
     assert "--native" in native["run"] and "/usr/bin/env -i" in native["run"]
     assert 'exit "$native_status"' in native["run"]
     assert "native-result.log" in native["run"]
@@ -1605,17 +1637,19 @@ def _assert_checkpoint_native_job(workflow: dict[str, object]) -> None:
     assert retention["uses"] == "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
     assert retention["with"] == {
         "name": "obs2a-native-main-${{ github.sha }}",
-        "path": "artifacts/orchestration/obs2a_pr3/native-result.log",
+        "path": "artifacts/orchestration/obs2a_pr3/native-result.log\n"
+        "${{ runner.temp }}/prometheus-obs2a-consumer-${{ github.run_id }}-${{ github.run_attempt }}/evidence/\n",
         "if-no-files-found": "error",
         "retention-days": 7,
     }
 
 
 @pytest.mark.parametrize(
-    "native_status,capture_status,expected", [(0, 0, 0), (7, 0, 7), (0, 9, 9), (7, 9, 7)]
+    "consume_status,native_status,capture_status,expected",
+    [(0, 0, 0, 0), (0, 7, 0, 7), (0, 0, 9, 9), (0, 7, 9, 7), (13, 0, 0, 13)],
 )
 def test_checkpoint_native_main_pipeline_preserves_both_statuses(
-    tmp_path: Path, native_status: int, capture_status: int, expected: int
+    tmp_path: Path, consume_status: int, native_status: int, capture_status: int, expected: int
 ) -> None:
     bash = shutil.which("bash")
     tee = shutil.which("tee")
@@ -1625,8 +1659,10 @@ def test_checkpoint_native_main_pipeline_preserves_both_statuses(
         "Native main OBS2A checkpoint lifecycle and owned-task challenge",
     )
     fixture = (
-        "python() { :; }\n"
-        "sudo() { printf 'synthetic native output\\n'; printf 'synthetic native diagnostic\\n' >&2; return \"$NATIVE_STATUS\"; }\n"
+        'python() { [ "$1" = "-m" ] && [ "$2" = "scripts.ci.prometheus_source_image" ] '
+        '&& [ "$3" = "--operation" ] && [ "$4" = "consume" ] || return 98; '
+        'printf "%s\\n" "$*" > consumer-argv; return "$CONSUME_STATUS"; }\n'
+        "sudo() { printf executed > native-called; printf 'synthetic native output\\n'; printf 'synthetic native diagnostic\\n' >&2; return \"$NATIVE_STATUS\"; }\n"
         'tee() { "$FIXTURE_TEE" "$@"; return "$CAPTURE_STATUS"; }\n'
     )
     result = subprocess.run(
@@ -1636,6 +1672,12 @@ def test_checkpoint_native_main_pipeline_preserves_both_statuses(
             "PATH": os.defpath,
             "LANG": "C",
             "HOME": str(tmp_path),
+            "RUNNER_TEMP": str(tmp_path / "runner-temp"),
+            "GITHUB_RUN_ID": "123",
+            "GITHUB_RUN_ATTEMPT": "1",
+            "PROMETHEUS_CONSUME_SECONDS": "900",
+            "PROMETHEUS_CLEANUP_SECONDS": "120",
+            "CONSUME_STATUS": str(consume_status),
             "NATIVE_STATUS": str(native_status),
             "CAPTURE_STATUS": str(capture_status),
             "FIXTURE_TEE": tee,
@@ -1646,7 +1688,18 @@ def test_checkpoint_native_main_pipeline_preserves_both_statuses(
         check=False,
     )
     assert result.returncode == expected, result.stderr
-    if capture_status == 0:
+    assert (tmp_path / "consumer-argv").read_text() == (
+        "-m scripts.ci.prometheus_source_image --operation consume --work-dir "
+        + str(tmp_path / "runner-temp/prometheus-obs2a-consumer-123-1")
+        + " --timeout-seconds 900 --cleanup-seconds 120\n"
+    )
+    assert (tmp_path / "native-called").exists() is (consume_status == 0)
+    if consume_status:
+        assert not (tmp_path / "native-called").exists()
+        assert not (tmp_path / "artifacts/orchestration/obs2a_pr3/native-result.log").exists()
+        assert result.stdout == result.stderr == ""
+    elif capture_status == 0:
+        assert (tmp_path / "native-called").read_text() == "executed"
         observed = "synthetic native output\nsynthetic native diagnostic\n"
         assert result.stdout == observed
         assert (
@@ -1737,8 +1790,17 @@ def test_checkpoint_native_main_has_separate_scan_and_build_admission() -> None:
 )
 def test_checkpoint_native_dag_rejects_lost_admission(fault: str) -> None:
     workflow = deepcopy(_workflow(CD_WORKFLOW))
+    _assert_checkpoint_native_job(workflow)
     native = _job(workflow, "obs2a-checkpoint-native")
     build = _job(workflow, "build")
+    expected_diagnostic = {
+        "scan-edge": "checkpoint_native_scan_edge",
+        "scan-result": "checkpoint_native_scan_result",
+        "permissions": "checkpoint_native_reader_permissions",
+        "environment": "checkpoint_native_reader_environment",
+        "build-edge": "checkpoint_native_build_edges",
+        "build-result": "checkpoint_native_build_result",
+    }[fault]
     if fault == "scan-edge":
         native["needs"] = []
     elif fault == "scan-result":
@@ -1755,7 +1817,7 @@ def test_checkpoint_native_dag_rejects_lost_admission(fault: str) -> None:
         build["if"] = build["if"].replace(
             " && needs.obs2a-checkpoint-native.result == 'success'", ""
         )
-    with pytest.raises((AssertionError, KeyError)):
+    with pytest.raises(AssertionError, match=rf"^{expected_diagnostic}(?:\n|$)"):
         _assert_checkpoint_native_job(workflow)
 
 
@@ -1810,6 +1872,7 @@ def _assert_checkpoint_pr_selection_uses_real_git(
     selected_path: str = ".github/workflows/ci.yml",
     *,
     expected_selected: bool = True,
+    consume_status: int = 0,
     native_status: int = 0,
     capture_status: int = 0,
     capture_log: bool = True,
@@ -1880,6 +1943,12 @@ def _assert_checkpoint_pr_selection_uses_real_git(
         {
             "OBS2A_BASE_SHA": base,
             "OBS2A_HEAD_SHA": head,
+            "RUNNER_TEMP": str(tmp_path / "runner-temp"),
+            "GITHUB_RUN_ID": "123",
+            "GITHUB_RUN_ATTEMPT": "1",
+            "PROMETHEUS_CONSUME_SECONDS": "900",
+            "PROMETHEUS_CLEANUP_SECONDS": "120",
+            "CONSUME_STATUS": str(consume_status),
             "NATIVE_CALLS": str(tmp_path / "native-calls"),
             "GITHUB_OUTPUT": str(tmp_path / "github-output"),
             "NATIVE_STATUS": str(native_status),
@@ -1895,7 +1964,9 @@ def _assert_checkpoint_pr_selection_uses_real_git(
         "Native OBS2A checkpoint lifecycle and owned-task challenge",
     )
     fixture = (
-        "python() { :; }\n"
+        'python() { [ "$1" = "-m" ] && [ "$2" = "scripts.ci.prometheus_source_image" ] '
+        '&& [ "$3" = "--operation" ] && [ "$4" = "consume" ] || return 98; '
+        'printf "%s\\n" "$*" > consumer-argv; return "$CONSUME_STATUS"; }\n'
         'sudo() { printf native >> "$NATIVE_CALLS"; printf "native output\\n"; '
         'printf "native diagnostic\\n" >&2; return "$NATIVE_STATUS"; }\n'
         'tee() { if [ "$CAPTURE_LOG" = 1 ]; then "$FIXTURE_TEE" "$@"; '
@@ -1919,12 +1990,19 @@ def _assert_checkpoint_pr_selection_uses_real_git(
         assert not output.exists() and not log.exists()
     else:
         selected = case == "own" and expected_selected
-        expected_status = (native_status or capture_status) if selected else 0
+        expected_status = (consume_status or native_status or capture_status) if selected else 0
         assert result.returncode == expected_status, result.stderr
-        assert (tmp_path / "native-calls").exists() is selected
+        assert (tmp_path / "consumer-argv").exists() is selected
+        if selected:
+            assert (tmp_path / "consumer-argv").read_text() == (
+                "-m scripts.ci.prometheus_source_image --operation consume --work-dir "
+                + str(tmp_path / "runner-temp/prometheus-obs2a-consumer-123-1")
+                + " --timeout-seconds 900 --cleanup-seconds 120\n"
+            )
+        assert (tmp_path / "native-calls").exists() is (selected and consume_status == 0)
         assert output.read_text() == ("selected=true\n" if selected else "selected=false\n")
-        assert log.exists() is (selected and capture_log)
-        if selected and capture_log:
+        assert log.exists() is (selected and consume_status == 0 and capture_log)
+        if selected and consume_status == 0 and capture_log:
             assert log.read_text() == "native output\nnative diagnostic\n"
 
 
@@ -1968,6 +2046,9 @@ def test_checkpoint_pr_native_is_independent_of_backend_risk_admission(
 def _assert_checkpoint_pr_native_job(workflow: dict[str, object]) -> None:
     lint = _job(workflow, "lint")
     assert lint["needs"] == ["private_python_proxy_health"]
+    assert lint["permissions"] == {"contents": "read", "actions": "read", "packages": "read"}
+    assert lint["env"] == {"PROMETHEUS_CONSUME_SECONDS": "900", "PROMETHEUS_CLEANUP_SECONDS": "120"}
+    assert "environment" not in lint
     assert lint["if"] == "${{ !cancelled() }}"
     assert lint["timeout-minutes"] == "${{ fromJSON(vars.CI_LINT_TIMEOUT_MINUTES || '90') }}"
     steps = _steps(lint)
@@ -2007,8 +2088,16 @@ def _assert_checkpoint_pr_native_job(workflow: dict[str, object]) -> None:
     assert native["env"] == {
         "OBS2A_BASE_SHA": "${{ github.event.pull_request.base.sha }}",
         "OBS2A_HEAD_SHA": "${{ github.event.pull_request.head.sha }}",
+        "GH_TOKEN": "${{ secrets.GITHUB_TOKEN }}",
+        "GITHUB_TOKEN": "${{ secrets.GITHUB_TOKEN }}",
+        "GHCR_READ_TOKEN": "${{ secrets.GITHUB_TOKEN }}",
     }
-    assert "secrets." not in str(native)
+    assert "secrets.GHCR_READ_TOKEN" not in str(native)
+    assert native["run"].index("--operation consume") < native["run"].index("sudo /usr/bin/env -i")
+    child = native["run"].split("sudo /usr/bin/env -i", 1)[1].split("} 2>&1", 1)[0]
+    assert (
+        "GH_TOKEN" not in child and "GITHUB_TOKEN" not in child and "GHCR_READ_TOKEN" not in child
+    )
     retention = _named_step(steps, "Retain selected PR OBS2A native observations")
     assert retention["if"] == (
         "always() && github.event_name == 'pull_request' "
@@ -2017,7 +2106,8 @@ def _assert_checkpoint_pr_native_job(workflow: dict[str, object]) -> None:
     assert retention["uses"] == "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
     assert retention["with"] == {
         "name": "obs2a-native-pr-${{ github.event.pull_request.number }}-${{ github.run_attempt }}",
-        "path": "artifacts/orchestration/obs2a_pr3/native-result.log",
+        "path": "artifacts/orchestration/obs2a_pr3/native-result.log\n"
+        "${{ runner.temp }}/prometheus-obs2a-consumer-${{ github.run_id }}-${{ github.run_attempt }}/evidence/\n",
         "if-no-files-found": "error",
         "retention-days": 7,
     }
@@ -2063,13 +2153,20 @@ def test_checkpoint_pr_native_surface_membership_uses_real_selector(
     )
 
 
-@pytest.mark.parametrize("native_status,capture_status", [(0, 0), (7, 0), (0, 9), (7, 9)])
+@pytest.mark.parametrize(
+    "consume_status,native_status,capture_status",
+    [(0, 0, 0), (0, 7, 0), (0, 0, 9), (0, 7, 9), (13, 0, 0)],
+)
 def test_checkpoint_pr_native_preserves_status_and_actual_raw_log(
-    tmp_path: Path, native_status: int, capture_status: int
+    tmp_path: Path, consume_status: int, native_status: int, capture_status: int
 ) -> None:
     _assert_checkpoint_pr_native_job(_workflow(REPO_ROOT / ".github/workflows/ci.yml"))
     _assert_checkpoint_pr_selection_uses_real_git(
-        tmp_path, "own", native_status=native_status, capture_status=capture_status
+        tmp_path,
+        "own",
+        consume_status=consume_status,
+        native_status=native_status,
+        capture_status=capture_status,
     )
 
 
@@ -2142,6 +2239,7 @@ def test_checkpoint_pr_native_proxy_prerequisite_fails_closed(proxy_result: str)
 )
 def test_checkpoint_pr_native_contract_rejects_lost_admission(fault: str) -> None:
     workflow = deepcopy(_workflow(REPO_ROOT / ".github/workflows/ci.yml"))
+    _assert_checkpoint_pr_native_job(workflow)
     lint = _job(workflow, "lint")
     steps = _steps(lint)
     native = _named_step(steps, "Native OBS2A checkpoint lifecycle and owned-task challenge")
@@ -2186,3 +2284,462 @@ def test_checkpoint_pr_native_contract_rejects_lost_admission(fault: str) -> Non
         native["timeout-minutes"] = "${{ fromJSON(vars.OBS2A_NATIVE_JOB_TIMEOUT_MINUTES || '41') }}"
     with pytest.raises((AssertionError, KeyError)):
         _assert_checkpoint_pr_native_job(workflow)
+
+
+def test_caddy_full_observation_preserves_blocking_scan_and_exact_conditions() -> None:
+    job = _job(_workflow(FRONTEND_WORKFLOW), "caddy-contract")
+    steps = _steps(job)
+    build = _named_step(steps, "Build hardened Caddy shell image")
+    original = _named_step(steps, "Scan hardened Caddy shell image")
+    assert build["id"] == "caddy-build"
+    assert original["id"] == "caddy-security"
+    assert original["uses"] == TRIVY_ACTION
+    assert original["with"] == {
+        "version": TRIVY_VERSION,
+        "image-ref": "pulseplate-caddy:contract",
+        "format": "table",
+        "vuln-type": "os,library",
+        "severity": "CRITICAL,HIGH",
+        "exit-code": "1",
+        "cache-dir": "/tmp/trivy-cache-caddy-contract",
+    }
+    assert "continue-on-error" not in original
+    assert job["permissions"] == {"contents": "read"}
+    assert job["env"] == {
+        "CADDY_FULL_SCAN_TIMEOUT_SECONDS": "300",
+        "CADDY_METADATA_TIMEOUT_SECONDS": "900",
+        "CADDY_METADATA_CLEANUP_SECONDS": "120",
+    }
+    assert (
+        _step_index(steps, "Capture next loaded Caddy image identity")
+        == _step_index(steps, "Build hardened Caddy shell image") + 1
+    )
+    expected = {
+        "Prepare same-epoch full Caddy observation": (
+            "${{ !cancelled() && steps.caddy-build.outcome == 'success' && "
+            "steps.caddy-image.outcome == 'success' && "
+            "(steps.caddy-security.outcome == 'success' || steps.caddy-security.outcome == 'failure') }}"
+        ),
+        "Observe all-severity Caddy native report": (
+            "${{ !cancelled() && steps.caddy-full-prep.outcome == 'success' }}"
+        ),
+        "Validate and publish full Caddy observation": (
+            "${{ !cancelled() && steps.caddy-full-prep.outcome == 'success' && "
+            "steps.caddy-full-scan.outcome == 'success' }}"
+        ),
+    }
+    for name, condition in expected.items():
+        step = _named_step(steps, name)
+        expected_condition = (
+            "${{ (github.event_name != 'workflow_dispatch' || inputs.caddy_action != 'xnet060-metadata') && ("
+            + condition[len("${{ ") : -len(" }}")]
+            + ") }}"
+        )
+        assert step["if"] == expected_condition
+        assert "continue-on-error" not in step
+        assert "uses" not in step  # No second setup/cache restore or provider.
+    upload = _named_step(steps, "Upload Caddy contract evidence")
+    assert (
+        upload["if"]
+        == "${{ (github.event_name != 'workflow_dispatch' || inputs.caddy_action != 'xnet060-metadata') && (always()) }}"
+    )
+    assert upload["with"]["path"] == "${{ runner.temp }}/caddy-contract"
+    assert (
+        _step_index(steps, "Scan hardened Caddy shell image")
+        < _step_index(steps, "Prepare same-epoch full Caddy observation")
+        < _step_index(steps, "Observe all-severity Caddy native report")
+        < _step_index(steps, "Validate and publish full Caddy observation")
+        < _step_index(steps, "Upload Caddy contract evidence")
+    )
+
+
+@pytest.mark.parametrize("HC", ["success", "failure"])
+def test_caddy_native_full_observation_captures_findings_without_passing_HC(
+    tmp_path: Path, HC: str
+) -> None:
+    result, published, metadata, command = _run_caddy_full_observation_fixture(
+        tmp_path, "valid", HC
+    )
+    assert result.returncode == 0
+    assert published
+    assert metadata["subject"]["original_HC_outcome"] == HC
+    assert metadata["full_scan_native_exit"] == 0
+    assert metadata["Results_Secrets_fields_absent"] == 1
+    assert metadata["subject"]["image_config_id"] == "sha256:" + "a" * 64
+    assert command["argv"][-1] == "sha256:" + "a" * 64
+    projections = metadata["subject"]["native_projections"]
+    expected_projections = {
+        "version.txt": ["version"],
+        "build-info.txt": ["build-info"],
+        "rebuilt-modules.txt": ["list-modules", "--packages"],
+    }
+    assert set(projections) == set(expected_projections)
+    assert set(command["published_projection_hashes"]) == set(expected_projections)
+    image = metadata["subject"]["image_config_id"]
+    for name, native_arguments in expected_projections.items():
+        projection = projections[name]
+        assert projection["image_config_id"] == image
+        assert projection["argv"][1:] == [
+            "run",
+            "--rm",
+            "--network",
+            "none",
+            "--read-only",
+            "--cap-drop",
+            "ALL",
+            "--cap-add",
+            "NET_BIND_SERVICE",
+            "--entrypoint",
+            "/usr/bin/caddy",
+            image,
+            *native_arguments,
+        ]
+        assert projection["argv"][1:] in command["docker_argv"]
+        assert 0 < projection["bytes"] <= 1048576
+        assert command["published_projection_hashes"][name] == projection["sha256"]
+    assert (
+        len(
+            [
+                args
+                for args in command["docker_argv"]
+                if "--entrypoint" in args
+                and args[args.index("--entrypoint") + 1] == "/usr/bin/caddy"
+            ]
+        )
+        == 3
+    )
+    clean_environment = metadata["subject"]["clean_env"]
+    assert set(clean_environment) == {"PATH", "HOME", "LANG"}
+    # The interpreter may add platform state after exec (for example macOS CF
+    # text encoding). Compare the exact native outcome, without filtering fields
+    # or widening the three-key environment supplied by the workflow.
+    environment_control = subprocess.run(
+        [sys.executable, "-c", "import json, os; print(json.dumps(dict(os.environ)))"],
+        env=clean_environment,
+        capture_output=True,
+        text=True,
+        check=True,
+        timeout=30,
+    )
+    assert not environment_control.stderr
+    assert command["env"] == json.loads(environment_control.stdout)
+    for flag in (
+        "--skip-db-update",
+        "--skip-java-db-update",
+        "--skip-vex-repo-update",
+        "--offline-scan",
+        "--skip-version-check",
+        "--disable-telemetry",
+        "--list-all-pkgs",
+        "--ignore-unfixed=false",
+    ):
+        assert flag in command["argv"]
+    assert command["argv"][command["argv"].index("--exit-code") + 1] == "0"
+    assert command["argv"][command["argv"].index("--severity") + 1] == (
+        "UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL"
+    )
+    assert "does not pass the blocking HC gate" in metadata["claim_boundary"]
+
+
+@pytest.mark.parametrize(
+    "scenario",
+    (
+        "retag",
+        "platform",
+        "binary",
+        "source",
+        "scanner",
+        "db",
+        "missing-db",
+        "scan-error",
+        "truncated",
+        "wrong-image",
+        "wrong-schema",
+        "missing-os",
+        "missing-caddy",
+        "empty-packages",
+        "secrets",
+        "secrets-null",
+        "secrets-object",
+        "override",
+        "version-image-id",
+        "build-info-image-id",
+        "modules-image-id",
+        "missing-version",
+        "missing-build-info",
+        "missing-modules",
+        "version-mismatch",
+        "build-info-mismatch",
+        "modules-mismatch",
+    ),
+)
+def test_caddy_native_full_observation_rejects_unbound_or_unsafe_publication(
+    tmp_path: Path, scenario: str
+) -> None:
+    result, published, _metadata, _command = _run_caddy_full_observation_fixture(
+        tmp_path, scenario, "failure"
+    )
+    assert result.returncode != 0
+    assert not published
+    assert "synthetic-secret-sentinel" not in result.stdout + result.stderr
+
+
+def _run_caddy_full_observation_fixture(
+    tmp_path: Path, scenario: str, HC: str
+) -> tuple[subprocess.CompletedProcess[str], bool, dict[str, object], dict[str, object]]:
+    """Execute actual inline workflow scripts with finite synthetic native outcomes."""
+    workflow = _workflow(FRONTEND_WORKFLOW)
+    steps = _steps(_job(workflow, "caddy-contract"))
+    workspace = tmp_path / "workspace"
+    binaries = tmp_path / "bin"
+    runner = tmp_path / "runner"
+    cache = tmp_path / "cache"
+    for path in (workspace, binaries, runner, cache / "db", runner / "caddy-contract"):
+        path.mkdir(parents=True, exist_ok=True)
+    paths = (
+        "frontend/Dockerfile.caddy-spa",
+        "frontend/package.json",
+        "frontend/package-lock.json",
+        "frontend/.dockerignore",
+        ".github/workflows/frontend-ci.yml",
+        "deploy/Caddyfile",
+        "deploy/Caddyfile.production",
+        "scripts/ci/check_docker_runtime_dependency_surface.py",
+    )
+    for name in paths:
+        target = workspace / name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(REPO_ROOT / name, target)
+    for name in ("scripts/__init__.py", "scripts/ci/__init__.py"):
+        (workspace / name).touch()
+    (cache / "db/trivy.db").write_bytes(b"synthetic-database-epoch")
+    (cache / "db/metadata.json").write_text('{"Version":2,"UpdatedAt":"2026-10-10T00:00:00Z"}')
+    command_record = tmp_path / "native-command.json"
+    docker_record = tmp_path / "docker-commands.json"
+    docker = binaries / "docker"
+    docker.write_text(
+        f"#!{sys.executable}\n"
+        "import json,sys\nfrom pathlib import Path\n"
+        f"scenario={scenario!r}\n"
+        "args=sys.argv[1:]\n"
+        f"trace=Path({str(docker_record)!r})\n"
+        "history=json.loads(trace.read_text()) if trace.exists() else []\n"
+        "history.append(args);trace.write_text(json.dumps(history))\n"
+        "if args[:2]==['image','inspect']:\n"
+        " image='sha256:'+'a'*64\n"
+        " if scenario=='retag' and ("
+        + repr(str(tmp_path / "seen"))
+        + ") and Path("
+        + repr(str(tmp_path / "seen"))
+        + ").exists():image='sha256:'+'b'*64\n"
+        " Path(" + repr(str(tmp_path / "seen")) + ").touch()\n"
+        " if '--format' in args and args[args.index('--format')+1]=='{{.Id}}':print(image)\n"
+        " else:print(json.dumps({'Id':image,'Os':'linux','Architecture':'arm64' if scenario=='platform' else 'amd64'}))\n"
+        "elif '--entrypoint' in args and args[args.index('--entrypoint')+1]=='/usr/bin/caddy':\n"
+        " index=args.index('--entrypoint')\n"
+        " if args[index+2]!='sha256:'+'a'*64:sys.exit(3)\n"
+        " command=tuple(args[index+3:])\n"
+        " outputs={('version',):'v2.11.4 synthetic\\n',('build-info',):'go\\tgo1.26.6\\n',('list-modules','--packages'):'http.handlers.file_server github.com/caddyserver/caddy/v2\\n'}\n"
+        " if command not in outputs:sys.exit(4)\n"
+        " print(outputs[command],end='')\n"
+        "else:\n"
+        " print(('c' if scenario=='binary' else 'd')*64+'  /usr/bin/caddy')\n",
+        encoding="utf-8",
+    )
+    # These are native-shape fixtures, not real scanner execution proof.
+    report = {
+        "SchemaVersion": 2,
+        "ArtifactType": "container_image",
+        "ArtifactName": "sha256:" + "a" * 64,
+        "Metadata": {"ImageID": "sha256:" + "a" * 64},
+        "Results": [
+            {
+                "Target": "Alpine",
+                "Class": "os-pkgs",
+                "Type": "alpine",
+                "Secrets": [],
+                "Packages": [{"Name": "libssl3", "Version": "3.5.8-r0"}],
+                "Vulnerabilities": [],
+            },
+            {
+                "Target": "usr/bin/caddy",
+                "Class": "lang-pkgs",
+                "Type": "gobinary",
+                "Packages": [{"Name": "golang.org/x/net", "Version": "v0.58.0"}],
+                "Vulnerabilities": [{"VulnerabilityID": "CVE-2026-78669", "Severity": "HIGH"}],
+            },
+        ],
+    }
+    if scenario == "wrong-image":
+        report["Metadata"]["ImageID"] = "sha256:" + "b" * 64
+    if scenario == "wrong-schema":
+        report["SchemaVersion"] = 1
+    if scenario == "missing-os":
+        report["Results"] = report["Results"][1:]
+    if scenario == "missing-caddy":
+        report["Results"] = report["Results"][:1]
+    if scenario == "empty-packages":
+        report["Results"][1]["Packages"] = []
+    if scenario.startswith("secrets"):
+        report["Results"][0]["Secrets"] = {
+            "secrets": [{"Match": "synthetic-secret-sentinel"}],
+            "secrets-null": None,
+            "secrets-object": {},
+        }[scenario]
+    scanner = binaries / "trivy"
+    scanner.write_text(
+        f"#!{sys.executable}\n"
+        "import json,os,sys\nfrom pathlib import Path\n"
+        f"scenario={scenario!r}\nreport={report!r}\n"
+        "args=sys.argv[1:]\n"
+        "if args==['--version']:\n print('Version: 0.74.0');sys.exit(0)\n"
+        f"Path({str(command_record)!r}).write_text(json.dumps({{'argv':args,'env':dict(os.environ)}}))\n"
+        "output=Path(args[args.index('--output')+1])\n"
+        "output.write_text('{truncated' if scenario=='truncated' else json.dumps(report))\n"
+        "if scenario=='db':\n (Path(args[args.index('--cache-dir')+1])/'db/trivy.db').write_bytes(b'changed')\n"
+        "if scenario=='scanner':\n Path(__file__).write_text('changed-scanner')\n"
+        "sys.exit(2 if scenario=='scan-error' else 0)\n",
+        encoding="utf-8",
+    )
+    docker.chmod(0o755)
+    scanner.chmod(0o755)
+    github_output = tmp_path / "github-output"
+    github_output.touch()
+    # Explicit synthetic environment prevents credential leakage in mocked
+    # headers, child diagnostics or full native-command snapshots.
+    environment = {
+        "PATH": str(binaries) + os.pathsep + os.defpath,
+        "RUNNER_TEMP": str(runner),
+        "GITHUB_OUTPUT": str(github_output),
+        "CADDY_HC_OUTCOME": HC,
+        "CADDY_TRIVY_CACHE": str(cache),
+        "CADDY_FULL_SCAN_TIMEOUT_SECONDS": "5",
+        "TRIVY_SEVERITY": "HIGH",
+        "TRIVY_EXIT_CODE": "1",
+        "TRIVY_SCANNERS": "vuln",
+        "TRIVY_SKIP_FILES": "usr/bin/caddy",
+        "TRIVY_VEX": "synthetic-vex",
+    }
+    if scenario == "override":
+        environment["TRIVY_CMD"] = str(binaries / "different-scanner")
+    last = None
+    for name in (
+        "Capture next loaded Caddy image identity",
+        "Prepare same-epoch full Caddy observation",
+        "Observe all-severity Caddy native report",
+        "Validate and publish full Caddy observation",
+    ):
+        script = (
+            _named_step(steps, name)["run"].split("python3 - <<'PY'\n", 1)[1].rsplit("\nPY", 1)[0]
+        )
+        last = subprocess.run(
+            [sys.executable, "-c", script],
+            env=environment,
+            cwd=workspace,
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+        )
+        if last.returncode:
+            break
+        if name == "Capture next loaded Caddy image identity":
+            outputs = dict(line.split("=", 1) for line in github_output.read_text().splitlines())
+            environment["CADDY_OBSERVATION_STATE"] = outputs["state"]
+            if scenario == "source":
+                (workspace / "frontend/package.json").write_text("changed-source")
+            if scenario == "missing-db":
+                (cache / "db/trivy.db").unlink()
+            if scenario == "binary":
+                docker.write_text(
+                    docker.read_text().replace("scenario='binary'", "scenario='valid'")
+                )
+            projection_faults = {
+                "version-image-id": ("version.txt", "image-id"),
+                "build-info-image-id": ("build-info.txt", "image-id"),
+                "modules-image-id": ("rebuilt-modules.txt", "image-id"),
+                "missing-version": ("version.txt", "missing"),
+                "missing-build-info": ("build-info.txt", "missing"),
+                "missing-modules": ("rebuilt-modules.txt", "missing"),
+                "version-mismatch": ("version.txt", "mismatch"),
+                "build-info-mismatch": ("build-info.txt", "mismatch"),
+                "modules-mismatch": ("rebuilt-modules.txt", "mismatch"),
+            }
+            if scenario in projection_faults:
+                filename, fault = projection_faults[scenario]
+                state_path = Path(outputs["state"])
+                subject = json.loads(state_path.read_text())
+                if fault == "image-id":
+                    projection = subject["native_projections"][filename]
+                    projection["argv"][
+                        projection["argv"].index(subject["image_config_id"])
+                    ] = "pulseplate-caddy:contract"
+                    state_path.write_text(json.dumps(subject))
+                elif fault == "missing":
+                    (state_path.parent / "native-projections" / filename).unlink()
+                else:
+                    (state_path.parent / "native-projections" / filename).write_bytes(
+                        b"changed-native-projection"
+                    )
+    assert last is not None
+    published = runner / "caddy-contract/full-observation"
+    result_metadata = (
+        json.loads((published / "observation.json").read_text()) if published.exists() else {}
+    )
+    native_command = json.loads(command_record.read_text()) if command_record.exists() else {}
+    native_command["docker_argv"] = (
+        json.loads(docker_record.read_text()) if docker_record.exists() else []
+    )
+    native_command["published_projection_hashes"] = (
+        {
+            path.name: hashlib.sha256(path.read_bytes()).hexdigest()
+            for path in (published / "native-projections").iterdir()
+        }
+        if published.exists()
+        else {}
+    )
+    return last, published.exists(), result_metadata, native_command
+
+
+def test_caddy_counterfactual_metadata_owns_no_compiler_or_final_recipe_mutation() -> None:
+    workflow = _workflow(FRONTEND_WORKFLOW)
+    event = workflow.get("on", workflow.get(True))
+    assert event["workflow_dispatch"]["inputs"]["caddy_action"]["options"] == [
+        "contract",
+        "xnet060-metadata",
+    ]
+    steps = _steps(_job(workflow, "caddy-contract"))
+    metadata = _named_step(steps, "Qualify Caddy compiler and two counterfactual xnet derivations")
+    assert (
+        metadata["if"]
+        == "${{ github.event_name == 'workflow_dispatch' && inputs.caddy_action == 'xnet060-metadata' }}"
+    )
+    source = metadata["run"]
+    assert re.search(r"\bgo\s+build\b", source) is None
+    assert 'for label in ("a", "b")' in source
+    assert '"go_build_invocations": 0' in source
+    assert 'root_module="pulseplate.local/caddy-build"' in source
+    assert "tree_inventory(left) == tree_inventory(right)" in source
+    assert "go get golang.org/x/net@v0.60.0" in source
+    assert "go mod download all" in source and "go mod verify" in source
+    assert "baseline-packages.json" in source and "final-packages.json" in source
+    assert "post-get-go.mod" in source and "module-derivation.patch" in source
+    assert "C_R_candidate" in source and "pending independent source/security review" in source
+    assert "Counterfactual recipe baselines" in source
+    assert "zlib=1.3.2-r1" in source and "apk verify /output/zlib-1.3.2-r1.apk" in source
+    # Selection follows actual hosted replay; preparation cannot silently add the fourth get.
+    recipe = DOCKERFILE.read_text()
+    assert "go get golang.org/x/net@v0.60.0" not in recipe
+    assert "Go 1.26.6" in recipe
+
+
+def test_caddy_full_observation_keeps_native_diagnostics_without_inventing_secrets() -> None:
+    steps = _steps(_job(_workflow(FRONTEND_WORKFLOW), "caddy-contract"))
+    preparation = _named_step(steps, "Prepare same-epoch full Caddy observation")["run"]
+    publication = _named_step(steps, "Validate and publish full Caddy observation")["run"]
+    assert '"scanner-version.stdout"' in preparation and '"scanner-version.stderr"' in preparation
+    assert '"scan.stdout.private"' in publication and '"scan.stderr.private"' in publication
+    assert "scanner_diagnostic_credential_reflection" in publication
+    assert "Results_Secrets_fields_absent" in publication
+    assert 'native["Results"]' in publication
+    assert 'row["Secrets"] = []' not in publication

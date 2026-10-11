@@ -132,42 +132,69 @@ install contexts; it is not a substitute for the compiled lock surfaces.
 
 ### Local Development Bootstrap
 
-The devcontainer remains the recommended path for backend/web/docs/orchestration
-work. A host `.venv` is supported only when the approved proxy provides a
-compatible binary wheel for that host platform.
+Backend bootstrap uses the Linux amd64 container SDK and verified runtime/dev
+wheelhouse. Native macOS backend `make venv`, `make venv-sync` and
+`source scripts/dev_shell.sh` bootstrap fail before creating or activating a
+host venv. An existing host venv is preserved; this migration does not supply
+a Darwin SDK. iOS/Xcode work remains host-native on macOS.
 
-The bounded 2026-08-04 `cryptography==50.0.0` proxy snapshot provided macOS
-arm64 wheels but no macOS `x86_64` or `universal2` wheel. Apple Silicon exact-50
-bootstrap was validated; Intel macOS backend bootstrap must use the
-devcontainer at this floor. The canonical installer is binary-only, so
-source-build fallback is not supported. This observation is dated and does not
-claim future platform compatibility. iOS/Xcode development remains host-native
-on macOS.
-
-`make venv-sync` refreshes the repo `.venv` through the locked installer path
-and the approved private package proxy. Use it after lockfile changes or when a
-compatible host environment has stale wrappers or missing pins.
+From the host, prepare the existing approved proxy access and explicitly start
+and enter the devcontainer:
 
 ```bash
 export PULSEPLATE_PYTHON_INDEX_URL="https://packages.pulseplate.app/root/pulseplate/+simple/"
-make venv-sync
+make dc-up
+make dc-shell
 ```
+
+Inside the container, `make devcontainer-bootstrap`, `make venv` and
+`source scripts/dev_shell.sh` consume the matching genuine SDK and verified
+baked wheelhouse offline. The sourced shell initializes a fresh or empty venv
+and activates it. Named venv volumes isolate container environments from the
+host checkout.
+
+For an existing venv, `make venv-sync` requires Linux amd64, the genuine SDK and
+approved proxy access. It acquires a fresh private binary wheelhouse, validates
+its exact locked membership and startup hooks, then installs into the existing
+venv. A stale or missing baked wheelhouse does not block this refresh, and the
+baked wheelhouse is never overwritten. Failures before target installation leave
+the venv unchanged; a final pip failure propagates and may leave a partial target
+update. No success message or automatic rollback is supplied for that failure.
+
+The source producer accepts exactly Linux x86_64 CPython 3.11, 3.12 and 3.13,
+and Linux aarch64 CPython 3.13, with their matching immutable source-image pins,
+interpreter ABI and ELF target. The ARM SDK is for the isolated Experiment
+Runner; backend Make/devcontainer callers retain Linux amd64. On an ARM host,
+Docker/Compose select `linux/amd64` explicitly; emulated local builds retain
+their resource limits and native CI remains the compatibility signal.
+Stop Docker Desktop after an owned build/observation session. Actual SDK,
+wheelhouse and final-user import checks are required; file presence alone is
+not successful bootstrap evidence.
+
+The August 4 cryptography50.0.0 macOS-arm64 wheel observation is historical;
+it does not establish current native-host support for this source migration.
 
 Direct `pip-sync` remains a manual/debugging tool only; do not present it as the
 canonical local refresh path in repo workflows.
 
 ### CI/CD or Standard pip Environments
 
-If `pip-tools` is not available or you need standard pip compatibility, use constraints files for deterministic builds:
+Run this shared runtime/dev example inside a supported Linux SDK image using
+its matching interpreter and genuine SDK. Export `PULSEPLATE_PSYCOPG_C_SDK` to
+the supplied SDK directory first; native macOS is unsupported. Constraints do
+not replace the SDK or compiled locks, and the installer owns actual SDK/ABI
+admission.
 
 ```bash
 # Install pinned dependencies through a local wheelhouse
+: "${PULSEPLATE_PSYCOPG_C_SDK:?Enter the matching Linux SDK image first}"
 export PULSEPLATE_PYTHON_INDEX_URL="https://packages.pulseplate.app/root/pulseplate/+simple/"
 # Optional: only when the approved proxy requires an explicit trusted host.
 # Keep unset when TLS verification succeeds.
 export PULSEPLATE_PYTHON_TRUSTED_HOST=""
 python scripts/ci/install_locked_python_requirements.py \
   --python-executable python \
+  --psycopg-sdk "$PULSEPLATE_PSYCOPG_C_SDK" \
   --constraints-file constraints.txt \
   --install-dev
 ```
@@ -308,21 +335,19 @@ entries. When the manifest is the retired empty marker, it succeeds with
 
 ## Canonical Clean-Clone Bootstrap For Local Verify
 
-For this repo, the canonical local path is still the Makefile bootstrap:
+Use the container flow above before the canonical Makefile bootstrap. Inside
+that container:
 
 ```bash
-export PULSEPLATE_PYTHON_INDEX_URL="https://packages.pulseplate.app/root/pulseplate/+simple/"
 make venv
-make verify
+make validate-changed
+.venv/bin/python -m pre_commit run --all-files
 ```
 
-If an existing `.venv` looks stale or `make verify` fails early on a missing
-locked dependency such as `opentelemetry-*`, refresh the environment with:
-
-```bash
-make venv-sync
-make verify
-```
+For a stale container environment, refresh it with `make venv-sync` and run
+the required focused/narrow gates. Full local `make verify` requires the root
+policy's explicit single-invocation human authorization; it is not the default
+bootstrap or PR verification step.
 
 `make verify` includes a fail-fast `verify-env` preflight so incomplete
 clean-clone environments fail before the longer lint/typecheck/test gates. Run
@@ -400,7 +425,7 @@ targets, missing direct owners, and any unrelated version movement.
 
 ### Add or remove a dependency graph entry
 
-`GRAPH_CHANGE_PACKAGES` remains fail-closed except for two fixed alternatives
+`GRAPH_CHANGE_PACKAGES` remains fail-closed except for three fixed alternatives
 in the existing `python_dependency_graph_change_admissions.v1.json` carrier.
 The original `observability-refresh-2026-08-15` record admits only removal of
 `importlib-metadata` and `zipp` while upgrading the exact seven declared
@@ -429,6 +454,49 @@ line endings; semantic pin equivalence is insufficient. The recorded target
 was established by two byte-identical canonical TX1 runs in independent
 disposable detached worktrees. That bounded discovery did not mutate the lane
 locks and is not final replay, commit-binding, or merge evidence.
+
+The `dep-sec-oct2-psycopg-c-3.3.4` alternative owns only the reviewed Psycopg
+installation variant migration: parent version 3.3.4 stays fixed, `[binary]`
+becomes `[c]`, the binary leaf is removed and the genuine C leaf is added.
+Its fixed record binds the exact seeded locks and source bytes. It accepts only
+the Psycopg-only replay or the accepted combined Cryptography 50.0.2 intent;
+other package, version, extra, marker and URL transitions fail closed. Dev has
+Cryptography and no Psycopg parent or leaf. Historical records remain unchanged.
+
+This one source exception uses `install_locked_python_requirements.py` as its
+artifact/SDK owner. The original `psycopg_c-3.3.4.tar.gz` is accepted only at its
+reviewed digest and member inventory. The reproducible source adaptation changes
+only the Setuptools 80.3.1 build pin to 83.0.0. The verified binary build closure
+is Setuptools 83.0.0, Wheel 0.47.0 and Packaging 25.0. Source acquisition never
+invokes the backend. Actual backend builds require an isolated Linux amd64
+CPython 3.11, 3.12 or 3.13 guest with no usable external network or credentials,
+and matching real client headers, `pg_config`, libpq and shared OpenSSL.
+
+The Docker `psycopg-sdk` target exports the genuine matching wheel and input
+receipt. The compiler and installer consume it through
+`PULSEPLATE_PSYCOPG_C_SDK`; this is source/build provenance, not a private-index
+wheel or a metadata-only resolver artifact. All other dependencies stay binary
+only. `--prefetch-only --wheelhouse-dir <new-directory>` acquires the exact
+compiled binary inventory; `--consume-only --wheelhouse-dir <existing-directory>`
+performs no acquisition and retains the startup-hook guard.
+
+```bash
+# Run inside the matching admitted Linux compiler environment with a genuine SDK.
+LOCK_PROFILES="runtime" UPGRADE_PACKAGES="cryptography==50.0.2" \
+  GRAPH_CHANGE_PACKAGES="psycopg-binary psycopg-c" \
+  GRAPH_CHANGE_ADMISSION="dep-sec-oct2-psycopg-c-3.3.4" make requirements-locks
+# Validate and commit runtime before the constrained transaction.
+LOCK_PROFILES="docker-runtime ci-lite dev aggregate" \
+  UPGRADE_PACKAGES="cryptography==50.0.2" \
+  GRAPH_CHANGE_PACKAGES="psycopg-binary psycopg-c" \
+  GRAPH_CHANGE_ADMISSION="dep-sec-oct2-psycopg-c-3.3.4" make requirements-locks
+```
+
+Record the complete original-base per-intent resolver replay and delta separately;
+admission of this fixed relation is not executed solver closure or image proof.
+After all affected locks are generated, raise the live security schema floor.
+The ordinary source guard accepts a stronger canonical declared minimum without
+requiring the older schema floor itself to remain in that source range.
 Wrong order, subsets, permutations, combined/repeated invocations, additions,
 or stale baseline bytes fail before credentialed network access. Each invocation
 prepares and validates all of its candidates before replacement and retains the
@@ -473,7 +541,9 @@ policy authority follows from this fixed alternative.
 ### Option 1: Locked wheelhouse installer (Current Implementation)
 
 GitHub Actions workflows should use the shared installer instead of ad hoc
-`pip install` blocks:
+`pip install` blocks. An earlier matching native SDK producer must supply the
+genuine SDK and export `PULSEPLATE_PSYCOPG_C_SDK` through `GITHUB_ENV` for the
+selected supported Linux interpreter before this step:
 
 ```yaml
 - name: Install dependencies
@@ -481,8 +551,10 @@ GitHub Actions workflows should use the shared installer instead of ad hoc
     PULSEPLATE_PYTHON_INDEX_URL: ${{ vars.PULSEPLATE_PYTHON_INDEX_URL }}
     PULSEPLATE_PYTHON_TRUSTED_HOST: ${{ vars.PULSEPLATE_PYTHON_TRUSTED_HOST }}
   run: |
+    : "${PULSEPLATE_PSYCOPG_C_SDK:?Run the matching native SDK producer first}"
     python scripts/ci/install_locked_python_requirements.py \
       --python-executable python \
+      --psycopg-sdk "$PULSEPLATE_PSYCOPG_C_SDK" \
       --constraints-file constraints.txt \
       --install-dev
 ```

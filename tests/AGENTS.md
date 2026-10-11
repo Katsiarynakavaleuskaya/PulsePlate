@@ -16,6 +16,12 @@
 ## Conventions
 
 - Use pytest fixtures from `conftest.py`; keep tests isolated.
+- For a negative test targeting a specific guard, start from a valid complete
+  baseline, change the intended input, and assert the guard's stable diagnostic
+  or an equivalent branch-specific observable; an arbitrary exception or failure
+  at an earlier prerequisite is insufficient. When a prerequisite or admission
+  boundary changes, recheck every case whose intended branch evidence was
+  previously masked.
 - Temporary Git repositories must use `git_env_without_parent_state()` and
   `safe_git_config_args()` from `scripts/orchestration/creative_code_patch_workspace.py`
   for Git subprocesses. Pass the sanitized environment to tools such as
@@ -23,6 +29,11 @@
   isolate inherited commit-hook Git state. Regressions must point inherited
   Git variables at a separate synthetic parent and preserve its config, HEAD
   and existing index bytes; never use the real checkout as the negative fixture.
+- Before copying an isolated fixture's `.git` directory, disable automatic
+  housekeeping locally with `maintenance.auto=false` and `gc.auto=0` before
+  its first object-writing Git command. Preserve the existing sanitized
+  environment, config clamps and complete copy/admission assertions; do not
+  repair copy races by ignoring disappearing Git lock files.
 - The [docs path-leakage guard](guards/test_security_devtooling_regression_guards.py)
   checks the proposed Git index only for local `PRE_COMMIT=1` with empty
   `CI` and `GITHUB_ACTIONS`; it requires a real `origin/main` merge-base and
@@ -495,9 +506,9 @@ The repo uses deterministic, repo-local “guard tests” to prevent instruction
       - `docs/orchestration/workflow.md`
   - **How to run**:
 
-```bash
-pytest -q tests/test_agent_docs_registry_guard.py
-```
+    ```bash
+    pytest -q tests/test_agent_docs_registry_guard.py
+    ```
 
   - **How to fix failures**:
     - If an agent spec is added/renamed in `.cursor/agents/`, update the index and context map in the same PR.
@@ -544,8 +555,9 @@ pytest -q tests/test_repo_policy_guards.py
     at the canonical owner: optional absence must not exempt present optional
     carriers from the retained validation rules.
   - **What it enforces**:
-    - `cryptography` must stay at or above the current floor (`50.0.0`) across
-      the canonical closed inventory declared by
+    - `cryptography` must stay at or above the current floor declared in
+      `tests/fixtures/dependency_security_schema.json` across the canonical
+      closed inventory declared by
       `tests/test_dependency_security_guard.py::REQUIREMENT_SURFACES`, currently
       ten shared requirement surfaces.
     - Optional dependency profiles are outside the `min_versions` all-surfaces
@@ -602,10 +614,10 @@ pytest -q tests/test_repo_policy_guards.py
     ```bash
     pytest -q tests/test_pr_body_phase2_gates.py
     python scripts/ci/check_pr_body_phase2_gates.py --pr-number 999 --body "## Discussion Thread Pass
-- [x] Discussion-thread pass completed
-- [x] Fixed in commit mapping completed
-### Fixed in Commit Mapping
-- canonical artifact: docs/review/PR_999_FIXED_MAPPING.md"
+    - [x] Discussion-thread pass completed
+    - [x] Fixed in commit mapping completed
+    ### Fixed in Commit Mapping
+    - canonical artifact: docs/review/PR_999_FIXED_MAPPING.md"
     ```
   - **How to fix failures**:
     - Update PR body using template sections exactly (headings + checkbox labels).
@@ -765,3 +777,17 @@ git grep -n "sys\.path\.insert" tests \
 # Recipe store anti-pattern
 rg -n "sys\.modules\.get\(\"recipe_store\"\)|recipe_store.*spec_from_file_location" tests
 ```
+
+## Finite source-image producer tests
+
+- Keep metadata, synthetic format observations and actual native candidate
+  evidence distinct. Synthetic selected-manifest fixtures exercise only parser
+  and caller rejection; they are not authenticated artifacts or build receipts.
+- Extend the existing Prometheus, Caddy, workflow and deploy suites with typed
+  counterexamples: missing/expired artifacts, changed raw producer bytes,
+  squash versus PR ancestry, unknown predecessor states, immutable tag collisions,
+  payload aliases/modes/diffIDs, and incoming material trying to replace trusted
+  helper code. Never weaken strict equality, scanners or coverage for preparation.
+- Source authoring uses affected focused tests. Native compiler/copy/import/SDK
+  observations require separate admitted hosted execution; mocks cannot supply
+  those outcomes. The local full-verify prohibition remains in root AGENTS.md.

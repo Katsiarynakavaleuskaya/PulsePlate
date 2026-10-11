@@ -61,6 +61,24 @@ PRODUCTION_DOMAIN=example.com STAGING_FALLBACK_DOMAIN=staging.example.com \
 - Keep its Python base tag pinned by OCI digest, install only locked
   `runtime-dev` requirements through BuildKit secrets, and keep the final user
   non-root.
+- Image builds require the genuine Linux aarch64 CPython 3.13 SDK export,
+  qualified against its actual pinned producer and complete payload before
+  passing `--psycopg-sdk-root` to the dispatcher. Curated context transport is
+  separate from canonical in-UBI SDK/wheel admission. Never run a source backend
+  with proxy secrets or copy libc, libpython, loaders, host HOME or credentials.
+- Acquire the Runner profile with existing `--prefetch-only` while only static
+  SDK wheel/receipt data is present. No supplied DSO/provider/config or SDK
+  loader state may be active with proxy credentials. Complete owned acquisition
+  HOME/TMP/cache cleanup, then use trusted-base `--validate-psycopg-sdk` with
+  explicit SDK/native-root operands under actual network-none and clean startup.
+  Activate only the checked qualified payload and consume the exact wheelhouse
+  offline. Final native COPY comes from that builder, never external inputs
+  again. Static hashes prove consistency; producer/export origin and final
+  loaded-library/kernel/TLS/strict-successor admission remain independent.
+- Preserve the actual original UBI default CA bundle and connect the SDK OpenSSL
+  compiled default paths to it. Native system `_ssl`, HTTP/default trust,
+  providers, loaded DSO hashes and database consumers must be observed on the
+  final image; a custom test CA or matching version is not that proof.
 - Image builds may use the approved private proxy. Experiment runs must use a
   prebuilt immutable `name@sha256:<digest>` reference and must not install
   dependencies or pull images after the strict backend probe.
@@ -421,11 +439,17 @@ PRODUCTION_DOMAIN=example.com STAGING_FALLBACK_DOMAIN=staging.example.com \
 
 ### Official Prometheus image updates
 
-- Keep the selected image in the existing seven-field v2 record; update the
-  exact official index, linux/amd64 manifest and source revision together.
-- The selected-image verification and ordinary workflow rules live in
+- The v3 record distinguishes preparation from a real selected candidate.
+  All three Compose contours require the canonical reader's exported
+  `PROMETHEUS_RUNTIME_REF`; an ambient value or floating fallback is insufficient.
+  Keep the same non-root user, network, storage and retention contracts.
+- The producer and event rules live in
   [scripts/AGENTS.md](../scripts/AGENTS.md#official-prometheus-image-selection).
-  Image selection does not deploy or migrate a host, change volume ownership,
+  Staging contract version 6 also binds the installed standalone helper hash.
+  Production transfers that helper separately as trusted code, then checks and
+  syncs the archive copy as data through the existing destination transaction.
+  An incoming archive must never choose executable host code for its own checks.
+- Image selection does not deploy or migrate a host, change volume ownership,
   enable staging attestation flags, or start the production observation clock.
 
 

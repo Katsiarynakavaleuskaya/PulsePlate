@@ -10,6 +10,13 @@ These tests verify that:
 from __future__ import annotations
 
 import json
+import os
+import shlex
+import shutil
+import subprocess
+import sys
+
+import pytest
 from pathlib import Path
 
 import yaml
@@ -96,6 +103,7 @@ def test_devcontainer_json_does_not_auto_execute_workspace_bootstrap() -> None:
     """Opening the devcontainer must not auto-run repository-controlled code."""
     data = json.loads((DEVCONTAINER_DIR / "devcontainer.json").read_text(encoding="utf-8"))
 
+    assert "initializeCommand" not in data
     assert "postCreateCommand" not in data
     assert "onCreateCommand" not in data
     assert "updateContentCommand" not in data
@@ -252,3 +260,571 @@ def test_makefile_preserves_venv_target() -> None:
 
     assert "venv:" in text, "Makefile must preserve 'venv:' target as fallback"
     assert "VENV_PYTHON ?=" in text, "Makefile must preserve VENV_PYTHON definition"
+
+
+def test_devcontainer_sdk_artifacts_keep_source_build_and_auth_in_the_producer() -> None:
+    config = yaml.safe_load((DEVCONTAINER_DIR / "docker-compose.devcontainer.yml").read_text())
+    producer = config["services"]["native-sdk-artifacts"]
+    consumer = config["services"]["devcontainer"]
+    assert producer["platform"] == consumer["platform"] == "linux/amd64"
+    assert producer["deploy"]["replicas"] == 0
+    assert producer["build"]["target"] == "dev-bootstrap-sdk"
+    assert producer["build"]["secrets"] == ["pp_py_index", "pp_netrc"]
+    assert consumer["build"]["additional_contexts"] == {
+        "native_sdk": "service:native-sdk-artifacts"
+    }
+    assert "secrets" not in consumer and "env_file" not in consumer
+    assert "pulseplate-dev-venv:/workspaces/PulsePlate/.venv" in consumer["volumes"]
+    assert all("docker.sock" not in mount for mount in consumer["volumes"])
+    tooling = (DEVCONTAINER_DIR / "Dockerfile").read_text()
+    assert "COPY --from=native_sdk /wheelhouse/ /opt/dev-wheelhouse/" in tooling
+    assert "install -d -o vscode -g vscode /workspaces/PulsePlate/.venv" in tooling
+    assert "chmod 755 /opt/dev-wheelhouse" in tooling
+    assert "chmod 644 /opt/dev-wheelhouse/*.whl" in tooling
+    dockerfile = (REPO_ROOT / "Dockerfile").read_text()
+    acquisition = dockerfile.split(" AS dev-bootstrap-inputs\n", 1)[1].split("\nFROM ", 1)[0]
+    assert 'index="${PULSEPLATE_PYTHON_INDEX_URL:-}"' in acquisition
+    assert "--mount=type=secret,id=pp_py_index,required=false" in acquisition
+    assert "--mount=type=secret,id=pp_netrc,required=false" in acquisition
+    assert "--prefetch-only" in acquisition and "--psycopg-sdk /opt/psycopg-sdk" in acquisition
+    assert "--build-psycopg-c" not in acquisition
+    development = dockerfile.split("FROM runtime-base AS development", 1)[1]
+    assert "COPY --from=dev-bootstrap-sdk /wheelhouse/ /opt/dev-wheelhouse/" in development
+    assert "PULSEPLATE_BOOTSTRAP_WHEELHOUSE=" + "/opt/dev-wheelhouse" in development
+    assert "chmod 755 /opt/dev-wheelhouse" in development
+    assert "chmod 644 /opt/dev-wheelhouse/*.whl" in development
+    makefile = (REPO_ROOT / "Makefile").read_text()
+    assert "devcontainer-bootstrap: venv" in makefile
+    assert "--consume-only" in makefile and "--require-virtualenv" in makefile
+    assert "ln -sf" not in makefile.split("devcontainer-bootstrap:", 1)[1].split("dc-up:", 1)[0]
+    for service in ("pulseplate", "pulseplate-dev"):
+        root = yaml.safe_load((REPO_ROOT / "docker-compose.yaml").read_text())
+        assert root["services"][service]["platform"] == "linux/amd64"
+
+
+def test_root_development_consumes_prefetched_sdk_offline_and_provides_make() -> None:
+    dockerfile = (REPO_ROOT / "Dockerfile").read_text(encoding="utf-8")
+    development = dockerfile.split("FROM runtime-base AS development\n", 1)[1]
+    install = development.split("RUN --network=none ", 1)[1].split("\n\n", 1)[0]
+    assert shlex.split(install.replace("\\\n", "")) == [
+        "/opt/venv/bin/python",
+        "/tooling/scripts/ci/install_locked_python_requirements.py",
+        "--python-executable",
+        "/opt/venv/bin/python",
+        "--requirements-file",
+        "requirements.txt",
+        "--dev-requirements-file",
+        "requirements-dev.txt",
+        "--guard-script",
+        "/tooling/scripts/ci/check_python_startup_hooks.py",
+        "--constraints-file",
+        "constraints.txt",
+        "--install-dev",
+        "--psycopg-sdk",
+        "/opt/psycopg-sdk",
+        "--wheelhouse-dir",
+        "/opt/dev-wheelhouse",
+        "--consume-only",
+        "--require-virtualenv",
+    ]
+    for forbidden in (
+        "ARG ",
+        "--mount=type=secret",
+        "PULSEPLATE_PYTHON_INDEX_URL",
+        "PULSEPLATE_PYTHON_TRUSTED_HOST",
+        "/run/secrets",
+        ".netrc",
+        "--prefetch-only",
+        "--build-psycopg-c",
+    ):
+        assert forbidden not in development
+    tools = development.split("RUN apt-get update && apt-get install -y ", 1)[1].split(
+        "&& rm -rf", 1
+    )[0]
+    assert shlex.split(tools.replace("\\\n", "")) == ["git", "make", "vim"]
+    assert development.index("RUN --network=none") < development.index("USER pulseplate")
+    assert development.index("apt-get install") < development.index("USER pulseplate")
+
+
+@pytest.mark.parametrize("platform", ("Darwin", "Linux"))
+def test_backend_shell_refusal_preserves_caller_and_has_no_venv_side_effect(
+    tmp_path: Path, platform: str
+) -> None:
+    bash = shutil.which("bash")
+    assert bash is not None
+    uname = tmp_path / "uname"
+    uname.write_text(f'#!/bin/sh\nif [ "$1" = -s ]; then echo {platform}; else echo x86_64; fi\n')
+    uname.chmod(0o755)
+    fixture = tmp_path / "repo"
+    script = fixture / "scripts/dev_shell.sh"
+    script.parent.mkdir(parents=True)
+    script.write_text((REPO_ROOT / "scripts/dev_shell.sh").read_text(encoding="utf-8"))
+    python = tmp_path / "python3"
+    python.write_text("#!/bin/sh\necho unexpected-python > python-called\nexit 99\n")
+    python.chmod(0o755)
+    program = (
+        "set +e +u; before=$(set +o); "
+        f"source '{script}'; code=$?; after=$(set +o); "
+        'if test $code -eq 1 && test "$before" = "$after" && '
+        'test -z "${VIRTUAL_ENV:-}"; then echo caller-continues; else exit 2; fi'
+    )
+    result = subprocess.run(
+        [bash, "-c", program],
+        cwd=tmp_path,
+        env={"PATH": str(tmp_path) + os.pathsep + os.defpath, "HOME": str(tmp_path)},
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
+    )
+    assert result.returncode == 0 and result.stdout.strip() == "caller-continues"
+    assert not (fixture / ".venv").exists()
+    assert not (tmp_path / "python-called").exists()
+
+
+def _standalone_bootstrap_fixture(tmp_path: Path) -> tuple[Path, dict[str, str], Path]:
+    """Exercise real shell/Make callers with isolated interpreter transport.
+
+    Synthetic artifacts test caller handoff, not genuine SDK admission; the
+    existing installer suite and native image proof own that separate check.
+    """
+    fixture = tmp_path / "repo"
+    scripts = fixture / "scripts"
+    (scripts / "ci").mkdir(parents=True)
+    (fixture / ".venv").mkdir()  # A new named volume starts as an empty directory.
+    (fixture / "Makefile").write_bytes((REPO_ROOT / "Makefile").read_bytes())
+    (scripts / "dev_shell.sh").write_bytes((REPO_ROOT / "scripts/dev_shell.sh").read_bytes())
+    (scripts / "setup_git_aliases.sh").write_text("#!/bin/sh\nexit 0\n")
+    (scripts / "ci/install_locked_python_requirements.py").write_text("# isolated transport\n")
+    (fixture / "constraints.txt").write_text("# synthetic caller input\n")
+    control = tmp_path / "control"
+    control.mkdir()
+    uname = control / "uname"
+    uname.write_text('#!/bin/sh\nif [ "$1" = -s ]; then echo Linux; else echo x86_64; fi\n')
+    uname.chmod(0o755)
+    python = control / "python3"
+    python.write_text(
+        f"#!{sys.executable}\n"
+        "import json, os, pathlib, shlex, sys\n"
+        "args = sys.argv[1:]\n"
+        "with pathlib.Path(os.environ['CALLER_LOG']).open('a') as stream:\n"
+        "    stream.write(json.dumps(args) + '\\n')\n"
+        "if args[:2] == ['-m', 'venv']:\n"
+        "    directory = pathlib.Path(args[2]); (directory / 'bin').mkdir(parents=True, exist_ok=True)\n"
+        "    (directory / 'pyvenv.cfg').write_text('include-system-site-packages = false\\n')\n"
+        "    executable = directory / 'bin/python'\n"
+        "    executable.write_text(pathlib.Path(sys.argv[0]).read_text()); executable.chmod(0o755)\n"
+        "    (directory / 'bin/activate').write_text('export VIRTUAL_ENV=' + shlex.quote(str(directory.resolve())) + '\\n')\n"
+        "elif args == ['scripts/ci/fetch_docker_source_artifacts.py']:\n"
+        "    if not pathlib.Path(args[0]).is_file() or not pathlib.Path('scripts/ci/docker_source_artifacts.json').is_file(): raise SystemExit(6)\n"
+        "elif args and args[0].endswith('install_locked_python_requirements.py'):\n"
+        "    required = {'--install-dev', '--require-virtualenv', '--psycopg-sdk'}\n"
+        "    offline = os.environ.get('CALLER_INSTALL_MODE', 'offline') == 'offline'\n"
+        "    if offline: required.update({'--consume-only', '--wheelhouse-dir'})\n"
+        "    if not required.issubset(args) or os.environ.get('PIP_REQUIRE_VIRTUALENV') != '1':\n"
+        "        raise SystemExit(3)\n"
+        "    if not offline and ({'--consume-only', '--wheelhouse-dir'} & set(args)): raise SystemExit(3)\n"
+        "    if args[args.index('--psycopg-sdk') + 1] != os.environ['PULSEPLATE_PSYCOPG_C_SDK']: raise SystemExit(4)\n"
+        "    if offline and args[args.index('--wheelhouse-dir') + 1] != os.environ['PULSEPLATE_BOOTSTRAP_WHEELHOUSE']: raise SystemExit(4)\n"
+        "    if os.environ.get('CALLER_INSTALL_EXIT'): raise SystemExit(int(os.environ['CALLER_INSTALL_EXIT']))\n"
+        "elif args[:2] != ['-m', 'pre_commit']:\n"
+        "    raise SystemExit(5)\n"
+    )
+    python.chmod(0o755)
+    sdk = tmp_path / "sdk"
+    sdk.mkdir()
+    (sdk / "psycopg-c-sdk.json").write_text("{}\n")
+    wheelhouse = tmp_path / "wheelhouse"
+    wheelhouse.mkdir()
+    log = tmp_path / "caller-log.jsonl"
+    environment = {
+        "PATH": str(control) + os.pathsep + os.defpath,
+        "HOME": str(tmp_path),
+        "CALLER_LOG": str(log),
+        "PULSEPLATE_PSYCOPG_C_SDK": str(sdk),
+        "PULSEPLATE_BOOTSTRAP_WHEELHOUSE": str(wheelhouse),
+    }
+    return fixture, environment, log
+
+
+@pytest.mark.parametrize("override_interpreter", (False, True))
+def test_host_native_sources_prerequisite_hands_off_only_to_canonical_fetcher(
+    tmp_path: Path, override_interpreter: bool
+) -> None:
+    """Prove the documented pre-Reopen Make transport; owning fetcher tests prove verification."""
+    guide = (
+        (REPO_ROOT / "CONTRIBUTING.md")
+        .read_text()
+        .split("### Dev Container (recommended)", 1)[1]
+        .split("### Backend SDK bootstrap", 1)[0]
+    )
+    assert guide.index("make docker-source-artifacts") < guide.index(
+        "Dev Containers: Reopen in Container"
+    )
+    fixture, environment, log = _standalone_bootstrap_fixture(tmp_path)
+    control = Path(environment["PATH"].split(os.pathsep)[0])
+    (control / "uname").write_text(
+        '#!/bin/sh\nif [ "$1" = -s ]; then echo Darwin; else echo arm64; fi\n'
+    )
+    for key in ("PULSEPLATE_PSYCOPG_C_SDK", "PULSEPLATE_BOOTSTRAP_WHEELHOUSE"):
+        environment.pop(key)
+    fetcher = "scripts/ci/fetch_docker_source_artifacts.py"
+    manifest = "scripts/ci/docker_source_artifacts.json"
+    for path in (fetcher, manifest):
+        (fixture / path).write_bytes((REPO_ROOT / path).read_bytes())
+    docker = control / "docker"
+    docker.write_text("#!/bin/sh\necho unexpected-docker > docker-called\nexit 99\n")
+    docker.chmod(0o755)
+    assert not (fixture / "build").exists()
+    assert not (fixture / ".venv/pyvenv.cfg").exists()
+    make = shutil.which("make")
+    assert make is not None
+    argv = [make, "docker-source-artifacts"]
+    if override_interpreter:
+        argv.append("DEV_PYTHON=" + str(control / "python3"))
+    result = subprocess.run(
+        argv,
+        cwd=fixture,
+        env=environment,
+        capture_output=True,
+        text=True,
+        timeout=15,
+        check=False,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert [json.loads(line) for line in log.read_text().splitlines()] == [[fetcher]]
+    assert not (fixture / ".venv/pyvenv.cfg").exists()
+    assert not (fixture / "docker-called").exists()
+    # The synthetic interpreter records delegation only; it does not author source-verification truth.
+    assert not (fixture / "build").exists()
+
+
+@pytest.mark.parametrize("target", ("venv", "devcontainer-bootstrap"))
+def test_make_bootstrap_then_sync_selects_explicit_fresh_handoff(
+    tmp_path: Path, target: str
+) -> None:
+    fixture, environment, log = _standalone_bootstrap_fixture(tmp_path)
+    make = shutil.which("make")
+    assert make is not None
+    for command in (target, "venv-sync"):
+        environment["CALLER_INSTALL_MODE"] = "fresh" if command == "venv-sync" else "offline"
+        environment["PULSEPLATE_PYTHON_INDEX_URL"] = "https://packages.example/simple"
+        result = subprocess.run(
+            [make, command],
+            cwd=fixture,
+            env=environment,
+            capture_output=True,
+            text=True,
+            timeout=15,
+            check=False,
+        )
+        assert result.returncode == 0, result.stdout + result.stderr
+    events = [json.loads(line) for line in log.read_text().splitlines()]
+    assert sum(event[:2] == ["-m", "venv"] for event in events) == 1
+    assert sum(event[0].endswith("install_locked_python_requirements.py") for event in events) == 2
+    assert (fixture / ".venv/pyvenv.cfg").is_file()
+
+
+@pytest.mark.parametrize("baked_wheelhouse", ("missing", "stale"))
+def test_make_sync_selects_fresh_acquisition_without_mutating_baked_wheelhouse(
+    tmp_path: Path, baked_wheelhouse: str
+) -> None:
+    """Real Make selects fresh canonical installer mode; this does not prove native SDK validity."""
+    fixture, environment, log = _standalone_bootstrap_fixture(tmp_path)
+    python = Path(environment["PATH"].split(os.pathsep)[0]) / "python3"
+    venv = fixture / ".venv with spaces"
+    subprocess.run([str(python), "-m", "venv", str(venv)], env=environment, check=True)
+    log.unlink()
+    wheelhouse = Path(environment["PULSEPLATE_BOOTSTRAP_WHEELHOUSE"])
+    if baked_wheelhouse == "missing":
+        wheelhouse.rmdir()
+    else:
+        (wheelhouse / "stale.whl").write_bytes(b"synthetic old baked wheel")
+    environment.update(
+        CALLER_INSTALL_MODE="fresh",
+        PULSEPLATE_PYTHON_INDEX_URL="https://packages.example/simple",
+    )
+    make = shutil.which("make")
+    assert make is not None
+    result = subprocess.run(
+        [make, "venv-sync", f"VENV_PYTHON={venv / 'bin/python'}"],
+        cwd=fixture,
+        env=environment,
+        capture_output=True,
+        text=True,
+        timeout=15,
+        check=False,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    events = [json.loads(line) for line in log.read_text().splitlines()]
+    assert len(events) == 1
+    assert events[0][0] == "scripts/ci/install_locked_python_requirements.py"
+    assert "--consume-only" not in events[0] and "--wheelhouse-dir" not in events[0]
+    assert events[0][events[0].index("--python-executable") + 1] == str(venv / "bin/python")
+    if baked_wheelhouse == "missing":
+        assert not wheelhouse.exists()
+    else:
+        assert {p.name: p.read_bytes() for p in wheelhouse.iterdir()} == {
+            "stale.whl": b"synthetic old baked wheel"
+        }
+
+
+@pytest.mark.parametrize("missing", ("SDK", "proxy", "existing-venv"))
+def test_make_sync_prerequisites_fail_before_installer_effects(
+    tmp_path: Path, missing: str
+) -> None:
+    fixture, environment, log = _standalone_bootstrap_fixture(tmp_path)
+    python = Path(environment["PATH"].split(os.pathsep)[0]) / "python3"
+    if missing != "existing-venv":
+        subprocess.run(
+            [str(python), "-m", "venv", str(fixture / ".venv")], env=environment, check=True
+        )
+        log.unlink()
+    environment["CALLER_INSTALL_MODE"] = "fresh"
+    environment["PULSEPLATE_PYTHON_INDEX_URL"] = "https://packages.example/simple"
+    if missing == "SDK":
+        environment.pop("PULSEPLATE_PSYCOPG_C_SDK")
+    elif missing == "proxy":
+        environment.pop("PULSEPLATE_PYTHON_INDEX_URL")
+    venv_before = {
+        p.relative_to(fixture / ".venv"): p.read_bytes()
+        for p in (fixture / ".venv").rglob("*")
+        if p.is_file()
+    }
+    make = shutil.which("make")
+    assert make is not None
+    result = subprocess.run(
+        [make, "venv-sync"],
+        cwd=fixture,
+        env=environment,
+        capture_output=True,
+        text=True,
+        timeout=15,
+        check=False,
+    )
+    assert result.returncode != 0
+    assert not log.exists()
+    assert {
+        p.relative_to(fixture / ".venv"): p.read_bytes()
+        for p in (fixture / ".venv").rglob("*")
+        if p.is_file()
+    } == venv_before
+    assert ".venv refreshed" not in result.stdout
+
+
+def test_make_sync_propagates_installer_error_without_success_message(tmp_path: Path) -> None:
+    fixture, environment, log = _standalone_bootstrap_fixture(tmp_path)
+    python = Path(environment["PATH"].split(os.pathsep)[0]) / "python3"
+    subprocess.run([str(python), "-m", "venv", str(fixture / ".venv")], env=environment, check=True)
+    log.unlink()
+    environment.update(
+        CALLER_INSTALL_MODE="fresh",
+        CALLER_INSTALL_EXIT="7",
+        PULSEPLATE_PYTHON_INDEX_URL="https://packages.example/simple",
+    )
+    make = shutil.which("make")
+    assert make is not None
+    result = subprocess.run(
+        [make, "venv-sync"],
+        cwd=fixture,
+        env=environment,
+        capture_output=True,
+        text=True,
+        timeout=15,
+        check=False,
+    )
+    assert result.returncode != 0
+    assert len(log.read_text().splitlines()) == 1
+    assert ".venv refreshed" not in result.stdout
+
+
+@pytest.mark.parametrize("explicit_netrc", (False, True))
+def test_dc_up_netrc_selection_is_explicit_and_does_not_forward_ambient_home(
+    tmp_path: Path, explicit_netrc: bool
+) -> None:
+    """Execute the real dc-up recipe with synthetic prerequisites and Docker transport."""
+    fixture, environment, _ = _standalone_bootstrap_fixture(tmp_path)
+    control = Path(environment["PATH"].split(os.pathsep)[0])
+    ambient = tmp_path / ".netrc"
+    alternate = tmp_path / "_netrc"
+    ambient_bytes = b"machine unrelated.example login fixture-user\n"
+    ambient.write_bytes(ambient_bytes)
+    alternate.write_bytes(ambient_bytes)
+    explicit = tmp_path / "package-proxy.netrc"
+    explicit.write_text("machine packages.example login fixture-user\n")
+    explicit.chmod(0o400)
+    log = tmp_path / "docker-call.json"
+    docker = control / "docker"
+    docker.write_text(
+        f"#!{sys.executable}\n"
+        "import json, os, pathlib, sys\n"
+        "auth_keys = ('DOCKER_HOST', 'DOCKER_CONTEXT', 'DOCKER_CONFIG', 'COMPOSE_FILE', "
+        "'COMPOSE_PROFILES', 'PIP_CONFIG_FILE', 'NETRC')\n"
+        "record = {'argv': sys.argv[1:], "
+        "'netrc_file': os.environ.get('PULSEPLATE_NATIVE_SDK_NETRC_FILE'), "
+        "'auth_environment_keys': [key for key in auth_keys if key in os.environ]}\n"
+        "pathlib.Path(os.environ['DOCKER_CALL_LOG']).write_text(json.dumps(record))\n"
+    )
+    docker.chmod(0o755)
+    environment["DOCKER_CALL_LOG"] = str(log)
+    if explicit_netrc:
+        environment["PULSEPLATE_NATIVE_SDK_NETRC_FILE"] = str(explicit)
+    prerequisites = fixture / "synthetic-prerequisites.mk"
+    prerequisites.write_text(
+        "ensure-python-proxy:\n\t@echo synthetic-proxy-prerequisite\n"
+        "docker-source-artifacts:\n\t@echo synthetic-source-prerequisite\n"
+    )
+    make = shutil.which("make")
+    assert make is not None
+    result = subprocess.run(
+        [make, "-f", "Makefile", "-f", str(prerequisites), "dc-up"],
+        cwd=fixture,
+        env=environment,
+        capture_output=True,
+        text=True,
+        timeout=15,
+        check=False,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "synthetic-proxy-prerequisite" in result.stdout
+    assert "synthetic-source-prerequisite" in result.stdout
+    record = json.loads(log.read_text())
+    assert record["argv"] == [
+        "compose",
+        "-f",
+        ".devcontainer/docker-compose.devcontainer.yml",
+        "up",
+        "-d",
+        "--build",
+        "devcontainer",
+    ]
+    assert record["netrc_file"] == (str(explicit) if explicit_netrc else "/dev/null")
+    assert record["auth_environment_keys"] == []
+    assert ambient.read_bytes() == alternate.read_bytes() == ambient_bytes
+    assert explicit.read_text() == "machine packages.example login fixture-user\n"
+    assert not (fixture / "build").exists()
+
+
+def test_source_backend_shell_initializes_existing_empty_volume_and_then_activates(
+    tmp_path: Path,
+) -> None:
+    fixture, environment, log = _standalone_bootstrap_fixture(tmp_path)
+    bash = shutil.which("bash")
+    assert bash is not None
+    program = (
+        f"source {shlex.quote(str(fixture / 'scripts/dev_shell.sh'))}; "
+        f"test \"$VIRTUAL_ENV\" = {shlex.quote(str(fixture / '.venv'))}; "
+        "echo activated-from-empty-volume"
+    )
+    result = subprocess.run(
+        [bash, "-c", program],
+        cwd=fixture,
+        env=environment,
+        capture_output=True,
+        text=True,
+        timeout=15,
+        check=False,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "activated-from-empty-volume" in result.stdout
+    events = [json.loads(line) for line in log.read_text().splitlines()]
+    assert events[0] == ["-m", "venv", str(fixture / ".venv")]
+    assert len(events) == 2 and events[1][0].endswith("install_locked_python_requirements.py")
+
+
+@pytest.mark.parametrize("missing", ("SDK", "wheelhouse"))
+def test_make_bootstrap_rejects_missing_artifacts_before_venv_creation(
+    tmp_path: Path, missing: str
+) -> None:
+    fixture, environment, log = _standalone_bootstrap_fixture(tmp_path)
+    key = "PULSEPLATE_PSYCOPG_C_SDK" if missing == "SDK" else "PULSEPLATE_BOOTSTRAP_WHEELHOUSE"
+    environment.pop(key)
+    make = shutil.which("make")
+    assert make is not None
+    result = subprocess.run(
+        [make, "venv"],
+        cwd=fixture,
+        env=environment,
+        capture_output=True,
+        text=True,
+        timeout=15,
+        check=False,
+    )
+    assert result.returncode != 0
+    expected = "genuine SDK" if missing == "SDK" else "verified wheelhouse"
+    assert expected in result.stdout + result.stderr
+    assert not log.exists() and not (fixture / ".venv/pyvenv.cfg").exists()
+
+
+@pytest.mark.parametrize("system, machine", (("Darwin", "arm64"), ("Linux", "aarch64")))
+@pytest.mark.parametrize("target", ("venv", "venv-sync", "devcontainer-bootstrap"))
+def test_make_bootstrap_rejects_unsupported_host_before_interpreter_effects(
+    tmp_path: Path, system: str, machine: str, target: str
+) -> None:
+    fixture, environment, log = _standalone_bootstrap_fixture(tmp_path)
+    uname = Path(environment["PATH"].split(os.pathsep)[0]) / "uname"
+    uname.write_text(f'#!/bin/sh\nif [ "$1" = -s ]; then echo {system}; else echo {machine}; fi\n')
+    make = shutil.which("make")
+    assert make is not None
+    result = subprocess.run(
+        [make, target],
+        cwd=fixture,
+        env=environment,
+        capture_output=True,
+        text=True,
+        timeout=15,
+        check=False,
+    )
+    assert result.returncode != 0
+    assert "Backend bootstrap requires Linux amd64" in result.stdout + result.stderr
+    assert not log.exists() and not (fixture / ".venv/pyvenv.cfg").exists()
+
+
+@pytest.mark.parametrize("target", ("docker-run", "docker-run-dev"))
+@pytest.mark.parametrize("source_ready", (False, True))
+def test_compose_launchers_prepare_sources_first_and_stop_on_failure(
+    tmp_path: Path, target: str, source_ready: bool
+) -> None:
+    """Real Make ordering with synthetic fetch/Docker transport, no native acquisition."""
+    fixture, environment, log = _standalone_bootstrap_fixture(tmp_path)
+    control = Path(environment["PATH"].split(os.pathsep)[0])
+    fetcher = "scripts/ci/fetch_docker_source_artifacts.py"
+    (fixture / fetcher).write_bytes((REPO_ROOT / fetcher).read_bytes())
+    if source_ready:
+        manifest = "scripts/ci/docker_source_artifacts.json"
+        (fixture / manifest).write_bytes((REPO_ROOT / manifest).read_bytes())
+    docker = control / "docker"
+    docker.write_text(
+        f"#!{sys.executable}\n"
+        "import json, os, pathlib, sys\n"
+        "with pathlib.Path(os.environ['CALLER_LOG']).open('a') as stream:\n"
+        "    stream.write(json.dumps(['docker', *sys.argv[1:]]) + '\\n')\n"
+    )
+    docker.chmod(0o755)
+    environment["PULSEPLATE_PYTHON_INDEX_URL"] = "https://packages.example/simple"
+    make = shutil.which("make")
+    assert make is not None
+    result = subprocess.run(
+        [make, target, "DEV_PYTHON=" + str(control / "python3")],
+        cwd=fixture,
+        env=environment,
+        capture_output=True,
+        text=True,
+        timeout=15,
+        check=False,
+    )
+    calls = [json.loads(line) for line in log.read_text().splitlines()]
+    assert calls[0] == [fetcher]
+    if source_ready:
+        assert result.returncode == 0, result.stdout + result.stderr
+        expected = (
+            ["docker", "compose"]
+            + (["--profile", "dev"] if target == "docker-run-dev" else [])
+            + ["up", "-d"]
+        )
+        assert calls == [[fetcher], expected]
+    else:
+        assert result.returncode != 0 and "docker-source-artifacts] Error 6" in result.stderr
+        assert calls == [[fetcher]]
+    assert not (fixture / ".venv/pyvenv.cfg").exists()
+    assert not (fixture / "build").exists()

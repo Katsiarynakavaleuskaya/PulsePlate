@@ -23,11 +23,12 @@ This repo uses a simple branch model designed to keep `main` always green.
 # Required before every push
 pre-commit run --all-files
 
-# Standard verification bundle
-make verify
-
-# Operator-approved machine-heavy exception only: run and document narrow gates
+# Required narrow local bundle; run task preflight/consistency and focused tests
+# as defined by AGENTS.md and RUNBOOK_AGENT.md.
 make validate-changed
+
+# Current-head CI supplies full lint/typecheck/tests/coverage/security/governance.
+# Full local verification requires an explicit human override for one invocation.
 
 # Docker tests (if Docker files changed)
 make docker-build
@@ -50,8 +51,10 @@ export PULSEPLATE_PYTHON_INDEX_URL=https://packages.example.internal/simple
 # Optional, only if the approved proxy requires pip trusted-host behavior:
 export PULSEPLATE_PYTHON_TRUSTED_HOST=
 
+# HOST: from a reviewed/trusted checkout, prepare verified native source inputs first.
+make docker-source-artifacts
 # VS Code: Cmd/Ctrl+Shift+P -> "Dev Containers: Reopen in Container"
-# CLI: make dc-up && make dc-shell
+# CLI: make dc-up && make dc-shell (dc-up already includes this prerequisite)
 # After reviewing/trusting the workspace, run bootstrap manually inside the container:
 make devcontainer-bootstrap
 [ -f .env ] || cp .env.example .env
@@ -59,29 +62,58 @@ make devcontainer-bootstrap
 make dev
 ```
 
+Run the native-source prerequisite on the host before VS Code attempts its first
+build from a fresh checkout. It uses an existing approved host interpreter via
+`DEV_PYTHON`; override that Make variable if the automatic interpreter selection
+is unavailable. This step delegates source verification/acquisition to the existing
+fetcher only. It does not install a native macOS SDK, create/activate a host venv,
+or transfer the project `.env`, credentials or general host HOME. Repository
+bootstrap remains a separate manual step inside the trusted container.
+
 Host Docker daemon access is intentionally not enabled by default. If a task
 requires Docker from inside the devcontainer, use a separate reviewed local
 override after the workspace is trusted rather than committing socket access to
 the default configuration.
 
-### Host .venv compatibility path
+### Backend SDK bootstrap
+
+Use the Linux amd64 backend container, with the existing approved proxy access
+available only to artifact acquisition:
 
 ```bash
 export PULSEPLATE_PYTHON_INDEX_URL="https://packages.pulseplate.app/root/pulseplate/+simple/"
-make venv
-source .venv/bin/activate
+make dc-up
+make dc-shell
+# Inside the trusted container:
+make devcontainer-bootstrap
+source scripts/dev_shell.sh
 make dev
 ```
 
-The devcontainer remains the recommended backend/web/docs/orchestration path.
-Host `.venv` bootstrap is supported only when the approved proxy provides a
-compatible binary wheel for the host platform. In the bounded 2026-08-04
-`cryptography==50.0.0` snapshot, the proxy provided macOS arm64 wheels but no
-macOS `x86_64` or `universal2` wheel. Apple Silicon exact-50 bootstrap was
-validated; Intel macOS backend bootstrap must use the devcontainer at this
-floor. The installer remains binary-only, so source-build fallback is not
-supported. This is a dated artifact snapshot, not a permanent compatibility
-claim. iOS/Xcode development stays host-native on macOS.
+`make dc-up` uses `/dev/null` for the package `pp_netrc` secret unless
+`PULSEPLATE_NATIVE_SDK_NETRC_FILE` is explicitly set. If proxy credentials are
+needed, review and trust the checkout before opting in with a temporary read-only
+netrc file containing credentials only for the approved package host. Remove that
+temporary file and unset the selector after artifact acquisition. Host
+`HOME/.netrc` and `_netrc` are not automatically forwarded or copied; do not
+select those general-purpose credential files or mount host HOME. Offline
+bootstrap consumes the verified artifacts without registry credentials.
+
+`make venv` and `make venv-sync` also run inside this container. The tooling and
+root development images provide the matching genuine Psycopg C SDK and verified
+runtime/dev wheelhouse; manual bootstrap consumes them offline. Named venv
+volumes preserve the host checkout's existing `.venv`. Native macOS backend
+bootstrap has no Darwin SDK and fails before creating or activating a host venv.
+iOS/Xcode development stays host-native on macOS. On ARM hosts, build callers
+explicitly select `linux/amd64`; stop Docker Desktop after owned work completes.
+
+Historical binary-wheel observation: In the bounded 2026-08-04
+`cryptography==50.0.0` approved proxy snapshot, a compatible binary wheel was
+available for macOS arm64 but no macOS `x86_64` or `universal2` wheel. Apple
+Silicon exact-50 bootstrap was validated then; Intel macOS used the devcontainer
+at that historical floor. This does not establish current native-host Psycopg
+SDK support. Other packages remain binary-only; source-build fallback is not
+supported outside the exact isolated SDK operation.
 
 Generic developer targets (`make test`, `make lint`, `make typecheck`, `make cov`,
 `make openapi`, etc.) use `DEV_PYTHON`, which auto-detects `.venv/bin/python` or

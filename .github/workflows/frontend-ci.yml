@@ -108,6 +108,12 @@ on:
       - '.github/workflows/cd.yml'
       - '.github/workflows/frontend-ci.yml'
   workflow_dispatch:
+    inputs:
+      caddy_action:
+        description: Explicit metadata qualification; never compiles a Caddy candidate
+        type: choice
+        default: contract
+        options: [contract, xnet060-metadata]
 jobs:
   changes:
     runs-on: ubuntu-latest
@@ -139,6 +145,7 @@ jobs:
               - '.github/workflows/cd.yml'
               - '.github/workflows/frontend-ci.yml'
   build-and-test:
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.caddy_action != 'xnet060-metadata' }}
     runs-on: ubuntu-latest
     env:
       BUILD_OUTPUT_DIR: dist
@@ -489,6 +496,11 @@ jobs:
           retention-days: 7
 
   caddy-contract:
+    env:
+      CADDY_FULL_SCAN_TIMEOUT_SECONDS: '300'
+      CADDY_METADATA_TIMEOUT_SECONDS: '900'
+      CADDY_METADATA_CLEANUP_SECONDS: '120'
+    timeout-minutes: 30
     needs: changes
     if: ${{ !cancelled() && (needs.changes.outputs.caddy == 'true' || github.event_name == 'workflow_dispatch') }}
     runs-on: ubuntu-latest
@@ -503,7 +515,284 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0 / Node 24
 
+      - name: Admit explicit first Caddy metadata invocation
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.caddy_action == 'xnet060-metadata' }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REPOSITORY" = 'Katsiarynakavaleuskaya/PulsePlate'
+          test "$GITHUB_REPOSITORY_ID" = '1043311030'
+          test "$GITHUB_RUN_ATTEMPT" = '1'
+
+      - name: Install pinned compiler metadata scanner and DB
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.caddy_action == 'xnet060-metadata' }}
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0 / Node 24 cache path
+        with:
+          version: v0.74.0
+          image-ref: golang:1.26.9-alpine3.23@sha256:96123126ac58e910f4dd3619a8901e2fb6d1ad84b59b1232cac7c9ea65a8f888
+          format: table
+          vuln-type: os,library
+          severity: UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL
+          exit-code: '0'
+          cache-dir: /tmp/trivy-cache-caddy-metadata
+
+      - name: Qualify Caddy compiler and two counterfactual xnet derivations
+        id: caddy-metadata
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.caddy_action == 'xnet060-metadata' }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import difflib
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+          import platform
+          import re
+          import shutil
+          import stat
+          import time
+          import urllib.request
+          from scripts.ci.prometheus_source_image import Native, fresh_directory, tree_inventory, canonical_data, require
+
+          require(os.environ.get("GITHUB_ACTIONS") == "true" and platform.system() == "Linux"
+                  and platform.machine() == "x86_64" and os.environ["GITHUB_REPOSITORY"] == "Katsiarynakavaleuskaya/PulsePlate"
+                  and os.environ["GITHUB_RUN_ATTEMPT"] == "1", "caddy_metadata_admission")
+          root = Path.cwd()
+          work = Path(os.environ["RUNNER_TEMP"]) / "caddy-xnet060-metadata"
+          fresh_directory(work)
+          evidence = work / "evidence"
+          fresh_directory(evidence)
+          deadline = time.monotonic() + int(os.environ["CADDY_METADATA_TIMEOUT_SECONDS"])
+          native = Native(evidence, deadline, int(os.environ["CADDY_METADATA_CLEANUP_SECONDS"]))
+          docker = shutil.which("docker")
+          require(docker is not None and Path(docker).is_absolute(), "caddy_metadata_docker")
+          config = work / "docker-config"
+          fresh_directory(config)
+          environment = {"PATH": "/usr/bin:/bin", "HOME": str(work), "DOCKER_CONFIG": str(config), "LANG": "C.UTF-8"}
+          compiler = "golang:1.26.9-alpine3.23@sha256:96123126ac58e910f4dd3619a8901e2fb6d1ad84b59b1232cac7c9ea65a8f888"
+          recipe = (root / "frontend/Dockerfile.caddy-spa").read_bytes()
+          gets = re.findall(rb"^    go get ([^;]+);", recipe, re.MULTILINE)
+          require(gets == [b"github.com/caddyserver/caddy/v2/cmd/caddy@v2.11.4", b"google.golang.org/grpc@v1.83.2", b"golang.org/x/crypto@v0.55.0"], "caddy_original_three_gets")
+          report = {"purpose": "Counterfactual recipe baselines, not recovered historical ephemeral locks or a compiled candidate",
+                    "compiler_index": compiler, "recipe_sha256": hashlib.sha256(recipe).hexdigest(),
+                    "run_id": int(os.environ["GITHUB_RUN_ID"]), "run_attempt": 1,
+                    "source_head": os.environ["GITHUB_SHA"], "go_build_invocations": 0,
+                    "failure": None, "derivations": {}, "closure_admission": "pending independent source/security review"}
+          owned = []
+          try:
+              raw = native.run([docker, "--config", str(config), "buildx", "imagetools", "inspect", "--raw", compiler], "compiler-index", environment, cwd=work)
+              require(hashlib.sha256(raw).hexdigest() == compiler.split("sha256:")[1], "compiler_raw_index_digest")
+              index = json.loads(raw)
+              targets = [row for row in index["manifests"] if row.get("platform") == {"architecture": "amd64", "os": "linux"}]
+              require(len(targets) == 1 and re.fullmatch(r"sha256:[0-9a-f]{64}", targets[0]["digest"]) is not None, "compiler_exact_platform")
+              selected = "golang@" + targets[0]["digest"]
+              native.run([docker, "--config", str(config), "pull", "--platform", "linux/amd64", selected], "compiler-pull", environment, cwd=work)
+              observed = json.loads(native.run([docker, "--config", str(config), "image", "inspect", selected], "compiler-config", environment, cwd=work))[0]
+              require((observed["Os"], observed["Architecture"]) == ("linux", "amd64"), "compiler_native_platform")
+              platform_raw = native.run([docker, "--config", str(config), "buildx", "imagetools", "inspect", "--raw", selected], "compiler-platform-raw", environment, cwd=work)
+              require("sha256:" + hashlib.sha256(platform_raw).hexdigest() == targets[0]["digest"]
+                      and json.loads(platform_raw)["config"]["digest"] == observed["Id"], "compiler_platform_config_binding")
+              report["compiler_platform"] = targets[0]
+              report["compiler_config"] = observed
+              version_name = "pulseplate-caddy-compiler-version-" + os.environ["GITHUB_RUN_ID"]
+              owned.append(version_name)
+              go_version = native.run([docker, "--config", str(config), "run", "--rm", "--pull", "never", "--name", version_name,
+                  "--label", "pulseplate.caddy-metadata=" + os.environ["GITHUB_RUN_ID"],
+                  "--user", "65532:65532", "--network", "none", "--read-only", "--cap-drop", "ALL",
+                  "--security-opt", "no-new-privileges", "--cpus", "2", "--memory", "2g", "--pids-limit", "128",
+                  "--env", "GOTOOLCHAIN=local", "--env", "GOENV=off", "--env", "GOWORK=off",
+                  "--entrypoint", "/usr/local/go/bin/go", observed["Id"], "version"], "compiler-native-version", environment, cwd=work)
+              require(go_version == b"go version go1.26.9 linux/amd64\n", "compiler_native_version")
+              report["compiler_go_version_sha256"] = hashlib.sha256(go_version).hexdigest()
+              scanner = shutil.which("trivy")
+              require(scanner is not None and Path(scanner).is_absolute(), "compiler_native_scanner_missing")
+              version = native.run([scanner, "--version"], "compiler-scanner-version", environment, cwd=work)
+              require(re.search(rb"^Version: 0\.74\.0$", version, re.MULTILINE) is not None, "compiler_pinned_scanner_version")
+              cache = Path("/tmp/trivy-cache-caddy-metadata")
+              db = {name: {"bytes": (cache / name).stat().st_size,
+                           "sha256": hashlib.sha256((cache / name).read_bytes()).hexdigest()}
+                    for name in ("db/trivy.db", "db/metadata.json")}
+              empty_config, empty_ignore = work / "empty-trivy.yaml", work / "empty.trivyignore"
+              empty_config.write_bytes(b"{}\n")
+              empty_ignore.write_bytes(b"")
+              scan = evidence / "compiler-full.raw.json"
+              native.run([scanner, "image", "--config", str(empty_config), "--cache-dir", str(cache),
+                          "--skip-db-update", "--skip-java-db-update", "--skip-vex-repo-update", "--offline-scan",
+                          "--skip-version-check", "--disable-telemetry", "--image-src", "docker", "--platform", "linux/amd64",
+                          "--scanners", "vuln,secret", "--pkg-types", "os,library", "--list-all-pkgs",
+                          "--severity", "UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL", "--format", "json", "--exit-code", "0",
+                          "--ignore-unfixed=false", "--ignorefile", str(empty_ignore), "--timeout", "300s",
+                          "--output", str(scan), observed["Id"]], "compiler-full-scan", environment, cwd=work)
+              from scripts.ci.check_docker_runtime_dependency_surface import validate_trivy_image_report
+              validate_trivy_image_report(observed["Id"], scan)
+              full = json.loads(scan.read_bytes())
+              require(all("Secrets" not in row or (type(row["Secrets"]) is list and not row["Secrets"])
+                          for row in full["Results"]), "compiler_secret_HOLD")
+              require(all(finding.get("Severity") not in ("HIGH", "CRITICAL") for row in full["Results"]
+                          for finding in row.get("Vulnerabilities", [])), "compiler_native_HC_HOLD")
+              require({name: {"bytes": (cache / name).stat().st_size,
+                              "sha256": hashlib.sha256((cache / name).read_bytes()).hexdigest()} for name in db} == db,
+                      "compiler_scanner_DB_changed")
+              report["compiler_scan"] = {"report_sha256": hashlib.sha256(scan.read_bytes()).hexdigest(),
+                  "scanner_sha256": hashlib.sha256(Path(scanner).read_bytes()).hexdigest(), "DB": db,
+                  "Secrets_fields_absent": sum("Secrets" not in row for row in full["Results"]),
+                  "boundary": "Native vuln,secret command and listed inventory; omitted Secrets fields are not a forced zero claim"}
+              # Retain vendor OS input independently of the Go solver transition.
+              vendor = work / "vendor"
+              fresh_directory(vendor, 0o777)
+              vendor.chmod(0o777)
+              vendor_name = "pulseplate-caddy-vendor-" + os.environ["GITHUB_RUN_ID"]
+              owned.append(vendor_name)
+              vendor_script = '''set -eu
+          /sbin/apk --version > /output/apk-version.txt
+          /sbin/apk verify --help > /output/apk-verify-help.txt 2>&1
+          cp /etc/apk/repositories /output/compiler-repositories.txt
+          mkdir /output/keys
+          cp /etc/apk/keys/* /output/keys/
+          wget -q -O /output/APKINDEX.tar.gz https://dl-cdn.alpinelinux.org/alpine/v3.23/main/x86_64/APKINDEX.tar.gz
+          /sbin/apk verify /output/APKINDEX.tar.gz > /output/index-signature.txt
+          /sbin/apk fetch --no-cache --repository https://dl-cdn.alpinelinux.org/alpine/v3.23/main --output /output zlib=1.3.2-r1
+          /sbin/apk verify /output/zlib-1.3.2-r1.apk > /output/package-signature.txt
+          '''
+              native.run([docker, "--config", str(config), "create", "--pull", "never", "--name", vendor_name,
+                          "--label", "pulseplate.caddy-metadata=" + os.environ["GITHUB_RUN_ID"],
+                          "--user", "65532:65532", "--read-only", "--cap-drop", "ALL", "--security-opt", "no-new-privileges",
+                          "--cpus", "2", "--memory", "2g", "--pids-limit", "128", "--tmpfs", "/tmp:size=64m,mode=1777",
+                          "--mount", f"type=bind,source={vendor},target=/output", "--env", "HOME=/tmp",
+                          "--env", "PATH=/usr/bin:/bin", "--entrypoint", "/bin/sh", observed["Id"], "-c", vendor_script],
+                         "vendor-create", environment, cwd=work)
+              native.run([docker, "--config", str(config), "start", "--attach", vendor_name], "vendor-native", environment, cwd=work)
+              # No final runtime floor is selected by this metadata-only observation.
+              report["vendor_OS_remedy"] = {"package": "zlib=1.3.2-r1", "CVE": "CVE-2026-85091",
+                  "inventory": tree_inventory(vendor), "native_final_runtime": "pending", "Go_closure": False,
+                  "signature_contract": "apk verify validates package/index checksum and signature using the retained compiler image keys"}
+              secdb_url = "https://secdb.alpinelinux.org/v3.23/main.json"
+              with urllib.request.urlopen(secdb_url, timeout=min(30, deadline - time.monotonic())) as response:
+                  require(response.geturl() == secdb_url, "vendor_secdb_redirect")
+                  secdb = response.read(1024**2 + 1)
+              require(len(secdb) == 94107 and hashlib.sha256(secdb).hexdigest() == "edfe463a4d483fbcb788828141f8500538ff468169bef9ac27892b1135634e2a", "vendor_secdb_cutoff_changed")
+              (vendor / "main-secdb.raw.json").write_bytes(secdb)
+              report["vendor_OS_remedy"]["secdb_sha256"] = hashlib.sha256(secdb).hexdigest()
+              for label in ("a", "b"):
+                  lane = work / label
+                  fresh_directory(lane)
+                  for name in ("work", "modules", "home", "cache", "tmp", "output"):
+                      fresh_directory(lane / name, 0o777)
+                      (lane / name).chmod(0o777)
+                  name = "pulseplate-caddy-metadata-" + os.environ["GITHUB_RUN_ID"] + "-" + label
+                  argv = [docker, "--config", str(config), "create", "--pull", "never", "--name", name,
+                          "--label", "pulseplate.caddy-metadata=" + os.environ["GITHUB_RUN_ID"],
+                          "--user", "65532:65532", "--workdir", "/work", "--read-only", "--cap-drop", "ALL",
+                          "--security-opt", "no-new-privileges", "--cpus", "2", "--memory", "2g", "--pids-limit", "128"]
+                  for directory in ("work", "modules", "home", "cache", "tmp", "output"):
+                      argv += ["--mount", f"type=bind,source={lane / directory},target=/{directory}"]
+                  for key, value in {"PATH": "/usr/local/go/bin:/usr/bin:/bin", "HOME": "/home", "TMPDIR": "/tmp",
+                                     "GOCACHE": "/cache", "GOMODCACHE": "/modules", "GOPATH": "/home/gopath",
+                                     "GOOS": "linux", "GOARCH": "amd64", "CGO_ENABLED": "0", "GOTOOLCHAIN": "local",
+                                     "GOWORK": "off", "GOENV": "off", "GOPROXY": "https://proxy.golang.org",
+                                     "GOSUMDB": "sum.golang.org", "GOMAXPROCS": "2"}.items():
+                      argv += ["--env", key + "=" + value]
+                  # The same fixed guest paths and canonical phases are used in both fresh lanes.
+                  script = '''set -eu
+          go version > /output/compiler-version.txt
+          test "$(cat /output/compiler-version.txt)" = "go version go1.26.9 linux/amd64"
+          cat /etc/alpine-release > /output/alpine-release.txt
+          go mod init pulseplate.local/caddy-build
+          go get github.com/caddyserver/caddy/v2/cmd/caddy@v2.11.4
+          go get google.golang.org/grpc@v1.83.2
+          go get golang.org/x/crypto@v0.55.0
+          go mod download all
+          go mod verify > /output/baseline-verify.txt
+          cp go.mod /output/baseline-go.mod
+          cp go.sum /output/baseline-go.sum
+          go list -mod=readonly -m -json all > /output/baseline-modules.json
+          go mod graph > /output/baseline-module-graph.txt
+          go list -mod=readonly -deps -json github.com/caddyserver/caddy/v2/cmd/caddy > /output/baseline-packages.json
+          cmp go.mod /output/baseline-go.mod
+          cmp go.sum /output/baseline-go.sum
+          go get golang.org/x/net@v0.60.0
+          cp go.mod /output/post-get-go.mod
+          cp go.sum /output/post-get-go.sum
+          go mod download all
+          go mod verify > /output/final-verify.txt
+          cp go.mod /output/final-go.mod
+          cp go.sum /output/final-go.sum
+          export GOPROXY=off GOSUMDB=off GOFLAGS=-mod=readonly
+          go list -mod=readonly -m -json all > /output/final-modules.json
+          go mod graph > /output/final-module-graph.txt
+          go list -mod=readonly -deps -json github.com/caddyserver/caddy/v2/cmd/caddy > /output/final-packages.json
+          cmp go.mod /output/final-go.mod
+          cmp go.sum /output/final-go.sum
+          '''
+                  owned.append(name)
+                  native.run(argv + ["--entrypoint", "/bin/sh", observed["Id"], "-c", script], label + "-create", environment, cwd=work)
+                  native.run([docker, "--config", str(config), "start", "--attach", name], label + "-native", environment, cwd=work)
+                  terminal = json.loads(native.run([docker, "--config", str(config), "inspect", name], label + "-terminal", environment, cwd=work))[0]
+                  require(terminal["State"]["ExitCode"] == 0 and terminal["State"]["OOMKilled"] is False, "caddy_metadata_native_terminal")
+                  require(terminal["Config"]["Labels"].get("pulseplate.caddy-metadata") == os.environ["GITHUB_RUN_ID"], "caddy_metadata_owned_identity")
+                  output = lane / "output"
+                  for phase in ("baseline", "final"):
+                      from scripts.ci.prometheus_source_image import decode_selected_modules, decode_objects
+                      modules = decode_selected_modules((output / (phase + "-modules.json")).read_bytes(), root_module="pulseplate.local/caddy-build")
+                      require(all("Replace" not in row for row in modules.values()), "caddy_no_module_replacement")
+                      packages = decode_objects((output / (phase + "-packages.json")).read_bytes())
+                      require(all(not row.get("Error") and not row.get("DepsErrors") and not row.get("Incomplete") for row in packages), "caddy_metadata_package_errors")
+                      indexed = {row["ImportPath"]: row for row in packages}
+                      require(len(indexed) == len(packages) and "github.com/caddyserver/caddy/v2/cmd/caddy" in indexed
+                              and indexed["github.com/caddyserver/caddy/v2/cmd/caddy"].get("Name") == "main", "caddy_complete_command_identity")
+                      for row in packages:
+                          mapping = row.get("ImportMap", {})
+                          require(all(mapping.get(path, path) in indexed for path in row.get("Imports", [])), "caddy_complete_native_import_graph")
+                      require(modules["github.com/caddyserver/caddy/v2"]["Version"] == "v2.11.4", "caddy_preserved_source_version")
+                      report["derivations"].setdefault(label, {})[phase] = {"modules": modules, "packages": len(packages)}
+                  before, after = report["derivations"][label]["baseline"]["modules"], report["derivations"][label]["final"]["modules"]
+                  require(before["golang.org/x/net"]["Version"] == "v0.58.0" and after["golang.org/x/net"]["Version"] == "v0.60.0", "caddy_exact_authored_net_transition")
+                  delta = [{"path": path, "before": before.get(path), "after": after.get(path),
+                            "class": "I_R" if path == "golang.org/x/net" else "C_R_candidate"}
+                           for path in sorted(set(before) | set(after)) if before.get(path) != after.get(path)]
+                  require(any(row["path"] == "golang.org/x/net" for row in delta), "caddy_nonempty_authored_net_delta")
+                  (output / "complete-delta.json").write_bytes(canonical_data(delta))
+                  patch = "".join("".join(difflib.unified_diff((output / ("baseline-" + name)).read_text().splitlines(True), (output / ("final-" + name)).read_text().splitlines(True), fromfile="a/" + name, tofile="b/" + name)) for name in ("go.mod", "go.sum"))
+                  (output / "module-derivation.patch").write_text(patch)
+                  report["derivations"][label]["native_terminal"] = terminal
+                  report["derivations"][label]["output_inventory"] = tree_inventory(output)
+              left, right = work / "a/output", work / "b/output"
+              require(tree_inventory(left) == tree_inventory(right), "caddy_independent_raw_output_equality")
+              report["status"] = "observed_counterfactual_metadata_only"
+          except BaseException as error:
+              report["failure"] = type(error).__name__
+              raise
+          finally:
+              native.begin_cleanup()
+              inventory = native.run([docker, "--config", str(config), "ps", "--all", "--format", "{{.Names}}"], "cleanup-inventory", environment, cwd=work, cleaning=True).decode().splitlines()
+              for name in owned:
+                  if name not in inventory:
+                      continue
+                  actual = json.loads(native.run([docker, "--config", str(config), "inspect", name], name + "-cleanup-inspect", environment, cwd=work, cleaning=True))[0]
+                  require(actual["Config"]["Labels"].get("pulseplate.caddy-metadata") == os.environ["GITHUB_RUN_ID"], "caddy_cleanup_ownership")
+                  native.run([docker, "--config", str(config), "rm", "--force", name], name + "-cleanup", environment, cwd=work, cleaning=True)
+              remaining = native.run([docker, "--config", str(config), "ps", "--all", "--format", "{{.Names}}"], "cleanup-absence", environment, cwd=work, cleaning=True).decode().splitlines()
+              require(not set(owned).intersection(remaining), "caddy_metadata_owned_container_survives")
+              report["native_commands"] = native.records
+              (evidence / "qualification.json").write_bytes(canonical_data(report))
+          PY
+
+      - name: Upload counterfactual Caddy metadata
+        if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.caddy_action == 'xnet060-metadata' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1 / Node 24
+        with:
+          name: caddy-xnet060-metadata-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/caddy-xnet060-metadata/evidence
+            ${{ runner.temp }}/caddy-xnet060-metadata/a/output
+            ${{ runner.temp }}/caddy-xnet060-metadata/b/output
+            ${{ runner.temp }}/caddy-xnet060-metadata/vendor
+          if-no-files-found: error
+          retention-days: 30
+
       - name: Build hardened Caddy shell image
+        if: ${{ (github.event_name != 'workflow_dispatch' || inputs.caddy_action != 'xnet060-metadata') }}
+        id: caddy-build
         uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7.0.0
         with:
           context: ./frontend
@@ -514,7 +803,94 @@ jobs:
           cache-from: type=gha,scope=frontend-caddy-contract
           cache-to: type=gha,scope=frontend-caddy-contract,mode=min,ignore-error=true
 
+      - name: Capture next loaded Caddy image identity
+        if: ${{ (github.event_name != 'workflow_dispatch' || inputs.caddy_action != 'xnet060-metadata') }}
+        id: caddy-image
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from datetime import datetime, timezone
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+          import re
+          import shutil
+          import stat
+          import subprocess
+          import tempfile
+
+          try:
+              root = Path.cwd().resolve(strict=True)
+              docker = shutil.which("docker")
+              if docker is None or not Path(docker).is_absolute():
+                  raise ValueError("docker_unavailable")
+
+              def run(arguments):
+                  result = subprocess.run([docker, *arguments], capture_output=True, timeout=60, check=False)
+                  if result.returncode or len(result.stdout) > 1048576:
+                      raise ValueError("native_image_observation_failed")
+                  return result.stdout
+
+              inspected = json.loads(run(["image", "inspect", "--format", "{{json .}}", "pulseplate-caddy:contract"]))
+              image = inspected["Id"]
+              if re.fullmatch(r"sha256:[0-9a-f]{64}", image) is None:
+                  raise ValueError("image_config_id_invalid")
+              if (inspected.get("Os"), inspected.get("Architecture")) != ("linux", "amd64"):
+                  raise ValueError("image_platform_invalid")
+              binary = run(["run", "--rm", "--network", "none", "--read-only", "--cap-drop", "ALL",
+                            "--entrypoint", "/bin/busybox", image, "sha256sum", "/usr/bin/caddy"]).decode("ascii")
+              if re.fullmatch(r"[0-9a-f]{64}  /usr/bin/caddy\n", binary) is None:
+                  raise ValueError("binary_identity_invalid")
+              # This literal measured source set describes the observed recipe epoch;
+              # it does not prove all upstream inputs or a prior ephemeral image equal.
+              paths = ("frontend/Dockerfile.caddy-spa", "frontend/package.json", "frontend/package-lock.json",
+                       "frontend/.dockerignore", ".github/workflows/frontend-ci.yml",
+                       "deploy/Caddyfile", "deploy/Caddyfile.production",
+                       "scripts/ci/check_docker_runtime_dependency_surface.py")
+              sources = {}
+              for name in paths:
+                  path = root / name
+                  if path.is_symlink() or not stat.S_ISREG(path.stat().st_mode):
+                      raise ValueError("source_identity_invalid")
+                  sources[name] = {"bytes": path.stat().st_size, "sha256": hashlib.sha256(path.read_bytes()).hexdigest()}
+              private = Path(tempfile.mkdtemp(prefix="caddy-full-private-", dir=Path(os.environ["RUNNER_TEMP"]).resolve(strict=True)))
+              private.chmod(0o700)
+              projection_directory = private / "native-projections"
+              projection_directory.mkdir(mode=0o700)
+              projections = {}
+              for name, command in (("version.txt", ("version",)),
+                                    ("build-info.txt", ("build-info",)),
+                                    ("rebuilt-modules.txt", ("list-modules", "--packages"))):
+                  arguments = ["run", "--rm", "--network", "none", "--read-only", "--cap-drop", "ALL",
+                               "--cap-add", "NET_BIND_SERVICE", "--entrypoint", "/usr/bin/caddy", image, *command]
+                  observed = run(arguments)
+                  if not observed:
+                      raise ValueError("native_projection_empty")
+                  # run() requires native success and at most 1MiB stdout before retention.
+                  # This is a retained-output bound, not a live host-process byte ceiling.
+                  path = projection_directory / name
+                  with path.open("xb") as output:
+                      output.write(observed)
+                  path.chmod(0o600)
+                  projections[name] = {"image_config_id": image, "argv": [docker, *arguments],
+                                       "bytes": len(observed), "sha256": hashlib.sha256(observed).hexdigest()}
+              state = private / "subject.json"
+              state.write_text(json.dumps({"image_config_id": image, "platform": "linux/amd64",
+                                           "binary_sha256": binary.split()[0], "sources": sources,
+                                           "native_projections": projections,
+                                           "root": str(root), "docker": docker,
+                                           "observed_at_utc": datetime.now(timezone.utc).isoformat()}, sort_keys=True))
+              state.chmod(0o600)
+              with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as output:
+                  output.write(f"image_id={image}\nstate={state}\n")
+          except Exception as error:
+              print("Caddy subject capture failed: " + type(error).__name__)
+              raise SystemExit(1)
+          PY
+
       - name: Verify hardened Caddy runtime and module parity
+        if: ${{ (github.event_name != 'workflow_dispatch' || inputs.caddy_action != 'xnet060-metadata') }}
         run: |
           set -euo pipefail
           evidence_dir="${RUNNER_TEMP}/caddy-contract"
@@ -544,6 +920,7 @@ jobs:
           diff -u "$evidence_dir/official-modules.txt" "$evidence_dir/rebuilt-modules.txt"
 
       - name: Validate staging and production Caddyfiles
+        if: ${{ (github.event_name != 'workflow_dispatch' || inputs.caddy_action != 'xnet060-metadata') }}
         run: |
           set -euo pipefail
           docker run --rm --network none --read-only --cap-drop ALL --cap-add NET_BIND_SERVICE \
@@ -561,6 +938,7 @@ jobs:
             caddy validate --config /etc/caddy/Caddyfile
 
       - name: Verify Caddy route ordering and security headers
+        if: ${{ (github.event_name != 'workflow_dispatch' || inputs.caddy_action != 'xnet060-metadata') }}
         run: |
           set -euo pipefail
           python3 - <<'PY'
@@ -617,6 +995,8 @@ jobs:
           PY
 
       - name: Scan hardened Caddy shell image
+        if: ${{ (github.event_name != 'workflow_dispatch' || inputs.caddy_action != 'xnet060-metadata') }}
+        id: caddy-security
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0 / Node 24 cache path
         with:
           version: v0.74.0
@@ -627,8 +1007,292 @@ jobs:
           exit-code: '1'
           cache-dir: /tmp/trivy-cache-caddy-contract
 
+      - name: Prepare same-epoch full Caddy observation
+        id: caddy-full-prep
+        if: ${{ (github.event_name != 'workflow_dispatch' || inputs.caddy_action != 'xnet060-metadata') && (!cancelled() && steps.caddy-build.outcome == 'success' && steps.caddy-image.outcome == 'success' && (steps.caddy-security.outcome == 'success' || steps.caddy-security.outcome == 'failure')) }}
+        env:
+          CADDY_OBSERVATION_STATE: ${{ steps.caddy-image.outputs.state }}
+          CADDY_HC_OUTCOME: ${{ steps.caddy-security.outcome }}
+          CADDY_TRIVY_CACHE: /tmp/trivy-cache-caddy-contract
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+          import re
+          import shutil
+          import stat
+          import subprocess
+
+          try:
+              state_path = Path(os.environ["CADDY_OBSERVATION_STATE"])
+              if state_path.is_symlink() or not stat.S_ISREG(state_path.stat().st_mode):
+                  raise ValueError("subject_state_invalid")
+              subject = json.loads(state_path.read_text())
+              private = state_path.parent
+              scanner_command = shutil.which("trivy")
+              if scanner_command is None:
+                  raise ValueError("installed_scanner_missing")
+              scanner = Path(scanner_command).resolve(strict=True)
+              selected_command = os.environ.get("TRIVY_CMD", "").strip()
+              if selected_command:
+                  selected = shutil.which(selected_command)
+                  if selected is None or Path(selected).resolve(strict=True) != scanner:
+                      raise ValueError("HC_scanner_override_differs")
+              if not scanner.is_file() or not os.access(scanner, os.X_OK):
+                  raise ValueError("installed_scanner_invalid")
+              home = private / "home"
+              home.mkdir(mode=0o700)
+              # Only these explicit host process values reach the diagnostic scanner.
+              # No TRIVY_*, proxy, registry credential, native skip/VEX or plugin setting
+              # survives from the action or job. Explicit config/ignore files below
+              # avoid cwd/HOME defaults without adding another configuration parser.
+              clean = {"PATH": str(Path(subject["docker"]).parent) + ":/usr/local/bin:/usr/bin:/bin",
+                       "HOME": str(home), "LANG": "C.UTF-8"}
+              version = subprocess.run([str(scanner), "--version"], env=clean, capture_output=True, timeout=30, check=False)
+              if version.returncode or len(version.stdout) + len(version.stderr) > 65536 or re.search(rb"^Version: 0\.74\.0$", version.stdout, re.MULTILINE) is None:
+                  raise ValueError("native_scanner_version_invalid")
+              for name, raw in (("scanner-version.stdout", version.stdout), ("scanner-version.stderr", version.stderr)):
+                  with (private / name).open("xb") as output:
+                      output.write(raw)
+                  (private / name).chmod(0o600)
+              cache = Path(os.environ["CADDY_TRIVY_CACHE"])
+              db = {}
+              for name in ("db/trivy.db", "db/metadata.json"):
+                  path = cache / name
+                  if path.is_symlink() or not stat.S_ISREG(path.stat().st_mode) or path.stat().st_size == 0:
+                      raise ValueError("post_HC_DB_missing")
+                  digest = hashlib.sha256()
+                  with path.open("rb") as stream:
+                      for chunk in iter(lambda: stream.read(1048576), b""):
+                          digest.update(chunk)
+                  db[name] = {"bytes": path.stat().st_size, "sha256": digest.hexdigest()}
+              metadata = json.loads((cache / "db/metadata.json").read_text())
+              if not isinstance(metadata, dict) or not metadata:
+                  raise ValueError("post_HC_DB_metadata_invalid")
+              config = private / "empty-trivy.yaml"
+              ignore = private / "empty.trivyignore"
+              config.write_text("{}\n")
+              ignore.write_text("")
+              for path in (config, ignore):
+                  path.chmod(0o600)
+              report = private / "full.raw.json"
+              if report.exists() or report.is_symlink():
+                  raise ValueError("full_report_not_fresh")
+              subject.update(scanner=str(scanner), scanner_sha256=hashlib.sha256(scanner.read_bytes()).hexdigest(),
+                             scanner_version_stdout_sha256=hashlib.sha256(version.stdout).hexdigest(),
+                             post_HC_db=db, post_HC_db_metadata=metadata, clean_env=clean, cache=str(cache),
+                             original_HC_outcome=os.environ["CADDY_HC_OUTCOME"])
+              if subject["original_HC_outcome"] not in ("success", "failure"):
+                  raise ValueError("HC_was_not_attempted")
+              subject["full_argv"] = [str(scanner), "image", "--config", str(config), "--cache-dir", str(cache),
+                                      "--skip-db-update", "--skip-java-db-update", "--skip-vex-repo-update",
+                                      "--offline-scan", "--skip-version-check", "--disable-telemetry",
+                                      "--image-src", "docker", "--platform", "linux/amd64",
+                                      "--scanners", "vuln,secret", "--pkg-types", "os,library",
+                                      "--severity", "UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL", "--format", "json",
+                                      "--list-all-pkgs", "--exit-code", "0", "--ignore-unfixed=false",
+                                      "--ignorefile", str(ignore), "--timeout", os.environ["CADDY_FULL_SCAN_TIMEOUT_SECONDS"] + "s", "--output", str(report),
+                                      subject["image_config_id"]]
+              state_path.write_text(json.dumps(subject, sort_keys=True))
+          except Exception as error:
+              print("Caddy full-scan preparation failed: " + type(error).__name__)
+              raise SystemExit(1)
+          PY
+
+      - name: Observe all-severity Caddy native report
+        id: caddy-full-scan
+        if: ${{ (github.event_name != 'workflow_dispatch' || inputs.caddy_action != 'xnet060-metadata') && (!cancelled() && steps.caddy-full-prep.outcome == 'success') }}
+        env:
+          CADDY_OBSERVATION_STATE: ${{ steps.caddy-image.outputs.state }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+          import stat
+          import subprocess
+
+          try:
+              state_path = Path(os.environ["CADDY_OBSERVATION_STATE"])
+              subject = json.loads(state_path.read_text())
+              scanner = Path(subject["scanner"])
+              if hashlib.sha256(scanner.read_bytes()).hexdigest() != subject["scanner_sha256"]:
+                  raise ValueError("scanner_changed_before_full_scan")
+              for name, expected in subject["post_HC_db"].items():
+                  path = Path(subject["cache"]) / name
+                  digest = hashlib.sha256()
+                  if path.is_symlink() or not stat.S_ISREG(path.stat().st_mode):
+                      raise ValueError("DB_changed_before_full_scan")
+                  with path.open("rb") as stream:
+                      for chunk in iter(lambda: stream.read(1048576), b""):
+                          digest.update(chunk)
+                  if {"bytes": path.stat().st_size, "sha256": digest.hexdigest()} != expected:
+                      raise ValueError("DB_changed_before_full_scan")
+              # The scanner writes raw output outside the always-upload tree. Never echo
+              # stdout/stderr or partial JSON, even if the native invocation fails.
+              with (state_path.parent / "scan.stdout.private").open("xb") as stdout, (state_path.parent / "scan.stderr.private").open("xb") as stderr:
+                  result = subprocess.run(subject["full_argv"], env=subject["clean_env"],
+                                          cwd=state_path.parent, stdout=stdout, stderr=stderr,
+                                          timeout=int(os.environ["CADDY_FULL_SCAN_TIMEOUT_SECONDS"]) + 30, check=False)
+              if result.returncode:
+                  raise ValueError("native_full_scan_failed")
+          except Exception as error:
+              print("Caddy full-scan observation failed: " + type(error).__name__)
+              raise SystemExit(1)
+          PY
+
+      - name: Validate and publish full Caddy observation
+        id: caddy-full-publish
+        if: ${{ (github.event_name != 'workflow_dispatch' || inputs.caddy_action != 'xnet060-metadata') && (!cancelled() && steps.caddy-full-prep.outcome == 'success' && steps.caddy-full-scan.outcome == 'success') }}
+        env:
+          CADDY_OBSERVATION_STATE: ${{ steps.caddy-image.outputs.state }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from datetime import datetime, timezone
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+          import re
+          import stat
+          import subprocess
+          import sys
+
+          try:
+              state_path = Path(os.environ["CADDY_OBSERVATION_STATE"])
+              subject = json.loads(state_path.read_text())
+              private = state_path.parent
+              root = Path(subject["root"])
+              report = private / "full.raw.json"
+              if report.is_symlink() or not stat.S_ISREG(report.stat().st_mode) or not 0 < report.stat().st_size <= 134217728:
+                  raise ValueError("fresh_full_report_invalid")
+              for name, expected in subject["sources"].items():
+                  path = root / name
+                  if path.is_symlink() or {"bytes": path.stat().st_size, "sha256": hashlib.sha256(path.read_bytes()).hexdigest()} != expected:
+                      raise ValueError("measured_source_epoch_changed")
+              if (private / "empty-trivy.yaml").read_bytes() != b"{}\n" or (private / "empty.trivyignore").read_bytes() != b"":
+                  raise ValueError("selected_native_configuration_changed")
+              scanner = Path(subject["scanner"])
+              if hashlib.sha256(scanner.read_bytes()).hexdigest() != subject["scanner_sha256"]:
+                  raise ValueError("scanner_changed_after_full_scan")
+              for name, expected in subject["post_HC_db"].items():
+                  path = Path(subject["cache"]) / name
+                  if path.is_symlink() or not stat.S_ISREG(path.stat().st_mode):
+                      raise ValueError("DB_changed_after_full_scan")
+                  digest = hashlib.sha256()
+                  with path.open("rb") as stream:
+                      for chunk in iter(lambda: stream.read(1048576), b""):
+                          digest.update(chunk)
+                  if {"bytes": path.stat().st_size, "sha256": digest.hexdigest()} != expected:
+                      raise ValueError("DB_changed_after_full_scan")
+
+              def run(arguments):
+                  result = subprocess.run([subject["docker"], *arguments], capture_output=True, timeout=60, check=False)
+                  if result.returncode or len(result.stdout) > 1048576:
+                      raise ValueError("native_subject_recheck_failed")
+                  return result.stdout
+
+              for reference in ("pulseplate-caddy:contract", subject["image_config_id"]):
+                  inspected = json.loads(run(["image", "inspect", "--format", "{{json .}}", reference]))
+                  if (inspected.get("Id"), inspected.get("Os"), inspected.get("Architecture")) != (subject["image_config_id"], "linux", "amd64"):
+                      raise ValueError("image_or_tag_binding_changed")
+              binary = run(["run", "--rm", "--network", "none", "--read-only", "--cap-drop", "ALL",
+                            "--entrypoint", "/bin/busybox", subject["image_config_id"], "sha256sum", "/usr/bin/caddy"]).decode("ascii")
+              if binary != subject["binary_sha256"] + "  /usr/bin/caddy\n":
+                  raise ValueError("native_binary_changed")
+              projection_directory = private / "native-projections"
+              expected_projections = (("version.txt", ("version",)),
+                                      ("build-info.txt", ("build-info",)),
+                                      ("rebuilt-modules.txt", ("list-modules", "--packages")))
+              names = {name for name, _command in expected_projections}
+              if (projection_directory.is_symlink() or not projection_directory.is_dir()
+                      or {path.name for path in projection_directory.iterdir()} != names
+                      or set(subject["native_projections"]) != names):
+                  raise ValueError("native_projection_inventory_changed")
+              for name, command in expected_projections:
+                  expected = subject["native_projections"][name]
+                  arguments = [subject["docker"], "run", "--rm", "--network", "none", "--read-only",
+                               "--cap-drop", "ALL", "--cap-add", "NET_BIND_SERVICE", "--entrypoint",
+                               "/usr/bin/caddy", subject["image_config_id"], *command]
+                  if expected["image_config_id"] != subject["image_config_id"] or expected["argv"] != arguments:
+                      raise ValueError("native_projection_image_binding_changed")
+                  path = projection_directory / name
+                  if (path.is_symlink() or not stat.S_ISREG(path.stat().st_mode)
+                          or not 0 < path.stat().st_size <= 1048576):
+                      raise ValueError("native_projection_file_invalid")
+                  observed = path.read_bytes()
+                  if {"bytes": len(observed), "sha256": hashlib.sha256(observed).hexdigest()} != {
+                          "bytes": expected["bytes"], "sha256": expected["sha256"]}:
+                      raise ValueError("native_projection_bytes_changed")
+              sys.path.insert(0, str(root))
+              from scripts.ci.check_docker_runtime_dependency_surface import validate_trivy_image_report
+              validate_trivy_image_report(subject["image_config_id"], report)
+              native = json.loads(report.read_text())
+              missing_secrets = 0
+              for result in native["Results"]:
+                  if "Secrets" in result:
+                      secrets = result["Secrets"]
+                      if not isinstance(secrets, list) or secrets:
+                          raise ValueError("native_Secrets_not_empty_array")
+                  else:
+                      missing_secrets += 1
+              os_rows = [row for row in native["Results"] if row["Class"] == "os-pkgs"]
+              caddy_rows = [row for row in native["Results"] if row["Target"] == "usr/bin/caddy" and row["Type"] == "gobinary"]
+              if len(caddy_rows) != 1 or not os_rows:
+                  raise ValueError("configured_package_target_inventory_missing")
+              for result in [*os_rows, *caddy_rows]:
+                  packages = result.get("Packages")
+                  if not isinstance(packages, list) or not packages:
+                      raise ValueError("listed_packages_missing")
+                  if not all(isinstance(package, dict) and all(isinstance(package.get(key), str) and package[key] for key in ("Name", "Version")) for package in packages):
+                      raise ValueError("listed_package_identity_incomparable")
+              metadata = {"observed_at_utc": datetime.now(timezone.utc).isoformat(),
+                          "subject": subject, "full_report_sha256": hashlib.sha256(report.read_bytes()).hexdigest(),
+                          "full_scan_native_exit": 0, "capture_checks": "completed",
+                          "Results_Secrets_fields_absent": missing_secrets,
+                          "Secrets_scope": "Present Results fields are empty arrays; absent fields retain native serialization omission, not forced zero.",
+                          "claim_boundary": "Next observed local config/image ID, not prior ephemeral image or OCI manifest. Post-HC DB pre/post binding is not retroactive HC DB proof. Full native package/advisory reconciliation remains separate; diagnostic capture does not pass the blocking HC gate."}
+              payload = private / "validated-publication"
+              payload.mkdir(mode=0o700)
+              # Native diagnostics retain their original bytes. The report's omitted
+              # Secrets fields remain omitted; this does not manufacture coverage.
+              diagnostics = {}
+              for name in ("scanner-version.stdout", "scanner-version.stderr", "scan.stdout.private", "scan.stderr.private"):
+                  path = private / name
+                  if path.is_symlink() or not stat.S_ISREG(path.stat().st_mode) or path.stat().st_size > 1048576:
+                      raise ValueError("scanner_diagnostic_bound_or_type")
+                  raw = path.read_bytes()
+                  for key in ("GH_TOKEN", "GITHUB_TOKEN", "GHCR_READ_TOKEN", "DEVPI_CI_PASSWORD"):
+                      known = os.environ.get(key)
+                      if known and known.encode() in raw:
+                          raise ValueError("scanner_diagnostic_credential_reflection")
+                  diagnostics[name] = {"bytes": len(raw), "sha256": hashlib.sha256(raw).hexdigest()}
+                  os.rename(path, payload / name)
+              metadata["native_diagnostics"] = diagnostics
+              (payload / "observation.json").write_text(json.dumps(metadata, indent=2))
+              os.rename(report, payload / "full.raw.json")
+              os.rename(projection_directory, payload / "native-projections")
+              evidence = Path(os.environ["RUNNER_TEMP"]).resolve(strict=True) / "caddy-contract"
+              if evidence.is_symlink() or not evidence.is_dir():
+                  raise ValueError("existing_evidence_directory_invalid")
+              destination = evidence / "full-observation"
+              if destination.exists() or destination.is_symlink():
+                  raise ValueError("publication_destination_not_fresh")
+              # Final operation: only fully checked raw/metadata enter always-upload.
+              os.rename(payload, destination)
+          except Exception as error:
+              print("Caddy full-scan publication rejected: " + type(error).__name__)
+              raise SystemExit(1)
+          PY
+
       - name: Upload Caddy contract evidence
-        if: ${{ always() }}
+        if: ${{ (github.event_name != 'workflow_dispatch' || inputs.caddy_action != 'xnet060-metadata') && (always()) }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1 / Node 24
         with:
           name: caddy-contract-evidence

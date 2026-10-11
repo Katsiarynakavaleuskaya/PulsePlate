@@ -2,7 +2,7 @@
 # Fail-closed staging deploy. Requires Docker Compose and two attested GHCR digests.
 set -euo pipefail
 
-STAGING_DEPLOY_CONTRACT_VERSION="5"
+STAGING_DEPLOY_CONTRACT_VERSION="6"
 STAGING_DEPLOY_MARKER_CONTENT="pulseplate-staging-attested-digest-v1"
 CANONICAL_IMAGE_PATTERN='^ghcr\.io/katsiarynakavaleuskaya/pulseplate@sha256:[0-9a-f]{64}$'
 
@@ -76,19 +76,50 @@ if [ -z "$STAT_BIN" ] || [ ! -x "$STAT_BIN" ]; then
   exit 1
 fi
 
-PYTHON_BIN="${PYTHON_BIN:-}"
-if [ -z "$PYTHON_BIN" ]; then
-  for candidate in /usr/bin/python3 /usr/local/bin/python3; do
-    if [ -x "$candidate" ]; then
-      PYTHON_BIN="$candidate"
-      break
-    fi
-  done
+# Scoped deploy-tool interpreter input; no PATH discovery or origin claim.
+PYTHON_BIN_OVERRIDE="${PYTHON_BIN:-}"
+TRUSTED_PYTHON_CANDIDATES=(
+  "/usr/bin/python3"
+  "/usr/local/bin/python3"
+  "/opt/homebrew/bin/python3"
+  "/opt/homebrew/opt/python@3.14/libexec/bin/python3"
+)
+if [ -n "$PYTHON_BIN_OVERRIDE" ]; then
+  if [[ "$PYTHON_BIN_OVERRIDE" != /* ]]; then
+    echo "❌ PYTHON_BIN override must be an absolute path" >&2
+    exit 1
+  fi
+  if [ ! -x "$PYTHON_BIN_OVERRIDE" ]; then
+    echo "❌ PYTHON_BIN override is not executable" >&2
+    exit 1
+  fi
+  PYTHON_CANDIDATES=("$PYTHON_BIN_OVERRIDE")
+else
+  PYTHON_CANDIDATES=("${TRUSTED_PYTHON_CANDIDATES[@]}")
 fi
-if [[ "$PYTHON_BIN" != /* ]] || [ ! -x "$PYTHON_BIN" ]; then
-  echo "❌ PYTHON_BIN must resolve to an absolute executable" >&2
+PYTHON_BIN=""
+for candidate in "${PYTHON_CANDIDATES[@]}"; do
+  if [ ! -x "$candidate" ]; then
+    continue
+  fi
+  if python_identity="$("$candidate" -I -S -c 'import sys; print(sys.implementation.name + ":" + str(sys.version_info.major) + "." + str(sys.version_info.minor))')"; then
+    case "$python_identity" in
+      cpython:3.11|cpython:3.12|cpython:3.13|cpython:3.14)
+        PYTHON_BIN="$candidate"
+        break
+        ;;
+    esac
+  fi
+  if [ -n "$PYTHON_BIN_OVERRIDE" ]; then
+    echo "❌ PYTHON_BIN override requires isolated CPython 3.11, 3.12, 3.13 or 3.14: $candidate" >&2
+    exit 1
+  fi
+done
+if [ -z "$PYTHON_BIN" ]; then
+  echo "❌ PYTHON_BIN requires isolated CPython 3.11, 3.12, 3.13 or 3.14 at a trusted absolute path" >&2
   exit 1
 fi
+readonly PYTHON_BIN
 
 marker_metadata="$($STAT_BIN -c '%u:%g:%a' "$STAGING_DEPLOY_MARKER")"
 if [ "$marker_metadata" != "0:0:644" ]; then
@@ -184,88 +215,45 @@ if [ "$secret_file_metadata" != "${EUID}:444" ]; then
   exit 1
 fi
 
-validate_prometheus_image_manifest() {
-  local manifest_path="$1"
-  "$PYTHON_BIN" - "$manifest_path" <<'PY'
-from __future__ import annotations
+PROMETHEUS_CONTRACT_HELPER="${PROMETHEUS_CONTRACT_HELPER:-${PROJECT_DIR}/scripts/ci/prometheus_source_image.py}"
+PROMETHEUS_CONTRACT_HELPER_SHA256="d51f8aaee0b1c671da4910031fbd568cc5938b0335a2199e2825db53b8a0bb38" # Public source digest; pragma: allowlist secret
+readonly PROMETHEUS_CONTRACT_HELPER PROMETHEUS_CONTRACT_HELPER_SHA256
 
-import json
+run_prometheus_contract() {
+  "$PYTHON_BIN" -I -c '
+import hashlib
 import os
+from pathlib import Path
 import re
 import stat
 import sys
-
-manifest_path = sys.argv[1]
-expected = {
-    "schema": "pulseplate.prometheus_image_manifest.v2",
-    "repository": "prom/prometheus",
-    "source_revision": "53144df54e01b689bf6c45e811c6230631b132e7",
-    "index_digest": "sha256:62464aea89547566d3e26b33566a40d8a9d2ddef947fde9d37454040c9c636b1",
-    "platform": "linux/amd64",
-    "platform_manifest_digest": "sha256:76f21be0a8e8c825cccb0e2021699dcbfb02037cc594c1f48d44993f8a415f2d",
-    "runtime_ref": (
-        "prom/prometheus@"
-        "sha256:76f21be0a8e8c825cccb0e2021699dcbfb02037cc594c1f48d44993f8a415f2d"
-    ),
+path, expected = sys.argv[1:3]
+if not os.path.isabs(path) or re.fullmatch(r"[0-9a-f]{64}", expected) is None:
+    raise SystemExit("Invalid trusted Prometheus helper operand")
+for parent in Path(path).parents:
+    if parent.is_symlink() or not parent.is_dir():
+        raise SystemExit("Trusted Prometheus helper parent is not a real directory")
+fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+before = os.fstat(fd)
+if (not stat.S_ISREG(before.st_mode) or before.st_nlink != 1 or before.st_uid not in (0, os.getuid())
+        or before.st_mode & 0o022 or not 0 < before.st_size <= 1048576):
+    raise SystemExit("Trusted Prometheus helper leaf is invalid")
+raw = os.read(fd, before.st_size + 1)
+after, current = os.fstat(fd), os.lstat(path)
+if len(raw) != before.st_size or hashlib.sha256(raw).hexdigest() != expected or any(
+    getattr(before, key) != getattr(after, key) or getattr(before, key) != getattr(current, key)
+    for key in ("st_dev", "st_ino", "st_mode", "st_nlink", "st_size", "st_mtime_ns", "st_ctime_ns")
+):
+    raise SystemExit("Trusted current-source Prometheus helper binding changed")
+os.lseek(fd, 0, os.SEEK_SET)
+os.set_inheritable(fd, True)
+os.execv(sys.executable, [sys.executable, "-I", "/dev/fd/" + str(fd), *sys.argv[3:]])
+' "$PROMETHEUS_CONTRACT_HELPER" "$PROMETHEUS_CONTRACT_HELPER_SHA256" "$@"
 }
 
-
-def reject_duplicate_keys(pairs: list[tuple[str, object]]) -> dict[str, object]:
-    result: dict[str, object] = {}
-    for key, value in pairs:
-        if key in result:
-            raise ValueError("duplicate Prometheus manifest key")
-        result[key] = value
-    return result
-
-
-no_follow = getattr(os, "O_NOFOLLOW", 0)
-if no_follow <= 0 or not os.path.isabs(manifest_path):
-    raise SystemExit("Prometheus manifest path is not a safe absolute path")
-descriptor = os.open(
-    manifest_path,
-    os.O_RDONLY | no_follow | getattr(os, "O_CLOEXEC", 0),
-)
-try:
-    metadata = os.fstat(descriptor)
-    if (
-        not stat.S_ISREG(metadata.st_mode)
-        or metadata.st_nlink != 1
-        or metadata.st_size <= 0
-        or metadata.st_size > 64 * 1024
-    ):
-        raise SystemExit("Prometheus manifest must be one bounded regular file")
-    payload = os.read(descriptor, metadata.st_size + 1)
-    if len(payload) != metadata.st_size:
-        raise SystemExit("Prometheus manifest changed while being read")
-finally:
-    os.close(descriptor)
-
-try:
-    manifest = json.loads(
-        payload.decode("utf-8"),
-        object_pairs_hook=reject_duplicate_keys,
-        parse_constant=lambda value: (_ for _ in ()).throw(
-            ValueError(f"invalid JSON constant: {value}")
-        ),
-    )
-except (UnicodeDecodeError, ValueError, json.JSONDecodeError) as exc:
-    raise SystemExit("Prometheus manifest is malformed") from exc
-if type(manifest) is not dict or set(manifest) != set(expected):
-    raise SystemExit("Prometheus manifest fields do not match the closed contract")
-if any(type(manifest[key]) is not str for key in expected):
-    raise SystemExit("Prometheus manifest values must be strings")
-if not re.fullmatch(r"[0-9a-f]{40}", manifest["source_revision"]):
-    raise SystemExit("Prometheus manifest source revision is malformed")
-if not re.fullmatch(r"sha256:[0-9a-f]{64}", manifest["index_digest"]):
-    raise SystemExit("Prometheus index digest is malformed")
-if not re.fullmatch(r"sha256:[0-9a-f]{64}", manifest["platform_manifest_digest"]):
-    raise SystemExit("Prometheus platform digest is malformed")
-derived_ref = f'{manifest["repository"]}@{manifest["platform_manifest_digest"]}'
-if manifest["runtime_ref"] != derived_ref or manifest != expected:
-    raise SystemExit("Prometheus manifest identity does not match the canonical record")
-print(manifest["runtime_ref"])
-PY
+validate_prometheus_image_manifest() {
+  local manifest_path="$1"
+  run_prometheus_contract --operation read-manifest --manifest "$manifest_path" --field runtime_ref
 }
 
 validate_prometheus_compose_identity() {
@@ -1360,30 +1348,8 @@ PY
 
 validate_pulled_prometheus_image() {
   local runtime_ref="$1"
-  "$DOCKER_BIN" image inspect "$runtime_ref" | "$PYTHON_BIN" -c '
-import json
-import sys
-
-try:
-    payload = json.load(sys.stdin)
-except (TypeError, ValueError, json.JSONDecodeError) as exc:
-    raise SystemExit("Prometheus image inspect JSON is malformed") from exc
-if type(payload) is not list or len(payload) != 1 or type(payload[0]) is not dict:
-    raise SystemExit("Prometheus image inspect must return exactly one image")
-record = payload[0]
-repo_digests = record.get("RepoDigests")
-allowed = {
-    f"prom/prometheus@{sys.argv[1]}",
-    f"docker.io/prom/prometheus@{sys.argv[1]}",
-}
-
-if record.get("Os") != "linux" or record.get("Architecture") != "amd64":
-    raise SystemExit("Pulled Prometheus image platform is not linux/amd64")
-if type(repo_digests) is not list or any(type(item) is not str for item in repo_digests):
-    raise SystemExit("Pulled Prometheus RepoDigests are malformed")
-if not allowed.intersection(repo_digests):
-    raise SystemExit("Pulled Prometheus image is not bound to the canonical platform digest")
-' "$PROMETHEUS_PLATFORM_MANIFEST_DIGEST"
+  "$DOCKER_BIN" image inspect "$runtime_ref" | \
+    run_prometheus_contract --operation inspect-image --manifest "$PROMETHEUS_IMAGE_MANIFEST"
 }
 
 validate_pulled_alertmanager_image() {
@@ -1575,6 +1541,7 @@ verify_application_database_tls() {
 COMPOSE=("$DOCKER_BIN" compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE")
 
 PROMETHEUS_RUNTIME_REF="$(validate_prometheus_image_manifest "$PROMETHEUS_IMAGE_MANIFEST")"
+export PROMETHEUS_RUNTIME_REF
 readonly PROMETHEUS_RUNTIME_REF
 PROMETHEUS_PLATFORM_MANIFEST_DIGEST="${PROMETHEUS_RUNTIME_REF##*@}"
 readonly PROMETHEUS_PLATFORM_MANIFEST_DIGEST

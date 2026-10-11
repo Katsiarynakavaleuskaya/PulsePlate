@@ -12,13 +12,18 @@ import argparse
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import date
-from hashlib import sha3_256
+from hashlib import sha256, sha3_256
+import io
 import json
-from pathlib import Path
+from pathlib import Path, PurePosixPath
+import posixpath
 import re
 import stat
 import sys
+import tarfile
 import tempfile
+import time
+from urllib.error import HTTPError
 from urllib.parse import urlparse
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
@@ -42,6 +47,129 @@ _PINNED_CODELOAD_SOURCES = {
         "sljit-de0259c7aaf36aa40cba8014f3fad3edde9307f9.tar.gz",
         ("7ad006814d4d9c698832b14541634b9c" "c12039bae7b3bb547909fda51ee11a80"),
     ),
+}
+
+
+# Finite reviewed release/patch tuples; no generic source-host or patch allowance.
+_PINNED_NATIVE_SOURCES = {
+    "zlib": (
+        "1.3.2",
+        "https://zlib.net/fossils/zlib-1.3.2.tar.gz",
+        "zlib-1.3.2.tar.gz",
+        ("451bedbd" "cd78dec3" "704df673" "c976fab2" "5beaef6a" "db9433fe" "84665e7b" "f946e325"),
+    ),
+    "ncurses": (
+        "6.6",
+        "https://invisible-island.net/archives/ncurses/ncurses-6.6.tar.gz",
+        "ncurses-6.6.tar.gz",
+        ("b755b6ab" "f8bdb9fa" "fa048a0c" "55973212" "ee491051" "a0aaff08" "dfa45339" "34dc53cc"),
+    ),
+    "openssl": (
+        "3.5.9",
+        "https://codeload.github.com/openssl/openssl/legacy.tar.gz/45e844fa2a14ec92d146bd8f5778ac130b6625fb",
+        "openssl-3.5.9.tar.gz",
+        ("7392920f" "1897e1e2" "d9dc8483" "68aff6e4" "bdc94213" "44286d60" "ba517b9f" "14b202a0"),
+    ),
+    "postgresql": (
+        "18.6",
+        "https://ftp.postgresql.org/pub/source/v18.6/postgresql-18.6.tar.gz",
+        "postgresql-18.6.tar.gz",
+        ("672dab27" "4f12efd4" "9d7d431e" "77b42d23" "5d9583f1" "91608821" "b0e48dc1" "d09fb4c0"),
+    ),
+    "zlib-gzwrite-fix": (
+        ("df84af25" "dc194249" "0e1d1c89" "9a076191" "52a46148"),
+        "https://github.com/madler/zlib/commit/df84af25dc1942490e1d1c899a07619152a46148.patch",
+        "zlib-gzwrite-fix-df84af25dc1942490e1d1c899a07619152a46148.patch",
+        ("78aa4480" "48a5cc72" "d29156cf" "77483dd8" "f142018a" "7783a4fe" "9f73ea5f" "a02f034d"),
+    ),
+    "zlib-gzwrite-null-fix": (
+        ("e3dc0a85" "b7032e98" "380dec01" "1bc8f2c2" "ee0d8fca"),
+        "https://github.com/madler/zlib/commit/e3dc0a85b7032e98380dec011bc8f2c2ee0d8fca.patch",
+        "zlib-gzwrite-null-fix-e3dc0a85b7032e98380dec011bc8f2c2ee0d8fca.patch",
+        ("63adc22e" "cebf8bbe" "e7b9aaf4" "f0587657" "68948996" "ca4b26fa" "260d8b80" "6a64e7d3"),
+    ),
+    "zlib-gzvprintf-return-fix": (
+        ("bbc2ccf3" "d0de2675" "76b524b8" "75c769a7" "24a513b0"),
+        "https://github.com/madler/zlib/commit/bbc2ccf3d0de267576b524b875c769a724a513b0.patch",
+        "zlib-gzvprintf-return-fix-bbc2ccf3d0de267576b524b875c769a724a513b0.patch",
+        ("55b2edac" "2662134a" "37863f6d" "1e11fb97" "d6e63e03" "5d8d0d3d" "70ec6d8a" "3b669734"),
+    ),
+    "zlib-gzprintf-return-fix": (
+        ("7235b0a5" "81227c56" "a79a43ff" "828f8ef6" "794194c8"),
+        "https://github.com/madler/zlib/commit/7235b0a581227c56a79a43ff828f8ef6794194c8.patch",
+        "zlib-gzprintf-return-fix-7235b0a581227c56a79a43ff828f8ef6794194c8.patch",
+        ("274bce56" "61e7c7cc" "9c47e21f" "100c7078" "7cad6d8c" "0c04104a" "ff8d8d84" "baced7a7"),
+    ),
+    "zlib-blocked-errno-fix": (
+        ("813dac5d" "cb5902ed" "241e9b0d" "38abd2d8" "47a335a9"),
+        "https://github.com/madler/zlib/commit/813dac5dcb5902ed241e9b0d38abd2d847a335a9.patch",
+        "zlib-blocked-errno-fix-813dac5dcb5902ed241e9b0d38abd2d847a335a9.patch",
+        ("438d0e57" "75f15081" "a3339eed" "38d4b207" "b100f5cf" "4f68db0e" "619ef9b3" "054e3e4a"),
+    ),
+    "zlib-gzprintf-contract-fix": (
+        ("d81c2d7e" "b705c622" "94ba0329" "92556720" "78e89115"),
+        "https://github.com/madler/zlib/commit/d81c2d7eb705c62294ba03299255672078e89115.patch",
+        "zlib-gzprintf-contract-fix-d81c2d7eb705c62294ba03299255672078e89115.patch",
+        ("adf2578c" "eaa4d9a5" "2ccfa8d7" "4f8b8792" "cce3084f" "9f770944" "39450eec" "2a7a214c"),
+    ),
+    "zlib-errno-order-fix": (
+        ("a82e0db3" "92178a3e" "05fb27bf" "551a6ce7" "57a47898"),
+        "https://github.com/madler/zlib/commit/a82e0db392178a3e05fb27bf551a6ce757a47898.patch",
+        "zlib-errno-order-fix-a82e0db392178a3e05fb27bf551a6ce757a47898.patch",
+        ("70b0fb7e" "333c5757" "807407f1" "d88ef2ff" "71f757b5" "59926b73" "22a1a8d7" "84811cbc"),
+    ),
+}
+_PINNED_EXACT_SOURCES = {**_PINNED_CODELOAD_SOURCES, **_PINNED_NATIVE_SOURCES}
+_NATIVE_ARCHIVE_INVENTORIES = {
+    "zlib": ("zlib-1.3.2", 291, 3_579_037, "LICENSE"),
+    "ncurses": ("ncurses-6.6", 1298, 18_614_617, "COPYING"),
+    "openssl": ("openssl-openssl-45e844f", 6078, 131_230_833, "LICENSE.txt"),
+    "postgresql": ("postgresql-18.6", 7944, 141_525_674, "COPYRIGHT"),
+}
+_NATIVE_ARCHIVE_MAX_BYTES = 64 * 1024 * 1024
+_PINNED_NATIVE_SHA256 = {
+    "zlib": (
+        "bb329a0a" "2cd0274d" "05519d61" "c667c062" "e06990d7" "2e125ee2" "dfa8de64" "f0119d16"
+    ),
+    "ncurses": (
+        "355b4cbb" "ed880b03" "81a04c46" "617b7656" "e362585d" "52e9cf84" "a67e2009" "b749ff11"
+    ),
+    "openssl": (
+        "32662f03" "fc8e90bc" "8b8fc0ac" "b115ed41" "3eec5045" "a127e9af" "9f6c234b" "c3d0a8f2"
+    ),
+    "postgresql": (
+        "983ee554" "ec53dbeb" "9b70797b" "ef9fcf4e" "67e117e7" "e48ca146" "3cc80b3f" "f8e8ff3f"
+    ),
+    "zlib-gzwrite-fix": (
+        "110ff143" "75733173" "d8aa5457" "4473424f" "bd7dfe4b" "81f1ca34" "a759c6fe" "14b15b14"
+    ),
+    "zlib-gzwrite-null-fix": (
+        "183bc8b9" "dd078a41" "a62de5c2" "d905d9b0" "196b45bc" "46f100d7" "e4147ec2" "28207c74"
+    ),
+    "zlib-gzvprintf-return-fix": (
+        "7d00ee29" "be5e636d" "30da2890" "961e83e3" "5cee0b15" "2333ecd9" "7a46ae2e" "71eb5d47"
+    ),
+    "zlib-gzprintf-return-fix": (
+        "96040ee8" "4d0d1879" "05283912" "dbd3f7b6" "6ac20339" "76a2ceef" "e9b8cca6" "3143d9c2"
+    ),
+    "zlib-blocked-errno-fix": (
+        "6475806c" "db638378" "8a03e7af" "5617188e" "f2692803" "889cded1" "fcb01482" "5923d16c"
+    ),
+    "zlib-gzprintf-contract-fix": (
+        "a786b2b0" "84126860" "08c7fe12" "47e90701" "cebde564" "037806bd" "9935f849" "07737cc4"
+    ),
+    "zlib-errno-order-fix": (
+        "6d02eb6c" "5403c491" "9076cc89" "ae6609ac" "421aa27d" "e116457a" "ca1554c3" "85296a2b"
+    ),
+}
+_PINNED_ZLIB_PATCH_SIZES = {
+    "zlib-gzwrite-fix": 854,
+    "zlib-gzwrite-null-fix": 773,
+    "zlib-gzvprintf-return-fix": 749,
+    "zlib-gzprintf-return-fix": 764,
+    "zlib-blocked-errno-fix": 2449,
+    "zlib-gzprintf-contract-fix": 1990,
+    "zlib-errno-order-fix": 1476,
 }
 
 
@@ -69,6 +197,7 @@ class DockerSourceArtifact:
     filename: str
     url: str
     sha3_256: str
+    sha256: str | None = None
 
 
 def _parse_iso_date(value: object, *, field_name: str) -> date:
@@ -92,8 +221,8 @@ def _sha3_from_parts(raw_parts: object, *, artifact_name: str) -> str:
 
 
 def _validate_source_url(url: str, *, artifact_name: str) -> str:
-    if artifact_name in _PINNED_CODELOAD_SOURCES:
-        if url != _PINNED_CODELOAD_SOURCES[artifact_name][1]:
+    if artifact_name in _PINNED_EXACT_SOURCES:
+        if url != _PINNED_EXACT_SOURCES[artifact_name][1]:
             raise RuntimeError(
                 f"{artifact_name} source URL does not match its exact reviewed identity."
             )
@@ -124,8 +253,8 @@ def _validate_source_url(url: str, *, artifact_name: str) -> str:
 
 def _validate_source_identity(artifact: DockerSourceArtifact) -> None:
     """Cross-bind the finite codeload records, also before safe-cache reuse."""
-    if artifact.name in _PINNED_CODELOAD_SOURCES:
-        version, url, filename, digest = _PINNED_CODELOAD_SOURCES[artifact.name]
+    if artifact.name in _PINNED_EXACT_SOURCES:
+        version, url, filename, digest = _PINNED_EXACT_SOURCES[artifact.name]
         if (artifact.version, artifact.url, artifact.filename, artifact.sha3_256) != (
             version,
             url,
@@ -136,6 +265,11 @@ def _validate_source_identity(artifact: DockerSourceArtifact) -> None:
                 f"{artifact.name} source does not match its exact reviewed identity."
             )
     _validate_source_url(artifact.url, artifact_name=artifact.name)
+    if (
+        artifact.name in _PINNED_NATIVE_SHA256
+        and artifact.sha256 != _PINNED_NATIVE_SHA256[artifact.name]
+    ):
+        raise RuntimeError(f"{artifact.name} SHA256 metadata differs from its reviewed identity.")
 
 
 def load_manifest(path: Path, *, today: date | None = None) -> tuple[DockerSourceArtifact, ...]:
@@ -170,6 +304,21 @@ def load_manifest(path: Path, *, today: date | None = None) -> tuple[DockerSourc
             raise RuntimeError(f"Docker source artifact #{index} must be an object.")
         name = raw_artifact.get("name")
         version = raw_artifact.get("version")
+        if "version_parts" in raw_artifact:
+            parts = raw_artifact["version_parts"]
+            if (
+                not isinstance(name, str)
+                or name not in _PINNED_ZLIB_PATCH_SIZES
+                or version is not None
+                or type(parts) is not list
+                or len(parts) != 5
+                or any(
+                    type(part) is not str or re.fullmatch(r"[0-9a-f]{8}", part) is None
+                    for part in parts
+                )
+            ):
+                raise RuntimeError("Only exact reviewed zlib patches use the version-parts form.")
+            version = "".join(parts)
         filename = raw_artifact.get("filename")
         url = raw_artifact.get("url")
         if not all(
@@ -187,9 +336,12 @@ def load_manifest(path: Path, *, today: date | None = None) -> tuple[DockerSourc
         if artifact_name in seen_names:
             raise RuntimeError(f"Duplicate Docker source artifact: {artifact_name}")
         seen_names.add(artifact_name)
-        if filename_text != f"{artifact_name}-{str(version).strip()}.tar.gz":
+        if (
+            artifact_name not in _PINNED_EXACT_SOURCES
+            and filename_text != f"{artifact_name}-{str(version).strip()}.tar.gz"
+        ):
             raise RuntimeError(f"{artifact_name} filename does not match source identity/version.")
-        if artifact_name not in _PINNED_CODELOAD_SOURCES and (
+        if artifact_name not in _PINNED_EXACT_SOURCES and (
             Path(urlparse(str(url).strip()).path).name != filename_text
         ):
             raise RuntimeError(f"{artifact_name} URL filename does not match the source artifact.")
@@ -203,11 +355,75 @@ def load_manifest(path: Path, *, today: date | None = None) -> tuple[DockerSourc
                     raw_artifact.get("sha3_256_parts"),
                     artifact_name=artifact_name,
                 ),
+                sha256=(
+                    _sha3_from_parts(raw_artifact["sha256_parts"], artifact_name=artifact_name)
+                    if "sha256_parts" in raw_artifact
+                    else None
+                ),
             )
         )
     for artifact in artifacts:
         _validate_source_identity(artifact)
     return tuple(artifacts)
+
+
+def validate_source_payload(artifact: DockerSourceArtifact, payload: bytes) -> None:
+    """Bind the exact native bytes and reviewed member/license inventory before build."""
+    _validate_source_identity(artifact)
+    if sha3_256(payload).hexdigest() != artifact.sha3_256:
+        raise RuntimeError(f"{artifact.name} SHA3 mismatch")
+    if artifact.sha256 is not None and sha256(payload).hexdigest() != artifact.sha256:
+        raise RuntimeError(f"{artifact.name} SHA256 mismatch")
+    if artifact.name in _PINNED_ZLIB_PATCH_SIZES:
+        if len(payload) != _PINNED_ZLIB_PATCH_SIZES[artifact.name]:
+            raise RuntimeError("The exact zlib patch size differs from its reviewed identity.")
+        return
+    if artifact.name not in _NATIVE_ARCHIVE_INVENTORIES:
+        return
+    if len(payload) > _NATIVE_ARCHIVE_MAX_BYTES:
+        raise RuntimeError("Native source archive exceeds the bounded acquisition size.")
+    root, expected_count, expected_size, license_name = _NATIVE_ARCHIVE_INVENTORIES[artifact.name]
+    seen: set[str] = set()
+    expanded = 0
+    with tarfile.open(fileobj=io.BytesIO(payload), mode="r:gz") as archive:
+        for member in archive:
+            name = PurePosixPath(member.name)
+            if (
+                member.name in seen
+                or name.is_absolute()
+                or ".." in name.parts
+                or "\\" in member.name
+                or not name.parts
+                or name.parts[0] != root
+                or not (member.isfile() or member.isdir() or member.issym() or member.islnk())
+                or member.size > 32 * 1024 * 1024
+                or len(seen) >= expected_count
+            ):
+                raise RuntimeError("Native source member layout differs from the reviewed archive.")
+            if member.issym() or member.islnk():
+                target = PurePosixPath(member.linkname)
+                joined = (
+                    member.linkname
+                    if member.islnk()
+                    else posixpath.join(str(name.parent), member.linkname)
+                )
+                normalized = posixpath.normpath(joined)
+                if (
+                    target.is_absolute()
+                    or "\\" in member.linkname
+                    or not (normalized == root or normalized.startswith(root + "/"))
+                ):
+                    raise RuntimeError("Native source link escapes its reviewed root.")
+            seen.add(member.name)
+            expanded += member.size
+            if expanded > expected_size:
+                raise RuntimeError("Native source expanded size differs from the reviewed archive.")
+    if (
+        len(seen) != expected_count
+        or expanded != expected_size
+        or f"{root}/{license_name}" not in seen
+    ):
+        raise RuntimeError("Native source member/license inventory is incomplete.")
 
 
 def _write_verified_artifact(artifact: DockerSourceArtifact, output_dir: Path) -> Path:
@@ -228,8 +444,12 @@ def _write_verified_artifact(artifact: DockerSourceArtifact, output_dir: Path) -
         metadata = output_path.lstat()
         if not stat.S_ISREG(metadata.st_mode) or metadata.st_nlink != 1:
             raise RuntimeError("Source cache artifact must be a regular single-link file.")
-        current_digest = sha3_256(output_path.read_bytes()).hexdigest()
+        if artifact.name in _PINNED_NATIVE_SOURCES and metadata.st_size > _NATIVE_ARCHIVE_MAX_BYTES:
+            raise RuntimeError("Native source cache exceeds its bounded acquisition size.")
+        cached = output_path.read_bytes()
+        current_digest = sha3_256(cached).hexdigest()
         if current_digest == artifact.sha3_256:
+            validate_source_payload(artifact, cached)
             output_path.chmod(0o644)
             print(f"{artifact.name}: using existing verified artifact {output_path}")
             return output_path
@@ -238,13 +458,37 @@ def _write_verified_artifact(artifact: DockerSourceArtifact, output_dir: Path) -
     _validate_source_identity(artifact)
     source_url = _validate_source_url(artifact.url, artifact_name=artifact.name)
     print(f"{artifact.name}: fetching {source_url}")
-    with build_opener(_NoRedirectHandler()).open(source_url, timeout=60) as response:
-        payload = response.read()
+    first_http_error: HTTPError | None = None
+    attempt = 1
+    while True:
+        try:
+            with build_opener(_NoRedirectHandler()).open(source_url, timeout=60) as response:
+                if artifact.name in _PINNED_NATIVE_SOURCES:
+                    payload = response.read(_NATIVE_ARCHIVE_MAX_BYTES + 1)
+                else:
+                    payload = response.read()
+            break
+        except HTTPError as error:
+            if type(error.code) is not int or error.code not in (502, 503, 504):
+                raise
+            if first_http_error is None:
+                first_http_error = error
+            print(
+                f"{artifact.name}: source HTTP {error.code} on attempt {attempt}/3",
+                file=sys.stderr,
+                flush=True,
+            )
+            error.close()
+            if attempt == 3:
+                raise first_http_error
+            time.sleep(attempt)
+            attempt += 1
     actual_digest = sha3_256(payload).hexdigest()
     if actual_digest != artifact.sha3_256:
         raise RuntimeError(
             f"{artifact.name} SHA3 mismatch: expected {artifact.sha3_256}, got {actual_digest}"
         )
+    validate_source_payload(artifact, payload)
 
     with tempfile.NamedTemporaryFile(dir=output_dir, delete=False) as tmp_file:
         tmp_file.write(payload)

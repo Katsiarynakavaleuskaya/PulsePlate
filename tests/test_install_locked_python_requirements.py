@@ -9,9 +9,11 @@ import json
 import os
 import re
 import subprocess
+import struct
 import sys
 import tempfile
 import types
+import zipfile
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from email.utils import format_datetime
@@ -113,6 +115,947 @@ def _exact_requirement_pairs(contents: str) -> set[tuple[str, str]]:
         version = version_and_markers.split(";", 1)[0].strip()
         pairs.add((package.strip(), version))
     return pairs
+
+
+def test_psycopg_source_url_admits_only_the_reviewed_archive() -> None:
+    project = DEVPI_SIMPLE_URL + "psycopg-c/"
+    href = f"../../+f/source/{installer.PSYCOPG_C_SOURCE_NAME}#sha256={installer.PSYCOPG_C_SOURCE_SHA256}"
+    body = f'<a href="{href}">source</a>'.encode()
+    assert installer.admitted_psycopg_source_url(body=body, project_url=project) == (
+        "https://packages.pulseplate.app/root/pulseplate/+f/source/"
+        + installer.PSYCOPG_C_SOURCE_NAME
+    )
+
+
+@pytest.mark.parametrize(
+    "variation", ("missing_hash", "wrong_hash", "foreign_origin", "duplicate", "different_version")
+)
+def test_psycopg_source_url_rejects_unadmitted_input(variation: str) -> None:
+    href = f"../../+f/source/{installer.PSYCOPG_C_SOURCE_NAME}#sha256={installer.PSYCOPG_C_SOURCE_SHA256}"
+    if variation == "missing_hash":
+        href = href.split("#", 1)[0]
+    elif variation == "wrong_hash":
+        href = href.split("#", 1)[0] + "#sha256=" + "0" * 64
+    elif variation == "foreign_origin":
+        href = "https://packages.example.invalid/" + href.rsplit("/", 1)[-1]
+    elif variation == "different_version":
+        href = href.replace("3.3.4", "3.3.5")
+    body = f'<a href="{href}">source</a>'.encode()
+    if variation == "duplicate":
+        body += body
+    with pytest.raises(RuntimeError):
+        installer.admitted_psycopg_source_url(
+            body=body, project_url=DEVPI_SIMPLE_URL + "psycopg-c/"
+        )
+
+
+def test_psycopg_source_refuses_other_names_and_changed_release_bytes(tmp_path: Path) -> None:
+    with pytest.raises(RuntimeError, match="exact reviewed Psycopg C source name"):
+        installer.inspect_psycopg_source(tmp_path / "another-source.tar.gz")
+    archive = tmp_path / installer.PSYCOPG_C_SOURCE_NAME
+    archive.write_bytes(b"unrecognized release bytes")
+    with pytest.raises(RuntimeError, match="original source SHA-256 mismatch"):
+        installer.inspect_psycopg_source(archive)
+
+
+def test_regular_input_accepts_read_induced_atime_change(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = tmp_path / "input"
+    path.write_bytes(b"controlled input")
+    real_fstat = os.fstat
+    calls = 0
+
+    def observe_read(descriptor: int) -> os.stat_result:
+        nonlocal calls
+        calls += 1
+        value = real_fstat(descriptor)
+        if calls == 2:
+            fields = list(value)
+            fields[7] += 10
+            return os.stat_result(
+                fields,
+                {
+                    "st_atime_ns": value.st_atime_ns + 10_000_000_000,
+                    "st_mtime_ns": value.st_mtime_ns,
+                    "st_ctime_ns": value.st_ctime_ns,
+                },
+            )
+        return value
+
+    monkeypatch.setattr(installer.os, "fstat", observe_read)
+    assert installer._read_regular_input(path, maximum=64) == b"controlled input"
+    assert calls == 2
+
+
+def test_regular_input_rejects_path_replacement_after_descriptor_read(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = tmp_path / "input"
+    path.write_bytes(b"original input")
+    replacement = tmp_path / "replacement"
+    replacement.write_bytes(b"different input")
+    real_fstat = os.fstat
+    calls = 0
+
+    def replace_after_read(descriptor: int) -> os.stat_result:
+        nonlocal calls
+        calls += 1
+        value = real_fstat(descriptor)
+        if calls == 2:
+            os.replace(replacement, path)
+        return value
+
+    monkeypatch.setattr(installer.os, "fstat", replace_after_read)
+    with pytest.raises(RuntimeError, match="Input identity changed"):
+        installer._read_regular_input(path, maximum=64)
+    assert path.read_bytes() == b"different input"
+
+
+@pytest.mark.parametrize("changed_field", (0, 1, 2, 3, 4, 5, 6, 8, 9))
+def test_regular_input_rejects_identity_or_nonaccess_metadata_changes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, changed_field: int
+) -> None:
+    path = tmp_path / "input"
+    path.write_bytes(b"controlled input")
+    real_fstat = os.fstat
+    calls = 0
+
+    def observe_changed_metadata(descriptor: int) -> os.stat_result:
+        nonlocal calls
+        calls += 1
+        value = real_fstat(descriptor)
+        if calls == 2:
+            fields = list(value)
+            fields[changed_field] += 1
+            return os.stat_result(
+                fields,
+                {
+                    "st_atime_ns": value.st_atime_ns,
+                    "st_mtime_ns": value.st_mtime_ns + (changed_field == 8),
+                    "st_ctime_ns": value.st_ctime_ns + (changed_field == 9),
+                },
+            )
+        return value
+
+    monkeypatch.setattr(installer.os, "fstat", observe_changed_metadata)
+    with pytest.raises(RuntimeError, match="Input identity changed"):
+        installer._read_regular_input(path, maximum=64)
+
+
+@pytest.mark.parametrize(
+    "selectors",
+    (
+        ["--prefetch-psycopg-source", "source", "--prefetch-psycopg-build-wheels", "wheels"],
+        ["--prefetch-psycopg-source", "source", "--preflight-only"],
+        ["--prefetch-psycopg-build-wheels", "wheels", "--preflight-only"],
+        ["--build-psycopg-c", "--prefetch-psycopg-source", "source"],
+        ["--build-psycopg-c", "--preflight-only"],
+        ["--build-psycopg-c", "--prefetch-only"],
+        ["--build-psycopg-c", "--consume-only"],
+        ["--build-psycopg-c", "--upgrade-pip-only"],
+    ),
+)
+def test_main_rejects_mixed_operations_before_any_acquisition_build_or_preflight(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], selectors: list[str]
+) -> None:
+    def forbidden(**kwargs: object) -> None:
+        raise AssertionError("No operation may execute for conflicting selectors")
+
+    for name in (
+        "prefetch_psycopg_source",
+        "prefetch_psycopg_build_wheels",
+        "build_psycopg_c_sdk",
+        "run_dependency_floor_preflight",
+    ):
+        monkeypatch.setattr(installer, name, forbidden)
+    assert installer.main(selectors) == 1
+    assert "operation selectors are mutually exclusive" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize(
+    "modifier",
+    (
+        ["--install-dev"],
+        ["--install-test"],
+        ["--requirements-profile", "ci-lite"],
+        ["--requirements-profile=ci-test"],
+        ["--requirements-file", "requirements.txt"],
+        ["--constraints-file", "constraints.txt"],
+        ["--install-mode", "wheelhouse"],
+        ["--psycopg-sdk", "sdk"],
+        ["--index-url", APPROVED_PROXY_URL],
+        ["--upgrade-pip"],
+        ["--require-virtualenv"],
+        ["--python-executable", sys.executable],
+    ),
+)
+def test_main_source_build_rejects_install_modifiers_even_at_default_values(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], modifier: list[str]
+) -> None:
+    def forbidden(**kwargs: object) -> None:
+        raise AssertionError("Source backend must not run with install modifiers")
+
+    monkeypatch.setattr(installer, "build_psycopg_c_sdk", forbidden)
+    argv = [
+        "--build-psycopg-c",
+        "--psycopg-source-archive",
+        "source.tar.gz",
+        "--psycopg-build-wheels",
+        "build-wheels",
+        "--psycopg-native-root",
+        "native",
+        "--psycopg-wheel-output",
+        "output",
+        *modifier,
+    ]
+    assert installer.main(argv) == 1
+    assert "no acquisition/install mode" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("abbreviation", ("--requirements-prof=ci-lite", "--const=constraints.txt"))
+def test_main_source_build_rejects_abbreviated_install_options_before_backend(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    abbreviation: str,
+) -> None:
+    def forbidden(**kwargs: object) -> None:
+        raise AssertionError("Source backend must not run for unrecognized options")
+
+    monkeypatch.setattr(installer, "build_psycopg_c_sdk", forbidden)
+    with pytest.raises(SystemExit) as rejected:
+        installer.main(
+            [
+                "--build-psycopg-c",
+                "--psycopg-source-archive",
+                "source.tar.gz",
+                "--psycopg-build-wheels",
+                "build-wheels",
+                "--psycopg-native-root",
+                "native",
+                "--psycopg-wheel-output",
+                "output",
+                abbreviation,
+            ]
+        )
+    assert rejected.value.code == 2
+    assert "unrecognized arguments" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize(
+    "operation", ([], ["--preflight-only"], ["--prefetch-psycopg-source", "prefetch"])
+)
+@pytest.mark.parametrize(
+    "build_input",
+    (
+        "--psycopg-source-archive",
+        "--psycopg-build-wheels",
+        "--psycopg-native-root",
+        "--psycopg-wheel-output",
+    ),
+)
+def test_main_rejects_build_inputs_without_build_operation_before_effects(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    operation: list[str],
+    build_input: str,
+) -> None:
+    def forbidden(**kwargs: object) -> None:
+        raise AssertionError("No operation may consume stray source-build inputs")
+
+    for name in (
+        "prefetch_psycopg_source",
+        "prefetch_psycopg_build_wheels",
+        "build_psycopg_c_sdk",
+        "run_dependency_floor_preflight",
+        "install_with_guard",
+        "resolve_private_proxy_settings",
+    ):
+        monkeypatch.setattr(installer, name, forbidden)
+    assert installer.main([*operation, build_input, "input"]) == 1
+    assert "build inputs require the explicit --build-psycopg-c" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize(
+    "selector", ("--prefetch-psycopg-source", "--prefetch-psycopg-build-wheels")
+)
+@pytest.mark.parametrize(
+    "modifier",
+    (
+        ["--requirements-file", "requirements.txt"],
+        ["--dev-requirements-file", "requirements-dev.txt"],
+        ["--test-requirements-file", "requirements-test.txt"],
+        ["--ci-lite-requirements-file", "requirements-ci-lite.txt"],
+        ["--rag-vector-requirements-file", "requirements-rag-vector.txt"],
+        ["--constraints-file", "constraints.txt"],
+        ["--requirements-profile=ci-test"],
+        ["--install-dev"],
+        ["--install-test"],
+        ["--require-virtualenv"],
+        ["--upgrade-pip"],
+        ["--upgrade-pip-spec", "pip"],
+        ["--guard-script", "guard.py"],
+        ["--emergency-wheel-manifest", "manifest.json"],
+        ["--install-mode=wheelhouse"],
+        ["--psycopg-sdk", "sdk"],
+        ["--wheelhouse-dir=wheels"],
+    ),
+)
+def test_main_psycopg_prefetch_rejects_install_modifiers_before_resolution(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    selector: str,
+    modifier: list[str],
+) -> None:
+    def forbidden(*args: object, **kwargs: object) -> None:
+        raise AssertionError("Rejected prefetch modifiers must cause no acquisition or resolution")
+
+    for name in (
+        "resolve_python_executable",
+        "resolve_private_proxy_settings",
+        "prefetch_psycopg_source",
+        "prefetch_psycopg_build_wheels",
+        "upgrade_pip",
+        "read_psycopg_c_sdk",
+        "install_with_guard",
+        "run_command",
+    ):
+        monkeypatch.setattr(installer, name, forbidden)
+    assert installer.main([selector, "new-input", *modifier]) == 1
+    assert "do not accept install modifiers" in capsys.readouterr().out
+
+
+def test_main_psycopg_source_prefetch_rejects_unused_explicit_python(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    def forbidden(*args: object, **kwargs: object) -> None:
+        raise AssertionError("Source prefetch must reject its unused target before effects")
+
+    for name in (
+        "resolve_python_executable",
+        "resolve_private_proxy_settings",
+        "prefetch_psycopg_source",
+    ):
+        monkeypatch.setattr(installer, name, forbidden)
+    assert (
+        installer.main(
+            [
+                "--prefetch-psycopg-source",
+                "source",
+                "--python-executable=" + sys.executable,
+            ]
+        )
+        == 1
+    )
+    assert "unused target Python" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("operation", ("source", "build-wheels"))
+def test_main_psycopg_prefetch_preserves_acquisition_inputs_and_used_target(
+    monkeypatch: pytest.MonkeyPatch, operation: str
+) -> None:
+    observed: list[dict[str, object]] = []
+    monkeypatch.setattr(
+        installer,
+        "resolve_private_proxy_settings",
+        lambda **kwargs: (kwargs["index_url"], kwargs["trusted_host"]),
+    )
+    monkeypatch.setattr(
+        installer,
+        "prefetch_psycopg_" + operation.replace("-", "_"),
+        lambda **kwargs: observed.append(kwargs),
+    )
+    argv = [
+        "--prefetch-psycopg-" + operation,
+        "output",
+        "--index-url",
+        APPROVED_PROXY_URL,
+        "--trusted-host",
+        "packages.example.internal",
+    ]
+    expected: dict[str, object] = {
+        "output": Path("output"),
+        "index_url": APPROVED_PROXY_URL,
+        "trusted_host": "packages.example.internal",
+    }
+    if operation == "build-wheels":
+        argv.extend(("--python-executable", sys.executable))
+        expected["python_executable"] = sys.executable
+    assert installer.main(argv) == 0
+    assert observed == [expected]
+
+
+def test_main_single_source_build_preserves_the_four_explicit_inputs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    observed: list[dict[str, object]] = []
+    monkeypatch.setattr(installer, "build_psycopg_c_sdk", lambda **kwargs: observed.append(kwargs))
+    assert (
+        installer.main(
+            [
+                "--build-psycopg-c",
+                "--psycopg-source-archive",
+                "source.tar.gz",
+                "--psycopg-build-wheels",
+                "build-wheels",
+                "--psycopg-native-root",
+                "native",
+                "--psycopg-wheel-output",
+                "output",
+            ]
+        )
+        == 0
+    )
+    assert observed == [
+        {
+            "source": Path("source.tar.gz"),
+            "build_wheels": Path("build-wheels"),
+            "native_root": Path("native"),
+            "output": Path("output"),
+        }
+    ]
+
+
+def test_psycopg_build_tools_include_only_the_actual_binary_closure() -> None:
+    assert installer.PSYCOPG_C_BUILD_PINS == frozenset(
+        {
+            ("setuptools", "83.0.0"),
+            ("wheel", "0.47.0"),
+            ("packaging", "25.0"),
+        }
+    )
+    assert set(installer.PSYCOPG_C_BUILD_ARTIFACTS) == {
+        "setuptools-83.0.0-py3-none-any.whl",
+        "wheel-0.47.0-py3-none-any.whl",
+        "packaging-25.0-py3-none-any.whl",
+    }
+    with pytest.raises(RuntimeError, match="inventory is incomplete"):
+        installer._validate_psycopg_build_closure([])
+
+
+def test_psycopg_profile_requires_a_genuine_sdk_before_acquisition(tmp_path: Path) -> None:
+    requirements = tmp_path / "requirements.txt"
+    requirements.write_text("psycopg[c]==3.3.4\npsycopg-c==3.3.4\n", encoding="utf-8")
+    with pytest.raises(RuntimeError, match="genuine matching Psycopg C SDK"):
+        installer.acquire_locked_wheelhouse(
+            python_executable=sys.executable,
+            requirement_files=[requirements],
+            constraints_file=None,
+            wheelhouse=tmp_path / "wheels",
+            index_url=APPROVED_PROXY_URL,
+            trusted_host=None,
+            sdk=None,
+        )
+    assert not (tmp_path / "wheels").exists()
+
+
+def test_exact_prefetch_requests_only_declared_pins_and_preserves_legacy_resolution(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    requirements = tmp_path / "requirements.txt"
+    requirements.write_text("tool==1.0.0\n", encoding="utf-8")
+    wheelhouse = tmp_path / "wheels"
+    commands: list[list[str]] = []
+
+    def download(command: list[str], **kwargs: object) -> None:
+        assert "--no-deps" in command
+        assert "--only-binary" in command
+        commands.append(command)
+        with zipfile.ZipFile(wheelhouse / "tool-1.0.0-py3-none-any.whl", "w") as wheel:
+            wheel.writestr(
+                "tool-1.0.0.dist-info/METADATA",
+                "Metadata-Version: 2.4\nName: tool\nVersion: 1.0.0\nRequires-Dist: pip>=22.2\n\n",
+            )
+
+    monkeypatch.setattr(installer, "run_command", download)
+    installer.acquire_locked_wheelhouse(
+        python_executable=sys.executable,
+        requirement_files=[requirements],
+        constraints_file=None,
+        wheelhouse=wheelhouse,
+        index_url=APPROVED_PROXY_URL,
+        trusted_host=None,
+        sdk=None,
+    )
+    assert len(commands) == 1
+    assert [path.name for path in wheelhouse.iterdir()] == ["tool-1.0.0-py3-none-any.whl"]
+    legacy = installer.build_pip_download_command(
+        python_executable=sys.executable,
+        requirement_file=requirements,
+        constraints_file=None,
+        wheelhouse_dir=wheelhouse,
+        index_url=APPROVED_PROXY_URL,
+        trusted_host=None,
+    )
+    assert "--no-deps" not in legacy
+
+
+@pytest.mark.parametrize(
+    "line",
+    (
+        "example>=1",
+        "example==1; python_version>'3.10'",
+        "example @ https://packages.example.invalid/example-1-py3-none-any.whl",
+        "example==1.*",
+        "psycopg==3.3.4",
+        "psycopg[binary]==3.3.4",
+        "psycopg[c,binary]==3.3.4",
+        "psycopg[other]==3.3.4",
+        "psycopg-c[other]==3.3.4",
+    ),
+)
+def test_exact_sdk_profiles_reject_noncanonical_pins(tmp_path: Path, line: str) -> None:
+    requirements = tmp_path / "requirements.txt"
+    requirements.write_text(line + "\n", encoding="utf-8")
+    with pytest.raises(RuntimeError, match="ordinary unmarked compiled pins"):
+        installer._exact_locked_artifacts([requirements])
+
+
+@pytest.mark.parametrize(
+    "name,extra,version",
+    (("cachecontrol", "filecache", "0.14.4"), ("coverage", "toml", "7.15.4")),
+)
+def test_exact_prefetch_admits_compiled_binary_extras_through_wheel_validation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, name: str, extra: str, version: str
+) -> None:
+    requirements = tmp_path / "requirements.txt"
+    pin = f"{name}[{extra}]=={version}"
+    requirements.write_text(pin + "\n", encoding="utf-8")
+    wheelhouse = tmp_path / "wheels"
+    commands: list[list[str]] = []
+
+    def download(command: list[str], **kwargs: object) -> None:
+        commands.append(command)
+        assert command[command.index("--only-binary") + 1] == ":all:"
+        assert "--no-deps" in command
+        selected = Path(command[command.index("--requirement") + 1])
+        assert selected.read_text(encoding="utf-8").strip() == pin
+        with zipfile.ZipFile(wheelhouse / f"{name}-{version}-py3-none-any.whl", "w") as wheel:
+            wheel.writestr(
+                f"{name}-{version}.dist-info/METADATA",
+                f"Metadata-Version: 2.4\nName: {name}\nVersion: {version}\n"
+                f"Provides-Extra: {extra}\n\n",
+            )
+
+    monkeypatch.setattr(installer, "run_command", download)
+    installer.acquire_locked_wheelhouse(
+        python_executable=sys.executable,
+        requirement_files=[requirements],
+        constraints_file=None,
+        wheelhouse=wheelhouse,
+        index_url=APPROVED_PROXY_URL,
+        trusted_host=None,
+        sdk=None,
+    )
+    assert len(commands) == 1
+    assert installer._exact_locked_artifacts([requirements]) == frozenset({(name, version)})
+    assert installer._validate_exact_wheelhouse(
+        wheelhouse=wheelhouse, expected=frozenset({(name, version)})
+    )[0].artifact_key == (name, version)
+
+
+def test_real_compiled_ci_test_pins_keep_extras_and_exact_sdk_requirement(tmp_path: Path) -> None:
+    selected = [REPO_ROOT / "requirements-ci-lite.txt", REPO_ROOT / "requirements-test.txt"]
+    pins = installer._exact_locked_artifacts(selected)
+    assert {("cachecontrol", "0.14.4"), ("coverage", "7.15.4"), ("psycopg-c", "3.3.4")} <= pins
+    with pytest.raises(RuntimeError, match="genuine matching Psycopg C SDK"):
+        installer.acquire_locked_wheelhouse(
+            python_executable=sys.executable,
+            requirement_files=selected,
+            constraints_file=REPO_ROOT / "constraints.txt",
+            wheelhouse=tmp_path / "wheels",
+            index_url=APPROVED_PROXY_URL,
+            trusted_host=None,
+            sdk=None,
+        )
+    assert not (tmp_path / "wheels").exists()
+
+
+def test_exact_source_leaf_still_rejects_unadmitted_version_before_acquisition(
+    tmp_path: Path,
+) -> None:
+    requirements = tmp_path / "requirements.txt"
+    requirements.write_text("psycopg[c]==3.3.4\npsycopg-c==3.3.5\n", encoding="utf-8")
+    with pytest.raises(RuntimeError, match="Only the admitted Psycopg C version"):
+        installer.acquire_locked_wheelhouse(
+            python_executable=sys.executable,
+            requirement_files=[requirements],
+            constraints_file=None,
+            wheelhouse=tmp_path / "wheels",
+            index_url=APPROVED_PROXY_URL,
+            trusted_host=None,
+            sdk=None,
+        )
+    assert not (tmp_path / "wheels").exists()
+
+
+def test_consume_only_has_no_acquisition_dispatch(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    requirements = tmp_path / "requirements.txt"
+    requirements.write_text("example==1.0\n", encoding="utf-8")
+    wheelhouse = tmp_path / "wheels"
+    wheelhouse.mkdir()
+    constraints = tmp_path / "constraints.txt"
+    constraints.write_text("", encoding="utf-8")
+    observed: list[dict[str, object]] = []
+    monkeypatch.setattr(installer, "_validate_exact_wheelhouse", lambda **kwargs: ())
+    monkeypatch.setattr(installer, "resolve_python_executable", lambda value: value)
+
+    def reject_acquisition(**kwargs: object) -> None:
+        raise AssertionError("Consume-only must not dispatch proxy or prefetch work")
+
+    monkeypatch.setattr(installer, "resolve_private_proxy_settings", reject_acquisition)
+    monkeypatch.setattr(installer, "acquire_locked_wheelhouse", reject_acquisition)
+
+    def consume(**kwargs: object) -> int:
+        observed.append(kwargs)
+        return 0
+
+    monkeypatch.setattr(installer, "install_with_guard", consume)
+    assert (
+        installer.main(
+            [
+                "--consume-only",
+                "--wheelhouse-dir",
+                str(wheelhouse),
+                "--requirements-file",
+                str(requirements),
+                "--constraints-file",
+                str(constraints),
+            ]
+        )
+        == 0
+    )
+    assert observed[0]["consume_only"] is True
+    assert observed[0]["index_url"] == ""
+
+
+def test_consume_only_rejects_mixed_modes_and_missing_store() -> None:
+    assert installer.main(["--consume-only", "--prefetch-only"]) == 1
+    assert installer.main(["--consume-only"]) == 1
+
+
+@pytest.mark.parametrize("sdk_source", ("environment", "argument"))
+@pytest.mark.parametrize("operation", ("install", "prefetch", "consume", "install-upgrade"))
+def test_main_rejects_sdk_without_c_consumer_before_side_effects(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    sdk_source: str,
+    operation: str,
+) -> None:
+    requirements = tmp_path / "requirements.txt"
+    requirements.write_text("example==1.0\n", encoding="utf-8")
+    constraints = tmp_path / "constraints.txt"
+    constraints.write_text("", encoding="utf-8")
+    sdk = tmp_path / "unread-sdk"
+    wheelhouse = tmp_path / "uncreated-wheelhouse"
+    arguments = [
+        "--requirements-file",
+        str(requirements),
+        "--constraints-file",
+        str(constraints),
+    ]
+    if sdk_source == "environment":
+        monkeypatch.setenv(installer.PSYCOPG_SDK_ENV, str(sdk))
+    else:
+        arguments.extend(("--psycopg-sdk", str(sdk)))
+    if operation in ("prefetch", "consume"):
+        arguments.extend((f"--{operation}-only", "--wheelhouse-dir", str(wheelhouse)))
+    elif operation == "install-upgrade":
+        arguments.append("--upgrade-pip")
+    monkeypatch.setattr(
+        installer, "resolve_private_proxy_settings", lambda **kwargs: (APPROVED_PROXY_URL, None)
+    )
+
+    def forbidden(*args: object, **kwargs: object) -> None:
+        raise AssertionError(
+            "A profile without a C consumer must reject its SDK before side effects"
+        )
+
+    for name in (
+        "run_dependency_floor_preflight",
+        "upgrade_pip",
+        "acquire_locked_wheelhouse",
+        "_validate_exact_wheelhouse",
+        "read_psycopg_c_sdk",
+        "install_with_guard",
+        "install_with_guard_from_proxy",
+        "run_command",
+    ):
+        monkeypatch.setattr(installer, name, forbidden)
+
+    assert installer.main(arguments) == 1
+    assert capsys.readouterr().out == (
+        "ERROR: locked install failed: The selected profile has no Psycopg C SDK consumer.\n"
+    )
+    assert not sdk.exists()
+    assert not wheelhouse.exists()
+
+
+@pytest.mark.parametrize("sdk_source", ("environment", "argument"))
+@pytest.mark.parametrize("operation", ("install", "prefetch", "consume", "install-upgrade"))
+def test_main_psycopg_sdk_rejects_other_interpreter_before_sdk_effects(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    sdk_source: str,
+    operation: str,
+) -> None:
+    _select_sdk_test_loader(monkeypatch)
+    requirements = tmp_path / "requirements.txt"
+    requirements.write_text("psycopg[c]==3.3.4\npsycopg-c==3.3.4\n", encoding="utf-8")
+    constraints = tmp_path / "constraints.txt"
+    constraints.write_text("", encoding="utf-8")
+    target = _write_executable(tmp_path / "different-python")
+    sdk = tmp_path / "unread-sdk"
+    wheelhouse = tmp_path / "uncreated-wheelhouse"
+    arguments = [
+        "--python-executable",
+        str(target),
+        "--requirements-file",
+        str(requirements),
+        "--constraints-file",
+        str(constraints),
+    ]
+    if sdk_source == "environment":
+        monkeypatch.setenv(installer.PSYCOPG_SDK_ENV, str(sdk))
+    else:
+        arguments.extend(("--psycopg-sdk", str(sdk)))
+    if operation in ("prefetch", "consume"):
+        arguments.extend(("--" + operation + "-only", "--wheelhouse-dir", str(wheelhouse)))
+    elif operation == "install-upgrade":
+        arguments.append("--upgrade-pip")
+    monkeypatch.setattr(
+        installer, "resolve_private_proxy_settings", lambda **kwargs: (APPROVED_PROXY_URL, None)
+    )
+
+    def forbidden(*args: object, **kwargs: object) -> None:
+        raise AssertionError(
+            "Cross-interpreter SDK input must fail before source or install effects"
+        )
+
+    for name in (
+        "read_psycopg_c_sdk",
+        "_stage_psycopg_sdk_wheel",
+        "acquire_locked_wheelhouse",
+        "_validate_exact_wheelhouse",
+        "upgrade_pip",
+        "install_with_guard",
+        "run_command",
+    ):
+        monkeypatch.setattr(installer, name, forbidden)
+    assert installer.main(arguments) == 1
+    assert "require the installer interpreter or its venv symlink" in capsys.readouterr().out
+    assert not sdk.exists()
+    assert not wheelhouse.exists()
+
+
+def test_psycopg_sdk_direct_acquisition_rejects_other_interpreter_before_directory_creation(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _select_sdk_test_loader(monkeypatch)
+    requirements = tmp_path / "requirements.txt"
+    requirements.write_text("psycopg[c]==3.3.4\npsycopg-c==3.3.4\n", encoding="utf-8")
+    target = _write_executable(tmp_path / "different-python")
+    wheelhouse = tmp_path / "new-wheelhouse"
+    sdk = tmp_path / "unread-sdk"
+
+    def forbidden(*args: object, **kwargs: object) -> None:
+        raise AssertionError("Direct SDK acquisition must reject before staging or download")
+
+    monkeypatch.setattr(installer, "_stage_psycopg_sdk_wheel", forbidden)
+    monkeypatch.setattr(installer, "build_wheelhouse", forbidden)
+    with pytest.raises(RuntimeError, match="require the installer interpreter or its venv symlink"):
+        installer.acquire_locked_wheelhouse(
+            python_executable=str(target),
+            requirement_files=[requirements],
+            constraints_file=None,
+            wheelhouse=wheelhouse,
+            index_url=APPROVED_PROXY_URL,
+            trusted_host=None,
+            sdk=sdk,
+        )
+    assert not wheelhouse.exists()
+    assert not sdk.exists()
+
+
+def test_psycopg_sdk_disappearing_target_is_runtime_error_before_acquisition(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _select_sdk_test_loader(monkeypatch)
+    requirements = tmp_path / "requirements.txt"
+    requirements.write_text("psycopg[c]==3.3.4\npsycopg-c==3.3.4\n", encoding="utf-8")
+    target = _write_executable(tmp_path / "disappearing-python")
+    sdk = tmp_path / "unread-sdk"
+    wheelhouse = tmp_path / "uncreated-wheelhouse"
+    real_resolve = installer.resolve_python_executable
+    resolutions: list[str] = []
+
+    def resolve_then_remove(value: str) -> str:
+        resolved = real_resolve(value)
+        resolutions.append(resolved)
+        target.unlink()
+        return resolved
+
+    def forbidden(*args: object, **kwargs: object) -> None:
+        raise AssertionError("Disappearing SDK target must fail before SDK read or acquisition")
+
+    monkeypatch.setattr(installer, "resolve_python_executable", resolve_then_remove)
+    monkeypatch.setattr(installer, "read_psycopg_c_sdk", forbidden)
+    monkeypatch.setattr(installer, "_stage_psycopg_sdk_wheel", forbidden)
+    monkeypatch.setattr(installer, "build_wheelhouse", forbidden)
+    with pytest.raises(RuntimeError, match="Unable to compare the Psycopg SDK target interpreter"):
+        installer.acquire_locked_wheelhouse(
+            python_executable=str(target),
+            requirement_files=[requirements],
+            constraints_file=None,
+            wheelhouse=wheelhouse,
+            index_url=APPROVED_PROXY_URL,
+            trusted_host=None,
+            sdk=sdk,
+        )
+    assert resolutions == [str(target)]
+    assert not target.exists()
+    assert not sdk.exists()
+    assert not wheelhouse.exists()
+
+
+def test_psycopg_sdk_accepts_the_loader_interpreters_real_venv_symlink(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _select_sdk_test_loader(monkeypatch)
+    invocation = tmp_path / "venv" / "bin" / "python"
+    invocation.parent.mkdir(parents=True)
+    invocation.symlink_to(sys.executable)
+    installer._require_psycopg_sdk_interpreter(str(invocation))
+
+
+def test_main_without_sdk_preserves_a_different_target_interpreter(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    requirements = tmp_path / "requirements.txt"
+    requirements.write_text("example==1.0\n", encoding="utf-8")
+    constraints = tmp_path / "constraints.txt"
+    constraints.write_text("", encoding="utf-8")
+    target = _write_executable(tmp_path / "different-python")
+    observed: list[str] = []
+    monkeypatch.setattr(
+        installer, "resolve_private_proxy_settings", lambda **kwargs: (APPROVED_PROXY_URL, None)
+    )
+    monkeypatch.setattr(
+        installer,
+        "install_with_guard_from_proxy",
+        lambda **kwargs: observed.append(kwargs["python_executable"]) or 0,
+    )
+    assert (
+        installer.main(
+            [
+                "--python-executable",
+                str(target),
+                "--requirements-file",
+                str(requirements),
+                "--constraints-file",
+                str(constraints),
+                "--install-mode",
+                "direct-proxy",
+            ]
+        )
+        == 0
+    )
+    assert observed == [str(target)]
+
+
+@pytest.mark.parametrize(
+    ("operation", "expected"),
+    (
+        (["--preflight-only"], ["preflight"]),
+        (["--preflight-only", "--upgrade-pip"], ["upgrade", "preflight"]),
+        (["--upgrade-pip-only"], ["upgrade"]),
+    ),
+)
+def test_main_sdk_target_guard_does_not_widen_standalone_operations(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    operation: list[str],
+    expected: list[str],
+) -> None:
+    target = _write_executable(tmp_path / "different-python")
+    observed: list[str] = []
+    monkeypatch.setattr(
+        installer, "resolve_private_proxy_settings", lambda **kwargs: (APPROVED_PROXY_URL, None)
+    )
+    monkeypatch.setattr(
+        installer, "upgrade_pip", lambda *args, **kwargs: observed.append("upgrade")
+    )
+    monkeypatch.setattr(
+        installer, "run_dependency_floor_preflight", lambda **kwargs: observed.append("preflight")
+    )
+
+    def forbidden(*args: object, **kwargs: object) -> None:
+        raise AssertionError("Standalone operations must not resolve ordinary install profiles")
+
+    monkeypatch.setattr(installer, "resolve_requirement_files", forbidden)
+    monkeypatch.setattr(installer, "read_psycopg_c_sdk", forbidden)
+    assert (
+        installer.main(
+            [
+                "--python-executable",
+                str(target),
+                "--psycopg-sdk",
+                str(tmp_path / "unread-sdk"),
+                *operation,
+            ]
+        )
+        == 0
+    )
+    assert observed == expected
+
+
+@pytest.mark.parametrize(
+    "condition", ("dormant", "active", "ipv4_address", "ipv4_route", "ipv6_address", "ipv6_route")
+)
+def test_psycopg_backend_checks_native_network_state(
+    monkeypatch: pytest.MonkeyPatch, condition: str
+) -> None:
+    interfaces = {"lo": (73, b"\x7f\x00\x00\x01"), "default-device": (128, None)}
+    tables = {
+        "/proc/net/route": [
+            [
+                "Iface",
+                "Destination",
+                "Gateway",
+                "Flags",
+                "RefCnt",
+                "Use",
+                "Metric",
+                "Mask",
+                "MTU",
+                "Window",
+                "IRTT",
+            ]
+        ],
+        "/proc/net/if_inet6": [["0" * 31 + "1", "01", "80", "10", "80", "lo"]],
+        "/proc/net/ipv6_route": [[*(["0"] * 9), "lo"]],
+    }
+    if condition == "active":
+        interfaces["default-device"] = (129, None)
+    elif condition == "ipv4_address":
+        interfaces["default-device"] = (128, b"\x0a\x00\x00\x01")
+    elif condition == "ipv4_route":
+        tables["/proc/net/route"].append(["default-device", *(["0"] * 10)])
+    elif condition == "ipv6_address":
+        tables["/proc/net/if_inet6"][0][-1] = "default-device"
+    elif condition == "ipv6_route":
+        tables["/proc/net/ipv6_route"][0][-1] = "default-device"
+    monkeypatch.setattr(installer, "_process_network_inventory", lambda: interfaces)
+    monkeypatch.setattr(installer, "_network_table_lines", lambda path: tables[path])
+    if condition == "dormant":
+        installer._assert_backend_network_isolated()
+    else:
+        with pytest.raises(RuntimeError, match="network isolation|external or malformed"):
+            installer._assert_backend_network_isolated()
 
 
 def _ci_linux_cp313_tags() -> set[str]:
@@ -1989,18 +2932,20 @@ def _dockerfile_stage(dockerfile: str, stage_name: str) -> str:
 
 def test_repo_docker_runtime_install_uses_locked_installer_fallback() -> None:
     dockerfile = (REPO_ROOT / "Dockerfile").read_text(encoding="utf-8")
+    builder = _dockerfile_stage(dockerfile, "builder")
 
     assert (
         "COPY scripts/ci/check_python_startup_hooks.py "
         "scripts/ci/install_locked_python_requirements.py "
-        "scripts/ci/emergency_python_wheels.json /tmp/pulseplate-ci/"
-    ) in dockerfile
+        "scripts/ci/emergency_python_wheels.json "
+        "scripts/ci/check_private_python_proxy_health.py /tmp/pulseplate-ci/"
+    ) in builder
     assert re.search(
         r"/tmp/pulseplate-ci/install_locked_python_requirements\.py\s+\\\n"
         r"\s*--python-executable (?:/opt/venv/bin/python|python)\s+\\\n"
         r'\s*--requirements-file "\$\{PULSEPLATE_REQUIREMENTS_FILE\}"\s+\\\n'
         r"\s*--guard-script /tmp/pulseplate-ci/check_python_startup_hooks\.py",
-        dockerfile,
+        builder,
     )
 
 
@@ -2022,6 +2967,7 @@ def isolate_proxy_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv(installer.TRUSTED_HOST_ENV_VAR, raising=False)
     monkeypatch.delenv(installer.DOCKER_SINGLE_PASS_LOCKED_INSTALL_ENV, raising=False)
     monkeypatch.delenv(installer.DOCKER_PIP_LAYER_CACHE_ENV, raising=False)
+    monkeypatch.delenv(installer.PSYCOPG_SDK_ENV, raising=False)
     for env_var in installer.AMBIENT_INDEX_OVERRIDE_ENV_VARS:
         monkeypatch.delenv(env_var, raising=False)
 
@@ -6833,3 +7779,576 @@ def test_owned_pip_execution_import_failure_has_private_phase_diagnostic(
     assert installer.PIP_TRANSPORT_ERROR not in captured.err
     assert "Traceback" not in captured.err
     assert not any(marker in captured.err for marker in SYNTHETIC_MARKERS)
+
+
+def _select_sdk_test_loader(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    machine: str = "x86_64",
+    minor: int = 13,
+    system: str = "linux",
+    abi_overrides: dict[str, object] | None = None,
+) -> None:
+    """Synthetic loader identity tests recognition only, never actual source/ABI qualification."""
+    values: dict[str, object] = {
+        "Py_GIL_DISABLED": 0,
+        "SOABI": f"cpython-3{minor}-{machine}-linux-gnu",
+        "EXT_SUFFIX": f".cpython-3{minor}-{machine}-linux-gnu.so",
+    }
+    values.update(abi_overrides or {})
+    monkeypatch.setattr(
+        installer,
+        "sys",
+        types.SimpleNamespace(
+            platform=system,
+            version_info=(3, minor),
+            executable=sys.executable,
+            implementation=types.SimpleNamespace(name="cpython", cache_tag=f"cpython-3{minor}"),
+            abiflags="",
+        ),
+    )
+    monkeypatch.setattr(installer.platform, "machine", lambda: machine)
+    monkeypatch.setattr(installer.sysconfig, "get_config_var", values.get)
+
+
+@pytest.mark.parametrize(
+    "machine,minor,elf_machine,configure_target,source_image",
+    (
+        (
+            "x86_64",
+            11,
+            62,
+            "linux-x86_64",
+            "python@sha256:9fd630803ec3446920ed6b64d20150bd724c1751e71817293a4230522c1a384a",
+        ),
+        (
+            "x86_64",
+            12,
+            62,
+            "linux-x86_64",
+            "python@sha256:a594f7e9df8a4c431265125b5f5d90cd1b81c8a8797fefee69d5b3544be11111",
+        ),
+        (
+            "x86_64",
+            13,
+            62,
+            "linux-x86_64",
+            "python@sha256:7a6b87c02e1f4d6bb572e379235cbbdd7892add0572442c9b0b860a3f5aa9857",
+        ),
+        (
+            "aarch64",
+            13,
+            183,
+            "linux-aarch64",
+            "python@sha256:f0320b9bf735a4c4db05e7578e487cbed66c097e36b59a3864ca6d3e7c7dcea9",
+        ),
+    ),
+)
+def test_sdk_four_actual_loader_tuples_select_matching_source_and_abi(
+    monkeypatch: pytest.MonkeyPatch,
+    machine: str,
+    minor: int,
+    elf_machine: int,
+    configure_target: str,
+    source_image: str,
+) -> None:
+    _select_sdk_test_loader(monkeypatch, machine=machine, minor=minor)
+    target = installer._psycopg_sdk_target(source_image)
+    assert (target.machine, target.minor, target.elf_machine) == (machine, minor, elf_machine)
+    assert target.openssl_target == configure_target
+    assert target.python_tag == f"cp3{minor}"
+    assert target.wheel_platform == f"linux_{machine}"
+    assert target.soabi == f"cpython-3{minor}-{machine}-linux-gnu"
+
+
+@pytest.mark.parametrize(
+    "system,machine,minor",
+    (
+        ("darwin", "arm64", 13),
+        ("darwin", "x86_64", 13),
+        ("linux", "arm64", 13),
+        ("linux", "AMD64", 13),
+        ("linux", "armv8l", 13),
+        ("linux", "i686", 13),
+        ("linux", "aarch64", 11),
+        ("linux", "aarch64", 12),
+        ("linux", "aarch64", 14),
+        ("linux", "x86_64", 14),
+    ),
+)
+def test_sdk_unadmitted_tuple_rejects_before_source_read_mkdir_or_backend(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+    system: str,
+    machine: str,
+    minor: int,
+) -> None:
+    _select_sdk_test_loader(monkeypatch, machine=machine, minor=minor, system=system)
+
+    def forbidden(*args: object, **kwargs: object) -> None:
+        raise AssertionError(
+            "Unsupported target must reject before source, pip, or backend effects"
+        )
+
+    for name in (
+        "_read_regular_input",
+        "inspect_locked_wheel",
+        "derive_psycopg_source",
+        "run_command",
+    ):
+        monkeypatch.setattr(installer, name, forbidden)
+    requirements = tmp_path / "requirements.txt"
+    requirements.write_text("psycopg[c]==3.3.4\npsycopg-c==3.3.4\n")
+    constraints = tmp_path / "constraints.txt"
+    constraints.write_text("")
+    monkeypatch.setattr(installer, "run_dependency_floor_preflight", lambda **kwargs: None)
+    monkeypatch.setattr(
+        installer, "resolve_private_proxy_settings", lambda **kwargs: (APPROVED_PROXY_URL, None)
+    )
+    for name in ("read_psycopg_c_sdk", "upgrade_pip", "build_wheelhouse", "install_with_guard"):
+        # The read-path call below must still reach the real target recognizer.
+        if name != "read_psycopg_c_sdk":
+            monkeypatch.setattr(installer, name, forbidden)
+    wheelhouse = tmp_path / "uncreated-wheelhouse"
+    with pytest.raises(RuntimeError, match="four admitted Linux tuples"):
+        installer.acquire_locked_wheelhouse(
+            python_executable=sys.executable,
+            requirement_files=[requirements],
+            constraints_file=constraints,
+            wheelhouse=wheelhouse,
+            index_url=APPROVED_PROXY_URL,
+            trusted_host=None,
+            sdk=tmp_path / "unread-sdk",
+        )
+    assert (
+        installer.main(
+            [
+                "--python-executable",
+                sys.executable,
+                "--requirements-file",
+                str(requirements),
+                "--constraints-file",
+                str(constraints),
+                "--psycopg-sdk",
+                str(tmp_path / "unread-sdk"),
+                "--upgrade-pip",
+                "--prefetch-only",
+                "--wheelhouse-dir",
+                str(wheelhouse),
+            ]
+        )
+        == 1
+    )
+    assert "four admitted Linux tuples" in capsys.readouterr().out
+    assert not wheelhouse.exists()
+    output = tmp_path / "uncreated-sdk"
+    with pytest.raises(RuntimeError, match="four admitted Linux tuples"):
+        installer.build_psycopg_c_sdk(
+            source=tmp_path / "unread-source",
+            build_wheels=tmp_path / "unread-build-wheels",
+            native_root=tmp_path / "unread-native",
+            output=output,
+        )
+    with pytest.raises(RuntimeError, match="four admitted Linux tuples"):
+        installer.read_psycopg_c_sdk(tmp_path / "unread-sdk")
+    assert not output.exists()
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    (
+        {"Py_GIL_DISABLED": 1},
+        {"Py_GIL_DISABLED": False},
+        {"Py_GIL_DISABLED": "0"},
+        {"SOABI": "cpython-313-x86_64-linux-gnu"},
+        {"EXT_SUFFIX": ".cpython-313-aarch64-linux-gnu.debug.so"},
+    ),
+)
+def test_sdk_rejects_actual_loader_abi_drift(
+    monkeypatch: pytest.MonkeyPatch,
+    overrides: dict[str, object],
+) -> None:
+    _select_sdk_test_loader(monkeypatch, machine="aarch64", abi_overrides=overrides)
+    with pytest.raises(RuntimeError, match="actual CPython ABI/source-image"):
+        installer._psycopg_sdk_target()
+
+
+@pytest.mark.parametrize("drift", ("pointer", "implementation", "cache-tag", "abiflags", "source"))
+def test_sdk_rejects_loader_or_source_identity_drift(
+    monkeypatch: pytest.MonkeyPatch,
+    drift: str,
+) -> None:
+    _select_sdk_test_loader(monkeypatch)
+    source = None
+    if drift == "pointer":
+        monkeypatch.setattr(installer, "struct", types.SimpleNamespace(calcsize=lambda fmt: 4))
+    elif drift == "implementation":
+        installer.sys.implementation.name = "pypy"
+    elif drift == "cache-tag":
+        installer.sys.implementation.cache_tag = "cpython-313t"
+    elif drift == "abiflags":
+        installer.sys.abiflags = "t"
+    else:
+        source = "python@sha256:f0320b9bf735a4c4db05e7578e487cbed66c097e36b59a3864ca6d3e7c7dcea9"
+    with pytest.raises(RuntimeError, match="actual CPython ABI/source-image"):
+        installer._psycopg_sdk_target(source)
+
+
+def _synthetic_sdk_extension_wheel(
+    path: Path,
+    *,
+    machine: str,
+    minor: int,
+    elf_machine: int,
+    fault: str = "",
+) -> dict[str, str]:
+    """Minimal headers exercise static checks; these are never executable native proof."""
+    payload = bytearray(64)
+    payload[:7] = b"\x7fELF\x02\x01\x01"
+    struct.pack_into("<HHI", payload, 16, 3, elf_machine, 1)
+    struct.pack_into("<H", payload, 52, 64)
+    payload.extend(b"libpq.so.5\x00")
+    if fault == "class":
+        payload[4] = 1
+    elif fault == "endianness":
+        payload[5] = 2
+    elif fault == "machine":
+        struct.pack_into("<H", payload, 18, 183 if elf_machine == 62 else 62)
+    elif fault == "type":
+        struct.pack_into("<H", payload, 16, 2)
+    elif fault == "version":
+        struct.pack_into("<I", payload, 20, 0)
+    elif fault == "ehsize":
+        struct.pack_into("<H", payload, 52, 0)
+    elif fault == "libpq":
+        payload[64:] = b"another-library\x00"
+    soabi = f"cpython-3{minor}-{machine}-linux-gnu"
+    members = {f"psycopg_c/{name}.{soabi}.so": bytes(payload) for name in ("_psycopg", "pq")}
+    tag = f"cp3{minor}-cp3{minor}-linux_{machine}"
+    if fault == "tag":
+        tag = f"cp3{minor}-cp3{minor}-linux_other"
+    if fault == "name":
+        members["psycopg_c/unexpected.so"] = members.pop(f"psycopg_c/pq.{soabi}.so")
+    if fault == "missing":
+        members.pop(f"psycopg_c/pq.{soabi}.so")
+    with zipfile.ZipFile(path, "w") as archive:
+        archive.writestr(
+            "psycopg_c-3.3.4.dist-info/WHEEL",
+            f"Wheel-Version: 1.0\nRoot-Is-Purelib: false\nTag: {tag}\n",
+        )
+        for name, data in members.items():
+            archive.writestr(name, data)
+    return {name: installer.hashlib.sha256(data).hexdigest() for name, data in members.items()}
+
+
+@pytest.mark.parametrize(
+    "machine,minor,elf_machine",
+    (("x86_64", 11, 62), ("x86_64", 12, 62), ("x86_64", 13, 62), ("aarch64", 13, 183)),
+)
+def test_sdk_static_extension_headers_match_each_selected_tuple(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    machine: str,
+    minor: int,
+    elf_machine: int,
+) -> None:
+    _select_sdk_test_loader(monkeypatch, machine=machine, minor=minor)
+    wheel = tmp_path / "synthetic.whl"
+    expected = _synthetic_sdk_extension_wheel(
+        wheel, machine=machine, minor=minor, elf_machine=elf_machine
+    )
+    assert installer._inspect_psycopg_c_extensions(wheel) == expected
+
+
+@pytest.mark.parametrize("machine,elf_machine", (("x86_64", 62), ("aarch64", 183)))
+@pytest.mark.parametrize(
+    "fault",
+    (
+        "class",
+        "endianness",
+        "machine",
+        "type",
+        "version",
+        "ehsize",
+        "libpq",
+        "tag",
+        "name",
+        "missing",
+    ),
+)
+def test_sdk_static_extension_rejects_cross_target_or_malformed_members(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    machine: str,
+    elf_machine: int,
+    fault: str,
+) -> None:
+    _select_sdk_test_loader(monkeypatch, machine=machine)
+    wheel = tmp_path / "synthetic.whl"
+    _synthetic_sdk_extension_wheel(
+        wheel, machine=machine, minor=13, elf_machine=elf_machine, fault=fault
+    )
+    with pytest.raises(RuntimeError):
+        installer._inspect_psycopg_c_extensions(wheel)
+
+
+def test_sdk_supported_tuple_universe_is_exact() -> None:
+    assert {(target.machine, target.minor) for target in installer.PSYCOPG_SDK_TARGETS} == {
+        ("x86_64", 11),
+        ("x86_64", 12),
+        ("x86_64", 13),
+        ("aarch64", 13),
+    }
+    assert len(installer.PSYCOPG_SDK_TARGETS) == 4
+
+
+@pytest.mark.parametrize("sdk_state", ("missing", "malformed"))
+def test_main_sdk_prerequisite_blocks_pip_upgrade_and_target_install(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    sdk_state: str,
+) -> None:
+    _select_sdk_test_loader(monkeypatch)
+    monkeypatch.delenv(installer.PSYCOPG_SDK_ENV, raising=False)
+    requirements = tmp_path / "requirements.txt"
+    requirements.write_text("psycopg[c]==3.3.4\npsycopg-c==3.3.4\n")
+    constraints = tmp_path / "constraints.txt"
+    constraints.write_text("")
+    monkeypatch.setattr(
+        installer, "resolve_private_proxy_settings", lambda **kwargs: (APPROVED_PROXY_URL, None)
+    )
+
+    def forbidden(*args: object, **kwargs: object) -> None:
+        raise AssertionError(
+            "SDK failure must precede pip upgrade, acquisition or target installation"
+        )
+
+    for name in (
+        "upgrade_pip",
+        "acquire_locked_wheelhouse",
+        "_validate_exact_wheelhouse",
+        "install_with_guard",
+        "install_with_guard_from_proxy",
+        "run_command",
+    ):
+        monkeypatch.setattr(installer, name, forbidden)
+    args = [
+        "--python-executable",
+        sys.executable,
+        "--requirements-file",
+        str(requirements),
+        "--constraints-file",
+        str(constraints),
+        "--upgrade-pip",
+    ]
+    if sdk_state == "malformed":
+        sdk = tmp_path / "sdk"
+        sdk.mkdir()
+        (sdk / "psycopg-c-sdk.json").write_text('{"unexpected": true}\n')
+        args.extend(("--psycopg-sdk", str(sdk)))
+    assert installer.main(args) == 1
+    message = capsys.readouterr().out
+    assert (
+        "requires its genuine matching" if sdk_state == "missing" else "SDK fields differ"
+    ) in message
+
+
+@pytest.mark.parametrize(
+    "modifier",
+    [
+        ["--prefetch-only"],
+        ["--consume-only"],
+        ["--build-psycopg-c"],
+        ["--upgrade-pip"],
+        ["--python-executable", "python"],
+        ["--install-mode", "wheelhouse"],
+        ["--index-url", "https://synthetic.invalid/simple/"],
+        ["--trusted-host", "synthetic.invalid"],
+        ["--upgrade-pip-spec", "pip"],
+        ["--require-virtualenv"],
+        ["--requirements-profile", "runtime"],
+    ],
+)
+def test_sdk_static_validation_rejects_explicit_modifiers_before_effects(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, modifier: list[str]
+) -> None:
+    def forbidden(*args: object, **kwargs: object) -> None:
+        raise AssertionError("Validation selector rejected too late")
+
+    for name in (
+        "resolve_python_executable",
+        "resolve_private_proxy_settings",
+        "read_psycopg_c_sdk",
+        "acquire_locked_wheelhouse",
+        "install_with_guard",
+        "build_psycopg_c_sdk",
+    ):
+        monkeypatch.setattr(installer, name, forbidden)
+    assert (
+        installer.main(
+            [
+                "--validate-psycopg-sdk",
+                "--psycopg-sdk",
+                str(tmp_path / "sdk"),
+                "--psycopg-native-root",
+                str(tmp_path / "native"),
+                *modifier,
+            ]
+        )
+        == 1
+    )
+    assert not (tmp_path / "sdk").exists() and not (tmp_path / "native").exists()
+
+
+def test_sdk_static_validation_selector_is_not_abbreviated() -> None:
+    with pytest.raises(SystemExit) as error:
+        installer.parse_args(["--validate-psycopg-s"])
+    assert error.value.code == 2
+
+
+def test_sdk_static_validation_uses_canonical_reader_without_install_or_resolver(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    fresh_home = tmp_path / "fresh-home"
+    fresh_home.mkdir(mode=0o700)
+    monkeypatch.setenv("HOME", str(fresh_home))
+    for name in (
+        "GH_TOKEN",
+        "GITHUB_TOKEN",
+        "NETRC",
+        "PULSEPLATE_PYTHON_NETRC",
+        "PULSEPLATE_PYTHON_INDEX_URL",
+        "PULSEPLATE_PYTHON_TRUSTED_HOST",
+        "DEVPI_CI_USER",
+        "DEVPI_CI_PASSWORD",
+        "PIP_INDEX_URL",
+        "PIP_EXTRA_INDEX_URL",
+        "UV_INDEX_URL",
+        "UV_EXTRA_INDEX_URL",
+        "HTTP_PROXY",
+        "HTTPS_PROXY",
+        "ALL_PROXY",
+        "http_proxy",
+        "https_proxy",
+        "all_proxy",
+        "PIP_PROXY",
+        "LD_LIBRARY_PATH",
+        "LD_PRELOAD",
+        "LD_AUDIT",
+        "OPENSSL_CONF",
+        "OPENSSL_MODULES",
+        installer.PSYCOPG_SDK_ENV,
+        "PIP_CONFIG_FILE",
+    ):
+        monkeypatch.delenv(name, raising=False)
+    calls: list[object] = []
+    monkeypatch.setattr(installer, "_psycopg_sdk_target", lambda: calls.append("tuple"))
+    monkeypatch.setattr(
+        installer, "_assert_backend_network_isolated", lambda: calls.append("kernel")
+    )
+    monkeypatch.setattr(
+        installer,
+        "read_psycopg_c_sdk",
+        lambda path, *, native_root: calls.append((path, native_root)),
+    )
+
+    def forbidden(*args: object, **kwargs: object) -> None:
+        raise AssertionError("Static validation cannot resolve, install or acquire")
+
+    for name in (
+        "resolve_python_executable",
+        "resolve_private_proxy_settings",
+        "acquire_locked_wheelhouse",
+        "install_with_guard",
+        "build_psycopg_c_sdk",
+        "run_command",
+    ):
+        monkeypatch.setattr(installer, name, forbidden)
+    sdk, native = tmp_path / "sdk", tmp_path / "native"
+    assert (
+        installer.main(
+            [
+                "--validate-psycopg-sdk",
+                "--psycopg-sdk",
+                str(sdk),
+                "--psycopg-native-root",
+                str(native),
+            ]
+        )
+        == 0
+    )
+    assert calls == ["tuple", "kernel", (sdk, native)]
+    assert not sdk.exists() and not native.exists()
+    monkeypatch.setenv("LD_LIBRARY_PATH", "/synthetic/untrusted")
+    calls.clear()
+    assert (
+        installer.main(
+            [
+                "--validate-psycopg-sdk",
+                "--psycopg-sdk",
+                str(sdk),
+                "--psycopg-native-root",
+                str(native),
+            ]
+        )
+        == 1
+    )
+    assert calls == []
+    monkeypatch.delenv("LD_LIBRARY_PATH")
+    (fresh_home / ".docker").mkdir()
+    capsys.readouterr()
+    assert (
+        installer.main(
+            [
+                "--validate-psycopg-sdk",
+                "--psycopg-sdk",
+                str(sdk),
+                "--psycopg-native-root",
+                str(native),
+            ]
+        )
+        == 1
+    )
+    assert calls == []
+    assert "Static SDK validation HOME contains acquisition carriers." in capsys.readouterr().out
+
+
+@pytest.mark.parametrize(
+    "fault", ["none", "bytes", "alias", "leaf-link", "multilink", "oversize", "missing"]
+)
+def test_sdk_native_hash_check_is_static_and_preserves_exact_soname_rule(
+    tmp_path: Path, fault: str
+) -> None:
+    root = tmp_path / "native"
+    directory = root / "usr/local/lib"
+    directory.mkdir(parents=True)
+    payloads = {
+        "libpq.so.5": b"inert libpq fixture",
+        "libssl.so.3": b"inert ssl fixture",
+        "libcrypto.so.3": b"inert crypto fixture",
+    }
+    for name, data in payloads.items():
+        (directory / ("libpq.so.5.18" if name == "libpq.so.5" else name)).write_bytes(data)
+    (directory / "libpq.so.5").symlink_to("libpq.so.5.18")
+    expected = {name: installer.hashlib.sha256(data).hexdigest() for name, data in payloads.items()}
+    if fault == "bytes":
+        (directory / "libssl.so.3").write_bytes(b"altered")
+    elif fault == "alias":
+        (directory / "libpq.so.5").unlink()
+        (directory / "libpq.so.5").symlink_to("../libpq.so.5.18")
+    elif fault == "leaf-link":
+        (directory / "libssl.so.3").unlink()
+        (directory / "libssl.so.3").symlink_to(directory / "libcrypto.so.3")
+    elif fault == "multilink":
+        (directory / "extra").hardlink_to(directory / "libcrypto.so.3")
+    elif fault == "oversize":
+        (directory / "libssl.so.3").write_bytes(b"x" * (16 * 1024**2 + 1))
+    elif fault == "missing":
+        (directory / "libcrypto.so.3").unlink()
+    if fault == "none":
+        assert installer._check_psycopg_native_libraries(root, expected) is None
+    else:
+        with pytest.raises((RuntimeError, OSError)):
+            installer._check_psycopg_native_libraries(root, expected)

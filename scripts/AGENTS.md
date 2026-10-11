@@ -50,6 +50,11 @@
   Fixtures must distinguish default/all-profile models and reject incorrect
   native argv, with a real read-only native observation before claiming parity.
 
+- CI Contract/Risk suites retain their complete sorted target inventory and batches of 24.
+  Run at most two isolated batch processes with separate coverage, JUnit, basetemp and
+  SQLite identities. Wait for every declared exit status and combine only complete data
+  after all batches pass; preserve existing producers, thresholds and job budgets.
+
 ## Premium alias checkpoint adapter
 
 - Deliver the OBS2A checkpoint units disabled; supported manual invocation uses
@@ -105,24 +110,127 @@
 
 ## Official Prometheus image selection
 
-- `deploy/prometheus/image-manifest.json` is the sole selected-image record.
-  Keep its existing closed v2 shape and cross-bind the official Docker Hub
-  index, linux/amd64 manifest, inspected config, repository digest, and binary
-  revision through the existing CD/deploy readers.
-- An image update must change all three Compose consumers together and retain
-  suppression-free OS and both-binary scan evidence plus exact-image promtool
-  and synthetic runtime checks. Registry metadata or a local syntax probe is
-  not current-head CI or production activation evidence.
-- `build.yml` contains only the ordinary build/security/publish chain.
-  Manual execution defaults to `disabled`; explicit `normal` uses native
-  GitHub Actions equality. Keep PR publication denial, existing dependencies,
-  permissions, private-index handling, and same-SHA serialization.
-- Do not restore the retired Prometheus candidate publisher or heavy local
-  compiler. Historical private receipts remain evidence only; do not rewrite
-  them, fabricate publication, or treat selector updates as deployment.
+- `deploy/prometheus/image-manifest.json` is the sole v3 image record.
+  `source_prepared` admits producer preparation only; ordinary image consumers
+  must reject its null selection/candidate. `candidate_selected` requires real
+  retained output coordinates. Do not manufacture output digests or future SHAs.
+- The existing `prometheus_source_image.py` owns the finite declared recipe,
+  typed input projection, retained OCI/Docker archive checks and event admission.
+  `deploy/prometheus/Containerfile` is declared data, not executable Dockerfile
+  syntax. Keep vendor base layers intact and append one deterministic payload;
+  Docker's native import/copy observations own physical alias conformance.
+- Manual `prometheus-source-qualify` remains metadata-only. Separately admitted
+  `prometheus-oras-qualify` compiles one same-source ORAS tool with unchanged
+  upstream locks. It must prove the exact command graph, compiler/buildinfo,
+  full scanner inventory and synthetic native format before tool selection.
+  Never substitute the affected upstream prebuilt binary or rebuild the tool
+  during a Prometheus pair or promotion.
+- Manual `prometheus-source-pair` permits exactly two serial logical image
+  builds, each containing the two named commands and bounded to 3600 seconds.
+  Use independent empty source/cache/output areas, no automatic retries,
+  no local Go compiler and no BuildKit Prometheus producer. Invocation history
+  is nonrenewable when inputs change. Complete the raw helper and `build.yml`,
+  including SDK and backend export seams, before spending the pair.
+- A changed PR consumes only its authenticated same-repository retained artifact
+  after full raw producer/input equivalence and source ancestry within the PR.
+  A new main selection additionally binds the actual squash and final PR head;
+  the PR producer is not required to be an ancestor of the squash commit.
+  Unchanged published components use the immutable subject and a positive
+  publication predecessor. Missing publication is a hold, never a pull fallback.
+- Main-only promotion reuses the retained qualified copier and copies precise
+  OCI bytes into the existing public package; it never rebuilds or executes a
+  candidate with registry credentials. Preserve original producer provenance,
+  SPDX, immutable tag collision checks and byte-identical pullback. Existing
+  promtool/runtime/security checks remain mandatory and suppression-free.
+- Deploy readers execute only the separately SHA-bound standalone helper;
+  incoming archives are material/data. Root merge, deployment, credentials,
+  volume changes and observation clocks retain their existing authority gates.
+
+## Deploy-tool Python selection
+
+The three deploy callers (`deploy_production.sh`, `deploy.sh` and
+`QUICK_FIX_PRODUCTION.sh`) admit CPython 3.11, 3.12, 3.13 or 3.14 for their
+standalone stdlib helper. This scoped compatibility set does not change project,
+CI/container 3.13.14 or SDK interpreter/ABI tuples. An explicit absolute
+`PYTHON_BIN` takes precedence; unsupported, non-executable or relative overrides
+fail before helper loading or mutation, without fallback. Defaults inspect only
+the four trusted absolute literals in the callers, including Homebrew's public
+Python and managed 3.14 alias, and skip unsupported defaults. The isolated
+`-I -S` implementation/version probe establishes compatibility input only, not
+binary provenance or security admission. Do not discover Python through PATH,
+cwd, virtualenvs, pyenv or another manager.
+
+For a local caller check, pass the owning repository interpreter explicitly as
+`PYTHON_BIN`; server operators may pass their independently managed supported
+absolute interpreter. Preserve the SHA-bound helper/FD and trusted-tool versus
+incoming-material boundary. Do not substitute an incoming archive's interpreter
+or claim that passing this probe validates the application on Python 3.14.
 
 ## Native Docker image evidence
 
+- Retired native families remain real Trivy conversion controls with retained
+  findings. The full canonical `package trivy` / `import rego.v1` /
+  `default ignore := false` file alone is expiry-free. Missing, unreadable,
+  malformed or extra executable policies never inherit that exemption; active
+  suppressions retain review and hard-expiry validation. Scanner/decode errors
+  are errors, never successful negative controls or native-remediation proof.
+
+- Keep the client-only PostgreSQL SDK limited to configured password/SCRAM and
+  verified TLS consumers. Unused GSS/LDAP features and their native package
+  closure stay disabled; enabling them requires explicit scope and fresh
+  source/SDK/library/physical/scanner/behavior evidence. Preserve public API
+  names while rejecting unsupported required feature requests.
+
+- The exact Psycopg C source operation belongs to
+  `install_locked_python_requirements.py`; compiler and proxy-health consumers
+  delegate to that owner. Separate verified archive/binary acquisition from
+  actual backend execution in a supported Linux guest with kernel network
+  isolation and no registry credentials, host HOME, configuration, socket or
+  secret mounts. The canonical installer owns the exact four SDK tuples:
+  x86_64 CPython 3.11/3.12/3.13 and aarch64 CPython 3.13. Reject unsupported
+  interpreter/ABI targets before SDK reads, pip upgrade or wheelhouse creation.
+  During SDK admission, validate the exact source-image pin, wheel tag and both
+  extension ELF targets; aliases are not extra targets.
+  Backend Make/devcontainer callers retain their Linux amd64 boundary.
+  Dormant kernel interfaces require native DOWN flags and absence of external
+  addresses/routes; interface names alone grant no exception. Other packages
+  retain binary-only admission. Consume genuine matching SDK wheels, never
+  metadata-only resolver substitutes.
+  Dedicated source/build-wheel prefetch operations reject explicit install modifiers
+  before interpreter/proxy resolution; only build-wheel prefetch consumes a target
+  Python option. Ordinary SDK install/prefetch/consume operations use the installer
+  interpreter or its venv symlink and reject another interpreter before pip upgrade,
+  SDK staging or wheelhouse creation. Preflight-only and upgrade-only modes retain
+  their existing behavior; binary-only installs retain target-Python selection.
+  Dedicated SDK builds reject an explicit target-Python option because the
+  unchanged four-input build uses its loader interpreter.
+- Before VS Code Reopen builds a fresh trusted checkout, run the existing
+  `make docker-source-artifacts` target on the host using an approved existing
+  `DEV_PYTHON` interpreter. CLI `dc-up`, `docker-run` and `docker-run-dev` own
+  that prerequisite; a source-preparation failure stops before Compose. This is
+  source verification/acquisition only; do not install/activate a host backend
+  venv or native macOS SDK, transfer `.env`/credentials/HOME, or add automatic
+  repository-code initialization. Container bootstrap remains manual after trust.
+- `make dc-up` credential forwarding is explicit opt-in through
+  `PULSEPLATE_NATIVE_SDK_NETRC_FILE`, defaulting to `/dev/null`. Use only a temporary
+  read-only file scoped to the approved package host after reviewing/trusting the
+  checkout; do not automatically forward or copy host `HOME/.netrc`, `_netrc` or HOME.
+- Before closing a native SDK dependency migration, enumerate every governed compiled profile
+  and real CI/local caller. Verify actual extras, matching SDK/platform handoff and the owning
+  workflow tests; a selected-profile pass cannot establish complete caller coverage. Inspect
+  the full Docker stage inheritance before reporting a missing library, and verify actual
+  final-user calls after the build. CI native callers must select the matching SDK CLI in
+  `/usr/local/bin` before distro tools when setup installs its shared libraries there.
+  Keep corrected runtime behavior, required gates and bot
+  dispositions ahead of closure metadata.
+- Container helper copies must preserve their `scripts/ci` repository depth and
+  adjacent imports. Exercise the real CLI and its operation parsing from the
+  actual copied layout before a build; command-text assertions alone cannot
+  detect import-time repository-root failures.
+- A native patch must change the expected source bytes before compilation.
+  Check its exact resulting file digest and the unchanged remainder of the
+  source inventory. A patch tool's successful exit alone is insufficient;
+  Git object IDs and whole-file SHA-256 digests are distinct representations.
 - `check_docker_runtime_dependency_surface.py --trivy-report` binds the finite
   native Trivy v2 image-report projection to the selected local Docker image.
   Trivy owns vulnerability decisions and JSON-to-SARIF conversion; report
@@ -137,6 +245,8 @@
   PCRE2 and libselinux regex calls plus retained consumers under the final user.
 - When replacing a packaged native library, verify the actual extension call
   and loaded replacement under the final runtime user after package pruning.
+  Matching SONAME alone does not preserve required symbol versions; retain the
+  consumer's version namespaces and reject real loader diagnostics.
   Package-record absence and a clean scanner report do not prove native linkage.
 - For workflow shell adapters, exercise current-step and next-step environments
   in separate processes: exporting in the current shell and writing GITHUB_ENV
@@ -176,6 +286,15 @@
 
 ## Governed Experimentation Runner
 
+- `experiment_runner_dispatch.py build-image` requires `--psycopg-sdk-root`
+  pointing to the private, externally qualified genuine ARM SDK export. The
+  host stages only the finite declared helpers, schema, locks and SDK members,
+  then checks actual destination bytes, modes and internal alias before reading
+  proxy secrets. Host transport checks do not authenticate SDK origin or ABI;
+  the canonical installer inside UBI owns those semantic checks. Preserve the
+  original build timeout, history/config hygiene and immutable Apple alias
+  readback. Qualify the successor's native consumers and full scanner inventory
+  before selecting it for an oracle; a build or copied receipt alone is insufficient.
 - Invoke the automatic helper only from externally admitted T with an approved
   absolute Python `-I`, T cwd and explicit distinct `--material-root M`; root
   metadata supplies continuity, never trust. Follow the canonical accompaniment

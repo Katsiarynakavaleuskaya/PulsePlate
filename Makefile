@@ -4,12 +4,25 @@ all: lint test cov-check
 validate-data: ensure-database-versions
 	python3 scripts/validate_data.py
 
-.PHONY: all ensure-database-versions ensure-python-proxy requirements-locks docker-source-artifacts
+.PHONY: all ensure-database-versions ensure-python-proxy ensure-native-sdk-inputs ensure-native-sdk requirements-locks docker-source-artifacts
 ensure-database-versions:
 	python3 scripts/ensure_database_versions.py
 
 ensure-python-proxy:
 	@test -n "$$PULSEPLATE_PYTHON_INDEX_URL" || (echo "❌ Export PULSEPLATE_PYTHON_INDEX_URL to the approved private package proxy before continuing." && exit 1)
+
+# Backend SDK callers retain the existing Linux amd64 boundary.
+ensure-native-sdk-inputs:
+	@if [[ "$$(uname -s):$$(uname -m)" != "Linux:x86_64" ]]; then \
+		echo "Backend bootstrap requires Linux amd64. Use make dc-up and make dc-shell." >&2; exit 1; \
+	fi
+	@test -n "$$PULSEPLATE_PSYCOPG_C_SDK" && test -f "$$PULSEPLATE_PSYCOPG_C_SDK/psycopg-c-sdk.json" || \
+		(echo "Use the devcontainer genuine SDK; no ambient fallback." >&2; exit 1)
+
+# Ordinary offline bootstrap additionally requires its verified baked wheelhouse.
+ensure-native-sdk: ensure-native-sdk-inputs
+	@test -n "$$PULSEPLATE_BOOTSTRAP_WHEELHOUSE" && test -d "$$PULSEPLATE_BOOTSTRAP_WHEELHOUSE" || \
+		(echo "Use the devcontainer verified wheelhouse; no ambient fallback." >&2; exit 1)
 
 # Docker targets
 # 🐳 Docker Best Practices:
@@ -20,22 +33,22 @@ docker-source-artifacts: ## Prepare verified Docker source artifacts
 	$(DEV_PYTHON) scripts/ci/fetch_docker_source_artifacts.py
 
 docker-build: ensure-python-proxy docker-source-artifacts ## Build production Docker image
-	docker build -t pulseplate:latest --target production \
+	docker build --platform linux/amd64 -t pulseplate:latest --target production \
 		--build-arg PULSEPLATE_PYTHON_INDEX_URL="$$PULSEPLATE_PYTHON_INDEX_URL" \
 		--build-arg PULSEPLATE_PYTHON_TRUSTED_HOST="$${PULSEPLATE_PYTHON_TRUSTED_HOST:-}" \
 		.
 	docker tag pulseplate:latest pulseplate:$(shell git rev-parse --short HEAD)
 
 docker-build-dev: ensure-python-proxy docker-source-artifacts ## Build development Docker image
-	docker build -t pulseplate:dev --target development \
+	docker build --platform linux/amd64 -t pulseplate:dev --target development \
 		--build-arg PULSEPLATE_PYTHON_INDEX_URL="$$PULSEPLATE_PYTHON_INDEX_URL" \
 		--build-arg PULSEPLATE_PYTHON_TRUSTED_HOST="$${PULSEPLATE_PYTHON_TRUSTED_HOST:-}" \
 		.
 
-docker-run: ensure-python-proxy ## Run Docker containers in background
+docker-run: ensure-python-proxy docker-source-artifacts ## Run Docker containers in background
 	docker compose up -d
 
-docker-run-dev: ensure-python-proxy ## Run development Docker containers
+docker-run-dev: ensure-python-proxy docker-source-artifacts ## Run development Docker containers
 	docker compose --profile dev up -d
 
 docker-stop: ## Stop and remove Docker containers
@@ -119,9 +132,9 @@ help:
 	@awk 'BEGIN{FS=":.*##"} /^[a-zA-Z0-9_.-]+:.*##/{printf "$(GREEN)%-22s$(NC) %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
 ## Create & install venv deps + setup automation
-venv: ensure-python-proxy ## Create venv, install requirements & setup git hooks
+venv: ensure-native-sdk ## Create venv, install requirements & setup git hooks
 	@test -x $(VENV_PYTHON) || python3 -m venv .venv
-	PIP_REQUIRE_VIRTUALENV=1 $(VENV_PYTHON) scripts/ci/install_locked_python_requirements.py --python-executable $(VENV_PYTHON) --constraints-file constraints.txt --install-dev --require-virtualenv
+	PIP_REQUIRE_VIRTUALENV=1 $(VENV_PYTHON) scripts/ci/install_locked_python_requirements.py --python-executable $(VENV_PYTHON) --constraints-file constraints.txt --install-dev --consume-only --wheelhouse-dir "$$PULSEPLATE_BOOTSTRAP_WHEELHOUSE" --psycopg-sdk "$$PULSEPLATE_PSYCOPG_C_SDK" --require-virtualenv
 	@echo "$(YELLOW)🔧 Настройка автоматизации...$(NC)"
 	$(VENV_PYTHON) -m pre_commit install
 	$(VENV_PYTHON) -m pre_commit install --hook-type pre-push
@@ -130,9 +143,9 @@ venv: ensure-python-proxy ## Create venv, install requirements & setup git hooks
 	@echo "$(GREEN)✅ Окружение готово!$(NC)"
 
 ## Refresh locked dependencies inside the existing .venv
-venv-sync: ensure-python-proxy ## Refresh .venv from locked requirements without recreating it
-	@test -x $(VENV_PYTHON) || (echo "$(RED)❌ .venv missing. Run 'make venv' first.$(NC)" && exit 1)
-	PIP_REQUIRE_VIRTUALENV=1 $(VENV_PYTHON) scripts/ci/install_locked_python_requirements.py --python-executable $(VENV_PYTHON) --constraints-file constraints.txt --install-dev --require-virtualenv
+venv-sync: ensure-native-sdk-inputs ensure-python-proxy ## Refresh .venv from locked requirements without recreating it
+	@test -x "$(VENV_PYTHON)" || (echo "$(RED)❌ .venv missing. Run 'make venv' first.$(NC)" && exit 1)
+	PIP_REQUIRE_VIRTUALENV=1 "$(VENV_PYTHON)" scripts/ci/install_locked_python_requirements.py --python-executable "$(VENV_PYTHON)" --constraints-file constraints.txt --install-dev --psycopg-sdk "$$PULSEPLATE_PSYCOPG_C_SDK" --require-virtualenv
 	@echo "$(GREEN)✅ .venv refreshed from locked requirements$(NC)"
 
 ## Setup automation only (git hooks & aliases)
@@ -472,17 +485,118 @@ ci: test cov-check lint security ## CI/CD pipeline commands
 	@echo "$(GREEN)✅ CI проверки завершены$(NC)"
 
 ## Full Bandit scan (used by pre-push hook)
-## In CI mode (CI=true), fails on MEDIUM/HIGH severity findings
-## In local mode, permissive (warnings only, doesn't fail)
+## One strict scanner over every tracked Python path; preserve existing .bandit filters.
+## Native success requires fresh complete JSON and unchanged observed inputs/index.
 bandit-full:
-	@echo "$(YELLOW)🔒 Полное сканирование Bandit...$(NC)"
-	@if [ "$(CI)" = "true" ]; then \
-		echo "$(YELLOW)CI mode: строгий режим (fail on MEDIUM/HIGH)...$(NC)"; \
-		bandit -r . -c .bandit --severity-level medium -f json -o bandit-report.json; \
-	else \
-		echo "$(YELLOW)Local mode: разрешающий режим (warnings only)...$(NC)"; \
-		bandit -r . -c .bandit --severity-level medium -f json -o bandit-report.json || true; \
-	fi
+	@echo "$(YELLOW)🔒 Full tracked Python Bandit scan (strict MEDIUM/HIGH)...$(NC)"
+	"$(DEV_PYTHON)" -c $$'import hashlib, json, os, shutil, stat, subprocess, sys, tempfile\n\
+	from pathlib import Path\n\
+	import bandit\n\
+	from bandit.cli import main as bandit_cli\n\
+	from bandit.formatters import json as bandit_json\n\
+	from bandit.core.config import BanditConfig\n\
+	from bandit.core.manager import BanditManager\n\
+	from scripts.orchestration.creative_code_patch_workspace import git_env_without_parent_state, safe_git_config_args\n\
+	\n\
+	def fingerprint(path, retain=False, maximum=None):\n\
+	    before = path.lstat()\n\
+	    key = lambda info: (info.st_dev, info.st_ino, info.st_mode, info.st_nlink, info.st_uid, info.st_gid, info.st_size, info.st_mtime_ns, info.st_ctime_ns)\n\
+	    if not stat.S_ISREG(before.st_mode) or before.st_nlink != 1:\n\
+	        sys.exit("Bandit input/report is not a regular single-link file")\n\
+	    if maximum is not None and before.st_size > maximum:\n\
+	        sys.exit("Bandit report exceeds the 64 MiB bound")\n\
+	    descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)\n\
+	    digest, chunks = hashlib.sha256(), []\n\
+	    with os.fdopen(descriptor, "rb") as source:\n\
+	        if key(os.fstat(source.fileno())) != key(before):\n\
+	            sys.exit("Bandit input changed before reading")\n\
+	        remaining = before.st_size\n\
+	        while remaining:\n\
+	            block = source.read(min(1024 * 1024, remaining))\n\
+	            if not block:\n\
+	                sys.exit("Bandit input became incomplete while reading")\n\
+	            digest.update(block)\n\
+	            if retain:\n\
+	                chunks.append(block)\n\
+	            remaining -= len(block)\n\
+	        if source.read(1) or key(os.fstat(source.fileno())) != key(before):\n\
+	            sys.exit("Bandit input changed while reading")\n\
+	    if key(path.lstat()) != key(before):\n\
+	        sys.exit("Bandit input identity changed while reading")\n\
+	    return (key(before), digest.hexdigest(), b"".join(chunks) if retain else None)\n\
+	\n\
+	def unique_object(pairs):\n\
+	    if len(dict(pairs)) != len(pairs):\n\
+	        sys.exit("Bandit report contains duplicate JSON keys")\n\
+	    return dict(pairs)\n\
+	\n\
+	git = shutil.which("git") or sys.exit("Git is required for the complete tracked security inventory")\n\
+	git_env = git_env_without_parent_state()\n\
+	git_read = lambda *args: subprocess.check_output([git, "--no-replace-objects", *safe_git_config_args(), *args], env=git_env, timeout=10)\n\
+	root = Path.cwd().resolve()\n\
+	if Path(os.fsdecode(git_read("rev-parse", "--show-toplevel").removesuffix(bytes([10])))).resolve() != root:\n\
+	    sys.exit("Bandit must run at the native Git repository root")\n\
+	index = Path(os.fsdecode(git_read("rev-parse", "--path-format=absolute", "--git-path", "index").removesuffix(bytes([10]))))\n\
+	index_before = fingerprint(index)\n\
+	raw = git_read("ls-files", "-z", "--", "*.py")\n\
+	if not raw or not raw.endswith(bytes([0])):\n\
+	    sys.exit("Tracked Python security inventory is empty or not NUL-terminated")\n\
+	parts = raw.split(bytes([0]))[:-1]\n\
+	if not all(parts) or len(parts) != len(set(parts)):\n\
+	    sys.exit("Tracked Python security inventory contains empty or duplicate paths")\n\
+	relative = [os.fsdecode(p) for p in parts]\n\
+	if any(Path(p).is_absolute() or any(part in ("", ".", "..") for part in p.split("/")) for p in relative):\n\
+	    sys.exit("Tracked Python security inventory contains invalid relative paths")\n\
+	paths = ["./" + p for p in relative]\n\
+	for p in relative:\n\
+	    if any(not stat.S_ISDIR(parent.lstat().st_mode) for parent in (root / p).parents if parent != root and root in parent.parents):\n\
+	        sys.exit("Tracked Python security input has a linked or unavailable parent")\n\
+	inputs = [Path(p) for p in paths] + [Path(".bandit"), Path(bandit.__file__).resolve(), Path(bandit_cli.__file__).resolve(), Path(bandit_json.__file__).resolve()]\n\
+	before = [fingerprint(p) for p in inputs]\n\
+	manager = BanditManager(BanditConfig(".bandit"), "file")\n\
+	manager.discover_files(paths)\n\
+	expected = set(manager.files_list)\n\
+	native_empty_totals = dict(manager.metrics.data["_totals"])\n\
+	required_metrics = set(native_empty_totals)\n\
+	if not expected:\n\
+	    sys.exit("Configured tracked Bandit scan is empty")\n\
+	canonical = Path("bandit-report.json")\n\
+	canonical.unlink(missing_ok=True)\n\
+	with tempfile.TemporaryDirectory(prefix=".bandit-full-", dir=root) as output_dir:\n\
+	    report = Path(output_dir) / "bandit-report.json"\n\
+	    completed = subprocess.run([sys.executable, "-m", "bandit", "-c", ".bandit", "--severity-level", "medium", "-f", "json", "-o", str(report), "--", *paths], check=False)\n\
+	    payload = None\n\
+	    try:\n\
+	        if report.exists() and not report.is_symlink():\n\
+	            info = report.lstat()\n\
+	            if stat.S_ISREG(info.st_mode) and info.st_nlink == 1 and info.st_size <= 64 * 1024 * 1024:\n\
+	                payload = fingerprint(report, retain=True, maximum=64 * 1024 * 1024)[2]\n\
+	                os.replace(report, canonical)\n\
+	    except (OSError, SystemExit):\n\
+	        if completed.returncode == 0:\n\
+	            raise\n\
+	        print("Bandit report retention failed after a nonzero scanner exit", file=sys.stderr)\n\
+	    if completed.returncode != 0:\n\
+	        sys.exit(completed.returncode)\n\
+	    if payload is None or len(payload) > 64 * 1024 * 1024:\n\
+	        sys.exit("Bandit report is missing, unsafe or over the 64 MiB bound")\n\
+	    observed = json.loads(payload, object_pairs_hook=unique_object)\n\
+	    if type(observed) is not dict or observed.get("errors") != [] or observed.get("results") != []:\n\
+	        sys.exit("Bandit report contains scanner errors/findings or is incomplete")\n\
+	    if type(observed.get("generated_at")) is not str or not observed["generated_at"]:\n\
+	        sys.exit("Bandit report is missing its native generation metadata")\n\
+	    metrics = observed.get("metrics")\n\
+	    if type(metrics) is not dict or set(metrics) != expected | {"_totals"} or any(type(row) is not dict for row in metrics.values()):\n\
+	        sys.exit("Bandit report does not cover the exact configured tracked inventory")\n\
+	    if any(set(row) != required_metrics or any(type(value) is not int or value < 0 for value in row.values()) for row in metrics.values()) or set(metrics["_totals"]) != required_metrics:\n\
+	        sys.exit("Bandit report has incomplete or malformed native metrics")\n\
+	    manager.metrics.data = {path: row for path, row in metrics.items() if path != "_totals"}\n\
+	    manager.metrics.data["_totals"] = native_empty_totals\n\
+	    manager.metrics.aggregate()\n\
+	    if manager.metrics.data["_totals"] != metrics["_totals"] or metrics["_totals"]["SEVERITY.MEDIUM"] or metrics["_totals"]["SEVERITY.HIGH"]:\n\
+	        sys.exit("Bandit native totals are inconsistent or contain MEDIUM/HIGH findings")\n\
+	    if [fingerprint(p) for p in inputs] != before or fingerprint(index) != index_before:\n\
+	        sys.exit("Bandit tracked source/config/tool/index changed during the scan")'
 	@echo "$(GREEN)✅ Bandit отчет: bandit-report.json$(NC)"
 
 ## Smoke test (auto: 8000 then 8001)
@@ -596,23 +710,12 @@ ios-appstore-verify: ## Verify repo-local App Store release gates (no upload)
 
 # --- Dev Container targets ---------------------------------------------------
 
-devcontainer-bootstrap: ensure-python-proxy ## Install deps + hooks inside dev container
-	@echo "$(YELLOW)Installing locked deps into container Python...$(NC)"
-	python3 scripts/ci/install_locked_python_requirements.py \
-		--python-executable "$$(command -v python3)" \
-		--constraints-file constraints.txt \
-		--install-dev
-	@# Create .venv so existing VENV_PYTHON targets and activate scripts work
-	@python3 -m venv .venv --without-pip 2>/dev/null || true
-	@ln -sf "$$(command -v python3)" .venv/bin/python
-	python3 -m pre_commit install
-	python3 -m pre_commit install --hook-type pre-push
-	chmod +x scripts/*.sh
-	./scripts/setup_git_aliases.sh
+devcontainer-bootstrap: venv ## Canonical venv install + hooks inside dev container
 	@echo "$(GREEN)Devcontainer bootstrap complete$(NC)"
 
-dc-up: ## Start dev container (build + detach)
-	docker compose -f "$(DEVCONTAINER_COMPOSE)" up -d --build
+dc-up: ensure-python-proxy docker-source-artifacts ## Start dev container (build + detach)
+	@netrc_file="$${PULSEPLATE_NATIVE_SDK_NETRC_FILE:-/dev/null}"; \
+	PULSEPLATE_NATIVE_SDK_NETRC_FILE="$$netrc_file" docker compose -f "$(DEVCONTAINER_COMPOSE)" up -d --build devcontainer
 
 dc-shell: ## Open shell inside dev container
 	docker compose -f "$(DEVCONTAINER_COMPOSE)" exec devcontainer bash

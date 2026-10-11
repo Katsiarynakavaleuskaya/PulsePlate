@@ -11,8 +11,6 @@ from __future__ import annotations
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from dataclasses import dataclass, field
-from email import policy
-from email.parser import BytesParser
 import fcntl
 import hashlib
 import hmac
@@ -21,19 +19,16 @@ import json
 import netrc
 import os
 from pathlib import Path
-from pathlib import PurePosixPath
 import re
 import stat
-import struct
 import subprocess  # nosec B404: argv-only governed pip-tools invocation (remove-by: 2027-01-31, ref: PR-2142)
 import sys
 import tempfile
 from typing import Iterator, Mapping, Sequence
 from urllib.parse import urlparse
-import zipfile
 
 from packaging.requirements import InvalidRequirement, Requirement
-from packaging.utils import InvalidWheelFilename, canonicalize_name, parse_wheel_filename
+from packaging.utils import canonicalize_name
 from packaging.version import InvalidVersion, Version
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -59,6 +54,11 @@ from scripts.ci.check_python_dependency_surfaces import (  # noqa: E402
 )
 from scripts.ci.install_locked_python_requirements import (  # noqa: E402
     APPROVED_INDEX_ENV_VAR,
+    PSYCOPG_SDK_ENV,
+    read_psycopg_c_sdk,
+    FileSnapshot,
+    ValidatedWheel,
+    inspect_locked_wheel,
     resolve_private_proxy_settings,
 )
 
@@ -71,6 +71,43 @@ GRAPH_CHANGE_ADMISSION_PATH = Path("scripts/ci/python_dependency_graph_change_ad
 GRAPH_CHANGE_ADMISSION_SCHEMA = "pulseplate-python-dependency-graph-change-admission.v1"
 GRAPH_CHANGE_ADMISSION_ID = "observability-refresh-2026-08-15"
 VIRTUALENV_2455_ADMISSION_ID = "virtualenv-2455-21.14.5"
+PSYCOPG_C_ADMISSION_ID = "dep-sec-oct2-psycopg-c-3.3.4"
+PSYCOPG_C_RECORD_SHA256 = bytes(
+    (
+        211,
+        67,
+        234,
+        17,
+        34,
+        129,
+        56,
+        206,
+        208,
+        52,
+        253,
+        238,
+        169,
+        147,
+        254,
+        158,
+        206,
+        54,
+        122,
+        27,
+        18,
+        27,
+        205,
+        16,
+        24,
+        167,
+        117,
+        32,
+        7,
+        125,
+        98,
+        202,
+    )
+).hex()
 # This one fixed alternative describes a technical proposal, never native C_R.
 VIRTUALENV_2455_RECORD_SHA256 = bytes(
     (
@@ -115,12 +152,6 @@ ARTIFACT_ADMISSION_TIMEOUT_SECONDS = 60.0
 ARTIFACT_ADMISSION_MAX_BYTES = 16 * 1024 * 1024
 ARTIFACT_ADMISSION_MAX_WORKERS = 4
 ARTIFACT_ADMISSION_ATTEMPTS = 2
-MAX_WHEEL_METADATA_BYTES = 2 * 1024 * 1024
-MAX_WHEEL_MEMBERS = 100_000
-MAX_WHEEL_CENTRAL_DIRECTORY_BYTES = 32 * 1024 * 1024
-ZIP_END_OF_CENTRAL_DIRECTORY_SIZE = 22
-ZIP_MAX_COMMENT_BYTES = 65_535
-ZIP_END_OF_CENTRAL_DIRECTORY_SIGNATURE = b"PK\x05\x06"
 PROFILE_NAME_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 EXACT_UPGRADE_RE = re.compile(
     r"^(?P<name>[A-Za-z0-9][A-Za-z0-9._-]*)==" r"(?P<version>[A-Za-z0-9][A-Za-z0-9._+!~-]*)$"
@@ -183,18 +214,6 @@ class ExactPin:
 
 
 @dataclass(frozen=True)
-class FileSnapshot:
-    """Content and filesystem identity captured before resolver work."""
-
-    digest: str
-    mode: int
-    device: int
-    inode: int
-    owner_uid: int
-    size: int
-
-
-@dataclass(frozen=True)
 class FileCapture:
     """Bytes paired with the exact filesystem identity used to read them."""
 
@@ -211,16 +230,6 @@ class LockInputPlan:
     output_capture: FileCapture
     source_captures: tuple[tuple[Path, FileCapture], ...]
     expected_artifacts: frozenset[tuple[str, str]]
-
-
-@dataclass(frozen=True)
-class ValidatedWheel:
-    """One statically validated wheel bound to immutable filesystem identity."""
-
-    path: Path
-    artifact_key: tuple[str, str]
-    snapshot: FileSnapshot
-    metadata_digest: str = ""
 
 
 @dataclass(frozen=True)
@@ -265,11 +274,14 @@ class GraphChangeAdmission:
     source_sizes: Mapping[str, int] = field(default_factory=dict)
     artifacts: Mapping[tuple[str, str], tuple[str, int, str, str]] = field(default_factory=dict)
     profile_deltas: Mapping[str, Mapping[str, tuple[str | None, str]]] = field(default_factory=dict)
+    runtime_baseline_text: str = ""
 
     @property
     def graph_changes(self) -> frozenset[str]:
         if self.admission_id == VIRTUALENV_2455_ADMISSION_ID:
             return frozenset({"python-discovery"})
+        if self.admission_id == PSYCOPG_C_ADMISSION_ID:
+            return frozenset({"psycopg-binary", "psycopg-c"})
         return self.removals
 
     def project_profile_pins(
@@ -277,6 +289,22 @@ class GraphChangeAdmission:
     ) -> dict[str, ExactPin]:
         """Apply only this selected profile's exact proposed before/after relation."""
         projected = dict(baseline)
+        if self.admission_id == PSYCOPG_C_ADMISSION_ID:
+            if profile is None or profile not in self.profiles:
+                raise RuntimeError("Psycopg relation does not own the selected profile.")
+            if profile == "dev":
+                if any(name in projected for name in ("psycopg", "psycopg-binary", "psycopg-c")):
+                    raise RuntimeError("Dev has no Psycopg owner or leaf.")
+                return projected
+            if projected.get("psycopg") != ExactPin("3.3.4", ("binary",), None, None):
+                raise RuntimeError("Psycopg parent does not match the exact binary-extra baseline.")
+            if projected.pop("psycopg-binary", None) != ExactPin("3.3.4", (), None, None):
+                raise RuntimeError("Psycopg binary leaf does not match the exact baseline.")
+            if "psycopg-c" in projected:
+                raise RuntimeError("Psycopg C leaf is already present in the baseline.")
+            projected["psycopg"] = ExactPin("3.3.4", ("c",), None, None)
+            projected["psycopg-c"] = ExactPin("3.3.4", (), None, None)
+            return projected
         if self.admission_id != VIRTUALENV_2455_ADMISSION_ID:
             return projected
         if profile is None or profile not in self.profiles or profile not in self.profile_deltas:
@@ -446,7 +474,11 @@ def _authorize_graph_changes(
                 "GRAPH_CHANGE_ADMISSION is forbidden when no graph change is requested."
             )
         return None
-    if selector not in {GRAPH_CHANGE_ADMISSION_ID, VIRTUALENV_2455_ADMISSION_ID}:
+    if selector not in {
+        GRAPH_CHANGE_ADMISSION_ID,
+        VIRTUALENV_2455_ADMISSION_ID,
+        PSYCOPG_C_ADMISSION_ID,
+    }:
         raise RuntimeError(
             "Dependency graph changes require the exact repository-owned closed v1 admission."
         )
@@ -470,6 +502,8 @@ def _authorize_graph_changes(
     root_keys = frozenset({"schema", "record"})
     if type(document) is dict and "virtualenv_2455" in document:
         root_keys |= {"virtualenv_2455"}
+    if type(document) is dict and "psycopg_c_oct2" in document:
+        root_keys |= {"psycopg_c_oct2"}
     root = _require_exact_keys(document, keys=root_keys, label="Graph-change admission")
     if root["schema"] != GRAPH_CHANGE_ADMISSION_SCHEMA:
         raise RuntimeError("Graph-change admission schema is not the exact supported v1 schema.")
@@ -723,6 +757,26 @@ def _authorize_graph_changes(
         if not hmac.compare_digest(record_digest, VIRTUALENV_2455_RECORD_SHA256):
             raise RuntimeError("Virtualenv record is not the exact frozen whole v1 alternative.")
 
+    psycopg_record = root.get("psycopg_c_oct2")
+    if psycopg_record is not None:
+        digest = hashlib.sha256(
+            json.dumps(psycopg_record, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest()
+        if not hmac.compare_digest(digest, PSYCOPG_C_RECORD_SHA256):
+            raise RuntimeError("Psycopg record is not the exact fixed v1 migration alternative.")
+    if selector == PSYCOPG_C_ADMISSION_ID:
+        if not isinstance(psycopg_record, dict):
+            raise RuntimeError("Psycopg selector requires the fixed psycopg_c_oct2 slot.")
+        return _authorize_psycopg_migration(
+            repo_root=repo_root,
+            path=path,
+            capture=capture,
+            record=psycopg_record,
+            profiles=profiles,
+            upgrades=upgrades,
+            graph_changes=graph_changes,
+        )
+
     if selector == VIRTUALENV_2455_ADMISSION_ID:
         if virtualenv_record is None:
             raise RuntimeError("Virtualenv selector requires the fixed virtualenv_2455 slot.")
@@ -810,6 +864,135 @@ def _authorize_graph_changes(
     return admission
 
 
+def _authorize_psycopg_migration(
+    *,
+    repo_root: Path,
+    path: Path,
+    capture: FileCapture,
+    record: dict[str, object],
+    profiles: Sequence[str],
+    upgrades: Mapping[str, str],
+    graph_changes: frozenset[str],
+) -> GraphChangeAdmission:
+    """Admit the two frozen source variants of this one exact Psycopg migration."""
+    selected = tuple(profiles)
+    transactions = (("runtime",), ("docker-runtime", "ci-lite", "dev", "aggregate"))
+    if selected not in transactions or graph_changes != frozenset({"psycopg-binary", "psycopg-c"}):
+        raise RuntimeError("Psycopg requires its exact ordered transaction and two leaf names.")
+    if dict(upgrades) == {"cryptography": "50.0.2"}:
+        variant = "combined"
+    elif not upgrades:
+        variant = "psycopg_only"
+    else:
+        raise RuntimeError("Psycopg migration admits only its unchanged or exact Crypto target.")
+    baselines = _require_exact_keys(
+        record["baselines"],
+        keys=frozenset({"runtime", "docker-runtime", "ci-lite", "dev", "aggregate"}),
+        label="Psycopg baselines",
+    )
+    digests: dict[str, str] = {}
+    sizes: dict[str, int] = {}
+    for profile, value in baselines.items():
+        baseline = _require_exact_keys(
+            value,
+            keys=frozenset({"lockfile", "bytes", "sha256_bytes"}),
+            label=f"Psycopg {profile} baseline",
+        )
+        if type(baseline["bytes"]) is not int or type(baseline["lockfile"]) is not str:
+            raise RuntimeError("Psycopg baseline fields have invalid types.")
+        sizes[profile] = baseline["bytes"]
+        digests[profile] = _require_sha256_bytes(
+            baseline["sha256_bytes"], label="Psycopg baseline hash"
+        )
+        if selected == transactions[0] or profile in selected:
+            observed = _capture_file(_validated_repo_file(repo_root, baseline["lockfile"]))
+            if (observed.snapshot.digest, observed.snapshot.size) != (
+                digests[profile],
+                sizes[profile],
+            ):
+                raise RuntimeError(f"Psycopg {profile} baseline is stale or has unexpected bytes.")
+    variants = _require_exact_keys(
+        record["source_variants"],
+        keys=frozenset({"combined", "psycopg_only"}),
+        label="Psycopg source variants",
+    )
+    sources = _require_exact_keys(
+        variants[variant],
+        keys=frozenset(
+            {
+                "requirements.in",
+                "requirements-docker-runtime.in",
+                "requirements-ci-lite.in",
+                "requirements-dev.in",
+            }
+        ),
+        label="Psycopg exact sources",
+    )
+    source_digests: dict[str, str] = {}
+    source_sizes: dict[str, int] = {}
+    for name, value in sources.items():
+        source = _require_exact_keys(
+            value, keys=frozenset({"bytes", "sha256_bytes"}), label="Psycopg source"
+        )
+        if type(source["bytes"]) is not int:
+            raise RuntimeError("Psycopg source size has invalid type.")
+        source_sizes[name] = source["bytes"]
+        source_digests[name] = _require_sha256_bytes(
+            source["sha256_bytes"], label="Psycopg source hash"
+        )
+        observed = _capture_file(_validated_repo_file(repo_root, name))
+        if (observed.snapshot.digest, observed.snapshot.size) != (
+            source_digests[name],
+            source_sizes[name],
+        ):
+            raise RuntimeError(f"Psycopg source {name} does not match the exact selected intent.")
+    runtime_seed = record["runtime_baseline_utf8"]
+    if (
+        not isinstance(runtime_seed, str)
+        or hashlib.sha256(runtime_seed.encode()).hexdigest() != digests["runtime"]
+    ):
+        raise RuntimeError("Psycopg runtime seed does not match its exact base lock.")
+    runtime = _capture_file(_validated_repo_file(repo_root, "requirements.txt"))
+    admission = GraphChangeAdmission(
+        path=path,
+        capture=capture,
+        profiles=selected,
+        upgrades=dict(upgrades),
+        removals=frozenset({"psycopg-binary"}),
+        baseline_digests=digests,
+        runtime_target_sha256=runtime.snapshot.digest,
+        admission_id=PSYCOPG_C_ADMISSION_ID,
+        baseline_sizes=sizes,
+        source_digests=source_digests,
+        source_sizes=source_sizes,
+        runtime_baseline_text=runtime_seed,
+    )
+    if selected == transactions[1]:
+        baseline_pins = _exact_pin_map(runtime_seed, label="Psycopg runtime base")
+        runtime_admission = GraphChangeAdmission(
+            path=path,
+            capture=capture,
+            profiles=("runtime",),
+            upgrades=dict(upgrades),
+            removals=admission.removals,
+            baseline_digests=digests,
+            runtime_target_sha256=runtime.snapshot.digest,
+            admission_id=PSYCOPG_C_ADMISSION_ID,
+        )
+        expected = runtime_admission.project_profile_pins("runtime", baseline_pins)
+        for package, version in upgrades.items():
+            expected[package] = ExactPin(version, (), None, None)
+        if (
+            _exact_pin_map(runtime.content.decode("utf-8"), label="Psycopg runtime target")
+            != expected
+        ):
+            raise RuntimeError(
+                "Dependent Psycopg transaction requires the complete exact runtime result."
+            )
+    _assert_graph_change_admission(admission)
+    return admission
+
+
 def _assert_plans_match_graph_change_admission(
     plans: Sequence[LockInputPlan],
     admission: GraphChangeAdmission,
@@ -822,7 +1005,18 @@ def _assert_plans_match_graph_change_admission(
             raise RuntimeError(
                 "Captured lock input does not match the exact graph-change admission baseline."
             )
-        if admission.admission_id == VIRTUALENV_2455_ADMISSION_ID:
+        if admission.admission_id == PSYCOPG_C_ADMISSION_ID:
+            for source_path, capture in plan.source_captures:
+                name = source_path.name
+                if name == "requirements.txt":
+                    if capture.snapshot.digest != admission.runtime_target_sha256:
+                        raise RuntimeError("Captured Psycopg runtime constraint changed.")
+                elif (capture.snapshot.digest, capture.snapshot.size) != (
+                    admission.source_digests.get(name),
+                    admission.source_sizes.get(name),
+                ):
+                    raise RuntimeError("Captured Psycopg source does not match its frozen intent.")
+        elif admission.admission_id == VIRTUALENV_2455_ADMISSION_ID:
             if plan.output_path.name != {
                 "ci-lite": "requirements-ci-lite.txt",
                 "dev": "requirements-dev.txt",
@@ -1316,7 +1510,25 @@ def _validate_candidate_delta(
     candidate = _exact_pin_map(candidate_text, label=f"{surface.lockfile} candidate")
     if "pip" in candidate:
         raise RuntimeError(f"{surface.lockfile}: generated locks must not pin pip")
-    if graph_admission is not None and graph_admission.admission_id == VIRTUALENV_2455_ADMISSION_ID:
+    if graph_admission is not None and graph_admission.admission_id == PSYCOPG_C_ADMISSION_ID:
+        _assert_graph_change_admission(graph_admission)
+        if (
+            graph_changes != graph_admission.graph_changes
+            or dict(upgrades) != graph_admission.upgrades
+        ):
+            raise RuntimeError("Psycopg candidate does not use the complete selected transaction.")
+        expected = graph_admission.project_profile_pins(surface.compile_profile, baseline)
+        for package, version in upgrades.items():
+            if package not in expected:
+                raise RuntimeError("Psycopg transaction lost its selected Crypto carrier.")
+            expected[package] = ExactPin(version, (), None, None)
+        if candidate != expected:
+            raise RuntimeError(
+                "Psycopg candidate has an unrelated package/version/metadata transition."
+            )
+    elif (
+        graph_admission is not None and graph_admission.admission_id == VIRTUALENV_2455_ADMISSION_ID
+    ):
         _assert_graph_change_admission(graph_admission)
         if (
             graph_changes != graph_admission.graph_changes
@@ -1664,7 +1876,9 @@ def _download_profile_wheels(
     if tuple(wheelhouse.iterdir()):
         raise RuntimeError("Wheelhouse must be empty before credentialed artifact download.")
     for plan in plans:
-        resolver_artifacts = plan.expected_artifacts | bootstrap_artifacts
+        resolver_artifacts = (plan.expected_artifacts | bootstrap_artifacts) - {
+            ("psycopg-c", "3.3.4")
+        }
         if not resolver_artifacts:
             continue
         command = _build_download_command(
@@ -1688,270 +1902,11 @@ def _download_profile_wheels(
             )
 
 
-def _validate_wheel_member_name(wheel_path: Path, member_name: str) -> PurePosixPath:
-    if "\\" in member_name:
-        raise RuntimeError(f"{wheel_path.name}: wheel member contains a backslash")
-    member_path = PurePosixPath(member_name)
-    if member_path.is_absolute() or ".." in member_path.parts:
-        raise RuntimeError(f"{wheel_path.name}: wheel member escapes the archive root")
-    return member_path
-
-
-def _validate_zip_central_directory_bounds(
-    *,
-    descriptor: int,
-    wheel_path: Path,
-    file_size: int,
-) -> None:
-    """Bound parser work before ``ZipFile`` materializes the central directory."""
-
-    if file_size < ZIP_END_OF_CENTRAL_DIRECTORY_SIZE:
-        raise RuntimeError(f"{wheel_path.name}: malformed wheel archive")
-    tail_size = min(
-        file_size,
-        ZIP_END_OF_CENTRAL_DIRECTORY_SIZE + ZIP_MAX_COMMENT_BYTES,
-    )
-    pread = getattr(os, "pread", None)
-    if not callable(pread):
-        raise RuntimeError("Wheel validation requires POSIX descriptor-bound reads.")
-    tail = pread(descriptor, tail_size, file_size - tail_size)
-    search_end = len(tail)
-    while True:
-        offset = tail.rfind(
-            ZIP_END_OF_CENTRAL_DIRECTORY_SIGNATURE,
-            0,
-            search_end,
-        )
-        if offset < 0:
-            raise RuntimeError(f"{wheel_path.name}: malformed wheel archive")
-        if offset + ZIP_END_OF_CENTRAL_DIRECTORY_SIZE <= len(tail):
-            (
-                signature,
-                disk_number,
-                central_directory_disk,
-                entries_on_disk,
-                total_entries,
-                central_directory_size,
-                central_directory_offset,
-                comment_size,
-            ) = struct.unpack_from("<4s4H2LH", tail, offset)
-            if (
-                signature == ZIP_END_OF_CENTRAL_DIRECTORY_SIGNATURE
-                and offset + ZIP_END_OF_CENTRAL_DIRECTORY_SIZE + comment_size == len(tail)
-            ):
-                break
-        search_end = offset
-
-    if disk_number or central_directory_disk or entries_on_disk != total_entries:
-        raise RuntimeError(f"{wheel_path.name}: multi-disk wheel archives are forbidden")
-    if (
-        total_entries == 0xFFFF
-        or central_directory_size == 0xFFFFFFFF
-        or central_directory_offset == 0xFFFFFFFF
-    ):
-        raise RuntimeError(f"{wheel_path.name}: ZIP64 wheel archives are forbidden")
-    if total_entries > MAX_WHEEL_MEMBERS:
-        raise RuntimeError(f"{wheel_path.name}: wheel contains too many archive members")
-    if central_directory_size > MAX_WHEEL_CENTRAL_DIRECTORY_BYTES:
-        raise RuntimeError(f"{wheel_path.name}: wheel central directory exceeds the size limit")
-    end_of_central_directory = file_size - tail_size + offset
-    if central_directory_offset + central_directory_size != end_of_central_directory:
-        raise RuntimeError(f"{wheel_path.name}: malformed wheel central directory bounds")
-
-
-def _single_metadata_header(
-    *,
-    wheel_path: Path,
-    metadata: object,
-    header_name: str,
-) -> str:
-    get_all = getattr(metadata, "get_all", None)
-    values = get_all(header_name, []) if callable(get_all) else []
-    if len(values) != 1 or not isinstance(values[0], str) or not values[0].strip():
-        raise RuntimeError(
-            f"{wheel_path.name}: METADATA must contain exactly one {header_name} header"
-        )
-    return values[0].strip()
-
-
 def _validate_one_wheel(
-    *,
-    wheel_path: Path,
-    expected_artifacts: frozenset[tuple[str, str]],
+    *, wheel_path: Path, expected_artifacts: frozenset[tuple[str, str]]
 ) -> ValidatedWheel:
-    try:
-        filename_name, filename_version, _, _ = parse_wheel_filename(wheel_path.name)
-    except (InvalidWheelFilename, ValueError) as exc:
-        raise RuntimeError(f"{wheel_path.name}: malformed wheel filename") from exc
-    filename_key = (
-        str(canonicalize_name(filename_name)),
-        str(filename_version),
-    )
-    if filename_key not in expected_artifacts:
-        raise RuntimeError(
-            f"{wheel_path.name}: unexpected wheel artifact " f"{filename_key[0]}=={filename_key[1]}"
-        )
-
-    no_follow = getattr(os, "O_NOFOLLOW", None)
-    nonblocking = getattr(os, "O_NONBLOCK", None)
-    if no_follow is None or nonblocking is None:
-        raise RuntimeError("Wheel validation requires POSIX no-follow nonblocking reads.")
-    try:
-        descriptor = os.open(wheel_path, os.O_RDONLY | no_follow | nonblocking)
-    except OSError as exc:
-        raise RuntimeError(
-            f"{wheel_path.name}: wheel must remain a regular non-symlink file"
-        ) from exc
-    try:
-        wheel_stat = os.fstat(descriptor)
-        if not stat.S_ISREG(wheel_stat.st_mode):
-            raise RuntimeError(f"{wheel_path.name}: wheel artifact is not a regular file")
-        digest = hashlib.sha256()
-        while chunk := os.read(descriptor, 1024 * 1024):
-            digest.update(chunk)
-        _validate_zip_central_directory_bounds(
-            descriptor=descriptor,
-            wheel_path=wheel_path,
-            file_size=wheel_stat.st_size,
-        )
-        os.lseek(descriptor, 0, os.SEEK_SET)
-        with os.fdopen(descriptor, "rb") as wheel_stream:
-            descriptor = -1
-            try:
-                with zipfile.ZipFile(wheel_stream, "r") as wheel:
-                    metadata_members: list[zipfile.ZipInfo] = []
-                    members = wheel.infolist()
-                    if len(members) > MAX_WHEEL_MEMBERS:
-                        raise RuntimeError(
-                            f"{wheel_path.name}: wheel member count changed during parsing"
-                        )
-                    member_names: set[str] = set()
-                    for member in members:
-                        if member.filename in member_names:
-                            raise RuntimeError(
-                                f"{wheel_path.name}: wheel contains duplicate archive members"
-                            )
-                        member_names.add(member.filename)
-                        member_path = _validate_wheel_member_name(wheel_path, member.filename)
-                        member_mode = member.external_attr >> 16
-                        if member_mode and stat.S_ISLNK(member_mode):
-                            raise RuntimeError(
-                                f"{wheel_path.name}: wheel contains a symlink member"
-                            )
-                        if (
-                            len(member_path.parts) == 2
-                            and member_path.parts[0].endswith(".dist-info")
-                            and member_path.parts[1] == "METADATA"
-                        ):
-                            metadata_members.append(member)
-                    if len(metadata_members) != 1:
-                        raise RuntimeError(
-                            f"{wheel_path.name}: wheel must contain exactly one "
-                            "*.dist-info/METADATA"
-                        )
-                    metadata_member = metadata_members[0]
-                    if metadata_member.file_size > MAX_WHEEL_METADATA_BYTES:
-                        raise RuntimeError(
-                            f"{wheel_path.name}: METADATA exceeds the static size limit"
-                        )
-                    metadata_bytes = wheel.read(metadata_member)
-                final_metadata = os.fstat(wheel_stream.fileno())
-            except zipfile.BadZipFile as exc:
-                raise RuntimeError(f"{wheel_path.name}: malformed wheel archive") from exc
-    finally:
-        if descriptor >= 0:
-            os.close(descriptor)
-    path_metadata = wheel_path.lstat()
-    identity = (
-        wheel_stat.st_dev,
-        wheel_stat.st_ino,
-        wheel_stat.st_size,
-        wheel_stat.st_mode,
-        wheel_stat.st_uid,
-    )
-    if (
-        stat.S_ISLNK(path_metadata.st_mode)
-        or identity
-        != (
-            final_metadata.st_dev,
-            final_metadata.st_ino,
-            final_metadata.st_size,
-            final_metadata.st_mode,
-            final_metadata.st_uid,
-        )
-        or identity
-        != (
-            path_metadata.st_dev,
-            path_metadata.st_ino,
-            path_metadata.st_size,
-            path_metadata.st_mode,
-            path_metadata.st_uid,
-        )
-    ):
-        raise RuntimeError(f"{wheel_path.name}: wheel identity changed during validation")
-    artifact_snapshot = FileSnapshot(
-        digest=digest.hexdigest(),
-        mode=stat.S_IMODE(wheel_stat.st_mode),
-        device=wheel_stat.st_dev,
-        inode=wheel_stat.st_ino,
-        owner_uid=wheel_stat.st_uid,
-        size=wheel_stat.st_size,
-    )
-
-    metadata_message = BytesParser(policy=policy.default).parsebytes(metadata_bytes)
-    if metadata_message.defects:
-        raise RuntimeError(f"{wheel_path.name}: malformed wheel METADATA headers")
-    metadata_name = _single_metadata_header(
-        wheel_path=wheel_path,
-        metadata=metadata_message,
-        header_name="Name",
-    )
-    metadata_version = _single_metadata_header(
-        wheel_path=wheel_path,
-        metadata=metadata_message,
-        header_name="Version",
-    )
-    metadata_key = (
-        str(canonicalize_name(metadata_name)),
-        _canonical_version(metadata_version, label=f"{wheel_path.name} METADATA"),
-    )
-    if metadata_key != filename_key:
-        raise RuntimeError(f"{wheel_path.name}: filename and METADATA Name/Version do not match")
-
-    metadata_path = PurePosixPath(metadata_member.filename)
-    dist_info_stem = metadata_path.parts[0][: -len(".dist-info")]
-    if "-" not in dist_info_stem:
-        raise RuntimeError(f"{wheel_path.name}: malformed dist-info directory")
-    dist_info_name, dist_info_version = dist_info_stem.rsplit("-", 1)
-    dist_info_key = (
-        str(canonicalize_name(dist_info_name)),
-        _canonical_version(dist_info_version, label=f"{wheel_path.name} dist-info"),
-    )
-    if dist_info_key != filename_key:
-        raise RuntimeError(f"{wheel_path.name}: dist-info and filename Name/Version do not match")
-
-    dependency_links = metadata_message.get_all("Dependency-Link", [])
-    if dependency_links:
-        raise RuntimeError(f"{wheel_path.name}: Dependency-Link metadata is forbidden")
-    for raw_requirement in metadata_message.get_all("Requires-Dist", []):
-        if not isinstance(raw_requirement, str):
-            raise RuntimeError(f"{wheel_path.name}: malformed Requires-Dist metadata")
-        try:
-            requirement = Requirement(raw_requirement)
-        except InvalidRequirement as exc:
-            raise RuntimeError(
-                f"{wheel_path.name}: malformed Requires-Dist metadata: {raw_requirement!r}"
-            ) from exc
-        if requirement.url is not None:
-            raise RuntimeError(
-                f"{wheel_path.name}: direct-reference Requires-Dist metadata is forbidden"
-            )
-    return ValidatedWheel(
-        path=wheel_path,
-        artifact_key=filename_key,
-        snapshot=artifact_snapshot,
-        metadata_digest=hashlib.sha256(metadata_bytes).hexdigest(),
-    )
+    """Delegate artifact admission to the standalone installer owner."""
+    return inspect_locked_wheel(wheel_path=wheel_path, expected_artifacts=expected_artifacts)
 
 
 def _validate_wheelhouse(
@@ -1960,6 +1915,7 @@ def _validate_wheelhouse(
     expected_artifacts: frozenset[tuple[str, str]],
     admitted_hashes: Mapping[str, str] | None = None,
     graph_admission: GraphChangeAdmission | None = None,
+    source_artifact: ValidatedWheel | None = None,
 ) -> dict[tuple[str, str], ValidatedWheel]:
     """Statically validate exact wheel identity and metadata without importing code."""
 
@@ -1992,7 +1948,17 @@ def _validate_wheelhouse(
             )
         actual[artifact_key] = artifact
         if admitted_hashes is not None:
-            expected_digest = admitted_hashes.get(wheel_path.name.lower())
+            if artifact_key == ("psycopg-c", "3.3.4"):
+                if (
+                    source_artifact is None
+                    or artifact.metadata_digest != source_artifact.metadata_digest
+                ):
+                    raise RuntimeError(
+                        "Psycopg resolver wheel lacks the matching genuine SDK admission."
+                    )
+                expected_digest = source_artifact.snapshot.digest
+            else:
+                expected_digest = admitted_hashes.get(wheel_path.name.lower())
             if expected_digest is None:
                 raise RuntimeError(
                     f"{wheel_path.name}: wheel filename is absent from the "
@@ -2494,6 +2460,12 @@ def _compile_selected_profiles_locked(
     if graph_admission is not None:
         _assert_plans_match_graph_change_admission(plans, graph_admission)
     bootstrap_artifacts = _resolver_bootstrap_artifacts()
+    source_artifact: ValidatedWheel | None = None
+    if ("psycopg-c", "3.3.4") in _expected_artifacts(plans):
+        sdk_path = environment.get(PSYCOPG_SDK_ENV)
+        if not sdk_path:
+            raise RuntimeError("Governed Psycopg C compilation requires its genuine matching SDK.")
+        source_artifact = read_psycopg_c_sdk(Path(sdk_path))
     if graph_admission is not None:
         _assert_graph_change_admission(graph_admission)
     with tempfile.TemporaryDirectory(prefix="pulseplate-lock-transaction-") as transaction_dir:
@@ -2512,7 +2484,8 @@ def _compile_selected_profiles_locked(
                 resolver_home=credentialed_home,
             )
             artifact_admissions = _collect_private_proxy_artifact_hashes(
-                expected_artifacts=_expected_artifacts(plans) | bootstrap_artifacts,
+                expected_artifacts=(_expected_artifacts(plans) | bootstrap_artifacts)
+                - {("psycopg-c", "3.3.4")},
                 child_env=download_env,
             )
             _download_profile_wheels(
@@ -2528,11 +2501,18 @@ def _compile_selected_profiles_locked(
             _remove_credential_material(credentialed_home)
         if Path(credentialed_home_dir).exists():
             raise RuntimeError("Credentialed download HOME was not removed before compilation.")
+        if source_artifact is not None:
+            _assert_validated_wheel(source_artifact)
+            copied = _capture_file(source_artifact.path)
+            if copied.snapshot.digest != source_artifact.snapshot.digest:
+                raise RuntimeError("Psycopg SDK wheel changed before resolver admission.")
+            _write_private_bytes(wheelhouse / source_artifact.path.name, copied.content)
         artifacts = _validate_wheelhouse(
             wheelhouse=wheelhouse,
             expected_artifacts=_expected_artifacts(plans) | bootstrap_artifacts,
             admitted_hashes=artifact_admissions,
             graph_admission=graph_admission,
+            source_artifact=source_artifact,
         )
 
         views_root = transaction_root / "profile-wheelhouses"
