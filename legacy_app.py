@@ -20,30 +20,12 @@ from app.routers.api_key import (  # noqa: F401 - identity-preserving compatibil
     _get_api_key_dynamic as _get_api_key_dynamic,
     get_api_key as get_api_key,
 )
-from app.schemas.bmi_compat import BMIRequest, BMIRequestV1
 from app.services.scheduler_access import (  # noqa: F401 - compatibility re-export
     get_update_scheduler as get_update_scheduler,
 )
 
-from app.services.bmi_compat import (
-    MATPLOTLIB_AVAILABLE,
-    add_visualization_if_requested,
-    generate_bmi_visualization,
-)
-
 # Preserve the declared lexical legacy surface while re-exporting the exact canonical object.
 app = cast(Any, _canonical_app)
-
-_BMI_COMPAT_REEXPORTS = (
-    MATPLOTLIB_AVAILABLE,
-    add_visualization_if_requested,
-    generate_bmi_visualization,
-)
-
-_BMI_SCHEMA_COMPAT_REEXPORTS = (
-    BMIRequest,
-    BMIRequestV1,
-)
 
 # Rate limiting imports (PR-628)
 # RU: Импорты для rate-limiting (медленные imports только если slowapi доступен).

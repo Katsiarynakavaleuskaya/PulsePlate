@@ -126,6 +126,13 @@ RETIRED_LEGACY_PYTHON_BINDINGS = {
     "_short_git_sha",
     "_is_truthy",
     "_LEGACY_IMPORT_COMPAT_REEXPORTS",
+    "BMIRequest",
+    "BMIRequestV1",
+    "MATPLOTLIB_AVAILABLE",
+    "generate_bmi_visualization",
+    "add_visualization_if_requested",
+    "_BMI_COMPAT_REEXPORTS",
+    "_BMI_SCHEMA_COMPAT_REEXPORTS",
 }
 
 RETIRED_PLATE_HELPER_BINDINGS = (
@@ -183,6 +190,16 @@ RETIRED_CORE_UTILITY_BINDINGS = (
     "_short_git_sha",
     "_is_truthy",
     "_LEGACY_IMPORT_COMPAT_REEXPORTS",
+)
+
+RETIRED_BMI_COMPAT_BINDINGS = (
+    "BMIRequest",
+    "BMIRequestV1",
+    "MATPLOTLIB_AVAILABLE",
+    "generate_bmi_visualization",
+    "add_visualization_if_requested",
+    "_BMI_COMPAT_REEXPORTS",
+    "_BMI_SCHEMA_COMPAT_REEXPORTS",
 )
 
 _NETWORK_DISABLED_PREAMBLE = textwrap.dedent("""
@@ -267,6 +284,27 @@ def test_legacy_retirement_probe_excludes_ambient_credentials(
     assert _run_legacy_retirement_probe(scenario) == {"ambient_credentials_present": False}
 
 
+@pytest.mark.parametrize("binding_name", RETIRED_BMI_COMPAT_BINDINGS)
+def test_retired_bmi_compat_bindings_are_absent(binding_name: str) -> None:
+    """Require exact BMI retirement independently of production guard data."""
+    import legacy_app
+
+    assert binding_name not in vars(legacy_app)
+    with pytest.raises(AttributeError):
+        getattr(legacy_app, binding_name)
+    scenario = textwrap.dedent(f"""
+        import json
+        try:
+            from legacy_app import {binding_name}
+        except ImportError:
+            pass
+        else:
+            raise AssertionError("legacy from-import remains: {binding_name}")
+        print("LEGACY_RETIREMENT_RESULT=" + json.dumps({{"absent": {binding_name!r}}}))
+        """)
+    assert _run_legacy_retirement_probe(scenario) == {"absent": binding_name}
+
+
 @pytest.mark.parametrize("binding_name", RETIRED_CORE_UTILITY_BINDINGS)
 def test_retired_core_utility_bindings_are_absent(binding_name: str) -> None:
     """Require each selected binding to disappear independently of guard data."""
@@ -315,6 +353,7 @@ def test_retired_legacy_python_bindings_are_absent_with_canonical_owners_present
     import core.nutrition_utils as nutrition_utils
     import core.plate as plate
     import core.recommendations as recommendations
+    import bmi_visualization
     import legacy_app
 
     canonical_migrations = {
@@ -419,8 +458,16 @@ def test_retired_legacy_python_bindings_are_absent_with_canonical_owners_present
         "_short_git_sha": helpers._short_git_sha,
         "_is_truthy": feature_flags._is_truthy,
         "_LEGACY_IMPORT_COMPAT_REEXPORTS": None,
+        "BMIRequest": bmi_schemas.BMIRequest,
+        "BMIRequestV1": bmi_schemas.BMIRequestV1,
+        "MATPLOTLIB_AVAILABLE": bmi_visualization.MATPLOTLIB_AVAILABLE,
+        "generate_bmi_visualization": bmi_visualization.generate_bmi_visualization,
+        "add_visualization_if_requested": bmi_compat.add_visualization_if_requested,
+        "_BMI_COMPAT_REEXPORTS": None,
+        "_BMI_SCHEMA_COMPAT_REEXPORTS": None,
     }
     canonical_constants = {
+        "MATPLOTLIB_AVAILABLE": bmi_visualization.MATPLOTLIB_AVAILABLE,
         "DB_TO_ALIAS_NUTRIENT_MAP": plate_service.DB_TO_ALIAS_NUTRIENT_MAP,
         "INSIGHT_TEXT_MAX_LENGTH": insight_schemas.INSIGHT_TEXT_MAX_LENGTH,
         "INSIGHT_TEMP_UNAVAILABLE_MESSAGE": insight_compat.INSIGHT_TEMP_UNAVAILABLE_MESSAGE,
@@ -440,7 +487,7 @@ def test_retired_legacy_python_bindings_are_absent_with_canonical_owners_present
 
     assert canonical_migrations.keys() == RETIRED_LEGACY_PYTHON_BINDINGS
     assert RETIRED_LEGACY_PYTHON_BINDINGS == legacy_guard.RETIRED_LEGACY_PYTHON_BINDINGS
-    assert len(RETIRED_LEGACY_PYTHON_BINDINGS) == 99
+    assert len(RETIRED_LEGACY_PYTHON_BINDINGS) == 106
     assert canonical_migrations["TargetsIn"] is canonical_migrations["CanonicalTargetsIn"]
     assert (
         len(
@@ -507,8 +554,15 @@ def test_retired_legacy_python_bindings_are_absent_with_canonical_owners_present
         (feature_flags._is_truthy, feature_flags),
     ):
         assert function.__module__ == owner.__name__
-    assert legacy_app.BMIRequest is bmi_schemas.BMIRequest
-    assert legacy_app.BMIRequestV1 is bmi_schemas.BMIRequestV1
+    assert bmi_schemas.BMIRequest is not bmi_schemas.BMIRequestV1
+    assert app_facade.BMIRequest is bmi_schemas.BMIRequest
+    assert bmi_compat.BMIRequest is bmi_schemas.BMIRequest
+    assert bmi_compat.BMIRequestV1 is bmi_schemas.BMIRequestV1
+    assert type(bmi_visualization.MATPLOTLIB_AVAILABLE) is bool
+    assert bmi_compat.MATPLOTLIB_AVAILABLE is bmi_visualization.MATPLOTLIB_AVAILABLE
+    assert app_facade.MATPLOTLIB_AVAILABLE is bmi_visualization.MATPLOTLIB_AVAILABLE
+    assert bmi_compat.generate_bmi_visualization is bmi_visualization.generate_bmi_visualization
+    assert app_facade.generate_bmi_visualization is bmi_visualization.generate_bmi_visualization
     assert {
         binding_name
         for binding_name, canonical_migration in canonical_migrations.items()
@@ -518,6 +572,8 @@ def test_retired_legacy_python_bindings_are_absent_with_canonical_owners_present
         "WeeklyPlanFlexibleRequest",
         "_log_retention_manager",
         "_LEGACY_IMPORT_COMPAT_REEXPORTS",
+        "_BMI_COMPAT_REEXPORTS",
+        "_BMI_SCHEMA_COMPAT_REEXPORTS",
     }
     assert log_retention.DataClass.__module__ == log_retention.__name__
     assert log_retention.LogRetentionManager.__module__ == log_retention.__name__
@@ -531,6 +587,67 @@ def test_retired_legacy_python_bindings_are_absent_with_canonical_owners_present
             assert callable(canonical_migration)
         with pytest.raises(AttributeError):
             getattr(legacy_app, binding_name)
+
+
+@pytest.mark.parametrize(
+    "imports",
+    (
+        "import legacy_app\n"
+        "assert 'app.services.bmi_compat' not in sys.modules\n"
+        "import app.services.bmi_compat as bmi_service\n",
+        "import app.services.bmi_compat as bmi_service\n"
+        "assert 'legacy_app' not in sys.modules\n"
+        "import legacy_app\n",
+    ),
+    ids=("legacy-first", "canonical-service-first"),
+)
+def test_bmi_canonical_and_package_exports_survive_retirement_import_orders(imports: str) -> None:
+    """Preserve the original visualization identities in the protected import probe."""
+    scenario = "import sys\n" + imports + textwrap.dedent(f"""
+        import json
+        import bmi_visualization
+        import app as app_package
+        import app.schemas.bmi_compat as bmi_schemas
+
+        assert bmi_service.generate_bmi_visualization is bmi_visualization.generate_bmi_visualization
+        assert app_package.generate_bmi_visualization is bmi_visualization.generate_bmi_visualization
+        assert type(bmi_visualization.MATPLOTLIB_AVAILABLE) is bool
+        assert bmi_service.MATPLOTLIB_AVAILABLE is bmi_visualization.MATPLOTLIB_AVAILABLE
+        assert app_package.MATPLOTLIB_AVAILABLE is bmi_visualization.MATPLOTLIB_AVAILABLE
+        assert app_package.BMIRequest is bmi_schemas.BMIRequest
+        assert bmi_schemas.BMIRequest is not bmi_schemas.BMIRequestV1
+        assert bmi_service.BMIRequest is bmi_schemas.BMIRequest
+        assert bmi_service.BMIRequestV1 is bmi_schemas.BMIRequestV1
+        package_exports = {{
+            "app", "resolve_attr", "make_weekly_menu", "build_nutrition_targets",
+            "metrics", "lifespan", "get_update_scheduler", "api_key_header",
+            "get_api_key", "_get_api_key_dynamic", "get_bodyfat_router",
+            "MATPLOTLIB_AVAILABLE", "generate_bmi_visualization", "BMIRequest",
+            "_is_truthy", "_macros_to_kcal",
+        }}
+        assert set(app_package._LOCAL_EXPORTS) | {{
+            "app", "MATPLOTLIB_AVAILABLE", "generate_bmi_visualization"
+        }} == package_exports
+        assert all(hasattr(app_package, name) for name in package_exports)
+        assert app_package.app is legacy_app.app
+        for name in {RETIRED_BMI_COMPAT_BINDINGS!r}:
+            assert name not in vars(legacy_app)
+            try:
+                getattr(legacy_app, name)
+            except AttributeError:
+                pass
+            else:
+                raise AssertionError(f"legacy BMI attribute remains: {{name}}")
+        print("LEGACY_RETIREMENT_RESULT=" + json.dumps({{
+            "canonical_models_distinct": True, "package_exports": 16,
+            "visualization_identity_preserved": True,
+        }}))
+        """)
+    assert _run_legacy_retirement_probe(scenario) == {
+        "canonical_models_distinct": True,
+        "package_exports": 16,
+        "visualization_identity_preserved": True,
+    }
 
 
 def test_canonical_nutrition_contracts_remain_importable_in_fresh_process() -> None:

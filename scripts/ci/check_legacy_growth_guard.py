@@ -138,6 +138,13 @@ RETIRED_LEGACY_PYTHON_BINDINGS = frozenset(
         "_short_git_sha",
         "_is_truthy",
         "_LEGACY_IMPORT_COMPAT_REEXPORTS",
+        "BMIRequest",
+        "BMIRequestV1",
+        "MATPLOTLIB_AVAILABLE",
+        "generate_bmi_visualization",
+        "add_visualization_if_requested",
+        "_BMI_COMPAT_REEXPORTS",
+        "_BMI_SCHEMA_COMPAT_REEXPORTS",
     }
 )
 ALLOWED_CANONICAL_LIFESPAN_APP_IMPORTS = frozenset(
