@@ -57,6 +57,12 @@ def test_build_workflow_keeps_only_ordinary_fail_closed_topology() -> None:
             "default": "unchanged",
             "options": ["unchanged", "xnet060-replay"],
         },
+        "tool_prefetch_predecessor": {
+            "description": "Exact failed precompile run:artifact evidence selector; no dispatch authorization",
+            "type": "string",
+            "required": False,
+            "default": "",
+        },
     }
     assert workflow["concurrency"] == {
         "group": "ghcr-build-push-${{ github.sha }}",
@@ -510,16 +516,37 @@ def test_prometheus_cd_registry_credential_route_preserves_base_execution_bounda
     ordered = job["steps"]
     steps = {step["name"]: step for step in ordered}
     names = [step["name"] for step in ordered]
-    initial = steps["Checkout immutable Prometheus contracts"]
-    assert initial["with"] == {
+    initial_pr = steps["Checkout immutable PR base Prometheus contracts"]
+    assert initial_pr["if"] == "${{ github.event_name == 'pull_request' }}"
+    assert initial_pr["with"] == {
         "persist-credentials": False,
         "fetch-depth": 0,
-        "ref": "${{ steps.prometheus-event.outputs.checkout_ref }}",
+        "ref": "${{ github.event.pull_request.base.sha }}",
     }
+    initial_published = steps["Checkout immutable published Prometheus contracts"]
+    assert initial_published["if"] == (
+        "${{ github.event_name == 'push' || github.event_name == 'schedule' }}"
+    )
+    assert initial_published["with"] == {
+        "persist-credentials": False,
+        "fetch-depth": 0,
+        "ref": "${{ github.sha }}",
+    }
+    assert [
+        step["name"]
+        for step in ordered
+        if str(step.get("uses", "")).startswith("actions/checkout@")
+    ] == [
+        initial_pr["name"],
+        initial_published["name"],
+        "Checkout exact changed PR Prometheus contracts",
+        "Checkout exact unchanged PR contracts after trusted cleanup",
+    ]
     event = steps["Validate exact Prometheus checkout revisions"]
     assert "secrets." not in str(event)
     assert 'head, base = sha(pr["head"].get("sha")), sha(pr["base"].get("sha"))' in event["run"]
-    assert 'output.write("checkout_ref=" + base' in event["run"]
+    assert 'output.write("head=" + head + "\\nbase=" + base + "\\n")' in event["run"]
+    assert "checkout_ref" not in str(job)
     route = steps["Classify the fixed regular Prometheus manifest blobs"]
     assert route["id"] == "prometheus-route" and "secrets." not in str(route)
     assert '"--no-replace-objects"' in route["run"]
@@ -544,13 +571,13 @@ def test_prometheus_cd_registry_credential_route_preserves_base_execution_bounda
     ):
         step = steps[name]
         assert (
-            step["if"]
-            == "${{ success() && steps.prometheus-route.outputs.mode == '" + mode + "' }}"
+            step["if"] == "${{ success() && github.event_name == 'pull_request' && "
+            "steps.prometheus-route.outputs.mode == '" + mode + "' }}"
         )
         assert step["with"] == {
             "persist-credentials": False,
             "fetch-depth": 0,
-            "ref": "${{ steps.prometheus-route.outputs.head }}",
+            "ref": "${{ github.event.pull_request.head.sha }}",
         }
     capability = steps["Require the trusted base published consumer capability"]
     handoff = steps["Bind the unchanged PR admission after trusted cleanup"]
@@ -570,7 +597,8 @@ def test_prometheus_cd_registry_credential_route_preserves_base_execution_bounda
         names.index(name)
         for name in (
             event["name"],
-            initial["name"],
+            initial_pr["name"],
+            initial_published["name"],
             route["name"],
             capability["name"],
             consumer["name"],
@@ -582,7 +610,8 @@ def test_prometheus_cd_registry_credential_route_preserves_base_execution_bounda
         names.index(name)
         for name in (
             event["name"],
-            initial["name"],
+            initial_pr["name"],
+            initial_published["name"],
             route["name"],
             capability["name"],
             consumer["name"],

@@ -537,15 +537,24 @@ jobs:
                       or (name == "schedule" and ref == "refs/heads/main"))
               head = base = sha(os.environ.get("GITHUB_SHA"))
           with Path(os.environ["GITHUB_OUTPUT"]).open("a") as output:
-              output.write("checkout_ref=" + base + "\nhead=" + head + "\nbase=" + base + "\n")
+              output.write("head=" + head + "\nbase=" + base + "\n")
           PY
 
-      - name: Checkout immutable Prometheus contracts
+      - name: Checkout immutable PR base Prometheus contracts
+        if: ${{ github.event_name == 'pull_request' }}
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
           fetch-depth: 0
-          ref: ${{ steps.prometheus-event.outputs.checkout_ref }}
+          ref: ${{ github.event.pull_request.base.sha }}
+
+      - name: Checkout immutable published Prometheus contracts
+        if: ${{ github.event_name == 'push' || github.event_name == 'schedule' }}
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ github.sha }}
 
       - name: Classify the fixed regular Prometheus manifest blobs
         id: prometheus-route
@@ -613,12 +622,12 @@ jobs:
           PY
 
       - name: Checkout exact changed PR Prometheus contracts
-        if: ${{ success() && steps.prometheus-route.outputs.mode == 'changed_pr_candidate' }}
+        if: ${{ success() && github.event_name == 'pull_request' && steps.prometheus-route.outputs.mode == 'changed_pr_candidate' }}
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
           fetch-depth: 0
-          ref: ${{ steps.prometheus-route.outputs.head }}
+          ref: ${{ github.event.pull_request.head.sha }}
 
       - name: Require the trusted base published consumer capability
         if: ${{ success() && steps.prometheus-route.outputs.mode == 'unchanged_pr_published' }}
@@ -673,12 +682,12 @@ jobs:
           PY
 
       - name: Checkout exact unchanged PR contracts after trusted cleanup
-        if: ${{ success() && steps.prometheus-route.outputs.mode == 'unchanged_pr_published' }}
+        if: ${{ success() && github.event_name == 'pull_request' && steps.prometheus-route.outputs.mode == 'unchanged_pr_published' }}
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
           fetch-depth: 0
-          ref: ${{ steps.prometheus-route.outputs.head }}
+          ref: ${{ github.event.pull_request.head.sha }}
 
       - name: Check canonical Prometheus config with exact-image promtool
         env:

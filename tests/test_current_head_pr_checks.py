@@ -68,6 +68,65 @@ def test_fallback_ci_allowlist_matches_canonical_pr_workflow_jobs() -> None:
 
     assert current_head_checks.CANONICAL_FALLBACK_CI_CHECK_NAMES == expected_display_names
     assert "test-feature" not in CANONICAL_FALLBACK_JOB_IDS
+    assert _job_display_names("test-main", jobs["test-main"]) == {
+        "test-main (3.11, 90)",
+        "test-main (3.12, 120)",
+        "test-main (3.13, 120)",
+    }
+
+
+@pytest.mark.parametrize(
+    "check_name",
+    ("test-main (3.11, 90)", "test-main (3.12, 120)", "test-main (3.13, 120)"),
+)
+@pytest.mark.parametrize(
+    ("status", "conclusion", "expected_state"),
+    (("IN_PROGRESS", None, "pending"), ("COMPLETED", "FAILURE", "failed")),
+)
+def test_test_main_matrix_check_names_block_pending_and_failed_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    check_name: str,
+    status: str,
+    conclusion: str | None,
+    expected_state: str,
+) -> None:
+    """Start from a passing actual-name baseline, then change only its native result."""
+    for key in ("GH_TOKEN", "GITHUB_TOKEN", "GHCR_READ_TOKEN", "GHCR_TOKEN"):
+        monkeypatch.delenv(key, raising=False)
+    monkeypatch.setattr(current_head_checks, "_github_token", lambda: "synthetic-ci-identity-token")
+    node = {
+        "__typename": "CheckRun",
+        "name": check_name,
+        "status": "COMPLETED",
+        "conclusion": "SUCCESS",
+        "startedAt": "2026-10-11T19:32:16Z",
+        "completedAt": "2026-10-11T20:32:16Z",
+        "detailsUrl": "https://example.invalid/test-main-current",
+        "checkSuite": {
+            "createdAt": "2026-10-11T19:32:16Z",
+            "workflowRun": {"workflow": {"name": "CI"}},
+        },
+    }
+    monkeypatch.setattr(
+        current_head_checks, "_fetch_pr_metadata", lambda *args: (False, "CLEAN", "main", [node])
+    )
+    monkeypatch.setattr(
+        current_head_checks, "_fetch_required_check_names", lambda *args: (set(), False)
+    )
+    arguments = ["--pr-number", "2477", "--repo", "Katsiarynakavaleuskaya/PulsePlate"]
+    assert current_head_checks.main(arguments) == 0
+    assert "current-head-checks: passed." in capsys.readouterr().out
+
+    node.update(status=status, conclusion=conclusion)
+    if status == "IN_PROGRESS":
+        node["completedAt"] = None
+    assert current_head_checks.main(arguments) == 1
+    output = capsys.readouterr().out
+    assert "Current-head blocking fallback checks:" in output
+    assert f"- {check_name}: {expected_state} [CI]" in output
+    assert "Blocking fallback current-head checks remain pending or failed." in output
+    assert "current-head-checks: passed." not in output
 
 
 @pytest.mark.parametrize(
@@ -296,7 +355,7 @@ def test_fallback_ci_allowlist_matches_canonical_pr_workflow_jobs() -> None:
         ),
         (
             current_head_checks.CheckEntry(
-                name="test-main (3.11, 60)",
+                name="test-main (3.11, 90)",
                 source_kind="check_run",
                 state="failed",
                 timestamp="2026-03-12T08:36:42Z",

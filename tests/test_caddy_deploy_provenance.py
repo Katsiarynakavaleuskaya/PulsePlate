@@ -190,8 +190,8 @@ PROMETHEUS_RULES_HASH_CHECK = (
 )
 
 GO_BUILDER = (
-    "golang:1.26.6-alpine3.23@"
-    "sha256:5978cc992ad5ef96a7469713c8af849c1433824761ce3be2c56381403cd8d9a3"
+    "golang:1.26.9-alpine3.23@"
+    "sha256:96123126ac58e910f4dd3619a8901e2fb6d1ad84b59b1232cac7c9ea65a8f888"
 )
 NODE_BUILDER = (
     "node:24.18.1-bookworm-slim@"
@@ -218,6 +218,7 @@ EXPECTED_CADDY_BUILDER_STAGE = (
             "    go get github.com/caddyserver/caddy/v2/cmd/caddy@v2.11.4; \\",
             "    go get google.golang.org/grpc@v1.83.2; \\",
             "    go get golang.org/x/crypto@v0.55.0; \\",
+            "    go get golang.org/x/net@v0.60.0; \\",
             "    go mod download all; \\",
             "    go mod verify; \\",
             (
@@ -243,15 +244,15 @@ EXPECTED_CADDY_BUILDER_STAGE = (
             "      | LC_ALL=C sort > /tmp/caddy-governed-graph; \\",
             "    printf '%s\\n' \\",
             "      'github.com/caddyserver/caddy/v2 v2.11.4' \\",
-            "      'golang.org/x/crypto v0.55.0' \\",
-            "      'golang.org/x/mod v0.38.0' \\",
-            "      'golang.org/x/net v0.58.0' \\",
-            "      'golang.org/x/sync v0.22.0' \\",
-            "      'golang.org/x/sys v0.47.0' \\",
-            "      'golang.org/x/telemetry v0.0.0-20260708182218-49f421fb7959' \\",
-            "      'golang.org/x/term v0.45.0' \\",
-            "      'golang.org/x/text v0.41.0' \\",
-            "      'golang.org/x/tools v0.48.0' \\",
+            "      'golang.org/x/crypto v0.57.0' \\",
+            "      'golang.org/x/mod v0.41.0' \\",
+            "      'golang.org/x/net v0.60.0' \\",
+            "      'golang.org/x/sync v0.23.0' \\",
+            "      'golang.org/x/sys v0.48.0' \\",
+            "      'golang.org/x/telemetry v0.0.0-20260811182544-a038080d80e5' \\",
+            "      'golang.org/x/term v0.46.0' \\",
+            "      'golang.org/x/text v0.42.0' \\",
+            "      'golang.org/x/tools v0.49.0' \\",
             "      'google.golang.org/grpc v1.83.2' \\",
             "      | LC_ALL=C sort > /tmp/caddy-expected-graph; \\",
             ('    test "$(wc -l < /tmp/caddy-governed-graph | ' "tr -d '[:space:]')\" = '11'; \\"),
@@ -279,12 +280,12 @@ EXPECTED_CADDY_BUILDER_STAGE = (
             "      | LC_ALL=C sort > /tmp/caddy-governed-binary; \\",
             "    printf '%s\\n' \\",
             "      'mod github.com/caddyserver/caddy/v2 v2.11.4' \\",
-            "      'dep golang.org/x/crypto v0.55.0' \\",
-            "      'dep golang.org/x/net v0.58.0' \\",
-            "      'dep golang.org/x/sync v0.22.0' \\",
-            "      'dep golang.org/x/sys v0.47.0' \\",
-            "      'dep golang.org/x/term v0.45.0' \\",
-            "      'dep golang.org/x/text v0.41.0' \\",
+            "      'dep golang.org/x/crypto v0.57.0' \\",
+            "      'dep golang.org/x/net v0.60.0' \\",
+            "      'dep golang.org/x/sync v0.23.0' \\",
+            "      'dep golang.org/x/sys v0.48.0' \\",
+            "      'dep golang.org/x/term v0.46.0' \\",
+            "      'dep golang.org/x/text v0.42.0' \\",
             "      'dep google.golang.org/grpc v1.83.2' \\",
             "      | LC_ALL=C sort > /tmp/caddy-expected-binary; \\",
             ('    test "$(wc -l < /tmp/caddy-governed-binary | ' "tr -d '[:space:]')\" = '8'; \\"),
@@ -309,7 +310,7 @@ EXPECTED_CADDY_FINAL_STAGE = (
             'LABEL org.opencontainers.image.title="PulsePlate Caddy SPA shell" \\',
             (
                 '      org.opencontainers.image.description="Caddy 2.11.4 rebuilt with '
-                'Go 1.26.6 and PulsePlate frontend assets"'
+                'Go 1.26.9 and PulsePlate frontend assets"'
             ),
             "",
             "# Compare the standard module surface before replacing the upstream binary.",
@@ -332,7 +333,8 @@ EXPECTED_CADDY_FINAL_STAGE = (
             '      "curl>=8.20.0-r0" \\',
             '      "libcurl>=8.20.0-r0" \\',
             '      "libcrypto3>=3.5.8-r0" \\',
-            '      "libssl3>=3.5.8-r0"; \\',
+            '      "libssl3>=3.5.8-r0" \\',
+            '      "zlib>=1.3.2-r1"; \\',
             "    mv /usr/bin/caddy.pulseplate /usr/bin/caddy; \\",
             "    setcap cap_net_bind_service=+ep /usr/bin/caddy; \\",
             "    getcap /usr/bin/caddy | grep -F 'cap_net_bind_service=ep'; \\",
@@ -342,7 +344,7 @@ EXPECTED_CADDY_FINAL_STAGE = (
             ),
             (
                 "    caddy build-info | awk -F '\\t' '$1 == \"go\" && $2 == "
-                '"go1.26.6" { found=1 } END { exit found ? 0 : 1 }\'; \\'
+                '"go1.26.9" { found=1 } END { exit found ? 0 : 1 }\'; \\'
             ),
             "    rm -f /tmp/caddy-official-modules /tmp/caddy-rebuilt-modules",
             "",
@@ -458,21 +460,23 @@ def test_caddy_dockerfile_owns_exact_hardened_build_recipe() -> None:
     assert grpc_get in text
     assert text.count(crypto_get) == 1
     assert text.index(caddy_get) < text.index(grpc_get) < text.index(crypto_get)
-    assert text.index(crypto_get) < text.index("go mod download all")
+    net_get = "go get golang.org/x/net@v0.60.0"
+    assert text.count(net_get) == 1
+    assert text.index(crypto_get) < text.index(net_get) < text.index("go mod download all")
     assert "go mod download all" in text
     assert "go mod verify" in text
     for exact_graph_identity in (
         "github.com/caddyserver/caddy/v2 v2.11.4",
         "google.golang.org/grpc v1.83.2",
-        "golang.org/x/crypto v0.55.0",
-        "golang.org/x/mod v0.38.0",
-        "golang.org/x/net v0.58.0",
-        "golang.org/x/sync v0.22.0",
-        "golang.org/x/sys v0.47.0",
-        "golang.org/x/telemetry v0.0.0-20260708182218-49f421fb7959",
-        "golang.org/x/term v0.45.0",
-        "golang.org/x/text v0.41.0",
-        "golang.org/x/tools v0.48.0",
+        "golang.org/x/crypto v0.57.0",
+        "golang.org/x/mod v0.41.0",
+        "golang.org/x/net v0.60.0",
+        "golang.org/x/sync v0.23.0",
+        "golang.org/x/sys v0.48.0",
+        "golang.org/x/telemetry v0.0.0-20260811182544-a038080d80e5",
+        "golang.org/x/term v0.46.0",
+        "golang.org/x/text v0.42.0",
+        "golang.org/x/tools v0.49.0",
     ):
         assert f"'{exact_graph_identity}'" in text
     assert "test -z \"$(go list -m -f '{{if .Replace}}" in text
@@ -484,17 +488,18 @@ def test_caddy_dockerfile_owns_exact_hardened_build_recipe() -> None:
     for exact_binary_identity in (
         "mod github.com/caddyserver/caddy/v2 v2.11.4",
         "dep google.golang.org/grpc v1.83.2",
-        "dep golang.org/x/crypto v0.55.0",
-        "dep golang.org/x/net v0.58.0",
-        "dep golang.org/x/sync v0.22.0",
-        "dep golang.org/x/sys v0.47.0",
-        "dep golang.org/x/term v0.45.0",
-        "dep golang.org/x/text v0.41.0",
+        "dep golang.org/x/crypto v0.57.0",
+        "dep golang.org/x/net v0.60.0",
+        "dep golang.org/x/sync v0.23.0",
+        "dep golang.org/x/sys v0.48.0",
+        "dep golang.org/x/term v0.46.0",
+        "dep golang.org/x/text v0.42.0",
     ):
         assert f"'{exact_binary_identity}'" in text
     assert '"c-ares>=1.34.8-r0"' in text
     assert '"curl>=8.20.0-r0"' in text
     assert '"libcurl>=8.20.0-r0"' in text
+    assert '"zlib>=1.3.2-r1"' in text
     assert "COPY --from=caddy-build --chmod=0755 /go/bin/caddy" in text
     assert "caddy list-modules --packages" in text
     assert "setcap cap_net_bind_service=+ep /usr/bin/caddy" in text
@@ -517,7 +522,6 @@ def test_caddy_dockerfile_owns_exact_hardened_build_recipe() -> None:
         "golang.org/x/crypto v0.53.0",
         "golang.org/x/crypto v0.54.0",
         "go get golang.org/x/mod@",
-        "go get golang.org/x/net@",
         "go get golang.org/x/sync@",
         "go get golang.org/x/sys@",
         "go get golang.org/x/telemetry@",
@@ -597,11 +601,15 @@ def test_caddy_cve_owner_and_ledger_remain_one_bounded_contract() -> None:
         "independent-closure-action",
         "graph-fixed-binary-stale",
         "binary-fixed-graph-stale",
+        "net-omitted",
+        "net-duplicate",
+        "net-floating",
     ),
 )
 def test_caddy_builder_stage_snapshot_rejects_dependency_contract_drift(case: str) -> None:
     source = DOCKERFILE.read_text(encoding="utf-8")
     crypto_action = "    go get golang.org/x/crypto@v0.55.0; \\\n"
+    _assert_caddy_builder_stage_contract(source)
 
     if case == "omitted":
         candidate = source.replace(crypto_action, "", 1)
@@ -642,14 +650,22 @@ def test_caddy_builder_stage_snapshot_rejects_dependency_contract_drift(case: st
         )
     elif case == "graph-fixed-binary-stale":
         candidate = source.replace(
-            "      'dep golang.org/x/crypto v0.55.0' \\\n",
+            "      'dep golang.org/x/crypto v0.57.0' \\\n",
             "      'dep golang.org/x/crypto v0.54.0' \\\n",
             1,
         )
+    elif case in ("net-omitted", "net-duplicate", "net-floating"):
+        net_action = "    go get golang.org/x/net@v0.60.0; \\\n"
+        replacement = {
+            "net-omitted": "",
+            "net-duplicate": net_action * 2,
+            "net-floating": net_action.replace("v0.60.0", "latest"),
+        }[case]
+        candidate = source.replace(net_action, replacement, 1)
     else:
         assert case == "binary-fixed-graph-stale"
         candidate = source.replace(
-            "      'golang.org/x/crypto v0.55.0' \\\n",
+            "      'golang.org/x/crypto v0.57.0' \\\n",
             "      'golang.org/x/crypto v0.54.0' \\\n",
             1,
         )
@@ -671,23 +687,27 @@ def test_caddy_dockerfile_keeps_closed_fixed_openssl_final_stage_recipe() -> Non
         "substitute-floor",
         "insert-before-transaction",
         "insert-after-transaction",
+        "lower-zlib-floor",
     ),
 )
 def test_caddy_openssl_final_stage_snapshot_rejects_representative_byte_drift(
     case: str,
 ) -> None:
     source = DOCKERFILE.read_text(encoding="utf-8")
+    _assert_caddy_openssl_runtime_floor_contract(source)
     if case == "lower-floor":
         candidate = source.replace("3.5.8-r0", "3.5.7-r0")
+    elif case == "lower-zlib-floor":
+        candidate = source.replace("zlib>=1.3.2-r1", "zlib>=1.3.2-r0")
     elif case == "partial-floor":
         candidate = source.replace(
-            '      "libssl3>=3.5.8-r0"; \\\n',
+            '      "libssl3>=3.5.8-r0" \\\n',
             "",
             1,
         )
     elif case == "substitute-floor":
         candidate = source.replace(
-            '      "libcrypto3>=3.5.8-r0" \\\n' '      "libssl3>=3.5.8-r0"; \\\n',
+            '      "libcrypto3>=3.5.8-r0" \\\n' '      "libssl3>=3.5.8-r0" \\\n',
             '      "openssl>=3.5.8-r0"; \\\n',
             1,
         )
@@ -1211,16 +1231,16 @@ def test_production_quick_fix_rebuilds_and_verifies_hardened_caddy() -> None:
     assert pull_index < build_index < up_index < version_index < build_info_index < success_index
     assert "dc pull ||" not in text
     assert 'CADDY_VERSION_TOKEN" != "v2.11.4"' in text
-    assert 'CADDY_GO_VERSION" != "go1.26.6"' in text
+    assert 'CADDY_GO_VERSION" != "go1.26.9"' in text
     assert "*v2.11.4*" not in text
-    assert "*go1.26.6*" not in text
+    assert "*go1.26.9*" not in text
 
 
 @pytest.mark.parametrize(
     ("caddy_version", "build_info", "expected_error"),
     (
-        ("v2.11.40 h1:test", "go\tgo1.26.6\n", "Expected Caddy v2.11.4"),
-        ("v2.11.4 h1:test", "go\tgo1.26.60\n", "Expected Caddy built with Go 1.26.6"),
+        ("v2.11.40 h1:test", "go\tgo1.26.9\n", "Expected Caddy v2.11.4"),
+        ("v2.11.4 h1:test", "go\tgo1.26.90\n", "Expected Caddy built with Go 1.26.9"),
     ),
 )
 def test_production_quick_fix_rejects_inexact_caddy_identity(
@@ -1244,7 +1264,7 @@ def test_production_quick_fix_fails_closed_when_readiness_fails(tmp_path: Path) 
     completed = _run_production_quick_fix(
         tmp_path,
         caddy_version="v2.11.4 h1:test",
-        go_version="go1.26.6",
+        go_version="go1.26.9",
         curl_exit=22,
     )
 
@@ -1259,7 +1279,7 @@ def test_production_quick_fix_redacts_duplicate_secret_values(tmp_path: Path) ->
     completed = _run_production_quick_fix(
         tmp_path,
         caddy_version="v2.11.4 h1:test",
-        go_version="go1.26.6",
+        go_version="go1.26.9",
         extra_env=(
             f"POSTGRES_PASSWORD={password_sentinel}\n"
             f"DATABASE_URL=postgresql+psycopg://pulseplate:{dsn_sentinel}@db/pulseplate\n"
@@ -1290,7 +1310,7 @@ def test_production_quick_fix_rejects_compose_normalized_duplicate_keys(
     completed = _run_production_quick_fix(
         tmp_path,
         caddy_version="v2.11.4 h1:test",
-        go_version="go1.26.6",
+        go_version="go1.26.9",
         extra_env=f"{duplicate_line}\n",
     )
 
@@ -1311,7 +1331,7 @@ def test_production_quick_fix_fails_closed_when_env_file_is_missing(tmp_path: Pa
     completed = _run_production_quick_fix(
         tmp_path,
         caddy_version="v2.11.4 h1:test",
-        go_version="go1.26.6",
+        go_version="go1.26.9",
         create_env=False,
     )
 
@@ -1325,7 +1345,7 @@ def test_production_quick_fix_replaces_env_atomically_with_preserved_mode(tmp_pa
     completed = _run_production_quick_fix(
         tmp_path,
         caddy_version="v2.11.4 h1:test",
-        go_version="go1.26.6",
+        go_version="go1.26.9",
     )
 
     env_path = tmp_path / "production" / ".env"
@@ -1363,7 +1383,7 @@ def test_production_quick_fix_normalizes_managed_flag_cleanup(
     completed = _run_production_quick_fix(
         tmp_path,
         caddy_version="v2.11.4 h1:test",
-        go_version="go1.26.6",
+        go_version="go1.26.9",
         extra_env=f"{legacy_line}\n",
     )
 
@@ -2741,10 +2761,12 @@ def test_caddy_counterfactual_metadata_owns_no_compiler_or_final_recipe_mutation
         "/sbin/apk fetch --no-cache --repository https://dl-cdn.alpinelinux.org/alpine/v3.23/main --match package --output /output zlib-1.3.2-r1",
         "/sbin/apk verify /output/zlib-1.3.2-r1.apk > /output/package-signature.txt",
     ]
-    # Selection follows actual hosted replay; preparation cannot silently add the fourth get.
+    assert 'require(gets == baseline_gets + [b"golang.org/x/net@v0.60.0"]' in source
+    assert '"counterfactual_seed_gets"' in source and '"selected_recipe_gets"' in source
+    # Current selection follows the observed original-three-get counterfactual replay.
     recipe = DOCKERFILE.read_text()
-    assert "go get golang.org/x/net@v0.60.0" not in recipe
-    assert "Go 1.26.6" in recipe
+    assert recipe.count("go get golang.org/x/net@v0.60.0") == 1
+    assert "Go 1.26.9" in recipe
 
 
 def test_caddy_full_observation_keeps_native_diagnostics_without_inventing_secrets() -> None:

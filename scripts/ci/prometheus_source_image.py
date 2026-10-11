@@ -3634,7 +3634,7 @@ class GitHubRead:
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             start_new_session=True,
-        )  # nosec B603: fixed absolute authenticated gh/native argv; bounded memory and stdin, secret reflection checked before retention (remove-by: 2026-10-28, ref: PR-2477)
+        )  # nosec B603: # fixed absolute authenticated gh/native argv; bounded memory and stdin, secret reflection checked before retention (remove-by: 2026-10-28, ref: PR-2477)
         self.process = process
         streams = [bytearray(), bytearray()]
         primary: BaseException | None = None
@@ -4091,7 +4091,21 @@ def authenticated_artifact(
     expected_run: int,
     expected_job: str,
     expected_head: str,
+    purpose: str = "successful_producer",
 ) -> dict[str, Any]:
+    require(
+        purpose == "successful_producer"
+        or (
+            purpose == "tool_prefetch_precompile_failure"
+            and type(expected_run) is int
+            and expected_run == 38170923494
+            and expected_job == "prometheus-oras-qualification"
+            and expected_head == "5de54811121079eadbd3f5d8dbbb8720f712530a"
+            and artifact_id == 11713828762
+        ),
+        "artifact_closed_purpose",
+    )
+    conclusion = "failure" if purpose == "tool_prefetch_precompile_failure" else "success"
     require(type(artifact_id) is int and artifact_id > 0, "artifact_positive_ID")
     record = api.json(f"/repos/{GHCR_REPOSITORY}/actions/artifacts/{artifact_id}")
     require(
@@ -4128,7 +4142,7 @@ def authenticated_artifact(
         and run.get("run_attempt") == 1
         and type(run.get("run_attempt")) is int
         and run.get("status") == "completed"
-        and run.get("conclusion") == "success"
+        and run.get("conclusion") == conclusion
         and run.get("workflow_id") == workflow.get("id")
         and workflow.get("path") == ".github/workflows/build.yml",
         "artifact_completed_workflow",
@@ -4145,7 +4159,7 @@ def authenticated_artifact(
     require(
         len(matches) == 1
         and matches[0].get("status") == "completed"
-        and matches[0].get("conclusion") == "success"
+        and matches[0].get("conclusion") == conclusion
         and matches[0].get("run_id") == expected_run
         and matches[0].get("head_sha") == expected_head,
         "artifact_successful_producer_job",
@@ -4287,7 +4301,24 @@ def unpack_layout(raw: bytes, destination: Path) -> None:
     require({"oci-layout", "index.json"} <= names, "layout_transport_complete")
 
 
-def manual_hosted_admission(api: GitHubRead, purpose: str) -> dict[str, Any]:
+TOOL_PREFETCH_PREDECESSOR = "38170923494:11713828762"
+TOOL_PREFETCH_ARCHIVE = {
+    "bytes": 1258104,
+    "sha256": "c147d951cf7a7e268130bd0438ea1a0b9a70502ce47f8283911692af55d87a13",
+}
+TOOL_PREFETCH_INPUT_DIGEST = (
+    "sha256:b9d83366540016516be36c7392e15449fe2bd12ee6b42cdd316cdfe685d2c17c"
+)
+
+
+def manual_hosted_admission(
+    api: GitHubRead, purpose: str, *, prefetch_predecessor: str | None = None
+) -> dict[str, Any]:
+    require(
+        prefetch_predecessor is None
+        or (purpose == "tool" and prefetch_predecessor == TOOL_PREFETCH_PREDECESSOR),
+        "tool_prefetch_explicit_predecessor",
+    )
     require(
         purpose in ("tool", "pair")
         and platform.system() == "Linux"
@@ -4339,7 +4370,217 @@ def manual_hosted_admission(api: GitHubRead, purpose: str) -> dict[str, Any]:
             for job in jobs
             if job.get("name") == job_name and job.get("conclusion") != "skipped"
         ]
-    require(not observed, "nonrenewable_hosted_invocation_budget_spent_or_unknown")
+    if prefetch_predecessor is None:
+        require(not observed, "nonrenewable_hosted_invocation_budget_spent_or_unknown")
+    else:
+        require(
+            run_id != 38170923494
+            and current.get("id") == run_id
+            and current.get("head_branch") == "codex/dependency-native-runtime-remediation"
+            and observed
+            == [
+                {
+                    "run_id": 38170923494,
+                    "job_id": 114563178711,
+                    "status": "completed",
+                    "conclusion": "failure",
+                }
+            ],
+            "tool_prefetch_complete_singleton_history",
+        )
+        archive = api.evidence / "tool-prefetch-predecessor.zip"
+        prior = authenticated_artifact(
+            api,
+            11713828762,
+            archive,
+            expected_run=38170923494,
+            expected_job=job_name,
+            expected_head="5de54811121079eadbd3f5d8dbbb8720f712530a",
+            purpose="tool_prefetch_precompile_failure",
+        )
+        require(
+            prior["job"].get("id") == 114563178711
+            and prior["run"].get("head_branch") == "codex/dependency-native-runtime-remediation"
+            and ref == "refs/heads/codex/dependency-native-runtime-remediation"
+            and prior["artifact"].get("name") == "prometheus-oras-38170923494-1"
+            and archive.stat().st_size == TOOL_PREFETCH_ARCHIVE["bytes"]
+            and file_hash(archive) == TOOL_PREFETCH_ARCHIVE["sha256"],
+            "tool_prefetch_authenticated_predecessor",
+        )
+        files = _zip_members(archive)
+        expected_files = {
+            "tool.json",
+            "go-members.json",
+            "oras-source-members.json",
+            *(
+                f"GitHub-{number}.{suffix}"
+                for number in range(1, 36)
+                for suffix in ("json", "stdout", "stderr")
+            ),
+            *(
+                f"tool-{name}.{suffix}"
+                for name in ("version", "download", "verify")
+                for suffix in ("stdout", "stderr")
+            ),
+        }
+        require(set(files) == expected_files, "tool_prefetch_complete_failed_inventory")
+        report = one_object(files["tool.json"])
+        require(
+            set(report)
+            == {
+                "identity",
+                "source_revision",
+                "source_tree",
+                "original_locks",
+                "admission",
+                "input_projection",
+                "input_digest",
+                "tool_compile_invocations",
+                "Prometheus_compile_invocations",
+                "failure",
+                "cleanup",
+                "native_commands",
+            }
+            and report.get("identity") == "PulsePlate-rebuilt ORAS 1.3.4"
+            and report.get("source_revision") == ORAS_REVISION
+            and report.get("source_tree") == ORAS_TREE
+            and type(report.get("tool_compile_invocations")) is int
+            and report["tool_compile_invocations"] == 0
+            and type(report.get("Prometheus_compile_invocations")) is int
+            and report["Prometheus_compile_invocations"] == 0,
+            "tool_prefetch_failed_before_compile",
+        )
+        exact_data(
+            report["failure"],
+            {"class": "QualificationError", "code": "prefetch_original_locks_source"},
+        )
+        exact_data(report["cleanup"], [])
+        exact_data(report["original_locks"], ORAS_LOCKS)
+        exact_data(
+            report["admission"],
+            {
+                "run_id": 38170923494,
+                "head": "5de54811121079eadbd3f5d8dbbb8720f712530a",
+                "ref": ref,
+                "workflow_id": workflow["id"],
+                "job": job_name,
+                "actual_prior_invocations": [],
+                "budget": 1,
+            },
+        )
+        old_files = api.source_files(
+            "5de54811121079eadbd3f5d8dbbb8720f712530a", (*PRODUCER_FILES, MANIFEST_PATH)
+        )
+        old_manifest = one_object(old_files[MANIFEST_PATH])
+        require(old_manifest.get("schema") == IMAGE_SCHEMA, "tool_prefetch_historical_manifest")
+        old_inputs = copy.deepcopy(old_manifest["inputs"])
+        old_inputs["oras"]["retained"] = None
+        historical = {
+            "inputs": old_inputs,
+            "raw_producer": {
+                name: {"bytes": len(old_files[name]), "sha256": sha(old_files[name])}
+                for name in PRODUCER_FILES
+            },
+        }
+        exact_data(report["input_projection"], historical)
+        require(
+            report["input_digest"]
+            == TOOL_PREFETCH_INPUT_DIGEST
+            == "sha256:" + sha(canonical_data(historical)),
+            "tool_prefetch_reviewed_historical_producer",
+        )
+        # This digest binds the actual OLD reviewed prefetch-before-start producer,
+        # independently of the corrected producer authenticated by qualify_tool.
+        go_inventory = json.loads(files["go-members.json"])
+        require(
+            sha(files["oras-source-members.json"])
+            == old_inputs["oras"]["canonical_inventory_sha256"]
+            and type(go_inventory) is list
+            and len(go_inventory) == GO.files,
+            "tool_prefetch_acquired_source_inventories",
+        )
+        records = report["native_commands"]
+        require(type(records) is list and len(records) == 3, "tool_prefetch_exact_native_prefix")
+        prior_work = Path("/home/runner/work/_temp/prometheus-oras-38170923494-1")
+        environment = clean_environment(
+            prior_work / "tool-home",
+            prior_work / "tool-tmp",
+            prior_work / "tool-cache",
+            prior_work / "tool-modules",
+            offline=False,
+        )
+        for row, name, command in zip(
+            records,
+            ("version", "download", "verify"),
+            (["version"], ["mod", "download", "-json", "all"], ["mod", "verify"]),
+        ):
+            require(
+                type(row) is dict
+                and set(row)
+                == {
+                    "argv",
+                    "cwd",
+                    "environment",
+                    "exit",
+                    "failure",
+                    "stdout",
+                    "stdout_sha256",
+                    "stderr",
+                    "stderr_sha256",
+                }
+                and type(row["exit"]) is int
+                and row["exit"] == 0
+                and row["failure"] is None
+                and row["argv"] == [str(prior_work / "go/bin/go"), *command]
+                and row["cwd"] == str(prior_work / "source"),
+                "tool_prefetch_exact_native_prefix",
+            )
+            exact_data(row["environment"], environment)
+            for suffix in ("stdout", "stderr"):
+                member = f"tool-{name}.{suffix}"
+                require(
+                    row[suffix] == str(prior_work / "evidence" / member)
+                    and row[suffix + "_sha256"] == sha(files[member]),
+                    "tool_prefetch_native_output_binding",
+                )
+        require(
+            files["tool-version.stdout"] == GO_VERSION.encode()
+            and files["tool-verify.stdout"] == b"all modules verified\n"
+            and all(
+                files[f"tool-{name}.stderr"] == b"" for name in ("version", "download", "verify")
+            ),
+            "tool_prefetch_native_success_outputs",
+        )
+        require(
+            bool(decode_modules(files["tool-download.stdout"])), "tool_prefetch_download_inventory"
+        )
+        for number in range(1, 36):
+            record = one_object(files[f"GitHub-{number}.json"])
+            argv = record.get("argv")
+            read_only = (
+                argv == ["/usr/bin/gh", "auth", "status", "--hostname", "github.com"]
+                if number == 1
+                else (
+                    type(argv) is list
+                    and len(argv) == 7
+                    and argv[:6]
+                    == ["/usr/bin/gh", "api", "--hostname", "github.com", "--method", "GET"]
+                    and type(argv[6]) is str
+                    and argv[6].startswith("/repos/" + GHCR_REPOSITORY + "/")
+                )
+            )
+            require(
+                type(record.get("exit")) is int
+                and record["exit"] == 0
+                and read_only
+                and record.get("stdout_bytes") == len(files[f"GitHub-{number}.stdout"])
+                and record.get("stdout_sha256") == sha(files[f"GitHub-{number}.stdout"])
+                and record.get("stderr_sha256") == sha(files[f"GitHub-{number}.stderr"]),
+                "tool_prefetch_complete_API_observations",
+            )
+        observed[0][
+            "precompile_disposition"
+        ] = "selected_known_prefetch_failure; no qualified output; historical post-lock bytes unknown"
     return {
         "run_id": run_id,
         "head": head,
@@ -4454,22 +4695,78 @@ def prefetch_modules(
         fresh_directory(path)
     online = clean_environment(home, tmp, cache, modules, offline=False)
     binary = str(go / "bin/go")
-    require(
-        native.run([binary, "version"], label + "-version", online, cwd=source).decode()
-        == GO_VERSION,
-        "prefetch_qualified_Go",
-    )
-    before = tree_inventory(source)
-    downloads = native.run(
-        [binary, "mod", "download", "-json", "all"], label + "-download", online, cwd=source
-    )
-    decode_modules(downloads)
-    native.run([binary, "mod", "verify"], label + "-verify", online, cwd=source)
-    require(
-        all(file_hash(source / name) == digest for name, digest in locks.items())
-        and tree_inventory(source) == before,
-        "prefetch_original_locks_source",
-    )
+    observations: dict[str, Any] = {"snapshot_errors": [], "failure": None}
+
+    def snapshot(phase: str) -> list[dict[str, Any]]:
+        state: dict[str, Any] = {"locks": {}, "source_inventory": None}
+        observations[phase] = state
+        for name in locks:
+            path = source / name
+            digest = file_hash(path, native.deadline)
+            raw = path.read_bytes()
+            require(sha(raw) == digest, "prefetch_snapshot_lock_changed")
+            destination = native.evidence / f"{label}-prefetch-{phase}-{name}"
+            with destination.open("xb") as stream:
+                stream.write(raw)
+            destination.chmod(0o600)
+            state["locks"][name] = {
+                "bytes": len(raw),
+                "sha256": digest,
+                "mode": stat.S_IMODE(path.lstat().st_mode),
+            }
+        inventory = tree_inventory(source, deadline=native.deadline)
+        state["source_inventory"] = inventory
+        return inventory
+
+    primary: BaseException | None = None
+    try:
+        before = snapshot("before")
+        require(
+            native.run([binary, "version"], label + "-version", online, cwd=source).decode()
+            == GO_VERSION,
+            "prefetch_qualified_Go",
+        )
+        downloads = native.run(
+            [binary, "mod", "download", "-json"], label + "-download", online, cwd=source
+        )
+        decode_modules(downloads)
+        native.run([binary, "mod", "verify"], label + "-verify", online, cwd=source)
+        after = snapshot("after")
+        require(
+            all(file_hash(source / name) == digest for name, digest in locks.items())
+            and after == before,
+            "prefetch_original_locks_source",
+        )
+    except BaseException as error:
+        primary = error
+        observations["failure"] = {"class": type(error).__name__, "code": diagnostic_code(error)}
+        raise
+    finally:
+        if "after" not in observations:
+            try:
+                snapshot("after")
+            except BaseException as error:
+                observations["snapshot_errors"].append(
+                    {
+                        "phase": "after",
+                        "class": type(error).__name__,
+                        "code": diagnostic_code(error),
+                    }
+                )
+                if primary is None:
+                    primary = error
+                else:
+                    primary.add_note(
+                        "Prefetch after-state snapshot failed: " + type(error).__name__
+                    )
+        try:
+            (native.evidence / f"{label}-prefetch.json").write_bytes(canonical_data(observations))
+        except BaseException as error:
+            if primary is None:
+                raise
+            primary.add_note("Prefetch diagnostic write failed: " + type(error).__name__)
+        if primary is not None and observations["failure"] is None:
+            raise primary
     for path in modules.rglob("*"):
         info = path.lstat()
         require(stat.S_ISDIR(info.st_mode) or stat.S_ISREG(info.st_mode), "prefetch_cache_type")
@@ -5013,7 +5310,14 @@ def scan_tool(native: Native, work: Path, binary: Path, env: dict[str, str]) -> 
     }
 
 
-def qualify_tool(work: Path, root: Path, seconds: int, cleanup: int) -> dict[str, Any]:
+def qualify_tool(
+    work: Path,
+    root: Path,
+    seconds: int,
+    cleanup: int,
+    *,
+    prefetch_predecessor: str | None = None,
+) -> dict[str, Any]:
     require(
         type(seconds) is int
         and 0 < seconds <= 1800
@@ -5027,7 +5331,7 @@ def qualify_tool(work: Path, root: Path, seconds: int, cleanup: int) -> dict[str
     native = Native(evidence, time.monotonic() + seconds, cleanup)
     api = GitHubRead(work / "GitHub-private", evidence, native.deadline, cleanup)
     try:
-        admission = manual_hosted_admission(api, "tool")
+        admission = manual_hosted_admission(api, "tool", prefetch_predecessor=prefetch_predecessor)
         authenticate_producer_inputs(api, root, admission["head"], tool=True)
     finally:
         api.close()
@@ -6516,7 +6820,10 @@ def main() -> int:
     parser.add_argument("--cleanup-seconds", type=int)
     parser.add_argument("--qualify-existing-ghcr-package", action="store_true")
     parser.add_argument("--public-output", type=Path)
+    parser.add_argument("--tool-prefetch-predecessor")
     args = parser.parse_args()
+    if args.tool_prefetch_predecessor is not None and args.operation != "tool":
+        parser.error("The failed prefetch predecessor belongs only to the manual tool operation")
     root = Path(__file__).resolve(strict=True).parents[2]
     manifest_path = args.manifest if args.manifest is not None else root / MANIFEST_PATH
     if args.operation != "metadata" and (
@@ -6555,7 +6862,13 @@ def main() -> int:
             return 0
         result = None
         if args.operation == "tool":
-            result = qualify_tool(args.work_dir, root, args.timeout_seconds, args.cleanup_seconds)
+            result = qualify_tool(
+                args.work_dir,
+                root,
+                args.timeout_seconds,
+                args.cleanup_seconds,
+                prefetch_predecessor=args.tool_prefetch_predecessor,
+            )
         elif args.operation == "pair":
             result = build_pair(args.work_dir, root, args.timeout_seconds, args.cleanup_seconds)
         elif args.operation == "consume":

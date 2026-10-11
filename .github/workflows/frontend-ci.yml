@@ -572,9 +572,13 @@ jobs:
           compiler = "golang:1.26.9-alpine3.23@sha256:96123126ac58e910f4dd3619a8901e2fb6d1ad84b59b1232cac7c9ea65a8f888"
           recipe = (root / "frontend/Dockerfile.caddy-spa").read_bytes()
           gets = re.findall(rb"^    go get ([^;]+);", recipe, re.MULTILINE)
-          require(gets == [b"github.com/caddyserver/caddy/v2/cmd/caddy@v2.11.4", b"google.golang.org/grpc@v1.83.2", b"golang.org/x/crypto@v0.55.0"], "caddy_original_three_gets")
+          baseline_gets = [b"github.com/caddyserver/caddy/v2/cmd/caddy@v2.11.4", b"google.golang.org/grpc@v1.83.2", b"golang.org/x/crypto@v0.55.0"]
+          require(gets == baseline_gets + [b"golang.org/x/net@v0.60.0"], "caddy_selected_four_gets")
           report = {"purpose": "Counterfactual recipe baselines, not recovered historical ephemeral locks or a compiled candidate",
                     "compiler_index": compiler, "recipe_sha256": hashlib.sha256(recipe).hexdigest(),
+                    "counterfactual_seed_gets": [value.decode() for value in baseline_gets],
+                    "selected_recipe_gets": [value.decode() for value in gets],
+                    "authored_action": "golang.org/x/net@v0.60.0",
                     "run_id": int(os.environ["GITHUB_RUN_ID"]), "run_attempt": 1,
                     "source_head": os.environ["GITHUB_SHA"], "go_build_invocations": 0,
                     "failure": None, "derivations": {}, "closure_admission": "pending independent source/security review"}
@@ -900,7 +904,7 @@ jobs:
             "$evidence_dir/version.txt"
           docker run --rm --network none --read-only --cap-drop ALL --cap-add NET_BIND_SERVICE \
             pulseplate-caddy:contract caddy build-info | tee "$evidence_dir/build-info.txt"
-          awk -F '\t' '$1 == "go" && $2 == "go1.26.6" { found=1 } END { exit found ? 0 : 1 }' \
+          awk -F '\t' '$1 == "go" && $2 == "go1.26.9" { found=1 } END { exit found ? 0 : 1 }' \
             "$evidence_dir/build-info.txt"
           docker run --rm --network none --read-only --cap-drop ALL --cap-add NET_BIND_SERVICE \
             pulseplate-caddy:contract getcap /usr/bin/caddy | tee "$evidence_dir/capabilities.txt"

@@ -4093,6 +4093,11 @@ def test_prometheus_cd_classifies_before_pr_code_and_binds_trusted_handoff(
     result = python_step("Validate exact Prometheus checkout revisions")
     if result.returncode == 0:
         event_outputs = dict(line.split("=", 1) for line in output_file.read_text().splitlines())
+        event = json.loads(Path(environment["GITHUB_EVENT_PATH"]).read_bytes())
+        assert event_outputs == {
+            "head": event["pull_request"]["head"]["sha"],
+            "base": event["pull_request"]["base"]["sha"],
+        }
         environment.update(
             PROMETHEUS_EVENT_HEAD=event_outputs["head"], PROMETHEUS_EVENT_BASE=event_outputs["base"]
         )
@@ -4297,7 +4302,6 @@ def test_prometheus_cd_preserves_closed_non_pr_checkout_events(
     if admitted:
         assert result.returncode == 0, result.stderr
         assert dict(line.split("=", 1) for line in output.read_text().splitlines()) == {
-            "checkout_ref": "a" * 40,
             "head": "a" * 40,
             "base": "a" * 40,
         }

@@ -11,9 +11,11 @@ import json
 from pathlib import Path
 import signal
 import tarfile
+import time
 from typing import Any
 from urllib.request import HTTPSHandler, ProxyHandler, build_opener
 from urllib.response import addinfourl
+import zipfile
 
 import pytest
 
@@ -3129,3 +3131,399 @@ def test_consumer_rejects_at_intended_admission_and_retains_uncertain_credential
     if fault not in {"login", "cleanup", "login-cleanup"}:
         assert "login" not in trace
     assert not (work / "evidence/consumer.json").exists()
+
+
+@pytest.mark.parametrize("variant", ("unchanged", "lock", "source", "verify", "snapshot"))
+def test_tool_prefetch_retains_before_after_and_preserves_primary(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, variant: str
+) -> None:
+    """Synthetic native I/O only; actual missing post-state stays an explicit error."""
+    work, tree, go = tmp_path / "work", tmp_path / "source", tmp_path / "go"
+    for path in (work, tree, go, work / "evidence"):
+        path.mkdir()
+    original = {"go.mod": b"synthetic original module\n", "go.sum": b"synthetic original sums\n"}
+    for name, raw in original.items():
+        (tree / name).write_bytes(raw)
+    (tree / "kept.go").write_bytes(b"package synthetic\n")
+    native = source.Native(work / "evidence", time.monotonic() + 60, 2)
+    calls: list[list[str]] = []
+
+    def run(argv: list[str], name: str, env: dict[str, str], *, cwd: Path) -> bytes:
+        calls.append(argv)
+        assert cwd == tree and env["GOTOOLCHAIN"] == "local" and env["GOWORK"] == "off"
+        if name.endswith("-version"):
+            return source.GO_VERSION.encode()
+        if name.endswith("-download"):
+            if variant == "lock":
+                (tree / "go.sum").write_bytes(b"actual synthetic lock drift\n")
+            if variant == "source":
+                (tree / "kept.go").write_bytes(b"package changed\n")
+            return b'{"Path":"example.invalid/synthetic","Version":"v1.0.0"}'
+        assert name.endswith("-verify")
+        if variant in ("verify", "snapshot"):
+            if variant == "snapshot":
+                (tree / "go.sum").unlink()
+            raise source.QualificationError("synthetic_primary_verify_failure")
+        return b"all modules verified\n"
+
+    monkeypatch.setattr(native, "run", run)
+    if variant == "unchanged":
+        source.prefetch_modules(
+            native, work, tree, go, "tool", {n: source.sha(v) for n, v in original.items()}
+        )
+    else:
+        expected = (
+            "prefetch_original_locks_source"
+            if variant in ("lock", "source")
+            else "synthetic_primary_verify_failure"
+        )
+        with pytest.raises(source.QualificationError, match="^" + expected + "(?:\n|$)"):
+            source.prefetch_modules(
+                native, work, tree, go, "tool", {n: source.sha(v) for n, v in original.items()}
+            )
+    assert calls[1] == [str(go / "bin/go"), "mod", "download", "-json"]
+    report = source.one_object((native.evidence / "tool-prefetch.json").read_bytes())
+    for name, raw in original.items():
+        assert (native.evidence / ("tool-prefetch-before-" + name)).read_bytes() == raw
+        assert report["before"]["locks"][name]["mode"] == (tree / "go.mod").stat().st_mode & 0o777
+    if variant == "snapshot":
+        assert report["failure"]["code"] == "synthetic_primary_verify_failure"
+        assert report["snapshot_errors"][0]["phase"] == "after"
+        assert report["snapshot_errors"][0]["class"] == "FileNotFoundError"
+        assert report["after"]["source_inventory"] is None
+    else:
+        assert report["after"]["source_inventory"] is not None
+        assert report["snapshot_errors"] == []
+        if variant == "lock":
+            assert (
+                native.evidence / "tool-prefetch-after-go.sum"
+            ).read_bytes() == b"actual synthetic lock drift\n"
+        if variant == "source":
+            assert report["before"]["source_inventory"] != report["after"]["source_inventory"]
+
+
+def _tool_prefetch_recovery_fixture(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, variant: str
+) -> Any:
+    """Complete synthetic failed transport; no historical proof, API or native execution."""
+    for key in ("GH_TOKEN", "GITHUB_TOKEN", "GHCR_READ_TOKEN", "GHCR_TOKEN", "DOCKER_CONFIG"):
+        monkeypatch.delenv(key, raising=False)
+    for key, value in {
+        "GITHUB_ACTIONS": "true",
+        "GITHUB_EVENT_NAME": "workflow_dispatch",
+        "GITHUB_REPOSITORY": source.GHCR_REPOSITORY,
+        "GITHUB_REPOSITORY_ID": "1043311030",
+        "GITHUB_RUN_ATTEMPT": "1",
+        "GITHUB_RUN_ID": "999",
+        "GITHUB_SHA": "a" * 40,
+        "GITHUB_REF": "refs/heads/codex/dependency-native-runtime-remediation",
+    }.items():
+        monkeypatch.setenv(key, value)
+    monkeypatch.setattr(source.platform, "system", lambda: "Linux")
+    monkeypatch.setattr(source.platform, "machine", lambda: "x86_64")
+    monkeypatch.setattr(source, "GO", replace(source.GO, files=1))
+    ref = "refs/heads/codex/dependency-native-runtime-remediation"
+    head = "5de54811121079eadbd3f5d8dbbb8720f712530a"
+    workflow = {"id": 199904435, "path": ".github/workflows/build.yml"}
+    run = {
+        "id": 38170923494,
+        "head_sha": head,
+        "head_branch": ref[11:],
+        "repository": {"id": 1043311030},
+        "head_repository": {"id": 1043311030},
+        "event": "workflow_dispatch",
+        "run_attempt": 1,
+        "status": "completed",
+        "conclusion": "failure",
+        "workflow_id": workflow["id"],
+    }
+    job = {
+        "id": 114563178711,
+        "name": "prometheus-oras-qualification",
+        "run_id": run["id"],
+        "head_sha": head,
+        "status": "completed",
+        "conclusion": "failure",
+    }
+    inventory = source.canonical_data(
+        [{"path": "synthetic.go", "git_mode": "100644", "size": 1, "sha256": "b" * 64}]
+    )
+    inputs = {"oras": {"retained": None, "canonical_inventory_sha256": source.sha(inventory)}}
+    old_files = {name: ("synthetic historical " + name).encode() for name in source.PRODUCER_FILES}
+    old_files[source.MANIFEST_PATH] = source.canonical_data(
+        {"schema": source.IMAGE_SCHEMA, "inputs": inputs}
+    )
+    projection = {
+        "inputs": inputs,
+        "raw_producer": {
+            n: {"bytes": len(old_files[n]), "sha256": source.sha(old_files[n])}
+            for n in source.PRODUCER_FILES
+        },
+    }
+    digest = "sha256:" + source.sha(source.canonical_data(projection))
+    monkeypatch.setattr(source, "TOOL_PREFETCH_INPUT_DIGEST", digest)
+    report = {
+        "identity": "PulsePlate-rebuilt ORAS 1.3.4",
+        "source_revision": source.ORAS_REVISION,
+        "source_tree": source.ORAS_TREE,
+        "original_locks": source.ORAS_LOCKS,
+        "input_projection": projection,
+        "input_digest": digest,
+        "admission": {
+            "actual_prior_invocations": [],
+            "budget": 1,
+            "head": head,
+            "job": job["name"],
+            "ref": ref,
+            "run_id": run["id"],
+            "workflow_id": workflow["id"],
+        },
+        "tool_compile_invocations": 0,
+        "Prometheus_compile_invocations": 0,
+        "failure": {"class": "QualificationError", "code": "prefetch_original_locks_source"},
+        "cleanup": [],
+        "native_commands": [],
+    }
+    files = {"go-members.json": inventory, "oras-source-members.json": inventory}
+    prior_work = Path("/home/runner/work/_temp/prometheus-oras-38170923494-1")
+    environment = source.clean_environment(
+        prior_work / "tool-home",
+        prior_work / "tool-tmp",
+        prior_work / "tool-cache",
+        prior_work / "tool-modules",
+        offline=False,
+    )
+    for name, command, stdout in (
+        ("version", ["version"], source.GO_VERSION.encode()),
+        (
+            "download",
+            ["mod", "download", "-json", "all"],
+            b'{"Path":"example.invalid/synthetic","Version":"v1.0.0"}',
+        ),
+        ("verify", ["mod", "verify"], b"all modules verified\n"),
+    ):
+        row = {
+            "argv": [str(prior_work / "go/bin/go"), *command],
+            "cwd": str(prior_work / "source"),
+            "environment": environment,
+            "exit": 0,
+            "failure": None,
+        }
+        for suffix, raw in (("stdout", stdout), ("stderr", b"")):
+            member = f"tool-{name}.{suffix}"
+            files[member] = raw
+            row[suffix], row[suffix + "_sha256"] = str(
+                prior_work / "evidence" / member
+            ), source.sha(raw)
+        report["native_commands"].append(row)
+    for number in range(1, 36):
+        prefix = f"GitHub-{number}"
+        argv = (
+            ["/usr/bin/gh", "auth", "status", "--hostname", "github.com"]
+            if number == 1
+            else [
+                "/usr/bin/gh",
+                "api",
+                "--hostname",
+                "github.com",
+                "--method",
+                "GET",
+                "/repos/" + source.GHCR_REPOSITORY + "/synthetic",
+            ]
+        )
+        files[prefix + ".stdout"], files[prefix + ".stderr"] = b"{}", b""
+        files[prefix + ".json"] = source.canonical_data(
+            {
+                "argv": argv,
+                "exit": 0,
+                "stdout_bytes": 2,
+                "stdout_sha256": source.sha(b"{}"),
+                "stderr_sha256": source.sha(b""),
+            }
+        )
+    if variant == "false-counter":
+        report["tool_compile_invocations"] = False
+    elif variant == "missing-counter":
+        del report["tool_compile_invocations"]
+    elif variant == "compiled":
+        report["tool_compile_invocations"] = 1
+    elif variant == "extra-command":
+        report["native_commands"].append(copy.deepcopy(report["native_commands"][0]))
+    elif variant == "argv":
+        report["native_commands"][1]["argv"][-1] = "different"
+    elif variant == "native-exit":
+        report["native_commands"][1]["exit"] = False
+    elif variant == "output-mismatch":
+        files["tool-download.stdout"] += b"\n"
+    elif variant == "extra-marker":
+        files["invocation-start.json"] = b"{}"
+    elif variant == "binary":
+        files["oras"] = b"synthetic binary data, never executed"
+    elif variant == "incomplete":
+        del files["tool-verify.stderr"]
+    elif variant == "source-mismatch":
+        old_files[source.PRODUCER_FILES[0]] += b"changed historical source"
+    elif variant == "failure-code":
+        report["failure"]["code"] = "different_failure"
+    elif variant == "status":
+        run["status"] = "in_progress"
+    elif variant == "attempt":
+        run["run_attempt"] = 2
+    elif variant == "ref":
+        run["head_branch"] = "foreign"
+    elif variant == "wrong-job":
+        job["id"] += 1
+    elif variant == "successful":
+        job["conclusion"] = run["conclusion"] = "success"
+    files["tool.json"] = source.canonical_data(report)
+    stream = io.BytesIO()
+    with zipfile.ZipFile(stream, "w") as archive:
+        for name, raw in files.items():
+            archive.writestr(name, raw)
+    raw_archive = stream.getvalue()
+    monkeypatch.setattr(
+        source,
+        "TOOL_PREFETCH_ARCHIVE",
+        {"bytes": len(raw_archive), "sha256": source.sha(raw_archive)},
+    )
+    artifact = {
+        "id": 11713828762,
+        "expired": variant == "expired",
+        "size_in_bytes": len(raw_archive),
+        "expires_at": "2099-01-01T00:00:00Z",
+        "name": "prometheus-oras-38170923494-1",
+        "digest": "sha256:" + source.sha(raw_archive),
+        "workflow_run": {
+            "id": run["id"],
+            "repository_id": 1043311030,
+            "head_repository_id": 1043311030,
+            "head_sha": head,
+        },
+    }
+    current = dict(
+        run,
+        id=999,
+        head_sha="a" * 40,
+        status="in_progress",
+        conclusion=None,
+        run_attempt=1,
+        head_branch=ref[11:],
+    )
+    if variant == "digest":
+        artifact["digest"] = "sha256:" + "d" * 64
+
+    class API:
+        evidence = tmp_path
+
+        def json(self, endpoint: str) -> dict[str, Any]:
+            if "/actions/artifacts/" in endpoint:
+                return copy.deepcopy(artifact)
+            if endpoint.endswith("/actions/workflows/build.yml"):
+                return copy.deepcopy(workflow)
+            if endpoint.endswith("/actions/runs/999"):
+                return copy.deepcopy(current)
+            if endpoint.endswith("/actions/runs/38170923494"):
+                return copy.deepcopy(run)
+            if "workflows/build.yml/runs" in endpoint:
+                return {"total_count": 3 if variant == "second-failed-job" else 2}
+            return {"total_count": 2 if variant == "extra-job" else 1}
+
+        def pages(self, endpoint: str, field: str, count: int) -> list[dict[str, Any]]:
+            if variant == "history-unknown":
+                raise source.QualificationError("synthetic_complete_history_unavailable")
+            if "workflows/build.yml/runs" in endpoint:
+                rows = [copy.deepcopy(current), copy.deepcopy(run)]
+                if variant == "second-failed-job":
+                    rows.append(dict(run, id=38170923495))
+                assert len(rows) == count
+                return rows
+            jobs = [copy.deepcopy(job)]
+            if variant == "extra-job" and "filter=all" in endpoint:
+                jobs.append(dict(job, id=114563178712))
+            assert len(jobs) == count
+            return jobs
+
+        def raw(self, endpoint: str, *, maximum: int) -> bytes:
+            assert endpoint.endswith("/11713828762/zip")
+            return raw_archive
+
+        def source_files(self, revision: str, paths: tuple[str, ...]) -> dict[str, bytes]:
+            assert revision == head and set(paths) == set(old_files)
+            return old_files
+
+    return API()
+
+
+@pytest.mark.parametrize(
+    "variant,diagnostic",
+    (
+        ("valid", None),
+        ("false-counter", "tool_prefetch_failed_before_compile"),
+        ("missing-counter", "tool_prefetch_failed_before_compile"),
+        ("compiled", "tool_prefetch_failed_before_compile"),
+        ("extra-command", "tool_prefetch_exact_native_prefix"),
+        ("argv", "tool_prefetch_exact_native_prefix"),
+        ("native-exit", "tool_prefetch_exact_native_prefix"),
+        ("output-mismatch", "tool_prefetch_native_output_binding"),
+        ("extra-marker", "tool_prefetch_complete_failed_inventory"),
+        ("binary", "tool_prefetch_complete_failed_inventory"),
+        ("incomplete", "tool_prefetch_complete_failed_inventory"),
+        ("source-mismatch", "declared_data_value"),
+        ("failure-code", "declared_data_value"),
+        ("status", "artifact_completed_workflow"),
+        ("attempt", "artifact_completed_workflow"),
+        ("ref", "tool_prefetch_authenticated_predecessor"),
+        ("wrong-job", "tool_prefetch_complete_singleton_history"),
+        ("successful", "tool_prefetch_complete_singleton_history"),
+        ("extra-job", "tool_prefetch_complete_singleton_history"),
+        ("history-unknown", "synthetic_complete_history_unavailable"),
+        ("second-failed-job", "tool_prefetch_complete_singleton_history"),
+        ("expired", "artifact_identity_expiry_size"),
+        ("digest", "artifact_native_download_digest"),
+    ),
+)
+def test_tool_prefetch_recovery_is_one_closed_failed_precompile_predecessor(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, variant: str, diagnostic: str | None
+) -> None:
+    api = _tool_prefetch_recovery_fixture(tmp_path, monkeypatch, variant)
+    if diagnostic is None:
+        admitted = source.manual_hosted_admission(
+            api, "tool", prefetch_predecessor=source.TOOL_PREFETCH_PREDECESSOR
+        )
+        assert admitted["budget"] == 1 and len(admitted["actual_prior_invocations"]) == 1
+        assert admitted["actual_prior_invocations"][0]["conclusion"] == "failure"
+        assert (
+            "historical post-lock bytes unknown"
+            in admitted["actual_prior_invocations"][0]["precompile_disposition"]
+        )
+    else:
+        with pytest.raises(source.QualificationError, match="^" + diagnostic + "$"):
+            source.manual_hosted_admission(
+                api, "tool", prefetch_predecessor=source.TOOL_PREFETCH_PREDECESSOR
+            )
+
+
+def test_failed_prefetch_purpose_cannot_enter_success_readers_or_pair(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    api = _tool_prefetch_recovery_fixture(tmp_path, monkeypatch, "valid")
+    with pytest.raises(source.QualificationError, match="^artifact_completed_workflow$"):
+        source.authenticated_artifact(
+            api,
+            11713828762,
+            tmp_path / "success.zip",
+            expected_run=38170923494,
+            expected_job="prometheus-oras-qualification",
+            expected_head="5de54811121079eadbd3f5d8dbbb8720f712530a",
+        )
+    assert not (tmp_path / "success.zip").exists()
+    with pytest.raises(
+        source.QualificationError, match="^nonrenewable_hosted_invocation_budget_spent_or_unknown$"
+    ):
+        source.manual_hosted_admission(api, "tool")
+    with pytest.raises(source.QualificationError, match="^tool_prefetch_explicit_predecessor$"):
+        source.manual_hosted_admission(
+            api, "pair", prefetch_predecessor=source.TOOL_PREFETCH_PREDECESSOR
+        )
+    with pytest.raises(source.QualificationError, match="^tool_prefetch_explicit_predecessor$"):
+        source.manual_hosted_admission(api, "tool", prefetch_predecessor="38170923494:11713828763")

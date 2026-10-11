@@ -20,6 +20,11 @@ on:
         required: true
         default: unchanged
         options: [unchanged, xnet060-replay]
+      tool_prefetch_predecessor:
+        description: Exact failed precompile run:artifact evidence selector; no dispatch authorization
+        type: string
+        required: false
+        default: ''
 
 concurrency:
   # Serialize runs that can publish the same commit artifacts across refs (branch + tag)
@@ -1375,12 +1380,18 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TOOL_PREFETCH_PREDECESSOR: ${{ inputs.tool_prefetch_predecessor }}
         run: |
           set -euo pipefail
           python_bin="$(command -v python)"
+          predecessor=()
+          if [[ -n "$TOOL_PREFETCH_PREDECESSOR" ]]; then
+            predecessor=(--tool-prefetch-predecessor "$TOOL_PREFETCH_PREDECESSOR")
+          fi
           "$python_bin" -m scripts.ci.prometheus_source_image --operation tool \
             --work-dir "$RUNNER_TEMP/prometheus-oras-$GITHUB_RUN_ID-1" \
-            --timeout-seconds "$PROMETHEUS_TOOL_SECONDS" --cleanup-seconds "$PROMETHEUS_CLEANUP_SECONDS"
+            --timeout-seconds "$PROMETHEUS_TOOL_SECONDS" --cleanup-seconds "$PROMETHEUS_CLEANUP_SECONDS" \
+            "${predecessor[@]}"
       - name: Retain tool source and native observations
         if: ${{ always() }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1 / Node 24

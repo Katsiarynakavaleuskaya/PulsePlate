@@ -2243,13 +2243,15 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # Overall allowances include setup, queued shard waves and coverage/upload.
+        # Per-shard watchdog remains 4800s; test work is unchanged.
         include:
           - python-version: '3.11'
-            timeout-minutes: 60
+            timeout-minutes: 90
           - python-version: '3.12'
-            timeout-minutes: 90
+            timeout-minutes: 120
           - python-version: '3.13'
-            timeout-minutes: 90
+            timeout-minutes: 120
 
     steps:
       - name: Enforce prerequisite results

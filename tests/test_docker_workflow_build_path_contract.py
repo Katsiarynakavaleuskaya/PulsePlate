@@ -2800,3 +2800,31 @@ def test_security_scan_excludes_pr_registry_credentials_even_when_token_availabl
     upload = _step_by_name(job, "Upload Trivy scan results to GitHub Security tab")
     assert upload["if"] == "${{ always() && steps.trivy_fs_sarif.outputs.present == 'true' }}"
     assert upload["continue-on-error"] is True
+
+
+def test_manual_oras_prefetch_selector_is_data_and_preserves_compile_budget() -> None:
+    workflow = _load_workflow(WORKFLOWS_DIR / "build.yml")
+    inputs = workflow.get("on", workflow.get(True))["workflow_dispatch"]["inputs"]
+    assert inputs["tool_prefetch_predecessor"] == {
+        "description": "Exact failed precompile run:artifact evidence selector; no dispatch authorization",
+        "type": "string",
+        "required": False,
+        "default": "",
+    }
+    job = workflow["jobs"]["prometheus-oras-qualification"]
+    assert job["permissions"] == {"contents": "read", "actions": "read"}
+    assert job["env"]["PROMETHEUS_TOOL_SECONDS"] == "1800"
+    assert job["env"]["PROMETHEUS_CLEANUP_SECONDS"] == "120"
+    step = _step_by_name(job, "Compile one ORAS tool and qualify native format")
+    assert step["env"] == {
+        "GH_TOKEN": "${{ secrets.GITHUB_TOKEN }}",
+        "GITHUB_TOKEN": "${{ secrets.GITHUB_TOKEN }}",
+        "TOOL_PREFETCH_PREDECESSOR": "${{ inputs.tool_prefetch_predecessor }}",
+    }
+    assert "predecessor=()" in step["run"]
+    assert 'predecessor=(--tool-prefetch-predecessor "$TOOL_PREFETCH_PREDECESSOR")' in step["run"]
+    assert '"${predecessor[@]}"' in step["run"]
+    assert step["run"].count("--operation tool") == 1
+    pair = workflow["jobs"]["prometheus-source-build-pair"]
+    assert "tool_prefetch_predecessor" not in str(pair)
+    assert not any("continue-on-error" in value for value in job["steps"])

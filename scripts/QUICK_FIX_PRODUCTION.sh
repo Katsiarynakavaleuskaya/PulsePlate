@@ -105,7 +105,7 @@ fi
 readonly PYTHON_BIN
 
 PROMETHEUS_CONTRACT_HELPER="$DEPLOY_DIR/scripts/ci/prometheus_source_image.py"
-PROMETHEUS_CONTRACT_HELPER_SHA256="55f7b21af83876bcef56c75644c45c610e963868b868be26aa2a48786daab01b" # Public source digest; pragma: allowlist secret
+PROMETHEUS_CONTRACT_HELPER_SHA256="889d16b8026778ac6d628185f675fc0d55b2f2131121dcf3bc939f92f628d543" # Public source digest; pragma: allowlist secret
 run_prometheus_contract() {
   "$PYTHON_BIN" -I -c '
 import hashlib
@@ -291,11 +291,11 @@ while IFS=$'\t' read -r build_key build_value _; do
         break
     fi
 done <<< "$CADDY_BUILD_INFO"
-if [ "$CADDY_GO_VERSION" != "go1.26.6" ]; then
-    echo "❌ Expected Caddy built with Go 1.26.6, got: ${CADDY_GO_VERSION:-missing}"
+if [ "$CADDY_GO_VERSION" != "go1.26.9" ]; then
+    echo "❌ Expected Caddy built with Go 1.26.9, got: ${CADDY_GO_VERSION:-missing}"
     exit 1
 fi
-echo "✅ Caddy runtime Go toolchain: go1.26.6"
+echo "✅ Caddy runtime Go toolchain: go1.26.9"
 echo ""
 
 # Check status
@@ -355,7 +355,7 @@ echo "Quick Fix Complete"
 echo "=========================================="
 echo ""
 echo "Expected results:"
-echo "  - Caddy image: PulsePlate Caddy 2.11.4 rebuilt with Go 1.26.6"
+echo "  - Caddy image: PulsePlate Caddy 2.11.4 rebuilt with Go 1.26.9"
 echo "  - APP_ENV: production"
 echo "  - ENVIRONMENT: production"
 echo "  - Readiness endpoint: environment='production'"
