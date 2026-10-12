@@ -52,7 +52,7 @@ The separate protected set also includes `api_key_header`, `validate_app_api_key
 and `require_app_api_key`; protection does not authorize additional re-exports.
 Wrappers or mutable legacy-owned warning state would break FastAPI dependency
 identity. The strict source witness and absolute-import boundary are enforced by
-`scripts/ci/check_legacy_growth_guard.py:10613`.
+`scripts/ci/check_legacy_growth_guard.py:10926`.
 
 Application metadata is canonically owned by
 `app/application_metadata.py:56` and constructed through the environment-aware
@@ -258,7 +258,7 @@ that count includes scaffolding and is not a supported public export inventory.
 The independent test inventory preserves the previous 91-name prefix and every
 historical cohort assertion, then appends exactly these eight unique names for
 99. Only eight protected-name literals change in
-`scripts/ci/check_legacy_growth_guard.py:133`; its recognition algorithm and
+`scripts/ci/check_legacy_growth_guard.py:137`; its recognition algorithm and
 separately owned PR #2433 / #2434 hunks are unchanged. Existing supported binding
 forms and exact canonical imports have negative controls. The existing fresh
 process probe extends both actual import-order strings while retaining planning
@@ -383,7 +383,7 @@ The admitted `LEGACY-BMI-PYTHON-EXPORT-RETIREMENT-1/v1` child
 `_BMI_COMPAT_REEXPORTS`, and `_BMI_SCHEMA_COMPAT_REEXPORTS` from ordinary
 `legacy_app.py` bindings without replacement. The previous 99 retirement
 members remain; the current exact inventory is 106
-(`scripts/ci/check_legacy_growth_guard.py:40`). The two tuples have no
+(`scripts/ci/check_legacy_growth_guard.py:44`). The two tuples have no
 replacement. The two distinct canonical classes remain in
 `app/schemas/bmi_compat.py:21` and `app/schemas/bmi_compat.py:120`; the service
 helper stays at `app/services/bmi_compat.py:26`, and renderer ownership stays in
@@ -897,7 +897,7 @@ closed families and absorbing possible markers in the existing join. The
 OpenAPI family is the exact seven compatibility names or a name containing
 `openapi` after case folding. Receiver, member and builtin-callee provenance
 remain independent, including deferred/local/nonlocal and postponed-annotation
-contexts (`scripts/ci/check_legacy_growth_guard.py:12370`). Protected attribute
+contexts (`scripts/ci/check_legacy_growth_guard.py:12683`). Protected attribute
 and namespace writes and deletions use the target's own evidence as well as
 the receiver and member evidence; comprehension targets remain local while
 genuine containing-scope protected-name bindings remain rejected.
@@ -914,7 +914,7 @@ structural binding presence, not declaration shape, binding origin, runtime
 values or callable signatures. Writes and deletions from explicitly invoked
 helpers use the existing replay's real outward module target; dormant helpers
 and genuine local bindings remain separate
-(`scripts/ci/check_legacy_growth_guard.py:3688`). Immediate awaited calls to proven
+(`scripts/ci/check_legacy_growth_guard.py:3695`). Immediate awaited calls to proven
 builtin `anext` or direct `__anext__` on a captured async generator reuse deferred
 replay after argument evaluation, while unawaited consumers remain dormant in
 ordinary analysis. Defining defaults and
@@ -929,12 +929,12 @@ Type aliases bind their actual names in the containing scope and audit lazy
 values independently under declared parameter masks and the real class parent,
 preserving ordinary lazy execution and isolation between independent audits.
 Ordinary method bodies retain parameter masks without inheriting class-only
-visibility (`scripts/ci/check_legacy_growth_guard.py:2850`,
-`scripts/ci/check_legacy_growth_guard.py:5633`). Eager versus postponed annotations
+visibility (`scripts/ci/check_legacy_growth_guard.py:2857`,
+`scripts/ci/check_legacy_growth_guard.py:5643`). Eager versus postponed annotations
 and positional/keyword defaults preserve their current execution boundary.
 These source witnesses do not establish configured keys or runtime authorization
-(`scripts/ci/check_legacy_growth_guard.py:3056`,
-`scripts/ci/check_legacy_growth_guard.py:10613`).
+(`scripts/ci/check_legacy_growth_guard.py:3063`,
+`scripts/ci/check_legacy_growth_guard.py:10926`).
 
 Resolved matching tuple/list/nested local assignments preserve their mapping
 identity through the existing paired binder; generic collection escapes and
@@ -942,8 +942,8 @@ unmatched/starred constructions retain their separate conservative handling.
 Actual class members invalidate shared mapping identity before class-scope
 restoration, excluding global/nonlocal declarations and avoiding repeated
 invalidation of already-removed aliases. Copied mappings and ordered snapshots
-remain distinct (`scripts/ci/check_legacy_growth_guard.py:5419`,
-`scripts/ci/check_legacy_growth_guard.py:6260`). Built-in `vars`, the finite
+remain distinct (`scripts/ci/check_legacy_growth_guard.py:5426`,
+`scripts/ci/check_legacy_growth_guard.py:6270`). Built-in `vars`, the finite
 `dict.get`, `dict.__getitem__`, `dict.pop` and `dict.setdefault` method set, and
 stored namespace methods retain actual legacy-namespace provenance in the
 existing reference/call seams. The four lookup methods and nine mutator methods
@@ -963,7 +963,7 @@ consumer results retain input
 element provenance. Shadowed builtins, unrelated receivers, safe member names,
 proven empty inputs and `key=None` remain independent controls. The per-loop 32
 and total 128 transfer
-budgets are unchanged (`scripts/ci/check_legacy_growth_guard.py:4561`). These
+budgets are unchanged (`scripts/ci/check_legacy_growth_guard.py:4568`). These
 bounded repairs preserve the original independent 87-name baseline plus the
 inherited four-name subset. The eight utility names inherited from main extended
 that preserved 91-name prefix to the historical 99-name inventory. The seven BMI
@@ -1015,3 +1015,17 @@ procedure in `RUNBOOK_AGENT.md`, then use explicit guard/module arguments:
 
 This guard does not open runtime behavior, OpenAPI, semantic-cache serving,
 FoodDB cutover, or broad refactor scope.
+
+Explicit syntax consumers preserve the same creation/consumption boundary:
+starred LOAD expansion, destructuring and reached membership operands consume
+captured deferred iterators without evaluating their expressions twice. Reached
+chained comparisons retain conditional outcomes; only the finite literal-scalar
+comparison set can prove an early short circuit. A synchronous consumer does not
+execute a non-generator coroutine body. Known partial callbacks reuse captured
+prefixes and the canonical binder. The existing partial-template carrier also
+retains the exact `getattr`, `setattr` and `delattr` builtin identities for supported
+positional invocations; unsupported keyword/star shapes establish no completeness
+claim. Literal-key mapping selections and partial callee observations use the
+existing resolved-result evidence owner. Accumulated Name observations are
+published for reporting while current evaluation continues to use lexical state;
+mutable mapping escape and generic invalidation remain conservative.

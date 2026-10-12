@@ -6,12 +6,16 @@ from __future__ import annotations
 import argparse
 import ast
 import copy
+import faulthandler
 from collections import Counter
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from importlib.util import resolve_name
+import operator
+import os
 from pathlib import Path
 import re
+import stat
 import sys
 from typing import AbstractSet, Literal, cast
 
@@ -2652,11 +2656,14 @@ def _expand_static_positional_arguments(
 
 @dataclass(frozen=True)
 class _DeferredFunctionCall:
-    function: _FunctionNode
+    function: _FunctionNode | None
     arguments: tuple[tuple[str, _ResolvedBinding], ...]
     partial_template: bool = False
     partial_positional: tuple[_ResolvedBinding, ...] = ()
     partial_unresolved: bool = False
+    builtin_reference: (
+        Literal["builtins.getattr", "builtins.setattr", "builtins.delattr"] | None
+    ) = None
 
 
 @dataclass(frozen=True)
@@ -5422,7 +5429,10 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         value: ast.AST,
         *,
         dynamic_unknown_string: bool,
+        value_consumed: bool = False,
     ) -> None:
+        if isinstance(target, (ast.Tuple, ast.List)) and not value_consumed:
+            self._replay_deferred_calls(self._resolve_deferred_calls(value), execution="iterate")
         if (
             isinstance(target, (ast.Tuple, ast.List))
             and isinstance(value, (ast.Tuple, ast.List))
@@ -6498,6 +6508,51 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 break
         self._merge_outcomes(incoming, outcomes)
 
+    def visit_Compare(self, node: ast.Compare) -> None:
+        incoming = self.scope
+        outcomes: list[_LexicalBindings] = []
+        left = node.left
+        self.visit(left)
+        for index, (comparison_operator, right) in enumerate(
+            zip(node.ops, node.comparators, strict=True)
+        ):
+            if isinstance(comparison_operator, (ast.In, ast.NotIn)):
+                self._visit_iterated_expression(right)
+            else:
+                self.visit(right)
+            self.visit(comparison_operator)
+            truth: bool | None = None
+            if (
+                isinstance(left, ast.Constant)
+                and isinstance(right, ast.Constant)
+                and type(left.value) in {int, float, complex, str, bytes, bool, type(None)}
+                and type(right.value) in {int, float, complex, str, bytes, bool, type(None)}
+            ):
+                try:
+                    if isinstance(comparison_operator, ast.Eq):
+                        truth = left.value == right.value
+                    elif isinstance(comparison_operator, ast.NotEq):
+                        truth = left.value != right.value
+                    else:
+                        comparison = {
+                            ast.Lt: operator.lt,
+                            ast.LtE: operator.le,
+                            ast.Gt: operator.gt,
+                            ast.GtE: operator.ge,
+                        }.get(type(comparison_operator))
+                        if comparison is not None:
+                            truth = cast(Callable[[object, object], bool], comparison)(
+                                left.value, right.value
+                            )
+                except TypeError:
+                    truth = None
+            if truth is not True or index == len(node.ops) - 1:
+                outcomes.append(self.scope.clone())
+            if truth is False:
+                break
+            left = right
+        self._merge_outcomes(incoming, outcomes)
+
     def _visit_try(self, node: ast.Try | ast.TryStar) -> bool:
         loop_controls = self._loop_controls[-1] if self._loop_controls else None
         break_offset = len(loop_controls.break_scopes) if loop_controls is not None else 0
@@ -7110,9 +7165,18 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
     def _visit_collection_elements(self, elements: Sequence[ast.expr]) -> None:
         for element in elements:
             value = element.value if isinstance(element, ast.Starred) else element
-            self.visit(value)
-            if not isinstance(element, ast.Starred):
+            if isinstance(element, ast.Starred):
+                self._visit_iterated_expression(value)
+            else:
+                self.visit(value)
                 self._invalidate_mapping_aliases(value)
+
+    def visit_Starred(self, node: ast.Starred) -> None:
+        if isinstance(node.ctx, ast.Load):
+            self._visit_iterated_expression(node.value)
+        else:
+            self.visit(node.value)
+        self.visit(node.ctx)
 
     def visit_List(self, node: ast.List) -> None:
         self._visit_collection_elements(node.elts)
@@ -7573,7 +7637,10 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             return
 
         # Unsupported or escaping structures retain the original generic collection escape.
-        self.visit(node.value)
+        if any(isinstance(target, (ast.Tuple, ast.List)) for target in node.targets):
+            self._visit_iterated_expression(node.value)
+        else:
+            self.visit(node.value)
         value_mapping = self._resolve_mapping(node.value)
         value_reference = self._resolve_reference(node.value)
         for assignment_target in node.targets:
@@ -7585,6 +7652,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 assignment_target,
                 node.value,
                 dynamic_unknown_string=True,
+                value_consumed=isinstance(assignment_target, (ast.Tuple, ast.List)),
             )
         if value_mapping is not None and any(
             _assignment_target_escapes_value(target) for target in node.targets
@@ -7746,6 +7814,26 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                     f"{symbol_name if symbol_name in CANONICAL_API_KEY_SYMBOLS else '<dynamic>'}"
                 )
         self.generic_visit(node)
+        if (
+            self._analysis_purpose == "ownership_audit"
+            and isinstance(node.ctx, ast.Load)
+            and isinstance(node.slice, ast.Constant)
+        ):
+            result = self._resolve_mapping_lookup_binding(
+                owner=node.value, key=node.slice, default=None, receiver=None
+            )
+            if result is not None:
+                existing = self._call_result_bindings.get(id(node))
+                self._call_result_bindings[id(node)] = (
+                    result if existing is None else self._join_resolved_bindings([existing, result])
+                )
+                if self.call_result_snapshots is not None:
+                    existing_snapshot = self.call_result_snapshots.get(id(node))
+                    self.call_result_snapshots[id(node)] = (
+                        result
+                        if existing_snapshot is None
+                        else self._join_resolved_bindings([existing_snapshot, result])
+                    )
 
     def _capture_argument_binding(
         self,
@@ -8590,11 +8678,41 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         self,
         template: _DeferredFunctionCall,
         node: ast.Call,
+        *,
+        positional_override: Sequence[_ResolvedBinding] | None = None,
     ) -> dict[str, _ResolvedBinding] | None:
+        if template.function is None:
+            if template.builtin_reference is None or any(
+                keyword.arg is not None for keyword in node.keywords
+            ):
+                return None
+            if positional_override is None and any(
+                isinstance(argument, ast.Starred) for argument in node.args
+            ):
+                return None
+            positional = [
+                *template.partial_positional,
+                *(
+                    positional_override
+                    if positional_override is not None
+                    else [self._capture_argument_binding(argument) for argument in node.args]
+                ),
+            ]
+            names = (
+                ("object", "name", "value")
+                if template.builtin_reference == "builtins.setattr"
+                else ("object", "name", "default")
+            )
+            minimum = 3 if template.builtin_reference == "builtins.setattr" else 2
+            maximum = 2 if template.builtin_reference == "builtins.delattr" else 3
+            if not minimum <= len(positional) <= maximum:
+                return None
+            return dict(zip(names, positional))
         if (
             template.partial_unresolved
             or node.keywords
-            or any(isinstance(argument, ast.Starred) for argument in node.args)
+            or positional_override is None
+            and any(isinstance(argument, ast.Starred) for argument in node.args)
         ):
             conservative = self._conservative_argument_binding()
             resolved: dict[str, _ResolvedBinding] = {}
@@ -8608,7 +8726,11 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             return resolved
         positional = [
             *template.partial_positional,
-            *(self._capture_argument_binding(argument) for argument in node.args),
+            *(
+                positional_override
+                if positional_override is not None
+                else [self._capture_argument_binding(argument) for argument in node.args]
+            ),
         ]
         return self._resolve_call_argument_bindings(
             template.function,
@@ -8628,7 +8750,9 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         iterated = id(node) in self._iterated_call_ids
         replay_inputs: list[tuple[_FunctionNode, dict[str, _ResolvedBinding]]] = []
         partial_templates = {
-            call for call in self._resolve_deferred_calls(node.func) if call.partial_template
+            call
+            for call in self._resolve_deferred_calls(node.func)
+            if call.partial_template and call.function is not None
         }
         partial_targets = {call.function for call in partial_templates}
         for target in sorted(
@@ -8649,12 +8773,18 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 continue
             if generator and not iterated:
                 continue
-            if isinstance(target, ast.AsyncFunctionDef) and not awaited and not iterated:
+            if (
+                isinstance(target, ast.AsyncFunctionDef)
+                and not awaited
+                and (not iterated or not generator)
+            ):
                 continue
             arguments = self._resolve_call_argument_bindings(target, node)
             if arguments is not None:
                 replay_inputs.append((target, arguments))
         for template in sorted(partial_templates, key=self._deferred_call_sort_key):
+            if template.function is None:
+                continue
             target = template.function
             if target in excluded_targets:
                 continue
@@ -8667,7 +8797,11 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 continue
             if generator and not iterated:
                 continue
-            if isinstance(target, ast.AsyncFunctionDef) and not awaited and not iterated:
+            if (
+                isinstance(target, ast.AsyncFunctionDef)
+                and not awaited
+                and (not iterated or not generator)
+            ):
                 continue
             arguments = self._resolve_partial_invocation_bindings(template, node)
             if arguments is not None:
@@ -8685,7 +8819,9 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             return frozenset()
         deferred: set[_DeferredFunctionCall] = set()
         partial_templates = {
-            call for call in self._resolve_deferred_calls(node.func) if call.partial_template
+            call
+            for call in self._resolve_deferred_calls(node.func)
+            if call.partial_template and call.function is not None
         }
         partial_targets = {call.function for call in partial_templates}
         for target in self._resolve_callables(node.func) - partial_targets:
@@ -8729,9 +8865,9 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         bool,
     ]:
         return (
-            call.function.lineno,
-            call.function.col_offset,
-            call.function.name,
+            call.function.lineno if call.function is not None else -1,
+            call.function.col_offset if call.function is not None else -1,
+            call.function.name if call.function is not None else call.builtin_reference or "",
             tuple((name, binding.reference, binding.string) for name, binding in call.arguments),
             call.partial_template,
             tuple((binding.reference, binding.string) for binding in call.partial_positional),
@@ -8753,6 +8889,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             for call in calls
             if call not in self._consumed_deferred_calls
             if not call.partial_template
+            if call.function is not None
             if (
                 execution == "iterate"
                 and (
@@ -8798,6 +8935,8 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         return self._join_resolved_bindings(result_bindings)
 
     def _execute_deferred_call(self, call: _DeferredFunctionCall) -> _ResolvedBinding:
+        if call.function is None:
+            return _ResolvedBinding(None, None)
         previous_sync_only = self._sync_only_body_analysis
         if (
             previous_sync_only
@@ -8853,20 +8992,34 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         node: ast.Call,
         *,
         wrapper_reference: str | None,
+        callable_binding: _ResolvedBinding | None = None,
+        positional_override: Sequence[_ResolvedBinding] | None = None,
     ) -> frozenset[_DeferredFunctionCall]:
         if wrapper_reference != "functools.partial" or not node.args:
             return frozenset()
         callable_expr = node.args[0]
         nested_templates = {
-            call for call in self._resolve_deferred_calls(callable_expr) if call.partial_template
+            call
+            for call in (
+                callable_binding.deferred_calls
+                if callable_binding is not None
+                else self._resolve_deferred_calls(callable_expr)
+            )
+            if call.partial_template
         }
-        unresolved = bool(node.keywords) or any(
-            isinstance(argument, ast.Starred) for argument in node.args[1:]
+        unresolved = (
+            bool(node.keywords)
+            or positional_override is None
+            and any(isinstance(argument, ast.Starred) for argument in node.args[1:])
         )
         positional = (
-            ()
-            if unresolved
-            else tuple(self._capture_argument_binding(argument) for argument in node.args[1:])
+            tuple(positional_override)
+            if positional_override is not None
+            else (
+                ()
+                if unresolved
+                else tuple(self._capture_argument_binding(argument) for argument in node.args[1:])
+            )
         )
         if nested_templates:
             return frozenset(
@@ -8877,11 +9030,39 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                         partial_template=True,
                         partial_positional=(*nested.partial_positional, *positional),
                         partial_unresolved=nested.partial_unresolved or unresolved,
+                        builtin_reference=nested.builtin_reference,
                     )
                     for nested in nested_templates
+                    if not (
+                        nested.builtin_reference is not None
+                        and any(keyword.arg is not None for keyword in node.keywords)
+                    )
                 }
             )
 
+        builtin = (
+            callable_binding.reference
+            if callable_binding is not None
+            else self._resolve_reference(callable_expr)
+        )
+        if builtin in {"builtins.getattr", "builtins.setattr", "builtins.delattr"}:
+            if any(keyword.arg is not None for keyword in node.keywords):
+                return frozenset()
+            return frozenset(
+                {
+                    _DeferredFunctionCall(
+                        function=None,
+                        arguments=(),
+                        partial_template=True,
+                        partial_positional=positional,
+                        partial_unresolved=unresolved,
+                        builtin_reference=cast(
+                            Literal["builtins.getattr", "builtins.setattr", "builtins.delattr"],
+                            builtin,
+                        ),
+                    )
+                }
+            )
         return frozenset(
             _DeferredFunctionCall(
                 function=target,
@@ -8890,7 +9071,11 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 partial_positional=positional,
                 partial_unresolved=unresolved,
             )
-            for target in self._resolve_callables(callable_expr)
+            for target in (
+                callable_binding.callables
+                if callable_binding is not None
+                else self._resolve_callables(callable_expr)
+            )
         )
 
     def _legacy_namespace_call_name(
@@ -9030,6 +9215,17 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         prepared_targets = set(initial_arguments)
 
         wrapper_reference = self._resolve_reference(node.func)
+        partial_constructor_candidate = wrapper_reference == "functools.partial" and bool(node.args)
+        builtin_partial_invocation = any(
+            call.builtin_reference is not None for call in self._resolve_deferred_calls(node.func)
+        ) or (
+            isinstance(node.func, ast.Call)
+            and self._resolve_reference(node.func.func) == "functools.partial"
+        )
+        captured_partial_callable: _ResolvedBinding | None = None
+        captured_partial_positional: list[_ResolvedBinding] = []
+        captured_builtin_templates: frozenset[_DeferredFunctionCall] = frozenset()
+        captured_builtin_arguments: list[_ResolvedBinding] = []
         dict_constructor_candidate = (
             wrapper_reference == "builtins.dict"
             and len(positional_arguments) <= 1
@@ -9076,7 +9272,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         )
         captures_lazy_callback = (
             (
-                iterable_callback_inputs is not None
+                (iterable_callback_inputs is not None or id(node) in self._iterated_call_ids)
                 and wrapper_reference in {"builtins.map", "builtins.filter"}
                 and not unresolved_positional_sources
                 and not node.keywords
@@ -9086,6 +9282,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             and (id(node) in self._iterated_call_ids or iterable_callback_inputs is not None)
         )
         captured_callback_targets: frozenset[_FunctionNode] = frozenset()
+        captured_callback_templates: frozenset[_DeferredFunctionCall] = frozenset()
         captured_callback_scope: _LexicalBindings | None = None
         captured_callback_arguments: list[_ResolvedBinding] = []
         captured_starmap_rows: list[list[_ResolvedBinding] | None] = []
@@ -9478,6 +9675,42 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                         )
                         is not None
                     )
+            elif partial_constructor_candidate or builtin_partial_invocation:
+                self.visit(node.func)
+                if builtin_partial_invocation:
+                    callee_binding = self._capture_argument_binding(node.func)
+                    captured_builtin_templates = frozenset(
+                        call
+                        for call in callee_binding.deferred_calls
+                        if call.builtin_reference is not None
+                    )
+                    if captured_builtin_templates:
+                        if not isinstance(node.func, ast.Name):
+                            prior = self._call_result_bindings.get(id(node.func))
+                            self._call_result_bindings[id(node.func)] = (
+                                callee_binding
+                                if prior is None
+                                else self._join_resolved_bindings([prior, callee_binding])
+                            )
+                        if self.call_result_snapshots is not None:
+                            prior_snapshot = self.call_result_snapshots.get(id(node.func))
+                            self.call_result_snapshots[id(node.func)] = (
+                                callee_binding
+                                if prior_snapshot is None
+                                else self._join_resolved_bindings([prior_snapshot, callee_binding])
+                            )
+                for argument_index, argument in enumerate(lookup_arguments):
+                    self.visit(argument)
+                    captured_partial_argument = self._capture_argument_binding(argument)
+                    if partial_constructor_candidate:
+                        if argument_index == 0:
+                            captured_partial_callable = captured_partial_argument
+                        else:
+                            captured_partial_positional.append(captured_partial_argument)
+                    else:
+                        captured_builtin_arguments.append(captured_partial_argument)
+                for keyword in node.keywords:
+                    self.visit(keyword)
             elif collects_zip_callbacks or dict_constructor_candidate:
                 self.visit(node.func)
                 exhausted_prefix = False
@@ -9578,7 +9811,14 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                         continue
                     self.visit(argument)
                     if argument_index == 0:
-                        captured_callback_targets = self._resolve_callables(argument)
+                        captured_callback_templates = frozenset(
+                            call
+                            for call in self._resolve_deferred_calls(argument)
+                            if call.partial_template and call.function is not None
+                        )
+                        captured_callback_targets = self._resolve_callables(argument) - {
+                            template.function for template in captured_callback_templates
+                        }
                         captured_callback_scope = self.scope.detached_clone()
                     elif not starmap_candidate:
                         captured_callback_arguments.append(
@@ -9623,6 +9863,23 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 self._awaited_call_ids.remove(id(gathered_call))
             if iterated_argument is not None and not iterated_argument_was_marked:
                 self._iterated_call_ids.remove(id(iterated_argument))
+        for template in captured_builtin_templates:
+            arguments = self._resolve_partial_invocation_bindings(
+                template, node, positional_override=captured_builtin_arguments
+            )
+            if (
+                arguments is not None
+                and self._is_legacy_module_reference(arguments["object"].reference)
+                and arguments["name"].string
+                in CANONICAL_API_KEY_SYMBOLS | {_POSSIBLE_API_KEY_SYMBOL, _DYNAMIC_STRING_BINDING}
+            ):
+                partial_symbol = arguments["name"].string
+                displayed_partial_symbol = (
+                    partial_symbol if partial_symbol in CANONICAL_API_KEY_SYMBOLS else "<dynamic>"
+                )
+                self.errors.append(
+                    f"{self.filename}: legacy API-key dependency attribute access is forbidden: {displayed_partial_symbol}"
+                )
         if unbound_namespace_candidate:
             namespace_name = (
                 lookup_arguments[1]
@@ -10071,6 +10328,21 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                     )
                     is not None
                 )
+                replay_inputs.extend(
+                    (template.function, arguments)
+                    for template in sorted(
+                        captured_callback_templates, key=self._deferred_call_sort_key
+                    )
+                    if template.function is not None
+                    if not isinstance(template.function, ast.AsyncFunctionDef)
+                    if not _function_is_generator(template.function)
+                    if (
+                        arguments := self._resolve_partial_invocation_bindings(
+                            template, node, positional_override=iterable_bindings
+                        )
+                    )
+                    is not None
+                )
             if starmap_candidate and captures_lazy_callback:
                 for star_row_bindings in captured_starmap_rows:
                     if star_row_bindings is None:
@@ -10097,6 +10369,22 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                         if arguments is not None:
                             replay_inputs.append((target, arguments))
                         elif len(captured_callback_targets) == 1:
+                            rejected_single_target = True
+                    for template in sorted(
+                        captured_callback_templates, key=self._deferred_call_sort_key
+                    ):
+                        if (
+                            template.function is None
+                            or isinstance(template.function, ast.AsyncFunctionDef)
+                            or _function_is_generator(template.function)
+                        ):
+                            continue
+                        arguments = self._resolve_partial_invocation_bindings(
+                            template, node, positional_override=star_row_bindings
+                        )
+                        if arguments is not None:
+                            replay_inputs.append((template.function, arguments))
+                        elif len(captured_callback_templates) + len(captured_callback_targets) == 1:
                             rejected_single_target = True
                     if rejected_single_target:
                         break
@@ -10141,6 +10429,21 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                             node,
                             callable_expr=node.args[0],
                             positional_override=[iterable_binding],
+                        )
+                    )
+                    is not None
+                )
+                replay_inputs.extend(
+                    (template.function, arguments)
+                    for template in sorted(
+                        captured_callback_templates, key=self._deferred_call_sort_key
+                    )
+                    if template.function is not None
+                    if not isinstance(template.function, ast.AsyncFunctionDef)
+                    if not _function_is_generator(template.function)
+                    if (
+                        arguments := self._resolve_partial_invocation_bindings(
+                            template, node, positional_override=[iterable_binding]
                         )
                     )
                     is not None
@@ -10197,6 +10500,12 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         partial_templates = self._partial_function_templates(
             node,
             wrapper_reference=wrapper_reference,
+            callable_binding=captured_partial_callable,
+            positional_override=(
+                captured_partial_positional
+                if partial_constructor_candidate and not unresolved_positional_sources
+                else None
+            ),
         )
         partial_wrapped_binding: _ResolvedBinding | None = None
         if wrapper_reference == "functools.partial" and node.args:
@@ -10218,7 +10527,11 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 string=(
                     partial_wrapped_binding.string if partial_wrapped_binding is not None else None
                 ),
-                callables=frozenset(template.function for template in partial_templates),
+                callables=frozenset(
+                    template.function
+                    for template in partial_templates
+                    if template.function is not None
+                ),
                 deferred_calls=partial_templates,
             )
             existing = self._call_result_bindings.get(id(node))
@@ -12428,6 +12741,28 @@ def _record_main_legacy_openapi_lookups(tree: ast.Module, errors: list[str]) -> 
             if unresolved:
                 continue
             function_reference = own_reference(node.func)
+            callee_binding = results.get(id(node.func))
+            if callee_binding is not None and select_own_environment(node.func):
+                actual_bindings = [
+                    _ResolvedBinding(own_reference(argument), own_string(argument))
+                    for argument in arguments
+                    if id(argument) in references and id(argument) in strings
+                ]
+                if len(actual_bindings) == len(arguments):
+                    for template in callee_binding.deferred_calls:
+                        if template.builtin_reference is None:
+                            continue
+                        bound = evaluator._resolve_partial_invocation_bindings(
+                            template, node, positional_override=actual_bindings
+                        )
+                        if (
+                            bound is not None
+                            and evaluator._is_legacy_module_reference(bound["object"].reference)
+                            and evaluator._is_protected_ownership_symbol(bound["name"].string)
+                        ):
+                            errors.append(
+                                f"{CANONICAL_MAIN}: OpenAPI symbol must not be accessed through legacy"
+                            )
             unbound_mutator = (
                 function_reference is not None
                 and function_reference.startswith("builtins.dict.")
@@ -12773,13 +13108,28 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     repo_root = Path(args.repo_root).resolve()
-    errors = validate_repo(repo_root)
-    if errors:
-        for error in errors:
-            print(f"ERROR: {error}", file=sys.stderr)
-        return 1
-    print("legacy compatibility seam guard passed")
-    return 0
+    trace_fd: int | None = None
+    trace_registered = False
+    try:
+        trace_descriptor = os.environ.get("PULSEPLATE_LEGACY_TRACE_FD")
+        if trace_descriptor is not None:
+            if not trace_descriptor.isascii() or not trace_descriptor.isdecimal():
+                raise ValueError("invalid legacy diagnostic descriptor")
+            trace_fd = int(trace_descriptor)
+            if trace_fd <= 2 or not stat.S_ISREG(os.fstat(trace_fd).st_mode):
+                raise ValueError("legacy diagnostic descriptor must be an owned regular file")
+            faulthandler.dump_traceback_later(90, repeat=False, file=trace_fd, exit=False)
+            trace_registered = True
+        errors = validate_repo(repo_root)
+        if errors:
+            for error in errors:
+                print(f"ERROR: {error}", file=sys.stderr)
+            return 1
+        print("legacy compatibility seam guard passed")
+        return 0
+    finally:
+        if trace_registered:
+            faulthandler.cancel_dump_traceback_later()
 
 
 if __name__ == "__main__":
