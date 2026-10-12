@@ -12,9 +12,11 @@ import argparse
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import date
+from email.message import Message
 from hashlib import sha256, sha3_256
 import io
 import json
+import os
 from pathlib import Path, PurePosixPath
 import posixpath
 import re
@@ -426,7 +428,103 @@ def validate_source_payload(artifact: DockerSourceArtifact, payload: bytes) -> N
         raise RuntimeError("Native source member/license inventory is incomplete.")
 
 
-def _write_verified_artifact(artifact: DockerSourceArtifact, output_dir: Path) -> Path:
+def _retain_rejected_zlib_response(
+    artifact: DockerSourceArtifact,
+    payload: bytes,
+    status: int,
+    headers: object,
+    directory: Path,
+    output_dir: Path,
+) -> None:
+    """Retain only the admitted public zlib response as private, untrusted data."""
+    _validate_source_identity(artifact)
+    if artifact.name != "zlib" or len(payload) > _NATIVE_ARCHIVE_MAX_BYTES + 1:
+        raise RuntimeError("Rejected-response capture is limited to bounded exact zlib bytes.")
+    destination = directory.absolute()
+    if (
+        ".." in directory.parts
+        or destination.is_relative_to(REPO_ROOT)
+        or destination.is_relative_to(output_dir.absolute())
+    ):
+        raise RuntimeError("Rejected-response quarantine must be outside the build context/cache.")
+    for parent in (destination.parent, *destination.parent.parents):
+        if parent.is_symlink() or not parent.is_dir():
+            raise RuntimeError("Rejected-response quarantine requires real existing parents.")
+    if type(status) is not int or not 100 <= status <= 599:
+        raise RuntimeError("Rejected-response HTTP status is unavailable.")
+    if not isinstance(headers, Message):
+        raise RuntimeError("Rejected-response HTTP headers are unavailable.")
+    selected: dict[str, str] = {}
+    truncated: list[str] = []
+    for name in ("Content-Type", "Content-Length", "Content-Encoding", "Date", "Last-Modified"):
+        value = headers.get(name)  # HTTP response headers; no arbitrary-header serialization.
+        if value is None:
+            continue
+        if not isinstance(value, str):
+            raise RuntimeError("Rejected-response selected header is unavailable.")
+        selected[name] = value[:512]
+        if len(value) > 512:
+            truncated.append(name)
+    metadata = {
+        "artifact": "zlib",
+        "request_url": artifact.url,
+        "status": status,
+        "headers": selected,
+        "truncated_headers": truncated,
+        "retained_bytes": len(payload),
+        "read_limit_bytes": _NATIVE_ARCHIVE_MAX_BYTES + 1,
+        "body_scope": (
+            "bounded_prefix" if len(payload) > _NATIVE_ARCHIVE_MAX_BYTES else "received_bytes"
+        ),
+        "untrusted_response": True,
+        "expected_sha3_256": artifact.sha3_256,
+        "actual_sha3_256": sha3_256(payload).hexdigest(),
+        "expected_sha256": artifact.sha256,
+        "actual_sha256": sha256(payload).hexdigest(),
+    }
+    encoded = (json.dumps(metadata, sort_keys=True) + "\n").encode("utf-8")
+    if len(encoded) > 20 * 1024:
+        raise RuntimeError("Rejected-response metadata exceeds its bound.")
+    parent_fd = os.open(destination.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        if os.fstat(parent_fd).st_uid != os.getuid():
+            raise RuntimeError("Rejected-response quarantine parent must be owned.")
+        os.mkdir(destination.name, 0o700, dir_fd=parent_fd)
+        directory_fd = os.open(
+            destination.name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=parent_fd
+        )
+        try:
+            owned = os.fstat(directory_fd)
+            if owned.st_uid != os.getuid() or stat.S_IMODE(owned.st_mode) != 0o700:
+                raise RuntimeError("Rejected-response quarantine must be private and owned.")
+            for name, contents in (("response.bin", payload), ("metadata.json", encoded)):
+                fd = os.open(
+                    name,
+                    os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
+                    0o600,
+                    dir_fd=directory_fd,
+                )
+                try:
+                    created = os.fstat(fd)
+                    if (
+                        created.st_uid != os.getuid()
+                        or created.st_nlink != 1
+                        or stat.S_IMODE(created.st_mode) != 0o600
+                    ):
+                        raise RuntimeError("Rejected-response file must be private and owned.")
+                    with os.fdopen(fd, "wb", closefd=False) as target:
+                        target.write(contents)
+                finally:
+                    os.close(fd)
+        finally:
+            os.close(directory_fd)
+    finally:
+        os.close(parent_fd)
+
+
+def _write_verified_artifact(
+    artifact: DockerSourceArtifact, output_dir: Path, *, integrity_rejection_dir: Path | None = None
+) -> Path:
     _validate_source_identity(artifact)
     # A cooperative build cache is not an arbitrary filesystem repair target.
     if ".." in output_dir.parts:
@@ -484,11 +582,30 @@ def _write_verified_artifact(artifact: DockerSourceArtifact, output_dir: Path) -
             time.sleep(attempt)
             attempt += 1
     actual_digest = sha3_256(payload).hexdigest()
-    if actual_digest != artifact.sha3_256:
-        raise RuntimeError(
-            f"{artifact.name} SHA3 mismatch: expected {artifact.sha3_256}, got {actual_digest}"
-        )
-    validate_source_payload(artifact, payload)
+    try:
+        if actual_digest != artifact.sha3_256:
+            raise RuntimeError(
+                f"{artifact.name} SHA3 mismatch: expected {artifact.sha3_256}, got {actual_digest}"
+            )
+        validate_source_payload(artifact, payload)
+    except Exception as rejection:
+        if artifact.name == "zlib" and integrity_rejection_dir is not None:
+            try:
+                _retain_rejected_zlib_response(
+                    artifact,
+                    payload,
+                    response.getcode(),
+                    response.headers,
+                    integrity_rejection_dir,
+                    output_dir,
+                )
+            except Exception as capture_error:
+                diagnostic = (
+                    "zlib: rejected-response capture failed: " + type(capture_error).__name__
+                )
+                rejection.add_note(diagnostic)
+                print(diagnostic, file=sys.stderr)
+        raise
 
     with tempfile.NamedTemporaryFile(dir=output_dir, delete=False) as tmp_file:
         tmp_file.write(payload)
@@ -513,6 +630,11 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         default=DEFAULT_OUTPUT_DIR,
         help="Directory to receive verified source artifacts.",
     )
+    parser.add_argument(
+        "--integrity-rejection-dir",
+        type=Path,
+        help="Opt-in fresh private quarantine outside the build context/cache for rejected zlib bytes.",
+    )
     return parser.parse_args(argv)
 
 
@@ -520,7 +642,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parse_args(argv)
     artifacts = load_manifest(args.manifest)
     for artifact in artifacts:
-        _write_verified_artifact(artifact, args.output_dir)
+        _write_verified_artifact(
+            artifact, args.output_dir, integrity_rejection_dir=args.integrity_rejection_dir
+        )
     return 0
 
 

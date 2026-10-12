@@ -616,6 +616,103 @@ def _private_index_auth_env(
     return env
 
 
+def test_python_setup_rejected_zlib_artifact_is_exact_and_failure_scoped() -> None:
+    action = _load_workflow(".github/actions/python-setup/action.yml")
+    steps = action["runs"]["steps"]
+    sdk = next(step for step in steps if step.get("name") == "Build exact Psycopg C client SDK")
+    upload = next(
+        step for step in steps if step.get("name") == "Retain untrusted rejected zlib response"
+    )
+    cleanup = next(
+        step for step in steps if step.get("name") == "Remove private Python index authentication"
+    )
+    assert sdk["id"] == "psycopg_sdk" and "set -euo pipefail" in sdk["run"]
+    assert 'mktemp -d "$RUNNER_TEMP/pulseplate-zlib-integrity.XXXXXXXX"' in sdk["run"]
+    assert '--integrity-rejection-dir "$rejection_parent/quarantine"' in sdk["run"]
+    assert "printf 'rejection_dir=%s/quarantine\\n'" in sdk["run"]
+    assert sdk["run"].index("fetch_docker_source_artifacts.py") < sdk["run"].index(
+        "docker buildx build"
+    )
+    assert (
+        upload["if"]
+        == "${{ failure() && steps.psycopg_sdk.outcome == 'failure' && steps.psycopg_sdk.outputs.rejection_dir != '' }}"
+    )
+    assert upload["uses"] == "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
+    assert upload["with"] == {
+        "name": "untrusted-zlib-rejected-response-${{ github.job }}-${{ inputs.python-version }}-${{ github.run_id }}-${{ github.run_attempt }}",
+        "path": "${{ steps.psycopg_sdk.outputs.rejection_dir }}/response.bin\n${{ steps.psycopg_sdk.outputs.rejection_dir }}/metadata.json\n",
+        "if-no-files-found": "ignore",
+        "retention-days": 3,
+    }
+    assert "continue-on-error" not in sdk and "continue-on-error" not in upload
+    assert steps.index(sdk) < steps.index(upload) < steps.index(cleanup)
+    assert cleanup["if"] == "${{ always() }}" and 'rm -f "$HOME/.netrc" "$marker"' in cleanup["run"]
+
+
+def test_python_setup_source_rejection_stops_sdk_build_and_preserves_auth_cleanup(
+    tmp_path: Path,
+) -> None:
+    env = _private_index_auth_env(tmp_path, user="synthetic", password="synthetic")
+    workspace, commands = tmp_path / "repo", tmp_path / "commands"
+    workspace.mkdir()
+    commands.mkdir()
+    fetch_args, docker_called = tmp_path / "fetch-args.json", tmp_path / "docker-called"
+    (commands / "python").write_text(
+        f"#!{sys.executable}\nimport json, os, sys\nfrom pathlib import Path\n"
+        "if sys.argv[1] == '-c':\n    print('3.13')\n    raise SystemExit(0)\n"
+        "if sys.argv[1].endswith('/fetch_docker_source_artifacts.py'):\n"
+        "    Path(os.environ['CONTROL_FETCH_ARGS']).write_text(json.dumps(sys.argv[1:]))\n"
+        "    sys.stderr.write('synthetic-integrity-rejection\\n')\n    raise SystemExit(9)\n"
+        "raise SystemExit(2)\n"
+    )
+    (commands / "uname").write_text(
+        '#!/bin/sh\ncase "$1" in -s) printf "Linux\\n";; -m) printf "x86_64\\n";; *) exit 1;; esac\n'
+    )
+    (commands / "docker").write_text(
+        f"#!{sys.executable}\nimport os\nfrom pathlib import Path\n"
+        "Path(os.environ['CONTROL_DOCKER_CALLED']).touch()\n"
+    )
+    for executable in commands.iterdir():
+        executable.chmod(0o755)
+    env.update(
+        {
+            "PATH": str(commands) + os.pathsep + env["PATH"],
+            "GITHUB_WORKSPACE": str(workspace),
+            "GITHUB_ENV": str(tmp_path / "github-env"),
+            "GITHUB_OUTPUT": str(tmp_path / "github-output"),
+            "CONTROL_FETCH_ARGS": str(fetch_args),
+            "CONTROL_DOCKER_CALLED": str(docker_called),
+        }
+    )
+    configure = _run_bash_script(
+        _python_setup_action_script("Configure private Python index authentication"), env=env
+    )
+    assert configure.returncode == 0, configure.stderr
+    failed = _run_bash_script(
+        _python_setup_action_script("Build exact Psycopg C client SDK"), env=env
+    )
+    assert failed.returncode == 9 and failed.stderr == "synthetic-integrity-rejection\n"
+    assert not docker_called.exists()
+    quarantine = Path(Path(env["GITHUB_OUTPUT"]).read_text().removeprefix("rejection_dir=").strip())
+    assert quarantine.parent.parent == Path(env["RUNNER_TEMP"])
+    assert quarantine.parent.stat().st_mode & 0o777 == 0o700
+    assert not quarantine.exists()
+    assert json.loads(fetch_args.read_bytes()) == [
+        str(workspace / "scripts/ci/fetch_docker_source_artifacts.py"),
+        "--manifest",
+        str(workspace / "scripts/ci/docker_source_artifacts.json"),
+        "--output-dir",
+        str(workspace / "build/docker-sources"),
+        "--integrity-rejection-dir",
+        str(quarantine),
+    ]
+    cleanup = _run_bash_script(
+        _python_setup_action_script("Remove private Python index authentication"), env=env
+    )
+    assert cleanup.returncode == 0 and not (Path(env["HOME"]) / ".netrc").exists()
+    assert not (Path(env["RUNNER_TEMP"]) / "pulseplate-python-setup-netrc-created").exists()
+
+
 def test_python_setup_action_netrc_lifecycle_accepts_valid_non_root_creds(
     tmp_path: Path,
 ) -> None:

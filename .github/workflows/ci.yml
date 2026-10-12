@@ -1272,7 +1272,11 @@ jobs:
           contract_failures=0
           contract_launching=0
           contract_signal_status=0
+          contract_cleaning=0
+          contract_cleanup_attempted=0
+          contract_cleanup_result=0
           contract_pids=()
+          contract_batch_statuses=()
           contract_batch_ids=()
           contract_coverage_files=()
           contract_temp_root="$RUNNER_TEMP/contract-risk"
@@ -1286,16 +1290,40 @@ jobs:
                 batch_status=$?
                 contract_failures=$((contract_failures + 1))
               fi
+              contract_batch_statuses+=("$batch_status")
               printf 'Contract/risk batch %s exited %s\n' \
-                "${contract_batch_ids[$index]}" "$batch_status"
+                "${contract_batch_ids[$index]}" "${contract_batch_statuses[$index]}"
             done
+            if cleanup_contract_batches; then
+              :
+            else
+              if [ "$contract_signal_status" -ne 0 ]; then
+                exit "$contract_signal_status"
+              fi
+              exit 1
+            fi
+            if [ "$contract_signal_status" -ne 0 ]; then
+              exit "$contract_signal_status"
+            fi
             contract_pids=()
             contract_batch_ids=()
+            contract_batch_statuses=()
+            contract_cleanup_attempted=0
           }
 
           cleanup_contract_batches() {
-            original_status="$1"
+            if [ "${#contract_pids[@]}" -eq 0 ]; then
+              return 0
+            fi
+            if [ "$contract_cleanup_attempted" -ne 0 ]; then
+              return "$contract_cleanup_result"
+            fi
+            contract_cleanup_attempted=1
+            contract_cleanup_result=1
+            contract_cleaning=1
             cleanup_failures=0
+            cleanup_deadline=$((SECONDS + contract_cleanup_seconds))
+            term_deadline=$((SECONDS + contract_cleanup_seconds / 2))
             for pid in "${contract_pids[@]}"; do
               if kill -0 -- "-$pid" 2>/dev/null; then
                 if kill -TERM -- "-$pid"; then
@@ -1306,8 +1334,7 @@ jobs:
                 fi
               fi
             done
-            cleanup_deadline=$((SECONDS + contract_cleanup_seconds))
-            while [ "$SECONDS" -lt "$cleanup_deadline" ]; do
+            while [ "$SECONDS" -lt "$term_deadline" ]; do
               groups_alive=0
               for pid in "${contract_pids[@]}"; do
                 if kill -0 -- "-$pid" 2>/dev/null; then
@@ -1329,7 +1356,6 @@ jobs:
                 fi
               fi
             done
-            cleanup_deadline=$((SECONDS + contract_cleanup_seconds))
             while [ "$SECONDS" -lt "$cleanup_deadline" ]; do
               groups_alive=0
               for pid in "${contract_pids[@]}"; do
@@ -1367,18 +1393,24 @@ jobs:
                 echo "::error::Owned contract/risk group $pid survived cleanup."
               fi
             done
-            if [ "$original_status" -eq 0 ] && [ "$cleanup_failures" -ne 0 ]; then
-              exit 1
+            contract_cleanup_result=0
+            if [ "$cleanup_failures" -ne 0 ]; then
+              contract_cleanup_result=1
             fi
+            contract_cleaning=0
+            printf 'Contract/risk cleanup exited %s\n' "$contract_cleanup_result"
+            return "$contract_cleanup_result"
           }
-          trap 'cleanup_contract_batches "$?"' EXIT
-          trap 'contract_signal_status=130; if [ "$contract_launching" -eq 0 ]; then exit 130; fi' INT
-          trap 'contract_signal_status=143; if [ "$contract_launching" -eq 0 ]; then exit 143; fi' TERM
+          trap 'original_status=$?; if cleanup_contract_batches; then cleanup_status=0; else cleanup_status=$?; fi; if [ "$original_status" -ne 0 ]; then exit "$original_status"; fi; exit "$cleanup_status"' EXIT
+          trap 'contract_signal_status=130; if [ "$contract_launching" -eq 0 ] && [ "$contract_cleaning" -eq 0 ]; then exit 130; fi' INT
+          trap 'contract_signal_status=143; if [ "$contract_launching" -eq 0 ] && [ "$contract_cleaning" -eq 0 ]; then exit 143; fi' TERM
 
           for ((batch_start=0; batch_start<${#SELECTED_TARGETS[@]}; batch_start+=contract_batch_size)); do
             contract_batch_index=$((contract_batch_index + 1))
             batch_targets=("${SELECTED_TARGETS[@]:batch_start:contract_batch_size}")
             junit_path="tests/contract-results-${contract_batch_index}.xml"
+            stdout_path="${junit_path%.xml}.stdout.log"
+            stderr_path="${junit_path%.xml}.stderr.log"
             coverage_path=".coverage.contract-risk-${contract_batch_index}"
             existing_batch_data=("$coverage_path" "$coverage_path".*)
             for data_path in "${existing_batch_data[@]}"; do
@@ -1396,12 +1428,12 @@ jobs:
             COVERAGE_FILE="$coverage_path" COV_CORE_DATAFILE="$coverage_path" \
               TEST_DB_PATH="$database_path" DATABASE_URL="sqlite:///$database_path" \
               DB_FALLBACK_URL="sqlite:///$database_path" \
-              python -m coverage run --append -m pytest -q \
+              python -m coverage run --append -m pytest -q --capture=tee-sys --verbosity=1 \
               -p no:xdist \
               "${batch_targets[@]}" \
               --junitxml="${junit_path}" \
               --basetemp="$contract_temp_root/batch-${contract_batch_index}" \
-              -o junit_family=legacy &
+              -o junit_family=legacy >"$stdout_path" 2>"$stderr_path" &
             contract_pids+=("$!")
             contract_batch_ids+=("$contract_batch_index")
             contract_launching=0
@@ -1618,6 +1650,8 @@ jobs:
           path: |
             tests/smoke-results.xml
             tests/contract-results*.xml
+            tests/contract-results-*.stdout.log
+            tests/contract-results-*.stderr.log
           if-no-files-found: ignore
           retention-days: 7
 
@@ -1990,7 +2024,11 @@ jobs:
           contract_failures=0
           contract_launching=0
           contract_signal_status=0
+          contract_cleaning=0
+          contract_cleanup_attempted=0
+          contract_cleanup_result=0
           contract_pids=()
+          contract_batch_statuses=()
           contract_batch_ids=()
           contract_coverage_files=()
           contract_temp_root="$RUNNER_TEMP/contract-risk"
@@ -2004,16 +2042,40 @@ jobs:
                 batch_status=$?
                 contract_failures=$((contract_failures + 1))
               fi
+              contract_batch_statuses+=("$batch_status")
               printf 'Contract/risk batch %s exited %s\n' \
-                "${contract_batch_ids[$index]}" "$batch_status"
+                "${contract_batch_ids[$index]}" "${contract_batch_statuses[$index]}"
             done
+            if cleanup_contract_batches; then
+              :
+            else
+              if [ "$contract_signal_status" -ne 0 ]; then
+                exit "$contract_signal_status"
+              fi
+              exit 1
+            fi
+            if [ "$contract_signal_status" -ne 0 ]; then
+              exit "$contract_signal_status"
+            fi
             contract_pids=()
             contract_batch_ids=()
+            contract_batch_statuses=()
+            contract_cleanup_attempted=0
           }
 
           cleanup_contract_batches() {
-            original_status="$1"
+            if [ "${#contract_pids[@]}" -eq 0 ]; then
+              return 0
+            fi
+            if [ "$contract_cleanup_attempted" -ne 0 ]; then
+              return "$contract_cleanup_result"
+            fi
+            contract_cleanup_attempted=1
+            contract_cleanup_result=1
+            contract_cleaning=1
             cleanup_failures=0
+            cleanup_deadline=$((SECONDS + contract_cleanup_seconds))
+            term_deadline=$((SECONDS + contract_cleanup_seconds / 2))
             for pid in "${contract_pids[@]}"; do
               if kill -0 -- "-$pid" 2>/dev/null; then
                 if kill -TERM -- "-$pid"; then
@@ -2024,8 +2086,7 @@ jobs:
                 fi
               fi
             done
-            cleanup_deadline=$((SECONDS + contract_cleanup_seconds))
-            while [ "$SECONDS" -lt "$cleanup_deadline" ]; do
+            while [ "$SECONDS" -lt "$term_deadline" ]; do
               groups_alive=0
               for pid in "${contract_pids[@]}"; do
                 if kill -0 -- "-$pid" 2>/dev/null; then
@@ -2047,7 +2108,6 @@ jobs:
                 fi
               fi
             done
-            cleanup_deadline=$((SECONDS + contract_cleanup_seconds))
             while [ "$SECONDS" -lt "$cleanup_deadline" ]; do
               groups_alive=0
               for pid in "${contract_pids[@]}"; do
@@ -2085,13 +2145,17 @@ jobs:
                 echo "::error::Owned contract/risk group $pid survived cleanup."
               fi
             done
-            if [ "$original_status" -eq 0 ] && [ "$cleanup_failures" -ne 0 ]; then
-              exit 1
+            contract_cleanup_result=0
+            if [ "$cleanup_failures" -ne 0 ]; then
+              contract_cleanup_result=1
             fi
+            contract_cleaning=0
+            printf 'Contract/risk cleanup exited %s\n' "$contract_cleanup_result"
+            return "$contract_cleanup_result"
           }
-          trap 'cleanup_contract_batches "$?"' EXIT
-          trap 'contract_signal_status=130; if [ "$contract_launching" -eq 0 ]; then exit 130; fi' INT
-          trap 'contract_signal_status=143; if [ "$contract_launching" -eq 0 ]; then exit 143; fi' TERM
+          trap 'original_status=$?; if cleanup_contract_batches; then cleanup_status=0; else cleanup_status=$?; fi; if [ "$original_status" -ne 0 ]; then exit "$original_status"; fi; exit "$cleanup_status"' EXIT
+          trap 'contract_signal_status=130; if [ "$contract_launching" -eq 0 ] && [ "$contract_cleaning" -eq 0 ]; then exit 130; fi' INT
+          trap 'contract_signal_status=143; if [ "$contract_launching" -eq 0 ] && [ "$contract_cleaning" -eq 0 ]; then exit 143; fi' TERM
 
           for ((batch_start=0; batch_start<${#SELECTED_TARGETS[@]}; batch_start+=contract_batch_size)); do
             contract_batch_index=$((contract_batch_index + 1))

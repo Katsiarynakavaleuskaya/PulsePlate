@@ -4698,6 +4698,7 @@ def test_closeout_owner_is_an_executed_merge_governance_argument(
         "-m",
         "pytest",
         "-q",
+        *(["--capture=tee-sys", "--verbosity=1"] if job_id == "test-pr" else []),
         "-p",
         "no:xdist",
         *sorted(expected),
@@ -4743,15 +4744,19 @@ def test_contract_risk_suite_ignores_commented_db_target(job_id: str) -> None:
 
 @pytest.mark.parametrize("job_id", ["test-pr", "test-feature"])
 @pytest.mark.parametrize(
-    "failed_batch,missing_data,terminate_run,stale_data",
+    "failed_batch,missing_data,terminate_run,stale_data,residual_child,cleanup_failure",
     [
-        (0, 0, False, False),
-        (1, 0, False, False),
-        (2, 0, False, False),
-        (0, 2, False, False),
-        (0, 0, True, False),
-        (0, 0, False, True),
-        (0, 0, "ignore", False),
+        (0, 0, False, False, False, False),
+        (1, 0, False, False, False, False),
+        (2, 0, False, False, False, False),
+        (0, 2, False, False, False, False),
+        (0, 0, True, False, False, False),
+        (0, 0, False, True, False, False),
+        (0, 0, "ignore", False, False, False),
+        (0, 0, False, False, True, False),
+        (1, 0, False, False, True, False),
+        (0, 0, False, False, False, True),
+        (1, 0, False, False, False, True),
     ],
 )
 def test_contract_batches_wait_all_statuses_and_combine_only_complete_isolated_inventory(
@@ -4761,6 +4766,8 @@ def test_contract_batches_wait_all_statuses_and_combine_only_complete_isolated_i
     missing_data: int,
     terminate_run: bool | str,
     stale_data: bool,
+    residual_child: bool,
+    cleanup_failure: bool,
 ) -> None:
     """Run the actual paired shell steps with rendezvous, real SQLite and failure controls."""
     import sys
@@ -4783,7 +4790,7 @@ def test_contract_batches_wait_all_statuses_and_combine_only_complete_isolated_i
         + "\n"
         + "import json, os, signal, sqlite3, sys, time\nfrom pathlib import Path\n"
         + f"batch_count = {batch_count}\nfailed_batch = {failed_batch}\nmissing_data = {missing_data}\n"
-        + f"terminate_run = {terminate_run!r}\n"
+        + f"terminate_run = {terminate_run!r}\nresidual_child = {residual_child!r}\n"
         + r"""
 args = sys.argv[1:]
 events = Path("events")
@@ -4800,6 +4807,8 @@ junit = next(a for a in args if a.startswith("--junitxml="))
 index = int(Path(junit.split("=", 1)[1]).stem.rsplit("-", 1)[1])
 if index % 2 == 1 and index > 1:
     assert all((events / f"done-{i}.json").exists() for i in (index - 2, index - 1))
+    if residual_child:
+        assert (events / "residual-stopped").read_text() == "SIGTERM"
 def stopped(signum, frame):
     (events / f"signalled-{index}.json").write_text(json.dumps({"signal": signum}))
     (events / f"running-{index}").unlink()
@@ -4813,6 +4822,21 @@ if terminate_run == "ignore" and index == 1:
         while True:
             signal.pause()
     (events / "grandchild.json").write_text(json.dumps({"pid": child, "pgid": os.getpgid(0)}))
+if residual_child and index == 1:
+    child = os.fork()
+    if child == 0:
+        def child_stopped(signum, frame):
+            (events / "residual-stopped").write_text("SIGTERM")
+            os._exit(143)
+        signal.signal(signal.SIGTERM, child_stopped)
+        (events / "residual-ready").touch()
+        while True:
+            signal.pause()
+    (events / "residual-child.json").write_text(json.dumps({"pid": child,"pgid": os.getpgid(0)}))
+    deadline = time.monotonic() + 10
+    while not (events / "residual-ready").exists():
+        assert time.monotonic() < deadline
+        time.sleep(0.01)
 (events / f"running-{index}").write_text(str(os.getpid()))
 start = {
     "pid": os.getpid(),
@@ -4854,13 +4878,28 @@ raise SystemExit(status)
     observer.chmod(0o755)
     bash = shutil.which("bash")
     assert bash is not None
+    run_script = str(step["run"])
+    assert run_script.count("cleanup_deadline=$((SECONDS + contract_cleanup_seconds))") == 1
+    if cleanup_failure:
+        # All synthetic leaders finish; only group-presence/signal transport is counterfactual.
+        run_script = """kill() {
+  if [ "$1" = "-0" ]; then return 0; fi
+  if [ "$1" = "-TERM" ] || [ "$1" = "-KILL" ]; then
+    printf '%s\n' "$1" >> events/cleanup-signals
+    return 1
+  fi
+  builtin kill "$@"
+}
+""" + run_script
     result = subprocess.run(
-        [bash, "-c", str(step["run"])],
+        [bash, "-c", run_script],
         cwd=tmp_path,
         env={
             "PATH": str(tmp_path) + os.pathsep + os.defpath,
             "RUNNER_TEMP": str(tmp_path / "runner-temp"),
-            "CONTRACT_RISK_CLEANUP_SECONDS": str(workflow["env"]["CONTRACT_RISK_CLEANUP_SECONDS"]),
+            "CONTRACT_RISK_CLEANUP_SECONDS": (
+                "1" if cleanup_failure else str(workflow["env"]["CONTRACT_RISK_CLEANUP_SECONDS"])
+            ),
             "CONTRACT_RISK_GROUPS": ",".join(groups),
         },
         capture_output=True,
@@ -4869,9 +4908,28 @@ raise SystemExit(status)
         check=False,
     )
     expected_exit = (
-        143 if terminate_run else (1 if failed_batch or missing_data or stale_data else 0)
+        143
+        if terminate_run
+        else (1 if failed_batch or missing_data or stale_data or cleanup_failure else 0)
     )
     assert result.returncode == expected_exit, result.stderr
+    if cleanup_failure:
+        assert "Contract/risk batch 1 exited " + str(7 if failed_batch else 0) in result.stdout
+        assert result.stdout.count("Contract/risk cleanup exited 1") == 1
+        assert (events / "cleanup-signals").read_text().splitlines() == [
+            "-TERM",
+            "-TERM",
+            "-KILL",
+            "-KILL",
+        ]
+        assert sorted(path.name for path in events.glob("start-*.json")) == [
+            "start-1.json",
+            "start-2.json",
+        ]
+        assert not (tmp_path / "observed-combine.json").exists()
+        assert not list(events.glob("running-*"))
+        assert (tmp_path / ".coverage").read_text() == "existing smoke coverage"
+        return
     if terminate_run != "ignore":
         assert not list(events.glob("running-*"))
     if stale_data:
@@ -4906,12 +4964,19 @@ raise SystemExit(status)
         assert not (tmp_path / "observed-combine.json").exists()
         assert (tmp_path / ".coverage").read_text() == "existing smoke coverage"
         return
+    if residual_child:
+        assert (events / "residual-stopped").read_text() == "SIGTERM"
+        child = json.loads((events / "residual-child.json").read_text())
+        with pytest.raises(ProcessLookupError):
+            os.kill(child["pid"], 0)
+        with pytest.raises(ProcessLookupError):
+            os.killpg(child["pgid"], 0)
     seen_targets: list[str] = []
     databases: set[str] = set()
     for index in range(1, batch_count + 1):
         start = json.loads((events / f"start-{index}.json").read_text())
         argv = start["args"]
-        assert argv[:9] == [
+        prefix = [
             "-m",
             "coverage",
             "run",
@@ -4919,10 +4984,12 @@ raise SystemExit(status)
             "-m",
             "pytest",
             "-q",
+            *(["--capture=tee-sys", "--verbosity=1"] if job_id == "test-pr" else []),
             "-p",
             "no:xdist",
         ]
-        targets = [argument for argument in argv[9:] if argument.startswith("tests/")]
+        assert argv[: len(prefix)] == prefix
+        targets = [argument for argument in argv[len(prefix) :] if argument.startswith("tests/")]
         assert targets == expected_targets[(index - 1) * 24 : index * 24]
         seen_targets.extend(targets)
         assert start["coverage"] == start["coverage_core"] == f".coverage.contract-risk-{index}"
@@ -4962,6 +5029,74 @@ raise SystemExit(status)
                 )
             ],
         ]
+
+
+def test_test_pr_contract_139_retains_real_pytest_and_native_stderr_transport(
+    tmp_path: Path,
+) -> None:
+    """Safe controlled exit139 proves transport only; it is not an application SIGSEGV."""
+    import sys
+
+    workflow = _load_ci_workflow()
+    step = _job_step_by_name(workflow, job_id="test-pr", step_name="Contract and risk suites")
+    (tmp_path / ".coverage").write_text("existing smoke coverage")
+    (tmp_path / "tests").mkdir()
+    fixture = tmp_path / "test_transport.py"
+    fixture.write_text(
+        "import os, pytest\n"
+        "def test_synthetic_fatal_transport(capsys):\n"
+        "    with capsys.disabled():\n"
+        "        print('synthetic-stdout-marker', flush=True)\n"
+        "    os.write(2, b'synthetic-native-stderr-marker\\n')\n"
+        "    os._exit(139)\n"
+    )
+    observer = tmp_path / "python"
+    observer.write_text(
+        "#!" + sys.executable + "\n"
+        "import os, subprocess, sys\nfrom pathlib import Path\n"
+        "args = sys.argv[1:]\n"
+        "if args[:5] == ['-W', 'error', '-m', 'coverage', 'combine']:\n"
+        "    Path('unexpected-combine').touch()\n    raise SystemExit(0)\n"
+        "assert args[:11] == ['-m', 'coverage', 'run', '--append', '-m', 'pytest', '-q', "
+        "'--capture=tee-sys', '--verbosity=1', '-p', 'no:xdist']\n"
+        "tail = [arg for arg in args[11:] if not arg.startswith('tests/')]\n"
+        "# Execute only the tiny transport fixture, never the selected application suites.\n"
+        f"command = [sys.executable, '-m', 'pytest', '-c', '/dev/null', '--rootdir', {str(tmp_path)!r}, "
+        f"*args[6:11], {str(fixture)!r}, *tail]\n"
+        "result = subprocess.run(command, check=False)\n"
+        "raise SystemExit(result.returncode)\n"
+    )
+    observer.chmod(0o755)
+    bash = shutil.which("bash")
+    assert bash is not None
+    result = subprocess.run(
+        [bash, "-c", str(step["run"])],
+        cwd=tmp_path,
+        env={
+            "PATH": str(tmp_path) + os.pathsep + os.defpath,
+            "RUNNER_TEMP": str(tmp_path / "runner-temp"),
+            "CONTRACT_RISK_GROUPS": "merge_governance",
+            "CONTRACT_RISK_CLEANUP_SECONDS": str(workflow["env"]["CONTRACT_RISK_CLEANUP_SECONDS"]),
+            "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1",
+            "PYTHONUNBUFFERED": "1",
+        },
+        capture_output=True,
+        text=True,
+        timeout=20,
+        check=False,
+    )
+    assert result.returncode == 1
+    assert "Contract/risk batch 1 exited 139" in result.stdout
+    assert "1 contract/risk batch(es) failed." in result.stdout
+    stdout = (tmp_path / "tests/contract-results-1.stdout.log").read_text()
+    stderr = (tmp_path / "tests/contract-results-1.stderr.log").read_text()
+    assert "test_transport.py::test_synthetic_fatal_transport" in stdout
+    assert "synthetic-stdout-marker" in stdout
+    assert "synthetic-native-stderr-marker" in stderr
+    assert "synthetic-native-stderr-marker" not in result.stdout + result.stderr
+    assert not (tmp_path / "tests/contract-results-1.xml").exists()
+    assert not (tmp_path / "unexpected-combine").exists()
+    assert (tmp_path / ".coverage").read_text() == "existing smoke coverage"
 
 
 @pytest.mark.parametrize("corrupt_input", [False, True])
@@ -5050,6 +5185,12 @@ def test_contract_risk_suites_use_bounded_coverage_batches() -> None:
         assert "for ((batch_start=0;" in run_script
         assert "batch_targets=(" in run_script
         assert "python -m coverage run --append -m pytest -q" in run_script
+        if job_id == "test-pr":
+            assert "pytest -q --capture=tee-sys --verbosity=1" in run_script
+            assert '>"$stdout_path" 2>"$stderr_path" &' in run_script
+        else:
+            assert "--capture=tee-sys" not in run_script and "--verbosity=1" not in run_script
+            assert "stdout_path=" not in run_script and "stderr_path=" not in run_script
         assert "-p no:xdist" in run_script
         assert '"${batch_targets[@]}"' in run_script
         assert '--junitxml="${junit_path}"' in run_script
@@ -5062,6 +5203,19 @@ def test_contract_risk_suites_use_bounded_coverage_batches() -> None:
         upload_with = upload_step["with"]
         assert isinstance(upload_with, dict)
         assert "tests/contract-results*.xml" in str(upload_with["path"])
+        if job_id == "test-pr":
+            assert upload_step["if"] == "always()"
+            assert str(upload_with["path"]).splitlines() == [
+                "tests/smoke-results.xml",
+                "tests/contract-results*.xml",
+                "tests/contract-results-*.stdout.log",
+                "tests/contract-results-*.stderr.log",
+            ]
+        else:
+            assert str(upload_with["path"]).splitlines() == [
+                "tests/smoke-results.xml",
+                "tests/contract-results*.xml",
+            ]
 
 
 def test_ci_workflow_declares_canonical_main_and_feature_push_jobs() -> None:

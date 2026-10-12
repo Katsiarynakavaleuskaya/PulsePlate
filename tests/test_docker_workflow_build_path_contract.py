@@ -1316,13 +1316,19 @@ def _stub_source_transport(
     code: int = 200,
     location: str | None = None,
     response_codes: tuple[int, ...] | None = None,
+    response_headers: dict[str, str] | None = None,
+    request_headers: list[dict[str, str]] | None = None,
 ) -> list[tuple[str, int]]:
     """Keep the actual opener/redirect dispatch and replace only HTTP transport."""
     calls: list[tuple[str, int]] = []
 
     def respond(_handler: object, request: Request) -> addinfourl:
         calls.append((request.full_url, request.timeout))
+        if request_headers is not None:
+            request_headers.append(dict(request.header_items()))
         headers = Message()
+        for name, value in (response_headers or {}).items():
+            headers[name] = value
         if location is not None:
             headers["Location"] = location
         status = code
@@ -1600,6 +1606,246 @@ def test_docker_source_artifact_fetcher_rejects_digest_mismatches(
         docker_sources._write_verified_artifact(artifact, tmp_path / "docker-sources")
 
     assert not (tmp_path / "docker-sources" / "sqlite-autoconf-3530200.tar.gz").exists()
+
+
+@pytest.fixture
+def zlib_rejection_context(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    context = tmp_path / "synthetic-build-context"
+    context.mkdir()
+    monkeypatch.setattr(docker_sources, "REPO_ROOT", context)
+    return context
+
+
+def test_zlib_rejection_retains_private_opaque_response_without_authentication(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    zlib_rejection_context: Path,
+) -> None:
+    for key in (
+        "GH_TOKEN",
+        "GITHUB_TOKEN",
+        "GHCR_TOKEN",
+        "GHCR_READ_TOKEN",
+        "DEVPI_CI_USER",
+        "DEVPI_CI_PASSWORD",
+        "PULSEPLATE_PYTHON_INDEX_URL",
+        "http_proxy",
+        "https_proxy",
+        "all_proxy",
+        "HTTP_PROXY",
+        "HTTPS_PROXY",
+        "ALL_PROXY",
+    ):
+        (
+            monkeypatch.setenv(key, "synthetic")
+            if "proxy" not in key.lower()
+            else monkeypatch.delenv(key, raising=False)
+        )
+    monkeypatch.setenv("no_proxy", "*")
+    monkeypatch.setenv("NO_PROXY", "*")
+    monkeypatch.setenv("HOME", str(tmp_path))
+    (tmp_path / ".netrc").write_text("machine zlib.net login synthetic password synthetic\n")
+    (tmp_path / ".netrc").chmod(0o600)
+    artifact = next(
+        row
+        for row in docker_sources.load_manifest(
+            docker_sources.DEFAULT_MANIFEST, today=date(2026, 10, 9)
+        )
+        if row.name == "zlib"
+    )
+    payload = b"untrusted-response-body-marker"
+    requests: list[dict[str, str]] = []
+    headers = {
+        "Content-Type": "text/html",
+        "Content-Length": str(len(payload)),
+        "Content-Encoding": "identity",
+        "Date": "Mon, 12 Oct 2026 00:00:00 GMT",
+        "Last-Modified": "x" * 513,
+        "Set-Cookie": "synthetic",
+        "Authorization": "synthetic",
+        "Proxy-Authorization": "synthetic",
+        "WWW-Authenticate": "synthetic",
+        "Proxy-Authenticate": "synthetic",
+        "Location": "https://example.invalid/never-followed",
+        "X-Unselected": "synthetic",
+    }
+    calls = _stub_source_transport(
+        monkeypatch, payload=payload, response_headers=headers, request_headers=requests
+    )
+    output, quarantine = tmp_path / "verified", tmp_path / "quarantine"
+    assert not quarantine.is_relative_to(zlib_rejection_context)
+    with pytest.raises(RuntimeError) as raised:
+        docker_sources._write_verified_artifact(
+            artifact, output, integrity_rejection_dir=quarantine
+        )
+    assert raised.value.args == (
+        f"zlib SHA3 mismatch: expected {artifact.sha3_256}, got {sha3_256(payload).hexdigest()}",
+    )
+    assert calls == [(artifact.url, 60)]
+    assert not {"authorization", "proxy-authorization", "cookie"}.intersection(
+        key.lower() for key in requests[0]
+    )
+    assert list(output.iterdir()) == []
+    assert {p.name for p in quarantine.iterdir()} == {"response.bin", "metadata.json"}
+    assert (quarantine / "response.bin").read_bytes() == payload
+    assert quarantine.stat().st_mode & 0o777 == 0o700
+    assert all(p.stat().st_mode & 0o777 == 0o600 for p in quarantine.iterdir())
+    metadata = json.loads((quarantine / "metadata.json").read_bytes())
+    assert metadata["request_url"] == artifact.url and metadata["status"] == 200
+    assert metadata["headers"] == {
+        name: headers[name][:512]
+        for name in ("Content-Type", "Content-Length", "Content-Encoding", "Date", "Last-Modified")
+    }
+    assert metadata["truncated_headers"] == ["Last-Modified"]
+    assert metadata["retained_bytes"] == len(payload) and metadata["body_scope"] == "received_bytes"
+    assert metadata["expected_sha3_256"] == artifact.sha3_256
+    assert metadata["expected_sha256"] == artifact.sha256
+    assert metadata["actual_sha3_256"] == sha3_256(payload).hexdigest()
+    assert metadata["actual_sha256"] == sha256(payload).hexdigest()
+    captured = capsys.readouterr()
+    assert "untrusted-response-body-marker" not in captured.out + captured.err
+    assert "synthetic" not in captured.out + captured.err
+
+
+@pytest.mark.parametrize(
+    "kind", ("existing", "symlink", "parent-symlink", "parent-traversal", "context", "cache")
+)
+def test_zlib_capture_path_failure_preserves_integrity_rejection(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, kind: str, zlib_rejection_context: Path
+) -> None:
+    artifact = next(
+        row
+        for row in docker_sources.load_manifest(
+            docker_sources.DEFAULT_MANIFEST, today=date(2026, 10, 9)
+        )
+        if row.name == "zlib"
+    )
+    payload = b"bad-response"
+    _stub_source_transport(monkeypatch, payload=payload)
+    output, quarantine = tmp_path / "verified", tmp_path / "quarantine"
+    output.mkdir()
+    if kind == "existing":
+        quarantine.mkdir(mode=0o700)
+    elif kind == "symlink":
+        quarantine.symlink_to(tmp_path / "never-created")
+    elif kind == "parent-symlink":
+        (tmp_path / "alias").symlink_to(tmp_path)
+        quarantine = tmp_path / "alias/quarantine"
+    elif kind == "parent-traversal":
+        quarantine = tmp_path / "unused/../quarantine"
+    elif kind == "context":
+        quarantine = zlib_rejection_context / "never-created-rejection"
+    else:
+        quarantine = output / "quarantine"
+    if kind in ("existing", "symlink"):
+        with pytest.raises(FileExistsError):
+            docker_sources._retain_rejected_zlib_response(
+                artifact, payload, 200, Message(), quarantine, output
+            )
+    else:
+        with pytest.raises(RuntimeError) as secondary:
+            docker_sources._retain_rejected_zlib_response(
+                artifact, payload, 200, Message(), quarantine, output
+            )
+        expected_message = (
+            "Rejected-response quarantine requires real existing parents."
+            if kind == "parent-symlink"
+            else "Rejected-response quarantine must be outside the build context/cache."
+        )
+        assert secondary.value.args == (expected_message,)
+    with pytest.raises(RuntimeError) as raised:
+        docker_sources._write_verified_artifact(
+            artifact, output, integrity_rejection_dir=quarantine
+        )
+    assert raised.value.args == (
+        f"zlib SHA3 mismatch: expected {artifact.sha3_256}, got {sha3_256(payload).hexdigest()}",
+    )
+    expected = "FileExistsError" if kind in ("existing", "symlink") else "RuntimeError"
+    assert raised.value.__notes__ == [f"zlib: rejected-response capture failed: {expected}"]
+    assert list(output.iterdir()) == []
+    assert not (tmp_path / "never-created").exists()
+
+
+def test_zlib_rejection_retains_only_original_bounded_read_prefix(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, zlib_rejection_context: Path
+) -> None:
+    artifact = next(
+        row
+        for row in docker_sources.load_manifest(
+            docker_sources.DEFAULT_MANIFEST, today=date(2026, 10, 9)
+        )
+        if row.name == "zlib"
+    )
+    assert docker_sources._NATIVE_ARCHIVE_MAX_BYTES == 64 * 1024 * 1024
+    payload = b"x" * (64 * 1024 * 1024 + 2)
+    _stub_source_transport(monkeypatch, payload=payload)
+    output, quarantine = tmp_path / "verified", tmp_path / "quarantine"
+    assert not quarantine.is_relative_to(zlib_rejection_context)
+    with pytest.raises(RuntimeError, match="^zlib SHA3 mismatch: expected "):
+        docker_sources._write_verified_artifact(
+            artifact, output, integrity_rejection_dir=quarantine
+        )
+    retained = (quarantine / "response.bin").read_bytes()
+    metadata = json.loads((quarantine / "metadata.json").read_bytes())
+    assert retained == payload[:-1]
+    assert (
+        len(retained)
+        == metadata["retained_bytes"]
+        == metadata["read_limit_bytes"]
+        == 64 * 1024 * 1024 + 1
+    )
+    assert metadata["body_scope"] == "bounded_prefix"
+    assert metadata["actual_sha3_256"] == sha3_256(retained).hexdigest()
+    assert metadata["actual_sha256"] == sha256(retained).hexdigest()
+    assert list(output.iterdir()) == []
+
+
+def test_zlib_capture_write_failure_keeps_primary_error_and_closes_owned_file(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    zlib_rejection_context: Path,
+) -> None:
+    artifact = next(
+        row
+        for row in docker_sources.load_manifest(
+            docker_sources.DEFAULT_MANIFEST, today=date(2026, 10, 9)
+        )
+        if row.name == "zlib"
+    )
+    payload = b"bad-response"
+    assert not (tmp_path / "quarantine").is_relative_to(zlib_rejection_context)
+    _stub_source_transport(monkeypatch, payload=payload)
+    real_close = os.close
+    failed: list[int] = []
+    closed: list[int] = []
+
+    def fail_write(fd: int, *_args: object, **_kwargs: object) -> None:
+        failed.append(fd)
+        raise OSError("synthetic-private-write-detail")
+
+    def close_owned(fd: int) -> None:
+        real_close(fd)
+        closed.append(fd)
+
+    with monkeypatch.context() as local:
+        local.setattr(docker_sources.os, "fdopen", fail_write)
+        local.setattr(docker_sources.os, "close", close_owned)
+        with pytest.raises(RuntimeError) as raised:
+            docker_sources._write_verified_artifact(
+                artifact, tmp_path / "verified", integrity_rejection_dir=tmp_path / "quarantine"
+            )
+    assert raised.value.args == (
+        f"zlib SHA3 mismatch: expected {artifact.sha3_256}, got {sha3_256(payload).hexdigest()}",
+    )
+    assert raised.value.__notes__ == ["zlib: rejected-response capture failed: OSError"]
+    assert len(failed) == 1 and failed[0] in closed
+    assert not (tmp_path / "quarantine/metadata.json").exists()
+    assert list((tmp_path / "verified").iterdir()) == []
+    captured = capsys.readouterr()
+    assert "synthetic-private-write-detail" not in captured.out + captured.err
+    assert captured.err == "zlib: rejected-response capture failed: OSError\n"
 
 
 @pytest.mark.parametrize("kind", ("symlink", "dangling", "directory", "fifo", "hardlink"))

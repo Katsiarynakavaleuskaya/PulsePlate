@@ -1651,6 +1651,7 @@ def _fixed_native_capture_fixture(
         + " if mode in ('owned_residual','owned_residual_exec_exit','owned_held_pipes'):\n"
         + "  child=subprocess.Popen([sys.executable,'-c',child_code],stdin=subprocess.DEVNULL,stdout=None if mode=='owned_held_pipes' else subprocess.DEVNULL,stderr=None if mode=='owned_held_pipes' else subprocess.DEVNULL)\n"
         + "  trace.with_suffix('.child-pid').write_text(str(child.pid))\n"
+        + "  trace.with_suffix('.child-group').write_text(str(os.getpgid(child.pid)))\n"
         + "  ready=trace.with_suffix('.child-ready'); ready_deadline=time.monotonic()+1\n"
         + "  while not ready.exists():\n"
         + "   assert time.monotonic()<ready_deadline\n"
@@ -1707,7 +1708,10 @@ def _fixed_native_capture_fixture(
     ],
 )
 def test_ghcr_fixed_native_capture_and_hygiene(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, mode: str
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    mode: str,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
     """Real child pipes/processes, synthetic GH program; not an authenticated API proof."""
     runner, trace, gh = _fixed_native_capture_fixture(tmp_path, mode)
@@ -1861,12 +1865,43 @@ def test_ghcr_fixed_native_capture_and_hygiene(
         }
         assert selected == {key for key in expected_environment_keys if key.startswith("GH_")}
     assert not any("GITHUB_TOKEN" in command["environment_keys"] for command in commands)
-    assert not work.exists() if mode != "cleanup_failure" else work.exists()
+    assert work.exists() is (mode in {"cleanup_failure", "owned_residual_exec_exit"})
+    if mode == "owned_residual_exec_exit":
+        assert str(failure.value) == "GHCR_owned_group_survived"
+        assert (
+            "GHCR cleanup also failed:GHCR_unknown_or_reused_group_member"
+            in capsys.readouterr().err
+        )
     assert not list(runner.glob("**/*.stdout")) and not list(runner.glob("**/*.stderr"))
     if mode in {"owned_residual", "owned_residual_exec_exit"}:
         child_pid = int(trace.with_suffix(".child-pid").read_text())
-        with pytest.raises(ProcessLookupError):
-            source.os.kill(child_pid, 0)
+        group = int(trace.with_suffix(".child-group").read_text())
+        # No further signal: observe only this fixture's child and captured group.
+        deadline = source.time.monotonic() + 5
+        while True:
+            rows = source.process_census(deadline, ())
+            child_row = rows.get(child_pid)
+            active_group = [
+                row
+                for row in rows.values()
+                if row["pgid"] == group and not row["state"].startswith("Z")
+            ]
+            if (child_row is None or child_row["state"].startswith("Z")) and not active_group:
+                break
+            assert source.time.monotonic() < deadline
+            source.time.sleep(0.01)
+        assert child_row is None or child_row["state"].startswith("Z")
+        assert not active_group
+        trace.with_suffix(".child-inactive").write_text(
+            json.dumps(
+                {
+                    "child_pid": child_pid,
+                    "pgid": group,
+                    "observed_child_state": "absent" if child_row is None else child_row["state"],
+                    "active_group_pids": [],
+                }
+            )
+        )
 
 
 @pytest.mark.parametrize(
@@ -1888,7 +1923,10 @@ def test_ghcr_fixed_native_capture_and_hygiene(
     ],
 )
 def test_github_fixed_native_capture_and_hygiene(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, mode: str
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    mode: str,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
     """Same native child fixture/canonical recognizer, synthetic auth only."""
     runner, trace, gh = _fixed_native_capture_fixture(tmp_path, mode, "GitHubRead")
@@ -1975,8 +2013,45 @@ def test_github_fixed_native_capture_and_hygiene(
                 previous, tightened, witnessed_child, active_pids = deadline_witnesses[0]
                 assert tightened <= previous
                 assert witnessed_child == child and child in active_pids
-            with pytest.raises(ProcessLookupError):
-                source.os.kill(child, 0)
+            if mode == "owned_residual_exec_exit":
+                assert private.is_dir()
+                assert (
+                    "GitHub cleanup also failed:GHCR_unknown_or_reused_group_member"
+                    in capsys.readouterr().err
+                )
+            group = int(trace.with_suffix(".child-group").read_text())
+            cleanup_deadline = adapter.cleanup_deadline
+            deadline = source.time.monotonic() + 5
+            while True:
+                rows = source.process_census(deadline, ())
+                child_row = rows.get(child)
+                active_group = [
+                    row
+                    for row in rows.values()
+                    if row["pgid"] == group and not row["state"].startswith("Z")
+                ]
+                if (child_row is None or child_row["state"].startswith("Z")) and not active_group:
+                    break
+                assert source.time.monotonic() < deadline
+                source.time.sleep(0.01)
+            assert child_row is None or child_row["state"].startswith("Z")
+            assert not active_group
+            trace.with_suffix(".child-inactive").write_text(
+                json.dumps(
+                    {
+                        "child_pid": child,
+                        "pgid": group,
+                        "observed_child_state": (
+                            "absent" if child_row is None else child_row["state"]
+                        ),
+                        "active_group_pids": [],
+                    }
+                )
+            )
+            if mode == "owned_residual_exec_exit":
+                # Only observed inactivity now permits existing cleanup; its cap is unchanged.
+                adapter.close()
+                assert adapter.cleanup_deadline == cleanup_deadline
         assert private.exists() is (mode == "cleanup_failure")
     for path in evidence.iterdir():
         assert credential.encode() not in path.read_bytes()
@@ -2048,6 +2123,134 @@ def test_github_fixed_native_capture_retains_private_on_identity_uncertainty(
                 row["pgid"] == child.pid
                 for row in real_census(source.time.monotonic() + 1, ()).values()
             )
+
+
+@pytest.mark.parametrize("initial_live", [False, True])
+def test_owned_cleanup_uses_canonical_active_members_without_signalling_zombies(
+    monkeypatch: pytest.MonkeyPatch, initial_live: bool
+) -> None:
+    import io
+    from types import SimpleNamespace
+
+    uid = source.os.getuid()
+    leader = {
+        "pid": 17001,
+        "ppid": 1,
+        "pgid": 17001,
+        "uid": uid,
+        "start": "synthetic leader",
+        "state": "Z",
+        "comm": "synthetic",
+    }
+    child = {
+        "pid": 17002,
+        "ppid": 17001,
+        "pgid": 17001,
+        "uid": uid,
+        "start": "synthetic child",
+        "state": "S" if initial_live else "Z",
+        "comm": "synthetic",
+    }
+    seen = {leader["pid"]: source.process_identity(leader)}
+    signals: list[tuple[int, int]] = []
+
+    def census(*args: Any) -> dict[int, dict[str, Any]]:
+        return {leader["pid"]: dict(leader), child["pid"]: dict(child)}
+
+    def signal_owned(pgid: int, signum: int) -> None:
+        assert initial_live and child["state"] == "S"
+        signals.append((pgid, signum))
+        child["state"] = "Z"
+
+    process = SimpleNamespace(
+        pid=leader["pid"],
+        poll=lambda: 0,
+        stdin=io.BytesIO(),
+        stdout=io.BytesIO(),
+        stderr=io.BytesIO(),
+    )
+    monkeypatch.setattr(source, "process_census", census)
+    monkeypatch.setattr(source.os, "killpg", signal_owned)
+    source.cleanup_process(process, seen, source.time.monotonic() + 1, ())
+    assert signals == ([(leader["pid"], source.signal.SIGTERM)] if initial_live else [])
+    assert not source.owned_members(process, seen, source.time.monotonic() + 1, ())[1]
+    assert all(stream.closed for stream in (process.stdin, process.stdout, process.stderr))
+
+
+@pytest.mark.parametrize("adapter_name", ["GHCR", "GitHubRead"])
+def test_fixed_native_capture_zombie_tail_does_not_block_terminal_admission(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, adapter_name: str
+) -> None:
+    runner, _trace, gh = _fixed_native_capture_fixture(tmp_path, "immediate_exit", adapter_name)
+    for key in ("GH_TOKEN", "GITHUB_TOKEN", "GHCR_READ_TOKEN", "GHCR_TOKEN"):
+        monkeypatch.delenv(key, raising=False)
+    for key, value in {
+        "GH_TOKEN": "synthetic.opaque.zombie.control",
+        "GITHUB_ACTIONS": "true",
+        "RUNNER_OS": "Linux",
+        "GITHUB_REPOSITORY": source.GHCR_REPOSITORY,
+        "GITHUB_JOB": "prometheus-ghcr-package-qualification",
+        "GITHUB_RUN_ID": "123",
+        "GITHUB_RUN_ATTEMPT": "1",
+        "GITHUB_SHA": "a" * 40,
+        "RUNNER_TEMP": str(runner),
+    }.items():
+        monkeypatch.setenv(key, value)
+    monkeypatch.setattr(source, "INTERRUPTIONS", [])
+    monkeypatch.setattr(source.shutil, "which", lambda name: str(gh) if name == "gh" else None)
+    real_popen, real_census = source.subprocess.Popen, source.process_census
+    children: list[Any] = []
+    witnessed: set[int] = set()
+    zombie_observations: list[int] = []
+
+    def start(argv: list[str], *args: Any, **kwargs: Any) -> Any:
+        process = real_popen(argv, *args, **kwargs)
+        if argv[0] == str(gh):
+            children.append(process)
+        return process
+
+    def census(cap: float, known: tuple[bytes, ...]) -> dict[int, dict[str, Any]]:
+        rows = real_census(cap, known)
+        if children:
+            process = children[-1]
+            if process.pid in rows:
+                witnessed.add(process.pid)
+            if process.pid in witnessed and process.poll() is not None:
+                pid = process.pid + 1000000000
+                rows[pid] = {
+                    "pid": pid,
+                    "ppid": 1,
+                    "pgid": process.pid,
+                    "uid": -1,
+                    "start": "synthetic zombie",
+                    "state": "Z",
+                    "comm": "synthetic",
+                }
+                zombie_observations.append(process.pid)
+        return rows
+
+    monkeypatch.setattr(source.subprocess, "Popen", start)
+    monkeypatch.setattr(source, "process_census", census)
+    monkeypatch.setattr(source.os, "killpg", lambda *args: pytest.fail("zombie-only signal"))
+    try:
+        if adapter_name == "GHCR":
+            private = runner / "ghcr-private-123-1"
+            result = source.qualify_existing_ghcr_package(
+                private, runner / "ghcr-public-123-1" / "qualification.json", 8, 2
+            )
+            assert result["qualified"] is True
+        else:
+            evidence = runner / "evidence"
+            evidence.mkdir()
+            private = runner / "private"
+            adapter = source.GitHubRead(private, evidence, source.time.monotonic() + 8, 2)
+            adapter.json("/repos/" + source.GHCR_REPOSITORY)
+            adapter.close()
+        assert zombie_observations
+        assert not private.exists()
+    finally:
+        for child in children:
+            child.wait(timeout=5)
 
 
 def test_github_fixed_native_capture_drains_output_while_writing_opaque_stdin(
@@ -3133,14 +3336,19 @@ def test_consumer_rejects_at_intended_admission_and_retains_uncertain_credential
     assert not (work / "evidence/consumer.json").exists()
 
 
-@pytest.mark.parametrize("variant", ("unchanged", "lock", "source", "verify", "snapshot"))
+@pytest.mark.parametrize("root_module", (source.ROOT_MODULE, "oras.land/oras"))
+@pytest.mark.parametrize(
+    "variant", ("unchanged", "lock", "source", "Go", "verify", "snapshot", "root", "graph")
+)
 def test_tool_prefetch_retains_before_after_and_preserves_primary(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, variant: str
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, variant: str, root_module: str
 ) -> None:
     """Synthetic native I/O only; actual missing post-state stays an explicit error."""
     work, tree, go = tmp_path / "work", tmp_path / "source", tmp_path / "go"
     for path in (work, tree, go, work / "evidence"):
         path.mkdir()
+    (go / "bin").mkdir()
+    (go / "bin/go").write_bytes(b"synthetic compiler identity, never executed")
     original = {"go.mod": b"synthetic original module\n", "go.sum": b"synthetic original sums\n"}
     for name, raw in original.items():
         (tree / name).write_bytes(raw)
@@ -3158,7 +3366,20 @@ def test_tool_prefetch_retains_before_after_and_preserves_primary(
                 (tree / "go.sum").write_bytes(b"actual synthetic lock drift\n")
             if variant == "source":
                 (tree / "kept.go").write_bytes(b"package changed\n")
+            if variant == "Go":
+                (go / "bin/go").write_bytes(b"changed compiler identity")
+            (work / "tool-modules/cached.mod").write_bytes(b"synthetic cached module")
             return b'{"Path":"example.invalid/synthetic","Version":"v1.0.0"}'
+        if name.endswith("-selected"):
+            return source.canonical_data(
+                {"Path": "wrong" if variant == "root" else root_module, "Main": True}
+            )
+        if name.endswith("-graph"):
+            return (
+                b""
+                if variant == "graph"
+                else (root_module + " example.invalid/synthetic@v1.0.0\n").encode()
+            )
         assert name.endswith("-verify")
         if variant in ("verify", "snapshot"):
             if variant == "snapshot":
@@ -3169,17 +3390,37 @@ def test_tool_prefetch_retains_before_after_and_preserves_primary(
     monkeypatch.setattr(native, "run", run)
     if variant == "unchanged":
         source.prefetch_modules(
-            native, work, tree, go, "tool", {n: source.sha(v) for n, v in original.items()}
+            native,
+            work,
+            tree,
+            go,
+            "tool",
+            {n: source.sha(v) for n, v in original.items()},
+            root_module=root_module,
         )
     else:
         expected = (
             "prefetch_original_locks_source"
-            if variant in ("lock", "source")
-            else "synthetic_primary_verify_failure"
+            if variant in ("lock", "source", "Go")
+            else (
+                "selected_module_root"
+                if variant == "root"
+                else (
+                    "empty_native_module_graph"
+                    if variant == "graph"
+                    else "synthetic_primary_verify_failure"
+                )
+            )
         )
         with pytest.raises(source.QualificationError, match="^" + expected + "(?:\n|$)"):
             source.prefetch_modules(
-                native, work, tree, go, "tool", {n: source.sha(v) for n, v in original.items()}
+                native,
+                work,
+                tree,
+                go,
+                "tool",
+                {n: source.sha(v) for n, v in original.items()},
+                root_module=root_module,
             )
     assert calls[1] == [str(go / "bin/go"), "mod", "download", "-json"]
     report = source.one_object((native.evidence / "tool-prefetch.json").read_bytes())
@@ -3188,12 +3429,39 @@ def test_tool_prefetch_retains_before_after_and_preserves_primary(
         assert report["before"]["locks"][name]["mode"] == (tree / "go.mod").stat().st_mode & 0o777
     if variant == "snapshot":
         assert report["failure"]["code"] == "synthetic_primary_verify_failure"
-        assert report["snapshot_errors"][0]["phase"] == "after"
+        assert report["snapshot_errors"][0]["phase"] == "verify-after"
         assert report["snapshot_errors"][0]["class"] == "FileNotFoundError"
         assert report["after"]["source_inventory"] is None
     else:
         assert report["after"]["source_inventory"] is not None
-        assert report["snapshot_errors"] == []
+        assert bool(report["snapshot_errors"]) is (variant in ("lock", "source", "Go"))
+        if variant == "unchanged":
+            assert [row["name"] for row in report["commands"]] == [
+                "version",
+                "download",
+                "verify",
+                "selected",
+                "graph",
+            ]
+            before_cache = json.loads(
+                (native.evidence / "tool-prefetch-cache-before-freeze.json").read_bytes()
+            )
+            frozen = json.loads((native.evidence / "tool-prefetch-cache-frozen.json").read_bytes())
+            assert before_cache == [
+                {
+                    "path": "cached.mod",
+                    "mode": 0o644,
+                    "size": 23,
+                    "sha256": source.sha(b"synthetic cached module"),
+                }
+            ]
+            assert frozen == [dict(before_cache[0], mode=0o444)]
+            for row in report["commands"]:
+                assert (
+                    report[row["name"] + "-before"]
+                    == report[row["name"] + "-after"]
+                    == report["before"]
+                )
         if variant == "lock":
             assert (
                 native.evidence / "tool-prefetch-after-go.sum"
@@ -3501,6 +3769,427 @@ def test_tool_prefetch_recovery_is_one_closed_failed_precompile_predecessor(
             source.manual_hosted_admission(
                 api, "tool", prefetch_predecessor=source.TOOL_PREFETCH_PREDECESSOR
             )
+
+
+def _two_tool_prefetch_recovery_fixture(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, variant: str
+) -> Any:
+    """The same closed recovery family with two independent synthetic archives."""
+    locks = {"go.mod": b"synthetic original mod", "go.sum": b"synthetic original sum"}
+    monkeypatch.setattr(source, "ORAS_LOCKS", {key: source.sha(raw) for key, raw in locks.items()})
+    monkeypatch.setattr(source, "ORAS_SOURCE", replace(source.ORAS_SOURCE, files=1))
+    first = _tool_prefetch_recovery_fixture(tmp_path, monkeypatch, "valid")
+    raw_first = first.raw("/11713828762/zip", maximum=10**7)
+    old_head = "5de54811121079eadbd3f5d8dbbb8720f712530a"
+    head = "15097adaa871a900370f6c57a512fe862dddb041"
+    ref = "refs/heads/codex/dependency-native-runtime-remediation"
+    old_files = first.source_files(old_head, (*source.PRODUCER_FILES, source.MANIFEST_PATH))
+    historical = {key: raw + b" second producer" for key, raw in old_files.items()}
+    historical[source.MANIFEST_PATH] = old_files[source.MANIFEST_PATH]
+    inputs = source.one_object(historical[source.MANIFEST_PATH])["inputs"]
+    projection = {
+        "inputs": inputs,
+        "raw_producer": {
+            name: {"bytes": len(historical[name]), "sha256": source.sha(historical[name])}
+            for name in source.PRODUCER_FILES
+        },
+    }
+    digest = "sha256:" + source.sha(source.canonical_data(projection))
+    monkeypatch.setattr(source, "TOOL_PREFETCH_SECOND_INPUT_DIGEST", digest)
+    with zipfile.ZipFile(io.BytesIO(raw_first)) as archive:
+        first_report = source.one_object(archive.read("tool.json"))
+        members = archive.read("oras-source-members.json")
+        files = {
+            name: archive.read(name) for name in archive.namelist() if name.startswith("GitHub-")
+        }
+    for number in range(36, 50):
+        for suffix in ("json", "stdout", "stderr"):
+            files[f"GitHub-{number}.{suffix}"] = files[f"GitHub-35.{suffix}"]
+    files.update(
+        {
+            "go-members.json": members,
+            "oras-source-members.json": members,
+            "tool-prefetch-predecessor.zip": raw_first,
+        }
+    )
+    state = {
+        "locks": {
+            name: {"bytes": len(raw), "sha256": source.sha(raw), "mode": 0o644}
+            for name, raw in locks.items()
+        },
+        "source_inventory": [
+            {"path": "synthetic.go", "mode": 0o644, "size": 1, "sha256": "b" * 64}
+        ],
+    }
+    files["tool-prefetch.json"] = source.canonical_data(
+        {"before": state, "after": state, "failure": None, "snapshot_errors": []}
+    )
+    for name, raw in locks.items():
+        for phase in ("before", "after"):
+            files[f"tool-prefetch-{phase}-{name}"] = raw
+    work = Path("/home/runner/work/_temp/prometheus-oras-38192419687-1")
+    online = source.clean_environment(
+        work / "tool-home",
+        work / "tool-tmp",
+        work / "tool-cache",
+        work / "tool-modules",
+        offline=False,
+    )
+    host_env = {
+        "PATH": "/usr/bin:/bin",
+        "HOME": str(work),
+        "LANG": "C.UTF-8",
+        "DOCKER_CONFIG": str(work / "docker-config"),
+    }
+    offline = source.clean_environment(
+        source.GUEST_TMP,
+        source.GUEST_TMP,
+        source.GUEST_TMP / "gocache",
+        Path("/modules"),
+        offline=True,
+    )
+    docker = ["/usr/bin/docker", "--config", str(work / "docker-config")]
+    records: list[dict[str, Any]] = []
+
+    def native(
+        name: str,
+        argv: list[str],
+        stdout: bytes = b"",
+        stderr: bytes = b"",
+        status: int = 0,
+        *,
+        online_go: bool = False,
+    ) -> None:
+        row: dict[str, Any] = {
+            "argv": argv,
+            "cwd": str(work / "source" if online_go else work),
+            "environment": online if online_go else host_env,
+            "exit": status,
+            "failure": None,
+        }
+        for suffix, raw in (("stdout", stdout), ("stderr", stderr)):
+            member = name + "." + suffix
+            files[member] = raw
+            row[suffix], row[suffix + "_sha256"] = str(work / "evidence" / member), source.sha(raw)
+        records.append(row)
+
+    native(
+        "tool-version",
+        [str(work / "go/bin/go"), "version"],
+        source.GO_VERSION.encode(),
+        online_go=True,
+    )
+    download = b'{"Path":"example.invalid/synthetic","Version":"v1.0.0"}'
+    native(
+        "tool-download",
+        [str(work / "go/bin/go"), "mod", "download", "-json"],
+        download,
+        online_go=True,
+    )
+    native(
+        "tool-verify",
+        [str(work / "go/bin/go"), "mod", "verify"],
+        b"all modules verified\n",
+        online_go=True,
+    )
+    native("vendor-pull", [*docker, "pull", "--platform", "linux/amd64", source.BASE])
+    containers = []
+    for index, (kind, command) in enumerate(
+        (
+            ("version", ["version"]),
+            ("verify", ["mod", "verify"]),
+            ("modules", ["list", "-mod=readonly", "-m", "-json", "all"]),
+        )
+    ):
+        name, owner = "synthetic-owned-" + kind, "synthetic-owner-" + kind
+        image = {
+            "Id": source.BASE_CONFIG,
+            "Os": "linux",
+            "Architecture": "amd64",
+            "RepoDigests": [source.BASE],
+            "Config": {"Env": []},
+        }
+        native(
+            f"tool-{kind}-base",
+            [*docker, "image", "inspect", source.BASE],
+            source.canonical_data(image),
+        )
+        # Historical argv is opaque data; no current-host directory constructor is invoked.
+        create = [
+            *docker,
+            "create",
+            "--name",
+            name,
+            "--label",
+            source.LABEL + "=" + owner,
+            source.BASE_CONFIG,
+            *command,
+        ]
+        native(f"tool-{kind}-create", create, name.encode())
+        container = {
+            "Name": "/" + name,
+            "Image": source.BASE_CONFIG,
+            "Config": {
+                "Labels": {source.LABEL: owner},
+                "User": "65532:65532",
+                "WorkingDir": "/src",
+                "Entrypoint": ["/usr/local/go/bin/go"],
+                "Cmd": command,
+                "Env": [key + "=" + value for key, value in offline.items()],
+            },
+            "HostConfig": {
+                "NetworkMode": "none",
+                "ReadonlyRootfs": True,
+                "Privileged": False,
+                "NanoCpus": 2000000000,
+                "Memory": 4294967296,
+                "PidsLimit": 128,
+                "CapDrop": ["ALL"],
+                "SecurityOpt": ["no-new-privileges"],
+                "Tmpfs": {str(source.GUEST_TMP): source.GUEST_TMPFS},
+            },
+            "Mounts": [
+                {"Type": "bind", "RW": False, "Destination": guest, "Source": str(work / local)}
+                for guest, local in (
+                    ("/src", "source"),
+                    ("/usr/local/go", "go"),
+                    ("/modules", "tool-modules"),
+                )
+            ],
+            "State": {"Running": False, "ExitCode": 1 if index == 2 else 0, "OOMKilled": False},
+        }
+        native(
+            f"tool-{kind}-before", [*docker, "inspect", name], source.canonical_data([container])
+        )
+        stdout = (
+            source.GO_VERSION.encode()
+            if kind == "version"
+            else b"all modules verified\n" if kind == "verify" else b""
+        )
+        native(
+            f"tool-{kind}-native",
+            [*docker, "start", "--attach", name],
+            stdout,
+            b"synthetic module lookup disabled by GOPROXY=off\n" if kind == "modules" else b"",
+            1 if kind == "modules" else 0,
+        )
+        if kind != "modules":
+            native(
+                f"tool-{kind}-terminal",
+                [*docker, "inspect", name],
+                source.canonical_data([container]),
+            )
+        containers.append((name, container))
+    for name, container in containers:
+        inventory = [*docker, "ps", "--all", "--format", "{{.Names}}"]
+        native(name + "-cleanup-inventory", inventory, name.encode())
+        native(
+            name + "-cleanup-inspect",
+            [*docker, "inspect", name],
+            source.canonical_data([container]),
+        )
+        native(name + "-cleanup-remove", [*docker, "rm", "--force", name], name.encode())
+        native(name + "-cleanup-absence", inventory)
+    assert len(records) == 30 and records[17]["exit"] == 1
+    monkeypatch.setattr(
+        source, "TOOL_PREFETCH_SECOND_NATIVE_DIGEST", source.sha(source.canonical_data(records))
+    )
+    monkeypatch.setattr(
+        source,
+        "TOOL_PREFETCH_SECOND_STDERR_DIGEST",
+        source.sha(files["tool-modules-native.stderr"]),
+    )
+    prior = {
+        "run_id": 38170923494,
+        "job_id": 114563178711,
+        "status": "completed",
+        "conclusion": "failure",
+        "precompile_disposition": "selected_known_prefetch_failure; no qualified output; historical post-lock bytes unknown",
+    }
+    report = dict(
+        first_report,
+        admission={
+            "run_id": 38192419687,
+            "head": head,
+            "ref": ref,
+            "workflow_id": 199904435,
+            "job": "prometheus-oras-qualification",
+            "actual_prior_invocations": [prior],
+            "budget": 1,
+        },
+        input_projection=projection,
+        input_digest=digest,
+        failure={"class": "QualificationError", "code": "native_failed"},
+        native_commands=records,
+        cleanup=[{"name": name, "native_absent": True} for name, _ in containers],
+        public_modules={"files": 1, "download_stdout_sha256": source.sha(download)},
+    )
+    if variant == "false-counter":
+        report["tool_compile_invocations"] = False
+    elif variant == "compiled":
+        report["tool_compile_invocations"] = 1
+    elif variant == "extra-command":
+        records.append(copy.deepcopy(records[0]))
+    elif variant == "native-exit":
+        records[17]["exit"] = 0
+    elif variant == "argv":
+        records[1]["argv"].append("all")
+    elif variant == "output-mismatch":
+        files["tool-modules-native.stderr"] += b"changed"
+    elif variant == "extra-marker":
+        files["invocation-start.json"] = b"{}"
+    elif variant == "binary":
+        files["oras"] = b"never executed"
+    elif variant == "incomplete":
+        del files["tool-modules-native.stderr"]
+    elif variant == "source-mismatch":
+        historical[source.PRODUCER_FILES[0]] += b"changed"
+    elif variant == "lock":
+        files["tool-prefetch-after-go.sum"] += b"changed"
+    elif variant == "cleanup":
+        report["cleanup"][2]["native_absent"] = False
+    elif variant == "failure-code":
+        report["failure"]["code"] = "another_failure"
+    files["tool.json"] = source.canonical_data(report)
+    stream = io.BytesIO()
+    with zipfile.ZipFile(stream, "w") as archive:
+        for name, raw in files.items():
+            archive.writestr(name, raw)
+    raw_archive = stream.getvalue()
+    monkeypatch.setattr(
+        source,
+        "TOOL_PREFETCH_SECOND_ARCHIVE",
+        {"bytes": len(raw_archive), "sha256": source.sha(raw_archive)},
+    )
+    first_run = first.json("/actions/runs/38170923494")
+    run = dict(first_run, id=38192419687, head_sha=head)
+    job = {
+        "id": 114627819440,
+        "name": "prometheus-oras-qualification",
+        "run_id": run["id"],
+        "head_sha": head,
+        "status": "completed",
+        "conclusion": "failure",
+    }
+    artifact = {
+        "id": 11722041486,
+        "expired": False,
+        "size_in_bytes": len(raw_archive),
+        "expires_at": "2099-01-01T00:00:00Z",
+        "name": "prometheus-oras-38192419687-1",
+        "digest": "sha256:" + source.sha(raw_archive),
+        "workflow_run": {
+            "id": run["id"],
+            "repository_id": 1043311030,
+            "head_repository_id": 1043311030,
+            "head_sha": head,
+        },
+    }
+    if variant == "attempt":
+        run["run_attempt"] = 2
+    if variant == "status":
+        run["status"] = "in_progress"
+    if variant == "job2-failure":
+        job["conclusion"] = "success"
+
+    class API:
+        evidence = tmp_path
+
+        def json(self, endpoint: str) -> dict[str, Any]:
+            if endpoint.endswith("/actions/artifacts/11722041486"):
+                return copy.deepcopy(artifact)
+            if endpoint.endswith("/actions/runs/38192419687"):
+                return copy.deepcopy(run)
+            if "workflows/build.yml/runs" in endpoint:
+                return {"total_count": 3}
+            return first.json(endpoint)
+
+        def pages(self, endpoint: str, field: str, count: int) -> list[dict[str, Any]]:
+            if variant == "history-unknown":
+                raise source.QualificationError("synthetic_complete_history_unavailable")
+            if "workflows/build.yml/runs" in endpoint:
+                return [
+                    first.json("/actions/runs/999"),
+                    copy.deepcopy(run),
+                    copy.deepcopy(first_run),
+                ]
+            if "/runs/38192419687/" in endpoint:
+                return [copy.deepcopy(job)]
+            return first.pages(endpoint, field, count)
+
+        def raw(self, endpoint: str, *, maximum: int) -> bytes:
+            return (
+                raw_archive
+                if endpoint.endswith("/11722041486/zip")
+                else first.raw(endpoint, maximum=maximum)
+            )
+
+        def source_files(self, revision: str, paths: tuple[str, ...]) -> dict[str, bytes]:
+            return historical if revision == head else first.source_files(revision, paths)
+
+    return API()
+
+
+@pytest.mark.parametrize(
+    "variant,diagnostic",
+    (
+        ("valid", None),
+        ("false-counter", "tool_prefetch_second_before_compile"),
+        ("compiled", "tool_prefetch_second_before_compile"),
+        ("extra-command", "tool_prefetch_second_native_records"),
+        ("native-exit", "tool_prefetch_second_native_records"),
+        ("argv", "tool_prefetch_second_native_records"),
+        ("output-mismatch", "tool_prefetch_second_native_output_binding"),
+        ("extra-marker", "tool_prefetch_second_complete_inventory"),
+        ("binary", "tool_prefetch_second_complete_inventory"),
+        ("incomplete", "tool_prefetch_second_native_output_binding"),
+        ("source-mismatch", "declared_data_value"),
+        ("lock", "tool_prefetch_second_original_lock_bytes"),
+        ("cleanup", "declared_data_value"),
+        ("failure-code", "declared_data_value"),
+        ("attempt", "artifact_completed_workflow"),
+        ("status", "artifact_completed_workflow"),
+        ("job2-failure", "tool_prefetch_complete_two_history"),
+        ("history-unknown", "synthetic_complete_history_unavailable"),
+    ),
+)
+def test_tool_prefetch_recovery_requires_both_complete_failed_histories(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, variant: str, diagnostic: str | None
+) -> None:
+    api = _two_tool_prefetch_recovery_fixture(tmp_path, monkeypatch, variant)
+    if diagnostic is not None:
+        with pytest.raises(source.QualificationError, match="^" + diagnostic + "$"):
+            source.manual_hosted_admission(
+                api, "tool", prefetch_predecessor=source.TOOL_PREFETCH_TWO_PREDECESSORS
+            )
+        return
+    result = source.manual_hosted_admission(
+        api, "tool", prefetch_predecessor=source.TOOL_PREFETCH_TWO_PREDECESSORS
+    )
+    assert result["budget"] == 1 and len(result["actual_prior_invocations"]) == 2
+    assert all(row["conclusion"] == "failure" for row in result["actual_prior_invocations"])
+    assert "FAILED/SPENT" in result["actual_prior_invocations"][1]["precompile_disposition"]
+    for selector in (None, source.TOOL_PREFETCH_PREDECESSOR):
+        with pytest.raises(
+            source.QualificationError,
+            match="^"
+            + (
+                "nonrenewable_hosted_invocation_budget_spent_or_unknown"
+                if selector is None
+                else "tool_prefetch_complete_singleton_history"
+            )
+            + "$",
+        ):
+            source.manual_hosted_admission(api, "tool", prefetch_predecessor=selector)
+    with pytest.raises(source.QualificationError, match="^artifact_completed_workflow$"):
+        source.authenticated_artifact(
+            api,
+            11722041486,
+            tmp_path / "never-success.zip",
+            expected_run=38192419687,
+            expected_job="prometheus-oras-qualification",
+            expected_head="15097adaa871a900370f6c57a512fe862dddb041",
+        )
 
 
 def test_failed_prefetch_purpose_cannot_enter_success_readers_or_pair(

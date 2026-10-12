@@ -101,6 +101,7 @@ runs:
         EOF
 
     - name: Build exact Psycopg C client SDK
+      id: psycopg_sdk
       if: ${{ inputs.skip-base-install != 'true' }}
       shell: bash
       run: |
@@ -120,9 +121,12 @@ runs:
         fi
         sdk_root="$RUNNER_TEMP/pulseplate-psycopg-sdk-$sdk_python"
         test ! -e "$sdk_root"
+        rejection_parent="$(mktemp -d "$RUNNER_TEMP/pulseplate-zlib-integrity.XXXXXXXX")"
+        printf 'rejection_dir=%s/quarantine\n' "$rejection_parent" >> "$GITHUB_OUTPUT"
         python "$GITHUB_WORKSPACE/scripts/ci/fetch_docker_source_artifacts.py" \
           --manifest "$GITHUB_WORKSPACE/scripts/ci/docker_source_artifacts.json" \
-          --output-dir "$GITHUB_WORKSPACE/build/docker-sources"
+          --output-dir "$GITHUB_WORKSPACE/build/docker-sources" \
+          --integrity-rejection-dir "$rejection_parent/quarantine"
         sdk_args=(--platform linux/amd64 --target psycopg-sdk)
         sdk_args+=(--build-arg "PSYCOPG_SDK_PYTHON_IMAGE=$sdk_image")
         sdk_args+=(--secret id=pp_py_index,env=PULSEPLATE_PYTHON_INDEX_URL)
@@ -140,6 +144,17 @@ runs:
         python "$GITHUB_WORKSPACE/scripts/ci/install_locked_python_requirements.py" \
           --preflight-only --index-url "$PULSEPLATE_PYTHON_INDEX_URL"
         echo "PULSEPLATE_PSYCOPG_C_SDK=$sdk_root/psycopg-sdk" >> "$GITHUB_ENV"
+
+    - name: Retain untrusted rejected zlib response
+      if: ${{ failure() && steps.psycopg_sdk.outcome == 'failure' && steps.psycopg_sdk.outputs.rejection_dir != '' }}
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+      with:
+        name: untrusted-zlib-rejected-response-${{ github.job }}-${{ inputs.python-version }}-${{ github.run_id }}-${{ github.run_attempt }}
+        path: |
+          ${{ steps.psycopg_sdk.outputs.rejection_dir }}/response.bin
+          ${{ steps.psycopg_sdk.outputs.rejection_dir }}/metadata.json
+        if-no-files-found: ignore
+        retention-days: 3
 
     - name: Install base dependencies
       if: ${{ inputs.skip-base-install != 'true' }}
