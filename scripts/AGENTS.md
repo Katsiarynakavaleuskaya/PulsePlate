@@ -833,6 +833,14 @@ argument effects must not rewrite earlier facts. Keep `ownership_audit` purpose
 distinct from symbol-family selection and ordinary runtime analysis. Preserve
 required unused ownership evidence and dormant execution boundaries.
 
+When tightening dormant-body replay, verify both result-shape recognition and
+callback consumption for the affected finite iterable consumers. Reuse canonical
+call binding and capture/replay queues; preserve eager argument effects, lazy
+creation, and definite invalid-arity stopping. Charge callback-row replay against
+the existing analysis budget at consumption. Test supported literal-vector
+boundaries and unconsumed or lexically shadowed counterexamples explicitly;
+unsupported shapes do not establish safety or completeness.
+
 Provide focused commands with an explicit `tests/test_legacy_growth_guard.py`
 module or literal node selectors and the repo-approved Python interpreter.
 A shell continuation must be continuous: no blank line may detach selectors

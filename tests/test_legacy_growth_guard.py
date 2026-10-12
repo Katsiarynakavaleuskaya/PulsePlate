@@ -23876,3 +23876,387 @@ def test_consol_dict_private_alias_stays_mapping_only_during_keyword_mutation(
     )
     assert observed == [private_mapping_present]
     assert not any(name.startswith("<dict-argument:") for name in visitor.scope.mappings)
+
+
+@pytest.mark.parametrize("family", ["api", "openapi"])
+@pytest.mark.parametrize("wrapper", ["itertools.starmap", "spread"])
+def test_consol_starmap_consumption_replays_protected_callback(family: str, wrapper: str) -> None:
+    member = "require_app_api_key" if family == "api" else "_install_openapi_builder"
+    source = (
+        "import itertools\nfrom itertools import starmap as spread\nimport legacy_app as legacy\n"
+        f"def access(owner):\n    return owner.{member}\n"
+        f"list({wrapper}(access, [(legacy,)]))\n"
+    )
+    if family == "api":
+        assert _validate_api_key_dependency_ownership(
+            _CONSOL_GETTER_IMPORTS, {"app/routers/example.py": source}
+        ) == [
+            "app/routers/example.py: legacy API-key dependency attribute access "
+            f"is forbidden: {member}"
+        ]
+    else:
+        assert _consol_openapi_errors(source) == [
+            "app/main.py: OpenAPI symbol must not be accessed through legacy"
+        ]
+
+
+@pytest.mark.parametrize("family", ["api", "openapi"])
+@pytest.mark.parametrize(
+    ("invocation", "forbidden"),
+    [
+        ("list(itertools.starmap(access, [(legacy,)]))", True),
+        ("tuple(itertools.starmap(access, [[legacy]]))", True),
+        ("dict(itertools.starmap(access, [(legacy,)]))", True),
+        ("list(itertools.chain(itertools.starmap(access, [(legacy,)])))", True),
+        ("list(zip(itertools.starmap(access, [(legacy,)])))", True),
+        ("list(zip([], itertools.starmap(access, [(legacy,)])))", False),
+        ("list(itertools.starmap(*(access, [(legacy,)])))", True),
+        ("pending = itertools.starmap(access, [(legacy,)])", False),
+        ("list(itertools.starmap(access, []))", False),
+        ("list(itertools.starmap(access, [()]))", False),
+        ("list(itertools.starmap(access, [[], [legacy]]))", False),
+        ("list(itertools.starmap(access, [(legacy,), ()]))", True),
+    ],
+)
+def test_consol_starmap_preserves_consumption_and_inherited_queue_ownership(
+    family: str, invocation: str, forbidden: bool
+) -> None:
+    member = "require_app_api_key" if family == "api" else "_install_openapi_builder"
+    source = (
+        "import itertools\nimport legacy_app as legacy\n"
+        f"def access(receiver):\n    value = receiver.{member}\n    return ('key', value)\n"
+        f"{invocation}\n"
+    )
+    if family == "api":
+        assert _validate_api_key_dependency_ownership(
+            _CONSOL_GETTER_IMPORTS, {"app/routers/example.py": source}
+        ) == (
+            [
+                "app/routers/example.py: legacy API-key dependency attribute access "
+                f"is forbidden: {member}"
+            ]
+            if forbidden
+            else []
+        )
+    else:
+        assert _consol_openapi_errors(source) == (
+            ["app/main.py: OpenAPI symbol must not be accessed through legacy"] if forbidden else []
+        )
+
+
+@pytest.mark.parametrize("family", ["api", "openapi"])
+@pytest.mark.parametrize("initial_legacy", [False, True])
+@pytest.mark.parametrize("mode", ["within-row", "across-rows"])
+def test_consol_starmap_captures_each_row_element_before_later_effects(
+    family: str, initial_legacy: bool, mode: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    module = "app.routers.api_key" if family == "api" else "app.bootstrap.openapi"
+    member = "require_app_api_key" if family == "api" else "_install_openapi_builder"
+    initial, replacement = ("legacy", "canonical") if initial_legacy else ("canonical", "legacy")
+    rows = (
+        f"[(owner, (owner := {replacement}))]"
+        if mode == "within-row"
+        else f"[(owner,), ((owner := {replacement}),)]"
+    )
+    source = (
+        f"import itertools\nimport legacy_app as legacy\nimport {module} as canonical\n"
+        "trace = ''\n"
+        f"def access(receiver, ignored=None):\n    global trace\n    trace = trace + 'C'\n"
+        f"    return receiver.{member}\nowner = {initial}\n"
+        f"list(itertools.starmap(access, {rows}))\n"
+    )
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="example.py", errors=[], analyze_function_bodies=False
+    )
+    original = visitor._replay_function_call
+    observed: list[str | None] = []
+
+    def observe_replay(
+        function: ast.FunctionDef | ast.AsyncFunctionDef,
+        arguments: Mapping[str, legacy_guard._ResolvedBinding],
+    ) -> legacy_guard._ResolvedBinding:
+        if function.name == "access":
+            observed.append(arguments["receiver"].reference)
+        return original(function, arguments)
+
+    monkeypatch.setattr(visitor, "_replay_function_call", observe_replay)
+    visitor.visit(ast.parse(source))
+    first = "legacy_app" if initial_legacy else module
+    second = module if initial_legacy else "legacy_app"
+    assert observed == ([first] if mode == "within-row" else [first, second])
+    assert visitor.scope.strings["trace"] == ("C" if mode == "within-row" else "CC")
+
+
+@pytest.mark.parametrize("rebound", ["spread", "callback"])
+def test_consol_starmap_captures_callee_and_callback_before_row_effects(rebound: str) -> None:
+    source = (
+        "from itertools import starmap as spread\ntrace = ''\n"
+        "def access(value):\n    global trace\n    trace = trace + value\n    return value\n"
+        "callback = access\n"
+        f"def late():\n    global {rebound}, trace\n    trace = trace + 'L'\n"
+        f"    {rebound} = lambda *values: []\n    return '2'\n"
+        "list(spread(callback, [('1',), (late(),)]))\n"
+    )
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="example.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(ast.parse(source))
+    assert visitor.scope.strings["trace"] == "L12"
+
+
+@pytest.mark.parametrize(
+    ("signature", "body", "rows", "expected"),
+    [
+        ("value='D'", "trace = trace + value", "[]", ""),
+        ("value='D'", "trace = trace + value", "[()]", "D"),
+        ("value='D'", "trace = trace + value", "[('A',)]", "A"),
+        ("value='D'", "trace = trace + value", "[('A', 'B'), ('C',)]", ""),
+        ("value='D'", "trace = trace + value", "[('A',), ('B', 'C'), ('D',)]", "A"),
+        ("value, /", "trace = trace + value", "[('A',), ('B',)]", "AB"),
+        ("*values", "trace = trace + 'C'", "[(), ('A',), ('B', 'C')]", "CCC"),
+        ("value, *, required", "trace = trace + 'C'", "[('A',), ('B',)]", ""),
+    ],
+)
+def test_consol_starmap_delegates_arity_and_stops_after_definite_rejection(
+    signature: str, body: str, rows: str, expected: str
+) -> None:
+    source = (
+        "import itertools\ntrace = ''\n"
+        f"def access({signature}):\n    global trace\n    {body}\n    return None\n"
+        f"list(itertools.starmap(access, {rows}))\n"
+    )
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="example.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(ast.parse(source))
+    assert visitor.scope.strings["trace"] == expected
+
+
+def test_consol_starmap_evaluates_later_rows_before_invalid_row_stops_consumption() -> None:
+    source = (
+        "import itertools\ntrace = ''\n"
+        "def tick(value):\n    global trace\n    trace = trace + value\n    return value\n"
+        "def access(value):\n    global trace\n    trace = trace + 'C'\n    return value\n"
+        "list(itertools.starmap(access, [(tick('1'), tick('2')), (tick('3'),)]))\n"
+    )
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="example.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(ast.parse(source))
+    assert visitor.scope.strings["trace"] == "123"
+
+
+@pytest.mark.parametrize(
+    "invocation",
+    [
+        "itertools.starmap(access, [(tick(),)], unexpected=tick())",
+        "itertools.starmap(access, [(tick(),)], [(tick(),)])",
+    ],
+)
+def test_consol_starmap_invalid_call_shape_keeps_eager_effects(invocation: str) -> None:
+    source = (
+        "import itertools\ntrace = ''\n"
+        "def tick():\n    global trace\n    trace = trace + 'E'\n    return None\n"
+        "def access(value):\n    global trace\n    trace = trace + 'C'\n    return value\n"
+        f"{invocation}\n"
+    )
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="example.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(ast.parse(source))
+    assert visitor.scope.strings["trace"] == "EE"
+
+
+@pytest.mark.parametrize("consumed", [False, True])
+@pytest.mark.parametrize("shadowed", [False, True])
+def test_consol_starmap_creation_and_lexical_shadowing_keep_callbacks_dormant(
+    consumed: bool, shadowed: bool
+) -> None:
+    source = (
+        "from itertools import starmap as spread\ntrace = ''\n"
+        "def access(value):\n    global trace\n    trace = trace + 'C'\n    return value\n"
+        + ("spread = lambda *values: []\n" if shadowed else "")
+        + ("list(spread(access, [(1,)]))\n" if consumed else "pending = spread(access, [(1,)])\n")
+    )
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="example.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(ast.parse(source))
+    assert visitor.scope.strings["trace"] == ("C" if consumed and not shadowed else "")
+
+
+@pytest.mark.parametrize("kind", ["generator", "coroutine"])
+@pytest.mark.parametrize("sync_wrapper", [False, True])
+def test_consol_starmap_does_not_consume_callback_returned_deferred_bodies(
+    kind: str, sync_wrapper: bool
+) -> None:
+    declaration = "def" if kind == "generator" else "async def"
+    result = "yield value" if kind == "generator" else "return value"
+    source = (
+        "import itertools\ntrace = ''\n"
+        f"{declaration} deferred(value):\n    global trace\n    trace = trace + 'D'\n    {result}\n"
+        + (
+            "def access(value):\n    global trace\n    trace = trace + 'C'\n"
+            "    return deferred(value)\n"
+            if sync_wrapper
+            else "access = deferred\n"
+        )
+        + "list(itertools.starmap(access, [(1,)]))\n"
+    )
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="example.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(ast.parse(source))
+    assert visitor.scope.strings["trace"] == ("C" if sync_wrapper else "")
+
+
+@pytest.mark.parametrize("family", ["api", "openapi"])
+@pytest.mark.parametrize("returned_legacy", [False, True])
+def test_consol_starmap_consumed_callback_results_use_existing_iterable_binding(
+    family: str, returned_legacy: bool
+) -> None:
+    module = "app.routers.api_key" if family == "api" else "app.bootstrap.openapi"
+    member = "require_app_api_key" if family == "api" else "_install_openapi_builder"
+    result = "legacy" if returned_legacy else "canonical"
+    source = (
+        f"import itertools\nimport legacy_app as legacy\nimport {module} as canonical\n"
+        f"def access(value):\n    return {result}\n"
+        "for receiver in itertools.starmap(access, [(canonical,)]):\n"
+        f"    value = receiver.{member}\n"
+    )
+    if family == "api":
+        assert _validate_api_key_dependency_ownership(
+            _CONSOL_GETTER_IMPORTS, {"app/routers/example.py": source}
+        ) == (
+            [
+                "app/routers/example.py: legacy API-key dependency attribute access "
+                f"is forbidden: {member}"
+            ]
+            if returned_legacy
+            else []
+        )
+    else:
+        assert _consol_openapi_errors(source) == (
+            ["app/main.py: OpenAPI symbol must not be accessed through legacy"]
+            if returned_legacy
+            else []
+        )
+
+
+def test_consol_starmap_literal_container_snapshots_and_exception_edges_are_preserved() -> None:
+    source = (
+        "import itertools\nphase = 'A'\n"
+        "def access(value):\n    return None\n"
+        "list(itertools.starmap(access, [((phase := 'B'),), [(phase := 'C')]]))\n"
+    )
+    tree = ast.parse(source)
+    snapshots: dict[int, dict[str, str]] = {}
+    strings: dict[int, dict[str, str]] = {}
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="example.py",
+        errors=[],
+        analyze_function_bodies=False,
+        reference_snapshots=snapshots,
+        string_snapshots=strings,
+    )
+    exceptions: list[legacy_guard._LexicalBindings] = []
+    visitor._exception_scope_collectors.append(exceptions)
+    visitor.visit(tree)
+    containers = [n for n in ast.walk(tree) if isinstance(n, (ast.List, ast.Tuple))]
+    for container in containers:
+        assert id(container) in snapshots and id(container) in strings
+        assert id(container.ctx) in snapshots and id(container.ctx) in strings
+    rows = next(n for n in containers if isinstance(n, ast.List) and len(n.elts) == 2)
+    assert strings[id(rows)]["phase"] == "A"
+    assert strings[id(rows.elts[0])]["phase"] == "A"
+    assert strings[id(rows.elts[1])]["phase"] == "B"
+    assert {"A", "B", "C"} <= {scope.strings.get("phase") for scope in exceptions}
+
+
+@pytest.mark.parametrize("consumer", ["list", "dict"])
+@pytest.mark.parametrize("consumed", [False, True])
+def test_consol_starmap_consumption_reuses_global_loop_budget_without_charging_creation(
+    consumer: str, consumed: bool
+) -> None:
+    rows = "[" + ",".join("(tick(),)" for _ in range(129)) + "]"
+    result = "('key', value)" if consumer == "dict" else "value"
+    invocation = (
+        f"{consumer}(itertools.starmap(access, {rows}))"
+        if consumed
+        else f"pending = itertools.starmap(access, {rows})"
+    )
+    source = (
+        "import itertools\ntrace = ''\n"
+        "def tick():\n    global trace\n    trace = trace + 'E'\n    return None\n"
+        f"def access(value):\n    global trace\n    trace = trace + 'C'\n    return {result}\n"
+        f"{invocation}\n"
+    )
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="example.py", errors=[], analyze_function_bodies=False
+    )
+    if consumed:
+        with pytest.raises(legacy_guard.LegacyGrowthAnalysisError, match="128 total iterations"):
+            visitor.visit(ast.parse(source))
+    else:
+        visitor.visit(ast.parse(source))
+    assert visitor.scope.strings["trace"] == "E" * 129 + ("C" * 128 if consumed else "")
+    assert visitor._remaining_loop_iterations == (0 if consumed else 128)
+
+
+@pytest.mark.parametrize("family", ["api_key", "openapi"])
+@pytest.mark.parametrize("prior_facet", ["both", "references", "strings"])
+def test_consol_snapshot_projection_preserves_published_input_maps(
+    family: Literal["api_key", "openapi"], prior_facet: str
+) -> None:
+    class PublishedSnapshot(dict[str, str]):
+        def __setitem__(self, key: str, value: str) -> None:
+            raise AssertionError("published snapshot was mutated")
+
+        def update(self, *args: Any, **kwargs: Any) -> None:
+            raise AssertionError("published snapshot was mutated")
+
+        def clear(self) -> None:
+            raise AssertionError("published snapshot was mutated")
+
+        def pop(self, key: str, *args: Any) -> str:
+            raise AssertionError("published snapshot was mutated")
+
+    node = ast.Name(id="value", ctx=ast.Load())
+    published_references = PublishedSnapshot({"owner": "legacy_app", "kept": "legacy_app"})
+    published_strings = PublishedSnapshot({"member": "get_api_key", "kept": "safe"})
+    references = {id(node): published_references} if prior_facet != "strings" else {}
+    strings = {id(node): published_strings} if prior_facet != "references" else {}
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="example.py",
+        errors=[],
+        ownership_family=family,
+        reference_snapshots=references,
+        string_snapshots=strings,
+    )
+    active_scope = visitor.scope
+    active_scope.references = {"owner": "app.routers.api_key", "kept": "legacy_app"}
+    active_scope.strings = {"member": "_install_openapi_builder", "kept": "safe"}
+    old = legacy_guard._LexicalBindings(parent=None)
+    old.references = dict(published_references) if prior_facet != "strings" else {}
+    old.strings = dict(published_strings) if prior_facet != "references" else {}
+    current = legacy_guard._LexicalBindings(parent=None)
+    current.references = active_scope.visible_references()
+    current.strings = active_scope.visible_strings()
+    expected = legacy_guard._LexicalBindings(parent=None)
+    oracle = legacy_guard._ApiKeyLookupVisitor(
+        filename="example.py", errors=[], ownership_family=family
+    )
+    oracle._merge_outcomes(expected, [old, current])
+
+    visitor._record_snapshot(node)
+
+    assert visitor.scope is active_scope
+    assert references[id(node)] == expected.references
+    assert strings[id(node)] == expected.strings
+    assert references[id(node)] is not published_references
+    assert strings[id(node)] is not published_strings
+    assert published_references == {"owner": "legacy_app", "kept": "legacy_app"}
+    assert published_strings == {"member": "get_api_key", "kept": "safe"}
+    references[id(node)]["later"] = "legacy_app"
+    strings[id(node)]["later"] = "get_api_key"
+    assert "later" not in published_references and "later" not in published_strings

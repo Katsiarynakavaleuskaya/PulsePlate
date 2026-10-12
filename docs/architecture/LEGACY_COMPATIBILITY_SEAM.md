@@ -52,7 +52,7 @@ The separate protected set also includes `api_key_header`, `validate_app_api_key
 and `require_app_api_key`; protection does not authorize additional re-exports.
 Wrappers or mutable legacy-owned warning state would break FastAPI dependency
 identity. The strict source witness and absolute-import boundary are enforced by
-`scripts/ci/check_legacy_growth_guard.py:10522`.
+`scripts/ci/check_legacy_growth_guard.py:10613`.
 
 Application metadata is canonically owned by
 `app/application_metadata.py:56` and constructed through the environment-aware
@@ -897,7 +897,7 @@ closed families and absorbing possible markers in the existing join. The
 OpenAPI family is the exact seven compatibility names or a name containing
 `openapi` after case folding. Receiver, member and builtin-callee provenance
 remain independent, including deferred/local/nonlocal and postponed-annotation
-contexts (`scripts/ci/check_legacy_growth_guard.py:12279`). Protected attribute
+contexts (`scripts/ci/check_legacy_growth_guard.py:12370`). Protected attribute
 and namespace writes and deletions use the target's own evidence as well as
 the receiver and member evidence; comprehension targets remain local while
 genuine containing-scope protected-name bindings remain rejected.
@@ -934,7 +934,7 @@ visibility (`scripts/ci/check_legacy_growth_guard.py:2850`,
 and positional/keyword defaults preserve their current execution boundary.
 These source witnesses do not establish configured keys or runtime authorization
 (`scripts/ci/check_legacy_growth_guard.py:3056`,
-`scripts/ci/check_legacy_growth_guard.py:10522`).
+`scripts/ci/check_legacy_growth_guard.py:10613`).
 
 Resolved matching tuple/list/nested local assignments preserve their mapping
 identity through the existing paired binder; generic collection escapes and

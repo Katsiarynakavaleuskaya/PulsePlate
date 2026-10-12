@@ -3663,8 +3663,8 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             existing_references != current_references or existing_strings != current_strings
         ):
             existing = _LexicalBindings(parent=None)
-            existing.references = dict(existing_references or {})
-            existing.strings = dict(existing_strings or {})
+            existing.references = existing_references if existing_references is not None else {}
+            existing.strings = existing_strings if existing_strings is not None else {}
             current = _LexicalBindings(parent=None)
             current.references = current_references
             current.strings = current_strings
@@ -9068,16 +9068,27 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         owns_zip_callback_inputs = collects_zip_callbacks and iterable_callback_inputs is None
         zip_callback_end_indices: list[int] = []
         chain_operand_bindings: list[_ResolvedBinding] = []
-        captures_lazy_callback = (
-            iterable_callback_inputs is not None
-            and wrapper_reference in {"builtins.map", "builtins.filter"}
+        starmap_candidate = (
+            wrapper_reference == "itertools.starmap"
+            and len(lookup_arguments) == 2
             and not unresolved_positional_sources
             and not node.keywords
-            and not any(isinstance(argument, ast.Starred) for argument in node.args)
+        )
+        captures_lazy_callback = (
+            (
+                iterable_callback_inputs is not None
+                and wrapper_reference in {"builtins.map", "builtins.filter"}
+                and not unresolved_positional_sources
+                and not node.keywords
+                and not any(isinstance(argument, ast.Starred) for argument in node.args)
+            )
+            or starmap_candidate
+            and (id(node) in self._iterated_call_ids or iterable_callback_inputs is not None)
         )
         captured_callback_targets: frozenset[_FunctionNode] = frozenset()
         captured_callback_scope: _LexicalBindings | None = None
         captured_callback_arguments: list[_ResolvedBinding] = []
+        captured_starmap_rows: list[list[_ResolvedBinding] | None] = []
         captured_callback_empty = False
         captured_dict_operand: _ResolvedBinding | None = None
         captured_dict_pair_entries: list[_StaticMappingEntry] | None = None
@@ -9477,7 +9488,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                         not exhausted_prefix
                         and isinstance(argument, ast.Call)
                         and self._resolve_reference(argument.func)
-                        in {"builtins.zip", "builtins.map", "builtins.filter"}
+                        in {"builtins.zip", "builtins.map", "builtins.filter", "itertools.starmap"}
                         | _ITERABLE_CONCATENATING_REFERENCES
                     ):
                         self.visit(argument, iterable_callback_inputs=zip_callback_inputs)
@@ -9522,12 +9533,54 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                             )
             elif captures_lazy_callback:
                 self.visit(node.func)
-                for argument_index, argument in enumerate(node.args):
+                for argument_index, argument in enumerate(
+                    lookup_arguments if starmap_candidate else node.args
+                ):
+                    if (
+                        starmap_candidate
+                        and argument_index == 1
+                        and isinstance(argument, (ast.List, ast.Tuple))
+                    ):
+                        if (
+                            self.reference_snapshots is not None
+                            or self.string_snapshots is not None
+                        ):
+                            self._record_snapshot(argument)
+                        outer_exception_state = bool(self._exception_scope_collectors)
+                        if outer_exception_state:
+                            self._record_exception_scope()
+                        for row in argument.elts:
+                            if not isinstance(row, (ast.List, ast.Tuple)) or any(
+                                isinstance(value, ast.Starred) for value in row.elts
+                            ):
+                                self.visit(row)
+                                captured_starmap_rows.append(None)
+                                continue
+                            if (
+                                self.reference_snapshots is not None
+                                or self.string_snapshots is not None
+                            ):
+                                self._record_snapshot(row)
+                            row_exception_state = bool(self._exception_scope_collectors)
+                            if row_exception_state:
+                                self._record_exception_scope()
+                            row_bindings: list[_ResolvedBinding] = []
+                            for value in row.elts:
+                                self.visit(value)
+                                row_bindings.append(self._capture_argument_binding(value))
+                            self.visit(row.ctx)
+                            if row_exception_state:
+                                self._record_exception_scope()
+                            captured_starmap_rows.append(row_bindings)
+                        self.visit(argument.ctx)
+                        if outer_exception_state:
+                            self._record_exception_scope()
+                        continue
                     self.visit(argument)
                     if argument_index == 0:
                         captured_callback_targets = self._resolve_callables(argument)
                         captured_callback_scope = self.scope.detached_clone()
-                    else:
+                    elif not starmap_candidate:
                         captured_callback_arguments.append(
                             self._resolve_iterable_element_binding(argument)
                             or self._conservative_argument_binding()
@@ -10018,6 +10071,35 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                     )
                     is not None
                 )
+            if starmap_candidate and captures_lazy_callback:
+                for star_row_bindings in captured_starmap_rows:
+                    if star_row_bindings is None:
+                        continue
+                    rejected_single_target = False
+                    for target in sorted(
+                        captured_callback_targets,
+                        key=lambda candidate: (
+                            candidate.lineno,
+                            candidate.col_offset,
+                            candidate.name,
+                        ),
+                    ):
+                        if isinstance(target, ast.AsyncFunctionDef) or _function_is_generator(
+                            target
+                        ):
+                            continue
+                        arguments = self._resolve_call_argument_bindings(
+                            target,
+                            node,
+                            callable_expr=lookup_arguments[0],
+                            positional_override=star_row_bindings,
+                        )
+                        if arguments is not None:
+                            replay_inputs.append((target, arguments))
+                        elif len(captured_callback_targets) == 1:
+                            rejected_single_target = True
+                    if rejected_single_target:
+                        break
             filters_callback = (
                 (id(node) in self._iterated_call_ids or captures_lazy_callback)
                 and wrapper_reference == "builtins.filter"
@@ -10073,6 +10155,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             and (id(node) in self._awaited_call_ids or id(node) in self._iterated_call_ids)
         ):
             self._sync_only_body_analysis = False
+        replay_results: list[_ResolvedBinding] = []
         try:
             if (
                 captures_lazy_callback
@@ -10083,16 +10166,17 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                     (node, wrapper_reference, target, arguments)
                     for target, arguments in replay_inputs
                 )
-                replay_results = []
             else:
-                replay_results = [
-                    self._replay_function_call(target, arguments)
-                    for target, arguments in replay_inputs
-                ]
+                for target, arguments in replay_inputs:
+                    if starmap_candidate and self._replay_calls_enabled:
+                        self._consume_loop_iteration()
+                    replay_results.append(self._replay_function_call(target, arguments))
         finally:
             self._sync_only_body_analysis = previous_sync_only
         if replay_results:
             result_binding = self._join_resolved_bindings(replay_results)
+            if starmap_candidate:
+                result_binding = self._variadic_iterable_binding([result_binding])
             self._call_result_bindings[id(node)] = result_binding
             if self.call_result_snapshots is not None:
                 existing = self.call_result_snapshots.get(id(node))
@@ -10244,11 +10328,18 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                         was_iterated = id(original_call) in self._iterated_call_ids
                         self._iterated_call_ids.add(id(original_call))
                         try:
+                            if (
+                                callback_reference == "itertools.starmap"
+                                and self._replay_calls_enabled
+                            ):
+                                self._consume_loop_iteration()
                             callback_result = self._replay_function_call(target, arguments)
                         finally:
                             if not was_iterated:
                                 self._iterated_call_ids.remove(id(original_call))
-                        if callback_reference == "builtins.map":
+                        if callback_reference in {"builtins.map", "itertools.starmap"}:
+                            if callback_reference == "itertools.starmap":
+                                callback_result = self._variadic_iterable_binding([callback_result])
                             callback_results.setdefault(original_call, []).append(callback_result)
                     callback_start = callback_end
                 for original_call, results in callback_results.items():
