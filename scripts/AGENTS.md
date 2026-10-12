@@ -126,9 +126,11 @@
   Never substitute the affected upstream prebuilt binary or rebuild the tool
   during a Prometheus pair or promotion.
 - An explicitly selected `tool_prefetch_predecessor` is historical evidence,
-  never retry approval. Only the authenticated singleton known failed precompile
-  job may support one separately admitted correcting hosted job; retain that
-  spent invocation and the one-total actual tool compiler cap. Ordinary retained
+  never retry approval. The singleton selector covers only its original history;
+  the exact two-history selector also binds the second failed offline-metadata
+  phase independently to its own source, raw native records and owned cleanup.
+  Retain both failed/spent jobs and the one-total actual tool compiler cap;
+  neither selector authorizes another hosted operation. Ordinary retained
   tool/candidate readers remain success-only. Preserve pre/post prefetch locks,
   modes and source inventories, plus diagnostic errors alongside primary failures;
   missing historical post-state remains unknown. Publish and review the correction
