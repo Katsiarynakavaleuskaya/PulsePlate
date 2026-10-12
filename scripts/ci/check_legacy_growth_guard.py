@@ -3521,6 +3521,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         self.scope.bind("setattr", reference="builtins.setattr", string=None)
         self.scope.bind("delattr", reference="builtins.delattr", string=None)
         self.scope.bind("vars", reference="builtins.vars", string=None)
+        self.scope.bind("locals", reference="builtins.locals", string=None)
         self.scope.bind("anext", reference="builtins.anext", string=None)
         for builtin_name in sorted(
             {
@@ -3695,19 +3696,21 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             elif ordinary and existing_references is None and existing_strings is None:
                 self._snapshot_analysis_replaying[node_id] = False
 
-    def _record_outward_api_key_rebinding(self, name: str) -> None:
+    def _record_outward_api_key_rebinding(
+        self, name: str, *, proven_module_namespace: bool = False
+    ) -> None:
         if self.filename != LEGACY_APP or name not in CANONICAL_API_KEY_SYMBOLS:
             return
         execution_scope = self.scope
         while (
-            execution_scope.scope_kind in {"class", "type_parameters"}
+            execution_scope.scope_kind in {"class", "type_parameters", "comprehension"}
             and execution_scope.parent is not None
         ):
             execution_scope = execution_scope.parent
         if not self._active_function_replays and execution_scope.scope_kind != "module":
             return
         target = self._active_outward_targets_for_scope(self.scope).get(name)
-        if target is None or target.scope_kind != "module":
+        if not proven_module_namespace and (target is None or target.scope_kind != "module"):
             return
         description = (
             "canonical API-key compatibility re-export"
@@ -5062,6 +5065,8 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         function_reference = self._resolve_reference(node.func)
         if function_reference == "builtins.globals":
             return "module" if not node.args else None
+        if function_reference == "builtins.locals":
+            return "module" if not node.args and self.scope.scope_kind == "module" else None
         if function_reference != "builtins.vars":
             return None
         if not node.args:
@@ -5091,6 +5096,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         ) in {
             "builtins.globals",
             "builtins.vars",
+            "builtins.locals",
         }
         if not is_dunder_dict and not is_namespace_builtin_call:
             return reference
@@ -5138,6 +5144,8 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             self._record_snapshot(target)
         if isinstance(target, ast.Attribute):
             self.visit(target.value)
+            if self.filename == LEGACY_APP and self._is_proven_current_module_object(target.value):
+                self._record_outward_api_key_rebinding(target.attr, proven_module_namespace=True)
             if (
                 self.ownership_family == "api_key"
                 and target.attr in CANONICAL_API_KEY_SYMBOLS
@@ -5151,7 +5159,26 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         if isinstance(target, ast.Subscript):
             self.visit(target.value)
             receiver_reference = self._resolve_reference(target.value)
+            module_namespace = (
+                self.filename == LEGACY_APP
+                and self._object_namespace_mapping_kind(target.value) == "module"
+            )
             self.visit(target.slice)
+            if (
+                self.filename == LEGACY_APP
+                and module_namespace
+                and not (
+                    isinstance(target.slice, ast.Constant)
+                    and not isinstance(target.slice.value, str)
+                )
+            ):
+                member = self._capture_argument_binding(target.slice).string
+                for name in (
+                    CANONICAL_API_KEY_SYMBOLS
+                    if member in {None, _DYNAMIC_STRING_BINDING}
+                    else {member}
+                ):
+                    self._record_outward_api_key_rebinding(name, proven_module_namespace=True)
             if self.ownership_family == "api_key" and self._is_legacy_namespace_reference(
                 receiver_reference
             ):
@@ -5265,7 +5292,79 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             string=None,
         )
 
-    def _record_object_namespace_call_mutation(self, node: ast.Call) -> None:
+    def _record_object_namespace_call_mutation(
+        self,
+        node: ast.Call,
+        *,
+        captured_function_reference: str | None = None,
+        captured_receiver: _ResolvedBinding | None = None,
+        captured_arguments: Sequence[_ResolvedBinding] = (),
+    ) -> None:
+        if (
+            self.filename == LEGACY_APP
+            and captured_receiver is not None
+            and captured_receiver.reference == _MODULE_NAMESPACE_REFERENCE
+        ):
+            method = _namespace_mutator_method(captured_function_reference)
+            api_arguments = captured_arguments
+            if captured_function_reference is not None and captured_function_reference.startswith(
+                "builtins.dict."
+            ):
+                api_arguments = api_arguments[1:]
+            names: set[str | None] = set()
+            if method in {"clear", "popitem"} and not api_arguments and not node.keywords:
+                names.add(None)
+            elif method in {"__delitem__", "__setitem__", "pop", "setdefault"}:
+                valid_arity = (
+                    len(api_arguments) == 2
+                    if method == "__setitem__"
+                    else (
+                        len(api_arguments) == 1
+                        if method == "__delitem__"
+                        else 1 <= len(api_arguments) <= 2
+                    )
+                )
+                if valid_arity and not node.keywords:
+                    key_nodes, unresolved_key_arguments = _expand_static_positional_arguments(
+                        node.args
+                    )
+                    key_index = (
+                        1
+                        if captured_function_reference is not None
+                        and captured_function_reference.startswith("builtins.dict.")
+                        else 0
+                    )
+                    key_node = key_nodes[key_index] if len(key_nodes) > key_index else None
+                    if not (
+                        not unresolved_key_arguments
+                        and isinstance(key_node, ast.Constant)
+                        and not isinstance(key_node.value, str)
+                    ):
+                        names.add(api_arguments[0].string)
+            elif method in {"update", "__init__", "__ior__"}:
+                valid_arity = (
+                    len(api_arguments) == 1 if method == "__ior__" else len(api_arguments) <= 1
+                )
+                if valid_arity and (method != "__ior__" or not node.keywords):
+                    names.update(keyword.arg for keyword in node.keywords)
+                    for api_argument in api_arguments:
+                        if api_argument.mapping is None:
+                            names.add(None)
+                            continue
+                        for entry in api_argument.mapping.entries:
+                            if isinstance(entry.key, ast.Constant):
+                                if isinstance(entry.key.value, str):
+                                    names.add(entry.key.value)
+                            else:
+                                # AST keys are not frozen string evidence after value effects.
+                                names.add(None)
+            selected = (
+                CANONICAL_API_KEY_SYMBOLS
+                if names & {None, _DYNAMIC_STRING_BINDING}
+                else CANONICAL_API_KEY_SYMBOLS.intersection(names)
+            )
+            for name in sorted(selected):
+                self._record_outward_api_key_rebinding(name, proven_module_namespace=True)
         function_reference = self._resolve_reference(node.func)
         descriptor_method = (
             node.func.attr
@@ -7916,6 +8015,18 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
 
     def visit_AugAssign(self, node: ast.AugAssign) -> None:
         self.visit(node.target)
+        captured_api_namespace_kind = (
+            self._object_namespace_mapping_kind(node.target)
+            if self.filename == LEGACY_APP and isinstance(node.op, ast.BitOr)
+            else None
+        )
+        captured_api_name_binding = (
+            self._capture_argument_binding(node.target)
+            if self.filename == LEGACY_APP
+            and isinstance(node.op, ast.BitOr)
+            and isinstance(node.target, ast.Name)
+            else None
+        )
         self.visit(node.value)
         target_reference = self._resolve_reference(node.target)
         namespace_kind = (
@@ -7923,6 +8034,22 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             if isinstance(node.op, ast.BitOr)
             else None
         )
+        if captured_api_namespace_kind == "module":
+            mapping = self._capture_argument_binding(node.value).mapping
+            names: set[str | None] = set()
+            if mapping is None:
+                names.add(None)
+            else:
+                for entry in mapping.entries:
+                    if isinstance(entry.key, ast.Constant):
+                        if isinstance(entry.key.value, str):
+                            names.add(entry.key.value)
+                    else:
+                        names.add(None)
+            selected = CANONICAL_API_KEY_SYMBOLS if None in names else names
+            for name in selected:
+                if name is not None:
+                    self._record_outward_api_key_rebinding(name, proven_module_namespace=True)
         target_mapping = self._resolve_mapping(node.target)
         if target_mapping is not None:
             self._invalidate_mapping(target_mapping)
@@ -7945,6 +8072,15 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 _POSSIBLE_OBJECT_NAMESPACE_REFERENCE,
             }:
                 preserved_reference = target_reference
+            if captured_api_name_binding is not None:
+                if captured_api_namespace_kind == "module":
+                    preserved_reference = _MODULE_NAMESPACE_REFERENCE
+                elif (
+                    captured_api_name_binding.mapping is not None
+                    and target_reference == _MODULE_NAMESPACE_REFERENCE
+                ):
+                    # Remove only a later RHS module alias; retain ordinary fail-closed joins.
+                    preserved_reference = captured_api_name_binding.reference
             self._bind_name(
                 node.target.id,
                 reference=preserved_reference,
@@ -8033,6 +8169,10 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             self.generic_visit(node)
 
     def visit_Subscript(self, node: ast.Subscript) -> None:
+        if self.filename == LEGACY_APP and isinstance(node.ctx, (ast.Store, ast.Del)):
+            self._visit_object_namespace_target_expressions(node)
+            self.visit(node.ctx)
+            return
         if self._is_legacy_namespace_reference(self._resolve_reference(node.value)):
             symbol_name = self._resolve_string(node.slice)
             if symbol_name in CANONICAL_API_KEY_SYMBOLS or symbol_name in {
@@ -9396,12 +9536,26 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         stored_legacy_mutator = (
             _namespace_mutator_method(namespace_function_reference, legacy_only=True) is not None
         )
-        bound_mutator_candidate = (
-            isinstance(node.func, ast.Attribute) and node.func.attr in _MAPPING_MUTATOR_METHODS
-        ) or stored_legacy_mutator
-        mutation_receiver_binding: _ResolvedBinding | None = (
-            _ResolvedBinding("legacy_app.__dict__", None) if stored_legacy_mutator else None
+        stored_module_mutator = (
+            namespace_function_reference is not None
+            and namespace_function_reference.startswith(f"{_MODULE_NAMESPACE_REFERENCE}.")
+            and _namespace_mutator_method(namespace_function_reference) is not None
         )
+        bound_mutator_candidate = (
+            (isinstance(node.func, ast.Attribute) and node.func.attr in _MAPPING_MUTATOR_METHODS)
+            or stored_legacy_mutator
+            or stored_module_mutator
+        )
+        mutation_receiver_binding: _ResolvedBinding | None = (
+            _ResolvedBinding("legacy_app.__dict__", None)
+            if stored_legacy_mutator
+            else (
+                _ResolvedBinding(_MODULE_NAMESPACE_REFERENCE, None)
+                if stored_module_mutator
+                else None
+            )
+        )
+        mutation_argument_bindings: list[_ResolvedBinding] = []
         mutation_function_references: dict[str, str] = {}
         namespace_receiver = (
             lookup_arguments[0]
@@ -9912,6 +10066,21 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                             mutation_receiver_binding = getattr_receiver_binding
                     elif getattr_argument_index == 1:
                         getattr_member_binding = self._capture_argument_binding(getattr_argument)
+                    if (
+                        self.filename == LEGACY_APP
+                        and mutation_receiver_binding is not None
+                        and mutation_receiver_binding.reference == _MODULE_NAMESPACE_REFERENCE
+                    ):
+                        captured_argument = (
+                            getattr_receiver_binding
+                            if getattr_argument_index == 0
+                            else getattr_member_binding if getattr_argument_index == 1 else None
+                        )
+                        mutation_argument_bindings.append(
+                            captured_argument
+                            if captured_argument is not None
+                            else self._capture_argument_binding(getattr_argument)
+                        )
                 for getattr_keyword in node.keywords:
                     self.visit(getattr_keyword)
             elif wait_for_candidate:
@@ -10409,7 +10578,12 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                     self.errors.append(
                         f"{self.filename}: legacy API-key dependency namespace lookup is forbidden: <dynamic>"
                     )
-        self._record_object_namespace_call_mutation(node)
+        self._record_object_namespace_call_mutation(
+            node,
+            captured_function_reference=getattr_function_reference,
+            captured_receiver=mutation_receiver_binding,
+            captured_arguments=mutation_argument_bindings,
+        )
         if mapping_copy is None and bound_mapping_copy and isinstance(node.func, ast.Attribute):
             mapping_copy = self._resolve_mapping(node.func.value)
         projected_result = self._resolve_mapping_lookup_call_binding(

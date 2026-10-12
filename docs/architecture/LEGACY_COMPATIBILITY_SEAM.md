@@ -52,7 +52,8 @@ The separate protected set also includes `api_key_header`, `validate_app_api_key
 and `require_app_api_key`; protection does not authorize additional re-exports.
 Wrappers or mutable legacy-owned warning state would break FastAPI dependency
 identity. The strict source witness and absolute-import boundary are enforced by
-`scripts/ci/check_legacy_growth_guard.py:10926`.
+`validate_api_key_dependency_ownership` in
+`scripts/ci/check_legacy_growth_guard.py:11624`.
 
 Application metadata is canonically owned by
 `app/application_metadata.py:56` and constructed through the environment-aware

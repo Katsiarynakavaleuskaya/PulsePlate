@@ -26123,3 +26123,245 @@ def test_consol_late2_mixed_protocol_alternatives_retain_valid_path(
         else _consol_openapi_errors(source)
     )
     assert bool(errors) is protected
+
+
+@pytest.mark.parametrize("name", _CONSOL_API_KEY_SYMBOLS)
+@pytest.mark.parametrize("namespace", ["globals()", "vars()", "locals()"])
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        '{namespace}["{name}"] = replacement',
+        'del {namespace}["{name}"]',
+        '{namespace}["{name}"]: object = replacement',
+        '{namespace}["{name}"] += replacement',
+        '{namespace}.update({{"{name}": replacement}})',
+        "{namespace}.update({name}=replacement)",
+        '{namespace}.__setitem__("{name}", replacement)',
+        '{namespace}.__delitem__("{name}")',
+        '{namespace}.pop("{name}", None)',
+        '{namespace}.setdefault("{name}", replacement)',
+        '{namespace}.__init__({{"{name}": replacement}})',
+        '{namespace}.__ior__({{"{name}": replacement}})',
+    ],
+)
+def test_consol_module_namespace_api_rebinding_is_rejected(
+    name: str, namespace: str, mutation: str
+) -> None:
+    source = _CONSOL_GETTER_IMPORTS + mutation.format(namespace=namespace, name=name) + "\n"
+    assert _validate_api_key_dependency_ownership(source, {}) == [
+        _CONSOL_API_KEY_REBINDING_ERRORS[name]
+    ]
+
+
+@pytest.mark.parametrize(
+    "addition",
+    [
+        "globals()['harmless'] = None\n",
+        "vars().update(harmless=None)\n",
+        "locals().update({})\n",
+        "globals().__init__()\n",
+        "globals = lambda: {}\nglobals()['require_app_api_key'] = None\n",
+        "vars = lambda: {}\nvars().update(require_app_api_key=None)\n",
+        "locals = lambda: {}\nlocals()['get_api_key'] = None\n",
+        "mapping = {}\nmapping.update(require_app_api_key=None)\n",
+        "def dormant():\n    globals()['require_app_api_key'] = None\n",
+        "async def dormant():\n    globals()['require_app_api_key'] = None\n",
+        "def dormant():\n    globals()['require_app_api_key'] = None\n    yield None\n",
+        "class Local:\n    vars()['require_app_api_key'] = None\n",
+        "class Local:\n    locals()['require_app_api_key'] = None\n",
+        "def local():\n    locals()['require_app_api_key'] = None\nlocal()\n",
+        "def local():\n    vars()['require_app_api_key'] = None\nlocal()\n",
+        "globals(None)['require_app_api_key'] = None\n",
+        "locals(None)['require_app_api_key'] = None\n",
+        "globals().update()\n",
+        "globals().__setitem__('require_app_api_key')\n",
+        "globals().pop()\n",
+        "globals().update({}, {})\n",
+    ],
+)
+def test_consol_module_namespace_api_rebinding_keeps_independent_controls(addition: str) -> None:
+    assert _validate_api_key_dependency_ownership(_CONSOL_GETTER_IMPORTS + addition, {}) == []
+
+
+@pytest.mark.parametrize(
+    "addition",
+    [
+        "class Holder:\n    globals()['require_app_api_key'] = None\n",
+        "def write():\n    globals()['require_app_api_key'] = None\nwrite()\n",
+        "namespace = globals()\ndef write():\n    namespace['require_app_api_key'] = None\nwrite()\n",
+        "namespace = globals()\nnamespace.update(require_app_api_key=None)\n",
+        "mutator = globals().update\nmutator(require_app_api_key=None)\n",
+        "dict.update(globals(), require_app_api_key=None)\n",
+        "dict.__setitem__(globals(), 'require_app_api_key', None)\n",
+    ],
+)
+def test_consol_module_namespace_api_rebinding_reuses_captured_identity(addition: str) -> None:
+    assert _validate_api_key_dependency_ownership(_CONSOL_GETTER_IMPORTS + addition, {}) == [
+        _CONSOL_API_KEY_REBINDING_ERRORS["require_app_api_key"]
+    ]
+
+
+@pytest.mark.parametrize("module_first", [False, True])
+@pytest.mark.parametrize("form", ["target", "bound", "stored", "unbound"])
+def test_consol_module_namespace_mutation_captures_receiver_before_later_effects(
+    module_first: bool, form: str
+) -> None:
+    first = "globals()" if module_first else "{}"
+    later = "{}" if module_first else "globals()"
+    setup = (
+        f"namespace = {first}\n"
+        "def key():\n    global namespace\n"
+        f"    namespace = {later}\n    return 'require_app_api_key'\n"
+    )
+    invocation = {
+        "target": "namespace[key()] = None\n",
+        "bound": "namespace.__setitem__(key(), None)\n",
+        "stored": "mutator = namespace.__setitem__\nmutator(key(), None)\n",
+        "unbound": "dict.__setitem__(namespace, key(), None)\n",
+    }[form]
+    errors = _validate_api_key_dependency_ownership(_CONSOL_GETTER_IMPORTS + setup + invocation, {})
+    assert errors == (
+        [_CONSOL_API_KEY_REBINDING_ERRORS["require_app_api_key"]] if module_first else []
+    )
+
+
+@pytest.mark.parametrize("key", ["harmless", "require_app_api_key"])
+@pytest.mark.parametrize("form", ["scalar", "literal", "computed"])
+def test_consol_module_namespace_mutation_keeps_earlier_keys_and_unknown_bounds(
+    key: str, form: str
+) -> None:
+    later = "require_app_api_key" if key == "harmless" else "harmless"
+    setup = (
+        f"key = {key!r}\n"
+        "def value():\n    global key\n"
+        f"    key = {later!r}\n    return None\n"
+    )
+    invocation = {
+        "scalar": "globals().__setitem__(key, value())\n",
+        "literal": f"globals().update({{{key!r}: value()}})\n",
+        "computed": "globals().update({key: value()})\n",
+    }[form]
+    errors = _validate_api_key_dependency_ownership(_CONSOL_GETTER_IMPORTS + setup + invocation, {})
+    expected = (
+        sorted(_CONSOL_API_KEY_REBINDING_ERRORS.values())
+        if form == "computed"
+        else [_CONSOL_API_KEY_REBINDING_ERRORS[key]] if key == "require_app_api_key" else []
+    )
+    assert errors == expected
+
+
+@pytest.mark.parametrize(
+    "mutation", ["globals().clear()", "locals().popitem()", "vars().update(**unknown)"]
+)
+def test_consol_unknown_module_namespace_mutation_reports_finite_inventory(mutation: str) -> None:
+    assert _validate_api_key_dependency_ownership(
+        _CONSOL_GETTER_IMPORTS + mutation + "\n", {}
+    ) == sorted(_CONSOL_API_KEY_REBINDING_ERRORS.values())
+
+
+@pytest.mark.parametrize("invoked", [False, True])
+def test_consol_module_namespace_mutation_keeps_dormant_analysis_separate(invoked: bool) -> None:
+    source = "def write():\n    globals().update(require_app_api_key=None)\n"
+    if invoked:
+        source += "write()\n"
+    errors: list[str] = []
+    legacy_guard._ApiKeyLookupVisitor(filename="legacy_app.py", errors=errors).visit(
+        ast.parse(source)
+    )
+    assert set(errors) == (
+        {_CONSOL_API_KEY_REBINDING_ERRORS["require_app_api_key"]} if invoked else set()
+    )
+
+
+@pytest.mark.parametrize(
+    "addition",
+    [
+        "[globals().update(require_app_api_key=None) for item in [None]]\n",
+        "namespace = globals()\nnamespace |= {'require_app_api_key': None}\n",
+        "import sys\nsys.modules[__name__].require_app_api_key = None\n",
+    ],
+)
+def test_consol_module_namespace_mutation_preserves_existing_executed_target_forms(
+    addition: str,
+) -> None:
+    assert _validate_api_key_dependency_ownership(_CONSOL_GETTER_IMPORTS + addition, {}) == [
+        _CONSOL_API_KEY_REBINDING_ERRORS["require_app_api_key"]
+    ]
+
+
+@pytest.mark.parametrize("module_first", [False, True])
+def test_consol_module_namespace_augmented_target_precedes_rhs_effects(module_first: bool) -> None:
+    first = "globals()" if module_first else "{}"
+    later = "{}" if module_first else "globals()"
+    source = (
+        _CONSOL_GETTER_IMPORTS
+        + f"namespace = {first}\n"
+        + "def rhs():\n    global namespace\n"
+        + f"    namespace = {later}\n    return {{'require_app_api_key': None}}\n"
+        + "namespace |= rhs()\n"
+    )
+    assert _validate_api_key_dependency_ownership(source, {}) == (
+        [_CONSOL_API_KEY_REBINDING_ERRORS["require_app_api_key"]] if module_first else []
+    )
+
+
+@pytest.mark.parametrize("key", ["1", "None", "True", "1.5", "b'require_app_api_key'"])
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        "globals()[{key}] = None",
+        "del locals()[{key}]",
+        "vars().__setitem__({key}, None)",
+        "globals().pop({key}, None)",
+        "dict.__setitem__(globals(), {key}, None)",
+        "globals().update({{{key}: None}})",
+    ],
+)
+def test_consol_module_namespace_literal_nonstring_keys_are_independent_controls(
+    key: str, mutation: str
+) -> None:
+    assert (
+        _validate_api_key_dependency_ownership(
+            _CONSOL_GETTER_IMPORTS + mutation.format(key=key) + "\n", {}
+        )
+        == []
+    )
+
+
+@pytest.mark.parametrize(
+    "mutation", ["globals().pop(*unknown, 1)", "dict.pop(globals(), *unknown, 1)"]
+)
+def test_consol_unknown_module_namespace_star_keeps_partial_literal_key_unknown(
+    mutation: str,
+) -> None:
+    assert _validate_api_key_dependency_ownership(
+        _CONSOL_GETTER_IMPORTS + mutation + "\n", {}
+    ) == sorted(_CONSOL_API_KEY_REBINDING_ERRORS.values())
+
+
+@pytest.mark.parametrize("module_first", [False, True])
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        "namespace['require_app_api_key'] = None",
+        "namespace.update(require_app_api_key=None)",
+        "mutator = namespace.update\nmutator(require_app_api_key=None)",
+    ],
+)
+def test_consol_module_namespace_augmented_name_result_keeps_captured_target(
+    module_first: bool, mutation: str
+) -> None:
+    first = "globals()" if module_first else "{}"
+    later = "{}" if module_first else "globals()"
+    source = (
+        _CONSOL_GETTER_IMPORTS
+        + f"namespace = {first}\n"
+        + "def rhs():\n    global namespace\n"
+        + f"    namespace = {later}\n    return {{'harmless': None}}\n"
+        + "namespace |= rhs()\n"
+        + mutation
+        + "\n"
+    )
+    assert _validate_api_key_dependency_ownership(source, {}) == (
+        [_CONSOL_API_KEY_REBINDING_ERRORS["require_app_api_key"]] if module_first else []
+    )
