@@ -302,32 +302,35 @@ def test_retired_metadata_error_guard_allows_canonical_and_harmless_mentions(
     )
 
 
-@pytest.mark.parametrize("binding_name", RETIRED_METADATA_ERROR_BINDINGS)
-@pytest.mark.parametrize("same_name_alias", (False, True))
 def test_retired_metadata_error_reimport_fails_aggregate_guard(
-    binding_name: str,
-    same_name_alias: bool,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Scan one baseline and one isolated restoration for each selected binding."""
+    sources = _openapi_ownership_sources()
+    assert legacy_guard.validate_application_metadata_openapi_ownership(*sources) == []
+    assert legacy_guard.validate_retired_legacy_python_bindings(sources[0]) == []
     assert legacy_guard.validate_repo(REPO_ROOT) == []
     original_read = legacy_guard._read
-    canonical_module = (
-        "app.application_metadata"
-        if binding_name == "build_application_metadata"
-        else "app.http_error_details"
-    )
-    suffix = f" as {binding_name}" if same_name_alias else ""
+    for binding_name in RETIRED_METADATA_ERROR_BINDINGS:
+        canonical_module = (
+            "app.application_metadata"
+            if binding_name == "build_application_metadata"
+            else "app.http_error_details"
+        )
 
-    def read_with_reintroduced_import(path: Path, repo_root: Path, errors: list[str]) -> str | None:
-        source = original_read(path, repo_root, errors)
-        if path == REPO_ROOT / "legacy_app.py" and source is not None:
-            return source + f"\nfrom {canonical_module} import {binding_name}{suffix}\n"
-        return source
+        def read_with_reintroduced_import(
+            path: Path, repo_root: Path, errors: list[str]
+        ) -> str | None:
+            source = original_read(path, repo_root, errors)
+            if path == REPO_ROOT / "legacy_app.py" and source is not None:
+                return source + f"\nfrom {canonical_module} import {binding_name}\n"
+            return source
 
-    monkeypatch.setattr(legacy_guard, "_read", read_with_reintroduced_import)
-    assert legacy_guard.validate_repo(REPO_ROOT) == [
-        f"legacy_app.py: retired Python compatibility binding is forbidden: {binding_name}"
-    ]
+        with monkeypatch.context() as isolated_patch:
+            isolated_patch.setattr(legacy_guard, "_read", read_with_reintroduced_import)
+            assert legacy_guard.validate_repo(REPO_ROOT) == [
+                f"legacy_app.py: retired Python compatibility binding is forbidden: {binding_name}"
+            ]
 
 
 def test_retired_insight_binding_tail_is_exact_and_disjoint() -> None:
