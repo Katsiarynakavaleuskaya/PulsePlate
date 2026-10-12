@@ -870,3 +870,7 @@ from its command. Never propose selector-free pytest for this guard repair.
 A command proposal or successful AST parse is not a native test receipt; record
 actual argv, output, exit status and source identity under the root local narrow
 validation budget. See `RUNBOOK_AGENT.md` for interpreter and gate procedures.
+
+The canonical CI `test-pr` job has a 120-minute whole-job ceiling for its
+smoke, contract/risk and coverage producers. This does not change local
+validation budgets or the real legacy CLI test's 120-second child timeout.
