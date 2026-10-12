@@ -2936,14 +2936,22 @@ class _LexicalBindings:
         visible = self.parent.visible_references() if self.parent is not None else {}
         for name in self.local_names:
             visible.pop(name, None)
-        visible.update(self.references)
+        visible.update(
+            (name, reference)
+            for name, reference in self.references.items()
+            if not name.startswith("<dict-argument:")
+        )
         return visible
 
     def visible_strings(self) -> dict[str, str]:
         visible = self.parent.visible_strings() if self.parent is not None else {}
         for name in self.local_names:
             visible.pop(name, None)
-        visible.update(self.strings)
+        visible.update(
+            (name, value)
+            for name, value in self.strings.items()
+            if not name.startswith("<dict-argument:")
+        )
         return visible
 
     def visible_callables(self) -> dict[str, frozenset[_FunctionNode]]:
@@ -7975,15 +7983,18 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         node: ast.Call,
         positional_arguments: Sequence[ast.expr],
         unresolved_positional_sources: Sequence[ast.expr],
+        *,
+        captured_operand: _ResolvedBinding | None,
+        captured_pair_entries: Sequence[_StaticMappingEntry] | None,
+        captured_keyword_entries: Sequence[_StaticMappingEntry],
     ) -> _ResolvedBinding | None:
         if unresolved_positional_sources or len(positional_arguments) > 1:
             return None
         entries: list[_StaticMappingEntry] = []
         if positional_arguments:
-            source_mapping = self._resolve_mapping(positional_arguments[0])
+            source_mapping = captured_operand.mapping if captured_operand is not None else None
             if source_mapping is None:
-                pair_entries = self._static_pair_mapping_entries(positional_arguments[0])
-                if pair_entries is None:
+                if captured_pair_entries is None:
                     entries.append(
                         _StaticMappingEntry(
                             key=None,
@@ -7991,29 +8002,10 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                         )
                     )
                 else:
-                    entries.extend(pair_entries)
+                    entries.extend(captured_pair_entries)
             else:
                 entries.extend(source_mapping.entries)
-        for keyword in node.keywords:
-            if keyword.arg is None:
-                source_mapping = self._resolve_mapping(keyword.value)
-                if source_mapping is None:
-                    entries.append(
-                        _StaticMappingEntry(
-                            key=None,
-                            binding=self._conservative_argument_binding(),
-                        )
-                    )
-                else:
-                    entries.extend(source_mapping.entries)
-                continue
-            key = ast.copy_location(ast.Constant(keyword.arg), keyword.value)
-            entries.append(
-                _StaticMappingEntry(
-                    key=key,
-                    binding=self._capture_argument_binding(keyword.value),
-                )
-            )
+        entries.extend(captured_keyword_entries)
         synthetic_site = ast.copy_location(ast.Dict(keys=[], values=[]), node)
         return self._variadic_mapping_binding(
             [entry.binding for entry in entries],
@@ -9038,11 +9030,31 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         prepared_targets = set(initial_arguments)
 
         wrapper_reference = self._resolve_reference(node.func)
-        collects_zip_callbacks = (
-            wrapper_reference in _ZIPPING_ITERABLE_BUILTIN_REFERENCES
-            and (id(node) in self._iterated_call_ids or iterable_callback_inputs is not None)
+        dict_constructor_candidate = (
+            wrapper_reference == "builtins.dict"
+            and len(positional_arguments) <= 1
             and not unresolved_positional_sources
-            and not any(isinstance(argument, ast.Starred) for argument in node.args)
+        )
+        if dict_constructor_candidate:
+            # A dict copy reads its positional container; named values can still escape.
+            escaped_mappings = [
+                mapping
+                for keyword in node.keywords
+                if keyword.arg is not None
+                if (mapping := self._resolve_mapping(keyword.value)) is not None
+            ]
+        consumes_dict_iterable = dict_constructor_candidate and len(positional_arguments) == 1
+        collects_zip_callbacks = (
+            (
+                wrapper_reference in _ZIPPING_ITERABLE_BUILTIN_REFERENCES
+                and (id(node) in self._iterated_call_ids or iterable_callback_inputs is not None)
+                or consumes_dict_iterable
+            )
+            and not unresolved_positional_sources
+            and (
+                consumes_dict_iterable
+                or not any(isinstance(argument, ast.Starred) for argument in node.args)
+            )
         )
         zip_callback_inputs = (
             iterable_callback_inputs if iterable_callback_inputs is not None else []
@@ -9060,6 +9072,34 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         captured_callback_scope: _LexicalBindings | None = None
         captured_callback_arguments: list[_ResolvedBinding] = []
         captured_callback_empty = False
+        captured_dict_operand: _ResolvedBinding | None = None
+        captured_dict_pair_entries: list[_StaticMappingEntry] | None = None
+        captured_dict_keyword_entries: list[_StaticMappingEntry] = []
+        dict_argument_alias: tuple[_LexicalBindings, str] | None = None
+        wait_for_candidate = wrapper_reference == "asyncio.wait_for"
+        wait_for_keywords = (
+            {keyword.arg: keyword.value for keyword in node.keywords} if wait_for_candidate else {}
+        )
+        wait_for_operand = (
+            positional_arguments[0] if positional_arguments else wait_for_keywords.get("fut")
+        )
+        wait_for_timeout = (
+            positional_arguments[1]
+            if len(positional_arguments) >= 2
+            else wait_for_keywords.get("timeout")
+        )
+        wait_for_shape_valid = (
+            wait_for_candidate
+            and not unresolved_positional_sources
+            and len(positional_arguments) <= 2
+            and len(wait_for_keywords) == len(node.keywords)
+            and all(name in {"fut", "timeout"} for name in wait_for_keywords)
+            and not (positional_arguments and "fut" in wait_for_keywords)
+            and not (len(positional_arguments) == 2 and "timeout" in wait_for_keywords)
+            and wait_for_operand is not None
+            and wait_for_timeout is not None
+        )
+        captured_wait_for_operand: _ResolvedBinding | None = None
         keys_callback = (
             wrapper_reference in {"builtins.sorted", "builtins.min", "builtins.max"}
             and bool(positional_arguments)
@@ -9370,6 +9410,16 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                         getattr_member_binding = self._capture_argument_binding(getattr_argument)
                 for getattr_keyword in node.keywords:
                     self.visit(getattr_keyword)
+            elif wait_for_candidate:
+                self.visit(node.func)
+                for argument in lookup_arguments:
+                    self.visit(argument)
+                    if argument is wait_for_operand:
+                        captured_wait_for_operand = self._capture_argument_binding(argument)
+                for keyword in node.keywords:
+                    self.visit(keyword)
+                    if keyword.value is wait_for_operand:
+                        captured_wait_for_operand = self._capture_argument_binding(keyword.value)
             elif keys_callback:
                 self.visit(node.func)
                 key_input_bindings: list[_ResolvedBinding] = []
@@ -9410,10 +9460,10 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                         )
                         is not None
                     )
-            elif collects_zip_callbacks:
+            elif collects_zip_callbacks or dict_constructor_candidate:
                 self.visit(node.func)
                 exhausted_prefix = False
-                for argument in node.args:
+                for argument in (lookup_arguments if dict_constructor_candidate else node.args):
                     if (
                         not exhausted_prefix
                         and isinstance(argument, ast.Call)
@@ -9423,10 +9473,45 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                         self.visit(argument, iterable_callback_inputs=zip_callback_inputs)
                     else:
                         self.visit(argument)
+                    if dict_constructor_candidate:
+                        captured_dict_operand = self._capture_argument_binding(argument)
+                        captured_dict_pair_entries = self._static_pair_mapping_entries(argument)
+                        if captured_dict_operand.mapping is not None:
+                            # Track the object through mutation without rereading its source name.
+                            alias_name = f"<dict-argument:{id(node)}:0>"
+                            self.scope.bind(
+                                alias_name,
+                                reference=captured_dict_operand.reference,
+                                string=None,
+                                mapping=captured_dict_operand.mapping,
+                                iterable_element=captured_dict_operand.iterable_element,
+                                runtime_binding=False,
+                            )
+                            dict_argument_alias = (self.scope, alias_name)
                     zip_callback_end_indices.append(len(zip_callback_inputs))
                     exhausted_prefix = exhausted_prefix or self._is_proven_empty_iterable(argument)
                 for keyword in node.keywords:
                     self.visit(keyword)
+                    if dict_constructor_candidate:
+                        keyword_binding = self._capture_argument_binding(keyword.value)
+                        if keyword.arg is None:
+                            if keyword_binding.mapping is not None:
+                                captured_dict_keyword_entries.extend(
+                                    keyword_binding.mapping.entries
+                                )
+                            else:
+                                captured_dict_keyword_entries.append(
+                                    _StaticMappingEntry(
+                                        key=None, binding=self._conservative_argument_binding()
+                                    )
+                                )
+                        else:
+                            captured_dict_keyword_entries.append(
+                                _StaticMappingEntry(
+                                    key=ast.copy_location(ast.Constant(keyword.arg), keyword.value),
+                                    binding=keyword_binding,
+                                )
+                            )
             elif captures_lazy_callback:
                 self.visit(node.func)
                 for argument_index, argument in enumerate(node.args):
@@ -9445,6 +9530,28 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             else:
                 self.generic_visit(node)
         finally:
+            if dict_argument_alias is not None:
+                alias_scope, alias_name = dict_argument_alias
+                alias_mapping = self.scope.resolve_mapping(alias_name)
+                captured_dict_operand = (
+                    _ResolvedBinding(
+                        reference=captured_dict_operand.reference,
+                        string=captured_dict_operand.string,
+                        callables=captured_dict_operand.callables,
+                        deferred_calls=captured_dict_operand.deferred_calls,
+                        mapping=alias_mapping,
+                        class_references=captured_dict_operand.class_references,
+                        descriptors=captured_dict_operand.descriptors,
+                        iterable_element=captured_dict_operand.iterable_element,
+                    )
+                    if alias_mapping is not None and captured_dict_operand is not None
+                    else self._conservative_argument_binding()
+                )
+                alias_scope.unbind(alias_name)
+                current_alias_scope: _LexicalBindings | None = self.scope
+                while current_alias_scope is not None:
+                    current_alias_scope.unbind(alias_name)
+                    current_alias_scope = current_alias_scope.parent
             if mapping_lookup_attribute is not None:
                 self._previsited_call_receiver_attribute_ids.remove(id(mapping_lookup_attribute))
             if defer_mapping_mutation:
@@ -9570,6 +9677,26 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             node,
             receiver=mapping_lookup_receiver,
         )
+        if wait_for_candidate:
+            wait_for_calls: frozenset[_DeferredFunctionCall] = frozenset()
+            if (
+                wait_for_shape_valid
+                and captured_wait_for_operand is not None
+                and wait_for_timeout is not None
+            ):
+                timeout_value = _literal_value(wait_for_timeout)
+                if (
+                    timeout_value is None
+                    or timeout_value is _UNRESOLVED_LITERAL_VALUE
+                    or isinstance(timeout_value, (int, float))
+                    and timeout_value > 0
+                ):
+                    wait_for_calls = captured_wait_for_operand.deferred_calls
+            projected_result = _ResolvedBinding(None, None, deferred_calls=wait_for_calls)
+            if id(node) in self._awaited_call_ids and wait_for_calls:
+                awaited_result = self._replay_deferred_calls(wait_for_calls, execution="await")
+                if awaited_result is not None:
+                    projected_result = awaited_result
         if projected_result is None and unbound_mapping_receiver is not None:
             projected_result = self._resolve_mapping_lookup_binding(
                 owner=positional_arguments[0],
@@ -9627,6 +9754,9 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 node,
                 positional_arguments,
                 unresolved_positional_sources,
+                captured_operand=captured_dict_operand,
+                captured_pair_entries=captured_dict_pair_entries,
+                captured_keyword_entries=captured_dict_keyword_entries,
             )
         if projected_result is None and wrapper_reference == "builtins.dict.fromkeys":
             projected_result = self._dict_fromkeys_binding(
@@ -10077,7 +10207,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         if (
             wrapper_reference in _ZIPPING_ITERABLE_BUILTIN_REFERENCES
             and id(node) in self._iterated_call_ids
-        ):
+        ) or consumes_dict_iterable:
             zip_previous_sync_only = self._sync_only_body_analysis
             if owns_zip_callback_inputs and self._analysis_purpose == "ownership_audit":
                 self._sync_only_body_analysis = False
@@ -10086,7 +10216,11 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 callback_start = 0
                 for argument_index, argument in enumerate(positional_arguments):
                     self._replay_deferred_calls(
-                        self._resolve_deferred_calls(argument),
+                        (
+                            captured_dict_operand.deferred_calls
+                            if consumes_dict_iterable and captured_dict_operand is not None
+                            else self._resolve_deferred_calls(argument)
+                        ),
                         execution="iterate",
                     )
                     if not owns_zip_callback_inputs:
@@ -10116,6 +10250,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         escaped_mappings.extend(
             mapping
             for argument in node.args
+            if not dict_constructor_candidate
             if not isinstance(argument, ast.Starred)
             if (mapping := self._resolve_mapping(argument)) is not None
         )
