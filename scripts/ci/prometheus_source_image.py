@@ -3306,28 +3306,105 @@ def validate_candidate_coordinates(value: Any) -> None:
 
 def _layout_inventory(layout: Path, blobs: set[str]) -> None:
     real_directory(layout)
+    expected_blobs = {"blobs/sha256/" + digest[7:] for digest in blobs}
+    expected_files = {"oci-layout", "index.json"} | expected_blobs
     files: set[str] = set()
     directories: set[str] = set()
+
+    def observe(
+        error: BaseException,
+        path: Path,
+        info: os.stat_result | None,
+        predicate: str,
+        uncertainty: str | None = None,
+    ) -> None:
+        try:
+            relative = json.dumps(path.relative_to(layout).as_posix(), ensure_ascii=True)[1:-1]
+            facts: dict[str, Any] = {
+                "predicate": predicate,
+                "relative": relative[:512],
+                "relative_truncated": len(relative) > 512,
+                "observation_error": uncertainty,
+            }
+            if info is not None:
+                facts.update(
+                    type=(
+                        "directory"
+                        if stat.S_ISDIR(info.st_mode)
+                        else (
+                            "regular"
+                            if stat.S_ISREG(info.st_mode)
+                            else "link" if stat.S_ISLNK(info.st_mode) else "special"
+                        )
+                    ),
+                    mode=oct(stat.S_IMODE(info.st_mode)),
+                    nlink=info.st_nlink,
+                    uid=info.st_uid,
+                )
+            setattr(error, "layout_rejection", facts)
+        except BaseException as diagnostic_error:
+            # Optional diagnostics never replace the actual predicate/read failure.
+            setattr(
+                error,
+                "layout_rejection",
+                {
+                    "predicate": predicate,
+                    "observation_error": type(diagnostic_error).__name__,
+                },
+            )
+
+    def check(condition: bool, predicate: str, path: Path, info: os.stat_result) -> None:
+        if not condition:
+            error = QualificationError(predicate)
+            observe(error, path, info, predicate)
+            raise error
+
     for path in layout.rglob("*"):
-        info = path.lstat()
+        try:
+            info = path.lstat()
+        except OSError as error:
+            observe(error, path, None, "layout_regular_leaf", type(error).__name__)
+            raise
         relative = path.relative_to(layout).as_posix()
-        require(
-            info.st_uid == os.getuid() and len(files) + len(directories) < 64, "layout_owner_count"
+        check(
+            info.st_uid == os.getuid() and len(files) + len(directories) < 64,
+            "layout_owner_count",
+            path,
+            info,
         )
         if stat.S_ISDIR(info.st_mode):
             directories.add(relative)
+            check(
+                relative in {"blobs", "blobs/sha256", "ingest"},
+                "layout_closed_inventory",
+                path,
+                info,
+            )
+            if relative == "ingest":
+                try:
+                    empty = next(path.iterdir(), None) is None
+                except OSError as error:
+                    observe(error, path, info, "layout_closed_inventory", type(error).__name__)
+                    raise
+                check(empty, "layout_closed_inventory", path, info)
         else:
-            require(
+            modes = (0o444, 0o600, 0o644) if relative in expected_blobs else (0o600, 0o644)
+            check(
                 stat.S_ISREG(info.st_mode)
                 and info.st_nlink == 1
-                and stat.S_IMODE(info.st_mode) in (0o600, 0o644),
+                and stat.S_IMODE(info.st_mode) in modes,
                 "layout_regular_leaf",
+                path,
+                info,
             )
+            check(relative in expected_files, "layout_closed_inventory", path, info)
             files.add(relative)
-    require(
-        directories == {"blobs", "blobs/sha256"}
-        and files == {"oci-layout", "index.json"} | {"blobs/sha256/" + d[7:] for d in blobs},
+    check(
+        directories in ({"blobs", "blobs/sha256"}, {"blobs", "blobs/sha256", "ingest"})
+        and files == expected_files,
         "layout_closed_inventory",
+        layout,
+        layout.lstat(),
     )
 
 
@@ -4098,10 +4175,17 @@ def authenticated_artifact(
                 (38170923494, "5de54811121079eadbd3f5d8dbbb8720f712530a", 11713828762),
                 (38192419687, "15097adaa871a900370f6c57a512fe862dddb041", 11722041486),
             )
+        )
+        or (
+            purpose == "tool_postcompile_layout_failure"
+            and type(expected_run) is int
+            and expected_job == "prometheus-oras-qualification"
+            and (expected_run, expected_head, artifact_id)
+            == (38239428418, "f632572057453d57975a397a5b2db64894204be0", 11742856046)
         ),
         "artifact_closed_purpose",
     )
-    conclusion = "failure" if purpose == "tool_prefetch_precompile_failure" else "success"
+    conclusion = "success" if purpose == "successful_producer" else "failure"
     require(type(artifact_id) is int and artifact_id > 0, "artifact_positive_ID")
     record = api.json(f"/repos/{GHCR_REPOSITORY}/actions/artifacts/{artifact_id}")
     require(
@@ -4299,6 +4383,18 @@ def unpack_layout(raw: bytes, destination: Path) -> None:
 
 TOOL_PREFETCH_PREDECESSOR = "38170923494:11713828762"
 TOOL_PREFETCH_TWO_PREDECESSORS = "38170923494:11713828762;38192419687:11722041486"
+TOOL_THREE_PREDECESSORS = TOOL_PREFETCH_TWO_PREDECESSORS + ";38239428418:11742856046"
+TOOL_THIRD_ARCHIVE = {
+    "bytes": 13619538,
+    "sha256": "de2cc846beaea8c3dedcc9641d85f882447b9a3ea98651b21170f2887d64bc1e",
+}
+TOOL_THIRD_INPUT_DIGEST = "sha256:28130d8989767ede1a145dd0173a6f0900d3a805a665cf66f69bff6cfdc7c380"
+TOOL_THIRD_NATIVE_DIGEST = "8041bd97ac58a1217aafc8bb9d50878ae1a205bc9c417982d3ae865db89e3441"
+TOOL_THIRD_BINARY_OBSERVATION = {
+    "bytes": 18507104,
+    "sha256": "8c88339f9c1da7826734fa67fff5802ec9be6673a5e7db869758be96412fd9bf",
+}
+
 TOOL_PREFETCH_SECOND_ARCHIVE = {
     "bytes": 4226255,
     "sha256": "6f99ee4118b456e387d5732d42c02214b158e86284cfbf4c3d545bd68de49c3d",
@@ -4328,7 +4424,8 @@ def manual_hosted_admission(
         prefetch_predecessor is None
         or (
             purpose == "tool"
-            and prefetch_predecessor in (TOOL_PREFETCH_PREDECESSOR, TOOL_PREFETCH_TWO_PREDECESSORS)
+            and prefetch_predecessor
+            in (TOOL_PREFETCH_PREDECESSOR, TOOL_PREFETCH_TWO_PREDECESSORS, TOOL_THREE_PREDECESSORS)
         ),
         "tool_prefetch_explicit_predecessor",
     )
@@ -4394,7 +4491,7 @@ def manual_hosted_admission(
                 "conclusion": "failure",
             }
         ]
-        if prefetch_predecessor == TOOL_PREFETCH_TWO_PREDECESSORS:
+        if prefetch_predecessor in (TOOL_PREFETCH_TWO_PREDECESSORS, TOOL_THREE_PREDECESSORS):
             expected_history.append(
                 {
                     "run_id": 38192419687,
@@ -4403,16 +4500,29 @@ def manual_hosted_admission(
                     "conclusion": "failure",
                 }
             )
+        if prefetch_predecessor == TOOL_THREE_PREDECESSORS:
+            expected_history.append(
+                {
+                    "run_id": 38239428418,
+                    "job_id": 114778090287,
+                    "status": "completed",
+                    "conclusion": "failure",
+                }
+            )
         observed.sort(key=lambda row: (row["run_id"], row["job_id"]))
         require(
-            run_id not in (38170923494, 38192419687)
+            run_id not in (38170923494, 38192419687, 38239428418)
             and current.get("id") == run_id
             and current.get("head_branch") == "codex/dependency-native-runtime-remediation"
             and observed == expected_history,
             (
                 "tool_prefetch_complete_singleton_history"
                 if prefetch_predecessor == TOOL_PREFETCH_PREDECESSOR
-                else "tool_prefetch_complete_two_history"
+                else (
+                    "tool_complete_three_history"
+                    if prefetch_predecessor == TOOL_THREE_PREDECESSORS
+                    else "tool_prefetch_complete_two_history"
+                )
             ),
         )
         archive = api.evidence / "tool-prefetch-predecessor.zip"
@@ -4608,7 +4718,7 @@ def manual_hosted_admission(
         observed[0][
             "precompile_disposition"
         ] = "selected_known_prefetch_failure; no qualified output; historical post-lock bytes unknown"
-    if prefetch_predecessor == TOOL_PREFETCH_TWO_PREDECESSORS:
+    if prefetch_predecessor in (TOOL_PREFETCH_TWO_PREDECESSORS, TOOL_THREE_PREDECESSORS):
         second_archive = api.evidence / "tool-prefetch-second-predecessor.zip"
         second = authenticated_artifact(
             api,
@@ -4941,6 +5051,436 @@ def manual_hosted_admission(
         observed[1][
             "precompile_disposition"
         ] = "selected_known_offline_metadata_failure; FAILED/SPENT; no compiler or qualified output"
+    if prefetch_predecessor == TOOL_THREE_PREDECESSORS:
+        third_archive = api.evidence / "tool-postcompile-predecessor.zip"
+        third = authenticated_artifact(
+            api,
+            11742856046,
+            third_archive,
+            expected_run=38239428418,
+            expected_job=job_name,
+            expected_head="f632572057453d57975a397a5b2db64894204be0",
+            purpose="tool_postcompile_layout_failure",
+        )
+        require(
+            third["job"].get("id") == 114778090287
+            and third["run"].get("head_branch") == "codex/dependency-native-runtime-remediation"
+            and third["artifact"].get("name") == "prometheus-oras-38239428418-1"
+            and third_archive.stat().st_size == TOOL_THIRD_ARCHIVE["bytes"]
+            and file_hash(third_archive) == TOOL_THIRD_ARCHIVE["sha256"],
+            "tool_third_authenticated_failure",
+        )
+        data = _zip_members(third_archive)
+        require({"tool.json", "invocation-start.json"} <= set(data), "tool_third_report_keys")
+        final = one_object(data["tool.json"])
+        start = one_object(data["invocation-start.json"])
+        require(
+            set(final) == set(second_report) | {"binary", "command_graph", "full_modules"}
+            and set(start) == set(final) - {"binary", "cleanup", "native_commands"},
+            "tool_third_report_keys",
+        )
+        for value in (start, final):
+            require(
+                type(value.get("tool_compile_invocations")) is int
+                and value["tool_compile_invocations"] == 1
+                and type(value.get("Prometheus_compile_invocations")) is int
+                and value["Prometheus_compile_invocations"] == 0,
+                "tool_third_actual_compiler_consumed",
+            )
+        exact_data(start["failure"], None)
+        exact_data(final["failure"], {"class": "QualificationError", "code": "layout_regular_leaf"})
+        for key in set(start) - {"failure"}:
+            exact_data(start[key], final[key])
+        exact_data(final["identity"], "PulsePlate-rebuilt ORAS 1.3.4")
+        exact_data(final["source_revision"], ORAS_REVISION)
+        exact_data(final["source_tree"], ORAS_TREE)
+        exact_data(final["original_locks"], ORAS_LOCKS)
+        exact_data(final["binary"], TOOL_THIRD_BINARY_OBSERVATION)
+        exact_data(
+            final["admission"],
+            {
+                "run_id": 38239428418,
+                "head": "f632572057453d57975a397a5b2db64894204be0",
+                "ref": ref,
+                "workflow_id": workflow["id"],
+                "job": job_name,
+                "actual_prior_invocations": observed[:2],
+                "budget": 1,
+            },
+        )
+        historical_files = api.source_files(
+            "f632572057453d57975a397a5b2db64894204be0", (*PRODUCER_FILES, MANIFEST_PATH)
+        )
+        old_manifest = one_object(historical_files[MANIFEST_PATH])
+        require(old_manifest.get("schema") == IMAGE_SCHEMA, "tool_prefetch_historical_manifest")
+        inputs = copy.deepcopy(old_manifest["inputs"])
+        inputs["oras"]["retained"] = None
+        historical = {
+            "inputs": inputs,
+            "raw_producer": {
+                name: {"bytes": len(historical_files[name]), "sha256": sha(historical_files[name])}
+                for name in PRODUCER_FILES
+            },
+        }
+        exact_data(final["input_projection"], historical)
+        require(
+            final["input_digest"]
+            == TOOL_THIRD_INPUT_DIGEST
+            == "sha256:" + sha(canonical_data(historical)),
+            "tool_third_source_projection",
+        )
+        require(
+            data["tool-prefetch-predecessor.zip"] == archive.read_bytes()
+            and data["tool-prefetch-second-predecessor.zip"] == second_archive.read_bytes(),
+            "tool_third_original_predecessors",
+        )
+        source_members = json.loads(data["oras-source-members.json"])
+        go_members = json.loads(data["go-members.json"])
+        require(
+            type(source_members) is list
+            and len(source_members) == ORAS_SOURCE.files
+            and sha(data["oras-source-members.json"])
+            == inputs["oras"]["canonical_inventory_sha256"]
+            and type(go_members) is list
+            and len(go_members) == GO.files,
+            "tool_third_source_inventories",
+        )
+        records = final["native_commands"]
+        require(type(records) is list and len(records) == 72, "tool_third_native_records")
+        require(
+            all(
+                type(row) is dict
+                and set(row) == set(report["native_commands"][0])
+                and type(row.get("exit")) is int
+                and row["exit"] == 0
+                and row["failure"] is None
+                for row in records
+            ),
+            "tool_third_native_status",
+        )
+        require(
+            sha(canonical_data(records)) == TOOL_THIRD_NATIVE_DIGEST, "tool_third_native_records"
+        )
+        work = Path("/home/runner/work/_temp/prometheus-oras-38239428418-1")
+        phases = (
+            "before",
+            "after",
+            *(
+                name + "-" + phase
+                for name in ("version", "download", "verify", "selected", "graph")
+                for phase in ("before", "after")
+            ),
+        )
+        expected_files = {
+            "tool.json",
+            "invocation-start.json",
+            "go-members.json",
+            "oras-source-members.json",
+            "tool-prefetch.json",
+            "tool-prefetch-cache-before-freeze.json",
+            "tool-prefetch-cache-frozen.json",
+            "tool-prefetch-predecessor.zip",
+            "tool-prefetch-second-predecessor.zip",
+            *("tool-prefetch-" + phase + "-" + lock for phase in phases for lock in ORAS_LOCKS),
+            *(
+                f"GitHub-{number}.{suffix}"
+                for number in range(1, 64)
+                for suffix in ("json", "stdout", "stderr")
+            ),
+        }
+        for row in records:
+            require(
+                type(row["argv"]) is list
+                and bool(row["argv"])
+                and all(type(arg) is str for arg in row["argv"])
+                and Path(row["argv"][0]).is_absolute(),
+                "tool_third_native_argv",
+            )
+            for suffix in ("stdout", "stderr"):
+                member = Path(row[suffix]).name
+                require(
+                    row[suffix] == str(work / "evidence" / member)
+                    and member in data
+                    and row[suffix + "_sha256"] == sha(data[member]),
+                    "tool_third_native_output_binding",
+                )
+                expected_files.add(member)
+        require(
+            set(data) == expected_files and len(data) == 366, "tool_third_complete_failed_inventory"
+        )
+        prefetch = one_object(data["tool-prefetch.json"])
+        require(
+            set(prefetch) == set(phases) | {"failure", "snapshot_errors", "commands"}
+            and prefetch["failure"] is None
+            and prefetch["snapshot_errors"] == [],
+            "tool_third_prefetch_complete",
+        )
+        before = prefetch["before"]
+        go_binary = [row for row in go_members if row.get("path") == "bin/go"]
+        require(
+            len(go_binary) == 1
+            and go_binary[0].get("git_mode") == "100755"
+            and before.get("Go_binary_sha256") == go_binary[0].get("sha256"),
+            "tool_third_qualified_Go_identity",
+        )
+        exact_data(
+            before["source_inventory"],
+            [
+                {
+                    "path": row["path"],
+                    "size": row["size"],
+                    "sha256": row["sha256"],
+                    "mode": 0o755 if row["git_mode"] == "100755" else 0o644,
+                }
+                for row in source_members
+            ],
+        )
+        for phase in phases:
+            exact_data(prefetch[phase], before)
+            for lock, digest in ORAS_LOCKS.items():
+                raw = data["tool-prefetch-" + phase + "-" + lock]
+                require(sha(raw) == digest, "tool_third_original_lock_bytes")
+                exact_data(
+                    before["locks"][lock], {"bytes": len(raw), "sha256": digest, "mode": 0o644}
+                )
+        online = clean_environment(
+            work / "tool-home",
+            work / "tool-tmp",
+            work / "tool-cache",
+            work / "tool-modules",
+            offline=False,
+        )
+        prefix = (
+            ("version", ["version"]),
+            ("download", ["mod", "download", "-json"]),
+            ("verify", ["mod", "verify"]),
+            ("selected", ["list", "-mod=readonly", "-m", "-json", "all"]),
+            ("graph", ["mod", "graph"]),
+        )
+        exact_data(
+            prefetch["commands"],
+            [
+                {
+                    "name": name,
+                    "argv": command,
+                    "stdout_sha256": sha(data["tool-" + name + ".stdout"]),
+                }
+                for name, command in prefix
+            ],
+        )
+        for row, (name, command) in zip(records[:5], prefix):
+            require(
+                row["argv"] == [str(work / "go/bin/go"), *command]
+                and row["cwd"] == str(work / "source"),
+                "tool_third_prefetch_prefix",
+            )
+            exact_data(row["environment"], online)
+        decode_modules(data["tool-download.stdout"])
+        decode_selected_modules(data["tool-selected.stdout"], root_module="oras.land/oras")
+        require(bool(data["tool-graph.stdout"].strip()), "tool_third_online_graph")
+        frozen = json.loads(data["tool-prefetch-cache-frozen.json"])
+        original_cache = json.loads(data["tool-prefetch-cache-before-freeze.json"])
+        require(
+            type(frozen) is list
+            and type(original_cache) is list
+            and len(frozen) == len(original_cache)
+            and all(type(row.get("mode")) is int and row["mode"] == 0o444 for row in frozen),
+            "tool_third_frozen_cache",
+        )
+        exact_data(
+            [{key: value for key, value in row.items() if key != "mode"} for row in frozen],
+            [{key: value for key, value in row.items() if key != "mode"} for row in original_cache],
+        )
+        exact_data(
+            final["public_modules"],
+            {
+                "files": len(frozen),
+                "inventory_sha256": sha(canonical_data(frozen)),
+                "download_stdout_sha256": sha(data["tool-download.stdout"]),
+            },
+        )
+        exact_data(
+            final["full_modules"],
+            decode_selected_modules(
+                data["tool-modules-native.stdout"], root_module="oras.land/oras"
+            ),
+        )
+        exact_data(final["command_graph"], tool_packages(data["tool-packages-native.stdout"]))
+        require(
+            data["tool-version.stdout"] == data["tool-version-native.stdout"] == GO_VERSION.encode()
+            and data["tool-verify.stdout"]
+            == data["tool-verify-native.stdout"]
+            == b"all modules verified\n",
+            "tool_third_offline_success",
+        )
+        for number in range(1, 64):
+            record = one_object(data[f"GitHub-{number}.json"])
+            argv = record.get("argv")
+            require(
+                type(record.get("exit")) is int
+                and record["exit"] == 0
+                and (
+                    argv == ["/usr/bin/gh", "auth", "status", "--hostname", "github.com"]
+                    if number == 1
+                    else type(argv) is list
+                    and len(argv) == 7
+                    and argv[:6]
+                    == ["/usr/bin/gh", "api", "--hostname", "github.com", "--method", "GET"]
+                    and type(argv[6]) is str
+                    and argv[6].startswith("/repos/" + GHCR_REPOSITORY + "/")
+                )
+                and record.get("stdout_bytes") == len(data[f"GitHub-{number}.stdout"])
+                and record.get("stdout_sha256") == sha(data[f"GitHub-{number}.stdout"])
+                and record.get("stderr_sha256") == sha(data[f"GitHub-{number}.stderr"]),
+                "tool_third_complete_API",
+            )
+        docker_env = {
+            "PATH": "/usr/bin:/bin",
+            "HOME": str(work),
+            "LANG": "C.UTF-8",
+            "DOCKER_CONFIG": str(work / "docker-config"),
+        }
+        commands = (
+            ("version", ["version"]),
+            ("verify", ["mod", "verify"]),
+            ("modules", ["list", "-mod=readonly", "-m", "-json", "all"]),
+            ("graph", ["mod", "graph"]),
+            ("packages", ["list", "-mod=readonly", "-deps", "-json", ORAS_COMMAND]),
+            (
+                "compile",
+                [
+                    "build",
+                    "-mod=readonly",
+                    "-trimpath",
+                    "-buildvcs=false",
+                    "-p=1",
+                    "-ldflags=" + ORAS_METADATA,
+                    "-o",
+                    "/output/oras",
+                    ORAS_COMMAND,
+                ],
+            ),
+            ("buildinfo", ["version", "-m", "/output/oras"]),
+        )
+        names = []
+        for number, (name, command) in enumerate(commands):
+            create_index = 7 + number * 5
+            create = records[create_index]["argv"]
+            container = create[create.index("--name") + 1]
+            owner = create[create.index("--label") + 1].removeprefix(LABEL + "=")
+            expected = {
+                "image": BASE_CONFIG,
+                "owner": owner,
+                "command": command,
+                "mounts": {
+                    "/src": str(work / "source"),
+                    "/usr/local/go": str(work / "go"),
+                    "/modules": str(work / "tool-modules"),
+                },
+            }
+            image = one_object(data["tool-" + name + "-base.stdout"])
+            require(
+                image.get("Id") == BASE_CONFIG
+                and image.get("Os") == "linux"
+                and image.get("Architecture") == "amd64"
+                and BASE in image.get("RepoDigests", [])
+                and not image.get("Config", {}).get("Volumes"),
+                "tool_third_fixed_base",
+            )
+            environment = dict(value.split("=", 1) for value in image["Config"].get("Env", []))
+            environment.update(
+                clean_environment(
+                    GUEST_TMP, GUEST_TMP, GUEST_TMP / "gocache", Path("/modules"), offline=True
+                )
+            )
+            if number >= 5:
+                expected["output"] = str(work / "compiled")
+                environment.update(TMPDIR="/output/tmp", GOCACHE="/output/cache")
+            expected["environment"] = environment
+            require(
+                create[:4] == ["/usr/bin/docker", "--config", str(work / "docker-config"), "create"]
+                and create[-len(command) - 1 :] == [BASE_CONFIG, *command],
+                "tool_third_exact_offline_argv",
+            )
+            for member in (
+                "tool-" + name + "-before.stdout",
+                "tool-" + name + "-terminal.stdout",
+                container + "-cleanup-inspect.stdout",
+            ):
+                values = json.loads(data[member])
+                require(type(values) is list and len(values) == 1, "tool_third_owned_inspect")
+                validate_container(values[0], container, expected)
+                state = values[0]["State"]
+                require(
+                    state.get("Running") is False
+                    and type(state.get("ExitCode")) is int
+                    and state["ExitCode"] == 0
+                    and state.get("OOMKilled") is False,
+                    "tool_third_native_terminal",
+                )
+            require(
+                records[create_index + 2]["argv"]
+                == [
+                    "/usr/bin/docker",
+                    "--config",
+                    str(work / "docker-config"),
+                    "start",
+                    "--attach",
+                    container,
+                ],
+                "tool_third_native_start",
+            )
+            cleanup_index = 44 + number * 4
+            inventory = [
+                "/usr/bin/docker",
+                "--config",
+                str(work / "docker-config"),
+                "ps",
+                "--all",
+                "--format",
+                "{{.Names}}",
+            ]
+            require(
+                records[cleanup_index]["argv"] == inventory
+                and records[cleanup_index + 1]["argv"]
+                == [
+                    "/usr/bin/docker",
+                    "--config",
+                    str(work / "docker-config"),
+                    "inspect",
+                    container,
+                ]
+                and records[cleanup_index + 2]["argv"]
+                == [
+                    "/usr/bin/docker",
+                    "--config",
+                    str(work / "docker-config"),
+                    "rm",
+                    "--force",
+                    container,
+                ]
+                and records[cleanup_index + 3]["argv"] == inventory
+                and container in data[container + "-cleanup-inventory.stdout"].decode().splitlines()
+                and container
+                not in data[container + "-cleanup-absence.stdout"].decode().splitlines(),
+                "tool_third_owned_cleanup",
+            )
+            names.append(container)
+        exact_data(final["cleanup"], [{"name": name, "native_absent": True} for name in names])
+        for row in records[5:]:
+            exact_data(row["environment"], docker_env)
+            require(row["cwd"] == str(work), "tool_third_native_cwd")
+        binary = str(work / "compiled/oras")
+        require(
+            records[41]["argv"] == [binary, "version"]
+            and records[42]["argv"] == [binary, "cp", "--help"]
+            and records[43]["argv"]
+            == [binary, "cp", "--to-oci-layout", BASE, str(work / "vendor") + ":base"],
+            "tool_third_postcompile_phase",
+        )
+        observed[2][
+            "postcompile_disposition"
+        ] = "FAILED/SPENT; actual Tool compiler1, Prom0; no retained binary, native format, scan or qualified output; first rejected stat unknown"
     return {
         "run_id": run_id,
         "head": head,
@@ -4948,7 +5488,7 @@ def manual_hosted_admission(
         "workflow_id": workflow["id"],
         "job": job_name,
         "actual_prior_invocations": observed,
-        "budget": 1 if purpose == "tool" else 2,
+        "budget": 2 if purpose == "pair" or prefetch_predecessor == TOOL_THREE_PREDECESSORS else 1,
     }
 
 
@@ -5948,6 +6488,9 @@ def qualify_tool(
         pack_layout(vendor, evidence / "vendor.oci.tar")
     except BaseException as error:
         report["failure"] = {"class": type(error).__name__, "code": diagnostic_code(error)}
+        rejection = getattr(error, "layout_rejection", None)
+        if rejection is not None:
+            report["failure"]["layout_rejection"] = rejection
         raise
     finally:
         if native.cleanup_deadline is None:
@@ -6404,6 +6947,9 @@ def build_pair(work: Path, root: Path, seconds: int, cleanup: int) -> dict[str, 
         report["status"] = "observed_equal_real_source_pair"
     except BaseException as error:
         report["failure"] = {"class": type(error).__name__, "code": diagnostic_code(error)}
+        rejection = getattr(error, "layout_rejection", None)
+        if rejection is not None:
+            report["failure"]["layout_rejection"] = rejection
         raise
     finally:
         previous_cleanup = [

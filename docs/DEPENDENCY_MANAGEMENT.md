@@ -367,6 +367,12 @@ interpreter.
 
 ### Compile affected profiles through the private proxy
 
+Recipes selecting `runtime`, `docker-runtime`, `ci-lite`, or `aggregate` require
+the [canonical Psycopg C SDK handoff](#psycopg-c-sdk-handoff) below:
+use the matching Linux interpreter, architecture and Python minor, and export
+`PULSEPLATE_PSYCOPG_C_SDK` to the genuine matching SDK directory before compilation.
+Standalone `dev`, `test`, `data`, and `evals` profiles have no such SDK prerequisite.
+
 ```bash
 export PULSEPLATE_PYTHON_INDEX_URL="https://packages.pulseplate.app/root/pulseplate/+simple/"
 
@@ -406,6 +412,10 @@ identity, atomic replacement, verification, and rollback from the canonical
 download or resolver commands directly.
 
 ### Update a specific dependency
+
+Both runtime-containing recipes below require the matching Linux interpreter,
+architecture and Python minor plus `PULSEPLATE_PSYCOPG_C_SDK`, as specified by the
+[canonical Psycopg C SDK handoff](#psycopg-c-sdk-handoff).
 
 ```bash
 # Update only an existing package in each profile that already owns it.
@@ -462,6 +472,8 @@ Its fixed record binds the exact seeded locks and source bytes. It accepts only
 the Psycopg-only replay or the accepted combined Cryptography 50.0.2 intent;
 other package, version, extra, marker and URL transitions fail closed. Dev has
 Cryptography and no Psycopg parent or leaf. Historical records remain unchanged.
+
+#### Psycopg C SDK handoff
 
 This one source exception uses `install_locked_python_requirements.py` as its
 artifact/SDK owner. The original `psycopg_c-3.3.4.tar.gz` is accepted only at its

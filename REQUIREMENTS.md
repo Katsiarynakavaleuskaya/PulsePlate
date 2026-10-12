@@ -86,6 +86,12 @@ security/dependency-submission coverage remains documented.
 Export the approved private proxy and compile only the profiles owned by the
 change:
 
+For `runtime`, `docker-runtime`, `ci-lite`, or `aggregate`, first use the
+[canonical Psycopg C SDK handoff](docs/DEPENDENCY_MANAGEMENT.md#psycopg-c-sdk-handoff).
+Run the recipe with its matching Linux interpreter, architecture and Python
+minor, and export `PULSEPLATE_PSYCOPG_C_SDK` to that genuine SDK directory.
+Standalone `dev`, `test`, `data`, and `evals` compilation does not require this SDK.
+
 ```bash
 export PULSEPLATE_PYTHON_INDEX_URL="https://packages.pulseplate.app/root/pulseplate/+simple/"
 LOCK_PROFILES="ci-lite" \

@@ -129,8 +129,11 @@
   never retry approval. The singleton selector covers only its original history;
   the exact two-history selector also binds the second failed offline-metadata
   phase independently to its own source, raw native records and owned cleanup.
-  Retain both failed/spent jobs and the one-total actual tool compiler cap;
-  neither selector authorizes another hosted operation. Ordinary retained
+  The exact three-history selector separately binds the third postcompile layout
+  failure, its immutable Tool=1 start and original admission cap1. Retain all
+  three failed/spent jobs. The separately adopted one-compile addition permits
+  aggregate Tool1 used/max2/one remaining; no selector grants dispatch authority
+  or another automatic attempt. Ordinary retained
   tool/candidate readers remain success-only. Preserve pre/post prefetch locks,
   modes and source inventories, plus diagnostic errors alongside primary failures;
   missing historical post-state remains unknown. Publish and review the correction

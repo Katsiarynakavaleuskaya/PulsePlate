@@ -145,6 +145,209 @@ def test_finite_vendor_keeps_known_alias_and_never_extracts(
         source.base_graph(layout)
 
 
+@pytest.mark.parametrize("ingest", [False, True])
+def test_finite_oras_readonly_blobs_keep_one_graph_and_canonical_transport(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, ingest: bool
+) -> None:
+    base, layout, _docker, _result = _finite_constructed(tmp_path, monkeypatch)
+    vendor = tmp_path / "vendor"
+    for tree in (vendor, layout):
+        for path in (tree / "blobs/sha256").iterdir():
+            path.chmod(0o444)
+        if ingest:
+            (tree / "ingest").mkdir()
+    source.base_graph(vendor)
+    expected = source.validate_oci_graph(layout, base, synthetic=True)
+    archive = tmp_path / "readonly.oci.tar"
+    source.pack_layout(layout, archive)
+    with tarfile.open(archive) as packed:
+        members = packed.getmembers()
+        assert all(member.isreg() and member.mode == 0o644 for member in members)
+        assert not any(
+            member.name == "ingest" or member.name.startswith("ingest/") for member in members
+        )
+    copied = tmp_path / "unpacked"
+    source.unpack_layout(archive.read_bytes(), copied)
+    source.compare_pair(expected, source.validate_oci_graph(copied, base, synthetic=True))
+
+
+@pytest.mark.parametrize(
+    "fault,diagnostic",
+    [
+        ("metadata", "layout_regular_leaf"),
+        ("unknown", "layout_regular_leaf"),
+        ("hardlink", "layout_regular_leaf"),
+        ("symlink", "layout_regular_leaf"),
+        ("fifo", "layout_regular_leaf"),
+        ("foreign", "layout_owner_count"),
+        ("ingest-file", "layout_closed_inventory"),
+        ("ingest-link", "layout_regular_leaf"),
+        ("ingest-foreign", "layout_owner_count"),
+        ("ingest-child", "layout_closed_inventory"),
+        ("ingest-nested", "layout_closed_inventory"),
+        ("count", "layout_owner_count"),
+    ],
+)
+def test_finite_layout_inventory_rejects_unselected_or_nonempty_ingest(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fault: str, diagnostic: str
+) -> None:
+    import os
+
+    layout = _finite_vendor_input(tmp_path, monkeypatch)
+    expected = {"sha256:" + path.name for path in (layout / "blobs/sha256").iterdir()}
+    leaf = next((layout / "blobs/sha256").iterdir())
+    if fault == "metadata":
+        (layout / "index.json").chmod(0o444)
+    elif fault == "unknown":
+        p = layout / "blobs/sha256" / ("e" * 64)
+        p.write_bytes(b"unknown")
+        p.chmod(0o444)
+    elif fault == "hardlink":
+        os.link(leaf, tmp_path / "second-link")
+    elif fault == "symlink":
+        leaf.unlink()
+        leaf.symlink_to(tmp_path / "not-followed")
+    elif fault == "fifo":
+        leaf.unlink()
+        os.mkfifo(leaf)
+    elif fault == "ingest-file":
+        (layout / "ingest").write_bytes(b"not a directory")
+    elif fault == "ingest-link":
+        (layout / "ingest").symlink_to(tmp_path, target_is_directory=True)
+    elif fault.startswith("ingest"):
+        (layout / "ingest").mkdir()
+        if fault == "ingest-child":
+            (layout / "ingest/item").write_bytes(b"unadmitted")
+        elif fault == "ingest-nested":
+            (layout / "ingest/nested").mkdir()
+    if fault in ("foreign", "ingest-foreign"):
+        target = layout / "ingest" if fault == "ingest-foreign" else leaf
+        original = Path.lstat
+
+        def foreign(path: Path) -> os.stat_result:
+            value = original(path)
+            if path == target:
+                fields = list(value)
+                fields[4] = os.getuid() + 1
+                return os.stat_result(fields)
+            return value
+
+        monkeypatch.setattr(Path, "lstat", foreign)
+    elif fault == "count":
+        for index in range(70):
+            digest = source.sha(str(index).encode())
+            expected.add("sha256:" + digest)
+            (layout / "blobs/sha256" / digest).write_bytes(b"x")
+    with pytest.raises(source.QualificationError, match="^" + diagnostic + "$") as caught:
+        source._layout_inventory(layout, expected)
+    facts = caught.value.layout_rejection
+    assert facts["predicate"] == diagnostic and facts["observation_error"] is None
+    assert len(facts["relative"]) <= 512 and str(tmp_path) not in facts["relative"]
+    assert type(facts["uid"]) is int and type(facts["nlink"]) is int
+    if fault == "metadata":
+        assert facts["mode"] == "0o444" and facts["type"] == "regular"
+
+
+@pytest.mark.parametrize("fault", ["escaped", "lstat", "diagnostic"])
+def test_layout_rejection_retains_bounded_facts_without_replacing_primary(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fault: str
+) -> None:
+    import os
+
+    layout = tmp_path / "layout"
+    layout.mkdir()
+    (layout / "blobs/sha256").mkdir(parents=True)
+    leaf = layout / ("\n\t" + ("\x01" * 120))
+    leaf.write_bytes(b"unselected")
+    leaf.chmod(0o444)
+    if fault == "lstat":
+        original = Path.lstat
+
+        def uncertain(path: Path) -> os.stat_result:
+            if path == leaf:
+                raise PermissionError("synthetic observation uncertainty")
+            return original(path)
+
+        monkeypatch.setattr(Path, "lstat", uncertain)
+    elif fault == "diagnostic":
+        original_dump = source.json.dumps
+
+        def failed_description(value: Any, *args: Any, **kwargs: Any) -> str:
+            if type(value) is str:
+                raise RuntimeError("synthetic optional diagnostic failure")
+            return original_dump(value, *args, **kwargs)
+
+        monkeypatch.setattr(source.json, "dumps", failed_description)
+    exception = PermissionError if fault == "lstat" else source.QualificationError
+    with pytest.raises(exception) as caught:
+        source._layout_inventory(layout, set())
+    facts = caught.value.layout_rejection
+    if fault == "lstat":
+        assert facts["observation_error"] == "PermissionError"
+    elif fault == "diagnostic":
+        assert str(caught.value) == "layout_regular_leaf"
+        assert facts == {"predicate": "layout_regular_leaf", "observation_error": "RuntimeError"}
+    else:
+        assert "\\n" in facts["relative"] and "\\t" in facts["relative"]
+        assert len(facts["relative"]) == 512 and facts["relative_truncated"] is True
+        assert "\n" not in facts["relative"] and "\t" not in facts["relative"]
+
+
+def test_actual_layout_rejection_reaches_tool_report_and_keeps_cleanup_separate(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    tree = _finite_vendor_input(tmp_path, monkeypatch)
+    (tree / "index.json").chmod(0o444)
+    locks = {"go.mod": b"original", "go.sum": b"sums"}
+    monkeypatch.setattr(source, "ORAS_LOCKS", {key: source.sha(raw) for key, raw in locks.items()})
+    monkeypatch.setattr(source, "ORAS_LICENSE", source.sha(b"license"))
+
+    class API:
+        def __init__(self, *args: Any) -> None:
+            pass
+
+        def close(self) -> None:
+            pass
+
+    monkeypatch.setattr(source, "GitHubRead", API)
+    monkeypatch.setattr(
+        source, "manual_hosted_admission", lambda *args, **kwargs: {"head": "synthetic"}
+    )
+    monkeypatch.setattr(source, "authenticate_producer_inputs", lambda *args, **kwargs: None)
+    monkeypatch.setattr(source, "tool_input_projection", lambda root: {"synthetic": True})
+    monkeypatch.setattr(source.shutil, "which", lambda name: "/usr/bin/docker")
+    monkeypatch.setattr(source, "acquire", lambda *args, **kwargs: None)
+
+    def extract(
+        artifact: Any, archive: Path, destination: Path, deadline: float | None
+    ) -> list[dict[str, Any]]:
+        destination.mkdir()
+        if artifact == source.ORAS_SOURCE:
+            for name, raw in {**locks, "LICENSE": b"license"}.items():
+                (destination / name).write_bytes(raw)
+        return []
+
+    monkeypatch.setattr(source, "extract", extract)
+
+    def rejected(*args: Any, **kwargs: Any) -> None:
+        return source._layout_inventory(
+            tree, {"sha256:" + p.name for p in (tree / "blobs/sha256").iterdir()}
+        )
+
+    monkeypatch.setattr(source, "prefetch_modules", rejected)
+    monkeypatch.setattr(
+        source, "cleanup_owned", lambda *args, **kwargs: [{"failure": "synthetic_cleanup"}]
+    )
+    work = tmp_path / "tool"
+    with pytest.raises(source.QualificationError, match="^layout_regular_leaf$"):
+        source.qualify_tool(work, tmp_path, 30, 2)
+    report = source.one_object((work / "evidence/tool.json").read_bytes())
+    assert report["failure"]["code"] == "layout_regular_leaf"
+    assert report["failure"]["layout_rejection"]["relative"] == "index.json"
+    assert report["failure"]["layout_rejection"]["mode"] == "0o444"
+    assert report["cleanup"] == [{"failure": "synthetic_cleanup"}]
+
+
 def test_finite_vendor_recomputes_diffID_instead_of_trusting_config(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -4189,6 +4392,492 @@ def test_tool_prefetch_recovery_requires_both_complete_failed_histories(
             expected_run=38192419687,
             expected_job="prometheus-oras-qualification",
             expected_head="15097adaa871a900370f6c57a512fe862dddb041",
+        )
+
+
+def _three_tool_failure_fixture(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fault: str) -> Any:
+    """Complete synthetic historical data; no executable, API or native operation."""
+    previous = _two_tool_prefetch_recovery_fixture(tmp_path, monkeypatch, "valid")
+    raw_second = previous.raw("/11722041486/zip", maximum=10**7)
+    with zipfile.ZipFile(io.BytesIO(raw_second)) as archive:
+        old = {name: archive.read(name) for name in archive.namelist()}
+    second = source.one_object(old["tool.json"])
+    head = "f632572057453d57975a397a5b2db64894204be0"
+    historical = {
+        key: raw + b" third source"
+        for key, raw in previous.source_files(
+            "15097adaa871a900370f6c57a512fe862dddb041",
+            (*source.PRODUCER_FILES, source.MANIFEST_PATH),
+        ).items()
+    }
+    historical[source.MANIFEST_PATH] = source.canonical_data(
+        {"schema": source.IMAGE_SCHEMA, "inputs": second["input_projection"]["inputs"]}
+    )
+    projection = {
+        "inputs": second["input_projection"]["inputs"],
+        "raw_producer": {
+            key: {"bytes": len(historical[key]), "sha256": source.sha(historical[key])}
+            for key in source.PRODUCER_FILES
+        },
+    }
+    digest = "sha256:" + source.sha(source.canonical_data(projection))
+    monkeypatch.setattr(source, "TOOL_THIRD_INPUT_DIGEST", digest)
+    members = json.loads(old["oras-source-members.json"])
+    files = {
+        "oras-source-members.json": old["oras-source-members.json"],
+        "go-members.json": source.canonical_data(
+            [{"path": "bin/go", "git_mode": "100755", "size": 1, "sha256": "c" * 64}]
+        ),
+        "tool-prefetch-predecessor.zip": old["tool-prefetch-predecessor.zip"],
+        "tool-prefetch-second-predecessor.zip": raw_second,
+    }
+    for number in range(1, 64):
+        for suffix in ("json", "stdout", "stderr"):
+            files[f"GitHub-{number}.{suffix}"] = old[f"GitHub-{min(number,49)}.{suffix}"]
+    before = {
+        "locks": source.one_object(old["tool-prefetch.json"])["before"]["locks"],
+        "source_inventory": [
+            {"path": row["path"], "size": row["size"], "sha256": row["sha256"], "mode": 0o644}
+            for row in members
+        ],
+        "Go_binary_sha256": "c" * 64,
+    }
+    prefix = (
+        ("version", ["version"]),
+        ("download", ["mod", "download", "-json"]),
+        ("verify", ["mod", "verify"]),
+        ("selected", ["list", "-mod=readonly", "-m", "-json", "all"]),
+        ("graph", ["mod", "graph"]),
+    )
+    phases = (
+        "before",
+        "after",
+        *(name + "-" + phase for name, _ in prefix for phase in ("before", "after")),
+    )
+    prefetch = {phase: copy.deepcopy(before) for phase in phases}
+    prefetch.update(failure=None, snapshot_errors=[], commands=[])
+    for phase in phases:
+        for lock in source.ORAS_LOCKS:
+            files["tool-prefetch-" + phase + "-" + lock] = old["tool-prefetch-before-" + lock]
+    work = Path("/home/runner/work/_temp/prometheus-oras-38239428418-1")
+    online = source.clean_environment(
+        work / "tool-home",
+        work / "tool-tmp",
+        work / "tool-cache",
+        work / "tool-modules",
+        offline=False,
+    )
+    host = {
+        "PATH": "/usr/bin:/bin",
+        "HOME": str(work),
+        "LANG": "C.UTF-8",
+        "DOCKER_CONFIG": str(work / "docker-config"),
+    }
+    docker = ["/usr/bin/docker", "--config", str(work / "docker-config")]
+    records: list[dict[str, Any]] = []
+
+    def native(name: str, argv: list[str], raw: bytes = b"", *, go: bool = False) -> None:
+        row: dict[str, Any] = {
+            "argv": argv,
+            "cwd": str(work / "source" if go else work),
+            "environment": online if go else host,
+            "exit": 0,
+            "failure": None,
+        }
+        for suffix, value in (("stdout", raw), ("stderr", b"")):
+            key = name + "." + suffix
+            files[key] = value
+            row[suffix], row[suffix + "_sha256"] = str(work / "evidence" / key), source.sha(value)
+        records.append(row)
+
+    selected = source.canonical_data({"Path": "oras.land/oras", "Main": True})
+    package = source.canonical_data(
+        {"ImportPath": source.ORAS_COMMAND, "Name": "main", "Imports": []}
+    )
+    graph = b"oras.land/oras example.invalid/synthetic@v1.0.0\n"
+    online_outputs = (
+        source.GO_VERSION.encode(),
+        old["tool-download.stdout"],
+        b"all modules verified\n",
+        selected,
+        graph,
+    )
+    for (name, command), raw in zip(prefix, online_outputs):
+        native("tool-" + name, [str(work / "go/bin/go"), *command], raw, go=True)
+        prefetch["commands"].append(
+            {"name": name, "argv": command, "stdout_sha256": source.sha(raw)}
+        )
+    files["tool-prefetch.json"] = source.canonical_data(prefetch)
+    cache = [{"path": "cache.mod", "mode": 0o644, "size": 1, "sha256": "d" * 64}]
+    frozen = [dict(cache[0], mode=0o444)]
+    files["tool-prefetch-cache-before-freeze.json"] = source.canonical_data(cache)
+    files["tool-prefetch-cache-frozen.json"] = source.canonical_data(frozen)
+    native("tool-base-pull", [*docker, "pull", "--platform", "linux/amd64", source.BASE])
+    commands = (
+        ("version", ["version"], source.GO_VERSION.encode()),
+        ("verify", ["mod", "verify"], b"all modules verified\n"),
+        ("modules", ["list", "-mod=readonly", "-m", "-json", "all"], selected),
+        ("graph", ["mod", "graph"], graph),
+        ("packages", ["list", "-mod=readonly", "-deps", "-json", source.ORAS_COMMAND], package),
+        (
+            "compile",
+            [
+                "build",
+                "-mod=readonly",
+                "-trimpath",
+                "-buildvcs=false",
+                "-p=1",
+                "-ldflags=" + source.ORAS_METADATA,
+                "-o",
+                "/output/oras",
+                source.ORAS_COMMAND,
+            ],
+            b"",
+        ),
+        ("buildinfo", ["version", "-m", "/output/oras"], b"go1.27.2 synthetic buildinfo"),
+    )
+    containers = []
+    for number, (name, command, raw) in enumerate(commands):
+        container, owner = "synthetic-third-" + name, "synthetic-owner-" + name
+        image = {
+            "Id": source.BASE_CONFIG,
+            "Os": "linux",
+            "Architecture": "amd64",
+            "RepoDigests": [source.BASE],
+            "Config": {"Env": []},
+        }
+        native(
+            "tool-" + name + "-base",
+            [*docker, "image", "inspect", source.BASE],
+            source.canonical_data(image),
+        )
+        create = [
+            *docker,
+            "create",
+            "--name",
+            container,
+            "--label",
+            source.LABEL + "=" + owner,
+            source.BASE_CONFIG,
+            *command,
+        ]
+        native("tool-" + name + "-create", create, container.encode())
+        environment = source.clean_environment(
+            source.GUEST_TMP,
+            source.GUEST_TMP,
+            source.GUEST_TMP / "gocache",
+            Path("/modules"),
+            offline=True,
+        )
+        mounts = [
+            {"Type": "bind", "RW": False, "Destination": guest, "Source": str(work / local)}
+            for guest, local in (
+                ("/src", "source"),
+                ("/usr/local/go", "go"),
+                ("/modules", "tool-modules"),
+            )
+        ]
+        if number >= 5:
+            environment.update(TMPDIR="/output/tmp", GOCACHE="/output/cache")
+            mounts.append(
+                {
+                    "Type": "bind",
+                    "RW": True,
+                    "Destination": "/output",
+                    "Source": str(work / "compiled"),
+                }
+            )
+        value = {
+            "Name": "/" + container,
+            "Image": source.BASE_CONFIG,
+            "Config": {
+                "Labels": {source.LABEL: owner},
+                "User": "65532:65532",
+                "WorkingDir": "/src",
+                "Entrypoint": ["/usr/local/go/bin/go"],
+                "Cmd": command,
+                "Env": [key + "=" + val for key, val in environment.items()],
+            },
+            "HostConfig": {
+                "NetworkMode": "none",
+                "ReadonlyRootfs": True,
+                "Privileged": False,
+                "NanoCpus": 2000000000,
+                "Memory": 4294967296,
+                "PidsLimit": 128,
+                "CapDrop": ["ALL"],
+                "SecurityOpt": ["no-new-privileges"],
+                "Tmpfs": {str(source.GUEST_TMP): source.GUEST_TMPFS},
+            },
+            "Mounts": mounts,
+            "State": {"Running": False, "ExitCode": 0, "OOMKilled": False},
+        }
+        native(
+            "tool-" + name + "-before",
+            [*docker, "inspect", container],
+            source.canonical_data([value]),
+        )
+        native("tool-" + name + "-native", [*docker, "start", "--attach", container], raw)
+        native(
+            "tool-" + name + "-terminal",
+            [*docker, "inspect", container],
+            source.canonical_data([value]),
+        )
+        containers.append((container, value))
+    binary = str(work / "compiled/oras")
+    native("ORAS-version", [binary, "version"], b"synthetic rebuilt ORAS1.3.4")
+    native("ORAS-help", [binary, "cp", "--help"], b"synthetic help")
+    native(
+        "ORAS-authenticated-base",
+        [binary, "cp", "--to-oci-layout", source.BASE, str(work / "vendor") + ":base"],
+    )
+    for container, value in containers:
+        argv = [*docker, "ps", "--all", "--format", "{{.Names}}"]
+        native(container + "-cleanup-inventory", argv, container.encode())
+        native(
+            container + "-cleanup-inspect",
+            [*docker, "inspect", container],
+            source.canonical_data([value]),
+        )
+        native(
+            container + "-cleanup-remove", [*docker, "rm", "--force", container], container.encode()
+        )
+        native(container + "-cleanup-absence", argv)
+    assert len(records) == 72
+    monkeypatch.setattr(
+        source, "TOOL_THIRD_NATIVE_DIGEST", source.sha(source.canonical_data(records))
+    )
+    first_prior = copy.deepcopy(second["admission"]["actual_prior_invocations"])
+    first_prior.append(
+        {
+            "run_id": 38192419687,
+            "job_id": 114627819440,
+            "status": "completed",
+            "conclusion": "failure",
+            "precompile_disposition": "selected_known_offline_metadata_failure; FAILED/SPENT; no compiler or qualified output",
+        }
+    )
+    start = {
+        key: copy.deepcopy(second[key])
+        for key in ("identity", "source_revision", "source_tree", "original_locks")
+    }
+    start.update(
+        admission={
+            "run_id": 38239428418,
+            "head": head,
+            "ref": "refs/heads/codex/dependency-native-runtime-remediation",
+            "workflow_id": 199904435,
+            "job": "prometheus-oras-qualification",
+            "actual_prior_invocations": first_prior,
+            "budget": 1,
+        },
+        input_projection=projection,
+        input_digest=digest,
+        tool_compile_invocations=1,
+        Prometheus_compile_invocations=0,
+        failure=None,
+        public_modules={
+            "files": 1,
+            "inventory_sha256": source.sha(source.canonical_data(frozen)),
+            "download_stdout_sha256": source.sha(old["tool-download.stdout"]),
+        },
+        full_modules={"oras.land/oras": {"Path": "oras.land/oras", "Main": True}},
+        command_graph={
+            "command": source.ORAS_COMMAND,
+            "packages": 1,
+            "package_paths": [source.ORAS_COMMAND],
+            "SSH_OpenPGP_paths": [],
+            "scope": "exact Linux amd64 CGO0 command graph",
+        },
+    )
+    final = copy.deepcopy(start)
+    final.update(
+        failure={"class": "QualificationError", "code": "layout_regular_leaf"},
+        binary=source.TOOL_THIRD_BINARY_OBSERVATION,
+        cleanup=[{"name": name, "native_absent": True} for name, _ in containers],
+        native_commands=records,
+    )
+    if fault == "false-counter":
+        final["tool_compile_invocations"] = False
+    elif fault == "zero-counter":
+        final["tool_compile_invocations"] = 0
+    elif fault == "start-zero":
+        start["tool_compile_invocations"] = 0
+    elif fault == "historical-budget":
+        final["admission"]["budget"] = 2
+    elif fault == "phase":
+        final["failure"]["code"] = "native_failed"
+    elif fault == "native-status":
+        records[34]["exit"] = False
+    elif fault == "native-argv":
+        records[34]["argv"].append("unexpected")
+    elif fault == "native-output":
+        files["tool-compile-native.stdout"] = b"changed"
+    elif fault == "missing-output":
+        del files["tool-compile-native.stderr"]
+    elif fault == "cleanup":
+        final["cleanup"][0]["native_absent"] = False
+    elif fault == "source":
+        historical[source.PRODUCER_FILES[0]] += b"changed"
+    elif fault == "extra-binary":
+        files["oras"] = b"not a retained executable"
+    elif fault == "Go":
+        changed = copy.deepcopy(prefetch)
+        for phase in phases:
+            changed[phase]["Go_binary_sha256"] = "e" * 64
+        files["tool-prefetch.json"] = source.canonical_data(changed)
+    files["tool.json"] = source.canonical_data(final)
+    if fault != "missing-start":
+        files["invocation-start.json"] = source.canonical_data(start)
+    stream = io.BytesIO()
+    with zipfile.ZipFile(stream, "w") as archive:
+        for name, raw in files.items():
+            archive.writestr(name, raw)
+    raw_archive = stream.getvalue()
+    monkeypatch.setattr(
+        source, "TOOL_THIRD_ARCHIVE", {"bytes": len(raw_archive), "sha256": source.sha(raw_archive)}
+    )
+    run = dict(previous.json("/actions/runs/38192419687"), id=38239428418, head_sha=head)
+    job = {
+        "id": 114778090287,
+        "name": "prometheus-oras-qualification",
+        "run_id": run["id"],
+        "head_sha": head,
+        "status": "completed",
+        "conclusion": "failure",
+    }
+    artifact = {
+        "id": 11742856046,
+        "expired": False,
+        "size_in_bytes": len(raw_archive),
+        "expires_at": "2099-01-01T00:00:00Z",
+        "name": "prometheus-oras-38239428418-1",
+        "digest": "sha256:" + source.sha(raw_archive),
+        "workflow_run": {
+            "id": run["id"],
+            "repository_id": 1043311030,
+            "head_repository_id": 1043311030,
+            "head_sha": head,
+        },
+    }
+    if fault == "attempt":
+        run["run_attempt"] = 2
+    if fault == "pending":
+        job["status"] = "in_progress"
+
+    class API:
+        evidence = tmp_path
+
+        def json(self, endpoint: str) -> dict[str, Any]:
+            if endpoint.endswith("/actions/artifacts/11742856046"):
+                return copy.deepcopy(artifact)
+            if endpoint.endswith("/actions/runs/38239428418"):
+                return copy.deepcopy(run)
+            if "workflows/build.yml/runs" in endpoint:
+                return {"total_count": 5 if fault == "fourth-history" else 4}
+            return previous.json(endpoint)
+
+        def pages(self, endpoint: str, field: str, count: int) -> list[dict[str, Any]]:
+            if fault == "history-unknown":
+                raise source.QualificationError("synthetic_complete_history_unavailable")
+            if "workflows/build.yml/runs" in endpoint:
+                rows = [
+                    previous.json("/actions/runs/999"),
+                    copy.deepcopy(run),
+                    previous.json("/actions/runs/38192419687"),
+                    previous.json("/actions/runs/38170923494"),
+                ]
+                if fault == "fourth-history":
+                    rows.append(dict(run, id=38239428419))
+                return rows
+            if "/runs/38239428418/" in endpoint or "/runs/38239428419/" in endpoint:
+                return [copy.deepcopy(job)]
+            return previous.pages(endpoint, field, count)
+
+        def raw(self, endpoint: str, *, maximum: int) -> bytes:
+            return (
+                raw_archive
+                if endpoint.endswith("/11742856046/zip")
+                else previous.raw(endpoint, maximum=maximum)
+            )
+
+        def source_files(self, revision: str, paths: tuple[str, ...]) -> dict[str, bytes]:
+            return historical if revision == head else previous.source_files(revision, paths)
+
+    return API()
+
+
+@pytest.mark.parametrize(
+    "fault,diagnostic",
+    [
+        ("valid", None),
+        ("false-counter", "tool_third_actual_compiler_consumed"),
+        ("zero-counter", "tool_third_actual_compiler_consumed"),
+        ("start-zero", "tool_third_actual_compiler_consumed"),
+        ("historical-budget", "declared_data_value"),
+        ("phase", "declared_data_value"),
+        ("missing-start", "tool_third_report_keys"),
+        ("native-status", "tool_third_native_status"),
+        ("native-argv", "tool_third_native_records"),
+        ("native-output", "tool_third_native_output_binding"),
+        ("missing-output", "tool_third_native_output_binding"),
+        ("cleanup", "declared_data_value"),
+        ("source", "declared_data_value"),
+        ("extra-binary", "tool_third_complete_failed_inventory"),
+        ("Go", "tool_third_qualified_Go_identity"),
+        ("attempt", "artifact_completed_workflow"),
+        ("pending", "tool_complete_three_history"),
+        ("fourth-history", "tool_complete_three_history"),
+        ("history-unknown", "synthetic_complete_history_unavailable"),
+    ],
+)
+def test_exact_third_postcompile_history_preserves_consumption_and_failed_status(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fault: str, diagnostic: str | None
+) -> None:
+    api = _three_tool_failure_fixture(tmp_path, monkeypatch, fault)
+    if diagnostic:
+        with pytest.raises(source.QualificationError, match="^" + diagnostic + "$"):
+            source.manual_hosted_admission(
+                api, "tool", prefetch_predecessor=source.TOOL_THREE_PREDECESSORS
+            )
+        return
+    result = source.manual_hosted_admission(
+        api, "tool", prefetch_predecessor=source.TOOL_THREE_PREDECESSORS
+    )
+    assert result["budget"] == 2 and len(result["actual_prior_invocations"]) == 3
+    assert all(row["conclusion"] == "failure" for row in result["actual_prior_invocations"])
+    assert (
+        "actual Tool compiler1" in result["actual_prior_invocations"][2]["postcompile_disposition"]
+    )
+    for selector, expected in (
+        (None, "nonrenewable_hosted_invocation_budget_spent_or_unknown"),
+        (source.TOOL_PREFETCH_PREDECESSOR, "tool_prefetch_complete_singleton_history"),
+        (source.TOOL_PREFETCH_TWO_PREDECESSORS, "tool_prefetch_complete_two_history"),
+    ):
+        with pytest.raises(source.QualificationError, match="^" + expected + "$"):
+            source.manual_hosted_admission(api, "tool", prefetch_predecessor=selector)
+    with pytest.raises(source.QualificationError, match="^artifact_completed_workflow$"):
+        source.authenticated_artifact(
+            api,
+            11742856046,
+            tmp_path / "no-qualified.zip",
+            expected_run=38239428418,
+            expected_job="prometheus-oras-qualification",
+            expected_head="f632572057453d57975a397a5b2db64894204be0",
+        )
+    with pytest.raises(source.QualificationError, match="^artifact_closed_purpose$"):
+        source.authenticated_artifact(
+            api,
+            11742856046,
+            tmp_path / "no-precompile.zip",
+            expected_run=38239428418,
+            expected_job="prometheus-oras-qualification",
+            expected_head="f632572057453d57975a397a5b2db64894204be0",
+            purpose="tool_prefetch_precompile_failure",
+        )
+    with pytest.raises(source.QualificationError, match="^tool_prefetch_explicit_predecessor$"):
+        source.manual_hosted_admission(
+            api, "pair", prefetch_predecessor=source.TOOL_THREE_PREDECESSORS
         )
 
 

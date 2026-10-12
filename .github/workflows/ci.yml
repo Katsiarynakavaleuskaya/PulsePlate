@@ -1428,7 +1428,7 @@ jobs:
             COVERAGE_FILE="$coverage_path" COV_CORE_DATAFILE="$coverage_path" \
               TEST_DB_PATH="$database_path" DATABASE_URL="sqlite:///$database_path" \
               DB_FALLBACK_URL="sqlite:///$database_path" \
-              python -m coverage run --append -m pytest -q --capture=tee-sys --verbosity=1 \
+              python -m coverage run --append -m pytest -q --capture=no --verbosity=1 \
               -p no:xdist \
               "${batch_targets[@]}" \
               --junitxml="${junit_path}" \

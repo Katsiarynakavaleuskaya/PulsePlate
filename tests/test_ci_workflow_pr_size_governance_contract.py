@@ -4698,7 +4698,7 @@ def test_closeout_owner_is_an_executed_merge_governance_argument(
         "-m",
         "pytest",
         "-q",
-        *(["--capture=tee-sys", "--verbosity=1"] if job_id == "test-pr" else []),
+        *(["--capture=no", "--verbosity=1"] if job_id == "test-pr" else []),
         "-p",
         "no:xdist",
         *sorted(expected),
@@ -4984,7 +4984,7 @@ raise SystemExit(status)
             "-m",
             "pytest",
             "-q",
-            *(["--capture=tee-sys", "--verbosity=1"] if job_id == "test-pr" else []),
+            *(["--capture=no", "--verbosity=1"] if job_id == "test-pr" else []),
             "-p",
             "no:xdist",
         ]
@@ -5031,6 +5031,99 @@ raise SystemExit(status)
         ]
 
 
+def test_test_pr_contract_capture_supports_real_ci_root_conftest(tmp_path: Path) -> None:
+    """The real CI/root-conftest boundary must precede claims about test transport."""
+    import sys
+    import xml.etree.ElementTree as ET
+
+    workflow = _load_ci_workflow()
+    step = _job_step_by_name(workflow, job_id="test-pr", step_name="Contract and risk suites")
+    assert "pytest -q --capture=no --verbosity=1" in str(step["run"])
+    node = "test_contract_risk_suites_use_bounded_coverage_batches"
+    target = "tests/test_ci_workflow_pr_size_governance_contract.py::" + node
+    observations = []
+    for capture, expected_exit in (("tee-sys", 4), ("no", 0)):
+        profile = tmp_path / capture
+        profile.mkdir()
+        for name in ("home", "tmp"):
+            (profile / name).mkdir()
+        database = profile / "batch.sqlite"
+        coverage = profile / ".coverage"
+        junit = profile / "result.xml"
+        command = [
+            sys.executable,
+            "-m",
+            "coverage",
+            "run",
+            "--append",
+            "-m",
+            "pytest",
+            "-q",
+            "--capture=" + capture,
+            "--verbosity=1",
+            "-p",
+            "no:xdist",
+            target,
+            "--junitxml=" + str(junit),
+            "--basetemp=" + str(profile / "pytest"),
+            "-o",
+            "junit_family=legacy",
+        ]
+        # A complete allowlist supplies synthetic CI/DB state, never host credentials.
+        environment = {
+            "PATH": os.defpath,
+            "HOME": str(profile / "home"),
+            "LANG": "C.UTF-8",
+            "CI": "true",
+            "TESTING": "true",
+            "APP_ENV": "test",
+            "ENVIRONMENT": "test",
+            "PYTHONUNBUFFERED": "1",
+            "PYTEST_FAULTHANDLER_TIMEOUT_S": "600",
+            "COVERAGE_FILE": str(coverage),
+            "COV_CORE_DATAFILE": str(coverage),
+            "TEST_DB_PATH": str(database),
+            "DATABASE_URL": "sqlite:///" + str(database),
+            "DB_FALLBACK_URL": "sqlite:///" + str(database),
+            "TMPDIR": str(profile / "tmp"),
+        }
+        result = subprocess.run(
+            command,
+            cwd=REPO_ROOT,
+            env=environment,
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+        )
+        for suffix, raw in (("stdout", result.stdout), ("stderr", result.stderr)):
+            path = tmp_path / f"ci-capture-{capture}.{suffix}.log"
+            path.write_text(raw)
+            path.chmod(0o600)
+        observations.append(
+            {
+                "capture": capture,
+                "argv": command,
+                "CI": environment["CI"],
+                "native_exit": result.returncode,
+            }
+        )
+        (tmp_path / "ci-capture-observed.json").write_text(json.dumps(observations))
+        assert result.returncode == expected_exit, result.stderr
+        if capture == "tee-sys":
+            assert "conftest.py:" in result.stderr
+            assert "faulthandler.enable()" in result.stderr
+            assert "io.UnsupportedOperation: fileno" in result.stderr
+            assert node + " PASSED" not in result.stdout and not junit.exists()
+        else:
+            assert node + " PASSED" in result.stdout
+            assert "UnsupportedOperation" not in result.stderr
+            assert coverage.is_file()
+            cases = list(ET.parse(junit).getroot().iter("testcase"))
+            assert len(cases) == 1 and cases[0].get("name") == node
+            assert cases[0].find("failure") is None and cases[0].find("error") is None
+
+
 def test_test_pr_contract_139_retains_real_pytest_and_native_stderr_transport(
     tmp_path: Path,
 ) -> None:
@@ -5058,7 +5151,7 @@ def test_test_pr_contract_139_retains_real_pytest_and_native_stderr_transport(
         "if args[:5] == ['-W', 'error', '-m', 'coverage', 'combine']:\n"
         "    Path('unexpected-combine').touch()\n    raise SystemExit(0)\n"
         "assert args[:11] == ['-m', 'coverage', 'run', '--append', '-m', 'pytest', '-q', "
-        "'--capture=tee-sys', '--verbosity=1', '-p', 'no:xdist']\n"
+        "'--capture=no', '--verbosity=1', '-p', 'no:xdist']\n"
         "tail = [arg for arg in args[11:] if not arg.startswith('tests/')]\n"
         "# Execute only the tiny transport fixture, never the selected application suites.\n"
         f"command = [sys.executable, '-m', 'pytest', '-c', '/dev/null', '--rootdir', {str(tmp_path)!r}, "
@@ -5185,11 +5278,12 @@ def test_contract_risk_suites_use_bounded_coverage_batches() -> None:
         assert "for ((batch_start=0;" in run_script
         assert "batch_targets=(" in run_script
         assert "python -m coverage run --append -m pytest -q" in run_script
+        assert "--capture=tee-sys" not in run_script
         if job_id == "test-pr":
-            assert "pytest -q --capture=tee-sys --verbosity=1" in run_script
+            assert "pytest -q --capture=no --verbosity=1" in run_script
             assert '>"$stdout_path" 2>"$stderr_path" &' in run_script
         else:
-            assert "--capture=tee-sys" not in run_script and "--verbosity=1" not in run_script
+            assert "--capture=no" not in run_script and "--verbosity=1" not in run_script
             assert "stdout_path=" not in run_script and "stderr_path=" not in run_script
         assert "-p no:xdist" in run_script
         assert '"${batch_targets[@]}"' in run_script
