@@ -3438,6 +3438,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         analyze_function_bodies: bool = True,
         ownership_family: Literal["api_key", "openapi"] = "api_key",
         purpose: Literal["ordinary", "ownership_audit"] = "ordinary",
+        expression_snapshots_only: bool = False,
     ) -> None:
         if ownership_family not in {"api_key", "openapi"}:
             raise ValueError("unsupported ownership symbol family")
@@ -3446,6 +3447,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         self.filename = filename
         self.ownership_family = ownership_family
         self._analysis_purpose = purpose
+        self._expression_snapshots_only = expression_snapshots_only
         self.errors = errors
         self.reference_snapshots = reference_snapshots
         self.string_snapshots = string_snapshots
@@ -3615,6 +3617,10 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         )
 
     def _record_snapshot(self, node: ast.AST) -> None:
+        # The API ownership consumer reads only expression-owned environments.
+        # Other collectors retain their full statement/import snapshot contract.
+        if self._expression_snapshots_only and not isinstance(node, ast.expr):
+            return
         node_id = id(node)
         current_references = self.scope.visible_references()
         current_strings = self.scope.visible_strings()
@@ -5810,6 +5816,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             analyze_function_bodies=analyze_function_bodies,
             ownership_family=self.ownership_family,
             purpose=self._analysis_purpose,
+            expression_snapshots_only=self._expression_snapshots_only,
         )
         # A short-lived graph-copy memo preserves genuine owner relationships only.
         # It is not an evaluation/result cache and is discarded after detachment.
@@ -9245,9 +9252,50 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             and not node.keywords
             and not unresolved_positional_sources
         )
+        preserving_callback_wrapper = (
+            not node.keywords
+            and not unresolved_positional_sources
+            and (
+                wrapper_reference == "builtins.iter"
+                and len(positional_arguments) == 1
+                or wrapper_reference == "itertools.islice"
+                and 2 <= len(positional_arguments) <= 4
+            )
+        )
+        wrapper_consumption_empty = False
+        if preserving_callback_wrapper and wrapper_reference == "itertools.islice":
+            bounds = [_literal_value(argument) for argument in positional_arguments[1:]]
+            invalid_bounds = (
+                any(
+                    value is not _UNRESOLVED_LITERAL_VALUE
+                    and value is not None
+                    and (not isinstance(value, int) or value < 0)
+                    for value in bounds
+                )
+                or len(bounds) == 3
+                and isinstance(bounds[2], int)
+                and bounds[2] <= 0
+            )
+            preserving_callback_wrapper = not invalid_bounds
+            start = 0 if len(bounds) == 1 else bounds[0]
+            stop = bounds[0] if len(bounds) == 1 else bounds[1]
+            wrapper_consumption_empty = stop == 0 and (start is None or start == 0)
+        flattening_callback_wrapper = (
+            wrapper_reference in _ITERABLE_FLATTENING_REFERENCES
+            and not node.keywords
+            and not unresolved_positional_sources
+            and len(positional_arguments) == 1
+            and isinstance(positional_arguments[0], (ast.List, ast.Tuple))
+            and not any(isinstance(value, ast.Starred) for value in positional_arguments[0].elts)
+        )
         collects_zip_callbacks = (
             (
-                (wrapper_reference in _ZIPPING_ITERABLE_BUILTIN_REFERENCES or chain_candidate)
+                (
+                    wrapper_reference in _ZIPPING_ITERABLE_BUILTIN_REFERENCES
+                    or chain_candidate
+                    or preserving_callback_wrapper
+                    or flattening_callback_wrapper
+                )
                 and (id(node) in self._iterated_call_ids or iterable_callback_inputs is not None)
                 or consumes_dict_iterable
             )
@@ -9255,6 +9303,8 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             and (
                 consumes_dict_iterable
                 or chain_candidate
+                or preserving_callback_wrapper
+                or flattening_callback_wrapper
                 or not any(isinstance(argument, ast.Starred) for argument in node.args)
             )
         )
@@ -9287,6 +9337,16 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         captured_callback_arguments: list[_ResolvedBinding] = []
         captured_starmap_rows: list[list[_ResolvedBinding] | None] = []
         captured_callback_empty = False
+        reduce_candidate = (
+            wrapper_reference == "functools.reduce"
+            and len(positional_arguments) in {2, 3}
+            and not unresolved_positional_sources
+            and not node.keywords
+            and isinstance(positional_arguments[1], (ast.List, ast.Tuple))
+            and not any(isinstance(value, ast.Starred) for value in positional_arguments[1].elts)
+        )
+        captured_reduce_items: list[_ResolvedBinding] = []
+        captured_reduce_initializer: _ResolvedBinding | None = None
         captured_dict_operand: _ResolvedBinding | None = None
         captured_dict_pair_entries: list[_StaticMappingEntry] | None = None
         captured_dict_keyword_entries: list[_StaticMappingEntry] = []
@@ -9675,6 +9735,39 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                         )
                         is not None
                     )
+            elif reduce_candidate:
+                self.visit(node.func)
+                for argument_index, argument in enumerate(positional_arguments):
+                    if argument_index == 1 and isinstance(argument, (ast.List, ast.Tuple)):
+                        if (
+                            self.reference_snapshots is not None
+                            or self.string_snapshots is not None
+                        ):
+                            self._record_snapshot(argument)
+                        outer_exception_state = bool(self._exception_scope_collectors)
+                        if outer_exception_state:
+                            self._record_exception_scope()
+                        for item in argument.elts:
+                            self.visit(item)
+                            captured_reduce_items.append(self._capture_argument_binding(item))
+                            self._invalidate_mapping_aliases(item)
+                        self.visit(argument.ctx)
+                        if outer_exception_state:
+                            self._record_exception_scope()
+                        continue
+                    self.visit(argument)
+                    if argument_index == 0:
+                        captured_callback_templates = frozenset(
+                            call
+                            for call in self._resolve_deferred_calls(argument)
+                            if call.partial_template and call.function is not None
+                        )
+                        captured_callback_targets = self._resolve_callables(argument) - {
+                            template.function for template in captured_callback_templates
+                        }
+                        captured_callback_scope = self.scope.detached_clone()
+                    else:
+                        captured_reduce_initializer = self._capture_argument_binding(argument)
             elif partial_constructor_candidate or builtin_partial_invocation:
                 self.visit(node.func)
                 if builtin_partial_invocation:
@@ -9715,20 +9808,119 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 self.visit(node.func)
                 exhausted_prefix = False
                 for argument in (
-                    lookup_arguments if dict_constructor_candidate or chain_candidate else node.args
+                    lookup_arguments
+                    if dict_constructor_candidate
+                    or chain_candidate
+                    or preserving_callback_wrapper
+                    or flattening_callback_wrapper
+                    else node.args
                 ):
+                    if flattening_callback_wrapper and isinstance(argument, (ast.List, ast.Tuple)):
+                        if (
+                            self.reference_snapshots is not None
+                            or self.string_snapshots is not None
+                        ):
+                            self._record_snapshot(argument)
+                        outer_exception_state = bool(self._exception_scope_collectors)
+                        if outer_exception_state:
+                            self._record_exception_scope()
+                        for inner in argument.elts:
+                            if (
+                                isinstance(inner, ast.Call)
+                                and self._resolve_reference(inner.func)
+                                in {
+                                    "builtins.zip",
+                                    "builtins.map",
+                                    "builtins.filter",
+                                    "itertools.starmap",
+                                    "builtins.iter",
+                                    "itertools.islice",
+                                }
+                                | _ITERABLE_CONCATENATING_REFERENCES
+                                | _ITERABLE_FLATTENING_REFERENCES
+                            ):
+                                self.visit(inner, iterable_callback_inputs=zip_callback_inputs)
+                            else:
+                                self.visit(inner)
+                            chain_operand_bindings.append(self._capture_argument_binding(inner))
+                            inner_deferred = chain_operand_bindings[-1].deferred_calls
+                            if len(inner_deferred) == 1:
+                                deferred_input = next(iter(inner_deferred))
+                                if (
+                                    deferred_input.function is not None
+                                    and not deferred_input.partial_template
+                                    and (
+                                        _function_is_generator(deferred_input.function)
+                                        or self._deferred_generator_expression_for(
+                                            deferred_input.function
+                                        )
+                                        is not None
+                                    )
+                                ):
+                                    zip_callback_inputs.append(
+                                        (
+                                            node,
+                                            "deferred-iterate",
+                                            deferred_input.function,
+                                            dict(deferred_input.arguments),
+                                        )
+                                    )
+                            self._invalidate_mapping_aliases(inner)
+                            zip_callback_end_indices.append(len(zip_callback_inputs))
+                        self.visit(argument.ctx)
+                        if outer_exception_state:
+                            self._record_exception_scope()
+                        continue
                     if (
                         not exhausted_prefix
+                        and not (
+                            preserving_callback_wrapper
+                            and (argument is not lookup_arguments[0] or wrapper_consumption_empty)
+                        )
                         and isinstance(argument, ast.Call)
                         and self._resolve_reference(argument.func)
-                        in {"builtins.zip", "builtins.map", "builtins.filter", "itertools.starmap"}
+                        in {
+                            "builtins.zip",
+                            "builtins.map",
+                            "builtins.filter",
+                            "itertools.starmap",
+                            "builtins.iter",
+                            "itertools.islice",
+                        }
                         | _ITERABLE_CONCATENATING_REFERENCES
+                        | _ITERABLE_FLATTENING_REFERENCES
                     ):
                         self.visit(argument, iterable_callback_inputs=zip_callback_inputs)
                     else:
                         self.visit(argument)
-                    if chain_candidate:
+                    if chain_candidate or preserving_callback_wrapper:
                         chain_operand_bindings.append(self._capture_argument_binding(argument))
+                        operand_deferred = chain_operand_bindings[-1].deferred_calls
+                        if len(operand_deferred) == 1 and (
+                            chain_candidate
+                            or argument is lookup_arguments[0]
+                            and not wrapper_consumption_empty
+                        ):
+                            deferred_input = next(iter(operand_deferred))
+                            if (
+                                deferred_input.function is not None
+                                and not deferred_input.partial_template
+                                and (
+                                    _function_is_generator(deferred_input.function)
+                                    or self._deferred_generator_expression_for(
+                                        deferred_input.function
+                                    )
+                                    is not None
+                                )
+                            ):
+                                zip_callback_inputs.append(
+                                    (
+                                        node,
+                                        "deferred-iterate",
+                                        deferred_input.function,
+                                        dict(deferred_input.arguments),
+                                    )
+                                )
                     if dict_constructor_candidate:
                         captured_dict_operand = self._capture_argument_binding(argument)
                         captured_dict_pair_entries = self._static_pair_mapping_entries(argument)
@@ -10488,6 +10680,79 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                     if existing is None
                     else self._join_resolved_bindings([existing, result_binding])
                 )
+        if reduce_candidate and self._replay_calls_enabled:
+            reduce_accumulator = captured_reduce_initializer
+            reduce_items = captured_reduce_items
+            if reduce_accumulator is None and reduce_items:
+                reduce_accumulator, reduce_items = reduce_items[0], reduce_items[1:]
+            for reduce_item_binding in reduce_items:
+                if reduce_accumulator is None:
+                    break
+                fold_inputs: list[tuple[_FunctionNode, dict[str, _ResolvedBinding]]] = []
+                fold_scope = self.scope
+                if captured_callback_scope is not None:
+                    self.scope = captured_callback_scope
+                rejected_single_target = False
+                try:
+                    for target in sorted(
+                        captured_callback_targets,
+                        key=lambda candidate: (
+                            candidate.lineno,
+                            candidate.col_offset,
+                            candidate.name,
+                        ),
+                    ):
+                        if isinstance(target, ast.AsyncFunctionDef) or _function_is_generator(
+                            target
+                        ):
+                            continue
+                        arguments = self._resolve_call_argument_bindings(
+                            target,
+                            node,
+                            callable_expr=positional_arguments[0],
+                            positional_override=[reduce_accumulator, reduce_item_binding],
+                        )
+                        if arguments is not None:
+                            fold_inputs.append((target, arguments))
+                        elif len(captured_callback_templates) + len(captured_callback_targets) == 1:
+                            rejected_single_target = True
+                    for template in sorted(
+                        captured_callback_templates, key=self._deferred_call_sort_key
+                    ):
+                        if (
+                            template.function is None
+                            or isinstance(template.function, ast.AsyncFunctionDef)
+                            or _function_is_generator(template.function)
+                        ):
+                            continue
+                        arguments = self._resolve_partial_invocation_bindings(
+                            template,
+                            node,
+                            positional_override=[reduce_accumulator, reduce_item_binding],
+                        )
+                        if arguments is not None:
+                            fold_inputs.append((template.function, arguments))
+                        elif len(captured_callback_templates) + len(captured_callback_targets) == 1:
+                            rejected_single_target = True
+                finally:
+                    self.scope = fold_scope
+                if rejected_single_target or not fold_inputs:
+                    reduce_accumulator = None
+                    break
+                fold_results: list[_ResolvedBinding] = []
+                for target, arguments in fold_inputs:
+                    self._consume_loop_iteration()
+                    fold_results.append(self._replay_function_call(target, arguments))
+                reduce_accumulator = self._join_resolved_bindings(fold_results)
+            if reduce_accumulator is not None:
+                self._call_result_bindings[id(node)] = reduce_accumulator
+                if self.call_result_snapshots is not None:
+                    existing_reduce = self.call_result_snapshots.get(id(node))
+                    self.call_result_snapshots[id(node)] = (
+                        reduce_accumulator
+                        if existing_reduce is None
+                        else self._join_resolved_bindings([existing_reduce, reduce_accumulator])
+                    )
         if maps_callback:
             identity_map_result = self._identity_map_result_binding(
                 positional_arguments,
@@ -10610,7 +10875,13 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 execution="iterate",
             )
         if (
-            (wrapper_reference in _ZIPPING_ITERABLE_BUILTIN_REFERENCES or chain_candidate)
+            (
+                wrapper_reference in _ZIPPING_ITERABLE_BUILTIN_REFERENCES
+                or chain_candidate
+                or preserving_callback_wrapper
+                and not wrapper_consumption_empty
+                or flattening_callback_wrapper
+            )
             and id(node) in self._iterated_call_ids
         ) or consumes_dict_iterable:
             zip_previous_sync_only = self._sync_only_body_analysis
@@ -10619,7 +10890,16 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             try:
                 callback_results: dict[ast.Call, list[_ResolvedBinding]] = {}
                 callback_start = 0
-                for argument_index, argument in enumerate(positional_arguments):
+                callback_operands = (
+                    list(cast(ast.List | ast.Tuple, positional_arguments[0]).elts)
+                    if flattening_callback_wrapper
+                    else (
+                        list(positional_arguments[:1])
+                        if preserving_callback_wrapper
+                        else list(positional_arguments)
+                    )
+                )
+                for argument_index, argument in enumerate(callback_operands):
                     self._replay_deferred_calls(
                         (
                             captured_dict_operand.deferred_calls
@@ -10627,6 +10907,8 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                             else (
                                 chain_operand_bindings[argument_index].deferred_calls
                                 if chain_candidate
+                                or preserving_callback_wrapper
+                                or flattening_callback_wrapper
                                 else self._resolve_deferred_calls(argument)
                             )
                         ),
@@ -10638,6 +10920,19 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                     for original_call, callback_reference, target, arguments in zip_callback_inputs[
                         callback_start:callback_end
                     ]:
+                        if callback_reference == "deferred-iterate":
+                            self._replay_deferred_calls(
+                                frozenset(
+                                    {
+                                        _DeferredFunctionCall(
+                                            function=target,
+                                            arguments=tuple(sorted(arguments.items())),
+                                        )
+                                    }
+                                ),
+                                execution="iterate",
+                            )
+                            continue
                         was_iterated = id(original_call) in self._iterated_call_ids
                         self._iterated_call_ids.add(id(original_call))
                         try:
@@ -11119,6 +11414,7 @@ def validate_api_key_dependency_ownership(
             module_late_references=module_late_references,
             module_late_strings=module_late_strings,
             purpose="ownership_audit",
+            expression_snapshots_only=True,
         ).visit(tree)
     return sorted(set(errors))
 

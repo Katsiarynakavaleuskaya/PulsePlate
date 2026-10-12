@@ -1029,3 +1029,18 @@ claim. Literal-key mapping selections and partial callee observations use the
 existing resolved-result evidence owner. Accumulated Name observations are
 published for reporting while current evaluation continues to use lexical state;
 mutable mapping escape and generic invalidation remain conservative.
+
+Consumed one-argument `iter`, supported positional `islice`, and literal outer
+list/tuple `chain.from_iterable` calls reuse the existing callback capture queue.
+All eager wrapper effects precede callback replay; an empty `islice` result with a
+positive start still consumes input. Literal list/tuple `functools.reduce` folds
+capture callback, items and optional initializer in evaluation order, then carry
+each returned accumulator through the canonical binder and shared replay budget.
+No initializer on an empty input yields no inferred successful return.
+
+The API application ownership audit publishes reference/string snapshots only
+for expression nodes, retaining the full module and unused-body traversal. Its
+detached writers share that projection. Ordinary and OpenAPI snapshot consumers
+retain full publication by default. This reduces unused environment copies; it
+does not identify the cause of a native process crash or establish Linux timing
+without current native execution evidence.

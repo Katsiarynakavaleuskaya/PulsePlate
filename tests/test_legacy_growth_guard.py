@@ -25270,3 +25270,584 @@ def test_consol_mapping_ownpoint_publication_is_audit_only(
     if purpose == "ownership_audit":
         assert results[id(selected)].reference == "legacy_app"
     assert visitor.scope.references["value"] == "legacy_app"
+
+
+@pytest.mark.parametrize("family", ["api", "openapi"])
+@pytest.mark.parametrize("protected", [False, True])
+@pytest.mark.parametrize("wrapper", ["islice", "iter", "flatten", "direct-next"])
+def test_consol_supported_wrapper_consumption_replays_captured_callback(
+    family: str,
+    protected: bool,
+    wrapper: str,
+) -> None:
+    member = "require_app_api_key" if family == "api" else "_install_openapi_builder"
+    owner = "legacy" if protected else "canonical"
+    callback = f"map(access, [{owner}])"
+    invocation = {
+        "islice": f"list(itertools.islice({callback}, 1))",
+        "iter": f"next(iter({callback}))",
+        "flatten": f"list(itertools.chain.from_iterable([{callback}]))",
+        "direct-next": f"next({callback})",
+    }[wrapper]
+    source = (
+        "import itertools\nimport legacy_app as legacy\n"
+        + (
+            "import app.routers.api_key as canonical\n"
+            if family == "api"
+            else "import app.bootstrap.openapi as canonical\n"
+        )
+        + f"def access(owner):\n    return owner.{member}\n{invocation}\n"
+    )
+    errors = (
+        _validate_api_key_dependency_ownership(
+            _CONSOL_GETTER_IMPORTS, {"app/routers/example.py": source}
+        )
+        if family == "api"
+        else _consol_openapi_errors(source)
+    )
+    assert errors == (
+        (
+            [
+                f"app/routers/example.py: legacy API-key dependency attribute access is forbidden: {member}"
+            ]
+            if family == "api"
+            else ["app/main.py: OpenAPI symbol must not be accessed through legacy"]
+        )
+        if protected
+        else []
+    )
+
+
+@pytest.mark.parametrize(
+    ("invocation", "expected"),
+    [
+        ("itertools.islice(map(access, [1]), 1)", ""),
+        ("iter(map(access, [1]))", ""),
+        ("itertools.chain.from_iterable([map(access, [1])])", ""),
+        ("list(itertools.islice(map(access, []), 1))", ""),
+        ("list(itertools.islice(map(access, [1]), 0))", ""),
+        ("list(itertools.islice(map(access, [1]), 0, 0))", ""),
+        ("list(itertools.islice(map(access, [1]), None, 0))", ""),
+        ("list(itertools.islice(map(access, [1]), 0, 0, 1))", ""),
+        ("list(itertools.islice(map(access, [1]), 5, 5))", "C"),
+        ("list(itertools.islice(map(access, [1]), 5, 3))", "C"),
+        ("list(itertools.islice(map(access, [1]), 1, 0))", "C"),
+        ("list(itertools.islice(map(access, [1]), -1))", ""),
+        ("list(itertools.islice(map(access, [1]), 1, 2, 0))", ""),
+        ("list(itertools.islice(map(access, [1]), 'x'))", ""),
+        ("list(zip([], iter(map(access, [1]))))", ""),
+        ("list(zip([], itertools.islice(map(access, [1]), 1)))", ""),
+        ("list(zip([], itertools.chain.from_iterable([map(access, [1])])) )", ""),
+        ("list(itertools.chain(iter(itertools.islice(map(access, [1]), 1))))", "C"),
+        ("list(reversed(map(access, [1])))", ""),
+    ],
+)
+def test_consol_supported_wrapper_consumption_boundaries(invocation: str, expected: str) -> None:
+    source = (
+        "import itertools\ntrace = ''\n"
+        "def access(value):\n    global trace\n    trace = trace + 'C'\n    return value\n"
+        f"{invocation}\n"
+    )
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="example.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(ast.parse(source))
+    assert visitor.scope.strings["trace"] == expected
+
+
+@pytest.mark.parametrize("wrapper", ["iter", "islice", "flatten"])
+@pytest.mark.parametrize("shadowed", [False, True])
+def test_consol_supported_wrapper_resolves_stored_callee_alias(
+    wrapper: str, shadowed: bool
+) -> None:
+    callee = {
+        "iter": "iter",
+        "islice": "itertools.islice",
+        "flatten": "itertools.chain.from_iterable",
+    }[wrapper]
+    args = {
+        "iter": "map(access, [1])",
+        "islice": "map(access, [1]), 1",
+        "flatten": "[map(access, [1])]",
+    }[wrapper]
+    source = (
+        "import itertools\ntrace = ''\n"
+        "def access(value):\n    global trace\n    trace = trace + 'C'\n    return value\n"
+        f"consume = {callee}\n"
+        + ("consume = lambda *values: []\n" if shadowed else "")
+        + f"list(consume({args}))\n"
+    )
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="example.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(ast.parse(source))
+    assert visitor.scope.strings["trace"] == ("" if shadowed else "C")
+
+
+@pytest.mark.parametrize("wrapper", ["islice", "flatten"])
+@pytest.mark.parametrize("rebound", ["consume", "callback"])
+def test_consol_supported_wrapper_keeps_eager_order_and_captured_callable(
+    wrapper: str, rebound: str
+) -> None:
+    callee = "itertools.islice" if wrapper == "islice" else "itertools.chain.from_iterable"
+    args = "map(callback, [1]), late()" if wrapper == "islice" else "[map(callback, [1]), late()]"
+    result = "1" if wrapper == "islice" else "[]"
+    source = (
+        "import itertools\ntrace = ''\n"
+        "def access(value):\n    global trace\n    trace = trace + 'C'\n    return value\n"
+        f"consume = {callee}\ncallback = access\n"
+        f"def late():\n    global {rebound}, trace\n    trace = trace + 'E'\n"
+        f"    {rebound} = lambda *values: []\n    return {result}\n"
+        f"list(consume({args}))\n"
+    )
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="example.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(ast.parse(source))
+    assert visitor.scope.strings["trace"] == "EC"
+
+
+def test_consol_supported_wrapper_flatten_evaluates_outer_then_replays_inner_source_order() -> None:
+    source = (
+        "import itertools\ntrace = ''\n"
+        "def access(value):\n    global trace\n    trace = trace + value\n    return value\n"
+        "def tick(value):\n    global trace\n    trace = trace + value\n    return value\n"
+        "list(itertools.chain.from_iterable([map(access, [tick('A')]), map(access, [tick('B')])]))\n"
+    )
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="example.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(ast.parse(source))
+    assert visitor.scope.strings["trace"] == "ABAB"
+
+
+@pytest.mark.parametrize("family", ["api", "openapi"])
+@pytest.mark.parametrize("protected", [False, True])
+@pytest.mark.parametrize("with_initializer", [False, True])
+def test_consol_reduce_replays_protected_callback(
+    family: str, protected: bool, with_initializer: bool
+) -> None:
+    member = "require_app_api_key" if family == "api" else "_install_openapi_builder"
+    module = "app.routers.api_key" if family == "api" else "app.bootstrap.openapi"
+    owner = "legacy" if protected else "canonical"
+    args = f"[None, {owner}]" if not with_initializer else f"[{owner}], None"
+    source = (
+        f"import functools\nimport legacy_app as legacy\nimport {module} as canonical\n"
+        f"def access(accumulator, owner):\n    return owner.{member}\n"
+        f"functools.reduce(access, {args})\n"
+    )
+    errors = (
+        _validate_api_key_dependency_ownership(
+            _CONSOL_GETTER_IMPORTS, {"app/routers/example.py": source}
+        )
+        if family == "api"
+        else _consol_openapi_errors(source)
+    )
+    assert bool(errors) is protected
+
+
+@pytest.mark.parametrize(
+    ("items", "initializer", "expected_trace", "expected_result"),
+    [
+        ("[]", "", "", None),
+        ("['A']", "", "", "A"),
+        ("['A', 'B', 'C']", "", "ABC", "ABC"),
+        ("[]", ", 'I'", "", "I"),
+        ("['A']", ", 'I'", "IA", "IA"),
+        ("['A', 'B']", ", 'I'", "IAB", "IAB"),
+    ],
+)
+def test_consol_reduce_preserves_finite_fold_accumulator_lineage(
+    items: str, initializer: str, expected_trace: str, expected_result: str | None
+) -> None:
+    source = (
+        "from functools import reduce as fold\ntrace = ''\n"
+        "def access(accumulator, item):\n    global trace\n    trace = accumulator + item\n    return trace\n"
+        f"result = fold(access, {items}{initializer})\n"
+    )
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="example.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(ast.parse(source))
+    assert visitor.scope.strings["trace"] == expected_trace
+    assert visitor.scope.strings.get("result") == (
+        legacy_guard._DYNAMIC_STRING_BINDING if expected_result is None else expected_result
+    )
+
+
+@pytest.mark.parametrize("rebound", ["fold", "callback", "owner"])
+def test_consol_reduce_captures_each_operand_before_initializer_effects(rebound: str) -> None:
+    source = (
+        "from functools import reduce as fold\ntrace = ''\nowner = 'A'\n"
+        "def access(accumulator, item):\n    global trace\n    trace = trace + item\n    return accumulator + item\n"
+        "callback = access\n"
+        f"def late():\n    global {rebound}, trace\n    trace = trace + 'E'\n"
+        f"    {rebound} = lambda *values: []\n    return 'I'\n"
+        "result = fold(callback, [owner, 'B'], late())\n"
+    )
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="example.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(ast.parse(source))
+    assert visitor.scope.strings["trace"] == "EAB"
+    assert visitor.scope.strings["result"] == "IAB"
+
+
+@pytest.mark.parametrize(
+    ("signature", "callback", "expected"),
+    [
+        ("accumulator, item", "access", "CC"),
+        ("prefix, accumulator, item", "partial(access, 'P')", "CC"),
+        ("accumulator, item, optional=None", "access", "CC"),
+        ("accumulator, /, item", "access", "CC"),
+        ("*values", "access", "CC"),
+        ("item", "access", ""),
+        ("accumulator, item, *, required", "access", ""),
+    ],
+)
+def test_consol_reduce_uses_canonical_direct_and_partial_binder(
+    signature: str, callback: str, expected: str
+) -> None:
+    source = (
+        "from functools import reduce, partial\ntrace = ''\n"
+        f"def access({signature}):\n    global trace\n    trace = trace + 'C'\n    return None\n"
+        f"reduce({callback}, [None, None, None])\n"
+    )
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="example.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(ast.parse(source))
+    assert visitor.scope.strings["trace"] == expected
+
+
+@pytest.mark.parametrize("outer_empty_zip", [False, True])
+def test_consol_reduce_is_eager_even_in_unconsumed_outer_operand(outer_empty_zip: bool) -> None:
+    invocation = "reduce(access, [tick('A'), tick('B'), tick('D')], tick('I'))"
+    if outer_empty_zip:
+        invocation = f"zip([], {invocation})"
+    source = (
+        "from functools import reduce\ntrace = ''\n"
+        "def tick(value):\n    global trace\n    trace = trace + value\n    return value\n"
+        "def access(accumulator, item):\n    global trace\n    trace = trace + 'C'\n    return []\n"
+        f"{invocation}\n"
+    )
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="example.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(ast.parse(source))
+    assert visitor.scope.strings["trace"] == "ABDICCC"
+
+
+@pytest.mark.parametrize(
+    "invocation",
+    [
+        "reduce(access, [tick(), tick()], unexpected=tick())",
+        "reduce(access, [tick(), tick()], tick(), tick())",
+        "fold(access, [tick(), tick()])",
+    ],
+)
+def test_consol_reduce_invalid_or_shadowed_shapes_keep_eager_effects(invocation: str) -> None:
+    source = (
+        "from functools import reduce\ntrace = ''\nfold = lambda *values: []\n"
+        "def tick():\n    global trace\n    trace = trace + 'E'\n    return None\n"
+        "def access(accumulator, item):\n    global trace\n    trace = trace + 'C'\n    return None\n"
+        f"{invocation}\n"
+    )
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="example.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(ast.parse(source))
+    assert visitor.scope.strings["trace"] == "E" * invocation.count("tick()")
+
+
+@pytest.mark.parametrize("kind", ["generator", "coroutine"])
+@pytest.mark.parametrize("sync_wrapper", [False, True])
+def test_consol_reduce_does_not_execute_deferred_callback_body(
+    kind: str, sync_wrapper: bool
+) -> None:
+    declaration = "def" if kind == "generator" else "async def"
+    statement = "yield item" if kind == "generator" else "return item"
+    source = (
+        "from functools import reduce\ntrace = ''\n"
+        f"{declaration} deferred(accumulator, item):\n    global trace\n    trace = trace + 'D'\n    {statement}\n"
+        + (
+            "def access(accumulator, item):\n    global trace\n    trace = trace + 'C'\n    return deferred(accumulator, item)\n"
+            if sync_wrapper
+            else "access = deferred\n"
+        )
+        + "reduce(access, [None, None])\n"
+    )
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="example.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(ast.parse(source))
+    assert visitor.scope.strings["trace"] == ("C" if sync_wrapper else "")
+
+
+@pytest.mark.parametrize("with_initializer", [False, True])
+def test_consol_reduce_reuses_shared_replay_budget_after_all_eager_items(
+    with_initializer: bool,
+) -> None:
+    count = 129 if with_initializer else 130
+    items = "[" + ",".join("tick()" for _ in range(count)) + "]"
+    initializer = ", None" if with_initializer else ""
+    source = (
+        "from functools import reduce\ntrace = ''\n"
+        "def tick():\n    global trace\n    trace = trace + 'E'\n    return None\n"
+        "def access(accumulator, item):\n    global trace\n    trace = trace + 'C'\n    return None\n"
+        f"reduce(access, {items}{initializer})\n"
+    )
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="example.py", errors=[], analyze_function_bodies=False
+    )
+    with pytest.raises(legacy_guard.LegacyGrowthAnalysisError, match="128 total iterations"):
+        visitor.visit(ast.parse(source))
+    assert visitor.scope.strings["trace"] == "E" * count + "C" * 128
+    assert visitor._remaining_loop_iterations == 0
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "import legacy_app as hidden\ndef unused():\n    return hidden.require_app_api_key\n",
+        "import legacy_app as hidden\ndef helper(owner):\n    return owner.require_app_api_key\ndef unused():\n    return helper(hidden)\n",
+        "import legacy_app as hidden\ndef helper(owner):\n    return owner.require_app_api_key\nhelper(hidden)\n",
+        "import legacy_app as hidden\ndef dormant():\n    yield hidden.require_app_api_key\npending = dormant()\n",
+        "import legacy_app as hidden\nfrom itertools import islice\ndef helper(owner):\n    return owner.require_app_api_key\nlist(islice(map(helper, [hidden]), 1))\n",
+        "import legacy_app as hidden\nfrom functools import reduce\ndef helper(accumulator, owner):\n    return owner.require_app_api_key\nreduce(helper, [None, hidden])\n",
+        "import legacy_app as hidden\nname = 'require_app_api_key'\nhidden.__dict__[name] = object()\n",
+        "import legacy_app as hidden\nname = 'require_app_api_key'\nhidden.__dict__.update({name: (name := 'safe')})\n",
+        "import legacy_app as hidden\ndef generic[T: hidden.require_app_api_key](value):\n    return hidden.require_app_api_key\n",
+        "import legacy_app as hidden\ntype Alias[T: hidden.require_app_api_key] = list[hidden.require_app_api_key]\n",
+        "import legacy_app as hidden\nclass Container[T: hidden.require_app_api_key]:\n    def unused(self):\n        return hidden.require_app_api_key\n",
+        "from app.routers.api_key import require_app_api_key\ndef safe(owner=None):\n    return require_app_api_key\nsafe()\n",
+    ],
+)
+def test_consol_api_expression_snapshot_projection_preserves_full_audit(source: str) -> None:
+    tree = ast.parse(source)
+    late_references, late_strings = legacy_guard._collect_module_final_bindings(
+        tree, filename="example.py", initial_references={}, purpose="ownership_audit"
+    )
+    observations = []
+    for expression_only in [False, True]:
+        references: dict[int, dict[str, str]] = {}
+        strings: dict[int, dict[str, str]] = {}
+        results: dict[int, legacy_guard._ResolvedBinding] = {}
+        visitor = legacy_guard._ApiKeyLookupVisitor(
+            filename="example.py",
+            errors=[],
+            reference_snapshots=references,
+            string_snapshots=strings,
+            call_result_snapshots=results,
+            module_late_references=late_references,
+            module_late_strings=late_strings,
+            purpose="ownership_audit",
+            expression_snapshots_only=expression_only,
+        )
+        visitor.visit(tree)
+        observations.append((visitor, references, strings, results))
+    full, compact = observations
+    assert full[0].errors == compact[0].errors
+    assert full[0].scope.visible_references() == compact[0].scope.visible_references()
+    assert full[0].scope.visible_strings() == compact[0].scope.visible_strings()
+    assert full[0]._remaining_loop_iterations == compact[0]._remaining_loop_iterations
+    assert full[3] == compact[3]
+    expressions = {id(node) for node in ast.walk(tree) if isinstance(node, ast.expr)}
+    for index in [1, 2]:
+        assert compact[index] == {
+            key: value for key, value in full[index].items() if key in expressions
+        }
+        assert id(tree) in full[index]
+        assert id(tree) not in compact[index]
+    assert (
+        compact[0]
+        ._detached_analysis_visitor(
+            compact[0].scope, original_parent=compact[0].scope, analyze_function_bodies=True
+        )
+        ._expression_snapshots_only
+    )
+
+
+@pytest.mark.parametrize("family", ["api_key", "openapi"])
+@pytest.mark.parametrize("purpose", ["ordinary", "ownership_audit"])
+def test_consol_expression_snapshot_projection_defaults_to_full_contract(
+    family: str, purpose: str
+) -> None:
+    tree = ast.parse("from legacy_app import value\nresult = value\n")
+    references: dict[int, dict[str, str]] = {}
+    strings: dict[int, dict[str, str]] = {}
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="example.py",
+        errors=[],
+        reference_snapshots=references,
+        string_snapshots=strings,
+        ownership_family=cast(Any, family),
+        purpose=cast(Any, purpose),
+    )
+    visitor.visit(tree)
+    assert id(tree) in references and id(tree) in strings
+    assert id(tree.body[0]) in references and id(tree.body[0]) in strings
+    assert visitor._expression_snapshots_only is False
+
+
+def test_consol_reduce_literal_snapshots_exception_edges_and_ownpoint_items() -> None:
+    source = (
+        "from functools import reduce\nphase = 'A'\ntrace = ''\n"
+        "def tick(value):\n    global phase\n    phase = value\n    return value\n"
+        "def access(accumulator, item):\n    global trace\n    trace = trace + item\n    return item\n"
+        "result = reduce(access, [tick('B'), tick('C')], tick('I'))\n"
+    )
+    tree = ast.parse(source)
+    references: dict[int, dict[str, str]] = {}
+    strings: dict[int, dict[str, str]] = {}
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="example.py",
+        errors=[],
+        analyze_function_bodies=False,
+        reference_snapshots=references,
+        string_snapshots=strings,
+    )
+    exceptions: list[legacy_guard._LexicalBindings] = []
+    visitor._exception_scope_collectors.append(exceptions)
+    visitor.visit(tree)
+    container = next(node for node in ast.walk(tree) if isinstance(node, ast.List))
+    assert strings[id(container)]["phase"] == "A"
+    assert strings[id(container.elts[0])]["phase"] == "A"
+    assert strings[id(container.elts[1])]["phase"] == "B"
+    assert id(container.ctx) in references and id(container.ctx) in strings
+    assert {"A", "B", "C", "I"} <= {scope.strings.get("phase") for scope in exceptions}
+    assert visitor.scope.strings["trace"] == "BC"
+    assert visitor.scope.strings["result"] == "C"
+
+
+@pytest.mark.parametrize("wrapper", ["iter", "islice", "flatten"])
+@pytest.mark.parametrize("kind", ["generator", "coroutine"])
+def test_consol_supported_wrapper_does_not_iterate_deferred_callback_results(
+    wrapper: str, kind: str
+) -> None:
+    declaration = "def" if kind == "generator" else "async def"
+    statement = "yield value" if kind == "generator" else "return value"
+    wrapped = {
+        "iter": "iter(map(access, [1]))",
+        "islice": "itertools.islice(map(access, [1]), 1)",
+        "flatten": "itertools.chain.from_iterable([map(access, [1])])",
+    }[wrapper]
+    source = (
+        "import itertools\ntrace = ''\n"
+        f"{declaration} deferred(value):\n    global trace\n    trace = trace + 'D'\n    {statement}\n"
+        "def access(value):\n    global trace\n    trace = trace + 'C'\n    return deferred(value)\n"
+        f"list({wrapped})\n"
+    )
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="example.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(ast.parse(source))
+    assert visitor.scope.strings["trace"] == "C"
+
+
+@pytest.mark.parametrize("family", ["api", "openapi"])
+@pytest.mark.parametrize(
+    ("invocation", "forbidden"),
+    [
+        ("list(iter(access(legacy)))", True),
+        ("list(zip(iter(access(legacy))))", True),
+        ("list(zip(itertools.islice(access(legacy), 1)))", True),
+        ("list(itertools.chain.from_iterable([itertools.islice(access(legacy), 1)]))", True),
+        ("list(zip(itertools.chain.from_iterable([access(legacy)])))", True),
+        ("list(zip([], iter(access(legacy))))", False),
+        ("list(zip([], itertools.islice(access(legacy), 1)))", False),
+        ("list(zip([], itertools.chain.from_iterable([access(legacy)])))", False),
+        ("itertools.chain.from_iterable([itertools.islice(access(legacy), 1)])", False),
+        ("list(zip(itertools.islice(access(legacy), 0)))", False),
+    ],
+)
+def test_consol_supported_wrapper_inherited_generator_consumption(
+    family: str, invocation: str, forbidden: bool
+) -> None:
+    member = "require_app_api_key" if family == "api" else "_install_openapi_builder"
+    source = (
+        "import itertools\nimport legacy_app as legacy\n"
+        f"def access(owner):\n    value = owner.{member}\n    yield value\n"
+        f"{invocation}\n"
+    )
+    errors = (
+        _validate_api_key_dependency_ownership(
+            _CONSOL_GETTER_IMPORTS, {"app/routers/example.py": source}
+        )
+        if family == "api"
+        else _consol_openapi_errors(source)
+    )
+    assert bool(errors) is forbidden
+
+
+@pytest.mark.parametrize(
+    ("expression", "expected"),
+    [
+        (
+            "itertools.chain.from_iterable([iter(generate('1')), itertools.islice(generate('2'), 1), late()])",
+            "E12",
+        ),
+        (
+            "itertools.chain.from_iterable([map(callback, ['1']), iter(generate('2')), late()])",
+            "E12",
+        ),
+        (
+            "itertools.chain.from_iterable([iter(generate('1')), map(callback, ['2']), late()])",
+            "E12",
+        ),
+        ("zip(iter(generate('1')), late())", "E1"),
+        ("zip([], iter(generate('1')), late())", "E"),
+        ("zip(itertools.chain.from_iterable([generate('1'), generate('2')]), late())", "E12"),
+        ("itertools.chain(iter((callback(value) for value in ['1'])), late())", "E1"),
+        ("zip(iter((callback(value) for value in ['1'])), late())", "E1"),
+    ],
+)
+def test_consol_supported_wrapper_inherited_deferred_order_and_dedup(
+    expression: str, expected: str
+) -> None:
+    source = (
+        "import itertools\ntrace = ''\n"
+        "def generate(value):\n    global trace\n    trace = trace + value\n    yield value\n"
+        "def callback(value):\n    global trace\n    trace = trace + value\n    return value\n"
+        "def late():\n    global trace\n    trace = trace + 'E'\n    return []\n"
+        f"list({expression})\n"
+    )
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="example.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(ast.parse(source))
+    assert visitor.scope.strings["trace"] == expected
+
+
+@pytest.mark.parametrize(
+    "wrapper",
+    ["iter(pending)", "itertools.islice(pending, 1)", "itertools.chain.from_iterable([pending])"],
+)
+def test_consol_supported_wrapper_inherited_deferred_captures_before_later_rebinding(
+    wrapper: str,
+) -> None:
+    source = (
+        "import itertools\ntrace = ''\n"
+        "def generate(value):\n    global trace\n    trace = trace + value\n    yield value\n"
+        "pending = generate('A')\n"
+        "def late():\n    global pending, trace\n    trace = trace + 'E'\n    pending = generate('B')\n    return []\n"
+        f"list(itertools.chain({wrapper}, late()))\n"
+    )
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="example.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(ast.parse(source))
+    assert visitor.scope.strings["trace"] == "EA"
+
+
+def test_consol_supported_wrapper_inherited_iteration_keeps_coroutine_dormant() -> None:
+    source = (
+        "trace = ''\n"
+        "async def pending():\n    global trace\n    trace = trace + 'D'\n    return []\n"
+        "list(zip(iter(pending())))\n"
+    )
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="example.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(ast.parse(source))
+    assert visitor.scope.strings["trace"] == ""
