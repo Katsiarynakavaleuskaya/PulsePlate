@@ -849,6 +849,20 @@ Snapshot cost reductions must preserve every environment actually consumed by th
 owning audit. Keep full snapshots as the default for ordinary and OpenAPI consumers
 and propagate any narrower internal publication mode to detached writers.
 
+The direct API-key ownership validator must reject every star import in
+`legacy_app.py`, including foreign and relative modules with unknown exports.
+Required explicit compatibility re-exports do not make wildcard rebinding safe.
+Keep unrelated star imports in ordinary application modules on their existing
+separate contract; aggregate retirement rejection does not replace direct-owner
+validation.
+
+Implicit async context/iteration dispatch is limited to captured local instance
+facts and the four known protocol methods. Reuse class callable/descriptor tables,
+canonical argument binding and existing loop transfers; preserve acquisition/exit
+order, known-invalid stopping and unresolved outcomes. Receiver identity is not
+instance-field state: never attach constructor field values to a shared class-site
+reference or claim general object/data-flow coverage from this wiring.
+
 Provide focused commands with an explicit `tests/test_legacy_growth_guard.py`
 module or literal node selectors and the repo-approved Python interpreter.
 A shell continuation must be continuous: no blank line may detach selectors
