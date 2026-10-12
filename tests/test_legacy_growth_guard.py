@@ -22439,3 +22439,368 @@ def test_consol_finite_join_partial_differences_preserve_common_entries(
     assert all(incoming.strings is not outcome.strings for outcome in outcomes)
     assert visitor.errors is errors and errors == ["prior diagnostic"]
     assert visitor._remaining_loop_iterations == remaining_iterations
+
+
+@pytest.mark.parametrize("purpose", ["ordinary", "ownership_audit"])
+@pytest.mark.parametrize("invoked", [False, True], ids=["dormant", "invoked"])
+def test_consol_purpose_limits_unused_sync_call_chain_replay(
+    purpose: Literal["ordinary", "ownership_audit"], invoked: bool
+) -> None:
+    """Only ownership auditing needs recursive evidence from an uninvoked sync body."""
+    source = (
+        "def leaf():\n    return 'result'\n"
+        "def middle():\n    return leaf()\n"
+        "def unused():\n    return middle()\n" + ("result = unused()\n" if invoked else "")
+    )
+    tree = ast.parse(source)
+    references, strings, results = legacy_guard._collect_lexical_binding_snapshots(
+        tree, initial_references={}, purpose=purpose
+    )
+    calls = [node for node in ast.walk(tree) if isinstance(node, ast.Call)]
+    assert len(calls) == (3 if invoked else 2)
+    assert all(id(call) in references and id(call) in strings for call in calls)
+    if invoked or purpose == "ownership_audit":
+        assert [results[id(call)].string for call in calls] == ["result"] * len(calls)
+    else:
+        assert all(id(call) not in results for call in calls)
+
+
+@pytest.mark.parametrize(
+    "tail",
+    [
+        "result = middle()\n",
+        "def eager(value=middle()):\n    pass\n",
+        "deferred = lambda: middle()\n",
+    ],
+    ids=["explicit", "default", "deferred-lambda"],
+)
+def test_consol_ordinary_replay_preserves_explicit_and_definition_time_calls(tail: str) -> None:
+    """The dormant-body boundary must not suppress real calls or existing lambda analysis."""
+    source = "def leaf():\n    return 'result'\ndef middle():\n    return leaf()\n" + tail
+    tree = ast.parse(source)
+    _, _, results = legacy_guard._collect_lexical_binding_snapshots(tree, initial_references={})
+    calls = [node for node in ast.walk(tree) if isinstance(node, ast.Call)]
+    assert len(calls) == 2
+    assert [results[id(call)].string for call in calls] == ["result", "result"]
+
+
+@pytest.mark.parametrize(
+    ("statement", "diagnostic"),
+    [
+        (
+            'app.get("/api/v1/dormant-direct")(handler)',
+            "registration:get:/api/v1/dormant-direct",
+        ),
+        ('app.middleware("http")(handler)', "registration:middleware:http"),
+        ('foreign.get("/api/v1/dormant-direct")(handler)', None),
+        ('foreign.middleware("http")(handler)', None),
+    ],
+)
+def test_consol_ordinary_dormant_body_keeps_direct_registration_evidence(
+    statement: str, diagnostic: str | None
+) -> None:
+    """Avoiding recursive replay still scans direct route and lifecycle facts."""
+    expected = (
+        [f"legacy_app.py: unexpected legacy route growth: {diagnostic}"]
+        if diagnostic is not None
+        else []
+    )
+    source = f"foreign = object()\ndef unused():\n    {statement}\n"
+    assert legacy_guard.validate_legacy_growth(source) == expected
+
+
+@pytest.mark.parametrize("analyze_bodies", [False, True])
+def test_consol_ordinary_explicit_chain_preserves_outward_effects(analyze_bodies: bool) -> None:
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="legacy_app.py", errors=[], analyze_function_bodies=analyze_bodies
+    )
+    visitor.visit(
+        ast.parse(
+            "state = 'before'\n"
+            "def leaf():\n    global state\n    state = 'after'\n    return 'result'\n"
+            "def middle():\n    return leaf()\n"
+        )
+    )
+    assert visitor.scope.strings["state"] == "before"
+    visitor.visit(ast.parse("result = middle()\n"))
+    assert visitor.scope.strings["state"] == "after"
+    assert visitor.scope.strings["result"] == "result"
+    assert visitor.errors == []
+
+
+def test_consol_ordinary_eager_decorator_keeps_callable_and_module_effect() -> None:
+    visitor = legacy_guard._ApiKeyLookupVisitor(filename="legacy_app.py", errors=[])
+    visitor.visit(
+        ast.parse(
+            "state = 'before'\n"
+            "def decorate(function):\n    global state\n    state = 'after'\n"
+            "    return function\n"
+            "@decorate\ndef decorated():\n    return 'result'\n"
+        )
+    )
+    assert visitor.scope.strings["state"] == "after"
+    assert len(visitor.scope.resolve_callables("decorated")) == 1
+    visitor.visit(ast.parse("result = decorated()\n"))
+    assert visitor.scope.strings["result"] == "result"
+    assert visitor.errors == []
+
+
+@pytest.mark.parametrize("canonical", [False, True], ids=["unowned", "canonical"])
+def test_consol_ordinary_dormant_constructor_keeps_lifecycle_owner_check(canonical: bool) -> None:
+    imports = "from fastapi import FastAPI\n"
+    argument = ""
+    if canonical:
+        imports += "from app.bootstrap.lifespan import application_lifespan as lifespan\n"
+        argument = "lifespan=lifespan"
+    source = (
+        imports
+        + f"def create_app():\n    constructor = FastAPI\n    return constructor({argument})\n"
+    )
+    expected = (
+        [] if canonical else ["legacy_app.py: FastAPI lifespan must use the canonical re-export"]
+    )
+    assert legacy_guard.validate_lifecycle_ownership(source, "pass\n", "pass\n") == expected
+
+
+@pytest.mark.parametrize(
+    "possible",
+    [
+        legacy_guard._POSSIBLE_APP_REFERENCE,
+        legacy_guard._POSSIBLE_ROUTER_REFERENCE,
+        legacy_guard._POSSIBLE_APP_CALL_REFERENCE,
+        legacy_guard._POSSIBLE_MIDDLEWARE_DECORATOR_REFERENCE,
+    ],
+)
+@pytest.mark.parametrize("later_dormant", [False, True])
+def test_consol_snapshot_analysis_phase_refines_only_dormant_possibility(
+    possible: str, later_dormant: bool
+) -> None:
+    node = ast.Name(id="register", ctx=ast.Load())
+    references: dict[int, dict[str, str]] = {}
+    strings: dict[int, dict[str, str]] = {}
+    results: dict[int, legacy_guard._ResolvedBinding] = {}
+    protected_result = legacy_guard._ResolvedBinding("legacy_app.get_api_key", "get_api_key")
+    results[id(node)] = protected_result
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="legacy_app.py",
+        errors=[],
+        reference_snapshots=references,
+        string_snapshots=strings,
+        call_result_snapshots=results,
+    )
+    visitor.scope.references = {"register": possible}
+    visitor.scope.strings = {"member": "get_api_key"}
+    visitor._replay_calls_enabled = False
+    visitor._record_snapshot(node)
+    visitor.scope.references = {"register": legacy_guard._KNOWN_NON_APP_REFERENCE}
+    visitor.scope.strings = {"member": "ordinary"}
+    visitor._replay_calls_enabled = True
+    visitor._record_snapshot(node)
+    if later_dormant:
+        visitor.scope.references = {"register": possible}
+        visitor._replay_calls_enabled = False
+        visitor._record_snapshot(node)
+    assert references[id(node)]["register"] == legacy_guard._KNOWN_NON_APP_REFERENCE
+    assert strings[id(node)]["member"] == legacy_guard._POSSIBLE_API_KEY_SYMBOL
+    assert results[id(node)] is protected_result
+
+
+@pytest.mark.parametrize(
+    "prior",
+    [
+        "pulseplate.app",
+        "pulseplate.app.router",
+        "pulseplate.app.get",
+        "pulseplate.app.middleware",
+        legacy_guard._CAPTURED_POSSIBLE_APP_FACTORY_REFERENCE,
+        "legacy_app",
+        "<possible:legacy_app>",
+        "legacy_app.__dict__.clear",
+        "<namespace:module>",
+        "<iterable:possible-app-call>",
+    ],
+)
+def test_consol_snapshot_phase_preserves_excluded_reference_joins(prior: str) -> None:
+    node = ast.Name(id="register", ctx=ast.Load())
+    outputs: list[dict[str, str]] = []
+    for first_replaying in (True, False):
+        references: dict[int, dict[str, str]] = {}
+        visitor = legacy_guard._ApiKeyLookupVisitor(
+            filename="legacy_app.py",
+            errors=[],
+            reference_snapshots=references,
+        )
+        visitor.scope.references = {"register": prior}
+        visitor._replay_calls_enabled = first_replaying
+        visitor._record_snapshot(node)
+        visitor.scope.references = {"register": legacy_guard._KNOWN_NON_APP_REFERENCE}
+        visitor._replay_calls_enabled = True
+        visitor._record_snapshot(node)
+        outputs.append(dict(references[id(node)]))
+    assert outputs[0] == outputs[1]
+    assert outputs[1].get("register") != legacy_guard._KNOWN_NON_APP_REFERENCE
+
+
+@pytest.mark.parametrize("reverse", [False, True])
+@pytest.mark.parametrize("protected", [False, True])
+def test_consol_snapshot_phase_keeps_competing_genuine_calls(
+    reverse: bool, protected: bool
+) -> None:
+    helper = (
+        "def uncertain():\n    return app.get\n"
+        if protected
+        else "def uncertain():\n    return external()\n"
+    )
+    calls = ["invoke(uncertain)\n", "invoke(safe)\n"]
+    if reverse:
+        calls.reverse()
+    source = (
+        helper + "def safe():\n    return None\n"
+        "def invoke(callback):\n    register = callback()\n"
+        '    register("/api/v1/phase-genuine")(handler)\n' + "".join(calls)
+    )
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: registration:dynamic:/api/v1/phase-genuine"
+    ]
+    tree = ast.parse(source)
+    _, _, results = legacy_guard._collect_lexical_binding_snapshots(tree, initial_references={})
+    callback = next(
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "callback"
+    )
+    assert results[id(callback)].reference == legacy_guard._POSSIBLE_APP_CALL_REFERENCE
+
+
+@pytest.mark.parametrize("map_kind", ["references", "strings", "results"])
+@pytest.mark.parametrize("replace_maps", [False, True])
+def test_consol_snapshot_phase_requires_owned_prior_provenance(
+    replace_maps: bool, map_kind: str
+) -> None:
+    node = ast.Name(id="register", ctx=ast.Load())
+    references: dict[int, dict[str, str]] = (
+        {} if replace_maps else {id(node): {"register": legacy_guard._POSSIBLE_APP_CALL_REFERENCE}}
+    )
+    strings: dict[int, dict[str, str]] = {}
+    results: dict[int, legacy_guard._ResolvedBinding] = {}
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="legacy_app.py",
+        errors=[],
+        reference_snapshots=references,
+        string_snapshots=strings,
+        call_result_snapshots=results,
+    )
+    if replace_maps:
+        visitor._replay_calls_enabled = False
+        visitor.scope.references = {"register": legacy_guard._POSSIBLE_APP_CALL_REFERENCE}
+        visitor._record_snapshot(node)
+        if map_kind == "references":
+            visitor.reference_snapshots = {key: dict(value) for key, value in references.items()}
+        elif map_kind == "strings":
+            visitor.string_snapshots = {key: dict(value) for key, value in strings.items()}
+        else:
+            visitor.call_result_snapshots = dict(results)
+    visitor.scope.references = {"register": legacy_guard._KNOWN_NON_APP_REFERENCE}
+    visitor._replay_calls_enabled = True
+    visitor._record_snapshot(node)
+    assert visitor.reference_snapshots is not None
+    assert (
+        visitor.reference_snapshots[id(node)]["register"]
+        == legacy_guard._POSSIBLE_APP_CALL_REFERENCE
+    )
+
+
+def test_consol_snapshot_phase_detached_writers_share_provenance_and_collectors_isolate() -> None:
+    node = ast.Name(id="register", ctx=ast.Load())
+    references: dict[int, dict[str, str]] = {}
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="legacy_app.py",
+        errors=[],
+        reference_snapshots=references,
+    )
+    visitor.scope.references = {"register": legacy_guard._POSSIBLE_APP_CALL_REFERENCE}
+    visitor._replay_calls_enabled = True
+    visitor._record_snapshot(node)
+    detached = visitor._detached_analysis_visitor(
+        visitor.scope,
+        original_parent=visitor.scope,
+        analyze_function_bodies=True,
+    )
+    detached.reference_snapshots = references
+    detached.scope.references = {"register": legacy_guard._POSSIBLE_APP_CALL_REFERENCE}
+    detached._replay_calls_enabled = False
+    detached._record_snapshot(node)
+    detached.scope.references = {"register": legacy_guard._KNOWN_NON_APP_REFERENCE}
+    detached._replay_calls_enabled = True
+    detached._record_snapshot(node)
+    assert references[id(node)]["register"] == legacy_guard._POSSIBLE_APP_CALL_REFERENCE
+    independent: dict[int, dict[str, str]] = {}
+    other = legacy_guard._ApiKeyLookupVisitor(
+        filename="legacy_app.py",
+        errors=[],
+        reference_snapshots=independent,
+    )
+    other.scope.references = {"register": legacy_guard._KNOWN_NON_APP_REFERENCE}
+    other._record_snapshot(node)
+    assert independent[id(node)]["register"] == legacy_guard._KNOWN_NON_APP_REFERENCE
+    assert references[id(node)]["register"] == legacy_guard._POSSIBLE_APP_CALL_REFERENCE
+
+
+def test_consol_snapshot_phase_detached_writer_refines_shared_owned_record() -> None:
+    node = ast.Name(id="register", ctx=ast.Load())
+    references: dict[int, dict[str, str]] = {}
+    strings: dict[int, dict[str, str]] = {}
+    results: dict[int, legacy_guard._ResolvedBinding] = {}
+    protected_result = legacy_guard._ResolvedBinding("legacy_app.get_api_key", "get_api_key")
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="legacy_app.py",
+        errors=[],
+        reference_snapshots=references,
+        string_snapshots=strings,
+        call_result_snapshots=results,
+    )
+    visitor.scope.references = {"register": legacy_guard._POSSIBLE_APP_CALL_REFERENCE}
+    visitor.scope.strings = {"member": "get_api_key"}
+    visitor._replay_calls_enabled = False
+    visitor._record_snapshot(node)
+    results[id(node)] = protected_result
+    detached = visitor._detached_analysis_visitor(
+        visitor.scope,
+        original_parent=visitor.scope,
+        analyze_function_bodies=True,
+    )
+    detached.reference_snapshots = references
+    detached.string_snapshots = strings
+    detached.call_result_snapshots = results
+    detached.scope.references = {"register": legacy_guard._KNOWN_NON_APP_REFERENCE}
+    detached._replay_calls_enabled = True
+    detached._record_snapshot(node)
+    assert references[id(node)]["register"] == legacy_guard._KNOWN_NON_APP_REFERENCE
+    assert strings[id(node)]["member"] == "get_api_key"
+    assert results[id(node)] is protected_result
+    visitor.scope.references = {"register": legacy_guard._POSSIBLE_APP_CALL_REFERENCE}
+    visitor._replay_calls_enabled = False
+    visitor._record_snapshot(node)
+    assert references[id(node)]["register"] == legacy_guard._KNOWN_NON_APP_REFERENCE
+
+
+@pytest.mark.parametrize(
+    "calls",
+    [
+        "possible = app.get if enabled else object()\ninvoke(possible)\ninvoke(object())\n",
+        "possible = app.get if enabled else object()\ninvoke(object())\ninvoke(possible)\n",
+        "if enabled:\n    invoke(app.get)\nelse:\n    invoke(object())\n",
+        "invoke(app.get)\n",
+    ],
+    ids=["possible-then-safe", "safe-then-possible", "branch-contexts", "static-param-protected"],
+)
+def test_consol_snapshot_phase_keeps_actual_parameter_and_branch_uncertainty(calls: str) -> None:
+    source = (
+        "def invoke(registrar):\n" "    registrar('/api/v1/actual-join-proof')(handler)\n" + calls
+    )
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:dynamic:/api/v1/actual-join-proof"
+    ]

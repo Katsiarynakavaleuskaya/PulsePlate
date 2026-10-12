@@ -3443,6 +3443,8 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         self.reference_snapshots = reference_snapshots
         self.string_snapshots = string_snapshots
         self.call_result_snapshots = call_result_snapshots
+        self._snapshot_collection = (reference_snapshots, string_snapshots, call_result_snapshots)
+        self._snapshot_analysis_replaying: dict[int, bool] = {}
         self.preserve_fastapi_conflicts = preserve_fastapi_conflicts
         self.preserve_lifecycle_conflicts = preserve_lifecycle_conflicts
         self.preserve_route_method_conflicts = preserve_route_method_conflicts
@@ -3615,6 +3617,48 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         existing_strings = (
             self.string_snapshots.get(node_id) if self.string_snapshots is not None else None
         )
+        tracks_collection = all(
+            current is owner
+            for current, owner in zip(
+                (self.reference_snapshots, self.string_snapshots, self.call_result_snapshots),
+                self._snapshot_collection,
+                strict=True,
+            )
+        ) and any(owner is not None for owner in self._snapshot_collection)
+        prior_replaying = (
+            self._snapshot_analysis_replaying.get(node_id) if tracks_collection else None
+        )
+        ordinary = self._analysis_purpose == "ordinary"
+        # This annotation describes analysis, not runtime execution or callable effects.
+        # Refine only a dormant possibility opposed by replay-enabled non-app identity;
+        # competing replay-enabled observations and other reference classes still join.
+        refined_references: dict[str, str] = {}
+        if (
+            ordinary
+            and existing_references is not None
+            and prior_replaying is not None
+            and prior_replaying != self._replay_calls_enabled
+        ):
+            possibilities = {
+                _POSSIBLE_APP_REFERENCE,
+                _POSSIBLE_ROUTER_REFERENCE,
+                _POSSIBLE_APP_CALL_REFERENCE,
+                _POSSIBLE_MIDDLEWARE_DECORATOR_REFERENCE,
+            }
+            if prior_replaying is False and self._replay_calls_enabled:
+                refined_references = {
+                    name: reference
+                    for name, reference in current_references.items()
+                    if reference == _KNOWN_NON_APP_REFERENCE
+                    and existing_references.get(name) in possibilities
+                }
+            elif prior_replaying is True and not self._replay_calls_enabled:
+                refined_references = {
+                    name: reference
+                    for name, reference in existing_references.items()
+                    if reference == _KNOWN_NON_APP_REFERENCE
+                    and current_references.get(name) in possibilities
+                }
         if (existing_references is not None or existing_strings is not None) and (
             existing_references != current_references or existing_strings != current_strings
         ):
@@ -3630,10 +3674,16 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             self.scope = active_scope
             current_references = merged.references
             current_strings = merged.strings
+        current_references.update(refined_references)
         if self.reference_snapshots is not None:
             self.reference_snapshots[node_id] = current_references
         if self.string_snapshots is not None:
             self.string_snapshots[node_id] = current_strings
+        if tracks_collection:
+            if self._replay_calls_enabled:
+                self._snapshot_analysis_replaying[node_id] = True
+            elif ordinary and existing_references is None and existing_strings is None:
+                self._snapshot_analysis_replaying[node_id] = False
 
     def _record_outward_api_key_rebinding(self, name: str) -> None:
         if self.filename != LEGACY_APP or name not in CANONICAL_API_KEY_SYMBOLS:
@@ -5796,6 +5846,8 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         visitor._postponed_annotations = self._postponed_annotations
         visitor._replay_calls_enabled = self._replay_calls_enabled
         visitor._sync_only_body_analysis = self._sync_only_body_analysis
+        visitor._snapshot_collection = self._snapshot_collection
+        visitor._snapshot_analysis_replaying = self._snapshot_analysis_replaying
         return visitor
 
     def _enter_function_binding_scope(
@@ -5904,7 +5956,11 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         definition_time_scan = node in self._definition_time_function_scans
         body_replay_enabled = self._replay_calls_enabled and (
             definition_time_scan
-            or (not isinstance(node, ast.AsyncFunctionDef) and not _function_is_generator(node))
+            or (
+                self._analysis_purpose == "ownership_audit"
+                and not isinstance(node, ast.AsyncFunctionDef)
+                and not _function_is_generator(node)
+            )
         )
         body_sync_only = self._sync_only_body_analysis or not definition_time_scan
         initial_arguments = default_bindings if definition_time_scan else {}
