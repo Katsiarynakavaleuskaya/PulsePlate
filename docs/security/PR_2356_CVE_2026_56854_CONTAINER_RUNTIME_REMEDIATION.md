@@ -347,6 +347,30 @@ The affected upstream prebuilt tool is not admitted. Exactly two later serial
 logical Prometheus builds retain independent caches, outputs and native equality;
 changing inputs cannot renew that budget.
 
+### Retained ORAS tool qualification
+
+The [successful first-attempt tool run](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/38269614712)
+retained [artifact 11755354665](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/38269614712/artifacts/11755354665);
+exact coordinates are recorded at `deploy/prometheus/image-manifest.json:325`.
+Native original-source/lock/buildinfo and complete error-free 325-package command
+graph evidence excludes every affected import for each retained finding:
+
+- CVE-2026-56854 / [GO-2026-6303](https://vuln.go.dev/ID/GO-2026-6303.json): SSH absent.
+- CVE-2026-56855 / [GO-2026-6355](https://vuln.go.dev/ID/GO-2026-6355.json): SSH absent.
+- CVE-2026-78662 / [GO-2026-6354](https://vuln.go.dev/ID/GO-2026-6354.json): SSH absent.
+- [GO-2026-5932](https://vuln.go.dev/ID/GO-2026-5932.json): all seven affected OpenPGP imports absent.
+
+Each is nonapplicable only to this exact compiled ORAS command. The affected
+`golang.org/x/crypto v0.52.0` module and all four raw findings remain; no module
+remediation or zero-findings claim follows. Native pinned Trivy `vuln,secret`
+execution succeeded, but its sole ELF is excluded by the pinned secret analyzer:
+the eligible plaintext inventory is positively empty. Omitted `Secrets` is not
+zero or ELF-content scanning. Public inputs and the clean, network-none,
+no-project-credential compile path provide separate bounded evidence. Synthetic
+OCI/Docker format proof does not establish real Prometheus binary/runtime proof.
+The original P011 both-binary/OS/security and runtime obligations remain pending;
+the manifest stays `source_prepared` with null image selection/candidate.
+
 Caddy remains 2.11.4. Its existing workflow now prepares two counterfactual
 baseline/xnet-0.60 derivations and a distinct signed Alpine zlib 1.3.2-r1 input.
 The final compiler/get/floor assertions remain unchanged until actual replay and

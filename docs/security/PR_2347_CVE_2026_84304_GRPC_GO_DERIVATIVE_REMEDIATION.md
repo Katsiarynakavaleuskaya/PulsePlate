@@ -175,6 +175,17 @@ The affected upstream prebuilt tool is not admitted. Exactly two later serial
 logical Prometheus builds retain independent caches, outputs and native equality;
 changing inputs cannot renew that budget.
 
+The [successful first-attempt tool run](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/38269614712)
+retained [artifact 11755354665](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/38269614712/artifacts/11755354665).
+Its exact source-head, artifact, input and binary coordinates are recorded at
+`deploy/prometheus/image-manifest.json:325`. Native source/lock/buildinfo and the
+complete 325-package command graph bind the PulsePlate ORAS rebuild; synthetic
+OCI/Docker conformance is observed. The four retained findings are individually
+nonapplicable only to that compiled command, as detailed in the
+[container-runtime evidence owner](PR_2356_CVE_2026_56854_CONTAINER_RUNTIME_REMEDIATION.md#retained-oras-tool-qualification).
+The manifest remains `source_prepared` with null image selection/candidate.
+Real Prometheus pair, both-binary/OS/security and runtime evidence remain pending.
+
 Caddy remains 2.11.4. Its existing workflow now prepares two counterfactual
 baseline/xnet-0.60 derivations and a distinct signed Alpine zlib 1.3.2-r1 input.
 The final compiler/get/floor assertions remain unchanged until actual replay and
