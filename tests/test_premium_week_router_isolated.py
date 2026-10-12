@@ -13,12 +13,14 @@ from typing import Any
 
 import pytest
 from fastapi import FastAPI
-from fastapi.testclient import TestClient
+
+from tests._client import open_test_client
 
 
 def test_premium_week_pipeline_type_mismatch_raises_typeerror(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Preserve request-time TypeError when the pipeline returns no PremiumWeekPlanResponse."""
     from app.routers import premium_week as premium_mod
     from app.middleware.api_tiers import require_pro_tier
 
@@ -36,22 +38,23 @@ def test_premium_week_pipeline_type_mismatch_raises_typeerror(
     monkeypatch.setattr(nutrition_targets_service, "is_complete_planning_targets", lambda _d: True)
 
     def _fake_pipeline(**_kwargs: Any) -> str:
+        """Supply a string sentinel instead of the required weekly response model."""
         return "not-a-week-plan-response"
 
     monkeypatch.setattr(premium_mod, "run_weekly_pipeline_guarded", _fake_pipeline)
 
-    client = TestClient(app)
     try:
-        with pytest.raises(TypeError, match=r"Expected PremiumWeekPlanResponse"):
-            _ = client.post("/api/v1/premium/plan/week-flexible", json={})
+        with open_test_client(app) as client:
+            with pytest.raises(TypeError, match=r"Expected PremiumWeekPlanResponse"):
+                _ = client.post("/api/v1/premium/plan/week-flexible", json={})
     finally:
-        client.close()
         app.dependency_overrides.clear()
 
 
 def test_premium_week_pipeline_invalid_payload_surfaces_postprocess_error(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Preserve the JSON 500 error contract for an invalid weekly postprocess payload."""
     from app.routers import premium_week as premium_mod
     from app.middleware.api_tiers import require_pro_tier
 
@@ -66,6 +69,7 @@ def test_premium_week_pipeline_invalid_payload_surfaces_postprocess_error(
     monkeypatch.setattr(nutrition_targets_service, "is_complete_planning_targets", lambda _d: True)
 
     def _fake_pipeline(**kwargs: Any) -> dict[str, Any]:
+        """Invoke the postprocessor and map malformed weekly data to its stable error."""
         postprocess_fn = kwargs["postprocess_fn"]
         try:
             postprocess_fn({"weekly_coverage": {}, "shopping_list": {}})
@@ -79,12 +83,11 @@ def test_premium_week_pipeline_invalid_payload_surfaces_postprocess_error(
 
     monkeypatch.setattr(premium_mod, "run_weekly_pipeline_guarded", _fake_pipeline)
 
-    client = TestClient(app)
     try:
-        response = client.post("/api/v1/premium/plan/week-flexible", json={})
-        assert response.status_code == 500, response.text
-        assert response.headers.get("content-type", "").startswith("application/json")
-        assert response.json()["code"] == "weekly_postprocess_failed"
+        with open_test_client(app) as client:
+            response = client.post("/api/v1/premium/plan/week-flexible", json={})
+            assert response.status_code == 500, response.text
+            assert response.headers.get("content-type", "").startswith("application/json")
+            assert response.json()["code"] == "weekly_postprocess_failed"
     finally:
-        client.close()
         app.dependency_overrides.clear()
