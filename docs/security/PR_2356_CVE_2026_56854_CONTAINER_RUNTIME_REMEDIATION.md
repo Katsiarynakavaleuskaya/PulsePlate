@@ -333,11 +333,11 @@ release or scan.
 
 This continuation supersedes the v2 selector instructions for new material;
 prior receipts above remain historical observations. The canonical record at
-`deploy/prometheus/image-manifest.json:1` is currently `source_prepared`, with
-null image/candidate outputs. The finite producer in
+`deploy/prometheus/image-manifest.json:1` now records `candidate_selected`, with
+exact retained candidate coordinates and selection data. The finite producer in
 `scripts/ci/prometheus_source_image.py:1` prepares authentic Prometheus 3.15.0,
 Go 1.27.2, the matching official UI and the preserved distroless vendor graph.
-No corrected runtime image, final scan, merge or publication is claimed here.
+The retained candidate is not yet registry-published or runtime/security accepted.
 
 The source route uses one separately qualified PulsePlate rebuild of ORAS 1.3.4
 from its exact upstream commit and unchanged locks. Complete command-graph
@@ -368,8 +368,15 @@ the eligible plaintext inventory is positively empty. Omitted `Secrets` is not
 zero or ELF-content scanning. Public inputs and the clean, network-none,
 no-project-credential compile path provide separate bounded evidence. Synthetic
 OCI/Docker format proof does not establish real Prometheus binary/runtime proof.
-The original P011 both-binary/OS/security and runtime obligations remain pending;
-the manifest stays `source_prepared` with null image selection/candidate.
+The [successful source-pair run](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/38291450453)
+retained [candidate artifact 11767273029](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/38291450453/artifacts/11767273029).
+Its two serial logical builds compiled both named binaries independently and
+produced equal OCI/Docker archives, config/layers, command graphs and input
+projections, with no automatic retry. Real native import was observed; this is
+retained candidate data, not a published registry image. The existing PR consumer
+must still prove actual both-binary/OS/full-finding scans, service/runtime behavior
+and signature/bundle verification. P011 and main-only publication/pullback remain
+pending; no security PASS or finding-absence claim follows from pair equality.
 
 Caddy remains 2.11.4. Its existing workflow now prepares two counterfactual
 baseline/xnet-0.60 derivations and a distinct signed Alpine zlib 1.3.2-r1 input.
