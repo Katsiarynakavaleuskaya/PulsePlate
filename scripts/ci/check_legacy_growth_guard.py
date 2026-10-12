@@ -145,6 +145,9 @@ RETIRED_LEGACY_PYTHON_BINDINGS = frozenset(
         "add_visualization_if_requested",
         "_BMI_COMPAT_REEXPORTS",
         "_BMI_SCHEMA_COMPAT_REEXPORTS",
+        "build_application_metadata",
+        "ENHANCED_PLATE_GENERATION_FAILED_DETAIL",
+        "INVALID_PREMIUM_PLATE_INPUT_DETAIL",
     }
 )
 ALLOWED_CANONICAL_LIFESPAN_APP_IMPORTS = frozenset(
@@ -10948,7 +10951,6 @@ def validate_application_metadata_openapi_ownership(
         errors.append(f"{LEGACY_APP}: OpenAPI implementation must be canonical: {name}")
 
     foreign_import_rebindings: set[str] = set()
-    metadata_factory_imported = False
     for statement in legacy_tree.body:
         if isinstance(statement, ast.ImportFrom) and statement.module == CANONICAL_OPENAPI.replace(
             "/", "."
@@ -10964,16 +10966,6 @@ def validate_application_metadata_openapi_ownership(
                 bound_name = alias.asname or alias.name.split(".", 1)[0]
                 if bound_name in CANONICAL_OPENAPI_SYMBOLS:
                     foreign_import_rebindings.add(bound_name)
-        if (
-            isinstance(statement, ast.ImportFrom)
-            and statement.module == "app.application_metadata"
-            and any(
-                alias.name == "build_application_metadata"
-                and alias.asname in {None, "build_application_metadata"}
-                for alias in statement.names
-            )
-        ):
-            metadata_factory_imported = True
     explicit_globals = {
         name
         for node in ast.walk(legacy_tree)
@@ -10994,8 +10986,6 @@ def validate_application_metadata_openapi_ownership(
         rebound.update(CANONICAL_OPENAPI_SYMBOLS)
     for name in sorted(rebound):
         errors.append(f"{LEGACY_APP}: canonical OpenAPI re-export must not be rebound: {name}")
-    if not metadata_factory_imported:
-        errors.append(f"{LEGACY_APP}: canonical application metadata factory import is required")
     if _mutates_openapi_callable_or_cache(legacy_tree):
         errors.append(f"{LEGACY_APP}: OpenAPI callable/cache mutation is forbidden")
 

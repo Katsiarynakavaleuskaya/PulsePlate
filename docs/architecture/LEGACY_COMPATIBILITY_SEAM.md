@@ -378,7 +378,7 @@ The merged `LEGACY-BMI-PYTHON-EXPORT-RETIREMENT-1/v1` child
 `generate_bmi_visualization`, `add_visualization_if_requested`,
 `_BMI_COMPAT_REEXPORTS`, and `_BMI_SCHEMA_COMPAT_REEXPORTS` from ordinary
 `legacy_app.py` bindings without replacement. The previous 99 retirement
-members remain; the current exact inventory is 106
+members remain; this child's historical exact inventory is 106
 (`scripts/ci/check_legacy_growth_guard.py:40`). The two tuples have no
 replacement. The two distinct canonical classes remain in
 `app/schemas/bmi_compat.py:21` and `app/schemas/bmi_compat.py:120`; the service
@@ -451,6 +451,54 @@ The operator explicitly permitted this existing lane to continue from pending
 main while another employee monitored it. This historical lane-specific start
 exception transferred no main PASS, publication validation, merge-readiness or
 merge permission and granted no bypass of this PR's required gates.
+
+## Legacy metadata and error-detail Python export retirement
+
+The admitted `LEGACY-METADATA-ERROR-EXPORT-RETIREMENT-1/v1` child removes
+exactly `build_application_metadata`,
+`ENHANCED_PLATE_GENERATION_FAILED_DETAIL`, and
+`INVALID_PREMIUM_PLATE_INPUT_DETAIL` from ordinary `legacy_app.py` bindings.
+The previous 106 members remain and the current exact retirement inventory is
+109 (`scripts/ci/check_legacy_growth_guard.py:40`). The historical BMI cohort
+retains positions `[99:106]`; this three-name cohort occupies `[106:109]` in
+`tests/test_legacy_growth_guard.py`. These are independently checked named
+inventories, not a census of every obsolete Legacy behavior.
+
+The factory remains callable at `app/application_metadata.py:113`; canonical
+bootstrap imports and constructs metadata directly at
+`app/bootstrap/application.py:13` and `app/bootstrap/application.py:30`.
+Both error values remain exact strings at `app/http_error_details.py:29` and
+`app/http_error_details.py:30`: `Invalid premium plate input` and
+`Enhanced plate generation failed`. Retained metadata projections and lifespan
+bindings, the singleton, the sixteen-name package facade, HTTP routes, auth,
+tier checks, DTOs and OpenAPI remain preservation surfaces.
+
+The existing ownership validator no longer requires a retired factory import.
+Its reverse-import, environment, canonical-main, OpenAPI rebinding,
+callable/cache and facade protections remain. Its baseline fixture consumes
+`APPLICATION_METADATA` and `app` from the canonical bootstrap; positive
+absence, ordinary/same-name imports, existing supported binding carriers and
+aggregate rejection controls cover the selected change. The protected
+fresh-process probe retains credential exclusion, network denial, its
+30-second timeout and failure diagnostics. Both actual import sequences check
+selected-owner first-load preconditions using read-only module membership.
+Unknown external/computed callers and already-loaded module dictionaries remain
+outside this bounded proof.
+
+Incoming PR #2483 terminal reconciliation is applied and committed once in this
+substantive child as `045952773ce45def82eca1130dd23d43630ac1d8`, preserving its
+Target PR #2483 and historical evidence above. Reconciled #2478/#2475/#2466 are
+not repeated. This child's own validation, premortem/Oracle, review,
+current-head CI, separately approved merge and terminal continuity remain
+pending until observed; predecessor results grant no transferred PASS.
+
+The operator explicitly authorizes this bounded start on red main. Foreign
+PR #2477 dependency/CD and PR #2476 consolidation/security/timeout ownership
+remain separate. PROJECT_LEGACY stays OPEN, R29 stays PARTIAL / UNWAIVED,
+O1 stays historical NOT_ADMITTED and the shared-runtime P1 follow-up stays OPEN.
+Rollback reverts this three-name removal and its coupled guard/tests only,
+preserving PR #2478 validation fixes, PR #2483 BMI retirement and truthful
+predecessor reconciliation. No separate docs-only closeout PR is selected.
 
 ## Residual Python facade census (log-retention child)
 
