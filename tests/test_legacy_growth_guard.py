@@ -25432,9 +25432,27 @@ def test_consol_reduce_reuses_shared_replay_budget_after_all_eager_items(
         "import legacy_app as hidden\nfrom functools import reduce\ndef helper(accumulator, owner):\n    return owner.require_app_api_key\nreduce(helper, [None, hidden])\n",
         "import legacy_app as hidden\nname = 'require_app_api_key'\nhidden.__dict__[name] = object()\n",
         "import legacy_app as hidden\nname = 'require_app_api_key'\nhidden.__dict__.update({name: (name := 'safe')})\n",
-        "import legacy_app as hidden\ndef generic[T: hidden.require_app_api_key](value):\n    return hidden.require_app_api_key\n",
-        "import legacy_app as hidden\ntype Alias[T: hidden.require_app_api_key] = list[hidden.require_app_api_key]\n",
-        "import legacy_app as hidden\nclass Container[T: hidden.require_app_api_key]:\n    def unused(self):\n        return hidden.require_app_api_key\n",
+        pytest.param(
+            "import legacy_app as hidden\ndef generic[T: hidden.require_app_api_key](value):\n    return hidden.require_app_api_key\n",
+            marks=pytest.mark.skipif(
+                sys.version_info < (3, 12),
+                reason="PEP 695 generic declaration syntax requires Python 3.12 or newer",
+            ),
+        ),
+        pytest.param(
+            "import legacy_app as hidden\ntype Alias[T: hidden.require_app_api_key] = list[hidden.require_app_api_key]\n",
+            marks=pytest.mark.skipif(
+                sys.version_info < (3, 12),
+                reason="PEP 695 generic declaration syntax requires Python 3.12 or newer",
+            ),
+        ),
+        pytest.param(
+            "import legacy_app as hidden\nclass Container[T: hidden.require_app_api_key]:\n    def unused(self):\n        return hidden.require_app_api_key\n",
+            marks=pytest.mark.skipif(
+                sys.version_info < (3, 12),
+                reason="PEP 695 generic declaration syntax requires Python 3.12 or newer",
+            ),
+        ),
         "from app.routers.api_key import require_app_api_key\ndef safe(owner=None):\n    return require_app_api_key\nsafe()\n",
     ],
 )
