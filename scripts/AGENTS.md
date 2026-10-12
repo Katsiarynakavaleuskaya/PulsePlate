@@ -841,6 +841,14 @@ the existing analysis budget at consumption. Test supported literal-vector
 boundaries and unconsumed or lexically shadowed counterexamples explicitly;
 unsupported shapes do not establish safety or completeness.
 
+For preserving or flattening wrappers, distinguish an empty result from no input
+consumption: a positive `islice` start can execute callbacks even with empty
+output. Finite `reduce` folds remain eager independently of an outer lazy consumer;
+capture each input and the initializer before replaying the canonical binder.
+Snapshot cost reductions must preserve every environment actually consumed by the
+owning audit. Keep full snapshots as the default for ordinary and OpenAPI consumers
+and propagate any narrower internal publication mode to detached writers.
+
 Provide focused commands with an explicit `tests/test_legacy_growth_guard.py`
 module or literal node selectors and the repo-approved Python interpreter.
 A shell continuation must be continuous: no blank line may detach selectors
