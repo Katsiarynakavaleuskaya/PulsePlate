@@ -856,6 +856,14 @@ Keep unrelated star imports in ordinary application modules on their existing
 separate contract; aggregate retirement rejection does not replace direct-owner
 validation.
 
+Module-namespace API-key writes use the existing lexical namespace and mutation
+seams. Preserve actual execution, captured receiver/callee/scalar keys, and the
+five-name inventory. Literal update keys and explicit keyword names are finite
+evidence; computed or unpacked keys on a proven module namespace conservatively
+report the protected inventory. Do not reinterpret AST keys after value effects
+or add a second namespace scanner. Shadowed producers, local namespaces, dormant
+bodies, empty updates and proven unrelated literal keys remain independent controls.
+
 Implicit async context/iteration dispatch is limited to captured local instance
 facts and the four known protocol methods. Reuse class callable/descriptor tables,
 canonical argument binding and existing loop transfers; preserve acquisition/exit
