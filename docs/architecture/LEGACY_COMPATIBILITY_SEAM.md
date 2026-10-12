@@ -372,8 +372,8 @@ not repeat #2475 reconciliation or import #2476's algorithmic repair.
 
 ## Legacy BMI Python export retirement
 
-The admitted `LEGACY-BMI-PYTHON-EXPORT-RETIREMENT-1/v1` child
-([PR #2483](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2483)) removes exactly
+The merged `LEGACY-BMI-PYTHON-EXPORT-RETIREMENT-1/v1` child
+([PR #2483](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2483)) retired exactly
 `BMIRequest`, `BMIRequestV1`, `MATPLOTLIB_AVAILABLE`,
 `generate_bmi_visualization`, `add_visualization_if_requested`,
 `_BMI_COMPAT_REEXPORTS`, and `_BMI_SCHEMA_COMPAT_REEXPORTS` from ordinary
@@ -398,17 +398,59 @@ already-loaded module dictionaries remain outside this bounded proof.
 
 Incoming PR #2478 terminal repository-doc reconciliation is carried once in
 this substantive child. Its historical 99-name preservation statement remains
-historical; #2475 reconciliation and #2466 closure are not repeated. The current
-child's own validation, review, Oracle, exact-head CI and separately authorized
-merge/terminal lifecycle remain pending. PROJECT_LEGACY stays OPEN, R29 stays
-PARTIAL / UNWAIVED, O1 stays historical NOT_ADMITTED, and the shared-runtime P1
-follow-up stays OPEN. Rollback reverts only new removal material, preserving
-both PR #2478 OverflowError catches.
+historical; #2475 reconciliation and #2466 closure are not repeated.
 
-The operator explicitly permits this existing lane to continue from pending
-main; another employee monitors main. This lane-specific start exception
-transfers no main PASS, publication validation, merge-readiness or merge
-permission, and grants no bypass of this PR's required gates.
+The child merged on `2026-10-11T19:53:43Z` as squash
+`e8c540333c67419d80957c98c9477842ab9d09c7` from approved head
+`759045a1b9c10981250a371fa13bbcfccbf41486`; their complete trees are equal.
+Own validation, review/dispositions, exact-material Oracle, provider-neutral seal,
+authenticated strict gates and separate human exact-head approval are retained.
+Merged-main focused sanity passed 1937 tests and the preservation bundle passed
+197, each with zero failures/errors/skips. Own canonical
+[main CI 38169930041](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/38169930041)
+at that exact squash completed SUCCESS: 10 successful jobs / 14 conditional
+skips, native TOTAL Python 3.11 / 3.12 / 3.13 of 97.62% / 97.65% / 97.64%.
+All declared 4/16/8 parallel shards plus serial0 completed exit 0. Six expected
+coverage/JUnit archives match server SHA256; 31 actual JUnit XML files contain
+35655 cases per version, zero failures/errors and 37 skips. Native warning
+counts 0/105/105 are retained; no zero-skip/no-warning or later-main/global
+health, deployment or release claim follows.
+
+The verified [PR #2483 archive](https://drive.google.com/drive/folders/1uIF6Wtr3mbpAmN5Izgo_wlcX4T55MOuu)
+contains eight transport objects downloaded and checked against native metadata
+and SHA256. Downloaded parts alone reassemble the 107412447-byte core, SHA256
+`a2de8b20f443cc78167581b5b9067b0c9df1696ce6c3db0aaaf03efad8681f83`.
+Recovery verified 1707 unique regular members, 1706 payload hashes, complete
+12-commit tree/blob inventories and nine accepted historical native validations;
+all 36 native commands exited 0, with historical currentness unclaimed. This is
+code/evidence recovery with approved external Python/Git, not a machine,
+Python-environment, container-image or gitlink-content backup.
+
+The existing Living Legacy Doc and capsule each received one final same-ID
+content pass; IDs, parents, observed ACL and unrelated prior content were
+preserved. Their `2026-10-11T22:02:39.919Z` content-pass cutoff accurately kept
+cleanup/outgoing/terminal QA pending; later actual receipts belong in the same
+archive's terminal supplement, without another master rewrite.
+Owned cleanup completed at `2026-10-11T22:26:13.376676+00:00`: implementation M and trusted T paths
+and worktree registrations are absent after native worktree removals exited 0 each; the local owned
+R branch was deleted with expected-head CAS exit 0 and expected absence exit 1. The remote owned
+branch was already absent on fresh native ls-remote exit 0, so no remote deletion was performed.
+Four private keeper roots remain retained; foreign resources were untouched and no global prune
+ran.
+This outgoing reconciliation is for the first following substantive Legacy
+child after fresh admission, without selecting a future PR or residual cohort
+and without a standalone docs-only closeout PR. It supersedes historical
+future-only projections of this seven-binding removal while preserving PR #2478
+validation and its historical 99-name receipts. PROJECT_LEGACY stays OPEN, R29
+stays PARTIAL / UNWAIVED, O1 stays historical NOT_ADMITTED, and the shared-runtime
+P1 follow-up stays OPEN. Unknown external/computed callers and already-loaded
+module dictionaries remain outside the bounded proof. Rollback reverts only
+this removal material, preserving both PR #2478 OverflowError catches.
+
+The operator explicitly permitted this existing lane to continue from pending
+main while another employee monitored it. This historical lane-specific start
+exception transferred no main PASS, publication validation, merge-readiness or
+merge permission and granted no bypass of this PR's required gates.
 
 ## Residual Python facade census (log-retention child)
 
