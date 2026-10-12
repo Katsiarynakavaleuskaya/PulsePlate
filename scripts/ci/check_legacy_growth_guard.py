@@ -2936,22 +2936,14 @@ class _LexicalBindings:
         visible = self.parent.visible_references() if self.parent is not None else {}
         for name in self.local_names:
             visible.pop(name, None)
-        visible.update(
-            (name, reference)
-            for name, reference in self.references.items()
-            if not name.startswith("<dict-argument:")
-        )
+        visible.update(self.references)
         return visible
 
     def visible_strings(self) -> dict[str, str]:
         visible = self.parent.visible_strings() if self.parent is not None else {}
         for name in self.local_names:
             visible.pop(name, None)
-        visible.update(
-            (name, value)
-            for name, value in self.strings.items()
-            if not name.startswith("<dict-argument:")
-        )
+        visible.update(self.strings)
         return visible
 
     def visible_callables(self) -> dict[str, frozenset[_FunctionNode]]:
@@ -3678,7 +3670,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             current.strings = current_strings
             merged = _LexicalBindings(parent=None)
             active_scope = self.scope
-            self._merge_outcomes(merged, [existing, current])
+            self._merge_outcomes(merged, [existing, current], snapshot_projection=True)
             self.scope = active_scope
             current_references = merged.references
             current_strings = merged.strings
@@ -4089,6 +4081,8 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 if candidate is mapping:
                     scope.mappings.pop(name, None)
                     scope.iterable_elements.pop(name, None)
+                    if name.startswith("<dict-argument:"):
+                        continue
                     if scope.references.get(name) != _MAPPING_APP_VALUE_REFERENCE:
                         scope.references[name] = _MAPPING_SENSITIVE_VALUE_REFERENCE
             scope = scope.parent
@@ -4576,6 +4570,8 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         self,
         incoming: _LexicalBindings,
         outcomes: Sequence[_LexicalBindings],
+        *,
+        snapshot_projection: bool = False,
     ) -> None:
         self.scope = incoming
         if not outcomes:
@@ -4783,6 +4779,8 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                         else _POSSIBLE_OPENAPI_SYMBOL
                     )
         self.scope.strings = joined_strings
+        if snapshot_projection:
+            return
 
         callable_names = set().union(*(set(outcome.callables) for outcome in outcomes))
         joined_callables: dict[str, frozenset[_FunctionNode]] = {}
@@ -7868,6 +7866,8 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 if candidate is not mapping:
                     continue
                 scope.mappings[name] = replacement.mapping
+                if name.startswith("<dict-argument:"):
+                    continue
                 if replacement.reference is None:
                     scope.references.pop(name, None)
                 else:
@@ -9044,15 +9044,21 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 if (mapping := self._resolve_mapping(keyword.value)) is not None
             ]
         consumes_dict_iterable = dict_constructor_candidate and len(positional_arguments) == 1
+        chain_candidate = (
+            wrapper_reference in _ITERABLE_CONCATENATING_REFERENCES
+            and not node.keywords
+            and not unresolved_positional_sources
+        )
         collects_zip_callbacks = (
             (
-                wrapper_reference in _ZIPPING_ITERABLE_BUILTIN_REFERENCES
+                (wrapper_reference in _ZIPPING_ITERABLE_BUILTIN_REFERENCES or chain_candidate)
                 and (id(node) in self._iterated_call_ids or iterable_callback_inputs is not None)
                 or consumes_dict_iterable
             )
             and not unresolved_positional_sources
             and (
                 consumes_dict_iterable
+                or chain_candidate
                 or not any(isinstance(argument, ast.Starred) for argument in node.args)
             )
         )
@@ -9061,6 +9067,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         )
         owns_zip_callback_inputs = collects_zip_callbacks and iterable_callback_inputs is None
         zip_callback_end_indices: list[int] = []
+        chain_operand_bindings: list[_ResolvedBinding] = []
         captures_lazy_callback = (
             iterable_callback_inputs is not None
             and wrapper_reference in {"builtins.map", "builtins.filter"}
@@ -9463,33 +9470,34 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             elif collects_zip_callbacks or dict_constructor_candidate:
                 self.visit(node.func)
                 exhausted_prefix = False
-                for argument in (lookup_arguments if dict_constructor_candidate else node.args):
+                for argument in (
+                    lookup_arguments if dict_constructor_candidate or chain_candidate else node.args
+                ):
                     if (
                         not exhausted_prefix
                         and isinstance(argument, ast.Call)
                         and self._resolve_reference(argument.func)
                         in {"builtins.zip", "builtins.map", "builtins.filter"}
+                        | _ITERABLE_CONCATENATING_REFERENCES
                     ):
                         self.visit(argument, iterable_callback_inputs=zip_callback_inputs)
                     else:
                         self.visit(argument)
+                    if chain_candidate:
+                        chain_operand_bindings.append(self._capture_argument_binding(argument))
                     if dict_constructor_candidate:
                         captured_dict_operand = self._capture_argument_binding(argument)
                         captured_dict_pair_entries = self._static_pair_mapping_entries(argument)
                         if captured_dict_operand.mapping is not None:
                             # Track the object through mutation without rereading its source name.
                             alias_name = f"<dict-argument:{id(node)}:0>"
-                            self.scope.bind(
-                                alias_name,
-                                reference=captured_dict_operand.reference,
-                                string=None,
-                                mapping=captured_dict_operand.mapping,
-                                iterable_element=captured_dict_operand.iterable_element,
-                                runtime_binding=False,
-                            )
+                            self.scope.mappings[alias_name] = captured_dict_operand.mapping
                             dict_argument_alias = (self.scope, alias_name)
                     zip_callback_end_indices.append(len(zip_callback_inputs))
-                    exhausted_prefix = exhausted_prefix or self._is_proven_empty_iterable(argument)
+                    if wrapper_reference in _ZIPPING_ITERABLE_BUILTIN_REFERENCES:
+                        exhausted_prefix = exhausted_prefix or self._is_proven_empty_iterable(
+                            argument
+                        )
                 for keyword in node.keywords:
                     self.visit(keyword)
                     if dict_constructor_candidate:
@@ -10205,7 +10213,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 execution="iterate",
             )
         if (
-            wrapper_reference in _ZIPPING_ITERABLE_BUILTIN_REFERENCES
+            (wrapper_reference in _ZIPPING_ITERABLE_BUILTIN_REFERENCES or chain_candidate)
             and id(node) in self._iterated_call_ids
         ) or consumes_dict_iterable:
             zip_previous_sync_only = self._sync_only_body_analysis
@@ -10219,7 +10227,11 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                         (
                             captured_dict_operand.deferred_calls
                             if consumes_dict_iterable and captured_dict_operand is not None
-                            else self._resolve_deferred_calls(argument)
+                            else (
+                                chain_operand_bindings[argument_index].deferred_calls
+                                if chain_candidate
+                                else self._resolve_deferred_calls(argument)
+                            )
                         ),
                         execution="iterate",
                     )

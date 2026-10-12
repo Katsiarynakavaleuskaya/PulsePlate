@@ -23589,3 +23589,290 @@ def test_consol_dict_constructor_unknown_mutation_of_captured_mapping_stays_cons
         "legacy_app.py: unexpected legacy route growth: "
         "registration:dynamic:/api/v1/dict-unknown-mutation"
     ]
+
+
+@pytest.mark.parametrize("family", ["api", "openapi"])
+@pytest.mark.parametrize("wrapper", ["itertools.chain", "join"])
+def test_consol_chain_consumption_replays_protected_callback(family: str, wrapper: str) -> None:
+    member = "require_app_api_key" if family == "api" else "_install_openapi_builder"
+    source = (
+        "import itertools\nfrom itertools import chain as join\nimport legacy_app as legacy\n"
+        f"def access(owner):\n    return owner.{member}\n"
+        f"for _ in {wrapper}(map(access, [legacy])):\n    pass\n"
+    )
+    if family == "api":
+        assert _validate_api_key_dependency_ownership(
+            _CONSOL_GETTER_IMPORTS, {"app/routers/example.py": source}
+        ) == [
+            "app/routers/example.py: legacy API-key dependency attribute access "
+            f"is forbidden: {member}"
+        ]
+    else:
+        assert _consol_openapi_errors(source) == [
+            "app/main.py: OpenAPI symbol must not be accessed through legacy"
+        ]
+
+
+@pytest.mark.parametrize("family", ["api", "openapi"])
+@pytest.mark.parametrize(
+    ("expression", "forbidden"),
+    [
+        ("itertools.chain([], map(access, [legacy]))", True),
+        ("itertools.chain([], [], map(access, [legacy]), [])", True),
+        ("itertools.chain(map(access, []), map(access, [legacy]))", True),
+        ("itertools.chain(itertools.chain(map(access, [legacy])))", True),
+        ("itertools.chain(zip(map(access, [legacy])))", True),
+        ("itertools.chain(filter(access, [legacy]))", True),
+        ("zip(itertools.chain(map(access, [legacy])))", True),
+        ("zip([], itertools.chain(map(access, [legacy])))", False),
+        ("itertools.chain(zip([], map(access, [legacy])))", False),
+        ("itertools.chain(map(access, []))", False),
+        ("itertools.chain(*(map(access, [legacy]),))", True),
+    ],
+)
+def test_consol_chain_preserves_nested_handoffs_and_wrapper_specific_exhaustion(
+    family: str, expression: str, forbidden: bool
+) -> None:
+    member = "require_app_api_key" if family == "api" else "_install_openapi_builder"
+    source = (
+        "import itertools\nimport legacy_app as legacy\n"
+        f"def access(owner):\n    return owner.{member}\n"
+        f"for _ in {expression}:\n    pass\n"
+    )
+    if family == "api":
+        assert _validate_api_key_dependency_ownership(
+            _CONSOL_GETTER_IMPORTS, {"app/routers/example.py": source}
+        ) == (
+            [
+                "app/routers/example.py: legacy API-key dependency attribute access "
+                f"is forbidden: {member}"
+            ]
+            if forbidden
+            else []
+        )
+    else:
+        assert _consol_openapi_errors(source) == (
+            ["app/main.py: OpenAPI symbol must not be accessed through legacy"] if forbidden else []
+        )
+
+
+@pytest.mark.parametrize("consumed", [False, True])
+@pytest.mark.parametrize("shadowed", [False, True])
+def test_consol_chain_creation_and_shadowed_wrapper_keep_callbacks_dormant(
+    consumed: bool, shadowed: bool
+) -> None:
+    source = (
+        "from itertools import chain as join\ntrace = ''\n"
+        "def access(value):\n    global trace\n    trace = trace + 'C'\n    return value\n"
+        + ("join = lambda *values: []\n" if shadowed else "")
+        + (
+            "for _ in join(map(access, [1])):\n    pass\n"
+            if consumed
+            else "pending = join(map(access, [1]))\n"
+        )
+    )
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="example.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(ast.parse(source))
+    assert visitor.scope.strings["trace"] == ("C" if consumed and not shadowed else "")
+
+
+@pytest.mark.parametrize("initial_legacy", [False, True])
+def test_consol_chain_captures_deferred_operand_before_later_rebinding(
+    initial_legacy: bool,
+) -> None:
+    initial, replacement = ("legacy", "canonical") if initial_legacy else ("canonical", "legacy")
+    source = (
+        "import itertools\nimport legacy_app as legacy\nimport app.routers.api_key as canonical\n"
+        "trace = ''\n"
+        "def access(owner):\n    global trace\n    trace = trace + 'C'\n"
+        "    yield owner.require_app_api_key\n"
+        f"pending = access({initial})\n"
+        "def late():\n    global pending, trace\n    trace = trace + 'L'\n"
+        f"    pending = access({replacement})\n    return []\n"
+        "for _ in itertools.chain(pending, late()):\n    pass\n"
+    )
+    tree = ast.parse(source)
+    snapshots: dict[int, dict[str, str]] = {}
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="example.py",
+        errors=[],
+        analyze_function_bodies=False,
+        reference_snapshots=snapshots,
+    )
+    visitor.visit(tree)
+    access = next(
+        n
+        for n in ast.walk(tree)
+        if isinstance(n, ast.Attribute) and n.attr == "require_app_api_key"
+    )
+    assert visitor.scope.strings["trace"] == "LC"
+    assert snapshots[id(access.value)]["owner"] == (
+        "legacy_app" if initial_legacy else "app.routers.api_key"
+    )
+
+
+@pytest.mark.parametrize("rebound", ["join", "callback"])
+def test_consol_chain_captures_callee_and_callback_before_later_operand_effects(
+    rebound: str,
+) -> None:
+    source = (
+        "from itertools import chain as join\ntrace = ''\n"
+        "def access(value):\n    global trace\n    trace = trace + value\n    return value\n"
+        "callback = access\n"
+        f"def late():\n    global {rebound}, trace\n    trace = trace + 'L'\n"
+        f"    {rebound} = lambda *values: []\n    return []\n"
+        "for _ in join(map(callback, ['1']), late(), map(access, ['2'])):\n    pass\n"
+    )
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="example.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(ast.parse(source))
+    assert visitor.scope.strings["trace"] == "L12"
+
+
+@pytest.mark.parametrize("family", ["api_key", "openapi"])
+@pytest.mark.parametrize("fastapi", [False, True])
+@pytest.mark.parametrize("lifecycle", [False, True])
+@pytest.mark.parametrize("routes", [False, True])
+@pytest.mark.parametrize(
+    ("left_refs", "right_refs", "left_strings", "right_strings"),
+    [
+        ({"owner": "legacy_app"}, {"owner": "legacy_app"}, {"name": "safe"}, {"name": "safe"}),
+        ({"owner": "legacy_app"}, {}, {"name": "get_api_key"}, {}),
+        (
+            {"owner": "pulseplate.app.get", "kept": "legacy_app"},
+            {"owner": "<known:non-app>", "kept": "legacy_app"},
+            {"name": "_install_openapi_builder"},
+            {"name": "other"},
+        ),
+        (
+            {"owner": "fastapi.FastAPI"},
+            {"owner": "<known:non-app>"},
+            {"method": "get"},
+            {"method": "post"},
+        ),
+        ({}, {"owner": "legacy_app.__dict__.update"}, {}, {"name": "get_api_key"}),
+    ],
+)
+def test_consol_snapshot_projection_matches_full_canonical_reference_string_join(
+    family: Literal["api_key", "openapi"],
+    fastapi: bool,
+    lifecycle: bool,
+    routes: bool,
+    left_refs: dict[str, str],
+    right_refs: dict[str, str],
+    left_strings: dict[str, str],
+    right_strings: dict[str, str],
+) -> None:
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="example.py",
+        errors=[],
+        ownership_family=family,
+        preserve_fastapi_conflicts=fastapi,
+        preserve_lifecycle_conflicts=lifecycle,
+        preserve_route_method_conflicts=routes,
+    )
+    left = legacy_guard._LexicalBindings(parent=None)
+    right = legacy_guard._LexicalBindings(parent=None)
+    left.references, right.references = dict(left_refs), dict(right_refs)
+    left.strings, right.strings = dict(left_strings), dict(right_strings)
+    full = legacy_guard._LexicalBindings(parent=None)
+    projected = legacy_guard._LexicalBindings(parent=None)
+    visitor._merge_outcomes(full, [left, right])
+    visitor._merge_outcomes(projected, [left, right], snapshot_projection=True)
+    assert projected.references == full.references
+    assert projected.strings == full.strings
+    assert left.references == left_refs and right.references == right_refs
+    assert left.strings == left_strings and right.strings == right_strings
+
+
+def test_consol_snapshot_projection_does_not_truncate_default_full_scope_merge() -> None:
+    visitor = legacy_guard._ApiKeyLookupVisitor(filename="example.py", errors=[])
+    function = cast(ast.FunctionDef, ast.parse("def callback():\n    yield 1\n").body[0])
+    deferred = legacy_guard._DeferredFunctionCall(function=function, arguments=())
+    mapping = legacy_guard._StaticMapping(site=ast.Dict(keys=[], values=[]), entries=())
+    element = legacy_guard._ResolvedBinding(reference="legacy_app", string="get_api_key")
+    scopes = [legacy_guard._LexicalBindings(parent=None) for _ in range(2)]
+    for scope in scopes:
+        scope.references = {"owner": "legacy_app"}
+        scope.strings = {"member": "get_api_key"}
+        scope.callables = {"callback": frozenset({function})}
+        scope.deferred_calls = {"pending": frozenset({deferred})}
+        scope.mappings = {"mapping": mapping}
+        scope.class_references = {"kind": frozenset({"example.Class"})}
+        scope.descriptors = {"descriptor": frozenset({(function, "plain")})}
+        scope.iterable_elements = {"iterable": element}
+        scope.bound_names = {"bound"}
+        scope.possibly_bound_names = {"bound", "possible"}
+    merged = legacy_guard._LexicalBindings(parent=None)
+    visitor._merge_outcomes(merged, scopes)
+    assert merged.references == scopes[0].references
+    assert merged.strings == scopes[0].strings
+    assert merged.callables == scopes[0].callables
+    assert merged.deferred_calls == scopes[0].deferred_calls
+    assert merged.mappings["mapping"] is mapping
+    assert merged.class_references == scopes[0].class_references
+    assert merged.descriptors == {
+        **scopes[0].descriptors,
+        "callback": frozenset({(function, "plain")}),
+    }
+    assert merged.iterable_elements == scopes[0].iterable_elements
+    assert merged.bound_names == {"bound"}
+    assert merged.possibly_bound_names == {"bound", "possible"}
+
+
+@pytest.mark.parametrize(
+    ("effect", "private_mapping_present"),
+    [
+        ("routes.update({'route': app.get})", True),
+        ("routes.clear()", True),
+        ("unknown(routes)", False),
+    ],
+)
+def test_consol_dict_private_alias_stays_mapping_only_during_keyword_mutation(
+    effect: str, private_mapping_present: bool, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    snapshots: dict[int, dict[str, str]] = {}
+    strings: dict[int, dict[str, str]] = {}
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="example.py",
+        errors=[],
+        initial_references={"app": "pulseplate.app"},
+        analyze_function_bodies=False,
+        reference_snapshots=snapshots,
+        string_snapshots=strings,
+    )
+    observed: list[bool] = []
+
+    def inspect_keyword(node: ast.keyword) -> None:
+        visitor.visit(node.value)
+        private = [name for name in visitor.scope.mappings if name.startswith("<dict-argument:")]
+        observed.append(bool(private))
+        for facet in (
+            visitor.scope.references,
+            visitor.scope.strings,
+            visitor.scope.callables,
+            visitor.scope.deferred_calls,
+            visitor.scope.class_references,
+            visitor.scope.descriptors,
+            visitor.scope.iterable_elements,
+            visitor.scope.bound_names,
+            visitor.scope.possibly_bound_names,
+        ):
+            assert not any(name.startswith("<dict-argument:") for name in facet)
+        for snapshot in [*snapshots.values(), *strings.values()]:
+            assert not any(name.startswith("<dict-argument:") for name in snapshot)
+        assert legacy_guard._BUILTINS_OBJECT_STATE_NAME in visitor.scope.visible_references()
+        assert visitor.scope.visible_strings()["marker"] == "<dict-argument:literal>"
+
+    monkeypatch.setattr(visitor, "visit_keyword", inspect_keyword, raising=False)
+    visitor.visit(
+        ast.parse(
+            "marker = '<dict-argument:literal>'\nroutes = {'route': None}\n"
+            f"copied = dict(routes, later={effect})\n"
+        )
+    )
+    assert observed == [private_mapping_present]
+    assert not any(name.startswith("<dict-argument:") for name in visitor.scope.mappings)
