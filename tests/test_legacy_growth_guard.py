@@ -3,9 +3,11 @@ from __future__ import annotations
 import ast
 import hashlib
 import json
+import os
 import resource
 import subprocess
 import sys
+import tempfile
 import textwrap
 import time
 from pathlib import Path
@@ -13648,62 +13650,89 @@ def test_legacy_growth_guard_real_current_root_cli() -> None:
         cpu_before = (usage_before.ru_utime, usage_before.ru_stime)
     except Exception:
         pass
-    try:
-        result = subprocess.run(
-            [
-                sys.executable,
-                "-I",
-                "-B",
-                str(REPO_ROOT / "scripts/ci/check_legacy_growth_guard.py"),
-                "--repo-root",
-                str(REPO_ROOT),
-            ],
-            cwd=REPO_ROOT,
-            env={"PYTHONDONTWRITEBYTECODE": "1"},
-            capture_output=True,
-            text=True,
-            check=False,
-            timeout=120,
-        )
-    except subprocess.TimeoutExpired:
+    with tempfile.TemporaryFile("w+b") as trace_stream:
         try:
-            elapsed = time.monotonic() - started if started is not None else None
-        except Exception:
-            elapsed = None
-        cpu_delta: dict[str, float] | None = None
-        try:
-            usage_after = resource.getrusage(resource.RUSAGE_CHILDREN)
-            if cpu_before is not None:
-                cpu_delta = {
-                    "user_seconds": usage_after.ru_utime - cpu_before[0],
-                    "system_seconds": usage_after.ru_stime - cpu_before[1],
-                }
-        except Exception:
-            pass
-        try:
-            inputs_after = fingerprint_inputs()
-            diagnostic = {
-                "event": "legacy_guard_cli_timeout",
-                "elapsed_seconds": elapsed,
-                "reaped_children_accounting_window_cpu_delta": cpu_delta,
-                "cpu_scope": "accounting_window_not_pid_exclusive",
-                "host_cause": "unknown",
-                "fingerprint_scope": "non_atomic_raw_file_read_set",
-                "inputs_before": inputs_before,
-                "inputs_after": inputs_after,
-                "readback_equal": (
-                    inputs_before == inputs_after
-                    if inputs_before.get("state") == inputs_after.get("state") == "known"
-                    else None
-                ),
-            }
-            sys.stderr.write(json.dumps(diagnostic, sort_keys=True, allow_nan=False) + "\n")
-        except Exception:
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    "-I",
+                    "-B",
+                    str(REPO_ROOT / "scripts/ci/check_legacy_growth_guard.py"),
+                    "--repo-root",
+                    str(REPO_ROOT),
+                ],
+                cwd=REPO_ROOT,
+                env={
+                    "PYTHONDONTWRITEBYTECODE": "1",
+                    "PULSEPLATE_LEGACY_TRACE_FD": str(trace_stream.fileno()),
+                },
+                pass_fds=(trace_stream.fileno(),),
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=120,
+            )
+        except subprocess.TimeoutExpired:
             try:
-                sys.stderr.write('{"event":"legacy_guard_cli_timeout","diagnostic":"unknown"}\n')
+                elapsed = time.monotonic() - started if started is not None else None
+            except Exception:
+                elapsed = None
+            cpu_delta: dict[str, float] | None = None
+            try:
+                usage_after = resource.getrusage(resource.RUSAGE_CHILDREN)
+                if cpu_before is not None:
+                    cpu_delta = {
+                        "user_seconds": usage_after.ru_utime - cpu_before[0],
+                        "system_seconds": usage_after.ru_stime - cpu_before[1],
+                    }
             except Exception:
                 pass
-        raise
+            try:
+                inputs_after = fingerprint_inputs()
+                try:
+                    trace_stream.seek(0)
+                    trace_bytes = trace_stream.read(65537)
+                    child_traceback: str | None = trace_bytes[:65536].decode(
+                        "utf-8", errors="replace"
+                    )
+                    traceback_truncated: bool | None = len(trace_bytes) > 65536
+                    try:
+                        trace_bytes[:65536].decode("utf-8", errors="strict")
+                        traceback_decode_replaced: bool | None = False
+                    except UnicodeDecodeError:
+                        traceback_decode_replaced = True
+                except OSError:
+                    child_traceback = None
+                    traceback_truncated = None
+                    traceback_decode_replaced = None
+                diagnostic = {
+                    "event": "legacy_guard_cli_timeout",
+                    "child_traceback_dump": child_traceback,
+                    "child_traceback_truncated": traceback_truncated,
+                    "child_traceback_decode_replaced": traceback_decode_replaced,
+                    "child_traceback_scope": "one_non_repeating_dump_at_90_seconds_same_child_no_locals",
+                    "elapsed_seconds": elapsed,
+                    "reaped_children_accounting_window_cpu_delta": cpu_delta,
+                    "cpu_scope": "accounting_window_not_pid_exclusive",
+                    "host_cause": "unknown",
+                    "fingerprint_scope": "non_atomic_raw_file_read_set",
+                    "inputs_before": inputs_before,
+                    "inputs_after": inputs_after,
+                    "readback_equal": (
+                        inputs_before == inputs_after
+                        if inputs_before.get("state") == inputs_after.get("state") == "known"
+                        else None
+                    ),
+                }
+                sys.stderr.write(json.dumps(diagnostic, sort_keys=True, allow_nan=False) + "\n")
+            except Exception:
+                try:
+                    sys.stderr.write(
+                        '{"event":"legacy_guard_cli_timeout","diagnostic":"unknown"}\n'
+                    )
+                except Exception:
+                    pass
+            raise
     assert result.returncode == 0, result.stderr
     assert result.stdout.strip() == "legacy compatibility seam guard passed"
     assert result.stderr == ""
@@ -24260,3 +24289,984 @@ def test_consol_snapshot_projection_preserves_published_input_maps(
     references[id(node)]["later"] = "legacy_app"
     strings[id(node)]["later"] = "get_api_key"
     assert "later" not in published_references and "later" not in published_strings
+
+
+@pytest.mark.parametrize("family", ["api", "openapi"])
+@pytest.mark.parametrize("consumer", ["starred", "destructure", "membership"])
+@pytest.mark.parametrize("protected", [False, True])
+def test_consol_syntax_consumption_replays_generator_protected_read(
+    family: str, consumer: str, protected: bool
+) -> None:
+    member = "require_app_api_key" if family == "api" else "_install_openapi_builder"
+    owner = "legacy" if protected else "canonical"
+    invocation = {
+        "starred": f"[*access({owner})]",
+        "destructure": f"[value] = access({owner})",
+        "membership": f"None in access({owner})",
+    }[consumer]
+    source = (
+        "import legacy_app as legacy\n"
+        + (
+            "import app.routers.api_key as canonical\n"
+            if family == "api"
+            else "import app.bootstrap.openapi as canonical\n"
+        )
+        + f"def access(owner):\n    yield owner.{member}\n{invocation}\n"
+    )
+    errors = (
+        _validate_api_key_dependency_ownership(
+            _CONSOL_GETTER_IMPORTS, {"app/routers/example.py": source}
+        )
+        if family == "api"
+        else _consol_openapi_errors(source)
+    )
+    assert errors == (
+        (
+            [
+                f"app/routers/example.py: legacy API-key dependency attribute access is forbidden: {member}"
+            ]
+            if family == "api"
+            else ["app/main.py: OpenAPI symbol must not be accessed through legacy"]
+        )
+        if protected
+        else []
+    )
+
+
+@pytest.mark.parametrize(
+    ("expression", "expected"),
+    [
+        ("[*access()]", "C"),
+        ("(*access(),)", "C"),
+        ("{*access()}", "C"),
+        ("sink(*access())", "C"),
+        ("[value] = access()", "C"),
+        ("(value,) = access()", "C"),
+        ("[[value]] = [access()]", "C"),
+        ("head, *tail = access()", "C"),
+        ("value = access()", ""),
+        ("pending = [access()]", ""),
+        ("None in access()", "C"),
+        ("None not in access()", "C"),
+    ],
+)
+def test_consol_syntax_consumption_preserves_single_evaluation_and_dormancy(
+    expression: str, expected: str
+) -> None:
+    source = (
+        "trace = ''\n"
+        "def access():\n    global trace\n    trace = trace + 'C'\n    yield None\n"
+        "def sink(*values):\n    return None\n" + expression + "\n"
+    )
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="example.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(ast.parse(source))
+    assert visitor.scope.strings["trace"] == expected
+
+
+def test_consol_syntax_consumption_store_star_does_not_consume_creation() -> None:
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="example.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(
+        ast.parse(
+            "trace = ''\ndef access():\n    global trace\n    trace = trace + 'C'\n    yield None\n"
+        )
+    )
+    value = cast(ast.Expr, ast.parse("access()").body[0]).value
+    visitor.visit(ast.Starred(value=value, ctx=ast.Store()))
+    assert visitor.scope.strings["trace"] == ""
+
+
+@pytest.mark.parametrize(
+    ("prefix", "consumed"),
+    [
+        ("1 == 1", True),
+        ("1 != 2", True),
+        ("1 < 2", True),
+        ("1 <= 1", True),
+        ("2 > 1", True),
+        ("1 >= 1", True),
+        ("1 == 2", False),
+        ("1 != 1", False),
+        ("2 < 1", False),
+        ("2 <= 1", False),
+        ("1 > 2", False),
+        ("1 >= 2", False),
+    ],
+)
+def test_consol_syntax_consumption_chained_constant_comparison_stops_unreachable_consumer(
+    prefix: str, consumed: bool
+) -> None:
+    source = (
+        "trace = ''\n"
+        "def access():\n    global trace\n    trace = trace + 'C'\n    yield None\n"
+        + prefix
+        + " in access()\n"
+    )
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="example.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(ast.parse(source))
+    assert visitor.scope.strings["trace"] == ("C" if consumed else "")
+
+
+def test_consol_syntax_consumption_membership_orders_operands_once() -> None:
+    source = (
+        "trace = ''\n"
+        "def left():\n    global trace\n    trace = trace + 'L'\n    return None\n"
+        "def right():\n    global trace\n    trace = trace + 'R'\n    yield None\n"
+        "left() in right()\n"
+    )
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="example.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(ast.parse(source))
+    assert visitor.scope.strings["trace"] == "LR"
+
+
+def test_consol_syntax_consumption_unknown_comparison_retains_conditional_effects() -> None:
+    source = (
+        "import legacy_app as legacy\nimport app.bootstrap.openapi as canonical\n"
+        "owner = canonical\n"
+        "def access():\n    global owner\n    owner = legacy\n    yield None\n"
+        "unknown == 1 in access()\n"
+    )
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="example.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(ast.parse(source))
+    assert visitor.scope.references["owner"] == legacy_guard._POSSIBLE_LEGACY_REFERENCE
+
+
+def test_consol_syntax_consumption_scalar_typeerror_is_unknown_not_false() -> None:
+    source = (
+        "import legacy_app as legacy\nimport app.bootstrap.openapi as canonical\nowner = canonical\n"
+        "def access():\n    global owner\n    owner = legacy\n    yield None\n"
+        "1 < 'x' in access()\n"
+    )
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="example.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(ast.parse(source))
+    assert visitor.scope.references["owner"] == legacy_guard._POSSIBLE_LEGACY_REFERENCE
+
+
+@pytest.mark.parametrize("initial_legacy", [False, True])
+def test_consol_syntax_consumption_captures_generator_receiver_before_later_effect(
+    initial_legacy: bool,
+) -> None:
+    initial, replacement = ("legacy", "canonical") if initial_legacy else ("canonical", "legacy")
+    source = (
+        "import legacy_app as legacy\nimport app.bootstrap.openapi as canonical\n"
+        f"owner = {initial}\n"
+        "def access(value):\n    yield value._install_openapi_builder\n"
+        "pending = access(owner)\n"
+        f"owner = {replacement}\n"
+        "[*pending]\n"
+    )
+    assert _consol_openapi_errors(source) == (
+        ["app/main.py: OpenAPI symbol must not be accessed through legacy"]
+        if initial_legacy
+        else []
+    )
+
+
+@pytest.mark.parametrize("family", ["api", "openapi"])
+@pytest.mark.parametrize("protected", [False, True])
+@pytest.mark.parametrize("consumer", ["list", "dict", "chain", "filter", "starmap"])
+def test_consol_partial_callback_consumption_preserves_bound_prefix(
+    family: str, protected: bool, consumer: str
+) -> None:
+    member = "require_app_api_key" if family == "api" else "_install_openapi_builder"
+    owner = "legacy" if protected else "canonical"
+    result = "('key', None)" if consumer == "dict" else "None"
+    invocation = {
+        "list": f"list(map(callback, [{owner}]))",
+        "dict": f"dict(map(callback, [{owner}]))",
+        "chain": f"list(itertools.chain(map(callback, [{owner}])))",
+        "filter": f"list(filter(callback, [{owner}]))",
+        "starmap": f"list(itertools.starmap(callback, [({owner},)]))",
+    }[consumer]
+    source = (
+        "from functools import partial\nimport itertools\nimport legacy_app as legacy\n"
+        + (
+            "import app.routers.api_key as canonical\n"
+            if family == "api"
+            else "import app.bootstrap.openapi as canonical\n"
+        )
+        + f"def access(prefix, owner):\n    value = owner.{member}\n    return {result}\n"
+        + "callback = partial(access, None)\n"
+        + invocation
+        + "\n"
+    )
+    errors = (
+        _validate_api_key_dependency_ownership(
+            _CONSOL_GETTER_IMPORTS, {"app/routers/example.py": source}
+        )
+        if family == "api"
+        else _consol_openapi_errors(source)
+    )
+    assert errors == (
+        (
+            [
+                f"app/routers/example.py: legacy API-key dependency attribute access is forbidden: {member}"
+            ]
+            if family == "api"
+            else ["app/main.py: OpenAPI symbol must not be accessed through legacy"]
+        )
+        if protected
+        else []
+    )
+
+
+@pytest.mark.parametrize("protected", [False, True])
+def test_consol_syntax_consumption_nested_generator_preserves_all_rhs_effects_before_body(
+    protected: bool,
+) -> None:
+    owner = "legacy" if protected else "canonical"
+    source = (
+        "import legacy_app as legacy\nimport app.bootstrap.openapi as canonical\ntrace = ''\n"
+        "def access(value):\n    global trace\n    trace = trace + 'C'\n    yield value._install_openapi_builder\n"
+        "def late():\n    global trace\n    trace = trace + 'L'\n    return None\n"
+        f"[[value], other] = [access({owner}), late()]\n"
+    )
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="example.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(ast.parse(source))
+    assert visitor.scope.strings["trace"] == "LC"
+    assert _consol_openapi_errors(source) == (
+        ["app/main.py: OpenAPI symbol must not be accessed through legacy"] if protected else []
+    )
+
+
+@pytest.mark.parametrize("consumer", ["starred", "destructure", "membership"])
+def test_consol_syntax_consumption_sync_iteration_does_not_execute_coroutine(
+    consumer: str,
+) -> None:
+    invocation = {
+        "starred": "[*access()]",
+        "destructure": "[value] = access()",
+        "membership": "None in access()",
+    }[consumer]
+    source = (
+        "trace = ''\nasync def access():\n    global trace\n    trace = trace + 'C'\n    return None\n"
+        + invocation
+        + "\n"
+    )
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="example.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(ast.parse(source))
+    assert visitor.scope.strings["trace"] == ""
+
+
+@pytest.mark.parametrize("family", ["api", "openapi"])
+@pytest.mark.parametrize("protected", [False, True])
+@pytest.mark.parametrize("form", ["direct", "nested", "alias", "getattr"])
+def test_consol_mapping_result_ownpoint_preserves_selected_receiver(
+    family: str, protected: bool, form: str
+) -> None:
+    member = "require_app_api_key" if family == "api" else "_install_openapi_builder"
+    selected, neighbor = ("legacy", "canonical") if protected else ("canonical", "legacy")
+    forms = {
+        "direct": f"owners = {{'selected': {selected}, 'neighbor': {neighbor}}}\nowners['selected'].{member}\n",
+        "nested": f"owners = {{'selected': {selected}, 'neighbor': {neighbor}}}\nowners['selected'].__dict__[{member!r}]\n",
+        "alias": f"owners = {{'selected': {selected}, 'neighbor': {neighbor}}}\nalias = owners\nalias['selected'].{member}\n",
+        "getattr": f"owners = {{'selected': {selected}, 'neighbor': {neighbor}}}\ngetattr(owners['selected'], {member!r})\n",
+    }
+    source = (
+        "import legacy_app as legacy\n"
+        + (
+            "import app.routers.api_key as canonical\n"
+            if family == "api"
+            else "import app.bootstrap.openapi as canonical\n"
+        )
+        + forms[form]
+    )
+    errors = (
+        _validate_api_key_dependency_ownership(
+            _CONSOL_GETTER_IMPORTS, {"app/routers/example.py": source}
+        )
+        if family == "api"
+        else _consol_openapi_errors(source)
+    )
+    assert bool(errors) is protected
+    if errors:
+        assert all(
+            (
+                "legacy API-key dependency"
+                if family == "api"
+                else "OpenAPI symbol must not be accessed through legacy"
+            )
+            in error
+            for error in errors
+        )
+
+
+@pytest.mark.parametrize("first_legacy", [False, True])
+@pytest.mark.parametrize("replacement_kind", ["rebind", "mutate", "update"])
+def test_consol_mapping_result_ownpoint_preserves_reads_across_later_changes(
+    first_legacy: bool, replacement_kind: str
+) -> None:
+    first, later = ("legacy", "canonical") if first_legacy else ("canonical", "legacy")
+    replacement = (
+        f"owners = {{'selected': {later}}}"
+        if replacement_kind == "rebind"
+        else (
+            f"owners.update({{'selected': {later}}})"
+            if replacement_kind == "update"
+            else f"owners['selected'] = {later}"
+        )
+    )
+    source = (
+        "import legacy_app as legacy\nimport app.bootstrap.openapi as canonical\n"
+        f"owners = {{'selected': {first}}}\nfirst = owners['selected']\n"
+        + replacement
+        + "\nsecond = owners['selected']\n"
+    )
+    tree = ast.parse(source)
+    refs, strings, results = legacy_guard._collect_lexical_binding_snapshots(
+        tree,
+        filename="app/main.py",
+        initial_references={},
+        ownership_family="openapi",
+        purpose="ownership_audit",
+    )
+    reads = [
+        n for n in ast.walk(tree) if isinstance(n, ast.Subscript) and isinstance(n.ctx, ast.Load)
+    ]
+    assert len(reads) == 2
+    assert results[id(reads[0])].reference == (
+        "legacy_app" if first_legacy else "app.bootstrap.openapi"
+    )
+    assert results[id(reads[1])].reference == (
+        legacy_guard._POSSIBLE_APP_CALL_REFERENCE
+        if replacement_kind == "mutate"
+        else "app.bootstrap.openapi" if first_legacy else "legacy_app"
+    )
+    assert all(id(n) in refs and id(n) in strings for n in reads)
+    first_read = source + "first._install_openapi_builder\n"
+    second_read = source + "second._install_openapi_builder\n"
+    assert bool(_consol_openapi_errors(first_read)) is first_legacy
+    if replacement_kind != "mutate":
+        assert bool(_consol_openapi_errors(second_read)) is not first_legacy
+
+
+@pytest.mark.parametrize("family", ["api", "openapi"])
+@pytest.mark.parametrize("operation", ["getattr", "setattr", "delattr"])
+@pytest.mark.parametrize("protected", [False, True])
+@pytest.mark.parametrize("form", ["stored", "inline", "nested"])
+def test_consol_builtin_partial_invocation_preserves_protected_operation(
+    family: str, operation: str, protected: bool, form: str
+) -> None:
+    member = "require_app_api_key" if family == "api" else "_install_openapi_builder"
+    member = member if protected else "ordinary_value"
+    constructor = f"partial({operation}, legacy, {member!r})"
+    argument = "None" if operation == "setattr" else ""
+    invocation = {
+        "stored": f"callback = {constructor}\ncallback({argument})",
+        "inline": f"{constructor}({argument})",
+        "nested": f"inner = partial({operation}, legacy)\ncallback = partial(inner, {member!r})\ncallback({argument})",
+    }[form]
+    source = "from functools import partial\nimport legacy_app as legacy\n" + invocation + "\n"
+    errors = (
+        _validate_api_key_dependency_ownership(
+            _CONSOL_GETTER_IMPORTS, {"app/routers/example.py": source}
+        )
+        if family == "api"
+        else _consol_openapi_errors(source)
+    )
+    assert errors == (
+        (
+            [
+                f"app/routers/example.py: legacy API-key dependency attribute access is forbidden: {member}"
+            ]
+            if family == "api"
+            else ["app/main.py: OpenAPI symbol must not be accessed through legacy"]
+        )
+        if protected
+        else []
+    )
+
+
+@pytest.mark.parametrize("initial_legacy", [False, True])
+@pytest.mark.parametrize(
+    "phase", ["constructor_receiver", "constructor_callee", "invocation_callee", "stored_receiver"]
+)
+def test_consol_builtin_partial_ownpoint_preserves_captured_facts(
+    initial_legacy: bool, phase: str
+) -> None:
+    initial, replacement = ("legacy", "canonical") if initial_legacy else ("canonical", "legacy")
+    header = "from functools import partial\nimport legacy_app as legacy\nimport app.bootstrap.openapi as canonical\n"
+    if phase == "constructor_receiver":
+        source = (
+            f"owner = {initial}\n"
+            f"def late():\n    global owner\n    owner = {replacement}\n    return '_install_openapi_builder'\n"
+            "callback = partial(getattr, owner, late())\ncallback()\n"
+        )
+    elif phase == "constructor_callee":
+        source = (
+            "getter = getattr\n"
+            f"def late():\n    global getter\n    getter = lambda *args: None\n    return {initial}\n"
+            "callback = partial(getter, late(), '_install_openapi_builder')\ncallback()\n"
+        )
+    elif phase == "invocation_callee":
+        source = (
+            f"callback = partial(getattr, {initial})\n"
+            f"def late():\n    global callback\n    callback = partial(getattr, {replacement})\n    return '_install_openapi_builder'\n"
+            "callback(late())\n"
+        )
+    else:
+        source = (
+            f"owner = {initial}\ncallback = partial(getattr, owner, '_install_openapi_builder')\n"
+            f"owner = {replacement}\ncallback()\n"
+        )
+    assert _consol_openapi_errors(header + source) == (
+        ["app/main.py: OpenAPI symbol must not be accessed through legacy"]
+        if initial_legacy
+        else []
+    )
+
+
+@pytest.mark.parametrize(
+    ("invocation", "expected_errors", "expected_trace"),
+    [
+        ("callback = partial(getattr, legacy, '_install_openapi_builder')", False, ""),
+        ("callback = partial(getattr, legacy); callback()", False, ""),
+        (
+            "callback = partial(getattr, legacy); callback('_install_openapi_builder', None, None)",
+            False,
+            "",
+        ),
+        ("callback = partial(setattr, legacy, '_install_openapi_builder'); callback()", False, ""),
+        (
+            "callback = partial(delattr, legacy); callback('_install_openapi_builder', None)",
+            False,
+            "",
+        ),
+        (
+            "callback = partial(getattr, legacy); callback('_install_openapi_builder', default=late())",
+            False,
+            "L",
+        ),
+        (
+            "callback = partial(getattr, legacy, '_install_openapi_builder', late()); callback()",
+            True,
+            "L",
+        ),
+        (
+            "callback = partial(setattr, legacy, '_install_openapi_builder'); callback(late())",
+            True,
+            "L",
+        ),
+        (
+            "callback = partial(getattr, legacy); callback('_install_openapi_builder', **unknown)",
+            True,
+            "",
+        ),
+    ],
+)
+def test_consol_builtin_partial_dormancy_arity_and_eager_effects(
+    invocation: str, expected_errors: bool, expected_trace: str
+) -> None:
+    source = (
+        "from functools import partial\nimport legacy_app as legacy\ntrace = ''\n"
+        "def late():\n    global trace\n    trace = trace + 'L'\n    return None\n"
+        + invocation
+        + "\n"
+    )
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="example.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(ast.parse(source))
+    assert visitor.scope.strings["trace"] == expected_trace
+    assert bool(_consol_openapi_errors(source)) is expected_errors
+
+
+@pytest.mark.parametrize("consumer", ["list", "dict", "chain", "filter", "starmap"])
+@pytest.mark.parametrize(
+    "kind", ["nested", "rebound", "dormant", "empty", "invalid_arity", "async", "generator"]
+)
+def test_consol_partial_callback_creation_binding_and_consumption_boundaries(
+    consumer: str, kind: str
+) -> None:
+    function = "async def access" if kind == "async" else "def access"
+    body_return = (
+        "yield value"
+        if kind == "generator"
+        else "return ('key', value)" if consumer == "dict" else "return value"
+    )
+    signature = "prefix, required, value" if kind == "invalid_arity" else "prefix, value"
+    source = (
+        "from functools import partial\nimport itertools\ntrace = ''\n"
+        f"{function}({signature}):\n    global trace\n    trace = trace + 'C'\n    {body_return}\n"
+        + (
+            "inner = partial(access)\ncallback = partial(inner, None)\n"
+            if kind == "nested"
+            else "callback = partial(access, None)\n"
+        )
+    )
+    values = "[]" if kind == "empty" else "['value']"
+    if kind == "rebound":
+        source += "def late():\n    global callback, trace\n    trace = trace + 'L'\n    callback = lambda *args: None\n    return ['value']\n"
+        values = "late()"
+    lazy = (
+        f"filter(callback, {values})"
+        if consumer == "filter"
+        else (
+            "itertools.starmap(callback, [('value',)])"
+            if consumer == "starmap" and kind != "empty"
+            else (
+                "itertools.starmap(callback, [])"
+                if consumer == "starmap"
+                else f"map(callback, {values})"
+            )
+        )
+    )
+    expression = (
+        f"list(itertools.chain({lazy}))"
+        if consumer == "chain"
+        else f"dict({lazy})" if consumer == "dict" else f"list({lazy})"
+    )
+    if kind == "dormant":
+        expression = "pending = " + lazy
+    source += expression + "\n"
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="example.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(ast.parse(source))
+    late = "L" if kind == "rebound" and consumer != "starmap" else ""
+    expected = "C" if kind in {"nested", "rebound"} else ""
+    assert visitor.scope.strings["trace"] == late + expected
+
+
+@pytest.mark.parametrize(
+    ("member_expression", "blocked"),
+    [
+        ("'require_app_api_key'", True),
+        ("'require_app_api_key' if enabled else 'other'", True),
+        ("unknown", True),
+        ("'other'", False),
+    ],
+)
+def test_consol_builtin_partial_matches_direct_api_name_uncertainty(
+    member_expression: str,
+    blocked: bool,
+) -> None:
+    header = (
+        "from functools import partial\nimport legacy_app as legacy\nfrom external import enabled, unknown\n"
+        f"member = {member_expression}\n"
+    )
+    direct = header + "getattr(legacy, member)\n"
+    wrapped = header + "callback = partial(getattr, legacy)\ncallback(member)\n"
+    direct_errors = _validate_api_key_dependency_ownership(
+        _CONSOL_GETTER_IMPORTS, {"app/routers/example.py": direct}
+    )
+    partial_errors = _validate_api_key_dependency_ownership(
+        _CONSOL_GETTER_IMPORTS, {"app/routers/example.py": wrapped}
+    )
+    assert bool(direct_errors) is blocked
+    assert bool(partial_errors) is blocked
+
+
+@pytest.mark.parametrize("nested", [False, True])
+@pytest.mark.parametrize("phase", ["creation", "invocation"])
+def test_consol_builtin_partial_known_keyword_boundary_preserves_eager_effects(
+    nested: bool,
+    phase: str,
+) -> None:
+    header = (
+        "from functools import partial\nimport legacy_app as legacy\ntrace = ''\n"
+        "def late():\n    global trace\n    trace = trace + 'L'\n    return 'other'\n"
+    )
+    if phase == "creation":
+        source = (
+            "inner = partial(getattr, legacy)\ncallback = partial(inner, name=late())\ncallback('_install_openapi_builder')\n"
+            if nested
+            else "callback = partial(getattr, legacy, name=late())\ncallback('_install_openapi_builder')\n"
+        )
+    else:
+        source = (
+            "inner = partial(getattr, legacy)\ncallback = partial(inner)\ncallback('_install_openapi_builder', name=late())\n"
+            if nested
+            else "callback = partial(getattr, legacy)\ncallback('_install_openapi_builder', name=late())\n"
+        )
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="example.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(ast.parse(header + source))
+    assert visitor.scope.strings["trace"] == "L"
+    assert _consol_openapi_errors(header + source) == []
+
+
+@pytest.mark.parametrize("protected", [False, True])
+@pytest.mark.parametrize("callback_kind", ["function", "builtin"])
+def test_consol_partial_literal_star_prefix_preserves_normalized_binding(
+    protected: bool,
+    callback_kind: str,
+) -> None:
+    owner = "legacy" if protected else "canonical"
+    source = "from functools import partial\nimport legacy_app as legacy\nimport app.bootstrap.openapi as canonical\n"
+    if callback_kind == "function":
+        source += (
+            "def access(prefix, owner):\n    return owner._install_openapi_builder\n"
+            f"callback = partial(access, *(None,))\nlist(map(callback, [{owner}]))\n"
+        )
+    else:
+        source += (
+            f"callback = partial(getattr, *({owner}, '_install_openapi_builder'))\ncallback()\n"
+        )
+    assert _consol_openapi_errors(source) == (
+        ["app/main.py: OpenAPI symbol must not be accessed through legacy"] if protected else []
+    )
+
+
+@pytest.mark.parametrize("family", ["api", "openapi"])
+@pytest.mark.parametrize("legacy_first", [False, True])
+def test_consol_builtin_partial_repeated_callee_ast_captures_each_lexical_observation(
+    family: str,
+    legacy_first: bool,
+) -> None:
+    member = "require_app_api_key" if family == "api" else "_install_openapi_builder"
+    first, second = ("legacy", "canonical") if legacy_first else ("canonical", "legacy")
+    source = (
+        "from functools import partial\nimport legacy_app as legacy\n"
+        + (
+            "import app.routers.api_key as canonical\n"
+            if family == "api"
+            else "import app.bootstrap.openapi as canonical\n"
+        )
+        + f"def invoke(pick):\n    return pick({member!r})\n"
+        + f"invoke(partial(getattr, {first}))\ninvoke(partial(getattr, {second}))\n"
+    )
+    errors = (
+        _validate_api_key_dependency_ownership(
+            _CONSOL_GETTER_IMPORTS, {"app/routers/example.py": source}
+        )
+        if family == "api"
+        else _consol_openapi_errors(source)
+    )
+    assert errors
+    tree = ast.parse(source)
+    results: dict[int, legacy_guard._ResolvedBinding] = {}
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="example.py",
+        errors=[],
+        analyze_function_bodies=False,
+        call_result_snapshots=results,
+    )
+    visitor.visit(tree)
+    callee = next(
+        n
+        for n in ast.walk(tree)
+        if isinstance(n, ast.Call) and isinstance(n.func, ast.Name) and n.func.id == "pick"
+    ).func
+    captured_receivers = {
+        template.partial_positional[0].reference
+        for template in results[id(callee)].deferred_calls
+        if template.builtin_reference == "builtins.getattr"
+    }
+    assert captured_receivers == {
+        "legacy_app",
+        "app.routers.api_key" if family == "api" else "app.bootstrap.openapi",
+    }
+
+
+@pytest.mark.parametrize("builtin_first", [False, True])
+@pytest.mark.parametrize("snapshots_enabled", [False, True])
+def test_consol_builtin_partial_repeated_callee_can_switch_to_ordinary_callable(
+    builtin_first: bool,
+    snapshots_enabled: bool,
+) -> None:
+    source = (
+        "from functools import partial\nimport legacy_app as legacy\ntrace = ''\n"
+        "def ordinary(member):\n    global trace\n    trace = trace + 'C'\n    return None\n"
+        "def invoke(pick):\n    return pick('require_app_api_key')\n"
+    )
+    calls = ["invoke(partial(getattr, legacy))", "invoke(ordinary)"]
+    if not builtin_first:
+        calls.reverse()
+    source += "\n".join(calls) + "\n"
+    results: dict[int, legacy_guard._ResolvedBinding] = {}
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="example.py",
+        errors=[],
+        analyze_function_bodies=False,
+        call_result_snapshots=results if snapshots_enabled else None,
+    )
+    tree = ast.parse(source)
+    visitor.visit(tree)
+    assert visitor.scope.strings["trace"] == "C"
+    assert any("require_app_api_key" in error for error in visitor.errors)
+    callee = next(
+        n
+        for n in ast.walk(tree)
+        if isinstance(n, ast.Call) and isinstance(n.func, ast.Name) and n.func.id == "pick"
+    ).func
+    assert id(callee) not in visitor._call_result_bindings
+    assert (id(callee) in results) is snapshots_enabled
+
+
+@pytest.mark.parametrize("operation", ["partial", "mapping"])
+@pytest.mark.parametrize("missing", ["references", "strings", "results"])
+def test_consol_new_resolved_evidence_requires_own_components(
+    operation: str,
+    missing: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    collector = legacy_guard._collect_lexical_binding_snapshots
+    omitted_nodes: list[int] = []
+
+    def omit_selected(tree: ast.Module, **kwargs: Any) -> tuple[
+        Mapping[int, Mapping[str, str]],
+        Mapping[int, Mapping[str, str]],
+        Mapping[int, legacy_guard._ResolvedBinding],
+    ]:
+        references, strings, results = collector(tree, **kwargs)
+        selected = {
+            id(n.func)
+            for n in ast.walk(tree)
+            if operation == "partial"
+            and isinstance(n, ast.Call)
+            and isinstance(n.func, ast.Name)
+            and n.func.id == "pick"
+        } | {
+            id(n)
+            for n in ast.walk(tree)
+            if operation == "mapping"
+            and isinstance(n, ast.Subscript)
+            and isinstance(n.ctx, ast.Load)
+        }
+        omitted_nodes.extend(selected)
+        return (
+            {k: v for k, v in references.items() if missing != "references" or k not in selected},
+            {k: v for k, v in strings.items() if missing != "strings" or k not in selected},
+            {k: v for k, v in results.items() if missing != "results" or k not in selected},
+        )
+
+    monkeypatch.setattr(legacy_guard, "_collect_lexical_binding_snapshots", omit_selected)
+    source = "from functools import partial\nimport legacy_app as legacy\n"
+    source += (
+        "pick = partial(getattr, legacy)\npick('_install_openapi_builder')\n"
+        if operation == "partial"
+        else "owners = {'selected': legacy}\nowners['selected']._install_openapi_builder\n"
+    )
+    assert _consol_openapi_errors(source) == []
+    assert omitted_nodes
+
+
+@pytest.mark.parametrize("callback_kind", ["function", "builtin"])
+@pytest.mark.parametrize("prefix_kind", ["literal", "imported", "unbound"])
+def test_consol_partial_prefix_preserves_actual_star_resolution_state(
+    callback_kind: str,
+    prefix_kind: str,
+) -> None:
+    source = (
+        "from functools import partial\ntrace = ''\n"
+        "def late():\n    global trace\n    trace = trace + 'L'\n    return None\n"
+        "def access(prefix, owner):\n    return owner\n"
+    )
+    if prefix_kind == "imported":
+        source += "from external import unknown\n"
+    prefix = "*(late(),)" if prefix_kind == "literal" else "*unknown, late()"
+    callee = "access" if callback_kind == "function" else "getattr"
+    source += f"callback = partial({callee}, {prefix})\n"
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="example.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(ast.parse(source))
+    templates = visitor.scope.resolve_deferred_calls("callback")
+    assert len(templates) == 1
+    template = next(iter(templates))
+    assert template.partial_unresolved is (prefix_kind != "literal")
+    assert visitor.scope.strings["trace"] == "L"
+
+
+@pytest.mark.parametrize("outcome", ["success", "validation_failure", "analysis_error"])
+def test_consol_one_diagnostic_registers_once_and_cancels_without_stream_changes(
+    outcome: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    registrations: list[tuple[int, bool, int, bool]] = []
+    cancellations: list[bool] = []
+
+    def schedule(delay: int, *, repeat: bool, file: int, exit: bool) -> None:
+        registrations.append((delay, repeat, file, exit))
+        os.fstat(file)
+
+    def validate(root: Path) -> list[str]:
+        assert root == tmp_path.resolve()
+        if outcome == "analysis_error":
+            raise RuntimeError("synthetic analysis failure")
+        return ["synthetic validation failure"] if outcome == "validation_failure" else []
+
+    monkeypatch.setattr(legacy_guard.faulthandler, "dump_traceback_later", schedule)
+    monkeypatch.setattr(
+        legacy_guard.faulthandler, "cancel_dump_traceback_later", lambda: cancellations.append(True)
+    )
+    monkeypatch.setattr(legacy_guard, "validate_repo", validate)
+    with tempfile.TemporaryFile("w+b") as sink:
+        fd = sink.fileno()
+        monkeypatch.setenv("PULSEPLATE_LEGACY_TRACE_FD", str(fd))
+        if outcome == "analysis_error":
+            with pytest.raises(RuntimeError, match="synthetic analysis failure"):
+                legacy_guard.main(["--repo-root", str(tmp_path)])
+        else:
+            assert legacy_guard.main(["--repo-root", str(tmp_path)]) == (
+                1 if outcome == "validation_failure" else 0
+            )
+        assert registrations == [(90, False, fd, False)]
+        assert cancellations == [True]
+        assert sink.read() == b""
+    output = capsys.readouterr()
+    assert output.out == (
+        "legacy compatibility seam guard passed\n" if outcome == "success" else ""
+    )
+    assert output.err == (
+        "ERROR: synthetic validation failure\n" if outcome == "validation_failure" else ""
+    )
+
+
+@pytest.mark.parametrize("descriptor", ["", "-1", "0", "1", "2", "not-a-fd", "１２", "999999999"])
+def test_consol_one_diagnostic_rejects_invalid_descriptor_without_stream_fallback(
+    descriptor: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    events: list[str] = []
+    monkeypatch.setenv("PULSEPLATE_LEGACY_TRACE_FD", descriptor)
+    monkeypatch.setattr(
+        legacy_guard.faulthandler,
+        "dump_traceback_later",
+        lambda *args, **kwargs: events.append("dump"),
+    )
+    monkeypatch.setattr(
+        legacy_guard.faulthandler, "cancel_dump_traceback_later", lambda: events.append("cancel")
+    )
+    monkeypatch.setattr(legacy_guard, "validate_repo", lambda root: events.append("analysis"))
+    with pytest.raises((ValueError, OSError)):
+        legacy_guard.main([])
+    assert events == []
+
+
+def test_consol_one_diagnostic_rejects_nonregular_descriptor(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    read_fd, write_fd = os.pipe()
+    try:
+        monkeypatch.setenv("PULSEPLATE_LEGACY_TRACE_FD", str(write_fd))
+        with pytest.raises(ValueError, match="regular file"):
+            legacy_guard.main([])
+    finally:
+        os.close(read_fd)
+        os.close(write_fd)
+
+
+def test_consol_one_diagnostic_native_descriptor_registration_cancels_immediately(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr(legacy_guard, "validate_repo", lambda root: [])
+    with tempfile.TemporaryFile("w+b") as sink:
+        monkeypatch.setenv("PULSEPLATE_LEGACY_TRACE_FD", str(sink.fileno()))
+        assert legacy_guard.main(["--repo-root", str(tmp_path)]) == 0
+        assert sink.read() == b""
+    output = capsys.readouterr()
+    assert output.out == "legacy compatibility seam guard passed\n" and output.err == ""
+
+
+@pytest.mark.parametrize("trace_bytes", [b"synthetic stack\n", b"bad-utf8:\xff", b"x" * 70000])
+def test_consol_one_diagnostic_timeout_forwards_bounded_trace_and_same_failure(
+    trace_bytes: bytes,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    original = subprocess.TimeoutExpired([sys.executable], 120)
+    observed: list[int] = []
+
+    def fail(argv: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        assert argv == [
+            sys.executable,
+            "-I",
+            "-B",
+            str(REPO_ROOT / "scripts/ci/check_legacy_growth_guard.py"),
+            "--repo-root",
+            str(REPO_ROOT),
+        ]
+        assert kwargs["timeout"] == 120 and kwargs["capture_output"] and kwargs["text"]
+        fd = int(kwargs["env"]["PULSEPLATE_LEGACY_TRACE_FD"])
+        assert kwargs["env"] == {
+            "PYTHONDONTWRITEBYTECODE": "1",
+            "PULSEPLATE_LEGACY_TRACE_FD": str(fd),
+        }
+        assert kwargs["pass_fds"] == (fd,)
+        observed.append(fd)
+        os.write(fd, trace_bytes)
+        raise original
+
+    monkeypatch.setattr(subprocess, "run", fail)
+    with pytest.raises(subprocess.TimeoutExpired) as caught:
+        test_legacy_growth_guard_real_current_root_cli()
+    assert caught.value is original
+    diagnostic = json.loads(capsys.readouterr().err)
+    assert diagnostic["child_traceback_dump"] == trace_bytes[:65536].decode(
+        "utf-8", errors="replace"
+    )
+    assert diagnostic["child_traceback_truncated"] is (len(trace_bytes) > 65536)
+    assert diagnostic["child_traceback_decode_replaced"] is (b"\xff" in trace_bytes[:65536])
+    assert diagnostic["readback_equal"] is True
+    with pytest.raises(OSError):
+        os.fstat(observed[0])
+
+
+def test_consol_one_diagnostic_success_keeps_original_cli_assertions(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    observed: list[int] = []
+
+    def succeed(argv: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        fd = int(kwargs["env"]["PULSEPLATE_LEGACY_TRACE_FD"])
+        assert kwargs["pass_fds"] == (fd,) and kwargs["timeout"] == 120
+        observed.append(fd)
+        os.write(fd, b"synthetic pre-success trace that must not enter stdout/stderr")
+        return subprocess.CompletedProcess(argv, 0, "legacy compatibility seam guard passed\n", "")
+
+    monkeypatch.setattr(subprocess, "run", succeed)
+    test_legacy_growth_guard_real_current_root_cli()
+    output = capsys.readouterr()
+    assert output.out == output.err == ""
+    with pytest.raises(OSError):
+        os.fstat(observed[0])
+
+
+@pytest.mark.parametrize("family", ["api_key", "openapi"])
+@pytest.mark.parametrize("purpose", ["ordinary", "ownership_audit"])
+def test_consol_mapping_ownpoint_publication_is_audit_only(
+    family: Literal["api_key", "openapi"],
+    purpose: Literal["ordinary", "ownership_audit"],
+) -> None:
+    tree = ast.parse(
+        "import legacy_app as legacy\nowners = {'selected': legacy}\nvalue = owners['selected']\n"
+    )
+    selected = next(n for n in ast.walk(tree) if isinstance(n, ast.Subscript))
+    results: dict[int, legacy_guard._ResolvedBinding] = {}
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="example.py",
+        errors=[],
+        analyze_function_bodies=False,
+        ownership_family=family,
+        purpose=purpose,
+        call_result_snapshots=results,
+    )
+    visitor.visit(tree)
+    assert (id(selected) in visitor._call_result_bindings) is (purpose == "ownership_audit")
+    assert (id(selected) in results) is (purpose == "ownership_audit")
+    if purpose == "ownership_audit":
+        assert results[id(selected)].reference == "legacy_app"
+    assert visitor.scope.references["value"] == "legacy_app"
