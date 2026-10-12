@@ -1044,3 +1044,26 @@ detached writers share that projection. Ordinary and OpenAPI snapshot consumers
 retain full publication by default. This reduces unused environment copies; it
 does not identify the cause of a native process crash or establish Linux timing
 without current native execution evidence.
+
+The direct API-key owner check rejects canonical, foreign and relative star
+imports in `legacy_app.py` in either order around the required explicit
+compatibility re-exports. Unknown exported bindings cannot establish that the
+protected names remain untouched. The aggregate retirement guard independently
+rejects wildcard imports; ordinary application modules retain their separate
+unrelated-import contract.
+
+Reached async context and iterator syntax uses the existing local class
+callable/descriptor facts for the exact `__aenter__`, `__aexit__`, `__aiter__`
+and `__anext__` methods. Canonical binding supplies captured instance/class
+receivers without changing ordinary binder defaults. Entered values precede
+`as` bindings; captured exits run in reverse order, including after a later
+acquisition failure. Async iteration uses the actual synchronous `__aiter__`
+result and replays next before each existing representative loop transfer.
+Complete-MRO facts and the canonical binder can prove a finite invocation
+invalid; unresolved owners or member values retain conservative handling.
+
+This dispatch does not model constructor-stored instance fields such as
+`self.owner`, per-instance aliases or a general heap. Shared class-site identity
+must not stand in for distinct instance state. The existing arbitrary data-flow
+and reflection limits continue to apply; no complete Python execution or
+instance-field ownership proof follows.

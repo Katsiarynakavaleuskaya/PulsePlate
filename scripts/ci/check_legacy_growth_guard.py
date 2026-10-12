@@ -6,16 +6,13 @@ from __future__ import annotations
 import argparse
 import ast
 import copy
-import faulthandler
 from collections import Counter
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from importlib.util import resolve_name
 import operator
-import os
 from pathlib import Path
 import re
-import stat
 import sys
 from typing import AbstractSet, Literal, cast
 
@@ -6693,8 +6690,123 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
     def visit_TryStar(self, node: ast.TryStar) -> bool:
         return self._visit_try(node)
 
+    def _prepare_async_protocol_replay_inputs(
+        self,
+        binding: _ResolvedBinding,
+        method: Literal["__aenter__", "__aexit__", "__aiter__", "__anext__"],
+        positional: Sequence[_ResolvedBinding],
+    ) -> list[tuple[_FunctionNode, dict[str, _ResolvedBinding]]] | None:
+        if (
+            method not in {"__aenter__", "__aexit__", "__aiter__", "__anext__"}
+            or not self._replay_calls_enabled
+            or self._active_async_replay_depth == 0
+        ):
+            return []
+        instance_reference = binding.reference or ""
+        if not instance_reference.startswith(_INSTANCE_REFERENCE_PREFIX):
+            return []
+        class_reference = instance_reference.replace(
+            _INSTANCE_REFERENCE_PREFIX, _CLASS_REFERENCE_PREFIX, 1
+        )
+        known_callable = False
+        if self._class_mro_complete.get(class_reference, False):
+            for owner in self._class_mros[class_reference]:
+                presence = self._class_direct_member_presence.get((owner, method))
+                if presence is None:
+                    continue
+                if presence:
+                    if self._class_direct_member_noncallable.get((owner, method), False):
+                        return None
+                    known_callable = bool(self._class_direct_member_callables.get((owner, method)))
+                # A possible nearer override or an unresolved value stays unknown.
+                break
+            else:
+                return None
+        temporary_name = f"<async-protocol:{id(binding)}:{method}>"
+        self.scope.bind(
+            temporary_name,
+            reference=binding.reference,
+            string=binding.string,
+            class_references=binding.class_references,
+        )
+        method_expr = ast.Attribute(
+            value=ast.Name(id=temporary_name, ctx=ast.Load()), attr=method, ctx=ast.Load()
+        )
+        method_call = ast.Call(func=method_expr, args=[], keywords=[])
+        replay_inputs: list[tuple[_FunctionNode, dict[str, _ResolvedBinding]]] = []
+        try:
+            owner_references = self._resolve_object_references(method_expr.value)
+            for target in sorted(
+                self._resolve_callables(method_expr),
+                key=lambda candidate: (candidate.lineno, candidate.col_offset, candidate.name),
+            ):
+                if _function_is_generator(target) or (
+                    method == "__aiter__" and isinstance(target, ast.AsyncFunctionDef)
+                ):
+                    continue
+                original_kinds = {
+                    kind
+                    for owner in owner_references
+                    for candidate, kind in self._class_member_descriptors.get((owner, method), ())
+                    if candidate is target
+                }
+                receivers = []
+                if "classmethod" in original_kinds:
+                    class_references = {
+                        owner.replace(_INSTANCE_REFERENCE_PREFIX, _CLASS_REFERENCE_PREFIX, 1)
+                        for owner in owner_references
+                        if owner.startswith((_INSTANCE_REFERENCE_PREFIX, _CLASS_REFERENCE_PREFIX))
+                    }
+                    receivers.append(
+                        _ResolvedBinding(
+                            next(iter(class_references)) if len(class_references) == 1 else None,
+                            None,
+                            class_references=frozenset(class_references),
+                        )
+                    )
+                if original_kinds - {"classmethod"} or not original_kinds:
+                    receivers.append(binding)
+                arguments = self._resolve_call_argument_bindings(
+                    target,
+                    method_call,
+                    positional_override=positional,
+                    receiver_override=self._join_resolved_bindings(receivers),
+                )
+                if arguments is not None:
+                    replay_inputs.append((target, arguments))
+        finally:
+            self.scope.unbind(temporary_name)
+        return replay_inputs if replay_inputs or not known_callable else None
+
     def _visit_for(self, node: ast.For | ast.AsyncFor) -> bool:
         self._visit_iterated_expression(node.iter)
+        async_item_binding: _ResolvedBinding | None = None
+        next_inputs: list[tuple[_FunctionNode, dict[str, _ResolvedBinding]]] = []
+        if (
+            isinstance(node, ast.AsyncFor)
+            and self._replay_calls_enabled
+            and self._active_async_replay_depth > 0
+        ):
+            source_binding = self._capture_argument_binding(node.iter)
+            iterator_inputs = self._prepare_async_protocol_replay_inputs(
+                source_binding, "__aiter__", []
+            )
+            if iterator_inputs is None:
+                self._terminal_controls.raise_scopes.append(self.scope.clone())
+                return False
+            iterator_results = [
+                self._replay_function_call(target, arguments)
+                for target, arguments in iterator_inputs
+            ]
+            if iterator_results:
+                iterator_binding = self._join_resolved_bindings(iterator_results)
+                prepared_next = self._prepare_async_protocol_replay_inputs(
+                    iterator_binding, "__anext__", []
+                )
+                if prepared_next is None or iterator_binding.reference == _KNOWN_NON_APP_REFERENCE:
+                    self._terminal_controls.raise_scopes.append(self.scope.clone())
+                    return False
+                next_inputs = prepared_next
         incoming = self.scope
         if (
             isinstance(node, ast.For)
@@ -6725,7 +6837,41 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         for _iteration in range(_MAX_LOOP_BINDING_ITERATIONS):
             self._consume_loop_iteration()
             self.scope = loop_head.clone()
-            self._bind_iteration_target(node.target, node.iter)
+            if next_inputs:
+                next_results: list[_ResolvedBinding] = []
+                for target, arguments in next_inputs:
+                    next_result = self._execute_deferred_call(
+                        _DeferredFunctionCall(
+                            function=target,
+                            arguments=tuple(sorted(arguments.items())),
+                        )
+                    )
+                    if not isinstance(target, ast.AsyncFunctionDef):
+                        awaited = self._replay_deferred_calls(
+                            next_result.deferred_calls, execution="await"
+                        )
+                        if awaited is None and next_result.reference == _KNOWN_NON_APP_REFERENCE:
+                            self._terminal_controls.raise_scopes.append(self.scope.clone())
+                            continue
+                        next_result = awaited or self._conservative_argument_binding()
+                    next_results.append(next_result)
+                if not next_results:
+                    return False
+                async_item_binding = self._join_resolved_bindings(next_results)
+            if async_item_binding is None:
+                self._bind_iteration_target(node.target, node.iter)
+            else:
+                self._bind_targets(
+                    [node.target],
+                    reference=async_item_binding.reference,
+                    string=async_item_binding.string,
+                    callables=async_item_binding.callables,
+                    deferred_calls=async_item_binding.deferred_calls,
+                    mapping=async_item_binding.mapping,
+                    class_references=async_item_binding.class_references,
+                    descriptors=async_item_binding.descriptors,
+                    iterable_element=async_item_binding.iterable_element,
+                )
             body_scope, controls = self._visit_loop_body(node.body)
             break_scopes.extend(controls.break_scopes)
             carried_scopes = [
@@ -6915,38 +7061,116 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             and self._resolve_reference(item.context_expr.func) == "asyncio.TaskGroup"
             for item in node.items
         )
-        for item in node.items:
-            self.visit(item.context_expr)
-            if item.optional_vars is not None:
-                self._visit_object_namespace_target_expressions(item.optional_vars)
-                self._record_object_namespace_target(item.optional_vars)
-                binding = self._resolve_with_enter_binding(item.context_expr)
-                for name in _assignment_target_names(item.optional_vars):
-                    reference = (
-                        binding.reference
-                        if binding.reference is not None
-                        else self._possible_sensitive_reference(name)
-                    )
-                    self._bind_resolved_name(
-                        name,
-                        _ResolvedBinding(
-                            reference=reference,
-                            string=binding.string,
-                            callables=binding.callables,
-                            deferred_calls=binding.deferred_calls,
-                            mapping=binding.mapping,
-                            class_references=binding.class_references,
-                            descriptors=binding.descriptors,
-                            iterable_element=binding.iterable_element,
-                        ),
-                    )
-        if enters_task_group:
-            self._active_task_group_depth += 1
+        async_exit_inputs: list[list[tuple[_FunctionNode, dict[str, _ResolvedBinding]]] | None] = []
+        task_group_active = False
+        invalid_exit = False
+        falls_through = False
         try:
-            return self._visit_statements(node.body)
-        finally:
+            for item in node.items:
+                self.visit(item.context_expr)
+                entered_binding: _ResolvedBinding | None = None
+                if isinstance(node, ast.AsyncWith):
+                    context_binding = self._capture_argument_binding(item.context_expr)
+                    enter_inputs = self._prepare_async_protocol_replay_inputs(
+                        context_binding, "__aenter__", []
+                    )
+                    exit_inputs = self._prepare_async_protocol_replay_inputs(
+                        context_binding, "__aexit__", [self._conservative_argument_binding()] * 3
+                    )
+                    context_reference = context_binding.reference or ""
+                    missing_exit = (
+                        context_reference.startswith(_INSTANCE_REFERENCE_PREFIX)
+                        and self._class_mro_complete.get(
+                            context_reference.replace(
+                                _INSTANCE_REFERENCE_PREFIX, _CLASS_REFERENCE_PREFIX, 1
+                            ),
+                            False,
+                        )
+                        and (context_reference, "__aexit__") not in self._class_member_presence
+                        and self._replay_calls_enabled
+                        and self._active_async_replay_depth > 0
+                    )
+                    if enter_inputs is None or missing_exit:
+                        self._terminal_controls.raise_scopes.append(self.scope.clone())
+                        return False
+                    entered_results: list[_ResolvedBinding] = []
+                    for target, arguments in enter_inputs:
+                        entered = self._execute_deferred_call(
+                            _DeferredFunctionCall(
+                                function=target,
+                                arguments=tuple(sorted(arguments.items())),
+                            )
+                        )
+                        if not isinstance(target, ast.AsyncFunctionDef):
+                            awaited = self._replay_deferred_calls(
+                                entered.deferred_calls, execution="await"
+                            )
+                            if awaited is None and entered.reference == _KNOWN_NON_APP_REFERENCE:
+                                self._terminal_controls.raise_scopes.append(self.scope.clone())
+                                continue
+                            entered = awaited or self._conservative_argument_binding()
+                        entered_results.append(entered)
+                    if enter_inputs and not entered_results:
+                        return False
+                    if entered_results:
+                        entered_binding = self._join_resolved_bindings(entered_results)
+                    # Unknown entry retains the existing possible body path and
+                    # its captured exit; it is not successful-entry evidence.
+                    async_exit_inputs.append(exit_inputs)
+                if item.optional_vars is not None:
+                    self._visit_object_namespace_target_expressions(item.optional_vars)
+                    self._record_object_namespace_target(item.optional_vars)
+                    binding = entered_binding or self._resolve_with_enter_binding(item.context_expr)
+                    for name in _assignment_target_names(item.optional_vars):
+                        reference = (
+                            binding.reference
+                            if binding.reference is not None
+                            else self._possible_sensitive_reference(name)
+                        )
+                        self._bind_resolved_name(
+                            name,
+                            _ResolvedBinding(
+                                reference=reference,
+                                string=binding.string,
+                                callables=binding.callables,
+                                deferred_calls=binding.deferred_calls,
+                                mapping=binding.mapping,
+                                class_references=binding.class_references,
+                                descriptors=binding.descriptors,
+                                iterable_element=binding.iterable_element,
+                            ),
+                        )
             if enters_task_group:
+                self._active_task_group_depth += 1
+                task_group_active = True
+            falls_through = self._visit_statements(node.body)
+        finally:
+            for exit_inputs in reversed(async_exit_inputs):
+                if exit_inputs is None:
+                    invalid_exit = True
+                    continue
+                possible_valid_exit = not exit_inputs
+                for target, arguments in exit_inputs:
+                    exited = self._execute_deferred_call(
+                        _DeferredFunctionCall(
+                            function=target,
+                            arguments=tuple(sorted(arguments.items())),
+                        )
+                    )
+                    if not isinstance(target, ast.AsyncFunctionDef):
+                        awaited = self._replay_deferred_calls(
+                            exited.deferred_calls, execution="await"
+                        )
+                        if awaited is None and exited.reference == _KNOWN_NON_APP_REFERENCE:
+                            self._terminal_controls.raise_scopes.append(self.scope.clone())
+                            continue
+                    possible_valid_exit = True
+                invalid_exit = invalid_exit or not possible_valid_exit
+            if task_group_active:
                 self._active_task_group_depth -= 1
+            if invalid_exit:
+                self._terminal_controls.raise_scopes.append(self.scope.clone())
+        return falls_through and not invalid_exit
 
     def visit_With(self, node: ast.With) -> bool:
         return self._visit_with(node)
@@ -8400,6 +8624,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         *,
         callable_expr: ast.expr | None = None,
         positional_override: Sequence[_ResolvedBinding] | None = None,
+        receiver_override: _ResolvedBinding | None = None,
     ) -> dict[str, _ResolvedBinding] | None:
         callable_expr = callable_expr or call.func
         evaluator = _ApiKeyLookupVisitor(
@@ -8532,7 +8757,11 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             ]
 
         positional_variants: list[tuple[_ResolvedBinding, ...]] = [
-            ((_ResolvedBinding(None, None),) if inject_receiver and positional_capacity > 0 else ())
+            (
+                (receiver_override or _ResolvedBinding(None, None),)
+                if inject_receiver and positional_capacity > 0
+                else ()
+            )
             for inject_receiver in sorted(receiver_options)
         ]
         for binding, unresolved in positional_segments:
@@ -11358,13 +11587,11 @@ def validate_api_key_dependency_ownership(
             def visit_ImportFrom(self, node: ast.ImportFrom) -> None:
                 for alias in node.names:
                     bound_name = alias.asname or alias.name
-                    if (
-                        node.level == 0
-                        and node.module == "app.routers.api_key"
-                        and alias.name == "*"
-                    ):
+                    if alias.name == "*":
                         errors.append(
                             f"{LEGACY_APP}: canonical API-key dependency star import is forbidden"
+                            if node.level == 0 and node.module == "app.routers.api_key"
+                            else f"{LEGACY_APP}: unresolved API-key dependency star import is forbidden"
                         )
                         continue
                     if (
@@ -13404,28 +13631,13 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     repo_root = Path(args.repo_root).resolve()
-    trace_fd: int | None = None
-    trace_registered = False
-    try:
-        trace_descriptor = os.environ.get("PULSEPLATE_LEGACY_TRACE_FD")
-        if trace_descriptor is not None:
-            if not trace_descriptor.isascii() or not trace_descriptor.isdecimal():
-                raise ValueError("invalid legacy diagnostic descriptor")
-            trace_fd = int(trace_descriptor)
-            if trace_fd <= 2 or not stat.S_ISREG(os.fstat(trace_fd).st_mode):
-                raise ValueError("legacy diagnostic descriptor must be an owned regular file")
-            faulthandler.dump_traceback_later(90, repeat=False, file=trace_fd, exit=False)
-            trace_registered = True
-        errors = validate_repo(repo_root)
-        if errors:
-            for error in errors:
-                print(f"ERROR: {error}", file=sys.stderr)
-            return 1
-        print("legacy compatibility seam guard passed")
-        return 0
-    finally:
-        if trace_registered:
-            faulthandler.cancel_dump_traceback_later()
+    errors = validate_repo(repo_root)
+    if errors:
+        for error in errors:
+            print(f"ERROR: {error}", file=sys.stderr)
+        return 1
+    print("legacy compatibility seam guard passed")
+    return 0
 
 
 if __name__ == "__main__":

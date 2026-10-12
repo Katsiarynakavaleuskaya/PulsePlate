@@ -7,7 +7,6 @@ import os
 import resource
 import subprocess
 import sys
-import tempfile
 import textwrap
 import time
 from pathlib import Path
@@ -13650,89 +13649,62 @@ def test_legacy_growth_guard_real_current_root_cli() -> None:
         cpu_before = (usage_before.ru_utime, usage_before.ru_stime)
     except Exception:
         pass
-    with tempfile.TemporaryFile("w+b") as trace_stream:
+    try:
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-I",
+                "-B",
+                str(REPO_ROOT / "scripts/ci/check_legacy_growth_guard.py"),
+                "--repo-root",
+                str(REPO_ROOT),
+            ],
+            cwd=REPO_ROOT,
+            env={"PYTHONDONTWRITEBYTECODE": "1"},
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=120,
+        )
+    except subprocess.TimeoutExpired:
         try:
-            result = subprocess.run(
-                [
-                    sys.executable,
-                    "-I",
-                    "-B",
-                    str(REPO_ROOT / "scripts/ci/check_legacy_growth_guard.py"),
-                    "--repo-root",
-                    str(REPO_ROOT),
-                ],
-                cwd=REPO_ROOT,
-                env={
-                    "PYTHONDONTWRITEBYTECODE": "1",
-                    "PULSEPLATE_LEGACY_TRACE_FD": str(trace_stream.fileno()),
-                },
-                pass_fds=(trace_stream.fileno(),),
-                capture_output=True,
-                text=True,
-                check=False,
-                timeout=120,
-            )
-        except subprocess.TimeoutExpired:
+            elapsed = time.monotonic() - started if started is not None else None
+        except Exception:
+            elapsed = None
+        cpu_delta: dict[str, float] | None = None
+        try:
+            usage_after = resource.getrusage(resource.RUSAGE_CHILDREN)
+            if cpu_before is not None:
+                cpu_delta = {
+                    "user_seconds": usage_after.ru_utime - cpu_before[0],
+                    "system_seconds": usage_after.ru_stime - cpu_before[1],
+                }
+        except Exception:
+            pass
+        try:
+            inputs_after = fingerprint_inputs()
+            diagnostic = {
+                "event": "legacy_guard_cli_timeout",
+                "elapsed_seconds": elapsed,
+                "reaped_children_accounting_window_cpu_delta": cpu_delta,
+                "cpu_scope": "accounting_window_not_pid_exclusive",
+                "host_cause": "unknown",
+                "fingerprint_scope": "non_atomic_raw_file_read_set",
+                "inputs_before": inputs_before,
+                "inputs_after": inputs_after,
+                "readback_equal": (
+                    inputs_before == inputs_after
+                    if inputs_before.get("state") == inputs_after.get("state") == "known"
+                    else None
+                ),
+            }
+            sys.stderr.write(json.dumps(diagnostic, sort_keys=True, allow_nan=False) + "\n")
+        except Exception:
             try:
-                elapsed = time.monotonic() - started if started is not None else None
-            except Exception:
-                elapsed = None
-            cpu_delta: dict[str, float] | None = None
-            try:
-                usage_after = resource.getrusage(resource.RUSAGE_CHILDREN)
-                if cpu_before is not None:
-                    cpu_delta = {
-                        "user_seconds": usage_after.ru_utime - cpu_before[0],
-                        "system_seconds": usage_after.ru_stime - cpu_before[1],
-                    }
+                sys.stderr.write('{"event":"legacy_guard_cli_timeout","diagnostic":"unknown"}\n')
             except Exception:
                 pass
-            try:
-                inputs_after = fingerprint_inputs()
-                try:
-                    trace_stream.seek(0)
-                    trace_bytes = trace_stream.read(65537)
-                    child_traceback: str | None = trace_bytes[:65536].decode(
-                        "utf-8", errors="replace"
-                    )
-                    traceback_truncated: bool | None = len(trace_bytes) > 65536
-                    try:
-                        trace_bytes[:65536].decode("utf-8", errors="strict")
-                        traceback_decode_replaced: bool | None = False
-                    except UnicodeDecodeError:
-                        traceback_decode_replaced = True
-                except OSError:
-                    child_traceback = None
-                    traceback_truncated = None
-                    traceback_decode_replaced = None
-                diagnostic = {
-                    "event": "legacy_guard_cli_timeout",
-                    "child_traceback_dump": child_traceback,
-                    "child_traceback_truncated": traceback_truncated,
-                    "child_traceback_decode_replaced": traceback_decode_replaced,
-                    "child_traceback_scope": "one_non_repeating_dump_at_90_seconds_same_child_no_locals",
-                    "elapsed_seconds": elapsed,
-                    "reaped_children_accounting_window_cpu_delta": cpu_delta,
-                    "cpu_scope": "accounting_window_not_pid_exclusive",
-                    "host_cause": "unknown",
-                    "fingerprint_scope": "non_atomic_raw_file_read_set",
-                    "inputs_before": inputs_before,
-                    "inputs_after": inputs_after,
-                    "readback_equal": (
-                        inputs_before == inputs_after
-                        if inputs_before.get("state") == inputs_after.get("state") == "known"
-                        else None
-                    ),
-                }
-                sys.stderr.write(json.dumps(diagnostic, sort_keys=True, allow_nan=False) + "\n")
-            except Exception:
-                try:
-                    sys.stderr.write(
-                        '{"event":"legacy_guard_cli_timeout","diagnostic":"unknown"}\n'
-                    )
-                except Exception:
-                    pass
-            raise
+        raise
     assert result.returncode == 0, result.stderr
     assert result.stdout.strip() == "legacy compatibility seam guard passed"
     assert result.stderr == ""
@@ -22144,7 +22116,10 @@ def test_consol_late3_joined_mutators_keep_wildcard_and_independent_safe_control
             ["legacy_app.py: canonical API-key dependency star import is forbidden"],
         ),
         ("", []),
-        ("from unrelated_module import *\n", []),
+        (
+            "from unrelated_module import *\n",
+            ["legacy_app.py: unresolved API-key dependency star import is forbidden"],
+        ),
         ("note = 'from app.routers.api_key import *'\n", []),
     ],
 )
@@ -25085,166 +25060,6 @@ def test_consol_partial_prefix_preserves_actual_star_resolution_state(
     assert visitor.scope.strings["trace"] == "L"
 
 
-@pytest.mark.parametrize("outcome", ["success", "validation_failure", "analysis_error"])
-def test_consol_one_diagnostic_registers_once_and_cancels_without_stream_changes(
-    outcome: str,
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    registrations: list[tuple[int, bool, int, bool]] = []
-    cancellations: list[bool] = []
-
-    def schedule(delay: int, *, repeat: bool, file: int, exit: bool) -> None:
-        registrations.append((delay, repeat, file, exit))
-        os.fstat(file)
-
-    def validate(root: Path) -> list[str]:
-        assert root == tmp_path.resolve()
-        if outcome == "analysis_error":
-            raise RuntimeError("synthetic analysis failure")
-        return ["synthetic validation failure"] if outcome == "validation_failure" else []
-
-    monkeypatch.setattr(legacy_guard.faulthandler, "dump_traceback_later", schedule)
-    monkeypatch.setattr(
-        legacy_guard.faulthandler, "cancel_dump_traceback_later", lambda: cancellations.append(True)
-    )
-    monkeypatch.setattr(legacy_guard, "validate_repo", validate)
-    with tempfile.TemporaryFile("w+b") as sink:
-        fd = sink.fileno()
-        monkeypatch.setenv("PULSEPLATE_LEGACY_TRACE_FD", str(fd))
-        if outcome == "analysis_error":
-            with pytest.raises(RuntimeError, match="synthetic analysis failure"):
-                legacy_guard.main(["--repo-root", str(tmp_path)])
-        else:
-            assert legacy_guard.main(["--repo-root", str(tmp_path)]) == (
-                1 if outcome == "validation_failure" else 0
-            )
-        assert registrations == [(90, False, fd, False)]
-        assert cancellations == [True]
-        assert sink.read() == b""
-    output = capsys.readouterr()
-    assert output.out == (
-        "legacy compatibility seam guard passed\n" if outcome == "success" else ""
-    )
-    assert output.err == (
-        "ERROR: synthetic validation failure\n" if outcome == "validation_failure" else ""
-    )
-
-
-@pytest.mark.parametrize("descriptor", ["", "-1", "0", "1", "2", "not-a-fd", "１２", "999999999"])
-def test_consol_one_diagnostic_rejects_invalid_descriptor_without_stream_fallback(
-    descriptor: str,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    events: list[str] = []
-    monkeypatch.setenv("PULSEPLATE_LEGACY_TRACE_FD", descriptor)
-    monkeypatch.setattr(
-        legacy_guard.faulthandler,
-        "dump_traceback_later",
-        lambda *args, **kwargs: events.append("dump"),
-    )
-    monkeypatch.setattr(
-        legacy_guard.faulthandler, "cancel_dump_traceback_later", lambda: events.append("cancel")
-    )
-    monkeypatch.setattr(legacy_guard, "validate_repo", lambda root: events.append("analysis"))
-    with pytest.raises((ValueError, OSError)):
-        legacy_guard.main([])
-    assert events == []
-
-
-def test_consol_one_diagnostic_rejects_nonregular_descriptor(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    read_fd, write_fd = os.pipe()
-    try:
-        monkeypatch.setenv("PULSEPLATE_LEGACY_TRACE_FD", str(write_fd))
-        with pytest.raises(ValueError, match="regular file"):
-            legacy_guard.main([])
-    finally:
-        os.close(read_fd)
-        os.close(write_fd)
-
-
-def test_consol_one_diagnostic_native_descriptor_registration_cancels_immediately(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    monkeypatch.setattr(legacy_guard, "validate_repo", lambda root: [])
-    with tempfile.TemporaryFile("w+b") as sink:
-        monkeypatch.setenv("PULSEPLATE_LEGACY_TRACE_FD", str(sink.fileno()))
-        assert legacy_guard.main(["--repo-root", str(tmp_path)]) == 0
-        assert sink.read() == b""
-    output = capsys.readouterr()
-    assert output.out == "legacy compatibility seam guard passed\n" and output.err == ""
-
-
-@pytest.mark.parametrize("trace_bytes", [b"synthetic stack\n", b"bad-utf8:\xff", b"x" * 70000])
-def test_consol_one_diagnostic_timeout_forwards_bounded_trace_and_same_failure(
-    trace_bytes: bytes,
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    original = subprocess.TimeoutExpired([sys.executable], 120)
-    observed: list[int] = []
-
-    def fail(argv: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
-        assert argv == [
-            sys.executable,
-            "-I",
-            "-B",
-            str(REPO_ROOT / "scripts/ci/check_legacy_growth_guard.py"),
-            "--repo-root",
-            str(REPO_ROOT),
-        ]
-        assert kwargs["timeout"] == 120 and kwargs["capture_output"] and kwargs["text"]
-        fd = int(kwargs["env"]["PULSEPLATE_LEGACY_TRACE_FD"])
-        assert kwargs["env"] == {
-            "PYTHONDONTWRITEBYTECODE": "1",
-            "PULSEPLATE_LEGACY_TRACE_FD": str(fd),
-        }
-        assert kwargs["pass_fds"] == (fd,)
-        observed.append(fd)
-        os.write(fd, trace_bytes)
-        raise original
-
-    monkeypatch.setattr(subprocess, "run", fail)
-    with pytest.raises(subprocess.TimeoutExpired) as caught:
-        test_legacy_growth_guard_real_current_root_cli()
-    assert caught.value is original
-    diagnostic = json.loads(capsys.readouterr().err)
-    assert diagnostic["child_traceback_dump"] == trace_bytes[:65536].decode(
-        "utf-8", errors="replace"
-    )
-    assert diagnostic["child_traceback_truncated"] is (len(trace_bytes) > 65536)
-    assert diagnostic["child_traceback_decode_replaced"] is (b"\xff" in trace_bytes[:65536])
-    assert diagnostic["readback_equal"] is True
-    with pytest.raises(OSError):
-        os.fstat(observed[0])
-
-
-def test_consol_one_diagnostic_success_keeps_original_cli_assertions(
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    observed: list[int] = []
-
-    def succeed(argv: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
-        fd = int(kwargs["env"]["PULSEPLATE_LEGACY_TRACE_FD"])
-        assert kwargs["pass_fds"] == (fd,) and kwargs["timeout"] == 120
-        observed.append(fd)
-        os.write(fd, b"synthetic pre-success trace that must not enter stdout/stderr")
-        return subprocess.CompletedProcess(argv, 0, "legacy compatibility seam guard passed\n", "")
-
-    monkeypatch.setattr(subprocess, "run", succeed)
-    test_legacy_growth_guard_real_current_root_cli()
-    output = capsys.readouterr()
-    assert output.out == output.err == ""
-    with pytest.raises(OSError):
-        os.fstat(observed[0])
-
-
 @pytest.mark.parametrize("family", ["api_key", "openapi"])
 @pytest.mark.parametrize("purpose", ["ordinary", "ownership_audit"])
 def test_consol_mapping_ownpoint_publication_is_audit_only(
@@ -25851,3 +25666,442 @@ def test_consol_supported_wrapper_inherited_iteration_keeps_coroutine_dormant() 
     )
     visitor.visit(ast.parse(source))
     assert visitor.scope.strings["trace"] == ""
+
+
+@pytest.mark.parametrize(
+    "module", ["foreign_owner", "app.routers.other", ".", ".foreign_owner", "..foreign_owner"]
+)
+@pytest.mark.parametrize("star_first", [False, True])
+def test_consol_late2_sourcea435_legacy_star_import_fails_closed_in_either_order(
+    module: str, star_first: bool
+) -> None:
+    star = f"from {module} import *\n"
+    source = star + _CONSOL_GETTER_IMPORTS if star_first else _CONSOL_GETTER_IMPORTS + star
+    compile(source, "<late2-star>", "exec")
+    assert _validate_api_key_dependency_ownership(source, {}) == [
+        "legacy_app.py: unresolved API-key dependency star import is forbidden"
+    ]
+
+
+@pytest.mark.parametrize(
+    "addition",
+    [
+        "from foreign_owner import harmless\n",
+        "note = 'from foreign_owner import *'\n",
+        "from app.routers.api_key import _get_api_key_dynamic, get_api_key\n",
+    ],
+)
+def test_consol_late2_sourcea435_legacy_explicit_import_controls(addition: str) -> None:
+    assert _validate_api_key_dependency_ownership(_CONSOL_GETTER_IMPORTS + addition, {}) == []
+
+
+@pytest.mark.parametrize("family", ["api", "openapi"])
+@pytest.mark.parametrize("protocol", ["enter", "exit", "next"])
+@pytest.mark.parametrize("invoked", [False, True])
+@pytest.mark.parametrize("protected", [False, True])
+def test_consol_late2_async_protocol_consumption_replays_known_helper(
+    family: str, protocol: str, invoked: bool, protected: bool
+) -> None:
+    module = "app.routers.api_key" if family == "api" else "app.bootstrap.openapi"
+    member = "require_app_api_key" if family == "api" else "_install_openapi_builder"
+    owner = "legacy" if protected else "canonical"
+    body = f"return helper({owner})"
+    if protocol == "next":
+        cls = f"class C:\n    def __aiter__(self):\n        return self\n    async def __anext__(self):\n        {body}\n"
+        driver = "async def main():\n    async for value in C():\n        break\n"
+    else:
+        enter = body if protocol == "enter" else "return None"
+        exit_body = body if protocol == "exit" else "return None"
+        cls = f"class C:\n    async def __aenter__(self):\n        {enter}\n    async def __aexit__(self, *args):\n        {exit_body}\n"
+        driver = "async def main():\n    async with C():\n        pass\n"
+    source = (
+        f"import asyncio\nimport legacy_app as legacy\nimport {module} as canonical\n"
+        f"def helper(owner):\n    return owner.{member}\n"
+        + cls
+        + driver
+        + ("asyncio.run(main())\n" if invoked else "pending = main()\ninstance = C()\n")
+    )
+    compile(source, "<async-protocol-consumption>", "exec")
+    errors = (
+        _validate_api_key_dependency_ownership(
+            _CONSOL_GETTER_IMPORTS, {"app/routers/example.py": source}
+        )
+        if family == "api"
+        else _consol_openapi_errors(source)
+    )
+    assert bool(errors) is (invoked and protected)
+
+
+def test_consol_late2_async_contexts_enter_left_exit_right_and_bind_enter_result() -> None:
+    source = (
+        "import asyncio\ntrace = ''\n"
+        "def tick(value):\n    global trace\n    trace = trace + value\n    return None\n"
+        "class First:\n    async def __aenter__(self):\n        tick('A')\n        return 'X'\n    async def __aexit__(self, *args):\n        tick('a')\n"
+        "class Second:\n    async def __aenter__(self):\n        tick('B')\n        return 'Y'\n    async def __aexit__(self, *args):\n        tick('b')\n"
+        "async def main():\n    async with First() as left, Second() as right:\n        tick(left)\n        tick(right)\nasyncio.run(main())\n"
+    )
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="example.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(ast.parse(source))
+    assert visitor.scope.strings["trace"] == "ABXYba"
+    assert not any(
+        name.startswith("<async-protocol:") for name in visitor.scope.visible_references()
+    )
+
+
+@pytest.mark.parametrize("decorator", ["", "@staticmethod\n    ", "@classmethod\n    "])
+def test_consol_late2_async_protocol_descriptor_binding_uses_existing_arity(decorator: str) -> None:
+    enter_args = "" if "staticmethod" in decorator else "receiver"
+    exit_args = "*args" if "staticmethod" in decorator else "receiver, *args"
+    source = (
+        "import asyncio\ntrace = ''\n"
+        "def tick(value):\n    global trace\n    trace = trace + value\n"
+        f"class C:\n    {decorator}async def __aenter__({enter_args}):\n        tick('E')\n    {decorator}async def __aexit__({exit_args}):\n        tick('X')\n"
+        "async def main():\n    async with C():\n        tick('B')\nasyncio.run(main())\n"
+    )
+    compile(source, "<protocol-descriptor>", "exec")
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="example.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(ast.parse(source))
+    assert visitor.scope.strings["trace"] == "EBX"
+
+
+def test_consol_late2_async_iterator_dispatch_uses_actual_factory_return() -> None:
+    source = (
+        "import asyncio\ntrace = ''\n"
+        "def tick(value):\n    global trace\n    trace = trace + value\n"
+        "class Iterator:\n    async def __anext__(self):\n        tick('N')\n        return 'V'\n"
+        "class Factory:\n    def __aiter__(self):\n        tick('I')\n        return Iterator()\n    async def __anext__(self):\n        tick('WRONG')\n"
+        "async def main():\n    async for value in Factory():\n        tick(value)\n        break\nasyncio.run(main())\n"
+    )
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="example.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(ast.parse(source))
+    assert visitor.scope.strings["trace"] == "INV"
+
+
+@pytest.mark.parametrize("declaration", ["async def", "def"])
+def test_consol_late2_invalid_async_iterator_factory_keeps_deferred_body_dormant(
+    declaration: str,
+) -> None:
+    statement = "return self" if declaration == "async def" else "yield self"
+    source = (
+        "import asyncio\ntrace = ''\n"
+        "def tick(value):\n    global trace\n    trace = trace + value\n"
+        f"class C:\n    {declaration} __aiter__(self):\n        tick('WRONG')\n        {statement}\n    async def __anext__(self):\n        tick('WRONG')\n"
+        "async def main():\n    async for value in C():\n        break\nasyncio.run(main())\n"
+    )
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="example.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(ast.parse(source))
+    assert visitor.scope.strings["trace"] == ""
+
+
+@pytest.mark.parametrize(
+    ("definition", "expected"),
+    [
+        ("class C:\n    async def __aenter__(self):\n        tick('E')\n", ""),
+        (
+            "class C:\n    async def __aenter__(self, required):\n        tick('E')\n    async def __aexit__(self, *args):\n        tick('X')\n",
+            "",
+        ),
+        (
+            "class C:\n    async def __aenter__(self):\n        tick('E')\n        yield None\n    async def __aexit__(self, *args):\n        tick('X')\n",
+            "",
+        ),
+        (
+            "class C:\n    def __aenter__(self):\n        tick('E')\n        return 1\n    async def __aexit__(self, *args):\n        tick('X')\n",
+            "E",
+        ),
+        (
+            "class C:\n    __aenter__ = None\n    async def __aexit__(self, *args):\n        tick('X')\n",
+            "",
+        ),
+        (
+            "class C:\n    async def __aenter__(self):\n        tick('E')\n    async def __aexit__(self):\n        tick('X')\n",
+            "EB",
+        ),
+        (
+            "class C:\n    async def __aenter__(self):\n        tick('E')\n    __aexit__ = None\n",
+            "EB",
+        ),
+        (
+            "class C:\n    async def __aenter__(self):\n        tick('E')\n    def __aexit__(self, *args):\n        tick('X')\n        return 1\n",
+            "EBX",
+        ),
+    ],
+)
+def test_consol_late2_async_context_known_invalid_stages_preserve_real_eager_effects(
+    definition: str, expected: str
+) -> None:
+    source = (
+        "import asyncio\ntrace = ''\n"
+        "def tick(value):\n    global trace\n    trace = trace + value\n"
+        + definition
+        + "async def main():\n    async with C() as entered:\n        tick('B')\n    tick('AFTER')\nasyncio.run(main())\n"
+    )
+    compile(source, "<invalid-async-context>", "exec")
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="example.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(ast.parse(source))
+    assert visitor.scope.strings["trace"] == expected
+
+
+def test_consol_late2_async_context_later_acquisition_failure_runs_prior_exit() -> None:
+    source = (
+        "import asyncio\ntrace = ''\n"
+        "def tick(value):\n    global trace\n    trace = trace + value\n"
+        "class First:\n    async def __aenter__(self):\n        tick('E')\n    async def __aexit__(self, *args):\n        tick('X')\n"
+        "class Invalid:\n    async def __aenter__(self, missing):\n        tick('WRONG')\n    async def __aexit__(self, *args):\n        tick('WRONG')\n"
+        "async def main():\n    async with First(), Invalid():\n        tick('WRONG')\n    tick('WRONG')\nasyncio.run(main())\n"
+    )
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="example.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(ast.parse(source))
+    assert visitor.scope.strings["trace"] == "EX"
+
+
+@pytest.mark.parametrize(
+    "definition",
+    [
+        "class C:\n    pass\n",
+        "class C:\n    __aiter__ = None\n",
+        "class C:\n    async def __aiter__(self):\n        tick('WRONG')\n        return self\n",
+        "class C:\n    def __aiter__(self):\n        yield self\n",
+        "class C:\n    def __aiter__(self, missing):\n        tick('WRONG')\n",
+        "class C:\n    def __aiter__(self):\n        return self\n",
+        "class C:\n    def __aiter__(self):\n        return self\n    __anext__ = None\n",
+        "class C:\n    def __aiter__(self):\n        return self\n    async def __anext__(self, missing):\n        tick('WRONG')\n",
+    ],
+)
+def test_consol_late2_async_iterator_known_invalid_does_not_reach_body_or_else(
+    definition: str,
+) -> None:
+    source = (
+        "import asyncio\ntrace = ''\n"
+        "def tick(value):\n    global trace\n    trace = trace + value\n"
+        + definition
+        + "async def main():\n    async for value in C():\n        tick('WRONG')\n        break\n    else:\n        tick('WRONG')\n    tick('WRONG')\nasyncio.run(main())\n"
+    )
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="example.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(ast.parse(source))
+    assert visitor.scope.strings["trace"] == ""
+
+
+@pytest.mark.parametrize("family", ["api", "openapi"])
+@pytest.mark.parametrize("break_after_first", [False, True])
+def test_consol_late2_async_next_replays_before_each_existing_loop_transfer(
+    family: str, break_after_first: bool
+) -> None:
+    module = "app.routers.api_key" if family == "api" else "app.bootstrap.openapi"
+    member = "require_app_api_key" if family == "api" else "_install_openapi_builder"
+    source = (
+        f"import asyncio\nimport legacy_app as legacy\nimport {module} as canonical\nowner = canonical\n"
+        f"def helper(receiver):\n    return receiver.{member}\n"
+        "def change_owner():\n    global owner\n    owner = legacy\n"
+        "class C:\n    def __aiter__(self):\n        return self\n    async def __anext__(self):\n        return helper(owner)\n"
+        "async def main():\n    phase = canonical\n"
+        "    async for value in C():\n        change_owner()\n"
+        + (
+            "        break\n"
+            if break_after_first
+            else "        if phase is legacy:\n            break\n        phase = legacy\n"
+        )
+        + "asyncio.run(main())\n"
+    )
+    errors = (
+        _validate_api_key_dependency_ownership(
+            _CONSOL_GETTER_IMPORTS, {"app/routers/example.py": source}
+        )
+        if family == "api"
+        else _consol_openapi_errors(source)
+    )
+    assert bool(errors) is (not break_after_first)
+
+
+def test_consol_late2_async_context_captures_exit_before_enter_rebinds_class() -> None:
+    source = (
+        "import asyncio\ntrace = ''\n"
+        "def tick(value):\n    global trace\n    trace = trace + value\n"
+        "class Other:\n    async def __aenter__(self):\n        tick('WRONG')\n    async def __aexit__(self, *args):\n        tick('WRONG')\n"
+        "def replace():\n    global C\n    C = Other\n"
+        "class C:\n    async def __aenter__(self):\n        replace()\n        tick('E')\n    async def __aexit__(self, *args):\n        tick('X')\n"
+        "async def main():\n    async with C():\n        tick('B')\nasyncio.run(main())\n"
+    )
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="example.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(ast.parse(source))
+    assert visitor.scope.strings["trace"] == "EBX"
+
+
+def test_consol_late2_sync_protocol_methods_await_their_actual_coroutine_return() -> None:
+    source = (
+        "import asyncio\ntrace = ''\n"
+        "def tick(value):\n    global trace\n    trace = trace + value\n"
+        "async def entering():\n    tick('D')\n    return 'B'\n"
+        "async def exiting():\n    tick('X')\n"
+        "class C:\n    def __aenter__(self):\n        tick('E')\n        return entering()\n    def __aexit__(self, *args):\n        tick('e')\n        return exiting()\n"
+        "async def main():\n    async with C() as value:\n        tick(value)\nasyncio.run(main())\n"
+    )
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="example.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(ast.parse(source))
+    assert visitor.scope.strings["trace"] == "EDBeX"
+
+
+@pytest.mark.parametrize("decorator", ["staticmethod", "classmethod"])
+def test_consol_late2_async_iterator_factory_descriptors_preserve_actual_iterator(
+    decorator: str,
+) -> None:
+    args = "" if decorator == "staticmethod" else "cls"
+    source = (
+        "import asyncio\ntrace = ''\n"
+        "def tick(value):\n    global trace\n    trace = trace + value\n"
+        "class Iterator:\n    @classmethod\n    async def __anext__(cls):\n        tick('N')\n        return 'V'\n"
+        f"class Factory:\n    @{decorator}\n    def __aiter__({args}):\n        tick('I')\n        return Iterator()\n"
+        "async def main():\n    async for value in Factory():\n        tick(value)\n        break\nasyncio.run(main())\n"
+    )
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="example.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(ast.parse(source))
+    assert visitor.scope.strings["trace"] == "INV"
+
+
+@pytest.mark.parametrize("budget", [0, 1])
+def test_consol_late2_async_protocol_reuses_existing_loop_transfer_budget(budget: int) -> None:
+    source = (
+        "import asyncio\ntrace = ''\n"
+        "def tick(value):\n    global trace\n    trace = trace + value\n"
+        "class C:\n    def __aiter__(self):\n        tick('I')\n        return self\n    async def __anext__(self):\n        tick('N')\n        return None\n"
+        "async def main():\n    async for value in C():\n        tick('B')\n        break\nasyncio.run(main())\n"
+    )
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="example.py", errors=[], analyze_function_bodies=False
+    )
+    visitor._remaining_loop_iterations = budget
+    if budget == 0:
+        with pytest.raises(legacy_guard.LegacyGrowthAnalysisError, match="128 total iterations"):
+            visitor.visit(ast.parse(source))
+    else:
+        visitor.visit(ast.parse(source))
+    assert visitor.scope.strings["trace"] == ("I" if budget == 0 else "INB")
+    assert visitor._remaining_loop_iterations == 0
+
+
+def test_consol_late2_async_context_cleanup_does_not_mask_analysis_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source = (
+        "import asyncio\ntrace = ''\n"
+        "def tick(value):\n    global trace\n    trace = trace + value\n"
+        "class C:\n    async def __aenter__(self):\n        tick('E')\n    async def __aexit__(self, *args):\n        tick('X')\n"
+        "async def main():\n    async with C():\n        tick('B')\nasyncio.run(main())\n"
+    )
+    tree = ast.parse(source)
+    context = next(node for node in ast.walk(tree) if isinstance(node, ast.AsyncWith))
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="example.py", errors=[], analyze_function_bodies=False
+    )
+    original = visitor._visit_statements
+
+    def fail_body(statements: list[ast.stmt]) -> bool:
+        if statements is context.body:
+            raise RuntimeError("synthetic analysis failure")
+        return original(statements)
+
+    monkeypatch.setattr(visitor, "_visit_statements", fail_body)
+    with pytest.raises(RuntimeError, match="synthetic analysis failure"):
+        visitor.visit(tree)
+    assert visitor.scope.strings["trace"] == "EX"
+
+
+@pytest.mark.parametrize("family", ["api", "openapi"])
+@pytest.mark.parametrize("protected", [False, True])
+def test_consol_late2_unknown_async_entry_retains_known_exit_finding(
+    family: str, protected: bool
+) -> None:
+    module = "app.routers.api_key" if family == "api" else "app.bootstrap.openapi"
+    member = "require_app_api_key" if family == "api" else "_install_openapi_builder"
+    owner = "legacy" if protected else "canonical"
+    source = (
+        f"import asyncio\nfrom external import unknown_enter\nimport legacy_app as legacy\nimport {module} as canonical\n"
+        f"def helper(owner):\n    return owner.{member}\n"
+        f"class C:\n    __aenter__ = unknown_enter\n    async def __aexit__(self, *args):\n        return helper({owner})\n"
+        "async def main():\n    async with C():\n        pass\nasyncio.run(main())\n"
+    )
+    errors = (
+        _validate_api_key_dependency_ownership(
+            _CONSOL_GETTER_IMPORTS, {"app/routers/example.py": source}
+        )
+        if family == "api"
+        else _consol_openapi_errors(source)
+    )
+    assert bool(errors) is protected
+
+
+def test_consol_late2_possible_nearer_protocol_override_does_not_promote_base_noncallable() -> None:
+    source = (
+        "import asyncio\nfrom external import flag, unknown_enter\ntrace = ''\n"
+        "def tick(value):\n    global trace\n    trace = trace + value\n"
+        "class Base:\n    __aenter__ = None\n    async def __aexit__(self, *args):\n        tick('X')\n"
+        "class C(Base):\n    if flag:\n        __aenter__ = unknown_enter\n"
+        "async def main():\n    async with C():\n        tick('B')\nasyncio.run(main())\n"
+    )
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="example.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(ast.parse(source))
+    assert "B" in visitor.scope.strings["trace"]
+
+
+@pytest.mark.parametrize("family", ["api", "openapi"])
+@pytest.mark.parametrize("protocol", ["enter", "exit", "next"])
+@pytest.mark.parametrize("valid_first", [False, True])
+@pytest.mark.parametrize("protected", [False, True])
+def test_consol_late2_mixed_protocol_alternatives_retain_valid_path(
+    family: str, protocol: str, valid_first: bool, protected: bool
+) -> None:
+    module = "app.routers.api_key" if family == "api" else "app.bootstrap.openapi"
+    member = "require_app_api_key" if family == "api" else "_install_openapi_builder"
+    owner = "legacy" if protected else "canonical"
+    method = {"enter": "__aenter__", "exit": "__aexit__", "next": "__anext__"}[protocol]
+    args = "self, *args" if protocol == "exit" else "self"
+    valid = f"async def {method}({args}):\n            return {owner}\n"
+    invalid = f"def {method}({args}):\n            return 1\n"
+    first, second = (valid, invalid) if valid_first else (invalid, valid)
+    cls = f"class C:\n    if flag:\n        {first}    else:\n        {second}"
+    if protocol == "enter":
+        cls += "    async def __aexit__(self, *args):\n        return None\n"
+        driver = "async def main():\n    async with C() as value:\n        helper(value)\n"
+    elif protocol == "exit":
+        cls += "    async def __aenter__(self):\n        return None\n"
+        driver = f"async def main():\n    async with C():\n        pass\n    helper({owner})\n"
+    else:
+        cls += "    def __aiter__(self):\n        return self\n"
+        driver = (
+            "async def main():\n    async for value in C():\n        helper(value)\n        break\n"
+        )
+    source = (
+        f"import asyncio\nfrom external import flag\nimport legacy_app as legacy\nimport {module} as canonical\n"
+        f"def helper(owner):\n    return owner.{member}\n" + cls + driver + "asyncio.run(main())\n"
+    )
+    compile(source, "<mixed-protocol-alternatives>", "exec")
+    errors = (
+        _validate_api_key_dependency_ownership(
+            _CONSOL_GETTER_IMPORTS, {"app/routers/example.py": source}
+        )
+        if family == "api"
+        else _consol_openapi_errors(source)
+    )
+    assert bool(errors) is protected
