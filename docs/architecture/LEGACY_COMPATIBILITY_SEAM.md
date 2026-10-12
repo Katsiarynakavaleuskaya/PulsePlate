@@ -454,8 +454,9 @@ merge permission and granted no bypass of this PR's required gates.
 
 ## Legacy metadata and error-detail Python export retirement
 
-The admitted `LEGACY-METADATA-ERROR-EXPORT-RETIREMENT-1/v1` child removes
-exactly `build_application_metadata`,
+The admitted `LEGACY-METADATA-ERROR-EXPORT-RETIREMENT-1/v1` child
+([PR #2486](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2486))
+removes exactly `build_application_metadata`,
 `ENHANCED_PLATE_GENERATION_FAILED_DETAIL`, and
 `INVALID_PREMIUM_PLATE_INPUT_DETAIL` from ordinary `legacy_app.py` bindings.
 The previous 106 members remain and the current exact retirement inventory is
@@ -488,9 +489,10 @@ outside this bounded proof.
 Incoming PR #2483 terminal reconciliation is applied and committed once in this
 substantive child as `045952773ce45def82eca1130dd23d43630ac1d8`, preserving its
 Target PR #2483 and historical evidence above. Reconciled #2478/#2475/#2466 are
-not repeated. This child's own validation, premortem/Oracle, review,
-current-head CI, separately approved merge and terminal continuity remain
-pending until observed; predecessor results grant no transferred PASS.
+not repeated. This child's own local validation, actual-diff premortem and
+Oracle have observed evidence. Current-head CI, post-open review, final closeout,
+separately approved merge and terminal continuity remain pending until observed;
+predecessor results grant no transferred PASS.
 
 The operator explicitly authorizes this bounded start on red main. Foreign
 PR #2477 dependency/CD and PR #2476 consolidation/security/timeout ownership

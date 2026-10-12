@@ -9713,8 +9713,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] **Legacy metadata and error-detail export retirement (LEGACY-METADATA-ERROR-EXPORT-RETIREMENT-1/v1)**
   - Owner: @katsiaryna_kavaleuskaya (backend and Legacy consolidation)
   - Priority: P1
-  - Target PR: pending publication (`codex/retire-legacy-metadata-error-exports`)
-  - Status: Admitted implementation; own validation/review/Oracle/current-head CI and separately approved merge/post-main/archive/same-ID continuity/cleanup/outgoing remain pending until observed. Incoming PR #2483 terminal reconciliation is applied and committed once as `045952773ce45def82eca1130dd23d43630ac1d8`, with its Target PR #2483 preserved.
+  - Target PR: [PR #2486](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2486) (`codex/retire-legacy-metadata-error-exports`)
+  - Status: Implemented and published; own local validation, actual-diff premortem and Oracle evidence observed. Current-head CI, post-open review, final closeout and separately approved merge/post-main/archive/same-ID continuity/cleanup/outgoing remain pending until observed. Incoming PR #2483 terminal reconciliation is applied and committed once as `045952773ce45def82eca1130dd23d43630ac1d8`, with its Target PR #2483 preserved.
   - Area: Legacy Python export retirement
   - Reason for deferral (EN): This bounded child is admitted for implementation; later lifecycle outcomes await their own evidence and separate exact-head human merge decision. The operator permits start on red main without transferring foreign #2477 dependency/CD or #2476 consolidation/security/timeout ownership or waiving own gates.
   - Links: [BMI predecessor](#ledger-p1-legacy-bmi-python-export-retirement), [existing seam](../architecture/LEGACY_COMPATIBILITY_SEAM.md#legacy-metadata-and-error-detail-python-export-retirement), `legacy_app.py:12`, `scripts/ci/check_legacy_growth_guard.py:40`
