@@ -3198,9 +3198,114 @@ def test_alertmanager_module_mode_is_manual_first_attempt_and_build_is_held() ->
     first = job["steps"][0]["run"]
     assert 'test "$ALERTMANAGER_MODE" = module-qualify' in first
     assert 'test "$SOURCE_SHA" = "$GITHUB_SHA"' in first
+    checkout = _step_by_name(job, "Checkout authenticated Alertmanager preparation")
+    assert checkout["with"] == {"ref": "${{ github.sha }}", "persist-credentials": False}
+    qualification = _step_by_name(
+        job, "Qualify exact inputs and modules under one metadata-only clock"
+    )
+    assert (
+        _step_index(job, job["steps"][0]["name"])
+        < _step_index(job, checkout["name"])
+        < _step_index(job, qualification["name"])
+    )
+    assert qualification["run"].index('checkout_sha="$(git rev-parse HEAD)"') < (
+        qualification["run"].index('test "$checkout_sha" = "$GITHUB_SHA"')
+    )
+    assert qualification["run"].index('test "$checkout_sha" = "$GITHUB_SHA"') < (
+        qualification["run"].index("python3 -m scripts.ci.fetch_docker_source_artifacts")
+    )
     runs = "\n".join(step.get("run", "") for step in job["steps"])
     assert "docker login" not in runs and "docker push" not in runs
     assert "--artifact alertmanager --alertmanager-module-qualify" in runs
+
+
+@pytest.mark.parametrize(
+    "fault",
+    [
+        None,
+        "malformed_source",
+        "different_source",
+        "different_repository",
+        "repeat_attempt",
+        "build_mode",
+        "different_api_revision",
+        "api_failure",
+        "different_checkout",
+        "checkout_failure",
+    ],
+)
+def test_alertmanager_module_mode_checks_exact_revision_before_qualification(
+    tmp_path: Path, fault: str | None
+) -> None:
+    job = _load_workflow(WORKFLOWS_DIR / "cd.yml")["jobs"]["alertmanager-module-qualification"]
+    qualification = _step_by_name(
+        job, "Qualify exact inputs and modules under one metadata-only clock"
+    )
+    binary_dir = tmp_path / "bin"
+    binary_dir.mkdir()
+    marker = tmp_path / "qualified"
+    scripts = {
+        "gh": '#!/bin/sh\nprintf "%s\\n" "$SYNTHETIC_API_SHA"\nexit "$SYNTHETIC_API_EXIT"\n',
+        "git": (
+            '#!/bin/sh\n[ "$*" = "rev-parse HEAD" ] || exit 64\n'
+            'printf "%s\\n" "$SYNTHETIC_CHECKOUT_SHA"\nexit "$SYNTHETIC_GIT_EXIT"\n'
+        ),
+        "python3": (
+            '#!/bin/sh\n[ "$*" = "-m scripts.ci.fetch_docker_source_artifacts '
+            '--artifact alertmanager --alertmanager-module-qualify" ] || exit 64\n'
+            'printf "qualified\\n" > "$QUALIFICATION_MARKER"\n'
+        ),
+    }
+    for name, body in scripts.items():
+        executable = binary_dir / name
+        executable.write_text(body)
+        executable.chmod(0o755)
+    revision = "a" * 40
+    # An explicit environment excludes every host credential source, even for stubs.
+    env = {
+        "PATH": str(binary_dir),
+        "HOME": str(tmp_path),
+        "GH_CONFIG_DIR": str(tmp_path / "gh-config"),
+        "GH_TOKEN": "synthetic-test-token",
+        "GITHUB_TOKEN": "synthetic-test-token",
+        "GITHUB_REPOSITORY": "Katsiarynakavaleuskaya/PulsePlate",
+        "GITHUB_RUN_ATTEMPT": "1",
+        "SOURCE_SHA": revision,
+        "GITHUB_SHA": revision,
+        "ALERTMANAGER_MODE": "module-qualify",
+        "SYNTHETIC_API_SHA": revision,
+        "SYNTHETIC_API_EXIT": "0",
+        "SYNTHETIC_CHECKOUT_SHA": revision,
+        "SYNTHETIC_GIT_EXIT": "0",
+        "QUALIFICATION_MARKER": str(marker),
+    }
+    mutations = {
+        "malformed_source": ("SOURCE_SHA", "invalid"),
+        "different_source": ("SOURCE_SHA", "b" * 40),
+        "different_repository": ("GITHUB_REPOSITORY", "other/repository"),
+        "repeat_attempt": ("GITHUB_RUN_ATTEMPT", "2"),
+        "build_mode": ("ALERTMANAGER_MODE", "build"),
+        "different_api_revision": ("SYNTHETIC_API_SHA", "b" * 40),
+        "api_failure": ("SYNTHETIC_API_EXIT", "1"),
+        "different_checkout": ("SYNTHETIC_CHECKOUT_SHA", "b" * 40),
+        "checkout_failure": ("SYNTHETIC_GIT_EXIT", "1"),
+    }
+    if fault is not None:
+        key, value = mutations[fault]
+        env[key] = value
+    bash = shutil.which("bash")
+    assert bash is not None
+    result = subprocess.run(
+        [bash, "-c", job["steps"][0]["run"] + "\n" + qualification["run"]],
+        cwd=tmp_path,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=5,
+        check=False,
+    )
+    assert (result.returncode == 0) is (fault is None), result.stderr
+    assert marker.exists() is (fault is None)
 
 
 def test_alertmanager_literal_recipe_has_only_selected_payload_and_private_defaults() -> None:

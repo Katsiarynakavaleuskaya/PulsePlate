@@ -89,15 +89,18 @@ jobs:
           [[ "$SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]
           test "$SOURCE_SHA" = "$GITHUB_SHA"
           test "$ALERTMANAGER_MODE" = module-qualify
-          test "$(gh api "repos/$GITHUB_REPOSITORY/commits/$SOURCE_SHA" --jq .sha)" = "$SOURCE_SHA"
+          source_api_sha="$(gh api "repos/$GITHUB_REPOSITORY/commits/$SOURCE_SHA" --jq .sha)"
+          test "$source_api_sha" = "$SOURCE_SHA"
       - name: Checkout authenticated Alertmanager preparation
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ inputs.source_sha }}
+          ref: ${{ github.sha }}
           persist-credentials: false
       - name: Qualify exact inputs and modules under one metadata-only clock
         run: |
           set -euo pipefail
+          checkout_sha="$(git rev-parse HEAD)"
+          test "$checkout_sha" = "$GITHUB_SHA"
           umask 077
           # The one 900-second owner begins before source/UI/Go/base acquisition.
           # Source/UI clips its 300-second acquisition bound to remaining time.
