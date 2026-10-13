@@ -148,6 +148,12 @@ RETIRED_LEGACY_PYTHON_BINDINGS = frozenset(
         "build_application_metadata",
         "ENHANCED_PLATE_GENERATION_FAILED_DETAIL",
         "INVALID_PREMIUM_PLATE_INPUT_DETAIL",
+        "APPLICATION_METADATA",
+        "RUNTIME_ENV",
+        "_app_env",
+        "_application_metadata",
+        "tags_metadata",
+        "_api_description",
     }
 )
 ALLOWED_CANONICAL_LIFESPAN_APP_IMPORTS = frozenset(
@@ -10914,58 +10920,6 @@ def _parses_environment_directly(tree: ast.Module) -> bool:
     return False
 
 
-def _has_canonical_bootstrap_metadata_alias(tree: ast.Module) -> bool:
-    """Recognize the declared metadata import/alias shape and ordinary binding events."""
-    protected = {"APPLICATION_METADATA", "_application_metadata"}
-    if any(
-        protected.intersection(node.names)
-        for node in ast.walk(tree)
-        if isinstance(node, ast.Global)
-    ):
-        return False
-    import_index: int | None = None
-    alias_index: int | None = None
-    for index, statement in enumerate(tree.body):
-        bindings = _assigned_names(ast.Module(body=[statement], type_ignores=[])) & protected
-        if not bindings:
-            continue
-        if (
-            import_index is None
-            and bindings == {"APPLICATION_METADATA"}
-            and isinstance(statement, ast.ImportFrom)
-            and statement.level == 0
-            and statement.module == "app.bootstrap.application"
-        ):
-            metadata_items = [
-                item
-                for item in statement.names
-                if item.name == "APPLICATION_METADATA"
-                or (item.asname or item.name) == "APPLICATION_METADATA"
-            ]
-            if (
-                len(metadata_items) != 1
-                or metadata_items[0].name != "APPLICATION_METADATA"
-                or metadata_items[0].asname not in {None, "APPLICATION_METADATA"}
-            ):
-                return False
-            import_index = index
-        elif (
-            import_index is not None
-            and alias_index is None
-            and bindings == {"_application_metadata"}
-            and isinstance(statement, ast.Assign)
-            and len(statement.targets) == 1
-            and isinstance(statement.targets[0], ast.Name)
-            and statement.targets[0].id == "_application_metadata"
-            and isinstance(statement.value, ast.Name)
-            and statement.value.id == "APPLICATION_METADATA"
-        ):
-            alias_index = index
-        else:
-            return False
-    return import_index is not None and alias_index is not None and import_index < alias_index
-
-
 def validate_application_metadata_openapi_ownership(
     legacy_source: str,
     metadata_source: str,
@@ -10993,10 +10947,6 @@ def validate_application_metadata_openapi_ownership(
         return sorted(set(errors))
 
     legacy_tree = trees[LEGACY_APP]
-    if not _has_canonical_bootstrap_metadata_alias(legacy_tree):
-        errors.append(
-            f"{LEGACY_APP}: canonical bootstrap metadata import/alias contract is required"
-        )
     local_openapi_defs = {
         node.name
         for node in legacy_tree.body
