@@ -286,8 +286,8 @@ def test_oversized_direct_input_rejects_before_fingerprint_or_body_encoding(
         build_ocw_evidence_attachment(neighborhood, expected_invocation=expected, observed=observed)
 
 
-@pytest.mark.parametrize("body", ["Separately captured source text.", "", "   \n"])
-def test_original_asset_payload_has_no_invented_content_schema(body: str) -> None:
+@pytest.mark.parametrize("body", ["Separately captured source text.", "", "   \n", None])
+def test_original_asset_payload_has_no_invented_content_schema(body: str | None) -> None:
     payload = {"original_source": ["independent", {"version_note": 3, "accepted": False}]}
     asset = create_evidence_asset_ref(
         asset_type="eval_run",
@@ -385,8 +385,12 @@ def test_original_asset_payload_has_no_invented_content_schema(body: str) -> Non
     assert entry["payload"] == payload
     assert entry["body_sha256"] != asset.fingerprint
     assert entry["content"] == body
-    assert entry["content_status"] == ("loaded" if body.strip() else "empty")
-    assert entry["body_sha256"] == "sha256:" + hashlib.sha256(body.encode()).hexdigest()
+    assert entry["content_status"] == (
+        "missing" if body is None else "loaded" if body.strip() else "empty"
+    )
+    assert entry["body_sha256"] == (
+        None if body is None else "sha256:" + hashlib.sha256(body.encode()).hexdigest()
+    )
     for field, changed in (("content", "changed raw body"), ("version", "v2")):
         altered = deepcopy(observed)
         altered["sources"][index][field] = changed
@@ -427,3 +431,19 @@ def test_finite_native_payload_admission_precedes_copying(kind: str) -> None:
     expected["sources"][0]["payload"] = value
     with pytest.raises(ValueError, match="ocw_json"):
         validate_ocw_invocation(expected)
+
+
+def test_missing_body_does_not_waive_nonnull_original_payload_binding() -> None:
+    graph, expected, _ = _material()
+    expected["sources"][0]["payload"] = {"different_original": "supplied without body"}
+    observed = {**deepcopy(expected), "authority_granted": False, "answer_change_allowed": False}
+    with pytest.raises(ValueError, match="ocw_source_payload"):
+        build_ocw_evidence_attachment(graph, expected_invocation=expected, observed=observed)
+
+
+def test_loaded_body_preserves_existing_null_payload_fingerprint_check() -> None:
+    graph, expected, _ = _material()
+    expected["sources"][0]["content"] = "independently loaded text"
+    observed = {**deepcopy(expected), "authority_granted": False, "answer_change_allowed": False}
+    with pytest.raises(ValueError, match="ocw_source_payload"):
+        build_ocw_evidence_attachment(graph, expected_invocation=expected, observed=observed)

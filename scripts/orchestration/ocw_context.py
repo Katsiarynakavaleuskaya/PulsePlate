@@ -231,12 +231,13 @@ def build_ocw_evidence_attachment(
         content = source["content"]
         # The asset owner's ORIGINAL JSON payload has no invented body schema.
         # Raw body/version match independent capture expectations separately.
-        if content is not None and fingerprint_payload(source["payload"]) != item.asset.fingerprint:
+        if (content is not None or source["payload"] is not None) and fingerprint_payload(
+            source["payload"]
+        ) != item.asset.fingerprint:
             raise ValueError("ocw_source_payload")
-        if (
-            content is not None
-            and fingerprint_payload(actual_source["payload"]) != item.asset.fingerprint
-        ):
+        if (content is not None or actual_source["payload"] is not None) and fingerprint_payload(
+            actual_source["payload"]
+        ) != item.asset.fingerprint:
             raise ValueError("ocw_source_payload")
         source["body_sha256"] = (
             None

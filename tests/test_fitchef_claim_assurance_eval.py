@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import copy
+from contextlib import contextmanager
 from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 import hashlib
@@ -24,6 +25,8 @@ from coverage import Coverage, CoverageData
 from openai import AsyncOpenAI
 import pytest
 from sqlalchemy.engine import make_url
+from sqlalchemy import create_engine, select
+from sqlalchemy.orm import Session
 from tenacity import wait_none
 
 from app.services import fitchef_runtime
@@ -87,6 +90,451 @@ def _ocw_request(arm: str, prompt: str = "synthetic prompt") -> httpx.Request:
         }
         endpoint = "https://api.perplexity.ai/v1/responses"
     return httpx.Request("POST", endpoint, json=body)
+
+
+@pytest.mark.parametrize(
+    "change", ["query", "content", "chunk", "file", "score", "omit", "add", "order"]
+)
+def test_postopen_canonical_input_substitution_refused_before_allocation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    change: str,
+) -> None:
+    monkeypatch.setenv("PERPLEXITY_API_KEY", "synthetic")
+    rows = _ocw_rows()
+    inner = rows[0]["input_payload"]
+    if change == "query":
+        inner["query"] = "Другой корректный вопрос об арахисе."
+    elif change == "omit":
+        inner["sources"] = []
+    elif change == "add":
+        inner["sources"].append({**inner["sources"][0], "chunk_id": "added-safe-card"})
+    elif change == "order":
+        rows[0]["input_payload"]["sources"], rows[1]["input_payload"]["sources"] = (
+            rows[1]["input_payload"]["sources"],
+            rows[0]["input_payload"]["sources"],
+        )
+    else:
+        inner["sources"][0][
+            {"content": "content", "chunk": "chunk_id", "file": "file", "score": "score"}[change]
+        ] = (0.25 if change == "score" else "safe-substitution")
+
+    def no_preflight(*_args: Any, **_kwargs: Any) -> None:
+        pytest.fail("canonical input rejected before mock/live allocation")
+
+    monkeypatch.setattr(collector, "ocw_request_preflight", no_preflight)
+    with pytest.raises(ValueError, match="ocw_manifest"):
+        collector.collect_ocw_comparison(
+            rows,
+            output_dir=tmp_path,
+            rubric=RUBRIC,
+            pricing=_ocw_prices(),
+            fitchef_key="ocw-eval-synthetic",
+            perplexity_key="synthetic",
+            run_id="postopen-negative",
+        )
+    assert not list(tmp_path.iterdir())
+
+
+@pytest.mark.parametrize("value", [[], {}, True, 0, None, "other"])
+def test_postopen_currency_basis_has_stable_valueerror(value: object) -> None:
+    rows = _ocw_prices()
+    rows[0]["returned_cost_currency_basis"] = value
+    with pytest.raises(ValueError, match="ocw_pricing"):
+        collector.validate_ocw_pricing(rows)
+
+
+def test_postopen_admission_uses_current_fixture_without_historical_hash(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original = _ocw_rows()
+    current = copy.deepcopy(original)
+    current[0]["input_payload"]["query"] = "Текущий безопасный вопрос об арахисе."
+    current[0]["input_payload"]["sources"].append(
+        copy.deepcopy(original[1]["input_payload"]["sources"][0])
+    )
+    fixture = (
+        Path(collector.__file__).resolve().parents[2]
+        / "tests/fixtures/ocw/fitchef_nutrition_cases.v1.jsonl"
+    )
+
+    def read_current(path: Path) -> list[object]:
+        assert path == fixture
+        return copy.deepcopy(current)
+
+    monkeypatch.setattr(collector, "read_jsonl", read_current)
+    assert collector.validate_ocw_manifest(current) == current
+    reordered = copy.deepcopy(current)
+    reordered[0]["input_payload"]["sources"].reverse()
+    with pytest.raises(ValueError, match="ocw_manifest"):
+        collector.validate_ocw_manifest(reordered)
+    with pytest.raises(ValueError, match="ocw_manifest"):
+        collector.validate_ocw_manifest(original)
+
+
+@pytest.mark.parametrize(
+    "field,total_field",
+    [("input_tokens_details", "input_tokens"), ("prompt_tokens_details", "prompt_tokens")],
+)
+@pytest.mark.parametrize("cached,total", [(0, 1), (1, 1), (34816, 34816)])
+def test_postopen_literal_cached_usage_preserves_exact_valid_bounds(
+    field: str,
+    total_field: str,
+    cached: int,
+    total: int,
+) -> None:
+    native = {total_field: total, field: {"cached_tokens": cached}}
+    preserved, cost = collector._ocw_usage(native)
+    assert preserved == native and cost is None
+    assert collector._ocw_usage({total_field: total}) == ({total_field: total}, None)
+
+
+@pytest.mark.parametrize("arm", ["sonar", "sol"])
+def test_postopen_unallocated_next_invocation_cannot_reuse_previous_reservation(
+    tmp_path: Path,
+    arm: str,
+) -> None:
+    ledger = collector.AttemptLedger(tmp_path, comparison=True)
+    ledger.bind_case("sonar", "OCW-N01", "synthetic prompt")
+    asyncio.run(ledger.reserve(_ocw_request("sonar")))
+    # A prior HTTP reservation is unrelated to a later constructor/input error.
+    ledger.bind_case(arm, "OCW-N02", "synthetic prompt")
+    ledger.native_failure(ValueError("synthetic pre-allocation failure"))
+    assert not ledger.http_observations and ledger.reservation_publications == 1
+    assert not (tmp_path / "attempt-result-0001.json").exists()
+    assert ledger.retryable is False
+
+
+@pytest.mark.parametrize(
+    "field",
+    [
+        "score",
+        "max_input_usd_per_million",
+        "max_output_usd_per_million",
+        "extra_fees_usd_per_attempt",
+    ],
+)
+def test_postopen_native_large_integer_rejected_without_float_coercion(field: str) -> None:
+    if field == "score":
+        rows = _ocw_rows()
+        rows[0]["input_payload"]["sources"][0]["score"] = 10**400
+        with pytest.raises(ValueError, match="ocw_manifest"):
+            collector.validate_ocw_manifest(rows)
+    else:
+        prices = _ocw_prices()
+        prices[0][field] = 10**400
+        with pytest.raises(ValueError, match="ocw_pricing"):
+            collector.validate_ocw_pricing(prices)
+
+
+@pytest.mark.parametrize(
+    "detail",
+    [
+        None,
+        [],
+        {"cached_tokens": True},
+        {"cached_tokens": -1},
+        {"cached_tokens": "0"},
+        {"cached_tokens": 2},
+        {"cached_tokens": 34817},
+    ],
+)
+def test_postopen_cached_input_contradiction_retains_http_and_blocks_next_send(
+    tmp_path: Path,
+    detail: object,
+) -> None:
+    ledger = collector.AttemptLedger(tmp_path, comparison=True)
+    ledger.bind_case("sol", "OCW-N01", "synthetic prompt")
+    usage = {"input_tokens": 1, "input_tokens_details": detail}
+    sends = 0
+
+    async def respond(request: httpx.Request) -> httpx.Response:
+        nonlocal sends
+        sends += 1
+        return httpx.Response(
+            200, request=request, json={"model": "openai/gpt-6.1-sol", "usage": usage, "output": []}
+        )
+
+    async def run() -> None:
+        async with httpx.AsyncClient(
+            transport=httpx.MockTransport(respond),
+            event_hooks={"request": [ledger.reserve], "response": [ledger.observe_http]},
+        ) as client:
+            with pytest.raises(ValueError):
+                await client.send(_ocw_request("sol"))
+            with pytest.raises(collector.BudgetExhausted):
+                await client.send(_ocw_request("sol"))
+
+    asyncio.run(run())
+    outcome = read_jsonl(tmp_path / "attempt-result-0001.json")[0]
+    assert outcome["usage"] == usage and outcome["status_code"] == 200
+    assert sends == ledger.attempts == 1 and ledger.retryable is False
+
+
+def test_postopen_native_large_known_cost_retains_http_and_terminal_overrun(tmp_path: Path) -> None:
+    ledger = collector.AttemptLedger(tmp_path, comparison=True)
+    ledger.bind_case("sol", "OCW-N01", "synthetic prompt")
+    usage = {"cost": {"total_cost": 10**400, "currency": "USD"}}
+
+    async def run() -> None:
+        await ledger.reserve(_ocw_request("sol"))
+        with pytest.raises(ValueError, match="ocw_terminal_failure"):
+            await ledger.observe_http(
+                httpx.Response(
+                    200,
+                    request=_ocw_request("sol"),
+                    json={"model": "openai/gpt-6.1-sol", "usage": usage, "output": []},
+                )
+            )
+        with pytest.raises(collector.BudgetExhausted):
+            await ledger.reserve(_ocw_request("sol"))
+
+    asyncio.run(run())
+    outcome = read_jsonl(tmp_path / "attempt-result-0001.json")[0]
+    assert (
+        outcome["cost_usd"] == 10**400
+        and outcome["usage"] == usage
+        and outcome["status_code"] == 200
+    )
+    assert ledger.reported_overrun_usd == 10**400
+
+
+def test_postopen_same_output_claim_loser_publishes_nothing(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("PERPLEXITY_API_KEY", "synthetic-provider-key")
+    monkeypatch.setattr(collector, "validate_ocw_environment", lambda _key: None)
+    winner = b'{"id":"independently-admitted-winner"}\n'
+
+    def competing_claim() -> str:
+        write_report(tmp_path / "run.jsonl", winner)
+        return "a" * 40
+
+    monkeypatch.setattr(collector, "_code_sha", competing_claim)
+    with pytest.raises(ValueError, match="output_exists"):
+        collector.collect_ocw_comparison(
+            _ocw_rows(),
+            output_dir=tmp_path,
+            rubric=RUBRIC,
+            pricing=_ocw_prices(),
+            fitchef_key="ocw-eval-synthetic",
+            perplexity_key="synthetic-provider-key",
+            run_id="loser",
+        )
+    assert {p.name: p.read_bytes() for p in tmp_path.iterdir()} == {"run.jsonl": winner}
+
+
+@pytest.mark.parametrize("published", [False, True])
+def test_postopen_uncertain_reservation_is_not_a_native_outcome(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    published: bool,
+) -> None:
+    ledger = collector.AttemptLedger(tmp_path, comparison=True)
+    ledger.bind_case("sonar", "OCW-N01", "synthetic prompt")
+    real_write = collector.write_report
+    failure = OSError("synthetic reservation publication failure")
+
+    def write(path: Path, data: bytes) -> None:
+        if published:
+            real_write(path, data)
+        raise failure
+
+    monkeypatch.setattr(collector, "write_report", write)
+    with pytest.raises(OSError) as raised:
+        asyncio.run(ledger.reserve(_ocw_request("sonar")))
+    assert raised.value is failure
+    monkeypatch.setattr(collector, "write_report", real_write)
+    ledger.native_failure(failure)
+    assert not ledger.http_observations
+    assert not (tmp_path / "attempt-result-0001.json").exists()
+    assert ledger.reservation_publications == 0 and ledger.retryable is False
+
+
+@pytest.mark.parametrize("published", [False, True])
+def test_postopen_transient_http_outcome_publication_latches_before_another_send(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    published: bool,
+) -> None:
+    ledger = collector.AttemptLedger(tmp_path, comparison=True)
+    ledger.bind_case("sonar", "OCW-N01", "synthetic prompt")
+    real_write = collector.write_report
+    sends = 0
+    failure = OSError("synthetic observed HTTP publication failure")
+
+    def write(path: Path, data: bytes) -> None:
+        if path.name.startswith("attempt-result-"):
+            if published:
+                real_write(path, data)
+            raise failure
+        real_write(path, data)
+
+    async def respond(request: httpx.Request) -> httpx.Response:
+        nonlocal sends
+        sends += 1
+        return httpx.Response(503, request=request, json={})
+
+    monkeypatch.setattr(collector, "write_report", write)
+
+    async def run() -> None:
+        async with httpx.AsyncClient(
+            transport=httpx.MockTransport(respond),
+            event_hooks={"request": [ledger.reserve], "response": [ledger.observe_http]},
+        ) as client:
+            with pytest.raises(OSError) as raised:
+                await client.send(_ocw_request("sonar"))
+            assert raised.value is failure
+            with pytest.raises(collector.BudgetExhausted):
+                await client.send(_ocw_request("sonar"))
+
+    asyncio.run(run())
+    assert ledger.terminal_reason == "outcome_publication_uncertain" and ledger.retryable is False
+    assert sends == ledger.attempts == 1 and ledger.http_observations[0]["status_code"] == 503
+
+
+@pytest.mark.parametrize("published", [False, True])
+@pytest.mark.parametrize("kind", ["connection", "timeout", "cancel"])
+def test_postopen_outcome_publication_preserves_primary_and_blocks_retry(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    published: bool,
+    kind: str,
+) -> None:
+    from openai import APIConnectionError, APITimeoutError
+
+    ledger = collector.AttemptLedger(tmp_path, comparison=True)
+    ledger.bind_case("sonar", "OCW-N01", "synthetic prompt")
+    request = _ocw_request("sonar")
+    asyncio.run(ledger.reserve(request))
+    error: BaseException = (
+        asyncio.CancelledError("synthetic cancellation")
+        if kind == "cancel"
+        else (
+            APITimeoutError(request=request)
+            if kind == "timeout"
+            else APIConnectionError(request=request)
+        )
+    )
+    if kind != "cancel":
+        error.__cause__ = httpx.ReadTimeout("synthetic transport timeout")
+    real_write = collector.write_report
+
+    def write(path: Path, data: bytes) -> None:
+        if published:
+            real_write(path, data)
+        raise OSError("synthetic secondary publication failure")
+
+    monkeypatch.setattr(collector, "write_report", write)
+    # This is the existing native-failure owner; its secondary error may not
+    # replace the exception its caller is about to re-raise.
+    ledger.native_failure(error)
+    assert error.__notes__ == ["ocw_outcome_publication_failed:OSError"]
+    assert ledger.retryable is False and ledger.terminal_reason == "outcome_publication_uncertain"
+    with pytest.raises(collector.BudgetExhausted):
+        asyncio.run(ledger.reserve(request))
+    assert ledger.attempts == 1 and len(ledger.http_observations) == 1
+    if published:
+        assert (
+            read_jsonl(tmp_path / "attempt-result-0001.json")[0]["failure_type"]
+            == type(error).__name__
+        )
+
+
+@pytest.mark.parametrize(
+    "canonical,legacy,previous,admitted",
+    [
+        (None, 85, None, False),
+        (84, 1, None, False),
+        (84, 0, None, True),
+        (None, 84, None, True),
+        (85, None, None, False),
+        (0, 0, 100, True),
+    ],
+)
+def test_postopen_quota_reads_canonical_plus_legacy_without_mutation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    canonical: int | None,
+    legacy: int | None,
+    previous: int | None,
+    admitted: bool,
+) -> None:
+    key = "ocw-eval-synthetic-quota-key"
+    db = tmp_path / "quota.db"
+    for name, value in {
+        "APP_ENV": "development",
+        "SUBSCRIPTION_DB_ENABLED": "false",
+        "LLM_PROVIDER": "perplexity",
+        "PERPLEXITY_MODEL": "sonar",
+        "PERPLEXITY_ENDPOINT": "https://api.perplexity.ai",
+        "VIP_API_KEYS": key,
+        "SERVER_SALT": "synthetic-quota-salt-32-characters",
+        "DATABASE_URL": f"sqlite:///{db}",
+        "AGENT_CONTROL_AUDIT_SIGNING_KEY": "synthetic-audit-signing-key",
+        "AGENT_CONTROL_AUDIT_LOG_PATH": str(tmp_path / "audit.jsonl"),
+        "VIP_LLM_INSIGHT_REQUESTS_PER_MONTH": "100",
+        "FEATURE_FITCHEF_MASCOT": "false",
+    }.items():
+        monkeypatch.setenv(name, value)
+    metadata = core_db.load_canonical_orm_metadata()
+    engine = create_engine(f"sqlite:///{db}")
+    metadata.create_all(engine)
+    db.chmod(0o600)
+    month = collector.month_start_date_utc()
+    native_fp = collector.llm_key_fingerprint(key, tier="VIP")
+    from app.security.llm_monthly_quota import _legacy_llm_key_fingerprint
+
+    legacy_fp = _legacy_llm_key_fingerprint(key)
+
+    @contextmanager
+    def session_scope() -> Any:
+        with Session(engine) as session:
+            yield session
+
+    try:
+        with Session(engine) as session:
+            for fp, used, bucket in (
+                (native_fp, canonical, month),
+                (legacy_fp, legacy, month),
+                (legacy_fp, previous, (month - timedelta(days=1)).replace(day=1)),
+            ):
+                if used is not None:
+                    session.add(
+                        collector.VipLlmMonthlyUsage(
+                            key_fingerprint=fp, month_start_date=bucket, used_requests=used
+                        )
+                    )
+            session.commit()
+            before = list(
+                session.execute(
+                    select(
+                        collector.VipLlmMonthlyUsage.key_fingerprint,
+                        collector.VipLlmMonthlyUsage.month_start_date,
+                        collector.VipLlmMonthlyUsage.used_requests,
+                    )
+                )
+            )
+        monkeypatch.setattr(collector, "session_scope", session_scope)
+        # The feature is deliberately disabled AFTER the quota check. Reaching
+        # its existing boundary proves the exact sixteen-request quota passes.
+        with pytest.raises(ValueError, match="ocw_feature_or_mode" if admitted else "ocw_quota"):
+            collector.validate_ocw_environment(key)
+        with Session(engine) as session:
+            after = list(
+                session.execute(
+                    select(
+                        collector.VipLlmMonthlyUsage.key_fingerprint,
+                        collector.VipLlmMonthlyUsage.month_start_date,
+                        collector.VipLlmMonthlyUsage.used_requests,
+                    )
+                )
+            )
+        assert after == before
+        assert not list(tmp_path.glob("attempt-*"))
+    finally:
+        engine.dispose()
 
 
 def test_ocw_manifest_is_closed_eight_ru_cases_and_copied() -> None:
@@ -267,10 +715,26 @@ def test_ocw_safe_client_configuration_without_any_send(tmp_path: Path) -> None:
     asyncio.run(client.aclose())
 
 
+@pytest.mark.parametrize("module_name", ["agent", "router"])
+def test_ocw_code_source_requires_real_module_file(
+    monkeypatch: pytest.MonkeyPatch,
+    module_name: str,
+) -> None:
+    from providers import perplexity_agent
+    from app.routers import fitchef_insight
+
+    monkeypatch.setattr(
+        perplexity_agent if module_name == "agent" else fitchef_insight, "__file__", None
+    )
+    with pytest.raises(ValueError, match="ocw_code_source"):
+        collector._ocw_code_hashes()
+
+
 @pytest.mark.parametrize(
     "boundary",
     [
         "provider_constructor",
+        "provider_unavailable",
         "selector",
         "retrieval",
         "prompt",
@@ -298,6 +762,8 @@ def test_ocw_observer_rejects_foreign_invocation_before_transport(
         )
     )
     scenario = _ocw_rows()[0]
+    if boundary == "provider_unavailable":
+        monkeypatch.setattr(llm, "PerplexityProvider", None)
     if boundary == "malformed_extraction":
         monkeypatch.setattr(
             fitchef_companion, "_extract_action_items", lambda *_args, **_kwargs: [1]
@@ -309,6 +775,13 @@ def test_ocw_observer_rejects_foreign_invocation_before_transport(
         def post(self, _path: str, **_kwargs: Any) -> httpx.Response:
             if boundary == "provider_constructor":
                 llm.PerplexityProvider(model="foreign")
+            elif boundary == "provider_unavailable":
+                synthetic_provider_credential = _dummy_credential()
+                llm.PerplexityProvider(
+                    model="sonar",
+                    endpoint="https://api.perplexity.ai",
+                    api_key=synthetic_provider_credential,
+                )
             elif boundary == "selector":
                 fitchef_runtime._require_fitchef_llm_provider("foreign prompt")
             elif boundary == "retrieval":
@@ -367,14 +840,20 @@ def test_ocw_serialization_cannot_admit_an_sdk_response_without_encoded_send(
     assert logging.root.manager.disable == before
 
 
-def test_ocw_encoded_request_aggregate_limit_blocks_preflight_without_paid_transport() -> None:
+@pytest.mark.parametrize("arm", ["sonar", "sol"])
+def test_ocw_encoded_request_aggregate_limit_blocks_preflight_without_paid_transport(
+    arm: str,
+) -> None:
     rows = _ocw_rows()
     rows[0]["input_payload"]["sources"] = [
         {"chunk_id": f"chunk-{index}", "file": f"file-{index}", "content": "я" * 4000, "score": 0.5}
         for index in range(5)
     ]
-    with pytest.raises(ValueError, match="ocw_"):
-        collector.ocw_request_preflight(rows, _ocw_prices())
+    prompt, _sources = collector._ocw_prompt(rows[0]["input_payload"])
+    with pytest.raises(
+        ValueError, match="ocw_preflight" if arm == "sonar" else "prompt exceeds the byte budget"
+    ):
+        asyncio.run(collector._serialize_ocw_request(prompt, arm))
 
 
 @pytest.mark.parametrize(
@@ -766,10 +1245,12 @@ def test_ocw_cost_preserves_currency_reasoning_and_unknown_usd_basis(tmp_path: P
 
 
 @pytest.mark.parametrize("failure_name", ["inputs.jsonl", "run.jsonl", "rubric.jsonl"])
+@pytest.mark.parametrize("published", [False, True])
 def test_ocw_initial_publication_failure_keeps_primary_and_sends_nothing(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     failure_name: str,
+    published: bool,
 ) -> None:
     monkeypatch.setenv("PERPLEXITY_API_KEY", "synthetic-provider-key")
     monkeypatch.setattr(collector, "validate_ocw_environment", lambda _key: None)
@@ -779,6 +1260,8 @@ def test_ocw_initial_publication_failure_keeps_primary_and_sends_nothing(
 
     def write(path: Path, data: bytes) -> None:
         if path.name == failure_name:
+            if published:
+                real_write(path, data)
             raise failure
         real_write(path, data)
 
@@ -798,9 +1281,12 @@ def test_ocw_initial_publication_failure_keeps_primary_and_sends_nothing(
             run_id="publication-failure",
         )
     assert raised.value is failure
-    status = read_jsonl(tmp_path / "comparison-status.json")[0]
-    assert status["status"] == "incomplete" and len(status["missing"]) == 16
-    assert status["reserved_attempts"] == status["observed_http_outcomes"] == 0
+    if failure_name == "run.jsonl":
+        assert [path.name for path in tmp_path.iterdir()] == (["run.jsonl"] if published else [])
+    else:
+        status = read_jsonl(tmp_path / "comparison-status.json")[0]
+        assert status["status"] == "incomplete" and len(status["missing"]) == 16
+        assert status["reserved_attempts"] == status["observed_http_outcomes"] == 0
 
 
 def test_ocw_status_failure_cannot_mask_first_failure(
@@ -811,11 +1297,14 @@ def test_ocw_status_failure_cannot_mask_first_failure(
     monkeypatch.setattr(collector, "validate_ocw_environment", lambda _key: None)
     monkeypatch.setattr(collector, "_code_sha", lambda: "a" * 40)
     failure = OSError("synthetic primary failure")
+    real_write = collector.write_report
 
-    def fail_write(path: Path, _data: bytes) -> None:
+    def fail_write(path: Path, data: bytes) -> None:
         if path.name == "inputs.jsonl":
             raise failure
-        raise ValueError("synthetic status failure")
+        if path.name == "comparison-status.json":
+            raise ValueError("synthetic status failure")
+        real_write(path, data)
 
     monkeypatch.setattr(collector, "write_report", fail_write)
     with pytest.raises(OSError) as raised:
@@ -916,7 +1405,27 @@ def test_ocw_response_publication_and_cleanup_cannot_mask_original_failure(
 
 @pytest.mark.parametrize(
     "outcome",
-    ["success", "sonar-401", "sonar-transient", "sol-transient", "blocker-fallback", "oversized"],
+    [
+        "success",
+        "sonar-401",
+        "sonar-transient",
+        "sol-transient",
+        "blocker-fallback",
+        "oversized",
+        "sol-timeout",
+        "sonar-cancel",
+        "sol-cancel",
+        "case-before",
+        "case-after",
+        "case-last-after",
+        "aggregate-after",
+        "case-changed",
+        "sonar-close-failure",
+        "portal-missing",
+        "case-changed-ack",
+        "run-changed",
+        "case-status-drift",
+    ],
 )
 def test_ocw_actual_canonical_post_mock_capture_preserves_limiter_and_blind_material(
     tmp_path: Path,
@@ -925,7 +1434,7 @@ def test_ocw_actual_canonical_post_mock_capture_preserves_limiter_and_blind_mate
     """Fresh imports retain native rate decoration; only time/SDK transport are mocked."""
     root = Path(__file__).resolve().parents[1]
     script = r"""
-import hashlib,json,os,socket,sys,time
+import asyncio,hashlib,json,os,socket,sys,time
 from datetime import datetime,timezone
 from pathlib import Path
 from unittest.mock import patch
@@ -979,20 +1488,27 @@ with patch.dict(os.environ, {
     @contextmanager
     def malformed_quota():
         class Session:
-            def scalar(self,_statement): return True
+            def scalars(self,_statement): return self
+            def all(self): return bad_counts
         yield Session()
-    with patch.object(collector,'session_scope',malformed_quota):
-        try: collector.validate_ocw_environment(vip_label)
-        except ValueError: pass
-        else: raise AssertionError('coercive quota admitted')
+    for bad_counts in ([True],[-1],['0'],[None]):
+        with patch.object(collector,'session_scope',malformed_quota):
+            try: collector.validate_ocw_environment(vip_label)
+            except ValueError as error: assert str(error)=='ocw_quota'
+            else: raise AssertionError('coercive quota admitted')
     sends=[]; outcome=sys.argv[4]
     async def response(request):
         assert not any(name in request.headers for name in ('OpenAI-Organization','OpenAI-Project','Cookie'))
         body=json.loads(request.content); sends.append(body)
-        if (outcome=='sonar-401' and request.url.path=='/chat/completions'
+        if outcome=='sol-timeout' and request.url.path=='/v1/responses':
+            raise httpx.ReadTimeout('synthetic pre-response timeout',request=request)
+        if (outcome=='sonar-cancel' and request.url.path=='/chat/completions'
+            or outcome=='sol-cancel' and request.url.path=='/v1/responses'):
+            raise asyncio.CancelledError('synthetic pre-response cancellation')
+        if (outcome in ('sonar-401','sonar-close-failure') and request.url.path=='/chat/completions'
             or outcome=='sonar-transient' and request.url.path=='/chat/completions' and len(sends)<3
             or outcome=='sol-transient' and request.url.path=='/v1/responses'):
-            return httpx.Response(401 if outcome=='sonar-401' else 503,
+            return httpx.Response(401 if outcome in ('sonar-401','sonar-close-failure') else 503,
                 json={'error':{'message':'synthetic native failure','type':'native'}})
         raw='Сохраняем привычный распорядок питания.\n- Выберите обычный ужин.'
         if outcome=='blocker-fallback' and request.url.path=='/chat/completions': raw='I will diagnose and cure you.'
@@ -1012,6 +1528,37 @@ with patch.dict(os.environ, {
     def transport(ledger):
         return httpx.AsyncClient(transport=httpx.MockTransport(response),follow_redirects=False,
             trust_env=False,event_hooks={'request':[ledger.reserve],'response':[ledger.observe_http]})
+    native_write=collector.write_report
+    def publish(path,data):
+        selected=(path.name=='case-sonar-OCW-N01.jsonl' and outcome in ('case-before','case-after','case-changed')
+            or path.name=='case-sol-OCW-N08.jsonl' and outcome=='case-last-after'
+            or path.name=='comparison.jsonl' and outcome=='aggregate-after')
+        if selected and outcome=='case-before': raise OSError('synthetic primary publication failure')
+        if path.name=='case-sonar-OCW-N01.jsonl' and outcome in ('case-changed','case-changed-ack'):
+            changed=json.loads(data); changed['run']['id']='foreign-run'
+            data=collector._canonical(changed)+b'\n'
+        native_write(path,data)
+        if path.name=='case-sonar-OCW-N01.jsonl' and outcome=='run-changed':
+            (path.parent/'run.jsonl').write_bytes(b'{"id":"foreign-run"}\n')
+        if path.name=='comparison.jsonl' and outcome=='case-status-drift':
+            case=path.parent/'case-sonar-OCW-N01.jsonl'
+            changed=json.loads(case.read_bytes()); changed['run']['id']='foreign-run'
+            case.write_bytes(collector._canonical(changed)+b'\n')
+        if selected: raise OSError('synthetic primary publication failure')
+    import llm
+    from tests import _client as client_module
+    from types import SimpleNamespace
+    native_open=client_module.open_test_client
+    @contextmanager
+    def missing_portal(*args,**kwargs):
+        with native_open(*args,**kwargs):
+            yield SimpleNamespace(portal=None)
+    native_sonar=llm.PerplexityProvider
+    def sonar_with_failed_close(**kwargs):
+        provider=native_sonar(**kwargs)
+        async def fail_close(): raise OSError('synthetic secondary client close failure')
+        provider.client.close=fail_close
+        return provider
     clock={'value':time.time()}; sleeps=[]
     native_monotonic=time.monotonic; started=native_monotonic()
     def observed_time():
@@ -1020,6 +1567,9 @@ with patch.dict(os.environ, {
         assert seconds>=0; sleeps.append(seconds); clock['value']+=seconds
     with patch.object(collector,'_code_sha',lambda:'a'*40), \
          patch.object(collector,'_ocw_http_client',transport), \
+         patch.object(collector,'write_report',publish), \
+         patch.object(llm,'PerplexityProvider',sonar_with_failed_close if outcome=='sonar-close-failure' else native_sonar), \
+         patch.object(client_module,'open_test_client',missing_portal if outcome=='portal-missing' else native_open), \
          patch.object(time,'time',observed_time), \
          patch.object(time,'monotonic',observed_time), \
          patch.object(time,'sleep',sleep), \
@@ -1028,8 +1578,50 @@ with patch.dict(os.environ, {
             collector.collect_ocw_comparison(rows,output_dir=output,rubric=Path(sys.argv[3]),
                 pricing=prices,fitchef_key=vip_label,
                 perplexity_key=provider_label,run_id='mock-observed-route')
-        except ValueError:
-            if outcome not in ('sonar-401','sol-transient','oversized'): raise
+        except BaseException as error:
+            if outcome in ('case-changed-ack','run-changed','case-status-drift'):
+                assert isinstance(error,ValueError) and str(error)=='ocw_case_readback'
+                status=read_jsonl(output/'comparison-status.json')[0]
+                count=0 if outcome=='run-changed' else 15
+                assert len(sends)==16 and status['status']=='incomplete'
+                assert len(status['completed'])==count and len(status['missing'])==16-count,status
+                assert status['case_readback_uncertain'] is True
+                assert status['case_publication_uncertain'] is False and status['aggregate_publication_uncertain'] is False
+                assert (output/'comparison.jsonl').exists()==(outcome=='case-status-drift')
+                assert (status['capture_sha256'] is not None)==(outcome=='case-status-drift')
+                print(json.dumps({'terminal_outcome':outcome,'sdk_requests':16})); sys.exit(0)
+            if outcome=='portal-missing':
+                assert isinstance(error,ValueError) and str(error)=='ocw_client_portal'
+                status=read_jsonl(output/'comparison-status.json')[0]
+                assert not sends and status['reserved_attempts']==status['observed_http_outcomes']==0
+                assert status['status']=='incomplete' and not (output/'comparison.jsonl').exists()
+                print(json.dumps({'terminal_outcome':outcome,'sdk_requests':0})); sys.exit(0)
+            if outcome in ('case-before','case-after','case-last-after','aggregate-after','case-changed'):
+                assert isinstance(error,OSError) and str(error)=='synthetic primary publication failure'
+                status=read_jsonl(output/'comparison-status.json')[0]
+                count={'case-before':0,'case-after':1,'case-last-after':16,'aggregate-after':16,'case-changed':0}[outcome]
+                assert status['status']=='incomplete' and status['capture_sha256'] is None
+                assert len(status['completed'])==count and len(status['missing'])==16-count,status
+                assert status['aggregate_publication_uncertain']==(outcome=='aggregate-after')
+                assert status['case_publication_uncertain']==(outcome!='aggregate-after')
+                assert status['case_readback_uncertain']==(outcome=='case-changed')
+                assert (output/'comparison.jsonl').exists()==(outcome=='aggregate-after')
+                print(json.dumps({'terminal_outcome':outcome,'sdk_requests':len(sends)})); sys.exit(0)
+            if outcome in ('sol-timeout','sonar-cancel','sol-cancel'):
+                status=read_jsonl(output/'comparison-status.json')[0]
+                expected=1 if outcome=='sonar-cancel' else 2
+                assert len(sends)==status['reserved_attempts']==status['published_reservations']==expected,status
+                assert status['observed_http_outcomes']==expected-1 and status['uncertain_transport_outcomes']==1,status
+                native=read_jsonl(output/f'attempt-result-{expected:04d}.json')[0]
+                assert native['failure_type']==('TimeoutError' if outcome=='sol-timeout' else 'CancelledError'),native
+                assert native['cost_status']=='unknown' and 'status_code' not in native
+                assert not (output/'comparison.jsonl').exists()
+                print(json.dumps({'terminal_outcome':outcome,'sdk_requests':len(sends)})); sys.exit(0)
+            if outcome not in ('sonar-401','sol-transient','oversized','sonar-close-failure'): raise
+            assert isinstance(error,ValueError)
+            if outcome=='sonar-close-failure':
+                assert str(error)=='ocw_http_denied'
+                assert error.__notes__==['ocw_unused_client_cleanup_failed:OSError']
             status=read_jsonl(output/'comparison-status.json')[0]
             expected=2 if outcome=='sol-transient' else 1
             assert len(sends)==status['reserved_attempts']==status['published_reservations']==expected
@@ -1063,7 +1655,7 @@ with patch.dict(os.environ, {
         'duplicate_case','native_duplicate','native_unknown_cost','native_invalid_known_cost',
         'provider_aggregate_cost','bad_prompt','bad_source_hash','builder_query','builder_context',
         'missing_sanitization','wrong_sanitization','wrong_redaction','draft_shape','origin_shape',
-        'normalization_drift','attempt_sequence_gap'):
+        'normalization_drift','attempt_sequence_gap','native_large_known_cost','native_cached_alias'):
         changed=json.loads(json.dumps(records)); row=changed[0]
         if change=='extra': row['additional_authority']=True
         elif change=='missing': del row['raw_assistant_text']
@@ -1085,9 +1677,14 @@ with patch.dict(os.environ, {
         elif change=='upstream_assets': row[change]=[]
         elif change=='duplicate_case': changed[-1]=json.loads(json.dumps(row))
         elif change=='native_duplicate': row['provider']['attempts'][-1]['attempt']=records[1]['provider']['attempts'][0]['attempt']
-        elif change=='native_unknown_cost': row['provider']['attempts'][-1]['cost_usd']=0.01
+        elif change=='native_unknown_cost':
+            row['provider']['attempts'][-1]['cost_status']='unknown'; row['provider']['attempts'][-1]['cost_usd']=0.01
         elif change=='native_invalid_known_cost':
             row['provider']['attempts'][-1]['cost_status']='known'; row['provider']['attempts'][-1]['cost_usd']=True
+        elif change=='native_large_known_cost':
+            row['provider']['attempts'][-1]['cost_status']='known'; row['provider']['attempts'][-1]['cost_usd']=10**400
+        elif change=='native_cached_alias':
+            row['provider']['attempts'][-1]['usage']['prompt_tokens_details']={'cached_tokens':True}
         elif change=='provider_aggregate_cost': row['provider']['cost_usd']=.02
         elif change=='bad_prompt': row['prompt']='foreign prompt'
         elif change=='bad_source_hash': row['source_snapshot_fingerprint']='sha256:'+'0'*64
@@ -1110,6 +1707,10 @@ with patch.dict(os.environ, {
         row['material_fingerprint']='sha256:'+hashlib.sha256(collector._canonical(material)).hexdigest()
         row['idempotency_key']='sha256:'+hashlib.sha256(collector._canonical({'run_id':run['id'],
             'case_id':row['case_id'],'arm':row['arm'],'material_fingerprint':row['material_fingerprint']})).hexdigest()
+        if change!='coherent_answer_rewrite':
+            try: collector.validate_ocw_records(changed,expected_run=run)
+            except ValueError: pass
+            else: raise AssertionError('rehashed finite capture contract substitution admitted:'+change)
         try: collector.build_ocw_blind_view(changed,expected_run=run,expected_capture_sha256=expected_capture)
         except ValueError: pass
         else: raise AssertionError('malformed or foreign capture admitted:'+change)
@@ -1173,7 +1774,7 @@ with patch.dict(os.environ, {
         active_coverage.get_data().update(native_data)
     assert (
         '"terminal_outcome"'
-        if outcome in {"sonar-401", "sol-transient", "oversized"}
+        if outcome not in {"success", "sonar-transient", "blocker-fallback"}
         else '"mock_route_cases": 16'
     ) in completed.stdout
 

@@ -45,6 +45,7 @@ from app.security.agent_input_guard import require_safe_ai_agent_input, scan_ai_
 from app.middleware.api_tiers import TEST_KEY_PRO
 from app.security.llm_monthly_quota import (
     VipLlmMonthlyUsage,
+    _legacy_llm_key_fingerprint,
     llm_key_fingerprint,
     month_start_date_utc,
     require_llm_monthly_limit,
@@ -178,6 +179,24 @@ def _ocw_usage(value: object) -> tuple[dict[str, Any] | None, int | float | None
             if type(raw[key]) is not int or raw[key] < 0:
                 raise ValueError("ocw_usage")
             usage[key] = raw[key]
+    for field, total_field in (
+        ("input_tokens_details", "input_tokens"),
+        ("prompt_tokens_details", "prompt_tokens"),
+    ):
+        if field not in raw:
+            continue
+        detail = raw[field]
+        if type(detail) is not dict:
+            raise ValueError("ocw_usage")
+        if "cached_tokens" in detail:
+            cached = detail["cached_tokens"]
+            total = usage.get(total_field)
+            if (
+                type(cached) is not int
+                or type(total) is not int
+                or not 0 <= cached <= min(total, _OCW_BILLED_INPUT_CEILING)
+            ):
+                raise ValueError("ocw_usage")
     cost = raw.get("cost")
     if cost is None:
         _canonical(raw)
@@ -188,7 +207,7 @@ def _ocw_usage(value: object) -> tuple[dict[str, Any] | None, int | float | None
     if type(amount) not in (int, float):
         raise ValueError("ocw_usage")
     numeric = cast(int | float, amount)
-    if not math.isfinite(numeric) or numeric < 0:
+    if (type(numeric) is float and not math.isfinite(numeric)) or numeric < 0:
         raise ValueError("ocw_usage")
     # Retain returned cache/reasoning/currency detail as provider data. It is not
     # invoice truth; the caller separately admits a documented USD basis.
@@ -196,8 +215,8 @@ def _ocw_usage(value: object) -> tuple[dict[str, Any] | None, int | float | None
     return copy.deepcopy(raw), numeric
 
 
-def validate_ocw_manifest(rows: list[object]) -> list[dict[str, Any]]:
-    """Admit only the eight manually authored RU input projections, never rubrics."""
+def _validate_ocw_manifest_rows(rows: list[object]) -> list[dict[str, Any]]:
+    """Validate the existing finite eight-row input grammar before copying."""
     from scripts.evals.eval_validity_contract import EvalVariantRecord, validate_eval_variant_record
 
     if type(rows) is not list or len(rows) != 8:
@@ -268,13 +287,28 @@ def validate_ocw_manifest(rows: list[object]) -> list[dict[str, Any]]:
             if (
                 source["chunk_id"] in ids
                 or type(source["score"]) not in (int, float)
-                or not math.isfinite(source["score"])
+                or (type(source["score"]) is float and not math.isfinite(source["score"]))
                 or not 0 <= source["score"] <= 1
                 or not scan_ai_agent_input(source["content"]).is_safe
             ):
                 raise ValueError("ocw_manifest")
             ids.add(source["chunk_id"])
         admitted.append(copy.deepcopy(cast(dict[str, Any], validate_eval_variant_record(row))))
+    return admitted
+
+
+def validate_ocw_manifest(rows: list[object]) -> list[dict[str, Any]]:
+    """Bind the complete generation projection to the current tracked fixture."""
+    admitted = _validate_ocw_manifest_rows(rows)
+    fixture = (
+        Path(__file__).resolve().parents[2] / "tests/fixtures/ocw/fitchef_nutrition_cases.v1.jsonl"
+    )
+    canonical = _validate_ocw_manifest_rows(read_jsonl(fixture))
+    if any(
+        _canonical(row["input_payload"]) != _canonical(expected["input_payload"])
+        for row, expected in zip(admitted, canonical)
+    ):
+        raise ValueError("ocw_manifest")
     return admitted
 
 
@@ -439,6 +473,7 @@ def validate_ocw_pricing(
             or row["max_billed_input_tokens"] != _OCW_BILLED_INPUT_CEILING
             or row["input_rate_includes_cache_write"] is not True
             or row["billed_input_bound_verified"] is not True
+            or type(row["returned_cost_currency_basis"]) is not str
             or row["returned_cost_currency_basis"] not in {"documented_usd", "unknown"}
             or (
                 row["returned_cost_currency_basis"] == "documented_usd"
@@ -477,7 +512,7 @@ def validate_ocw_pricing(
         ):
             if (
                 type(row[field]) not in (int, float)
-                or not math.isfinite(row[field])
+                or (type(row[field]) is float and not math.isfinite(row[field]))
                 or row[field] < 0
             ):
                 raise ValueError("ocw_pricing")
@@ -540,6 +575,8 @@ class AttemptLedger:
         self.cost_currency_basis = {"sonar": "unknown", "sol": "unknown"}
         self.reservation_publications = 0
         self.reservation_publication_uncertain = False
+        self._published_attempts: set[int] = set()
+        self._invocation_start_attempt = 0
         if not directory.is_dir() or directory.is_symlink():
             raise ValueError("unsafe_budget_directory")
         info = directory.stat()
@@ -597,6 +634,7 @@ class AttemptLedger:
             raise ValueError("ocw_budget")
         self.arm, self.case_id, self.prompt = arm, case_id, prompt
         self.retryable = False
+        self._invocation_start_attempt = self.attempts
 
     def require_secret_free(self, data: bytes) -> None:
         """Never retain credentials, even if a provider reflects a header value."""
@@ -605,14 +643,13 @@ class AttemptLedger:
                 self.terminal_reason = "credential_reflection"
                 raise ValueError("ocw_private_material")
 
-    def native_failure(self, error: Exception) -> None:
-        """Classify the original SDK failure before the broad Sonar wrapper."""
+    def native_failure(self, error: BaseException) -> None:
+        """Retain a published reservation's uncertain outcome without replacing its cause."""
         from openai import APIConnectionError, APIStatusError, APITimeoutError
 
-        if self.terminal_reason is not None:
+        if self.terminal_reason is not None or self.arm != "sonar":
             self.retryable = False
-            return
-        if isinstance(error, APIStatusError):
+        elif isinstance(error, APIStatusError):
             self.retryable = error.status_code in {408, 429, 500, 502, 503, 504}
         elif isinstance(error, (APIConnectionError, APITimeoutError)):
             self.retryable = isinstance(
@@ -647,12 +684,14 @@ class AttemptLedger:
         else:
             self.retryable = False
         if not self.retryable:
-            self.terminal_reason = "provider_failure_terminal"
+            self.terminal_reason = self.terminal_reason or "provider_failure_terminal"
         # HTTP outcomes are already immutable. A transport-only failure still
         # retains its type and uncertain cost, without SDK text or request data.
         path = self.directory / f"attempt-result-{self.attempts:04d}.json"
-        if self.attempts and not any(
-            item["attempt"] == self.attempts for item in self.http_observations
+        if (
+            self.attempts in self._published_attempts
+            and self.attempts > self._invocation_start_attempt
+            and not any(item["attempt"] == self.attempts for item in self.http_observations)
         ):
             record = {
                 "attempt": self.attempts,
@@ -666,7 +705,12 @@ class AttemptLedger:
                 "cost_status": "unknown",
             }
             self.http_observations.append(record)
-            write_report(path, _canonical(record) + b"\n")
+            try:
+                write_report(path, _canonical(record) + b"\n")
+            except BaseException as publication_error:
+                self.terminal_reason = "outcome_publication_uncertain"
+                self.retryable = False
+                error.add_note("ocw_outcome_publication_failed:" + type(publication_error).__name__)
 
     async def _reserve_ocw(self, request: httpx.Request) -> None:
         if self.arm is None or self.case_id is None or self.prompt is None:
@@ -723,8 +767,10 @@ class AttemptLedger:
             except BaseException:
                 self.reservation_publication_uncertain = True
                 self.terminal_reason = "reservation_publication_uncertain"
+                self.retryable = False
                 raise
             self.reservation_publications += 1
+            self._published_attempts.add(self.attempts)
 
     async def observe_http(self, response: httpx.Response) -> None:
         """Retain bounded native outcome facts without request headers or SDK errors."""
@@ -771,7 +817,15 @@ class AttemptLedger:
                 native["returned_model"] = (
                     payload.get("model") if type(payload.get("model")) is str else None
                 )
-                native["usage"], declared_amount = _ocw_usage(payload.get("usage"))
+                raw_usage = payload.get("usage")
+                # Retain bounded observed bytes before semantic accounting admission.
+                # Rejected cache/token/cost metadata remains native failure evidence.
+                _check_depth(raw_usage)
+                native["usage"] = copy.deepcopy(raw_usage)
+                native["provider_declared_cost"] = (
+                    copy.deepcopy(raw_usage.get("cost")) if type(raw_usage) is dict else None
+                )
+                native["usage"], declared_amount = _ocw_usage(raw_usage)
                 usage = native["usage"]
                 if usage is not None:
                     ceilings = {
@@ -851,6 +905,7 @@ class AttemptLedger:
                 self.terminal_reason = "provider_http_terminal"
         self._retain_ocw_http_outcome(native)
         if self.terminal_reason is not None:
+            self.retryable = False
             raise ValueError("ocw_terminal_failure")
 
     def _retain_ocw_http_outcome(self, native: dict[str, Any]) -> None:
@@ -862,6 +917,7 @@ class AttemptLedger:
             write_report(self.directory / f"attempt-result-{self.attempts:04d}.json", encoded)
         except BaseException:
             self.terminal_reason = "outcome_publication_uncertain"
+            self.retryable = False
             raise
 
 
@@ -1581,15 +1637,20 @@ def validate_ocw_environment(fitchef_key: str) -> None:
         raise ValueError("ocw_audit_configuration")
     _private_parent(Path(audit))
     with session_scope() as session:
-        used = session.scalar(
+        counts = session.scalars(
             select(VipLlmMonthlyUsage.used_requests).where(
-                VipLlmMonthlyUsage.key_fingerprint == llm_key_fingerprint(fitchef_key, tier="VIP"),
+                VipLlmMonthlyUsage.key_fingerprint.in_(
+                    (
+                        llm_key_fingerprint(fitchef_key, tier="VIP"),
+                        _legacy_llm_key_fingerprint(fitchef_key),
+                    )
+                ),
                 VipLlmMonthlyUsage.month_start_date == month_start_date_utc(),
             )
-        )
-    if used is not None and (type(used) is not int or used < 0):
+        ).all()
+    if any(type(used) is not int or used < 0 for used in counts):
         raise ValueError("ocw_quota")
-    if require_llm_monthly_limit("VIP") - (used if used is not None else 0) < 16:
+    if require_llm_monthly_limit("VIP") - sum(counts) < 16:
         raise ValueError("ocw_quota")
     from app.routers import fitchef_insight
     from app.security.agent_control_plane import require_execution_mode
@@ -1631,7 +1692,10 @@ def _ocw_code_hashes() -> dict[str, str]:
         ("perplexity_agent", perplexity_agent),
         ("mascot_router", fitchef_insight),
     ):
-        result[name] = hashlib.sha256(Path(module.__file__).read_bytes()).hexdigest()
+        source_file = module.__file__
+        if type(source_file) is not str:
+            raise ValueError("ocw_code_source")
+        result[name] = hashlib.sha256(Path(source_file).read_bytes()).hexdigest()
     return result
 
 
@@ -1676,7 +1740,9 @@ def _ocw_observe_post(
     def sonar_constructor(*args: Any, **kwargs: Any) -> Any:
         if args or kwargs.get("model") != "sonar" or kwargs.get("endpoint") != _EXPECTED_ENDPOINT:
             raise ValueError("ocw_provider_configuration")
-        provider = real_sonar_constructor(**kwargs)
+        if not callable(real_sonar_constructor):
+            raise ValueError("ocw_provider_configuration")
+        provider: Any = real_sonar_constructor(**kwargs)
         unused_clients.append(provider.client)
         sdk_identity_default = ""
         provider.client = perplexity_agent._AgentAsyncOpenAI(
@@ -1699,7 +1765,7 @@ def _ocw_observe_post(
                 return await original_create(
                     **call_kwargs, max_tokens=2048, extra_body={"disable_search": True}
                 )
-            except Exception as error:
+            except BaseException as error:
                 ledger.native_failure(error)
                 raise
 
@@ -1721,11 +1787,14 @@ def _ocw_observe_post(
     def selector(prompt: str) -> Any:
         if prompt != expected_prompt:
             raise ValueError("ocw_prompt_mismatch")
-        provider = real_selector(prompt)
+        provider: Any = real_selector(prompt)
         expected_type = PerplexityProvider if arm == "sonar" else real_agent_constructor
         if type(provider) is not expected_type or provider not in provider_objects:
             raise ValueError("ocw_provider_configuration")
-        original_generate = provider.generate
+        # This exact admitted instance exposes native decorator metadata and
+        # instance-level observational replacement beyond ProviderBase typing.
+        instrumented: Any = provider
+        original_generate: Any = instrumented.generate
         bounded_generate = (
             original_generate.retry_with(
                 retry=retry_if_exception(
@@ -1744,20 +1813,22 @@ def _ocw_observe_post(
             state["generation_prompt"] = text
             try:
                 result = (
-                    await bounded_generate(provider, text)
+                    await bounded_generate(instrumented, text)
                     if bounded_generate is not None
                     else await original_generate(text)
                 )
-            except BaseException:
+            except BaseException as error:
+                ledger.native_failure(error)
                 if ledger.terminal_reason is None:
                     ledger.terminal_reason = "provider_generation_failed"
+                ledger.retryable = False
                 raise
             if type(result) is not str or len(result.encode("utf-8")) > 32768:
                 raise ValueError("ocw_generation_admission")
             state["generation_text"] = result
             return result
 
-        provider.generate = observed_generate
+        instrumented.generate = observed_generate
         state["selector"] = {"requested_model": provider.model, "provider": provider.name}
         return provider
 
@@ -1804,11 +1875,11 @@ def _ocw_observe_post(
         return result
 
     def extraction(*args: Any, **kwargs: Any) -> list[str]:
-        result = real_extract(*args, **kwargs)
+        result: list[str] = real_extract(*args, **kwargs)
         if type(result) is not list or any(type(item) is not str for item in result):
             raise ValueError("ocw_draft_mismatch")
         state["extractions"].append(result)
-        return cast(list[str], result)
+        return result
 
     def draft_builder(raw_text: str, *, query: str) -> Any:
         if raw_text != state.get("generation_text") or query != safe_query:
@@ -1862,15 +1933,25 @@ def _ocw_observe_post(
                 json={"query": inner["query"]},
                 headers={"X-API-Key": key},
             )
+            if not response.headers.get("content-type", "").startswith("application/json"):
+                raise ValueError("ocw_http_envelope")
+            body = response.json()
+            if response.status_code != 200:
+                raise ValueError("ocw_http_denied")
         finally:
+            original_error = sys.exc_info()[1]
             logging.disable(previous_logging)
             for unused in unused_clients:
-                client.portal.call(unused.close)
-    if not response.headers.get("content-type", "").startswith("application/json"):
-        raise ValueError("ocw_http_envelope")
-    body = response.json()
-    if response.status_code != 200:
-        raise ValueError("ocw_http_denied")
+                try:
+                    client.portal.call(unused.close)
+                except BaseException as cleanup_error:
+                    ledger.terminal_reason = ledger.terminal_reason or "provider_cleanup_failed"
+                    ledger.retryable = False
+                    if original_error is None:
+                        raise
+                    original_error.add_note(
+                        "ocw_unused_client_cleanup_failed:" + type(cleanup_error).__name__
+                    )
     required = {
         "prompt",
         "builder_query",
@@ -2204,12 +2285,13 @@ def _validate_ocw_records(
                 raise ValueError("ocw_record_binding")
             previous = attempt["attempt"]
             physical_attempts.add(previous)
+            _ocw_usage(attempt.get("usage"))
             if attempt["cost_status"] == "unknown":
                 if attempt.get("cost_usd") is not None:
                     raise ValueError("ocw_record_binding")
             elif (
                 type(attempt.get("cost_usd")) not in (int, float)
-                or not math.isfinite(attempt["cost_usd"])
+                or (type(attempt["cost_usd"]) is float and not math.isfinite(attempt["cost_usd"]))
                 or not 0 <= attempt["cost_usd"] <= 0.15
                 or attempt.get("invoice_verified") is not False
             ):
@@ -2428,15 +2510,54 @@ def collect_ocw_comparison(
     transport: httpx.AsyncClient | None = None
     capture_sha256: str | None = None
     previous_started: float | None = None
+    expected_cases: dict[tuple[str, str], bytes] = {}
+    run_bytes = _canonical(run) + b"\n"
+    case_publication_uncertain = False
+    case_readback_uncertain = False
+    aggregate_publication_uncertain = False
 
     def publish(name: str, data: bytes) -> None:
-        ledger.require_secret_free(data)
-        write_report(output_dir / name, data)
+        nonlocal case_publication_uncertain, aggregate_publication_uncertain
+        try:
+            ledger.require_secret_free(data)
+            write_report(output_dir / name, data)
+        except BaseException:
+            ledger.retryable = False
+            if name.startswith("case-"):
+                case_publication_uncertain = True
+            elif name == "comparison.jsonl":
+                aggregate_publication_uncertain = True
+            raise
+
+    def retained_cases() -> set[tuple[str, str]]:
+        """Compare only our finite destinations with independently captured exact bytes."""
+        nonlocal case_readback_uncertain
+        complete: set[tuple[str, str]] = set()
+        try:
+            if _read_input(output_dir / "run.jsonl") != run_bytes:
+                raise ValueError("ocw_run_readback")
+        except ValueError:
+            case_readback_uncertain = True
+            return complete
+        for key, expected_bytes in expected_cases.items():
+            case, arm = key
+            try:
+                if _read_input(output_dir / f"case-{arm}-{case}.jsonl") != expected_bytes:
+                    raise ValueError("ocw_case_readback")
+            except ValueError as error:
+                if not isinstance(error.__cause__, FileNotFoundError):
+                    case_readback_uncertain = True
+            else:
+                complete.add(key)
+        return complete
 
     def status_bytes(failure: str | None) -> bytes:
-        complete = {(record["case_id"], record["arm"]) for record in records}
-        return cast(
-            bytes,
+        complete = retained_cases()
+        if failure is None and (
+            len(complete) != 16 or case_readback_uncertain or capture_sha256 is None
+        ):
+            raise ValueError("ocw_case_readback")
+        encoded: bytes = (
             _canonical(
                 {
                     "schema_version": "ocw_collection_status.v1",
@@ -2455,6 +2576,9 @@ def collect_ocw_comparison(
                     "reserved_cents": ledger.attempts * 15,
                     "published_reservations": ledger.reservation_publications,
                     "reservation_publication_uncertain": ledger.reservation_publication_uncertain,
+                    "case_publication_uncertain": case_publication_uncertain,
+                    "case_readback_uncertain": case_readback_uncertain,
+                    "aggregate_publication_uncertain": aggregate_publication_uncertain,
                     "observed_http_outcomes": sum(
                         "status_code" in item for item in ledger.http_observations
                     ),
@@ -2467,13 +2591,16 @@ def collect_ocw_comparison(
                     "answer_change_allowed": False,
                 }
             )
-            + b"\n",
+            + b"\n"
         )
+        return encoded
 
+    # Successful no-replace publication claims this exact output cooperatively.
+    # A loser (including unacknowledged claim publication) owns no status writes.
+    publish("run.jsonl", run_bytes)
     try:
         for name, data in (
             ("inputs.jsonl", b"".join(_canonical(row) + b"\n" for row in rows)),
-            ("run.jsonl", _canonical(run) + b"\n"),
             (
                 "rubric.jsonl",
                 _canonical(
@@ -2491,6 +2618,9 @@ def collect_ocw_comparison(
         if app.dependency_overrides:
             raise ValueError("ocw_dependency_override")
         with open_test_client(app, raise_server_exceptions=False) as client:
+            portal = client.portal
+            if portal is None:
+                raise ValueError("ocw_client_portal")
             try:
                 if (
                     app.state.limiter is not rate_limit.limiter
@@ -2519,11 +2649,12 @@ def collect_ocw_comparison(
                             ledger=ledger,
                             run=run,
                         )
-                        publish(
-                            f"case-{arm}-{scenario['canonical_id']}.jsonl",
-                            _canonical(record) + b"\n",
-                        )
+                        record_bytes = _canonical(record) + b"\n"
+                        expected_cases[(scenario["canonical_id"], arm)] = record_bytes
+                        publish(f"case-{arm}-{scenario['canonical_id']}.jsonl", record_bytes)
                         records.append(record)
+                if len(retained_cases()) != 16 or case_readback_uncertain:
+                    raise ValueError("ocw_case_readback")
                 validate_ocw_records(cast(list[object], records), expected_run=run)
                 encoded = b"".join(_canonical(record) + b"\n" for record in records)
                 publish("comparison.jsonl", encoded)
@@ -2531,7 +2662,7 @@ def collect_ocw_comparison(
             finally:
                 original_error = sys.exc_info()[1]
                 try:
-                    client.portal.call(transport.aclose)
+                    portal.call(transport.aclose)
                 except BaseException as cleanup_error:
                     if original_error is None:
                         raise

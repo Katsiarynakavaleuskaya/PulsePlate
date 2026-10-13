@@ -820,6 +820,10 @@ already approved shared cap: integer 15-cent durable reservations before
 each actual transport, at most 24 Sonar plus eight protected Sol slots and
 32 total. Typed non-retryable failures stop the run; no new directory,
 identity rotation, reset or preferred-answer retry may replenish that budget.
+Before OCW preflight, bind the full generation input to the current fixture;
+claim the output through immutable run publication before writing status, and
+preserve the original failure while blocking retries after publication or cleanup
+uncertainty.
 Freeze all 16 records before a fresh no-history provider-blind assessment;
 instruct it to use supplied material without tools and retain observed tool-use
 evidence without claiming enforced tool disabling. Eight
