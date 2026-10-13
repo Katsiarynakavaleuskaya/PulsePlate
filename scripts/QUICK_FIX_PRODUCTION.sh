@@ -31,6 +31,7 @@ fi
 
 echo "📍 Deploy directory: $DEPLOY_DIR"
 cd "$DEPLOY_DIR" || exit 1
+DEPLOY_DIR="$(pwd -P)"
 echo ""
 
 if docker compose version >/dev/null 2>&1; then

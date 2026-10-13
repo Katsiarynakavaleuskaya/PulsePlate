@@ -43,6 +43,7 @@ if [ "$BACKEND_IMAGE_REF" = "$CADDY_IMAGE_REF" ]; then
 fi
 
 PROJECT_DIR="${PROJECT_DIR:-/srv/pulseplate-staging}"
+PROJECT_DIR="$(cd "$PROJECT_DIR" && pwd -P)"
 ENV_FILE="${ENV_FILE:-${PROJECT_DIR}/.env}"
 COMPOSE_FILE="${COMPOSE_FILE:-${PROJECT_DIR}/docker-compose.staging.yaml}"
 CADDYFILE="${CADDYFILE:-${PROJECT_DIR}/Caddyfile}"

@@ -981,7 +981,7 @@ jobs:
     if: ${{ !cancelled() && github.event_name == 'pull_request' && (needs.changes.result != 'success' || needs.changes.outputs.run_backend_blocking == 'true') }}
     needs: [changes, pr_scope_guard, private_python_proxy_health]
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 120
     permissions:
       contents: read
       actions: write

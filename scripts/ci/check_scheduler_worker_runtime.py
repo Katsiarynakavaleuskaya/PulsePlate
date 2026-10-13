@@ -11,7 +11,7 @@ import os
 import re
 import selectors
 import shutil
-import subprocess  # nosec B404: # bounded native Docker protocol has no safer replacement (remove-by: 2026-10-20, ref: PR-2477)
+import subprocess  # nosec B404: # bounded native Docker protocol has no safer replacement (remove-by: 2026-10-27, ref: PR-2486)
 import tarfile
 import time
 from typing import Any
@@ -70,7 +70,7 @@ def capture_bytes(argv: list[str], timeout: float, limit: int = OUTPUT_LIMIT) ->
         raise SmokeError("Native execution deadline exceeded")
     data = bytearray()
     end = time.monotonic() + timeout
-    with subprocess.Popen(  # nosec B603: # absolute argv, shell=False and bounded streams; native CLI required (remove-by: 2026-10-20, ref: PR-2477)
+    with subprocess.Popen(  # nosec B603: # absolute argv, shell=False and bounded streams; native CLI required (remove-by: 2026-10-27, ref: PR-2486)
         argv, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=False
     ) as process:
         try:

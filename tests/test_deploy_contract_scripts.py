@@ -424,6 +424,115 @@ def test_deploy_tool_python_callers_reject_before_helper_or_mutation(
     assert not log.exists() or log.read_text() == "compose version\n"
 
 
+@pytest.mark.parametrize("caller", ("scripts/deploy.sh", "scripts/QUICK_FIX_PRODUCTION.sh"))
+@pytest.mark.parametrize("directory", ("dot", "subdirectory", "missing", "failed-pwd"))
+def test_deploy_relative_directory_reaches_verified_helper_without_product_mutation(
+    tmp_path: Path, caller: str, directory: str
+) -> None:
+    if caller == "scripts/deploy.sh":
+        inherited, log_file = _staging_deploy_fixture(tmp_path)
+        allowed = {
+            "PATH",
+            "PROJECT_DIR",
+            "ENV_FILE",
+            "COMPOSE_FILE",
+            "BACKUP_DIR",
+            "BACKUP_HELPER",
+            "STAGING_DEPLOY_MARKER",
+            "DOCKER_BIN",
+            "PYTHON_BIN",
+            "PYTHONPATH",
+            "CURL_BIN",
+            "STAT_BIN",
+            "STAGING_DOMAIN",
+            "GHCR_USER",
+            "GHCR_TOKEN",
+            "HEALTH_MAX_ATTEMPTS",
+            "HEALTH_SLEEP_S",
+        }
+        env = {
+            key: value
+            for key, value in inherited.items()
+            if key in allowed or key.startswith("STUB_")
+        }
+        project = Path(env["PROJECT_DIR"])
+        for key in ("ENV_FILE", "COMPOSE_FILE", "BACKUP_HELPER", "STAGING_DEPLOY_MARKER"):
+            env.pop(key)
+        key = "PROJECT_DIR"
+        arguments = [
+            "--preflight-only",
+            "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "a" * 64,
+            "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "b" * 64,
+        ]
+    else:
+        project = tmp_path / "quick-production"
+        project.mkdir()
+        _write_prometheus_helper(project)
+        (project / "prometheus").mkdir()
+        (project / "prometheus/image-manifest.json").write_text(
+            _synthetic_prometheus_manifest_text()
+        )
+        (project / "docker-compose.production.yaml").write_text("services: {}\n")
+        (project / ".env").write_text("APP_ENV=production\nAPP_ENV=duplicate\n")
+        (project / ".env").chmod(0o600)
+        directory_bin = tmp_path / "bin"
+        directory_bin.mkdir()
+        log_file = tmp_path / "docker.log"
+        _write_executable(
+            directory_bin / "docker",
+            "#!/bin/sh\nprintf '%s\n' \"$*\" >> " + shlex.quote(str(log_file)) + "\nexit 0\n",
+        )
+        env = {"PATH": str(directory_bin) + os.pathsep + os.defpath, "PYTHON_BIN": sys.executable}
+        key = "DEPLOY_DIR"
+        arguments = []
+    env["HOME"] = str(tmp_path)
+    cwd = project if directory in ("dot", "failed-pwd") else tmp_path
+    env[key] = (
+        "."
+        if directory in ("dot", "failed-pwd")
+        else ("absent-directory" if directory == "missing" else project.name)
+    )
+    if directory == "failed-pwd":
+        startup = tmp_path / "synthetic-shell-startup"
+        startup.write_text(
+            "pwd() { printf '%s\n' " + shlex.quote(str(project)) + "; return 19; }\n"
+        )
+        env["BASH_ENV"] = str(startup)
+    env_file = project / ".env"
+    before = (env_file.read_bytes(), stat.S_IMODE(env_file.stat().st_mode))
+    shell = shutil.which("bash")
+    assert shell is not None
+    result = subprocess.run(
+        [shell, str(REPO_ROOT / caller), *arguments],
+        env=env,
+        cwd=cwd,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=30,
+    )
+    calls = log_file.read_text().splitlines() if log_file.exists() else []
+    assert (env_file.read_bytes(), stat.S_IMODE(env_file.stat().st_mode)) == before
+    assert not list(project.glob(".env.backup.*"))
+    assert not list(project.glob(".env.clean.*"))
+    if directory in ("missing", "failed-pwd"):
+        assert result.returncode != 0
+        if directory == "failed-pwd":
+            assert result.returncode == 19
+        assert calls == []
+    elif caller == "scripts/deploy.sh":
+        assert result.returncode == 0, result.stderr
+        assert all(
+            " stop " not in call and " up " not in call and not call.startswith("backup ")
+            for call in calls
+        )
+    else:
+        assert result.returncode != 0
+        assert "Duplicate required environment keys found" in result.stdout
+        assert "Invalid trusted Prometheus helper operand" not in result.stderr
+        assert calls == ["compose version"]
+
+
 POSTGRES_RUNTIME_REF = (
     "ghcr.io/katsiarynakavaleuskaya/pulseplate:postgres-15.19-pgvector0.8.6-alpine3.23@"
     "sha256:d4437ad4970b4099e4cb7d05b7fa625c7e6959949d1374f1f2d4bd4149ae5fa3"
