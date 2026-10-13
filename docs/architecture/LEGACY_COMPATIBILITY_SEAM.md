@@ -507,13 +507,36 @@ exception, not a global policy change or merge permission. The old mapping bytes
 and history are preserved in the material correction; its inherited seal becomes
 stale until native closeout binds the new material digest. The prepared one-line
 candidate passed the three existing workflow-contract suites and preserved every
-other parsed workflow field. This does not prove hosted completion or that 120
-minutes is sufficient. Test selection, coverage producers and the 97% threshold,
+other parsed workflow field. That candidate-only evidence did not prove hosted
+completion or universal 120-minute sufficiency; the subsequent bounded hosted
+result is recorded below. Test selection, coverage producers and the 97% threshold,
 credentials, permissions, cancellation and all other timeouts remain unchanged.
+
+The subsequent exact material `e4cebf615b333e33b762e441fba4c65af2bd46c7`
+completed hosted `test-pr` under the 120-minute budget. All three main matrices
+then failed the required nosec guard on eight expired native CLI dispositions;
+missing complete main coverage and the inherited stale seal still blocked D6.
+On October 13, the human explicitly accepted the exact eight-site prospective
+risk decision in PR #2486: review by October 20, hard remove-by October 27 and
+inline reference PR-2486. The existing
+[security owner](../security/MAIN_RECOVERY_1_CONTAINER_PUBLICATION.md#native-command-security-dispositions)
+and [native CLI ledger](../roadmap/BACKLOG_LEDGER.md#ledger-p1-native-cli-subprocess-review)
+record historical six versus newly reviewed scheduler two, the missed October 12
+deadline, current caller boundaries and residual tool/environment/context/output
+risks. Only eight comment dates/references change; all four Python ASTs remain
+identical. No automatic renewal, global policy or scanner change follows.
+Source/caller/argv/environment/tool/context drift, new findings, scanner errors
+or absent positive target metrics, and failed gates require reassessment.
+Actual unchanged guards/focused/all-files/current-head CI/coverage and fresh
+exact-material Oracle/self-review/closeout remain pending until observed.
+All original D1-D8 remain binding; this risk acceptance grants no merge or
+host-operation permission and cannot satisfy the original deadline retroactively.
 
 The operator explicitly authorizes this bounded start on red main. Foreign
 PR #2477 dependency/CD and PR #2476 consolidation/security/timeout ownership
-remain separate except for this expressly admitted own job-budget scalar.
+remain separate. This PR owns only the expressly admitted job-budget scalar and
+eight dated disposition sites; foreign Prometheus and recognizer repairs stay
+outside its scope.
 No foreign repair or evidence is imported. PROJECT_LEGACY stays OPEN, R29 stays
 PARTIAL / UNWAIVED, O1 stays historical NOT_ADMITTED and the shared-runtime P1
 follow-up stays OPEN.
