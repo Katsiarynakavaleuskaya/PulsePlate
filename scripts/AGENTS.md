@@ -119,6 +119,12 @@
   same-repository, exact-full-SHA, first-attempt manual `module-qualify` can run
   the fixed 900-second metadata replay. `build` is explicitly held until actual
   qualification, full finding/support review and separate build admission.
+- The qualification checkout selects the workflow event's `github.sha`; supplied
+  `source_sha` must equal that revision and the Commit API result. Require the API
+  and native Git commands to succeed before comparing their output; matching
+  stdout cannot excuse a nonzero exit. Verify actual checkout `HEAD` against
+  `GITHUB_SHA` before executing repository qualification code. The supplied value
+  is an identity check, not an executable ref selector.
 - Qualification uses two independent original trees/caches, the one fixed
   x/net 0.60.0 + gRPC 1.83.2 replacement command, both command graphs online,
   then actual network-none/read-only offline queries. It starts no compiler.
