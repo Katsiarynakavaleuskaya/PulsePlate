@@ -461,80 +461,98 @@ def test_postopen_quota_reads_canonical_plus_legacy_without_mutation(
     previous: int | None,
     admitted: bool,
 ) -> None:
-    key = "ocw-eval-synthetic-quota-key"
-    db = tmp_path / "quota.db"
-    for name, value in {
-        "APP_ENV": "development",
-        "SUBSCRIPTION_DB_ENABLED": "false",
-        "LLM_PROVIDER": "perplexity",
-        "PERPLEXITY_MODEL": "sonar",
-        "PERPLEXITY_ENDPOINT": "https://api.perplexity.ai",
-        "VIP_API_KEYS": key,
-        "SERVER_SALT": "synthetic-quota-salt-32-characters",
-        "DATABASE_URL": f"sqlite:///{db}",
-        "AGENT_CONTROL_AUDIT_SIGNING_KEY": "synthetic-audit-signing-key",
-        "AGENT_CONTROL_AUDIT_LOG_PATH": str(tmp_path / "audit.jsonl"),
-        "VIP_LLM_INSIGHT_REQUESTS_PER_MONTH": "100",
-        "FEATURE_FITCHEF_MASCOT": "false",
-    }.items():
-        monkeypatch.setenv(name, value)
-    metadata = core_db.load_canonical_orm_metadata()
-    engine = create_engine(f"sqlite:///{db}")
-    metadata.create_all(engine)
-    db.chmod(0o600)
-    month = collector.month_start_date_utc()
-    native_fp = collector.llm_key_fingerprint(key, tier="VIP")
-    from app.security.llm_monthly_quota import _legacy_llm_key_fingerprint
+    previous_raw = core_db._RAW_ENGINE
+    previous_session = core_db.SessionLocal
+    previous_database_url = os.getenv("DATABASE_URL")
+    with monkeypatch.context() as isolated:
+        # Reset before selecting a temporary URL without disposing resources
+        # owned by the session fixture or a preceding test.
+        isolated.setattr(core_db, "_RAW_ENGINE", None)
+        isolated.setattr(core_db, "SessionLocal", None)
+        key = "ocw-eval-synthetic-quota-key"
+        db = tmp_path / "quota.db"
+        for name, value in {
+            "APP_ENV": "development",
+            "SUBSCRIPTION_DB_ENABLED": "false",
+            "LLM_PROVIDER": "perplexity",
+            "PERPLEXITY_MODEL": "sonar",
+            "PERPLEXITY_ENDPOINT": "https://api.perplexity.ai",
+            "VIP_API_KEYS": key,
+            "SERVER_SALT": "synthetic-quota-salt-32-characters",
+            "DATABASE_URL": f"sqlite:///{db}",
+            "AGENT_CONTROL_AUDIT_SIGNING_KEY": "synthetic-audit-signing-key",
+            "AGENT_CONTROL_AUDIT_LOG_PATH": str(tmp_path / "audit.jsonl"),
+            "VIP_LLM_INSIGHT_REQUESTS_PER_MONTH": "100",
+            "FEATURE_FITCHEF_MASCOT": "false",
+        }.items():
+            isolated.setenv(name, value)
+        metadata = core_db.load_canonical_orm_metadata()
+        engine = create_engine(f"sqlite:///{db}")
+        try:
+            metadata.create_all(engine)
+            db.chmod(0o600)
+            month = collector.month_start_date_utc()
+            native_fp = collector.llm_key_fingerprint(key, tier="VIP")
+            from app.security.llm_monthly_quota import _legacy_llm_key_fingerprint
 
-    legacy_fp = _legacy_llm_key_fingerprint(key)
+            legacy_fp = _legacy_llm_key_fingerprint(key)
 
-    @contextmanager
-    def session_scope() -> Any:
-        with Session(engine) as session:
-            yield session
+            @contextmanager
+            def session_scope() -> Any:
+                with Session(engine) as session:
+                    yield session
 
-    try:
-        with Session(engine) as session:
-            for fp, used, bucket in (
-                (native_fp, canonical, month),
-                (legacy_fp, legacy, month),
-                (legacy_fp, previous, (month - timedelta(days=1)).replace(day=1)),
-            ):
-                if used is not None:
-                    session.add(
-                        collector.VipLlmMonthlyUsage(
-                            key_fingerprint=fp, month_start_date=bucket, used_requests=used
+            with Session(engine) as session:
+                for fp, used, bucket in (
+                    (native_fp, canonical, month),
+                    (legacy_fp, legacy, month),
+                    (legacy_fp, previous, (month - timedelta(days=1)).replace(day=1)),
+                ):
+                    if used is not None:
+                        session.add(
+                            collector.VipLlmMonthlyUsage(
+                                key_fingerprint=fp, month_start_date=bucket, used_requests=used
+                            )
+                        )
+                session.commit()
+                before = list(
+                    session.execute(
+                        select(
+                            collector.VipLlmMonthlyUsage.key_fingerprint,
+                            collector.VipLlmMonthlyUsage.month_start_date,
+                            collector.VipLlmMonthlyUsage.used_requests,
                         )
                     )
-            session.commit()
-            before = list(
-                session.execute(
-                    select(
-                        collector.VipLlmMonthlyUsage.key_fingerprint,
-                        collector.VipLlmMonthlyUsage.month_start_date,
-                        collector.VipLlmMonthlyUsage.used_requests,
+                )
+            isolated.setattr(collector, "session_scope", session_scope)
+            # The feature is deliberately disabled AFTER the quota check. Reaching
+            # its existing boundary proves the exact sixteen-request quota passes.
+            with pytest.raises(
+                ValueError, match="ocw_feature_or_mode" if admitted else "ocw_quota"
+            ):
+                collector.validate_ocw_environment(key)
+            with Session(engine) as session:
+                after = list(
+                    session.execute(
+                        select(
+                            collector.VipLlmMonthlyUsage.key_fingerprint,
+                            collector.VipLlmMonthlyUsage.month_start_date,
+                            collector.VipLlmMonthlyUsage.used_requests,
+                        )
                     )
                 )
-            )
-        monkeypatch.setattr(collector, "session_scope", session_scope)
-        # The feature is deliberately disabled AFTER the quota check. Reaching
-        # its existing boundary proves the exact sixteen-request quota passes.
-        with pytest.raises(ValueError, match="ocw_feature_or_mode" if admitted else "ocw_quota"):
-            collector.validate_ocw_environment(key)
-        with Session(engine) as session:
-            after = list(
-                session.execute(
-                    select(
-                        collector.VipLlmMonthlyUsage.key_fingerprint,
-                        collector.VipLlmMonthlyUsage.month_start_date,
-                        collector.VipLlmMonthlyUsage.used_requests,
-                    )
-                )
-            )
-        assert after == before
-        assert not list(tmp_path.glob("attempt-*"))
-    finally:
-        engine.dispose()
+            assert after == before
+            assert not list(tmp_path.glob("attempt-*"))
+            # All quota reads use the owned local engine, leaving the detached
+            # application cache and session factory empty throughout this scope.
+            assert core_db._RAW_ENGINE is None and core_db.SessionLocal is None
+        finally:
+            isolated.setattr(core_db, "_RAW_ENGINE", None)
+            isolated.setattr(core_db, "SessionLocal", None)
+            engine.dispose()
+    assert core_db._RAW_ENGINE is previous_raw
+    assert core_db.SessionLocal is previous_session
+    assert os.getenv("DATABASE_URL") == previous_database_url
 
 
 def test_ocw_manifest_is_closed_eight_ru_cases_and_copied() -> None:
