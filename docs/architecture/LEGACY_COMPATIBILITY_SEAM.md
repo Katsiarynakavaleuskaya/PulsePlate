@@ -454,6 +454,54 @@ merge permission and granted no bypass of this PR's required gates.
 
 ## Legacy metadata and error-detail Python export retirement
 
+The child is MERGED: PR #2486 was separately authorized at exact head
+`e59565e1a5e69d170fbb9669fffcd7354236fdd6` and squash merged as
+`3f530552ea9ad581fd6cfa672dbf056640eaa220` at 2026-10-13T19:23:13Z.
+Its actual whole tree equals the reviewed head. The final material is
+`114a5f62f8bf348d1fafcf060d0e27a1903a8f65`, base/merge-base
+`0c25bcf605bd01153ce94d2bdf7c5df3463cff2a`, digest
+`sha256:f25ae56e54c8519a93032f2681be2ba0e52fb305dcd35cbbbf019069410aa36a`.
+Own required local, review, Oracle, seal, strict-wrapper and quiet-window gates
+were observed before the authorized merge. Exact-head canonical CI
+[38440366580](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/38440366580)
+succeeded; all twelve producer archives and eight XMLs were qualified. Global
+coverage was 98.51049% / 98.54277% / 98.54047% for Python 3.11/3.12/3.13;
+numeric diff coverage N/A was positively reconciled to an empty eligible
+added-line inventory with unchanged producer contracts, not missing XML.
+
+Clean owned main synchronized to the actual squash (0 ahead / 0 behind), and
+fresh merged-main focused sanity passed 1954 tests. Main CI
+[38454425817](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/38454425817)
+remains CANCELLED overall: Python 3.11/3.12 succeeded, each with 35729 JUnit
+cases, zero failures/errors, 37 explicit skips and all owned 1954 cases passing.
+Python 3.13 exceeded its 90-minute outer job budget after all nine shards exited
+0; its uploaded XML/JUnit are retained as canceled-job outputs, never a health
+PASS. The aggregate coverage reporter cascade-skipped. The direct human v4
+amendment assigns widening that timeout to PR #2477 and makes this cancellation
+nonblocking only for this owned closeout. No workflow fix/rerun, global-main-green,
+deployment or next-lane-start claim follows.
+
+Incoming #2483 is now RECONCILED IN MAIN through this squash, preserving its
+Target PR #2483. The downloaded [core archive](https://drive.google.com/file/d/1djMDicuLoFmIFLzeSLTPEBkK_bWACT8Q/view)
+contains 1883 manifest-verified payloads (92061863 bytes; SHA-256
+`8678aa11bf086a9273fb48c3f4a82a27721dd77ae97a2f41ae85bbf4caae5859`), including
+a standalone clone/fsck-verified Git bundle. The final same-ID
+[Living Legacy Doc](https://docs.google.com/document/d/1Cts1_WCs9TZV59xMaEn-rv4U_dHr-UDUDnK1r1-gO40) and only the owned PROJECT_LEGACY section of the
+[shared capsule](https://drive.google.com/file/d/1P1pHBD0B_EbwwtYvvOGiKro3pd0chcM5/view) have full readbacks; original native Doc body blocks,
+foreign capsule bytes, IDs, parents and ACL metadata are preserved. Later cleanup,
+QA and outgoing receipts are retained in `PR2486-terminal-supplement-20261014.tar.gz`
+and its final receipt in the [existing Legacy folder](https://drive.google.com/drive/folders/1HPsrBBGaAAssC7zh4JAKYn7bUxDtsi4I).
+Owned implementation/control/candidate worktrees, local branch and redundant
+recovery clones/bundle are removed after cloud verification; the remote branch
+was already auto-deleted. Foreign worktree inventory is unchanged; independent
+keeper/cloud evidence remains recoverable. The outgoing two-anchor patch is
+PREPARED / ARCHIVED / NOT YET APPLIED for the next substantive Legacy child.
+No new cohort, docs-only PR or competing master is selected.
+
+These terminal facts supersede pending lifecycle statements below; those
+paragraphs preserve their earlier evidence cutoffs. PROJECT_LEGACY remains OPEN,
+R29 PARTIAL / UNWAIVED, historical O1 NOT_ADMITTED and shared-runtime P1 OPEN.
+
 The admitted `LEGACY-METADATA-ERROR-EXPORT-RETIREMENT-1/v1` child
 ([PR #2486](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2486))
 removes exactly `build_application_metadata`,
