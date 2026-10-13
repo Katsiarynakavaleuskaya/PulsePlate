@@ -133,6 +133,9 @@ RETIRED_LEGACY_PYTHON_BINDINGS = {
     "add_visualization_if_requested",
     "_BMI_COMPAT_REEXPORTS",
     "_BMI_SCHEMA_COMPAT_REEXPORTS",
+    "build_application_metadata",
+    "ENHANCED_PLATE_GENERATION_FAILED_DETAIL",
+    "INVALID_PREMIUM_PLATE_INPUT_DETAIL",
 }
 
 RETIRED_PLATE_HELPER_BINDINGS = (
@@ -305,6 +308,34 @@ def test_retired_bmi_compat_bindings_are_absent(binding_name: str) -> None:
     assert _run_legacy_retirement_probe(scenario) == {"absent": binding_name}
 
 
+@pytest.mark.parametrize(
+    "binding_name",
+    (
+        "build_application_metadata",
+        "ENHANCED_PLATE_GENERATION_FAILED_DETAIL",
+        "INVALID_PREMIUM_PLATE_INPUT_DETAIL",
+    ),
+)
+def test_retired_metadata_error_bindings_are_absent(binding_name: str) -> None:
+    """Require exact metadata/error retirement independently of production guard data."""
+    import legacy_app
+
+    assert binding_name not in vars(legacy_app)
+    with pytest.raises(AttributeError):
+        getattr(legacy_app, binding_name)
+    scenario = textwrap.dedent(f"""
+        import json
+        try:
+            from legacy_app import {binding_name}
+        except ImportError:
+            pass
+        else:
+            raise AssertionError("legacy from-import remains: {binding_name}")
+        print("LEGACY_RETIREMENT_RESULT=" + json.dumps({{"absent": {binding_name!r}}}))
+        """)
+    assert _run_legacy_retirement_probe(scenario) == {"absent": binding_name}
+
+
 @pytest.mark.parametrize("binding_name", RETIRED_CORE_UTILITY_BINDINGS)
 def test_retired_core_utility_bindings_are_absent(binding_name: str) -> None:
     """Require each selected binding to disappear independently of guard data."""
@@ -355,6 +386,9 @@ def test_retired_legacy_python_bindings_are_absent_with_canonical_owners_present
     import core.recommendations as recommendations
     import bmi_visualization
     import legacy_app
+
+    import app.application_metadata as application_metadata
+    import app.http_error_details as http_error_details
 
     canonical_migrations = {
         "admin_status": admin_operations.admin_status,
@@ -465,8 +499,13 @@ def test_retired_legacy_python_bindings_are_absent_with_canonical_owners_present
         "add_visualization_if_requested": bmi_compat.add_visualization_if_requested,
         "_BMI_COMPAT_REEXPORTS": None,
         "_BMI_SCHEMA_COMPAT_REEXPORTS": None,
+        "build_application_metadata": application_metadata.build_application_metadata,
+        "ENHANCED_PLATE_GENERATION_FAILED_DETAIL": http_error_details.ENHANCED_PLATE_GENERATION_FAILED_DETAIL,
+        "INVALID_PREMIUM_PLATE_INPUT_DETAIL": http_error_details.INVALID_PREMIUM_PLATE_INPUT_DETAIL,
     }
     canonical_constants = {
+        "ENHANCED_PLATE_GENERATION_FAILED_DETAIL": http_error_details.ENHANCED_PLATE_GENERATION_FAILED_DETAIL,
+        "INVALID_PREMIUM_PLATE_INPUT_DETAIL": http_error_details.INVALID_PREMIUM_PLATE_INPUT_DETAIL,
         "MATPLOTLIB_AVAILABLE": bmi_visualization.MATPLOTLIB_AVAILABLE,
         "DB_TO_ALIAS_NUTRIENT_MAP": plate_service.DB_TO_ALIAS_NUTRIENT_MAP,
         "INSIGHT_TEXT_MAX_LENGTH": insight_schemas.INSIGHT_TEXT_MAX_LENGTH,
@@ -485,9 +524,20 @@ def test_retired_legacy_python_bindings_are_absent_with_canonical_owners_present
         "FIBER_MIN_G": core_targets.FIBER_MIN_G,
     }
 
+    assert callable(application_metadata.build_application_metadata)
+    assert (
+        application_metadata.build_application_metadata.__module__ == application_metadata.__name__
+    )
+    assert type(http_error_details.ENHANCED_PLATE_GENERATION_FAILED_DETAIL) is str
+    assert (
+        http_error_details.ENHANCED_PLATE_GENERATION_FAILED_DETAIL
+        == "Enhanced plate generation failed"
+    )
+    assert type(http_error_details.INVALID_PREMIUM_PLATE_INPUT_DETAIL) is str
+    assert http_error_details.INVALID_PREMIUM_PLATE_INPUT_DETAIL == "Invalid premium plate input"
     assert canonical_migrations.keys() == RETIRED_LEGACY_PYTHON_BINDINGS
     assert RETIRED_LEGACY_PYTHON_BINDINGS == legacy_guard.RETIRED_LEGACY_PYTHON_BINDINGS
-    assert len(RETIRED_LEGACY_PYTHON_BINDINGS) == 106
+    assert len(RETIRED_LEGACY_PYTHON_BINDINGS) == 109
     assert canonical_migrations["TargetsIn"] is canonical_migrations["CanonicalTargetsIn"]
     assert (
         len(
@@ -727,7 +777,11 @@ def test_canonical_nutrition_contracts_remain_importable_in_fresh_process() -> N
 @pytest.mark.parametrize(
     "import_sequence",
     (
+        "assert 'app.application_metadata' not in sys.modules\n"
+        "assert 'app.http_error_details' not in sys.modules\n"
         "import legacy_app\n"
+        "import app.application_metadata as application_metadata\n"
+        "import app.http_error_details as http_error_details\n"
         "import app.schemas.nutrition_targets as planning_targets\n"
         "import app.schemas.legacy_premium_weekly_plan as planning_schemas\n"
         "import core.db as core_db\n"
@@ -742,6 +796,9 @@ def test_canonical_nutrition_contracts_remain_importable_in_fresh_process() -> N
         "import core.targets as core_targets\n"
         "import app.utils.helpers as helpers\n"
         "import app.utils.feature_flags as feature_flags\n"
+        "import app.application_metadata as application_metadata\n"
+        "import app.http_error_details as http_error_details\n"
+        "assert 'legacy_app' not in sys.modules\n"
         "import legacy_app\n",
     ),
     ids=("legacy-first", "canonical-first"),
@@ -759,9 +816,10 @@ def test_retired_legacy_python_bindings_fail_closed_in_a_fresh_process(
             else:
                 raise AssertionError("legacy from-import remains: {binding_name}")
             """) for binding_name in retired_bindings)
-    scenario = import_sequence + textwrap.dedent(f"""
+    scenario = "import sys\n" + import_sequence + textwrap.dedent(f"""
         import json
         import app as app_facade
+        import app.bootstrap.application as application_bootstrap
         import app.bootstrap.openapi as canonical_openapi
         import app.services.pro_nutrition_plate as plate_service
         import app.services.pro_nutrition_targets as targets_service
@@ -770,6 +828,14 @@ def test_retired_legacy_python_bindings_fail_closed_in_a_fresh_process(
 
         import app.routers.health as health
         from typing import Literal, get_args, get_origin
+
+        assert legacy_app._application_metadata is application_bootstrap.APPLICATION_METADATA
+        assert callable(application_metadata.build_application_metadata)
+        assert application_metadata.build_application_metadata.__module__ == application_metadata.__name__
+        assert type(http_error_details.ENHANCED_PLATE_GENERATION_FAILED_DETAIL) is str
+        assert http_error_details.ENHANCED_PLATE_GENERATION_FAILED_DETAIL == "Enhanced plate generation failed"
+        assert type(http_error_details.INVALID_PREMIUM_PLATE_INPUT_DETAIL) is str
+        assert http_error_details.INVALID_PREMIUM_PLATE_INPUT_DETAIL == "Invalid premium plate input"
 
         utility_migrations = {{
             "get_session": core_db.get_session,

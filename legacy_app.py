@@ -9,13 +9,8 @@ from typing import (
     cast,
 )
 
-from app.application_metadata import build_application_metadata
 from app.bootstrap.application import APPLICATION_METADATA, RUNTIME_ENV, app as _canonical_app
 from app.bootstrap.lifespan import application_lifespan as lifespan
-from app.http_error_details import (
-    ENHANCED_PLATE_GENERATION_FAILED_DETAIL,
-    INVALID_PREMIUM_PLATE_INPUT_DETAIL,
-)
 from app.routers.api_key import (  # noqa: F401 - identity-preserving compatibility re-exports
     _get_api_key_dynamic as _get_api_key_dynamic,
     get_api_key as get_api_key,
