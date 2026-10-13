@@ -36,6 +36,12 @@ on:
         default: disabled
         type: choice
         options: [disabled, synthetic-probe, reuse]
+      alertmanager_mode:
+        description: Explicit metadata replay only; build remains disabled until separate admission
+        required: true
+        default: disabled
+        type: choice
+        options: [disabled, module-qualify, build]
       source_sha:
         description: Exact same-repository commit SHA for synthetic probe
         required: false
@@ -58,6 +64,52 @@ env:
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
+  alertmanager-module-qualification:
+    if: >-
+      github.event_name == 'workflow_dispatch' && inputs.alertmanager_mode != 'disabled'
+      && github.repository == 'Katsiarynakavaleuskaya/PulsePlate'
+      && startsWith(github.ref, 'refs/heads/') && github.run_attempt == 1
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      actions: read
+    env:
+      ALERTMANAGER_QUALIFY_SECONDS: '900'
+    steps:
+      - name: Authenticate manual Alertmanager source and hold all build starts
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SOURCE_SHA: ${{ inputs.source_sha }}
+          ALERTMANAGER_MODE: ${{ inputs.alertmanager_mode }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REPOSITORY" = Katsiarynakavaleuskaya/PulsePlate
+          test "$GITHUB_RUN_ATTEMPT" = 1
+          [[ "$SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          test "$SOURCE_SHA" = "$GITHUB_SHA"
+          test "$ALERTMANAGER_MODE" = module-qualify
+          test "$(gh api "repos/$GITHUB_REPOSITORY/commits/$SOURCE_SHA" --jq .sha)" = "$SOURCE_SHA"
+      - name: Checkout authenticated Alertmanager preparation
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.source_sha }}
+          persist-credentials: false
+      - name: Qualify exact inputs and modules under one metadata-only clock
+        run: |
+          set -euo pipefail
+          umask 077
+          # The one 900-second owner begins before source/UI/Go/base acquisition.
+          # Source/UI clips its 300-second acquisition bound to remaining time.
+          python3 -m scripts.ci.fetch_docker_source_artifacts --artifact alertmanager --alertmanager-module-qualify
+      - name: Retain actual metadata qualification outputs
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1 / Node 24
+        with:
+          name: alertmanager-module-qualification-${{ github.run_id }}-${{ github.run_attempt }}
+          path: build/docker-sources/alertmanager-module-evidence
+          if-no-files-found: warn
+
   staging-postgres-native-integration:
     name: PostgreSQL configuration admission
     if: github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main')

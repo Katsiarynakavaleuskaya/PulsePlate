@@ -108,6 +108,48 @@
   network request, lock write or release action; native solver replay and IPA
   compatibility evidence remain separate requirements.
 
+## Alertmanager source preparation
+
+- The existing Docker source catalog/fetch owner admits only the exact acquired
+  Alertmanager source and matching UI through `--artifact alertmanager`. Default
+  callers retain their incumbent fifteen inputs; this pair has one aggregate
+  300-second acquisition/member bound and zero retries. Private HTTP captures
+  stay outside build contexts and uploaded source/evidence bundles.
+- Existing CD `alertmanager_mode` defaults to `disabled`. Only authenticated
+  same-repository, exact-full-SHA, first-attempt manual `module-qualify` can run
+  the fixed 900-second metadata replay. `build` is explicitly held until actual
+  qualification, full finding/support review and separate build admission.
+- Qualification uses two independent original trees/caches, the one fixed
+  x/net 0.60.0 + gRPC 1.83.2 replacement command, both command graphs online,
+  then actual network-none/read-only offline queries. It starts no compiler.
+  The same 900-second clock starts before the exact admitted source/UI, Go1.27.2
+  and public immutable base acquisition, with a fixed SIGALRM owner covering
+  blocking calls; the source child restores the same remaining parent timer.
+  Go uses unchanged acquire/extract for
+  its own qualified identity; every Docker operation uses one owned empty config
+  and offline queries bind the observed base ID with pull disabled. Bad cached
+  bytes are rejected before reading or replacement, with no retry/fallback.
+  Compare complete explicit GOMODCACHE payloads between replays; retain each
+  whole GOPATH/GOCACHE inventory and its individual offline stability. Original
+  and derived locks/projections plus bounded frozen inputs remain in the existing
+  module-evidence upload. The complete artifact, including final inventory bytes,
+  keeps the existing 2 GiB/250000-member bounds. Metadata finalization shares the
+  separate owned cleanup allowance. Docker-save base bytes are a derived export
+  of the observed ID, not a claim of original OCI compressed-blob preservation.
+  Private HTTP captures and HOME stay excluded.
+  The freshly validated Go extraction is frozen with searchable 0555 directories,
+  executable 0555 files and data 0444 files before UID65534 offline queries, with
+  unchanged-byte bindings and after-query snapshots.
+  Offline metadata containers have exact owned names/labels and retained IDs,
+  with a separate 120-second cleanup/absence phase preserving primary failures.
+  The zero-compiler count describes the fixed command list, not unobserved
+  descendants or external compiler absence. Future context generation must bind
+  an empty `storage-dir` copied with UID/GID 65534 into the final recipe.
+- The new Alertmanager Containerfile is COPY-only prepared data. No image
+  coordinates, consumer references or ignore retirement follow from source
+  preparation. Frozen Prometheus inputs stay unchanged; their projection does
+  not establish SDK nonimpact for catalog/fetcher changes.
+
 ## Official Prometheus image selection
 
 - `deploy/prometheus/image-manifest.json` is the sole v3 image record.

@@ -918,7 +918,8 @@ def test_docker_source_artifact_manifest_pins_sqlite_source() -> None:
     assert manifest["schema_version"] == 1
     assert manifest["generated_at"] == "2026-10-04"
     assert manifest["review_by"] == "2026-10-21"
-    assert len(artifacts) == 15
+    assert len(artifacts) == 17
+    assert [row["name"] for row in artifacts[-2:]] == ["alertmanager-source", "alertmanager-ui"]
     assert [row["name"] for row in artifacts[:4]] == [
         "sqlite-autoconf",
         "util-linux",
@@ -3074,3 +3075,644 @@ def test_manual_oras_prefetch_selector_is_data_and_preserves_compile_budget() ->
     pair = workflow["jobs"]["prometheus-source-build-pair"]
     assert "tool_prefetch_predecessor" not in str(pair)
     assert not any("continue-on-error" in value for value in job["steps"])
+
+
+def test_alertmanager_catalog_selector_preserves_incumbent_default_inputs() -> None:
+    manifest = REPO_ROOT / "scripts/ci/docker_source_artifacts.json"
+    incumbent = docker_sources.load_manifest(manifest)
+    selected = docker_sources.load_manifest(manifest, artifact="alertmanager")
+    assert len(incumbent) == 15
+    assert not any(item.name.startswith("alertmanager-") for item in incumbent)
+    assert {item.name for item in selected} == {"alertmanager-source", "alertmanager-ui"}
+    assert {item.sha256 for item in selected} == {
+        "5c5c72ec6b4c4746d523f2ed1994dfec4b94f7457e530ee6fb16cfec158e545e",
+        "881fe0f7beb9573f35be47dd233af6220e72c8db72c03bcd1780402eb8dc1307",
+    }
+    with pytest.raises(RuntimeError, match="finite Alertmanager selector"):
+        docker_sources.load_manifest(manifest, artifact="fetch-all")
+
+
+@pytest.mark.parametrize("name", ["alertmanager-source", "alertmanager-ui"])
+def test_alertmanager_archive_rejects_changed_bytes_before_member_admission(name: str) -> None:
+    selected = docker_sources.load_manifest(
+        REPO_ROOT / "scripts/ci/docker_source_artifacts.json", artifact="alertmanager"
+    )
+    artifact = next(item for item in selected if item.name == name)
+    with pytest.raises(RuntimeError, match="SHA3 mismatch"):
+        docker_sources.validate_source_payload(artifact, b"unqualified source or UI")
+
+
+def test_alertmanager_transport_does_not_retry_source_service_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from email.message import Message
+    from urllib.error import HTTPError
+    from scripts.ci import prometheus_source_image as transport
+    import io
+    import time
+
+    selected = docker_sources.load_manifest(
+        REPO_ROOT / "scripts/ci/docker_source_artifacts.json", artifact="alertmanager"
+    )
+    artifact = next(item for item in selected if item.name == "alertmanager-source")
+    calls: list[str] = []
+
+    class FailedTransport:
+        def open(self, request: object, *, timeout: float) -> object:
+            calls.append(request.full_url)
+            raise HTTPError(
+                artifact.url,
+                503,
+                "synthetic unavailable",
+                Message(),
+                io.BytesIO(b"synthetic failure"),
+            )
+
+    monkeypatch.setattr(transport, "opener", lambda: FailedTransport())
+    with pytest.raises(RuntimeError, match="initial HTTP status 503"):
+        docker_sources._download_alertmanager(
+            artifact, deadline=time.monotonic() + 5, private=tmp_path
+        )
+    assert calls == [artifact.url]
+    assert (tmp_path / "alertmanager-source-initial.http-body").read_bytes() == b"synthetic failure"
+    assert (
+        json.loads((tmp_path / "alertmanager-source-http.json").read_text())[0][
+            "actual_http_status"
+        ]
+        == 503
+    )
+
+
+@pytest.mark.parametrize(
+    "location",
+    [
+        "https://unapproved.invalid/private?synthetic=only",
+        "https://release-assets.githubusercontent.com/github-production-release-asset/11434314/12345678-1234-1234-1234-123456789abc?synthetic=only\n",
+    ],
+)
+def test_alertmanager_transport_rejects_unapproved_handoff_authority(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    location: str,
+) -> None:
+    from email.message import Message
+    from urllib.error import HTTPError
+    from scripts.ci import prometheus_source_image as transport
+    import io
+    import time
+
+    artifact = next(
+        item
+        for item in docker_sources.load_manifest(
+            REPO_ROOT / "scripts/ci/docker_source_artifacts.json", artifact="alertmanager"
+        )
+        if item.name == "alertmanager-ui"
+    )
+    headers = Message()
+    headers["Location"] = location
+    calls: list[str] = []
+
+    class WrongHandoff:
+        def open(self, request: object, *, timeout: float) -> object:
+            calls.append(request.full_url)
+            raise HTTPError(artifact.url, 302, "synthetic handoff", headers, io.BytesIO(b""))
+
+    monkeypatch.setattr(transport, "opener", lambda: WrongHandoff())
+    with pytest.raises(RuntimeError, match="handoff authority"):
+        docker_sources._download_alertmanager(
+            artifact, deadline=time.monotonic() + 5, private=tmp_path
+        )
+    assert calls == [artifact.url]
+
+
+def test_alertmanager_module_mode_is_manual_first_attempt_and_build_is_held() -> None:
+    workflow = _load_workflow(WORKFLOWS_DIR / "cd.yml")
+    job = workflow["jobs"]["alertmanager-module-qualification"]
+    admission = job["if"]
+    assert "github.event_name == 'workflow_dispatch'" in admission
+    assert "github.run_attempt == 1" in admission
+    assert "github.repository == 'Katsiarynakavaleuskaya/PulsePlate'" in admission
+    assert job["permissions"] == {"contents": "read", "actions": "read"}
+    assert job["env"]["ALERTMANAGER_QUALIFY_SECONDS"] == "900"
+    first = job["steps"][0]["run"]
+    assert 'test "$ALERTMANAGER_MODE" = module-qualify' in first
+    assert 'test "$SOURCE_SHA" = "$GITHUB_SHA"' in first
+    runs = "\n".join(step.get("run", "") for step in job["steps"])
+    assert "docker login" not in runs and "docker push" not in runs
+    assert "--artifact alertmanager --alertmanager-module-qualify" in runs
+
+
+def test_alertmanager_literal_recipe_has_only_selected_payload_and_private_defaults() -> None:
+    recipe = (REPO_ROOT / "deploy/alertmanager/Containerfile").read_text()
+    assert "RUN " not in recipe and "ADD " not in recipe
+    assert "COPY probe-bin-bracket /usr/bin/wget" in recipe
+    assert "COPY probe-bin-bracket /usr/bin/httpd" in recipe
+    assert "COPY alertmanager /usr/bin/alertmanager" in recipe
+    assert "COPY amtool /usr/bin/amtool" in recipe
+    assert "USER 65534:65534" in recipe
+    assert "COPY --chown=65534:65534 storage-dir /alertmanager" in recipe
+    assert '"--cluster.listen-address="' in recipe
+
+
+@pytest.mark.parametrize("final_status", [200, 403])
+def test_alertmanager_one_handoff_has_no_final_retry_and_retains_status(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    final_status: int,
+) -> None:
+    from email.message import Message
+    from urllib.error import HTTPError
+    from scripts.ci import prometheus_source_image as transport
+    import io
+    import time
+
+    artifact = next(
+        item
+        for item in docker_sources.load_manifest(
+            REPO_ROOT / "scripts/ci/docker_source_artifacts.json", artifact="alertmanager"
+        )
+        if item.name == "alertmanager-ui"
+    )
+    handoff = "https://release-assets.githubusercontent.com/github-production-release-asset/11434314/12345678-1234-1234-1234-123456789abc?synthetic=only"
+    headers = Message()
+    headers["Location"] = handoff
+    calls: list[str] = []
+
+    class Response(io.BytesIO):
+        status = 200
+
+        def geturl(self) -> str:
+            return handoff
+
+    class HandoffTransport:
+        def open(self, request: object, *, timeout: float) -> object:
+            calls.append(request.full_url)
+            if len(calls) == 1:
+                raise HTTPError(artifact.url, 302, "synthetic handoff", headers, io.BytesIO(b""))
+            if final_status == 403:
+                raise HTTPError(
+                    handoff,
+                    403,
+                    "synthetic final rejection",
+                    Message(),
+                    io.BytesIO(b"private synthetic rejection"),
+                )
+            return Response(b"synthetic successful transport")
+
+    monkeypatch.setattr(transport, "opener", lambda: HandoffTransport())
+    if final_status == 403:
+        with pytest.raises(RuntimeError, match="handoff HTTP status 403"):
+            docker_sources._download_alertmanager(
+                artifact, deadline=time.monotonic() + 5, private=tmp_path
+            )
+        records = json.loads((tmp_path / "alertmanager-ui-http.json").read_text())
+        assert records[-1]["actual_http_status"] == 403
+        assert records[-1]["diagnostic_read_error"] is None
+        assert (
+            tmp_path / "alertmanager-ui-handoff-final.http-body"
+        ).stat().st_mode & 0o777 == 0o600
+        assert handoff not in (tmp_path / "alertmanager-ui-http.json").read_text()
+    else:
+        assert (
+            docker_sources._download_alertmanager(
+                artifact, deadline=time.monotonic() + 5, private=tmp_path
+            )
+            == b"synthetic successful transport"
+        )
+    assert calls == [artifact.url, handoff]
+
+
+def test_alertmanager_http_body_diagnostic_failure_preserves_primary_status(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from email.message import Message
+    from urllib.error import HTTPError
+    from scripts.ci import prometheus_source_image as transport
+    import io
+    import time
+
+    artifact = next(
+        item
+        for item in docker_sources.load_manifest(
+            REPO_ROOT / "scripts/ci/docker_source_artifacts.json", artifact="alertmanager"
+        )
+        if item.name == "alertmanager-source"
+    )
+
+    class BrokenBody(io.BytesIO):
+        def read(self, size: int = -1) -> bytes:
+            raise OSError("synthetic diagnostic read failure")
+
+    class FailedTransport:
+        def open(self, request: object, *, timeout: float) -> object:
+            raise HTTPError(
+                artifact.url, 503, "synthetic primary rejection", Message(), BrokenBody()
+            )
+
+    monkeypatch.setattr(transport, "opener", lambda: FailedTransport())
+    with pytest.raises(RuntimeError, match="initial HTTP status 503"):
+        docker_sources._download_alertmanager(
+            artifact, deadline=time.monotonic() + 5, private=tmp_path
+        )
+    records = json.loads((tmp_path / "alertmanager-source-http.json").read_text())
+    assert records[0]["actual_http_status"] == 503
+    assert records[0]["diagnostic_read_error"] == "OSError"
+    assert (tmp_path / "alertmanager-source-http.json").stat().st_mode & 0o777 == 0o600
+
+
+@pytest.mark.parametrize("exit_code", [0, 17])
+def test_alertmanager_native_attach_success_does_not_admit_failed_go_exit(exit_code: int) -> None:
+    identifier, name, token = "a" * 64, "pulseplate-alert-module-synthetic", "synthetic"
+    observed = {
+        "Id": identifier,
+        "Name": "/" + name,
+        "Config": {"Labels": {"pulseplate.alertmanager-module": token}},
+        "State": {
+            "Status": "exited",
+            "Running": False,
+            "Restarting": False,
+            "Dead": False,
+            "OOMKilled": False,
+            "Error": "",
+            "ExitCode": exit_code,
+        },
+    }
+    # Docker attach itself can return 0; the native wait/state remains independent truth.
+    if exit_code:
+        with pytest.raises(RuntimeError, match="Actual Alertmanager container command exit"):
+            docker_sources._alertmanager_command_exit(observed, identifier, name, token, b"17\n")
+    else:
+        docker_sources._alertmanager_command_exit(observed, identifier, name, token, b"0\n")
+
+
+def test_alertmanager_oversized_cache_is_rejected_before_read_or_transport(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    artifact = next(
+        item
+        for item in docker_sources.load_manifest(
+            REPO_ROOT / "scripts/ci/docker_source_artifacts.json", artifact="alertmanager"
+        )
+        if item.name == "alertmanager-source"
+    )
+    cached = tmp_path / artifact.filename
+    with cached.open("wb") as stream:
+        stream.truncate(docker_sources._ALERT_SIZES[artifact.name] + 1)
+    original_read = Path.read_bytes
+
+    def trapped_read(path: Path) -> bytes:
+        if path == cached:
+            raise AssertionError("oversized cache must never be read")
+        return original_read(path)
+
+    monkeypatch.setattr(Path, "read_bytes", trapped_read)
+    monkeypatch.setattr(
+        docker_sources,
+        "_download_alertmanager",
+        lambda *args, **kwargs: pytest.fail("bad cache must not be replaced"),
+    )
+    with pytest.raises(RuntimeError, match="cached exact size"):
+        docker_sources._write_verified_artifact(artifact, tmp_path)
+    assert cached.stat().st_size == docker_sources._ALERT_SIZES[artifact.name] + 1
+
+
+@pytest.mark.parametrize("foreign", [False, True])
+def test_alertmanager_cleanup_requires_actual_create_id_before_any_remove(
+    tmp_path: Path,
+    foreign: bool,
+) -> None:
+    owned, identifier = "a" * 64, ("b" if foreign else "a") * 64
+    calls: list[list[str]] = []
+
+    class SyntheticNative:
+        def run(self, argv: list[str], *args: object, **kwargs: object) -> bytes:
+            calls.append(argv)
+            if "inspect" in argv:
+                return json.dumps(
+                    {
+                        "Id": identifier,
+                        "Name": "/owned",
+                        "Config": {"Labels": {"pulseplate.alertmanager-module": "token"}},
+                    }
+                ).encode()
+            return b""
+
+    if foreign:
+        with pytest.raises(RuntimeError, match="actual retained create identity"):
+            docker_sources._alertmanager_cleanup_member(
+                SyntheticNative(),
+                "/absolute/docker",
+                identifier,
+                {owned},
+                {"owned"},
+                "token",
+                {},
+                tmp_path,
+                0,
+                tmp_path,
+            )
+        assert calls == []
+    else:
+        docker_sources._alertmanager_cleanup_member(
+            SyntheticNative(),
+            "/absolute/docker",
+            identifier,
+            {owned},
+            {"owned"},
+            "token",
+            {},
+            tmp_path,
+            0,
+            tmp_path,
+        )
+        assert calls[-1] == ["/absolute/docker", "--config", str(tmp_path), "rm", "--force", owned]
+
+
+@pytest.mark.parametrize("module_changed", [False, True])
+def test_alertmanager_replay_compares_complete_module_payload_not_go_index_cache(
+    module_changed: bool,
+) -> None:
+    first = {
+        key: []
+        for key in (
+            "original",
+            "derived",
+            "modules",
+            "graph",
+            "packages",
+            "delta",
+            "source",
+            "version",
+        )
+    }
+    first["module_cache"] = [
+        {"path": "example@v1/file", "sha256": "a" * 64, "mode": 444, "size": 1}
+    ]
+    second = dict(first)
+    first["whole_GOCACHE"] = [{"path": "index-first-root", "sha256": "b" * 64}]
+    second["whole_GOCACHE"] = [{"path": "index-second-root", "sha256": "c" * 64}]
+    if module_changed:
+        second["module_cache"] = [
+            {"path": "example@v1/file", "sha256": "d" * 64, "mode": 444, "size": 1}
+        ]
+        with pytest.raises(RuntimeError, match="module_cache"):
+            docker_sources._alertmanager_compare_replays([first, second])
+    else:
+        docker_sources._alertmanager_compare_replays([first, second])
+
+
+def test_alertmanager_frozen_input_artifact_includes_required_bytes_and_excludes_private_home(
+    tmp_path: Path,
+) -> None:
+    import time
+    import tarfile
+
+    evidence = tmp_path / "evidence"
+    evidence.mkdir()
+    source, modules = tmp_path / "source", tmp_path / "modules"
+    source.mkdir()
+    modules.mkdir()
+    (source / "go.mod").write_bytes(b"derived exact lock")
+    (modules / "module").write_bytes(b"frozen exact module")
+    files = []
+    for name in ("go", "base", "original", "ui"):
+        path = tmp_path / name
+        path.write_bytes(name.encode())
+        files.append(path)
+    (tmp_path / "HOME-private").write_bytes(b"must stay excluded")
+    (tmp_path / "private-http-capture").write_bytes(b"must stay excluded")
+    result = docker_sources._retain_alertmanager_inputs(
+        evidence, source, modules, *files, time.monotonic() + 10
+    )
+    with tarfile.open(evidence / "frozen-inputs.tar") as archive:
+        names = archive.getnames()
+        assert "source/go.mod" in names and "modules/module" in names
+        assert {"go-toolchain.tar.gz", "base-image.tar", "source.tar.gz", "ui.tar.gz"} <= set(names)
+        assert not any("private" in name or "HOME" in name for name in names)
+        assert archive.extractfile("source/go.mod").read() == b"derived exact lock"
+    assert result["private_HTTP_and_HOME_excluded"] is True
+    files[0].unlink()
+    other = tmp_path / "other-evidence"
+    other.mkdir()
+    with pytest.raises(RuntimeError, match="required Alertmanager input missing"):
+        docker_sources._retain_alertmanager_inputs(
+            other, source, modules, *files, time.monotonic() + 10
+        )
+
+
+def test_alertmanager_hosted_transport_shares_clock_and_empty_docker_config() -> None:
+    import inspect
+
+    source = (
+        inspect.getsource(docker_sources._qualify_alertmanager_modules)
+        + "\n"
+        + inspect.getsource(docker_sources._alertmanager_module_phase)
+    )
+    assert (
+        source.index("deadline =")
+        < source.index("_fetch_alertmanager_pair")
+        < source.index("acquire(GO")
+    )
+    assert "operation_deadline=deadline" in source
+    assert 'docker_prefix = [docker, "--config", str(docker_config)]' in source
+    assert "base_id = _alertmanager_loaded_base(base_objects)" in source
+    assert '"--pull=never"' in source
+    assert (
+        "/run/alertmanager-metadata:size=64m,noexec,nosuid,uid=65534,gid=65534,mode=0700" in source
+    )
+    assert '"HOME": "/run/alertmanager-metadata"' in source
+    assert '"GOCACHE": "/run/alertmanager-metadata/cache"' in source
+    assert '"TMPDIR": "/run/alertmanager-metadata"' in source
+    assert '"--network=none"' in source and '"--read-only"' in source
+    assert '"--cap-drop=ALL"' in source and '"--security-opt=no-new-privileges"' in source
+    assert '"loaded_base_ID": base_id' in source
+    assert "native_import(" not in source and '"login"' not in source
+    workflow = _load_workflow(WORKFLOWS_DIR / "cd.yml")
+    steps = workflow["jobs"]["alertmanager-module-qualification"]["steps"]
+    calls = [
+        step.get("run", "")
+        for step in steps
+        if "fetch_docker_source_artifacts" in step.get("run", "")
+    ]
+    assert len(calls) == 1 and "--alertmanager-module-qualify" in calls[0]
+
+
+@pytest.mark.parametrize(
+    "fault",
+    [
+        "none",
+        "config",
+        "platform",
+        "digest",
+        "layer",
+        "digests-string",
+        "duplicate-digest",
+        "rootfs-list",
+        "rootfs-type",
+        "layers-string",
+    ],
+)
+def test_alertmanager_public_base_native_binding_precedes_offline_use(fault: str) -> None:
+    image = {
+        "Id": "sha256:55a757dc8ab862a4eb634c434261dcd26f17c186b54f7bce845404a335456110",
+        "Os": "linux",
+        "Architecture": "amd64",
+        "RepoDigests": [
+            "gcr.io/distroless/static-debian13@sha256:2293b36c7c9082bf4115aab724b4d2cddec82c8eba39bf27ac0517e159acf150"
+        ],
+        "RootFS": {
+            "Type": "layers",
+            "Layers": [
+                "sha256:9486261b5a13f63ca6904b36721527ac8f19df53d300560138d69ae9b4c203de",
+                "sha256:621c35e751a51a9a9dc3e80aa0b7fe8be2a93402ea6ccd307d30852cd7776cda",
+                "sha256:763a77745f27b86cf26b97887b6842d83720e63b1c48848c0ba9ee54e351d63a",
+                "sha256:f0d0eff4c2312a7bd6e21797bdfea5eb35f60e76b555ce2b22794424af2cad36",
+                "sha256:275a30dd8ce958b21daa9ad962c6fbc09f98306ee2f486b65c9075dc257b1412",
+                "sha256:4d049f83d9cf21d1f5cc0e11deaf36df02790d0e60c1a3829538fb4b61685368",
+                "sha256:af5aa97ebe6ce1604747ec1e21af7136ded391bcabe4acef882e718a87c86bcc",
+                "sha256:6f1cdceb6a3146f0ccb986521156bef8a422cdbb0863396f7f751f575ba308f4",
+                "sha256:bd3cdfae1d3fdd83a2231d608969b38b82349777c2fff9a7c12d54f8ac5c9b38",
+                "sha256:4cde6b0bb6f50a5f255eef7b2a42162c661cf776b803225dcac9a659e396bb6b",
+                "sha256:ad51d0769d16ba578106a177987dfe3d2e02c1668c852b795b2f6b024068242a",
+                "sha256:187cfc6d1e3e8a40a5e64653bcd3239c140807dcf1c09e48021178705a5a6139",
+                "sha256:f2392a9484bf6b18f06beaf705b994e31dbb2716c99cf7d03c9c495cd107f364",
+            ],
+        },
+    }
+    if fault == "config":
+        image["Id"] = "sha256:" + "0" * 64
+    elif fault == "platform":
+        image["Architecture"] = "arm64"
+    elif fault == "digest":
+        image["RepoDigests"] = []
+    elif fault == "layer":
+        image["RootFS"]["Layers"] = image["RootFS"]["Layers"][:-1]
+    elif fault == "digests-string":
+        image["RepoDigests"] = image["RepoDigests"][0]
+    elif fault == "duplicate-digest":
+        image["RepoDigests"] *= 2
+    elif fault == "rootfs-list":
+        image["RootFS"] = []
+    elif fault == "rootfs-type":
+        image["RootFS"]["Type"] = "unknown"
+    elif fault == "layers-string":
+        image["RootFS"]["Layers"] = "not a layer inventory"
+    if fault == "none":
+        assert docker_sources._alertmanager_loaded_base([image]) == image["Id"]
+    else:
+        with pytest.raises(RuntimeError, match="Exact public base"):
+            docker_sources._alertmanager_loaded_base([image])
+
+
+def test_alertmanager_qualification_timer_restores_remaining_caller_without_reset(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import signal
+
+    now = [0.0]
+    timers: list[tuple[float, float]] = []
+    handlers: list[object] = []
+
+    def prior_handler(*args: object) -> None:
+        pass
+
+    monkeypatch.setenv("ALERTMANAGER_QUALIFY_SECONDS", "900")
+    monkeypatch.setattr(docker_sources.time, "monotonic", lambda: now[0])
+    monkeypatch.setattr(signal, "getitimer", lambda which: (1200.0, 0.0))
+    monkeypatch.setattr(signal, "getsignal", lambda which: prior_handler)
+    monkeypatch.setattr(signal, "signal", lambda which, handler: handlers.append(handler))
+    monkeypatch.setattr(
+        signal, "setitimer", lambda which, value, interval=0.0: timers.append((value, interval))
+    )
+
+    def synthetic_phase(output: Path, deadline: float, seconds: int) -> None:
+        assert deadline == 900 and seconds == 900
+        now[0] = 7.0
+
+    monkeypatch.setattr(docker_sources, "_alertmanager_module_phase", synthetic_phase)
+    docker_sources._qualify_alertmanager_modules(tmp_path)
+    assert timers == [(900, 0.0), (0, 0.0), (1193.0, 0.0)]
+    assert handlers[-1] is prior_handler
+
+
+def test_alertmanager_source_timer_restores_same_remaining_parent(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import signal
+
+    now = [0.0]
+    timers: list[tuple[float, float]] = []
+
+    def parent_handler(*args: object) -> None:
+        pass
+
+    handlers: list[object] = []
+    artifacts = docker_sources.load_manifest(
+        REPO_ROOT / "scripts/ci/docker_source_artifacts.json", artifact="alertmanager"
+    )
+    monkeypatch.setattr(docker_sources.time, "monotonic", lambda: now[0])
+    monkeypatch.setattr(signal, "getitimer", lambda which: (900.0, 0.0))
+    monkeypatch.setattr(signal, "getsignal", lambda which: parent_handler)
+    monkeypatch.setattr(signal, "signal", lambda which, handler: handlers.append(handler))
+    monkeypatch.setattr(
+        signal, "setitimer", lambda which, value, interval=0.0: timers.append((value, interval))
+    )
+
+    def synthetic_input(*args: object, **kwargs: object) -> None:
+        now[0] += 2.5
+
+    monkeypatch.setattr(docker_sources, "_write_verified_artifact", synthetic_input)
+    docker_sources._fetch_alertmanager_pair(artifacts, tmp_path, operation_deadline=900)
+    assert timers == [(300.0, 0.0), (0, 0.0), (895.0, 0.0)]
+    assert handlers[-1] is parent_handler
+
+
+def test_alertmanager_owned_go_tree_is_searchable_under_umask077_without_execution(
+    tmp_path: Path,
+) -> None:
+    import os
+    import time
+
+    toolchain = tmp_path / "alertmanager-go"
+    old_mask = os.umask(0o077)
+    try:
+        (toolchain / "bin").mkdir(parents=True, mode=0o755)
+        binary = toolchain / "bin/go"
+        binary.write_bytes(b"synthetic non-executed Go bytes")
+        binary.chmod(0o755)
+        (toolchain / "VERSION").write_bytes(b"synthetic")
+    finally:
+        os.umask(old_mask)
+    assert (toolchain / "bin").stat().st_mode & 0o777 == 0o700
+    binding = docker_sources._alertmanager_readonly_go(toolchain, time.monotonic() + 10)
+    assert all(row["mode"] == 0o555 for row in binding["after_directories"])
+    assert binary.stat().st_mode & 0o777 == 0o555
+    assert (toolchain / "VERSION").stat().st_mode & 0o777 == 0o444
+    assert binary.read_bytes() == b"synthetic non-executed Go bytes"
+
+
+def test_alertmanager_complete_artifact_inventory_includes_own_bytes_and_bounds(
+    tmp_path: Path,
+) -> None:
+    import time
+    from scripts.ci.prometheus_source_image import MAX_CACHE_BYTES
+
+    evidence = tmp_path / "small"
+    evidence.mkdir()
+    (evidence / "payload").write_bytes(b"bound actual evidence")
+    docker_sources._alertmanager_finalize_payload(evidence, time.monotonic() + 10)
+    inventory = json.loads((evidence / "artifact-payload-members.json").read_text())
+    assert inventory["files"][0]["path"] == "payload"
+    assert "Exactly artifact-payload-members.json" in inventory["inventory_carrier_exception"]
+    oversized = tmp_path / "oversized"
+    oversized.mkdir()
+    with (oversized / "payload").open("wb") as stream:
+        stream.truncate(MAX_CACHE_BYTES + 1)
+    with pytest.raises(RuntimeError, match="tree_size_bound"):
+        docker_sources._alertmanager_finalize_payload(oversized, time.monotonic() + 10)
+    assert not (oversized / "artifact-payload-members.json").exists()

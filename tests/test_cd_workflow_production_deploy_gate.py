@@ -487,13 +487,25 @@ def test_cd_has_no_prometheus_candidate_publication_carrier() -> None:
 
     dispatch = triggers["workflow_dispatch"]
     assert set(dispatch) == {"inputs"}
-    assert set(dispatch["inputs"]) == {"postgres_mode", "source_sha"}
+    assert set(dispatch["inputs"]) == {"postgres_mode", "source_sha", "alertmanager_mode"}
     assert dispatch["inputs"]["postgres_mode"]["options"] == [
         "disabled",
         "synthetic-probe",
         "reuse",
     ]
     assert dispatch["inputs"]["postgres_mode"]["default"] == "disabled"
+    assert dispatch["inputs"]["alertmanager_mode"]["default"] == "disabled"
+    assert dispatch["inputs"]["alertmanager_mode"]["options"] == [
+        "disabled",
+        "module-qualify",
+        "build",
+    ]
+    alert = jobs["alertmanager-module-qualification"]
+    assert "github.event_name == 'workflow_dispatch'" in alert["if"]
+    assert "github.run_attempt == 1" in alert["if"]
+    assert "github.repository == 'Katsiarynakavaleuskaya/PulsePlate'" in alert["if"]
+    assert alert["permissions"] == {"contents": "read", "actions": "read"}
+    assert 'test "$ALERTMANAGER_MODE" = module-qualify' in alert["steps"][0]["run"]
     assert "prometheus-grpc-candidate-publish" not in jobs
     assert workflow["permissions"] == {
         "actions": "read",

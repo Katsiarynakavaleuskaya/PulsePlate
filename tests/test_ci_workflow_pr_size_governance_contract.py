@@ -1153,7 +1153,7 @@ def test_all_active_checkout_uses_have_one_exact_v7_pin() -> None:
         ".github/workflows/security.yml",
         ".github/workflows/trivy.yml",
     }
-    assert len(observed_checkout_uses) == 86
+    assert len(observed_checkout_uses) == 87
     assert {path for path, _ in observed_checkout_uses} == expected_checkout_workflows
 
 

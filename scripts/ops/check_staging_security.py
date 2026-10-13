@@ -15,7 +15,7 @@ from pathlib import Path
 import re
 import shutil
 import stat
-import subprocess  # nosec B404: native mount/TLS/daemon recognizers have no safer bounded replacement (remove-by: 2026-10-12, ref: ledger-p1-native-cli-subprocess-review)
+import subprocess  # nosec B404: native mount/TLS/daemon recognizers have no safer bounded replacement (remove-by: 2026-10-20, ref: PR-2477)
 import sys
 from typing import cast
 from urllib.parse import parse_qsl, unquote, urlsplit
@@ -104,7 +104,7 @@ def _native(arguments: list[str]) -> str:
     binary = shutil.which(arguments[0])
     if binary is None:
         raise SecurityError(f"Required executable unavailable: {arguments[0]}")
-    result = subprocess.run(  # nosec B603: resolved OS/crypto argv, no shell, 30s timeout and fail-closed status (remove-by: 2026-10-12, ref: ledger-p1-native-cli-subprocess-review)
+    result = subprocess.run(  # nosec B603: resolved OS/crypto argv, no shell, 30s timeout and fail-closed status (remove-by: 2026-10-20, ref: PR-2477)
         [binary, *arguments[1:]], capture_output=True, text=True, check=False, timeout=30
     )
     if result.returncode:

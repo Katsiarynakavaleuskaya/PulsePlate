@@ -405,6 +405,58 @@
         "551a6ce7",
         "57a47898"
       ]
+    },
+    {
+      "name": "alertmanager-source",
+      "version": "73c6bfe7393929211294c1954f30d8ed78e4d0ad",
+      "filename": "alertmanager-73c6bfe7393929211294c1954f30d8ed78e4d0ad.tar.gz",
+      "url": "https://codeload.github.com/prometheus/alertmanager/tar.gz/73c6bfe7393929211294c1954f30d8ed78e4d0ad",
+      "sha3_256_parts": [
+        "91f2352a",
+        "99d986dd",
+        "c734f19f",
+        "0e082c7d",
+        "c24f7baf",
+        "31b22f89",
+        "d5b61c4b",
+        "4af32400"
+      ],
+      "sha256_parts": [
+        "5c5c72ec",
+        "6b4c4746",
+        "d523f2ed",
+        "1994dfec",
+        "4b94f745",
+        "7e530ee6",
+        "fb16cfec",
+        "158e545e"
+      ]
+    },
+    {
+      "name": "alertmanager-ui",
+      "version": "0.34.1",
+      "filename": "alertmanager-web-ui-0.34.1.tar.gz",
+      "url": "https://github.com/prometheus/alertmanager/releases/download/v0.34.1/alertmanager-web-ui-0.34.1.tar.gz",
+      "sha3_256_parts": [
+        "ba9042c8",
+        "7a601adb",
+        "24bef90c",
+        "cc2015fe",
+        "c88524f7",
+        "96eb63ed",
+        "c1d533f9",
+        "2f6ccdd1"
+      ],
+      "sha256_parts": [
+        "881fe0f7",
+        "beb9573f",
+        "35be47dd",
+        "233af622",
+        "0e72c8db",
+        "72c03bcd",
+        "1780402e",
+        "b8dc1307"
+      ]
     }
   ]
 }
