@@ -564,6 +564,129 @@ def test_ocw_finite_ignored_names_reject_before_native_provider_allocation(
     assert not list(output.iterdir())
 
 
+@pytest.mark.parametrize("change", ["protocol", "provider_hint"])
+def test_ocw_rubric_must_match_independent_current_canonical_bytes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    change: str,
+) -> None:
+    output = tmp_path / "output"
+    output.mkdir(mode=0o700)
+    rubric = tmp_path / "candidate.md"
+    body = RUBRIC.read_bytes() + (
+        b"\nModified assessment protocol.\n"
+        if change == "protocol"
+        else b"\nProvider identifying hint: sonar, sol.\n"
+    )
+    write_report(rubric, body)
+    provider_label = "synthetic-provider-value"
+    monkeypatch.setenv("PERPLEXITY_API_KEY", provider_label)
+    monkeypatch.setattr(collector, "validate_ocw_environment", lambda _key: None)
+    monkeypatch.setattr(collector, "ocw_request_preflight", lambda *_args: [])
+    monkeypatch.setattr(collector, "_code_sha", lambda: "a" * 40)
+
+    def forbidden(_ledger: Any) -> None:
+        pytest.fail("noncanonical rubric must reject before provider allocation")
+
+    monkeypatch.setattr(collector, "_ocw_http_client", forbidden)
+    with pytest.raises(ValueError, match="ocw_rubric_binding"):
+        collector.collect_ocw_comparison(
+            _ocw_rows(),
+            output_dir=output,
+            rubric=rubric,
+            pricing=_ocw_prices(),
+            fitchef_key="ocw-eval-synthetic",
+            perplexity_key=provider_label,
+            run_id="rubric-negative",
+        )
+    assert not list(output.iterdir())
+
+
+@pytest.mark.parametrize("arm", ["sonar", "sol"])
+@pytest.mark.parametrize("status", [200, 503])
+def test_native_outcome_bounds_expanded_usage_and_declared_cost_before_publication(
+    tmp_path: Path,
+    arm: str,
+    status: int,
+) -> None:
+    ledger = collector.AttemptLedger(tmp_path, comparison=True)
+    ledger.bind_case(arm, "OCW-N01", "synthetic prompt")
+    usage = {"cost": {"total_cost": 0.001, "padding": "x" * (256 * 1024 - 2000)}}
+    payload = {"model": collector._OCW_MODELS[arm], "usage": usage}
+    body = collector._canonical(payload)
+    assert len(body) <= collector._OCW_RESPONSE_BYTES
+
+    async def run() -> None:
+        await ledger.reserve(_ocw_request(arm))
+        with pytest.raises(ValueError):
+            await ledger.observe_http(
+                httpx.Response(status, request=_ocw_request(arm), content=body)
+            )
+        with pytest.raises(collector.BudgetExhausted):
+            await ledger.reserve(_ocw_request(arm))
+
+    asyncio.run(run())
+    native = read_jsonl(tmp_path / "attempt-result-0001.json")[0]
+    assert native["status_code"] == status and native["cost_status"] == "unknown"
+    assert native["outcome_material_status"] == "omitted_native_line_limit"
+    assert native["outcome_content_bytes"] > 256 * 1024
+    assert native["outcome_material_sha256"].startswith("sha256:")
+    assert ledger.retryable is False and ledger.attempts == 1
+
+
+def test_native_outcome_omission_preserves_publication_failure_and_prior_cost_latch(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ledger = collector.AttemptLedger(tmp_path, comparison=True)
+    ledger.bind_case("sonar", "OCW-N01", "synthetic prompt")
+    usage = {"cost": {"total_cost": 0.16, "currency": "USD", "padding": "x" * (256 * 1024 - 2000)}}
+    body = collector._canonical({"usage": usage})
+    assert len(body) <= collector._OCW_RESPONSE_BYTES
+    original = collector.write_report
+    failure = OSError("synthetic original publication failure")
+
+    def publish(path: Path, data: bytes) -> None:
+        original(path, data)
+        if path.name.startswith("attempt-result-"):
+            raise failure
+
+    monkeypatch.setattr(collector, "write_report", publish)
+
+    async def run() -> None:
+        await ledger.reserve(_ocw_request("sonar"))
+        with pytest.raises(OSError) as raised:
+            await ledger.observe_http(
+                httpx.Response(503, request=_ocw_request("sonar"), content=body)
+            )
+        assert raised.value is failure
+        with pytest.raises(collector.BudgetExhausted):
+            await ledger.reserve(_ocw_request("sonar"))
+
+    asyncio.run(run())
+    native = read_jsonl(tmp_path / "attempt-result-0001.json")[0]
+    assert native["outcome_material_status"] == "omitted_native_line_limit"
+    assert native["cost_status"] == "unknown" and ledger.reported_overrun_usd == 0.16
+    assert ledger.retryable is False and ledger.attempts == 1
+
+
+def test_native_outcome_keeps_bounded_unknown_provider_metadata(tmp_path: Path) -> None:
+    ledger = collector.AttemptLedger(tmp_path, comparison=True)
+    ledger.bind_case("sol", "OCW-N01", "synthetic prompt")
+    usage = {"cost": {"total_cost": 0.001, "padding": "small"}, "unknown_usage": {"captured": True}}
+
+    async def run() -> None:
+        await ledger.reserve(_ocw_request("sol"))
+        await ledger.observe_http(
+            httpx.Response(200, request=_ocw_request("sol"), json={"usage": usage})
+        )
+
+    asyncio.run(run())
+    native = read_jsonl(tmp_path / "attempt-result-0001.json")[0]
+    assert native["usage"] == usage and native["provider_declared_cost"] == usage["cost"]
+    assert "outcome_material_status" not in native
+
+
 @pytest.mark.parametrize("published", [False, True])
 @pytest.mark.parametrize("kind", ["connection", "timeout", "cancel"])
 def test_postopen_outcome_publication_preserves_primary_and_blocks_retry(

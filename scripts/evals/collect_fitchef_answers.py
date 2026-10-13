@@ -939,8 +939,39 @@ class AttemptLedger:
     def _retain_ocw_http_outcome(self, native: dict[str, Any]) -> None:
         """Keep observed header/body admission facts even when the body is rejected."""
         self.http_observations.append(native)
-        encoded = _canonical(native) + b"\n"
-        self.require_secret_free(encoded)
+        content = _canonical(native)
+        self.require_secret_free(content)
+        if len(content) > MAX_LINE_BYTES:
+            # The response bound does not bound duplicated usage/cost metadata
+            # inside this envelope. Keep a readable terminal omission receipt.
+            summary: dict[str, Any] = {
+                key: native[key]
+                for key in (
+                    "attempt",
+                    "arm",
+                    "case_id",
+                    "requested_model",
+                    "endpoint",
+                    "status_code",
+                )
+                if key in native
+            }
+            summary.update(
+                returned_model=None,
+                usage=None,
+                cost_usd=None,
+                cost_status="unknown",
+                raw_assistant_text=None,
+                outcome_material_status="omitted_native_line_limit",
+                outcome_content_bytes=len(content),
+                outcome_material_sha256="sha256:" + hashlib.sha256(content).hexdigest(),
+            )
+            native.clear()
+            native.update(summary)
+            self.terminal_reason = self.terminal_reason or "outcome_limit"
+            self.retryable = False
+            content = _canonical(native)
+        encoded = content + b"\n"
         try:
             write_report(self.directory / f"attempt-result-{self.attempts:04d}.json", encoded)
         except BaseException:
@@ -2518,8 +2549,11 @@ def collect_ocw_comparison(
     from scripts.evals.evidence_relation_audit import _read_input
 
     rubric_bytes = _read_input(rubric)
-    if b"# FitChef Claim Evidence Eval v1" not in rubric_bytes[:100]:
-        raise ValueError("rubric_shape")
+    canonical_rubric = (
+        Path(__file__).resolve().parents[2] / "docs/evals/FITCHEF_CLAIM_EVIDENCE_EVAL_V1.md"
+    )
+    if rubric_bytes != _read_input(canonical_rubric):
+        raise ValueError("ocw_rubric_binding")
     run: dict[str, Any] = {
         "id": run_id,
         "code_sha": code_sha,

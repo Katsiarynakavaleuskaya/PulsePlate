@@ -5822,6 +5822,44 @@ def test_ocw_safe_output_does_not_follow_or_replace_destination(
     assert "ocw_evidence" in json.loads(output.read_bytes())
 
 
+def test_ocw_source_budget_is_independent_of_delegated_whole_report_limit(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    sources = tuple(f"large-source-{i}.md" for i in range(4))
+    packet = _write_exact_dispatch_fixture(tmp_path, monkeypatch, required_context=sources)
+    for source in sources:
+        (tmp_path / source).write_text(
+            '"' * (context_bundle.MAX_SOURCE_BYTES - 16384), encoding="utf-8"
+        )
+    evidence, invocation = _write_ocw_inputs(
+        tmp_path, "deliberately-not-authenticated-by-exact-context"
+    )
+    args = [
+        "--packet",
+        str(packet),
+        "--role-context-order",
+        "1",
+        "--ocw-evidence",
+        str(evidence),
+        "--ocw-invocation",
+        str(invocation),
+    ]
+    assert qoder_dispatch_bridge.main(args) == 0
+    emitted = capsys.readouterr().out
+    assert len(emitted.encode()) > 8 * 1024 * 1024
+    parsed = json.loads(emitted)
+    assert parsed["role_context"]["complete"] is True
+    private = tmp_path / "private"
+    private.mkdir(mode=0o700)
+    output = private / "role.json"
+    assert qoder_dispatch_bridge.main([*args, "--output", str(output)]) == 1
+    rejected = capsys.readouterr()
+    assert rejected.out == "" and "OCW output rejected" in rejected.err
+    assert not list(private.iterdir())
+
+
 @pytest.mark.parametrize(
     "failure", ["row_count", "packet_binding", "input_shape", "snapshot_type", "overflow"]
 )
