@@ -624,10 +624,10 @@ def _alertmanager_members(
                 "linkname": member.linkname,
             }
             if member.isfile():
-                stream = archive.extractfile(member)
-                if stream is None:
+                member_stream = archive.extractfile(member)
+                if member_stream is None:
                     raise RuntimeError("Alertmanager member is missing.")
-                data = stream.read(member.size + 1)
+                data = member_stream.read(member.size + 1)
                 if len(data) != member.size:
                     raise RuntimeError("Alertmanager member is truncated.")
                 import hashlib
@@ -1259,7 +1259,7 @@ def _qualify_alertmanager_modules(output: Path) -> None:
             signal.setitimer(signal.ITIMER_REAL, remaining, saved_timer[1])
 
 
-def _alertmanager_readonly_go(toolchain: Path, deadline: float) -> dict[str, object]:
+def _alertmanager_readonly_go(toolchain: Path, deadline: float) -> dict[str, list[dict[str, Any]]]:
     """Only the fresh byte-validated Go extraction, including searchable directories."""
     from scripts.ci.prometheus_source_image import tree_inventory, check_deadline
 
@@ -1449,7 +1449,7 @@ def _alertmanager_module_phase(output: Path, deadline: float, seconds: int) -> N
                 before_locks = {name: (source / name).read_bytes() for name in original_locks}
                 if nonlocks() != frozen_source or file_hash(go_archive, deadline) != GO.digest:
                     raise RuntimeError("Alertmanager source/tool drift before metadata command.")
-                raw = native.run(
+                raw: bytes = native.run(
                     [str(go), *args], "replay" + str(number) + "-" + label, env, cwd=source
                 )
                 if nonlocks() != frozen_source or (
