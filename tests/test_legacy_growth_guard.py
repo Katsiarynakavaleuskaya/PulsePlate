@@ -1694,6 +1694,29 @@ def test_metadata_alias_guard_allows_unrelated_and_local_bindings() -> None:
     assert legacy_guard.validate_retired_legacy_python_bindings(sources[0]) == []
 
 
+def test_metadata_alias_omission_fails_aggregate_guard(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Require the aggregate consumer to reject one missing alias after a clean baseline."""
+    assert legacy_guard.validate_repo(REPO_ROOT) == []
+    original_read = legacy_guard._read
+    alias_line = "_application_metadata = APPLICATION_METADATA\n"
+
+    def read_without_metadata_alias(path: Path, repo_root: Path, errors: list[str]) -> str | None:
+        """Remove exactly one canonical alias from only the legacy-source observation."""
+        source = original_read(path, repo_root, errors)
+        if path == REPO_ROOT / "legacy_app.py" and source is not None:
+            assert source.count(alias_line) == 1
+            changed = source.replace(alias_line, "", 1)
+            assert alias_line not in changed
+            return changed
+        return source
+
+    with monkeypatch.context() as isolated_patch:
+        isolated_patch.setattr(legacy_guard, "_read", read_without_metadata_alias)
+        assert legacy_guard.validate_repo(REPO_ROOT) == [
+            "legacy_app.py: canonical bootstrap metadata import/alias contract is required"
+        ]
+
+
 def test_metadata_openapi_ownership_guard_fails_closed_on_syntax_error() -> None:
     sources = list(_openapi_ownership_sources())
     sources[2] = "def broken(:\n"
