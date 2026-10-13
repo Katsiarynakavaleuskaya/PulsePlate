@@ -309,7 +309,13 @@ def test_postopen_same_output_claim_loser_publishes_nothing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("PERPLEXITY_API_KEY", "synthetic-provider-key")
-    monkeypatch.setattr(collector, "validate_ocw_environment", lambda _key, **_kwargs: None)
+    monkeypatch.setattr(
+        collector,
+        "validate_ocw_environment",
+        lambda _key, **_kwargs: Path(os.environ["AGENT_CONTROL_AUDIT_LOG_PATH"]).with_name(
+            "quota.sqlite"
+        ),
+    )
     winner = b'{"id":"independently-admitted-winner"}\n'
 
     def competing_claim() -> str:
@@ -545,6 +551,43 @@ def test_malformed_escaped_credential_body_is_omitted_with_bounded_status_retry(
         assert native["raw_error_body_bytes"] == len(body)
 
 
+@pytest.mark.parametrize("arm", ["sonar", "sol"])
+@pytest.mark.parametrize("status", [200, 503])
+@pytest.mark.parametrize(
+    "body",
+    [
+        b'{"usage":{"prompt_tokens":34817},"usage":{"prompt_tokens":1}}',
+        b'{"usage":{"cost":{"total_cost":0.16},"cost":{"total_cost":0.01}}}',
+        b'{"usage":{"cost":{"total_cost":0.16,"total_cost":0.01}}}',
+        b'{"choices":[],"choices":[{"message":{"content":"synthetic"}}]}',
+        b'{"output":[],"output":[{"type":"message","role":"assistant","content":[]}]}',
+    ],
+)
+def test_duplicate_provider_keys_are_terminal_before_sdk_or_next_send(
+    tmp_path: Path, arm: str, status: int, body: bytes
+) -> None:
+    ledger = collector.AttemptLedger(tmp_path, comparison=True)
+    ledger.bind_case(arm, "OCW-N01", "synthetic prompt")
+
+    async def run() -> None:
+        await ledger.reserve(_ocw_request(arm))
+        with pytest.raises(ValueError):
+            await ledger.observe_http(
+                httpx.Response(status, request=_ocw_request(arm), content=body)
+            )
+        with pytest.raises(collector.BudgetExhausted):
+            await ledger.reserve(_ocw_request(arm))
+
+    asyncio.run(run())
+    native = read_jsonl(tmp_path / "attempt-result-0001.json")[0]
+    assert isinstance(native, dict)
+    assert native["status_code"] == status and native["cost_status"] == "unknown"
+    assert native["usage"] is None and native["raw_assistant_text"] is None
+    assert native["raw_error_body_sha256"] == "sha256:" + hashlib.sha256(body).hexdigest()
+    assert native["raw_error_body_bytes"] == len(body) and "raw_error_body_base64" not in native
+    assert ledger.retryable is False and ledger.attempts == 1
+
+
 @pytest.mark.parametrize("explicit_names", [False, True])
 def test_output_admission_requires_directory_ignore_for_random_staging(
     tmp_path: Path,
@@ -600,7 +643,13 @@ def test_ocw_finite_ignored_names_reject_before_native_provider_allocation(
     monkeypatch.chdir(repo)
     monkeypatch.setenv("PERPLEXITY_API_KEY", "synthetic-provider-value")
     monkeypatch.setattr(collector, "ocw_request_preflight", lambda *_args: [])
-    monkeypatch.setattr(collector, "validate_ocw_environment", lambda _key, **_kwargs: None)
+    monkeypatch.setattr(
+        collector,
+        "validate_ocw_environment",
+        lambda _key, **_kwargs: Path(os.environ["AGENT_CONTROL_AUDIT_LOG_PATH"]).with_name(
+            "quota.sqlite"
+        ),
+    )
 
     def no_provider(_ledger: Any) -> None:
         pytest.fail("unsafe output must be rejected before native provider allocation")
@@ -636,7 +685,13 @@ def test_ocw_rubric_must_match_independent_current_canonical_bytes(
     write_report(rubric, body)
     provider_label = "synthetic-provider-value"
     monkeypatch.setenv("PERPLEXITY_API_KEY", provider_label)
-    monkeypatch.setattr(collector, "validate_ocw_environment", lambda _key, **_kwargs: None)
+    monkeypatch.setattr(
+        collector,
+        "validate_ocw_environment",
+        lambda _key, **_kwargs: Path(os.environ["AGENT_CONTROL_AUDIT_LOG_PATH"]).with_name(
+            "quota.sqlite"
+        ),
+    )
     monkeypatch.setattr(collector, "ocw_request_preflight", lambda *_args: [])
     monkeypatch.setattr(collector, "_code_sha", lambda: "a" * 40)
 
@@ -1335,7 +1390,13 @@ def test_ocw_collection_rejects_unadmitted_current_inputs_before_transport(
     failure: str,
 ) -> None:
     monkeypatch.setenv("PERPLEXITY_API_KEY", "synthetic-provider")
-    monkeypatch.setattr(collector, "validate_ocw_environment", lambda _key, **_kwargs: None)
+    monkeypatch.setattr(
+        collector,
+        "validate_ocw_environment",
+        lambda _key, **_kwargs: Path(os.environ["AGENT_CONTROL_AUDIT_LOG_PATH"]).with_name(
+            "quota.sqlite"
+        ),
+    )
     monkeypatch.setattr(collector, "_code_sha", lambda: "a" * 40)
     output = tmp_path / "capture"
     output.mkdir(mode=0o700)
@@ -1707,7 +1768,13 @@ def test_ocw_initial_publication_failure_keeps_primary_and_sends_nothing(
     published: bool,
 ) -> None:
     monkeypatch.setenv("PERPLEXITY_API_KEY", "synthetic-provider-key")
-    monkeypatch.setattr(collector, "validate_ocw_environment", lambda _key, **_kwargs: None)
+    monkeypatch.setattr(
+        collector,
+        "validate_ocw_environment",
+        lambda _key, **_kwargs: Path(os.environ["AGENT_CONTROL_AUDIT_LOG_PATH"]).with_name(
+            "quota.sqlite"
+        ),
+    )
     monkeypatch.setattr(collector, "_code_sha", lambda: "a" * 40)
     real_write = collector.write_report
     failure = OSError("synthetic first publication failure")
@@ -1748,7 +1815,13 @@ def test_ocw_status_failure_cannot_mask_first_failure(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("PERPLEXITY_API_KEY", "synthetic-provider-key")
-    monkeypatch.setattr(collector, "validate_ocw_environment", lambda _key, **_kwargs: None)
+    monkeypatch.setattr(
+        collector,
+        "validate_ocw_environment",
+        lambda _key, **_kwargs: Path(os.environ["AGENT_CONTROL_AUDIT_LOG_PATH"]).with_name(
+            "quota.sqlite"
+        ),
+    )
     monkeypatch.setattr(collector, "_code_sha", lambda: "a" * 40)
     failure = OSError("synthetic primary failure")
     real_write = collector.write_report
@@ -1903,6 +1976,11 @@ def test_ocw_response_publication_and_cleanup_cannot_mask_original_failure(
         "legacy-audit-existing",
         "audit-signing-whitespace",
         "pacing-final-rubric-mutation",
+        "provider-final-rubric-drift",
+        "database-audit-alias",
+        "capture-reentry",
+        "capture-reentry-rotated",
+        "capture-claim-uncertain",
     ],
 )
 def test_ocw_actual_canonical_post_mock_capture_preserves_limiter_and_blind_material(
@@ -2002,6 +2080,8 @@ with patch.dict(os.environ, {
         environment_changes['DATABASE_URL']=str(make_url('sqlite:///'+str(copied)))
     elif outcome=='quota-refusal': environment_changes['VIP_LLM_INSIGHT_REQUESTS_PER_MONTH']='15'
     elif outcome=='audit-signing-whitespace': environment_changes['AGENT_CONTROL_AUDIT_SIGNING_KEY']=' \t\r\n '
+    elif outcome=='database-audit-alias':
+        audit=db; database_before=db.read_bytes(); environment_changes['AGENT_CONTROL_AUDIT_LOG_PATH']=str(audit)
     if outcome.startswith('legacy-audit'):
         vip_label='noos-eval-synthetic-pro'
         environment_changes.update(PRO_API_KEYS=vip_label,PRO_LLM_INSIGHT_REQUESTS_PER_MONTH='100',
@@ -2028,6 +2108,8 @@ with patch.dict(os.environ, {
     async def response(request):
         assert not any(name in request.headers for name in ('OpenAI-Organization','OpenAI-Project','Cookie'))
         body=json.loads(request.content); sends.append(body)
+        if outcome=='provider-final-rubric-drift' and len(sends)==16:
+            Path(sys.argv[3]).write_text('tampered during final provider call\n')
         if outcome in ('audit-missing-022','audit-missing-077','audit-existing','legacy-audit-missing-022','legacy-audit-existing'):
             if len(sends)==1:
                 print(json.dumps({'observed_audit_mode':oct(audit.stat().st_mode&0o777),'first_mock_send':1}))
@@ -2089,6 +2171,8 @@ with patch.dict(os.environ, {
             changed=json.loads(data); changed['run']['id']='foreign-run'
             data=collector._canonical(changed)+b'\n'
         native_write(path,data)
+        if path.name=='quota.db.run.jsonl' and outcome=='capture-claim-uncertain':
+            raise OSError('synthetic capture claim acknowledgement failure')
         if path.name=='inputs.jsonl' and outcome=='audit-race':
             audit.write_bytes(b'raced-private-audit\n'); audit.chmod(0o644)
         if path.name=='case-sonar-OCW-N01.jsonl' and outcome=='run-changed':
@@ -2147,7 +2231,50 @@ with patch.dict(os.environ, {
             collector.collect_ocw_comparison(rows,output_dir=output,rubric=Path(sys.argv[3]),
                 pricing=prices,fitchef_key=vip_label,
                 perplexity_key=provider_label,run_id='mock-observed-route')
+            if outcome.startswith('capture-reentry'):
+                first_run=(output/'run.jsonl').read_bytes(); before_sends=len(sends); before_preflight=preflight_calls
+                claim=db.with_name(db.name+'.run.jsonl')
+                second=private/'other-output'; second.mkdir(mode=0o700)
+                next_label='rotated-synthetic-provider' if outcome.endswith('rotated') else provider_label
+                with patch.dict(os.environ,{'PERPLEXITY_API_KEY':next_label}):
+                    try:
+                        collector.collect_ocw_comparison(rows,output_dir=second,rubric=Path(sys.argv[3]),
+                            pricing=prices,fitchef_key=vip_label,perplexity_key=next_label,
+                            run_id='another-run-id' if outcome.endswith('rotated') else 'mock-observed-route')
+                    except ValueError as second_error:
+                        assert str(second_error)=='ocw_capture_already_claimed',str(second_error)
+                    else: raise AssertionError('capture identity replenished:'+str(len(sends)))
+                assert len(sends)==before_sends==16 and preflight_calls==before_preflight
+                assert claim.read_bytes()==first_run and (output/'run.jsonl').read_bytes()==first_run
+                assert not list(second.iterdir())
+                print(json.dumps({'terminal_outcome':outcome,'sdk_requests':16}));sys.exit(0)
         except BaseException as error:
+            if outcome=='capture-claim-uncertain':
+                assert isinstance(error,OSError) and str(error)=='synthetic capture claim acknowledgement failure'
+                claim=db.with_name(db.name+'.run.jsonl'); first_claim=claim.read_bytes()
+                assert not sends and not list(output.iterdir())
+                second=private/'after-uncertain'; second.mkdir(mode=0o700); before_preflight=preflight_calls
+                try:
+                    collector.collect_ocw_comparison(rows,output_dir=second,rubric=Path(sys.argv[3]),
+                        pricing=prices,fitchef_key=vip_label,perplexity_key=provider_label,run_id='new-id')
+                except ValueError as retry_error: assert str(retry_error)=='ocw_capture_already_claimed'
+                else: raise AssertionError('uncertain claim allowed another capture')
+                assert claim.read_bytes()==first_claim and preflight_calls==before_preflight
+                assert not sends and not list(second.iterdir())
+                print(json.dumps({'terminal_outcome':outcome,'sdk_requests':0}));sys.exit(0)
+            if outcome=='provider-final-rubric-drift':
+                assert isinstance(error,ValueError) and str(error)=='code_changed_during_collection'
+                status=read_jsonl(output/'comparison-status.json')[0]
+                assert len(sends)==status['reserved_attempts']==status['observed_http_outcomes']==16
+                assert len(status['completed'])==15 and status['missing']==[['OCW-N08','sol']]
+                assert (output/'attempt-result-0016.json').exists()
+                assert not (output/'case-sol-OCW-N08.jsonl').exists() and not (output/'comparison.jsonl').exists()
+                print(json.dumps({'terminal_outcome':outcome,'sdk_requests':16}));sys.exit(0)
+            if outcome=='database-audit-alias':
+                assert isinstance(error,ValueError) and str(error)=='ocw_runtime_state_alias'
+                assert not sends and preflight_calls==0 and db.read_bytes()==database_before
+                assert not (output/'run.jsonl').exists()
+                print(json.dumps({'terminal_outcome':outcome,'sdk_requests':0}));sys.exit(0)
             if outcome=='pacing-final-rubric-mutation':
                 assert isinstance(error,ValueError) and str(error)=='code_changed_during_collection'
                 assert len(sends)==15,len(sends)
@@ -2335,7 +2462,7 @@ with patch.dict(os.environ, {
     )
     child_data_path = tmp_path / "native-route.coverage"
     capture_rubric = RUBRIC
-    if outcome == "pacing-final-rubric-mutation":
+    if outcome in ("pacing-final-rubric-mutation", "provider-final-rubric-drift"):
         capture_rubric = tmp_path / "private-rubric.md"
         write_report(capture_rubric, RUBRIC.read_bytes())
     legacy_manifest_path = tmp_path / "legacy-inputs.jsonl"

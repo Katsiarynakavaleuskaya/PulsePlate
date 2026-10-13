@@ -61,9 +61,12 @@ from core.rag.contracts import RAGChunk, RAGContext
 from providers.perplexity import PerplexityProvider
 from scripts.evals.evidence_relation_audit import (
     MAX_LINE_BYTES,
+    _JsonlPolicyError,
     _check_depth,
     _parent_fd,
     _read_input,
+    _reject_constant,
+    _unique_pairs,
     read_jsonl,
     write_report,
 )
@@ -816,14 +819,19 @@ class AttemptLedger:
         response._content = b"".join(chunks)
         payload: dict[str, Any] | None = None
         try:
-            decoded = response.json()
+            decoded = json.loads(
+                response.content, object_pairs_hook=_unique_pairs, parse_constant=_reject_constant
+            )
             if type(decoded) is not dict:
                 raise ValueError("ocw_response_shape")
             payload = decoded
-        except (ValueError, TypeError, RecursionError):
+        except (ValueError, TypeError, RecursionError) as error:
             # Only native transient Sonar status can admit a retry of an
             # undecodable error body. Accounting admission remains terminal.
-            if not (self.arm == "sonar" and response.status_code in {408, 429, 500, 502, 503, 504}):
+            policy_rejected = isinstance(error, _JsonlPolicyError)
+            if policy_rejected or not (
+                self.arm == "sonar" and response.status_code in {408, 429, 500, 502, 503, 504}
+            ):
                 self.terminal_reason = self.terminal_reason or "response_admission"
             native["raw_error_body_sha256"] = (
                 "sha256:" + hashlib.sha256(response.content).hexdigest()
@@ -838,7 +846,11 @@ class AttemptLedger:
             else:
                 # Undecodable bodies may contain escaped credentials. Keep only
                 # the already captured hash/count; typed status still owns retries.
-                native["raw_error_body_status"] = "omitted_invalid_json"
+                native["raw_error_body_status"] = (
+                    "omitted_noncanonical_metadata"
+                    if policy_rejected and error.args == ("json_constant",)
+                    else "omitted_invalid_json"
+                )
         try:
             if payload is not None:
                 try:
@@ -1696,7 +1708,7 @@ async def collect(
         await provider.client.close()
 
 
-def validate_ocw_environment(fitchef_key: str, *, output_dir: Path | None = None) -> None:
+def validate_ocw_environment(fitchef_key: str, *, output_dir: Path | None = None) -> Path:
     """Require private synthetic VIP state; do not bypass native route admission."""
     if (
         os.getenv("APP_ENV") != "development"
@@ -1729,6 +1741,8 @@ def validate_ocw_environment(fitchef_key: str, *, output_dir: Path | None = None
     if not audit:
         raise ValueError("ocw_audit_configuration")
     audit_path = Path(audit)
+    if database_path.resolve() == audit_path.resolve():
+        raise ValueError("ocw_runtime_state_alias")
     if output_dir is not None:
         capture_root = output_dir.resolve()
         if any(path.resolve().is_relative_to(capture_root) for path in (database_path, audit_path)):
@@ -1771,6 +1785,7 @@ def validate_ocw_environment(fitchef_key: str, *, output_dir: Path | None = None
         is not rate_limit.limiter
     ):
         raise ValueError("ocw_active_limiter_required")
+    return database_path
 
 
 def _ocw_http_client(ledger: AttemptLedger) -> httpx.AsyncClient:
@@ -2556,8 +2571,20 @@ def collect_ocw_comparison(
         raise ValueError("ocw_provider_configuration")
     prices = validate_ocw_pricing(pricing)
     pricing = copy.deepcopy(pricing)
-    validate_ocw_environment(fitchef_key, output_dir=output_dir)
+    state_path = validate_ocw_environment(fitchef_key, output_dir=output_dir).resolve()
     audit_path = Path(os.getenv("AGENT_CONTROL_AUDIT_LOG_PATH", ""))
+    claim_path = state_path.with_name(state_path.name + ".run.jsonl")
+    if claim_path == audit_path.resolve():
+        raise ValueError("ocw_runtime_state_alias")
+    _private_parent(claim_path)
+    _validate_output_directory(state_path.parent, generated_names=[claim_path.name])
+    try:
+        _read_input(claim_path)
+    except ValueError as error:
+        if not isinstance(error.__cause__, FileNotFoundError):
+            raise
+    else:
+        raise ValueError("ocw_capture_already_claimed")
     preflight = ocw_request_preflight(cast(list[object], rows), pricing)
     names = (
         [f"attempt-{i:04d}.json" for i in range(1, 33)]
@@ -2698,6 +2725,12 @@ def collect_ocw_comparison(
 
     # Successful no-replace publication claims this exact output cooperatively.
     # A loser (including unacknowledged claim publication) owns no status writes.
+    # This existing carrier claims one capture for the admitted isolated state,
+    # independent of output/key/run ID. No replace, resume or budget reset.
+    ledger.require_secret_free(run_bytes)
+    write_report(claim_path, run_bytes)
+    if _read_input(claim_path) != run_bytes:
+        raise ValueError("ocw_capture_claim_readback")
     publish("run.jsonl", run_bytes)
     try:
         for name, data in (
@@ -2751,6 +2784,12 @@ def collect_ocw_comparison(
                             ledger=ledger,
                             run=run,
                         )
+                        if (
+                            _code_sha() != code_sha
+                            or _ocw_code_hashes() != code_hashes
+                            or _read_input(rubric) != rubric_bytes
+                        ):
+                            raise ValueError("code_changed_during_collection")
                         record_bytes = _canonical(record) + b"\n"
                         expected_cases[(scenario["canonical_id"], arm)] = record_bytes
                         publish(f"case-{arm}-{scenario['canonical_id']}.jsonl", record_bytes)
