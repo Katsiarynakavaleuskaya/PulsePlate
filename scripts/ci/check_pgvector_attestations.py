@@ -12,7 +12,7 @@ import os
 from pathlib import Path
 import re
 import shutil
-import subprocess  # nosec B404: native Git owns tracked-tree semantics; no safer bounded replacement (remove-by: 2026-10-12, ref: ledger-p1-native-cli-subprocess-review)
+import subprocess  # nosec B404: native Git owns tracked-tree semantics; no safer bounded replacement (remove-by: 2026-10-27, ref: PR-2486)
 import sys
 import tempfile
 
@@ -441,7 +441,7 @@ def git_output(args: list[str]) -> bytes:
     binary = shutil.which("git")
     if binary is None:
         raise ValueError("Git required")
-    return subprocess.run(  # nosec B603: absolute Git argv, disabled replacement objects, no shell and bounded timeout (remove-by: 2026-10-12, ref: ledger-p1-native-cli-subprocess-review)
+    return subprocess.run(  # nosec B603: absolute Git argv, disabled replacement objects, no shell and bounded timeout (remove-by: 2026-10-27, ref: PR-2486)
         [binary, "--no-replace-objects", *args], check=True, capture_output=True, timeout=120
     ).stdout
 

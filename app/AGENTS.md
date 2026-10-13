@@ -406,6 +406,19 @@ Avoid `# type: ignore[no-any-return]` and prefer typed locals over `cast()`.
   values immutable and create fresh nested dict/list constructor inputs for each
   FastAPI instance. The application bootstrap resolves the runtime environment
   and builds metadata once; compatibility modules alias that value.
+- The Legacy ownership guard requires the current direct same-name
+  `APPLICATION_METADATA` import from `app.bootstrap.application`, followed by
+  the ordinary `_application_metadata = APPLICATION_METADATA` assignment.
+  Unsupported alias shapes require reviewed rescope; this bounded source
+  contract does not certify arbitrary runtime identity or dynamic namespace
+  mutation.
+- The legacy Python re-exports `build_application_metadata`,
+  `ENHANCED_PLATE_GENERATION_FAILED_DETAIL`, and
+  `INVALID_PREMIUM_PLATE_INPUT_DETAIL` are retired. Import the factory from
+  `app.application_metadata` and both exact error strings from
+  `app.http_error_details`. Bootstrap metadata values remain canonical; do not
+  restore these three legacy bindings or wrappers. Fresh-import evidence does
+  not establish external/computed-caller or hot-reload absence.
 - Public-path filtering, schema-reference pruning, and the custom OpenAPI builder
   belong in `app/bootstrap/openapi.py`. The seven former OpenAPI helper Python
   re-exports are retired from `legacy_app.py`; callers use the canonical module.

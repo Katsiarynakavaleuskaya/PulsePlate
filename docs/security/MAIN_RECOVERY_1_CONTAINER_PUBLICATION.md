@@ -437,14 +437,61 @@ Each uses an absolute resolved executable, argv without shell interpretation
 and a bounded timeout; the Git path disables replacement objects, while native
 runtime errors redact sensitive diagnostics.
 
-Exactly these six sites have rule-specific inline dispositions through
+Historically, these six sites had rule-specific inline dispositions through
 2026-10-12 under the existing no-safe-code-fix policy. No scanner configuration,
 severity or path allowlist changes. Native executable and caller argument trust
 remain review obligations; shell avoidance does not establish tool semantics
 or signature validity. The
 [bounded follow-up](../roadmap/BACKLOG_LEDGER.md#ledger-p1-native-cli-subprocess-review)
-requires reassessment before expiry. Actual all-files hook and nosec/absolute
-binary guards remain required evidence.
+required reassessment before expiry. That October 12 deadline was missed;
+the October 13 reassessment cannot satisfy it retroactively.
+
+On October 13, 2026, the human owner explicitly accepted the prospective
+eight-site temporary risk decision in PR #2486 after complete backend and
+independent security review. It retains four B404 imports and four B603 calls,
+including the newly assessed scheduler pair absent from the historical six-site
+review. Only the eight existing comment dates/references change; the four Python
+ASTs, scanner configuration, severity, hooks and path allowlists remain unchanged.
+
+- `scripts/ci/check_pgvector_attestations.py:15` (B404) and
+  `scripts/ci/check_pgvector_attestations.py:444` (B603): native Git tracked-tree
+  operations with replacement objects disabled; official verification delegates
+  to gh.
+- `scripts/ci/check_scheduler_worker_runtime.py:14` (B404) and
+  `scripts/ci/check_scheduler_worker_runtime.py:73` (B603): owned disposable Docker
+  smoke, absolute argv, shell=False, streamed 1 MiB bound, deadline and reaping.
+- `scripts/ci/check_staging_postgres_runtime.py:17` (B404) and
+  `scripts/ci/check_staging_postgres_runtime.py:59` (B603): actual
+  Docker/Compose/OpenSSL/PostgreSQL and selected backup/restore wrappers, binary
+  stdin, finite timeout and redacted diagnostics.
+- `scripts/ops/check_staging_security.py:18` (B404) and
+  `scripts/ops/check_staging_security.py:107` (B603): native mount/device/TLS/Docker/
+  systemd checks, fixed or validated current argv and status-only failures.
+
+The decision owner is @katsiaryna_kavaleuskaya with security-auditor. Review all
+eight sites and alternatives by **2026-10-20**; hard remove-by is **2026-10-27**,
+with each inline reference **PR-2486**. No automatic renewal or future exception
+authority follows. Remove a disposition when a demonstrated safer bounded
+equivalent or retirement of its native execution requirement exists; any new
+decision must be separately scoped and explicitly accepted before expiry.
+
+The reviewed claim concerns current tracked literal callers only. Trusted tool
+installation/PATH, inherited host environment and Docker context, Git/native
+option semantics and selected script/image trust remain residual risks. The
+scheduler alone bounds output while streaming; the other three adapters buffer
+output before downstream checks despite finite timeouts. Synthetic container
+inputs do not isolate the trusted host process, and no arbitrary future,
+computed or external caller safety is established.
+
+Reassess immediately on source/caller/argv/environment/tool/context drift, new
+blocking findings, scanner errors or absent positive target metrics, or failed
+gates. Deleting the comments exposed eight LOW findings and failed the unchanged
+all-severity hook; a HIGH-only result could not replace that failure. Private
+candidate validation with the same rules recognizes eight documented
+dispositions, not a no-findings result or current repository gate evidence.
+Actual all-files hook, nosec/absolute-binary guards, focused tests and fresh
+current-head CI/coverage/closeout remain required. This risk decision grants no
+merge, publication, deployment or host-operation authority.
 
 ## Outcome and authority
 
