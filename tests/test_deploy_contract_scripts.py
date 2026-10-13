@@ -4354,6 +4354,84 @@ def test_alertmanager_cd_consumes_unsuppressed_inventory_without_extra_findings(
         assert "Unsuppressed Alertmanager finding inventory changed" in completed.stderr
 
 
+@pytest.mark.parametrize("secret_finding", (False, True))
+def test_alertmanager_cd_retains_report_before_inventory_rejection(
+    tmp_path: Path, secret_finding: bool
+) -> None:
+    steps = yaml.safe_load(CD_WORKFLOW_PATH.read_text())["jobs"]["prometheus-image-security"][
+        "steps"
+    ]
+    step = next(
+        item
+        for item in steps
+        if item.get("name") == "Admit exact Alertmanager image, config, and narrow CVE exception"
+    )
+    run = step["run"]
+    assert step["env"]["TRIVY_CACHE_DIR"] == "/tmp/trivy-cache-prometheus-image-security"
+    retention = run[run.index('python3 - "$scan"') : run.index("verify_alertmanager_inventory() {")]
+    verify = run[
+        run.index("verify_alertmanager_inventory() {") : run.index(
+            'verify_alertmanager_inventory "$scan"'
+        )
+        + len('verify_alertmanager_inventory "$scan"')
+    ]
+    evidence = tmp_path / "prometheus-consumer-123-1" / "evidence"
+    evidence.mkdir(parents=True)
+    cache = tmp_path / "cache" / "db"
+    cache.mkdir(parents=True)
+    (cache / "metadata.json").write_text('{"Version": 2}')
+    (cache / "trivy.db").write_bytes(b"synthetic database")
+    scan = tmp_path / "scan.json"
+    raw = b'{"Results":[{"Target":"bin/alertmanager","Vulnerabilities":[]}]}\n'
+    if secret_finding:
+        raw = json.dumps(
+            {"Results": [{"Secrets": [{"Match": "synthetic-sensitive-body"}]}]}
+        ).encode()
+    scan.write_bytes(raw)
+    scanner = tmp_path / "trivy"
+    scanner.write_text("#!/bin/sh\nprintf '%s\\n' '{\"Version\":\"0.74.0\"}'\n")
+    scanner.chmod(0o755)
+    environment = {
+        "PATH": os.defpath,
+        "HOME": str(tmp_path),
+        "RUNNER_TEMP": str(tmp_path),
+        "GITHUB_RUN_ID": "123",
+        "GITHUB_RUN_ATTEMPT": "1",
+        "GITHUB_SHA": "c" * 40,
+        "PROMETHEUS_EVENT_HEAD": "a" * 40,
+        "TRIVY_BIN": str(scanner),
+        "TRIVY_CACHE_DIR": str(cache.parent),
+    }
+    completed = subprocess.run(
+        [
+            "/bin/bash",
+            "-c",
+            'set -euo pipefail\nscan="$1"\nalert_ref="$2"\n' + retention + verify,
+            "fixture",
+            str(scan),
+            "prom/alertmanager@sha256:" + "b" * 64,
+        ],
+        env=environment,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert completed.returncode != 0
+    if secret_finding:
+        assert "Alertmanager scan contains unexpected secret findings" in completed.stderr
+        assert not (evidence / "alertmanager-unsuppressed.json").exists()
+        assert list(evidence.iterdir()) == []
+        return
+    assert "Unsuppressed Alertmanager finding inventory changed" in completed.stderr
+    assert (evidence / "alertmanager-unsuppressed.json").read_bytes() == raw
+    context = json.loads((evidence / "alertmanager-scan-context.json").read_bytes())
+    assert context["head"] == "a" * 40
+    assert context["workflow_execution_sha"] == "c" * 40
+    assert context["scanner_version"] == {"Version": "0.74.0"}
+    assert context["database_metadata"] == {"Version": 2}
+    assert context["report_sha256"] == hashlib.sha256(raw).hexdigest()
+
+
 def test_prometheus_config_has_one_private_exact_target() -> None:
     config = yaml.safe_load(PROMETHEUS_CONFIG_PATH.read_text(encoding="utf-8"))
     assert config == {

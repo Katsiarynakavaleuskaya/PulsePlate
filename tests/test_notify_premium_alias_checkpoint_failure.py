@@ -1722,6 +1722,7 @@ def _native_compose_configuration(directory: Path) -> None:
     application_env.write_text("")
     backend = "ghcr.io/pulseplate/checkpoint-fixture@sha256:" + "1" * 64
     caddy = "ghcr.io/pulseplate/caddy-fixture@sha256:" + "2" * 64
+    prometheus = "ghcr.io/pulseplate/prometheus-fixture@sha256:" + "3" * 64
     inputs = {
         "POSTGRES_USER": "synthetic_user",
         "POSTGRES_DB": "synthetic_db",
@@ -1729,6 +1730,7 @@ def _native_compose_configuration(directory: Path) -> None:
         "STAGING_ENV_FILE": str(application_env),
         "STAGING_IMAGE_REF": backend,
         "STAGING_CADDY_IMAGE_REF": caddy,
+        "PROMETHEUS_RUNTIME_REF": prometheus,
     }
     docker = shutil.which("docker")
     assert docker is not None and os.path.isabs(docker), "native Compose binary unavailable"
@@ -1738,9 +1740,11 @@ def _native_compose_configuration(directory: Path) -> None:
     default = _native(
         [*client._compose_prefix, "config", "--format", "json"], cwd=fixture, check=False
     )
-    assert default.returncode == 0, "native default-profile configuration failed"
+    assert default.returncode == 0, (
+        "native default-profile configuration failed: " + default.stderr[:2048]
+    )
     assert "worker" not in json.loads(default.stdout)["services"]
-    for missing in (None, "STAGING_IMAGE_REF", "STAGING_CADDY_IMAGE_REF"):
+    for missing in (None, "STAGING_IMAGE_REF", "STAGING_CADDY_IMAGE_REF", "PROMETHEUS_RUNTIME_REF"):
         (fixture / ".env").write_text(
             "".join(f"{key}={value}\n" for key, value in inputs.items() if key != missing)
         )
@@ -1758,6 +1762,9 @@ def _native_compose_configuration(directory: Path) -> None:
         assert services["app"]["image"] == backend, "native app image binding differs"
         assert services["worker"]["image"] == backend, "native worker image binding differs"
         assert services["caddy"]["image"] == caddy, "native Caddy image binding differs"
+        assert (
+            services["prometheus"]["image"] == prometheus
+        ), "native Prometheus image binding differs"
         print("native_compose_configuration_positive=pass", flush=True)
 
 
@@ -1793,7 +1800,7 @@ def native_main() -> None:
 
 
 @pytest.mark.parametrize(
-    "fault", ["none", "positive-rejected", "wrong-worker", "negative-accepted"]
+    "fault", ["none", "positive-rejected", "wrong-worker", "wrong-prometheus", "negative-accepted"]
 )
 def test_checkpoint_original_compose_fixture_classifies_only_synthetic_configuration(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], fault: str
@@ -1804,6 +1811,19 @@ def test_checkpoint_original_compose_fixture_classifies_only_synthetic_configura
     def config(argv: list[str], *, cwd: Path, check: bool) -> subprocess.CompletedProcess[str]:
         assert check is False
         prefix = ["/absolute/docker", "compose", "-f", str(cwd / "docker-compose.staging.yaml")]
+        text = (cwd / ".env").read_text()
+        if not calls:
+            expected = {
+                "POSTGRES_USER": "synthetic_user",
+                "POSTGRES_DB": "synthetic_db",
+                "STAGING_DOMAIN": "checkpoint.invalid",
+                "STAGING_ENV_FILE": str(cwd / "application.env"),
+                "STAGING_IMAGE_REF": "ghcr.io/pulseplate/checkpoint-fixture@sha256:" + "1" * 64,
+                "STAGING_CADDY_IMAGE_REF": "ghcr.io/pulseplate/caddy-fixture@sha256:" + "2" * 64,
+                "PROMETHEUS_RUNTIME_REF": "ghcr.io/pulseplate/prometheus-fixture@sha256:"
+                + "3" * 64,
+            }
+            assert text == "".join(f"{key}={value}\n" for key, value in expected.items())
         if argv == [*prefix, "config", "--format", "json"]:
             assert not calls
             return subprocess.CompletedProcess(argv, 0, json.dumps({"services": {"app": {}}}), "")
@@ -1813,7 +1833,6 @@ def test_checkpoint_original_compose_fixture_classifies_only_synthetic_configura
         ).read_bytes()
         assert (cwd / "application.env").read_bytes() == b""
         assert cwd.stat().st_mode & 0o777 == 0o700
-        text = (cwd / ".env").read_text()
         assert "POSTGRES_USER=synthetic_user\n" in text and "POSTGRES_DB=synthetic_db\n" in text
         assert "STAGING_DOMAIN=checkpoint.invalid\n" in text
         calls.append(argv)
@@ -1821,19 +1840,22 @@ def test_checkpoint_original_compose_fixture_classifies_only_synthetic_configura
             assert "STAGING_IMAGE_REF=" in text and "STAGING_CADDY_IMAGE_REF=" in text
             backend = "ghcr.io/pulseplate/checkpoint-fixture@sha256:" + "1" * 64
             caddy = "ghcr.io/pulseplate/caddy-fixture@sha256:" + "2" * 64
+            prometheus = "ghcr.io/pulseplate/prometheus-fixture@sha256:" + "3" * 64
             model = {
                 "services": {
                     "app": {"image": backend},
                     "worker": {"image": backend if fault != "wrong-worker" else caddy},
                     "caddy": {"image": caddy},
+                    "prometheus": {"image": prometheus if fault != "wrong-prometheus" else caddy},
                 }
             }
             return subprocess.CompletedProcess(
                 argv, 1 if fault == "positive-rejected" else 0, json.dumps(model), ""
             )
-        missing = "STAGING_IMAGE_REF" if len(calls) == 2 else "STAGING_CADDY_IMAGE_REF"
-        retained = "STAGING_CADDY_IMAGE_REF" if len(calls) == 2 else "STAGING_IMAGE_REF"
-        assert missing + "=" not in text and retained + "=" in text
+        bindings = ("STAGING_IMAGE_REF", "STAGING_CADDY_IMAGE_REF", "PROMETHEUS_RUNTIME_REF")
+        missing = bindings[len(calls) - 2]
+        assert missing + "=" not in text
+        assert all(binding + "=" in text for binding in bindings if binding != missing)
         return subprocess.CompletedProcess(
             argv,
             0 if fault == "negative-accepted" else 1,
@@ -1844,7 +1866,7 @@ def test_checkpoint_original_compose_fixture_classifies_only_synthetic_configura
     monkeypatch.setattr(sys.modules[__name__], "_native", config)
     if fault == "none":
         _native_compose_configuration(tmp_path)
-        assert len(calls) == 3
+        assert len(calls) == 4
     else:
         with pytest.raises(AssertionError):
             _native_compose_configuration(tmp_path)
