@@ -5672,3 +5672,237 @@ def test_live_oracle_delivery_requires_explicit_caller_material_root(
     captured = capsys.readouterr()
     assert captured.out == ""
     assert "caller-admitted material root" in captured.err
+
+
+def _write_ocw_inputs(tmp_path: Path, packet_id: str) -> tuple[Path, Path]:
+    """Prepare independent current expectations and a canonical snapshot fixture."""
+    from core.evidence.federation import build_evidence_projection, select_claim_neighborhood
+    from core.evidence.relations import parse_snapshot
+
+    rows = [
+        json.loads(line)
+        for line in (REPO_ROOT / "tests/fixtures/evidence_relation_audit_v1.jsonl")
+        .read_text()
+        .splitlines()
+    ]
+    graph = select_claim_neighborhood(
+        build_evidence_projection(parse_snapshot(rows)),
+        claim_ref="C2",
+        context_ref="evidence:eval_run:advisory:v1:e5e0c649bcb2f8dac2ed3218",
+        time_scope="T1",
+    )
+    binding = {
+        "task_packet_id": packet_id,
+        "role_context_order": 1,
+        "run_id": "current-native-run",
+        "case_id": "OCW-N02",
+        "message": "Порция — 30 г.",
+        "answer": "Белка — 7,5 г.",
+        "claim_ref": graph.claim_ref,
+        "context_ref": graph.context_ref,
+        "time_scope": "T1",
+        "input_fingerprint": graph._projection.snapshot.input_fingerprint,
+        "result_fingerprint": graph.result_fingerprint,
+    }
+    sources = [
+        {
+            "ref": {
+                "namespace": "evidence.asset",
+                "snapshot_fingerprint": binding["input_fingerprint"],
+                "local_id": item.asset.asset_id,
+            },
+            "version": item.asset.version,
+            "content": None,
+            "payload": None,
+        }
+        for item in graph.assets
+    ]
+    invocation = {"binding": binding, "sources": sources}
+    candidate = {
+        "snapshot": rows,
+        "observed": {
+            **json.loads(json.dumps(invocation)),
+            "authority_granted": False,
+            "answer_change_allowed": False,
+        },
+    }
+    evidence_path, invocation_path = tmp_path / "ocw.jsonl", tmp_path / "invocation.jsonl"
+    evidence_path.write_text(json.dumps(candidate) + "\n", encoding="utf-8")
+    invocation_path.write_text(json.dumps(invocation) + "\n", encoding="utf-8")
+    return evidence_path, invocation_path
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        ["--roles", "agent-coordinator", "--ocw-evidence", "never-read.jsonl"],
+        ["--roles", "agent-coordinator", "--ocw-invocation", "never-read.jsonl"],
+        [
+            "--roles",
+            "agent-coordinator",
+            "--ocw-evidence",
+            "never-read.jsonl",
+            "--ocw-invocation",
+            "never-read.jsonl",
+        ],
+    ],
+)
+def test_ocw_requires_paired_inputs_and_current_packet_occurrence(
+    arguments: list[str], capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert qoder_dispatch_bridge.main(arguments) == 1
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "OCW" in captured.err
+
+
+@pytest.mark.parametrize("pretty", [False, True])
+def test_ocw_is_outer_only_and_preserves_same_material_default(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    pretty: bool,
+) -> None:
+    packet = _write_exact_dispatch_fixture(tmp_path, monkeypatch)
+    evidence, invocation = _write_ocw_inputs(
+        tmp_path, "deliberately-not-authenticated-by-exact-context"
+    )
+    args = ["--packet", str(packet), "--role-context-order", "1"]
+    if pretty:
+        args.append("--pretty")
+    assert qoder_dispatch_bridge.main(args) == 0
+    baseline = json.loads(capsys.readouterr().out)
+    assert (
+        qoder_dispatch_bridge.main(
+            [*args, "--ocw-evidence", str(evidence), "--ocw-invocation", str(invocation)]
+        )
+        == 0
+    )
+    actual = json.loads(capsys.readouterr().out)
+    attachment = actual.pop("ocw_evidence")
+    for item in (baseline, actual):
+        item["manifest"].pop("generated_at")
+    assert actual == baseline
+    assert attachment["invocation"]["case_id"] == "OCW-N02"
+    assert attachment["authority_granted"] is False
+
+
+def test_ocw_safe_output_does_not_follow_or_replace_destination(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    packet = _write_exact_dispatch_fixture(tmp_path, monkeypatch)
+    evidence, invocation = _write_ocw_inputs(
+        tmp_path, "deliberately-not-authenticated-by-exact-context"
+    )
+    private = tmp_path / "private"
+    private.mkdir(mode=0o700)
+    existing = private / "existing.json"
+    existing.write_bytes(b"preserve\n")
+    link = private / "link.json"
+    link.symlink_to(existing)
+    args = [
+        "--packet",
+        str(packet),
+        "--role-context-order",
+        "1",
+        "--ocw-evidence",
+        str(evidence),
+        "--ocw-invocation",
+        str(invocation),
+    ]
+    for output in (existing, link):
+        assert qoder_dispatch_bridge.main([*args, "--output", str(output)]) == 1
+        assert capsys.readouterr().out == ""
+        assert existing.read_bytes() == b"preserve\n"
+    output = private / "new.json"
+    assert qoder_dispatch_bridge.main([*args, "--output", str(output)]) == 0
+    assert output.stat().st_mode & 0o777 == 0o600
+    assert "ocw_evidence" in json.loads(output.read_bytes())
+
+
+@pytest.mark.parametrize(
+    "failure", ["row_count", "packet_binding", "input_shape", "snapshot_type", "overflow"]
+)
+def test_ocw_cli_rejects_whole_input_with_safe_diagnostics_and_no_output(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    failure: str,
+) -> None:
+    packet = _write_exact_dispatch_fixture(tmp_path, monkeypatch)
+    evidence, invocation = _write_ocw_inputs(
+        tmp_path, "deliberately-not-authenticated-by-exact-context"
+    )
+    data = json.loads(evidence.read_text())
+    expected = json.loads(invocation.read_text())
+    if failure == "packet_binding":
+        expected["binding"]["task_packet_id"] = "foreign"
+    elif failure == "input_shape":
+        data["extra"] = "never execute source prose"
+    elif failure == "snapshot_type":
+        data["snapshot"] = {}
+    elif failure == "overflow":
+        expected["binding"]["answer"] = "x" * 65537
+    invocation.write_text(json.dumps(expected) + "\n")
+    evidence.write_text(
+        json.dumps(data) + "\n" + (json.dumps(data) + "\n" if failure == "row_count" else "")
+    )
+    output = tmp_path / "must-not-exist.json"
+    args = [
+        "--packet",
+        str(packet),
+        "--role-context-order",
+        "1",
+        "--ocw-evidence",
+        str(evidence),
+        "--ocw-invocation",
+        str(invocation),
+        "--output",
+        str(output),
+    ]
+    assert qoder_dispatch_bridge.main(args) == 1
+    captured = capsys.readouterr()
+    assert captured.out == "" and not output.exists()
+    if failure == "overflow":
+        assert "attachment exceeds 65536 UTF-8 bytes" in captured.err
+    else:
+        assert captured.err == "FAIL: OCW evidence rejected (ValueError).\n"
+
+
+def test_ocw_publication_rejects_public_parent_without_creating_or_chmodding_it(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    packet = _write_exact_dispatch_fixture(tmp_path, monkeypatch)
+    evidence, invocation = _write_ocw_inputs(
+        tmp_path, "deliberately-not-authenticated-by-exact-context"
+    )
+    parent = tmp_path / "public"
+    parent.mkdir()
+    parent.chmod(0o755)
+    output = parent / "output.json"
+    assert (
+        qoder_dispatch_bridge.main(
+            [
+                "--packet",
+                str(packet),
+                "--role-context-order",
+                "1",
+                "--ocw-evidence",
+                str(evidence),
+                "--ocw-invocation",
+                str(invocation),
+                "--output",
+                str(output),
+            ]
+        )
+        == 1
+    )
+    assert (
+        capsys.readouterr().out == ""
+        and not output.exists()
+        and parent.stat().st_mode & 0o777 == 0o755
+    )

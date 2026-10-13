@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import copy
 from dataclasses import replace
+from datetime import datetime, timedelta, timezone
 import hashlib
 import json
 import logging
@@ -12,10 +13,14 @@ import os
 from pathlib import Path
 from types import SimpleNamespace
 from subprocess import CompletedProcess
+import subprocess
+import sys
+import textwrap
 from typing import Any
 from unittest.mock import patch
 
 import httpx
+from coverage import Coverage, CoverageData
 from openai import AsyncOpenAI
 import pytest
 from sqlalchemy.engine import make_url
@@ -30,6 +35,1148 @@ from scripts.evals import fitchef_claim_assurance_eval as evaluation
 from scripts.evals.evidence_relation_audit import read_jsonl, write_report
 
 BLIND_KEY = bytes(range(32))
+
+
+@pytest.fixture(autouse=True)
+def _isolated_sdk_credential_sources(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Even mocked native transports must never inherit host credential defaults."""
+    for name in (
+        "OPENAI_API_KEY",
+        "OPENAI_BASE_URL",
+        "OPENAI_ORG_ID",
+        "OPENAI_PROJECT_ID",
+        "OPENAI_WEBHOOK_SECRET",
+        "PERPLEXITY_API_KEY",
+        "OPENAI_LOG",
+        "OCW_FITCHEF_API_KEY",
+        "NOOS_EVAL_FITCHEF_API_KEY",
+        "HTTP_PROXY",
+        "HTTPS_PROXY",
+        "ALL_PROXY",
+        "NO_PROXY",
+        "http_proxy",
+        "https_proxy",
+        "all_proxy",
+        "no_proxy",
+    ):
+        monkeypatch.delenv(name, raising=False)
+
+
+def _ocw_rows() -> list[dict[str, Any]]:
+    path = Path(__file__).parent / "fixtures/ocw/fitchef_nutrition_cases.v1.jsonl"
+    return [json.loads(line) for line in path.read_text().splitlines()]
+
+
+def _ocw_request(arm: str, prompt: str = "synthetic prompt") -> httpx.Request:
+    if arm == "sonar":
+        body = {
+            "model": "sonar",
+            "messages": [{"role": "user", "content": prompt}],
+            "max_tokens": 2048,
+            "disable_search": True,
+        }
+        endpoint = "https://api.perplexity.ai/chat/completions"
+    else:
+        body = {
+            "model": "openai/gpt-6.1-sol",
+            "input": prompt,
+            "reasoning": {"effort": "low"},
+            "max_output_tokens": 2048,
+            "tools": [],
+            "store": False,
+        }
+        endpoint = "https://api.perplexity.ai/v1/responses"
+    return httpx.Request("POST", endpoint, json=body)
+
+
+def test_ocw_manifest_is_closed_eight_ru_cases_and_copied() -> None:
+    rows = _ocw_rows()
+    admitted = collector.validate_ocw_manifest(rows)
+    assert [row["canonical_id"] for row in admitted] == [f"OCW-N{i:02d}" for i in range(1, 9)]
+    rows[0]["input_payload"]["query"] = "changed"
+    assert admitted[0]["input_payload"]["query"] != "changed"
+    assert "Взвесил банан со шкуркой: 180 г." in admitted[3]["input_payload"]["query"]
+    assert (
+        "После очистки отдельно взвесил выброшенную шкурку: 60 г."
+        in admitted[3]["input_payload"]["query"]
+    )
+
+
+@pytest.mark.parametrize("change", ["missing", "duplicate", "reference", "outer", "language"])
+def test_ocw_generation_admission_rejects_reference_and_grammar_drift(change: str) -> None:
+    rows = _ocw_rows()
+    if change == "missing":
+        rows.pop()
+    elif change == "duplicate":
+        rows[-1] = copy.deepcopy(rows[0])
+    elif change == "reference":
+        rows[0]["input_payload"]["reference_answer"] = "reference canary"
+    elif change == "outer":
+        rows[0]["verdict"] = "expected verdict"
+    else:
+        rows[0]["input_payload"]["language"] = "en"
+    with pytest.raises(ValueError, match="ocw_manifest"):
+        collector.validate_ocw_manifest(rows)
+
+
+@pytest.mark.parametrize(
+    "change", ["relation", "source_shape", "source_empty", "source_alias", "source_score"]
+)
+def test_ocw_input_provenance_and_source_admission_fail_closed(change: str) -> None:
+    rows = _ocw_rows()
+    source = rows[0]["input_payload"]["sources"][0]
+    if change == "relation":
+        rows[0]["expected_relation"] = "different_decision"
+    elif change == "source_shape":
+        source["additional_tool"] = "execute"
+    elif change == "source_empty":
+        source["content"] = " "
+    elif change == "source_alias":
+        source["file"] = "../foreign-source"
+    else:
+        source["score"] = True
+    with pytest.raises(ValueError, match="ocw_manifest"):
+        collector.validate_ocw_manifest(rows)
+
+
+@pytest.mark.parametrize("body", [b"not-json", b"[]", b'{"store":0}', b"NaN"])
+def test_ocw_native_request_rejects_malformed_or_coercive_bodies(body: bytes) -> None:
+    request = httpx.Request("POST", "https://api.perplexity.ai/v1/responses", content=body)
+    with pytest.raises(ValueError, match="ocw_request"):
+        collector._validate_ocw_request(request, arm="sol", prompt="synthetic prompt")
+
+
+@pytest.mark.parametrize(
+    "usage",
+    [
+        [],
+        {"input_tokens": True},
+        {"cost": []},
+        {"cost": {"total_cost": True}},
+        {"cost": {"total_cost": float("nan")}},
+    ],
+)
+def test_ocw_returned_usage_rejects_coercive_or_nonfinite_accounting(usage: object) -> None:
+    with pytest.raises(ValueError, match="ocw_usage"):
+        collector._ocw_usage(usage)
+
+
+def test_ocw_pricing_and_invocation_shapes_fail_without_allocation(tmp_path: Path) -> None:
+    for rows in ([], [None, None], _ocw_prices() + _ocw_prices()):
+        with pytest.raises(ValueError, match="ocw_pricing"):
+            collector.validate_ocw_pricing(rows)
+    with pytest.raises(ValueError, match="ocw_pricing"):
+        collector.validate_ocw_pricing(_ocw_prices(), now=datetime.now())
+    with pytest.raises(ValueError, match="ocw_budget"):
+        collector.AttemptLedger(tmp_path, comparison=1)
+    ledger = collector.AttemptLedger(tmp_path, comparison=True)
+    with pytest.raises(ValueError, match="ocw_budget"):
+        ledger.bind_case("foreign", "OCW-N01", "synthetic prompt")
+    with pytest.raises(ValueError, match="ocw_request"):
+        asyncio.run(ledger.reserve(_ocw_request("sonar")))
+    assert not list(tmp_path.iterdir())
+
+
+def test_ocw_credential_reflection_and_expired_price_latch_before_reservation(
+    tmp_path: Path,
+) -> None:
+    ledger = collector.AttemptLedger(tmp_path, comparison=True)
+    ledger._comparison_secrets = ("synthetic credential material",)
+    with pytest.raises(ValueError, match="ocw_private_material"):
+        ledger.require_secret_free(b"synthetic credential material")
+    assert ledger.terminal_reason == "credential_reflection"
+    ledger.bind_case("sonar", "OCW-N01", "synthetic prompt")
+    ledger.pricing_valid_until = datetime.now(timezone.utc) - timedelta(seconds=1)
+    with pytest.raises(ValueError, match="ocw_pricing"):
+        asyncio.run(ledger.reserve(_ocw_request("sonar")))
+    assert ledger.attempts == 0 and not list(tmp_path.iterdir())
+
+
+def test_ocw_native_transport_failure_retains_uncertain_send_and_bounded_causes(
+    tmp_path: Path,
+) -> None:
+    from openai import APIConnectionError
+
+    ledger = collector.AttemptLedger(tmp_path, comparison=True)
+    ledger.bind_case("sonar", "OCW-N01", "synthetic prompt")
+    request = _ocw_request("sonar")
+    asyncio.run(ledger.reserve(request))
+    cause = httpx.ConnectError("synthetic transport failure")
+    cause.__cause__ = cause
+    error = APIConnectionError(request=request)
+    error.__cause__ = cause
+    ledger.native_failure(error)
+    assert ledger.retryable is True and ledger.terminal_reason is None
+    outcome = read_jsonl(tmp_path / "attempt-result-0001.json")[0]
+    assert outcome["cost_status"] == "unknown" and "status_code" not in outcome
+    tail: BaseException = cause
+    for _ in range(20):
+        child = RuntimeError("synthetic chain")
+        tail.__cause__ = child
+        tail = child
+    ledger.native_failure(error)
+    assert ledger.retryable is False and ledger.terminal_reason == "provider_failure_terminal"
+
+
+@pytest.mark.parametrize("outcome", ["known", "overrun", "non_usd", "invalid_usage"])
+def test_ocw_native_returned_cost_and_failure_evidence(
+    tmp_path: Path,
+    outcome: str,
+) -> None:
+    ledger = collector.AttemptLedger(tmp_path, comparison=True)
+    ledger.bind_case("sonar", "OCW-N01", "synthetic prompt")
+    request = _ocw_request("sonar")
+    usage: object = {
+        "cost": {
+            "total_cost": 0.16 if outcome == "overrun" else 0.01,
+            "currency": "EUR" if outcome == "non_usd" else "USD",
+        }
+    }
+    if outcome == "invalid_usage":
+        usage = []
+
+    async def run() -> None:
+        await ledger.reserve(request)
+        response = httpx.Response(
+            200,
+            request=request,
+            json={
+                "model": "sonar",
+                "usage": usage,
+                "choices": [{"message": {"content": "synthetic answer"}}],
+            },
+        )
+        if outcome == "known":
+            await ledger.observe_http(response)
+        else:
+            with pytest.raises(ValueError):
+                await ledger.observe_http(response)
+            with pytest.raises(collector.BudgetExhausted):
+                await ledger.reserve(request)
+
+    asyncio.run(run())
+    record = read_jsonl(tmp_path / "attempt-result-0001.json")[0]
+    assert record["status_code"] == 200 and ledger.attempts == 1
+    if outcome == "known":
+        assert record["cost_status"] == "known" and record["invoice_verified"] is False
+
+
+def test_ocw_safe_client_configuration_without_any_send(tmp_path: Path) -> None:
+    client = collector._ocw_http_client(collector.AttemptLedger(tmp_path, comparison=True))
+    assert client.follow_redirects is False and client.trust_env is False
+    asyncio.run(client.aclose())
+
+
+@pytest.mark.parametrize(
+    "boundary",
+    [
+        "provider_constructor",
+        "selector",
+        "retrieval",
+        "prompt",
+        "draft",
+        "runtime",
+        "text_http",
+        "missing_capture",
+        "malformed_extraction",
+        "parameter_collision",
+    ],
+)
+def test_ocw_observer_rejects_foreign_invocation_before_transport(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    boundary: str,
+) -> None:
+    import llm
+    from core.rag import vector_rag
+    from core.insight import fitchef_companion
+
+    ledger = collector.AttemptLedger(tmp_path, comparison=True)
+    transport = httpx.AsyncClient(
+        transport=httpx.MockTransport(
+            lambda _request: (_ for _ in ()).throw(AssertionError("unexpected native transport"))
+        )
+    )
+    scenario = _ocw_rows()[0]
+    if boundary == "malformed_extraction":
+        monkeypatch.setattr(
+            fitchef_companion, "_extract_action_items", lambda *_args, **_kwargs: [1]
+        )
+
+    class Client:
+        portal = SimpleNamespace(call=lambda method: asyncio.run(method()))
+
+        def post(self, _path: str, **_kwargs: Any) -> httpx.Response:
+            if boundary == "provider_constructor":
+                llm.PerplexityProvider(model="foreign")
+            elif boundary == "selector":
+                fitchef_runtime._require_fitchef_llm_provider("foreign prompt")
+            elif boundary == "retrieval":
+                vector_rag.retrieve_context_structured("foreign query")
+            elif boundary == "prompt":
+                fitchef_runtime.build_mascot_prompt("foreign query", "")
+            elif boundary == "draft":
+                fitchef_runtime.prepare_mascot_draft("foreign answer", query="foreign query")
+            elif boundary == "runtime":
+                asyncio.run(
+                    fitchef_runtime.run_mascot_insight_task(
+                        SimpleNamespace(input=SimpleNamespace(safe_query="foreign query"))
+                    )
+                )
+            elif boundary == "malformed_extraction":
+                fitchef_companion._extract_action_items("synthetic text")
+            elif boundary == "parameter_collision":
+                provider = llm.PerplexityProvider(
+                    api_key=_dummy_credential(),
+                    model="sonar",
+                    endpoint=collector._EXPECTED_ENDPOINT,
+                )
+                asyncio.run(provider.client.chat.completions.create(max_tokens=1024))
+            if boundary == "text_http":
+                return httpx.Response(200, headers={"content-type": "text/plain"})
+            return httpx.Response(200, json={})
+
+    try:
+        with pytest.raises(ValueError, match="ocw_"):
+            collector._ocw_observe_post(
+                Client(),
+                scenario,
+                arm="sonar",
+                key="ocw-eval-synthetic",
+                transport=transport,
+                ledger=ledger,
+                run={},
+            )
+    finally:
+        asyncio.run(transport.aclose())
+    assert ledger.attempts == 0 and not list(tmp_path.iterdir())
+
+
+def test_ocw_serialization_cannot_admit_an_sdk_response_without_encoded_send(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from openai.resources.chat.completions import AsyncCompletions
+
+    async def cached_response(*_args: Any, **_kwargs: Any) -> None:
+        return None
+
+    monkeypatch.setattr(AsyncCompletions, "create", cached_response)
+    before = logging.root.manager.disable
+    with pytest.raises(ValueError, match="ocw_preflight"):
+        asyncio.run(collector._serialize_ocw_request("synthetic prompt", "sonar"))
+    assert logging.root.manager.disable == before
+
+
+def test_ocw_encoded_request_aggregate_limit_blocks_preflight_without_paid_transport() -> None:
+    rows = _ocw_rows()
+    rows[0]["input_payload"]["sources"] = [
+        {"chunk_id": f"chunk-{index}", "file": f"file-{index}", "content": "я" * 4000, "score": 0.5}
+        for index in range(5)
+    ]
+    with pytest.raises(ValueError, match="ocw_"):
+        collector.ocw_request_preflight(rows, _ocw_prices())
+
+
+@pytest.mark.parametrize(
+    "records,run",
+    [
+        ([], {}),
+        ([None] * 16, {}),
+        ([None] * 16, {"id": "synthetic"}),
+        ([{"unknown": object()}] * 16, {"id": "synthetic"}),
+        ([{"content": "x" * (256 * 1024 + 1)}] * 16, {"id": "synthetic"}),
+    ],
+)
+def test_ocw_frozen_records_reject_missing_foreign_or_oversized_material(
+    records: list[object],
+    run: dict[str, Any],
+) -> None:
+    with pytest.raises(ValueError, match="ocw_"):
+        collector.validate_ocw_records(records, expected_run=run)
+
+
+@pytest.mark.parametrize("failure", ["run_id", "provider_identity", "nonempty_output", "rubric"])
+def test_ocw_collection_rejects_unadmitted_current_inputs_before_transport(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    failure: str,
+) -> None:
+    monkeypatch.setenv("PERPLEXITY_API_KEY", "synthetic-provider")
+    monkeypatch.setattr(collector, "validate_ocw_environment", lambda _key: None)
+    monkeypatch.setattr(collector, "_code_sha", lambda: "a" * 40)
+    output = tmp_path / "capture"
+    output.mkdir(mode=0o700)
+    rubric = RUBRIC
+    if failure == "nonempty_output":
+        (output / "foreign.txt").write_text("existing owner file")
+    if failure == "rubric":
+        rubric = tmp_path / "invalid-rubric.md"
+        rubric.write_text("different contract")
+    with pytest.raises(ValueError):
+        collector.collect_ocw_comparison(
+            _ocw_rows(),
+            output_dir=output,
+            rubric=rubric,
+            pricing=_ocw_prices(),
+            fitchef_key="ocw-eval-synthetic",
+            perplexity_key="foreign" if failure == "provider_identity" else "synthetic-provider",
+            run_id="" if failure == "run_id" else "synthetic",
+        )
+    assert not list(output.glob("attempt-*.json"))
+
+
+@pytest.mark.parametrize(
+    "usage",
+    [
+        {"input_tokens": 34817},
+        {"prompt_tokens": 34817},
+        {"output_tokens": 2049},
+        {"completion_tokens": 2049},
+        {"total_tokens": 36865},
+        {"output_tokens": 10, "output_tokens_details": {"reasoning_tokens": 11}},
+    ],
+)
+def test_ocw_reported_token_ceiling_without_cost_stops_next_transport(
+    tmp_path: Path,
+    usage: dict[str, Any],
+) -> None:
+    ledger = collector.AttemptLedger(tmp_path, comparison=True)
+    ledger.bind_case("sonar", "OCW-N01", "synthetic prompt")
+    sent = 0
+
+    async def respond(request: httpx.Request) -> httpx.Response:
+        nonlocal sent
+        sent += 1
+        return httpx.Response(
+            200,
+            request=request,
+            json={
+                "model": "sonar",
+                "usage": usage,
+                "choices": [{"message": {"content": "synthetic answer"}}],
+            },
+        )
+
+    async def run() -> None:
+        async with httpx.AsyncClient(
+            transport=httpx.MockTransport(respond),
+            event_hooks={"request": [ledger.reserve], "response": [ledger.observe_http]},
+        ) as client:
+            with pytest.raises(ValueError):
+                await client.send(_ocw_request("sonar"))
+            with pytest.raises(collector.BudgetExhausted):
+                await client.send(_ocw_request("sonar"))
+
+    asyncio.run(run())
+    record = read_jsonl(tmp_path / "attempt-result-0001.json")[0]
+    assert sent == ledger.attempts == 1 and ledger.terminal_reason == "reported_token_overrun"
+    assert (
+        record["usage"] == usage
+        and record["cost_status"] == "unknown"
+        and record["cost_usd"] is None
+    )
+
+
+@pytest.mark.parametrize("mode", ["preflight", "capture", "wrong_default"])
+def test_ocw_cli_routes_only_explicit_mode(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    mode: str,
+) -> None:
+    manifest = tmp_path / "manifest.jsonl"
+    prices = tmp_path / "prices.jsonl"
+    write_report(manifest, b"".join(evaluation._canonical(row) + b"\n" for row in _ocw_rows()))
+    write_report(prices, b"".join(evaluation._canonical(row) + b"\n" for row in _ocw_prices()))
+    args = [
+        "--manifest",
+        str(manifest),
+        "--rubric",
+        str(RUBRIC),
+        "--pricing-evidence",
+        str(prices),
+        "--output-dir",
+        str(tmp_path),
+    ]
+    called: list[str] = []
+    monkeypatch.setattr(
+        collector, "collect_ocw_comparison", lambda *_args, **_kwargs: called.append("capture")
+    )
+    if mode == "wrong_default":
+        assert collector.main(args + ["--run-id", "synthetic-run"]) == 2
+        assert not called
+    else:
+        args += ["--mode", "ocw-nutrition-comparison"]
+        args += ["--preflight-only"] if mode == "preflight" else ["--run-id", "synthetic-run"]
+        assert collector.main(args) == 0
+        if mode == "capture":
+            assert called == ["capture"]
+        else:
+            assert len(json.loads(capsys.readouterr().out)) == 16 and not called
+
+
+def test_ocw_physical_budget_protects_eight_sol_slots(tmp_path: Path) -> None:
+    ledger = collector.AttemptLedger(tmp_path, comparison=True)
+
+    async def run() -> None:
+        for i in range(1, 9):
+            ledger.bind_case("sonar", f"OCW-N{i:02d}", "synthetic prompt")
+            for _ in range(3):
+                await ledger.reserve(_ocw_request("sonar"))
+        ledger.bind_case("sonar", "OCW-N08", "synthetic prompt")
+        with pytest.raises(collector.BudgetExhausted):
+            await ledger.reserve(_ocw_request("sonar"))
+        # A cap refusal is terminal; use the independent positive24+8 control below.
+
+    asyncio.run(run())
+    assert ledger.attempts == 24
+    assert ledger.arm_attempts == {"sonar": 24, "sol": 0}
+    assert all(read_jsonl(p)[0]["reserved_cents"] == 15 for p in tmp_path.glob("attempt-*.json"))
+
+
+@pytest.mark.parametrize(
+    "destination",
+    [
+        "http://api.perplexity.ai/chat/completions",
+        "https://api.perplexity.ai:444/chat/completions",
+        "https://user@api.perplexity.ai/chat/completions",
+        "https://api.perplexity.ai/chat%2Fcompletions",
+        "https://api.perplexity.ai/chat/completions?extra=1",
+        "https://example.invalid/chat/completions",
+    ],
+)
+def test_ocw_exact_destination_denial_is_before_reservation(
+    tmp_path: Path, destination: str
+) -> None:
+    ledger = collector.AttemptLedger(tmp_path, comparison=True)
+    ledger.bind_case("sonar", "OCW-N01", "synthetic prompt")
+    request = _ocw_request("sonar")
+    request.url = httpx.URL(destination)
+    with pytest.raises(ValueError, match="ocw_request"):
+        asyncio.run(ledger.reserve(request))
+    assert ledger.attempts == 0
+    assert list(tmp_path.iterdir()) == []
+
+
+def _ocw_prices() -> list[dict[str, Any]]:
+    return [
+        {
+            "schema_version": "ocw_pricing_evidence.v1",
+            "arm": arm,
+            "requested_model": collector._OCW_MODELS[arm],
+            "max_request_bytes": 32768,
+            "max_output_tokens": 2048,
+            "max_input_usd_per_million": 2.5,
+            "max_billed_input_tokens": 34816,
+            "input_rate_includes_cache_write": True,
+            "billed_input_bound_verified": True,
+            "returned_cost_currency_basis": "documented_usd",
+            "cost_currency_source_url": "https://docs.perplexity.ai/api-reference/agent-post",
+            "max_output_usd_per_million": 10,
+            "extra_fees_usd_per_attempt": 0,
+            "output_includes_reasoning": True,
+            "all_charges_included": True,
+            "verified_at": datetime.now(timezone.utc).isoformat(),
+            "source_url": "https://docs.perplexity.ai/pricing",
+        }
+        for arm in ("sonar", "sol")
+    ]
+
+
+def test_ocw_native_sdk_mock_preflight_has_exact_bodies_and_no_credentials(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("OPENAI_ORG_ID", "synthetic-foreign-org")
+    monkeypatch.setenv("OPENAI_PROJECT_ID", "synthetic-foreign-project")
+    bodies: list[dict[str, Any]] = []
+    original = collector._validate_ocw_request
+
+    def observe(request: httpx.Request, *, arm: str, prompt: str) -> None:
+        assert "OpenAI-Organization" not in request.headers
+        assert "OpenAI-Project" not in request.headers
+        assert "Cookie" not in request.headers
+        body = json.loads(request.content)
+        assert "same_decision" not in request.content.decode()
+        assert "expected_relation" not in request.content.decode()
+        bodies.append(body)
+        original(request, arm=arm, prompt=prompt)
+
+    monkeypatch.setattr(collector, "_validate_ocw_request", observe)
+    before = logging.root.manager.disable
+    records = collector.ocw_request_preflight(_ocw_rows(), _ocw_prices())
+    assert len(records) == len(bodies) == 16
+    assert all(item["reserved_cents"] == 0 for item in records)
+    assert all(item["request_bytes"] <= 32768 for item in records)
+    assert logging.root.manager.disable == before
+    assert bodies[0]["disable_search"] is True and "web_search_options" not in bodies[0]
+    assert bodies[1]["store"] is False and bodies[1]["tools"] == []
+    assert bodies[1]["reasoning"] == {"effort": "low"}
+
+
+@pytest.mark.parametrize(
+    "field,bad",
+    [
+        ("all_charges_included", 1),
+        ("output_includes_reasoning", False),
+        ("max_input_usd_per_million", True),
+        ("max_output_usd_per_million", float("nan")),
+        ("extra_fees_usd_per_attempt", 0.15),
+        ("max_output_tokens", 1024),
+    ],
+)
+def test_ocw_pricing_unknown_alias_or_overrun_blocks_admission(field: str, bad: object) -> None:
+    rows = _ocw_prices()
+    rows[0][field] = bad
+    with pytest.raises(ValueError, match="ocw_pricing"):
+        collector.validate_ocw_pricing(rows)
+
+
+def test_ocw_positive_24_plus_8_keeps_integer_reservations(tmp_path: Path) -> None:
+    ledger = collector.AttemptLedger(tmp_path, comparison=True)
+
+    async def run() -> None:
+        for arm, count in (("sonar", 3), ("sol", 1)):
+            for case in collector._OCW_CASES:
+                ledger.bind_case(arm, case, "synthetic prompt")
+                for _ in range(count):
+                    await ledger.reserve(_ocw_request(arm))
+        with pytest.raises(collector.BudgetExhausted):
+            await ledger.reserve(_ocw_request("sol"))
+
+    asyncio.run(run())
+    assert ledger.attempts == 32 and ledger.arm_attempts == {"sonar": 24, "sol": 8}
+    assert (
+        sum(read_jsonl(p)[0]["reserved_cents"] for p in tmp_path.glob("attempt-[0-9]*.json")) == 480
+    )
+
+
+@pytest.mark.parametrize("status", [401, 402, 403, 404])
+def test_ocw_terminal_native_status_stops_before_another_send(tmp_path: Path, status: int) -> None:
+    ledger = collector.AttemptLedger(tmp_path, comparison=True)
+    ledger.bind_case("sonar", "OCW-N01", "synthetic prompt")
+    request = _ocw_request("sonar")
+
+    async def run() -> None:
+        await ledger.reserve(request)
+        with pytest.raises(ValueError, match="ocw_terminal_failure"):
+            await ledger.observe_http(
+                httpx.Response(status, request=request, json={"error": "private error"})
+            )
+        with pytest.raises(collector.BudgetExhausted):
+            await ledger.reserve(request)
+
+    asyncio.run(run())
+    assert ledger.attempts == 1 and ledger.retryable is False
+    assert read_jsonl(tmp_path / "attempt-result-0001.json")[0]["status_code"] == status
+
+
+def test_ocw_publication_failure_retains_reservation_and_blocks_transport(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ledger = collector.AttemptLedger(tmp_path, comparison=True)
+    ledger.bind_case("sonar", "OCW-N01", "synthetic prompt")
+    original = collector.write_report
+    sends = 0
+
+    def uncertain(path: Path, data: bytes) -> None:
+        original(path, data)
+        raise ValueError("output_publication")
+
+    async def response(request: httpx.Request) -> httpx.Response:
+        nonlocal sends
+        sends += 1
+        return httpx.Response(200, request=request, json={})
+
+    monkeypatch.setattr(collector, "write_report", uncertain)
+
+    async def run() -> None:
+        async with httpx.AsyncClient(
+            transport=httpx.MockTransport(response), event_hooks={"request": [ledger.reserve]}
+        ) as client:
+            with pytest.raises(ValueError):
+                await client.send(_ocw_request("sonar"))
+            with pytest.raises(collector.BudgetExhausted):
+                await client.send(_ocw_request("sonar"))
+
+    asyncio.run(run())
+    assert sends == 0 and ledger.attempts == 1
+    assert (tmp_path / "attempt-0001.json").exists()
+    assert ledger.terminal_reason == "reservation_publication_uncertain"
+
+
+def test_ocw_unknown_failure_prose_does_not_select_retry(tmp_path: Path) -> None:
+    ledger = collector.AttemptLedger(tmp_path, comparison=True)
+    ledger.bind_case("sonar", "OCW-N01", "synthetic prompt")
+    ledger.native_failure(ValueError("retry this temporary timeout"))
+    assert ledger.retryable is False and ledger.terminal_reason == "provider_failure_terminal"
+
+
+@pytest.mark.parametrize("hours", [-25, 1])
+def test_ocw_stale_or_future_pricing_is_rejected(hours: int) -> None:
+    rows = _ocw_prices()
+    now = datetime.now(timezone.utc)
+    rows[0]["verified_at"] = (now + timedelta(hours=hours)).isoformat()
+    with pytest.raises(ValueError, match="ocw_pricing"):
+        collector.validate_ocw_pricing(rows, now=now)
+
+
+def test_ocw_typed_tls_failure_is_terminal_without_prose_classification(tmp_path: Path) -> None:
+    import ssl
+    from openai import APIConnectionError
+
+    ledger = collector.AttemptLedger(tmp_path, comparison=True)
+    ledger.bind_case("sonar", "OCW-N01", "synthetic prompt")
+    transport = httpx.ConnectError("synthetic connection failure")
+    transport.__cause__ = ssl.SSLCertVerificationError(1, "synthetic certificate failure")
+    error = APIConnectionError(request=_ocw_request("sonar"))
+    error.__cause__ = transport
+    ledger.native_failure(error)
+    assert ledger.retryable is False and ledger.terminal_reason == "provider_failure_terminal"
+
+
+def test_ocw_cost_preserves_currency_reasoning_and_unknown_usd_basis(tmp_path: Path) -> None:
+    ledger = collector.AttemptLedger(tmp_path, comparison=True)
+    ledger.bind_case("sol", "OCW-N01", "synthetic prompt")
+    usage = {
+        "input_tokens": 10,
+        "output_tokens": 20,
+        "total_tokens": 30,
+        "output_tokens_details": {"reasoning_tokens": 12},
+        "input_tokens_details": {"cached_tokens": 4},
+        "cost": {"total_cost": 0.01},
+    }
+
+    async def run() -> None:
+        await ledger.reserve(_ocw_request("sol"))
+        await ledger.observe_http(
+            httpx.Response(
+                200,
+                request=_ocw_request("sol"),
+                json={"model": "openai/gpt-6.1-sol", "usage": usage, "output": []},
+            )
+        )
+
+    asyncio.run(run())
+    record = read_jsonl(tmp_path / "attempt-result-0001.json")[0]
+    assert record["usage"] == usage
+    assert record["provider_declared_cost"] == usage["cost"]
+    assert record["cost_usd"] is None and record["cost_status"] == "unknown"
+    assert record["invoice_verified"] is False
+
+
+@pytest.mark.parametrize("failure_name", ["inputs.jsonl", "run.jsonl", "rubric.jsonl"])
+def test_ocw_initial_publication_failure_keeps_primary_and_sends_nothing(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    failure_name: str,
+) -> None:
+    monkeypatch.setenv("PERPLEXITY_API_KEY", "synthetic-provider-key")
+    monkeypatch.setattr(collector, "validate_ocw_environment", lambda _key: None)
+    monkeypatch.setattr(collector, "_code_sha", lambda: "a" * 40)
+    real_write = collector.write_report
+    failure = OSError("synthetic first publication failure")
+
+    def write(path: Path, data: bytes) -> None:
+        if path.name == failure_name:
+            raise failure
+        real_write(path, data)
+
+    def no_transport(_ledger: object) -> None:
+        raise AssertionError("provider allocated after failed input publication")
+
+    monkeypatch.setattr(collector, "write_report", write)
+    monkeypatch.setattr(collector, "_ocw_http_client", no_transport)
+    with pytest.raises(OSError) as raised:
+        collector.collect_ocw_comparison(
+            _ocw_rows(),
+            output_dir=tmp_path,
+            rubric=RUBRIC,
+            pricing=_ocw_prices(),
+            fitchef_key="ocw-eval-synthetic",
+            perplexity_key="synthetic-provider-key",
+            run_id="publication-failure",
+        )
+    assert raised.value is failure
+    status = read_jsonl(tmp_path / "comparison-status.json")[0]
+    assert status["status"] == "incomplete" and len(status["missing"]) == 16
+    assert status["reserved_attempts"] == status["observed_http_outcomes"] == 0
+
+
+def test_ocw_status_failure_cannot_mask_first_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("PERPLEXITY_API_KEY", "synthetic-provider-key")
+    monkeypatch.setattr(collector, "validate_ocw_environment", lambda _key: None)
+    monkeypatch.setattr(collector, "_code_sha", lambda: "a" * 40)
+    failure = OSError("synthetic primary failure")
+
+    def fail_write(path: Path, _data: bytes) -> None:
+        if path.name == "inputs.jsonl":
+            raise failure
+        raise ValueError("synthetic status failure")
+
+    monkeypatch.setattr(collector, "write_report", fail_write)
+    with pytest.raises(OSError) as raised:
+        collector.collect_ocw_comparison(
+            _ocw_rows(),
+            output_dir=tmp_path,
+            rubric=RUBRIC,
+            pricing=_ocw_prices(),
+            fitchef_key="ocw-eval-synthetic",
+            perplexity_key="synthetic-provider-key",
+            run_id="publication-failure",
+        )
+    assert raised.value is failure
+    assert raised.value.__notes__ == ["ocw_status_publication_failed:ValueError"]
+
+
+@pytest.mark.parametrize("failure", ["limit", "read", "cancel"])
+def test_ocw_response_stream_failure_retains_http_status_and_blocks_next_send(
+    tmp_path: Path,
+    failure: str,
+) -> None:
+    ledger = collector.AttemptLedger(tmp_path, comparison=True)
+    ledger.bind_case("sonar", "OCW-N01", "synthetic prompt")
+
+    class Stream(httpx.AsyncByteStream):
+        async def __aiter__(self) -> Any:
+            if failure == "limit":
+                yield b"x" * (collector._OCW_RESPONSE_BYTES + 1)
+            elif failure == "read":
+                raise httpx.ReadError("synthetic body failure")
+            else:
+                raise asyncio.CancelledError()
+
+    async def run() -> None:
+        await ledger.reserve(_ocw_request("sonar"))
+        response = httpx.Response(200, request=_ocw_request("sonar"), stream=Stream())
+        expected = (
+            ValueError
+            if failure == "limit"
+            else httpx.ReadError if failure == "read" else asyncio.CancelledError
+        )
+        with pytest.raises(expected):
+            await ledger.observe_http(response)
+        with pytest.raises(collector.BudgetExhausted):
+            await ledger.reserve(_ocw_request("sonar"))
+        assert response.is_closed
+
+    asyncio.run(run())
+    outcome = read_jsonl(tmp_path / "attempt-result-0001.json")[0]
+    assert outcome["status_code"] == 200 and outcome["cost_status"] == "unknown"
+    assert outcome["raw_assistant_text"] is None and ledger.attempts == 1
+    assert ledger.retryable is False and len(ledger.http_observations) == 1
+
+
+def test_ocw_response_publication_and_cleanup_cannot_mask_original_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ledger = collector.AttemptLedger(tmp_path, comparison=True)
+    ledger.bind_case("sonar", "OCW-N01", "synthetic prompt")
+    primary = httpx.ReadError("synthetic original read failure")
+
+    class Stream(httpx.AsyncByteStream):
+        async def __aiter__(self) -> Any:
+            yield b"x"
+            raise primary
+
+        async def aclose(self) -> None:
+            raise ValueError("synthetic response close failure")
+
+    real_write = collector.write_report
+
+    def uncertain_write(path: Path, data: bytes) -> None:
+        real_write(path, data)
+        if path.name.startswith("attempt-result-"):
+            raise OSError("synthetic uncertain outcome publication")
+
+    monkeypatch.setattr(collector, "write_report", uncertain_write)
+
+    async def run() -> None:
+        await ledger.reserve(_ocw_request("sonar"))
+        with pytest.raises(httpx.ReadError) as caught:
+            await ledger.observe_http(
+                httpx.Response(200, request=_ocw_request("sonar"), stream=Stream())
+            )
+        assert caught.value is primary
+        with pytest.raises(collector.BudgetExhausted):
+            await ledger.reserve(_ocw_request("sonar"))
+
+    asyncio.run(run())
+    assert primary.__notes__ == [
+        "ocw_outcome_publication_failed:OSError",
+        "ocw_response_cleanup_failed:ValueError",
+    ]
+    assert read_jsonl(tmp_path / "attempt-result-0001.json")[0]["status_code"] == 200
+    assert ledger.attempts == 1 and ledger.terminal_reason == "outcome_publication_uncertain"
+
+
+@pytest.mark.parametrize(
+    "outcome",
+    ["success", "sonar-401", "sonar-transient", "sol-transient", "blocker-fallback", "oversized"],
+)
+def test_ocw_actual_canonical_post_mock_capture_preserves_limiter_and_blind_material(
+    tmp_path: Path,
+    outcome: str,
+) -> None:
+    """Fresh imports retain native rate decoration; only time/SDK transport are mocked."""
+    root = Path(__file__).resolve().parents[1]
+    script = r"""
+import hashlib,json,os,socket,sys,time
+from datetime import datetime,timezone
+from pathlib import Path
+from unittest.mock import patch
+import httpx
+
+directory=Path(sys.argv[1]); private=directory/'private'; private.mkdir(mode=0o700)
+db=private/'quota.db'
+vip_label='ocw-eval-synthetic-vip'; provider_label='ocw-provider-synthetic-key'
+with patch.dict(os.environ, {
+    'APP_ENV':'development','ENVIRONMENT':'development','TESTING':'true',
+    'DATABASE_URL':f'sqlite:///{db}','SUBSCRIPTION_DB_ENABLED':'false',
+    'VIP_API_KEYS':vip_label,'OCW_FITCHEF_API_KEY':vip_label,
+    'PERPLEXITY_API_KEY':provider_label,'LLM_PROVIDER':'perplexity',
+    'SERVER_SALT':'synthetic-server-salt-32-characters',
+    'AGENT_CONTROL_AUDIT_SIGNING_KEY':'synthetic-audit-signing-32-characters',
+    'AGENT_CONTROL_AUDIT_LOG_PATH':str(private/'audit.jsonl'),
+    'FEATURE_FITCHEF_MASCOT':'true','FITCHEF_MASCOT_EXECUTION_MODE':'auto-safe',
+    'RATE_LIMITING_IN_TESTS':'true','RATE_LIMIT_INSIGHT':'10/minute',
+    'VIP_LLM_INSIGHT_REQUESTS_PER_MONTH':'100','FOOD_UPDATE_SCHEDULER_MODE':'disabled',
+}):
+    from core import db as core_db
+    metadata=core_db.load_canonical_orm_metadata()
+    engine=core_db.init_db()
+    metadata.create_all(engine)
+    db.chmod(0o600)
+    from scripts.evals import collect_fitchef_answers as collector
+    from scripts.evals.evidence_relation_audit import read_jsonl
+    from app.security import rate_limit
+    rows=read_jsonl(Path(sys.argv[2]))
+    now=datetime.now(timezone.utc).isoformat()
+    prices=[{'schema_version':'ocw_pricing_evidence.v1','arm':arm,
+        'requested_model':collector._OCW_MODELS[arm], 'max_request_bytes':32768,
+        'max_output_tokens':2048,'max_billed_input_tokens':34816,
+        'max_input_usd_per_million':2.5,'max_output_usd_per_million':10,
+        'extra_fees_usd_per_attempt':0,'output_includes_reasoning':True,
+        'input_rate_includes_cache_write':True,'billed_input_bound_verified':True,
+        'all_charges_included':True,'returned_cost_currency_basis':'documented_usd',
+        'cost_currency_source_url':'https://docs.perplexity.ai/api-reference/agent-post',
+        'verified_at':now,'source_url':'https://docs.perplexity.ai/pricing'}
+        for arm in ('sonar','sol')]
+    output=private/'capture'; output.mkdir(mode=0o700)
+    for name,value in (('APP_ENV','production'),('VIP_API_KEYS',''),('SERVER_SALT',''),
+        ('DATABASE_URL','sqlite:///:memory:'),('AGENT_CONTROL_AUDIT_LOG_PATH',''),
+        ('VIP_LLM_INSIGHT_REQUESTS_PER_MONTH','15'),('FEATURE_FITCHEF_MASCOT','false'),
+        ('RATE_LIMITING_IN_TESTS','false')):
+        with patch.dict(os.environ,{name:value}):
+            try: collector.validate_ocw_environment(vip_label)
+            except ValueError: pass
+            else: raise AssertionError('invalid synthetic runtime admitted:'+name)
+    from contextlib import contextmanager
+    @contextmanager
+    def malformed_quota():
+        class Session:
+            def scalar(self,_statement): return True
+        yield Session()
+    with patch.object(collector,'session_scope',malformed_quota):
+        try: collector.validate_ocw_environment(vip_label)
+        except ValueError: pass
+        else: raise AssertionError('coercive quota admitted')
+    sends=[]; outcome=sys.argv[4]
+    async def response(request):
+        assert not any(name in request.headers for name in ('OpenAI-Organization','OpenAI-Project','Cookie'))
+        body=json.loads(request.content); sends.append(body)
+        if (outcome=='sonar-401' and request.url.path=='/chat/completions'
+            or outcome=='sonar-transient' and request.url.path=='/chat/completions' and len(sends)<3
+            or outcome=='sol-transient' and request.url.path=='/v1/responses'):
+            return httpx.Response(401 if outcome=='sonar-401' else 503,
+                json={'error':{'message':'synthetic native failure','type':'native'}})
+        raw='Сохраняем привычный распорядок питания.\n- Выберите обычный ужин.'
+        if outcome=='blocker-fallback' and request.url.path=='/chat/completions': raw='I will diagnose and cure you.'
+        elif outcome=='oversized': raw='x'*33000
+        if request.url.path=='/chat/completions':
+            payload={'id':'mock','object':'chat.completion','created':0,'model':'sonar',
+                'choices':[{'index':0,'finish_reason':'stop','message':{'role':'assistant','content':raw}}],
+                'usage':{'prompt_tokens':12,'completion_tokens':8,'total_tokens':20}}
+        else:
+            payload={'id':'mock','object':'response','created_at':0,'model':'openai/gpt-6.1-sol',
+                'status':'completed','error':None,'incomplete_details':None,
+                'output':[{'id':'m','type':'message','status':'completed','role':'assistant',
+                    'content':[{'type':'output_text','text':raw,'annotations':[]}]}],
+                'usage':{'input_tokens':12,'output_tokens':8,'total_tokens':20}}
+        payload['usage']['cost']={'total_cost':0.001,'currency':'USD'}
+        return httpx.Response(200,json=payload)
+    def transport(ledger):
+        return httpx.AsyncClient(transport=httpx.MockTransport(response),follow_redirects=False,
+            trust_env=False,event_hooks={'request':[ledger.reserve],'response':[ledger.observe_http]})
+    clock={'value':time.time()}; sleeps=[]
+    native_monotonic=time.monotonic; started=native_monotonic()
+    def observed_time():
+        return clock['value']+native_monotonic()-started
+    def sleep(seconds):
+        assert seconds>=0; sleeps.append(seconds); clock['value']+=seconds
+    with patch.object(collector,'_code_sha',lambda:'a'*40), \
+         patch.object(collector,'_ocw_http_client',transport), \
+         patch.object(time,'time',observed_time), \
+         patch.object(time,'monotonic',observed_time), \
+         patch.object(time,'sleep',sleep), \
+         patch.object(socket.socket,'connect',side_effect=AssertionError('real network forbidden')):
+        try:
+            collector.collect_ocw_comparison(rows,output_dir=output,rubric=Path(sys.argv[3]),
+                pricing=prices,fitchef_key=vip_label,
+                perplexity_key=provider_label,run_id='mock-observed-route')
+        except ValueError:
+            if outcome not in ('sonar-401','sol-transient','oversized'): raise
+            status=read_jsonl(output/'comparison-status.json')[0]
+            expected=2 if outcome=='sol-transient' else 1
+            assert len(sends)==status['reserved_attempts']==status['published_reservations']==expected
+            assert status['status']=='incomplete' and status['observed_http_outcomes']==expected
+            assert not (output/'comparison.jsonl').exists()
+            print(json.dumps({'terminal_outcome':outcome,'sdk_requests':len(sends)}))
+            sys.exit(0)
+    records=read_jsonl(output/'comparison.jsonl'); run=read_jsonl(output/'run.jsonl')[0]
+    status=read_jsonl(output/'comparison-status.json')[0]
+    expected_capture=status['capture_sha256']
+    assert expected_capture=='sha256:'+hashlib.sha256((output/'comparison.jsonl').read_bytes()).hexdigest()
+    views=collector.build_ocw_blind_view(records,expected_run=run,expected_capture_sha256=expected_capture)
+    expected_sends=18 if outcome=='sonar-transient' else 16
+    assert len(records)==len(views)==16 and len(sends)==expected_sends
+    assert len(sleeps)==15 and observed_time()-clock['value']+sum(sleeps)>=91
+    assert rate_limit.limiter.enabled is True and rate_limit.RATE_LIMIT_INSIGHT=='10/minute'
+    assert all(r['http']['status_code']==200 and r['http']['body']['quota_state']=='consumed' for r in records)
+    assert all(r['runtime_canonical_freeze_observed'] is False for r in records)
+    assert all(r['field_origin']['message']==('fallback' if outcome=='blocker-fallback' and r['arm']=='sonar' else 'provider_normalized') for r in records)
+    assert all(set(v)=={'schema_version','opaque_id','material_fingerprint','rubric_sha256',
+        'requested_language','query','final_answer','sources'} for v in views)
+    changed=json.loads(json.dumps(records)); changed[0]['http']['body']['message']='changed'
+    try: collector.build_ocw_blind_view(changed,expected_run=run,expected_capture_sha256=expected_capture)
+    except ValueError: pass
+    else: raise AssertionError('altered frozen answer admitted')
+    for change in ('extra','missing','malformed','substituted_input','foreign_provider',
+        'foreign_endpoint','native_raw','native_model','native_case','missing_attempts',
+        'reserved_alias','incomplete_native','unconsumed_quota','warning_mismatch','source_mismatch',
+        'asset_type','rail','version','policy_version','requested_language','upstream_binding',
+        'replay_behavior','admission_behavior','upstream_assets','coherent_answer_rewrite',
+        'duplicate_case','native_duplicate','native_unknown_cost','native_invalid_known_cost',
+        'provider_aggregate_cost','bad_prompt','bad_source_hash','builder_query','builder_context',
+        'missing_sanitization','wrong_sanitization','wrong_redaction','draft_shape','origin_shape',
+        'normalization_drift','attempt_sequence_gap'):
+        changed=json.loads(json.dumps(records)); row=changed[0]
+        if change=='extra': row['additional_authority']=True
+        elif change=='missing': del row['raw_assistant_text']
+        elif change=='malformed': row['http']['body']=[]
+        elif change=='substituted_input': row['input_payload']['query']='substituted frozen input'
+        elif change=='foreign_provider': row['provider']['requested_model']='foreign-model'
+        elif change=='foreign_endpoint': row['provider']['endpoint']='https://example.com/v1/responses'
+        elif change=='native_raw': row['provider']['attempts'][-1]['raw_assistant_text']='foreign text'
+        elif change=='native_model': row['provider']['attempts'][-1]['requested_model']='foreign-model'
+        elif change=='native_case': row['provider']['attempts'][-1]['case_id']='OCW-N08'
+        elif change=='missing_attempts': row['provider']['attempts']=[]
+        elif change=='reserved_alias': row['provider']['reserved_cents']=True
+        elif change=='incomplete_native': del row['provider']['attempts'][-1]['status_code']
+        elif change=='unconsumed_quota':
+            row['http']['body']['quota_state']=row['internal_result']['quota_state']='not_consumed'
+        elif change=='warning_mismatch': row['http']['body']['warnings']=['foreign-warning']
+        elif change=='source_mismatch':
+            row['http']['body']['sources'][0]['preview']=row['internal_result']['sources'][0]['preview']='foreign source'
+        elif change=='upstream_assets': row[change]=[]
+        elif change=='duplicate_case': changed[-1]=json.loads(json.dumps(row))
+        elif change=='native_duplicate': row['provider']['attempts'][-1]['attempt']=records[1]['provider']['attempts'][0]['attempt']
+        elif change=='native_unknown_cost': row['provider']['attempts'][-1]['cost_usd']=0.01
+        elif change=='native_invalid_known_cost':
+            row['provider']['attempts'][-1]['cost_status']='known'; row['provider']['attempts'][-1]['cost_usd']=True
+        elif change=='provider_aggregate_cost': row['provider']['cost_usd']=.02
+        elif change=='bad_prompt': row['prompt']='foreign prompt'
+        elif change=='bad_source_hash': row['source_snapshot_fingerprint']='sha256:'+'0'*64
+        elif change=='missing_sanitization': row['sanitization']=[]
+        elif change=='wrong_sanitization': row['sanitization'][0]['output']='foreign content'
+        elif change=='wrong_redaction': row['redaction'][0]['output']='foreign content'
+        elif change=='draft_shape': row['draft']['warnings']=[True]
+        elif change=='origin_shape': row['field_origin']['message']='unproved-origin'
+        elif change=='normalization_drift': row['generation_text']='foreign normalized generation'
+        elif change=='attempt_sequence_gap':
+            for current in changed:
+                for attempt in current['provider']['attempts']: attempt['attempt']+=1
+        elif change=='coherent_answer_rewrite':
+            altered='Иной ответ с сохранёнными действиями.'
+            row['raw_assistant_text']=row['generation_text']=row['draft']['message']=altered
+            row['http']['body']['message']=row['internal_result']['message']=altered
+            row['provider']['attempts'][-1]['raw_assistant_text']=altered
+        else: row[change]='foreign-value'
+        material={k:v for k,v in row.items() if k not in ('material_fingerprint','idempotency_key')}
+        row['material_fingerprint']='sha256:'+hashlib.sha256(collector._canonical(material)).hexdigest()
+        row['idempotency_key']='sha256:'+hashlib.sha256(collector._canonical({'run_id':run['id'],
+            'case_id':row['case_id'],'arm':row['arm'],'material_fingerprint':row['material_fingerprint']})).hexdigest()
+        try: collector.build_ocw_blind_view(changed,expected_run=run,expected_capture_sha256=expected_capture)
+        except ValueError: pass
+        else: raise AssertionError('malformed or foreign capture admitted:'+change)
+    status=read_jsonl(output/'comparison-status.json')[0]
+    assert status['reserved_cents']==15*expected_sends and status['observed_http_outcomes']==expected_sends
+    print(json.dumps({'mock_route_cases':16,'sdk_requests':expected_sends,'paced_intervals':15,
+        'active_rate':'10/minute','frozen_blind_views':len(views)}))
+"""
+    environment = {
+        "PATH": os.environ.get("PATH", ""),
+        "PYTHONPATH": str(root),
+        "PYTHONNOUSERSITE": "1",
+        "PYTEST_CURRENT_TEST": os.environ.get("PYTEST_CURRENT_TEST", ""),
+    }
+    active_coverage = Coverage.current()
+    measure_child = active_coverage is not None and "scripts/evals/collect_fitchef_answers.py" in (
+        active_coverage.get_option("run:include") or ()
+    )
+    child_data_path = tmp_path / "native-route.coverage"
+    if measure_child:
+        assert active_coverage is not None
+        # The existing dedicated producer must measure the actual isolated
+        # route execution. Native child tracing contributes only real hits;
+        # keep the parent's branch/include contract and one XML producer.
+        script = (
+            "import coverage,sys\n"
+            "native_cov=coverage.Coverage(config_file=False,data_file=sys.argv[5],"
+            + f"branch={active_coverage.get_option('run:branch')!r},"
+            + f"include={active_coverage.get_option('run:include')!r},"
+            + f"omit={active_coverage.get_option('run:omit')!r})\n"
+            "native_cov.start()\ntry:\n"
+            + textwrap.indent(script, "    ")
+            + "\nfinally:\n    native_cov.stop()\n    native_cov.save()\n"
+        )
+    completed = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            script,
+            str(tmp_path),
+            str(root / "tests/fixtures/ocw/fitchef_nutrition_cases.v1.jsonl"),
+            str(RUBRIC),
+            outcome,
+            str(child_data_path),
+        ],
+        cwd=root,
+        env=environment,
+        capture_output=True,
+        text=True,
+        timeout=180,
+    )
+    assert completed.returncode == 0, completed.stdout[-1500:] + completed.stderr[-4500:]
+    if measure_child:
+        assert active_coverage is not None
+        assert child_data_path.is_file()
+        native_data = CoverageData(basename=str(child_data_path))
+        native_data.read()
+        assert (
+            str(root / "scripts/evals/collect_fitchef_answers.py") in native_data.measured_files()
+        )
+        active_coverage.get_data().update(native_data)
+    assert (
+        '"terminal_outcome"'
+        if outcome in {"sonar-401", "sol-transient", "oversized"}
+        else '"mock_route_cases": 16'
+    ) in completed.stdout
+
 
 RUBRIC = Path(__file__).resolve().parents[1] / "docs/evals/FITCHEF_CLAIM_EVIDENCE_EVAL_V1.md"
 
@@ -1811,6 +2958,7 @@ def test_unmatched_candidate_abstention_keeps_omission_and_abstention() -> None:
 def test_hidden_inputs_require_owner_private_file_or_directory(tmp_path: Path) -> None:
     public = tmp_path / "shared"
     public.mkdir(mode=0o755)
+    public.chmod(0o755)
     exposed = public / "manifest.jsonl"
     exposed.write_bytes(b'{"value":1}\n')
     exposed.chmod(0o644)

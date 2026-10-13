@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import sys
 from datetime import datetime, timezone
@@ -2611,6 +2612,18 @@ def _parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
         default=None,
         help="Caller-admitted canonical material checkout required for live oracle delivery.",
     )
+    parser.add_argument(
+        "--ocw-evidence",
+        type=Path,
+        default=None,
+        help="Opt-in bounded JSONL snapshot and observed OCW material.",
+    )
+    parser.add_argument(
+        "--ocw-invocation",
+        type=Path,
+        default=None,
+        help="Independent caller-admitted current OCW invocation JSONL.",
+    )
     return parser.parse_args(argv)
 
 
@@ -2619,6 +2632,18 @@ def main(argv: Optional[List[str]] = None) -> int:
     global _routing_graph, _routing_validation_source
     args = _parse_args(argv)
     exact_context_requested = args.role_context_order is not None
+    ocw_requested = args.ocw_evidence is not None or args.ocw_invocation is not None
+    if ocw_requested and (
+        args.ocw_evidence is None
+        or args.ocw_invocation is None
+        or not args.packet
+        or Path(args.packet).suffix != ".json"
+        or not exact_context_requested
+    ):
+        print(
+            "FAIL: OCW requires paired inputs, JSON packet and exact occurrence.", file=sys.stderr
+        )
+        return 1
     if args.oracle_evidence and (
         not args.packet or not exact_context_requested or Path(args.packet).suffix != ".json"
     ):
@@ -2955,12 +2980,92 @@ def main(argv: Optional[List[str]] = None) -> int:
                 print(f"FAIL: oracle evidence rejected ({type(exc).__name__}).", file=sys.stderr)
                 return 1
 
+        if ocw_requested:
+            from core.evidence.federation import (
+                build_evidence_projection,
+                select_claim_neighborhood,
+            )
+            from core.evidence.relations import parse_snapshot
+            from scripts.evals.evidence_relation_audit import read_jsonl
+            from scripts.orchestration.ocw_context import (
+                build_ocw_evidence_attachment,
+                validate_ocw_invocation,
+                validate_ocw_wire_size,
+            )
+
+            try:
+                invocations = read_jsonl(args.ocw_invocation)
+                evidence_rows = read_jsonl(args.ocw_evidence)
+                if len(invocations) != 1 or len(evidence_rows) != 1:
+                    raise ValueError("ocw_input")
+                invocation = validate_ocw_invocation(invocations[0])
+                binding = invocation["binding"]
+                if (
+                    packet_json_payload is None
+                    or binding["task_packet_id"] != packet_json_payload.get("task_packet_id")
+                    or binding["role_context_order"] != selected["order"]
+                ):
+                    raise ValueError("ocw_binding")
+                evidence = evidence_rows[0]
+                if type(evidence) is not dict or set(evidence) != {"snapshot", "observed"}:
+                    raise ValueError("ocw_input")
+                if type(evidence["snapshot"]) is not list:
+                    raise ValueError("ocw_input")
+                neighborhood = select_claim_neighborhood(
+                    build_evidence_projection(parse_snapshot(evidence["snapshot"])),
+                    claim_ref=binding["claim_ref"],
+                    context_ref=binding["context_ref"],
+                    time_scope=binding["time_scope"],
+                )
+                attachment = build_ocw_evidence_attachment(
+                    neighborhood, expected_invocation=invocation, observed=evidence["observed"]
+                )
+                validate_ocw_wire_size(attachment, pretty=args.pretty)
+                selected_context_output["ocw_evidence"] = attachment
+            except (OSError, ValueError, KeyError, TypeError) as exc:
+                if (
+                    type(exc) is ValueError
+                    and len(exc.args) == 1
+                    and type(exc.args[0]) is str
+                    and exc.args[0] == "ocw_wire_limit"
+                ):
+                    diagnostic = "attachment exceeds 65536 UTF-8 bytes"
+                else:
+                    diagnostic = type(exc).__name__
+                print(f"FAIL: OCW evidence rejected ({diagnostic}).", file=sys.stderr)
+                return 1
+
     # Output
     indent = 2 if args.pretty else None
     output_payload = selected_context_output if selected_context_output is not None else manifest
-    json_output = json.dumps(output_payload, ensure_ascii=False, indent=indent, sort_keys=False)
+    json_output = json.dumps(
+        output_payload,
+        ensure_ascii=False,
+        indent=indent,
+        sort_keys=False,
+        allow_nan=not ocw_requested,
+    )
 
-    if args.output:
+    if args.output and ocw_requested:
+        from scripts.evals.evidence_relation_audit import _parent_fd, write_report
+
+        try:
+            out_path = Path(args.output)
+            if not out_path.is_absolute():
+                out_path = REPO_ROOT / out_path
+            parent, _name = _parent_fd(out_path)
+            try:
+                info = os.fstat(parent)
+                if info.st_uid != os.getuid() or info.st_mode & 0o077:
+                    raise ValueError("unsafe_ocw_output_parent")
+            finally:
+                os.close(parent)
+            write_report(out_path, (json_output + "\n").encode("utf-8"))
+        except (OSError, ValueError) as exc:
+            print(f"FAIL: OCW output rejected ({type(exc).__name__}).", file=sys.stderr)
+            return 1
+        print("OCW role context output published.", file=sys.stderr)
+    elif args.output:
         out_path = Path(args.output)
         if not out_path.is_absolute():
             out_path = (REPO_ROOT / out_path).resolve()
