@@ -118,6 +118,8 @@ def _run_alertmanager_scan_fixture(
         f"#!{sys.executable}\n"
         "import json,os,sys\nfrom pathlib import Path\n"
         "args=sys.argv[1:]\n"
+        "if args==['--version','--format','json']:\n"
+        " print(json.dumps({'Version':'0.74.0'})); sys.exit(0)\n"
         "ignore=Path(args[args.index('--ignorefile')+1]).name if '--ignorefile' in args else ''\n"
         "negative=bool(ignore) and ignore!='trivy-ignore.yaml'\n"
         "late='expired' in ignore\n"
@@ -140,26 +142,34 @@ def _run_alertmanager_scan_fixture(
     trivy.chmod(0o755)
     runner = tmp_path / "runner"
     runner.mkdir()
+    (runner / "prometheus-consumer-123-1" / "evidence").mkdir(parents=True)
+    cache = tmp_path / "trivy-cache" / "db"
+    cache.mkdir(parents=True)
+    (cache / "metadata.json").write_text('{"Version": 2}', encoding="utf-8")
+    (cache / "trivy.db").write_bytes(b"synthetic database")
     env = {
-        key: value
-        for key, value in os.environ.items()
-        if not key.startswith(("GIT_", "GITHUB_", "GH_"))
+        "PATH": str(binaries) + os.pathsep + os.defpath,
+        "HOME": str(tmp_path),
+        "LANG": "C",
+        "GITHUB_WORKSPACE": str(workspace),
+        "GITHUB_RUN_ID": "123",
+        "GITHUB_RUN_ATTEMPT": "1",
+        "GITHUB_SHA": "c" * 40,
+        "PROMETHEUS_EVENT_HEAD": "a" * 40,
+        "RUNNER_TEMP": str(runner),
+        "TRIVY_BIN": str(trivy),
+        "TRIVY_CACHE_DIR": str(cache.parent),
+        "SCAN_SCENARIO": scenario,
+        "SCAN_REPORT": str(tmp_path / "report.json"),
+        "SCAN_CALLS": str(tmp_path / "calls.log"),
     }
-    env.update(
-        {
-            "PATH": str(binaries) + os.pathsep + env["PATH"],
-            "GITHUB_WORKSPACE": str(workspace),
-            "RUNNER_TEMP": str(runner),
-            "TRIVY_BIN": str(trivy),
-            "SCAN_SCENARIO": scenario,
-            "SCAN_REPORT": str(tmp_path / "report.json"),
-            "SCAN_CALLS": str(tmp_path / "calls.log"),
-        }
-    )
-    bash = shutil.which("bash")
-    assert bash is not None
     return subprocess.run(
-        [bash, "-c", script], cwd=workspace, env=env, capture_output=True, text=True, timeout=20
+        ["/bin/bash", "-c", script],
+        cwd=workspace,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=20,
     )
 
 
@@ -173,6 +183,15 @@ def test_alertmanager_negative_controls_reject_unproven_scans(
     result = _run_alertmanager_scan_fixture(tmp_path, scenario)
     assert result.returncode != 0, result.stdout + result.stderr
     assert (tmp_path / "calls.log").read_text(encoding="utf-8").strip()
+    if scenario in ("exit1", "exit2"):
+        assert result.returncode == int(scenario[-1])
+        assert "scanner prerequisite failed; no report" in result.stderr
+    elif scenario in ("malformed", "stale"):
+        assert "JSONDecodeError" in result.stderr
+    elif scenario == "secret":
+        assert "Alertmanager scan contains unexpected secret findings" in result.stderr
+    else:
+        assert "Unsuppressed Alertmanager finding inventory changed" in result.stderr
 
 
 def test_alertmanager_negative_controls_require_both_retained_inventories(tmp_path: Path) -> None:

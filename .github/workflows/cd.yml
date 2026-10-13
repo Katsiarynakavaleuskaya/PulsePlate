@@ -797,6 +797,8 @@ jobs:
         env:
           TRIVY_DB_REPOSITORY: ghcr.io/aquasecurity/trivy-db
           TRIVY_BIN: ${{ steps.prometheus_trivy.outputs.path }}
+          TRIVY_CACHE_DIR: /tmp/trivy-cache-prometheus-image-security
+          PROMETHEUS_EVENT_HEAD: ${{ steps.prometheus-route.outputs.head }}
         run: |
           set -euo pipefail
           alert_ref='prom/alertmanager@sha256:84967b9b7ba45e38a9278d3e594305f43d4993c310df3905b51138b816c365f3'
@@ -836,6 +838,46 @@ jobs:
           "$TRIVY_BIN" image --scanners vuln,secret --format json \
             --pkg-types os,library --severity CRITICAL,HIGH --exit-code 0 \
             --timeout 15m --output "$scan" "$alert_ref"
+          python3 - "$scan" <<'PY'
+          import json, sys
+          data=json.load(open(sys.argv[1], encoding="utf-8"))
+          if any(r.get("Secrets") for r in data.get("Results", [])):
+              raise SystemExit("Alertmanager scan contains unexpected secret findings")
+          PY
+          evidence_dir="$RUNNER_TEMP/prometheus-consumer-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT/evidence"
+          cp -- "$scan" "$evidence_dir/alertmanager-unsuppressed.json"
+          "$TRIVY_BIN" --version --format json > "$evidence_dir/alertmanager-trivy-version.json"
+          python3 - "$alert_ref" "$TRIVY_BIN" "$TRIVY_CACHE_DIR" "$evidence_dir" <<'PY'
+          import hashlib, json, os, sys
+          from pathlib import Path
+
+          image, scanner, cache, evidence = sys.argv[1:]
+          evidence = Path(evidence)
+          def digest(path):
+              value = hashlib.sha256()
+              with path.open("rb") as stream:
+                  for block in iter(lambda: stream.read(1024 * 1024), b""):
+                      value.update(block)
+              return value.hexdigest()
+          metadata = Path(cache) / "db" / "metadata.json"
+          database = Path(cache) / "db" / "trivy.db"
+          observed = {
+              "image": image,
+              "run_id": os.environ["GITHUB_RUN_ID"],
+              "run_attempt": os.environ["GITHUB_RUN_ATTEMPT"],
+              "head": os.environ["PROMETHEUS_EVENT_HEAD"],
+              "workflow_execution_sha": os.environ["GITHUB_SHA"],
+              "scanner_sha256": digest(Path(scanner)),
+              "scanner_version": json.loads((evidence / "alertmanager-trivy-version.json").read_bytes()),
+              "report_sha256": digest(evidence / "alertmanager-unsuppressed.json"),
+              "database_metadata": json.loads(metadata.read_bytes()),
+              "database_metadata_sha256": digest(metadata),
+              "database_sha256": digest(database),
+          }
+          (evidence / "alertmanager-scan-context.json").write_text(
+              json.dumps(observed, indent=2) + "\n", encoding="utf-8"
+          )
+          PY
           verify_alertmanager_inventory() {
             python3 - "$1" <<'PY'
           import json, sys
