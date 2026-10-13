@@ -819,6 +819,7 @@ def test_retired_legacy_python_bindings_fail_closed_in_a_fresh_process(
     scenario = "import sys\n" + import_sequence + textwrap.dedent(f"""
         import json
         import app as app_facade
+        import app.bootstrap.application as application_bootstrap
         import app.bootstrap.openapi as canonical_openapi
         import app.services.pro_nutrition_plate as plate_service
         import app.services.pro_nutrition_targets as targets_service
@@ -828,6 +829,7 @@ def test_retired_legacy_python_bindings_fail_closed_in_a_fresh_process(
         import app.routers.health as health
         from typing import Literal, get_args, get_origin
 
+        assert legacy_app._application_metadata is application_bootstrap.APPLICATION_METADATA
         assert callable(application_metadata.build_application_metadata)
         assert application_metadata.build_application_metadata.__module__ == application_metadata.__name__
         assert type(http_error_details.ENHANCED_PLATE_GENERATION_FAILED_DETAIL) is str
