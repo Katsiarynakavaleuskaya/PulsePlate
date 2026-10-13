@@ -243,3 +243,63 @@ An actual observed CLI invocation plus independent full record/reference
 reconciliation and unchanged input is required before claiming consumer proof.
 Removing projection/inspect preserves sources and legacy validate/report;
 there is no data migration or provider switch.
+
+## OCW-1A advisory consumer attachment
+
+`scripts/orchestration/ocw_context.py` delivers the existing complete
+`ClaimNeighborhoodV1.to_dict()` projection in an optional outer
+`ocw_evidence` member of the existing exact role-context envelope. It adds no
+graph state, source parser, static context source, cache or role permission.
+The canonical `evidence.asset` namespace, snapshot fingerprint and local ID
+qualify every supplied asset; all four lookup states, adverse links, revision
+history and structural assessments retain their original meaning and bytes.
+
+The independent caller supplies one current invocation object with `binding`
+and ordered `sources`. Binding includes the exact packet ID, one-based final
+role occurrence, run/case IDs, current message, frozen final answer,
+claim/context/time query, canonical input fingerprint and neighborhood result
+fingerprint. Sources contain the qualified `ref`, captured `version`, loaded
+raw `content` or `null`, and the asset owner's original JSON `payload`.
+That payload is arbitrary bounded JSON; it is not a newly imposed
+content/version schema. Its existing asset fingerprint differs from the raw
+body's SHA-256. Both body and version remain bound independently to the
+caller-owned capture. A loaded empty or whitespace body is preserved as
+`content_status=empty` with its real body hash; `content_status=missing` means
+the body was not loaded. Either is an explicit no-usable-content gap beside
+the unchanged graph lookup state.
+
+The separately supplied observation has exactly `binding`, `sources`,
+`authority_granted=false` and `answer_change_allowed=false`. Types, finite
+native JSON and depth are admitted before copying, encoding or hashing.
+Canonical type-sensitive comparison rejects substituted inputs, versions,
+bodies, arbitrary payloads and `false`/`0` aliases even after candidate hash
+recomputation. The helper requires the exact canonical neighborhood class;
+it never accepts a duck serializer. Matching unkeyed fingerprints establish
+material consistency, not authentic execution, source currentness, support
+or permission. The caller must retain independent expectations; deriving
+them from the candidate would defeat this check.
+
+Use paired `--ocw-evidence EVIDENCE.jsonl --ocw-invocation INVOCATION.jsonl`
+with the existing JSON packet and `--role-context-order N` on
+`scripts.orchestration.role_dispatch_bridge`. Each bounded input has one
+JSONL row. Evidence has exactly `snapshot` (canonical raw records) and
+`observed`; invocation has `binding` and `sources`. The bridge cross-checks
+packet ID and occurrence, delegates snapshot parsing/audit/selection to the
+existing canonical owners and appends the admitted attachment after existing
+outer oracle assembly. Default dispatch, manifest ordering, rights,
+static-source list and static context digest retain their existing contracts.
+The actual final compact or pretty JSON encoding of the OCW value at outer
+depth one must be at most 65,536 UTF-8 bytes, including indentation, escaping
+and separators. Exactly 65,536 is accepted; 65,537 rejects the whole attachment.
+No truncation substitutes for rejection. Opted-in output reuses the existing
+no-follow reader and private no-replace writer; its raw path must have an
+existing current-owner mode-0700 parent and the output is mode 0600.
+
+Source/case prose is advisory data and cannot select roles, commands, tools,
+permissions or answer changes. Actual native coordinator/QA consumption must
+reconcile the complete graph and every source body against independent
+current capture before semantic assessment. A rejected or missing body can
+only narrow the evidence available for that assessment. Synthetic graph
+replay and local helper tests do not establish live retrieval or model
+quality. The eight-case paired capture and frozen answer rubric live in
+`docs/evals/FITCHEF_CLAIM_EVIDENCE_EVAL_V1.md`.

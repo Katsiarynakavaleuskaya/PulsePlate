@@ -1035,13 +1035,20 @@ If it is not recorded here — it does not exist.
     are changed.
 
 <a id="ledger-p1-graph-fed-1-read-only-evidence-projection"></a>
-- [ ] P1: GRAPH-FED-1 typed read-only evidence projection
+- [x] P1: GRAPH-FED-1 typed read-only evidence projection
   - Owner: backend-engineer / architecture-specialist / security-auditor
   - Priority: P1
   - Target PR: [#2480](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2480)
     on codex/graph-fed-1-evidence-projection
-  - Status: In implementation; focused material validation and the required
-    PR/review/current-head CI lifecycle remain pending.
+  - Status: Merged and terminally closed in PR #2480 as
+    `7b28b502c3d257c1da905ed386d79fab1a12869a`; its own post-merge CI
+    [37832590536](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/37832590536)
+    completed successfully. Retained owner reconciliation covers all 50
+    GRAPH-FED-1 criteria, 230 archive members, six same-ID document readbacks
+    and owned cleanup. This closes that projection's DoD only.
+  - Carryover (EN): OCW-1A reconciles this stale ledger state in its substantive
+    consumer PR; #2480 remains the owning Target PR. Dynamic native OCW
+    delivery and paired FitChef capture are tracked separately below.
   - Area: pure core / offline evidence inspection
   - Reason (EN): Return the complete represented exact claim/context/time
     neighborhood and explicit revision/dependency closure in one inspection,
@@ -1061,6 +1068,40 @@ If it is not recorded here — it does not exist.
     broader Evidence Graph umbrella.
   - Rollback (EN): Revert projection/inspect while preserving source v1 and
     legacy validate/report; no migration or provider switch.
+
+<a id="ledger-p1-ocw-1a-evidence-consumer"></a>
+- [ ] P1: OCW-1A existing Evidence Graph advisory consumer
+  - Owner: agent-coordinator / security-auditor / QA / evaluation owner
+  - Priority: P1
+  - Target PR: Pending creation on `codex/ocw-1a-fitchef-evidence-consumer`.
+  - Status: Bounded implementation; native consumer proof, actual paired
+    capture/assessment, current-head CI/review and terminal closeout pending.
+  - Area: existing orchestration/eval seams
+  - Reason (EN): GRAPH-FED-1 delivers read-only inspection; current coordinator
+    and QA still need independently bound advisory material and observed
+    answer/source reconciliation without new runtime authority.
+  - Carryover (EN): Close only the verified #2480 owning ledger item in this
+    substantive PR. Preserve #2459's closed implementation and wider open
+    Evidence Graph, provider, cost-routing and semantic-cache owners.
+  - Links: docs/evals/EVIDENCE_RELATION_CAUSAL_AUDIT_V1.md,
+    docs/evals/FITCHEF_CLAIM_EVIDENCE_EVAL_V1.md,
+    docs/orchestration/AGENT_CONTEXT_MAP.md
+  - DoD: All 53 owner-accepted OCW-1A-AC-v1.0 items (A01-A13, B01-B21,
+    C01-C19) retain individual observed evidence; exact current dynamic
+    attachment and immutable canonical complete graph/source reconciliation;
+    literal false flags and whole 64-KiB depth-one bound; actual native
+    coordinator/QA consumption; eight RU canonical scenarios and 16 actual
+    guarded mascot observations with identical paired inputs/full prompts;
+    provider-blind six-dimension assessment after freeze; shared US$4.80/32
+    physical-send cap with durable integer reservations and complete failures;
+    narrow gates/current-head CI/review, separate merge approval and governed
+    same-ID document/archive/owned-cleanup closeout.
+  - Out of scope (EN): Public API/DTO/OpenAPI, production provider migration,
+    nutrition calculations, product plan mutation, semantic cache, graph
+    serving, knowledge promotion and foreign CD/nightly fixes.
+  - Rollback (EN): Revert the optional attachment, closed comparison mode,
+    fixtures and their coverage membership; retain private captured evidence
+    and the unchanged graph/runtime/default dispatch contracts.
 
 <a id="ledger-p1-noos-1b-fitchef-answer-evaluation"></a>
 - [x] P1: NOOS-1B FitChef answer-content evaluation
