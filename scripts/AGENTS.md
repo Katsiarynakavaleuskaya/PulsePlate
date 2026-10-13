@@ -208,6 +208,15 @@
   evidence artifact. This mode is mandatory evidence for non-trivial PRs, but
   remains review-only authority: it must not promote, resolve review threads,
   claim merge readiness, or mutate governance surfaces.
+- Retain a contributing accepted current Runner result as an honest canonical
+  local result reference and supply it to `pr_review_closeout.py init` with
+  `--experiment-result`. Inspect the generated Runner stanza and run the existing
+  required-mode Phase2 result consumer before publication, following the
+  [experimentation contract](../docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md).
+  Structural pre-closeout PASS or default N/A does not establish applicability
+  or currentness. Stop publication on metadata mismatch and follow existing
+  governed recovery; do not edit raw drafts/mappings or infer general reset
+  authority. This procedure grants no execution, security or merge authority.
 - Experiment Runner PR creative-context artifacts stay local under
   `artifacts/orchestration/experiments/creative_context/`. The
   `experiment_runner_pr_creative_context.py` CLI may only emit sanitized
