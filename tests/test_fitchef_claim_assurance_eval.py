@@ -670,19 +670,107 @@ def test_native_outcome_omission_preserves_publication_failure_and_prior_cost_la
     assert ledger.retryable is False and ledger.attempts == 1
 
 
-def test_native_outcome_keeps_bounded_unknown_provider_metadata(tmp_path: Path) -> None:
+@pytest.mark.parametrize("arm", ["sonar", "sol"])
+@pytest.mark.parametrize("status", [200, 503])
+@pytest.mark.parametrize("token", [b"NaN", b"Infinity", b"-Infinity", b"1e400"])
+def test_native_outcome_omits_noncanonical_metadata_and_latches_before_next_send(
+    tmp_path: Path,
+    arm: str,
+    status: int,
+    token: bytes,
+) -> None:
     ledger = collector.AttemptLedger(tmp_path, comparison=True)
-    ledger.bind_case("sol", "OCW-N01", "synthetic prompt")
+    ledger.bind_case(arm, "OCW-N01", "synthetic prompt")
+    body = b'{"usage":{"unknown":' + token + b"}}"
+    sends = 0
+
+    async def respond(request: httpx.Request) -> httpx.Response:
+        nonlocal sends
+        sends += 1
+        return httpx.Response(status, request=request, content=body)
+
+    async def run() -> None:
+        async with httpx.AsyncClient(
+            transport=httpx.MockTransport(respond),
+            event_hooks={"request": [ledger.reserve], "response": [ledger.observe_http]},
+        ) as client:
+            with pytest.raises(ValueError):
+                await client.send(_ocw_request(arm))
+            with pytest.raises(collector.BudgetExhausted):
+                await client.send(_ocw_request(arm))
+
+    asyncio.run(run())
+    native = read_jsonl(tmp_path / "attempt-result-0001.json")[0]
+    assert isinstance(native, dict)
+    assert native == ledger.http_observations[0]
+    assert native["status_code"] == status and native["cost_status"] == "unknown"
+    assert native["usage"] is None and native["raw_assistant_text"] is None
+    assert native["raw_error_body_status"] == "omitted_noncanonical_metadata"
+    assert native["raw_error_body_sha256"] == "sha256:" + hashlib.sha256(body).hexdigest()
+    assert native["raw_error_body_bytes"] == len(body)
+    assert "raw_error_body_base64" not in native
+    assert ledger.terminal_reason == "response_admission" and ledger.retryable is False
+    assert sends == ledger.attempts == ledger.reservation_publications == 1
+
+
+@pytest.mark.parametrize("arm", ["sonar", "sol"])
+@pytest.mark.parametrize("published", [False, True])
+def test_noncanonical_native_outcome_preserves_primary_publication_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    arm: str,
+    published: bool,
+) -> None:
+    ledger = collector.AttemptLedger(tmp_path, comparison=True)
+    ledger.bind_case(arm, "OCW-N01", "synthetic prompt")
+    original = collector.write_report
+    failure = OSError("synthetic noncanonical outcome publication failure")
+    body = b'{"usage":{"unknown":NaN}}'
+
+    def publish(path: Path, data: bytes) -> None:
+        if path.name.startswith("attempt-result-"):
+            if published:
+                original(path, data)
+            raise failure
+        original(path, data)
+
+    monkeypatch.setattr(collector, "write_report", publish)
+
+    async def run() -> None:
+        await ledger.reserve(_ocw_request(arm))
+        with pytest.raises(OSError) as raised:
+            await ledger.observe_http(httpx.Response(503, request=_ocw_request(arm), content=body))
+        assert raised.value is failure
+        with pytest.raises(collector.BudgetExhausted):
+            await ledger.reserve(_ocw_request(arm))
+
+    asyncio.run(run())
+    assert ledger.terminal_reason == "outcome_publication_uncertain" and ledger.retryable is False
+    assert ledger.attempts == ledger.reservation_publications == 1
+    assert len(ledger.http_observations) == 1
+    if published:
+        native = read_jsonl(tmp_path / "attempt-result-0001.json")[0]
+        assert isinstance(native, dict)
+        assert native["raw_error_body_status"] == "omitted_noncanonical_metadata"
+    else:
+        assert not (tmp_path / "attempt-result-0001.json").exists()
+
+
+@pytest.mark.parametrize("arm", ["sonar", "sol"])
+def test_native_outcome_keeps_bounded_unknown_provider_metadata(tmp_path: Path, arm: str) -> None:
+    ledger = collector.AttemptLedger(tmp_path, comparison=True)
+    ledger.bind_case(arm, "OCW-N01", "synthetic prompt")
     usage = {"cost": {"total_cost": 0.001, "padding": "small"}, "unknown_usage": {"captured": True}}
 
     async def run() -> None:
-        await ledger.reserve(_ocw_request("sol"))
+        await ledger.reserve(_ocw_request(arm))
         await ledger.observe_http(
-            httpx.Response(200, request=_ocw_request("sol"), json={"usage": usage})
+            httpx.Response(200, request=_ocw_request(arm), json={"usage": usage})
         )
 
     asyncio.run(run())
     native = read_jsonl(tmp_path / "attempt-result-0001.json")[0]
+    assert isinstance(native, dict)
     assert native["usage"] == usage and native["provider_declared_cost"] == usage["cost"]
     assert "outcome_material_status" not in native
 

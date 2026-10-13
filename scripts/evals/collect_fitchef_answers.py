@@ -842,6 +842,17 @@ class AttemptLedger:
                     self.terminal_reason = self.terminal_reason or "response_limit"
         try:
             if payload is not None:
+                try:
+                    # JSON decoding accepts nonfinite extensions. Admit canonical
+                    # metadata before copying it into the durable native envelope.
+                    _canonical(payload)
+                except (ValueError, TypeError, RecursionError):
+                    native["raw_error_body_sha256"] = (
+                        "sha256:" + hashlib.sha256(response.content).hexdigest()
+                    )
+                    native["raw_error_body_bytes"] = len(response.content)
+                    native["raw_error_body_status"] = "omitted_noncanonical_metadata"
+                    raise
                 native["returned_model"] = (
                     payload.get("model") if type(payload.get("model")) is str else None
                 )
