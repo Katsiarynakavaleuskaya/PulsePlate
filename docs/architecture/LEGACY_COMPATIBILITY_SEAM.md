@@ -489,18 +489,38 @@ outside this bounded proof.
 Incoming PR #2483 terminal reconciliation is applied and committed once in this
 substantive child as `045952773ce45def82eca1130dd23d43630ac1d8`, preserving its
 Target PR #2483 and historical evidence above. Reconciled #2478/#2475/#2466 are
-not repeated. This child's own local validation, actual-diff premortem and
-Oracle have observed evidence. Current-head CI, post-open review, final closeout,
-separately approved merge and terminal continuity remain pending until observed;
-predecessor results grant no transferred PASS.
+not repeated. Original-material local validation, actual-diff premortem, Oracle,
+the ordered post-open roles, the bounded aggregate-test review fix and the first
+mapping closeout have observed evidence. Those results remain historical for
+their exact material. The original hosted `test-pr` run exhausted its 60-minute
+job budget before complete coverage evidence existed; the narrower strict-wrapper
+result did not establish completion of the full hosted test/coverage obligations.
+Fresh local and current-head CI/coverage evidence, exact-material Oracle and
+self-review, changed-digest resealing, separately approved merge and terminal
+continuity remain required; predecessor results grant no transferred PASS.
+
+On October 13, 2026, the operator explicitly authorized increasing only
+`jobs.test-pr.timeout-minutes` from 60 to 120 in `.github/workflows/ci.yml:967`
+and continuing this correction in PR #2486 after its published mapping-only head
+`f6e9e68fdfc5c77d960db18893a004049484759d`. This is a lane-specific human
+exception, not a global policy change or merge permission. The old mapping bytes
+and history are preserved in the material correction; its inherited seal becomes
+stale until native closeout binds the new material digest. The prepared one-line
+candidate passed the three existing workflow-contract suites and preserved every
+other parsed workflow field. This does not prove hosted completion or that 120
+minutes is sufficient. Test selection, coverage producers and the 97% threshold,
+credentials, permissions, cancellation and all other timeouts remain unchanged.
 
 The operator explicitly authorizes this bounded start on red main. Foreign
 PR #2477 dependency/CD and PR #2476 consolidation/security/timeout ownership
-remain separate. PROJECT_LEGACY stays OPEN, R29 stays PARTIAL / UNWAIVED,
-O1 stays historical NOT_ADMITTED and the shared-runtime P1 follow-up stays OPEN.
-Rollback reverts this three-name removal and its coupled guard/tests only,
-preserving PR #2478 validation fixes, PR #2483 BMI retirement and truthful
-predecessor reconciliation. No separate docs-only closeout PR is selected.
+remain separate except for this expressly admitted own job-budget scalar.
+No foreign repair or evidence is imported. PROJECT_LEGACY stays OPEN, R29 stays
+PARTIAL / UNWAIVED, O1 stays historical NOT_ADMITTED and the shared-runtime P1
+follow-up stays OPEN.
+Rollback reverts this three-name removal and its coupled guard/tests and restores
+this PR's job budget from 120 to 60, preserving PR #2478 validation fixes,
+PR #2483 BMI retirement and truthful predecessor reconciliation.
+No separate docs-only closeout PR is selected.
 
 ## Residual Python facade census (log-retention child)
 
