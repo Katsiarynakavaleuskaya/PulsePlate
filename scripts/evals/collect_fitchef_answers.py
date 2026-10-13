@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-import base64
 from collections import Counter
 from contextlib import ExitStack
 import copy
@@ -35,6 +34,8 @@ import httpx
 from fastapi import HTTPException
 from openai import APIConnectionError, AsyncOpenAI, OpenAI
 from sqlalchemy import select
+from sqlalchemy.engine import make_url
+from sqlalchemy.exc import ArgumentError
 
 from app.middleware.api_tiers import SubscriptionTier, get_subscription_tier
 from app.routers import fitchef_structured
@@ -62,6 +63,7 @@ from scripts.evals.evidence_relation_audit import (
     MAX_LINE_BYTES,
     _check_depth,
     _parent_fd,
+    _read_input,
     read_jsonl,
     write_report,
 )
@@ -834,12 +836,9 @@ class AttemptLedger:
                 self.retryable = False
                 native["raw_error_body_status"] = "omitted_credential_reflection"
             else:
-                native["raw_error_body_base64"] = base64.b64encode(response.content).decode("ascii")
-                native["raw_error_body_status"] = "retained_invalid_json"
-                if len(_canonical(native)) > MAX_LINE_BYTES:
-                    native.pop("raw_error_body_base64")
-                    native["raw_error_body_status"] = "omitted_outcome_limit"
-                    self.terminal_reason = self.terminal_reason or "response_limit"
+                # Undecodable bodies may contain escaped credentials. Keep only
+                # the already captured hash/count; typed status still owns retries.
+                native["raw_error_body_status"] = "omitted_invalid_json"
         try:
             if payload is not None:
                 try:
@@ -1190,14 +1189,15 @@ def validate_pricing_evidence(rows: list[object]) -> None:
 
 
 def _code_sha() -> str:
+    checkout = Path(__file__).resolve().parents[2]
     observed = run_git(
-        ["status", "--porcelain", "--untracked-files=all"], cwd=Path.cwd(), check=False
+        ["status", "--porcelain", "--untracked-files=all"], cwd=checkout, check=False
     )
     if observed.returncode != 0:
         raise ValueError("git_status_unavailable")
     if observed.stdout.strip():
         raise ValueError("uncommitted_code_state")
-    observed = run_git(["rev-parse", "HEAD"], cwd=Path.cwd(), check=False)
+    observed = run_git(["rev-parse", "HEAD"], cwd=checkout, check=False)
     if observed.returncode != 0:
         raise ValueError("git_head_unavailable")
     sha = observed.stdout.strip()
@@ -1245,6 +1245,18 @@ def _private_parent(path: Path) -> None:
         os.close(parent)
 
 
+def _prepare_audit_file(path: Path) -> None:
+    """Preserve a private existing file or publish one private empty append target."""
+    _private_parent(path)
+    try:
+        _read_input(path)
+    except ValueError as error:
+        if not isinstance(error.__cause__, FileNotFoundError):
+            raise
+        write_report(path, b"")
+    _private_parent(path)
+
+
 def validate_live_environment(fitchef_key: str) -> None:
     """Admit only isolated synthetic PRO state through the normal local gates."""
     if os.getenv("APP_ENV") != "development" or os.getenv(
@@ -1259,7 +1271,7 @@ def validate_live_environment(fitchef_key: str) -> None:
         raise ValueError("pro_tier_unavailable")
     if require_llm_monthly_limit("PRO") < 24:
         raise ValueError("insufficient_synthetic_quota")
-    if not os.getenv("SERVER_SALT") or not os.getenv("AGENT_CONTROL_AUDIT_SIGNING_KEY"):
+    if not os.getenv("SERVER_SALT") or not os.getenv("AGENT_CONTROL_AUDIT_SIGNING_KEY", "").strip():
         raise ValueError("missing_local_audit_secret")
     db_url = os.getenv("DATABASE_URL", "")
     if not db_url.startswith("sqlite:////"):
@@ -1297,7 +1309,8 @@ def _validate_output_directory(
             raise ValueError("unsafe_output_directory")
     finally:
         os.close(parent)
-    observed = run_git(["rev-parse", "--show-toplevel"], cwd=Path.cwd(), check=False)
+    checkout = Path(__file__).resolve().parents[2]
+    observed = run_git(["rev-parse", "--show-toplevel"], cwd=checkout, check=False)
     if observed.returncode != 0:
         raise ValueError("git_root_unavailable")
     root = observed.stdout.strip()
@@ -1325,7 +1338,7 @@ def _validate_output_directory(
             "-z",
             "--stdin",
         ],
-        cwd=Path(root),
+        cwd=checkout,
         check=False,
         input_text="".join(path + "\0" for path in paths),
     )
@@ -1603,6 +1616,7 @@ async def collect(
     code_sha = _code_sha()
     code_hashes = _code_hashes()
     manifest_fingerprint = hashlib.sha256(_canonical(manifest)).hexdigest()
+    _prepare_audit_file(Path(os.getenv("AGENT_CONTROL_AUDIT_LOG_PATH", "")))
     transport = httpx.AsyncClient(event_hooks={"request": [ledger.reserve]}, follow_redirects=False)
     provider = PerplexityProvider(
         endpoint=_EXPECTED_ENDPOINT,
@@ -1682,7 +1696,7 @@ async def collect(
         await provider.client.close()
 
 
-def validate_ocw_environment(fitchef_key: str) -> None:
+def validate_ocw_environment(fitchef_key: str, *, output_dir: Path | None = None) -> None:
     """Require private synthetic VIP state; do not bypass native route admission."""
     if (
         os.getenv("APP_ENV") != "development"
@@ -1699,16 +1713,28 @@ def validate_ocw_environment(fitchef_key: str) -> None:
         or get_subscription_tier(fitchef_key) is not SubscriptionTier.VIP
     ):
         raise ValueError("ocw_synthetic_vip")
-    if not os.getenv("SERVER_SALT") or not os.getenv("AGENT_CONTROL_AUDIT_SIGNING_KEY"):
+    if not os.getenv("SERVER_SALT") or not os.getenv("AGENT_CONTROL_AUDIT_SIGNING_KEY", "").strip():
         raise ValueError("ocw_audit_configuration")
     db_url = os.getenv("DATABASE_URL", "")
     if not db_url.startswith("sqlite:////"):
         raise ValueError("ocw_private_sqlite")
-    _private_parent(Path(db_url.removeprefix("sqlite:///")))
+    try:
+        database = make_url(db_url).database
+    except ArgumentError as error:
+        raise ValueError("ocw_private_sqlite") from error
+    if not database or not Path(database).is_absolute():
+        raise ValueError("ocw_private_sqlite")
+    database_path = Path(database)
     audit = os.getenv("AGENT_CONTROL_AUDIT_LOG_PATH", "")
     if not audit:
         raise ValueError("ocw_audit_configuration")
-    _private_parent(Path(audit))
+    audit_path = Path(audit)
+    if output_dir is not None:
+        capture_root = output_dir.resolve()
+        if any(path.resolve().is_relative_to(capture_root) for path in (database_path, audit_path)):
+            raise ValueError("ocw_runtime_output_overlap")
+    _private_parent(database_path)
+    _private_parent(audit_path)
     with session_scope() as session:
         counts = session.scalars(
             select(VipLlmMonthlyUsage.used_requests).where(
@@ -2530,8 +2556,9 @@ def collect_ocw_comparison(
         raise ValueError("ocw_provider_configuration")
     prices = validate_ocw_pricing(pricing)
     pricing = copy.deepcopy(pricing)
+    validate_ocw_environment(fitchef_key, output_dir=output_dir)
+    audit_path = Path(os.getenv("AGENT_CONTROL_AUDIT_LOG_PATH", ""))
     preflight = ocw_request_preflight(cast(list[object], rows), pricing)
-    validate_ocw_environment(fitchef_key)
     names = (
         [f"attempt-{i:04d}.json" for i in range(1, 33)]
         + [f"attempt-result-{i:04d}.json" for i in range(1, 33)]
@@ -2557,8 +2584,6 @@ def collect_ocw_comparison(
         arm: row["returned_cost_currency_basis"] for arm, row in prices.items()
     }
     code_sha, code_hashes = _code_sha(), _ocw_code_hashes()
-    from scripts.evals.evidence_relation_audit import _read_input
-
     rubric_bytes = _read_input(rubric)
     canonical_rubric = (
         Path(__file__).resolve().parents[2] / "docs/evals/FITCHEF_CLAIM_EVIDENCE_EVAL_V1.md"
@@ -2703,18 +2728,19 @@ def collect_ocw_comparison(
                     or app.state.limiter.enabled is not True
                 ):
                     raise ValueError("ocw_active_limiter_required")
+                _prepare_audit_file(audit_path)
                 for scenario in rows:
                     for arm in _OCW_MODELS:
+                        if previous_started is not None:
+                            remaining = _OCW_PACE_SECONDS - (time.monotonic() - previous_started)
+                            if remaining > 0:
+                                time.sleep(remaining)
                         if (
                             _code_sha() != code_sha
                             or _ocw_code_hashes() != code_hashes
                             or _read_input(rubric) != rubric_bytes
                         ):
                             raise ValueError("code_changed_during_collection")
-                        if previous_started is not None:
-                            remaining = _OCW_PACE_SECONDS - (time.monotonic() - previous_started)
-                            if remaining > 0:
-                                time.sleep(remaining)
                         previous_started = time.monotonic()
                         record = _ocw_observe_post(
                             client,

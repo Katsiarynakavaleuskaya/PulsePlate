@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import base64
 import copy
 from contextlib import contextmanager
 from dataclasses import replace
@@ -42,7 +41,9 @@ BLIND_KEY = bytes(range(32))
 
 
 @pytest.fixture(autouse=True)
-def _isolated_sdk_credential_sources(monkeypatch: pytest.MonkeyPatch) -> None:
+def _isolated_sdk_credential_sources(
+    monkeypatch: pytest.MonkeyPatch, tmp_path_factory: pytest.TempPathFactory
+) -> None:
     """Even mocked native transports must never inherit host credential defaults."""
     for name in (
         "OPENAI_API_KEY",
@@ -64,6 +65,9 @@ def _isolated_sdk_credential_sources(monkeypatch: pytest.MonkeyPatch) -> None:
         "no_proxy",
     ):
         monkeypatch.delenv(name, raising=False)
+    audit_parent = tmp_path_factory.mktemp("collector-audit")
+    audit_parent.chmod(0o700)
+    monkeypatch.setenv("AGENT_CONTROL_AUDIT_LOG_PATH", str(audit_parent / "audit.jsonl"))
 
 
 def _ocw_rows() -> list[dict[str, Any]]:
@@ -305,7 +309,7 @@ def test_postopen_same_output_claim_loser_publishes_nothing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("PERPLEXITY_API_KEY", "synthetic-provider-key")
-    monkeypatch.setattr(collector, "validate_ocw_environment", lambda _key: None)
+    monkeypatch.setattr(collector, "validate_ocw_environment", lambda _key, **_kwargs: None)
     winner = b'{"id":"independently-admitted-winner"}\n'
 
     def competing_claim() -> str:
@@ -435,7 +439,10 @@ def test_ocw_typed_transient_status_with_malformed_body_remains_bounded(
         native = read_jsonl(tmp_path / f"attempt-result-{index:04d}.json")[0]
         assert native["status_code"] == status and native["cost_status"] == "unknown"
         assert native["raw_assistant_text"] is None
-        assert base64.b64decode(native["raw_error_body_base64"]) == body
+        assert "raw_error_body_base64" not in native
+        assert native["raw_error_body_status"] == "omitted_invalid_json"
+        assert native["raw_error_body_sha256"] == "sha256:" + hashlib.sha256(body).hexdigest()
+        assert native["raw_error_body_bytes"] == len(body)
 
 
 @pytest.mark.parametrize("arm", ["sonar", "sol"])
@@ -470,8 +477,8 @@ def test_transient_status_cannot_override_accounting_terminal_latch(
     assert ledger.retryable is False and ledger.attempts == 1
 
 
-@pytest.mark.parametrize("kind", ["credential", "line_limit"])
-def test_error_body_retention_respects_secret_and_native_line_bounds(
+@pytest.mark.parametrize("kind", ["credential", "body_limit"])
+def test_error_body_retention_respects_secret_and_response_bounds(
     tmp_path: Path,
     kind: str,
 ) -> None:
@@ -479,7 +486,7 @@ def test_error_body_retention_respects_secret_and_native_line_bounds(
     ledger.bind_case("sonar", "OCW-N01", "synthetic prompt")
     label = "synthetic-body-secret"
     ledger._comparison_secrets = (label,)
-    body = label.encode() if kind == "credential" else b"x" * (256 * 1024)
+    body = label.encode() if kind == "credential" else b"x" * (collector._OCW_RESPONSE_BYTES + 1)
 
     async def run() -> None:
         await ledger.reserve(_ocw_request("sonar"))
@@ -495,10 +502,47 @@ def test_error_body_retention_respects_secret_and_native_line_bounds(
     native = read_jsonl(tmp_path / "attempt-result-0001.json")[0]
     assert len(raw) <= 256 * 1024 and native["status_code"] == 503
     assert label.encode() not in raw and "raw_error_body_base64" not in native
-    assert native["raw_error_body_status"] == (
-        "omitted_credential_reflection" if kind == "credential" else "omitted_outcome_limit"
-    )
-    assert native["raw_error_body_bytes"] == len(body) and ledger.retryable is False
+    if kind == "credential":
+        assert native["raw_error_body_status"] == "omitted_credential_reflection"
+        assert native["raw_error_body_bytes"] == len(body)
+    else:
+        assert native["response_failure_type"] == "ValueError"
+        assert ledger.terminal_reason == "response_limit"
+    assert ledger.retryable is False
+
+
+@pytest.mark.parametrize("arm", ["sonar", "sol"])
+def test_malformed_escaped_credential_body_is_omitted_with_bounded_status_retry(
+    tmp_path: Path, arm: str
+) -> None:
+    ledger = collector.AttemptLedger(tmp_path, comparison=True)
+    ledger.bind_case(arm, "OCW-N01", "synthetic prompt")
+    label = "synthetic-body-secret"
+    ledger._comparison_secrets = (label,)
+    body = b'{"error":"synthetic\\u002dbody\\u002dsecret"'
+    assert label.encode() not in body
+
+    async def run() -> None:
+        for _ in range(3 if arm == "sonar" else 1):
+            await ledger.reserve(_ocw_request(arm))
+            response = httpx.Response(503, request=_ocw_request(arm), content=body)
+            if arm == "sonar":
+                await ledger.observe_http(response)
+                assert ledger.retryable is True
+            else:
+                with pytest.raises(ValueError):
+                    await ledger.observe_http(response)
+        with pytest.raises(collector.BudgetExhausted):
+            await ledger.reserve(_ocw_request(arm))
+
+    asyncio.run(run())
+    for index in range(1, ledger.attempts + 1):
+        native = read_jsonl(tmp_path / f"attempt-result-{index:04d}.json")[0]
+        assert isinstance(native, dict)
+        assert "raw_error_body_base64" not in native
+        assert native["raw_error_body_status"] == "omitted_invalid_json"
+        assert native["raw_error_body_sha256"] == "sha256:" + hashlib.sha256(body).hexdigest()
+        assert native["raw_error_body_bytes"] == len(body)
 
 
 @pytest.mark.parametrize("explicit_names", [False, True])
@@ -511,6 +555,9 @@ def test_output_admission_requires_directory_ignore_for_random_staging(
     repo.mkdir(mode=0o700)
     collector.run_git(["init", "-q"], cwd=repo)
     (repo / ".gitignore").write_text("unsafe/*.json*\nfully-ignored/\n")
+    monkeypatch.setattr(
+        collector, "__file__", str(repo / "scripts/evals/collect_fitchef_answers.py")
+    )
     monkeypatch.chdir(repo)
     output = repo / "unsafe"
     output.mkdir(mode=0o700)
@@ -540,12 +587,20 @@ def test_ocw_finite_ignored_names_reject_before_native_provider_allocation(
     repo.mkdir(mode=0o700)
     collector.run_git(["init", "-q"], cwd=repo)
     (repo / ".gitignore").write_text("unsafe/*.json*\n")
+    monkeypatch.setattr(
+        collector, "__file__", str(repo / "scripts/evals/collect_fitchef_answers.py")
+    )
+    canonical = repo / "tests/fixtures/ocw/fitchef_nutrition_cases.v1.jsonl"
+    canonical.parent.mkdir(parents=True)
+    canonical.write_bytes(
+        (Path(__file__).parent / "fixtures/ocw/fitchef_nutrition_cases.v1.jsonl").read_bytes()
+    )
     output = repo / "unsafe"
     output.mkdir(mode=0o700)
     monkeypatch.chdir(repo)
     monkeypatch.setenv("PERPLEXITY_API_KEY", "synthetic-provider-value")
     monkeypatch.setattr(collector, "ocw_request_preflight", lambda *_args: [])
-    monkeypatch.setattr(collector, "validate_ocw_environment", lambda _key: None)
+    monkeypatch.setattr(collector, "validate_ocw_environment", lambda _key, **_kwargs: None)
 
     def no_provider(_ledger: Any) -> None:
         pytest.fail("unsafe output must be rejected before native provider allocation")
@@ -581,7 +636,7 @@ def test_ocw_rubric_must_match_independent_current_canonical_bytes(
     write_report(rubric, body)
     provider_label = "synthetic-provider-value"
     monkeypatch.setenv("PERPLEXITY_API_KEY", provider_label)
-    monkeypatch.setattr(collector, "validate_ocw_environment", lambda _key: None)
+    monkeypatch.setattr(collector, "validate_ocw_environment", lambda _key, **_kwargs: None)
     monkeypatch.setattr(collector, "ocw_request_preflight", lambda *_args: [])
     monkeypatch.setattr(collector, "_code_sha", lambda: "a" * 40)
 
@@ -1280,7 +1335,7 @@ def test_ocw_collection_rejects_unadmitted_current_inputs_before_transport(
     failure: str,
 ) -> None:
     monkeypatch.setenv("PERPLEXITY_API_KEY", "synthetic-provider")
-    monkeypatch.setattr(collector, "validate_ocw_environment", lambda _key: None)
+    monkeypatch.setattr(collector, "validate_ocw_environment", lambda _key, **_kwargs: None)
     monkeypatch.setattr(collector, "_code_sha", lambda: "a" * 40)
     output = tmp_path / "capture"
     output.mkdir(mode=0o700)
@@ -1652,7 +1707,7 @@ def test_ocw_initial_publication_failure_keeps_primary_and_sends_nothing(
     published: bool,
 ) -> None:
     monkeypatch.setenv("PERPLEXITY_API_KEY", "synthetic-provider-key")
-    monkeypatch.setattr(collector, "validate_ocw_environment", lambda _key: None)
+    monkeypatch.setattr(collector, "validate_ocw_environment", lambda _key, **_kwargs: None)
     monkeypatch.setattr(collector, "_code_sha", lambda: "a" * 40)
     real_write = collector.write_report
     failure = OSError("synthetic first publication failure")
@@ -1693,7 +1748,7 @@ def test_ocw_status_failure_cannot_mask_first_failure(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("PERPLEXITY_API_KEY", "synthetic-provider-key")
-    monkeypatch.setattr(collector, "validate_ocw_environment", lambda _key: None)
+    monkeypatch.setattr(collector, "validate_ocw_environment", lambda _key, **_kwargs: None)
     monkeypatch.setattr(collector, "_code_sha", lambda: "a" * 40)
     failure = OSError("synthetic primary failure")
     real_write = collector.write_report
@@ -1828,6 +1883,26 @@ def test_ocw_response_publication_and_cleanup_cannot_mask_original_failure(
         "case-changed-ack",
         "run-changed",
         "case-status-drift",
+        "audit-missing-022",
+        "audit-missing-077",
+        "audit-existing",
+        "audit-public",
+        "audit-symlink",
+        "audit-hardlink",
+        "audit-directory",
+        "audit-read-denied",
+        "audit-oversized",
+        "audit-race",
+        "audit-run",
+        "audit-comparison",
+        "audit-nested",
+        "database-output",
+        "preflight-refusal",
+        "quota-refusal",
+        "legacy-audit-missing-022",
+        "legacy-audit-existing",
+        "audit-signing-whitespace",
+        "pacing-final-rubric-mutation",
     ],
 )
 def test_ocw_actual_canonical_post_mock_capture_preserves_limiter_and_blind_material(
@@ -1899,10 +1974,65 @@ with patch.dict(os.environ, {
             try: collector.validate_ocw_environment(vip_label)
             except ValueError as error: assert str(error)=='ocw_quota'
             else: raise AssertionError('coercive quota admitted')
-    sends=[]; outcome=sys.argv[4]
+    sends=[]; outcome=sys.argv[4]; audit=private/'audit.jsonl'; environment_changes={}
+    audit_prefix=b''
+    if outcome in ('audit-missing-022','audit-missing-077','legacy-audit-missing-022','legacy-audit-existing'):
+        os.umask(0o022 if outcome.endswith('022') else 0o077)
+    if outcome=='legacy-audit-existing': os.umask(0o022)
+    if outcome in ('audit-existing','legacy-audit-existing'):
+        audit_prefix=b'existing-private-bytes\n'; audit.write_bytes(audit_prefix); audit.chmod(0o600)
+    elif outcome=='audit-public': audit.touch(); audit.chmod(0o644)
+    elif outcome in ('audit-symlink','audit-hardlink'):
+        target=private/'retained-audit'; target.write_bytes(b'retained-private-bytes\n'); target.chmod(0o600)
+        if outcome=='audit-symlink': audit.symlink_to(target)
+        else: os.link(target,audit)
+    elif outcome=='audit-directory': audit.mkdir(mode=0o700)
+    elif outcome=='audit-read-denied':
+        audit_prefix=b'synthetic-private-audit\n'; audit.write_bytes(audit_prefix); audit.chmod(0o600)
+    elif outcome=='audit-oversized':
+        audit.write_bytes(b'x'*(8*1024*1024+1)); audit.chmod(0o600)
+    elif outcome in ('audit-run','audit-comparison','audit-nested'):
+        audit=output/({'audit-run':'run.jsonl','audit-comparison':'comparison.jsonl','audit-nested':'nested/audit.jsonl'}[outcome])
+        if outcome=='audit-nested': audit.parent.mkdir(mode=0o700)
+        environment_changes['AGENT_CONTROL_AUDIT_LOG_PATH']=str(audit)
+    elif outcome=='database-output':
+        from sqlalchemy.engine import make_url
+        import shutil
+        copied=output/'quota.db'; shutil.copyfile(db,copied); copied.chmod(0o600)
+        environment_changes['DATABASE_URL']=str(make_url('sqlite:///'+str(copied)))
+    elif outcome=='quota-refusal': environment_changes['VIP_LLM_INSIGHT_REQUESTS_PER_MONTH']='15'
+    elif outcome=='audit-signing-whitespace': environment_changes['AGENT_CONTROL_AUDIT_SIGNING_KEY']=' \t\r\n '
+    if outcome.startswith('legacy-audit'):
+        vip_label='noos-eval-synthetic-pro'
+        environment_changes.update(PRO_API_KEYS=vip_label,PRO_LLM_INSIGHT_REQUESTS_PER_MONTH='100',
+            FEATURE_FITCHEF_STRUCTURED_COACH='true',FITCHEF_STRUCTURED_COACH_EXECUTION_MODE='auto-safe')
+    from typing import Iterator
+    @contextmanager
+    def selected_environment() -> Iterator[None]:
+        if 'DATABASE_URL' not in environment_changes:
+            with patch.dict(os.environ,environment_changes): yield
+        else:
+            with patch.object(core_db,'_RAW_ENGINE',None),patch.object(core_db,'SessionLocal',None):
+                with patch.dict(os.environ,environment_changes):
+                    try: yield
+                    finally:
+                        temporary=core_db._RAW_ENGINE
+                        core_db._RAW_ENGINE=None; core_db.SessionLocal=None
+                        if temporary is not None: temporary.dispose()
+    native_preflight=collector.ocw_request_preflight; preflight_calls=0
+    def selected_preflight(*args: object) -> object:
+        global preflight_calls
+        preflight_calls+=1
+        if outcome=='preflight-refusal': raise ValueError('synthetic_preflight_refusal')
+        return native_preflight(*args)
     async def response(request):
         assert not any(name in request.headers for name in ('OpenAI-Organization','OpenAI-Project','Cookie'))
         body=json.loads(request.content); sends.append(body)
+        if outcome in ('audit-missing-022','audit-missing-077','audit-existing','legacy-audit-missing-022','legacy-audit-existing'):
+            if len(sends)==1:
+                print(json.dumps({'observed_audit_mode':oct(audit.stat().st_mode&0o777),'first_mock_send':1}))
+            assert audit.stat().st_mode&0o777==0o600,oct(audit.stat().st_mode&0o777)
+            assert audit.read_bytes().startswith(audit_prefix)
         if (request.url.path=='/chat/completions' and (
             outcome in ('sonar-plain-transient','sonar-badjson-transient') and len(sends)<3
             or outcome=='sonar-plain-limit')
@@ -1919,6 +2049,8 @@ with patch.dict(os.environ, {
             return httpx.Response(401 if outcome in ('sonar-401','sonar-close-failure') else 503,
                 json={'error':{'message':'synthetic native failure','type':'native'}})
         raw='Сохраняем привычный распорядок питания.\n- Выберите обычный ужин.'
+        if outcome.startswith('legacy-audit'):
+            raw=json.dumps({'balanced_reframe':'One meal does not define the whole day.'})
         if outcome=='blocker-fallback' and request.url.path=='/chat/completions': raw='I will diagnose and cure you.'
         elif outcome=='oversized': raw='x'*33000
         if request.url.path=='/chat/completions':
@@ -1936,7 +2068,18 @@ with patch.dict(os.environ, {
     def transport(ledger):
         return httpx.AsyncClient(transport=httpx.MockTransport(response),follow_redirects=False,
             trust_env=False,event_hooks={'request':[ledger.reserve],'response':[ledger.observe_http]})
+    native_http_client=httpx.AsyncClient
+    def legacy_transport(*args: object,**kwargs: object) -> httpx.AsyncClient:
+        return native_http_client(*args,**kwargs,transport=httpx.MockTransport(response))
     native_write=collector.write_report
+    native_read=collector._read_input
+    audit_read_denial=PermissionError('synthetic private audit reader denial')
+    delegated_reads=[]
+    def read_capture_input(path: Path) -> bytes:
+        if outcome=='audit-read-denied' and path==audit:
+            raise ValueError('unsafe_input') from audit_read_denial
+        delegated_reads.append(path)
+        return native_read(path)
     def publish(path,data):
         selected=(path.name=='case-sonar-OCW-N01.jsonl' and outcome in ('case-before','case-after','case-changed')
             or path.name=='case-sol-OCW-N08.jsonl' and outcome=='case-last-after'
@@ -1946,6 +2089,8 @@ with patch.dict(os.environ, {
             changed=json.loads(data); changed['run']['id']='foreign-run'
             data=collector._canonical(changed)+b'\n'
         native_write(path,data)
+        if path.name=='inputs.jsonl' and outcome=='audit-race':
+            audit.write_bytes(b'raced-private-audit\n'); audit.chmod(0o644)
         if path.name=='case-sonar-OCW-N01.jsonl' and outcome=='run-changed':
             (path.parent/'run.jsonl').write_bytes(b'{"id":"foreign-run"}\n')
         if path.name=='comparison.jsonl' and outcome=='case-status-drift':
@@ -1973,20 +2118,66 @@ with patch.dict(os.environ, {
         return clock['value']+native_monotonic()-started
     def sleep(seconds):
         assert seconds>=0; sleeps.append(seconds); clock['value']+=seconds
-    with patch.object(collector,'_code_sha',lambda:'a'*40), \
+        if outcome=='pacing-final-rubric-mutation' and len(sleeps)==15:
+            Path(sys.argv[3]).write_text('tampered private rubric\n')
+    with selected_environment(), \
+         patch.object(collector,'ocw_request_preflight',selected_preflight), \
+         patch.object(collector,'_code_sha',lambda:'a'*40), \
          patch.object(collector,'_ocw_http_client',transport), \
          patch.object(collector,'write_report',publish), \
+         patch.object(collector,'_read_input',read_capture_input), \
          patch.object(llm,'PerplexityProvider',sonar_with_failed_close if outcome=='sonar-close-failure' else native_sonar), \
          patch.object(client_module,'open_test_client',missing_portal if outcome=='portal-missing' else native_open), \
+         patch.object(collector,'httpx',SimpleNamespace(**{**vars(httpx),'AsyncClient':legacy_transport}) if outcome.startswith('legacy-audit') else httpx), \
          patch.object(time,'time',observed_time), \
          patch.object(time,'monotonic',observed_time), \
          patch.object(time,'sleep',sleep), \
          patch.object(socket.socket,'connect',side_effect=AssertionError('real network forbidden')):
         try:
+            if outcome.startswith('legacy-audit'):
+                legacy_manifest=read_jsonl(Path(sys.argv[6]))
+                asyncio.run(collector.collect(legacy_manifest,output_dir=output,
+                    rubric_sha256=collector._rubric_hash(Path(sys.argv[3])),
+                    fitchef_key=vip_label,perplexity_key=provider_label))
+                status=read_jsonl(output/'collection-status.json')[0]
+                assert status['status']=='complete' and len(status['completed_ids'])==24
+                assert len(sends)==24 and audit.stat().st_mode&0o777==0o600
+                assert audit.read_bytes().startswith(audit_prefix)
+                print(json.dumps({'legacy_mock_cases':24,'sdk_requests':24,'audit_mode':'0600'}));sys.exit(0)
             collector.collect_ocw_comparison(rows,output_dir=output,rubric=Path(sys.argv[3]),
                 pricing=prices,fitchef_key=vip_label,
                 perplexity_key=provider_label,run_id='mock-observed-route')
         except BaseException as error:
+            if outcome=='pacing-final-rubric-mutation':
+                assert isinstance(error,ValueError) and str(error)=='code_changed_during_collection'
+                assert len(sends)==15,len(sends)
+                status=read_jsonl(output/'comparison-status.json')[0]
+                assert status['status']=='incomplete' and len(status['completed'])==15
+                assert status['missing']==[['OCW-N08','sol']]
+                assert not (output/'comparison.jsonl').exists()
+                print(json.dumps({'terminal_outcome':outcome,'sdk_requests':15}));sys.exit(0)
+            if outcome.startswith('audit-') or outcome in ('database-output','preflight-refusal','quota-refusal'):
+                assert not sends,len(sends)
+                assert isinstance(error,ValueError),type(error).__name__
+                if outcome=='audit-read-denied':
+                    assert str(error)=='unsafe_input' and error.__cause__ is audit_read_denial
+                    assert isinstance(error.__cause__,PermissionError)
+                    assert audit.read_bytes()==audit_prefix and audit.stat().st_mode&0o777==0o600
+                    assert output/'run.jsonl' in delegated_reads
+                    status=read_jsonl(output/'comparison-status.json')[0]
+                    assert status['status']=='incomplete' and not status['completed']
+                    assert status['reserved_attempts']==status['observed_http_outcomes']==0
+                    assert not (output/'comparison.jsonl').exists() and not list(output.glob('case-*.jsonl'))
+                if outcome in ('audit-run','audit-comparison','audit-nested','database-output'):
+                    assert str(error)=='ocw_runtime_output_overlap',str(error)
+                    assert not (output/'run.jsonl').exists()
+                if outcome in ('preflight-refusal','quota-refusal'):
+                    assert not audit.exists() and not (output/'run.jsonl').exists()
+                if outcome=='quota-refusal': assert preflight_calls==0,preflight_calls
+                if outcome=='audit-signing-whitespace':
+                    assert str(error)=='ocw_audit_configuration' and preflight_calls==0
+                    assert not audit.exists() and not (output/'run.jsonl').exists()
+                print(json.dumps({'terminal_outcome':outcome,'sdk_requests':0})); sys.exit(0)
             if outcome in ('case-changed-ack','run-changed','case-status-drift'):
                 assert isinstance(error,ValueError) and str(error)=='ocw_case_readback'
                 status=read_jsonl(output/'comparison-status.json')[0]
@@ -2038,6 +2229,11 @@ with patch.dict(os.environ, {
             print(json.dumps({'terminal_outcome':outcome,'sdk_requests':len(sends)}))
             sys.exit(0)
     records=read_jsonl(output/'comparison.jsonl'); run=read_jsonl(output/'run.jsonl')[0]
+    if outcome in ('audit-missing-022','audit-missing-077','audit-existing'):
+        raw_audit=audit.read_bytes(); assert raw_audit.startswith(audit_prefix)
+        own_audit=[json.loads(line) for line in raw_audit[len(audit_prefix):].splitlines()]
+        assert len(own_audit)==32 and all(row['schema_version']=='1.0' for row in own_audit)
+        assert audit.stat().st_mode&0o777==0o600
     status=read_jsonl(output/'comparison-status.json')[0]
     expected_capture=status['capture_sha256']
     assert expected_capture=='sha256:'+hashlib.sha256((output/'comparison.jsonl').read_bytes()).hexdigest()
@@ -2138,6 +2334,16 @@ with patch.dict(os.environ, {
         active_coverage.get_option("run:include") or ()
     )
     child_data_path = tmp_path / "native-route.coverage"
+    capture_rubric = RUBRIC
+    if outcome == "pacing-final-rubric-mutation":
+        capture_rubric = tmp_path / "private-rubric.md"
+        write_report(capture_rubric, RUBRIC.read_bytes())
+    legacy_manifest_path = tmp_path / "legacy-inputs.jsonl"
+    if outcome.startswith("legacy-audit"):
+        write_report(
+            legacy_manifest_path,
+            b"".join(collector._canonical(row) + b"\n" for row in _manifest_24()),
+        )
     if measure_child:
         assert active_coverage is not None
         # The existing dedicated producer must measure the actual isolated
@@ -2160,9 +2366,10 @@ with patch.dict(os.environ, {
             script,
             str(tmp_path),
             str(root / "tests/fixtures/ocw/fitchef_nutrition_cases.v1.jsonl"),
-            str(RUBRIC),
+            str(capture_rubric),
             outcome,
             str(child_data_path),
+            str(legacy_manifest_path),
         ],
         cwd=root,
         env=environment,
@@ -2180,6 +2387,9 @@ with patch.dict(os.environ, {
             str(root / "scripts/evals/collect_fitchef_answers.py") in native_data.measured_files()
         )
         active_coverage.get_data().update(native_data)
+    if outcome.startswith("legacy-audit"):
+        assert '"legacy_mock_cases": 24' in completed.stdout
+        return
     assert (
         '"terminal_outcome"'
         if outcome
@@ -2189,6 +2399,9 @@ with patch.dict(os.environ, {
             "sonar-plain-transient",
             "sonar-badjson-transient",
             "blocker-fallback",
+            "audit-missing-022",
+            "audit-missing-077",
+            "audit-existing",
         }
         else '"mock_route_cases": 16'
     ) in completed.stdout
@@ -5023,6 +5236,9 @@ def test_collector_git_proofs_bind_intended_cwd_under_parent_git_environment(
     for name, value in inherited.items():
         monkeypatch.setenv(name, value)
     monkeypatch.chdir(intended)
+    monkeypatch.setattr(
+        collector, "__file__", str(intended / "scripts/evals/collect_fitchef_answers.py")
+    )
     assert collector._code_sha() == intended_sha
     admitted = intended / "admitted-output"
     admitted.mkdir(mode=0o700)
@@ -5035,6 +5251,74 @@ def test_collector_git_proofs_bind_intended_cwd_under_parent_git_environment(
     with pytest.raises(ValueError, match="uncommitted_code_state"):
         collector._code_sha()
     assert {name: (metadata / name).read_bytes() for name in before} == before
+
+
+@pytest.mark.parametrize("explicit_names", [False, True])
+@pytest.mark.parametrize("foreign_git", [False, True])
+def test_collector_git_identity_and_ignore_admission_follow_source_checkout(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    explicit_names: bool,
+    foreign_git: bool,
+) -> None:
+    source = tmp_path / "source-checkout"
+    source.mkdir(mode=0o700)
+    module = source / "scripts/evals/collect_fitchef_answers.py"
+    module.parent.mkdir(parents=True)
+    module.write_bytes(Path(collector.__file__).read_bytes())
+    (source / ".gitignore").write_text("ignored/\n")
+    collector.run_git(["init", "-q"], cwd=source)
+    collector.run_git(["add", "--", "."], cwd=source)
+    collector.run_git(
+        [
+            "-c",
+            "user.name=Synthetic fixture",
+            "-c",
+            "user.email=fixture@example.invalid",
+            "commit",
+            "--no-gpg-sign",
+            "-qm",
+            "source fixture",
+        ],
+        cwd=source,
+    )
+    expected_sha = collector.run_git(["rev-parse", "HEAD"], cwd=source).stdout.strip()
+    foreign = tmp_path / "caller-checkout"
+    foreign.mkdir(mode=0o700)
+    if foreign_git:
+        collector.run_git(["init", "-q"], cwd=foreign)
+        (foreign / ".gitignore").write_text("*\n")
+        collector.run_git(["add", "-f", "--", ".gitignore"], cwd=foreign)
+        collector.run_git(
+            [
+                "-c",
+                "user.name=Synthetic fixture",
+                "-c",
+                "user.email=fixture@example.invalid",
+                "commit",
+                "--no-gpg-sign",
+                "-qm",
+                "foreign fixture",
+            ],
+            cwd=foreign,
+        )
+    monkeypatch.setattr(collector, "__file__", str(module))
+    monkeypatch.chdir(foreign)
+    assert collector._code_sha() == expected_sha
+    names = ["run.jsonl", "comparison.jsonl"] if explicit_names else None
+    ignored = source / "ignored"
+    ignored.mkdir(mode=0o700)
+    collector._validate_output_directory(ignored, generated_names=names)
+    rejected = source / "nonignored"
+    rejected.mkdir(mode=0o700)
+    with pytest.raises(ValueError, match="nonignored_output_directory"):
+        collector._validate_output_directory(rejected, generated_names=names)
+    outside = foreign / "outside-current-source"
+    outside.mkdir(mode=0o700)
+    collector._validate_output_directory(outside, generated_names=names)
+    (source / "dirty-code.py").write_text("synthetic = 1\n")
+    with pytest.raises(ValueError, match="uncommitted_code_state"):
+        collector._code_sha()
 
 
 def test_collector_missing_git_is_a_closed_prerequisite(
