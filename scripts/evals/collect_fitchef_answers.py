@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import base64
 from collections import Counter
 from contextlib import ExitStack
 import copy
@@ -811,9 +812,36 @@ class AttemptLedger:
             raise
         # The existing SDK will read this SAME response after the observational hook.
         response._content = b"".join(chunks)
+        payload: dict[str, Any] | None = None
         try:
-            payload = response.json()
-            if type(payload) is dict:
+            decoded = response.json()
+            if type(decoded) is not dict:
+                raise ValueError("ocw_response_shape")
+            payload = decoded
+        except (ValueError, TypeError, RecursionError):
+            # Only native transient Sonar status can admit a retry of an
+            # undecodable error body. Accounting admission remains terminal.
+            if not (self.arm == "sonar" and response.status_code in {408, 429, 500, 502, 503, 504}):
+                self.terminal_reason = self.terminal_reason or "response_admission"
+            native["raw_error_body_sha256"] = (
+                "sha256:" + hashlib.sha256(response.content).hexdigest()
+            )
+            native["raw_error_body_bytes"] = len(response.content)
+            try:
+                self.require_secret_free(response.content)
+            except ValueError:
+                self.terminal_reason = self.terminal_reason or "credential_reflection"
+                self.retryable = False
+                native["raw_error_body_status"] = "omitted_credential_reflection"
+            else:
+                native["raw_error_body_base64"] = base64.b64encode(response.content).decode("ascii")
+                native["raw_error_body_status"] = "retained_invalid_json"
+                if len(_canonical(native)) > MAX_LINE_BYTES:
+                    native.pop("raw_error_body_base64")
+                    native["raw_error_body_status"] = "omitted_outcome_limit"
+                    self.terminal_reason = self.terminal_reason or "response_limit"
+        try:
+            if payload is not None:
                 native["returned_model"] = (
                     payload.get("model") if type(payload.get("model")) is str else None
                 )
@@ -895,7 +923,7 @@ class AttemptLedger:
                         ]
                         native["raw_assistant_text"] = "".join(texts) if texts else None
         except (ValueError, TypeError, KeyError, RecursionError):
-            self.terminal_reason = "response_admission"
+            self.terminal_reason = self.terminal_reason or "response_admission"
         if native["cost_usd"] is not None and native["cost_usd"] > _RESERVE_USD:
             self.reported_overrun_usd = native["cost_usd"]
             self.terminal_reason = "reported_cost_overrun"
@@ -1244,7 +1272,10 @@ def _validate_output_directory(
             + ["cases.jsonl", "collection-status.json"]
         )
     )
-    paths = [str(relative / name) for name in names]
+    # The immutable publisher also creates random staging names. Prove this
+    # directory's current Git ignore state alongside every finite final name;
+    # final-name patterns alone do not cover the publisher's staging paths.
+    paths = [str(relative)] + [str(relative / name) for name in names]
     observed = run_git(
         [
             "check-ignore",

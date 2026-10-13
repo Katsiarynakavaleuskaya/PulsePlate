@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 import copy
 from contextlib import contextmanager
 from dataclasses import replace
@@ -392,6 +393,175 @@ def test_postopen_transient_http_outcome_publication_latches_before_another_send
     asyncio.run(run())
     assert ledger.terminal_reason == "outcome_publication_uncertain" and ledger.retryable is False
     assert sends == ledger.attempts == 1 and ledger.http_observations[0]["status_code"] == 503
+
+
+@pytest.mark.parametrize("arm", ["sonar", "sol"])
+@pytest.mark.parametrize("status", [408, 429, 500, 502, 503, 504, 401, 402, 403, 200])
+@pytest.mark.parametrize("body", [b"synthetic temporary failure", b"{malformed", b"\xff"])
+def test_ocw_typed_transient_status_with_malformed_body_remains_bounded(
+    tmp_path: Path,
+    arm: str,
+    status: int,
+    body: bytes,
+) -> None:
+    ledger = collector.AttemptLedger(tmp_path, comparison=True)
+    ledger.bind_case(arm, "OCW-N01", "synthetic prompt")
+    sends = 0
+    admitted_retry = arm == "sonar" and status in {408, 429, 500, 502, 503, 504}
+
+    async def respond(request: httpx.Request) -> httpx.Response:
+        nonlocal sends
+        sends += 1
+        return httpx.Response(status, request=request, content=body)
+
+    async def run() -> None:
+        async with httpx.AsyncClient(
+            transport=httpx.MockTransport(respond),
+            event_hooks={"request": [ledger.reserve], "response": [ledger.observe_http]},
+        ) as client:
+            if admitted_retry:
+                for _ in range(3):
+                    response = await client.send(_ocw_request(arm))
+                    assert response.status_code == status and ledger.retryable is True
+            else:
+                with pytest.raises(ValueError):
+                    await client.send(_ocw_request(arm))
+            with pytest.raises(collector.BudgetExhausted):
+                await client.send(_ocw_request(arm))
+
+    asyncio.run(run())
+    assert sends == ledger.attempts == (3 if admitted_retry else 1)
+    for index in range(1, sends + 1):
+        native = read_jsonl(tmp_path / f"attempt-result-{index:04d}.json")[0]
+        assert native["status_code"] == status and native["cost_status"] == "unknown"
+        assert native["raw_assistant_text"] is None
+        assert base64.b64decode(native["raw_error_body_base64"]) == body
+
+
+@pytest.mark.parametrize("arm", ["sonar", "sol"])
+@pytest.mark.parametrize(
+    "usage",
+    [
+        {"cost": {"total_cost": 0.16, "currency": "USD"}},
+        {"input_tokens": 1, "input_tokens_details": {"cached_tokens": True}},
+        {"prompt_tokens": 34817},
+    ],
+)
+def test_transient_status_cannot_override_accounting_terminal_latch(
+    tmp_path: Path,
+    arm: str,
+    usage: dict[str, Any],
+) -> None:
+    ledger = collector.AttemptLedger(tmp_path, comparison=True)
+    ledger.bind_case(arm, "OCW-N01", "synthetic prompt")
+
+    async def run() -> None:
+        await ledger.reserve(_ocw_request(arm))
+        with pytest.raises(ValueError):
+            await ledger.observe_http(
+                httpx.Response(503, request=_ocw_request(arm), json={"usage": usage})
+            )
+        with pytest.raises(collector.BudgetExhausted):
+            await ledger.reserve(_ocw_request(arm))
+
+    asyncio.run(run())
+    native = read_jsonl(tmp_path / "attempt-result-0001.json")[0]
+    assert native["status_code"] == 503 and native["usage"] == usage
+    assert ledger.retryable is False and ledger.attempts == 1
+
+
+@pytest.mark.parametrize("kind", ["credential", "line_limit"])
+def test_error_body_retention_respects_secret_and_native_line_bounds(
+    tmp_path: Path,
+    kind: str,
+) -> None:
+    ledger = collector.AttemptLedger(tmp_path, comparison=True)
+    ledger.bind_case("sonar", "OCW-N01", "synthetic prompt")
+    label = "synthetic-body-secret"
+    ledger._comparison_secrets = (label,)
+    body = label.encode() if kind == "credential" else b"x" * (256 * 1024)
+
+    async def run() -> None:
+        await ledger.reserve(_ocw_request("sonar"))
+        with pytest.raises(ValueError):
+            await ledger.observe_http(
+                httpx.Response(503, request=_ocw_request("sonar"), content=body)
+            )
+        with pytest.raises(collector.BudgetExhausted):
+            await ledger.reserve(_ocw_request("sonar"))
+
+    asyncio.run(run())
+    raw = (tmp_path / "attempt-result-0001.json").read_bytes()
+    native = read_jsonl(tmp_path / "attempt-result-0001.json")[0]
+    assert len(raw) <= 256 * 1024 and native["status_code"] == 503
+    assert label.encode() not in raw and "raw_error_body_base64" not in native
+    assert native["raw_error_body_status"] == (
+        "omitted_credential_reflection" if kind == "credential" else "omitted_outcome_limit"
+    )
+    assert native["raw_error_body_bytes"] == len(body) and ledger.retryable is False
+
+
+@pytest.mark.parametrize("explicit_names", [False, True])
+def test_output_admission_requires_directory_ignore_for_random_staging(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    explicit_names: bool,
+) -> None:
+    repo = tmp_path / "temporary-git"
+    repo.mkdir(mode=0o700)
+    collector.run_git(["init", "-q"], cwd=repo)
+    (repo / ".gitignore").write_text("unsafe/*.json*\nfully-ignored/\n")
+    monkeypatch.chdir(repo)
+    output = repo / "unsafe"
+    output.mkdir(mode=0o700)
+    names = ["comparison.jsonl", "run.jsonl"] if explicit_names else None
+    final = collector.run_git(
+        ["check-ignore", "--no-index", "unsafe/collection-status.json"], cwd=repo, check=False
+    )
+    staging = collector.run_git(
+        ["check-ignore", "--no-index", "unsafe/.noos1a-synthetic.tmp"], cwd=repo, check=False
+    )
+    assert final.returncode == 0 and staging.returncode == 1
+    with pytest.raises(ValueError, match="nonignored_output_directory"):
+        collector._validate_output_directory(output, generated_names=names)
+    ignored = repo / "fully-ignored"
+    ignored.mkdir(mode=0o700)
+    outside = tmp_path / "outside-git"
+    outside.mkdir(mode=0o700)
+    collector._validate_output_directory(ignored, generated_names=names)
+    collector._validate_output_directory(outside, generated_names=names)
+
+
+def test_ocw_finite_ignored_names_reject_before_native_provider_allocation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = tmp_path / "temporary-git"
+    repo.mkdir(mode=0o700)
+    collector.run_git(["init", "-q"], cwd=repo)
+    (repo / ".gitignore").write_text("unsafe/*.json*\n")
+    output = repo / "unsafe"
+    output.mkdir(mode=0o700)
+    monkeypatch.chdir(repo)
+    monkeypatch.setenv("PERPLEXITY_API_KEY", "synthetic-provider-value")
+    monkeypatch.setattr(collector, "ocw_request_preflight", lambda *_args: [])
+    monkeypatch.setattr(collector, "validate_ocw_environment", lambda _key: None)
+
+    def no_provider(_ledger: Any) -> None:
+        pytest.fail("unsafe output must be rejected before native provider allocation")
+
+    monkeypatch.setattr(collector, "_ocw_http_client", no_provider)
+    with pytest.raises(ValueError, match="nonignored_output_directory"):
+        collector.collect_ocw_comparison(
+            _ocw_rows(),
+            output_dir=output,
+            rubric=RUBRIC,
+            pricing=_ocw_prices(),
+            fitchef_key="ocw-eval-synthetic",
+            perplexity_key="synthetic-provider-value",
+            run_id="ignored-output-negative",
+        )
+    assert not list(output.iterdir())
 
 
 @pytest.mark.parametrize("published", [False, True])
@@ -1427,6 +1597,10 @@ def test_ocw_response_publication_and_cleanup_cannot_mask_original_failure(
         "success",
         "sonar-401",
         "sonar-transient",
+        "sonar-plain-transient",
+        "sonar-badjson-transient",
+        "sonar-plain-limit",
+        "sol-plain-transient",
         "sol-transient",
         "blocker-fallback",
         "oversized",
@@ -1518,6 +1692,11 @@ with patch.dict(os.environ, {
     async def response(request):
         assert not any(name in request.headers for name in ('OpenAI-Organization','OpenAI-Project','Cookie'))
         body=json.loads(request.content); sends.append(body)
+        if (request.url.path=='/chat/completions' and (
+            outcome in ('sonar-plain-transient','sonar-badjson-transient') and len(sends)<3
+            or outcome=='sonar-plain-limit')
+            or request.url.path=='/v1/responses' and outcome=='sol-plain-transient'):
+            return httpx.Response(503,content=b'{malformed' if outcome=='sonar-badjson-transient' else b'synthetic temporary failure')
         if outcome=='sol-timeout' and request.url.path=='/v1/responses':
             raise httpx.ReadTimeout('synthetic pre-response timeout',request=request)
         if (outcome=='sonar-cancel' and request.url.path=='/chat/completions'
@@ -1635,13 +1814,13 @@ with patch.dict(os.environ, {
                 assert native['cost_status']=='unknown' and 'status_code' not in native
                 assert not (output/'comparison.jsonl').exists()
                 print(json.dumps({'terminal_outcome':outcome,'sdk_requests':len(sends)})); sys.exit(0)
-            if outcome not in ('sonar-401','sol-transient','oversized','sonar-close-failure'): raise
+            if outcome not in ('sonar-401','sol-transient','oversized','sonar-close-failure','sonar-plain-limit','sol-plain-transient'): raise
             assert isinstance(error,ValueError)
             if outcome=='sonar-close-failure':
                 assert str(error)=='ocw_http_denied'
                 assert error.__notes__==['ocw_unused_client_cleanup_failed:OSError']
             status=read_jsonl(output/'comparison-status.json')[0]
-            expected=2 if outcome=='sol-transient' else 1
+            expected=3 if outcome=='sonar-plain-limit' else 2 if outcome in ('sol-transient','sol-plain-transient') else 1
             assert len(sends)==status['reserved_attempts']==status['published_reservations']==expected
             assert status['status']=='incomplete' and status['observed_http_outcomes']==expected
             assert not (output/'comparison.jsonl').exists()
@@ -1652,7 +1831,7 @@ with patch.dict(os.environ, {
     expected_capture=status['capture_sha256']
     assert expected_capture=='sha256:'+hashlib.sha256((output/'comparison.jsonl').read_bytes()).hexdigest()
     views=collector.build_ocw_blind_view(records,expected_run=run,expected_capture_sha256=expected_capture)
-    expected_sends=18 if outcome=='sonar-transient' else 16
+    expected_sends=18 if outcome in ('sonar-transient','sonar-plain-transient','sonar-badjson-transient') else 16
     assert len(records)==len(views)==16 and len(sends)==expected_sends
     assert len(sleeps)==15 and observed_time()-clock['value']+sum(sleeps)>=91
     assert rate_limit.limiter.enabled is True and rate_limit.RATE_LIMIT_INSIGHT=='10/minute'
@@ -1792,7 +1971,14 @@ with patch.dict(os.environ, {
         active_coverage.get_data().update(native_data)
     assert (
         '"terminal_outcome"'
-        if outcome not in {"success", "sonar-transient", "blocker-fallback"}
+        if outcome
+        not in {
+            "success",
+            "sonar-transient",
+            "sonar-plain-transient",
+            "sonar-badjson-transient",
+            "blocker-fallback",
+        }
         else '"mock_route_cases": 16'
     ) in completed.stdout
 
@@ -3666,7 +3852,8 @@ def test_output_admission_requires_every_generated_name_ignored(
             return CompletedProcess(args, 0, str(tmp_path.parent), "")
         assert args == ["check-ignore", "--no-index", "-z", "--stdin"]
         paths = _kwargs["input_text"].rstrip("\0").split("\0")
-        assert len(paths) == 58
+        assert paths[0] == tmp_path.name
+        assert len(paths[1:]) == 58
         return CompletedProcess(args, 0, "\0".join(paths if all_ignored else paths[-1:]) + "\0", "")
 
     monkeypatch.setattr(collector, "run_git", resolved)
@@ -4155,6 +4342,8 @@ def test_attempt_ledger_admits_only_private_bounded_transport(
             collector.AttemptLedger(directory)
         return
     directory.mkdir(mode=0o755 if kind == "public" else 0o700)
+    if kind == "public":
+        directory.chmod(0o755)
     if kind == "occupied":
         (directory / "attempt-0001.json").write_bytes(b"existing")
     if kind in {"public", "occupied"}:
@@ -4270,6 +4459,8 @@ def test_private_runtime_paths_fail_closed_without_exposing_contents(
 ) -> None:
     parent = tmp_path / "runtime"
     parent.mkdir(mode=0o755 if kind == "public_parent" else 0o700)
+    if kind == "public_parent":
+        parent.chmod(0o755)
     path = parent / "quota.sqlite"
     if kind == "relative":
         path = Path("quota.sqlite")
@@ -4357,6 +4548,8 @@ def test_collector_cli_admission_and_error_output_are_bounded(
     pricing = tmp_path / "pricing.jsonl"
     output = tmp_path / "output"
     output.mkdir(mode=0o755 if kind == "public_output" else 0o700)
+    if kind == "public_output":
+        output.chmod(0o755)
     write_report(manifest, evaluation._jsonl(_manifest_24()))
     write_report(pricing, evaluation._jsonl([_pricing()]))
     monkeypatch.setenv("NOOS_EVAL_FITCHEF_API_KEY", "synthetic")
@@ -4541,6 +4734,8 @@ def test_output_location_permission_and_git_prerequisites_reject_before_send(
 ) -> None:
     output = tmp_path / "output"
     output.mkdir(mode=0o755 if kind == "public" else 0o700)
+    if kind == "public":
+        output.chmod(0o755)
 
     def git(args: list[str], **_kwargs: Any) -> CompletedProcess[str]:
         if args[0] == "rev-parse":

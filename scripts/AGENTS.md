@@ -833,6 +833,9 @@ contract in `docs/evals/FITCHEF_CLAIM_EVIDENCE_EVAL_V1.md`.
 For already admitted captures, reuse the operator-configured macOS Keychain
 service `PulsePlate.Perplexity.API` in only the collector process environment;
 this source is neither a portable/global environment nor generation authority.
+Collector security fixtures must explicitly set intended public or private file
+and directory permissions after creation to keep controls valid under inherited
+umask.
 
 When touching Makefile devcontainer project-name generation, dependency audit
 helpers, dependency-submission filters, CI risk routing, or eval artifact
