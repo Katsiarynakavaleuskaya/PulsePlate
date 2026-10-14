@@ -1968,6 +1968,14 @@ def test_ocw_response_publication_and_cleanup_cannot_mask_original_failure(
         "audit-rubric-alias",
         "audit-rubric-case-alias",
         "audit-rubric-distinct",
+        "git-audit-missing-visible",
+        "git-audit-tracked",
+        "git-audit-tracked-case-alias",
+        "git-audit-source-case-missing-visible",
+        "git-audit-missing-exact-only",
+        "git-audit-missing-ignored",
+        "git-audit-existing-exact-ignored",
+        "git-audit-outside",
         "cli-pricing-audit-alias",
         "cli-manifest-audit-alias",
         "cli-rubric-audit-alias",
@@ -2080,6 +2088,16 @@ with patch.dict(os.environ, {
     elif outcome=='audit-directory': audit.mkdir(mode=0o700)
     elif outcome=='audit-read-denied':
         audit_prefix=b'synthetic-private-audit\n'; audit.write_bytes(audit_prefix); audit.chmod(0o600)
+        admission_reads=[]; admission_reader=collector._read_input
+        def read_admission_input(path: Path) -> bytes:
+            admission_reads.append(path)
+            return admission_reader(path)
+        with patch.object(collector,'_read_input',read_admission_input):
+            collector._validate_audit_location(audit)
+        audit_read_in_git_admission=audit in admission_reads
+        audit_inside_checkout=any(parent.samefile(Path(collector.__file__).resolve().parents[2]) for parent in audit.parents)
+        assert audit_read_in_git_admission is audit_inside_checkout
+        audit_read_admission_proved=True
     elif outcome=='audit-oversized':
         audit.write_bytes(b'x'*(8*1024*1024+1)); audit.chmod(0o600)
     elif outcome in ('audit-run','audit-comparison','audit-nested'):
@@ -2134,6 +2152,59 @@ with patch.dict(os.environ, {
         vip_label='noos-eval-synthetic-pro'
         environment_changes.update(PRO_API_KEYS=vip_label,PRO_LLM_INSIGHT_REQUESTS_PER_MONTH='100',
             FEATURE_FITCHEF_STRUCTURED_COACH='true',FITCHEF_STRUCTURED_COACH_EXECUTION_MODE='auto-safe')
+    module_file=collector.__file__; native_code_sha=collector._code_sha
+    if outcome.startswith('git-audit-'):
+        checkout=directory/'actual-checkout'; checkout.mkdir(mode=0o700)
+        module=checkout/'scripts/evals/collect_fitchef_answers.py'; module.parent.mkdir(parents=True)
+        module.write_bytes(Path(module_file).read_bytes()); module_file=str(module)
+        fixture=checkout/'tests/fixtures/ocw/fitchef_nutrition_cases.v1.jsonl'; fixture.parent.mkdir(parents=True)
+        fixture.write_bytes(Path(sys.argv[2]).read_bytes())
+        canonical_rubric=checkout/'docs/evals/FITCHEF_CLAIM_EVIDENCE_EVAL_V1.md'; canonical_rubric.parent.mkdir(parents=True)
+        canonical_rubric.write_bytes(Path(sys.argv[3]).read_bytes())
+        (checkout/'.gitignore').write_text('ignored-audit/\nexact-audit/audit.jsonl\ntracked-audit/\n')
+        if outcome=='git-audit-outside': audit=private/'external-audit.jsonl'
+        else:
+            folder='tracked-audit' if outcome in ('git-audit-tracked','git-audit-tracked-case-alias') else 'ignored-audit' if outcome=='git-audit-missing-ignored' else 'exact-audit' if outcome in ('git-audit-missing-exact-only','git-audit-existing-exact-ignored') else 'visible-audit'
+            audit=checkout/folder/('Audit.jsonl' if outcome=='git-audit-tracked-case-alias' else 'audit.jsonl'); audit.parent.mkdir(mode=0o700)
+        audit_original=None
+        if outcome in ('git-audit-tracked','git-audit-tracked-case-alias','git-audit-existing-exact-ignored'):
+            audit_original=b'existing-private-audit\n'; collector.write_report(audit,audit_original)
+        collector.run_git(['init','-q'],cwd=checkout)
+        collector.run_git(['add','-f','--','.'],cwd=checkout)
+        if outcome=='git-audit-existing-exact-ignored':
+            collector.run_git(['rm','--cached','--','exact-audit/audit.jsonl'],cwd=checkout)
+        collector.run_git(['-c','user.name=Synthetic fixture','-c','user.email=fixture@example.invalid','commit','--no-gpg-sign','-qm','audit checkout fixture'],cwd=checkout)
+        if outcome=='git-audit-tracked-case-alias':
+            tracked_audit=audit; alias=audit.with_name('audit.jsonl')
+            audit_is_tracked_object=alias.exists() and alias.samefile(tracked_audit)
+            if not alias.exists(): collector.write_report(alias,audit_original)
+            assert alias.samefile(tracked_audit) is audit_is_tracked_object
+            assert alias.stat().st_nlink==1
+            assert collector.run_git(['--literal-pathspecs','ls-files','--error-unmatch','--',str(tracked_audit.relative_to(checkout))],cwd=checkout).returncode==0
+            assert collector.run_git(['--literal-pathspecs','ls-files','--error-unmatch','--',str(alias.relative_to(checkout))],cwd=checkout,check=False).returncode==1
+            assert collector.run_git(['check-ignore','-z','--stdin'],cwd=checkout,input_text=str(alias.relative_to(checkout))+'\0').stdout==str(alias.relative_to(checkout))+'\0'
+            audit=alias
+        if outcome=='git-audit-source-case-missing-visible':
+            source_alias=checkout.with_name(checkout.name.upper())
+            audit_is_in_source=source_alias.exists() and source_alias.samefile(checkout)
+            if not source_alias.exists():
+                source_alias.mkdir(mode=0o700); (source_alias/'visible-audit').mkdir(mode=0o700)
+            assert source_alias.samefile(checkout) is audit_is_in_source
+            audit=source_alias/'visible-audit/audit.jsonl'
+            assert audit.parent.exists() and not audit.exists()
+        assert not collector.run_git(['status','--porcelain','--untracked-files=all'],cwd=checkout).stdout
+        if outcome=='git-audit-tracked':
+            relative=str(audit.relative_to(checkout))
+            assert collector.run_git(['ls-files','--error-unmatch','--',relative],cwd=checkout).returncode==0
+            assert collector.run_git(['check-ignore','--no-index','--',relative],cwd=checkout).returncode==0
+        if outcome in ('git-audit-missing-exact-only','git-audit-existing-exact-ignored'):
+            assert collector.run_git(['check-ignore','--no-index','--','exact-audit/audit.jsonl'],cwd=checkout).returncode==0
+            assert collector.run_git(['check-ignore','--no-index','--','exact-audit/.noos1a-synthetic.tmp'],cwd=checkout,check=False).returncode==1
+        environment_changes['AGENT_CONTROL_AUDIT_LOG_PATH']=str(audit)
+        git_manifest=private/'git-inputs.jsonl'; git_prices=private/'git-pricing.jsonl'
+        collector.write_report(git_manifest,b''.join(collector._canonical(row)+b'\n' for row in rows))
+        collector.write_report(git_prices,b''.join(collector._canonical(row)+b'\n' for row in prices))
+        database_before=db.read_bytes()
     from typing import Iterator
     @contextmanager
     def selected_environment() -> Iterator[None]:
@@ -2226,8 +2297,10 @@ with patch.dict(os.environ, {
     final_status_failure=OSError('synthetic post-link final status failure')
     published_status=None
     delegated_reads=[]
+    denied_audit_reads=[]
     def read_capture_input(path: Path) -> bytes:
         if outcome=='audit-read-denied' and path==audit:
+            denied_audit_reads.append(path)
             raise ValueError('unsafe_input') from audit_read_denial
         delegated_reads.append(path)
         return native_read(path)
@@ -2282,7 +2355,8 @@ with patch.dict(os.environ, {
         patches.enter_context(patch.object(collector,'ocw_request_preflight',selected_preflight))
         patches.enter_context(patch.object(collector,'collect_ocw_comparison',observed_collect))
         patches.enter_context(patch.object(collector,'validate_ocw_environment',observed_environment))
-        patches.enter_context(patch.object(collector,'_code_sha',lambda:'a'*40))
+        patches.enter_context(patch.object(collector,'__file__',module_file))
+        patches.enter_context(patch.object(collector,'_code_sha',native_code_sha if outcome.startswith('git-audit-') else lambda:'a'*40))
         patches.enter_context(patch.object(collector,'_ocw_http_client',transport))
         patches.enter_context(patch.object(collector,'write_report',publish))
         patches.enter_context(patch.object(collector,'_read_input',read_capture_input))
@@ -2295,6 +2369,25 @@ with patch.dict(os.environ, {
         patches.enter_context(patch.object(time,'sleep',sleep))
         patches.enter_context(patch.object(socket.socket,'connect',side_effect=AssertionError('real network forbidden')))
         try:
+            if outcome.startswith('git-audit-'):
+                result=collector.main(['--mode','ocw-nutrition-comparison','--manifest',str(git_manifest),
+                    '--rubric',str(canonical_rubric),'--pricing-evidence',str(git_prices),
+                    '--output-dir',str(output),'--run-id','git-audit-observation'])
+                rejected=outcome in ('git-audit-missing-visible','git-audit-tracked','git-audit-missing-exact-only') or (outcome=='git-audit-tracked-case-alias' and audit_is_tracked_object) or (outcome=='git-audit-source-case-missing-visible' and audit_is_in_source)
+                claim=db.with_name(db.name+'.run.jsonl')
+                assert result==(2 if rejected else 0),(result,len(sends),preflight_calls,quota_reads,claim.exists(),audit.exists())
+                if rejected:
+                    assert not sends and preflight_calls==quota_reads==transport_allocations==0,(len(sends),preflight_calls,quota_reads,transport_allocations,claim.exists(),audit.exists())
+                    assert not claim.exists() and not list(output.iterdir()) and db.read_bytes()==database_before
+                    assert audit.exists()==(audit_original is not None)
+                    if audit_original is not None: assert audit.read_bytes()==audit_original
+                else:
+                    assert len(sends)==16 and preflight_calls==1 and claim.exists()
+                    assert len(read_jsonl(output/'comparison.jsonl'))==16 and audit.stat().st_mode&0o777==0o600
+                    if audit_original is not None: assert audit.read_bytes().startswith(audit_original)
+                    assert not collector.run_git(['status','--porcelain','--untracked-files=all'],cwd=checkout).stdout
+                if outcome=='git-audit-tracked-case-alias': assert tracked_audit.read_bytes()==audit_original
+                print(json.dumps({'terminal_outcome':outcome,'sdk_requests':len(sends),'claim_exists':claim.exists(),'rejected_before_resources':rejected}));sys.exit(0)
             if outcome.startswith('cli-'):
                 arguments=['--mode','ocw-nutrition-comparison','--manifest',str(cli_manifest),
                     '--rubric',str(cli_rubric),'--pricing-evidence',str(cli_pricing),
@@ -2425,14 +2518,34 @@ with patch.dict(os.environ, {
                 assert not sends,len(sends)
                 assert isinstance(error,ValueError),type(error).__name__
                 if outcome=='audit-read-denied':
+                    assert audit_read_admission_proved is True
                     assert str(error)=='unsafe_input' and error.__cause__ is audit_read_denial
                     assert isinstance(error.__cause__,PermissionError)
+                    assert denied_audit_reads==[audit]
                     assert audit.read_bytes()==audit_prefix and audit.stat().st_mode&0o777==0o600
-                    assert output/'run.jsonl' in delegated_reads
-                    status=read_jsonl(output/'comparison-status.json')[0]
-                    assert status['status']=='incomplete' and not status['completed']
-                    assert status['reserved_attempts']==status['observed_http_outcomes']==0
-                    assert not (output/'comparison.jsonl').exists() and not list(output.glob('case-*.jsonl'))
+                    expected_resources=0 if audit_inside_checkout else 1
+                    assert preflight_calls==quota_reads==transport_allocations==expected_resources
+                    claim=db.with_name(db.name+'.run.jsonl')
+                    if audit_inside_checkout:
+                        assert not list(output.iterdir()) and not claim.exists()
+                    else:
+                        assert claim.read_bytes()==(output/'run.jsonl').read_bytes()
+                        assert output/'run.jsonl' in delegated_reads
+                        assert {path.name for path in output.iterdir()}=={
+                            'run.jsonl','inputs.jsonl','rubric.jsonl','comparison-status.json'}
+                        status=read_jsonl(output/'comparison-status.json')[0]
+                        assert status['status']=='incomplete' and status['completed']==[]
+                        assert status['missing']==[[case,arm] for case in collector._OCW_CASES for arm in collector._OCW_MODELS]
+                        assert status['reserved_attempts']==status['reserved_cents']==status['published_reservations']==0
+                        assert status['observed_http_outcomes']==status['uncertain_transport_outcomes']==0
+                        assert status['capture_sha256'] is None
+                        assert status['authority_granted'] is status['answer_change_allowed'] is False
+                    assert collector._read_input(Path(sys.argv[3]))==native_read(Path(sys.argv[3]))
+                    assert Path(sys.argv[3]) in delegated_reads
+                    print(json.dumps({'audit_denial_phase':'git_admission' if audit_read_in_git_admission else 'audit_preparation',
+                        'audit_inside_checkout':audit_inside_checkout,
+                        'preflight_calls':preflight_calls,'quota_reads':quota_reads,
+                        'transport_allocations':transport_allocations,'sdk_requests':len(sends)}))
                 if outcome in ('audit-run','audit-comparison','audit-nested','database-output'):
                     assert str(error)=='ocw_runtime_output_overlap',str(error)
                     assert not (output/'run.jsonl').exists()
@@ -5470,6 +5583,163 @@ def test_output_location_permission_and_git_prerequisites_reject_before_send(
         ValueError, match="unsafe_output_directory|git_root_unavailable|output_ignore_unavailable"
     ):
         collector._validate_output_directory(output)
+
+
+@pytest.mark.parametrize(
+    "failure,expected",
+    [
+        ("root_command", "git_root_unavailable"),
+        ("root_relative", "git_root_unavailable"),
+        ("root_missing", "git_root_unavailable"),
+        ("ancestor_identity", "audit_source_identity_unavailable"),
+        ("index_command", "audit_tracking_unavailable"),
+        ("index_unterminated", "audit_tracking_unavailable"),
+        ("index_empty_name", "audit_tracking_unavailable"),
+        ("index_identity", "audit_tracking_unavailable"),
+        ("ignore_command", "audit_ignore_unavailable"),
+        ("ignore_foreign", "nonignored_audit_path"),
+        ("audit_read", "unsafe_input"),
+    ],
+)
+def test_audit_admission_uncertainty_stops_capture_before_resources(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    failure: str,
+    expected: str,
+) -> None:
+    source = (tmp_path / "source-checkout").resolve()
+    state = tmp_path / "private-state"
+    for directory in (source, state):
+        directory.mkdir(mode=0o700)
+        directory.chmod(0o700)
+    module = source / "scripts/evals/collect_fitchef_answers.py"
+    module.parent.mkdir(parents=True)
+    module.write_bytes(Path(collector.__file__).read_bytes())
+    fixture = source / "tests/fixtures/ocw/fitchef_nutrition_cases.v1.jsonl"
+    fixture.parent.mkdir(parents=True)
+    fixture.write_bytes((Path(__file__).parent / "fixtures/ocw" / fixture.name).read_bytes())
+    (source / ".gitignore").write_text("ignored-audit/\n", encoding="utf-8")
+    indexed = source / "tracked-private.bin"
+    write_report(indexed, b"synthetic-indexed-file\n")
+    audit = source / "ignored-audit/audit.jsonl"
+    audit.parent.mkdir(mode=0o700)
+    audit.parent.chmod(0o700)
+    audit_bytes = b"synthetic-private-audit\n"
+    write_report(audit, audit_bytes)
+    database = state / "quota.db"
+    write_report(database, b"")
+    output = state / "capture"
+    output.mkdir(mode=0o700)
+    output.chmod(0o700)
+    native_git = collector.run_git
+    native_git(["init", "-q"], cwd=source)
+    native_git(["add", "--", ".gitignore", "scripts", "tests", indexed.name], cwd=source)
+    native_read = collector._read_input
+    native_stat = os.stat
+    permission_failure = PermissionError("synthetic audit identity or read unavailable")
+    git_calls: list[list[str]] = []
+    indexed_stats = 0
+
+    def uncertain_git(
+        args: list[str], *, cwd: Path, check: bool = False, input_text: str | None = None
+    ) -> CompletedProcess[str]:
+        assert cwd == source and check is False
+        git_calls.append(args)
+        if args == ["rev-parse", "--show-toplevel"]:
+            if failure == "root_command":
+                return CompletedProcess(args, 128, "", "synthetic Git unavailable")
+            if failure in ("root_relative", "root_missing"):
+                value = (
+                    "relative-checkout" if failure == "root_relative" else str(source / "absent")
+                )
+                return CompletedProcess(args, 0, value + "\n", "")
+            result = native_git(args, cwd=cwd, check=check)
+            if failure == "ancestor_identity":
+                audit.parent.rename(source / "retained-audit")
+            return result
+        if args == ["ls-files", "--cached", "-z"]:
+            if failure == "index_command":
+                return CompletedProcess(args, 128, "", "synthetic index unavailable")
+            if failure in ("index_unterminated", "index_empty_name"):
+                value = indexed.name + ("\0\0" if failure == "index_empty_name" else "")
+                return CompletedProcess(args, 0, value, "")
+            return native_git(args, cwd=cwd, check=check)
+        assert args == ["check-ignore", "-z", "--stdin"]
+        assert input_text == "ignored-audit/audit.jsonl\0"
+        if failure == "ignore_command":
+            return CompletedProcess(args, 128, "", "synthetic ignore unavailable")
+        if failure == "ignore_foreign":
+            return CompletedProcess(args, 0, "different/audit.jsonl\0", "")
+        return native_git(args, cwd=cwd, check=check, input_text=input_text)
+
+    def uncertain_stat(path: Any, *args: Any, **kwargs: Any) -> os.stat_result:
+        nonlocal indexed_stats
+        if failure == "index_identity" and path == indexed:
+            indexed_stats += 1
+            if indexed_stats == 2:
+                raise permission_failure
+        return native_stat(path, *args, **kwargs)
+
+    def uncertain_read(path: Path) -> bytes:
+        if failure == "audit_read" and path == audit:
+            raise ValueError("unsafe_input") from permission_failure
+        return native_read(path)
+
+    effects: list[tuple[tuple[Any, ...], dict[str, Any]]] = []
+
+    def forbidden_resource(*args: Any, **kwargs: Any) -> Any:
+        effects.append((args, kwargs))
+        raise AssertionError("audit admission reached quota, preflight, publication or transport")
+
+    key = "ocw-eval-synthetic-vip"
+    provider_label = "synthetic-provider-value"
+    monkeypatch.setattr(core_db, "_RAW_ENGINE", None)
+    monkeypatch.setattr(core_db, "SessionLocal", None)
+    for name, value in {
+        "APP_ENV": "development",
+        "SUBSCRIPTION_DB_ENABLED": "false",
+        "LLM_PROVIDER": "perplexity",
+        "PERPLEXITY_MODEL": "sonar",
+        "PERPLEXITY_ENDPOINT": collector._EXPECTED_ENDPOINT,
+        "VIP_API_KEYS": key,
+        "PERPLEXITY_API_KEY": provider_label,
+        "SERVER_SALT": "synthetic-evaluation-salt",
+        "AGENT_CONTROL_AUDIT_SIGNING_KEY": "synthetic-audit-signing-value",
+        "AGENT_CONTROL_AUDIT_LOG_PATH": str(audit),
+        "DATABASE_URL": f"sqlite:///{database}",
+    }.items():
+        monkeypatch.setenv(name, value)
+    monkeypatch.setattr(collector, "__file__", str(module))
+    monkeypatch.setattr(collector, "run_git", uncertain_git)
+    monkeypatch.setattr(os, "stat", uncertain_stat)
+    monkeypatch.setattr(collector, "_read_input", uncertain_read)
+    for name in ("session_scope", "ocw_request_preflight", "write_report", "_ocw_http_client"):
+        monkeypatch.setattr(collector, name, forbidden_resource)
+    manifest: list[object] = list(_ocw_rows())
+    prices: list[object] = list(_ocw_prices())
+    with pytest.raises(ValueError, match=f"^{expected}$") as caught:
+        collector.collect_ocw_comparison(
+            manifest,
+            output_dir=output,
+            rubric=RUBRIC,
+            pricing=prices,
+            fitchef_key=key,
+            perplexity_key=provider_label,
+            run_id="uncertain-audit",
+        )
+    assert git_calls[0] == ["rev-parse", "--show-toplevel"] and len(git_calls) <= 3
+    if failure in ("index_identity", "audit_read"):
+        assert caught.value.__cause__ is permission_failure
+    if failure == "ancestor_identity":
+        assert isinstance(caught.value.__cause__, FileNotFoundError)
+    retained_audit = (
+        source / "retained-audit" / audit.name if failure == "ancestor_identity" else audit
+    )
+    assert retained_audit.read_bytes() == audit_bytes
+    assert retained_audit.stat().st_mode & 0o777 == 0o600
+    assert database.read_bytes() == b"" and not list(output.iterdir())
+    assert not database.with_name(database.name + ".run.jsonl").exists()
+    assert effects == [] and core_db._RAW_ENGINE is None and core_db.SessionLocal is None
 
 
 def test_private_runtime_descriptor_failure_is_a_stable_rejection(

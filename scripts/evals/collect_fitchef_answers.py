@@ -1269,6 +1269,65 @@ def _prepare_audit_file(path: Path) -> None:
     _private_parent(path)
 
 
+def _validate_audit_location(path: Path) -> None:
+    """Admit one private append target without making this checkout Git-visible."""
+    _private_parent(path)
+    checkout = Path(__file__).resolve().parents[2]
+    observed = run_git(["rev-parse", "--show-toplevel"], cwd=checkout, check=False)
+    if observed.returncode != 0:
+        raise ValueError("git_root_unavailable")
+    source_root = Path(observed.stdout.strip())
+    if not source_root.is_absolute() or not source_root.is_dir():
+        raise ValueError("git_root_unavailable")
+    ancestor = path.absolute().parent
+    relative_parts = [path.name]
+    try:
+        # Only walk this known target's existing ancestors. Root spelling alone
+        # cannot establish that it is outside our actual source checkout.
+        while not ancestor.samefile(source_root):
+            if ancestor == ancestor.parent:
+                return
+            relative_parts.append(ancestor.name)
+            ancestor = ancestor.parent
+    except OSError as error:
+        raise ValueError("audit_source_identity_unavailable") from error
+    relative_path = Path(*reversed(relative_parts))
+    relative = str(relative_path)
+    tracked = run_git(["ls-files", "--cached", "-z"], cwd=checkout, check=False)
+    if tracked.returncode != 0 or (tracked.stdout and not tracked.stdout.endswith("\0")):
+        raise ValueError("audit_tracking_unavailable")
+    indexed_names = tracked.stdout.split("\0")[:-1] if tracked.stdout else []
+    if any(not name for name in indexed_names):
+        raise ValueError("audit_tracking_unavailable")
+    if relative in indexed_names:
+        raise ValueError("tracked_audit_path")
+    # Git names are literal index entries. A different spelling can still name
+    # our one known append target on the native filesystem; do not case-fold.
+    try:
+        if path.exists():
+            for name in indexed_names:
+                indexed_path = source_root / name
+                if indexed_path.exists() and indexed_path.samefile(path):
+                    raise ValueError("tracked_audit_path")
+    except OSError as error:
+        raise ValueError("audit_tracking_unavailable") from error
+    ignored = run_git(
+        ["check-ignore", "-z", "--stdin"], cwd=checkout, check=False, input_text=relative + "\0"
+    )
+    if ignored.returncode == 1 or (ignored.returncode == 0 and ignored.stdout != relative + "\0"):
+        raise ValueError("nonignored_audit_path")
+    if ignored.returncode != 0:
+        raise ValueError("audit_ignore_unavailable")
+    try:
+        _read_input(path)
+    except ValueError as error:
+        if not isinstance(error.__cause__, FileNotFoundError):
+            raise
+        # Existing append-only files need no staging directory. A missing file
+        # uses the existing publisher, whose random staging names must be ignored.
+        _validate_output_directory(source_root / relative_path.parent, generated_names=[path.name])
+
+
 def validate_live_environment(fitchef_key: str) -> None:
     """Admit only isolated synthetic PRO state through the normal local gates."""
     if os.getenv("APP_ENV") != "development" or os.getenv(
@@ -1292,7 +1351,7 @@ def validate_live_environment(fitchef_key: str) -> None:
     audit_log = os.getenv("AGENT_CONTROL_AUDIT_LOG_PATH", "")
     if not audit_log:
         raise ValueError("private_audit_path_required")
-    _private_parent(Path(audit_log))
+    _validate_audit_location(Path(audit_log))
     with session_scope() as session:
         used = session.scalar(
             select(VipLlmMonthlyUsage.used_requests).where(
@@ -1748,7 +1807,7 @@ def validate_ocw_environment(fitchef_key: str, *, output_dir: Path | None = None
         if any(path.resolve().is_relative_to(capture_root) for path in (database_path, audit_path)):
             raise ValueError("ocw_runtime_output_overlap")
     _private_parent(database_path)
-    _private_parent(audit_path)
+    _validate_audit_location(audit_path)
     with session_scope() as session:
         counts = session.scalars(
             select(VipLlmMonthlyUsage.used_requests).where(
