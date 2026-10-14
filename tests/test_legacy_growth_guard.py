@@ -280,8 +280,6 @@ def test_retired_metadata_error_guard_rejects_canonical_reimport(
     sources = list(_openapi_ownership_sources())
     assert legacy_guard.validate_application_metadata_openapi_ownership(*sources) == []
     assert legacy_guard.validate_retired_legacy_python_bindings(sources[0]) == []
-    assert legacy_guard.validate_application_metadata_openapi_ownership(*sources) == []
-    assert legacy_guard.validate_retired_legacy_python_bindings(sources[0]) == []
     sources[0] += source
     assert legacy_guard.validate_retired_legacy_python_bindings(sources[0]) == [
         f"legacy_app.py: retired Python compatibility binding is forbidden: {binding_name}"
@@ -1627,8 +1625,6 @@ def test_metadata_error_factory_absence_preserves_openapi_ownership() -> None:
 def test_metadata_openapi_ownership_guard_rejects_legacy_callable_mutation() -> None:
     """Keep callable mutation rejection independent of the valid metadata baseline."""
     sources = list(_openapi_ownership_sources())
-    assert legacy_guard.validate_application_metadata_openapi_ownership(*sources) == []
-    assert legacy_guard.validate_retired_legacy_python_bindings(sources[0]) == []
     assert legacy_guard.validate_application_metadata_openapi_ownership(*sources) == []
     assert legacy_guard.validate_retired_legacy_python_bindings(sources[0]) == []
     sources[0] += "\nsetattr(app, 'openapi', replacement)\n"

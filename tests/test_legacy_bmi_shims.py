@@ -869,10 +869,19 @@ def test_retired_legacy_python_bindings_fail_closed_in_a_fresh_process(
         import app.routers.health as health
         from typing import Literal, get_args, get_origin
 
+        assert "app.main" not in sys.modules
+        startup_metadata = application_bootstrap.APPLICATION_METADATA
+        startup_app = application_bootstrap.app
         assert legacy_app.app is application_bootstrap.app
         assert application_bootstrap.app.description == application_bootstrap.APPLICATION_METADATA.description
         assert application_bootstrap.app.openapi_tags == application_bootstrap.APPLICATION_METADATA.openapi_tags_list()
         assert app_facade.app is application_bootstrap.app
+        assert "app.main" in sys.modules
+        assert app_facade.app is startup_app
+        assert application_bootstrap.APPLICATION_METADATA is startup_metadata
+        assert application_bootstrap.app.description == startup_metadata.description.replace(", user management", "")
+        assert application_bootstrap.app.openapi_tags == [tag for tag in startup_metadata.openapi_tags_list() if tag["name"] != "users"]
+        assert "users" in [tag.name for tag in startup_metadata.tags]
         assert callable(application_metadata.build_application_metadata)
         assert application_metadata.build_application_metadata.__module__ == application_metadata.__name__
         assert type(http_error_details.ENHANCED_PLATE_GENERATION_FAILED_DETAIL) is str
