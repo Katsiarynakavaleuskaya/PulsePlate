@@ -9739,7 +9739,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] **Legacy lifecycle/access export retirement (LEGACY-LIFECYCLE-ACCESS-EXPORT-RETIREMENT-1/v1)**
   - Owner: @katsiaryna_kavaleuskaya (backend and Legacy consolidation)
   - Priority: P1
-  - Target PR: pending (`codex/retire-legacy-lifecycle-access-exports`)
+  - Target PR: [#2489](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2489) (`codex/retire-legacy-lifecycle-access-exports`)
   - Status: OPEN. Exact two selected legacy aliases retire; every prior115 is preserved with only the new `[115:117]` cohort. Canonical/package16/lifecycle/lazy async access, exact result/error, admin auth/sanitized failures and existing recognizer algorithms remain. Incoming #2488 whole reconciliation is APPLIED / COMMITTED at `ae9cfd637852149731e7c3c6342a8fb1b4603975`; its Target PR #2488 remains unchanged and merged-main reconciliation for this carrier is pending. Own local/current-head/review/Oracle/merge/terminal evidence remains required.
   - Area: Legacy Python compatibility retirement
   - Reason (EN): Retire two redundant Python import paths while preserving canonical behavior. The same bounded child closes the existing admin import-probe environment/connection/diagnostic gap through finite synthetic controls; it introduces no runtime policy, helper framework or universal secret/network claim. The foreign CD start exception transfers no own readiness; #2476/#2477 retain their independent work.

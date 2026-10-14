@@ -460,8 +460,8 @@ merge permission and granted no bypass of this PR's required gates.
 
 ## Legacy lifecycle and scheduler-access Python export retirement
 
-The `LEGACY-LIFECYCLE-ACCESS-EXPORT-RETIREMENT-1/v1` child is OPEN; its
-implementation PR number is pending. It retires exactly `legacy_app.lifespan`
+The `LEGACY-LIFECYCLE-ACCESS-EXPORT-RETIREMENT-1/v1` child is OPEN in
+[PR #2489](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2489). It retires exactly `legacy_app.lifespan`
 and `legacy_app.get_update_scheduler`. Every prior115 name remains and the
 independent tuple appends only these two at `[115:117]`; the three inventories
 contain exactly117 names (`scripts/ci/check_legacy_growth_guard.py:40`,
