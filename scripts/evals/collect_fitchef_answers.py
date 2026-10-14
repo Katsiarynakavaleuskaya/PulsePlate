@@ -2563,6 +2563,13 @@ def build_ocw_blind_view(
     return sorted(views, key=lambda item: item["opaque_id"])
 
 
+def _ocw_audit_aliases_input(audit_path: Path, input_path: Path) -> bool:
+    """Compare known paths using resolved spelling and native existing-file identity."""
+    return audit_path.resolve() == input_path.resolve() or (
+        audit_path.exists() and input_path.exists() and audit_path.samefile(input_path)
+    )
+
+
 def collect_ocw_comparison(
     manifest: list[object],
     *,
@@ -2582,7 +2589,7 @@ def collect_ocw_comparison(
     prices = validate_ocw_pricing(pricing)
     pricing = copy.deepcopy(pricing)
     audit_path = Path(os.getenv("AGENT_CONTROL_AUDIT_LOG_PATH", ""))
-    if audit_path.resolve() == rubric.resolve():
+    if _ocw_audit_aliases_input(audit_path, rubric):
         raise ValueError("ocw_runtime_input_alias")
     state_path = validate_ocw_environment(fitchef_key, output_dir=output_dir).resolve()
     claim_path = state_path.with_name(state_path.name + ".run.jsonl")
@@ -2856,6 +2863,12 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     try:
         if args.mode == _OCW_MODE:
+            audit_path = Path(os.getenv("AGENT_CONTROL_AUDIT_LOG_PATH", ""))
+            if any(
+                _ocw_audit_aliases_input(audit_path, input_path)
+                for input_path in (args.manifest, args.rubric, args.pricing_evidence)
+            ):
+                raise ValueError("ocw_runtime_input_alias")
             manifest = validate_ocw_manifest(read_jsonl(args.manifest))
             pricing = read_private_jsonl(args.pricing_evidence)
             if args.preflight_only:

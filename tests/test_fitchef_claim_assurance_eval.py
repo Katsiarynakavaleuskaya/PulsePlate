@@ -1966,6 +1966,17 @@ def test_ocw_response_publication_and_cleanup_cannot_mask_original_failure(
         "audit-directory",
         "audit-read-denied",
         "audit-rubric-alias",
+        "audit-rubric-case-alias",
+        "audit-rubric-distinct",
+        "cli-pricing-audit-alias",
+        "cli-manifest-audit-alias",
+        "cli-rubric-audit-alias",
+        "cli-pricing-audit-alias-preflight",
+        "cli-manifest-audit-alias-preflight",
+        "cli-rubric-audit-alias-preflight",
+        "cli-distinct-preflight",
+        "cli-pricing-audit-case-alias",
+        "cli-pricing-audit-hardlink-alias",
         "audit-oversized",
         "audit-race",
         "audit-run",
@@ -2042,7 +2053,7 @@ with patch.dict(os.environ, {
             try: collector.validate_ocw_environment(vip_label)
             except ValueError: pass
             else: raise AssertionError('invalid synthetic runtime admitted:'+name)
-    from contextlib import contextmanager
+    from contextlib import ExitStack,contextmanager
     @contextmanager
     def malformed_quota():
         class Session:
@@ -2087,6 +2098,38 @@ with patch.dict(os.environ, {
     elif outcome=='audit-rubric-alias':
         audit=Path(sys.argv[3]); rubric_before=audit.read_bytes(); database_before=db.read_bytes()
         environment_changes['AGENT_CONTROL_AUDIT_LOG_PATH']=str(audit)
+    elif outcome in ('audit-rubric-case-alias','audit-rubric-distinct'):
+        rubric_path=Path(sys.argv[3]); rubric_before=rubric_path.read_bytes(); database_before=db.read_bytes()
+        audit=rubric_path.with_name(rubric_path.name.upper() if outcome=='audit-rubric-case-alias' else 'distinct-audit-copy.md')
+        rubric_same_object=audit.exists() and audit.samefile(rubric_path)
+        if not audit.exists(): collector.write_report(audit,rubric_before)
+        assert audit.samefile(rubric_path) is rubric_same_object
+        environment_changes['AGENT_CONTROL_AUDIT_LOG_PATH']=str(audit)
+    if outcome.startswith('cli-'):
+        cli_manifest=private/'cli-manifest.jsonl'; cli_pricing=private/'cli-pricing.jsonl'
+        cli_rubric=Path(sys.argv[3]); database_before=db.read_bytes()
+        collector.write_report(cli_manifest,b''.join(collector._canonical(row)+b'\n' for row in rows))
+        collector.write_report(cli_pricing,b''.join(collector._canonical(row)+b'\n' for row in prices))
+        cli_inputs=(cli_manifest,cli_rubric,cli_pricing)
+        cli_input_before={path:path.read_bytes() for path in cli_inputs}
+        cli_expected=0 if outcome=='cli-distinct-preflight' else 2
+        case_same_object=None
+        if outcome!='cli-distinct-preflight':
+            audit={'pricing':cli_pricing,'manifest':cli_manifest,'rubric':cli_rubric}[outcome.split('-')[1]]
+            if outcome.endswith('case-alias'):
+                variant=audit.with_name(audit.name.upper())
+                case_same_object=variant.exists() and variant.samefile(audit)
+                if not variant.exists(): collector.write_report(variant,audit.read_bytes())
+                cli_expected=2 if case_same_object else 0
+                audit=variant
+            elif outcome.endswith('hardlink-alias'):
+                alias=audit.with_name('pricing-audit-hardlink.jsonl'); os.link(audit,alias)
+                audit=alias
+                for source in (cli_pricing,audit):
+                    try: collector.read_private_jsonl(source)
+                    except ValueError: pass
+                    else: raise AssertionError('canonical private reader admitted a hardlink')
+            environment_changes['AGENT_CONTROL_AUDIT_LOG_PATH']=str(audit)
     if outcome.startswith('legacy-audit'):
         vip_label='noos-eval-synthetic-pro'
         environment_changes.update(PRO_API_KEYS=vip_label,PRO_LLM_INSIGHT_REQUESTS_PER_MONTH='100',
@@ -2105,6 +2148,17 @@ with patch.dict(os.environ, {
                         core_db._RAW_ENGINE=None; core_db.SessionLocal=None
                         if temporary is not None: temporary.dispose()
     native_preflight=collector.ocw_request_preflight; preflight_calls=0
+    native_collect=collector.collect_ocw_comparison; collect_calls=0
+    native_environment=collector.validate_ocw_environment; state_admissions=0
+    transport_allocations=0
+    def observed_collect(*args: object,**kwargs: object) -> None:
+        global collect_calls
+        collect_calls+=1
+        return native_collect(*args,**kwargs)
+    def observed_environment(*args: object,**kwargs: object) -> Path:
+        global state_admissions
+        state_admissions+=1
+        return native_environment(*args,**kwargs)
     native_session_scope=collector.session_scope; quota_reads=0
     @contextmanager
     def observed_session_scope():
@@ -2159,6 +2213,8 @@ with patch.dict(os.environ, {
         payload['usage']['cost']={'total_cost':0.001,'currency':'USD'}
         return httpx.Response(200,json=payload)
     def transport(ledger):
+        global transport_allocations
+        transport_allocations+=1
         return httpx.AsyncClient(transport=httpx.MockTransport(response),follow_redirects=False,
             trust_env=False,event_hooks={'request':[ledger.reserve],'response':[ledger.observe_http]})
     native_http_client=httpx.AsyncClient
@@ -2221,21 +2277,47 @@ with patch.dict(os.environ, {
         assert seconds>=0; sleeps.append(seconds); clock['value']+=seconds
         if outcome=='pacing-final-rubric-mutation' and len(sleeps)==15:
             Path(sys.argv[3]).write_text('tampered private rubric\n')
-    with selected_environment(), \
-         patch.object(collector,'ocw_request_preflight',selected_preflight), \
-         patch.object(collector,'_code_sha',lambda:'a'*40), \
-         patch.object(collector,'_ocw_http_client',transport), \
-         patch.object(collector,'write_report',publish), \
-         patch.object(collector,'_read_input',read_capture_input), \
-         patch.object(collector,'session_scope',observed_session_scope), \
-         patch.object(llm,'PerplexityProvider',sonar_with_failed_close if outcome=='sonar-close-failure' else native_sonar), \
-         patch.object(client_module,'open_test_client',missing_portal if outcome=='portal-missing' else native_open), \
-         patch.object(collector,'httpx',SimpleNamespace(**{**vars(httpx),'AsyncClient':legacy_transport}) if outcome.startswith('legacy-audit') else httpx), \
-         patch.object(time,'time',observed_time), \
-         patch.object(time,'monotonic',observed_time), \
-         patch.object(time,'sleep',sleep), \
-         patch.object(socket.socket,'connect',side_effect=AssertionError('real network forbidden')):
+    with ExitStack() as patches:
+        patches.enter_context(selected_environment())
+        patches.enter_context(patch.object(collector,'ocw_request_preflight',selected_preflight))
+        patches.enter_context(patch.object(collector,'collect_ocw_comparison',observed_collect))
+        patches.enter_context(patch.object(collector,'validate_ocw_environment',observed_environment))
+        patches.enter_context(patch.object(collector,'_code_sha',lambda:'a'*40))
+        patches.enter_context(patch.object(collector,'_ocw_http_client',transport))
+        patches.enter_context(patch.object(collector,'write_report',publish))
+        patches.enter_context(patch.object(collector,'_read_input',read_capture_input))
+        patches.enter_context(patch.object(collector,'session_scope',observed_session_scope))
+        patches.enter_context(patch.object(llm,'PerplexityProvider',sonar_with_failed_close if outcome=='sonar-close-failure' else native_sonar))
+        patches.enter_context(patch.object(client_module,'open_test_client',missing_portal if outcome=='portal-missing' else native_open))
+        patches.enter_context(patch.object(collector,'httpx',SimpleNamespace(**{**vars(httpx),'AsyncClient':legacy_transport}) if outcome.startswith('legacy-audit') else httpx))
+        patches.enter_context(patch.object(time,'time',observed_time))
+        patches.enter_context(patch.object(time,'monotonic',observed_time))
+        patches.enter_context(patch.object(time,'sleep',sleep))
+        patches.enter_context(patch.object(socket.socket,'connect',side_effect=AssertionError('real network forbidden')))
         try:
+            if outcome.startswith('cli-'):
+                arguments=['--mode','ocw-nutrition-comparison','--manifest',str(cli_manifest),
+                    '--rubric',str(cli_rubric),'--pricing-evidence',str(cli_pricing),
+                    '--output-dir',str(output),'--run-id','synthetic-cli-run']
+                preflight_only=outcome.endswith('preflight')
+                if preflight_only: arguments.append('--preflight-only')
+                result=collector.main(arguments)
+                changed_inputs=[str(path.name) for path,raw in cli_input_before.items() if path.read_bytes()!=raw]
+                assert result==cli_expected,(result,len(sends),collect_calls,preflight_calls,quota_reads,changed_inputs)
+                if outcome.endswith('case-alias') and not case_same_object:
+                    assert len(sends)==16 and collect_calls==state_admissions==transport_allocations==preflight_calls==1
+                    assert not changed_inputs and len(read_jsonl(output/'comparison.jsonl'))==16
+                    print(json.dumps({'terminal_outcome':outcome,'sdk_requests':16,
+                        'case_same_existing_file':False,'unchanged_inputs':3}));sys.exit(0)
+                assert not sends and collect_calls==state_admissions==transport_allocations==quota_reads==0
+                assert preflight_calls==(1 if outcome=='cli-distinct-preflight' else 0)
+                assert not changed_inputs and db.read_bytes()==database_before
+                assert not list(output.iterdir()) and not db.with_name(db.name+'.run.jsonl').exists()
+                if outcome=='cli-distinct-preflight': assert not audit.exists()
+                else: assert audit.stat().st_mode&0o777==0o600
+                print(json.dumps({'terminal_outcome':outcome,'sdk_requests':0,
+                    'quota_reads':0,'collect_calls':0,'state_admissions':0,'unchanged_inputs':3,
+                    'case_same_existing_file':case_same_object}));sys.exit(0)
             if outcome.startswith('legacy-audit'):
                 legacy_manifest=read_jsonl(Path(sys.argv[6]))
                 asyncio.run(collector.collect(legacy_manifest,output_dir=output,
@@ -2249,6 +2331,10 @@ with patch.dict(os.environ, {
             collector.collect_ocw_comparison(rows,output_dir=output,rubric=Path(sys.argv[3]),
                 pricing=prices,fitchef_key=vip_label,
                 perplexity_key=provider_label,run_id='mock-observed-route')
+            if outcome in ('audit-rubric-case-alias','audit-rubric-distinct'):
+                assert rubric_same_object is False and len(sends)==16
+                assert Path(sys.argv[3]).read_bytes()==rubric_before
+                assert len(read_jsonl(output/'comparison.jsonl'))==16
             if outcome.startswith('capture-reentry'):
                 first_run=(output/'run.jsonl').read_bytes(); before_sends=len(sends); before_preflight=preflight_calls
                 claim=db.with_name(db.name+'.run.jsonl')
@@ -2291,10 +2377,12 @@ with patch.dict(os.environ, {
                 assert (output/'comparison.jsonl').read_bytes()==capture
                 print(json.dumps({'terminal_outcome':outcome,'sdk_requests':16,
                     'process_failed':True,'data_complete':16,'immutable_status':True}));sys.exit(0)
-            if outcome=='audit-rubric-alias':
+            if outcome in ('audit-rubric-alias','audit-rubric-case-alias'):
+                if outcome=='audit-rubric-case-alias': assert rubric_same_object is True
                 assert isinstance(error,ValueError) and str(error)=='ocw_runtime_input_alias',(
                     type(error).__name__,str(error),len(sends),preflight_calls,quota_reads)
                 assert not sends and preflight_calls==quota_reads==0
+                assert state_admissions==transport_allocations==0
                 assert audit.read_bytes()==rubric_before and db.read_bytes()==database_before
                 assert audit.stat().st_mode&0o777==0o600 and not list(output.iterdir())
                 assert not db.with_name(db.name+'.run.jsonl').exists()
@@ -2405,6 +2493,9 @@ with patch.dict(os.environ, {
             assert not (output/'comparison.jsonl').exists()
             print(json.dumps({'terminal_outcome':outcome,'sdk_requests':len(sends)}))
             sys.exit(0)
+    if outcome in ('audit-rubric-case-alias','audit-rubric-distinct'):
+        print(json.dumps({'terminal_outcome':outcome,'sdk_requests':16,
+            'case_same_existing_file':False,'unchanged_rubric':True}));sys.exit(0)
     records=read_jsonl(output/'comparison.jsonl'); run=read_jsonl(output/'run.jsonl')[0]
     if outcome in ('audit-missing-022','audit-missing-077','audit-existing'):
         raw_audit=audit.read_bytes(); assert raw_audit.startswith(audit_prefix)
@@ -2530,10 +2621,12 @@ with patch.dict(os.environ, {
     )
     child_data_path = tmp_path / "native-route.coverage"
     capture_rubric = RUBRIC
-    if outcome in (
+    if outcome.startswith("cli-") or outcome in (
         "pacing-final-rubric-mutation",
         "provider-final-rubric-drift",
         "audit-rubric-alias",
+        "audit-rubric-case-alias",
+        "audit-rubric-distinct",
     ):
         capture_rubric = tmp_path / "private-rubric.md"
         write_report(capture_rubric, RUBRIC.read_bytes())
