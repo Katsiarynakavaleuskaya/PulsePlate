@@ -5757,13 +5757,16 @@ def test_ocw_requires_paired_inputs_and_current_packet_occurrence(
 
 
 @pytest.mark.parametrize("pretty", [False, True])
+@pytest.mark.parametrize("suffix", [".json", ".JSON", ".JsOn"])
 def test_ocw_is_outer_only_and_preserves_same_material_default(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
     pretty: bool,
+    suffix: str,
 ) -> None:
     packet = _write_exact_dispatch_fixture(tmp_path, monkeypatch)
+    packet = packet.rename(packet.with_suffix(suffix))
     evidence, invocation = _write_ocw_inputs(
         tmp_path, "deliberately-not-authenticated-by-exact-context"
     )

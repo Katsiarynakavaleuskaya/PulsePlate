@@ -2399,7 +2399,10 @@ def _validate_ocw_records(
                 raise ValueError("ocw_record_binding")
             previous = attempt["attempt"]
             physical_attempts.add(previous)
-            _ocw_usage(attempt.get("usage"))
+            usage, declared_amount = _ocw_usage(attempt.get("usage"))
+            declared_cost = usage.get("cost") if usage is not None else None
+            if _canonical(attempt.get("provider_declared_cost")) != _canonical(declared_cost):
+                raise ValueError("ocw_record_binding")
             if attempt["cost_status"] == "unknown":
                 if attempt.get("cost_usd") is not None:
                     raise ValueError("ocw_record_binding")
@@ -2407,9 +2410,16 @@ def _validate_ocw_records(
                 type(attempt.get("cost_usd")) not in (int, float)
                 or (type(attempt["cost_usd"]) is float and not math.isfinite(attempt["cost_usd"]))
                 or not 0 <= attempt["cost_usd"] <= 0.15
+                or declared_amount is None
+                or type(declared_cost) is not dict
+                or attempt["cost_usd"] != declared_amount
+                or attempt.get("cost_basis") != "provider_declaration_usd"
+                or declared_cost.get("currency") not in (None, "USD")
                 or attempt.get("invoice_verified") is not False
             ):
                 raise ValueError("ocw_record_binding")
+            # Captured basis labels are consistency data. An omitted currency
+            # does not independently authenticate documentary USD or invoice truth.
             if index == len(provider["attempts"]) - 1:
                 if (
                     type(attempt.get("status_code")) is not int
@@ -2571,8 +2581,10 @@ def collect_ocw_comparison(
         raise ValueError("ocw_provider_configuration")
     prices = validate_ocw_pricing(pricing)
     pricing = copy.deepcopy(pricing)
-    state_path = validate_ocw_environment(fitchef_key, output_dir=output_dir).resolve()
     audit_path = Path(os.getenv("AGENT_CONTROL_AUDIT_LOG_PATH", ""))
+    if audit_path.resolve() == rubric.resolve():
+        raise ValueError("ocw_runtime_input_alias")
+    state_path = validate_ocw_environment(fitchef_key, output_dir=output_dir).resolve()
     claim_path = state_path.with_name(state_path.name + ".run.jsonl")
     if claim_path == audit_path.resolve():
         raise ValueError("ocw_runtime_state_alias")

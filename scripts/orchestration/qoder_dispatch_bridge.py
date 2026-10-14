@@ -88,7 +88,6 @@ from scripts.orchestration.native_subagent_bridge import build_native_subagent_b
 from scripts.orchestration.routing_graph_loader import (
     REQUIRED_BOOTSTRAP_LANE,
     load_bootstrap_lane_activations,
-    load_routing_graph,
     require_bootstrap_lane_activation,
 )
 from scripts.orchestration.task_bootstrap import (
@@ -2637,7 +2636,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         args.ocw_evidence is None
         or args.ocw_invocation is None
         or not args.packet
-        or Path(args.packet).suffix != ".json"
+        or not _is_json_designated_packet(Path(args.packet))
         or not exact_context_requested
     ):
         print(

@@ -1950,6 +1950,7 @@ def test_ocw_response_publication_and_cleanup_cannot_mask_original_failure(
         "case-after",
         "case-last-after",
         "aggregate-after",
+        "status-after",
         "case-changed",
         "sonar-close-failure",
         "portal-missing",
@@ -1964,6 +1965,7 @@ def test_ocw_response_publication_and_cleanup_cannot_mask_original_failure(
         "audit-hardlink",
         "audit-directory",
         "audit-read-denied",
+        "audit-rubric-alias",
         "audit-oversized",
         "audit-race",
         "audit-run",
@@ -2082,6 +2084,9 @@ with patch.dict(os.environ, {
     elif outcome=='audit-signing-whitespace': environment_changes['AGENT_CONTROL_AUDIT_SIGNING_KEY']=' \t\r\n '
     elif outcome=='database-audit-alias':
         audit=db; database_before=db.read_bytes(); environment_changes['AGENT_CONTROL_AUDIT_LOG_PATH']=str(audit)
+    elif outcome=='audit-rubric-alias':
+        audit=Path(sys.argv[3]); rubric_before=audit.read_bytes(); database_before=db.read_bytes()
+        environment_changes['AGENT_CONTROL_AUDIT_LOG_PATH']=str(audit)
     if outcome.startswith('legacy-audit'):
         vip_label='noos-eval-synthetic-pro'
         environment_changes.update(PRO_API_KEYS=vip_label,PRO_LLM_INSIGHT_REQUESTS_PER_MONTH='100',
@@ -2100,6 +2105,12 @@ with patch.dict(os.environ, {
                         core_db._RAW_ENGINE=None; core_db.SessionLocal=None
                         if temporary is not None: temporary.dispose()
     native_preflight=collector.ocw_request_preflight; preflight_calls=0
+    native_session_scope=collector.session_scope; quota_reads=0
+    @contextmanager
+    def observed_session_scope():
+        global quota_reads
+        quota_reads+=1
+        with native_session_scope() as session: yield session
     def selected_preflight(*args: object) -> object:
         global preflight_calls
         preflight_calls+=1
@@ -2156,6 +2167,8 @@ with patch.dict(os.environ, {
     native_write=collector.write_report
     native_read=collector._read_input
     audit_read_denial=PermissionError('synthetic private audit reader denial')
+    final_status_failure=OSError('synthetic post-link final status failure')
+    published_status=None
     delegated_reads=[]
     def read_capture_input(path: Path) -> bytes:
         if outcome=='audit-read-denied' and path==audit:
@@ -2163,6 +2176,7 @@ with patch.dict(os.environ, {
         delegated_reads.append(path)
         return native_read(path)
     def publish(path,data):
+        global published_status
         selected=(path.name=='case-sonar-OCW-N01.jsonl' and outcome in ('case-before','case-after','case-changed')
             or path.name=='case-sol-OCW-N08.jsonl' and outcome=='case-last-after'
             or path.name=='comparison.jsonl' and outcome=='aggregate-after')
@@ -2171,6 +2185,9 @@ with patch.dict(os.environ, {
             changed=json.loads(data); changed['run']['id']='foreign-run'
             data=collector._canonical(changed)+b'\n'
         native_write(path,data)
+        if path.name=='comparison-status.json' and outcome=='status-after':
+            published_status=data
+            raise final_status_failure
         if path.name=='quota.db.run.jsonl' and outcome=='capture-claim-uncertain':
             raise OSError('synthetic capture claim acknowledgement failure')
         if path.name=='inputs.jsonl' and outcome=='audit-race':
@@ -2210,6 +2227,7 @@ with patch.dict(os.environ, {
          patch.object(collector,'_ocw_http_client',transport), \
          patch.object(collector,'write_report',publish), \
          patch.object(collector,'_read_input',read_capture_input), \
+         patch.object(collector,'session_scope',observed_session_scope), \
          patch.object(llm,'PerplexityProvider',sonar_with_failed_close if outcome=='sonar-close-failure' else native_sonar), \
          patch.object(client_module,'open_test_client',missing_portal if outcome=='portal-missing' else native_open), \
          patch.object(collector,'httpx',SimpleNamespace(**{**vars(httpx),'AsyncClient':legacy_transport}) if outcome.startswith('legacy-audit') else httpx), \
@@ -2249,6 +2267,38 @@ with patch.dict(os.environ, {
                 assert not list(second.iterdir())
                 print(json.dumps({'terminal_outcome':outcome,'sdk_requests':16}));sys.exit(0)
         except BaseException as error:
+            if outcome=='status-after':
+                assert error is final_status_failure
+                assert error.__notes__==['ocw_status_publication_failed:ValueError']
+                status_path=output/'comparison-status.json'; status=read_jsonl(status_path)[0]
+                assert status_path.read_bytes()==published_status
+                assert status['status']=='complete' and len(status['completed'])==16 and not status['missing']
+                assert status['authority_granted'] is False and status['answer_change_allowed'] is False
+                capture=(output/'comparison.jsonl').read_bytes()
+                assert status['capture_sha256']=='sha256:'+hashlib.sha256(capture).hexdigest()
+                records=read_jsonl(output/'comparison.jsonl'); run=read_jsonl(output/'run.jsonl')[0]
+                collector.validate_ocw_records(records,expected_run=run)
+                claim=db.with_name(db.name+'.run.jsonl'); claim_before=claim.read_bytes()
+                second=private/'after-final-status-failure'; second.mkdir(mode=0o700)
+                before_preflight=preflight_calls
+                try:
+                    collector.collect_ocw_comparison(rows,output_dir=second,rubric=Path(sys.argv[3]),
+                        pricing=prices,fitchef_key=vip_label,perplexity_key=provider_label,run_id='new-id')
+                except ValueError as retry_error: assert str(retry_error)=='ocw_capture_already_claimed'
+                else: raise AssertionError('final status failure allowed another capture')
+                assert len(sends)==16 and preflight_calls==before_preflight and not list(second.iterdir())
+                assert claim.read_bytes()==claim_before and status_path.read_bytes()==published_status
+                assert (output/'comparison.jsonl').read_bytes()==capture
+                print(json.dumps({'terminal_outcome':outcome,'sdk_requests':16,
+                    'process_failed':True,'data_complete':16,'immutable_status':True}));sys.exit(0)
+            if outcome=='audit-rubric-alias':
+                assert isinstance(error,ValueError) and str(error)=='ocw_runtime_input_alias',(
+                    type(error).__name__,str(error),len(sends),preflight_calls,quota_reads)
+                assert not sends and preflight_calls==quota_reads==0
+                assert audit.read_bytes()==rubric_before and db.read_bytes()==database_before
+                assert audit.stat().st_mode&0o777==0o600 and not list(output.iterdir())
+                assert not db.with_name(db.name+'.run.jsonl').exists()
+                print(json.dumps({'terminal_outcome':outcome,'sdk_requests':0,'quota_reads':0}));sys.exit(0)
             if outcome=='capture-claim-uncertain':
                 assert isinstance(error,OSError) and str(error)=='synthetic capture claim acknowledgement failure'
                 claim=db.with_name(db.name+'.run.jsonl'); first_claim=claim.read_bytes()
@@ -2386,7 +2436,9 @@ with patch.dict(os.environ, {
         'duplicate_case','native_duplicate','native_unknown_cost','native_invalid_known_cost',
         'provider_aggregate_cost','bad_prompt','bad_source_hash','builder_query','builder_context',
         'missing_sanitization','wrong_sanitization','wrong_redaction','draft_shape','origin_shape',
-        'normalization_drift','attempt_sequence_gap','native_large_known_cost','native_cached_alias'):
+        'normalization_drift','attempt_sequence_gap','native_large_known_cost','native_cached_alias',
+        'native_declared_cost_mismatch','native_missing_cost_declaration','native_cost_copy_mismatch',
+        'native_cost_basis_mismatch','native_cost_currency_mismatch'):
         changed=json.loads(json.dumps(records)); row=changed[0]
         if change=='extra': row['additional_authority']=True
         elif change=='missing': del row['raw_assistant_text']
@@ -2416,6 +2468,22 @@ with patch.dict(os.environ, {
             row['provider']['attempts'][-1]['cost_status']='known'; row['provider']['attempts'][-1]['cost_usd']=10**400
         elif change=='native_cached_alias':
             row['provider']['attempts'][-1]['usage']['prompt_tokens_details']={'cached_tokens':True}
+        elif change=='native_declared_cost_mismatch':
+            attempt=row['provider']['attempts'][-1]
+            attempt['usage']['cost']={'total_cost':0.14,'currency':'USD'}
+            attempt['provider_declared_cost']=dict(attempt['usage']['cost'])
+            attempt['cost_usd']=row['provider']['cost_usd']=0.01
+        elif change=='native_missing_cost_declaration':
+            attempt=row['provider']['attempts'][-1]
+            del attempt['usage']['cost']; attempt['provider_declared_cost']=None
+        elif change=='native_cost_copy_mismatch':
+            row['provider']['attempts'][-1]['provider_declared_cost']['total_cost']=0.14
+        elif change=='native_cost_basis_mismatch':
+            row['provider']['attempts'][-1]['cost_basis']='unknown_currency'
+        elif change=='native_cost_currency_mismatch':
+            attempt=row['provider']['attempts'][-1]
+            attempt['usage']['cost']['currency']='EUR'
+            attempt['provider_declared_cost']['currency']='EUR'
         elif change=='provider_aggregate_cost': row['provider']['cost_usd']=.02
         elif change=='bad_prompt': row['prompt']='foreign prompt'
         elif change=='bad_source_hash': row['source_snapshot_fingerprint']='sha256:'+'0'*64
@@ -2462,7 +2530,11 @@ with patch.dict(os.environ, {
     )
     child_data_path = tmp_path / "native-route.coverage"
     capture_rubric = RUBRIC
-    if outcome in ("pacing-final-rubric-mutation", "provider-final-rubric-drift"):
+    if outcome in (
+        "pacing-final-rubric-mutation",
+        "provider-final-rubric-drift",
+        "audit-rubric-alias",
+    ):
         capture_rubric = tmp_path / "private-rubric.md"
         write_report(capture_rubric, RUBRIC.read_bytes())
     legacy_manifest_path = tmp_path / "legacy-inputs.jsonl"
@@ -2505,6 +2577,9 @@ with patch.dict(os.environ, {
         timeout=180,
     )
     assert completed.returncode == 0, completed.stdout[-1500:] + completed.stderr[-4500:]
+    if outcome == "status-after":
+        write_report(tmp_path / "post-link-process.stdout", completed.stdout.encode("utf-8"))
+        write_report(tmp_path / "post-link-process.stderr", completed.stderr.encode("utf-8"))
     if measure_child:
         assert active_coverage is not None
         assert child_data_path.is_file()
