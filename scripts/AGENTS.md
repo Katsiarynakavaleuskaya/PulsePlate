@@ -198,6 +198,11 @@
   the PR producer is not required to be an ancestor of the squash commit.
   Unchanged published components use the immutable subject and a positive
   publication predecessor. Missing publication is a hold, never a pull fallback.
+- CI lint restores the exact workflow `github.sha` for every PR after the
+  credentialed consumer and control-checkout cleanup, before Python setup or
+  pre-commit. Preserve its untracked selection evidence with `clean: false`,
+  retain full history and nonpersistent checkout credentials, and verify HEAD
+  against `GITHUB_SHA`; do not relax the dependency evidence resolver.
 - Main-only promotion reuses the retained qualified copier and copies precise
   OCI bytes into the existing public package; it never rebuilds or executes a
   candidate with registry credentials. Preserve original producer provenance,
@@ -212,7 +217,9 @@
   helper SHA-256 `0e7a73b0159c442cf5f9377aa862e38d643145f81ac6a54ee50b31682f6c3e3e`,
   through isolated stdlib `runpy` and an explicit material root. API credentials
   belong to that step only; changed candidates receive no registry credential.
-  Published reads use the `staging` Environment's `GHCR_READ_TOKEN`. Preserve
+  Same-repository PR published reads use the limited ephemeral `GITHUB_TOKEN`;
+  the distinct trusted CD job uses the `staging` Environment's `GHCR_READ_TOKEN`.
+  Preserve
   the existing consumer evidence and outputs, and remove the owned control
   checkout before PR startup. A missing base published capability remains a hold.
 

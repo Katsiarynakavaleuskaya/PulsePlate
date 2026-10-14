@@ -69,7 +69,7 @@ def _run_alertmanager_scan_fixture(
 ) -> subprocess.CompletedProcess[str]:
     """Execute the actual admission step with controlled native-command outcomes."""
     step = _named_step(
-        _steps(_job(_workflow(CD_WORKFLOW), "prometheus-image-security")),
+        _steps(_job(_workflow(CD_WORKFLOW), "prometheus-image-security-pr")),
         "Admit exact Alertmanager image, config, and narrow CVE exception",
     )
     script = step["run"]
@@ -1616,7 +1616,7 @@ def test_checkpoint_hash_rejection_precedes_privileged_mutation(
 
 
 def _assert_checkpoint_native_job(workflow: dict[str, object]) -> None:
-    scan = _job(workflow, "prometheus-image-security")
+    scan = _job(workflow, "prometheus-image-security-pr")
     assert (
         scan["timeout-minutes"]
         == "${{ fromJSON(vars.PROMETHEUS_IMAGE_SECURITY_TIMEOUT_MINUTES || '55') }}"
@@ -2117,7 +2117,7 @@ def _assert_checkpoint_pr_native_job(workflow: dict[str, object]) -> None:
     assert lint["needs"] == ["private_python_proxy_health"]
     assert lint["permissions"] == {"contents": "read", "actions": "read", "packages": "read"}
     assert lint["env"] == {"PROMETHEUS_CONSUME_SECONDS": "900", "PROMETHEUS_CLEANUP_SECONDS": "120"}
-    assert lint["environment"] == "staging"
+    assert "environment" not in lint
     assert lint["if"] == "${{ !cancelled() }}"
     assert lint["timeout-minutes"] == "${{ fromJSON(vars.CI_LINT_TIMEOUT_MINUTES || '90') }}"
     steps = _steps(lint)
@@ -2176,7 +2176,7 @@ def _assert_checkpoint_pr_native_job(workflow: dict[str, object]) -> None:
     assert consumer["env"]["GH_TOKEN"] == "${{ secrets.GITHUB_TOKEN }}"
     assert (
         consumer["env"]["GHCR_READ_TOKEN"]
-        == "${{ steps.checkpoint-selection.outputs.mode == 'unchanged_pr_published' && secrets.GHCR_READ_TOKEN || '' }}"
+        == "${{ steps.checkpoint-selection.outputs.mode == 'unchanged_pr_published' && secrets.GITHUB_TOKEN || '' }}"
     )
     assert (
         steps.index(checkout)

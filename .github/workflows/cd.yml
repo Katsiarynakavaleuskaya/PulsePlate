@@ -521,31 +521,14 @@ jobs:
             *) exit 1 ;;
           esac
 
-  prometheus-image-security:
+  prometheus-image-security-pr:
     if: >-
       always()
+      && github.event_name == 'pull_request'
       && needs.postgres-pgvector-contract.result == 'success'
-      && (
-        (
-          github.event_name == 'push'
-          && github.ref == 'refs/heads/main'
-          && needs.postgres-pgvector-admission.result == 'success'
-        )
-        || (
-          github.event_name == 'push'
-          && startsWith(github.ref, 'refs/tags/v')
-          && needs.postgres-pgvector-reuse.result == 'success'
-        )
-        || (
-          github.event_name == 'schedule'
-          && needs.postgres-pgvector-reuse.result == 'success'
-        )
-        || github.event_name == 'pull_request'
-      )
     needs: [postgres-pgvector-contract, postgres-pgvector-admission, postgres-pgvector-reuse]
     runs-on: ubuntu-latest
     timeout-minutes: ${{ fromJSON(vars.PROMETHEUS_IMAGE_SECURITY_TIMEOUT_MINUTES || '55') }}
-    environment: staging
     env:
       PROMETHEUS_CONSUME_SECONDS: '900'
       PROMETHEUS_CLEANUP_SECONDS: '120'
@@ -553,7 +536,7 @@ jobs:
       contents: read
       actions: read
       packages: read
-    steps:
+    steps: &prometheus-image-security-steps
       - name: Validate exact Prometheus checkout revisions
         id: prometheus-event
         run: |
@@ -717,7 +700,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GHCR_READ_TOKEN: ${{ (steps.prometheus-route.outputs.mode == 'unchanged_pr_published' || steps.prometheus-route.outputs.mode == 'trusted_published') && secrets.GHCR_READ_TOKEN || '' }}
+          GHCR_READ_TOKEN: ${{ github.event_name == 'pull_request' && steps.prometheus-route.outputs.mode == 'unchanged_pr_published' && secrets.GITHUB_TOKEN || github.event_name != 'pull_request' && steps.prometheus-route.outputs.mode == 'trusted_published' && secrets.GHCR_READ_TOKEN || '' }}
           PROMETHEUS_CREDENTIAL_ROUTE: ${{ steps.prometheus-route.outputs.mode }}
         run: |
           set -euo pipefail
@@ -1331,6 +1314,76 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
+
+  prometheus-image-security-trusted:
+    if: >-
+      always()
+      && needs.postgres-pgvector-contract.result == 'success'
+      && (
+        (
+          github.event_name == 'push'
+          && github.ref == 'refs/heads/main'
+          && needs.postgres-pgvector-admission.result == 'success'
+        )
+        || (
+          github.event_name == 'push'
+          && startsWith(github.ref, 'refs/tags/v')
+          && needs.postgres-pgvector-reuse.result == 'success'
+        )
+        || (
+          github.event_name == 'schedule'
+          && needs.postgres-pgvector-reuse.result == 'success'
+        )
+      )
+    needs: [postgres-pgvector-contract, postgres-pgvector-admission, postgres-pgvector-reuse]
+    runs-on: ubuntu-latest
+    timeout-minutes: ${{ fromJSON(vars.PROMETHEUS_IMAGE_SECURITY_TIMEOUT_MINUTES || '55') }}
+    environment: staging
+    env:
+      PROMETHEUS_CONSUME_SECONDS: '900'
+      PROMETHEUS_CLEANUP_SECONDS: '120'
+    permissions:
+      contents: read
+      actions: read
+      packages: read
+    steps: *prometheus-image-security-steps
+
+  prometheus-image-security:
+    if: >-
+      always()
+      && needs.postgres-pgvector-contract.result == 'success'
+      && (
+        (
+          github.event_name == 'push'
+          && github.ref == 'refs/heads/main'
+          && needs.postgres-pgvector-admission.result == 'success'
+        )
+        || (
+          github.event_name == 'push'
+          && startsWith(github.ref, 'refs/tags/v')
+          && needs.postgres-pgvector-reuse.result == 'success'
+        )
+        || (
+          github.event_name == 'schedule'
+          && needs.postgres-pgvector-reuse.result == 'success'
+        )
+        || github.event_name == 'pull_request'
+      )
+    needs: [postgres-pgvector-contract, postgres-pgvector-admission, postgres-pgvector-reuse, prometheus-image-security-pr, prometheus-image-security-trusted]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: Require the selected Prometheus security execution
+        env:
+          PR_RESULT: ${{ needs.prometheus-image-security-pr.result }}
+          TRUSTED_RESULT: ${{ needs.prometheus-image-security-trusted.result }}
+        run: |
+          set -euo pipefail
+          case "$GITHUB_EVENT_NAME:$PR_RESULT:$TRUSTED_RESULT" in
+            pull_request:success:skipped | push:skipped:success | schedule:skipped:success) ;;
+            *) echo "Selected Prometheus security execution did not succeed" >&2; exit 1 ;;
+          esac
 
   obs2a-checkpoint-native:
     name: OBS2A checkpoint native admission

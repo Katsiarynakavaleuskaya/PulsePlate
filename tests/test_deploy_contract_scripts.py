@@ -1560,6 +1560,8 @@ def test_cd_postgres_pgvector_main_event_state_machine_is_closed_and_terminal() 
         "postgres-pgvector-contract",
         "postgres-pgvector-admission",
         "postgres-pgvector-reuse",
+        "prometheus-image-security-pr",
+        "prometheus-image-security-trusted",
     ]
     assert "needs.postgres-pgvector-contract.result == 'success'" in prometheus_gate["if"]
     assert "needs.postgres-pgvector-admission.result == 'success'" in prometheus_gate["if"]
@@ -3960,7 +3962,7 @@ def test_cd_postgres_oci_verifier_rejects_exact_invalid_fixtures(
 
 def test_prometheus_cd_uses_authenticated_finite_consumer_and_retains_strict_scan() -> None:
     workflow = yaml.safe_load(CD_WORKFLOW_PATH.read_text(encoding="utf-8"))
-    job = workflow["jobs"]["prometheus-image-security"]
+    job = workflow["jobs"]["prometheus-image-security-pr"]
     steps = {step["name"]: step for step in job["steps"]}
     consumer = steps["Admit retained PR candidate or published immutable subject"]
     assert "scripts.ci.prometheus_source_image --operation consume" in consumer["run"]
@@ -3976,12 +3978,12 @@ def test_prometheus_cd_uses_authenticated_finite_consumer_and_retains_strict_sca
     }
     assert consumer["id"] == "prometheus-image"
     assert job["permissions"] == {"contents": "read", "actions": "read", "packages": "read"}
-    assert job["environment"] == "staging"
+    assert "environment" not in job
     assert job["env"] == {"PROMETHEUS_CONSUME_SECONDS": "900", "PROMETHEUS_CLEANUP_SECONDS": "120"}
     assert consumer["env"] == {
         "GH_TOKEN": "${{ secrets.GITHUB_TOKEN }}",
         "GITHUB_TOKEN": "${{ secrets.GITHUB_TOKEN }}",
-        "GHCR_READ_TOKEN": "${{ (steps.prometheus-route.outputs.mode == 'unchanged_pr_published' || steps.prometheus-route.outputs.mode == 'trusted_published') && secrets.GHCR_READ_TOKEN || '' }}",
+        "GHCR_READ_TOKEN": "${{ github.event_name == 'pull_request' && steps.prometheus-route.outputs.mode == 'unchanged_pr_published' && secrets.GITHUB_TOKEN || github.event_name != 'pull_request' && steps.prometheus-route.outputs.mode == 'trusted_published' && secrets.GHCR_READ_TOKEN || '' }}",
         "PROMETHEUS_CREDENTIAL_ROUTE": "${{ steps.prometheus-route.outputs.mode }}",
     }
     assert not any(
@@ -4278,7 +4280,7 @@ def test_prometheus_cd_classifies_before_pr_code_and_binds_trusted_handoff(
     steps = {
         step["name"]: step
         for step in yaml.safe_load(CD_WORKFLOW_PATH.read_text())["jobs"][
-            "prometheus-image-security"
+            "prometheus-image-security-pr"
         ]["steps"]
     }
     output_file = tmp_path / "outputs"
@@ -4573,7 +4575,7 @@ def test_prometheus_cd_git_fixture_preserves_separate_inherited_parent(
 def test_prometheus_cd_preserves_closed_non_pr_checkout_events(
     tmp_path: Path, event_name: str, reference: str, admitted: bool
 ) -> None:
-    steps = yaml.safe_load(CD_WORKFLOW_PATH.read_text())["jobs"]["prometheus-image-security"][
+    steps = yaml.safe_load(CD_WORKFLOW_PATH.read_text())["jobs"]["prometheus-image-security-pr"][
         "steps"
     ]
     step = next(
@@ -4637,7 +4639,7 @@ def test_alertmanager_cd_consumes_unsuppressed_inventory_without_extra_findings(
     tmp_path: Path, fault: str
 ) -> None:
     workflow = yaml.safe_load(CD_WORKFLOW_PATH.read_text(encoding="utf-8"))
-    steps = workflow["jobs"]["prometheus-image-security"]["steps"]
+    steps = workflow["jobs"]["prometheus-image-security-pr"]["steps"]
     step = next(
         item
         for item in steps
@@ -4706,7 +4708,7 @@ def test_alertmanager_cd_consumes_unsuppressed_inventory_without_extra_findings(
 def test_alertmanager_cd_retains_report_before_inventory_rejection(
     tmp_path: Path, secret_finding: bool
 ) -> None:
-    steps = yaml.safe_load(CD_WORKFLOW_PATH.read_text())["jobs"]["prometheus-image-security"][
+    steps = yaml.safe_load(CD_WORKFLOW_PATH.read_text())["jobs"]["prometheus-image-security-pr"][
         "steps"
     ]
     step = next(
@@ -4848,7 +4850,7 @@ def test_alias_alert_rules_bind_the_exact_target_and_closed_routes() -> None:
 def test_cd_alias_rules_use_native_promtool_and_both_staging_hash_passes() -> None:
     workflow_text = CD_WORKFLOW_PATH.read_text(encoding="utf-8")
     workflow = yaml.safe_load(workflow_text)
-    security_steps = workflow["jobs"]["prometheus-image-security"]["steps"]
+    security_steps = workflow["jobs"]["prometheus-image-security-pr"]["steps"]
     config_step = next(
         step
         for step in security_steps
@@ -15187,3 +15189,83 @@ def test_checkpoint_admission_rejects_before_protected_publication(
         for member in CHECKPOINT_PATHS:
             assert (project / member).read_bytes() == (REPO_ROOT / member).read_bytes()
         assert not any(path.name.startswith(".pulseplate-") for path in project.rglob("*"))
+
+
+def test_prometheus_cd_separates_pr_and_staging_without_duplicating_steps() -> None:
+    workflow = yaml.safe_load(CD_WORKFLOW_PATH.read_text(encoding="utf-8"))
+    jobs = workflow["jobs"]
+    pr = jobs["prometheus-image-security-pr"]
+    trusted = jobs["prometheus-image-security-trusted"]
+    gate = jobs["prometheus-image-security"]
+    assert "environment" not in pr
+    assert trusted["environment"] == "staging"
+    assert pr["steps"] is trusted["steps"]
+    assert pr["if"] == (
+        "always() && github.event_name == 'pull_request' "
+        "&& needs.postgres-pgvector-contract.result == 'success'"
+    )
+    assert "github.event_name == 'pull_request'" not in trusted["if"]
+    assert "github.ref == 'refs/heads/main'" in trusted["if"]
+    assert "startsWith(github.ref, 'refs/tags/v')" in trusted["if"]
+    assert "github.event_name == 'schedule'" in trusted["if"]
+    assert (
+        pr["permissions"]
+        == trusted["permissions"]
+        == {"contents": "read", "actions": "read", "packages": "read"}
+    )
+    assert gate["permissions"] == {}
+    assert "environment" not in gate
+    assert gate["needs"] == [
+        "postgres-pgvector-contract",
+        "postgres-pgvector-admission",
+        "postgres-pgvector-reuse",
+        "prometheus-image-security-pr",
+        "prometheus-image-security-trusted",
+    ]
+    consumer = next(step for step in pr["steps"] if step.get("id") == "prometheus-image")
+    assert consumer["env"]["GHCR_READ_TOKEN"] == (
+        "${{ github.event_name == 'pull_request' && "
+        "steps.prometheus-route.outputs.mode == 'unchanged_pr_published' && "
+        "secrets.GITHUB_TOKEN || github.event_name != 'pull_request' && "
+        "steps.prometheus-route.outputs.mode == 'trusted_published' && "
+        "secrets.GHCR_READ_TOKEN || '' }}"
+    )
+
+
+@pytest.mark.parametrize(
+    ("event_name", "pr_result", "trusted_result", "expected_exit"),
+    [
+        ("pull_request", "success", "skipped", 0),
+        ("push", "skipped", "success", 0),
+        ("schedule", "skipped", "success", 0),
+        ("pull_request", "failure", "skipped", 1),
+        ("pull_request", "success", "success", 1),
+        ("pull_request", "skipped", "success", 1),
+        ("push", "success", "skipped", 1),
+        ("push", "skipped", "failure", 1),
+        ("schedule", "skipped", "cancelled", 1),
+        ("workflow_dispatch", "skipped", "success", 1),
+        ("pull_request", "", "skipped", 1),
+    ],
+)
+def test_prometheus_cd_aggregate_requires_only_the_selected_successful_execution(
+    tmp_path: Path, event_name: str, pr_result: str, trusted_result: str, expected_exit: int
+) -> None:
+    workflow = yaml.safe_load(CD_WORKFLOW_PATH.read_text(encoding="utf-8"))
+    step = workflow["jobs"]["prometheus-image-security"]["steps"][0]
+    bash = shutil.which("bash")
+    assert bash is not None
+    result = subprocess.run(
+        [bash, "-c", step["run"]],
+        cwd=tmp_path,
+        env={
+            "GITHUB_EVENT_NAME": event_name,
+            "PR_RESULT": pr_result,
+            "TRUSTED_RESULT": trusted_result,
+        },
+        capture_output=True,
+        text=True,
+        timeout=5,
+        check=False,
+    )
+    assert result.returncode == expected_exit, result.stderr

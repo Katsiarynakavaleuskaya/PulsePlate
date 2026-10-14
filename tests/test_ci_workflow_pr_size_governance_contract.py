@@ -1153,8 +1153,9 @@ def test_all_active_checkout_uses_have_one_exact_v7_pin() -> None:
         ".github/workflows/security.yml",
         ".github/workflows/trivy.yml",
     }
-    # CI and CD each add one disjoint fixed control checkout with the same v7 pin.
-    assert len(observed_checkout_uses) == 89
+    # The 89 prior execution sites gain one lint restore and five CD checkouts
+    # reused by the distinct trusted job through its shared step-list alias.
+    assert len(observed_checkout_uses) == 95
     assert {path for path, _ in observed_checkout_uses} == expected_checkout_workflows
 
 
@@ -3653,20 +3654,46 @@ def test_active_upload_artifact_refs_all_use_node24_sha() -> None:
     for workflow_path in _active_workflow_paths():
         workflow_text = workflow_path.read_text(encoding="utf-8")
         workflow_upload_count = 0
+        declared_upload_objects: set[int] = set()
         for job_id, step in _iter_job_steps(workflow_path):
             uses = step.get("uses")
             if not isinstance(uses, str) or not uses.startswith("actions/upload-artifact@"):
                 continue
             workflow_upload_count += 1
+            declared_upload_objects.add(id(step))
             observed_upload_steps.append(
                 (str(workflow_path.relative_to(REPO_ROOT)), job_id, step.get("name"))
             )
             assert uses == expected_uses
 
         if workflow_upload_count:
-            assert workflow_text.count(expected_line) == workflow_upload_count
+            # YAML aliases execute the same declared step in separate jobs.
+            # Every execution above still has to carry the exact approved pin.
+            assert workflow_text.count(expected_line) == len(declared_upload_objects)
 
     assert observed_upload_steps
+
+
+@pytest.mark.parametrize("variant", ("valid", "wrong-pin", "wrong-annotation"))
+def test_upload_artifact_pin_guard_validates_each_shared_step_execution(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, variant: str
+) -> None:
+    pin = "0" * 40 if variant == "wrong-pin" else UPLOAD_ARTIFACT_NODE24_SHA
+    annotation = "# wrong annotation" if variant == "wrong-annotation" else "# v7.0.1 / Node 24"
+    path = tmp_path / "shared.yml"
+    path.write_text(
+        "jobs:\n  pr:\n    steps: &shared\n      - name: upload\n"
+        f"        uses: actions/upload-artifact@{pin} {annotation}\n"
+        "  trusted:\n    steps: *shared\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setitem(globals(), "REPO_ROOT", tmp_path)
+    monkeypatch.setitem(globals(), "_active_workflow_paths", lambda: (path,))
+    if variant == "valid":
+        test_active_upload_artifact_refs_all_use_node24_sha()
+    else:
+        with pytest.raises(AssertionError):
+            test_active_upload_artifact_refs_all_use_node24_sha()
 
 
 def test_active_sbom_action_refs_use_verified_v0_24_0_sha_and_preserve_contracts() -> None:
@@ -6154,6 +6181,75 @@ def test_ci_lint_all_files_pre_commit_uses_full_history_checkout() -> None:
     assert "pre-commit run --all-files" in pre_commit_step["run"]
 
 
+def test_ci_lint_restores_workflow_sha_before_pr_python_startup() -> None:
+    workflow = _load_ci_workflow()
+    steps = workflow["jobs"]["lint"]["steps"]
+    names = [step.get("name") for step in steps]
+    restore = _job_step_by_name(workflow, job_id="lint", step_name="Restore lint workflow revision")
+    assert restore == {
+        "name": "Restore lint workflow revision",
+        "if": "github.event_name == 'pull_request'",
+        "uses": f"actions/checkout@{CHECKOUT_V7_SHA}",
+        "with": {
+            "ref": "${{ github.sha }}",
+            "fetch-depth": 0,
+            "persist-credentials": False,
+            "clean": False,
+        },
+    }
+    verify = _job_step_by_name(workflow, job_id="lint", step_name="Verify lint workflow revision")
+    assert verify["if"] == "github.event_name == 'pull_request'"
+    assert verify["run"] == (
+        'set -euo pipefail\nrestored_sha="$(git rev-parse HEAD)"\n'
+        'test "$restored_sha" = "$GITHUB_SHA"\n'
+    )
+    ordered_names = (
+        "Consume exact Prometheus subject before PR startup",
+        "Remove fixed trusted Prometheus control checkout",
+        "Restore lint workflow revision",
+        "Verify lint workflow revision",
+        "Setup Python environment",
+        "Pre-commit (lint/format/security quick checks)",
+    )
+    positions = [names.index(name) for name in ordered_names]
+    assert positions == sorted(positions)
+
+
+@pytest.mark.parametrize(
+    ("observed_sha", "git_exit", "expected_exit"),
+    [("a" * 40, 0, 0), ("b" * 40, 0, 1), ("a" * 40, 37, 37)],
+)
+def test_ci_lint_workflow_sha_verification_requires_native_git_success(
+    tmp_path: Path, observed_sha: str, git_exit: int, expected_exit: int
+) -> None:
+    step = _job_step_by_name(
+        _load_ci_workflow(), job_id="lint", step_name="Verify lint workflow revision"
+    )
+    git = tmp_path / "git"
+    git.write_text(
+        '#!/bin/sh\nprintf "%s\\n" "$FAKE_GIT_SHA"\nexit "$FAKE_GIT_EXIT"\n',
+        encoding="utf-8",
+    )
+    git.chmod(0o755)
+    bash = shutil.which("bash")
+    assert bash is not None
+    result = subprocess.run(
+        [bash, "-c", step["run"]],
+        cwd=tmp_path,
+        env={
+            "PATH": str(tmp_path) + os.pathsep + os.defpath,
+            "GITHUB_SHA": "a" * 40,
+            "FAKE_GIT_SHA": observed_sha,
+            "FAKE_GIT_EXIT": str(git_exit),
+        },
+        capture_output=True,
+        text=True,
+        timeout=5,
+        check=False,
+    )
+    assert result.returncode == expected_exit, result.stderr
+
+
 def test_ci_main_matrix_uses_full_history_for_git_evidence_guards() -> None:
     workflow = _load_ci_workflow()
 
@@ -6211,7 +6307,7 @@ def _assert_ci_lint_node24_frontend_hook_dependency_contract(
         "PROMETHEUS_CONSUME_SECONDS": "900",
         "PROMETHEUS_CLEANUP_SECONDS": "120",
     }
-    assert lint_job.get("environment") == "staging", "ci_lint_reader_environment"
+    assert "environment" not in lint_job, "ci_lint_reader_environment"
     for forbidden_key in (
         "continue-on-error",
         "defaults",

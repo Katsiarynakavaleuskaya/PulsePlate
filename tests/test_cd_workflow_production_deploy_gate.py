@@ -338,14 +338,15 @@ def test_prometheus_security_job_owns_only_pr_and_schedule_execution() -> None:
 
     jobs = workflow.get("jobs")
     assert isinstance(jobs, dict)
-    security_job = jobs.get("prometheus-image-security")
+    security_job = jobs.get("prometheus-image-security-pr")
     assert isinstance(security_job, dict)
     assert security_job["permissions"] == {
         "contents": "read",
         "actions": "read",
         "packages": "read",
     }
-    assert security_job["environment"] == "staging"
+    assert "environment" not in security_job
+    assert jobs["prometheus-image-security-trusted"]["environment"] == "staging"
     security_text = str(security_job)
     assert "secrets.GHCR_READ_TOKEN" in security_text
     assert "scripts.ci.prometheus_source_image --operation consume" in security_text
@@ -524,7 +525,7 @@ def test_cd_has_no_prometheus_candidate_publication_carrier() -> None:
 
 def test_prometheus_cd_registry_credential_route_preserves_base_execution_boundary() -> None:
     workflow = yaml.safe_load(CD_WORKFLOW_PATH.read_text(encoding="utf-8"))
-    job = workflow["jobs"]["prometheus-image-security"]
+    job = workflow["jobs"]["prometheus-image-security-pr"]
     ordered = job["steps"]
     steps = {step["name"]: step for step in ordered}
     names = [step["name"] for step in ordered]
@@ -573,7 +574,7 @@ def test_prometheus_cd_registry_credential_route_preserves_base_execution_bounda
     assert consumer["id"] == "prometheus-image"
     assert (
         consumer["env"]["GHCR_READ_TOKEN"]
-        == "${{ (steps.prometheus-route.outputs.mode == 'unchanged_pr_published' || steps.prometheus-route.outputs.mode == 'trusted_published') && secrets.GHCR_READ_TOKEN || '' }}"
+        == "${{ github.event_name == 'pull_request' && steps.prometheus-route.outputs.mode == 'unchanged_pr_published' && secrets.GITHUB_TOKEN || github.event_name != 'pull_request' && steps.prometheus-route.outputs.mode == 'trusted_published' && secrets.GHCR_READ_TOKEN || '' }}"
     )
     assert 'changed_pr_candidate) test -z "${GHCR_READ_TOKEN:-}"' in consumer["run"]
     assert '*) echo "Prometheus credential route HOLD" >&2; exit 1' in consumer["run"]
@@ -653,7 +654,7 @@ def test_prometheus_security_smoke_reuses_canonical_native_parser() -> None:
     workflow = yaml.safe_load(CD_WORKFLOW_PATH.read_text(encoding="utf-8"))
     jobs = workflow.get("jobs")
     assert isinstance(jobs, dict)
-    security_job = jobs.get("prometheus-image-security")
+    security_job = jobs.get("prometheus-image-security-pr")
     assert isinstance(security_job, dict)
     steps = security_job.get("steps")
     assert isinstance(steps, list)
@@ -728,7 +729,10 @@ def test_checkpoint_native_consumer_precedes_secret_free_child(
     workflow = yaml.safe_load((REPO_ROOT / ".github/workflows" / filename).read_text())
     selected = workflow["jobs"][job]
     assert selected["permissions"] == {"contents": "read", "actions": "read", "packages": "read"}
-    assert selected.get("environment") == "staging"
+    if filename == "ci.yml":
+        assert "environment" not in selected
+    else:
+        assert selected.get("environment") == "staging"
     step = next(
         s
         for s in selected["steps"]
@@ -740,7 +744,7 @@ def test_checkpoint_native_consumer_precedes_secret_free_child(
         consumer = next(s for s in selected["steps"] if s.get("id") == "checkpoint-image")
         assert consumer["env"]["GH_TOKEN"] == consumer["env"]["GITHUB_TOKEN"] == credential
         assert consumer["env"]["GHCR_READ_TOKEN"] == (
-            "${{ steps.checkpoint-selection.outputs.mode == 'unchanged_pr_published' && secrets.GHCR_READ_TOKEN || '' }}"
+            "${{ steps.checkpoint-selection.outputs.mode == 'unchanged_pr_published' && secrets.GITHUB_TOKEN || '' }}"
         )
         assert 'trusted["consume_image"](work, material' in consumer["run"]
         setup = next(

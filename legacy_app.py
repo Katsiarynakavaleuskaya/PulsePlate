@@ -9,7 +9,7 @@ from typing import (
     cast,
 )
 
-from app.bootstrap.application import APPLICATION_METADATA, RUNTIME_ENV, app as _canonical_app
+from app.bootstrap.application import app as _canonical_app
 from app.bootstrap.lifespan import application_lifespan as lifespan
 from app.routers.api_key import (  # noqa: F401 - identity-preserving compatibility re-exports
     _get_api_key_dynamic as _get_api_key_dynamic,
@@ -74,14 +74,8 @@ slowapi_available = Limiter is not None
 
 # Canonical application bootstrap owns environment resolution, dotenv loading,
 # root logging configuration, metadata construction, and the FastAPI instance.
-_app_env = RUNTIME_ENV
 logger = logging.getLogger(__name__)
 bmi_logger = logging.getLogger("app.bmi")
-
-# OpenAPI/Swagger metadata remains available here as exact compatibility values.
-_application_metadata = APPLICATION_METADATA
-tags_metadata = _application_metadata.openapi_tags_list()
-_api_description = _application_metadata.description
 
 
 # (moved to top with other imports)

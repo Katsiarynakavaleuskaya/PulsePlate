@@ -720,7 +720,6 @@ jobs:
     if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     timeout-minutes: ${{ fromJSON(vars.CI_LINT_TIMEOUT_MINUTES || '90') }}
-    environment: staging
     permissions:
       contents: read
       actions: read
@@ -820,7 +819,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GHCR_READ_TOKEN: ${{ steps.checkpoint-selection.outputs.mode == 'unchanged_pr_published' && secrets.GHCR_READ_TOKEN || '' }}
+          GHCR_READ_TOKEN: ${{ steps.checkpoint-selection.outputs.mode == 'unchanged_pr_published' && secrets.GITHUB_TOKEN || '' }}
           PROMETHEUS_CREDENTIAL_ROUTE: ${{ steps.checkpoint-selection.outputs.mode }}
         run: |
           set -euo pipefail
@@ -887,6 +886,22 @@ jobs:
           test ! -L "$control"
           rm -rf -- "$control"
           test ! -e "$control" && test ! -L "$control"
+
+      - name: Restore lint workflow revision
+        if: github.event_name == 'pull_request'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+          clean: false
+
+      - name: Verify lint workflow revision
+        if: github.event_name == 'pull_request'
+        run: |
+          set -euo pipefail
+          restored_sha="$(git rev-parse HEAD)"
+          test "$restored_sha" = "$GITHUB_SHA"
 
       - name: Setup Python environment
         uses: ./.github/actions/python-setup
