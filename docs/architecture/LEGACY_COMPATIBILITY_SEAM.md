@@ -492,6 +492,16 @@ dependency, workflow or recognizer algorithm changes are part of this child.
 Unknown external/computed importers and already-loaded/hot-reloaded module
 dictionaries remain outside the bounded retirement proof.
 
+Later frontend gate qualification (2026-10-14): the actual all-files frontend-tests
+retry passed after the unchanged locked environment was qualified
+(`.pre-commit-config.yaml:172`, `frontend/vitest.config.ts:5`). Bounded current
+advisory triage established no concrete active Legacy gate/runtime trigger
+requiring a dependency action. All fifteen affected advisory leaves remain OPEN
+under the [existing dependency follow-up](../roadmap/BACKLOG_LEDGER.md#ledger-p1-dependency-alerts-after-main-recovery),
+which retains their dated cutoff, owner and identity-specific DoD. This qualifies
+this child's scope without claiming remediation, universal network absence or
+merge readiness.
+
 Incoming PR #2488 reconciliation was applied whole and committed first as
 `ae9cfd637852149731e7c3c6342a8fb1b4603975`; its Target PR #2488 and archived
 cutoff remain below with the separately dated later main-CI observation.
