@@ -456,7 +456,7 @@ merge permission and granted no bypass of this PR's required gates.
 
 ## Legacy metadata and environment projection retirement
 
-The `LEGACY-METADATA-PROJECTION-RETIREMENT-1/v1` child is OPEN in
+The `LEGACY-METADATA-PROJECTION-RETIREMENT-1/v1` child is MERGED in
 [PR #2488](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2488), on
 `codex/retire-legacy-metadata-projections`. It retires exactly six
 ordinary bindings: `APPLICATION_METADATA`, `RUNTIME_ENV`, `_app_env`,
@@ -500,18 +500,29 @@ exclusion has an executable negative control
 (`tests/test_application_instance_ownership.py:818`). The observed local
 correction bundle passed 2230 cases, retaining all 170 original ownership cases
 and adding 39 (209 total). Correction commit
-`667be5bbc2513405f66d91f3a9b8a50d47755597` is locally committed and not yet published
-at this documentation cutoff; these observations do not establish current-head
-hosted CI, final narrow validation, OS containment or general secret isolation.
+`667be5bbc2513405f66d91f3a9b8a50d47755597` was published in the reviewed implementation.
+The terminal own CI/local/strict evidence below supersedes that historical
+pre-publication cutoff; no OS containment or general secret-isolation claim follows.
 
 Incoming #2486 reconciliation was applied whole and committed separately as
 `4a42076ae779a864f00b62172b2cf4bbf825bfb8`. Its two historical terminal anchors below
 retain Target PR #2486 and the qualified CANCELLED main/#2477 boundary. Its state
-is APPLIED / COMMITTED / PUBLISHED / REVIEWED in PR #2488; RECONCILED IN MAIN
-remains pending. Own current-head CI, review, Oracle, separate exact-head merge
-approval and terminal lifecycle remain required. PROJECT_LEGACY stays OPEN.
+is RECONCILED IN MAIN through the actual PR #2488 squash. Own exact-head
+authorization and bounded terminal receipts are retained below; PROJECT_LEGACY
+stays OPEN. No duplicate incoming #2486 application follows.
 Rollback reverts only the new six-binding removal and coupled guard/tests,
 preserving truthful incoming reconciliation and prior retirement/overflow fixes.
+
+Terminal record: CLOSED / MERGED in PR #2488, actual authorized squash `47fa0f4cecc593a379efde916fc2afdfcc8802bf` at `2026-10-14T10:05:37Z`, approved head `0cbfd9f00195adba4ed22b61a36926a4b1127076`, whole-tree equality. Exact six bindings retired, every prior109 preserved and three inventories exactly115; canonical snapshots/initialization/singleton and retained ownership guards preserved. Own CI38532909369 SUCCESS, uploaded JUnit9558/0/0/0, numeric diff100%/1eligible/0missing, required local/role/premortem/Oracle/self-review/disposition/seal/strict/wait proof observed. Clean synchronized main and fresh2339-test merged sanity passed. Downloaded core archive1Q3VYDx0ec2ifHTQQb87lh7CHbiThkyMr verified across412 members and standalone selected-history Git recovery; all5 native Oracle transports restored with original lineage. One final same-ID Doc and PROJECT_LEGACY-only capsule pass/readback preserved native structures/IDs, neighbors, parents and ACL. Owned M/T registrations and local/remote branch are absent after verified recovery, with private original keepers retained and foreign resources untouched. Incoming #2486 is RECONCILED IN MAIN with unchanged Target PR #2486. Main/CD qualification and late individual QA/outgoing receipts are in same-ID terminal supplement1MgoZGk8IUIjAyh5pU7DEsFrS187Vbazy. Own outgoing reconciliation remains PREPARED / ARCHIVED / NOT YET APPLIED for a future substantive receiver; no docs-only closeout or automatic next child. PROJECT_LEGACY OPEN, R29 PARTIAL/UNWAIVED, O1 historical NOT_ADMITTED and shared-runtime P1 OPEN. Known main3.13 timeout/cancel and Prometheus4HIGH repair remain #2477 by direct owner qualification; no global-green or full-total97 claim.
+
+Later authenticated observation, separate from the archived terminal cutoff:
+canonical main CI
+[38547130035](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/38547130035)
+completed `SUCCESS` for squash `47fa0f4cecc593a379efde916fc2afdfcc8802bf`;
+GitHub updated the run at `2026-10-14T11:28:20Z`. This updates only that
+main-CI status. The original cutoff and historical PR #2486 `CANCELLED`
+classification remain; independent CD/Prometheus work stays with PR #2477.
+This observation establishes no CD/global repair or future-lane PASS.
 
 ## Legacy metadata and error-detail Python export retirement
 
