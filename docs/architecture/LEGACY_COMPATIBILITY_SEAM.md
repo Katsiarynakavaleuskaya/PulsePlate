@@ -19,8 +19,9 @@ weekly-plan downstream error boundary documented below.
 `app/bootstrap/application.py` constructs the sole production FastAPI singleton.
 `app/main.py` imports it directly and owns additive composition; deployment
 remains `app.main:app`. `legacy_app.py` is a transitional compatibility facade
-that re-exports the same app and lifespan. Runtime environment and metadata
-snapshots remain owned by the canonical bootstrap.
+that re-exports the same app. The selected legacy lifespan/access aliases are
+retired; their exact canonical objects and package exports remain. Runtime
+environment and metadata snapshots remain owned by the canonical bootstrap.
 Normal imports therefore share one app. The finite package facade resolves
 `app.app` directly from `app.main.app` (`app/__init__.py:58-59`); a deliberate
 test-only reassignment of `legacy_app.app` cannot rebind package, bootstrap, or
@@ -28,19 +29,22 @@ test-only reassignment of `legacy_app.app` cannot rebind package, bootstrap, or
 not import `legacy_app`. Resolving `app.app` imports `app.main` without loading
 `legacy_app`; the canonical bootstrap no longer reverse-imports the compatibility
 facade. The eight former paid/BMI registration mirrors are absent from `app`,
-`app.main`, and `legacy_app.py`. Fifteen bounded Python-binding retirements remove
-only the exact 115 `legacy_app.py` Python bindings enumerated below; they do not
+`app.main`, and `legacy_app.py`. Sixteen bounded Python-binding retirements remove
+only the exact 117 `legacy_app.py` Python bindings enumerated below; they do not
 remove or redirect any HTTP path, change auth, alter OpenAPI, or change FastAPI
 object identity. Repository census found no tracked supported production
 consumer of the second ten-name, third eleven-name, fourth eight-name, fifth
 twelve-name, sixth seven-name, seventh three-name, eighth seven-name, ninth
 fifteen-name, tenth four-name, eleventh four-name, twelfth eight-name,
-thirteenth seven-name, fourteenth three-name, or fifteenth six-name cohort;
+thirteenth seven-name, fourteenth three-name, fifteenth six-name, or sixteenth
+two-name cohort;
 it does not prove that no external or dynamic Python consumer exists.
 
 Application startup/shutdown behavior is canonically owned by
 `app/bootstrap/lifespan.py`. `app/bootstrap/application.py` passes that exact
-context manager to its constructor and `legacy_app.py` only re-exports it.
+context manager to its constructor. `app.lifespan` preserves its exact identity;
+`legacy_app.lifespan` is absent. Canonical main restores that identity after
+router composition (`app/main.py:1469`).
 Food-search clients and the process-wide strategy adapter are acquired and
 released inside that lifespan; additive route bootstrap must not create shared
 runtime resources or wrap `app.router.lifespan_context`.
@@ -453,6 +457,51 @@ The operator explicitly permitted this existing lane to continue from pending
 main while another employee monitored it. This historical lane-specific start
 exception transferred no main PASS, publication validation, merge-readiness or
 merge permission and granted no bypass of this PR's required gates.
+
+## Legacy lifecycle and scheduler-access Python export retirement
+
+The `LEGACY-LIFECYCLE-ACCESS-EXPORT-RETIREMENT-1/v1` child is OPEN; its
+implementation PR number is pending. It retires exactly `legacy_app.lifespan`
+and `legacy_app.get_update_scheduler`. Every prior115 name remains and the
+independent tuple appends only these two at `[115:117]`; the three inventories
+contain exactly117 names (`scripts/ci/check_legacy_growth_guard.py:40`,
+`tests/test_legacy_growth_guard.py:13`, `tests/test_legacy_bmi_shims.py:29`).
+Historical BMI `[99:106]`, metadata/error `[106:109]` and metadata/environment
+`[109:115]` cohorts keep their original membership.
+
+Canonical owners remain `app.bootstrap.lifespan.application_lifespan` and the
+async `app.services.scheduler_access.get_update_scheduler`; package exports
+`app.lifespan` and `app.get_update_scheduler` and the complete sixteen-name
+package surface remain. Constructor wiring is direct
+(`app/bootstrap/application.py:37`), and canonical main restores the exact
+lifespan after router composition (`app/main.py:1469`). The protected fresh
+retirement probe checks both phases and package identity; the managed lifecycle
+suite retains normal/body-failure acquisition, resource cleanup and singleton
+observations. Explicit async getter access keeps lazy core resolution and its
+exact awaited result/error; optional background startup retains its separate
+best-effort contract. Admin auth-before-access and sanitized failures remain.
+
+The existing admin import probe now constructs only six operational environment
+keys plus synthetic test settings and installs three named Python connection
+controls before product imports. Local socketpair/asyncio positives and
+controlled nonzero/timeout diagnostics are independently exercised in the same
+owning test module. These are finite cooperative test controls, not OS isolation,
+complete networking denial, secret-free operational values or arbitrary native
+startup containment. No production scheduler/lease/worker/DB/HTTP/OpenAPI,
+dependency, workflow or recognizer algorithm changes are part of this child.
+Unknown external/computed importers and already-loaded/hot-reloaded module
+dictionaries remain outside the bounded retirement proof.
+
+Incoming PR #2488 reconciliation was applied whole and committed first as
+`ae9cfd637852149731e7c3c6342a8fb1b4603975`; its Target PR #2488 and archived
+cutoff remain below with the separately dated later main-CI observation.
+Incoming PR #2486 is not reapplied. This child still requires its own focused
+and narrow local evidence, current-head CI/security/coverage, actual-diff
+premortem/Oracle, review/dispositions/seal, separate exact-head squash approval
+and post-merge archive/same-ID continuity/owned cleanup. PROJECT_LEGACY stays
+OPEN; #2476/#2477 and R29/O1/shared-runtime/NoSec boundaries remain separate.
+Rollback reverts only this two-binding removal and coupled guard/tests, retaining
+truthful incoming reconciliation and all prior retirement/overflow fixes.
 
 ## Legacy metadata and environment projection retirement
 
@@ -901,9 +950,9 @@ The former synchronous `legacy_app.start_background_updates` /
 the `app.scheduler_helpers` resolver module, and the implicit `app_module`
 module-table alias are retired. Canonical startup and shutdown continue to use
 direct typed hooks in `app/bootstrap/lifespan.py`; scheduler mode, ordering,
-timeouts, cleanup, and worker topology are unchanged. Retained package and
-legacy `get_update_scheduler` exports remain the exact callable owned by
-`app/services/scheduler_access.py`.
+timeouts, cleanup, and worker topology are unchanged. The retained package
+`get_update_scheduler` export remains the exact callable owned by
+`app/services/scheduler_access.py`; the legacy Python alias is retired.
 
 The canonical weekly-menu builder remains owned by
 `core/menu_engine.py`. The hidden legacy premium weekly-plan route obtains the
@@ -1114,9 +1163,9 @@ implementations and canonical `app/**` reverse imports or dynamic lookups for
 those callables. Current facts may disappear as the seam shrinks; new facts fail
 closed with repo-relative diagnostics.
 
-For the 115 retired Python bindings, the guard has a deliberately bounded
+For the 117 retired Python bindings, the guard has a deliberately bounded
 finite mechanical claim over the exact repo-relative `legacy_app.py` source
-only. It freezes the exact 115-name set, uses the existing `_assigned_names`
+only. It freezes the exact 117-name set, uses the existing `_assigned_names`
 collector for statically visible ordinary module-scope `Name` Store/Del
 bindings, rejects explicit `global` declarations for a protected name, rejects
 all star imports, and rejects a statically bound module-level `__getattr__`.
@@ -1134,7 +1183,7 @@ import hooks, reflection, arbitrary helpers, and external monkeypatching. The
 rule neither accepts nor certifies those families and makes no completeness
 claim about them. Any new or changed dynamic namespace carrier in
 `legacy_app.py`, and any dynamic carrier intended to bind or rebind one of the
-115 protected names, requires manual STOP and review. The existing router-import
+117 protected names, requires manual STOP and review. The existing router-import
 recognizer separately rejects reintroduction of the former exact dynamic
 `app.routers.plan_export -> _plan_mod` fact; this does not widen the ordinary
 binding rule or certify arbitrary namespace mutation.
