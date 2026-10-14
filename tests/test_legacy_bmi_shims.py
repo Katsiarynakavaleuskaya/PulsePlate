@@ -136,6 +136,12 @@ RETIRED_LEGACY_PYTHON_BINDINGS = {
     "build_application_metadata",
     "ENHANCED_PLATE_GENERATION_FAILED_DETAIL",
     "INVALID_PREMIUM_PLATE_INPUT_DETAIL",
+    "APPLICATION_METADATA",
+    "RUNTIME_ENV",
+    "_app_env",
+    "_application_metadata",
+    "tags_metadata",
+    "_api_description",
 }
 
 RETIRED_PLATE_HELPER_BINDINGS = (
@@ -388,6 +394,7 @@ def test_retired_legacy_python_bindings_are_absent_with_canonical_owners_present
     import legacy_app
 
     import app.application_metadata as application_metadata
+    import app.bootstrap.application as application_bootstrap
     import app.http_error_details as http_error_details
 
     canonical_migrations = {
@@ -502,8 +509,35 @@ def test_retired_legacy_python_bindings_are_absent_with_canonical_owners_present
         "build_application_metadata": application_metadata.build_application_metadata,
         "ENHANCED_PLATE_GENERATION_FAILED_DETAIL": http_error_details.ENHANCED_PLATE_GENERATION_FAILED_DETAIL,
         "INVALID_PREMIUM_PLATE_INPUT_DETAIL": http_error_details.INVALID_PREMIUM_PLATE_INPUT_DETAIL,
+        "APPLICATION_METADATA": application_bootstrap.APPLICATION_METADATA,
+        "RUNTIME_ENV": application_bootstrap.RUNTIME_ENV,
+        "_app_env": application_bootstrap.RUNTIME_ENV,
+        "_application_metadata": application_bootstrap.APPLICATION_METADATA,
+        "tags_metadata": application_bootstrap.app.openapi_tags,
+        "_api_description": application_bootstrap.app.description,
     }
+    assert (
+        canonical_migrations["APPLICATION_METADATA"]
+        is canonical_migrations["_application_metadata"]
+    )
+    assert canonical_migrations["RUNTIME_ENV"] is canonical_migrations["_app_env"]
+    assert application_bootstrap.app is legacy_app.app is app_facade.app
+    assert (
+        application_bootstrap.app.description
+        == application_bootstrap.APPLICATION_METADATA.description.replace(", user management", "")
+    )
+    assert application_bootstrap.app.openapi_tags == [
+        tag
+        for tag in application_bootstrap.APPLICATION_METADATA.openapi_tags_list()
+        if tag["name"] != "users"
+    ]
     canonical_constants = {
+        "APPLICATION_METADATA": application_bootstrap.APPLICATION_METADATA,
+        "_application_metadata": application_bootstrap.APPLICATION_METADATA,
+        "RUNTIME_ENV": application_bootstrap.RUNTIME_ENV,
+        "_app_env": application_bootstrap.RUNTIME_ENV,
+        "tags_metadata": application_bootstrap.app.openapi_tags,
+        "_api_description": application_bootstrap.app.description,
         "ENHANCED_PLATE_GENERATION_FAILED_DETAIL": http_error_details.ENHANCED_PLATE_GENERATION_FAILED_DETAIL,
         "INVALID_PREMIUM_PLATE_INPUT_DETAIL": http_error_details.INVALID_PREMIUM_PLATE_INPUT_DETAIL,
         "MATPLOTLIB_AVAILABLE": bmi_visualization.MATPLOTLIB_AVAILABLE,
@@ -524,6 +558,12 @@ def test_retired_legacy_python_bindings_are_absent_with_canonical_owners_present
         "FIBER_MIN_G": core_targets.FIBER_MIN_G,
     }
 
+    assert isinstance(
+        application_bootstrap.APPLICATION_METADATA, application_metadata.ApplicationMetadata
+    )
+    assert type(application_bootstrap.RUNTIME_ENV) is str
+    assert type(application_bootstrap.app.description) is str
+    assert isinstance(application_bootstrap.app.openapi_tags, list)
     assert callable(application_metadata.build_application_metadata)
     assert (
         application_metadata.build_application_metadata.__module__ == application_metadata.__name__
@@ -537,7 +577,7 @@ def test_retired_legacy_python_bindings_are_absent_with_canonical_owners_present
     assert http_error_details.INVALID_PREMIUM_PLATE_INPUT_DETAIL == "Invalid premium plate input"
     assert canonical_migrations.keys() == RETIRED_LEGACY_PYTHON_BINDINGS
     assert RETIRED_LEGACY_PYTHON_BINDINGS == legacy_guard.RETIRED_LEGACY_PYTHON_BINDINGS
-    assert len(RETIRED_LEGACY_PYTHON_BINDINGS) == 109
+    assert len(RETIRED_LEGACY_PYTHON_BINDINGS) == 115
     assert canonical_migrations["TargetsIn"] is canonical_migrations["CanonicalTargetsIn"]
     assert (
         len(
@@ -829,7 +869,19 @@ def test_retired_legacy_python_bindings_fail_closed_in_a_fresh_process(
         import app.routers.health as health
         from typing import Literal, get_args, get_origin
 
-        assert legacy_app._application_metadata is application_bootstrap.APPLICATION_METADATA
+        assert "app.main" not in sys.modules
+        startup_metadata = application_bootstrap.APPLICATION_METADATA
+        startup_app = application_bootstrap.app
+        assert legacy_app.app is application_bootstrap.app
+        assert application_bootstrap.app.description == application_bootstrap.APPLICATION_METADATA.description
+        assert application_bootstrap.app.openapi_tags == application_bootstrap.APPLICATION_METADATA.openapi_tags_list()
+        assert app_facade.app is application_bootstrap.app
+        assert "app.main" in sys.modules
+        assert app_facade.app is startup_app
+        assert application_bootstrap.APPLICATION_METADATA is startup_metadata
+        assert application_bootstrap.app.description == startup_metadata.description.replace(", user management", "")
+        assert application_bootstrap.app.openapi_tags == [tag for tag in startup_metadata.openapi_tags_list() if tag["name"] != "users"]
+        assert "users" in [tag.name for tag in startup_metadata.tags]
         assert callable(application_metadata.build_application_metadata)
         assert application_metadata.build_application_metadata.__module__ == application_metadata.__name__
         assert type(http_error_details.ENHANCED_PLATE_GENERATION_FAILED_DETAIL) is str
@@ -1400,3 +1452,23 @@ def test_bmi_endpoint_v1_athlete_note_appends_waist_risk_notes_and_unknown_categ
     assert data["group"] == "athlete"
     assert data["athlete"] is True
     assert data["note"] == f"{t('en', 'advice_athlete_bmi')} | Extra waist note"
+
+
+@pytest.mark.parametrize(
+    "binding_name",
+    (
+        "APPLICATION_METADATA",
+        "RUNTIME_ENV",
+        "_app_env",
+        "_application_metadata",
+        "tags_metadata",
+        "_api_description",
+    ),
+)
+def test_retired_metadata_projection_bindings_are_absent(binding_name: str) -> None:
+    """The selected compatibility access paths are absent in the ordinary namespace."""
+    import legacy_app
+
+    assert binding_name not in vars(legacy_app)
+    with pytest.raises(AttributeError):
+        getattr(legacy_app, binding_name)
