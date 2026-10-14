@@ -456,7 +456,9 @@ merge permission and granted no bypass of this PR's required gates.
 
 ## Legacy metadata and environment projection retirement
 
-The `LEGACY-METADATA-PROJECTION-RETIREMENT-1/v1` child retires exactly six
+The `LEGACY-METADATA-PROJECTION-RETIREMENT-1/v1` child is OPEN in
+[PR #2488](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2488), on
+`codex/retire-legacy-metadata-projections`. It retires exactly six
 ordinary bindings: `APPLICATION_METADATA`, `RUNTIME_ENV`, `_app_env`,
 `_application_metadata`, `tags_metadata`, and `_api_description`. All prior109
 names and historical BMI `[99:106]` and metadata/error `[106:109]` cohorts remain;
@@ -483,11 +485,30 @@ PATH/pytest-marker and staging gates remain. Finite synthetic child environment,
 pre-import socket denial, bounded timeout and safe result diagnostics are local
 test controls, not OS containment or universal dynamic-import proof.
 
+The additional canonical application consumer now observes explicit
+bootstrap-before-main and main-after-facade metadata phases
+(`tests/test_legacy_bmi_shims.py:872`). The existing ownership parity helper keeps
+all three fixed import orders and complete ordered route/middleware records plus
+the OpenAPI hash, comparing full observations without rendering child strings
+(`tests/test_application_instance_ownership.py:122`,
+`tests/test_application_instance_ownership.py:215`). Its finite operational
+passthrough and synthetic flags/pytest marker, named pre-import Python socket
+denials and canaries, exact repository cwd and native 30-second timeout are
+bounded test controls. Shape screening permits empty strings and method lists;
+ordinary failure and parity diagnostics are constant. Ambient marker/credential
+exclusion has an executable negative control
+(`tests/test_application_instance_ownership.py:818`). The observed local
+correction bundle passed 2230 cases, retaining all 170 original ownership cases
+and adding 39 (209 total). Correction commit
+`667be5bbc2513405f66d91f3a9b8a50d47755597` is locally committed and not yet published
+at this documentation cutoff; these observations do not establish current-head
+hosted CI, final narrow validation, OS containment or general secret isolation.
+
 Incoming #2486 reconciliation was applied whole and committed separately as
 `4a42076ae779a864f00b62172b2cf4bbf825bfb8`. Its two historical terminal anchors below
-retain Target PR #2486 and the qualified CANCELLED main/#2477 boundary. This is
-actual local carrying evidence; reviewed PR inclusion and RECONCILED IN MAIN
-remain pending. Own current-head CI, review, Oracle, separate exact-head merge
+retain Target PR #2486 and the qualified CANCELLED main/#2477 boundary. Its state
+is APPLIED / COMMITTED / PUBLISHED / REVIEWED in PR #2488; RECONCILED IN MAIN
+remains pending. Own current-head CI, review, Oracle, separate exact-head merge
 approval and terminal lifecycle remain required. PROJECT_LEGACY stays OPEN.
 Rollback reverts only the new six-binding removal and coupled guard/tests,
 preserving truthful incoming reconciliation and prior retirement/overflow fixes.
