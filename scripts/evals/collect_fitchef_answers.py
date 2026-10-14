@@ -27,7 +27,7 @@ import stat
 import ssl
 import sys
 import time
-from typing import Any, cast
+from typing import Any, Literal, cast
 from unittest.mock import patch
 
 import httpx
@@ -1269,8 +1269,8 @@ def _prepare_audit_file(path: Path) -> None:
     _private_parent(path)
 
 
-def _validate_audit_location(path: Path) -> None:
-    """Admit one private append target without making this checkout Git-visible."""
+def _validate_runtime_location(path: Path, *, kind: Literal["audit", "database"]) -> None:
+    """Admit a selected private runtime path through the one native Git owner."""
     _private_parent(path)
     checkout = Path(__file__).resolve().parents[2]
     observed = run_git(["rev-parse", "--show-toplevel"], cwd=checkout, check=False)
@@ -1290,17 +1290,17 @@ def _validate_audit_location(path: Path) -> None:
             relative_parts.append(ancestor.name)
             ancestor = ancestor.parent
     except OSError as error:
-        raise ValueError("audit_source_identity_unavailable") from error
+        raise ValueError(f"{kind}_source_identity_unavailable") from error
     relative_path = Path(*reversed(relative_parts))
     relative = str(relative_path)
     tracked = run_git(["ls-files", "--cached", "-z"], cwd=checkout, check=False)
     if tracked.returncode != 0 or (tracked.stdout and not tracked.stdout.endswith("\0")):
-        raise ValueError("audit_tracking_unavailable")
+        raise ValueError(f"{kind}_tracking_unavailable")
     indexed_names = tracked.stdout.split("\0")[:-1] if tracked.stdout else []
     if any(not name for name in indexed_names):
-        raise ValueError("audit_tracking_unavailable")
+        raise ValueError(f"{kind}_tracking_unavailable")
     if relative in indexed_names:
-        raise ValueError("tracked_audit_path")
+        raise ValueError(f"tracked_{kind}_path")
     # Git names are literal index entries. A different spelling can still name
     # our one known append target on the native filesystem; do not case-fold.
     try:
@@ -1308,16 +1308,20 @@ def _validate_audit_location(path: Path) -> None:
             for name in indexed_names:
                 indexed_path = source_root / name
                 if indexed_path.exists() and indexed_path.samefile(path):
-                    raise ValueError("tracked_audit_path")
+                    raise ValueError(f"tracked_{kind}_path")
     except OSError as error:
-        raise ValueError("audit_tracking_unavailable") from error
+        raise ValueError(f"{kind}_tracking_unavailable") from error
     ignored = run_git(
         ["check-ignore", "-z", "--stdin"], cwd=checkout, check=False, input_text=relative + "\0"
     )
     if ignored.returncode == 1 or (ignored.returncode == 0 and ignored.stdout != relative + "\0"):
-        raise ValueError("nonignored_audit_path")
+        raise ValueError(f"nonignored_{kind}_path")
     if ignored.returncode != 0:
-        raise ValueError("audit_ignore_unavailable")
+        raise ValueError(f"{kind}_ignore_unavailable")
+    if kind == "database":
+        # SQLite owns database reads and schema work; an existing quota file
+        # is not an append-only JSONL target or a missing audit publication.
+        return
     try:
         _read_input(path)
     except ValueError as error:
@@ -1326,6 +1330,11 @@ def _validate_audit_location(path: Path) -> None:
         # Existing append-only files need no staging directory. A missing file
         # uses the existing publisher, whose random staging names must be ignored.
         _validate_output_directory(source_root / relative_path.parent, generated_names=[path.name])
+
+
+def _validate_audit_location(path: Path) -> None:
+    """Preserve audit append/preparation semantics through the shared path owner."""
+    _validate_runtime_location(path, kind="audit")
 
 
 def validate_live_environment(fitchef_key: str) -> None:
@@ -1800,13 +1809,19 @@ def validate_ocw_environment(fitchef_key: str, *, output_dir: Path | None = None
     if not audit:
         raise ValueError("ocw_audit_configuration")
     audit_path = Path(audit)
-    if database_path.resolve() == audit_path.resolve():
+    # The selected SQLite primary and its three fixed auxiliary basenames are
+    # runtime state. This finite check does not enumerate arbitrary SQLite files.
+    database_paths = [database_path] + [
+        database_path.with_name(database_path.name + suffix)
+        for suffix in ("-journal", "-wal", "-shm")
+    ]
+    if any(_ocw_audit_aliases_input(audit_path, path) for path in database_paths):
         raise ValueError("ocw_runtime_state_alias")
     if output_dir is not None:
         capture_root = output_dir.resolve()
         if any(path.resolve().is_relative_to(capture_root) for path in (database_path, audit_path)):
             raise ValueError("ocw_runtime_output_overlap")
-    _private_parent(database_path)
+    _validate_runtime_location(database_path, kind="database")
     _validate_audit_location(audit_path)
     with session_scope() as session:
         counts = session.scalars(

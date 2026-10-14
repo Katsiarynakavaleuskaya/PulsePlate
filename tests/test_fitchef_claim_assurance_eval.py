@@ -1999,6 +1999,15 @@ def test_ocw_response_publication_and_cleanup_cannot_mask_original_failure(
         "pacing-final-rubric-mutation",
         "provider-final-rubric-drift",
         "database-audit-alias",
+        "database-audit-journal",
+        "database-audit-wal",
+        "database-audit-shm",
+        "database-audit-neighbor",
+        "git-database-tracked",
+        "git-database-tracked-case-alias",
+        "git-database-ignored",
+        "git-database-nonignored",
+        "git-database-outside",
         "capture-reentry",
         "capture-reentry-rotated",
         "capture-claim-uncertain",
@@ -2205,6 +2214,48 @@ with patch.dict(os.environ, {
         collector.write_report(git_manifest,b''.join(collector._canonical(row)+b'\n' for row in rows))
         collector.write_report(git_prices,b''.join(collector._canonical(row)+b'\n' for row in prices))
         database_before=db.read_bytes()
+    if outcome.startswith('database-audit-') and outcome!='database-audit-alias':
+        suffix={'journal':'-journal','wal':'-wal','shm':'-shm','neighbor':'-journal-audit.jsonl'}[outcome.removeprefix('database-audit-')]
+        audit=db.with_name(db.name+suffix)
+        environment_changes['AGENT_CONTROL_AUDIT_LOG_PATH']=str(audit)
+        database_before=db.read_bytes()
+    database_is_tracked_object=None
+    if outcome.startswith('git-database-'):
+        checkout=directory/'actual-checkout'; checkout.mkdir(mode=0o700)
+        module=checkout/'scripts/evals/collect_fitchef_answers.py'; module.parent.mkdir(parents=True)
+        module.write_bytes(Path(module_file).read_bytes()); module_file=str(module)
+        fixture=checkout/'tests/fixtures/ocw/fitchef_nutrition_cases.v1.jsonl'; fixture.parent.mkdir(parents=True)
+        fixture.write_bytes(Path(sys.argv[2]).read_bytes())
+        canonical_rubric=checkout/'docs/evals/FITCHEF_CLAIM_EVIDENCE_EVAL_V1.md'; canonical_rubric.parent.mkdir(parents=True)
+        canonical_rubric.write_bytes(Path(sys.argv[3]).read_bytes())
+        (checkout/'.gitignore').write_text('ignored-state/\n')
+        state=checkout/('visible-state' if outcome=='git-database-nonignored' else 'ignored-state')
+        state.mkdir(mode=0o700); state.chmod(0o700)
+        indexed_db=state/'Quota.db'; collector.write_report(indexed_db,db.read_bytes())
+        collector.run_git(['init','-q'],cwd=checkout)
+        tracked=outcome in ('git-database-tracked','git-database-tracked-case-alias')
+        collector.run_git(['add','--','.'],cwd=checkout)
+        if tracked: collector.run_git(['add','-f','--',str(indexed_db.relative_to(checkout))],cwd=checkout)
+        if outcome=='git-database-nonignored':
+            collector.run_git(['rm','--cached','--',str(indexed_db.relative_to(checkout))],cwd=checkout)
+        collector.run_git(['-c','user.name=Synthetic fixture','-c','user.email=fixture@example.invalid','commit','--no-gpg-sign','-qm','database checkout fixture'],cwd=checkout)
+        database_is_tracked_object=tracked
+        selected_db=indexed_db
+        if outcome=='git-database-tracked-case-alias':
+            selected_db=indexed_db.with_name('quota.db')
+            database_is_tracked_object=selected_db.exists() and selected_db.samefile(indexed_db)
+            if not selected_db.exists(): collector.write_report(selected_db,indexed_db.read_bytes())
+            assert selected_db.samefile(indexed_db) is database_is_tracked_object
+            assert collector.run_git(['--literal-pathspecs','ls-files','--error-unmatch','--',str(selected_db.relative_to(checkout))],cwd=checkout,check=False).returncode==1
+        if outcome=='git-database-outside': selected_db=db
+        else:
+            if outcome!='git-database-nonignored':
+                assert not collector.run_git(['status','--porcelain','--untracked-files=all'],cwd=checkout).stdout
+                assert collector.run_git(['check-ignore','--no-index','--',str(selected_db.relative_to(checkout))],cwd=checkout).returncode==0
+            environment_changes['DATABASE_URL']=f'sqlite:///{selected_db}'
+        selected_database_before=selected_db.read_bytes()
+        indexed_database_before=indexed_db.read_bytes()
+        assert selected_db.stat().st_mode&0o777==0o600
     from typing import Iterator
     @contextmanager
     def selected_environment() -> Iterator[None]:
@@ -2356,7 +2407,7 @@ with patch.dict(os.environ, {
         patches.enter_context(patch.object(collector,'collect_ocw_comparison',observed_collect))
         patches.enter_context(patch.object(collector,'validate_ocw_environment',observed_environment))
         patches.enter_context(patch.object(collector,'__file__',module_file))
-        patches.enter_context(patch.object(collector,'_code_sha',native_code_sha if outcome.startswith('git-audit-') else lambda:'a'*40))
+        patches.enter_context(patch.object(collector,'_code_sha',native_code_sha if outcome.startswith(('git-audit-','git-database-')) else lambda:'a'*40))
         patches.enter_context(patch.object(collector,'_ocw_http_client',transport))
         patches.enter_context(patch.object(collector,'write_report',publish))
         patches.enter_context(patch.object(collector,'_read_input',read_capture_input))
@@ -2424,6 +2475,17 @@ with patch.dict(os.environ, {
             collector.collect_ocw_comparison(rows,output_dir=output,rubric=Path(sys.argv[3]),
                 pricing=prices,fitchef_key=vip_label,
                 perplexity_key=provider_label,run_id='mock-observed-route')
+            if outcome.startswith('git-database-'):
+                assert outcome in ('git-database-ignored','git-database-outside') or (
+                    outcome=='git-database-tracked-case-alias' and database_is_tracked_object is False)
+                assert len(sends)==16 and preflight_calls==1
+                assert not collector.run_git(['status','--porcelain','--untracked-files=all'],cwd=checkout).stdout
+                if outcome=='git-database-tracked-case-alias': assert indexed_db.read_bytes()==indexed_database_before
+                print(json.dumps({'terminal_outcome':outcome,'sdk_requests':16,'case_same_existing_file':database_is_tracked_object}));sys.exit(0)
+            if outcome=='database-audit-neighbor':
+                assert len(sends)==16 and audit.exists() and audit.stat().st_mode&0o777==0o600
+                assert len(audit.read_bytes())>0
+                print(json.dumps({'terminal_outcome':outcome,'sdk_requests':16,'retained_distinct_audit':True}));sys.exit(0)
             if outcome in ('audit-rubric-case-alias','audit-rubric-distinct'):
                 assert rubric_same_object is False and len(sends)==16
                 assert Path(sys.argv[3]).read_bytes()==rubric_before
@@ -2446,6 +2508,21 @@ with patch.dict(os.environ, {
                 assert not list(second.iterdir())
                 print(json.dumps({'terminal_outcome':outcome,'sdk_requests':16}));sys.exit(0)
         except BaseException as error:
+            if isinstance(error,SystemExit): raise
+            if outcome.startswith('git-database-'):
+                expected='nonignored_database_path' if outcome=='git-database-nonignored' else 'tracked_database_path'
+                assert isinstance(error,ValueError) and str(error)==expected,(type(error).__name__,str(error),len(sends))
+                assert not sends and preflight_calls==quota_reads==transport_allocations==0
+                assert selected_db.read_bytes()==selected_database_before and indexed_db.read_bytes()==indexed_database_before
+                assert not selected_db.with_name(selected_db.name+'.run.jsonl').exists() and not list(output.iterdir())
+                assert not (private/'audit.jsonl').exists()
+                print(json.dumps({'terminal_outcome':outcome,'sdk_requests':0,'quota_reads':0,'case_same_existing_file':database_is_tracked_object}));sys.exit(0)
+            if outcome in ('database-audit-journal','database-audit-wal','database-audit-shm'):
+                assert isinstance(error,ValueError) and str(error)=='ocw_runtime_state_alias'
+                assert not sends and preflight_calls==quota_reads==transport_allocations==0
+                assert db.read_bytes()==database_before and not audit.exists()
+                assert not db.with_name(db.name+'.run.jsonl').exists() and not list(output.iterdir())
+                print(json.dumps({'terminal_outcome':outcome,'sdk_requests':0,'quota_reads':0}));sys.exit(0)
             if outcome=='status-after':
                 assert error is final_status_failure
                 assert error.__notes__==['ocw_status_publication_failed:ValueError']
@@ -5639,6 +5716,17 @@ def test_audit_admission_uncertainty_stops_capture_before_resources(
     permission_failure = PermissionError("synthetic audit identity or read unavailable")
     git_calls: list[list[str]] = []
     indexed_stats = 0
+    runtime_target: tuple[Path, str] | None = None
+    native_location = collector._validate_runtime_location
+
+    def observed_location(path: Path, *, kind: str) -> None:
+        nonlocal runtime_target
+        prior_target = runtime_target
+        runtime_target = (path, kind)
+        try:
+            native_location(path, kind=kind)
+        finally:
+            runtime_target = prior_target
 
     def uncertain_git(
         args: list[str], *, cwd: Path, check: bool = False, input_text: str | None = None
@@ -5654,7 +5742,7 @@ def test_audit_admission_uncertainty_stops_capture_before_resources(
                 )
                 return CompletedProcess(args, 0, value + "\n", "")
             result = native_git(args, cwd=cwd, check=check)
-            if failure == "ancestor_identity":
+            if failure == "ancestor_identity" and runtime_target == (audit, "audit"):
                 audit.parent.rename(source / "retained-audit")
             return result
         if args == ["ls-files", "--cached", "-z"]:
@@ -5711,6 +5799,7 @@ def test_audit_admission_uncertainty_stops_capture_before_resources(
         monkeypatch.setenv(name, value)
     monkeypatch.setattr(collector, "__file__", str(module))
     monkeypatch.setattr(collector, "run_git", uncertain_git)
+    monkeypatch.setattr(collector, "_validate_runtime_location", observed_location)
     monkeypatch.setattr(os, "stat", uncertain_stat)
     monkeypatch.setattr(collector, "_read_input", uncertain_read)
     for name in ("session_scope", "ocw_request_preflight", "write_report", "_ocw_http_client"):
@@ -5727,7 +5816,20 @@ def test_audit_admission_uncertainty_stops_capture_before_resources(
             perplexity_key=provider_label,
             run_id="uncertain-audit",
         )
-    assert git_calls[0] == ["rev-parse", "--show-toplevel"] and len(git_calls) <= 3
+    expected_calls = (
+        1
+        if failure.startswith("root_")
+        else 2 if failure == "ancestor_identity" else 3 if failure.startswith("index_") else 4
+    )
+    assert (
+        git_calls
+        == [
+            ["rev-parse", "--show-toplevel"],  # The selected DB is outside this source checkout.
+            ["rev-parse", "--show-toplevel"],  # The audit target enters the shared owner next.
+            ["ls-files", "--cached", "-z"],
+            ["check-ignore", "-z", "--stdin"],
+        ][:expected_calls]
+    )
     if failure in ("index_identity", "audit_read"):
         assert caught.value.__cause__ is permission_failure
     if failure == "ancestor_identity":
