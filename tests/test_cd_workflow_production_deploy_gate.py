@@ -552,6 +552,7 @@ def test_prometheus_cd_registry_credential_route_preserves_base_execution_bounda
         initial_pr["name"],
         initial_published["name"],
         "Checkout exact changed PR Prometheus contracts",
+        "Checkout fixed trusted Prometheus control",
         "Checkout exact unchanged PR contracts after trusted cleanup",
     ]
     event = steps["Validate exact Prometheus checkout revisions"]
@@ -577,6 +578,20 @@ def test_prometheus_cd_registry_credential_route_preserves_base_execution_bounda
     assert 'changed_pr_candidate) test -z "${GHCR_READ_TOKEN:-}"' in consumer["run"]
     assert '*) echo "Prometheus credential route HOLD" >&2; exit 1' in consumer["run"]
     assert "scripts.ci.prometheus_source_image --operation consume" in consumer["run"]
+    control = steps["Checkout fixed trusted Prometheus control"]
+    cleanup = steps["Remove fixed trusted Prometheus control checkout"]
+    # pragma: allowlist nextline secret - public trusted control commit
+    assert control["with"]["ref"] == "5064aded22f478a22a4319b684e95d6c0b3ae46f"
+    assert control["with"]["persist-credentials"] is False
+    assert control["with"]["sparse-checkout"] == "scripts/ci/prometheus_source_image.py"
+    assert 'trusted["consume_image"](work, material' in consumer["run"]
+    assert (
+        names.index("Checkout exact changed PR Prometheus contracts")
+        < names.index(control["name"])
+        < names.index(consumer["name"])
+        < names.index(cleanup["name"])
+        < names.index("Check canonical Prometheus config with exact-image promtool")
+    )
     for name, mode in (
         ("Checkout exact changed PR Prometheus contracts", "changed_pr_candidate"),
         ("Checkout exact unchanged PR contracts after trusted cleanup", "unchanged_pr_published"),
@@ -713,16 +728,41 @@ def test_checkpoint_native_consumer_precedes_secret_free_child(
     workflow = yaml.safe_load((REPO_ROOT / ".github/workflows" / filename).read_text())
     selected = workflow["jobs"][job]
     assert selected["permissions"] == {"contents": "read", "actions": "read", "packages": "read"}
-    assert selected.get("environment") == (None if filename == "ci.yml" else "staging")
+    assert selected.get("environment") == "staging"
     step = next(
         s
         for s in selected["steps"]
         if s.get("name", "").startswith("Native ") and "OBS2A" in s["name"]
     )
-    assert step["env"]["GHCR_READ_TOKEN"] == credential
-    assert step["env"]["GH_TOKEN"] == step["env"]["GITHUB_TOKEN"] == "${{ secrets.GITHUB_TOKEN }}"
     script = step["run"]
-    assert script.index("--operation consume") < script.index("sudo /usr/bin/env -i ")
+    if filename == "ci.yml":
+        assert not {"GH_TOKEN", "GITHUB_TOKEN", "GHCR_READ_TOKEN"} & step["env"].keys()
+        consumer = next(s for s in selected["steps"] if s.get("id") == "checkpoint-image")
+        assert consumer["env"]["GH_TOKEN"] == consumer["env"]["GITHUB_TOKEN"] == credential
+        assert consumer["env"]["GHCR_READ_TOKEN"] == (
+            "${{ steps.checkpoint-selection.outputs.mode == 'unchanged_pr_published' && secrets.GHCR_READ_TOKEN || '' }}"
+        )
+        assert 'trusted["consume_image"](work, material' in consumer["run"]
+        setup = next(
+            s for s in selected["steps"] if s.get("uses") == "./.github/actions/python-setup"
+        )
+        cleanup = next(
+            s
+            for s in selected["steps"]
+            if s.get("name") == "Remove fixed trusted Prometheus control checkout"
+        )
+        assert (
+            selected["steps"].index(consumer)
+            < selected["steps"].index(cleanup)
+            < selected["steps"].index(setup)
+            < selected["steps"].index(step)
+        )
+    else:
+        assert step["env"]["GHCR_READ_TOKEN"] == credential
+        assert (
+            step["env"]["GH_TOKEN"] == step["env"]["GITHUB_TOKEN"] == "${{ secrets.GITHUB_TOKEN }}"
+        )
+        assert script.index("--operation consume") < script.index("sudo /usr/bin/env -i ")
     child = next(
         line.strip()
         for line in script.splitlines()

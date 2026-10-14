@@ -507,7 +507,7 @@ alertmanager_selected() {
 validate_alertmanager_exception_time() {
   "$PYTHON_BIN" - <<'PY'
 from datetime import datetime, timezone
-if datetime.now(timezone.utc) >= datetime(2026, 10, 24, tzinfo=timezone.utc):
+if datetime.now(timezone.utc) >= datetime(2026, 10, 21, tzinfo=timezone.utc):
     raise SystemExit("Selected or running Alertmanager Trivy exception has expired")
 PY
 }
@@ -1041,8 +1041,8 @@ if (len(re.findall(r"(?m)^route:\s*$", alert_text)) != 1
     or alert_bytes != (chr(10).join(expected_alertmanager_lines) + chr(10)).encode("utf-8")):
     raise SystemExit("Alertmanager route and sole recipient are not the exact reviewed config")
 if hashlib.sha256(ignore.read_bytes()).hexdigest() != (
-    "7d6d70d6" "fcc07612" "1b82a7b5" "75a4c384"
-    "87aca24d" "11d037db" "42740b28" "9ab17e40"
+    "3018ef35" "c8c41c40" "ae486008" "93a28767"
+    "68ba69e2" "c95fd2cb" "63a525eb" "12212493"
 ):
     raise SystemExit("Alertmanager Trivy exception differs from the admitted complete file")
 ' "$compose_path" "$prometheus_config" "$rules" \

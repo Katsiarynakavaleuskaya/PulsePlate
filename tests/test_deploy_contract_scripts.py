@@ -3964,6 +3964,16 @@ def test_prometheus_cd_uses_authenticated_finite_consumer_and_retains_strict_sca
     steps = {step["name"]: step for step in job["steps"]}
     consumer = steps["Admit retained PR candidate or published immutable subject"]
     assert "scripts.ci.prometheus_source_image --operation consume" in consumer["run"]
+    assert 'trusted["consume_image"](work, material' in consumer["run"]
+    assert "python3 -I -S" in consumer["run"]
+    fixed = steps["Checkout fixed trusted Prometheus control"]
+    assert fixed["with"] == {
+        "ref": "5064aded22f478a22a4319b684e95d6c0b3ae46f",  # pragma: allowlist secret - public trusted control commit
+        "persist-credentials": False,
+        "path": "artifacts/orchestration/prometheus-control",
+        "sparse-checkout": "scripts/ci/prometheus_source_image.py",
+        "sparse-checkout-cone-mode": False,
+    }
     assert consumer["id"] == "prometheus-image"
     assert job["permissions"] == {"contents": "read", "actions": "read", "packages": "read"}
     assert job["environment"] == "staging"
@@ -4002,10 +4012,93 @@ def _prometheus_cd_python(step: dict[str, object]) -> str:
     return run.split("<<'PY'\n", 1)[1].split("\nPY", 1)[0]
 
 
+def _synthetic_fixed_prometheus_control(
+    repository: Path, environment: dict[str, str], program: str
+) -> str:
+    """Substitute only fixed binding coordinates; execute the workflow loader algorithm.
+
+    This trusted consumer is synthetic and supplies no API/image/native proof.
+    The PR helper remains a distinct malicious import canary.
+    """
+    control = repository / "artifacts/orchestration/prometheus-control"
+    helper = control / "scripts/ci/prometheus_source_image.py"
+    helper.parent.mkdir(parents=True)
+    helper.write_text(
+        "import json,os\nfrom pathlib import Path\n"
+        "def require(value, diagnostic):\n if not value: raise RuntimeError(diagnostic)\n"
+        "def interrupt(signum, frame): raise KeyboardInterrupt()\n"
+        "def diagnostic_code(error): return str(error)\n"
+        "def consume_image(work, material, seconds, cleanup):\n"
+        " assert material==Path(os.environ['GITHUB_WORKSPACE'])\n"
+        " assert seconds==900 and cleanup==120\n"
+        " assert os.environ['GH_TOKEN']=='synthetic.ephemeral.reader'\n"
+        " assert not os.environ.get('GHCR_READ_TOKEN')\n"
+        " trace=Path(os.environ['SYNTHETIC_TRACE'])\n"
+        " with trace.open('a') as stream: stream.write(json.dumps('CONTROL-consume')+'\\n')\n"
+        " if os.environ['SYNTHETIC_OUTCOME']=='changed-api-failure': raise RuntimeError('synthetic_API_failed')\n"
+        " if os.environ['SYNTHETIC_OUTCOME']=='changed-cleanup-failure': raise RuntimeError('synthetic_cleanup_failed')\n"
+        " (work/'evidence').mkdir(parents=True)\n"
+        " (work/'evidence/consumer.json').write_text(json.dumps({'synthetic':True}))\n"
+        " with trace.open('a') as stream: stream.write(json.dumps('CONTROL-cleanup')+'\\n')\n"
+        " selection={'manifest_digest':'sha256:'+ '1'*64,'config_digest':'sha256:'+ '2'*64,"
+        "'source_revision':'3'*40,'runtime_ref':'synthetic@sha256:'+ '1'*64}\n"
+        " return {'selection':selection}\n"
+    )
+    helper.chmod(0o644)
+
+    def git(*args: str) -> str:
+        completed = subprocess.run(
+            ["/usr/bin/git", *safe_git_config_args(), *args],
+            cwd=control,
+            env=environment,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        return completed.stdout.strip()
+
+    git("init", "--template=", "-q")
+    git("add", "scripts/ci/prometheus_source_image.py")
+    git("commit", "-qm", "synthetic fixed control")
+    revision = git("rev-parse", "HEAD")
+    blob = git("rev-parse", "HEAD:scripts/ci/prometheus_source_image.py")
+    raw = helper.read_bytes()
+    program = program.replace("5064aded22f478a22a4319b684e95d6c0b3ae46f", revision)
+    program = program.replace("3029aeba29126a05fba5cbd6953916618852d0e2", blob)
+    program = program.replace("315949", str(len(raw)))
+    program = program.replace(
+        "0e7a73b0159c442cf5f9377aa862e38d643145f81ac6a54ee50b31682f6c3e3e",  # pragma: allowlist secret - public protected helper digest
+        hashlib.sha256(raw).hexdigest(),
+    )
+    variant = environment["SYNTHETIC_OUTCOME"]
+    if variant == "changed-control-bytes":
+        helper.write_text("raise SystemExit('malicious control must not execute')\n")
+    elif variant == "changed-control-mode":
+        helper.chmod(0o755)
+    elif variant == "changed-control-symlink":
+        original = helper.with_suffix(".saved")
+        helper.rename(original)
+        helper.symlink_to(original)
+    elif variant == "changed-control-ref":
+        (control / "different.txt").write_text("different revision\n")
+        git("add", "different.txt")
+        git("commit", "-qm", "wrong control revision")
+    return program
+
+
 def _prometheus_cd_route_fixture(tmp_path: Path, variant: str) -> tuple[Path, dict[str, str]]:
     repository = tmp_path / "repository"
     repository.mkdir()
     environment = git_env_without_parent_state()
+    for key in (
+        "GH_TOKEN",
+        "GITHUB_TOKEN",
+        "GHCR_READ_TOKEN",
+        "GHCR_TOKEN",
+        "GH_ENTERPRISE_TOKEN",
+        "GITHUB_ENTERPRISE_TOKEN",
+    ):
+        environment.pop(key, None)
     environment.update(
         {
             "PATH": str(Path(sys.executable).parent) + os.pathsep + os.defpath,
@@ -4092,7 +4185,7 @@ def _prometheus_cd_route_fixture(tmp_path: Path, variant: str) -> tuple[Path, di
     git("add", ".")
     git("commit", "-qm", "synthetic base")
     base = git("rev-parse", "HEAD")
-    if variant in {"changed", "wrong-mode"}:
+    if variant in {"changed", "wrong-mode"} or variant.startswith("changed-"):
         manifest.write_text('{"synthetic": "candidate"}')
     if variant == "wrong-mode":
         manifest.unlink()
@@ -4108,7 +4201,7 @@ def _prometheus_cd_route_fixture(tmp_path: Path, variant: str) -> tuple[Path, di
         "import json,os,sys\nfrom pathlib import Path\n"
         "trace=Path(os.environ['SYNTHETIC_TRACE'])\n"
         "with trace.open('a') as stream: stream.write(json.dumps('PR-import')+'\\n')\n"
-        "if os.environ.get('GHCR_READ_TOKEN'): raise SystemExit('PR_registry_credential_overlap')\n"
+        "if any(os.environ.get(key) for key in ('GH_TOKEN','GITHUB_TOKEN','GHCR_READ_TOKEN')): raise SystemExit('PR_credential_overlap')\n"
         "if __name__=='__main__':\n"
         " with trace.open('a') as stream: stream.write(json.dumps('PR-consume')+'\\n')\n"
     )
@@ -4138,7 +4231,9 @@ def _prometheus_cd_route_fixture(tmp_path: Path, variant: str) -> tuple[Path, di
         event["pull_request"]["head"]["sha"] = "f" * 40
     event_file = tmp_path / "event.json"
     event_file.write_text(json.dumps(event))
-    environment.update(GITHUB_EVENT_PATH=str(event_file), GITHUB_SHA="a" * 40)
+    environment.update(
+        GITHUB_EVENT_PATH=str(event_file), GITHUB_SHA="a" * 40, GITHUB_WORKSPACE=str(repository)
+    )
     git("checkout", "--detach", "-q", head if variant == "wrong-checkout" else base)
     return repository, environment
 
@@ -4147,6 +4242,12 @@ def _prometheus_cd_route_fixture(tmp_path: Path, variant: str) -> tuple[Path, di
     "variant,diagnostic",
     [
         ("changed", None),
+        ("changed-control-bytes", "Prometheus_control_bytes_HOLD"),
+        ("changed-control-mode", "Prometheus_control_mode_HOLD"),
+        ("changed-control-symlink", "Prometheus_control_path_HOLD"),
+        ("changed-control-ref", "Prometheus_control_revision_HOLD"),
+        ("changed-api-failure", "synthetic_API_failed"),
+        ("changed-cleanup-failure", "synthetic_cleanup_failed"),
         ("unchanged", None),
         ("fork", "Prometheus_event_identity_HOLD"),
         ("bad-sha", "Prometheus_event_identity_HOLD"),
@@ -4254,11 +4355,14 @@ def test_prometheus_cd_classifies_before_pr_code_and_binds_trusted_handoff(
                 ),
                 PROMETHEUS_CREDENTIAL_ROUTE=mode,
             )
+            program = steps["Admit retained PR candidate or published immutable subject"]["run"]
+            if mode == "changed_pr_candidate":
+                program = _synthetic_fixed_prometheus_control(repository, environment, program)
             result = subprocess.run(
                 [
                     "/bin/bash",
                     "-c",
-                    steps["Admit retained PR candidate or published immutable subject"]["run"],
+                    program,
                 ],
                 cwd=repository,
                 env=consumer_env,
@@ -4299,16 +4403,112 @@ def test_prometheus_cd_classifies_before_pr_code_and_binds_trusted_handoff(
     assert "synthetic.registry.reader" not in result.stdout + result.stderr
     if diagnostic is None:
         assert result.returncode == 0, result.stderr
-        assert "PR-import" in observed
         if variant == "unchanged":
+            assert "PR-import" in observed
             assert observed.index("BASE-cleanup") < observed.index("PR-import")
             assert not (tmp_path / "synthetic-registry-state").exists()
         else:
-            assert observed == ["PR-import", "PR-consume"]
+            assert observed == ["CONTROL-consume", "CONTROL-cleanup"]
+            values = dict(line.split("=", 1) for line in output_file.read_text().splitlines())
+            assert {
+                "manifest_digest",
+                "config_digest",
+                "source_revision",
+                "runtime_ref",
+            } <= values.keys()
     else:
         assert result.returncode != 0
         assert diagnostic in result.stderr
         assert "PR-import" not in observed
+
+
+@pytest.mark.parametrize(
+    "variant,diagnostic",
+    [
+        ("changed", None),
+        ("changed-control-bytes", "Prometheus_control_bytes_HOLD"),
+        ("changed-control-mode", "Prometheus_control_mode_HOLD"),
+        ("changed-control-symlink", "Prometheus_control_path_HOLD"),
+        ("changed-control-ref", "Prometheus_control_revision_HOLD"),
+        ("changed-api-failure", "synthetic_API_failed"),
+        ("changed-cleanup-failure", "synthetic_cleanup_failed"),
+    ],
+)
+def test_prometheus_ci_trusted_control_precedes_first_pr_import(
+    tmp_path: Path, variant: str, diagnostic: str | None
+) -> None:
+    repository, environment = _prometheus_cd_route_fixture(tmp_path, variant)
+    event = json.loads(Path(environment["GITHUB_EVENT_PATH"]).read_bytes())
+    subprocess.run(
+        [
+            "/usr/bin/git",
+            *safe_git_config_args(),
+            "checkout",
+            "--detach",
+            "-q",
+            event["pull_request"]["head"]["sha"],
+        ],
+        cwd=repository,
+        env=environment,
+        check=True,
+    )
+    steps = {
+        step["name"]: step
+        for step in yaml.safe_load((REPO_ROOT / ".github/workflows/ci.yml").read_text())["jobs"][
+            "lint"
+        ]["steps"]
+        if "name" in step
+    }
+    consumer = steps["Consume exact Prometheus subject before PR startup"]
+    program = _synthetic_fixed_prometheus_control(repository, environment, consumer["run"])
+    output = tmp_path / "outputs"
+    environment["GITHUB_OUTPUT"] = str(output)
+    credentials = dict(
+        environment,
+        GH_TOKEN="synthetic.ephemeral.reader",
+        GITHUB_TOKEN="synthetic.ephemeral.reader",
+        GHCR_READ_TOKEN="",
+        PROMETHEUS_CREDENTIAL_ROUTE="changed_pr_candidate",
+    )
+    result = subprocess.run(
+        ["/bin/bash", "-c", program],
+        cwd=repository,
+        env=credentials,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert "synthetic.ephemeral.reader" not in result.stdout + result.stderr
+    trace = tmp_path / "trace.jsonl"
+    observed = (
+        [json.loads(line) for line in trace.read_text().splitlines()] if trace.exists() else []
+    )
+    assert "PR-import" not in observed
+    if diagnostic is not None:
+        assert result.returncode != 0 and diagnostic in result.stderr
+        return
+    assert result.returncode == 0, result.stderr
+    cleanup = subprocess.run(
+        ["/bin/bash", "-c", steps["Remove fixed trusted Prometheus control checkout"]["run"]],
+        cwd=repository,
+        env=environment,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert cleanup.returncode == 0, cleanup.stderr
+    assert not (repository / "artifacts/orchestration/prometheus-control").exists()
+    startup = subprocess.run(
+        [sys.executable, "-c", "import scripts.ci.prometheus_source_image"],
+        cwd=repository,
+        env=environment,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert startup.returncode == 0, startup.stderr
+    observed = [json.loads(line) for line in trace.read_text().splitlines()]
+    assert observed == ["CONTROL-consume", "CONTROL-cleanup", "PR-import"]
 
 
 def test_prometheus_cd_git_fixture_preserves_separate_inherited_parent(
@@ -4420,9 +4620,21 @@ def test_prometheus_cd_preserves_closed_non_pr_checkout_events(
         assert output.read_bytes() == b""
 
 
-@pytest.mark.parametrize("additional_finding", (False, True))
+@pytest.mark.parametrize(
+    "fault",
+    (
+        "none",
+        "extra",
+        "missing",
+        "duplicate",
+        "wrong-purl",
+        "wrong-target",
+        "wrong-severity",
+        "secret",
+    ),
+)
 def test_alertmanager_cd_consumes_unsuppressed_inventory_without_extra_findings(
-    tmp_path: Path, additional_finding: bool
+    tmp_path: Path, fault: str
 ) -> None:
     workflow = yaml.safe_load(CD_WORKFLOW_PATH.read_text(encoding="utf-8"))
     steps = workflow["jobs"]["prometheus-image-security"]["steps"]
@@ -4435,21 +4647,45 @@ def test_alertmanager_cd_consumes_unsuppressed_inventory_without_extra_findings(
     marker = "python3 - \"$1\" <<'PY'\n"
     assert run.count(marker) == 1
     program = run.split(marker, 1)[1].split("\nPY", 1)[0]
-    finding = {
-        "VulnerabilityID": "CVE-2026-84445",
-        "PkgIdentifier": {"PURL": "pkg:golang/google.golang.org/grpc@v1.83.1"},
-    }
+    admitted = (
+        ("CVE-2026-84445", "pkg:golang/google.golang.org/grpc@v1.83.1"),
+        ("CVE-2026-78669", "pkg:golang/golang.org/x/net@v0.58.0"),
+        ("CVE-2026-78669", "pkg:golang/stdlib@v1.26.8"),
+        ("CVE-2026-78667", "pkg:golang/stdlib@v1.26.8"),
+        ("CVE-2026-97031", "pkg:golang/stdlib@v1.26.8"),
+    )
     results = [
-        {"Target": target, "Vulnerabilities": [finding.copy()]}
+        {
+            "Target": target,
+            "Vulnerabilities": [
+                {"VulnerabilityID": cve, "PkgIdentifier": {"PURL": purl}, "Severity": "HIGH"}
+                for cve, purl in admitted
+            ],
+        }
         for target in ("bin/alertmanager", "bin/amtool")
     ]
-    if additional_finding:
+    if fault == "extra":
         results[0]["Vulnerabilities"].append(
             {
                 "VulnerabilityID": "CVE-2026-99999",
                 "PkgIdentifier": {"PURL": "pkg:golang/example@v1"},
+                "Severity": "HIGH",
             }
         )
+    elif fault == "missing":
+        results[0]["Vulnerabilities"].pop()
+    elif fault == "duplicate":
+        results[0]["Vulnerabilities"].append(results[0]["Vulnerabilities"][0].copy())
+    elif fault == "wrong-purl":
+        results[0]["Vulnerabilities"][0]["PkgIdentifier"] = {
+            "PURL": "pkg:golang/google.golang.org/grpc@v1.83.0"
+        }
+    elif fault == "wrong-target":
+        results[0]["Target"] = "bin/unadmitted"
+    elif fault == "wrong-severity":
+        results[0]["Vulnerabilities"][0]["Severity"] = "CRITICAL"
+    elif fault == "secret":
+        results[0]["Secrets"] = [{"Match": "synthetic-sensitive-body"}]
     scan = tmp_path / "scan.json"
     scan.write_text(json.dumps({"Results": results}), encoding="utf-8")
     completed = subprocess.run(
@@ -4458,8 +4694,11 @@ def test_alertmanager_cd_consumes_unsuppressed_inventory_without_extra_findings(
         capture_output=True,
         check=False,
     )
-    assert (completed.returncode != 0) is additional_finding
-    if additional_finding:
+    assert (completed.returncode != 0) is (fault != "none")
+    if fault == "secret":
+        assert "Alertmanager scan contains unexpected secret findings" in completed.stderr
+        assert "synthetic-sensitive-body" not in completed.stderr
+    elif fault != "none":
         assert "Unsuppressed Alertmanager finding inventory changed" in completed.stderr
 
 
@@ -4856,8 +5095,8 @@ def test_staging_selected_alertmanager_accepts_compose_owned_readable_file(
         ),
         (
             "alertmanager/trivy-ignore.yaml",
-            "expired_at: 2026-10-24",
-            "expired_at: 2026-10-24\n  - id: CVE-2099-00000",
+            "expired_at: 2026-10-21",
+            "expired_at: 2026-10-21\n  - id: CVE-2099-00000",
             "Alertmanager Trivy exception differs from the admitted complete file",
         ),
     ),
@@ -6227,9 +6466,9 @@ def test_production_all_profile_alertmanager_security_denies_forged_service_or_n
 @pytest.mark.parametrize(
     ("utc_instant", "selected_allowed"),
     [
-        ("2026-10-23T23:59:59+00:00", True),
-        ("2026-10-24T00:00:00+00:00", False),
-        ("2026-10-24T00:00:01+00:00", False),
+        ("2026-10-20T23:59:59+00:00", True),
+        ("2026-10-21T00:00:00+00:00", False),
+        ("2026-10-21T00:00:01+00:00", False),
     ],
 )
 def test_selected_alertmanager_utc_waiver_boundary_and_off_profile_independence(
@@ -6843,11 +7082,11 @@ def test_production_first_bundle_censuses_old_project_without_installed_alertman
 @pytest.mark.parametrize(
     ("presence", "utc_instant", "allowed"),
     (
-        ("absent", "2026-10-24T00:00:01+00:00", True),
-        ("stopped", "2026-10-24T00:00:01+00:00", True),
-        ("running", "2026-10-23T23:59:59+00:00", True),
-        ("running", "2026-10-24T00:00:00+00:00", False),
-        ("running", "2026-10-24T00:00:01+00:00", False),
+        ("absent", "2026-10-21T00:00:01+00:00", True),
+        ("stopped", "2026-10-21T00:00:01+00:00", True),
+        ("running", "2026-10-20T23:59:59+00:00", True),
+        ("running", "2026-10-21T00:00:00+00:00", False),
+        ("running", "2026-10-21T00:00:01+00:00", False),
     ),
 )
 def test_production_off_profile_census_only_running_alertmanager_enforces_expiry(

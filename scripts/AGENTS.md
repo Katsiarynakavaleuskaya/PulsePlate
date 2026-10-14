@@ -117,7 +117,7 @@
   stay outside build contexts and uploaded source/evidence bundles.
 - Existing CD `alertmanager_mode` defaults to `disabled`. Only authenticated
   same-repository, exact-full-SHA, first-attempt manual `module-qualify` can run
-  the fixed 900-second metadata replay. `build` is explicitly held until actual
+  the fixed 825-second metadata replay. `build` is explicitly held until actual
   qualification, full finding/support review and separate build admission.
 - The qualification checkout selects the workflow event's `github.sha`; supplied
   `source_sha` must equal that revision and the Commit API result. Require the API
@@ -128,7 +128,7 @@
 - Qualification uses two independent original trees/caches, the one fixed
   x/net 0.60.0 + gRPC 1.83.2 replacement command, both command graphs online,
   then actual network-none/read-only offline queries. It starts no compiler.
-  The same 900-second clock starts before the exact admitted source/UI, Go1.27.2
+  The same 825-second clock starts before the exact admitted source/UI, Go1.27.2
   and public immutable base acquisition, with a fixed SIGALRM owner covering
   blocking calls; the source child restores the same remaining parent timer.
   Go uses unchanged acquire/extract for
@@ -147,7 +147,7 @@
   executable 0555 files and data 0444 files before UID65534 offline queries, with
   unchanged-byte bindings and after-query snapshots.
   Offline metadata containers have exact owned names/labels and retained IDs,
-  with a separate 120-second cleanup/absence phase preserving primary failures.
+  with a separate 45-second cleanup/absence phase preserving primary failures.
   The zero-compiler count describes the fixed command list, not unobserved
   descendants or external compiler absence. Future context generation must bind
   an empty `storage-dir` copied with UID/GID 65534 into the final recipe.
@@ -206,6 +206,15 @@
 - Deploy readers execute only the separately SHA-bound standalone helper;
   incoming archives are material/data. Root merge, deployment, credentials,
   volume changes and observation clocks retain their existing authority gates.
+- CI/CD PR image consumption must finish before PR-local actions, imports or
+  native programs start. The changed-candidate route executes only the sparse
+  fixed control checkout at `5064aded22f478a22a4319b684e95d6c0b3ae46f`, with
+  helper SHA-256 `0e7a73b0159c442cf5f9377aa862e38d643145f81ac6a54ee50b31682f6c3e3e`,
+  through isolated stdlib `runpy` and an explicit material root. API credentials
+  belong to that step only; changed candidates receive no registry credential.
+  Published reads use the `staging` Environment's `GHCR_READ_TOKEN`. Preserve
+  the existing consumer evidence and outputs, and remove the owned control
+  checkout before PR startup. A missing base published capability remains a hold.
 
 ## Deploy-tool Python selection
 
@@ -930,7 +939,11 @@ First-class repo wrappers:
 **Change detection order:**
 
 1. Native pre-commit sets `PRE_COMMIT=1` for hook execution, including its
-   pre-push stage. Nonempty `PRE_COMMIT` takes precedence: the helper combines
+   pre-push stage. The `backend-tests-pre-push` entry clears that framework
+   marker in its child with `/usr/bin/env -u PRE_COMMIT`, so ordinary pre-push
+   discovery includes the committed upstream delta and the httpx2 canary.
+   The pre-commit entry keeps the marker and its intentional ci-lite selection.
+   Nonempty `PRE_COMMIT` takes precedence: the helper combines
    staged paths with the branch diff from the first resolved merge-base against
    `origin/main`, `origin/master`, `main`, or `master`.
 2. With `PRE_COMMIT` unset and `BRANCH_DIFF_MODE=1`, the helper uses that same

@@ -1153,7 +1153,8 @@ def test_all_active_checkout_uses_have_one_exact_v7_pin() -> None:
         ".github/workflows/security.yml",
         ".github/workflows/trivy.yml",
     }
-    assert len(observed_checkout_uses) == 87
+    # CI and CD each add one disjoint fixed control checkout with the same v7 pin.
+    assert len(observed_checkout_uses) == 89
     assert {path for path, _ in observed_checkout_uses} == expected_checkout_workflows
 
 
@@ -4751,6 +4752,7 @@ def test_contract_risk_suite_ignores_commented_db_target(job_id: str) -> None:
         (2, 0, False, False, False, False),
         (0, 2, False, False, False, False),
         (0, 0, True, False, False, False),
+        (0, 0, "delayed", False, False, False),
         (0, 0, False, True, False, False),
         (0, 0, "ignore", False, False, False),
         (0, 0, False, False, True, False),
@@ -4810,6 +4812,8 @@ if index % 2 == 1 and index > 1:
     if residual_child:
         assert (events / "residual-stopped").read_text() == "SIGTERM"
 def stopped(signum, frame):
+    if terminate_run == "delayed" and index == 1:
+        time.sleep(int(os.environ["CONTRACT_RISK_CLEANUP_SECONDS"]) + 1)
     (events / f"signalled-{index}.json").write_text(json.dumps({"signal": signum}))
     (events / f"running-{index}").unlink()
     raise SystemExit(143)
@@ -4907,6 +4911,9 @@ raise SystemExit(status)
         timeout=60,
         check=False,
     )
+    (tmp_path / "observed-shell-result.json").write_text(
+        json.dumps({"exit": result.returncode, "stdout": result.stdout, "stderr": result.stderr})
+    )
     expected_exit = (
         143
         if terminate_run
@@ -4930,8 +4937,10 @@ raise SystemExit(status)
         assert not list(events.glob("running-*"))
         assert (tmp_path / ".coverage").read_text() == "existing smoke coverage"
         return
-    if terminate_run != "ignore":
-        assert not list(events.glob("running-*"))
+    if not terminate_run:
+        assert not list(
+            events.glob("running-*")
+        ), f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
     if stale_data:
         assert not list(events.glob("start-*.json"))
         assert not (tmp_path / "observed-combine.json").exists()
@@ -4943,12 +4952,7 @@ raise SystemExit(status)
             "start-1.json",
             "start-2.json",
         ]
-        if terminate_run != "ignore":
-            assert sorted(path.name for path in events.glob("signalled-*.json")) == [
-                "signalled-1.json",
-                "signalled-2.json",
-            ]
-        else:
+        if terminate_run == "ignore":
             grandchild = json.loads((events / "grandchild.json").read_text())
             with pytest.raises(ProcessLookupError):
                 os.kill(grandchild["pid"], 0)
@@ -4961,6 +4965,40 @@ raise SystemExit(status)
                 os.kill(child["pid"], 0)
             with pytest.raises(ProcessLookupError):
                 os.killpg(child["pgid"], 0)
+        children = {
+            index: json.loads((events / f"start-{index}.json").read_text()) for index in (1, 2)
+        }
+        reap_lines = [
+            line
+            for line in result.stdout.splitlines()
+            if line.startswith("Reaped owned contract/risk batch pid ")
+        ]
+        assert len(reap_lines) == 2
+        wait_statuses: dict[int, int] = {}
+        for line in reap_lines:
+            match = re.fullmatch(
+                r"Reaped owned contract/risk batch pid ([0-9]+) \(status ([0-9]+)\)", line
+            )
+            assert match is not None
+            pid, status = map(int, match.groups())
+            assert pid in {child["pid"] for child in children.values()}
+            assert pid not in wait_statuses and status in (137, 143)
+            wait_statuses[pid] = status
+        assert set(wait_statuses) == {child["pid"] for child in children.values()}
+        allowed_markers: set[str] = set()
+        for index, child in children.items():
+            marker = events / f"running-{index}"
+            if wait_statuses[child["pid"]] == 143:
+                assert json.loads((events / f"signalled-{index}.json").read_text())["signal"] == 15
+                assert not marker.exists()
+            elif marker.exists():
+                # KILL cannot run the observer callback; kernel absence was checked above.
+                assert marker.read_text() == str(child["pid"])
+                allowed_markers.add(marker.name)
+        assert {path.name for path in events.glob("running-*")} == allowed_markers
+        if terminate_run == "delayed":
+            assert wait_statuses[children[1]["pid"]] == 137
+            assert wait_statuses[children[2]["pid"]] == 143
         assert not (tmp_path / "observed-combine.json").exists()
         assert (tmp_path / ".coverage").read_text() == "existing smoke coverage"
         return
@@ -6173,10 +6211,10 @@ def _assert_ci_lint_node24_frontend_hook_dependency_contract(
         "PROMETHEUS_CONSUME_SECONDS": "900",
         "PROMETHEUS_CLEANUP_SECONDS": "120",
     }
+    assert lint_job.get("environment") == "staging", "ci_lint_reader_environment"
     for forbidden_key in (
         "continue-on-error",
         "defaults",
-        "environment",
     ):
         assert forbidden_key not in lint_job
     lint_steps = lint_job["steps"]
@@ -6198,7 +6236,11 @@ def _assert_ci_lint_node24_frontend_hook_dependency_contract(
     assert checkout_step == {
         "name": "Checkout",
         "uses": f"actions/checkout@{CHECKOUT_V7_SHA}",
-        "with": {"fetch-depth": 0, "persist-credentials": False},
+        "with": {
+            "fetch-depth": 0,
+            "persist-credentials": False,
+            "ref": "${{ github.event.pull_request.head.sha || github.sha }}",
+        },
     }
 
     setup_node_step = unique_step("Setup Node.js")

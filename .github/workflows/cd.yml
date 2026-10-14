@@ -75,7 +75,7 @@ jobs:
       contents: read
       actions: read
     env:
-      ALERTMANAGER_QUALIFY_SECONDS: '900'
+      ALERTMANAGER_QUALIFY_SECONDS: '825'
     steps:
       - name: Authenticate manual Alertmanager source and hold all build starts
         env:
@@ -102,7 +102,7 @@ jobs:
           checkout_sha="$(git rev-parse HEAD)"
           test "$checkout_sha" = "$GITHUB_SHA"
           umask 077
-          # The one 900-second owner begins before source/UI/Go/base acquisition.
+          # The remaining 825-second owner begins before source/UI/Go/base acquisition.
           # Source/UI clips its 300-second acquisition bound to remaining time.
           python3 -m scripts.ci.fetch_docker_source_artifacts --artifact alertmanager --alertmanager-module-qualify
       - name: Retain actual metadata qualification outputs
@@ -690,6 +690,28 @@ jobs:
           set -euo pipefail
           python3 -m scripts.ci.prometheus_source_image --operation read-manifest --field selection > /dev/null
 
+      - name: Require fresh fixed Prometheus control checkout
+        if: ${{ success() && steps.prometheus-route.outputs.mode == 'changed_pr_candidate' }}
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/orchestration
+          test ! -e artifacts/orchestration/prometheus-control
+          test ! -L artifacts/orchestration/prometheus-control
+          for parent in artifacts artifacts/orchestration; do
+            test -d "$parent" && test ! -L "$parent"
+          done
+
+      - name: Checkout fixed trusted Prometheus control
+        id: prometheus-control-checkout
+        if: ${{ success() && steps.prometheus-route.outputs.mode == 'changed_pr_candidate' }}
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: 5064aded22f478a22a4319b684e95d6c0b3ae46f # pragma: allowlist secret - public trusted control commit
+          persist-credentials: false
+          path: artifacts/orchestration/prometheus-control
+          sparse-checkout: scripts/ci/prometheus_source_image.py
+          sparse-checkout-cone-mode: false
+
       - name: Admit retained PR candidate or published immutable subject
         id: prometheus-image
         env:
@@ -704,9 +726,75 @@ jobs:
             unchanged_pr_published | trusted_published) ;;
             *) echo "Prometheus credential route HOLD" >&2; exit 1 ;;
           esac
-          python3 -m scripts.ci.prometheus_source_image --operation consume \
-            --work-dir "$RUNNER_TEMP/prometheus-consumer-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" \
-            --timeout-seconds "$PROMETHEUS_CONSUME_SECONDS" --cleanup-seconds "$PROMETHEUS_CLEANUP_SECONDS"
+          if [ "$PROMETHEUS_CREDENTIAL_ROUTE" = changed_pr_candidate ]; then
+            python3 -I -S - <<'PY'
+          import hashlib, json, os, runpy, signal, stat, subprocess
+          from pathlib import Path
+
+          material = Path(os.environ["GITHUB_WORKSPACE"])
+          control = material / "artifacts/orchestration/prometheus-control"
+          helper = control / "scripts/ci/prometheus_source_image.py"
+          for path in (control, control / "scripts", control / "scripts/ci", helper):
+              info = path.lstat()
+              if info.st_uid != os.getuid() or stat.S_ISLNK(info.st_mode):
+                  raise SystemExit("Prometheus_control_path_HOLD")
+          if not helper.is_file() or stat.S_IMODE(helper.stat().st_mode) != 0o644:
+              raise SystemExit("Prometheus_control_mode_HOLD")
+          raw = helper.read_bytes()
+          if len(raw) != 315949 or hashlib.sha256(raw).hexdigest() != "0e7a73b0159c442cf5f9377aa862e38d643145f81ac6a54ee50b31682f6c3e3e":
+              raise SystemExit("Prometheus_control_bytes_HOLD")
+          environment = {"PATH": "/usr/bin:/bin", "LANG": "C", "GIT_NO_REPLACE_OBJECTS": "1",
+                         "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": "/dev/null"}
+          revision = subprocess.run(["/usr/bin/git", "--no-replace-objects", "-C", str(control),
+                                     "rev-parse", "HEAD"], env=environment, capture_output=True, check=True)
+          if revision.stdout.strip() != b"5064aded22f478a22a4319b684e95d6c0b3ae46f":
+              raise SystemExit("Prometheus_control_revision_HOLD")
+          object_row = subprocess.run(["/usr/bin/git", "--no-replace-objects", "-C", str(control),
+                                      "ls-tree", "-z", "HEAD", "--", "scripts/ci/prometheus_source_image.py"],
+                                     env=environment, capture_output=True, check=True)
+          if object_row.stdout != b"100644 blob 3029aeba29126a05fba5cbd6953916618852d0e2\tscripts/ci/prometheus_source_image.py\0":
+              raise SystemExit("Prometheus_control_object_HOLD")
+          event_head = subprocess.run(["/usr/bin/git", "--no-replace-objects", "-C", str(material),
+                                      "rev-parse", "HEAD"], env=environment, capture_output=True, check=True)
+          event = json.loads(Path(os.environ["GITHUB_EVENT_PATH"]).read_bytes())
+          if event_head.stdout.strip().decode() != event["pull_request"]["head"]["sha"]:
+              raise SystemExit("Prometheus_material_revision_HOLD")
+          route = os.environ["PROMETHEUS_CREDENTIAL_ROUTE"]
+          if route not in ("changed_pr_candidate", "unchanged_pr_published"):
+              raise SystemExit("Prometheus_credential_route_HOLD")
+          if route == "changed_pr_candidate" and os.environ.get("GHCR_READ_TOKEN"):
+              raise SystemExit("Prometheus_candidate_registry_HOLD")
+          trusted = runpy.run_path(str(helper))
+          work = Path(os.environ["RUNNER_TEMP"]) / ("prometheus-consumer-" + os.environ["GITHUB_RUN_ID"] + "-" + os.environ["GITHUB_RUN_ATTEMPT"])
+          signal.signal(signal.SIGTERM, trusted["interrupt"])
+          signal.signal(signal.SIGINT, trusted["interrupt"])
+          try:
+              result = trusted["consume_image"](work, material, int(os.environ["PROMETHEUS_CONSUME_SECONDS"]), int(os.environ["PROMETHEUS_CLEANUP_SECONDS"]))
+          except (Exception, KeyboardInterrupt) as error:
+              diagnostic = trusted["diagnostic_code"](error) or type(error).__name__
+              raise SystemExit("Prometheus_consume_HOLD:" + diagnostic) from None
+          selection = result["selection"]
+          outputs = {"manifest_digest": selection["manifest_digest"], "config_digest": selection["config_digest"],
+                     "source_revision": selection["source_revision"], "runtime_ref": result.get("runtime_ref", selection["runtime_ref"])}
+          with Path(os.environ["GITHUB_OUTPUT"]).open("a") as output:
+              for key, value in outputs.items():
+                  trusted["require"](type(value) is str and "\n" not in value and "\r" not in value, "native_output_single_line")
+                  output.write(key + "=" + value + "\n")
+          PY
+          else
+            python3 -m scripts.ci.prometheus_source_image --operation consume \
+              --work-dir "$RUNNER_TEMP/prometheus-consumer-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" \
+              --timeout-seconds "$PROMETHEUS_CONSUME_SECONDS" --cleanup-seconds "$PROMETHEUS_CLEANUP_SECONDS"
+          fi
+
+      - name: Remove fixed trusted Prometheus control checkout
+        if: ${{ always() && steps.prometheus-route.outputs.mode == 'changed_pr_candidate' && (steps.prometheus-control-checkout.outcome == 'success' || steps.prometheus-control-checkout.outcome == 'failure') }}
+        run: |
+          set -euo pipefail
+          control="$GITHUB_WORKSPACE/artifacts/orchestration/prometheus-control"
+          test ! -L "$control"
+          rm -rf -- "$control"
+          test ! -e "$control" && test ! -L "$control"
 
       - name: Bind the unchanged PR admission after trusted cleanup
         if: ${{ success() && steps.prometheus-route.outputs.mode == 'unchanged_pr_published' }}
@@ -939,10 +1027,17 @@ jobs:
           data=json.load(open(sys.argv[1], encoding="utf-8"))
           if any(r.get("Secrets") for r in data.get("Results", [])):
               raise SystemExit("Alertmanager scan contains unexpected secret findings")
-          found=[(r.get("Target"), v.get("VulnerabilityID"), (v.get("PkgIdentifier") or {}).get("PURL"))
+          found=[(r.get("Target"), v.get("VulnerabilityID"), (v.get("PkgIdentifier") or {}).get("PURL"), v.get("Severity"))
                  for r in data.get("Results", []) for v in (r.get("Vulnerabilities") or [])]
-          expected={(target, "CVE-2026-84445", "pkg:golang/google.golang.org/grpc@v1.83.1")
-                    for target in ("bin/alertmanager", "bin/amtool")}
+          expected={(target, cve, purl, "HIGH")
+                    for target in ("bin/alertmanager", "bin/amtool")
+                    for cve, purl in (
+                        ("CVE-2026-84445", "pkg:golang/google.golang.org/grpc@v1.83.1"),
+                        ("CVE-2026-78669", "pkg:golang/golang.org/x/net@v0.58.0"),
+                        ("CVE-2026-78669", "pkg:golang/stdlib@v1.26.8"),
+                        ("CVE-2026-78667", "pkg:golang/stdlib@v1.26.8"),
+                        ("CVE-2026-97031", "pkg:golang/stdlib@v1.26.8"),
+                    )}
           if set(found) != expected or len(found) != len(expected):
               raise SystemExit("Unsuppressed Alertmanager finding inventory changed")
           PY
@@ -951,8 +1046,10 @@ jobs:
           "$TRIVY_BIN" image --scanners vuln,secret --format table \
             --pkg-types os,library --severity CRITICAL,HIGH --exit-code 1 \
             --timeout 15m --ignorefile "$ignore" "$alert_ref"
-          sed 's|pkg:golang/google.golang.org/grpc@v1.83.1|pkg:golang/google.golang.org/grpc@v1.83.0|' "$ignore" > "$wrong"
-          sed 's/expired_at: 2026-10-24/expired_at: 2026-01-01/' "$ignore" > "$expired"
+          sed -e 's|pkg:golang/google[.]golang[.]org/grpc@v1[.]83[.]1|pkg:golang/google.golang.org/grpc@v0.0.0|' \
+            -e 's|pkg:golang/golang[.]org/x/net@v0[.]58[.]0|pkg:golang/golang.org/x/net@v0.0.0|' \
+            -e 's|pkg:golang/stdlib@v1[.]26[.]8|pkg:golang/stdlib@v0.0.0|' "$ignore" > "$wrong"
+          sed 's/expired_at: 2026-10-21/expired_at: 2026-01-01/' "$ignore" > "$expired"
           for negative in "$wrong" "$expired"; do
             : > "$negative_scan"
             "$TRIVY_BIN" image --scanners vuln,secret --format json \

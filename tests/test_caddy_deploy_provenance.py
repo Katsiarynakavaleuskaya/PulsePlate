@@ -103,10 +103,14 @@ def _run_alertmanager_scan_fixture(
             {
                 "Target": target,
                 "Vulnerabilities": [
-                    {
-                        "VulnerabilityID": "CVE-2026-84445",
-                        "PkgIdentifier": {"PURL": "pkg:golang/google.golang.org/grpc@v1.83.1"},
-                    }
+                    {"VulnerabilityID": cve, "PkgIdentifier": {"PURL": purl}, "Severity": "HIGH"}
+                    for cve, purl in (
+                        ("CVE-2026-84445", "pkg:golang/google.golang.org/grpc@v1.83.1"),
+                        ("CVE-2026-78669", "pkg:golang/golang.org/x/net@v0.58.0"),
+                        ("CVE-2026-78669", "pkg:golang/stdlib@v1.26.8"),
+                        ("CVE-2026-78667", "pkg:golang/stdlib@v1.26.8"),
+                        ("CVE-2026-97031", "pkg:golang/stdlib@v1.26.8"),
+                    )
                 ],
             }
             for target in ("bin/alertmanager", "bin/amtool")
@@ -126,6 +130,13 @@ def _run_alertmanager_scan_fixture(
         "scenario=os.environ['SCAN_SCENARIO']\n"
         "report=json.loads(Path(os.environ['SCAN_REPORT']).read_text())\n"
         "if negative:\n"
+        " policy=Path(args[args.index('--ignorefile')+1]).read_text()\n"
+        " if late:\n"
+        "  assert policy.count('expired_at: 2026-01-01')==4 and 'expired_at: 2026-10-21' not in policy\n"
+        " else:\n"
+        "  for package,original in (('google.golang.org/grpc','1.83.1'),('golang.org/x/net','0.58.0'),('stdlib','1.26.8')):\n"
+        "   assert 'pkg:golang/'+package+'@v0.0.0' in policy\n"
+        "   assert 'pkg:golang/'+package+'@v'+original not in policy\n"
         " with Path(os.environ['SCAN_CALLS']).open('a') as stream: stream.write(ignore+'\\n')\n"
         " if scenario in ('exit1','exit2'):\n"
         "  print('scanner prerequisite failed; no report',file=sys.stderr); sys.exit(int(scenario[-1]))\n"
@@ -1951,6 +1962,9 @@ def _assert_checkpoint_pr_selection_uses_real_git(
     selected = tmp_path / selected_path
     selected.parent.mkdir(parents=True, exist_ok=True)
     selected.write_text("common\n")
+    manifest = tmp_path / "deploy/prometheus/image-manifest.json"
+    manifest.parent.mkdir(parents=True, exist_ok=True)
+    manifest.write_text("{}\n")
     call("add", ".")
     call("commit", "-qm", "common")
     common = call("rev-parse", "HEAD")
@@ -1978,6 +1992,7 @@ def _assert_checkpoint_pr_selection_uses_real_git(
         left, right = base, head
         base = call("commit-tree", tree, "-p", left, "-p", right, "-m", "left merge")
         head = call("commit-tree", tree, "-p", right, "-p", left, "-m", "right merge")
+    call("checkout", "--detach", "-q", head)
     env.update(
         {
             "OBS2A_BASE_SHA": base,
@@ -2000,7 +2015,7 @@ def _assert_checkpoint_pr_selection_uses_real_git(
     )
     step = _named_step(
         _steps(_job(_workflow(REPO_ROOT / ".github/workflows/ci.yml"), "lint")),
-        "Native OBS2A checkpoint lifecycle and owned-task challenge",
+        "Select native OBS2A material before PR startup",
     )
     fixture = (
         'python() { [ "$1" = "-m" ] && [ "$2" = "scripts.ci.prometheus_source_image" ] '
@@ -2012,7 +2027,7 @@ def _assert_checkpoint_pr_selection_uses_real_git(
         'else "$FIXTURE_CAT" >/dev/null; fi; return "$CAPTURE_STATUS"; }\n'
     )
     if case == "discovery-error":
-        fixture += 'git() { if [ "$1" = diff ]; then return 2; fi; "$FIXTURE_GIT" "$@"; }\n'
+        fixture += 'git() { for argument in "$@"; do if [ "$argument" = diff ]; then return 2; fi; done; "$FIXTURE_GIT" "$@"; }\n'
     result = subprocess.run(
         [bash, "-c", fixture + step["run"]],
         cwd=tmp_path,
@@ -2029,20 +2044,35 @@ def _assert_checkpoint_pr_selection_uses_real_git(
         assert not output.exists() and not log.exists()
     else:
         selected = case == "own" and expected_selected
-        expected_status = (consume_status or native_status or capture_status) if selected else 0
-        assert result.returncode == expected_status, result.stderr
-        assert (tmp_path / "consumer-argv").exists() is selected
+        assert result.returncode == 0, result.stderr
+        assert output.read_text() == (
+            "selected=true\nmode=unchanged_pr_published\n" if selected else "selected=false\n"
+        )
+        assert not (tmp_path / "native-calls").exists()
         if selected:
-            assert (tmp_path / "consumer-argv").read_text() == (
-                "-m scripts.ci.prometheus_source_image --operation consume --work-dir "
-                + str(tmp_path / "runner-temp/prometheus-obs2a-consumer-123-1")
-                + " --timeout-seconds 900 --cleanup-seconds 120\n"
+            # The synthetic consumer exit models the separate step result. The
+            # actual native program runs only after that admitted step succeeds.
+            if consume_status:
+                assert not log.exists()
+                return
+            native = _named_step(
+                _steps(_job(_workflow(REPO_ROOT / ".github/workflows/ci.yml"), "lint")),
+                "Native OBS2A checkpoint lifecycle and owned-task challenge",
             )
-        assert (tmp_path / "native-calls").exists() is (selected and consume_status == 0)
-        assert output.read_text() == ("selected=true\n" if selected else "selected=false\n")
-        assert log.exists() is (selected and consume_status == 0 and capture_log)
-        if selected and consume_status == 0 and capture_log:
-            assert log.read_text() == "native output\nnative diagnostic\n"
+            completed = subprocess.run(
+                [bash, "-c", fixture + native["run"]],
+                cwd=tmp_path,
+                env=env,
+                capture_output=True,
+                text=True,
+                timeout=10,
+                check=False,
+            )
+            assert completed.returncode == (native_status or capture_status), completed.stderr
+            assert (tmp_path / "native-calls").exists()
+            assert log.exists() is capture_log
+            if capture_log:
+                assert log.read_text() == "native output\nnative diagnostic\n"
 
 
 @pytest.mark.parametrize(
@@ -2087,7 +2117,7 @@ def _assert_checkpoint_pr_native_job(workflow: dict[str, object]) -> None:
     assert lint["needs"] == ["private_python_proxy_health"]
     assert lint["permissions"] == {"contents": "read", "actions": "read", "packages": "read"}
     assert lint["env"] == {"PROMETHEUS_CONSUME_SECONDS": "900", "PROMETHEUS_CLEANUP_SECONDS": "120"}
-    assert "environment" not in lint
+    assert lint["environment"] == "staging"
     assert lint["if"] == "${{ !cancelled() }}"
     assert lint["timeout-minutes"] == "${{ fromJSON(vars.CI_LINT_TIMEOUT_MINUTES || '90') }}"
     steps = _steps(lint)
@@ -2100,7 +2130,11 @@ def _assert_checkpoint_pr_native_job(workflow: dict[str, object]) -> None:
         "PRIVATE_PYTHON_PROXY_HEALTH_RESULT": "${{ needs.private_python_proxy_health.result }}"
     }
     checkout = _named_step(steps, "Checkout")
-    assert checkout["with"] == {"fetch-depth": 0, "persist-credentials": False}
+    assert checkout["with"] == {
+        "fetch-depth": 0,
+        "persist-credentials": False,
+        "ref": "${{ github.event.pull_request.head.sha || github.sha }}",
+    }
     setup = _named_step(steps, "Setup Python environment")
     assert setup["with"] == {
         "python-version": "${{ env.PYTHON_VERSION }}",
@@ -2118,34 +2152,50 @@ def _assert_checkpoint_pr_native_job(workflow: dict[str, object]) -> None:
     )
     native = _named_step(steps, "Native OBS2A checkpoint lifecycle and owned-task challenge")
     assert native["id"] == "checkpoint-native"
-    assert native["if"] == "github.event_name == 'pull_request'"
+    assert native["if"] == (
+        "github.event_name == 'pull_request' && steps.checkpoint-selection.outputs.selected == 'true'"
+    )
     # The actual existing CD owner supplies native budget parity; this PR does not redefine it.
     assert (
         native["timeout-minutes"]
         == _job(_workflow(CD_WORKFLOW), "obs2a-checkpoint-native")["timeout-minutes"]
     )
     assert native["env"] == {
-        "OBS2A_BASE_SHA": "${{ github.event.pull_request.base.sha }}",
-        "OBS2A_HEAD_SHA": "${{ github.event.pull_request.head.sha }}",
-        "GH_TOKEN": "${{ secrets.GITHUB_TOKEN }}",
-        "GITHUB_TOKEN": "${{ secrets.GITHUB_TOKEN }}",
-        "GHCR_READ_TOKEN": "${{ secrets.GITHUB_TOKEN }}",
+        "PROMETHEUS_RUNTIME_REF": "${{ steps.checkpoint-image.outputs.runtime_ref }}"
     }
-    assert "secrets.GHCR_READ_TOKEN" not in str(native)
-    assert native["run"].index("--operation consume") < native["run"].index("sudo /usr/bin/env -i")
-    child = native["run"].split("sudo /usr/bin/env -i", 1)[1].split("} 2>&1", 1)[0]
+    assert "--operation consume" not in native["run"]
+    assert all(key not in native["env"] for key in ("GH_TOKEN", "GITHUB_TOKEN", "GHCR_READ_TOKEN"))
+    consumer = _named_step(steps, "Consume exact Prometheus subject before PR startup")
+    control = _named_step(steps, "Checkout fixed trusted Prometheus control")
+    cleanup = _named_step(steps, "Remove fixed trusted Prometheus control checkout")
+    selection = _named_step(steps, "Select native OBS2A material before PR startup")
+    # pragma: allowlist nextline secret - public trusted control commit
+    assert control["with"]["ref"] == "5064aded22f478a22a4319b684e95d6c0b3ae46f"
+    assert control["with"]["persist-credentials"] is False
+    assert "python3 -I -S" in consumer["run"] and "runpy.run_path(str(helper))" in consumer["run"]
+    assert consumer["env"]["GH_TOKEN"] == "${{ secrets.GITHUB_TOKEN }}"
     assert (
-        "GH_TOKEN" not in child and "GITHUB_TOKEN" not in child and "GHCR_READ_TOKEN" not in child
+        consumer["env"]["GHCR_READ_TOKEN"]
+        == "${{ steps.checkpoint-selection.outputs.mode == 'unchanged_pr_published' && secrets.GHCR_READ_TOKEN || '' }}"
+    )
+    assert (
+        steps.index(checkout)
+        < steps.index(selection)
+        < steps.index(control)
+        < steps.index(consumer)
+        < steps.index(cleanup)
+        < steps.index(setup)
     )
     retention = _named_step(steps, "Retain selected PR OBS2A native observations")
     assert retention["if"] == (
         "always() && github.event_name == 'pull_request' "
-        "&& steps.checkpoint-native.outputs.selected == 'true'"
+        "&& (steps.checkpoint-selection.outputs.selected == 'true' || steps.checkpoint-selection.outcome == 'failure')"
     )
     assert retention["uses"] == "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
     assert retention["with"] == {
         "name": "obs2a-native-pr-${{ github.event.pull_request.number }}-${{ github.run_attempt }}",
-        "path": "artifacts/orchestration/obs2a_pr3/native-result.log\n"
+        "path": "artifacts/orchestration/obs2a_pr3/selection.log\n"
+        "artifacts/orchestration/obs2a_pr3/native-result.log\n"
         "${{ runner.temp }}/prometheus-obs2a-consumer-${{ github.run_id }}-${{ github.run_attempt }}/evidence/\n",
         "if-no-files-found": "error",
         "retention-days": 7,
@@ -2216,9 +2266,12 @@ def test_checkpoint_pr_missing_capture_is_failure_with_selected_invocation(tmp_p
     )
 
 
+@pytest.mark.parametrize("selected", ["true", "false", ""])
 @pytest.mark.parametrize("event", ["pull_request", "push", "workflow_dispatch"])
 @pytest.mark.parametrize("cancelled", [False, True])
-def test_checkpoint_pr_native_event_and_outer_job_admission(event: str, cancelled: bool) -> None:
+def test_checkpoint_pr_native_event_and_outer_job_admission(
+    event: str, cancelled: bool, selected: str
+) -> None:
     workflow = _workflow(REPO_ROOT / ".github/workflows/ci.yml")
     _assert_checkpoint_pr_native_job(workflow)
     lint = _job(workflow, "lint")
@@ -2226,6 +2279,7 @@ def test_checkpoint_pr_native_event_and_outer_job_admission(event: str, cancelle
     outer = lint["if"].removeprefix("${{").removesuffix("}}").strip()
     outer = outer.replace("!cancelled()", "1 == 0" if cancelled else "1 == 1")
     inner = native["if"].replace("github.event_name", repr(event))
+    inner = inner.replace("steps.checkpoint-selection.outputs.selected", repr(selected))
     bash = shutil.which("bash")
     assert bash is not None
     result = subprocess.run(
@@ -2236,7 +2290,9 @@ def test_checkpoint_pr_native_event_and_outer_job_admission(event: str, cancelle
         timeout=10,
         check=False,
     )
-    assert (result.returncode == 0) is (not cancelled and event == "pull_request")
+    assert (result.returncode == 0) is (
+        not cancelled and event == "pull_request" and selected == "true"
+    )
 
 
 @pytest.mark.parametrize("proxy_result", ["success", "failure", "cancelled", "skipped"])

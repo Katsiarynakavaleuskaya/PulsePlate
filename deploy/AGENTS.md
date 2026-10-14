@@ -157,7 +157,7 @@ PRODUCTION_DOMAIN=example.com STAGING_FALLBACK_DOMAIN=staging.example.com \
   cannot activate a profile. Configuration-only profile rendering does not
   authorize runtime activation. Prove precedence with native Compose;
   arbitrary sourced-shell behavior is outside this bounded profile check.
-- The Alertmanager exception expires at `2026-10-24T00:00:00Z`; selected
+- The Alertmanager exception expires at `2026-10-21T00:00:00Z`; selected
   alerting must reject at or after that UTC instant. Profile-off production
   admission also performs a read-only all-state Docker label census of the
   installed Compose project's Alertmanager, including on a first bundle when

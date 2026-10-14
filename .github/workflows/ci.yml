@@ -720,6 +720,7 @@ jobs:
     if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     timeout-minutes: ${{ fromJSON(vars.CI_LINT_TIMEOUT_MINUTES || '90') }}
+    environment: staging
     permissions:
       contents: read
       actions: read
@@ -739,7 +740,153 @@ jobs:
 
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with: {fetch-depth: 0, persist-credentials: false}
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Select native OBS2A material before PR startup
+        id: checkpoint-selection
+        if: github.event_name == 'pull_request'
+        env:
+          OBS2A_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          OBS2A_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/orchestration/obs2a_pr3
+          exec 3>&1 4>&2
+          exec > artifacts/orchestration/obs2a_pr3/selection.log 2>&1
+          trap 'selection_status=$?; exec 1>&3 2>&4 3>&- 4>&-; if cat artifacts/orchestration/obs2a_pr3/selection.log; then exit "$selection_status"; else capture_status=$?; if [ "$selection_status" -ne 0 ]; then exit "$selection_status"; fi; exit "$capture_status"; fi' EXIT
+          git_safe=(git --no-replace-objects -c core.fsmonitor=false -c core.hooksPath=/dev/null -c core.pager=cat)
+          selected_head="$("${git_safe[@]}" rev-parse HEAD)"
+          test "$selected_head" = "$OBS2A_HEAD_SHA"
+          "${git_safe[@]}" rev-parse --verify "$OBS2A_BASE_SHA^{commit}" >/dev/null
+          "${git_safe[@]}" rev-parse --verify "$OBS2A_HEAD_SHA^{commit}" >/dev/null
+          merge_base="$("${git_safe[@]}" merge-base --all "$OBS2A_BASE_SHA" "$OBS2A_HEAD_SHA")"
+          case "$merge_base" in
+            '' | *$'\n'*) echo "Native PR ancestry is missing or ambiguous" >&2; exit 1 ;;
+          esac
+          diff_status=0
+          if "${git_safe[@]}" diff --quiet --no-ext-diff --no-textconv "$merge_base" "$OBS2A_HEAD_SHA" -- \
+            deploy/systemd scripts/ops/notify_premium_alias_checkpoint_failure.py \
+            scripts/verify_premium_alias_telemetry.py tests/test_notify_premium_alias_checkpoint_failure.py \
+            .github/workflows/ci.yml .github/workflows/cd.yml scripts/deploy.sh scripts/deploy_production.sh; then
+            diff_status=0
+          else
+            diff_status=$?
+          fi
+          case "$diff_status" in
+            0) echo "selected=false" >> "$GITHUB_OUTPUT"; exit 0 ;;
+            1) echo "selected=true" >> "$GITHUB_OUTPUT" ;;
+            *) echo "Native surface discovery failed" >&2; exit "$diff_status" ;;
+          esac
+          manifest_path=deploy/prometheus/image-manifest.json
+          for revision in "$OBS2A_BASE_SHA" "$OBS2A_HEAD_SHA"; do
+            entry="$("${git_safe[@]}" ls-tree "$revision" -- "$manifest_path")"
+            [[ "$entry" =~ ^100644\ blob\ [0-9a-f]{40}$'\t'"$manifest_path"$ ]]
+          done
+          base_blob="$("${git_safe[@]}" rev-parse "$OBS2A_BASE_SHA:$manifest_path")"
+          head_blob="$("${git_safe[@]}" rev-parse "$OBS2A_HEAD_SHA:$manifest_path")"
+          if [ "$base_blob" = "$head_blob" ]; then
+            echo "mode=unchanged_pr_published" >> "$GITHUB_OUTPUT"
+          else
+            echo "mode=changed_pr_candidate" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Require fresh fixed Prometheus control checkout
+        if: github.event_name == 'pull_request' && steps.checkpoint-selection.outputs.selected == 'true'
+        run: |
+          set -euo pipefail
+          test ! -e artifacts/orchestration/prometheus-control
+          test ! -L artifacts/orchestration/prometheus-control
+          for parent in artifacts artifacts/orchestration; do
+            test -d "$parent" && test ! -L "$parent"
+          done
+
+      - name: Checkout fixed trusted Prometheus control
+        id: prometheus-control-checkout
+        if: github.event_name == 'pull_request' && steps.checkpoint-selection.outputs.selected == 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: 5064aded22f478a22a4319b684e95d6c0b3ae46f # pragma: allowlist secret - public trusted control commit
+          persist-credentials: false
+          path: artifacts/orchestration/prometheus-control
+          sparse-checkout: scripts/ci/prometheus_source_image.py
+          sparse-checkout-cone-mode: false
+
+      - name: Consume exact Prometheus subject before PR startup
+        id: checkpoint-image
+        if: github.event_name == 'pull_request' && steps.checkpoint-selection.outputs.selected == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GHCR_READ_TOKEN: ${{ steps.checkpoint-selection.outputs.mode == 'unchanged_pr_published' && secrets.GHCR_READ_TOKEN || '' }}
+          PROMETHEUS_CREDENTIAL_ROUTE: ${{ steps.checkpoint-selection.outputs.mode }}
+        run: |
+          set -euo pipefail
+          python3 -I -S - <<'PY'
+          import hashlib, json, os, runpy, signal, stat, subprocess
+          from pathlib import Path
+
+          material = Path(os.environ["GITHUB_WORKSPACE"])
+          control = material / "artifacts/orchestration/prometheus-control"
+          helper = control / "scripts/ci/prometheus_source_image.py"
+          for path in (control, control / "scripts", control / "scripts/ci", helper):
+              info = path.lstat()
+              if info.st_uid != os.getuid() or stat.S_ISLNK(info.st_mode):
+                  raise SystemExit("Prometheus_control_path_HOLD")
+          if not helper.is_file() or stat.S_IMODE(helper.stat().st_mode) != 0o644:
+              raise SystemExit("Prometheus_control_mode_HOLD")
+          raw = helper.read_bytes()
+          if len(raw) != 315949 or hashlib.sha256(raw).hexdigest() != "0e7a73b0159c442cf5f9377aa862e38d643145f81ac6a54ee50b31682f6c3e3e":
+              raise SystemExit("Prometheus_control_bytes_HOLD")
+          environment = {"PATH": "/usr/bin:/bin", "LANG": "C", "GIT_NO_REPLACE_OBJECTS": "1",
+                         "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": "/dev/null"}
+          revision = subprocess.run(["/usr/bin/git", "--no-replace-objects", "-C", str(control),
+                                     "rev-parse", "HEAD"], env=environment, capture_output=True, check=True)
+          if revision.stdout.strip() != b"5064aded22f478a22a4319b684e95d6c0b3ae46f":
+              raise SystemExit("Prometheus_control_revision_HOLD")
+          object_row = subprocess.run(["/usr/bin/git", "--no-replace-objects", "-C", str(control),
+                                      "ls-tree", "-z", "HEAD", "--", "scripts/ci/prometheus_source_image.py"],
+                                     env=environment, capture_output=True, check=True)
+          if object_row.stdout != b"100644 blob 3029aeba29126a05fba5cbd6953916618852d0e2\tscripts/ci/prometheus_source_image.py\0":
+              raise SystemExit("Prometheus_control_object_HOLD")
+          event_head = subprocess.run(["/usr/bin/git", "--no-replace-objects", "-C", str(material),
+                                      "rev-parse", "HEAD"], env=environment, capture_output=True, check=True)
+          event = json.loads(Path(os.environ["GITHUB_EVENT_PATH"]).read_bytes())
+          if event_head.stdout.strip().decode() != event["pull_request"]["head"]["sha"]:
+              raise SystemExit("Prometheus_material_revision_HOLD")
+          route = os.environ["PROMETHEUS_CREDENTIAL_ROUTE"]
+          if route not in ("changed_pr_candidate", "unchanged_pr_published"):
+              raise SystemExit("Prometheus_credential_route_HOLD")
+          if route == "changed_pr_candidate" and os.environ.get("GHCR_READ_TOKEN"):
+              raise SystemExit("Prometheus_candidate_registry_HOLD")
+          trusted = runpy.run_path(str(helper))
+          work = Path(os.environ["RUNNER_TEMP"]) / ("prometheus-obs2a-consumer-" + os.environ["GITHUB_RUN_ID"] + "-" + os.environ["GITHUB_RUN_ATTEMPT"])
+          signal.signal(signal.SIGTERM, trusted["interrupt"])
+          signal.signal(signal.SIGINT, trusted["interrupt"])
+          try:
+              result = trusted["consume_image"](work, material, int(os.environ["PROMETHEUS_CONSUME_SECONDS"]), int(os.environ["PROMETHEUS_CLEANUP_SECONDS"]))
+          except (Exception, KeyboardInterrupt) as error:
+              diagnostic = trusted["diagnostic_code"](error) or type(error).__name__
+              raise SystemExit("Prometheus_consume_HOLD:" + diagnostic) from None
+          selection = result["selection"]
+          outputs = {"manifest_digest": selection["manifest_digest"], "config_digest": selection["config_digest"],
+                     "source_revision": selection["source_revision"], "runtime_ref": result.get("runtime_ref", selection["runtime_ref"])}
+          with Path(os.environ["GITHUB_OUTPUT"]).open("a") as output:
+              for key, value in outputs.items():
+                  trusted["require"](type(value) is str and "\n" not in value and "\r" not in value, "native_output_single_line")
+                  output.write(key + "=" + value + "\n")
+          PY
+
+      - name: Remove fixed trusted Prometheus control checkout
+        if: always() && github.event_name == 'pull_request' && (steps.prometheus-control-checkout.outcome == 'success' || steps.prometheus-control-checkout.outcome == 'failure')
+        run: |
+          set -euo pipefail
+          control="$GITHUB_WORKSPACE/artifacts/orchestration/prometheus-control"
+          test ! -L "$control"
+          rm -rf -- "$control"
+          test ! -e "$control" && test ! -L "$control"
 
       - name: Setup Python environment
         uses: ./.github/actions/python-setup
@@ -765,68 +912,36 @@ jobs:
 
       - name: Native OBS2A checkpoint lifecycle and owned-task challenge
         id: checkpoint-native
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' && steps.checkpoint-selection.outputs.selected == 'true'
         timeout-minutes: ${{ fromJSON(vars.OBS2A_NATIVE_JOB_TIMEOUT_MINUTES || '40') }}
         env:
-          OBS2A_BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          OBS2A_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GHCR_READ_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PROMETHEUS_RUNTIME_REF: ${{ steps.checkpoint-image.outputs.runtime_ref }}
         run: |
           set -euo pipefail
-          diff_status=0
-          git rev-parse --verify "$OBS2A_BASE_SHA^{commit}" >/dev/null
-          git rev-parse --verify "$OBS2A_HEAD_SHA^{commit}" >/dev/null
-          merge_base="$(git merge-base --all "$OBS2A_BASE_SHA" "$OBS2A_HEAD_SHA")"
-          case "$merge_base" in
-            '' | *$'\n'*) echo "Native PR ancestry is missing or ambiguous" >&2; exit 1 ;;
-          esac
-          git rev-parse --verify "$merge_base^{commit}" >/dev/null
-          if git diff --quiet "$merge_base" "$OBS2A_HEAD_SHA" -- \
-            deploy/systemd scripts/ops/notify_premium_alias_checkpoint_failure.py \
-            scripts/verify_premium_alias_telemetry.py tests/test_notify_premium_alias_checkpoint_failure.py \
-            .github/workflows/ci.yml .github/workflows/cd.yml scripts/deploy.sh scripts/deploy_production.sh; then
-            diff_status=0
+          native_python="$(command -v python)"
+          mkdir -p artifacts/orchestration/obs2a_pr3
+          if {
+            sudo /usr/bin/env -i PATH=/usr/local/bin:/usr/bin:/bin LANG=C HOME=/tmp PYTHONDONTWRITEBYTECODE=1 \
+            "$native_python" -m tests.test_notify_premium_alias_checkpoint_failure --native
+          } 2>&1 | tee artifacts/orchestration/obs2a_pr3/native-result.log; then
+            pipeline_status=("${PIPESTATUS[@]}")
           else
-            diff_status=$?
+            pipeline_status=("${PIPESTATUS[@]}")
           fi
-          case "$diff_status" in
-            0)
-              echo "selected=false" >> "$GITHUB_OUTPUT"
-              echo "No OBS2A native surface selected."
-              ;;
-            1)
-              echo "selected=true" >> "$GITHUB_OUTPUT"
-              native_python="$(command -v python)"
-              mkdir -p artifacts/orchestration/obs2a_pr3
-              "$native_python" -m scripts.ci.prometheus_source_image --operation consume \
-                --work-dir "$RUNNER_TEMP/prometheus-obs2a-consumer-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" \
-                --timeout-seconds "$PROMETHEUS_CONSUME_SECONDS" --cleanup-seconds "$PROMETHEUS_CLEANUP_SECONDS"
-              if {
-                sudo /usr/bin/env -i PATH=/usr/local/bin:/usr/bin:/bin LANG=C HOME=/tmp PYTHONDONTWRITEBYTECODE=1 \
-                "$native_python" -m tests.test_notify_premium_alias_checkpoint_failure --native
-              } 2>&1 | tee artifacts/orchestration/obs2a_pr3/native-result.log; then
-                pipeline_status=("${PIPESTATUS[@]}")
-              else
-                pipeline_status=("${PIPESTATUS[@]}")
-              fi
-              native_status="${pipeline_status[0]}"
-              capture_status="${pipeline_status[1]}"
-              if [ "$native_status" -ne 0 ]; then
-                exit "$native_status"
-              fi
-              exit "$capture_status"
-              ;;
-            *) echo "Native surface discovery failed" >&2; exit "$diff_status" ;;
-          esac
+          native_status="${pipeline_status[0]}"
+          capture_status="${pipeline_status[1]}"
+          if [ "$native_status" -ne 0 ]; then
+            exit "$native_status"
+          fi
+          exit "$capture_status"
 
       - name: Retain selected PR OBS2A native observations
-        if: always() && github.event_name == 'pull_request' && steps.checkpoint-native.outputs.selected == 'true'
+        if: always() && github.event_name == 'pull_request' && (steps.checkpoint-selection.outputs.selected == 'true' || steps.checkpoint-selection.outcome == 'failure')
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1 / Node 24
         with:
           name: obs2a-native-pr-${{ github.event.pull_request.number }}-${{ github.run_attempt }}
           path: |
+            artifacts/orchestration/obs2a_pr3/selection.log
             artifacts/orchestration/obs2a_pr3/native-result.log
             ${{ runner.temp }}/prometheus-obs2a-consumer-${{ github.run_id }}-${{ github.run_attempt }}/evidence/
           if-no-files-found: error

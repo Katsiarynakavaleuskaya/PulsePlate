@@ -15748,3 +15748,18 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - **Reason for deferral:** CAB-07B's actual same-recognizer Security finding showed the pre-fix pass named Windows/tilde rejection but missed the route-context × match-form cross-product. The current shared conditional and real native-consumer regressions own the defect closure; instruction promotion is separate and outside this bounded implementation.
   - **Source/evidence:** `scripts/orchestration/experiment_runner_pr_creative_context_contract.py:265`, `scripts/orchestration/experiment_runner_pr_creative_context.py:875`, `.cursor/agents/logic-agent.md`, and CAB-07B PR #2471's reviewed native before/after controls and redacted learning proposal.
   - **DoD:** Review the smallest authoritative logic-role guidance against the current finite recognizer alternatives, exemptions and deny-before-exemption control flow; require explicit representative context × match-form counterexamples and actual canonical-consumer observations while retaining finite/open-world claim limits. Promote only a reviewed, non-duplicative instruction delta in that substantive PR; preserve current guard ownership, source-reading requirements, provider-neutral evidence and human authority. Do not introduce another parser, carrier, validator family or runtime framework.
+
+
+<a id="ledger-p1-alertmanager-four-cve-week-carryover"></a>
+
+### P1: Complete Alertmanager four-CVE remediation after main stabilization
+
+- [ ] Owner: PulsePlate DevOps and security-auditor.
+- Priority: P1. Target PR: next substantive Alertmanager security/remediation/publication PR after healthy main; number not assigned.
+- Status: OPEN; current temporary-risk carrier is PR #2477, not completed remediation.
+- Deadline: 2026-10-21T00:00:00Z; the operator-approved week is not automatically renewable.
+- Reason for deferral: on 2026-10-14 the official release list still showed Alertmanager 0.34.1; component fixes exist, but the separate replacement producer/native acceptance/publication is unfinished. The operator explicitly selected exact current-image suppression and this carryover to stabilize main.
+- Scope: CVE-2026-84445, CVE-2026-78669, CVE-2026-78667 and CVE-2026-97031; exactly ten current HIGH findings across alertmanager/amtool on official linux/amd64 digest 84967b9b7ba45e38a9278d3e594305f43d4993c310df3905b51138b816c365f3. Preserve original #2477 AM-v2 unachieved obligations and all source/native evidence.
+- Evidence and risk: [canonical four-CVE security document](../security/CVE-2026-84445-alertmanager.md); the existing precise policy is suppressed residual risk, not a raw-clean or remediation result.
+- DoD: accept a patched official subject or complete qualified source 0.34.1/73c6bfe7393929211294c1954f30d8ed78e4d0ad with matching UI, two independent solver replays/original-derived locks/full delta/module-edge inventories/netgo graphs/frozen six-input readback, Go 1.27.2, x/net 0.60.0, gRPC 1.83.2 and only necessary replay-proven closure; separately admit the one hosted both-binary build and preserve Q825+cleanup45/AM0of1 history without renewal; prove both build-info records, full supported vulnerability/secret scans, provenance, amtool/config/readiness/default-CA/TLS-hostname negatives/probes-MIME/storage/restart, exact three-contour consumer adoption and immutable main publication/pullback; remove the complete now-obsolete exception only with those outcomes. Received email and OBS2A activation/30-day observation remain separate.
+- Rollback/expiry: withdraw this temporary admission and keep readiness/deploy admission fail-closed if the deadline arrives without acceptance; do not extend dates or automatically disable a running monitor.

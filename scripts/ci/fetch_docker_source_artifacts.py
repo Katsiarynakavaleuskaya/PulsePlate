@@ -1111,7 +1111,9 @@ def _retain_alertmanager_inputs(
         raise RuntimeError("Frozen Alertmanager input payload exceeds existing carrier limits.")
     rows = []
     destination = evidence / "frozen-inputs.tar"
-    with tarfile.open(destination, "x", format=tarfile.USTAR_FORMAT) as archive:
+    # Go module-cache basenames can exceed USTAR's 100-byte name field. PAX
+    # preserves the same logical members and their explicitly fixed metadata.
+    with tarfile.open(destination, "x", format=tarfile.PAX_FORMAT) as archive:
         for name, path in directories + files:
             check_deadline(deadline)
             info = path.lstat()
@@ -1228,13 +1230,13 @@ def _alertmanager_finalize_payload(evidence: Path, deadline: float) -> None:
 
 
 def _qualify_alertmanager_modules(output: Path) -> None:
-    """ONE fixed900 owner; source child restores its remaining parent timer."""
+    """ONE fixed825 owner; source child restores its remaining parent timer."""
     import signal
 
     seconds_text = os.environ.get("ALERTMANAGER_QUALIFY_SECONDS")
-    if seconds_text != "900":
+    if seconds_text != "825":
         raise RuntimeError(
-            "Alertmanager qualification requires the workflow's exact 900-second bound."
+            "Alertmanager qualification requires the workflow's exact 825-second bound."
         )
     seconds = int(seconds_text)
     started = time.monotonic()
@@ -1243,7 +1245,7 @@ def _qualify_alertmanager_modules(output: Path) -> None:
     saved_handler = signal.getsignal(signal.SIGALRM)
 
     def timeout(signum: int, frame: object) -> None:
-        raise TimeoutError("Alertmanager complete qualification900 deadline exhausted.")
+        raise TimeoutError("Alertmanager complete qualification825 deadline exhausted.")
 
     signal.signal(signal.SIGALRM, timeout)
     signal.setitimer(signal.ITIMER_REAL, seconds)
@@ -1317,7 +1319,7 @@ def _alertmanager_module_phase(output: Path, deadline: float, seconds: int) -> N
     evidence = output / "alertmanager-module-evidence"
     output.mkdir(parents=True, exist_ok=True)
     evidence.mkdir(mode=0o700)
-    native = Native(evidence, deadline, 120)
+    native = Native(evidence, deadline, 45)
     owner_token = uuid.uuid4().hex
     owned_names: set[str] = set()
     owned_ids: set[str] = set()

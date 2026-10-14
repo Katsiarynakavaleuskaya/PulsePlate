@@ -3194,7 +3194,7 @@ def test_alertmanager_module_mode_is_manual_first_attempt_and_build_is_held() ->
     assert "github.run_attempt == 1" in admission
     assert "github.repository == 'Katsiarynakavaleuskaya/PulsePlate'" in admission
     assert job["permissions"] == {"contents": "read", "actions": "read"}
-    assert job["env"]["ALERTMANAGER_QUALIFY_SECONDS"] == "900"
+    assert job["env"]["ALERTMANAGER_QUALIFY_SECONDS"] == "825"
     first = job["steps"][0]["run"]
     assert 'test "$ALERTMANAGER_MODE" = module-qualify' in first
     assert 'test "$SOURCE_SHA" = "$GITHUB_SHA"' in first
@@ -3582,6 +3582,9 @@ def test_alertmanager_frozen_input_artifact_includes_required_bytes_and_excludes
     modules.mkdir()
     (source / "go.mod").write_bytes(b"derived exact lock")
     (modules / "module").write_bytes(b"frozen exact module")
+    long_module = modules / ("module-cache-" + "x" * 151)
+    long_module.write_bytes(b"exact long-name module bytes")
+    long_module.chmod(0o444)
     files = []
     for name in ("go", "base", "original", "ui"):
         path = tmp_path / name
@@ -3598,7 +3601,33 @@ def test_alertmanager_frozen_input_artifact_includes_required_bytes_and_excludes
         assert {"go-toolchain.tar.gz", "base-image.tar", "source.tar.gz", "ui.tar.gz"} <= set(names)
         assert not any("private" in name or "HOME" in name for name in names)
         assert archive.extractfile("source/go.mod").read() == b"derived exact lock"
+        long_name = "modules/" + long_module.name
+        assert archive.extractfile(long_name).read() == long_module.read_bytes()
+        assert archive.getmember(long_name).mode == 0o444
+        observed = []
+        for member in archive.getmembers():
+            row = {
+                "path": member.name,
+                "mode": member.mode,
+                "bytes": member.size,
+                "type": "directory" if member.isdir() else "file",
+            }
+            assert member.uid == member.gid == member.mtime == 0
+            if member.isfile():
+                row["sha256"] = sha256(archive.extractfile(member).read()).hexdigest()
+            observed.append(row)
+        assert observed == result["members"]
     assert result["private_HTTP_and_HOME_excluded"] is True
+    assert sha256((evidence / "frozen-inputs.tar").read_bytes()).hexdigest() == result["sha256"]
+    repeated = tmp_path / "repeated-evidence"
+    repeated.mkdir()
+    repeated_result = docker_sources._retain_alertmanager_inputs(
+        repeated, source, modules, *files, time.monotonic() + 10
+    )
+    assert repeated_result == result
+    assert (repeated / "frozen-inputs.tar").read_bytes() == (
+        evidence / "frozen-inputs.tar"
+    ).read_bytes()
     files[0].unlink()
     other = tmp_path / "other-evidence"
     other.mkdir()
@@ -3725,7 +3754,7 @@ def test_alertmanager_qualification_timer_restores_remaining_caller_without_rese
     def prior_handler(*args: object) -> None:
         pass
 
-    monkeypatch.setenv("ALERTMANAGER_QUALIFY_SECONDS", "900")
+    monkeypatch.setenv("ALERTMANAGER_QUALIFY_SECONDS", "825")
     monkeypatch.setattr(docker_sources.time, "monotonic", lambda: now[0])
     monkeypatch.setattr(signal, "getitimer", lambda which: (1200.0, 0.0))
     monkeypatch.setattr(signal, "getsignal", lambda which: prior_handler)
@@ -3735,12 +3764,12 @@ def test_alertmanager_qualification_timer_restores_remaining_caller_without_rese
     )
 
     def synthetic_phase(output: Path, deadline: float, seconds: int) -> None:
-        assert deadline == 900 and seconds == 900
+        assert deadline == 825 and seconds == 825
         now[0] = 7.0
 
     monkeypatch.setattr(docker_sources, "_alertmanager_module_phase", synthetic_phase)
     docker_sources._qualify_alertmanager_modules(tmp_path)
-    assert timers == [(900, 0.0), (0, 0.0), (1193.0, 0.0)]
+    assert timers == [(825, 0.0), (0, 0.0), (1193.0, 0.0)]
     assert handlers[-1] is prior_handler
 
 
