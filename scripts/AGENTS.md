@@ -150,6 +150,24 @@
   gates and authentication/body-fetch operations retain 120 seconds. A timeout
   remains a blocking failure; the budget does not replace proof or authorize merge.
 
+## PR closeout command sequencing
+
+Pending CI on the preceding or current pre-push head does not block an admitted
+bounded correction within the same PR, its normal commit/push, or registered material freeze,
+exact-material self-review and seal preparation. Complete the required narrow
+local validation and material-bound Experiment Runner evidence when applicable.
+Preserve the existing commands' clean-checkout, live-head/material-binding and
+single closeout publication contracts.
+
+The terminal-CI-before-fix-promotion/preparation ordering in
+[Engineering lesson 32](../docs/ENGINEERING_LESSONS.md#32-restart-closeout-only-after-a-real-material-correction)
+does not govern this admitted script/native closeout command sequence.
+Preparation and publication do not establish merge readiness;
+[root AGENTS.md](../AGENTS.md) governs final current-head checks and
+merge-readiness requirements. Record pending checks as pending. Do not retrieve
+active-run logs, rerun active runs or manually cancel them for this command
+sequence.
+
 ## CI trust-boundary helper usage
 
 - `check_pr_merge_readiness.py --material-repo-root` is the staged interface for
