@@ -278,6 +278,11 @@ Operator routing baseline before PR2 workflow consolidation:
 - Release/image PR: inspect `Docker Build and Push` plus any publish lane that
   the PR explicitly changes.
 
+For workflow lint triage, reproduce the Actionlint release selected by the pinned
+commit in `.github/workflows/actionlint.yml`. A newer Homebrew binary can accept
+YAML syntax that the CI version rejects. Verify the official release checksum
+before running its binary locally; keep the existing lint checks enabled.
+
 ## Native Python client build and lock refresh
 
 After proven candidate remediation, retire only the obsolete policy family and

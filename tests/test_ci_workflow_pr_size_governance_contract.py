@@ -4586,6 +4586,23 @@ MERGE_GOVERNANCE_OWNER_TARGETS = (
 )
 
 
+def _copy_contract_process_census(tmp_path: Path) -> None:
+    """Give isolated shell fixtures the workflow's unchanged native observer."""
+    for relative in (
+        "scripts/__init__.py",
+        "scripts/ci/__init__.py",
+        "scripts/ci/prometheus_source_image.py",
+    ):
+        copied = tmp_path / relative
+        copied.parent.mkdir(parents=True, exist_ok=True)
+        original = REPO_ROOT / relative
+        if original.is_file():
+            shutil.copyfile(original, copied)
+        else:
+            assert relative.endswith("/__init__.py")
+            copied.write_text("")
+
+
 def test_contract_risk_suite_blocks_stay_in_sync_and_cover_required_targets() -> None:
     workflow = _load_ci_workflow()
     test_pr_groups = _contract_suite_targets_by_group(workflow, job_id="test-pr")
@@ -4679,6 +4696,7 @@ def test_closeout_owner_is_an_executed_merge_governance_argument(
     step["run"] = run
     parsed = _contract_suite_targets_by_group(workflow, job_id=job_id)["merge_governance"]
     assert (target in parsed) is (mutation == "valid")
+    _copy_contract_process_census(tmp_path)
     observer = tmp_path / "python"
     observer.write_text(
         "#!"
@@ -4686,6 +4704,8 @@ def test_closeout_owner_is_an_executed_merge_governance_argument(
         + "\n"
         + "import json, os, sys\nfrom pathlib import Path\n"
         + "args = sys.argv[1:]\n"
+        + 'if args[:1] == ["-"]:\n'
+        + "    os.execv(sys.executable, [sys.executable, *args])\n"
         + 'if args[:3] == ["-m", "coverage", "run"]:\n'
         + '    Path("observed-argv.json").write_text(json.dumps(args))\n'
         + '    Path(os.environ["COVERAGE_FILE"]).write_text("batch data")\n'
@@ -4713,7 +4733,7 @@ def test_closeout_owner_is_an_executed_merge_governance_argument(
         timeout=10,
         check=False,
     )
-    assert result.returncode == 0, result.stderr
+    assert result.returncode == 0, result.stdout + result.stderr
     argv = json.loads((tmp_path / "observed-argv.json").read_text())
     expected = [
         owner for owner in MERGE_GOVERNANCE_OWNER_TARGETS if mutation == "valid" or owner != target
@@ -4812,6 +4832,8 @@ def test_contract_batches_wait_all_statuses_and_combine_only_complete_isolated_i
     (tmp_path / ".coverage").write_text("existing smoke coverage")
     if stale_data:
         (tmp_path / ".coverage.contract-risk-1").write_text("stale batch data")
+    # Delegate the workflow's post-wait query to the real, unchanged census.
+    _copy_contract_process_census(tmp_path)
     observer = tmp_path / "python"
     observer.write_text(
         "#!"
@@ -4822,6 +4844,8 @@ def test_contract_batches_wait_all_statuses_and_combine_only_complete_isolated_i
         + f"terminate_run = {terminate_run!r}\nresidual_child = {residual_child!r}\n"
         + r"""
 args = sys.argv[1:]
+if args[:1] == ["-"]:
+    os.execv(sys.executable, [sys.executable, *args])
 events = Path("events")
 if args[:5] == ["-W", "error", "-m", "coverage", "combine"]:
     assert [p.name for p in sorted(events.glob("done-*.json"))] == sorted(
@@ -4974,6 +4998,24 @@ raise SystemExit(status)
         assert (tmp_path / ".coverage.contract-risk-1").read_text() == "stale batch data"
         assert (tmp_path / ".coverage").read_text() == "existing smoke coverage"
         return
+
+    def assert_native_process_inactive(pid: int, pgid: int) -> dict[str, object]:
+        import time
+
+        from scripts.ci.prometheus_source_image import process_census
+
+        rows = process_census(time.monotonic() + 1, ())
+        witness = rows.get(os.getpid())
+        assert witness is not None and witness["uid"] == os.getuid()
+        group = [row for row in rows.values() if row["pgid"] == pgid]
+        assert all(
+            row["uid"] == os.getuid() and row["state"] == "Z" and row["pid"] != pgid
+            for row in group
+        ), group
+        selected = rows.get(pid)
+        assert selected is None or selected in group
+        return {"physical_absence": not group, "members": group}
+
     if terminate_run:
         assert sorted(path.name for path in events.glob("start-*.json")) == [
             "start-1.json",
@@ -4981,17 +5023,15 @@ raise SystemExit(status)
         ]
         if terminate_run == "ignore":
             grandchild = json.loads((events / "grandchild.json").read_text())
-            with pytest.raises(ProcessLookupError):
-                os.kill(grandchild["pid"], 0)
-            with pytest.raises(ProcessLookupError):
-                os.killpg(grandchild["pgid"], 0)
+            observed = assert_native_process_inactive(grandchild["pid"], grandchild["pgid"])
+            (events / "grandchild-inactive-observation.json").write_text(json.dumps(observed))
         assert result.stdout.count("Reaped owned contract/risk batch pid") == 2
         for index in (1, 2):
             child = json.loads((events / f"start-{index}.json").read_text())
             with pytest.raises(ProcessLookupError):
                 os.kill(child["pid"], 0)
-            with pytest.raises(ProcessLookupError):
-                os.killpg(child["pgid"], 0)
+            observed = assert_native_process_inactive(child["pid"], child["pgid"])
+            (events / f"batch-{index}-inactive-observation.json").write_text(json.dumps(observed))
         children = {
             index: json.loads((events / f"start-{index}.json").read_text()) for index in (1, 2)
         }
@@ -5019,7 +5059,7 @@ raise SystemExit(status)
                 assert json.loads((events / f"signalled-{index}.json").read_text())["signal"] == 15
                 assert not marker.exists()
             elif marker.exists():
-                # KILL cannot run the observer callback; kernel absence was checked above.
+                # KILL cannot run the observer callback; leader absence and group inactivity were checked.
                 assert marker.read_text() == str(child["pid"])
                 allowed_markers.add(marker.name)
         assert {path.name for path in events.glob("running-*")} == allowed_markers
@@ -5032,10 +5072,8 @@ raise SystemExit(status)
     if residual_child:
         assert (events / "residual-stopped").read_text() == "SIGTERM"
         child = json.loads((events / "residual-child.json").read_text())
-        with pytest.raises(ProcessLookupError):
-            os.kill(child["pid"], 0)
-        with pytest.raises(ProcessLookupError):
-            os.killpg(child["pgid"], 0)
+        observed = assert_native_process_inactive(child["pid"], child["pgid"])
+        (events / "residual-inactive-observation.json").write_text(json.dumps(observed))
     seen_targets: list[str] = []
     databases: set[str] = set()
     for index in range(1, batch_count + 1):
@@ -5094,6 +5132,103 @@ raise SystemExit(status)
                 )
             ],
         ]
+
+
+@pytest.mark.parametrize("job_id", ["test-pr", "test-feature"])
+@pytest.mark.parametrize(
+    "case",
+    [
+        "empty",
+        "zombie",
+        "live",
+        "mixed",
+        "foreign",
+        "leader",
+        "unknown",
+        "unknown_zombie",
+        "duplicate",
+        "partial",
+        "no_observer",
+        "observer_foreign",
+        "provider_error",
+        "provider_timeout",
+        "observation_deadline",
+    ],
+)
+def test_contract_postwait_observation_requires_native_witness_and_inactive_members(
+    tmp_path: Path, job_id: str, case: str
+) -> None:
+    import sys
+
+    step = _job_step_by_name(
+        _load_ci_workflow(), job_id=job_id, step_name="Contract and risk suites"
+    )
+    match = re.search(
+        r"<<'CONTRACT_GROUP_OBSERVATION_PY'\n(.*?)\nCONTRACT_GROUP_OBSERVATION_PY",
+        str(step["run"]),
+        re.DOTALL,
+    )
+    assert match is not None
+    bootstrap = r"""
+import os, subprocess, sys, time
+from types import SimpleNamespace
+from scripts.ci import prometheus_source_image as native
+
+case = sys.argv.pop(1)
+group = int(sys.argv[2])
+uid = os.getuid()
+def row(pid, ppid, pgid, owner, state):
+    return f"{pid} {ppid} {pgid} {owner} Wed Oct 14 12:00:00 2026 {state} fixture\n"
+observer_uid = uid + 1 if case == "observer_foreign" else uid
+rows = [row(os.getpid(), os.getppid(), os.getpgid(0), observer_uid, "R")]
+if case == "no_observer": rows = []
+if case in {"zombie", "mixed", "foreign", "unknown", "unknown_zombie", "duplicate"}:
+    state = "?" if case == "unknown" else "Zgarbage" if case == "unknown_zombie" else "Z"
+    rows.append(row(group + 1, 1, group, uid + 1 if case == "foreign" else uid, state))
+if case in {"live", "mixed"}:
+    rows.append(row(group + 2, 1, group, uid, "S"))
+if case == "leader": rows.append(row(group, 1, group, uid, "Z"))
+if case == "duplicate": rows.append(rows[-1])
+if case == "partial": rows.append("1 2 3\n")
+def native_ps(argv, **kwargs):
+    assert argv == ["/bin/ps", "-axo", "pid,ppid,pgid,uid,lstart,state,comm"]
+    assert kwargs["env"] == {"PATH": "/usr/bin:/bin", "LC_ALL": "C"}
+    assert 0 < kwargs["timeout"] <= 1
+    if case == "provider_timeout": raise subprocess.TimeoutExpired(argv, kwargs["timeout"])
+    if case == "observation_deadline": time.sleep(10)
+    return SimpleNamespace(
+        returncode=1 if case == "provider_error" else 0,
+        stdout=("PID PPID PGID UID STARTED STATE COMMAND\n" + "".join(rows)).encode(),
+        stderr=b"fixture provider error" if case == "provider_error" else b"",
+    )
+native.subprocess.run = native_ps
+exec(compile(sys.stdin.read(), "<workflow-postwait-observation>", "exec"))
+"""
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            bootstrap,
+            case,
+            "1" if case == "observation_deadline" else "5",
+            "1000000001",
+        ],
+        cwd=REPO_ROOT,
+        env={"PATH": os.defpath, "HOME": str(tmp_path), "LANG": "C.UTF-8"},
+        input=match.group(1),
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
+    )
+    expected_exit = 0 if case in {"empty", "zombie"} else 1
+    assert result.returncode == expected_exit, (result.stdout, result.stderr)
+    if case == "empty":
+        assert "observed empty" in result.stdout
+    elif case == "zombie":
+        assert "zombie-only inactivity; not physical absence" in result.stdout
+    else:
+        assert "::error::Contract/risk post-wait observation failed" in result.stderr
 
 
 def test_test_pr_contract_capture_supports_real_ci_root_conftest(tmp_path: Path) -> None:
@@ -5199,6 +5334,7 @@ def test_test_pr_contract_139_retains_real_pytest_and_native_stderr_transport(
     step = _job_step_by_name(workflow, job_id="test-pr", step_name="Contract and risk suites")
     (tmp_path / ".coverage").write_text("existing smoke coverage")
     (tmp_path / "tests").mkdir()
+    _copy_contract_process_census(tmp_path)
     fixture = tmp_path / "test_transport.py"
     fixture.write_text(
         "import os, pytest\n"
@@ -5213,6 +5349,8 @@ def test_test_pr_contract_139_retains_real_pytest_and_native_stderr_transport(
         "#!" + sys.executable + "\n"
         "import os, subprocess, sys\nfrom pathlib import Path\n"
         "args = sys.argv[1:]\n"
+        "if args[:1] == ['-']:\n"
+        "    os.execv(sys.executable, [sys.executable, *args])\n"
         "if args[:5] == ['-W', 'error', '-m', 'coverage', 'combine']:\n"
         "    Path('unexpected-combine').touch()\n    raise SystemExit(0)\n"
         "assert args[:11] == ['-m', 'coverage', 'run', '--append', '-m', 'pytest', '-q', "
@@ -6605,7 +6743,7 @@ def test_main_branch_python_sharded_runner_preserves_required_check_policy() -> 
     assert isinstance(matrix, list)
 
     timeouts = {entry["python-version"]: entry["timeout-minutes"] for entry in matrix}
-    assert timeouts == {"3.11": 90, "3.12": 120, "3.13": 120}
+    assert timeouts == {"3.11": 120, "3.12": 120, "3.13": 120}
 
     workflow_text = CI_WORKFLOW_PATH.read_text(encoding="utf-8")
     test_main_section = _extract_job_section(workflow_text, "  test-main:")
@@ -6644,7 +6782,7 @@ def test_main_branch_python_sharded_runner_preserves_required_check_policy() -> 
 
     assert "MAIN_TEST_SHARDS=4" in py311_block
     assert "MAIN_TEST_MAX_PARALLEL=4" in py311_block
-    assert "export MAIN_TEST_SHARD_TIMEOUT_SECONDS=2400" in py311_block
+    assert "export MAIN_TEST_SHARD_TIMEOUT_SECONDS=4800" in py311_block
     assert "PYTEST_XDIST_ARGS=(-p no:xdist)" not in py311_block
     assert "PYTEST_XDIST_ARGS=(-n 2 --dist=loadscope)" not in py311_block
     assert "PYTEST_XDIST_ARGS=(-n 4 --dist=loadscope)" not in py311_block

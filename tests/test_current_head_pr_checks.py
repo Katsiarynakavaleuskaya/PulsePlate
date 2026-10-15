@@ -69,7 +69,7 @@ def test_fallback_ci_allowlist_matches_canonical_pr_workflow_jobs() -> None:
     assert current_head_checks.CANONICAL_FALLBACK_CI_CHECK_NAMES == expected_display_names
     assert "test-feature" not in CANONICAL_FALLBACK_JOB_IDS
     assert _job_display_names("test-main", jobs["test-main"]) == {
-        "test-main (3.11, 90)",
+        "test-main (3.11, 120)",
         "test-main (3.12, 120)",
         "test-main (3.13, 120)",
     }
@@ -77,7 +77,7 @@ def test_fallback_ci_allowlist_matches_canonical_pr_workflow_jobs() -> None:
 
 @pytest.mark.parametrize(
     "check_name",
-    ("test-main (3.11, 90)", "test-main (3.12, 120)", "test-main (3.13, 120)"),
+    ("test-main (3.11, 120)", "test-main (3.12, 120)", "test-main (3.13, 120)"),
 )
 @pytest.mark.parametrize(
     ("status", "conclusion", "expected_state"),
@@ -355,7 +355,7 @@ def test_test_main_matrix_check_names_block_pending_and_failed_fallback(
         ),
         (
             current_head_checks.CheckEntry(
-                name="test-main (3.11, 90)",
+                name="test-main (3.11, 120)",
                 source_kind="check_run",
                 state="failed",
                 timestamp="2026-03-12T08:36:42Z",

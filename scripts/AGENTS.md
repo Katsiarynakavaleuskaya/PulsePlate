@@ -54,6 +54,11 @@
   Run at most two isolated batch processes with separate coverage, JUnit, basetemp and
   SQLite identities. Wait for every declared exit status and combine only complete data
   after all batches pass; preserve existing producers, thresholds and job budgets.
+  After direct leaders are reaped, use the bounded canonical registered-group census
+  to distinguish an observed empty group from zombie-only inactivity. Failed or uncertain
+  snapshots and live/mixed members block cleanup. Preserve direct waits/signals and the
+  separate post-wait observation budget. Inactivity does not prove physical absence;
+  retain separate reaping/absence evidence wherever required.
 
 ## Premium alias checkpoint adapter
 
