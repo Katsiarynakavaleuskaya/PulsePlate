@@ -36,7 +36,6 @@ import legacy_app; import app.main as main; import app as package; from app.boot
 _HTTP_CONTRACT_SPEC = "/:GET|/legacy/bmi-calculator:GET|/sitemap.xml:GET|/api/v1/feedback/rag:POST|/api/v1/pro/cbt/insight:POST|/api/v1/pro/fitchef/explain:POST|/api/v1/pro/fitchef/recommend:POST|/api/v1/internal/creative-research/pilot:POST|/api/v1/internal/paywall/events:POST"
 _HTTP_CONTRACTS = tuple(x.rsplit(":", 1) for x in _HTTP_CONTRACT_SPEC.split("|"))
 _HTTP_SOURCES = "_FEEDBACK_ROUTE_PATH:feedback_router _CBT_INSIGHT_ROUTE_PATH:cbt_insight_router _FITCHEF_STRUCTURED_ROUTE_PATH:fitchef_structured_router _CREATIVE_RESEARCH_PILOT_ROUTE_PATH:creative_research_internal_router _PAYWALL_EVENTS_ROUTE_PATH:paywall_analytics_router".split()
-_OPTIONAL_ENV = "BUSINESS_MODULE_ENABLED ENABLE_TEST_ROUTES FEATURE_BMI_PRO_ENABLED FEATURE_PREMIUM_WEEK_ENABLED VIP_MODULE_ENABLED".split()
 _WS_EXTRA_PATHS = {"w": "/unexpected-ws", "h": "/unexpected-http"}
 _WS_STATES = "c. .c ff cf fc d. .d h. .h rr rc cr r. .r C. .C DC CD RC CR RR CCw CCh".split()
 _FASTAPI_CALLEES = {"FastAPI", "fastapi.FastAPI", "fastapi.applications.FastAPI"}
@@ -81,25 +80,149 @@ def test_runtime_identity_lifespan_and_private_constructor_isolation() -> None:
     assert second.openapi_tags[0]["description"] == metadata.tags[0].description
 
 
-def test_fresh_import_orders_have_relative_runtime_parity() -> None:
-    def run(imports: str) -> list[object]:
-        scenario = textwrap.dedent(f"""
-            import hashlib, json; {imports}
-            from app.bootstrap.http_stack import _owned_middleware_projection; from app.bootstrap.lifespan import application_lifespan; from app.effective_routes import iter_effective_route_candidates, route_endpoint, route_include_in_schema, route_methods, route_path
-            def routes(target): return [[route_path(route), sorted(route_methods(route)) or ["WEBSOCKET"], f"{{route_endpoint(route).__module__}}.{{route_endpoint(route).__qualname__}}", route_include_in_schema(route)] for route in iter_effective_route_candidates(target.routes)]
-            def snapshot(): schema = json.dumps(canonical.app.openapi(), sort_keys=True, separators=(",", ":")); return [routes(canonical.app), list(_owned_middleware_projection(canonical.app)), hashlib.sha256(schema.encode()).hexdigest()]
-            before = snapshot(); assert canonical.app is main.app is legacy_app.app is package.app; assert "app_module" not in __import__("sys").modules; assert not hasattr(legacy_app, "start_background_updates"); assert not hasattr(legacy_app, "stop_background_updates"); assert canonical.app.router.lifespan_context is application_lifespan; assert all(not hasattr(module, name) for module in (package, main, legacy_app) for name in {_RETIRED_REGISTRATION_MIRRORS!r}); assert main.ensure_canonical_app_bootstrap(canonical.app) is canonical.app; assert snapshot() == before; print("OWNERSHIP_RESULT=" + json.dumps(before, sort_keys=True))
-        """)
-        env = os.environ | {"APP_ENV": "test", "ENVIRONMENT": "test", "TESTING": "true"}
-        for name in _OPTIONAL_ENV:
-            env.pop(name, None)
-        options = {"capture_output": True, "text": True, "env": env}
-        completed = subprocess.run([sys.executable, "-c", scenario], **options)
-        assert completed.returncode == 0, completed.stdout + completed.stderr
-        return json.loads(completed.stdout.rsplit("OWNERSHIP_RESULT=", 1)[-1])
+REPO_ROOT = Path(__file__).resolve().parents[1]
+_OWNERSHIP_SCENARIO_LABELS = ("package-first", "main-first", "legacy-first")
+_OWNERSHIP_RECORD_MAX_BYTES = 1024 * 1024
+_OWNERSHIP_MAX_ROUTES = 4096
+_OWNERSHIP_MAX_MIDDLEWARE = 64
+_OWNERSHIP_MAX_STRING = 4096
+_OWNERSHIP_MAX_METHODS = 32
+_OWNERSHIP_NETWORK_DENIAL = textwrap.dedent("""
+    import socket
 
-    results = [run(imports) for imports in _IMPORT_SCENARIOS]
-    assert results[1:] == results[:1] * (len(results) - 1)
+    def _deny_network(*_args, **_kwargs):
+        raise AssertionError("ownership probe network denied")
+
+    class _DeniedSocket(socket.socket):
+        def connect(self, *_args, **_kwargs):
+            _deny_network()
+
+        def connect_ex(self, *_args, **_kwargs):
+            _deny_network()
+
+    socket.create_connection = _deny_network
+    socket.socket = _DeniedSocket
+    try:
+        socket.create_connection(("127.0.0.1", 9), timeout=1)
+    except AssertionError:
+        pass
+    else:
+        raise AssertionError("ownership probe connection denial missing")
+    with socket.socket() as transport:
+        for connect in (transport.connect, transport.connect_ex):
+            try:
+                connect(("127.0.0.1", 9))
+            except AssertionError:
+                pass
+            else:
+                raise AssertionError("ownership probe socket denial missing")
+    """)
+
+
+def _run_ownership_parity_probe(index: int) -> list[object]:
+    """Observe one existing fixed import program without ambient payload diagnostics."""
+    imports = _IMPORT_SCENARIOS[index]
+    label = _OWNERSHIP_SCENARIO_LABELS[index]
+    scenario = textwrap.dedent(f"""
+        import hashlib, json; {imports}
+        from app.bootstrap.http_stack import _owned_middleware_projection; from app.bootstrap.lifespan import application_lifespan; from app.effective_routes import iter_effective_route_candidates, route_endpoint, route_include_in_schema, route_methods, route_path
+        def routes(target): return [[route_path(route), sorted(route_methods(route)) or ["WEBSOCKET"], f"{{route_endpoint(route).__module__}}.{{route_endpoint(route).__qualname__}}", route_include_in_schema(route)] for route in iter_effective_route_candidates(target.routes)]
+        def snapshot(): schema = json.dumps(canonical.app.openapi(), sort_keys=True, separators=(",", ":")); return [routes(canonical.app), list(_owned_middleware_projection(canonical.app)), hashlib.sha256(schema.encode()).hexdigest()]
+        before = snapshot(); assert canonical.app is main.app is legacy_app.app is package.app; assert "app_module" not in __import__("sys").modules; assert not hasattr(legacy_app, "start_background_updates"); assert not hasattr(legacy_app, "stop_background_updates"); assert canonical.app.router.lifespan_context is application_lifespan; assert all(not hasattr(module, name) for module in (package, main, legacy_app) for name in {_RETIRED_REGISTRATION_MIRRORS!r}); assert main.ensure_canonical_app_bootstrap(canonical.app) is canonical.app; assert snapshot() == before; print("OWNERSHIP_RESULT=" + json.dumps(before, sort_keys=True))
+    """)
+    passthrough = ("LANG", "LC_ALL", "PATH", "PYTHONIOENCODING", "PYTHONUTF8", "TMPDIR")
+    env = {name: value for name in passthrough if (value := os.environ.get(name)) is not None}
+    env.update(
+        {
+            "APP_ENV": "test",
+            "ENVIRONMENT": "test",
+            "TESTING": "true",
+            "PYTEST_CURRENT_TEST": "ownership-parity-probe",
+            "PRIVATE_EXPORTS_ENABLED": "false",
+        }
+    )
+    try:
+        completed = subprocess.run(
+            [sys.executable, "-c", _OWNERSHIP_NETWORK_DENIAL + scenario],
+            capture_output=True,
+            text=True,
+            env=env,
+            cwd=REPO_ROOT,
+            timeout=30,
+            shell=False,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        raise AssertionError(f"ownership probe {label}: timeout") from None
+    except OSError:
+        raise AssertionError(f"ownership probe {label}: process unavailable") from None
+    except UnicodeError:
+        raise AssertionError(f"ownership probe {label}: output decoding failed") from None
+    if type(completed.returncode) is not int or type(completed.stdout) is not str:
+        raise AssertionError(f"ownership probe {label}: process result invalid")
+    if completed.returncode != 0:
+        raise AssertionError(f"ownership probe {label}: exit={completed.returncode}")
+    result_lines = [
+        line for line in completed.stdout.splitlines() if line.startswith("OWNERSHIP_RESULT=")
+    ]
+    if len(result_lines) != 1:
+        raise AssertionError(f"ownership probe {label}: result marker invalid")
+    try:
+        record_bytes = result_lines[0].encode("utf-8")
+    except UnicodeError:
+        raise AssertionError(f"ownership probe {label}: result encoding invalid") from None
+    if len(record_bytes) > _OWNERSHIP_RECORD_MAX_BYTES:
+        raise AssertionError(f"ownership probe {label}: result exceeds budget")
+    try:
+        decoded: object = json.loads(result_lines[0].removeprefix("OWNERSHIP_RESULT="))
+    except (ValueError, RecursionError):
+        raise AssertionError(f"ownership probe {label}: result JSON invalid") from None
+    if type(decoded) is not list or len(decoded) != 3:
+        raise AssertionError(f"ownership probe {label}: result shape invalid")
+    rows, middleware, digest = decoded
+    if (
+        type(rows) is not list
+        or len(rows) > _OWNERSHIP_MAX_ROUTES
+        or type(middleware) is not list
+        or len(middleware) > _OWNERSHIP_MAX_MIDDLEWARE
+        or type(digest) is not str
+        or len(digest) != 64
+        or any(character not in "0123456789abcdef" for character in digest)
+    ):
+        raise AssertionError(f"ownership probe {label}: result shape invalid")
+    for row in rows:
+        if type(row) is not list or len(row) != 4:
+            raise AssertionError(f"ownership probe {label}: route shape invalid")
+        path, methods, endpoint, included = row
+        if (
+            type(path) is not str
+            or len(path) > _OWNERSHIP_MAX_STRING
+            or type(endpoint) is not str
+            or len(endpoint) > _OWNERSHIP_MAX_STRING
+            or type(methods) is not list
+            or len(methods) > _OWNERSHIP_MAX_METHODS
+            or any(
+                type(method) is not str or len(method) > _OWNERSHIP_MAX_STRING for method in methods
+            )
+            or type(included) is not bool
+        ):
+            raise AssertionError(f"ownership probe {label}: route shape invalid")
+    if any(type(label) is not str or len(label) > _OWNERSHIP_MAX_STRING for label in middleware):
+        raise AssertionError(f"ownership probe {label}: middleware shape invalid")
+    return cast(list[object], decoded)
+
+
+def _assert_ownership_parity(records: list[list[object]]) -> None:
+    """Preserve complete relative equality without rendering admitted child strings."""
+    if len(records) != len(_IMPORT_SCENARIOS):
+        raise AssertionError("ownership probe: scenario observations incomplete")
+    if any(record != records[0] for record in records[1:]):
+        raise AssertionError("ownership probe: relative parity mismatch")
+
+
+def test_fresh_import_orders_have_relative_runtime_parity() -> None:
+    results = [_run_ownership_parity_probe(index) for index in range(len(_IMPORT_SCENARIOS))]
+    _assert_ownership_parity(results)
 
 
 def test_fresh_package_facade_and_canonical_main_do_not_load_legacy_app() -> None:
@@ -624,3 +747,292 @@ def test_test_owned_app_does_not_rebind_canonical(monkeypatch: pytest.MonkeyPatc
     monkeypatch.setattr(legacy_app, "app", test_owned)
     assert app.app is application.app is main.app
     assert legacy_app.app is test_owned
+
+
+def _ownership_observation_fixture() -> list[object]:
+    """A shape-only fixture deliberately includes permitted empty observations."""
+    return [[["", [], "", True]], [""], "0" * 64]
+
+
+def test_ownership_probe_uses_fixed_process_contract(monkeypatch: pytest.MonkeyPatch) -> None:
+    record = _ownership_observation_fixture()
+    seen: list[str] = []
+
+    def run(
+        argv: list[str],
+        *,
+        capture_output: bool,
+        text: bool,
+        env: dict[str, str],
+        cwd: Path,
+        timeout: int,
+        shell: bool,
+        check: bool,
+    ) -> subprocess.CompletedProcess[str]:
+        assert argv[:2] == [sys.executable, "-c"]
+        assert argv[2].startswith(_OWNERSHIP_NETWORK_DENIAL)
+        seen.append(next(imports for imports in _IMPORT_SCENARIOS if imports in argv[2]))
+        assert cwd == REPO_ROOT and timeout == 30
+        assert capture_output is True and text is True and shell is False and check is False
+        assert set(env) <= {
+            "LANG",
+            "LC_ALL",
+            "PATH",
+            "PYTHONIOENCODING",
+            "PYTHONUTF8",
+            "TMPDIR",
+            "APP_ENV",
+            "ENVIRONMENT",
+            "TESTING",
+            "PYTEST_CURRENT_TEST",
+            "PRIVATE_EXPORTS_ENABLED",
+        }
+        assert {
+            key: env[key]
+            for key in (
+                "APP_ENV",
+                "ENVIRONMENT",
+                "TESTING",
+                "PYTEST_CURRENT_TEST",
+                "PRIVATE_EXPORTS_ENABLED",
+            )
+        } == {
+            "APP_ENV": "test",
+            "ENVIRONMENT": "test",
+            "TESTING": "true",
+            "PYTEST_CURRENT_TEST": "ownership-parity-probe",
+            "PRIVATE_EXPORTS_ENABLED": "false",
+        }
+        return subprocess.CompletedProcess(
+            argv, 0, "noise\nOWNERSHIP_RESULT=" + json.dumps(record), ""
+        )
+
+    monkeypatch.setenv("PYTEST_CURRENT_TEST", "synthetic-ambient-marker")
+    monkeypatch.setattr(subprocess, "run", run)
+    results = [_run_ownership_parity_probe(index) for index in range(len(_IMPORT_SCENARIOS))]
+    assert seen == _IMPORT_SCENARIOS
+    assert results == [record] * len(_IMPORT_SCENARIOS)
+    _assert_ownership_parity(results)
+
+
+def test_ownership_probe_excludes_ambient_credentials(monkeypatch: pytest.MonkeyPatch) -> None:
+    names = (
+        "GH_TOKEN",
+        "GITHUB_TOKEN",
+        "OPENAI_API_KEY",
+        "API_KEY",
+        "PULSEPLATE_PYTHON_INDEX_URL",
+        "FIGMA_ACCESS_TOKEN",
+        "DATABASE_URL",
+        "HOME",
+        "PYTHONPATH",
+        "PYTHONSTARTUP",
+    )
+    for name in names:
+        monkeypatch.setenv(name, "synthetic-input-must-not-enter-child")
+    monkeypatch.setenv("PYTEST_CURRENT_TEST", "synthetic-ambient-marker")
+    original_run = subprocess.run
+
+    def run(
+        argv: list[str],
+        *,
+        capture_output: bool,
+        text: bool,
+        env: dict[str, str],
+        cwd: Path,
+        timeout: int,
+        shell: bool,
+        check: bool,
+    ) -> subprocess.CompletedProcess[str]:
+        assert argv[2].startswith(_OWNERSHIP_NETWORK_DENIAL)
+        child_check = (
+            "\nimport os\n"
+            f"assert all(name not in os.environ for name in {names!r})\n"
+            "assert os.environ['PYTEST_CURRENT_TEST'] == 'ownership-parity-probe'\n"
+        )
+        argv = [*argv]
+        argv[2] = (
+            _OWNERSHIP_NETWORK_DENIAL + child_check + argv[2][len(_OWNERSHIP_NETWORK_DENIAL) :]
+        )
+        return original_run(
+            argv,
+            capture_output=capture_output,
+            text=text,
+            env=env,
+            cwd=cwd,
+            timeout=timeout,
+            shell=shell,
+            check=check,
+        )
+
+    monkeypatch.setattr(subprocess, "run", run)
+    _run_ownership_parity_probe(0)
+
+
+@pytest.mark.parametrize(
+    "failure",
+    (
+        "exit",
+        "process",
+        "timeout",
+        "decode",
+        "missing",
+        "duplicate",
+        "oversize",
+        "json",
+        "depth",
+        "recursion",
+        "encoding",
+        "root",
+        "arity",
+        "rows",
+        "middleware",
+        "digest",
+        "row_arity",
+        "path",
+        "methods",
+        "method",
+        "endpoint",
+        "include",
+        "label",
+        "row_limit",
+        "middleware_limit",
+        "path_limit",
+        "method_limit",
+        "methods_limit",
+        "endpoint_limit",
+        "label_limit",
+    ),
+)
+def test_ownership_probe_rejects_invalid_observation_without_payload(
+    monkeypatch: pytest.MonkeyPatch,
+    failure: str,
+) -> None:
+    sentinel = "synthetic-sensitive-observation"
+    record = _ownership_observation_fixture()
+    row = cast(list[list[object]], record[0])[0]
+    payload: object = record
+    if failure == "root":
+        payload = {sentinel: sentinel}
+    elif failure == "arity":
+        record.append(sentinel)
+    elif failure == "rows":
+        record[0] = sentinel
+    elif failure == "middleware":
+        record[1] = sentinel
+    elif failure == "digest":
+        record[2] = sentinel
+    elif failure == "row_arity":
+        row.append(sentinel)
+    elif failure == "path":
+        row[0] = 1
+    elif failure == "methods":
+        row[1] = sentinel
+    elif failure == "method":
+        row[1] = [1]
+    elif failure == "endpoint":
+        row[2] = 1
+    elif failure == "include":
+        row[3] = 1
+    elif failure == "label":
+        record[1] = [1]
+    elif failure == "row_limit":
+        record[0] = [row] * (_OWNERSHIP_MAX_ROUTES + 1)
+    elif failure == "middleware_limit":
+        record[1] = [""] * (_OWNERSHIP_MAX_MIDDLEWARE + 1)
+    elif failure == "path_limit":
+        row[0] = sentinel * (_OWNERSHIP_MAX_STRING // len(sentinel) + 1)
+    elif failure == "method_limit":
+        row[1] = [sentinel * (_OWNERSHIP_MAX_STRING // len(sentinel) + 1)]
+    elif failure == "methods_limit":
+        row[1] = [""] * (_OWNERSHIP_MAX_METHODS + 1)
+    elif failure == "endpoint_limit":
+        row[2] = sentinel * (_OWNERSHIP_MAX_STRING // len(sentinel) + 1)
+    elif failure == "label_limit":
+        record[1] = [sentinel * (_OWNERSHIP_MAX_STRING // len(sentinel) + 1)]
+    stdout = "OWNERSHIP_RESULT=" + json.dumps(payload)
+    if failure == "missing":
+        stdout = sentinel
+    elif failure == "duplicate":
+        stdout += "\n" + stdout
+    elif failure == "oversize":
+        stdout = "OWNERSHIP_RESULT=" + sentinel * (_OWNERSHIP_RECORD_MAX_BYTES // len(sentinel) + 1)
+    elif failure == "json":
+        stdout = "OWNERSHIP_RESULT=" + sentinel
+    elif failure == "depth":
+        depth = sys.getrecursionlimit() + 100
+        stdout = "OWNERSHIP_RESULT=" + "[" * depth + "0" + "]" * depth
+    elif failure == "encoding":
+        stdout = "OWNERSHIP_RESULT=\ud800"
+
+    def run(*_args: object, **_kwargs: object) -> subprocess.CompletedProcess[str]:
+        if failure == "process":
+            raise OSError(sentinel)
+        if failure == "timeout":
+            raise subprocess.TimeoutExpired(sentinel, 30, output=sentinel, stderr=sentinel)
+        if failure == "decode":
+            raise UnicodeDecodeError("utf-8", sentinel.encode(), 0, 1, sentinel)
+        return subprocess.CompletedProcess(
+            sentinel, 1 if failure == "exit" else 0, stdout, sentinel
+        )
+
+    monkeypatch.setattr(subprocess, "run", run)
+    if failure == "recursion":
+
+        def decode(_payload: str) -> object:
+            raise RecursionError(sentinel)
+
+        monkeypatch.setattr(json, "loads", decode)
+    with pytest.raises(AssertionError) as caught:
+        _run_ownership_parity_probe(0)
+    assert sentinel not in str(caught.value)
+    assert str(caught.value).startswith("ownership probe package-first: ")
+    if failure in {"process", "timeout", "decode", "json", "recursion", "encoding"}:
+        assert caught.value.__suppress_context__ is True
+    if failure == "depth":
+        assert str(caught.value) in {
+            "ownership probe package-first: result shape invalid",
+            "ownership probe package-first: result JSON invalid",
+        }
+
+
+@pytest.mark.parametrize("boundary", ("empty", "rows", "middleware", "scalar", "methods", "record"))
+def test_ownership_probe_admits_empty_and_bounded_full_records(
+    monkeypatch: pytest.MonkeyPatch,
+    boundary: str,
+) -> None:
+    record = _ownership_observation_fixture()
+    row = cast(list[list[object]], record[0])[0]
+    if boundary == "rows":
+        record[0] = [row] * _OWNERSHIP_MAX_ROUTES
+    elif boundary == "middleware":
+        record[1] = [""] * _OWNERSHIP_MAX_MIDDLEWARE
+    elif boundary == "scalar":
+        row[0] = row[2] = "x" * _OWNERSHIP_MAX_STRING
+        record[1] = ["x" * _OWNERSHIP_MAX_STRING]
+    elif boundary == "methods":
+        row[1] = [""] * _OWNERSHIP_MAX_METHODS
+    stdout = "OWNERSHIP_RESULT=" + json.dumps(record)
+    if boundary == "record":
+        stdout += " " * (_OWNERSHIP_RECORD_MAX_BYTES - len(stdout.encode("utf-8")))
+    completed = subprocess.CompletedProcess("synthetic", 0, stdout, "")
+
+    def run(*_args: object, **_kwargs: object) -> subprocess.CompletedProcess[str]:
+        return completed
+
+    monkeypatch.setattr(subprocess, "run", run)
+    assert _run_ownership_parity_probe(0) == record
+
+
+def test_ownership_parity_mismatch_diagnostics_are_constant() -> None:
+    original = _ownership_observation_fixture()
+    changed = deepcopy(original)
+    cast(list[list[object]], changed[0])[0][0] = "synthetic-sensitive-valid-path"
+    with pytest.raises(
+        AssertionError, match="^ownership probe: relative parity mismatch$"
+    ) as caught:
+        _assert_ownership_parity([original, changed, original])
+    assert "synthetic-sensitive-valid-path" not in str(caught.value)
+    _assert_ownership_parity([original, deepcopy(original), deepcopy(original)])
+    with pytest.raises(AssertionError, match="^ownership probe: scenario observations incomplete$"):
+        _assert_ownership_parity([])
