@@ -1467,7 +1467,8 @@ def test_legacy_created_app_runs_real_food_search_lifecycle(
     food_store.register_strategy_search_backend_adapter(previous_backend)
     try:
         assert app.lifespan is application_lifespan
-        assert legacy_app.lifespan is application_lifespan
+        assert "lifespan" not in vars(legacy_app)
+        assert legacy_app.app.router.lifespan_context is application_lifespan
         assert app.app is legacy_app.app
         assert app_main.app is legacy_app.app
 

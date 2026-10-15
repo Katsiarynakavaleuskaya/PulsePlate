@@ -154,6 +154,8 @@ RETIRED_LEGACY_PYTHON_BINDINGS = frozenset(
         "_application_metadata",
         "tags_metadata",
         "_api_description",
+        "lifespan",
+        "get_update_scheduler",
     }
 )
 ALLOWED_CANONICAL_LIFESPAN_APP_IMPORTS = frozenset(
