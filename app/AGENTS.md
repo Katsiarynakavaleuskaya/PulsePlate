@@ -381,7 +381,8 @@ Avoid `# type: ignore[no-any-return]` and prefer typed locals over `cast()`.
 
 - Application startup/shutdown ownership belongs in `app/bootstrap/lifespan.py`.
   `app/bootstrap/application.py` passes that exact context manager to the sole
-  production `FastAPI(...)` constructor; `legacy_app.py` only re-exports it.
+  production `FastAPI(...)` constructor. `app.lifespan` remains that exact
+  callable; the `legacy_app.lifespan` Python binding is retired.
 - Shared clients and process-wide adapters must be acquired during lifespan
   startup, never additive route bootstrap or module import, and released with
   deterministic reverse-order cleanup after partial startup and cancellation.
@@ -620,10 +621,12 @@ Avoid `# type: ignore[no-any-return]` and prefer typed locals over `cast()`.
 - Admin services import and await the scheduler-access callable at their use
   site. Do not reintroduce `sys.modules` lookup, compatibility getter selection,
   or synchronous getter support.
-- `app.get_update_scheduler`, `legacy_app.get_update_scheduler`, and
+- `app.get_update_scheduler` and
   `app.services.scheduler_access.get_update_scheduler` must be the exact same
-  callable. Identity with the core getter is intentionally not required across
-  the lazy boundary.
+  callable. The `legacy_app.get_update_scheduler` binding is retired; do not
+  restore either selected lifecycle/access alias, wrapper or lazy fallback.
+  Identity with the core getter is intentionally not required across the lazy
+  boundary.
 - `admin_status` preserves intentional `HTTPException` pass-through and maps an
   unavailable scheduler to stable `503 Scheduler unavailable`. Database status,
   update check, and non-contention force-update failures must log technical

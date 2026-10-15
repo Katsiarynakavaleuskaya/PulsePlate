@@ -92,9 +92,18 @@
   access through `app`, `legacy_app`, core singleton state, private override
   names, or `sys.modules`.
 - Scheduler-access ownership tests must assert lazy core delegation, exact
-  `app`/`legacy_app`/service callable identity, import-order safety, and
-  fail-closed calls when the optional core module is unavailable. Use sync tests
-  with `asyncio.run(...)` for directly exercised coroutines.
+  package/service callable identity, retired legacy alias absence, import-order
+  safety, and fail-closed calls when the optional core module is unavailable.
+  Use sync tests with `asyncio.run(...)` for directly exercised coroutines.
+  The admin import probe passes only its six declared operational environment
+  keys plus explicit synthetic settings, installs its three named Python
+  connection controls before product imports, and preserves socket construction,
+  local socketpair and asyncio. Nonzero/timeout diagnostics stay fixed and must
+  not render captured streams. These bounded test controls do not establish
+  OS isolation or universal credential/network exclusion. New retirement
+  import-order controls reuse the protected fresh-process retirement harness;
+  preserve exact lifespan wiring before main and after canonical main bootstrap
+  plus actual managed lifecycle/cleanup evidence.
 - Admin route tests must assert deterministic success, exact sanitized failure
   details, and exact missing/invalid API-key `403` responses. Broad multi-status
   assertions are not evidence for this route family.
