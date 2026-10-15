@@ -29,15 +29,15 @@ test-only reassignment of `legacy_app.app` cannot rebind package, bootstrap, or
 not import `legacy_app`. Resolving `app.app` imports `app.main` without loading
 `legacy_app`; the canonical bootstrap no longer reverse-imports the compatibility
 facade. The eight former paid/BMI registration mirrors are absent from `app`,
-`app.main`, and `legacy_app.py`. Sixteen bounded Python-binding retirements remove
-only the exact 117 `legacy_app.py` Python bindings enumerated below; they do not
+`app.main`, and `legacy_app.py`. Seventeen bounded Python-binding retirements remove
+only the exact 130 `legacy_app.py` Python bindings enumerated below; they do not
 remove or redirect any HTTP path, change auth, alter OpenAPI, or change FastAPI
 object identity. Repository census found no tracked supported production
 consumer of the second ten-name, third eleven-name, fourth eight-name, fifth
 twelve-name, sixth seven-name, seventh three-name, eighth seven-name, ninth
 fifteen-name, tenth four-name, eleventh four-name, twelfth eight-name,
-thirteenth seven-name, fourteenth three-name, fifteenth six-name, or sixteenth
-two-name cohort;
+thirteenth seven-name, fourteenth three-name, fifteenth six-name, sixteenth
+two-name, or seventeenth thirteen-name cohort;
 it does not prove that no external or dynamic Python consumer exists.
 
 Application startup/shutdown behavior is canonically owned by
@@ -457,6 +457,54 @@ The operator explicitly permitted this existing lane to continue from pending
 main while another employee monitored it. This historical lane-specific start
 exception transferred no main PASS, publication validation, merge-readiness or
 merge permission and granted no bypass of this PR's required gates.
+
+## Legacy rate-limit compatibility retirement
+
+The `LEGACY-RATE-LIMIT-COMPAT-RETIREMENT-1/v1` child retires exactly thirteen
+Python bindings from the facade: `limiter`, `limit_if_available`,
+`RATE_LIMIT_EXPORTS`, `RATE_LIMIT_INSIGHT`, `RATE_LIMIT_429_RESPONSES`,
+`_RATE_LIMIT_429_RESPONSES`, `_TypeVar`, `_F`, `_LimitValue`, `LimiterType`,
+`_Limiter`, `Limiter`, and `slowapi_available`. The complete conditional fallback
+and type scaffolding, including bare annotations and coupled unused imports,
+are removed (`legacy_app.py:4`). The independent tuple appends only this cohort
+at `[117:130]`, retaining all prior117 and lifecycle `[115:117]`; the guard and
+two independent test inventories contain exactly130 unique members
+(`scripts/ci/check_legacy_growth_guard.py:40`,
+`tests/test_legacy_growth_guard.py:13`, `tests/test_legacy_bmi_shims.py:29`).
+
+The five public objects remain owned by `app.security.rate_limit`. Attribute
+presence is checked separately from allowed `limiter=None`; a real canonical
+Limiter instance need not be callable. The eight scaffold names have no
+replacement. The canonical 429 response metadata retains its
+`RateLimitErrorResponse` model (`app/security/rate_limit.py:78`). Canonical
+decorators, handler, wiring and production/staging readiness remain unchanged
+(`app/security/rate_limit.py:363`, `app/security/rate_limit.py:399`,
+`app/security/rate_limit.py:470`, `app/security/rate_limit.py:502`); the HTTP stack
+still invokes that owner (`app/bootstrap/http_stack.py:167`).
+
+The protected retirement harness checks the whole cohort in each declared
+fresh import order, retaining its finite synthetic environment and named
+connection controls. Its enabled legacy-first, rate-limit-first and main-first
+cases check canonical singleton/limiter/handler/middleware, effective route
+ownership and 429 model, repeat-import/wiring stability and the installed
+handler's JSON Content-Type and exact detail envelope. The existing real
+weekly-reflection route test separately requires `[200, 200, 429]` and only two
+downstream calls (`tests/test_fitchef_insight_api.py:1030`). The protected handler
+checks supplement that real-route behavior; the latter's ambient environment
+and header evidence limits remain. Unknown external/computed callers and
+already-loaded module dictionaries remain outside fresh-process proof.
+
+Whole incoming #2489 reconciliation and the separately dated operator-start
+clarification were committed first as
+`613603bd8b952b05590628eaa7d9d22179521e64`. Its original Target PR #2489 and
+already-reconciled incoming #2488 remain unchanged. This child still requires
+its own actual-diff review, premortem/admitted Oracle, narrow/current-head
+validation, post-open roles and exact-material closeout. Separate exact-head
+merge authorization and post-merge archive, same-ID continuity/readback,
+outgoing carryover and owned cleanup remain pending. PROJECT_LEGACY remains
+OPEN. No foreign #2476/#2477, OPS, dependency, workflow or canonical-owner repair
+is included. Rollback reverts only this removal and its coupled guard/tests,
+preserving truthful incoming reconciliation and every earlier cohort.
 
 ## Legacy lifecycle and scheduler-access Python export retirement
 
@@ -1216,9 +1264,9 @@ implementations and canonical `app/**` reverse imports or dynamic lookups for
 those callables. Current facts may disappear as the seam shrinks; new facts fail
 closed with repo-relative diagnostics.
 
-For the 117 retired Python bindings, the guard has a deliberately bounded
+For the 130 retired Python bindings, the guard has a deliberately bounded
 finite mechanical claim over the exact repo-relative `legacy_app.py` source
-only. It freezes the exact 117-name set, uses the existing `_assigned_names`
+only. It freezes the exact 130-name set, uses the existing `_assigned_names`
 collector for statically visible ordinary module-scope `Name` Store/Del
 bindings, rejects explicit `global` declarations for a protected name, rejects
 all star imports, and rejects a statically bound module-level `__getattr__`.
@@ -1236,7 +1284,7 @@ import hooks, reflection, arbitrary helpers, and external monkeypatching. The
 rule neither accepts nor certifies those families and makes no completeness
 claim about them. Any new or changed dynamic namespace carrier in
 `legacy_app.py`, and any dynamic carrier intended to bind or rebind one of the
-117 protected names, requires manual STOP and review. The existing router-import
+130 protected names, requires manual STOP and review. The existing router-import
 recognizer separately rejects reintroduction of the former exact dynamic
 `app.routers.plan_export -> _plan_mod` fact; this does not widen the ordinary
 binding rule or certify arbitrary namespace mutation.
