@@ -671,6 +671,11 @@ described in `docs/evals/EVIDENCE_RELATION_CAUSAL_AUDIT_V1.md` and the existing
 one-based role occurrence. Independent caller-owned current packet/order,
 run/case/message/frozen answer, graph and source bindings are required.
 
+OCW delivery requires the selected dispatch's `readonly` field to be literal
+`true`, including in runtime mode with another implementation owner. This
+read-only metadata does not enforce tool-less execution, a native sandbox or
+semantic safety of source prose.
+
 This is dynamic advisory material outside every static role-source list and
 context digest. It cannot make an incomplete static context complete or
 replace required source acquisition. Source prose cannot select roles,

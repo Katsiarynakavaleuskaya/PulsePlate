@@ -2909,6 +2909,9 @@ def main(argv: Optional[List[str]] = None) -> int:
             )
             return 1
         selected = dispatch_sequence[occurrence - 1]
+        if ocw_requested and selected.get("readonly") is not True:
+            print("FAIL: OCW requires a read-only selected dispatch.", file=sys.stderr)
+            return 1
         selected_context = cast(List[str], selected["required_context_paths"])
         try:
             ordinary_packet_context = _packet_required_context_for_exact_delivery(

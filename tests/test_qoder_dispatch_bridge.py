@@ -5756,6 +5756,127 @@ def test_ocw_requires_paired_inputs_and_current_packet_occurrence(
     assert "OCW" in captured.err
 
 
+@pytest.mark.parametrize("readonly", [False, None, "true", 1, "missing"])
+def test_ocw_rejects_nonreadonly_selected_dispatch_before_context_or_evidence_reads(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    readonly: object,
+) -> None:
+    packet = _write_exact_dispatch_fixture(tmp_path, monkeypatch)
+    native_manifest = qoder_dispatch_bridge.build_dispatch_manifest
+
+    def selected_metadata(*args: Any, **kwargs: Any) -> Dict[str, Any]:
+        manifest = native_manifest(*args, **kwargs)
+        selected = manifest["dispatch_sequence"][0]
+        if readonly == "missing":
+            selected.pop("readonly")
+        else:
+            selected["readonly"] = readonly
+        return manifest
+
+    def forbidden_context(*args: Any, **kwargs: Any) -> Any:
+        raise AssertionError("OCW write-capable selection reached context reads")
+
+    from scripts.evals import evidence_relation_audit
+
+    def forbidden_evidence(*args: Any, **kwargs: Any) -> Any:
+        raise AssertionError("OCW write-capable selection reached evidence reads")
+
+    monkeypatch.setattr(qoder_dispatch_bridge, "build_dispatch_manifest", selected_metadata)
+    monkeypatch.setattr(qoder_dispatch_bridge, "materialize_context_bundle", forbidden_context)
+    monkeypatch.setattr(evidence_relation_audit, "read_jsonl", forbidden_evidence)
+    output = tmp_path / "never-published.json"
+    assert (
+        qoder_dispatch_bridge.main(
+            [
+                "--packet",
+                str(packet),
+                "--role-context-order",
+                "1",
+                "--ocw-evidence",
+                "never-read-evidence.jsonl",
+                "--ocw-invocation",
+                "never-read-invocation.jsonl",
+                "--output",
+                str(output),
+            ]
+        )
+        == 1
+    )
+    captured = capsys.readouterr()
+    assert captured.out == "" and not output.exists()
+    assert captured.err == "FAIL: OCW requires a read-only selected dispatch.\n"
+
+
+@pytest.mark.parametrize("occurrence", [1, 2, 3])
+def test_ocw_runtime_owner_uses_selected_readonly_and_preserves_writer_default(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    occurrence: int,
+) -> None:
+    packet = _write_exact_dispatch_fixture(tmp_path, monkeypatch)
+    agents = tmp_path / ".cursor/agents"
+    for slug in ("backend-engineer", "qa-engineer-agent"):
+        (agents / f"{slug}.md").write_text(
+            f"---\nname: {slug}\nreadonly: true\n---\nsynthetic role\n", encoding="utf-8"
+        )
+    packet_data = json.loads(packet.read_text())
+    packet_data["native_subagent_bridge"] = {
+        "primary": {"repo_agent_slug": "agent-coordinator"},
+        "secondary": [
+            {"repo_agent_slug": "backend-engineer", "execution_mode": "read_write"},
+            {"repo_agent_slug": "qa-engineer-agent"},
+        ],
+        "advisory": [],
+        "reviewer": {"repo_agent_slug": "security-auditor"},
+    }
+    packet_data["role_agent_dispatch_contract"] = {
+        "runtime_implementation_owners": ["backend-engineer"]
+    }
+    packet.write_text(json.dumps(packet_data) + "\n", encoding="utf-8")
+    evidence, invocation = _write_ocw_inputs(
+        tmp_path, "deliberately-not-authenticated-by-exact-context"
+    )
+    for path in (evidence, invocation):
+        payload = json.loads(path.read_text())
+        selected_binding = (
+            payload["observed"]["binding"] if path == evidence else payload["binding"]
+        )
+        selected_binding["role_context_order"] = occurrence
+        path.write_text(json.dumps(payload) + "\n", encoding="utf-8")
+    args = [
+        "--packet",
+        str(packet),
+        "--mode",
+        "runtime",
+        "--implementation-owner",
+        "backend-engineer",
+        "--role-context-order",
+        str(occurrence),
+    ]
+    assert qoder_dispatch_bridge.main(args) == 0
+    baseline = json.loads(capsys.readouterr().out)
+    assert baseline["selected_dispatch"]["readonly"] is (occurrence != 2)
+    result = qoder_dispatch_bridge.main(
+        [*args, "--ocw-evidence", str(evidence), "--ocw-invocation", str(invocation)]
+    )
+    captured = capsys.readouterr()
+    if occurrence == 2:
+        assert result == 1 and captured.out == ""
+        assert captured.err == "FAIL: OCW requires a read-only selected dispatch.\n"
+        assert baseline["selected_dispatch"]["implementation_owner_override"] is True
+    else:
+        assert result == 0 and captured.err == ""
+        delivered = json.loads(captured.out)
+        attachment = delivered.pop("ocw_evidence")
+        for value in (baseline, delivered):
+            value["manifest"].pop("generated_at")
+        assert delivered == baseline
+        assert attachment["authority_granted"] is False
+
+
 @pytest.mark.parametrize("pretty", [False, True])
 @pytest.mark.parametrize("suffix", [".json", ".JSON", ".JsOn"])
 def test_ocw_is_outer_only_and_preserves_same_material_default(
