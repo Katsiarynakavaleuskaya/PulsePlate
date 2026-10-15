@@ -122,7 +122,7 @@ _PINNED_NATIVE_SOURCES = {
         ("a82e0db3" "92178a3e" "05fb27bf" "551a6ce7" "57a47898"),
         "https://github.com/madler/zlib/commit/a82e0db392178a3e05fb27bf551a6ce757a47898.patch",
         "zlib-errno-order-fix-a82e0db392178a3e05fb27bf551a6ce757a47898.patch",
-        ("70b0fb7e" "333c5757" "807407f1" "d88ef2ff" "71f757b5" "59926b73" "22a1a8d7" "84811cbc"),
+        ("b9df8d4e" "ea80d15d" "dc0ddfe8" "cccfef28" "ab23bc74" "2f850f44" "792806fc" "32accd6a"),
     ),
 }
 _PINNED_ALERT_SOURCES = {
@@ -192,7 +192,7 @@ _PINNED_NATIVE_SHA256 = {
         "a786b2b0" "84126860" "08c7fe12" "47e90701" "cebde564" "037806bd" "9935f849" "07737cc4"
     ),
     "zlib-errno-order-fix": (
-        "6d02eb6c" "5403c491" "9076cc89" "ae6609ac" "421aa27d" "e116457a" "ca1554c3" "85296a2b"
+        "5188930f" "b2689746" "8b73a62d" "4755c979" "2c642b8b" "b5b5a45d" "49502816" "a85f62dd"
     ),
 }
 _PINNED_ZLIB_PATCH_SIZES = {
@@ -202,7 +202,7 @@ _PINNED_ZLIB_PATCH_SIZES = {
     "zlib-gzprintf-return-fix": 764,
     "zlib-blocked-errno-fix": 2449,
     "zlib-gzprintf-contract-fix": 1990,
-    "zlib-errno-order-fix": 1476,
+    "zlib-errno-order-fix": 1478,
 }
 
 

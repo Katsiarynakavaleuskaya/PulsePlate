@@ -2731,8 +2731,8 @@ _ZLIB_MAINTENANCE_PATCHES = (
     (
         "zlib-errno-order-fix",
         ("a82e0db3" "92178a3e" "05fb27bf" "551a6ce7" "57a47898"),
-        ("70b0fb7e" "333c5757" "807407f1" "d88ef2ff" "71f757b5" "59926b73" "22a1a8d7" "84811cbc"),
-        ("6d02eb6c" "5403c491" "9076cc89" "ae6609ac" "421aa27d" "e116457a" "ca1554c3" "85296a2b"),
+        ("b9df8d4e" "ea80d15d" "dc0ddfe8" "cccfef28" "ab23bc74" "2f850f44" "792806fc" "32accd6a"),
+        ("5188930f" "b2689746" "8b73a62d" "4755c979" "2c642b8b" "b5b5a45d" "49502816" "a85f62dd"),
     ),
 )
 
