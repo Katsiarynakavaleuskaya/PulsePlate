@@ -460,7 +460,7 @@ merge permission and granted no bypass of this PR's required gates.
 
 ## Legacy lifecycle and scheduler-access Python export retirement
 
-The `LEGACY-LIFECYCLE-ACCESS-EXPORT-RETIREMENT-1/v1` child is OPEN in
+The `LEGACY-LIFECYCLE-ACCESS-EXPORT-RETIREMENT-1/v1` child is MERGED in
 [PR #2489](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2489). It retires exactly `legacy_app.lifespan`
 and `legacy_app.get_update_scheduler`. Every prior115 name remains and the
 independent tuple appends only these two at `[115:117]`; the three inventories
@@ -505,11 +505,54 @@ merge readiness.
 Incoming PR #2488 reconciliation was applied whole and committed first as
 `ae9cfd637852149731e7c3c6342a8fb1b4603975`; its Target PR #2488 and archived
 cutoff remain below with the separately dated later main-CI observation.
-Incoming PR #2486 is not reapplied. This child still requires its own focused
-and narrow local evidence, current-head CI/security/coverage, actual-diff
-premortem/Oracle, review/dispositions/seal, separate exact-head squash approval
-and post-merge archive/same-ID continuity/owned cleanup. PROJECT_LEGACY stays
-OPEN; #2476/#2477 and R29/O1/shared-runtime/NoSec boundaries remain separate.
+Incoming PR #2486 is not reapplied. This carrier merged after separate exact-head
+approval as `ea40bc78a433c4e0ab4333b4fbffa41b79349659` at
+`2026-10-15T10:14:44Z`; approved head
+`331b6d122dcd488b1c3720de52b894168c246701` has the identical whole tree.
+Incoming #2488 is RECONCILED IN MAIN. Own narrow local gates, ordered roles,
+premortem/Oracle, current-head CI38656532084 including test-pr3.13,
+review/dispositions/self-review/seal/strict/wait proof passed. Downloaded JUnit
+has9584 records with zero failures/errors/skips; all five XML producers decoded.
+Numeric diff coverage is N/A because existing producers positively prove an
+empty eligible changed executable-line inventory; no100% or full-suite-total
+claim follows. Synchronized clean main passed2178 focused merged sanity checks.
+
+Own main CI38718879738 completed FAILURE: expired2026-10-14 B404/B603 sites at
+`scripts/ops/ops_context_report.py:11` and `scripts/ops/ops_context_report.py:229`.
+The OPS file and guard are unchanged from base. Existing dedicated OPS
+reassessment remains unwaived; main is NOT GREEN and the next-PR start is HOLD.
+Sibling shard cancellations are fail-fast, not job timeout. CD38718879683
+separately failed on the unchanged pinned Prometheus cohort owned by #2477.
+Neither outcome is waived by the start exception.
+
+Core archive Drive `1r86aTqPxxTm4clj9wAkRz8btHetb4Klt` is51,579,785 bytes,
+SHA256 `6e25137c6a697cf4544a814776a5725b97cf1b252fb427ae5b0de48d012cb87a`.
+Actual download,460 regular members/459 payload hashes, standalone selected
+Git recovery and both downloaded native Oracle transports were verified. Eight
+selected commits/one shallow base and external gitlink pointer bound the Git
+claim; full history and external gitlink content are not archived. Oracle
+validation retains historical lineage and requires the private original-receipt
+and companion keeper retained outside the deleted owned worktrees.
+
+One final same-ID Living Doc and PROJECT_LEGACY-only capsule pass/readback
+preserved native structures/styles/links, IDs, ACL/parents and all neighboring
+capsule bytes. Exact owned M/T worktrees and local branch were removed only
+after recovery; the remote branch was already server-deleted. Foreign
+registrations, shared caches/venv/images and permanent recovery keepers remain.
+Same-ID terminal supplement `1wvjJ8Yt8QCMB07jH7uN_35SUNEFyDh41` carries late
+cleanup, final QA and outgoing receipts. Outgoing reconciliation is
+PREPARED / ARCHIVED / NOT YET APPLIED for the first next substantive Legacy
+child with fresh admission; its preparation does not apply itself.
+PROJECT_LEGACY stays OPEN; #2476/#2477 and R29/O1/shared-runtime/NoSec boundaries
+remain separate. The residual rate-limit block needs its own census/admission;
+no next removal or new lane is authorized here.
+Operator decision dated 2026-10-15: the independent Legacy lane may continue
+after its own consumer and ownership admission. OPS NoSec reassessment was
+handed to #2477 for receiving-lane integration and validation. The historical
+main failure and next-start HOLD above remain accurate for their cutoff; this
+later start decision is not PASS, a security waiver, or permission to merge the
+new PR without its own required gates and separate exact-head authorization.
+
 Rollback reverts only this two-binding removal and coupled guard/tests, retaining
 truthful incoming reconciliation and all prior retirement/overflow fixes.
 
