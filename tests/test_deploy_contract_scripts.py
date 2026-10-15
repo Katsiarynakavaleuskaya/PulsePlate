@@ -5352,6 +5352,147 @@ def _assert_dependency_admission_has_no_product_effect(log_file: Path) -> None:
     )
 
 
+def _alertmanager_email_drift(data: bytes, variant: str) -> bytes:
+    """Change one admitted email contract or byte spelling in a synthetic source."""
+    runbook = (
+        b"https://github.com/Katsiarynakavaleuskaya/PulsePlate/blob/main/"
+        b"docs/deploy/OPERATIONAL_SIGNALS.md#daily-checkpoint"
+    )
+    anchor = b'<a href="' + runbook + b'">'
+    assert data.count(anchor) == 1
+    if variant == "old-text-only":
+        prefix, marker, _tail = data.partition(b"        text: |\n")
+        assert marker
+        return prefix + (
+            b"        text: PulsePlate alert {{ .CommonLabels.alertname }} "
+            b"({{ .CommonLabels.environment }}).\n"
+        )
+    if variant == "missing-html":
+        prefix, marker, _tail = data.partition(b"        html: |\n")
+        assert marker
+        return prefix
+    if variant == "default-html":
+        prefix, marker, _tail = data.partition(b"        html: |\n")
+        assert marker
+        return prefix + b"        html: '{{ template \"email.default.html\" . }}'\n"
+    if variant == "extra-href":
+        return data + b'          <a href="http://private-container:9093">extra</a>\n'
+    if variant == "crlf":
+        return data.replace(b"\n", b"\r\n")
+    if variant == "unicode-separator":
+        return data.replace(b"\n          <p>", b"\xe2\x80\xa8          <p>", 1)
+    if variant == "missing-terminal-lf":
+        assert data.endswith(b"\n")
+        return data[:-1]
+    if variant == "extra-blank-line":
+        return data + b"\n"
+    if variant == "invalid-utf8":
+        return data.replace(b"Open PulsePlate monitoring runbook", b"Open \xff runbook", 1)
+    replacements = {
+        "private-href": (anchor, b'<a href="http://private-container:9093">'),
+        "external-href": (anchor, b'<a href="{{ .ExternalURL }}">'),
+        "generator-href": (anchor, b'<a href="{{ (index .Alerts 0).GeneratorURL }}">'),
+        "label-href": (anchor, b'<a href="{{ .CommonLabels.environment }}">'),
+        "recipient": (b"      - to: pulseplate@pm.me", b"      - to: other@example.invalid"),
+        "smtp": (b"smtp.resend.com:2465", b"other.example.invalid:2465"),
+        "tls": (b"  smtp_require_tls: true", b"  smtp_require_tls: false"),
+        "copy": (b"PulsePlate alert {{", b"Changed alert {{"),
+    }
+    old, new = replacements[variant]
+    assert old in data
+    return data.replace(old, new, 1)
+
+
+ALERTMANAGER_EMAIL_DRIFT = (
+    "old-text-only",
+    "missing-html",
+    "default-html",
+    "extra-href",
+    "private-href",
+    "external-href",
+    "generator-href",
+    "label-href",
+    "recipient",
+    "smtp",
+    "tls",
+    "copy",
+    "crlf",
+    "unicode-separator",
+    "missing-terminal-lf",
+    "extra-blank-line",
+    "invalid-utf8",
+)
+
+
+@pytest.mark.parametrize("contour", ["staging", "production-installed", "production-bundle"])
+def test_alertmanager_email_canonical_bytes_pass_both_deploy_readers(
+    tmp_path: Path, contour: str
+) -> None:
+    """The actual shell admissions accept the complete new source in every source mode."""
+    if contour == "staging":
+        env, argv, _log_file, project = _alertmanager_dependency_fixture(tmp_path, "staging")
+        source = project / "alertmanager/alertmanager.yml"
+    else:
+        env, project, _log_file, bundle = _production_preflight_fixture(
+            tmp_path, with_bundle=contour == "production-bundle"
+        )
+        env["COMPOSE_PROFILES"] = ""
+        source = (bundle or project) / "deploy/alertmanager/alertmanager.yml"
+        argv = [str(REPO_ROOT / "scripts/deploy_production.sh"), "--preflight-only"]
+    assert source.read_bytes() == ALERTMANAGER_CONFIG_PATH.read_bytes()
+    completed = subprocess.run(
+        argv, cwd=REPO_ROOT, env=env, capture_output=True, text=True, check=False
+    )
+    assert completed.returncode == 0, completed.stderr
+
+
+@pytest.mark.parametrize("contour", ["staging", "production-installed", "production-bundle"])
+@pytest.mark.parametrize("variant", ALERTMANAGER_EMAIL_DRIFT)
+def test_alertmanager_email_noncanonical_bytes_reject_before_product_effects(
+    tmp_path: Path, contour: str, variant: str
+) -> None:
+    """Both full deploy paths refuse drift before login, publication or product mutation."""
+    if contour == "staging":
+        env, argv, log_file, project = _alertmanager_dependency_fixture(tmp_path, "staging")
+        source = project / "alertmanager/alertmanager.yml"
+        argv.remove("--preflight-only")
+        installed_paths = (
+            "docker-compose.staging.yaml",
+            "prometheus/prometheus.yml",
+            "alertmanager/alertmanager.yml",
+        )
+    else:
+        env, project, log_file, bundle = _production_preflight_fixture(
+            tmp_path, with_bundle=contour == "production-bundle"
+        )
+        env.update(
+            {
+                "COMPOSE_PROFILES": "",
+                "IMAGE_REF": "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "a" * 64,
+                "TAG": "prod-vtest",
+            }
+        )
+        source = (bundle or project) / "deploy/alertmanager/alertmanager.yml"
+        argv = [str(REPO_ROOT / "scripts/deploy_production.sh")]
+        installed_paths = (
+            "deploy/docker-compose.production.yaml",
+            "deploy/prometheus/prometheus.yml",
+            "deploy/alertmanager/alertmanager.yml",
+        )
+    faulty = _alertmanager_email_drift(source.read_bytes(), variant)
+    source.write_bytes(faulty)
+    installed = {name: (project / name).read_bytes() for name in installed_paths}
+    completed = subprocess.run(
+        argv, cwd=REPO_ROOT, env=env, capture_output=True, text=True, check=False
+    )
+    assert completed.returncode != 0
+    assert "Alertmanager" in completed.stderr or "UnicodeDecodeError" in completed.stderr
+    _assert_dependency_admission_has_no_product_effect(log_file)
+    assert source.read_bytes() == faulty
+    assert {name: (project / name).read_bytes() for name in installed_paths} == installed
+    assert not list(project.rglob(".pulseplate-*.tmp-*"))
+
+
 @pytest.mark.parametrize("contour", ["staging", "production"])
 @pytest.mark.parametrize(
     ("service_name", "condition", "required", "restart", "indirect"),

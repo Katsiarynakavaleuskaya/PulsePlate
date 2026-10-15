@@ -23,10 +23,12 @@ from sqlalchemy import create_engine
 from app.routers import legacy_premium_weekly_plan
 from app.routers import health as health_router
 from app.schemas import insight as insight_schemas
+from app.schemas.bmi_compat import BMIRequest
 from app.schemas.legacy_premium_weekly_plan import LegacyWeekPlanRequest
 import app.services.bmi_compat as bmi_compat_service
 import app.services.legacy_premium_weekly_plan as weekly_plan_service
 from app.services import insight_compat
+from app.services import scheduler_access
 from app.services import pro_nutrition_plate as plate_service
 import legacy_app
 from tests.helpers.module_resolve import resolve_module
@@ -320,16 +322,17 @@ def test_get_update_scheduler_delegates_to_core_at_call_time(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     async def _run() -> None:
-        """The compatibility export delegates through the lazy service seam."""
+        """The canonical async service resolves the current core getter."""
+        sentinel = object()
 
         async def _late_getter() -> Any:
-            return object()
+            return sentinel
 
         import core.food_apis.scheduler as sched
 
         monkeypatch.setattr(sched, "get_update_scheduler", _late_getter)
-        res = await legacy_app.get_update_scheduler()
-        assert res is not None
+        res = await scheduler_access.get_update_scheduler()
+        assert res is sentinel
 
     asyncio.run(_run())
 
@@ -441,35 +444,36 @@ def test_bmi_request_normalizes_with_visualization_values() -> None:
         "lang": "en",
         "with_visualization": "yes",
     }
-    m = legacy_app.BMIRequest.model_validate(payload)
+    m = BMIRequest.model_validate(payload)
     assert getattr(m, "include_chart", False) is True
 
     payload["with_visualization"] = "no"
-    m2 = legacy_app.BMIRequest.model_validate(payload)
+    m2 = BMIRequest.model_validate(payload)
     assert getattr(m2, "include_chart", True) is False
 
     payload["with_visualization"] = "maybe"
-    m3 = legacy_app.BMIRequest.model_validate(payload)
+    m3 = BMIRequest.model_validate(payload)
     assert getattr(m3, "include_chart", False) is True
 
     # Non-string branch (bool)
     payload["with_visualization"] = True
-    m4 = legacy_app.BMIRequest.model_validate(payload)
+    m4 = BMIRequest.model_validate(payload)
     assert getattr(m4, "include_chart", False) is True
 
 
 def test_add_visualization_calls_generate_bmi_visualization(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Cover add_visualization_if_requested call into viz function (line ~1479)."""
+    """Cover the canonical visualization helper call into its service binding."""
     monkeypatch.setattr(bmi_compat_service, "MATPLOTLIB_AVAILABLE", True)
 
     def _viz(**_kw: Any) -> dict[str, Any]:
+        """Return a successful synthetic renderer payload for the canonical helper."""
         return {"available": True, "ok": True}
 
     monkeypatch.setattr(bmi_compat_service, "generate_bmi_visualization", _viz)
 
-    req = legacy_app.BMIRequest.model_validate(
+    req = BMIRequest.model_validate(
         {
             "weight_kg": 70.0,
             "height_cm": 170.0,
@@ -482,7 +486,7 @@ def test_add_visualization_calls_generate_bmi_visualization(
         }
     )
     result: dict[str, Any] = {"bmi": 24.2}
-    legacy_app.add_visualization_if_requested(result, req)
+    bmi_compat_service.add_visualization_if_requested(result, req)
     assert result.get("visualization", {}).get("available") is True
 
 

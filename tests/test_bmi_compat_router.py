@@ -2,10 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import ast
-import os
 from pathlib import Path
-import subprocess
-import sys
 from typing import Any
 from unittest.mock import AsyncMock, Mock
 
@@ -27,61 +24,6 @@ from app.routers.bmi_compat import BMI_COMPAT_ROUTE_SPECS, router
 from app.schemas.bmi_compat import BMIRequest, BMIRequestV1
 import app.services.bmi_compat as bmi_compat_service
 import legacy_app
-
-
-@pytest.mark.parametrize(
-    "imports",
-    [
-        """
-import bmi_visualization
-import app.services.bmi_compat as bmi_compat_service
-import app as app_package
-import legacy_app
-""",
-        """
-import bmi_visualization
-import app as app_package
-import legacy_app
-import app.services.bmi_compat as bmi_compat_service
-""",
-    ],
-    ids=["service-first", "facades-first"],
-)
-def test_bmi_visualization_compat_exports_survive_clean_import_orders(
-    imports: str,
-) -> None:
-    script = imports + """
-assert (
-    bmi_compat_service.generate_bmi_visualization
-    is bmi_visualization.generate_bmi_visualization
-)
-assert app_package.generate_bmi_visualization is bmi_visualization.generate_bmi_visualization
-assert legacy_app.generate_bmi_visualization is bmi_visualization.generate_bmi_visualization
-assert (
-    bmi_compat_service.MATPLOTLIB_AVAILABLE
-    == app_package.MATPLOTLIB_AVAILABLE
-    == legacy_app.MATPLOTLIB_AVAILABLE
-    == bmi_visualization.MATPLOTLIB_AVAILABLE
-)
-print("ok")
-"""
-    env = os.environ.copy()
-    env["TESTING"] = "true"
-
-    completed = subprocess.run(
-        [sys.executable, "-c", script],
-        cwd=Path(__file__).resolve().parents[1],
-        env=env,
-        capture_output=True,
-        text=True,
-        timeout=60,
-        check=False,
-    )
-
-    assert completed.returncode == 0, (
-        f"stdout:\n{completed.stdout[-4000:]}\n" f"stderr:\n{completed.stderr[-4000:]}"
-    )
-    assert completed.stdout.strip() == "ok"
 
 
 def _post_routes_for(path: str) -> list[Any]:
@@ -556,51 +498,74 @@ def test_bmi_route_uses_service_visualization_bindings_not_facades(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Prove the live BMI route ignores temporary facade state and restores it afterward."""
     facade_calls: list[str] = []
 
     def _facade_visualization(**_: Any) -> dict[str, Any]:
+        """Record unexpected facade calls and return the facade sentinel."""
         facade_calls.append("called")
         return {"available": True, "source": "facade"}
 
     def _service_visualization(**_: Any) -> dict[str, Any]:
+        """Return the service sentinel so the route can distinguish it from facade output."""
         return {"available": True, "source": "service"}
 
-    monkeypatch.setattr(app_package, "MATPLOTLIB_AVAILABLE", False, raising=False)
-    monkeypatch.setattr(
-        app_package,
-        "generate_bmi_visualization",
-        _facade_visualization,
-        raising=False,
-    )
-    monkeypatch.setattr(legacy_app, "MATPLOTLIB_AVAILABLE", False, raising=False)
-    monkeypatch.setattr(
-        legacy_app,
-        "generate_bmi_visualization",
-        _facade_visualization,
-        raising=False,
-    )
-    monkeypatch.setattr(bmi_compat_service, "MATPLOTLIB_AVAILABLE", True)
-    monkeypatch.setattr(
-        bmi_compat_service,
-        "generate_bmi_visualization",
-        _service_visualization,
-    )
+    legacy_names = ("MATPLOTLIB_AVAILABLE", "generate_bmi_visualization")
+    package_flag = app_package.MATPLOTLIB_AVAILABLE
+    package_generator = app_package.generate_bmi_visualization
+    for name in legacy_names:
+        assert name not in vars(legacy_app)
+        with pytest.raises(AttributeError):
+            getattr(legacy_app, name)
 
-    response = client.post(
-        "/bmi",
-        json={
-            "weight_kg": 70.0,
-            "height_m": 1.75,
-            "age": 30,
-            "gender": "male",
-            "include_chart": True,
-        },
-    )
+    with monkeypatch.context() as patch:
+        patch.setattr(app_package, "MATPLOTLIB_AVAILABLE", False)
+        patch.setattr(
+            app_package,
+            "generate_bmi_visualization",
+            _facade_visualization,
+        )
+        patch.setattr(legacy_app, "MATPLOTLIB_AVAILABLE", False, raising=False)
+        patch.setattr(
+            legacy_app,
+            "generate_bmi_visualization",
+            _facade_visualization,
+            raising=False,
+        )
+        patch.setattr(bmi_compat_service, "MATPLOTLIB_AVAILABLE", True)
+        patch.setattr(
+            bmi_compat_service,
+            "generate_bmi_visualization",
+            _service_visualization,
+        )
 
-    assert response.status_code == 200
-    assert response.headers["content-type"].startswith("application/json")
-    assert response.json()["visualization"] == {"available": True, "source": "service"}
-    assert facade_calls == []
+        assert legacy_app.MATPLOTLIB_AVAILABLE is False
+        assert legacy_app.generate_bmi_visualization is _facade_visualization
+        assert app_package.generate_bmi_visualization is _facade_visualization
+        assert bmi_compat_service.generate_bmi_visualization is _service_visualization
+
+        response = client.post(
+            "/bmi",
+            json={
+                "weight_kg": 70.0,
+                "height_m": 1.75,
+                "age": 30,
+                "gender": "male",
+                "include_chart": True,
+            },
+        )
+
+        assert response.status_code == 200
+        assert response.headers["content-type"].startswith("application/json")
+        assert response.json()["visualization"] == {"available": True, "source": "service"}
+        assert facade_calls == []
+
+    for name in legacy_names:
+        assert name not in vars(legacy_app)
+        with pytest.raises(AttributeError):
+            getattr(legacy_app, name)
+    assert app_package.MATPLOTLIB_AVAILABLE is package_flag
+    assert app_package.generate_bmi_visualization is package_generator
 
 
 def test_api_v1_bmi_does_not_call_legacy_visualization(

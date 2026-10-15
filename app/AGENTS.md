@@ -381,7 +381,8 @@ Avoid `# type: ignore[no-any-return]` and prefer typed locals over `cast()`.
 
 - Application startup/shutdown ownership belongs in `app/bootstrap/lifespan.py`.
   `app/bootstrap/application.py` passes that exact context manager to the sole
-  production `FastAPI(...)` constructor; `legacy_app.py` only re-exports it.
+  production `FastAPI(...)` constructor. `app.lifespan` remains that exact
+  callable; the `legacy_app.lifespan` Python binding is retired.
 - Shared clients and process-wide adapters must be acquired during lifespan
   startup, never additive route bootstrap or module import, and released with
   deterministic reverse-order cleanup after partial startup and cancellation.
@@ -404,8 +405,23 @@ Avoid `# type: ignore[no-any-return]` and prefer typed locals over `cast()`.
 
 - Application metadata belongs in `app/application_metadata.py`; keep its source
   values immutable and create fresh nested dict/list constructor inputs for each
-  FastAPI instance. The application bootstrap resolves the runtime environment
-  and builds metadata once; compatibility modules alias that value.
+  FastAPI instance. `app.bootstrap.application` resolves `RUNTIME_ENV` and builds
+  `APPLICATION_METADATA` once. Consumers of startup truth use these existing
+  snapshots; do not resolve the environment or rebuild metadata for compatibility.
+- The six `legacy_app.py` bindings `APPLICATION_METADATA`, `RUNTIME_ENV`,
+  `_app_env`, `_application_metadata`, `tags_metadata`, and `_api_description`
+  are retired. Import snapshots from `app.bootstrap.application`; inspect the
+  canonical app fields for composed public metadata, which follows the existing
+  OpenAPI input policy. Do not restore aliases, wrappers or lazy fallbacks.
+  Fresh-import evidence is bounded to the declared import orders, not external
+  or computed callers or already-loaded/hot-reloaded module dictionaries.
+- The legacy Python re-exports `build_application_metadata`,
+  `ENHANCED_PLATE_GENERATION_FAILED_DETAIL`, and
+  `INVALID_PREMIUM_PLATE_INPUT_DETAIL` are retired. Import the factory from
+  `app.application_metadata` and both exact error strings from
+  `app.http_error_details`. Bootstrap metadata values remain canonical; do not
+  restore these three legacy bindings or wrappers. Fresh-import evidence does
+  not establish external/computed-caller or hot-reload absence.
 - Public-path filtering, schema-reference pruning, and the custom OpenAPI builder
   belong in `app/bootstrap/openapi.py`. The seven former OpenAPI helper Python
   re-exports are retired from `legacy_app.py`; callers use the canonical module.
@@ -512,6 +528,17 @@ Avoid `# type: ignore[no-any-return]` and prefer typed locals over `cast()`.
   Retained HTTP aliases continue to use their canonical router/schema owners.
   Fresh-import absence does not establish hot-reload behavior or absence of
   unknown external or computed Python callers.
+- The seven BMI schema/visualization bindings `BMIRequest`, `BMIRequestV1`,
+  `MATPLOTLIB_AVAILABLE`, `generate_bmi_visualization`,
+  `add_visualization_if_requested`, `_BMI_COMPAT_REEXPORTS`, and
+  `_BMI_SCHEMA_COMPAT_REEXPORTS` are retired from `legacy_app.py` and must not
+  be recreated. Import the two distinct models from `app.schemas.bmi_compat`,
+  the helper from `app.services.bmi_compat`, and renderer/flag from
+  `bmi_visualization`; the service keeps its existing local renderer bindings.
+  The two tuples have no replacement. The separate sixteen-name `app` package
+  facade remains unchanged, including its BMI model and visualization exports.
+  Fresh-process absence does not prove hot-reload or external/computed-caller
+  absence.
 - Core/utility imports use their canonical owners: `core.db.get_session`,
   `core.i18n.Language`, `core.i18n.normalize_lang`, `core.i18n.t`,
   `core.targets.FIBER_MIN_G`, `app.utils.helpers._short_git_sha`, and
@@ -594,10 +621,12 @@ Avoid `# type: ignore[no-any-return]` and prefer typed locals over `cast()`.
 - Admin services import and await the scheduler-access callable at their use
   site. Do not reintroduce `sys.modules` lookup, compatibility getter selection,
   or synchronous getter support.
-- `app.get_update_scheduler`, `legacy_app.get_update_scheduler`, and
+- `app.get_update_scheduler` and
   `app.services.scheduler_access.get_update_scheduler` must be the exact same
-  callable. Identity with the core getter is intentionally not required across
-  the lazy boundary.
+  callable. The `legacy_app.get_update_scheduler` binding is retired; do not
+  restore either selected lifecycle/access alias, wrapper or lazy fallback.
+  Identity with the core getter is intentionally not required across the lazy
+  boundary.
 - `admin_status` preserves intentional `HTTPException` pass-through and maps an
   unavailable scheduler to stable `503 Scheduler unavailable`. Database status,
   update check, and non-contention force-update failures must log technical

@@ -9,41 +9,14 @@ from typing import (
     cast,
 )
 
-from app.application_metadata import build_application_metadata
-from app.bootstrap.application import APPLICATION_METADATA, RUNTIME_ENV, app as _canonical_app
-from app.bootstrap.lifespan import application_lifespan as lifespan
-from app.http_error_details import (
-    ENHANCED_PLATE_GENERATION_FAILED_DETAIL,
-    INVALID_PREMIUM_PLATE_INPUT_DETAIL,
-)
+from app.bootstrap.application import app as _canonical_app
 from app.routers.api_key import (  # noqa: F401 - identity-preserving compatibility re-exports
     _get_api_key_dynamic as _get_api_key_dynamic,
     get_api_key as get_api_key,
 )
-from app.schemas.bmi_compat import BMIRequest, BMIRequestV1
-from app.services.scheduler_access import (  # noqa: F401 - compatibility re-export
-    get_update_scheduler as get_update_scheduler,
-)
-
-from app.services.bmi_compat import (
-    MATPLOTLIB_AVAILABLE,
-    add_visualization_if_requested,
-    generate_bmi_visualization,
-)
 
 # Preserve the declared lexical legacy surface while re-exporting the exact canonical object.
 app = cast(Any, _canonical_app)
-
-_BMI_COMPAT_REEXPORTS = (
-    MATPLOTLIB_AVAILABLE,
-    add_visualization_if_requested,
-    generate_bmi_visualization,
-)
-
-_BMI_SCHEMA_COMPAT_REEXPORTS = (
-    BMIRequest,
-    BMIRequestV1,
-)
 
 # Rate limiting imports (PR-628)
 # RU: Импорты для rate-limiting (медленные imports только если slowapi доступен).
@@ -97,14 +70,8 @@ slowapi_available = Limiter is not None
 
 # Canonical application bootstrap owns environment resolution, dotenv loading,
 # root logging configuration, metadata construction, and the FastAPI instance.
-_app_env = RUNTIME_ENV
 logger = logging.getLogger(__name__)
 bmi_logger = logging.getLogger("app.bmi")
-
-# OpenAPI/Swagger metadata remains available here as exact compatibility values.
-_application_metadata = APPLICATION_METADATA
-tags_metadata = _application_metadata.openapi_tags_list()
-_api_description = _application_metadata.description
 
 
 # (moved to top with other imports)

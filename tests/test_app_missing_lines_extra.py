@@ -20,7 +20,7 @@ class TestAppMissingLinesExtra:
         import legacy_app
         from app.services import scheduler_access
 
-        assert app_mod.get_update_scheduler is legacy_app.get_update_scheduler
+        assert "get_update_scheduler" not in vars(legacy_app)
         assert app_mod.get_update_scheduler is scheduler_access.get_update_scheduler
 
     def test_insight_implicit_disabled_flag_branch(self, client: TestClient) -> None:
