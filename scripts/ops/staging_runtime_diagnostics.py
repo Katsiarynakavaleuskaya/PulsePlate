@@ -27,8 +27,8 @@ PROJECT = "/srv/pulseplate-staging"
 SSH_BINARY = Path("/usr/bin/ssh")
 MAX_OUTPUT = 65536
 # Worst-case remote budget: four Compose renders (4*15), eight hashes (8*15),
-# checker (25), eight census/inspect calls (8*15), and app probe (15).
-# This is 340 seconds; retain a bounded SSH/scheduling margin for file reads.
+# checker (25), eight census/inspect calls (8*15), app probe (15), and manifest reader (15).
+# This is 355 seconds; retain a bounded SSH/scheduling margin for file reads.
 SSH_TIMEOUT = 390
 REMOTE_ERRORS = frozenset(
     {
@@ -400,6 +400,12 @@ def selected(service, compose, expected_hash):
 def main():
     try:
         source_signature = app_env_file_signature()
+        code, prometheus_ref = run(["/usr/bin/python3",
+            PROJECT + "/scripts/ci/prometheus_source_image.py", "--operation", "read-manifest",
+            "--manifest", PROJECT + "/prometheus/image-manifest.json", "--field", "runtime_ref"])
+        if code:
+            raise RuntimeError("NATIVE_FAILED")
+        NATIVE_ENV["PROMETHEUS_RUNTIME_REF"] = prometheus_ref.decode("ascii").strip()
         code, raw = run([*compose_command(), "--format", "json"])
         if code:
             raise RuntimeError("COMPOSE_RENDER_FAILED")

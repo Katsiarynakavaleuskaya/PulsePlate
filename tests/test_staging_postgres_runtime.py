@@ -686,6 +686,9 @@ def wrapper_adapter(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> dict[str
             assert env["PROJECT_DIR"] == str(tmp_path) and env["COMPOSE_FILE"] == str(compose_file)
             assert env["POSTGRES_USER"] == runtime.USER and env["POSTGRES_DB"] == runtime.DATABASE
             assert env["ENV_FILE"] == "/dev/null" and env["DOCKER_BIN"] == "/resolved/docker"
+            assert env["PROMETHEUS_IMAGE_MANIFEST"] == str(
+                Path(args[1]).parents[2] / "deploy/prometheus/image-manifest.json"
+            )
             assert kwargs["timeout"] == 120
             assert not any(key.startswith("PG") for key in env)
             assert "COMPOSE_PROJECT_NAME" not in env

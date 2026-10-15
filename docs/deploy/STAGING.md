@@ -32,8 +32,9 @@ Copy these paths from the same verified merged revision under
   becomes `docker-compose.staging.yaml`; `deploy/Caddyfile` becomes `Caddyfile`.
 - `scripts/ops/postgres_backup.sh`, `scripts/ops/postgres_restore.sh` and
   `scripts/ops/check_staging_security.py` retain their `scripts/ops/` paths.
-- `scripts/ci/check_pgvector_attestations.py` and
-  `scripts/ci/check_docker_provenance_attestation.py` retain `scripts/ci/`.
+- `scripts/ci/check_pgvector_attestations.py`,
+  `scripts/ci/check_docker_provenance_attestation.py` and
+  `scripts/ci/prometheus_source_image.py` retain `scripts/ci/`.
 - `deploy/postgres-pgvector/image-manifest.json` and `pg_hba.conf` become
   `postgres-pgvector/image-manifest.json` and `postgres-pgvector/pg_hba.conf`.
 - `deploy/prometheus/prometheus.yml` and `image-manifest.json` become the
@@ -502,7 +503,8 @@ sudo install -o root -g root -m 0755 scripts/ops/postgres_backup.sh /srv/pulsepl
 sudo install -o root -g root -m 0755 scripts/ops/postgres_restore.sh /srv/pulseplate-staging/scripts/ops/
 sudo install -o root -g root -m 0644 scripts/ops/check_staging_security.py /srv/pulseplate-staging/scripts/ops/
 sudo install -o root -g root -m 0644 scripts/ci/check_pgvector_attestations.py \
-  scripts/ci/check_docker_provenance_attestation.py /srv/pulseplate-staging/scripts/ci/
+  scripts/ci/check_docker_provenance_attestation.py \
+  scripts/ci/prometheus_source_image.py /srv/pulseplate-staging/scripts/ci/
 sudo install -o root -g root -m 0644 deploy/postgres-pgvector/image-manifest.json /srv/pulseplate-staging/postgres-pgvector/
 sudo install -o root -g root -m 0444 deploy/postgres-pgvector/pg_hba.conf /srv/pulseplate-staging/postgres-pgvector/
 sudo install -o root -g root -m 0644 deploy/prometheus/prometheus.yml deploy/prometheus/image-manifest.json \

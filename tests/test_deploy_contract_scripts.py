@@ -8769,12 +8769,94 @@ printf 'curl %s\n' "$*" >> "{log_file}"
         assert all(forbidden not in line for line in log_lines[prometheus_index + 1 :])
 
 
+def _write_backup_prometheus_manifest(project: Path) -> Path:
+    manifest = project / "prometheus" / "image-manifest.json"
+    manifest.parent.mkdir(exist_ok=True)
+    manifest.write_text(_synthetic_prometheus_manifest_text(), encoding="utf-8")
+    return manifest
+
+
+@pytest.mark.parametrize("helper", ["postgres_backup.sh", "postgres_restore.sh"])
+@pytest.mark.parametrize("manifest_state", ["valid", "missing", "malformed", "missing-reader"])
+@pytest.mark.parametrize("explicit_manifest", [False, True])
+@pytest.mark.parametrize("ambient_ref", [None, "untrusted.example/prometheus:latest"])
+def test_postgres_helpers_derive_manifest_ref_before_compose(
+    tmp_path: Path,
+    helper: str,
+    manifest_state: str,
+    explicit_manifest: bool,
+    ambient_ref: str | None,
+) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    manifest_project = tmp_path if explicit_manifest else project
+    manifest = _write_backup_prometheus_manifest(manifest_project)
+    if manifest_state == "missing":
+        manifest.unlink()
+    elif manifest_state == "malformed":
+        manifest.write_text("{}", encoding="utf-8")
+    dump = tmp_path / "input.dump"
+    dump.write_text("synthetic archive", encoding="utf-8")
+    calls = tmp_path / "calls"
+    docker = tmp_path / "native-docker"
+    _write_executable(
+        docker,
+        r"""#!/usr/bin/env bash
+set -euo pipefail
+printf '%s\n' "$*" >> "$COMPOSE_CALLS"
+test "$PROMETHEUS_RUNTIME_REF" = "$EXPECTED_PROMETHEUS_REF"
+case "$*" in
+  *pg_dump*) printf 'synthetic archive\n' ;;
+  *pg_restore\ --list*) cat >/dev/null; printf '214; 1259 16387 TABLE public items user\n' ;;
+  *pg_restore*) cat >/dev/null ;;
+  *createdb*) ;;
+  *psql*) printf '1\n' ;;
+  *) exit 99 ;;
+esac
+""",
+    )
+    script = REPO_ROOT / "scripts/ops" / helper
+    if manifest_state == "missing-reader":
+        copied_script = tmp_path / "scripts/ops" / helper
+        copied_script.parent.mkdir(parents=True)
+        copied_script.write_bytes(script.read_bytes())
+        copied_script.chmod(0o755)
+        script = copied_script
+    argv = [str(script)]
+    if helper == "postgres_restore.sh":
+        argv += ["--verify-into", "pulseplate_restore_check_ref", str(dump)]
+    env = {
+        "PATH": os.environ["PATH"],
+        "PROJECT_DIR": str(project),
+        "PYTHON_BIN": sys.executable,
+        "DOCKER_BIN": str(docker),
+        "POSTGRES_USER": "synthetic_role",
+        "POSTGRES_DB": "synthetic_db",
+        "EXPECTED_PROMETHEUS_REF": PROMETHEUS_RUNTIME_REF,
+        "COMPOSE_CALLS": str(calls),
+    }
+    if explicit_manifest:
+        env["PROMETHEUS_IMAGE_MANIFEST"] = str(manifest)
+    if ambient_ref is not None:
+        env["PROMETHEUS_RUNTIME_REF"] = ambient_ref
+    result = subprocess.run(argv, env=env, capture_output=True, text=True, check=False)
+    if manifest_state == "valid":
+        assert result.returncode == 0, result.stderr
+        assert calls.read_text().splitlines()
+    else:
+        assert result.returncode != 0
+        assert not calls.exists()
+        assert not (project / "backups").exists()
+    assert dump.read_text() == "synthetic archive"
+
+
 def test_postgres_backup_helper_passes_project_dir_and_compose_file(tmp_path: Path) -> None:
     project_dir = tmp_path / "project"
     bin_dir = tmp_path / "bin"
     backup_dir = project_dir / "backups"
     log_file = tmp_path / "docker.log"
     project_dir.mkdir()
+    _write_backup_prometheus_manifest(project_dir)
     bin_dir.mkdir()
     backup_dir.mkdir()
     env_file = project_dir / "config" / "selected.env"
@@ -8830,6 +8912,7 @@ def test_postgres_backup_helper_uses_container_database_identity_when_host_env_i
     backup_dir = project_dir / "backups"
     log_file = tmp_path / "docker.log"
     project_dir.mkdir()
+    _write_backup_prometheus_manifest(project_dir)
     bin_dir.mkdir()
     backup_dir.mkdir()
 
@@ -8875,6 +8958,7 @@ def test_postgres_restore_helper_passes_project_dir_and_compose_file(tmp_path: P
     log_file = tmp_path / "docker.log"
     backup_file = tmp_path / "pulseplate.dump"
     project_dir.mkdir()
+    _write_backup_prometheus_manifest(project_dir)
     bin_dir.mkdir()
     backup_file.write_text("FAKE_RESTORE", encoding="utf-8")
 
@@ -8888,6 +8972,7 @@ fi
     _write_executable(bin_dir / "docker", docker_stub)
 
     env = os.environ.copy()
+    env["PYTHON_BIN"] = sys.executable
     env["PATH"] = f"{bin_dir}:{env['PATH']}"
     env["PROJECT_DIR"] = str(project_dir)
     env["COMPOSE_FILE"] = "docker-compose.production.yaml"
@@ -13641,6 +13726,7 @@ def test_staging_backup_full_archive_failure_preserves_old_dump_and_no_publicati
 ) -> None:
     project = tmp_path / "staging"
     project.mkdir()
+    _write_backup_prometheus_manifest(project)
     _write_stage_native_oracles(project)
     docker = tmp_path / "docker"
     _write_executable(docker, "#!/usr/bin/env bash\nset -euo pipefail\nprintf 'FAKE_BACKUP\\n'\n")
@@ -13773,6 +13859,7 @@ def test_verification_restore_selects_source_database_when_role_name_differs(
 ) -> None:
     project = tmp_path / "production"
     project.mkdir()
+    _write_backup_prometheus_manifest(project)
     dump = tmp_path / "input.dump"
     dump.write_text("synthetic archive")
     docker = tmp_path / "docker"
@@ -13790,6 +13877,7 @@ def test_verification_restore_selects_source_database_when_role_name_differs(
         ],
         env={
             **os.environ,
+            "PYTHON_BIN": sys.executable,
             "PROJECT_DIR": str(project),
             "DOCKER_BIN": str(docker),
             "POSTGRES_USER": "application_role",
@@ -13825,6 +13913,7 @@ def test_verification_restore_rejects_each_failed_stage_without_deletion_or_succ
 ) -> None:
     project = tmp_path / "production"
     project.mkdir()
+    _write_backup_prometheus_manifest(project)
     dump = tmp_path / "input.dump"
     dump.write_text("synthetic archive")
     docker, calls = tmp_path / "native-docker", tmp_path / "calls"
@@ -13870,6 +13959,7 @@ esac
         ],
         env={
             **os.environ,
+            "PYTHON_BIN": sys.executable,
             "PROJECT_DIR": str(project),
             "DOCKER_BIN": str(docker),
             "POSTGRES_USER": "role",
@@ -13987,12 +14077,14 @@ def test_production_custom_name_containing_staging_does_not_select_reserved_cont
 ) -> None:
     project = tmp_path / "production-staging-reference"
     project.mkdir()
+    _write_backup_prometheus_manifest(project)
     docker = tmp_path / "docker"
     _write_executable(docker, "#!/usr/bin/env bash\nset -euo pipefail\nprintf 'FAKE_BACKUP\\n'\n")
     result = subprocess.run(
         [str(REPO_ROOT / "scripts/ops/postgres_backup.sh")],
         env={
             **os.environ,
+            "PYTHON_BIN": sys.executable,
             "PROJECT_DIR": str(project),
             "COMPOSE_FILE": "docker-compose.production-staging.yaml",
             "DOCKER_BIN": str(docker),

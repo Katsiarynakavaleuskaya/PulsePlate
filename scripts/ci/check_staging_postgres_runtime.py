@@ -563,6 +563,7 @@ def wrapper_restore_checks(
             "POSTGRES_DB": DATABASE,
             "ENV_FILE": "/dev/null",
             "DOCKER_BIN": docker,
+            "PROMETHEUS_IMAGE_MANIFEST": str(root / "deploy/prometheus/image-manifest.json"),
         }
     )
     suffix = owner[:16]
