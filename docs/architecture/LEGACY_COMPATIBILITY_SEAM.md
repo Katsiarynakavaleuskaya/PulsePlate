@@ -460,7 +460,9 @@ merge permission and granted no bypass of this PR's required gates.
 
 ## Legacy rate-limit compatibility retirement
 
-The `LEGACY-RATE-LIMIT-COMPAT-RETIREMENT-1/v1` child retires exactly thirteen
+The `LEGACY-RATE-LIMIT-COMPAT-RETIREMENT-1/v1` child is OPEN in
+[PR #2490](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2490), on
+`codex/retire-legacy-rate-limit-compatibility`. It retires exactly thirteen
 Python bindings from the facade: `limiter`, `limit_if_available`,
 `RATE_LIMIT_EXPORTS`, `RATE_LIMIT_INSIGHT`, `RATE_LIMIT_429_RESPONSES`,
 `_RATE_LIMIT_429_RESPONSES`, `_TypeVar`, `_F`, `_LimitValue`, `LimiterType`,
@@ -496,15 +498,37 @@ already-loaded module dictionaries remain outside fresh-process proof.
 
 Whole incoming #2489 reconciliation and the separately dated operator-start
 clarification were committed first as
-`613603bd8b952b05590628eaa7d9d22179521e64`. Its original Target PR #2489 and
-already-reconciled incoming #2488 remain unchanged. This child still requires
-its own actual-diff review, premortem/admitted Oracle, narrow/current-head
-validation, post-open roles and exact-material closeout. Separate exact-head
-merge authorization and post-merge archive, same-ID continuity/readback,
-outgoing carryover and owned cleanup remain pending. PROJECT_LEGACY remains
-OPEN. No foreign #2476/#2477, OPS, dependency, workflow or canonical-owner repair
-is included. Rollback reverts only this removal and its coupled guard/tests,
-preserving truthful incoming reconciliation and every earlier cohort.
+`613603bd8b952b05590628eaa7d9d22179521e64` and are
+APPLIED / COMMITTED / INCLUDED IN REVIEWED DIFF. Original Target PR #2489 and
+already-reconciled incoming #2488 remain unchanged.
+
+At reviewed material `cae31045103ebe6caded8c37718dd555eaa44048`, base
+`ea40bc78a433c4e0ab4333b4fbffa41b79349659`, retained local proof includes
+2560 focused cases and 18 overflow regressions with zero failures/errors/skips,
+the narrow local bundle, actual-diff Architecture/Security premortems and the
+pre-open native Oracle receipt `6a6e884a`. The complete post-open
+Coordinator/QA/Bug Hunter/Security pass and its separate native phase receipt
+`a1a6a3b0` were also observed at that material. Oracle evidence is procedural;
+neither role completion nor those retained results grants approval or readiness.
+
+At that published head, canonical CI run `38796805399` completed FAILURE only
+at the Merge readiness gate: the canonical #2490 mapping blob was missing.
+Lint, security, test-pr3.13, OpenAPI sync, diff-coverage and coverage-pr jobs
+completed SUCCESS; this records no numeric coverage result or new-head proof.
+The separate Prometheus CD failure remains failed and unwaived, with its
+unchanged repair surface owned by #2477.
+
+This material correction addresses the four post-open findings. New-head
+validation, coverage and the trusted security-check bundle, exact-material
+self-review, provider-neutral seal, review dispositions, one mapping-only
+closeout, pre-closeout/strict checks and the review wait window remain required
+and pending. No provider invocation follows. Separate exact-head merge
+authorization, incoming reconciliation in main and full post-merge archive,
+same-ID continuity/readback, outgoing carryover, final QA and owned cleanup
+remain pending. PROJECT_LEGACY remains OPEN. No foreign #2476/#2477, OPS,
+dependency, workflow or canonical-owner repair is included. Rollback reverts
+only this removal and its coupled guard/tests, preserving truthful incoming
+reconciliation and every earlier cohort.
 
 ## Legacy lifecycle and scheduler-access Python export retirement
 

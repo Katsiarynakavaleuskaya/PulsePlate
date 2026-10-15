@@ -162,6 +162,7 @@ RETIRED_RATE_LIMIT_BINDINGS = RETIRED_LEGACY_PYTHON_BINDINGS[117:130]
 
 
 def test_retired_rate_limit_tail_is_exact_and_disjoint() -> None:
+    """Preserve prior 117/lifecycle membership and append the exact independent 13 cohort."""
     assert RETIRED_RATE_LIMIT_BINDINGS == (
         "limiter",
         "limit_if_available",
@@ -214,6 +215,7 @@ def test_retired_rate_limit_tail_is_exact_and_disjoint() -> None:
     ),
 )
 def test_retired_rate_limit_binding_carriers(binding_name: str, source_template: str) -> None:
+    """Reject each retired name through the admitted ordinary and conditional carriers."""
     assert legacy_guard.validate_retired_legacy_python_bindings(
         source_template.format(name=binding_name)
     ) == [f"legacy_app.py: retired Python compatibility binding is forbidden: {binding_name}"]
@@ -225,6 +227,7 @@ def test_retired_rate_limit_guard_rejects_canonical_reimport(
     binding_name: str,
     same_name_alias: bool,
 ) -> None:
+    """Reject canonical-looking imports that would restore a legacy rate-limit binding."""
     suffix = f" as {binding_name}" if same_name_alias else ""
     assert legacy_guard.validate_retired_legacy_python_bindings(
         f"from app.security.rate_limit import {binding_name}{suffix}\n"
@@ -233,6 +236,7 @@ def test_retired_rate_limit_guard_rejects_canonical_reimport(
 
 @pytest.mark.parametrize("binding_name", RETIRED_RATE_LIMIT_BINDINGS)
 def test_retired_rate_limit_guard_allows_canonical_and_local_mentions(binding_name: str) -> None:
+    """Allow canonical owners and mentions that do not bind the legacy module namespace."""
     assert (
         legacy_guard.validate_retired_legacy_python_bindings(
             f"{binding_name} = canonical\n",
@@ -252,10 +256,12 @@ def test_retired_rate_limit_guard_allows_canonical_and_local_mentions(binding_na
 def test_retired_rate_limit_restoration_fails_aggregate_guard(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Reject whole-cohort restoration through the existing repository guard consumer."""
     assert legacy_guard.validate_repo(REPO_ROOT) == []
     original_read = legacy_guard._read
 
     def read_with_restoration(path: Path, repo_root: Path, errors: list[str]) -> str | None:
+        """Inject synthetic bare annotations only into the legacy source read seam."""
         source = original_read(path, repo_root, errors)
         if path == REPO_ROOT / "legacy_app.py" and source is not None:
             return (
@@ -275,6 +281,7 @@ def test_retired_rate_limit_restoration_fails_aggregate_guard(
 
 
 def test_retired_lifecycle_access_tail_is_exact_and_disjoint() -> None:
+    """Keep the prior two lifecycle bindings in their unchanged historical tuple slice."""
     assert RETIRED_LIFECYCLE_ACCESS_BINDINGS == ("lifespan", "get_update_scheduler")
     prior = RETIRED_LEGACY_PYTHON_BINDINGS[:115]
     assert len(prior) == len(set(prior)) == 115

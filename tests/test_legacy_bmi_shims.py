@@ -265,6 +265,7 @@ def _run_legacy_retirement_probe(
     *,
     rate_limiting_enabled: bool = False,
 ) -> dict[str, object]:
+    """Run a fresh finite-env child with named connection controls and fixed enabled settings."""
     passthrough_names = (
         "LANG",
         "LC_ALL",
@@ -341,6 +342,7 @@ def test_legacy_retirement_probe_excludes_ambient_credentials(
 
 
 def test_retired_rate_limit_bindings_are_absent() -> None:
+    """Require whole-cohort namespace, annotation, attribute and direct-import absence."""
     import_checks = "\n".join(textwrap.dedent(f"""
         try:
             from legacy_app import {binding_name}
@@ -374,6 +376,7 @@ def test_retired_rate_limit_bindings_are_absent() -> None:
 
 @pytest.mark.parametrize("import_order", ("legacy-first", "rate-limit-first", "main-first"))
 def test_rate_limit_canonical_wiring_survives_retirement_import_orders(import_order: str) -> None:
+    """Preserve real canonical wiring, route/model and handler across three fresh import orders."""
     sequences = {
         "legacy-first": "import legacy_app\nimport app.security.rate_limit as rate_limit\n"
         "import app.main as main\nbefore_legacy = None\n",
@@ -464,7 +467,7 @@ def test_rate_limit_canonical_wiring_survives_retirement_import_orders(import_or
         }})
         response = handler(request, Exception('synthetic rate-limit error'))
         assert response.status_code == 429
-        assert response.headers['content-type'].startswith('application/json')
+        assert response.headers['content-type'].split(';', 1)[0].strip().lower() == 'application/json', 'canonical handler media type must be application/json'
         payload = json.loads(response.body)
         assert payload == {{'detail': t('en', 'rate_limit.exceeded')}}
         assert rate_limit.RateLimitErrorResponse.model_validate(payload).model_dump() == payload
