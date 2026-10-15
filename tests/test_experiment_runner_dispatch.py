@@ -8,6 +8,7 @@ import json
 import os
 from pathlib import Path
 import re
+import shutil
 import stat
 import subprocess
 import sys
@@ -474,6 +475,583 @@ def _trivy_packages(prefix: str, count: int) -> list[dict[str, str]]:
     return [{"Name": f"{prefix}-{index:03d}", "Version": "1.0.0"} for index in range(1, count + 1)]
 
 
+_TRIVY_PHYSICAL_METADATA = (
+    (
+        "aiosqlite",
+        "0.22.1",
+        "opt/venv/lib/python3.13/site-packages/aiosqlite-0.22.1.dist-info/METADATA",
+    ),
+    (
+        "alembic",
+        "1.19.1",
+        "opt/venv/lib/python3.13/site-packages/alembic-1.19.1.dist-info/METADATA",
+    ),
+    (
+        "annotated-doc",
+        "0.0.4",
+        "opt/venv/lib/python3.13/site-packages/annotated_doc-0.0.4.dist-info/METADATA",
+    ),
+    (
+        "annotated-types",
+        "0.7.0",
+        "opt/venv/lib/python3.13/site-packages/annotated_types-0.7.0.dist-info/METADATA",
+    ),
+    ("anyio", "4.14.2", "opt/venv/lib/python3.13/site-packages/anyio-4.14.2.dist-info/METADATA"),
+    (
+        "ast-serialize",
+        "0.6.0",
+        "opt/venv/lib/python3.13/site-packages/ast_serialize-0.6.0.dist-info/METADATA",
+    ),
+    ("bandit", "1.9.4", "opt/venv/lib/python3.13/site-packages/bandit-1.9.4.dist-info/METADATA"),
+    ("black", "26.5.1", "opt/venv/lib/python3.13/site-packages/black-26.5.1.dist-info/METADATA"),
+    (
+        "boolean-py",
+        "5.0",
+        "opt/venv/lib/python3.13/site-packages/boolean_py-5.0.dist-info/METADATA",
+    ),
+    ("build", "1.5.0", "opt/venv/lib/python3.13/site-packages/build-1.5.0.dist-info/METADATA"),
+    (
+        "cachecontrol",
+        "0.14.4",
+        "opt/venv/lib/python3.13/site-packages/cachecontrol-0.14.4.dist-info/METADATA",
+    ),
+    (
+        "certifi",
+        "2026.1.4",
+        "opt/venv/lib/python3.13/site-packages/certifi-2026.1.4.dist-info/METADATA",
+    ),
+    ("cffi", "2.0.0", "opt/venv/lib/python3.13/site-packages/cffi-2.0.0.dist-info/METADATA"),
+    ("cfgv", "3.5.0", "opt/venv/lib/python3.13/site-packages/cfgv-3.5.0.dist-info/METADATA"),
+    ("chardet", "7.4.3", "opt/venv/lib/python3.13/site-packages/chardet-7.4.3.dist-info/METADATA"),
+    (
+        "charset-normalizer",
+        "3.4.4",
+        "opt/venv/lib/python3.13/site-packages/charset_normalizer-3.4.4.dist-info/METADATA",
+    ),
+    ("click", "8.3.3", "opt/venv/lib/python3.13/site-packages/click-8.3.3.dist-info/METADATA"),
+    (
+        "contourpy",
+        "1.3.3",
+        "opt/venv/lib/python3.13/site-packages/contourpy-1.3.3.dist-info/METADATA",
+    ),
+    (
+        "coverage",
+        "7.15.4",
+        "opt/venv/lib/python3.13/site-packages/coverage-7.15.4.dist-info/METADATA",
+    ),
+    (
+        "cryptography",
+        "50.0.2",
+        "opt/venv/lib/python3.13/site-packages/cryptography-50.0.2.dist-info/METADATA",
+    ),
+    ("cycler", "0.12.1", "opt/venv/lib/python3.13/site-packages/cycler-0.12.1.dist-info/METADATA"),
+    (
+        "cyclonedx-python-lib",
+        "11.11.0",
+        "opt/venv/lib/python3.13/site-packages/cyclonedx_python_lib-11.11.0.dist-info/METADATA",
+    ),
+    (
+        "defusedxml",
+        "0.7.1",
+        "opt/venv/lib/python3.13/site-packages/defusedxml-0.7.1.dist-info/METADATA",
+    ),
+    (
+        "deprecated",
+        "1.3.1",
+        "opt/venv/lib/python3.13/site-packages/deprecated-1.3.1.dist-info/METADATA",
+    ),
+    (
+        "detect-secrets",
+        "1.5.0",
+        "opt/venv/lib/python3.13/site-packages/detect_secrets-1.5.0.dist-info/METADATA",
+    ),
+    (
+        "diff-cover",
+        "10.3.0",
+        "opt/venv/lib/python3.13/site-packages/diff_cover-10.3.0.dist-info/METADATA",
+    ),
+    ("distlib", "0.4.3", "opt/venv/lib/python3.13/site-packages/distlib-0.4.3.dist-info/METADATA"),
+    ("distro", "1.9.0", "opt/venv/lib/python3.13/site-packages/distro-1.9.0.dist-info/METADATA"),
+    (
+        "dnspython",
+        "2.8.0",
+        "opt/venv/lib/python3.13/site-packages/dnspython-2.8.0.dist-info/METADATA",
+    ),
+    (
+        "email-validator",
+        "2.3.0",
+        "opt/venv/lib/python3.13/site-packages/email_validator-2.3.0.dist-info/METADATA",
+    ),
+    ("execnet", "2.1.2", "opt/venv/lib/python3.13/site-packages/execnet-2.1.2.dist-info/METADATA"),
+    ("faker", "40.37.0", "opt/venv/lib/python3.13/site-packages/faker-40.37.0.dist-info/METADATA"),
+    (
+        "fastapi",
+        "0.138.1",
+        "opt/venv/lib/python3.13/site-packages/fastapi-0.138.1.dist-info/METADATA",
+    ),
+    (
+        "filelock",
+        "3.29.1",
+        "opt/venv/lib/python3.13/site-packages/filelock-3.29.1.dist-info/METADATA",
+    ),
+    ("flake8", "7.3.0", "opt/venv/lib/python3.13/site-packages/flake8-7.3.0.dist-info/METADATA"),
+    (
+        "fonttools",
+        "4.61.1",
+        "opt/venv/lib/python3.13/site-packages/fonttools-4.61.1.dist-info/METADATA",
+    ),
+    (
+        "googleapis-common-protos",
+        "1.73.0",
+        "opt/venv/lib/python3.13/site-packages/googleapis_common_protos-1.73.0.dist-info/METADATA",
+    ),
+    (
+        "greenlet",
+        "3.5.5",
+        "opt/venv/lib/python3.13/site-packages/greenlet-3.5.5.dist-info/METADATA",
+    ),
+    ("h11", "0.16.0", "opt/venv/lib/python3.13/site-packages/h11-0.16.0.dist-info/METADATA"),
+    (
+        "httpcore",
+        "1.0.9",
+        "opt/venv/lib/python3.13/site-packages/httpcore-1.0.9.dist-info/METADATA",
+    ),
+    (
+        "httpcore2",
+        "2.12.0",
+        "opt/venv/lib/python3.13/site-packages/httpcore2-2.12.0.dist-info/METADATA",
+    ),
+    ("httpx", "0.28.1", "opt/venv/lib/python3.13/site-packages/httpx-0.28.1.dist-info/METADATA"),
+    ("httpx2", "2.12.0", "opt/venv/lib/python3.13/site-packages/httpx2-2.12.0.dist-info/METADATA"),
+    (
+        "hypothesis",
+        "6.165.10",
+        "opt/venv/lib/python3.13/site-packages/hypothesis-6.165.10.dist-info/METADATA",
+    ),
+    (
+        "identify",
+        "2.6.19",
+        "opt/venv/lib/python3.13/site-packages/identify-2.6.19.dist-info/METADATA",
+    ),
+    ("idna", "3.18", "opt/venv/lib/python3.13/site-packages/idna-3.18.dist-info/METADATA"),
+    (
+        "iniconfig",
+        "2.3.0",
+        "opt/venv/lib/python3.13/site-packages/iniconfig-2.3.0.dist-info/METADATA",
+    ),
+    ("jinja2", "3.1.6", "opt/venv/lib/python3.13/site-packages/jinja2-3.1.6.dist-info/METADATA"),
+    ("jiter", "0.12.0", "opt/venv/lib/python3.13/site-packages/jiter-0.12.0.dist-info/METADATA"),
+    (
+        "kiwisolver",
+        "1.4.9",
+        "opt/venv/lib/python3.13/site-packages/kiwisolver-1.4.9.dist-info/METADATA",
+    ),
+    ("librt", "0.13.0", "opt/venv/lib/python3.13/site-packages/librt-0.13.0.dist-info/METADATA"),
+    (
+        "license-expression",
+        "30.4.4",
+        "opt/venv/lib/python3.13/site-packages/license_expression-30.4.4.dist-info/METADATA",
+    ),
+    ("limits", "5.6.0", "opt/venv/lib/python3.13/site-packages/limits-5.6.0.dist-info/METADATA"),
+    ("mako", "1.3.12", "opt/venv/lib/python3.13/site-packages/mako-1.3.12.dist-info/METADATA"),
+    (
+        "markdown-it-py",
+        "4.2.0",
+        "opt/venv/lib/python3.13/site-packages/markdown_it_py-4.2.0.dist-info/METADATA",
+    ),
+    (
+        "markupsafe",
+        "3.0.3",
+        "opt/venv/lib/python3.13/site-packages/markupsafe-3.0.3.dist-info/METADATA",
+    ),
+    (
+        "marshmallow",
+        "4.3.0",
+        "opt/venv/lib/python3.13/site-packages/marshmallow-4.3.0.dist-info/METADATA",
+    ),
+    (
+        "matplotlib",
+        "3.10.8",
+        "opt/venv/lib/python3.13/site-packages/matplotlib-3.10.8.dist-info/METADATA",
+    ),
+    ("mccabe", "0.7.0", "opt/venv/lib/python3.13/site-packages/mccabe-0.7.0.dist-info/METADATA"),
+    ("mdurl", "0.1.2", "opt/venv/lib/python3.13/site-packages/mdurl-0.1.2.dist-info/METADATA"),
+    ("msgpack", "1.2.1", "opt/venv/lib/python3.13/site-packages/msgpack-1.2.1.dist-info/METADATA"),
+    ("mypy", "2.3.1", "opt/venv/lib/python3.13/site-packages/mypy-2.3.1.dist-info/METADATA"),
+    (
+        "mypy-extensions",
+        "1.1.0",
+        "opt/venv/lib/python3.13/site-packages/mypy_extensions-1.1.0.dist-info/METADATA",
+    ),
+    ("nh3", "0.3.2", "opt/venv/lib/python3.13/site-packages/nh3-0.3.2.dist-info/METADATA"),
+    (
+        "nodeenv",
+        "1.10.0",
+        "opt/venv/lib/python3.13/site-packages/nodeenv-1.10.0.dist-info/METADATA",
+    ),
+    ("numpy", "2.4.6", "opt/venv/lib/python3.13/site-packages/numpy-2.4.6.dist-info/METADATA"),
+    ("openai", "2.29.0", "opt/venv/lib/python3.13/site-packages/openai-2.29.0.dist-info/METADATA"),
+    (
+        "opentelemetry-api",
+        "1.44.0",
+        "opt/venv/lib/python3.13/site-packages/opentelemetry_api-1.44.0.dist-info/METADATA",
+    ),
+    (
+        "opentelemetry-exporter-otlp-proto-common",
+        "1.44.0",
+        "opt/venv/lib/python3.13/site-packages/opentelemetry_exporter_otlp_proto_common-1.44.0.dist-info/METADATA",
+    ),
+    (
+        "opentelemetry-exporter-otlp-proto-http",
+        "1.44.0",
+        "opt/venv/lib/python3.13/site-packages/opentelemetry_exporter_otlp_proto_http-1.44.0.dist-info/METADATA",
+    ),
+    (
+        "opentelemetry-proto",
+        "1.44.0",
+        "opt/venv/lib/python3.13/site-packages/opentelemetry_proto-1.44.0.dist-info/METADATA",
+    ),
+    (
+        "opentelemetry-sdk",
+        "1.44.0",
+        "opt/venv/lib/python3.13/site-packages/opentelemetry_sdk-1.44.0.dist-info/METADATA",
+    ),
+    (
+        "opentelemetry-semantic-conventions",
+        "0.65b0",
+        "opt/venv/lib/python3.13/site-packages/opentelemetry_semantic_conventions-0.65b0.dist-info/METADATA",
+    ),
+    (
+        "packageurl-python",
+        "0.17.6",
+        "opt/venv/lib/python3.13/site-packages/packageurl_python-0.17.6.dist-info/METADATA",
+    ),
+    (
+        "packaging",
+        "25.0",
+        "opt/venv/lib/python3.13/site-packages/packaging-25.0.dist-info/METADATA",
+    ),
+    (
+        "pathspec",
+        "1.1.1",
+        "opt/venv/lib/python3.13/site-packages/pathspec-1.1.1.dist-info/METADATA",
+    ),
+    ("pillow", "12.3.0", "opt/venv/lib/python3.13/site-packages/pillow-12.3.0.dist-info/METADATA"),
+    ("pip", "26.2.1", "opt/venv/lib/python3.13/site-packages/pip-26.2.1.dist-info/METADATA"),
+    (
+        "pip-api",
+        "0.0.34",
+        "opt/venv/lib/python3.13/site-packages/pip_api-0.0.34.dist-info/METADATA",
+    ),
+    (
+        "pip-audit",
+        "2.10.1",
+        "opt/venv/lib/python3.13/site-packages/pip_audit-2.10.1.dist-info/METADATA",
+    ),
+    (
+        "pip-requirements-parser",
+        "32.0.1",
+        "opt/venv/lib/python3.13/site-packages/pip_requirements_parser-32.0.1.dist-info/METADATA",
+    ),
+    (
+        "pip-tools",
+        "7.6.0",
+        "opt/venv/lib/python3.13/site-packages/pip_tools-7.6.0.dist-info/METADATA",
+    ),
+    (
+        "platformdirs",
+        "4.10.0",
+        "opt/venv/lib/python3.13/site-packages/platformdirs-4.10.0.dist-info/METADATA",
+    ),
+    ("pluggy", "1.6.0", "opt/venv/lib/python3.13/site-packages/pluggy-1.6.0.dist-info/METADATA"),
+    (
+        "pre-commit",
+        "4.6.1",
+        "opt/venv/lib/python3.13/site-packages/pre_commit-4.6.1.dist-info/METADATA",
+    ),
+    (
+        "prometheus-client",
+        "0.25.0",
+        "opt/venv/lib/python3.13/site-packages/prometheus_client-0.25.0.dist-info/METADATA",
+    ),
+    (
+        "protobuf",
+        "6.33.5",
+        "opt/venv/lib/python3.13/site-packages/protobuf-6.33.5.dist-info/METADATA",
+    ),
+    ("psycopg", "3.3.4", "opt/venv/lib/python3.13/site-packages/psycopg-3.3.4.dist-info/METADATA"),
+    (
+        "psycopg-c",
+        "3.3.4",
+        "opt/venv/lib/python3.13/site-packages/psycopg_c-3.3.4.dist-info/METADATA",
+    ),
+    (
+        "py-serializable",
+        "2.1.0",
+        "opt/venv/lib/python3.13/site-packages/py_serializable-2.1.0.dist-info/METADATA",
+    ),
+    (
+        "pycodestyle",
+        "2.14.0",
+        "opt/venv/lib/python3.13/site-packages/pycodestyle-2.14.0.dist-info/METADATA",
+    ),
+    (
+        "pycparser",
+        "2.23",
+        "opt/venv/lib/python3.13/site-packages/pycparser-2.23.dist-info/METADATA",
+    ),
+    (
+        "pydantic",
+        "2.13.4",
+        "opt/venv/lib/python3.13/site-packages/pydantic-2.13.4.dist-info/METADATA",
+    ),
+    (
+        "pydantic-core",
+        "2.46.4",
+        "opt/venv/lib/python3.13/site-packages/pydantic_core-2.46.4.dist-info/METADATA",
+    ),
+    (
+        "pyflakes",
+        "3.4.0",
+        "opt/venv/lib/python3.13/site-packages/pyflakes-3.4.0.dist-info/METADATA",
+    ),
+    (
+        "pygments",
+        "2.20.0",
+        "opt/venv/lib/python3.13/site-packages/pygments-2.20.0.dist-info/METADATA",
+    ),
+    (
+        "pyparsing",
+        "3.2.5",
+        "opt/venv/lib/python3.13/site-packages/pyparsing-3.2.5.dist-info/METADATA",
+    ),
+    (
+        "pyproject-hooks",
+        "1.2.0",
+        "opt/venv/lib/python3.13/site-packages/pyproject_hooks-1.2.0.dist-info/METADATA",
+    ),
+    ("pytest", "9.1.1", "opt/venv/lib/python3.13/site-packages/pytest-9.1.1.dist-info/METADATA"),
+    (
+        "pytest-asyncio",
+        "1.4.0",
+        "opt/venv/lib/python3.13/site-packages/pytest_asyncio-1.4.0.dist-info/METADATA",
+    ),
+    (
+        "pytest-cov",
+        "7.1.0",
+        "opt/venv/lib/python3.13/site-packages/pytest_cov-7.1.0.dist-info/METADATA",
+    ),
+    (
+        "pytest-picked",
+        "0.5.1",
+        "opt/venv/lib/python3.13/site-packages/pytest_picked-0.5.1.dist-info/METADATA",
+    ),
+    (
+        "pytest-split",
+        "0.11.0",
+        "opt/venv/lib/python3.13/site-packages/pytest_split-0.11.0.dist-info/METADATA",
+    ),
+    (
+        "pytest-xdist",
+        "3.8.0",
+        "opt/venv/lib/python3.13/site-packages/pytest_xdist-3.8.0.dist-info/METADATA",
+    ),
+    (
+        "python-dateutil",
+        "2.9.0.post0",
+        "opt/venv/lib/python3.13/site-packages/python_dateutil-2.9.0.post0.dist-info/METADATA",
+    ),
+    (
+        "python-discovery",
+        "1.6.1",
+        "opt/venv/lib/python3.13/site-packages/python_discovery-1.6.1.dist-info/METADATA",
+    ),
+    (
+        "python-dotenv",
+        "1.2.2",
+        "opt/venv/lib/python3.13/site-packages/python_dotenv-1.2.2.dist-info/METADATA",
+    ),
+    (
+        "python-multipart",
+        "0.0.31",
+        "opt/venv/lib/python3.13/site-packages/python_multipart-0.0.31.dist-info/METADATA",
+    ),
+    (
+        "pytokens",
+        "0.4.1",
+        "opt/venv/lib/python3.13/site-packages/pytokens-0.4.1.dist-info/METADATA",
+    ),
+    ("pyyaml", "6.0.3", "opt/venv/lib/python3.13/site-packages/pyyaml-6.0.3.dist-info/METADATA"),
+    (
+        "reportlab",
+        "4.4.10",
+        "opt/venv/lib/python3.13/site-packages/reportlab-4.4.10.dist-info/METADATA",
+    ),
+    (
+        "requests",
+        "2.33.0",
+        "opt/venv/lib/python3.13/site-packages/requests-2.33.0.dist-info/METADATA",
+    ),
+    ("rich", "15.0.0", "opt/venv/lib/python3.13/site-packages/rich-15.0.0.dist-info/METADATA"),
+    ("ruff", "0.16.4", "opt/venv/lib/python3.13/site-packages/ruff-0.16.4.dist-info/METADATA"),
+    ("six", "1.17.0", "opt/venv/lib/python3.13/site-packages/six-1.17.0.dist-info/METADATA"),
+    ("slowapi", "0.1.9", "opt/venv/lib/python3.13/site-packages/slowapi-0.1.9.dist-info/METADATA"),
+    ("sniffio", "1.3.1", "opt/venv/lib/python3.13/site-packages/sniffio-1.3.1.dist-info/METADATA"),
+    (
+        "sortedcontainers",
+        "2.4.0",
+        "opt/venv/lib/python3.13/site-packages/sortedcontainers-2.4.0.dist-info/METADATA",
+    ),
+    (
+        "sqlalchemy",
+        "2.0.52",
+        "opt/venv/lib/python3.13/site-packages/sqlalchemy-2.0.52.dist-info/METADATA",
+    ),
+    (
+        "starlette",
+        "1.3.1",
+        "opt/venv/lib/python3.13/site-packages/starlette-1.3.1.dist-info/METADATA",
+    ),
+    (
+        "stevedore",
+        "5.8.0",
+        "opt/venv/lib/python3.13/site-packages/stevedore-5.8.0.dist-info/METADATA",
+    ),
+    (
+        "tenacity",
+        "9.1.4",
+        "opt/venv/lib/python3.13/site-packages/tenacity-9.1.4.dist-info/METADATA",
+    ),
+    ("tomli", "2.4.1", "opt/venv/lib/python3.13/site-packages/tomli-2.4.1.dist-info/METADATA"),
+    ("tomli-w", "1.2.0", "opt/venv/lib/python3.13/site-packages/tomli_w-1.2.0.dist-info/METADATA"),
+    ("tqdm", "4.67.1", "opt/venv/lib/python3.13/site-packages/tqdm-4.67.1.dist-info/METADATA"),
+    (
+        "truststore",
+        "0.10.4",
+        "opt/venv/lib/python3.13/site-packages/truststore-0.10.4.dist-info/METADATA",
+    ),
+    (
+        "types-pyyaml",
+        "6.0.12.20260815",
+        "opt/venv/lib/python3.13/site-packages/types_pyyaml-6.0.12.20260815.dist-info/METADATA",
+    ),
+    (
+        "typing-extensions",
+        "4.15.0",
+        "opt/venv/lib/python3.13/site-packages/typing_extensions-4.15.0.dist-info/METADATA",
+    ),
+    (
+        "typing-inspection",
+        "0.4.2",
+        "opt/venv/lib/python3.13/site-packages/typing_inspection-0.4.2.dist-info/METADATA",
+    ),
+    ("urllib3", "2.8.0", "opt/venv/lib/python3.13/site-packages/urllib3-2.8.0.dist-info/METADATA"),
+    (
+        "uvicorn",
+        "0.42.0",
+        "opt/venv/lib/python3.13/site-packages/uvicorn-0.42.0.dist-info/METADATA",
+    ),
+    (
+        "virtualenv",
+        "21.14.5",
+        "opt/venv/lib/python3.13/site-packages/virtualenv-21.14.5.dist-info/METADATA",
+    ),
+    ("wrapt", "2.0.1", "opt/venv/lib/python3.13/site-packages/wrapt-2.0.1.dist-info/METADATA"),
+    (
+        "yamllint",
+        "1.38.0",
+        "opt/venv/lib/python3.13/site-packages/yamllint-1.38.0.dist-info/METADATA",
+    ),
+)
+
+_PIP_VENDOR_COMPONENTS = (
+    ("CacheControl", "0.14.4"),
+    ("certifi", "2026.6.17"),
+    ("distlib", "0.4.2"),
+    ("distro", "1.9.0"),
+    ("idna", "3.18"),
+    ("msgpack", "1.1.2"),
+    ("packaging", "26.2"),
+    ("platformdirs", "4.10.0"),
+    ("pygments", "2.20.0"),
+    ("pyproject-hooks", "1.2.0"),
+    ("requests", "2.34.2"),
+    ("resolvelib", "1.2.1"),
+    ("rich", "14.2.0"),
+    ("setuptools", "70.3.0"),
+    ("tomli", "2.4.1"),
+    ("tomli-w", "1.2.0"),
+    ("truststore", "0.10.4"),
+    ("urllib3", "2.7.0"),
+)
+
+_TRIVY_PYTHON_LAYER = {
+    "Digest": "sha256:1fb871361e453637230e1d88374621b44811cd6c365ecda7acb229ed5646c346",
+    "DiffID": "sha256:e27988ccf24b562c671d682a9f091034066e843c6646e33bbd6eb5b2494eecec",
+}
+
+
+def _pip_vendor_sbom_bytes() -> bytes:
+    root = {"bom-ref": "bom-ref:pip", "name": "pip", "type": "library"}
+    components = [dict(root)] + [
+        {
+            "bom-ref": f"pkg:pypi/{name}@{version}",
+            "name": name,
+            "purl": f"pkg:pypi/{name}@{version}",
+            "type": "library",
+            "version": version,
+        }
+        for name, version in _PIP_VENDOR_COMPONENTS
+    ]
+    refs = [component["bom-ref"] for component in components[1:]]
+    sbom = {
+        "$schema": "http://cyclonedx.org/schema/bom-1.4.schema.json",
+        "bomFormat": "CycloneDX",
+        "components": components,
+        "dependencies": [{"dependsOn": refs, "ref": "bom-ref:pip"}]
+        + [{"ref": ref} for ref in refs],
+        "metadata": {"component": root, "tools": [{"name": "vendoring", "version": "1.4.0"}]},
+        "specVersion": "1.4",
+        "version": 1,
+    }
+    payload = json.dumps(sbom, sort_keys=True, indent=2).encode("utf-8")
+    assert (
+        len(payload) == 5319
+        and hashlib.sha256(payload).hexdigest()
+        == "797e200aa7fff16fad9fb2deeaece50a2b2bec623eb6c3759176eee6cee19328"
+    )
+    return payload
+
+
+def _trivy_python_packages() -> list[dict[str, Any]]:
+    physical = [
+        {
+            "Name": name,
+            "Version": version,
+            "FilePath": path,
+            "AnalyzedBy": "python-pkg",
+            "Identifier": {"PURL": f"pkg:pypi/{name}@{version}"},
+            "Layer": dict(_TRIVY_PYTHON_LAYER),
+        }
+        for name, version, path in _TRIVY_PHYSICAL_METADATA
+    ]
+    vendors = [
+        {
+            "Name": name,
+            "Version": version,
+            "ID": f"{name}@{version}",
+            "AnalyzedBy": "sbom",
+            "Identifier": {
+                "PURL": f"pkg:pypi/{re.sub(r'[-_.]+', '-', name).lower()}@{version}",
+                "BOMRef": f"pkg:pypi/{name}@{version}",
+            },
+            "Layer": dict(_TRIVY_PYTHON_LAYER),
+        }
+        for name, version in _PIP_VENDOR_COMPONENTS
+    ]
+    return physical + vendors
+
+
 def _clean_trivy_admission_report() -> dict[str, Any]:
     return {
         "SchemaVersion": 2,
@@ -490,7 +1068,7 @@ def _clean_trivy_admission_report() -> dict[str, Any]:
                 "Target": "Python",
                 "Class": "lang-pkgs",
                 "Type": "python-pkg",
-                "Packages": _trivy_packages("python", 136),
+                "Packages": _trivy_python_packages(),
             },
         ],
     }
@@ -558,7 +1136,7 @@ def _trivy_coverage_validator_source() -> str:
     start = (
         'TRIVY_COVERAGE_RECEIPT="$('
         "\n"
-        '  "${RUNNER_PYTHON}" - "${RUNNER_TRIVY_REPORT}" <<\'PY\'\n'
+        '  "${RUNNER_PYTHON}" - "${RUNNER_TRIVY_REPORT}" "${RUNNER_PIP_SBOM}" <<\'PY\'\n'
     )
     end = '\nPY\n)"'
     assert runbook.count(start) == 1
@@ -571,11 +1149,29 @@ def _run_trivy_coverage_validator(
     report_text: str,
     *,
     tmp_path: Path,
+    sbom_case: str | None = None,
 ) -> subprocess.CompletedProcess[str]:
     report_path = tmp_path / "trivy.json"
     report_path.write_text(report_text, encoding="utf-8")
+    sbom_path = tmp_path / "pip-vendor-bom.cdx.json"
+    sbom_path.write_bytes(_pip_vendor_sbom_bytes())
+    if sbom_case == "missing":
+        sbom_path.unlink()
+    elif sbom_case == "symlink":
+        target = tmp_path / "actual-sbom.json"
+        sbom_path.rename(target)
+        sbom_path.symlink_to(target)
+    elif sbom_case == "directory":
+        sbom_path.unlink()
+        sbom_path.mkdir()
+    elif sbom_case == "size":
+        sbom_path.write_bytes(sbom_path.read_bytes() + b"x")
+    elif sbom_case == "hash":
+        sbom_path.write_bytes(b"X" + sbom_path.read_bytes()[1:])
+    elif sbom_case is not None:
+        raise AssertionError(sbom_case)
     return subprocess.run(
-        [sys.executable, "-", str(report_path)],
+        [sys.executable, "-", str(report_path), str(sbom_path)],
         check=False,
         capture_output=True,
         input=_trivy_coverage_validator_source(),
@@ -603,7 +1199,7 @@ def _write_valid_oci_layer_fixture(tmp_path: Path) -> tuple[Path, Path, dict[str
     blobs_path = layout_path / "blobs" / "sha256"
     blobs_path.mkdir(parents=True)
     descriptors = []
-    for index in range(5):
+    for index in range(8):
         content = f"layer-{index}".encode()
         digest = hashlib.sha256(content).hexdigest()
         (blobs_path / digest).write_bytes(content)
@@ -640,7 +1236,7 @@ def test_oci_layer_admission_verifies_every_manifest_descriptor(tmp_path: Path) 
 
     assert completed.returncode == 0, completed.stderr
     assert completed.stderr == ""
-    assert completed.stdout == "oci_layer_count=5\n"
+    assert completed.stdout == "oci_layer_count=8\n"
 
 
 @pytest.mark.parametrize(
@@ -710,7 +1306,8 @@ def test_trivy_admission_report_requires_exact_os_and_python_coverage(tmp_path: 
         "trivy_os_family=redhat",
         "trivy_os_version=10.2",
         "trivy_os_package_count=129",
-        "trivy_python_package_count=136",
+        "trivy_python_package_count=134",
+        "trivy_pip_vendor_component_count=18",
         "trivy_high_critical_findings=0",
     ]
 
@@ -763,6 +1360,88 @@ def test_trivy_admission_report_rejects_invalid_json(tmp_path: Path) -> None:
 
     assert completed.returncode != 0
     assert completed.stdout == ""
+
+
+@pytest.mark.parametrize(
+    ("case", "diagnostic"),
+    (
+        ("unknown_analyzer", "python_unknown_origin"),
+        ("unknown_layer", "python_package_lineage"),
+        ("nested_metadata", "python_metadata_origin"),
+        ("metadata_version", "python_metadata_identity"),
+        ("unknown_physical", "python_physical_inventory"),
+        ("vendor_missing", "python_vendor_coverage"),
+        ("vendor_extra", "python_vendor_lineage"),
+        ("vendor_duplicate", "duplicate_package"),
+        ("vendor_path", "python_vendor_origin"),
+        ("vendor_bomref", "python_vendor_lineage"),
+        ("normalized_duplicate", "duplicate_package"),
+        ("secrets_malformed", "secrets"),
+        ("secrets_nonempty", "secrets"),
+    ),
+)
+def test_trivy_origin_inventory_rejects_specific_invalid_member(
+    case: str, diagnostic: str, tmp_path: Path
+) -> None:
+    report = _clean_trivy_admission_report()
+    packages = report["Results"][1]["Packages"]
+    if case == "unknown_analyzer":
+        packages[0]["AnalyzedBy"] = "unrecognized"
+    elif case == "unknown_layer":
+        packages[0]["Layer"] = {"Digest": _DIGEST, "DiffID": _OTHER_DIGEST}
+    elif case == "nested_metadata":
+        packages[0]["FilePath"] = "nested/" + packages[0]["FilePath"]
+    elif case == "metadata_version":
+        packages[0]["FilePath"] = packages[0]["FilePath"].replace("0.22.1", "0.22.2")
+    elif case == "unknown_physical":
+        packages[0].update(
+            Name="unrecognized",
+            Version="1.0",
+            FilePath="opt/venv/lib/python3.13/site-packages/unrecognized-1.0.dist-info/METADATA",
+            Identifier={"PURL": "pkg:pypi/unrecognized@1.0"},
+        )
+    elif case == "vendor_missing":
+        packages.pop()
+    elif case == "vendor_extra":
+        packages[-1]["ID"] = "unrecognized@1.0"
+    elif case == "vendor_duplicate":
+        packages.append(dict(packages[-1]))
+    elif case == "vendor_path":
+        packages[-1]["FilePath"] = "pip/_vendor/urllib3/METADATA"
+    elif case == "vendor_bomref":
+        packages[-1]["Identifier"]["BOMRef"] = "pkg:pypi/other@1.0"
+    elif case == "normalized_duplicate":
+        packages[1] = dict(packages[0])
+        packages[1]["Name"] = packages[0]["Name"].upper()
+    elif case == "secrets_malformed":
+        report["Results"][0]["Secrets"] = {}
+    elif case == "secrets_nonempty":
+        report["Results"][0]["Secrets"] = [{"RuleID": "synthetic"}]
+    completed = _run_trivy_coverage_validator(json.dumps(report), tmp_path=tmp_path)
+    assert completed.returncode != 0
+    assert completed.stdout == ""
+    assert completed.stderr.strip() == "trivy_admission_report_invalid:" + diagnostic
+
+
+@pytest.mark.parametrize(
+    ("case", "diagnostic"),
+    (
+        ("missing", "pip_sbom_read"),
+        ("symlink", "pip_sbom_read"),
+        ("directory", "pip_sbom_read"),
+        ("size", "pip_sbom_file"),
+        ("hash", "pip_sbom_bytes"),
+    ),
+)
+def test_trivy_origin_inventory_rejects_unbound_source_operand(
+    case: str, diagnostic: str, tmp_path: Path
+) -> None:
+    completed = _run_trivy_coverage_validator(
+        json.dumps(_clean_trivy_admission_report()), tmp_path=tmp_path, sbom_case=case
+    )
+    assert completed.returncode != 0
+    assert completed.stdout == ""
+    assert completed.stderr.strip() == "trivy_admission_report_invalid:" + diagnostic
 
 
 def test_runner_containerfile_pins_exact_base_and_shared_python_runtime() -> None:
@@ -819,33 +1498,185 @@ def test_runner_containerfile_has_minimal_exact_package_contract() -> None:
     )
 
     assert package_blocks == [
-        ("python3.13-3.13.14-1.el10_2",),
+        ("python3.13-3.13.16-1.el10_2",),
         ("python3.13-pip-25.1.1-1.el10_1",),
         (
             "git-core-2.52.0-1.el10",
             "make-4.4.1-9.el10",
             "shadow-utils-4.15.0-11.el10",
             "util-linux-core-2.40.2-18.el10",
+            "openssl-libs-3.5.8-2.el10_2",
         ),
     ]
     assert rpm_inventory_contracts == [
         (
             "107",
-            "89d2a8bb:1a6216d5:63f194d6:c65b556d:c5a1672c:9b126afe:" "d5d1b677:5a9c0125",
+            "ca9d7e7d:6aecf2f0:b49e8ce6:fa562a85:42f458c5:48920ccd:" "126c86da:f40cf8b9",
         ),
         (
             "108",
-            "877f449d:91c786a5:353d0f25:d95423fa:cc1cf06e:b6e748c6:" "c0be04f6:ced7c26b",
+            "485f2a7e:91850f39:662acff6:c97ad12e:321c377e:3c40f404:" "a91b9172:a6e10175",
         ),
         (
             "129",
-            "bf2426b1:94df76bf:c9f26642:a23b7b94:f208ee11:69251070:" "7d737476:368a34b2",
+            "4a9eb99a:ba1b6a59:9fccd7ef:6d32a3b6:cbed8b47:4e89de93:" "6697a78b:370494a8",
         ),
     ]
     assert containerfile.count("%{SHA256HEADER} %{PAYLOADDIGEST} %{PAYLOADDIGESTALGO}") == 3
     assert logical_containerfile.count("microdnf clean all") == 3
     assert "rpm -e epel-release" in logical_containerfile
     assert not re.search(r"\b(?:apk|apt|apt-get|aptitude|dpkg|dnf|yum)\b", logical_containerfile)
+
+
+@pytest.mark.parametrize("query_index", range(7))
+@pytest.mark.parametrize("producer_exit,valid_output", ((0, True), (23, True), (0, False)))
+def test_runner_containerfile_scalar_rpm_queries_require_success_before_comparison(
+    tmp_path: Path, query_index: int, producer_exit: int, valid_output: bool
+) -> None:
+    logical = _runner_containerfile_text().replace("\\\n", " ")
+    source_fragments = list(
+        re.finditer(
+            r'(?:rpm_query_output="\$\(rpm -q [^\n]*?\)";\s*)?'
+            r'test "(?:\$\{rpm_query_output\}|\$\(rpm -q [^\n]*?\))" =\s*\x27([^\x27]+)\x27',
+            logical,
+        )
+    )
+    assert len(source_fragments) == 7
+    expected = source_fragments[query_index].group(1)
+    output = expected if valid_output else expected + "-unexpected"
+    shell = shutil.which("sh")
+    assert shell is not None
+    program = (
+        'rpm() { printf "%s\\n" "$RPM_TEST_OUTPUT"; return "$RPM_TEST_EXIT"; }\n'
+        + source_fragments[query_index].group(0)
+        + "\nprintf 'RPM_GUARD_REACHED\\n'\n"
+    )
+    completed = subprocess.run(
+        [shell, "-eu", "-c", program],
+        cwd=tmp_path,
+        env={
+            "PATH": os.defpath,
+            "LC_ALL": "C",
+            "RPM_TEST_OUTPUT": output,
+            "RPM_TEST_EXIT": str(producer_exit),
+        },
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
+    )
+    assert completed.stderr == ""
+    assert completed.returncode == (producer_exit if producer_exit else (0 if valid_output else 1))
+    assert completed.stdout == ("RPM_GUARD_REACHED\n" if valid_output and not producer_exit else "")
+
+
+@pytest.mark.parametrize("query_index", range(3))
+@pytest.mark.parametrize("producer_exit", (0, 23))
+def test_runner_containerfile_inventory_rpm_queries_require_success_before_admission(
+    tmp_path: Path, query_index: int, producer_exit: int
+) -> None:
+    logical = _runner_containerfile_text().replace("\\\n", " ")
+    # Execute the query/sort prefix before the unchanged production count/hash gates.
+    fragments = re.findall(
+        r'(rpm_inventory="\$\(rpm -qa [^\n]*?\)";'
+        r'(?:\s*rpm_inventory="\$\(printf [^\n]*?\)";)?)',
+        logical,
+    )
+    counts = [int(value) for value in re.findall(r"expected_rpm_package_count='(\d+)'", logical)]
+    assert len(fragments) == len(counts) == 3
+    count = counts[query_index]
+    rows = [
+        f"pkg-{index:03d}-0:1.0-1.aarch64 {index:064x} {index + 1:064x} 8"
+        for index in range(count, 0, -1)
+    ]
+    expected = "\n".join(sorted(rows)) + "\n"
+    assert len(expected.splitlines()) == count
+    assert all(
+        re.fullmatch(r"pkg-\d+-0:1\.0-1\.aarch64 [0-9a-f]{64} [0-9a-f]{64} 8", row) for row in rows
+    )
+    expected_digest = hashlib.sha256(expected.encode()).hexdigest()
+    shell = shutil.which("sh")
+    assert shell is not None
+    program = (
+        'rpm() { printf "%s\\n" "$RPM_TEST_OUTPUT"; return "$RPM_TEST_EXIT"; }\n'
+        + fragments[query_index]
+        + '\nprintf "%s\\n" "$rpm_inventory"\nprintf "RPM_GUARD_REACHED\\n"\n'
+    )
+    completed = subprocess.run(
+        [shell, "-eu", "-c", program],
+        cwd=tmp_path,
+        env={
+            "PATH": os.defpath,
+            "LC_ALL": "C",
+            "RPM_TEST_OUTPUT": "\n".join(rows),
+            "RPM_TEST_EXIT": str(producer_exit),
+        },
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
+    )
+    assert completed.stderr == ""
+    assert completed.returncode == producer_exit
+    if producer_exit:
+        assert completed.stdout == ""
+    else:
+        assert completed.stdout.endswith("RPM_GUARD_REACHED\n")
+        observed = completed.stdout.removesuffix("RPM_GUARD_REACHED\n")
+        assert observed == expected
+        assert hashlib.sha256(observed.encode()).hexdigest() == expected_digest
+
+
+@pytest.mark.parametrize("query_index", range(6))
+@pytest.mark.parametrize("producer_exit", (0, 23))
+def test_runner_runbook_runtime_rpm_queries_preserve_native_failure(
+    tmp_path: Path, query_index: int, producer_exit: int
+) -> None:
+    runbook = _runner_doc_text(_RUNNER_RUNBOOK)
+    fragments = list(
+        re.finditer(
+            r'(rpm_query_output="\$\(rpm -q [^\n]+\)"\n'
+            r'test "\$\{rpm_query_output\}" = "([^\n]+)")',
+            runbook,
+        )
+    )
+    inventories = re.findall(
+        r'(rpm_inventory="\$\(rpm -qa [^\n]+\)"\n' r'rpm_inventory="\$\(printf [^\n]+\)")',
+        runbook,
+    )
+    assert len(fragments) == 5 and len(inventories) == 1
+    if query_index < 5:
+        program = fragments[query_index].group(1)
+        output = fragments[query_index].group(2)
+    else:
+        program = inventories[0]
+        output = "pkg-0:1.0-1.aarch64 synthetic-header synthetic-payload 8"
+    shell = shutil.which("sh")
+    assert shell is not None
+    completed = subprocess.run(
+        [
+            shell,
+            "-eu",
+            "-c",
+            'rpm() { printf "%s\\n" "$RPM_TEST_OUTPUT"; return "$RPM_TEST_EXIT"; }\n'
+            + program
+            + "\nprintf 'RPM_GUARD_REACHED\\n'\n",
+        ],
+        cwd=tmp_path,
+        env={
+            "PATH": os.defpath,
+            "LC_ALL": "C",
+            "RPM_TEST_OUTPUT": output,
+            "RPM_TEST_EXIT": str(producer_exit),
+        },
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
+    )
+    assert completed.stderr == ""
+    assert completed.returncode == producer_exit
+    assert completed.stdout == ("RPM_GUARD_REACHED\n" if producer_exit == 0 else "")
 
 
 def test_runner_containerfile_forbids_suppressions_and_policy_weakening() -> None:
@@ -895,6 +1726,18 @@ def test_runner_containerfile_preserves_secret_and_non_root_hygiene() -> None:
         in containerfile
     )
     assert "--require-virtualenv" in containerfile
+    assert containerfile.count("--upgrade-pip --upgrade-pip-spec 'pip>=26.2,<27'") == 2
+    assert "&& chmod -R a+rX /opt/venv" in containerfile
+    assert containerfile.index("COPY --from=builder /opt/venv /opt/venv") < containerfile.index(
+        "seed_dir=/usr/share/python3.13-wheels"
+    )
+    assert containerfile.index(
+        "ensurepip_seed_payload_verified_before_removal"
+    ) < containerfile.index('rm -- "$old_seed"')
+    assert containerfile.index('rm -- "$old_seed"') < containerfile.index(
+        "ensurepip_default_seed=26.2.1"
+    )
+    assert "71138adf1f4ca900cdb7d289c21b7494329f2332b6d85f0e1c42108c0384ed3e" in containerfile
     assert "pip install" not in containerfile
     assert "COPY /run/secrets" not in containerfile
     assert "groupadd --gid 65532 runner" in runner_stage
@@ -906,6 +1749,120 @@ def test_runner_containerfile_preserves_secret_and_non_root_hygiene() -> None:
     assert 'PATH="/opt/venv/bin:/usr/bin:/bin"' in runner_stage
     assert "WORKDIR /repo" in runner_stage
     assert 'CMD ["/opt/venv/bin/python", "--version"]' in runner_stage
+
+
+@pytest.mark.parametrize(
+    "case",
+    ("valid", "extra", "duplicate", "swapped", "unknown", "platform", "binding", "size", "json"),
+)
+def test_current_runner_index_admission_rejects_unbound_descriptors(
+    case: str, tmp_path: Path
+) -> None:
+    runtime = "sha256:a9f97d6eeee4ada7952d927c44527363c6d1f2a55515dfef9bcef007437633e3"
+    metadata = "sha256:1f748a696b62f940dc2e1703d5ecd5a0d0e2c67dc3ab792a779f45e80e1823eb"
+    index: dict[str, Any] = {
+        "schemaVersion": 2,
+        "mediaType": "application/vnd.oci.image.index.v1+json",
+        "manifests": [
+            {
+                "mediaType": "application/vnd.oci.image.manifest.v1+json",
+                "digest": runtime,
+                "size": 1819,
+                "platform": {"architecture": "arm64", "os": "linux"},
+            },
+            {
+                "mediaType": "application/vnd.oci.image.manifest.v1+json",
+                "digest": metadata,
+                "size": 837,
+                "annotations": {
+                    "vnd.docker.reference.digest": runtime,
+                    "vnd.docker.reference.type": "attestation-manifest",
+                },
+                "platform": {"architecture": "unknown", "os": "unknown"},
+            },
+        ],
+    }
+    if case == "extra":
+        index["manifests"].append(dict(index["manifests"][0]))
+    elif case == "duplicate":
+        index["manifests"][1] = dict(index["manifests"][0])
+    elif case == "swapped":
+        index["manifests"].reverse()
+    elif case == "unknown":
+        index["manifests"][1]["digest"] = _OTHER_DIGEST
+    elif case == "platform":
+        index["manifests"][0]["platform"]["architecture"] = "amd64"
+    elif case == "binding":
+        index["manifests"][1]["annotations"]["vnd.docker.reference.digest"] = metadata
+    elif case == "size":
+        index["manifests"][1]["size"] = 838
+    source = _runner_doc_text(_RUNNER_RUNBOOK)
+    expression = source.split('"${JQ_BIN}" -e \'. == ', maxsplit=1)[1].split(
+        '\' "${RUNNER_TOP_INDEX_BLOB}"', maxsplit=1
+    )[0]
+    jq = shutil.which("jq")
+    assert jq is not None, "jq is required to execute the documented OCI index check"
+    completed = subprocess.run(
+        [jq, "-e", ". == " + expression],
+        input="not-json" if case == "json" else json.dumps(index),
+        text=True,
+        capture_output=True,
+        timeout=10,
+        cwd=tmp_path,
+        env={"PATH": str(Path(jq).parent)},
+    )
+    assert (completed.returncode == 0) is (case == "valid")
+
+
+@pytest.mark.parametrize("case", ("valid", "missing", "directory", "symlink", "size", "digest"))
+def test_current_runner_metadata_admission_checks_regular_exact_bytes(
+    case: str, tmp_path: Path
+) -> None:
+    payload = b"synthetic opaque metadata\n"
+    digest = hashlib.sha256(payload).hexdigest()
+    layout = tmp_path / "blobs" / "sha256"
+    layout.mkdir(parents=True)
+    blob = layout / digest
+    blob.write_bytes(payload)
+    if case == "missing":
+        blob.unlink()
+    elif case == "directory":
+        blob.unlink()
+        blob.mkdir()
+    elif case == "symlink":
+        other = tmp_path / "other"
+        other.write_bytes(payload)
+        blob.unlink()
+        blob.symlink_to(other)
+    elif case == "size":
+        blob.write_bytes(payload + b"x")
+    elif case == "digest":
+        blob.write_bytes(b"x" * len(payload))
+    source = _runner_doc_text(_RUNNER_RUNBOOK)
+    body = source.split("while read -r expected_digest expected_size; do", maxsplit=1)[1].split(
+        "done <<'EXPECTED_CURRENT_ATTESTATION'", maxsplit=1
+    )[0]
+    shell = shutil.which("bash")
+    assert shell is not None
+    names = {name: shutil.which(name) for name in ("wc", "awk", "shasum")}
+    assert all(names.values())
+    env = {
+        "PATH": "/usr/bin:/bin",
+        "RUNNER_OCI_LAYOUT": str(tmp_path),
+        "WC_BIN": str(names["wc"]),
+        "AWK_BIN": str(names["awk"]),
+        "SHASUM_BIN": str(names["shasum"]),
+    }
+    completed = subprocess.run(
+        [shell, "-eu", "-c", "while read -r expected_digest expected_size; do" + body + "done"],
+        input=f"sha256:{digest} {len(payload)}\n",
+        text=True,
+        capture_output=True,
+        timeout=10,
+        cwd=tmp_path,
+        env=env,
+    )
+    assert (completed.returncode == 0) is (case == "valid")
 
 
 def test_runner_admission_docs_require_exact_digest_bound_oci_scan() -> None:
@@ -921,13 +1878,13 @@ def test_runner_admission_docs_require_exact_digest_bound_oci_scan() -> None:
         'test "${RUNNER_TOP_INDEX_DIGEST}" = "${RUNNER_IMAGE_DIGEST}"',
         'test "${RUNNER_TOP_INDEX_SHA}" = "${RUNNER_TOP_INDEX_DIGEST}"',
         'test "${RUNNER_TOP_INDEX_ACTUAL_SIZE}" = "${RUNNER_TOP_INDEX_SIZE}"',
-        'error("expected one linux/arm64 manifest")',
+        '"vnd.docker.reference.type": "attestation-manifest"',
         'test "${RUNNER_PLATFORM_MANIFEST_SHA}" = "${RUNNER_PLATFORM_MANIFEST_DIGEST}"',
         '"${RUNNER_PLATFORM_MANIFEST_SIZE}"',
         'OCI_LAYER_RECEIPT="$(',
         '"${RUNNER_PLATFORM_MANIFEST_BLOB}" "${RUNNER_OCI_LAYOUT}" <<\'PY\'',
         "oci_layer_validation_invalid:",
-        "len(layers) != 5",
+        "len(layers) != 8",
         "stat.S_ISREG(blob_stat.st_mode)",
         "blob_stat.st_size != size",
         "actual_digest.hexdigest()",
@@ -949,12 +1906,12 @@ def test_runner_admission_docs_require_exact_digest_bound_oci_scan() -> None:
         'test "$(id -u):$(id -g)" = "65532:65532"',
         "EXPECTED_HTML_PARSER_SHA256=",
         '"${EXPECTED_HTML_PARSER_SHA256}"',
-        '"python3.13-3.13.14-1.el10_2.aarch64"',
+        '"python3.13-3.13.16-1.el10_2.aarch64"',
         '"git-core-2.52.0-1.el10.aarch64"',
         '"util-linux-core-2.40.2-18.el10.aarch64"',
         'expected_rpm_package_count="129"',
-        'expected_rpm_inventory_sha256="bf2426b1:94df76bf:c9f26642:a23b7b94:'
-        'f208ee11:69251070:7d737476:368a34b2"',
+        'expected_rpm_inventory_sha256="4a9eb99a:ba1b6a59:9fccd7ef:6d32a3b6:'
+        'cbed8b47:4e89de93:6697a78b:370494a8"',
         "%{SHA256HEADER} %{PAYLOADDIGEST} %{PAYLOADDIGESTALGO}",
         '"runtime_contract=passed"',
         '"${TEE_BIN}" "${RUNNER_RUNTIME_REPORT}"',
@@ -962,7 +1919,7 @@ def test_runner_admission_docs_require_exact_digest_bound_oci_scan() -> None:
         'TRIVY_CHECKSUMS="trivy_${TRIVY_VERSION}_checksums.txt"',
         '"${SHASUM_BIN}" -a 256 -c selected-checksum.txt',
         '"${TRIVY_BIN}" --version',
-        "Version: 0.72.0",
+        "Version: 0.74.0",
         "--config /dev/null image --download-db-only --no-progress",
         '--config /dev/null image --input "${RUNNER_OCI_LAYOUT}"',
         "--scanners vuln",
@@ -974,12 +1931,12 @@ def test_runner_admission_docs_require_exact_digest_bound_oci_scan() -> None:
         "--vex=",
         "--exit-code 1",
         'TRIVY_COVERAGE_RECEIPT="$(',
-        '"${RUNNER_PYTHON}" - "${RUNNER_TRIVY_REPORT}" <<\'PY\'',
+        '"${RUNNER_PYTHON}" - "${RUNNER_TRIVY_REPORT}" "${RUNNER_PIP_SBOM}" <<\'PY\'',
         "def package_count(result):",
         'report.get("SchemaVersion") != 2',
         'report.get("ArtifactType") != "container_image"',
         "if os_package_counts[0] != 129:",
-        "if python_package_counts[0] != 136:",
+        "if python_package_counts[0] != 134:",
         'fail("selected_findings")',
         '"${TEE_BIN}" "${RUNNER_PROBE_STDOUT}"',
         "'runtime_contract_exit=0'",
@@ -6237,10 +7194,11 @@ def test_runner_sdk_phase_barrier_prevents_external_loader_activation_with_crede
         "--consume-only",
         "pip uninstall",
         "--build-psycopg-c",
-        "--upgrade-pip",
         "COPY sdk-inputs/usr/local",
     ):
         assert forbidden not in acquisition
+    assert acquisition.count("--upgrade-pip --upgrade-pip-spec 'pip>=26.2,<27'") == 2
+    assert len(re.findall(r"--upgrade-pip(?![a-z-])", acquisition)) == 2
     assert "--mount=type=cache" not in acquisition
     assert "--mount=type=tmpfs,target=/run/acquisition" in acquisition
     assert "PIP_CONFIG_FILE=/dev/null PIP_NO_CACHE_DIR=1" in acquisition

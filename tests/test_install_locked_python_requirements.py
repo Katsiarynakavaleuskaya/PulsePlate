@@ -1014,10 +1014,22 @@ def test_main_sdk_target_guard_does_not_widen_standalone_operations(
 
 
 @pytest.mark.parametrize(
-    "condition", ("dormant", "active", "ipv4_address", "ipv4_route", "ipv6_address", "ipv6_route")
+    "condition",
+    (
+        "dormant",
+        "missing_loopback",
+        "active",
+        "ipv4_address",
+        "ipv4_route",
+        "ipv6_address",
+        "ipv6_route",
+        "malformed_ipv6_address",
+        "malformed_ipv6_route",
+    ),
 )
+@pytest.mark.parametrize("ipv4_inventory", ("empty", "header", "loopback"))
 def test_psycopg_backend_checks_native_network_state(
-    monkeypatch: pytest.MonkeyPatch, condition: str
+    monkeypatch: pytest.MonkeyPatch, condition: str, ipv4_inventory: str
 ) -> None:
     interfaces = {"lo": (73, b"\x7f\x00\x00\x01"), "default-device": (128, None)}
     tables = {
@@ -1039,16 +1051,31 @@ def test_psycopg_backend_checks_native_network_state(
         "/proc/net/if_inet6": [["0" * 31 + "1", "01", "80", "10", "80", "lo"]],
         "/proc/net/ipv6_route": [[*(["0"] * 9), "lo"]],
     }
-    if condition == "active":
+    if ipv4_inventory == "empty":
+        tables["/proc/net/route"] = []
+    elif ipv4_inventory == "loopback":
+        tables["/proc/net/route"].append(["lo", *(["0"] * 10)])
+    if condition == "missing_loopback":
+        interfaces.pop("lo")
+    elif condition == "active":
         interfaces["default-device"] = (129, None)
     elif condition == "ipv4_address":
         interfaces["default-device"] = (128, b"\x0a\x00\x00\x01")
     elif condition == "ipv4_route":
+        # Preserve a valid header so this case reaches the external-route guard.
+        if ipv4_inventory == "empty":
+            tables["/proc/net/route"] = [
+                "Iface Destination Gateway Flags RefCnt Use Metric Mask MTU Window IRTT".split()
+            ]
         tables["/proc/net/route"].append(["default-device", *(["0"] * 10)])
     elif condition == "ipv6_address":
         tables["/proc/net/if_inet6"][0][-1] = "default-device"
     elif condition == "ipv6_route":
         tables["/proc/net/ipv6_route"][0][-1] = "default-device"
+    elif condition == "malformed_ipv6_address":
+        tables["/proc/net/if_inet6"][0].pop(0)
+    elif condition == "malformed_ipv6_route":
+        tables["/proc/net/ipv6_route"][0].pop(0)
     monkeypatch.setattr(installer, "_process_network_inventory", lambda: interfaces)
     monkeypatch.setattr(installer, "_network_table_lines", lambda path: tables[path])
     if condition == "dormant":
@@ -1056,6 +1083,79 @@ def test_psycopg_backend_checks_native_network_state(
     else:
         with pytest.raises(RuntimeError, match="network isolation|external or malformed"):
             installer._assert_backend_network_isolated()
+
+
+@pytest.mark.parametrize(
+    "ipv4_payload",
+    (
+        b"",
+        b" \t\n\n",
+        b"Iface Destination Gateway Flags RefCnt Use Metric Mask MTU Window IRTT\n",
+        b"Iface Destination Gateway Flags RefCnt Use Metric Mask MTU Window IRTT\n"
+        b"lo 0 0 0 0 0 0 0 0 0 0\n",
+    ),
+)
+def test_psycopg_backend_accepts_readable_empty_or_loopback_route_tables(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, ipv4_payload: bytes
+) -> None:
+    route = tmp_path / "route"
+    route.write_bytes(ipv4_payload)
+    reader = installer._network_table_lines
+    observed: list[str] = []
+
+    def read_table(path: str) -> list[list[str]]:
+        observed.append(path)
+        if path == "/proc/net/route":
+            return reader(str(route))
+        if path == "/proc/net/if_inet6":
+            return []
+        assert path == "/proc/net/ipv6_route"
+        return [[*(["0"] * 9), "lo"], [*(["0"] * 9), "lo"]]
+
+    monkeypatch.setattr(installer, "_process_network_inventory", lambda: {"lo": (0, None)})
+    monkeypatch.setattr(installer, "_network_table_lines", read_table)
+    installer._assert_backend_network_isolated()
+    assert observed == ["/proc/net/route", "/proc/net/if_inet6", "/proc/net/ipv6_route"]
+
+
+@pytest.mark.parametrize(
+    "ipv4_payload",
+    (
+        b"wrong header\n",
+        b"lo 0 0 0 0 0 0 0 0 0 0\n",
+        b"Iface Destination Gateway Flags RefCnt Use Metric Mask MTU Window IRTT\nlo 0\n",
+    ),
+)
+def test_psycopg_backend_rejects_malformed_nonempty_route_tables(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, ipv4_payload: bytes
+) -> None:
+    route = tmp_path / "route"
+    route.write_bytes(ipv4_payload)
+    reader = installer._network_table_lines
+    monkeypatch.setattr(installer, "_process_network_inventory", lambda: {"lo": (0, None)})
+    monkeypatch.setattr(installer, "_network_table_lines", lambda path: reader(str(route)))
+    with pytest.raises(RuntimeError, match="IPv4 route"):
+        installer._assert_backend_network_isolated()
+
+
+@pytest.mark.parametrize(
+    ("payload", "error"),
+    ((None, FileNotFoundError), (b"\xff", UnicodeDecodeError), (b" " * 65537, RuntimeError)),
+)
+def test_psycopg_backend_route_read_errors_never_become_empty_inventory(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    payload: bytes | None,
+    error: type[Exception],
+) -> None:
+    route = tmp_path / "route"
+    if payload is not None:
+        route.write_bytes(payload)
+    reader = installer._network_table_lines
+    monkeypatch.setattr(installer, "_process_network_inventory", lambda: {"lo": (0, None)})
+    monkeypatch.setattr(installer, "_network_table_lines", lambda path: reader(str(route)))
+    with pytest.raises(error):
+        installer._assert_backend_network_isolated()
 
 
 def _ci_linux_cp313_tags() -> set[str]:

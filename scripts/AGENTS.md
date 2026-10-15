@@ -275,7 +275,10 @@ or claim that passing this probe validates the application on Python 3.14.
   extension ELF targets; aliases are not extra targets.
   Backend Make/devcontainer callers retain their Linux amd64 boundary.
   Dormant kernel interfaces require native DOWN flags and absence of external
-  addresses/routes; interface names alone grant no exception. Other packages
+  addresses/routes; interface names alone grant no exception. A successfully read,
+  bounded ASCII IPv4 table may normalize to an empty inventory, including blank-only
+  input. Interface/address and IPv6 checks still run; missing, unreadable, malformed
+  nonempty, non-ASCII or oversized tables remain failures. Other packages
   retain binary-only admission. Consume genuine matching SDK wheels, never
   metadata-only resolver substitutes.
   Dedicated source/build-wheel prefetch operations reject explicit install modifiers

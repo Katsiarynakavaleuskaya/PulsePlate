@@ -2,7 +2,7 @@
 
 **Status:** Historical image admitted locally; SDK successor and final PR/merge evidence pending
 **Suppression expires:** N/A (no suppression added)
-**Last reviewed:** 2026-07-23
+**Last reviewed:** 2026-10-15
 
 ## Security decision
 
@@ -43,7 +43,7 @@ from the official UBI 10 minimal digest
 The exact base alone was recognized by Trivy 0.72.0 as Red Hat 10.2 and had zero
 HIGH/CRITICAL findings.
 
-Python 3.13.14 is installed from exact EPEL 10 RPM versions. The recipe
+The current recipe installs Python 3.13.16 from exact EPEL 10 RPM versions. The recipe
 checksum-pins the official EPEL 10 public key and release RPM, imports the key,
 requires the RPM signature from key `e37ed158`, and verifies
 `epel-release-10-8.el10_2.noarch`. It does not use `--nogpgcheck`, checksum
@@ -70,10 +70,48 @@ added.
 Direct package pins alone do not freeze the transitive RPM closure. Each stage
 therefore verifies a sorted inventory over the complete installed NEVRA,
 package-header SHA-256, payload digest, and payload digest algorithm. The
-accepted build locks 107 packages in `python-runtime`, 108 in `builder`, and
+recipe locks 107 packages in `python-runtime`, 108 in `builder`, and
 129 in the final runner. Any repository-side change to a direct or transitive
 RPM now fails the build even if its package name and direct request remain
 unchanged.
+
+## Current RPM closure — PR #2477
+
+The former Python `3.13.14-1.el10_2` request is unavailable in the active
+EPEL 10.2 aarch64 snapshot. Three no-install resolver transactions selected
+32 distinct signed RPMs from the same pinned UBI base and four observed
+repository metadata snapshots. Whole-package SHA-256 and size, cryptographic
+signatures, NEVRA, header SHA-256 and payload digest were verified for every
+selected RPM. The imported EPEL public-key row also matches the retained key.
+One additional official `openssl-libs-1:3.5.8-2.el10_2.aarch64` RPM has now been
+verified against the retained BaseOS metadata, package size/SHA-256 and the
+image's Red Hat signing key, including its header, payload, Requires, Provides
+and complete file inventory. This makes 33 distinct selected RPM inputs.
+An offline RPM dependency/conflict test passed against an unchanged clone of
+the actual 129-package database. That read-only test explicitly excluded disk
+and inode capacity checks; the real build retains those checks and must prove
+the complete resulting inventory. No package was installed by this qualification.
+
+The complete runtime and builder inventories each change four package rows:
+Python, Python libraries, expat and tzdata. The final inventory also changes
+gzip, openssh, openssh-clients, pam and pam-libs, plus the one authored stock
+`openssl-libs` replacement. Every other complete row is
+byte-identical; there are no additional changes with an unchanged NEVRA.
+The exact prospective stage hashes are:
+
+- `python-runtime`, 107 packages:
+  `ca9d7e7d6aecf2f0b49e8ce6fa562a8542f458c548920ccd126c86daf40cf8b9`;
+- `builder`, 108 packages:
+  `485f2a7e91850f39662acff6c97ad12e321c377e3c40f404a91b9172a6e10175`;
+- final runner, 129 packages:
+  `4a9eb99aba1b6a599fccd7ef6d32a3b6cbed8b474e89de936697a78b370494a8`.
+
+These are build-input parameters derived from observed signed-package bytes.
+They do not establish a successful build, ABI compatibility, a clean successor
+scan or strict Apple admission. The parser overlay retains its existing exact
+source checksum. The original image and sanitized receipts below remain
+historical evidence. Source assertions: `deploy/experiment-runner/Containerfile:28`
+and `deploy/experiment-runner/Containerfile:37`.
 
 ## Current SDK caller repair — PR #2477
 
@@ -288,20 +326,22 @@ complete, digest-bound build and admission receipt.
 ## Required validation and admission
 
 Do not use the source diff as scan evidence. A material rebuild requires a new
-canonical Apple `build-image` result and the complete runbook admission chain.
+canonical `build-image` result and the complete runbook admission chain. Docker
+is a build-only producer; the imported image still requires actual strict Apple
+admission and Oracle execution.
 Admission requires all of the following:
 
-1. The image index, one `linux/arm64` manifest, all five referenced layer
+1. The image index, one `linux/arm64` manifest, all eight referenced layer
    blobs, config, and runtime metadata cryptographically bind to the
    Apple-returned digest; every layer is a regular file whose size and SHA-256
    match its descriptor.
-2. The verified official Trivy 0.72.0 binary reports zero HIGH/CRITICAL OS or
+2. The verified official Trivy 0.74.0 binary reports zero HIGH/CRITICAL OS or
    language-package findings without package-type filtering, ignore policy,
    unfixed filtering, or severity reduction. Both database and scan commands
    ignore ambient configuration; all external ignore-policy, ignore-status,
    and VEX inputs are explicitly empty. The executable runbook Python guard
    must additionally prove the exact schema, artifact/OS identity, one
-   129-package Red Hat result, and one 136-package Python result before the
+   129-package Red Hat result, and one 134-package Python result before the
    zero-finding receipt is written.
 3. Exact Python/RPM/CPython patch and non-root assertions pass inside that same
    image, including the complete 107/108/129 package inventories over NEVRA,

@@ -60,7 +60,7 @@ The admitted source recipe starts from the pinned official UBI 10 minimal
 multi-architecture digest
 `registry.access.redhat.com/ubi10/ubi-minimal@sha256:04140c8d78c6c6915b5c1fdad2f16d10eac3630c3339999ccdf659d8c903be50`.
 It verifies the official EPEL 10 key and release RPM, installs exact Python
-3.13.14 packages, and overlays the checksum-pinned official CPython 3.13
+3.13.16 packages, and overlays the checksum-pinned official CPython 3.13
 backport for `CVE-2026-15308`. The final image keeps the locked `runtime-dev`
 environment and non-root UID/GID 65532. Proxy values enter BuildKit as secrets
 and are not build arguments or runtime environment variables. A source pin is
@@ -266,17 +266,20 @@ Linux ARM64 musllinux wheel. The diagnostic build used the approved private
 index secret and did not fall back to public PyPI. Weakening the lock,
 `--only-binary` policy, or index boundary was not authorized.
 
-The current UBI recipe built through the canonical Apple dispatcher as image
+The historical UBI recipe built through the canonical Apple dispatcher as image
 index
 `sha256:5b3abbad998dc1b23f9d99e72a8fde931558401b81a2aec8c5eeeff90b128a70`.
 Its exact `linux/arm64` manifest is
 `sha256:c46d2bd8a174b6b10b9ed06c1c145eeb1ca131d326c67b4c72589ea84e6d1750`,
 and its manifest-bound config/history is
 `sha256:b96621e97fd78527a93f9853970d1f17baffa46e8d188e5341899fc6a1efaa1d`.
+These coordinates describe the historical image. The current SDK candidate has
+eight layers and requires its own observed immutable reference and all current
+admission checks below; it is not selected by the historical receipt.
 The scan must consume the exact OCI layout cryptographically traversed from
 that Apple image digest; a mutable tag, bare repository-context scan, or
 unverified PATH Trivy binary is not evidence. Download the official Trivy
-0.72.0 macOS ARM64 asset and its official release checksums, verify the asset
+0.74.0 macOS ARM64 asset and its official release checksums, verify the asset
 before execution, refresh its vulnerability database, and run:
 
 ```bash
@@ -289,13 +292,13 @@ RUNNER_EVIDENCE_DIR="${RUNNER_EVIDENCE_PARENT}/runner-${RUNNER_IMAGE_DIGEST#sha2
 RUNNER_INSPECT_JSON="${RUNNER_EVIDENCE_DIR}/apple-image-inspect.json"
 RUNNER_OCI_ARCHIVE="${RUNNER_EVIDENCE_DIR}/runner.oci.tar"
 RUNNER_OCI_LAYOUT="${RUNNER_EVIDENCE_DIR}/oci-layout"
-RUNNER_TRIVY_REPORT="${RUNNER_EVIDENCE_DIR}/trivy-0.72.0.json"
-RUNNER_TRIVY_DIR="${RUNNER_EVIDENCE_DIR}/trivy-0.72.0"
+RUNNER_TRIVY_REPORT="${RUNNER_EVIDENCE_DIR}/trivy-0.74.0.json"
+RUNNER_TRIVY_DIR="${RUNNER_EVIDENCE_DIR}/trivy-0.74.0"
 RUNNER_RUNTIME_REPORT="${RUNNER_EVIDENCE_DIR}/runtime-contract.stdout"
 RUNNER_PROBE_STDOUT="${RUNNER_EVIDENCE_DIR}/apple-probe.stdout"
 RUNNER_STATUS_REPORT="${RUNNER_EVIDENCE_DIR}/admission-exit-statuses.txt"
 RUNNER_PROBE_ARTIFACT="mac-strict-capability-${RUNNER_IMAGE_DIGEST#sha256:}.json"
-TRIVY_VERSION='0.72.0'
+TRIVY_VERSION='0.74.0'
 TRIVY_ASSET="trivy_${TRIVY_VERSION}_macOS-ARM64.tar.gz"
 TRIVY_CHECKSUMS="trivy_${TRIVY_VERSION}_checksums.txt"
 TRIVY_RELEASE_BASE="https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}"
@@ -347,7 +350,7 @@ printf '%s  %s\n' "${TRIVY_EXPECTED_SHA}" "${TRIVY_ASSET}" \
   -C "${RUNNER_TRIVY_DIR}" trivy
 TRIVY_BIN="${RUNNER_TRIVY_DIR}/trivy"
 test -x "${TRIVY_BIN}"
-"${TRIVY_BIN}" --version | "${GREP_BIN}" -Fx 'Version: 0.72.0'
+"${TRIVY_BIN}" --version | "${GREP_BIN}" -Fx 'Version: 0.74.0'
 
 "${CONTAINER_BIN}" image inspect "${RUNNER_IMAGE_REF}" >"${RUNNER_INSPECT_JSON}"
 "${JQ_BIN}" -e --arg digest "${RUNNER_IMAGE_DIGEST}" \
@@ -379,20 +382,48 @@ RUNNER_TOP_INDEX_SHA="sha256:$("${SHASUM_BIN}" -a 256 \
   "${RUNNER_TOP_INDEX_BLOB}" | "${AWK_BIN}" '{print $1}')"
 test "${RUNNER_TOP_INDEX_SHA}" = "${RUNNER_TOP_INDEX_DIGEST}"
 
-RUNNER_PLATFORM_MANIFEST_DIGEST="$("${JQ_BIN}" -er \
-  'if (.manifests | length) == 1 and
-      .manifests[0].mediaType == "application/vnd.oci.image.manifest.v1+json" and
-      .manifests[0].platform.os == "linux" and
-      .manifests[0].platform.architecture == "arm64"
-   then .manifests[0].digest else error("expected one linux/arm64 manifest") end' \
-  "${RUNNER_TOP_INDEX_BLOB}")"
-RUNNER_PLATFORM_MANIFEST_SIZE="$("${JQ_BIN}" -er \
-  'if (.manifests | length) == 1 and
-      .manifests[0].mediaType == "application/vnd.oci.image.manifest.v1+json" and
-      .manifests[0].platform.os == "linux" and
-      .manifests[0].platform.architecture == "arm64"
-   then .manifests[0].size else error("expected one linux/arm64 manifest") end' \
-  "${RUNNER_TOP_INDEX_BLOB}")"
+test "${RUNNER_TOP_INDEX_DIGEST}" = "sha256:df9285934fe1ecd12e4c5317ddceae874a77270730afe58f9eca38f983bd69b4"
+"${JQ_BIN}" -e '. == {
+  "schemaVersion": 2,
+  "mediaType": "application/vnd.oci.image.index.v1+json",
+  "manifests": [
+    {
+      "mediaType": "application/vnd.oci.image.manifest.v1+json",
+      "digest": "sha256:a9f97d6eeee4ada7952d927c44527363c6d1f2a55515dfef9bcef007437633e3",
+      "size": 1819,
+      "platform": {
+        "architecture": "arm64",
+        "os": "linux"
+      }
+    },
+    {
+      "mediaType": "application/vnd.oci.image.manifest.v1+json",
+      "digest": "sha256:1f748a696b62f940dc2e1703d5ecd5a0d0e2c67dc3ab792a779f45e80e1823eb",
+      "size": 837,
+      "annotations": {
+        "vnd.docker.reference.digest": "sha256:a9f97d6eeee4ada7952d927c44527363c6d1f2a55515dfef9bcef007437633e3",
+        "vnd.docker.reference.type": "attestation-manifest"
+      },
+      "platform": {
+        "architecture": "unknown",
+        "os": "unknown"
+      }
+    }
+  ]
+}' "${RUNNER_TOP_INDEX_BLOB}" >/dev/null
+RUNNER_PLATFORM_MANIFEST_DIGEST="$("${JQ_BIN}" -er '.manifests[0].digest' "${RUNNER_TOP_INDEX_BLOB}")"
+RUNNER_PLATFORM_MANIFEST_SIZE="$("${JQ_BIN}" -er '.manifests[0].size' "${RUNNER_TOP_INDEX_BLOB}")"
+while read -r expected_digest expected_size; do
+  attestation_blob="${RUNNER_OCI_LAYOUT}/blobs/sha256/${expected_digest#sha256:}"
+  test ! -L "${attestation_blob}"
+  test -f "${attestation_blob}"
+  test "$("${WC_BIN}" -c <"${attestation_blob}" | "${AWK_BIN}" '{print $1}')" = "${expected_size}"
+  test "sha256:$("${SHASUM_BIN}" -a 256 "${attestation_blob}" | "${AWK_BIN}" '{print $1}')" = "${expected_digest}"
+done <<'EXPECTED_CURRENT_ATTESTATION'
+sha256:1f748a696b62f940dc2e1703d5ecd5a0d0e2c67dc3ab792a779f45e80e1823eb 837
+sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a 2
+sha256:f60c3efc8677b9bf81b2781c33df8614195e9461096bb4a3fa4e06df8c491df8 3202
+EXPECTED_CURRENT_ATTESTATION
 printf '%s\n' "${RUNNER_PLATFORM_MANIFEST_DIGEST}" | \
   "${GREP_BIN}" -Eq '^sha256:[0-9a-f]{64}$'
 RUNNER_PLATFORM_MANIFEST_BLOB="${RUNNER_OCI_LAYOUT}/blobs/sha256/${RUNNER_PLATFORM_MANIFEST_DIGEST#sha256:}"
@@ -431,7 +462,7 @@ except (OSError, UnicodeDecodeError, json.JSONDecodeError):
 if not isinstance(manifest, dict) or manifest.get("schemaVersion") != 2:
     fail("manifest_shape")
 layers = manifest.get("layers")
-if not isinstance(layers, list) or len(layers) != 5:
+if not isinstance(layers, list) or len(layers) != 8:
     fail("layer_count")
 
 seen_digests = set()
@@ -549,21 +580,27 @@ PY
   /bin/sh -eu -c '
 test "$(id -u):$(id -g)" = "65532:65532"
 test "$(/opt/venv/bin/python -c "import platform; print(platform.python_version())")" = \
-  "3.13.14"
+  "3.13.16"
 EXPECTED_HTML_PARSER_SHA256='4274e911:2adf3fa5:7c7f9afa:7c9b5c63:1456b18b:7403cc62:7cc5027d:02cdd2ae'
 EXPECTED_HTML_PARSER_SHA256="$(printf '%s' "${EXPECTED_HTML_PARSER_SHA256}" | tr -d ':')"
 test "$(sha256sum /usr/lib64/python3.13/html/parser.py | cut -d " " -f 1)" = \
   "${EXPECTED_HTML_PARSER_SHA256}"
 /opt/venv/bin/python -c "from html.parser import HTMLParser; parser = HTMLParser(); assert parser._pending == []; assert parser._pending_len == 0; assert parser._parse_threshold == 1"
-test "$(rpm -q python3.13)" = "python3.13-3.13.14-1.el10_2.aarch64"
-test "$(rpm -q git-core)" = "git-core-2.52.0-1.el10.aarch64"
-test "$(rpm -q make)" = "make-4.4.1-9.el10.aarch64"
-test "$(rpm -q shadow-utils)" = "shadow-utils-4.15.0-11.el10.aarch64"
-test "$(rpm -q util-linux-core)" = "util-linux-core-2.40.2-18.el10.aarch64"
+rpm_query_output="$(rpm -q python3.13)"
+test "${rpm_query_output}" = "python3.13-3.13.16-1.el10_2.aarch64"
+rpm_query_output="$(rpm -q git-core)"
+test "${rpm_query_output}" = "git-core-2.52.0-1.el10.aarch64"
+rpm_query_output="$(rpm -q make)"
+test "${rpm_query_output}" = "make-4.4.1-9.el10.aarch64"
+rpm_query_output="$(rpm -q shadow-utils)"
+test "${rpm_query_output}" = "shadow-utils-4.15.0-11.el10.aarch64"
+rpm_query_output="$(rpm -q util-linux-core)"
+test "${rpm_query_output}" = "util-linux-core-2.40.2-18.el10.aarch64"
 expected_rpm_package_count="129"
-expected_rpm_inventory_sha256="bf2426b1:94df76bf:c9f26642:a23b7b94:f208ee11:69251070:7d737476:368a34b2"
+expected_rpm_inventory_sha256="4a9eb99a:ba1b6a59:9fccd7ef:6d32a3b6:cbed8b47:4e89de93:6697a78b:370494a8"
 expected_rpm_inventory_sha256="$(printf "%s" "${expected_rpm_inventory_sha256}" | tr -d ":")"
-rpm_inventory="$(rpm -qa --qf "%{NAME}-%{EPOCHNUM}:%{VERSION}-%{RELEASE}.%{ARCH} %{SHA256HEADER} %{PAYLOADDIGEST} %{PAYLOADDIGESTALGO}\n" | LC_ALL=C sort)"
+rpm_inventory="$(rpm -qa --qf "%{NAME}-%{EPOCHNUM}:%{VERSION}-%{RELEASE}.%{ARCH} %{SHA256HEADER} %{PAYLOADDIGEST} %{PAYLOADDIGESTALGO}\n")"
+rpm_inventory="$(printf "%s\n" "$rpm_inventory" | LC_ALL=C sort)"
 test "$(printf "%s\n" "${rpm_inventory}" | wc -l | tr -d " ")" = \
   "${expected_rpm_package_count}"
 test "$(printf "%s\n" "${rpm_inventory}" | sha256sum | cut -d " " -f 1)" = \
@@ -573,7 +610,7 @@ test -x /usr/bin/make
 test -x /usr/bin/unshare
 printf "%s\n" \
   "uid_gid=65532:65532" \
-  "python_version=3.13.14" \
+  "python_version=3.13.16" \
   "rpm_package_count=${expected_rpm_package_count}" \
   "rpm_inventory_sha256=${expected_rpm_inventory_sha256}" \
   "runtime_contract=passed"
@@ -591,9 +628,31 @@ printf "%s\n" \
   --exit-code 1 \
   --format json \
   --output "${RUNNER_TRIVY_REPORT}"
+RUNNER_PIP_SBOM="${RUNNER_EVIDENCE_DIR}/pip-vendor-bom.cdx.json"
+test ! -e "${RUNNER_PIP_SBOM}"
+test ! -L "${RUNNER_PIP_SBOM}"
+"${CONTAINER_BIN}" run --rm --read-only --no-dns "${RUNNER_IMAGE_REF}" \
+  /opt/venv/bin/python -I -S -c '
+import os, stat, sys
+path = "/opt/venv/lib/python3.13/site-packages/pip/_vendor/bom.cdx.json"
+fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
+with os.fdopen(fd, "rb") as stream:
+    before = os.fstat(stream.fileno())
+    if not stat.S_ISREG(before.st_mode) or not 0 < before.st_size <= 65536:
+        raise SystemExit("pip_sbom_capture_invalid")
+    raw = stream.read(65537)
+    after = os.fstat(stream.fileno())
+    if len(raw) != before.st_size or (before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns) != (after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns):
+        raise SystemExit("pip_sbom_capture_changed")
+    sys.stdout.buffer.write(raw)
+' >"${RUNNER_PIP_SBOM}"
 TRIVY_COVERAGE_RECEIPT="$(
-  "${RUNNER_PYTHON}" - "${RUNNER_TRIVY_REPORT}" <<'PY'
+  "${RUNNER_PYTHON}" - "${RUNNER_TRIVY_REPORT}" "${RUNNER_PIP_SBOM}" <<'PY'
+import hashlib
 import json
+import os
+import re
+import stat
 from pathlib import Path
 import sys
 
@@ -606,25 +665,103 @@ def package_count(result):
     packages = result.get("Packages")
     if not isinstance(packages, list) or not packages:
         fail("packages")
-    identities = set()
+    python_result = (result.get("Class"), result.get("Type"), result.get("Target")) == ("lang-pkgs", "python-pkg", "Python")
+    identities, top_names, top_paths, vendor_records = set(), set(), set(), set()
+    physical_records = set()
     for package in packages:
         if not isinstance(package, dict):
             fail("package_shape")
-        name = package.get("Name")
-        version = package.get("Version")
-        if not isinstance(name, str) or not name:
+        name, version = package.get("Name"), package.get("Version")
+        if not isinstance(name, str) or not name or not isinstance(version, str) or not version:
             fail("package_identity")
-        if not isinstance(version, str) or not version:
-            fail("package_identity")
-        identity = (name, version)
-        if identity in identities:
-            fail("duplicate_package")
-        identities.add(identity)
+        if not python_result:
+            if (name, version) in identities:
+                fail("duplicate_package")
+            identities.add((name, version))
+            continue
+        normalized = re.sub(r"[-_.]+", "-", name).lower()
+        identifier = package.get("Identifier")
+        expected_purl = "pkg:pypi/" + normalized + "@" + version
+        if not isinstance(identifier, dict) or identifier.get("PURL") != expected_purl or package.get("Layer") != EXPECTED_PYTHON_LAYER:
+            fail("python_package_lineage")
+        if package.get("AnalyzedBy") == "python-pkg":
+            path = package.get("FilePath")
+            match = re.fullmatch(r"opt/venv/lib/python3[.]13/site-packages/([A-Za-z0-9._-]+)[.]dist-info/METADATA", path) if isinstance(path, str) else None
+            if match is None:
+                fail("python_metadata_origin")
+            directory_name, separator, directory_version = match.group(1).rpartition("-")
+            if not separator or re.sub(r"[-_.]+", "-", directory_name).lower() != normalized or directory_version != version:
+                fail("python_metadata_identity")
+            if normalized in top_names or path in top_paths or (normalized, version) in identities:
+                fail("duplicate_package")
+            top_names.add(normalized)
+            top_paths.add(path)
+            physical_records.add((normalized, version, path))
+            identities.add((normalized, version))
+        elif package.get("AnalyzedBy") == "sbom":
+            if "FilePath" in package:
+                fail("python_vendor_origin")
+            record = (name, version, package.get("ID"), identifier.get("BOMRef"), identifier.get("PURL"))
+            if any(not isinstance(value, str) or not value for value in record) or record not in EXPECTED_VENDOR_RECORDS:
+                fail("python_vendor_lineage")
+            if record in vendor_records:
+                fail("duplicate_package")
+            vendor_records.add(record)
+        else:
+            fail("python_unknown_origin")
+    if python_result:
+        if len(top_names) != 134 or len(top_paths) != 134 or len(identities) != 134:
+            fail("python_package_count")
+        inventory_bytes = json.dumps(sorted(physical_records), separators=(",", ":"), ensure_ascii=True).encode("ascii")
+        if hashlib.sha256(inventory_bytes).hexdigest() != '15b8a47e4a9978b9efc73e395bcc691246594d2a987f792dbdfc338bc827437e':
+            fail("python_physical_inventory")
+        if vendor_records != EXPECTED_VENDOR_RECORDS or len(vendor_records) != 18:
+            fail("python_vendor_coverage")
+        return len(identities)
     return len(packages)
 
 
-if len(sys.argv) != 2:
+EXPECTED_PIP_SBOM_COMPONENTS = {('resolvelib', '1.2.1', 'pkg:pypi/resolvelib@1.2.1'), ('certifi', '2026.6.17', 'pkg:pypi/certifi@2026.6.17'), ('rich', '14.2.0', 'pkg:pypi/rich@14.2.0'), ('tomli', '2.4.1', 'pkg:pypi/tomli@2.4.1'), ('idna', '3.18', 'pkg:pypi/idna@3.18'), ('msgpack', '1.1.2', 'pkg:pypi/msgpack@1.1.2'), ('platformdirs', '4.10.0', 'pkg:pypi/platformdirs@4.10.0'), ('urllib3', '2.7.0', 'pkg:pypi/urllib3@2.7.0'), ('tomli-w', '1.2.0', 'pkg:pypi/tomli-w@1.2.0'), ('setuptools', '70.3.0', 'pkg:pypi/setuptools@70.3.0'), ('pyproject-hooks', '1.2.0', 'pkg:pypi/pyproject-hooks@1.2.0'), ('distro', '1.9.0', 'pkg:pypi/distro@1.9.0'), ('pygments', '2.20.0', 'pkg:pypi/pygments@2.20.0'), ('CacheControl', '0.14.4', 'pkg:pypi/CacheControl@0.14.4'), ('requests', '2.34.2', 'pkg:pypi/requests@2.34.2'), ('truststore', '0.10.4', 'pkg:pypi/truststore@0.10.4'), ('distlib', '0.4.2', 'pkg:pypi/distlib@0.4.2'), ('packaging', '26.2', 'pkg:pypi/packaging@26.2')}
+EXPECTED_PIP_ROOT = {'bom-ref': 'bom-ref:pip', 'name': 'pip', 'type': 'library'}
+EXPECTED_PYTHON_LAYER = {'Digest': 'sha256:1fb871361e453637230e1d88374621b44811cd6c365ecda7acb229ed5646c346', 'DiffID': 'sha256:e27988ccf24b562c671d682a9f091034066e843c6646e33bbd6eb5b2494eecec'}
+
+if len(sys.argv) != 3:
     fail("arguments")
+try:
+    fd = os.open(sys.argv[2], os.O_RDONLY | os.O_NOFOLLOW)
+    with os.fdopen(fd, "rb") as stream:
+        info = os.fstat(stream.fileno())
+        if not stat.S_ISREG(info.st_mode) or info.st_size != 5319:
+            fail("pip_sbom_file")
+        sbom_raw = stream.read(5320)
+    if len(sbom_raw) != 5319 or hashlib.sha256(sbom_raw).hexdigest() != "797e200aa7fff16fad9fb2deeaece50a2b2bec623eb6c3759176eee6cee19328":
+        fail("pip_sbom_bytes")
+    sbom = json.loads(sbom_raw)
+except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+    fail("pip_sbom_read")
+if not isinstance(sbom, dict) or sbom.get("bomFormat") != "CycloneDX" or sbom.get("specVersion") != "1.4":
+    fail("pip_sbom_shape")
+source_components = sbom.get("components")
+if not isinstance(source_components, list) or len(source_components) != 19 or any(not isinstance(c, dict) for c in source_components):
+    fail("pip_sbom_components")
+pip_roots = [c for c in source_components if c.get("bom-ref") == "bom-ref:pip"]
+if pip_roots != [EXPECTED_PIP_ROOT]:
+    fail("pip_sbom_root")
+source_vendors = []
+for c in source_components:
+    if c.get("bom-ref") == "bom-ref:pip":
+        continue
+    values = (c.get("name"), c.get("version"), c.get("bom-ref"))
+    if c.get("type") != "library" or any(not isinstance(v, str) or not v for v in values) or c.get("purl") != values[2]:
+        fail("pip_sbom_component")
+    source_vendors.append(values)
+if len(source_vendors) != 18 or len(set(source_vendors)) != 18 or set(source_vendors) != EXPECTED_PIP_SBOM_COMPONENTS:
+    fail("pip_sbom_lineage")
+EXPECTED_VENDOR_RECORDS = {
+    (name, version, name + "@" + version, ref, "pkg:pypi/" + re.sub(r"[-_.]+", "-", name).lower() + "@" + version)
+    for name, version, ref in source_vendors
+}
+
 try:
     report = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
 except (OSError, UnicodeDecodeError, json.JSONDecodeError):
@@ -669,6 +806,10 @@ for result in results:
         if any(not isinstance(vulnerability, dict) for vulnerability in vulnerabilities):
             fail("vulnerability_shape")
         finding_count += len(vulnerabilities)
+    if "Secrets" in result:
+        secrets = result["Secrets"]
+        if not isinstance(secrets, list) or secrets:
+            fail("secrets")
     if result_class == "os-pkgs" and result_type == "redhat":
         os_package_counts.append(current_package_count)
     if (
@@ -684,7 +825,7 @@ if len(python_package_counts) != 1:
     fail("python_coverage")
 if os_package_counts[0] != 129:
     fail("os_package_count")
-if python_package_counts[0] != 136:
+if python_package_counts[0] != 134:
     fail("python_package_count")
 if finding_count:
     fail("selected_findings")
@@ -696,7 +837,8 @@ print(
             "trivy_os_family=redhat",
             "trivy_os_version=10.2",
             "trivy_os_package_count=129",
-            "trivy_python_package_count=136",
+            "trivy_python_package_count=134",
+            "trivy_pip_vendor_component_count=18",
             "trivy_high_critical_findings=0",
         )
     )
@@ -722,20 +864,21 @@ printf '%s\n' \
 ```
 
 The inspection and export must agree on the Apple-returned top index digest.
-Admission then hashes that top-index blob, requires and hashes exactly one
-`linux/arm64` manifest, verifies every one of its five referenced layer blobs
+Admission then hashes that top-index blob, requires the exact current runtime
+and linked metadata descriptors, hashes the metadata blobs, and hashes the one
+`linux/arm64` runtime manifest, verifies every one of its eight referenced layer blobs
 as a regular file with the descriptor's exact byte length and SHA-256, resolves
 and hashes its config blob, and inspects only that manifest-bound
 config/history for configured proxy-secret names and every non-empty current
 secret value without printing those values. Runtime checks bind UID/GID 65532,
-Python 3.13.14, the exact CPython patch content, exact RPM versions, and
+Python 3.13.16, the exact CPython patch content, exact RPM versions, and
 required executables to the same digest. The downloaded official Trivy asset
 must pass its official release checksum before it scans the exact OCI layout.
 Both database acquisition and image scanning ignore ambient Trivy
 configuration, while the image scan explicitly clears external ignore-policy,
 ignore-status, and VEX inputs. The self-contained Python coverage guard then
 requires Trivy schema v2, a `container_image` artifact, exact Red Hat 10.2
-metadata, exactly one 129-package OS result, and exactly one 136-package Python
+metadata, exactly one 129-package OS result, and exactly one 134-package Python
 result before it accepts the absence of selected findings. The command writes
 sanitized runtime output, probe output, scanner JSON, and one success-only
 exit-status receipt beneath the digest-bound local evidence directory. Because

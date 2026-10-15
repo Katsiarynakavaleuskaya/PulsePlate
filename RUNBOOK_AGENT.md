@@ -382,6 +382,16 @@ Evidence: `scripts/ci/install_locked_python_requirements.py:70`,
 `scripts/ci/compile_locked_python_requirements.py:74`,
 `tests/test_dependency_security_guard.py:1272`.
 
+After upgrading a Python tool inside a private acquisition step, check its
+package metadata and imports as the final UID. An inherited `077` umask can
+leave those files readable only by root despite successful root checks. Restore
+public package read/traverse modes only in the owned virtual environment after
+the credential stage; preserve private acquisition directories and compare
+payload/RECORD bytes and executable-file membership.
+Evidence: `scripts/ci/install_locked_python_requirements.py:70`,
+`scripts/ci/compile_locked_python_requirements.py:74`,
+`tests/test_dependency_security_guard.py:1272`.
+
 ## Nightly Docker and Trivy review-deadline forecast
 
 The independent `review-deadline-forecast` job in the existing main-only daily

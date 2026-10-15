@@ -478,7 +478,7 @@ def _assert_backend_network_isolated() -> None:
     ):
         raise RuntimeError("Psycopg backend requires kernel network isolation.")
     ipv4 = _network_table_lines("/proc/net/route")
-    if not ipv4 or ipv4[0] != [
+    if ipv4 and ipv4[0] != [
         "Iface",
         "Destination",
         "Gateway",
