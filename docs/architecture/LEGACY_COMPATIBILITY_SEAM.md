@@ -19,7 +19,9 @@ weekly-plan downstream error boundary documented below.
 `app/bootstrap/application.py` constructs the sole production FastAPI singleton.
 `app/main.py` imports it directly and owns additive composition; deployment
 remains `app.main:app`. `legacy_app.py` is a transitional compatibility facade
-that re-exports the same app, runtime environment, metadata, and lifespan.
+that re-exports the same app. The selected legacy lifespan/access aliases are
+retired; their exact canonical objects and package exports remain. Runtime
+environment and metadata snapshots remain owned by the canonical bootstrap.
 Normal imports therefore share one app. The finite package facade resolves
 `app.app` directly from `app.main.app` (`app/__init__.py:58-59`); a deliberate
 test-only reassignment of `legacy_app.app` cannot rebind package, bootstrap, or
@@ -27,19 +29,22 @@ test-only reassignment of `legacy_app.app` cannot rebind package, bootstrap, or
 not import `legacy_app`. Resolving `app.app` imports `app.main` without loading
 `legacy_app`; the canonical bootstrap no longer reverse-imports the compatibility
 facade. The eight former paid/BMI registration mirrors are absent from `app`,
-`app.main`, and `legacy_app.py`. Fourteen bounded Python-binding retirements remove
-only the exact 109 `legacy_app.py` Python bindings enumerated below; they do not
+`app.main`, and `legacy_app.py`. Sixteen bounded Python-binding retirements remove
+only the exact 117 `legacy_app.py` Python bindings enumerated below; they do not
 remove or redirect any HTTP path, change auth, alter OpenAPI, or change FastAPI
 object identity. Repository census found no tracked supported production
 consumer of the second ten-name, third eleven-name, fourth eight-name, fifth
 twelve-name, sixth seven-name, seventh three-name, eighth seven-name, ninth
 fifteen-name, tenth four-name, eleventh four-name, twelfth eight-name,
-thirteenth seven-name, or fourteenth three-name cohort;
+thirteenth seven-name, fourteenth three-name, fifteenth six-name, or sixteenth
+two-name cohort;
 it does not prove that no external or dynamic Python consumer exists.
 
 Application startup/shutdown behavior is canonically owned by
 `app/bootstrap/lifespan.py`. `app/bootstrap/application.py` passes that exact
-context manager to its constructor and `legacy_app.py` only re-exports it.
+context manager to its constructor. `app.lifespan` preserves its exact identity;
+`legacy_app.lifespan` is absent. Canonical main restores that identity after
+router composition (`app/main.py:1469`).
 Food-search clients and the process-wide strategy adapter are acquired and
 released inside that lifespan; additive route bootstrap must not create shared
 runtime resources or wrap `app.router.lifespan_context`.
@@ -53,7 +58,8 @@ warning state would break FastAPI dependency identity.
 Application metadata is canonically owned by
 `app/application_metadata.py:56` and constructed through the environment-aware
 factory at `app/application_metadata.py:113`. The application bootstrap builds
-one immutable value and `legacy_app.py` aliases it for compatibility.
+one immutable value. Consumers observe that existing snapshot; legacy metadata
+and environment projections are retired.
 
 Public OpenAPI visibility, component pruning, builder ownership, and cache
 reconciliation are canonically owned by `app/bootstrap/openapi.py:32` and its
@@ -452,9 +458,182 @@ main while another employee monitored it. This historical lane-specific start
 exception transferred no main PASS, publication validation, merge-readiness or
 merge permission and granted no bypass of this PR's required gates.
 
+## Legacy lifecycle and scheduler-access Python export retirement
+
+The `LEGACY-LIFECYCLE-ACCESS-EXPORT-RETIREMENT-1/v1` child is OPEN in
+[PR #2489](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2489). It retires exactly `legacy_app.lifespan`
+and `legacy_app.get_update_scheduler`. Every prior115 name remains and the
+independent tuple appends only these two at `[115:117]`; the three inventories
+contain exactly117 names (`scripts/ci/check_legacy_growth_guard.py:40`,
+`tests/test_legacy_growth_guard.py:13`, `tests/test_legacy_bmi_shims.py:29`).
+Historical BMI `[99:106]`, metadata/error `[106:109]` and metadata/environment
+`[109:115]` cohorts keep their original membership.
+
+Canonical owners remain `app.bootstrap.lifespan.application_lifespan` and the
+async `app.services.scheduler_access.get_update_scheduler`; package exports
+`app.lifespan` and `app.get_update_scheduler` and the complete sixteen-name
+package surface remain. Constructor wiring is direct
+(`app/bootstrap/application.py:37`), and canonical main restores the exact
+lifespan after router composition (`app/main.py:1469`). The protected fresh
+retirement probe checks both phases and package identity; the managed lifecycle
+suite retains normal/body-failure acquisition, resource cleanup and singleton
+observations. Explicit async getter access keeps lazy core resolution and its
+exact awaited result/error; optional background startup retains its separate
+best-effort contract. Admin auth-before-access and sanitized failures remain.
+
+The existing admin import probe now constructs only six operational environment
+keys plus synthetic test settings and installs three named Python connection
+controls before product imports. Local socketpair/asyncio positives and
+controlled nonzero/timeout diagnostics are independently exercised in the same
+owning test module. These are finite cooperative test controls, not OS isolation,
+complete networking denial, secret-free operational values or arbitrary native
+startup containment. No production scheduler/lease/worker/DB/HTTP/OpenAPI,
+dependency, workflow or recognizer algorithm changes are part of this child.
+Unknown external/computed importers and already-loaded/hot-reloaded module
+dictionaries remain outside the bounded retirement proof.
+
+Later frontend gate qualification (2026-10-14): the actual all-files frontend-tests
+retry passed after the unchanged locked environment was qualified
+(`.pre-commit-config.yaml:172`, `frontend/vitest.config.ts:5`). Bounded current
+advisory triage established no concrete active Legacy gate/runtime trigger
+requiring a dependency action. All fifteen affected advisory leaves remain OPEN
+under the [existing dependency follow-up](../roadmap/BACKLOG_LEDGER.md#ledger-p1-dependency-alerts-after-main-recovery),
+which retains their dated cutoff, owner and identity-specific DoD. This qualifies
+this child's scope without claiming remediation, universal network absence or
+merge readiness.
+
+Incoming PR #2488 reconciliation was applied whole and committed first as
+`ae9cfd637852149731e7c3c6342a8fb1b4603975`; its Target PR #2488 and archived
+cutoff remain below with the separately dated later main-CI observation.
+Incoming PR #2486 is not reapplied. This child still requires its own focused
+and narrow local evidence, current-head CI/security/coverage, actual-diff
+premortem/Oracle, review/dispositions/seal, separate exact-head squash approval
+and post-merge archive/same-ID continuity/owned cleanup. PROJECT_LEGACY stays
+OPEN; #2476/#2477 and R29/O1/shared-runtime/NoSec boundaries remain separate.
+Rollback reverts only this two-binding removal and coupled guard/tests, retaining
+truthful incoming reconciliation and all prior retirement/overflow fixes.
+
+## Legacy metadata and environment projection retirement
+
+The `LEGACY-METADATA-PROJECTION-RETIREMENT-1/v1` child is MERGED in
+[PR #2488](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2488), on
+`codex/retire-legacy-metadata-projections`. It retires exactly six
+ordinary bindings: `APPLICATION_METADATA`, `RUNTIME_ENV`, `_app_env`,
+`_application_metadata`, `tags_metadata`, and `_api_description`. All prior109
+names and historical BMI `[99:106]` and metadata/error `[106:109]` cohorts remain;
+the new cohort is `[109:115]`. The guard and two independently authored test
+inventories agree by exact membership rather than only cardinality
+(`scripts/ci/check_legacy_growth_guard.py:40`, `tests/test_legacy_growth_guard.py:13`,
+`tests/test_legacy_bmi_shims.py:29`).
+
+Canonical startup values remain `app.bootstrap.application.RUNTIME_ENV` and
+`APPLICATION_METADATA` (`app/bootstrap/application.py:16`,
+`app/bootstrap/application.py:30`). The singleton, both legacy loggers and other
+compatibility exports are preserved. Canonical metadata stays immutable with
+fresh nested constructor projections; main composition retains its existing
+public-description/tag policy. No HTTP/auth/tier/DTO/OpenAPI contract changes.
+The exclusive metadata-alias presence helper is removed; the existing retirement
+recognizer owns absence and retained metadata/OpenAPI protections remain.
+
+Fresh-process tests retain legacy-first and canonical-module-first observations.
+The separate local environment probe explicitly initializes bootstrap first,
+records real initialization baselines before optional main composition, then
+proves no repeat initialization through legacy and preserves snapshots after
+production/development environment changes. Its eight original environment cases,
+PATH/pytest-marker and staging gates remain. Finite synthetic child environment,
+pre-import socket denial, bounded timeout and safe result diagnostics are local
+test controls, not OS containment or universal dynamic-import proof.
+
+The additional canonical application consumer now observes explicit
+bootstrap-before-main and main-after-facade metadata phases
+(`tests/test_legacy_bmi_shims.py:872`). The existing ownership parity helper keeps
+all three fixed import orders and complete ordered route/middleware records plus
+the OpenAPI hash, comparing full observations without rendering child strings
+(`tests/test_application_instance_ownership.py:122`,
+`tests/test_application_instance_ownership.py:215`). Its finite operational
+passthrough and synthetic flags/pytest marker, named pre-import Python socket
+denials and canaries, exact repository cwd and native 30-second timeout are
+bounded test controls. Shape screening permits empty strings and method lists;
+ordinary failure and parity diagnostics are constant. Ambient marker/credential
+exclusion has an executable negative control
+(`tests/test_application_instance_ownership.py:818`). The observed local
+correction bundle passed 2230 cases, retaining all 170 original ownership cases
+and adding 39 (209 total). Correction commit
+`667be5bbc2513405f66d91f3a9b8a50d47755597` was published in the reviewed implementation.
+The terminal own CI/local/strict evidence below supersedes that historical
+pre-publication cutoff; no OS containment or general secret-isolation claim follows.
+
+Incoming #2486 reconciliation was applied whole and committed separately as
+`4a42076ae779a864f00b62172b2cf4bbf825bfb8`. Its two historical terminal anchors below
+retain Target PR #2486 and the qualified CANCELLED main/#2477 boundary. Its state
+is RECONCILED IN MAIN through the actual PR #2488 squash. Own exact-head
+authorization and bounded terminal receipts are retained below; PROJECT_LEGACY
+stays OPEN. No duplicate incoming #2486 application follows.
+Rollback reverts only the new six-binding removal and coupled guard/tests,
+preserving truthful incoming reconciliation and prior retirement/overflow fixes.
+
+Terminal record: CLOSED / MERGED in PR #2488, actual authorized squash `47fa0f4cecc593a379efde916fc2afdfcc8802bf` at `2026-10-14T10:05:37Z`, approved head `0cbfd9f00195adba4ed22b61a36926a4b1127076`, whole-tree equality. Exact six bindings retired, every prior109 preserved and three inventories exactly115; canonical snapshots/initialization/singleton and retained ownership guards preserved. Own CI38532909369 SUCCESS, uploaded JUnit9558/0/0/0, numeric diff100%/1eligible/0missing, required local/role/premortem/Oracle/self-review/disposition/seal/strict/wait proof observed. Clean synchronized main and fresh2339-test merged sanity passed. Downloaded core archive1Q3VYDx0ec2ifHTQQb87lh7CHbiThkyMr verified across412 members and standalone selected-history Git recovery; all5 native Oracle transports restored with original lineage. One final same-ID Doc and PROJECT_LEGACY-only capsule pass/readback preserved native structures/IDs, neighbors, parents and ACL. Owned M/T registrations and local/remote branch are absent after verified recovery, with private original keepers retained and foreign resources untouched. Incoming #2486 is RECONCILED IN MAIN with unchanged Target PR #2486. Main/CD qualification and late individual QA/outgoing receipts are in same-ID terminal supplement1MgoZGk8IUIjAyh5pU7DEsFrS187Vbazy. Own outgoing reconciliation remains PREPARED / ARCHIVED / NOT YET APPLIED for a future substantive receiver; no docs-only closeout or automatic next child. PROJECT_LEGACY OPEN, R29 PARTIAL/UNWAIVED, O1 historical NOT_ADMITTED and shared-runtime P1 OPEN. Known main3.13 timeout/cancel and Prometheus4HIGH repair remain #2477 by direct owner qualification; no global-green or full-total97 claim.
+
+Later authenticated observation, separate from the archived terminal cutoff:
+canonical main CI
+[38547130035](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/38547130035)
+completed `SUCCESS` for squash `47fa0f4cecc593a379efde916fc2afdfcc8802bf`;
+GitHub updated the run at `2026-10-14T11:28:20Z`. This updates only that
+main-CI status. The original cutoff and historical PR #2486 `CANCELLED`
+classification remain; independent CD/Prometheus work stays with PR #2477.
+This observation establishes no CD/global repair or future-lane PASS.
+
 ## Legacy metadata and error-detail Python export retirement
 
-The admitted `LEGACY-METADATA-ERROR-EXPORT-RETIREMENT-1/v1` child
+The child is MERGED: PR #2486 was separately authorized at exact head
+`e59565e1a5e69d170fbb9669fffcd7354236fdd6` and squash merged as
+`3f530552ea9ad581fd6cfa672dbf056640eaa220` at 2026-10-13T19:23:13Z.
+Its actual whole tree equals the reviewed head. The final material is
+`114a5f62f8bf348d1fafcf060d0e27a1903a8f65`, base/merge-base
+`0c25bcf605bd01153ce94d2bdf7c5df3463cff2a`, digest
+`sha256:f25ae56e54c8519a93032f2681be2ba0e52fb305dcd35cbbbf019069410aa36a`.
+Own required local, review, Oracle, seal, strict-wrapper and quiet-window gates
+were observed before the authorized merge. Exact-head canonical CI
+[38440366580](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/38440366580)
+succeeded; all twelve producer archives and eight XMLs were qualified. Global
+coverage was 98.51049% / 98.54277% / 98.54047% for Python 3.11/3.12/3.13;
+numeric diff coverage N/A was positively reconciled to an empty eligible
+added-line inventory with unchanged producer contracts, not missing XML.
+
+Clean owned main synchronized to the actual squash (0 ahead / 0 behind), and
+fresh merged-main focused sanity passed 1954 tests. Main CI
+[38454425817](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/38454425817)
+remains CANCELLED overall: Python 3.11/3.12 succeeded, each with 35729 JUnit
+cases, zero failures/errors, 37 explicit skips and all owned 1954 cases passing.
+Python 3.13 exceeded its 90-minute outer job budget after all nine shards exited
+0; its uploaded XML/JUnit are retained as canceled-job outputs, never a health
+PASS. The aggregate coverage reporter cascade-skipped. The direct human v4
+amendment assigns widening that timeout to PR #2477 and makes this cancellation
+nonblocking only for this owned closeout. No workflow fix/rerun, global-main-green,
+deployment or next-lane-start claim follows.
+
+Incoming #2483 is now RECONCILED IN MAIN through this squash, preserving its
+Target PR #2483. The downloaded [core archive](https://drive.google.com/file/d/1djMDicuLoFmIFLzeSLTPEBkK_bWACT8Q/view)
+contains 1883 manifest-verified payloads (92061863 bytes; SHA-256
+`8678aa11bf086a9273fb48c3f4a82a27721dd77ae97a2f41ae85bbf4caae5859`), including
+a standalone clone/fsck-verified Git bundle. The final same-ID
+[Living Legacy Doc](https://docs.google.com/document/d/1Cts1_WCs9TZV59xMaEn-rv4U_dHr-UDUDnK1r1-gO40) and only the owned PROJECT_LEGACY section of the
+[shared capsule](https://drive.google.com/file/d/1P1pHBD0B_EbwwtYvvOGiKro3pd0chcM5/view) have full readbacks; original native Doc body blocks,
+foreign capsule bytes, IDs, parents and ACL metadata are preserved. Later cleanup,
+QA and outgoing receipts are retained in `PR2486-terminal-supplement-20261014.tar.gz`
+and its final receipt in the [existing Legacy folder](https://drive.google.com/drive/folders/1HPsrBBGaAAssC7zh4JAKYn7bUxDtsi4I).
+Owned implementation/control/candidate worktrees, local branch and redundant
+recovery clones/bundle are removed after cloud verification; the remote branch
+was already auto-deleted. Foreign worktree inventory is unchanged; independent
+keeper/cloud evidence remains recoverable. The outgoing two-anchor patch is
+PREPARED / ARCHIVED / NOT YET APPLIED for the next substantive Legacy child.
+No new cohort, docs-only PR or competing master is selected.
+
+These terminal facts supersede pending lifecycle statements below; those
+paragraphs preserve their earlier evidence cutoffs. PROJECT_LEGACY remains OPEN,
+R29 PARTIAL / UNWAIVED, historical O1 NOT_ADMITTED and shared-runtime P1 OPEN.
+
+The historical #2486 material for `LEGACY-METADATA-ERROR-EXPORT-RETIREMENT-1/v1`
 ([PR #2486](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2486))
 removes exactly `build_application_metadata`,
 `ENHANCED_PLATE_GENERATION_FAILED_DETAIL`, and
@@ -470,14 +649,16 @@ bootstrap imports and constructs metadata directly at
 `app/bootstrap/application.py:13` and `app/bootstrap/application.py:30`.
 Both error values remain exact strings at `app/http_error_details.py:29` and
 `app/http_error_details.py:30`: `Invalid premium plate input` and
-`Enhanced plate generation failed`. Retained metadata projections and lifespan
+`Enhanced plate generation failed`. At that historical cutoff, retained metadata projections and lifespan
 bindings, the singleton, the sixteen-name package facade, HTTP routes, auth,
 tier checks, DTOs and OpenAPI remain preservation surfaces.
 
 The existing ownership validator no longer requires a retired factory import.
 Its reverse-import, environment, canonical-main, OpenAPI rebinding,
 callable/cache and facade protections remain. Its baseline fixture consumes
-`APPLICATION_METADATA` and `app` from the canonical bootstrap; positive
+`APPLICATION_METADATA` and `app` from the canonical bootstrap at that historical
+cutoff; the projection-retirement child above removes this temporary presence
+contract. Positive
 absence, ordinary/same-name imports, existing supported binding carriers and
 aggregate rejection controls cover the selected change. The protected
 fresh-process probe retains credential exclusion, network denial, its
@@ -779,9 +960,9 @@ The former synchronous `legacy_app.start_background_updates` /
 the `app.scheduler_helpers` resolver module, and the implicit `app_module`
 module-table alias are retired. Canonical startup and shutdown continue to use
 direct typed hooks in `app/bootstrap/lifespan.py`; scheduler mode, ordering,
-timeouts, cleanup, and worker topology are unchanged. Retained package and
-legacy `get_update_scheduler` exports remain the exact callable owned by
-`app/services/scheduler_access.py`.
+timeouts, cleanup, and worker topology are unchanged. The retained package
+`get_update_scheduler` export remains the exact callable owned by
+`app/services/scheduler_access.py`; the legacy Python alias is retired.
 
 The canonical weekly-menu builder remains owned by
 `core/menu_engine.py`. The hidden legacy premium weekly-plan route obtains the
@@ -992,9 +1173,9 @@ implementations and canonical `app/**` reverse imports or dynamic lookups for
 those callables. Current facts may disappear as the seam shrinks; new facts fail
 closed with repo-relative diagnostics.
 
-For the 109 retired Python bindings, the guard has a deliberately bounded
+For the 117 retired Python bindings, the guard has a deliberately bounded
 finite mechanical claim over the exact repo-relative `legacy_app.py` source
-only. It freezes the exact 109-name set, uses the existing `_assigned_names`
+only. It freezes the exact 117-name set, uses the existing `_assigned_names`
 collector for statically visible ordinary module-scope `Name` Store/Del
 bindings, rejects explicit `global` declarations for a protected name, rejects
 all star imports, and rejects a statically bound module-level `__getattr__`.
@@ -1012,7 +1193,7 @@ import hooks, reflection, arbitrary helpers, and external monkeypatching. The
 rule neither accepts nor certifies those families and makes no completeness
 claim about them. Any new or changed dynamic namespace carrier in
 `legacy_app.py`, and any dynamic carrier intended to bind or rebind one of the
-109 protected names, requires manual STOP and review. The existing router-import
+117 protected names, requires manual STOP and review. The existing router-import
 recognizer separately rejects reintroduction of the former exact dynamic
 `app.routers.plan_export -> _plan_mod` fact; this does not widen the ordinary
 binding rule or certify arbitrary namespace mutation.

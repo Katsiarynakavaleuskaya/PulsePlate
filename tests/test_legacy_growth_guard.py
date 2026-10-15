@@ -120,6 +120,14 @@ RETIRED_LEGACY_PYTHON_BINDINGS = (
     "build_application_metadata",
     "ENHANCED_PLATE_GENERATION_FAILED_DETAIL",
     "INVALID_PREMIUM_PLATE_INPUT_DETAIL",
+    "APPLICATION_METADATA",
+    "RUNTIME_ENV",
+    "_app_env",
+    "_application_metadata",
+    "tags_metadata",
+    "_api_description",
+    "lifespan",
+    "get_update_scheduler",
 )
 
 RETIRED_PRO_NUTRITION_BINDINGS = RETIRED_LEGACY_PYTHON_BINDINGS[10:20]
@@ -135,6 +143,94 @@ RETIRED_PLANNING_SCHEMA_BINDINGS = RETIRED_LEGACY_PYTHON_BINDINGS[87:91]
 RETIRED_CORE_UTILITY_BINDINGS = RETIRED_LEGACY_PYTHON_BINDINGS[91:99]
 RETIRED_BMI_COMPAT_BINDINGS = RETIRED_LEGACY_PYTHON_BINDINGS[99:106]
 RETIRED_METADATA_ERROR_BINDINGS = RETIRED_LEGACY_PYTHON_BINDINGS[106:109]
+RETIRED_METADATA_PROJECTION_BINDINGS = RETIRED_LEGACY_PYTHON_BINDINGS[109:115]
+RETIRED_LIFECYCLE_ACCESS_BINDINGS = RETIRED_LEGACY_PYTHON_BINDINGS[115:117]
+
+
+def test_retired_lifecycle_access_tail_is_exact_and_disjoint() -> None:
+    assert RETIRED_LIFECYCLE_ACCESS_BINDINGS == ("lifespan", "get_update_scheduler")
+    prior = RETIRED_LEGACY_PYTHON_BINDINGS[:115]
+    assert len(prior) == len(set(prior)) == 115
+    assert set(prior).isdisjoint(RETIRED_LIFECYCLE_ACCESS_BINDINGS)
+    assert len(RETIRED_LEGACY_PYTHON_BINDINGS) == len(set(RETIRED_LEGACY_PYTHON_BINDINGS)) == 117
+    assert legacy_guard.RETIRED_LEGACY_PYTHON_BINDINGS == frozenset(RETIRED_LEGACY_PYTHON_BINDINGS)
+
+
+@pytest.mark.parametrize("binding_name", RETIRED_LIFECYCLE_ACCESS_BINDINGS)
+@pytest.mark.parametrize(
+    "source_template",
+    (
+        "{name} = canonical\n",
+        "{name}: object = canonical\n",
+        "from canonical_owner import canonical as {name}\n",
+        "def {name}():\n    return None\n",
+    ),
+)
+def test_retired_lifecycle_access_binding_carrier(
+    binding_name: str,
+    source_template: str,
+) -> None:
+    assert legacy_guard.validate_retired_legacy_python_bindings(
+        source_template.format(name=binding_name)
+    ) == [f"legacy_app.py: retired Python compatibility binding is forbidden: {binding_name}"]
+
+
+@pytest.mark.parametrize(
+    ("binding_name", "module_name", "canonical_name"),
+    (
+        ("lifespan", "app.bootstrap.lifespan", "application_lifespan"),
+        ("get_update_scheduler", "app.services.scheduler_access", "get_update_scheduler"),
+    ),
+)
+@pytest.mark.parametrize("same_name_alias", (False, True))
+def test_retired_lifecycle_access_guard_rejects_canonical_reimport(
+    binding_name: str,
+    module_name: str,
+    canonical_name: str,
+    same_name_alias: bool,
+) -> None:
+    suffix = f" as {binding_name}" if canonical_name != binding_name or same_name_alias else ""
+    source = f"from {module_name} import {canonical_name}{suffix}\n"
+    assert legacy_guard.validate_retired_legacy_python_bindings(source) == [
+        f"legacy_app.py: retired Python compatibility binding is forbidden: {binding_name}"
+    ]
+
+
+@pytest.mark.parametrize("binding_name", RETIRED_LIFECYCLE_ACCESS_BINDINGS)
+def test_retired_lifecycle_access_guard_allows_canonical_and_local_mentions(
+    binding_name: str,
+) -> None:
+    assert (
+        legacy_guard.validate_retired_legacy_python_bindings(
+            f"{binding_name} = canonical\n", filename="app/bootstrap/lifespan.py"
+        )
+        == []
+    )
+    assert (
+        legacy_guard.validate_retired_legacy_python_bindings(
+            f'"{binding_name}"\n# {binding_name}\ndef local():\n    {binding_name} = canonical\n'
+        )
+        == []
+    )
+
+
+def test_retired_lifecycle_access_restoration_fails_aggregate_guard(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    assert legacy_guard.validate_repo(REPO_ROOT) == []
+    original_read = legacy_guard._read
+
+    def read_with_getter(path: Path, repo_root: Path, errors: list[str]) -> str | None:
+        source = original_read(path, repo_root, errors)
+        if path == REPO_ROOT / "legacy_app.py" and source is not None:
+            return source + "\nfrom app.services.scheduler_access import get_update_scheduler\n"
+        return source
+
+    with monkeypatch.context() as isolated_patch:
+        isolated_patch.setattr(legacy_guard, "_read", read_with_getter)
+        assert legacy_guard.validate_repo(REPO_ROOT) == [
+            "legacy_app.py: retired Python compatibility binding is forbidden: get_update_scheduler"
+        ]
 
 
 def test_retired_bmi_compat_tail_is_exact_and_disjoint() -> None:
@@ -151,8 +247,8 @@ def test_retired_bmi_compat_tail_is_exact_and_disjoint() -> None:
     assert len(RETIRED_LEGACY_PYTHON_BINDINGS[:99]) == 99
     assert len(set(RETIRED_LEGACY_PYTHON_BINDINGS[:99])) == 99
     assert set(RETIRED_LEGACY_PYTHON_BINDINGS[:99]).isdisjoint(RETIRED_BMI_COMPAT_BINDINGS)
-    assert len(RETIRED_LEGACY_PYTHON_BINDINGS) == 109
-    assert len(set(RETIRED_LEGACY_PYTHON_BINDINGS)) == 109
+    assert len(RETIRED_LEGACY_PYTHON_BINDINGS) == 117
+    assert len(set(RETIRED_LEGACY_PYTHON_BINDINGS)) == 117
 
 
 @pytest.mark.parametrize("binding_name", RETIRED_BMI_COMPAT_BINDINGS)
@@ -227,8 +323,8 @@ def test_retired_metadata_error_tail_is_exact_and_disjoint() -> None:
     assert len(RETIRED_LEGACY_PYTHON_BINDINGS[:106]) == 106
     assert len(set(RETIRED_LEGACY_PYTHON_BINDINGS[:106])) == 106
     assert set(RETIRED_LEGACY_PYTHON_BINDINGS[:106]).isdisjoint(RETIRED_METADATA_ERROR_BINDINGS)
-    assert len(RETIRED_LEGACY_PYTHON_BINDINGS) == 109
-    assert len(set(RETIRED_LEGACY_PYTHON_BINDINGS)) == 109
+    assert len(RETIRED_LEGACY_PYTHON_BINDINGS) == 117
+    assert len(set(RETIRED_LEGACY_PYTHON_BINDINGS)) == 117
     assert legacy_guard.RETIRED_LEGACY_PYTHON_BINDINGS == frozenset(RETIRED_LEGACY_PYTHON_BINDINGS)
 
 
@@ -664,6 +760,8 @@ def test_retired_openapi_guard_rejects_exact_canonical_reimport(
         f"legacy_app.py: retired Python compatibility binding is forbidden: {binding_name}"
     ]
     sources = list(_openapi_ownership_sources())
+    assert legacy_guard.validate_application_metadata_openapi_ownership(*sources) == []
+    assert legacy_guard.validate_retired_legacy_python_bindings(sources[0]) == []
     sources[0] += source
     assert legacy_guard.validate_application_metadata_openapi_ownership(*sources) == [
         f"legacy_app.py: canonical OpenAPI re-export must not be rebound: {binding_name}"
@@ -1030,8 +1128,7 @@ def _openapi_ownership_sources() -> tuple[str, str, str, str, str]:
     """Supply canonical metadata ownership and independent OpenAPI source fixtures."""
     return (
         textwrap.dedent("""
-            from app.bootstrap.application import APPLICATION_METADATA, app
-            _application_metadata = APPLICATION_METADATA
+            from app.bootstrap.application import app
             """),
         "from settings import get_runtime_env_name\n",
         "from fastapi import FastAPI\n",
@@ -1429,6 +1526,8 @@ def test_metadata_openapi_ownership_guard_rejects_reintroduction(
     expected_fragment: str,
 ) -> None:
     sources = list(_openapi_ownership_sources())
+    assert legacy_guard.validate_application_metadata_openapi_ownership(*sources) == []
+    assert legacy_guard.validate_retired_legacy_python_bindings(sources[0]) == []
     sources[source_index] += addition
 
     errors = legacy_guard.validate_application_metadata_openapi_ownership(*sources)
@@ -1438,6 +1537,8 @@ def test_metadata_openapi_ownership_guard_rejects_reintroduction(
 
 def test_metadata_openapi_ownership_guard_ignores_nested_local_rebinding() -> None:
     sources = list(_openapi_ownership_sources())
+    assert legacy_guard.validate_application_metadata_openapi_ownership(*sources) == []
+    assert legacy_guard.validate_retired_legacy_python_bindings(sources[0]) == []
     sources[0] += textwrap.dedent("""
         def helper():
             _collect_schema_refs = object()
@@ -1451,6 +1552,8 @@ def test_metadata_openapi_ownership_guard_ignores_nested_local_rebinding() -> No
 
 def test_metadata_openapi_ownership_guard_ignores_facade_comment_and_docstring() -> None:
     sources = list(_openapi_ownership_sources())
+    assert legacy_guard.validate_application_metadata_openapi_ownership(*sources) == []
+    assert legacy_guard.validate_retired_legacy_python_bindings(sources[0]) == []
     sources[4] += textwrap.dedent('''
         """Do not restore the legacy _install_openapi_builder lookup."""
         # _install_openapi_builder is intentionally absent.
@@ -1463,6 +1566,8 @@ def test_metadata_openapi_ownership_guard_ignores_facade_comment_and_docstring()
 
 def test_metadata_openapi_ownership_guard_allows_unrelated_relative_main_symbol() -> None:
     sources = list(_openapi_ownership_sources())
+    assert legacy_guard.validate_application_metadata_openapi_ownership(*sources) == []
+    assert legacy_guard.validate_retired_legacy_python_bindings(sources[0]) == []
     sources[2] += "\nfrom .helpers import main\n"
 
     errors = legacy_guard.validate_application_metadata_openapi_ownership(*sources)
@@ -1472,6 +1577,8 @@ def test_metadata_openapi_ownership_guard_allows_unrelated_relative_main_symbol(
 
 def test_metadata_openapi_ownership_guard_rejects_dynamic_import_in_canonical_owner() -> None:
     sources = list(_openapi_ownership_sources())
+    assert legacy_guard.validate_application_metadata_openapi_ownership(*sources) == []
+    assert legacy_guard.validate_retired_legacy_python_bindings(sources[0]) == []
     sources[2] += textwrap.dedent("""
         from importlib import import_module
         import_module(".helpers", package="app.bootstrap")
@@ -1484,6 +1591,8 @@ def test_metadata_openapi_ownership_guard_rejects_dynamic_import_in_canonical_ow
 
 def test_metadata_openapi_ownership_guard_allows_unrelated_namespace_mutations() -> None:
     sources = list(_openapi_ownership_sources())
+    assert legacy_guard.validate_application_metadata_openapi_ownership(*sources) == []
+    assert legacy_guard.validate_retired_legacy_python_bindings(sources[0]) == []
     sources[0] += '\nglobals().pop("unrelated", None)\n'
     sources[4] += '\nvars(app).setdefault("unrelated", value)\n'
 
@@ -1494,6 +1603,8 @@ def test_metadata_openapi_ownership_guard_allows_unrelated_namespace_mutations()
 
 def test_metadata_openapi_ownership_guard_allows_other_module_alias() -> None:
     sources = list(_openapi_ownership_sources())
+    assert legacy_guard.validate_application_metadata_openapi_ownership(*sources) == []
+    assert legacy_guard.validate_retired_legacy_python_bindings(sources[0]) == []
     sources[0] += textwrap.dedent("""
         import sys as system
         other_module = system.modules["app"]
@@ -1507,6 +1618,8 @@ def test_metadata_openapi_ownership_guard_allows_other_module_alias() -> None:
 
 def test_metadata_openapi_ownership_guard_respects_safe_alias_reassignment() -> None:
     sources = list(_openapi_ownership_sources())
+    assert legacy_guard.validate_application_metadata_openapi_ownership(*sources) == []
+    assert legacy_guard.validate_retired_legacy_python_bindings(sources[0]) == []
     sources[0] += textwrap.dedent("""
         import sys as system
         current_module = system.modules[__name__]
@@ -1523,6 +1636,8 @@ def test_metadata_openapi_ownership_guard_respects_safe_alias_reassignment() -> 
 
 def test_metadata_openapi_ownership_guard_respects_nested_alias_shadowing() -> None:
     sources = list(_openapi_ownership_sources())
+    assert legacy_guard.validate_application_metadata_openapi_ownership(*sources) == []
+    assert legacy_guard.validate_retired_legacy_python_bindings(sources[0]) == []
     sources[0] += textwrap.dedent("""
         import sys as system
         current_module = system.modules[__name__]
@@ -1561,6 +1676,8 @@ def test_metadata_openapi_ownership_guard_allows_ordered_alias_controls(
     main_addition: str,
 ) -> None:
     sources = list(_openapi_ownership_sources())
+    assert legacy_guard.validate_application_metadata_openapi_ownership(*sources) == []
+    assert legacy_guard.validate_retired_legacy_python_bindings(sources[0]) == []
     sources[3] += main_addition
 
     errors = legacy_guard.validate_application_metadata_openapi_ownership(*sources)
@@ -1570,6 +1687,8 @@ def test_metadata_openapi_ownership_guard_allows_ordered_alias_controls(
 
 def test_metadata_openapi_ownership_guard_rejects_lookup_before_safe_reassignment() -> None:
     sources = list(_openapi_ownership_sources())
+    assert legacy_guard.validate_application_metadata_openapi_ownership(*sources) == []
+    assert legacy_guard.validate_retired_legacy_python_bindings(sources[0]) == []
     sources[3] += textwrap.dedent("""
         import legacy_app as legacy
         compat = legacy
@@ -1585,8 +1704,8 @@ def test_metadata_openapi_ownership_guard_rejects_lookup_before_safe_reassignmen
 def test_metadata_error_factory_absence_preserves_openapi_ownership() -> None:
     """A valid legacy baseline consumes metadata without re-exporting its factory."""
     sources = _openapi_ownership_sources()
-    assert "from app.bootstrap.application import APPLICATION_METADATA, app" in sources[0]
-    assert "_application_metadata = APPLICATION_METADATA" in sources[0]
+    assert "from app.bootstrap.application import app" in sources[0]
+    assert "APPLICATION_METADATA" not in sources[0]
     assert "build_application_metadata" not in sources[0]
     assert legacy_guard.validate_application_metadata_openapi_ownership(*sources) == []
     assert legacy_guard.validate_retired_legacy_python_bindings(sources[0]) == []
@@ -1604,121 +1723,10 @@ def test_metadata_openapi_ownership_guard_rejects_legacy_callable_mutation() -> 
     ]
 
 
-@pytest.mark.parametrize("same_name_alias", (False, True))
-def test_metadata_alias_guard_accepts_current_source_shape(same_name_alias: bool) -> None:
-    """Accept the declared import spelling and the actual reserved metadata alias."""
-    sources = list(_openapi_ownership_sources())
-    if same_name_alias:
-        sources[0] = sources[0].replace(
-            "import APPLICATION_METADATA, app",
-            "import APPLICATION_METADATA as APPLICATION_METADATA, app",
-        )
-    assert legacy_guard.validate_application_metadata_openapi_ownership(*sources) == []
-    assert legacy_guard.validate_retired_legacy_python_bindings(sources[0]) == []
-
-
-@pytest.mark.parametrize(
-    ("mutation", "replacement"),
-    (
-        ("import", ""),
-        ("import", "from unrelated import APPLICATION_METADATA, app\n"),
-        ("import", "from .app.bootstrap.application import APPLICATION_METADATA, app\n"),
-        ("import", "from app.bootstrap.application import APPLICATION_METADATA as other, app\n"),
-        (
-            "import",
-            "from app.bootstrap.application import APPLICATION_METADATA, APPLICATION_METADATA, app\n",
-        ),
-        (
-            "import",
-            "if True:\n    from app.bootstrap.application import APPLICATION_METADATA, app\n",
-        ),
-        ("alias", ""),
-        ("alias", "_application_metadata = {}\n"),
-        ("alias", "_application_metadata = build_application_metadata()\n"),
-        ("alias", "_application_metadata = APPLICATION_METADATA.to_fastapi_kwargs()\n"),
-        ("alias", "_application_metadata = cast(object, APPLICATION_METADATA)\n"),
-        ("alias", "_application_metadata = other\n"),
-        ("alias", "_application_metadata: object = APPLICATION_METADATA\n"),
-        ("alias", "_application_metadata: object\n"),
-        ("alias", "_application_metadata = other = APPLICATION_METADATA\n"),
-        ("alias", "_application_metadata, other = APPLICATION_METADATA, APPLICATION_METADATA\n"),
-        ("alias", "if True:\n    _application_metadata = APPLICATION_METADATA\n"),
-        ("order", ""),
-        ("append", "APPLICATION_METADATA = object()\n"),
-        ("append", "_application_metadata = object()\n"),
-        ("append", "del APPLICATION_METADATA\n"),
-        ("append", "del _application_metadata\n"),
-        ("append", "APPLICATION_METADATA: object\n"),
-        ("append", "_application_metadata += other\n"),
-        ("append", "from unrelated import value as APPLICATION_METADATA\n"),
-        ("append", "from unrelated import value as _application_metadata\n"),
-        ("append", "from app.bootstrap.application import APPLICATION_METADATA\n"),
-        ("append", "def update():\n    global APPLICATION_METADATA\n"),
-        ("append", "def update():\n    global _application_metadata\n"),
-    ),
-)
-def test_metadata_alias_guard_rejects_one_ownership_fault(mutation: str, replacement: str) -> None:
-    """Reject one lexical ownership defect after independently admitting the baseline."""
-    sources = list(_openapi_ownership_sources())
-    assert legacy_guard.validate_application_metadata_openapi_ownership(*sources) == []
-    assert legacy_guard.validate_retired_legacy_python_bindings(sources[0]) == []
-    import_line = "from app.bootstrap.application import APPLICATION_METADATA, app\n"
-    alias_line = "_application_metadata = APPLICATION_METADATA\n"
-    if mutation == "import":
-        sources[0] = sources[0].replace(import_line, replacement)
-    elif mutation == "alias":
-        sources[0] = sources[0].replace(alias_line, replacement)
-    elif mutation == "order":
-        sources[0] = sources[0].replace(import_line + alias_line, alias_line + import_line)
-    else:
-        sources[0] += replacement
-    assert legacy_guard.validate_retired_legacy_python_bindings(sources[0]) == []
-    assert legacy_guard.validate_application_metadata_openapi_ownership(*sources) == [
-        "legacy_app.py: canonical bootstrap metadata import/alias contract is required"
-    ]
-
-
-def test_metadata_alias_guard_allows_unrelated_and_local_bindings() -> None:
-    """Keep comments, foreign attributes and genuine nested locals outside the rule."""
-    sources = list(_openapi_ownership_sources())
-    sources[0] += textwrap.dedent("""
-        # APPLICATION_METADATA = unrelated
-        "_application_metadata = unrelated"
-        holder.APPLICATION_METADATA = unrelated
-        def helper():
-            APPLICATION_METADATA = object()
-            _application_metadata = APPLICATION_METADATA
-            return _application_metadata
-        """)
-    assert legacy_guard.validate_application_metadata_openapi_ownership(*sources) == []
-    assert legacy_guard.validate_retired_legacy_python_bindings(sources[0]) == []
-
-
-def test_metadata_alias_omission_fails_aggregate_guard(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Require the aggregate consumer to reject one missing alias after a clean baseline."""
-    assert legacy_guard.validate_repo(REPO_ROOT) == []
-    original_read = legacy_guard._read
-    alias_line = "_application_metadata = APPLICATION_METADATA\n"
-
-    def read_without_metadata_alias(path: Path, repo_root: Path, errors: list[str]) -> str | None:
-        """Remove exactly one canonical alias from only the legacy-source observation."""
-        source = original_read(path, repo_root, errors)
-        if path == REPO_ROOT / "legacy_app.py" and source is not None:
-            assert source.count(alias_line) == 1
-            changed = source.replace(alias_line, "", 1)
-            assert alias_line not in changed
-            return changed
-        return source
-
-    with monkeypatch.context() as isolated_patch:
-        isolated_patch.setattr(legacy_guard, "_read", read_without_metadata_alias)
-        assert legacy_guard.validate_repo(REPO_ROOT) == [
-            "legacy_app.py: canonical bootstrap metadata import/alias contract is required"
-        ]
-
-
 def test_metadata_openapi_ownership_guard_fails_closed_on_syntax_error() -> None:
     sources = list(_openapi_ownership_sources())
+    assert legacy_guard.validate_application_metadata_openapi_ownership(*sources) == []
+    assert legacy_guard.validate_retired_legacy_python_bindings(sources[0]) == []
     sources[2] = "def broken(:\n"
 
     errors = legacy_guard.validate_application_metadata_openapi_ownership(*sources)
@@ -12763,3 +12771,101 @@ def test_legacy_growth_guard_cli_passes(capsys: pytest.CaptureFixture[str]) -> N
     captured = capsys.readouterr()
     assert exit_code == 0
     assert "legacy compatibility seam guard passed" in captured.out
+
+
+def test_retired_metadata_projection_tail_is_exact_and_disjoint() -> None:
+    """Preserve prior109 and append exactly the six selected projections."""
+    assert RETIRED_METADATA_PROJECTION_BINDINGS == (
+        "APPLICATION_METADATA",
+        "RUNTIME_ENV",
+        "_app_env",
+        "_application_metadata",
+        "tags_metadata",
+        "_api_description",
+    )
+    prior = RETIRED_LEGACY_PYTHON_BINDINGS[:109]
+    assert len(prior) == len(set(prior)) == 109
+    assert set(prior).isdisjoint(RETIRED_METADATA_PROJECTION_BINDINGS)
+    assert len(RETIRED_LEGACY_PYTHON_BINDINGS) == len(set(RETIRED_LEGACY_PYTHON_BINDINGS)) == 117
+    assert legacy_guard.RETIRED_LEGACY_PYTHON_BINDINGS == frozenset(RETIRED_LEGACY_PYTHON_BINDINGS)
+
+
+@pytest.mark.parametrize("binding_name", RETIRED_METADATA_PROJECTION_BINDINGS)
+@pytest.mark.parametrize(
+    "source_template",
+    (
+        "{name} = canonical\n",
+        "{name}: object = canonical\n",
+        "{name}: object\n",
+        "from canonical_owner import canonical as {name}\n",
+        "def {name}():\n    return None\n",
+        "class {name}:\n    pass\n",
+        "del {name}\n",
+        "def mutate():\n    global {name}\n",
+    ),
+)
+def test_retired_metadata_projection_binding_carrier(
+    binding_name: str,
+    source_template: str,
+) -> None:
+    assert legacy_guard.validate_retired_legacy_python_bindings(
+        source_template.format(name=binding_name)
+    ) == [f"legacy_app.py: retired Python compatibility binding is forbidden: {binding_name}"]
+
+
+@pytest.mark.parametrize("binding_name", ("APPLICATION_METADATA", "RUNTIME_ENV"))
+@pytest.mark.parametrize("same_name_alias", (False, True))
+def test_retired_metadata_projection_guard_rejects_canonical_reimport(
+    binding_name: str,
+    same_name_alias: bool,
+) -> None:
+    sources = list(_openapi_ownership_sources())
+    assert legacy_guard.validate_application_metadata_openapi_ownership(*sources) == []
+    assert legacy_guard.validate_retired_legacy_python_bindings(sources[0]) == []
+    suffix = f" as {binding_name}" if same_name_alias else ""
+    sources[0] += f"from app.bootstrap.application import {binding_name}{suffix}\n"
+    assert legacy_guard.validate_retired_legacy_python_bindings(sources[0]) == [
+        f"legacy_app.py: retired Python compatibility binding is forbidden: {binding_name}"
+    ]
+
+
+@pytest.mark.parametrize("binding_name", RETIRED_METADATA_PROJECTION_BINDINGS)
+def test_retired_metadata_projection_guard_allows_canonical_and_harmless_mentions(
+    binding_name: str,
+) -> None:
+    assert (
+        legacy_guard.validate_retired_legacy_python_bindings(
+            f"{binding_name} = canonical\n",
+            filename="app/bootstrap/application.py",
+        )
+        == []
+    )
+    assert (
+        legacy_guard.validate_retired_legacy_python_bindings(
+            f'"{binding_name}"\n# {binding_name}\nholder.{binding_name} = canonical\n'
+            f"def local():\n    {binding_name} = canonical\n"
+        )
+        == []
+    )
+
+
+def test_retired_metadata_projection_restoration_fails_aggregate_guard(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sources = _openapi_ownership_sources()
+    assert legacy_guard.validate_application_metadata_openapi_ownership(*sources) == []
+    assert legacy_guard.validate_retired_legacy_python_bindings(sources[0]) == []
+    assert legacy_guard.validate_repo(REPO_ROOT) == []
+    original_read = legacy_guard._read
+
+    def read_with_projection(path: Path, repo_root: Path, errors: list[str]) -> str | None:
+        source = original_read(path, repo_root, errors)
+        if path == REPO_ROOT / "legacy_app.py" and source is not None:
+            return source + "\nfrom app.bootstrap.application import APPLICATION_METADATA\n"
+        return source
+
+    with monkeypatch.context() as isolated_patch:
+        isolated_patch.setattr(legacy_guard, "_read", read_with_projection)
+        assert legacy_guard.validate_repo(REPO_ROOT) == [
+            "legacy_app.py: retired Python compatibility binding is forbidden: APPLICATION_METADATA"
+        ]

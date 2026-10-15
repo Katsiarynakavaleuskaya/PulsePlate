@@ -28,6 +28,7 @@ from app.schemas.legacy_premium_weekly_plan import LegacyWeekPlanRequest
 import app.services.bmi_compat as bmi_compat_service
 import app.services.legacy_premium_weekly_plan as weekly_plan_service
 from app.services import insight_compat
+from app.services import scheduler_access
 from app.services import pro_nutrition_plate as plate_service
 import legacy_app
 from tests.helpers.module_resolve import resolve_module
@@ -321,16 +322,17 @@ def test_get_update_scheduler_delegates_to_core_at_call_time(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     async def _run() -> None:
-        """The compatibility export delegates through the lazy service seam."""
+        """The canonical async service resolves the current core getter."""
+        sentinel = object()
 
         async def _late_getter() -> Any:
-            return object()
+            return sentinel
 
         import core.food_apis.scheduler as sched
 
         monkeypatch.setattr(sched, "get_update_scheduler", _late_getter)
-        res = await legacy_app.get_update_scheduler()
-        assert res is not None
+        res = await scheduler_access.get_update_scheduler()
+        assert res is sentinel
 
     asyncio.run(_run())
 

@@ -49,10 +49,10 @@ def test_canonical_lifespan_preserves_application_owned_app_identity() -> None:
     from app.bootstrap.lifespan import application_lifespan
 
     assert app.lifespan is application_lifespan
-    assert legacy_app.lifespan is application_lifespan
+    assert "lifespan" not in vars(legacy_app)
     assert app.app is app_main.app
     assert app_main.app is legacy_app.app
-    assert legacy_app.app.router.lifespan_context is not None
+    assert legacy_app.app.router.lifespan_context is application_lifespan
 
 
 def test_scheduler_access_is_an_exact_compatibility_export() -> None:
@@ -61,7 +61,7 @@ def test_scheduler_access_is_an_exact_compatibility_export() -> None:
     from app.services import scheduler_access
 
     assert app.get_update_scheduler is scheduler_access.get_update_scheduler
-    assert legacy_app.get_update_scheduler is scheduler_access.get_update_scheduler
+    assert "get_update_scheduler" not in vars(legacy_app)
 
 
 def test_planning_exports_remain_canonical_only_on_the_app_package_facade() -> None:

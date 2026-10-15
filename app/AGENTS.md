@@ -381,7 +381,8 @@ Avoid `# type: ignore[no-any-return]` and prefer typed locals over `cast()`.
 
 - Application startup/shutdown ownership belongs in `app/bootstrap/lifespan.py`.
   `app/bootstrap/application.py` passes that exact context manager to the sole
-  production `FastAPI(...)` constructor; `legacy_app.py` only re-exports it.
+  production `FastAPI(...)` constructor. `app.lifespan` remains that exact
+  callable; the `legacy_app.lifespan` Python binding is retired.
 - Shared clients and process-wide adapters must be acquired during lifespan
   startup, never additive route bootstrap or module import, and released with
   deterministic reverse-order cleanup after partial startup and cancellation.
@@ -404,14 +405,16 @@ Avoid `# type: ignore[no-any-return]` and prefer typed locals over `cast()`.
 
 - Application metadata belongs in `app/application_metadata.py`; keep its source
   values immutable and create fresh nested dict/list constructor inputs for each
-  FastAPI instance. The application bootstrap resolves the runtime environment
-  and builds metadata once; compatibility modules alias that value.
-- The Legacy ownership guard requires the current direct same-name
-  `APPLICATION_METADATA` import from `app.bootstrap.application`, followed by
-  the ordinary `_application_metadata = APPLICATION_METADATA` assignment.
-  Unsupported alias shapes require reviewed rescope; this bounded source
-  contract does not certify arbitrary runtime identity or dynamic namespace
-  mutation.
+  FastAPI instance. `app.bootstrap.application` resolves `RUNTIME_ENV` and builds
+  `APPLICATION_METADATA` once. Consumers of startup truth use these existing
+  snapshots; do not resolve the environment or rebuild metadata for compatibility.
+- The six `legacy_app.py` bindings `APPLICATION_METADATA`, `RUNTIME_ENV`,
+  `_app_env`, `_application_metadata`, `tags_metadata`, and `_api_description`
+  are retired. Import snapshots from `app.bootstrap.application`; inspect the
+  canonical app fields for composed public metadata, which follows the existing
+  OpenAPI input policy. Do not restore aliases, wrappers or lazy fallbacks.
+  Fresh-import evidence is bounded to the declared import orders, not external
+  or computed callers or already-loaded/hot-reloaded module dictionaries.
 - The legacy Python re-exports `build_application_metadata`,
   `ENHANCED_PLATE_GENERATION_FAILED_DETAIL`, and
   `INVALID_PREMIUM_PLATE_INPUT_DETAIL` are retired. Import the factory from
@@ -618,10 +621,12 @@ Avoid `# type: ignore[no-any-return]` and prefer typed locals over `cast()`.
 - Admin services import and await the scheduler-access callable at their use
   site. Do not reintroduce `sys.modules` lookup, compatibility getter selection,
   or synchronous getter support.
-- `app.get_update_scheduler`, `legacy_app.get_update_scheduler`, and
+- `app.get_update_scheduler` and
   `app.services.scheduler_access.get_update_scheduler` must be the exact same
-  callable. Identity with the core getter is intentionally not required across
-  the lazy boundary.
+  callable. The `legacy_app.get_update_scheduler` binding is retired; do not
+  restore either selected lifecycle/access alias, wrapper or lazy fallback.
+  Identity with the core getter is intentionally not required across the lazy
+  boundary.
 - `admin_status` preserves intentional `HTTPException` pass-through and maps an
   unavailable scheduler to stable `503 Scheduler unavailable`. Database status,
   update check, and non-contention force-update failures must log technical
