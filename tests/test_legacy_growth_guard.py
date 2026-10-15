@@ -126,6 +126,8 @@ RETIRED_LEGACY_PYTHON_BINDINGS = (
     "_application_metadata",
     "tags_metadata",
     "_api_description",
+    "lifespan",
+    "get_update_scheduler",
 )
 
 RETIRED_PRO_NUTRITION_BINDINGS = RETIRED_LEGACY_PYTHON_BINDINGS[10:20]
@@ -142,6 +144,93 @@ RETIRED_CORE_UTILITY_BINDINGS = RETIRED_LEGACY_PYTHON_BINDINGS[91:99]
 RETIRED_BMI_COMPAT_BINDINGS = RETIRED_LEGACY_PYTHON_BINDINGS[99:106]
 RETIRED_METADATA_ERROR_BINDINGS = RETIRED_LEGACY_PYTHON_BINDINGS[106:109]
 RETIRED_METADATA_PROJECTION_BINDINGS = RETIRED_LEGACY_PYTHON_BINDINGS[109:115]
+RETIRED_LIFECYCLE_ACCESS_BINDINGS = RETIRED_LEGACY_PYTHON_BINDINGS[115:117]
+
+
+def test_retired_lifecycle_access_tail_is_exact_and_disjoint() -> None:
+    assert RETIRED_LIFECYCLE_ACCESS_BINDINGS == ("lifespan", "get_update_scheduler")
+    prior = RETIRED_LEGACY_PYTHON_BINDINGS[:115]
+    assert len(prior) == len(set(prior)) == 115
+    assert set(prior).isdisjoint(RETIRED_LIFECYCLE_ACCESS_BINDINGS)
+    assert len(RETIRED_LEGACY_PYTHON_BINDINGS) == len(set(RETIRED_LEGACY_PYTHON_BINDINGS)) == 117
+    assert legacy_guard.RETIRED_LEGACY_PYTHON_BINDINGS == frozenset(RETIRED_LEGACY_PYTHON_BINDINGS)
+
+
+@pytest.mark.parametrize("binding_name", RETIRED_LIFECYCLE_ACCESS_BINDINGS)
+@pytest.mark.parametrize(
+    "source_template",
+    (
+        "{name} = canonical\n",
+        "{name}: object = canonical\n",
+        "from canonical_owner import canonical as {name}\n",
+        "def {name}():\n    return None\n",
+    ),
+)
+def test_retired_lifecycle_access_binding_carrier(
+    binding_name: str,
+    source_template: str,
+) -> None:
+    assert legacy_guard.validate_retired_legacy_python_bindings(
+        source_template.format(name=binding_name)
+    ) == [f"legacy_app.py: retired Python compatibility binding is forbidden: {binding_name}"]
+
+
+@pytest.mark.parametrize(
+    ("binding_name", "module_name", "canonical_name"),
+    (
+        ("lifespan", "app.bootstrap.lifespan", "application_lifespan"),
+        ("get_update_scheduler", "app.services.scheduler_access", "get_update_scheduler"),
+    ),
+)
+@pytest.mark.parametrize("same_name_alias", (False, True))
+def test_retired_lifecycle_access_guard_rejects_canonical_reimport(
+    binding_name: str,
+    module_name: str,
+    canonical_name: str,
+    same_name_alias: bool,
+) -> None:
+    suffix = f" as {binding_name}" if canonical_name != binding_name or same_name_alias else ""
+    source = f"from {module_name} import {canonical_name}{suffix}\n"
+    assert legacy_guard.validate_retired_legacy_python_bindings(source) == [
+        f"legacy_app.py: retired Python compatibility binding is forbidden: {binding_name}"
+    ]
+
+
+@pytest.mark.parametrize("binding_name", RETIRED_LIFECYCLE_ACCESS_BINDINGS)
+def test_retired_lifecycle_access_guard_allows_canonical_and_local_mentions(
+    binding_name: str,
+) -> None:
+    assert (
+        legacy_guard.validate_retired_legacy_python_bindings(
+            f"{binding_name} = canonical\n", filename="app/bootstrap/lifespan.py"
+        )
+        == []
+    )
+    assert (
+        legacy_guard.validate_retired_legacy_python_bindings(
+            f'"{binding_name}"\n# {binding_name}\ndef local():\n    {binding_name} = canonical\n'
+        )
+        == []
+    )
+
+
+def test_retired_lifecycle_access_restoration_fails_aggregate_guard(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    assert legacy_guard.validate_repo(REPO_ROOT) == []
+    original_read = legacy_guard._read
+
+    def read_with_getter(path: Path, repo_root: Path, errors: list[str]) -> str | None:
+        source = original_read(path, repo_root, errors)
+        if path == REPO_ROOT / "legacy_app.py" and source is not None:
+            return source + "\nfrom app.services.scheduler_access import get_update_scheduler\n"
+        return source
+
+    with monkeypatch.context() as isolated_patch:
+        isolated_patch.setattr(legacy_guard, "_read", read_with_getter)
+        assert legacy_guard.validate_repo(REPO_ROOT) == [
+            "legacy_app.py: retired Python compatibility binding is forbidden: get_update_scheduler"
+        ]
 
 
 def test_retired_bmi_compat_tail_is_exact_and_disjoint() -> None:
@@ -158,8 +247,8 @@ def test_retired_bmi_compat_tail_is_exact_and_disjoint() -> None:
     assert len(RETIRED_LEGACY_PYTHON_BINDINGS[:99]) == 99
     assert len(set(RETIRED_LEGACY_PYTHON_BINDINGS[:99])) == 99
     assert set(RETIRED_LEGACY_PYTHON_BINDINGS[:99]).isdisjoint(RETIRED_BMI_COMPAT_BINDINGS)
-    assert len(RETIRED_LEGACY_PYTHON_BINDINGS) == 115
-    assert len(set(RETIRED_LEGACY_PYTHON_BINDINGS)) == 115
+    assert len(RETIRED_LEGACY_PYTHON_BINDINGS) == 117
+    assert len(set(RETIRED_LEGACY_PYTHON_BINDINGS)) == 117
 
 
 @pytest.mark.parametrize("binding_name", RETIRED_BMI_COMPAT_BINDINGS)
@@ -234,8 +323,8 @@ def test_retired_metadata_error_tail_is_exact_and_disjoint() -> None:
     assert len(RETIRED_LEGACY_PYTHON_BINDINGS[:106]) == 106
     assert len(set(RETIRED_LEGACY_PYTHON_BINDINGS[:106])) == 106
     assert set(RETIRED_LEGACY_PYTHON_BINDINGS[:106]).isdisjoint(RETIRED_METADATA_ERROR_BINDINGS)
-    assert len(RETIRED_LEGACY_PYTHON_BINDINGS) == 115
-    assert len(set(RETIRED_LEGACY_PYTHON_BINDINGS)) == 115
+    assert len(RETIRED_LEGACY_PYTHON_BINDINGS) == 117
+    assert len(set(RETIRED_LEGACY_PYTHON_BINDINGS)) == 117
     assert legacy_guard.RETIRED_LEGACY_PYTHON_BINDINGS == frozenset(RETIRED_LEGACY_PYTHON_BINDINGS)
 
 
@@ -12697,7 +12786,7 @@ def test_retired_metadata_projection_tail_is_exact_and_disjoint() -> None:
     prior = RETIRED_LEGACY_PYTHON_BINDINGS[:109]
     assert len(prior) == len(set(prior)) == 109
     assert set(prior).isdisjoint(RETIRED_METADATA_PROJECTION_BINDINGS)
-    assert len(RETIRED_LEGACY_PYTHON_BINDINGS) == len(set(RETIRED_LEGACY_PYTHON_BINDINGS)) == 115
+    assert len(RETIRED_LEGACY_PYTHON_BINDINGS) == len(set(RETIRED_LEGACY_PYTHON_BINDINGS)) == 117
     assert legacy_guard.RETIRED_LEGACY_PYTHON_BINDINGS == frozenset(RETIRED_LEGACY_PYTHON_BINDINGS)
 
 

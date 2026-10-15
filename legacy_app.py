@@ -10,13 +10,9 @@ from typing import (
 )
 
 from app.bootstrap.application import app as _canonical_app
-from app.bootstrap.lifespan import application_lifespan as lifespan
 from app.routers.api_key import (  # noqa: F401 - identity-preserving compatibility re-exports
     _get_api_key_dynamic as _get_api_key_dynamic,
     get_api_key as get_api_key,
-)
-from app.services.scheduler_access import (  # noqa: F401 - compatibility re-export
-    get_update_scheduler as get_update_scheduler,
 )
 
 # Preserve the declared lexical legacy surface while re-exporting the exact canonical object.

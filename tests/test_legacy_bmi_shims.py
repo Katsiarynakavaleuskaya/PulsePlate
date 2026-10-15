@@ -142,6 +142,8 @@ RETIRED_LEGACY_PYTHON_BINDINGS = {
     "_application_metadata",
     "tags_metadata",
     "_api_description",
+    "lifespan",
+    "get_update_scheduler",
 }
 
 RETIRED_PLATE_HELPER_BINDINGS = (
@@ -293,6 +295,29 @@ def test_legacy_retirement_probe_excludes_ambient_credentials(
     assert _run_legacy_retirement_probe(scenario) == {"ambient_credentials_present": False}
 
 
+@pytest.mark.parametrize("binding_name", ("lifespan", "get_update_scheduler"))
+def test_retired_lifecycle_access_bindings_are_absent(binding_name: str) -> None:
+    scenario = textwrap.dedent(f"""
+        import json
+        import legacy_app
+        assert {binding_name!r} not in vars(legacy_app), "legacy binding remains: {binding_name}"
+        try:
+            getattr(legacy_app, {binding_name!r})
+        except AttributeError:
+            pass
+        else:
+            raise AssertionError("legacy attribute remains: {binding_name}")
+        try:
+            from legacy_app import {binding_name}
+        except ImportError:
+            pass
+        else:
+            raise AssertionError("legacy from-import remains: {binding_name}")
+        print("LEGACY_RETIREMENT_RESULT=" + json.dumps({{"absent": {binding_name!r}}}))
+        """)
+    assert _run_legacy_retirement_probe(scenario) == {"absent": binding_name}
+
+
 @pytest.mark.parametrize("binding_name", RETIRED_BMI_COMPAT_BINDINGS)
 def test_retired_bmi_compat_bindings_are_absent(binding_name: str) -> None:
     """Require exact BMI retirement independently of production guard data."""
@@ -396,6 +421,8 @@ def test_retired_legacy_python_bindings_are_absent_with_canonical_owners_present
     import app.application_metadata as application_metadata
     import app.bootstrap.application as application_bootstrap
     import app.http_error_details as http_error_details
+    from app.bootstrap.lifespan import application_lifespan
+    from app.services import scheduler_access
 
     canonical_migrations = {
         "admin_status": admin_operations.admin_status,
@@ -515,6 +542,8 @@ def test_retired_legacy_python_bindings_are_absent_with_canonical_owners_present
         "_application_metadata": application_bootstrap.APPLICATION_METADATA,
         "tags_metadata": application_bootstrap.app.openapi_tags,
         "_api_description": application_bootstrap.app.description,
+        "lifespan": application_lifespan,
+        "get_update_scheduler": scheduler_access.get_update_scheduler,
     }
     assert (
         canonical_migrations["APPLICATION_METADATA"]
@@ -522,6 +551,9 @@ def test_retired_legacy_python_bindings_are_absent_with_canonical_owners_present
     )
     assert canonical_migrations["RUNTIME_ENV"] is canonical_migrations["_app_env"]
     assert application_bootstrap.app is legacy_app.app is app_facade.app
+    assert app_facade.lifespan is application_lifespan
+    assert app_facade.get_update_scheduler is scheduler_access.get_update_scheduler
+    assert application_bootstrap.app.router.lifespan_context is application_lifespan
     assert (
         application_bootstrap.app.description
         == application_bootstrap.APPLICATION_METADATA.description.replace(", user management", "")
@@ -577,7 +609,7 @@ def test_retired_legacy_python_bindings_are_absent_with_canonical_owners_present
     assert http_error_details.INVALID_PREMIUM_PLATE_INPUT_DETAIL == "Invalid premium plate input"
     assert canonical_migrations.keys() == RETIRED_LEGACY_PYTHON_BINDINGS
     assert RETIRED_LEGACY_PYTHON_BINDINGS == legacy_guard.RETIRED_LEGACY_PYTHON_BINDINGS
-    assert len(RETIRED_LEGACY_PYTHON_BINDINGS) == 115
+    assert len(RETIRED_LEGACY_PYTHON_BINDINGS) == 117
     assert canonical_migrations["TargetsIn"] is canonical_migrations["CanonicalTargetsIn"]
     assert (
         len(
@@ -858,8 +890,11 @@ def test_retired_legacy_python_bindings_fail_closed_in_a_fresh_process(
             """) for binding_name in retired_bindings)
     scenario = "import sys\n" + import_sequence + textwrap.dedent(f"""
         import json
+        import inspect
         import app as app_facade
         import app.bootstrap.application as application_bootstrap
+        from app.bootstrap.lifespan import application_lifespan
+        from app.services import scheduler_access
         import app.bootstrap.openapi as canonical_openapi
         import app.services.pro_nutrition_plate as plate_service
         import app.services.pro_nutrition_targets as targets_service
@@ -872,12 +907,18 @@ def test_retired_legacy_python_bindings_fail_closed_in_a_fresh_process(
         assert "app.main" not in sys.modules
         startup_metadata = application_bootstrap.APPLICATION_METADATA
         startup_app = application_bootstrap.app
+        assert startup_app.router.lifespan_context is application_lifespan
+        assert app_facade.lifespan is application_lifespan
+        assert app_facade.get_update_scheduler is scheduler_access.get_update_scheduler
+        assert inspect.iscoroutinefunction(scheduler_access.get_update_scheduler)
+        assert "core.food_apis.scheduler" not in sys.modules
         assert legacy_app.app is application_bootstrap.app
         assert application_bootstrap.app.description == application_bootstrap.APPLICATION_METADATA.description
         assert application_bootstrap.app.openapi_tags == application_bootstrap.APPLICATION_METADATA.openapi_tags_list()
         assert app_facade.app is application_bootstrap.app
         assert "app.main" in sys.modules
         assert app_facade.app is startup_app
+        assert startup_app.router.lifespan_context is application_lifespan
         assert application_bootstrap.APPLICATION_METADATA is startup_metadata
         assert application_bootstrap.app.description == startup_metadata.description.replace(", user management", "")
         assert application_bootstrap.app.openapi_tags == [tag for tag in startup_metadata.openapi_tags_list() if tag["name"] != "users"]
