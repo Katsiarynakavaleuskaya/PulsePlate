@@ -11580,6 +11580,112 @@ printf '%s' "$status"
     assert "FAIL: health-json: expected HTTP 200, got 500." in completed.stdout
 
 
+@pytest.mark.parametrize(
+    ("caller", "scenario"),
+    [
+        (caller, scenario)
+        for caller in ["redeploy_caddy.sh", "diagnose_production.sh", "fix_production_env.sh"]
+        for scenario in [
+            "fresh",
+            "hostile",
+            "missing",
+            "malformed",
+            "missing-reader",
+            "relative-python",
+            "missing-python",
+            "secondary-location",
+        ]
+    ]
+    + [("redeploy_caddy.sh", "relative-location")],
+)
+def test_standalone_production_callers_derive_manifest_ref(
+    tmp_path: Path, caller: str, scenario: str
+) -> None:
+    primary = tmp_path / "primary"
+    secondary = tmp_path / "secondary"
+    project = secondary if scenario == "secondary-location" else primary
+    project.mkdir()
+    manifest = _write_backup_prometheus_manifest(project)
+    _write_prometheus_helper(project)
+    (project / "docker-compose.production.yaml").write_text("services: {}\n", encoding="utf-8")
+    env_text = "DATABASE_URL=postgresql+psycopg://role@db.example/pulseplate\n"
+    env_text += "PRODUCTION_DOMAIN=pulseplate.test\n"
+    (project / ".env").write_text(env_text, encoding="utf-8")
+
+    if scenario == "missing":
+        manifest.unlink()
+    elif scenario == "malformed":
+        manifest.write_text("{}", encoding="utf-8")
+    elif scenario == "missing-reader":
+        (project / "scripts/ci/prometheus_source_image.py").unlink()
+
+    script_text = (REPO_ROOT / "scripts" / caller).read_text(encoding="utf-8")
+    if caller != "redeploy_caddy.sh":
+        # Preserve the real /srv -> /opt selection, with only its two fixed roots isolated.
+        script_text = script_text.replace('"/srv/pulseplate-production"', shlex.quote(str(primary)))
+        script_text = script_text.replace('"/opt/pulseplate"', shlex.quote(str(secondary)))
+    script = (
+        project / "scripts" if caller == "redeploy_caddy.sh" else tmp_path / "copied"
+    ) / caller
+    script.parent.mkdir(exist_ok=True)
+    _write_executable(script, script_text)
+
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    calls = tmp_path / "docker-calls"
+    _write_executable(
+        bin_dir / "native-docker",
+        r"""#!/usr/bin/env bash
+set -euo pipefail
+printf '%s|%s\n' "$*" "${PROMETHEUS_RUNTIME_REF:-}" >> "$CALL_LOG"
+if [ "${1:-}" = compose ] && [ "${2:-}" != version ]; then
+    test "${PROMETHEUS_RUNTIME_REF:-}" = "$EXPECTED_PROMETHEUS_REF"
+fi
+""",
+    )
+    (bin_dir / "docker").symlink_to("native-docker")
+    _write_executable(bin_dir / "sudo", "#!/usr/bin/env bash\nexit 0\n")
+    env = {
+        "PATH": f"{bin_dir}:{os.environ['PATH']}",
+        "HOME": str(tmp_path),
+        "DEPLOY_DIR": str(project),
+        "PYTHON_BIN": sys.executable,
+        "CALL_LOG": str(calls),
+        "EXPECTED_PROMETHEUS_REF": PROMETHEUS_RUNTIME_REF,
+    }
+    if scenario != "fresh":
+        env["PROMETHEUS_RUNTIME_REF"] = "untrusted.example/prometheus:latest"
+    if scenario == "relative-python":
+        env["PYTHON_BIN"] = "python3"
+    elif scenario == "missing-python":
+        env["PYTHON_BIN"] = str(tmp_path / "absent-python")
+    elif scenario == "relative-location":
+        env["DEPLOY_DIR"] = project.name
+    completed = subprocess.run(
+        ["/bin/bash", str(script)],
+        cwd=tmp_path,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    lines = calls.read_text().splitlines() if calls.exists() else []
+    project_calls = [
+        line
+        for line in lines
+        if line.startswith("compose ") and not line.startswith("compose version|")
+    ]
+    if scenario in {"fresh", "hostile", "secondary-location", "relative-location"}:
+        assert completed.returncode == 0, completed.stderr
+        assert project_calls
+        assert all(line.endswith("|" + PROMETHEUS_RUNTIME_REF) for line in project_calls)
+    else:
+        assert completed.returncode != 0
+        assert not project_calls
+        assert (project / ".env").read_text(encoding="utf-8") == env_text
+        assert not list(project.glob(".env.backup.*"))
+
+
 def test_redeploy_caddy_runs_diagnose_web_when_domain_is_available(tmp_path: Path) -> None:
     temp_repo = tmp_path / "repo"
     deploy_dir = temp_repo / "deploy"
@@ -11590,6 +11696,8 @@ def test_redeploy_caddy_runs_diagnose_web_when_domain_is_available(tmp_path: Pat
     deploy_dir.mkdir()
     scripts_dir.mkdir()
     bin_dir.mkdir()
+    _write_prometheus_helper(temp_repo)
+    _write_backup_prometheus_manifest(deploy_dir)
 
     (deploy_dir / "docker-compose.production.yaml").write_text("services: {}\n", encoding="utf-8")
     (deploy_dir / ".env").write_text('PRODUCTION_DOMAIN="pulseplate.test"\n', encoding="utf-8")
@@ -11617,6 +11725,7 @@ exit 0
     env = os.environ.copy()
     env["PATH"] = f"{bin_dir}:{env['PATH']}"
     env["DEPLOY_DIR"] = str(deploy_dir)
+    env["PYTHON_BIN"] = sys.executable
     env["DIAG_MAX_ATTEMPTS"] = "1"
     env["DIAG_RETRY_DELAY_SECONDS"] = "0"
 
@@ -11652,6 +11761,8 @@ def test_redeploy_caddy_exits_non_zero_when_diagnosis_fails(tmp_path: Path) -> N
     deploy_dir.mkdir()
     scripts_dir.mkdir()
     bin_dir.mkdir()
+    _write_prometheus_helper(temp_repo)
+    _write_backup_prometheus_manifest(deploy_dir)
 
     (deploy_dir / "docker-compose.production.yaml").write_text("services: {}\n", encoding="utf-8")
     (deploy_dir / ".env").write_text('PRODUCTION_DOMAIN="pulseplate.test"\n', encoding="utf-8")
@@ -11680,6 +11791,7 @@ exit 0
     env = os.environ.copy()
     env["PATH"] = f"{bin_dir}:{env['PATH']}"
     env["DEPLOY_DIR"] = str(deploy_dir)
+    env["PYTHON_BIN"] = sys.executable
     env["DIAG_MAX_ATTEMPTS"] = "2"
     env["DIAG_RETRY_DELAY_SECONDS"] = "0"
 
