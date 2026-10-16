@@ -2713,8 +2713,8 @@ _ZLIB_MAINTENANCE_PATCHES = (
     (
         "zlib-gzprintf-return-fix",
         ("7235b0a5" "81227c56" "a79a43ff" "828f8ef6" "794194c8"),
-        ("274bce56" "61e7c7cc" "9c47e21f" "100c7078" "7cad6d8c" "0c04104a" "ff8d8d84" "baced7a7"),
-        ("96040ee8" "4d0d1879" "05283912" "dbd3f7b6" "6ac20339" "76a2ceef" "e9b8cca6" "3143d9c2"),
+        ("996e0c00" "78df1aaf" "dc9e6cca" "a8e8a305" "bf018258" "c84beba3" "f4934a04" "12253c87"),
+        ("0a6d723b" "65814519" "cc3776c3" "9e2cf354" "f6fa32b6" "a82c513e" "902ac5fc" "c63de4bc"),
     ),
     (
         "zlib-blocked-errno-fix",

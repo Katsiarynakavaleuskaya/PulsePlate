@@ -104,7 +104,7 @@ _PINNED_NATIVE_SOURCES = {
         ("7235b0a5" "81227c56" "a79a43ff" "828f8ef6" "794194c8"),
         "https://github.com/madler/zlib/commit/7235b0a581227c56a79a43ff828f8ef6794194c8.patch",
         "zlib-gzprintf-return-fix-7235b0a581227c56a79a43ff828f8ef6794194c8.patch",
-        ("274bce56" "61e7c7cc" "9c47e21f" "100c7078" "7cad6d8c" "0c04104a" "ff8d8d84" "baced7a7"),
+        ("996e0c00" "78df1aaf" "dc9e6cca" "a8e8a305" "bf018258" "c84beba3" "f4934a04" "12253c87"),
     ),
     "zlib-blocked-errno-fix": (
         ("813dac5d" "cb5902ed" "241e9b0d" "38abd2d8" "47a335a9"),
@@ -183,7 +183,7 @@ _PINNED_NATIVE_SHA256 = {
         "7d00ee29" "be5e636d" "30da2890" "961e83e3" "5cee0b15" "2333ecd9" "7a46ae2e" "71eb5d47"
     ),
     "zlib-gzprintf-return-fix": (
-        "96040ee8" "4d0d1879" "05283912" "dbd3f7b6" "6ac20339" "76a2ceef" "e9b8cca6" "3143d9c2"
+        "0a6d723b" "65814519" "cc3776c3" "9e2cf354" "f6fa32b6" "a82c513e" "902ac5fc" "c63de4bc"
     ),
     "zlib-blocked-errno-fix": (
         "6475806c" "db638378" "8a03e7af" "5617188e" "f2692803" "889cded1" "fcb01482" "5923d16c"
@@ -199,7 +199,7 @@ _PINNED_ZLIB_PATCH_SIZES = {
     "zlib-gzwrite-fix": 854,
     "zlib-gzwrite-null-fix": 773,
     "zlib-gzvprintf-return-fix": 749,
-    "zlib-gzprintf-return-fix": 764,
+    "zlib-gzprintf-return-fix": 766,
     "zlib-blocked-errno-fix": 2449,
     "zlib-gzprintf-contract-fix": 1990,
     "zlib-errno-order-fix": 1478,
