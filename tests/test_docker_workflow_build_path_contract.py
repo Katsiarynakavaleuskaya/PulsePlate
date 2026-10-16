@@ -3850,3 +3850,67 @@ def test_alertmanager_complete_artifact_inventory_includes_own_bytes_and_bounds(
     with pytest.raises(RuntimeError, match="tree_size_bound"):
         docker_sources._alertmanager_finalize_payload(oversized, time.monotonic() + 10)
     assert not (oversized / "artifact-payload-members.json").exists()
+
+
+@pytest.mark.parametrize("fault", ["valid", "old-url", "query", "port"])
+def test_zlib_release_keeps_exact_bytes_at_reviewed_www_url(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fault: str
+) -> None:
+    artifact = next(
+        item
+        for item in docker_sources.load_manifest(
+            REPO_ROOT / "scripts/ci/docker_source_artifacts.json", today=date(2026, 10, 16)
+        )
+        if item.name == "zlib"
+    )
+    assert (artifact.version, artifact.filename, artifact.url) == (
+        "1.3.2",
+        "zlib-1.3.2.tar.gz",
+        "https://www.zlib.net/fossils/zlib-1.3.2.tar.gz",
+    )
+    assert artifact.sha3_256 == (
+        "451bedbd" "cd78dec3" "704df673" "c976fab2" "5beaef6a" "db9433fe" "84665e7b" "f946e325"
+    )
+    assert artifact.sha256 == (
+        "bb329a0a" "2cd0274d" "05519d61" "c667c062" "e06990d7" "2e125ee2" "dfa8de64" "f0119d16"
+    )
+    if fault == "valid":
+        return
+    url = {
+        "old-url": artifact.url.replace("www.", ""),
+        "query": artifact.url + "?x=1",
+        "port": artifact.url.replace("www.zlib.net", "www.zlib.net:443"),
+    }[fault]
+    calls = _stub_source_transport(monkeypatch, payload=b"unused")
+    output = tmp_path / "sources"
+    with pytest.raises(RuntimeError, match="exact reviewed identity"):
+        docker_sources._write_verified_artifact(replace(artifact, url=url), output)
+    assert calls == [] and not output.exists()
+
+
+@pytest.mark.parametrize("status", [200, 301, 302, 303, 307, 308])
+def test_zlib_www_challenge_and_redirect_never_admit_source(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, status: int
+) -> None:
+    artifact = next(
+        item
+        for item in docker_sources.load_manifest(
+            REPO_ROOT / "scripts/ci/docker_source_artifacts.json", today=date(2026, 10, 16)
+        )
+        if item.name == "zlib"
+    )
+    calls = _stub_source_transport(
+        monkeypatch,
+        payload=b"<html>challenge</html>",
+        code=status,
+        location=artifact.url if status != 200 else None,
+    )
+    output = tmp_path / "sources"
+    if status == 200:
+        with pytest.raises(RuntimeError, match="zlib SHA3 mismatch"):
+            docker_sources._write_verified_artifact(artifact, output)
+    else:
+        with pytest.raises(HTTPError):
+            docker_sources._write_verified_artifact(artifact, output)
+    assert calls == [(artifact.url, 60)]
+    assert list(output.iterdir()) == []

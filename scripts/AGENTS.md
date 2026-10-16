@@ -73,6 +73,13 @@
   amtool with --no-version-check and --timeout=8s inside the unchanged 10-second
   host command ceiling as an internal margin. A native CLI's command timeout may
   not cover its pre-action requests; verify actual pinned behavior.
+- Both Python checkpoint callers read the selected Compose directory's
+  `prometheus/image-manifest.json` through the fixed installed canonical reader
+  before their first Compose call, and pass its reference in the child environment.
+  A missing/invalid selection stops the invocation; ambient references are not
+  a fallback. Reader setup keeps its existing command bound and does not renew
+  the notifier event window. Repository wiring is separate from installed-host,
+  schedule and mail-delivery evidence.
 - Keep the fixed 15 min event, 60-second absolute cadence, max 15 attempts and 16 min unit
   bound. Never forward native error text or treat event expiry as recovery.
 - Native Linux checks in the owning notifier test module include actual owned
@@ -203,6 +210,12 @@
   the PR producer is not required to be an ancestor of the squash commit.
   Unchanged published components use the immutable subject and a positive
   publication predecessor. Missing publication is a hold, never a pull fallback.
+  The trusted CD caller has a separate finite publication wait using these same
+  recognizers, with GitHub read credentials only and owned cleanup before the
+  unchanged consumer starts once. The consumer reauthenticates independently;
+  the wait result is not an admission receipt. Effective job timeout must cover
+  wait, consume, both cleanup allowances and the scan/runtime reserve. PR callers
+  do not execute this wait. Its deadline does not guarantee scheduler completion.
 - CI lint restores the exact workflow `github.sha` for every PR after the
   credentialed consumer and control-checkout cleanup, before Python setup or
   pre-commit. Preserve its untracked selection evidence with `clean: false`,

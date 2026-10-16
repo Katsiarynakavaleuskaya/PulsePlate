@@ -695,6 +695,63 @@ jobs:
           sparse-checkout: scripts/ci/prometheus_source_image.py
           sparse-checkout-cone-mode: false
 
+      - name: Wait for the exact trusted Prometheus publisher
+        if: ${{ success() && github.event_name != 'pull_request' && steps.prometheus-route.outputs.mode == 'trusted_published' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PROMETHEUS_CREDENTIAL_ROUTE: ${{ steps.prometheus-route.outputs.mode }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os, signal, time
+          from pathlib import Path
+
+          if os.environ["GITHUB_EVENT_NAME"] == "pull_request" or os.environ.get("GHCR_READ_TOKEN"):
+              raise SystemExit("Prometheus_publication_wait_credential_route_HOLD")
+          from scripts.ci import prometheus_source_image as source
+
+          source.require(os.environ["PROMETHEUS_CREDENTIAL_ROUTE"] == "trusted_published",
+                         "publication_wait_trusted_route")
+          seconds = int(os.environ["PROMETHEUS_PUBLICATION_WAIT_SECONDS"])
+          consume = int(os.environ["PROMETHEUS_CONSUME_SECONDS"])
+          cleanup = int(os.environ["PROMETHEUS_CLEANUP_SECONDS"])
+          reserve = int(os.environ["PROMETHEUS_SECURITY_RESERVE_SECONDS"])
+          job_seconds = int(os.environ["PROMETHEUS_JOB_TIMEOUT_MINUTES"]) * 60
+          source.require(0 < seconds <= 10800 and consume == 900 and cleanup == 120
+                         and reserve >= 2400 and job_seconds <= 21600
+                         and seconds + consume + 2 * cleanup + reserve <= job_seconds,
+                         "publication_wait_enclosing_budget")
+          deadline = time.monotonic() + seconds
+          root = Path(os.environ["GITHUB_WORKSPACE"])
+          work = Path(os.environ["RUNNER_TEMP"]) / (
+              "prometheus-publication-wait-" + os.environ["GITHUB_RUN_ID"] + "-" + os.environ["GITHUB_RUN_ATTEMPT"])
+          source.fresh_directory(work)
+          evidence = work / "evidence"
+          source.fresh_directory(evidence)
+          signal.signal(signal.SIGTERM, source.interrupt)
+          signal.signal(signal.SIGINT, source.interrupt)
+          api = source.GitHubRead(work / "GitHub-private", evidence, deadline, cleanup)
+          try:
+              event = source.one_object(Path(os.environ["GITHUB_EVENT_PATH"]).read_bytes())
+              admission = source.event_admission(api, root, event, os.environ["GITHUB_EVENT_NAME"],
+                                                 os.environ["GITHUB_SHA"])
+              while True:
+                  source.check_deadline(deadline)
+                  try:
+                      predecessor = source.require_publication_predecessor(api, admission["publisher_head"])
+                      break
+                  except source.QualificationError as error:
+                      if str(error) != "positive_publication_predecessor_pending_or_missing":
+                          raise
+                      source.check_deadline(deadline)
+                      time.sleep(min(30, max(0, deadline - time.monotonic())))
+              (evidence / "predecessor.json").write_bytes(source.canonical_data(predecessor))
+          finally:
+              api.close()
+          # The next step invokes consume once and independently authenticates again.
+          PY
+
       - name: Admit retained PR candidate or published immutable subject
         id: prometheus-image
         env:
@@ -1310,7 +1367,9 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1 / Node 24
         with:
           name: prometheus-consumer-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/prometheus-consumer-${{ github.run_id }}-${{ github.run_attempt }}/evidence/
+          path: |
+            ${{ runner.temp }}/prometheus-consumer-${{ github.run_id }}-${{ github.run_attempt }}/evidence/
+            ${{ runner.temp }}/prometheus-publication-wait-${{ github.run_id }}-${{ github.run_attempt }}/evidence/
           if-no-files-found: error
           retention-days: 30
 
@@ -1337,9 +1396,12 @@ jobs:
       )
     needs: [postgres-pgvector-contract, postgres-pgvector-admission, postgres-pgvector-reuse]
     runs-on: ubuntu-latest
-    timeout-minutes: ${{ fromJSON(vars.PROMETHEUS_IMAGE_SECURITY_TIMEOUT_MINUTES || '55') }}
+    timeout-minutes: &prometheus-trusted-timeout ${{ fromJSON(vars.PROMETHEUS_IMAGE_SECURITY_TIMEOUT_MINUTES || '255') }}
     environment: staging
     env:
+      PROMETHEUS_JOB_TIMEOUT_MINUTES: *prometheus-trusted-timeout
+      PROMETHEUS_PUBLICATION_WAIT_SECONDS: ${{ vars.PROMETHEUS_PUBLICATION_WAIT_SECONDS || '10800' }}
+      PROMETHEUS_SECURITY_RESERVE_SECONDS: '2400'
       PROMETHEUS_CONSUME_SECONDS: '900'
       PROMETHEUS_CLEANUP_SECONDS: '120'
     permissions:

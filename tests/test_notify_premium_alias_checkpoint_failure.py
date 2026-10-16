@@ -303,7 +303,9 @@ class Clock:
         self.elapsed += seconds
 
 
-def _clock(monkeypatch: pytest.MonkeyPatch) -> Clock:
+def _clock(monkeypatch: pytest.MonkeyPatch, *, stub_manifest: bool = True) -> Clock:
+    if stub_manifest:
+        monkeypatch.setattr(notifier, "_compose_environment", lambda path: {})
     clock = Clock()
 
     class DateTime(datetime):
@@ -325,7 +327,7 @@ def test_fixed_payload_native_flags_and_frozen_event(
     clock = _clock(monkeypatch)
     calls: list[tuple[float, list[str]]] = []
 
-    def send(argv: list[str]) -> bool:
+    def send(argv: list[str], env: dict[str, str]) -> bool:
         calls.append((clock.elapsed, argv.copy()))
         clock.elapsed += 10
         return True
@@ -345,7 +347,7 @@ def test_fixed_payload_native_flags_and_frozen_event(
         "/absolute/docker",
         "compose",
         "-f",
-        "compose.yaml",
+        str(Path("compose.yaml").absolute()),
         "exec",
         "-T",
         "alertmanager",
@@ -370,7 +372,7 @@ def test_clock_shift_does_not_extend_event(monkeypatch: pytest.MonkeyPatch, jump
     clock = _clock(monkeypatch)
     count = 0
 
-    def send(argv: list[str]) -> bool:
+    def send(argv: list[str], env: dict[str, str]) -> bool:
         nonlocal count
         del argv
         count += 1
@@ -389,7 +391,7 @@ def test_suspend_skips_missed_slots_without_burst(monkeypatch: pytest.MonkeyPatc
     clock = _clock(monkeypatch)
     calls: list[float] = []
 
-    def send(argv: list[str]) -> bool:
+    def send(argv: list[str], env: dict[str, str]) -> bool:
         del argv
         calls.append(clock.elapsed)
         if len(calls) == 1:
@@ -409,7 +411,7 @@ def test_failure_stays_visible_without_raw_exception(
 ) -> None:
     _clock(monkeypatch)
     results = iter([False] + [True] * 14)
-    monkeypatch.setattr(notifier, "_send", lambda argv: next(results))
+    monkeypatch.setattr(notifier, "_send", lambda argv, env: next(results))
     assert (
         notifier.notify(
             docker="/absolute/docker", compose_file=Path("private-path"), environment="staging"
@@ -434,9 +436,10 @@ def test_cli_missing_docker_is_sanitized(
     assert capsys.readouterr().out == notifier.ERROR + "\n"
 
 
+@pytest.mark.parametrize("child_env", [None, {"PROMETHEUS_RUNTIME_REF": "synthetic-reference"}])
 @pytest.mark.parametrize("failure", ["success", "spawn", "exit", "timeout", "interrupt"])
 def test_native_command_channels_discard_raw_sentinel(
-    monkeypatch: pytest.MonkeyPatch, failure: str
+    monkeypatch: pytest.MonkeyPatch, failure: str, child_env: dict[str, str] | None
 ) -> None:
     killed: list[tuple[int, int]] = []
 
@@ -459,6 +462,7 @@ def test_native_command_channels_discard_raw_sentinel(
             "stdout": subprocess.DEVNULL,
             "stderr": subprocess.DEVNULL,
             "start_new_session": True,
+            "env": child_env,
         }
         if failure == "spawn":
             raise OSError("secret-sentinel")
@@ -468,9 +472,9 @@ def test_native_command_channels_discard_raw_sentinel(
     monkeypatch.setattr(notifier.os, "killpg", lambda pid, sig: killed.append((pid, sig)))
     if failure == "interrupt":
         with pytest.raises(asyncio.CancelledError):
-            notifier._send(["/absolute/docker"])
+            notifier._send(["/absolute/docker"], child_env)
     else:
-        assert notifier._send(["/absolute/docker"]) is (failure == "success")
+        assert notifier._send(["/absolute/docker"], child_env) is (failure == "success")
     assert killed == ([(123, signal.SIGKILL)] if failure in {"timeout", "interrupt"} else [])
 
 
@@ -1297,6 +1301,9 @@ def _native_amtool_lifetime(directory: Path) -> None:
         compose.write_text(
             f"services:\n  alertmanager:\n    profiles: [alerting]\n    image: {ALERTMANAGER_IMAGE}\n    platform: linux/amd64\n    user: '65534:65534'\n    cap_drop: [ALL]\n    security_opt: ['no-new-privileges:true']\n    read_only: true\n    network_mode: host\n    tmpfs: ['/alertmanager:uid=65534,gid=65534,mode=0700,size=16m']\n    command: ['--config.file=/etc/alertmanager/alertmanager.yml', '--storage.path=/alertmanager', '--cluster.listen-address=', '--web.listen-address=127.0.0.1:19093']\n    volumes: ['{config}:/etc/alertmanager/alertmanager.yml:ro']\n"
         )
+        selected_manifest = directory / "prometheus/image-manifest.json"
+        selected_manifest.parent.mkdir(exist_ok=True)
+        selected_manifest.write_bytes((ROOT / "deploy/prometheus/image-manifest.json").read_bytes())
         prefix = ["docker", "compose", "-f", str(compose)]
         failures: list[str] = []
         compose_attempted = True
@@ -2271,6 +2278,7 @@ def test_owned_task_census_tracks_real_survival_shape(
 def test_cleanup_failure_stops_notification_loop(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
+    monkeypatch.setattr(notifier, "_compose_environment", lambda path: {})
     calls: list[int] = []
 
     class Process:
@@ -2347,6 +2355,7 @@ def test_vanished_group_still_reaps_with_bound(monkeypatch: pytest.MonkeyPatch) 
 def test_expired_before_first_attempt_is_failure(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
+    monkeypatch.setattr(notifier, "_compose_environment", lambda path: {})
     origin = datetime(2026, 10, 5, tzinfo=timezone.utc)
     times = iter([origin, origin + timedelta(seconds=900)])
 
@@ -2357,7 +2366,7 @@ def test_expired_before_first_attempt_is_failure(
             return next(times)
 
     monkeypatch.setattr(notifier, "datetime", DateTime)
-    monkeypatch.setattr(notifier, "_send", lambda argv: pytest.fail("expired alert submitted"))
+    monkeypatch.setattr(notifier, "_send", lambda argv, env: pytest.fail("expired alert submitted"))
     assert (
         notifier.notify(
             docker="/absolute/docker", compose_file=Path("compose.yaml"), environment="staging"
@@ -2370,9 +2379,10 @@ def test_expired_before_first_attempt_is_failure(
 def test_interruption_never_resends(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
+    monkeypatch.setattr(notifier, "_compose_environment", lambda path: {})
     calls = 0
 
-    def send(argv: list[str]) -> bool:
+    def send(argv: list[str], env: dict[str, str]) -> bool:
         nonlocal calls
         del argv
         calls += 1
@@ -2782,3 +2792,107 @@ if __name__ == "__main__":
         raise SystemExit(_native_checkpoint_fixture(args.native_fixture, args.directory))
     else:
         parser.error("explicit native mode required")
+
+
+@pytest.mark.parametrize("ambient", [None, "hostile.invalid/incorrect:latest"])
+def test_notifier_binds_selected_manifest_before_all_compose_attempts(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, ambient: str | None
+) -> None:
+    from tests.test_deploy_contract_scripts import _synthetic_prometheus_manifest
+
+    _clock(monkeypatch, stub_manifest=False)
+    compose = tmp_path / "selected/compose.yaml"
+    manifest = compose.parent / "prometheus/image-manifest.json"
+    manifest.parent.mkdir(parents=True)
+    data = _synthetic_prometheus_manifest()
+    manifest.write_text(json.dumps(data))
+    monkeypatch.chdir(tmp_path)
+    if ambient is None:
+        monkeypatch.delenv("PROMETHEUS_RUNTIME_REF", raising=False)
+    else:
+        monkeypatch.setenv("PROMETHEUS_RUNTIME_REF", ambient)
+    monkeypatch.setenv("COMPOSE_PROFILES", "observability,alerting")
+    calls: list[tuple[list[str], dict[str, str]]] = []
+
+    def send(argv: list[str], env: dict[str, str]) -> bool:
+        calls.append(
+            (argv, {key: env[key] for key in ("PROMETHEUS_RUNTIME_REF", "COMPOSE_PROFILES")})
+        )
+        return True
+
+    monkeypatch.setattr(notifier, "_send", send)
+    assert (
+        notifier.notify(
+            docker="/absolute/docker",
+            compose_file=Path("selected/compose.yaml"),
+            environment="staging",
+        )
+        == 0
+    )
+    assert len(calls) == 15
+    assert all(argv[3] == str(compose) for argv, _ in calls)
+    assert all(
+        env
+        == {
+            "PROMETHEUS_RUNTIME_REF": data["selection"]["runtime_ref"],
+            "COMPOSE_PROFILES": "observability,alerting",
+        }
+        for _, env in calls
+    )
+    assert os.environ.get("PROMETHEUS_RUNTIME_REF") == ambient
+
+
+@pytest.mark.parametrize("fault", ["missing", "malformed", "unselected", "wrong-contour"])
+def test_notifier_manifest_failure_precedes_compose(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], fault: str
+) -> None:
+    from tests.test_deploy_contract_scripts import _synthetic_prometheus_manifest
+
+    compose = tmp_path / "selected/compose.yaml"
+    selected = compose.parent / "prometheus/image-manifest.json"
+    data = _synthetic_prometheus_manifest()
+    if fault == "unselected":
+        data.update(phase="source_prepared", selection=None, candidate=None)
+    target = tmp_path / "prometheus/image-manifest.json" if fault == "wrong-contour" else selected
+    target.parent.mkdir(parents=True)
+    if fault != "missing":
+        target.write_text("{" if fault == "malformed" else json.dumps(data))
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("PROMETHEUS_RUNTIME_REF", "ambient-must-not-rescue")
+    monkeypatch.setattr(notifier.shutil, "which", lambda name: sys.executable)
+    monkeypatch.setattr(
+        notifier, "_send", lambda *args: pytest.fail("Compose reached after invalid manifest")
+    )
+    assert notifier.main(["--compose-file", str(compose), "--environment", "staging"]) == 1
+    assert capsys.readouterr().out == notifier.ERROR + "\n"
+
+
+@pytest.mark.parametrize("fault", ["exit", "timeout", "empty", "extra-line", "oversized"])
+def test_notifier_reader_failure_is_stable_and_never_sends(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], fault: str
+) -> None:
+    def reader(argv: list[str], **kwargs: object) -> subprocess.CompletedProcess[bytes]:
+        assert argv[0] == sys.executable
+        assert kwargs["timeout"] == notifier.COMMAND_TIMEOUT_SECONDS
+        assert kwargs["env"] == {"PATH": os.defpath, "LANG": "C.UTF-8"}
+        assert kwargs["stderr"] == subprocess.DEVNULL
+        if fault == "exit":
+            raise subprocess.CalledProcessError(1, argv)
+        if fault == "timeout":
+            raise subprocess.TimeoutExpired(argv, 10)
+        return subprocess.CompletedProcess(
+            argv, 0, {"empty": b"", "extra-line": b"a\nb\n", "oversized": b"x" * 513 + b"\n"}[fault]
+        )
+
+    monkeypatch.setattr(notifier.subprocess, "run", reader)
+    monkeypatch.setattr(notifier.shutil, "which", lambda name: sys.executable)
+    monkeypatch.setattr(
+        notifier, "_send", lambda *args: pytest.fail("Compose reached after reader failure")
+    )
+    assert (
+        notifier.main(
+            ["--compose-file", str(tmp_path / "compose.yaml"), "--environment", "staging"]
+        )
+        == 1
+    )
+    assert capsys.readouterr().out == notifier.ERROR + "\n"

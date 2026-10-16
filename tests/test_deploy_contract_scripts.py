@@ -15473,3 +15473,146 @@ def test_prometheus_cd_aggregate_requires_only_the_selected_successful_execution
         check=False,
     )
     assert result.returncode == expected_exit, result.stderr
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        "delayed-success",
+        "timeout",
+        "api-error",
+        "interrupt",
+        "cleanup",
+        "short-job",
+        "pr",
+        "registry-token",
+    ],
+)
+def test_trusted_prometheus_wait_keeps_admission_and_cleanup_boundaries(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, case: str
+) -> None:
+    import signal
+    import time
+
+    workflow = yaml.safe_load(CD_WORKFLOW_PATH.read_text())
+    jobs = workflow["jobs"]
+    trusted = jobs["prometheus-image-security-trusted"]
+    pr = jobs["prometheus-image-security-pr"]
+    step = next(
+        item
+        for item in trusted["steps"]
+        if item.get("name") == "Wait for the exact trusted Prometheus publisher"
+    )
+    assert (
+        step["if"]
+        == "${{ success() && github.event_name != 'pull_request' && steps.prometheus-route.outputs.mode == 'trusted_published' }}"
+    )
+    assert set(step["env"]) == {"GH_TOKEN", "GITHUB_TOKEN", "PROMETHEUS_CREDENTIAL_ROUTE"}
+    assert trusted["env"]["PROMETHEUS_JOB_TIMEOUT_MINUTES"] == trusted["timeout-minutes"]
+    assert (
+        trusted["env"]["PROMETHEUS_CONSUME_SECONDS"]
+        == pr["env"]["PROMETHEUS_CONSUME_SECONDS"]
+        == "900"
+    )
+    assert (
+        trusted["env"]["PROMETHEUS_CLEANUP_SECONDS"]
+        == pr["env"]["PROMETHEUS_CLEANUP_SECONDS"]
+        == "120"
+    )
+    assert pr["steps"] is trusted["steps"]
+    consumer = next(item for item in trusted["steps"] if item.get("id") == "prometheus-image")
+    assert trusted["steps"].index(step) < trusted["steps"].index(consumer)
+    assert consumer["run"].count("--operation consume") == 1
+    assert "continue-on-error" not in step and "continue-on-error" not in consumer
+    assert "if" not in consumer  # Default success() prevents consume after a failed wait.
+    event = tmp_path / "event.json"
+    event.write_text('{"ref":"refs/heads/main"}')
+    head = "1" * 40
+    environment = {
+        "GITHUB_EVENT_NAME": "pull_request" if case == "pr" else "push",
+        "GITHUB_EVENT_PATH": str(event),
+        "GITHUB_SHA": head,
+        "GITHUB_WORKSPACE": str(REPO_ROOT),
+        "RUNNER_TEMP": str(tmp_path),
+        "GITHUB_RUN_ID": "123",
+        "GITHUB_RUN_ATTEMPT": "1",
+        "GH_TOKEN": "synthetic-read-token",
+        "GITHUB_TOKEN": "synthetic-read-token",
+        "PROMETHEUS_CREDENTIAL_ROUTE": "trusted_published",
+        "PROMETHEUS_PUBLICATION_WAIT_SECONDS": "10800",
+        "PROMETHEUS_CONSUME_SECONDS": "900",
+        "PROMETHEUS_CLEANUP_SECONDS": "120",
+        "PROMETHEUS_SECURITY_RESERVE_SECONDS": "2400",
+        "PROMETHEUS_JOB_TIMEOUT_MINUTES": "55" if case == "short-job" else "255",
+    }
+    if case == "registry-token":
+        environment["GHCR_READ_TOKEN"] = "synthetic-registry-token"
+    monkeypatch.setattr(os, "environ", environment)
+    elapsed = [0.0]
+    calls: list[str] = []
+    monkeypatch.setattr(time, "monotonic", lambda: elapsed[0])
+    monkeypatch.setattr(time, "sleep", lambda seconds: elapsed.__setitem__(0, elapsed[0] + seconds))
+    monkeypatch.setattr(signal, "signal", lambda *args: None)
+
+    class API:
+        def __init__(self, private: Path, evidence: Path, deadline: float, cleanup: int) -> None:
+            assert private.parent == evidence.parent
+            assert deadline == 10800 and cleanup == 120
+            assert "GHCR_READ_TOKEN" not in os.environ
+            calls.append("api")
+
+        def close(self) -> None:
+            calls.append("close")
+            if case == "cleanup":
+                raise prometheus_source.QualificationError("synthetic_cleanup_failure")
+
+    def admission(
+        api: object, root: Path, event: dict[str, object], kind: str, selected: str
+    ) -> dict[str, object]:
+        assert isinstance(api, API) and root == REPO_ROOT and selected == head and kind == "push"
+        assert event == {"ref": "refs/heads/main"}
+        calls.append("admission")
+        return {"publisher_head": head}
+
+    def predecessor(api: object, selected: str) -> dict[str, object]:
+        assert isinstance(api, API) and selected == head
+        calls.append("predecessor")
+        if case == "api-error":
+            raise prometheus_source.QualificationError("synthetic_auth_failure")
+        if case == "interrupt":
+            raise KeyboardInterrupt
+        if case == "timeout" or elapsed[0] <= 900:
+            raise prometheus_source.QualificationError(
+                "positive_publication_predecessor_pending_or_missing"
+            )
+        return {"run": {"head_sha": head, "conclusion": "success"}}
+
+    monkeypatch.setattr(prometheus_source, "GitHubRead", API)
+    monkeypatch.setattr(prometheus_source, "event_admission", admission)
+    monkeypatch.setattr(prometheus_source, "require_publication_predecessor", predecessor)
+    program = compile(_prometheus_cd_python(step), "trusted-publication-wait", "exec")
+    if case == "delayed-success":
+        exec(program, {"__name__": "__main__"})
+        assert elapsed[0] == 930
+        assert (
+            json.loads(
+                (
+                    tmp_path / "prometheus-publication-wait-123-1/evidence/predecessor.json"
+                ).read_text()
+            )["run"]["head_sha"]
+            == head
+        )
+    else:
+        expected = (
+            KeyboardInterrupt
+            if case == "interrupt"
+            else SystemExit if case in {"pr", "registry-token"} else RuntimeError
+        )
+        with pytest.raises(expected):
+            exec(program, {"__name__": "__main__"})
+    if case in {"short-job", "pr", "registry-token"}:
+        assert calls == []
+    else:
+        assert calls[0:2] == ["api", "admission"] and calls[-1] == "close"
+    if case == "timeout":
+        assert elapsed[0] == 10800
