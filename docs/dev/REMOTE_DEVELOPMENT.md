@@ -14,8 +14,10 @@ offloaded. Ollama remains future-only. Do not replace the primary local chat wit
 a remote project or assume SSH transfers Mac tools. VS Code is optional.
 **Remote acceptance remains pending**. The owner purchased the VM and host-level
 SSH/Docker setup and manual runtime-container bootstrap have been observed.
-Exact candidate checks, private previews, persistence, recovery and measured
-local Apple benefit require their separate evidence below.
+Published PR [#2491](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2491)
+has observed candidate validation and private-preview components below. The
+post-open recipe/test corrections in this revision still require fresh validation;
+full persistence, recovery and measured local Apple benefit remain separate.
 
 Root [AGENTS.md](../../AGENTS.md) owns policy and validation budgets. Follow
 [agent onboarding](AGENT_COMPATIBILITY_ONBOARDING.md) and the governing
@@ -73,6 +75,12 @@ this parallel lane. Do not adopt the foreign branch into the RDEV PR or borrow i
 gates. When #2477 merges, synchronize normally, reread affected instructions and
 repeat only impacted proof under the current-head policy.
 
+The dated 2026-10-16 post-open readback still found #2477 OPEN, now at
+`ca46de5a9ed3889859dc58bed6c8352f378dbb60`. The earlier `4df6d45c...`
+identity remains the historical runtime preview, not a current foundation
+merge or permission to adopt its locks, code or successful checks. CD remains a
+separately owned lane; RDEV-01's own CI and review gates remain required.
+
 References: [Contabo configurator](https://contabo.com/en-us/vps/cloud-vps-core-12),
 [official devcontainer CLI](https://code.visualstudio.com/docs/devcontainers/devcontainer-cli),
 [Docker Ubuntu installation](https://docs.docker.com/engine/install/ubuntu/),
@@ -117,11 +125,50 @@ returned 2 because pre-commit could not create its cache under a root-owned
 parent. Creating only the absent `/home/vscode/.cache/pre-commit` child as
 1001:1001, mode0700, allowed one canonical bootstrap recovery to return 0.
 Tracked source remained clean. Separate `make verify-env` and native tooling
-smoke each returned guest0/host0. These are exact runtime-preview results;
-candidate Python bootstrap and full acceptance remain pending. No third CLI
-attempt is implied.
+smoke each returned guest 0/host 0. These are exact runtime-preview results;
+the separate own-candidate environment proof is recorded below. Full acceptance
+remains pending, and the two CLI attempts are spent; no third attempt is implied.
 BuildKit clipped one compiler stage at its native 2 MiB limit; complete compiler
 stdout is unavailable even though the retained CLI stream shows image completion.
+
+### Published candidate checkpoint and post-open corrections — 2026-10-16
+
+Published material C0 is `85e56e8ed2e73e7e9c74ae73746079448dcb681a`, parent
+`ea40bc78a433c4e0ab4333b4fbffa41b79349659`, tree
+`a42837f1a95f52eaf49a34747e95ea152f40e11b`, in PR #2491. Its native candidate
+environment used its own canonical venv with Python 3.13.5, psycopg-binary 3.3.4
+and cryptography 50.0.0. Own `make venv`, pip check, `make verify-env`, scoped
+preflight and agent consistency passed separately from the foreign runtime.
+Node 24.18.1/npm 11.16.0 ran the retained focused two-file/10-test bundle,
+typecheck and build successfully; existing build warnings were retained.
+
+The final C0 source projection passed all-files pre-commit with actual guest 0,
+host 0 and original-index restoration 0. Native commit hooks passed, and committed
+`make validate-changed` actually selected the docs path-leakage test. The exact-C0
+zero-network Apple Oracle accepted two metadata guards in one attempt, with no
+mutated paths and `promotion_ready=false`; this supplies no application,
+TypeScript, operational, provider-review or security-scan result. The ordinary
+named-origin push and its native hooks returned 0; GitHub confirmed C0.
+
+Off-VPS retention covered 419 files/14 directories/four verified native bundles,
+then 102 current-gate files, 23 commit/ferry entries and 27 publication files with
+complete selected membership, bytes, modes and SHA checks. Retained Mac work and
+returned owned results were verified, including the native C0 ferry. Earlier
+private browser/API health 200 and synthetic validation 422 were observed through
+local 18001/15173; owned apps/tunnel were stopped. These are bounded components,
+not a VM-loss restore, public-refusal result, Simulator integration or comparable
+Apple performance measurement.
+
+The single post-open QA → bug-hunter → security role pass completed and identified
+six bounded recipe/test/status defects. The following corrections are written
+procedures until their targeted native rehearsal succeeds. C0 evidence remains
+historical for its exact source; it does not validate this changed material.
+Fresh affected VPS checks/current-head CI, final-material self-review,
+provider-neutral seal, mapping, strict readiness and the review wait remain
+pending. Existing automatic provider quota output creates no retry requirement.
+The 14:14 UTC factual cloud checkpoint was read back in all five existing IDs
+with history/metadata and the native table preserved; this changed revision still
+needs its own continuity update, and RD01-10 remains not achieved.
 
 ## Exact material transfer from one authoritative source
 
@@ -192,16 +239,39 @@ the owned transfer root:
 ```bash
 rsync -rtp "$RDEV_CAPTURE/" pulseplate-rdev01:/home/dev/work/PulsePlate/artifacts/orchestration/rdev01-transfers/<fresh-snapshot>/
 # In the selected container PRIMARY clone (not on the Mac):
-git bundle verify /workspaces/PulsePlate/artifacts/orchestration/rdev01-transfers/<fresh-snapshot>/source.bundle
-git fetch /workspaces/PulsePlate/artifacts/orchestration/rdev01-transfers/<fresh-snapshot>/source.bundle <recorded-branch>
-git rev-parse FETCH_HEAD
-git cat-file -e '<recorded-base>^{commit}'
-git worktree add --detach /workspaces/PulsePlate/worktrees/<owned-receiver> <recorded-head>
+set -euo pipefail
+RDEV_SNAPSHOT_ID="REPLACE-FRESH-SNAPSHOT-ID"
+RDEV_SOURCE_BRANCH="REPLACE-RECORDED-BRANCH"
+RDEV_HEAD="REPLACE-RECORDED-FULL-HEAD-SHA"
+RDEV_BASE="REPLACE-RECORDED-FULL-BASE-SHA"
+[[ "$RDEV_SNAPSHOT_ID" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]]
+RDEV_IMPORT_REF="refs/rdev01/imports/$RDEV_SNAPSHOT_ID"
+RDEV_BUNDLE="/workspaces/PulsePlate/artifacts/orchestration/rdev01-transfers/$RDEV_SNAPSHOT_ID/source.bundle"
+git check-ref-format "$RDEV_IMPORT_REF"
+git check-ref-format --branch "$RDEV_SOURCE_BRANCH"
+git bundle verify "$RDEV_BUNDLE"
+if git show-ref --verify --quiet "$RDEV_IMPORT_REF"; then
+  printf '%s\n' 'Import ref already exists; preserve it and stop.' >&2
+  exit 1
+else
+  RDEV_REF_STATUS=$?
+  test "$RDEV_REF_STATUS" -eq 1   # Only native confirmed absence permits fetch.
+fi
+git fetch --no-tags --no-write-fetch-head "$RDEV_BUNDLE" "refs/heads/$RDEV_SOURCE_BRANCH:$RDEV_IMPORT_REF"
+test "$(git rev-parse --verify "$RDEV_IMPORT_REF^{commit}")" = "$RDEV_HEAD"
+git cat-file -e "$RDEV_BASE^{commit}"
+git worktree add --detach /workspaces/PulsePlate/worktrees/REPLACE-OWNED-RECEIVER "$RDEV_IMPORT_REF"
 ```
 
-Compare returned FETCH_HEAD with recorded HEAD before adding the worktree. No
-all-refs fetch or source checkout mutation is needed. Create an owned
-CLEAN receiver at exact source HEAD; never overlay a foreign dirty checkout.
+Reserve this fresh snapshot ID/import ref for one cooperative transfer owner;
+no other task may create or update that same ref during absence/fetch/comparison.
+Different captures use different refs, so another capture's fetch cannot replace
+this receipt. The executable equality check precedes worktree creation. Shared
+FETCH_HEAD is neither written nor used as evidence by this fetch. The selected
+VPS Git help and self-only dry-run accepted `--no-write-fetch-head`; that option
+support is not actual transfer/interleaving proof. No all-refs fetch, force update,
+source checkout mutation or hostile-concurrency/atomicity guarantee follows.
+Create an owned CLEAN receiver at exact source HEAD; never overlay a foreign dirty checkout.
 After native bundle verification/fetch of the selected branch, use the existing
 visible common Git directory for a detached nested worktree. Record that intended
 base and HEAD are available and match, without foreign #2477 source/base adoption.
@@ -214,19 +284,38 @@ occur in the selected container.
 ```bash
 # INSIDE the clean exact-HEAD receiver in the selected container:
 # Replace REPLACE-SNAPSHOT with the verified received snapshot directory.
+set -euo pipefail
 RDEV_INDEX_PATCH="/workspaces/PulsePlate/artifacts/orchestration/rdev01-transfers/REPLACE-SNAPSHOT/index.patch"
 RDEV_WORKING_PATCH="/workspaces/PulsePlate/artifacts/orchestration/rdev01-transfers/REPLACE-SNAPSHOT/working.patch"
+RDEV_INDEX_SHA256="REPLACE-RECORDED-INDEX-PATCH-SHA256"
+RDEV_WORKING_SHA256="REPLACE-RECORDED-WORKING-PATCH-SHA256"
 git rev-parse HEAD
 git status --short
-git apply --check --index "$RDEV_INDEX_PATCH"
-git apply --index "$RDEV_INDEX_PATCH"
-git apply --check "$RDEV_WORKING_PATCH"
-git apply "$RDEV_WORKING_PATCH"
+# Validate BOTH frozen inputs before the first mutating apply.
+for RDEV_PATCH in "$RDEV_INDEX_PATCH" "$RDEV_WORKING_PATCH"; do
+  test ! -L "$RDEV_PATCH"
+  test -f "$RDEV_PATCH"
+  test -r "$RDEV_PATCH"
+done
+printf '%s  %s\n' "$RDEV_INDEX_SHA256" "$RDEV_INDEX_PATCH" | sha256sum -c -
+printf '%s  %s\n' "$RDEV_WORKING_SHA256" "$RDEV_WORKING_PATCH" | sha256sum -c -
+if test -s "$RDEV_INDEX_PATCH"; then
+  git apply --check --index "$RDEV_INDEX_PATCH"
+  git apply --index "$RDEV_INDEX_PATCH"
+fi
+if test -s "$RDEV_WORKING_PATCH"; then
+  git apply --check "$RDEV_WORKING_PATCH"
+  git apply "$RDEV_WORKING_PATCH"
+fi
 ```
 
 W apply deliberately has NO `--index`. An empty patch is an explicitly verified
-empty transition: skip that apply only, never ignore a failed apply. No unsafe-path
-apply. Once the receiver exists, copy selected regular new files from frozen Mac:
+empty transition: omit only its check/apply pair after both files' type,
+readability and captured hash checks. Missing input is never empty input, and a
+failed nonempty check/apply stops. Keep the source/receiver freeze and reviewed
+real parent paths throughout; these checks do not exclude a hostile same-UID
+writer. No unsafe-path apply. Once the receiver exists, copy selected regular
+new files from frozen Mac:
 
 ```bash
 rsync -rtp --from0 --files-from="$RDEV_CAPTURE/newfiles.z" "$RDEV_SOURCE/" pulseplate-rdev01:/home/dev/work/PulsePlate/worktrees/<owned-receiver>/
@@ -704,12 +793,71 @@ started process. Separate stdout/stderr and terminal exit belong to that run;
 
 ```bash
 # REMOTE host: task-owned private parent already exists.
+# Use a dedicated fail-fast subshell; no failed admission reaches tmux.
+(
+set -euo pipefail
 umask 077
-RDEV_RUN_ID=<fresh-reviewed-run-id>
-RDEV_RUN_DIR=/home/dev/work/PulsePlate/artifacts/orchestration/rdev01-runs/$RDEV_RUN_ID
-mkdir "$RDEV_RUN_DIR"
+RDEV_RUN_ID="REPLACE-FRESH-REVIEWED-RUN-ID"
+RDEV_CONTAINER_ID="REPLACE-OBSERVED-CONTAINER-ID"
+[[ "$RDEV_RUN_ID" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]]
+test "$(id -un)" = dev
+RDEV_HOST_UID="$(id -u)"
+RDEV_RUN_ROOT=/home/dev/work/PulsePlate/artifacts/orchestration/rdev01-runs
+for RDEV_PARENT in /home /home/dev /home/dev/work /home/dev/work/PulsePlate \
+  /home/dev/work/PulsePlate/artifacts /home/dev/work/PulsePlate/artifacts/orchestration "$RDEV_RUN_ROOT"; do
+  test ! -L "$RDEV_PARENT"
+  test -d "$RDEV_PARENT"
+  test -x "$RDEV_PARENT"
+done
+test -O "$RDEV_RUN_ROOT"
+test "$(stat -c '%a' "$RDEV_RUN_ROOT")" = 700
+RDEV_GUEST_UID="$(/home/dev/.local/bin/devcontainer exec --workspace-folder /home/dev/work/PulsePlate --container-id "$RDEV_CONTAINER_ID" bash -c 'set -e; test "$(id -un)" = vscode; id -u')"
+test "$RDEV_GUEST_UID" = "$RDEV_HOST_UID"
+RDEV_RUN_DIR="$RDEV_RUN_ROOT/$RDEV_RUN_ID"
+RDEV_GUEST_RUN_DIR="/workspaces/PulsePlate/artifacts/orchestration/rdev01-runs/$RDEV_RUN_ID"
+if ! mkdir "$RDEV_RUN_DIR"; then
+  printf '%s\n' 'Run directory collision or creation failure; no task launched.' >&2
+  exit 1
+fi
+test -O "$RDEV_RUN_DIR"
+test "$(stat -c '%a' "$RDEV_RUN_DIR")" = 700
+/home/dev/.local/bin/devcontainer exec --workspace-folder /home/dev/work/PulsePlate --container-id "$RDEV_CONTAINER_ID" bash -c '
+  set -euo pipefail
+  umask 077
+  test "$(id -un)" = vscode
+  test "$(id -u)" = "$2"
+  for parent in /workspaces /workspaces/PulsePlate /workspaces/PulsePlate/artifacts \
+    /workspaces/PulsePlate/artifacts/orchestration /workspaces/PulsePlate/artifacts/orchestration/rdev01-runs "$1"; do
+    test ! -L "$parent"
+    test -d "$parent"
+    test -x "$parent"
+  done
+  test -O "$1"
+  test "$(stat -c '%a' "$1")" = 700
+  (set -C; printf "%s\n" rdev01-private-access > "$1/access-probe")
+  test ! -L "$1/access-probe"
+  test -f "$1/access-probe"
+  test "$(stat -c '%a' "$1/access-probe")" = 600
+' bash "$RDEV_GUEST_RUN_DIR" "$RDEV_HOST_UID"
+test ! -L "$RDEV_RUN_DIR/access-probe"
+test -f "$RDEV_RUN_DIR/access-probe"
+test -O "$RDEV_RUN_DIR/access-probe"
+test -r "$RDEV_RUN_DIR/access-probe"
+test "$(stat -c '%a' "$RDEV_RUN_DIR/access-probe")" = 600
+IFS= read -r RDEV_ACCESS_PROOF < "$RDEV_RUN_DIR/access-probe"
+test "$RDEV_ACCESS_PROOF" = rdev01-private-access
 tmux new -s "$RDEV_RUN_ID"
+)
 ```
+
+The observed installation has host dev UID 1001 and container vscode UID 1001;
+that matching setup is real prior proof, not a guarantee from `adduser` or a
+username. The initial admission checks actual numeric identity and both mount
+paths, then retains a private exclusive guest-write/host-read marker before any
+job. A UID/access/parent mismatch stops without launch or permission repair.
+Any partial new directory remains evidence to inspect; never reuse it or alter
+an existing run. Ownership repairs require separate bounded admission, with no
+recursive chown/chmod or broader permissions. The marker is nonsecret run metadata.
 
 In that tmux shell set the SAME run directory and record command/metadata before
 launch. This illustrates the existing native transport-focused command on the
@@ -926,16 +1074,16 @@ prove the bounded proxy transport only; they do not achieve remote criteria.
 
 | ID | Accepted outcome | Evidence required | Current outcome |
 | --- | --- | --- | --- |
-| RD01-01 | One reproducible runbook, exact versions, start/stop | LOCAL Codex/CU plus explicit SSH/CLI rehearsal and local Apple boundaries | unknown; runbook revision implemented, rehearsal pending |
+| RD01-01 | One reproducible runbook, exact versions, start/stop | LOCAL Codex/CU plus explicit SSH/CLI rehearsal and local Apple boundaries | not achieved; post-open recipe corrections are written, targeted native rehearsal remains pending; no third CLI up |
 | RD01-02 | Code and agreed unique data on VM, SHA/integrity matched | Branch/base/HEAD plus both-end I/W/new/deleted bytes/modes and retained Apple checkout | unknown |
-| RD01-03 | Manual bootstrap, verify-env and Python/Node/tooling smoke pass | Genuine container bootstrap/tooling plus dirty-focused checks/input views; committed gate separately | unknown |
+| RD01-03 | Manual bootstrap, verify-env and Python/Node/tooling smoke pass | Genuine container bootstrap/tooling plus dirty-focused checks/input views; committed gate separately | achieved for the bounded selected setup reviewed by QA: manual runtime bootstrap plus separate own-candidate env/tooling; no foreign-lock or full CLI-success claim |
 | RD01-04 | Codex command bound to remote host/container/process/path/artifact | LOCAL Mac control plus SSH/container process/material/run/result; optional remote CLI only | unknown |
-| RD01-05 | Backend 8001/web 5173 private preview, no public access | Owner port revision: LOCAL 18001/15173 to unchanged container ports; browser/API, loopback listeners, no PortBindings and public visibility. Original Simulator integration remains separately pending | pending; earlier web200/422/browser proof observed, no Simulator or full visibility claim |
-| RD01-06 | Short tmux task and files survive reconnect | Same unique runID/log/actual exit/guest process after reconnect and owned stop proof | unknown |
+| RD01-05 | Backend 8001/web 5173 private preview, no public access | Owner port revision: LOCAL 18001/15173 to unchanged container ports; browser/API, loopback listeners, no PortBindings and public visibility. Original Simulator integration remains separately pending | unknown; earlier web 200/422/browser component observed, public timeouts/IPv6 and original Simulator integration remain unresolved |
+| RD01-06 | Short tmux task and files survive reconnect | Same unique runID/log/actual exit/guest process after reconnect and owned stop proof | unknown; persisted same-run component reported, exact retained launch-close/fresh-read trace still needed; no reboot-survival inference |
 | RD01-07 | Bounded Codex/backend/web/tests CPU/RAM/SSD/OOM/restart and Mac comparison | Real remote check/local heavy-process absence plus comparable Xcode/Simulator pressure/swap/build-time/UI | unknown |
-| RD01-08 | Verified return to retained Mac work; rebuild behavior described | Retained originals/hash comparison and return rehearsal | unknown; rebuild expectations documented |
-| RD01-09 | Own local/CI/Oracle/review/mapping gates on current material | Exact input-view/selection/terminal proof plus committed/current-head gates and separate merge approval | unknown; lifecycle pending |
-| RD01-10 | Runbook/ledger/PR body/existing Drive/Tracker/capsule agree | Same-ID updates preserving history/ACL/parents/unrelated content and raw readback | unknown; publication/continuity pending |
+| RD01-08 | Verified return to retained Mac work; rebuild behavior described | Retained originals/hash comparison and return rehearsal | achieved for bounded retained-work return reviewed by QA: original I/W, returned results, native bundle and C0 ferry; not VM-loss/destructive restore |
+| RD01-09 | Own local/CI/Oracle/review/mapping gates on current material | Exact input-view/selection/terminal proof plus committed/current-head gates and separate merge approval | not achieved; C0 local/metadata-Oracle/publication components observed, three post-open roles complete; changed-material gates, terminal current-head CI and final closeout pending |
+| RD01-10 | Runbook/ledger/PR body/existing Drive/Tracker/capsule agree | Same-ID updates preserving history/ACL/parents/unrelated content and raw readback | not achieved; published-C0 five-ID factual checkpoint read back, this correction and final lifecycle/continuity remain pending |
 
 Keep [the RDEV ledger](../roadmap/BACKLOG_LEDGER.md#ledger-p1-rdev01-remote-development)
 open until every original criterion is individually achieved. If the PR merges

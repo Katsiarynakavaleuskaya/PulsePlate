@@ -16,9 +16,11 @@ const received: Array<{
   cookie: string | undefined;
 }> = [];
 let backend: Server | undefined;
+let backendPort: number;
 let cacheDirectory: string;
 const viteServers: ViteDevServer[] = [];
 
+/** Close only the owned synthetic backend and its connections, including on teardown. */
 async function closeBackend(): Promise<void> {
   const owned = backend;
   if (!owned) return;
@@ -29,7 +31,20 @@ async function closeBackend(): Promise<void> {
   });
 }
 
+/** Preserve native proxy matchers/options while targeting the allocated test backend. */
 async function startVite(mode: string): Promise<number> {
+  const resolved = await resolveConfig(
+    { root, configFile, configLoader: "runner", mode, logLevel: "silent" },
+    "serve",
+  );
+  const testProxy = resolved.server.proxy
+    ? Object.fromEntries(
+        Object.entries(resolved.server.proxy).map(([matcher, options]) => {
+          if (typeof options === "string") throw new Error("Expected native proxy options");
+          return [matcher, { ...options, target: `http://127.0.0.1:${backendPort}` }];
+        }),
+      )
+    : undefined;
   const server = await createServer({
     root,
     configFile,
@@ -40,6 +55,7 @@ async function startVite(mode: string): Promise<number> {
     logLevel: "silent",
     optimizeDeps: { noDiscovery: true, include: [] },
     server: {
+      proxy: testProxy,
       host: "127.0.0.1",
       port: 0,
       strictPort: true,
@@ -65,6 +81,7 @@ async function startVite(mode: string): Promise<number> {
   return (address as AddressInfo).port;
 }
 
+/** Send bounded synthetic HTTP directly, retaining raw redirects and error responses. */
 async function send(
   port: number,
   path: string,
@@ -153,11 +170,25 @@ describe.sequential("remote development native API transport", () => {
     });
     await new Promise<void>((resolve, reject) => {
       owned.once("error", reject);
-      owned.listen(8001, "127.0.0.1", () => {
+      owned.listen(0, "127.0.0.1", () => {
         owned.removeListener("error", reject);
         backend = owned;
         resolve();
       });
+    });
+    const address = owned.address();
+    if (!address || typeof address === "string") throw new Error("Missing owned backend listener");
+    backendPort = address.port;
+  });
+
+  it("keeps the unmodified remote configuration on the fixed production upstream", async () => {
+    const resolved = await resolveConfig(
+      { root, configFile, configLoader: "runner", mode: "remote", logLevel: "silent" },
+      "serve",
+    );
+    expect(Object.keys(resolved.server.proxy ?? {})).toEqual(["^/api/v1(?:[/?]|$)"]);
+    expect(resolved.server.proxy?.["^/api/v1(?:[/?]|$)"]).toMatchObject({
+      target: "http://127.0.0.1:8001",
     });
   });
 
@@ -215,6 +246,11 @@ describe.sequential("remote development native API transport", () => {
   it("keeps default and test development modes on their original transport", async () => {
     const count = received.length;
     for (const mode of ["development", "test"]) {
+      const resolved = await resolveConfig(
+        { root, configFile, configLoader: "runner", mode, logLevel: "silent" },
+        "serve",
+      );
+      expect(resolved.server.proxy).toBeUndefined();
       const port = await startVite(mode);
       expect((await send(port, "/api/v1/rdev-acceptance")).status).toBe(404);
     }
@@ -237,9 +273,37 @@ describe.sequential("remote development native API transport", () => {
     expect(preview.preview.proxy).toBeUndefined();
   });
 
-  it("keeps the upstream fixed even when a browser API base names another origin", async () => {
+  it("keeps production upstream fixed despite browser base, with an allocated test upstream", async () => {
     vi.stubEnv("VITE_API_BASE", "http://127.0.0.1:9/api/v1");
     try {
+      const resolved = await resolveConfig(
+        { root, configFile, configLoader: "runner", mode: "remote", logLevel: "silent" },
+        "serve",
+      );
+      expect(Object.keys(resolved.server.proxy ?? {})).toEqual(["^/api/v1(?:[/?]|$)"]);
+      expect(resolved.server.proxy?.["^/api/v1(?:[/?]|$)"]).toMatchObject({
+        target: "http://127.0.0.1:8001",
+      });
+      const inline = {
+        root,
+        configFile,
+        configLoader: "runner" as const,
+        logLevel: "silent" as const,
+      };
+      for (const mode of ["development", "test"]) {
+        expect((await resolveConfig({ ...inline, mode }, "serve")).server.proxy).toBeUndefined();
+      }
+      const build = await resolveConfig({ ...inline, mode: "remote" }, "build");
+      const preview = await resolveConfig(
+        { ...inline, mode: "remote" },
+        "serve",
+        "remote",
+        "production",
+        true,
+      );
+      expect(build.server.proxy).toBeUndefined();
+      expect(preview.server.proxy).toBeUndefined();
+      expect(preview.preview.proxy).toBeUndefined();
       const port = await startVite("remote");
       const response = await send(port, "/api/v1/rdev-fixed-upstream");
       expect(response.status).toBe(200);
