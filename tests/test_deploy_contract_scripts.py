@@ -15590,7 +15590,7 @@ def test_trusted_prometheus_wait_keeps_admission_and_cleanup_boundaries(
     monkeypatch.setattr(prometheus_source, "GitHubRead", API)
     monkeypatch.setattr(prometheus_source, "event_admission", admission)
     monkeypatch.setattr(prometheus_source, "require_publication_predecessor", predecessor)
-    program = compile(_prometheus_cd_python(step), "trusted-publication-wait", "exec")
+    program = compile(_prometheus_cd_python(step), "<trusted-publication-wait>", "exec")
     if case == "delayed-success":
         exec(program, {"__name__": "__main__"})
         assert elapsed[0] == 930
