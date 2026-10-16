@@ -84,45 +84,45 @@ _PINNED_NATIVE_SOURCES = {
     ),
     "zlib-gzwrite-fix": (
         ("df84af25" "dc194249" "0e1d1c89" "9a076191" "52a46148"),
-        "https://github.com/madler/zlib/commit/df84af25dc1942490e1d1c899a07619152a46148.patch",
+        "https://github.com/madler/zlib/commit/df84af25dc1942490e1d1c899a07619152a46148.patch?full_index=1",
         "zlib-gzwrite-fix-df84af25dc1942490e1d1c899a07619152a46148.patch",
-        ("78aa4480" "48a5cc72" "d29156cf" "77483dd8" "f142018a" "7783a4fe" "9f73ea5f" "a02f034d"),
+        ("73d989d6" "57fc2056" "900feb1a" "83574139" "4b079f94" "3f8659fe" "441299ee" "bf91b310"),
     ),
     "zlib-gzwrite-null-fix": (
         ("e3dc0a85" "b7032e98" "380dec01" "1bc8f2c2" "ee0d8fca"),
-        "https://github.com/madler/zlib/commit/e3dc0a85b7032e98380dec011bc8f2c2ee0d8fca.patch",
+        "https://github.com/madler/zlib/commit/e3dc0a85b7032e98380dec011bc8f2c2ee0d8fca.patch?full_index=1",
         "zlib-gzwrite-null-fix-e3dc0a85b7032e98380dec011bc8f2c2ee0d8fca.patch",
-        ("63adc22e" "cebf8bbe" "e7b9aaf4" "f0587657" "68948996" "ca4b26fa" "260d8b80" "6a64e7d3"),
+        ("2d97c97e" "020dfe05" "9b8b1981" "95a8fe42" "197f88b1" "184bb9ef" "0292a8af" "a535aa26"),
     ),
     "zlib-gzvprintf-return-fix": (
         ("bbc2ccf3" "d0de2675" "76b524b8" "75c769a7" "24a513b0"),
-        "https://github.com/madler/zlib/commit/bbc2ccf3d0de267576b524b875c769a724a513b0.patch",
+        "https://github.com/madler/zlib/commit/bbc2ccf3d0de267576b524b875c769a724a513b0.patch?full_index=1",
         "zlib-gzvprintf-return-fix-bbc2ccf3d0de267576b524b875c769a724a513b0.patch",
-        ("55b2edac" "2662134a" "37863f6d" "1e11fb97" "d6e63e03" "5d8d0d3d" "70ec6d8a" "3b669734"),
+        ("28af72a5" "d4d20648" "1956ab11" "ab164090" "7577bc0c" "021ef3b5" "8344ea64" "f00c764c"),
     ),
     "zlib-gzprintf-return-fix": (
         ("7235b0a5" "81227c56" "a79a43ff" "828f8ef6" "794194c8"),
-        "https://github.com/madler/zlib/commit/7235b0a581227c56a79a43ff828f8ef6794194c8.patch",
+        "https://github.com/madler/zlib/commit/7235b0a581227c56a79a43ff828f8ef6794194c8.patch?full_index=1",
         "zlib-gzprintf-return-fix-7235b0a581227c56a79a43ff828f8ef6794194c8.patch",
-        ("996e0c00" "78df1aaf" "dc9e6cca" "a8e8a305" "bf018258" "c84beba3" "f4934a04" "12253c87"),
+        ("84bd6874" "0f1bf101" "fa85d3dd" "726a9c9b" "ec84c216" "3adf5b7b" "5c004bba" "62db6d5d"),
     ),
     "zlib-blocked-errno-fix": (
         ("813dac5d" "cb5902ed" "241e9b0d" "38abd2d8" "47a335a9"),
-        "https://github.com/madler/zlib/commit/813dac5dcb5902ed241e9b0d38abd2d847a335a9.patch",
+        "https://github.com/madler/zlib/commit/813dac5dcb5902ed241e9b0d38abd2d847a335a9.patch?full_index=1",
         "zlib-blocked-errno-fix-813dac5dcb5902ed241e9b0d38abd2d847a335a9.patch",
-        ("438d0e57" "75f15081" "a3339eed" "38d4b207" "b100f5cf" "4f68db0e" "619ef9b3" "054e3e4a"),
+        ("d4fbd685" "ed4c2ec2" "d5e4962f" "0f6d5a98" "5ab1f542" "0bc1224d" "d262b419" "e7c26ab5"),
     ),
     "zlib-gzprintf-contract-fix": (
         ("d81c2d7e" "b705c622" "94ba0329" "92556720" "78e89115"),
-        "https://github.com/madler/zlib/commit/d81c2d7eb705c62294ba03299255672078e89115.patch",
+        "https://github.com/madler/zlib/commit/d81c2d7eb705c62294ba03299255672078e89115.patch?full_index=1",
         "zlib-gzprintf-contract-fix-d81c2d7eb705c62294ba03299255672078e89115.patch",
-        ("adf2578c" "eaa4d9a5" "2ccfa8d7" "4f8b8792" "cce3084f" "9f770944" "39450eec" "2a7a214c"),
+        ("e9216856" "034689c7" "1656fb32" "dd1b25d3" "2304baf4" "42b7e9b8" "d454c732" "187b0bcf"),
     ),
     "zlib-errno-order-fix": (
         ("a82e0db3" "92178a3e" "05fb27bf" "551a6ce7" "57a47898"),
-        "https://github.com/madler/zlib/commit/a82e0db392178a3e05fb27bf551a6ce757a47898.patch",
+        "https://github.com/madler/zlib/commit/a82e0db392178a3e05fb27bf551a6ce757a47898.patch?full_index=1",
         "zlib-errno-order-fix-a82e0db392178a3e05fb27bf551a6ce757a47898.patch",
-        ("b9df8d4e" "ea80d15d" "dc0ddfe8" "cccfef28" "ab23bc74" "2f850f44" "792806fc" "32accd6a"),
+        ("33b8bc65" "706a2b85" "2e4b7ede" "ce112f13" "59078b3c" "8e475079" "d7b8d92d" "d4931d47"),
     ),
 }
 _PINNED_ALERT_SOURCES = {
@@ -174,35 +174,35 @@ _PINNED_NATIVE_SHA256 = {
         "983ee554" "ec53dbeb" "9b70797b" "ef9fcf4e" "67e117e7" "e48ca146" "3cc80b3f" "f8e8ff3f"
     ),
     "zlib-gzwrite-fix": (
-        "110ff143" "75733173" "d8aa5457" "4473424f" "bd7dfe4b" "81f1ca34" "a759c6fe" "14b15b14"
+        "db74db83" "084f8ff5" "cf8d65ea" "5fd1bd63" "331f4c79" "fc809189" "d3735f35" "18ae2527"
     ),
     "zlib-gzwrite-null-fix": (
-        "183bc8b9" "dd078a41" "a62de5c2" "d905d9b0" "196b45bc" "46f100d7" "e4147ec2" "28207c74"
+        "8be18219" "a658f1dd" "fa83d4e8" "f778d2c3" "be1ade11" "3863f166" "3929c399" "02e001cc"
     ),
     "zlib-gzvprintf-return-fix": (
-        "7d00ee29" "be5e636d" "30da2890" "961e83e3" "5cee0b15" "2333ecd9" "7a46ae2e" "71eb5d47"
+        "96bd1c24" "2f09b244" "430bfe78" "54a9bb57" "a6e24a1e" "38e93bce" "f8ba946d" "22ecaf16"
     ),
     "zlib-gzprintf-return-fix": (
-        "0a6d723b" "65814519" "cc3776c3" "9e2cf354" "f6fa32b6" "a82c513e" "902ac5fc" "c63de4bc"
+        "c5eff1cc" "8dd1997b" "16e0918e" "bf6074b9" "9bd38b2c" "244fb2bf" "2b697e74" "541a0987"
     ),
     "zlib-blocked-errno-fix": (
-        "6475806c" "db638378" "8a03e7af" "5617188e" "f2692803" "889cded1" "fcb01482" "5923d16c"
+        "b1fcf877" "5123d729" "0a11e952" "21632fca" "7406cce1" "73820a09" "392c659e" "adb0ba0a"
     ),
     "zlib-gzprintf-contract-fix": (
-        "a786b2b0" "84126860" "08c7fe12" "47e90701" "cebde564" "037806bd" "9935f849" "07737cc4"
+        "22adf550" "e344229d" "f577ce66" "fddfce16" "451eb605" "20e8f68e" "5cae2192" "1b9bc0ea"
     ),
     "zlib-errno-order-fix": (
-        "5188930f" "b2689746" "8b73a62d" "4755c979" "2c642b8b" "b5b5a45d" "49502816" "a85f62dd"
+        "c12fbe1d" "d31e27c3" "90d4552c" "3862fe6b" "c50169c7" "3ab97a74" "e81682b6" "a713f1f9"
     ),
 }
 _PINNED_ZLIB_PATCH_SIZES = {
-    "zlib-gzwrite-fix": 854,
-    "zlib-gzwrite-null-fix": 773,
-    "zlib-gzvprintf-return-fix": 749,
-    "zlib-gzprintf-return-fix": 766,
-    "zlib-blocked-errno-fix": 2449,
-    "zlib-gzprintf-contract-fix": 1990,
-    "zlib-errno-order-fix": 1478,
+    "zlib-gzwrite-fix": 916,
+    "zlib-gzwrite-null-fix": 833,
+    "zlib-gzvprintf-return-fix": 809,
+    "zlib-gzprintf-return-fix": 826,
+    "zlib-blocked-errno-fix": 2629,
+    "zlib-gzprintf-contract-fix": 2110,
+    "zlib-errno-order-fix": 1538,
 }
 
 

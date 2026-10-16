@@ -17,6 +17,10 @@ import pytest
 import yaml
 
 from scripts.ci.ci_risk_profile import build_risk_profile
+from scripts.orchestration.creative_code_patch_workspace import (
+    git_env_without_parent_state,
+    safe_git_config_args,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DOCKERFILE = REPO_ROOT / "frontend" / "Dockerfile.caddy-spa"
@@ -1757,12 +1761,23 @@ def test_checkpoint_native_main_pipeline_preserves_both_statuses(
         ).read_text() == observed
 
 
+@pytest.mark.parametrize(
+    ("selected_path", "expected_selected"),
+    [
+        (".github/workflows/ci.yml", True),
+        ("deploy/prometheus/image-manifest.json", True),
+        ("deploy/prometheus/image-manifest.json.bak", False),
+    ],
+)
 @pytest.mark.parametrize("case", ["unchanged", "changed", "invalid"])
-def test_native_main_selection_uses_real_git_exit_status(tmp_path: Path, case: str) -> None:
+def test_native_main_selection_uses_real_git_exit_status(
+    tmp_path: Path, case: str, selected_path: str, expected_selected: bool
+) -> None:
     git = shutil.which("git")
     bash = shutil.which("bash")
     assert git is not None and bash is not None
     env = {
+        **git_env_without_parent_state(),
         "PATH": os.environ["PATH"],
         "LANG": "C",
         "GIT_CONFIG_NOSYSTEM": "1",
@@ -1776,7 +1791,7 @@ def test_native_main_selection_uses_real_git_exit_status(tmp_path: Path, case: s
 
     def call(*arguments: str) -> str:
         result = subprocess.run(
-            [git, "-c", "core.hooksPath=" + os.devnull, "-c", "commit.gpgsign=false", *arguments],
+            [git, *safe_git_config_args(), "-c", "commit.gpgsign=false", *arguments],
             cwd=tmp_path,
             env=env,
             capture_output=True,
@@ -1788,7 +1803,7 @@ def test_native_main_selection_uses_real_git_exit_status(tmp_path: Path, case: s
         return result.stdout.strip()
 
     call("init", "--template=", "-q")
-    source = tmp_path / ".github/workflows/ci.yml"
+    source = tmp_path / selected_path
     source.parent.mkdir(parents=True)
     source.write_text("base\n")
     call("add", ".")
@@ -1826,7 +1841,7 @@ def test_native_main_selection_uses_real_git_exit_status(tmp_path: Path, case: s
     else:
         assert result.returncode == 0, result.stderr
         assert output.read_text() == (
-            "selected=true\n" if case == "changed" else "selected=false\n"
+            "selected=true\n" if case == "changed" and expected_selected else "selected=false\n"
         )
 
 
@@ -1933,6 +1948,7 @@ def _assert_checkpoint_pr_selection_uses_real_git(
     cat = shutil.which("cat")
     assert git is not None and bash is not None and tee is not None and cat is not None
     env = {
+        **git_env_without_parent_state(),
         "PATH": os.defpath,
         "LANG": "C",
         "HOME": str(tmp_path),
@@ -1947,7 +1963,7 @@ def _assert_checkpoint_pr_selection_uses_real_git(
 
     def call(*args: str) -> str:
         completed = subprocess.run(
-            [git, "-c", "core.hooksPath=" + os.devnull, "-c", "commit.gpgsign=false", *args],
+            [git, *safe_git_config_args(), "-c", "commit.gpgsign=false", *args],
             cwd=tmp_path,
             env=env,
             capture_output=True,
@@ -2045,8 +2061,13 @@ def _assert_checkpoint_pr_selection_uses_real_git(
     else:
         selected = case == "own" and expected_selected
         assert result.returncode == 0, result.stderr
+        expected_mode = (
+            "changed_pr_candidate"
+            if selected_path == "deploy/prometheus/image-manifest.json"
+            else "unchanged_pr_published"
+        )
         assert output.read_text() == (
-            "selected=true\nmode=unchanged_pr_published\n" if selected else "selected=false\n"
+            f"selected=true\nmode={expected_mode}\n" if selected else "selected=false\n"
         )
         assert not (tmp_path / "native-calls").exists()
         if selected:
@@ -2080,6 +2101,22 @@ def _assert_checkpoint_pr_selection_uses_real_git(
 )
 def test_checkpoint_pr_selection_uses_unique_real_merge_base(tmp_path: Path, case: str) -> None:
     _assert_checkpoint_pr_selection_uses_real_git(tmp_path, case)
+
+
+@pytest.mark.parametrize("case", ["own", "base-only"])
+@pytest.mark.parametrize(
+    ("selected_path", "expected_selected"),
+    [
+        ("deploy/prometheus/image-manifest.json", True),
+        ("deploy/prometheus/image-manifest.json.bak", False),
+    ],
+)
+def test_checkpoint_pr_selects_only_its_manifest_change(
+    tmp_path: Path, case: str, selected_path: str, expected_selected: bool
+) -> None:
+    _assert_checkpoint_pr_selection_uses_real_git(
+        tmp_path, case, selected_path, expected_selected=expected_selected
+    )
 
 
 @pytest.mark.parametrize(
