@@ -208,6 +208,8 @@
   Keep automatic PR/push compiler/publication paths disabled;
   cleanup retains the primary failure and removes only independently confirmed
   exact owned container IDs, including a failed create's labelled residue.
+  Declare assembly's fixed child-only `umask 022` launcher in the existing argv
+  without changing the parent's private mask.
 - Preserve the same authenticated support inventory in the final candidate
   consumer: compare every OS package's native comparable identity and OS
   classifier, plus both required Go targets. Transport paths, compressed layer

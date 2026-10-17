@@ -4620,6 +4620,80 @@ def test_alertmanager_future_stages_cannot_activate_compiler_or_publication(
     assert docker_sources.parse_args([]).alertmanager_stage == "disabled"
 
 
+def test_alertmanager_assembly_child_umask_preserves_parent_evidence_and_literal_argv(
+    tmp_path: Path,
+) -> None:
+    assert docker_sources._ALERT_ASSEMBLY_LAUNCH == (
+        "-I",
+        "-S",
+        "-B",
+        "-c",
+        "import os, sys; os.umask(0o022); os.execv(sys.argv[1], sys.argv[1:])",
+    )
+    prefix = [sys.executable, *docker_sources._ALERT_ASSEMBLY_LAUNCH]
+    blob = tmp_path / "synthetic blob"
+    evidence = tmp_path / "parent-evidence"
+    after_failure = tmp_path / "parent-after-failure"
+    arguments = ["space and ; metacharacters", "$(literal)", "'quoted'", "--flag=a b"]
+    child = (
+        "import json, os, stat, sys; "
+        "fd=os.open(sys.argv[1], os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o666); "
+        "os.close(fd); created=stat.S_IMODE(os.stat(sys.argv[1]).st_mode); "
+        "os.chmod(sys.argv[1], created & ~0o333); "
+        "print(json.dumps([created, stat.S_IMODE(os.stat(sys.argv[1]).st_mode), sys.argv[2:]]))"
+    )
+    env = {"PATH": "/usr/bin:/bin", "HOME": str(tmp_path), "LANG": "C.UTF-8"}
+    previous_mask = os.umask(0o077)
+    try:
+        with evidence.open("xb") as stream:
+            observed = subprocess.run(
+                [*prefix, sys.executable, "-I", "-S", "-B", "-c", child, str(blob), *arguments],
+                cwd=tmp_path,
+                env=env,
+                capture_output=True,
+                check=True,
+                timeout=10,
+            )
+            stream.write(observed.stdout)
+        assert not observed.stderr
+        assert json.loads(evidence.read_bytes()) == [0o644, 0o444, arguments]
+        assert stat.S_IMODE(blob.stat().st_mode) == 0o444
+        assert os.umask(0o077) == 0o077
+        failed = subprocess.run(
+            [*prefix, str(tmp_path / "missing-executable")],
+            cwd=tmp_path,
+            env=env,
+            capture_output=True,
+            check=False,
+            timeout=10,
+        )
+        assert failed.returncode != 0 and b"FileNotFoundError" in failed.stderr
+        assert not failed.stdout and os.umask(0o077) == 0o077
+        with after_failure.open("xb") as stream:
+            stream.write(b"parent evidence remains private after failed exec")
+        assert all(stat.S_IMODE(path.stat().st_mode) == 0o600 for path in (evidence, after_failure))
+        assert {path.name for path in tmp_path.iterdir()} == {
+            blob.name,
+            evidence.name,
+            after_failure.name,
+        }
+    finally:
+        os.umask(previous_mask)
+
+
+def test_alertmanager_assembly_child_umask_requires_absolute_interpreter(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from scripts.ci import prometheus_source_image as transport
+
+    monkeypatch.setattr(shutil, "which", lambda _name: "/absolute/docker")
+    monkeypatch.setattr(sys, "executable", "relative-python")
+    work = tmp_path / "pair"
+    with pytest.raises(transport.QualificationError, match="^AM_pair_interpreter$"):
+        docker_sources._alertmanager_pair(tmp_path, tmp_path, {}, work, {}, {}, 0)
+    assert not work.exists()
+
+
 @pytest.mark.parametrize(
     "fault",
     [
@@ -4636,7 +4710,7 @@ def test_alertmanager_future_stages_cannot_activate_compiler_or_publication(
         "changed-config",
     ],
 )
-def test_alertmanager_declared_pair_plan_binds_embedded_UI_and_readonly_source_without_build(
+def test_alertmanager_assembly_child_umask_plan_binds_embedded_UI_and_readonly_source_without_build(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fault: str | None
 ) -> None:
     import tarfile
@@ -4733,6 +4807,15 @@ def test_alertmanager_declared_pair_plan_binds_embedded_UI_and_readonly_source_w
     )
     assert plan["output_hashes"] is None and plan["produced_image_digest"] is None
     assert plan["assembly_execution"] == "UNOBSERVED_UNTIL_THE_ONE_SEPARATELY_ADMITTED_PAIR_BUILD"
+    assert plan["assembly_argv"][:7] == [
+        "<absolute-same-sys.executable>",
+        "-I",
+        "-S",
+        "-B",
+        "-c",
+        "import os, sys; os.umask(0o022); os.execv(sys.argv[1], sys.argv[1:])",
+        "docker",
+    ]
     assert (
         "oci-layout:///inputs/base-layout@sha256:"
         in plan["assembly_argv"][plan["assembly_argv"].index("--build-context") + 1]
@@ -4743,6 +4826,16 @@ def test_alertmanager_declared_pair_plan_binds_embedded_UI_and_readonly_source_w
         "final_uid": 65534,
         "final_gid": 65534,
     }
+    alternate_interpreter = str(
+        Path(sys.executable).parent / ".." / "bin" / Path(sys.executable).name
+    )
+    assert alternate_interpreter != sys.executable and Path(alternate_interpreter).is_file()
+    with monkeypatch.context() as other_host:
+        other_host.setattr(sys, "executable", alternate_interpreter)
+        assert (
+            docker_sources._alertmanager_input_plan(roots, frozen, {"go.mod": b"qualified lock\n"})
+            == plan
+        )
 
 
 @pytest.mark.parametrize("support_failure", [False, True])
@@ -6129,6 +6222,8 @@ def test_alertmanager_COPY_graph_rejects_real_subject_or_payload_drift(
         ("layout-uncertain", False),
         ("builder-network", False),
         ("assembly", False),
+        ("assembly-exec", False),
+        ("assembly-exec", True),
         (None, True),
         ("assembly", True),
         ("replaced-ID", True),
@@ -6174,6 +6269,7 @@ def test_alertmanager_offline_pair_real_owner_orders_two_launches_and_owned_clea
     original_write = Path.write_text
     original_copyfile = shutil.copyfile
     layout_errors: list[BaseException] = []
+    launch_errors: list[subprocess.CalledProcessError] = []
     layout_facts: list[dict[str, Any]] = []
     diagnostic_attempts: list[str] = []
     synthetic_leaf = "synthetic-leaf-\n\t\x1b\u2603"
@@ -6469,6 +6565,54 @@ def test_alertmanager_offline_pair_real_owner_orders_two_launches_and_owned_clea
             elif "inspect" in argv and argv[-1] in containers:
                 raw = json.dumps(containers[argv[-1]]).encode()
             elif name == "pair-only-COPY-assembly":
+                assert argv[:6] == [
+                    sys.executable,
+                    "-I",
+                    "-S",
+                    "-B",
+                    "-c",
+                    "import os, sys; os.umask(0o022); os.execv(sys.argv[1], sys.argv[1:])",
+                ]
+                assert argv[6:] == [
+                    "/absolute/docker",
+                    "--config",
+                    str(work / "docker-config"),
+                    "buildx",
+                    "build",
+                    "--builder",
+                    builder,
+                    "--platform=linux/amd64",
+                    "--provenance=false",
+                    "--sbom=false",
+                    "--annotation",
+                    "manifest-descriptor:org.opencontainers.image.ref.name=candidate",
+                    "--network=none",
+                    "--pull=false",
+                    "--build-context",
+                    "gcr.io/distroless/static-debian13@sha256:2293b36c7c9082bf4115aab724b4d2cddec82c8eba39bf27ac0517e159acf150=oci-layout://"
+                    + str(d["support"] / "base-layout")
+                    + "@"
+                    + docker_sources._ALERT_BASE_MANIFEST,
+                    "--file",
+                    str(work / "context/Containerfile"),
+                    "--output",
+                    "type=oci,tar=false,dest=" + str(work / "candidate-layout"),
+                    str(work / "context"),
+                ]
+                if fault == "assembly-exec":
+                    try:
+                        subprocess.run(
+                            [*argv[:6], str(work / "missing-docker")],
+                            cwd=work,
+                            env=env,
+                            capture_output=True,
+                            check=True,
+                            timeout=10,
+                        )
+                    except subprocess.CalledProcessError as error:
+                        launch_errors.append(error)
+                        raise
+                    pytest.fail("Missing executable unexpectedly succeeded")
                 recipe = (work / "context/Containerfile").read_bytes()
                 assert len(recipe) == 908
                 assert (
@@ -6695,9 +6839,13 @@ def test_alertmanager_offline_pair_real_owner_orders_two_launches_and_owned_clea
     }
     if fault not in successful_faults or observation_failure:
         expected_error = (
-            OSError
-            if fault in index_os_errors or fault in (None, "context-missing-recipe")
-            else ValueError if fault == "index-malformed" else RuntimeError
+            subprocess.CalledProcessError
+            if fault == "assembly-exec"
+            else (
+                OSError
+                if fault in index_os_errors or fault in (None, "context-missing-recipe")
+                else ValueError if fault == "index-malformed" else RuntimeError
+            )
         )
         with pytest.raises(expected_error) as caught:
             docker_sources._alertmanager_pair(
@@ -6854,6 +7002,9 @@ def test_alertmanager_offline_pair_real_owner_orders_two_launches_and_owned_clea
                 ) in str(caught.value)
         elif fault == "assembly":
             assert caught.value is primary_error
+        elif fault == "assembly-exec":
+            assert launch_errors == [caught.value]
+            assert caught.value.returncode != 0 and b"FileNotFoundError" in caught.value.stderr
         elif fault == "cleanup":
             assert caught.value is cleanup_error
         elif fault is None:
@@ -6881,6 +7032,12 @@ def test_alertmanager_offline_pair_real_owner_orders_two_launches_and_owned_clea
         assert result["compiler_attempts"] == 2 and result["graph"]["files"] == d["expected"]
         assert sum(name.endswith("-compile-attach") for name, _argv in calls) == 2
         assert sum(name == "pair-only-COPY-assembly" for name, _argv in calls) == 1
+        assembly_argv = next(argv for name, argv in calls if name == "pair-only-COPY-assembly")
+        assert result["assembly_argv"] == assembly_argv
+        assert (
+            next(row["argv"] for row in result["native_records"] if row["argv"] == assembly_argv)
+            == assembly_argv
+        )
         assert next(row for row in result["context"] if row["path"] == "Containerfile") == {
             "path": "Containerfile",
             "size": 908,

@@ -71,6 +71,13 @@ _ALERT_BUILD_METADATA = (
     "-X github.com/prometheus/common/version.BuildUser=pulseplate@builder "
     "-X github.com/prometheus/common/version.BuildDate=19700101-00:00:00"
 )
+_ALERT_ASSEMBLY_LAUNCH = (
+    "-I",
+    "-S",
+    "-B",
+    "-c",
+    "import os, sys; os.umask(0o022); os.execv(sys.argv[1], sys.argv[1:])",
+)
 _ALERT_Q_SOURCE_FILES = {
     "scripts/ci/fetch_docker_source_artifacts.py": "6f7775c25684725d11e57140c994203a9cc008ae805c01f49469fe28d88df648",
     ".github/workflows/cd.yml": "4e2abc1c8bab14bf97378b65e367433bb5b2435e08245fd12e2cd2cadba84ac0",
@@ -2979,6 +2986,8 @@ def _alertmanager_input_plan(
         "output_hashes": None,
         "produced_image_digest": None,
         "assembly_argv": [
+            "<absolute-same-sys.executable>",
+            *_ALERT_ASSEMBLY_LAUNCH,
             "docker",
             "--config",
             "<owned-pair-docker-config>",
@@ -4650,6 +4659,7 @@ def _alertmanager_pair(
 
     docker = shutil.which("docker")
     require(docker is not None and Path(docker).is_absolute(), "AM_pair_Docker")
+    require(Path(sys.executable).is_absolute(), "AM_pair_interpreter")
     docker = cast(str, docker)
     fresh_directory(work)
     evidence = work / "evidence"
@@ -4939,6 +4949,8 @@ def _alertmanager_pair(
         )
         layout = work / "candidate-layout"
         argv = [
+            sys.executable,
+            *_ALERT_ASSEMBLY_LAUNCH,
             *prefix,
             "buildx",
             "build",
