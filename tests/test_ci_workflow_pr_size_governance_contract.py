@@ -4858,6 +4858,13 @@ if args[:5] == ["-W", "error", "-m", "coverage", "combine"]:
 assert args[:3] == ["-m", "coverage", "run"]
 junit = next(a for a in args if a.startswith("--junitxml="))
 index = int(Path(junit.split("=", 1)[1]).stem.rsplit("-", 1)[1])
+if terminate_run is True and index == 2:
+    deadline = time.monotonic() + 10
+    while not (events / "partial-start-ready").exists():
+        assert time.monotonic() < deadline, "partial start publication probe never started"
+        time.sleep(0.01)
+    assert not (events / "start-1.json").exists(), "partial start event became visible"
+    (events / "partial-start-observed").touch()
 if index % 2 == 1 and index > 1:
     assert all((events / f"done-{i}.json").exists() for i in (index - 2, index - 1))
     if residual_child:
@@ -4903,7 +4910,23 @@ start = {
     "database_url": os.environ["DATABASE_URL"],
     "fallback_url": os.environ["DB_FALLBACK_URL"],
 }
-(events / f"start-{index}.json").write_text(json.dumps(start))
+start_path = events / f"start-{index}.json"
+staged_start = start_path.with_suffix(".pending")
+payload = json.dumps(start)
+with staged_start.open("w") as stream:
+    if terminate_run is True and index == 1:
+        # Force the peer to observe the publication boundary while JSON is incomplete.
+        stream.write(payload[:1])
+        stream.flush()
+        (events / "partial-start-ready").touch()
+        deadline = time.monotonic() + 10
+        while not (events / "partial-start-observed").exists():
+            assert time.monotonic() < deadline, "peer never checked partial publication"
+            time.sleep(0.01)
+        stream.write(payload[1:])
+    else:
+        stream.write(payload)
+staged_start.replace(start_path)
 assert len(list(events.glob("running-*"))) <= 2
 partner = index + 1 if index % 2 else index - 1
 if partner <= batch_count:
@@ -4971,6 +4994,10 @@ raise SystemExit(status)
         else (1 if failed_batch or missing_data or stale_data or cleanup_failure else 0)
     )
     assert result.returncode == expected_exit, result.stderr
+    assert not list(events.glob("start-*.pending"))
+    if terminate_run is True:
+        assert (events / "partial-start-ready").exists()
+        assert (events / "partial-start-observed").exists()
     if cleanup_failure:
         assert "Contract/risk batch 1 exited " + str(7 if failed_batch else 0) in result.stdout
         assert result.stdout.count("Contract/risk cleanup exited 1") == 1
