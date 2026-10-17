@@ -1721,9 +1721,9 @@ If it is not recorded here — it does not exist.
   - Owner: @katsiaryna_kavaleuskaya (CI and orchestration governance)
   - Priority: P1
   - Target PR: [PR #2455](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2455) (CONSOL-ORCH-1)
-  - Status: Implementation in progress after CONSOL-CI-1 (#2446) merge; exact-head ORCH proof and merge remain pending
+  - Status: Implementation PR #2455 merged as `5e09142246cd05de7ff7ebba918b5b804dc4f742`; the substantive Legacy consolidation carries this merge receipt. This does not close the complete CONSOL-ORCH-1/v1 outcome: Cloud applied runtime remains unknown, the separate Cloud migration question is unanswered, historical evidence gaps and verified owned cleanup remain unproven. The ledger item stays open until its individually required evidence is reconciled.
   - Area: CI / merge governance
-  - Reason (EN): CONSOL-CI-1 (#2446) supplied the verified dual-checkout verifier interface on protected main. CONSOL-ORCH-1 must now switch hosted execution to the exact authenticated base SHA and inspect exact PR-head material separately; its current-head workflow, native-dispatch, candidate-handoff, promotion, path, disposition, and Slack checks remain unproven until the implementation PR's own gates complete.
+  - Reason (EN): CONSOL-CI-1 (#2446) supplied the verified dual-checkout verifier interface on protected main, and merged CONSOL-ORCH-1 (#2455) supplied the implementation carrier. Retained exact-head and post-merge receipts have their own scope and cutoffs; they do not substitute for missing historical proof, Cloud runtime/migration evidence, all79 individual outcome criteria or verified recovery and cleanup. The remaining outcome is reconciled through the substantive Legacy carrier, without a standalone docs-only closeout PR or new work on the merged branch.
   - Links: `.github/workflows/ci.yml`, `scripts/ci/check_pr_merge_readiness.py`, `tests/test_pr_merge_readiness_gate.py`
   - DoD: Use distinct credential-free base and head checkouts, invoke only the base verifier with `--material-repo-root`, reject wrong identities or untrusted material imports, and pass current-head CI and strict merge-readiness evidence.
 
@@ -9656,6 +9656,73 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     consumer paths, and exclusions are in
     `docs/architecture/LEGACY_COMPATIBILITY_SEAM.md`. This child extended the
     finite guard to 87 and preserved HTTP, auth, OpenAPI, and app identity.
+    Guard consolidation (EN): `codex/consolidate-legacy-ownership-guard` repairs
+    the original class-mapping, lexical OpenAPI, exception-type/header and
+    full-owner API-key recognizer mechanisms from source PR #2433–#2436 in their
+    existing seams. Source implementation is separate from native behavior,
+    current-head gates and review. Each source PR remains open until the
+    consolidated separately authorized merge and its individual semantic
+    transfer/disposition; no source cherry-pick or premature closure is implied.
+    Preserve the original 87-name prefix AND the independently inherited four-name
+    retirement tail, every admitted negative/allowed control and unchanged loop
+    budgets. Carryover #2447 and #2455 are already merged; #2455's merge receipt
+    is `5e09142246cd05de7ff7ebba918b5b804dc4f742`. Cloud applied runtime remains
+    unknown, its separate migration question unanswered, and all 79 individual
+    outcomes, historical evidence and verified owned cleanup remain separately
+    required. This substantive carrier does not close `PROJECT_LEGACY` or open
+    a new retirement cohort or docs-only PR.
+    Current-main amendment (EN, direct owner 2026-10-17): PR #2476 also owns
+    the bounded Prometheus publisher inventory and automatic Codespaces prebuild
+    failures exposed after merged #2477 (`99b692dfd431d8dcc90c1d60d28f3c9fcfddb5b7`).
+    Owner: existing coordinator with root dev-operator and security-auditor.
+    Priority: P1; Target PR: #2476; Status: OPEN, admitted and not yet achieved.
+    The owner explicitly approved the complete 20-path cohort, one additional
+    ORAS qualification/compile plus one pair of two serial Prometheus logical
+    images, and the precise before-build canonical source initializer. Original
+    Tool2/2 and Prometheus2/2 expenditure remains historical; no automatic retry,
+    slot reset, further build, suppression, fallback or deployment is authorized.
+    Scanner false-positive clarification (EN, PR #2476): exactly the three
+    `PROMETHEUS_CONTRACT_HELPER_SHA256` caller literals, two immutable public Git
+    source heads in the existing history arm, and their two test copies use the
+    existing same-line `# pragma: allowlist secret` marker. The caller values
+    bind reviewed helper bytes; the historical values are the public source
+    identities of [ORAS run 38269614712](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/38269614712)
+    and [pair run 38291450453](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/38291450453).
+    Evidence anchors: `scripts/ci/prometheus_source_image.py:4525`,
+    `tests/test_prometheus_source_image.py:5359`, `scripts/deploy.sh:220`,
+    `scripts/QUICK_FIX_PRODUCTION.sh:109`, `scripts/deploy_production.sh:633`.
+    These seven source identities are not credentials or a vulnerability-risk
+    waiver. No broad exclusion, plugin/filter/threshold change, baseline addition,
+    digest splitting, credential change or hook skip is permitted. Preserve the
+    full secrets scan and required gates; inspect/remove the exact annotation if
+    its literal ceases to be a public source identity. A native-generated trim
+    of obsolete caller fingerprints, if observed, belongs to a separate ordinary
+    baseline-only commit while source bytes remain preserved; do not fabricate
+    baseline edits or mixed source/baseline proof. This closes no broader cleanup
+    item and grants no native retry, further build or security exception.
+    Standalone helper hashes must bind final reviewed current bytes before normal
+    source publication; credentialled CI/CD fixed control coordinates follow
+    actual published-source/blob/size/hash/reachability verification. Full raw
+    producer binding, existing deadlines and current-head gates remain mandatory.
+    Publisher evidence: [Docker run 38990001924](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/38990001924)
+    failed `package_complete_inventory_bound`; 100 full pages do not prove a
+    complete inventory. [Codespaces run 38990001396](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/38990001396)
+    failed on missing prefetched zlib patch inputs before image creation.
+    DoD: actual bounded inventory/capture/caller controls and current local/CI
+    proof; authenticated one-tool/one-pair native outputs through the existing
+    prepared/selected manifest; actual repaired merged-main publication and
+    affected downstream CD-Test; real configured automatic Codespaces prebuild
+    with the full SDK/wheelhouse path preserved. Missing or failed native/hosted
+    outcomes are not achieved by approval, static tests, CI elsewhere or merge.
+    Normal configured automatic prebuild after the accepted exact initializer
+    requires no separate SDK-budget or personal published-S1 approval ritual.
+    Preserve the separately owner-deferred Native R001 A1/A2, current binding of
+    eight consumers, selected backend native/source/full-inventory binding and
+    final-material Oracle as unachieved carryover due 2026-10-23; this repair
+    does not close those four blocks, all 166 Dependency criteria, original
+    79 consolidation outcomes, Cloud applied runtime or PROJECT_LEGACY. Existing
+    publisher topology, Alertmanager, annotation and operational-alerting owners,
+    expiry dates and rollback boundaries remain unchanged.
     Carryover: [PR #2457](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2457)
     merged on 2026-09-30T10:35:36Z with squash
     `6e09f4ea8cc33e8389d99075b6f6a0d10f1b725e`; its canonical TargetsIn

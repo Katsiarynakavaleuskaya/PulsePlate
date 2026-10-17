@@ -99,11 +99,20 @@ def test_devcontainer_json_configuration() -> None:
     assert data["remoteUser"] == "vscode"
 
 
-def test_devcontainer_json_does_not_auto_execute_workspace_bootstrap() -> None:
-    """Opening the devcontainer must not auto-run repository-controlled code."""
+def test_devcontainer_json_limits_trusted_before_build_source_preparation() -> None:
+    """Only the OWNER-admitted source fetcher runs before image creation."""
     data = json.loads((DEVCONTAINER_DIR / "devcontainer.json").read_text(encoding="utf-8"))
 
-    assert "initializeCommand" not in data
+    assert data.get("initializeCommand") == [
+        "/usr/bin/env",
+        "-i",
+        "PATH=/usr/bin:/bin",
+        "LANG=C.UTF-8",
+        "/usr/bin/python3",
+        "-I",
+        "-S",
+        "scripts/ci/fetch_docker_source_artifacts.py",
+    ]
     assert "postCreateCommand" not in data
     assert "onCreateCommand" not in data
     assert "updateContentCommand" not in data

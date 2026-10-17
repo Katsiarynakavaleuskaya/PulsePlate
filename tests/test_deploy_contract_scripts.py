@@ -1777,6 +1777,7 @@ def test_cd_postgres_reuse_scans_and_inspects_the_same_immutable_subject(
 
 def test_cd_postgres_reuse_terminally_rechecks_current_main_and_canonical_tag(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     workflow = yaml.safe_load((REPO_ROOT / ".github/workflows/cd.yml").read_text(encoding="utf-8"))
     reuse_steps = workflow["jobs"]["postgres-pgvector-reuse"]["steps"]
@@ -1787,31 +1788,36 @@ def test_cd_postgres_reuse_terminally_rechecks_current_main_and_canonical_tag(
     assert reuse_run.index(marker) > reuse_run.index(
         'index .Config.Labels "com.pulseplate.pgvector.version"'
     )
-    ci_workflow = yaml.safe_load(
-        (REPO_ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
-    )
+    ci_workflow_bytes = (REPO_ROOT / ".github/workflows/ci.yml").read_bytes()
+    ci_workflow = yaml.safe_load(ci_workflow_bytes)
     filter_step = next(
         step for step in ci_workflow["jobs"]["changes"]["steps"] if step.get("id") == "filter"
     )
     compatibility_paths = yaml.safe_load(filter_step["with"]["filters"])["pgvector_compat"]
     from scripts.ci import check_pgvector_attestations as material_helper
 
-    assert set(compatibility_paths).issubset(material_helper.material_rules("HEAD"))
+    def tested_workflow_git_output(arguments: list[str]) -> bytes:
+        assert arguments == ["show", "tested-workflow:.github/workflows/ci.yml"]
+        return ci_workflow_bytes
+
+    # Parse the same proposed workflow that the YAML consumer above inspected.
+    # A commit hook's HEAD still names the previous committed workflow.
+    with monkeypatch.context() as source_context:
+        source_context.setattr(material_helper, "git_output", tested_workflow_git_output)
+        assert set(compatibility_paths).issubset(material_helper.material_rules("tested-workflow"))
     assert "scripts/ci/check_pgvector_attestations.py unchanged" in terminal_program
 
     git_bin = shutil.which("git", path=os.defpath)
     bash_bin = shutil.which("bash")
     assert git_bin is not None and bash_bin is not None
-    git_environment = {
-        key: value for key, value in os.environ.items() if not key.startswith("GIT_")
-    }
+    git_environment = git_env_without_parent_state()
     remote = tmp_path / "remote.git"
     source = tmp_path / "source"
     runner = tmp_path / "runner"
 
     def git(cwd: Path, *arguments: str) -> str:
         completed = subprocess.run(
-            [git_bin, *arguments],
+            [git_bin, *safe_git_config_args(), *arguments],
             cwd=cwd,
             env=git_environment,
             text=True,
@@ -1955,11 +1961,11 @@ def test_cd_postgres_reuse_terminally_rechecks_current_main_and_canonical_tag(
 
 def test_cd_postgres_material_classifier_and_terminal_admission_execute_exact_programs(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     workflow = yaml.safe_load((REPO_ROOT / ".github/workflows/cd.yml").read_text(encoding="utf-8"))
-    ci_workflow = yaml.safe_load(
-        (REPO_ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
-    )
+    ci_workflow_bytes = (REPO_ROOT / ".github/workflows/ci.yml").read_bytes()
+    ci_workflow = yaml.safe_load(ci_workflow_bytes)
     jobs = workflow["jobs"]
     classifier_program = jobs["postgres-pgvector-material-change"]["steps"][1]["run"]
     admission_program = jobs["postgres-pgvector-admission"]["steps"][0]["run"]
@@ -1969,14 +1975,22 @@ def test_cd_postgres_material_classifier_and_terminal_admission_execute_exact_pr
     pgvector_compat_paths = yaml.safe_load(filter_step["with"]["filters"])["pgvector_compat"]
     from scripts.ci import check_pgvector_attestations as material_helper
 
-    assert set(pgvector_compat_paths).issubset(material_helper.material_rules("HEAD"))
+    def tested_workflow_git_output(arguments: list[str]) -> bytes:
+        assert arguments == ["show", "tested-workflow:.github/workflows/ci.yml"]
+        return ci_workflow_bytes
+
+    # Parse the same proposed workflow that the YAML consumer above inspected.
+    # A commit hook's HEAD still names the previous committed workflow.
+    with monkeypatch.context() as source_context:
+        source_context.setattr(material_helper, "git_output", tested_workflow_git_output)
+        assert set(pgvector_compat_paths).issubset(
+            material_helper.material_rules("tested-workflow")
+        )
     assert "scripts/ci/check_pgvector_attestations.py changes" in classifier_program
     git_bin = shutil.which("git", path=os.defpath)
     bash_bin = shutil.which("bash")
     assert git_bin is not None and bash_bin is not None
-    git_environment = {
-        key: value for key, value in os.environ.items() if not key.startswith("GIT_")
-    }
+    git_environment = git_env_without_parent_state()
     fixture_root = tmp_path / "git-fixture"
     (fixture_root / ".github" / "workflows").mkdir(parents=True)
     (fixture_root / "deploy" / "postgres-pgvector").mkdir(parents=True)
@@ -1992,7 +2006,7 @@ def test_cd_postgres_material_classifier_and_terminal_admission_execute_exact_pr
 
     def git(*arguments: str) -> str:
         completed = subprocess.run(
-            [git_bin, *arguments],
+            [git_bin, *safe_git_config_args(), *arguments],
             cwd=fixture_root,
             env=git_environment,
             text=True,
