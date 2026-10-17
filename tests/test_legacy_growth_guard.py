@@ -164,6 +164,7 @@ RETIRED_RATE_LIMIT_BINDINGS = RETIRED_LEGACY_PYTHON_BINDINGS[117:130]
 
 
 def test_retired_api_key_tail_is_exact_and_disjoint() -> None:
+    """Append only the selected API-key pair while preserving the prior 130 names."""
     prior = RETIRED_LEGACY_PYTHON_BINDINGS[:130]
     selected = RETIRED_LEGACY_PYTHON_BINDINGS[130:132]
     assert len(prior) == len(set(prior)) == 130
@@ -191,6 +192,7 @@ def test_retired_api_key_tail_is_exact_and_disjoint() -> None:
     ),
 )
 def test_retired_api_key_binding_carriers(binding_name: str, source_template: str) -> None:
+    """Reject each selected Legacy name through the existing binding carriers."""
     assert legacy_guard.validate_retired_legacy_python_bindings(
         source_template.format(name=binding_name)
     ) == [f"legacy_app.py: retired Python compatibility binding is forbidden: {binding_name}"]
@@ -198,6 +200,7 @@ def test_retired_api_key_binding_carriers(binding_name: str, source_template: st
 
 @pytest.mark.parametrize("binding_name", ("get_api_key", "_get_api_key_dynamic"))
 def test_retired_api_key_guard_allows_canonical_and_local_mentions(binding_name: str) -> None:
+    """Keep canonical definitions and harmless nonbinding Legacy mentions permitted."""
     assert (
         legacy_guard.validate_retired_legacy_python_bindings(
             f"{binding_name} = canonical\n",
@@ -220,6 +223,7 @@ def test_retired_api_key_guard_rejects_canonical_reimport(
     binding_name: str,
     same_name_alias: bool,
 ) -> None:
+    """Reject plain and same-name canonical imports through retirement and growth checks."""
     suffix = f" as {binding_name}" if same_name_alias else ""
     source = f"from app.routers.api_key import {binding_name}{suffix}\n"
     assert legacy_guard.validate_retired_legacy_python_bindings(source) == [
@@ -239,11 +243,13 @@ def test_retired_api_key_reimport_fails_aggregate_guard(
     same_name_alias: bool,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Require both intended aggregate diagnostics after restoring one retired import."""
     assert legacy_guard.validate_repo(REPO_ROOT) == []
     original_read = legacy_guard._read
     suffix = f" as {binding_name}" if same_name_alias else ""
 
     def read_with_restoration(path: Path, repo_root: Path, errors: list[str]) -> str | None:
+        """Restore only the selected import in the existing guard's Legacy source read."""
         source = original_read(path, repo_root, errors)
         if path == REPO_ROOT / "legacy_app.py" and source is not None:
             return source + f"\nfrom app.routers.api_key import {binding_name}{suffix}\n"
@@ -3473,6 +3479,7 @@ def test_api_key_ownership_guard_accepts_direct_identity_preserving_reexports() 
 
 
 def test_api_key_ownership_guard_accepts_retired_legacy_surface() -> None:
+    """Accept absent Legacy aliases when application consumers import the canonical owner."""
     assert (
         legacy_guard.validate_api_key_dependency_ownership(
             "",

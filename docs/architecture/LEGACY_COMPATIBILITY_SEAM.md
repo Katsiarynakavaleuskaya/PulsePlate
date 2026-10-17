@@ -462,8 +462,9 @@ merge permission and granted no bypass of this PR's required gates.
 
 ## Legacy API-key Python export retirement
 
-The `LEGACY-API-KEY-EXPORT-RETIREMENT-1/v1` child is in implementation on
-`codex/retire-legacy-api-key-exports`; its PR number is not assigned yet. Exactly
+The `LEGACY-API-KEY-EXPORT-RETIREMENT-1/v1` child is OPEN in
+[PR #2492](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2492), on
+`codex/retire-legacy-api-key-exports`. Exactly
 `get_api_key` and `_get_api_key_dynamic` retire from `legacy_app.py`, with no new
 authentication behavior. The independent ordered inventory appends only this
 cohort at `[130:132]`, retaining every prior130 member and rate-limit
@@ -481,6 +482,30 @@ configuration, normalization and exact403/500 errors do not change. The new
 real protected BMR smoke checks invalid-key denial before calculation and
 configured-key success through the unchanged authentication dependency.
 
+### Selected API-key import migration — PR #2492
+
+PR #2492 intentionally removes exactly these two Python import paths. After this
+change, either selected import from `legacy_app` raises `ImportError`. Consumers
+of this pair must migrate before upgrading to the revision containing this
+retirement:
+
+```python
+# Before: retired by PR #2492.
+from legacy_app import get_api_key, _get_api_key_dynamic
+
+# After: import the same callables from their canonical owner.
+from app.routers.api_key import get_api_key, _get_api_key_dynamic
+```
+
+The finite package16 compatibility surface, including `app.get_api_key` and
+`app._get_api_key_dynamic`, remains supported by its existing contract. HTTP
+endpoints and exact callable/dependency identities are unchanged. The tracked
+consumer census and fresh-process checks do not establish migration of unknown
+external or computed callers. This notice covers only the selected two-name
+retirement; it creates no general versioning or support policy.
+
+### Reviewed behavior and lifecycle cutoff
+
 Only the obsolete Legacy exact-alias presence requirement and its two allowed
 router-import facts are removed from the existing guard. Its ownership
 component still recognizes identity-preserving imports; the independent
@@ -494,12 +519,26 @@ and test controls, not universal caller, auth or operating-system isolation proo
 The complete incoming #2490 reconciliation was applied and committed first at
 `16a6a3635747f86d86ec0e89a8fd45ca1cac12df`, updating the existing rate-limit
 section and ledger anchor with original Target PR #2490 and incoming #2489/#2488
-retained. It is APPLIED / COMMITTED / INCLUDED IN THIS DIFF; its receiving
-review and later reconciliation in main require their actual observations.
+retained. It is APPLIED / COMMITTED / INCLUDED IN THE REVIEWED DIFF; the actual
+pre-open and post-open role reviews consumed that first commit. Reconciliation
+in receiving main still requires the separately authorized merge and proof.
 
-Own focused/narrow/current-head CI, premortem, admitted Oracle, post-open roles,
-self-review, dispositions, seal, strict readiness and review wait remain required;
-this implementation record claims none of their pending outcomes. A separate
+At the reviewed-head cutoff `a5f395dbfab5abaf86bf3cd24eda642802b1beb2`, own
+focused tests passed 2229 cases and host preservation passed 310; required narrow gates,
+actual pre-open premortems, admitted Oracle and the declared post-open
+Coordinator/QA/Bug Hunter/Security chain completed. The phase Oracle separately
+passed 2229 and preservation 309 with one existing toolchain-conditional skip;
+that skip is not guest full-pipeline proof. Stored canonical CI 39046595879 has
+successful security, Phase2 and OpenAPI sync plus successful Python setup in
+lint/test-pr/security; lint/test-pr were still pending at that observation.
+Merge readiness failed because the canonical PR2492 mapping blob was absent.
+The earlier CI 39046014523 SDK zlib SHA3 failure remains retained, without digest
+weakening or a permanent acquisition root-cause fix claim. This bounded review
+correction addresses actual-number documentation, selected import migration and
+new/modified test docstrings; its new-head narrow/Oracle/current-head CI and
+coverage proof remain pending. Final self-review, review dispositions, seal,
+pre-closeout, single mapping publication, strict readiness and review wait also
+remain required. No provider PASS or no-findings claim is made. A separate
 exact-head human merge decision precedes post-main proof, recoverable archive,
 same-ID continuity/readback, outgoing carryover and owned cleanup. Every original
 D1-D8 remains required. PROJECT_LEGACY stays OPEN, R29 PARTIAL / UNWAIVED,

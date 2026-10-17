@@ -69,6 +69,7 @@ def _dependency_calls_by_identity(route: object) -> tuple[object, ...]:
 
 
 def test_api_key_dependencies_have_canonical_package_aliases_without_legacy_bindings() -> None:
+    """Preserve canonical package aliases while retiring both Legacy bindings."""
     assert app_package.api_key_header is canonical_api_key.api_key_header
     assert canonical_api_key.get_api_key.__module__ == "app.routers.api_key"
     assert canonical_api_key._get_api_key_dynamic.__module__ == "app.routers.api_key"
@@ -268,6 +269,7 @@ def test_dynamic_dependency_honors_app_facade_override(
 
 
 def test_fastapi_dependency_override_uses_canonical_callable_identity() -> None:
+    """Resolve FastAPI overrides keyed by the exact canonical dependency object."""
     target_app = FastAPI()
 
     @target_app.get("/protected", dependencies=[Depends(canonical_api_key._get_api_key_dynamic)])
@@ -358,6 +360,7 @@ def test_real_bmr_route_authenticates_before_downstream(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Reject invalid keys before calculation and accept the configured key on the real route."""
     from app.routers import legacy_premium_nutrition as nutrition_router
     from app.schemas.bmr import BMRRequest, BMRResponse
 
@@ -388,6 +391,7 @@ def test_real_bmr_route_authenticates_before_downstream(
     )
 
     async def calculate(req: BMRRequest) -> BMRResponse:
+        """Record downstream calls without replacing the route's authentication dependency."""
         calls.append(req)
         return result
 

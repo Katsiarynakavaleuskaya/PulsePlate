@@ -347,6 +347,7 @@ def test_legacy_retirement_probe_excludes_ambient_credentials(
 def test_api_key_retirement_preserves_canonical_identity_in_fresh_orders(
     import_order: str,
 ) -> None:
+    """Prove Legacy absence and canonical identity through two distinct fresh import orders."""
     imports = (
         "assert 'app.routers.api_key' not in sys.modules\n"
         "assert 'legacy_app' not in sys.modules\n"
