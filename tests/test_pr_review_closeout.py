@@ -9,7 +9,7 @@ import stat
 import subprocess
 from argparse import Namespace
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import pytest
 
@@ -423,7 +423,9 @@ def test_retire_stale_rejects_uncertainty_without_deleting(
     fixture = _retirement_fixture(tmp_path, monkeypatch, stale=mutation != "current")
     repo, target, args = fixture["repo"], fixture["target"], fixture["args"]
     draft = closeout._state_path(42)
-    if mutation == "draft-proof":
+    if mutation == "current":
+        pass
+    elif mutation == "draft-proof":
         state = fixture["state"] | {"dispositions": [{"disposition": "FIXED", "commit": "a" * 40}]}
         closeout._write_state(state)
     elif mutation == "fetch-draft-proof":
@@ -566,11 +568,23 @@ def test_retire_stale_rejects_uncertainty_without_deleting(
             ),
             encoding="utf-8",
         )
-    else:
+    elif mutation == "nonfinite-draft":
         draft.write_text(
             draft.read_text().replace('"packet":null', '"packet":NaN'), encoding="utf-8"
         )
+    else:
+        raise AssertionError(f"unsupported retirement mutation: {mutation}")
     before = target.read_bytes()
+    if mutation == "current":
+        index = repo / ".git/index"
+        state_before = before, index.read_bytes(), draft.read_bytes()
+        with pytest.raises(closeout.CloseoutError) as rejected:
+            closeout._cmd_retire_stale(args)
+        assert str(rejected.value) == (
+            "retirement requires positive base, merge-base or digest staleness"
+        )
+        assert (target.read_bytes(), index.read_bytes(), draft.read_bytes()) == state_before
+        return
     with pytest.raises(
         (closeout.CloseoutError, evidence.ReviewEvidenceError, identity.CommitIdentityError)
     ):
@@ -582,6 +596,48 @@ def test_retire_stale_rejects_uncertainty_without_deleting(
         ]
     if mutation != "terminal-worktree-drift":
         assert target.read_bytes() == before
+
+
+@pytest.mark.parametrize("pr_number", [0, -1, True, False, 42.0, "42", None])
+def test_closeout_state_dir_rejects_invalid_pr_numbers(pr_number: object) -> None:
+    """Reject nonpositive or non-integer PR identities at the actual directory guard."""
+    assert closeout._state_dir(42) == closeout.STATE_ROOT / "PR_42"
+    with pytest.raises(closeout.CloseoutError) as rejected:
+        closeout._state_dir(cast(int, pr_number))
+    assert str(rejected.value) == "pr_number must be positive"
+
+
+@pytest.mark.parametrize("index_form", ["relative", "absolute"])
+def test_retire_stale_local_binding_preserves_real_index_paths(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, index_form: str
+) -> None:
+    """Bind unchanged canonical, index and draft bytes using either real index-path form."""
+    fixture = _retirement_fixture(tmp_path, monkeypatch)
+    repo, target = fixture["repo"], fixture["target"]
+    real_git = closeout._git
+    native_index = Path(real_git("rev-parse", "--git-path", "index"))
+    index = native_index if native_index.is_absolute() else repo / native_index
+    index = index.resolve(strict=True)
+    draft = closeout._state_path(42)
+    before = target.read_bytes(), index.read_bytes(), draft.read_bytes()
+    observed: list[str] = []
+
+    def render_index_path(*args: str) -> str:
+        """Render only the real Git index lookup while every Git operation still executes."""
+        response = real_git(*args)
+        if args == ("rev-parse", "--git-path", "index"):
+            actual = Path(response)
+            assert (actual if actual.is_absolute() else repo / actual).resolve(strict=True) == index
+            response = str(index) if index_form == "absolute" else os.path.relpath(index, repo)
+            assert Path(response).is_absolute() == (index_form == "absolute")
+            observed.append(response)
+        return response
+
+    monkeypatch.setattr(closeout, "_git", render_index_path)
+    bound = closeout._retirement_local_binding(42, fixture["snapshot"].head_sha)
+    assert len(observed) == 1
+    assert bound == before
+    assert (target.read_bytes(), index.read_bytes(), draft.read_bytes()) == before
 
 
 def _ordinary_retirement_closeout_fixture(
