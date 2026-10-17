@@ -1261,7 +1261,9 @@ def _native_query_lifetime(directory: Path, prometheus_image_id: str) -> None:
             raise cleanup_errors[0]
 
 
-def _native_amtool_lifetime(directory: Path) -> None:
+def _native_amtool_lifetime(
+    directory: Path, image: str = ALERTMANAGER_IMAGE, *, independent: bool = False
+) -> None:
     release = threading.Event()
     entered = threading.Event()
     methods: list[str] = []
@@ -1299,11 +1301,14 @@ def _native_amtool_lifetime(directory: Path) -> None:
         config.chmod(0o444)
         compose = directory / "amtool-compose.yaml"
         compose.write_text(
-            f"services:\n  alertmanager:\n    profiles: [alerting]\n    image: {ALERTMANAGER_IMAGE}\n    platform: linux/amd64\n    user: '65534:65534'\n    cap_drop: [ALL]\n    security_opt: ['no-new-privileges:true']\n    read_only: true\n    network_mode: host\n    tmpfs: ['/alertmanager:uid=65534,gid=65534,mode=0700,size=16m']\n    command: ['--config.file=/etc/alertmanager/alertmanager.yml', '--storage.path=/alertmanager', '--cluster.listen-address=', '--web.listen-address=127.0.0.1:19093']\n    volumes: ['{config}:/etc/alertmanager/alertmanager.yml:ro']\n"
+            f"services:\n  alertmanager:\n    profiles: [alerting]\n    image: {image}\n    pull_policy: never\n    platform: linux/amd64\n    user: '65534:65534'\n    cap_drop: [ALL]\n    security_opt: ['no-new-privileges:true']\n    read_only: true\n    network_mode: host\n    tmpfs: ['/alertmanager:uid=65534,gid=65534,mode=0700,size=16m']\n    command: ['--config.file=/etc/alertmanager/alertmanager.yml', '--storage.path=/alertmanager', '--cluster.listen-address=', '--web.listen-address=127.0.0.1:19093']\n    volumes: ['{config}:/etc/alertmanager/alertmanager.yml:ro']\n"
         )
-        selected_manifest = directory / "prometheus/image-manifest.json"
-        selected_manifest.parent.mkdir(exist_ok=True)
-        selected_manifest.write_bytes((ROOT / "deploy/prometheus/image-manifest.json").read_bytes())
+        if not independent:
+            selected_manifest = directory / "prometheus/image-manifest.json"
+            selected_manifest.parent.mkdir(exist_ok=True)
+            selected_manifest.write_bytes(
+                (ROOT / "deploy/prometheus/image-manifest.json").read_bytes()
+            )
         prefix = ["docker", "compose", "-f", str(compose)]
         failures: list[str] = []
         compose_attempted = True
@@ -1337,8 +1342,13 @@ def _native_amtool_lifetime(directory: Path) -> None:
         ), "ordinary fixture response failed to finish task"
         release.clear()
         entered.clear()
+        sender = (
+            f"tests.test_notify_premium_alias_checkpoint_failure --amtool-fixture-send {compose}"
+            if independent
+            else f"scripts.ops.notify_premium_alias_checkpoint_failure --compose-file {compose} --environment staging"
+        )
         unit_file.write_text(
-            f"[Service]\nType=oneshot\nWorkingDirectory={ROOT}\nExecStart={sys.executable} -m scripts.ops.notify_premium_alias_checkpoint_failure --compose-file {compose} --environment staging\nTimeoutStartSec=16min\nTimeoutStopSec=10s\nKillMode=control-group\nRestart=no\n"
+            f"[Service]\nType=oneshot\nWorkingDirectory={ROOT}\nExecStart={sys.executable} -m {sender}\nTimeoutStartSec=16min\nTimeoutStopSec=10s\nKillMode=control-group\nRestart=no\n"
         )
         _native(["sudo", "systemctl", "daemon-reload"])
         _native(["sudo", "systemctl", "start", "--no-block", unit])
@@ -1436,7 +1446,7 @@ def _native_alertmanager_render(prefix: list[str]) -> None:
     print("native_alertmanager_html_escape=pass", flush=True)
 
 
-def _native_alertmanager(directory: Path) -> None:
+def _native_alertmanager(directory: Path, image: str = ALERTMANAGER_IMAGE) -> None:
     """Actual pinned AM, exact route timings, private synthetic TLS SMTP receiver."""
     from socketserver import StreamRequestHandler, ThreadingTCPServer
 
@@ -1551,7 +1561,7 @@ def _native_alertmanager(directory: Path) -> None:
             template_data.chmod(0o444)
             compose = directory / "compose.yaml"
             compose.write_text(
-                f"services:\n  alertmanager:\n    profiles: [alerting]\n    image: {ALERTMANAGER_IMAGE}\n    platform: linux/amd64\n    user: '65534:65534'\n    read_only: true\n    cap_drop: [ALL]\n    security_opt: ['no-new-privileges:true']\n    network_mode: host\n    extra_hosts: ['smtp.resend.com:127.0.0.1']\n    command: ['--config.file=/etc/alertmanager/alertmanager.yml', '--storage.path=/alertmanager', '--cluster.listen-address=', '--web.listen-address=127.0.0.1:9093']\n    tmpfs: ['/alertmanager:uid=65534,gid=65534,mode=0700,size=16m']\n    volumes:\n      - {configuration}:/etc/alertmanager/alertmanager.yml:ro\n      - {secret}:/run/secrets/alertmanager_smtp_key:ro\n      - {cert}:/etc/ssl/certs/ca-certificates.crt:ro\n"
+                f"services:\n  alertmanager:\n    profiles: [alerting]\n    image: {image}\n    pull_policy: never\n    platform: linux/amd64\n    user: '65534:65534'\n    read_only: true\n    cap_drop: [ALL]\n    security_opt: ['no-new-privileges:true']\n    network_mode: host\n    extra_hosts: ['smtp.resend.com:127.0.0.1']\n    command: ['--config.file=/etc/alertmanager/alertmanager.yml', '--storage.path=/alertmanager', '--cluster.listen-address=', '--web.listen-address=127.0.0.1:9093']\n    tmpfs: ['/alertmanager:uid=65534,gid=65534,mode=0700,size=16m']\n    volumes:\n      - {configuration}:/etc/alertmanager/alertmanager.yml:ro\n      - {secret}:/run/secrets/alertmanager_smtp_key:ro\n      - {cert}:/etc/ssl/certs/ca-certificates.crt:ro\n"
                 f"      - {template_data}:/email-template-data.json:ro\n"
             )
             docker = shutil.which("docker")
@@ -1775,6 +1785,87 @@ def _native_compose_configuration(directory: Path) -> None:
         print("native_compose_configuration_positive=pass", flush=True)
 
 
+def native_alertmanager_main(image_id: str, config_sha256: str) -> None:
+    """Explicit local-image AM fixtures, independent of Prometheus publication state."""
+    assert sys.platform == "linux", "native mode requires the existing Linux CI runner"
+    assert re.fullmatch(
+        r"sha256:[0-9a-f]{64}", image_id
+    ), "one immutable local AM image ID required"
+    config = ROOT / "deploy/alertmanager/alertmanager.yml"
+    assert config_sha256 == "5dc1025c293763618febeb74c17edcb126ad943f9b20c2296c67847e9f977549"
+    assert (
+        not config.is_symlink() and hashlib.sha256(config.read_bytes()).hexdigest() == config_sha256
+    )
+    observed = prometheus_image.one_object(
+        _native(["docker", "image", "inspect", "--format", "{{json .}}", image_id]).stdout.encode()
+    )
+    assert (
+        observed.get("Id") == image_id
+        and observed.get("Os") == "linux"
+        and observed.get("Architecture") == "amd64"
+    )
+    assert observed.get("Config", {}).get("User") == "65534:65534"
+    for name in ("alertmanager", "amtool"):
+        version = _native(
+            [
+                "docker",
+                "run",
+                "--rm",
+                "--pull=never",
+                "--network=none",
+                "--read-only",
+                "--user=65534:65534",
+                "--cap-drop=ALL",
+                "--security-opt=no-new-privileges:true",
+                "--entrypoint=/bin/" + name,
+                image_id,
+                "--version",
+            ]
+        )
+        assert "version 0.34.1" in version.stdout + version.stderr
+    _native(
+        [
+            "docker",
+            "run",
+            "--rm",
+            "--pull=never",
+            "--network=none",
+            "--read-only",
+            "--user=65534:65534",
+            "--cap-drop=ALL",
+            "--security-opt=no-new-privileges:true",
+            "--mount",
+            "type=bind,source="
+            + str(config)
+            + ",target=/etc/alertmanager/alertmanager.yml,readonly",
+            "--entrypoint=/bin/amtool",
+            image_id,
+            "check-config",
+            "/etc/alertmanager/alertmanager.yml",
+        ]
+    )
+    with tempfile.TemporaryDirectory(prefix="pulseplate-am-only-native-") as raw:
+        directory = Path(raw)
+        failures = []
+        for name, check in (
+            (
+                "amtool_lifetime",
+                lambda: _native_amtool_lifetime(directory, image_id, independent=True),
+            ),
+            ("alertmanager", lambda: _native_alertmanager(directory, image_id)),
+        ):
+            try:
+                check()
+            except Exception as error:
+                failures.append(name)
+                print("native_AM_fixture_failure=" + name + ":" + type(error).__name__, flush=True)
+        assert not failures, "AM-only native fixtures failed: " + ",".join(failures)
+    print(
+        "native_AM_existing_fixture_subset=pass; default_CA_and_full_candidate_acceptance=HOLD_SEPARATE_CONTROLS",
+        flush=True,
+    )
+
+
 def native_main() -> None:
     selection = prometheus_image.read_image_manifest(ROOT / prometheus_image.MANIFEST_PATH)[
         "selection"
@@ -1804,6 +1895,58 @@ def native_main() -> None:
                     flush=True,
                 )
         assert not failures, "native checks failed: " + ",".join(failures)
+
+
+@pytest.mark.parametrize("fault", [None, "image", "config", "platform", "user"])
+def test_alertmanager_only_native_entry_binds_local_identity_before_fixtures_without_prometheus(
+    monkeypatch: pytest.MonkeyPatch, fault: str | None
+) -> None:
+    image_id = "sha256:" + "a" * 64
+    config_hash = "5dc1025c293763618febeb74c17edcb126ad943f9b20c2296c67847e9f977549"
+    calls: list[object] = []
+    monkeypatch.setattr(sys, "platform", "linux")
+    monkeypatch.setattr(
+        prometheus_image,
+        "read_image_manifest",
+        lambda *args: pytest.fail("AM-only must not select Prometheus"),
+    )
+
+    def native(argv: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        del kwargs
+        calls.append(argv)
+        if "inspect" in argv:
+            value = {
+                "Id": image_id,
+                "Os": "linux",
+                "Architecture": "arm64" if fault == "platform" else "amd64",
+                "Config": {"User": "root" if fault == "user" else "65534:65534"},
+            }
+            return subprocess.CompletedProcess(argv, 0, json.dumps(value), "")
+        return subprocess.CompletedProcess(argv, 0, "version 0.34.1", "")
+
+    def lifetime(directory: Path, image: str, *, independent: bool) -> None:
+        assert directory.is_dir() and image == image_id and independent is True
+        calls.append("amtool-lifetime")
+
+    def smtp(directory: Path, image: str) -> None:
+        assert directory.is_dir() and image == image_id
+        calls.append("smtp-lifecycle")
+
+    monkeypatch.setattr(sys.modules[__name__], "_native", native)
+    monkeypatch.setattr(sys.modules[__name__], "_native_amtool_lifetime", lifetime)
+    monkeypatch.setattr(sys.modules[__name__], "_native_alertmanager", smtp)
+    if fault:
+        with pytest.raises(AssertionError):
+            native_alertmanager_main(
+                "latest" if fault == "image" else image_id,
+                "f" * 64 if fault == "config" else config_hash,
+            )
+        assert "amtool-lifetime" not in calls and "smtp-lifecycle" not in calls
+    else:
+        native_alertmanager_main(image_id, config_hash)
+        assert calls[-2:] == ["amtool-lifetime", "smtp-lifecycle"]
+        assert any(isinstance(argv, list) and "check-config" in argv for argv in calls)
+        assert ALERTMANAGER_IMAGE.startswith("prom/alertmanager@sha256:")
 
 
 @pytest.mark.parametrize(
@@ -2770,11 +2913,35 @@ def test_checkpoint_cleanup_failure_without_primary_is_not_success(
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--native", action="store_true")
+    parser.add_argument("--native-alertmanager", action="store_true")
+    parser.add_argument("--alertmanager-image-id")
+    parser.add_argument("--alertmanager-config-sha256")
+    parser.add_argument("--amtool-fixture-send", type=Path)
     parser.add_argument("--query-container", nargs=2, metavar=("PROMETHEUS_CID", "APP_CID"))
     parser.add_argument("--native-fixture")
     parser.add_argument("--directory", type=Path)
     args = parser.parse_args()
-    if args.native:
+    if args.native_alertmanager:
+        if args.native or not args.alertmanager_image_id or not args.alertmanager_config_sha256:
+            parser.error("AM-only mode requires exact local image ID and configuration hash")
+        native_alertmanager_main(args.alertmanager_image_id, args.alertmanager_config_sha256)
+    elif args.amtool_fixture_send:
+        docker = shutil.which("docker")
+        assert docker is not None and args.amtool_fixture_send.is_file()
+        start = datetime.now(timezone.utc)
+        argv = notifier._argv(
+            docker,
+            args.amtool_fixture_send,
+            "staging",
+            notifier._timestamp(start),
+            notifier._timestamp(start + timedelta(seconds=900)),
+        )
+        raise SystemExit(
+            0
+            if notifier._send(argv, {"PATH": os.defpath, "LANG": "C", "COMPOSE_PROFILES": ""})
+            else 1
+        )
+    elif args.native:
         native_main()
     elif args.query_container:
         from scripts import verify_premium_alias_telemetry as verifier

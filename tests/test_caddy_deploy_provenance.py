@@ -6,12 +6,14 @@ import hashlib
 import json
 import os
 import re
+import shlex
 import shutil
 import stat
 import subprocess
 import sys
 from copy import deepcopy
 from pathlib import Path
+from typing import Any
 
 import pytest
 import yaml
@@ -37,6 +39,731 @@ TRIVY_ACTION = "aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c
 TRIVY_VERSION = "v0.74.0"
 ALERTMANAGER_CONFIG = REPO_ROOT / "deploy" / "alertmanager" / "alertmanager.yml"
 ALERTMANAGER_IGNORE = REPO_ROOT / "deploy" / "alertmanager" / "trivy-ignore.yaml"
+
+
+def test_alertmanager_input_support_job_is_independent_manual_read_permissions_without_compiler() -> (
+    None
+):
+    workflow = _workflow(CD_WORKFLOW)
+    job = _job(workflow, "alertmanager-input-inspection")
+    assert "needs" not in job
+    assert job["permissions"] == {"contents": "read", "actions": "read", "packages": "read"}
+    assert job["if"] == (
+        "github.event_name == 'workflow_dispatch' "
+        "&& (inputs.alertmanager_mode == 'input-inspect' || inputs.alertmanager_mode == 'support-inspect') "
+        "&& github.repository == 'Katsiarynakavaleuskaya/PulsePlate' "
+        "&& startsWith(github.ref, 'refs/heads/') && github.run_attempt == 1 "
+        "&& inputs.postgres_mode == 'disabled'"
+    )
+    step = _named_step(
+        _steps(job),
+        "Inspect authenticated retained Alertmanager inputs and read existing package metadata",
+    )
+    assert step["env"]["GH_TOKEN"] == step["env"]["GITHUB_TOKEN"] == "${{ secrets.GITHUB_TOKEN }}"
+    assert '--alertmanager-stage "$ALERTMANAGER_STAGE"' in step["run"]
+    for selector in ("run", "artifact", "source"):
+        assert "--alertmanager-qualification-" + selector in step["run"]
+    assert "docker " not in step["run"] and "go build" not in step["run"]
+    assert "--alertmanager-module-qualify" not in step["run"]
+    assert "prometheus" not in step["run"].lower()
+    assert (
+        _named_step(_steps(job), "Checkout exact Alertmanager inspection implementation")["with"][
+            "persist-credentials"
+        ]
+        is False
+    )
+
+
+def test_alertmanager_support_job_covers_aggregate_budgets_and_retains_screened_API_evidence() -> (
+    None
+):
+    job = _job(_workflow(CD_WORKFLOW), "alertmanager-input-inspection")
+    budgets = job["env"]
+    tool_fetch = _named_step(
+        _steps(job), "Prepare exact existing Alertmanager support scanner and Buildx CLI"
+    )
+    assert job["timeout-minutes"] == 55
+    # The distinct existing API and Native owners each retain their own cleanup.
+    # Keep at least five minutes for pure data inspection and artifact upload.
+    acquisition = tool_fetch["run"].count("curl -q ") * int(
+        budgets["ALERTMANAGER_TOOL_FETCH_SECONDS"]
+    )
+    work = (
+        acquisition
+        + int(budgets["ALERTMANAGER_INPUT_INSPECT_SECONDS"])
+        + int(budgets["ALERTMANAGER_SUPPORT_SECONDS"])
+    )
+    assert job["timeout-minutes"] * 60 - (work + 2 * 45) >= 5 * 60
+    assert (
+        0
+        < int(budgets["ALERTMANAGER_TOOL_CONNECT_SECONDS"])
+        <= int(budgets["ALERTMANAGER_TOOL_FETCH_SECONDS"])
+    )
+    assert (
+        0
+        < int(budgets["ALERTMANAGER_SCAN_TIMEOUT_SECONDS"])
+        < int(budgets["ALERTMANAGER_SCAN_PROCESS_SECONDS"])
+        <= int(budgets["ALERTMANAGER_SUPPORT_SECONDS"])
+    )
+    assert (
+        tool_fetch["run"].count(
+            '--connect-timeout "$ALERTMANAGER_TOOL_CONNECT_SECONDS" --max-time "$ALERTMANAGER_TOOL_FETCH_SECONDS"'
+        )
+        == 2
+    )
+    retained = _named_step(
+        _steps(job), "Retain Alertmanager input observations without compiler authority"
+    )
+    prefix = "${{ runner.temp }}/alertmanager-input-inspection-${{ github.run_id }}-${{ github.run_attempt }}/"
+    assert retained["if"] == "always()"
+    assert retained["with"]["path"].splitlines() == [
+        prefix + name
+        for name in ("input-inspection.json", "github-read-evidence/", "native-support/")
+    ]
+    assert not any(
+        value in retained["with"]["path"]
+        for value in ("/private/", "/home/", "qualification.zip", "*")
+    )
+
+
+@pytest.mark.parametrize(
+    "connect,fetch",
+    [
+        (None, "180"),
+        ("", "180"),
+        ("0", "180"),
+        ("01", "180"),
+        ("15", None),
+        ("15", ""),
+        ("15", "0"),
+        ("15", "1.5"),
+        ("15", " 180"),
+        ("181", "180"),
+    ],
+)
+def test_alertmanager_support_tool_budget_rejects_before_any_acquisition(
+    tmp_path: Path, connect: str | None, fetch: str | None
+) -> None:
+    job = _job(_workflow(CD_WORKFLOW), "alertmanager-input-inspection")
+    step = _named_step(
+        _steps(job), "Prepare exact existing Alertmanager support scanner and Buildx CLI"
+    )
+    # No executables on PATH: the shell must reject invalid budget configuration
+    # before attempting mktemp, curl or any other acquisition command.
+    env = {
+        "PATH": str(tmp_path / "absent"),
+        "RUNNER_TEMP": str(tmp_path),
+        "GITHUB_ENV": str(tmp_path / "env"),
+    }
+    for name, value in (
+        ("ALERTMANAGER_TOOL_CONNECT_SECONDS", connect),
+        ("ALERTMANAGER_TOOL_FETCH_SECONDS", fetch),
+    ):
+        if value is not None:
+            env[name] = value
+    result = subprocess.run(
+        ["/bin/bash", "-c", step["run"]],
+        cwd=tmp_path,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=5,
+        check=False,
+    )
+    assert result.returncode != 0 and "command not found" not in result.stderr
+    assert not (tmp_path / "env").exists()
+
+
+@pytest.mark.parametrize(
+    "fault", [None, "source", "git-failure", "run", "artifact", "qualification-source"]
+)
+def test_alertmanager_inspection_shell_rejects_bad_selectors_before_reader(
+    tmp_path: Path, fault: str | None
+) -> None:
+    step = _named_step(
+        _steps(_job(_workflow(CD_WORKFLOW), "alertmanager-input-inspection")),
+        "Inspect authenticated retained Alertmanager inputs and read existing package metadata",
+    )
+    binaries = tmp_path / "bin"
+    binaries.mkdir()
+    git = binaries / "git"
+    git.write_text('#!/bin/sh\nprintf "%s\\n" "$GITHUB_SHA"\nexit "$SYNTHETIC_GIT_EXIT"\n')
+    git.chmod(0o755)
+    python = binaries / "python3"
+    python.write_text('#!/bin/sh\nprintf "%s\\n" "$@" > "$READER_MARKER"\n')
+    python.chmod(0o755)
+    marker = tmp_path / "reader.args"
+    env = {
+        "PATH": str(binaries),
+        "HOME": str(tmp_path),
+        "GH_CONFIG_DIR": str(tmp_path / "gh"),
+        "GH_TOKEN": "synthetic-test-token",
+        "GITHUB_TOKEN": "synthetic-test-token",
+        "INSPECTION_SOURCE": "b" * 40,
+        "GITHUB_SHA": "b" * 40,
+        "QUALIFICATION_RUN": "39018353942",
+        "QUALIFICATION_ARTIFACT": "12095483900",
+        "QUALIFICATION_SOURCE": "36cd171c4ebe44f63cb58d09a741b3d07098904d",
+        "ALERTMANAGER_STAGE": "input-inspect",
+        "SYNTHETIC_GIT_EXIT": "0",
+        "RUNNER_TEMP": str(tmp_path),
+        "GITHUB_RUN_ID": "456",
+        "GITHUB_RUN_ATTEMPT": "1",
+        "READER_MARKER": str(marker),
+    }
+    if fault == "source":
+        env["INSPECTION_SOURCE"] = "a" * 40
+    elif fault == "git-failure":
+        env["SYNTHETIC_GIT_EXIT"] = "1"
+    elif fault == "run":
+        env["QUALIFICATION_RUN"] = "latest"
+    elif fault == "artifact":
+        env["QUALIFICATION_ARTIFACT"] = ""
+    elif fault == "qualification-source":
+        env["QUALIFICATION_SOURCE"] = "HEAD"
+    result = subprocess.run(
+        ["/bin/bash", "-c", step["run"]],
+        env=env,
+        cwd=tmp_path,
+        stdin=subprocess.DEVNULL,
+        capture_output=True,
+        text=True,
+        timeout=5,
+        check=False,
+    )
+    assert (result.returncode == 0) is (fault is None), result.stderr
+    assert marker.exists() is (fault is None)
+    if fault is None:
+        args = marker.read_text().splitlines()
+        assert (
+            args[args.index("--alertmanager-qualification-source") + 1]
+            == env["QUALIFICATION_SOURCE"]
+        )
+        assert args[args.index("--alertmanager-stage") + 1] == "input-inspect"
+
+
+@pytest.fixture
+def alertmanager_support_native(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
+    import io
+    import struct
+    import tarfile
+    import time
+    import zipfile
+    from scripts.ci import fetch_docker_source_artifacts as fetcher
+    from scripts.ci import prometheus_source_image as transport
+
+    # Only external native operations are replaced. Files, digests, ELF header,
+    # default scanner argv, reports and cleanup control flow use the real owner.
+    data: dict[str, Any] = {
+        "fault": None,
+        "calls": [],
+        "present": False,
+        "instances": [],
+        "anonymous_volume": False,
+    }
+    for variable in (
+        "GH_TOKEN",
+        "GITHUB_TOKEN",
+        "GHCR_READ_TOKEN",
+        "GH_ENTERPRISE_TOKEN",
+        "GITHUB_ENTERPRISE_TOKEN",
+        "GH_HOST",
+        "GH_CONFIG_DIR",
+        "DOCKER_CONFIG",
+        "DOCKER_AUTH_CONFIG",
+        "NETRC",
+        "HTTP_PROXY",
+        "HTTPS_PROXY",
+        "ALL_PROXY",
+        "http_proxy",
+        "https_proxy",
+        "all_proxy",
+    ):
+        monkeypatch.delenv(variable, raising=False)
+    tools = tmp_path / "tools"
+    tools.mkdir()
+    for name in ("trivy", "docker-buildx", "docker"):
+        path = tools / name
+        path.write_bytes(("synthetic selected tool: " + name).encode())
+        path.chmod(0o755)
+    monkeypatch.setenv("TRIVY_BIN", str(tools / "trivy"))
+    monkeypatch.setenv("BUILDX_BIN", str(tools / "docker-buildx"))
+    budgets = _job(_workflow(CD_WORKFLOW), "alertmanager-input-inspection")["env"]
+    for name in (
+        "ALERTMANAGER_SUPPORT_SECONDS",
+        "ALERTMANAGER_SCAN_TIMEOUT_SECONDS",
+        "ALERTMANAGER_SCAN_PROCESS_SECONDS",
+    ):
+        monkeypatch.setenv(name, budgets[name])
+    data["scan_timeout"] = budgets["ALERTMANAGER_SCAN_TIMEOUT_SECONDS"]
+    data["scan_process"] = budgets["ALERTMANAGER_SCAN_PROCESS_SECONDS"]
+    monkeypatch.setattr(
+        fetcher, "_ALERT_TRIVY_SHA256", hashlib.sha256((tools / "trivy").read_bytes()).hexdigest()
+    )
+    monkeypatch.setattr(
+        fetcher,
+        "_ALERT_BUILDX_SHA256",
+        hashlib.sha256((tools / "docker-buildx").read_bytes()).hexdigest(),
+    )
+    probe = bytearray(1173752)
+    probe[:6] = b"\x7fELF\x02\x01"
+    struct.pack_into("<HH", probe, 16, 2, 62)
+    struct.pack_into("<Q", probe, 32, 64)
+    struct.pack_into("<HH", probe, 54, 56, 1)
+    struct.pack_into("<I", probe, 64, 1)
+    marker = b"BusyBox v1.38.0 (synthetic fixture)"
+    probe[128 : 128 + len(marker)] = marker
+    data["probe"] = bytes(probe)
+    monkeypatch.setattr(fetcher, "_ALERT_PROBE_SHA256", hashlib.sha256(probe).hexdigest())
+    layer_buffer = io.BytesIO()
+    with tarfile.open(fileobj=layer_buffer, mode="w") as layer_tar:
+        member = tarfile.TarInfo("etc/os-release")
+        body = b"ID=debian\nVERSION_ID=13\n"
+        member.mode, member.size = 0o644, len(body)
+        layer_tar.addfile(member, io.BytesIO(body))
+    layer_bytes = layer_buffer.getvalue()
+    diff_id = "sha256:" + hashlib.sha256(layer_bytes).hexdigest()
+    config_bytes = json.dumps(
+        {
+            "os": "linux",
+            "architecture": "amd64",
+            "rootfs": {"type": "layers", "diff_ids": [diff_id]},
+        }
+    ).encode()
+    base_id = "sha256:" + hashlib.sha256(config_bytes).hexdigest()
+    config_descriptor = {
+        "mediaType": "application/vnd.oci.image.config.v1+json",
+        "digest": base_id,
+        "size": len(config_bytes),
+    }
+    layer_descriptor = {
+        "mediaType": "application/vnd.oci.image.layer.v1.tar",
+        "digest": diff_id,
+        "size": len(layer_bytes),
+    }
+    manifest_bytes = json.dumps(
+        {
+            "schemaVersion": 2,
+            "mediaType": "application/vnd.oci.image.manifest.v1+json",
+            "config": config_descriptor,
+            "layers": [layer_descriptor],
+        }
+    ).encode()
+    manifest_digest = "sha256:" + hashlib.sha256(manifest_bytes).hexdigest()
+    base_members = {
+        "oci-layout": b'{"imageLayoutVersion":"1.0.0"}',
+        "index.json": json.dumps(
+            {
+                "schemaVersion": 2,
+                "mediaType": "application/vnd.oci.image.index.v1+json",
+                "manifests": [
+                    {
+                        "mediaType": "application/vnd.oci.image.manifest.v1+json",
+                        "digest": manifest_digest,
+                        "size": len(manifest_bytes),
+                    }
+                ],
+            }
+        ).encode(),
+        "blobs/sha256/" + base_id[7:]: config_bytes,
+        "blobs/sha256/" + diff_id[7:]: layer_bytes,
+        "blobs/sha256/" + manifest_digest[7:]: manifest_bytes,
+        "manifest.json": json.dumps(
+            [
+                {
+                    "Config": "blobs/sha256/" + base_id[7:],
+                    "RepoTags": None,
+                    "Layers": ["blobs/sha256/" + diff_id[7:]],
+                }
+            ]
+        ).encode(),
+    }
+    base_buffer = io.BytesIO()
+    with tarfile.open(fileobj=base_buffer, mode="w") as base_tar:
+        for name, body in base_members.items():
+            member = tarfile.TarInfo(name)
+            member.mode, member.size = 0o644, len(body)
+            base_tar.addfile(member, io.BytesIO(body))
+    base = {
+        "Id": base_id,
+        "Os": "linux",
+        "Architecture": "amd64",
+        "RootFS": {"Type": "layers", "Layers": [diff_id]},
+    }
+    archive = tmp_path / "qualification.zip"
+    with zipfile.ZipFile(archive, "w") as zip_file:
+        zip_file.writestr("base-retention/base-image.tar", base_buffer.getvalue())
+        zip_file.writestr("public-base-inspect.stdout", json.dumps(base))
+    monkeypatch.setattr(
+        fetcher, "_ALERT_Q_ZIP_SHA256", hashlib.sha256(archive.read_bytes()).hexdigest()
+    )
+    original_which = shutil.which
+    monkeypatch.setattr(
+        shutil,
+        "which",
+        lambda name: str(tools / "docker") if name == "docker" else original_which(name),
+    )
+    original_copy = shutil.copyfile
+
+    def copy(source: object, destination: object, **kwargs: Any) -> str:
+        result = original_copy(source, destination, **kwargs)
+        if (
+            data["fault"] == "copied-scanner"
+            and Path(destination).name == "trivy"
+            or data["fault"] == "copied-buildx"
+            and Path(destination).name == "docker-buildx"
+        ):
+            Path(destination).write_bytes(b"tampered copied tool")
+        return result
+
+    monkeypatch.setattr(shutil, "copyfile", copy)
+
+    class Native:
+        def __init__(self, evidence: Path, deadline: float, cleanup: int) -> None:
+            self.evidence, self.deadline, self.cleanup = evidence, deadline, cleanup
+            self.cleanup_deadline: float | None = None
+            self.records: list[dict[str, Any]] = []
+            data["instances"].append(self)
+
+        def begin_cleanup(self) -> None:
+            assert self.cleanup == 45
+            self.cleanup_deadline = time.monotonic() + 45
+
+        def run(
+            self, argv: list[str], label: str, env: dict[str, str], *, cwd: Path, **kwargs: Any
+        ) -> bytes:
+            assert set(env) == {"PATH", "HOME", "DOCKER_CONFIG", "LANG"}
+            assert not any(
+                key in env for key in ("GH_TOKEN", "GITHUB_TOKEN", "GHCR_READ_TOKEN", "NETRC")
+            )
+            data["calls"].append((label, argv, kwargs))
+            raw = b""
+            failure = None
+            try:
+                if label == "base-inspect":
+                    raw = json.dumps(base).encode()
+                elif label == "probe-origin-inspect":
+                    raw = json.dumps(
+                        {
+                            "Id": "sha256:53622b714941158bc20cc92a7571aef515556218eef914b7b8ec5b2a0cb6f607",
+                            "Os": "linux",
+                            "Architecture": "amd64",
+                            "RepoDigests": [
+                                "prom/alertmanager@sha256:84967b9b7ba45e38a9278d3e594305f43d4993c310df3905b51138b816c365f3"
+                            ],
+                        }
+                    ).encode()
+                elif label == "probe-owned-create-never-start":
+                    data["name"] = argv[argv.index("--name") + 1]
+                    data["label"] = argv[argv.index("--label") + 1].split("=", 1)[1]
+                    data["present"] = True
+                    # Image-declared VOLUME initialization occurs during create,
+                    # including a transport failure after the server-side effect.
+                    data["anonymous_volume"] = True
+                    if data["fault"] == "create-after-effect":
+                        raise RuntimeError("synthetic create transport failure")
+                    raw = ("a" * 64 + "\n").encode()
+                elif label == "probe-native-copy":
+                    path = Path(argv[-1])
+                    path.write_bytes(data["probe"])
+                    path.chmod(0o755)
+                elif label == "retain-known-vulnerable-control":
+                    Path(argv[argv.index("--output") + 1]).write_bytes(
+                        b"synthetic old image control export"
+                    )
+                elif label == "buildx-version-only":
+                    raw = b"github.com/docker/buildx v0.37.0 synthetic\n"
+                elif label == "buildx-help-only":
+                    raw = b"--build-context --network --output\n"
+                elif label == "scanner-version":
+                    raw = b'{"Version":"0.74.0"}'
+                elif label == "scanner-DB-acquisition":
+                    db = Path(argv[argv.index("--cache-dir") + 1]) / "db"
+                    db.mkdir(parents=True)
+                    (db / "trivy.db").write_bytes(b"synthetic database")
+                    (db / "metadata.json").write_text(
+                        '{"Version":2,"UpdatedAt":"2026-10-17T00:00:00Z"}'
+                    )
+                elif "--output" in argv:
+                    assert kwargs["maximum_seconds"] == int(data["scan_process"])
+                    assert argv[argv.index("--timeout") + 1] == data["scan_timeout"] + "s"
+                    for flag in (
+                        "--offline-scan",
+                        "--skip-db-update",
+                        "--list-all-pkgs",
+                        "--skip-vex-repo-update",
+                    ):
+                        assert flag in argv
+                    assert argv[argv.index("--scanners") + 1] == "vuln,secret"
+                    assert argv[argv.index("--severity") + 1] == "UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL"
+                    if data["fault"] == "scanner-error":
+                        raise RuntimeError("synthetic scanner exit2")
+                    if data["fault"] == "timeout":
+                        raise TimeoutError("synthetic scanner timeout")
+                    subject = argv[-1]
+                    # v0.74.0 Report.Results omitempty preserves the actual zero shape.
+                    report: dict[str, Any] = {
+                        "SchemaVersion": 2,
+                        "ArtifactName": subject,
+                        "ArtifactType": "filesystem",
+                    }
+                    if label == "secret-positive":
+                        report["Results"] = [
+                            {
+                                "Target": "credentials.txt",
+                                "Class": "secret",
+                                "Secrets": [{"RuleID": "github-pat", "Severity": "CRITICAL"}],
+                            }
+                        ]
+                        if data["fault"] == "positive-missing":
+                            report["Results"] = []
+                        elif data["fault"] == "positive-omitted":
+                            report.pop("Results")
+                    elif label == "base-full-supported-scan":
+                        report["ArtifactType"] = "container_image"
+                        report["Metadata"] = {"ImageID": base_id}
+                        report["Results"] = [
+                            {
+                                "Target": "debian",
+                                "Class": "os-pkgs",
+                                "Type": "debian",
+                                "Packages": [{"Name": "base-files", "Version": "1"}],
+                                "Vulnerabilities": [],
+                            }
+                        ]
+                        if data["fault"] == "base-target":
+                            report["Metadata"]["ImageID"] = "sha256:" + "f" * 64
+                        elif data["fault"] == "omitted-base":
+                            report["Results"] = []
+                        elif data["fault"] == "absent-base":
+                            report.pop("Results")
+                        elif data["fault"] == "secret":
+                            report["Results"][0]["Secrets"] = [{"RuleID": "synthetic"}]
+                        elif data["fault"] == "high":
+                            report["Results"][0]["Vulnerabilities"] = [
+                                {
+                                    "VulnerabilityID": "CVE-synthetic",
+                                    "PkgName": "base-files",
+                                    "InstalledVersion": "1",
+                                    "Severity": "HIGH",
+                                }
+                            ]
+                    elif label == "known-vulnerable-full-control":
+                        report["ArtifactType"] = "container_image"
+                        report["Metadata"] = {
+                            "ImageID": "sha256:53622b714941158bc20cc92a7571aef515556218eef914b7b8ec5b2a0cb6f607"
+                        }
+                        report["Results"] = [
+                            {
+                                "Target": target,
+                                "Class": "lang-pkgs",
+                                "Type": "gobinary",
+                                "Packages": [
+                                    {"Name": "stdlib", "Version": "v1.26.8"},
+                                    {"Name": "golang.org/x/net", "Version": "v0.58.0"},
+                                    {"Name": "google.golang.org/grpc", "Version": "v1.83.1"},
+                                ],
+                                "Vulnerabilities": [
+                                    {
+                                        "VulnerabilityID": cve,
+                                        "PkgIdentifier": {"PURL": purl},
+                                        "Severity": "HIGH",
+                                    }
+                                    for cve, purl in (
+                                        (
+                                            "CVE-2026-84445",
+                                            "pkg:golang/google.golang.org/grpc@v1.83.1",
+                                        ),
+                                        ("CVE-2026-78669", "pkg:golang/golang.org/x/net@v0.58.0"),
+                                        ("CVE-2026-78669", "pkg:golang/stdlib@v1.26.8"),
+                                        ("CVE-2026-78667", "pkg:golang/stdlib@v1.26.8"),
+                                        ("CVE-2026-97031", "pkg:golang/stdlib@v1.26.8"),
+                                    )
+                                ],
+                            }
+                            for target in ("bin/alertmanager", "bin/amtool")
+                        ]
+                        if data["fault"] == "vulnerability-control-missing":
+                            report["Results"].pop()
+                    if data["fault"] == label + "-null":
+                        report["Results"] = None
+                    elif data["fault"] == label + "-scalar":
+                        report["Results"] = "invalid"
+                    # The pinned scanner has no standalone BusyBox recognizer;
+                    # a real empty supported domain is not fabricated as a busybox Package.
+                    Path(argv[argv.index("--output") + 1]).write_text(
+                        "{" if data["fault"] == "malformed" else json.dumps(report)
+                    )
+                    if data["fault"] == "DB-drift":
+                        (Path(argv[argv.index("--cache-dir") + 1]) / "db/trivy.db").write_bytes(
+                            b"changed DB"
+                        )
+                elif label in ("support-cleanup-census", "support-cleanup-absence"):
+                    assert kwargs["cleaning"] is True
+                    raw = ("a" * 64 + "\n").encode() if data["present"] else b""
+                elif label == "support-cleanup-inspect":
+                    raw = json.dumps(
+                        {
+                            "Id": "a" * 64,
+                            "Name": "/" + data["name"],
+                            "Config": {
+                                "Labels": {"pulseplate.alertmanager-support": data["label"]}
+                            },
+                        }
+                    ).encode()
+                elif label == "support-cleanup-remove":
+                    data["present"] = False
+                    if "--volumes" in argv:
+                        data["anonymous_volume"] = False
+                else:
+                    assert label in ("base-load", "probe-public-origin-pull"), label
+                return raw
+            except BaseException as error:
+                failure = type(error).__name__
+                raise
+            finally:
+                self.records.append(
+                    {
+                        "argv": argv,
+                        "environment": env,
+                        "exit": 0 if failure is None else 2,
+                        "failure": failure,
+                        "cwd": str(cwd),
+                    }
+                )
+
+    monkeypatch.setattr(transport, "Native", Native)
+    data.update({"archive": archive, "output": tmp_path, "fetcher": fetcher})
+    return data
+
+
+@pytest.mark.parametrize(
+    "fault,diagnostic",
+    [
+        ("copied-scanner", "AM_copied_scanner_bytes"),
+        ("copied-buildx", "AM_copied_Buildx_bytes"),
+        ("positive-missing", "AM_secret_positive_or_negative_control"),
+        ("positive-omitted", "AM_scan_native_schema"),
+        ("absent-base", "AM_scan_native_schema"),
+        ("secret-negative-null", "AM_scan_native_schema"),
+        ("secret-negative-scalar", "AM_scan_native_schema"),
+        ("probe-full-supported-scan-null", "AM_scan_native_schema"),
+        ("probe-full-supported-scan-scalar", "AM_scan_native_schema"),
+        ("base-target", "AM_base_scan_exact_subject"),
+        ("omitted-base", "AM_base_supported_OS_inventory_missing"),
+        ("secret", "AM_support_secret_HOLD"),
+        ("high", "AM_new_blocking_support_finding_HOLD"),
+        ("DB-drift", "AM_scanner_or_DB_drift"),
+        ("create-after-effect", "synthetic create transport failure"),
+        ("scanner-error", "synthetic scanner exit2"),
+        ("timeout", "synthetic scanner timeout"),
+        ("vulnerability-control-missing", "AM_known_vulnerable_control_inventory_changed_HOLD"),
+    ],
+)
+def test_alertmanager_native_support_keeps_unsupported_scopes_and_failures_explicit(
+    alertmanager_support_native: dict[str, Any], fault: str | None, diagnostic: str
+) -> None:
+    data = alertmanager_support_native
+    data["fault"] = fault
+    error_type = TimeoutError if fault == "timeout" else RuntimeError
+    with pytest.raises(error_type, match=diagnostic):
+        data["fetcher"]._alertmanager_support_observation(data["archive"], data["output"])
+    assert data["present"] is False
+    for label, argv, _ in data["calls"]:
+        assert "start" not in argv and "run" not in argv and "--bootstrap" not in argv
+        assert "build" not in argv or "--help" in argv
+    if fault == "create-after-effect":
+        removals = [argv for label, argv, _ in data["calls"] if label == "support-cleanup-remove"]
+        assert len(removals) == 1
+        assert removals[0][-4:] == ["rm", "--force", "--volumes", "a" * 64]
+        assert data["anonymous_volume"] is False
+
+
+@pytest.mark.parametrize(
+    "scan_seconds,process_seconds", [(None, None), ("1", "2"), ("97", "123"), ("299", "330")]
+)
+def test_alertmanager_native_supported_empty_probe_is_bounded_observation_not_acceptance(
+    alertmanager_support_native: dict[str, Any],
+    monkeypatch: pytest.MonkeyPatch,
+    scan_seconds: str | None,
+    process_seconds: str | None,
+) -> None:
+    data = alertmanager_support_native
+    for variable, key, value in (
+        ("ALERTMANAGER_SCAN_TIMEOUT_SECONDS", "scan_timeout", scan_seconds),
+        ("ALERTMANAGER_SCAN_PROCESS_SECONDS", "scan_process", process_seconds),
+    ):
+        if value is not None:
+            monkeypatch.setenv(variable, value)
+            data[key] = value
+    observed = data["fetcher"]._alertmanager_support_observation(data["archive"], data["output"])
+    assert data["present"] is False and observed["owned_container_absence_observed"] is True
+    assert observed["compiler_starts"] == observed["logical_build_starts"] == 0
+    assert observed["secret_controls"]["positive"]["rule"] == "github-pat"
+    assert observed["vulnerability_control"]["known_HIGH_occurrences"] == 10
+    assert (
+        observed["probe_scan"]["packages"] == [] and "not" not in observed["support_status"].lower()
+    )
+    assert "no standalone BusyBox" in observed["probe_scan"]["support_limit"]
+    assert observed["final_candidate_acceptance"] == "UNACHIEVED_NO_CANDIDATE_OR_BUILD"
+    assert (data["output"] / "native-support/artifact-payload-members.json").is_file()
+    evidence = data["output"] / "native-support/evidence"
+    assert "Results" not in json.loads((evidence / "secret-negative.private.json").read_text())
+    assert "Results" not in json.loads(
+        (evidence / "probe-full-supported-scan.private.json").read_text()
+    )
+
+
+@pytest.mark.parametrize(
+    "scan_seconds,process_seconds",
+    [
+        (None, "330"),
+        ("", "330"),
+        ("0", "330"),
+        ("0300", "330"),
+        ("300\n", "330"),
+        ("1.5", "330"),
+        ("300", None),
+        ("300", ""),
+        ("300", "0"),
+        ("300", "false"),
+        ("330", "330"),
+        ("331", "330"),
+        ("301", "330"),
+        ("300", "331"),
+        ("300", "1801"),
+        ("9999", "10000"),
+    ],
+)
+def test_alertmanager_scan_budget_is_required_canonical_and_bounded_before_native(
+    alertmanager_support_native: dict[str, Any],
+    monkeypatch: pytest.MonkeyPatch,
+    scan_seconds: str | None,
+    process_seconds: str | None,
+) -> None:
+    data = alertmanager_support_native
+    for variable, value in (
+        ("ALERTMANAGER_SCAN_TIMEOUT_SECONDS", scan_seconds),
+        ("ALERTMANAGER_SCAN_PROCESS_SECONDS", process_seconds),
+    ):
+        if value is None:
+            monkeypatch.delenv(variable)
+        else:
+            monkeypatch.setenv(variable, value)
+    with pytest.raises(RuntimeError, match="AM_support_scan_budgets"):
+        data["fetcher"]._alertmanager_support_observation(data["archive"], data["output"])
+    assert data["calls"] == [] and data["instances"] == []
+    assert not (data["output"] / "native-support").exists()
+
+
+def test_alertmanager_native_support_malformed_report_cannot_be_a_negative_control(
+    alertmanager_support_native: dict[str, Any],
+) -> None:
+    data = alertmanager_support_native
+    data["fault"] = "malformed"
+    with pytest.raises(ValueError):
+        data["fetcher"]._alertmanager_support_observation(data["archive"], data["output"])
+    assert data["present"] is False
 
 
 def test_alertmanager_cd_contract_carries_exact_files_and_keeps_scans_separate() -> None:
@@ -85,6 +812,13 @@ def _run_alertmanager_scan_fixture(
     shutil.copyfile(ALERTMANAGER_IGNORE, config / "trivy-ignore.yaml")
     binaries = tmp_path / "bin"
     binaries.mkdir()
+    interpreter = Path(sys.executable)
+    assert interpreter.is_absolute() and interpreter.is_file(), "current interpreter unavailable"
+    python = binaries / "python3"
+    python.write_text(
+        "#!/bin/sh\nexec " + shlex.quote(str(interpreter)) + ' "$@"\n', encoding="utf-8"
+    )
+    python.chmod(0o755)
     digest = "sha256:84967b9b7ba45e38a9278d3e594305f43d4993c310df3905b51138b816c365f3"
     docker = binaries / "docker"
     docker.write_text(
@@ -188,6 +922,39 @@ def _run_alertmanager_scan_fixture(
     )
 
 
+def test_alertmanager_scan_fixture_uses_current_interpreter_before_poisoned_fallback(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fallback = tmp_path / "controlled-fallback"
+    fallback.mkdir()
+    # Bind every real external shell utility used by this exact workflow step.
+    # The fallback deliberately supplies no working Python interpreter.
+    for name in ("grep", "mktemp", "rm", "cp", "sed"):
+        binary = shutil.which(name)
+        assert binary is not None and Path(binary).is_absolute() and Path(binary).is_file(), name
+        (fallback / name).symlink_to(Path(binary).resolve())
+    poison_marker = tmp_path / "ambient-python-was-used"
+    poison = fallback / "python3"
+    poison.write_text(
+        "#!/bin/sh\n"
+        "printf '%s\\n' poisoned > " + shlex.quote(str(poison_marker)) + "\n"
+        "printf '%s\\n' 'poisoned fallback python3 invoked' >&2\nexit 97\n",
+        encoding="utf-8",
+    )
+    poison.chmod(0o755)
+    monkeypatch.setattr(os, "defpath", str(fallback))
+    fixture = tmp_path / "fixture with spaces"
+    result = _run_alertmanager_scan_fixture(fixture, "exit1")
+    diagnostic = result.stdout + result.stderr
+    assert not poison_marker.exists(), diagnostic
+    assert result.returncode == 1, diagnostic
+    assert "scanner prerequisite failed; no report" in result.stderr, diagnostic
+    calls = fixture / "calls.log"
+    assert calls.is_file(), diagnostic
+    rows = calls.read_text(encoding="utf-8").splitlines()
+    assert len(rows) == 1 and "wrong" in rows[0], diagnostic
+
+
 @pytest.mark.parametrize(
     "scenario", ("exit1", "exit2", "malformed", "empty", "wrong", "extra", "secret", "stale")
 )
@@ -197,7 +964,9 @@ def test_alertmanager_negative_controls_reject_unproven_scans(
     """An error or absent/different report cannot masquerade as policy rejection."""
     result = _run_alertmanager_scan_fixture(tmp_path, scenario)
     assert result.returncode != 0, result.stdout + result.stderr
-    assert (tmp_path / "calls.log").read_text(encoding="utf-8").strip()
+    calls = tmp_path / "calls.log"
+    assert calls.is_file(), result.stdout + result.stderr
+    assert calls.read_text(encoding="utf-8").strip(), result.stdout + result.stderr
     if scenario in ("exit1", "exit2"):
         assert result.returncode == int(scenario[-1])
         assert "scanner prerequisite failed; no report" in result.stderr
@@ -213,7 +982,9 @@ def test_alertmanager_negative_controls_require_both_retained_inventories(tmp_pa
     """Both real scan-success branches must retain the complete frozen inventory."""
     result = _run_alertmanager_scan_fixture(tmp_path, "valid")
     assert result.returncode == 0, result.stdout + result.stderr
-    calls = (tmp_path / "calls.log").read_text(encoding="utf-8").splitlines()
+    log = tmp_path / "calls.log"
+    assert log.is_file(), result.stdout + result.stderr
+    calls = log.read_text(encoding="utf-8").splitlines()
     assert len(calls) == 2
     assert "wrong" in calls[0] and "expired" in calls[1]
 

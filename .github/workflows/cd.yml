@@ -41,7 +41,19 @@ on:
         required: true
         default: disabled
         type: choice
-        options: [disabled, module-qualify, build]
+        options: [disabled, module-qualify, input-inspect, support-inspect, build]
+      alertmanager_qualification_run:
+        description: Exact successful retained Alertmanager metadata run ID
+        required: false
+        type: string
+      alertmanager_qualification_artifact:
+        description: Exact immutable Alertmanager metadata artifact ID
+        required: false
+        type: string
+      alertmanager_qualification_source:
+        description: Exact source SHA of the retained metadata qualification
+        required: false
+        type: string
       source_sha:
         description: Exact same-repository commit SHA for synthetic probe
         required: false
@@ -66,7 +78,8 @@ env:
 jobs:
   alertmanager-module-qualification:
     if: >-
-      github.event_name == 'workflow_dispatch' && inputs.alertmanager_mode != 'disabled'
+      github.event_name == 'workflow_dispatch'
+      && (inputs.alertmanager_mode == 'module-qualify' || inputs.alertmanager_mode == 'build')
       && github.repository == 'Katsiarynakavaleuskaya/PulsePlate'
       && startsWith(github.ref, 'refs/heads/') && github.run_attempt == 1
     runs-on: ubuntu-latest
@@ -111,6 +124,94 @@ jobs:
         with:
           name: alertmanager-module-qualification-${{ github.run_id }}-${{ github.run_attempt }}
           path: build/docker-sources/alertmanager-module-evidence
+          if-no-files-found: warn
+
+  alertmanager-input-inspection:
+    if: >-
+      github.event_name == 'workflow_dispatch'
+      && (inputs.alertmanager_mode == 'input-inspect' || inputs.alertmanager_mode == 'support-inspect')
+      && github.repository == 'Katsiarynakavaleuskaya/PulsePlate'
+      && startsWith(github.ref, 'refs/heads/') && github.run_attempt == 1
+      && inputs.postgres_mode == 'disabled'
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    permissions:
+      contents: read
+      actions: read
+      packages: read
+    env:
+      ALERTMANAGER_TOOL_CONNECT_SECONDS: '15'
+      ALERTMANAGER_TOOL_FETCH_SECONDS: '180'
+      ALERTMANAGER_INPUT_INSPECT_SECONDS: '600'
+      ALERTMANAGER_SUPPORT_SECONDS: '1800'
+      ALERTMANAGER_SCAN_TIMEOUT_SECONDS: '300'
+      ALERTMANAGER_SCAN_PROCESS_SECONDS: '330'
+    steps:
+      - name: Checkout exact Alertmanager inspection implementation
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Prepare exact existing Alertmanager support scanner and Buildx CLI
+        if: inputs.alertmanager_mode == 'support-inspect'
+        run: |
+          set -euo pipefail
+          umask 077
+          if ! [[ "$ALERTMANAGER_TOOL_CONNECT_SECONDS" =~ ^[1-9][0-9]{0,2}$ ]]; then exit 1; fi
+          if ! [[ "$ALERTMANAGER_TOOL_FETCH_SECONDS" =~ ^[1-9][0-9]{0,2}$ ]]; then exit 1; fi
+          test "$ALERTMANAGER_TOOL_CONNECT_SECONDS" -le "$ALERTMANAGER_TOOL_FETCH_SECONDS"
+          native_tools="$(mktemp -d "$RUNNER_TEMP/pulseplate-am-tools.XXXXXXXX")"
+          curl -q --fail --silent --show-error --location --proto '=https' --proto-redir '=https' \
+            --connect-timeout "$ALERTMANAGER_TOOL_CONNECT_SECONDS" --max-time "$ALERTMANAGER_TOOL_FETCH_SECONDS" \
+            --output "$native_tools/trivy.tar.gz" \
+            https://github.com/aquasecurity/trivy/releases/download/v0.74.0/trivy_0.74.0_Linux-64bit.tar.gz
+          printf '%s  %s\n' 2ae6fe3ee734b7fdf11335663e18c75ea12dccc76062f09f164a3b0f8be4371a "$native_tools/trivy.tar.gz" | sha256sum -c -
+          tar -xzf "$native_tools/trivy.tar.gz" -C "$native_tools" trivy
+          test -f "$native_tools/trivy"
+          test ! -L "$native_tools/trivy"
+          printf '%s  %s\n' d89bcc6510a267f11b773398cbf1be5520ce39f9e8b6633178c4487f05b7d791 "$native_tools/trivy" | sha256sum -c -
+          curl -q --fail --silent --show-error --location --proto '=https' --proto-redir '=https' \
+            --connect-timeout "$ALERTMANAGER_TOOL_CONNECT_SECONDS" --max-time "$ALERTMANAGER_TOOL_FETCH_SECONDS" \
+            --output "$native_tools/docker-buildx" \
+            https://github.com/docker/buildx/releases/download/v0.37.0/buildx-v0.37.0.linux-amd64
+          printf '%s  %s\n' ae43fa08c796b44efc86d7a63c55f73f7c35f3101188dea7bf93bcd6f99577ba "$native_tools/docker-buildx" | sha256sum -c -
+          chmod 0555 "$native_tools/trivy" "$native_tools/docker-buildx"
+          printf 'TRIVY_BIN=%s\nBUILDX_BIN=%s\n' "$native_tools/trivy" "$native_tools/docker-buildx" >> "$GITHUB_ENV"
+      - name: Inspect authenticated retained Alertmanager inputs and read existing package metadata
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          INSPECTION_SOURCE: ${{ inputs.source_sha }}
+          QUALIFICATION_RUN: ${{ inputs.alertmanager_qualification_run }}
+          QUALIFICATION_ARTIFACT: ${{ inputs.alertmanager_qualification_artifact }}
+          QUALIFICATION_SOURCE: ${{ inputs.alertmanager_qualification_source }}
+          ALERTMANAGER_STAGE: ${{ inputs.alertmanager_mode }}
+        run: |
+          set -euo pipefail
+          umask 077
+          [[ "$INSPECTION_SOURCE" =~ ^[0-9a-f]{40}$ ]]
+          test "$INSPECTION_SOURCE" = "$GITHUB_SHA"
+          inspection_checkout="$(git rev-parse HEAD)"
+          test "$inspection_checkout" = "$INSPECTION_SOURCE"
+          if ! [[ "$QUALIFICATION_RUN" =~ ^[1-9][0-9]*$ ]]; then exit 1; fi
+          if ! [[ "$QUALIFICATION_ARTIFACT" =~ ^[1-9][0-9]*$ ]]; then exit 1; fi
+          if ! [[ "$QUALIFICATION_SOURCE" =~ ^[0-9a-f]{40}$ ]]; then exit 1; fi
+          case "$ALERTMANAGER_STAGE" in input-inspect|support-inspect) ;; *) exit 1 ;; esac
+          python3 -m scripts.ci.fetch_docker_source_artifacts --artifact alertmanager \
+            --alertmanager-stage "$ALERTMANAGER_STAGE" \
+            --alertmanager-qualification-run "$QUALIFICATION_RUN" \
+            --alertmanager-qualification-artifact "$QUALIFICATION_ARTIFACT" \
+            --alertmanager-qualification-source "$QUALIFICATION_SOURCE" \
+            --output-dir "$RUNNER_TEMP/alertmanager-input-inspection-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+      - name: Retain Alertmanager input observations without compiler authority
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1 / Node 24
+        with:
+          name: alertmanager-input-inspection-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/alertmanager-input-inspection-${{ github.run_id }}-${{ github.run_attempt }}/input-inspection.json
+            ${{ runner.temp }}/alertmanager-input-inspection-${{ github.run_id }}-${{ github.run_attempt }}/github-read-evidence/
+            ${{ runner.temp }}/alertmanager-input-inspection-${{ github.run_id }}-${{ github.run_attempt }}/native-support/
           if-no-files-found: warn
 
   staging-postgres-native-integration:
