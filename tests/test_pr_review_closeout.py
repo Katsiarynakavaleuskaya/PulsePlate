@@ -308,3 +308,392 @@ def test_closeout_publication_mode_failure_preserves_prior_target_and_cleans_tem
     assert target.read_bytes() == b"prior target\n"
     assert stat.S_IMODE(target.stat().st_mode) == 0o640
     assert list(tmp_path.glob(".public.md.*.tmp")) == []
+
+
+def _retirement_fixture(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, *, stale: bool = True
+) -> dict[str, Any]:
+    """A real prior closeout inherited unchanged by a real material successor."""
+    from scripts.orchestration import pr_commit_identity as identity
+
+    fixture = _publication_closeout_fixture(tmp_path, monkeypatch)
+    repo, target = fixture["repo"], fixture["target"]
+    target.write_text(fixture["markdown"], encoding="utf-8")
+    target.chmod(0o644)
+    _publication_git(repo, "add", str(target.relative_to(repo)))
+    _publication_git(repo, "commit", "-qm", "prior canonical closeout")
+    prior = _publication_git(repo, "rev-parse", "HEAD")
+    if stale:
+        (repo / "README.md").write_text("real changed material\n", encoding="utf-8")
+        _publication_git(repo, "add", "README.md")
+        _publication_git(repo, "commit", "-qm", "genuine material correction")
+    head = _publication_git(repo, "rev-parse", "HEAD")
+    old = fixture["snapshot"]
+    snapshot = PrSnapshot(
+        old.repository,
+        42,
+        old.base_sha,
+        head,
+        tuple(PrCommitEvidence(sha, None) for sha in dict.fromkeys((old.head_sha, prior, head))),
+    )
+    monkeypatch.setattr(closeout, "fetch_pr_snapshot", lambda *_a, **_k: snapshot)
+
+    def classify(sha: str, observed: PrSnapshot, **_kwargs: Any) -> Any:
+        assert observed is snapshot
+        # Native Git objects remain independent of the synthetic API identity.
+        assert _publication_git(repo, "rev-parse", f"{sha}^{{commit}}") == sha
+        kind = (
+            identity.CommitRefKind.PR_COMMIT
+            if sha in snapshot.commit_shas
+            else (identity.CommitRefKind.REPO_COMMIT_OUTSIDE_PR)
+        )
+        return identity.RepositoryCommitRef(sha, kind)
+
+    def ancestor(first: Any, second: Any, **_kwargs: Any) -> bool:
+        return not _publication_git(repo, "rev-list", first.sha, f"^{second.sha}")
+
+    monkeypatch.setattr(identity, "classify_commit_ref", classify)
+    monkeypatch.setattr(identity, "is_ancestor", ancestor)
+    fixture.update(snapshot=snapshot, prior=prior)
+    return fixture
+
+
+def test_retire_stale_preserves_dirty_material_index_and_draft(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    fixture = _retirement_fixture(tmp_path, monkeypatch)
+    repo = fixture["repo"]
+    dirty = repo / "README.md"
+    dirty.write_text("admitted pending code\n", encoding="utf-8")
+    _publication_git(repo, "add", "README.md")
+    dirty.write_text("admitted unstaged code\n", encoding="utf-8")
+    index, draft = repo / ".git/index", closeout._state_path(42)
+    before = index.read_bytes(), draft.read_bytes(), dirty.read_bytes()
+    args = closeout._parser().parse_args(
+        ["retire-stale", "--repo", "owner/repo", "--pr-number", "42"]
+    )
+    args.handler(args)
+    assert not fixture["target"].exists()
+    assert (index.read_bytes(), draft.read_bytes(), dirty.read_bytes()) == before
+    assert "no freeze, disposition, publication or readiness claim" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        "current",
+        "draft-proof",
+        "fetch-draft-proof",
+        "snapshot-identity",
+        "old-proof",
+        "unknown-section",
+        "redirect",
+        "worktree",
+        "index",
+        "symlink",
+        "hardlink",
+        "mode",
+        "draft-symlink",
+        "index-symlink",
+        "head-drift",
+        "snapshot-drift",
+        "terminal-draft-drift",
+        "terminal-worktree-drift",
+        "terminal-index-drift",
+        "no-auth",
+        "wrong-repository",
+        "unknown-ref",
+        "unavailable-ref",
+        "unreachable",
+        "missing-object",
+        "bad-seal",
+        "duplicate-draft",
+        "nonfinite-draft",
+    ],
+)
+def test_retire_stale_rejects_uncertainty_without_deleting(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mutation: str
+) -> None:
+    from scripts.orchestration import pr_commit_identity as identity
+
+    fixture = _retirement_fixture(tmp_path, monkeypatch, stale=mutation != "current")
+    repo, target, args = fixture["repo"], fixture["target"], fixture["args"]
+    draft = closeout._state_path(42)
+    if mutation == "draft-proof":
+        state = fixture["state"] | {"dispositions": [{"disposition": "FIXED", "commit": "a" * 40}]}
+        closeout._write_state(state)
+    elif mutation == "fetch-draft-proof":
+
+        def add_proof(*_args: Any, **_kwargs: Any) -> PrSnapshot:
+            closeout._write_state(
+                fixture["state"] | {"dispositions": [{"disposition": "FIXED", "commit": "a" * 40}]}
+            )
+            return fixture["snapshot"]
+
+        monkeypatch.setattr(closeout, "fetch_pr_snapshot", add_proof)
+    elif mutation == "snapshot-identity":
+        from dataclasses import replace
+
+        monkeypatch.setattr(
+            closeout,
+            "fetch_pr_snapshot",
+            lambda *_a, **_k: replace(fixture["snapshot"], repository="other/repo"),
+        )
+    elif mutation in {"old-proof", "unknown-section", "bad-seal"}:
+        text = target.read_text(encoding="utf-8")
+        if mutation == "old-proof":
+            proof_state = fixture["state"] | {
+                "dispositions": [
+                    {
+                        "disposition": "NOT-A-BUG",
+                        "evidence": "README.md:1",
+                        "reason": "Synthetic retained valid ordinary proof",
+                        "url": "https://github.com/owner/repo/pull/42#discussion_r701",
+                    }
+                ]
+            }
+            text = closeout._render_mapping(proof_state, fixture["seal"])
+            assert closeout.validate_mapping_artifact_text(text) == []
+        elif mutation == "unknown-section":
+            text = text.replace(
+                closeout.NO_ACTIONABLE_LINE, closeout.NO_ACTIONABLE_LINE + "\nunknown proof"
+            )
+        else:
+            text = text.replace(fixture["seal"]["material"]["digest"], "sha256:" + "a" * 64)
+        target.write_text(text, encoding="utf-8")
+        _publication_git(repo, "add", str(target.relative_to(repo)))
+        _publication_git(repo, "commit", "-qm", "synthetic invalid canonical")
+        snapshot = fixture["snapshot"]
+        from dataclasses import replace
+
+        monkeypatch.setattr(
+            closeout,
+            "fetch_pr_snapshot",
+            lambda *_a, **_k: replace(
+                snapshot, head_sha=_publication_git(repo, "rev-parse", "HEAD")
+            ),
+        )
+    elif mutation == "redirect":
+        redirect = tmp_path / "redirect"
+        redirect.mkdir()
+        monkeypatch.setenv("REVIEW_MAPPING_ARTIFACT_DIR", str(redirect))
+    elif mutation == "worktree":
+        target.write_text("changed candidate\n", encoding="utf-8")
+    elif mutation == "index":
+        target.write_text("staged replacement\n", encoding="utf-8")
+        _publication_git(repo, "add", str(target.relative_to(repo)))
+        target.write_text(fixture["markdown"], encoding="utf-8")
+    elif mutation in {"symlink", "draft-symlink", "index-symlink"}:
+        selected = (
+            target
+            if mutation == "symlink"
+            else (draft if mutation == "draft-symlink" else repo / ".git/index")
+        )
+        carrier = tmp_path / "external-carrier"
+        carrier.write_bytes(selected.read_bytes())
+        selected.unlink()
+        selected.symlink_to(carrier)
+    elif mutation == "hardlink":
+        os.link(target, tmp_path / "hardlink-alias")
+    elif mutation == "mode":
+        target.chmod(0o755)
+    elif mutation == "head-drift":
+        snapshot = fixture["snapshot"]
+        from dataclasses import replace
+
+        monkeypatch.setattr(
+            closeout, "fetch_pr_snapshot", lambda *_a, **_k: replace(snapshot, head_sha="f" * 40)
+        )
+    elif mutation in {
+        "snapshot-drift",
+        "terminal-draft-drift",
+        "terminal-worktree-drift",
+        "terminal-index-drift",
+    }:
+
+        def drift(*_args: Any, **_kwargs: Any) -> None:
+            if mutation == "snapshot-drift":
+                raise identity.CommitIdentityError("synthetic authenticated drift")
+            if mutation == "terminal-draft-drift":
+                draft.write_bytes(draft.read_bytes() + b" ")
+            elif mutation == "terminal-worktree-drift":
+                target.write_bytes(target.read_bytes() + b" ")
+            else:
+                (repo / "README.md").write_text("staged concurrent edit\n", encoding="utf-8")
+                _publication_git(repo, "add", "README.md")
+
+        monkeypatch.setattr(closeout, "assert_snapshot_unchanged", drift)
+    elif mutation == "no-auth":
+        monkeypatch.delenv("GH_TOKEN")
+        monkeypatch.delenv("GITHUB_TOKEN")
+    elif mutation == "wrong-repository":
+        args.repo = "other/repo"
+    elif mutation in {"unknown-ref", "unavailable-ref"}:
+        kind = (
+            identity.CommitRefKind.API_UNKNOWN
+            if mutation == "unknown-ref"
+            else identity.CommitRefKind.REVIEW_REF_UNAVAILABLE
+        )
+        monkeypatch.setattr(
+            identity,
+            "classify_commit_ref",
+            lambda *_a, **_k: identity.ReviewExecutionRef(
+                "f" * 40, kind, "synthetic identity uncertainty"
+            ),
+        )
+    elif mutation == "unreachable":
+        monkeypatch.setattr(identity, "is_ancestor", lambda *_a, **_k: False)
+    elif mutation == "missing-object":
+        monkeypatch.setattr(
+            closeout,
+            "_stale_seal_material_manifest",
+            lambda *_a, **_k: (_ for _ in ()).throw(
+                evidence.ReviewEvidenceError("synthetic missing object")
+            ),
+        )
+    elif mutation == "duplicate-draft":
+        draft.write_text(
+            draft.read_text().replace(
+                '"dispositions":[]', '"dispositions":[{"proof":"retained"}],"dispositions":[]'
+            ),
+            encoding="utf-8",
+        )
+    else:
+        draft.write_text(
+            draft.read_text().replace('"packet":null', '"packet":NaN'), encoding="utf-8"
+        )
+    before = target.read_bytes()
+    with pytest.raises(
+        (closeout.CloseoutError, evidence.ReviewEvidenceError, identity.CommitIdentityError)
+    ):
+        closeout._cmd_retire_stale(args)
+    assert target.exists()
+    if mutation == "fetch-draft-proof":
+        assert closeout._load_state(42)["dispositions"] == [
+            {"disposition": "FIXED", "commit": "a" * 40}
+        ]
+    if mutation != "terminal-worktree-drift":
+        assert target.read_bytes() == before
+
+
+def _ordinary_retirement_closeout_fixture(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> dict[str, Any]:
+    """Exercise Q_fix retirement, real docs M, freeze M, FIXED-Q_fix and ADD-R."""
+    from dataclasses import replace
+    from scripts.orchestration import pr_commit_identity as identity
+
+    fixture = _retirement_fixture(tmp_path, monkeypatch)
+    repo, args = fixture["repo"], fixture["args"]
+    closeout._cmd_retire_stale(args)
+    (repo / "README.md").write_text(
+        "real timestamp and retirement implementation Q\n", encoding="utf-8"
+    )
+    _publication_git(repo, "add", "README.md", "docs/review/PR_42_FIXED_MAPPING.md")
+    _publication_git(
+        repo, "commit", "-qm", "fix genuine governance defect and retire stale empty artifact"
+    )
+    q = _publication_git(repo, "rev-parse", "HEAD")
+    (repo / "AGENTS.md").write_text(
+        "Synthetic root instructions.\n"
+        "The executable fix retires the stale empty artifact before final material freeze.\n"
+        "A later real policy commit is material; the seal binds it and FIXED names its fix ancestor.\n",
+        encoding="utf-8",
+    )
+    _publication_git(repo, "add", "AGENTS.md")
+    _publication_git(repo, "commit", "-qm", "docs(agents): update retirement instructions")
+    material = _publication_git(repo, "rev-parse", "HEAD")
+    snapshot = replace(
+        fixture["snapshot"],
+        head_sha=material,
+        commits=(
+            *fixture["snapshot"].commits,
+            PrCommitEvidence(q, None),
+            PrCommitEvidence(material, None),
+        ),
+    )
+    current = [snapshot]
+    monkeypatch.setattr(closeout, "fetch_pr_snapshot", lambda *_a, **_k: current[0])
+    monkeypatch.setattr(
+        closeout,
+        "classify_commit_ref",
+        lambda sha, *_a, **_k: identity.RepositoryCommitRef(sha, identity.CommitRefKind.PR_COMMIT),
+    )
+    monkeypatch.setattr(
+        closeout,
+        "is_ancestor",
+        lambda first, second, **_k: not _publication_git(
+            repo, "rev-list", first.sha, f"^{second.sha}"
+        ),
+    )
+    closeout._cmd_freeze(args)
+    root = "https://github.com/owner/repo/pull/42#discussion_r700"
+    closeout._cmd_add_disposition(
+        Namespace(
+            pr_number=42,
+            url=root,
+            disposition="FIXED",
+            commit=q,
+            evidence="README.md:1; Q retires stale canonical artifact; R will regenerate it",
+            reason=None,
+            backlog=None,
+            cause=None,
+            review_ref=None,
+            verified_fix=None,
+        )
+    )
+    manifest = evidence.compute_material_manifest(
+        repo, base_ref_oid=snapshot.base_sha, head_ref_oid=material, pr_number=42
+    )
+    report = _self_review_report_payload(
+        changed_files=("AGENTS.md", "README.md"),
+        base_ref_oid=snapshot.base_sha,
+        merge_base_sha=manifest.merge_base_sha,
+        material_head_sha=material,
+        material_digest=manifest.digest,
+    )
+    report["scope_reviewed"]["diff_summary"] = {
+        "files": manifest.diff_summary.files,
+        "additions": manifest.diff_summary.additions,
+        "deletions": manifest.diff_summary.deletions,
+        "changed_lines": manifest.diff_summary.additions + manifest.diff_summary.deletions,
+    }
+    Path(args.self_review_report).write_text(json.dumps(report), encoding="utf-8")
+    closeout._cmd_seal(args)
+    _publication_git(repo, "add", "docs/review/PR_42_FIXED_MAPPING.md")
+    _publication_git(repo, "commit", "-qm", "canonical ordinary mapping closeout")
+    r = _publication_git(repo, "rev-parse", "HEAD")
+    current[0] = replace(
+        snapshot, head_sha=r, commits=(*snapshot.commits, PrCommitEvidence(r, None))
+    )
+    fixture.update(q=q, m=material, r=r, root=root, snapshot=current[0])
+    return fixture
+
+
+def test_retire_stale_registered_q_then_normal_mapping_add_r(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fixture = _ordinary_retirement_closeout_fixture(tmp_path, monkeypatch)
+    seal = closeout.validate_live_mapping(repository="owner/repo", pr_number=42, token="opaque")
+    assert seal["material"]["material_head_sha"] == fixture["m"]
+    assert seal["self_review"]["material_head_sha"] == fixture["m"]
+    assert closeout._load_state(42)["freeze"]["material_head_sha"] == fixture["m"]
+    repo = fixture["repo"]
+    assert _publication_git(repo, "rev-parse", f"{fixture['r']}^") == fixture["m"]
+    assert _publication_git(repo, "rev-parse", f"{fixture['m']}^") == fixture["q"]
+    assert fixture["m"] != fixture["q"]
+    assert (
+        _publication_git(repo, "diff-tree", "--no-commit-id", "--name-only", "-r", fixture["m"])
+        == "AGENTS.md"
+    )
+    assert (
+        _publication_git(repo, "diff-tree", "--no-commit-id", "--name-status", "-r", fixture["r"])
+        == "A\tdocs/review/PR_42_FIXED_MAPPING.md"
+    )
+    assert (
+        _publication_git(repo, "diff-tree", "--no-commit-id", "--name-status", "-r", fixture["q"])
+        == "M\tREADME.md\nD\tdocs/review/PR_42_FIXED_MAPPING.md"
+    )
+    text = fixture["target"].read_text(encoding="utf-8")
+    assert f"- {fixture['root']} -> {fixture['q']}" in text
+    assert "OWNER INSPECTED" not in text

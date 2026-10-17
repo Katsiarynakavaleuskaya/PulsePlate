@@ -10893,3 +10893,44 @@ def test_closeout_seal_parser_requires_self_review_and_rejects_provider_flags() 
                     "/tmp/provider-evidence",
                 ]
             )
+
+
+@pytest.mark.parametrize("published", [False, True])
+@pytest.mark.parametrize("seconds", [1, 17])
+def test_inspected_stale_seal_accepts_native_unedited_update_metadata(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, published: bool, seconds: int
+) -> None:
+    state = _inspected_stale_seal_fixture(tmp_path, monkeypatch, published=published)
+    for comment in state["thread"].comments[1:]:
+        stamp = comment.created_at[:-3] + f"{seconds:02d}Z"
+        state["rows"][comment.url]["updated_at"] = stamp
+        state["nodes"][f"REVIEW_{comment.url.rsplit('r', 1)[-1]}"]["updatedAt"] = stamp
+    assert _inspected_coverage(state, publication=not published) == {state["root"].url}
+
+
+@pytest.mark.parametrize(
+    "mutation", ["chronology", "native-edit", "missing-native-edit", "revision-mismatch"]
+)
+@pytest.mark.parametrize("published", [False, True])
+def test_inspected_stale_seal_update_metadata_keeps_negative_native_bindings(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mutation: str, published: bool
+) -> None:
+    state = _inspected_stale_seal_fixture(tmp_path, monkeypatch, published=published)
+    comment = state["thread"].comments[-1]
+    row, node = (
+        state["rows"][comment.url],
+        state["nodes"][f"REVIEW_{comment.url.rsplit('r', 1)[-1]}"],
+    )
+    if mutation == "chronology":
+        row["updated_at"] = node["updatedAt"] = "2026-08-12T09:00:00Z"
+    elif mutation == "native-edit":
+        node["lastEditedAt"] = comment.created_at
+    elif mutation == "missing-native-edit":
+        del node["lastEditedAt"]
+    else:
+        row["updated_at"] = comment.created_at[:-3] + "01Z"
+    try:
+        result = _inspected_coverage(state, publication=not published)
+    except ReviewEvidenceError:
+        result = set()
+    assert result == set()

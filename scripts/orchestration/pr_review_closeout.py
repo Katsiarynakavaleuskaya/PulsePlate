@@ -13,6 +13,7 @@ import json
 import os
 import re
 import shutil
+import stat
 import subprocess  # nosec B404 # B404: bounded absolute git commands are required (remove-by: 2026-10-30, ref: PR-governance-material-seal)
 import sys
 import tempfile
@@ -43,6 +44,12 @@ from scripts.orchestration.pr_review_evidence import (  # noqa: E402
     SEAL_SCHEMA_VERSION,
     UNAVAILABLE_REVIEW_REF_CAUSE,
     ReviewEvidenceError,
+    _load_json_bytes,
+    _stale_seal_mapping_blob,
+    _stale_seal_material_manifest,
+    _stale_seal_repository_commit,
+    _stale_seal_remote_ancestor,
+    _validate_stale_seal_projection,
     build_provider_no_claim_pair,
     build_review_credit_outage_receipt,
     build_review_source_positive_response_receipt,
@@ -58,6 +65,7 @@ from scripts.orchestration.pr_review_evidence import (  # noqa: E402
     is_review_source_unavailability_receipt,
     is_security_outage_override_receipt,
     parse_embedded_review_seal,
+    read_closeout_candidate_bytes,
     render_embedded_review_seal,
     unavailable_review_ref_fingerprint,
     validate_mapping_only_closeout_successor,
@@ -98,7 +106,7 @@ def _token() -> str:
 
 
 def _state_dir(pr_number: int) -> Path:
-    if pr_number <= 0:
+    if not isinstance(pr_number, int) or isinstance(pr_number, bool) or pr_number <= 0:
         raise CloseoutError("pr_number must be positive")
     return STATE_ROOT / f"PR_{pr_number}"
 
@@ -144,11 +152,10 @@ def _write_state(state: Mapping[str, Any]) -> None:
 def _load_state(pr_number: int) -> dict[str, Any]:
     path = _state_path(pr_number)
     try:
-        raw = path.read_text(encoding="utf-8")
-        state = json.loads(raw)
+        state = _load_json_bytes(path.read_bytes(), label="local draft")
     except FileNotFoundError as exc:
         raise CloseoutError(f"missing local draft; run init first: {path}") from exc
-    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+    except ReviewEvidenceError as exc:
         raise CloseoutError(f"local draft is malformed: {path}") from exc
     if not isinstance(state, dict):
         raise CloseoutError("local draft must be a JSON object")
@@ -363,6 +370,116 @@ def _proof_real_fix(
         raise CloseoutError("FIXED proof is not an ancestor of the live PR head")
     assert_snapshot_unchanged(snapshot, token=token)
     return snapshot, resolution
+
+
+def _retirement_local_binding(pr_number: int, head: str) -> tuple[bytes, bytes, bytes]:
+    """Bind only the committed canonical entry, without changing any index or draft."""
+    relative = f"docs/review/PR_{pr_number}_FIXED_MAPPING.md"
+    canonical = REPO_ROOT / relative
+    override = os.getenv("REVIEW_MAPPING_ARTIFACT_DIR")
+    if override is not None and Path(override).absolute() != canonical.parent:
+        raise CloseoutError("retirement forbids REVIEW_MAPPING_ARTIFACT_DIR redirection")
+    if _git("rev-parse", "HEAD") != head:
+        raise CloseoutError("retirement requires the exact committed live HEAD")
+    committed = _stale_seal_mapping_blob(REPO_ROOT, commit_sha=head, pr_number=pr_number).encode(
+        "utf-8"
+    )
+    if canonical.lstat().st_nlink != 1:
+        raise CloseoutError("retirement canonical artifact must not have hardlink aliases")
+    if read_closeout_candidate_bytes(REPO_ROOT, pr_number=pr_number) != committed:
+        raise CloseoutError("retirement canonical worktree blob differs from HEAD")
+    tree = _git("ls-tree", "HEAD", "--", f":(literal){relative}")
+    match = re.fullmatch(r"100644 blob ([0-9a-f]{40})\t" + re.escape(relative), tree)
+    if match is None or _git("ls-files", "--stage", "-z", "--", f":(literal){relative}") != (
+        f"100644 {match[1]} 0\t{relative}\0"
+    ):
+        raise CloseoutError("retirement canonical index must be the exact HEAD stage-zero blob")
+    index = Path(_git("rev-parse", "--git-path", "index"))
+    if not index.is_absolute():
+        index = REPO_ROOT / index
+    draft = _state_path(pr_number)
+    for path in (index, draft):
+        if not stat.S_ISREG(path.lstat().st_mode):
+            raise CloseoutError("retirement index and draft must be regular files")
+    return committed, index.read_bytes(), draft.read_bytes()
+
+
+def _cmd_retire_stale(args: argparse.Namespace) -> None:
+    """Remove only an authenticated, stale, proof-empty committed canonical artifact.
+
+    This operation neither freezes dirty material nor authors a disposition or seal.
+    The real material fix must include the deletion before ordinary Q -> R closeout.
+    """
+    token = _token()
+    state = _load_state(args.pr_number)
+    if state["repository"] != args.repo or state["dispositions"]:
+        raise CloseoutError("retirement requires the same repository and a proof-empty draft")
+    snapshot = fetch_pr_snapshot(args.repo, args.pr_number, token=token)
+    if (
+        snapshot.repository.casefold() != args.repo.casefold()
+        or snapshot.pr_number != args.pr_number
+    ):
+        raise CloseoutError("retirement authenticated repository/PR mismatch")
+    binding = _retirement_local_binding(args.pr_number, snapshot.head_sha)
+    if _load_json_bytes(binding[2], label="bound retirement draft") != state:
+        raise CloseoutError("retirement draft changed during authenticated observation")
+    markdown = binding[0].decode("utf-8")
+    errors = validate_mapping_artifact_text(markdown)
+    if (
+        errors
+        or extract_fixed_mapping_section(markdown).strip() != NO_ACTIONABLE_LINE
+        or re.search(
+            r"(?m)^(Disposition|Commit|Evidence|Backlog|Fingerprint|Cause|Material-Digest|Verified-Fix):",
+            markdown,
+        )
+    ):
+        raise CloseoutError("retirement requires an exact proof-empty No-actionables artifact")
+    seal = parse_embedded_review_seal(markdown)
+    material = seal["material"]
+    historical = _stale_seal_material_manifest(
+        REPO_ROOT,
+        base_ref_oid=material["base_ref_oid"],
+        head_ref_oid=material["material_head_sha"],
+        pr_number=args.pr_number,
+    )
+    _validate_stale_seal_projection(
+        markdown,
+        repo_root=REPO_ROOT,
+        manifest=historical,
+        repository=args.repo,
+        pr_number=args.pr_number,
+        require_provider_no_claim=False,
+    )
+    live_ref = _stale_seal_repository_commit(
+        snapshot.head_sha, snapshot=snapshot, token=token, require_pr_commit=True
+    )
+    for sha, require_pr in (
+        (material["material_head_sha"], True),
+        (material["base_ref_oid"], False),
+        (snapshot.base_sha, False),
+    ):
+        ref = _stale_seal_repository_commit(
+            sha, snapshot=snapshot, token=token, require_pr_commit=require_pr
+        )
+        _stale_seal_remote_ancestor(ref, live_ref, repository=args.repo, token=token)
+    current = _stale_seal_material_manifest(
+        REPO_ROOT,
+        base_ref_oid=snapshot.base_sha,
+        head_ref_oid=snapshot.head_sha,
+        pr_number=args.pr_number,
+    )
+    if (
+        material["base_ref_oid"] == current.base_ref_oid
+        and material["merge_base_sha"] == current.merge_base_sha
+        and material["digest"] == current.digest
+    ):
+        raise CloseoutError("retirement requires positive base, merge-base or digest staleness")
+    # API/Git/current-path uncertainty is a rejection, never deletion authority.
+    assert_snapshot_unchanged(snapshot, token=token)
+    if _retirement_local_binding(args.pr_number, snapshot.head_sha) != binding:
+        raise CloseoutError("retirement bound canonical/index/draft state changed")
+    (REPO_ROOT / f"docs/review/PR_{args.pr_number}_FIXED_MAPPING.md").unlink()
+    print("STALE_EMPTY_ARTIFACT_RETIRED; no freeze, disposition, publication or readiness claim")
 
 
 def _cmd_init(args: argparse.Namespace) -> None:
@@ -1003,6 +1120,11 @@ def _parser() -> argparse.ArgumentParser:
     init.add_argument("--packet")
     init.add_argument("--experiment-result")
     init.set_defaults(handler=_cmd_init)
+
+    retire = subparsers.add_parser("retire-stale", allow_abbrev=False)
+    retire.add_argument("--repo", required=True)
+    retire.add_argument("--pr-number", required=True, type=int)
+    retire.set_defaults(handler=_cmd_retire_stale)
 
     freeze = subparsers.add_parser("freeze")
     freeze.add_argument("--repo", required=True)

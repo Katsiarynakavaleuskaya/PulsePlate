@@ -419,8 +419,11 @@ Backlog: docs/roadmap/BACKLOG_LEDGER.md#agent-consistency-preflight
     `OWNER INSPECTED: historical stale-seal root <id> revision <UTC-updated-at> body sha256:<raw-body-hash> at <S> has no independent actionable; permit one mapping-only publication from material <M> base <B> merge-base <MB> digest sha256:<D> candidate sha256:<C> inventory sha256:<H>; no disposition or merge authority.`
     REST and GraphQL cross-bind every selected root and phase comment's native
     identity, repository/PR/path, raw UTF-8 body and actual revision. Both `I`
-    and the later existing OWNER FIXED line `F(S,R)` require unedited timestamps
-    and present native `lastEditedAt=null`; missing fields are unknown. Root
+    and the later existing OWNER FIXED line `F(S,R)` require valid chronology
+    `createdAt <= updatedAt` and present native `lastEditedAt=null`; missing
+    fields are unknown. Native update metadata alone is not edit evidence; exact
+    REST/GraphQL revision binding and rereads remain mandatory. This correction
+    does not change the separate legacy OWNER-only unedited-root classes. Root
     revision must precede `I` and remain identical to its inspected binding.
     The nearest genuine valid prior material-to-mapping closeout anchors the
     mechanically derived finite first-parent interval to `M`. Every later edge
@@ -466,6 +469,28 @@ Backlog: docs/roadmap/BACKLOG_LEDGER.md#agent-consistency-preflight
     adapter, mapping carrier, prose classifier or authority for merge.
     None of the reply-only paths creates another docs commit or restarts
     review/security scans.
+    A registered `pr_review_closeout.py retire-stale --repo <owner/name>
+    --pr-number <N>` may remove only the exact authenticated live-HEAD canonical
+    regular blob whose HEAD, stage-zero index and worktree agree, whose old seal
+    validates at its real historical material, and whose committed current base,
+    merge-base or digest positively differs. Head inequality or API/Git/validation
+    uncertainty never authorizes deletion. The ordinary section must be exactly
+    `- No actionable review comments`; artifact and draft proof inventories must
+    be empty. Redirection and proof-rich retirement fail closed. Other admitted
+    material edits may remain dirty; the operation preserves their bytes, the
+    complete index and draft and grants no freeze, disposition or publication.
+    Include actual retirement with the genuine executable/test fix `Q_fix`.
+    A required real `docs(agents)` policy commit also belongs to material;
+    when it follows `Q_fix`, final material is `M=Q_docs`. Freeze actual final
+    `M`, add ordinary `FIXED` proof to its reachable real ancestor `Q_fix`,
+    and generate the sole normal mapping-only direct successor `R` of `M`
+    with `seal`. Self-review, digest and seal bind `M`; `Q_fix` proves the
+    correction and retirement, not a future regenerated seal. The root remains
+    open until actual `R` and supported validation. Historical unused inspection
+    grants no authority for
+    changed material. This adds no receipt, store, retry grammar, trusted-policy
+    switch or exemption from current CI/security/review/wait/merge gates.
+
 11. **Pre-closeout ordering gate:** after `seal` writes the local canonical
     mapping and after the live PR body contains its canonical link, but before
     the sole mapping commit, run
