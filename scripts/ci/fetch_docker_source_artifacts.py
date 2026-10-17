@@ -1042,7 +1042,63 @@ def _alertmanager_cleanup_member(
 
 
 def _alertmanager_compare_replays(replay: list[dict[str, object]]) -> None:
-    # Complete explicit GOMODCACHE payload equality, not root-sensitive Go index caches.
+    from scripts.ci.prometheus_source_image import MAX_CACHE_BYTES
+
+    if (
+        type(replay) is not list
+        or len(replay) != 2
+        or any(type(item) is not dict for item in replay)
+    ):
+        raise RuntimeError("Alertmanager comparison requires two replay records.")
+    inventories: list[list[dict[str, Any]]] = []
+    # Validate every raw row before partitioning; retained inventories stay unfiltered.
+    for item in replay:
+        inventory = item.get("module_cache")
+        if type(inventory) is not list or len(inventory) > 250000:
+            raise RuntimeError("Alertmanager module_cache inventory shape or bound differs.")
+        seen: set[str] = set()
+        total = 0
+        for row in inventory:
+            if type(row) is not dict or set(row) != {"path", "size", "mode", "sha256"}:
+                raise RuntimeError("Alertmanager module_cache row shape differs.")
+            path, size, mode, digest = (row[key] for key in ("path", "size", "mode", "sha256"))
+            if (
+                type(path) is not str
+                or "\\" in path
+                or "\x00" in path
+                or any(part in ("", ".", "..") for part in path.split("/"))
+            ):
+                raise RuntimeError("Alertmanager module_cache path is unsafe or noncanonical.")
+            if (
+                type(size) is not int
+                or not 0 <= size <= MAX_CACHE_BYTES
+                or type(mode) is not int
+                or not 0 <= mode <= 0o7777
+                or type(digest) is not str
+                or _HEX_RE.fullmatch(digest) is None
+            ):
+                raise RuntimeError("Alertmanager module_cache row values differ.")
+            if path in seen:
+                raise RuntimeError("Alertmanager module_cache contains a duplicate path.")
+            seen.add(path)
+            total += size
+            if total > MAX_CACHE_BYTES:
+                raise RuntimeError("Alertmanager module_cache aggregate byte bound exceeded.")
+        inventories.append(inventory)
+    # Qualified Go 1.27.2 modfetch/sumdb.go owns precisely these cached lookups/tiles.
+    # Their independent native state may differ; every other complete row stays exact.
+    # This transient view never filters retention or each replay's raw offline stability.
+    payloads = [
+        [
+            row
+            for row in inventory
+            if not (
+                row["path"].split("/")[:3] == ["cache", "download", "sumdb"]
+                and len(row["path"].split("/")) > 3
+            )
+        ]
+        for inventory in inventories
+    ]
     for key in (
         "original",
         "derived",
@@ -1054,7 +1110,8 @@ def _alertmanager_compare_replays(replay: list[dict[str, object]]) -> None:
         "source",
         "version",
     ):
-        if replay[0][key] != replay[1][key]:
+        first, second = payloads if key == "module_cache" else (replay[0][key], replay[1][key])
+        if first != second:
             raise RuntimeError("Independent Alertmanager original-source replay differs: " + key)
 
 

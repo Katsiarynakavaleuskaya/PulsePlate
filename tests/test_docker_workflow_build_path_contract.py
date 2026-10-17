@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ast
+from copy import deepcopy
 from datetime import date
 from dataclasses import replace
 from email.message import Message
@@ -16,6 +17,7 @@ from ssl import SSLCertVerificationError
 import subprocess
 import sys
 from pathlib import Path, PurePosixPath
+from typing import Any
 from urllib.parse import urlparse
 from urllib.error import HTTPError, URLError
 from urllib.request import HTTPHandler, HTTPSHandler, Request
@@ -3536,37 +3538,328 @@ def test_alertmanager_cleanup_requires_actual_create_id_before_any_remove(
         assert calls[-1] == ["/absolute/docker", "--config", str(tmp_path), "rm", "--force", owned]
 
 
+def _alertmanager_cache_row(path: str, body: bytes, mode: int = 0o444) -> dict[str, object]:
+    return {"path": path, "size": len(body), "mode": mode, "sha256": sha256(body).hexdigest()}
+
+
+@pytest.fixture
+def alertmanager_replays() -> list[dict[str, Any]]:
+    first = {
+        "original": {"go.mod": b"module example.org/main\n", "go.sum": b"original sums\n"},
+        "derived": {"go.mod": b"module example.org/main\n", "go.sum": b"derived sums\n"},
+        "modules": [{"Path": "example.org/dependency", "Version": "v1.2.3"}],
+        "graph": [b"example.org/main example.org/dependency@v1.2.3"],
+        "packages": {
+            "alertmanager": [{"ImportPath": "example.org/main/cmd/alertmanager"}],
+            "amtool": [{"ImportPath": "example.org/main/cmd/amtool"}],
+        },
+        "delta": [{"path": "example.org/dependency", "before": "v1.2.2", "after": "v1.2.3"}],
+        "source": [_alertmanager_cache_row("go.mod", b"module example.org/main\n")],
+        "version": b"go version go1.27.2 linux/amd64\n",
+        "module_cache": [
+            _alertmanager_cache_row("cache/download/example.org/dependency/@v/v1.2.3.mod", b"mod"),
+            _alertmanager_cache_row("cache/download/example.org/dependency/@v/v1.2.3.zip", b"zip"),
+            _alertmanager_cache_row(
+                "cache/download/sumdb/sum.golang.org/lookup/module@v1.2.3", b"first lookup", 0o600
+            ),
+            _alertmanager_cache_row(
+                "cache/download/sumdb/sum.golang.org/tile/8/0/001.p/2", b"first tile", 0o600
+            ),
+            _alertmanager_cache_row(
+                "example.org/dependency@v1.2.3/main.go", b"package dependency\n"
+            ),
+        ],
+    }
+    second = deepcopy(first)
+    second["module_cache"][2] = _alertmanager_cache_row(
+        "cache/download/sumdb/sum.golang.org/lookup/module@v1.2.3", b"second lookup", 0o600
+    )
+    second["module_cache"][3] = _alertmanager_cache_row(
+        "cache/download/sumdb/sum.golang.org/tile/8/0/001", b"second full tile", 0o600
+    )
+    return [first, second]
+
+
+def test_alertmanager_replay_partitions_only_native_sumdb_state_without_mutating_raw_records(
+    alertmanager_replays: list[dict[str, Any]],
+) -> None:
+    original = deepcopy(alertmanager_replays)
+    assert alertmanager_replays[0]["module_cache"] != alertmanager_replays[1]["module_cache"]
+    docker_sources._alertmanager_compare_replays(alertmanager_replays)
+    assert alertmanager_replays == original
+
+
 @pytest.mark.parametrize("module_changed", [False, True])
 def test_alertmanager_replay_compares_complete_module_payload_not_go_index_cache(
+    alertmanager_replays: list[dict[str, Any]],
     module_changed: bool,
 ) -> None:
-    first = {
-        key: []
-        for key in (
-            "original",
-            "derived",
-            "modules",
-            "graph",
-            "packages",
-            "delta",
-            "source",
-            "version",
-        )
-    }
-    first["module_cache"] = [
-        {"path": "example@v1/file", "sha256": "a" * 64, "mode": 444, "size": 1}
-    ]
-    second = dict(first)
-    first["whole_GOCACHE"] = [{"path": "index-first-root", "sha256": "b" * 64}]
-    second["whole_GOCACHE"] = [{"path": "index-second-root", "sha256": "c" * 64}]
+    first, second = alertmanager_replays
+    first["whole_GOCACHE"] = [_alertmanager_cache_row("index-first-root", b"first root index")]
+    second["whole_GOCACHE"] = [_alertmanager_cache_row("index-second-root", b"second root index")]
     if module_changed:
-        second["module_cache"] = [
-            {"path": "example@v1/file", "sha256": "d" * 64, "mode": 444, "size": 1}
-        ]
+        second["module_cache"][-1] = _alertmanager_cache_row(
+            "example.org/dependency@v1.2.3/main.go", b"changed module payload\n"
+        )
         with pytest.raises(RuntimeError, match="module_cache"):
-            docker_sources._alertmanager_compare_replays([first, second])
+            docker_sources._alertmanager_compare_replays(alertmanager_replays)
     else:
-        docker_sources._alertmanager_compare_replays([first, second])
+        docker_sources._alertmanager_compare_replays(alertmanager_replays)
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "cache/download/sumdbx/lookup/module",
+        "cache/download/sumdb-old/lookup/module",
+        "cache/download/sumdb",
+        "cache/download/SUMDB/lookup/module",
+        "Cache/download/sumdb/lookup/module",
+        "prefix/cache/download/sumdb/lookup/module",
+        "cache/download/sumdb.json",
+    ],
+)
+def test_alertmanager_sumdb_lookalikes_and_root_file_remain_strict(
+    alertmanager_replays: list[dict[str, Any]], path: str
+) -> None:
+    alertmanager_replays[0]["module_cache"].append(_alertmanager_cache_row(path, b"first"))
+    alertmanager_replays[1]["module_cache"].append(_alertmanager_cache_row(path, b"second"))
+    with pytest.raises(RuntimeError, match="replay differs: module_cache"):
+        docker_sources._alertmanager_compare_replays(alertmanager_replays)
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "",
+        "/cache/download/sumdb/lookup/module",
+        "./cache/download/sumdb/lookup/module",
+        "cache/download/sumdb/../module",
+        "cache/download/sumdb/./module",
+        "cache/download/sumdb//module",
+        "cache/download//sumdb/module",
+        "cache/download/sumdb/module/",
+        "cache\\download\\sumdb\\module",
+        "cache/download/sumdb/module\x00suffix",
+    ],
+)
+def test_alertmanager_sumdb_aliases_reject_before_partition(
+    alertmanager_replays: list[dict[str, Any]], path: str
+) -> None:
+    alertmanager_replays[1]["module_cache"].append(_alertmanager_cache_row(path, b"opaque cache"))
+    with pytest.raises(RuntimeError, match="path is unsafe or noncanonical"):
+        docker_sources._alertmanager_compare_replays(alertmanager_replays)
+
+
+@pytest.mark.parametrize("inventory", [None, {}, (), "cache inventory", True])
+def test_alertmanager_replay_rejects_nonlist_cache_inventory(
+    alertmanager_replays: list[dict[str, Any]], inventory: object
+) -> None:
+    alertmanager_replays[1]["module_cache"] = inventory
+    with pytest.raises(RuntimeError, match="inventory shape or bound"):
+        docker_sources._alertmanager_compare_replays(alertmanager_replays)
+
+
+@pytest.mark.parametrize("field", ["path", "size", "mode", "sha256", "unknown"])
+def test_alertmanager_replay_rejects_missing_or_unknown_checksum_row_fields(
+    alertmanager_replays: list[dict[str, Any]], field: str
+) -> None:
+    row = alertmanager_replays[1]["module_cache"][2]
+    if field == "unknown":
+        row["type"] = "file"
+    else:
+        row.pop(field)
+    # Every raw row is validated before even another ordinary mismatch can mask it.
+    alertmanager_replays[1]["modules"] = []
+    with pytest.raises(RuntimeError, match="row shape differs"):
+        docker_sources._alertmanager_compare_replays(alertmanager_replays)
+
+
+@pytest.mark.parametrize("row", [None, [], "cache row", True])
+def test_alertmanager_replay_rejects_nonobject_row(
+    alertmanager_replays: list[dict[str, Any]], row: object
+) -> None:
+    alertmanager_replays[1]["module_cache"].append(row)
+    with pytest.raises(RuntimeError, match="row shape differs"):
+        docker_sources._alertmanager_compare_replays(alertmanager_replays)
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("path", None),
+        ("path", True),
+        ("size", True),
+        ("size", -1),
+        ("size", 1.5),
+        ("size", 2 * 1024**3 + 1),
+        ("mode", True),
+        ("mode", -1),
+        ("mode", "0600"),
+        ("mode", 0o100600),
+        ("sha256", None),
+        ("sha256", "A" * 64),
+        ("sha256", "a" * 63),
+        ("sha256", "g" * 64),
+        ("sha256", "a" * 64 + "\n"),
+    ],
+)
+def test_alertmanager_replay_rejects_invalid_values_inside_checksum_namespace(
+    alertmanager_replays: list[dict[str, Any]], field: str, value: object
+) -> None:
+    alertmanager_replays[1]["module_cache"][2][field] = value
+    diagnostic = "path is unsafe" if field == "path" else "row values differ"
+    with pytest.raises(RuntimeError, match=diagnostic):
+        docker_sources._alertmanager_compare_replays(alertmanager_replays)
+
+
+@pytest.mark.parametrize("fault", ["duplicate", "count", "total", "missing_inventory"])
+def test_alertmanager_replay_validates_complete_cache_before_partition(
+    alertmanager_replays: list[dict[str, Any]], fault: str
+) -> None:
+    inventory = alertmanager_replays[1]["module_cache"]
+    if fault == "duplicate":
+        inventory.append(deepcopy(inventory[2]))
+        diagnostic = "duplicate path"
+    elif fault == "count":
+        alertmanager_replays[1]["module_cache"] = [inventory[2]] * 250001
+        diagnostic = "inventory shape or bound"
+    elif fault == "total":
+        inventory[2]["size"] = 2 * 1024**3
+        diagnostic = "aggregate byte bound"
+    else:
+        alertmanager_replays[1].pop("module_cache")
+        diagnostic = "inventory shape or bound"
+    with pytest.raises(RuntimeError, match=diagnostic):
+        docker_sources._alertmanager_compare_replays(alertmanager_replays)
+
+
+@pytest.mark.parametrize(
+    "member", [0, 1, 4], ids=["module-metadata", "module-archive", "module-source"]
+)
+@pytest.mark.parametrize("fault", ["missing", "extra", "path", "size", "mode", "sha256", "order"])
+def test_alertmanager_every_nonchecksum_member_remains_exact(
+    alertmanager_replays: list[dict[str, Any]], member: int, fault: str
+) -> None:
+    inventory = alertmanager_replays[1]["module_cache"]
+    if fault == "missing":
+        inventory.pop(member)
+    elif fault == "extra":
+        row = deepcopy(inventory[member])
+        row["path"] += ".additional"
+        inventory.append(row)
+    elif fault == "order":
+        inventory.insert(0, inventory.pop(member if member else 1))
+    else:
+        row = inventory[member]
+        row[fault] = {
+            "path": str(row["path"]) + ".changed",
+            "size": int(row["size"]) + 1,
+            "mode": 0o600,
+            "sha256": sha256(b"changed member body").hexdigest(),
+        }[fault]
+    with pytest.raises(RuntimeError, match="replay differs: module_cache"):
+        docker_sources._alertmanager_compare_replays(alertmanager_replays)
+
+
+@pytest.mark.parametrize(
+    "key,part",
+    [
+        ("original", "go.mod"),
+        ("original", "go.sum"),
+        ("derived", "go.mod"),
+        ("derived", "go.sum"),
+        ("modules", None),
+        ("graph", None),
+        ("packages", "alertmanager"),
+        ("packages", "amtool"),
+        ("delta", None),
+        ("source", None),
+        ("version", None),
+    ],
+)
+def test_alertmanager_checksum_partition_cannot_mask_another_replay_mismatch(
+    alertmanager_replays: list[dict[str, Any]], key: str, part: str | None
+) -> None:
+    if part is None:
+        alertmanager_replays[1][key] = b"changed ordinary predicate"
+    else:
+        alertmanager_replays[1][key][part] = b"changed lock or command graph"
+    with pytest.raises(RuntimeError, match="replay differs: " + key):
+        docker_sources._alertmanager_compare_replays(alertmanager_replays)
+
+
+@pytest.mark.parametrize("replays", [None, [], [{}], [None, None], ({}, {})])
+def test_alertmanager_replay_requires_exact_pair_container(replays: object) -> None:
+    with pytest.raises(RuntimeError, match="requires two replay records"):
+        docker_sources._alertmanager_compare_replays(replays)
+
+
+@pytest.mark.parametrize(
+    "relative",
+    [
+        "pkg/mod/cache/download/sumdb/sum.golang.org/lookup/module@v1.2.3",
+        "pkg/mod/example.org/dependency@v1.2.3/main.go",
+        "build/index",
+    ],
+    ids=["checksum-state", "module-payload", "build-cache"],
+)
+def test_alertmanager_offline_stability_still_uses_complete_raw_cache(
+    tmp_path: Path, relative: str
+) -> None:
+    import inspect
+    from scripts.ci.prometheus_source_image import tree_inventory
+
+    # Physical inventory still observes checksum state, even though cross-replay
+    # payload comparison delegates that exact namespace to the qualified Go owner.
+    cache = tmp_path / "cache"
+    member = cache / relative
+    member.parent.mkdir(parents=True)
+    member.write_bytes(b"before offline command")
+    before = tree_inventory(cache)
+    member.write_bytes(b"after offline command")
+    after = tree_inventory(cache)
+    assert before != after
+    assert before[0]["path"] == after[0]["path"] == relative
+
+    phase = ast.parse(inspect.getsource(docker_sources._alertmanager_module_phase))
+    guard = next(
+        node
+        for node in ast.walk(phase)
+        if isinstance(node, ast.If)
+        and any(
+            isinstance(statement, ast.Raise)
+            and isinstance(statement.exc, ast.Call)
+            and statement.exc.args
+            and isinstance(statement.exc.args[0], ast.Constant)
+            and statement.exc.args[0].value == "Readonly offline source/cache changed."
+            for statement in node.body
+        )
+    )
+    # This existing admission guard must compare both full raw observations,
+    # without the comparator's transient cross-replay partition.
+    assert ast.unparse(guard.test) == (
+        "tree_inventory(source, deadline=deadline) != readonly_source or "
+        "tree_inventory(cache, deadline=deadline) != readonly_cache"
+    )
+
+
+def test_alertmanager_matching_verify_stdout_cannot_mask_native_failure(tmp_path: Path) -> None:
+    import time
+    from scripts.ci.prometheus_source_image import Native, QualificationError
+
+    evidence = tmp_path / "evidence"
+    evidence.mkdir()
+    native = Native(evidence, time.monotonic() + 10, 45)
+    with pytest.raises(QualificationError, match="native_failed"):
+        native.run(
+            [sys.executable, "-I", "-c", "print('all modules verified'); raise SystemExit(1)"],
+            "synthetic-online-verify",
+            {"PATH": "/usr/bin:/bin", "HOME": str(tmp_path)},
+            cwd=tmp_path,
+        )
+    assert (evidence / "synthetic-online-verify.stdout").read_bytes() == b"all modules verified\n"
+    assert native.records[0]["exit"] == 1
 
 
 def test_alertmanager_frozen_input_artifact_includes_required_bytes_and_excludes_private_home(
@@ -3585,6 +3878,10 @@ def test_alertmanager_frozen_input_artifact_includes_required_bytes_and_excludes
     long_module = modules / ("module-cache-" + "x" * 151)
     long_module.write_bytes(b"exact long-name module bytes")
     long_module.chmod(0o444)
+    checksum = modules / "cache/download/sumdb/sum.golang.org/lookup/module@v1.2.3"
+    checksum.parent.mkdir(parents=True)
+    checksum.write_bytes(b"complete retained checksum state")
+    checksum.chmod(0o600)
     files = []
     for name in ("go", "base", "original", "ui"):
         path = tmp_path / name
@@ -3604,6 +3901,9 @@ def test_alertmanager_frozen_input_artifact_includes_required_bytes_and_excludes
         long_name = "modules/" + long_module.name
         assert archive.extractfile(long_name).read() == long_module.read_bytes()
         assert archive.getmember(long_name).mode == 0o444
+        checksum_name = "modules/" + checksum.relative_to(modules).as_posix()
+        assert archive.extractfile(checksum_name).read() == checksum.read_bytes()
+        assert archive.getmember(checksum_name).mode == 0o600
         observed = []
         for member in archive.getmembers():
             row = {
@@ -3661,6 +3961,9 @@ def test_alertmanager_hosted_transport_shares_clock_and_empty_docker_config() ->
     assert '"GOCACHE": "/run/alertmanager-metadata/cache"' in source
     assert '"TMPDIR": "/run/alertmanager-metadata"' in source
     assert '"--network=none"' in source and '"--read-only"' in source
+    assert '"GOSUMDB": "sum.golang.org"' in source
+    assert '"GOTOOLCHAIN": "local"' in source
+    assert '["get", "golang.org/x/net@v0.60.0", "google.golang.org/grpc@v1.83.2"]' in source
     assert '"--cap-drop=ALL"' in source and '"--security-opt=no-new-privileges"' in source
     assert '"loaded_base_ID": base_id' in source
     assert "native_import(" not in source and '"login"' not in source
