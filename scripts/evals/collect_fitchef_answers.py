@@ -43,7 +43,11 @@ from app.schemas.fitchef import (
     FitChefDistortionSimulatorInput,
     FitChefDistortionSimulatorTaskEnvelope,
 )
-from app.security.agent_input_guard import require_safe_ai_agent_input, scan_ai_agent_input
+from app.security.agent_input_guard import (
+    UNSAFE_AI_INPUT_DETAIL,
+    require_safe_ai_agent_input,
+    scan_ai_agent_input,
+)
 from app.middleware.api_tiers import TEST_KEY_PRO
 from app.security.llm_monthly_quota import (
     VipLlmMonthlyUsage,
@@ -219,6 +223,38 @@ def _ocw_usage(value: object) -> tuple[dict[str, Any] | None, int | float | None
     # invoice truth; the caller separately admits a documented USD basis.
     _canonical(raw)
     return copy.deepcopy(raw), numeric
+
+
+def _validate_ocw_usage_token_limits(usage: dict[str, Any] | None) -> None:
+    """Apply the same finite reported-token bounds to capture and frozen replay."""
+    if usage is None:
+        return
+    ceilings = {
+        "prompt_tokens": _OCW_BILLED_INPUT_CEILING,
+        "input_tokens": _OCW_BILLED_INPUT_CEILING,
+        "completion_tokens": _OCW_OUTPUT_TOKENS,
+        "output_tokens": _OCW_OUTPUT_TOKENS,
+        "total_tokens": _OCW_BILLED_INPUT_CEILING + _OCW_OUTPUT_TOKENS,
+    }
+    if any(usage.get(field, 0) > ceiling for field, ceiling in ceilings.items()):
+        raise ValueError("ocw_usage_token_limits")
+    for field, total_field in (
+        ("output_tokens_details", "output_tokens"),
+        ("completion_tokens_details", "completion_tokens"),
+    ):
+        if field not in usage:
+            continue
+        detail = usage[field]
+        if type(detail) is not dict:
+            raise ValueError("ocw_usage_token_limits")
+        if "reasoning_tokens" in detail:
+            count = detail["reasoning_tokens"]
+            if (
+                type(count) is not int
+                or count < 0
+                or count > min(usage.get(total_field, _OCW_OUTPUT_TOKENS), _OCW_OUTPUT_TOKENS)
+            ):
+                raise ValueError("ocw_usage_token_limits")
 
 
 def _validate_ocw_manifest_rows(rows: list[object]) -> list[dict[str, Any]]:
@@ -877,32 +913,10 @@ class AttemptLedger:
                 )
                 native["usage"], declared_amount = _ocw_usage(raw_usage)
                 usage = native["usage"]
-                if usage is not None:
-                    ceilings = {
-                        "prompt_tokens": _OCW_BILLED_INPUT_CEILING,
-                        "input_tokens": _OCW_BILLED_INPUT_CEILING,
-                        "completion_tokens": _OCW_OUTPUT_TOKENS,
-                        "output_tokens": _OCW_OUTPUT_TOKENS,
-                        "total_tokens": _OCW_BILLED_INPUT_CEILING + _OCW_OUTPUT_TOKENS,
-                    }
-                    if any(usage.get(field, 0) > ceiling for field, ceiling in ceilings.items()):
-                        self.terminal_reason = "reported_token_overrun"
-                    for field, total_field in (
-                        ("output_tokens_details", "output_tokens"),
-                        ("completion_tokens_details", "completion_tokens"),
-                    ):
-                        detail = usage.get(field)
-                        if type(detail) is dict and "reasoning_tokens" in detail:
-                            count = detail["reasoning_tokens"]
-                            if (
-                                type(count) is not int
-                                or count < 0
-                                or count
-                                > min(
-                                    usage.get(total_field, _OCW_OUTPUT_TOKENS), _OCW_OUTPUT_TOKENS
-                                )
-                            ):
-                                self.terminal_reason = "reported_token_overrun"
+                try:
+                    _validate_ocw_usage_token_limits(usage)
+                except ValueError:
+                    self.terminal_reason = "reported_token_overrun"
                 declared = (
                     payload.get("usage", {}).get("cost")
                     if type(payload.get("usage")) is dict
@@ -2283,6 +2297,10 @@ def validate_ocw_records(
     """Recheck frozen paired material; consistency does not authenticate execution."""
     try:
         return _validate_ocw_records(records, expected_run=expected_run)
+    except HTTPException as exc:
+        if exc.status_code != 400 or exc.detail != UNSAFE_AI_INPUT_DETAIL:
+            raise
+        raise ValueError("ocw_record") from exc
     except (KeyError, TypeError, IndexError, AttributeError, UnicodeError, RecursionError) as exc:
         raise ValueError("ocw_record") from exc
 
@@ -2474,6 +2492,7 @@ def _validate_ocw_records(
             previous = attempt["attempt"]
             physical_attempts.add(previous)
             usage, declared_amount = _ocw_usage(attempt.get("usage"))
+            _validate_ocw_usage_token_limits(usage)
             declared_cost = usage.get("cost") if usage is not None else None
             if _canonical(attempt.get("provider_declared_cost")) != _canonical(declared_cost):
                 raise ValueError("ocw_record_binding")

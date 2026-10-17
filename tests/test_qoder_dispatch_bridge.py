@@ -5059,6 +5059,30 @@ def test_exact_json_source_text_requires_a_strict_object(
         )
 
 
+@pytest.mark.parametrize("constant", ["NaN", "Infinity", "-Infinity", "1e400", "-1e400"])
+@pytest.mark.parametrize("pinned_text", [False, True])
+def test_strict_packet_rejects_nonfinite_values_in_unused_nested_fields(
+    tmp_path: Path, constant: str, pinned_text: bool
+) -> None:
+    """File and pinned-text readers retain finite JSON without admitting extensions."""
+    packet = tmp_path / "packet.json"
+    valid = {"extension": [{"value": 1e308, "label": constant}], "finite": -1e308}
+    source = json.dumps(valid)
+    packet.write_text(source, encoding="utf-8")
+    assert (
+        qoder_dispatch_bridge._load_packet_payload(
+            packet, json_designated=True, source_text=source if pinned_text else None
+        )
+        == valid
+    )
+    invalid = '{"extension":[{"value":' + constant + "}]}"
+    packet.write_text(invalid, encoding="utf-8")
+    with pytest.raises(ValueError, match="invalid strict JSON task packet"):
+        qoder_dispatch_bridge._load_packet_payload(
+            packet, json_designated=True, source_text=invalid if pinned_text else None
+        )
+
+
 def test_exact_context_requires_packet_backed_dispatch(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
@@ -5909,6 +5933,50 @@ def test_ocw_is_outer_only_and_preserves_same_material_default(
     assert actual == baseline
     assert attachment["invocation"]["case_id"] == "OCW-N02"
     assert attachment["authority_granted"] is False
+
+
+@pytest.mark.parametrize("constant", ["NaN", "Infinity", "-Infinity", "1e400", "-1e400"])
+def test_ocw_rejects_nonfinite_unused_packet_extension_before_dispatch(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    constant: str,
+) -> None:
+    """A complete finite OCW control reaches delivery; malformed JSON reaches no role."""
+    from scripts.evals import evidence_relation_audit
+
+    packet = _write_exact_dispatch_fixture(tmp_path, monkeypatch)
+    evidence, invocation = _write_ocw_inputs(
+        tmp_path, "deliberately-not-authenticated-by-exact-context"
+    )
+    payload = json.loads(packet.read_text())
+    payload["extension"] = [{"value": "nonfinite-placeholder", "label": constant}]
+    source = json.dumps(payload)
+    packet.write_text(source, encoding="utf-8")
+    args = [
+        "--packet",
+        str(packet),
+        "--role-context-order",
+        "1",
+        "--ocw-evidence",
+        str(evidence),
+        "--ocw-invocation",
+        str(invocation),
+    ]
+    assert qoder_dispatch_bridge.main(args) == 0
+    assert json.loads(capsys.readouterr().out)["ocw_evidence"]["authority_granted"] is False
+    packet.write_text(source.replace('"nonfinite-placeholder"', constant), encoding="utf-8")
+
+    def no_dispatch(*_args: object, **_kwargs: object) -> None:
+        pytest.fail("malformed strict packet reached role or OCW evidence admission")
+
+    monkeypatch.setattr(qoder_dispatch_bridge, "_parse_loaded_packet_roles", no_dispatch)
+    monkeypatch.setattr(evidence_relation_audit, "read_jsonl", no_dispatch)
+    output = tmp_path / "rejected-output.json"
+    assert qoder_dispatch_bridge.main([*args, "--output", str(output)]) == 1
+    captured = capsys.readouterr()
+    assert captured.out == "" and "invalid strict JSON task packet" in captured.err
+    assert not output.exists()
 
 
 def test_ocw_safe_output_does_not_follow_or_replace_destination(

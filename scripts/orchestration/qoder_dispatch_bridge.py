@@ -1788,15 +1788,26 @@ def _load_json_packet(packet_path: Path) -> Optional[Dict[str, Any]]:
     return payload
 
 
-def _load_strict_json_packet(packet_path: Path) -> Dict[str, Any]:
-    """Load one JSON object while rejecting duplicate keys."""
+def _load_strict_json_packet(
+    packet_path: Path, *, source_text: Optional[str] = None
+) -> Dict[str, Any]:
+    """Load one duplicate-free object containing only native finite JSON values."""
 
     try:
         payload: Dict[str, Any] = load_creative_pilot_json_strict(
-            packet_path.read_text(encoding="utf-8")
+            packet_path.read_text(encoding="utf-8") if source_text is None else source_text
         )
+        # The native encoder checks every decoded value, including unused
+        # extensions and numbers that overflowed to infinity during decoding.
+        json.dumps(payload, allow_nan=False)
         return payload
-    except (OSError, UnicodeDecodeError, CreativePilotContractError) as exc:
+    except (
+        OSError,
+        UnicodeDecodeError,
+        CreativePilotContractError,
+        ValueError,
+        RecursionError,
+    ) as exc:
         raise ValueError(f"invalid strict JSON task packet: {exc}") from exc
 
 
@@ -1947,15 +1958,7 @@ def _load_packet_payload(
     """Load a packet once using the caller-designated format."""
 
     if json_designated:
-        if source_text is not None:
-            try:
-                payload = load_creative_pilot_json_strict(source_text)
-            except CreativePilotContractError as exc:
-                raise ValueError(f"invalid strict JSON task packet: {exc}") from exc
-            if not isinstance(payload, dict):
-                raise ValueError("invalid strict JSON task packet: expected object")
-            return payload
-        return _load_strict_json_packet(resolved_packet_path)
+        return _load_strict_json_packet(resolved_packet_path, source_text=source_text)
     return _load_json_packet(resolved_packet_path)
 
 
