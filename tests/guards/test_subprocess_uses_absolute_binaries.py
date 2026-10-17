@@ -14,6 +14,8 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
+import pytest
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 SCAN_DIRS = (
@@ -158,10 +160,9 @@ def _scope_chain_for_lineno(tree: ast.AST, lineno: int) -> tuple[ast.AST, ...]:
 
 
 def _find_recent_assignments(
-    tree: ast.AST, upto_lineno: int, name: str
+    tree: ast.AST, upto_lineno: int, name: str, *, parents: dict[ast.AST, ast.AST]
 ) -> list[AssignmentCandidate]:
     matches: list[tuple[int, AssignmentCandidate]] = []
-    parents = _parent_map(tree)
     allowed_scopes = {id(scope) for scope in _scope_chain_for_lineno(tree, upto_lineno)}
     for node in ast.walk(tree):
         target: ast.expr | None
@@ -278,12 +279,17 @@ def _shell_command_binary_from_tokens(tokens: list[str]) -> str | None:
 
 
 def _expr_resolution_hits_name_cycle(
-    tree: ast.AST, expr: ast.expr, *, upto_lineno: int, seen_names: set[str]
+    tree: ast.AST,
+    expr: ast.expr,
+    *,
+    parents: dict[ast.AST, ast.AST],
+    upto_lineno: int,
+    seen_names: set[str],
 ) -> bool:
     if isinstance(expr, ast.Name):
         if expr.id in seen_names:
             return True
-        assignments = _find_recent_assignments(tree, upto_lineno, expr.id)
+        assignments = _find_recent_assignments(tree, upto_lineno, expr.id, parents=parents)
         if not assignments:
             return False
         latest = assignments[0]
@@ -292,6 +298,7 @@ def _expr_resolution_hits_name_cycle(
                 _expr_resolution_hits_name_cycle(
                     tree,
                     assignment.value,
+                    parents=parents,
                     upto_lineno=getattr(assignment.value, "lineno", upto_lineno),
                     seen_names=seen_names | {expr.id},
                 )
@@ -300,12 +307,13 @@ def _expr_resolution_hits_name_cycle(
         return _expr_resolution_hits_name_cycle(
             tree,
             latest.value,
+            parents=parents,
             upto_lineno=getattr(latest.value, "lineno", upto_lineno),
             seen_names=seen_names | {expr.id},
         )
     if isinstance(expr, (ast.List, ast.Tuple)) and expr.elts:
         return _expr_resolution_hits_name_cycle(
-            tree, expr.elts[0], upto_lineno=upto_lineno, seen_names=seen_names
+            tree, expr.elts[0], parents=parents, upto_lineno=upto_lineno, seen_names=seen_names
         )
     if isinstance(expr, ast.Call) and expr.args:
         function = expr.func
@@ -314,7 +322,7 @@ def _expr_resolution_hits_name_cycle(
         ) or (isinstance(function, ast.Attribute) and function.attr == "Path")
         if is_string_or_path_wrapper:
             return _expr_resolution_hits_name_cycle(
-                tree, expr.args[0], upto_lineno=upto_lineno, seen_names=seen_names
+                tree, expr.args[0], parents=parents, upto_lineno=upto_lineno, seen_names=seen_names
             )
     return False
 
@@ -323,13 +331,14 @@ def _resolve_name_from_assignments(
     tree: ast.AST,
     expr: ast.Name,
     *,
+    parents: dict[ast.AST, ast.AST],
     upto_lineno: int,
     seen_names: set[str],
     resolver: AssignmentResolver,
 ) -> str | None:
     if expr.id in seen_names:
         return None
-    assignments = _find_recent_assignments(tree, upto_lineno, expr.id)
+    assignments = _find_recent_assignments(tree, upto_lineno, expr.id, parents=parents)
     if not assignments:
         return None
     latest = assignments[0]
@@ -341,6 +350,7 @@ def _resolve_name_from_assignments(
         if _expr_resolution_hits_name_cycle(
             tree,
             latest.value,
+            parents=parents,
             upto_lineno=latest_lineno,
             seen_names=seen_names | {expr.id},
         ):
@@ -366,7 +376,12 @@ def _resolve_name_from_assignments(
 
 
 def _resolve_binary_expr(
-    tree: ast.AST, expr: ast.expr, *, upto_lineno: int, seen_names: set[str]
+    tree: ast.AST,
+    expr: ast.expr,
+    *,
+    parents: dict[ast.AST, ast.AST],
+    upto_lineno: int,
+    seen_names: set[str],
 ) -> str | None:
     if isinstance(expr, ast.Constant) and isinstance(expr.value, str):
         return expr.value.strip()
@@ -374,10 +389,11 @@ def _resolve_binary_expr(
         return _resolve_name_from_assignments(
             tree,
             expr,
+            parents=parents,
             upto_lineno=upto_lineno,
             seen_names=seen_names,
             resolver=lambda value, line, names: _resolve_binary_expr(
-                tree, value, upto_lineno=line, seen_names=names
+                tree, value, parents=parents, upto_lineno=line, seen_names=names
             ),
         )
     if isinstance(expr, ast.Subscript) and _is_os_environ_subscript(expr):
@@ -396,6 +412,7 @@ def _resolve_binary_expr(
             return _resolve_binary_expr(
                 tree,
                 expr.args[0],
+                parents=parents,
                 upto_lineno=upto_lineno,
                 seen_names=seen_names,
             )
@@ -403,7 +420,12 @@ def _resolve_binary_expr(
 
 
 def _resolve_argv_binary(
-    tree: ast.AST, expr: ast.expr, *, upto_lineno: int, seen_names: set[str]
+    tree: ast.AST,
+    expr: ast.expr,
+    *,
+    parents: dict[ast.AST, ast.AST],
+    upto_lineno: int,
+    seen_names: set[str],
 ) -> str | None:
     if isinstance(expr, ast.Constant) and isinstance(expr.value, str):
         parts = shlex.split(expr.value.strip())
@@ -412,7 +434,7 @@ def _resolve_argv_binary(
         return _shell_command_binary_from_tokens(parts)
     if isinstance(expr, (ast.List, ast.Tuple)) and expr.elts:
         first_binary = _resolve_binary_expr(
-            tree, expr.elts[0], upto_lineno=upto_lineno, seen_names=seen_names
+            tree, expr.elts[0], parents=parents, upto_lineno=upto_lineno, seen_names=seen_names
         )
         if first_binary is not None and Path(first_binary).name == "env" and len(expr.elts) > 1:
             resolved_tokens = [
@@ -423,6 +445,7 @@ def _resolve_argv_binary(
                         _resolve_binary_expr(
                             tree,
                             item,
+                            parents=parents,
                             upto_lineno=upto_lineno,
                             seen_names=seen_names,
                         )
@@ -438,10 +461,11 @@ def _resolve_argv_binary(
         return _resolve_name_from_assignments(
             tree,
             expr,
+            parents=parents,
             upto_lineno=upto_lineno,
             seen_names=seen_names,
             resolver=lambda value, line, names: _resolve_argv_binary(
-                tree, value, upto_lineno=line, seen_names=names
+                tree, value, parents=parents, upto_lineno=line, seen_names=names
             ),
         )
     return None
@@ -481,18 +505,26 @@ def _keyword_expr(node: ast.Call, name: str) -> ast.expr | None:
     return next((keyword.value for keyword in node.keywords if keyword.arg == name), None)
 
 
-def _first_argv_binary(tree: ast.AST, node: ast.Call) -> str | None:
+def _first_argv_binary(
+    tree: ast.AST, node: ast.Call, *, parents: dict[ast.AST, ast.AST]
+) -> str | None:
     argv = _argv_expr(node)
     if argv is None:
         return None
-    return _resolve_argv_binary(tree, argv, upto_lineno=node.lineno, seen_names=set())
+    return _resolve_argv_binary(
+        tree, argv, parents=parents, upto_lineno=node.lineno, seen_names=set()
+    )
 
 
-def _executable_override_binary(tree: ast.AST, node: ast.Call) -> str | None:
+def _executable_override_binary(
+    tree: ast.AST, node: ast.Call, *, parents: dict[ast.AST, ast.AST]
+) -> str | None:
     executable = _keyword_expr(node, "executable")
     if executable is None:
         return None
-    return _resolve_binary_expr(tree, executable, upto_lineno=node.lineno, seen_names=set())
+    return _resolve_binary_expr(
+        tree, executable, parents=parents, upto_lineno=node.lineno, seen_names=set()
+    )
 
 
 def _find_recent_which_var(tree: ast.AST, upto_lineno: int, bin_name: str) -> str | None:
@@ -564,6 +596,7 @@ def _find_subprocess_violations_in_source(
     source: str, *, relpath: str
 ) -> list[SubprocessViolation]:
     tree = ast.parse(source, filename=relpath)
+    parents = _parent_map(tree)
     imports = _subprocess_import_context(tree)
     lines = source.splitlines()
     violations: list[SubprocessViolation] = []
@@ -575,8 +608,8 @@ def _find_subprocess_violations_in_source(
         bin_tokens = [
             token
             for token in (
-                _first_argv_binary(tree, node),
-                _executable_override_binary(tree, node),
+                _first_argv_binary(tree, node, parents=parents),
+                _executable_override_binary(tree, node, parents=parents),
             )
             if token is not None
         ]
@@ -1156,6 +1189,79 @@ subprocess.run(["git", "status"])
 
     assert len(violations) == 1
     assert "use [git_binary, ...]" in violations[0].reason
+
+
+def test_guard_builds_one_parent_map_for_recursive_resolution(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original = _parent_map
+    observed: list[tuple[ast.AST, dict[ast.AST, ast.AST]]] = []
+
+    def counted(tree: ast.AST) -> dict[ast.AST, ast.AST]:
+        parents = original(tree)
+        observed.append((tree, parents))
+        return parents
+
+    monkeypatch.setitem(globals(), "_parent_map", counted)
+    source = (
+        'import subprocess\ncmd = "python"\nother = cmd\nif condition:\n'
+        '    other = other\nargs = [other, "-c", "pass"]\n'
+        "subprocess.run(args)\nsubprocess.Popen(args=args, executable=other)\n"
+    )
+    reason = (
+        "calls 'python' by short name; use sys.executable for current-interpreter "
+        "subprocesses or a repo-approved interpreter path such as VENV_PYTHON, "
+        "DEV_PYTHON, repo .venv/bin/python, or the Experiment Runner resolver pattern"
+    )
+    assert _find_subprocess_violations_in_source(source, relpath="recursive.py") == [
+        SubprocessViolation("recursive.py", 7, "subprocess.run(args)", reason),
+        SubprocessViolation(
+            "recursive.py", 8, "subprocess.Popen(args=args, executable=other)", reason
+        ),
+    ]
+    assert len(observed) == 1
+    safe = source.replace('cmd = "python"', "cmd = sys.executable").replace(
+        "import subprocess", "import subprocess, sys"
+    )
+    assert _find_subprocess_violations_in_source(safe, relpath="recursive.py") == []
+    assert len(observed) == 2
+    assert observed[0][0] is not observed[1][0] and observed[0][1] is not observed[1][1]
+
+
+def test_guard_parent_maps_are_local_across_alternating_sources(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original = _parent_map
+    observed: list[tuple[ast.AST, dict[ast.AST, ast.AST]]] = []
+
+    def counted(tree: ast.AST) -> dict[ast.AST, ast.AST]:
+        parents = original(tree)
+        observed.append((tree, parents))
+        return parents
+
+    monkeypatch.setitem(globals(), "_parent_map", counted)
+    unsafe = 'import subprocess\ncmd = "git"\nsubprocess.run([cmd, "status"])\n'
+    safe = unsafe.replace('cmd = "git"', 'cmd = "/usr/bin/git"')
+    expected = [
+        SubprocessViolation(
+            "same.py",
+            3,
+            'subprocess.run([cmd, "status"])',
+            "calls 'git' by short name; resolve with shutil.which('git') or use an absolute path",
+        )
+    ]
+    for source, result in ((unsafe, expected), (safe, []), (unsafe, expected), (safe, [])):
+        assert _find_subprocess_violations_in_source(source, relpath="same.py") == result
+    assert len(observed) == 4
+    for index, (tree, parents) in enumerate(observed):
+        assert isinstance(tree, ast.Module)
+        assignment = tree.body[1]
+        assert isinstance(assignment, ast.Assign)
+        assert parents[assignment.targets[0]] is assignment
+        assert all(
+            tree is not other_tree and parents is not other_parents
+            for other_tree, other_parents in observed[index + 1 :]
+        )
 
 
 def test_subprocess_requires_absolute_or_which_resolved_binary() -> None:

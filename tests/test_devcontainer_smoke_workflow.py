@@ -4,7 +4,7 @@ These tests verify that:
 - Workflow and smoke script files exist
 - Workflow is path-scoped and supports manual dispatch
 - Workflow does not use secrets, package proxy, or dependency bootstrap
-- Workflow builds the devcontainer Dockerfile (not production)
+- Workflow builds the genuine named tooling foundation, not the full SDK consumer
 - Smoke script checks tooling baseline without installing dependencies
 """
 
@@ -108,7 +108,20 @@ def test_devcontainer_smoke_builds_devcontainer_dockerfile() -> None:
     """Workflow must build the devcontainer Dockerfile image."""
     text = WORKFLOW.read_text(encoding="utf-8")
 
-    assert "docker build" in text, "Workflow must contain docker build command"
+    assert "docker build --platform linux/amd64 --target tooling" in text
+    dockerfile = (REPO_ROOT / ".devcontainer/Dockerfile").read_text(encoding="utf-8")
+    assert "FROM mcr.microsoft.com/devcontainers/python:1-3.13-bookworm AS tooling" in dockerfile
+    foundation, consumer = dockerfile.split("FROM tooling AS devcontainer", 1)
+    assert "COPY --from=native_sdk" not in foundation
+    assert "pip install" not in "\n".join(
+        line for line in foundation.splitlines() if not line.lstrip().startswith("#")
+    )
+    assert "USER vscode" in foundation and "WORKDIR /workspaces/PulsePlate" in foundation
+    assert "USER root" in consumer and "USER vscode" in consumer
+    assert "COPY --from=native_sdk /psycopg-sdk/ /opt/psycopg-sdk/" in consumer
+    assert "COPY --from=native_sdk /wheelhouse/ /opt/dev-wheelhouse/" in consumer
+    assert "ENV PULSEPLATE_PSYCOPG_C_SDK=/opt/psycopg-sdk" in consumer
+    assert "--target devcontainer" not in text
     assert (
         "-f .devcontainer/Dockerfile" in text
     ), "Workflow must build from .devcontainer/Dockerfile"
@@ -161,6 +174,9 @@ def test_devcontainer_smoke_script_checks_tooling_without_installing_deps() -> N
         "npm install",
         "npm ci",
         "make devcontainer-bootstrap",
+        "|| true",
+        "git config",
+        "safe.directory",
     ]
 
     for token in forbidden:
@@ -188,3 +204,21 @@ def test_devcontainer_smoke_script_checks_workdir() -> None:
     assert (
         "/workspaces/PulsePlate" in text
     ), "Smoke script must check /workspaces/PulsePlate workdir"
+
+
+def test_devcontainer_tooling_smoke_keeps_runtime_and_resource_boundary() -> None:
+    data = yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))
+    assert data["permissions"] == {"contents": "read"}
+    job = data["jobs"]["devcontainer-smoke"]
+    assert job["timeout-minutes"] == 20
+    assert job.get("continue-on-error") is None
+    run = next(
+        step["run"] for step in job["steps"] if step["name"] == "Run devcontainer tooling smoke"
+    )
+    assert "--network none --read-only" in run
+    assert "--cap-drop ALL --security-opt no-new-privileges" in run
+    assert '-v "$PWD:/workspaces/PulsePlate:ro"' in run
+    assert "docker.sock" not in run and ".netrc" not in run and "--env-file" not in run
+    assert "PULSEPLATE_PYTHON_INDEX_URL" not in run and "GH_TOKEN" not in run
+    assert "GITHUB_TOKEN" not in run and "DEVPI_CI_PASSWORD" not in run
+    assert "bash scripts/devcontainer/smoke.sh" in run

@@ -377,6 +377,19 @@ Avoid `# type: ignore[no-any-return]` and prefer typed locals over `cast()`.
 - Do not add a second request-lifecycle logging layer when canonical metrics,
   request telemetry, and tracing already provide the required signal.
 
+### Canonical rate-limit compatibility imports
+
+- Import the limiter, conditional decorator and rate-limit constants directly
+  from `app.security.rate_limit`. Their `legacy_app.py` re-exports and the local
+  fallback/type/SlowAPI availability scaffolding are retired; do not restore
+  aliases, fallback decorators or a new availability API.
+- Canonical HTTP-stack wiring and production/staging readiness retain their
+  existing owners. A permitted canonical `limiter=None` in local/test mode is
+  distinct from a missing attribute and never grants production permission.
+- Reuse the protected fresh-process retirement harness for absence/import-order
+  controls; the exact cohort and bounded proof are recorded in
+  [the compatibility seam](../docs/architecture/LEGACY_COMPATIBILITY_SEAM.md#legacy-rate-limit-compatibility-retirement).
+
 ### Canonical application lifecycle ownership
 
 - Application startup/shutdown ownership belongs in `app/bootstrap/lifespan.py`.

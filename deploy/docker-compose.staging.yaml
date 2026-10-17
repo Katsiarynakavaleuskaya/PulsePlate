@@ -138,7 +138,7 @@ services:
       disable: true
 
   prometheus:
-    image: prom/prometheus@sha256:76f21be0a8e8c825cccb0e2021699dcbfb02037cc594c1f48d44993f8a415f2d
+    image: ${PROMETHEUS_RUNTIME_REF:?Set the canonical manifest-derived Prometheus immutable subject}
     platform: linux/amd64
     user: "65532:65532"
     restart: unless-stopped

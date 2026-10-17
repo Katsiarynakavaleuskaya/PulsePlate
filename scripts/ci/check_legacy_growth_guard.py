@@ -156,6 +156,19 @@ RETIRED_LEGACY_PYTHON_BINDINGS = frozenset(
         "_api_description",
         "lifespan",
         "get_update_scheduler",
+        "limiter",
+        "limit_if_available",
+        "RATE_LIMIT_EXPORTS",
+        "RATE_LIMIT_INSIGHT",
+        "RATE_LIMIT_429_RESPONSES",
+        "_RATE_LIMIT_429_RESPONSES",
+        "_TypeVar",
+        "_F",
+        "_LimitValue",
+        "LimiterType",
+        "_Limiter",
+        "Limiter",
+        "slowapi_available",
     }
 )
 ALLOWED_CANONICAL_LIFESPAN_APP_IMPORTS = frozenset(
