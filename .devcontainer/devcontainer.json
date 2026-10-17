@@ -41,5 +41,15 @@
         "esbenp.prettier-vscode"
       ]
     }
-  }
+  },
+  "initializeCommand": [
+    "/usr/bin/env",
+    "-i",
+    "PATH=/usr/bin:/bin",
+    "LANG=C.UTF-8",
+    "/usr/bin/python3",
+    "-I",
+    "-S",
+    "scripts/ci/fetch_docker_source_artifacts.py"
+  ]
 }

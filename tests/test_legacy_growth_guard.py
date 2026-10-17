@@ -26700,3 +26700,723 @@ def test_retired_metadata_projection_restoration_fails_aggregate_guard(
         assert legacy_guard.validate_repo(REPO_ROOT) == [
             "legacy_app.py: retired Python compatibility binding is forbidden: APPLICATION_METADATA"
         ]
+
+
+@pytest.mark.parametrize("family", ["api", "openapi"])
+@pytest.mark.parametrize("protocol", ["enter", "exit"])
+@pytest.mark.parametrize("invoked", [False, True])
+@pytest.mark.parametrize("protected", [False, True])
+def test_consol_sync_with_protocol_separates_runtime_dormancy_from_source_audit(
+    family: str, protocol: str, invoked: bool, protected: bool
+) -> None:
+    module = "app.routers.api_key" if family == "api" else "app.bootstrap.openapi"
+    member = "require_app_api_key" if family == "api" else "_install_openapi_builder"
+    owner = "legacy" if protected else "canonical"
+    enter_body = "tick('E')\n        " + (
+        f"return helper({owner})" if protocol == "enter" else "return None"
+    )
+    exit_body = "tick('X')\n        " + (
+        f"return helper({owner})" if protocol == "exit" else "return None"
+    )
+    source = (
+        f"import legacy_app as legacy\nimport {module} as canonical\ntrace = ''\n"
+        "def tick(value):\n    global trace\n    trace = trace + value\n"
+        f"def helper(owner):\n    return owner.{member}\n"
+        f"class C:\n    def __enter__(self):\n        {enter_body}\n"
+        f"    def __exit__(self, *args):\n        {exit_body}\n"
+        "def main():\n    with C():\n        pass\n"
+        + ("main()\n" if invoked else "instance = C()\nunused = main\n")
+    )
+    compile(source, "<sync-context-ownership>", "exec")
+    errors = (
+        _validate_api_key_dependency_ownership(
+            _CONSOL_GETTER_IMPORTS, {"app/routers/example.py": source}
+        )
+        if family == "api"
+        else _consol_openapi_errors(source)
+    )
+    # The owning source audit intentionally inspects unused synchronous main().
+    assert bool(errors) is protected
+    ordinary = legacy_guard._ApiKeyLookupVisitor(
+        filename="example.py", errors=[], analyze_function_bodies=False
+    )
+    ordinary.visit(ast.parse(source))
+    assert ordinary.scope.strings["trace"] == ("EX" if invoked else "")
+
+
+@pytest.mark.parametrize("family", ["api", "openapi"])
+@pytest.mark.parametrize("protected", [False, True])
+def test_consol_sync_with_as_binding_uses_entered_result(family: str, protected: bool) -> None:
+    module = "app.routers.api_key" if family == "api" else "app.bootstrap.openapi"
+    member = "require_app_api_key" if family == "api" else "_install_openapi_builder"
+    owner = "legacy" if protected else "canonical"
+    source = (
+        f"import legacy_app as legacy\nimport {module} as canonical\n"
+        f"def helper(owner):\n    return owner.{member}\n"
+        f"class C:\n    def __enter__(self):\n        return {owner}\n"
+        "    def __exit__(self, *args):\n        return None\n"
+        "with C() as entered:\n    helper(entered)\n"
+    )
+    errors = (
+        _validate_api_key_dependency_ownership(
+            _CONSOL_GETTER_IMPORTS, {"app/routers/example.py": source}
+        )
+        if family == "api"
+        else _consol_openapi_errors(source)
+    )
+    assert bool(errors) is protected
+
+
+@pytest.mark.parametrize("decorator", ["", "staticmethod", "classmethod"])
+@pytest.mark.parametrize("inherited", [False, True])
+def test_consol_sync_with_descriptor_and_mro_use_canonical_binding(
+    decorator: str, inherited: bool
+) -> None:
+    decoration = f"@{decorator}\n    " if decorator else ""
+    enter_args = "" if decorator == "staticmethod" else "receiver"
+    exit_args = "*args" if decorator == "staticmethod" else "receiver, *args"
+    source = (
+        "trace = ''\n"
+        "def tick(value):\n    global trace\n    trace = trace + value\n"
+        f"class Base:\n    {decoration}def __enter__({enter_args}):\n"
+        "        tick('E')\n        return 'B'\n"
+        f"    {decoration}def __exit__({exit_args}):\n        tick('X')\n"
+        + ("class C(Base):\n    pass\n" if inherited else "C = Base\n")
+        + "with C() as value:\n    tick(value)\n"
+    )
+    compile(source, "<sync-context-descriptor>", "exec")
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="example.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(ast.parse(source))
+    assert visitor.scope.strings["trace"] == "EBX"
+    assert not any(
+        name.startswith("<async-protocol:") for name in visitor.scope.visible_references()
+    )
+
+
+def test_consol_sync_with_acquires_left_binds_result_and_unwinds_right() -> None:
+    source = (
+        "trace = ''\n"
+        "def tick(value):\n    global trace\n    trace = trace + value\n"
+        "class First:\n    def __enter__(self):\n        tick('A')\n        return 'X'\n"
+        "    def __exit__(self, *args):\n        tick('a')\n"
+        "class Second:\n    def __enter__(self):\n        tick('B')\n        return 'Y'\n"
+        "    def __exit__(self, *args):\n        tick('b')\n"
+        "with First() as left, Second() as right:\n    tick(left)\n    tick(right)\n"
+    )
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="example.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(ast.parse(source))
+    assert visitor.scope.strings["trace"] == "ABXYba"
+
+
+@pytest.mark.parametrize("replacement_stage", ["entry", "body"])
+def test_consol_sync_with_captures_exit_before_class_rebinding(replacement_stage: str) -> None:
+    replacement = "replace()\n        " if replacement_stage == "entry" else ""
+    body = "replace()\n    " if replacement_stage == "body" else ""
+    source = (
+        "trace = ''\n"
+        "def tick(value):\n    global trace\n    trace = trace + value\n"
+        "class Other:\n    def __enter__(self):\n        tick('WRONG')\n"
+        "    def __exit__(self, *args):\n        tick('WRONG')\n"
+        "def replace():\n    global C\n    C = Other\n"
+        f"class C:\n    def __enter__(self):\n        {replacement}tick('E')\n"
+        "    def __exit__(self, *args):\n        tick('X')\n"
+        f"with C():\n    {body}tick('B')\n"
+    )
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="example.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(ast.parse(source))
+    assert visitor.scope.strings["trace"] == "EBX"
+
+
+@pytest.mark.parametrize("terminal", ["return", "raise ValueError()", "break"])
+def test_consol_sync_with_body_control_still_runs_captured_exit(terminal: str) -> None:
+    driver = (
+        f"def main():\n    with C():\n        tick('B')\n        {terminal}\n"
+        "    tick('WRONG')\nmain()\n"
+        if terminal != "break"
+        else "for value in [1]:\n    with C():\n        tick('B')\n        break\n    tick('WRONG')\n"
+    )
+    source = (
+        "trace = ''\n"
+        "def tick(value):\n    global trace\n    trace = trace + value\n"
+        "class C:\n    def __enter__(self):\n        tick('E')\n"
+        "    def __exit__(self, *args):\n        tick('X')\n" + driver
+    )
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="example.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(ast.parse(source))
+    assert visitor.scope.strings["trace"] == "EBX"
+
+
+@pytest.mark.parametrize(
+    "definition",
+    [
+        "class Invalid:\n    pass\n",
+        "class Invalid:\n    def __enter__(self):\n        tick('WRONG')\n",
+        "class Invalid:\n    __enter__ = None\n    def __exit__(self, *args):\n        tick('WRONG')\n",
+        "class Invalid:\n    def __enter__(self, missing):\n        tick('WRONG')\n    def __exit__(self, *args):\n        tick('WRONG')\n",
+    ],
+)
+def test_consol_sync_with_later_known_invalid_acquisition_unwinds_prior_exit(
+    definition: str,
+) -> None:
+    source = (
+        "trace = ''\n"
+        "def tick(value):\n    global trace\n    trace = trace + value\n"
+        "class First:\n    def __enter__(self):\n        tick('E')\n"
+        "    def __exit__(self, *args):\n        tick('X')\n"
+        + definition
+        + "with First(), Invalid():\n    tick('WRONG')\ntick('WRONG')\n"
+    )
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="example.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(ast.parse(source))
+    assert visitor.scope.strings["trace"] == "EX"
+
+
+@pytest.mark.parametrize(
+    "exit_definition", ["__exit__ = None", "def __exit__(self):\n        tick('WRONG')"]
+)
+def test_consol_sync_with_present_invalid_exit_fails_after_body_and_unwinds_prior(
+    exit_definition: str,
+) -> None:
+    source = (
+        "trace = ''\n"
+        "def tick(value):\n    global trace\n    trace = trace + value\n"
+        "class First:\n    def __enter__(self):\n        tick('E')\n"
+        "    def __exit__(self, *args):\n        tick('X')\n"
+        "class Invalid:\n    def __enter__(self):\n        tick('I')\n"
+        f"    {exit_definition}\n"
+        "with First(), Invalid():\n    tick('B')\ntick('WRONG')\n"
+    )
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="example.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(ast.parse(source))
+    assert visitor.scope.strings["trace"] == "EIBX"
+
+
+@pytest.mark.parametrize("enter_kind", ["sync", "coroutine", "generator", "async_generator"])
+@pytest.mark.parametrize("exit_kind", ["sync", "coroutine", "generator", "async_generator"])
+def test_consol_sync_with_normal_call_preserves_coroutine_and_generator_dormancy(
+    enter_kind: str, exit_kind: str
+) -> None:
+    enter_decl = "async def" if enter_kind in {"coroutine", "async_generator"} else "def"
+    exit_decl = "async def" if exit_kind in {"coroutine", "async_generator"} else "def"
+    enter_end = "yield None" if "generator" in enter_kind else "return None"
+    exit_end = "yield None" if "generator" in exit_kind else "return None"
+    source = (
+        "trace = ''\n"
+        "def tick(value):\n    global trace\n    trace = trace + value\n"
+        f"class C:\n    {enter_decl} __enter__(self):\n        tick('E')\n        {enter_end}\n"
+        f"    {exit_decl} __exit__(self, *args):\n        tick('X')\n        {exit_end}\n"
+        "with C() as value:\n    tick('B')\ntick('A')\n"
+    )
+    compile(source, "<sync-context-dormancy>", "exec")
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="example.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(ast.parse(source))
+    expected = ("E" if enter_kind == "sync" else "") + "B"
+    expected += ("X" if exit_kind == "sync" else "") + "A"
+    assert visitor.scope.strings["trace"] == expected
+
+
+@pytest.mark.parametrize("family", ["api", "openapi"])
+@pytest.mark.parametrize("kind", ["coroutine", "generator"])
+@pytest.mark.parametrize("consumed", [False, True])
+@pytest.mark.parametrize("protected", [False, True])
+def test_consol_sync_with_entered_deferred_binding_replays_only_on_consumption(
+    family: str, kind: str, consumed: bool, protected: bool
+) -> None:
+    module = "app.routers.api_key" if family == "api" else "app.bootstrap.openapi"
+    member = "require_app_api_key" if family == "api" else "_install_openapi_builder"
+    owner = "legacy" if protected else "canonical"
+    declaration = "async def" if kind == "coroutine" else "def"
+    result = "return None" if kind == "coroutine" else "yield None"
+    consumer = "asyncio.run(value)" if kind == "coroutine" else "list(value)"
+    source = (
+        f"import asyncio\nimport legacy_app as legacy\nimport {module} as canonical\n"
+        f"def helper(owner):\n    return owner.{member}\n"
+        f"class C:\n    {declaration} __enter__(self):\n        helper({owner})\n        {result}\n"
+        "    def __exit__(self, *args):\n        return None\n"
+        "with C() as value:\n    pass\n" + (consumer + "\n" if consumed else "")
+    )
+    errors = (
+        _validate_api_key_dependency_ownership(
+            _CONSOL_GETTER_IMPORTS, {"app/routers/example.py": source}
+        )
+        if family == "api"
+        else _consol_openapi_errors(source)
+    )
+    assert bool(errors) is (consumed and protected)
+
+
+@pytest.mark.parametrize("kind", ["coroutine", "generator"])
+@pytest.mark.parametrize("consumed", [False, True])
+def test_consol_sync_with_sync_entry_returns_actual_deferred_binding(
+    kind: str, consumed: bool
+) -> None:
+    declaration = "async def" if kind == "coroutine" else "def"
+    result = "return None" if kind == "coroutine" else "yield None"
+    consumer = "asyncio.run(value)" if kind == "coroutine" else "list(value)"
+    source = (
+        "import asyncio\ntrace = ''\n"
+        "def tick(value):\n    global trace\n    trace = trace + value\n"
+        f"{declaration} deferred():\n    tick('D')\n    {result}\n"
+        "class C:\n    def __enter__(self):\n        tick('E')\n        return deferred()\n"
+        "    def __exit__(self, *args):\n        tick('X')\n"
+        "with C() as value:\n    tick('B')\n" + (consumer + "\n" if consumed else "")
+    )
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="example.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(ast.parse(source))
+    assert visitor.scope.strings["trace"] == ("EBXD" if consumed else "EBX")
+
+
+@pytest.mark.parametrize("family", ["api", "openapi"])
+@pytest.mark.parametrize("protected", [False, True])
+def test_consol_sync_with_unknown_entry_preserves_known_exit_finding(
+    family: str, protected: bool
+) -> None:
+    module = "app.routers.api_key" if family == "api" else "app.bootstrap.openapi"
+    member = "require_app_api_key" if family == "api" else "_install_openapi_builder"
+    owner = "legacy" if protected else "canonical"
+    source = (
+        f"from external import unknown_enter\nimport legacy_app as legacy\nimport {module} as canonical\n"
+        f"def helper(owner):\n    return owner.{member}\n"
+        "class C:\n    __enter__ = unknown_enter\n"
+        f"    def __exit__(self, *args):\n        return helper({owner})\n"
+        "with C():\n    pass\n"
+    )
+    errors = (
+        _validate_api_key_dependency_ownership(
+            _CONSOL_GETTER_IMPORTS, {"app/routers/example.py": source}
+        )
+        if family == "api"
+        else _consol_openapi_errors(source)
+    )
+    assert bool(errors) is protected
+
+
+def test_consol_sync_with_possible_nearer_override_does_not_prove_invalid_base() -> None:
+    source = (
+        "from external import flag, unknown_enter\ntrace = ''\n"
+        "def tick(value):\n    global trace\n    trace = trace + value\n"
+        "class Base:\n    __enter__ = None\n    def __exit__(self, *args):\n        tick('X')\n"
+        "class C(Base):\n    if flag:\n        __enter__ = unknown_enter\n"
+        "with C():\n    tick('B')\n"
+    )
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="example.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(ast.parse(source))
+    assert "B" in visitor.scope.strings["trace"]
+
+
+@pytest.mark.parametrize("decorator", ["", "classmethod"])
+def test_consol_sync_with_inherited_entry_keeps_actual_descriptor_receiver(decorator: str) -> None:
+    decoration = "@classmethod\n    " if decorator else ""
+    source = (
+        "trace = ''\n"
+        "def tick(value):\n    global trace\n    trace = trace + value\n"
+        "class Base:\n    @staticmethod\n    def provide():\n        return 'WRONG'\n"
+        f"    {decoration}def __enter__(receiver):\n        tick('E')\n        return receiver.provide()\n"
+        "    def __exit__(self, *args):\n        tick('X')\n"
+        "class C(Base):\n    @staticmethod\n    def provide():\n        return 'B'\n"
+        "with C() as value:\n    tick(value)\n"
+    )
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="example.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(ast.parse(source))
+    assert visitor.scope.strings["trace"] == "EBX"
+
+
+@pytest.mark.parametrize("family", ["api", "openapi"])
+@pytest.mark.parametrize("protocol", ["enter", "exit"])
+@pytest.mark.parametrize("valid_first", [False, True])
+@pytest.mark.parametrize("protected", [False, True])
+def test_consol_sync_with_mixed_callable_arity_keeps_valid_path(
+    family: str, protocol: str, valid_first: bool, protected: bool
+) -> None:
+    module = "app.routers.api_key" if family == "api" else "app.bootstrap.openapi"
+    member = "require_app_api_key" if family == "api" else "_install_openapi_builder"
+    owner = "legacy" if protected else "canonical"
+    method = "__enter__" if protocol == "enter" else "__exit__"
+    valid_args = "self" if protocol == "enter" else "self, *args"
+    invalid_args = "self, missing" if protocol == "enter" else "self"
+    valid = f"def {method}({valid_args}):\n            return {owner}\n"
+    invalid = f"def {method}({invalid_args}):\n            return None\n"
+    first, second = (valid, invalid) if valid_first else (invalid, valid)
+    cls = f"class C:\n    if flag:\n        {first}    else:\n        {second}"
+    if protocol == "enter":
+        cls += "    def __exit__(self, *args):\n        return None\n"
+        driver = "with C() as value:\n    helper(value)\n"
+    else:
+        cls += "    def __enter__(self):\n        return None\n"
+        driver = f"with C():\n    pass\nhelper({owner})\n"
+    source = (
+        f"from external import flag\nimport legacy_app as legacy\nimport {module} as canonical\n"
+        f"def helper(owner):\n    return owner.{member}\n" + cls + driver
+    )
+    compile(source, "<sync-context-mixed-arity>", "exec")
+    errors = (
+        _validate_api_key_dependency_ownership(
+            _CONSOL_GETTER_IMPORTS, {"app/routers/example.py": source}
+        )
+        if family == "api"
+        else _consol_openapi_errors(source)
+    )
+    assert bool(errors) is protected
+
+
+@pytest.mark.parametrize("family", ["api", "openapi"])
+def test_consol_three_findings_ownership_fixture_baseline_is_valid(family: str) -> None:
+    errors = (
+        _validate_api_key_dependency_ownership(_CONSOL_GETTER_IMPORTS, {})
+        if family == "api"
+        else _consol_openapi_errors("")
+    )
+    assert errors == []
+
+
+@pytest.mark.parametrize("family", ["api", "openapi"])
+@pytest.mark.parametrize(
+    ("case", "blocked"),
+    [
+        ("direct", True),
+        ("canonical", False),
+        ("dormant", False),
+        ("missing-argument", False),
+        ("extra-argument", False),
+        ("noncallable", False),
+        ("staticmethod", True),
+        ("classmethod", True),
+        ("inherited", True),
+        ("rebound-callee", True),
+    ],
+)
+def test_consol_callable_instance_reuses_captured_callable_and_argument_binding(
+    family: str, case: str, blocked: bool
+) -> None:
+    module = "app.routers.api_key" if family == "api" else "app.bootstrap.openapi"
+    member = "require_app_api_key" if family == "api" else "_install_openapi_builder"
+    owner = "canonical" if case == "canonical" else "legacy"
+    decoration = ""
+    arguments = "self, owner"
+    if case == "staticmethod":
+        decoration = "@staticmethod\n    "
+        arguments = "owner"
+    elif case == "classmethod":
+        decoration = "@classmethod\n    "
+        arguments = "cls, owner"
+    definition = (
+        f"class Access:\n    {decoration}def __call__({arguments}):\n"
+        f"        return owner.{member}\n"
+    )
+    if case == "noncallable":
+        definition = "class Access:\n    __call__ = None\n"
+    if case == "inherited":
+        definition += "class Child(Access):\n    pass\nAccess = Child\n"
+    execution = f"Access()({owner})\n"
+    if case == "dormant":
+        execution = "access = Access()\n"
+    elif case == "missing-argument":
+        execution = "Access()()\n"
+    elif case == "extra-argument":
+        execution = f"Access()({owner}, None)\n"
+    elif case == "rebound-callee":
+        execution = (
+            "access = Access()\n"
+            "def late():\n    global access\n    access = lambda owner: None\n    return legacy\n"
+            "access(late())\n"
+        )
+    source = f"import legacy_app as legacy\nimport {module} as canonical\n" + definition + execution
+    compile(source, "<callable-instance-ownership>", "exec")
+    errors = (
+        _validate_api_key_dependency_ownership(
+            _CONSOL_GETTER_IMPORTS, {"app/routers/example.py": source}
+        )
+        if family == "api"
+        else _consol_openapi_errors(source)
+    )
+    assert bool(errors) is blocked
+
+
+@pytest.mark.parametrize("decorator", ["", "classmethod"])
+def test_consol_callable_instance_descriptor_preserves_derived_receiver(decorator: str) -> None:
+    decoration = "@classmethod\n    " if decorator else ""
+    source = (
+        "trace = ''\n"
+        "def tick(value):\n    global trace\n    trace = trace + value\n"
+        "class Base:\n    @staticmethod\n    def read():\n        tick('WRONG')\n"
+        f"    {decoration}def __call__(receiver):\n        return receiver.read()\n"
+        "class Child(Base):\n    @staticmethod\n    def read():\n        tick('C')\n"
+        "Child()()\n"
+    )
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="example.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(ast.parse(source))
+    assert visitor.scope.strings["trace"] == "C"
+
+
+@pytest.mark.parametrize("family", ["api", "openapi"])
+@pytest.mark.parametrize(
+    ("kind", "consumed"),
+    [("coroutine", False), ("coroutine", True), ("generator", False), ("generator", True)],
+)
+def test_consol_callable_instance_keeps_deferred_body_dormant_until_consumed(
+    family: str, kind: str, consumed: bool
+) -> None:
+    member = "require_app_api_key" if family == "api" else "_install_openapi_builder"
+    declaration = "async def" if kind == "coroutine" else "def"
+    operation = "return" if kind == "coroutine" else "yield"
+    consumer = "asyncio.run(pending)" if kind == "coroutine" else "list(pending)"
+    source = (
+        "import asyncio\nimport legacy_app as legacy\n"
+        f"class Access:\n    {declaration} __call__(self, owner):\n"
+        f"        {operation} owner.{member}\n"
+        "pending = Access()(legacy)\n" + (consumer + "\n" if consumed else "")
+    )
+    errors = (
+        _validate_api_key_dependency_ownership(
+            _CONSOL_GETTER_IMPORTS, {"app/routers/example.py": source}
+        )
+        if family == "api"
+        else _consol_openapi_errors(source)
+    )
+    assert bool(errors) is consumed
+
+
+@pytest.mark.parametrize("family", ["api", "openapi"])
+@pytest.mark.parametrize(
+    ("case", "blocked"),
+    [
+        ("imported", True),
+        ("called-parameter", True),
+        ("unused-sync-parameter", True),
+        ("canonical-owner", False),
+        ("protected-string", True),
+        ("call-generated", True),
+        ("safe-string", False),
+        ("literal-nonstring", False),
+        ("aliased-nonstring", False),
+        ("unbound", False),
+        ("future-local", False),
+        ("deleted", False),
+        ("rebound-after-capture", True),
+    ],
+)
+def test_consol_named_selector_uses_existing_string_and_lexical_facts(
+    family: str, case: str, blocked: bool
+) -> None:
+    module = "app.routers.api_key" if family == "api" else "app.bootstrap.openapi"
+    member = "require_app_api_key" if family == "api" else "_install_openapi_builder"
+    setup = "from foreign_owner import member\n"
+    execution = "getattr(legacy, member)\n"
+    if case == "called-parameter":
+        execution = "def access(member):\n    return getattr(legacy, member)\naccess(member)\n"
+    elif case == "unused-sync-parameter":
+        setup = ""
+        execution = "def access(member):\n    return getattr(legacy, member)\n"
+    elif case == "canonical-owner":
+        execution = "getattr(canonical, member)\n"
+    elif case == "protected-string":
+        setup = f"member = {member!r}\n"
+    elif case == "call-generated":
+        setup = "member = external_member()\n"
+        execution = "legacy.__dict__.get(member)\n"
+    elif case == "safe-string":
+        setup = "member = '__name__'\n"
+    elif case == "literal-nonstring":
+        setup = ""
+        execution = "getattr(legacy, 1)\n"
+    elif case == "aliased-nonstring":
+        setup = "original = 1\nmember = original\n"
+    elif case == "unbound":
+        setup = ""
+    elif case == "future-local":
+        execution = (
+            "def access():\n    getattr(legacy, member)\n" f"    member = {member!r}\naccess()\n"
+        )
+    elif case == "deleted":
+        setup = f"member = {member!r}\ndel member\n"
+    elif case == "rebound-after-capture":
+        execution = (
+            "def later():\n    global member\n    member = '__name__'\n    return None\n"
+            "getattr(legacy, member, later())\n"
+        )
+    source = f"import legacy_app as legacy\nimport {module} as canonical\n" + setup + execution
+    compile(source, "<named-selector-ownership>", "exec")
+    errors = (
+        _validate_api_key_dependency_ownership(
+            _CONSOL_GETTER_IMPORTS, {"app/routers/example.py": source}
+        )
+        if family == "api"
+        else _consol_openapi_errors(source)
+    )
+    # Unknown selectors are API-key findings. OpenAPI retains its closed
+    # protected-name family, including its existing unknown-local control.
+    expected = blocked and (family == "api" or case == "protected-string")
+    assert bool(errors) is expected
+
+
+@pytest.mark.parametrize("kind", ["coroutine", "generator"])
+def test_consol_unknown_selector_does_not_execute_dormant_async_or_generator_body(
+    kind: str,
+) -> None:
+    declaration = "async def" if kind == "coroutine" else "def"
+    ending = "return None" if kind == "coroutine" else "yield None"
+    source = (
+        "import legacy_app as legacy\nfrom foreign_owner import member\ntrace = ''\n"
+        "def tick(value):\n    global trace\n    trace = trace + value\n"
+        f"{declaration} access(member):\n    tick('WRONG')\n    getattr(legacy, member)\n    {ending}\n"
+        "pending = access(member)\n"
+    )
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="example.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(ast.parse(source))
+    assert visitor.scope.strings["trace"] == ""
+
+
+@pytest.mark.parametrize("family", ["api", "openapi"])
+@pytest.mark.parametrize("protected_first", [False, True])
+def test_consol_callable_instance_preserves_argument_capture_before_later_effects(
+    family: str, protected_first: bool
+) -> None:
+    module = "app.routers.api_key" if family == "api" else "app.bootstrap.openapi"
+    member = "require_app_api_key" if family == "api" else "_install_openapi_builder"
+    first = "legacy" if protected_first else "canonical"
+    later = "canonical" if protected_first else "legacy"
+    source = (
+        f"import legacy_app as legacy\nimport {module} as canonical\nowner = {first}\n"
+        f"class Access:\n    def __call__(self, owner, ignored):\n        return owner.{member}\n"
+        f"def late():\n    global owner\n    owner = {later}\n    return None\n"
+        "Access()(owner, late())\n"
+    )
+    errors = (
+        _validate_api_key_dependency_ownership(
+            _CONSOL_GETTER_IMPORTS, {"app/routers/example.py": source}
+        )
+        if family == "api"
+        else _consol_openapi_errors(source)
+    )
+    assert bool(errors) is protected_first
+
+
+@pytest.mark.parametrize("rebound", ["C", "instance"])
+def test_consol_callable_instance_freezes_object_before_argument_rebinding(rebound: str) -> None:
+    source = (
+        "trace = ''\n"
+        "def tick(value):\n    global trace\n    trace = trace + value\n"
+        "class Other:\n    def __call__(self, value):\n        tick('WRONG')\n"
+        "class C:\n    def __call__(self, value):\n        tick('O')\n        tick(value)\n"
+        "instance = C()\n"
+        f"def late():\n    global {rebound}\n    {rebound} = "
+        + ("Other\n" if rebound == "C" else "Other()\n")
+        + "    return 'B'\ninstance(late())\n"
+    )
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="example.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(ast.parse(source))
+    assert visitor.scope.strings["trace"] == "OB"
+
+
+def test_consol_module_owned_nested_helper_updates_active_loop_branch() -> None:
+    source = (
+        "trace = ''\n"
+        "def tick(value):\n    global trace\n    trace = trace + value\n"
+        "def nested():\n    tick('E')\n"
+        "for item in [1]:\n    nested()\n    tick('B')\n    break\n"
+    )
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="example.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(ast.parse(source))
+    assert visitor.scope.strings["trace"] == "EB"
+
+
+@pytest.mark.parametrize("captured", ["nonlocal", "default"])
+def test_consol_active_module_replay_preserves_captured_function_scope(captured: str) -> None:
+    source = (
+        "def make():\n    value = 'C'\n    def access():\n"
+        "        nonlocal value\n        value = value + 'L'\n        return value\n"
+        "    return access\naccess = make()\n"
+        "for value in ['WRONG']:\n    result = access()\n    break\n"
+        if captured == "nonlocal"
+        else "value = 'F'\ndef access(value=value):\n    return value\n"
+        "value = 'WRONG'\nfor item in [1]:\n    result = access()\n    break\n"
+    )
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="example.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(ast.parse(source))
+    assert visitor.scope.strings["result"] == ("CL" if captured == "nonlocal" else "F")
+
+
+@pytest.mark.parametrize("earlier_break", [False, True])
+def test_consol_with_exit_finalizes_new_controls_without_overwriting_prior_break(
+    earlier_break: bool,
+) -> None:
+    source = (
+        "from external import flag\nstate = 'S'\n"
+        "def change(value):\n    global state\n    state = value\n"
+        "class C:\n    def __enter__(self):\n        change('E')\n"
+        "    def __exit__(self, *args):\n        change('X')\n"
+        "for item in [1]:\n"
+        + ("    if flag:\n        break\n" if earlier_break else "")
+        + "    with C():\n        change('B')\n"
+        + ("        break\n" if earlier_break else "        continue\n")
+    )
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="example.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(ast.parse(source))
+    assert visitor.scope.resolve_string("state") == (None if earlier_break else "X")
+
+
+@pytest.mark.parametrize(
+    ("setup", "constructor"),
+    [
+        ("", "object"),
+        ("ctor = object\n", "ctor"),
+        ("import builtins\n", "builtins.object"),
+        ("from builtins import object as ctor\n", "ctor"),
+    ],
+)
+def test_consol_proven_object_result_retains_nonstring_loop_fact(
+    setup: str, constructor: str
+) -> None:
+    source = setup + f"for item in values:\n    value = {constructor}()\n"
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="example.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(ast.parse(source))
+    assert visitor.scope.resolve_string("value") is None
+    assert visitor._remaining_loop_iterations == 127
+
+
+def test_consol_shadowed_object_factory_keeps_unknown_selector_protection() -> None:
+    source = (
+        "import legacy_app as legacy\nfrom external import unknown\n"
+        "def object():\n    return unknown\n"
+        "for item in values:\n    member = object()\n"
+        "getattr(legacy, member)\n"
+    )
+    assert _validate_api_key_dependency_ownership(
+        _CONSOL_GETTER_IMPORTS, {"app/routers/example.py": source}
+    ) == [
+        "app/routers/example.py: dynamic legacy API-key dependency lookup is forbidden: <dynamic>"
+    ]

@@ -198,6 +198,26 @@
   modes and source inventories, plus diagnostic errors alongside primary failures;
   missing historical post-state remains unknown. Publish and review the correction
   before any separately coordinated recovery dispatch.
+- The closed PR #2476 recovery arm on
+  `refs/heads/codex/consolidate-legacy-ownership-guard` has no legacy predecessor
+  selector and no automatic retry. It authenticates the open same-repository
+  PR, current first-attempt run/job, and two complete both-purpose native job
+  inventories. Preserve all four historical ORAS jobs and the historical pair;
+  exclude only the exact current in-progress job occurrence. A new pair also
+  requires exactly one successful new ORAS job, the selected retained-tool full
+  proof, full raw producer equivalence and existing PR ancestry before compile.
+  Its existing admission budget fields express separately permitted aggregate
+  maxima Tool3/Prometheus4. Per-invocation successful counters remain Tool1,
+  logical images2 and Prometheus compiler starts4. Historical counters and
+  selectors are immutable; jobs never stand in for compiler evidence.
+- For that explicitly authorized recovery, transition the existing image record
+  to `source_prepared`, `selection=null`, `candidate=null`; clear obsolete ORAS
+  coordinates with the existing nullable `inputs.oras.retained`. Ordinary image
+  consumers reject this state. Populate retained coordinates only from the
+  actual successful newly qualified tool, then select pair outputs only after
+  actual pair success. A metadata-only successor can differ from the tool
+  source while ancestry and complete raw producer-byte equivalence still pass.
+  These technical conditions grant no native invocation or extra scope authority.
 - Manual `prometheus-source-pair` permits exactly two serial logical image
   builds, each containing the two named commands and bounded to 3600 seconds.
   Use independent empty source/cache/output areas, no automatic retries,
@@ -221,6 +241,18 @@
   pre-commit. Preserve its untracked selection evidence with `clean: false`,
   retain full history and nonpersistent checkout credentials, and verify HEAD
   against `GITHUB_SHA`; do not relax the dependency evidence resolver.
+- The existing public-package inventory walk admits a strict integer count up
+  to 20000 and uses fixed 100-row pages through the exact terminal remainder;
+  exact multiples require an empty terminal page. Require unique positive IDs,
+  count equality, and the same fixed repository/owner/public-package identity
+  and count on readback within each walk. Keep all-page immutable-tag checks.
+  Version-page captures allow at most 1 MiB combined stdout/stderr each, at
+  most 201 captures per walk, and 64 MiB cumulative returned stdout checked
+  before decoding or retaining rows. Exhaustion or drift is HOLD, never prefix
+  acceptance. These bounds do not establish Python heap capacity, an atomic
+  registry snapshot or absence of concurrent replacement. Helper/workflow edits
+  still invalidate full-raw retained producer proof and never renew spent
+  native allowances; separately reviewed native execution remains required.
 - Main-only promotion reuses the retained qualified copier and copies precise
   OCI bytes into the existing public package; it never rebuilds or executes a
   candidate with registry credentials. Preserve original producer provenance,
@@ -302,13 +334,22 @@ or claim that passing this probe validates the application on Python 3.14.
   their existing behavior; binary-only installs retain target-Python selection.
   Dedicated SDK builds reject an explicit target-Python option because the
   unchanged four-input build uses its loader interpreter.
-- Before VS Code Reopen builds a fresh trusted checkout, run the existing
-  `make docker-source-artifacts` target on the host using an approved existing
-  `DEV_PYTHON` interpreter. CLI `dc-up`, `docker-run` and `docker-run-dev` own
-  that prerequisite; a source-preparation failure stops before Compose. This is
-  source verification/acquisition only; do not install/activate a host backend
-  venv or native macOS SDK, transfer `.env`/credentials/HOME, or add automatic
-  repository-code initialization. Container bootstrap remains manual after trust.
+- The OWNER-admitted Dev Container before-build exception runs only
+  `/usr/bin/env -i PATH=/usr/bin:/bin LANG=C.UTF-8 /usr/bin/python3 -I -S
+  scripts/ci/fetch_docker_source_artifacts.py` from the reviewed trusted checkout.
+  `initializeCommand` runs before image creation; after-container hooks cannot
+  supply missing Docker COPY inputs. This acquires/verifies the existing default
+  source catalogue only. It does not select SDK builds, create/activate a host
+  backend venv or automatically run container bootstrap. Other repository-code
+  lifecycle hooks remain absent. The child environment and Python startup are
+  constrained; the process still has host filesystem/same-user access and trusts
+  the host launcher, interpreter and approved checkout. This is not secret or
+  host-process isolation. Do not forward `.env`, credentials, netrc or HOME.
+  Missing host tools, unsupported default-path compatibility or source failures
+  stop image preparation; no hidden Dockerfile fetch or SDK removal follows.
+  Manual `make docker-source-artifacts` remains the explicit pre-Reopen path;
+  CLI `dc-up`, `docker-run` and `docker-run-dev` keep their existing prerequisite.
+  The full SDK/wheelhouse consumer stays intact and bootstrap remains manual.
 - `make dc-up` credential forwarding is explicit opt-in through
   `PULSEPLATE_NATIVE_SDK_NETRC_FILE`, defaulting to `/dev/null`. Use only a temporary
   read-only file scoped to the approved package host after reviewing/trusting the
@@ -1085,12 +1126,36 @@ report the protected inventory. Do not reinterpret AST keys after value effects
 or add a second namespace scanner. Shadowed producers, local namespaces, dormant
 bodies, empty updates and proven unrelated literal keys remain independent controls.
 
-Implicit async context/iteration dispatch is limited to captured local instance
-facts and the four known protocol methods. Reuse class callable/descriptor tables,
-canonical argument binding and existing loop transfers; preserve acquisition/exit
-order, known-invalid stopping and unresolved outcomes. Receiver identity is not
+Implicit context/async-iteration dispatch is limited to captured local instance
+facts and the six known methods `__enter__`, `__exit__`, `__aenter__`, `__aexit__`,
+`__aiter__` and `__anext__`. Reuse class callable/descriptor tables, canonical
+argument binding and existing loop transfers. Capture enter and exit lookups
+before entry effects; bind the entered result and unwind acquired exits in reverse
+order, including after a later known-invalid acquisition. Normal `with` uses
+normal calls: async/generator methods return dormant existing deferred bindings,
+consumed only by a later supported await/iteration. Preserve async dispatch,
+known-invalid stopping and unresolved outcomes. Finalize newly produced abrupt
+control scopes through the captured exits while preserving earlier outcomes.
+Module-owned replay follows the active branch; captured function scopes and
+definition-time defaults retain their lexical binding. Receiver identity is not
 instance-field state: never attach constructor field values to a shared class-site
 reference or claim general object/data-flow coverage from this wiring.
+
+Implicit calls on captured local instances reuse the ordinary callable resolver,
+class descriptor/MRO facts and canonical call binder for `__call__`. Capture the
+callee instance before argument effects, then select `__call__` through the
+existing class facts after arguments. Preserve descriptor receivers, invalid
+arity and coroutine/generator creation versus later consumption. This does not
+model arbitrary class-dictionary mutation or instance fields.
+
+Unknown named API-key attribute selectors use the existing dynamic-string fact
+on a proven legacy receiver. OpenAPI retains its separate closed-name family;
+unknown reflection alone does not establish an OpenAPI finding. Preserve literal
+nonstrings and their known aliases,
+definitely unbound names, harmless strings and canonical receivers as independent
+controls. The detached synchronous API-key ownership audit may inspect unused
+source bodies with unknown parameters; that evidence does not execute an ordinary
+dormant coroutine/generator or authorize a general Python execution claim.
 
 Provide focused commands with an explicit `tests/test_legacy_growth_guard.py`
 module or literal node selectors and the repo-approved Python interpreter.

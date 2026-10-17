@@ -4457,6 +4457,244 @@ def manual_hosted_admission(
         and workflow.get("path") == ".github/workflows/build.yml",
         "manual_authenticated_run",
     )
+    if ref == "refs/heads/codex/consolidate-legacy-ownership-guard":
+        require(prefetch_predecessor is None, "pr2476_no_legacy_selector")
+        branch = "codex/consolidate-legacy-ownership-guard"
+        pr2476_job_names = ("prometheus-oras-qualification", "prometheus-source-build-pair")
+        job_name = pr2476_job_names[0 if purpose == "tool" else 1]
+        require(
+            run_id > 0
+            and str(run_id) == os.environ["GITHUB_RUN_ID"]
+            and type(current.get("id")) is int
+            and current["id"] == run_id
+            and current.get("head_branch") == branch
+            and current.get("status") == "in_progress"
+            and "conclusion" in current
+            and current["conclusion"] is None
+            and os.environ.get("GITHUB_JOB") == job_name
+            and re.fullmatch(r"[0-9a-f]{40}", head) is not None,
+            "pr2476_current_source",
+        )
+        pr = api.json(f"/repos/{GHCR_REPOSITORY}/pulls/2476")
+        require(
+            type(pr.get("head")) is dict
+            and type(pr.get("base")) is dict
+            and type(pr["head"].get("repo")) is dict
+            and type(pr["base"].get("repo")) is dict,
+            "pr2476_PR_objects",
+        )
+        require(
+            type(pr.get("number")) is int
+            and pr["number"] == 2476
+            and pr.get("state") == "open"
+            and pr["head"].get("sha") == head
+            and pr["head"].get("ref") == branch
+            and pr["base"].get("ref") == "main"
+            and all(
+                type(pr[side]["repo"].get("id")) is int and pr[side]["repo"]["id"] == 1043311030
+                for side in ("head", "base")
+            ),
+            "pr2476_open_exact_PR_source",
+        )
+        pr2476_history_rows = [
+            (
+                38170923494,
+                114563178711,
+                pr2476_job_names[0],
+                "5de54811121079eadbd3f5d8dbbb8720f712530a",
+                "failure",
+            ),
+            (
+                38192419687,
+                114627819440,
+                pr2476_job_names[0],
+                "15097adaa871a900370f6c57a512fe862dddb041",
+                "failure",
+            ),
+            (
+                38239428418,
+                114778090287,
+                pr2476_job_names[0],
+                "f632572057453d57975a397a5b2db64894204be0",
+                "failure",
+            ),
+            (
+                38269614712,
+                114880342307,
+                pr2476_job_names[0],
+                "a18d636138bbab67e96c902b1c61f690263c8b55",  # pragma: allowlist secret - public SHA
+                "success",
+            ),
+            (
+                38291450453,
+                114952275845,
+                pr2476_job_names[1],
+                "b732222719f70fa592218d2255324850843e9eea",  # pragma: allowlist secret - public SHA
+                "success",
+            ),
+        ]
+        pr2476_expected_history = [
+            {
+                "run_id": old_run,
+                "job_id": old_job,
+                "job": old_name,
+                "head": old_head,
+                "ref": "refs/heads/codex/dependency-native-runtime-remediation",
+                "run_attempt": 1,
+                "status": "completed",
+                "conclusion": conclusion,
+            }
+            for old_run, old_job, old_name, old_head, conclusion in pr2476_history_rows
+        ]
+        endpoint = (
+            f"/repos/{GHCR_REPOSITORY}/actions/workflows/build.yml/runs?event=workflow_dispatch"
+        )
+        first_observed: dict[str, Any] | None = None
+        observed = []
+        for observation in range(2):
+            page = api.json(endpoint + "&per_page=100&page=1")
+            history = api.pages(endpoint, "workflow_runs", page["total_count"])
+            require(
+                sum(row.get("id") == run_id for row in history) == 1,
+                "pr2476_current_run_inventory",
+            )
+            rows = []
+            job_ids: set[int] = set()
+            for run in history:
+                require(
+                    type(run.get("id")) is int
+                    and run["id"] > 0
+                    and type(run.get("run_attempt")) is int
+                    and run["run_attempt"] > 0
+                    and type(run.get("head_sha")) is str
+                    and re.fullmatch(r"[0-9a-f]{40}", run["head_sha"]) is not None
+                    and type(run.get("head_branch")) is str
+                    and run["head_branch"]
+                    and run.get("event") == "workflow_dispatch"
+                    and run.get("workflow_id") == workflow["id"]
+                    and type(run.get("workflow_id")) is int
+                    and all(
+                        type(run.get(key)) is dict
+                        and type(run[key].get("id")) is int
+                        and run[key]["id"] == 1043311030
+                        for key in ("repository", "head_repository")
+                    ),
+                    "pr2476_native_run_inventory",
+                )
+                jobs_endpoint = f'/repos/{GHCR_REPOSITORY}/actions/runs/{run["id"]}/jobs?filter=all'
+                page = api.json(jobs_endpoint + "&per_page=100&page=1")
+                jobs = api.pages(jobs_endpoint, "jobs", page["total_count"])
+                for job in jobs:
+                    require(
+                        {"id", "run_id", "run_attempt", "head_sha", "name", "status", "conclusion"}
+                        <= set(job)
+                        and type(job.get("id")) is int
+                        and job["id"] > 0
+                        and job["id"] not in job_ids
+                        and type(job.get("run_id")) is int
+                        and job["run_id"] == run["id"]
+                        and type(job.get("run_attempt")) is int
+                        and job["run_attempt"] > 0
+                        and job.get("head_sha") == run["head_sha"]
+                        and type(job.get("name")) is str
+                        and type(job.get("status")) is str
+                        and (job.get("conclusion") is None or type(job["conclusion"]) is str),
+                        "pr2476_native_job_inventory",
+                    )
+                    job_ids.add(job["id"])
+                    if job["name"] not in pr2476_job_names:
+                        continue
+                    if job["conclusion"] == "skipped":
+                        require(job["status"] == "completed", "pr2476_skipped_job_state")
+                        continue
+                    require(
+                        run["run_attempt"] == job["run_attempt"] == 1,
+                        "pr2476_nonrenewable_first_attempt",
+                    )
+                    rows.append(
+                        {
+                            "run_id": run["id"],
+                            "job_id": job["id"],
+                            "job": job["name"],
+                            "head": run["head_sha"],
+                            "ref": "refs/heads/" + run["head_branch"],
+                            "run_attempt": job["run_attempt"],
+                            "status": job["status"],
+                            "conclusion": job["conclusion"],
+                        }
+                    )
+            current_jobs = [
+                row for row in rows if row["run_id"] == run_id and row["job"] == job_name
+            ]
+            require(
+                len(current_jobs) == 1
+                and current_jobs[0]["head"] == head
+                and current_jobs[0]["ref"] == ref
+                and current_jobs[0]["status"] == "in_progress"
+                and current_jobs[0]["conclusion"] is None,
+                "pr2476_current_job_occurrence",
+            )
+            current_job = current_jobs[0]
+            observed = sorted(
+                [row for row in rows if row["job_id"] != current_job["job_id"]],
+                key=lambda row: (row["run_id"], row["job_id"]),
+            )
+            if observation == 0:
+                first_observed = {"current": current_job, "prior": observed}
+            else:
+                exact_data({"current": current_job, "prior": observed}, first_observed)
+        require(
+            all(row in observed for row in pr2476_expected_history), "pr2476_historical_inventory"
+        )
+        additional = [row for row in observed if row not in pr2476_expected_history]
+        if purpose == "tool":
+            require(not additional and len(observed) == 5, "pr2476_tool_history")
+        else:
+            require(
+                len(observed) == 6
+                and len(additional) == 1
+                and additional[0]["run_id"] != run_id
+                and additional[0]["job"] == pr2476_job_names[0]
+                and additional[0]["ref"] == ref
+                and additional[0]["status"] == "completed"
+                and additional[0]["conclusion"] == "success",
+                "pr2476_pair_tool_history",
+            )
+        after = api.json(f"/repos/{GHCR_REPOSITORY}/pulls/2476")
+        require(
+            type(after.get("head")) is dict
+            and type(after.get("base")) is dict
+            and type(after["head"].get("repo")) is dict
+            and type(after["base"].get("repo")) is dict
+            and type(after.get("number")) is int
+            and after["number"] == 2476
+            and after.get("state") == "open"
+            and after["head"].get("sha") == head
+            and after["head"].get("ref") == branch
+            and after["base"].get("ref") == "main"
+            and all(
+                type(after[side]["repo"].get("id")) is int
+                and after[side]["repo"]["id"] == 1043311030
+                for side in ("head", "base")
+            ),
+            "pr2476_PR_source_readback",
+        )
+        source_ref = api.json(f"/repos/{GHCR_REPOSITORY}/git/ref/heads/{branch}")
+        require(
+            source_ref.get("ref") == ref
+            and source_ref.get("object", {}).get("type") == "commit"
+            and source_ref["object"].get("sha") == head,
+            "pr2476_live_branch_source",
+        )
+        return {
+            "run_id": run_id,
+            "head": head,
+            "ref": ref,
+            "workflow_id": workflow["id"],
+            "job": job_name,
+            "actual_prior_invocations": observed,
+            "budget": 3 if purpose == "tool" else 4,
+        }
     endpoint = f"/repos/{GHCR_REPOSITORY}/actions/workflows/build.yml/runs?event=workflow_dispatch"
     page = api.json(endpoint + "&per_page=100&page=1")
     history = api.pages(endpoint, "workflow_runs", page["total_count"])
@@ -6650,6 +6888,28 @@ def build_pair(work: Path, root: Path, seconds: int, cleanup: int) -> dict[str, 
         admission = manual_hosted_admission(api, "pair")
         authenticate_producer_inputs(api, root, admission["head"])
         tool, tool_record = retained_tool(api, root, work)
+        if admission["ref"] == "refs/heads/codex/consolidate-legacy-ownership-guard":
+            old_runs = {38170923494, 38192419687, 38239428418, 38269614712, 38291450453}
+            additional = [
+                row
+                for row in admission["actual_prior_invocations"]
+                if row["run_id"] not in old_runs
+            ]
+            coordinates = tool_record["coordinates"]
+            require(
+                admission["budget"] == 4
+                and len(additional) == 1
+                and additional[0]["run_id"] == coordinates["run_id"]
+                and additional[0]["head"] == coordinates["source_head"]
+                and additional[0]["job"] == "prometheus-oras-qualification"
+                and additional[0]["ref"] == admission["ref"]
+                and additional[0]["status"] == "completed"
+                and additional[0]["conclusion"] == "success",
+                "pr2476_selected_qualified_tool",
+            )
+            authenticate_pr_source(
+                api, 2476, coordinates["source_head"], admission["head"], admission["ref"]
+            )
         qualification = work / "xnet-qualified-input.zip"
         authenticated_artifact(
             api,
@@ -7403,14 +7663,16 @@ def consume_image(work: Path, root: Path, seconds: int, cleanup: int) -> dict[st
     return result
 
 
+PACKAGE_VERSION_COUNT_MAX = 20000
+PACKAGE_VERSION_CAPTURE_BYTES_MAX = 1024**2
+PACKAGE_VERSION_STDOUT_BYTES_MAX = 64 * 1024**2
+
+
 def existing_public_package(api: GitHubRead) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     repository = api.json("/repos/" + GHCR_REPOSITORY)
     endpoint = GHCR_REQUESTS[1]
-    package = one_object(
-        api._capture(
-            [api.gh, "api", "--hostname", "github.com", "--method", "GET", endpoint], 1024**2
-        )
-    )
+    package_argv = [api.gh, "api", "--hostname", "github.com", "--method", "GET", endpoint]
+    package = one_object(api._capture(package_argv, 1024**2))
     identity = ghcr_identity(repository, package)
     require(
         identity["repository"]["id"] == 1043311030
@@ -7418,8 +7680,19 @@ def existing_public_package(api: GitHubRead) -> tuple[dict[str, Any], list[dict[
         and identity["package"]["id"] == 9374404,
         "existing_public_package_exact_IDs",
     )
-    versions = []
-    for page in range(1, 101):
+    raw_count = package.get("version_count")
+    require(
+        type(raw_count) is int and 0 <= raw_count <= PACKAGE_VERSION_COUNT_MAX,
+        "package_version_count",
+    )
+    count = cast(int, raw_count)
+    versions: list[dict[str, Any]] = []
+    seen_ids: set[int] = set()
+    stdout_bytes = 0
+    terminal_page = count // 100 + 1
+    for page in range(1, terminal_page + 1):
+        remaining = PACKAGE_VERSION_STDOUT_BYTES_MAX - stdout_bytes
+        require(remaining > 0, "package_inventory_stdout_bound")
         raw = api._capture(
             [
                 api.gh,
@@ -7430,8 +7703,10 @@ def existing_public_package(api: GitHubRead) -> tuple[dict[str, Any], list[dict[
                 "GET",
                 endpoint + f"/versions?per_page=100&page={page}",
             ],
-            16 * 1024**2,
+            min(PACKAGE_VERSION_CAPTURE_BYTES_MAX, remaining),
         )
+        stdout_bytes += len(raw)
+        require(stdout_bytes <= PACKAGE_VERSION_STDOUT_BYTES_MAX, "package_inventory_stdout_bound")
         values = json.loads(raw, object_pairs_hook=unique_object, parse_constant=reject_constant)
         require(
             type(values) is list
@@ -7441,13 +7716,28 @@ def existing_public_package(api: GitHubRead) -> tuple[dict[str, Any], list[dict[
             ),
             "package_native_versions",
         )
-        versions.extend(values)
+        expected_rows = count % 100 if page == terminal_page else 100
         require(
-            len({row["id"] for row in versions}) == len(versions), "package_pagination_distinct"
+            len(values) == expected_rows and len(versions) + len(values) <= count,
+            "package_complete_inventory_count",
         )
-        if len(values) < 100:
-            return identity, versions
-    raise QualificationError("package_complete_inventory_bound")
+        page_ids = {row["id"] for row in values}
+        require(
+            len(page_ids) == len(values) and not seen_ids.intersection(page_ids),
+            "package_pagination_distinct",
+        )
+        seen_ids.update(page_ids)
+        versions.extend(values)
+    require(len(versions) == count, "package_complete_inventory_count")
+    after_repository = api.json("/repos/" + GHCR_REPOSITORY)
+    after_package = one_object(api._capture(package_argv, 1024**2))
+    after_identity = ghcr_identity(after_repository, after_package)
+    after_count = after_package.get("version_count")
+    require(
+        after_identity == identity and type(after_count) is int and after_count == count,
+        "package_inventory_identity_or_count_drift",
+    )
+    return identity, versions
 
 
 def immutable_tag_state(versions: list[dict[str, Any]], tag: str, digest: str) -> bool:
