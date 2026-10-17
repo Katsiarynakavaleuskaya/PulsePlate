@@ -807,7 +807,7 @@ jobs:
         if: github.event_name == 'pull_request' && steps.checkpoint-selection.outputs.selected == 'true'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: 5064aded22f478a22a4319b684e95d6c0b3ae46f # pragma: allowlist secret - public trusted control commit
+          ref: 9c1b48f8b3a63bf827543cf69090505c1f157fc6 # pragma: allowlist secret - public trusted control commit
           persist-credentials: false
           path: artifacts/orchestration/prometheus-control
           sparse-checkout: scripts/ci/prometheus_source_image.py
@@ -837,18 +837,18 @@ jobs:
           if not helper.is_file() or stat.S_IMODE(helper.stat().st_mode) != 0o644:
               raise SystemExit("Prometheus_control_mode_HOLD")
           raw = helper.read_bytes()
-          if len(raw) != 315949 or hashlib.sha256(raw).hexdigest() != "0e7a73b0159c442cf5f9377aa862e38d643145f81ac6a54ee50b31682f6c3e3e":
+          if len(raw) != 328955 or hashlib.sha256(raw).hexdigest() != "2cf12999d73fc2e783ede78ba118c19484dc186b340d7acc0fed1ce8199fd94f":
               raise SystemExit("Prometheus_control_bytes_HOLD")
           environment = {"PATH": "/usr/bin:/bin", "LANG": "C", "GIT_NO_REPLACE_OBJECTS": "1",
                          "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": "/dev/null"}
           revision = subprocess.run(["/usr/bin/git", "--no-replace-objects", "-C", str(control),
                                      "rev-parse", "HEAD"], env=environment, capture_output=True, check=True)
-          if revision.stdout.strip() != b"5064aded22f478a22a4319b684e95d6c0b3ae46f":
+          if revision.stdout.strip() != b"9c1b48f8b3a63bf827543cf69090505c1f157fc6":
               raise SystemExit("Prometheus_control_revision_HOLD")
           object_row = subprocess.run(["/usr/bin/git", "--no-replace-objects", "-C", str(control),
                                       "ls-tree", "-z", "HEAD", "--", "scripts/ci/prometheus_source_image.py"],
                                      env=environment, capture_output=True, check=True)
-          if object_row.stdout != b"100644 blob 3029aeba29126a05fba5cbd6953916618852d0e2\tscripts/ci/prometheus_source_image.py\0":
+          if object_row.stdout != b"100644 blob ece182c83c1d286ac9d42d27353e2fbce26fbc0c\tscripts/ci/prometheus_source_image.py\0":
               raise SystemExit("Prometheus_control_object_HOLD")
           event_head = subprocess.run(["/usr/bin/git", "--no-replace-objects", "-C", str(material),
                                       "rev-parse", "HEAD"], env=environment, capture_output=True, check=True)

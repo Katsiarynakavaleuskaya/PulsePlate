@@ -3984,7 +3984,7 @@ def test_prometheus_cd_uses_authenticated_finite_consumer_and_retains_strict_sca
     assert "python3 -I -S" in consumer["run"]
     fixed = steps["Checkout fixed trusted Prometheus control"]
     assert fixed["with"] == {
-        "ref": "5064aded22f478a22a4319b684e95d6c0b3ae46f",  # pragma: allowlist secret - public trusted control commit
+        "ref": "9c1b48f8b3a63bf827543cf69090505c1f157fc6",  # pragma: allowlist secret - public trusted control commit
         "persist-credentials": False,
         "path": "artifacts/orchestration/prometheus-control",
         "sparse-checkout": "scripts/ci/prometheus_source_image.py",
@@ -4079,11 +4079,11 @@ def _synthetic_fixed_prometheus_control(
     revision = git("rev-parse", "HEAD")
     blob = git("rev-parse", "HEAD:scripts/ci/prometheus_source_image.py")
     raw = helper.read_bytes()
-    program = program.replace("5064aded22f478a22a4319b684e95d6c0b3ae46f", revision)
-    program = program.replace("3029aeba29126a05fba5cbd6953916618852d0e2", blob)
-    program = program.replace("315949", str(len(raw)))
+    program = program.replace("9c1b48f8b3a63bf827543cf69090505c1f157fc6", revision)
+    program = program.replace("ece182c83c1d286ac9d42d27353e2fbce26fbc0c", blob)
+    program = program.replace("328955", str(len(raw)))
     program = program.replace(
-        "0e7a73b0159c442cf5f9377aa862e38d643145f81ac6a54ee50b31682f6c3e3e",  # pragma: allowlist secret - public protected helper digest
+        "2cf12999d73fc2e783ede78ba118c19484dc186b340d7acc0fed1ce8199fd94f",  # pragma: allowlist secret - public protected helper digest
         hashlib.sha256(raw).hexdigest(),
     )
     variant = environment["SYNTHETIC_OUTCOME"]

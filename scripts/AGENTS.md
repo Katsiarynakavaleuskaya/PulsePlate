@@ -263,8 +263,8 @@
   volume changes and observation clocks retain their existing authority gates.
 - CI/CD PR image consumption must finish before PR-local actions, imports or
   native programs start. The changed-candidate route executes only the sparse
-  fixed control checkout at `5064aded22f478a22a4319b684e95d6c0b3ae46f`, with
-  helper SHA-256 `0e7a73b0159c442cf5f9377aa862e38d643145f81ac6a54ee50b31682f6c3e3e`,
+  fixed control checkout at `9c1b48f8b3a63bf827543cf69090505c1f157fc6`, with
+  helper SHA-256 `2cf12999d73fc2e783ede78ba118c19484dc186b340d7acc0fed1ce8199fd94f`,
   through isolated stdlib `runpy` and an explicit material root. API credentials
   belong to that step only; changed candidates receive no registry credential.
   Same-repository PR published reads use the limited ephemeral `GITHUB_TOKEN`;

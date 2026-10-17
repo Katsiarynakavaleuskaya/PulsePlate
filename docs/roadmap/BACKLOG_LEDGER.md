@@ -9700,6 +9700,24 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     baseline-only commit while source bytes remain preserved; do not fabricate
     baseline edits or mixed source/baseline proof. This closes no broader cleanup
     item and grants no native retry, further build or security exception.
+    Strict-JSON retained-tool false positives (EN, PR #2476): the actual
+    successful [ORAS run 39020247533](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/39020247533)
+    supplies exactly two new public source identities at
+    `deploy/prometheus/image-manifest.json:326` (`inputs.oras.retained.source_head`)
+    and `deploy/prometheus/image-manifest.json:331` (`binary_sha256`). The existing
+    authenticated retained-tool reader binds the real published source, artifact
+    and complete native binary bytes. Strict JSON cannot carry inline comments.
+    Current-scope security review classifies only these two identities as
+    non-credentials; generate their exact baseline fingerprints natively and
+    audit each as `is_secret=false`, preserving all other findings, settings and
+    labels. The preceding no-baseline-addition constraint stays limited to its
+    seven source-line annotations; it is not a general baseline-authoring ban.
+    No manifest/schema/producer-byte/selection/budget change, digest manipulation,
+    broad exclusion, scanner threshold/filter change or hook skip follows.
+    This deliberate reviewed baseline source change may accompany the coherent
+    repair; any later actual hook-generated change retains the separate-chore
+    rule. Preserve the failed cheap scan and require actual normal gates; this
+    classification is neither a scanner PASS nor native pair/publication proof.
     Standalone helper hashes must bind final reviewed current bytes before normal
     source publication; credentialled CI/CD fixed control coordinates follow
     actual published-source/blob/size/hash/reachability verification. Full raw

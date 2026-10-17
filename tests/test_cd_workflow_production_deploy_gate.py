@@ -582,7 +582,7 @@ def test_prometheus_cd_registry_credential_route_preserves_base_execution_bounda
     control = steps["Checkout fixed trusted Prometheus control"]
     cleanup = steps["Remove fixed trusted Prometheus control checkout"]
     # pragma: allowlist nextline secret - public trusted control commit
-    assert control["with"]["ref"] == "5064aded22f478a22a4319b684e95d6c0b3ae46f"
+    assert control["with"]["ref"] == "9c1b48f8b3a63bf827543cf69090505c1f157fc6"
     assert control["with"]["persist-credentials"] is False
     assert control["with"]["sparse-checkout"] == "scripts/ci/prometheus_source_image.py"
     assert 'trusted["consume_image"](work, material' in consumer["run"]

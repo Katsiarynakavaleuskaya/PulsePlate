@@ -2207,7 +2207,7 @@ def _assert_checkpoint_pr_native_job(workflow: dict[str, object]) -> None:
     cleanup = _named_step(steps, "Remove fixed trusted Prometheus control checkout")
     selection = _named_step(steps, "Select native OBS2A material before PR startup")
     # pragma: allowlist nextline secret - public trusted control commit
-    assert control["with"]["ref"] == "5064aded22f478a22a4319b684e95d6c0b3ae46f"
+    assert control["with"]["ref"] == "9c1b48f8b3a63bf827543cf69090505c1f157fc6"
     assert control["with"]["persist-credentials"] is False
     assert "python3 -I -S" in consumer["run"] and "runpy.run_path(str(helper))" in consumer["run"]
     assert consumer["env"]["GH_TOKEN"] == "${{ secrets.GITHUB_TOKEN }}"
