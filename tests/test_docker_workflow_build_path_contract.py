@@ -6114,6 +6114,19 @@ def test_alertmanager_COPY_graph_rejects_real_subject_or_payload_drift(
         ("context-mixed-recipe", False),
         ("context-config", False),
         ("context-old-recipe", True),
+        ("layout-note", False),
+        ("layout-note", True),
+        ("layout-note-cleanup", False),
+        ("layout-note-cleanup", True),
+        ("layout-render", False),
+        ("layout-render", True),
+        ("layout-render-cleanup", True),
+        ("layout-access", False),
+        ("layout-access-cleanup", True),
+        ("layout-attach", False),
+        ("layout-attach", True),
+        ("layout-attach-cleanup", True),
+        ("layout-uncertain", False),
         ("builder-network", False),
         ("assembly", False),
         (None, True),
@@ -6147,6 +6160,9 @@ def test_alertmanager_offline_pair_real_owner_orders_two_launches_and_owned_clea
         fault is not None and fault.startswith("index-") and fault not in successful_faults
     )
     context_failure = fault is not None and fault.startswith("context-")
+    layout_failure = fault is not None and fault.startswith("layout-")
+    layout_mode = fault.removesuffix("-cleanup") if layout_failure else None
+    cleanup_failure = fault == "cleanup" or (layout_failure and fault.endswith("-cleanup"))
     work = tmp_path / "pair"
     retained = tmp_path / "retained"
     retained.mkdir()
@@ -6157,6 +6173,57 @@ def test_alertmanager_offline_pair_real_owner_orders_two_launches_and_owned_clea
     observation_attempts: list[Path] = []
     original_write = Path.write_text
     original_copyfile = shutil.copyfile
+    layout_errors: list[BaseException] = []
+    layout_facts: list[dict[str, Any]] = []
+    diagnostic_attempts: list[str] = []
+    synthetic_leaf = "synthetic-leaf-\n\t\x1b\u2603"
+    original_inventory = transport._layout_inventory
+    original_dump = json.dumps
+    original_getattribute = transport.QualificationError.__getattribute__
+    original_add_note = transport.QualificationError.add_note
+
+    def layout_inventory(layout: Path, blobs: set[str]) -> None:
+        assert layout == work / "candidate-layout"
+        leaf = layout / synthetic_leaf
+        leaf.write_bytes(b"synthetic invalid host metadata, not actual C4")
+        leaf.chmod(0o755)
+        try:
+            original_inventory(layout, blobs)
+        except transport.QualificationError as error:
+            assert str(error) == "layout_regular_leaf"
+            layout_facts.append(error.layout_rejection)
+            layout_errors.append(error)
+            raise
+
+    def dump(value: Any, *args: Any, **kwargs: Any) -> str:
+        if layout_mode == "layout-uncertain" and type(value) is str and value == synthetic_leaf:
+            raise RuntimeError("synthetic canonical observer uncertainty")
+        if layout_facts and value is layout_facts[0]:
+            diagnostic_attempts.append("render")
+            assert kwargs["ensure_ascii"] is True
+            if layout_mode == "layout-render":
+                raise RuntimeError("synthetic optional note render failure")
+        return original_dump(value, *args, **kwargs)
+
+    def getattribute(error: BaseException, name: str) -> Any:
+        if layout_errors and error is layout_errors[0] and name == "layout_rejection":
+            diagnostic_attempts.append("access")
+            raise RuntimeError("synthetic optional diagnostic access failure")
+        return original_getattribute(error, name)
+
+    def add_note(error: BaseException, note: str) -> None:
+        if layout_errors and error is layout_errors[0] and note.startswith("AM layout rejection: "):
+            diagnostic_attempts.append("attach")
+            raise RuntimeError("synthetic optional diagnostic attachment failure")
+        original_add_note(error, note)
+
+    if layout_failure:
+        monkeypatch.setattr(transport, "_layout_inventory", layout_inventory)
+        monkeypatch.setattr(json, "dumps", dump)
+        if layout_mode == "layout-access":
+            monkeypatch.setattr(transport.QualificationError, "__getattribute__", getattribute)
+        elif layout_mode == "layout-attach":
+            monkeypatch.setattr(transport.QualificationError, "add_note", add_note)
 
     def copyfile(source: Any, destination: Any, *args: Any, **kwargs: Any) -> Any:
         copied = original_copyfile(source, destination, *args, **kwargs)
@@ -6561,7 +6628,7 @@ def test_alertmanager_offline_pair_real_owner_orders_two_launches_and_owned_clea
             elif "rm" in argv and "buildx" not in argv:
                 containers.pop(argv[-1])
             elif name == "builder-cleanup-remove":
-                if fault == "cleanup":
+                if cleanup_failure:
                     raise cleanup_error
                 builder_active = False
             stdout, stderr = self.evidence / (name + ".stdout"), self.evidence / (name + ".stderr")
@@ -6646,6 +6713,47 @@ def test_alertmanager_offline_pair_real_owner_orders_two_launches_and_owned_clea
         if buildkit_failure:
             assert isinstance(caught.value, transport.QualificationError)
             assert str(caught.value) == "AM_pinned_BuildKit_image"
+        elif layout_failure:
+            assert len(layout_errors) == len(layout_facts) == 1
+            assert caught.value is layout_errors[0]
+            assert type(caught.value) is transport.QualificationError
+            assert str(caught.value) == "layout_regular_leaf"
+            facts = object.__getattribute__(caught.value, "layout_rejection")
+            assert facts is layout_facts[0]
+            if layout_mode == "layout-uncertain":
+                assert facts == {
+                    "predicate": "layout_regular_leaf",
+                    "observation_error": "RuntimeError",
+                }
+            else:
+                assert facts == {
+                    "predicate": "layout_regular_leaf",
+                    "relative": original_dump(synthetic_leaf, ensure_ascii=True)[1:-1],
+                    "relative_truncated": False,
+                    "observation_error": None,
+                    "type": "regular",
+                    "mode": "0o755",
+                    "nlink": 1,
+                    "uid": os.getuid(),
+                }
+            notes = getattr(caught.value, "__notes__", [])
+            layout_notes = [note for note in notes if note.startswith("AM layout rejection: ")]
+            if layout_mode in ("layout-access", "layout-render", "layout-attach"):
+                assert not layout_notes
+                assert layout_mode.removeprefix("layout-") in diagnostic_attempts
+            else:
+                assert len(layout_notes) == 1
+                note = layout_notes[0]
+                assert json.loads(note.removeprefix("AM layout rejection: ")) == facts
+                assert note.isascii() and not any(char in note for char in ("\n", "\t", "\x1b"))
+                assert str(work) not in note and "docker-config" not in note
+                import traceback
+
+                assert note in "".join(traceback.format_exception(caught.value))
+            if cleanup_failure:
+                assert "Owned pair cleanup failed: RuntimeError" in notes
+            assert result["failure"] == "QualificationError:layout_regular_leaf"
+            assert "layout_rejection" not in result
         elif context_failure:
             if fault == "context-missing-recipe":
                 assert isinstance(caught.value, FileNotFoundError)
@@ -6752,6 +6860,12 @@ def test_alertmanager_offline_pair_real_owner_orders_two_launches_and_owned_clea
             assert caught.value is observation_error
         if fault is not None and observation_failure:
             assert "AM pair observation write also failed: OSError" in caught.value.__notes__
+        if fault in (None, "assembly", "cleanup"):
+            assert not hasattr(caught.value, "layout_rejection")
+            assert not any(
+                note.startswith("AM layout rejection: ")
+                for note in getattr(caught.value, "__notes__", [])
+            )
     else:
         docker_sources._alertmanager_pair(
             d["inputs"],
@@ -6773,7 +6887,7 @@ def test_alertmanager_offline_pair_real_owner_orders_two_launches_and_owned_clea
             "mode": 0o444,
             "sha256": "8321b8129f819fadd64df26f0607c66fbabcef578bc76fe658e0d6d2cbab7347",
         }
-    assert builder_active is (fault == "cleanup")
+    assert builder_active is cleanup_failure
     if fault == "replaced-ID":
         assert returned_id != replaced_id and set(containers) == {replaced_id}
         assert not any("rm" in argv and replaced_id in argv for _name, argv in calls)
@@ -6781,13 +6895,17 @@ def test_alertmanager_offline_pair_real_owner_orders_two_launches_and_owned_clea
             result["owned_absence_observed"] is False
             and result["cleanup_failure"] == "QualificationError"
         )
-    elif fault == "cleanup":
+    elif cleanup_failure:
         assert not containers and result["owned_absence_observed"] is False
-        assert result["failure"] is None and result["cleanup_failure"] == "RuntimeError"
+        assert result["cleanup_failure"] == "RuntimeError"
+        if not layout_failure:
+            assert result["failure"] is None
     else:
         assert not containers and result["owned_absence_observed"] is True
     assert observation_attempts == [work / "pair-observation.json"]
     assert (work / "pair-observation.json").is_file() is (not observation_failure)
+    if not observation_failure:
+        assert "layout_rejection" not in json.loads((work / "pair-observation.json").read_text())
     unsafe_evidence = fault in ("index-raw-symlink", "index-canonical-symlink")
     if observation_failure or buildkit_failure or exported_indices:
         if unsafe_evidence:
@@ -6884,6 +7002,13 @@ def test_alertmanager_offline_pair_real_owner_orders_two_launches_and_owned_clea
         assert result["compiler_attempts"] == result["compiler_starts"] == 2
         assert result["logical_build_starts"] == 1 and result["cleanup_failure"] is None
         assert not any(name == "pair-only-COPY-assembly" for name, _argv in calls)
+        assert not (work / "candidate.oci.tar").exists()
+        for binary in ("alertmanager", "amtool"):
+            assert (retained / "pair-outputs" / binary).read_bytes() == d["binaries"][binary]
+    elif layout_failure:
+        assert result["compiler_attempts"] == result["compiler_starts"] == 2
+        assert result["logical_build_starts"] == 1
+        assert sum(name == "pair-only-COPY-assembly" for name, _argv in calls) == 1
         assert not (work / "candidate.oci.tar").exists()
         for binary in ("alertmanager", "amtool"):
             assert (retained / "pair-outputs" / binary).read_bytes() == d["binaries"][binary]

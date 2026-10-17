@@ -222,6 +222,8 @@
   each attempted phase's raw outputs and observation on failure as well as
   success, excluding private credentials/configuration. Preserve the original
   failure independently when evidence retention or cleanup also fails.
+  Forward existing bounded layout-rejection facts through ASCII-safe primary
+  traceback notes without letting optional diagnostic failures change the outcome.
 - Native binary transport must accommodate actual executable sizes through
   fresh regular owned files and bounded streamed hashes. Keep diagnostic output
   bounds independent; tiny mock executables cannot prove large-byte transport.

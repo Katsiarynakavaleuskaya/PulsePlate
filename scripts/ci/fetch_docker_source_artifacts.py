@@ -5137,6 +5137,16 @@ def _alertmanager_pair(
         )
     except BaseException as error:
         primary = error
+        try:
+            rejection = getattr(error, "layout_rejection", None)
+            if rejection is not None:
+                error.add_note(
+                    "AM layout rejection: "
+                    + json.dumps(rejection, ensure_ascii=True, sort_keys=True)
+                )
+        except BaseException:
+            # Optional diagnostics must never replace the original predicate failure.
+            pass
     finally:
         go_absent, builder_absent = False, not builder_attempted
         try:
