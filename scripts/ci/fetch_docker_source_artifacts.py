@@ -3406,7 +3406,7 @@ def _alertmanager_support_observation(archive: Path, output: Path) -> dict[str, 
                 "AM_scan_report_missing_or_bound",
             )
             destination.chmod(0o600)
-            value = one_object(destination.read_bytes())
+            value: dict[str, Any] = one_object(destination.read_bytes())
             # v0.74.0 Report.Results uses json:",omitempty". Preserve native bytes;
             # only these two exact executed subjects may have no supported result.
             require(
@@ -3906,7 +3906,7 @@ def _alertmanager_candidate_payload(
             == 0o600,
             "AM_candidate_retained_native_modes",
         )
-    result = one_object(files["candidate-observation.json"])
+    result: dict[str, Any] = one_object(files["candidate-observation.json"])
     require(
         result.get("status") == "OBSERVED_NATIVE_SECURITY_ACCEPTED"
         and result.get("failure") is None
@@ -4155,7 +4155,7 @@ def _alertmanager_support_payload(archive: Path, destination: Path) -> dict[str,
             "AM_support_footer_native_mode",
         )
         inspected = one_object(retained.read("input-inspection.json"))
-    report = one_object((destination / "support-observation.json").read_bytes())
+    report: dict[str, Any] = one_object((destination / "support-observation.json").read_bytes())
     require(
         inspected.get("consumer_source") == _ALERT_S_SOURCE
         and inspected.get("upstream", {}).get("zip_sha256") == _ALERT_Q_ZIP_SHA256
@@ -4728,7 +4728,7 @@ def _alertmanager_pair(
         if argv[0] == "build":
             result["compiler_starts"] += 1
             (work / "invocation-start.json").write_text(json.dumps(result, indent=2) + "\n")
-        raw = native.run(
+        raw: bytes = native.run(
             [*prefix, "start", "--attach", identifier],
             label + "-attach",
             env,
@@ -5407,7 +5407,7 @@ def _alertmanager_final_security(
                 "AM_final_native_report_missing",
             )
             destination.chmod(0o600)
-            report = one_object(destination.read_bytes())
+            report: dict[str, Any] = one_object(destination.read_bytes())
             require(
                 report.get("SchemaVersion") == 2 and type(report.get("SchemaVersion")) is int,
                 "AM_final_native_schema",
