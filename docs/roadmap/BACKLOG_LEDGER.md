@@ -617,7 +617,9 @@ If it is not recorded here — it does not exist.
     [evidence archive](https://drive.google.com/file/d/156XFt8TmpesuTPKF_90PY0Q9CNNXJXIH/view)
     and [closure supplement](https://drive.google.com/file/d/1p06VkPIu_VN6B4K5cbVSSw5awJNKKnBc/view)
     remain predecessor receipts, not CAB-07C tests or a new archive verification.
-    CAB-07C is active under accepted CAB07C/v1.0: exactly seventeen admitted paths
+    CAB-07C is active under accepted CAB07C/v1.0 with the owner's 2026-10-17 amendment:
+    eighteen admitted paths, comprising the original seventeen plus the mandatory
+    `.secrets.baseline` timestamp/existing-fingerprint line update in its separate hook-fix commit,
     for behavior-preserving pages/features lint cleanup, mandatory recursive
     native coverage in the existing Frontend CI, and this CAB-07B reconciliation.
     Its local/current-head validation, review, separate exact-head human merge,
