@@ -5,7 +5,9 @@ from __future__ import annotations
 import argparse
 import asyncio
 import base64
+import gzip
 import hashlib
+import io
 import json
 import os
 import re
@@ -16,6 +18,7 @@ import socket
 import ssl
 import subprocess
 import sys
+import tarfile
 import tempfile
 import threading
 import time
@@ -28,6 +31,7 @@ from html import escape
 from html.parser import HTMLParser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from urllib.request import ProxyHandler, Request, build_opener
 
 import pytest
 import yaml
@@ -40,6 +44,7 @@ ALERTMANAGER_IMAGE = (
     "prom/alertmanager@sha256:84967b9b7ba45e38a9278d3e594305f43d4993c310df3905b51138b816c365f3"
 )
 SYSTEMD_UNIT_DIRECTORY = Path("/run/systemd/system")
+_AM_NATIVE_DOCKER_CONFIG: Path | None = None
 RUNBOOK_URL = (
     "https://github.com/Katsiarynakavaleuskaya/PulsePlate/blob/main/"
     "docs/deploy/OPERATIONAL_SIGNALS.md#daily-checkpoint"
@@ -502,7 +507,12 @@ def test_units_are_explicit_default_off_and_keep_failure_semantics() -> None:
 # Native mode runs explicitly in canonical Linux CI, outside ordinary pytest collection.
 # Its fixtures use synthetic environment/config/keys only and own exact unit/container IDs.
 def _native(
-    argv: list[str], *, timeout: float = 30, check: bool = True, cwd: Path | None = None
+    argv: list[str],
+    *,
+    timeout: float = 30,
+    check: bool = True,
+    cwd: Path | None = None,
+    binary: bool = False,
 ) -> subprocess.CompletedProcess[str]:
     resolved = shutil.which(argv[0])
     assert resolved is not None and os.path.isabs(resolved), f"native binary missing: {argv[0]}"
@@ -514,17 +524,59 @@ def _native(
     }
     if cwd is not None:
         environment["COMPOSE_PROFILES"] = ""
-    result = subprocess.run(
-        [resolved, *argv[1:]],
-        env=environment,
-        cwd=cwd,
-        stdin=subprocess.DEVNULL,
-        capture_output=True,
-        text=True,
-        timeout=timeout,
-        check=False,
-    )
+    if _AM_NATIVE_DOCKER_CONFIG is not None:
+        environment["DOCKER_CONFIG"] = str(_AM_NATIVE_DOCKER_CONFIG)
+    try:
+        result = subprocess.run(
+            [resolved, *argv[1:]],
+            env=environment,
+            cwd=cwd,
+            stdin=subprocess.DEVNULL,
+            capture_output=True,
+            text=not binary,
+            timeout=timeout,
+            check=False,
+        )
+    except subprocess.TimeoutExpired as error:
+        if _AM_NATIVE_DOCKER_CONFIG is not None:
+            print(
+                json.dumps(
+                    {
+                        "AM_native_argv": [resolved, *argv[1:]],
+                        "exit": None,
+                        "failure": "TimeoutExpired",
+                        "stdout_partial_base64": base64.b64encode(
+                            (error.stdout or b"")[: 1024 * 1024]
+                        ).decode("ascii"),
+                        "stderr_partial_base64": base64.b64encode(
+                            (error.stderr or b"")[: 1024 * 1024]
+                        ).decode("ascii"),
+                    }
+                ),
+                flush=True,
+            )
+        raise
     assert len(result.stdout) + len(result.stderr) <= 1024 * 1024
+    if binary:
+        result = subprocess.CompletedProcess(
+            result.args,
+            result.returncode,
+            base64.b64encode(result.stdout).decode("ascii"),
+            result.stderr.decode("utf-8", errors="replace"),
+        )
+    if _AM_NATIVE_DOCKER_CONFIG is not None:
+        print(
+            json.dumps(
+                {
+                    "AM_native_argv": result.args,
+                    "environment": environment,
+                    "exit": result.returncode,
+                    "stdout": result.stdout,
+                    "stderr": result.stderr,
+                }
+            ),
+            flush=True,
+        )
     if check:
         assert result.returncode == 0, result.stderr[-2048:]
     return result
@@ -1446,13 +1498,17 @@ def _native_alertmanager_render(prefix: list[str]) -> None:
     print("native_alertmanager_html_escape=pass", flush=True)
 
 
-def _native_alertmanager(directory: Path, image: str = ALERTMANAGER_IMAGE) -> None:
+def _native_alertmanager(
+    directory: Path, image: str = ALERTMANAGER_IMAGE, *, tls_failure: str | None = None
+) -> None:
     """Actual pinned AM, exact route timings, private synthetic TLS SMTP receiver."""
     from socketserver import StreamRequestHandler, ThreadingTCPServer
 
     with pytest.MonkeyPatch.context() as profile_environment:
         profile_environment.setenv("COMPOSE_PROFILES", "")
         received: list[bytes] = []
+        smtp_commands: list[bytes] = []
+        assert tls_failure in (None, "untrusted", "hostname", "plaintext")
         cert, key = directory / "smtp.crt", directory / "smtp.key"
         _native(
             [
@@ -1471,7 +1527,8 @@ def _native_alertmanager(directory: Path, image: str = ALERTMANAGER_IMAGE) -> No
                 "-subj",
                 "/CN=smtp.resend.com",
                 "-addext",
-                "subjectAltName=DNS:smtp.resend.com",
+                "subjectAltName=DNS:"
+                + ("wrong.invalid" if tls_failure == "hostname" else "smtp.resend.com"),
             ],
             timeout=30,
         )
@@ -1479,6 +1536,29 @@ def _native_alertmanager(directory: Path, image: str = ALERTMANAGER_IMAGE) -> No
         key.chmod(0o600)
         context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
         context.load_cert_chain(cert, key)
+        trusted_ca = cert
+        if tls_failure == "untrusted":
+            trusted_ca = directory / "unrelated-ca.crt"
+            _native(
+                [
+                    "openssl",
+                    "req",
+                    "-x509",
+                    "-newkey",
+                    "rsa:2048",
+                    "-nodes",
+                    "-keyout",
+                    str(directory / "unrelated-ca.key"),
+                    "-out",
+                    str(trusted_ca),
+                    "-days",
+                    "1",
+                    "-subj",
+                    "/CN=unrelated-fixture-CA",
+                ],
+                timeout=30,
+            )
+            trusted_ca.chmod(0o444)
 
         class Handler(StreamRequestHandler):
             def handle(self) -> None:
@@ -1488,6 +1568,7 @@ def _native_alertmanager(directory: Path, image: str = ALERTMANAGER_IMAGE) -> No
                     if not line or len(line) > 4096:
                         return
                     command = line.split(b" ", 1)[0].strip().upper()
+                    smtp_commands.append(command)
                     if command == b"EHLO":
                         self.wfile.write(b"250-fixture\r\n250 AUTH PLAIN\r\n")
                     elif command == b"AUTH":
@@ -1519,7 +1600,11 @@ def _native_alertmanager(directory: Path, image: str = ALERTMANAGER_IMAGE) -> No
             def get_request(self) -> tuple[socket.socket, tuple[str, int]]:
                 sock, address = super().get_request()
                 sock.settimeout(10)
-                return context.wrap_socket(sock, server_side=True), address
+                return (
+                    sock
+                    if tls_failure == "plaintext"
+                    else context.wrap_socket(sock, server_side=True)
+                ), address
 
         server: ThreadingTCPServer | None = None
         thread: threading.Thread | None = None
@@ -1561,7 +1646,7 @@ def _native_alertmanager(directory: Path, image: str = ALERTMANAGER_IMAGE) -> No
             template_data.chmod(0o444)
             compose = directory / "compose.yaml"
             compose.write_text(
-                f"services:\n  alertmanager:\n    profiles: [alerting]\n    image: {image}\n    pull_policy: never\n    platform: linux/amd64\n    user: '65534:65534'\n    read_only: true\n    cap_drop: [ALL]\n    security_opt: ['no-new-privileges:true']\n    network_mode: host\n    extra_hosts: ['smtp.resend.com:127.0.0.1']\n    command: ['--config.file=/etc/alertmanager/alertmanager.yml', '--storage.path=/alertmanager', '--cluster.listen-address=', '--web.listen-address=127.0.0.1:9093']\n    tmpfs: ['/alertmanager:uid=65534,gid=65534,mode=0700,size=16m']\n    volumes:\n      - {configuration}:/etc/alertmanager/alertmanager.yml:ro\n      - {secret}:/run/secrets/alertmanager_smtp_key:ro\n      - {cert}:/etc/ssl/certs/ca-certificates.crt:ro\n"
+                f"services:\n  alertmanager:\n    profiles: [alerting]\n    image: {image}\n    pull_policy: never\n    platform: linux/amd64\n    user: '65534:65534'\n    read_only: true\n    cap_drop: [ALL]\n    security_opt: ['no-new-privileges:true']\n    network_mode: host\n    extra_hosts: ['smtp.resend.com:127.0.0.1']\n    command: ['--config.file=/etc/alertmanager/alertmanager.yml', '--storage.path=/alertmanager', '--cluster.listen-address=', '--web.listen-address=127.0.0.1:9093']\n    tmpfs: ['/alertmanager:uid=65534,gid=65534,mode=0700,size=16m']\n    volumes:\n      - {configuration}:/etc/alertmanager/alertmanager.yml:ro\n      - {secret}:/run/secrets/alertmanager_smtp_key:ro\n      - {trusted_ca}:/etc/ssl/certs/ca-certificates.crt:ro\n"
                 f"      - {template_data}:/email-template-data.json:ro\n"
             )
             docker = shutil.which("docker")
@@ -1622,6 +1707,32 @@ def _native_alertmanager(directory: Path, image: str = ALERTMANAGER_IMAGE) -> No
                 "alias": "all",
                 "severity": "warning",
             }
+            if tls_failure is not None:
+                patterns = {
+                    "untrusted": r"x509:.*(?:unknown authority|untrusted)",
+                    "hostname": r"x509:.*(?:not smtp\.resend\.com|not valid for|cannot validate)",
+                    "plaintext": r"tls:.*(?:first record|handshake)|server gave HTTP response to HTTPS client",
+                }
+                rejection_deadline = time.monotonic() + 60
+                while time.monotonic() < rejection_deadline:
+                    logs = _native(["docker", "logs", cid], timeout=10)
+                    if re.search(
+                        patterns[tls_failure], logs.stdout + logs.stderr, flags=re.IGNORECASE
+                    ):
+                        assert (
+                            not received
+                            and b"AUTH" not in smtp_commands
+                            and b"DATA" not in smtp_commands
+                        )
+                        print(
+                            "native_AM_SMTP_TLS_rejection=" + tls_failure + "; AUTH=0; DATA=0",
+                            flush=True,
+                        )
+                        return
+                    time.sleep(0.1)
+                raise AssertionError(
+                    "native SMTP negative lacked its actual TLS/x509 cause: " + tls_failure
+                )
             fingerprint = first[0]["fingerprint"]
             epoch = time.monotonic()
             for slot in range(1, 15):
@@ -1785,7 +1896,631 @@ def _native_compose_configuration(directory: Path) -> None:
         print("native_compose_configuration_positive=pass", flush=True)
 
 
-def native_alertmanager_main(image_id: str, config_sha256: str) -> None:
+def _native_amtool_candidate(
+    image: str,
+    argv: list[str],
+    *,
+    mounts: list[str] | None = None,
+    check: bool = True,
+    network: str = "host",
+) -> subprocess.CompletedProcess[str]:
+    """Observe actual amtool terminal state and remove only its bound owned container."""
+    assert re.fullmatch(r"sha256:[0-9a-f]{64}", image) and network in ("host", "none")
+    token = uuid.uuid4().hex
+    name = "pulseplate-amtool-native-" + token
+    cid = ""
+    primary: BaseException | None = None
+    try:
+        create = [
+            "docker",
+            "create",
+            "--name",
+            name,
+            "--label",
+            "pulseplate.amtool-native=" + token,
+            "--pull=never",
+            "--network=" + network,
+            "--read-only",
+            "--user=65534:65534",
+            "--cap-drop=ALL",
+            "--security-opt=no-new-privileges:true",
+            "--entrypoint=/usr/bin/amtool",
+        ]
+        for mount in mounts or []:
+            create += ["--mount", mount]
+        cid = _native([*create, image, *argv]).stdout.strip()
+        assert re.fullmatch(r"[0-9a-f]{64}", cid)
+        attached = _native(["docker", "start", "--attach", cid], timeout=30, check=False)
+        waited = _native(["docker", "wait", cid], timeout=10)
+        observed = json.loads(_native(["docker", "inspect", "--format", "{{json .}}", cid]).stdout)
+        state = observed["State"]
+        assert (
+            observed["Id"] == cid and observed["Name"] == "/" + name and observed["Image"] == image
+        )
+        assert observed["Config"]["Labels"]["pulseplate.amtool-native"] == token
+        assert (
+            state["Status"] == "exited"
+            and all(state[k] is False for k in ("Running", "Restarting", "Dead", "OOMKilled"))
+            and state["Error"] == ""
+        )
+        assert type(state["ExitCode"]) is int and waited.stdout == str(state["ExitCode"]) + "\n"
+        assert attached.returncode in (0, state["ExitCode"])
+        if check:
+            assert state["ExitCode"] == 0, attached.stdout + attached.stderr
+        return subprocess.CompletedProcess(
+            attached.args, state["ExitCode"], attached.stdout, attached.stderr
+        )
+    except BaseException as error:
+        primary = error
+        raise
+    finally:
+        try:
+            ids = _native(
+                [
+                    "docker",
+                    "ps",
+                    "--all",
+                    "--quiet",
+                    "--no-trunc",
+                    "--filter",
+                    "label=pulseplate.amtool-native=" + token,
+                ]
+            ).stdout.splitlines()
+            assert len(ids) <= 1
+            for identifier in ids:
+                observed = json.loads(
+                    _native(["docker", "inspect", "--format", "{{json .}}", identifier]).stdout
+                )
+                assert (
+                    observed["Id"] == identifier
+                    and (not cid or identifier == cid)
+                    and observed["Name"] == "/" + name
+                    and observed["Image"] == image
+                )
+                assert observed["Config"]["Labels"]["pulseplate.amtool-native"] == token
+                _native(["docker", "rm", "--force", "--volumes", identifier])
+            assert not _native(
+                [
+                    "docker",
+                    "ps",
+                    "--all",
+                    "--quiet",
+                    "--no-trunc",
+                    "--filter",
+                    "label=pulseplate.amtool-native=" + token,
+                ]
+            ).stdout.strip()
+
+        except BaseException as cleanup_error:
+            if primary is not None:
+                primary.add_note("Owned amtool cleanup failed: " + type(cleanup_error).__name__)
+                raise primary from None
+            raise
+
+
+def _native_alertmanager_candidate(
+    directory: Path, image: str, evidence: dict[str, object]
+) -> None:
+    """Actual local candidate UI/probes/UID/anonymous-volume restart and CA controls."""
+    graph = evidence["graph"]
+    assert isinstance(graph, dict) and graph["config"]["digest"] == image
+    files = graph["files"]
+    assert isinstance(files, dict)
+    expected = {
+        "usr/bin/alertmanager",
+        "usr/bin/amtool",
+        "usr/bin/wget",
+        "usr/bin/httpd",
+        "etc/alertmanager/alertmanager.yml",
+        "LICENSE",
+        "NOTICE",
+    }
+    assert set(files) == expected
+    cid = volume = ""
+    token = uuid.uuid4().hex
+    name = "pulseplate-am-native-" + token
+    attempted = False
+    primary: BaseException | None = None
+    config = directory / "state.yml"
+    config.write_text("route:\n  receiver: synthetic\nreceivers:\n  - name: synthetic\n")
+    config.chmod(0o444)
+    document = directory / "probe-document"
+    document.mkdir()
+    (document / "index.html").write_text("pulseplate-owned-httpd-probe\n")
+    (document / "index.html").chmod(0o444)
+
+    def request(path: str) -> tuple[bytes, dict[str, str]]:
+        with build_opener(ProxyHandler({})).open(
+            Request("http://127.0.0.1:19095" + path, headers={"Accept-Encoding": "gzip"}),
+            timeout=10,
+        ) as response:
+            assert response.status == 200
+            raw = response.read(1024 * 1024 + 1)
+            assert len(raw) <= 1024 * 1024
+            return raw, dict(response.headers)
+
+    def ready() -> None:
+        deadline = time.monotonic() + 30
+        while time.monotonic() < deadline:
+            result = _native(
+                [
+                    "docker",
+                    "exec",
+                    cid,
+                    "/usr/bin/wget",
+                    "-q",
+                    "-O",
+                    "-",
+                    "http://127.0.0.1:19095/-/ready",
+                ],
+                timeout=min(10, max(0.1, deadline - time.monotonic())),
+                check=False,
+            )
+            if result.returncode == 0:
+                assert "OK" in result.stdout
+                return
+            time.sleep(0.1)
+        raise AssertionError("owned candidate readiness did not complete within30s")
+
+    def archive(path: str) -> list[tuple[tarfile.TarInfo, bytes]]:
+        raw = base64.b64decode(
+            _native(["docker", "cp", cid + ":" + path, "-"], binary=True).stdout, validate=True
+        )
+        rows = []
+        with tarfile.open(fileobj=io.BytesIO(raw), mode="r:") as copied:
+            for member in copied:
+                assert member.isfile() or member.isdir()
+                stream = copied.extractfile(member) if member.isfile() else None
+                value = stream.read(member.size + 1) if stream is not None else b""
+                assert len(value) == member.size
+                rows.append((member, value))
+        return rows
+
+    try:
+        attempted = True
+        cid = _native(
+            [
+                "docker",
+                "create",
+                "--name",
+                name,
+                "--label",
+                "pulseplate.am-native=" + token,
+                "--pull=never",
+                "--network=host",
+                "--read-only",
+                "--user=65534:65534",
+                "--cap-drop=ALL",
+                "--security-opt=no-new-privileges:true",
+                "--mount",
+                "type=volume,target=/alertmanager",
+                "--mount",
+                "type=bind,source=" + str(config) + ",target=/fixture.yml,readonly",
+                "--mount",
+                "type=bind,source=" + str(document) + ",target=/probe-document,readonly",
+                image,
+                "--config.file=/fixture.yml",
+                "--storage.path=/alertmanager",
+                "--cluster.listen-address=",
+                "--web.listen-address=127.0.0.1:19095",
+            ]
+        ).stdout.strip()
+        assert re.fullmatch(r"[0-9a-f]{64}", cid)
+        observed = json.loads(_native(["docker", "inspect", "--format", "{{json .}}", cid]).stdout)
+        assert observed["Id"] == cid and observed["Name"] == "/" + name
+        assert (
+            observed["Image"] == image
+            and observed["Config"]["Labels"]["pulseplate.am-native"] == token
+        )
+        mounts = [m for m in observed["Mounts"] if m["Destination"] == "/alertmanager"]
+        assert len(mounts) == 1 and mounts[0]["Type"] == "volume" and mounts[0]["RW"] is True
+        volume = mounts[0]["Name"]
+        assert re.fullmatch(r"[0-9a-f]{64}", volume), "explicit anonymous volume identity required"
+        before = json.loads(_native(["docker", "volume", "inspect", volume]).stdout)
+        assert len(before) == 1 and before[0]["Name"] == volume
+        _native(["docker", "start", cid])
+        ready()
+        top = _native(["docker", "top", cid, "-eo", "uid,pid,args"]).stdout.splitlines()[1:]
+        assert any(row.split()[0] == "65534" and "alertmanager" in row for row in top)
+        for binary in ("alertmanager", "amtool"):
+            copied = directory / ("actual-" + binary)
+            assert not copied.exists() and not copied.is_symlink()
+            _native(["docker", "cp", cid + ":/usr/bin/" + binary, str(copied)])
+            info = copied.lstat()
+            assert (
+                copied.is_file()
+                and not copied.is_symlink()
+                and info.st_nlink == 1
+                and 0 < info.st_size <= 256 * 1024**2
+            )
+            with copied.open("rb") as stream:
+                actual = hashlib.file_digest(stream, "sha256").hexdigest()
+            assert actual == files["usr/bin/" + binary]
+            again = copied.lstat()
+            assert (
+                again.st_dev,
+                again.st_ino,
+                again.st_mode,
+                again.st_nlink,
+                again.st_size,
+                again.st_mtime_ns,
+            ) == (
+                info.st_dev,
+                info.st_ino,
+                info.st_mode,
+                info.st_nlink,
+                info.st_size,
+                info.st_mtime_ns,
+            )
+        ca = archive("/etc/ssl/certs/ca-certificates.crt")
+        assert len(ca) == 1 and hashlib.sha256(ca[0][1]).hexdigest() == graph["default_CA_sha256"]
+        root, headers = request("/")
+        ui = evidence["UI_file_hashes"]
+        assert isinstance(ui, dict)
+        assert (
+            headers.get("Content-Encoding") == "gzip"
+            and hashlib.sha256(root).hexdigest() == ui["index.html.gz"]
+        )
+        html = gzip.decompress(root).decode("utf-8")
+        assets = re.findall(r'(?:src|href)="([^"?#]+\.(?:js|css))"', html)
+        assert assets, "actual rendered UI asset required"
+        asset = assets[0].removeprefix("./")
+        relative = asset.lstrip("/") + ".gz"
+        assert relative in ui
+        payload, asset_headers = request("/" + asset.lstrip("/"))
+        assert (
+            asset_headers.get("Content-Encoding") == "gzip"
+            and hashlib.sha256(payload).hexdigest() == ui[relative]
+        )
+        _native(
+            [
+                "docker",
+                "exec",
+                "--detach",
+                cid,
+                "/usr/bin/httpd",
+                "-f",
+                "-p",
+                "127.0.0.1:19096",
+                "-h",
+                "/probe-document",
+            ]
+        )
+        probe_deadline = time.monotonic() + 30
+        while time.monotonic() < probe_deadline:
+            probe = _native(
+                [
+                    "docker",
+                    "exec",
+                    cid,
+                    "/usr/bin/wget",
+                    "-q",
+                    "-O",
+                    "-",
+                    "http://127.0.0.1:19096/",
+                ],
+                timeout=10,
+                check=False,
+            )
+            if probe.returncode == 0:
+                assert probe.stdout == "pulseplate-owned-httpd-probe\n"
+                break
+            time.sleep(0.1)
+        else:
+            raise AssertionError("actual httpd/wget request did not complete")
+        amtool = [
+            "docker",
+            "exec",
+            cid,
+            "/usr/bin/amtool",
+            "--no-version-check",
+            "--timeout=10s",
+            "--alertmanager.url=http://127.0.0.1:19095",
+        ]
+        silence = _native(
+            [
+                *amtool,
+                "silence",
+                "add",
+                "alertname=PulsePlateSyntheticStorage",
+                "--author=synthetic-fixture",
+                "--comment=owned-persistence-control",
+                "--duration=1h",
+            ]
+        ).stdout.strip()
+        assert re.fullmatch(r"[0-9a-f-]{36}", silence)
+        _native(["docker", "stop", "--time=30", cid], timeout=35)
+        stopped = json.loads(
+            _native(["docker", "inspect", "--format", "{{json .State}}", cid]).stdout
+        )
+        assert (
+            stopped["Running"] is False
+            and stopped["Status"] == "exited"
+            and stopped["ExitCode"] == 0
+        )
+        state = archive("/alertmanager")
+        roots = [
+            member
+            for member, _raw in state
+            if member.isdir() and member.name.rstrip("/") == "alertmanager"
+        ]
+        assert len(roots) == 1 and roots[0].uid == roots[0].gid == 65534 and roots[0].mode == 0o700
+        assert any(
+            member.isfile() and member.size > 0 and "silences" in member.name
+            for member, _raw in state
+        )
+        _native(["docker", "start", cid])
+        ready()
+        restored, _ = request("/api/v2/silence/" + silence)
+        assert json.loads(restored)["id"] == silence
+        again = json.loads(_native(["docker", "inspect", "--format", "{{json .}}", cid]).stdout)
+        assert (
+            again["Id"] == cid
+            and next(m["Name"] for m in again["Mounts"] if m["Destination"] == "/alertmanager")
+            == volume
+        )
+        print("native_AM_UI_probes_UID_storage_restart=pass", flush=True)
+    except BaseException as error:
+        primary = error
+        raise
+    finally:
+        try:
+            if attempted:
+                ids = _native(
+                    [
+                        "docker",
+                        "ps",
+                        "--all",
+                        "--quiet",
+                        "--no-trunc",
+                        "--filter",
+                        "label=pulseplate.am-native=" + token,
+                    ]
+                ).stdout.splitlines()
+                assert len(ids) <= 1
+                for identifier in ids:
+                    row = json.loads(
+                        _native(["docker", "inspect", "--format", "{{json .}}", identifier]).stdout
+                    )
+                    assert (
+                        row["Id"] == identifier
+                        and row["Name"] == "/" + name
+                        and row["Config"]["Labels"]["pulseplate.am-native"] == token
+                    )
+                    assert not cid or identifier == cid
+                    _native(["docker", "rm", "--force", "--volumes", identifier])
+                assert not _native(
+                    [
+                        "docker",
+                        "ps",
+                        "--all",
+                        "--quiet",
+                        "--no-trunc",
+                        "--filter",
+                        "label=pulseplate.am-native=" + token,
+                    ]
+                ).stdout.strip()
+                if volume:
+                    absent = _native(["docker", "volume", "inspect", volume], check=False)
+                    assert absent.returncode != 0 and re.search(
+                        r"no such volume|not found", absent.stderr, flags=re.IGNORECASE
+                    ), "exact anonymous volume absence not observed"
+            if primary is not None:
+                print("native_AM_candidate_failed=" + type(primary).__name__, flush=True)
+
+        except BaseException as cleanup_error:
+            if primary is not None:
+                primary.add_note("Owned candidate cleanup failed: " + type(cleanup_error).__name__)
+                raise primary from None
+            raise
+
+    bad = "pulseplate-am-unwritable-" + uuid.uuid4().hex
+    bad_id = ""
+    bad_primary: BaseException | None = None
+    try:
+        bad_id = _native(
+            [
+                "docker",
+                "create",
+                "--name",
+                bad,
+                "--label",
+                "pulseplate.am-unwritable=" + bad,
+                "--pull=never",
+                "--network=none",
+                "--read-only",
+                "--user=65534:65534",
+                "--cap-drop=ALL",
+                "--security-opt=no-new-privileges:true",
+                "--tmpfs",
+                "/alertmanager:uid=0,gid=0,mode=0500,size=16m",
+                "--mount",
+                "type=bind,source=" + str(config) + ",target=/fixture.yml,readonly",
+                image,
+                "--config.file=/fixture.yml",
+                "--storage.path=/alertmanager",
+                "--cluster.listen-address=",
+                "--web.listen-address=127.0.0.1:19095",
+            ]
+        ).stdout.strip()
+        assert re.fullmatch(r"[0-9a-f]{64}", bad_id)
+        _native(["docker", "start", bad_id])
+        waited = _native(["docker", "wait", bad_id], timeout=30)
+        assert waited.stdout.strip().isdigit() and int(waited.stdout.strip()) != 0
+        logs = _native(["docker", "logs", bad_id])
+        assert (
+            re.search(
+                r"(?:permission denied|read-only file system)",
+                logs.stdout + logs.stderr,
+                flags=re.IGNORECASE,
+            )
+            and "/alertmanager" in logs.stdout + logs.stderr
+        )
+    except BaseException as error:
+        bad_primary = error
+        raise
+    finally:
+        try:
+            ids = _native(
+                [
+                    "docker",
+                    "ps",
+                    "--all",
+                    "--quiet",
+                    "--no-trunc",
+                    "--filter",
+                    "label=pulseplate.am-unwritable=" + bad,
+                ]
+            ).stdout.splitlines()
+            assert len(ids) <= 1
+            for identifier in ids:
+                row = json.loads(
+                    _native(["docker", "inspect", "--format", "{{json .}}", identifier]).stdout
+                )
+                assert (
+                    row["Id"] == identifier
+                    and (not bad_id or identifier == bad_id)
+                    and row["Name"] == "/" + bad
+                    and row["Image"] == image
+                    and row["Config"]["Labels"]["pulseplate.am-unwritable"] == bad
+                )
+                _native(["docker", "rm", "--force", "--volumes", identifier])
+            assert not _native(
+                [
+                    "docker",
+                    "ps",
+                    "--all",
+                    "--quiet",
+                    "--no-trunc",
+                    "--filter",
+                    "label=pulseplate.am-unwritable=" + bad,
+                ]
+            ).stdout.strip()
+        except BaseException as cleanup_error:
+            if bad_primary is not None:
+                bad_primary.add_note(
+                    "Owned permission-control cleanup failed: " + type(cleanup_error).__name__
+                )
+                raise bad_primary from None
+            raise
+    default_ca = _native_amtool_candidate(
+        image,
+        [
+            "--no-version-check",
+            "--timeout=10s",
+            "--alertmanager.url=https://github.com",
+            "alert",
+            "query",
+        ],
+        check=False,
+    )
+    assert default_ca.returncode != 0 and re.search(
+        r"(?:HTTP|status|response)[^\n]*404|\[404\]",
+        default_ca.stdout + default_ca.stderr,
+        flags=re.IGNORECASE,
+    ), "default-root TLS requires an explicit verified HTTP404"
+    print("native_AM_default_CA_verified_HTTP404=pass", flush=True)
+
+
+def _native_alertmanager_local_tls(directory: Path, image: str) -> None:
+    """The actual amtool client validates SAN/trust/protocol; no insecure-skip flag."""
+    hits: list[str] = []
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_GET(self) -> None:
+            hits.append(self.path)
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(b"[]")
+
+        def log_message(self, format: str, *args: object) -> None:
+            del format, args
+
+    for case in ("matching", "untrusted", "hostname", "plaintext"):
+        case_dir = directory / case
+        case_dir.mkdir()
+        cert, key = case_dir / "cert.pem", case_dir / "key.pem"
+        _native(
+            [
+                "openssl",
+                "req",
+                "-x509",
+                "-newkey",
+                "rsa:2048",
+                "-nodes",
+                "-keyout",
+                str(key),
+                "-out",
+                str(cert),
+                "-days",
+                "1",
+                "-subj",
+                "/CN=owned-fixture",
+                "-addext",
+                "subjectAltName=" + ("DNS:wrong.invalid" if case == "hostname" else "IP:127.0.0.1"),
+            ],
+            timeout=30,
+        )
+        cert.chmod(0o444)
+        config = case_dir / "client.yml"
+        config.write_text("tls_config:\n  ca_file: /fixture-ca.pem\n")
+        config.chmod(0o444)
+        server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        server.daemon_threads = True
+        thread: threading.Thread | None = None
+        count = len(hits)
+        try:
+            if case != "plaintext":
+                context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+                context.load_cert_chain(cert, key)
+                server.socket = context.wrap_socket(server.socket, server_side=True)
+            thread = threading.Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            mounts = []
+            if case != "untrusted":
+                mounts += [
+                    "type=bind,source=" + str(cert) + ",target=/fixture-ca.pem,readonly",
+                    "type=bind,source=" + str(config) + ",target=/fixture-client.yml,readonly",
+                ]
+            argv = [
+                "--no-version-check",
+                "--timeout=10s",
+                "--alertmanager.url=https://127.0.0.1:" + str(server.server_port),
+            ]
+            if case != "untrusted":
+                argv.append("--http.config.file=/fixture-client.yml")
+            actual = _native_amtool_candidate(
+                image, [*argv, "-o", "json", "alert", "query"], mounts=mounts, check=False
+            )
+            if case == "matching":
+                assert (
+                    actual.returncode == 0
+                    and json.loads(actual.stdout) == []
+                    and len(hits) == count + 1
+                )
+            else:
+                assert actual.returncode != 0 and len(hits) == count
+                assert re.search(
+                    r"x509:.*(?:unknown authority|valid for|not valid|cannot validate)|HTTP response to HTTPS client|first record does not look like a TLS handshake",
+                    actual.stderr + actual.stdout,
+                    flags=re.IGNORECASE,
+                )
+        finally:
+            try:
+                if thread is not None and thread.is_alive():
+                    server.shutdown()
+            finally:
+                server.server_close()
+                if thread is not None and thread.ident is not None:
+                    thread.join(5)
+                    assert not thread.is_alive()
+    print("native_AM_local_TLS_SAN_and_protocol=pass", flush=True)
+
+
+def native_alertmanager_main(
+    image_id: str, config_sha256: str, observation: Path | None = None
+) -> None:
     """Explicit local-image AM fixtures, independent of Prometheus publication state."""
     assert sys.platform == "linux", "native mode requires the existing Linux CI runner"
     assert re.fullmatch(
@@ -1796,17 +2531,68 @@ def native_alertmanager_main(image_id: str, config_sha256: str) -> None:
     assert (
         not config.is_symlink() and hashlib.sha256(config.read_bytes()).hexdigest() == config_sha256
     )
-    observed = prometheus_image.one_object(
-        _native(["docker", "image", "inspect", "--format", "{{json .}}", image_id]).stdout.encode()
-    )
-    assert (
-        observed.get("Id") == image_id
-        and observed.get("Os") == "linux"
-        and observed.get("Architecture") == "amd64"
-    )
-    assert observed.get("Config", {}).get("User") == "65534:65534"
-    for name in ("alertmanager", "amtool"):
-        version = _native(
+    with (
+        tempfile.TemporaryDirectory(prefix="pulseplate-am-only-native-") as raw,
+        pytest.MonkeyPatch.context() as runtime,
+    ):
+        directory = Path(raw)
+        native_config = directory / "empty-docker-config"
+        native_config.mkdir(mode=0o700)
+        runtime.setattr(sys.modules[__name__], "_AM_NATIVE_DOCKER_CONFIG", native_config)
+        observed = prometheus_image.one_object(
+            _native(
+                ["docker", "image", "inspect", "--format", "{{json .}}", image_id]
+            ).stdout.encode()
+        )
+        assert (
+            observed.get("Id") == image_id
+            and observed.get("Os") == "linux"
+            and observed.get("Architecture") == "amd64"
+        )
+        assert observed.get("Config", {}).get("User") == "65534:65534"
+        for name in ("alertmanager", "amtool"):
+            version = _native(
+                [
+                    "docker",
+                    "run",
+                    "--rm",
+                    "--pull=never",
+                    "--network=none",
+                    "--read-only",
+                    "--user=65534:65534",
+                    "--cap-drop=ALL",
+                    "--security-opt=no-new-privileges:true",
+                    "--entrypoint=/bin/" + name,
+                    image_id,
+                    "--version",
+                ]
+            )
+            assert "version 0.34.1" in version.stdout + version.stderr
+            if observation is not None:
+                lines = [
+                    line.strip()
+                    for line in (version.stdout + version.stderr).splitlines()
+                    if line.strip()
+                ]
+                assert (
+                    len(lines) == 6
+                    and lines[0]
+                    == name
+                    + ", version 0.34.1 (branch: HEAD, revision: 73c6bfe7393929211294c1954f30d8ed78e4d0ad)"
+                )
+                stamped = {}
+                for line in lines[1:]:
+                    field, separator, value = line.partition(":")
+                    assert separator and field.strip() not in stamped
+                    stamped[field.strip()] = value.strip()
+                assert stamped == {
+                    "build user": "pulseplate@builder",
+                    "build date": "19700101-00:00:00",
+                    "go version": "go1.27.2",
+                    "platform": "linux/amd64",
+                    "tags": "netgo",
+                }, "actual stamped native metadata differs from frozen compiler command"
+        _native(
             [
                 "docker",
                 "run",
@@ -1817,36 +2603,26 @@ def native_alertmanager_main(image_id: str, config_sha256: str) -> None:
                 "--user=65534:65534",
                 "--cap-drop=ALL",
                 "--security-opt=no-new-privileges:true",
-                "--entrypoint=/bin/" + name,
+                "--mount",
+                "type=bind,source="
+                + str(config)
+                + ",target=/etc/alertmanager/alertmanager.yml,readonly",
+                "--entrypoint=/bin/amtool",
                 image_id,
-                "--version",
+                "check-config",
+                "/etc/alertmanager/alertmanager.yml",
             ]
         )
-        assert "version 0.34.1" in version.stdout + version.stderr
-    _native(
-        [
-            "docker",
-            "run",
-            "--rm",
-            "--pull=never",
-            "--network=none",
-            "--read-only",
-            "--user=65534:65534",
-            "--cap-drop=ALL",
-            "--security-opt=no-new-privileges:true",
-            "--mount",
-            "type=bind,source="
-            + str(config)
-            + ",target=/etc/alertmanager/alertmanager.yml,readonly",
-            "--entrypoint=/bin/amtool",
-            image_id,
-            "check-config",
-            "/etc/alertmanager/alertmanager.yml",
-        ]
-    )
-    with tempfile.TemporaryDirectory(prefix="pulseplate-am-only-native-") as raw:
-        directory = Path(raw)
         failures = []
+        if observation is not None:
+            assert (
+                observation.is_file()
+                and not observation.is_symlink()
+                and observation.stat().st_size <= 64 * 1024**2
+            )
+            evidence = prometheus_image.one_object(observation.read_bytes())
+            _native_alertmanager_candidate(directory, image_id, evidence)
+            _native_alertmanager_local_tls(directory, image_id)
         for name, check in (
             (
                 "amtool_lifetime",
@@ -1860,8 +2636,17 @@ def native_alertmanager_main(image_id: str, config_sha256: str) -> None:
                 failures.append(name)
                 print("native_AM_fixture_failure=" + name + ":" + type(error).__name__, flush=True)
         assert not failures, "AM-only native fixtures failed: " + ",".join(failures)
+        if observation is not None:
+            for case in ("untrusted", "hostname", "plaintext"):
+                negative = directory / ("smtp-" + case)
+                negative.mkdir()
+                _native_alertmanager(negative, image_id, tls_failure=case)
     print(
-        "native_AM_existing_fixture_subset=pass; default_CA_and_full_candidate_acceptance=HOLD_SEPARATE_CONTROLS",
+        (
+            "native_AM_full_candidate_controls=pass"
+            if observation is not None
+            else "native_AM_existing_fixture_subset=pass; default_CA_and_full_candidate_acceptance=HOLD_SEPARATE_CONTROLS"
+        ),
         flush=True,
     )
 
@@ -2916,6 +3701,7 @@ if __name__ == "__main__":
     parser.add_argument("--native-alertmanager", action="store_true")
     parser.add_argument("--alertmanager-image-id")
     parser.add_argument("--alertmanager-config-sha256")
+    parser.add_argument("--alertmanager-observation", type=Path)
     parser.add_argument("--amtool-fixture-send", type=Path)
     parser.add_argument("--query-container", nargs=2, metavar=("PROMETHEUS_CID", "APP_CID"))
     parser.add_argument("--native-fixture")
@@ -2924,7 +3710,26 @@ if __name__ == "__main__":
     if args.native_alertmanager:
         if args.native or not args.alertmanager_image_id or not args.alertmanager_config_sha256:
             parser.error("AM-only mode requires exact local image ID and configuration hash")
-        native_alertmanager_main(args.alertmanager_image_id, args.alertmanager_config_sha256)
+
+        def interrupted(signum: int, frame: object) -> None:
+            del signum, frame
+            raise TimeoutError("bounded AM native phase interrupted")
+
+        if args.alertmanager_observation is not None:
+            seconds = os.environ.get("ALERTMANAGER_NATIVE_SECONDS", "")
+            if re.fullmatch(r"[1-9][0-9]{0,3}", seconds) is None or not 1230 < int(seconds) <= 2400:
+                parser.error("full native phase requires its explicit independent budget")
+            signal.signal(signal.SIGTERM, interrupted)
+            signal.signal(signal.SIGALRM, interrupted)
+            signal.setitimer(signal.ITIMER_REAL, int(seconds))
+        try:
+            native_alertmanager_main(
+                args.alertmanager_image_id,
+                args.alertmanager_config_sha256,
+                args.alertmanager_observation,
+            )
+        finally:
+            signal.setitimer(signal.ITIMER_REAL, 0)
     elif args.amtool_fixture_send:
         docker = shutil.which("docker")
         assert docker is not None and args.amtool_fixture_send.is_file()
@@ -3063,3 +3868,366 @@ def test_notifier_reader_failure_is_stable_and_never_sends(
         == 1
     )
     assert capsys.readouterr().out == notifier.ERROR + "\n"
+
+
+@pytest.mark.parametrize("fault", [None, "corrupt", "symlink", "hardlink"])
+def test_alertmanager_native_candidate_hashes_large_binaries_without_diagnostic_capture(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    fault: str | None,
+) -> None:
+    image = "sha256:" + "1" * 64
+    cid, volume = "2" * 64, "3" * 64
+    bodies = {
+        "alertmanager": b"synthetic-large-AM" * 140000,
+        "amtool": b"synthetic-large-amtool" * 120000,
+    }
+    assert all(len(raw) > 1024 * 1024 for raw in bodies.values())
+    hashes = {"usr/bin/" + name: hashlib.sha256(raw).hexdigest() for name, raw in bodies.items()}
+    hashes.update(
+        {
+            name: "f" * 64
+            for name in (
+                "usr/bin/wget",
+                "usr/bin/httpd",
+                "etc/alertmanager/alertmanager.yml",
+                "LICENSE",
+                "NOTICE",
+            )
+        }
+    )
+    evidence = {
+        "graph": {"config": {"digest": image}, "files": hashes, "default_CA_sha256": "f" * 64}
+    }
+    name = token = ""
+    removed = False
+    copied: list[str] = []
+    ca_calls: list[str] = []
+
+    def native(argv: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        nonlocal name, token, removed
+        stdout, stderr, code = "", "", 0
+        if "create" in argv:
+            name = argv[argv.index("--name") + 1]
+            token = argv[argv.index("--label") + 1].split("=", 1)[1]
+            stdout = cid
+        elif "inspect" in argv and "volume" not in argv:
+            stdout = json.dumps(
+                {
+                    "Id": cid,
+                    "Name": "/" + name,
+                    "Image": image,
+                    "Config": {"Labels": {"pulseplate.am-native": token}},
+                    "Mounts": [
+                        {
+                            "Destination": "/alertmanager",
+                            "Name": volume,
+                            "Type": "volume",
+                            "RW": True,
+                        }
+                    ],
+                }
+            )
+        elif "volume" in argv:
+            if removed:
+                code, stderr = 1, "Error: no such volume: " + volume
+            else:
+                stdout = json.dumps([{"Name": volume}])
+        elif "top" in argv:
+            stdout = "UID PID ARGS\n65534 123 /bin/alertmanager\n"
+        elif "cp" in argv:
+            source = argv[-2]
+            if source.endswith("/ca-certificates.crt"):
+                ca_calls.append(source)
+                raise RuntimeError("synthetic boundary after both large binary hashes")
+            binary = source.rsplit("/", 1)[1]
+            assert source == cid + ":/usr/bin/" + binary
+            assert argv[-1] != "-" and not kwargs.get(
+                "binary"
+            ), "Go binaries must not enter the1MiB diagnostic channel"
+            target = Path(argv[-1])
+            body = bodies[binary]
+            if binary == "amtool" and fault == "corrupt":
+                body += b"corrupted"
+            if binary == "amtool" and fault in ("symlink", "hardlink"):
+                backing = tmp_path / "synthetic-backing"
+                backing.write_bytes(body)
+                if fault == "symlink":
+                    target.symlink_to(backing)
+                else:
+                    os.link(backing, target)
+            else:
+                target.write_bytes(body)
+            copied.append(binary)
+        elif "ps" in argv:
+            stdout = "" if removed else cid
+        elif "rm" in argv:
+            assert argv[-1] == cid and "--volumes" in argv
+            removed = True
+        elif "exec" in argv:
+            stdout = "OK\n"
+        return subprocess.CompletedProcess(argv, code, stdout, stderr)
+
+    monkeypatch.setattr(sys.modules[__name__], "_native", native)
+    if fault is None:
+        with pytest.raises(RuntimeError, match="after both large binary hashes"):
+            _native_alertmanager_candidate(tmp_path, image, evidence)
+        assert len(ca_calls) == 1
+    else:
+        with pytest.raises(AssertionError):
+            _native_alertmanager_candidate(tmp_path, image, evidence)
+        assert ca_calls == []
+    assert copied == ["alertmanager", "amtool"] and removed
+
+
+@pytest.mark.parametrize("binary", [False, True])
+def test_alertmanager_native_transport_keeps_one_MiB_diagnostic_ceiling(
+    monkeypatch: pytest.MonkeyPatch,
+    binary: bool,
+) -> None:
+    monkeypatch.setattr(shutil, "which", lambda name: "/absolute/" + name)
+
+    def run(argv: list[str], **kwargs: object) -> subprocess.CompletedProcess[object]:
+        del kwargs
+        return subprocess.CompletedProcess(
+            argv,
+            0,
+            b"x" * (1024 * 1024 + 1) if binary else "x" * (1024 * 1024 + 1),
+            b"" if binary else "",
+        )
+
+    monkeypatch.setattr(subprocess, "run", run)
+    with pytest.raises(AssertionError):
+        _native(["docker", "synthetic-output"], binary=binary)
+
+
+@pytest.mark.parametrize("actual_exit", [0, 1])
+@pytest.mark.parametrize("fault", [None, "wait", "running", "OOM", "identity"])
+def test_alertmanager_native_amtool_uses_terminal_exit_and_exact_owned_cleanup(
+    monkeypatch: pytest.MonkeyPatch,
+    actual_exit: int,
+    fault: str | None,
+) -> None:
+    cid, image = "4" * 64, "sha256:" + "5" * 64
+    token = name = ""
+    removed = False
+    calls: list[list[str]] = []
+
+    def native(argv: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        nonlocal token, name, removed
+        del kwargs
+        calls.append(argv)
+        stdout, stderr = "", ""
+        if "create" in argv:
+            token = argv[argv.index("--label") + 1].split("=", 1)[1]
+            name = argv[argv.index("--name") + 1]
+            stdout = cid
+        elif "start" in argv:
+            stderr = "synthetic x509 rejection" if actual_exit else ""
+        elif "wait" in argv:
+            stdout = str(9 if fault == "wait" else actual_exit) + "\n"
+        elif "inspect" in argv:
+            stdout = json.dumps(
+                {
+                    "Id": ("6" * 64 if fault == "identity" else cid),
+                    "Name": "/" + name,
+                    "Image": image,
+                    "Config": {"Labels": {"pulseplate.amtool-native": token}},
+                    "State": {
+                        "Status": "exited",
+                        "Running": fault == "running",
+                        "Restarting": False,
+                        "Dead": False,
+                        "OOMKilled": fault == "OOM",
+                        "Error": "",
+                        "ExitCode": actual_exit,
+                    },
+                }
+            )
+        elif "ps" in argv:
+            stdout = "" if removed else cid
+        elif "rm" in argv:
+            assert argv[-1] == cid and "--volumes" in argv
+            removed = True
+        return subprocess.CompletedProcess(argv, 0, stdout, stderr)
+
+    monkeypatch.setattr(sys.modules[__name__], "_native", native)
+    if fault:
+        with pytest.raises(AssertionError):
+            _native_amtool_candidate(image, ["--no-version-check", "alert", "query"], check=False)
+        assert removed is (fault != "identity")
+    else:
+        result = _native_amtool_candidate(
+            image, ["--no-version-check", "alert", "query"], check=False
+        )
+        assert result.returncode == actual_exit and removed
+    assert any("--network=host" in argv and "--pull=never" in argv for argv in calls)
+
+
+@pytest.mark.parametrize("failure", ["exit", "timeout"])
+def test_alertmanager_native_transport_retains_raw_terminal_diagnostics_before_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    failure: str,
+) -> None:
+    private = tmp_path / "owned-empty-config"
+    private.mkdir(mode=0o700)
+    monkeypatch.setattr(sys.modules[__name__], "_AM_NATIVE_DOCKER_CONFIG", private)
+    monkeypatch.setattr(shutil, "which", lambda name: "/absolute/" + name)
+    monkeypatch.setenv("GITHUB_TOKEN", "synthetic-not-forwarded")
+    monkeypatch.setenv("HTTPS_PROXY", "synthetic-not-forwarded.invalid")
+
+    def run(argv: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        assert set(kwargs["env"]) == {"PATH", "LANG", "HOME", "COMPOSE_PROFILES", "DOCKER_CONFIG"}
+        assert kwargs["env"]["DOCKER_CONFIG"] == str(private)
+        if failure == "timeout":
+            raise subprocess.TimeoutExpired(
+                argv, 30, output=b"synthetic partial stdout", stderr=b"synthetic partial stderr"
+            )
+        return subprocess.CompletedProcess(
+            argv, 7, "synthetic native stdout", "synthetic native stderr"
+        )
+
+    monkeypatch.setattr(subprocess, "run", run)
+    with pytest.raises(subprocess.TimeoutExpired if failure == "timeout" else AssertionError):
+        _native(["docker", "synthetic-owned-command"])
+    raw = capsys.readouterr().out
+    assert "synthetic-not-forwarded" not in raw
+    report = json.loads(raw)
+    assert report["AM_native_argv"] == ["/absolute/docker", "synthetic-owned-command"]
+    if failure == "timeout":
+        assert report["failure"] == "TimeoutExpired" and report["exit"] is None
+        assert base64.b64decode(report["stdout_partial_base64"]) == b"synthetic partial stdout"
+    else:
+        assert report["exit"] == 7 and report["stdout"] == "synthetic native stdout"
+        assert report["stderr"] == "synthetic native stderr"
+
+
+def test_alertmanager_local_tls_partial_setup_closes_owned_server_without_start_or_amtool(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    closed: list[str] = []
+
+    class Server:
+        daemon_threads = False
+
+        def __init__(self, address: tuple[str, int], handler: object) -> None:
+            del handler
+            assert address == ("127.0.0.1", 0)
+
+        def shutdown(self) -> None:
+            pytest.fail("unstarted owned server must not wait on shutdown")
+
+        def server_close(self) -> None:
+            closed.append("closed")
+
+    class TLS:
+        def load_cert_chain(self, cert: Path, key: Path) -> None:
+            assert cert.name == "cert.pem" and key.name == "key.pem"
+            raise ValueError("synthetic TLS setup failure")
+
+    def native(argv: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        del kwargs
+        assert argv[:2] == ["openssl", "req"]
+        for option in ("-out", "-keyout"):
+            Path(argv[argv.index(option) + 1]).write_bytes(b"synthetic certificate or key")
+        return subprocess.CompletedProcess(argv, 0, "", "")
+
+    monkeypatch.setattr(sys.modules[__name__], "_native", native)
+    monkeypatch.setattr(sys.modules[__name__], "ThreadingHTTPServer", Server)
+    monkeypatch.setattr(ssl, "SSLContext", lambda *a: TLS())
+    monkeypatch.setattr(
+        sys.modules[__name__],
+        "_native_amtool_candidate",
+        lambda *a, **k: pytest.fail("client reached after failed TLS setup"),
+    )
+    with pytest.raises(ValueError, match="synthetic TLS setup failure"):
+        _native_alertmanager_local_tls(tmp_path, "sha256:" + "5" * 64)
+    assert closed == ["closed"]
+
+
+@pytest.mark.parametrize("binary", ["alertmanager", "amtool"])
+@pytest.mark.parametrize(
+    "fault",
+    [None, "version", "revision", "branch", "user", "date", "Go", "platform", "tags", "duplicate"],
+)
+def test_alertmanager_full_native_entry_checks_both_real_stamped_version_outputs(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    binary: str,
+    fault: str | None,
+) -> None:
+    image = "sha256:" + "8" * 64
+    observation = tmp_path / "candidate-observation.json"
+    observation.write_text('{"synthetic_control_only":true}')
+    calls: list[str] = []
+    monkeypatch.setattr(sys, "platform", "linux")
+
+    def native(argv: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        del kwargs
+        assert _AM_NATIVE_DOCKER_CONFIG is not None and _AM_NATIVE_DOCKER_CONFIG.is_dir()
+        if "image" in argv and "inspect" in argv:
+            return subprocess.CompletedProcess(
+                argv,
+                0,
+                json.dumps(
+                    {
+                        "Id": image,
+                        "Os": "linux",
+                        "Architecture": "amd64",
+                        "Config": {"User": "65534:65534"},
+                    }
+                ),
+                "",
+            )
+        if "--version" in argv:
+            actual = next(
+                value.removeprefix("--entrypoint=/bin/")
+                for value in argv
+                if value.startswith("--entrypoint=/bin/")
+            )
+            calls.append(actual)
+            raw = (
+                actual
+                + ", version 0.34.1 (branch: HEAD, revision: 73c6bfe7393929211294c1954f30d8ed78e4d0ad)\n  build user: pulseplate@builder\n  build date: 19700101-00:00:00\n  go version: go1.27.2\n  platform: linux/amd64\n  tags: netgo\n"
+            )
+            if actual == binary and fault is not None:
+                replacements = {
+                    "version": ("version 0.34.1", "version 0.34.0"),
+                    "revision": ("73c6bfe7393929211294c1954f30d8ed78e4d0ad", "a" * 40),
+                    "branch": ("branch: HEAD", "branch: unrelated"),
+                    "user": ("pulseplate@builder", "unreviewed@builder"),
+                    "date": ("19700101-00:00:00", "20261017-00:00:00"),
+                    "Go": ("go1.27.2", "go1.26.8"),
+                    "platform": ("linux/amd64", "linux/arm64"),
+                    "tags": ("tags: netgo", "tags: unknown"),
+                }
+                if fault == "duplicate":
+                    raw += "  tags: netgo\n"
+                else:
+                    raw = raw.replace(*replacements[fault])
+            return subprocess.CompletedProcess(argv, 0, raw, "")
+        assert "check-config" in argv
+        return subprocess.CompletedProcess(argv, 0, "configuration valid", "")
+
+    monkeypatch.setattr(sys.modules[__name__], "_native", native)
+    monkeypatch.setattr(sys.modules[__name__], "_native_alertmanager_candidate", lambda *a: None)
+    monkeypatch.setattr(sys.modules[__name__], "_native_alertmanager_local_tls", lambda *a: None)
+    monkeypatch.setattr(sys.modules[__name__], "_native_amtool_lifetime", lambda *a, **k: None)
+    monkeypatch.setattr(sys.modules[__name__], "_native_alertmanager", lambda *a, **k: None)
+    if fault:
+        with pytest.raises(AssertionError):
+            native_alertmanager_main(
+                image,
+                "5dc1025c293763618febeb74c17edcb126ad943f9b20c2296c67847e9f977549",
+                observation,
+            )
+        assert binary in calls
+    else:
+        native_alertmanager_main(
+            image, "5dc1025c293763618febeb74c17edcb126ad943f9b20c2296c67847e9f977549", observation
+        )
+        assert calls == ["alertmanager", "amtool"]
+    assert _AM_NATIVE_DOCKER_CONFIG is None

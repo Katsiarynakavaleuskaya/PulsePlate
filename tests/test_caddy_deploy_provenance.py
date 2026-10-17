@@ -77,8 +77,9 @@ def test_alertmanager_input_support_job_is_independent_manual_read_permissions_w
 def test_alertmanager_support_job_covers_aggregate_budgets_and_retains_screened_API_evidence() -> (
     None
 ):
-    job = _job(_workflow(CD_WORKFLOW), "alertmanager-input-inspection")
-    budgets = job["env"]
+    workflow = _workflow(CD_WORKFLOW)
+    job = _job(workflow, "alertmanager-input-inspection")
+    budgets = {**workflow["env"], **job["env"]}
     tool_fetch = _named_step(
         _steps(job), "Prepare exact existing Alertmanager support scanner and Buildx CLI"
     )
@@ -288,7 +289,8 @@ def alertmanager_support_native(tmp_path: Path, monkeypatch: pytest.MonkeyPatch)
         path.chmod(0o755)
     monkeypatch.setenv("TRIVY_BIN", str(tools / "trivy"))
     monkeypatch.setenv("BUILDX_BIN", str(tools / "docker-buildx"))
-    budgets = _job(_workflow(CD_WORKFLOW), "alertmanager-input-inspection")["env"]
+    workflow = _workflow(CD_WORKFLOW)
+    budgets = {**workflow["env"], **_job(workflow, "alertmanager-input-inspection")["env"]}
     for name in (
         "ALERTMANAGER_SUPPORT_SECONDS",
         "ALERTMANAGER_SCAN_TIMEOUT_SECONDS",
@@ -3662,3 +3664,436 @@ def test_caddy_full_observation_keeps_native_diagnostics_without_inventing_secre
     assert "Results_Secrets_fields_absent" in publication
     assert 'native["Results"]' in publication
     assert 'row["Secrets"] = []' not in publication
+
+
+@pytest.mark.parametrize("mode", ["build", "publish"])
+def test_alertmanager_executable_stages_have_exact_manual_events_and_no_Q(mode: str) -> None:
+    workflow = _workflow(CD_WORKFLOW)
+    name = "alertmanager-candidate-build" if mode == "build" else "alertmanager-main-publication"
+    job = _job(workflow, name)
+    ref = "codex/dependency-alertmanager-remediation" if mode == "build" else "main"
+    assert job["if"] == (
+        "github.event_name == 'workflow_dispatch' && inputs.alertmanager_mode == '" + mode + "' "
+        "&& github.repository == 'Katsiarynakavaleuskaya/PulsePlate' && github.repository_id == '1043311030' "
+        "&& github.ref == 'refs/heads/" + ref + "' "
+        "&& github.run_attempt == 1 && inputs.postgres_mode == 'disabled'"
+    )
+    assert "needs" not in job
+    assert job["permissions"] == {
+        "contents": "read",
+        "actions": "read",
+        "packages": "read" if mode == "build" else "write",
+    }
+    steps = _steps(job)
+    setup = _named_step(steps, "Setup existing AM native Python profile")
+    assert setup["uses"] == "./.github/actions/python-setup"
+    assert setup["with"] == {
+        "python-version": "3.13.14",
+        "requirements-profile": "ci-lite",
+        "install-mode": "direct-proxy",
+    }
+    assert setup["env"]["DEVPI_CI_USER"] == setup["env"]["DEVPI_CI_PASSWORD"] == ""
+    runs = "\n".join(step.get("run", "") for step in steps)
+    assert "--alertmanager-stage " + mode in runs
+    assert "--alertmanager-module-qualify" not in runs
+    assert "go get" not in runs and "docker build" not in runs
+    assert 'test "$checkout_sha" = "$SOURCE_SHA"' in runs
+    assert all(
+        step.get("with", {}).get("persist-credentials") is False
+        for step in steps
+        if str(step.get("uses", "")).startswith("actions/checkout@")
+    )
+    assert all(
+        "/retained/" in step["with"]["path"] and "/private/" not in step["with"]["path"]
+        for step in steps
+        if str(step.get("uses", "")).startswith("actions/upload-artifact@")
+    )
+    if mode == "build":
+        upload = next(
+            step
+            for step in steps
+            if str(step.get("uses", "")).startswith("actions/upload-artifact@")
+        )
+        assert (
+            upload["with"]["include-hidden-files"] is True
+        ), "retained producer-source/.github must survive artifact upload"
+
+
+def test_alertmanager_independent_phase_ceilings_fit_each_actual_job_with_retention_headroom() -> (
+    None
+):
+    workflow = _workflow(CD_WORKFLOW)
+    env = workflow["env"]
+    setup = int(env["ALERTMANAGER_SETUP_MINUTES"]) * 60
+    upload = int(env["ALERTMANAGER_UPLOAD_MINUTES"]) * 60
+    prep = int(env["ALERTMANAGER_PREP_SECONDS"])
+    cleanup = int(env["ALERTMANAGER_CLEANUP_SECONDS"])
+    native = int(env["ALERTMANAGER_NATIVE_SECONDS"])
+    native_cleanup = int(env["ALERTMANAGER_NATIVE_CLEANUP_SECONDS"])
+    assert native > 905 + 325
+    assert (
+        0
+        < int(env["ALERTMANAGER_SCAN_TIMEOUT_SECONDS"])
+        < int(env["ALERTMANAGER_SCAN_PROCESS_SECONDS"])
+        <= int(env["ALERTMANAGER_SECURITY_SECONDS"])
+    )
+    work = {
+        "alertmanager-candidate-build": prep
+        + int(env["ALERTMANAGER_PAIR_SECONDS"])
+        + int(env["ALERTMANAGER_SECURITY_SECONDS"])
+        + native
+        + 4 * cleanup
+        + native_cleanup,
+        "alertmanager-retained-candidate": prep + cleanup + native + native_cleanup,
+        "alertmanager-main-publication": prep
+        + cleanup
+        + int(env["ALERTMANAGER_PUBLICATION_SECONDS"])
+        + native_cleanup
+        + native
+        + native_cleanup,
+    }
+    for name, seconds in work.items():
+        job = _job(workflow, name)
+        assert job["timeout-minutes"] * 60 - (seconds + setup + upload) >= 300
+        for step in _steps(job):
+            if str(step.get("uses", "")).startswith("actions/upload-artifact@"):
+                assert step["timeout-minutes"] == "${{ fromJSON(env.ALERTMANAGER_UPLOAD_MINUTES) }}"
+
+
+def test_alertmanager_PR_retained_candidate_has_no_registry_or_compiler_authority() -> None:
+    workflow = _workflow(CD_WORKFLOW)
+    job = _job(workflow, "alertmanager-retained-candidate")
+    assert job["if"] == (
+        "github.event_name == 'pull_request' && github.repository == 'Katsiarynakavaleuskaya/PulsePlate' "
+        "&& github.event.pull_request.head.repo.id == 1043311030 "
+        "&& github.event.pull_request.head.ref == 'codex/dependency-alertmanager-remediation'"
+    )
+    assert job["permissions"] == {"contents": "read", "actions": "read"}
+    assert job["env"] == {
+        "AM_CANDIDATE_RUN": "",
+        "AM_CANDIDATE_ARTIFACT": "",
+        "AM_CANDIDATE_SOURCE": "",
+    }
+    runs = "\n".join(step.get("run", "") for step in _steps(job))
+    assert "--alertmanager-stage candidate-check" in runs
+    assert "--alertmanager-stage build" not in runs and "--alertmanager-module-qualify" not in runs
+    assert "docker login" not in runs and "GHCR_READ_TOKEN" not in runs
+    assert (
+        _job(workflow, "alertmanager-module-qualification")["if"].count("inputs.alertmanager_mode")
+        == 1
+    )
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        "absent",
+        "same",
+        "inventory",
+        "conflict",
+        "denied",
+        "pullback",
+        "post-readback",
+        "credential-mode",
+        "cleanup",
+    ],
+)
+def test_alertmanager_publication_entrypoint_uses_canonical_guards_and_exact_copy_order(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    case: str,
+) -> None:
+    from scripts.ci import fetch_docker_source_artifacts as fetcher
+    from scripts.ci import prometheus_source_image as transport
+    from tests.test_docker_workflow_build_path_contract import _alertmanager_proposal_arguments
+
+    original_which = shutil.which
+    synthetic_docker = "/synthetic/alertmanager-publication/docker"
+
+    def resolve_docker(command: str | bytes, *args: Any, **kwargs: Any) -> str | bytes | None:
+        if command == "docker":
+            return synthetic_docker
+        return original_which(command, *args, **kwargs)
+
+    monkeypatch.setattr(shutil, "which", resolve_docker)
+    for key in (
+        "GH_TOKEN",
+        "GITHUB_TOKEN",
+        "GHCR_READ_TOKEN",
+        "GH_ENTERPRISE_TOKEN",
+        "GITHUB_ENTERPRISE_TOKEN",
+        "GH_HOST",
+        "GH_CONFIG_DIR",
+        "DOCKER_CONFIG",
+        "DOCKER_AUTH_CONFIG",
+        "NETRC",
+        "HTTP_PROXY",
+        "HTTPS_PROXY",
+        "ALL_PROXY",
+        "http_proxy",
+        "https_proxy",
+        "all_proxy",
+    ):
+        monkeypatch.delenv(key, raising=False)
+    for key, value in _workflow(CD_WORKFLOW)["env"].items():
+        if key.startswith("ALERTMANAGER_"):
+            monkeypatch.setenv(key, value)
+    for key, value in {
+        "GITHUB_EVENT_NAME": "workflow_dispatch",
+        "GITHUB_REPOSITORY": "Katsiarynakavaleuskaya/PulsePlate",
+        "GITHUB_REPOSITORY_ID": "1043311030",
+        "GITHUB_REF": "refs/heads/main",
+        "GITHUB_RUN_ATTEMPT": "1",
+        "GITHUB_SHA": "a" * 40,
+        "GITHUB_REPOSITORY_OWNER": "Katsiarynakavaleuskaya",
+        "GH_TOKEN": "synthetic-publish-credential",
+        "GITHUB_TOKEN": "synthetic-publish-credential",
+    }.items():
+        monkeypatch.setenv(key, value)
+    events: list[str] = []
+    native_calls: list[str] = []
+    graph: dict[str, Any] = {}
+    reads = 0
+    original_tag = transport.immutable_tag_state
+    closed = False
+    tool_bytes = b"synthetic qualified ORAS transport"
+    monkeypatch.setattr(fetcher, "_ALERT_ORAS_SHA256", hashlib.sha256(tool_bytes).hexdigest())
+
+    class API:
+        def __init__(self, private: Path, evidence: Path, deadline: float, cleanup: int) -> None:
+            del evidence, cleanup
+            self.private, self.deadline, self.cleanup_seconds = private, deadline, 45
+            private.mkdir()
+            for name in ("home", "config", "cache", "tmp"):
+                (private / name).mkdir()
+
+        def json(self, endpoint: str) -> dict[str, Any]:
+            if "/git/ref/" in endpoint:
+                return {"object": {"sha": "a" * 40}}
+            if "/pulls/" in endpoint:
+                return {
+                    "merged": True,
+                    "merge_commit_sha": "a" * 40,
+                    "base": {"ref": "main"},
+                    "head": {"ref": fetcher._ALERT_Q_BRANCH, "sha": "c" * 40},
+                }
+            assert "/commits/" in endpoint
+            return {"sha": "a" * 40}
+
+        def _capture(self, argv: list[str], maximum: int, **kwargs: Any) -> bytes:
+            del maximum
+            environment = kwargs.get("environment", {})
+            assert all(
+                key not in environment
+                for key in ("GH_TOKEN", "GITHUB_TOKEN", "GHCR_READ_TOKEN", "HTTP_PROXY")
+            )
+            if "rev-parse" in argv:
+                return ("a" * 40 + "\n").encode()
+            if "login" in argv:
+                events.append("login")
+                assert argv[0] == synthetic_docker
+                assert "tag" in events and kwargs["input_data"] == b"synthetic-publish-credential\n"
+                credential = Path(argv[argv.index("--config") + 1]) / "config.json"
+                credential.write_text('{"auths":{"ghcr.io":{"auth":"synthetic-only"}}}')
+                credential.chmod(0o644 if case == "credential-mode" else 0o600)
+            elif "--from-oci-layout" in argv:
+                events.append("copy")
+                assert events[-2] == "login" and case != "same"
+                if case == "denied":
+                    raise RuntimeError("synthetic denied real intended copy")
+                assert argv[-2].endswith("@" + graph["manifest"]["digest"])
+                assert (
+                    argv[-1]
+                    == "ghcr.io/katsiarynakavaleuskaya/pulseplate:alertmanager-0.34.1-"
+                    + graph["manifest"]["digest"][7:]
+                )
+            elif "--to-oci-layout" in argv:
+                events.append("pullback")
+                assert (
+                    argv[-2]
+                    == "ghcr.io/katsiarynakavaleuskaya/pulseplate@" + graph["manifest"]["digest"]
+                )
+                destination = Path(argv[-1].removesuffix(":pullback"))
+                shutil.copytree(destination.parent / "candidate/layout", destination)
+                if case == "pullback":
+                    (destination / "blobs/sha256" / graph["layers"][0]["digest"][7:]).write_bytes(
+                        b"changed retained layer"
+                    )
+            else:
+                pytest.fail("unexpected native transport argv")
+            return b"synthetic success"
+
+        def close(self) -> None:
+            nonlocal closed
+            events.append("close")
+            if case == "cleanup":
+                raise RuntimeError("synthetic private cleanup failed")
+            shutil.rmtree(self.private)
+            closed = True
+
+    def authenticated(
+        api: API, run: int, artifact: int, source: str, destination: Path, **kwargs: str
+    ) -> dict[str, Any]:
+        del api, run, artifact
+        destination.write_bytes(b"synthetic authenticated artifact")
+        return {
+            "source": source,
+            "zip_sha256": "e" * 64,
+            "kind": kwargs.get("kind", "qualification"),
+        }
+
+    def support(archive: Path, destination: Path) -> dict[str, Any]:
+        del archive
+        destination.mkdir()
+        return {"probe": {}}
+
+    def candidate(
+        archive: Path,
+        destination: Path,
+        source: dict[str, bytes],
+        inspected: dict[str, Any],
+        support: Path,
+    ) -> dict[str, Any]:
+        del archive, source, inspected, support
+        layout = destination / "layout"
+        (layout / "blobs/sha256").mkdir(parents=True)
+
+        def blob(raw: bytes, media: str) -> dict[str, Any]:
+            digest = hashlib.sha256(raw).hexdigest()
+            (layout / "blobs/sha256" / digest).write_bytes(raw)
+            return {"digest": "sha256:" + digest, "size": len(raw), "mediaType": media}
+
+        configuration = blob(
+            b'{"architecture":"amd64","os":"linux"}', "application/vnd.oci.image.config.v1+json"
+        )
+        layer = blob(b"synthetic retained layer", "application/vnd.oci.image.layer.v1.tar")
+        manifest = blob(
+            json.dumps(
+                {
+                    "schemaVersion": 2,
+                    "mediaType": "application/vnd.oci.image.manifest.v1+json",
+                    "config": configuration,
+                    "layers": [layer],
+                }
+            ).encode(),
+            "application/vnd.oci.image.manifest.v1+json",
+        )
+        (layout / "oci-layout").write_text('{"imageLayoutVersion":"1.0.0"}')
+        (layout / "index.json").write_text(
+            json.dumps(
+                {
+                    "schemaVersion": 2,
+                    "mediaType": "application/vnd.oci.image.index.v1+json",
+                    "manifests": [manifest],
+                }
+            )
+        )
+        graph.update(
+            {
+                "manifest": manifest,
+                "config": configuration,
+                "layers": [layer],
+                "files": {"usr/bin/alertmanager": "1" * 64},
+            }
+        )
+        return {"source": "c" * 40, "graph": graph, "status": "OBSERVED_NATIVE_SECURITY_ACCEPTED"}
+
+    def tool(api: API, root: Path, output: Path) -> tuple[Path, dict[str, Any]]:
+        del api
+        assert root == fetcher.REPO_ROOT
+        path = output / "oras"
+        path.write_bytes(tool_bytes)
+        return path, {"coordinates": {"binary_sha256": hashlib.sha256(tool_bytes).hexdigest()}}
+
+    def package(api: API) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+        nonlocal reads
+        del api
+        reads += 1
+        events.append("inventory")
+        if case == "inventory":
+            raise transport.QualificationError("package_complete_inventory_bound")
+        digest = graph["manifest"]["digest"]
+        tag = "alertmanager-0.34.1-" + digest[7:]
+        versions = []
+        if case in ("same", "conflict") or reads > 1:
+            versions = [
+                {
+                    "id": 1,
+                    "name": (
+                        "sha256:" + "9" * 64
+                        if case == "conflict" or case == "post-readback" and reads > 1
+                        else digest
+                    ),
+                    "metadata": {"container": {"tags": [tag]}},
+                }
+            ]
+        return {"repository": {"id": 1043311030}, "package": {"id": 9374404}}, versions
+
+    def tag(versions: list[dict[str, Any]], value: str, digest: str) -> bool:
+        events.append("tag")
+        return original_tag(versions, value, digest)
+
+    def native(
+        result: dict[str, Any], observation: Path, work: Path, limits: dict[str, int]
+    ) -> dict[str, Any]:
+        del result, limits
+        assert closed and "close" == events[-1] and not (work.parent / "private").exists()
+        assert observation.is_file() and (observation.parent / "candidate.oci.tar").is_file()
+        native_calls.append("same-immutable-pullback")
+        work.mkdir()
+        (work / "evidence").mkdir()
+        return {"synthetic_control_only": True}
+
+    monkeypatch.setattr(transport, "GitHubRead", API)
+    monkeypatch.setattr(transport, "authenticate_pr_source", lambda *a: {"synthetic": True})
+    monkeypatch.setattr(transport, "retained_tool", tool)
+    monkeypatch.setattr(transport, "existing_public_package", package)
+    monkeypatch.setattr(transport, "immutable_tag_state", tag)
+    monkeypatch.setattr(fetcher, "_alertmanager_authenticated_inputs", authenticated)
+    monkeypatch.setattr(fetcher, "_alertmanager_source_snapshot", lambda *a: {})
+    monkeypatch.setattr(fetcher, "_alertmanager_package_read", lambda *a: {})
+    monkeypatch.setattr(fetcher, "_alertmanager_qualified_payload", lambda *a: {"plan": {}})
+    monkeypatch.setattr(fetcher, "_alertmanager_support_payload", support)
+    monkeypatch.setattr(fetcher, "_alertmanager_candidate_payload", candidate)
+    monkeypatch.setattr(fetcher, "_alertmanager_candidate_graph", lambda *a: graph)
+    monkeypatch.setattr(fetcher, "_alertmanager_native_candidate", native)
+    monkeypatch.setattr(
+        fetcher, "_alertmanager_pair", lambda *a: pytest.fail("publication rebuilt candidate")
+    )
+    monkeypatch.setattr(
+        fetcher, "_qualify_alertmanager_modules", lambda *a: pytest.fail("publication renewed Q")
+    )
+    output = tmp_path / "owned-publication"
+    argv = _alertmanager_proposal_arguments(output)
+    argv[argv.index("build")] = "publish"
+    argv += [
+        "--alertmanager-pr",
+        "999",
+        "--alertmanager-candidate-run",
+        "888",
+        "--alertmanager-candidate-artifact",
+        "777",
+        "--alertmanager-candidate-source",
+        "c" * 40,
+    ]
+    if case not in ("absent", "same"):
+        with pytest.raises(RuntimeError):
+            fetcher.main(argv)
+    else:
+        assert fetcher.main(argv) == 0
+    result = json.loads((output / "retained/candidate-observation.json").read_text())
+    assert result["compiler_starts"] == result["logical_build_starts"] == 0
+    assert "synthetic-publish-credential" not in json.dumps(result)
+    assert events.count("copy") == (
+        0 if case in ("same", "inventory", "conflict", "credential-mode") else 1
+    )
+    if case in ("inventory", "conflict"):
+        assert "login" not in events and native_calls == []
+    if case == "denied":
+        assert result["package_WRITE"] == "UNPROVED" and result["copy_invocations"] == 0
+    if case == "same":
+        assert result["package_WRITE"] == "UNEXERCISED_EXISTING_SAME_SUBJECT" and native_calls
+    if case == "absent":
+        assert result["package_WRITE"] == "OBSERVED_SUCCESSFUL_INTENDED_COPY" and native_calls
+    if case not in ("absent", "same"):
+        assert native_calls == []
