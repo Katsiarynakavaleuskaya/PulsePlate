@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 from collections.abc import Iterator
+from copy import deepcopy
+from functools import lru_cache
+import io
 import fnmatch
 import hashlib
 import json
@@ -492,10 +495,100 @@ def _load_ci_workflow() -> dict[str, object]:
     return _load_workflow(CI_WORKFLOW_PATH)
 
 
-def _load_workflow(path: Path) -> dict[str, object]:
-    workflow = yaml.safe_load(path.read_text(encoding="utf-8"))
+@lru_cache(maxsize=8)
+def _parse_workflow_bytes(raw: bytes) -> dict[str, object]:
+    with io.TextIOWrapper(io.BytesIO(raw), encoding="utf-8") as source:
+        workflow = yaml.safe_load(source.read())
     assert isinstance(workflow, dict)
     return workflow
+
+
+def _load_workflow(path: Path) -> dict[str, object]:
+    return deepcopy(_parse_workflow_bytes(path.read_bytes()))
+
+
+def test_workflow_parse_reuse_reads_fresh_bytes_and_returns_isolated_alias_graphs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = tmp_path / "workflow.yml"
+    path.write_bytes(b"items: &shared\r\n  - nested: [one]\r\nalias: *shared\r\n")
+    _parse_workflow_bytes.cache_clear()
+    original_load = yaml.safe_load
+    observed: list[str] = []
+
+    def observe_load(source: str) -> object:
+        observed.append(source)
+        return original_load(source)
+
+    monkeypatch.setattr(yaml, "safe_load", observe_load)
+    try:
+        first = _load_workflow(path)
+        second = _load_workflow(path)
+        assert len(observed) == 1 and "\r" not in observed[0]
+        assert first["items"] is first["alias"] and second["items"] is second["alias"]
+        assert first["items"] is not second["items"]
+        cast(list[dict[str, list[str]]], first["items"])[0]["nested"].append("mutated")
+        assert cast(list[dict[str, list[str]]], second["items"])[0]["nested"] == ["one"]
+        stat = path.stat()
+        path.write_bytes(b"items: &shared\n  - nested: [two]\nalias: *shared\n")
+        os.utime(path, ns=(stat.st_atime_ns, stat.st_mtime_ns))
+        changed = _load_workflow(path)
+        assert len(observed) == 2 and cast(list[dict[str, list[str]]], changed["items"])[0][
+            "nested"
+        ] == ["two"]
+        original_read = Path.read_bytes
+
+        def unreadable(candidate: Path) -> bytes:
+            if candidate == path:
+                raise PermissionError("synthetic unreadable workflow")
+            return original_read(candidate)
+
+        with monkeypatch.context() as read_failure:
+            read_failure.setattr(Path, "read_bytes", unreadable)
+            with pytest.raises(PermissionError, match="synthetic unreadable"):
+                _load_workflow(path)
+        path.unlink()
+        with pytest.raises(FileNotFoundError):
+            _load_workflow(path)
+    finally:
+        _parse_workflow_bytes.cache_clear()
+
+
+@pytest.mark.parametrize(
+    "invalid_bytes,error",
+    [(b"\xff", UnicodeDecodeError), (b"jobs: [", yaml.YAMLError), (b"- scalar", AssertionError)],
+)
+def test_workflow_parse_reuse_preserves_decode_parse_and_shape_errors(
+    tmp_path: Path, invalid_bytes: bytes, error: type[Exception]
+) -> None:
+    path = tmp_path / "workflow.yml"
+    _parse_workflow_bytes.cache_clear()
+    try:
+        path.write_text("jobs: {}\n")
+        assert _load_workflow(path) == {"jobs": {}}
+        path.write_bytes(invalid_bytes)
+        for _ in range(2):
+            with pytest.raises(error):
+                _load_workflow(path)
+        assert _parse_workflow_bytes.cache_info().currsize == 1
+    finally:
+        _parse_workflow_bytes.cache_clear()
+
+
+def test_workflow_parse_reuse_evicts_after_eight_exact_byte_entries(tmp_path: Path) -> None:
+    path = tmp_path / "workflow.yml"
+    _parse_workflow_bytes.cache_clear()
+    try:
+        for value in range(9):
+            path.write_text(f"value: {value}\n")
+            assert _load_workflow(path) == {"value": value}
+        info = _parse_workflow_bytes.cache_info()
+        assert info.currsize == info.maxsize == 8 and info.misses == 9
+        path.write_text("value: 0\n")
+        assert _load_workflow(path) == {"value": 0}
+        assert _parse_workflow_bytes.cache_info().misses == 10
+    finally:
+        _parse_workflow_bytes.cache_clear()
 
 
 _METADATA_MATERIAL_CONCURRENCY_GROUP = (
@@ -588,7 +681,19 @@ def test_ci_and_frontend_concurrency_preserve_declared_events(
     assert set(pr_types).difference(metadata) == set(material_actions)
     assert "push" in on_section
     if "workflow_dispatch" in events:
-        assert on_section["workflow_dispatch"] is None
+        if path == FRONTEND_CI_WORKFLOW_PATH:
+            assert on_section["workflow_dispatch"] == {
+                "inputs": {
+                    "caddy_action": {
+                        "description": "Explicit metadata qualification; never compiles a Caddy candidate",
+                        "type": "choice",
+                        "default": "contract",
+                        "options": ["contract", "xnet060-metadata"],
+                    }
+                }
+            }
+        else:
+            assert on_section["workflow_dispatch"] is None
     # The exact native expression owns event-name guarding and material fallback.
     # These finite source inventories do not execute or simulate GitHub scheduling.
 
@@ -1048,7 +1153,9 @@ def test_all_active_checkout_uses_have_one_exact_v7_pin() -> None:
         ".github/workflows/security.yml",
         ".github/workflows/trivy.yml",
     }
-    assert len(observed_checkout_uses) == 77
+    # The 89 prior execution sites gain one lint restore and five CD checkouts
+    # reused by the distinct trusted job through its shared step-list alias.
+    assert len(observed_checkout_uses) == 95
     assert {path for path, _ in observed_checkout_uses} == expected_checkout_workflows
 
 
@@ -2069,7 +2176,10 @@ def _assert_node24_frontend_builder_workflow_contract(
     assert isinstance(jobs, dict)
     job = jobs["build-and-test"]
     assert isinstance(job, dict)
-    assert "if" not in job
+    assert (
+        job.get("if")
+        == "${{ github.event_name != 'workflow_dispatch' || inputs.caddy_action != 'xnet060-metadata' }}"
+    )
     assert "continue-on-error" not in job
 
     defaults = job["defaults"]
@@ -3117,7 +3227,7 @@ def test_node24_checkout_and_docker_action_pins_use_verified_commit_shas() -> No
 
     expected_docker_lines = {
         BUILD_WORKFLOW_PATH: {
-            f"docker/setup-buildx-action@{DOCKER_SETUP_BUILDX_NODE24_SHA} # v4.1.0 / Node 24": 2,
+            f"docker/setup-buildx-action@{DOCKER_SETUP_BUILDX_NODE24_SHA} # v4.1.0 / Node 24": 3,
             f"docker/login-action@{DOCKER_LOGIN_NODE24_SHA} # v4.2.0 / Node 24": 1,
             f"docker/metadata-action@{DOCKER_METADATA_NODE24_SHA} # v6.1.0 / Node 24": 1,
         },
@@ -3137,7 +3247,7 @@ def test_node24_checkout_and_docker_action_pins_use_verified_commit_shas() -> No
     expected_trivy_lines = {
         BUILD_WORKFLOW_PATH: {
             f"aquasecurity/trivy-action@{TRIVY_ACTION_NODE24_CACHE_SHA} "
-            "# v0.36.0 / Node 24 cache path": 2,
+            "# v0.36.0 / Node 24 cache path": 4,
         },
         CD_WORKFLOW_PATH: {
             f"aquasecurity/trivy-action@{TRIVY_ACTION_NODE24_CACHE_SHA} "
@@ -3174,7 +3284,7 @@ def test_node24_checkout_and_docker_action_pins_use_verified_commit_shas() -> No
                 )
             )
 
-    assert observed_docker_contracts == [
+    expected_docker_contracts = [
         (
             ".github/workflows/build.yml",
             "build",
@@ -3288,6 +3398,19 @@ def test_node24_checkout_and_docker_action_pins_use_verified_commit_shas() -> No
             None,
         ),
     ]
+    expected_docker_contracts[4:4] = [
+        (
+            ".github/workflows/build.yml",
+            "backend-arm-sdk-qualification",
+            "Set up Docker Buildx",
+            f"docker/setup-buildx-action@{DOCKER_SETUP_BUILDX_NODE24_SHA}",
+            None,
+            None,
+            None,
+            None,
+        ),
+    ]
+    assert observed_docker_contracts == expected_docker_contracts
 
     observed_trivy_contracts = []
     for workflow_path in (BUILD_WORKFLOW_PATH, CD_WORKFLOW_PATH, TRIVY_WORKFLOW_PATH):
@@ -3307,7 +3430,7 @@ def test_node24_checkout_and_docker_action_pins_use_verified_commit_shas() -> No
                     )
                 )
 
-    assert observed_trivy_contracts == [
+    expected_trivy_contracts = [
         (
             ".github/workflows/build.yml",
             "build",
@@ -3447,7 +3570,28 @@ def test_node24_checkout_and_docker_action_pins_use_verified_commit_shas() -> No
             None,
         ),
     ]
-    assert len(observed_trivy_contracts) == 6
+    expected_trivy_contracts.insert(
+        3,
+        (
+            ".github/workflows/build.yml",
+            "prometheus-oras-qualification",
+            "Install pinned tool scanner and acquire DB",
+            f"aquasecurity/trivy-action@{TRIVY_ACTION_NODE24_CACHE_SHA}",
+            {
+                "version": "v0.74.0",
+                "image-ref": "gcr.io/distroless/static-debian13@sha256:2293b36c7c9082bf4115aab724b4d2cddec82c8eba39bf27ac0517e159acf150",
+                "format": "table",
+                "severity": "UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL",
+                "exit-code": "0",
+                "cache-dir": "/tmp/trivy-cache-prometheus-tool",
+            },
+            None,
+            None,
+            None,
+        ),
+    )
+    assert observed_trivy_contracts == expected_trivy_contracts
+    assert len(observed_trivy_contracts) == 7
 
 
 def test_build_workflow_trivy_fs_sarif_is_temp_isolated_before_upload() -> None:
@@ -3510,20 +3654,46 @@ def test_active_upload_artifact_refs_all_use_node24_sha() -> None:
     for workflow_path in _active_workflow_paths():
         workflow_text = workflow_path.read_text(encoding="utf-8")
         workflow_upload_count = 0
+        declared_upload_objects: set[int] = set()
         for job_id, step in _iter_job_steps(workflow_path):
             uses = step.get("uses")
             if not isinstance(uses, str) or not uses.startswith("actions/upload-artifact@"):
                 continue
             workflow_upload_count += 1
+            declared_upload_objects.add(id(step))
             observed_upload_steps.append(
                 (str(workflow_path.relative_to(REPO_ROOT)), job_id, step.get("name"))
             )
             assert uses == expected_uses
 
         if workflow_upload_count:
-            assert workflow_text.count(expected_line) == workflow_upload_count
+            # YAML aliases execute the same declared step in separate jobs.
+            # Every execution above still has to carry the exact approved pin.
+            assert workflow_text.count(expected_line) == len(declared_upload_objects)
 
     assert observed_upload_steps
+
+
+@pytest.mark.parametrize("variant", ("valid", "wrong-pin", "wrong-annotation"))
+def test_upload_artifact_pin_guard_validates_each_shared_step_execution(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, variant: str
+) -> None:
+    pin = "0" * 40 if variant == "wrong-pin" else UPLOAD_ARTIFACT_NODE24_SHA
+    annotation = "# wrong annotation" if variant == "wrong-annotation" else "# v7.0.1 / Node 24"
+    path = tmp_path / "shared.yml"
+    path.write_text(
+        "jobs:\n  pr:\n    steps: &shared\n      - name: upload\n"
+        f"        uses: actions/upload-artifact@{pin} {annotation}\n"
+        "  trusted:\n    steps: *shared\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setitem(globals(), "REPO_ROOT", tmp_path)
+    monkeypatch.setitem(globals(), "_active_workflow_paths", lambda: (path,))
+    if variant == "valid":
+        test_active_upload_artifact_refs_all_use_node24_sha()
+    else:
+        with pytest.raises(AssertionError):
+            test_active_upload_artifact_refs_all_use_node24_sha()
 
 
 def test_active_sbom_action_refs_use_verified_v0_24_0_sha_and_preserve_contracts() -> None:
@@ -3532,7 +3702,7 @@ def test_active_sbom_action_refs_use_verified_v0_24_0_sha_and_preserve_contracts
     expected_uses = f"anchore/sbom-action@{SBOM_ACTION_NODE24_SHA}"
     expected_line = f"{expected_uses} # v0.24.0"
     expected_counts = {
-        ".github/workflows/build.yml": 1,
+        ".github/workflows/build.yml": 2,
         ".github/workflows/cd.yml": 3,
     }
     observed_counts: dict[str, int] = {}
@@ -3595,7 +3765,7 @@ def test_active_sbom_action_refs_use_verified_v0_24_0_sha_and_preserve_contracts
             observed_counts[workflow_relative_path] = workflow_sbom_count
 
     assert observed_counts == expected_counts
-    assert observed_contracts == [
+    expected_contracts = [
         (
             ".github/workflows/build.yml",
             "publish",
@@ -3676,6 +3846,25 @@ def test_active_sbom_action_refs_use_verified_v0_24_0_sha_and_preserve_contracts
             None,
         ),
     ]
+    expected_contracts.insert(
+        1,
+        (
+            ".github/workflows/build.yml",
+            "prometheus-source-build-pair",
+            "Generate SPDX from the retained OCI bytes",
+            expected_uses,
+            {
+                "image": "oci-archive:${{ runner.temp }}/prometheus-pair-${{ github.run_id }}-1/evidence/image.oci.tar",
+                "format": "spdx-json",
+                "output-file": "${{ runner.temp }}/prometheus-pair-${{ github.run_id }}-1/evidence/sbom.spdx.json",
+            },
+            "github.event_name == 'workflow_dispatch' && inputs.mode == 'prometheus-source-pair' && github.repository == 'Katsiarynakavaleuskaya/PulsePlate' && github.repository_id == '1043311030'",
+            None,
+            None,
+            None,
+        ),
+    )
+    assert observed_contracts == expected_contracts
 
 
 def test_active_codeql_action_refs_use_verified_v4_37_1_sha() -> None:
@@ -3799,7 +3988,7 @@ def test_node24_setup_go_and_upload_artifact_pins_preserve_workflow_contracts() 
 
     expected_action_lines = {
         BUILD_WORKFLOW_PATH: {
-            f"actions/upload-artifact@{UPLOAD_ARTIFACT_NODE24_SHA} # v7.0.1 / Node 24": 6,
+            f"actions/upload-artifact@{UPLOAD_ARTIFACT_NODE24_SHA} # v7.0.1 / Node 24": 13,
         },
         GREENLIGHT_IOS_WORKFLOW_PATH: {
             f"actions/setup-go@{SETUP_GO_NODE24_SHA} # v7.0.0 / Node 24": 1,
@@ -3845,7 +4034,7 @@ def test_node24_setup_go_and_upload_artifact_pins_preserve_workflow_contracts() 
                 )
             )
 
-    assert observed_contracts == [
+    expected_contracts = [
         (
             ".github/workflows/build.yml",
             "build",
@@ -3948,6 +4137,42 @@ def test_node24_setup_go_and_upload_artifact_pins_preserve_workflow_contracts() 
             None,
         ),
         (
+            ".github/workflows/build.yml",
+            "prometheus-source-qualification",
+            "Retain complete qualification evidence",
+            f"actions/upload-artifact@{UPLOAD_ARTIFACT_NODE24_SHA}",
+            {
+                "name": "prometheus-source-qualification-${{ github.run_id }}-${{ github.run_attempt }}",
+                "path": (
+                    "${{ runner.temp }}/prometheus-source-${{ github.run_id }}-"
+                    "${{ github.run_attempt }}/evidence/"
+                ),
+                "if-no-files-found": "error",
+                "retention-days": 30,
+            },
+            "${{ always() }}",
+            None,
+            None,
+        ),
+        (
+            ".github/workflows/build.yml",
+            "prometheus-ghcr-package-qualification",
+            "Retain exact validated package observation",
+            f"actions/upload-artifact@{UPLOAD_ARTIFACT_NODE24_SHA}",
+            {
+                "name": "prometheus-ghcr-package-${{ github.run_id }}-${{ github.run_attempt }}",
+                "path": (
+                    "${{ runner.temp }}/ghcr-public-${{ github.run_id }}-"
+                    "${{ github.run_attempt }}/qualification.json"
+                ),
+                "if-no-files-found": "error",
+                "retention-days": 30,
+            },
+            "${{ success() && steps.package.outputs.qualified == 'true' }}",
+            None,
+            None,
+        ),
+        (
             ".github/workflows/greenlight-ios.yml",
             "greenlight-ios",
             "Setup Go",
@@ -4000,6 +4225,87 @@ def test_node24_setup_go_and_upload_artifact_pins_preserve_workflow_contracts() 
             None,
         ),
     ]
+    expected_contracts.insert(
+        0,
+        (
+            ".github/workflows/build.yml",
+            "build",
+            "Preserve exact backend native images for pullback qualification",
+            f"actions/upload-artifact@{UPLOAD_ARTIFACT_NODE24_SHA}",
+            {
+                "name": "backend-native-images-${{ github.run_id }}-${{ github.run_attempt }}",
+                "path": "${{ runner.temp }}/backend-native-images-${{ github.run_id }}-${{ github.run_attempt }}/",
+                "if-no-files-found": "error",
+                "retention-days": 30,
+            },
+            "${{ always() && steps.backend-native-export.outputs.complete == 'true' }}",
+            None,
+            None,
+        ),
+    )
+    expected_contracts[9:9] = [
+        (
+            ".github/workflows/build.yml",
+            "backend-arm-sdk-qualification",
+            "Retain ARM SDK raw origin and export evidence",
+            f"actions/upload-artifact@{UPLOAD_ARTIFACT_NODE24_SHA}",
+            {
+                "name": "backend-arm-cp313-sdk-${{ github.run_id }}-1",
+                "path": "${{ runner.temp }}/arm-sdk-${{ github.run_id }}-1/",
+                "if-no-files-found": "error",
+                "retention-days": 30,
+            },
+            "${{ always() }}",
+            None,
+            None,
+        ),
+        (
+            ".github/workflows/build.yml",
+            "prometheus-oras-qualification",
+            "Retain tool source and native observations",
+            f"actions/upload-artifact@{UPLOAD_ARTIFACT_NODE24_SHA}",
+            {
+                "name": "prometheus-oras-${{ github.run_id }}-1",
+                "path": "${{ runner.temp }}/prometheus-oras-${{ github.run_id }}-1/evidence/",
+                "if-no-files-found": "error",
+                "retention-days": 90,
+            },
+            "${{ always() }}",
+            None,
+            None,
+        ),
+        (
+            ".github/workflows/build.yml",
+            "prometheus-source-build-pair",
+            "Retain complete real pair evidence",
+            f"actions/upload-artifact@{UPLOAD_ARTIFACT_NODE24_SHA}",
+            {
+                "name": "prometheus-source-candidate-${{ github.run_id }}-1",
+                "path": "${{ runner.temp }}/prometheus-pair-${{ github.run_id }}-1/evidence/",
+                "if-no-files-found": "error",
+                "retention-days": 90,
+            },
+            "${{ always() }}",
+            None,
+            None,
+        ),
+        (
+            ".github/workflows/build.yml",
+            "prometheus-publish",
+            "Retain main publication and pullback",
+            f"actions/upload-artifact@{UPLOAD_ARTIFACT_NODE24_SHA}",
+            {
+                "name": "prometheus-publication-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}",
+                "path": "${{ runner.temp }}/prometheus-publication-${{ github.run_id }}-${{ github.run_attempt }}/evidence/",
+                "if-no-files-found": "error",
+                "retention-days": 90,
+            },
+            "${{ always() }}",
+            None,
+            None,
+        ),
+    ]
+    assert observed_contracts == expected_contracts
 
 
 def test_node24_artifact_migration_preserves_download_contracts() -> None:
@@ -4280,6 +4586,23 @@ MERGE_GOVERNANCE_OWNER_TARGETS = (
 )
 
 
+def _copy_contract_process_census(tmp_path: Path) -> None:
+    """Give isolated shell fixtures the workflow's unchanged native observer."""
+    for relative in (
+        "scripts/__init__.py",
+        "scripts/ci/__init__.py",
+        "scripts/ci/prometheus_source_image.py",
+    ):
+        copied = tmp_path / relative
+        copied.parent.mkdir(parents=True, exist_ok=True)
+        original = REPO_ROOT / relative
+        if original.is_file():
+            shutil.copyfile(original, copied)
+        else:
+            assert relative.endswith("/__init__.py")
+            copied.write_text("")
+
+
 def test_contract_risk_suite_blocks_stay_in_sync_and_cover_required_targets() -> None:
     workflow = _load_ci_workflow()
     test_pr_groups = _contract_suite_targets_by_group(workflow, job_id="test-pr")
@@ -4373,13 +4696,22 @@ def test_closeout_owner_is_an_executed_merge_governance_argument(
     step["run"] = run
     parsed = _contract_suite_targets_by_group(workflow, job_id=job_id)["merge_governance"]
     assert (target in parsed) is (mutation == "valid")
+    _copy_contract_process_census(tmp_path)
     observer = tmp_path / "python"
     observer.write_text(
         "#!"
         + sys.executable
         + "\n"
-        + "import json, sys\nfrom pathlib import Path\n"
-        + 'Path("observed-argv.json").write_text(json.dumps(sys.argv[1:]))\n',
+        + "import json, os, sys\nfrom pathlib import Path\n"
+        + "args = sys.argv[1:]\n"
+        + 'if args[:1] == ["-"]:\n'
+        + "    os.execv(sys.executable, [sys.executable, *args])\n"
+        + 'if args[:3] == ["-m", "coverage", "run"]:\n'
+        + '    Path("observed-argv.json").write_text(json.dumps(args))\n'
+        + '    Path(os.environ["COVERAGE_FILE"]).write_text("batch data")\n'
+        + 'elif args[:5] == ["-W", "error", "-m", "coverage", "combine"]:\n'
+        + '    Path("observed-combine.json").write_text(json.dumps(args))\n'
+        + "else:\n    raise SystemExit(91)\n",
         encoding="utf-8",
     )
     observer.chmod(0o755)
@@ -4391,6 +4723,8 @@ def test_closeout_owner_is_an_executed_merge_governance_argument(
         env={
             "PATH": str(tmp_path) + os.pathsep + os.defpath,
             "CONTRACT_RISK_GROUPS": "merge_governance",
+            "RUNNER_TEMP": str(tmp_path / "runner-temp"),
+            "CONTRACT_RISK_CLEANUP_SECONDS": str(workflow["env"]["CONTRACT_RISK_CLEANUP_SECONDS"]),
             "GH_TOKEN": "opaque",
             "GITHUB_TOKEN": "opaque",
         },
@@ -4399,7 +4733,7 @@ def test_closeout_owner_is_an_executed_merge_governance_argument(
         timeout=10,
         check=False,
     )
-    assert result.returncode == 0, result.stderr
+    assert result.returncode == 0, result.stdout + result.stderr
     argv = json.loads((tmp_path / "observed-argv.json").read_text())
     expected = [
         owner for owner in MERGE_GOVERNANCE_OWNER_TARGETS if mutation == "valid" or owner != target
@@ -4412,12 +4746,24 @@ def test_closeout_owner_is_an_executed_merge_governance_argument(
         "-m",
         "pytest",
         "-q",
+        *(["--capture=no", "--verbosity=1"] if job_id == "test-pr" else []),
         "-p",
         "no:xdist",
         *sorted(expected),
         "--junitxml=tests/contract-results-1.xml",
+        f"--basetemp={tmp_path / 'runner-temp' / 'contract-risk' / 'batch-1'}",
         "-o",
         "junit_family=legacy",
+    ]
+    assert json.loads((tmp_path / "observed-combine.json").read_text()) == [
+        "-W",
+        "error",
+        "-m",
+        "coverage",
+        "combine",
+        "--append",
+        "--keep",
+        ".coverage.contract-risk-1",
     ]
 
 
@@ -4444,8 +4790,678 @@ def test_contract_risk_suite_ignores_commented_db_target(job_id: str) -> None:
     assert target not in route_targets
 
 
+@pytest.mark.parametrize("job_id", ["test-pr", "test-feature"])
+@pytest.mark.parametrize(
+    "failed_batch,missing_data,terminate_run,stale_data,residual_child,cleanup_failure",
+    [
+        (0, 0, False, False, False, False),
+        (1, 0, False, False, False, False),
+        (2, 0, False, False, False, False),
+        (0, 2, False, False, False, False),
+        (0, 0, True, False, False, False),
+        (0, 0, "delayed", False, False, False),
+        (0, 0, False, True, False, False),
+        (0, 0, "ignore", False, False, False),
+        (0, 0, False, False, True, False),
+        (1, 0, False, False, True, False),
+        (0, 0, False, False, False, True),
+        (1, 0, False, False, False, True),
+    ],
+)
+def test_contract_batches_wait_all_statuses_and_combine_only_complete_isolated_inventory(
+    tmp_path: Path,
+    job_id: str,
+    failed_batch: int,
+    missing_data: int,
+    terminate_run: bool | str,
+    stale_data: bool,
+    residual_child: bool,
+    cleanup_failure: bool,
+) -> None:
+    """Run the actual paired shell steps with rendezvous, real SQLite and failure controls."""
+    import sys
+
+    workflow = _load_ci_workflow()
+    step = _job_step_by_name(workflow, job_id=job_id, step_name="Contract and risk suites")
+    groups = _contract_suite_targets_by_group(workflow, job_id=job_id)
+    expected_targets = sorted({target for targets in groups.values() for target in targets})
+    batch_count = (len(expected_targets) + 23) // 24
+    assert batch_count >= 3
+    events = tmp_path / "events"
+    events.mkdir()
+    (tmp_path / ".coverage").write_text("existing smoke coverage")
+    if stale_data:
+        (tmp_path / ".coverage.contract-risk-1").write_text("stale batch data")
+    # Delegate the workflow's post-wait query to the real, unchanged census.
+    _copy_contract_process_census(tmp_path)
+    observer = tmp_path / "python"
+    observer.write_text(
+        "#!"
+        + sys.executable
+        + "\n"
+        + "import json, os, signal, sqlite3, sys, time\nfrom pathlib import Path\n"
+        + f"batch_count = {batch_count}\nfailed_batch = {failed_batch}\nmissing_data = {missing_data}\n"
+        + f"terminate_run = {terminate_run!r}\nresidual_child = {residual_child!r}\n"
+        + r"""
+args = sys.argv[1:]
+if args[:1] == ["-"]:
+    os.execv(sys.executable, [sys.executable, *args])
+events = Path("events")
+if args[:5] == ["-W", "error", "-m", "coverage", "combine"]:
+    assert [p.name for p in sorted(events.glob("done-*.json"))] == sorted(
+        f"done-{i}.json" for i in range(1, batch_count + 1)
+    )
+    assert not list(events.glob("running-*"))
+    assert failed_batch == 0 and missing_data == 0
+    Path("observed-combine.json").write_text(json.dumps(args))
+    raise SystemExit(0)
+assert args[:3] == ["-m", "coverage", "run"]
+junit = next(a for a in args if a.startswith("--junitxml="))
+index = int(Path(junit.split("=", 1)[1]).stem.rsplit("-", 1)[1])
+if index % 2 == 1 and index > 1:
+    assert all((events / f"done-{i}.json").exists() for i in (index - 2, index - 1))
+    if residual_child:
+        assert (events / "residual-stopped").read_text() == "SIGTERM"
+def stopped(signum, frame):
+    if terminate_run == "delayed" and index == 1:
+        time.sleep(int(os.environ["CONTRACT_RISK_CLEANUP_SECONDS"]) + 1)
+    (events / f"signalled-{index}.json").write_text(json.dumps({"signal": signum}))
+    (events / f"running-{index}").unlink()
+    raise SystemExit(143)
+signal.signal(signal.SIGTERM, signal.SIG_IGN if terminate_run == "ignore" else stopped)
+assert os.getpgid(0) == os.getpid(), "batch did not receive its own Bash job group"
+if terminate_run == "ignore" and index == 1:
+    child = os.fork()
+    if child == 0:
+        signal.signal(signal.SIGTERM, signal.SIG_IGN)
+        while True:
+            signal.pause()
+    (events / "grandchild.json").write_text(json.dumps({"pid": child, "pgid": os.getpgid(0)}))
+if residual_child and index == 1:
+    child = os.fork()
+    if child == 0:
+        def child_stopped(signum, frame):
+            (events / "residual-stopped").write_text("SIGTERM")
+            os._exit(143)
+        signal.signal(signal.SIGTERM, child_stopped)
+        (events / "residual-ready").touch()
+        while True:
+            signal.pause()
+    (events / "residual-child.json").write_text(json.dumps({"pid": child,"pgid": os.getpgid(0)}))
+    deadline = time.monotonic() + 10
+    while not (events / "residual-ready").exists():
+        assert time.monotonic() < deadline
+        time.sleep(0.01)
+(events / f"running-{index}").write_text(str(os.getpid()))
+start = {
+    "pid": os.getpid(),
+    "pgid": os.getpgid(0),
+    "args": args,
+    "coverage": os.environ["COVERAGE_FILE"],
+    "coverage_core": os.environ["COV_CORE_DATAFILE"],
+    "database": os.environ["TEST_DB_PATH"],
+    "database_url": os.environ["DATABASE_URL"],
+    "fallback_url": os.environ["DB_FALLBACK_URL"],
+}
+(events / f"start-{index}.json").write_text(json.dumps(start))
+assert len(list(events.glob("running-*"))) <= 2
+partner = index + 1 if index % 2 else index - 1
+if partner <= batch_count:
+    deadline = time.monotonic() + 10
+    while not (events / f"start-{partner}.json").exists():
+        assert time.monotonic() < deadline, "paired batch never started"
+        time.sleep(0.01)
+if terminate_run:
+    if index == 2:
+        os.kill(os.getppid(), signal.SIGTERM)
+    signal.pause()
+    raise SystemExit(92)
+with sqlite3.connect(start["database"]) as db:
+    db.execute("CREATE TABLE batch_identity (value INTEGER)")
+    db.execute("INSERT INTO batch_identity VALUES (?)", (index,))
+if index != missing_data:
+    Path(start["coverage"]).write_text(f"coverage batch {index}")
+    Path(start["coverage"] + ".child").write_text(f"subprocess coverage batch {index}")
+Path(junit.split("=", 1)[1]).write_text("<testsuite/>")
+status = 7 if index == failed_batch else 0
+(events / f"running-{index}").unlink()
+(events / f"done-{index}.json").write_text(json.dumps({"status": status}))
+raise SystemExit(status)
+""",
+        encoding="utf-8",
+    )
+    observer.chmod(0o755)
+    bash = shutil.which("bash")
+    assert bash is not None
+    run_script = str(step["run"])
+    assert run_script.count("cleanup_deadline=$((SECONDS + contract_cleanup_seconds))") == 1
+    if cleanup_failure:
+        # All synthetic leaders finish; only group-presence/signal transport is counterfactual.
+        run_script = """kill() {
+  if [ "$1" = "-0" ]; then return 0; fi
+  if [ "$1" = "-TERM" ] || [ "$1" = "-KILL" ]; then
+    printf '%s\n' "$1" >> events/cleanup-signals
+    return 1
+  fi
+  builtin kill "$@"
+}
+""" + run_script
+    result = subprocess.run(
+        [bash, "-c", run_script],
+        cwd=tmp_path,
+        env={
+            "PATH": str(tmp_path) + os.pathsep + os.defpath,
+            "RUNNER_TEMP": str(tmp_path / "runner-temp"),
+            "CONTRACT_RISK_CLEANUP_SECONDS": (
+                "1" if cleanup_failure else str(workflow["env"]["CONTRACT_RISK_CLEANUP_SECONDS"])
+            ),
+            "CONTRACT_RISK_GROUPS": ",".join(groups),
+        },
+        capture_output=True,
+        text=True,
+        timeout=60,
+        check=False,
+    )
+    (tmp_path / "observed-shell-result.json").write_text(
+        json.dumps({"exit": result.returncode, "stdout": result.stdout, "stderr": result.stderr})
+    )
+    expected_exit = (
+        143
+        if terminate_run
+        else (1 if failed_batch or missing_data or stale_data or cleanup_failure else 0)
+    )
+    assert result.returncode == expected_exit, result.stderr
+    if cleanup_failure:
+        assert "Contract/risk batch 1 exited " + str(7 if failed_batch else 0) in result.stdout
+        assert result.stdout.count("Contract/risk cleanup exited 1") == 1
+        assert (events / "cleanup-signals").read_text().splitlines() == [
+            "-TERM",
+            "-TERM",
+            "-KILL",
+            "-KILL",
+        ]
+        assert sorted(path.name for path in events.glob("start-*.json")) == [
+            "start-1.json",
+            "start-2.json",
+        ]
+        assert not (tmp_path / "observed-combine.json").exists()
+        assert not list(events.glob("running-*"))
+        assert (tmp_path / ".coverage").read_text() == "existing smoke coverage"
+        return
+    if not terminate_run:
+        assert not list(
+            events.glob("running-*")
+        ), f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+    if stale_data:
+        assert not list(events.glob("start-*.json"))
+        assert not (tmp_path / "observed-combine.json").exists()
+        assert (tmp_path / ".coverage.contract-risk-1").read_text() == "stale batch data"
+        assert (tmp_path / ".coverage").read_text() == "existing smoke coverage"
+        return
+
+    def assert_native_process_inactive(pid: int, pgid: int) -> dict[str, object]:
+        import time
+
+        from scripts.ci.prometheus_source_image import process_census
+
+        rows = process_census(time.monotonic() + 1, ())
+        witness = rows.get(os.getpid())
+        assert witness is not None and witness["uid"] == os.getuid()
+        group = [row for row in rows.values() if row["pgid"] == pgid]
+        assert all(
+            row["uid"] == os.getuid() and row["state"] == "Z" and row["pid"] != pgid
+            for row in group
+        ), group
+        selected = rows.get(pid)
+        assert selected is None or selected in group
+        return {"physical_absence": not group, "members": group}
+
+    if terminate_run:
+        assert sorted(path.name for path in events.glob("start-*.json")) == [
+            "start-1.json",
+            "start-2.json",
+        ]
+        if terminate_run == "ignore":
+            grandchild = json.loads((events / "grandchild.json").read_text())
+            observed = assert_native_process_inactive(grandchild["pid"], grandchild["pgid"])
+            (events / "grandchild-inactive-observation.json").write_text(json.dumps(observed))
+        assert result.stdout.count("Reaped owned contract/risk batch pid") == 2
+        for index in (1, 2):
+            child = json.loads((events / f"start-{index}.json").read_text())
+            with pytest.raises(ProcessLookupError):
+                os.kill(child["pid"], 0)
+            observed = assert_native_process_inactive(child["pid"], child["pgid"])
+            (events / f"batch-{index}-inactive-observation.json").write_text(json.dumps(observed))
+        children = {
+            index: json.loads((events / f"start-{index}.json").read_text()) for index in (1, 2)
+        }
+        reap_lines = [
+            line
+            for line in result.stdout.splitlines()
+            if line.startswith("Reaped owned contract/risk batch pid ")
+        ]
+        assert len(reap_lines) == 2
+        wait_statuses: dict[int, int] = {}
+        for line in reap_lines:
+            match = re.fullmatch(
+                r"Reaped owned contract/risk batch pid ([0-9]+) \(status ([0-9]+)\)", line
+            )
+            assert match is not None
+            pid, status = map(int, match.groups())
+            assert pid in {child["pid"] for child in children.values()}
+            assert pid not in wait_statuses and status in (137, 143)
+            wait_statuses[pid] = status
+        assert set(wait_statuses) == {child["pid"] for child in children.values()}
+        allowed_markers: set[str] = set()
+        for index, child in children.items():
+            marker = events / f"running-{index}"
+            if wait_statuses[child["pid"]] == 143:
+                assert json.loads((events / f"signalled-{index}.json").read_text())["signal"] == 15
+                assert not marker.exists()
+            elif marker.exists():
+                # KILL cannot run the observer callback; leader absence and group inactivity were checked.
+                assert marker.read_text() == str(child["pid"])
+                allowed_markers.add(marker.name)
+        assert {path.name for path in events.glob("running-*")} == allowed_markers
+        if terminate_run == "delayed":
+            assert wait_statuses[children[1]["pid"]] == 137
+            assert wait_statuses[children[2]["pid"]] == 143
+        assert not (tmp_path / "observed-combine.json").exists()
+        assert (tmp_path / ".coverage").read_text() == "existing smoke coverage"
+        return
+    if residual_child:
+        assert (events / "residual-stopped").read_text() == "SIGTERM"
+        child = json.loads((events / "residual-child.json").read_text())
+        observed = assert_native_process_inactive(child["pid"], child["pgid"])
+        (events / "residual-inactive-observation.json").write_text(json.dumps(observed))
+    seen_targets: list[str] = []
+    databases: set[str] = set()
+    for index in range(1, batch_count + 1):
+        start = json.loads((events / f"start-{index}.json").read_text())
+        argv = start["args"]
+        prefix = [
+            "-m",
+            "coverage",
+            "run",
+            "--append",
+            "-m",
+            "pytest",
+            "-q",
+            *(["--capture=no", "--verbosity=1"] if job_id == "test-pr" else []),
+            "-p",
+            "no:xdist",
+        ]
+        assert argv[: len(prefix)] == prefix
+        targets = [argument for argument in argv[len(prefix) :] if argument.startswith("tests/")]
+        assert targets == expected_targets[(index - 1) * 24 : index * 24]
+        seen_targets.extend(targets)
+        assert start["coverage"] == start["coverage_core"] == f".coverage.contract-risk-{index}"
+        expected_database = str(
+            tmp_path / "runner-temp" / "contract-risk" / f"batch-{index}.sqlite"
+        )
+        assert start["database"] == expected_database
+        assert start["database_url"] == start["fallback_url"] == "sqlite:///" + expected_database
+        databases.add(expected_database)
+        assert f"--basetemp={tmp_path / 'runner-temp' / 'contract-risk' / f'batch-{index}'}" in argv
+        assert f"--junitxml=tests/contract-results-{index}.xml" in argv
+        status = 7 if index == failed_batch else 0
+        assert f"Contract/risk batch {index} exited {status}" in result.stdout
+        assert json.loads((events / f"done-{index}.json").read_text())["status"] == status
+        with pytest.raises(ProcessLookupError):
+            os.kill(start["pid"], 0)
+    assert len(databases) == batch_count and seen_targets == expected_targets
+    assert (tmp_path / ".coverage").read_text() == "existing smoke coverage"
+    combine = tmp_path / "observed-combine.json"
+    if failed_batch or missing_data:
+        assert not combine.exists()
+    else:
+        assert json.loads(combine.read_text()) == [
+            "-W",
+            "error",
+            "-m",
+            "coverage",
+            "combine",
+            "--append",
+            "--keep",
+            *[
+                path
+                for index in range(1, batch_count + 1)
+                for path in (
+                    f".coverage.contract-risk-{index}",
+                    f".coverage.contract-risk-{index}.child",
+                )
+            ],
+        ]
+
+
+@pytest.mark.parametrize("job_id", ["test-pr", "test-feature"])
+@pytest.mark.parametrize(
+    "case",
+    [
+        "empty",
+        "zombie",
+        "live",
+        "mixed",
+        "foreign",
+        "leader",
+        "unknown",
+        "unknown_zombie",
+        "duplicate",
+        "partial",
+        "no_observer",
+        "observer_foreign",
+        "provider_error",
+        "provider_timeout",
+        "observation_deadline",
+    ],
+)
+def test_contract_postwait_observation_requires_native_witness_and_inactive_members(
+    tmp_path: Path, job_id: str, case: str
+) -> None:
+    import sys
+
+    step = _job_step_by_name(
+        _load_ci_workflow(), job_id=job_id, step_name="Contract and risk suites"
+    )
+    match = re.search(
+        r"<<'CONTRACT_GROUP_OBSERVATION_PY'\n(.*?)\nCONTRACT_GROUP_OBSERVATION_PY",
+        str(step["run"]),
+        re.DOTALL,
+    )
+    assert match is not None
+    bootstrap = r"""
+import os, subprocess, sys, time
+from types import SimpleNamespace
+from scripts.ci import prometheus_source_image as native
+
+case = sys.argv.pop(1)
+group = int(sys.argv[2])
+uid = os.getuid()
+def row(pid, ppid, pgid, owner, state):
+    return f"{pid} {ppid} {pgid} {owner} Wed Oct 14 12:00:00 2026 {state} fixture\n"
+observer_uid = uid + 1 if case == "observer_foreign" else uid
+rows = [row(os.getpid(), os.getppid(), os.getpgid(0), observer_uid, "R")]
+if case == "no_observer": rows = []
+if case in {"zombie", "mixed", "foreign", "unknown", "unknown_zombie", "duplicate"}:
+    state = "?" if case == "unknown" else "Zgarbage" if case == "unknown_zombie" else "Z"
+    rows.append(row(group + 1, 1, group, uid + 1 if case == "foreign" else uid, state))
+if case in {"live", "mixed"}:
+    rows.append(row(group + 2, 1, group, uid, "S"))
+if case == "leader": rows.append(row(group, 1, group, uid, "Z"))
+if case == "duplicate": rows.append(rows[-1])
+if case == "partial": rows.append("1 2 3\n")
+def native_ps(argv, **kwargs):
+    assert argv == ["/bin/ps", "-axo", "pid,ppid,pgid,uid,lstart,state,comm"]
+    assert kwargs["env"] == {"PATH": "/usr/bin:/bin", "LC_ALL": "C"}
+    assert 0 < kwargs["timeout"] <= 1
+    if case == "provider_timeout": raise subprocess.TimeoutExpired(argv, kwargs["timeout"])
+    if case == "observation_deadline": time.sleep(10)
+    return SimpleNamespace(
+        returncode=1 if case == "provider_error" else 0,
+        stdout=("PID PPID PGID UID STARTED STATE COMMAND\n" + "".join(rows)).encode(),
+        stderr=b"fixture provider error" if case == "provider_error" else b"",
+    )
+native.subprocess.run = native_ps
+exec(compile(sys.stdin.read(), "<workflow-postwait-observation>", "exec"))
+"""
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            bootstrap,
+            case,
+            "1" if case == "observation_deadline" else "5",
+            "1000000001",
+        ],
+        cwd=REPO_ROOT,
+        env={"PATH": os.defpath, "HOME": str(tmp_path), "LANG": "C.UTF-8"},
+        input=match.group(1),
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
+    )
+    expected_exit = 0 if case in {"empty", "zombie"} else 1
+    assert result.returncode == expected_exit, (result.stdout, result.stderr)
+    if case == "empty":
+        assert "observed empty" in result.stdout
+    elif case == "zombie":
+        assert "zombie-only inactivity; not physical absence" in result.stdout
+    else:
+        assert "::error::Contract/risk post-wait observation failed" in result.stderr
+
+
+def test_test_pr_contract_capture_supports_real_ci_root_conftest(tmp_path: Path) -> None:
+    """The real CI/root-conftest boundary must precede claims about test transport."""
+    import sys
+    import xml.etree.ElementTree as ET
+
+    workflow = _load_ci_workflow()
+    step = _job_step_by_name(workflow, job_id="test-pr", step_name="Contract and risk suites")
+    assert "pytest -q --capture=no --verbosity=1" in str(step["run"])
+    node = "test_contract_risk_suites_use_bounded_coverage_batches"
+    target = "tests/test_ci_workflow_pr_size_governance_contract.py::" + node
+    observations = []
+    for capture, expected_exit in (("tee-sys", 4), ("no", 0)):
+        profile = tmp_path / capture
+        profile.mkdir()
+        for name in ("home", "tmp"):
+            (profile / name).mkdir()
+        database = profile / "batch.sqlite"
+        coverage = profile / ".coverage"
+        junit = profile / "result.xml"
+        command = [
+            sys.executable,
+            "-m",
+            "coverage",
+            "run",
+            "--append",
+            "-m",
+            "pytest",
+            "-q",
+            "--capture=" + capture,
+            "--verbosity=1",
+            "-p",
+            "no:xdist",
+            target,
+            "--junitxml=" + str(junit),
+            "--basetemp=" + str(profile / "pytest"),
+            "-o",
+            "junit_family=legacy",
+        ]
+        # A complete allowlist supplies synthetic CI/DB state, never host credentials.
+        environment = {
+            "PATH": os.defpath,
+            "HOME": str(profile / "home"),
+            "LANG": "C.UTF-8",
+            "CI": "true",
+            "TESTING": "true",
+            "APP_ENV": "test",
+            "ENVIRONMENT": "test",
+            "PYTHONUNBUFFERED": "1",
+            "PYTEST_FAULTHANDLER_TIMEOUT_S": "600",
+            "COVERAGE_FILE": str(coverage),
+            "COV_CORE_DATAFILE": str(coverage),
+            "TEST_DB_PATH": str(database),
+            "DATABASE_URL": "sqlite:///" + str(database),
+            "DB_FALLBACK_URL": "sqlite:///" + str(database),
+            "TMPDIR": str(profile / "tmp"),
+        }
+        result = subprocess.run(
+            command,
+            cwd=REPO_ROOT,
+            env=environment,
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+        )
+        for suffix, raw in (("stdout", result.stdout), ("stderr", result.stderr)):
+            path = tmp_path / f"ci-capture-{capture}.{suffix}.log"
+            path.write_text(raw)
+            path.chmod(0o600)
+        observations.append(
+            {
+                "capture": capture,
+                "argv": command,
+                "CI": environment["CI"],
+                "native_exit": result.returncode,
+            }
+        )
+        (tmp_path / "ci-capture-observed.json").write_text(json.dumps(observations))
+        assert result.returncode == expected_exit, result.stderr
+        if capture == "tee-sys":
+            assert "conftest.py:" in result.stderr
+            assert "faulthandler.enable()" in result.stderr
+            assert "io.UnsupportedOperation: fileno" in result.stderr
+            assert node + " PASSED" not in result.stdout and not junit.exists()
+        else:
+            assert node + " PASSED" in result.stdout
+            assert "UnsupportedOperation" not in result.stderr
+            assert coverage.is_file()
+            cases = list(ET.parse(junit).getroot().iter("testcase"))
+            assert len(cases) == 1 and cases[0].get("name") == node
+            assert cases[0].find("failure") is None and cases[0].find("error") is None
+
+
+def test_test_pr_contract_139_retains_real_pytest_and_native_stderr_transport(
+    tmp_path: Path,
+) -> None:
+    """Safe controlled exit139 proves transport only; it is not an application SIGSEGV."""
+    import sys
+
+    workflow = _load_ci_workflow()
+    step = _job_step_by_name(workflow, job_id="test-pr", step_name="Contract and risk suites")
+    (tmp_path / ".coverage").write_text("existing smoke coverage")
+    (tmp_path / "tests").mkdir()
+    _copy_contract_process_census(tmp_path)
+    fixture = tmp_path / "test_transport.py"
+    fixture.write_text(
+        "import os, pytest\n"
+        "def test_synthetic_fatal_transport(capsys):\n"
+        "    with capsys.disabled():\n"
+        "        print('synthetic-stdout-marker', flush=True)\n"
+        "    os.write(2, b'synthetic-native-stderr-marker\\n')\n"
+        "    os._exit(139)\n"
+    )
+    observer = tmp_path / "python"
+    observer.write_text(
+        "#!" + sys.executable + "\n"
+        "import os, subprocess, sys\nfrom pathlib import Path\n"
+        "args = sys.argv[1:]\n"
+        "if args[:1] == ['-']:\n"
+        "    os.execv(sys.executable, [sys.executable, *args])\n"
+        "if args[:5] == ['-W', 'error', '-m', 'coverage', 'combine']:\n"
+        "    Path('unexpected-combine').touch()\n    raise SystemExit(0)\n"
+        "assert args[:11] == ['-m', 'coverage', 'run', '--append', '-m', 'pytest', '-q', "
+        "'--capture=no', '--verbosity=1', '-p', 'no:xdist']\n"
+        "tail = [arg for arg in args[11:] if not arg.startswith('tests/')]\n"
+        "# Execute only the tiny transport fixture, never the selected application suites.\n"
+        f"command = [sys.executable, '-m', 'pytest', '-c', '/dev/null', '--rootdir', {str(tmp_path)!r}, "
+        f"*args[6:11], {str(fixture)!r}, *tail]\n"
+        "result = subprocess.run(command, check=False)\n"
+        "raise SystemExit(result.returncode)\n"
+    )
+    observer.chmod(0o755)
+    bash = shutil.which("bash")
+    assert bash is not None
+    result = subprocess.run(
+        [bash, "-c", str(step["run"])],
+        cwd=tmp_path,
+        env={
+            "PATH": str(tmp_path) + os.pathsep + os.defpath,
+            "RUNNER_TEMP": str(tmp_path / "runner-temp"),
+            "CONTRACT_RISK_GROUPS": "merge_governance",
+            "CONTRACT_RISK_CLEANUP_SECONDS": str(workflow["env"]["CONTRACT_RISK_CLEANUP_SECONDS"]),
+            "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1",
+            "PYTHONUNBUFFERED": "1",
+        },
+        capture_output=True,
+        text=True,
+        timeout=20,
+        check=False,
+    )
+    assert result.returncode == 1
+    assert "Contract/risk batch 1 exited 139" in result.stdout
+    assert "1 contract/risk batch(es) failed." in result.stdout
+    stdout = (tmp_path / "tests/contract-results-1.stdout.log").read_text()
+    stderr = (tmp_path / "tests/contract-results-1.stderr.log").read_text()
+    assert "test_transport.py::test_synthetic_fatal_transport" in stdout
+    assert "synthetic-stdout-marker" in stdout
+    assert "synthetic-native-stderr-marker" in stderr
+    assert "synthetic-native-stderr-marker" not in result.stdout + result.stderr
+    assert not (tmp_path / "tests/contract-results-1.xml").exists()
+    assert not (tmp_path / "unexpected-combine").exists()
+    assert (tmp_path / ".coverage").read_text() == "existing smoke coverage"
+
+
+@pytest.mark.parametrize("corrupt_input", [False, True])
+def test_contract_coverage_native_append_refuses_mixed_corrupt_data(
+    tmp_path: Path, corrupt_input: bool
+) -> None:
+    """Native coverage must preserve smoke data, combine all valid arcs and reject partial input."""
+    import sys
+    from coverage import CoverageData
+
+    source = tmp_path / "sample.py"
+    source.write_text("a=1\nb=2\nc=3\n")
+    base = tmp_path / ".coverage"
+    valid = tmp_path / ".coverage.batch-valid"
+    extra = tmp_path / ".coverage.batch-subprocess"
+    for path, line in ((base, 1), (valid, 2)):
+        data = CoverageData(basename=str(path))
+        data.add_arcs({str(source): {(-1, line), (line, -1)}})
+        data.write()
+    if corrupt_input:
+        extra.write_bytes(b"not sqlite coverage data")
+    else:
+        data = CoverageData(basename=str(extra))
+        data.add_arcs({str(source): {(-1, 3), (3, -1)}})
+        data.write()
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-W",
+            "error",
+            "-m",
+            "coverage",
+            "combine",
+            "--rcfile=/dev/null",
+            "--data-file=" + str(base),
+            "--append",
+            "--keep",
+            str(valid),
+            str(extra),
+        ],
+        cwd=tmp_path,
+        env={"PATH": os.defpath, "HOME": str(tmp_path), "LANG": "C.UTF-8"},
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+    observed = CoverageData(basename=str(base))
+    observed.read()
+    if corrupt_input:
+        assert result.returncode == 1 and "CoverageWarning" in result.stderr
+        assert set(observed.arcs(str(source)) or []) == {(-1, 1), (1, -1)}
+    else:
+        assert result.returncode == 0, result.stderr
+        assert set(observed.arcs(str(source)) or []) == {
+            (-1, 1),
+            (1, -1),
+            (-1, 2),
+            (2, -1),
+            (-1, 3),
+            (3, -1),
+        }
+    assert valid.exists() and extra.exists()
+
+
 def test_contract_risk_suites_use_bounded_coverage_batches() -> None:
     workflow = _load_ci_workflow()
+    cleanup_seconds = int(workflow["env"]["CONTRACT_RISK_CLEANUP_SECONDS"])
+    assert 0 < cleanup_seconds <= 5
     for job_id in ("test-pr", "test-feature"):
         step = _job_step_by_name(
             workflow,
@@ -4455,9 +5471,23 @@ def test_contract_risk_suites_use_bounded_coverage_batches() -> None:
         run_script = step["run"]
         assert isinstance(run_script, str)
         assert "contract_batch_size=24" in run_script
+        assert "contract_max_parallel=2" in run_script
+        assert "contract_cleanup_seconds=5" not in run_script
+        assert "${CONTRACT_RISK_CLEANUP_SECONDS:?" in run_script
+        assert (
+            'python -W error -m coverage combine --append --keep "${contract_combine_files[@]}"'
+            in run_script
+        )
         assert "for ((batch_start=0;" in run_script
         assert "batch_targets=(" in run_script
         assert "python -m coverage run --append -m pytest -q" in run_script
+        assert "--capture=tee-sys" not in run_script
+        if job_id == "test-pr":
+            assert "pytest -q --capture=no --verbosity=1" in run_script
+            assert '>"$stdout_path" 2>"$stderr_path" &' in run_script
+        else:
+            assert "--capture=no" not in run_script and "--verbosity=1" not in run_script
+            assert "stdout_path=" not in run_script and "stderr_path=" not in run_script
         assert "-p no:xdist" in run_script
         assert '"${batch_targets[@]}"' in run_script
         assert '--junitxml="${junit_path}"' in run_script
@@ -4470,6 +5500,19 @@ def test_contract_risk_suites_use_bounded_coverage_batches() -> None:
         upload_with = upload_step["with"]
         assert isinstance(upload_with, dict)
         assert "tests/contract-results*.xml" in str(upload_with["path"])
+        if job_id == "test-pr":
+            assert upload_step["if"] == "always()"
+            assert str(upload_with["path"]).splitlines() == [
+                "tests/smoke-results.xml",
+                "tests/contract-results*.xml",
+                "tests/contract-results-*.stdout.log",
+                "tests/contract-results-*.stderr.log",
+            ]
+        else:
+            assert str(upload_with["path"]).splitlines() == [
+                "tests/smoke-results.xml",
+                "tests/contract-results*.xml",
+            ]
 
 
 def test_ci_workflow_declares_canonical_main_and_feature_push_jobs() -> None:
@@ -5276,6 +6319,75 @@ def test_ci_lint_all_files_pre_commit_uses_full_history_checkout() -> None:
     assert "pre-commit run --all-files" in pre_commit_step["run"]
 
 
+def test_ci_lint_restores_workflow_sha_before_pr_python_startup() -> None:
+    workflow = _load_ci_workflow()
+    steps = workflow["jobs"]["lint"]["steps"]
+    names = [step.get("name") for step in steps]
+    restore = _job_step_by_name(workflow, job_id="lint", step_name="Restore lint workflow revision")
+    assert restore == {
+        "name": "Restore lint workflow revision",
+        "if": "github.event_name == 'pull_request'",
+        "uses": f"actions/checkout@{CHECKOUT_V7_SHA}",
+        "with": {
+            "ref": "${{ github.sha }}",
+            "fetch-depth": 0,
+            "persist-credentials": False,
+            "clean": False,
+        },
+    }
+    verify = _job_step_by_name(workflow, job_id="lint", step_name="Verify lint workflow revision")
+    assert verify["if"] == "github.event_name == 'pull_request'"
+    assert verify["run"] == (
+        'set -euo pipefail\nrestored_sha="$(git rev-parse HEAD)"\n'
+        'test "$restored_sha" = "$GITHUB_SHA"\n'
+    )
+    ordered_names = (
+        "Consume exact Prometheus subject before PR startup",
+        "Remove fixed trusted Prometheus control checkout",
+        "Restore lint workflow revision",
+        "Verify lint workflow revision",
+        "Setup Python environment",
+        "Pre-commit (lint/format/security quick checks)",
+    )
+    positions = [names.index(name) for name in ordered_names]
+    assert positions == sorted(positions)
+
+
+@pytest.mark.parametrize(
+    ("observed_sha", "git_exit", "expected_exit"),
+    [("a" * 40, 0, 0), ("b" * 40, 0, 1), ("a" * 40, 37, 37)],
+)
+def test_ci_lint_workflow_sha_verification_requires_native_git_success(
+    tmp_path: Path, observed_sha: str, git_exit: int, expected_exit: int
+) -> None:
+    step = _job_step_by_name(
+        _load_ci_workflow(), job_id="lint", step_name="Verify lint workflow revision"
+    )
+    git = tmp_path / "git"
+    git.write_text(
+        '#!/bin/sh\nprintf "%s\\n" "$FAKE_GIT_SHA"\nexit "$FAKE_GIT_EXIT"\n',
+        encoding="utf-8",
+    )
+    git.chmod(0o755)
+    bash = shutil.which("bash")
+    assert bash is not None
+    result = subprocess.run(
+        [bash, "-c", step["run"]],
+        cwd=tmp_path,
+        env={
+            "PATH": str(tmp_path) + os.pathsep + os.defpath,
+            "GITHUB_SHA": "a" * 40,
+            "FAKE_GIT_SHA": observed_sha,
+            "FAKE_GIT_EXIT": str(git_exit),
+        },
+        capture_output=True,
+        text=True,
+        timeout=5,
+        check=False,
+    )
+    assert result.returncode == expected_exit, result.stderr
+
+
 def test_ci_main_matrix_uses_full_history_for_git_evidence_guards() -> None:
     workflow = _load_ci_workflow()
 
@@ -5324,11 +6436,19 @@ def _assert_ci_lint_node24_frontend_hook_dependency_contract(
     lint_job = jobs["lint"]
     assert isinstance(lint_job, dict)
     assert lint_job.get("if") == "${{ !cancelled() }}"
+    assert lint_job.get("permissions") == {
+        "contents": "read",
+        "actions": "read",
+        "packages": "read",
+    }, "ci_lint_reader_permissions"
+    assert lint_job["env"] == {
+        "PROMETHEUS_CONSUME_SECONDS": "900",
+        "PROMETHEUS_CLEANUP_SECONDS": "120",
+    }
+    assert "environment" not in lint_job, "ci_lint_reader_environment"
     for forbidden_key in (
         "continue-on-error",
         "defaults",
-        "permissions",
-        "environment",
     ):
         assert forbidden_key not in lint_job
     lint_steps = lint_job["steps"]
@@ -5350,7 +6470,11 @@ def _assert_ci_lint_node24_frontend_hook_dependency_contract(
     assert checkout_step == {
         "name": "Checkout",
         "uses": f"actions/checkout@{CHECKOUT_V7_SHA}",
-        "with": {"fetch-depth": 0, "persist-credentials": False},
+        "with": {
+            "fetch-depth": 0,
+            "persist-credentials": False,
+            "ref": "${{ github.event.pull_request.head.sha || github.sha }}",
+        },
     }
 
     setup_node_step = unique_step("Setup Node.js")
@@ -5430,6 +6554,7 @@ def test_ci_lint_node24_frontend_hook_dependency_guard_rejects_drift(
     """Every bounded install, order, cache, or privilege drift must fail closed."""
 
     workflow = _load_ci_workflow()
+    _assert_ci_lint_node24_frontend_hook_dependency_contract(workflow)
     jobs = workflow["jobs"]
     assert isinstance(jobs, dict)
     lint_job = jobs["lint"]
@@ -5512,8 +6637,12 @@ def test_ci_lint_node24_frontend_hook_dependency_guard_rejects_drift(
     if mutation == "job_environment":
         lint_job["environment"] = "production"
 
-    with pytest.raises(AssertionError):
-        _assert_ci_lint_node24_frontend_hook_dependency_contract(workflow)
+    if mutation == "job_permissions":
+        with pytest.raises(AssertionError, match=r"^ci_lint_reader_permissions(?:\n|$)"):
+            _assert_ci_lint_node24_frontend_hook_dependency_contract(workflow)
+    else:
+        with pytest.raises(AssertionError):
+            _assert_ci_lint_node24_frontend_hook_dependency_contract(workflow)
 
 
 def test_main_branch_python_sharded_runner_preserves_required_check_policy() -> None:
@@ -5614,7 +6743,7 @@ def test_main_branch_python_sharded_runner_preserves_required_check_policy() -> 
     assert isinstance(matrix, list)
 
     timeouts = {entry["python-version"]: entry["timeout-minutes"] for entry in matrix}
-    assert timeouts == {"3.11": 60, "3.12": 90, "3.13": 90}
+    assert timeouts == {"3.11": 120, "3.12": 120, "3.13": 120}
 
     workflow_text = CI_WORKFLOW_PATH.read_text(encoding="utf-8")
     test_main_section = _extract_job_section(workflow_text, "  test-main:")
@@ -5653,7 +6782,7 @@ def test_main_branch_python_sharded_runner_preserves_required_check_policy() -> 
 
     assert "MAIN_TEST_SHARDS=4" in py311_block
     assert "MAIN_TEST_MAX_PARALLEL=4" in py311_block
-    assert "export MAIN_TEST_SHARD_TIMEOUT_SECONDS=2400" in py311_block
+    assert "export MAIN_TEST_SHARD_TIMEOUT_SECONDS=4800" in py311_block
     assert "PYTEST_XDIST_ARGS=(-p no:xdist)" not in py311_block
     assert "PYTEST_XDIST_ARGS=(-n 2 --dist=loadscope)" not in py311_block
     assert "PYTEST_XDIST_ARGS=(-n 4 --dist=loadscope)" not in py311_block
@@ -5667,8 +6796,8 @@ def test_main_branch_python_sharded_runner_preserves_required_check_policy() -> 
     assert "TEST_STEP_STARTED_AT=" in test_main_section
     assert "TEST_STEP_FINISHED_AT=" in shared_shard_runner_block
 
-    assert "MAIN_TEST_SHARDS=8" in py313_block
-    assert "MAIN_TEST_MAX_PARALLEL=4" in py313_block
+    assert "MAIN_TEST_SHARDS=32" in py313_block
+    assert "MAIN_TEST_MAX_PARALLEL=8" in py313_block
     assert "export MAIN_TEST_SHARD_TIMEOUT_SECONDS=4800" in py313_block
     assert "PYTEST_XDIST_ARGS=(-p no:xdist)" not in py313_block
     assert "PYTEST_XDIST_ARGS=(-n 2 --dist=loadscope)" not in py313_block
@@ -6845,7 +7974,11 @@ def _assert_frontend_node24_foundation_contract(
     assert isinstance(jobs, dict)
     job = jobs["build-and-test"]
     assert isinstance(job, dict)
-    assert "if" not in job and "continue-on-error" not in job
+    assert (
+        job.get("if")
+        == "${{ github.event_name != 'workflow_dispatch' || inputs.caddy_action != 'xnet060-metadata' }}"
+    )
+    assert "continue-on-error" not in job
     assert job["defaults"] == {"run": {"working-directory": "frontend"}}
     job_env = job.get("env", {})
     assert isinstance(job_env, dict)

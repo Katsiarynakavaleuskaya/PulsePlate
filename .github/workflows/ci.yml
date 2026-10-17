@@ -7,6 +7,7 @@ name: CI
 env:
   PYTHON_VERSION: "3.13.14"
   FRONTEND_NODE_VERSION_FILE: ".nvmrc"
+  CONTRACT_RISK_CLEANUP_SECONDS: "5"
   PULSEPLATE_PYTHON_INDEX_URL: ${{ vars.PULSEPLATE_PYTHON_INDEX_URL }}
   PULSEPLATE_PYTHON_TRUSTED_HOST: ${{ vars.PULSEPLATE_PYTHON_TRUSTED_HOST }}
 
@@ -75,7 +76,7 @@ jobs:
               'scripts/ios_test_targets.sh',
               'scripts/ci/select_ios_simulator.py',
               'scripts/ci/check_ios_swift_syntax.sh', 'scripts/release/check_ios_appstore_verify.py']
-            pgvector_compat: ['.github/workflows/ci.yml', 'constraints.txt', 'requirements-ci-lite.txt', 'requirements-rag-vector.in', 'requirements-rag-vector.txt', 'requirements-rag-vector-cpu.in', 'requirements-rag-vector-cpu.txt', 'requirements-test.in', 'requirements-test.txt', 'scripts/ci/emergency_python_wheels.json', 'scripts/ci/install_locked_python_requirements.py', 'scripts/deploy.sh', 'scripts/deploy_production.sh', 'deploy/docker-compose.staging.yaml', 'deploy/systemd/pulseplate-postgres-backup.timer.example', 'deploy/docker-compose.production.selfhosted.yaml', 'deploy/postgres-pgvector/**', 'scripts/ci/check_alembic_autogenerate_completeness.py', 'core/db.py', 'core/db_alembic_comparison.py', 'core/db_rls.py', 'core/models.py', 'core/rag/vector_rag.py', 'app/models/**', 'alembic.ini', 'alembic/env.py', 'alembic/versions/**', 'alembic/versions/202602280001_add_rag_feedback_tables.py', 'alembic/versions/202602280002_enable_pgvector_extension.py', 'alembic/versions/202602280003_convert_embedding_to_vector768.py', 'alembic/versions/202603100101_enable_rag_user_rls.py', 'alembic/versions/202603110001_harden_rag_subject_principal_bigint.py', 'tests/test_deploy_contract_scripts.py', 'tests/test_alembic_autogenerate_completeness.py', 'tests/test_pgvector_compat.py', 'tests/test_pgvector_embedding_migration.py', 'tests/test_vector_rag.py', 'tests/test_db_rls.py']
+            pgvector_compat: ['.github/workflows/ci.yml', '.github/actions/python-setup/action.yml', 'Dockerfile', '.dockerignore', 'scripts/ci/docker_source_artifacts.json', 'scripts/ci/fetch_docker_source_artifacts.py', 'scripts/ci/check_private_python_proxy_health.py', 'scripts/ci/check_python_startup_hooks.py', 'constraints.txt', 'requirements-ci-lite.txt', 'requirements-rag-vector.in', 'requirements-rag-vector.txt', 'requirements-rag-vector-cpu.in', 'requirements-rag-vector-cpu.txt', 'requirements-test.in', 'requirements-test.txt', 'scripts/ci/emergency_python_wheels.json', 'scripts/ci/install_locked_python_requirements.py', 'scripts/deploy.sh', 'scripts/deploy_production.sh', 'deploy/docker-compose.staging.yaml', 'deploy/systemd/pulseplate-postgres-backup.timer.example', 'deploy/docker-compose.production.selfhosted.yaml', 'deploy/postgres-pgvector/**', 'scripts/ci/check_alembic_autogenerate_completeness.py', 'core/db.py', 'core/db_alembic_comparison.py', 'core/db_rls.py', 'core/models.py', 'core/rag/vector_rag.py', 'app/models/**', 'alembic.ini', 'alembic/env.py', 'alembic/versions/**', 'alembic/versions/202602280001_add_rag_feedback_tables.py', 'alembic/versions/202602280002_enable_pgvector_extension.py', 'alembic/versions/202602280003_convert_embedding_to_vector768.py', 'alembic/versions/202603100101_enable_rag_user_rls.py', 'alembic/versions/202603110001_harden_rag_subject_principal_bigint.py', 'tests/test_deploy_contract_scripts.py', 'tests/test_alembic_autogenerate_completeness.py', 'tests/test_pgvector_compat.py', 'tests/test_pgvector_embedding_migration.py', 'tests/test_vector_rag.py', 'tests/test_db_rls.py']
       - name: Build CI risk profile
         id: risk_profile
         if: github.event_name == 'pull_request' || (github.event_name == 'push' && (startsWith(github.ref, 'refs/heads/feat/') || startsWith(github.ref, 'refs/heads/fix/') || startsWith(github.ref, 'refs/heads/feature/')))
@@ -686,6 +687,7 @@ jobs:
             --python-version 3.13 \
             --project aiosqlite \
             --project cryptography \
+            --project psycopg-c \
             --project requests \
             --project pytest-xdist \
             --project hypothesis \
@@ -718,6 +720,13 @@ jobs:
     if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     timeout-minutes: ${{ fromJSON(vars.CI_LINT_TIMEOUT_MINUTES || '90') }}
+    permissions:
+      contents: read
+      actions: read
+      packages: read
+    env:
+      PROMETHEUS_CONSUME_SECONDS: '900'
+      PROMETHEUS_CLEANUP_SECONDS: '120'
     steps:
       - name: Enforce prerequisite results
         env:
@@ -730,7 +739,169 @@ jobs:
 
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with: {fetch-depth: 0, persist-credentials: false}
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Select native OBS2A material before PR startup
+        id: checkpoint-selection
+        if: github.event_name == 'pull_request'
+        env:
+          OBS2A_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          OBS2A_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/orchestration/obs2a_pr3
+          exec 3>&1 4>&2
+          exec > artifacts/orchestration/obs2a_pr3/selection.log 2>&1
+          trap 'selection_status=$?; exec 1>&3 2>&4 3>&- 4>&-; if cat artifacts/orchestration/obs2a_pr3/selection.log; then exit "$selection_status"; else capture_status=$?; if [ "$selection_status" -ne 0 ]; then exit "$selection_status"; fi; exit "$capture_status"; fi' EXIT
+          git_safe=(git --no-replace-objects -c core.fsmonitor=false -c core.hooksPath=/dev/null -c core.pager=cat)
+          selected_head="$("${git_safe[@]}" rev-parse HEAD)"
+          test "$selected_head" = "$OBS2A_HEAD_SHA"
+          "${git_safe[@]}" rev-parse --verify "$OBS2A_BASE_SHA^{commit}" >/dev/null
+          "${git_safe[@]}" rev-parse --verify "$OBS2A_HEAD_SHA^{commit}" >/dev/null
+          merge_base="$("${git_safe[@]}" merge-base --all "$OBS2A_BASE_SHA" "$OBS2A_HEAD_SHA")"
+          case "$merge_base" in
+            '' | *$'\n'*) echo "Native PR ancestry is missing or ambiguous" >&2; exit 1 ;;
+          esac
+          diff_status=0
+          if "${git_safe[@]}" diff --quiet --no-ext-diff --no-textconv "$merge_base" "$OBS2A_HEAD_SHA" -- \
+            deploy/systemd scripts/ops/notify_premium_alias_checkpoint_failure.py deploy/prometheus/image-manifest.json \
+            scripts/verify_premium_alias_telemetry.py tests/test_notify_premium_alias_checkpoint_failure.py \
+            .github/workflows/ci.yml .github/workflows/cd.yml scripts/deploy.sh scripts/deploy_production.sh; then
+            diff_status=0
+          else
+            diff_status=$?
+          fi
+          case "$diff_status" in
+            0) echo "selected=false" >> "$GITHUB_OUTPUT"; exit 0 ;;
+            1) echo "selected=true" >> "$GITHUB_OUTPUT" ;;
+            *) echo "Native surface discovery failed" >&2; exit "$diff_status" ;;
+          esac
+          manifest_path=deploy/prometheus/image-manifest.json
+          for revision in "$OBS2A_BASE_SHA" "$OBS2A_HEAD_SHA"; do
+            entry="$("${git_safe[@]}" ls-tree "$revision" -- "$manifest_path")"
+            [[ "$entry" =~ ^100644\ blob\ [0-9a-f]{40}$'\t'"$manifest_path"$ ]]
+          done
+          base_blob="$("${git_safe[@]}" rev-parse "$OBS2A_BASE_SHA:$manifest_path")"
+          head_blob="$("${git_safe[@]}" rev-parse "$OBS2A_HEAD_SHA:$manifest_path")"
+          if [ "$base_blob" = "$head_blob" ]; then
+            echo "mode=unchanged_pr_published" >> "$GITHUB_OUTPUT"
+          else
+            echo "mode=changed_pr_candidate" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Require fresh fixed Prometheus control checkout
+        if: github.event_name == 'pull_request' && steps.checkpoint-selection.outputs.selected == 'true'
+        run: |
+          set -euo pipefail
+          test ! -e artifacts/orchestration/prometheus-control
+          test ! -L artifacts/orchestration/prometheus-control
+          for parent in artifacts artifacts/orchestration; do
+            test -d "$parent" && test ! -L "$parent"
+          done
+
+      - name: Checkout fixed trusted Prometheus control
+        id: prometheus-control-checkout
+        if: github.event_name == 'pull_request' && steps.checkpoint-selection.outputs.selected == 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: 5064aded22f478a22a4319b684e95d6c0b3ae46f # pragma: allowlist secret - public trusted control commit
+          persist-credentials: false
+          path: artifacts/orchestration/prometheus-control
+          sparse-checkout: scripts/ci/prometheus_source_image.py
+          sparse-checkout-cone-mode: false
+
+      - name: Consume exact Prometheus subject before PR startup
+        id: checkpoint-image
+        if: github.event_name == 'pull_request' && steps.checkpoint-selection.outputs.selected == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GHCR_READ_TOKEN: ${{ steps.checkpoint-selection.outputs.mode == 'unchanged_pr_published' && secrets.GITHUB_TOKEN || '' }}
+          PROMETHEUS_CREDENTIAL_ROUTE: ${{ steps.checkpoint-selection.outputs.mode }}
+        run: |
+          set -euo pipefail
+          python3 -I -S - <<'PY'
+          import hashlib, json, os, runpy, signal, stat, subprocess
+          from pathlib import Path
+
+          material = Path(os.environ["GITHUB_WORKSPACE"])
+          control = material / "artifacts/orchestration/prometheus-control"
+          helper = control / "scripts/ci/prometheus_source_image.py"
+          for path in (control, control / "scripts", control / "scripts/ci", helper):
+              info = path.lstat()
+              if info.st_uid != os.getuid() or stat.S_ISLNK(info.st_mode):
+                  raise SystemExit("Prometheus_control_path_HOLD")
+          if not helper.is_file() or stat.S_IMODE(helper.stat().st_mode) != 0o644:
+              raise SystemExit("Prometheus_control_mode_HOLD")
+          raw = helper.read_bytes()
+          if len(raw) != 315949 or hashlib.sha256(raw).hexdigest() != "0e7a73b0159c442cf5f9377aa862e38d643145f81ac6a54ee50b31682f6c3e3e":
+              raise SystemExit("Prometheus_control_bytes_HOLD")
+          environment = {"PATH": "/usr/bin:/bin", "LANG": "C", "GIT_NO_REPLACE_OBJECTS": "1",
+                         "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": "/dev/null"}
+          revision = subprocess.run(["/usr/bin/git", "--no-replace-objects", "-C", str(control),
+                                     "rev-parse", "HEAD"], env=environment, capture_output=True, check=True)
+          if revision.stdout.strip() != b"5064aded22f478a22a4319b684e95d6c0b3ae46f":
+              raise SystemExit("Prometheus_control_revision_HOLD")
+          object_row = subprocess.run(["/usr/bin/git", "--no-replace-objects", "-C", str(control),
+                                      "ls-tree", "-z", "HEAD", "--", "scripts/ci/prometheus_source_image.py"],
+                                     env=environment, capture_output=True, check=True)
+          if object_row.stdout != b"100644 blob 3029aeba29126a05fba5cbd6953916618852d0e2\tscripts/ci/prometheus_source_image.py\0":
+              raise SystemExit("Prometheus_control_object_HOLD")
+          event_head = subprocess.run(["/usr/bin/git", "--no-replace-objects", "-C", str(material),
+                                      "rev-parse", "HEAD"], env=environment, capture_output=True, check=True)
+          event = json.loads(Path(os.environ["GITHUB_EVENT_PATH"]).read_bytes())
+          if event_head.stdout.strip().decode() != event["pull_request"]["head"]["sha"]:
+              raise SystemExit("Prometheus_material_revision_HOLD")
+          route = os.environ["PROMETHEUS_CREDENTIAL_ROUTE"]
+          if route not in ("changed_pr_candidate", "unchanged_pr_published"):
+              raise SystemExit("Prometheus_credential_route_HOLD")
+          if route == "changed_pr_candidate" and os.environ.get("GHCR_READ_TOKEN"):
+              raise SystemExit("Prometheus_candidate_registry_HOLD")
+          trusted = runpy.run_path(str(helper))
+          work = Path(os.environ["RUNNER_TEMP"]) / ("prometheus-obs2a-consumer-" + os.environ["GITHUB_RUN_ID"] + "-" + os.environ["GITHUB_RUN_ATTEMPT"])
+          signal.signal(signal.SIGTERM, trusted["interrupt"])
+          signal.signal(signal.SIGINT, trusted["interrupt"])
+          try:
+              result = trusted["consume_image"](work, material, int(os.environ["PROMETHEUS_CONSUME_SECONDS"]), int(os.environ["PROMETHEUS_CLEANUP_SECONDS"]))
+          except (Exception, KeyboardInterrupt) as error:
+              diagnostic = trusted["diagnostic_code"](error) or type(error).__name__
+              raise SystemExit("Prometheus_consume_HOLD:" + diagnostic) from None
+          selection = result["selection"]
+          outputs = {"manifest_digest": selection["manifest_digest"], "config_digest": selection["config_digest"],
+                     "source_revision": selection["source_revision"], "runtime_ref": result.get("runtime_ref", selection["runtime_ref"])}
+          with Path(os.environ["GITHUB_OUTPUT"]).open("a") as output:
+              for key, value in outputs.items():
+                  trusted["require"](type(value) is str and "\n" not in value and "\r" not in value, "native_output_single_line")
+                  output.write(key + "=" + value + "\n")
+          PY
+
+      - name: Remove fixed trusted Prometheus control checkout
+        if: always() && github.event_name == 'pull_request' && (steps.prometheus-control-checkout.outcome == 'success' || steps.prometheus-control-checkout.outcome == 'failure')
+        run: |
+          set -euo pipefail
+          control="$GITHUB_WORKSPACE/artifacts/orchestration/prometheus-control"
+          test ! -L "$control"
+          rm -rf -- "$control"
+          test ! -e "$control" && test ! -L "$control"
+
+      - name: Restore lint workflow revision
+        if: github.event_name == 'pull_request'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+          clean: false
+
+      - name: Verify lint workflow revision
+        if: github.event_name == 'pull_request'
+        run: |
+          set -euo pipefail
+          restored_sha="$(git rev-parse HEAD)"
+          test "$restored_sha" = "$GITHUB_SHA"
 
       - name: Setup Python environment
         uses: ./.github/actions/python-setup
@@ -756,62 +927,38 @@ jobs:
 
       - name: Native OBS2A checkpoint lifecycle and owned-task challenge
         id: checkpoint-native
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' && steps.checkpoint-selection.outputs.selected == 'true'
         timeout-minutes: ${{ fromJSON(vars.OBS2A_NATIVE_JOB_TIMEOUT_MINUTES || '40') }}
         env:
-          OBS2A_BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          OBS2A_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PROMETHEUS_RUNTIME_REF: ${{ steps.checkpoint-image.outputs.runtime_ref }}
         run: |
           set -euo pipefail
-          diff_status=0
-          git rev-parse --verify "$OBS2A_BASE_SHA^{commit}" >/dev/null
-          git rev-parse --verify "$OBS2A_HEAD_SHA^{commit}" >/dev/null
-          merge_base="$(git merge-base --all "$OBS2A_BASE_SHA" "$OBS2A_HEAD_SHA")"
-          case "$merge_base" in
-            '' | *$'\n'*) echo "Native PR ancestry is missing or ambiguous" >&2; exit 1 ;;
-          esac
-          git rev-parse --verify "$merge_base^{commit}" >/dev/null
-          if git diff --quiet "$merge_base" "$OBS2A_HEAD_SHA" -- \
-            deploy/systemd scripts/ops/notify_premium_alias_checkpoint_failure.py \
-            scripts/verify_premium_alias_telemetry.py tests/test_notify_premium_alias_checkpoint_failure.py \
-            .github/workflows/ci.yml .github/workflows/cd.yml scripts/deploy.sh scripts/deploy_production.sh; then
-            diff_status=0
+          native_python="$(command -v python)"
+          mkdir -p artifacts/orchestration/obs2a_pr3
+          if {
+            sudo /usr/bin/env -i PATH=/usr/local/bin:/usr/bin:/bin LANG=C HOME=/tmp PYTHONDONTWRITEBYTECODE=1 \
+            "$native_python" -m tests.test_notify_premium_alias_checkpoint_failure --native
+          } 2>&1 | tee artifacts/orchestration/obs2a_pr3/native-result.log; then
+            pipeline_status=("${PIPESTATUS[@]}")
           else
-            diff_status=$?
+            pipeline_status=("${PIPESTATUS[@]}")
           fi
-          case "$diff_status" in
-            0)
-              echo "selected=false" >> "$GITHUB_OUTPUT"
-              echo "No OBS2A native surface selected."
-              ;;
-            1)
-              echo "selected=true" >> "$GITHUB_OUTPUT"
-              native_python="$(command -v python)"
-              mkdir -p artifacts/orchestration/obs2a_pr3
-              if {
-                sudo /usr/bin/env -i PATH=/usr/bin:/bin LANG=C HOME=/tmp PYTHONDONTWRITEBYTECODE=1 \
-                "$native_python" -m tests.test_notify_premium_alias_checkpoint_failure --native
-              } 2>&1 | tee artifacts/orchestration/obs2a_pr3/native-result.log; then
-                pipeline_status=("${PIPESTATUS[@]}")
-              else
-                pipeline_status=("${PIPESTATUS[@]}")
-              fi
-              native_status="${pipeline_status[0]}"
-              capture_status="${pipeline_status[1]}"
-              if [ "$native_status" -ne 0 ]; then
-                exit "$native_status"
-              fi
-              exit "$capture_status"
-              ;;
-            *) echo "Native surface discovery failed" >&2; exit "$diff_status" ;;
-          esac
+          native_status="${pipeline_status[0]}"
+          capture_status="${pipeline_status[1]}"
+          if [ "$native_status" -ne 0 ]; then
+            exit "$native_status"
+          fi
+          exit "$capture_status"
 
       - name: Retain selected PR OBS2A native observations
-        if: always() && github.event_name == 'pull_request' && steps.checkpoint-native.outputs.selected == 'true'
+        if: always() && github.event_name == 'pull_request' && (steps.checkpoint-selection.outputs.selected == 'true' || steps.checkpoint-selection.outcome == 'failure')
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1 / Node 24
         with:
           name: obs2a-native-pr-${{ github.event.pull_request.number }}-${{ github.run_attempt }}
-          path: artifacts/orchestration/obs2a_pr3/native-result.log
+          path: |
+            artifacts/orchestration/obs2a_pr3/selection.log
+            artifacts/orchestration/obs2a_pr3/native-result.log
+            ${{ runner.temp }}/prometheus-obs2a-consumer-${{ github.run_id }}-${{ github.run_attempt }}/evidence/
           if-no-files-found: error
           retention-days: 7
 
@@ -1245,21 +1392,272 @@ jobs:
           printf 'Selected contract/risk suites:\n'
           printf '  - %s\n' "${SELECTED_TARGETS[@]}"
 
+          : "${RUNNER_TEMP:?RUNNER_TEMP is required for isolated contract batches.}"
+          set -m
+          shopt -s nullglob
           contract_batch_size=24
+          contract_max_parallel=2
+          contract_cleanup_seconds="${CONTRACT_RISK_CLEANUP_SECONDS:?Set CONTRACT_RISK_CLEANUP_SECONDS.}"
           contract_batch_index=0
+          contract_failures=0
+          contract_launching=0
+          contract_signal_status=0
+          contract_cleaning=0
+          contract_cleanup_attempted=0
+          contract_cleanup_result=0
+          contract_pids=()
+          contract_batch_statuses=()
+          contract_batch_ids=()
+          contract_coverage_files=()
+          contract_temp_root="$RUNNER_TEMP/contract-risk"
+          mkdir -p "$contract_temp_root" tests
+
+          wait_contract_batches() {
+            for index in "${!contract_pids[@]}"; do
+              if wait "${contract_pids[$index]}"; then
+                batch_status=0
+              else
+                batch_status=$?
+                contract_failures=$((contract_failures + 1))
+              fi
+              contract_batch_statuses+=("$batch_status")
+              printf 'Contract/risk batch %s exited %s\n' \
+                "${contract_batch_ids[$index]}" "${contract_batch_statuses[$index]}"
+            done
+            if cleanup_contract_batches; then
+              :
+            else
+              if [ "$contract_signal_status" -ne 0 ]; then
+                exit "$contract_signal_status"
+              fi
+              exit 1
+            fi
+            if [ "$contract_signal_status" -ne 0 ]; then
+              exit "$contract_signal_status"
+            fi
+            contract_pids=()
+            contract_batch_ids=()
+            contract_batch_statuses=()
+            contract_cleanup_attempted=0
+          }
+
+          cleanup_contract_batches() {
+            if [ "${#contract_pids[@]}" -eq 0 ]; then
+              return 0
+            fi
+            if [ "$contract_cleanup_attempted" -ne 0 ]; then
+              return "$contract_cleanup_result"
+            fi
+            contract_cleanup_attempted=1
+            contract_cleanup_result=1
+            contract_cleaning=1
+            cleanup_failures=0
+            cleanup_deadline=$((SECONDS + contract_cleanup_seconds))
+            term_deadline=$((SECONDS + contract_cleanup_seconds / 2))
+            for pid in "${contract_pids[@]}"; do
+              if kill -0 -- "-$pid" 2>/dev/null; then
+                if kill -TERM -- "-$pid"; then
+                  :
+                else
+                  cleanup_failures=$((cleanup_failures + 1))
+                  echo "::error::Failed to stop owned contract/risk group $pid"
+                fi
+              fi
+            done
+            while [ "$SECONDS" -lt "$term_deadline" ]; do
+              groups_alive=0
+              for pid in "${contract_pids[@]}"; do
+                if kill -0 -- "-$pid" 2>/dev/null; then
+                  groups_alive=1
+                fi
+              done
+              if [ "$groups_alive" -eq 0 ]; then
+                break
+              fi
+              sleep 0.1
+            done
+            for pid in "${contract_pids[@]}"; do
+              if kill -0 -- "-$pid" 2>/dev/null; then
+                if kill -KILL -- "-$pid"; then
+                  :
+                else
+                  cleanup_failures=$((cleanup_failures + 1))
+                  echo "::error::Failed to kill owned contract/risk group $pid"
+                fi
+              fi
+            done
+            while [ "$SECONDS" -lt "$cleanup_deadline" ]; do
+              groups_alive=0
+              for pid in "${contract_pids[@]}"; do
+                if kill -0 -- "-$pid" 2>/dev/null; then
+                  groups_alive=1
+                fi
+              done
+              if [ "$groups_alive" -eq 0 ]; then
+                break
+              fi
+              sleep 0.1
+            done
+            running_jobs="$(jobs -pr)"
+            for pid in "${contract_pids[@]}"; do
+              leader_running=0
+              for running_pid in $running_jobs; do
+                if [ "$running_pid" = "$pid" ]; then
+                  leader_running=1
+                fi
+              done
+              if [ "$leader_running" -ne 0 ] && kill -0 -- "-$pid" 2>/dev/null; then
+                cleanup_failures=$((cleanup_failures + 1))
+                echo "::error::Owned contract/risk leader $pid survived cleanup."
+              else
+                if wait "$pid"; then
+                  cleanup_status=0
+                else
+                  cleanup_status=$?
+                fi
+                printf 'Reaped owned contract/risk batch pid %s (status %s)\n' \
+                  "$pid" "$cleanup_status"
+              fi
+            done
+            # Separate post-reap observation budget; TERM/KILL retains its own limit.
+            if [ "$cleanup_failures" -eq 0 ]; then
+              if python - "$contract_cleanup_seconds" "${contract_pids[@]}" <<'CONTRACT_GROUP_OBSERVATION_PY'
+          import signal
+          import sys
+          import time
+
+          started = time.monotonic()
+          if not sys.argv[1].isascii() or not sys.argv[1].isdecimal():
+              raise SystemExit(1)
+          seconds = int(sys.argv[1])
+          if not 0 < seconds <= 5:
+              raise SystemExit(1)
+          deadline = started + seconds
+
+          def observation_expired(signum: int, frame: object) -> None:
+              raise TimeoutError("contract group observation deadline")
+
+          signal.signal(signal.SIGALRM, observation_expired)
+          signal.setitimer(signal.ITIMER_REAL, seconds)
+          try:
+              import os
+              import re
+              from scripts.ci.prometheus_source_image import process_census
+
+              operands = sys.argv[2:]
+              if not operands or any(not re.fullmatch(r"[1-9][0-9]*", value) for value in operands):
+                  raise ValueError("registered process group operands")
+              groups = [int(value) for value in operands]
+              if len(set(groups)) != len(groups):
+                  raise ValueError("duplicate registered process group")
+              rows = process_census(deadline, ())
+              observer = rows.get(os.getpid())
+              native_states = frozenset("RSDTtWXIUZ")
+              if (
+                  observer is None
+                  or observer["pid"] != os.getpid()
+                  or observer["ppid"] != os.getppid()
+                  or observer["pgid"] != os.getpgid(0)
+                  or observer["uid"] != os.getuid()
+                  or observer["state"] not in native_states
+                  or observer["state"].startswith("Z")
+              ):
+                  raise RuntimeError("native observer witness unavailable")
+              if any(group in rows for group in groups):
+                  raise RuntimeError("registered leader remains or identity was reused")
+              for group in groups:
+                  members = [row for row in rows.values() if row["pgid"] == group]
+                  if not members:
+                      print(f"Contract/risk group {group}: observed empty.")
+                      continue
+                  if any(
+                      row["uid"] != os.getuid()
+                      or row["pid"] <= 0
+                      or row["ppid"] < 0
+                      or row["state"] not in native_states
+                      or not row["state"].startswith("Z")
+                      for row in members
+                  ):
+                      raise RuntimeError("active or uncertain registered group members")
+                  print(f"Contract/risk group {group}: observed zombie-only inactivity; not physical absence.")
+          except Exception as error:
+              print(f"::error::Contract/risk post-wait observation failed: {type(error).__name__}", file=sys.stderr)
+              raise SystemExit(1) from None
+          finally:
+              signal.setitimer(signal.ITIMER_REAL, 0)
+          CONTRACT_GROUP_OBSERVATION_PY
+              then
+                :
+              else
+                cleanup_failures=$((cleanup_failures + 1))
+                echo "::error::Owned contract/risk groups remain active or unverified."
+              fi
+            fi
+            contract_cleanup_result=0
+            if [ "$cleanup_failures" -ne 0 ]; then
+              contract_cleanup_result=1
+            fi
+            contract_cleaning=0
+            printf 'Contract/risk cleanup exited %s\n' "$contract_cleanup_result"
+            return "$contract_cleanup_result"
+          }
+          trap 'original_status=$?; if cleanup_contract_batches; then cleanup_status=0; else cleanup_status=$?; fi; if [ "$original_status" -ne 0 ]; then exit "$original_status"; fi; exit "$cleanup_status"' EXIT
+          trap 'contract_signal_status=130; if [ "$contract_launching" -eq 0 ] && [ "$contract_cleaning" -eq 0 ]; then exit 130; fi' INT
+          trap 'contract_signal_status=143; if [ "$contract_launching" -eq 0 ] && [ "$contract_cleaning" -eq 0 ]; then exit 143; fi' TERM
+
           for ((batch_start=0; batch_start<${#SELECTED_TARGETS[@]}; batch_start+=contract_batch_size)); do
             contract_batch_index=$((contract_batch_index + 1))
             batch_targets=("${SELECTED_TARGETS[@]:batch_start:contract_batch_size}")
             junit_path="tests/contract-results-${contract_batch_index}.xml"
+            stdout_path="${junit_path%.xml}.stdout.log"
+            stderr_path="${junit_path%.xml}.stderr.log"
+            coverage_path=".coverage.contract-risk-${contract_batch_index}"
+            existing_batch_data=("$coverage_path" "$coverage_path".*)
+            for data_path in "${existing_batch_data[@]}"; do
+              if [ -e "$data_path" ] || [ -L "$data_path" ]; then
+                echo "::error::Contract/risk coverage data already exists: $data_path"
+                exit 1
+              fi
+            done
+            database_path="$contract_temp_root/batch-${contract_batch_index}.sqlite"
+            contract_coverage_files+=("$coverage_path")
             printf 'Running contract/risk suite batch %s (%s target(s)):\n' \
               "$contract_batch_index" "${#batch_targets[@]}"
             printf '  - %s\n' "${batch_targets[@]}"
-            python -m coverage run --append -m pytest -q \
+            contract_launching=1
+            COVERAGE_FILE="$coverage_path" COV_CORE_DATAFILE="$coverage_path" \
+              TEST_DB_PATH="$database_path" DATABASE_URL="sqlite:///$database_path" \
+              DB_FALLBACK_URL="sqlite:///$database_path" \
+              python -m coverage run --append -m pytest -q --capture=no --verbosity=1 \
               -p no:xdist \
               "${batch_targets[@]}" \
               --junitxml="${junit_path}" \
-              -o junit_family=legacy
+              --basetemp="$contract_temp_root/batch-${contract_batch_index}" \
+              -o junit_family=legacy >"$stdout_path" 2>"$stderr_path" &
+            contract_pids+=("$!")
+            contract_batch_ids+=("$contract_batch_index")
+            contract_launching=0
+            if [ "$contract_signal_status" -ne 0 ]; then
+              exit "$contract_signal_status"
+            fi
+            if [ "${#contract_pids[@]}" -eq "$contract_max_parallel" ]; then
+              wait_contract_batches
+            fi
           done
+          wait_contract_batches
+          if [ "$contract_failures" -ne 0 ]; then
+            echo "::error::$contract_failures contract/risk batch(es) failed."
+            exit 1
+          fi
+          contract_combine_files=()
+          for coverage_path in "${contract_coverage_files[@]}"; do
+            if [ ! -s "$coverage_path" ]; then
+              echo "::error::Missing contract/risk coverage data: $coverage_path"
+              exit 1
+            fi
+            contract_combine_files+=("$coverage_path" "$coverage_path".*)
+          done
+          python -W error -m coverage combine --append --keep "${contract_combine_files[@]}"
 
       - name: Measure OPS CLI coverage
         env:
@@ -1454,6 +1852,8 @@ jobs:
           path: |
             tests/smoke-results.xml
             tests/contract-results*.xml
+            tests/contract-results-*.stdout.log
+            tests/contract-results-*.stderr.log
           if-no-files-found: ignore
           retention-days: 7
 
@@ -1506,48 +1906,15 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Setup Python
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+      - name: Setup Python environment
+        uses: ./.github/actions/python-setup
+        env:
+          DEVPI_CI_USER: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && secrets.DEVPI_CI_USER || '' }}
+          DEVPI_CI_PASSWORD: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && secrets.DEVPI_CI_PASSWORD || '' }}
         with:
           python-version: "3.13.14"
-          cache: "pip"
-          cache-dependency-path: |
-            requirements-ci-lite.txt
-            requirements-test.txt
-
-      - name: Install locked ci-test dependencies
-        run: |
-          set -euo pipefail
-          index_url="${PULSEPLATE_PYTHON_INDEX_URL:-}"
-          trusted_host="${PULSEPLATE_PYTHON_TRUSTED_HOST:-}"
-          if [[ -z "$index_url" ]]; then
-            echo "::error::Set credential-free PULSEPLATE_PYTHON_INDEX_URL for pgvector compatibility."
-            exit 1
-          fi
-          case "$index_url" in
-            *://*@*)
-              echo "::error::PULSEPLATE_PYTHON_INDEX_URL must be credential-free."
-              exit 1
-              ;;
-          esac
-          case "$index_url$trusted_host" in
-            *$'\n'*|*$'\r'*)
-              echo "::error::Python package proxy settings must be single-line values."
-              exit 1
-              ;;
-          esac
-          install_args=()
-          if [[ -n "$trusted_host" ]]; then
-            install_args+=(--trusted-host "$trusted_host")
-          fi
-          python scripts/ci/install_locked_python_requirements.py \
-            --python-executable python \
-            --constraints-file constraints.txt \
-            --emergency-wheel-manifest scripts/ci/emergency_python_wheels.json \
-            --requirements-profile ci-test \
-            --install-mode direct-proxy \
-            --index-url "$index_url" \
-            "${install_args[@]}"
+          requirements-profile: ci-test
+          install-mode: direct-proxy
 
       - name: Prove pgvector binding, extension, and RLS compatibility
         run: |
@@ -1849,21 +2216,270 @@ jobs:
           printf 'Selected contract/risk suites:\n'
           printf '  - %s\n' "${SELECTED_TARGETS[@]}"
 
+          : "${RUNNER_TEMP:?RUNNER_TEMP is required for isolated contract batches.}"
+          set -m
+          shopt -s nullglob
           contract_batch_size=24
+          contract_max_parallel=2
+          contract_cleanup_seconds="${CONTRACT_RISK_CLEANUP_SECONDS:?Set CONTRACT_RISK_CLEANUP_SECONDS.}"
           contract_batch_index=0
+          contract_failures=0
+          contract_launching=0
+          contract_signal_status=0
+          contract_cleaning=0
+          contract_cleanup_attempted=0
+          contract_cleanup_result=0
+          contract_pids=()
+          contract_batch_statuses=()
+          contract_batch_ids=()
+          contract_coverage_files=()
+          contract_temp_root="$RUNNER_TEMP/contract-risk"
+          mkdir -p "$contract_temp_root" tests
+
+          wait_contract_batches() {
+            for index in "${!contract_pids[@]}"; do
+              if wait "${contract_pids[$index]}"; then
+                batch_status=0
+              else
+                batch_status=$?
+                contract_failures=$((contract_failures + 1))
+              fi
+              contract_batch_statuses+=("$batch_status")
+              printf 'Contract/risk batch %s exited %s\n' \
+                "${contract_batch_ids[$index]}" "${contract_batch_statuses[$index]}"
+            done
+            if cleanup_contract_batches; then
+              :
+            else
+              if [ "$contract_signal_status" -ne 0 ]; then
+                exit "$contract_signal_status"
+              fi
+              exit 1
+            fi
+            if [ "$contract_signal_status" -ne 0 ]; then
+              exit "$contract_signal_status"
+            fi
+            contract_pids=()
+            contract_batch_ids=()
+            contract_batch_statuses=()
+            contract_cleanup_attempted=0
+          }
+
+          cleanup_contract_batches() {
+            if [ "${#contract_pids[@]}" -eq 0 ]; then
+              return 0
+            fi
+            if [ "$contract_cleanup_attempted" -ne 0 ]; then
+              return "$contract_cleanup_result"
+            fi
+            contract_cleanup_attempted=1
+            contract_cleanup_result=1
+            contract_cleaning=1
+            cleanup_failures=0
+            cleanup_deadline=$((SECONDS + contract_cleanup_seconds))
+            term_deadline=$((SECONDS + contract_cleanup_seconds / 2))
+            for pid in "${contract_pids[@]}"; do
+              if kill -0 -- "-$pid" 2>/dev/null; then
+                if kill -TERM -- "-$pid"; then
+                  :
+                else
+                  cleanup_failures=$((cleanup_failures + 1))
+                  echo "::error::Failed to stop owned contract/risk group $pid"
+                fi
+              fi
+            done
+            while [ "$SECONDS" -lt "$term_deadline" ]; do
+              groups_alive=0
+              for pid in "${contract_pids[@]}"; do
+                if kill -0 -- "-$pid" 2>/dev/null; then
+                  groups_alive=1
+                fi
+              done
+              if [ "$groups_alive" -eq 0 ]; then
+                break
+              fi
+              sleep 0.1
+            done
+            for pid in "${contract_pids[@]}"; do
+              if kill -0 -- "-$pid" 2>/dev/null; then
+                if kill -KILL -- "-$pid"; then
+                  :
+                else
+                  cleanup_failures=$((cleanup_failures + 1))
+                  echo "::error::Failed to kill owned contract/risk group $pid"
+                fi
+              fi
+            done
+            while [ "$SECONDS" -lt "$cleanup_deadline" ]; do
+              groups_alive=0
+              for pid in "${contract_pids[@]}"; do
+                if kill -0 -- "-$pid" 2>/dev/null; then
+                  groups_alive=1
+                fi
+              done
+              if [ "$groups_alive" -eq 0 ]; then
+                break
+              fi
+              sleep 0.1
+            done
+            running_jobs="$(jobs -pr)"
+            for pid in "${contract_pids[@]}"; do
+              leader_running=0
+              for running_pid in $running_jobs; do
+                if [ "$running_pid" = "$pid" ]; then
+                  leader_running=1
+                fi
+              done
+              if [ "$leader_running" -ne 0 ] && kill -0 -- "-$pid" 2>/dev/null; then
+                cleanup_failures=$((cleanup_failures + 1))
+                echo "::error::Owned contract/risk leader $pid survived cleanup."
+              else
+                if wait "$pid"; then
+                  cleanup_status=0
+                else
+                  cleanup_status=$?
+                fi
+                printf 'Reaped owned contract/risk batch pid %s (status %s)\n' \
+                  "$pid" "$cleanup_status"
+              fi
+            done
+            # Separate post-reap observation budget; TERM/KILL retains its own limit.
+            if [ "$cleanup_failures" -eq 0 ]; then
+              if python - "$contract_cleanup_seconds" "${contract_pids[@]}" <<'CONTRACT_GROUP_OBSERVATION_PY'
+          import signal
+          import sys
+          import time
+
+          started = time.monotonic()
+          if not sys.argv[1].isascii() or not sys.argv[1].isdecimal():
+              raise SystemExit(1)
+          seconds = int(sys.argv[1])
+          if not 0 < seconds <= 5:
+              raise SystemExit(1)
+          deadline = started + seconds
+
+          def observation_expired(signum: int, frame: object) -> None:
+              raise TimeoutError("contract group observation deadline")
+
+          signal.signal(signal.SIGALRM, observation_expired)
+          signal.setitimer(signal.ITIMER_REAL, seconds)
+          try:
+              import os
+              import re
+              from scripts.ci.prometheus_source_image import process_census
+
+              operands = sys.argv[2:]
+              if not operands or any(not re.fullmatch(r"[1-9][0-9]*", value) for value in operands):
+                  raise ValueError("registered process group operands")
+              groups = [int(value) for value in operands]
+              if len(set(groups)) != len(groups):
+                  raise ValueError("duplicate registered process group")
+              rows = process_census(deadline, ())
+              observer = rows.get(os.getpid())
+              native_states = frozenset("RSDTtWXIUZ")
+              if (
+                  observer is None
+                  or observer["pid"] != os.getpid()
+                  or observer["ppid"] != os.getppid()
+                  or observer["pgid"] != os.getpgid(0)
+                  or observer["uid"] != os.getuid()
+                  or observer["state"] not in native_states
+                  or observer["state"].startswith("Z")
+              ):
+                  raise RuntimeError("native observer witness unavailable")
+              if any(group in rows for group in groups):
+                  raise RuntimeError("registered leader remains or identity was reused")
+              for group in groups:
+                  members = [row for row in rows.values() if row["pgid"] == group]
+                  if not members:
+                      print(f"Contract/risk group {group}: observed empty.")
+                      continue
+                  if any(
+                      row["uid"] != os.getuid()
+                      or row["pid"] <= 0
+                      or row["ppid"] < 0
+                      or row["state"] not in native_states
+                      or not row["state"].startswith("Z")
+                      for row in members
+                  ):
+                      raise RuntimeError("active or uncertain registered group members")
+                  print(f"Contract/risk group {group}: observed zombie-only inactivity; not physical absence.")
+          except Exception as error:
+              print(f"::error::Contract/risk post-wait observation failed: {type(error).__name__}", file=sys.stderr)
+              raise SystemExit(1) from None
+          finally:
+              signal.setitimer(signal.ITIMER_REAL, 0)
+          CONTRACT_GROUP_OBSERVATION_PY
+              then
+                :
+              else
+                cleanup_failures=$((cleanup_failures + 1))
+                echo "::error::Owned contract/risk groups remain active or unverified."
+              fi
+            fi
+            contract_cleanup_result=0
+            if [ "$cleanup_failures" -ne 0 ]; then
+              contract_cleanup_result=1
+            fi
+            contract_cleaning=0
+            printf 'Contract/risk cleanup exited %s\n' "$contract_cleanup_result"
+            return "$contract_cleanup_result"
+          }
+          trap 'original_status=$?; if cleanup_contract_batches; then cleanup_status=0; else cleanup_status=$?; fi; if [ "$original_status" -ne 0 ]; then exit "$original_status"; fi; exit "$cleanup_status"' EXIT
+          trap 'contract_signal_status=130; if [ "$contract_launching" -eq 0 ] && [ "$contract_cleaning" -eq 0 ]; then exit 130; fi' INT
+          trap 'contract_signal_status=143; if [ "$contract_launching" -eq 0 ] && [ "$contract_cleaning" -eq 0 ]; then exit 143; fi' TERM
+
           for ((batch_start=0; batch_start<${#SELECTED_TARGETS[@]}; batch_start+=contract_batch_size)); do
             contract_batch_index=$((contract_batch_index + 1))
             batch_targets=("${SELECTED_TARGETS[@]:batch_start:contract_batch_size}")
             junit_path="tests/contract-results-${contract_batch_index}.xml"
+            coverage_path=".coverage.contract-risk-${contract_batch_index}"
+            existing_batch_data=("$coverage_path" "$coverage_path".*)
+            for data_path in "${existing_batch_data[@]}"; do
+              if [ -e "$data_path" ] || [ -L "$data_path" ]; then
+                echo "::error::Contract/risk coverage data already exists: $data_path"
+                exit 1
+              fi
+            done
+            database_path="$contract_temp_root/batch-${contract_batch_index}.sqlite"
+            contract_coverage_files+=("$coverage_path")
             printf 'Running contract/risk suite batch %s (%s target(s)):\n' \
               "$contract_batch_index" "${#batch_targets[@]}"
             printf '  - %s\n' "${batch_targets[@]}"
-            python -m coverage run --append -m pytest -q \
+            contract_launching=1
+            COVERAGE_FILE="$coverage_path" COV_CORE_DATAFILE="$coverage_path" \
+              TEST_DB_PATH="$database_path" DATABASE_URL="sqlite:///$database_path" \
+              DB_FALLBACK_URL="sqlite:///$database_path" \
+              python -m coverage run --append -m pytest -q \
               -p no:xdist \
               "${batch_targets[@]}" \
               --junitxml="${junit_path}" \
-              -o junit_family=legacy
+              --basetemp="$contract_temp_root/batch-${contract_batch_index}" \
+              -o junit_family=legacy &
+            contract_pids+=("$!")
+            contract_batch_ids+=("$contract_batch_index")
+            contract_launching=0
+            if [ "$contract_signal_status" -ne 0 ]; then
+              exit "$contract_signal_status"
+            fi
+            if [ "${#contract_pids[@]}" -eq "$contract_max_parallel" ]; then
+              wait_contract_batches
+            fi
           done
+          wait_contract_batches
+          if [ "$contract_failures" -ne 0 ]; then
+            echo "::error::$contract_failures contract/risk batch(es) failed."
+            exit 1
+          fi
+          contract_combine_files=()
+          for coverage_path in "${contract_coverage_files[@]}"; do
+            if [ ! -s "$coverage_path" ]; then
+              echo "::error::Missing contract/risk coverage data: $coverage_path"
+              exit 1
+            fi
+            contract_combine_files+=("$coverage_path" "$coverage_path".*)
+          done
+          python -W error -m coverage combine --append --keep "${contract_combine_files[@]}"
 
       - name: Finalize coverage artifacts
         env:
@@ -1963,13 +2579,15 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # Overall allowances include setup, queued shard waves and coverage/upload.
+        # Per-shard watchdog remains 4800s; test work is unchanged.
         include:
           - python-version: '3.11'
-            timeout-minutes: 60
+            timeout-minutes: 120
           - python-version: '3.12'
-            timeout-minutes: 90
+            timeout-minutes: 120
           - python-version: '3.13'
-            timeout-minutes: 90
+            timeout-minutes: 120
 
     steps:
       - name: Enforce prerequisite results
@@ -2136,16 +2754,16 @@ jobs:
           if [[ "$PYVER" == 3.11* ]]; then
             MAIN_TEST_SHARDS=4
             MAIN_TEST_MAX_PARALLEL=4
-            # The expanded suite exceeded the 30-minute per-shard watchdog
-            # while still progressing; keep a bounded limit inside the job.
-            export MAIN_TEST_SHARD_TIMEOUT_SECONDS=2400
+            # The expanded suite exceeded the 40-minute per-shard watchdog
+            # while still progressing; retain the matrix's bounded 80-minute limit.
+            export MAIN_TEST_SHARD_TIMEOUT_SECONDS=4800
           elif [[ "$PYVER" == 3.12* ]]; then
             MAIN_TEST_SHARDS=16
             MAIN_TEST_MAX_PARALLEL=4
             export MAIN_TEST_SHARD_TIMEOUT_SECONDS=4800
           elif [[ "$PYVER" == 3.13* ]]; then
-            MAIN_TEST_SHARDS=8
-            MAIN_TEST_MAX_PARALLEL=4
+            MAIN_TEST_SHARDS=32
+            MAIN_TEST_MAX_PARALLEL=8
             export MAIN_TEST_SHARD_TIMEOUT_SECONDS=4800
           else
             PYTEST_XDIST_ARGS=(-n 4 --dist=loadscope)

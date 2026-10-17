@@ -328,3 +328,60 @@ index/platform digests, binary revision, both binary module inventories,
 runtime/config contract, and suppression-free scan satisfy the existing v2
 admission checks. Neither exit may be inferred from the other component's
 release or scan.
+
+## DEP-SEC-OCT-2 v3 producer preparation
+
+This continuation supersedes the v2 selector instructions for new material;
+prior receipts above remain historical observations. The canonical record at
+`deploy/prometheus/image-manifest.json:1` now records `candidate_selected`, with
+exact retained candidate coordinates and selection data. The finite producer in
+`scripts/ci/prometheus_source_image.py:1` prepares authentic Prometheus 3.15.0,
+Go 1.27.2, the matching official UI and the preserved distroless vendor graph.
+The retained candidate is not yet registry-published or runtime/security accepted.
+
+The source route uses one separately qualified PulsePlate rebuild of ORAS 1.3.4
+from its exact upstream commit and unchanged locks. Complete command-graph
+absence of affected SSH/OpenPGP imports, native buildinfo, all finding inventory,
+secret-scanner execution and synthetic OCI/Docker conformance remain prerequisites.
+The affected upstream prebuilt tool is not admitted. Exactly two later serial
+logical Prometheus builds retain independent caches, outputs and native equality;
+changing inputs cannot renew that budget.
+
+### Retained ORAS tool qualification
+
+The [successful first-attempt tool run](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/38269614712)
+retained [artifact 11755354665](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/38269614712/artifacts/11755354665);
+exact coordinates are recorded at `deploy/prometheus/image-manifest.json:325`.
+Native original-source/lock/buildinfo and complete error-free 325-package command
+graph evidence excludes every affected import for each retained finding:
+
+- CVE-2026-56854 / [GO-2026-6303](https://vuln.go.dev/ID/GO-2026-6303.json): SSH absent.
+- CVE-2026-56855 / [GO-2026-6355](https://vuln.go.dev/ID/GO-2026-6355.json): SSH absent.
+- CVE-2026-78662 / [GO-2026-6354](https://vuln.go.dev/ID/GO-2026-6354.json): SSH absent.
+- [GO-2026-5932](https://vuln.go.dev/ID/GO-2026-5932.json): all seven affected OpenPGP imports absent.
+
+Each is nonapplicable only to this exact compiled ORAS command. The affected
+`golang.org/x/crypto v0.52.0` module and all four raw findings remain; no module
+remediation or zero-findings claim follows. Native pinned Trivy `vuln,secret`
+execution succeeded, but its sole ELF is excluded by the pinned secret analyzer:
+the eligible plaintext inventory is positively empty. Omitted `Secrets` is not
+zero or ELF-content scanning. Public inputs and the clean, network-none,
+no-project-credential compile path provide separate bounded evidence. Synthetic
+OCI/Docker format proof does not establish real Prometheus binary/runtime proof.
+The [successful source-pair run](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/38291450453)
+retained [candidate artifact 11767273029](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/38291450453/artifacts/11767273029).
+Its two serial logical builds compiled both named binaries independently and
+produced equal OCI/Docker archives, config/layers, command graphs and input
+projections, with no automatic retry. Real native import was observed; this is
+retained candidate data, not a published registry image. The existing PR consumer
+must still prove actual both-binary/OS/full-finding scans, service/runtime behavior
+and signature/bundle verification. P011 and main-only publication/pullback remain
+pending; no security PASS or finding-absence claim follows from pair equality.
+
+Caddy remains 2.11.4. Its existing workflow now prepares two counterfactual
+baseline/xnet-0.60 derivations and a distinct signed Alpine zlib 1.3.2-r1 input.
+The final compiler/get/floor assertions remain unchanged until actual replay and
+source/security admission. All 29 retained baseline findings, including cel-go,
+OpenTelemetry and zlib, still need individual final evidence or bounded rescope.
+No additional authored Go action, ignore, empty Secrets list or zero-secret
+claim follows from metadata preparation or native JSON omission.

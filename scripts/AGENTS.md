@@ -50,6 +50,16 @@
   Fixtures must distinguish default/all-profile models and reject incorrect
   native argv, with a real read-only native observation before claiming parity.
 
+- CI Contract/Risk suites retain their complete sorted target inventory and batches of 24.
+  Run at most two isolated batch processes with separate coverage, JUnit, basetemp and
+  SQLite identities. Wait for every declared exit status and combine only complete data
+  after all batches pass; preserve existing producers, thresholds and job budgets.
+  After direct leaders are reaped, use the bounded canonical registered-group census
+  to distinguish an observed empty group from zombie-only inactivity. Failed or uncertain
+  snapshots and live/mixed members block cleanup. Preserve direct waits/signals and the
+  separate post-wait observation budget. Inactivity does not prove physical absence;
+  retain separate reaping/absence evidence wherever required.
+
 ## Premium alias checkpoint adapter
 
 - Deliver the OBS2A checkpoint units disabled; supported manual invocation uses
@@ -63,6 +73,13 @@
   amtool with --no-version-check and --timeout=8s inside the unchanged 10-second
   host command ceiling as an internal margin. A native CLI's command timeout may
   not cover its pre-action requests; verify actual pinned behavior.
+- Both Python checkpoint callers read the selected Compose directory's
+  `prometheus/image-manifest.json` through the fixed installed canonical reader
+  before their first Compose call, and pass its reference in the child environment.
+  A missing/invalid selection stops the invocation; ambient references are not
+  a fallback. Reader setup keeps its existing command bound and does not renew
+  the notifier event window. Repository wiring is separate from installed-host,
+  schedule and mail-delivery evidence.
 - Keep the fixed 15 min event, 60-second absolute cadence, max 15 attempts and 16 min unit
   bound. Never forward native error text or treat event expiry as recovery.
 - Native Linux checks in the owning notifier test module include actual owned
@@ -103,26 +120,215 @@
   network request, lock write or release action; native solver replay and IPA
   compatibility evidence remain separate requirements.
 
+## Alertmanager source preparation
+
+- The existing Docker source catalog/fetch owner admits only the exact acquired
+  Alertmanager source and matching UI through `--artifact alertmanager`. Default
+  callers retain their incumbent fifteen inputs; this pair has one aggregate
+  300-second acquisition/member bound and zero retries. Private HTTP captures
+  stay outside build contexts and uploaded source/evidence bundles.
+- Existing CD `alertmanager_mode` defaults to `disabled`. Only authenticated
+  same-repository, exact-full-SHA, first-attempt manual `module-qualify` can run
+  the fixed 825-second metadata replay. `build` is explicitly held until actual
+  qualification, full finding/support review and separate build admission.
+- The qualification checkout selects the workflow event's `github.sha`; supplied
+  `source_sha` must equal that revision and the Commit API result. Require the API
+  and native Git commands to succeed before comparing their output; matching
+  stdout cannot excuse a nonzero exit. Verify actual checkout `HEAD` against
+  `GITHUB_SHA` before executing repository qualification code. The supplied value
+  is an identity check, not an executable ref selector.
+- Qualification uses two independent original trees/caches, the one fixed
+  x/net 0.60.0 + gRPC 1.83.2 replacement command, both command graphs online,
+  then actual network-none/read-only offline queries. It starts no compiler.
+  The same 825-second clock starts before the exact admitted source/UI, Go1.27.2
+  and public immutable base acquisition, with a fixed SIGALRM owner covering
+  blocking calls; the source child restores the same remaining parent timer.
+  Go uses unchanged acquire/extract for
+  its own qualified identity; every Docker operation uses one owned empty config
+  and offline queries bind the observed base ID with pull disabled. Bad cached
+  bytes are rejected before reading or replacement, with no retry/fallback.
+  Compare complete explicit GOMODCACHE payloads between replays; retain each
+  whole GOPATH/GOCACHE inventory and its individual offline stability. Original
+  and derived locks/projections plus bounded frozen inputs remain in the existing
+  module-evidence upload. The complete artifact, including final inventory bytes,
+  keeps the existing 2 GiB/250000-member bounds. Metadata finalization shares the
+  separate owned cleanup allowance. Docker-save base bytes are a derived export
+  of the observed ID, not a claim of original OCI compressed-blob preservation.
+  Private HTTP captures and HOME stay excluded.
+  The freshly validated Go extraction is frozen with searchable 0555 directories,
+  executable 0555 files and data 0444 files before UID65534 offline queries, with
+  unchanged-byte bindings and after-query snapshots.
+  Offline metadata containers have exact owned names/labels and retained IDs,
+  with a separate 45-second cleanup/absence phase preserving primary failures.
+  The zero-compiler count describes the fixed command list, not unobserved
+  descendants or external compiler absence. Future context generation must bind
+  an empty `storage-dir` copied with UID/GID 65534 into the final recipe.
+- The new Alertmanager Containerfile is COPY-only prepared data. No image
+  coordinates, consumer references or ignore retirement follow from source
+  preparation. Frozen Prometheus inputs stay unchanged; their projection does
+  not establish SDK nonimpact for catalog/fetcher changes.
+
 ## Official Prometheus image selection
 
-- `deploy/prometheus/image-manifest.json` is the sole selected-image record.
-  Keep its existing closed v2 shape and cross-bind the official Docker Hub
-  index, linux/amd64 manifest, inspected config, repository digest, and binary
-  revision through the existing CD/deploy readers.
-- An image update must change all three Compose consumers together and retain
-  suppression-free OS and both-binary scan evidence plus exact-image promtool
-  and synthetic runtime checks. Registry metadata or a local syntax probe is
-  not current-head CI or production activation evidence.
-- `build.yml` contains only the ordinary build/security/publish chain.
-  Manual execution defaults to `disabled`; explicit `normal` uses native
-  GitHub Actions equality. Keep PR publication denial, existing dependencies,
-  permissions, private-index handling, and same-SHA serialization.
-- Do not restore the retired Prometheus candidate publisher or heavy local
-  compiler. Historical private receipts remain evidence only; do not rewrite
-  them, fabricate publication, or treat selector updates as deployment.
+- `deploy/prometheus/image-manifest.json` is the sole v3 image record.
+  `source_prepared` admits producer preparation only; ordinary image consumers
+  must reject its null selection/candidate. `candidate_selected` requires real
+  retained output coordinates. Do not manufacture output digests or future SHAs.
+- The existing `prometheus_source_image.py` owns the finite declared recipe,
+  typed input projection, retained OCI/Docker archive checks and event admission.
+  `deploy/prometheus/Containerfile` is declared data, not executable Dockerfile
+  syntax. Keep vendor base layers intact and append one deterministic payload;
+  Docker's native import/copy observations own physical alias conformance.
+- Manual `prometheus-source-qualify` remains metadata-only. Separately admitted
+  `prometheus-oras-qualify` compiles one same-source ORAS tool with unchanged
+  upstream locks. It must prove the exact command graph, compiler/buildinfo,
+  full scanner inventory and synthetic native format before tool selection.
+  Never substitute the affected upstream prebuilt binary or rebuild the tool
+  during a Prometheus pair or promotion.
+- An explicitly selected `tool_prefetch_predecessor` is historical evidence,
+  never retry approval. The singleton selector covers only its original history;
+  the exact two-history selector also binds the second failed offline-metadata
+  phase independently to its own source, raw native records and owned cleanup.
+  The exact three-history selector separately binds the third postcompile layout
+  failure, its immutable Tool=1 start and original admission cap1. Retain all
+  three failed/spent jobs. The separately adopted one-compile addition permits
+  aggregate Tool1 used/max2/one remaining; no selector grants dispatch authority
+  or another automatic attempt. Ordinary retained
+  tool/candidate readers remain success-only. Preserve pre/post prefetch locks,
+  modes and source inventories, plus diagnostic errors alongside primary failures;
+  missing historical post-state remains unknown. Publish and review the correction
+  before any separately coordinated recovery dispatch.
+- Manual `prometheus-source-pair` permits exactly two serial logical image
+  builds, each containing the two named commands and bounded to 3600 seconds.
+  Use independent empty source/cache/output areas, no automatic retries,
+  no local Go compiler and no BuildKit Prometheus producer. Invocation history
+  is nonrenewable when inputs change. Complete the raw helper and `build.yml`,
+  including SDK and backend export seams, before spending the pair.
+- A changed PR consumes only its authenticated same-repository retained artifact
+  after full raw producer/input equivalence and source ancestry within the PR.
+  A new main selection additionally binds the actual squash and final PR head;
+  the PR producer is not required to be an ancestor of the squash commit.
+  Unchanged published components use the immutable subject and a positive
+  publication predecessor. Missing publication is a hold, never a pull fallback.
+  The trusted CD caller has a separate finite publication wait using these same
+  recognizers, with GitHub read credentials only and owned cleanup before the
+  unchanged consumer starts once. The consumer reauthenticates independently;
+  the wait result is not an admission receipt. Effective job timeout must cover
+  wait, consume, both cleanup allowances and the scan/runtime reserve. PR callers
+  do not execute this wait. Its deadline does not guarantee scheduler completion.
+- CI lint restores the exact workflow `github.sha` for every PR after the
+  credentialed consumer and control-checkout cleanup, before Python setup or
+  pre-commit. Preserve its untracked selection evidence with `clean: false`,
+  retain full history and nonpersistent checkout credentials, and verify HEAD
+  against `GITHUB_SHA`; do not relax the dependency evidence resolver.
+- Main-only promotion reuses the retained qualified copier and copies precise
+  OCI bytes into the existing public package; it never rebuilds or executes a
+  candidate with registry credentials. Preserve original producer provenance,
+  SPDX, immutable tag collision checks and byte-identical pullback. Existing
+  promtool/runtime/security checks remain mandatory and suppression-free.
+- Deploy readers execute only the separately SHA-bound standalone helper;
+  incoming archives are material/data. Root merge, deployment, credentials,
+  volume changes and observation clocks retain their existing authority gates.
+- CI/CD PR image consumption must finish before PR-local actions, imports or
+  native programs start. The changed-candidate route executes only the sparse
+  fixed control checkout at `5064aded22f478a22a4319b684e95d6c0b3ae46f`, with
+  helper SHA-256 `0e7a73b0159c442cf5f9377aa862e38d643145f81ac6a54ee50b31682f6c3e3e`,
+  through isolated stdlib `runpy` and an explicit material root. API credentials
+  belong to that step only; changed candidates receive no registry credential.
+  Same-repository PR published reads use the limited ephemeral `GITHUB_TOKEN`;
+  the distinct trusted CD job uses the `staging` Environment's `GHCR_READ_TOKEN`.
+  Preserve
+  the existing consumer evidence and outputs, and remove the owned control
+  checkout before PR startup. A missing base published capability remains a hold.
+
+## Deploy-tool Python selection
+
+The three deploy callers (`deploy_production.sh`, `deploy.sh` and
+`QUICK_FIX_PRODUCTION.sh`) admit CPython 3.11, 3.12, 3.13 or 3.14 for their
+standalone stdlib helper. This scoped compatibility set does not change project,
+CI/container 3.13.14 or SDK interpreter/ABI tuples. An explicit absolute
+`PYTHON_BIN` takes precedence; unsupported, non-executable or relative overrides
+fail before helper loading or mutation, without fallback. Defaults inspect only
+the four trusted absolute literals in the callers, including Homebrew's public
+Python and managed 3.14 alias, and skip unsupported defaults. The isolated
+`-I -S` implementation/version probe establishes compatibility input only, not
+binary provenance or security admission. Do not discover Python through PATH,
+cwd, virtualenvs, pyenv or another manager.
+
+For a local caller check, pass the owning repository interpreter explicitly as
+`PYTHON_BIN`; server operators may pass their independently managed supported
+absolute interpreter. Preserve the SHA-bound helper/FD and trusted-tool versus
+incoming-material boundary. Do not substitute an incoming archive's interpreter
+or claim that passing this probe validates the application on Python 3.14.
 
 ## Native Docker image evidence
 
+- Retired native families remain real Trivy conversion controls with retained
+  findings. The full canonical `package trivy` / `import rego.v1` /
+  `default ignore := false` file alone is expiry-free. Missing, unreadable,
+  malformed or extra executable policies never inherit that exemption; active
+  suppressions retain review and hard-expiry validation. Scanner/decode errors
+  are errors, never successful negative controls or native-remediation proof.
+
+- Keep the client-only PostgreSQL SDK limited to configured password/SCRAM and
+  verified TLS consumers. Unused GSS/LDAP features and their native package
+  closure stay disabled; enabling them requires explicit scope and fresh
+  source/SDK/library/physical/scanner/behavior evidence. Preserve public API
+  names while rejecting unsupported required feature requests.
+
+- The exact Psycopg C source operation belongs to
+  `install_locked_python_requirements.py`; compiler and proxy-health consumers
+  delegate to that owner. Separate verified archive/binary acquisition from
+  actual backend execution in a supported Linux guest with kernel network
+  isolation and no registry credentials, host HOME, configuration, socket or
+  secret mounts. The canonical installer owns the exact four SDK tuples:
+  x86_64 CPython 3.11/3.12/3.13 and aarch64 CPython 3.13. Reject unsupported
+  interpreter/ABI targets before SDK reads, pip upgrade or wheelhouse creation.
+  During SDK admission, validate the exact source-image pin, wheel tag and both
+  extension ELF targets; aliases are not extra targets.
+  Backend Make/devcontainer callers retain their Linux amd64 boundary.
+  Dormant kernel interfaces require native DOWN flags and absence of external
+  addresses/routes; interface names alone grant no exception. A successfully read,
+  bounded ASCII IPv4 table may normalize to an empty inventory, including blank-only
+  input. Interface/address and IPv6 checks still run; missing, unreadable, malformed
+  nonempty, non-ASCII or oversized tables remain failures. Other packages
+  retain binary-only admission. Consume genuine matching SDK wheels, never
+  metadata-only resolver substitutes.
+  Dedicated source/build-wheel prefetch operations reject explicit install modifiers
+  before interpreter/proxy resolution; only build-wheel prefetch consumes a target
+  Python option. Ordinary SDK install/prefetch/consume operations use the installer
+  interpreter or its venv symlink and reject another interpreter before pip upgrade,
+  SDK staging or wheelhouse creation. Preflight-only and upgrade-only modes retain
+  their existing behavior; binary-only installs retain target-Python selection.
+  Dedicated SDK builds reject an explicit target-Python option because the
+  unchanged four-input build uses its loader interpreter.
+- Before VS Code Reopen builds a fresh trusted checkout, run the existing
+  `make docker-source-artifacts` target on the host using an approved existing
+  `DEV_PYTHON` interpreter. CLI `dc-up`, `docker-run` and `docker-run-dev` own
+  that prerequisite; a source-preparation failure stops before Compose. This is
+  source verification/acquisition only; do not install/activate a host backend
+  venv or native macOS SDK, transfer `.env`/credentials/HOME, or add automatic
+  repository-code initialization. Container bootstrap remains manual after trust.
+- `make dc-up` credential forwarding is explicit opt-in through
+  `PULSEPLATE_NATIVE_SDK_NETRC_FILE`, defaulting to `/dev/null`. Use only a temporary
+  read-only file scoped to the approved package host after reviewing/trusting the
+  checkout; do not automatically forward or copy host `HOME/.netrc`, `_netrc` or HOME.
+- Before closing a native SDK dependency migration, enumerate every governed compiled profile
+  and real CI/local caller. Verify actual extras, matching SDK/platform handoff and the owning
+  workflow tests; a selected-profile pass cannot establish complete caller coverage. Inspect
+  the full Docker stage inheritance before reporting a missing library, and verify actual
+  final-user calls after the build. CI native callers must select the matching SDK CLI in
+  `/usr/local/bin` before distro tools when setup installs its shared libraries there.
+  Keep corrected runtime behavior, required gates and bot
+  dispositions ahead of closure metadata.
+- Container helper copies must preserve their `scripts/ci` repository depth and
+  adjacent imports. Exercise the real CLI and its operation parsing from the
+  actual copied layout before a build; command-text assertions alone cannot
+  detect import-time repository-root failures.
+- A native patch must change the expected source bytes before compilation.
+  Check its exact resulting file digest and the unchanged remainder of the
+  source inventory. A patch tool's successful exit alone is insufficient;
+  Git object IDs and whole-file SHA-256 digests are distinct representations.
 - `check_docker_runtime_dependency_surface.py --trivy-report` binds the finite
   native Trivy v2 image-report projection to the selected local Docker image.
   Trivy owns vulnerability decisions and JSON-to-SARIF conversion; report
@@ -137,6 +343,8 @@
   PCRE2 and libselinux regex calls plus retained consumers under the final user.
 - When replacing a packaged native library, verify the actual extension call
   and loaded replacement under the final runtime user after package pruning.
+  Matching SONAME alone does not preserve required symbol versions; retain the
+  consumer's version namespaces and reject real loader diagnostics.
   Package-record absence and a clean scanner report do not prove native linkage.
 - For workflow shell adapters, exercise current-step and next-step environments
   in separate processes: exporting in the current shell and writing GITHUB_ENV
@@ -194,6 +402,15 @@ sequence.
 
 ## Governed Experimentation Runner
 
+- `experiment_runner_dispatch.py build-image` requires `--psycopg-sdk-root`
+  pointing to the private, externally qualified genuine ARM SDK export. The
+  host stages only the finite declared helpers, schema, locks and SDK members,
+  then checks actual destination bytes, modes and internal alias before reading
+  proxy secrets. Host transport checks do not authenticate SDK origin or ABI;
+  the canonical installer inside UBI owns those semantic checks. Preserve the
+  original build timeout, history/config hygiene and immutable Apple alias
+  readback. Qualify the successor's native consumers and full scanner inventory
+  before selecting it for an oracle; a build or copied receipt alone is insufficient.
 - Invoke the automatic helper only from externally admitted T with an approved
   absolute Python `-I`, T cwd and explicit distinct `--material-root M`; root
   metadata supplies continuity, never trust. Follow the canonical accompaniment
@@ -791,7 +1008,11 @@ First-class repo wrappers:
 **Change detection order:**
 
 1. Native pre-commit sets `PRE_COMMIT=1` for hook execution, including its
-   pre-push stage. Nonempty `PRE_COMMIT` takes precedence: the helper combines
+   pre-push stage. The `backend-tests-pre-push` entry clears that framework
+   marker in its child with `/usr/bin/env -u PRE_COMMIT`, so ordinary pre-push
+   discovery includes the committed upstream delta and the httpx2 canary.
+   The pre-commit entry keeps the marker and its intentional ci-lite selection.
+   Nonempty `PRE_COMMIT` takes precedence: the helper combines
    staged paths with the branch diff from the first resolved merge-base against
    `origin/main`, `origin/master`, `main`, or `master`.
 2. With `PRE_COMMIT` unset and `BRANCH_DIFF_MODE=1`, the helper uses that same

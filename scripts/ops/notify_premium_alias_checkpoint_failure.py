@@ -8,6 +8,8 @@ import asyncio
 import os
 import shutil
 import signal
+import subprocess  # nosec B404: # fixed reader process (remove-by: 2026-10-23, ref: PR-2477)
+import sys
 import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -73,7 +75,7 @@ async def _reap(process: asyncio.subprocess.Process) -> None:
         raise OSError("notification_cleanup_incomplete") from None
 
 
-async def _send_async(argv: list[str]) -> bool:
+async def _send_async(argv: list[str], env: dict[str, str] | None = None) -> bool:
     # The native client owns request timeout; this owns only its host group.
     try:
         process = await asyncio.create_subprocess_exec(
@@ -82,6 +84,7 @@ async def _send_async(argv: list[str]) -> bool:
             stdout=asyncio.subprocess.DEVNULL,
             stderr=asyncio.subprocess.DEVNULL,
             start_new_session=True,
+            env=env,
         )
     except OSError:
         return False
@@ -109,11 +112,49 @@ async def _send_async(argv: list[str]) -> bool:
         raise
 
 
-def _send(argv: list[str]) -> bool:
-    return asyncio.run(_send_async(argv))
+def _send(argv: list[str], env: dict[str, str] | None = None) -> bool:
+    return asyncio.run(_send_async(argv, env))
+
+
+def _compose_environment(compose_file: Path) -> dict[str, str]:
+    helper = Path(__file__).resolve().parents[1] / "ci/prometheus_source_image.py"
+    manifest = compose_file.parent / "prometheus/image-manifest.json"
+    try:
+        # The unchanged trusted reader owns the selected manifest/ref grammar.
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(helper),
+                "--operation",
+                "read-manifest",
+                "--manifest",
+                str(manifest),
+                "--field",
+                "runtime_ref",
+            ],
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            timeout=COMMAND_TIMEOUT_SECONDS,
+            env={"PATH": os.defpath, "LANG": "C.UTF-8"},
+        )  # nosec B603: # fixed reader, no shell (remove-by: 2026-10-23, ref: PR-2477)
+        raw = result.stdout
+        if (
+            not 1 < len(raw) <= 512
+            or raw.count(b"\n") != 1
+            or not raw.endswith(b"\n")
+            or not all(32 < byte < 127 for byte in raw[:-1])
+        ):
+            raise ValueError("reader_output")
+        runtime_ref = raw[:-1].decode("ascii")
+    except (OSError, subprocess.SubprocessError, ValueError):
+        raise OSError("checkpoint_manifest_reader_failed") from None
+    return {**os.environ, "PROMETHEUS_RUNTIME_REF": runtime_ref}
 
 
 def notify(*, docker: str, compose_file: Path, environment: str) -> int:
+    compose_file = compose_file.absolute()
+    child_env = _compose_environment(compose_file)
     start_wall = datetime.now(timezone.utc)
     end_wall = start_wall + timedelta(seconds=EVENT_SECONDS)
     epoch = time.monotonic()
@@ -137,7 +178,7 @@ def notify(*, docker: str, compose_file: Path, environment: str) -> int:
         if now >= target + INTERVAL_SECONDS:
             continue
         attempts += 1
-        if not _send(argv):
+        if not _send(argv, child_env):
             failed = True
             print(ERROR, flush=True)
     if attempts == 0:
