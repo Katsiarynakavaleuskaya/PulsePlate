@@ -129,8 +129,12 @@
   stay outside build contexts and uploaded source/evidence bundles.
 - Existing CD `alertmanager_mode` defaults to `disabled`. Only authenticated
   same-repository, exact-full-SHA, first-attempt manual `module-qualify` can run
-  the fixed 825-second metadata replay. `build` is explicitly held until actual
-  qualification, full finding/support review and separate build admission.
+  the fixed 825-second metadata replay. The separate manual `build` route must
+  consume actual qualification/support predecessors and never start another
+  resolver replay. Its executable proposal, selectors and source checks do not
+  supply the separate human compiler decision. PR consumers load the original
+  retained candidate without registry access or compilation; manual publication
+  additionally requires the actual merged main and canonical package/tag guards.
 - The qualification checkout selects the workflow event's `github.sha`; supplied
   `source_sha` must equal that revision and the Commit API result. Require the API
   and native Git commands to succeed before comparing their output; matching
@@ -197,9 +201,37 @@
   Declare the exact offline pair commands, COPY context and pinned local OCI
   named-context assembly before separate human build admission. Do not create
   or bootstrap a builder, compile, outline or assemble during support inspection.
-  Keep automatic PR/push paths disabled and final build/publication stages held;
+  Keep automatic PR/push compiler/publication paths disabled;
   cleanup retains the primary failure and removes only independently confirmed
   exact owned container IDs, including a failed create's labelled residue.
+- Preserve the same authenticated support inventory in the final candidate
+  consumer: compare every OS package's native comparable identity and OS
+  classifier, plus both required Go targets. Transport paths, compressed layer
+  digests and opaque scanner UIDs are not package identity. Retain complete raw
+  reports; an omitted package cannot establish a complete supported inventory.
+  Reconcile each Go target against its own actual build-info dependencies and
+  stdlib, with explicit native main-module identity. Preserve the pinned Go
+  format: trimpath may omit linker flags from build-info, so bind runtime stamps
+  through both actual version outputs and retain the executed compiler argv.
+- Retain successful compiler output bytes and build information before assembly
+  or later acceptance can fail. The existing uploaded evidence path must retain
+  each attempted phase's raw outputs and observation on failure as well as
+  success, excluding private credentials/configuration. Preserve the original
+  failure independently when evidence retention or cleanup also fails.
+- Native binary transport must accommodate actual executable sizes through
+  fresh regular owned files and bounded streamed hashes. Keep diagnostic output
+  bounds independent; tiny mock executables cannot prove large-byte transport.
+  Cleanup of a known create binds the independently retained full returned ID;
+  a matching census name/label alone cannot replace it. Treat failed-create
+  residue separately, requiring its exact attempted name, label and inspected
+  full ID before removal, and preserve unknown survivors as HOLD.
+- Retained pure OCI remains the scanner/artifact/publication subject. Native
+  Docker load uses only the owning phase's private closed wrapper: unchanged
+  recognized OCI members plus one standard untagged Docker header. Rendering
+  never rebuilds/re-exports or transforms layers, accepts another image carrier,
+  or establishes native success or authority; preserve loaded identity checks.
+  Mocked AM Native fixtures must model tool/resource inputs, retain low-resource
+  negatives, and preserve production guards and reserves.
 
 ## Official Prometheus image selection
 
