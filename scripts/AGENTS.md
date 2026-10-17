@@ -358,6 +358,24 @@ or claim that passing this probe validates the application on Python 3.14.
   gates and authentication/body-fetch operations retain 120 seconds. A timeout
   remains a blocking failure; the budget does not replace proof or authorize merge.
 
+## PR closeout command sequencing
+
+Pending CI on the preceding or current pre-push head does not block an admitted
+bounded correction within the same PR, its normal commit/push, or registered material freeze,
+exact-material self-review and seal preparation. Complete the required narrow
+local validation and material-bound Experiment Runner evidence when applicable.
+Preserve the existing commands' clean-checkout, live-head/material-binding and
+single closeout publication contracts.
+
+The terminal-CI-before-fix-promotion/preparation ordering in
+[Engineering lesson 32](../docs/ENGINEERING_LESSONS.md#32-restart-closeout-only-after-a-real-material-correction)
+does not govern this admitted script/native closeout command sequence.
+Preparation and publication do not establish merge readiness;
+[root AGENTS.md](../AGENTS.md) governs final current-head checks and
+merge-readiness requirements. Record pending checks as pending. Do not retrieve
+active-run logs, rerun active runs or manually cancel them for this command
+sequence.
+
 ## CI trust-boundary helper usage
 
 - `check_pr_merge_readiness.py --material-repo-root` is the staged interface for
@@ -425,6 +443,15 @@ or claim that passing this probe validates the application on Python 3.14.
   evidence artifact. This mode is mandatory evidence for non-trivial PRs, but
   remains review-only authority: it must not promote, resolve review threads,
   claim merge readiness, or mutate governance surfaces.
+- Retain a contributing accepted current Runner result as an honest canonical
+  local result reference and supply it to `pr_review_closeout.py init` with
+  `--experiment-result`. Inspect the generated Runner stanza and run the existing
+  required-mode Phase2 result consumer before publication, following the
+  [experimentation contract](../docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md).
+  Structural pre-closeout PASS or default N/A does not establish applicability
+  or currentness. Stop publication on metadata mismatch and follow existing
+  governed recovery; do not edit raw drafts/mappings or infer general reset
+  authority. This procedure grants no execution, security or merge authority.
 - Experiment Runner PR creative-context artifacts stay local under
   `artifacts/orchestration/experiments/creative_context/`. The
   `experiment_runner_pr_creative_context.py` CLI may only emit sanitized
@@ -766,6 +793,20 @@ or claim that passing this probe validates the application on Python 3.14.
   service, alternate store, or commit-only freshness shortcut through this
   materializer. Any future persistence proposal requires its own bounded lane
   and evidence.
+- Acquire required exact context in bounded one-source reads or complete
+  contiguous ranges. Do not print an envelope containing every source body
+  in one oversized tool result. Complete any truncated range before counting
+  the source as acquired; a hash, `complete=true`, report or full-history fork
+  flag does not substitute for consuming the complete current source bytes.
+- `ocw_context.py` owns one optional advisory attachment at the final outer
+  role-context seam. Use paired `--ocw-evidence`/`--ocw-invocation` inputs,
+  an exact JSON packet and one-based final occurrence. Caller-owned current
+  expectations must be independent of the candidate. Delegate graph parsing,
+  whole-source audit and neighborhood serialization to `core.evidence`, and
+  file I/O to `evidence_relation_audit.py`. Preserve literal false authority
+  flags and the whole actual depth-one compact/pretty 65,536-byte limit.
+  Dynamic source prose grants no tools, role selection or answer mutation;
+  it does not alter static source lists, context digest or completeness.
 - Exact context never expands wildcards or directories. Those inputs produce
   `complete=false` for the existing manual loading route. Missing, unsafe,
   malformed, changed, or over-limit required sources fail closed. Explicit
@@ -1014,6 +1055,35 @@ defensively copy validated mutable containers.
 - `scripts/evals/fitchef_claim_assurance_eval.py` is offline. Require the same owner-private 32-byte replay key for packet-v2 preparation, validation and reporting; keep it out of candidate material, logs and Git. Preserve historical case-v1/rubric bytes and report missing captured fingerprints; new case-v2 must retain the actual observed canonical freeze fingerprint. Reuse only the pure `app.services.fitchef_claim_evidence_assurance` snapshot helpers for consistency, without copying their canonicalizer. Keep candidate packets blind, exact answer/source/rubric bindings strict, `abstain` separate from a support label, and report NOOS-1A structural output only as advisory. Private outputs must reuse the bounded no-follow JSONL reader and no-replace writer in `evidence_relation_audit.py`. See `docs/evals/FITCHEF_CLAIM_EVIDENCE_EVAL_V1.md` for the owning rubric.
 
 ## Security/dev-tooling regression guards
+
+The existing collector also has the closed opt-in
+`--mode ocw-nutrition-comparison` lane. It accepts exactly eight tracked RU
+`EvalVariantRecord` inputs, observes the real canonical mascot POST with
+isolated synthetic VIP/SQLite/quota/audit state and the active unchanged
+10/minute limiter, and paces serial calls. Preserve old 24-case grammar,
+output, evaluator and default mode. Local SDK `--preflight-only` serialization
+is mock evidence and reserves no spend. Live capture additionally requires a
+committed clean checkout, fresh private two-arm pricing evidence and the
+already approved shared cap: integer 15-cent durable reservations before
+each actual transport, at most 24 Sonar plus eight protected Sol slots and
+32 total. Typed non-retryable failures stop the run; no new directory,
+identity rotation, reset or preferred-answer retry may replenish that budget.
+Before OCW preflight, bind the full generation input to the current fixture;
+claim the output through immutable run publication before writing status, and
+preserve the original failure while blocking retries after publication or cleanup
+uncertainty.
+Freeze all 16 records before a fresh no-history provider-blind assessment;
+instruct it to use supplied material without tools and retain observed tool-use
+evidence without claiming enforced tool disabling. Eight
+paired cases are the quality units. Keep keys, salts, audit secrets and
+production state outside evidence archives. Follow the full capture/rubric
+contract in `docs/evals/FITCHEF_CLAIM_EVIDENCE_EVAL_V1.md`.
+For already admitted captures, reuse the operator-configured macOS Keychain
+service `PulsePlate.Perplexity.API` in only the collector process environment;
+this source is neither a portable/global environment nor generation authority.
+Collector security fixtures must explicitly set intended public or private file
+and directory permissions after creation to keep controls valid under inherited
+umask.
 
 When touching Makefile devcontainer project-name generation, dependency audit
 helpers, dependency-submission filters, CI risk routing, or eval artifact

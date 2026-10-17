@@ -1084,13 +1084,22 @@ If it is not recorded here — it does not exist.
     are changed.
 
 <a id="ledger-p1-graph-fed-1-read-only-evidence-projection"></a>
-- [ ] P1: GRAPH-FED-1 typed read-only evidence projection
+- [x] P1: GRAPH-FED-1 typed read-only evidence projection
   - Owner: backend-engineer / architecture-specialist / security-auditor
   - Priority: P1
   - Target PR: [#2480](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2480)
     on codex/graph-fed-1-evidence-projection
-  - Status: In implementation; focused material validation and the required
-    PR/review/current-head CI lifecycle remain pending.
+  - Status: Merged and terminally closed in PR #2480 as
+    `7b28b502c3d257c1da905ed386d79fab1a12869a`; its own post-merge CI
+    [37832590536](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/37832590536)
+    completed successfully. Retained owner reconciliation covers all 50
+    GRAPH-FED-1 criteria, 230 archive members, six same-ID document readbacks
+    and owned cleanup. This closes that projection's DoD only.
+  - Carryover (EN): OCW-1A carrier PR
+    [#2487](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2487)
+    reconciles this stale ledger state; #2480 remains the owning Target PR.
+    Dynamic native OCW delivery and paired FitChef capture are tracked
+    separately below.
   - Area: pure core / offline evidence inspection
   - Reason (EN): Return the complete represented exact claim/context/time
     neighborhood and explicit revision/dependency closure in one inspection,
@@ -1110,6 +1119,93 @@ If it is not recorded here — it does not exist.
     broader Evidence Graph umbrella.
   - Rollback (EN): Revert projection/inspect while preserving source v1 and
     legacy validate/report; no migration or provider switch.
+
+<a id="ledger-p1-ocw-1a-evidence-consumer"></a>
+- [ ] P1: OCW-1A existing Evidence Graph advisory consumer
+  - Owner: agent-coordinator / security-auditor / QA / evaluation owner
+  - Priority: P1
+  - Target PR: [#2487](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2487)
+    on `codex/ocw-1a-fitchef-evidence-consumer`.
+  - Status: Open non-draft implementation PR. Frozen capture and assessment
+    cover 16 observations across eight paired synthetic units, with 16
+    published reservations and US$2.40 reserved under the approved cap.
+    The actual coordinator consumer replay covers all 16 delivered observations;
+    independent QA and criterion-level acceptance evidence are retained separately
+    from current-head CI/review and terminal closeout. Full individually evidenced
+    acceptance of all 53 criteria, current-head CI/review, merge authorization
+    and terminal same-ID document/archive/owned-cleanup closeout remain open.
+  - Measurement (EN): The immutable provider-blind six-dimension assessment,
+    unblinded only after immutable assessment, retains 10 defect, five
+    no-change and one data-gap verdicts with unchanged judgments. These are
+    eight paired units, not 16 independent quality units or production rates; no provider
+    superiority or production improvement is claimed. US$2.40 is reservation,
+    not an invoice or a known full actual cost.
+  - Area: existing orchestration/eval seams
+  - Reason (EN): GRAPH-FED-1 delivers read-only inspection; current coordinator
+    and QA still need independently bound advisory material and observed
+    answer/source reconciliation without new runtime authority.
+  - Carryover (EN): Carrier #2487 reconciles only the verified #2480 owning
+    ledger item. Preserve #2459's closed implementation and wider open
+    Evidence Graph, provider, cost-routing and semantic-cache owners. Retain
+    measured response gaps under the separate product AI/evaluation follow-up
+    below; measurement does not fix or authorize production behavior changes.
+  - Links: docs/evals/EVIDENCE_RELATION_CAUSAL_AUDIT_V1.md,
+    docs/evals/FITCHEF_CLAIM_EVIDENCE_EVAL_V1.md,
+    docs/orchestration/AGENT_CONTEXT_MAP.md
+  - DoD: All 53 owner-accepted OCW-1A-AC-v1.0 items (A01-A13, B01-B21,
+    C01-C19) retain individual observed evidence; exact current dynamic
+    attachment and immutable canonical complete graph/source reconciliation;
+    literal false flags and whole 64-KiB depth-one bound; actual native
+    coordinator/QA consumption; eight RU canonical scenarios and 16 actual
+    guarded mascot observations with identical paired inputs/full prompts;
+    provider-blind six-dimension assessment after freeze; shared US$4.80/32
+    physical-send cap with durable integer reservations and complete failures;
+    narrow gates/current-head CI/review, separate merge approval and governed
+    same-ID document/archive/owned-cleanup closeout.
+  - Out of scope (EN): Public API/DTO/OpenAPI, production provider migration,
+    nutrition calculations, product plan mutation, semantic cache, graph
+    serving, knowledge promotion and foreign CD/nightly fixes.
+  - Rollback (EN): Revert the optional attachment, closed comparison mode,
+    fixtures and their coverage membership; retain private captured evidence
+    and the unchanged graph/runtime/default dispatch contracts.
+
+<a id="ledger-p1-fitchef-observed-nutrition-response-gaps"></a>
+- [ ] P1: FitChef mascot observed nutrition and action gaps from OCW-1A
+  - Owner: product AI / backend-engineer / evaluation owner
+  - Priority: P1
+  - Target PR: `PR-TBD` through separately admitted product response-quality
+    work after owner review of the frozen #2487 observations.
+  - Status: Deferred measured response-quality follow-up; original answers,
+    sources, raw-to-final origins and six-dimension judgments remain frozen.
+  - Area: FitChef mascot message / action extraction and fallback / evaluation
+  - Reason (EN): OCW-1A observes output quality against supplied synthetic
+    evidence; its graph/capture/consumer implementation does not repair
+    production response behavior. These findings need bounded component-owner
+    remedies and regression evidence in their own admitted product lane.
+  - Observed gaps (EN): Unsupported nutrition composition and diary estimates
+    in N01/N07; unsolicited food advice in N01/N02/N03/N05; English
+    task-mismatched default actions in N02/Sol and N06/Sonar; an unsupported
+    removal assertion in N06/Sonar; unresolved preparation/catalog
+    applicability in N06/Sol; and light/small-meal plus added-walk action
+    framing in N08/Sonar. N08's source support remains unknown; its wording
+    concern establishes no compensatory intent or general safety conclusion.
+  - Links: [OCW-1A #2487](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2487),
+    docs/evals/FITCHEF_CLAIM_EVIDENCE_EVAL_V1.md#ocw-1a-closed-paired-nutrition-comparison,
+    docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-ocw-1a-evidence-consumer,
+    docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-noos-1c-fitchef-response-quality-routing,
+    docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-noos-fitchef-cost-routing
+  - DoD: Review the exact affected message/action components and retain
+    deterministic controls for missing amount/composition, applicable product
+    information, RU action language and task relevance, and ordinary bounded
+    non-compensatory support. Preserve supplied-density arithmetic, the N02
+    correction, measured peel handling and already peeled mass; leave missing
+    preparation/density explicit. Admit and validate any production prompt,
+    extraction or fallback remedy separately, keeping nutrition/plan authority
+    in canonical backend owners and original capture/judgment bytes unchanged.
+  - Out of scope (EN): Provider switching, the broader cost-routing owner,
+    nutrition engines, public API migrations, new retrieval/cache serving or
+    generalized model/safety claims. This entry authorizes no new provider run
+    or production change and reopens neither #2459 nor #2480.
 
 <a id="ledger-p1-noos-1b-fitchef-answer-evaluation"></a>
 - [x] P1: NOOS-1B FitChef answer-content evaluation

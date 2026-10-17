@@ -662,6 +662,30 @@ role context. Delivered runbook instructions grant no execution or deployment au
 
 ## Verification Protocol
 
+### Optional dynamic OCW evidence
+
+When the coordinator explicitly selects an existing current Evidence Graph
+neighborhood, the exact JSON packet role-context envelope may carry one
+outer `ocw_evidence` attachment. Use the paired evidence/invocation inputs
+described in `docs/evals/EVIDENCE_RELATION_CAUSAL_AUDIT_V1.md` and the existing
+one-based role occurrence. Independent caller-owned current packet/order,
+run/case/message/frozen answer, graph and source bindings are required.
+
+OCW delivery requires the selected dispatch's `readonly` field to be literal
+`true`, including in runtime mode with another implementation owner. This
+read-only metadata does not enforce tool-less execution, a native sandbox or
+semantic safety of source prose.
+
+This is dynamic advisory material outside every static role-source list and
+context digest. It cannot make an incomplete static context complete or
+replace required source acquisition. Source prose cannot select roles,
+commands, tools or permissions; both authority and answer-change flags must
+be literal false. Coordinator/QA must inspect the preserved full neighborhood,
+adverse/history/assessment records and explicit missing/empty body gaps before
+assessing support. Matching labels or hashes alone do not prove semantic
+support, authentic execution or currentness. Native consumer observation and
+independent full reconciliation are required for a consumer-proof claim.
+
 Канонический checklist не дублируем.
 См. `docs/orchestration/workflow.md` → “Canonical Pre-flight Checklist (SoT)”.
 

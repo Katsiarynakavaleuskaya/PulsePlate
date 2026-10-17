@@ -7205,6 +7205,7 @@ ORCHESTRATION_COVERAGE_OWNERS = {
     "scripts/orchestration/experiment_runner_pr_creative_context_contract.py": (
         "tests/test_experiment_runner_pr_creative_context.py"
     ),
+    "scripts/orchestration/ocw_context.py": "tests/test_ocw_context.py",
 }
 ORCHESTRATION_COVERAGE_FILES = tuple(ORCHESTRATION_COVERAGE_OWNERS)
 
