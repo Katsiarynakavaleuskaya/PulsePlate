@@ -5847,6 +5847,65 @@ def test_alertmanager_COPY_graph_rejects_real_subject_or_payload_drift(
         ("buildkit-os", False),
         ("buildkit-architecture", False),
         ("buildkit-repository", True),
+        ("index-boundary", False),
+        ("index-valid-leap", False),
+        ("index-annotations-missing", False),
+        ("index-created-missing", False),
+        ("index-ref-missing", False),
+        ("index-extra-annotation", False),
+        ("index-wrong-key", False),
+        ("index-annotations-string", False),
+        ("index-created-bool", False),
+        ("index-created-empty", False),
+        ("index-ref-bool", False),
+        ("index-ref-alias", False),
+        ("index-ref-candidate", False),
+        ("index-created-invalid-date", False),
+        ("index-created-month", False),
+        ("index-created-fraction", False),
+        ("index-created-offset", False),
+        ("index-created-naive", False),
+        ("index-created-lowercase", False),
+        ("index-created-leap-second", False),
+        ("index-created-hour", False),
+        ("index-created-year-zero", False),
+        ("index-created-non-ASCII", False),
+        ("index-created-unpadded", False),
+        ("index-duplicate-created", False),
+        ("index-duplicate-root", False),
+        ("index-malformed", False),
+        ("index-non-object", False),
+        ("index-extra-root", False),
+        ("index-schema-bool", False),
+        ("index-media", False),
+        ("index-manifests-string", False),
+        ("index-manifests-empty", False),
+        ("index-multiple", False),
+        ("index-descriptor-list", False),
+        ("index-core-extra", False),
+        ("index-core-media", False),
+        ("index-core-size", False),
+        ("index-missing", False),
+        ("index-symlink", False),
+        ("index-hardlink", False),
+        ("index-directory", False),
+        ("index-mode", False),
+        ("index-empty", False),
+        ("index-oversize", False),
+        ("index-source-drift", False),
+        ("index-blob-drift", False),
+        ("index-input-drift", False),
+        ("index-canonical-drift", False),
+        ("index-blob-symlink", False),
+        ("index-raw-existing", False),
+        ("index-raw-symlink", False),
+        ("index-canonical-symlink", False),
+        ("index-raw-write", False),
+        ("index-normalize-write", False),
+        ("index-canonical-write", False),
+        ("index-created-invalid-date", True),
+        ("index-raw-write", True),
+        ("index-normalize-write", True),
         ("base-load", False),
         ("create-after-effect", False),
         ("replaced-ID", False),
@@ -5880,6 +5939,10 @@ def test_alertmanager_offline_pair_real_owner_orders_two_launches_and_owned_clea
     builder_id, builder_image = "b" * 64, "sha256:" + "c" * 64
     native_buildkit_digest = "moby/buildkit@" + docker_sources._ALERT_BUILDKIT.split("@", 1)[1]
     buildkit_failure = fault is not None and fault.startswith("buildkit-")
+    successful_faults = (None, "index-boundary", "index-valid-leap")
+    index_failure = (
+        fault is not None and fault.startswith("index-") and fault not in successful_faults
+    )
     work = tmp_path / "pair"
     retained = tmp_path / "retained"
     retained.mkdir()
@@ -5889,6 +5952,78 @@ def test_alertmanager_offline_pair_real_owner_orders_two_launches_and_owned_clea
     observation_error = OSError("synthetic pair observation write failed")
     observation_attempts: list[Path] = []
     original_write = Path.write_text
+    raw_path = work / "evidence/pair-export-index.raw.json"
+    canonical_path = work / "evidence/pair-export-index.canonical.json"
+    index_path = work / "candidate-layout/index.json"
+    exported_indices: list[bytes] = []
+    native_blob_hashes: dict[str, str] = {}
+    parse_observations: list[bytes] = []
+    raw_error = OSError("synthetic raw index retention failed")
+    normalize_error = OSError("synthetic index normalization write failed")
+    canonical_error = OSError("synthetic canonical index retention failed")
+    original_open, original_fdopen = os.open, os.fdopen
+    index_descriptors: set[int] = set()
+
+    def open_file(path: Any, *args: Any, **kwargs: Any) -> int:
+        if path in (raw_path, str(raw_path)) and fault == "index-raw-write":
+            raise raw_error
+        if path in (canonical_path, str(canonical_path)) and fault == "index-canonical-write":
+            raise canonical_error
+        descriptor = original_open(path, *args, **kwargs)
+        if path in (index_path, str(index_path)):
+            index_descriptors.add(descriptor)
+        if path in (raw_path, str(raw_path)) and fault == "index-source-drift":
+            index_path.write_bytes(exported_indices[0] + b" ")
+        if path in (canonical_path, str(canonical_path)):
+            if fault == "index-blob-drift":
+                next((work / "candidate-layout/blobs/sha256").iterdir()).write_bytes(b"drift")
+            elif fault == "index-input-drift":
+                (d["inputs"] / "source/main.go").write_bytes(b"drift after export")
+            elif fault == "index-canonical-drift":
+                index_path.write_bytes(index_path.read_bytes() + b" ")
+        return descriptor
+
+    class IndexWriteFailure:
+        def __init__(self, stream: Any) -> None:
+            self.stream = stream
+
+        def __enter__(self) -> Any:
+            return self
+
+        def __exit__(self, *args: Any) -> Any:
+            return self.stream.__exit__(*args)
+
+        def fileno(self) -> Any:
+            return self.stream.fileno()
+
+        def read(self, *args: Any) -> Any:
+            return self.stream.read(*args)
+
+        def seek(self, *args: Any) -> Any:
+            return self.stream.seek(*args)
+
+        def write(self, data: bytes) -> int:
+            raise normalize_error
+
+    def fdopen(descriptor: int, *args: Any, **kwargs: Any) -> Any:
+        stream = original_fdopen(descriptor, *args, **kwargs)
+        if descriptor in index_descriptors and fault == "index-normalize-write":
+            index_descriptors.remove(descriptor)
+            return IndexWriteFailure(stream)
+        return stream
+
+    original_one_object = transport.one_object
+
+    def one_object(raw: bytes) -> dict[str, Any]:
+        if exported_indices and raw == exported_indices[0]:
+            assert raw_path.read_bytes() == raw
+            assert stat.S_IMODE(raw_path.stat().st_mode) == 0o600
+            parse_observations.append(raw)
+        return original_one_object(raw)
+
+    monkeypatch.setattr(os, "open", open_file)
+    monkeypatch.setattr(os, "fdopen", fdopen)
+    monkeypatch.setattr(transport, "one_object", one_object)
 
     def write(path: Path, data: str, *args: Any, **kwargs: Any) -> int:
         if path == work / "pair-observation.json":
@@ -6048,6 +6183,141 @@ def test_alertmanager_offline_pair_real_owner_orders_two_launches_and_owned_clea
                 if fault == "assembly":
                     raise primary_error
                 shutil.copytree(d["seed"], work / "candidate-layout")
+                # Source-backed native exporter/client shape, not recovered C2 bytes.
+                index_path = work / "candidate-layout/index.json"
+                native_index = json.loads(index_path.read_bytes())
+                native_index["manifests"][0]["annotations"] = {
+                    "org.opencontainers.image.created": "2001-02-03T04:05:06Z",
+                    "org.opencontainers.image.ref.name": "latest",
+                }
+                descriptor = native_index["manifests"][0]
+                annotations = descriptor["annotations"]
+                dates = {
+                    "index-valid-leap": "2000-02-29T23:59:59Z",
+                    "index-created-invalid-date": "2001-02-29T04:05:06Z",
+                    "index-created-month": "2001-13-03T04:05:06Z",
+                    "index-created-fraction": "2001-02-03T04:05:06.000Z",
+                    "index-created-offset": "2001-02-03T04:05:06+00:00",
+                    "index-created-naive": "2001-02-03T04:05:06",
+                    "index-created-lowercase": "2001-02-03T04:05:06z",
+                    "index-created-leap-second": "2001-02-03T04:05:60Z",
+                    "index-created-hour": "2001-02-03T25:05:06Z",
+                    "index-created-year-zero": "0000-02-03T04:05:06Z",
+                    "index-created-non-ASCII": "\u0662\u0660\u0660\u0661-02-03T04:05:06Z",
+                    "index-created-unpadded": "2001-2-03T04:05:06Z",
+                }
+                if fault is not None and fault in dates:
+                    annotations["org.opencontainers.image.created"] = dates[fault]
+                elif fault == "index-annotations-missing":
+                    descriptor.pop("annotations")
+                elif fault == "index-created-missing":
+                    annotations.pop("org.opencontainers.image.created")
+                elif fault == "index-ref-missing":
+                    annotations.pop("org.opencontainers.image.ref.name")
+                elif fault == "index-extra-annotation":
+                    annotations["unreviewed"] = "value"
+                elif fault == "index-wrong-key":
+                    annotations["unknown.created"] = annotations.pop(
+                        "org.opencontainers.image.created"
+                    )
+                elif fault == "index-annotations-string":
+                    descriptor["annotations"] = "latest"
+                elif fault == "index-created-bool":
+                    annotations["org.opencontainers.image.created"] = True
+                elif fault == "index-created-empty":
+                    annotations["org.opencontainers.image.created"] = ""
+                elif fault == "index-ref-bool":
+                    annotations["org.opencontainers.image.ref.name"] = True
+                elif fault == "index-ref-alias":
+                    annotations["org.opencontainers.image.ref.name"] = (
+                        "docker.io/library/candidate:latest"
+                    )
+                elif fault == "index-ref-candidate":
+                    annotations["org.opencontainers.image.ref.name"] = "candidate"
+                elif fault == "index-extra-root":
+                    native_index["unreviewed"] = 1
+                elif fault == "index-schema-bool":
+                    native_index["schemaVersion"] = True
+                elif fault == "index-media":
+                    native_index["mediaType"] = "unknown"
+                elif fault == "index-manifests-string":
+                    native_index["manifests"] = "unknown"
+                elif fault == "index-manifests-empty":
+                    native_index["manifests"] = []
+                elif fault == "index-multiple":
+                    native_index["manifests"].append(deepcopy(descriptor))
+                elif fault == "index-descriptor-list":
+                    native_index["manifests"][0] = []
+                elif fault == "index-core-extra":
+                    descriptor["unreviewed"] = "value"
+                elif fault == "index-core-media":
+                    descriptor["mediaType"] = "unknown"
+                elif fault == "index-core-size":
+                    descriptor["size"] += 1
+                native_bytes = json.dumps(native_index).encode()
+                if fault == "index-duplicate-created":
+                    field = b'"org.opencontainers.image.created": "2001-02-03T04:05:06Z"'
+                    assert native_bytes.count(field) == 1
+                    native_bytes = native_bytes.replace(field, field + b", " + field)
+                elif fault == "index-duplicate-root":
+                    native_bytes = b'{"schemaVersion": 2, ' + native_bytes[1:]
+                elif fault == "index-malformed":
+                    native_bytes = b'{"broken":'
+                elif fault == "index-non-object":
+                    native_bytes = b"[]"
+                elif fault == "index-empty":
+                    native_bytes = b""
+                elif fault in ("index-boundary", "index-oversize"):
+                    native_bytes = native_bytes.ljust(64 * 1024 + (fault == "index-oversize"), b" ")
+                index_path.write_bytes(native_bytes)
+                native_blob_hashes.update(
+                    {
+                        p.name: sha256(p.read_bytes()).hexdigest()
+                        for p in (work / "candidate-layout/blobs/sha256").iterdir()
+                    }
+                )
+                if fault in successful_faults:
+                    with pytest.raises(
+                        transport.QualificationError, match="layout_transport_annotation"
+                    ):
+                        docker_sources._alertmanager_candidate_graph(
+                            work / "candidate-layout", d["support"], d["expected"]
+                        )
+                    with pytest.raises(
+                        transport.QualificationError, match="layout_transport_annotation"
+                    ):
+                        transport.pack_layout(work / "candidate-layout", work / "unadapted.oci.tar")
+                    assert not (work / "unadapted.oci.tar").exists()
+                    assert index_path.read_bytes() == native_bytes
+                exported_indices.append(native_bytes)
+                if fault == "index-missing":
+                    index_path.unlink()
+                elif fault == "index-symlink":
+                    target = work / "index-source-target"
+                    target.write_bytes(native_bytes)
+                    index_path.unlink()
+                    index_path.symlink_to(target)
+                elif fault == "index-hardlink":
+                    os.link(index_path, work / "index-hardlink")
+                elif fault == "index-directory":
+                    index_path.unlink()
+                    index_path.mkdir()
+                elif fault == "index-mode":
+                    index_path.chmod(0o444)
+                elif fault == "index-raw-existing":
+                    raw_path.write_bytes(b"prior raw observation")
+                elif fault in ("index-raw-symlink", "index-canonical-symlink"):
+                    target = work / "index-evidence-target"
+                    target.write_bytes(b"preserve evidence target")
+                    (raw_path if fault == "index-raw-symlink" else canonical_path).symlink_to(
+                        target
+                    )
+                elif fault == "index-blob-symlink":
+                    blob = next((work / "candidate-layout/blobs/sha256").iterdir())
+                    target = work / "index-blob-target"
+                    target.write_bytes(blob.read_bytes())
+                    blob.unlink()
+                    blob.symlink_to(target)
             elif "ps" in argv:
                 raw = (
                     ("\n".join(containers) + ("\n" if containers else "")).encode()
@@ -6114,8 +6384,21 @@ def test_alertmanager_offline_pair_real_owner_orders_two_launches_and_owned_clea
         ],
     }
     result: dict[str, Any] = {}
-    if fault is not None or observation_failure:
-        with pytest.raises(RuntimeError if fault is not None else OSError) as caught:
+    index_os_errors = {
+        "index-raw-write",
+        "index-normalize-write",
+        "index-canonical-write",
+        "index-raw-existing",
+        "index-raw-symlink",
+        "index-canonical-symlink",
+    }
+    if fault not in successful_faults or observation_failure:
+        expected_error = (
+            OSError
+            if fault in index_os_errors or fault is None
+            else ValueError if fault == "index-malformed" else RuntimeError
+        )
+        with pytest.raises(expected_error) as caught:
             docker_sources._alertmanager_pair(
                 d["inputs"],
                 d["support"],
@@ -6129,6 +6412,97 @@ def test_alertmanager_offline_pair_real_owner_orders_two_launches_and_owned_clea
         if buildkit_failure:
             assert isinstance(caught.value, transport.QualificationError)
             assert str(caught.value) == "AM_pinned_BuildKit_image"
+        elif index_failure:
+            codes = {
+                **dict.fromkeys(
+                    (
+                        "index-annotations-missing",
+                        "index-created-missing",
+                        "index-ref-missing",
+                        "index-extra-annotation",
+                        "index-wrong-key",
+                        "index-annotations-string",
+                        "index-created-bool",
+                        "index-created-empty",
+                        "index-ref-bool",
+                        "index-ref-alias",
+                        "index-ref-candidate",
+                    ),
+                    "AM_export_index_annotations",
+                ),
+                **dict.fromkeys(
+                    (
+                        "index-created-invalid-date",
+                        "index-created-month",
+                        "index-created-fraction",
+                        "index-created-offset",
+                        "index-created-naive",
+                        "index-created-lowercase",
+                        "index-created-leap-second",
+                        "index-created-hour",
+                        "index-created-year-zero",
+                        "index-created-non-ASCII",
+                        "index-created-unpadded",
+                    ),
+                    "AM_export_index_created_UTC",
+                ),
+                **dict.fromkeys(
+                    (
+                        "index-extra-root",
+                        "index-schema-bool",
+                        "index-media",
+                        "index-manifests-string",
+                        "index-manifests-empty",
+                        "index-multiple",
+                        "index-descriptor-list",
+                    ),
+                    "AM_export_index_shape",
+                ),
+                **dict.fromkeys(
+                    (
+                        "index-symlink",
+                        "index-hardlink",
+                        "index-directory",
+                        "index-mode",
+                        "index-empty",
+                        "index-oversize",
+                    ),
+                    "AM_export_index_leaf",
+                ),
+                "index-missing": "AM_export_index_missing",
+                "index-duplicate-created": "duplicate_JSON_key",
+                "index-duplicate-root": "duplicate_JSON_key",
+                "index-non-object": "native_JSON_not_object",
+                "index-core-extra": "descriptor_keys",
+                "index-core-media": "descriptor_media_or_size",
+                "index-core-size": "blob_identity",
+                "index-source-drift": "AM_export_index_changed",
+                "index-blob-drift": "AM_export_index_blob_drift",
+                "index-input-drift": "AM_assembly_input_drift",
+                "index-canonical-drift": "AM_export_index_canonical_evidence",
+                "index-blob-symlink": "unsafe_tree_member",
+            }
+            if fault in codes:
+                assert isinstance(caught.value, transport.QualificationError)
+                assert str(caught.value) == codes[fault]
+            elif fault == "index-malformed":
+                assert isinstance(caught.value, json.JSONDecodeError)
+            elif fault == "index-raw-write":
+                assert caught.value is raw_error
+            elif fault == "index-normalize-write":
+                assert caught.value is normalize_error
+            elif fault == "index-canonical-write":
+                assert caught.value is canonical_error
+            else:
+                assert fault in {
+                    "index-raw-existing",
+                    "index-raw-symlink",
+                    "index-canonical-symlink",
+                }
+                assert isinstance(caught.value, FileExistsError)
+                assert str(
+                    raw_path if fault != "index-canonical-symlink" else canonical_path
+                ) in str(caught.value)
         elif fault == "assembly":
             assert caught.value is primary_error
         elif fault == "cleanup":
@@ -6167,14 +6541,74 @@ def test_alertmanager_offline_pair_real_owner_orders_two_launches_and_owned_clea
         assert not containers and result["owned_absence_observed"] is True
     assert observation_attempts == [work / "pair-observation.json"]
     assert (work / "pair-observation.json").is_file() is (not observation_failure)
-    if observation_failure or buildkit_failure:
-        docker_sources._alertmanager_retain_execution(work.parent, retained)
-        assert (retained / "pair-evidence/pair-base-load.stdout").exists()
-        assert not list(retained.rglob("config.json"))
-        if fault != "replaced-ID" and not buildkit_failure:
+    unsafe_evidence = fault in ("index-raw-symlink", "index-canonical-symlink")
+    if observation_failure or buildkit_failure or exported_indices:
+        if unsafe_evidence:
+            with pytest.raises(transport.QualificationError, match="unsafe_tree_member"):
+                docker_sources._alertmanager_retain_execution(work.parent, retained)
+            assert (work / "index-evidence-target").read_bytes() == b"preserve evidence target"
+        else:
+            docker_sources._alertmanager_retain_execution(work.parent, retained)
+            assert (retained / "pair-evidence/pair-base-load.stdout").exists()
+            assert not list(retained.rglob("config.json"))
+        if fault != "replaced-ID" and not buildkit_failure and not unsafe_evidence:
             assert (
                 retained / "pair-evidence/alertmanager-compile-attach.stdout"
             ).read_bytes() == b"synthetic actual compiler stdout"
+    if exported_indices:
+        uncaptured = {
+            "index-missing",
+            "index-symlink",
+            "index-hardlink",
+            "index-directory",
+            "index-mode",
+            "index-empty",
+            "index-oversize",
+            "index-raw-write",
+            "index-raw-existing",
+            "index-raw-symlink",
+        }
+        if fault == "index-raw-existing":
+            assert raw_path.read_bytes() == b"prior raw observation"
+        elif fault in uncaptured:
+            assert not raw_path.exists() or raw_path.is_symlink()
+        else:
+            assert raw_path.read_bytes() == exported_indices[0]
+            assert stat.S_IMODE(raw_path.stat().st_mode) == 0o600
+            if not unsafe_evidence:
+                assert (
+                    retained / "pair-evidence/pair-export-index.raw.json"
+                ).read_bytes() == exported_indices[0]
+        assert bool(parse_observations) is (
+            fault not in uncaptured and fault != "index-blob-symlink"
+        )
+        if canonical_path.is_file() and not canonical_path.is_symlink():
+            before_index = json.loads(exported_indices[0])
+            expected_index = deepcopy(before_index)
+            expected_index["manifests"][0]["annotations"] = {
+                "org.opencontainers.image.ref.name": "candidate"
+            }
+            assert json.loads(canonical_path.read_bytes()) == expected_index
+            assert (
+                sha256(canonical_path.read_bytes()).hexdigest()
+                != sha256(exported_indices[0]).hexdigest()
+            )
+            assert stat.S_IMODE(canonical_path.stat().st_mode) == 0o600
+            assert (
+                retained / "pair-evidence/pair-export-index.canonical.json"
+            ).read_bytes() == canonical_path.read_bytes()
+        if fault not in ("index-blob-drift", "index-blob-symlink"):
+            assert {
+                p.name: sha256(p.read_bytes()).hexdigest()
+                for p in (work / "candidate-layout/blobs/sha256").iterdir()
+            } == native_blob_hashes
+        if index_failure:
+            assert result["compiler_attempts"] == result["compiler_starts"] == 2
+            assert result["logical_build_starts"] == 1 and result["cleanup_failure"] is None
+            assert not (work / "candidate.oci.tar").exists()
+            assert (retained / "pair-outputs/alertmanager").read_bytes() == d["binaries"][
+                "alertmanager"
+            ]
     if buildkit_failure:
         assert result["logical_build_starts"] == result["compiler_attempts"] == 0
         assert result["compiler_starts"] == 0 and result["cleanup_failure"] is None
@@ -6228,7 +6662,9 @@ def test_alertmanager_offline_pair_real_owner_orders_two_launches_and_owned_clea
             )
 
 
-@pytest.mark.parametrize("caller", ["fresh-native", "retained-candidate"])
+@pytest.mark.parametrize(
+    "caller", ["fresh-native", "retained-candidate", "retained-failed-candidate"]
+)
 @pytest.mark.parametrize("omit_base_member", [False, True])
 def test_alertmanager_both_security_callers_use_actual_authenticated_support_reference(
     tmp_path: Path,
@@ -6237,7 +6673,7 @@ def test_alertmanager_both_security_callers_use_actual_authenticated_support_ref
     caller: str,
     omit_base_member: bool,
 ) -> None:
-    """Exercise the two callers up to their real shared OS reconciliation boundary."""
+    """Bind both callers to the base; a failed build never reaches reconciliation."""
     import zipfile
     from scripts.ci import prometheus_source_image as transport
 
@@ -6446,6 +6882,9 @@ def test_alertmanager_both_security_callers_use_actual_authenticated_support_ref
                     "stderr_sha256": sha256(b"").hexdigest(),
                 }
             )
+        if caller == "retained-failed-candidate":
+            observed["status"] = "HOLD_NO_EXECUTION_OUTCOME"
+            observed["failure"] = "QualificationError:layout_transport_annotation"
         files["candidate-observation.json"] = json.dumps(observed).encode()
         directories = sorted(
             {
@@ -6487,13 +6926,17 @@ def test_alertmanager_both_security_callers_use_actual_authenticated_support_ref
     with pytest.raises(
         RuntimeError,
         match=(
-            "AM_candidate_all_and_only_authenticated_base_packages"
-            if omit_base_member
-            else "synthetic-stop-after-actual-OS-reconciliation"
+            "AM_candidate_positive_predecessors_and_finite_recipe"
+            if caller == "retained-failed-candidate"
+            else (
+                "AM_candidate_all_and_only_authenticated_base_packages"
+                if omit_base_member
+                else "synthetic-stop-after-actual-OS-reconciliation"
+            )
         ),
     ):
         invoke()
-    assert bound == [base]
+    assert bound == ([] if caller == "retained-failed-candidate" else [base])
 
 
 @pytest.mark.parametrize("binary", ["alertmanager", "amtool"])

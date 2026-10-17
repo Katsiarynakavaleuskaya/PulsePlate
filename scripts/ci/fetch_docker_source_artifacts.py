@@ -4626,6 +4626,7 @@ def _alertmanager_pair(
     retained: Path | None = None,
 ) -> dict[str, Any]:
     """One direct serial pair plus one COPY-only assembly; no resolver or retry."""
+    from datetime import datetime
     import shutil
     import uuid
     from scripts.ci.prometheus_source_image import (
@@ -4634,6 +4635,7 @@ def _alertmanager_pair(
         fresh_directory,
         one_object,
         pack_layout,
+        real_directory,
         require,
         tree_inventory,
     )
@@ -4954,6 +4956,146 @@ def _alertmanager_pair(
             str(context),
         ]
         native.run(argv, "pair-only-COPY-assembly", env, cwd=work, watched_output=work)
+        index_path = layout / "index.json"
+        real_directory(layout)
+        require(index_path.exists() or index_path.is_symlink(), "AM_export_index_missing")
+        index_info = index_path.lstat()
+        require(
+            stat.S_ISREG(index_info.st_mode)
+            and index_info.st_nlink == 1
+            and index_info.st_uid == os.getuid()
+            and stat.S_IMODE(index_info.st_mode) in (0o600, 0o644)
+            and 0 < index_info.st_size <= 64 * 1024,
+            "AM_export_index_leaf",
+        )
+        index_fields = (
+            "st_dev",
+            "st_ino",
+            "st_mode",
+            "st_nlink",
+            "st_uid",
+            "st_gid",
+            "st_size",
+            "st_mtime_ns",
+            "st_ctime_ns",
+        )
+        with os.fdopen(
+            os.open(index_path, os.O_RDWR | os.O_NOFOLLOW | os.O_NONBLOCK), "r+b"
+        ) as index_stream:
+            opened = os.fstat(index_stream.fileno())
+            require(
+                all(getattr(index_info, field) == getattr(opened, field) for field in index_fields),
+                "AM_export_index_identity",
+            )
+            raw_index: bytes = index_stream.read(64 * 1024 + 1)
+            after_read, current = os.fstat(index_stream.fileno()), index_path.lstat()
+            require(
+                len(raw_index) == index_info.st_size
+                and all(
+                    getattr(index_info, field)
+                    == getattr(after_read, field)
+                    == getattr(current, field)
+                    for field in index_fields
+                ),
+                "AM_export_index_changed",
+            )
+            raw_path = evidence / "pair-export-index.raw.json"
+            with os.fdopen(
+                os.open(raw_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600),
+                "wb",
+            ) as raw_stream:
+                raw_stream.write(raw_index)
+            raw_info = raw_path.lstat()
+            require(
+                raw_info.st_uid == os.getuid()
+                and stat.S_IMODE(raw_info.st_mode) == 0o600
+                and file_hash(raw_path, native.deadline) == sha256(raw_index).hexdigest(),
+                "AM_export_index_raw_readback",
+            )
+            blob_inventory = tree_inventory(layout / "blobs", deadline=native.deadline)
+            export_index: dict[str, Any] = one_object(raw_index)
+            require(
+                set(export_index) == {"schemaVersion", "mediaType", "manifests"}
+                and type(export_index.get("schemaVersion")) is int
+                and export_index["schemaVersion"] == 2
+                and export_index.get("mediaType") == "application/vnd.oci.image.index.v1+json"
+                and type(export_index.get("manifests")) is list
+                and len(export_index["manifests"]) == 1
+                and type(export_index["manifests"][0]) is dict,
+                "AM_export_index_shape",
+            )
+            annotations = export_index["manifests"][0].get("annotations")
+            require(
+                type(annotations) is dict
+                and set(annotations)
+                == {"org.opencontainers.image.created", "org.opencontainers.image.ref.name"}
+                and all(type(value) is str and value != "" for value in annotations.values())
+                and annotations["org.opencontainers.image.ref.name"] == "latest",
+                "AM_export_index_annotations",
+            )
+            created = annotations["org.opencontainers.image.created"]
+            require(
+                re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z", created)
+                is not None,
+                "AM_export_index_created_UTC",
+            )
+            valid_created = True
+            try:
+                datetime.strptime(created, "%Y-%m-%dT%H:%M:%SZ")
+            except ValueError:
+                valid_created = False
+            require(valid_created, "AM_export_index_created_UTC")
+            export_index["manifests"][0]["annotations"] = {
+                "org.opencontainers.image.ref.name": "candidate"
+            }
+            canonical_index = json.dumps(export_index, separators=(",", ":")).encode("utf-8")
+            index_stream.seek(0)
+            current, opened = index_path.lstat(), os.fstat(index_stream.fileno())
+            require(
+                index_stream.read(64 * 1024 + 1) == raw_index
+                and all(
+                    getattr(index_info, field) == getattr(opened, field) == getattr(current, field)
+                    for field in index_fields
+                ),
+                "AM_export_index_changed",
+            )
+            index_stream.seek(0)
+            index_stream.write(canonical_index)
+            index_stream.truncate()
+            index_stream.flush()
+            index_stream.seek(0)
+            current, opened = index_path.lstat(), os.fstat(index_stream.fileno())
+            require(
+                index_stream.read(64 * 1024 + 1) == canonical_index
+                and all(
+                    getattr(index_info, field) == getattr(opened, field) == getattr(current, field)
+                    for field in index_fields[:6]
+                )
+                and all(getattr(opened, field) == getattr(current, field) for field in index_fields)
+                and current.st_size == len(canonical_index),
+                "AM_export_index_canonical_readback",
+            )
+            canonical_path = evidence / "pair-export-index.canonical.json"
+            with os.fdopen(
+                os.open(
+                    canonical_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600
+                ),
+                "wb",
+            ) as canonical_stream:
+                canonical_stream.write(canonical_index)
+            canonical_info = canonical_path.lstat()
+            require(
+                canonical_info.st_uid == os.getuid()
+                and stat.S_IMODE(canonical_info.st_mode) == 0o600
+                and file_hash(canonical_path, native.deadline)
+                == sha256(canonical_index).hexdigest()
+                and file_hash(index_path, native.deadline) == sha256(canonical_index).hexdigest(),
+                "AM_export_index_canonical_evidence",
+            )
+            require(
+                tree_inventory(layout / "blobs", deadline=native.deadline) == blob_inventory,
+                "AM_export_index_blob_drift",
+            )
         require(
             tree_inventory(context) == context_inventory
             and all(tree_inventory(inputs / name) == before for name, before in snapshots.items()),
