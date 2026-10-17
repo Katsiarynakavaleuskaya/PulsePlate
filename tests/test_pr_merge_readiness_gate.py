@@ -680,6 +680,9 @@ def test_precloseout_inspected_history_uses_real_recognizer_and_two_observations
     capsys: pytest.CaptureFixture[str],
     scenario: str,
 ) -> None:
+    """Exercise native inspected admission while rejecting missing, independent or drifting
+    evidence.
+    """
     from tests.test_pr_review_material_seal import (
         _inspected_stale_seal_fixture,
         _mapping_artifact_with_seal,
@@ -4220,6 +4223,7 @@ def test_fetch_pr_context_includes_exact_head_ref(monkeypatch: pytest.MonkeyPatc
 def test_ordinary_retirement_fixed_q_and_mapping_add_r_use_existing_gate(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mutation: str
 ) -> None:
+    """Validate material M independently of Q_fix proof identity and reject later material drift."""
     from scripts.orchestration import pr_commit_identity as identity
     from tests.test_pr_review_closeout import (
         _ordinary_retirement_closeout_fixture,

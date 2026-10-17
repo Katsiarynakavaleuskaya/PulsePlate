@@ -106,6 +106,7 @@ def _token() -> str:
 
 
 def _state_dir(pr_number: int) -> Path:
+    """Return the private draft directory for a positive integer PR number."""
     if not isinstance(pr_number, int) or isinstance(pr_number, bool) or pr_number <= 0:
         raise CloseoutError("pr_number must be positive")
     return STATE_ROOT / f"PR_{pr_number}"
@@ -150,6 +151,7 @@ def _write_state(state: Mapping[str, Any]) -> None:
 
 
 def _load_state(pr_number: int) -> dict[str, Any]:
+    """Decode strict JSON and require the requested draft identity and disposition shape."""
     path = _state_path(pr_number)
     try:
         state = _load_json_bytes(path.read_bytes(), label="local draft")
@@ -1111,6 +1113,7 @@ def _cmd_validate(args: argparse.Namespace) -> None:
 
 
 def _parser() -> argparse.ArgumentParser:
+    """Build the canonical closeout CLI with its bounded current subcommand inventory."""
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
 

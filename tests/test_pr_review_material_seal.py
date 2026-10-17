@@ -10900,6 +10900,7 @@ def test_closeout_seal_parser_requires_self_review_and_rejects_provider_flags() 
 def test_inspected_stale_seal_accepts_native_unedited_update_metadata(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, published: bool, seconds: int
 ) -> None:
+    """Accept creation/update metadata differences with exact unedited native phase bindings."""
     state = _inspected_stale_seal_fixture(tmp_path, monkeypatch, published=published)
     for comment in state["thread"].comments[1:]:
         stamp = comment.created_at[:-3] + f"{seconds:02d}Z"
@@ -10915,6 +10916,7 @@ def test_inspected_stale_seal_accepts_native_unedited_update_metadata(
 def test_inspected_stale_seal_update_metadata_keeps_negative_native_bindings(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mutation: str, published: bool
 ) -> None:
+    """Reject invalid chronology, native edit metadata or mismatched phase revisions."""
     state = _inspected_stale_seal_fixture(tmp_path, monkeypatch, published=published)
     comment = state["thread"].comments[-1]
     row, node = (

@@ -339,6 +339,7 @@ def _retirement_fixture(
     monkeypatch.setattr(closeout, "fetch_pr_snapshot", lambda *_a, **_k: snapshot)
 
     def classify(sha: str, observed: PrSnapshot, **_kwargs: Any) -> Any:
+        """Bind synthetic API classification to an existing commit in the real test graph."""
         assert observed is snapshot
         # Native Git objects remain independent of the synthetic API identity.
         assert _publication_git(repo, "rev-parse", f"{sha}^{{commit}}") == sha
@@ -350,6 +351,7 @@ def _retirement_fixture(
         return identity.RepositoryCommitRef(sha, kind)
 
     def ancestor(first: Any, second: Any, **_kwargs: Any) -> bool:
+        """Observe ancestry from the synthetic repository's actual Git graph."""
         return not _publication_git(repo, "rev-list", first.sha, f"^{second.sha}")
 
     monkeypatch.setattr(identity, "classify_commit_ref", classify)
@@ -361,6 +363,7 @@ def _retirement_fixture(
 def test_retire_stale_preserves_dirty_material_index_and_draft(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
+    """Prove retirement preserves staged and unstaged material plus exact index and draft bytes."""
     fixture = _retirement_fixture(tmp_path, monkeypatch)
     repo = fixture["repo"]
     dirty = repo / "README.md"
@@ -414,6 +417,7 @@ def test_retire_stale_preserves_dirty_material_index_and_draft(
 def test_retire_stale_rejects_uncertainty_without_deleting(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mutation: str
 ) -> None:
+    """Reject each invalid or drifting retirement prerequisite while retaining the canonical entry."""
     from scripts.orchestration import pr_commit_identity as identity
 
     fixture = _retirement_fixture(tmp_path, monkeypatch, stale=mutation != "current")
@@ -425,6 +429,7 @@ def test_retire_stale_rejects_uncertainty_without_deleting(
     elif mutation == "fetch-draft-proof":
 
         def add_proof(*_args: Any, **_kwargs: Any) -> PrSnapshot:
+            """Insert proof-bearing draft state during the authenticated snapshot observation."""
             closeout._write_state(
                 fixture["state"] | {"dispositions": [{"disposition": "FIXED", "commit": "a" * 40}]}
             )
@@ -512,6 +517,9 @@ def test_retire_stale_rejects_uncertainty_without_deleting(
     }:
 
         def drift(*_args: Any, **_kwargs: Any) -> None:
+            """Change one bound observation after snapshot verification to exercise terminal drift
+            checks.
+            """
             if mutation == "snapshot-drift":
                 raise identity.CommitIdentityError("synthetic authenticated drift")
             if mutation == "terminal-draft-drift":
@@ -673,6 +681,7 @@ def _ordinary_retirement_closeout_fixture(
 def test_retire_stale_registered_q_then_normal_mapping_add_r(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    """Bind the seal to docs material M and FIXED to Q_fix before the sole mapping ADD-R."""
     fixture = _ordinary_retirement_closeout_fixture(tmp_path, monkeypatch)
     seal = closeout.validate_live_mapping(repository="owner/repo", pr_number=42, token="opaque")
     assert seal["material"]["material_head_sha"] == fixture["m"]
