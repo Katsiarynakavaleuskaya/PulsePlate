@@ -665,6 +665,7 @@ def test_publication_inventory_rejects_unknown_or_changed_raw_members(
     "scenario",
     [
         "publication",
+        "native-update-metadata",
         "missing-I",
         "terminal-raw-drift",
         "independent-root",
@@ -685,6 +686,10 @@ def test_precloseout_inspected_history_uses_real_recognizer_and_two_observations
     )
 
     state = _inspected_stale_seal_fixture(tmp_path, monkeypatch)
+    if scenario == "native-update-metadata":
+        owner = state["thread"].comments[1]
+        state["rows"][owner.url]["updated_at"] = "2026-08-12T10:30:01Z"
+        state["nodes"]["REVIEW_800"]["updatedAt"] = "2026-08-12T10:30:01Z"
     prior_candidate_hash = hashlib.sha256(state["candidate"]).hexdigest()
     if scenario == "false-no-actionables":
         state["candidate"] = _mapping_artifact_with_seal(state["seal"]).encode("utf-8")
@@ -836,10 +841,12 @@ def test_precloseout_inspected_history_uses_real_recognizer_and_two_observations
             merge_gate, "fetch_review_threads", lambda *_a, **_k: (state["thread"], independent)
         )
     assert merge_gate.main() == (
-        0 if scenario in {"publication", "legacy-current-impossible"} else 1
+        0
+        if scenario in {"publication", "native-update-metadata", "legacy-current-impossible"}
+        else 1
     )
     output = capsys.readouterr().out
-    if scenario in {"publication", "legacy-current-impossible"}:
+    if scenario in {"publication", "native-update-metadata", "legacy-current-impossible"}:
         assert observations == 3
         assert "awaits actual correction/FIXED proof" in output
         assert "not merge-readiness evidence" in output
@@ -4207,3 +4214,72 @@ def test_fetch_pr_context_includes_exact_head_ref(monkeypatch: pytest.MonkeyPatc
         "body",
         "codex/review",
     )
+
+
+@pytest.mark.parametrize("mutation", ["valid", "unavailable-Q", "material-after-R"])
+def test_ordinary_retirement_fixed_q_and_mapping_add_r_use_existing_gate(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mutation: str
+) -> None:
+    from scripts.orchestration import pr_commit_identity as identity
+    from tests.test_pr_review_closeout import (
+        _ordinary_retirement_closeout_fixture,
+        _publication_git,
+    )
+
+    fixture = _ordinary_retirement_closeout_fixture(tmp_path, monkeypatch)
+    snapshot = fixture["snapshot"]
+    if mutation == "material-after-R":
+        (fixture["repo"] / "README.md").write_text(
+            "material drift after sealing\n", encoding="utf-8"
+        )
+        _publication_git(fixture["repo"], "add", "README.md")
+        _publication_git(fixture["repo"], "commit", "-qm", "later real material")
+        snapshot = replace(
+            snapshot, head_sha=_publication_git(fixture["repo"], "rev-parse", "HEAD")
+        )
+    monkeypatch.setattr(
+        merge_gate,
+        "classify_commit_ref",
+        lambda sha, *_a, **_k: (
+            identity.ReviewExecutionRef(sha, CommitRefKind.API_UNKNOWN, "synthetic unknown")
+            if mutation == "unavailable-Q" and sha == fixture["q"]
+            else RepositoryCommitRef(sha, CommitRefKind.PR_COMMIT)
+        ),
+    )
+    monkeypatch.setattr(
+        merge_gate,
+        "is_ancestor",
+        lambda first, second, **_k: not _publication_git(
+            fixture["repo"], "rev-list", first.sha, f"^{second.sha}"
+        ),
+    )
+    kwargs = dict(
+        artifact_text=fixture["target"].read_text(encoding="utf-8"),
+        repository="owner/repo",
+        pr_number=42,
+        snapshot=snapshot,
+        token="opaque",
+        material_repo_root=fixture["repo"],
+        enforce_outage_security_checks=False,
+    )
+    if mutation == "material-after-R":
+        with pytest.raises(ReviewEvidenceError, match="live material digest"):
+            merge_gate._validate_v1_seal(**kwargs)
+        return
+    # Material M and its earlier genuine FIXED proof Q_fix have separate consumers.
+    seal = merge_gate._validate_v1_seal(**kwargs)
+    assert seal["material"]["material_head_sha"] == fixture["m"]
+    assert fixture["q"] != fixture["m"]
+    proof_args = dict(
+        mapping_entries={fixture["root"]: fixture["q"]},
+        snapshot=snapshot,
+        repository="owner/repo",
+        token="opaque",
+    )
+    if mutation == "unavailable-Q":
+        with pytest.raises(
+            identity.CommitIdentityError, match="mapped FIXED SHA is not a real PR commit"
+        ):
+            merge_gate._prove_v1_fixed_commits(**proof_args)
+    else:
+        merge_gate._prove_v1_fixed_commits(**proof_args)
