@@ -17,6 +17,10 @@ import pytest
 import yaml
 
 from scripts.ci.ci_risk_profile import build_risk_profile
+from scripts.orchestration.creative_code_patch_workspace import (
+    git_env_without_parent_state,
+    safe_git_config_args,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DOCKERFILE = REPO_ROOT / "frontend" / "Dockerfile.caddy-spa"
@@ -49,7 +53,7 @@ def test_alertmanager_cd_contract_carries_exact_files_and_keeps_scans_separate()
     assert "Admit exact Alertmanager image, config, and narrow CVE exception" in workflow
     assert '--ignorefile "$TRIVY_IGNORE_FILE"' in workflow  # Prometheus stays separate.
     assert '--ignorefile "$ignore"' in workflow  # Alertmanager only.
-    assert "-e PULSEPLATE_ENVIRONMENT=staging" in workflow
+    assert '"-e", "PULSEPLATE_ENVIRONMENT=staging"' in workflow
     assert "CVE-2026-84445" in ALERTMANAGER_IGNORE.read_text(encoding="utf-8")
     assert "group_interval: 5m" in ALERTMANAGER_CONFIG.read_text(encoding="utf-8")
     for required in (
@@ -69,7 +73,7 @@ def _run_alertmanager_scan_fixture(
 ) -> subprocess.CompletedProcess[str]:
     """Execute the actual admission step with controlled native-command outcomes."""
     step = _named_step(
-        _steps(_job(_workflow(CD_WORKFLOW), "prometheus-image-security")),
+        _steps(_job(_workflow(CD_WORKFLOW), "prometheus-image-security-pr")),
         "Admit exact Alertmanager image, config, and narrow CVE exception",
     )
     script = step["run"]
@@ -103,10 +107,14 @@ def _run_alertmanager_scan_fixture(
             {
                 "Target": target,
                 "Vulnerabilities": [
-                    {
-                        "VulnerabilityID": "CVE-2026-84445",
-                        "PkgIdentifier": {"PURL": "pkg:golang/google.golang.org/grpc@v1.83.1"},
-                    }
+                    {"VulnerabilityID": cve, "PkgIdentifier": {"PURL": purl}, "Severity": "HIGH"}
+                    for cve, purl in (
+                        ("CVE-2026-84445", "pkg:golang/google.golang.org/grpc@v1.83.1"),
+                        ("CVE-2026-78669", "pkg:golang/golang.org/x/net@v0.58.0"),
+                        ("CVE-2026-78669", "pkg:golang/stdlib@v1.26.8"),
+                        ("CVE-2026-78667", "pkg:golang/stdlib@v1.26.8"),
+                        ("CVE-2026-97031", "pkg:golang/stdlib@v1.26.8"),
+                    )
                 ],
             }
             for target in ("bin/alertmanager", "bin/amtool")
@@ -118,12 +126,21 @@ def _run_alertmanager_scan_fixture(
         f"#!{sys.executable}\n"
         "import json,os,sys\nfrom pathlib import Path\n"
         "args=sys.argv[1:]\n"
+        "if args==['--version','--format','json']:\n"
+        " print(json.dumps({'Version':'0.74.0'})); sys.exit(0)\n"
         "ignore=Path(args[args.index('--ignorefile')+1]).name if '--ignorefile' in args else ''\n"
         "negative=bool(ignore) and ignore!='trivy-ignore.yaml'\n"
         "late='expired' in ignore\n"
         "scenario=os.environ['SCAN_SCENARIO']\n"
         "report=json.loads(Path(os.environ['SCAN_REPORT']).read_text())\n"
         "if negative:\n"
+        " policy=Path(args[args.index('--ignorefile')+1]).read_text()\n"
+        " if late:\n"
+        "  assert policy.count('expired_at: 2026-01-01')==4 and 'expired_at: 2026-10-21' not in policy\n"
+        " else:\n"
+        "  for package,original in (('google.golang.org/grpc','1.83.1'),('golang.org/x/net','0.58.0'),('stdlib','1.26.8')):\n"
+        "   assert 'pkg:golang/'+package+'@v0.0.0' in policy\n"
+        "   assert 'pkg:golang/'+package+'@v'+original not in policy\n"
         " with Path(os.environ['SCAN_CALLS']).open('a') as stream: stream.write(ignore+'\\n')\n"
         " if scenario in ('exit1','exit2'):\n"
         "  print('scanner prerequisite failed; no report',file=sys.stderr); sys.exit(int(scenario[-1]))\n"
@@ -140,26 +157,34 @@ def _run_alertmanager_scan_fixture(
     trivy.chmod(0o755)
     runner = tmp_path / "runner"
     runner.mkdir()
+    (runner / "prometheus-consumer-123-1" / "evidence").mkdir(parents=True)
+    cache = tmp_path / "trivy-cache" / "db"
+    cache.mkdir(parents=True)
+    (cache / "metadata.json").write_text('{"Version": 2}', encoding="utf-8")
+    (cache / "trivy.db").write_bytes(b"synthetic database")
     env = {
-        key: value
-        for key, value in os.environ.items()
-        if not key.startswith(("GIT_", "GITHUB_", "GH_"))
+        "PATH": str(binaries) + os.pathsep + os.defpath,
+        "HOME": str(tmp_path),
+        "LANG": "C",
+        "GITHUB_WORKSPACE": str(workspace),
+        "GITHUB_RUN_ID": "123",
+        "GITHUB_RUN_ATTEMPT": "1",
+        "GITHUB_SHA": "c" * 40,
+        "PROMETHEUS_EVENT_HEAD": "a" * 40,
+        "RUNNER_TEMP": str(runner),
+        "TRIVY_BIN": str(trivy),
+        "TRIVY_CACHE_DIR": str(cache.parent),
+        "SCAN_SCENARIO": scenario,
+        "SCAN_REPORT": str(tmp_path / "report.json"),
+        "SCAN_CALLS": str(tmp_path / "calls.log"),
     }
-    env.update(
-        {
-            "PATH": str(binaries) + os.pathsep + env["PATH"],
-            "GITHUB_WORKSPACE": str(workspace),
-            "RUNNER_TEMP": str(runner),
-            "TRIVY_BIN": str(trivy),
-            "SCAN_SCENARIO": scenario,
-            "SCAN_REPORT": str(tmp_path / "report.json"),
-            "SCAN_CALLS": str(tmp_path / "calls.log"),
-        }
-    )
-    bash = shutil.which("bash")
-    assert bash is not None
     return subprocess.run(
-        [bash, "-c", script], cwd=workspace, env=env, capture_output=True, text=True, timeout=20
+        ["/bin/bash", "-c", script],
+        cwd=workspace,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=20,
     )
 
 
@@ -173,6 +198,15 @@ def test_alertmanager_negative_controls_reject_unproven_scans(
     result = _run_alertmanager_scan_fixture(tmp_path, scenario)
     assert result.returncode != 0, result.stdout + result.stderr
     assert (tmp_path / "calls.log").read_text(encoding="utf-8").strip()
+    if scenario in ("exit1", "exit2"):
+        assert result.returncode == int(scenario[-1])
+        assert "scanner prerequisite failed; no report" in result.stderr
+    elif scenario in ("malformed", "stale"):
+        assert "JSONDecodeError" in result.stderr
+    elif scenario == "secret":
+        assert "Alertmanager scan contains unexpected secret findings" in result.stderr
+    else:
+        assert "Unsuppressed Alertmanager finding inventory changed" in result.stderr
 
 
 def test_alertmanager_negative_controls_require_both_retained_inventories(tmp_path: Path) -> None:
@@ -190,8 +224,8 @@ PROMETHEUS_RULES_HASH_CHECK = (
 )
 
 GO_BUILDER = (
-    "golang:1.26.6-alpine3.23@"
-    "sha256:5978cc992ad5ef96a7469713c8af849c1433824761ce3be2c56381403cd8d9a3"
+    "golang:1.26.9-alpine3.23@"
+    "sha256:96123126ac58e910f4dd3619a8901e2fb6d1ad84b59b1232cac7c9ea65a8f888"
 )
 NODE_BUILDER = (
     "node:24.18.1-bookworm-slim@"
@@ -218,6 +252,7 @@ EXPECTED_CADDY_BUILDER_STAGE = (
             "    go get github.com/caddyserver/caddy/v2/cmd/caddy@v2.11.4; \\",
             "    go get google.golang.org/grpc@v1.83.2; \\",
             "    go get golang.org/x/crypto@v0.55.0; \\",
+            "    go get golang.org/x/net@v0.60.0; \\",
             "    go mod download all; \\",
             "    go mod verify; \\",
             (
@@ -243,15 +278,15 @@ EXPECTED_CADDY_BUILDER_STAGE = (
             "      | LC_ALL=C sort > /tmp/caddy-governed-graph; \\",
             "    printf '%s\\n' \\",
             "      'github.com/caddyserver/caddy/v2 v2.11.4' \\",
-            "      'golang.org/x/crypto v0.55.0' \\",
-            "      'golang.org/x/mod v0.38.0' \\",
-            "      'golang.org/x/net v0.58.0' \\",
-            "      'golang.org/x/sync v0.22.0' \\",
-            "      'golang.org/x/sys v0.47.0' \\",
-            "      'golang.org/x/telemetry v0.0.0-20260708182218-49f421fb7959' \\",
-            "      'golang.org/x/term v0.45.0' \\",
-            "      'golang.org/x/text v0.41.0' \\",
-            "      'golang.org/x/tools v0.48.0' \\",
+            "      'golang.org/x/crypto v0.57.0' \\",
+            "      'golang.org/x/mod v0.41.0' \\",
+            "      'golang.org/x/net v0.60.0' \\",
+            "      'golang.org/x/sync v0.23.0' \\",
+            "      'golang.org/x/sys v0.48.0' \\",
+            "      'golang.org/x/telemetry v0.0.0-20260811182544-a038080d80e5' \\",
+            "      'golang.org/x/term v0.46.0' \\",
+            "      'golang.org/x/text v0.42.0' \\",
+            "      'golang.org/x/tools v0.49.0' \\",
             "      'google.golang.org/grpc v1.83.2' \\",
             "      | LC_ALL=C sort > /tmp/caddy-expected-graph; \\",
             ('    test "$(wc -l < /tmp/caddy-governed-graph | ' "tr -d '[:space:]')\" = '11'; \\"),
@@ -279,12 +314,12 @@ EXPECTED_CADDY_BUILDER_STAGE = (
             "      | LC_ALL=C sort > /tmp/caddy-governed-binary; \\",
             "    printf '%s\\n' \\",
             "      'mod github.com/caddyserver/caddy/v2 v2.11.4' \\",
-            "      'dep golang.org/x/crypto v0.55.0' \\",
-            "      'dep golang.org/x/net v0.58.0' \\",
-            "      'dep golang.org/x/sync v0.22.0' \\",
-            "      'dep golang.org/x/sys v0.47.0' \\",
-            "      'dep golang.org/x/term v0.45.0' \\",
-            "      'dep golang.org/x/text v0.41.0' \\",
+            "      'dep golang.org/x/crypto v0.57.0' \\",
+            "      'dep golang.org/x/net v0.60.0' \\",
+            "      'dep golang.org/x/sync v0.23.0' \\",
+            "      'dep golang.org/x/sys v0.48.0' \\",
+            "      'dep golang.org/x/term v0.46.0' \\",
+            "      'dep golang.org/x/text v0.42.0' \\",
             "      'dep google.golang.org/grpc v1.83.2' \\",
             "      | LC_ALL=C sort > /tmp/caddy-expected-binary; \\",
             ('    test "$(wc -l < /tmp/caddy-governed-binary | ' "tr -d '[:space:]')\" = '8'; \\"),
@@ -309,7 +344,7 @@ EXPECTED_CADDY_FINAL_STAGE = (
             'LABEL org.opencontainers.image.title="PulsePlate Caddy SPA shell" \\',
             (
                 '      org.opencontainers.image.description="Caddy 2.11.4 rebuilt with '
-                'Go 1.26.6 and PulsePlate frontend assets"'
+                'Go 1.26.9 and PulsePlate frontend assets"'
             ),
             "",
             "# Compare the standard module surface before replacing the upstream binary.",
@@ -332,7 +367,8 @@ EXPECTED_CADDY_FINAL_STAGE = (
             '      "curl>=8.20.0-r0" \\',
             '      "libcurl>=8.20.0-r0" \\',
             '      "libcrypto3>=3.5.8-r0" \\',
-            '      "libssl3>=3.5.8-r0"; \\',
+            '      "libssl3>=3.5.8-r0" \\',
+            '      "zlib>=1.3.2-r1"; \\',
             "    mv /usr/bin/caddy.pulseplate /usr/bin/caddy; \\",
             "    setcap cap_net_bind_service=+ep /usr/bin/caddy; \\",
             "    getcap /usr/bin/caddy | grep -F 'cap_net_bind_service=ep'; \\",
@@ -342,7 +378,7 @@ EXPECTED_CADDY_FINAL_STAGE = (
             ),
             (
                 "    caddy build-info | awk -F '\\t' '$1 == \"go\" && $2 == "
-                '"go1.26.6" { found=1 } END { exit found ? 0 : 1 }\'; \\'
+                '"go1.26.9" { found=1 } END { exit found ? 0 : 1 }\'; \\'
             ),
             "    rm -f /tmp/caddy-official-modules /tmp/caddy-rebuilt-modules",
             "",
@@ -458,21 +494,23 @@ def test_caddy_dockerfile_owns_exact_hardened_build_recipe() -> None:
     assert grpc_get in text
     assert text.count(crypto_get) == 1
     assert text.index(caddy_get) < text.index(grpc_get) < text.index(crypto_get)
-    assert text.index(crypto_get) < text.index("go mod download all")
+    net_get = "go get golang.org/x/net@v0.60.0"
+    assert text.count(net_get) == 1
+    assert text.index(crypto_get) < text.index(net_get) < text.index("go mod download all")
     assert "go mod download all" in text
     assert "go mod verify" in text
     for exact_graph_identity in (
         "github.com/caddyserver/caddy/v2 v2.11.4",
         "google.golang.org/grpc v1.83.2",
-        "golang.org/x/crypto v0.55.0",
-        "golang.org/x/mod v0.38.0",
-        "golang.org/x/net v0.58.0",
-        "golang.org/x/sync v0.22.0",
-        "golang.org/x/sys v0.47.0",
-        "golang.org/x/telemetry v0.0.0-20260708182218-49f421fb7959",
-        "golang.org/x/term v0.45.0",
-        "golang.org/x/text v0.41.0",
-        "golang.org/x/tools v0.48.0",
+        "golang.org/x/crypto v0.57.0",
+        "golang.org/x/mod v0.41.0",
+        "golang.org/x/net v0.60.0",
+        "golang.org/x/sync v0.23.0",
+        "golang.org/x/sys v0.48.0",
+        "golang.org/x/telemetry v0.0.0-20260811182544-a038080d80e5",
+        "golang.org/x/term v0.46.0",
+        "golang.org/x/text v0.42.0",
+        "golang.org/x/tools v0.49.0",
     ):
         assert f"'{exact_graph_identity}'" in text
     assert "test -z \"$(go list -m -f '{{if .Replace}}" in text
@@ -484,17 +522,18 @@ def test_caddy_dockerfile_owns_exact_hardened_build_recipe() -> None:
     for exact_binary_identity in (
         "mod github.com/caddyserver/caddy/v2 v2.11.4",
         "dep google.golang.org/grpc v1.83.2",
-        "dep golang.org/x/crypto v0.55.0",
-        "dep golang.org/x/net v0.58.0",
-        "dep golang.org/x/sync v0.22.0",
-        "dep golang.org/x/sys v0.47.0",
-        "dep golang.org/x/term v0.45.0",
-        "dep golang.org/x/text v0.41.0",
+        "dep golang.org/x/crypto v0.57.0",
+        "dep golang.org/x/net v0.60.0",
+        "dep golang.org/x/sync v0.23.0",
+        "dep golang.org/x/sys v0.48.0",
+        "dep golang.org/x/term v0.46.0",
+        "dep golang.org/x/text v0.42.0",
     ):
         assert f"'{exact_binary_identity}'" in text
     assert '"c-ares>=1.34.8-r0"' in text
     assert '"curl>=8.20.0-r0"' in text
     assert '"libcurl>=8.20.0-r0"' in text
+    assert '"zlib>=1.3.2-r1"' in text
     assert "COPY --from=caddy-build --chmod=0755 /go/bin/caddy" in text
     assert "caddy list-modules --packages" in text
     assert "setcap cap_net_bind_service=+ep /usr/bin/caddy" in text
@@ -517,7 +556,6 @@ def test_caddy_dockerfile_owns_exact_hardened_build_recipe() -> None:
         "golang.org/x/crypto v0.53.0",
         "golang.org/x/crypto v0.54.0",
         "go get golang.org/x/mod@",
-        "go get golang.org/x/net@",
         "go get golang.org/x/sync@",
         "go get golang.org/x/sys@",
         "go get golang.org/x/telemetry@",
@@ -597,11 +635,15 @@ def test_caddy_cve_owner_and_ledger_remain_one_bounded_contract() -> None:
         "independent-closure-action",
         "graph-fixed-binary-stale",
         "binary-fixed-graph-stale",
+        "net-omitted",
+        "net-duplicate",
+        "net-floating",
     ),
 )
 def test_caddy_builder_stage_snapshot_rejects_dependency_contract_drift(case: str) -> None:
     source = DOCKERFILE.read_text(encoding="utf-8")
     crypto_action = "    go get golang.org/x/crypto@v0.55.0; \\\n"
+    _assert_caddy_builder_stage_contract(source)
 
     if case == "omitted":
         candidate = source.replace(crypto_action, "", 1)
@@ -642,14 +684,22 @@ def test_caddy_builder_stage_snapshot_rejects_dependency_contract_drift(case: st
         )
     elif case == "graph-fixed-binary-stale":
         candidate = source.replace(
-            "      'dep golang.org/x/crypto v0.55.0' \\\n",
+            "      'dep golang.org/x/crypto v0.57.0' \\\n",
             "      'dep golang.org/x/crypto v0.54.0' \\\n",
             1,
         )
+    elif case in ("net-omitted", "net-duplicate", "net-floating"):
+        net_action = "    go get golang.org/x/net@v0.60.0; \\\n"
+        replacement = {
+            "net-omitted": "",
+            "net-duplicate": net_action * 2,
+            "net-floating": net_action.replace("v0.60.0", "latest"),
+        }[case]
+        candidate = source.replace(net_action, replacement, 1)
     else:
         assert case == "binary-fixed-graph-stale"
         candidate = source.replace(
-            "      'golang.org/x/crypto v0.55.0' \\\n",
+            "      'golang.org/x/crypto v0.57.0' \\\n",
             "      'golang.org/x/crypto v0.54.0' \\\n",
             1,
         )
@@ -671,23 +721,27 @@ def test_caddy_dockerfile_keeps_closed_fixed_openssl_final_stage_recipe() -> Non
         "substitute-floor",
         "insert-before-transaction",
         "insert-after-transaction",
+        "lower-zlib-floor",
     ),
 )
 def test_caddy_openssl_final_stage_snapshot_rejects_representative_byte_drift(
     case: str,
 ) -> None:
     source = DOCKERFILE.read_text(encoding="utf-8")
+    _assert_caddy_openssl_runtime_floor_contract(source)
     if case == "lower-floor":
         candidate = source.replace("3.5.8-r0", "3.5.7-r0")
+    elif case == "lower-zlib-floor":
+        candidate = source.replace("zlib>=1.3.2-r1", "zlib>=1.3.2-r0")
     elif case == "partial-floor":
         candidate = source.replace(
-            '      "libssl3>=3.5.8-r0"; \\\n',
+            '      "libssl3>=3.5.8-r0" \\\n',
             "",
             1,
         )
     elif case == "substitute-floor":
         candidate = source.replace(
-            '      "libcrypto3>=3.5.8-r0" \\\n' '      "libssl3>=3.5.8-r0"; \\\n',
+            '      "libcrypto3>=3.5.8-r0" \\\n' '      "libssl3>=3.5.8-r0" \\\n',
             '      "openssl>=3.5.8-r0"; \\\n',
             1,
         )
@@ -877,7 +931,7 @@ def test_cd_builds_attests_scans_and_deploys_both_same_job_digests() -> None:
         "STAGING_DOMAIN,STAGING_IMAGE_REF,STAGING_CADDY_IMAGE_REF,"
         "DEPLOY_SCRIPT_SHA256,STAGING_COMPOSE_SHA256,"
         "PROMETHEUS_CONFIG_SHA256,PROMETHEUS_RULES_SHA256,"
-        "PROMETHEUS_IMAGE_MANIFEST_SHA256,"
+        "PROMETHEUS_IMAGE_MANIFEST_SHA256,PROMETHEUS_CONTRACT_HELPER_SHA256,"
         "ALERTMANAGER_CONFIG_SHA256,ALERTMANAGER_TRIVY_IGNORE_SHA256,"
         "POSTGRES_IMAGE_MANIFEST_SHA256,"
         "STAGING_CADDYFILE_SHA256,BACKUP_HELPER_SHA256,RESTORE_HELPER_SHA256,"
@@ -903,7 +957,7 @@ def test_cd_builds_attests_scans_and_deploys_both_same_job_digests() -> None:
         "GHCR_USER,GHCR_TOKEN,STAGING_DOMAIN,STAGING_IMAGE_REF,"
         "STAGING_CADDY_IMAGE_REF,DEPLOY_SCRIPT_SHA256,STAGING_COMPOSE_SHA256,"
         "PROMETHEUS_CONFIG_SHA256,PROMETHEUS_RULES_SHA256,"
-        "PROMETHEUS_IMAGE_MANIFEST_SHA256,"
+        "PROMETHEUS_IMAGE_MANIFEST_SHA256,PROMETHEUS_CONTRACT_HELPER_SHA256,"
         "ALERTMANAGER_CONFIG_SHA256,ALERTMANAGER_TRIVY_IGNORE_SHA256,"
         "POSTGRES_IMAGE_MANIFEST_SHA256,"
         "STAGING_CADDYFILE_SHA256,BACKUP_HELPER_SHA256,RESTORE_HELPER_SHA256,"
@@ -965,7 +1019,7 @@ def test_remote_contract_preflight_has_no_registry_secret_and_checks_current_fil
     assert with_block["envs"] == (
         "STAGING_DOMAIN,STAGING_IMAGE_REF,STAGING_CADDY_IMAGE_REF,DEPLOY_SCRIPT_SHA256,"
         "STAGING_COMPOSE_SHA256,PROMETHEUS_CONFIG_SHA256,PROMETHEUS_RULES_SHA256,"
-        "PROMETHEUS_IMAGE_MANIFEST_SHA256,ALERTMANAGER_CONFIG_SHA256,"
+        "PROMETHEUS_IMAGE_MANIFEST_SHA256,PROMETHEUS_CONTRACT_HELPER_SHA256,ALERTMANAGER_CONFIG_SHA256,"
         "ALERTMANAGER_TRIVY_IGNORE_SHA256,POSTGRES_IMAGE_MANIFEST_SHA256,"
         "STAGING_CADDYFILE_SHA256,BACKUP_HELPER_SHA256,RESTORE_HELPER_SHA256,"
         "STAGING_SECURITY_HELPER_SHA256,PGVECTOR_ATTESTATION_HELPER_SHA256,"
@@ -977,13 +1031,14 @@ def test_remote_contract_preflight_has_no_registry_secret_and_checks_current_fil
     script = with_block["script"]
     assert ".attested-digest-deploy-v1" in script
     assert "pulseplate-staging-attested-digest-v1" in script
-    assert 'STAGING_DEPLOY_CONTRACT_VERSION="5"' in script
+    assert 'STAGING_DEPLOY_CONTRACT_VERSION="6"' in script
     for filename in (
         "deploy.sh",
         "docker-compose.staging.yaml",
         "prometheus/prometheus.yml",
         "prometheus/alias-alerts.yml",
         "prometheus/image-manifest.json",
+        "scripts/ci/prometheus_source_image.py",
         "alertmanager/alertmanager.yml",
         "alertmanager/trivy-ignore.yaml",
         "postgres-pgvector/image-manifest.json",
@@ -1109,7 +1164,7 @@ def test_credentialed_deploy_revalidates_the_preflighted_remote_contract() -> No
     assert with_block["envs"].endswith(
         "DEPLOY_SCRIPT_SHA256,STAGING_COMPOSE_SHA256,PROMETHEUS_CONFIG_SHA256,"
         "PROMETHEUS_RULES_SHA256,"
-        "PROMETHEUS_IMAGE_MANIFEST_SHA256,ALERTMANAGER_CONFIG_SHA256,"
+        "PROMETHEUS_IMAGE_MANIFEST_SHA256,PROMETHEUS_CONTRACT_HELPER_SHA256,ALERTMANAGER_CONFIG_SHA256,"
         "ALERTMANAGER_TRIVY_IGNORE_SHA256,POSTGRES_IMAGE_MANIFEST_SHA256,"
         "STAGING_CADDYFILE_SHA256,BACKUP_HELPER_SHA256,RESTORE_HELPER_SHA256,"
         "STAGING_SECURITY_HELPER_SHA256,PGVECTOR_ATTESTATION_HELPER_SHA256,"
@@ -1121,13 +1176,14 @@ def test_credentialed_deploy_revalidates_the_preflighted_remote_contract() -> No
     script = with_block["script"]
     deploy_call = "/bin/bash /srv/pulseplate-staging/deploy.sh"
     assert script.index(".attested-digest-deploy-v1") < script.index(deploy_call)
-    assert script.index('STAGING_DEPLOY_CONTRACT_VERSION="5"') < script.index(deploy_call)
+    assert script.index('STAGING_DEPLOY_CONTRACT_VERSION="6"') < script.index(deploy_call)
     for filename, expected_hash in (
         ("deploy.sh", "DEPLOY_SCRIPT_SHA256"),
         ("docker-compose.staging.yaml", "STAGING_COMPOSE_SHA256"),
         ("prometheus/prometheus.yml", "PROMETHEUS_CONFIG_SHA256"),
         ("prometheus/alias-alerts.yml", "PROMETHEUS_RULES_SHA256"),
         ("prometheus/image-manifest.json", "PROMETHEUS_IMAGE_MANIFEST_SHA256"),
+        ("scripts/ci/prometheus_source_image.py", "PROMETHEUS_CONTRACT_HELPER_SHA256"),
         ("alertmanager/alertmanager.yml", "ALERTMANAGER_CONFIG_SHA256"),
         ("alertmanager/trivy-ignore.yaml", "ALERTMANAGER_TRIVY_IGNORE_SHA256"),
         ("postgres-pgvector/image-manifest.json", "POSTGRES_IMAGE_MANIFEST_SHA256"),
@@ -1155,7 +1211,7 @@ def test_credentialed_deploy_revalidates_the_preflighted_remote_contract() -> No
 
 def test_staging_deploy_script_embeds_marker_and_two_digest_contract() -> None:
     text = (REPO_ROOT / "scripts" / "deploy.sh").read_text(encoding="utf-8")
-    assert 'STAGING_DEPLOY_CONTRACT_VERSION="5"' in text
+    assert 'STAGING_DEPLOY_CONTRACT_VERSION="6"' in text
     assert 'STAGING_DEPLOY_MARKER_CONTENT="pulseplate-staging-attested-digest-v1"' in text
     assert "0:0:644" in text
     assert "STAGING_IMAGE_REF" in text
@@ -1209,16 +1265,16 @@ def test_production_quick_fix_rebuilds_and_verifies_hardened_caddy() -> None:
     assert pull_index < build_index < up_index < version_index < build_info_index < success_index
     assert "dc pull ||" not in text
     assert 'CADDY_VERSION_TOKEN" != "v2.11.4"' in text
-    assert 'CADDY_GO_VERSION" != "go1.26.6"' in text
+    assert 'CADDY_GO_VERSION" != "go1.26.9"' in text
     assert "*v2.11.4*" not in text
-    assert "*go1.26.6*" not in text
+    assert "*go1.26.9*" not in text
 
 
 @pytest.mark.parametrize(
     ("caddy_version", "build_info", "expected_error"),
     (
-        ("v2.11.40 h1:test", "go\tgo1.26.6\n", "Expected Caddy v2.11.4"),
-        ("v2.11.4 h1:test", "go\tgo1.26.60\n", "Expected Caddy built with Go 1.26.6"),
+        ("v2.11.40 h1:test", "go\tgo1.26.9\n", "Expected Caddy v2.11.4"),
+        ("v2.11.4 h1:test", "go\tgo1.26.90\n", "Expected Caddy built with Go 1.26.9"),
     ),
 )
 def test_production_quick_fix_rejects_inexact_caddy_identity(
@@ -1242,7 +1298,7 @@ def test_production_quick_fix_fails_closed_when_readiness_fails(tmp_path: Path) 
     completed = _run_production_quick_fix(
         tmp_path,
         caddy_version="v2.11.4 h1:test",
-        go_version="go1.26.6",
+        go_version="go1.26.9",
         curl_exit=22,
     )
 
@@ -1257,7 +1313,7 @@ def test_production_quick_fix_redacts_duplicate_secret_values(tmp_path: Path) ->
     completed = _run_production_quick_fix(
         tmp_path,
         caddy_version="v2.11.4 h1:test",
-        go_version="go1.26.6",
+        go_version="go1.26.9",
         extra_env=(
             f"POSTGRES_PASSWORD={password_sentinel}\n"
             f"DATABASE_URL=postgresql+psycopg://pulseplate:{dsn_sentinel}@db/pulseplate\n"
@@ -1288,7 +1344,7 @@ def test_production_quick_fix_rejects_compose_normalized_duplicate_keys(
     completed = _run_production_quick_fix(
         tmp_path,
         caddy_version="v2.11.4 h1:test",
-        go_version="go1.26.6",
+        go_version="go1.26.9",
         extra_env=f"{duplicate_line}\n",
     )
 
@@ -1309,7 +1365,7 @@ def test_production_quick_fix_fails_closed_when_env_file_is_missing(tmp_path: Pa
     completed = _run_production_quick_fix(
         tmp_path,
         caddy_version="v2.11.4 h1:test",
-        go_version="go1.26.6",
+        go_version="go1.26.9",
         create_env=False,
     )
 
@@ -1323,7 +1379,7 @@ def test_production_quick_fix_replaces_env_atomically_with_preserved_mode(tmp_pa
     completed = _run_production_quick_fix(
         tmp_path,
         caddy_version="v2.11.4 h1:test",
-        go_version="go1.26.6",
+        go_version="go1.26.9",
     )
 
     env_path = tmp_path / "production" / ".env"
@@ -1361,7 +1417,7 @@ def test_production_quick_fix_normalizes_managed_flag_cleanup(
     completed = _run_production_quick_fix(
         tmp_path,
         caddy_version="v2.11.4 h1:test",
-        go_version="go1.26.6",
+        go_version="go1.26.9",
         extra_env=f"{legacy_line}\n",
     )
 
@@ -1386,6 +1442,16 @@ def _run_production_quick_fix(
     deploy_dir.mkdir()
     bin_dir.mkdir()
     (deploy_dir / "docker-compose.production.yaml").write_text("services: {}\n", encoding="utf-8")
+    from tests.test_deploy_contract_scripts import (
+        _synthetic_prometheus_manifest_text,
+        _write_prometheus_helper,
+    )
+
+    _write_prometheus_helper(deploy_dir)
+    (deploy_dir / "prometheus").mkdir()
+    (deploy_dir / "prometheus/image-manifest.json").write_text(
+        _synthetic_prometheus_manifest_text(), encoding="utf-8"
+    )
     if create_env:
         (deploy_dir / ".env").write_text(
             (
@@ -1554,28 +1620,38 @@ def test_checkpoint_hash_rejection_precedes_privileged_mutation(
 
 
 def _assert_checkpoint_native_job(workflow: dict[str, object]) -> None:
-    scan = _job(workflow, "prometheus-image-security")
-    assert scan["timeout-minutes"] == 30
+    scan = _job(workflow, "prometheus-image-security-pr")
+    assert (
+        scan["timeout-minutes"]
+        == "${{ fromJSON(vars.PROMETHEUS_IMAGE_SECURITY_TIMEOUT_MINUTES || '55') }}"
+    )
     assert not any(step.get("id") == "checkpoint-native" for step in _steps(scan))
     job = _job(workflow, "obs2a-checkpoint-native")
-    assert job["needs"] == "prometheus-image-security"
+    assert job["needs"] == "prometheus-image-security", "checkpoint_native_scan_edge"
     assert (
         job["if"]
         == "!cancelled() && github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.prometheus-image-security.result == 'success'"
-    )
+    ), "checkpoint_native_scan_result"
     assert (
         job["timeout-minutes"] == "${{ fromJSON(vars.OBS2A_NATIVE_JOB_TIMEOUT_MINUTES || '40') }}"
     )
-    assert job["permissions"] == {"contents": "read"}
-    assert "environment" not in job and "secrets." not in str(job)
+    assert job.get("permissions") == {
+        "contents": "read",
+        "actions": "read",
+        "packages": "read",
+    }, "checkpoint_native_reader_permissions"
+    assert job.get("environment") == "staging", "checkpoint_native_reader_environment"
+    assert job["env"] == {"PROMETHEUS_CONSUME_SECONDS": "900", "PROMETHEUS_CLEANUP_SECONDS": "120"}
     build = _job(workflow, "build")
     assert build["needs"] == [
         "prometheus-image-security",
         "obs2a-checkpoint-native",
         "main-push-admission",
         "staging-postgres-native-integration",
-    ]
-    assert "needs.obs2a-checkpoint-native.result == 'success'" in build["if"]
+    ], "checkpoint_native_build_edges"
+    assert (
+        "needs.obs2a-checkpoint-native.result == 'success'" in build["if"]
+    ), "checkpoint_native_build_result"
     steps = _steps(job)
     checkout = _named_step(steps, "Checkout immutable OBS2A native contracts")
     assert checkout["with"]["persist-credentials"] is False
@@ -1597,6 +1673,16 @@ def _assert_checkpoint_native_job(workflow: dict[str, object]) -> None:
     native = _named_step(steps, "Native main OBS2A checkpoint lifecycle and owned-task challenge")
     assert native["if"] == setup["if"]
     assert "steps.checkpoint-native.outputs.selected == 'true'" in native["if"]
+    assert native["env"] == {
+        "GH_TOKEN": "${{ secrets.GITHUB_TOKEN }}",
+        "GITHUB_TOKEN": "${{ secrets.GITHUB_TOKEN }}",
+        "GHCR_READ_TOKEN": "${{ secrets.GHCR_READ_TOKEN }}",
+    }
+    assert native["run"].index("--operation consume") < native["run"].index("sudo /usr/bin/env -i")
+    child = native["run"].split("sudo /usr/bin/env -i", 1)[1].split("} 2>&1", 1)[0]
+    assert (
+        "GH_TOKEN" not in child and "GITHUB_TOKEN" not in child and "GHCR_READ_TOKEN" not in child
+    )
     assert "--native" in native["run"] and "/usr/bin/env -i" in native["run"]
     assert 'exit "$native_status"' in native["run"]
     assert "native-result.log" in native["run"]
@@ -1605,17 +1691,19 @@ def _assert_checkpoint_native_job(workflow: dict[str, object]) -> None:
     assert retention["uses"] == "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
     assert retention["with"] == {
         "name": "obs2a-native-main-${{ github.sha }}",
-        "path": "artifacts/orchestration/obs2a_pr3/native-result.log",
+        "path": "artifacts/orchestration/obs2a_pr3/native-result.log\n"
+        "${{ runner.temp }}/prometheus-obs2a-consumer-${{ github.run_id }}-${{ github.run_attempt }}/evidence/\n",
         "if-no-files-found": "error",
         "retention-days": 7,
     }
 
 
 @pytest.mark.parametrize(
-    "native_status,capture_status,expected", [(0, 0, 0), (7, 0, 7), (0, 9, 9), (7, 9, 7)]
+    "consume_status,native_status,capture_status,expected",
+    [(0, 0, 0, 0), (0, 7, 0, 7), (0, 0, 9, 9), (0, 7, 9, 7), (13, 0, 0, 13)],
 )
 def test_checkpoint_native_main_pipeline_preserves_both_statuses(
-    tmp_path: Path, native_status: int, capture_status: int, expected: int
+    tmp_path: Path, consume_status: int, native_status: int, capture_status: int, expected: int
 ) -> None:
     bash = shutil.which("bash")
     tee = shutil.which("tee")
@@ -1625,8 +1713,10 @@ def test_checkpoint_native_main_pipeline_preserves_both_statuses(
         "Native main OBS2A checkpoint lifecycle and owned-task challenge",
     )
     fixture = (
-        "python() { :; }\n"
-        "sudo() { printf 'synthetic native output\\n'; printf 'synthetic native diagnostic\\n' >&2; return \"$NATIVE_STATUS\"; }\n"
+        'python() { [ "$1" = "-m" ] && [ "$2" = "scripts.ci.prometheus_source_image" ] '
+        '&& [ "$3" = "--operation" ] && [ "$4" = "consume" ] || return 98; '
+        'printf "%s\\n" "$*" > consumer-argv; return "$CONSUME_STATUS"; }\n'
+        "sudo() { printf executed > native-called; printf 'synthetic native output\\n'; printf 'synthetic native diagnostic\\n' >&2; return \"$NATIVE_STATUS\"; }\n"
         'tee() { "$FIXTURE_TEE" "$@"; return "$CAPTURE_STATUS"; }\n'
     )
     result = subprocess.run(
@@ -1636,6 +1726,12 @@ def test_checkpoint_native_main_pipeline_preserves_both_statuses(
             "PATH": os.defpath,
             "LANG": "C",
             "HOME": str(tmp_path),
+            "RUNNER_TEMP": str(tmp_path / "runner-temp"),
+            "GITHUB_RUN_ID": "123",
+            "GITHUB_RUN_ATTEMPT": "1",
+            "PROMETHEUS_CONSUME_SECONDS": "900",
+            "PROMETHEUS_CLEANUP_SECONDS": "120",
+            "CONSUME_STATUS": str(consume_status),
             "NATIVE_STATUS": str(native_status),
             "CAPTURE_STATUS": str(capture_status),
             "FIXTURE_TEE": tee,
@@ -1646,7 +1742,18 @@ def test_checkpoint_native_main_pipeline_preserves_both_statuses(
         check=False,
     )
     assert result.returncode == expected, result.stderr
-    if capture_status == 0:
+    assert (tmp_path / "consumer-argv").read_text() == (
+        "-m scripts.ci.prometheus_source_image --operation consume --work-dir "
+        + str(tmp_path / "runner-temp/prometheus-obs2a-consumer-123-1")
+        + " --timeout-seconds 900 --cleanup-seconds 120\n"
+    )
+    assert (tmp_path / "native-called").exists() is (consume_status == 0)
+    if consume_status:
+        assert not (tmp_path / "native-called").exists()
+        assert not (tmp_path / "artifacts/orchestration/obs2a_pr3/native-result.log").exists()
+        assert result.stdout == result.stderr == ""
+    elif capture_status == 0:
+        assert (tmp_path / "native-called").read_text() == "executed"
         observed = "synthetic native output\nsynthetic native diagnostic\n"
         assert result.stdout == observed
         assert (
@@ -1654,12 +1761,23 @@ def test_checkpoint_native_main_pipeline_preserves_both_statuses(
         ).read_text() == observed
 
 
+@pytest.mark.parametrize(
+    ("selected_path", "expected_selected"),
+    [
+        (".github/workflows/ci.yml", True),
+        ("deploy/prometheus/image-manifest.json", True),
+        ("deploy/prometheus/image-manifest.json.bak", False),
+    ],
+)
 @pytest.mark.parametrize("case", ["unchanged", "changed", "invalid"])
-def test_native_main_selection_uses_real_git_exit_status(tmp_path: Path, case: str) -> None:
+def test_native_main_selection_uses_real_git_exit_status(
+    tmp_path: Path, case: str, selected_path: str, expected_selected: bool
+) -> None:
     git = shutil.which("git")
     bash = shutil.which("bash")
     assert git is not None and bash is not None
     env = {
+        **git_env_without_parent_state(),
         "PATH": os.environ["PATH"],
         "LANG": "C",
         "GIT_CONFIG_NOSYSTEM": "1",
@@ -1673,7 +1791,7 @@ def test_native_main_selection_uses_real_git_exit_status(tmp_path: Path, case: s
 
     def call(*arguments: str) -> str:
         result = subprocess.run(
-            [git, "-c", "core.hooksPath=" + os.devnull, "-c", "commit.gpgsign=false", *arguments],
+            [git, *safe_git_config_args(), "-c", "commit.gpgsign=false", *arguments],
             cwd=tmp_path,
             env=env,
             capture_output=True,
@@ -1685,7 +1803,7 @@ def test_native_main_selection_uses_real_git_exit_status(tmp_path: Path, case: s
         return result.stdout.strip()
 
     call("init", "--template=", "-q")
-    source = tmp_path / ".github/workflows/ci.yml"
+    source = tmp_path / selected_path
     source.parent.mkdir(parents=True)
     source.write_text("base\n")
     call("add", ".")
@@ -1723,7 +1841,7 @@ def test_native_main_selection_uses_real_git_exit_status(tmp_path: Path, case: s
     else:
         assert result.returncode == 0, result.stderr
         assert output.read_text() == (
-            "selected=true\n" if case == "changed" else "selected=false\n"
+            "selected=true\n" if case == "changed" and expected_selected else "selected=false\n"
         )
 
 
@@ -1737,8 +1855,17 @@ def test_checkpoint_native_main_has_separate_scan_and_build_admission() -> None:
 )
 def test_checkpoint_native_dag_rejects_lost_admission(fault: str) -> None:
     workflow = deepcopy(_workflow(CD_WORKFLOW))
+    _assert_checkpoint_native_job(workflow)
     native = _job(workflow, "obs2a-checkpoint-native")
     build = _job(workflow, "build")
+    expected_diagnostic = {
+        "scan-edge": "checkpoint_native_scan_edge",
+        "scan-result": "checkpoint_native_scan_result",
+        "permissions": "checkpoint_native_reader_permissions",
+        "environment": "checkpoint_native_reader_environment",
+        "build-edge": "checkpoint_native_build_edges",
+        "build-result": "checkpoint_native_build_result",
+    }[fault]
     if fault == "scan-edge":
         native["needs"] = []
     elif fault == "scan-result":
@@ -1755,7 +1882,7 @@ def test_checkpoint_native_dag_rejects_lost_admission(fault: str) -> None:
         build["if"] = build["if"].replace(
             " && needs.obs2a-checkpoint-native.result == 'success'", ""
         )
-    with pytest.raises((AssertionError, KeyError)):
+    with pytest.raises(AssertionError, match=rf"^{expected_diagnostic}(?:\n|$)"):
         _assert_checkpoint_native_job(workflow)
 
 
@@ -1810,6 +1937,7 @@ def _assert_checkpoint_pr_selection_uses_real_git(
     selected_path: str = ".github/workflows/ci.yml",
     *,
     expected_selected: bool = True,
+    consume_status: int = 0,
     native_status: int = 0,
     capture_status: int = 0,
     capture_log: bool = True,
@@ -1820,6 +1948,7 @@ def _assert_checkpoint_pr_selection_uses_real_git(
     cat = shutil.which("cat")
     assert git is not None and bash is not None and tee is not None and cat is not None
     env = {
+        **git_env_without_parent_state(),
         "PATH": os.defpath,
         "LANG": "C",
         "HOME": str(tmp_path),
@@ -1834,7 +1963,7 @@ def _assert_checkpoint_pr_selection_uses_real_git(
 
     def call(*args: str) -> str:
         completed = subprocess.run(
-            [git, "-c", "core.hooksPath=" + os.devnull, "-c", "commit.gpgsign=false", *args],
+            [git, *safe_git_config_args(), "-c", "commit.gpgsign=false", *args],
             cwd=tmp_path,
             env=env,
             capture_output=True,
@@ -1849,6 +1978,9 @@ def _assert_checkpoint_pr_selection_uses_real_git(
     selected = tmp_path / selected_path
     selected.parent.mkdir(parents=True, exist_ok=True)
     selected.write_text("common\n")
+    manifest = tmp_path / "deploy/prometheus/image-manifest.json"
+    manifest.parent.mkdir(parents=True, exist_ok=True)
+    manifest.write_text("{}\n")
     call("add", ".")
     call("commit", "-qm", "common")
     common = call("rev-parse", "HEAD")
@@ -1876,10 +2008,17 @@ def _assert_checkpoint_pr_selection_uses_real_git(
         left, right = base, head
         base = call("commit-tree", tree, "-p", left, "-p", right, "-m", "left merge")
         head = call("commit-tree", tree, "-p", right, "-p", left, "-m", "right merge")
+    call("checkout", "--detach", "-q", head)
     env.update(
         {
             "OBS2A_BASE_SHA": base,
             "OBS2A_HEAD_SHA": head,
+            "RUNNER_TEMP": str(tmp_path / "runner-temp"),
+            "GITHUB_RUN_ID": "123",
+            "GITHUB_RUN_ATTEMPT": "1",
+            "PROMETHEUS_CONSUME_SECONDS": "900",
+            "PROMETHEUS_CLEANUP_SECONDS": "120",
+            "CONSUME_STATUS": str(consume_status),
             "NATIVE_CALLS": str(tmp_path / "native-calls"),
             "GITHUB_OUTPUT": str(tmp_path / "github-output"),
             "NATIVE_STATUS": str(native_status),
@@ -1892,17 +2031,19 @@ def _assert_checkpoint_pr_selection_uses_real_git(
     )
     step = _named_step(
         _steps(_job(_workflow(REPO_ROOT / ".github/workflows/ci.yml"), "lint")),
-        "Native OBS2A checkpoint lifecycle and owned-task challenge",
+        "Select native OBS2A material before PR startup",
     )
     fixture = (
-        "python() { :; }\n"
+        'python() { [ "$1" = "-m" ] && [ "$2" = "scripts.ci.prometheus_source_image" ] '
+        '&& [ "$3" = "--operation" ] && [ "$4" = "consume" ] || return 98; '
+        'printf "%s\\n" "$*" > consumer-argv; return "$CONSUME_STATUS"; }\n'
         'sudo() { printf native >> "$NATIVE_CALLS"; printf "native output\\n"; '
         'printf "native diagnostic\\n" >&2; return "$NATIVE_STATUS"; }\n'
         'tee() { if [ "$CAPTURE_LOG" = 1 ]; then "$FIXTURE_TEE" "$@"; '
         'else "$FIXTURE_CAT" >/dev/null; fi; return "$CAPTURE_STATUS"; }\n'
     )
     if case == "discovery-error":
-        fixture += 'git() { if [ "$1" = diff ]; then return 2; fi; "$FIXTURE_GIT" "$@"; }\n'
+        fixture += 'git() { for argument in "$@"; do if [ "$argument" = diff ]; then return 2; fi; done; "$FIXTURE_GIT" "$@"; }\n'
     result = subprocess.run(
         [bash, "-c", fixture + step["run"]],
         cwd=tmp_path,
@@ -1919,13 +2060,40 @@ def _assert_checkpoint_pr_selection_uses_real_git(
         assert not output.exists() and not log.exists()
     else:
         selected = case == "own" and expected_selected
-        expected_status = (native_status or capture_status) if selected else 0
-        assert result.returncode == expected_status, result.stderr
-        assert (tmp_path / "native-calls").exists() is selected
-        assert output.read_text() == ("selected=true\n" if selected else "selected=false\n")
-        assert log.exists() is (selected and capture_log)
-        if selected and capture_log:
-            assert log.read_text() == "native output\nnative diagnostic\n"
+        assert result.returncode == 0, result.stderr
+        expected_mode = (
+            "changed_pr_candidate"
+            if selected_path == "deploy/prometheus/image-manifest.json"
+            else "unchanged_pr_published"
+        )
+        assert output.read_text() == (
+            f"selected=true\nmode={expected_mode}\n" if selected else "selected=false\n"
+        )
+        assert not (tmp_path / "native-calls").exists()
+        if selected:
+            # The synthetic consumer exit models the separate step result. The
+            # actual native program runs only after that admitted step succeeds.
+            if consume_status:
+                assert not log.exists()
+                return
+            native = _named_step(
+                _steps(_job(_workflow(REPO_ROOT / ".github/workflows/ci.yml"), "lint")),
+                "Native OBS2A checkpoint lifecycle and owned-task challenge",
+            )
+            completed = subprocess.run(
+                [bash, "-c", fixture + native["run"]],
+                cwd=tmp_path,
+                env=env,
+                capture_output=True,
+                text=True,
+                timeout=10,
+                check=False,
+            )
+            assert completed.returncode == (native_status or capture_status), completed.stderr
+            assert (tmp_path / "native-calls").exists()
+            assert log.exists() is capture_log
+            if capture_log:
+                assert log.read_text() == "native output\nnative diagnostic\n"
 
 
 @pytest.mark.parametrize(
@@ -1933,6 +2101,22 @@ def _assert_checkpoint_pr_selection_uses_real_git(
 )
 def test_checkpoint_pr_selection_uses_unique_real_merge_base(tmp_path: Path, case: str) -> None:
     _assert_checkpoint_pr_selection_uses_real_git(tmp_path, case)
+
+
+@pytest.mark.parametrize("case", ["own", "base-only"])
+@pytest.mark.parametrize(
+    ("selected_path", "expected_selected"),
+    [
+        ("deploy/prometheus/image-manifest.json", True),
+        ("deploy/prometheus/image-manifest.json.bak", False),
+    ],
+)
+def test_checkpoint_pr_selects_only_its_manifest_change(
+    tmp_path: Path, case: str, selected_path: str, expected_selected: bool
+) -> None:
+    _assert_checkpoint_pr_selection_uses_real_git(
+        tmp_path, case, selected_path, expected_selected=expected_selected
+    )
 
 
 @pytest.mark.parametrize(
@@ -1968,6 +2152,9 @@ def test_checkpoint_pr_native_is_independent_of_backend_risk_admission(
 def _assert_checkpoint_pr_native_job(workflow: dict[str, object]) -> None:
     lint = _job(workflow, "lint")
     assert lint["needs"] == ["private_python_proxy_health"]
+    assert lint["permissions"] == {"contents": "read", "actions": "read", "packages": "read"}
+    assert lint["env"] == {"PROMETHEUS_CONSUME_SECONDS": "900", "PROMETHEUS_CLEANUP_SECONDS": "120"}
+    assert "environment" not in lint
     assert lint["if"] == "${{ !cancelled() }}"
     assert lint["timeout-minutes"] == "${{ fromJSON(vars.CI_LINT_TIMEOUT_MINUTES || '90') }}"
     steps = _steps(lint)
@@ -1980,7 +2167,11 @@ def _assert_checkpoint_pr_native_job(workflow: dict[str, object]) -> None:
         "PRIVATE_PYTHON_PROXY_HEALTH_RESULT": "${{ needs.private_python_proxy_health.result }}"
     }
     checkout = _named_step(steps, "Checkout")
-    assert checkout["with"] == {"fetch-depth": 0, "persist-credentials": False}
+    assert checkout["with"] == {
+        "fetch-depth": 0,
+        "persist-credentials": False,
+        "ref": "${{ github.event.pull_request.head.sha || github.sha }}",
+    }
     setup = _named_step(steps, "Setup Python environment")
     assert setup["with"] == {
         "python-version": "${{ env.PYTHON_VERSION }}",
@@ -1998,26 +2189,51 @@ def _assert_checkpoint_pr_native_job(workflow: dict[str, object]) -> None:
     )
     native = _named_step(steps, "Native OBS2A checkpoint lifecycle and owned-task challenge")
     assert native["id"] == "checkpoint-native"
-    assert native["if"] == "github.event_name == 'pull_request'"
+    assert native["if"] == (
+        "github.event_name == 'pull_request' && steps.checkpoint-selection.outputs.selected == 'true'"
+    )
     # The actual existing CD owner supplies native budget parity; this PR does not redefine it.
     assert (
         native["timeout-minutes"]
         == _job(_workflow(CD_WORKFLOW), "obs2a-checkpoint-native")["timeout-minutes"]
     )
     assert native["env"] == {
-        "OBS2A_BASE_SHA": "${{ github.event.pull_request.base.sha }}",
-        "OBS2A_HEAD_SHA": "${{ github.event.pull_request.head.sha }}",
+        "PROMETHEUS_RUNTIME_REF": "${{ steps.checkpoint-image.outputs.runtime_ref }}"
     }
-    assert "secrets." not in str(native)
+    assert "--operation consume" not in native["run"]
+    assert all(key not in native["env"] for key in ("GH_TOKEN", "GITHUB_TOKEN", "GHCR_READ_TOKEN"))
+    consumer = _named_step(steps, "Consume exact Prometheus subject before PR startup")
+    control = _named_step(steps, "Checkout fixed trusted Prometheus control")
+    cleanup = _named_step(steps, "Remove fixed trusted Prometheus control checkout")
+    selection = _named_step(steps, "Select native OBS2A material before PR startup")
+    # pragma: allowlist nextline secret - public trusted control commit
+    assert control["with"]["ref"] == "5064aded22f478a22a4319b684e95d6c0b3ae46f"
+    assert control["with"]["persist-credentials"] is False
+    assert "python3 -I -S" in consumer["run"] and "runpy.run_path(str(helper))" in consumer["run"]
+    assert consumer["env"]["GH_TOKEN"] == "${{ secrets.GITHUB_TOKEN }}"
+    assert (
+        consumer["env"]["GHCR_READ_TOKEN"]
+        == "${{ steps.checkpoint-selection.outputs.mode == 'unchanged_pr_published' && secrets.GITHUB_TOKEN || '' }}"
+    )
+    assert (
+        steps.index(checkout)
+        < steps.index(selection)
+        < steps.index(control)
+        < steps.index(consumer)
+        < steps.index(cleanup)
+        < steps.index(setup)
+    )
     retention = _named_step(steps, "Retain selected PR OBS2A native observations")
     assert retention["if"] == (
         "always() && github.event_name == 'pull_request' "
-        "&& steps.checkpoint-native.outputs.selected == 'true'"
+        "&& (steps.checkpoint-selection.outputs.selected == 'true' || steps.checkpoint-selection.outcome == 'failure')"
     )
     assert retention["uses"] == "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
     assert retention["with"] == {
         "name": "obs2a-native-pr-${{ github.event.pull_request.number }}-${{ github.run_attempt }}",
-        "path": "artifacts/orchestration/obs2a_pr3/native-result.log",
+        "path": "artifacts/orchestration/obs2a_pr3/selection.log\n"
+        "artifacts/orchestration/obs2a_pr3/native-result.log\n"
+        "${{ runner.temp }}/prometheus-obs2a-consumer-${{ github.run_id }}-${{ github.run_attempt }}/evidence/\n",
         "if-no-files-found": "error",
         "retention-days": 7,
     }
@@ -2063,13 +2279,20 @@ def test_checkpoint_pr_native_surface_membership_uses_real_selector(
     )
 
 
-@pytest.mark.parametrize("native_status,capture_status", [(0, 0), (7, 0), (0, 9), (7, 9)])
+@pytest.mark.parametrize(
+    "consume_status,native_status,capture_status",
+    [(0, 0, 0), (0, 7, 0), (0, 0, 9), (0, 7, 9), (13, 0, 0)],
+)
 def test_checkpoint_pr_native_preserves_status_and_actual_raw_log(
-    tmp_path: Path, native_status: int, capture_status: int
+    tmp_path: Path, consume_status: int, native_status: int, capture_status: int
 ) -> None:
     _assert_checkpoint_pr_native_job(_workflow(REPO_ROOT / ".github/workflows/ci.yml"))
     _assert_checkpoint_pr_selection_uses_real_git(
-        tmp_path, "own", native_status=native_status, capture_status=capture_status
+        tmp_path,
+        "own",
+        consume_status=consume_status,
+        native_status=native_status,
+        capture_status=capture_status,
     )
 
 
@@ -2080,9 +2303,12 @@ def test_checkpoint_pr_missing_capture_is_failure_with_selected_invocation(tmp_p
     )
 
 
+@pytest.mark.parametrize("selected", ["true", "false", ""])
 @pytest.mark.parametrize("event", ["pull_request", "push", "workflow_dispatch"])
 @pytest.mark.parametrize("cancelled", [False, True])
-def test_checkpoint_pr_native_event_and_outer_job_admission(event: str, cancelled: bool) -> None:
+def test_checkpoint_pr_native_event_and_outer_job_admission(
+    event: str, cancelled: bool, selected: str
+) -> None:
     workflow = _workflow(REPO_ROOT / ".github/workflows/ci.yml")
     _assert_checkpoint_pr_native_job(workflow)
     lint = _job(workflow, "lint")
@@ -2090,6 +2316,7 @@ def test_checkpoint_pr_native_event_and_outer_job_admission(event: str, cancelle
     outer = lint["if"].removeprefix("${{").removesuffix("}}").strip()
     outer = outer.replace("!cancelled()", "1 == 0" if cancelled else "1 == 1")
     inner = native["if"].replace("github.event_name", repr(event))
+    inner = inner.replace("steps.checkpoint-selection.outputs.selected", repr(selected))
     bash = shutil.which("bash")
     assert bash is not None
     result = subprocess.run(
@@ -2100,7 +2327,9 @@ def test_checkpoint_pr_native_event_and_outer_job_admission(event: str, cancelle
         timeout=10,
         check=False,
     )
-    assert (result.returncode == 0) is (not cancelled and event == "pull_request")
+    assert (result.returncode == 0) is (
+        not cancelled and event == "pull_request" and selected == "true"
+    )
 
 
 @pytest.mark.parametrize("proxy_result", ["success", "failure", "cancelled", "skipped"])
@@ -2142,6 +2371,7 @@ def test_checkpoint_pr_native_proxy_prerequisite_fails_closed(proxy_result: str)
 )
 def test_checkpoint_pr_native_contract_rejects_lost_admission(fault: str) -> None:
     workflow = deepcopy(_workflow(REPO_ROOT / ".github/workflows/ci.yml"))
+    _assert_checkpoint_pr_native_job(workflow)
     lint = _job(workflow, "lint")
     steps = _steps(lint)
     native = _named_step(steps, "Native OBS2A checkpoint lifecycle and owned-task challenge")
@@ -2186,3 +2416,478 @@ def test_checkpoint_pr_native_contract_rejects_lost_admission(fault: str) -> Non
         native["timeout-minutes"] = "${{ fromJSON(vars.OBS2A_NATIVE_JOB_TIMEOUT_MINUTES || '41') }}"
     with pytest.raises((AssertionError, KeyError)):
         _assert_checkpoint_pr_native_job(workflow)
+
+
+def test_caddy_full_observation_preserves_blocking_scan_and_exact_conditions() -> None:
+    job = _job(_workflow(FRONTEND_WORKFLOW), "caddy-contract")
+    steps = _steps(job)
+    build = _named_step(steps, "Build hardened Caddy shell image")
+    original = _named_step(steps, "Scan hardened Caddy shell image")
+    assert build["id"] == "caddy-build"
+    assert original["id"] == "caddy-security"
+    assert original["uses"] == TRIVY_ACTION
+    assert original["with"] == {
+        "version": TRIVY_VERSION,
+        "image-ref": "pulseplate-caddy:contract",
+        "format": "table",
+        "vuln-type": "os,library",
+        "severity": "CRITICAL,HIGH",
+        "exit-code": "1",
+        "cache-dir": "/tmp/trivy-cache-caddy-contract",
+    }
+    assert "continue-on-error" not in original
+    assert job["permissions"] == {"contents": "read"}
+    assert job["env"] == {
+        "CADDY_FULL_SCAN_TIMEOUT_SECONDS": "300",
+        "CADDY_METADATA_TIMEOUT_SECONDS": "900",
+        "CADDY_METADATA_CLEANUP_SECONDS": "120",
+    }
+    assert (
+        _step_index(steps, "Capture next loaded Caddy image identity")
+        == _step_index(steps, "Build hardened Caddy shell image") + 1
+    )
+    expected = {
+        "Prepare same-epoch full Caddy observation": (
+            "${{ !cancelled() && steps.caddy-build.outcome == 'success' && "
+            "steps.caddy-image.outcome == 'success' && "
+            "(steps.caddy-security.outcome == 'success' || steps.caddy-security.outcome == 'failure') }}"
+        ),
+        "Observe all-severity Caddy native report": (
+            "${{ !cancelled() && steps.caddy-full-prep.outcome == 'success' }}"
+        ),
+        "Validate and publish full Caddy observation": (
+            "${{ !cancelled() && steps.caddy-full-prep.outcome == 'success' && "
+            "steps.caddy-full-scan.outcome == 'success' }}"
+        ),
+    }
+    for name, condition in expected.items():
+        step = _named_step(steps, name)
+        expected_condition = (
+            "${{ (github.event_name != 'workflow_dispatch' || inputs.caddy_action != 'xnet060-metadata') && ("
+            + condition[len("${{ ") : -len(" }}")]
+            + ") }}"
+        )
+        assert step["if"] == expected_condition
+        assert "continue-on-error" not in step
+        assert "uses" not in step  # No second setup/cache restore or provider.
+    upload = _named_step(steps, "Upload Caddy contract evidence")
+    assert (
+        upload["if"]
+        == "${{ (github.event_name != 'workflow_dispatch' || inputs.caddy_action != 'xnet060-metadata') && (always()) }}"
+    )
+    assert upload["with"]["path"] == "${{ runner.temp }}/caddy-contract"
+    assert (
+        _step_index(steps, "Scan hardened Caddy shell image")
+        < _step_index(steps, "Prepare same-epoch full Caddy observation")
+        < _step_index(steps, "Observe all-severity Caddy native report")
+        < _step_index(steps, "Validate and publish full Caddy observation")
+        < _step_index(steps, "Upload Caddy contract evidence")
+    )
+
+
+@pytest.mark.parametrize("HC", ["success", "failure"])
+def test_caddy_native_full_observation_captures_findings_without_passing_HC(
+    tmp_path: Path, HC: str
+) -> None:
+    result, published, metadata, command = _run_caddy_full_observation_fixture(
+        tmp_path, "valid", HC
+    )
+    assert result.returncode == 0
+    assert published
+    assert metadata["subject"]["original_HC_outcome"] == HC
+    assert metadata["full_scan_native_exit"] == 0
+    assert metadata["Results_Secrets_fields_absent"] == 1
+    assert metadata["subject"]["image_config_id"] == "sha256:" + "a" * 64
+    assert command["argv"][-1] == "sha256:" + "a" * 64
+    projections = metadata["subject"]["native_projections"]
+    expected_projections = {
+        "version.txt": ["version"],
+        "build-info.txt": ["build-info"],
+        "rebuilt-modules.txt": ["list-modules", "--packages"],
+    }
+    assert set(projections) == set(expected_projections)
+    assert set(command["published_projection_hashes"]) == set(expected_projections)
+    image = metadata["subject"]["image_config_id"]
+    for name, native_arguments in expected_projections.items():
+        projection = projections[name]
+        assert projection["image_config_id"] == image
+        assert projection["argv"][1:] == [
+            "run",
+            "--rm",
+            "--network",
+            "none",
+            "--read-only",
+            "--cap-drop",
+            "ALL",
+            "--cap-add",
+            "NET_BIND_SERVICE",
+            "--entrypoint",
+            "/usr/bin/caddy",
+            image,
+            *native_arguments,
+        ]
+        assert projection["argv"][1:] in command["docker_argv"]
+        assert 0 < projection["bytes"] <= 1048576
+        assert command["published_projection_hashes"][name] == projection["sha256"]
+    assert (
+        len(
+            [
+                args
+                for args in command["docker_argv"]
+                if "--entrypoint" in args
+                and args[args.index("--entrypoint") + 1] == "/usr/bin/caddy"
+            ]
+        )
+        == 3
+    )
+    clean_environment = metadata["subject"]["clean_env"]
+    assert set(clean_environment) == {"PATH", "HOME", "LANG"}
+    # The interpreter may add platform state after exec (for example macOS CF
+    # text encoding). Compare the exact native outcome, without filtering fields
+    # or widening the three-key environment supplied by the workflow.
+    environment_control = subprocess.run(
+        [sys.executable, "-c", "import json, os; print(json.dumps(dict(os.environ)))"],
+        env=clean_environment,
+        capture_output=True,
+        text=True,
+        check=True,
+        timeout=30,
+    )
+    assert not environment_control.stderr
+    assert command["env"] == json.loads(environment_control.stdout)
+    for flag in (
+        "--skip-db-update",
+        "--skip-java-db-update",
+        "--skip-vex-repo-update",
+        "--offline-scan",
+        "--skip-version-check",
+        "--disable-telemetry",
+        "--list-all-pkgs",
+        "--ignore-unfixed=false",
+    ):
+        assert flag in command["argv"]
+    assert command["argv"][command["argv"].index("--exit-code") + 1] == "0"
+    assert command["argv"][command["argv"].index("--severity") + 1] == (
+        "UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL"
+    )
+    assert "does not pass the blocking HC gate" in metadata["claim_boundary"]
+
+
+@pytest.mark.parametrize(
+    "scenario",
+    (
+        "retag",
+        "platform",
+        "binary",
+        "source",
+        "scanner",
+        "db",
+        "missing-db",
+        "scan-error",
+        "truncated",
+        "wrong-image",
+        "wrong-schema",
+        "missing-os",
+        "missing-caddy",
+        "empty-packages",
+        "secrets",
+        "secrets-null",
+        "secrets-object",
+        "override",
+        "version-image-id",
+        "build-info-image-id",
+        "modules-image-id",
+        "missing-version",
+        "missing-build-info",
+        "missing-modules",
+        "version-mismatch",
+        "build-info-mismatch",
+        "modules-mismatch",
+    ),
+)
+def test_caddy_native_full_observation_rejects_unbound_or_unsafe_publication(
+    tmp_path: Path, scenario: str
+) -> None:
+    result, published, _metadata, _command = _run_caddy_full_observation_fixture(
+        tmp_path, scenario, "failure"
+    )
+    assert result.returncode != 0
+    assert not published
+    assert "synthetic-secret-sentinel" not in result.stdout + result.stderr
+
+
+def _run_caddy_full_observation_fixture(
+    tmp_path: Path, scenario: str, HC: str
+) -> tuple[subprocess.CompletedProcess[str], bool, dict[str, object], dict[str, object]]:
+    """Execute actual inline workflow scripts with finite synthetic native outcomes."""
+    workflow = _workflow(FRONTEND_WORKFLOW)
+    steps = _steps(_job(workflow, "caddy-contract"))
+    workspace = tmp_path / "workspace"
+    binaries = tmp_path / "bin"
+    runner = tmp_path / "runner"
+    cache = tmp_path / "cache"
+    for path in (workspace, binaries, runner, cache / "db", runner / "caddy-contract"):
+        path.mkdir(parents=True, exist_ok=True)
+    paths = (
+        "frontend/Dockerfile.caddy-spa",
+        "frontend/package.json",
+        "frontend/package-lock.json",
+        "frontend/.dockerignore",
+        ".github/workflows/frontend-ci.yml",
+        "deploy/Caddyfile",
+        "deploy/Caddyfile.production",
+        "scripts/ci/check_docker_runtime_dependency_surface.py",
+    )
+    for name in paths:
+        target = workspace / name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(REPO_ROOT / name, target)
+    for name in ("scripts/__init__.py", "scripts/ci/__init__.py"):
+        (workspace / name).touch()
+    (cache / "db/trivy.db").write_bytes(b"synthetic-database-epoch")
+    (cache / "db/metadata.json").write_text('{"Version":2,"UpdatedAt":"2026-10-10T00:00:00Z"}')
+    command_record = tmp_path / "native-command.json"
+    docker_record = tmp_path / "docker-commands.json"
+    docker = binaries / "docker"
+    docker.write_text(
+        f"#!{sys.executable}\n"
+        "import json,sys\nfrom pathlib import Path\n"
+        f"scenario={scenario!r}\n"
+        "args=sys.argv[1:]\n"
+        f"trace=Path({str(docker_record)!r})\n"
+        "history=json.loads(trace.read_text()) if trace.exists() else []\n"
+        "history.append(args);trace.write_text(json.dumps(history))\n"
+        "if args[:2]==['image','inspect']:\n"
+        " image='sha256:'+'a'*64\n"
+        " if scenario=='retag' and ("
+        + repr(str(tmp_path / "seen"))
+        + ") and Path("
+        + repr(str(tmp_path / "seen"))
+        + ").exists():image='sha256:'+'b'*64\n"
+        " Path(" + repr(str(tmp_path / "seen")) + ").touch()\n"
+        " if '--format' in args and args[args.index('--format')+1]=='{{.Id}}':print(image)\n"
+        " else:print(json.dumps({'Id':image,'Os':'linux','Architecture':'arm64' if scenario=='platform' else 'amd64'}))\n"
+        "elif '--entrypoint' in args and args[args.index('--entrypoint')+1]=='/usr/bin/caddy':\n"
+        " index=args.index('--entrypoint')\n"
+        " if args[index+2]!='sha256:'+'a'*64:sys.exit(3)\n"
+        " command=tuple(args[index+3:])\n"
+        " outputs={('version',):'v2.11.4 synthetic\\n',('build-info',):'go\\tgo1.26.6\\n',('list-modules','--packages'):'http.handlers.file_server github.com/caddyserver/caddy/v2\\n'}\n"
+        " if command not in outputs:sys.exit(4)\n"
+        " print(outputs[command],end='')\n"
+        "else:\n"
+        " print(('c' if scenario=='binary' else 'd')*64+'  /usr/bin/caddy')\n",
+        encoding="utf-8",
+    )
+    # These are native-shape fixtures, not real scanner execution proof.
+    report = {
+        "SchemaVersion": 2,
+        "ArtifactType": "container_image",
+        "ArtifactName": "sha256:" + "a" * 64,
+        "Metadata": {"ImageID": "sha256:" + "a" * 64},
+        "Results": [
+            {
+                "Target": "Alpine",
+                "Class": "os-pkgs",
+                "Type": "alpine",
+                "Secrets": [],
+                "Packages": [{"Name": "libssl3", "Version": "3.5.8-r0"}],
+                "Vulnerabilities": [],
+            },
+            {
+                "Target": "usr/bin/caddy",
+                "Class": "lang-pkgs",
+                "Type": "gobinary",
+                "Packages": [{"Name": "golang.org/x/net", "Version": "v0.58.0"}],
+                "Vulnerabilities": [{"VulnerabilityID": "CVE-2026-78669", "Severity": "HIGH"}],
+            },
+        ],
+    }
+    if scenario == "wrong-image":
+        report["Metadata"]["ImageID"] = "sha256:" + "b" * 64
+    if scenario == "wrong-schema":
+        report["SchemaVersion"] = 1
+    if scenario == "missing-os":
+        report["Results"] = report["Results"][1:]
+    if scenario == "missing-caddy":
+        report["Results"] = report["Results"][:1]
+    if scenario == "empty-packages":
+        report["Results"][1]["Packages"] = []
+    if scenario.startswith("secrets"):
+        report["Results"][0]["Secrets"] = {
+            "secrets": [{"Match": "synthetic-secret-sentinel"}],
+            "secrets-null": None,
+            "secrets-object": {},
+        }[scenario]
+    scanner = binaries / "trivy"
+    scanner.write_text(
+        f"#!{sys.executable}\n"
+        "import json,os,sys\nfrom pathlib import Path\n"
+        f"scenario={scenario!r}\nreport={report!r}\n"
+        "args=sys.argv[1:]\n"
+        "if args==['--version']:\n print('Version: 0.74.0');sys.exit(0)\n"
+        f"Path({str(command_record)!r}).write_text(json.dumps({{'argv':args,'env':dict(os.environ)}}))\n"
+        "output=Path(args[args.index('--output')+1])\n"
+        "output.write_text('{truncated' if scenario=='truncated' else json.dumps(report))\n"
+        "if scenario=='db':\n (Path(args[args.index('--cache-dir')+1])/'db/trivy.db').write_bytes(b'changed')\n"
+        "if scenario=='scanner':\n Path(__file__).write_text('changed-scanner')\n"
+        "sys.exit(2 if scenario=='scan-error' else 0)\n",
+        encoding="utf-8",
+    )
+    docker.chmod(0o755)
+    scanner.chmod(0o755)
+    github_output = tmp_path / "github-output"
+    github_output.touch()
+    # Explicit synthetic environment prevents credential leakage in mocked
+    # headers, child diagnostics or full native-command snapshots.
+    environment = {
+        "PATH": str(binaries) + os.pathsep + os.defpath,
+        "RUNNER_TEMP": str(runner),
+        "GITHUB_OUTPUT": str(github_output),
+        "CADDY_HC_OUTCOME": HC,
+        "CADDY_TRIVY_CACHE": str(cache),
+        "CADDY_FULL_SCAN_TIMEOUT_SECONDS": "5",
+        "TRIVY_SEVERITY": "HIGH",
+        "TRIVY_EXIT_CODE": "1",
+        "TRIVY_SCANNERS": "vuln",
+        "TRIVY_SKIP_FILES": "usr/bin/caddy",
+        "TRIVY_VEX": "synthetic-vex",
+    }
+    if scenario == "override":
+        environment["TRIVY_CMD"] = str(binaries / "different-scanner")
+    last = None
+    for name in (
+        "Capture next loaded Caddy image identity",
+        "Prepare same-epoch full Caddy observation",
+        "Observe all-severity Caddy native report",
+        "Validate and publish full Caddy observation",
+    ):
+        script = (
+            _named_step(steps, name)["run"].split("python3 - <<'PY'\n", 1)[1].rsplit("\nPY", 1)[0]
+        )
+        last = subprocess.run(
+            [sys.executable, "-c", script],
+            env=environment,
+            cwd=workspace,
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+        )
+        if last.returncode:
+            break
+        if name == "Capture next loaded Caddy image identity":
+            outputs = dict(line.split("=", 1) for line in github_output.read_text().splitlines())
+            environment["CADDY_OBSERVATION_STATE"] = outputs["state"]
+            if scenario == "source":
+                (workspace / "frontend/package.json").write_text("changed-source")
+            if scenario == "missing-db":
+                (cache / "db/trivy.db").unlink()
+            if scenario == "binary":
+                docker.write_text(
+                    docker.read_text().replace("scenario='binary'", "scenario='valid'")
+                )
+            projection_faults = {
+                "version-image-id": ("version.txt", "image-id"),
+                "build-info-image-id": ("build-info.txt", "image-id"),
+                "modules-image-id": ("rebuilt-modules.txt", "image-id"),
+                "missing-version": ("version.txt", "missing"),
+                "missing-build-info": ("build-info.txt", "missing"),
+                "missing-modules": ("rebuilt-modules.txt", "missing"),
+                "version-mismatch": ("version.txt", "mismatch"),
+                "build-info-mismatch": ("build-info.txt", "mismatch"),
+                "modules-mismatch": ("rebuilt-modules.txt", "mismatch"),
+            }
+            if scenario in projection_faults:
+                filename, fault = projection_faults[scenario]
+                state_path = Path(outputs["state"])
+                subject = json.loads(state_path.read_text())
+                if fault == "image-id":
+                    projection = subject["native_projections"][filename]
+                    projection["argv"][
+                        projection["argv"].index(subject["image_config_id"])
+                    ] = "pulseplate-caddy:contract"
+                    state_path.write_text(json.dumps(subject))
+                elif fault == "missing":
+                    (state_path.parent / "native-projections" / filename).unlink()
+                else:
+                    (state_path.parent / "native-projections" / filename).write_bytes(
+                        b"changed-native-projection"
+                    )
+    assert last is not None
+    published = runner / "caddy-contract/full-observation"
+    result_metadata = (
+        json.loads((published / "observation.json").read_text()) if published.exists() else {}
+    )
+    native_command = json.loads(command_record.read_text()) if command_record.exists() else {}
+    native_command["docker_argv"] = (
+        json.loads(docker_record.read_text()) if docker_record.exists() else []
+    )
+    native_command["published_projection_hashes"] = (
+        {
+            path.name: hashlib.sha256(path.read_bytes()).hexdigest()
+            for path in (published / "native-projections").iterdir()
+        }
+        if published.exists()
+        else {}
+    )
+    return last, published.exists(), result_metadata, native_command
+
+
+def test_caddy_counterfactual_metadata_owns_no_compiler_or_final_recipe_mutation() -> None:
+    workflow = _workflow(FRONTEND_WORKFLOW)
+    event = workflow.get("on", workflow.get(True))
+    assert event["workflow_dispatch"]["inputs"]["caddy_action"]["options"] == [
+        "contract",
+        "xnet060-metadata",
+    ]
+    steps = _steps(_job(workflow, "caddy-contract"))
+    metadata = _named_step(steps, "Qualify Caddy compiler and two counterfactual xnet derivations")
+    assert (
+        metadata["if"]
+        == "${{ github.event_name == 'workflow_dispatch' && inputs.caddy_action == 'xnet060-metadata' }}"
+    )
+    source = metadata["run"]
+    assert re.search(r"\bgo\s+build\b", source) is None
+    assert 'for label in ("a", "b")' in source
+    assert '"go_build_invocations": 0' in source
+    assert 'root_module="pulseplate.local/caddy-build"' in source
+    assert "tree_inventory(left) == tree_inventory(right)" in source
+    assert "go get golang.org/x/net@v0.60.0" in source
+    assert "go mod download all" in source and "go mod verify" in source
+    assert "baseline-packages.json" in source and "final-packages.json" in source
+    assert "post-get-go.mod" in source and "module-derivation.patch" in source
+    assert "C_R_candidate" in source and "pending independent source/security review" in source
+    assert "Counterfactual recipe baselines" in source
+    assert "zlib-1.3.2-r1" in source and "apk verify /output/zlib-1.3.2-r1.apk" in source
+    vendor = source.split("vendor_script = '''", 1)[1].split("'''", 1)[0]
+    assert "apk verify --help" not in vendor
+    commands = [line.strip() for line in vendor.splitlines() if line.strip()]
+    assert commands == [
+        "set -eu",
+        "/sbin/apk --version > /output/apk-version.txt",
+        "cp /etc/apk/repositories /output/compiler-repositories.txt",
+        "mkdir /output/keys",
+        "cp /etc/apk/keys/* /output/keys/",
+        "wget -q -O /output/APKINDEX.tar.gz https://dl-cdn.alpinelinux.org/alpine/v3.23/main/x86_64/APKINDEX.tar.gz",
+        "/sbin/apk verify /output/APKINDEX.tar.gz > /output/index-signature.txt",
+        "/sbin/apk fetch --no-cache --repository https://dl-cdn.alpinelinux.org/alpine/v3.23/main --match package --output /output zlib-1.3.2-r1",
+        "/sbin/apk verify /output/zlib-1.3.2-r1.apk > /output/package-signature.txt",
+    ]
+    assert 'require(gets == baseline_gets + [b"golang.org/x/net@v0.60.0"]' in source
+    assert '"counterfactual_seed_gets"' in source and '"selected_recipe_gets"' in source
+    # Current selection follows the observed original-three-get counterfactual replay.
+    recipe = DOCKERFILE.read_text()
+    assert recipe.count("go get golang.org/x/net@v0.60.0") == 1
+    assert "Go 1.26.9" in recipe
+
+
+def test_caddy_full_observation_keeps_native_diagnostics_without_inventing_secrets() -> None:
+    steps = _steps(_job(_workflow(FRONTEND_WORKFLOW), "caddy-contract"))
+    preparation = _named_step(steps, "Prepare same-epoch full Caddy observation")["run"]
+    publication = _named_step(steps, "Validate and publish full Caddy observation")["run"]
+    assert '"scanner-version.stdout"' in preparation and '"scanner-version.stderr"' in preparation
+    assert '"scan.stdout.private"' in publication and '"scan.stderr.private"' in publication
+    assert "scanner_diagnostic_credential_reflection" in publication
+    assert "Results_Secrets_fields_absent" in publication
+    assert 'native["Results"]' in publication
+    assert 'row["Secrets"] = []' not in publication
