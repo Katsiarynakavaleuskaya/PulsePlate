@@ -238,6 +238,8 @@
   recognized OCI members plus one standard untagged Docker header. Rendering
   never rebuilds/re-exports or transforms layers, accepts another image carrier,
   or establishes native success or authority; preserve loaded identity checks.
+  Scan the existing recognized pure-OCI directory and bind the same graph and
+  source archive before and after successful scanning.
   Mocked AM Native fixtures must model tool/resource inputs, retain low-resource
   negatives, and preserve production guards and reserves.
 

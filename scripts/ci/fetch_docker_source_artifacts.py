@@ -5616,8 +5616,22 @@ def _alertmanager_final_security(
             ),
             "sha256:53622b714941158bc20cc92a7571aef515556218eef914b7b8ec5b2a0cb6f607",
         )
+        layout = work / "docker-load-layout"
+        require(
+            _alertmanager_candidate_graph(layout, support, graph["files"]) == graph
+            and file_hash(archive, deadline)
+            == reports["docker_load_transport"]["source_OCI_sha256"],
+            "AM_final_candidate_scan_identity",
+        )
+        candidate_report = scan("image", layout, "candidate-full-supported")
+        require(
+            _alertmanager_candidate_graph(layout, support, graph["files"]) == graph
+            and file_hash(archive, deadline)
+            == reports["docker_load_transport"]["source_OCI_sha256"],
+            "AM_final_candidate_scan_post_identity",
+        )
         reports["candidate"] = _alertmanager_candidate_inventory(
-            scan("image", archive, "candidate-full-supported"),
+            candidate_report,
             graph["config"]["digest"],
             one_object((support / "evidence/base-full-supported-scan.private.json").read_bytes()),
             build_information,
