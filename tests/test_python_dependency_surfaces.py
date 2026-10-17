@@ -18,6 +18,7 @@ import pytest
 from scripts.ci import check_python_dependency_surfaces as surfaces
 from scripts.ci import compile_locked_python_requirements as compiler
 from scripts.ci import dependabot_requirement_carriers as carriers
+from scripts.ci import install_locked_python_requirements as installer
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 APPROVED_INDEX = "https://packages.pulseplate.app/root/pulseplate/+simple/"
@@ -1679,13 +1680,13 @@ def test_wheelhouse_rejects_duplicate_members_and_member_count_overflow(
 
     wheel_path.unlink()
     _write_test_wheel(wheelhouse, name="one", version="1.0.0")
-    monkeypatch.setattr(compiler, "MAX_WHEEL_MEMBERS", 0)
+    monkeypatch.setattr(installer, "MAX_WHEEL_MEMBERS", 0)
 
     class UnexpectedZipFile:
         def __init__(self, *_args: object, **_kwargs: object) -> None:
             raise AssertionError("ZipFile must not run before the member bound is enforced")
 
-    monkeypatch.setattr(compiler.zipfile, "ZipFile", UnexpectedZipFile)
+    monkeypatch.setattr(installer.zipfile, "ZipFile", UnexpectedZipFile)
     with pytest.raises(RuntimeError, match="too many archive members"):
         compiler._validate_wheelhouse(
             wheelhouse=wheelhouse,
@@ -1700,13 +1701,13 @@ def test_wheel_central_directory_size_is_bounded_before_zipfile_parsing(
     wheelhouse = tmp_path / "wheelhouse"
     wheelhouse.mkdir(mode=0o700)
     _write_test_wheel(wheelhouse, name="one", version="1.0.0")
-    monkeypatch.setattr(compiler, "MAX_WHEEL_CENTRAL_DIRECTORY_BYTES", 1)
+    monkeypatch.setattr(installer, "MAX_WHEEL_CENTRAL_DIRECTORY_BYTES", 1)
 
     class UnexpectedZipFile:
         def __init__(self, *_args: object, **_kwargs: object) -> None:
             raise AssertionError("ZipFile must not run before the size bound is enforced")
 
-    monkeypatch.setattr(compiler.zipfile, "ZipFile", UnexpectedZipFile)
+    monkeypatch.setattr(installer.zipfile, "ZipFile", UnexpectedZipFile)
     with pytest.raises(RuntimeError, match="central directory exceeds the size limit"):
         compiler._validate_wheelhouse(
             wheelhouse=wheelhouse,
@@ -3257,6 +3258,146 @@ def test_direct_helper_invocation_requires_make_authority(
 VIRTUALENV_PROFILES = ("ci-lite", "dev", "aggregate")
 VIRTUALENV_UPGRADE = {"virtualenv": "21.14.5"}
 VIRTUALENV_GRAPH = frozenset({"python-discovery"})
+
+
+PSYCOPG_GRAPH = frozenset({"psycopg-binary", "psycopg-c"})
+
+
+def _write_psycopg_admission_repo(root: Path, monkeypatch: pytest.MonkeyPatch) -> dict[str, str]:
+    """Rebind synthetic fixture bytes only; no fixture is native resolver proof."""
+    _copy_graph_change_admission_repo(root)
+    path = root / compiler.GRAPH_CHANGE_ADMISSION_PATH
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    record = payload["psycopg_c_oct2"]
+    baselines: dict[str, str] = {}
+    for profile, value in record["baselines"].items():
+        body = "cryptography==50.0.0\nexample==1.0.0\n"
+        if profile != "dev":
+            body += "psycopg[binary]==3.3.4\npsycopg-binary==3.3.4\n"
+        data = body.encode()
+        baselines[profile] = body
+        (root / value["lockfile"]).write_bytes(data)
+        value["bytes"] = len(data)
+        value["sha256_bytes"] = list(hashlib.sha256(data).digest())
+    record["runtime_baseline_utf8"] = baselines["runtime"]
+    for name in record["source_variants"]["combined"]:
+        body = "cryptography>=50.0.2,<51.0.0\nexample>=1.0.0\n"
+        if name != "requirements-dev.in":
+            body += "psycopg[c]>=3.2.3,<4.0.0\n"
+        (root / name).write_text(body, encoding="utf-8")
+        for variant in ("combined", "psycopg_only"):
+            data = (body if variant == "combined" else body.replace("50.0.2", "50.0.0")).encode()
+            record["source_variants"][variant][name] = {
+                "bytes": len(data),
+                "sha256_bytes": list(hashlib.sha256(data).digest()),
+            }
+    digest = hashlib.sha256(
+        json.dumps(record, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+    monkeypatch.setattr(compiler, "PSYCOPG_C_RECORD_SHA256", digest)
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    return baselines
+
+
+def _select_psycopg_runtime(root: Path) -> compiler.GraphChangeAdmission:
+    result = compiler._authorize_graph_changes(
+        repo_root=root,
+        profiles=("runtime",),
+        upgrades={"cryptography": "50.0.2"},
+        graph_changes=PSYCOPG_GRAPH,
+        admission_id=compiler.PSYCOPG_C_ADMISSION_ID,
+    )
+    assert result is not None
+    return result
+
+
+def test_psycopg_migration_keeps_parent_version_and_excludes_dev_leaf(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    baselines = _write_psycopg_admission_repo(tmp_path, monkeypatch)
+    admission = _select_psycopg_runtime(tmp_path)
+    projected = admission.project_profile_pins(
+        "runtime", compiler._exact_pin_map(baselines["runtime"], label="fixture")
+    )
+    assert projected["psycopg"] == compiler.ExactPin("3.3.4", ("c",), None, None)
+    assert projected["psycopg-c"] == compiler.ExactPin("3.3.4", (), None, None)
+    assert "psycopg-binary" not in projected
+    admission = replace(admission, profiles=("dev",))
+    projected = admission.project_profile_pins(
+        "dev", compiler._exact_pin_map(baselines["dev"], label="fixture")
+    )
+    assert all(not name.startswith("psycopg") for name in projected)
+
+
+@pytest.mark.parametrize("drift", ("other_pin", "binary_extra", "leaf_version", "retained_binary"))
+def test_psycopg_migration_rejects_other_transitions(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, drift: str
+) -> None:
+    baselines = _write_psycopg_admission_repo(tmp_path, monkeypatch)
+    admission = _select_psycopg_runtime(tmp_path)
+    candidate = "cryptography==50.0.2\nexample==1.0.0\npsycopg[c]==3.3.4\npsycopg-c==3.3.4\n"
+    if drift == "other_pin":
+        candidate = candidate.replace("example==1.0.0", "example==2.0.0")
+    elif drift == "binary_extra":
+        candidate = candidate.replace("psycopg[c]", "psycopg[binary]")
+    elif drift == "leaf_version":
+        candidate = candidate.replace("psycopg-c==3.3.4", "psycopg-c==3.3.5")
+    else:
+        candidate += "psycopg-binary==3.3.4\n"
+    with pytest.raises(RuntimeError, match="unrelated package/version/metadata transition"):
+        compiler._validate_candidate_delta(
+            surface=_surface("runtime"),
+            baseline_text=baselines["runtime"],
+            candidate_text=candidate,
+            upgrades={"cryptography": "50.0.2"},
+            graph_changes=PSYCOPG_GRAPH,
+            repo_root=tmp_path,
+            graph_admission=admission,
+        )
+
+
+def test_psycopg_dependent_transaction_requires_the_complete_runtime_result(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _write_psycopg_admission_repo(tmp_path, monkeypatch)
+
+    def admit() -> compiler.GraphChangeAdmission | None:
+        return compiler._authorize_graph_changes(
+            repo_root=tmp_path,
+            profiles=("docker-runtime", "ci-lite", "dev", "aggregate"),
+            upgrades={"cryptography": "50.0.2"},
+            graph_changes=PSYCOPG_GRAPH,
+            admission_id=compiler.PSYCOPG_C_ADMISSION_ID,
+        )
+
+    with pytest.raises(RuntimeError, match="complete exact runtime result"):
+        admit()
+    (tmp_path / "requirements.txt").write_text(
+        "cryptography==50.0.2\nexample==1.0.0\npsycopg[c]==3.3.4\npsycopg-c==3.3.4\n",
+        encoding="utf-8",
+    )
+    assert admit() is not None
+    (tmp_path / "requirements.txt").write_text("cryptography==50.0.2\n", encoding="utf-8")
+    with pytest.raises(RuntimeError, match="complete exact runtime result"):
+        admit()
+
+
+def test_psycopg_admission_rejects_source_and_record_drift(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _write_psycopg_admission_repo(tmp_path, monkeypatch)
+    source = tmp_path / "requirements.in"
+    original = source.read_bytes()
+    source.write_bytes(original + b"other>=1\n")
+    with pytest.raises(RuntimeError, match="exact selected intent"):
+        _select_psycopg_runtime(tmp_path)
+    source.write_bytes(original)
+    path = tmp_path / compiler.GRAPH_CHANGE_ADMISSION_PATH
+    payload = json.loads(path.read_text())
+    payload["psycopg_c_oct2"]["graph_change"]["additions"].append("other")
+    path.write_text(json.dumps(payload))
+    with pytest.raises(RuntimeError, match="exact fixed v1 migration alternative"):
+        _select_psycopg_runtime(tmp_path)
 
 
 def _write_virtualenv_admission_repo(

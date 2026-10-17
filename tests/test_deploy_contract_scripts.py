@@ -17,6 +17,12 @@ from pathlib import Path
 import pytest
 import yaml
 
+from scripts.ci import prometheus_source_image as prometheus_source
+from scripts.orchestration.creative_code_patch_workspace import (
+    git_env_without_parent_state,
+    safe_git_config_args,
+)
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 CD_WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "cd.yml"
 PRODUCTION_COMPOSE_PATH = REPO_ROOT / "deploy" / "docker-compose.production.yaml"
@@ -32,12 +38,501 @@ ALERTMANAGER_RUNTIME_REF = (
     "prom/alertmanager@sha256:84967b9b7ba45e38a9278d3e594305f43d4993c310df3905b51138b816c365f3"
 )
 POSTGRES_MANIFEST_PATH = REPO_ROOT / "deploy" / "postgres-pgvector" / "image-manifest.json"
-PROMETHEUS_SOURCE_REVISION = "53144df54e01b689bf6c45e811c6230631b132e7"
-PROMETHEUS_INDEX_DIGEST = "sha256:62464aea89547566d3e26b33566a40d8a9d2ddef947fde9d37454040c9c636b1"
-PROMETHEUS_PLATFORM_MANIFEST_DIGEST = (
-    "sha256:76f21be0a8e8c825cccb0e2021699dcbfb02037cc594c1f48d44993f8a415f2d"
+# Parser/caller fixtures only: these coordinates do not claim an artifact or native build.
+PROMETHEUS_SOURCE_REVISION = prometheus_source.REVISION
+PROMETHEUS_INDEX_DIGEST = "sha256:" + "1" * 64  # Synthetic transport identity.
+PROMETHEUS_PLATFORM_MANIFEST_DIGEST = "sha256:" + "2" * 64
+PROMETHEUS_CONFIG_DIGEST = "sha256:" + "3" * 64
+PROMETHEUS_RUNTIME_REF = (
+    prometheus_source.IMAGE_REPOSITORY + "@" + PROMETHEUS_PLATFORM_MANIFEST_DIGEST
 )
-PROMETHEUS_RUNTIME_REF = f"prom/prometheus@{PROMETHEUS_PLATFORM_MANIFEST_DIGEST}"
+
+
+def _synthetic_prometheus_manifest() -> dict[str, object]:
+    """Static manifest/caller data, never a successful native or API receipt."""
+    inputs = prometheus_source.declared_inputs()
+    inputs["oras"]["retained"] = {
+        "source_head": "1" * 40,
+        "run_id": 1,
+        "artifact_id": 1,
+        "artifact_name": "prometheus-oras-1-1",
+        "artifact_digest": "sha256:" + "a" * 64,
+        "binary_sha256": "b" * 64,
+        "binary_bytes": 1,
+        "input_digest": "sha256:" + "c" * 64,
+    }
+    selection = {
+        "repository": prometheus_source.IMAGE_REPOSITORY,
+        "platform": "linux/amd64",
+        "root_media_type": prometheus_source.OCI_MANIFEST,
+        "manifest_digest": PROMETHEUS_PLATFORM_MANIFEST_DIGEST,
+        "config_digest": PROMETHEUS_CONFIG_DIGEST,
+        "layers": [row["descriptor"] for row in prometheus_source.BASE_LAYER_CONTRACTS]
+        + [{"mediaType": prometheus_source.OCI_LAYER, "size": 1, "digest": "sha256:" + "4" * 64}],
+        "diff_ids": [row["diff_id"] for row in prometheus_source.BASE_LAYER_CONTRACTS]
+        + ["sha256:" + "5" * 64],
+        "runtime_ref": PROMETHEUS_RUNTIME_REF,
+        "binaries": {
+            name: {"sha256": "6" * 64, "version": "3.15.0"} for name in ("prometheus", "promtool")
+        },
+        "ui_inventory_sha256": prometheus_source.sha(
+            prometheus_source.canonical_data(prometheus_source.UI_FILES)
+        ),
+        "source_revision": PROMETHEUS_SOURCE_REVISION,
+        "version": "3.15.0",
+    }
+    candidate = {
+        "repository": {"id": 1043311030, "full_name": prometheus_source.GHCR_REPOSITORY},
+        "producer": {
+            "workflow_id": 1,
+            "workflow_path": ".github/workflows/build.yml",
+            "source_head": "1" * 40,
+            "source_ref": "refs/heads/synthetic-parser-fixture",
+            "pr_number": 2477,
+            "run_id": 1,
+            "run_attempt": 1,
+            "job_ids": [1],
+            "raw_producer": {
+                name: {
+                    "bytes": (REPO_ROOT / name).stat().st_size,
+                    "sha256": hashlib.sha256((REPO_ROOT / name).read_bytes()).hexdigest(),
+                }
+                for name in prometheus_source.PRODUCER_FILES
+            },
+            "input_projection_sha256": "7" * 64,
+        },
+        "artifact": {
+            "id": 1,
+            "name": "prometheus-source-candidate-1-1",
+            "digest": "sha256:" + "8" * 64,
+            "size": 1,
+            "expires_at": "2099-01-01T00:00:00Z",
+            "archive_sha256": "8" * 64,
+        },
+        "outputs": {
+            name: "9" * 64
+            for name in (
+                "oci_archive_sha256",
+                "docker_archive_sha256",
+                "native_report_sha256",
+                "pair_report_sha256",
+                "spdx_sha256",
+                "provenance_bundle_sha256",
+                "sbom_bundle_sha256",
+            )
+        },
+    }
+    return {
+        "schema": prometheus_source.IMAGE_SCHEMA,
+        "phase": "candidate_selected",
+        "inputs": inputs,
+        "selection": selection,
+        "candidate": candidate,
+    }
+
+
+PROMETHEUS_MANIFEST_ERRORS = {
+    "malformed": "JSONDecodeError",
+    "duplicate": "QualificationError:duplicate_JSON_key",
+    "missing": "QualificationError:selection_keys",
+    "extra": "QualificationError:image_manifest_keys",
+    "wrong-platform-digest": "QualificationError:selection_distinct_identity",
+    "wrong-source-revision": "QualificationError:selection_fixed_identity",
+    "wrong-runtime-ref": "QualificationError:selection_distinct_identity",
+    "index-digest-runtime-ref": "QualificationError:selection_distinct_identity",
+    "wrong-type": "QualificationError:selection_fixed_identity",
+}
+
+
+def _synthetic_prometheus_manifest_text() -> str:
+    return json.dumps(_synthetic_prometheus_manifest(), indent=2) + "\n"
+
+
+def _write_prometheus_helper(root: Path) -> None:
+    target = root / "scripts/ci/prometheus_source_image.py"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_bytes((REPO_ROOT / "scripts/ci/prometheus_source_image.py").read_bytes())
+    target.chmod(0o644)
+
+
+DEPLOY_PYTHON_CALLERS = (
+    "scripts/deploy_production.sh",
+    "scripts/deploy.sh",
+    "scripts/QUICK_FIX_PRODUCTION.sh",
+)
+DEPLOY_PYTHON_DEFAULTS = (
+    "/usr/bin/python3",
+    "/usr/local/bin/python3",
+    "/opt/homebrew/bin/python3",
+    "/opt/homebrew/opt/python@3.14/libexec/bin/python3",
+)
+
+
+def _deploy_python_program(relative: str, candidates: list[Path]) -> str:
+    """Execute the actual finite caller seam using synthetic candidate paths."""
+    text = (REPO_ROOT / relative).read_text()
+    if relative == "scripts/deploy_production.sh":
+        start = text.index("resolve_absolute_executable() {")
+        end = text.index("\nif ! DOCKER_BIN=", start)
+        body = text[start:end] + '\nPYTHON_BIN_OVERRIDE="${PYTHON_BIN:-}"\n'
+        body += 'PYTHON_BIN="$(resolve_absolute_executable "$PYTHON_BIN_OVERRIDE" PYTHON_BIN '
+        body += " ".join(shlex.quote(str(path)) for path in candidates) + ')"\n'
+    else:
+        start = text.index("# Scoped deploy-tool interpreter input;")
+        end = text.index("\nreadonly PYTHON_BIN", start) + len("\nreadonly PYTHON_BIN")
+        body = text[start:end]
+        array_start = body.index("TRUSTED_PYTHON_CANDIDATES=(")
+        array_end = body.index("\n)", array_start) + len("\n)")
+        body = (
+            body[:array_start]
+            + "TRUSTED_PYTHON_CANDIDATES=("
+            + " ".join(shlex.quote(str(path)) for path in candidates)
+            + ")"
+            + body[array_end:]
+        )
+    touch = shutil.which("touch")
+    assert touch is not None and Path(touch).is_absolute()
+    return (
+        "set -euo pipefail\n"
+        + body
+        + '\nprintf "selected=%s\\n" "$PYTHON_BIN"\n'
+        + shlex.quote(touch)
+        + ' "$MUTATION_MARKER"\n'
+    )
+
+
+def _synthetic_python_probe(path: Path, identity: str, trace: Path, *, status: int = 0) -> None:
+    """Probe test data only; this wrapper has no interpreter-origin authority."""
+    path.write_text(
+        "#!/bin/sh\n"
+        'test "$#" -eq 4 && test "$1" = -I && test "$2" = -S && test "$3" = -c || exit 98\n'
+        "printf '%s\\n' " + shlex.quote(path.name) + " >> " + shlex.quote(str(trace)) + "\n"
+        "printf '%s' " + shlex.quote(identity) + "\n"
+        f"exit {status}\n"
+    )
+    path.chmod(0o755)
+
+
+@pytest.mark.parametrize("relative", DEPLOY_PYTHON_CALLERS)
+@pytest.mark.parametrize("version", ["3.11", "3.12", "3.13", "3.14", "actual-repo"])
+def test_deploy_tool_python_supported_explicit_override(
+    tmp_path: Path, relative: str, version: str
+) -> None:
+    trace = tmp_path / "probes"
+    override = tmp_path / "explicit-python"
+    fallback = tmp_path / "fallback-python"
+    _synthetic_python_probe(fallback, "cpython:3.14\n", trace)
+    if version == "actual-repo":
+        override = Path(sys.executable)
+    else:
+        _synthetic_python_probe(override, "cpython:" + version + "\n", trace)
+    bash = shutil.which("bash")
+    assert bash is not None
+    result = subprocess.run(
+        [bash, "-c", _deploy_python_program(relative, [fallback])],
+        env={
+            "PATH": os.defpath,
+            "PYTHON_BIN": str(override),
+            "MUTATION_MARKER": str(tmp_path / "admitted"),
+        },
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    assert result.stdout == f"selected={override}\n"
+    assert (tmp_path / "admitted").exists()
+    assert (
+        not trace.exists() if version == "actual-repo" else trace.read_text() == "explicit-python\n"
+    )
+
+
+@pytest.mark.parametrize("relative", DEPLOY_PYTHON_CALLERS)
+@pytest.mark.parametrize(
+    "fault",
+    [
+        "3.9",
+        "3.10",
+        "3.15",
+        "non-CPython",
+        "startup-failure",
+        "empty",
+        "true",
+        "relative",
+        "not-executable",
+    ],
+)
+def test_deploy_tool_python_unsupported_explicit_never_falls_back(
+    tmp_path: Path, relative: str, fault: str
+) -> None:
+    trace = tmp_path / "probes"
+    override = tmp_path / "explicit-python"
+    fallback = tmp_path / "fallback-python"
+    _synthetic_python_probe(fallback, "cpython:3.14\n", trace)
+    identity = "pypy:3.13\n" if fault == "non-CPython" else "cpython:" + fault + "\n"
+    if fault in ("empty", "startup-failure"):
+        identity = "" if fault == "empty" else "cpython:3.14\n"
+    _synthetic_python_probe(
+        override, identity, trace, status=7 if fault == "startup-failure" else 0
+    )
+    if fault == "relative":
+        override = Path("python3")
+    elif fault == "not-executable":
+        override.chmod(0o644)
+    elif fault == "true":
+        binary = shutil.which("true")
+        assert binary is not None and Path(binary).is_absolute()
+        override = Path(binary)
+    bash = shutil.which("bash")
+    assert bash is not None
+    result = subprocess.run(
+        [bash, "-c", _deploy_python_program(relative, [fallback])],
+        env={
+            "PATH": os.defpath,
+            "PYTHON_BIN": str(override),
+            "MUTATION_MARKER": str(tmp_path / "admitted"),
+        },
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
+    )
+    assert result.returncode != 0
+    assert "PYTHON_BIN" in result.stderr
+    assert (
+        "absolute path" in result.stderr
+        if fault == "relative"
+        else (
+            "not executable" in result.stderr
+            if fault == "not-executable"
+            else "CPython 3.11, 3.12, 3.13 or 3.14" in result.stderr
+        )
+    )
+    assert not (tmp_path / "admitted").exists()
+    assert not trace.exists() or "fallback-python" not in trace.read_text()
+
+
+@pytest.mark.parametrize("relative", DEPLOY_PYTHON_CALLERS)
+@pytest.mark.parametrize("supported_default", [True, False])
+def test_deploy_tool_python_skips_old_default_without_PATH_discovery(
+    tmp_path: Path, relative: str, supported_default: bool
+) -> None:
+    trace = tmp_path / "probes"
+    old, missing, current = (
+        tmp_path / name for name in ("old-python", "missing", "current-python")
+    )
+    _synthetic_python_probe(old, "cpython:3.9\n", trace)
+    _synthetic_python_probe(
+        current, "cpython:3.14\n" if supported_default else "pypy:3.13\n", trace
+    )
+    injection = tmp_path / "path-bin"
+    injection.mkdir()
+    _synthetic_python_probe(injection / "python3", "cpython:3.14\n", trace)
+    bash = shutil.which("bash")
+    assert bash is not None
+    result = subprocess.run(
+        [bash, "-c", _deploy_python_program(relative, [old, missing, current])],
+        env={
+            "PATH": str(injection) + os.pathsep + os.defpath,
+            "MUTATION_MARKER": str(tmp_path / "admitted"),
+        },
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
+    )
+    assert (result.returncode == 0) is supported_default, result.stderr
+    assert (tmp_path / "admitted").exists() is supported_default
+    assert trace.read_text() == "old-python\ncurrent-python\n"
+    assert result.stdout == (f"selected={current}\n" if supported_default else "")
+
+
+def test_deploy_tool_python_default_catalogue_and_early_boundary() -> None:
+    for relative in DEPLOY_PYTHON_CALLERS:
+        text = (REPO_ROOT / relative).read_text()
+        start = text.index("TRUSTED_PYTHON_CANDIDATES=(")
+        end = text.index("\n)", start)
+        assert re.findall(r'"([^"]+)"', text[start:end]) == list(DEPLOY_PYTHON_DEFAULTS)
+        assert "command -v python" not in text
+        assert text.index("sys.implementation.name") < text.index("run_prometheus_contract() {")
+        if relative == "scripts/deploy_production.sh":
+            assert text.index("if ! PYTHON_BIN=") < text.index("run_prometheus_contract() {")
+
+
+def test_prometheus_trusted_helper_callers_bind_current_source_bytes() -> None:
+    """Caller consistency only; a hash is not independent source/trust authority."""
+    expected = hashlib.sha256(
+        (REPO_ROOT / "scripts/ci/prometheus_source_image.py").read_bytes()
+    ).hexdigest()
+    for relative in DEPLOY_PYTHON_CALLERS:
+        text = (REPO_ROOT / relative).read_text()
+        assert re.findall(r'PROMETHEUS_CONTRACT_HELPER_SHA256="([0-9a-f]{64})"', text) == [expected]
+
+
+@pytest.mark.parametrize("relative", DEPLOY_PYTHON_CALLERS)
+def test_deploy_tool_python_callers_reject_before_helper_or_mutation(
+    tmp_path: Path, relative: str
+) -> None:
+    trace = tmp_path / "probes"
+    override = tmp_path / "old-python"
+    _synthetic_python_probe(override, "cpython:3.9\n", trace)
+    if relative == "scripts/deploy.sh":
+        env, log = _staging_deploy_fixture(tmp_path)
+        project = Path(env["PROJECT_DIR"])
+        arguments = [
+            "--preflight-only",
+            "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "a" * 64,
+            "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "b" * 64,
+        ]
+    elif relative == "scripts/deploy_production.sh":
+        env, project, log, _bundle = _production_preflight_fixture(tmp_path, with_bundle=False)
+        arguments = ["--preflight-only"]
+    else:
+        project = tmp_path / "quick-production"
+        project.mkdir()
+        (project / "docker-compose.production.yaml").write_text("services: {}\n")
+        (project / ".env").write_text("unchanged=synthetic\n")
+        directory = tmp_path / "bin"
+        directory.mkdir()
+        log = tmp_path / "docker.log"
+        docker = directory / "docker"
+        docker.write_text(
+            "#!/bin/sh\nprintf '%s\\n' \"$*\" >> " + shlex.quote(str(log)) + "\nexit 0\n"
+        )
+        docker.chmod(0o755)
+        env = {"PATH": str(directory) + os.pathsep + os.defpath, "DEPLOY_DIR": str(project)}
+        arguments = []
+    env["PYTHON_BIN"] = str(override)
+    env_file = project / ".env"
+    before = (env_file.read_bytes(), stat.S_IMODE(env_file.stat().st_mode))
+    bash = shutil.which("bash")
+    assert bash is not None
+    result = subprocess.run(
+        [bash, str(REPO_ROOT / relative), *arguments],
+        env=env,
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
+    )
+    assert result.returncode != 0
+    assert "CPython 3.11, 3.12, 3.13 or 3.14" in result.stderr
+    assert trace.read_text() == "old-python\n"
+    assert (env_file.read_bytes(), stat.S_IMODE(env_file.stat().st_mode)) == before
+    assert not log.exists() or log.read_text() == "compose version\n"
+
+
+@pytest.mark.parametrize("caller", ("scripts/deploy.sh", "scripts/QUICK_FIX_PRODUCTION.sh"))
+@pytest.mark.parametrize("directory", ("dot", "subdirectory", "missing", "failed-pwd"))
+def test_deploy_relative_directory_reaches_verified_helper_without_product_mutation(
+    tmp_path: Path, caller: str, directory: str
+) -> None:
+    if caller == "scripts/deploy.sh":
+        inherited, log_file = _staging_deploy_fixture(tmp_path)
+        allowed = {
+            "PATH",
+            "PROJECT_DIR",
+            "ENV_FILE",
+            "COMPOSE_FILE",
+            "BACKUP_DIR",
+            "BACKUP_HELPER",
+            "STAGING_DEPLOY_MARKER",
+            "DOCKER_BIN",
+            "PYTHON_BIN",
+            "PYTHONPATH",
+            "CURL_BIN",
+            "STAT_BIN",
+            "STAGING_DOMAIN",
+            "GHCR_USER",
+            "GHCR_TOKEN",
+            "HEALTH_MAX_ATTEMPTS",
+            "HEALTH_SLEEP_S",
+        }
+        env = {
+            key: value
+            for key, value in inherited.items()
+            if key in allowed or key.startswith("STUB_")
+        }
+        project = Path(env["PROJECT_DIR"])
+        for key in ("ENV_FILE", "COMPOSE_FILE", "BACKUP_HELPER", "STAGING_DEPLOY_MARKER"):
+            env.pop(key)
+        key = "PROJECT_DIR"
+        arguments = [
+            "--preflight-only",
+            "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "a" * 64,
+            "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "b" * 64,
+        ]
+    else:
+        project = tmp_path / "quick-production"
+        project.mkdir()
+        _write_prometheus_helper(project)
+        (project / "prometheus").mkdir()
+        (project / "prometheus/image-manifest.json").write_text(
+            _synthetic_prometheus_manifest_text()
+        )
+        (project / "docker-compose.production.yaml").write_text("services: {}\n")
+        (project / ".env").write_text("APP_ENV=production\nAPP_ENV=duplicate\n")
+        (project / ".env").chmod(0o600)
+        directory_bin = tmp_path / "bin"
+        directory_bin.mkdir()
+        log_file = tmp_path / "docker.log"
+        _write_executable(
+            directory_bin / "docker",
+            "#!/bin/sh\nprintf '%s\n' \"$*\" >> " + shlex.quote(str(log_file)) + "\nexit 0\n",
+        )
+        env = {"PATH": str(directory_bin) + os.pathsep + os.defpath, "PYTHON_BIN": sys.executable}
+        key = "DEPLOY_DIR"
+        arguments = []
+    env["HOME"] = str(tmp_path)
+    cwd = project if directory in ("dot", "failed-pwd") else tmp_path
+    env[key] = (
+        "."
+        if directory in ("dot", "failed-pwd")
+        else ("absent-directory" if directory == "missing" else project.name)
+    )
+    if directory == "failed-pwd":
+        startup = tmp_path / "synthetic-shell-startup"
+        startup.write_text(
+            "pwd() { printf '%s\n' " + shlex.quote(str(project)) + "; return 19; }\n"
+        )
+        env["BASH_ENV"] = str(startup)
+    env_file = project / ".env"
+    before = (env_file.read_bytes(), stat.S_IMODE(env_file.stat().st_mode))
+    shell = shutil.which("bash")
+    assert shell is not None
+    result = subprocess.run(
+        [shell, str(REPO_ROOT / caller), *arguments],
+        env=env,
+        cwd=cwd,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=30,
+    )
+    calls = log_file.read_text().splitlines() if log_file.exists() else []
+    assert (env_file.read_bytes(), stat.S_IMODE(env_file.stat().st_mode)) == before
+    assert not list(project.glob(".env.backup.*"))
+    assert not list(project.glob(".env.clean.*"))
+    if directory in ("missing", "failed-pwd"):
+        assert result.returncode != 0
+        if directory == "failed-pwd":
+            assert result.returncode == 19
+        assert calls == []
+    elif caller == "scripts/deploy.sh":
+        assert result.returncode == 0, result.stderr
+        assert all(
+            " stop " not in call and " up " not in call and not call.startswith("backup ")
+            for call in calls
+        )
+    else:
+        assert result.returncode != 0
+        assert "Duplicate required environment keys found" in result.stdout
+        assert "Invalid trusted Prometheus helper operand" not in result.stderr
+        assert calls == ["compose version"]
+
+
 POSTGRES_RUNTIME_REF = (
     "ghcr.io/katsiarynakavaleuskaya/pulseplate:postgres-15.19-pgvector0.8.6-alpine3.23@"
     "sha256:d4437ad4970b4099e4cb7d05b7fa625c7e6959949d1374f1f2d4bd4149ae5fa3"
@@ -130,9 +625,23 @@ FAKE_PROMETHEUS_COMPOSE_JSON = json.dumps(
 FAKE_PROMETHEUS_IMAGE_INSPECT_JSON = json.dumps(
     [
         {
+            "Id": PROMETHEUS_CONFIG_DIGEST,
             "Os": "linux",
             "Architecture": "amd64",
-            "RepoDigests": [f"prom/prometheus@{PROMETHEUS_PLATFORM_MANIFEST_DIGEST}"],
+            "RepoDigests": [PROMETHEUS_RUNTIME_REF],
+            "RootFS": {
+                "Type": "layers",
+                "Layers": _synthetic_prometheus_manifest()["selection"]["diff_ids"],
+            },
+            "Config": {
+                "User": "65532:65532",
+                "Entrypoint": ["/bin/prometheus"],
+                "WorkingDir": "/prometheus",
+                "Cmd": [
+                    "--config.file=/etc/prometheus/prometheus.yml",
+                    "--storage.tsdb.path=/prometheus",
+                ],
+            },
         }
     ],
     separators=(",", ":"),
@@ -236,6 +745,7 @@ def _write_production_host_contract(
 ) -> Path:
     if include_checkpoint:
         _write_checkpoint_contract(project_dir)
+    _write_prometheus_helper(project_dir)
     deploy_dir = project_dir / "deploy"
     prometheus_dir = deploy_dir / "prometheus"
     alertmanager_dir = deploy_dir / "alertmanager"
@@ -261,7 +771,7 @@ def _write_production_host_contract(
         PROMETHEUS_RULES_PATH.read_text(encoding="utf-8"), encoding="utf-8"
     )
     (prometheus_dir / "image-manifest.json").write_text(
-        PROMETHEUS_MANIFEST_PATH.read_text(encoding="utf-8"), encoding="utf-8"
+        _synthetic_prometheus_manifest_text(), encoding="utf-8"
     )
     (alertmanager_dir / "alertmanager.yml").write_text(
         ALERTMANAGER_CONFIG_PATH.read_text(encoding="utf-8"), encoding="utf-8"
@@ -305,6 +815,7 @@ def _write_shell_bundle_contract(
     include_backup_helper: bool = True,
 ) -> None:
     _write_checkpoint_contract(shell_bundle_dir)
+    _write_prometheus_helper(shell_bundle_dir)
     deploy_dir = shell_bundle_dir / "deploy"
     prometheus_dir = deploy_dir / "prometheus"
     alertmanager_dir = deploy_dir / "alertmanager"
@@ -338,7 +849,7 @@ def _write_shell_bundle_contract(
         PROMETHEUS_RULES_PATH.read_text(encoding="utf-8"), encoding="utf-8"
     )
     (prometheus_dir / "image-manifest.json").write_text(
-        PROMETHEUS_MANIFEST_PATH.read_text(encoding="utf-8"), encoding="utf-8"
+        _synthetic_prometheus_manifest_text(), encoding="utf-8"
     )
     (alertmanager_dir / "alertmanager.yml").write_text(
         ALERTMANAGER_CONFIG_PATH.read_text(encoding="utf-8"), encoding="utf-8"
@@ -386,6 +897,7 @@ def _write_shell_bundle_archive(
         "deploy/prometheus/image-manifest.json",
         "deploy/alertmanager/alertmanager.yml",
         "deploy/alertmanager/trivy-ignore.yaml",
+        "scripts/ci/prometheus_source_image.py",
         "scripts/diagnose_web.sh",
         "scripts/ops/postgres_backup.sh",
         "scripts/redeploy_caddy.sh",
@@ -500,21 +1012,18 @@ def test_production_compose_source_of_truth_matches_split_contract() -> None:
     assert caddy_build_args["VITE_API_BASE"] == "${VITE_API_BASE:-/api/v1}"
 
 
-def test_prometheus_image_manifest_is_one_closed_exact_record() -> None:
-    manifest_bytes = PROMETHEUS_MANIFEST_PATH.read_bytes()
-    assert hashlib.sha256(manifest_bytes).hexdigest() == (
-        "4ed16abd263dabd23f4df04aa60401324efd34dd5d93a9fdbb58c60e2081dc75"  # pragma: allowlist secret
-    )
-    manifest = json.loads(manifest_bytes)
-    assert manifest == {
-        "schema": "pulseplate.prometheus_image_manifest.v2",
-        "repository": "prom/prometheus",
-        "source_revision": PROMETHEUS_SOURCE_REVISION,
-        "index_digest": PROMETHEUS_INDEX_DIGEST,
-        "platform": "linux/amd64",
-        "platform_manifest_digest": PROMETHEUS_PLATFORM_MANIFEST_DIGEST,
-        "runtime_ref": PROMETHEUS_RUNTIME_REF,
-    }
+def test_prometheus_image_manifest_preparation_cannot_select_a_runtime() -> None:
+    observed = prometheus_source.read_image_manifest(PROMETHEUS_MANIFEST_PATH, preparation=True)
+    assert observed["schema"] == prometheus_source.IMAGE_SCHEMA
+    if observed["phase"] == "source_prepared":
+        assert observed["selection"] is None and observed["candidate"] is None
+        with pytest.raises(
+            prometheus_source.QualificationError, match="source_prepared_not_consumable"
+        ):
+            prometheus_source.read_image_manifest(PROMETHEUS_MANIFEST_PATH)
+    else:
+        prometheus_source.validate_selection(observed["selection"])
+        prometheus_source.validate_candidate_coordinates(observed["candidate"])
 
 
 def test_postgres_pgvector_manifest_binds_reproducible_image_and_scan_contract() -> None:
@@ -1051,6 +1560,8 @@ def test_cd_postgres_pgvector_main_event_state_machine_is_closed_and_terminal() 
         "postgres-pgvector-contract",
         "postgres-pgvector-admission",
         "postgres-pgvector-reuse",
+        "prometheus-image-security-pr",
+        "prometheus-image-security-trusted",
     ]
     assert "needs.postgres-pgvector-contract.result == 'success'" in prometheus_gate["if"]
     assert "needs.postgres-pgvector-admission.result == 'success'" in prometheus_gate["if"]
@@ -2923,9 +3434,6 @@ def _staging_cleanup_program() -> str:
         ("prometheus", "0", "0", 0),
         ("prometheus", "0", "72", 1),
         ("prometheus", "33", "72", 33),
-        ("prometheus-oci", "0", "0", 0),
-        ("prometheus-oci", "0", "72", 1),
-        ("prometheus-oci", "33", "72", 33),
         ("reuse", "0", "0", 0),
         ("reuse", "0", "72", 1),
         ("reuse", "33", "72", 33),
@@ -2984,12 +3492,6 @@ def test_other_bounded_cleanup_traps_preserve_primary_and_account_for_rm(
             suffix='exit "$TEST_PRIMARY_STATUS"\n',
         )
         expected_dir_prefix = "pulseplate-obs1b-ci-123-1."
-    elif surface == "prometheus-oci":
-        program = _workflow_trap_prefix(
-            "Cross-bind immutable index, linux amd64 manifest, and local image config",
-            suffix='exit "$TEST_PRIMARY_STATUS"\n',
-        )
-        expected_dir_prefix = "pulseplate-obs1b-oci."
     elif surface == "reuse":
         program = _workflow_trap_prefix(
             "Read-only admit the existing exact PostgreSQL digest",
@@ -3458,46 +3960,39 @@ def test_cd_postgres_oci_verifier_rejects_exact_invalid_fixtures(
     assert message in completed.stderr
 
 
-def test_prometheus_cd_security_job_cross_binds_v2_digest_and_revision() -> None:
+def test_prometheus_cd_uses_authenticated_finite_consumer_and_retains_strict_scan() -> None:
     workflow = yaml.safe_load(CD_WORKFLOW_PATH.read_text(encoding="utf-8"))
-    job = workflow["jobs"]["prometheus-image-security"]
+    job = workflow["jobs"]["prometheus-image-security-pr"]
     steps = {step["name"]: step for step in job["steps"]}
-
-    validate_run = steps["Validate closed Prometheus image record"]["run"]
-    assert '"schema": "pulseplate.prometheus_image_manifest.v2"' in validate_run
-    assert f'"source_revision": "{PROMETHEUS_SOURCE_REVISION}"' in validate_run
-    assert f'"index_digest": "{PROMETHEUS_INDEX_DIGEST}"' in validate_run
-    assert f'"platform_manifest_digest": "{PROMETHEUS_PLATFORM_MANIFEST_DIGEST}"' in validate_run
-    assert f'"runtime_ref": "{PROMETHEUS_RUNTIME_REF}"' in validate_run
-    assert "f\"index_ref={manifest['repository']}@{manifest['index_digest']}\"" in validate_run
-    assert "f\"{manifest['repository']}@{manifest['platform_manifest_digest']}\"" in validate_run
-
-    cross_bind = steps["Cross-bind immutable index, linux amd64 manifest, and local image config"]
-    assert cross_bind["env"] == {
-        "PROMETHEUS_INDEX_REF": "${{ steps.prometheus-image.outputs.index_ref }}",
-        "PROMETHEUS_INDEX_DIGEST": "${{ steps.prometheus-image.outputs.index_digest }}",
-        "PROMETHEUS_PLATFORM_MANIFEST_DIGEST": (
-            "${{ steps.prometheus-image.outputs.platform_manifest_digest }}"
-        ),
-        "PROMETHEUS_RUNTIME_REF": "${{ steps.prometheus-image.outputs.runtime_ref }}",
-        "PROMETHEUS_SOURCE_REVISION": "${{ steps.prometheus-image.outputs.source_revision }}",
+    consumer = steps["Admit retained PR candidate or published immutable subject"]
+    assert "scripts.ci.prometheus_source_image --operation consume" in consumer["run"]
+    assert 'trusted["consume_image"](work, material' in consumer["run"]
+    assert "python3 -I -S" in consumer["run"]
+    fixed = steps["Checkout fixed trusted Prometheus control"]
+    assert fixed["with"] == {
+        "ref": "5064aded22f478a22a4319b684e95d6c0b3ae46f",  # pragma: allowlist secret - public trusted control commit
+        "persist-credentials": False,
+        "path": "artifacts/orchestration/prometheus-control",
+        "sparse-checkout": "scripts/ci/prometheus_source_image.py",
+        "sparse-checkout-cone-mode": False,
     }
-    cross_bind_run = cross_bind["run"]
-    for required in (
-        'docker buildx imagetools inspect --raw "$PROMETHEUS_INDEX_REF"',
-        'docker buildx imagetools inspect --raw "$PROMETHEUS_RUNTIME_REF"',
-        'docker pull --platform linux/amd64 "$PROMETHEUS_RUNTIME_REF"',
-        "--entrypoint /bin/prometheus",
-        '--version > "$evidence_dir/version.txt" 2>&1',
-        r're.findall(r"\brevision: ([0-9a-f]{40})\b", version_text)',
-        "if revisions != [expected_revision]:",
-        'image.get("Id") != config_digest',
-    ):
-        assert required in cross_bind_run
-    assert "PROMETHEUS_TAG_REF" not in cross_bind_run
-    assert "main-distroless" not in cross_bind_run
-
-    scan_run = steps["Scan exact Prometheus image without suppressions"]["run"]
+    assert consumer["id"] == "prometheus-image"
+    assert job["permissions"] == {"contents": "read", "actions": "read", "packages": "read"}
+    assert "environment" not in job
+    assert job["env"] == {"PROMETHEUS_CONSUME_SECONDS": "900", "PROMETHEUS_CLEANUP_SECONDS": "120"}
+    assert consumer["env"] == {
+        "GH_TOKEN": "${{ secrets.GITHUB_TOKEN }}",
+        "GITHUB_TOKEN": "${{ secrets.GITHUB_TOKEN }}",
+        "GHCR_READ_TOKEN": "${{ github.event_name == 'pull_request' && steps.prometheus-route.outputs.mode == 'unchanged_pr_published' && secrets.GITHUB_TOKEN || github.event_name != 'pull_request' && steps.prometheus-route.outputs.mode == 'trusted_published' && secrets.GHCR_READ_TOKEN || '' }}",
+        "PROMETHEUS_CREDENTIAL_ROUTE": "${{ steps.prometheus-route.outputs.mode }}",
+    }
+    assert not any(
+        step.get("uses", "").startswith("docker/login-action@")
+        or "docker login" in step.get("run", "")
+        or "DOCKER_CONFIG" in step.get("env", {})
+        for step in job["steps"]
+    )
+    scan = steps["Scan exact Prometheus image without suppressions"]
     for required in (
         "--scanners vuln,secret",
         "--severity CRITICAL,HIGH",
@@ -3505,17 +4000,646 @@ def test_prometheus_cd_security_job_cross_binds_v2_digest_and_revision() -> None
         '--ignorefile "$TRIVY_IGNORE_FILE"',
         '"$PROMETHEUS_RUNTIME_REF"',
     ):
-        assert required in scan_run
-    assert "--ignore-unfixed" not in scan_run
-    assert "continue-on-error" not in scan_run
+        assert required in scan["run"]
+    assert "continue-on-error" not in str(job)
+    for step in job["steps"]:
+        if "docker run" in step.get("run", ""):
+            assert "GHCR_READ_TOKEN" not in step.get("env", {})
+            assert "GITHUB_TOKEN" not in step.get("env", {})
+            assert "DOCKER_CONFIG" not in step.get("env", {})
 
 
-@pytest.mark.parametrize("additional_finding", (False, True))
+def _prometheus_cd_python(step: dict[str, object]) -> str:
+    run = str(step["run"])
+    return run.split("<<'PY'\n", 1)[1].split("\nPY", 1)[0]
+
+
+def _synthetic_fixed_prometheus_control(
+    repository: Path, environment: dict[str, str], program: str
+) -> str:
+    """Substitute only fixed binding coordinates; execute the workflow loader algorithm.
+
+    This trusted consumer is synthetic and supplies no API/image/native proof.
+    The PR helper remains a distinct malicious import canary.
+    """
+    control = repository / "artifacts/orchestration/prometheus-control"
+    helper = control / "scripts/ci/prometheus_source_image.py"
+    helper.parent.mkdir(parents=True)
+    helper.write_text(
+        "import json,os\nfrom pathlib import Path\n"
+        "def require(value, diagnostic):\n if not value: raise RuntimeError(diagnostic)\n"
+        "def interrupt(signum, frame): raise KeyboardInterrupt()\n"
+        "def diagnostic_code(error): return str(error)\n"
+        "def consume_image(work, material, seconds, cleanup):\n"
+        " assert material==Path(os.environ['GITHUB_WORKSPACE'])\n"
+        " assert seconds==900 and cleanup==120\n"
+        " assert os.environ['GH_TOKEN']=='synthetic.ephemeral.reader'\n"
+        " assert not os.environ.get('GHCR_READ_TOKEN')\n"
+        " trace=Path(os.environ['SYNTHETIC_TRACE'])\n"
+        " with trace.open('a') as stream: stream.write(json.dumps('CONTROL-consume')+'\\n')\n"
+        " if os.environ['SYNTHETIC_OUTCOME']=='changed-api-failure': raise RuntimeError('synthetic_API_failed')\n"
+        " if os.environ['SYNTHETIC_OUTCOME']=='changed-cleanup-failure': raise RuntimeError('synthetic_cleanup_failed')\n"
+        " (work/'evidence').mkdir(parents=True)\n"
+        " (work/'evidence/consumer.json').write_text(json.dumps({'synthetic':True}))\n"
+        " with trace.open('a') as stream: stream.write(json.dumps('CONTROL-cleanup')+'\\n')\n"
+        " selection={'manifest_digest':'sha256:'+ '1'*64,'config_digest':'sha256:'+ '2'*64,"
+        "'source_revision':'3'*40,'runtime_ref':'synthetic@sha256:'+ '1'*64}\n"
+        " return {'selection':selection}\n"
+    )
+    helper.chmod(0o644)
+
+    def git(*args: str) -> str:
+        completed = subprocess.run(
+            ["/usr/bin/git", *safe_git_config_args(), *args],
+            cwd=control,
+            env=environment,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        return completed.stdout.strip()
+
+    git("init", "--template=", "-q")
+    git("add", "scripts/ci/prometheus_source_image.py")
+    git("commit", "-qm", "synthetic fixed control")
+    revision = git("rev-parse", "HEAD")
+    blob = git("rev-parse", "HEAD:scripts/ci/prometheus_source_image.py")
+    raw = helper.read_bytes()
+    program = program.replace("5064aded22f478a22a4319b684e95d6c0b3ae46f", revision)
+    program = program.replace("3029aeba29126a05fba5cbd6953916618852d0e2", blob)
+    program = program.replace("315949", str(len(raw)))
+    program = program.replace(
+        "0e7a73b0159c442cf5f9377aa862e38d643145f81ac6a54ee50b31682f6c3e3e",  # pragma: allowlist secret - public protected helper digest
+        hashlib.sha256(raw).hexdigest(),
+    )
+    variant = environment["SYNTHETIC_OUTCOME"]
+    if variant == "changed-control-bytes":
+        helper.write_text("raise SystemExit('malicious control must not execute')\n")
+    elif variant == "changed-control-mode":
+        helper.chmod(0o755)
+    elif variant == "changed-control-symlink":
+        original = helper.with_suffix(".saved")
+        helper.rename(original)
+        helper.symlink_to(original)
+    elif variant == "changed-control-ref":
+        (control / "different.txt").write_text("different revision\n")
+        git("add", "different.txt")
+        git("commit", "-qm", "wrong control revision")
+    return program
+
+
+def _prometheus_cd_route_fixture(tmp_path: Path, variant: str) -> tuple[Path, dict[str, str]]:
+    repository = tmp_path / "repository"
+    repository.mkdir()
+    environment = git_env_without_parent_state()
+    for key in (
+        "GH_TOKEN",
+        "GITHUB_TOKEN",
+        "GHCR_READ_TOKEN",
+        "GHCR_TOKEN",
+        "GH_ENTERPRISE_TOKEN",
+        "GITHUB_ENTERPRISE_TOKEN",
+    ):
+        environment.pop(key, None)
+    environment.update(
+        {
+            "PATH": str(Path(sys.executable).parent) + os.pathsep + os.defpath,
+            "HOME": str(tmp_path),
+            "LANG": "C",
+            "GIT_CONFIG_NOSYSTEM": "1",
+            "GIT_CONFIG_GLOBAL": os.devnull,
+            "GIT_CONFIG_COUNT": "0",
+            "GIT_AUTHOR_NAME": "Synthetic Fixture",
+            "GIT_COMMITTER_NAME": "Synthetic Fixture",
+            "GIT_AUTHOR_EMAIL": "fixture@example.invalid",
+            "GIT_COMMITTER_EMAIL": "fixture@example.invalid",
+            "GITHUB_REPOSITORY": "Katsiarynakavaleuskaya/PulsePlate",
+            "GITHUB_EVENT_NAME": "pull_request",
+            "GITHUB_REF": "refs/pull/2477/merge",
+            "GITHUB_RUN_ID": "123",
+            "GITHUB_RUN_ATTEMPT": "1",
+            "RUNNER_TEMP": str(tmp_path),
+            "PROMETHEUS_CONSUME_SECONDS": "900",
+            "PROMETHEUS_CLEANUP_SECONDS": "120",
+            "SYNTHETIC_TRACE": str(tmp_path / "trace.jsonl"),
+            "SYNTHETIC_OUTCOME": variant,
+        }
+    )
+
+    def git(*arguments: str) -> str:
+        result = subprocess.run(
+            ["/usr/bin/git", *safe_git_config_args(), *arguments],
+            cwd=repository,
+            env=environment,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        return result.stdout.strip()
+
+    git("init", "-q")
+    manifest = repository / "deploy/prometheus/image-manifest.json"
+    manifest.parent.mkdir(parents=True)
+    manifest.write_text('{"synthetic": "published"}')
+    package = repository / "scripts/ci"
+    package.mkdir(parents=True)
+    (package.parent / "__init__.py").write_text("")
+    (package / "__init__.py").write_text("")
+    helper = package / "prometheus_source_image.py"
+    helper.write_text(
+        "import json,os,sys\nfrom pathlib import Path\n"
+        "trace=Path(os.environ['SYNTHETIC_TRACE'])\n"
+        "def record(value):\n with trace.open('a') as stream: stream.write(json.dumps(value)+'\\n')\n"
+        "def one_object(raw): return json.loads(raw)\n"
+        "record('BASE-import')\n"
+        "if __name__=='__main__':\n"
+        " operation=sys.argv[sys.argv.index('--operation')+1]\n"
+        " if operation=='read-manifest':\n"
+        "  assert not os.environ.get('GHCR_READ_TOKEN')\n"
+        "  record('BASE-read-manifest')\n"
+        "  if os.environ['SYNTHETIC_OUTCOME']=='unsupported-base':\n"
+        "   print('synthetic_base_capability_unsupported',file=sys.stderr); sys.exit(1)\n"
+        "  sys.exit(0)\n"
+        " assert operation=='consume' and os.environ['GHCR_READ_TOKEN']=='synthetic.registry.reader'\n"
+        " record('BASE-consume')\n"
+        " private=Path(os.environ['RUNNER_TEMP'])/'synthetic-registry-state'\n"
+        " private.write_text('synthetic config placeholder')\n"
+        " outcome=os.environ['SYNTHETIC_OUTCOME']\n"
+        " if outcome=='cleanup-failure':\n"
+        "  print('synthetic_owned_cleanup_failed',file=sys.stderr); sys.exit(1)\n"
+        " private.unlink(); record('BASE-cleanup')\n"
+        " if outcome=='consume-failure':\n"
+        "  print('synthetic_original_consumer_failed',file=sys.stderr); sys.exit(1)\n"
+        " work=Path(sys.argv[sys.argv.index('--work-dir')+1]); (work/'evidence').mkdir(parents=True)\n"
+        " admission={'mode':'unchanged_published','head':os.environ['PROMETHEUS_EVENT_HEAD'],'publisher_head':os.environ['PROMETHEUS_EVENT_BASE']}\n"
+        " if outcome=='head-drift': admission['head']='f'*40\n"
+        " if outcome=='base-drift': admission['publisher_head']='f'*40\n"
+        " if outcome=='mode-drift': admission['mode']='changed_pr_candidate'\n"
+        " raw=json.dumps({'admission':admission})\n"
+        " if outcome=='malformed-result': raw='{invalid'\n"
+        " if outcome!='missing-result': (work/'evidence'/'consumer.json').write_text(raw)\n"
+    )
+    if variant == "missing-helper":
+        helper.unlink()
+    if variant == "base-wrong-mode":
+        manifest.unlink()
+        manifest.symlink_to("untrusted-manifest")
+    git("add", ".")
+    git("commit", "-qm", "synthetic base")
+    base = git("rev-parse", "HEAD")
+    if variant in {"changed", "wrong-mode"} or variant.startswith("changed-"):
+        manifest.write_text('{"synthetic": "candidate"}')
+    if variant == "wrong-mode":
+        manifest.unlink()
+        manifest.symlink_to("untrusted-manifest")
+    if variant == "executable-manifest":
+        manifest.chmod(0o755)
+    if variant == "missing-manifest":
+        manifest.unlink()
+    if variant == "base-wrong-mode":
+        manifest.unlink()
+        manifest.write_text('{"synthetic": "candidate"}')
+    helper.write_text(
+        "import json,os,sys\nfrom pathlib import Path\n"
+        "trace=Path(os.environ['SYNTHETIC_TRACE'])\n"
+        "with trace.open('a') as stream: stream.write(json.dumps('PR-import')+'\\n')\n"
+        "if any(os.environ.get(key) for key in ('GH_TOKEN','GITHUB_TOKEN','GHCR_READ_TOKEN')): raise SystemExit('PR_credential_overlap')\n"
+        "if __name__=='__main__':\n"
+        " with trace.open('a') as stream: stream.write(json.dumps('PR-consume')+'\\n')\n"
+    )
+    git("add", ".")
+    if variant == "submodule-manifest":
+        git(
+            "update-index",
+            "--cacheinfo",
+            "160000," + base + ",deploy/prometheus/image-manifest.json",
+        )
+    git("commit", "-qm", "synthetic PR")
+    head = git("rev-parse", "HEAD")
+    identity = {"id": 1043311030, "full_name": "Katsiarynakavaleuskaya/PulsePlate"}
+    event = {
+        "repository": identity,
+        "number": 2477,
+        "pull_request": {
+            "head": {"sha": head, "repo": dict(identity)},
+            "base": {"sha": base, "ref": "main", "repo": dict(identity)},
+        },
+    }
+    if variant == "fork":
+        event["pull_request"]["head"]["repo"]["id"] = 999
+    if variant == "bad-sha":
+        event["pull_request"]["base"]["sha"] = ""
+    if variant == "missing-object":
+        event["pull_request"]["head"]["sha"] = "f" * 40
+    event_file = tmp_path / "event.json"
+    event_file.write_text(json.dumps(event))
+    environment.update(
+        GITHUB_EVENT_PATH=str(event_file), GITHUB_SHA="a" * 40, GITHUB_WORKSPACE=str(repository)
+    )
+    git("checkout", "--detach", "-q", head if variant == "wrong-checkout" else base)
+    return repository, environment
+
+
+@pytest.mark.parametrize(
+    "variant,diagnostic",
+    [
+        ("changed", None),
+        ("changed-control-bytes", "Prometheus_control_bytes_HOLD"),
+        ("changed-control-mode", "Prometheus_control_mode_HOLD"),
+        ("changed-control-symlink", "Prometheus_control_path_HOLD"),
+        ("changed-control-ref", "Prometheus_control_revision_HOLD"),
+        ("changed-api-failure", "synthetic_API_failed"),
+        ("changed-cleanup-failure", "synthetic_cleanup_failed"),
+        ("unchanged", None),
+        ("fork", "Prometheus_event_identity_HOLD"),
+        ("bad-sha", "Prometheus_event_identity_HOLD"),
+        ("missing-object", "Prometheus_git_object_HOLD"),
+        ("wrong-mode", "Prometheus_regular_blob_HOLD"),
+        ("executable-manifest", "Prometheus_regular_blob_HOLD"),
+        ("missing-manifest", "Prometheus_regular_blob_HOLD"),
+        ("submodule-manifest", "Prometheus_regular_blob_HOLD"),
+        ("base-wrong-mode", "Prometheus_regular_blob_HOLD"),
+        ("wrong-checkout", "Prometheus_checkout_binding_HOLD"),
+        ("missing-helper", "Prometheus_regular_blob_HOLD"),
+        ("unsupported-base", "synthetic_base_capability_unsupported"),
+        ("unknown-mode", "Prometheus credential route HOLD"),
+        ("head-drift", "Prometheus_unchanged_admission_HOLD"),
+        ("base-drift", "Prometheus_unchanged_admission_HOLD"),
+        ("mode-drift", "Prometheus_unchanged_admission_HOLD"),
+        ("missing-result", "Prometheus_unchanged_result_HOLD"),
+        ("malformed-result", "JSONDecodeError"),
+        ("consume-failure", "synthetic_original_consumer_failed"),
+        ("cleanup-failure", "synthetic_owned_cleanup_failed"),
+    ],
+)
+def test_prometheus_cd_classifies_before_pr_code_and_binds_trusted_handoff(
+    tmp_path: Path, variant: str, diagnostic: str | None
+) -> None:
+    """Actual fixed workflow/Git controls, with a synthetic consumer; no publisher/native proof."""
+    repository, environment = _prometheus_cd_route_fixture(tmp_path, variant)
+    steps = {
+        step["name"]: step
+        for step in yaml.safe_load(CD_WORKFLOW_PATH.read_text())["jobs"][
+            "prometheus-image-security-pr"
+        ]["steps"]
+    }
+    output_file = tmp_path / "outputs"
+
+    def python_step(name: str, *, isolated: bool = True) -> subprocess.CompletedProcess[str]:
+        output_file.write_text("")
+        environment["GITHUB_OUTPUT"] = str(output_file)
+        return subprocess.run(
+            [
+                sys.executable,
+                *(["-I", "-S"] if isolated else []),
+                "-c",
+                _prometheus_cd_python(steps[name]),
+            ],
+            cwd=repository,
+            env=environment,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+    result = python_step("Validate exact Prometheus checkout revisions")
+    if result.returncode == 0:
+        event_outputs = dict(line.split("=", 1) for line in output_file.read_text().splitlines())
+        event = json.loads(Path(environment["GITHUB_EVENT_PATH"]).read_bytes())
+        assert event_outputs == {
+            "head": event["pull_request"]["head"]["sha"],
+            "base": event["pull_request"]["base"]["sha"],
+        }
+        environment.update(
+            PROMETHEUS_EVENT_HEAD=event_outputs["head"], PROMETHEUS_EVENT_BASE=event_outputs["base"]
+        )
+        result = python_step("Classify the fixed regular Prometheus manifest blobs")
+    mode = None
+    if result.returncode == 0:
+        route = dict(line.split("=", 1) for line in output_file.read_text().splitlines())
+        mode = "unknown" if variant == "unknown-mode" else route["mode"]
+        if mode == "changed_pr_candidate":
+            subprocess.run(
+                [
+                    "/usr/bin/git",
+                    *safe_git_config_args(),
+                    "checkout",
+                    "--detach",
+                    "-q",
+                    route["head"],
+                ],
+                cwd=repository,
+                env=environment,
+                check=True,
+            )
+        if mode == "unchanged_pr_published":
+            result = subprocess.run(
+                [
+                    "/bin/bash",
+                    "-c",
+                    steps["Require the trusted base published consumer capability"]["run"],
+                ],
+                cwd=repository,
+                env=environment,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+        if result.returncode == 0:
+            consumer_env = dict(
+                environment,
+                GH_TOKEN="synthetic.ephemeral.reader",
+                GITHUB_TOKEN="synthetic.ephemeral.reader",
+                GHCR_READ_TOKEN=(
+                    "synthetic.registry.reader"
+                    if mode in ("unchanged_pr_published", "trusted_published")
+                    else ""
+                ),
+                PROMETHEUS_CREDENTIAL_ROUTE=mode,
+            )
+            program = steps["Admit retained PR candidate or published immutable subject"]["run"]
+            if mode == "changed_pr_candidate":
+                program = _synthetic_fixed_prometheus_control(repository, environment, program)
+            result = subprocess.run(
+                [
+                    "/bin/bash",
+                    "-c",
+                    program,
+                ],
+                cwd=repository,
+                env=consumer_env,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+        if result.returncode == 0 and mode == "unchanged_pr_published":
+            result = python_step(
+                "Bind the unchanged PR admission after trusted cleanup", isolated=False
+            )
+            if result.returncode == 0:
+                subprocess.run(
+                    [
+                        "/usr/bin/git",
+                        *safe_git_config_args(),
+                        "checkout",
+                        "--detach",
+                        "-q",
+                        route["head"],
+                    ],
+                    cwd=repository,
+                    env=environment,
+                    check=True,
+                )
+                result = subprocess.run(
+                    [sys.executable, "-c", "import scripts.ci.prometheus_source_image"],
+                    cwd=repository,
+                    env=environment,
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                )
+    trace = tmp_path / "trace.jsonl"
+    observed = (
+        [json.loads(line) for line in trace.read_text().splitlines()] if trace.exists() else []
+    )
+    assert "synthetic.registry.reader" not in result.stdout + result.stderr
+    if diagnostic is None:
+        assert result.returncode == 0, result.stderr
+        if variant == "unchanged":
+            assert "PR-import" in observed
+            assert observed.index("BASE-cleanup") < observed.index("PR-import")
+            assert not (tmp_path / "synthetic-registry-state").exists()
+        else:
+            assert observed == ["CONTROL-consume", "CONTROL-cleanup"]
+            values = dict(line.split("=", 1) for line in output_file.read_text().splitlines())
+            assert {
+                "manifest_digest",
+                "config_digest",
+                "source_revision",
+                "runtime_ref",
+            } <= values.keys()
+    else:
+        assert result.returncode != 0
+        assert diagnostic in result.stderr
+        assert "PR-import" not in observed
+
+
+@pytest.mark.parametrize(
+    "variant,diagnostic",
+    [
+        ("changed", None),
+        ("changed-control-bytes", "Prometheus_control_bytes_HOLD"),
+        ("changed-control-mode", "Prometheus_control_mode_HOLD"),
+        ("changed-control-symlink", "Prometheus_control_path_HOLD"),
+        ("changed-control-ref", "Prometheus_control_revision_HOLD"),
+        ("changed-api-failure", "synthetic_API_failed"),
+        ("changed-cleanup-failure", "synthetic_cleanup_failed"),
+    ],
+)
+def test_prometheus_ci_trusted_control_precedes_first_pr_import(
+    tmp_path: Path, variant: str, diagnostic: str | None
+) -> None:
+    repository, environment = _prometheus_cd_route_fixture(tmp_path, variant)
+    event = json.loads(Path(environment["GITHUB_EVENT_PATH"]).read_bytes())
+    subprocess.run(
+        [
+            "/usr/bin/git",
+            *safe_git_config_args(),
+            "checkout",
+            "--detach",
+            "-q",
+            event["pull_request"]["head"]["sha"],
+        ],
+        cwd=repository,
+        env=environment,
+        check=True,
+    )
+    steps = {
+        step["name"]: step
+        for step in yaml.safe_load((REPO_ROOT / ".github/workflows/ci.yml").read_text())["jobs"][
+            "lint"
+        ]["steps"]
+        if "name" in step
+    }
+    consumer = steps["Consume exact Prometheus subject before PR startup"]
+    program = _synthetic_fixed_prometheus_control(repository, environment, consumer["run"])
+    output = tmp_path / "outputs"
+    environment["GITHUB_OUTPUT"] = str(output)
+    credentials = dict(
+        environment,
+        GH_TOKEN="synthetic.ephemeral.reader",
+        GITHUB_TOKEN="synthetic.ephemeral.reader",
+        GHCR_READ_TOKEN="",
+        PROMETHEUS_CREDENTIAL_ROUTE="changed_pr_candidate",
+    )
+    result = subprocess.run(
+        ["/bin/bash", "-c", program],
+        cwd=repository,
+        env=credentials,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert "synthetic.ephemeral.reader" not in result.stdout + result.stderr
+    trace = tmp_path / "trace.jsonl"
+    observed = (
+        [json.loads(line) for line in trace.read_text().splitlines()] if trace.exists() else []
+    )
+    assert "PR-import" not in observed
+    if diagnostic is not None:
+        assert result.returncode != 0 and diagnostic in result.stderr
+        return
+    assert result.returncode == 0, result.stderr
+    cleanup = subprocess.run(
+        ["/bin/bash", "-c", steps["Remove fixed trusted Prometheus control checkout"]["run"]],
+        cwd=repository,
+        env=environment,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert cleanup.returncode == 0, cleanup.stderr
+    assert not (repository / "artifacts/orchestration/prometheus-control").exists()
+    startup = subprocess.run(
+        [sys.executable, "-c", "import scripts.ci.prometheus_source_image"],
+        cwd=repository,
+        env=environment,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert startup.returncode == 0, startup.stderr
+    observed = [json.loads(line) for line in trace.read_text().splitlines()]
+    assert observed == ["CONTROL-consume", "CONTROL-cleanup", "PR-import"]
+
+
+def test_prometheus_cd_git_fixture_preserves_separate_inherited_parent(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    parent = tmp_path / "synthetic-parent"
+    parent.mkdir()
+    environment = git_env_without_parent_state()
+    environment.update(
+        HOME=str(tmp_path),
+        GIT_AUTHOR_NAME="Synthetic Parent",
+        GIT_COMMITTER_NAME="Synthetic Parent",
+        GIT_AUTHOR_EMAIL="parent@example.invalid",
+        GIT_COMMITTER_EMAIL="parent@example.invalid",
+    )
+
+    def git(*arguments: str) -> bytes:
+        return subprocess.run(
+            ["/usr/bin/git", *safe_git_config_args(), *arguments],
+            cwd=parent,
+            env=environment,
+            capture_output=True,
+            check=True,
+        ).stdout
+
+    git("init", "-q")
+    (parent / "kept.txt").write_text("synthetic parent must remain unchanged")
+    git("add", "kept.txt")
+    git("commit", "-qm", "synthetic parent")
+    git("config", "--local", "fixture.sentinel", "keep-parent-config")
+    protected = {
+        name: (parent / ".git" / name).read_bytes() for name in ("HEAD", "config", "index")
+    }
+    head = git("rev-parse", "HEAD")
+    for key, value in {
+        "GIT_DIR": str(parent / ".git"),
+        "GIT_WORK_TREE": str(parent),
+        "GIT_INDEX_FILE": str(parent / ".git" / "index"),
+        "GIT_CONFIG_COUNT": "1",
+        "GIT_CONFIG_KEY_0": "core.hooksPath",
+        "GIT_CONFIG_VALUE_0": str(parent / "synthetic-unreachable-hooks"),
+    }.items():
+        monkeypatch.setenv(key, value)
+    child = tmp_path / "synthetic-child"
+    child.mkdir()
+    test_prometheus_cd_classifies_before_pr_code_and_binds_trusted_handoff(child, "unchanged", None)
+    assert git("rev-parse", "HEAD") == head
+    assert {name: (parent / ".git" / name).read_bytes() for name in protected} == protected
+
+
+@pytest.mark.parametrize(
+    "event_name,reference,admitted",
+    [
+        ("push", "refs/heads/main", True),
+        ("push", "refs/tags/v1.2.3", True),
+        ("schedule", "refs/heads/main", True),
+        ("workflow_dispatch", "refs/heads/main", False),
+        ("push", "refs/heads/foreign", False),
+        ("schedule", "refs/tags/v1.2.3", False),
+    ],
+)
+def test_prometheus_cd_preserves_closed_non_pr_checkout_events(
+    tmp_path: Path, event_name: str, reference: str, admitted: bool
+) -> None:
+    steps = yaml.safe_load(CD_WORKFLOW_PATH.read_text())["jobs"]["prometheus-image-security-pr"][
+        "steps"
+    ]
+    step = next(
+        item for item in steps if item["name"] == "Validate exact Prometheus checkout revisions"
+    )
+    event_file, output = tmp_path / "event.json", tmp_path / "outputs"
+    output.write_text("")
+    event_file.write_text(
+        json.dumps(
+            {
+                "repository": {"id": 1043311030, "full_name": "Katsiarynakavaleuskaya/PulsePlate"},
+                "ref": reference,
+            }
+        )
+    )
+    environment = {
+        "HOME": str(tmp_path),
+        "PATH": os.defpath,
+        "LANG": "C",
+        "GITHUB_REPOSITORY": "Katsiarynakavaleuskaya/PulsePlate",
+        "GITHUB_EVENT_PATH": str(event_file),
+        "GITHUB_EVENT_NAME": event_name,
+        "GITHUB_REF": reference,
+        "GITHUB_SHA": "a" * 40,
+        "GITHUB_OUTPUT": str(output),
+    }
+    result = subprocess.run(
+        [sys.executable, "-I", "-S", "-c", _prometheus_cd_python(step)],
+        cwd=tmp_path,
+        env=environment,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    if admitted:
+        assert result.returncode == 0, result.stderr
+        assert dict(line.split("=", 1) for line in output.read_text().splitlines()) == {
+            "head": "a" * 40,
+            "base": "a" * 40,
+        }
+    else:
+        assert result.returncode != 0
+        assert "Prometheus_event_identity_HOLD" in result.stderr
+        assert output.read_bytes() == b""
+
+
+@pytest.mark.parametrize(
+    "fault",
+    (
+        "none",
+        "extra",
+        "missing",
+        "duplicate",
+        "wrong-purl",
+        "wrong-target",
+        "wrong-severity",
+        "secret",
+    ),
+)
 def test_alertmanager_cd_consumes_unsuppressed_inventory_without_extra_findings(
-    tmp_path: Path, additional_finding: bool
+    tmp_path: Path, fault: str
 ) -> None:
     workflow = yaml.safe_load(CD_WORKFLOW_PATH.read_text(encoding="utf-8"))
-    steps = workflow["jobs"]["prometheus-image-security"]["steps"]
+    steps = workflow["jobs"]["prometheus-image-security-pr"]["steps"]
     step = next(
         item
         for item in steps
@@ -3525,21 +4649,45 @@ def test_alertmanager_cd_consumes_unsuppressed_inventory_without_extra_findings(
     marker = "python3 - \"$1\" <<'PY'\n"
     assert run.count(marker) == 1
     program = run.split(marker, 1)[1].split("\nPY", 1)[0]
-    finding = {
-        "VulnerabilityID": "CVE-2026-84445",
-        "PkgIdentifier": {"PURL": "pkg:golang/google.golang.org/grpc@v1.83.1"},
-    }
+    admitted = (
+        ("CVE-2026-84445", "pkg:golang/google.golang.org/grpc@v1.83.1"),
+        ("CVE-2026-78669", "pkg:golang/golang.org/x/net@v0.58.0"),
+        ("CVE-2026-78669", "pkg:golang/stdlib@v1.26.8"),
+        ("CVE-2026-78667", "pkg:golang/stdlib@v1.26.8"),
+        ("CVE-2026-97031", "pkg:golang/stdlib@v1.26.8"),
+    )
     results = [
-        {"Target": target, "Vulnerabilities": [finding.copy()]}
+        {
+            "Target": target,
+            "Vulnerabilities": [
+                {"VulnerabilityID": cve, "PkgIdentifier": {"PURL": purl}, "Severity": "HIGH"}
+                for cve, purl in admitted
+            ],
+        }
         for target in ("bin/alertmanager", "bin/amtool")
     ]
-    if additional_finding:
+    if fault == "extra":
         results[0]["Vulnerabilities"].append(
             {
                 "VulnerabilityID": "CVE-2026-99999",
                 "PkgIdentifier": {"PURL": "pkg:golang/example@v1"},
+                "Severity": "HIGH",
             }
         )
+    elif fault == "missing":
+        results[0]["Vulnerabilities"].pop()
+    elif fault == "duplicate":
+        results[0]["Vulnerabilities"].append(results[0]["Vulnerabilities"][0].copy())
+    elif fault == "wrong-purl":
+        results[0]["Vulnerabilities"][0]["PkgIdentifier"] = {
+            "PURL": "pkg:golang/google.golang.org/grpc@v1.83.0"
+        }
+    elif fault == "wrong-target":
+        results[0]["Target"] = "bin/unadmitted"
+    elif fault == "wrong-severity":
+        results[0]["Vulnerabilities"][0]["Severity"] = "CRITICAL"
+    elif fault == "secret":
+        results[0]["Secrets"] = [{"Match": "synthetic-sensitive-body"}]
     scan = tmp_path / "scan.json"
     scan.write_text(json.dumps({"Results": results}), encoding="utf-8")
     completed = subprocess.run(
@@ -3548,9 +4696,90 @@ def test_alertmanager_cd_consumes_unsuppressed_inventory_without_extra_findings(
         capture_output=True,
         check=False,
     )
-    assert (completed.returncode != 0) is additional_finding
-    if additional_finding:
+    assert (completed.returncode != 0) is (fault != "none")
+    if fault == "secret":
+        assert "Alertmanager scan contains unexpected secret findings" in completed.stderr
+        assert "synthetic-sensitive-body" not in completed.stderr
+    elif fault != "none":
         assert "Unsuppressed Alertmanager finding inventory changed" in completed.stderr
+
+
+@pytest.mark.parametrize("secret_finding", (False, True))
+def test_alertmanager_cd_retains_report_before_inventory_rejection(
+    tmp_path: Path, secret_finding: bool
+) -> None:
+    steps = yaml.safe_load(CD_WORKFLOW_PATH.read_text())["jobs"]["prometheus-image-security-pr"][
+        "steps"
+    ]
+    step = next(
+        item
+        for item in steps
+        if item.get("name") == "Admit exact Alertmanager image, config, and narrow CVE exception"
+    )
+    run = step["run"]
+    assert step["env"]["TRIVY_CACHE_DIR"] == "/tmp/trivy-cache-prometheus-image-security"
+    retention = run[run.index('python3 - "$scan"') : run.index("verify_alertmanager_inventory() {")]
+    verify = run[
+        run.index("verify_alertmanager_inventory() {") : run.index(
+            'verify_alertmanager_inventory "$scan"'
+        )
+        + len('verify_alertmanager_inventory "$scan"')
+    ]
+    evidence = tmp_path / "prometheus-consumer-123-1" / "evidence"
+    evidence.mkdir(parents=True)
+    cache = tmp_path / "cache" / "db"
+    cache.mkdir(parents=True)
+    (cache / "metadata.json").write_text('{"Version": 2}')
+    (cache / "trivy.db").write_bytes(b"synthetic database")
+    scan = tmp_path / "scan.json"
+    raw = b'{"Results":[{"Target":"bin/alertmanager","Vulnerabilities":[]}]}\n'
+    if secret_finding:
+        raw = json.dumps(
+            {"Results": [{"Secrets": [{"Match": "synthetic-sensitive-body"}]}]}
+        ).encode()
+    scan.write_bytes(raw)
+    scanner = tmp_path / "trivy"
+    scanner.write_text("#!/bin/sh\nprintf '%s\\n' '{\"Version\":\"0.74.0\"}'\n")
+    scanner.chmod(0o755)
+    environment = {
+        "PATH": os.defpath,
+        "HOME": str(tmp_path),
+        "RUNNER_TEMP": str(tmp_path),
+        "GITHUB_RUN_ID": "123",
+        "GITHUB_RUN_ATTEMPT": "1",
+        "GITHUB_SHA": "c" * 40,
+        "PROMETHEUS_EVENT_HEAD": "a" * 40,
+        "TRIVY_BIN": str(scanner),
+        "TRIVY_CACHE_DIR": str(cache.parent),
+    }
+    completed = subprocess.run(
+        [
+            "/bin/bash",
+            "-c",
+            'set -euo pipefail\nscan="$1"\nalert_ref="$2"\n' + retention + verify,
+            "fixture",
+            str(scan),
+            "prom/alertmanager@sha256:" + "b" * 64,
+        ],
+        env=environment,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert completed.returncode != 0
+    if secret_finding:
+        assert "Alertmanager scan contains unexpected secret findings" in completed.stderr
+        assert not (evidence / "alertmanager-unsuppressed.json").exists()
+        assert list(evidence.iterdir()) == []
+        return
+    assert "Unsuppressed Alertmanager finding inventory changed" in completed.stderr
+    assert (evidence / "alertmanager-unsuppressed.json").read_bytes() == raw
+    context = json.loads((evidence / "alertmanager-scan-context.json").read_bytes())
+    assert context["head"] == "a" * 40
+    assert context["workflow_execution_sha"] == "c" * 40
+    assert context["scanner_version"] == {"Version": "0.74.0"}
+    assert context["database_metadata"] == {"Version": 2}
+    assert context["report_sha256"] == hashlib.sha256(raw).hexdigest()
 
 
 def test_prometheus_config_has_one_private_exact_target() -> None:
@@ -3621,7 +4850,7 @@ def test_alias_alert_rules_bind_the_exact_target_and_closed_routes() -> None:
 def test_cd_alias_rules_use_native_promtool_and_both_staging_hash_passes() -> None:
     workflow_text = CD_WORKFLOW_PATH.read_text(encoding="utf-8")
     workflow = yaml.safe_load(workflow_text)
-    security_steps = workflow["jobs"]["prometheus-image-security"]["steps"]
+    security_steps = workflow["jobs"]["prometheus-image-security-pr"]["steps"]
     config_step = next(
         step
         for step in security_steps
@@ -3868,8 +5097,8 @@ def test_staging_selected_alertmanager_accepts_compose_owned_readable_file(
         ),
         (
             "alertmanager/trivy-ignore.yaml",
-            "expired_at: 2026-10-24",
-            "expired_at: 2026-10-24\n  - id: CVE-2099-00000",
+            "expired_at: 2026-10-21",
+            "expired_at: 2026-10-21\n  - id: CVE-2099-00000",
             "Alertmanager Trivy exception differs from the admitted complete file",
         ),
     ),
@@ -4082,7 +5311,10 @@ def test_three_compose_contours_normalize_to_one_private_prometheus_contract(
         "PULSEPLATE_ENVIRONMENT="
         + ("staging" if compose_path == STAGING_COMPOSE_PATH else "production")
     ]
-    assert prometheus["image"] == PROMETHEUS_RUNTIME_REF
+    assert (
+        prometheus["image"]
+        == "${PROMETHEUS_RUNTIME_REF:?Set the canonical manifest-derived Prometheus immutable subject}"
+    )
     assert prometheus["platform"] == "linux/amd64"
     assert prometheus["user"] == "65532:65532"
     assert prometheus["restart"] == "unless-stopped"
@@ -4326,6 +5558,7 @@ set -euo pipefail
     env = os.environ.copy()
     env["PATH"] = f"{bin_dir}:{env['PATH']}"
     env["DOCKER_BIN"] = str(bin_dir / "docker")
+    env["PYTHON_BIN"] = sys.executable
     env["DEPLOY_DIR"] = str(project_dir)
     env["ENV_FILE"] = str(project_dir / ".env")
     env["COMPOSE_FILE"] = CANONICAL_MANAGED_COMPOSE
@@ -4402,6 +5635,7 @@ set -euo pipefail
     env = os.environ.copy()
     env["PATH"] = f"{bin_dir}:{env['PATH']}"
     env["DOCKER_BIN"] = str(bin_dir / "docker")
+    env["PYTHON_BIN"] = sys.executable
     env["DEPLOY_DIR"] = str(project_dir)
     env["ENV_FILE"] = str(project_dir / ".env")
     env["COMPOSE_FILE"] = CANONICAL_MANAGED_COMPOSE
@@ -4801,6 +6035,16 @@ print(json.dumps(payload))
   image\\ inspect\\ {POSTGRES_PLATFORM_MANIFEST_DIGEST})
     printf '%s\\n' 'unexpected bare-ID image inspect' >&2
     exit 92 ;;
+  image\\ inspect\\ {PROMETHEUS_RUNTIME_REF})
+    if [ \"${{STUB_IMAGE_INSPECT_STATUS:-0}}\" -ne 0 ]; then
+      exit \"${{STUB_IMAGE_INSPECT_STATUS}}\"
+    fi
+    if [ -n \"${{STUB_PROMETHEUS_IMAGE_INSPECT_JSON+x}}\" ]; then
+      printf '%s\\n' \"$STUB_PROMETHEUS_IMAGE_INSPECT_JSON\"
+    else
+      printf '%s\\n' '{FAKE_PROMETHEUS_IMAGE_INSPECT_JSON}'
+    fi
+    ;;
   image\\ inspect\\ ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:*)
     if [ "${{STUB_BACKEND_IMAGE_INSPECT_HANG:-0}}" = "1" ]; then
       printf '%s' "$$" > "$STUB_HUNG_PID_FILE"
@@ -4818,16 +6062,7 @@ print(json.dumps(payload))
       exit 94
     fi
     ;;
-  image\\ inspect\\ *)
-    if [ \"${{STUB_IMAGE_INSPECT_STATUS:-0}}\" -ne 0 ]; then
-      exit \"${{STUB_IMAGE_INSPECT_STATUS}}\"
-    fi
-    if [ -n \"${{STUB_PROMETHEUS_IMAGE_INSPECT_JSON+x}}\" ]; then
-      printf '%s\\n' \"$STUB_PROMETHEUS_IMAGE_INSPECT_JSON\"
-    else
-      printf '%s\\n' '{FAKE_PROMETHEUS_IMAGE_INSPECT_JSON}'
-    fi
-    ;;
+
 esac
 """
         marker = "set -euo pipefail\n"
@@ -4851,7 +6086,7 @@ def _assert_log_index(
 
 
 def _write_prometheus_manifest_variant(path: Path, variant: str) -> None:
-    canonical = json.loads(PROMETHEUS_MANIFEST_PATH.read_text(encoding="utf-8"))
+    canonical = json.loads(_synthetic_prometheus_manifest_text())
     if variant == "malformed":
         path.write_text("{", encoding="utf-8")
         return
@@ -4863,21 +6098,21 @@ def _write_prometheus_manifest_variant(path: Path, variant: str) -> None:
         )
         return
     if variant == "missing":
-        canonical.pop("index_digest")
+        canonical["selection"].pop("manifest_digest")
     elif variant == "extra":
         canonical["unexpected"] = "forbidden"
     elif variant == "wrong-platform-digest":
-        canonical["platform_manifest_digest"] = "sha256:" + "b" * 64
+        canonical["selection"]["manifest_digest"] = "sha256:" + "b" * 64
     elif variant == "wrong-source-revision":
-        canonical["source_revision"] = "A" * 40
+        canonical["selection"]["source_revision"] = "A" * 40
     elif variant == "wrong-runtime-ref":
-        canonical["runtime_ref"] = (
+        canonical["selection"]["runtime_ref"] = (
             "prom/prometheus:main-distroless@" + PROMETHEUS_PLATFORM_MANIFEST_DIGEST
         )
     elif variant == "index-digest-runtime-ref":
-        canonical["runtime_ref"] = f"prom/prometheus@{PROMETHEUS_INDEX_DIGEST}"
+        canonical["selection"]["runtime_ref"] = f"prom/prometheus@{PROMETHEUS_INDEX_DIGEST}"
     elif variant == "wrong-type":
-        canonical["source_revision"] = 314
+        canonical["selection"]["source_revision"] = 314
     else:
         raise AssertionError(f"unsupported manifest variant: {variant}")
     path.write_text(json.dumps(canonical), encoding="utf-8")
@@ -5233,9 +6468,9 @@ def test_production_all_profile_alertmanager_security_denies_forged_service_or_n
 @pytest.mark.parametrize(
     ("utc_instant", "selected_allowed"),
     [
-        ("2026-10-23T23:59:59+00:00", True),
-        ("2026-10-24T00:00:00+00:00", False),
-        ("2026-10-24T00:00:01+00:00", False),
+        ("2026-10-20T23:59:59+00:00", True),
+        ("2026-10-21T00:00:00+00:00", False),
+        ("2026-10-21T00:00:01+00:00", False),
     ],
 )
 def test_selected_alertmanager_utc_waiver_boundary_and_off_profile_independence(
@@ -5849,11 +7084,11 @@ def test_production_first_bundle_censuses_old_project_without_installed_alertman
 @pytest.mark.parametrize(
     ("presence", "utc_instant", "allowed"),
     (
-        ("absent", "2026-10-24T00:00:01+00:00", True),
-        ("stopped", "2026-10-24T00:00:01+00:00", True),
-        ("running", "2026-10-23T23:59:59+00:00", True),
-        ("running", "2026-10-24T00:00:00+00:00", False),
-        ("running", "2026-10-24T00:00:01+00:00", False),
+        ("absent", "2026-10-21T00:00:01+00:00", True),
+        ("stopped", "2026-10-21T00:00:01+00:00", True),
+        ("running", "2026-10-20T23:59:59+00:00", True),
+        ("running", "2026-10-21T00:00:00+00:00", False),
+        ("running", "2026-10-21T00:00:01+00:00", False),
     ),
 )
 def test_production_off_profile_census_only_running_alertmanager_enforces_expiry(
@@ -6233,6 +7468,9 @@ def test_production_partial_alertmanager_publication_holds_then_readmits_exact_b
         "SOURCE_ALERTMANAGER_IGNORE": str(source / "deploy/alertmanager/trivy-ignore.yaml"),
         "SOURCE_POSTGRES_MANIFEST": str(source / "deploy/postgres-pgvector/image-manifest.json"),
         "SOURCE_BACKUP_HELPER": str(source / "scripts/ops/postgres_backup.sh"),
+        "PROMETHEUS_CONTRACT_HELPER_SHA256": hashlib.sha256(
+            (REPO_ROOT / "scripts/ci/prometheus_source_image.py").read_bytes()
+        ).hexdigest(),
     }
     published = subprocess.run(
         ["/bin/bash", "-euc", program],
@@ -6326,7 +7564,10 @@ def test_staging_deploy_rejects_noncanonical_prometheus_manifest_before_docker(
     )
 
     assert completed.returncode != 0
-    assert "Prometheus manifest" in completed.stderr
+    assert (
+        completed.stderr
+        == "Prometheus qualification failed: " + PROMETHEUS_MANIFEST_ERRORS[variant] + "\n"
+    )
     assert not log_file.exists()
 
 
@@ -6406,7 +7647,10 @@ def test_production_deploy_rejects_noncanonical_prometheus_manifest_before_docke
     )
 
     assert completed.returncode != 0
-    assert "Prometheus manifest" in completed.stderr
+    assert (
+        completed.stderr
+        == "Prometheus qualification failed: " + PROMETHEUS_MANIFEST_ERRORS[variant] + "\n"
+    )
     assert not log_file.exists()
 
 
@@ -6602,61 +7846,41 @@ def test_production_deploy_rejects_rendered_prometheus_identity_drift_before_pul
     )
 
 
+def _prometheus_image_inspect_variant(variant: str) -> str:
+    payload = json.loads(FAKE_PROMETHEUS_IMAGE_INSPECT_JSON)
+    record = payload[0]
+    if variant == "multiple":
+        payload.append(dict(record))
+    elif variant == "wrong-os":
+        record["Os"] = "windows"
+    elif variant == "wrong-platform":
+        record["Architecture"] = "arm64"
+    elif variant == "missing-repository":
+        record["RepoDigests"] = []
+    elif variant == "index-digest":
+        record["RepoDigests"] = [prometheus_source.IMAGE_REPOSITORY + "@" + PROMETHEUS_INDEX_DIGEST]
+    elif variant == "foreign-repository":
+        record["RepoDigests"] = [
+            "example.invalid/prometheus@" + PROMETHEUS_PLATFORM_MANIFEST_DIGEST
+        ]
+    else:
+        raise AssertionError("Unknown synthetic Prometheus inspect variant")
+    return json.dumps(payload)
+
+
 IMAGE_INSPECT_REJECTIONS = (
     "{",
     "[]",
-    json.dumps(
-        [
-            {
-                "Os": "linux",
-                "Architecture": "amd64",
-                "RepoDigests": [f"prom/prometheus@{PROMETHEUS_PLATFORM_MANIFEST_DIGEST}"],
-            },
-            {
-                "Os": "linux",
-                "Architecture": "amd64",
-                "RepoDigests": [f"prom/prometheus@{PROMETHEUS_PLATFORM_MANIFEST_DIGEST}"],
-            },
-        ]
-    ),
-    json.dumps(
-        [
-            {
-                "Os": "windows",
-                "Architecture": "amd64",
-                "RepoDigests": [f"prom/prometheus@{PROMETHEUS_PLATFORM_MANIFEST_DIGEST}"],
-            }
-        ]
-    ),
-    json.dumps(
-        [
-            {
-                "Os": "linux",
-                "Architecture": "arm64",
-                "RepoDigests": [f"prom/prometheus@{PROMETHEUS_PLATFORM_MANIFEST_DIGEST}"],
-            }
-        ]
-    ),
-    json.dumps([{"Os": "linux", "Architecture": "amd64", "RepoDigests": []}]),
-    json.dumps(
-        [
-            {
-                "Os": "linux",
-                "Architecture": "amd64",
-                "RepoDigests": [f"prom/prometheus@{PROMETHEUS_INDEX_DIGEST}"],
-            }
-        ]
-    ),
-    json.dumps(
-        [
-            {
-                "Os": "linux",
-                "Architecture": "amd64",
-                "RepoDigests": [
-                    f"example.invalid/prometheus@{PROMETHEUS_PLATFORM_MANIFEST_DIGEST}"
-                ],
-            }
-        ]
+    *(
+        _prometheus_image_inspect_variant(variant)
+        for variant in (
+            "multiple",
+            "wrong-os",
+            "wrong-platform",
+            "missing-repository",
+            "index-digest",
+            "foreign-repository",
+        )
     ),
 )
 
@@ -6851,9 +8075,10 @@ def test_production_env_cannot_override_manifest_derived_prometheus_digest(
             "STUB_PROMETHEUS_IMAGE_INSPECT_JSON": json.dumps(
                 [
                     {
-                        "Os": "linux",
-                        "Architecture": "amd64",
-                        "RepoDigests": [f"prom/prometheus@{conflicting_digest}"],
+                        **json.loads(FAKE_PROMETHEUS_IMAGE_INSPECT_JSON)[0],
+                        "RepoDigests": [
+                            prometheus_source.IMAGE_REPOSITORY + "@" + conflicting_digest
+                        ],
                     }
                 ]
             ),
@@ -6870,7 +8095,7 @@ def test_production_env_cannot_override_manifest_derived_prometheus_digest(
     )
 
     assert completed.returncode != 0
-    assert "canonical platform digest" in completed.stderr
+    assert "QualificationError:consumer_published_immutable_subject" in completed.stderr
     log_lines = log_file.read_text(encoding="utf-8").splitlines()
     assert any("image inspect" in line for line in log_lines)
     assert all("promtool" not in line for line in log_lines)
@@ -6913,18 +8138,22 @@ def test_production_full_bundle_rejects_hostile_destination_before_docker(
         external.mkdir()
         (external / "sentinel").write_text("external-scripts\n", encoding="utf-8")
         hostile = project_dir / "scripts"
+        shutil.rmtree(
+            hostile
+        )  # Exact synthetic installed-data directory; trusted T stays separate.
+        env["PROMETHEUS_CONTRACT_HELPER"] = str(REPO_ROOT / "scripts/ci/prometheus_source_image.py")
         hostile.symlink_to(external, target_is_directory=True)
         expected = (external / "sentinel").read_bytes()
     elif destination_variant == "redeploy-leaf-symlink":
         scripts_dir = project_dir / "scripts"
-        scripts_dir.mkdir()
+        scripts_dir.mkdir(exist_ok=True)
         external.write_text("external-helper\n", encoding="utf-8")
         hostile = scripts_dir / "redeploy_caddy.sh"
         hostile.symlink_to(external)
         expected = external.read_bytes()
     elif destination_variant == "ops-directory-symlink":
         scripts_dir = project_dir / "scripts"
-        scripts_dir.mkdir()
+        scripts_dir.mkdir(exist_ok=True)
         external.mkdir()
         (external / "sentinel").write_text("external-ops\n", encoding="utf-8")
         hostile = scripts_dir / "ops"
@@ -7354,6 +8583,7 @@ printf 'curl %s\n' "$*" >> "{log_file}"
         {
             "PATH": f"{bin_dir}:{env['PATH']}",
             "DOCKER_BIN": str(bin_dir / "docker"),
+            "PYTHON_BIN": sys.executable,
             "CURL_BIN": str(bin_dir / "curl"),
             "DEPLOY_DIR": str(project_dir),
             "ENV_FILE": str(project_dir / ".env"),
@@ -7501,6 +8731,7 @@ printf 'curl %s\n' "$*" >> "{log_file}"
         {
             "PATH": f"{bin_dir}:{env['PATH']}",
             "DOCKER_BIN": str(bin_dir / "docker"),
+            "PYTHON_BIN": sys.executable,
             "CURL_BIN": str(bin_dir / "curl"),
             "DEPLOY_DIR": str(project_dir),
             "ENV_FILE": str(project_dir / ".env"),
@@ -7538,12 +8769,94 @@ printf 'curl %s\n' "$*" >> "{log_file}"
         assert all(forbidden not in line for line in log_lines[prometheus_index + 1 :])
 
 
+def _write_backup_prometheus_manifest(project: Path) -> Path:
+    manifest = project / "prometheus" / "image-manifest.json"
+    manifest.parent.mkdir(exist_ok=True)
+    manifest.write_text(_synthetic_prometheus_manifest_text(), encoding="utf-8")
+    return manifest
+
+
+@pytest.mark.parametrize("helper", ["postgres_backup.sh", "postgres_restore.sh"])
+@pytest.mark.parametrize("manifest_state", ["valid", "missing", "malformed", "missing-reader"])
+@pytest.mark.parametrize("explicit_manifest", [False, True])
+@pytest.mark.parametrize("ambient_ref", [None, "untrusted.example/prometheus:latest"])
+def test_postgres_helpers_derive_manifest_ref_before_compose(
+    tmp_path: Path,
+    helper: str,
+    manifest_state: str,
+    explicit_manifest: bool,
+    ambient_ref: str | None,
+) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    manifest_project = tmp_path if explicit_manifest else project
+    manifest = _write_backup_prometheus_manifest(manifest_project)
+    if manifest_state == "missing":
+        manifest.unlink()
+    elif manifest_state == "malformed":
+        manifest.write_text("{}", encoding="utf-8")
+    dump = tmp_path / "input.dump"
+    dump.write_text("synthetic archive", encoding="utf-8")
+    calls = tmp_path / "calls"
+    docker = tmp_path / "native-docker"
+    _write_executable(
+        docker,
+        r"""#!/usr/bin/env bash
+set -euo pipefail
+printf '%s\n' "$*" >> "$COMPOSE_CALLS"
+test "$PROMETHEUS_RUNTIME_REF" = "$EXPECTED_PROMETHEUS_REF"
+case "$*" in
+  *pg_dump*) printf 'synthetic archive\n' ;;
+  *pg_restore\ --list*) cat >/dev/null; printf '214; 1259 16387 TABLE public items user\n' ;;
+  *pg_restore*) cat >/dev/null ;;
+  *createdb*) ;;
+  *psql*) printf '1\n' ;;
+  *) exit 99 ;;
+esac
+""",
+    )
+    script = REPO_ROOT / "scripts/ops" / helper
+    if manifest_state == "missing-reader":
+        copied_script = tmp_path / "scripts/ops" / helper
+        copied_script.parent.mkdir(parents=True)
+        copied_script.write_bytes(script.read_bytes())
+        copied_script.chmod(0o755)
+        script = copied_script
+    argv = [str(script)]
+    if helper == "postgres_restore.sh":
+        argv += ["--verify-into", "pulseplate_restore_check_ref", str(dump)]
+    env = {
+        "PATH": os.environ["PATH"],
+        "PROJECT_DIR": str(project),
+        "PYTHON_BIN": sys.executable,
+        "DOCKER_BIN": str(docker),
+        "POSTGRES_USER": "synthetic_role",
+        "POSTGRES_DB": "synthetic_db",
+        "EXPECTED_PROMETHEUS_REF": PROMETHEUS_RUNTIME_REF,
+        "COMPOSE_CALLS": str(calls),
+    }
+    if explicit_manifest:
+        env["PROMETHEUS_IMAGE_MANIFEST"] = str(manifest)
+    if ambient_ref is not None:
+        env["PROMETHEUS_RUNTIME_REF"] = ambient_ref
+    result = subprocess.run(argv, env=env, capture_output=True, text=True, check=False)
+    if manifest_state == "valid":
+        assert result.returncode == 0, result.stderr
+        assert calls.read_text().splitlines()
+    else:
+        assert result.returncode != 0
+        assert not calls.exists()
+        assert not (project / "backups").exists()
+    assert dump.read_text() == "synthetic archive"
+
+
 def test_postgres_backup_helper_passes_project_dir_and_compose_file(tmp_path: Path) -> None:
     project_dir = tmp_path / "project"
     bin_dir = tmp_path / "bin"
     backup_dir = project_dir / "backups"
     log_file = tmp_path / "docker.log"
     project_dir.mkdir()
+    _write_backup_prometheus_manifest(project_dir)
     bin_dir.mkdir()
     backup_dir.mkdir()
     env_file = project_dir / "config" / "selected.env"
@@ -7599,6 +8912,7 @@ def test_postgres_backup_helper_uses_container_database_identity_when_host_env_i
     backup_dir = project_dir / "backups"
     log_file = tmp_path / "docker.log"
     project_dir.mkdir()
+    _write_backup_prometheus_manifest(project_dir)
     bin_dir.mkdir()
     backup_dir.mkdir()
 
@@ -7644,6 +8958,7 @@ def test_postgres_restore_helper_passes_project_dir_and_compose_file(tmp_path: P
     log_file = tmp_path / "docker.log"
     backup_file = tmp_path / "pulseplate.dump"
     project_dir.mkdir()
+    _write_backup_prometheus_manifest(project_dir)
     bin_dir.mkdir()
     backup_file.write_text("FAKE_RESTORE", encoding="utf-8")
 
@@ -7657,6 +8972,7 @@ fi
     _write_executable(bin_dir / "docker", docker_stub)
 
     env = os.environ.copy()
+    env["PYTHON_BIN"] = sys.executable
     env["PATH"] = f"{bin_dir}:{env['PATH']}"
     env["PROJECT_DIR"] = str(project_dir)
     env["COMPOSE_FILE"] = "docker-compose.production.yaml"
@@ -7743,6 +9059,7 @@ printf 'curl %s\\n' "$*" >> "{log_file}"
     env = os.environ.copy()
     env["PATH"] = f"{bin_dir}:{env['PATH']}"
     env["DOCKER_BIN"] = str(bin_dir / "docker")
+    env["PYTHON_BIN"] = sys.executable
     env["DEPLOY_DIR"] = str(project_dir)
     env["ENV_FILE"] = str(project_dir / ".env")
     env["COMPOSE_FILE"] = CANONICAL_MANAGED_COMPOSE
@@ -7814,6 +9131,7 @@ printf 'docker %s\\n' "$*" >> "{log_file}"
     env = os.environ.copy()
     env["PATH"] = f"{bin_dir}:{env['PATH']}"
     env["DOCKER_BIN"] = str(bin_dir / "docker")
+    env["PYTHON_BIN"] = sys.executable
     env["DEPLOY_DIR"] = str(project_dir)
     env["COMPOSE_FILE"] = CANONICAL_MANAGED_COMPOSE
 
@@ -7862,6 +9180,7 @@ printf 'docker %s\\n' "$*" >> "{log_file}"
     env = os.environ.copy()
     env["PATH"] = f"{bin_dir}:{env['PATH']}"
     env["DOCKER_BIN"] = str(bin_dir / "docker")
+    env["PYTHON_BIN"] = sys.executable
     env["DEPLOY_DIR"] = str(project_dir)
     env["ENV_FILE"] = str(project_dir / ".env")
     env["COMPOSE_FILE"] = CANONICAL_MANAGED_COMPOSE
@@ -7936,6 +9255,7 @@ printf 'curl %s\\n' "$*" >> "{log_file}"
     env = os.environ.copy()
     env["PATH"] = f"{bin_dir}:{env['PATH']}"
     env["DOCKER_BIN"] = str(docker_dir / "docker")
+    env["PYTHON_BIN"] = sys.executable
     env["DEPLOY_DIR"] = str(project_dir)
     env["ENV_FILE"] = str(project_dir / ".env")
     env["COMPOSE_FILE"] = CANONICAL_MANAGED_COMPOSE
@@ -8003,7 +9323,7 @@ def test_deploy_production_syncs_shell_bundle_and_prunes_stale_shell_files(tmp_p
     )
     (project_dir / "frontend").mkdir()
     (project_dir / "frontend" / "stale.txt").write_text("old-shell\n", encoding="utf-8")
-    (project_dir / "scripts").mkdir()
+    (project_dir / "scripts").mkdir(exist_ok=True)
     (project_dir / "scripts" / "diagnose_web.sh").write_text("stale-diagnose\n", encoding="utf-8")
     (project_dir / "scripts" / "redeploy_caddy.sh").write_text("stale-redeploy\n", encoding="utf-8")
     destination_ops_dir = project_dir / "scripts" / "ops"
@@ -8044,6 +9364,7 @@ printf 'curl %s\\n' "$*" >> "{log_file}"
     env = os.environ.copy()
     env["PATH"] = f"{bin_dir}:{env['PATH']}"
     env["DOCKER_BIN"] = str(bin_dir / "docker")
+    env["PYTHON_BIN"] = sys.executable
     env["DEPLOY_DIR"] = str(project_dir)
     env["ENV_FILE"] = str(project_dir / ".env")
     env["COMPOSE_FILE"] = CANONICAL_MANAGED_COMPOSE
@@ -8091,9 +9412,7 @@ printf 'curl %s\\n' "$*" >> "{log_file}"
     assert published_rules.read_text(encoding="utf-8") == PROMETHEUS_RULES_PATH.read_text(
         encoding="utf-8"
     )
-    assert published_manifest.read_text(encoding="utf-8") == PROMETHEUS_MANIFEST_PATH.read_text(
-        encoding="utf-8"
-    )
+    assert published_manifest.read_text(encoding="utf-8") == _synthetic_prometheus_manifest_text()
     assert published_alert_config.read_text(encoding="utf-8") == ALERTMANAGER_CONFIG_PATH.read_text(
         encoding="utf-8"
     )
@@ -8254,7 +9573,7 @@ esac
     assert source_compose.read_text(encoding="utf-8") == tampered_compose
     assert (project_dir / "deploy" / "prometheus" / "image-manifest.json").read_text(
         encoding="utf-8"
-    ) == PROMETHEUS_MANIFEST_PATH.read_text(encoding="utf-8")
+    ) == _synthetic_prometheus_manifest_text()
     assert (project_dir / "deploy" / "prometheus" / "alias-alerts.yml").read_text(
         encoding="utf-8"
     ) == PROMETHEUS_RULES_PATH.read_text(encoding="utf-8")
@@ -8311,6 +9630,7 @@ printf 'curl %s\\n' "$*" >> "{log_file}"
     env = os.environ.copy()
     env["PATH"] = f"{bin_dir}:{env['PATH']}"
     env["DOCKER_BIN"] = str(bin_dir / "docker")
+    env["PYTHON_BIN"] = sys.executable
     env["DEPLOY_DIR"] = str(project_dir)
     env["ENV_FILE"] = str(project_dir / ".env")
     env.pop("COMPOSE_FILE", None)
@@ -8392,6 +9712,7 @@ printf 'curl %s\\n' "$*" >> "{log_file}"
     env = os.environ.copy()
     env["PATH"] = f"{bin_dir}:{env['PATH']}"
     env["DOCKER_BIN"] = str(bin_dir / "docker")
+    env["PYTHON_BIN"] = sys.executable
     env["DEPLOY_DIR"] = str(project_dir)
     env["ENV_FILE"] = str(project_dir / ".env")
     env["COMPOSE_FILE"] = "deploy/docker-compose.production.yaml"
@@ -8469,6 +9790,7 @@ printf 'curl %s\\n' "$*" >> "{log_file}"
     env = os.environ.copy()
     env["PATH"] = f"{bin_dir}:{env['PATH']}"
     env["DOCKER_BIN"] = str(bin_dir / "docker")
+    env["PYTHON_BIN"] = sys.executable
     env["DEPLOY_DIR"] = str(project_dir)
     env.pop("COMPOSE_FILE", None)
     env.pop("ENV_FILE", None)
@@ -8548,6 +9870,7 @@ printf 'curl %s\\n' "$*" >> "{log_file}"
     env = os.environ.copy()
     env["PATH"] = f"{bin_dir}:{env['PATH']}"
     env["DOCKER_BIN"] = str(bin_dir / "docker")
+    env["PYTHON_BIN"] = sys.executable
     env["DEPLOY_DIR"] = str(project_dir)
     env["COMPOSE_FILE"] = str(compose_file)
     env.pop("ENV_FILE", None)
@@ -8644,6 +9967,7 @@ printf 'curl %s\\n' "$*" >> "{log_file}"
     env = os.environ.copy()
     env["PATH"] = f"{bin_dir}:{env['PATH']}"
     env["DOCKER_BIN"] = str(bin_dir / "docker")
+    env["PYTHON_BIN"] = sys.executable
     env["DEPLOY_DIR"] = str(project_dir)
     env["ENV_FILE"] = str(project_dir / ".env")
     env["COMPOSE_FILE"] = str(outside_dir / "docker-compose.production.yaml")
@@ -8714,6 +10038,7 @@ printf 'curl %s\\n' "$*" >> "{log_file}"
     env = os.environ.copy()
     env["PATH"] = f"{bin_dir}:{env['PATH']}"
     env["DOCKER_BIN"] = str(bin_dir / "docker")
+    env["PYTHON_BIN"] = sys.executable
     env["DEPLOY_DIR"] = str(project_dir)
     env["ENV_FILE"] = str(project_dir / ".env")
     env["COMPOSE_FILE"] = CANONICAL_MANAGED_COMPOSE
@@ -8765,7 +10090,7 @@ def test_deploy_production_keeps_shell_bundle_untouched_when_migrations_fail(
     )
     (project_dir / "frontend").mkdir()
     (project_dir / "frontend" / "stale.txt").write_text("old-shell\n", encoding="utf-8")
-    (project_dir / "scripts").mkdir()
+    (project_dir / "scripts").mkdir(exist_ok=True)
     (project_dir / "scripts" / "diagnose_web.sh").write_text("stale-diagnose\n", encoding="utf-8")
     (project_dir / "scripts" / "redeploy_caddy.sh").write_text("stale-redeploy\n", encoding="utf-8")
 
@@ -8789,6 +10114,7 @@ printf 'curl %s\\n' "$*" >> "{log_file}"
     env = os.environ.copy()
     env["PATH"] = f"{bin_dir}:{env['PATH']}"
     env["DOCKER_BIN"] = str(bin_dir / "docker")
+    env["PYTHON_BIN"] = sys.executable
     env["DEPLOY_DIR"] = str(project_dir)
     env["ENV_FILE"] = str(project_dir / ".env")
     env["COMPOSE_FILE"] = CANONICAL_MANAGED_COMPOSE
@@ -8848,6 +10174,7 @@ def test_deploy_production_rejects_compose_local_postgres_dsn(
     env["PYTHON_BIN"] = sys.executable
     env["PATH"] = f"{bin_dir}:{env['PATH']}"
     env["DOCKER_BIN"] = str(bin_dir / "docker")
+    env["PYTHON_BIN"] = sys.executable
     env["CURL_BIN"] = str(bin_dir / "curl")
     env["DEPLOY_DIR"] = str(project_dir)
     env["ENV_FILE"] = str(project_dir / ".env")
@@ -8899,6 +10226,7 @@ esac
     env["PYTHON_BIN"] = sys.executable
     env["PATH"] = f"{bin_dir}:{env['PATH']}"
     env["DOCKER_BIN"] = str(bin_dir / "docker")
+    env["PYTHON_BIN"] = sys.executable
     env["CURL_BIN"] = str(bin_dir / "curl")
     env["DEPLOY_DIR"] = str(project_dir)
     env["ENV_FILE"] = str(project_dir / ".env")
@@ -8979,7 +10307,7 @@ def test_deploy_production_accepts_only_explicit_exact_self_hosted_database_cont
     if destination_helper_variant == "absent":
         destination_backup_helper.unlink()
         destination_backup_helper.parent.rmdir()
-        destination_backup_helper.parent.parent.rmdir()
+        assert not destination_backup_helper.parent.exists()
     else:
         destination_backup_helper.write_bytes(stale_helper_bytes)
         destination_backup_helper.chmod(
@@ -9618,6 +10946,7 @@ printf 'curl %s\\n' "$*" >> "{log_file}"
     env = os.environ.copy()
     env["PATH"] = f"{bin_dir}:{env['PATH']}"
     env["DOCKER_BIN"] = str(bin_dir / "docker")
+    env["PYTHON_BIN"] = sys.executable
     env.pop("HOME", None)
     env["DEPLOY_DIR"] = str(project_dir)
     env["ENV_FILE"] = str(project_dir / ".env")
@@ -10251,6 +11580,112 @@ printf '%s' "$status"
     assert "FAIL: health-json: expected HTTP 200, got 500." in completed.stdout
 
 
+@pytest.mark.parametrize(
+    ("caller", "scenario"),
+    [
+        (caller, scenario)
+        for caller in ["redeploy_caddy.sh", "diagnose_production.sh", "fix_production_env.sh"]
+        for scenario in [
+            "fresh",
+            "hostile",
+            "missing",
+            "malformed",
+            "missing-reader",
+            "relative-python",
+            "missing-python",
+            "secondary-location",
+        ]
+    ]
+    + [("redeploy_caddy.sh", "relative-location")],
+)
+def test_standalone_production_callers_derive_manifest_ref(
+    tmp_path: Path, caller: str, scenario: str
+) -> None:
+    primary = tmp_path / "primary"
+    secondary = tmp_path / "secondary"
+    project = secondary if scenario == "secondary-location" else primary
+    project.mkdir()
+    manifest = _write_backup_prometheus_manifest(project)
+    _write_prometheus_helper(project)
+    (project / "docker-compose.production.yaml").write_text("services: {}\n", encoding="utf-8")
+    env_text = "DATABASE_URL=postgresql+psycopg://role@db.example/pulseplate\n"
+    env_text += "PRODUCTION_DOMAIN=pulseplate.test\n"
+    (project / ".env").write_text(env_text, encoding="utf-8")
+
+    if scenario == "missing":
+        manifest.unlink()
+    elif scenario == "malformed":
+        manifest.write_text("{}", encoding="utf-8")
+    elif scenario == "missing-reader":
+        (project / "scripts/ci/prometheus_source_image.py").unlink()
+
+    script_text = (REPO_ROOT / "scripts" / caller).read_text(encoding="utf-8")
+    if caller != "redeploy_caddy.sh":
+        # Preserve the real /srv -> /opt selection, with only its two fixed roots isolated.
+        script_text = script_text.replace('"/srv/pulseplate-production"', shlex.quote(str(primary)))
+        script_text = script_text.replace('"/opt/pulseplate"', shlex.quote(str(secondary)))
+    script = (
+        project / "scripts" if caller == "redeploy_caddy.sh" else tmp_path / "copied"
+    ) / caller
+    script.parent.mkdir(exist_ok=True)
+    _write_executable(script, script_text)
+
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    calls = tmp_path / "docker-calls"
+    _write_executable(
+        bin_dir / "native-docker",
+        r"""#!/usr/bin/env bash
+set -euo pipefail
+printf '%s|%s\n' "$*" "${PROMETHEUS_RUNTIME_REF:-}" >> "$CALL_LOG"
+if [ "${1:-}" = compose ] && [ "${2:-}" != version ]; then
+    test "${PROMETHEUS_RUNTIME_REF:-}" = "$EXPECTED_PROMETHEUS_REF"
+fi
+""",
+    )
+    (bin_dir / "docker").symlink_to("native-docker")
+    _write_executable(bin_dir / "sudo", "#!/usr/bin/env bash\nexit 0\n")
+    env = {
+        "PATH": f"{bin_dir}:{os.environ['PATH']}",
+        "HOME": str(tmp_path),
+        "DEPLOY_DIR": str(project),
+        "PYTHON_BIN": sys.executable,
+        "CALL_LOG": str(calls),
+        "EXPECTED_PROMETHEUS_REF": PROMETHEUS_RUNTIME_REF,
+    }
+    if scenario != "fresh":
+        env["PROMETHEUS_RUNTIME_REF"] = "untrusted.example/prometheus:latest"
+    if scenario == "relative-python":
+        env["PYTHON_BIN"] = "python3"
+    elif scenario == "missing-python":
+        env["PYTHON_BIN"] = str(tmp_path / "absent-python")
+    elif scenario == "relative-location":
+        env["DEPLOY_DIR"] = project.name
+    completed = subprocess.run(
+        ["/bin/bash", str(script)],
+        cwd=tmp_path,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    lines = calls.read_text().splitlines() if calls.exists() else []
+    project_calls = [
+        line
+        for line in lines
+        if line.startswith("compose ") and not line.startswith("compose version|")
+    ]
+    if scenario in {"fresh", "hostile", "secondary-location", "relative-location"}:
+        assert completed.returncode == 0, completed.stderr
+        assert project_calls
+        assert all(line.endswith("|" + PROMETHEUS_RUNTIME_REF) for line in project_calls)
+    else:
+        assert completed.returncode != 0
+        assert not project_calls
+        assert (project / ".env").read_text(encoding="utf-8") == env_text
+        assert not list(project.glob(".env.backup.*"))
+
+
 def test_redeploy_caddy_runs_diagnose_web_when_domain_is_available(tmp_path: Path) -> None:
     temp_repo = tmp_path / "repo"
     deploy_dir = temp_repo / "deploy"
@@ -10261,6 +11696,8 @@ def test_redeploy_caddy_runs_diagnose_web_when_domain_is_available(tmp_path: Pat
     deploy_dir.mkdir()
     scripts_dir.mkdir()
     bin_dir.mkdir()
+    _write_prometheus_helper(temp_repo)
+    _write_backup_prometheus_manifest(deploy_dir)
 
     (deploy_dir / "docker-compose.production.yaml").write_text("services: {}\n", encoding="utf-8")
     (deploy_dir / ".env").write_text('PRODUCTION_DOMAIN="pulseplate.test"\n', encoding="utf-8")
@@ -10288,6 +11725,7 @@ exit 0
     env = os.environ.copy()
     env["PATH"] = f"{bin_dir}:{env['PATH']}"
     env["DEPLOY_DIR"] = str(deploy_dir)
+    env["PYTHON_BIN"] = sys.executable
     env["DIAG_MAX_ATTEMPTS"] = "1"
     env["DIAG_RETRY_DELAY_SECONDS"] = "0"
 
@@ -10323,6 +11761,8 @@ def test_redeploy_caddy_exits_non_zero_when_diagnosis_fails(tmp_path: Path) -> N
     deploy_dir.mkdir()
     scripts_dir.mkdir()
     bin_dir.mkdir()
+    _write_prometheus_helper(temp_repo)
+    _write_backup_prometheus_manifest(deploy_dir)
 
     (deploy_dir / "docker-compose.production.yaml").write_text("services: {}\n", encoding="utf-8")
     (deploy_dir / ".env").write_text('PRODUCTION_DOMAIN="pulseplate.test"\n', encoding="utf-8")
@@ -10351,6 +11791,7 @@ exit 0
     env = os.environ.copy()
     env["PATH"] = f"{bin_dir}:{env['PATH']}"
     env["DEPLOY_DIR"] = str(deploy_dir)
+    env["PYTHON_BIN"] = sys.executable
     env["DIAG_MAX_ATTEMPTS"] = "2"
     env["DIAG_RETRY_DELAY_SECONDS"] = "0"
 
@@ -10454,6 +11895,7 @@ def _staging_deploy_fixture(tmp_path: Path) -> tuple[dict[str, str], Path]:
     bin_dir = tmp_path / "bin"
     log_file = tmp_path / "deploy.log"
     project_dir.mkdir()
+    _write_prometheus_helper(project_dir)
     bin_dir.mkdir()
     (project_dir / "scripts" / "ops").mkdir(parents=True)
     (project_dir / "prometheus").mkdir()
@@ -10479,7 +11921,7 @@ def _staging_deploy_fixture(tmp_path: Path) -> tuple[dict[str, str], Path]:
         PROMETHEUS_RULES_PATH.read_text(encoding="utf-8"), encoding="utf-8"
     )
     (project_dir / "prometheus" / "image-manifest.json").write_text(
-        PROMETHEUS_MANIFEST_PATH.read_text(encoding="utf-8"), encoding="utf-8"
+        _synthetic_prometheus_manifest_text(), encoding="utf-8"
     )
     (project_dir / "postgres-pgvector" / "image-manifest.json").write_text(
         POSTGRES_MANIFEST_PATH.read_text(encoding="utf-8"), encoding="utf-8"
@@ -12396,6 +13838,7 @@ def test_staging_backup_full_archive_failure_preserves_old_dump_and_no_publicati
 ) -> None:
     project = tmp_path / "staging"
     project.mkdir()
+    _write_backup_prometheus_manifest(project)
     _write_stage_native_oracles(project)
     docker = tmp_path / "docker"
     _write_executable(docker, "#!/usr/bin/env bash\nset -euo pipefail\nprintf 'FAKE_BACKUP\\n'\n")
@@ -12528,6 +13971,7 @@ def test_verification_restore_selects_source_database_when_role_name_differs(
 ) -> None:
     project = tmp_path / "production"
     project.mkdir()
+    _write_backup_prometheus_manifest(project)
     dump = tmp_path / "input.dump"
     dump.write_text("synthetic archive")
     docker = tmp_path / "docker"
@@ -12545,6 +13989,7 @@ def test_verification_restore_selects_source_database_when_role_name_differs(
         ],
         env={
             **os.environ,
+            "PYTHON_BIN": sys.executable,
             "PROJECT_DIR": str(project),
             "DOCKER_BIN": str(docker),
             "POSTGRES_USER": "application_role",
@@ -12580,6 +14025,7 @@ def test_verification_restore_rejects_each_failed_stage_without_deletion_or_succ
 ) -> None:
     project = tmp_path / "production"
     project.mkdir()
+    _write_backup_prometheus_manifest(project)
     dump = tmp_path / "input.dump"
     dump.write_text("synthetic archive")
     docker, calls = tmp_path / "native-docker", tmp_path / "calls"
@@ -12625,6 +14071,7 @@ esac
         ],
         env={
             **os.environ,
+            "PYTHON_BIN": sys.executable,
             "PROJECT_DIR": str(project),
             "DOCKER_BIN": str(docker),
             "POSTGRES_USER": "role",
@@ -12742,12 +14189,14 @@ def test_production_custom_name_containing_staging_does_not_select_reserved_cont
 ) -> None:
     project = tmp_path / "production-staging-reference"
     project.mkdir()
+    _write_backup_prometheus_manifest(project)
     docker = tmp_path / "docker"
     _write_executable(docker, "#!/usr/bin/env bash\nset -euo pipefail\nprintf 'FAKE_BACKUP\\n'\n")
     result = subprocess.run(
         [str(REPO_ROOT / "scripts/ops/postgres_backup.sh")],
         env={
             **os.environ,
+            "PYTHON_BIN": sys.executable,
             "PROJECT_DIR": str(project),
             "COMPOSE_FILE": "docker-compose.production-staging.yaml",
             "DOCKER_BIN": str(docker),
@@ -13916,6 +15365,9 @@ def test_checkpoint_admission_rejects_before_protected_publication(
             "PYTHON_BIN": sys.executable,
             "REQUESTED_DEPLOY_DIR": str(project),
             "COMPOSE_RELATIVE_IDENTITY": CANONICAL_MANAGED_COMPOSE,
+            "PROMETHEUS_CONTRACT_HELPER_SHA256": hashlib.sha256(
+                (REPO_ROOT / "scripts/ci/prometheus_source_image.py").read_bytes()
+            ).hexdigest(),
         },
         cwd=tmp_path,
         capture_output=True,
@@ -13941,3 +15393,226 @@ def test_checkpoint_admission_rejects_before_protected_publication(
         for member in CHECKPOINT_PATHS:
             assert (project / member).read_bytes() == (REPO_ROOT / member).read_bytes()
         assert not any(path.name.startswith(".pulseplate-") for path in project.rglob("*"))
+
+
+def test_prometheus_cd_separates_pr_and_staging_without_duplicating_steps() -> None:
+    workflow = yaml.safe_load(CD_WORKFLOW_PATH.read_text(encoding="utf-8"))
+    jobs = workflow["jobs"]
+    pr = jobs["prometheus-image-security-pr"]
+    trusted = jobs["prometheus-image-security-trusted"]
+    gate = jobs["prometheus-image-security"]
+    assert "environment" not in pr
+    assert trusted["environment"] == "staging"
+    assert pr["steps"] is trusted["steps"]
+    assert pr["if"] == (
+        "always() && github.event_name == 'pull_request' "
+        "&& needs.postgres-pgvector-contract.result == 'success'"
+    )
+    assert "github.event_name == 'pull_request'" not in trusted["if"]
+    assert "github.ref == 'refs/heads/main'" in trusted["if"]
+    assert "startsWith(github.ref, 'refs/tags/v')" in trusted["if"]
+    assert "github.event_name == 'schedule'" in trusted["if"]
+    assert (
+        pr["permissions"]
+        == trusted["permissions"]
+        == {"contents": "read", "actions": "read", "packages": "read"}
+    )
+    assert gate["permissions"] == {}
+    assert "environment" not in gate
+    assert gate["needs"] == [
+        "postgres-pgvector-contract",
+        "postgres-pgvector-admission",
+        "postgres-pgvector-reuse",
+        "prometheus-image-security-pr",
+        "prometheus-image-security-trusted",
+    ]
+    consumer = next(step for step in pr["steps"] if step.get("id") == "prometheus-image")
+    assert consumer["env"]["GHCR_READ_TOKEN"] == (
+        "${{ github.event_name == 'pull_request' && "
+        "steps.prometheus-route.outputs.mode == 'unchanged_pr_published' && "
+        "secrets.GITHUB_TOKEN || github.event_name != 'pull_request' && "
+        "steps.prometheus-route.outputs.mode == 'trusted_published' && "
+        "secrets.GHCR_READ_TOKEN || '' }}"
+    )
+
+
+@pytest.mark.parametrize(
+    ("event_name", "pr_result", "trusted_result", "expected_exit"),
+    [
+        ("pull_request", "success", "skipped", 0),
+        ("push", "skipped", "success", 0),
+        ("schedule", "skipped", "success", 0),
+        ("pull_request", "failure", "skipped", 1),
+        ("pull_request", "success", "success", 1),
+        ("pull_request", "skipped", "success", 1),
+        ("push", "success", "skipped", 1),
+        ("push", "skipped", "failure", 1),
+        ("schedule", "skipped", "cancelled", 1),
+        ("workflow_dispatch", "skipped", "success", 1),
+        ("pull_request", "", "skipped", 1),
+    ],
+)
+def test_prometheus_cd_aggregate_requires_only_the_selected_successful_execution(
+    tmp_path: Path, event_name: str, pr_result: str, trusted_result: str, expected_exit: int
+) -> None:
+    workflow = yaml.safe_load(CD_WORKFLOW_PATH.read_text(encoding="utf-8"))
+    step = workflow["jobs"]["prometheus-image-security"]["steps"][0]
+    bash = shutil.which("bash")
+    assert bash is not None
+    result = subprocess.run(
+        [bash, "-c", step["run"]],
+        cwd=tmp_path,
+        env={
+            "GITHUB_EVENT_NAME": event_name,
+            "PR_RESULT": pr_result,
+            "TRUSTED_RESULT": trusted_result,
+        },
+        capture_output=True,
+        text=True,
+        timeout=5,
+        check=False,
+    )
+    assert result.returncode == expected_exit, result.stderr
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        "delayed-success",
+        "timeout",
+        "api-error",
+        "interrupt",
+        "cleanup",
+        "short-job",
+        "pr",
+        "registry-token",
+    ],
+)
+def test_trusted_prometheus_wait_keeps_admission_and_cleanup_boundaries(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, case: str
+) -> None:
+    import signal
+    import time
+
+    workflow = yaml.safe_load(CD_WORKFLOW_PATH.read_text())
+    jobs = workflow["jobs"]
+    trusted = jobs["prometheus-image-security-trusted"]
+    pr = jobs["prometheus-image-security-pr"]
+    step = next(
+        item
+        for item in trusted["steps"]
+        if item.get("name") == "Wait for the exact trusted Prometheus publisher"
+    )
+    assert (
+        step["if"]
+        == "${{ success() && github.event_name != 'pull_request' && steps.prometheus-route.outputs.mode == 'trusted_published' }}"
+    )
+    assert set(step["env"]) == {"GH_TOKEN", "GITHUB_TOKEN", "PROMETHEUS_CREDENTIAL_ROUTE"}
+    assert trusted["env"]["PROMETHEUS_JOB_TIMEOUT_MINUTES"] == trusted["timeout-minutes"]
+    assert (
+        trusted["env"]["PROMETHEUS_CONSUME_SECONDS"]
+        == pr["env"]["PROMETHEUS_CONSUME_SECONDS"]
+        == "900"
+    )
+    assert (
+        trusted["env"]["PROMETHEUS_CLEANUP_SECONDS"]
+        == pr["env"]["PROMETHEUS_CLEANUP_SECONDS"]
+        == "120"
+    )
+    assert pr["steps"] is trusted["steps"]
+    consumer = next(item for item in trusted["steps"] if item.get("id") == "prometheus-image")
+    assert trusted["steps"].index(step) < trusted["steps"].index(consumer)
+    assert consumer["run"].count("--operation consume") == 1
+    assert "continue-on-error" not in step and "continue-on-error" not in consumer
+    assert "if" not in consumer  # Default success() prevents consume after a failed wait.
+    event = tmp_path / "event.json"
+    event.write_text('{"ref":"refs/heads/main"}')
+    head = "1" * 40
+    environment = {
+        "GITHUB_EVENT_NAME": "pull_request" if case == "pr" else "push",
+        "GITHUB_EVENT_PATH": str(event),
+        "GITHUB_SHA": head,
+        "GITHUB_WORKSPACE": str(REPO_ROOT),
+        "RUNNER_TEMP": str(tmp_path),
+        "GITHUB_RUN_ID": "123",
+        "GITHUB_RUN_ATTEMPT": "1",
+        "GH_TOKEN": "synthetic-read-token",
+        "GITHUB_TOKEN": "synthetic-read-token",
+        "PROMETHEUS_CREDENTIAL_ROUTE": "trusted_published",
+        "PROMETHEUS_PUBLICATION_WAIT_SECONDS": "10800",
+        "PROMETHEUS_CONSUME_SECONDS": "900",
+        "PROMETHEUS_CLEANUP_SECONDS": "120",
+        "PROMETHEUS_SECURITY_RESERVE_SECONDS": "2400",
+        "PROMETHEUS_JOB_TIMEOUT_MINUTES": "55" if case == "short-job" else "255",
+    }
+    if case == "registry-token":
+        environment["GHCR_READ_TOKEN"] = "synthetic-registry-token"
+    monkeypatch.setattr(os, "environ", environment)
+    elapsed = [0.0]
+    calls: list[str] = []
+    monkeypatch.setattr(time, "monotonic", lambda: elapsed[0])
+    monkeypatch.setattr(time, "sleep", lambda seconds: elapsed.__setitem__(0, elapsed[0] + seconds))
+    monkeypatch.setattr(signal, "signal", lambda *args: None)
+
+    class API:
+        def __init__(self, private: Path, evidence: Path, deadline: float, cleanup: int) -> None:
+            assert private.parent == evidence.parent
+            assert deadline == 10800 and cleanup == 120
+            assert "GHCR_READ_TOKEN" not in os.environ
+            calls.append("api")
+
+        def close(self) -> None:
+            calls.append("close")
+            if case == "cleanup":
+                raise prometheus_source.QualificationError("synthetic_cleanup_failure")
+
+    def admission(
+        api: object, root: Path, event: dict[str, object], kind: str, selected: str
+    ) -> dict[str, object]:
+        assert isinstance(api, API) and root == REPO_ROOT and selected == head and kind == "push"
+        assert event == {"ref": "refs/heads/main"}
+        calls.append("admission")
+        return {"publisher_head": head}
+
+    def predecessor(api: object, selected: str) -> dict[str, object]:
+        assert isinstance(api, API) and selected == head
+        calls.append("predecessor")
+        if case == "api-error":
+            raise prometheus_source.QualificationError("synthetic_auth_failure")
+        if case == "interrupt":
+            raise KeyboardInterrupt
+        if case == "timeout" or elapsed[0] <= 900:
+            raise prometheus_source.QualificationError(
+                "positive_publication_predecessor_pending_or_missing"
+            )
+        return {"run": {"head_sha": head, "conclusion": "success"}}
+
+    monkeypatch.setattr(prometheus_source, "GitHubRead", API)
+    monkeypatch.setattr(prometheus_source, "event_admission", admission)
+    monkeypatch.setattr(prometheus_source, "require_publication_predecessor", predecessor)
+    program = compile(_prometheus_cd_python(step), "<trusted-publication-wait>", "exec")
+    if case == "delayed-success":
+        exec(program, {"__name__": "__main__"})
+        assert elapsed[0] == 930
+        assert (
+            json.loads(
+                (
+                    tmp_path / "prometheus-publication-wait-123-1/evidence/predecessor.json"
+                ).read_text()
+            )["run"]["head_sha"]
+            == head
+        )
+    else:
+        expected = (
+            KeyboardInterrupt
+            if case == "interrupt"
+            else SystemExit if case in {"pr", "registry-token"} else RuntimeError
+        )
+        with pytest.raises(expected):
+            exec(program, {"__name__": "__main__"})
+    if case in {"short-job", "pr", "registry-token"}:
+        assert calls == []
+    else:
+        assert calls[0:2] == ["api", "admission"] and calls[-1] == "close"
+    if case == "timeout":
+        assert elapsed[0] == 10800

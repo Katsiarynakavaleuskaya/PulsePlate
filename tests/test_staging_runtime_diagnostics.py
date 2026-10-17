@@ -18,6 +18,18 @@ import pytest
 
 from scripts.ops import staging_runtime_diagnostics as diagnostic
 
+PROMETHEUS_RUNTIME_REF = "ghcr.io/pulseplate/prometheus@sha256:" + "d" * 64
+PROMETHEUS_READER_ARGV = [
+    "/usr/bin/python3",
+    "/srv/pulseplate-staging/scripts/ci/prometheus_source_image.py",
+    "--operation",
+    "read-manifest",
+    "--manifest",
+    "/srv/pulseplate-staging/prometheus/image-manifest.json",
+    "--field",
+    "runtime_ref",
+]
+
 IMAGE_REPOSITORY = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:"
 REVIEWED_BACKEND_REF = IMAGE_REPOSITORY + "".join(
     (
@@ -45,14 +57,14 @@ REVIEWED_CADDY_REF = IMAGE_REPOSITORY + "".join(
 )
 REVIEWED_COMPOSE_SHA = "".join(
     (
-        "faf50ca0",
-        "296897bf",
-        "22df370d",
-        "a35ae6b7",
-        "b8bea05a",
-        "4c8411b7",
-        "ce7c393b",
-        "180a484b",
+        "e72c39d6",
+        "64c16a8c",
+        "a24896a3",
+        "7dd51da0",
+        "6487510c",
+        "f91596be",
+        "c382b9be",
+        "a632dcf9",
     )
 )
 PREVIOUS_BACKEND_REF = IMAGE_REPOSITORY + "".join(
@@ -392,7 +404,11 @@ def test_t19_host_rejects_generation_drift_after_app_probe() -> None:
     def run(argv: list[str], **kwargs: Any) -> tuple[int, bytes]:
         if "--hash" in argv:
             return 0, (argv[-1] + " " + "c" * 64 + "\n").encode()
+        if "prometheus_source_image.py" in " ".join(argv):
+            assert argv == PROMETHEUS_READER_ARGV
+            return 0, (PROMETHEUS_RUNTIME_REF + "\n").encode()
         if "compose" in argv:
+            assert namespace["NATIVE_ENV"]["PROMETHEUS_RUNTIME_REF"] == PROMETHEUS_RUNTIME_REF
             return 0, json.dumps(compose).encode()
         if "check_staging_security.py" in " ".join(argv):
             return 0, b"ok"
@@ -418,7 +434,11 @@ def test_t06_host_checker_failure_stops_before_container_census() -> None:
 
     def run(argv: list[str], **kwargs: Any) -> tuple[int, bytes]:
         calls.append(argv)
+        if "prometheus_source_image.py" in " ".join(argv):
+            assert argv == PROMETHEUS_READER_ARGV
+            return 0, (PROMETHEUS_RUNTIME_REF + "\n").encode()
         if "compose" in argv:
+            assert namespace["NATIVE_ENV"]["PROMETHEUS_RUNTIME_REF"] == PROMETHEUS_RUNTIME_REF
             return 0, json.dumps(compose_fixture()).encode()
         return 1, b"sensitive native text"
 
@@ -428,7 +448,7 @@ def test_t06_host_checker_failure_stops_before_container_census() -> None:
         namespace["main"]()
     assert json.loads(output.getvalue())["error"] == "STAGING_RECEIPT_FAILED"
     assert "sensitive" not in output.getvalue()
-    assert len(calls) == 2
+    assert len(calls) == 3
 
 
 def test_t20_host_native_output_cap_kills_only_own_process() -> None:
@@ -599,6 +619,7 @@ def test_native_subprocess_uses_pinned_refs_over_ambient_values(
     monkeypatch.setenv("STAGING_IMAGE_REF", "stale.example/app:latest")
     monkeypatch.setenv("STAGING_CADDY_IMAGE_REF", "stale.example/caddy:latest")
     monkeypatch.setenv("STAGING_ENV_FILE", "/tmp/stale.env")
+    monkeypatch.setenv("PROMETHEUS_RUNTIME_REF", "stale.example/prometheus:latest")
     monkeypatch.setenv("DOCKER_HOST", "tcp://stale.example:2375")
     monkeypatch.setenv("GHCR_TOKEN", "synthetic-secret")
     code, raw = namespace["run"](
@@ -612,6 +633,30 @@ def test_native_subprocess_uses_pinned_refs_over_ambient_values(
     assert actual["STAGING_CADDY_IMAGE_REF"] == namespace["CADDY_REF"]
     assert actual["STAGING_ENV_FILE"] == "/srv/pulseplate-staging/.env"
     assert "DOCKER_HOST" not in actual and "GHCR_TOKEN" not in actual
+    assert "PROMETHEUS_RUNTIME_REF" not in actual
+
+
+def test_host_manifest_reader_failure_stops_before_compose() -> None:
+    namespace = host_functions()
+    namespace["app_env_file_signature"] = lambda: ("trusted",)
+    calls: list[list[str]] = []
+
+    def run(argv: list[str], **kwargs: Any) -> tuple[int, bytes]:
+        calls.append(argv)
+        return 7, b"sensitive native output"
+
+    namespace["run"] = run
+    output = io.StringIO()
+    with redirect_stdout(output):
+        namespace["main"]()
+    assert json.loads(output.getvalue()) == {
+        "schema": "pulseplate.staging-runtime-host.v1",
+        "trust": "rejected",
+        "error": "NATIVE_FAILED",
+    }
+    assert len(calls) == 1
+    assert calls[0][1].endswith("/scripts/ci/prometheus_source_image.py")
+    assert "PROMETHEUS_RUNTIME_REF" not in namespace["NATIVE_ENV"]
 
 
 @pytest.mark.parametrize("fault", ["changed", "duplicate", "nonfinite", "oversize"])
@@ -812,7 +857,11 @@ def _run_hash_host_case(
             if hash_only_drift and key == ("app", False) and hash_reads[key] == 2:
                 letter = "f"
             return 0, (service + " " + letter * 64 + "\n").encode()
+        if "prometheus_source_image.py" in " ".join(argv):
+            assert argv == PROMETHEUS_READER_ARGV
+            return 0, (PROMETHEUS_RUNTIME_REF + "\n").encode()
         if "compose" in argv:
+            assert namespace["NATIVE_ENV"]["PROMETHEUS_RUNTIME_REF"] == PROMETHEUS_RUNTIME_REF
             if "-f" in argv and argv[argv.index("-f") + 1] == "-":
                 roundtrip_reads += 1
                 changed = (
@@ -1017,7 +1066,11 @@ def test_host_rejects_rendered_compose_change_during_observation() -> None:
         if "--hash" in argv:
             service = argv[-1]
             return 0, (service + " " + "c" * 64 + "\n").encode()
+        if "prometheus_source_image.py" in " ".join(argv):
+            assert argv == PROMETHEUS_READER_ARGV
+            return 0, (PROMETHEUS_RUNTIME_REF + "\n").encode()
         if "compose" in argv:
+            assert namespace["NATIVE_ENV"]["PROMETHEUS_RUNTIME_REF"] == PROMETHEUS_RUNTIME_REF
             if "--format" in argv and "docker-compose.staging.yaml" in " ".join(argv):
                 render_reads += 1
                 if render_reads == 2:

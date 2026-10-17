@@ -5,7 +5,7 @@
 # Or with explicit absolute API base (split-origin / Workers):
 #   docker build -f Dockerfile.caddy-spa --build-arg VITE_API_BASE=https://example.com/api/v1 -t pulseplate-caddy:local .
 
-FROM golang:1.26.6-alpine3.23@sha256:5978cc992ad5ef96a7469713c8af849c1433824761ce3be2c56381403cd8d9a3 AS caddy-build
+FROM golang:1.26.9-alpine3.23@sha256:96123126ac58e910f4dd3619a8901e2fb6d1ad84b59b1232cac7c9ea65a8f888 AS caddy-build
 
 ENV CGO_ENABLED=0 \
     GOTOOLCHAIN=local \
@@ -20,6 +20,7 @@ RUN set -eux; \
     go get github.com/caddyserver/caddy/v2/cmd/caddy@v2.11.4; \
     go get google.golang.org/grpc@v1.83.2; \
     go get golang.org/x/crypto@v0.55.0; \
+    go get golang.org/x/net@v0.60.0; \
     go mod download all; \
     go mod verify; \
     test -z "$(go list -m -f '{{if .Replace}}{{.Path}} => {{.Replace.Path}}{{end}}' all)"; \
@@ -28,15 +29,15 @@ RUN set -eux; \
       | LC_ALL=C sort > /tmp/caddy-governed-graph; \
     printf '%s\n' \
       'github.com/caddyserver/caddy/v2 v2.11.4' \
-      'golang.org/x/crypto v0.55.0' \
-      'golang.org/x/mod v0.38.0' \
-      'golang.org/x/net v0.58.0' \
-      'golang.org/x/sync v0.22.0' \
-      'golang.org/x/sys v0.47.0' \
-      'golang.org/x/telemetry v0.0.0-20260708182218-49f421fb7959' \
-      'golang.org/x/term v0.45.0' \
-      'golang.org/x/text v0.41.0' \
-      'golang.org/x/tools v0.48.0' \
+      'golang.org/x/crypto v0.57.0' \
+      'golang.org/x/mod v0.41.0' \
+      'golang.org/x/net v0.60.0' \
+      'golang.org/x/sync v0.23.0' \
+      'golang.org/x/sys v0.48.0' \
+      'golang.org/x/telemetry v0.0.0-20260811182544-a038080d80e5' \
+      'golang.org/x/term v0.46.0' \
+      'golang.org/x/text v0.42.0' \
+      'golang.org/x/tools v0.49.0' \
       'google.golang.org/grpc v1.83.2' \
       | LC_ALL=C sort > /tmp/caddy-expected-graph; \
     test "$(wc -l < /tmp/caddy-governed-graph | tr -d '[:space:]')" = '11'; \
@@ -53,12 +54,12 @@ RUN set -eux; \
       | LC_ALL=C sort > /tmp/caddy-governed-binary; \
     printf '%s\n' \
       'mod github.com/caddyserver/caddy/v2 v2.11.4' \
-      'dep golang.org/x/crypto v0.55.0' \
-      'dep golang.org/x/net v0.58.0' \
-      'dep golang.org/x/sync v0.22.0' \
-      'dep golang.org/x/sys v0.47.0' \
-      'dep golang.org/x/term v0.45.0' \
-      'dep golang.org/x/text v0.41.0' \
+      'dep golang.org/x/crypto v0.57.0' \
+      'dep golang.org/x/net v0.60.0' \
+      'dep golang.org/x/sync v0.23.0' \
+      'dep golang.org/x/sys v0.48.0' \
+      'dep golang.org/x/term v0.46.0' \
+      'dep golang.org/x/text v0.42.0' \
       'dep google.golang.org/grpc v1.83.2' \
       | LC_ALL=C sort > /tmp/caddy-expected-binary; \
     test "$(wc -l < /tmp/caddy-governed-binary | tr -d '[:space:]')" = '8'; \
@@ -89,7 +90,7 @@ RUN npm run build
 FROM caddy:2.11.4-alpine@sha256:5f5c8640aae01df9654968d946d8f1a56c497f1dd5c5cda4cf95ab7c14d58648
 
 LABEL org.opencontainers.image.title="PulsePlate Caddy SPA shell" \
-      org.opencontainers.image.description="Caddy 2.11.4 rebuilt with Go 1.26.6 and PulsePlate frontend assets"
+      org.opencontainers.image.description="Caddy 2.11.4 rebuilt with Go 1.26.9 and PulsePlate frontend assets"
 
 # Compare the standard module surface before replacing the upstream binary.
 # Package versions and build metadata are intentionally excluded from parity.
@@ -104,12 +105,13 @@ RUN set -eux; \
       "curl>=8.20.0-r0" \
       "libcurl>=8.20.0-r0" \
       "libcrypto3>=3.5.8-r0" \
-      "libssl3>=3.5.8-r0"; \
+      "libssl3>=3.5.8-r0" \
+      "zlib>=1.3.2-r1"; \
     mv /usr/bin/caddy.pulseplate /usr/bin/caddy; \
     setcap cap_net_bind_service=+ep /usr/bin/caddy; \
     getcap /usr/bin/caddy | grep -F 'cap_net_bind_service=ep'; \
     caddy version | awk 'NR == 1 && $1 == "v2.11.4" { found=1 } END { exit found ? 0 : 1 }'; \
-    caddy build-info | awk -F '\t' '$1 == "go" && $2 == "go1.26.6" { found=1 } END { exit found ? 0 : 1 }'; \
+    caddy build-info | awk -F '\t' '$1 == "go" && $2 == "go1.26.9" { found=1 } END { exit found ? 0 : 1 }'; \
     rm -f /tmp/caddy-official-modules /tmp/caddy-rebuilt-modules
 
 RUN ["/bin/busybox", "rm", "-rf", "/srv/frontend"]
