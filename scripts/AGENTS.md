@@ -173,6 +173,33 @@
   coordinates, consumer references or ignore retirement follow from source
   preparation. Frozen Prometheus inputs stay unchanged; their projection does
   not establish SDK nonimpact for catalog/fetcher changes.
+- Manual `input-inspect` and `support-inspect` consume the exact authenticated
+  successful qualification run, attempt, branch, source and artifact through the
+  existing bounded read transport. Bind every retained byte, native command and
+  six-root frozen input inventory before reuse. A later consumer implementation
+  head does not require another solver replay when the recorded source epoch,
+  locks, graphs, input identities and recipe remain exact. Selectors and hashes
+  establish integrity only; they grant no compiler or publication authority.
+- Input inspection performs only retained-data checks and one existing-package
+  metadata GET. A successful GET proves read access only. Support inspection is
+  separately invoked, compiler-free and secret-free after credential cleanup:
+  retain the exact base export, immutable upstream probe origin, executed pinned
+  scanner/Buildx bytes, frozen DB, full native reports, commands and exits.
+  The same default scanner settings must observe the positive and clean secret
+  controls, known-vulnerable old-image control, and full supported base/probe
+  inventory at all severities. Missing native success, malformed output, drift,
+  unsupported required targets or new blocking findings remain HOLD.
+  Trivy's documented omitted `Results` for a genuinely empty clean/probe report
+  is retained unchanged; explicit null is rejected. Empty supported BusyBox
+  inventory does not establish universal CVE or secret coverage, or final
+  candidate acceptance. Never manufacture package metadata or scanner reports.
+- Buildx version/help is a CLI observation, not image assembly feasibility.
+  Declare the exact offline pair commands, COPY context and pinned local OCI
+  named-context assembly before separate human build admission. Do not create
+  or bootstrap a builder, compile, outline or assemble during support inspection.
+  Keep automatic PR/push paths disabled and final build/publication stages held;
+  cleanup retains the primary failure and removes only independently confirmed
+  exact owned container IDs, including a failed create's labelled residue.
 
 ## Official Prometheus image selection
 
