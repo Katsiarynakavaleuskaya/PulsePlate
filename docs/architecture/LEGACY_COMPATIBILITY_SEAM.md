@@ -29,15 +29,15 @@ test-only reassignment of `legacy_app.app` cannot rebind package, bootstrap, or
 not import `legacy_app`. Resolving `app.app` imports `app.main` without loading
 `legacy_app`; the canonical bootstrap no longer reverse-imports the compatibility
 facade. The eight former paid/BMI registration mirrors are absent from `app`,
-`app.main`, and `legacy_app.py`. Seventeen bounded Python-binding retirements remove
-only the exact 130 `legacy_app.py` Python bindings enumerated below; they do not
+`app.main`, and `legacy_app.py`. Eighteen bounded Python-binding retirements remove
+only the exact 132 `legacy_app.py` Python bindings enumerated below; they do not
 remove or redirect any HTTP path, change auth, alter OpenAPI, or change FastAPI
 object identity. Repository census found no tracked supported production
 consumer of the second ten-name, third eleven-name, fourth eight-name, fifth
 twelve-name, sixth seven-name, seventh three-name, eighth seven-name, ninth
 fifteen-name, tenth four-name, eleventh four-name, twelfth eight-name,
 thirteenth seven-name, fourteenth three-name, fifteenth six-name, sixteenth
-two-name, or seventeenth thirteen-name cohort;
+two-name, seventeenth thirteen-name, or eighteenth two-name cohort;
 it does not prove that no external or dynamic Python consumer exists.
 
 Application startup/shutdown behavior is canonically owned by
@@ -51,9 +51,11 @@ runtime resources or wrap `app.router.lifespan_context`.
 
 App-client API-key extraction and validation dependencies are canonically owned
 by `app/routers/api_key.py`. Canonical routers and bootstrap code import those
-callables directly. `legacy_app.py` may only re-export the exact same callable
-objects while compatibility imports remain; wrappers or mutable legacy-owned
-warning state would break FastAPI dependency identity.
+callables directly. The `legacy_app.get_api_key` and
+`legacy_app._get_api_key_dynamic` bindings are retired; callers import them from
+`app.routers.api_key`. The separate package aliases and the intentional
+`app.get_api_key` override remain exact canonical contracts; wrappers or mutable
+legacy-owned warning state would break FastAPI dependency identity.
 
 Application metadata is canonically owned by
 `app/application_metadata.py:56` and constructed through the environment-aware
@@ -457,6 +459,56 @@ The operator explicitly permitted this existing lane to continue from pending
 main while another employee monitored it. This historical lane-specific start
 exception transferred no main PASS, publication validation, merge-readiness or
 merge permission and granted no bypass of this PR's required gates.
+
+## Legacy API-key Python export retirement
+
+The `LEGACY-API-KEY-EXPORT-RETIREMENT-1/v1` child is in implementation on
+`codex/retire-legacy-api-key-exports`; its PR number is not assigned yet. Exactly
+`get_api_key` and `_get_api_key_dynamic` retire from `legacy_app.py`, with no new
+authentication behavior. The independent ordered inventory appends only this
+cohort at `[130:132]`, retaining every prior130 member and rate-limit
+`[117:130]`. Three independently authored inventories contain exactly132 unique
+members (`scripts/ci/check_legacy_growth_guard.py:40`,
+`tests/test_legacy_growth_guard.py:13`, `tests/test_legacy_bmi_shims.py:29`).
+
+The canonical family remains `api_key_header`, `get_api_key`,
+`_get_api_key_dynamic`, `validate_app_api_key`, and `require_app_api_key` in
+`app/routers/api_key.py:16`. The separate package16, singleton, shared header,
+package override, FastAPI override identity, thirteen declared method/path
+bindings and `/premium_bmr` exception remain their existing contracts
+(`tests/test_api_key_dependency_ownership.py:22`). HTTP aliases, DTOs, OpenAPI,
+configuration, normalization and exact403/500 errors do not change. The new
+real protected BMR smoke checks invalid-key denial before calculation and
+configured-key success through the unchanged authentication dependency.
+
+Only the obsolete Legacy exact-alias presence requirement and its two allowed
+router-import facts are removed from the existing guard. Its ownership
+component still recognizes identity-preserving imports; the independent
+retirement and import-growth consumers reject their return to Legacy. The
+existing canonical-symbol inventory and all ownership visitors remain intact.
+The protected fresh-process harness is reused unchanged for actual Legacy-first
+and API-key-first orders, selected-name namespace/getattr/direct-import absence
+and canonical/header/package/singleton preservation. These are bounded source
+and test controls, not universal caller, auth or operating-system isolation proof.
+
+The complete incoming #2490 reconciliation was applied and committed first at
+`16a6a3635747f86d86ec0e89a8fd45ca1cac12df`, updating the existing rate-limit
+section and ledger anchor with original Target PR #2490 and incoming #2489/#2488
+retained. It is APPLIED / COMMITTED / INCLUDED IN THIS DIFF; its receiving
+review and later reconciliation in main require their actual observations.
+
+Own focused/narrow/current-head CI, premortem, admitted Oracle, post-open roles,
+self-review, dispositions, seal, strict readiness and review wait remain required;
+this implementation record claims none of their pending outcomes. A separate
+exact-head human merge decision precedes post-main proof, recoverable archive,
+same-ID continuity/readback, outgoing carryover and owned cleanup. Every original
+D1-D8 remains required. PROJECT_LEGACY stays OPEN, R29 PARTIAL / UNWAIVED,
+O1 historical NOT_ADMITTED and the shared-runtime P1 follow-up OPEN. Red
+infrastructure permits this independent start only; foreign #2476 recognizer
+repairs remain separately owned. The next candidate is one terminal
+`legacy_app.py` removal after census, with no cosmetic logger/comment micro-PR.
+Rollback reverts only this retirement and coupled guard/tests, preserving truthful
+incoming #2490 and all prior/foreign changes.
 
 ## Legacy rate-limit compatibility retirement
 
@@ -1260,7 +1312,7 @@ Forbidden in `legacy_app.py`:
 | Operational health/readiness routes | `app/routers/health.py` + `app/main.py` | Runtime paths unchanged; no legacy decorator ownership. |
 | Infra and observability bootstrap | `app/bootstrap/` | Register from canonical entrypoint, not from `legacy_app.py`. |
 | Application lifecycle and shared resources | `app/bootstrap/lifespan.py` | One explicit startup/shutdown owner; deterministic reverse-order cleanup. |
-| App-client API-key dependencies | `app/routers/api_key.py` | Canonical owner; legacy compatibility is identity-preserving re-export only. |
+| App-client API-key dependencies | `app/routers/api_key.py` | Canonical owner; both selected Legacy Python bindings are retired, while package aliases and exact dependency identities remain. |
 | Application metadata | `app/application_metadata.py` | Immutable source; every FastAPI projection receives fresh nested mutable inputs. |
 | Public OpenAPI policy and builder | `app/bootstrap/openapi.py` | Validate before mutation; install after complete route bootstrap; stale/foreign state fails closed. |
 | Hidden admin/debug routes | `app/routers/admin_operations.py` | Canonical HTTP owner; route methods, auth, hidden OpenAPI posture, and response contracts remain unchanged. |
@@ -1300,9 +1352,9 @@ implementations and canonical `app/**` reverse imports or dynamic lookups for
 those callables. Current facts may disappear as the seam shrinks; new facts fail
 closed with repo-relative diagnostics.
 
-For the 130 retired Python bindings, the guard has a deliberately bounded
+For the 132 retired Python bindings, the guard has a deliberately bounded
 finite mechanical claim over the exact repo-relative `legacy_app.py` source
-only. It freezes the exact 130-name set, uses the existing `_assigned_names`
+only. It freezes the exact 132-name set, uses the existing `_assigned_names`
 collector for statically visible ordinary module-scope `Name` Store/Del
 bindings, rejects explicit `global` declarations for a protected name, rejects
 all star imports, and rejects a statically bound module-level `__getattr__`.
@@ -1320,7 +1372,7 @@ import hooks, reflection, arbitrary helpers, and external monkeypatching. The
 rule neither accepts nor certifies those families and makes no completeness
 claim about them. Any new or changed dynamic namespace carrier in
 `legacy_app.py`, and any dynamic carrier intended to bind or rebind one of the
-130 protected names, requires manual STOP and review. The existing router-import
+132 protected names, requires manual STOP and review. The existing router-import
 recognizer separately rejects reintroduction of the former exact dynamic
 `app.routers.plan_export -> _plan_mod` fact; this does not widen the ordinary
 binding rule or certify arbitrary namespace mutation.
