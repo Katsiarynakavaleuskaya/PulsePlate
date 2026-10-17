@@ -132,13 +132,35 @@ def test_application_metadata_preserves_exact_development_description() -> None:
     )
 
 
-def test_legacy_metadata_aliases_match_canonical_projection() -> None:
+def test_canonical_bootstrap_metadata_matches_application_projection() -> None:
+    import app.bootstrap.application as application
+    import app.main as app_main
     import legacy_app
 
-    metadata = build_application_metadata(runtime_env=legacy_app._app_env)
-
-    assert legacy_app._api_description == metadata.description
-    assert legacy_app.tags_metadata == metadata.openapi_tags_list()
+    metadata = application.APPLICATION_METADATA
+    expected_description = EXPECTED_BASE_DESCRIPTION
+    if application.RUNTIME_ENV.strip().lower() in {
+        "",
+        "local",
+        "dev",
+        "development",
+        "test",
+        "testing",
+    }:
+        expected_description += EXPECTED_DEVELOPMENT_DESCRIPTION
+    expected_description += EXPECTED_DOCUMENTATION_DESCRIPTION
+    assert metadata.title == application.app.title == "PulsePlate"
+    assert metadata.version == application.app.version == "0.1.0"
+    assert metadata.description == expected_description
+    assert app_main.app.description == expected_description.replace(", user management", "")
+    assert application.app.contact == {
+        "name": "PulsePlate API Support",
+        "url": "https://github.com/Katsiarynakavaleuskaya/PulsePlate",
+    }
+    assert application.app.license_info == {"name": "MIT"}
+    assert metadata.openapi_tags_list() == EXPECTED_TAGS
+    assert app_main.app.openapi_tags == [tag for tag in EXPECTED_TAGS if tag["name"] != "users"]
+    assert legacy_app.app is application.app
 
 
 def test_application_metadata_projection_returns_fresh_nested_mutables() -> None:
@@ -152,6 +174,14 @@ def test_application_metadata_projection_returns_fresh_nested_mutables() -> None
     second_contact = cast(dict[str, str], second["contact"])
     second_license = cast(dict[str, str], second["license_info"])
     second_tags = cast(list[dict[str, str]], second["openapi_tags"])
+
+    assert first_contact is not second_contact
+    assert first_license is not second_license
+    assert first_tags is not second_tags
+    assert all(
+        first_tag is not second_tag
+        for first_tag, second_tag in zip(first_tags, second_tags, strict=True)
+    )
 
     first_contact["name"] = "changed"
     first_license["name"] = "changed"

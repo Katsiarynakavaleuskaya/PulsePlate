@@ -83,25 +83,217 @@ def _configure_external_scheduler(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("FOOD_UPDATE_SCHEDULER_MODE", "external")
 
 
+def test_admin_import_probe_constructs_only_operational_and_synthetic_env(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    operational = {
+        "LANG": "C",
+        "LC_ALL": "C",
+        "PATH": "synthetic-path",
+        "PYTHONIOENCODING": "utf-8",
+        "PYTHONUTF8": "1",
+        "TMPDIR": "synthetic-temp",
+    }
+    parent = {
+        **operational,
+        "API_KEY": "synthetic-parent-key",  # pragma: allowlist secret - synthetic probe fixture
+        "SERVER_SALT": "synthetic-parent-salt",
+        "APP_ENV": "production",
+        "ENVIRONMENT": "production",
+        "TESTING": "false",
+        "PYTEST_CURRENT_TEST": "synthetic-parent-marker",
+        "DATABASE_URL": "synthetic-parent-database",
+        "GH_TOKEN": "synthetic-parent-token",
+        "PYTHONSTARTUP": "synthetic-startup",
+        "HTTPS_PROXY": "synthetic-proxy",
+    }
+    monkeypatch.setattr(os, "environ", parent)
+    calls: list[tuple[list[str], dict[str, Any]]] = []
+
+    def fake_run(args: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        calls.append((args, kwargs))
+        return subprocess.CompletedProcess(args, 0, stdout="", stderr="")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    _run_python("pass\n")
+    args, kwargs = calls.pop()
+    assert calls == []
+    assert args[:2] == [sys.executable, "-c"]
+    assert args[2].endswith("pass\n")
+    assert kwargs == {
+        "cwd": REPO_ROOT,
+        "env": {
+            **operational,
+            "APP_ENV": "test",
+            "ENVIRONMENT": "test",
+            "TESTING": "true",
+            "PYTEST_CURRENT_TEST": "admin-scheduler-import-probe",
+            "API_KEY": "test-key",  # pragma: allowlist secret - synthetic probe fixture
+            "SERVER_SALT": "test-salt",
+        },
+        "capture_output": True,
+        "text": True,
+        "timeout": 30,
+        "check": False,
+    }
+
+
+@pytest.mark.parametrize("failure_kind", ("nonzero", "timeout"))
+def test_admin_import_probe_failure_diagnostics_exclude_captured_streams(
+    monkeypatch: pytest.MonkeyPatch,
+    failure_kind: str,
+) -> None:
+    marker = "synthetic-captured-secret-marker"
+
+    def fake_run(args: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        del kwargs
+        if failure_kind == "timeout":
+            raise subprocess.TimeoutExpired(args, 30, output=marker, stderr=marker)
+        return subprocess.CompletedProcess(args, 7, stdout=marker, stderr=marker)
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    expected = (
+        "admin import probe timed out"
+        if failure_kind == "timeout"
+        else "admin import probe failed (returncode=7)"
+    )
+    with pytest.raises(AssertionError) as exc_info:
+        _run_python("pass\n")
+    assert str(exc_info.value) == expected
+    assert marker not in str(exc_info.value)
+    if failure_kind == "timeout":
+        assert exc_info.value.__cause__ is None
+        assert exc_info.value.__suppress_context__ is True
+
+
+_ADMIN_PROBE_CONNECTION_CONTROLS = textwrap.dedent("""
+    import socket
+    from typing import NoReturn
+
+    def _deny_connection(*_args: object, **_kwargs: object) -> NoReturn:
+        raise AssertionError("admin import probe connection denied")
+
+    class _ConnectionDeniedSocket(socket.socket):
+        def connect(self, *_args: object, **_kwargs: object) -> NoReturn:
+            _deny_connection()
+
+        def connect_ex(self, *_args: object, **_kwargs: object) -> NoReturn:
+            _deny_connection()
+
+    socket.create_connection = _deny_connection
+    socket.socket = _ConnectionDeniedSocket
+    """)
+
+
 def _run_python(source: str) -> subprocess.CompletedProcess[str]:
-    env = os.environ.copy()
+    operational_keys = ("LANG", "LC_ALL", "PATH", "PYTHONIOENCODING", "PYTHONUTF8", "TMPDIR")
+    env = {key: value for key in operational_keys if (value := os.environ.get(key)) is not None}
     env.update(
         {
             "APP_ENV": "test",
+            "ENVIRONMENT": "test",
+            "PYTEST_CURRENT_TEST": "admin-scheduler-import-probe",
             "API_KEY": "test-key",  # pragma: allowlist secret
             "SERVER_SALT": "test-salt",  # pragma: allowlist secret
             "TESTING": "true",
         }
     )
-    return subprocess.run(
-        [sys.executable, "-c", source],
-        cwd=REPO_ROOT,
-        env=env,
-        capture_output=True,
-        text=True,
-        timeout=30,
-        check=False,
+    try:
+        completed = subprocess.run(
+            [sys.executable, "-c", _ADMIN_PROBE_CONNECTION_CONTROLS + source],
+            cwd=REPO_ROOT,
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        raise AssertionError("admin import probe timed out") from None
+    if completed.returncode != 0:
+        raise AssertionError(f"admin import probe failed (returncode={completed.returncode})")
+    return completed
+
+
+def test_admin_import_probe_excludes_synthetic_ambient_credentials_and_configuration(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    excluded = (
+        "GH_TOKEN",
+        "GITHUB_TOKEN",
+        "OPENAI_API_KEY",
+        "DATABASE_URL",
+        "HTTPS_PROXY",
+        "PYTHONSTARTUP",
+        "PYTHONPATH",
+        "PYTHONHOME",
+        "SYNTHETIC_AMBIENT_MARKER",
     )
+    for key in excluded:
+        monkeypatch.setenv(key, "synthetic-parent-only")
+    for key in (
+        "APP_ENV",
+        "ENVIRONMENT",
+        "TESTING",
+        "PYTEST_CURRENT_TEST",
+        "API_KEY",
+        "SERVER_SALT",
+    ):
+        monkeypatch.setenv(key, "synthetic-parent-only")
+    source = textwrap.dedent(f"""
+        import os
+        for key in {excluded!r}:
+            assert key not in os.environ, "outside-key ambient value was forwarded"
+        assert os.environ["APP_ENV"] == "test"
+        assert os.environ["ENVIRONMENT"] == "test"
+        assert os.environ["TESTING"] == "true"
+        assert os.environ["PYTEST_CURRENT_TEST"] == "admin-scheduler-import-probe"
+        assert os.environ["API_KEY"] == "test-key"  # pragma: allowlist secret - synthetic child expectation
+        assert os.environ["SERVER_SALT"] == "test-salt"
+        """)
+    _run_python(source)
+
+
+def test_admin_import_probe_denies_named_connections_before_product_imports() -> None:
+    source = textwrap.dedent("""
+        import socket
+        import sys
+        from typing import Callable
+        assert "app" not in sys.modules
+        def require_denial(operation: Callable[[], object]) -> None:
+            try:
+                operation()
+            except AssertionError as exc:
+                assert str(exc) == "admin import probe connection denied"
+            else:
+                raise AssertionError("named connection was not denied")
+        require_denial(lambda: socket.create_connection(("127.0.0.1", 1)))
+        with socket.socket() as connection:
+            require_denial(lambda: connection.connect(("127.0.0.1", 1)))
+            require_denial(lambda: connection.connect_ex(("127.0.0.1", 1)))
+        """)
+    _run_python(source)
+
+
+def test_admin_import_probe_preserves_socketpair_cleanup_and_asyncio() -> None:
+    source = textwrap.dedent("""
+        import asyncio
+        import socket
+        with socket.socket() as ordinary:
+            assert ordinary.fileno() >= 0
+        assert ordinary.fileno() == -1
+        left, right = socket.socketpair()
+        with left, right:
+            with socket.socket(fileno=left.detach()) as adopted:
+                adopted.sendall(b"probe")
+                assert right.recv(5) == b"probe"
+        assert adopted.fileno() == right.fileno() == -1
+        sentinel = object()
+        async def return_sentinel() -> object:
+            return sentinel
+        assert asyncio.run(return_sentinel()) is sentinel
+        """)
+    _run_python(source)
 
 
 def test_scheduler_access_delegates_to_core_at_call_time(
@@ -128,13 +320,13 @@ def test_scheduler_access_identity_is_import_order_independent(first_module: str
         import legacy_app
         from app.services import scheduler_access
 
-        assert app.get_update_scheduler is legacy_app.get_update_scheduler
+        assert "get_update_scheduler" not in vars(legacy_app)
         assert app.get_update_scheduler is scheduler_access.get_update_scheduler
         """)
 
     result = _run_python(source)
 
-    assert result.returncode == 0, result.stderr
+    assert result.returncode == 0
 
 
 def test_optional_scheduler_is_not_an_import_time_dependency() -> None:
@@ -158,7 +350,7 @@ def test_optional_scheduler_is_not_an_import_time_dependency() -> None:
         import legacy_app
         from app.services import scheduler_access
 
-        assert getter is legacy_app.get_update_scheduler
+        assert "get_update_scheduler" not in vars(legacy_app)
         assert getter is scheduler_access.get_update_scheduler
         assert "core.food_apis.scheduler" not in sys.modules
 
@@ -172,7 +364,7 @@ def test_optional_scheduler_is_not_an_import_time_dependency() -> None:
 
     result = _run_python(source)
 
-    assert result.returncode == 0, result.stderr
+    assert result.returncode == 0
 
 
 def test_scheduler_access_sources_keep_ownership_narrow() -> None:
@@ -222,7 +414,7 @@ def test_scheduler_access_sources_keep_ownership_narrow() -> None:
 def test_legacy_scheduler_access_has_no_mutable_override_state() -> None:
     legacy_app = importlib.import_module("legacy_app")
 
-    assert legacy_app.get_update_scheduler is scheduler_access.get_update_scheduler
+    assert "get_update_scheduler" not in vars(legacy_app)
     for forbidden_name in (
         "_scheduler_getter",
         "_test_scheduler_override",
