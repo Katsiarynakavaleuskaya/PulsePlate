@@ -5829,6 +5829,24 @@ def test_alertmanager_COPY_graph_rejects_real_subject_or_payload_drift(
     "fault,observation_failure",
     [
         (None, False),
+        ("buildkit-repository", False),
+        ("buildkit-digest", False),
+        ("buildkit-prefix", False),
+        ("buildkit-suffix", False),
+        ("buildkit-lookalike", False),
+        ("buildkit-alias", False),
+        ("buildkit-tagged", False),
+        ("buildkit-split-entry", False),
+        ("buildkit-config-only", False),
+        ("buildkit-missing", False),
+        ("buildkit-empty", False),
+        ("buildkit-string", False),
+        ("buildkit-non-string", False),
+        ("buildkit-empty-string", False),
+        ("buildkit-duplicate", False),
+        ("buildkit-os", False),
+        ("buildkit-architecture", False),
+        ("buildkit-repository", True),
         ("base-load", False),
         ("create-after-effect", False),
         ("replaced-ID", False),
@@ -5860,6 +5878,8 @@ def test_alertmanager_offline_pair_real_owner_orders_two_launches_and_owned_clea
     builder = owner = ""
     builder_active = False
     builder_id, builder_image = "b" * 64, "sha256:" + "c" * 64
+    native_buildkit_digest = "moby/buildkit@" + docker_sources._ALERT_BUILDKIT.split("@", 1)[1]
+    buildkit_failure = fault is not None and fault.startswith("buildkit-")
     work = tmp_path / "pair"
     retained = tmp_path / "retained"
     retained.mkdir()
@@ -5906,14 +5926,48 @@ def test_alertmanager_offline_pair_real_owner_orders_two_launches_and_owned_clea
                     }
                 ).encode()
             elif name == "pair-BuildKit-image":
-                raw = json.dumps(
-                    {
-                        "Id": builder_image,
-                        "Os": "linux",
-                        "Architecture": "amd64",
-                        "RepoDigests": [docker_sources._ALERT_BUILDKIT],
-                    }
-                ).encode()
+                image: dict[str, Any] = {
+                    "Id": builder_image,
+                    "Os": "linux",
+                    "Architecture": "amd64",
+                    "RepoTags": [],
+                    "RepoDigests": [native_buildkit_digest],
+                }
+                variants: dict[str, Any] = {
+                    "buildkit-repository": [native_buildkit_digest.replace("moby/", "other/")],
+                    "buildkit-digest": [
+                        native_buildkit_digest[:-1]
+                        + ("0" if native_buildkit_digest[-1] != "0" else "1")
+                    ],
+                    "buildkit-prefix": ["prefix-" + native_buildkit_digest],
+                    "buildkit-suffix": [native_buildkit_digest + "-suffix"],
+                    "buildkit-lookalike": [
+                        native_buildkit_digest.replace("buildkit@", "buildkit-lookalike@")
+                    ],
+                    "buildkit-alias": ["docker.io/" + native_buildkit_digest],
+                    "buildkit-tagged": [docker_sources._ALERT_BUILDKIT],
+                    "buildkit-split-entry": [
+                        "moby/buildkit@sha256:" + "0" * 64,
+                        native_buildkit_digest.replace("moby/", "other/"),
+                    ],
+                    "buildkit-config-only": [],
+                    "buildkit-empty": [],
+                    "buildkit-string": native_buildkit_digest,
+                    "buildkit-non-string": [native_buildkit_digest, 17],
+                    "buildkit-empty-string": [native_buildkit_digest, ""],
+                    "buildkit-duplicate": [native_buildkit_digest, native_buildkit_digest],
+                }
+                if fault is not None and fault in variants:
+                    image["RepoDigests"] = variants[fault]
+                if fault == "buildkit-missing":
+                    image.pop("RepoDigests")
+                elif fault == "buildkit-config-only":
+                    image["Id"] = docker_sources._ALERT_BUILDKIT.split("@", 1)[1]
+                elif fault == "buildkit-os":
+                    image["Os"] = "windows"
+                elif fault == "buildkit-architecture":
+                    image["Architecture"] = "arm64"
+                raw = json.dumps(image).encode()
             elif name == "pair-builder-create":
                 builder = argv[argv.index("--name") + 1]
                 owner = next(
@@ -6072,7 +6126,10 @@ def test_alertmanager_offline_pair_real_owner_orders_two_launches_and_owned_clea
                 time.monotonic() + 600,
                 retained=retained,
             )
-        if fault == "assembly":
+        if buildkit_failure:
+            assert isinstance(caught.value, transport.QualificationError)
+            assert str(caught.value) == "AM_pinned_BuildKit_image"
+        elif fault == "assembly":
             assert caught.value is primary_error
         elif fault == "cleanup":
             assert caught.value is cleanup_error
@@ -6093,6 +6150,8 @@ def test_alertmanager_offline_pair_real_owner_orders_two_launches_and_owned_clea
         )
         assert result["logical_build_starts"] == 1 and result["compiler_starts"] == 2
         assert result["compiler_attempts"] == 2 and result["graph"]["files"] == d["expected"]
+        assert sum(name.endswith("-compile-attach") for name, _argv in calls) == 2
+        assert sum(name == "pair-only-COPY-assembly" for name, _argv in calls) == 1
     assert builder_active is (fault == "cleanup")
     if fault == "replaced-ID":
         assert returned_id != replaced_id and set(containers) == {replaced_id}
@@ -6108,15 +6167,34 @@ def test_alertmanager_offline_pair_real_owner_orders_two_launches_and_owned_clea
         assert not containers and result["owned_absence_observed"] is True
     assert observation_attempts == [work / "pair-observation.json"]
     assert (work / "pair-observation.json").is_file() is (not observation_failure)
-    if observation_failure:
+    if observation_failure or buildkit_failure:
         docker_sources._alertmanager_retain_execution(work.parent, retained)
         assert (retained / "pair-evidence/pair-base-load.stdout").exists()
         assert not list(retained.rglob("config.json"))
-        if fault != "replaced-ID":
+        if fault != "replaced-ID" and not buildkit_failure:
             assert (
                 retained / "pair-evidence/alertmanager-compile-attach.stdout"
             ).read_bytes() == b"synthetic actual compiler stdout"
-    if fault == "create-after-effect":
+    if buildkit_failure:
+        assert result["logical_build_starts"] == result["compiler_attempts"] == 0
+        assert result["compiler_starts"] == 0 and result["cleanup_failure"] is None
+        assert result["failure"] == "QualificationError:AM_pinned_BuildKit_image"
+        assert [name for name, _argv in calls] == [
+            "pair-base-load",
+            "pair-base-inspect",
+            "pair-preload-BuildKit",
+            "pair-BuildKit-image",
+            "pair-cleanup-census",
+            "pair-cleanup-absence",
+        ]
+        assert len(result["native_records"]) == 6
+        assert all(record["exit"] == 0 for record in result["native_records"])
+        assert (retained / "pair-evidence/pair-BuildKit-image.stdout").read_bytes() == (
+            work / "evidence/pair-BuildKit-image.stdout"
+        ).read_bytes()
+        assert not (retained / "pair-outputs").exists()
+        assert not (work / "candidate.oci.tar").exists()
+    elif fault == "create-after-effect":
         assert result["logical_build_starts"] == result["compiler_attempts"] == 1
         assert result["compiler_starts"] == 0 and len(result["failed_create_residue_bindings"]) == 1
     elif fault == "base-load":
@@ -6130,6 +6208,10 @@ def test_alertmanager_offline_pair_real_owner_orders_two_launches_and_owned_clea
     assert result["automatic_retries"] == 0
     assert sum(name == "pair-only-COPY-assembly" for name, _argv in calls) <= 1
     for name, argv in calls:
+        if name in ("pair-preload-BuildKit", "pair-BuildKit-image"):
+            assert argv[-1] == docker_sources._ALERT_BUILDKIT
+        elif name == "pair-builder-create":
+            assert argv.count("--driver-opt=image=" + docker_sources._ALERT_BUILDKIT) == 1
         if name.endswith("-create") and "--entrypoint=/toolchain/bin/go" in argv:
             assert all(
                 flag in argv

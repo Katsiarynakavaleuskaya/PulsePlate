@@ -4782,10 +4782,15 @@ def _alertmanager_pair(
                 cwd=work,
             )
         )
+        buildkit_ref, buildkit_digest = _ALERT_BUILDKIT.rsplit("@", 1)
+        buildkit_repo_digest = buildkit_ref.rsplit(":", 1)[0] + "@" + buildkit_digest
+        repo_digests = builder_image.get("RepoDigests")
         require(
             builder_image.get("Os") == "linux"
             and builder_image.get("Architecture") == "amd64"
-            and _ALERT_BUILDKIT in builder_image.get("RepoDigests", []),
+            and type(repo_digests) is list
+            and all(type(digest) is str and digest != "" for digest in repo_digests)
+            and repo_digests.count(buildkit_repo_digest) == 1,
             "AM_pinned_BuildKit_image",
         )
         builder_attempted = True
