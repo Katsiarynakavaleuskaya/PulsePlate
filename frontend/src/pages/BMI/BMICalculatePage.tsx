@@ -1,8 +1,7 @@
 // RU: Страница расчета BMI - форма ввода параметров и отображение результата
 // EN: BMI calculation page - input form and result display
 
-import { useEffect, useMemo, useRef, useState } from 'react';
-import type { JSX } from 'react';
+import { useEffect, useMemo, useRef, useState, type JSX } from 'react';
 import { useTranslation } from 'react-i18next';
 import { calculateBMI } from '../../api/bmi';
 import type { components } from '../../api/schema';

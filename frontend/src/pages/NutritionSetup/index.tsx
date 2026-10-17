@@ -4,8 +4,7 @@
 import { useState, useEffect } from 'react';
 import SetupForm from './SetupForm';
 import ResultView from './ResultView';
-import type { SetupFormValues } from './schema';
-import { isValidSetupFormValues } from './schema';
+import { isValidSetupFormValues, type SetupFormValues } from './schema';
 import { useSettings } from '../../lib/settings';
 import { Stepper } from '../../components/ui';
 import { useTranslation } from 'react-i18next';
