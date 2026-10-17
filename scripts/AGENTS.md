@@ -147,8 +147,14 @@
   its own qualified identity; every Docker operation uses one owned empty config
   and offline queries bind the observed base ID with pull disabled. Bad cached
   bytes are rejected before reading or replacement, with no retry/fallback.
-  Compare complete explicit GOMODCACHE payloads between replays; retain each
-  whole GOPATH/GOCACHE inventory and its individual offline stability. Original
+  Validate every complete raw GOMODCACHE row before cross-replay comparison.
+  Only exact canonical descendants of `cache/download/sumdb/`, owned by the
+  qualified Go checksum client, may differ between independent online replays;
+  every other complete row, its membership and order must compare exactly.
+  Retain all unfiltered GOMODCACHE and whole GOPATH/GOCACHE inventories and
+  require each complete raw cache to remain stable offline, including sumdb
+  rows. This is no general nondeterminism exemption; another unexplained
+  carrier requires coordinator rescope. Original
   and derived locks/projections plus bounded frozen inputs remain in the existing
   module-evidence upload. The complete artifact, including final inventory bytes,
   keeps the existing 2 GiB/250000-member bounds. Metadata finalization shares the
