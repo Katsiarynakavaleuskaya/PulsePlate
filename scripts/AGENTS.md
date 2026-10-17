@@ -177,6 +177,10 @@
   coordinates, consumer references or ignore retirement follow from source
   preparation. Frozen Prometheus inputs stay unchanged; their projection does
   not establish SDK nonimpact for catalog/fetcher changes.
+- Keep authenticated Q/S source recipe hashes historical. The existing current
+  assembly parameter alone binds the reviewed numeric chown/chmod storage COPY
+  in candidate source, input-plan and context checks; do not rewrite Q/S pins
+  when the later assembly recipe changes.
 - Manual `input-inspect` and `support-inspect` consume the exact authenticated
   successful qualification run, attempt, branch, source and artifact through the
   existing bounded read transport. Bind every retained byte, native command and
