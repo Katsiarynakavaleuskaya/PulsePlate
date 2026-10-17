@@ -13,6 +13,8 @@ import os
 import re
 import shutil
 import stat
+import subprocess  # nosec B404: # fixed reader process (remove-by: 2026-10-23, ref: PR-2477)
+import sys
 import tarfile
 from contextlib import suppress
 from dataclasses import dataclass
@@ -864,11 +866,13 @@ class DockerPromtoolClient:
 
     def __init__(self, *, docker: str, compose_file: Path) -> None:
         self._docker = docker
+        self._compose_file = compose_file.absolute()
+        self._compose_env: dict[str, str] | None = None
         self._compose_prefix = [
             docker,
             "compose",
             "-f",
-            os.fspath(compose_file),
+            os.fspath(self._compose_file),
         ]
         self._bound_app_container_id: str | None = None
         self._bound_prometheus_container_id: str | None = None
@@ -950,6 +954,7 @@ class DockerPromtoolClient:
                 *argv,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
+                env=self._compose_env if arguments[:1] == ["compose"] else None,
             )
         except OSError as exc:
             raise VerificationError(error_code) from exc
@@ -998,7 +1003,44 @@ class DockerPromtoolClient:
             raise VerificationError(error_code)
         return _CommandResult(return_code, bytes(stdout), bytes(stderr))
 
+    def _read_compose_environment(self) -> dict[str, str]:
+        helper = Path(__file__).resolve().parent / "ci/prometheus_source_image.py"
+        manifest = self._compose_file.parent / "prometheus/image-manifest.json"
+        try:
+            # This fixed reader emits only the canonically validated ref and one LF.
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(helper),
+                    "--operation",
+                    "read-manifest",
+                    "--manifest",
+                    str(manifest),
+                    "--field",
+                    "runtime_ref",
+                ],
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+                timeout=COMMAND_TIMEOUT_SECONDS,
+                env={"PATH": os.defpath, "LANG": "C.UTF-8"},
+            )  # nosec B603: # fixed reader, no shell (remove-by: 2026-10-23, ref: PR-2477)
+            raw = result.stdout
+            if (
+                not 1 < len(raw) <= 512
+                or raw.count(b"\n") != 1
+                or not raw.endswith(b"\n")
+                or not all(32 < byte < 127 for byte in raw[:-1])
+            ):
+                raise ValueError("reader_output")
+            runtime_ref = raw[:-1].decode("ascii")
+        except (OSError, subprocess.SubprocessError, ValueError) as exc:
+            raise VerificationError("prometheus_manifest_reader_failed") from exc
+        return {**os.environ, "PROMETHEUS_RUNTIME_REF": runtime_ref}
+
     def _run_compose(self, arguments: list[str], *, error_code: str) -> bytes:
+        if self._compose_env is None:
+            self._compose_env = self._read_compose_environment()
         result = self._run_docker(
             [*self._compose_prefix[1:], *arguments],
             error_code=error_code,

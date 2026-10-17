@@ -32,12 +32,10 @@ from pathlib import Path
 import pytest
 import yaml
 
+from scripts.ci import prometheus_source_image as prometheus_image
 from scripts.ops import notify_premium_alias_checkpoint_failure as notifier
 
 ROOT = Path(__file__).resolve().parents[1]
-PROMETHEUS_IMAGE = json.loads((ROOT / "deploy/prometheus/image-manifest.json").read_text())[
-    "runtime_ref"
-]
 ALERTMANAGER_IMAGE = (
     "prom/alertmanager@sha256:84967b9b7ba45e38a9278d3e594305f43d4993c310df3905b51138b816c365f3"
 )
@@ -305,7 +303,9 @@ class Clock:
         self.elapsed += seconds
 
 
-def _clock(monkeypatch: pytest.MonkeyPatch) -> Clock:
+def _clock(monkeypatch: pytest.MonkeyPatch, *, stub_manifest: bool = True) -> Clock:
+    if stub_manifest:
+        monkeypatch.setattr(notifier, "_compose_environment", lambda path: {})
     clock = Clock()
 
     class DateTime(datetime):
@@ -327,7 +327,7 @@ def test_fixed_payload_native_flags_and_frozen_event(
     clock = _clock(monkeypatch)
     calls: list[tuple[float, list[str]]] = []
 
-    def send(argv: list[str]) -> bool:
+    def send(argv: list[str], env: dict[str, str]) -> bool:
         calls.append((clock.elapsed, argv.copy()))
         clock.elapsed += 10
         return True
@@ -347,7 +347,7 @@ def test_fixed_payload_native_flags_and_frozen_event(
         "/absolute/docker",
         "compose",
         "-f",
-        "compose.yaml",
+        str(Path("compose.yaml").absolute()),
         "exec",
         "-T",
         "alertmanager",
@@ -372,7 +372,7 @@ def test_clock_shift_does_not_extend_event(monkeypatch: pytest.MonkeyPatch, jump
     clock = _clock(monkeypatch)
     count = 0
 
-    def send(argv: list[str]) -> bool:
+    def send(argv: list[str], env: dict[str, str]) -> bool:
         nonlocal count
         del argv
         count += 1
@@ -391,7 +391,7 @@ def test_suspend_skips_missed_slots_without_burst(monkeypatch: pytest.MonkeyPatc
     clock = _clock(monkeypatch)
     calls: list[float] = []
 
-    def send(argv: list[str]) -> bool:
+    def send(argv: list[str], env: dict[str, str]) -> bool:
         del argv
         calls.append(clock.elapsed)
         if len(calls) == 1:
@@ -411,7 +411,7 @@ def test_failure_stays_visible_without_raw_exception(
 ) -> None:
     _clock(monkeypatch)
     results = iter([False] + [True] * 14)
-    monkeypatch.setattr(notifier, "_send", lambda argv: next(results))
+    monkeypatch.setattr(notifier, "_send", lambda argv, env: next(results))
     assert (
         notifier.notify(
             docker="/absolute/docker", compose_file=Path("private-path"), environment="staging"
@@ -436,9 +436,10 @@ def test_cli_missing_docker_is_sanitized(
     assert capsys.readouterr().out == notifier.ERROR + "\n"
 
 
+@pytest.mark.parametrize("child_env", [None, {"PROMETHEUS_RUNTIME_REF": "synthetic-reference"}])
 @pytest.mark.parametrize("failure", ["success", "spawn", "exit", "timeout", "interrupt"])
 def test_native_command_channels_discard_raw_sentinel(
-    monkeypatch: pytest.MonkeyPatch, failure: str
+    monkeypatch: pytest.MonkeyPatch, failure: str, child_env: dict[str, str] | None
 ) -> None:
     killed: list[tuple[int, int]] = []
 
@@ -461,6 +462,7 @@ def test_native_command_channels_discard_raw_sentinel(
             "stdout": subprocess.DEVNULL,
             "stderr": subprocess.DEVNULL,
             "start_new_session": True,
+            "env": child_env,
         }
         if failure == "spawn":
             raise OSError("secret-sentinel")
@@ -470,9 +472,9 @@ def test_native_command_channels_discard_raw_sentinel(
     monkeypatch.setattr(notifier.os, "killpg", lambda pid, sig: killed.append((pid, sig)))
     if failure == "interrupt":
         with pytest.raises(asyncio.CancelledError):
-            notifier._send(["/absolute/docker"])
+            notifier._send(["/absolute/docker"], child_env)
     else:
-        assert notifier._send(["/absolute/docker"]) is (failure == "success")
+        assert notifier._send(["/absolute/docker"], child_env) is (failure == "success")
     assert killed == ([(123, signal.SIGKILL)] if failure in {"timeout", "interrupt"} else [])
 
 
@@ -983,7 +985,7 @@ def _owned_task_stopped(
     return stopped
 
 
-def _native_query_lifetime(directory: Path) -> None:
+def _native_query_lifetime(directory: Path, prometheus_image_id: str) -> None:
     from urllib.parse import parse_qs, urlsplit
 
     from scripts import verify_premium_alias_telemetry as verifier
@@ -1049,6 +1051,8 @@ def _native_query_lifetime(directory: Path) -> None:
             [
                 "docker",
                 "run",
+                "--pull",
+                "never",
                 "--name",
                 prometheus_name,
                 "-d",
@@ -1065,7 +1069,7 @@ def _native_query_lifetime(directory: Path) -> None:
                 "65532:65532",
                 "-v",
                 f"{config}:/etc/prometheus/prometheus.yml:ro",
-                PROMETHEUS_IMAGE,
+                prometheus_image_id,
                 "--config.file=/etc/prometheus/prometheus.yml",
                 "--web.listen-address=127.0.0.1:19090",
                 "--storage.tsdb.path=/prometheus",
@@ -1297,6 +1301,9 @@ def _native_amtool_lifetime(directory: Path) -> None:
         compose.write_text(
             f"services:\n  alertmanager:\n    profiles: [alerting]\n    image: {ALERTMANAGER_IMAGE}\n    platform: linux/amd64\n    user: '65534:65534'\n    cap_drop: [ALL]\n    security_opt: ['no-new-privileges:true']\n    read_only: true\n    network_mode: host\n    tmpfs: ['/alertmanager:uid=65534,gid=65534,mode=0700,size=16m']\n    command: ['--config.file=/etc/alertmanager/alertmanager.yml', '--storage.path=/alertmanager', '--cluster.listen-address=', '--web.listen-address=127.0.0.1:19093']\n    volumes: ['{config}:/etc/alertmanager/alertmanager.yml:ro']\n"
         )
+        selected_manifest = directory / "prometheus/image-manifest.json"
+        selected_manifest.parent.mkdir(exist_ok=True)
+        selected_manifest.write_bytes((ROOT / "deploy/prometheus/image-manifest.json").read_bytes())
         prefix = ["docker", "compose", "-f", str(compose)]
         failures: list[str] = []
         compose_attempted = True
@@ -1722,6 +1729,7 @@ def _native_compose_configuration(directory: Path) -> None:
     application_env.write_text("")
     backend = "ghcr.io/pulseplate/checkpoint-fixture@sha256:" + "1" * 64
     caddy = "ghcr.io/pulseplate/caddy-fixture@sha256:" + "2" * 64
+    prometheus = "ghcr.io/pulseplate/prometheus-fixture@sha256:" + "3" * 64
     inputs = {
         "POSTGRES_USER": "synthetic_user",
         "POSTGRES_DB": "synthetic_db",
@@ -1729,6 +1737,7 @@ def _native_compose_configuration(directory: Path) -> None:
         "STAGING_ENV_FILE": str(application_env),
         "STAGING_IMAGE_REF": backend,
         "STAGING_CADDY_IMAGE_REF": caddy,
+        "PROMETHEUS_RUNTIME_REF": prometheus,
     }
     docker = shutil.which("docker")
     assert docker is not None and os.path.isabs(docker), "native Compose binary unavailable"
@@ -1738,9 +1747,11 @@ def _native_compose_configuration(directory: Path) -> None:
     default = _native(
         [*client._compose_prefix, "config", "--format", "json"], cwd=fixture, check=False
     )
-    assert default.returncode == 0, "native default-profile configuration failed"
+    assert default.returncode == 0, (
+        "native default-profile configuration failed: " + default.stderr[:2048]
+    )
     assert "worker" not in json.loads(default.stdout)["services"]
-    for missing in (None, "STAGING_IMAGE_REF", "STAGING_CADDY_IMAGE_REF"):
+    for missing in (None, "STAGING_IMAGE_REF", "STAGING_CADDY_IMAGE_REF", "PROMETHEUS_RUNTIME_REF"):
         (fixture / ".env").write_text(
             "".join(f"{key}={value}\n" for key, value in inputs.items() if key != missing)
         )
@@ -1758,18 +1769,29 @@ def _native_compose_configuration(directory: Path) -> None:
         assert services["app"]["image"] == backend, "native app image binding differs"
         assert services["worker"]["image"] == backend, "native worker image binding differs"
         assert services["caddy"]["image"] == caddy, "native Caddy image binding differs"
+        assert (
+            services["prometheus"]["image"] == prometheus
+        ), "native Prometheus image binding differs"
         print("native_compose_configuration_positive=pass", flush=True)
 
 
 def native_main() -> None:
+    selection = prometheus_image.read_image_manifest(ROOT / prometheus_image.MANIFEST_PATH)[
+        "selection"
+    ]
+    image_id = selection["config_digest"]
     assert sys.platform == "linux", "native mode requires the existing Linux CI runner"
+    image = prometheus_image.one_object(
+        _native(["docker", "image", "inspect", "--format", "{{json .}}", image_id]).stdout.encode()
+    )
+    prometheus_image.native_image_contract(image, selection, local=True)
     with tempfile.TemporaryDirectory(prefix="pulseplate-obs2a-native-") as raw:
         directory = Path(raw)
         failures: list[str] = []
         for name, check in (
             ("compose_configuration", _native_compose_configuration),
             ("systemd", _native_systemd),
-            ("query_lifetime", _native_query_lifetime),
+            ("query_lifetime", lambda directory: _native_query_lifetime(directory, image_id)),
             ("amtool_lifetime", _native_amtool_lifetime),
             ("alertmanager", _native_alertmanager),
         ):
@@ -1785,7 +1807,7 @@ def native_main() -> None:
 
 
 @pytest.mark.parametrize(
-    "fault", ["none", "positive-rejected", "wrong-worker", "negative-accepted"]
+    "fault", ["none", "positive-rejected", "wrong-worker", "wrong-prometheus", "negative-accepted"]
 )
 def test_checkpoint_original_compose_fixture_classifies_only_synthetic_configuration(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], fault: str
@@ -1796,6 +1818,19 @@ def test_checkpoint_original_compose_fixture_classifies_only_synthetic_configura
     def config(argv: list[str], *, cwd: Path, check: bool) -> subprocess.CompletedProcess[str]:
         assert check is False
         prefix = ["/absolute/docker", "compose", "-f", str(cwd / "docker-compose.staging.yaml")]
+        text = (cwd / ".env").read_text()
+        if not calls:
+            expected = {
+                "POSTGRES_USER": "synthetic_user",
+                "POSTGRES_DB": "synthetic_db",
+                "STAGING_DOMAIN": "checkpoint.invalid",
+                "STAGING_ENV_FILE": str(cwd / "application.env"),
+                "STAGING_IMAGE_REF": "ghcr.io/pulseplate/checkpoint-fixture@sha256:" + "1" * 64,
+                "STAGING_CADDY_IMAGE_REF": "ghcr.io/pulseplate/caddy-fixture@sha256:" + "2" * 64,
+                "PROMETHEUS_RUNTIME_REF": "ghcr.io/pulseplate/prometheus-fixture@sha256:"
+                + "3" * 64,
+            }
+            assert text == "".join(f"{key}={value}\n" for key, value in expected.items())
         if argv == [*prefix, "config", "--format", "json"]:
             assert not calls
             return subprocess.CompletedProcess(argv, 0, json.dumps({"services": {"app": {}}}), "")
@@ -1805,7 +1840,6 @@ def test_checkpoint_original_compose_fixture_classifies_only_synthetic_configura
         ).read_bytes()
         assert (cwd / "application.env").read_bytes() == b""
         assert cwd.stat().st_mode & 0o777 == 0o700
-        text = (cwd / ".env").read_text()
         assert "POSTGRES_USER=synthetic_user\n" in text and "POSTGRES_DB=synthetic_db\n" in text
         assert "STAGING_DOMAIN=checkpoint.invalid\n" in text
         calls.append(argv)
@@ -1813,19 +1847,22 @@ def test_checkpoint_original_compose_fixture_classifies_only_synthetic_configura
             assert "STAGING_IMAGE_REF=" in text and "STAGING_CADDY_IMAGE_REF=" in text
             backend = "ghcr.io/pulseplate/checkpoint-fixture@sha256:" + "1" * 64
             caddy = "ghcr.io/pulseplate/caddy-fixture@sha256:" + "2" * 64
+            prometheus = "ghcr.io/pulseplate/prometheus-fixture@sha256:" + "3" * 64
             model = {
                 "services": {
                     "app": {"image": backend},
                     "worker": {"image": backend if fault != "wrong-worker" else caddy},
                     "caddy": {"image": caddy},
+                    "prometheus": {"image": prometheus if fault != "wrong-prometheus" else caddy},
                 }
             }
             return subprocess.CompletedProcess(
                 argv, 1 if fault == "positive-rejected" else 0, json.dumps(model), ""
             )
-        missing = "STAGING_IMAGE_REF" if len(calls) == 2 else "STAGING_CADDY_IMAGE_REF"
-        retained = "STAGING_CADDY_IMAGE_REF" if len(calls) == 2 else "STAGING_IMAGE_REF"
-        assert missing + "=" not in text and retained + "=" in text
+        bindings = ("STAGING_IMAGE_REF", "STAGING_CADDY_IMAGE_REF", "PROMETHEUS_RUNTIME_REF")
+        missing = bindings[len(calls) - 2]
+        assert missing + "=" not in text
+        assert all(binding + "=" in text for binding in bindings if binding != missing)
         return subprocess.CompletedProcess(
             argv,
             0 if fault == "negative-accepted" else 1,
@@ -1836,7 +1873,7 @@ def test_checkpoint_original_compose_fixture_classifies_only_synthetic_configura
     monkeypatch.setattr(sys.modules[__name__], "_native", config)
     if fault == "none":
         _native_compose_configuration(tmp_path)
-        assert len(calls) == 3
+        assert len(calls) == 4
     else:
         with pytest.raises(AssertionError):
             _native_compose_configuration(tmp_path)
@@ -1844,11 +1881,171 @@ def test_checkpoint_original_compose_fixture_classifies_only_synthetic_configura
     assert "synthetic_db" not in output and "postgresql" not in output
 
 
+def _checkpoint_prometheus_fixture(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> tuple[dict[str, object], dict[str, object]]:
+    """Complete parser/native-shape data only; no artifact or native admission."""
+    from tests.test_deploy_contract_scripts import _synthetic_prometheus_manifest
+
+    root = tmp_path / "checkpoint-source"
+    path = root / prometheus_image.MANIFEST_PATH
+    path.parent.mkdir(parents=True)
+    path.write_text(json.dumps(_synthetic_prometheus_manifest()))
+    (root / "Dockerfile").write_bytes((ROOT / "Dockerfile").read_bytes())
+    selection = prometheus_image.read_image_manifest(path)["selection"]
+    image = {
+        "Id": selection["config_digest"],
+        "Os": "linux",
+        "Architecture": "amd64",
+        "RootFS": {"Layers": selection["diff_ids"]},
+        "Config": {
+            "User": "65532:65532",
+            "Entrypoint": ["/bin/prometheus"],
+            "WorkingDir": "/prometheus",
+            "Cmd": [
+                "--config.file=/etc/prometheus/prometheus.yml",
+                "--storage.tsdb.path=/prometheus",
+            ],
+            "Volumes": None,
+        },
+    }
+    prometheus_image.native_image_contract(image, selection, local=True)
+    monkeypatch.setattr(sys.modules[__name__], "ROOT", root)
+    return selection, image
+
+
+def test_checkpoint_helper_import_does_not_activate_source_prepared_manifest(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "import-source"
+    for relative in (
+        "tests/__init__.py",
+        "tests/test_notify_premium_alias_checkpoint_failure.py",
+        "scripts/ci/prometheus_source_image.py",
+        "scripts/ops/notify_premium_alias_checkpoint_failure.py",
+    ):
+        target = root / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes((ROOT / relative).read_bytes())
+    path = root / prometheus_image.MANIFEST_PATH
+    path.parent.mkdir(parents=True)
+    path.write_text(
+        json.dumps(
+            {
+                "schema": prometheus_image.IMAGE_SCHEMA,
+                "phase": "source_prepared",
+                "inputs": prometheus_image.declared_inputs(),
+                "selection": None,
+                "candidate": None,
+            }
+        )
+    )
+    prometheus_image.read_image_manifest(path, preparation=True)
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-B",
+            "-c",
+            "from tests.test_notify_premium_alias_checkpoint_failure import _native; "
+            "assert callable(_native); print('import_without_activation')",
+        ],
+        cwd=root,
+        env={
+            "PATH": os.defpath,
+            "HOME": str(tmp_path),
+            "LANG": "C",
+            "PYTHONDONTWRITEBYTECODE": "1",
+        },
+        stdin=subprocess.DEVNULL,
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    assert result.stdout == "import_without_activation\n" and not result.stderr
+
+
+def test_checkpoint_prepared_activation_rejects_before_effects(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _checkpoint_prometheus_fixture(tmp_path, monkeypatch)
+    path = ROOT / prometheus_image.MANIFEST_PATH
+    data = json.loads(path.read_text())
+    data.update(phase="source_prepared", selection=None, candidate=None)
+    data["inputs"]["oras"]["retained"] = None
+    path.write_text(json.dumps(data))
+    prometheus_image.read_image_manifest(path, preparation=True)
+    monkeypatch.setattr(
+        sys.modules[__name__],
+        "_native",
+        lambda *args, **kwargs: pytest.fail("prepared native effect"),
+    )
+    monkeypatch.setattr(
+        tempfile,
+        "TemporaryDirectory",
+        lambda *args, **kwargs: pytest.fail("prepared scratch effect"),
+    )
+    with pytest.raises(
+        prometheus_image.QualificationError, match="^source_prepared_not_consumable$"
+    ):
+        native_main()
+
+
+@pytest.mark.parametrize("fault", ["config-id", "platform", "diff-ids", "runtime-user"])
+def test_checkpoint_loaded_image_contract_rejects_before_controls(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fault: str
+) -> None:
+    selection, image = _checkpoint_prometheus_fixture(tmp_path, monkeypatch)
+    if fault == "config-id":
+        image["Id"] = "sha256:" + "4" * 64
+    elif fault == "platform":
+        image["Architecture"] = "arm64"
+    elif fault == "diff-ids":
+        image["RootFS"] = {"Layers": ["sha256:" + "4" * 64]}
+    else:
+        image["Config"]["User"] = "0"
+    observed: list[list[str]] = []
+
+    def inspect(argv: list[str]) -> subprocess.CompletedProcess[str]:
+        observed.append(argv)
+        assert argv == [
+            "docker",
+            "image",
+            "inspect",
+            "--format",
+            "{{json .}}",
+            selection["config_digest"],
+        ]
+        return subprocess.CompletedProcess(argv, 0, json.dumps(image), "")
+
+    monkeypatch.setattr(sys, "platform", "linux")
+    monkeypatch.setattr(sys.modules[__name__], "_native", inspect)
+    monkeypatch.setattr(
+        tempfile, "TemporaryDirectory", lambda *args, **kwargs: pytest.fail("invalid-image effect")
+    )
+    diagnostic = (
+        "consumer_native_runtime_contract"
+        if fault == "runtime-user"
+        else "consumer_native_config_layers"
+    )
+    with pytest.raises(prometheus_image.QualificationError, match="^" + diagnostic + "$"):
+        native_main()
+    assert len(observed) == 1
+
+
 def test_checkpoint_native_main_selects_original_model_configuration_control(
+    tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    selection, image = _checkpoint_prometheus_fixture(tmp_path, monkeypatch)
     calls: list[str] = []
     monkeypatch.setattr(sys, "platform", "linux")
+    monkeypatch.setattr(
+        sys.modules[__name__],
+        "_native",
+        lambda argv: subprocess.CompletedProcess(argv, 0, json.dumps(image), ""),
+    )
     for name in (
         "_native_compose_configuration",
         "_native_systemd",
@@ -1856,9 +2053,17 @@ def test_checkpoint_native_main_selects_original_model_configuration_control(
         "_native_amtool_lifetime",
         "_native_alertmanager",
     ):
-        monkeypatch.setattr(
-            sys.modules[__name__], name, lambda directory, selected=name: calls.append(selected)
-        )
+        if name == "_native_query_lifetime":
+
+            def query(directory: Path, image_id: str) -> None:
+                assert image_id == selection["config_digest"]
+                calls.append("_native_query_lifetime")
+
+            monkeypatch.setattr(sys.modules[__name__], name, query)
+        else:
+            monkeypatch.setattr(
+                sys.modules[__name__], name, lambda directory, selected=name: calls.append(selected)
+            )
     native_main()
     assert calls == [
         "_native_compose_configuration",
@@ -2073,6 +2278,7 @@ def test_owned_task_census_tracks_real_survival_shape(
 def test_cleanup_failure_stops_notification_loop(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
+    monkeypatch.setattr(notifier, "_compose_environment", lambda path: {})
     calls: list[int] = []
 
     class Process:
@@ -2149,6 +2355,7 @@ def test_vanished_group_still_reaps_with_bound(monkeypatch: pytest.MonkeyPatch) 
 def test_expired_before_first_attempt_is_failure(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
+    monkeypatch.setattr(notifier, "_compose_environment", lambda path: {})
     origin = datetime(2026, 10, 5, tzinfo=timezone.utc)
     times = iter([origin, origin + timedelta(seconds=900)])
 
@@ -2159,7 +2366,7 @@ def test_expired_before_first_attempt_is_failure(
             return next(times)
 
     monkeypatch.setattr(notifier, "datetime", DateTime)
-    monkeypatch.setattr(notifier, "_send", lambda argv: pytest.fail("expired alert submitted"))
+    monkeypatch.setattr(notifier, "_send", lambda argv, env: pytest.fail("expired alert submitted"))
     assert (
         notifier.notify(
             docker="/absolute/docker", compose_file=Path("compose.yaml"), environment="staging"
@@ -2172,9 +2379,10 @@ def test_expired_before_first_attempt_is_failure(
 def test_interruption_never_resends(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
+    monkeypatch.setattr(notifier, "_compose_environment", lambda path: {})
     calls = 0
 
-    def send(argv: list[str]) -> bool:
+    def send(argv: list[str], env: dict[str, str]) -> bool:
         nonlocal calls
         del argv
         calls += 1
@@ -2350,6 +2558,10 @@ def test_checkpoint_partial_server_setup_attempts_independent_release(
     fixture: str,
     shutdown_error: bool,
 ) -> None:
+    image_id = ""
+    if fixture == "query":
+        selection, _image = _checkpoint_prometheus_fixture(tmp_path, monkeypatch)
+        image_id = selection["config_digest"]
     calls: list[str] = []
 
     class Server:
@@ -2397,6 +2609,9 @@ def test_checkpoint_partial_server_setup_attempts_independent_release(
     def native(argv: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
         del kwargs
         if "run" in argv or "up" in argv:
+            if fixture == "query":
+                assert argv[:4] == ["docker", "run", "--pull", "never"]
+                assert image_id in argv and selection["runtime_ref"] not in argv
             calls.append("setup-error")
             raise RuntimeError("synthetic primary setup")
         calls.append("owned-release:" + ("rm" if "rm" in argv else "stop"))
@@ -2404,7 +2619,10 @@ def test_checkpoint_partial_server_setup_attempts_independent_release(
 
     monkeypatch.setattr(sys.modules[__name__], "_native", native)
     with pytest.raises(RuntimeError, match="synthetic primary setup"):
-        (_native_query_lifetime if fixture == "query" else _native_amtool_lifetime)(tmp_path)
+        if fixture == "query":
+            _native_query_lifetime(tmp_path, image_id)
+        else:
+            _native_amtool_lifetime(tmp_path)
     assert calls[:3] == ["acquire", "start", "setup-error"]
     assert "shutdown" in calls and "close" in calls and "join" in calls
     assert any(call.startswith("owned-release:") for call in calls)
@@ -2418,6 +2636,10 @@ def test_checkpoint_cleanup_failure_without_primary_is_not_success(
 ) -> None:
     from scripts import verify_premium_alias_telemetry as verifier
 
+    image_id = ""
+    if fixture == "query":
+        selection, _image = _checkpoint_prometheus_fixture(tmp_path, monkeypatch)
+        image_id = selection["config_digest"]
     released: list[str] = []
 
     class Event:
@@ -2536,7 +2758,10 @@ def test_checkpoint_cleanup_failure_without_primary_is_not_success(
 
     monkeypatch.setattr(sys.modules[__name__], "_native", native)
     with pytest.raises(OSError, match="synthetic cleanup-only failure"):
-        (_native_query_lifetime if fixture == "query" else _native_amtool_lifetime)(tmp_path)
+        if fixture == "query":
+            _native_query_lifetime(tmp_path, image_id)
+        else:
+            _native_amtool_lifetime(tmp_path)
     assert all(operation in released for operation in ("shutdown", "close", "join", "container"))
 
     assert released.count("container") == (2 if fixture == "query" else 1)
@@ -2567,3 +2792,107 @@ if __name__ == "__main__":
         raise SystemExit(_native_checkpoint_fixture(args.native_fixture, args.directory))
     else:
         parser.error("explicit native mode required")
+
+
+@pytest.mark.parametrize("ambient", [None, "hostile.invalid/incorrect:latest"])
+def test_notifier_binds_selected_manifest_before_all_compose_attempts(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, ambient: str | None
+) -> None:
+    from tests.test_deploy_contract_scripts import _synthetic_prometheus_manifest
+
+    _clock(monkeypatch, stub_manifest=False)
+    compose = tmp_path / "selected/compose.yaml"
+    manifest = compose.parent / "prometheus/image-manifest.json"
+    manifest.parent.mkdir(parents=True)
+    data = _synthetic_prometheus_manifest()
+    manifest.write_text(json.dumps(data))
+    monkeypatch.chdir(tmp_path)
+    if ambient is None:
+        monkeypatch.delenv("PROMETHEUS_RUNTIME_REF", raising=False)
+    else:
+        monkeypatch.setenv("PROMETHEUS_RUNTIME_REF", ambient)
+    monkeypatch.setenv("COMPOSE_PROFILES", "observability,alerting")
+    calls: list[tuple[list[str], dict[str, str]]] = []
+
+    def send(argv: list[str], env: dict[str, str]) -> bool:
+        calls.append(
+            (argv, {key: env[key] for key in ("PROMETHEUS_RUNTIME_REF", "COMPOSE_PROFILES")})
+        )
+        return True
+
+    monkeypatch.setattr(notifier, "_send", send)
+    assert (
+        notifier.notify(
+            docker="/absolute/docker",
+            compose_file=Path("selected/compose.yaml"),
+            environment="staging",
+        )
+        == 0
+    )
+    assert len(calls) == 15
+    assert all(argv[3] == str(compose) for argv, _ in calls)
+    assert all(
+        env
+        == {
+            "PROMETHEUS_RUNTIME_REF": data["selection"]["runtime_ref"],
+            "COMPOSE_PROFILES": "observability,alerting",
+        }
+        for _, env in calls
+    )
+    assert os.environ.get("PROMETHEUS_RUNTIME_REF") == ambient
+
+
+@pytest.mark.parametrize("fault", ["missing", "malformed", "unselected", "wrong-contour"])
+def test_notifier_manifest_failure_precedes_compose(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], fault: str
+) -> None:
+    from tests.test_deploy_contract_scripts import _synthetic_prometheus_manifest
+
+    compose = tmp_path / "selected/compose.yaml"
+    selected = compose.parent / "prometheus/image-manifest.json"
+    data = _synthetic_prometheus_manifest()
+    if fault == "unselected":
+        data.update(phase="source_prepared", selection=None, candidate=None)
+    target = tmp_path / "prometheus/image-manifest.json" if fault == "wrong-contour" else selected
+    target.parent.mkdir(parents=True)
+    if fault != "missing":
+        target.write_text("{" if fault == "malformed" else json.dumps(data))
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("PROMETHEUS_RUNTIME_REF", "ambient-must-not-rescue")
+    monkeypatch.setattr(notifier.shutil, "which", lambda name: sys.executable)
+    monkeypatch.setattr(
+        notifier, "_send", lambda *args: pytest.fail("Compose reached after invalid manifest")
+    )
+    assert notifier.main(["--compose-file", str(compose), "--environment", "staging"]) == 1
+    assert capsys.readouterr().out == notifier.ERROR + "\n"
+
+
+@pytest.mark.parametrize("fault", ["exit", "timeout", "empty", "extra-line", "oversized"])
+def test_notifier_reader_failure_is_stable_and_never_sends(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], fault: str
+) -> None:
+    def reader(argv: list[str], **kwargs: object) -> subprocess.CompletedProcess[bytes]:
+        assert argv[0] == sys.executable
+        assert kwargs["timeout"] == notifier.COMMAND_TIMEOUT_SECONDS
+        assert kwargs["env"] == {"PATH": os.defpath, "LANG": "C.UTF-8"}
+        assert kwargs["stderr"] == subprocess.DEVNULL
+        if fault == "exit":
+            raise subprocess.CalledProcessError(1, argv)
+        if fault == "timeout":
+            raise subprocess.TimeoutExpired(argv, 10)
+        return subprocess.CompletedProcess(
+            argv, 0, {"empty": b"", "extra-line": b"a\nb\n", "oversized": b"x" * 513 + b"\n"}[fault]
+        )
+
+    monkeypatch.setattr(notifier.subprocess, "run", reader)
+    monkeypatch.setattr(notifier.shutil, "which", lambda name: sys.executable)
+    monkeypatch.setattr(
+        notifier, "_send", lambda *args: pytest.fail("Compose reached after reader failure")
+    )
+    assert (
+        notifier.main(
+            ["--compose-file", str(tmp_path / "compose.yaml"), "--environment", "staging"]
+        )
+        == 1
+    )
+    assert capsys.readouterr().out == notifier.ERROR + "\n"

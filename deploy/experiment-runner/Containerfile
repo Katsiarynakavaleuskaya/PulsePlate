@@ -22,44 +22,77 @@ RUN --mount=type=bind,from=verified-sources,source=/verified,target=/run/verifie
     signature_output="$(rpm -Kv /run/verified/epel-release-latest-10.noarch.rpm)"; \
     printf '%s\n' "${signature_output}" | grep -Fq 'key ID e37ed158: OK'; \
     rpm -i /run/verified/epel-release-latest-10.noarch.rpm; \
-    test "$(rpm -q --qf '%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}\n' epel-release)" = \
+    rpm_query_output="$(rpm -q --qf '%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}\n' epel-release)"; \
+    test "${rpm_query_output}" = \
       'epel-release-10-8.el10_2.noarch'; \
     microdnf install -y --setopt=install_weak_deps=0 \
-      python3.13-3.13.14-1.el10_2; \
+      python3.13-3.13.16-1.el10_2; \
     microdnf clean all; \
-    test "$(rpm -q --qf '%{NAME}-%{VERSION}-%{RELEASE}\n' python3.13)" = \
-      'python3.13-3.13.14-1.el10_2'; \
+    rpm_query_output="$(rpm -q --qf '%{NAME}-%{VERSION}-%{RELEASE}\n' python3.13)"; \
+    test "${rpm_query_output}" = \
+      'python3.13-3.13.16-1.el10_2'; \
     install -m 0644 /run/verified/html-parser.py \
       /usr/lib64/python3.13/html/parser.py; \
     rm -rf /usr/lib64/python3.13/html/__pycache__; \
     python3.13 -c 'from pathlib import Path; assert Path("/run/verified/html-parser.py").read_bytes() == Path("/usr/lib64/python3.13/html/parser.py").read_bytes()'; \
     python3.13 -c 'from html.parser import HTMLParser; parser = HTMLParser(); assert parser._pending == []; assert parser._pending_len == 0; assert parser._parse_threshold == 1'; \
     expected_rpm_package_count='107'; \
-    expected_rpm_inventory_sha256='89d2a8bb:1a6216d5:63f194d6:c65b556d:c5a1672c:9b126afe:d5d1b677:5a9c0125'; \
+    expected_rpm_inventory_sha256='ca9d7e7d:6aecf2f0:b49e8ce6:fa562a85:42f458c5:48920ccd:126c86da:f40cf8b9'; \
     expected_rpm_inventory_sha256="$(printf '%s' "${expected_rpm_inventory_sha256}" | tr -d ':')"; \
-    rpm_inventory="$(rpm -qa --qf '%{NAME}-%{EPOCHNUM}:%{VERSION}-%{RELEASE}.%{ARCH} %{SHA256HEADER} %{PAYLOADDIGEST} %{PAYLOADDIGESTALGO}\n' | LC_ALL=C sort)"; \
+    rpm_inventory="$(rpm -qa --qf '%{NAME}-%{EPOCHNUM}:%{VERSION}-%{RELEASE}.%{ARCH} %{SHA256HEADER} %{PAYLOADDIGEST} %{PAYLOADDIGESTALGO}\n')"; \
+    rpm_inventory="$(printf '%s\n' "${rpm_inventory}" | LC_ALL=C sort)"; \
     test "$(printf '%s\n' "${rpm_inventory}" | wc -l | tr -d ' ')" = \
       "${expected_rpm_package_count}"; \
     test "$(printf '%s\n' "${rpm_inventory}" | sha256sum | cut -d ' ' -f 1)" = \
       "${expected_rpm_inventory_sha256}"
 
+# Bind the existing UBI trustbundle before any replacement SDK library is loaded.
+# These are native build observations; later final-user loaded-library and TLS
+# qualification still has to confirm the actual successor image.
+RUN python3.13 -I - <<'TRUST_PY'
+import hashlib, json
+from pathlib import Path
+import ssl
+paths = ssl.get_default_verify_paths()
+if not paths.cafile:
+    raise SystemExit("UBI default CA file is unavailable")
+original = Path(paths.cafile).resolve(strict=True)
+payload = original.read_bytes()
+if not original.is_file() or not payload:
+    raise SystemExit("UBI default CA file is not a nonempty regular file")
+compiled_defaults = Path("/usr/lib/ssl")
+if compiled_defaults.is_symlink():
+    raise SystemExit("SDK default trust directory is unexpectedly linked")
+compiled_defaults.mkdir(exist_ok=True)
+for name, source in (("cert.pem", original), ("certs", Path(paths.capath).resolve(strict=True) if paths.capath else None)):
+    if source is None:
+        continue
+    target = compiled_defaults / name
+    if target.exists() or target.is_symlink():
+        if target.resolve(strict=True) != source:
+            raise SystemExit("SDK default trust path conflicts with existing UBI trust")
+    else:
+        target.symlink_to(source)
+print(json.dumps({"ubi_default_cafile": str(original), "bytes": len(payload), "sha256": hashlib.sha256(payload).hexdigest(), "sdk_default_cafile": "/usr/lib/ssl/cert.pem"}, sort_keys=True))
+TRUST_PY
+
 FROM python-runtime AS builder
 
 ENV PIP_DISABLE_PIP_VERSION_CHECK=1 \
-    PIP_NO_PYTHON_VERSION_WARNING=1 \
-    PULSEPLATE_DOCKER_SINGLE_PASS_LOCKED_INSTALL=1 \
-    PULSEPLATE_DOCKER_PIP_LAYER_CACHE=1
+    PIP_NO_PYTHON_VERSION_WARNING=1
 
 RUN set -eu; \
     microdnf install -y --setopt=install_weak_deps=0 \
       python3.13-pip-25.1.1-1.el10_1; \
     microdnf clean all; \
-    test "$(rpm -q --qf '%{NAME}-%{VERSION}-%{RELEASE}\n' python3.13-pip)" = \
+    rpm_query_output="$(rpm -q --qf '%{NAME}-%{VERSION}-%{RELEASE}\n' python3.13-pip)"; \
+    test "${rpm_query_output}" = \
       'python3.13-pip-25.1.1-1.el10_1'; \
     expected_rpm_package_count='108'; \
-    expected_rpm_inventory_sha256='877f449d:91c786a5:353d0f25:d95423fa:cc1cf06e:b6e748c6:c0be04f6:ced7c26b'; \
+    expected_rpm_inventory_sha256='485f2a7e:91850f39:662acff6:c97ad12e:321c377e:3c40f404:a91b9172:a6e10175'; \
     expected_rpm_inventory_sha256="$(printf '%s' "${expected_rpm_inventory_sha256}" | tr -d ':')"; \
-    rpm_inventory="$(rpm -qa --qf '%{NAME}-%{EPOCHNUM}:%{VERSION}-%{RELEASE}.%{ARCH} %{SHA256HEADER} %{PAYLOADDIGEST} %{PAYLOADDIGESTALGO}\n' | LC_ALL=C sort)"; \
+    rpm_inventory="$(rpm -qa --qf '%{NAME}-%{EPOCHNUM}:%{VERSION}-%{RELEASE}.%{ARCH} %{SHA256HEADER} %{PAYLOADDIGEST} %{PAYLOADDIGESTALGO}\n')"; \
+    rpm_inventory="$(printf '%s\n' "${rpm_inventory}" | LC_ALL=C sort)"; \
     test "$(printf '%s\n' "${rpm_inventory}" | wc -l | tr -d ' ')" = \
       "${expected_rpm_package_count}"; \
     test "$(printf '%s\n' "${rpm_inventory}" | sha256sum | cut -d ' ' -f 1)" = \
@@ -70,45 +103,136 @@ COPY requirements-lock.txt constraints.txt /build/
 COPY scripts/ci/check_python_startup_hooks.py \
      scripts/ci/emergency_python_wheels.json \
      scripts/ci/install_locked_python_requirements.py \
+     scripts/ci/check_private_python_proxy_health.py \
      /build/scripts/ci/
-
-RUN --mount=type=cache,target=/root/.cache/pip \
+COPY tests/fixtures/dependency_security_schema.json /build/tests/fixtures/
+COPY sdk-inputs/psycopg-sdk/ /opt/psycopg-sdk/
+# Static SDK wheel/receipt only; no supplied DSO/provider/config is active here.
+RUN --mount=type=tmpfs,target=/run/acquisition \
     --mount=type=secret,id=pp_py_index,required=true \
     --mount=type=secret,id=pp_py_host,required=false \
     --mount=type=secret,id=pp_netrc,required=false \
     set -eu; \
-    index_url="$(cat /run/secrets/pp_py_index)"; \
-    trusted_host=""; \
-    if [ -f /run/secrets/pp_py_host ]; then \
-      trusted_host="$(cat /run/secrets/pp_py_host)"; \
-    fi; \
-    if [ -f /run/secrets/pp_netrc ]; then \
-      install -m 0600 /run/secrets/pp_netrc /root/.netrc; \
-    fi; \
-    trap 'rm -f /root/.netrc' EXIT; \
+    set +x; umask 077; \
+    home=/run/acquisition/home; temporary=/run/acquisition/tmp; cache=/run/acquisition/cache; \
+    owned_home=0; owned_temporary=0; owned_cache=0; \
+    cleanup_acquisition() { \
+      primary=$?; trap - EXIT INT TERM; cleanup=0; \
+      for pair in "$owned_home:$home" "$owned_temporary:$temporary" "$owned_cache:$cache"; do \
+        owned=${pair%%:*}; directory=${pair#*:}; \
+        if [ "$owned" = 1 ]; then \
+          if [ -L "$directory" ] || [ ! -d "$directory" ]; then cleanup=1; \
+          elif ! rm -rf -- "$directory"; then cleanup=1; fi; \
+          if [ -e "$directory" ] || [ -L "$directory" ]; then cleanup=1; fi; \
+        fi; \
+      done; \
+      printf 'PP_SDK_ACQUISITION_STATUS primary=%s cleanup=%s\n' "$primary" "$cleanup"; \
+      if [ "$primary" -ne 0 ]; then exit "$primary"; fi; \
+      if [ "$cleanup" -ne 0 ]; then exit 1; fi; \
+    }; \
+    trap cleanup_acquisition EXIT; trap 'exit 130' INT; trap 'exit 143' TERM; \
+    for directory in "$home" "$temporary" "$cache"; do test ! -e "$directory"; test ! -L "$directory"; done; \
+    mkdir -m 700 "$home"; owned_home=1; \
+    mkdir -m 700 "$temporary"; owned_temporary=1; \
+    mkdir -m 700 "$cache"; owned_cache=1; \
+    index_url="$(cat /run/secrets/pp_py_index)"; trusted_host=""; \
+    if [ -f /run/secrets/pp_py_host ]; then trusted_host="$(cat /run/secrets/pp_py_host)"; fi; \
+    if [ -f /run/secrets/pp_netrc ]; then install -m 0600 /run/secrets/pp_netrc "$home/.netrc"; fi; \
     if [ -n "${trusted_host}" ]; then \
-      /opt/venv/bin/python /build/scripts/ci/install_locked_python_requirements.py \
+      /usr/bin/env -i HOME="$home" TMPDIR="$temporary" XDG_CACHE_HOME="$cache" PIP_CACHE_DIR="$cache/pip" \
+        PATH=/usr/bin:/bin LANG=C.UTF-8 PIP_CONFIG_FILE=/dev/null PIP_NO_CACHE_DIR=1 \
+        PIP_DISABLE_PIP_VERSION_CHECK=1 PYTHONDONTWRITEBYTECODE=1 \
+        /opt/venv/bin/python /build/scripts/ci/install_locked_python_requirements.py \
         --python-executable /opt/venv/bin/python \
-        --requirements-file /build/requirements-lock.txt \
-        --constraints-file /build/constraints.txt \
+        --requirements-file /build/requirements-lock.txt --constraints-file /build/constraints.txt \
         --guard-script /build/scripts/ci/check_python_startup_hooks.py \
         --emergency-wheel-manifest /build/scripts/ci/emergency_python_wheels.json \
-        --install-mode direct-proxy \
-        --require-virtualenv \
-        --index-url "${index_url}" \
-        --trusted-host "${trusted_host}"; \
+        --psycopg-sdk /opt/psycopg-sdk --require-virtualenv \
+        --upgrade-pip --upgrade-pip-spec 'pip>=26.2,<27' \
+        --prefetch-only --wheelhouse-dir /build/wheelhouse \
+        --index-url "${index_url}" --trusted-host "${trusted_host}"; \
     else \
-      /opt/venv/bin/python /build/scripts/ci/install_locked_python_requirements.py \
+      /usr/bin/env -i HOME="$home" TMPDIR="$temporary" XDG_CACHE_HOME="$cache" PIP_CACHE_DIR="$cache/pip" \
+        PATH=/usr/bin:/bin LANG=C.UTF-8 PIP_CONFIG_FILE=/dev/null PIP_NO_CACHE_DIR=1 \
+        PIP_DISABLE_PIP_VERSION_CHECK=1 PYTHONDONTWRITEBYTECODE=1 \
+        /opt/venv/bin/python /build/scripts/ci/install_locked_python_requirements.py \
         --python-executable /opt/venv/bin/python \
-        --requirements-file /build/requirements-lock.txt \
-        --constraints-file /build/constraints.txt \
+        --requirements-file /build/requirements-lock.txt --constraints-file /build/constraints.txt \
         --guard-script /build/scripts/ci/check_python_startup_hooks.py \
         --emergency-wheel-manifest /build/scripts/ci/emergency_python_wheels.json \
-        --install-mode direct-proxy \
-        --require-virtualenv \
-        --index-url "${index_url}"; \
-    fi; \
-    /opt/venv/bin/pip uninstall -y setuptools wheel
+        --psycopg-sdk /opt/psycopg-sdk --require-virtualenv \
+        --upgrade-pip --upgrade-pip-spec 'pip>=26.2,<27' \
+        --prefetch-only --wheelhouse-dir /build/wheelhouse --index-url "${index_url}"; \
+    fi
+
+# Quarantine is not a loader/provider/config search location. No secret mounts.
+COPY sdk-inputs/usr/local/lib/ /opt/sdk-quarantine/usr/local/lib/
+COPY sdk-inputs/usr/local/share/doc/pulseplate-native/ /opt/sdk-quarantine/usr/local/share/doc/pulseplate-native/
+RUN --network=none set -eu; \
+    for path in /run/acquisition/home /run/acquisition/tmp /run/acquisition/cache /run/secrets/pp_py_index /run/secrets/pp_py_host /run/secrets/pp_netrc; do \
+      test ! -e "$path"; test ! -L "$path"; \
+    done; \
+    /usr/bin/env -i HOME=/tmp PATH=/usr/bin:/bin LANG=C.UTF-8 PYTHONDONTWRITEBYTECODE=1 \
+      /opt/venv/bin/python -I /build/scripts/ci/install_locked_python_requirements.py \
+      --validate-psycopg-sdk --psycopg-sdk /opt/psycopg-sdk --psycopg-native-root /opt/sdk-quarantine
+
+# Finite transport copy only; canonical SDK semantics/origin remain separate.
+RUN --network=none /usr/bin/env -i HOME=/tmp PATH=/usr/bin:/bin LANG=C.UTF-8 \
+    /opt/venv/bin/python -I - <<'ACTIVATE_NATIVE_PY'
+import os, runpy, stat
+from pathlib import Path, PurePosixPath
+read = runpy.run_path('/build/scripts/ci/install_locked_python_requirements.py', run_name='static_native_copy')['_read_regular_input']
+origin = Path('/opt/sdk-quarantine/usr/local')
+target = Path('/usr/local')
+regular = {'lib/libpq.so.5.18','lib/libssl.so.3','lib/libcrypto.so.3',
+           'share/doc/pulseplate-native/OPENSSL-LICENSE','share/doc/pulseplate-native/LIBPQ-COPYRIGHT',
+           'share/doc/pulseplate-native/openssl.cnf'}
+provider = 'lib/ossl-modules/legacy.so'
+if (origin/provider).exists() or (origin/provider).is_symlink(): regular.add(provider)
+alias = 'lib/libpq.so.5'
+seen = set()
+actual_dirs = set()
+expected_dirs = {str(parent) for name in regular | {alias} for parent in PurePosixPath(name).parents if str(parent) != '.'}
+def discovery_error(error): raise error
+for directory, dirs, files in os.walk(origin, followlinks=False, onerror=discovery_error):
+    for name in dirs + files:
+        path = Path(directory)/name
+        info = path.lstat()
+        relative = path.relative_to(origin).as_posix()
+        if stat.S_ISDIR(info.st_mode): actual_dirs.add(relative)
+        else: seen.add(relative)
+if seen != regular | {alias} or actual_dirs != expected_dirs:
+    raise RuntimeError('Exact qualified native transport membership changed')
+if not (origin/alias).is_symlink() or os.readlink(origin/alias) != 'libpq.so.5.18':
+    raise RuntimeError('Exact qualified native alias changed')
+snapshot = {name:(read(origin/name,maximum=16*1024**2),stat.S_IMODE((origin/name).lstat().st_mode)) for name in regular}
+lib = target/'lib'
+lib.mkdir(exist_ok=True)
+if any(lib.iterdir()): raise RuntimeError('Active native destination is not empty')
+for name,(payload,mode) in snapshot.items():
+    path = target/name
+    path.parent.mkdir(parents=True,exist_ok=True)
+    fd = os.open(path,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,mode)
+    with os.fdopen(fd,'wb') as stream: stream.write(payload)
+    if read(path,maximum=16*1024**2) != payload or read(origin/name,maximum=16*1024**2) != payload:
+        raise RuntimeError('Validated native transport bytes changed during activation')
+(target/alias).symlink_to('libpq.so.5.18')
+(target/'lib/ossl-modules').mkdir(exist_ok=True)
+if os.readlink(target/alias) != os.readlink(origin/alias): raise RuntimeError('Native alias activation changed')
+print('PP_SDK_VALIDATED_NATIVE_COPY_COMPLETE')
+ACTIVATE_NATIVE_PY
+
+ENV LD_LIBRARY_PATH=/usr/local/lib \
+    OPENSSL_CONF=/usr/local/share/doc/pulseplate-native/openssl.cnf
+RUN --network=none /usr/bin/env -i HOME=/tmp PATH=/usr/bin:/bin LANG=C.UTF-8 \
+    LD_LIBRARY_PATH=/usr/local/lib OPENSSL_CONF=/usr/local/share/doc/pulseplate-native/openssl.cnf \
+    PIP_CONFIG_FILE=/dev/null PIP_DISABLE_PIP_VERSION_CHECK=1 PYTHONDONTWRITEBYTECODE=1 \
+    /opt/venv/bin/python /build/scripts/ci/install_locked_python_requirements.py \
+      --python-executable /opt/venv/bin/python --requirements-file /build/requirements-lock.txt \
+      --constraints-file /build/constraints.txt --guard-script /build/scripts/ci/check_python_startup_hooks.py \
+      --psycopg-sdk /opt/psycopg-sdk --require-virtualenv --consume-only --wheelhouse-dir /build/wheelhouse
+RUN --network=none /opt/venv/bin/pip uninstall -y setuptools wheel \
+    && chmod -R a+rX /opt/venv
 
 FROM python-runtime AS runner
 
@@ -116,26 +240,34 @@ LABEL org.opencontainers.image.title="PulsePlate Experiment Runner" \
       org.opencontainers.image.description="Strict local oracle execution image" \
       org.opencontainers.image.source="https://github.com/Katsiarynakavaleuskaya/PulsePlate"
 
+COPY --from=builder /opt/venv /opt/venv
+
 RUN set -eu; \
     microdnf install -y --setopt=install_weak_deps=0 \
       git-core-2.52.0-1.el10 \
       make-4.4.1-9.el10 \
       shadow-utils-4.15.0-11.el10 \
-      util-linux-core-2.40.2-18.el10; \
+      util-linux-core-2.40.2-18.el10 \
+      openssl-libs-3.5.8-2.el10_2; \
     microdnf clean all; \
     rpm -e epel-release; \
-    test "$(rpm -q --qf '%{NAME}-%{VERSION}-%{RELEASE}\n' git-core)" = \
+    rpm_query_output="$(rpm -q --qf '%{NAME}-%{VERSION}-%{RELEASE}\n' git-core)"; \
+    test "${rpm_query_output}" = \
       'git-core-2.52.0-1.el10'; \
-    test "$(rpm -q --qf '%{NAME}-%{VERSION}-%{RELEASE}\n' make)" = \
+    rpm_query_output="$(rpm -q --qf '%{NAME}-%{VERSION}-%{RELEASE}\n' make)"; \
+    test "${rpm_query_output}" = \
       'make-4.4.1-9.el10'; \
-    test "$(rpm -q --qf '%{NAME}-%{VERSION}-%{RELEASE}\n' shadow-utils)" = \
+    rpm_query_output="$(rpm -q --qf '%{NAME}-%{VERSION}-%{RELEASE}\n' shadow-utils)"; \
+    test "${rpm_query_output}" = \
       'shadow-utils-4.15.0-11.el10'; \
-    test "$(rpm -q --qf '%{NAME}-%{VERSION}-%{RELEASE}\n' util-linux-core)" = \
+    rpm_query_output="$(rpm -q --qf '%{NAME}-%{VERSION}-%{RELEASE}\n' util-linux-core)"; \
+    test "${rpm_query_output}" = \
       'util-linux-core-2.40.2-18.el10'; \
     expected_rpm_package_count='129'; \
-    expected_rpm_inventory_sha256='bf2426b1:94df76bf:c9f26642:a23b7b94:f208ee11:69251070:7d737476:368a34b2'; \
+    expected_rpm_inventory_sha256='4a9eb99a:ba1b6a59:9fccd7ef:6d32a3b6:cbed8b47:4e89de93:6697a78b:370494a8'; \
     expected_rpm_inventory_sha256="$(printf '%s' "${expected_rpm_inventory_sha256}" | tr -d ':')"; \
-    rpm_inventory="$(rpm -qa --qf '%{NAME}-%{EPOCHNUM}:%{VERSION}-%{RELEASE}.%{ARCH} %{SHA256HEADER} %{PAYLOADDIGEST} %{PAYLOADDIGESTALGO}\n' | LC_ALL=C sort)"; \
+    rpm_inventory="$(rpm -qa --qf '%{NAME}-%{EPOCHNUM}:%{VERSION}-%{RELEASE}.%{ARCH} %{SHA256HEADER} %{PAYLOADDIGEST} %{PAYLOADDIGESTALGO}\n')"; \
+    rpm_inventory="$(printf '%s\n' "${rpm_inventory}" | LC_ALL=C sort)"; \
     test "$(printf '%s\n' "${rpm_inventory}" | wc -l | tr -d ' ')" = \
       "${expected_rpm_package_count}"; \
     test "$(printf '%s\n' "${rpm_inventory}" | sha256sum | cut -d ' ' -f 1)" = \
@@ -147,11 +279,56 @@ RUN set -eu; \
     useradd --uid 65532 --gid 65532 --no-create-home \
       --home-dir /tmp --shell /sbin/nologin runner; \
     mkdir -p /repo/artifacts/orchestration/experiments/results; \
-    chown -R 65532:65532 /repo
+    chown -R 65532:65532 /repo; \
+    seed_dir=/usr/share/python3.13-wheels; \
+    seed_source=/opt/venv/lib/python3.13/site-packages/virtualenv/seed/wheels/embed/pip-26.2.1-py3-none-any.whl; \
+    old_seed="$seed_dir/pip-25.1.1-py3-none-any.whl"; \
+    new_seed="$seed_dir/pip-26.2.1-py3-none-any.whl"; \
+    test -d "$seed_dir"; test ! -L "$seed_dir"; \
+    set -- "$seed_dir"/pip-*.whl; \
+    test "$#" -eq 1; test "$1" = "$old_seed"; \
+    test -f "$old_seed"; test ! -L "$old_seed"; \
+    test "$(wc -c < "$old_seed" | tr -d ' ')" = 1303656; \
+    test "$(sha256sum "$old_seed" | cut -d ' ' -f 1)" = 2cc72b63ce38c42dffda258ccbbf737381ec0bcdc3deaa65746c459600a99936; \
+    test -f "$seed_source"; test ! -L "$seed_source"; \
+    test "$(wc -c < "$seed_source" | tr -d ' ')" = 1816632; \
+    test "$(sha256sum "$seed_source" | cut -d ' ' -f 1)" = 71138adf1f4ca900cdb7d289c21b7494329f2332b6d85f0e1c42108c0384ed3e; \
+    test ! -e "$new_seed"; test ! -L "$new_seed"; \
+    install -m 0644 "$seed_source" "$new_seed"; \
+    test "$(wc -c < "$new_seed" | tr -d ' ')" = 1816632; \
+    test "$(sha256sum "$new_seed" | cut -d ' ' -f 1)" = 71138adf1f4ca900cdb7d289c21b7494329f2332b6d85f0e1c42108c0384ed3e; \
+    python3.13 -I -c 'import hashlib, stat; from pathlib import Path; from email.parser import BytesParser; from zipfile import ZipFile; \
+source = Path("/opt/venv/lib/python3.13/site-packages/virtualenv/seed/wheels/embed/pip-26.2.1-py3-none-any.whl"); \
+selected = Path("/usr/share/python3.13-wheels/pip-26.2.1-py3-none-any.whl"); payload = selected.read_bytes(); \
+assert not selected.is_symlink() and stat.S_IMODE(selected.stat().st_mode) == 0o644; \
+assert len(payload) == 1816632 and hashlib.sha256(payload).hexdigest() == "71138adf1f4ca900cdb7d289c21b7494329f2332b6d85f0e1c42108c0384ed3e"; \
+assert source.read_bytes() == payload; wheel = ZipFile(selected); \
+assert wheel.namelist().count("pip-26.2.1.dist-info/METADATA") == 1; \
+metadata = BytesParser().parsebytes(wheel.read("pip-26.2.1.dist-info/METADATA")); wheel.close(); \
+assert metadata.get_all("Name") == ["pip"] and metadata.get_all("Version") == ["26.2.1"]; \
+print("ensurepip_seed_payload_verified_before_removal=26.2.1")'; \
+    rm -- "$old_seed"; \
+    test ! -e "$old_seed"; test ! -L "$old_seed"; \
+    set -- "$seed_dir"/pip-*.whl; \
+    test "$#" -eq 1; test "$1" = "$new_seed"; \
+    python3.13 -I - <<'ENSUREPIP_SEED_PY'
+import ensurepip
+import sysconfig
+from pathlib import Path
+selected = Path("/usr/share/python3.13-wheels/pip-26.2.1-py3-none-any.whl")
+assert sysconfig.get_config_var("WHEEL_PKG_DIR") == "/usr/share/python3.13-wheels"
+with ensurepip._get_pip_whl_path_ctx() as actual:
+    assert Path(actual) == selected
+assert ensurepip._get_pip_version() == "26.2.1"
+print("ensurepip_default_seed=26.2.1;seed_payload_sha256=71138adf1f4ca900cdb7d289c21b7494329f2332b6d85f0e1c42108c0384ed3e")
+ENSUREPIP_SEED_PY
 
-COPY --from=builder /opt/venv /opt/venv
+COPY --from=builder /usr/local/lib/ /usr/local/lib/
+COPY --from=builder /usr/local/share/doc/pulseplate-native/ /usr/local/share/doc/pulseplate-native/
 
-ENV HOME=/tmp \
+ENV LD_LIBRARY_PATH=/usr/local/lib \
+    OPENSSL_CONF=/usr/local/share/doc/pulseplate-native/openssl.cnf \
+    HOME=/tmp \
     PATH="/opt/venv/bin:/usr/bin:/bin" \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1

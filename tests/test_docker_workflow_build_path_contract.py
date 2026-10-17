@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ast
 from datetime import date
 from dataclasses import replace
 from email.message import Message
@@ -9,11 +10,14 @@ from hashlib import sha256, sha3_256
 from io import BytesIO
 import json
 import os
+import shlex
+import shutil
+from ssl import SSLCertVerificationError
 import subprocess
 import sys
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from urllib.parse import urlparse
-from urllib.error import HTTPError
+from urllib.error import HTTPError, URLError
 from urllib.request import HTTPHandler, HTTPSHandler, Request
 from urllib.response import addinfourl
 
@@ -41,6 +45,157 @@ EXPECTED_DOCKER_SOURCE_PREP_BUILD_STEPS = {
     ("cd.yml", "build", "Build & Push backend image (staging)"),
     ("cd.yml", "build-production", "Build & Push image (production)"),
 }
+
+
+def test_finite_backend_exports_follow_credential_cleanup_and_do_not_publish() -> None:
+    workflow = _load_workflow(WORKFLOWS_DIR / "build.yml")
+    job = workflow["jobs"]["build"]
+    assert job["permissions"] == {"actions": "read", "contents": "read"}
+    production = _step_by_name(job, "Build Docker image (local, for tests)")
+    staging = _step_by_name(job, "Build staging image from the same qualified backend inputs")
+    assert production["with"]["target"] == "production"
+    assert staging["with"]["target"] == "staging"
+    for step in (production, staging):
+        assert step["with"]["push"] is False and step["with"]["load"] is True
+        assert step["with"]["platforms"] == "linux/amd64"
+        assert (
+            step["with"]["build-args"]
+            == "PULSEPLATE_REQUIREMENTS_FILE=requirements-docker-runtime.txt\n"
+        )
+        assert "pp_netrc=${{ runner.temp }}/pulseplate-docker-netrc" in step["with"]["secret-files"]
+    export_name = "Retain exact production and staging native image bytes"
+    assert (
+        _step_index(job, production["name"])
+        < _step_index(job, staging["name"])
+        < _step_index(job, "Remove private Python index Docker authentication")
+        < _step_index(job, export_name)
+    )
+    exported = _step_by_name(job, export_name)
+    run = exported["run"]
+    assert 'test ! -e "$RUNNER_TEMP/pulseplate-docker-netrc"' in run
+    assert '[docker, "image", "save", "--output", str(archive), tag]' in run
+    assert "again != observed" in run and '"archive_sha256": digest(archive)' in run
+    assert "No registry publication or guest execution in this export step" in run
+    assert "docker login" not in run and '"push"' not in run
+    python_source = run.split("python3 - <<'PY'\n", 1)[1].split("\nPY\n", 1)[0]
+    ast.parse(python_source)
+    uploaded = _step_by_name(job, "Preserve exact backend native images for pullback qualification")
+    assert (
+        uploaded["if"]
+        == "${{ always() && steps.backend-native-export.outputs.complete == 'true' }}"
+    )
+
+
+def test_finite_arm_sdk_origin_is_manual_canonical_static_and_not_tool_trust() -> None:
+    from scripts.ci.install_locked_python_requirements import PSYCOPG_SDK_TARGETS
+
+    workflow = _load_workflow(WORKFLOWS_DIR / "build.yml")
+    job = workflow["jobs"]["backend-arm-sdk-qualification"]
+    assert job["runs-on"] == "ubuntu-24.04-arm"
+    assert job["permissions"] == {"contents": "read", "actions": "read"}
+    assert job["if"] == (
+        "github.event_name == 'workflow_dispatch' && inputs.mode == 'backend-sdk-qualify' && "
+        "github.repository == 'Katsiarynakavaleuskaya/PulsePlate' && github.repository_id == '1043311030'"
+    )
+    targets = [
+        target
+        for target in PSYCOPG_SDK_TARGETS
+        if (target.machine, target.minor) == ("aarch64", 13)
+    ]
+    assert len(targets) == 1 and job["env"]["SDK_SOURCE_IMAGE"] == targets[0].source_image
+    guard = _step_by_name(job, "Require one explicit genuine ARM SDK producer attempt")["run"]
+    assert "test \"$GITHUB_RUN_ATTEMPT\" = '1'" in guard
+    assert "test \"$GITHUB_REPOSITORY_ID\" = '1043311030'" in guard
+    assert 'test "$(uname -m)" = aarch64' in guard
+    acquisition = _step_by_name(job, "Prepare existing private acquisition credentials")
+    assert acquisition["env"] == {
+        "DEVPI_CI_USER": "${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && secrets.DEVPI_CI_USER || '' }}",
+        "DEVPI_CI_PASSWORD": "${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && secrets.DEVPI_CI_PASSWORD || '' }}",
+    }
+    assert (
+        'if [[ -z "${DEVPI_CI_USER:-}" && -z "${DEVPI_CI_PASSWORD:-}" ]]; then exit 0; fi'
+        in acquisition["run"]
+    )
+    built = _step_by_name(job, "Build genuine ARM cp313 SDK using its existing target")
+    assert built["with"]["target"] == "psycopg-sdk"
+    assert built["with"]["platforms"] == "linux/arm64"
+    assert built["with"]["push"] is False
+    name = "Bind genuine SDK origin, image and exported payload bytes"
+    assert (
+        _step_index(job, built["name"])
+        < _step_index(job, "Remove acquisition credentials before static SDK validation")
+        < _step_index(job, name)
+    )
+    origin = _step_by_name(job, name)
+    assert origin["env"] == {"SDK_BUILD_METADATA": "${{ steps.sdk-build.outputs.metadata }}"}
+    run = origin["run"]
+    assert 'read_psycopg_c_sdk(sdk / "psycopg-sdk", native_root=sdk)' in run
+    assert "SDK image and local exporter bytes differ" in run
+    assert "External clean supporting-tool-root admission" in run
+    assert "# Static wheel/receipt/DSO recognition only. No supplied SDK library," in run
+    assert '"--entrypoint", "/not-executed", image_id' in run
+    python_source = run.split("python3 - <<'PY'\n", 1)[1].split("\nPY\n", 1)[0]
+    ast.parse(python_source)
+    assert python_source.count('json.loads(os.environ["SDK_BUILD_METADATA"])') == 1
+    assert '"build_metadata": build_metadata' in python_source
+    start = python_source.index('build_metadata = json.loads(os.environ["SDK_BUILD_METADATA"])')
+    binding = python_source[start : python_source.index('name = "pp-sdk-export-', start)]
+    child_source = (
+        "import json, os, re\n"
+        'docker = "/qualified/docker"\n'
+        "def run(argv: list[str], name: str) -> bytes:\n"
+        '    assert argv == [docker, "image", "inspect", "pulseplate-sdk:arm-cp313"]\n'
+        '    assert name == "sdk-image"\n'
+        '    return os.environ["NATIVE_SDK_INSPECT"].encode()\n'
+        + binding
+        + '\nprint("SDK binding complete")\n'
+    )
+    config = "sha256:" + "a" * 64
+    manifest = "sha256:" + "b" * 64
+    metadata: dict[str, object] = {
+        "containerimage.config.digest": config,
+        "containerimage.digest": manifest,
+    }
+    inspected = [{"Id": config, "Os": "linux", "Architecture": "arm64"}]
+    cases: list[tuple[dict[str, object], list[dict[str, str]], str | None]] = [
+        (metadata, inspected, None),
+        (
+            {"containerimage.digest": manifest},
+            inspected,
+            "SDK build metadata config digest missing or malformed",
+        ),
+        (
+            metadata,
+            [{**inspected[0], "Id": manifest}],
+            "SDK image/config/platform mismatch",
+        ),
+    ]
+    cases.extend(
+        (
+            {**metadata, "containerimage.config.digest": malformed},
+            inspected,
+            "SDK build metadata config digest missing or malformed",
+        )
+        for malformed in (None, "", "sha256:" + "a" * 63, "sha256:" + "A" * 64, 42)
+    )
+    for current_metadata, current_inspected, expected_error in cases:
+        result = subprocess.run(
+            [sys.executable, "-I", "-S", "-c", child_source],
+            env={
+                "SDK_IMAGE_ID": "",
+                "SDK_BUILD_METADATA": json.dumps(current_metadata),
+                "NATIVE_SDK_INSPECT": json.dumps(current_inspected),
+            },
+            capture_output=True,
+            timeout=10,
+            check=False,
+        )
+        if expected_error is None:
+            assert result.returncode == 0, result.stderr
+            assert result.stdout == b"SDK binding complete\n"
+        else:
+            assert result.returncode != 0
+            assert result.stderr.decode().strip() == expected_error
 
 
 def _load_workflow(path: Path) -> dict[str, object]:
@@ -282,7 +437,7 @@ def test_build_workflow_blocks_removed_acl_attr_runtime_packages() -> None:
 
 
 def test_dockerfile_pins_all_backend_python_stages_to_one_oci_index() -> None:
-    """All external Python stages use the same immutable, ordered base."""
+    """Runtime bases stay fixed; only the exact isolated SDK family varies."""
     dockerfile = (REPO_ROOT / "Dockerfile").read_text(encoding="utf-8")
     trivyignore = (REPO_ROOT / ".trivyignore").read_text(encoding="utf-8")
     python_from_lines = tuple(
@@ -291,12 +446,423 @@ def test_dockerfile_pins_all_backend_python_stages_to_one_oci_index() -> None:
         if line.lstrip().casefold().startswith("from ") and "python" in line.casefold()
     )
 
-    assert len(python_from_lines) == 3
-    assert python_from_lines == EXPECTED_BACKEND_PYTHON_FROM_LINES
+    sdk_from_lines = (
+        "FROM ${PSYCOPG_SDK_PYTHON_IMAGE} AS native-builder",
+        "FROM ${PSYCOPG_SDK_PYTHON_IMAGE} AS psycopg-inputs",
+        "FROM ${PSYCOPG_SDK_PYTHON_IMAGE} AS dev-bootstrap-inputs",
+    )
+    assert len(python_from_lines) == 6
+    assert (
+        tuple(line for line in python_from_lines if line not in sdk_from_lines)
+        == EXPECTED_BACKEND_PYTHON_FROM_LINES
+    )
+    assert tuple(line for line in python_from_lines if line in sdk_from_lines) == sdk_from_lines
     assert "3.13.13" not in dockerfile
     assert f"FROM {BACKEND_PYTHON_BASE_IMAGE.partition('@')[0]} AS" not in dockerfile
     assert BACKEND_PYTHON_BASE_IMAGE.partition("@")[0] in trivyignore
     assert "3.13.13" not in trivyignore
+
+
+@pytest.mark.parametrize(
+    ("stage", "helpers"),
+    (
+        ("native-builder", ("fetch_docker_source_artifacts.py",)),
+        (
+            "psycopg-inputs",
+            ("install_locked_python_requirements.py", "check_private_python_proxy_health.py"),
+        ),
+        ("psycopg-wheel-builder", ("install_locked_python_requirements.py",)),
+        (
+            "dev-bootstrap-inputs",
+            ("install_locked_python_requirements.py", "check_private_python_proxy_health.py"),
+        ),
+        (
+            "development",
+            ("install_locked_python_requirements.py", "check_python_startup_hooks.py"),
+        ),
+    ),
+)
+def test_native_helper_stage_layout_executes_real_cli(
+    tmp_path: Path, stage: str, helpers: tuple[str, ...]
+) -> None:
+    """Actual COPY layouts preserve helper roots and parse operations without acquisition."""
+    dockerfile = (REPO_ROOT / "Dockerfile").read_text(encoding="utf-8")
+    section = dockerfile.split(f" AS {stage}\n", 1)[1].split("\nFROM ", 1)[0]
+    if stage == "psycopg-wheel-builder":
+        assert "FROM native-builder AS psycopg-wheel-builder" in dockerfile
+        parent = dockerfile.split(" AS native-builder\n", 1)[1].split("\nFROM ", 1)[0]
+        section = parent + "\n" + section
+    stage_root = tmp_path / stage
+    staged: dict[str, Path] = {}
+    for line in section.splitlines():
+        if not line.startswith("COPY scripts/ci/"):
+            continue
+        tokens = shlex.split(line)
+        destination = PurePosixPath(tokens[-1])
+        for source in tokens[1:-1]:
+            source_path = REPO_ROOT / source
+            target = destination / source_path.name if tokens[-1].endswith("/") else destination
+            assert target.parents[2] == PurePosixPath(
+                "/tooling"
+            ), "Native helper COPY lost the repository-root depth required by the real CLI"
+            materialized = stage_root / target.relative_to("/")
+            materialized.parent.mkdir(parents=True, exist_ok=True)
+            materialized.write_bytes(source_path.read_bytes())
+            staged[source_path.name] = materialized
+    home = tmp_path / "empty-home"
+    home.mkdir()
+    environment = {"PATH": os.defpath, "HOME": str(home), "LANG": "C.UTF-8"}
+    for name in helpers:
+        result = subprocess.run(
+            [sys.executable, str(staged[name]), "--help"],
+            cwd=stage_root,
+            env=environment,
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+        )
+        assert result.returncode == 0, result.stderr
+        assert "usage:" in result.stdout
+    installer = staged.get("install_locked_python_requirements.py")
+    if installer is not None:
+        operations = (
+            (["--build-psycopg-c"], "Exact Psycopg build requires all four explicit inputs"),
+            (
+                ["--prefetch-psycopg-source", str(tmp_path / "source"), "--prefetch-only"],
+                "Locked installer operation selectors are mutually exclusive.",
+            ),
+            (
+                ["--prefetch-psycopg-build-wheels", str(tmp_path / "wheels"), "--prefetch-only"],
+                "Locked installer operation selectors are mutually exclusive.",
+            ),
+        )
+        for flags, expected_error in operations:
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(installer),
+                    "--index-url",
+                    "https://packages.pulseplate.app/root/pulseplate/+simple/",
+                    *flags,
+                ],
+                cwd=stage_root,
+                env=environment,
+                capture_output=True,
+                text=True,
+                timeout=30,
+                check=False,
+            )
+            assert result.returncode == 1
+            assert expected_error in result.stdout, result.stdout + result.stderr
+        assert not (tmp_path / "source").exists()
+        assert not (tmp_path / "wheels").exists()
+
+
+def test_ncurses_replacement_preserves_debian_versioned_consumers() -> None:
+    """ABI6 keeps its symbol namespaces and checks actual consumers after pruning."""
+    dockerfile = (REPO_ROOT / "Dockerfile").read_text(encoding="utf-8")
+    configuration = dockerfile.split("cd /build/source/ncurses-6.6", 1)[1].split("make -j2", 1)[0]
+    for option in ("--with-versioned-syms", "--with-abi-version=6", "--enable-widec"):
+        assert option in configuration
+    assert "--with-termlib=tinfo" in configuration
+    source = dockerfile.split("<<'PY_NATIVE_TERMINAL'\n", 1)[1].split("\nPY_NATIVE_TERMINAL", 1)[0]
+    assert dockerfile.index(
+        "USER pulseplate", dockerfile.index("production-package-pruning-end")
+    ) < (dockerfile.index("<<'PY_NATIVE_TERMINAL'"))
+    assert 'run_checked_consumer(["/bin/bash", "--noprofile", "--norc"' in source
+    assert 'for interpreter in ("/usr/local/bin/python", "/opt/venv/bin/python"):' in source
+    assert "run_checked_consumer([interpreter" in source
+    assert "curses.setupterm" in source and "import curses.panel" in source
+    assert 'check_native_empty_panel_stack(ctypes.CDLL("libpanelw.so.6"))' in source
+    assert "curses.panel.bottom_panel" not in source
+    assert "readline.get_current_history_length" in source
+    assert "actual_ncurses = ncurses.curses_version()" in source
+    assert "linker.dlvsym(handle._handle, symbol, version)" in source
+    for version in (
+        "NCURSES6_TINFO_5.0.19991023",
+        "NCURSESW6_5.1.20000708",
+        "NCURSESW6_5.3.20021019",
+    ):
+        assert version in source
+    assert 'Path("/proc/self/maps")' in source and "hashlib.sha256" in source
+    assert "LD_LIBRARY_PATH" not in source and "LD_PRELOAD" not in source
+
+
+@pytest.mark.parametrize(
+    ("producer", "expected_exit", "diagnostic"),
+    (
+        ("print('ordinary terminal consumer')", 0, ""),
+        (
+            "import sys; sys.stderr.write('no version information available\\n')",
+            1,
+            "no version information available",
+        ),
+        (
+            "import sys; sys.stderr.write('version NCURSES6_TINFO not found\\n')",
+            1,
+            "version NCURSES6_TINFO not found",
+        ),
+        ("raise SystemExit(2)", 1, "Native terminal consumer returned an error"),
+        (
+            "import sys; print('ordinary output'); sys.stderr.write('other diagnostic\\n')",
+            1,
+            "other diagnostic",
+        ),
+    ),
+)
+def test_real_terminal_consumer_adapter_rejects_diagnostics(
+    tmp_path: Path, producer: str, expected_exit: int, diagnostic: str
+) -> None:
+    """Execute the shipped adapter with real child exits and stdout/stderr streams."""
+    dockerfile = (REPO_ROOT / "Dockerfile").read_text(encoding="utf-8")
+    source = dockerfile.split("<<'PY_NATIVE_TERMINAL'\n", 1)[1].split("\nPY_NATIVE_TERMINAL", 1)[0]
+    parsed = ast.parse(source)
+    declarations = ast.Module(
+        body=[node for node in parsed.body if isinstance(node, (ast.Import, ast.FunctionDef))],
+        type_ignores=[],
+    )
+    command = [sys.executable, "-c", producer]
+    program = ast.unparse(declarations) + f"\nrun_checked_consumer({command!r})\n"
+    result = subprocess.run(
+        [sys.executable, "-c", program],
+        cwd=tmp_path,
+        env={"PATH": os.defpath, "HOME": str(tmp_path), "LANG": "C.UTF-8"},
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+    assert result.returncode == expected_exit, result.stdout + result.stderr
+    if diagnostic:
+        assert diagnostic in result.stderr
+    else:
+        assert result.stdout == "ordinary terminal consumer\n"
+        assert not result.stderr
+
+
+@pytest.mark.parametrize("above,below,expected_exit", ((None, None, 0), (1, None, 1), (None, 1, 1)))
+def test_native_panel_null_boundary_rejects_nonempty_results(
+    tmp_path: Path, above: int | None, below: int | None, expected_exit: int
+) -> None:
+    """The shipped NULL-result checker rejects either unexpected panel pointer."""
+    dockerfile = (REPO_ROOT / "Dockerfile").read_text(encoding="utf-8")
+    wrapper = dockerfile.split("<<'PY_NATIVE_TERMINAL'\n", 1)[1].split("\nPY_NATIVE_TERMINAL", 1)[0]
+    assignment = next(
+        node
+        for node in ast.parse(wrapper).body
+        if isinstance(node, ast.Assign)
+        and any(
+            isinstance(target, ast.Name) and target.id == "consumer_source"
+            for target in node.targets
+        )
+    )
+    assert isinstance(assignment.value, ast.Constant) and isinstance(assignment.value.value, str)
+    helper = next(
+        node
+        for node in ast.parse(assignment.value.value).body
+        if isinstance(node, ast.FunctionDef) and node.name == "check_native_empty_panel_stack"
+    )
+    source = "import ctypes\nimport types\n" + ast.unparse(helper)
+    source += f"""
+class SyntheticPanelOperation:
+    def __init__(self, value):
+        self.value = value
+    def __call__(self, pointer):
+        assert pointer is None
+        assert self.argtypes == [ctypes.c_void_p] and self.restype is ctypes.c_void_p
+        return self.value
+panel = types.SimpleNamespace(panel_above=SyntheticPanelOperation({above!r}),
+                              panel_below=SyntheticPanelOperation({below!r}))
+check_native_empty_panel_stack(panel)
+"""
+    result = subprocess.run(
+        [sys.executable, "-c", source],
+        cwd=tmp_path,
+        env={"PATH": os.defpath, "HOME": str(tmp_path), "LANG": "C.UTF-8"},
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+    assert result.returncode == expected_exit, result.stdout + result.stderr
+    if expected_exit:
+        assert "Native panel empty-stack boundary returned a non-NULL panel" in result.stderr
+    else:
+        assert not result.stdout and not result.stderr
+
+
+def test_native_shared_export_preserves_source_aliases_and_excludes_static_inputs(
+    tmp_path: Path,
+) -> None:
+    """Real cp -a preserves the source SDK topology before directory-content COPY."""
+    dockerfile = (REPO_ROOT / "Dockerfile").read_text(encoding="utf-8")
+    section = dockerfile.split(" AS native-shared-runtime\n", 1)[1].split("\nFROM ", 1)[0]
+    assert "RUN --network=none mkdir -p /native-shared-libraries" in section
+    assert "cp -a /native/usr/local/lib/*.so* /native-shared-libraries/" in section
+    assert (
+        dockerfile.count(
+            "COPY --from=native-shared-runtime /native-shared-libraries/ /usr/local/lib/"
+        )
+        == 2
+    )
+    assert "COPY --from=native-builder /native/usr/local/lib/*.so*" not in dockerfile
+    source = tmp_path / "source"
+    export = tmp_path / "export"
+    source.mkdir()
+    export.mkdir()
+    payload = b"synthetic canonical shared DSO bytes"
+    (source / "libpq.so.5.18").write_bytes(payload)
+    for name in ("libpq.so", "libpq.so.5"):
+        (source / name).symlink_to("libpq.so.5.18")
+    (source / "libpq.a").write_bytes(b"static archive excluded")
+    (source / "pkgconfig").mkdir()
+    (source / "pkgconfig/libpq.pc").write_text("excluded package configuration")
+    copy_binary = shutil.which("cp")
+    assert copy_binary is not None
+    result = subprocess.run(
+        [copy_binary, "-a", *(str(path) for path in sorted(source.glob("*.so*"))), str(export)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert {path.name for path in export.iterdir()} == {"libpq.so", "libpq.so.5", "libpq.so.5.18"}
+    assert (export / "libpq.so.5.18").is_file() and not (export / "libpq.so.5.18").is_symlink()
+    for name in ("libpq.so", "libpq.so.5"):
+        assert (export / name).is_symlink()
+        assert (export / name).readlink() == Path("libpq.so.5.18")
+        assert (export / name).read_bytes() == payload
+
+
+@pytest.mark.parametrize(
+    "scenario",
+    ("canonical", "wrong_path", "extra_path", "flattened_alias", "absolute_alias", "wrong_hash"),
+)
+def test_libpq_lineage_guard_requires_exact_source_topology_and_bytes(
+    tmp_path: Path, scenario: str
+) -> None:
+    """The shipped guard rejects valid-version libraries with the wrong source identity."""
+    dockerfile = (REPO_ROOT / "Dockerfile").read_text(encoding="utf-8")
+    source = dockerfile.split("<<'PY_NATIVE_PSYCOPG'\n", 1)[1].split("\nPY_NATIVE_PSYCOPG", 1)[0]
+    assert 'psycopg.__version__ != "3.3.4"' in source
+    assert 'pq.__impl__ != "c" or pq.version() != 180006' in source
+    assert "OpenSSL 4.0.3" in source
+    assert "Psycopg actual mapped libpq paths" in source
+    assert "Psycopg source DSO hash" in source
+    helper = next(
+        node
+        for node in ast.parse(source).body
+        if isinstance(node, ast.FunctionDef) and node.name == "check_libpq_lineage"
+    )
+    root = tmp_path / "native-lib"
+    root.mkdir()
+    canonical = root / "libpq.so.5.18"
+    payload = b"synthetic reviewed canonical DSO"
+    canonical.write_bytes(payload)
+    for name in ("libpq.so", "libpq.so.5"):
+        (root / name).symlink_to("libpq.so.5.18")
+    loaded = [canonical]
+    if scenario == "wrong_path":
+        loaded = [tmp_path / "wrong-lib/libpq.so.5.18"]
+    elif scenario == "extra_path":
+        loaded.append(tmp_path / "extra-lib/libpq.so.5")
+    elif scenario == "flattened_alias":
+        (root / "libpq.so.5").unlink()
+        (root / "libpq.so.5").write_bytes(payload)
+    elif scenario == "absolute_alias":
+        (root / "libpq.so.5").unlink()
+        (root / "libpq.so.5").symlink_to(canonical)
+    receipt = tmp_path / "sdk.json"
+    receipt.write_text(
+        json.dumps(
+            {
+                "native_libraries": {
+                    "libpq.so.5": sha256(
+                        b"different bytes" if scenario == "wrong_hash" else payload
+                    ).hexdigest()
+                }
+            }
+        )
+    )
+    program = "import hashlib, json\nfrom pathlib import Path\n" + ast.unparse(helper)
+    program += (
+        f"\ncheck_libpq_lineage({{Path(name) for name in {[str(path) for path in loaded]!r}}}, "
+        f"Path({str(root)!r}), Path({str(receipt)!r}))\n"
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", program],
+        cwd=tmp_path,
+        env={"PATH": os.defpath, "HOME": str(tmp_path), "LANG": "C.UTF-8"},
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+    assert result.returncode == (0 if scenario == "canonical" else 1), result.stdout + result.stderr
+    assert "Psycopg actual mapped libpq paths" in result.stdout
+    if scenario in ("canonical", "wrong_hash"):
+        assert "Psycopg source DSO hash" in result.stdout
+    if scenario != "canonical":
+        assert "Psycopg" in result.stderr
+
+
+@pytest.mark.parametrize(
+    "version_info,expected_exit",
+    (
+        ((3, 5, 0, 9, 0), 0),
+        ((3, 5, 0, 8, 0), 1),
+        ((3, 6, 0, 9, 0), 1),
+        ((4, 0, 0, 9, 0), 1),
+        ((3, 5, 9, 0, 0), 1),
+        ((3, 5, 0, 9, 15), 1),
+    ),
+)
+def test_runtime_openssl_guard_uses_openssl3_patch_field_and_release_status(
+    tmp_path: Path, version_info: tuple[int, ...], expected_exit: int
+) -> None:
+    """Execute the shipped version guard against the public OpenSSL 3 tuple shape."""
+    dockerfile = (REPO_ROOT / "Dockerfile").read_text(encoding="utf-8")
+    source = dockerfile.split("<<'PY_NATIVE_PSYCOPG'\n", 1)[1].split("\nPY_NATIVE_PSYCOPG", 1)[0]
+    statements = [
+        node
+        for node in ast.parse(source).body
+        if (
+            isinstance(node, ast.Expr)
+            and isinstance(node.value, ast.Call)
+            and node.value.args
+            and isinstance(node.value.args[0], ast.Constant)
+            and node.value.args[0].value == "Loaded shared OpenSSL"
+        )
+        or (
+            isinstance(node, ast.If)
+            and "Psycopg runtime shared OpenSSL mismatch" in ast.unparse(node)
+        )
+    ]
+    assert len(statements) == 2
+    assert isinstance(statements[0], ast.Expr) and isinstance(statements[1], ast.If)
+    program = (
+        "import types\n"
+        f"ssl = types.SimpleNamespace(OPENSSL_VERSION_INFO={version_info!r}, "
+        "OPENSSL_VERSION='synthetic OpenSSL observation', OPENSSL_VERSION_NUMBER=0x30500090)\n"
+        + "\n".join(ast.unparse(node) for node in statements)
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", program],
+        cwd=tmp_path,
+        env={"PATH": os.defpath, "HOME": str(tmp_path), "LANG": "C.UTF-8"},
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+    assert result.returncode == expected_exit, result.stdout + result.stderr
+    assert repr(version_info) in result.stdout
+    assert "synthetic OpenSSL observation" in result.stdout and "0x30500090" in result.stdout
+    if expected_exit:
+        assert "Psycopg runtime shared OpenSSL mismatch" in result.stderr
+    else:
+        assert not result.stderr
 
 
 def test_dockerfile_builds_verified_sqlite_runtime_library() -> None:
@@ -352,8 +918,14 @@ def test_docker_source_artifact_manifest_pins_sqlite_source() -> None:
     assert manifest["schema_version"] == 1
     assert manifest["generated_at"] == "2026-10-04"
     assert manifest["review_by"] == "2026-10-21"
-    assert len(artifacts) == 4
-    assert [row["name"] for row in artifacts] == ["sqlite-autoconf", "util-linux", "pcre2", "sljit"]
+    assert len(artifacts) == 17
+    assert [row["name"] for row in artifacts[-2:]] == ["alertmanager-source", "alertmanager-ui"]
+    assert [row["name"] for row in artifacts[:4]] == [
+        "sqlite-autoconf",
+        "util-linux",
+        "pcre2",
+        "sljit",
+    ]
     for name in ("SQLite", "util-linux", "PCRE2", "SLJIT"):
         assert name in manifest["reason"]
 
@@ -385,11 +957,11 @@ def test_docker_source_artifact_manifest_review_window_is_inclusive(tmp_path: Pa
     historical["generated_at"] = "2026-09-28"
     historical["review_by"] = "2026-10-05"
     old_path = _write_docker_source_manifest(tmp_path, historical)
-    assert len(docker_sources.load_manifest(old_path, today=date(2026, 10, 5))) == 4
+    assert len(docker_sources.load_manifest(old_path, today=date(2026, 10, 5))) == 15
     with pytest.raises(RuntimeError, match="review_by is stale: 2026-10-05"):
         docker_sources.load_manifest(old_path, today=date(2026, 10, 6))
     for day in (6, 8, 21):
-        assert len(docker_sources.load_manifest(manifest_path, today=date(2026, 10, day))) == 4
+        assert len(docker_sources.load_manifest(manifest_path, today=date(2026, 10, day))) == 15
     with pytest.raises(RuntimeError, match="review_by is stale: 2026-10-21"):
         docker_sources.load_manifest(manifest_path, today=date(2026, 10, 22))
 
@@ -490,12 +1062,12 @@ def test_nightly_forecast_executes_utc_date_boundaries_and_labels(
     forecast_finding: bool,
 ) -> None:
     historical = (
-        (REPO_ROOT / "trivy/ignore-policy.rego")
-        .read_text()
-        .replace("2026-10-30", "2026-10-07")
-        .replace("2026-10-21", "2026-10-05")
+        "package trivy\n\nimport rego.v1\n"
+        "# Suppression expires: 2026-10-07 (manual removal)\n"
+        "# Review-by: 2026-10-05 (manual removal)\n"
+        "# Review-by: 2026-10-07 (manual removal)\n"
+        'default ignore := false\nignore if {\n\tinput.VulnerabilityID == "CVE-0000-0000"\n}\n'
     )
-    historical += "\n# Review-by: 2026-10-07 (manual removal)\n"
     result, summary = _run_forecast_workflow(tmp_path, today=today, policy=historical)
 
     assert result.returncode == expected_exit, result.stderr
@@ -744,16 +1316,28 @@ def _stub_source_transport(
     payload: bytes,
     code: int = 200,
     location: str | None = None,
+    response_codes: tuple[int, ...] | None = None,
+    response_headers: dict[str, str] | None = None,
+    request_headers: list[dict[str, str]] | None = None,
 ) -> list[tuple[str, int]]:
     """Keep the actual opener/redirect dispatch and replace only HTTP transport."""
     calls: list[tuple[str, int]] = []
 
     def respond(_handler: object, request: Request) -> addinfourl:
         calls.append((request.full_url, request.timeout))
+        if request_headers is not None:
+            request_headers.append(dict(request.header_items()))
         headers = Message()
+        for name, value in (response_headers or {}).items():
+            headers[name] = value
         if location is not None:
             headers["Location"] = location
-        response = addinfourl(BytesIO(payload), headers, request.full_url, code)
+        status = code
+        if response_codes is not None:
+            if len(calls) > len(response_codes):
+                pytest.fail("source transport exceeded its finite response inventory")
+            status = response_codes[len(calls) - 1]
+        response = addinfourl(BytesIO(payload), headers, request.full_url, status)
         response.msg = "synthetic source response"
         return response
 
@@ -816,6 +1400,174 @@ def test_source_fetch_revalidates_direct_artifact_before_transport(
     assert calls == []
 
 
+@pytest.mark.parametrize("status", (502, 503, 504))
+def test_source_fetch_retries_gateway_error_then_verifies_same_payload(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    status: int,
+) -> None:
+    payload = b"verified sqlite source artifact"
+    manifest = _write_docker_source_manifest(tmp_path, _docker_source_manifest(payload=payload))
+    artifact = docker_sources.load_manifest(manifest, today=date(2026, 6, 14))[0]
+    calls = _stub_source_transport(monkeypatch, payload=payload, response_codes=(status, 200))
+    waits: list[int] = []
+    monkeypatch.setattr(docker_sources.time, "sleep", waits.append)
+
+    output = docker_sources._write_verified_artifact(artifact, tmp_path / "sources")
+
+    assert output.read_bytes() == payload
+    assert output.stat().st_mode & 0o777 == 0o644
+    assert calls == [(artifact.url, 60)] * 2
+    assert waits == [1]
+    assert capsys.readouterr().err == f"sqlite-autoconf: source HTTP {status} on attempt 1/3\n"
+
+
+def test_source_fetch_gateway_exhaustion_preserves_first_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    manifest = _write_docker_source_manifest(tmp_path, _docker_source_manifest())
+    artifact = docker_sources.load_manifest(manifest, today=date(2026, 6, 14))[0]
+    calls = _stub_source_transport(
+        monkeypatch, payload=b"untrusted gateway body", response_codes=(502, 503, 504)
+    )
+    waits: list[int] = []
+    monkeypatch.setattr(docker_sources.time, "sleep", waits.append)
+    output = tmp_path / "sources"
+
+    with pytest.raises(HTTPError) as raised:
+        docker_sources._write_verified_artifact(artifact, output)
+
+    assert raised.value.code == 502
+    assert raised.value.fp.closed
+    assert calls == [(artifact.url, 60)] * 3
+    assert waits == [1, 2]
+    assert list(output.iterdir()) == []
+    assert capsys.readouterr().err.splitlines() == [
+        "sqlite-autoconf: source HTTP 502 on attempt 1/3",
+        "sqlite-autoconf: source HTTP 503 on attempt 2/3",
+        "sqlite-autoconf: source HTTP 504 on attempt 3/3",
+    ]
+
+
+@pytest.mark.parametrize("status", (400, 401, 403, 404, 429, 500, 501, 505))
+def test_source_fetch_permanent_http_error_is_not_retried(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, status: int
+) -> None:
+    manifest = _write_docker_source_manifest(tmp_path, _docker_source_manifest())
+    artifact = docker_sources.load_manifest(manifest, today=date(2026, 6, 14))[0]
+    calls = _stub_source_transport(monkeypatch, payload=b"permanent failure", code=status)
+    waits: list[int] = []
+    monkeypatch.setattr(docker_sources.time, "sleep", waits.append)
+    output = tmp_path / "sources"
+
+    with pytest.raises(HTTPError) as raised:
+        docker_sources._write_verified_artifact(artifact, output)
+
+    assert raised.value.code == status
+    assert calls == [(artifact.url, 60)]
+    assert waits == []
+    assert list(output.iterdir()) == []
+
+
+def test_source_fetch_gateway_then_redirect_still_fails_without_following(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    manifest = _write_docker_source_manifest(tmp_path, _docker_source_manifest())
+    artifact = docker_sources.load_manifest(manifest, today=date(2026, 6, 14))[0]
+    calls = _stub_source_transport(
+        monkeypatch, payload=b"redirected source", location=artifact.url, response_codes=(504, 302)
+    )
+    waits: list[int] = []
+    monkeypatch.setattr(docker_sources.time, "sleep", waits.append)
+    output = tmp_path / "sources"
+
+    with pytest.raises(HTTPError) as raised:
+        docker_sources._write_verified_artifact(artifact, output)
+
+    assert raised.value.code == 302
+    assert calls == [(artifact.url, 60)] * 2
+    assert waits == [1]
+    assert list(output.iterdir()) == []
+
+
+def test_source_fetch_gateway_then_bad_digest_is_terminal(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    manifest = _write_docker_source_manifest(
+        tmp_path, _docker_source_manifest(payload=b"verified source")
+    )
+    artifact = docker_sources.load_manifest(manifest, today=date(2026, 6, 14))[0]
+    calls = _stub_source_transport(monkeypatch, payload=b"bad source", response_codes=(503, 200))
+    waits: list[int] = []
+    monkeypatch.setattr(docker_sources.time, "sleep", waits.append)
+    output = tmp_path / "sources"
+
+    with pytest.raises(RuntimeError, match="SHA3 mismatch"):
+        docker_sources._write_verified_artifact(artifact, output)
+
+    assert calls == [(artifact.url, 60)] * 2
+    assert waits == [1]
+    assert list(output.iterdir()) == []
+
+
+@pytest.mark.parametrize("code", (504.0, "504", None, True))
+def test_source_fetch_malformed_http_status_is_not_retried(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, code: object
+) -> None:
+    manifest = _write_docker_source_manifest(tmp_path, _docker_source_manifest())
+    artifact = docker_sources.load_manifest(manifest, today=date(2026, 6, 14))[0]
+    failure = HTTPError(artifact.url, 504, "synthetic malformed status", Message(), BytesIO())
+    setattr(failure, "code", code)
+    calls: list[str] = []
+
+    def reject(_handler: object, request: Request) -> addinfourl:
+        calls.append(request.full_url)
+        raise failure
+
+    monkeypatch.setattr(HTTPSHandler, "https_open", reject)
+    waits: list[int] = []
+    monkeypatch.setattr(docker_sources.time, "sleep", waits.append)
+
+    with pytest.raises(HTTPError) as raised:
+        docker_sources._write_verified_artifact(artifact, tmp_path / "sources")
+
+    assert raised.value is failure
+    assert calls == [artifact.url]
+    assert waits == []
+
+
+@pytest.mark.parametrize(
+    "failure",
+    (
+        SSLCertVerificationError("synthetic TLS verification failure"),
+        URLError("synthetic connection failure"),
+        TypeError("synthetic malformed response"),
+    ),
+)
+def test_source_fetch_non_http_failure_is_not_retried(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, failure: Exception
+) -> None:
+    manifest = _write_docker_source_manifest(tmp_path, _docker_source_manifest())
+    artifact = docker_sources.load_manifest(manifest, today=date(2026, 6, 14))[0]
+    calls: list[str] = []
+
+    def reject(_handler: object, request: Request) -> addinfourl:
+        calls.append(request.full_url)
+        raise failure
+
+    monkeypatch.setattr(HTTPSHandler, "https_open", reject)
+    waits: list[int] = []
+    monkeypatch.setattr(docker_sources.time, "sleep", waits.append)
+
+    with pytest.raises(type(failure)) as raised:
+        docker_sources._write_verified_artifact(artifact, tmp_path / "sources")
+
+    assert raised.value is failure
+    assert calls == [artifact.url]
+    assert waits == []
+
+
 def test_docker_source_artifact_fetcher_verifies_sha3_and_reuses_existing_file(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -855,6 +1607,246 @@ def test_docker_source_artifact_fetcher_rejects_digest_mismatches(
         docker_sources._write_verified_artifact(artifact, tmp_path / "docker-sources")
 
     assert not (tmp_path / "docker-sources" / "sqlite-autoconf-3530200.tar.gz").exists()
+
+
+@pytest.fixture
+def zlib_rejection_context(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    context = tmp_path / "synthetic-build-context"
+    context.mkdir()
+    monkeypatch.setattr(docker_sources, "REPO_ROOT", context)
+    return context
+
+
+def test_zlib_rejection_retains_private_opaque_response_without_authentication(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    zlib_rejection_context: Path,
+) -> None:
+    for key in (
+        "GH_TOKEN",
+        "GITHUB_TOKEN",
+        "GHCR_TOKEN",
+        "GHCR_READ_TOKEN",
+        "DEVPI_CI_USER",
+        "DEVPI_CI_PASSWORD",
+        "PULSEPLATE_PYTHON_INDEX_URL",
+        "http_proxy",
+        "https_proxy",
+        "all_proxy",
+        "HTTP_PROXY",
+        "HTTPS_PROXY",
+        "ALL_PROXY",
+    ):
+        (
+            monkeypatch.setenv(key, "synthetic")
+            if "proxy" not in key.lower()
+            else monkeypatch.delenv(key, raising=False)
+        )
+    monkeypatch.setenv("no_proxy", "*")
+    monkeypatch.setenv("NO_PROXY", "*")
+    monkeypatch.setenv("HOME", str(tmp_path))
+    (tmp_path / ".netrc").write_text("machine zlib.net login synthetic password synthetic\n")
+    (tmp_path / ".netrc").chmod(0o600)
+    artifact = next(
+        row
+        for row in docker_sources.load_manifest(
+            docker_sources.DEFAULT_MANIFEST, today=date(2026, 10, 9)
+        )
+        if row.name == "zlib"
+    )
+    payload = b"untrusted-response-body-marker"
+    requests: list[dict[str, str]] = []
+    headers = {
+        "Content-Type": "text/html",
+        "Content-Length": str(len(payload)),
+        "Content-Encoding": "identity",
+        "Date": "Mon, 12 Oct 2026 00:00:00 GMT",
+        "Last-Modified": "x" * 513,
+        "Set-Cookie": "synthetic",
+        "Authorization": "synthetic",
+        "Proxy-Authorization": "synthetic",
+        "WWW-Authenticate": "synthetic",
+        "Proxy-Authenticate": "synthetic",
+        "Location": "https://example.invalid/never-followed",
+        "X-Unselected": "synthetic",
+    }
+    calls = _stub_source_transport(
+        monkeypatch, payload=payload, response_headers=headers, request_headers=requests
+    )
+    output, quarantine = tmp_path / "verified", tmp_path / "quarantine"
+    assert not quarantine.is_relative_to(zlib_rejection_context)
+    with pytest.raises(RuntimeError) as raised:
+        docker_sources._write_verified_artifact(
+            artifact, output, integrity_rejection_dir=quarantine
+        )
+    assert raised.value.args == (
+        f"zlib SHA3 mismatch: expected {artifact.sha3_256}, got {sha3_256(payload).hexdigest()}",
+    )
+    assert calls == [(artifact.url, 60)]
+    assert not {"authorization", "proxy-authorization", "cookie"}.intersection(
+        key.lower() for key in requests[0]
+    )
+    assert list(output.iterdir()) == []
+    assert {p.name for p in quarantine.iterdir()} == {"response.bin", "metadata.json"}
+    assert (quarantine / "response.bin").read_bytes() == payload
+    assert quarantine.stat().st_mode & 0o777 == 0o700
+    assert all(p.stat().st_mode & 0o777 == 0o600 for p in quarantine.iterdir())
+    metadata = json.loads((quarantine / "metadata.json").read_bytes())
+    assert metadata["request_url"] == artifact.url and metadata["status"] == 200
+    assert metadata["headers"] == {
+        name: headers[name][:512]
+        for name in ("Content-Type", "Content-Length", "Content-Encoding", "Date", "Last-Modified")
+    }
+    assert metadata["truncated_headers"] == ["Last-Modified"]
+    assert metadata["retained_bytes"] == len(payload) and metadata["body_scope"] == "received_bytes"
+    assert metadata["expected_sha3_256"] == artifact.sha3_256
+    assert metadata["expected_sha256"] == artifact.sha256
+    assert metadata["actual_sha3_256"] == sha3_256(payload).hexdigest()
+    assert metadata["actual_sha256"] == sha256(payload).hexdigest()
+    captured = capsys.readouterr()
+    assert "untrusted-response-body-marker" not in captured.out + captured.err
+    assert "synthetic" not in captured.out + captured.err
+
+
+@pytest.mark.parametrize(
+    "kind", ("existing", "symlink", "parent-symlink", "parent-traversal", "context", "cache")
+)
+def test_zlib_capture_path_failure_preserves_integrity_rejection(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, kind: str, zlib_rejection_context: Path
+) -> None:
+    artifact = next(
+        row
+        for row in docker_sources.load_manifest(
+            docker_sources.DEFAULT_MANIFEST, today=date(2026, 10, 9)
+        )
+        if row.name == "zlib"
+    )
+    payload = b"bad-response"
+    _stub_source_transport(monkeypatch, payload=payload)
+    output, quarantine = tmp_path / "verified", tmp_path / "quarantine"
+    output.mkdir()
+    if kind == "existing":
+        quarantine.mkdir(mode=0o700)
+    elif kind == "symlink":
+        quarantine.symlink_to(tmp_path / "never-created")
+    elif kind == "parent-symlink":
+        (tmp_path / "alias").symlink_to(tmp_path)
+        quarantine = tmp_path / "alias/quarantine"
+    elif kind == "parent-traversal":
+        quarantine = tmp_path / "unused/../quarantine"
+    elif kind == "context":
+        quarantine = zlib_rejection_context / "never-created-rejection"
+    else:
+        quarantine = output / "quarantine"
+    if kind in ("existing", "symlink"):
+        with pytest.raises(FileExistsError):
+            docker_sources._retain_rejected_zlib_response(
+                artifact, payload, 200, Message(), quarantine, output
+            )
+    else:
+        with pytest.raises(RuntimeError) as secondary:
+            docker_sources._retain_rejected_zlib_response(
+                artifact, payload, 200, Message(), quarantine, output
+            )
+        expected_message = (
+            "Rejected-response quarantine requires real existing parents."
+            if kind == "parent-symlink"
+            else "Rejected-response quarantine must be outside the build context/cache."
+        )
+        assert secondary.value.args == (expected_message,)
+    with pytest.raises(RuntimeError) as raised:
+        docker_sources._write_verified_artifact(
+            artifact, output, integrity_rejection_dir=quarantine
+        )
+    assert raised.value.args == (
+        f"zlib SHA3 mismatch: expected {artifact.sha3_256}, got {sha3_256(payload).hexdigest()}",
+    )
+    expected = "FileExistsError" if kind in ("existing", "symlink") else "RuntimeError"
+    assert raised.value.__notes__ == [f"zlib: rejected-response capture failed: {expected}"]
+    assert list(output.iterdir()) == []
+    assert not (tmp_path / "never-created").exists()
+
+
+def test_zlib_rejection_retains_only_original_bounded_read_prefix(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, zlib_rejection_context: Path
+) -> None:
+    artifact = next(
+        row
+        for row in docker_sources.load_manifest(
+            docker_sources.DEFAULT_MANIFEST, today=date(2026, 10, 9)
+        )
+        if row.name == "zlib"
+    )
+    assert docker_sources._NATIVE_ARCHIVE_MAX_BYTES == 64 * 1024 * 1024
+    payload = b"x" * (64 * 1024 * 1024 + 2)
+    _stub_source_transport(monkeypatch, payload=payload)
+    output, quarantine = tmp_path / "verified", tmp_path / "quarantine"
+    assert not quarantine.is_relative_to(zlib_rejection_context)
+    with pytest.raises(RuntimeError, match="^zlib SHA3 mismatch: expected "):
+        docker_sources._write_verified_artifact(
+            artifact, output, integrity_rejection_dir=quarantine
+        )
+    retained = (quarantine / "response.bin").read_bytes()
+    metadata = json.loads((quarantine / "metadata.json").read_bytes())
+    assert retained == payload[:-1]
+    assert (
+        len(retained)
+        == metadata["retained_bytes"]
+        == metadata["read_limit_bytes"]
+        == 64 * 1024 * 1024 + 1
+    )
+    assert metadata["body_scope"] == "bounded_prefix"
+    assert metadata["actual_sha3_256"] == sha3_256(retained).hexdigest()
+    assert metadata["actual_sha256"] == sha256(retained).hexdigest()
+    assert list(output.iterdir()) == []
+
+
+def test_zlib_capture_write_failure_keeps_primary_error_and_closes_owned_file(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    zlib_rejection_context: Path,
+) -> None:
+    artifact = next(
+        row
+        for row in docker_sources.load_manifest(
+            docker_sources.DEFAULT_MANIFEST, today=date(2026, 10, 9)
+        )
+        if row.name == "zlib"
+    )
+    payload = b"bad-response"
+    assert not (tmp_path / "quarantine").is_relative_to(zlib_rejection_context)
+    _stub_source_transport(monkeypatch, payload=payload)
+    real_close = os.close
+    failed: list[int] = []
+    closed: list[int] = []
+
+    def fail_write(fd: int, *_args: object, **_kwargs: object) -> None:
+        failed.append(fd)
+        raise OSError("synthetic-private-write-detail")
+
+    def close_owned(fd: int) -> None:
+        real_close(fd)
+        closed.append(fd)
+
+    with monkeypatch.context() as local:
+        local.setattr(docker_sources.os, "fdopen", fail_write)
+        local.setattr(docker_sources.os, "close", close_owned)
+        with pytest.raises(RuntimeError) as raised:
+            docker_sources._write_verified_artifact(
+                artifact, tmp_path / "verified", integrity_rejection_dir=tmp_path / "quarantine"
+            )
+    assert raised.value.args == (
+        f"zlib SHA3 mismatch: expected {artifact.sha3_256}, got {sha3_256(payload).hexdigest()}",
+    )
+    assert raised.value.__notes__ == ["zlib: rejected-response capture failed: OSError"]
+    assert len(failed) == 1 and failed[0] in closed
+    assert not (tmp_path / "quarantine/metadata.json").exists()
+    assert list((tmp_path / "verified").iterdir()) == []
+    captured = capsys.readouterr()
+    assert "synthetic-private-write-detail" not in captured.out + captured.err
+    assert captured.err == "zlib: rejected-response capture failed: OSError\n"
 
 
 @pytest.mark.parametrize("kind", ("symlink", "dangling", "directory", "fifo", "hardlink"))
@@ -1235,7 +2227,7 @@ def test_pcre2_source_records_bind_exact_reviewed_closure(
     artifacts = docker_sources.load_manifest(
         REPO_ROOT / "scripts/ci/docker_source_artifacts.json", today=date(2026, 10, 2)
     )
-    assert len(artifacts) == 4
+    assert len(artifacts) == 15
     matches = [artifact for artifact in artifacts if artifact.name == name]
     assert len(matches) == 1
     artifact = matches[0]
@@ -1461,5 +2453,1464 @@ def test_candidate_nightly_forecast_preserves_current_and_plus_four(
     assert "### CURRENT: no finding" in summary
     assert f"### FORECAST: {'attention required' if forecast_finding else 'no finding'}" in summary
     if forecast_finding:
-        assert "review-by 2026-10-21" in summary
+        assert (
+            "Docker sources: Docker source artifact manifest review_by is stale: 2026-10-21"
+            in summary
+        )
         assert "Expired Trivy ignore policy" not in summary
+    assert "Trivy policy:" not in summary
+
+
+def test_native_client_omits_unused_gss_closure_and_separates_pg_build() -> None:
+    dockerfile = (REPO_ROOT / "Dockerfile").read_text(encoding="utf-8")
+    native = dockerfile.split(" AS native-builder\n", 1)[1].split("\nFROM ", 1)[0]
+    assert "libkrb5-dev" not in dockerfile and "libgssapi-krb5-2 \\\n" not in dockerfile
+    assert "--without-gssapi --without-ldap" in native and "--with-gssapi" not in native
+    split = "ldconfig\nSH\n\n# PostgreSQL client flags have a separate cache boundary from Z/N/OpenSSL.\nRUN --network=none <<'SH'\nset -eu\ncd /build/source/postgresql-18.6"
+    assert split in native
+    prefix, client = native.split(split, 1)
+    assert "cd /build/source/zlib-1.3.2" in prefix
+    assert "--with-versioned-syms" in prefix and "make -j2 build_sw" in prefix
+    assert "make -j2 -C src/interfaces/libpq all" in client
+    for package in ("libgssapi-krb5-2", "libk5crypto3", "libkrb5-3", "libkrb5support0"):
+        assert package in dockerfile.split("retired = ", 1)[1].split("\nfor row", 1)[0]
+    source = dockerfile.split("<<'PY_NATIVE_PSYCOPG'\n", 1)[1].split("\nPY_NATIVE_PSYCOPG", 1)[0]
+    assert "gssencmode=require" in source and "not compiled in" in source
+    assert (
+        "gss_probe.finish()" in source and "Unused Kerberos native runtime remains loaded" in source
+    )
+
+
+@pytest.mark.parametrize(
+    "status,error_message,expected_exit",
+    (
+        (1, b'gssencmode value "require" invalid when GSSAPI support is not compiled in', 0),
+        (1, b"GSSAPI encryption required but no credential cache", 1),
+        (0, b"not compiled in", 1),
+        (0, b"GSSAPI enabled", 1),
+    ),
+)
+def test_shipped_libpq_gss_feature_probe_rejects_enabled_client_and_always_finishes(
+    tmp_path: Path, status: int, error_message: bytes, expected_exit: int
+) -> None:
+    """Execute the exact shipped public API probe, including cleanup on rejection."""
+    dockerfile = (REPO_ROOT / "Dockerfile").read_text(encoding="utf-8")
+    source = dockerfile.split("<<'PY_NATIVE_PSYCOPG'\n", 1)[1].split("\nPY_NATIVE_PSYCOPG", 1)[0]
+    statements = [
+        node
+        for node in ast.parse(source).body
+        if (
+            isinstance(node, ast.Assign)
+            and any(
+                isinstance(target, ast.Name) and target.id == "gss_probe" for target in node.targets
+            )
+        )
+        or (
+            isinstance(node, ast.Try)
+            and "Unused libpq GSSAPI feature remains enabled" in ast.unparse(node)
+        )
+    ]
+    assert len(statements) == 2
+    program = f"""import atexit, json, types
+observed = {{"finish_calls": 0, "connect_arguments": []}}
+class SyntheticConnection:
+    status = {status!r}
+    error_message = {error_message!r}
+    def finish(self):
+        observed["finish_calls"] += 1
+def connect_start(conninfo):
+    observed["connect_arguments"].append(conninfo.decode("ascii"))
+    return SyntheticConnection()
+pq = types.SimpleNamespace(PGconn=types.SimpleNamespace(connect_start=connect_start))
+psycopg = types.SimpleNamespace(pq=types.SimpleNamespace(ConnStatus=types.SimpleNamespace(BAD=1)))
+atexit.register(lambda: print(json.dumps(observed)))
+""" + "\n".join(ast.unparse(node) for node in statements)
+    result = subprocess.run(
+        [sys.executable, "-c", program],
+        cwd=tmp_path,
+        env={"PATH": os.defpath, "HOME": str(tmp_path), "LANG": "C.UTF-8"},
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+    assert result.returncode == expected_exit, result.stdout + result.stderr
+    assert json.loads(result.stdout) == {
+        "finish_calls": 1,
+        "connect_arguments": ["host=/tmp gssencmode=require"],
+    }
+    if expected_exit:
+        assert "Unused libpq GSSAPI feature remains enabled" in result.stderr
+    else:
+        assert not result.stderr
+
+
+@pytest.mark.parametrize(
+    "library,expected_exit",
+    (
+        ("libpq.so.5.18", 0),
+        ("libkrb5support-helper.so.1", 0),
+        ("libgssapi_krb5.so.2.2", 1),
+        ("libk5crypto.so.3.1", 1),
+        ("libkrb5.so.3.3", 1),
+        ("libkrb5support.so.0.1", 1),
+    ),
+)
+def test_shipped_loaded_native_guard_rejects_each_unused_gss_family(
+    tmp_path: Path, library: str, expected_exit: int
+) -> None:
+    """Real fixture map data exercises the shipped family guard without host maps."""
+    dockerfile = (REPO_ROOT / "Dockerfile").read_text(encoding="utf-8")
+    source = dockerfile.split("<<'PY_NATIVE_PSYCOPG'\n", 1)[1].split("\nPY_NATIVE_PSYCOPG", 1)[0]
+    statements = [
+        node
+        for node in ast.parse(source).body
+        if (
+            isinstance(node, ast.Assign)
+            and any(
+                isinstance(target, ast.Name) and target.id == "gss_families"
+                for target in node.targets
+            )
+        )
+        or (
+            isinstance(node, ast.If)
+            and "Unused Kerberos native runtime remains loaded" in ast.unparse(node)
+        )
+    ]
+    assert len(statements) == 2
+    fixture = tmp_path / "synthetic-maps.txt"
+    fixture.write_text(f"1000-2000 r--p 00000000 00:00 0 /usr/local/lib/{library}\n")
+    program = "from pathlib import Path\n" + "\n".join(ast.unparse(node) for node in statements)
+    program = program.replace("'/proc/self/maps'", repr(str(fixture)))
+    result = subprocess.run(
+        [sys.executable, "-c", program],
+        cwd=tmp_path,
+        env={"PATH": os.defpath, "HOME": str(tmp_path), "LANG": "C.UTF-8"},
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+    assert result.returncode == expected_exit, result.stdout + result.stderr
+    if expected_exit:
+        assert "Unused Kerberos native runtime remains loaded" in result.stderr
+    else:
+        assert not result.stderr
+
+
+@pytest.mark.parametrize(
+    "scenario,library,expected_message",
+    (
+        ("empty", "unrelated.so.1", None),
+        ("present", "libgssapi_krb5.so.2.2", "Unused Kerberos library remains"),
+        ("present", "libk5crypto.so.3.1", "Unused Kerberos library remains"),
+        ("present", "libkrb5.so.3.3", "Unused Kerberos library remains"),
+        ("present", "libkrb5support.so.0.1", "Unused Kerberos library remains"),
+        ("missing_directory", "unrelated.so.1", "FileNotFoundError"),
+        ("non_directory", "unrelated.so.1", "NotADirectoryError"),
+    ),
+)
+def test_shipped_physical_gss_guard_rejects_files_and_required_directory_errors(
+    tmp_path: Path, scenario: str, library: str, expected_message: str | None
+) -> None:
+    """Real scandir input cannot turn an unavailable mandatory directory into absence."""
+    dockerfile = (REPO_ROOT / "Dockerfile").read_text(encoding="utf-8")
+    source = dockerfile.split("<<'PY_NATIVE_PSYCOPG'\n", 1)[1].split("\nPY_NATIVE_PSYCOPG", 1)[0]
+    statements = [
+        node
+        for node in ast.parse(source).body
+        if (
+            isinstance(node, ast.Assign)
+            and any(
+                isinstance(target, ast.Name) and target.id == "gss_families"
+                for target in node.targets
+            )
+        )
+        or (
+            isinstance(node, ast.For)
+            and "Unused Kerberos library remains in a required native directory"
+            in ast.unparse(node)
+        )
+    ]
+    assert len(statements) == 2
+    native = tmp_path / "native-library-directory"
+    system = tmp_path / "system-library-directory"
+    native.mkdir()
+    if scenario == "non_directory":
+        system.write_text("synthetic non-directory")
+    elif scenario != "missing_directory":
+        system.mkdir()
+        (system / library).write_bytes(b"synthetic physical native bytes")
+    program = "import os\n" + "\n".join(ast.unparse(node) for node in statements)
+    program = program.replace("'/usr/local/lib'", repr(str(native)))
+    program = program.replace("'/usr/lib/x86_64-linux-gnu'", repr(str(system)))
+    result = subprocess.run(
+        [sys.executable, "-c", program],
+        cwd=tmp_path,
+        env={"PATH": os.defpath, "HOME": str(tmp_path), "LANG": "C.UTF-8"},
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+    assert result.returncode == (1 if expected_message else 0), result.stdout + result.stderr
+    if expected_message:
+        assert expected_message in result.stderr
+    else:
+        assert not result.stderr
+
+
+@pytest.mark.parametrize(
+    "inventory,expected_message",
+    (
+        (["ii libgssapi-krb5-2"], "An original native package remains installed"),
+        (["ii libk5crypto3"], "An original native package remains installed"),
+        (["ii libkrb5-3:amd64"], "An original native package remains installed"),
+        (["ii libkrb5support0"], "An original native package remains installed"),
+        (["rc libkrb5-3", "ii libkrb5-helper"], None),
+        ([""], "Package inventory is malformed after native replacement"),
+        (["ii"], "Package inventory is malformed after native replacement"),
+        (["ii libkrb5-3 extra"], "Package inventory is malformed after native replacement"),
+    ),
+)
+def test_existing_package_guard_rejects_kerberos_and_preserves_typed_inventory_errors(
+    tmp_path: Path, inventory: list[str], expected_message: str | None
+) -> None:
+    """Execute the existing retirement loop, preserving exact package membership."""
+    dockerfile = (REPO_ROOT / "Dockerfile").read_text(encoding="utf-8")
+    source = dockerfile.split('retired = {"zlib1g"', 1)[1].split("\nssl_root", 1)[0]
+    source = 'retired = {"zlib1g"' + source
+    program = f"rows = {inventory!r}\n" + source
+    result = subprocess.run(
+        [sys.executable, "-c", program],
+        cwd=tmp_path,
+        env={"PATH": os.defpath, "HOME": str(tmp_path), "LANG": "C.UTF-8"},
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+    assert result.returncode == (1 if expected_message else 0), result.stdout + result.stderr
+    if expected_message:
+        assert expected_message in result.stderr
+    else:
+        assert not result.stderr
+
+
+_ZLIB_MAINTENANCE_PATCHES = (
+    (
+        "zlib-gzwrite-null-fix",
+        ("e3dc0a85" "b7032e98" "380dec01" "1bc8f2c2" "ee0d8fca"),
+        ("2d97c97e" "020dfe05" "9b8b1981" "95a8fe42" "197f88b1" "184bb9ef" "0292a8af" "a535aa26"),
+        ("8be18219" "a658f1dd" "fa83d4e8" "f778d2c3" "be1ade11" "3863f166" "3929c399" "02e001cc"),
+    ),
+    (
+        "zlib-gzvprintf-return-fix",
+        ("bbc2ccf3" "d0de2675" "76b524b8" "75c769a7" "24a513b0"),
+        ("28af72a5" "d4d20648" "1956ab11" "ab164090" "7577bc0c" "021ef3b5" "8344ea64" "f00c764c"),
+        ("96bd1c24" "2f09b244" "430bfe78" "54a9bb57" "a6e24a1e" "38e93bce" "f8ba946d" "22ecaf16"),
+    ),
+    (
+        "zlib-gzprintf-return-fix",
+        ("7235b0a5" "81227c56" "a79a43ff" "828f8ef6" "794194c8"),
+        ("84bd6874" "0f1bf101" "fa85d3dd" "726a9c9b" "ec84c216" "3adf5b7b" "5c004bba" "62db6d5d"),
+        ("c5eff1cc" "8dd1997b" "16e0918e" "bf6074b9" "9bd38b2c" "244fb2bf" "2b697e74" "541a0987"),
+    ),
+    (
+        "zlib-blocked-errno-fix",
+        ("813dac5d" "cb5902ed" "241e9b0d" "38abd2d8" "47a335a9"),
+        ("d4fbd685" "ed4c2ec2" "d5e4962f" "0f6d5a98" "5ab1f542" "0bc1224d" "d262b419" "e7c26ab5"),
+        ("b1fcf877" "5123d729" "0a11e952" "21632fca" "7406cce1" "73820a09" "392c659e" "adb0ba0a"),
+    ),
+    (
+        "zlib-gzprintf-contract-fix",
+        ("d81c2d7e" "b705c622" "94ba0329" "92556720" "78e89115"),
+        ("e9216856" "034689c7" "1656fb32" "dd1b25d3" "2304baf4" "42b7e9b8" "d454c732" "187b0bcf"),
+        ("22adf550" "e344229d" "f577ce66" "fddfce16" "451eb605" "20e8f68e" "5cae2192" "1b9bc0ea"),
+    ),
+    (
+        "zlib-errno-order-fix",
+        ("a82e0db3" "92178a3e" "05fb27bf" "551a6ce7" "57a47898"),
+        ("33b8bc65" "706a2b85" "2e4b7ede" "ce112f13" "59078b3c" "8e475079" "d7b8d92d" "d4931d47"),
+        ("c12fbe1d" "d31e27c3" "90d4552c" "3862fe6b" "c50169c7" "3ab97a74" "e81682b6" "a713f1f9"),
+    ),
+)
+
+
+@pytest.mark.parametrize("name,commit,sha3,sha2", _ZLIB_MAINTENANCE_PATCHES)
+def test_zlib_maintenance_manifest_keeps_exact_official_patch_identities(
+    name: str, commit: str, sha3: str, sha2: str
+) -> None:
+    artifacts = docker_sources.load_manifest(
+        REPO_ROOT / "scripts/ci/docker_source_artifacts.json", today=date(2026, 10, 9)
+    )
+    matches = [artifact for artifact in artifacts if artifact.name == name]
+    assert len(matches) == 1
+    artifact = matches[0]
+    assert (
+        artifact.version,
+        artifact.url,
+        artifact.filename,
+        artifact.sha3_256,
+        artifact.sha256,
+    ) == (
+        commit,
+        f"https://github.com/madler/zlib/commit/{commit}.patch?full_index=1",
+        f"{name}-{commit}.patch",
+        sha3,
+        sha2,
+    )
+
+
+@pytest.mark.parametrize("name,commit,sha3,sha2", _ZLIB_MAINTENANCE_PATCHES)
+@pytest.mark.parametrize("field", ["version", "url", "filename", "sha3_256", "sha256"])
+def test_zlib_maintenance_identity_drift_rejected_before_cache_or_transport(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    name: str,
+    commit: str,
+    sha3: str,
+    sha2: str,
+    field: str,
+) -> None:
+    artifact = docker_sources.DockerSourceArtifact(
+        name=name,
+        version=commit,
+        filename=f"{name}-{commit}.patch",
+        url=f"https://github.com/madler/zlib/commit/{commit}.patch?full_index=1",
+        sha3_256=sha3,
+        sha256=sha2,
+    )
+    value = getattr(artifact, field)
+    assert isinstance(value, str)
+    corrupted = replace(artifact, **{field: value + "other"})
+    calls = _stub_source_transport(monkeypatch, payload=b"unused")
+    output = tmp_path / "sources"
+    with pytest.raises(RuntimeError, match="reviewed identity"):
+        docker_sources._write_verified_artifact(corrupted, output)
+    assert calls == []
+    assert not output.exists()
+
+
+@pytest.mark.parametrize("name,commit,sha3,sha2", _ZLIB_MAINTENANCE_PATCHES)
+@pytest.mark.parametrize("code", [301, 302, 303, 307, 308])
+def test_zlib_maintenance_redirects_use_real_rejecting_handler(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    name: str,
+    commit: str,
+    sha3: str,
+    sha2: str,
+    code: int,
+) -> None:
+    artifact = docker_sources.DockerSourceArtifact(
+        name=name,
+        version=commit,
+        filename=f"{name}-{commit}.patch",
+        url=f"https://github.com/madler/zlib/commit/{commit}.patch?full_index=1",
+        sha3_256=sha3,
+        sha256=sha2,
+    )
+    calls = _stub_source_transport(
+        monkeypatch, payload=b"redirected patch", code=code, location=artifact.url
+    )
+    output = tmp_path / "sources"
+    with pytest.raises(HTTPError):
+        docker_sources._write_verified_artifact(artifact, output)
+    assert calls == [(artifact.url, 60)]
+    assert list(output.iterdir()) == []
+
+
+@pytest.mark.parametrize("name,commit,sha3,sha2", _ZLIB_MAINTENANCE_PATCHES)
+def test_zlib_maintenance_payload_rejects_wrong_actual_bytes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, name: str, commit: str, sha3: str, sha2: str
+) -> None:
+    artifact = docker_sources.DockerSourceArtifact(
+        name=name,
+        version=commit,
+        filename=f"{name}-{commit}.patch",
+        url=f"https://github.com/madler/zlib/commit/{commit}.patch?full_index=1",
+        sha3_256=sha3,
+        sha256=sha2,
+    )
+    calls = _stub_source_transport(monkeypatch, payload=b"different actual patch bytes")
+    output = tmp_path / "sources"
+    with pytest.raises(RuntimeError, match="SHA3 mismatch"):
+        docker_sources._write_verified_artifact(artifact, output)
+    assert calls == [(artifact.url, 60)]
+    assert list(output.iterdir()) == []
+
+
+def test_zlib_maintenance_docker_recipe_binds_exact_order_and_source_fingerprints() -> None:
+    dockerfile = (REPO_ROOT / "Dockerfile").read_text()
+    native = dockerfile.split(" AS native-builder\n", 1)[1].split("\nFROM ", 1)[0]
+    prefix = native.split("./configure --prefix=/usr/local --libdir=/usr/local/lib --shared", 1)[0]
+    commits = [record[1] for record in _ZLIB_MAINTENANCE_PATCHES]
+    names = [record[0] for record in _ZLIB_MAINTENANCE_PATCHES]
+    names.insert(2, "zlib-gzwrite-fix")
+    commits.insert(2, ("df84af25" "dc194249" "0e1d1c89" "9a076191" "52a46148"))
+    expected = [
+        f"patch --batch --forward --fuzz=0 --no-backup-if-mismatch -p1 --input /input/native/{name}-{commit}.patch"
+        for name, commit in zip(names, commits)
+    ]
+    assert [line for line in prefix.splitlines() if line.startswith("patch ")] == expected
+    dockerignore = (REPO_ROOT / ".dockerignore").read_text()
+    for name, commit in zip(names, commits):
+        filename = f"{name}-{commit}.patch"
+        assert f"build/docker-sources/{filename}" in prefix
+        assert f"!build/docker-sources/{filename}" in dockerignore
+    assert "set(before) != set(after)" in prefix
+    assert "len(before) != 254" in prefix
+    assert "!= set(expected)" in prefix
+    for name, digest in (
+        (
+            "gzguts.h",
+            (
+                "6c366344"
+                "bc1f1e25"
+                "3892a33e"
+                "06a01e97"
+                "005c9340"
+                "f9a44f93"
+                "1e6cec8c"
+                "b9878ffc"
+            ),
+        ),
+        (
+            "gzread.c",
+            (
+                "22178dd5"
+                "092c89bc"
+                "46e0a3eb"
+                "bcd808f0"
+                "3e8aafa3"
+                "15c2a452"
+                "4a6a0a2f"
+                "f7c65038"
+            ),
+        ),
+        (
+            "gzwrite.c",
+            (
+                "548eb543"
+                "23313b70"
+                "b74a5564"
+                "a61ccd4b"
+                "968200ef"
+                "89cbb70a"
+                "6152d50b"
+                "373515c5"
+            ),
+        ),
+        (
+            "zlib.h",
+            (
+                "648069fd"
+                "ae548705"
+                "c3a1c02d"
+                "ac97a1dd"
+                "7794e9e0"
+                "bd32b46f"
+                "b2afb357"
+                "164b8037"
+            ),
+        ),
+    ):
+        assert name in prefix
+        assert all(part in prefix for part in [digest[i : i + 8] for i in range(0, 64, 8)])
+
+
+@pytest.mark.parametrize("bad_name", [[], {}])
+def test_zlib_maintenance_manifest_refuses_unhashable_names(
+    tmp_path: Path, bad_name: object
+) -> None:
+    manifest = json.loads((REPO_ROOT / "scripts/ci/docker_source_artifacts.json").read_text())
+    row = next(
+        record for record in manifest["artifacts"] if record["name"] == "zlib-gzwrite-null-fix"
+    )
+    row["name"] = bad_name
+    path = _write_docker_source_manifest(tmp_path, manifest)
+    with pytest.raises(RuntimeError, match="Only exact reviewed zlib patches"):
+        docker_sources.load_manifest(path, today=date(2026, 10, 9))
+
+
+def test_prometheus_metadata_mode_is_explicit_and_independent() -> None:
+    """The qualifier cannot select or publish a Prometheus runtime."""
+    workflow = _load_workflow(WORKFLOWS_DIR / "build.yml")
+    events = workflow.get("on", workflow.get(True))
+    assert events["workflow_dispatch"]["inputs"]["mode"]["options"] == [
+        "disabled",
+        "normal",
+        "prometheus-source-qualify",
+        "backend-sdk-qualify",
+        "prometheus-oras-qualify",
+        "prometheus-source-pair",
+    ]
+    assert events["workflow_dispatch"]["inputs"]["prometheus_module_action"] == {
+        "description": "Explicit Prometheus metadata module action; unchanged retains original locks",
+        "type": "choice",
+        "required": True,
+        "default": "unchanged",
+        "options": ["unchanged", "xnet060-replay"],
+    }
+    jobs = workflow["jobs"]
+    qualification = jobs["prometheus-source-qualification"]
+    assert "needs" not in qualification
+    assert qualification["permissions"] == {"contents": "read"}
+    assert qualification["timeout-minutes"] == (
+        "${{ fromJSON(vars.PROMETHEUS_SOURCE_QUALIFICATION_TIMEOUT_MINUTES || '20') }}"
+    )
+    assert qualification["if"] == (
+        "github.event_name == 'workflow_dispatch' && "
+        "inputs.mode == 'prometheus-source-qualify' && "
+        "github.repository == 'Katsiarynakavaleuskaya/PulsePlate'"
+    )
+    assert jobs["build"]["if"] == (
+        "github.event_name != 'workflow_dispatch' || inputs.mode == 'normal'"
+    )
+    assert jobs["publish"]["needs"] == ["build", "security-scan"]
+    command = _step_by_name(qualification, "Qualify Prometheus package metadata only")["run"]
+    assert "-m scripts.ci.prometheus_source_image" in command
+    assert "$PROMETHEUS_QUALIFICATION_SECONDS" in command
+    assert "$PROMETHEUS_CLEANUP_SECONDS" in command
+    step = _step_by_name(qualification, "Qualify Prometheus package metadata only")
+    assert step["env"] == {"PROMETHEUS_MODULE_ACTION": "${{ inputs.prometheus_module_action }}"}
+    assert 'case "$PROMETHEUS_MODULE_ACTION" in' in command
+    assert "xnet060-replay) module_args+=(--derive-xnet060)" in command
+    assert '"${module_args[@]}"' in command
+    assert "${{ inputs.prometheus_module_action }}" not in command
+    assert "buildx" not in command and "secrets." not in command
+    assert not any("secrets." in str(step) for step in qualification["steps"])
+    checkout = _step_by_name(qualification, "Checkout qualification source")
+    assert checkout["with"]["persist-credentials"] is False
+
+
+def test_prometheus_publisher_verifies_retained_original_signed_bundles() -> None:
+    workflow = _load_workflow(WORKFLOWS_DIR / "build.yml")
+    jobs = workflow["jobs"]
+    pair = jobs["prometheus-source-build-pair"]
+    attestations = [
+        step for step in pair["steps"] if step.get("uses", "").startswith("actions/attest@")
+    ]
+    assert len(attestations) == 2
+    for step in attestations:
+        assert step["with"]["push-to-registry"] is False
+        assert step["with"]["create-storage-record"] is False
+    publisher = jobs["prometheus-publish"]
+    assert [step["name"] for step in publisher["steps"]] == [
+        "Checkout exact main producer",
+        "Promote precise retained bytes and pull them back",
+        "Retain main publication and pullback",
+    ]
+    promote = _step_by_name(publisher, "Promote precise retained bytes and pull them back")
+    assert promote["id"] == "published"
+    assert promote["env"] == {
+        "GH_TOKEN": "${{ secrets.GITHUB_TOKEN }}",
+        "GITHUB_TOKEN": "${{ secrets.GITHUB_TOKEN }}",
+    }
+    assert "--operation promote" in promote["run"]
+    assert '--cleanup-seconds "$PROMETHEUS_CLEANUP_SECONDS"' in promote["run"]
+    assert "DOCKER_CONFIG" not in str(publisher)
+    assert not any(
+        step.get("uses", "").startswith("docker/login-action@") for step in publisher["steps"]
+    )
+
+
+def test_security_scan_excludes_pr_registry_credentials_even_when_token_available() -> None:
+    """Exact event guards exclude PR credentials while retaining non-PR DB behavior."""
+    workflow = _load_workflow(WORKFLOWS_DIR / "build.yml")
+    job = workflow["jobs"]["security-scan"]
+    assert job["env"] == {"GHCR_READ_TOKEN_AVAILABLE": "${{ secrets.GHCR_READ_TOKEN != '' }}"}
+    login = _step_by_name(job, "Log in to GHCR (Trivy DB)")
+    assert login["if"] == (
+        "${{ github.event_name != 'pull_request' && env.GHCR_READ_TOKEN_AVAILABLE == 'true' }}"
+    )
+    assert login["env"] == {
+        "GHCR_READ_TOKEN": (
+            "${{ github.event_name != 'pull_request' && secrets.GHCR_READ_TOKEN || '' }}"
+        )
+    }
+    assert (
+        'docker login ghcr.io -u "${{ github.repository_owner }}" --password-stdin' in login["run"]
+    )
+    assert "continuing without registry auth" in login["run"]
+    scan = _step_by_name(job, "Run Trivy vulnerability scanner (filesystem scan)")
+    assert scan["with"]["version"] == "v0.74.0"
+    assert scan["with"]["severity"] == "CRITICAL,HIGH"
+    assert scan["with"]["exit-code"] == "1"
+    assert scan["with"]["scanners"] == "vuln"
+    assert scan["with"]["ignore-policy"] == ".trivy-ignore-policy.rego"
+    assert "continue-on-error" not in scan
+    sarif = _step_by_name(job, "Check Trivy filesystem SARIF output")
+    assert sarif["if"] == "${{ always() }}"
+    assert 'echo "present=false"' in sarif["run"]
+    upload = _step_by_name(job, "Upload Trivy scan results to GitHub Security tab")
+    assert upload["if"] == "${{ always() && steps.trivy_fs_sarif.outputs.present == 'true' }}"
+    assert upload["continue-on-error"] is True
+
+
+def test_manual_oras_prefetch_selector_is_data_and_preserves_compile_budget() -> None:
+    workflow = _load_workflow(WORKFLOWS_DIR / "build.yml")
+    inputs = workflow.get("on", workflow.get(True))["workflow_dispatch"]["inputs"]
+    assert inputs["tool_prefetch_predecessor"] == {
+        "description": "Exact failed precompile run:artifact evidence selector; no dispatch authorization",
+        "type": "string",
+        "required": False,
+        "default": "",
+    }
+    job = workflow["jobs"]["prometheus-oras-qualification"]
+    assert job["permissions"] == {"contents": "read", "actions": "read"}
+    assert job["env"]["PROMETHEUS_TOOL_SECONDS"] == "1800"
+    assert job["env"]["PROMETHEUS_CLEANUP_SECONDS"] == "120"
+    step = _step_by_name(job, "Compile one ORAS tool and qualify native format")
+    assert step["env"] == {
+        "GH_TOKEN": "${{ secrets.GITHUB_TOKEN }}",
+        "GITHUB_TOKEN": "${{ secrets.GITHUB_TOKEN }}",
+        "TOOL_PREFETCH_PREDECESSOR": "${{ inputs.tool_prefetch_predecessor }}",
+    }
+    assert "predecessor=()" in step["run"]
+    assert 'predecessor=(--tool-prefetch-predecessor "$TOOL_PREFETCH_PREDECESSOR")' in step["run"]
+    assert '"${predecessor[@]}"' in step["run"]
+    assert step["run"].count("--operation tool") == 1
+    pair = workflow["jobs"]["prometheus-source-build-pair"]
+    assert "tool_prefetch_predecessor" not in str(pair)
+    assert not any("continue-on-error" in value for value in job["steps"])
+
+
+def test_alertmanager_catalog_selector_preserves_incumbent_default_inputs() -> None:
+    manifest = REPO_ROOT / "scripts/ci/docker_source_artifacts.json"
+    incumbent = docker_sources.load_manifest(manifest)
+    selected = docker_sources.load_manifest(manifest, artifact="alertmanager")
+    assert len(incumbent) == 15
+    assert not any(item.name.startswith("alertmanager-") for item in incumbent)
+    assert {item.name for item in selected} == {"alertmanager-source", "alertmanager-ui"}
+    assert {item.sha256 for item in selected} == {
+        "5c5c72ec6b4c4746d523f2ed1994dfec4b94f7457e530ee6fb16cfec158e545e",
+        "881fe0f7beb9573f35be47dd233af6220e72c8db72c03bcd1780402eb8dc1307",
+    }
+    with pytest.raises(RuntimeError, match="finite Alertmanager selector"):
+        docker_sources.load_manifest(manifest, artifact="fetch-all")
+
+
+@pytest.mark.parametrize("name", ["alertmanager-source", "alertmanager-ui"])
+def test_alertmanager_archive_rejects_changed_bytes_before_member_admission(name: str) -> None:
+    selected = docker_sources.load_manifest(
+        REPO_ROOT / "scripts/ci/docker_source_artifacts.json", artifact="alertmanager"
+    )
+    artifact = next(item for item in selected if item.name == name)
+    with pytest.raises(RuntimeError, match="SHA3 mismatch"):
+        docker_sources.validate_source_payload(artifact, b"unqualified source or UI")
+
+
+def test_alertmanager_transport_does_not_retry_source_service_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from email.message import Message
+    from urllib.error import HTTPError
+    from scripts.ci import prometheus_source_image as transport
+    import io
+    import time
+
+    selected = docker_sources.load_manifest(
+        REPO_ROOT / "scripts/ci/docker_source_artifacts.json", artifact="alertmanager"
+    )
+    artifact = next(item for item in selected if item.name == "alertmanager-source")
+    calls: list[str] = []
+
+    class FailedTransport:
+        def open(self, request: object, *, timeout: float) -> object:
+            calls.append(request.full_url)
+            raise HTTPError(
+                artifact.url,
+                503,
+                "synthetic unavailable",
+                Message(),
+                io.BytesIO(b"synthetic failure"),
+            )
+
+    monkeypatch.setattr(transport, "opener", lambda: FailedTransport())
+    with pytest.raises(RuntimeError, match="initial HTTP status 503"):
+        docker_sources._download_alertmanager(
+            artifact, deadline=time.monotonic() + 5, private=tmp_path
+        )
+    assert calls == [artifact.url]
+    assert (tmp_path / "alertmanager-source-initial.http-body").read_bytes() == b"synthetic failure"
+    assert (
+        json.loads((tmp_path / "alertmanager-source-http.json").read_text())[0][
+            "actual_http_status"
+        ]
+        == 503
+    )
+
+
+@pytest.mark.parametrize(
+    "location",
+    [
+        "https://unapproved.invalid/private?synthetic=only",
+        "https://release-assets.githubusercontent.com/github-production-release-asset/11434314/12345678-1234-1234-1234-123456789abc?synthetic=only\n",
+    ],
+)
+def test_alertmanager_transport_rejects_unapproved_handoff_authority(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    location: str,
+) -> None:
+    from email.message import Message
+    from urllib.error import HTTPError
+    from scripts.ci import prometheus_source_image as transport
+    import io
+    import time
+
+    artifact = next(
+        item
+        for item in docker_sources.load_manifest(
+            REPO_ROOT / "scripts/ci/docker_source_artifacts.json", artifact="alertmanager"
+        )
+        if item.name == "alertmanager-ui"
+    )
+    headers = Message()
+    headers["Location"] = location
+    calls: list[str] = []
+
+    class WrongHandoff:
+        def open(self, request: object, *, timeout: float) -> object:
+            calls.append(request.full_url)
+            raise HTTPError(artifact.url, 302, "synthetic handoff", headers, io.BytesIO(b""))
+
+    monkeypatch.setattr(transport, "opener", lambda: WrongHandoff())
+    with pytest.raises(RuntimeError, match="handoff authority"):
+        docker_sources._download_alertmanager(
+            artifact, deadline=time.monotonic() + 5, private=tmp_path
+        )
+    assert calls == [artifact.url]
+
+
+def test_alertmanager_module_mode_is_manual_first_attempt_and_build_is_held() -> None:
+    workflow = _load_workflow(WORKFLOWS_DIR / "cd.yml")
+    job = workflow["jobs"]["alertmanager-module-qualification"]
+    admission = job["if"]
+    assert "github.event_name == 'workflow_dispatch'" in admission
+    assert "github.run_attempt == 1" in admission
+    assert "github.repository == 'Katsiarynakavaleuskaya/PulsePlate'" in admission
+    assert job["permissions"] == {"contents": "read", "actions": "read"}
+    assert job["env"]["ALERTMANAGER_QUALIFY_SECONDS"] == "825"
+    first = job["steps"][0]["run"]
+    assert 'test "$ALERTMANAGER_MODE" = module-qualify' in first
+    assert 'test "$SOURCE_SHA" = "$GITHUB_SHA"' in first
+    checkout = _step_by_name(job, "Checkout authenticated Alertmanager preparation")
+    assert checkout["with"] == {"ref": "${{ github.sha }}", "persist-credentials": False}
+    qualification = _step_by_name(
+        job, "Qualify exact inputs and modules under one metadata-only clock"
+    )
+    assert (
+        _step_index(job, job["steps"][0]["name"])
+        < _step_index(job, checkout["name"])
+        < _step_index(job, qualification["name"])
+    )
+    assert qualification["run"].index('checkout_sha="$(git rev-parse HEAD)"') < (
+        qualification["run"].index('test "$checkout_sha" = "$GITHUB_SHA"')
+    )
+    assert qualification["run"].index('test "$checkout_sha" = "$GITHUB_SHA"') < (
+        qualification["run"].index("python3 -m scripts.ci.fetch_docker_source_artifacts")
+    )
+    runs = "\n".join(step.get("run", "") for step in job["steps"])
+    assert "docker login" not in runs and "docker push" not in runs
+    assert "--artifact alertmanager --alertmanager-module-qualify" in runs
+
+
+@pytest.mark.parametrize(
+    "fault",
+    [
+        None,
+        "malformed_source",
+        "different_source",
+        "different_repository",
+        "repeat_attempt",
+        "build_mode",
+        "different_api_revision",
+        "api_failure",
+        "different_checkout",
+        "checkout_failure",
+    ],
+)
+def test_alertmanager_module_mode_checks_exact_revision_before_qualification(
+    tmp_path: Path, fault: str | None
+) -> None:
+    job = _load_workflow(WORKFLOWS_DIR / "cd.yml")["jobs"]["alertmanager-module-qualification"]
+    qualification = _step_by_name(
+        job, "Qualify exact inputs and modules under one metadata-only clock"
+    )
+    binary_dir = tmp_path / "bin"
+    binary_dir.mkdir()
+    marker = tmp_path / "qualified"
+    scripts = {
+        "gh": '#!/bin/sh\nprintf "%s\\n" "$SYNTHETIC_API_SHA"\nexit "$SYNTHETIC_API_EXIT"\n',
+        "git": (
+            '#!/bin/sh\n[ "$*" = "rev-parse HEAD" ] || exit 64\n'
+            'printf "%s\\n" "$SYNTHETIC_CHECKOUT_SHA"\nexit "$SYNTHETIC_GIT_EXIT"\n'
+        ),
+        "python3": (
+            '#!/bin/sh\n[ "$*" = "-m scripts.ci.fetch_docker_source_artifacts '
+            '--artifact alertmanager --alertmanager-module-qualify" ] || exit 64\n'
+            'printf "qualified\\n" > "$QUALIFICATION_MARKER"\n'
+        ),
+    }
+    for name, body in scripts.items():
+        executable = binary_dir / name
+        executable.write_text(body)
+        executable.chmod(0o755)
+    revision = "a" * 40
+    # An explicit environment excludes every host credential source, even for stubs.
+    env = {
+        "PATH": str(binary_dir),
+        "HOME": str(tmp_path),
+        "GH_CONFIG_DIR": str(tmp_path / "gh-config"),
+        "GH_TOKEN": "synthetic-test-token",
+        "GITHUB_TOKEN": "synthetic-test-token",
+        "GITHUB_REPOSITORY": "Katsiarynakavaleuskaya/PulsePlate",
+        "GITHUB_RUN_ATTEMPT": "1",
+        "SOURCE_SHA": revision,
+        "GITHUB_SHA": revision,
+        "ALERTMANAGER_MODE": "module-qualify",
+        "SYNTHETIC_API_SHA": revision,
+        "SYNTHETIC_API_EXIT": "0",
+        "SYNTHETIC_CHECKOUT_SHA": revision,
+        "SYNTHETIC_GIT_EXIT": "0",
+        "QUALIFICATION_MARKER": str(marker),
+    }
+    mutations = {
+        "malformed_source": ("SOURCE_SHA", "invalid"),
+        "different_source": ("SOURCE_SHA", "b" * 40),
+        "different_repository": ("GITHUB_REPOSITORY", "other/repository"),
+        "repeat_attempt": ("GITHUB_RUN_ATTEMPT", "2"),
+        "build_mode": ("ALERTMANAGER_MODE", "build"),
+        "different_api_revision": ("SYNTHETIC_API_SHA", "b" * 40),
+        "api_failure": ("SYNTHETIC_API_EXIT", "1"),
+        "different_checkout": ("SYNTHETIC_CHECKOUT_SHA", "b" * 40),
+        "checkout_failure": ("SYNTHETIC_GIT_EXIT", "1"),
+    }
+    if fault is not None:
+        key, value = mutations[fault]
+        env[key] = value
+    bash = shutil.which("bash")
+    assert bash is not None
+    result = subprocess.run(
+        [bash, "-c", job["steps"][0]["run"] + "\n" + qualification["run"]],
+        cwd=tmp_path,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=5,
+        check=False,
+    )
+    assert (result.returncode == 0) is (fault is None), result.stderr
+    assert marker.exists() is (fault is None)
+
+
+def test_alertmanager_literal_recipe_has_only_selected_payload_and_private_defaults() -> None:
+    recipe = (REPO_ROOT / "deploy/alertmanager/Containerfile").read_text()
+    assert "RUN " not in recipe and "ADD " not in recipe
+    assert "COPY probe-bin-bracket /usr/bin/wget" in recipe
+    assert "COPY probe-bin-bracket /usr/bin/httpd" in recipe
+    assert "COPY alertmanager /usr/bin/alertmanager" in recipe
+    assert "COPY amtool /usr/bin/amtool" in recipe
+    assert "USER 65534:65534" in recipe
+    assert "COPY --chown=65534:65534 storage-dir /alertmanager" in recipe
+    assert '"--cluster.listen-address="' in recipe
+
+
+@pytest.mark.parametrize("final_status", [200, 403])
+def test_alertmanager_one_handoff_has_no_final_retry_and_retains_status(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    final_status: int,
+) -> None:
+    from email.message import Message
+    from urllib.error import HTTPError
+    from scripts.ci import prometheus_source_image as transport
+    import io
+    import time
+
+    artifact = next(
+        item
+        for item in docker_sources.load_manifest(
+            REPO_ROOT / "scripts/ci/docker_source_artifacts.json", artifact="alertmanager"
+        )
+        if item.name == "alertmanager-ui"
+    )
+    handoff = "https://release-assets.githubusercontent.com/github-production-release-asset/11434314/12345678-1234-1234-1234-123456789abc?synthetic=only"
+    headers = Message()
+    headers["Location"] = handoff
+    calls: list[str] = []
+
+    class Response(io.BytesIO):
+        status = 200
+
+        def geturl(self) -> str:
+            return handoff
+
+    class HandoffTransport:
+        def open(self, request: object, *, timeout: float) -> object:
+            calls.append(request.full_url)
+            if len(calls) == 1:
+                raise HTTPError(artifact.url, 302, "synthetic handoff", headers, io.BytesIO(b""))
+            if final_status == 403:
+                raise HTTPError(
+                    handoff,
+                    403,
+                    "synthetic final rejection",
+                    Message(),
+                    io.BytesIO(b"private synthetic rejection"),
+                )
+            return Response(b"synthetic successful transport")
+
+    monkeypatch.setattr(transport, "opener", lambda: HandoffTransport())
+    if final_status == 403:
+        with pytest.raises(RuntimeError, match="handoff HTTP status 403"):
+            docker_sources._download_alertmanager(
+                artifact, deadline=time.monotonic() + 5, private=tmp_path
+            )
+        records = json.loads((tmp_path / "alertmanager-ui-http.json").read_text())
+        assert records[-1]["actual_http_status"] == 403
+        assert records[-1]["diagnostic_read_error"] is None
+        assert (
+            tmp_path / "alertmanager-ui-handoff-final.http-body"
+        ).stat().st_mode & 0o777 == 0o600
+        assert handoff not in (tmp_path / "alertmanager-ui-http.json").read_text()
+    else:
+        assert (
+            docker_sources._download_alertmanager(
+                artifact, deadline=time.monotonic() + 5, private=tmp_path
+            )
+            == b"synthetic successful transport"
+        )
+    assert calls == [artifact.url, handoff]
+
+
+def test_alertmanager_http_body_diagnostic_failure_preserves_primary_status(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from email.message import Message
+    from urllib.error import HTTPError
+    from scripts.ci import prometheus_source_image as transport
+    import io
+    import time
+
+    artifact = next(
+        item
+        for item in docker_sources.load_manifest(
+            REPO_ROOT / "scripts/ci/docker_source_artifacts.json", artifact="alertmanager"
+        )
+        if item.name == "alertmanager-source"
+    )
+
+    class BrokenBody(io.BytesIO):
+        def read(self, size: int = -1) -> bytes:
+            raise OSError("synthetic diagnostic read failure")
+
+    class FailedTransport:
+        def open(self, request: object, *, timeout: float) -> object:
+            raise HTTPError(
+                artifact.url, 503, "synthetic primary rejection", Message(), BrokenBody()
+            )
+
+    monkeypatch.setattr(transport, "opener", lambda: FailedTransport())
+    with pytest.raises(RuntimeError, match="initial HTTP status 503"):
+        docker_sources._download_alertmanager(
+            artifact, deadline=time.monotonic() + 5, private=tmp_path
+        )
+    records = json.loads((tmp_path / "alertmanager-source-http.json").read_text())
+    assert records[0]["actual_http_status"] == 503
+    assert records[0]["diagnostic_read_error"] == "OSError"
+    assert (tmp_path / "alertmanager-source-http.json").stat().st_mode & 0o777 == 0o600
+
+
+@pytest.mark.parametrize("exit_code", [0, 17])
+def test_alertmanager_native_attach_success_does_not_admit_failed_go_exit(exit_code: int) -> None:
+    identifier, name, token = "a" * 64, "pulseplate-alert-module-synthetic", "synthetic"
+    observed = {
+        "Id": identifier,
+        "Name": "/" + name,
+        "Config": {"Labels": {"pulseplate.alertmanager-module": token}},
+        "State": {
+            "Status": "exited",
+            "Running": False,
+            "Restarting": False,
+            "Dead": False,
+            "OOMKilled": False,
+            "Error": "",
+            "ExitCode": exit_code,
+        },
+    }
+    # Docker attach itself can return 0; the native wait/state remains independent truth.
+    if exit_code:
+        with pytest.raises(RuntimeError, match="Actual Alertmanager container command exit"):
+            docker_sources._alertmanager_command_exit(observed, identifier, name, token, b"17\n")
+    else:
+        docker_sources._alertmanager_command_exit(observed, identifier, name, token, b"0\n")
+
+
+def test_alertmanager_oversized_cache_is_rejected_before_read_or_transport(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    artifact = next(
+        item
+        for item in docker_sources.load_manifest(
+            REPO_ROOT / "scripts/ci/docker_source_artifacts.json", artifact="alertmanager"
+        )
+        if item.name == "alertmanager-source"
+    )
+    cached = tmp_path / artifact.filename
+    with cached.open("wb") as stream:
+        stream.truncate(docker_sources._ALERT_SIZES[artifact.name] + 1)
+    original_read = Path.read_bytes
+
+    def trapped_read(path: Path) -> bytes:
+        if path == cached:
+            raise AssertionError("oversized cache must never be read")
+        return original_read(path)
+
+    monkeypatch.setattr(Path, "read_bytes", trapped_read)
+    monkeypatch.setattr(
+        docker_sources,
+        "_download_alertmanager",
+        lambda *args, **kwargs: pytest.fail("bad cache must not be replaced"),
+    )
+    with pytest.raises(RuntimeError, match="cached exact size"):
+        docker_sources._write_verified_artifact(artifact, tmp_path)
+    assert cached.stat().st_size == docker_sources._ALERT_SIZES[artifact.name] + 1
+
+
+@pytest.mark.parametrize("foreign", [False, True])
+def test_alertmanager_cleanup_requires_actual_create_id_before_any_remove(
+    tmp_path: Path,
+    foreign: bool,
+) -> None:
+    owned, identifier = "a" * 64, ("b" if foreign else "a") * 64
+    calls: list[list[str]] = []
+
+    class SyntheticNative:
+        def run(self, argv: list[str], *args: object, **kwargs: object) -> bytes:
+            calls.append(argv)
+            if "inspect" in argv:
+                return json.dumps(
+                    {
+                        "Id": identifier,
+                        "Name": "/owned",
+                        "Config": {"Labels": {"pulseplate.alertmanager-module": "token"}},
+                    }
+                ).encode()
+            return b""
+
+    if foreign:
+        with pytest.raises(RuntimeError, match="actual retained create identity"):
+            docker_sources._alertmanager_cleanup_member(
+                SyntheticNative(),
+                "/absolute/docker",
+                identifier,
+                {owned},
+                {"owned"},
+                "token",
+                {},
+                tmp_path,
+                0,
+                tmp_path,
+            )
+        assert calls == []
+    else:
+        docker_sources._alertmanager_cleanup_member(
+            SyntheticNative(),
+            "/absolute/docker",
+            identifier,
+            {owned},
+            {"owned"},
+            "token",
+            {},
+            tmp_path,
+            0,
+            tmp_path,
+        )
+        assert calls[-1] == ["/absolute/docker", "--config", str(tmp_path), "rm", "--force", owned]
+
+
+@pytest.mark.parametrize("module_changed", [False, True])
+def test_alertmanager_replay_compares_complete_module_payload_not_go_index_cache(
+    module_changed: bool,
+) -> None:
+    first = {
+        key: []
+        for key in (
+            "original",
+            "derived",
+            "modules",
+            "graph",
+            "packages",
+            "delta",
+            "source",
+            "version",
+        )
+    }
+    first["module_cache"] = [
+        {"path": "example@v1/file", "sha256": "a" * 64, "mode": 444, "size": 1}
+    ]
+    second = dict(first)
+    first["whole_GOCACHE"] = [{"path": "index-first-root", "sha256": "b" * 64}]
+    second["whole_GOCACHE"] = [{"path": "index-second-root", "sha256": "c" * 64}]
+    if module_changed:
+        second["module_cache"] = [
+            {"path": "example@v1/file", "sha256": "d" * 64, "mode": 444, "size": 1}
+        ]
+        with pytest.raises(RuntimeError, match="module_cache"):
+            docker_sources._alertmanager_compare_replays([first, second])
+    else:
+        docker_sources._alertmanager_compare_replays([first, second])
+
+
+def test_alertmanager_frozen_input_artifact_includes_required_bytes_and_excludes_private_home(
+    tmp_path: Path,
+) -> None:
+    import time
+    import tarfile
+
+    evidence = tmp_path / "evidence"
+    evidence.mkdir()
+    source, modules = tmp_path / "source", tmp_path / "modules"
+    source.mkdir()
+    modules.mkdir()
+    (source / "go.mod").write_bytes(b"derived exact lock")
+    (modules / "module").write_bytes(b"frozen exact module")
+    long_module = modules / ("module-cache-" + "x" * 151)
+    long_module.write_bytes(b"exact long-name module bytes")
+    long_module.chmod(0o444)
+    files = []
+    for name in ("go", "base", "original", "ui"):
+        path = tmp_path / name
+        path.write_bytes(name.encode())
+        files.append(path)
+    (tmp_path / "HOME-private").write_bytes(b"must stay excluded")
+    (tmp_path / "private-http-capture").write_bytes(b"must stay excluded")
+    result = docker_sources._retain_alertmanager_inputs(
+        evidence, source, modules, *files, time.monotonic() + 10
+    )
+    with tarfile.open(evidence / "frozen-inputs.tar") as archive:
+        names = archive.getnames()
+        assert "source/go.mod" in names and "modules/module" in names
+        assert {"go-toolchain.tar.gz", "base-image.tar", "source.tar.gz", "ui.tar.gz"} <= set(names)
+        assert not any("private" in name or "HOME" in name for name in names)
+        assert archive.extractfile("source/go.mod").read() == b"derived exact lock"
+        long_name = "modules/" + long_module.name
+        assert archive.extractfile(long_name).read() == long_module.read_bytes()
+        assert archive.getmember(long_name).mode == 0o444
+        observed = []
+        for member in archive.getmembers():
+            row = {
+                "path": member.name,
+                "mode": member.mode,
+                "bytes": member.size,
+                "type": "directory" if member.isdir() else "file",
+            }
+            assert member.uid == member.gid == member.mtime == 0
+            if member.isfile():
+                row["sha256"] = sha256(archive.extractfile(member).read()).hexdigest()
+            observed.append(row)
+        assert observed == result["members"]
+    assert result["private_HTTP_and_HOME_excluded"] is True
+    assert sha256((evidence / "frozen-inputs.tar").read_bytes()).hexdigest() == result["sha256"]
+    repeated = tmp_path / "repeated-evidence"
+    repeated.mkdir()
+    repeated_result = docker_sources._retain_alertmanager_inputs(
+        repeated, source, modules, *files, time.monotonic() + 10
+    )
+    assert repeated_result == result
+    assert (repeated / "frozen-inputs.tar").read_bytes() == (
+        evidence / "frozen-inputs.tar"
+    ).read_bytes()
+    files[0].unlink()
+    other = tmp_path / "other-evidence"
+    other.mkdir()
+    with pytest.raises(RuntimeError, match="required Alertmanager input missing"):
+        docker_sources._retain_alertmanager_inputs(
+            other, source, modules, *files, time.monotonic() + 10
+        )
+
+
+def test_alertmanager_hosted_transport_shares_clock_and_empty_docker_config() -> None:
+    import inspect
+
+    source = (
+        inspect.getsource(docker_sources._qualify_alertmanager_modules)
+        + "\n"
+        + inspect.getsource(docker_sources._alertmanager_module_phase)
+    )
+    assert (
+        source.index("deadline =")
+        < source.index("_fetch_alertmanager_pair")
+        < source.index("acquire(GO")
+    )
+    assert "operation_deadline=deadline" in source
+    assert 'docker_prefix = [docker, "--config", str(docker_config)]' in source
+    assert "base_id = _alertmanager_loaded_base(base_objects)" in source
+    assert '"--pull=never"' in source
+    assert (
+        "/run/alertmanager-metadata:size=64m,noexec,nosuid,uid=65534,gid=65534,mode=0700" in source
+    )
+    assert '"HOME": "/run/alertmanager-metadata"' in source
+    assert '"GOCACHE": "/run/alertmanager-metadata/cache"' in source
+    assert '"TMPDIR": "/run/alertmanager-metadata"' in source
+    assert '"--network=none"' in source and '"--read-only"' in source
+    assert '"--cap-drop=ALL"' in source and '"--security-opt=no-new-privileges"' in source
+    assert '"loaded_base_ID": base_id' in source
+    assert "native_import(" not in source and '"login"' not in source
+    workflow = _load_workflow(WORKFLOWS_DIR / "cd.yml")
+    steps = workflow["jobs"]["alertmanager-module-qualification"]["steps"]
+    calls = [
+        step.get("run", "")
+        for step in steps
+        if "fetch_docker_source_artifacts" in step.get("run", "")
+    ]
+    assert len(calls) == 1 and "--alertmanager-module-qualify" in calls[0]
+
+
+@pytest.mark.parametrize(
+    "fault",
+    [
+        "none",
+        "config",
+        "platform",
+        "digest",
+        "layer",
+        "digests-string",
+        "duplicate-digest",
+        "rootfs-list",
+        "rootfs-type",
+        "layers-string",
+    ],
+)
+def test_alertmanager_public_base_native_binding_precedes_offline_use(fault: str) -> None:
+    image = {
+        "Id": "sha256:55a757dc8ab862a4eb634c434261dcd26f17c186b54f7bce845404a335456110",
+        "Os": "linux",
+        "Architecture": "amd64",
+        "RepoDigests": [
+            "gcr.io/distroless/static-debian13@sha256:2293b36c7c9082bf4115aab724b4d2cddec82c8eba39bf27ac0517e159acf150"
+        ],
+        "RootFS": {
+            "Type": "layers",
+            "Layers": [
+                "sha256:9486261b5a13f63ca6904b36721527ac8f19df53d300560138d69ae9b4c203de",
+                "sha256:621c35e751a51a9a9dc3e80aa0b7fe8be2a93402ea6ccd307d30852cd7776cda",
+                "sha256:763a77745f27b86cf26b97887b6842d83720e63b1c48848c0ba9ee54e351d63a",
+                "sha256:f0d0eff4c2312a7bd6e21797bdfea5eb35f60e76b555ce2b22794424af2cad36",
+                "sha256:275a30dd8ce958b21daa9ad962c6fbc09f98306ee2f486b65c9075dc257b1412",
+                "sha256:4d049f83d9cf21d1f5cc0e11deaf36df02790d0e60c1a3829538fb4b61685368",
+                "sha256:af5aa97ebe6ce1604747ec1e21af7136ded391bcabe4acef882e718a87c86bcc",
+                "sha256:6f1cdceb6a3146f0ccb986521156bef8a422cdbb0863396f7f751f575ba308f4",
+                "sha256:bd3cdfae1d3fdd83a2231d608969b38b82349777c2fff9a7c12d54f8ac5c9b38",
+                "sha256:4cde6b0bb6f50a5f255eef7b2a42162c661cf776b803225dcac9a659e396bb6b",
+                "sha256:ad51d0769d16ba578106a177987dfe3d2e02c1668c852b795b2f6b024068242a",
+                "sha256:187cfc6d1e3e8a40a5e64653bcd3239c140807dcf1c09e48021178705a5a6139",
+                "sha256:f2392a9484bf6b18f06beaf705b994e31dbb2716c99cf7d03c9c495cd107f364",
+            ],
+        },
+    }
+    if fault == "config":
+        image["Id"] = "sha256:" + "0" * 64
+    elif fault == "platform":
+        image["Architecture"] = "arm64"
+    elif fault == "digest":
+        image["RepoDigests"] = []
+    elif fault == "layer":
+        image["RootFS"]["Layers"] = image["RootFS"]["Layers"][:-1]
+    elif fault == "digests-string":
+        image["RepoDigests"] = image["RepoDigests"][0]
+    elif fault == "duplicate-digest":
+        image["RepoDigests"] *= 2
+    elif fault == "rootfs-list":
+        image["RootFS"] = []
+    elif fault == "rootfs-type":
+        image["RootFS"]["Type"] = "unknown"
+    elif fault == "layers-string":
+        image["RootFS"]["Layers"] = "not a layer inventory"
+    if fault == "none":
+        assert docker_sources._alertmanager_loaded_base([image]) == image["Id"]
+    else:
+        with pytest.raises(RuntimeError, match="Exact public base"):
+            docker_sources._alertmanager_loaded_base([image])
+
+
+def test_alertmanager_qualification_timer_restores_remaining_caller_without_reset(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import signal
+
+    now = [0.0]
+    timers: list[tuple[float, float]] = []
+    handlers: list[object] = []
+
+    def prior_handler(*args: object) -> None:
+        pass
+
+    monkeypatch.setenv("ALERTMANAGER_QUALIFY_SECONDS", "825")
+    monkeypatch.setattr(docker_sources.time, "monotonic", lambda: now[0])
+    monkeypatch.setattr(signal, "getitimer", lambda which: (1200.0, 0.0))
+    monkeypatch.setattr(signal, "getsignal", lambda which: prior_handler)
+    monkeypatch.setattr(signal, "signal", lambda which, handler: handlers.append(handler))
+    monkeypatch.setattr(
+        signal, "setitimer", lambda which, value, interval=0.0: timers.append((value, interval))
+    )
+
+    def synthetic_phase(output: Path, deadline: float, seconds: int) -> None:
+        assert deadline == 825 and seconds == 825
+        now[0] = 7.0
+
+    monkeypatch.setattr(docker_sources, "_alertmanager_module_phase", synthetic_phase)
+    docker_sources._qualify_alertmanager_modules(tmp_path)
+    assert timers == [(825, 0.0), (0, 0.0), (1193.0, 0.0)]
+    assert handlers[-1] is prior_handler
+
+
+def test_alertmanager_source_timer_restores_same_remaining_parent(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import signal
+
+    now = [0.0]
+    timers: list[tuple[float, float]] = []
+
+    def parent_handler(*args: object) -> None:
+        pass
+
+    handlers: list[object] = []
+    artifacts = docker_sources.load_manifest(
+        REPO_ROOT / "scripts/ci/docker_source_artifacts.json", artifact="alertmanager"
+    )
+    monkeypatch.setattr(docker_sources.time, "monotonic", lambda: now[0])
+    monkeypatch.setattr(signal, "getitimer", lambda which: (900.0, 0.0))
+    monkeypatch.setattr(signal, "getsignal", lambda which: parent_handler)
+    monkeypatch.setattr(signal, "signal", lambda which, handler: handlers.append(handler))
+    monkeypatch.setattr(
+        signal, "setitimer", lambda which, value, interval=0.0: timers.append((value, interval))
+    )
+
+    def synthetic_input(*args: object, **kwargs: object) -> None:
+        now[0] += 2.5
+
+    monkeypatch.setattr(docker_sources, "_write_verified_artifact", synthetic_input)
+    docker_sources._fetch_alertmanager_pair(artifacts, tmp_path, operation_deadline=900)
+    assert timers == [(300.0, 0.0), (0, 0.0), (895.0, 0.0)]
+    assert handlers[-1] is parent_handler
+
+
+def test_alertmanager_owned_go_tree_is_searchable_under_umask077_without_execution(
+    tmp_path: Path,
+) -> None:
+    import os
+    import time
+
+    toolchain = tmp_path / "alertmanager-go"
+    old_mask = os.umask(0o077)
+    try:
+        (toolchain / "bin").mkdir(parents=True, mode=0o755)
+        binary = toolchain / "bin/go"
+        binary.write_bytes(b"synthetic non-executed Go bytes")
+        binary.chmod(0o755)
+        (toolchain / "VERSION").write_bytes(b"synthetic")
+    finally:
+        os.umask(old_mask)
+    assert (toolchain / "bin").stat().st_mode & 0o777 == 0o700
+    binding = docker_sources._alertmanager_readonly_go(toolchain, time.monotonic() + 10)
+    assert all(row["mode"] == 0o555 for row in binding["after_directories"])
+    assert binary.stat().st_mode & 0o777 == 0o555
+    assert (toolchain / "VERSION").stat().st_mode & 0o777 == 0o444
+    assert binary.read_bytes() == b"synthetic non-executed Go bytes"
+
+
+def test_alertmanager_complete_artifact_inventory_includes_own_bytes_and_bounds(
+    tmp_path: Path,
+) -> None:
+    import time
+    from scripts.ci.prometheus_source_image import MAX_CACHE_BYTES
+
+    evidence = tmp_path / "small"
+    evidence.mkdir()
+    (evidence / "payload").write_bytes(b"bound actual evidence")
+    docker_sources._alertmanager_finalize_payload(evidence, time.monotonic() + 10)
+    inventory = json.loads((evidence / "artifact-payload-members.json").read_text())
+    assert inventory["files"][0]["path"] == "payload"
+    assert "Exactly artifact-payload-members.json" in inventory["inventory_carrier_exception"]
+    oversized = tmp_path / "oversized"
+    oversized.mkdir()
+    with (oversized / "payload").open("wb") as stream:
+        stream.truncate(MAX_CACHE_BYTES + 1)
+    with pytest.raises(RuntimeError, match="tree_size_bound"):
+        docker_sources._alertmanager_finalize_payload(oversized, time.monotonic() + 10)
+    assert not (oversized / "artifact-payload-members.json").exists()
+
+
+@pytest.mark.parametrize("fault", ["valid", "old-url", "query", "port"])
+def test_zlib_release_keeps_exact_bytes_at_reviewed_www_url(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fault: str
+) -> None:
+    artifact = next(
+        item
+        for item in docker_sources.load_manifest(
+            REPO_ROOT / "scripts/ci/docker_source_artifacts.json", today=date(2026, 10, 16)
+        )
+        if item.name == "zlib"
+    )
+    assert (artifact.version, artifact.filename, artifact.url) == (
+        "1.3.2",
+        "zlib-1.3.2.tar.gz",
+        "https://www.zlib.net/fossils/zlib-1.3.2.tar.gz",
+    )
+    assert artifact.sha3_256 == (
+        "451bedbd" "cd78dec3" "704df673" "c976fab2" "5beaef6a" "db9433fe" "84665e7b" "f946e325"
+    )
+    assert artifact.sha256 == (
+        "bb329a0a" "2cd0274d" "05519d61" "c667c062" "e06990d7" "2e125ee2" "dfa8de64" "f0119d16"
+    )
+    if fault == "valid":
+        return
+    url = {
+        "old-url": artifact.url.replace("www.", ""),
+        "query": artifact.url + "?x=1",
+        "port": artifact.url.replace("www.zlib.net", "www.zlib.net:443"),
+    }[fault]
+    calls = _stub_source_transport(monkeypatch, payload=b"unused")
+    output = tmp_path / "sources"
+    with pytest.raises(RuntimeError, match="exact reviewed identity"):
+        docker_sources._write_verified_artifact(replace(artifact, url=url), output)
+    assert calls == [] and not output.exists()
+
+
+@pytest.mark.parametrize("status", [200, 301, 302, 303, 307, 308])
+def test_zlib_www_challenge_and_redirect_never_admit_source(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, status: int
+) -> None:
+    artifact = next(
+        item
+        for item in docker_sources.load_manifest(
+            REPO_ROOT / "scripts/ci/docker_source_artifacts.json", today=date(2026, 10, 16)
+        )
+        if item.name == "zlib"
+    )
+    calls = _stub_source_transport(
+        monkeypatch,
+        payload=b"<html>challenge</html>",
+        code=status,
+        location=artifact.url if status != 200 else None,
+    )
+    output = tmp_path / "sources"
+    if status == 200:
+        with pytest.raises(RuntimeError, match="zlib SHA3 mismatch"):
+            docker_sources._write_verified_artifact(artifact, output)
+    else:
+        with pytest.raises(HTTPError):
+            docker_sources._write_verified_artifact(artifact, output)
+    assert calls == [(artifact.url, 60)]
+    assert list(output.iterdir()) == []

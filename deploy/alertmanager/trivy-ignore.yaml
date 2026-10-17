@@ -2,8 +2,45 @@ vulnerabilities:
   - id: CVE-2026-84445
     purls:
       - pkg:golang/google.golang.org/grpc@v1.83.1
-    expired_at: 2026-10-24
+    expired_at: 2026-10-21
     statement: >-
-      Temporary exception for the exact official Alertmanager v0.34.1 linux/amd64
-      image while no patched Alertmanager release exists. Review weekly and remove
-      when an official release includes grpc 1.83.2 or later.
+      Seven-day exception for the exact official Alertmanager v0.34.1 linux/amd64
+      image. The verified release list on 2026-10-14 has no newer release.
+      Component fixes exist; qualification of a replacement covering all admitted
+      findings is carryover to the next substantive PR. See
+      docs/security/CVE-2026-84445-alertmanager.md. Remove after all admitted
+      findings are remediated and the replacement passes native/security acceptance.
+  - id: CVE-2026-78669
+    purls:
+      - pkg:golang/golang.org/x/net@v0.58.0
+      - pkg:golang/stdlib@v1.26.8
+    expired_at: 2026-10-21
+    statement: >-
+      Seven-day exception for the exact official Alertmanager v0.34.1 linux/amd64
+      image. The verified release list on 2026-10-14 has no newer release.
+      Component fixes exist; qualification of a replacement covering all admitted
+      findings is carryover to the next substantive PR. See
+      docs/security/CVE-2026-84445-alertmanager.md. Remove after all admitted
+      findings are remediated and the replacement passes native/security acceptance.
+  - id: CVE-2026-78667
+    purls:
+      - pkg:golang/stdlib@v1.26.8
+    expired_at: 2026-10-21
+    statement: >-
+      Seven-day exception for the exact official Alertmanager v0.34.1 linux/amd64
+      image. The verified release list on 2026-10-14 has no newer release.
+      Component fixes exist; qualification of a replacement covering all admitted
+      findings is carryover to the next substantive PR. See
+      docs/security/CVE-2026-84445-alertmanager.md. Remove after all admitted
+      findings are remediated and the replacement passes native/security acceptance.
+  - id: CVE-2026-97031
+    purls:
+      - pkg:golang/stdlib@v1.26.8
+    expired_at: 2026-10-21
+    statement: >-
+      Seven-day exception for the exact official Alertmanager v0.34.1 linux/amd64
+      image. The verified release list on 2026-10-14 has no newer release.
+      Component fixes exist; qualification of a replacement covering all admitted
+      findings is carryover to the next substantive PR. See
+      docs/security/CVE-2026-84445-alertmanager.md. Remove after all admitted
+      findings are remediated and the replacement passes native/security acceptance.

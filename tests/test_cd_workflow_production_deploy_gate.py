@@ -23,7 +23,17 @@ WEB_IOS_RELEASE_READY_ENV_FETCH = (
 def test_build_workflow_keeps_only_ordinary_fail_closed_topology() -> None:
     workflow = yaml.safe_load((REPO_ROOT / ".github/workflows/build.yml").read_text())
     jobs = workflow["jobs"]
-    assert set(jobs) == {"build", "security-scan", "publish"}
+    assert set(jobs) == {
+        "build",
+        "security-scan",
+        "publish",
+        "prometheus-source-qualification",
+        "prometheus-ghcr-package-qualification",
+        "backend-arm-sdk-qualification",
+        "prometheus-oras-qualification",
+        "prometheus-source-build-pair",
+        "prometheus-publish",
+    }
     inputs = workflow.get("on", workflow.get(True))["workflow_dispatch"]["inputs"]
     assert inputs == {
         "mode": {
@@ -31,8 +41,28 @@ def test_build_workflow_keeps_only_ordinary_fail_closed_topology() -> None:
             "type": "choice",
             "required": True,
             "default": "disabled",
-            "options": ["disabled", "normal"],
-        }
+            "options": [
+                "disabled",
+                "normal",
+                "prometheus-source-qualify",
+                "backend-sdk-qualify",
+                "prometheus-oras-qualify",
+                "prometheus-source-pair",
+            ],
+        },
+        "prometheus_module_action": {
+            "description": "Explicit Prometheus metadata module action; unchanged retains original locks",
+            "type": "choice",
+            "required": True,
+            "default": "unchanged",
+            "options": ["unchanged", "xnet060-replay"],
+        },
+        "tool_prefetch_predecessor": {
+            "description": "Exact failed precompile run:artifact evidence selector; no dispatch authorization",
+            "type": "string",
+            "required": False,
+            "default": "",
+        },
     }
     assert workflow["concurrency"] == {
         "group": "ghcr-build-push-${{ github.sha }}",
@@ -50,11 +80,59 @@ def test_build_workflow_keeps_only_ordinary_fail_closed_topology() -> None:
     ):
         assert retired not in str(workflow)
     for retired_path in (
-        "deploy/prometheus/Containerfile",
         "scripts/ci/prometheus_derivative_candidate.py",
         "scripts/ci/_prometheus_derivative_transport.py",
     ):
         assert not (REPO_ROOT / retired_path).exists()
+    assert (
+        (REPO_ROOT / "deploy/prometheus/Containerfile")
+        .read_text()
+        .startswith("# Finite payload declaration;")
+    )
+    # These two manual, same-repository qualification sidecars cannot enter
+    # the retained ordinary build/security/publish dependency chain.
+    qualification_condition = (
+        "github.event_name == 'workflow_dispatch' && "
+        "inputs.mode == 'prometheus-source-qualify' && "
+        "github.repository == 'Katsiarynakavaleuskaya/PulsePlate'"
+    )
+    for name, permissions in (
+        ("prometheus-source-qualification", {"contents": "read"}),
+        ("prometheus-ghcr-package-qualification", {"contents": "read", "packages": "read"}),
+    ):
+        job = jobs[name]
+        assert " ".join(job["if"].split()) == qualification_condition
+        assert job["permissions"] == permissions
+        assert "needs" not in job
+        assert "environment" not in job
+        assert "continue-on-error" not in job
+        steps = job["steps"]
+        assert all("continue-on-error" not in step for step in steps)
+        checkout = [
+            step for step in steps if str(step.get("uses", "")).startswith("actions/checkout@")
+        ]
+        assert len(checkout) == 1
+        assert checkout[0]["with"] == {"persist-credentials": False, "ref": "${{ github.sha }}"}
+        assert "if [[ \"$GITHUB_RUN_ATTEMPT\" != '1' ]]; then" in steps[0]["run"]
+        assert "scripts.ci.prometheus_source_image" in str(steps)
+        for forbidden in (
+            "docker/login-action",
+            "docker/build-push-action",
+            "packages: write",
+            "--push",
+        ):
+            assert forbidden not in str(job)
+    source_steps = jobs["prometheus-source-qualification"]["steps"]
+    assert "secrets." not in str(source_steps)
+    package_steps = jobs["prometheus-ghcr-package-qualification"]["steps"]
+    package = next(step for step in package_steps if step.get("id") == "package")
+    assert package["env"] == {"GH_TOKEN": "${{ secrets.GITHUB_TOKEN }}"}
+    assert "--qualify-existing-ghcr-package" in package["run"]
+    upload = package_steps[-1]
+    assert upload["if"] == "${{ success() && steps.package.outputs.qualified == 'true' }}"
+    assert upload["with"]["path"] == (
+        "${{ runner.temp }}/ghcr-public-${{ github.run_id }}-${{ github.run_attempt }}/qualification.json"
+    )
     listener = (REPO_ROOT / ".github/workflows/cd-test.yml").read_text()
     assert "github.event.workflow_run.event == 'push'" in listener
 
@@ -154,6 +232,7 @@ def test_production_deploy_syncs_shell_bundle_for_caddy_rebuild() -> None:
         r"\s+deploy/docker-compose\.production\.selfhosted\.yaml \\\n"
         r"\s+deploy/prometheus/prometheus\.yml \\\n"
         r"\s+deploy/prometheus/image-manifest\.json \\\n"
+        r"\s+scripts/ci/prometheus_source_image\.py \\\n"
         r"\s+scripts/diagnose_web\.sh \\\n"
         r"\s+scripts/redeploy_caddy\.sh \\\n"
         r"\s+scripts/ops/postgres_backup\.sh \\\n"
@@ -189,7 +268,7 @@ def test_production_deploy_jobs_delegate_registry_login_to_deploy_script() -> No
     self_hosted_section = workflow_text.split("deploy-production-self-hosted:", maxsplit=1)[1]
 
     assert (
-        "envs: DEPLOY_SCRIPT_B64,IMAGE_REF,TAG,PRODUCTION_DOMAIN,DEPLOY_DIR,GHCR_USER,GHCR_TOKEN"
+        "envs: DEPLOY_SCRIPT_SHA256,PROMETHEUS_HELPER_SHA256,IMAGE_REF,TAG,PRODUCTION_DOMAIN,DEPLOY_DIR,GHCR_USER,GHCR_TOKEN"
         in ssh_section
     )
     assert (
@@ -232,11 +311,11 @@ def test_production_deploy_jobs_run_preflight_before_live_deploy() -> None:
     archive_export = '            export SHELL_BUNDLE_ARCHIVE="/tmp/${bundle_name}.tgz"'
     assert archive_export in ssh_lines
     assert ssh_lines.index(archive_export) < ssh_lines.index(
-        '            "$tmp_script" --preflight-only'
+        '            /bin/bash "$tmp_script" --preflight-only'
     )
-    assert ssh_lines.index('            "$tmp_script" --preflight-only') < ssh_lines.index(
-        '            "$tmp_script"'
-    )
+    assert ssh_lines.index(
+        '            /bin/bash "$tmp_script" --preflight-only'
+    ) < ssh_lines.index('            /bin/bash "$tmp_script"')
 
     assert "Preflight production deploy on self-hosted runner" in self_hosted_section
     assert 'export SHELL_BUNDLE_DIR="${GITHUB_WORKSPACE}"' in self_hosted_section
@@ -259,12 +338,18 @@ def test_prometheus_security_job_owns_only_pr_and_schedule_execution() -> None:
 
     jobs = workflow.get("jobs")
     assert isinstance(jobs, dict)
-    security_job = jobs.get("prometheus-image-security")
+    security_job = jobs.get("prometheus-image-security-pr")
     assert isinstance(security_job, dict)
-    assert security_job["permissions"] == {"contents": "read"}
+    assert security_job["permissions"] == {
+        "contents": "read",
+        "actions": "read",
+        "packages": "read",
+    }
     assert "environment" not in security_job
+    assert jobs["prometheus-image-security-trusted"]["environment"] == "staging"
     security_text = str(security_job)
-    assert "secrets." not in security_text
+    assert "secrets.GHCR_READ_TOKEN" in security_text
+    assert "scripts.ci.prometheus_source_image --operation consume" in security_text
     assert "persist-credentials': False" in security_text
     assert ".trivyignore" not in security_text
     assert "ignore-policy" not in security_text
@@ -403,13 +488,25 @@ def test_cd_has_no_prometheus_candidate_publication_carrier() -> None:
 
     dispatch = triggers["workflow_dispatch"]
     assert set(dispatch) == {"inputs"}
-    assert set(dispatch["inputs"]) == {"postgres_mode", "source_sha"}
+    assert set(dispatch["inputs"]) == {"postgres_mode", "source_sha", "alertmanager_mode"}
     assert dispatch["inputs"]["postgres_mode"]["options"] == [
         "disabled",
         "synthetic-probe",
         "reuse",
     ]
     assert dispatch["inputs"]["postgres_mode"]["default"] == "disabled"
+    assert dispatch["inputs"]["alertmanager_mode"]["default"] == "disabled"
+    assert dispatch["inputs"]["alertmanager_mode"]["options"] == [
+        "disabled",
+        "module-qualify",
+        "build",
+    ]
+    alert = jobs["alertmanager-module-qualification"]
+    assert "github.event_name == 'workflow_dispatch'" in alert["if"]
+    assert "github.run_attempt == 1" in alert["if"]
+    assert "github.repository == 'Katsiarynakavaleuskaya/PulsePlate'" in alert["if"]
+    assert alert["permissions"] == {"contents": "read", "actions": "read"}
+    assert 'test "$ALERTMANAGER_MODE" = module-qualify' in alert["steps"][0]["run"]
     assert "prometheus-grpc-candidate-publish" not in jobs
     assert workflow["permissions"] == {
         "actions": "read",
@@ -426,11 +523,138 @@ def test_cd_has_no_prometheus_candidate_publication_carrier() -> None:
         assert rejected_carrier not in workflow_text
 
 
+def test_prometheus_cd_registry_credential_route_preserves_base_execution_boundary() -> None:
+    workflow = yaml.safe_load(CD_WORKFLOW_PATH.read_text(encoding="utf-8"))
+    job = workflow["jobs"]["prometheus-image-security-pr"]
+    ordered = job["steps"]
+    steps = {step["name"]: step for step in ordered}
+    names = [step["name"] for step in ordered]
+    initial_pr = steps["Checkout immutable PR base Prometheus contracts"]
+    assert initial_pr["if"] == "${{ github.event_name == 'pull_request' }}"
+    assert initial_pr["with"] == {
+        "persist-credentials": False,
+        "fetch-depth": 0,
+        "ref": "${{ github.event.pull_request.base.sha }}",
+    }
+    initial_published = steps["Checkout immutable published Prometheus contracts"]
+    assert initial_published["if"] == (
+        "${{ github.event_name == 'push' || github.event_name == 'schedule' }}"
+    )
+    assert initial_published["with"] == {
+        "persist-credentials": False,
+        "fetch-depth": 0,
+        "ref": "${{ github.sha }}",
+    }
+    assert [
+        step["name"]
+        for step in ordered
+        if str(step.get("uses", "")).startswith("actions/checkout@")
+    ] == [
+        initial_pr["name"],
+        initial_published["name"],
+        "Checkout exact changed PR Prometheus contracts",
+        "Checkout fixed trusted Prometheus control",
+        "Checkout exact unchanged PR contracts after trusted cleanup",
+    ]
+    event = steps["Validate exact Prometheus checkout revisions"]
+    assert "secrets." not in str(event)
+    assert 'head, base = sha(pr["head"].get("sha")), sha(pr["base"].get("sha"))' in event["run"]
+    assert 'output.write("head=" + head + "\\nbase=" + base + "\\n")' in event["run"]
+    assert "checkout_ref" not in str(job)
+    route = steps["Classify the fixed regular Prometheus manifest blobs"]
+    assert route["id"] == "prometheus-route" and "secrets." not in str(route)
+    assert '"--no-replace-objects"' in route["run"]
+    assert '"GIT_CONFIG_NOSYSTEM": "1"' in route["run"]
+    assert '"GIT_CONFIG_GLOBAL": "/dev/null"' in route["run"]
+    assert 'fields[:2] == [b"100644", b"blob"]' in route["run"]
+    assert "if manifest(base) == manifest(head):" in route["run"]
+    assert 'regular_blob(base, "scripts/ci/prometheus_source_image.py")' in route["run"]
+    assert 'elif os.environ["GITHUB_EVENT_NAME"] in ("push", "schedule"):' in route["run"]
+    consumer = steps["Admit retained PR candidate or published immutable subject"]
+    assert consumer["id"] == "prometheus-image"
+    assert (
+        consumer["env"]["GHCR_READ_TOKEN"]
+        == "${{ github.event_name == 'pull_request' && steps.prometheus-route.outputs.mode == 'unchanged_pr_published' && secrets.GITHUB_TOKEN || github.event_name != 'pull_request' && steps.prometheus-route.outputs.mode == 'trusted_published' && secrets.GHCR_READ_TOKEN || '' }}"
+    )
+    assert 'changed_pr_candidate) test -z "${GHCR_READ_TOKEN:-}"' in consumer["run"]
+    assert '*) echo "Prometheus credential route HOLD" >&2; exit 1' in consumer["run"]
+    assert "scripts.ci.prometheus_source_image --operation consume" in consumer["run"]
+    control = steps["Checkout fixed trusted Prometheus control"]
+    cleanup = steps["Remove fixed trusted Prometheus control checkout"]
+    # pragma: allowlist nextline secret - public trusted control commit
+    assert control["with"]["ref"] == "5064aded22f478a22a4319b684e95d6c0b3ae46f"
+    assert control["with"]["persist-credentials"] is False
+    assert control["with"]["sparse-checkout"] == "scripts/ci/prometheus_source_image.py"
+    assert 'trusted["consume_image"](work, material' in consumer["run"]
+    assert (
+        names.index("Checkout exact changed PR Prometheus contracts")
+        < names.index(control["name"])
+        < names.index(consumer["name"])
+        < names.index(cleanup["name"])
+        < names.index("Check canonical Prometheus config with exact-image promtool")
+    )
+    for name, mode in (
+        ("Checkout exact changed PR Prometheus contracts", "changed_pr_candidate"),
+        ("Checkout exact unchanged PR contracts after trusted cleanup", "unchanged_pr_published"),
+    ):
+        step = steps[name]
+        assert (
+            step["if"] == "${{ success() && github.event_name == 'pull_request' && "
+            "steps.prometheus-route.outputs.mode == '" + mode + "' }}"
+        )
+        assert step["with"] == {
+            "persist-credentials": False,
+            "fetch-depth": 0,
+            "ref": "${{ github.event.pull_request.head.sha }}",
+        }
+    capability = steps["Require the trusted base published consumer capability"]
+    handoff = steps["Bind the unchanged PR admission after trusted cleanup"]
+    assert (
+        capability["if"]
+        == handoff["if"]
+        == "${{ success() && steps.prometheus-route.outputs.mode == 'unchanged_pr_published' }}"
+    )
+    assert "--operation read-manifest --field selection" in capability["run"]
+    assert "secrets." not in str(capability) + str(handoff)
+    assert 'admission.get("mode") != "unchanged_published"' in handoff["run"]
+    assert 'admission.get("head") != os.environ["PROMETHEUS_EVENT_HEAD"]' in handoff["run"]
+    assert (
+        'admission.get("publisher_head") != os.environ["PROMETHEUS_EVENT_BASE"]' in handoff["run"]
+    )
+    assert [
+        names.index(name)
+        for name in (
+            event["name"],
+            initial_pr["name"],
+            initial_published["name"],
+            route["name"],
+            capability["name"],
+            consumer["name"],
+            handoff["name"],
+            "Checkout exact unchanged PR contracts after trusted cleanup",
+            "Check canonical Prometheus config with exact-image promtool",
+        )
+    ] == sorted(
+        names.index(name)
+        for name in (
+            event["name"],
+            initial_pr["name"],
+            initial_published["name"],
+            route["name"],
+            capability["name"],
+            consumer["name"],
+            handoff["name"],
+            "Checkout exact unchanged PR contracts after trusted cleanup",
+            "Check canonical Prometheus config with exact-image promtool",
+        )
+    )
+
+
 def test_prometheus_security_smoke_reuses_canonical_native_parser() -> None:
     workflow = yaml.safe_load(CD_WORKFLOW_PATH.read_text(encoding="utf-8"))
     jobs = workflow.get("jobs")
     assert isinstance(jobs, dict)
-    security_job = jobs.get("prometheus-image-security")
+    security_job = jobs.get("prometheus-image-security-pr")
     assert isinstance(security_job, dict)
     steps = security_job.get("steps")
     assert isinstance(steps, list)
@@ -490,3 +714,67 @@ def test_self_hosted_preflight_and_deploy_bind_same_exact_image_ref() -> None:
     )
     assert "${IMAGE_REF:-" not in preflight
     assert "PROD_DEPLOY_MODE" not in preflight
+
+
+@pytest.mark.parametrize(
+    "filename,job,credential",
+    [
+        ("ci.yml", "lint", "${{ secrets.GITHUB_TOKEN }}"),
+        ("cd.yml", "obs2a-checkpoint-native", "${{ secrets.GHCR_READ_TOKEN }}"),
+    ],
+)
+def test_checkpoint_native_consumer_precedes_secret_free_child(
+    filename: str, job: str, credential: str
+) -> None:
+    workflow = yaml.safe_load((REPO_ROOT / ".github/workflows" / filename).read_text())
+    selected = workflow["jobs"][job]
+    assert selected["permissions"] == {"contents": "read", "actions": "read", "packages": "read"}
+    if filename == "ci.yml":
+        assert "environment" not in selected
+    else:
+        assert selected.get("environment") == "staging"
+    step = next(
+        s
+        for s in selected["steps"]
+        if s.get("name", "").startswith("Native ") and "OBS2A" in s["name"]
+    )
+    script = step["run"]
+    if filename == "ci.yml":
+        assert not {"GH_TOKEN", "GITHUB_TOKEN", "GHCR_READ_TOKEN"} & step["env"].keys()
+        consumer = next(s for s in selected["steps"] if s.get("id") == "checkpoint-image")
+        assert consumer["env"]["GH_TOKEN"] == consumer["env"]["GITHUB_TOKEN"] == credential
+        assert consumer["env"]["GHCR_READ_TOKEN"] == (
+            "${{ steps.checkpoint-selection.outputs.mode == 'unchanged_pr_published' && secrets.GITHUB_TOKEN || '' }}"
+        )
+        assert 'trusted["consume_image"](work, material' in consumer["run"]
+        setup = next(
+            s for s in selected["steps"] if s.get("uses") == "./.github/actions/python-setup"
+        )
+        cleanup = next(
+            s
+            for s in selected["steps"]
+            if s.get("name") == "Remove fixed trusted Prometheus control checkout"
+        )
+        assert (
+            selected["steps"].index(consumer)
+            < selected["steps"].index(cleanup)
+            < selected["steps"].index(setup)
+            < selected["steps"].index(step)
+        )
+    else:
+        assert step["env"]["GHCR_READ_TOKEN"] == credential
+        assert (
+            step["env"]["GH_TOKEN"] == step["env"]["GITHUB_TOKEN"] == "${{ secrets.GITHUB_TOKEN }}"
+        )
+        assert script.index("--operation consume") < script.index("sudo /usr/bin/env -i ")
+    child = next(
+        line.strip()
+        for line in script.splitlines()
+        if line.strip().startswith("sudo /usr/bin/env -i ")
+    )
+    assert not any(
+        value in child for value in ("GH_TOKEN", "GITHUB_TOKEN", "GHCR_READ_TOKEN", "DOCKER_CONFIG")
+    )
+    assert 'native_python="$(command -v python)"' in script
+    assert 'exit "$native_status"' in script and 'exit "$capture_status"' in script
+    assert not any("login-action" in str(s.get("uses", "")) for s in selected["steps"])

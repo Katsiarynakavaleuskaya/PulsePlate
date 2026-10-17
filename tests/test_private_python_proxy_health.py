@@ -26,6 +26,48 @@ def source_page(project: str, version: str) -> bytes:
     ).encode()
 
 
+def test_exact_psycopg_source_availability_delegates_without_claiming_a_wheel(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from scripts.ci import install_locked_python_requirements as installer
+
+    body = (
+        f'<a href="../../+f/source/{installer.PSYCOPG_C_SOURCE_NAME}'
+        f'#sha256={installer.PSYCOPG_C_SOURCE_SHA256}">source</a>'
+    ).encode()
+    monkeypatch.setattr(checker, "fetch_project_page", lambda *args, **kwargs: (200, body))
+    result = checker.probe_project(
+        index_url=APPROVED_INDEX,
+        project="psycopg-c",
+        expected_version="3.3.4",
+        timeout_seconds=1,
+        max_bytes=4096,
+        retries=0,
+        target_python_versions=["3.11", "3.12", "3.13"],
+    )
+    assert result.ok is True
+    assert result.reason == "ok_exact_source_build_required"
+    assert "genuine matching SDK build remains required" in result.detail
+
+
+@pytest.mark.parametrize("target,version", (("3.14", "3.3.4"), ("3.13", "3.3.5")))
+def test_psycopg_source_exception_has_no_other_version_or_platform(
+    monkeypatch: pytest.MonkeyPatch, target: str, version: str
+) -> None:
+    body = source_page("psycopg_c", version)
+    monkeypatch.setattr(checker, "fetch_project_page", lambda *args, **kwargs: (200, body))
+    result = checker.probe_project(
+        index_url=APPROVED_INDEX,
+        project="psycopg-c",
+        expected_version=version,
+        timeout_seconds=1,
+        max_bytes=4096,
+        retries=0,
+        target_python_versions=[target],
+    )
+    assert result.ok is False
+
+
 def wheel_page(*filenames: str) -> bytes:
     links = "".join(f'<a href="../../+f/abc/{filename}">{filename}</a>' for filename in filenames)
     return f"<html><body>{links}</body></html>".encode()
@@ -660,9 +702,16 @@ def test_main_default_projects_exclude_large_pydantic_core_probe(
 
 def test_main_failure_path_redacts_credentialed_index_url(
     capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
 ) -> None:
+    requirements = tmp_path / "requirements.txt"
+    requirements.write_text("cryptography==50.0.2\n", encoding="utf-8")
     result = checker.main(
         [
+            "--requirements-file",
+            str(requirements),
+            "--project",
+            "cryptography",
             "--index-url",
             "https://root:secret@packages.pulseplate.app/root/pulseplate/+simple/",  # pragma: allowlist secret
         ]
