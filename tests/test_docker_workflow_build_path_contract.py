@@ -3321,7 +3321,18 @@ def test_alertmanager_literal_recipe_has_only_selected_payload_and_private_defau
     assert "COPY alertmanager /usr/bin/alertmanager" in recipe
     assert "COPY amtool /usr/bin/amtool" in recipe
     assert "USER 65534:65534" in recipe
-    assert "COPY --chown=65534:65534 storage-dir /alertmanager" in recipe
+    assert "COPY --chown=65534:65534 --chmod=0700 storage-dir /alertmanager" in recipe
+    assert len(recipe.encode()) == 908
+    assert (
+        sha256(recipe.encode()).hexdigest()
+        == docker_sources._ALERT_ASSEMBLY_RECIPE_SHA256
+        == "8321b8129f819fadd64df26f0607c66fbabcef578bc76fe658e0d6d2cbab7347"
+    )
+    assert (
+        docker_sources._ALERT_Q_SOURCE_FILES["deploy/alertmanager/Containerfile"]
+        == docker_sources._ALERT_S_SOURCE_FILES["deploy/alertmanager/Containerfile"]
+        == "69af6364f15e3e5b9a4662a5919ff7f3b0209da0461cd7a85e01e21022abdb78"
+    )
     assert '"--cluster.listen-address="' in recipe
 
 
@@ -3829,11 +3840,27 @@ def alertmanager_api_epoch(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
         path: ("synthetic source bytes: " + path).encode()
         for path in docker_sources._ALERT_Q_SOURCE_FILES
     }
+    source_files["deploy/alertmanager/Containerfile"] = (
+        (REPO_ROOT / "deploy/alertmanager/Containerfile")
+        .read_bytes()
+        .replace(b" --chmod=0700", b"")
+    )
+    assert len(source_files["deploy/alertmanager/Containerfile"]) == 895
+    assert (
+        sha256(source_files["deploy/alertmanager/Containerfile"]).hexdigest()
+        == "69af6364f15e3e5b9a4662a5919ff7f3b0209da0461cd7a85e01e21022abdb78"
+    )
     monkeypatch.setattr(
         docker_sources,
         "_ALERT_Q_SOURCE_FILES",
         {path: sha256(raw).hexdigest() for path, raw in source_files.items()},
     )
+    monkeypatch.setattr(
+        docker_sources,
+        "_ALERT_S_SOURCE_FILES",
+        {path: sha256(raw).hexdigest() for path, raw in source_files.items()},
+    )
+    monkeypatch.setattr(docker_sources, "_ALERT_S_ZIP_SHA256", sha256(zip_bytes).hexdigest())
     repository = {"id": 1043311030, "full_name": "Katsiarynakavaleuskaya/PulsePlate"}
     run = {
         "id": docker_sources._ALERT_Q_RUN,
@@ -3881,6 +3908,7 @@ def alertmanager_api_epoch(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
         "artifact": artifact,
         "zip": zip_bytes,
         "calls": calls,
+        "source_files": source_files,
     }
 
     class API:
@@ -4440,6 +4468,105 @@ def test_alertmanager_retained_Q_requires_exact_authenticated_successful_CD_epoc
         assert not destination.exists()
 
 
+@pytest.mark.parametrize("kind", ["qualification", "support", "candidate"])
+@pytest.mark.parametrize(
+    "fault", [None, "other-epoch", "changed", "missing", "mixed", "config", "run", "job"]
+)
+def test_alertmanager_source_recipe_binds_historical_QS_and_current_candidate_separately(
+    tmp_path: Path,
+    alertmanager_api_epoch: dict[str, Any],
+    kind: str,
+    fault: str | None,
+) -> None:
+    data = alertmanager_api_epoch
+    recipe_path = "deploy/alertmanager/Containerfile"
+    historical = data["source_files"][recipe_path]
+    current = (REPO_ROOT / recipe_path).read_bytes()
+    assert len(historical) == 895 and len(current) == 908
+    assert (
+        docker_sources._ALERT_Q_SOURCE_FILES[recipe_path]
+        == docker_sources._ALERT_S_SOURCE_FILES[recipe_path]
+        == sha256(historical).hexdigest()
+        == "69af6364f15e3e5b9a4662a5919ff7f3b0209da0461cd7a85e01e21022abdb78"
+    )
+    assert (
+        sha256(current).hexdigest()
+        == "8321b8129f819fadd64df26f0607c66fbabcef578bc76fe658e0d6d2cbab7347"
+    )
+    run, artifact, source, job = (
+        (
+            docker_sources._ALERT_Q_RUN,
+            docker_sources._ALERT_Q_ARTIFACT,
+            docker_sources._ALERT_Q_SOURCE,
+            docker_sources._ALERT_Q_JOB,
+        )
+        if kind == "qualification"
+        else (
+            (
+                docker_sources._ALERT_S_RUN,
+                docker_sources._ALERT_S_ARTIFACT,
+                docker_sources._ALERT_S_SOURCE,
+                docker_sources._ALERT_S_JOB,
+            )
+            if kind == "support"
+            else (1234, 5678, "a" * 40, 9876)
+        )
+    )
+    name = {
+        "qualification": "alertmanager-module-qualification",
+        "support": "alertmanager-input-inspection",
+        "candidate": "alertmanager-candidate",
+    }[kind]
+    data["run"].update(id=run, head_sha=source)
+    data["jobs"][0].update(
+        id=job,
+        run_id=run,
+        head_sha=source,
+        name="alertmanager-candidate-build" if kind == "candidate" else name,
+    )
+    data["artifact"].update(id=artifact, name=f"{name}-{run}-1")
+    data["artifact"]["workflow_run"].update(id=run, head_sha=source)
+    expected = current if kind == "candidate" else historical
+    data["source_files"][recipe_path] = expected
+    if fault == "other-epoch":
+        data["source_files"][recipe_path] = historical if kind == "candidate" else current
+    elif fault == "changed":
+        data["source_files"][recipe_path] += b"# unreviewed recipe\n"
+    elif fault == "missing":
+        data["source_files"][recipe_path] = b""
+    elif fault == "mixed":
+        data["source_files"][recipe_path] = expected.replace(
+            b"--chown=65534:65534", b"--chown=0:65534"
+        )
+    elif fault == "config":
+        data["source_files"]["deploy/alertmanager/alertmanager.yml"] += b"# changed config\n"
+    elif fault == "run":
+        data["run"]["conclusion"] = "failure"
+    elif fault == "job":
+        data["jobs"][0]["conclusion"] = "failure"
+    destination = tmp_path / (kind + ".zip")
+    if fault is None:
+        result = docker_sources._alertmanager_authenticated_inputs(
+            data["api"], run, artifact, source, destination, kind=kind
+        )
+        assert result["source_files"][recipe_path] == sha256(expected).hexdigest()
+        assert destination.read_bytes() == data["zip"]
+        if kind != "qualification":
+            assert (tmp_path / (kind + "-producer-source") / recipe_path).read_bytes() == expected
+    else:
+        diagnostic = {
+            "missing": "AM_qualification_source_blob",
+            "run": "AM_qualification_successful_CD_source",
+            "job": "AM_qualification_successful_unique_job",
+        }.get(fault, "AM_qualification_source_bytes")
+        with pytest.raises(RuntimeError, match="^" + diagnostic + "$"):
+            docker_sources._alertmanager_authenticated_inputs(
+                data["api"], run, artifact, source, destination, kind=kind
+            )
+        assert not destination.exists()
+        assert not any(call.endswith("/zip") for call in data["calls"])
+
+
 def test_alertmanager_unknown_selector_rejects_before_auth_or_download(
     tmp_path: Path, alertmanager_api_epoch: dict[str, Any]
 ) -> None:
@@ -4494,10 +4621,23 @@ def test_alertmanager_future_stages_cannot_activate_compiler_or_publication(
 
 
 @pytest.mark.parametrize(
-    "fault", [None, "native-UI", "executable-UI", "omitted-UI", "stale-lock", "missing-embed"]
+    "fault",
+    [
+        None,
+        "native-UI",
+        "executable-UI",
+        "omitted-UI",
+        "stale-lock",
+        "missing-embed",
+        "old-recipe",
+        "changed-recipe",
+        "missing-recipe",
+        "mixed-recipe",
+        "changed-config",
+    ],
 )
 def test_alertmanager_declared_pair_plan_binds_embedded_UI_and_readonly_source_without_build(
-    monkeypatch: pytest.MonkeyPatch, fault: str | None
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fault: str | None
 ) -> None:
     import tarfile
 
@@ -4539,14 +4679,53 @@ def test_alertmanager_declared_pair_plan_binds_embedded_UI_and_readonly_source_w
         validated.append((artifact.name, raw))
 
     monkeypatch.setattr(docker_sources, "validate_source_payload", admitted_archive)
+    recipe_fault = fault in (
+        "old-recipe",
+        "changed-recipe",
+        "missing-recipe",
+        "mixed-recipe",
+        "changed-config",
+    )
+    if recipe_fault:
+        root = tmp_path / "current-assembly"
+        recipe_path = root / "deploy/alertmanager/Containerfile"
+        recipe_path.parent.mkdir(parents=True)
+        recipe = (REPO_ROOT / "deploy/alertmanager/Containerfile").read_bytes()
+        config = (REPO_ROOT / "deploy/alertmanager/alertmanager.yml").read_bytes()
+        if fault == "old-recipe":
+            recipe = recipe.replace(b" --chmod=0700", b"")
+            assert len(recipe) == 895
+        elif fault == "changed-recipe":
+            recipe += b"# unreviewed recipe\n"
+        elif fault == "mixed-recipe":
+            recipe = recipe.replace(b"--chmod=0700", b"--chmod=0755")
+        elif fault == "changed-config":
+            config += b"# unreviewed config\n"
+        if fault != "missing-recipe":
+            recipe_path.write_bytes(recipe)
+        (recipe_path.parent / "alertmanager.yml").write_bytes(config)
+        monkeypatch.setattr(docker_sources, "REPO_ROOT", root)
+    if fault == "missing-recipe":
+        with pytest.raises(FileNotFoundError) as missing:
+            docker_sources._alertmanager_input_plan(roots, frozen, {"go.mod": b"qualified lock\n"})
+        assert missing.value.filename == str(recipe_path)
+        return
     if fault:
-        with pytest.raises(RuntimeError, match="AM_"):
+        with pytest.raises(
+            RuntimeError,
+            match="^AM_current_COPY_recipe_input_drift$" if recipe_fault else "AM_",
+        ):
             docker_sources._alertmanager_input_plan(roots, frozen, {"go.mod": b"qualified lock\n"})
         return
     plan = docker_sources._alertmanager_input_plan(roots, frozen, {"go.mod": b"qualified lock\n"})
     assert [name for name, _ in validated] == ["alertmanager-source", "alertmanager-ui"]
     assert plan["UI_file_hashes"] == {"app.js": sha256(ui["app.js"]).hexdigest()}
     assert plan["source_UI_file_hashes"] == frozen
+    assert plan["assembly_input_members"][0] == {
+        "path": "Containerfile",
+        "bytes": 908,
+        "sha256": "8321b8129f819fadd64df26f0607c66fbabcef578bc76fe658e0d6d2cbab7347",
+    }
     assert [argv[-1] for argv in plan["compiler_argv"]] == ["./cmd/alertmanager", "./cmd/amtool"]
     assert all("-tags=netgo" in argv and "-mod=readonly" in argv for argv in plan["compiler_argv"])
     assert (
@@ -5599,12 +5778,12 @@ def alertmanager_proposal_graph(
         (layout / "blobs/sha256" / digest).write_bytes(body)
         return {"mediaType": media, "digest": "sha256:" + digest, "size": len(body)}
 
-    def tar(rows: list[tuple[str, bytes | None, int, int]]) -> bytes:
+    def tar(rows: list[tuple[str, bytes | None, int, int, int]]) -> bytes:
         output = BytesIO()
         with tarfile.open(fileobj=output, mode="w", format=tarfile.USTAR_FORMAT) as archive:
-            for name, raw, mode, uid in rows:
+            for name, raw, mode, uid, gid in rows:
                 info = tarfile.TarInfo(name)
-                info.mode, info.uid, info.gid = mode, uid, uid
+                info.mode, info.uid, info.gid = mode, uid, gid
                 info.type = tarfile.DIRTYPE if raw is None else tarfile.REGTYPE
                 info.size = 0 if raw is None else len(raw)
                 archive.addfile(info, None if raw is None else BytesIO(raw))
@@ -5618,6 +5797,7 @@ def alertmanager_proposal_graph(
                 "etc/ssl/certs/ca-certificates.crt" if index == 0 else "base-" + str(index),
                 b"synthetic CA" if index == 0 else str(index).encode(),
                 0o444,
+                0,
                 0,
             )
         ]
@@ -5694,8 +5874,8 @@ def alertmanager_proposal_graph(
             "NOTICE": (inputs / "source/NOTICE").read_bytes(),
         }
     )
-    rows = [("alertmanager", None, 0o700, 65534)] + [
-        (name, raw, 0o555 if name.startswith("usr/bin/") else 0o444, 0)
+    rows = [("alertmanager", None, 0o700, 65534, 65534)] + [
+        (name, raw, 0o555 if name.startswith("usr/bin/") else 0o444, 0, 0)
         for name, raw in values.items()
     ]
     actual_config = deepcopy(base_config)
@@ -5776,7 +5956,9 @@ def alertmanager_proposal_graph(
         "missing-amtool",
         "mode",
         "owner",
-        "storage",
+        "storage-uid",
+        "storage-gid",
+        "storage-mode",
         "extra",
         "alias",
         "bytes",
@@ -5785,6 +5967,7 @@ def alertmanager_proposal_graph(
         "attestation",
     ],
 )
+@pytest.mark.parametrize("alertmanager_proposal_graph", [None, "gzip"], indirect=True)
 def test_alertmanager_COPY_graph_rejects_real_subject_or_payload_drift(
     alertmanager_proposal_graph: dict[str, Any],
     fault: str | None,
@@ -5799,13 +5982,20 @@ def test_alertmanager_COPY_graph_rejects_real_subject_or_payload_drift(
                 raw + b"changed" if fault == "bytes" and name == "usr/bin/amtool" else raw,
                 0o644 if fault == "mode" and name == "usr/bin/amtool" else mode,
                 1 if fault == "owner" and name == "usr/bin/amtool" else uid,
+                gid,
             )
-            for name, raw, mode, uid in d["rows"]
+            for name, raw, mode, uid, gid in d["rows"]
         ]
-    elif fault == "storage":
-        d["rows"][0] = ("alertmanager", None, 0o755, 0)
+    elif fault in ("storage-uid", "storage-gid", "storage-mode"):
+        d["rows"][0] = (
+            "alertmanager",
+            None,
+            0o755 if fault == "storage-mode" else 0o700,
+            0 if fault == "storage-uid" else 65534,
+            0 if fault == "storage-gid" else 65534,
+        )
     elif fault == "extra":
-        d["rows"].append(("usr/bin/unapproved", b"unexpected", 0o555, 0))
+        d["rows"].append(("usr/bin/unapproved", b"unexpected", 0o555, 0, 0))
     elif fault == "platform":
         d["config"]["architecture"] = "arm64"
     elif fault == "environment":
@@ -5817,7 +6007,14 @@ def test_alertmanager_COPY_graph_rejects_real_subject_or_payload_drift(
         index["manifests"].append(deepcopy(index["manifests"][0]))
         path.write_text(json.dumps(index))
     if fault:
-        with pytest.raises(RuntimeError):
+        with pytest.raises(
+            RuntimeError,
+            match=(
+                "^AM_storage_directory_owner_mode$"
+                if fault in ("storage-uid", "storage-gid", "storage-mode")
+                else None
+            ),
+        ):
             docker_sources._alertmanager_candidate_graph(d["seed"], d["support"], d["expected"])
     else:
         graph = docker_sources._alertmanager_candidate_graph(d["seed"], d["support"], d["expected"])
@@ -5911,6 +6108,12 @@ def test_alertmanager_COPY_graph_rejects_real_subject_or_payload_drift(
         ("replaced-ID", False),
         ("native-exit", False),
         ("input-drift", False),
+        ("context-old-recipe", False),
+        ("context-changed-recipe", False),
+        ("context-missing-recipe", False),
+        ("context-mixed-recipe", False),
+        ("context-config", False),
+        ("context-old-recipe", True),
         ("builder-network", False),
         ("assembly", False),
         (None, True),
@@ -5943,6 +6146,7 @@ def test_alertmanager_offline_pair_real_owner_orders_two_launches_and_owned_clea
     index_failure = (
         fault is not None and fault.startswith("index-") and fault not in successful_faults
     )
+    context_failure = fault is not None and fault.startswith("context-")
     work = tmp_path / "pair"
     retained = tmp_path / "retained"
     retained.mkdir()
@@ -5952,6 +6156,28 @@ def test_alertmanager_offline_pair_real_owner_orders_two_launches_and_owned_clea
     observation_error = OSError("synthetic pair observation write failed")
     observation_attempts: list[Path] = []
     original_write = Path.write_text
+    original_copyfile = shutil.copyfile
+
+    def copyfile(source: Any, destination: Any, *args: Any, **kwargs: Any) -> Any:
+        copied = original_copyfile(source, destination, *args, **kwargs)
+        selected = Path(destination)
+        if selected == work / "context/Containerfile":
+            if fault == "context-missing-recipe":
+                selected.unlink()
+            elif fault == "context-old-recipe":
+                selected.write_bytes(selected.read_bytes().replace(b" --chmod=0700", b""))
+            elif fault == "context-changed-recipe":
+                selected.write_bytes(selected.read_bytes() + b"# changed current recipe\n")
+            elif fault == "context-mixed-recipe":
+                selected.write_bytes(
+                    selected.read_bytes().replace(b"--chown=65534:65534", b"--chown=0:65534")
+                )
+        elif selected == work / "context/alertmanager.yml" and fault == "context-config":
+            selected.write_bytes(selected.read_bytes() + b"# changed config\n")
+        return copied
+
+    if context_failure:
+        monkeypatch.setattr(shutil, "copyfile", copyfile)
     raw_path = work / "evidence/pair-export-index.raw.json"
     canonical_path = work / "evidence/pair-export-index.canonical.json"
     index_path = work / "candidate-layout/index.json"
@@ -6176,6 +6402,14 @@ def test_alertmanager_offline_pair_real_owner_orders_two_launches_and_owned_clea
             elif "inspect" in argv and argv[-1] in containers:
                 raw = json.dumps(containers[argv[-1]]).encode()
             elif name == "pair-only-COPY-assembly":
+                recipe = (work / "context/Containerfile").read_bytes()
+                assert len(recipe) == 908
+                assert (
+                    sha256(recipe).hexdigest()
+                    == "8321b8129f819fadd64df26f0607c66fbabcef578bc76fe658e0d6d2cbab7347"
+                )
+                assert b"COPY --chown=65534:65534 --chmod=0700 storage-dir /alertmanager" in recipe
+                assert stat.S_IMODE((work / "context/storage-dir").stat().st_mode) == 0o700
                 assert all(
                     (retained / "pair-outputs" / binary).read_bytes() == d["binaries"][binary]
                     for binary in ("alertmanager", "amtool")
@@ -6395,7 +6629,7 @@ def test_alertmanager_offline_pair_real_owner_orders_two_launches_and_owned_clea
     if fault not in successful_faults or observation_failure:
         expected_error = (
             OSError
-            if fault in index_os_errors or fault is None
+            if fault in index_os_errors or fault in (None, "context-missing-recipe")
             else ValueError if fault == "index-malformed" else RuntimeError
         )
         with pytest.raises(expected_error) as caught:
@@ -6412,6 +6646,13 @@ def test_alertmanager_offline_pair_real_owner_orders_two_launches_and_owned_clea
         if buildkit_failure:
             assert isinstance(caught.value, transport.QualificationError)
             assert str(caught.value) == "AM_pinned_BuildKit_image"
+        elif context_failure:
+            if fault == "context-missing-recipe":
+                assert isinstance(caught.value, FileNotFoundError)
+                assert caught.value.filename == str(work / "context/Containerfile")
+            else:
+                assert isinstance(caught.value, transport.QualificationError)
+                assert str(caught.value) == "AM_context_recipe_drift"
         elif index_failure:
             codes = {
                 **dict.fromkeys(
@@ -6526,6 +6767,12 @@ def test_alertmanager_offline_pair_real_owner_orders_two_launches_and_owned_clea
         assert result["compiler_attempts"] == 2 and result["graph"]["files"] == d["expected"]
         assert sum(name.endswith("-compile-attach") for name, _argv in calls) == 2
         assert sum(name == "pair-only-COPY-assembly" for name, _argv in calls) == 1
+        assert next(row for row in result["context"] if row["path"] == "Containerfile") == {
+            "path": "Containerfile",
+            "size": 908,
+            "mode": 0o444,
+            "sha256": "8321b8129f819fadd64df26f0607c66fbabcef578bc76fe658e0d6d2cbab7347",
+        }
     assert builder_active is (fault == "cleanup")
     if fault == "replaced-ID":
         assert returned_id != replaced_id and set(containers) == {replaced_id}
@@ -6633,6 +6880,13 @@ def test_alertmanager_offline_pair_real_owner_orders_two_launches_and_owned_clea
         assert result["compiler_starts"] == 0 and len(result["failed_create_residue_bindings"]) == 1
     elif fault == "base-load":
         assert result["logical_build_starts"] == result["compiler_starts"] == 0
+    elif context_failure:
+        assert result["compiler_attempts"] == result["compiler_starts"] == 2
+        assert result["logical_build_starts"] == 1 and result["cleanup_failure"] is None
+        assert not any(name == "pair-only-COPY-assembly" for name, _argv in calls)
+        assert not (work / "candidate.oci.tar").exists()
+        for binary in ("alertmanager", "amtool"):
+            assert (retained / "pair-outputs" / binary).read_bytes() == d["binaries"][binary]
     elif fault == "assembly":
         assert (
             set(result["output_hashes"])

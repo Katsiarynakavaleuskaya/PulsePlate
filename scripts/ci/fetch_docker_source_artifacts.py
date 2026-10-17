@@ -83,6 +83,7 @@ _ALERT_S_SOURCE_FILES = {
     "scripts/ci/fetch_docker_source_artifacts.py": "0752e3be22abdf956ebdb995832a77d00aa556e18a2c1aa2220d3313ef3e3b81",
     ".github/workflows/cd.yml": "d7f5942a8394254add0a8de162413345908085edab89014c7bc9295b76729465",
 }
+_ALERT_ASSEMBLY_RECIPE_SHA256 = "8321b8129f819fadd64df26f0607c66fbabcef578bc76fe658e0d6d2cbab7347"
 
 # Only these two reviewed upstream repository/ref records use codeload basenames.
 _PINNED_CODELOAD_SOURCES = {
@@ -2143,6 +2144,8 @@ def _alertmanager_authenticated_inputs(
     source_contract = dict(_ALERT_Q_SOURCE_FILES)
     if kind == "support":
         source_contract = dict(_ALERT_S_SOURCE_FILES)
+    elif kind == "candidate":
+        source_contract["deploy/alertmanager/Containerfile"] = _ALERT_ASSEMBLY_RECIPE_SHA256
     for path, expected in source_contract.items():
         record = api.json(endpoint + "/contents/" + path + "?ref=" + source)
         require(
@@ -2909,7 +2912,12 @@ def _alertmanager_input_plan(
     for path in ("deploy/alertmanager/Containerfile", "deploy/alertmanager/alertmanager.yml"):
         raw = (REPO_ROOT / path).read_bytes()
         require(
-            sha256(raw).hexdigest() == _ALERT_Q_SOURCE_FILES[path],
+            sha256(raw).hexdigest()
+            == (
+                _ALERT_ASSEMBLY_RECIPE_SHA256
+                if path == "deploy/alertmanager/Containerfile"
+                else _ALERT_Q_SOURCE_FILES[path]
+            ),
             "AM_current_COPY_recipe_input_drift",
         )
         context.append(
@@ -4903,8 +4911,7 @@ def _alertmanager_pair(
         context_inventory = tree_inventory(context)
         result["context"] = context_inventory
         require(
-            file_hash(context / "Containerfile")
-            == _ALERT_Q_SOURCE_FILES["deploy/alertmanager/Containerfile"]
+            file_hash(context / "Containerfile") == _ALERT_ASSEMBLY_RECIPE_SHA256
             and file_hash(context / "alertmanager.yml")
             == _ALERT_Q_SOURCE_FILES["deploy/alertmanager/alertmanager.yml"],
             "AM_context_recipe_drift",
