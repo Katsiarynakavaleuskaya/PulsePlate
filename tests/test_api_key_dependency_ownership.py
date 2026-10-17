@@ -1,10 +1,7 @@
 from __future__ import annotations
 
 import inspect
-import subprocess
-import sys
 from collections.abc import Callable
-from pathlib import Path
 
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.params import Depends as DependsParam
@@ -21,8 +18,6 @@ from app.effective_routes import (
 import app.main as app_main
 from app.routers import api_key as canonical_api_key
 import legacy_app
-
-REPO_ROOT = Path(__file__).resolve().parents[1]
 
 _DEFAULT_PROTECTED_ROUTES = frozenset(
     {
@@ -73,14 +68,14 @@ def _dependency_calls_by_identity(route: object) -> tuple[object, ...]:
     return tuple(calls)
 
 
-def test_api_key_dependencies_have_one_canonical_owner_and_exact_aliases() -> None:
+def test_api_key_dependencies_have_canonical_package_aliases_without_legacy_bindings() -> None:
     assert app_package.api_key_header is canonical_api_key.api_key_header
     assert canonical_api_key.get_api_key.__module__ == "app.routers.api_key"
     assert canonical_api_key._get_api_key_dynamic.__module__ == "app.routers.api_key"
     assert app_package.get_api_key is canonical_api_key.get_api_key
-    assert legacy_app.get_api_key is canonical_api_key.get_api_key
+    assert "get_api_key" not in vars(legacy_app)
     assert app_package._get_api_key_dynamic is canonical_api_key._get_api_key_dynamic
-    assert legacy_app._get_api_key_dynamic is canonical_api_key._get_api_key_dynamic
+    assert "_get_api_key_dynamic" not in vars(legacy_app)
 
 
 @pytest.mark.parametrize(
@@ -287,6 +282,7 @@ def test_fastapi_dependency_override_uses_canonical_callable_identity() -> None:
     response = TestClient(target_app).get("/protected")
 
     assert response.status_code == 200
+    assert response.headers["content-type"].startswith("application/json")
     assert response.json() == {"status": "ok"}
 
 
@@ -352,38 +348,70 @@ def test_dynamic_guard_rejects_non_callable_override(
     assert repr(invalid_guard) not in caplog.text
 
 
-def test_clean_import_process_preserves_dependency_identity_and_ownership() -> None:
-    script = """
-import app
-import app.main as app_main
-from app.routers import api_key
-import legacy_app
-
-assert app.get_api_key is api_key.get_api_key is legacy_app.get_api_key
-assert app._get_api_key_dynamic is api_key._get_api_key_dynamic
-assert legacy_app._get_api_key_dynamic is api_key._get_api_key_dynamic
-assert api_key._get_api_key_dynamic.__module__ == "app.routers.api_key"
-assert all(
-    getattr(call, "__module__", None) != "legacy_app"
-    for route in app_main.app.routes
-    for dependant in getattr(route, "dependencies", ())
-    for call in (getattr(dependant, "dependency", None),)
-    if callable(call)
-)
-"""
-
-    result = subprocess.run(
-        [sys.executable, "-c", script],
-        cwd=REPO_ROOT,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-
-    assert result.returncode == 0, result.stderr
-
-
 def test_dynamic_dependency_signature_keeps_shared_header_contract() -> None:
     parameter = inspect.signature(canonical_api_key._get_api_key_dynamic).parameters["api_key"]
     assert isinstance(parameter.default, DependsParam)
     assert parameter.default.dependency is canonical_api_key.api_key_header
+
+
+def test_real_bmr_route_authenticates_before_downstream(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.routers import legacy_premium_nutrition as nutrition_router
+    from app.schemas.bmr import BMRRequest, BMRResponse
+
+    for name in (
+        "APP_ENV",
+        "ENVIRONMENT",
+        "API_KEY",
+        "API_KEY_REQUIRED",
+        "ALLOW_DEV_API_KEY",
+        "ALLOW_DEV_API_KEY_NORMALIZE",
+    ):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("APP_ENV", "dev")
+    monkeypatch.setenv("API_KEY", "synthetic-retirement-key")
+    monkeypatch.setenv("API_KEY_REQUIRED", "true")
+    monkeypatch.setenv("ALLOW_DEV_API_KEY", "false")
+    assert app_package.get_api_key is canonical_api_key.get_api_key
+    assert canonical_api_key._get_api_key_dynamic not in app_main.app.dependency_overrides
+
+    calls: list[BMRRequest] = []
+    result = BMRResponse(
+        bmr={"synthetic": 1600.0},
+        tdee={"synthetic": 2000.0},
+        activity_level="sedentary",
+        recommended_intake={"maintenance": 2000.0},
+        formulas_used=["synthetic"],
+        notes=["Synthetic downstream response"],
+    )
+
+    async def calculate(req: BMRRequest) -> BMRResponse:
+        calls.append(req)
+        return result
+
+    monkeypatch.setattr(nutrition_router, "calculate_bmr_response", calculate)
+    payload = {
+        "weight_kg": 70.0,
+        "height_cm": 175.0,
+        "age": 30,
+        "sex": "male",
+        "activity": "sedentary",
+    }
+    denied = client.post(
+        "/api/v1/premium/bmr", json=payload, headers={"X-API-Key": "synthetic-wrong-key"}
+    )
+    assert denied.status_code == 403
+    assert denied.headers["content-type"].startswith("application/json")
+    assert denied.json()["detail"] == "Invalid API Key"
+    assert calls == []
+
+    accepted = client.post(
+        "/api/v1/premium/bmr", json=payload, headers={"X-API-Key": "synthetic-retirement-key"}
+    )
+    assert accepted.status_code == 200
+    assert accepted.headers["content-type"].startswith("application/json")
+    assert accepted.json() == result.model_dump(mode="json")
+    assert len(calls) == 1
+    assert calls[0].model_dump() == BMRRequest.model_validate(payload).model_dump()

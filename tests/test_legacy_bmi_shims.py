@@ -157,6 +157,8 @@ RETIRED_LEGACY_PYTHON_BINDINGS = {
     "_Limiter",
     "Limiter",
     "slowapi_available",
+    "get_api_key",
+    "_get_api_key_dynamic",
 }
 
 RETIRED_PLATE_HELPER_BINDINGS = (
@@ -339,6 +341,79 @@ def test_legacy_retirement_probe_excludes_ambient_credentials(
         """)
 
     assert _run_legacy_retirement_probe(scenario) == {"ambient_credentials_present": False}
+
+
+@pytest.mark.parametrize("import_order", ("legacy-first", "api-key-first"))
+def test_api_key_retirement_preserves_canonical_identity_in_fresh_orders(
+    import_order: str,
+) -> None:
+    imports = (
+        "assert 'app.routers.api_key' not in sys.modules\n"
+        "assert 'legacy_app' not in sys.modules\n"
+        "import legacy_app\n"
+        "assert sys.modules['legacy_app'] is legacy_app\n"
+        "from app.routers import api_key\n"
+        if import_order == "legacy-first"
+        else "assert 'legacy_app' not in sys.modules\n"
+        "from app.routers import api_key\n"
+        "assert 'legacy_app' not in sys.modules\n"
+        "import legacy_app\n"
+    )
+    scenario = "import sys\n" + imports + textwrap.dedent("""
+        import inspect
+        import json
+        import app as app_package
+        import app.main as app_main
+        from app.bootstrap.application import app as canonical_app
+
+        retired = ("get_api_key", "_get_api_key_dynamic")
+        assert set(retired).isdisjoint(vars(legacy_app))
+        assert set(retired).isdisjoint(vars(legacy_app).get("__annotations__", {}))
+        for name in retired:
+            try:
+                getattr(legacy_app, name)
+            except AttributeError:
+                pass
+            else:
+                raise AssertionError("legacy API-key attribute remains: " + name)
+        try:
+            from legacy_app import get_api_key
+        except ImportError:
+            pass
+        else:
+            raise AssertionError("legacy get_api_key import remains")
+        try:
+            from legacy_app import _get_api_key_dynamic
+        except ImportError:
+            pass
+        else:
+            raise AssertionError("legacy _get_api_key_dynamic import remains")
+        assert app_package.api_key_header is api_key.api_key_header
+        assert app_package.get_api_key is api_key.get_api_key
+        assert app_package._get_api_key_dynamic is api_key._get_api_key_dynamic
+        for name in (*retired, "validate_app_api_key", "require_app_api_key"):
+            value = getattr(api_key, name)
+            assert callable(value)
+            assert value.__module__ == "app.routers.api_key"
+        for guard in (api_key.get_api_key, api_key._get_api_key_dynamic):
+            dependency = inspect.signature(guard).parameters["api_key"].default
+            assert dependency.dependency is api_key.api_key_header
+        assert app_package.app is app_main.app is canonical_app is legacy_app.app
+        assert all(
+            getattr(call, "__module__", None) != "legacy_app"
+            for route in app_main.app.routes
+            for dependant in getattr(route, "dependencies", ())
+            for call in (getattr(dependant, "dependency", None),)
+            if callable(call)
+        )
+        print("LEGACY_RETIREMENT_RESULT=" + json.dumps({
+            "absent": list(retired), "canonical_identity_preserved": True,
+        }))
+        """)
+    assert _run_legacy_retirement_probe(scenario) == {
+        "absent": ["get_api_key", "_get_api_key_dynamic"],
+        "canonical_identity_preserved": True,
+    }
 
 
 def test_retired_rate_limit_bindings_are_absent() -> None:
@@ -595,6 +670,7 @@ def test_retired_legacy_python_bindings_are_absent_with_canonical_owners_present
     import app.services.insight_compat as insight_compat
     import app.services.pro_nutrition_plate as plate_service
     import app.services.pro_nutrition_targets as targets_service
+    import app.routers.api_key as canonical_api_key
     import app.routers.health as health
     import app.utils.feature_flags as feature_flags
     import app.utils.helpers as helpers
@@ -750,6 +826,8 @@ def test_retired_legacy_python_bindings_are_absent_with_canonical_owners_present
         "_Limiter": None,
         "Limiter": None,
         "slowapi_available": None,
+        "get_api_key": canonical_api_key.get_api_key,
+        "_get_api_key_dynamic": canonical_api_key._get_api_key_dynamic,
     }
     assert (
         canonical_migrations["APPLICATION_METADATA"]
@@ -823,7 +901,7 @@ def test_retired_legacy_python_bindings_are_absent_with_canonical_owners_present
     assert rate_limit.RATE_LIMIT_429_RESPONSES[429]["model"] is rate_limit.RateLimitErrorResponse
     assert rate_limit.limit_if_available.__module__ == rate_limit.__name__
     assert RETIRED_LEGACY_PYTHON_BINDINGS == legacy_guard.RETIRED_LEGACY_PYTHON_BINDINGS
-    assert len(RETIRED_LEGACY_PYTHON_BINDINGS) == 130
+    assert len(RETIRED_LEGACY_PYTHON_BINDINGS) == 132
     assert canonical_migrations["TargetsIn"] is canonical_migrations["CanonicalTargetsIn"]
     assert (
         len(
