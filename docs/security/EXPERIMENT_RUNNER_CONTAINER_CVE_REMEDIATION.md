@@ -1,8 +1,8 @@
 # Experiment Runner container CVE remediation
 
-**Status:** Exact image admitted locally; final oracle and current-head PR/merge evidence pending
+**Status:** Historical image admitted locally; SDK successor and final PR/merge evidence pending
 **Suppression expires:** N/A (no suppression added)
-**Last reviewed:** 2026-07-23
+**Last reviewed:** 2026-10-15
 
 ## Security decision
 
@@ -43,7 +43,7 @@ from the official UBI 10 minimal digest
 The exact base alone was recognized by Trivy 0.72.0 as Red Hat 10.2 and had zero
 HIGH/CRITICAL findings.
 
-Python 3.13.14 is installed from exact EPEL 10 RPM versions. The recipe
+The current recipe installs Python 3.13.16 from exact EPEL 10 RPM versions. The recipe
 checksum-pins the official EPEL 10 public key and release RPM, imports the key,
 requires the RPM signature from key `e37ed158`, and verifies
 `epel-release-10-8.el10_2.noarch`. It does not use `--nogpgcheck`, checksum
@@ -70,10 +70,89 @@ added.
 Direct package pins alone do not freeze the transitive RPM closure. Each stage
 therefore verifies a sorted inventory over the complete installed NEVRA,
 package-header SHA-256, payload digest, and payload digest algorithm. The
-accepted build locks 107 packages in `python-runtime`, 108 in `builder`, and
+recipe locks 107 packages in `python-runtime`, 108 in `builder`, and
 129 in the final runner. Any repository-side change to a direct or transitive
 RPM now fails the build even if its package name and direct request remain
 unchanged.
+
+## Current RPM closure — PR #2477
+
+The former Python `3.13.14-1.el10_2` request is unavailable in the active
+EPEL 10.2 aarch64 snapshot. Three no-install resolver transactions selected
+32 distinct signed RPMs from the same pinned UBI base and four observed
+repository metadata snapshots. Whole-package SHA-256 and size, cryptographic
+signatures, NEVRA, header SHA-256 and payload digest were verified for every
+selected RPM. The imported EPEL public-key row also matches the retained key.
+One additional official `openssl-libs-1:3.5.8-2.el10_2.aarch64` RPM has now been
+verified against the retained BaseOS metadata, package size/SHA-256 and the
+image's Red Hat signing key, including its header, payload, Requires, Provides
+and complete file inventory. This makes 33 distinct selected RPM inputs.
+An offline RPM dependency/conflict test passed against an unchanged clone of
+the actual 129-package database. That read-only test explicitly excluded disk
+and inode capacity checks; the real build retains those checks and must prove
+the complete resulting inventory. No package was installed by this qualification.
+
+The complete runtime and builder inventories each change four package rows:
+Python, Python libraries, expat and tzdata. The final inventory also changes
+gzip, openssh, openssh-clients, pam and pam-libs, plus the one authored stock
+`openssl-libs` replacement. Every other complete row is
+byte-identical; there are no additional changes with an unchanged NEVRA.
+The exact prospective stage hashes are:
+
+- `python-runtime`, 107 packages:
+  `ca9d7e7d6aecf2f0b49e8ce6fa562a8542f458c548920ccd126c86daf40cf8b9`;
+- `builder`, 108 packages:
+  `485f2a7e91850f39662acff6c97ad12e321c377e3c40f404a91b9172a6e10175`;
+- final runner, 129 packages:
+  `4a9eb99aba1b6a599fccd7ef6d32a3b6cbed8b474e89de936697a78b370494a8`.
+
+These are build-input parameters derived from observed signed-package bytes.
+They do not establish a successful build, ABI compatibility, a clean successor
+scan or strict Apple admission. The parser overlay retains its existing exact
+source checksum. The original image and sanitized receipts below remain
+historical evidence. Source assertions: `deploy/experiment-runner/Containerfile:28`
+and `deploy/experiment-runner/Containerfile:37`.
+
+## Current SDK caller repair — PR #2477
+
+The revised build path consumes a genuine Linux aarch64 CPython 3.13 SDK through
+both dispatcher backends. The dispatcher stages the finite public helper/schema
+and opaque SDK payload before proxy-secret lookup; SDK origin is a prior native
+producer/export admission, while the canonical UBI installer owns source-image,
+ABI, wheel tag and ELF checks. It preserves the original UBI CA bundle and
+connects the custom OpenSSL default paths without a new operator startup variable.
+
+Code and synthetic transport contracts do not admit a successor image. Actual
+ARM SDK production, UBI system `_ssl`/HTTP default trust and providers, loaded
+library hashes, Psycopg/TLS/database consumers, full findings/secrets inventory
+and strict Apple qualification remain required. The exact image receipts below
+retain their original historical producer and are not proof of this revised recipe.
+Evidence: `scripts/orchestration/experiment_runner_dispatch.py:2458`,
+`deploy/experiment-runner/Containerfile:1`.
+
+### SDK-before-auth successor phase barrier
+
+The successor source separates trusted binary acquisition from supplied native
+SDK activation. The credential RUN receives only static SDK receipt/wheel data
+and invokes the existing prefetch-only operation in both proxy branches. It
+uses a fresh exact wheelhouse and owned ephemeral HOME/TMP/cache; primary and
+cleanup statuses are independently blocking. Supplied libraries, optional
+provider and OpenSSL configuration enter an inactive quarantine only afterward.
+
+A clean trusted-base interpreter then runs the canonical static SDK validation
+under network-none, before loader activation. The existing reader compares the
+actual three regular DSO targets and exact internal libpq alias; it does not
+authenticate origin or claim coverage of provider/config/docs from three hashes.
+The complete Root-qualified curated transport is copied with byte/member checks,
+then consumed offline and copied from the validated builder into the final image.
+Evidence: `deploy/experiment-runner/Containerfile:103`,
+`scripts/ci/install_locked_python_requirements.py:767`.
+
+This source procedure has no new native admission result. Actual acquisition
+loaded maps/configuration and credential cleanup, quarantine/activation endpoint
+identity, genuine SDK/SOABI/TLS/default CA/provider/database consumers, complete
+scanner coverage and strict immutable successor admission remain required. The
+historical image receipts below retain their original source and authority.
 
 ## Exact image evidence
 
@@ -218,9 +297,10 @@ complete, digest-bound build and admission receipt.
   `deploy/experiment-runner/Containerfile:7` starts checksum-pinned external
   sources; `deploy/experiment-runner/Containerfile:19` verifies EPEL/Python;
   `deploy/experiment-runner/Containerfile:37` begins the three complete RPM
-  inventory checks; `deploy/experiment-runner/Containerfile:75` preserves the
-  private-index installer; and `deploy/experiment-runner/Containerfile:119`
-  defines the exact non-root runtime package contract.
+  inventory checks; `deploy/experiment-runner/Containerfile:105` starts static
+  SDK acquisition; `deploy/experiment-runner/Containerfile:251` defines the
+  runtime package inventory; and `deploy/experiment-runner/Containerfile:279`
+  selects the non-root runtime user.
 - `tests/test_experiment_runner_dispatch.py:345` proves complete layer
   verification; `tests/test_experiment_runner_dispatch.py:370` rejects
   incomplete or changed blobs; `tests/test_experiment_runner_dispatch.py:409`
@@ -246,20 +326,22 @@ complete, digest-bound build and admission receipt.
 ## Required validation and admission
 
 Do not use the source diff as scan evidence. A material rebuild requires a new
-canonical Apple `build-image` result and the complete runbook admission chain.
+canonical `build-image` result and the complete runbook admission chain. Docker
+is a build-only producer; the imported image still requires actual strict Apple
+admission and Oracle execution.
 Admission requires all of the following:
 
-1. The image index, one `linux/arm64` manifest, all five referenced layer
+1. The image index, one `linux/arm64` manifest, all eight referenced layer
    blobs, config, and runtime metadata cryptographically bind to the
    Apple-returned digest; every layer is a regular file whose size and SHA-256
    match its descriptor.
-2. The verified official Trivy 0.72.0 binary reports zero HIGH/CRITICAL OS or
+2. The verified official Trivy 0.74.0 binary reports zero HIGH/CRITICAL OS or
    language-package findings without package-type filtering, ignore policy,
    unfixed filtering, or severity reduction. Both database and scan commands
    ignore ambient configuration; all external ignore-policy, ignore-status,
    and VEX inputs are explicitly empty. The executable runbook Python guard
    must additionally prove the exact schema, artifact/OS identity, one
-   129-package Red Hat result, and one 136-package Python result before the
+   129-package Red Hat result, and one 134-package Python result before the
    zero-finding receipt is written.
 3. Exact Python/RPM/CPython patch and non-root assertions pass inside that same
    image, including the complete 107/108/129 package inventories over NEVRA,

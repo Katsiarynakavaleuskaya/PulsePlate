@@ -36,6 +36,12 @@ on:
         default: disabled
         type: choice
         options: [disabled, synthetic-probe, reuse]
+      alertmanager_mode:
+        description: Explicit metadata replay only; build remains disabled until separate admission
+        required: true
+        default: disabled
+        type: choice
+        options: [disabled, module-qualify, build]
       source_sha:
         description: Exact same-repository commit SHA for synthetic probe
         required: false
@@ -58,6 +64,55 @@ env:
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
+  alertmanager-module-qualification:
+    if: >-
+      github.event_name == 'workflow_dispatch' && inputs.alertmanager_mode != 'disabled'
+      && github.repository == 'Katsiarynakavaleuskaya/PulsePlate'
+      && startsWith(github.ref, 'refs/heads/') && github.run_attempt == 1
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      actions: read
+    env:
+      ALERTMANAGER_QUALIFY_SECONDS: '825'
+    steps:
+      - name: Authenticate manual Alertmanager source and hold all build starts
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SOURCE_SHA: ${{ inputs.source_sha }}
+          ALERTMANAGER_MODE: ${{ inputs.alertmanager_mode }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REPOSITORY" = Katsiarynakavaleuskaya/PulsePlate
+          test "$GITHUB_RUN_ATTEMPT" = 1
+          [[ "$SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          test "$SOURCE_SHA" = "$GITHUB_SHA"
+          test "$ALERTMANAGER_MODE" = module-qualify
+          source_api_sha="$(gh api "repos/$GITHUB_REPOSITORY/commits/$SOURCE_SHA" --jq .sha)"
+          test "$source_api_sha" = "$SOURCE_SHA"
+      - name: Checkout authenticated Alertmanager preparation
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Qualify exact inputs and modules under one metadata-only clock
+        run: |
+          set -euo pipefail
+          checkout_sha="$(git rev-parse HEAD)"
+          test "$checkout_sha" = "$GITHUB_SHA"
+          umask 077
+          # The remaining 825-second owner begins before source/UI/Go/base acquisition.
+          # Source/UI clips its 300-second acquisition bound to remaining time.
+          python3 -m scripts.ci.fetch_docker_source_artifacts --artifact alertmanager --alertmanager-module-qualify
+      - name: Retain actual metadata qualification outputs
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1 / Node 24
+        with:
+          name: alertmanager-module-qualification-${{ github.run_id }}-${{ github.run_attempt }}
+          path: build/docker-sources/alertmanager-module-evidence
+          if-no-files-found: warn
+
   staging-postgres-native-integration:
     name: PostgreSQL configuration admission
     if: github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
@@ -466,280 +521,356 @@ jobs:
             *) exit 1 ;;
           esac
 
-  prometheus-image-security:
+  prometheus-image-security-pr:
     if: >-
       always()
+      && github.event_name == 'pull_request'
       && needs.postgres-pgvector-contract.result == 'success'
-      && (
-        (
-          github.event_name == 'push'
-          && github.ref == 'refs/heads/main'
-          && needs.postgres-pgvector-admission.result == 'success'
-        )
-        || (
-          github.event_name == 'push'
-          && startsWith(github.ref, 'refs/tags/v')
-          && needs.postgres-pgvector-reuse.result == 'success'
-        )
-        || (
-          github.event_name == 'schedule'
-          && needs.postgres-pgvector-reuse.result == 'success'
-        )
-        || github.event_name == 'pull_request'
-      )
     needs: [postgres-pgvector-contract, postgres-pgvector-admission, postgres-pgvector-reuse]
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: ${{ fromJSON(vars.PROMETHEUS_IMAGE_SECURITY_TIMEOUT_MINUTES || '55') }}
+    env:
+      PROMETHEUS_CONSUME_SECONDS: '900'
+      PROMETHEUS_CLEANUP_SECONDS: '120'
     permissions:
       contents: read
-    steps:
-      - name: Checkout immutable Prometheus contracts
+      actions: read
+      packages: read
+    steps: &prometheus-image-security-steps
+      - name: Validate exact Prometheus checkout revisions
+        id: prometheus-event
+        run: |
+          set -euo pipefail
+          python3 -I -S - <<'PY'
+          import json, os, re
+          from pathlib import Path
+
+          def require(condition: bool) -> None:
+              if not condition:
+                  raise SystemExit("Prometheus_event_identity_HOLD")
+
+          def repository(value: object) -> bool:
+              return (type(value) is dict and type(value.get("id")) is int and value["id"] == 1043311030
+                      and type(value.get("full_name")) is str
+                      and value["full_name"].lower() == "katsiarynakavaleuskaya/pulseplate")
+
+          def sha(value: object) -> str:
+              if type(value) is not str or re.fullmatch(r"[0-9a-f]{40}", value) is None:
+                  raise SystemExit("Prometheus_event_identity_HOLD")
+              return value
+
+          event = json.loads(Path(os.environ["GITHUB_EVENT_PATH"]).read_bytes())
+          require(type(event) is dict and repository(event.get("repository")))
+          require(os.environ.get("GITHUB_REPOSITORY", "").lower() == "katsiarynakavaleuskaya/pulseplate")
+          name, ref = os.environ["GITHUB_EVENT_NAME"], os.environ["GITHUB_REF"]
+          if name == "pull_request":
+              pr = event.get("pull_request")
+              require(type(pr) is dict and type(pr.get("head")) is dict and type(pr.get("base")) is dict)
+              require(repository(pr["head"].get("repo")) and repository(pr["base"].get("repo")))
+              require(pr["base"].get("ref") == "main")
+              head, base = sha(pr["head"].get("sha")), sha(pr["base"].get("sha"))
+          else:
+              require((name == "push" and event.get("ref") == ref
+                       and (ref == "refs/heads/main" or ref.startswith("refs/tags/v")))
+                      or (name == "schedule" and ref == "refs/heads/main"))
+              head = base = sha(os.environ.get("GITHUB_SHA"))
+          with Path(os.environ["GITHUB_OUTPUT"]).open("a") as output:
+              output.write("head=" + head + "\nbase=" + base + "\n")
+          PY
+
+      - name: Checkout immutable PR base Prometheus contracts
+        if: ${{ github.event_name == 'pull_request' }}
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.base.sha }}
+
+      - name: Checkout immutable published Prometheus contracts
+        if: ${{ github.event_name == 'push' || github.event_name == 'schedule' }}
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
           fetch-depth: 0
           ref: ${{ github.sha }}
 
-      - name: Validate closed Prometheus image record
-        id: prometheus-image
+      - name: Classify the fixed regular Prometheus manifest blobs
+        id: prometheus-route
+        env:
+          PROMETHEUS_EVENT_HEAD: ${{ steps.prometheus-event.outputs.head }}
+          PROMETHEUS_EVENT_BASE: ${{ steps.prometheus-event.outputs.base }}
+        run: |
+          set -euo pipefail
+          python3 -I -S - <<'PY'
+          import hashlib, os, re, subprocess
+          from pathlib import Path
+
+          def require(condition: bool, diagnostic: str) -> None:
+              if not condition:
+                  raise SystemExit(diagnostic)
+
+          environment = {"PATH": "/usr/bin:/bin", "LANG": "C", "GIT_NO_REPLACE_OBJECTS": "1",
+                         "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": "/dev/null",
+                         "GIT_CONFIG_COUNT": "0"}
+          def git(*arguments: str) -> bytes:
+              result = subprocess.run(["/usr/bin/git", "--no-replace-objects", "-c", "core.fsmonitor=false",
+                                       "-c", "core.hooksPath=/dev/null", "-c", "core.pager=cat",
+                                       *arguments], env=environment, capture_output=True)
+              require(result.returncode == 0, "Prometheus_git_object_HOLD")
+              return result.stdout
+
+          def regular_blob(revision: str, path: str) -> str:
+              rows = git("ls-tree", "-z", revision, "--", path).split(b"\0")
+              require(len(rows) == 2 and rows[-1] == b"", "Prometheus_regular_blob_HOLD")
+              metadata, found = rows[0].split(b"\t", 1)
+              fields = metadata.split()
+              require(len(fields) == 3 and fields[:2] == [b"100644", b"blob"]
+                      and found == path.encode() and re.fullmatch(rb"[0-9a-f]{40}", fields[2]) is not None,
+                      "Prometheus_regular_blob_HOLD")
+              return fields[2].decode()
+
+          def manifest(revision: str) -> bytes:
+              oid = regular_blob(revision, "deploy/prometheus/image-manifest.json")
+              size = git("cat-file", "-s", oid).strip()
+              require(size.isdigit() and 0 < int(size) <= 1024**2, "Prometheus_manifest_size_HOLD")
+              raw = git("cat-file", "blob", oid)
+              require(len(raw) == int(size)
+                      and hashlib.sha1(b"blob " + size + b"\0" + raw, usedforsecurity=False).hexdigest() == oid,
+                      "Prometheus_manifest_object_HOLD")
+              return raw
+
+          head, base = os.environ["PROMETHEUS_EVENT_HEAD"], os.environ["PROMETHEUS_EVENT_BASE"]
+          require(all(re.fullmatch(r"[0-9a-f]{40}", value) is not None for value in (head, base)),
+                  "Prometheus_event_SHA_HOLD")
+          require(git("rev-parse", "HEAD").strip().decode() == base, "Prometheus_checkout_binding_HOLD")
+          for revision in set((head, base)):
+              require(git("cat-file", "-t", revision).strip() == b"commit", "Prometheus_commit_object_HOLD")
+          if os.environ["GITHUB_EVENT_NAME"] == "pull_request":
+              if manifest(base) == manifest(head):
+                  regular_blob(base, "scripts/ci/prometheus_source_image.py")
+                  mode = "unchanged_pr_published"
+              else:
+                  mode = "changed_pr_candidate"
+          elif os.environ["GITHUB_EVENT_NAME"] in ("push", "schedule"):
+              mode = "trusted_published"
+          else:
+              raise SystemExit("Prometheus_event_identity_HOLD")
+          with Path(os.environ["GITHUB_OUTPUT"]).open("a") as output:
+              output.write("mode=" + mode + "\nhead=" + head + "\nbase=" + base + "\n")
+          PY
+
+      - name: Checkout exact changed PR Prometheus contracts
+        if: ${{ success() && github.event_name == 'pull_request' && steps.prometheus-route.outputs.mode == 'changed_pr_candidate' }}
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Require the trusted base published consumer capability
+        if: ${{ success() && steps.prometheus-route.outputs.mode == 'unchanged_pr_published' }}
+        run: |
+          set -euo pipefail
+          python3 -m scripts.ci.prometheus_source_image --operation read-manifest --field selection > /dev/null
+
+      - name: Require fresh fixed Prometheus control checkout
+        if: ${{ success() && steps.prometheus-route.outputs.mode == 'changed_pr_candidate' }}
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/orchestration
+          test ! -e artifacts/orchestration/prometheus-control
+          test ! -L artifacts/orchestration/prometheus-control
+          for parent in artifacts artifacts/orchestration; do
+            test -d "$parent" && test ! -L "$parent"
+          done
+
+      - name: Checkout fixed trusted Prometheus control
+        id: prometheus-control-checkout
+        if: ${{ success() && steps.prometheus-route.outputs.mode == 'changed_pr_candidate' }}
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: 5064aded22f478a22a4319b684e95d6c0b3ae46f # pragma: allowlist secret - public trusted control commit
+          persist-credentials: false
+          path: artifacts/orchestration/prometheus-control
+          sparse-checkout: scripts/ci/prometheus_source_image.py
+          sparse-checkout-cone-mode: false
+
+      - name: Wait for the exact trusted Prometheus publisher
+        if: ${{ success() && github.event_name != 'pull_request' && steps.prometheus-route.outputs.mode == 'trusted_published' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PROMETHEUS_CREDENTIAL_ROUTE: ${{ steps.prometheus-route.outputs.mode }}
         run: |
           set -euo pipefail
           python3 - <<'PY'
-          import json
-          import os
+          import os, signal, time
           from pathlib import Path
-          import re
 
-          manifest_path = Path("deploy/prometheus/image-manifest.json")
+          if os.environ["GITHUB_EVENT_NAME"] == "pull_request" or os.environ.get("GHCR_READ_TOKEN"):
+              raise SystemExit("Prometheus_publication_wait_credential_route_HOLD")
+          from scripts.ci import prometheus_source_image as source
 
-
-          def reject_duplicate_keys(pairs):
-              result = {}
-              for key, value in pairs:
-                  if key in result:
-                      raise ValueError("duplicate Prometheus manifest key")
-                  result[key] = value
-              return result
-
-
-          manifest = json.loads(
-              manifest_path.read_text(encoding="utf-8"),
-              object_pairs_hook=reject_duplicate_keys,
-              parse_constant=lambda value: (_ for _ in ()).throw(
-                  ValueError(f"invalid JSON constant: {value}")
-              ),
-          )
-          expected = {
-              "schema": "pulseplate.prometheus_image_manifest.v2",
-              "repository": "prom/prometheus",
-              "source_revision": "53144df54e01b689bf6c45e811c6230631b132e7",
-              "index_digest": "sha256:62464aea89547566d3e26b33566a40d8a9d2ddef947fde9d37454040c9c636b1",
-              "platform": "linux/amd64",
-              "platform_manifest_digest": "sha256:76f21be0a8e8c825cccb0e2021699dcbfb02037cc594c1f48d44993f8a415f2d",
-              "runtime_ref": "prom/prometheus@sha256:76f21be0a8e8c825cccb0e2021699dcbfb02037cc594c1f48d44993f8a415f2d",
-          }
-          if manifest != expected:
-              raise SystemExit("Prometheus image manifest must equal the closed canonical record")
-          if re.fullmatch(r"[0-9a-f]{40}", manifest["source_revision"]) is None:
-              raise SystemExit("Invalid canonical Prometheus source revision")
-          digest_pattern = re.compile(r"sha256:[0-9a-f]{64}\Z")
-          for field in ("index_digest", "platform_manifest_digest"):
-              if digest_pattern.fullmatch(manifest[field]) is None:
-                  raise SystemExit(f"Invalid canonical digest field: {field}")
-          expected_runtime = (
-              f"{manifest['repository']}@{manifest['platform_manifest_digest']}"
-          )
-          if manifest["runtime_ref"] != expected_runtime:
-              raise SystemExit("Prometheus runtime reference is not manifest-digest bound")
-          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
-              print(
-                  f"index_ref={manifest['repository']}@{manifest['index_digest']}",
-                  file=output,
-              )
-              print(f"index_digest={manifest['index_digest']}", file=output)
-              print(f"source_revision={manifest['source_revision']}", file=output)
-              print(
-                  f"platform_manifest_digest={manifest['platform_manifest_digest']}",
-                  file=output,
-              )
-              print(f"runtime_ref={manifest['runtime_ref']}", file=output)
+          source.require(os.environ["PROMETHEUS_CREDENTIAL_ROUTE"] == "trusted_published",
+                         "publication_wait_trusted_route")
+          seconds = int(os.environ["PROMETHEUS_PUBLICATION_WAIT_SECONDS"])
+          consume = int(os.environ["PROMETHEUS_CONSUME_SECONDS"])
+          cleanup = int(os.environ["PROMETHEUS_CLEANUP_SECONDS"])
+          reserve = int(os.environ["PROMETHEUS_SECURITY_RESERVE_SECONDS"])
+          job_seconds = int(os.environ["PROMETHEUS_JOB_TIMEOUT_MINUTES"]) * 60
+          source.require(0 < seconds <= 10800 and consume == 900 and cleanup == 120
+                         and reserve >= 2400 and job_seconds <= 21600
+                         and seconds + consume + 2 * cleanup + reserve <= job_seconds,
+                         "publication_wait_enclosing_budget")
+          deadline = time.monotonic() + seconds
+          root = Path(os.environ["GITHUB_WORKSPACE"])
+          work = Path(os.environ["RUNNER_TEMP"]) / (
+              "prometheus-publication-wait-" + os.environ["GITHUB_RUN_ID"] + "-" + os.environ["GITHUB_RUN_ATTEMPT"])
+          source.fresh_directory(work)
+          evidence = work / "evidence"
+          source.fresh_directory(evidence)
+          signal.signal(signal.SIGTERM, source.interrupt)
+          signal.signal(signal.SIGINT, source.interrupt)
+          api = source.GitHubRead(work / "GitHub-private", evidence, deadline, cleanup)
+          try:
+              event = source.one_object(Path(os.environ["GITHUB_EVENT_PATH"]).read_bytes())
+              admission = source.event_admission(api, root, event, os.environ["GITHUB_EVENT_NAME"],
+                                                 os.environ["GITHUB_SHA"])
+              while True:
+                  source.check_deadline(deadline)
+                  try:
+                      predecessor = source.require_publication_predecessor(api, admission["publisher_head"])
+                      break
+                  except source.QualificationError as error:
+                      if str(error) != "positive_publication_predecessor_pending_or_missing":
+                          raise
+                      source.check_deadline(deadline)
+                      time.sleep(min(30, max(0, deadline - time.monotonic())))
+              (evidence / "predecessor.json").write_bytes(source.canonical_data(predecessor))
+          finally:
+              api.close()
+          # The next step invokes consume once and independently authenticates again.
           PY
 
-      - name: Cross-bind immutable index, linux amd64 manifest, and local image config
+      - name: Admit retained PR candidate or published immutable subject
+        id: prometheus-image
         env:
-          PROMETHEUS_INDEX_REF: ${{ steps.prometheus-image.outputs.index_ref }}
-          PROMETHEUS_INDEX_DIGEST: ${{ steps.prometheus-image.outputs.index_digest }}
-          PROMETHEUS_PLATFORM_MANIFEST_DIGEST: ${{ steps.prometheus-image.outputs.platform_manifest_digest }}
-          PROMETHEUS_RUNTIME_REF: ${{ steps.prometheus-image.outputs.runtime_ref }}
-          PROMETHEUS_SOURCE_REVISION: ${{ steps.prometheus-image.outputs.source_revision }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GHCR_READ_TOKEN: ${{ github.event_name == 'pull_request' && steps.prometheus-route.outputs.mode == 'unchanged_pr_published' && secrets.GITHUB_TOKEN || github.event_name != 'pull_request' && steps.prometheus-route.outputs.mode == 'trusted_published' && secrets.GHCR_READ_TOKEN || '' }}
+          PROMETHEUS_CREDENTIAL_ROUTE: ${{ steps.prometheus-route.outputs.mode }}
         run: |
           set -euo pipefail
-          evidence_dir="$(mktemp -d "${RUNNER_TEMP}/pulseplate-obs1b-oci.XXXXXX")"
-          cleanup() {
-            local original_status=$?
-            local cleanup_failed=0
-            trap - EXIT
-            case "$evidence_dir" in
-              "${RUNNER_TEMP}"/pulseplate-obs1b-oci.*)
-                if [ -d "$evidence_dir" ] && [ ! -L "$evidence_dir" ]; then
-                  if ! rm -rf -- "$evidence_dir"; then
-                    cleanup_failed=1
-                  fi
-                else
-                  cleanup_failed=1
-                fi
-                ;;
-              *) cleanup_failed=1 ;;
-            esac
-            if [ "$original_status" -eq 0 ] && [ "$cleanup_failed" -ne 0 ]; then
-              exit 1
-            elif [ "$original_status" -ne 0 ] && [ "$cleanup_failed" -ne 0 ]; then
-              echo "Prometheus OCI cleanup also failed; preserving primary exit $original_status" >&2
-            fi
-            exit "$original_status"
-          }
-          trap cleanup EXIT
+          case "$PROMETHEUS_CREDENTIAL_ROUTE" in
+            changed_pr_candidate) test -z "${GHCR_READ_TOKEN:-}" ;;
+            unchanged_pr_published | trusted_published) ;;
+            *) echo "Prometheus credential route HOLD" >&2; exit 1 ;;
+          esac
+          if [ "$PROMETHEUS_CREDENTIAL_ROUTE" = changed_pr_candidate ]; then
+            python3 -I -S - <<'PY'
+          import hashlib, json, os, runpy, signal, stat, subprocess
+          from pathlib import Path
 
-          docker buildx imagetools inspect --raw "$PROMETHEUS_INDEX_REF" \
-            > "$evidence_dir/index.json"
-          docker buildx imagetools inspect --raw "$PROMETHEUS_RUNTIME_REF" \
-            > "$evidence_dir/platform-manifest.json"
-          python3 - "$evidence_dir/index.json" "$evidence_dir/platform-manifest.json" <<'PY'
-          import hashlib
-          import json
+          material = Path(os.environ["GITHUB_WORKSPACE"])
+          control = material / "artifacts/orchestration/prometheus-control"
+          helper = control / "scripts/ci/prometheus_source_image.py"
+          for path in (control, control / "scripts", control / "scripts/ci", helper):
+              info = path.lstat()
+              if info.st_uid != os.getuid() or stat.S_ISLNK(info.st_mode):
+                  raise SystemExit("Prometheus_control_path_HOLD")
+          if not helper.is_file() or stat.S_IMODE(helper.stat().st_mode) != 0o644:
+              raise SystemExit("Prometheus_control_mode_HOLD")
+          raw = helper.read_bytes()
+          if len(raw) != 315949 or hashlib.sha256(raw).hexdigest() != "0e7a73b0159c442cf5f9377aa862e38d643145f81ac6a54ee50b31682f6c3e3e":
+              raise SystemExit("Prometheus_control_bytes_HOLD")
+          environment = {"PATH": "/usr/bin:/bin", "LANG": "C", "GIT_NO_REPLACE_OBJECTS": "1",
+                         "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": "/dev/null"}
+          revision = subprocess.run(["/usr/bin/git", "--no-replace-objects", "-C", str(control),
+                                     "rev-parse", "HEAD"], env=environment, capture_output=True, check=True)
+          if revision.stdout.strip() != b"5064aded22f478a22a4319b684e95d6c0b3ae46f":
+              raise SystemExit("Prometheus_control_revision_HOLD")
+          object_row = subprocess.run(["/usr/bin/git", "--no-replace-objects", "-C", str(control),
+                                      "ls-tree", "-z", "HEAD", "--", "scripts/ci/prometheus_source_image.py"],
+                                     env=environment, capture_output=True, check=True)
+          if object_row.stdout != b"100644 blob 3029aeba29126a05fba5cbd6953916618852d0e2\tscripts/ci/prometheus_source_image.py\0":
+              raise SystemExit("Prometheus_control_object_HOLD")
+          event_head = subprocess.run(["/usr/bin/git", "--no-replace-objects", "-C", str(material),
+                                      "rev-parse", "HEAD"], env=environment, capture_output=True, check=True)
+          event = json.loads(Path(os.environ["GITHUB_EVENT_PATH"]).read_bytes())
+          if event_head.stdout.strip().decode() != event["pull_request"]["head"]["sha"]:
+              raise SystemExit("Prometheus_material_revision_HOLD")
+          route = os.environ["PROMETHEUS_CREDENTIAL_ROUTE"]
+          if route not in ("changed_pr_candidate", "unchanged_pr_published"):
+              raise SystemExit("Prometheus_credential_route_HOLD")
+          if route == "changed_pr_candidate" and os.environ.get("GHCR_READ_TOKEN"):
+              raise SystemExit("Prometheus_candidate_registry_HOLD")
+          trusted = runpy.run_path(str(helper))
+          work = Path(os.environ["RUNNER_TEMP"]) / ("prometheus-consumer-" + os.environ["GITHUB_RUN_ID"] + "-" + os.environ["GITHUB_RUN_ATTEMPT"])
+          signal.signal(signal.SIGTERM, trusted["interrupt"])
+          signal.signal(signal.SIGINT, trusted["interrupt"])
+          try:
+              result = trusted["consume_image"](work, material, int(os.environ["PROMETHEUS_CONSUME_SECONDS"]), int(os.environ["PROMETHEUS_CLEANUP_SECONDS"]))
+          except (Exception, KeyboardInterrupt) as error:
+              diagnostic = trusted["diagnostic_code"](error) or type(error).__name__
+              raise SystemExit("Prometheus_consume_HOLD:" + diagnostic) from None
+          selection = result["selection"]
+          outputs = {"manifest_digest": selection["manifest_digest"], "config_digest": selection["config_digest"],
+                     "source_revision": selection["source_revision"], "runtime_ref": result.get("runtime_ref", selection["runtime_ref"])}
+          with Path(os.environ["GITHUB_OUTPUT"]).open("a") as output:
+              for key, value in outputs.items():
+                  trusted["require"](type(value) is str and "\n" not in value and "\r" not in value, "native_output_single_line")
+                  output.write(key + "=" + value + "\n")
+          PY
+          else
+            python3 -m scripts.ci.prometheus_source_image --operation consume \
+              --work-dir "$RUNNER_TEMP/prometheus-consumer-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" \
+              --timeout-seconds "$PROMETHEUS_CONSUME_SECONDS" --cleanup-seconds "$PROMETHEUS_CLEANUP_SECONDS"
+          fi
+
+      - name: Remove fixed trusted Prometheus control checkout
+        if: ${{ always() && steps.prometheus-route.outputs.mode == 'changed_pr_candidate' && (steps.prometheus-control-checkout.outcome == 'success' || steps.prometheus-control-checkout.outcome == 'failure') }}
+        run: |
+          set -euo pipefail
+          control="$GITHUB_WORKSPACE/artifacts/orchestration/prometheus-control"
+          test ! -L "$control"
+          rm -rf -- "$control"
+          test ! -e "$control" && test ! -L "$control"
+
+      - name: Bind the unchanged PR admission after trusted cleanup
+        if: ${{ success() && steps.prometheus-route.outputs.mode == 'unchanged_pr_published' }}
+        env:
+          PROMETHEUS_EVENT_HEAD: ${{ steps.prometheus-route.outputs.head }}
+          PROMETHEUS_EVENT_BASE: ${{ steps.prometheus-route.outputs.base }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
           import os
           from pathlib import Path
-          import sys
+          from scripts.ci.prometheus_source_image import one_object
 
-          index_bytes = Path(sys.argv[1]).read_bytes()
-          platform_bytes = Path(sys.argv[2]).read_bytes()
-          expected_index = os.environ["PROMETHEUS_INDEX_DIGEST"]
-          expected_platform = os.environ["PROMETHEUS_PLATFORM_MANIFEST_DIGEST"]
-
-
-          def reject_duplicate_keys(pairs):
-              result = {}
-              for key, value in pairs:
-                  if key in result:
-                      raise ValueError("duplicate OCI manifest key")
-                  result[key] = value
-              return result
-
-
-          if f"sha256:{hashlib.sha256(index_bytes).hexdigest()}" != expected_index:
-              raise SystemExit("Prometheus index digest mismatch")
-          index = json.loads(index_bytes, object_pairs_hook=reject_duplicate_keys)
-          if (
-              not isinstance(index, dict)
-              or index.get("mediaType")
-              != "application/vnd.docker.distribution.manifest.list.v2+json"
-              or not isinstance(index.get("manifests"), list)
-          ):
-              raise SystemExit("Prometheus index manifest is malformed")
-          matches = [
-              item
-              for item in index["manifests"]
-              if isinstance(item, dict)
-              and item.get("platform") == {"architecture": "amd64", "os": "linux"}
-          ]
-          if len(matches) != 1 or matches[0].get("digest") != expected_platform:
-              raise SystemExit("Prometheus linux/amd64 manifest binding mismatch")
-          if f"sha256:{hashlib.sha256(platform_bytes).hexdigest()}" != expected_platform:
-              raise SystemExit("Prometheus runtime manifest digest mismatch")
-          platform_manifest = json.loads(
-              platform_bytes,
-              object_pairs_hook=reject_duplicate_keys,
-          )
-          if (
-              not isinstance(platform_manifest, dict)
-              or platform_manifest.get("mediaType")
-              != "application/vnd.docker.distribution.manifest.v2+json"
-              or not isinstance(platform_manifest.get("config"), dict)
-          ):
-              raise SystemExit("Prometheus runtime manifest config descriptor missing")
+          path = (Path(os.environ["RUNNER_TEMP"]) /
+                  ("prometheus-consumer-" + os.environ["GITHUB_RUN_ID"] + "-" + os.environ["GITHUB_RUN_ATTEMPT"]) /
+                  "evidence" / "consumer.json")
+          if path.is_symlink() or not path.is_file():
+              raise SystemExit("Prometheus_unchanged_result_HOLD")
+          with path.open("rb") as stream:
+              raw = stream.read(1024**2 + 1)
+          if not 0 < len(raw) <= 1024**2:
+              raise SystemExit("Prometheus_unchanged_result_HOLD")
+          admission = one_object(raw).get("admission")
+          if (type(admission) is not dict or admission.get("mode") != "unchanged_published"
+                  or admission.get("head") != os.environ["PROMETHEUS_EVENT_HEAD"]
+                  or admission.get("publisher_head") != os.environ["PROMETHEUS_EVENT_BASE"]):
+              raise SystemExit("Prometheus_unchanged_admission_HOLD")
           PY
 
-          docker pull --platform linux/amd64 "$PROMETHEUS_RUNTIME_REF"
-          docker image inspect "$PROMETHEUS_RUNTIME_REF" > "$evidence_dir/image.json"
-          python3 - "$evidence_dir/image.json" "$evidence_dir/platform-manifest.json" <<'PY'
-          import json
-          import os
-          from pathlib import Path
-          import sys
-
-          payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
-          platform_manifest = json.loads(Path(sys.argv[2]).read_text(encoding="utf-8"))
-          if len(payload) != 1:
-              raise SystemExit("Expected exactly one inspected Prometheus image")
-          image = payload[0]
-          config = image.get("Config")
-          if not isinstance(config, dict):
-              raise SystemExit("Prometheus image config missing")
-          expected = {
-              "Os": "linux",
-              "Architecture": "amd64",
-              "User": "65532",
-              "Entrypoint": ["/bin/prometheus"],
-              "Cmd": [
-                  "--config.file=/etc/prometheus/prometheus.yml",
-                  "--storage.tsdb.path=/prometheus",
-              ],
-              "WorkingDir": "/prometheus",
-          }
-          observed = {
-              "Os": image.get("Os"),
-              "Architecture": image.get("Architecture"),
-              "User": config.get("User"),
-              "Entrypoint": config.get("Entrypoint"),
-              "Cmd": config.get("Cmd"),
-              "WorkingDir": config.get("WorkingDir"),
-          }
-          if observed != expected:
-              raise SystemExit("Prometheus exact-image config mismatch")
-          config_descriptor = platform_manifest.get("config")
-          config_digest = (
-              config_descriptor.get("digest")
-              if isinstance(config_descriptor, dict)
-              else None
-          )
-          if not isinstance(config_digest, str) or image.get("Id") != config_digest:
-              raise SystemExit("Prometheus local image config digest mismatch")
-          digest = os.environ["PROMETHEUS_PLATFORM_MANIFEST_DIGEST"]
-          repositories = {"prom/prometheus", "docker.io/prom/prometheus"}
-          repo_digests = image.get("RepoDigests") or []
-          if not any(
-              isinstance(item, str)
-              and item.rsplit("@", 1) == [repository, digest]
-              for item in repo_digests
-              for repository in repositories
-          ):
-              raise SystemExit("Prometheus local image is not bound to the canonical repository digest")
-          PY
-
-          docker run --rm \
-            --platform linux/amd64 \
-            --user 65532:65532 \
-            -e PULSEPLATE_ENVIRONMENT=staging \
-            --network none \
-            --read-only \
-            --cap-drop ALL \
-            --security-opt no-new-privileges:true \
-            --pids-limit 64 \
-            --entrypoint /bin/prometheus \
-            "$PROMETHEUS_RUNTIME_REF" \
-            --version > "$evidence_dir/version.txt" 2>&1
-          python3 - "$evidence_dir/version.txt" <<'PY'
-          import os
-          from pathlib import Path
-          import re
-          import sys
-
-          version_text = Path(sys.argv[1]).read_text(encoding="utf-8")
-          revisions = re.findall(r"\brevision: ([0-9a-f]{40})\b", version_text)
-          expected_revision = os.environ["PROMETHEUS_SOURCE_REVISION"]
-          if revisions != [expected_revision]:
-              raise SystemExit("Prometheus binary revision does not match the manifest")
-          PY
+      - name: Checkout exact unchanged PR contracts after trusted cleanup
+        if: ${{ success() && github.event_name == 'pull_request' && steps.prometheus-route.outputs.mode == 'unchanged_pr_published' }}
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
 
       - name: Check canonical Prometheus config with exact-image promtool
         env:
@@ -849,6 +980,8 @@ jobs:
         env:
           TRIVY_DB_REPOSITORY: ghcr.io/aquasecurity/trivy-db
           TRIVY_BIN: ${{ steps.prometheus_trivy.outputs.path }}
+          TRIVY_CACHE_DIR: /tmp/trivy-cache-prometheus-image-security
+          PROMETHEUS_EVENT_HEAD: ${{ steps.prometheus-route.outputs.head }}
         run: |
           set -euo pipefail
           alert_ref='prom/alertmanager@sha256:84967b9b7ba45e38a9278d3e594305f43d4993c310df3905b51138b816c365f3'
@@ -888,16 +1021,63 @@ jobs:
           "$TRIVY_BIN" image --scanners vuln,secret --format json \
             --pkg-types os,library --severity CRITICAL,HIGH --exit-code 0 \
             --timeout 15m --output "$scan" "$alert_ref"
+          python3 - "$scan" <<'PY'
+          import json, sys
+          data=json.load(open(sys.argv[1], encoding="utf-8"))
+          if any(r.get("Secrets") for r in data.get("Results", [])):
+              raise SystemExit("Alertmanager scan contains unexpected secret findings")
+          PY
+          evidence_dir="$RUNNER_TEMP/prometheus-consumer-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT/evidence"
+          cp -- "$scan" "$evidence_dir/alertmanager-unsuppressed.json"
+          "$TRIVY_BIN" --version --format json > "$evidence_dir/alertmanager-trivy-version.json"
+          python3 - "$alert_ref" "$TRIVY_BIN" "$TRIVY_CACHE_DIR" "$evidence_dir" <<'PY'
+          import hashlib, json, os, sys
+          from pathlib import Path
+
+          image, scanner, cache, evidence = sys.argv[1:]
+          evidence = Path(evidence)
+          def digest(path):
+              value = hashlib.sha256()
+              with path.open("rb") as stream:
+                  for block in iter(lambda: stream.read(1024 * 1024), b""):
+                      value.update(block)
+              return value.hexdigest()
+          metadata = Path(cache) / "db" / "metadata.json"
+          database = Path(cache) / "db" / "trivy.db"
+          observed = {
+              "image": image,
+              "run_id": os.environ["GITHUB_RUN_ID"],
+              "run_attempt": os.environ["GITHUB_RUN_ATTEMPT"],
+              "head": os.environ["PROMETHEUS_EVENT_HEAD"],
+              "workflow_execution_sha": os.environ["GITHUB_SHA"],
+              "scanner_sha256": digest(Path(scanner)),
+              "scanner_version": json.loads((evidence / "alertmanager-trivy-version.json").read_bytes()),
+              "report_sha256": digest(evidence / "alertmanager-unsuppressed.json"),
+              "database_metadata": json.loads(metadata.read_bytes()),
+              "database_metadata_sha256": digest(metadata),
+              "database_sha256": digest(database),
+          }
+          (evidence / "alertmanager-scan-context.json").write_text(
+              json.dumps(observed, indent=2) + "\n", encoding="utf-8"
+          )
+          PY
           verify_alertmanager_inventory() {
             python3 - "$1" <<'PY'
           import json, sys
           data=json.load(open(sys.argv[1], encoding="utf-8"))
           if any(r.get("Secrets") for r in data.get("Results", [])):
               raise SystemExit("Alertmanager scan contains unexpected secret findings")
-          found=[(r.get("Target"), v.get("VulnerabilityID"), (v.get("PkgIdentifier") or {}).get("PURL"))
+          found=[(r.get("Target"), v.get("VulnerabilityID"), (v.get("PkgIdentifier") or {}).get("PURL"), v.get("Severity"))
                  for r in data.get("Results", []) for v in (r.get("Vulnerabilities") or [])]
-          expected={(target, "CVE-2026-84445", "pkg:golang/google.golang.org/grpc@v1.83.1")
-                    for target in ("bin/alertmanager", "bin/amtool")}
+          expected={(target, cve, purl, "HIGH")
+                    for target in ("bin/alertmanager", "bin/amtool")
+                    for cve, purl in (
+                        ("CVE-2026-84445", "pkg:golang/google.golang.org/grpc@v1.83.1"),
+                        ("CVE-2026-78669", "pkg:golang/golang.org/x/net@v0.58.0"),
+                        ("CVE-2026-78669", "pkg:golang/stdlib@v1.26.8"),
+                        ("CVE-2026-78667", "pkg:golang/stdlib@v1.26.8"),
+                        ("CVE-2026-97031", "pkg:golang/stdlib@v1.26.8"),
+                    )}
           if set(found) != expected or len(found) != len(expected):
               raise SystemExit("Unsuppressed Alertmanager finding inventory changed")
           PY
@@ -906,8 +1086,10 @@ jobs:
           "$TRIVY_BIN" image --scanners vuln,secret --format table \
             --pkg-types os,library --severity CRITICAL,HIGH --exit-code 1 \
             --timeout 15m --ignorefile "$ignore" "$alert_ref"
-          sed 's|pkg:golang/google.golang.org/grpc@v1.83.1|pkg:golang/google.golang.org/grpc@v1.83.0|' "$ignore" > "$wrong"
-          sed 's/expired_at: 2026-10-24/expired_at: 2026-01-01/' "$ignore" > "$expired"
+          sed -e 's|pkg:golang/google[.]golang[.]org/grpc@v1[.]83[.]1|pkg:golang/google.golang.org/grpc@v0.0.0|' \
+            -e 's|pkg:golang/golang[.]org/x/net@v0[.]58[.]0|pkg:golang/golang.org/x/net@v0.0.0|' \
+            -e 's|pkg:golang/stdlib@v1[.]26[.]8|pkg:golang/stdlib@v0.0.0|' "$ignore" > "$wrong"
+          sed 's/expired_at: 2026-10-21/expired_at: 2026-01-01/' "$ignore" > "$expired"
           for negative in "$wrong" "$expired"; do
             : > "$negative_scan"
             "$TRIVY_BIN" image --scanners vuln,secret --format json \
@@ -1180,6 +1362,91 @@ jobs:
             exit 1
           fi
 
+      - name: Retain exact Prometheus consumer evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1 / Node 24
+        with:
+          name: prometheus-consumer-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/prometheus-consumer-${{ github.run_id }}-${{ github.run_attempt }}/evidence/
+            ${{ runner.temp }}/prometheus-publication-wait-${{ github.run_id }}-${{ github.run_attempt }}/evidence/
+          if-no-files-found: error
+          retention-days: 30
+
+
+  prometheus-image-security-trusted:
+    if: >-
+      always()
+      && needs.postgres-pgvector-contract.result == 'success'
+      && (
+        (
+          github.event_name == 'push'
+          && github.ref == 'refs/heads/main'
+          && needs.postgres-pgvector-admission.result == 'success'
+        )
+        || (
+          github.event_name == 'push'
+          && startsWith(github.ref, 'refs/tags/v')
+          && needs.postgres-pgvector-reuse.result == 'success'
+        )
+        || (
+          github.event_name == 'schedule'
+          && needs.postgres-pgvector-reuse.result == 'success'
+        )
+      )
+    needs: [postgres-pgvector-contract, postgres-pgvector-admission, postgres-pgvector-reuse]
+    runs-on: ubuntu-latest
+    timeout-minutes: &prometheus-trusted-timeout ${{ fromJSON(vars.PROMETHEUS_IMAGE_SECURITY_TIMEOUT_MINUTES || '255') }}
+    environment: staging
+    env:
+      PROMETHEUS_JOB_TIMEOUT_MINUTES: *prometheus-trusted-timeout
+      PROMETHEUS_PUBLICATION_WAIT_SECONDS: ${{ vars.PROMETHEUS_PUBLICATION_WAIT_SECONDS || '10800' }}
+      PROMETHEUS_SECURITY_RESERVE_SECONDS: '2400'
+      PROMETHEUS_CONSUME_SECONDS: '900'
+      PROMETHEUS_CLEANUP_SECONDS: '120'
+    permissions:
+      contents: read
+      actions: read
+      packages: read
+    steps: *prometheus-image-security-steps
+
+  prometheus-image-security:
+    if: >-
+      always()
+      && needs.postgres-pgvector-contract.result == 'success'
+      && (
+        (
+          github.event_name == 'push'
+          && github.ref == 'refs/heads/main'
+          && needs.postgres-pgvector-admission.result == 'success'
+        )
+        || (
+          github.event_name == 'push'
+          && startsWith(github.ref, 'refs/tags/v')
+          && needs.postgres-pgvector-reuse.result == 'success'
+        )
+        || (
+          github.event_name == 'schedule'
+          && needs.postgres-pgvector-reuse.result == 'success'
+        )
+        || github.event_name == 'pull_request'
+      )
+    needs: [postgres-pgvector-contract, postgres-pgvector-admission, postgres-pgvector-reuse, prometheus-image-security-pr, prometheus-image-security-trusted]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: Require the selected Prometheus security execution
+        env:
+          PR_RESULT: ${{ needs.prometheus-image-security-pr.result }}
+          TRUSTED_RESULT: ${{ needs.prometheus-image-security-trusted.result }}
+        run: |
+          set -euo pipefail
+          case "$GITHUB_EVENT_NAME:$PR_RESULT:$TRUSTED_RESULT" in
+            pull_request:success:skipped | push:skipped:success | schedule:skipped:success) ;;
+            *) echo "Selected Prometheus security execution did not succeed" >&2; exit 1 ;;
+          esac
+
   obs2a-checkpoint-native:
     name: OBS2A checkpoint native admission
     needs: prometheus-image-security
@@ -1190,8 +1457,14 @@ jobs:
       && needs.prometheus-image-security.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: ${{ fromJSON(vars.OBS2A_NATIVE_JOB_TIMEOUT_MINUTES || '40') }}
+    environment: staging
+    env:
+      PROMETHEUS_CONSUME_SECONDS: '900'
+      PROMETHEUS_CLEANUP_SECONDS: '120'
     permissions:
       contents: read
+      actions: read
+      packages: read
     steps:
       - name: Checkout immutable OBS2A native contracts
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -1213,7 +1486,7 @@ jobs:
           git rev-parse --verify "$OBS2A_HEAD_SHA^{commit}" >/dev/null
           diff_status=0
           if git diff --quiet "$OBS2A_BASE_SHA" "$OBS2A_HEAD_SHA" -- \
-            deploy/systemd scripts/ops/notify_premium_alias_checkpoint_failure.py \
+            deploy/systemd scripts/ops/notify_premium_alias_checkpoint_failure.py deploy/prometheus/image-manifest.json \
             scripts/verify_premium_alias_telemetry.py tests/test_notify_premium_alias_checkpoint_failure.py \
             .github/workflows/ci.yml .github/workflows/cd.yml scripts/deploy.sh scripts/deploy_production.sh; then
             diff_status=0
@@ -1241,12 +1514,19 @@ jobs:
 
       - name: Native main OBS2A checkpoint lifecycle and owned-task challenge
         if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.checkpoint-native.outputs.selected == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GHCR_READ_TOKEN: ${{ secrets.GHCR_READ_TOKEN }}
         run: |
           set -euo pipefail
           native_python="$(command -v python)"
           mkdir -p artifacts/orchestration/obs2a_pr3
+          "$native_python" -m scripts.ci.prometheus_source_image --operation consume \
+            --work-dir "$RUNNER_TEMP/prometheus-obs2a-consumer-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" \
+            --timeout-seconds "$PROMETHEUS_CONSUME_SECONDS" --cleanup-seconds "$PROMETHEUS_CLEANUP_SECONDS"
           if {
-            sudo /usr/bin/env -i PATH=/usr/bin:/bin LANG=C HOME=/tmp PYTHONDONTWRITEBYTECODE=1 \
+            sudo /usr/bin/env -i PATH=/usr/local/bin:/usr/bin:/bin LANG=C HOME=/tmp PYTHONDONTWRITEBYTECODE=1 \
             "$native_python" -m tests.test_notify_premium_alias_checkpoint_failure --native
           } 2>&1 | tee artifacts/orchestration/obs2a_pr3/native-result.log; then
             pipeline_status=("${PIPESTATUS[@]}")
@@ -1265,7 +1545,9 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1 / Node 24
         with:
           name: obs2a-native-main-${{ github.sha }}
-          path: artifacts/orchestration/obs2a_pr3/native-result.log
+          path: |
+            artifacts/orchestration/obs2a_pr3/native-result.log
+            ${{ runner.temp }}/prometheus-obs2a-consumer-${{ github.run_id }}-${{ github.run_attempt }}/evidence/
           if-no-files-found: error
           retention-days: 7
 
@@ -3561,6 +3843,7 @@ jobs:
             echo "prometheus_config_sha256=$(sha256sum deploy/prometheus/prometheus.yml | cut -d' ' -f1)"
             echo "prometheus_rules_sha256=$(sha256sum deploy/prometheus/alias-alerts.yml | cut -d' ' -f1)"
             echo "prometheus_image_manifest_sha256=$(sha256sum deploy/prometheus/image-manifest.json | cut -d' ' -f1)"
+            echo "prometheus_contract_helper_sha256=$(sha256sum scripts/ci/prometheus_source_image.py | cut -d' ' -f1)"
             echo "alertmanager_config_sha256=$(sha256sum deploy/alertmanager/alertmanager.yml | cut -d' ' -f1)"
             echo "alertmanager_trivy_ignore_sha256=$(sha256sum deploy/alertmanager/trivy-ignore.yaml | cut -d' ' -f1)"
             echo "postgres_image_manifest_sha256=$(sha256sum deploy/postgres-pgvector/image-manifest.json | cut -d' ' -f1)"
@@ -3599,6 +3882,7 @@ jobs:
           PROMETHEUS_CONFIG_SHA256: ${{ steps.staging-contract.outputs.prometheus_config_sha256 }}
           PROMETHEUS_RULES_SHA256: ${{ steps.staging-contract.outputs.prometheus_rules_sha256 }}
           PROMETHEUS_IMAGE_MANIFEST_SHA256: ${{ steps.staging-contract.outputs.prometheus_image_manifest_sha256 }}
+          PROMETHEUS_CONTRACT_HELPER_SHA256: ${{ steps.staging-contract.outputs.prometheus_contract_helper_sha256 }}
           ALERTMANAGER_CONFIG_SHA256: ${{ steps.staging-contract.outputs.alertmanager_config_sha256 }}
           ALERTMANAGER_TRIVY_IGNORE_SHA256: ${{ steps.staging-contract.outputs.alertmanager_trivy_ignore_sha256 }}
           POSTGRES_IMAGE_MANIFEST_SHA256: ${{ steps.staging-contract.outputs.postgres_image_manifest_sha256 }}
@@ -3622,7 +3906,7 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
           fingerprint: ${{ secrets.SSH_HOST_STAGING_FINGERPRINT }}
-          envs: STAGING_DOMAIN,STAGING_IMAGE_REF,STAGING_CADDY_IMAGE_REF,DEPLOY_SCRIPT_SHA256,STAGING_COMPOSE_SHA256,PROMETHEUS_CONFIG_SHA256,PROMETHEUS_RULES_SHA256,PROMETHEUS_IMAGE_MANIFEST_SHA256,ALERTMANAGER_CONFIG_SHA256,ALERTMANAGER_TRIVY_IGNORE_SHA256,POSTGRES_IMAGE_MANIFEST_SHA256,STAGING_CADDYFILE_SHA256,BACKUP_HELPER_SHA256,RESTORE_HELPER_SHA256,STAGING_SECURITY_HELPER_SHA256,PGVECTOR_ATTESTATION_HELPER_SHA256,NATIVE_ATTESTATION_HELPER_SHA256,POSTGRES_HBA_SHA256,STAGING_STORAGE_SYSTEMD_SHA256,STAGING_BACKUP_SYSTEMD_SHA256,STAGING_BACKUP_TIMER_SHA256,CHECKPOINT_VERIFIER_SHA256,CHECKPOINT_NOTIFIER_SHA256,CHECKPOINT_SERVICE_SHA256,CHECKPOINT_TIMER_SHA256,CHECKPOINT_FAILURE_SHA256
+          envs: STAGING_DOMAIN,STAGING_IMAGE_REF,STAGING_CADDY_IMAGE_REF,DEPLOY_SCRIPT_SHA256,STAGING_COMPOSE_SHA256,PROMETHEUS_CONFIG_SHA256,PROMETHEUS_RULES_SHA256,PROMETHEUS_IMAGE_MANIFEST_SHA256,PROMETHEUS_CONTRACT_HELPER_SHA256,ALERTMANAGER_CONFIG_SHA256,ALERTMANAGER_TRIVY_IGNORE_SHA256,POSTGRES_IMAGE_MANIFEST_SHA256,STAGING_CADDYFILE_SHA256,BACKUP_HELPER_SHA256,RESTORE_HELPER_SHA256,STAGING_SECURITY_HELPER_SHA256,PGVECTOR_ATTESTATION_HELPER_SHA256,NATIVE_ATTESTATION_HELPER_SHA256,POSTGRES_HBA_SHA256,STAGING_STORAGE_SYSTEMD_SHA256,STAGING_BACKUP_SYSTEMD_SHA256,STAGING_BACKUP_TIMER_SHA256,CHECKPOINT_VERIFIER_SHA256,CHECKPOINT_NOTIFIER_SHA256,CHECKPOINT_SERVICE_SHA256,CHECKPOINT_TIMER_SHA256,CHECKPOINT_FAILURE_SHA256
           script: |
             set -euo pipefail
             cd /srv/pulseplate-staging
@@ -3634,7 +3918,7 @@ jobs:
             [ "$(cat "$marker")" = "pulseplate-staging-attested-digest-v1" ]
             [ ! -L ./deploy.sh ]
             [ -f ./deploy.sh ]
-            grep -Fqx 'STAGING_DEPLOY_CONTRACT_VERSION="5"' ./deploy.sh
+            grep -Fqx 'STAGING_DEPLOY_CONTRACT_VERSION="6"' ./deploy.sh
             [ "$(sha256sum ./deploy.sh | cut -d' ' -f1)" = "$DEPLOY_SCRIPT_SHA256" ]
             [ ! -L ./docker-compose.staging.yaml ]
             [ -f ./docker-compose.staging.yaml ]
@@ -3648,6 +3932,9 @@ jobs:
             [ ! -L ./prometheus/image-manifest.json ]
             [ -f ./prometheus/image-manifest.json ]
             [ "$(sha256sum ./prometheus/image-manifest.json | cut -d' ' -f1)" = "$PROMETHEUS_IMAGE_MANIFEST_SHA256" ]
+            [ ! -L ./scripts/ci/prometheus_source_image.py ]
+            [ -f ./scripts/ci/prometheus_source_image.py ]
+            [ "$(sha256sum ./scripts/ci/prometheus_source_image.py | cut -d' ' -f1)" = "$PROMETHEUS_CONTRACT_HELPER_SHA256" ]
             [ ! -L ./alertmanager/alertmanager.yml ]
             [ -f ./alertmanager/alertmanager.yml ]
             [ "$(sha256sum ./alertmanager/alertmanager.yml | cut -d' ' -f1)" = "$ALERTMANAGER_CONFIG_SHA256" ]
@@ -3732,6 +4019,7 @@ jobs:
           PROMETHEUS_CONFIG_SHA256: ${{ steps.staging-contract.outputs.prometheus_config_sha256 }}
           PROMETHEUS_RULES_SHA256: ${{ steps.staging-contract.outputs.prometheus_rules_sha256 }}
           PROMETHEUS_IMAGE_MANIFEST_SHA256: ${{ steps.staging-contract.outputs.prometheus_image_manifest_sha256 }}
+          PROMETHEUS_CONTRACT_HELPER_SHA256: ${{ steps.staging-contract.outputs.prometheus_contract_helper_sha256 }}
           ALERTMANAGER_CONFIG_SHA256: ${{ steps.staging-contract.outputs.alertmanager_config_sha256 }}
           ALERTMANAGER_TRIVY_IGNORE_SHA256: ${{ steps.staging-contract.outputs.alertmanager_trivy_ignore_sha256 }}
           POSTGRES_IMAGE_MANIFEST_SHA256: ${{ steps.staging-contract.outputs.postgres_image_manifest_sha256 }}
@@ -3755,7 +4043,7 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
           fingerprint: ${{ secrets.SSH_HOST_STAGING_FINGERPRINT }}
-          envs: GHCR_USER,GHCR_TOKEN,STAGING_DOMAIN,STAGING_IMAGE_REF,STAGING_CADDY_IMAGE_REF,DEPLOY_SCRIPT_SHA256,STAGING_COMPOSE_SHA256,PROMETHEUS_CONFIG_SHA256,PROMETHEUS_RULES_SHA256,PROMETHEUS_IMAGE_MANIFEST_SHA256,ALERTMANAGER_CONFIG_SHA256,ALERTMANAGER_TRIVY_IGNORE_SHA256,POSTGRES_IMAGE_MANIFEST_SHA256,STAGING_CADDYFILE_SHA256,BACKUP_HELPER_SHA256,RESTORE_HELPER_SHA256,STAGING_SECURITY_HELPER_SHA256,PGVECTOR_ATTESTATION_HELPER_SHA256,NATIVE_ATTESTATION_HELPER_SHA256,POSTGRES_HBA_SHA256,STAGING_STORAGE_SYSTEMD_SHA256,STAGING_BACKUP_SYSTEMD_SHA256,STAGING_BACKUP_TIMER_SHA256,CHECKPOINT_VERIFIER_SHA256,CHECKPOINT_NOTIFIER_SHA256,CHECKPOINT_SERVICE_SHA256,CHECKPOINT_TIMER_SHA256,CHECKPOINT_FAILURE_SHA256
+          envs: GHCR_USER,GHCR_TOKEN,STAGING_DOMAIN,STAGING_IMAGE_REF,STAGING_CADDY_IMAGE_REF,DEPLOY_SCRIPT_SHA256,STAGING_COMPOSE_SHA256,PROMETHEUS_CONFIG_SHA256,PROMETHEUS_RULES_SHA256,PROMETHEUS_IMAGE_MANIFEST_SHA256,PROMETHEUS_CONTRACT_HELPER_SHA256,ALERTMANAGER_CONFIG_SHA256,ALERTMANAGER_TRIVY_IGNORE_SHA256,POSTGRES_IMAGE_MANIFEST_SHA256,STAGING_CADDYFILE_SHA256,BACKUP_HELPER_SHA256,RESTORE_HELPER_SHA256,STAGING_SECURITY_HELPER_SHA256,PGVECTOR_ATTESTATION_HELPER_SHA256,NATIVE_ATTESTATION_HELPER_SHA256,POSTGRES_HBA_SHA256,STAGING_STORAGE_SYSTEMD_SHA256,STAGING_BACKUP_SYSTEMD_SHA256,STAGING_BACKUP_TIMER_SHA256,CHECKPOINT_VERIFIER_SHA256,CHECKPOINT_NOTIFIER_SHA256,CHECKPOINT_SERVICE_SHA256,CHECKPOINT_TIMER_SHA256,CHECKPOINT_FAILURE_SHA256
           script: |
             set -euo pipefail
             cd /srv/pulseplate-staging
@@ -3767,7 +4055,7 @@ jobs:
             [ "$(cat "$marker")" = "pulseplate-staging-attested-digest-v1" ]
             [ ! -L ./deploy.sh ]
             [ -f ./deploy.sh ]
-            grep -Fqx 'STAGING_DEPLOY_CONTRACT_VERSION="5"' ./deploy.sh
+            grep -Fqx 'STAGING_DEPLOY_CONTRACT_VERSION="6"' ./deploy.sh
             [ "$(sha256sum ./deploy.sh | cut -d' ' -f1)" = "$DEPLOY_SCRIPT_SHA256" ]
             [ ! -L ./docker-compose.staging.yaml ]
             [ -f ./docker-compose.staging.yaml ]
@@ -3781,6 +4069,9 @@ jobs:
             [ ! -L ./prometheus/image-manifest.json ]
             [ -f ./prometheus/image-manifest.json ]
             [ "$(sha256sum ./prometheus/image-manifest.json | cut -d' ' -f1)" = "$PROMETHEUS_IMAGE_MANIFEST_SHA256" ]
+            [ ! -L ./scripts/ci/prometheus_source_image.py ]
+            [ -f ./scripts/ci/prometheus_source_image.py ]
+            [ "$(sha256sum ./scripts/ci/prometheus_source_image.py | cut -d' ' -f1)" = "$PROMETHEUS_CONTRACT_HELPER_SHA256" ]
             [ ! -L ./alertmanager/alertmanager.yml ]
             [ -f ./alertmanager/alertmanager.yml ]
             [ "$(sha256sum ./alertmanager/alertmanager.yml | cut -d' ' -f1)" = "$ALERTMANAGER_CONFIG_SHA256" ]
@@ -4546,11 +4837,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Encode deploy script for SSH
+      - name: Bind trusted deploy tools for SSH
         id: deploy-script
         run: |
           set -euo pipefail
-          echo "script_b64=$(base64 -w0 scripts/deploy_production.sh)" >> "$GITHUB_OUTPUT"
+          echo "script_sha256=$(sha256sum scripts/deploy_production.sh | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+          echo "helper_sha256=$(sha256sum scripts/ci/prometheus_source_image.py | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
 
       - name: Stage production shell bundle for SSH deploy
         env:
@@ -4586,6 +4878,7 @@ jobs:
             deploy/docker-compose.production.selfhosted.yaml \
             deploy/prometheus/prometheus.yml \
             deploy/prometheus/image-manifest.json \
+            scripts/ci/prometheus_source_image.py \
             scripts/diagnose_web.sh \
             scripts/redeploy_caddy.sh \
             scripts/ops/postgres_backup.sh \
@@ -4599,6 +4892,17 @@ jobs:
             deploy/systemd/pulseplate-premium-alias-checkpoint.timer.example \
             deploy/systemd/pulseplate-premium-alias-checkpoint-failure.service.example
 
+          # T is separately delivered reviewed code. The shell archive remains M/data.
+          tool_dir="/tmp/pulseplate-production-tools-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          [[ "$GITHUB_RUN_ID" =~ ^[0-9]+$ && "$GITHUB_RUN_ATTEMPT" =~ ^[0-9]+$ ]]
+          ssh -i "$key_path" "${SSH_USER}@${SSH_HOST_PRODUCTION}" "/bin/bash -s -- '$tool_dir'" <<'TRUSTED_TOOLS'
+          set -euo pipefail
+          target="$1"
+          test ! -e "$target" && test ! -L "$target"
+          mkdir -m 700 -- "$target"
+          TRUSTED_TOOLS
+          scp -i "$key_path" scripts/deploy_production.sh scripts/ci/prometheus_source_image.py \
+            "${SSH_USER}@${SSH_HOST_PRODUCTION}:${tool_dir}/"
           scp -i "$key_path" \
             "$archive_path" \
             "${SSH_USER}@${SSH_HOST_PRODUCTION}:/tmp/${bundle_name}.tgz"
@@ -4609,7 +4913,7 @@ jobs:
           host: ${{ secrets.SSH_HOST_PRODUCTION }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
-          envs: DEPLOY_SCRIPT_B64,IMAGE_REF,TAG,PRODUCTION_DOMAIN,DEPLOY_DIR,GHCR_USER,GHCR_TOKEN
+          envs: DEPLOY_SCRIPT_SHA256,PROMETHEUS_HELPER_SHA256,IMAGE_REF,TAG,PRODUCTION_DOMAIN,DEPLOY_DIR,GHCR_USER,GHCR_TOKEN
           script: |
             set -euo pipefail
 
@@ -4626,15 +4930,41 @@ jobs:
               exit 1
             fi
 
-            tmp_script="/tmp/pulseplate_deploy_production.sh"
-            echo "$DEPLOY_SCRIPT_B64" | base64 -d > "$tmp_script"
-            chmod +x "$tmp_script"
+            tool_dir="/tmp/pulseplate-production-tools-${{ github.run_id }}-${{ github.run_attempt }}"
+            [ ! -L "$tool_dir" ] && [ -d "$tool_dir" ]
+            [ "$(stat -c '%u:%a' "$tool_dir")" = "${EUID}:700" ]
+            tmp_script="$tool_dir/deploy_production.sh"
+            export PROMETHEUS_CONTRACT_HELPER="$tool_dir/prometheus_source_image.py"
+            for trusted in "$tmp_script" "$PROMETHEUS_CONTRACT_HELPER"; do
+              [ ! -L "$trusted" ] && [ -f "$trusted" ]
+              [ "$(stat -c '%u:%h' "$trusted")" = "${EUID}:1" ]
+            done
+            [ "$(sha256sum "$tmp_script" | cut -d' ' -f1)" = "$DEPLOY_SCRIPT_SHA256" ]
+            [ "$(sha256sum "$PROMETHEUS_CONTRACT_HELPER" | cut -d' ' -f1)" = "$PROMETHEUS_HELPER_SHA256" ]
+            chmod 600 -- "$tmp_script" "$PROMETHEUS_CONTRACT_HELPER"
             bundle_name="pulseplate-shell-bundle-${{ github.run_id }}-${{ github.run_attempt }}"
             export SHELL_BUNDLE_ARCHIVE="/tmp/${bundle_name}.tgz"
-            "$tmp_script" --preflight-only
-            "$tmp_script"
+            cleanup_trusted_tools() {
+              local original_status=$?
+              trap - EXIT
+              if [ ! -L "$tool_dir" ] && [ "$(stat -c '%u:%a' "$tool_dir")" = "${EUID}:700" ] &&
+                 [ ! -L "$tmp_script" ] && [ ! -L "$PROMETHEUS_CONTRACT_HELPER" ] &&
+                 [ "$(sha256sum "$tmp_script" | cut -d' ' -f1)" = "$DEPLOY_SCRIPT_SHA256" ] &&
+                 [ "$(sha256sum "$PROMETHEUS_CONTRACT_HELPER" | cut -d' ' -f1)" = "$PROMETHEUS_HELPER_SHA256" ]; then
+                rm -- "$tmp_script" "$PROMETHEUS_CONTRACT_HELPER"
+                rmdir -- "$tool_dir"
+              else
+                echo "Trusted deploy-tool identity changed; retained for recovery" >&2
+                if [ "$original_status" -eq 0 ]; then original_status=1; fi
+              fi
+              exit "$original_status"
+            }
+            trap cleanup_trusted_tools EXIT
+            /bin/bash "$tmp_script" --preflight-only
+            /bin/bash "$tmp_script"
         env:
-          DEPLOY_SCRIPT_B64: ${{ steps.deploy-script.outputs.script_b64 }}
+          DEPLOY_SCRIPT_SHA256: ${{ steps.deploy-script.outputs.script_sha256 }}
+          PROMETHEUS_HELPER_SHA256: ${{ steps.deploy-script.outputs.helper_sha256 }}
           DEPLOY_DIR: ${{ vars.DEPLOY_DIR }}
           PRODUCTION_DOMAIN: ${{ secrets.PRODUCTION_DOMAIN }}
           IMAGE_REF: ghcr.io/${{ needs.build-production.outputs.image_name }}@${{ needs.build-production.outputs.digest }}
@@ -4664,6 +4994,7 @@ jobs:
           export PRODUCTION_DOMAIN='${{ secrets.PRODUCTION_DOMAIN }}'
           export IMAGE_REF="ghcr.io/${{ needs.build-production.outputs.image_name }}@${{ needs.build-production.outputs.digest }}"
           export SHELL_BUNDLE_DIR="${GITHUB_WORKSPACE}"
+          export PROMETHEUS_CONTRACT_HELPER="${GITHUB_WORKSPACE}/scripts/ci/prometheus_source_image.py"
           bash scripts/deploy_production.sh --preflight-only
 
       - name: Deploy on self-hosted runner (pinned digest)
@@ -4677,6 +5008,7 @@ jobs:
           export GHCR_USER='${{ github.repository_owner }}'
           export GHCR_TOKEN='${{ secrets.GHCR_READ_TOKEN }}'
           export SHELL_BUNDLE_DIR="${GITHUB_WORKSPACE}"
+          export PROMETHEUS_CONTRACT_HELPER="${GITHUB_WORKSPACE}/scripts/ci/prometheus_source_image.py"
           bash scripts/deploy_production.sh
 
       - name: Best-effort self-hosted Docker image prune

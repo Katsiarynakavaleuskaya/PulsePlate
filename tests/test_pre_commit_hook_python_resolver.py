@@ -11,6 +11,12 @@ import sys
 import textwrap
 
 import pytest
+import yaml
+
+from scripts.orchestration.creative_code_patch_workspace import (
+    git_env_without_parent_state,
+    safe_git_config_args,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 HOOK_RESOLVER = REPO_ROOT / "scripts" / "hooks" / "repo_python.sh"
@@ -83,9 +89,9 @@ def _write_failing_git_diff(path: Path, real_git: str) -> None:
 def _git(repo: Path, *args: str) -> subprocess.CompletedProcess[str]:
     git_binary = shutil.which("git")
     assert git_binary is not None, "git binary is required for hook resolver tests"
-    env = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
+    env = git_env_without_parent_state()
     return subprocess.run(
-        [git_binary, *args],
+        [git_binary, *safe_git_config_args(), *args],
         cwd=str(repo),
         env=env,
         capture_output=True,
@@ -95,7 +101,7 @@ def _git(repo: Path, *args: str) -> subprocess.CompletedProcess[str]:
 
 
 def _clean_hook_env() -> dict[str, str]:
-    env = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
+    env = git_env_without_parent_state()
     env.pop("VENV_PYTHON", None)
     env.pop("DEV_PYTHON", None)
     env.pop("PRE_COMMIT", None)
@@ -1980,6 +1986,108 @@ def test_backend_branch_diff_maps_python_dependency_surface_to_testclient_canary
     assert "tests/test_python_dependency_surfaces.py" in called_args
     assert "tests/test_python_supply_chain_controls.py" in called_args
     assert "Backend tests passed" in output
+
+
+@pytest.mark.parametrize("pytest_exit", [0, 37])
+def test_backend_pre_push_configured_entry_clears_framework_marker_and_selects_upstream_canary(
+    tmp_path: Path, pytest_exit: int, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config = yaml.safe_load((REPO_ROOT / ".pre-commit-config.yaml").read_text())
+    hook = next(
+        hook
+        for repository in config["repos"]
+        for hook in repository["hooks"]
+        if hook["id"] == "backend-tests-pre-push"
+    )
+    assert hook["entry"] == (
+        "/usr/bin/env -u PRE_COMMIT bash scripts/run-backend-tests-pre-commit.sh"
+    )
+    assert hook["stages"] == ["pre-push"] and hook["pass_filenames"] is False
+    parent = tmp_path / "synthetic-parent"
+    parent.mkdir()
+    _git(tmp_path, "init", "--quiet", str(parent))
+    _git(parent, "config", "user.email", "fixture@example.invalid")
+    _git(parent, "config", "user.name", "Synthetic Parent")
+    (parent / "parent.txt").write_text("must remain unchanged\n")
+    _git(parent, "add", "parent.txt")
+    _git(parent, "commit", "--quiet", "-m", "parent initial")
+    parent_head = _git(parent, "rev-parse", "HEAD").stdout
+    parent_bytes = {
+        name: (parent / ".git" / name).read_bytes() for name in ("config", "index", "HEAD")
+    }
+    hostile_home = tmp_path / "hostile-home"
+    hostile_home.mkdir()
+    hooks = tmp_path / "hostile-hooks"
+    hooks.mkdir()
+    sentinel = tmp_path / "host-hook-executed"
+    hostile_hook = hooks / "pre-commit"
+    hostile_hook.write_text(
+        "#!/bin/sh\nprintf hostile > " + shlex.quote(str(sentinel)) + "\nexit 87\n"
+    )
+    hostile_hook.chmod(0o755)
+    config_file = hostile_home / ".gitconfig"
+    config_file.write_text("[core]\n\thooksPath = " + str(hooks) + "\n[commit]\n\tgpgsign = true\n")
+    monkeypatch.setenv("HOME", str(hostile_home))
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(config_file))
+    monkeypatch.setenv("GIT_DIR", str(parent / ".git"))
+    monkeypatch.setenv("GIT_WORK_TREE", str(parent))
+    monkeypatch.setenv("GIT_INDEX_FILE", str(parent / ".git/index"))
+    monkeypatch.setenv("GH_TOKEN", "synthetic.inherited.reader")
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _git(tmp_path, "init", "--quiet", str(repo))
+    _git(repo, "config", "user.email", "pulseplate@pm.me")
+    _git(repo, "config", "user.name", "PulsePlate Hook Resolver")
+    _git(repo, "branch", "-M", "main")
+    (repo / "scripts" / "hooks").mkdir(parents=True)
+    shutil.copy2(HOOK_RESOLVER, repo / "scripts" / "hooks" / "repo_python.sh")
+    shutil.copy2(
+        REPO_ROOT / "scripts" / "run-backend-tests-pre-commit.sh",
+        repo / "scripts" / "run-backend-tests-pre-commit.sh",
+    )
+    (repo / "requirements-test.in").write_text("pytest~=9.1.1\n")
+    (repo / "README.md").write_text("initial\n")
+    _git(repo, "add", ".")
+    _git(repo, "commit", "--quiet", "-m", "initial")
+    _git(repo, "switch", "--quiet", "-c", "dependency")
+    _git(repo, "update-ref", "refs/remotes/origin/dependency", "HEAD")
+    _git(repo, "config", "branch.dependency.remote", "origin")
+    _git(repo, "config", "branch.dependency.merge", "refs/heads/dependency")
+    (repo / "requirements-test.in").write_text("httpx2>=2.3.0,<2.4.0\npytest~=9.1.1\n")
+    _git(repo, "add", "requirements-test.in")
+    _git(repo, "commit", "--quiet", "-m", "committed dependency change")
+    (repo / "README.md").write_text("unrelated staged change\n")
+    _git(repo, "add", "README.md")
+    calls_file = tmp_path / "pre-push-args.txt"
+    fake_python = tmp_path / "fake-python"
+    _write_fake_pytest_python(fake_python, calls_file, pytest_exit=pytest_exit)
+    # Model the marker injected by pre-commit itself; no ambient credentials or
+    # BRANCH_DIFF_MODE participate in this actual configured-entry invocation.
+    environment = {
+        "PATH": os.environ["PATH"],
+        "HOME": str(tmp_path),
+        "LANG": "C",
+        "PRE_COMMIT": "1",
+        "VENV_PYTHON": str(fake_python),
+    }
+    completed = subprocess.run(
+        shlex.split(hook["entry"]),
+        cwd=repo,
+        env=environment,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert completed.returncode == (1 if pytest_exit else 0), completed.stderr
+    called_args = calls_file.read_text().splitlines()
+    assert "tests/compat/test_starlette_httpx2_testclient_compat.py" in called_args
+    assert "tests/test_python_dependency_surfaces.py" in called_args
+    assert "tests/test_httpx_testclient_compat_guard.py" in called_args
+    assert "-x" not in called_args
+    assert ("Backend tests passed" in completed.stdout) == (pytest_exit == 0)
+    assert not sentinel.exists()
+    assert _git(parent, "rev-parse", "HEAD").stdout == parent_head
+    assert {name: (parent / ".git" / name).read_bytes() for name in parent_bytes} == parent_bytes
 
 
 def test_backend_hook_maps_staged_frontend_package_rename_to_governance_tests(

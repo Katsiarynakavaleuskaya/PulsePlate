@@ -31,6 +31,7 @@ from urllib.parse import quote
 from uuid import uuid4
 
 import pytest
+import yaml
 from alembic.config import Config
 from alembic.script import ScriptDirectory
 from sqlalchemy import (
@@ -1836,6 +1837,13 @@ def test_ci_compatibility_proof_is_selected_and_merge_blocking() -> None:
 
     direct_proof_inputs = (
         ".github/workflows/ci.yml",
+        ".github/actions/python-setup/action.yml",
+        "Dockerfile",
+        ".dockerignore",
+        "scripts/ci/docker_source_artifacts.json",
+        "scripts/ci/fetch_docker_source_artifacts.py",
+        "scripts/ci/check_private_python_proxy_health.py",
+        "scripts/ci/check_python_startup_hooks.py",
         "constraints.txt",
         "requirements-ci-lite.txt",
         "requirements-test.txt",
@@ -1889,9 +1897,19 @@ def test_ci_compatibility_proof_is_selected_and_merge_blocking() -> None:
         "@sha256:43904fc138a63f93611a2995cec2566e8ae883c8678cd65c60315fa44308f81f" in compat_job
     )
     assert 'PGVECTOR_COMPAT_REQUIRED: "1"' in compat_job
-    assert "scripts/ci/install_locked_python_requirements.py" in compat_job
-    assert "--requirements-profile ci-test" in compat_job
-    assert "--install-mode direct-proxy" in compat_job
+    compat_config = yaml.safe_load(workflow)["jobs"]["pgvector_compat"]
+    setup_steps = [
+        step
+        for step in compat_config["steps"]
+        if step.get("uses") == "./.github/actions/python-setup"
+    ]
+    assert len(setup_steps) == 1
+    assert setup_steps[0]["with"] == {
+        "python-version": "3.13.14",
+        "requirements-profile": "ci-test",
+        "install-mode": "direct-proxy",
+    }
+    assert compat_config["timeout-minutes"] == 15
 
 
 def test_cd_exact_pgvector_image_proves_fresh_and_legacy_volume_contracts() -> None:

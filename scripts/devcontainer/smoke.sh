@@ -10,9 +10,6 @@ set -euo pipefail
 
 echo "== PulsePlate devcontainer tooling smoke =="
 
-# --- Git safe.directory (CI bind-mount UID may differ from container user) ---
-git config --global --add safe.directory /workspaces/PulsePlate 2>/dev/null || true
-
 # --- Workdir assumption ---
 if [ "$(pwd)" != "/workspaces/PulsePlate" ]; then
   echo "FAIL: expected workdir /workspaces/PulsePlate, got $(pwd)" >&2
