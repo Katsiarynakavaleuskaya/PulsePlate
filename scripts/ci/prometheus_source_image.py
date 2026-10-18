@@ -3622,6 +3622,8 @@ def consumer_result(mode: str, admission: str, promotion: str) -> str:
         ("changed_pr_candidate", "success", "skipped"): "local",
         ("new_main_selection", "success", "success"): "published",
         ("unchanged_published", "skipped", "skipped"): "published",
+        ("historical_pr_candidate", "success", "skipped"): "local",
+        ("historical_main_recovery", "success", "success"): "published",
     }
     require((mode, admission, promotion) in table, "consumer_predecessors")
     return table[(mode, admission, promotion)]
@@ -3821,17 +3823,25 @@ class GitHubRead:
         return raw
 
     def raw(self, endpoint: str, *, maximum: int = 16 * 1024**2) -> bytes:
-        require(
-            type(endpoint) is str
-            and (
-                endpoint == "/repos/" + GHCR_REPOSITORY
-                or endpoint.startswith("/repos/" + GHCR_REPOSITORY + "/")
+        prefix = "/repos/" + GHCR_REPOSITORY
+        require(type(endpoint) is str, "GitHub_same_repository_endpoint")
+        # The comparison namespace is exclusive: encoded/ref/query forms cannot
+        # fall through to the older general endpoint rule.
+        if endpoint.startswith(prefix + "/compare"):
+            accepted = (
+                re.fullmatch(
+                    re.escape(prefix) + r"/compare/[0-9a-f]{40}\.\.\.[0-9a-f]{40}", endpoint
+                )
+                is not None
             )
-            and ".." not in endpoint
-            and "#" not in endpoint
-            and all(32 < ord(c) < 127 for c in endpoint),
-            "GitHub_same_repository_endpoint",
-        )
+        else:
+            accepted = (
+                (endpoint == prefix or endpoint.startswith(prefix + "/"))
+                and ".." not in endpoint
+                and "#" not in endpoint
+                and all(32 < ord(c) < 127 for c in endpoint)
+            )
+        require(accepted, "GitHub_same_repository_endpoint")
         return self._capture(
             [self.gh, "api", "--hostname", "github.com", "--method", "GET", endpoint], maximum
         )
@@ -4037,10 +4047,182 @@ def authenticate_producer_inputs(
     }
 
 
+def classify_source_change(base: dict[str, bytes], head: dict[str, bytes]) -> str:
+    """Select one closed raw-source case; classification grants no image validity."""
+    paths = {*PRODUCER_FILES, MANIFEST_PATH}
+    require(
+        type(base) is dict
+        and type(head) is dict
+        and set(base) == set(head) == paths
+        and all(
+            type(raw) is bytes and 0 < len(raw) <= 1024**2
+            for files in (base, head)
+            for raw in files.values()
+        ),
+        "source_change_inventory",
+    )
+    if base[MANIFEST_PATH] != head[MANIFEST_PATH]:
+        return "manifest_changed"
+    if base[PRODUCER_FILES[0]] == head[PRODUCER_FILES[0]]:
+        return "unchanged_published"
+    require(
+        all(base[name] == head[name] for name in PRODUCER_FILES[1:]),
+        "source_change_recipe_drift",
+    )
+    return "historical_helper_change"
+
+
+def require_native_ancestor(api: GitHubRead, ancestor: str, head: str) -> None:
+    """Delegate one complete bounded SHA relation to the native comparison API."""
+    require(
+        all(
+            type(value) is str and re.fullmatch(r"[0-9a-f]{40}", value) is not None
+            for value in (ancestor, head)
+        ),
+        "native_ancestor_inventory",
+    )
+    prefix = "/repos/" + GHCR_REPOSITORY
+    if ancestor == head:
+        commit = api.json(prefix + "/git/commits/" + head)
+        require(type(commit) is dict and commit.get("sha") == head, "native_ancestor_relation")
+        return
+    value = api.json(prefix + "/compare/" + ancestor + "..." + head)
+    require(
+        type(value) is dict
+        and type(value.get("base_commit")) is dict
+        and value["base_commit"].get("sha") == ancestor
+        and type(value.get("merge_base_commit")) is dict
+        and value["merge_base_commit"].get("sha") == ancestor
+        and value.get("status") == "ahead"
+        and type(value.get("behind_by")) is int
+        and value["behind_by"] == 0,
+        "native_ancestor_relation",
+    )
+    count, ahead, rows = value.get("total_commits"), value.get("ahead_by"), value.get("commits")
+    require(
+        type(count) is int
+        and type(ahead) is int
+        and 0 < count == ahead <= 250
+        and type(rows) is list
+        and len(rows) == count,
+        "native_ancestor_inventory",
+    )
+    identities: list[str] = []
+    for row in rows:
+        require(type(row) is dict, "native_ancestor_inventory")
+        sha_value, parents = row.get("sha"), row.get("parents")
+        require(
+            type(sha_value) is str
+            and re.fullmatch(r"[0-9a-f]{40}", sha_value) is not None
+            and type(parents) is list,
+            "native_ancestor_inventory",
+        )
+        parent_ids: list[str] = []
+        for parent in parents:
+            require(
+                type(parent) is dict
+                and type(parent.get("sha")) is str
+                and re.fullmatch(r"[0-9a-f]{40}", parent["sha"]) is not None,
+                "native_ancestor_inventory",
+            )
+            parent_ids.append(parent["sha"])
+        require(len(set(parent_ids)) == len(parent_ids), "native_ancestor_inventory")
+        identities.append(sha_value)
+    require(
+        len(set(identities)) == count and identities.count(head) == 1,
+        "native_ancestor_inventory",
+    )
+
+
+def authenticate_material_files(root: Path, expected: dict[str, bytes], deadline: float) -> None:
+    """Bind the four lexical local leaves to native H without executing their code."""
+    require(
+        type(expected) is dict and set(expected) == {*PRODUCER_FILES, MANIFEST_PATH},
+        "material_source_binding",
+    )
+    real_directory(root)
+    for name in (*PRODUCER_FILES, MANIFEST_PATH):
+        raw = expected[name]
+        require(type(raw) is bytes and 0 < len(raw) <= 1024**2, "material_source_binding")
+        path = root / name
+        # Keep lexical prefixes: resolve() would conceal a dirty intermediate link.
+        real_directory(path.parent)
+        info = path.lstat()
+        require(
+            stat.S_ISREG(info.st_mode)
+            and info.st_nlink == 1
+            and stat.S_IMODE(info.st_mode) == 0o644
+            and info.st_size == len(raw),
+            "material_source_binding",
+        )
+        require(file_hash(path, deadline) == sha(raw), "material_source_binding")
+
+
+def _historical_selected_files(
+    api: GitHubRead,
+    manifest: dict[str, Any],
+    base: str,
+    head: str,
+    current: dict[str, bytes],
+) -> tuple[str, dict[str, bytes]]:
+    """Authenticate the original merged S independently of receiving main lineage."""
+    producer = manifest["candidate"]["producer"]
+    original = api.json(f'/repos/{GHCR_REPOSITORY}/pulls/{producer["pr_number"]}')
+    require(type(original) is dict, "historical_original_merged_PR")
+    final = original.get("head", {}).get("sha")
+    pr = authenticate_pr_source(
+        api, producer["pr_number"], producer["source_head"], final, producer["source_ref"]
+    )
+    selected = pr.get("merge_commit_sha")
+    require(
+        pr.get("merged") is True
+        and pr.get("state") == "closed"
+        and type(selected) is str
+        and re.fullmatch(r"[0-9a-f]{40}", selected) is not None,
+        "historical_original_merged_PR",
+    )
+    selected = cast(str, selected)
+    require_native_ancestor(api, selected, base)
+    require_native_ancestor(api, base, head)
+    files = api.source_files(selected, (*PRODUCER_FILES, MANIFEST_PATH))
+    require(files[MANIFEST_PATH] == current[MANIFEST_PATH], "historical_selected_manifest")
+    require(
+        all(files[name] == current[name] for name in PRODUCER_FILES[1:]),
+        "historical_recipe_drift",
+    )
+    return selected, files
+
+
+def candidate_source_root(
+    api: GitHubRead, root: Path, work: Path, admission: dict[str, Any]
+) -> Path:
+    """Materialize one authenticated S DATA root for unchanged complete candidate readers."""
+    if admission["mode"] not in ("historical_pr_candidate", "historical_main_recovery"):
+        return root
+    current = api.source_files(admission["head"], (*PRODUCER_FILES, MANIFEST_PATH))
+    authenticate_material_files(root, current, api.deadline)
+    manifest = read_image_manifest(root / MANIFEST_PATH)
+    selected, files = _historical_selected_files(
+        api, manifest, admission["comparison_base"], admission["head"], current
+    )
+    require(selected == admission["historical_source_head"], "historical_selected_manifest")
+    destination = work / "historical-source"
+    fresh_directory(destination)
+    for name, raw in files.items():
+        path = destination / name
+        path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+        real_directory(path.parent)
+        with path.open("xb") as output:
+            output.write(raw)
+        path.chmod(0o600)
+    authenticate_producer_inputs(api, destination, manifest["candidate"]["producer"]["source_head"])
+    return destination
+
+
 def event_admission(
     api: GitHubRead, root: Path, event: dict[str, Any], event_name: str, head: str
 ) -> dict[str, Any]:
-    """Authenticate the three finite event cases. Squash ancestry is never inferred."""
+    """Authenticate closed original, historical and published event cases."""
     manifest = read_image_manifest(root / MANIFEST_PATH)
     candidate = manifest["candidate"]
     producer = candidate["producer"]
@@ -4051,11 +4233,36 @@ def event_admission(
             pr.get("head", {}).get("sha") == head
             and pr.get("state") == "open"
             and pr["head"].get("repo", {}).get("id") == 1043311030
-            and pr.get("base", {}).get("repo", {}).get("id") == 1043311030,
+            and pr.get("base", {}).get("repo", {}).get("id") == 1043311030
+            and pr.get("base", {}).get("ref") == "main"
+            and type(head) is str
+            and re.fullmatch(r"[0-9a-f]{40}", head) is not None,
             "consumer_actual_open_PR",
         )
-        base_files = api.source_files(pr["base"]["sha"], (MANIFEST_PATH,))
-        if base_files[MANIFEST_PATH] == (root / MANIFEST_PATH).read_bytes():
+        base = pr["base"]["sha"]
+        require(
+            type(base) is str
+            and re.fullmatch(r"[0-9a-f]{40}", base) is not None
+            and event.get("pull_request", {}).get("head", {}).get("sha") == head
+            and event["pull_request"].get("base", {}).get("sha") == base,
+            "consumer_actual_open_PR",
+        )
+        base_files = api.source_files(base, (*PRODUCER_FILES, MANIFEST_PATH))
+        current_files = api.source_files(head, (*PRODUCER_FILES, MANIFEST_PATH))
+        authenticate_material_files(root, current_files, api.deadline)
+        manifest = read_image_manifest(root / MANIFEST_PATH)
+        producer = manifest["candidate"]["producer"]
+        change = classify_source_change(base_files, current_files)
+        if change == "historical_helper_change":
+            selected, _files = _historical_selected_files(api, manifest, base, head, current_files)
+            return {
+                "mode": "historical_pr_candidate",
+                "head": head,
+                "publisher_head": None,
+                "historical_source_head": selected,
+                "comparison_base": base,
+            }
+        if change == "unchanged_published":
             return {
                 "mode": "unchanged_published",
                 "head": head,
@@ -4092,8 +4299,24 @@ def event_admission(
             "main_before_SHA",
         )
         before = cast(str, before)
-        previous = api.source_files(before, (MANIFEST_PATH,))
-        if previous[MANIFEST_PATH] != (root / MANIFEST_PATH).read_bytes():
+        previous = api.source_files(before, (*PRODUCER_FILES, MANIFEST_PATH))
+        current_files = api.source_files(head, (*PRODUCER_FILES, MANIFEST_PATH))
+        authenticate_material_files(root, current_files, api.deadline)
+        manifest = read_image_manifest(root / MANIFEST_PATH)
+        producer = manifest["candidate"]["producer"]
+        change = classify_source_change(previous, current_files)
+        if change == "historical_helper_change":
+            selected, _files = _historical_selected_files(
+                api, manifest, before, head, current_files
+            )
+            return {
+                "mode": "historical_main_recovery",
+                "head": head,
+                "publisher_head": head,
+                "historical_source_head": selected,
+                "comparison_base": before,
+            }
+        if change == "manifest_changed":
             pr = authenticate_pr_source(
                 api,
                 producer["pr_number"],
@@ -7155,6 +7378,68 @@ def native_image_contract(image: Any, selection: dict[str, Any], *, local: bool 
         )
 
 
+def _require_consumer_current(
+    api: GitHubRead, event: dict[str, Any], event_name: str, head: str
+) -> None:
+    """Recheck live event coordinates after admission/wait and before credential use."""
+    if event_name == "pull_request":
+        pr = api.json(f'/repos/{GHCR_REPOSITORY}/pulls/{event["number"]}')
+        expected = event["pull_request"]
+        require(
+            type(pr) is dict
+            and pr.get("state") == "open"
+            and pr.get("head", {}).get("sha") == head
+            and pr.get("base", {}).get("sha") == expected["base"]["sha"]
+            and pr.get("head", {}).get("repo", {}).get("id") == 1043311030
+            and pr.get("base", {}).get("repo", {}).get("id") == 1043311030,
+            "consumer_route_binding",
+        )
+    elif not (event_name == "push" and event.get("ref", "").startswith("refs/tags/v")):
+        current = api.json(f"/repos/{GHCR_REPOSITORY}/git/ref/heads/main")
+        require(current.get("object", {}).get("sha") == head, "consumer_current_main")
+
+
+def _bind_consumer_route(
+    event: dict[str, Any], event_name: str, head: str, admission: dict[str, Any]
+) -> None:
+    """Cross-bind the expected workflow alias to the exact fresh event/admission relation."""
+    route = os.environ.get("PROMETHEUS_CREDENTIAL_ROUTE")
+    require(
+        route
+        in (
+            "changed_pr_candidate",
+            "historical_pr_candidate",
+            "unchanged_pr_published",
+            "trusted_published",
+        ),
+        "consumer_credential_route",
+    )
+    mode = admission.get("mode")
+    require(admission.get("head") == head, "consumer_route_binding")
+    if event_name == "pull_request":
+        allowed = {
+            "changed_pr_candidate": "changed_pr_candidate",
+            "historical_pr_candidate": "historical_pr_candidate",
+            "unchanged_pr_published": "unchanged_published",
+        }
+        require(route in allowed and allowed[route] == mode, "consumer_route_binding")
+        expected = event["pull_request"]["base"]["sha"] if mode == "unchanged_published" else None
+        require(admission.get("publisher_head") == expected, "consumer_route_binding")
+    else:
+        require(
+            route == "trusted_published"
+            and event_name in ("push", "schedule", "workflow_dispatch")
+            and mode in ("unchanged_published", "new_main_selection", "historical_main_recovery")
+            and admission.get("publisher_head") == head,
+            "consumer_route_binding",
+        )
+        if mode != "unchanged_published":
+            require(
+                event_name == "push" and event.get("ref") == "refs/heads/main",
+                "consumer_route_binding",
+            )
+
+
 def consume_image(work: Path, root: Path, seconds: int, cleanup: int) -> dict[str, Any]:
     require(
         type(seconds) is int
@@ -7173,7 +7458,6 @@ def consume_image(work: Path, root: Path, seconds: int, cleanup: int) -> dict[st
         if os.environ["GITHUB_EVENT_NAME"] == "pull_request"
         else os.environ["GITHUB_SHA"]
     )
-    selection = read_image_manifest(root / MANIFEST_PATH)["selection"]
     docker = shutil.which("docker")
     require(docker is not None and Path(docker).is_absolute(), "consumer_native_Docker_missing")
     docker = cast(str, docker)
@@ -7193,8 +7477,14 @@ def consume_image(work: Path, root: Path, seconds: int, cleanup: int) -> dict[st
     cleanup_error: BaseException | None = None
     try:
         admission = event_admission(api, root, event, os.environ["GITHUB_EVENT_NAME"], head)
-        if admission["mode"] == "changed_pr_candidate":
-            payload = candidate_payload(api, root, work)
+        _bind_consumer_route(event, os.environ["GITHUB_EVENT_NAME"], head, admission)
+        # Admission binds H first. Never retain an earlier unbound selection.
+        selection = read_image_manifest(root / MANIFEST_PATH)["selection"]
+        if admission["mode"] in ("changed_pr_candidate", "historical_pr_candidate"):
+            require(not os.environ.get("GHCR_READ_TOKEN"), "consumer_candidate_registry_token")
+            _require_consumer_current(api, event, os.environ["GITHUB_EVENT_NAME"], head)
+            selected_root = candidate_source_root(api, root, work, admission)
+            payload = candidate_payload(api, selected_root, work)
         else:
             # No registry availability probe can substitute for a positive publisher.
             while True:
@@ -7217,6 +7507,7 @@ def consume_image(work: Path, root: Path, seconds: int, cleanup: int) -> dict[st
                 "consumer_published_subject_missing",
             )
             admission["public_package"] = identity
+            _require_consumer_current(api, event, os.environ["GITHUB_EVENT_NAME"], head)
             token = os.environ.get("GHCR_READ_TOKEN")
             if not isinstance(token, str) or not token:
                 raise QualificationError("consumer_registry_token_missing")
@@ -7356,9 +7647,9 @@ def consume_image(work: Path, root: Path, seconds: int, cleanup: int) -> dict[st
         raise primary
     if cleanup_error is not None:
         raise cleanup_error
-    if admission["mode"] == "changed_pr_candidate":
+    if admission["mode"] in ("changed_pr_candidate", "historical_pr_candidate"):
         component = consumer_result(admission["mode"], "success", "skipped")
-    elif admission["mode"] == "new_main_selection":
+    elif admission["mode"] in ("new_main_selection", "historical_main_recovery"):
         component = consumer_result(admission["mode"], "success", "success")
     else:
         component = consumer_result(admission["mode"], "skipped", "skipped")
@@ -7493,7 +7784,8 @@ def promote_image(work: Path, root: Path, seconds: int, cleanup: int) -> dict[st
         head = os.environ["GITHUB_SHA"]
         admission = event_admission(api, root, event, "push", head)
         require(
-            admission["mode"] in ("new_main_selection", "unchanged_published"),
+            admission["mode"]
+            in ("new_main_selection", "historical_main_recovery", "unchanged_published"),
             "publisher_event_table",
         )
         endpoint = f'/repos/{GHCR_REPOSITORY}/actions/runs/{os.environ["GITHUB_RUN_ID"]}/attempts/{os.environ["GITHUB_RUN_ATTEMPT"]}/jobs'
@@ -7512,10 +7804,11 @@ def promote_image(work: Path, root: Path, seconds: int, cleanup: int) -> dict[st
         selection = manifest["selection"]
         candidate = None
         predecessor = None
-        if admission["mode"] == "new_main_selection":
+        if admission["mode"] in ("new_main_selection", "historical_main_recovery"):
             # Complete source, artifact, tool, native/scanner and input admission
             # before creating or logging in to any registry-writer directory.
-            candidate = candidate_payload(api, root, work)
+            selected_root = candidate_source_root(api, root, work, admission)
+            candidate = candidate_payload(api, selected_root, work)
             tool = candidate["tool"]
             expected_tool = candidate["tool_record"]["coordinates"]["binary_sha256"]
             require(file_hash(tool) == expected_tool, "publisher_retained_tool_changed")
