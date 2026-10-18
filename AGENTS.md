@@ -419,8 +419,11 @@ Backlog: docs/roadmap/BACKLOG_LEDGER.md#agent-consistency-preflight
     `OWNER INSPECTED: historical stale-seal root <id> revision <UTC-updated-at> body sha256:<raw-body-hash> at <S> has no independent actionable; permit one mapping-only publication from material <M> base <B> merge-base <MB> digest sha256:<D> candidate sha256:<C> inventory sha256:<H>; no disposition or merge authority.`
     REST and GraphQL cross-bind every selected root and phase comment's native
     identity, repository/PR/path, raw UTF-8 body and actual revision. Both `I`
-    and the later existing OWNER FIXED line `F(S,R)` require unedited timestamps
-    and present native `lastEditedAt=null`; missing fields are unknown. Root
+    and the later existing OWNER FIXED line `F(S,R)` require valid chronology
+    `createdAt <= updatedAt` and present native `lastEditedAt=null`; missing
+    fields are unknown. Native update metadata alone is not edit evidence; exact
+    REST/GraphQL revision binding and rereads remain mandatory. This correction
+    does not change the separate legacy OWNER-only unedited-root classes. Root
     revision must precede `I` and remain identical to its inspected binding.
     The nearest genuine valid prior material-to-mapping closeout anchors the
     mechanically derived finite first-parent interval to `M`. Every later edge
@@ -466,6 +469,25 @@ Backlog: docs/roadmap/BACKLOG_LEDGER.md#agent-consistency-preflight
     adapter, mapping carrier, prose classifier or authority for merge.
     None of the reply-only paths creates another docs commit or restarts
     review/security scans.
+    Complete canonical proof inventory belongs to
+    `scripts/orchestration/review_mapping_artifact.py`: its existing finite
+    lexical grammar must account for the whole input before selecting one
+    nonempty supported Fixed section. Missing, empty or duplicate sections and
+    recognized proof or No-actionables markers outside that span fail closed
+    for complete consumers. This does not claim arbitrary Markdown or
+    human-proof completeness.
+    Freeze the actual final material `M`, record ordinary `FIXED` proof against
+    its genuine reachable correcting ancestor `Q_fix`, and generate the sole
+    normal mapping-only direct successor `R` of `M` with `seal`. A required
+    later `docs(agents)` commit is material; self-review, digest and seal bind
+    final `M`, while `Q_fix` proves its actual correction rather than a future
+    regenerated seal. A historical correcting transition remains historical
+    evidence, not a current command or permission to repeat it. The root stays
+    open until actual `R` and supported validation. Historical unused inspection
+    grants no authority for changed material. This adds no receipt, store,
+    retry grammar, trusted-policy switch or exemption from current
+    CI/security/review/wait/merge gates.
+
 11. **Pre-closeout ordering gate:** after `seal` writes the local canonical
     mapping and after the live PR body contains its canonical link, but before
     the sole mapping commit, run

@@ -1267,7 +1267,6 @@ def validated_duplicate_reply_urls(
     from scripts.orchestration.pr_commit_identity import (
         CommitIdentityError,
         CommitRefKind,
-        GitHubHttpError,
         RepositoryCommitRef,
         _require_repository,
         classify_commit_ref,
@@ -3787,7 +3786,6 @@ def _eligible_inspected_stale_seal_urls(
                     bound["association"] != "OWNER"
                     or bound["reply_to"] != bound_root["id"]
                     or bound["path"] != bound_root["path"]
-                    or bound["updatedAt"] != bound["createdAt"]
                     or bound["lastEditedAt"] is not None
                     or bound["actor"]["type"] != "User"
                 ):
