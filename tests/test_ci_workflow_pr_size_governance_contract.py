@@ -1153,9 +1153,8 @@ def test_all_active_checkout_uses_have_one_exact_v7_pin() -> None:
         ".github/workflows/security.yml",
         ".github/workflows/trivy.yml",
     }
-    # The 89 prior execution sites gain one lint restore and five CD checkouts
-    # reused by the distinct trusted job through its shared step-list alias.
-    assert len(observed_checkout_uses) == 95
+    # The 95 existing checkout sites gain four Alertmanager job checkouts.
+    assert len(observed_checkout_uses) == 99
     assert {path for path, _ in observed_checkout_uses} == expected_checkout_workflows
 
 
