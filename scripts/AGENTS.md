@@ -394,6 +394,9 @@ or claim that passing this probe validates the application on Python 3.14.
 
 ## Governed Experimentation Runner
 
+- For mode-aware CV intent versus Oracle context-path handling, follow the canonical
+  [CV packet contract](../docs/orchestration/CV_EXPERIMENTATION_PROTOCOL.md#2-cv-packet-contract).
+
 - `experiment_runner_dispatch.py build-image` requires `--psycopg-sdk-root`
   pointing to the private, externally qualified genuine ARM SDK export. The
   host stages only the finite declared helpers, schema, locks and SDK members,
