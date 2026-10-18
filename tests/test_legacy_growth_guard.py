@@ -466,6 +466,7 @@ def test_retired_lifecycle_access_restoration_fails_aggregate_guard(
     original_read = legacy_guard._read
 
     def read_with_getter(path: Path, repo_root: Path, errors: list[str]) -> str | None:
+        """Restore the scheduler getter import only in the guard's legacy source read."""
         source = original_read(path, repo_root, errors)
         if path == REPO_ROOT / "legacy_app.py" and source is not None:
             return source + "\nfrom app.services.scheduler_access import get_update_scheduler\n"
@@ -1021,6 +1022,7 @@ def test_retired_openapi_reimport_fails_aggregate_guard(
     original_read = legacy_guard._read
 
     def read_with_reintroduced_import(path: Path, repo_root: Path, errors: list[str]) -> str | None:
+        """Restore the OpenAPI builder import only in the guard's legacy source read."""
         source = original_read(path, repo_root, errors)
         if path == REPO_ROOT / "legacy_app.py" and source is not None:
             return source + "\nfrom app.bootstrap.openapi import _install_openapi_builder\n"
@@ -13109,6 +13111,7 @@ def test_retired_metadata_projection_restoration_fails_aggregate_guard(
     original_read = legacy_guard._read
 
     def read_with_projection(path: Path, repo_root: Path, errors: list[str]) -> str | None:
+        """Restore application metadata only in the guard's legacy source read."""
         source = original_read(path, repo_root, errors)
         if path == REPO_ROOT / "legacy_app.py" and source is not None:
             return source + "\nfrom app.bootstrap.application import APPLICATION_METADATA\n"
