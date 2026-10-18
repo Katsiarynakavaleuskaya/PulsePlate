@@ -1,5 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
-import type { ChangeEvent, ReactElement } from 'react';
+import { useEffect, useRef, useState, type ChangeEvent, type ReactElement } from 'react';
 import {
   FitChefSupportHandoffValidationError,
   requestFitChefSupportHandoff,

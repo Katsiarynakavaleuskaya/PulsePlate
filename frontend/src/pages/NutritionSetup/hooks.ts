@@ -3,16 +3,23 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { getBmr, getPlate, getTargets } from '../../api/premium';
-import type {
-  SetupFormValues,
-  NormalizedBmrData,
-  NormalizedBmrMethod,
-  PlateResponse,
-  TargetsResponse,
+import {
+  getBmr,
+  getPlate,
+  getTargets,
+  type PlateResponse as ApiPlateResponse,
+  type BmrApiResponse,
+  type TargetsApiResponse,
+  type SupportedPremiumLang
+} from '../../api/premium';
+import {
+  validDietFlags,
+  type SetupFormValues,
+  type NormalizedBmrData,
+  type NormalizedBmrMethod,
+  type PlateResponse,
+  type TargetsResponse
 } from './schema';
-import { validDietFlags } from './schema';
-import type { PlateResponse as ApiPlateResponse, BmrApiResponse, TargetsApiResponse, SupportedPremiumLang } from '../../api/premium';
 
 const SUPPORTED_LANGS: SupportedPremiumLang[] = ['ru', 'en', 'es'];
 
@@ -68,13 +75,13 @@ const positiveFiniteNumber = (value: unknown): number | null => {
  * - API (OpenAPI) currently supports a narrower enum: VEG | GF | DAIRY_FREE | LOW_COST
  * - Normalize and filter before sending to API to satisfy Typescript and backend contract
  */
-const UI_DIET_FLAGS = new Set(validDietFlags);
-const BACKEND_DIET_FLAGS = new Set(["VEG", "GF", "DAIRY_FREE", "LOW_COST"] as const);
+const UI_DIET_FLAGS: ReadonlySet<string> = new Set(validDietFlags);
+const BACKEND_DIET_FLAGS: ReadonlySet<string> = new Set(["VEG", "GF", "DAIRY_FREE", "LOW_COST"] as const);
 
 const normalizeDietFlagsForApi = (flags: ReadonlyArray<string>): Array<"VEG" | "GF" | "DAIRY_FREE" | "LOW_COST"> => {
   const mapped: Array<string> = [];
   for (const flag of flags) {
-    if (!UI_DIET_FLAGS.has(flag as any)) continue;
+    if (!UI_DIET_FLAGS.has(flag)) continue;
     switch (flag) {
       case "VEGAN":
         mapped.push("VEG");
@@ -97,7 +104,7 @@ const normalizeDietFlagsForApi = (flags: ReadonlyArray<string>): Array<"VEG" | "
     }
   }
   const unique = Array.from(new Set(mapped)).filter((f): f is "VEG" | "GF" | "DAIRY_FREE" | "LOW_COST" =>
-    BACKEND_DIET_FLAGS.has(f as any),
+    BACKEND_DIET_FLAGS.has(f),
   );
   return unique;
 };
