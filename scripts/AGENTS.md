@@ -140,6 +140,12 @@
   venv, with an aggregate ten-minute selection/install/import budget, explicit
   preflight and pre-effect AM capability checks; keep foreign Python unchanged
   and actual bootstrap/native evidence separate from mocked contract tests.
+- AM default-root controls must bind the same client, default CA bundle and
+  complete expected result after the existing identity, terminal-state and
+  cleanup guards. A nonzero exit or a status substring is insufficient; unknown
+  output remains HOLD. Treat the result as bounded same-client application
+  evidence and keep other native controls independent. Follow the connected
+  fixture rules in [tests/AGENTS.md](../tests/AGENTS.md).
 - The qualification checkout selects the workflow event's `github.sha`; supplied
   `source_sha` must equal that revision and the Commit API result. Require the API
   and native Git commands to succeed before comparing their output; matching
