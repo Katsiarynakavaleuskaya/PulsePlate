@@ -53,6 +53,10 @@
   asserting real owned-resource cleanup and attempt counts. Keep actual process
   execution and timeout enforcement in their owning sandbox/integration tests;
   do not make cleanup correctness depend on host process-start latency.
+  For positive real-process exit fixtures, coordinate release after a stable owned
+  identity witness; require a fresh genuine inactive census within the original cap.
+  Keep unknown/exec identity negatives independent and retain private state when
+  ownership or cleanup absence is uncertain.
 - Main-test shard processes share one checkout and Git common directory. A
   helper that needs PR ancestry must use the already available full local graph
   before any depth-limited fetch; canonical full-history CI must never add a
