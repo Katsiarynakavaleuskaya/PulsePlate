@@ -3040,7 +3040,7 @@ def test_scan_receipt_rejects_fifo_supplemental_artifact_without_blocking(
     ) -> int:
         if path == fifo_path.name:
             assert flags & nonblocking_flag
-        return original_open(path, flags, mode, dir_fd=dir_fd)
+        return cast(int, original_open(path, flags, mode, dir_fd=dir_fd))
 
     monkeypatch.setattr(evidence_module.os, "open", require_nonblocking_fifo_open)
 
@@ -3119,7 +3119,7 @@ def test_scan_receipt_streams_non_json_artifacts(
             "findings.json",
         }:
             raise AssertionError(f"buffered non-JSON artifact: {relative}")
-        return original_reader(descriptor, relative, max_bytes=max_bytes)
+        return cast(bytes, original_reader(descriptor, relative, max_bytes=max_bytes))
 
     monkeypatch.setattr(
         evidence_module,
@@ -3171,7 +3171,7 @@ def test_scan_receipt_uses_one_stable_root_descriptor(
 
     def swap_root_after_manifest(descriptor: int, relative: Any, *, max_bytes: int) -> bytes:
         nonlocal swapped
-        raw = original_reader(descriptor, relative, max_bytes=max_bytes)
+        raw: bytes = original_reader(descriptor, relative, max_bytes=max_bytes)
         if str(relative) == "scan-manifest.json" and not swapped:
             swapped = True
             root.rename(tmp_path / "original-scan")
@@ -3581,7 +3581,8 @@ def test_self_review_report_rejects_noncanonical_base_identity(
     report_path = _write_self_review_report(
         tmp_path / "review.json",
         changed_files=("app/example.py",),
-        **report_identity,
+        base_ref_oid=report_identity.get("base_ref_oid", BASE_SHA),
+        merge_base_sha=report_identity.get("merge_base_sha", BASE_SHA),
     )
 
     with pytest.raises(ReviewEvidenceError, match="stale for the exact material"):
@@ -3960,15 +3961,18 @@ def _review_source_unavailability_receipt(
     response = _review_credit_quota_comment(
         "https://github.com/owner/repo/pull/42#issuecomment-456"
     )
-    return build_review_source_unavailability_receipt(
-        material_digest=material_digest,
-        material_head_sha=material_head_sha,
-        quota_reference=response["html_url"],
-        quota_created_at=response["created_at"],
-        quota_body_sha256=(
-            "sha256:" + hashlib.sha256(response["body"].encode("utf-8")).hexdigest()
+    return cast(
+        dict[str, Any],
+        build_review_source_unavailability_receipt(
+            material_digest=material_digest,
+            material_head_sha=material_head_sha,
+            quota_reference=response["html_url"],
+            quota_created_at=response["created_at"],
+            quota_body_sha256=(
+                "sha256:" + hashlib.sha256(response["body"].encode("utf-8")).hexdigest()
+            ),
+            source_status="usage_limit_reached",
         ),
-        source_status="usage_limit_reached",
     )
 
 
@@ -5167,7 +5171,7 @@ def test_closeout_reseal_allows_only_proven_fast_forward_base_advance(
             "merge_base_sha": next_merge_base,
         }
     )
-    state = {
+    state: dict[str, Any] = {
         "dispositions": [],
         "experiment_result": None,
         "packet": None,
@@ -6515,7 +6519,7 @@ def _inspected_stale_seal_fixture(
         stale,
     )
     retain(inspection, object_id=800, reply=True)
-    comments = (root, inspection)
+    comments: tuple[ReviewCommentEvidence, ...] = (root, inspection)
     if published:
         reseal = _commit(repo, "docs(review): actual inspected reseal")
         state["reseal"] = reseal
@@ -6556,19 +6560,22 @@ def _inspected_stale_seal_fixture(
 
 
 def _inspected_coverage(state: dict[str, Any], *, publication: bool) -> set[str]:
-    return evidence_module.validated_inspected_stale_seal_urls(
-        candidate_urls={state["root"].url},
-        threads=(state["thread"],),
-        fingerprint_records={},
-        mapping_entries={},
-        material_digest=state["manifest"].digest,
-        material_head_sha=state["material"],
-        repo_root=state["repo"],
-        snapshot=state["snapshot"],
-        repository="owner/repo",
-        token="opaque",
-        publication_inventory_digest=state["inventory"] if publication else None,
-        candidate_raw=state["candidate"] if publication else None,
+    return cast(
+        set[str],
+        evidence_module.validated_inspected_stale_seal_urls(
+            candidate_urls={state["root"].url},
+            threads=(state["thread"],),
+            fingerprint_records={},
+            mapping_entries={},
+            material_digest=state["manifest"].digest,
+            material_head_sha=state["material"],
+            repo_root=state["repo"],
+            snapshot=state["snapshot"],
+            repository="owner/repo",
+            token="opaque",
+            publication_inventory_digest=state["inventory"] if publication else None,
+            candidate_raw=state["candidate"] if publication else None,
+        ),
     )
 
 
@@ -7171,7 +7178,7 @@ def _stale_seal_reply_coverage(
         if "/pulls/comments/" in url:
             comment_id = int(url.rsplit("/", 1)[-1])
             index = comment_id - 700
-            response = {
+            response: dict[str, Any] = {
                 "body": root_body,
                 "created_at": "2026-08-12T10:00:00Z",
                 "html_url": root_urls[index],
@@ -7995,11 +8002,14 @@ def test_owner_stale_seal_snapshot_children_batches_parent_enumeration(
         nonlocal batch_calls
         if args == ["rev-list", "--parents", "--no-walk", "--stdin"]:
             batch_calls += 1
-        return original_run_git(
-            repo_root,
-            args,
-            input_bytes=input_bytes,
-            timeout=timeout,
+        return cast(
+            bytes,
+            original_run_git(
+                repo_root,
+                args,
+                input_bytes=input_bytes,
+                timeout=timeout,
+            ),
         )
 
     monkeypatch.setattr(evidence_module, "_run_git", counted_run_git)
@@ -8632,7 +8642,7 @@ def _owner_only_empty_mapping_coverage(
             if rest_identity_variant == "malformed-response":
                 return []
             comment_index = int(url.rsplit("/", 1)[-1]) - 100
-            response = {
+            response: dict[str, Any] = {
                 "id": comment_index + 100,
                 "html_url": root_urls[int(url.rsplit("/", 1)[-1]) - 100],
                 "path": (
@@ -9534,17 +9544,20 @@ def _validate_duplicate_finding_body(
     monkeypatch.setattr(identity_module, "is_ancestor", ancestor)
     monkeypatch.setattr(evidence_module, "compute_material_manifest", material_manifest)
 
-    return validated_duplicate_reply_urls(
-        candidate_urls={duplicate_url},
-        threads=threads,
-        fingerprint_records={fingerprint: record},
-        mapping_entries={canonical_url: FIX_SHA},
-        material_digest=DIGEST,
-        material_head_sha=HEAD_SHA,
-        repo_root=Path(),
-        snapshot=_snapshot(),
-        repository="owner/repo",
-        token="opaque",
+    return cast(
+        set[str],
+        validated_duplicate_reply_urls(
+            candidate_urls={duplicate_url},
+            threads=threads,
+            fingerprint_records={fingerprint: record},
+            mapping_entries={canonical_url: FIX_SHA},
+            material_digest=DIGEST,
+            material_head_sha=HEAD_SHA,
+            repo_root=Path(),
+            snapshot=_snapshot(),
+            repository="owner/repo",
+            token="opaque",
+        ),
     )
 
 
@@ -10916,23 +10929,106 @@ def test_inspected_stale_seal_accepts_native_unedited_update_metadata(
 def test_inspected_stale_seal_update_metadata_keeps_negative_native_bindings(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mutation: str, published: bool
 ) -> None:
-    """Reject invalid chronology, native edit metadata or mismatched phase revisions."""
+    """Reject each selected native predicate only after proving its complete public baseline."""
     state = _inspected_stale_seal_fixture(tmp_path, monkeypatch, published=published)
     comment = state["thread"].comments[-1]
+    assert comment.url.endswith(f"discussion_r{801 if published else 800}")
     row, node = (
         state["rows"][comment.url],
         state["nodes"][f"REVIEW_{comment.url.rsplit('r', 1)[-1]}"],
     )
+    real_binding = evidence_module._review_native_binding
+    bindings: list[tuple[str, dict[str, Any]]] = []
+    errors: list[tuple[str, type[ReviewEvidenceError], str]] = []
+
+    def observe_binding(**kwargs: Any) -> dict[str, Any]:
+        """Delegate every native observation and retain its exact result or propagated error."""
+        url = kwargs["url"]
+        assert isinstance(url, str)
+        try:
+            bound = real_binding(**kwargs)
+        except ReviewEvidenceError as exc:
+            errors.append((url, type(exc), str(exc)))
+            raise
+        assert isinstance(bound, dict)
+        bindings.append((url, json.loads(json.dumps(bound))))
+        return bound
+
+    monkeypatch.setattr(evidence_module, "_review_native_binding", observe_binding)
+    assert _inspected_coverage(state, publication=not published) == {state["root"].url}
+    assert errors == []
+    selected_baseline = [bound for url, bound in bindings if url == comment.url]
+    assert selected_baseline
+    baseline = selected_baseline[0]
+    assert all(bound == baseline for bound in selected_baseline)
+    assert baseline["lastEditedAt"] is None
+    baseline_bindings = dict(bindings)
+    protected_keys = (
+        "snapshot",
+        "thread",
+        "manifest",
+        "candidate",
+        "inventory",
+        "anchor",
+        "stale_sync",
+        "stale",
+        "intervening",
+        "material",
+        "reseal",
+    )
+    protected = tuple(state[key] for key in protected_keys)
+    mapping_before = state["mapping"].read_bytes()
+    bindings.clear()
+    errors.clear()
+
     if mutation == "chronology":
         row["updated_at"] = node["updatedAt"] = "2026-08-12T09:00:00Z"
     elif mutation == "native-edit":
         node["lastEditedAt"] = comment.created_at
     elif mutation == "missing-native-edit":
         del node["lastEditedAt"]
-    else:
+    elif mutation == "revision-mismatch":
         row["updated_at"] = comment.created_at[:-3] + "01Z"
-    try:
-        result = _inspected_coverage(state, publication=not published)
-    except ReviewEvidenceError:
-        result = set()
-    assert result == set()
+    else:
+        raise AssertionError(f"unsupported native binding mutation: {mutation}")
+
+    earlier_urls = [previous.url for previous in state["thread"].comments[:-1]]
+    if mutation in {"chronology", "missing-native-edit"}:
+        expected = (
+            "review native revision precedes creation"
+            if mutation == "chronology"
+            else "review native revision is API_UNKNOWN"
+        )
+        with pytest.raises(evidence_module._StaleSealEvidenceUnknown) as rejected:
+            _inspected_coverage(state, publication=not published)
+        assert type(rejected.value) is evidence_module._StaleSealEvidenceUnknown
+        assert str(rejected.value) == expected
+        assert errors == [(comment.url, evidence_module._StaleSealEvidenceUnknown, expected)]
+        assert [url for url, _ in bindings] == earlier_urls
+    else:
+        assert _inspected_coverage(state, publication=not published) == set()
+        if mutation == "revision-mismatch":
+            assert errors == [
+                (comment.url, ReviewEvidenceError, "review REST/native revision conflicts")
+            ]
+            assert [url for url, _ in bindings] == earlier_urls
+        else:
+            assert errors == []
+            assert [url for url, _ in bindings] == [item.url for item in state["thread"].comments]
+            selected_bindings = [bound for url, bound in bindings if url == comment.url]
+            assert len(selected_bindings) == 1
+            selected = selected_bindings[0]
+            assert selected["lastEditedAt"] == comment.created_at
+            assert {key: value for key, value in selected.items() if key != "lastEditedAt"} == {
+                key: value for key, value in baseline.items() if key != "lastEditedAt"
+            }
+            assert selected["association"] == "OWNER"
+            assert selected["reply_to"] == 700
+            assert selected["path"] == "docs/review/PR_42_FIXED_MAPPING.md"
+            assert selected["actor"]["type"] == "User"
+            evidence_module._review_bound_body(comment, selected)
+    for url, bound in bindings:
+        if url != comment.url:
+            assert bound == baseline_bindings[url]
+    assert tuple(state[key] for key in protected_keys) == protected
+    assert state["mapping"].read_bytes() == mapping_before
