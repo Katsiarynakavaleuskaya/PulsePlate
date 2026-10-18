@@ -170,6 +170,7 @@ def test_known_codex_quota_bodies_remain_exact_terminal_evidence() -> None:
 
 
 def test_closeout_exposes_only_current_review_authoring_modes() -> None:
+    """Keep the exact current CLI and option inventories while excluding provider authoring modes."""
     assert _closeout_subcommands() == {
         "add-disposition",
         "freeze",
