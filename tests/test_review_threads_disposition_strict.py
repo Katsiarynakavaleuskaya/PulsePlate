@@ -97,13 +97,15 @@ Commit: abc
 
 
 def test_extract_fixed_mapping_section_empty_when_missing() -> None:
+    """Retain the historical node name while requiring current typed missing-section refusal."""
     body = """
 ## Summary
 ## Discussion Thread Pass
 ## Merge Readiness
 """
-    section = extract_fixed_mapping_section(body)
-    assert section == ""
+    with pytest.raises(evidence_module.ReviewEvidenceError) as rejected:
+        extract_fixed_mapping_section(body)
+    assert str(rejected.value) == "Missing '## Fixed in Commit Mapping' section."
 
 
 def test_extract_fixed_mapping_section_stops_at_next_heading() -> None:
@@ -1772,3 +1774,61 @@ Evidence: file.md:10
     violations = _check_trigger_only_mapping(threads, section)
     assert violations
     assert "EMPTY" in violations[0]
+
+
+_AMBIGUOUS_MAPPING_CASES = [
+    ("## Other\nplain\n", "Missing '## Fixed in Commit Mapping' section."),
+    ("## Fixed in Commit Mapping\n\n## Other\n", "'## Fixed in Commit Mapping' section is empty."),
+    (
+        "## Fixed in Commit Mapping\n- No actionable review comments\n"
+        "## Other\n### Fixed in Commit Mapping\n"
+        "- https://github.com/org/repo/pull/42#discussion_r1 -> abc1234\n",
+        "Expected exactly one Fixed in Commit Mapping section; found 2.",
+    ),
+    (
+        "## Fixed in Commit Mapping\n- No actionable review comments\n"
+        "## Other\nReason: retained independent proof\n",
+        "Recognized proof or No-actionables marker outside Fixed in Commit Mapping section at line 4.",
+    ),
+]
+
+
+@pytest.mark.parametrize(("body", "message"), _AMBIGUOUS_MAPPING_CASES)
+def test_disposition_prebound_alias_rejects_ambiguous_mapping_inventory(
+    body: str, message: str
+) -> None:
+    """Exercise the actual imported alias without substituting a new canonical function binding."""
+    assert _disposition_mod._artifact_extract_fixed_mapping is extract_fixed_mapping_section
+    with pytest.raises(evidence_module.ReviewEvidenceError) as rejected:
+        _disposition_mod._artifact_extract_fixed_mapping(body)
+    assert str(rejected.value) == message
+
+
+@pytest.mark.parametrize(("body", "message"), _AMBIGUOUS_MAPPING_CASES)
+def test_main_rejects_ambiguous_mapping_before_no_threads(
+    monkeypatch: MonkeyPatch, capsys: pytest.CaptureFixture[str], body: str, message: str
+) -> None:
+    """Refuse complete-input ambiguity before the actual main can report no resolved threads."""
+    monkeypatch.delenv("CI", raising=False)
+    for key in ("GH_TOKEN", "GITHUB_TOKEN", "GH_ENTERPRISE_TOKEN", "GITHUB_ENTERPRISE_TOKEN"):
+        monkeypatch.delenv(key, raising=False)
+    monkeypatch.setenv("GH_TOKEN", "opaque")
+    monkeypatch.setenv("GITHUB_TOKEN", "opaque")
+    monkeypatch.setattr(_disposition_mod.sys, "argv", ["guard", "--pr-number", "42"])
+    monkeypatch.setattr(_disposition_mod, "_has_gh_auth", lambda: True)
+    monkeypatch.setattr(_disposition_mod, "read_mapping_artifact", lambda _pr: body)
+    collected: list[int] = []
+
+    def collect_no_threads(pr_number: int) -> list[ResolvedThreadRef]:
+        """Expose the real early-success branch if extraction incorrectly lets ambiguity through."""
+        collected.append(pr_number)
+        return []
+
+    monkeypatch.setattr(_disposition_mod, "_collect_resolved_threads", collect_no_threads)
+    with pytest.raises(SystemExit) as rejected:
+        _disposition_mod.main()
+    assert rejected.value.code == 1
+    assert collected == []
+    captured = capsys.readouterr()
+    assert captured.out == f"ERROR: {message}\n"
+    assert captured.err == ""
