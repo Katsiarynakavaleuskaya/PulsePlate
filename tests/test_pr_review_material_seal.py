@@ -3024,6 +3024,7 @@ def test_scan_receipt_rejects_dot_supplemental_artifact_path(tmp_path: Path) -> 
 def test_scan_receipt_rejects_fifo_supplemental_artifact_without_blocking(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    """Reject FIFO scan artifacts without allowing a blocking open."""
     manifest_path = _build_v011_scan_bundle(tmp_path / "scan")
     fifo_path = manifest_path.parent / "artifacts" / "05_findings" / "validation_summary.md"
     fifo_path.unlink()
@@ -3038,6 +3039,7 @@ def test_scan_receipt_rejects_fifo_supplemental_artifact_without_blocking(
         *,
         dir_fd: int | None = None,
     ) -> int:
+        """Require nonblocking flags when opening the selected FIFO artifact."""
         if path == fifo_path.name:
             assert flags & nonblocking_flag
         return cast(int, original_open(path, flags, mode, dir_fd=dir_fd))
@@ -3109,10 +3111,12 @@ def test_scan_receipt_rejects_excessive_aggregate_artifact_bytes(
 def test_scan_receipt_streams_non_json_artifacts(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    """Keep non-JSON scan artifacts on the streaming ingestion path."""
     manifest_path = _build_v011_scan_bundle(tmp_path / "scan")
     original_reader = evidence_module._read_contained_artifact_from_descriptor
 
     def reject_buffered_non_json(descriptor: int, relative: Any, *, max_bytes: int) -> bytes:
+        """Reject buffered reads for artifacts outside the three JSON inputs."""
         if str(relative) not in {
             "scan-manifest.json",
             "coverage.json",
@@ -3164,12 +3168,14 @@ def test_scan_receipt_rejects_symlinked_manifest(tmp_path: Path) -> None:
 def test_scan_receipt_uses_one_stable_root_descriptor(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    """Keep scan ingestion bound to its opened root after a pathname replacement."""
     root = tmp_path / "scan"
     manifest_path = _build_scan_bundle(root)
     original_reader = evidence_module._read_contained_artifact_from_descriptor
     swapped = False
 
     def swap_root_after_manifest(descriptor: int, relative: Any, *, max_bytes: int) -> bytes:
+        """Replace the root pathname once the manifest has been read."""
         nonlocal swapped
         raw: bytes = original_reader(descriptor, relative, max_bytes=max_bytes)
         if str(relative) == "scan-manifest.json" and not swapped:
@@ -3578,6 +3584,7 @@ def test_self_review_report_rejects_noncanonical_base_identity(
     report_identity: dict[str, str],
     current_manifest: MaterialManifest,
 ) -> None:
+    """Reject self-review reports whose base differs from the current manifest."""
     report_path = _write_self_review_report(
         tmp_path / "review.json",
         changed_files=("app/example.py",),
@@ -3958,6 +3965,7 @@ def _review_source_unavailability_receipt(
     material_digest: str = DIGEST,
     material_head_sha: str = HEAD_SHA,
 ) -> dict[str, Any]:
+    """Build a synthetic legacy quota-unavailability receipt for the selected material."""
     response = _review_credit_quota_comment(
         "https://github.com/owner/repo/pull/42#issuecomment-456"
     )
@@ -5125,6 +5133,7 @@ def test_closeout_reseal_requires_new_material_and_preserves_existing_proof() ->
 def test_closeout_reseal_allows_only_proven_fast_forward_base_advance(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Require fast-forward proofs for base, merge-base and material-head advances."""
     previous_base = BASE_SHA
     previous_merge_base = "5" * 40
     next_base = "6" * 40
@@ -6560,6 +6569,7 @@ def _inspected_stale_seal_fixture(
 
 
 def _inspected_coverage(state: dict[str, Any], *, publication: bool) -> set[str]:
+    """Evaluate inspected stale-seal coverage with optional publication inputs."""
     return cast(
         set[str],
         evidence_module.validated_inspected_stale_seal_urls(
@@ -6843,6 +6853,7 @@ def _stale_seal_reply_coverage(
     activity_api_unknown: bool = False,
     remote_reseal_ancestry: str = "reachable",
 ) -> tuple[set[str], dict[str, str]]:
+    """Build real Git stale-seal variants and evaluate their reply-only coverage."""
     repo = tmp_path / "repo"
     repo.mkdir()
     _git(repo, "init", "-q")
@@ -7166,6 +7177,7 @@ def _stale_seal_reply_coverage(
         raise CommitIdentityError(f"fixture Git ancestry is API_UNKNOWN (exit {result.returncode})")
 
     def request_json(url: str, **_kwargs: Any) -> Any:
+        """Return synthetic PR and root-comment responses for the stale-seal fixture."""
         if url.endswith("/pulls/42"):
             return {
                 "base": {"sha": current_base},
@@ -7978,6 +7990,7 @@ def test_owner_stale_seal_snapshot_children_batches_parent_enumeration(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Enumerate snapshot parents once and reuse them for repeated child lookups."""
     repo = tmp_path / "repo"
     repo.mkdir()
     _git(repo, "init", "-q")
@@ -7999,6 +8012,7 @@ def test_owner_stale_seal_snapshot_children_batches_parent_enumeration(
         input_bytes: bytes | None = None,
         timeout: int = 30,
     ) -> bytes:
+        """Count batched parent queries while delegating to the original Git runner."""
         nonlocal batch_calls
         if args == ["rev-list", "--parents", "--no-walk", "--stdin"]:
             batch_calls += 1
@@ -8402,6 +8416,7 @@ def _owner_only_empty_mapping_coverage(
     material_head_in_snapshot: bool = True,
     captured_threads: list[ReviewThreadEvidence] | None = None,
 ) -> tuple[set[str], list[str]]:
+    """Build owner-only reply fixtures and evaluate coverage with synthetic API responses."""
     repo = tmp_path / "repo"
     repo.mkdir()
     _git(repo, "init", "-q")
@@ -8635,6 +8650,7 @@ def _owner_only_empty_mapping_coverage(
     api_calls: list[str] = []
 
     def request_json(url: str, **_kwargs: Any) -> Any:
+        """Record fixture API requests and supply the selected identity or ref outcome."""
         api_calls.append(url)
         if "/pulls/comments/" in url:
             if rest_identity_variant == "api-unknown":
@@ -9452,6 +9468,7 @@ def _validate_duplicate_finding_body(
     classified_values: list[str] | None = None,
     ancestry_values: list[tuple[str, str]] | None = None,
 ) -> set[str]:
+    """Evaluate a duplicate finding body with controlled ref classification and ancestry."""
     canonical_url = "https://github.com/owner/repo/pull/42#discussion_canonical"
     duplicate_url = "https://github.com/owner/repo/pull/42#discussion_duplicate"
     fingerprint = unavailable_review_ref_fingerprint(

@@ -1124,6 +1124,7 @@ def _require_gh_token_preflight(require_auth: bool, in_ci: bool) -> None:
 
 
 def main() -> None:
+    """Validate resolved-thread dispositions and commit proofs through the CLI."""
     parser = argparse.ArgumentParser(
         description="Check resolved review threads have disposition in canonical artifact."
     )
