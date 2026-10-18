@@ -3189,6 +3189,239 @@ def test_alertmanager_transport_rejects_unapproved_handoff_authority(
     assert calls == [artifact.url]
 
 
+def test_alertmanager_bootstrap_skip_covers_every_shared_install_effect() -> None:
+    action = _load_workflow(REPO_ROOT / ".github/actions/python-setup/action.yml")
+    steps = {step["name"]: step for step in action["runs"]["steps"]}
+    for name in (
+        "Configure private Python index authentication",
+        "Build exact Psycopg C client SDK",
+        "Install base dependencies",
+        "Observe installed native Python consumers",
+    ):
+        assert steps[name]["if"] == "${{ inputs.skip-base-install != 'true' }}"
+    assert steps["Retain untrusted rejected zlib response"]["if"] == (
+        "${{ failure() && steps.psycopg_sdk.outcome == 'failure' "
+        "&& steps.psycopg_sdk.outputs.rejection_dir != '' }}"
+    )
+    assert steps["Remove private Python index authentication"]["if"] == "${{ always() }}"
+
+
+def test_alertmanager_bootstrap_delegates_binary_only_two_pass_startup_guards() -> None:
+    import inspect
+    from scripts.ci import install_locked_python_requirements as installer
+
+    command = installer.build_pip_proxy_install_command(
+        python_executable="/absolute/owned-AM/bin/python",
+        requirement_file=REPO_ROOT / "requirements-dev.txt",
+        constraints_file=REPO_ROOT / "constraints.txt",
+        index_url="https://synthetic.invalid/simple",
+        trusted_host=None,
+        allow_pip_download_cache=False,
+    )
+    assert command[:4] == ["/absolute/owned-AM/bin/python", "-m", "pip", "install"]
+    assert "--no-deps" in command and command[command.index("--only-binary") + 1] == ":all:"
+    assert command[command.index("--requirement") + 1] == str(REPO_ROOT / "requirements-dev.txt")
+    assert command[command.index("--constraint") + 1] == str(REPO_ROOT / "constraints.txt")
+    source = inspect.getsource(installer.install_with_guard_from_proxy)
+    normal = source.split(
+        "with staged_python_environment(python_executable) as staging_python:", 1
+    )[1]
+    assert normal.count("install_from_proxy_with_emergency_fallback(") == 2
+    assert normal.count("collect_startup_hook_failure_lines(") == 2
+    assert (
+        normal.index("python_executable=staging_python")
+        < normal.index("collect_startup_hook_failure_lines(")
+        < normal.index("python_executable=python_executable")
+        < normal.rindex("collect_startup_hook_failure_lines(")
+    )
+    assert "if failure_lines:" in normal and "return 1" in normal
+    transport = inspect.getsource(installer.run_command)
+    assert "PIP_CHILD_SELECTOR" in transport
+    assert "_install_pip_transport_guard()" in inspect.getsource(installer._run_owned_pip_child)
+
+
+@pytest.mark.parametrize(
+    "job_name",
+    [
+        "alertmanager-candidate-build",
+        "alertmanager-retained-candidate",
+        "alertmanager-main-publication",
+    ],
+)
+def test_alertmanager_bootstrap_is_isolated_guarded_and_precedes_all_host_effects(
+    job_name: str,
+) -> None:
+    from scripts.ci import install_locked_python_requirements as installer
+
+    job = _load_workflow(WORKFLOWS_DIR / "cd.yml")["jobs"][job_name]
+    setup = next(
+        step for step in job["steps"] if step.get("uses") == "./.github/actions/python-setup"
+    )
+    assert setup["with"] == {"python-version": "3.13.14", "skip-base-install": "true"}
+    install = _step_by_name(job, "Install isolated AM host tools through the locked owner")
+    smoke = _step_by_name(job, "Verify isolated AM host import capability before effects")
+    driver = next(
+        step
+        for step in job["steps"]
+        if "--artifact alertmanager --alertmanager-stage" in step.get("run", "")
+    )
+    assert (
+        _step_index(job, "Validate existing credential-free AM native Python proxy")
+        < _step_index(job, setup["name"])
+        < _step_index(job, install["name"])
+        < _step_index(job, smoke["name"])
+        < _step_index(job, driver["name"])
+    )
+    assert smoke["id"] == "am-python"
+    assert "GITHUB_OUTPUT" not in install["run"]
+    assert driver["env"]["AM_HOST_PYTHON"] == "${{ steps.am-python.outputs.python }}"
+    for step in (setup, install):
+        assert step["env"]["PULSEPLATE_PYTHON_INDEX_URL"] == (
+            "${{ vars.PULSEPLATE_PYTHON_INDEX_URL }}"
+        )
+        assert step["env"]["PULSEPLATE_PYTHON_TRUSTED_HOST"] == (
+            "${{ vars.PULSEPLATE_PYTHON_TRUSTED_HOST }}"
+        )
+        assert step["env"]["DEVPI_CI_USER"] == step["env"]["DEVPI_CI_PASSWORD"] == ""
+    for step in (install, smoke, driver):
+        assert step["env"]["PYTHONHOME"] == step["env"]["PYTHONPATH"] == ""
+        assert step["env"]["PYTHONNOUSERSITE"] == "1"
+        assert "HOME" not in step["env"] and "PATH" not in step["env"]
+    for key in (
+        "PULSEPLATE_PSYCOPG_C_SDK",
+        "PULSEPLATE_DOCKER_SINGLE_PASS_LOCKED_INSTALL",
+        "PULSEPLATE_DOCKER_PIP_LAYER_CACHE",
+    ):
+        assert install["env"][key] == ""
+    run = install["run"]
+    root = 'am_root="$RUNNER_TEMP/pulseplate-am-python-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"'
+    assert root in run and root in smoke["run"]
+    assert (
+        run.index('test ! -e "$am_root"')
+        < run.index('test ! -L "$am_root"')
+        < run.index('python -I -m venv "$am_root"')
+        < run.index('mkdir "$am_root/installer-home"')
+    )
+    assert "umask 077" in run and "--system-site-packages" not in run
+    assert 'am_python="$am_root/bin/python"' in run
+    installer_call = (
+        'HOME="$am_root/installer-home" "$am_python" -I '
+        '"$GITHUB_WORKSPACE/scripts/ci/install_locked_python_requirements.py"'
+    )
+    assert run.count(installer_call) == 2
+    assert run.index('"${install_args[@]}" --preflight-only') < run.index(
+        installer_call, run.index(installer_call) + len(installer_call)
+    )
+    block = run.split("install_args=(\n", 1)[1].split("\n)", 1)[0]
+    flags = shlex.split(block)
+    args = installer.parse_args(flags)
+    assert args.python_executable == "$am_python"
+    assert args.requirements_file == Path("$GITHUB_WORKSPACE/requirements-dev.txt")
+    assert args.constraints_file == Path("$GITHUB_WORKSPACE/constraints.txt")
+    assert args.emergency_wheel_manifest == Path(
+        "$GITHUB_WORKSPACE/scripts/ci/emergency_python_wheels.json"
+    )
+    assert args.require_virtualenv is True and args.install_mode == "direct-proxy"
+    assert args.index_url == "$PULSEPLATE_PYTHON_INDEX_URL"
+    assert args.requirements_profile is None and not args.install_dev and not args.install_test
+    assert args.psycopg_sdk is None and not args.build_psycopg_c
+    assert not args.upgrade_pip and not args.prefetch_only and not args.consume_only
+    assert 'install_args+=(--trusted-host "$PULSEPLATE_PYTHON_TRUSTED_HOST")' in run
+    assert "--no-deps" not in flags and "--only-binary" not in flags
+    pins = installer._collect_unmarked_exact_requirement_pin_versions(
+        (REPO_ROOT / "requirements-dev.txt").read_text().splitlines()
+    )
+    assert "pytest" in pins and "pyyaml" in pins
+    assert "psycopg" not in pins and "psycopg-c" not in pins
+    source = smoke["run"].split("\"$am_python\" - <<'PY'\n", 1)[1].split("\nPY\n", 1)[0]
+    tree = ast.parse(source)
+    assert {node.names[0].name for node in tree.body if isinstance(node, ast.Import)} == {
+        "json",
+        "site",
+        "sys",
+        "pytest",
+        "yaml",
+    }
+    for statement in (
+        "from scripts.ci import fetch_docker_source_artifacts, prometheus_source_image",
+        "from scripts.ops import notify_premium_alias_checkpoint_failure",
+        "from tests import test_notify_premium_alias_checkpoint_failure as native",
+        "assert sys.version_info[:3] == (3, 13, 14)",
+        "assert sys.prefix != sys.base_prefix and sys.base_prefix not in site.PREFIXES",
+        "assert site.ENABLE_USER_SITE is False",
+        "with pytest.MonkeyPatch.context():",
+        'assert yaml.safe_load("probe: true\\n") == {"probe": True}',
+        "assert callable(native.native_alertmanager_main)",
+    ):
+        assert statement in source
+    for package in ("pytest", "pyyaml"):
+        assert (
+            'version("'
+            + ("PyYAML" if package == "pyyaml" else package)
+            + '") == "'
+            + (next(iter(pins[package])))
+            + '"'
+            in source
+        )
+    assert "metadata.distributions()" in source and 'metadata.version("pip")' in source
+    assert not any(
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr == "native_alertmanager_main"
+        for node in ast.walk(tree)
+    )
+    help_call = '"$am_python" -m tests.test_notify_premium_alias_checkpoint_failure --help'
+    assert help_call in smoke["run"]
+    assert smoke["run"].index(help_call) < smoke["run"].index(
+        'printf \'python=%s\\n\' "$am_python" >> "$GITHUB_OUTPUT"'
+    )
+    assert '"$AM_HOST_PYTHON" -m scripts.ci.fetch_docker_source_artifacts' in driver["run"]
+    assert '"$AM_HOST_PYTHON" -I' not in driver["run"]
+    for step in (install, smoke):
+        for forbidden in (
+            "GITHUB_ENV",
+            "GITHUB_PATH",
+            "--build-psycopg",
+            "docker build",
+            ".netrc",
+            "--upgrade-pip",
+            "--requirements-profile",
+            "--install-dev",
+            "--install-test",
+        ):
+            assert forbidden not in step["run"]
+
+
+def test_alertmanager_bootstrap_has_one_aggregate_setup_budget() -> None:
+    workflow = _load_workflow(WORKFLOWS_DIR / "cd.yml")
+    env = workflow["env"]
+    parts = {
+        "Select AM Python without dependency or SDK installation": "ALERTMANAGER_PYTHON_SETUP_MINUTES",
+        "Install isolated AM host tools through the locked owner": "ALERTMANAGER_PYTHON_INSTALL_MINUTES",
+        "Verify isolated AM host import capability before effects": "ALERTMANAGER_PYTHON_SMOKE_MINUTES",
+    }
+    assert [int(env[key]) for key in parts.values()] == [3, 6, 1]
+    assert (
+        sum(int(env[key]) for key in parts.values()) == int(env["ALERTMANAGER_SETUP_MINUTES"]) == 10
+    )
+    for name, cap in (
+        ("alertmanager-candidate-build", 140),
+        ("alertmanager-retained-candidate", 75),
+        ("alertmanager-main-publication", 110),
+    ):
+        job = workflow["jobs"][name]
+        assert job["timeout-minutes"] == cap
+        for step_name, key in parts.items():
+            assert _step_by_name(job, step_name)["timeout-minutes"] == (
+                "${{ fromJSON(env." + key + ") }}"
+            )
+    assert env["ALERTMANAGER_PREP_SECONDS"] == "600"
+    assert env["ALERTMANAGER_NATIVE_SECONDS"] == "2400"
+    assert env["ALERTMANAGER_CLEANUP_SECONDS"] == "45"
+    assert env["ALERTMANAGER_NATIVE_CLEANUP_SECONDS"] == "120"
+    assert env["ALERTMANAGER_UPLOAD_MINUTES"] == "5"
+
+
 def test_alertmanager_module_mode_is_manual_first_attempt_and_build_is_held() -> None:
     workflow = _load_workflow(WORKFLOWS_DIR / "cd.yml")
     job = workflow["jobs"]["alertmanager-module-qualification"]

@@ -3685,14 +3685,48 @@ def test_alertmanager_executable_stages_have_exact_manual_events_and_no_Q(mode: 
         "packages": "read" if mode == "build" else "write",
     }
     steps = _steps(job)
-    setup = _named_step(steps, "Setup existing AM native Python profile")
+    setup = _named_step(steps, "Select AM Python without dependency or SDK installation")
     assert setup["uses"] == "./.github/actions/python-setup"
     assert setup["with"] == {
         "python-version": "3.13.14",
-        "requirements-profile": "ci-lite",
-        "install-mode": "direct-proxy",
+        "skip-base-install": "true",
     }
     assert setup["env"]["DEVPI_CI_USER"] == setup["env"]["DEVPI_CI_PASSWORD"] == ""
+    install = _named_step(steps, "Install isolated AM host tools through the locked owner")
+    smoke = _named_step(steps, "Verify isolated AM host import capability before effects")
+    driver = next(
+        step
+        for step in steps
+        if "--artifact alertmanager --alertmanager-stage " + mode in step.get("run", "")
+    )
+    assert (
+        _step_index(steps, setup["name"])
+        < _step_index(steps, install["name"])
+        < _step_index(steps, smoke["name"])
+        < _step_index(steps, driver["name"])
+    )
+    assert smoke["id"] == "am-python"
+    assert driver["env"]["AM_HOST_PYTHON"] == "${{ steps.am-python.outputs.python }}"
+    assert (
+        '"$AM_HOST_PYTHON" -m scripts.ci.fetch_docker_source_artifacts '
+        "--artifact alertmanager --alertmanager-stage " + mode
+    ) in driver["run"]
+    assert "python -m scripts.ci.fetch_docker_source_artifacts" not in driver["run"]
+    assert '"$AM_HOST_PYTHON" -I' not in driver["run"]
+    for step in (install, smoke):
+        assert (
+            'am_root="$RUNNER_TEMP/pulseplate-am-python-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"'
+            in step["run"]
+        )
+        assert 'am_python="$am_root/bin/python"' in step["run"]
+    assert "GITHUB_OUTPUT" not in install["run"]
+    assert (
+        smoke["run"].index("assert callable(native.native_alertmanager_main)")
+        < smoke["run"].index(
+            '"$am_python" -m tests.test_notify_premium_alias_checkpoint_failure --help'
+        )
+        < smoke["run"].index('printf \'python=%s\\n\' "$am_python" >> "$GITHUB_OUTPUT"')
+    )
     runs = "\n".join(step.get("run", "") for step in steps)
     assert "--alertmanager-stage " + mode in runs
     assert "--alertmanager-module-qualify" not in runs
