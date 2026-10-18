@@ -264,6 +264,10 @@
   Mocked AM Native fixtures must model tool/resource inputs, retain low-resource
   negatives, and preserve production guards and reserves.
 
+- When adding Alertmanager workflow jobs, reconcile the exact checkout inventory in
+  `tests/test_ci_workflow_pr_size_governance_contract.py` and Python setup owner
+  multiplicities in `tests/test_runtime_toolchain_alignment.py` against the actual steps.
+
 ## Official Prometheus image selection
 
 - `deploy/prometheus/image-manifest.json` is the sole v3 image record.
