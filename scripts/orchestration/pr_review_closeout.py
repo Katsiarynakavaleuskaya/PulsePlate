@@ -463,7 +463,8 @@ def _cmd_retire_stale(args: argparse.Namespace) -> None:
         ref = _stale_seal_repository_commit(
             sha, snapshot=snapshot, token=token, require_pr_commit=require_pr
         )
-        _stale_seal_remote_ancestor(ref, live_ref, repository=args.repo, token=token)
+        if require_pr:
+            _stale_seal_remote_ancestor(ref, live_ref, repository=args.repo, token=token)
     current = _stale_seal_material_manifest(
         REPO_ROOT,
         base_ref_oid=snapshot.base_sha,

@@ -114,7 +114,10 @@ def test_closeout_publication_git_omits_ambient_credentials_and_parent_configura
 
 
 def _publication_closeout_fixture(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    historical_base_outside: bool = False,
 ) -> dict[str, Any]:
     """Use real draft, material manifest, self-review ingestion and seal rendering."""
     for key in ("GH_TOKEN", "GITHUB_TOKEN", "GH_ENTERPRISE_TOKEN", "GITHUB_ENTERPRISE_TOKEN"):
@@ -136,6 +139,13 @@ def _publication_closeout_fixture(
     _publication_git(repo, "add", "README.md")
     _publication_git(repo, "commit", "-qm", "material")
     head = _publication_git(repo, "rev-parse", "HEAD")
+    if historical_base_outside:
+        _publication_git(repo, "checkout", "-qb", "historical-target", base)
+        (repo / "target-only.txt").write_text("historical target advance\n", encoding="utf-8")
+        _publication_git(repo, "add", "target-only.txt")
+        _publication_git(repo, "commit", "-qm", "historical unmerged target advance")
+        base = _publication_git(repo, "rev-parse", "HEAD")
+        _publication_git(repo, "checkout", "-q", "--detach", head)
     snapshot = PrSnapshot("owner/repo", 42, base, head, (PrCommitEvidence(head, None),))
     monkeypatch.setattr(closeout, "REPO_ROOT", repo)
     monkeypatch.setattr(closeout, "STATE_ROOT", repo / "artifacts/orchestration/pr_review_closeout")
@@ -311,12 +321,20 @@ def test_closeout_publication_mode_failure_preserves_prior_target_and_cleans_tem
 
 
 def _retirement_fixture(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, *, stale: bool = True
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    stale: bool = True,
+    historical_base_outside: bool = False,
+    current_base_ahead: bool = False,
+    historical_material_unreachable: bool = False,
 ) -> dict[str, Any]:
-    """A real prior closeout inherited unchanged by a real material successor."""
+    """Build real prior/current projections with bounded base and material-history variants."""
     from scripts.orchestration import pr_commit_identity as identity
 
-    fixture = _publication_closeout_fixture(tmp_path, monkeypatch)
+    fixture = _publication_closeout_fixture(
+        tmp_path, monkeypatch, historical_base_outside=historical_base_outside
+    )
     repo, target = fixture["repo"], fixture["target"]
     target.write_text(fixture["markdown"], encoding="utf-8")
     target.chmod(0o644)
@@ -329,20 +347,41 @@ def _retirement_fixture(
         _publication_git(repo, "commit", "-qm", "genuine material correction")
     head = _publication_git(repo, "rev-parse", "HEAD")
     old = fixture["snapshot"]
+    if historical_material_unreachable:
+        canonical = target.read_bytes()
+        common = _publication_git(repo, "merge-base", old.base_sha, old.head_sha)
+        _publication_git(repo, "checkout", "-qb", "independent-pr", common)
+        (repo / "README.md").write_text("independent current material\n", encoding="utf-8")
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(canonical)
+        target.chmod(0o644)
+        _publication_git(repo, "add", "README.md", str(target.relative_to(repo)))
+        _publication_git(repo, "commit", "-qm", "independent head retaining historical canonical")
+        head = _publication_git(repo, "rev-parse", "HEAD")
+    current_base = old.base_sha
+    if current_base_ahead:
+        _publication_git(repo, "checkout", "-qb", "current-target", old.base_sha)
+        (repo / "target-only.txt").write_text("current target advance\n", encoding="utf-8")
+        _publication_git(repo, "add", "target-only.txt")
+        _publication_git(repo, "commit", "-qm", "current unmerged target advance")
+        current_base = _publication_git(repo, "rev-parse", "HEAD")
+        _publication_git(repo, "checkout", "-q", "--detach", head)
     snapshot = PrSnapshot(
         old.repository,
         42,
-        old.base_sha,
+        current_base,
         head,
         tuple(PrCommitEvidence(sha, None) for sha in dict.fromkeys((old.head_sha, prior, head))),
     )
     monkeypatch.setattr(closeout, "fetch_pr_snapshot", lambda *_a, **_k: snapshot)
+    classified: list[str] = []
 
     def classify(sha: str, observed: PrSnapshot, **_kwargs: Any) -> Any:
         """Bind synthetic API classification to an existing commit in the real test graph."""
         assert observed is snapshot
         # Native Git objects remain independent of the synthetic API identity.
         assert _publication_git(repo, "rev-parse", f"{sha}^{{commit}}") == sha
+        classified.append(sha)
         kind = (
             identity.CommitRefKind.PR_COMMIT
             if sha in snapshot.commit_shas
@@ -356,8 +395,216 @@ def _retirement_fixture(
 
     monkeypatch.setattr(identity, "classify_commit_ref", classify)
     monkeypatch.setattr(identity, "is_ancestor", ancestor)
-    fixture.update(snapshot=snapshot, prior=prior)
+    fixture.update(snapshot=snapshot, prior=prior, classified=classified)
     return fixture
+
+
+def _retirement_payload_state(fixture: dict[str, Any]) -> tuple[Path, tuple[bytes, ...]]:
+    """Stage then dirty a payload and capture canonical, full index, draft and payload bytes."""
+    repo = fixture["repo"]
+    payload = repo / "README.md"
+    payload.write_text("admitted staged payload\n", encoding="utf-8")
+    _publication_git(repo, "add", "README.md")
+    payload.write_text("admitted unstaged payload\n", encoding="utf-8")
+    paths = (fixture["target"], repo / ".git/index", closeout._state_path(42), payload)
+    return payload, tuple(path.read_bytes() for path in paths)
+
+
+@pytest.mark.parametrize(
+    "historical_base_outside",
+    [False, True],
+    ids=["current-base-ahead", "historical-base-outside-head"],
+)
+def test_retire_stale_accepts_unmerged_base_tips(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, historical_base_outside: bool
+) -> None:
+    """Retire valid stale projections without requiring either target tip to precede head."""
+    fixture = _retirement_fixture(
+        tmp_path,
+        monkeypatch,
+        historical_base_outside=historical_base_outside,
+        current_base_ahead=True,
+    )
+    repo, snapshot, seal = fixture["repo"], fixture["snapshot"], fixture["seal"]
+    historical = seal["material"]
+    historical_base, material = historical["base_ref_oid"], historical["material_head_sha"]
+    assert len({historical_base, material, snapshot.base_sha, snapshot.head_sha}) == 4
+    assert _publication_git(repo, "rev-list", snapshot.base_sha, f"^{snapshot.head_sha}")
+    historical_not_in_head = _publication_git(
+        repo, "rev-list", historical_base, f"^{snapshot.head_sha}"
+    )
+    assert bool(historical_not_in_head) == historical_base_outside
+    if historical_base_outside:
+        assert _publication_git(repo, "rev-list", historical_base, f"^{material}")
+    old_manifest = evidence.compute_material_manifest(
+        repo, base_ref_oid=historical_base, head_ref_oid=material, pr_number=42
+    )
+    evidence._validate_stale_seal_projection(
+        fixture["markdown"],
+        repo_root=repo,
+        manifest=old_manifest,
+        repository="owner/repo",
+        pr_number=42,
+        require_provider_no_claim=True,
+    )
+    current = evidence.compute_material_manifest(
+        repo, base_ref_oid=snapshot.base_sha, head_ref_oid=snapshot.head_sha, pr_number=42
+    )
+    assert current.merge_base_sha == old_manifest.merge_base_sha
+    assert snapshot.base_sha != historical_base
+    payload, before = _retirement_payload_state(fixture)
+    checked: list[tuple[str, str]] = []
+    real_ancestor = closeout._stale_seal_remote_ancestor
+
+    def observe_ancestry(first: Any, second: Any, **kwargs: Any) -> None:
+        """Record selected relation operands while retaining the actual ancestry consumer."""
+        checked.append((first.sha, second.sha))
+        real_ancestor(first, second, **kwargs)
+
+    monkeypatch.setattr(closeout, "_stale_seal_remote_ancestor", observe_ancestry)
+    closeout._cmd_retire_stale(fixture["args"])
+    assert fixture["classified"] == [
+        snapshot.head_sha,
+        material,
+        historical_base,
+        snapshot.base_sha,
+    ]
+    assert checked == [(material, snapshot.head_sha)]
+    assert not fixture["target"].exists()
+    assert (
+        (repo / ".git/index").read_bytes(),
+        closeout._state_path(42).read_bytes(),
+        payload.read_bytes(),
+    ) == before[1:]
+
+
+@pytest.mark.parametrize("base_role", ["historical", "current"])
+@pytest.mark.parametrize("classification", ["unknown", "unavailable", "nonrepository"])
+def test_retire_stale_rejects_unaddressable_base_tips(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, base_role: str, classification: str
+) -> None:
+    """Reject only the selected base identity uncertainty before deleting any bound bytes."""
+    from scripts.orchestration import pr_commit_identity as identity
+
+    fixture = _retirement_fixture(
+        tmp_path, monkeypatch, historical_base_outside=True, current_base_ahead=True
+    )
+    repo, snapshot = fixture["repo"], fixture["snapshot"]
+    historical = fixture["seal"]["material"]
+    assert (
+        len(
+            {
+                historical["base_ref_oid"],
+                historical["material_head_sha"],
+                snapshot.base_sha,
+                snapshot.head_sha,
+            }
+        )
+        == 4
+    )
+    selected = historical["base_ref_oid"] if base_role == "historical" else snapshot.base_sha
+    real_classify = identity.classify_commit_ref
+    observed: list[str] = []
+
+    def classify_selected(sha: str, *args: Any, **kwargs: Any) -> Any:
+        """Mutate one classification while proving every other selected identity normally."""
+        observed.append(sha)
+        if sha != selected:
+            return real_classify(sha, *args, **kwargs)
+        if classification == "unknown":
+            return identity.ReviewExecutionRef(
+                sha, identity.CommitRefKind.API_UNKNOWN, "synthetic unknown"
+            )
+        if classification == "unavailable":
+            return identity.ReviewExecutionRef(
+                sha, identity.CommitRefKind.REVIEW_REF_UNAVAILABLE, "synthetic unavailable"
+            )
+        if classification == "nonrepository":
+            return None
+        raise AssertionError(f"unsupported classification: {classification}")
+
+    monkeypatch.setattr(identity, "classify_commit_ref", classify_selected)
+    payload, before = _retirement_payload_state(fixture)
+    with pytest.raises(evidence.ReviewEvidenceError) as rejected:
+        closeout._cmd_retire_stale(fixture["args"])
+    if classification == "unknown":
+        expected = "owner stale-seal commit identity is API_UNKNOWN"
+    elif classification == "unavailable" and base_role == "current":
+        expected = "owner stale-seal snapshot commit identity conflicts with GitHub"
+    else:
+        expected = "owner stale-seal commit is not a real live PR commit"
+    assert str(rejected.value) == expected
+    assert observed[-1] == selected
+    assert (
+        fixture["target"].read_bytes(),
+        (repo / ".git/index").read_bytes(),
+        closeout._state_path(42).read_bytes(),
+        payload.read_bytes(),
+    ) == before
+
+
+@pytest.mark.parametrize("failure", ["membership", "unreachable"])
+def test_retire_stale_preserves_historical_material_constraints(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, failure: str
+) -> None:
+    """Keep historical material PR membership and real head ancestry as distinct obligations."""
+    from scripts.orchestration import pr_commit_identity as identity
+
+    fixture = _retirement_fixture(
+        tmp_path,
+        monkeypatch,
+        historical_base_outside=True,
+        current_base_ahead=True,
+        historical_material_unreachable=failure == "unreachable",
+    )
+    repo, snapshot = fixture["repo"], fixture["snapshot"]
+    material = fixture["seal"]["material"]["material_head_sha"]
+    outside_head = _publication_git(repo, "rev-list", material, f"^{snapshot.head_sha}")
+    assert bool(outside_head) == (failure == "unreachable")
+    historical_base = fixture["seal"]["material"]["base_ref_oid"]
+    historical_manifest = evidence.compute_material_manifest(
+        repo, base_ref_oid=historical_base, head_ref_oid=material, pr_number=42
+    )
+    evidence._validate_stale_seal_projection(
+        fixture["markdown"],
+        repo_root=repo,
+        manifest=historical_manifest,
+        repository="owner/repo",
+        pr_number=42,
+        require_provider_no_claim=True,
+    )
+    current_manifest = evidence.compute_material_manifest(
+        repo, base_ref_oid=snapshot.base_sha, head_ref_oid=snapshot.head_sha, pr_number=42
+    )
+    assert current_manifest.merge_base_sha == historical_manifest.merge_base_sha
+    assert snapshot.base_sha != historical_base
+    real_classify = identity.classify_commit_ref
+    observed: list[str] = []
+
+    def classify_material(sha: str, *args: Any, **kwargs: Any) -> Any:
+        """Change only historical membership or retain positive identity for graph rejection."""
+        observed.append(sha)
+        resolved = real_classify(sha, *args, **kwargs)
+        if sha == material and failure == "membership":
+            return identity.RepositoryCommitRef(sha, identity.CommitRefKind.REPO_COMMIT_OUTSIDE_PR)
+        return resolved
+
+    monkeypatch.setattr(identity, "classify_commit_ref", classify_material)
+    payload, before = _retirement_payload_state(fixture)
+    with pytest.raises(evidence.ReviewEvidenceError) as rejected:
+        closeout._cmd_retire_stale(fixture["args"])
+    assert str(rejected.value) == (
+        "owner stale-seal commit is not a real live PR commit"
+        if failure == "membership"
+        else "owner stale-seal commit is not remotely reachable"
+    )
+    assert observed[-1] == material
+    assert (
+        fixture["target"].read_bytes(),
+        (repo / ".git/index").read_bytes(),
+        closeout._state_path(42).read_bytes(),
+        payload.read_bytes(),
+    ) == before
 
 
 def test_retire_stale_preserves_dirty_material_index_and_draft(
