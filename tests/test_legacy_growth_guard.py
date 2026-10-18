@@ -163,6 +163,12 @@ RETIRED_LIFECYCLE_ACCESS_BINDINGS = RETIRED_LEGACY_PYTHON_BINDINGS[115:117]
 RETIRED_RATE_LIMIT_BINDINGS = RETIRED_LEGACY_PYTHON_BINDINGS[117:130]
 
 
+@pytest.fixture(scope="module")
+def valid_repo_baseline() -> None:
+    """Require a real complete baseline before aggregate source mutations."""
+    assert legacy_guard.validate_repo(REPO_ROOT) == []
+
+
 def test_retired_api_key_tail_is_exact_and_disjoint() -> None:
     """Append only the selected API-key pair while preserving the prior 130 names."""
     prior = RETIRED_LEGACY_PYTHON_BINDINGS[:130]
@@ -241,10 +247,10 @@ def test_retired_api_key_guard_rejects_canonical_reimport(
 def test_retired_api_key_reimport_fails_aggregate_guard(
     binding_name: str,
     same_name_alias: bool,
+    valid_repo_baseline: None,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Require both intended aggregate diagnostics after restoring one retired import."""
-    assert legacy_guard.validate_repo(REPO_ROOT) == []
     original_read = legacy_guard._read
     suffix = f" as {binding_name}" if same_name_alias else ""
 
@@ -358,10 +364,10 @@ def test_retired_rate_limit_guard_allows_canonical_and_local_mentions(binding_na
 
 
 def test_retired_rate_limit_restoration_fails_aggregate_guard(
+    valid_repo_baseline: None,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Reject whole-cohort restoration through the existing repository guard consumer."""
-    assert legacy_guard.validate_repo(REPO_ROOT) == []
     original_read = legacy_guard._read
 
     def read_with_restoration(path: Path, repo_root: Path, errors: list[str]) -> str | None:
@@ -453,9 +459,9 @@ def test_retired_lifecycle_access_guard_allows_canonical_and_local_mentions(
 
 
 def test_retired_lifecycle_access_restoration_fails_aggregate_guard(
+    valid_repo_baseline: None,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    assert legacy_guard.validate_repo(REPO_ROOT) == []
     original_read = legacy_guard._read
 
     def read_with_getter(path: Path, repo_root: Path, errors: list[str]) -> str | None:
@@ -640,13 +646,13 @@ def test_retired_metadata_error_guard_allows_canonical_and_harmless_mentions(
 
 
 def test_retired_metadata_error_reimport_fails_aggregate_guard(
+    valid_repo_baseline: None,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Scan one baseline and one isolated restoration for each selected binding."""
+    """Independently validate each restoration after the shared complete baseline."""
     sources = _openapi_ownership_sources()
     assert legacy_guard.validate_application_metadata_openapi_ownership(*sources) == []
     assert legacy_guard.validate_retired_legacy_python_bindings(sources[0]) == []
-    assert legacy_guard.validate_repo(REPO_ROOT) == []
     original_read = legacy_guard._read
     for binding_name in RETIRED_METADATA_ERROR_BINDINGS:
         canonical_module = (
@@ -1007,6 +1013,7 @@ def test_retired_openapi_guard_rejects_exact_canonical_reimport(
 
 
 def test_retired_openapi_reimport_fails_aggregate_guard(
+    valid_repo_baseline: None,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     original_read = legacy_guard._read
@@ -13090,12 +13097,12 @@ def test_retired_metadata_projection_guard_allows_canonical_and_harmless_mention
 
 
 def test_retired_metadata_projection_restoration_fails_aggregate_guard(
+    valid_repo_baseline: None,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     sources = _openapi_ownership_sources()
     assert legacy_guard.validate_application_metadata_openapi_ownership(*sources) == []
     assert legacy_guard.validate_retired_legacy_python_bindings(sources[0]) == []
-    assert legacy_guard.validate_repo(REPO_ROOT) == []
     original_read = legacy_guard._read
 
     def read_with_projection(path: Path, repo_root: Path, errors: list[str]) -> str | None:
