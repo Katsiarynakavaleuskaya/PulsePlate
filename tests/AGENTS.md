@@ -22,6 +22,12 @@
   at an earlier prerequisite is insufficient. When a prerequisite or admission
   boundary changes, recheck every case whose intended branch evidence was
   previously masked.
+  A non-autouse fixture with module scope, defined in the owning test module,
+  may share a real complete baseline through explicit dependencies before
+  mutation only within an unchanged input/rule lifetime. Baseline errors must
+  fail setup; every mutant still runs the real complete guard and proves its
+  independent cause. Changed inputs or rules require a fresh baseline, never
+  a cached validator verdict.
 - Temporary Git repositories must use `git_env_without_parent_state()` and
   `safe_git_config_args()` from `scripts/orchestration/creative_code_patch_workspace.py`
   for Git subprocesses. Pass the sanitized environment to tools such as
