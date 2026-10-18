@@ -43,9 +43,32 @@ from scripts.ci import prometheus_source_image as prometheus_image
 from scripts.ops import notify_premium_alias_checkpoint_failure as notifier
 
 ROOT = Path(__file__).resolve().parents[1]
-ALERTMANAGER_IMAGE = (
-    "prom/alertmanager@sha256:84967b9b7ba45e38a9278d3e594305f43d4993c310df3905b51138b816c365f3"
-)
+ALERTMANAGER_IMAGE = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:bc6c847d25e48a8bcddfd8fef0aec25b6ac890346b4bfe6dea3d2d82cd0dc3b9"
+# Frozen native UI oracle from accepted C10; ordinary checks do not depend on artifact expiry.
+_ACCEPTED_AM_UI = {
+    ".build_stamp": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "assets/fontawesome-webfont-B-jkhYfk.woff2": "2adefcbc041e7d18fcf2d417879dc5a09997aa64d675b7a3c4b6ce33da13f3fe",
+    "assets/fontawesome-webfont-CDK5bt4p.woff": "ba0c59deb5450f5cb41b3f93609ee2d0d995415877ddfa223e8a8a7533474f07",
+    "assets/fontawesome-webfont-CQDK8MU3.ttf.br": "8048e9ede4a9dd536e8cca75e8b2340f2a055722aef030caa417c36f32cd9b5a",
+    "assets/fontawesome-webfont-CQDK8MU3.ttf.gz": "7c613ddd2cde1e1298d41aae563fd71bcb886773df60bca980a13d89988f4d4b",
+    "assets/fontawesome-webfont-D13rzr4g.svg.br": "c2df316d94b864d726fbf995ab04b5096e33669f8d48ebc345db50023f4e5b75",
+    "assets/fontawesome-webfont-D13rzr4g.svg.gz": "64ad34590af0fb6b10b587e156e0935c0c6ab6fbd8b13ceba233ec9432dcf2e4",
+    "assets/fontawesome-webfont-G5YE5S7X.eot.br": "dd9a61283fd3a0f543f95c9778e31775e10160ba567c4f0abcbe4b5d233a049c",
+    "assets/fontawesome-webfont-G5YE5S7X.eot.gz": "5e6b26dbf1f3c59d60ac9731778d1dc0826b9001b8fd262cb477dc08b61832f2",
+    "assets/index-OLfEAnkS.css.br": "61866ae189af1a140fe04ad24de882e010ac28fce4458a5c45072371d862ce9f",
+    "assets/index-OLfEAnkS.css.gz": "c2df3900c65ec13f4a6d62bff90200da87aa2c4b0cf3856835478197e3004b22",
+    "assets/index-aNRKuvMz.js.br": "71fbfb3fbf1810902e546e6dd1436eea9149e7b330b70dc99cebde94a5ff0501",
+    "assets/index-aNRKuvMz.js.gz": "be05a4f9d5eaf190f27bf5b268c311103281b8cb32a54caa918807ab00a43a8f",
+    "favicon.ico.br": "b3761d089558180bb068354cb7f2f72aa055d4a442b0362820021ae6b7c93cd5",
+    "favicon.ico.gz": "0449fc08a09431cb4d78805a820a0a121803e08a33389ba83a12206664799bfb",
+    "index.html.br": "d5c8902b247bb34a39cadc6538e5bf04416b52a1a26f44cdad36e58e8c080757",
+    "index.html.gz": "cda9f8f59ab3194a9e16416887800e7f6d99bb69e167e5db9f3963fd91b1257d",
+}
+_ACCEPTED_AM_BINARIES = {
+    "alertmanager": "08778bcb751b4ccdf1727701cb5af5cdfaae3f0cc122d697a49792a987c56f6b",
+    "amtool": "5cfcb4a40897f2095339284989b563e144bc8ed2e827493e47cb9083202c89b4",
+}
+
 SYSTEMD_UNIT_DIRECTORY = Path("/run/systemd/system")
 _AM_NATIVE_DOCKER_CONFIG: Path | None = None
 RUNBOOK_URL = (
@@ -517,6 +540,7 @@ def _native(
     cwd: Path | None = None,
     binary: bool = False,
 ) -> subprocess.CompletedProcess[str]:
+    """Run one bounded secret-free fixture child and retain its actual exit and diagnostics."""
     resolved = shutil.which(argv[0])
     assert resolved is not None and os.path.isabs(resolved), f"native binary missing: {argv[0]}"
     environment = {
@@ -1829,6 +1853,7 @@ def _native_alertmanager(
 
         class Handler(StreamRequestHandler):
             def handle(self) -> None:
+                """Receive bounded synthetic SMTP, retaining AUTH/DATA absence for TLS negatives."""
                 self.wfile.write(b"220 synthetic fixture\r\n")
                 while True:
                     line = self.rfile.readline(4097)
@@ -1865,6 +1890,7 @@ def _native_alertmanager(
             daemon_threads = True
 
             def get_request(self) -> tuple[socket.socket, tuple[str, int]]:
+                """Wrap implicit TLS except the deliberately plaintext rejection control."""
                 sock, address = super().get_request()
                 sock.settimeout(10)
                 return (
@@ -2295,6 +2321,7 @@ def _native_alertmanager_candidate(
     (document / "index.html").chmod(0o444)
 
     def request(path: str) -> tuple[bytes, dict[str, str]]:
+        """Require a complete bounded local HTTP200 response without ambient proxies."""
         with build_opener(ProxyHandler({})).open(
             Request("http://127.0.0.1:19095" + path, headers={"Accept-Encoding": "gzip"}),
             timeout=10,
@@ -2305,6 +2332,7 @@ def _native_alertmanager_candidate(
             return raw, dict(response.headers)
 
     def ready() -> None:
+        """Prove the actual same-container wget readiness within one nonrenewed deadline."""
         deadline = time.monotonic() + 30
         while time.monotonic() < deadline:
             result = _native(
@@ -2328,6 +2356,7 @@ def _native_alertmanager_candidate(
         raise AssertionError("owned candidate readiness did not complete within30s")
 
     def archive(path: str) -> list[tuple[tarfile.TarInfo, bytes]]:
+        """Decode actual Docker-copy tar data, preserving every regular/directory member."""
         raw = base64.b64decode(
             _native(["docker", "cp", cid + ":" + path, "-"], binary=True).stdout, validate=True
         )
@@ -2420,7 +2449,17 @@ def _native_alertmanager_candidate(
         ca = archive("/etc/ssl/certs/ca-certificates.crt")
         assert len(ca) == 1 and hashlib.sha256(ca[0][1]).hexdigest() == graph["default_CA_sha256"]
         root, headers = request("/")
-        ui = evidence["UI_file_hashes"]
+        ui = evidence.get("UI_file_hashes")
+        if ui is None:
+            # Original acceptance and present binary hashes bind this durable fixture oracle.
+            assert (
+                image == "sha256:46928bb4d3eac8b7bd9d8516a9427c3ec684244fc5f74260324e0acb6bcea9d4"
+            )
+            assert graph["manifest"]["digest"] == ALERTMANAGER_IMAGE.split("@", 1)[1]
+            assert all(
+                files["usr/bin/" + name] == digest for name, digest in _ACCEPTED_AM_BINARIES.items()
+            )
+            ui = _ACCEPTED_AM_UI
         assert isinstance(ui, dict)
         assert (
             headers.get("Content-Encoding") == "gzip"
@@ -2717,6 +2756,7 @@ def _native_alertmanager_local_tls(directory: Path, image: str) -> None:
 
     class Handler(BaseHTTPRequestHandler):
         def do_GET(self) -> None:
+            """Count only a successful TLS HTTP request reaching the synthetic endpoint."""
             hits.append(self.path)
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
@@ -2724,6 +2764,7 @@ def _native_alertmanager_local_tls(directory: Path, image: str) -> None:
             self.wfile.write(b"[]")
 
         def log_message(self, format: str, *args: object) -> None:
+            """Keep the fixed synthetic HTTP response from generating unrelated server logs."""
             del format, args
 
     for case in ("matching", "untrusted", "hostname", "plaintext"):
@@ -2824,6 +2865,132 @@ def _native_alertmanager_local_tls(directory: Path, image: str) -> None:
     print("native_AM_local_TLS_SAN_and_protocol=pass", flush=True)
 
 
+def _native_alertmanager_compose_context(directory: Path) -> None:
+    """Render actual templates with synthetic installed context and no daemon or images."""
+    from scripts.ci import fetch_docker_source_artifacts as source
+
+    fixture = directory / "am-compose-context"
+    fixture.mkdir(mode=0o700)
+    installed = fixture / "installed/deploy"
+    incoming = fixture / "payload/deploy"
+    installed.mkdir(parents=True, mode=0o700)
+    incoming.mkdir(parents=True, mode=0o700)
+    (incoming / "alertmanager").mkdir(mode=0o700)
+    for name in ("alertmanager.yml", "trivy-ignore.yaml"):
+        (incoming / "alertmanager" / name).write_bytes(
+            (ROOT / "deploy/alertmanager" / name).read_bytes()
+        )
+    private_config = fixture / "empty-docker-config"
+    private_config.mkdir(mode=0o700)
+    configuration: dict[str, object] = {"auths": {}}
+    if sys.platform == "darwin":
+        # Use only the already-installed Docker Desktop plugin; no user config is read.
+        configuration["cliPluginsExtraDirs"] = [
+            "/Applications/Docker.app/Contents/Resources/cli-plugins"
+        ]
+    (private_config / "config.json").write_text(json.dumps(configuration))
+    socket_path = fixture / "absent-docker.sock"
+    assert not socket_path.exists()
+    env_file = fixture / "synthetic-server.env"
+    synthetic = "ghcr.io/pulseplate/configuration-only@sha256:" + "1" * 64
+    inputs = {
+        "IMAGE_REF": synthetic,
+        "STAGING_IMAGE_REF": synthetic,
+        "STAGING_CADDY_IMAGE_REF": synthetic,
+        "PROMETHEUS_RUNTIME_REF": synthetic,
+        "STAGING_ENV_FILE": str(installed / ".env"),
+        "POSTGRES_USER": "synthetic",
+        "POSTGRES_DB": "synthetic",
+        "POSTGRES_PASSWORD": "synthetic",
+        "DATABASE_URL": "postgresql://synthetic:synthetic@database.invalid/synthetic",
+        "STAGING_DOMAIN": "staging.invalid",
+        "PRODUCTION_DOMAIN": "production.invalid",
+        "STAGING_FALLBACK_DOMAIN": "staging.invalid",
+    }
+    env_file.write_text("".join(f"{key}={value}\n" for key, value in inputs.items()))
+    prefix = [
+        "docker",
+        "--config",
+        str(private_config),
+        "--host",
+        "unix://" + str(socket_path),
+        "compose",
+        "--env-file",
+        str(env_file),
+    ]
+    with pytest.MonkeyPatch.context() as runtime:
+        runtime.setattr(sys.modules[__name__], "_AM_NATIVE_DOCKER_CONFIG", private_config)
+        for name in (
+            "docker-compose.staging.yaml",
+            "docker-compose.production.yaml",
+            "docker-compose.production.selfhosted.yaml",
+        ):
+            original = (ROOT / "deploy" / name).read_bytes()
+            compose = incoming / name
+            compose.write_bytes(original)
+            installed_compose = installed / name
+            installed_compose.write_bytes(original)
+            contour = "staging" if "staging" in name else "production"
+            # First prove the incumbent CI-owned empty-env context for every real template.
+            (incoming / ".env").write_bytes(b"")
+            (installed / ".env").write_bytes(b"")
+            contexts = (incoming,) if contour == "staging" else (incoming, installed)
+            for project in contexts:
+                inputs["STAGING_ENV_FILE"] = str(project / ".env")
+                env_file.write_text("".join(f"{key}={value}\n" for key, value in inputs.items()))
+                if project == installed:
+                    (incoming / ".env").unlink()
+                argv = [
+                    *prefix,
+                    "--project-directory",
+                    str(project),
+                    "-f",
+                    str(compose),
+                    "--profile",
+                    "*",
+                    "config",
+                    "--format",
+                    "json",
+                ]
+                result = _native(argv, cwd=fixture, check=False, timeout=8)
+                assert result.returncode == 0, result.stderr
+                actual = source._alertmanager_contract_json(result.stdout.encode())
+                assert (
+                    source._alertmanager_contract_candidate(
+                        actual,
+                        compose,
+                        incoming / "alertmanager/alertmanager.yml",
+                        incoming / "alertmanager/trivy-ignore.yaml",
+                        contour,
+                        installed_compose=project / name,
+                    )
+                    == "accepted"
+                )
+                assert compose.read_bytes() == original
+                assert not (installed / "alertmanager").exists()
+                if project == installed:
+                    assert not (incoming / ".env").exists()
+                    # --env-file cannot substitute for the service's installed relative .env.
+                    (installed / ".env").unlink()
+                    missing_service_env = _native(argv, cwd=fixture, check=False, timeout=8)
+                    assert missing_service_env.returncode != 0
+                    assert str(installed / ".env") in missing_service_env.stderr
+                    (installed / ".env").write_bytes(b"")
+                    env_file.rename(fixture / "held-synthetic-server.env")
+                    try:
+                        missing_explicit_env = _native(argv, cwd=fixture, check=False, timeout=8)
+                        assert missing_explicit_env.returncode != 0
+                        assert str(env_file) in missing_explicit_env.stderr
+                    finally:
+                        (fixture / "held-synthetic-server.env").rename(env_file)
+                    assert not (incoming / ".env").exists()
+                print(
+                    "native_AM_compose_context=" + name + ":" + project.parent.name + "=pass",
+                    flush=True,
+                )
+    assert not socket_path.exists()
+
+
 def native_alertmanager_main(
     image_id: str, config_sha256: str, observation: Path | None = None
 ) -> None:
@@ -2919,6 +3086,7 @@ def native_alertmanager_main(
                 "/etc/alertmanager/alertmanager.yml",
             ]
         )
+        _native_alertmanager_compose_context(directory)
         failures = []
         if observation is not None:
             assert (
@@ -2957,7 +3125,13 @@ def native_alertmanager_main(
     )
 
 
-def native_main() -> None:
+def native_main(alertmanager_image_id: str, alertmanager_config_sha256: str) -> None:
+    """Run every existing generic control with explicit same-runner AM identity after preparation."""
+    assert re.fullmatch(r"sha256:[0-9a-f]{64}", alertmanager_image_id)
+    assert (
+        alertmanager_config_sha256
+        == hashlib.sha256((ROOT / "deploy/alertmanager/alertmanager.yml").read_bytes()).hexdigest()
+    )
     selection = prometheus_image.read_image_manifest(ROOT / prometheus_image.MANIFEST_PATH)[
         "selection"
     ]
@@ -2967,15 +3141,38 @@ def native_main() -> None:
         _native(["docker", "image", "inspect", "--format", "{{json .}}", image_id]).stdout.encode()
     )
     prometheus_image.native_image_contract(image, selection, local=True)
-    with tempfile.TemporaryDirectory(prefix="pulseplate-obs2a-native-") as raw:
+    with (
+        tempfile.TemporaryDirectory(prefix="pulseplate-obs2a-native-") as raw,
+        pytest.MonkeyPatch.context() as runtime,
+    ):
         directory = Path(raw)
+        private_config = directory / "empty-docker-config"
+        private_config.mkdir(mode=0o700)
+        runtime.setattr(sys.modules[__name__], "_AM_NATIVE_DOCKER_CONFIG", private_config)
+        actual_am = prometheus_image.one_object(
+            _native(
+                ["docker", "image", "inspect", "--format", "{{json .}}", alertmanager_image_id]
+            ).stdout.encode()
+        )
+        assert (
+            actual_am.get("Id") == alertmanager_image_id
+            and actual_am.get("Os") == "linux"
+            and actual_am.get("Architecture") == "amd64"
+            and actual_am.get("Config", {}).get("User") == "65534:65534"
+        )
         failures: list[str] = []
         for name, check in (
             ("compose_configuration", _native_compose_configuration),
             ("systemd", _native_systemd),
             ("query_lifetime", lambda directory: _native_query_lifetime(directory, image_id)),
-            ("amtool_lifetime", _native_amtool_lifetime),
-            ("alertmanager", _native_alertmanager),
+            (
+                "amtool_lifetime",
+                lambda directory: _native_amtool_lifetime(directory, alertmanager_image_id),
+            ),
+            (
+                "alertmanager",
+                lambda directory: _native_alertmanager(directory, alertmanager_image_id),
+            ),
         ):
             try:
                 check(directory)
@@ -3019,11 +3216,19 @@ def test_alertmanager_only_native_entry_binds_local_identity_before_fixtures_wit
         assert directory.is_dir() and image == image_id and independent is True
         calls.append("amtool-lifetime")
 
+    def compose_context(directory: Path) -> None:
+        assert directory.is_dir()
+        assert isinstance(calls[-1], list) and "check-config" in calls[-1]
+        calls.append("compose-context")
+
     def smtp(directory: Path, image: str) -> None:
         assert directory.is_dir() and image == image_id
         calls.append("smtp-lifecycle")
 
     monkeypatch.setattr(sys.modules[__name__], "_native", native)
+    monkeypatch.setattr(
+        sys.modules[__name__], "_native_alertmanager_compose_context", compose_context
+    )
     monkeypatch.setattr(sys.modules[__name__], "_native_amtool_lifetime", lifetime)
     monkeypatch.setattr(sys.modules[__name__], "_native_alertmanager", smtp)
     if fault:
@@ -3032,12 +3237,14 @@ def test_alertmanager_only_native_entry_binds_local_identity_before_fixtures_wit
                 "latest" if fault == "image" else image_id,
                 "f" * 64 if fault == "config" else config_hash,
             )
-        assert "amtool-lifetime" not in calls and "smtp-lifecycle" not in calls
+        assert not any(
+            phase in calls for phase in ("compose-context", "amtool-lifetime", "smtp-lifecycle")
+        )
     else:
         native_alertmanager_main(image_id, config_hash)
-        assert calls[-2:] == ["amtool-lifetime", "smtp-lifecycle"]
+        assert calls[-3:] == ["compose-context", "amtool-lifetime", "smtp-lifecycle"]
         assert any(isinstance(argv, list) and "check-config" in argv for argv in calls)
-        assert ALERTMANAGER_IMAGE.startswith("prom/alertmanager@sha256:")
+        assert ALERTMANAGER_IMAGE.startswith("ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:")
 
 
 @pytest.mark.parametrize(
@@ -3126,6 +3333,10 @@ def _checkpoint_prometheus_fixture(
     path.parent.mkdir(parents=True)
     path.write_text(json.dumps(_synthetic_prometheus_manifest()))
     (root / "Dockerfile").write_bytes((ROOT / "Dockerfile").read_bytes())
+    (root / "deploy/alertmanager").mkdir(parents=True, exist_ok=True)
+    (root / "deploy/alertmanager/alertmanager.yml").write_bytes(
+        (ROOT / "deploy/alertmanager/alertmanager.yml").read_bytes()
+    )
     selection = prometheus_image.read_image_manifest(path)["selection"]
     image = {
         "Id": selection["config_digest"],
@@ -3223,7 +3434,12 @@ def test_checkpoint_prepared_activation_rejects_before_effects(
     with pytest.raises(
         prometheus_image.QualificationError, match="^source_prepared_not_consumable$"
     ):
-        native_main()
+        native_main(
+            "sha256:" + "6" * 64,
+            hashlib.sha256(
+                (ROOT / "deploy/alertmanager/alertmanager.yml").read_bytes()
+            ).hexdigest(),
+        )
 
 
 @pytest.mark.parametrize("fault", ["config-id", "platform", "diff-ids", "runtime-user"])
@@ -3264,7 +3480,12 @@ def test_checkpoint_loaded_image_contract_rejects_before_controls(
         else "consumer_native_config_layers"
     )
     with pytest.raises(prometheus_image.QualificationError, match="^" + diagnostic + "$"):
-        native_main()
+        native_main(
+            "sha256:" + "6" * 64,
+            hashlib.sha256(
+                (ROOT / "deploy/alertmanager/alertmanager.yml").read_bytes()
+            ).hexdigest(),
+        )
     assert len(observed) == 1
 
 
@@ -3278,7 +3499,21 @@ def test_checkpoint_native_main_selects_original_model_configuration_control(
     monkeypatch.setattr(
         sys.modules[__name__],
         "_native",
-        lambda argv: subprocess.CompletedProcess(argv, 0, json.dumps(image), ""),
+        lambda argv: subprocess.CompletedProcess(
+            argv,
+            0,
+            json.dumps(
+                image
+                if argv[-1] == selection["config_digest"]
+                else {
+                    "Id": "sha256:" + "6" * 64,
+                    "Os": "linux",
+                    "Architecture": "amd64",
+                    "Config": {"User": "65534:65534"},
+                }
+            ),
+            "",
+        ),
     )
     for name in (
         "_native_compose_configuration",
@@ -3296,9 +3531,14 @@ def test_checkpoint_native_main_selects_original_model_configuration_control(
             monkeypatch.setattr(sys.modules[__name__], name, query)
         else:
             monkeypatch.setattr(
-                sys.modules[__name__], name, lambda directory, selected=name: calls.append(selected)
+                sys.modules[__name__],
+                name,
+                lambda directory, *args, selected=name: calls.append(selected),
             )
-    native_main()
+    native_main(
+        "sha256:" + "6" * 64,
+        hashlib.sha256((ROOT / "deploy/alertmanager/alertmanager.yml").read_bytes()).hexdigest(),
+    )
     assert calls == [
         "_native_compose_configuration",
         "_native_systemd",
@@ -4105,7 +4345,13 @@ def _native_cli(argv: list[str] | None = None) -> None:
             )
         )
     elif args.native:
-        native_main()
+        if (
+            not args.alertmanager_image_id
+            or not args.alertmanager_config_sha256
+            or args.alertmanager_observation is not None
+        ):
+            parser.error("generic native requires the exact local AM image/config pair")
+        native_main(args.alertmanager_image_id, args.alertmanager_config_sha256)
     elif args.query_container:
         from scripts import verify_premium_alias_telemetry as verifier
 
@@ -4862,6 +5108,11 @@ def test_alertmanager_full_native_entry_checks_both_real_stamped_version_outputs
         return subprocess.CompletedProcess(argv, 0, "configuration valid", "")
 
     monkeypatch.setattr(sys.modules[__name__], "_native", native)
+    monkeypatch.setattr(
+        sys.modules[__name__],
+        "_native_alertmanager_compose_context",
+        lambda *a: calls.append("compose-context"),
+    )
     monkeypatch.setattr(sys.modules[__name__], "_native_alertmanager_candidate", lambda *a: None)
     monkeypatch.setattr(sys.modules[__name__], "_native_alertmanager_local_tls", lambda *a: None)
     monkeypatch.setattr(sys.modules[__name__], "_native_amtool_lifetime", lambda *a, **k: None)
@@ -4878,7 +5129,7 @@ def test_alertmanager_full_native_entry_checks_both_real_stamped_version_outputs
         native_alertmanager_main(
             image, "5dc1025c293763618febeb74c17edcb126ad943f9b20c2296c67847e9f977549", observation
         )
-        assert calls == ["alertmanager", "amtool"]
+        assert calls == ["alertmanager", "amtool", "compose-context"]
     assert _AM_NATIVE_DOCKER_CONFIG is None
 
 
@@ -5848,6 +6099,9 @@ def test_alertmanager_global_interrupt_bypasses_real_fixture_aggregate(
             seen.append("cleanup")
 
     monkeypatch.setattr(sys.modules[__name__], "_native", native)
+    monkeypatch.setattr(
+        sys.modules[__name__], "_native_alertmanager_compose_context", lambda *a: None
+    )
     monkeypatch.setattr(sys.modules[__name__], "_native_alertmanager_candidate", lambda *a: None)
     monkeypatch.setattr(sys.modules[__name__], "_native_alertmanager_local_tls", lambda *a: None)
     monkeypatch.setattr(sys.modules[__name__], "_native_amtool_lifetime", lifetime)
@@ -6044,3 +6298,79 @@ def test_alertmanager_failure_metadata_output_error_is_secondary(
         "private-primary-prose" not in value and "private-diagnostic-write" not in value
         for value in writes
     )
+
+
+@pytest.mark.parametrize(
+    "fault",
+    [None, "mount", "secret", "service-env-accepted", "explicit-env-accepted", "positive-rejected"],
+)
+def test_alertmanager_native_compose_context_keeps_real_owner_and_closed_native_arguments(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fault: str | None
+) -> None:
+    from tests.test_deploy_contract_scripts import (
+        FAKE_PROMETHEUS_COMPOSE_JSON,
+        _staging_compose_fixture_json,
+    )
+
+    calls: list[list[str]] = []
+    monkeypatch.setattr(sys, "platform", "linux")
+
+    def native(
+        argv: list[str], *, cwd: Path, check: bool, timeout: float
+    ) -> subprocess.CompletedProcess[str]:
+        assert not check and timeout == 8
+        assert argv[:2] == ["docker", "--config"] and argv[3] == "--host"
+        assert argv[5:7] == ["compose", "--env-file"]
+        assert argv[8] == "--project-directory" and argv[10] == "-f"
+        assert argv[12:] == ["--profile", "*", "config", "--format", "json"]
+        assert json.loads((Path(argv[2]) / "config.json").read_text()) == {"auths": {}}
+        assert not Path(argv[4].removeprefix("unix://")).exists()
+        env_file, project, compose = Path(argv[7]), Path(argv[9]), Path(argv[11])
+        assert compose.read_bytes() == (ROOT / "deploy" / compose.name).read_bytes()
+        assert project.parent.parent == cwd and compose.parent.parent.name == "payload"
+        calls.append(argv)
+        if not env_file.exists():
+            return subprocess.CompletedProcess(
+                argv, 0 if fault == "explicit-env-accepted" else 1, "", str(env_file)
+            )
+        assert "POSTGRES_PASSWORD=synthetic\n" in env_file.read_text()
+        assert "STAGING_ENV_FILE=" + str(project / ".env") + "\n" in env_file.read_text()
+        if project.parent.name == "installed":
+            assert not (compose.parent / ".env").exists()
+        if not (project / ".env").exists():
+            return subprocess.CompletedProcess(
+                argv, 0 if fault == "service-env-accepted" else 1, "", str(project / ".env")
+            )
+        model = json.loads(
+            _staging_compose_fixture_json(project)
+            if "staging" in compose.name
+            else FAKE_PROMETHEUS_COMPOSE_JSON
+        )
+        model["services"]["alertmanager"]["volumes"] = [
+            {
+                "type": "bind",
+                "source": str(
+                    (cwd if fault == "mount" else project) / "alertmanager/alertmanager.yml"
+                ),
+                "target": "/etc/alertmanager/alertmanager.yml",
+                "read_only": True,
+            }
+        ]
+        model["secrets"]["alertmanager_smtp_key"]["file"] = str(
+            (cwd if fault == "secret" else project) / "secrets/alertmanager_smtp_key"
+        )
+        return subprocess.CompletedProcess(
+            argv,
+            1 if fault == "positive-rejected" else 0,
+            json.dumps(model),
+            "synthetic native output",
+        )
+
+    monkeypatch.setattr(sys.modules[__name__], "_native", native)
+    if fault:
+        with pytest.raises((AssertionError, SystemExit)):
+            _native_alertmanager_compose_context(tmp_path)
+    else:
+        _native_alertmanager_compose_context(tmp_path)
+        assert len(calls) == 9
+    assert _AM_NATIVE_DOCKER_CONFIG is None

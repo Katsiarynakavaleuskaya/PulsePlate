@@ -87,8 +87,10 @@ the host loaded the new rules.
 ### Optional Alertmanager email routing (OBS2A PR2)
 
 The three Compose contours declare the `alerting` profile, which remains off
-for ordinary app and metrics startup. Its official Alertmanager v0.34.1
-linux/amd64 image is pinned by platform digest in the Compose files. The
+for ordinary app and metrics startup. The accepted Alertmanager v0.34.1 source
+build uses Go 1.27.2, x/net 0.60.0 and gRPC 1.83.2; its linux/amd64 manifest
+is pinned in all three Compose files. Publication and deployment are separate
+observations from accepted retained candidate bytes. The
 service has no host port or Caddy route, runs as UID 65534 with a read-only
 root, dropped capabilities, a 16 MiB temporary store, and no cluster listener.
 Prometheus and Alertmanager share only the internal `alerting` network;
@@ -136,9 +138,13 @@ UID 65534 read the key without granting the app or Prometheus the mount.
 Create a Resend Free account, verify only `alerts.pulseplate.app`, and place
 the separate SMTP key directly on the host; never place its value in Git,
 logs, chat or Drive. Repository merge does not create the key or select the
-profile. The exception for the exact bundled gRPC finding is recorded in
-`docs/security/CVE-2026-84445-alertmanager.md`; a suppressed scan is not a
-clean scan.
+profile. The obsolete four-CVE policy is removed; its exact file contains only
+`vulnerabilities: []`. The original cohort, accepted native candidate and pending
+publication evidence are recorded in `docs/security/CVE-2026-84445-alertmanager.md`.
+Both deploy readers inspect the installed project's actual running image even
+when alerting is off. Selected or proven-running old vulnerable bytes reject at
+2026-10-21 00:00 UTC, including selected-new/running-old transitions; missing or
+ambiguous identity remains HOLD. This check does not stop a running monitor.
 
 Keep `MERGED_REPO`, `MAIN_VERIFIED`, `HOST_ACTIVATED`, received Prometheus
 email, received checkpoint-failure email and scheduled checkpoint as separate

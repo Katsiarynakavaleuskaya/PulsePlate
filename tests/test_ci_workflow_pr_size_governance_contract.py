@@ -1153,8 +1153,8 @@ def test_all_active_checkout_uses_have_one_exact_v7_pin() -> None:
         ".github/workflows/security.yml",
         ".github/workflows/trivy.yml",
     }
-    # The 95 existing checkout sites gain four Alertmanager job checkouts.
-    assert len(observed_checkout_uses) == 99
+    # The original95 plus four AM jobs and four actual PR controller-use sites.
+    assert len(observed_checkout_uses) == 103
     assert {path for path, _ in observed_checkout_uses} == expected_checkout_workflows
 
 
@@ -6325,6 +6325,7 @@ def test_ci_lint_restores_workflow_sha_before_pr_python_startup() -> None:
     restore = _job_step_by_name(workflow, job_id="lint", step_name="Restore lint workflow revision")
     assert restore == {
         "name": "Restore lint workflow revision",
+        "timeout-minutes": 2,
         "if": "github.event_name == 'pull_request'",
         "uses": f"actions/checkout@{CHECKOUT_V7_SHA}",
         "with": {
@@ -6443,6 +6444,10 @@ def _assert_ci_lint_node24_frontend_hook_dependency_contract(
     assert lint_job["env"] == {
         "PROMETHEUS_CONSUME_SECONDS": "900",
         "PROMETHEUS_CLEANUP_SECONDS": "120",
+        "ALERTMANAGER_JOB_TIMEOUT_MINUTES": "${{ fromJSON(vars.CI_LINT_TIMEOUT_MINUTES || '170') }}",
+        "ALERTMANAGER_CALLER_KIND": "ci-lint",
+        "ALERTMANAGER_GENERIC_NATIVE_MINUTES": "${{ vars.OBS2A_NATIVE_JOB_TIMEOUT_MINUTES || '40' }}",
+        "ALERTMANAGER_LINT_CHECK_MINUTES": "${{ vars.CI_LINT_CHECKS_TIMEOUT_MINUTES || '40' }}",
     }
     assert "environment" not in lint_job, "ci_lint_reader_environment"
     for forbidden_key in (
@@ -6468,6 +6473,7 @@ def _assert_ci_lint_node24_frontend_hook_dependency_contract(
     checkout_step = unique_step("Checkout")
     assert checkout_step == {
         "name": "Checkout",
+        "timeout-minutes": 1,
         "uses": f"actions/checkout@{CHECKOUT_V7_SHA}",
         "with": {
             "fetch-depth": 0,
@@ -6479,6 +6485,7 @@ def _assert_ci_lint_node24_frontend_hook_dependency_contract(
     setup_node_step = unique_step("Setup Node.js")
     assert setup_node_step == {
         "name": "Setup Node.js",
+        "timeout-minutes": 3,
         "uses": f"actions/setup-node@{SETUP_NODE_NODE24_SHA}",
         "with": {
             "node-version-file": "${{ env.FRONTEND_NODE_VERSION_FILE }}",
@@ -6494,13 +6501,14 @@ def _assert_ci_lint_node24_frontend_hook_dependency_contract(
     install_step = install_steps[0]
     assert install_step == {
         "uses": "./.github/actions/npm-ci-with-retry",
+        "timeout-minutes": 6,
         "with": {"working-directory": "frontend"},
     }
 
     pre_commit_step = unique_step("Pre-commit (lint/format/security quick checks)")
     assert pre_commit_step == {
         "name": "Pre-commit (lint/format/security quick checks)",
-        "timeout-minutes": "${{ fromJSON(vars.CI_LINT_CHECKS_TIMEOUT_MINUTES || '40') }}",
+        "timeout-minutes": "${{ fromJSON(env.ALERTMANAGER_LINT_CHECK_MINUTES) }}",
         "run": "pre-commit run --all-files --show-diff-on-failure",
         "env": {"SKIP": "no-commit-to-branch"},
     }

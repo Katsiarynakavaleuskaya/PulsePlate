@@ -420,8 +420,14 @@ boundary. A `CURRENT` finding fails its corresponding gate now; fix the bounded
 cause before readiness. Applicable upstream fixes call for remediation and
 proven suppression retirement, not blind date extension. Review source/removal
 triggers weekly. Forecast output does not replace native build/scanner proof,
-current-head CI or human merge authority. The independent Alertmanager exception
-retains its own expiry (`deploy/alertmanager/trivy-ignore.yaml:5`).
+current-head CI or human merge authority. Alertmanager's obsolete policy is now
+exactly `vulnerabilities: []` (`deploy/alertmanager/trivy-ignore.yaml:1`). The old
+vulnerable selected or running subject still rejects at October 21 00:00 UTC;
+unknown identity is HOLD. Retained native/scanner evidence is accepted; publication
+and immutable pullback remain pending. Their canonical evidence owner is
+`docs/security/CVE-2026-84445-alertmanager.md`.
+An unsuccessful current scan or missing publication proof is never repaired by
+rebuilding, re-enabling the old exception or automatically stopping monitoring.
 
 For PR builds, native Trivy policy controls follow the pinned image scan and
 precede report validation (`.github/workflows/build.yml:183`). Byte-bind the

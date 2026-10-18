@@ -3260,11 +3260,20 @@ def test_alertmanager_bootstrap_is_isolated_guarded_and_precedes_all_host_effect
     assert setup["with"] == {"python-version": "3.13.14", "skip-base-install": "true"}
     install = _step_by_name(job, "Install isolated AM host tools through the locked owner")
     smoke = _step_by_name(job, "Verify isolated AM host import capability before effects")
-    driver = next(
-        step
-        for step in job["steps"]
-        if "--artifact alertmanager --alertmanager-stage" in step.get("run", "")
+    driver = (
+        _step_by_name(job, "Run full accepted AM native controls on this runner")
+        if job_name == "alertmanager-retained-candidate"
+        else next(
+            step
+            for step in job["steps"]
+            if "--artifact alertmanager --alertmanager-stage" in step.get("run", "")
+        )
     )
+    if job_name == "alertmanager-retained-candidate":
+        preparation = _step_by_name(job, "Prepare exact AM subject before material execution")
+        assert _step_index(job, preparation["name"]) < _step_index(job, setup["name"])
+        assert "python3 -E -s -S -m" in preparation["run"]
+        assert "--alertmanager-prepare-only" in preparation["run"]
     assert (
         _step_index(job, "Validate existing credential-free AM native Python proxy")
         < _step_index(job, setup["name"])
@@ -3274,7 +3283,11 @@ def test_alertmanager_bootstrap_is_isolated_guarded_and_precedes_all_host_effect
     )
     assert smoke["id"] == "am-python"
     assert "GITHUB_OUTPUT" not in install["run"]
-    assert driver["env"]["AM_HOST_PYTHON"] == "${{ steps.am-python.outputs.python }}"
+    if job_name == "alertmanager-retained-candidate":
+        assert 'native_python="${{ steps.am-python.outputs.python }}"' in driver["run"]
+        assert "/usr/bin/env -i" in driver["run"]
+    else:
+        assert driver["env"]["AM_HOST_PYTHON"] == "${{ steps.am-python.outputs.python }}"
     for step in (setup, install):
         assert step["env"]["PULSEPLATE_PYTHON_INDEX_URL"] == (
             "${{ vars.PULSEPLATE_PYTHON_INDEX_URL }}"
@@ -3283,7 +3296,11 @@ def test_alertmanager_bootstrap_is_isolated_guarded_and_precedes_all_host_effect
             "${{ vars.PULSEPLATE_PYTHON_TRUSTED_HOST }}"
         )
         assert step["env"]["DEVPI_CI_USER"] == step["env"]["DEVPI_CI_PASSWORD"] == ""
-    for step in (install, smoke, driver):
+    for step in (
+        (install, smoke)
+        if job_name == "alertmanager-retained-candidate"
+        else (install, smoke, driver)
+    ):
         assert step["env"]["PYTHONHOME"] == step["env"]["PYTHONPATH"] == ""
         assert step["env"]["PYTHONNOUSERSITE"] == "1"
         assert "HOME" not in step["env"] and "PATH" not in step["env"]
@@ -3376,7 +3393,13 @@ def test_alertmanager_bootstrap_is_isolated_guarded_and_precedes_all_host_effect
     assert smoke["run"].index(help_call) < smoke["run"].index(
         'printf \'python=%s\\n\' "$am_python" >> "$GITHUB_OUTPUT"'
     )
-    assert '"$AM_HOST_PYTHON" -m scripts.ci.fetch_docker_source_artifacts' in driver["run"]
+    if job_name != "alertmanager-retained-candidate":
+        assert '"$AM_HOST_PYTHON" -m scripts.ci.fetch_docker_source_artifacts' in driver["run"]
+    else:
+        assert (
+            '"$native_python" -m tests.test_notify_premium_alias_checkpoint_failure --native-alertmanager'
+            in driver["run"]
+        )
     assert '"$AM_HOST_PYTHON" -I' not in driver["run"]
     for step in (install, smoke):
         for forbidden in (
@@ -3407,7 +3430,7 @@ def test_alertmanager_bootstrap_has_one_aggregate_setup_budget() -> None:
     )
     for name, cap in (
         ("alertmanager-candidate-build", 140),
-        ("alertmanager-retained-candidate", 75),
+        ("alertmanager-retained-candidate", 80),
         ("alertmanager-main-publication", 110),
     ):
         job = workflow["jobs"][name]
@@ -4231,7 +4254,7 @@ def alertmanager_retained_files(
     monkeypatch.setattr(
         docker_sources,
         "_alertmanager_input_plan",
-        lambda *args: {"state": "DECLARED_ONLY_COMPILER_HOLD"},
+        lambda *args, **kwargs: {"state": "DECLARED_ONLY_COMPILER_HOLD"},
     )
     source_before = [
         _alertmanager_cache_row(path, raw, 0o644) for path, raw in sorted(original.items())
@@ -4867,6 +4890,7 @@ def test_alertmanager_future_stages_cannot_activate_compiler_or_publication(
     def forbidden(*args: object, **kwargs: object) -> None:
         pytest.fail("Held stage reached input acquisition")
 
+    monkeypatch.setattr(docker_sources, "_ALERT_ACCEPTED_CANDIDATE", None)
     monkeypatch.setattr(docker_sources, "_inspect_alertmanager_inputs", forbidden)
     monkeypatch.setattr(docker_sources, "load_manifest", forbidden)
     monkeypatch.delenv("ALERTMANAGER_PREP_SECONDS", raising=False)
@@ -8940,3 +8964,1171 @@ def test_alertmanager_payload_independent_A_binds_source_recipe_and_full_subject
             archive, tmp_path / "payload", source, {}, tmp_path
         )
     assert not (tmp_path / "payload").exists()
+
+
+def test_alertmanager_complete_preparation_preempts_blocking_pure_work_and_restores_timer(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import signal
+    import time
+    from argparse import Namespace
+
+    previous = signal.getsignal(signal.SIGALRM)
+    monkeypatch.setattr(docker_sources, "_alertmanager_controller_binding", lambda args: None)
+
+    def blocked(args: Namespace, limits: dict[str, int], deadline: float) -> None:
+        del args, limits, deadline
+        time.sleep(3)
+        pytest.fail("pure work escaped total preparation clock")
+
+    monkeypatch.setattr(docker_sources, "_alertmanager_prepare_candidate_body", blocked)
+    started = time.monotonic()
+    with pytest.raises(TimeoutError, match="complete preparation600"):
+        docker_sources._alertmanager_prepare_candidate(Namespace(), {"PREP_SECONDS": 1})
+    assert time.monotonic() - started < 2
+    assert signal.getsignal(signal.SIGALRM) is previous
+    assert signal.getitimer(signal.ITIMER_REAL)[0] == 0
+
+
+def test_alertmanager_preparation_cleanup_keeps_actual_primary_without_refilling_main() -> None:
+    import time
+    import signal
+
+    class API:
+        def close(self) -> None:
+            raise OSError("synthetic owned cleanup failure")
+
+    primary = ValueError("synthetic original failure")
+    try:
+        try:
+            raise primary
+        except ValueError:
+            with pytest.raises(ValueError, match="synthetic original failure") as observed:
+                docker_sources._alertmanager_close_preparation_api(API(), time.monotonic() - 1)
+        assert observed.value is primary
+        assert "AM API cleanup also failed: OSError" in primary.__notes__
+    finally:
+        signal.setitimer(signal.ITIMER_REAL, 0)
+
+
+@pytest.fixture
+def alertmanager_published_reader_io(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> dict[str, Any]:
+    """Provide native publication metadata and registry bytes through existing transport seams."""
+    from argparse import Namespace
+    from scripts.ci import prometheus_source_image as transport
+    import time
+
+    for key in (
+        "GH_TOKEN",
+        "GITHUB_TOKEN",
+        "GHCR_READ_TOKEN",
+        "DOCKER_CONFIG",
+        "DOCKER_AUTH_CONFIG",
+    ):
+        monkeypatch.delenv(key, raising=False)
+    monkeypatch.setenv("GITHUB_EVENT_NAME", "pull_request")
+    monkeypatch.setenv("GITHUB_REPOSITORY_OWNER", "Katsiarynakavaleuskaya")
+    monkeypatch.setenv("GITHUB_TOKEN", "synthetic-reader")
+    monkeypatch.setenv("ALERTMANAGER_CONTROLLER_SOURCE", "c" * 40)
+    graph = deepcopy(docker_sources._ALERT_ACCEPTED_CANDIDATE["graph"])
+    manifest = json.dumps(
+        {"schemaVersion": 2, "config": graph["config"], "layers": graph["layers"]}
+    ).encode()
+    graph["manifest"]["digest"] = "sha256:" + sha256(manifest).hexdigest()
+    graph["manifest"]["size"] = len(manifest)
+    accepted = deepcopy(docker_sources._ALERT_ACCEPTED_CANDIDATE)
+    accepted["graph"] = graph
+    monkeypatch.setattr(docker_sources, "_ALERT_ACCEPTED_CANDIDATE", accepted)
+    repo = {"id": 1043311030}
+    data: dict[str, Any] = {
+        "calls": [],
+        "merge": "a" * 40,
+        "pr": {
+            "number": 2494,
+            "merged": True,
+            "state": "closed",
+            "merge_commit_sha": "a" * 40,
+            "base": {"repo": repo, "ref": "main"},
+            "head": {"repo": repo, "ref": docker_sources._ALERT_Q_BRANCH},
+        },
+        "workflow": {"id": 55, "path": ".github/workflows/cd.yml"},
+        "runs": [
+            {
+                "id": 66,
+                "run_attempt": 1,
+                "head_sha": "a" * 40,
+                "head_branch": "main",
+                "event": "workflow_dispatch",
+                "workflow_id": 55,
+                "repository": repo,
+                "head_repository": repo,
+                "status": "completed",
+                "conclusion": "success",
+            }
+        ],
+        "jobs": [
+            {
+                "id": 77,
+                "run_id": 66,
+                "head_sha": "a" * 40,
+                "name": "alertmanager-main-publication",
+                "status": "completed",
+                "conclusion": "success",
+            }
+        ],
+        "manifest": manifest,
+        "count_drift": False,
+    }
+    private = tmp_path / "private"
+    for name in ("home", "config", "cache", "tmp"):
+        (private / name).mkdir(parents=True)
+
+    class API:
+        def __init__(self) -> None:
+            self.private = private
+            self.gh = "/synthetic/gh"
+
+        def json(self, endpoint: str) -> Any:
+            data["calls"].append(endpoint)
+            if endpoint.endswith("/pulls/2494"):
+                return data["pr"]
+            if endpoint.endswith("/actions/workflows/cd.yml"):
+                return data["workflow"]
+            if "/actions/workflows/cd.yml/runs?" in endpoint:
+                assert "event=workflow_dispatch&head_sha=" + data["merge"] in endpoint
+                return {"total_count": len(data["runs"]), "workflow_runs": data["runs"]}
+            if "/actions/runs/66/attempts/1/jobs?" in endpoint:
+                return {
+                    "total_count": len(data["jobs"])
+                    + int(data["count_drift"] and data["calls"].count(endpoint) > 1),
+                    "jobs": data["jobs"],
+                }
+            pytest.fail(
+                "ordinary route requested an unrecognized API or expired archive: " + endpoint
+            )
+
+        def pages(self, endpoint: str, key: str, count: int) -> Any:
+            return transport.GitHubRead.pages(self, endpoint, key, count)
+
+        def _capture(self, argv: list[str], maximum: int, **kwargs: Any) -> bytes:
+            del maximum
+            data["calls"].append(argv)
+            if "login" in argv:
+                assert kwargs["input_data"] == b"synthetic-reader\n"
+                credential = Path(argv[2]) / "config.json"
+                credential.write_bytes(b"{}")
+                credential.chmod(0o600)
+                return b"Login Succeeded\n"
+            if "imagetools" in argv:
+                return data["manifest"]
+            if "pull" in argv:
+                return b"saved immutable image pulled\n"
+            if "inspect" in argv:
+                return json.dumps(
+                    {
+                        "Id": graph["config"]["digest"],
+                        "Os": "linux",
+                        "Architecture": "amd64",
+                        "RepoDigests": [
+                            "ghcr.io/katsiarynakavaleuskaya/pulseplate@"
+                            + graph["manifest"]["digest"]
+                        ],
+                        "RootFS": {"Layers": graph["diff_ids"]},
+                    }
+                ).encode()
+            pytest.fail("unrecognized registry action")
+
+    class Native:
+        def __init__(self, *args: Any) -> None:
+            pass
+
+        def run(self, argv: list[str], *args: Any, **kwargs: Any) -> bytes:
+            assert argv[-4:] == ["merge-base", "--is-ancestor", "a" * 40, "b" * 40]
+            data["calls"].append("native merged selection ancestry")
+            return b""
+
+    sources = {name: b"synthetic reviewed source" for name in docker_sources._ALERT_SELECTION_FILES}
+    sources["scripts/ci/fetch_docker_source_artifacts.py"] = Path(
+        docker_sources.__file__
+    ).read_bytes()
+    monkeypatch.setattr(transport, "Native", Native)
+    monkeypatch.setattr(shutil, "which", lambda name: "/synthetic/" + name)
+    monkeypatch.setattr(docker_sources, "_alertmanager_regular_sources", lambda *args: sources)
+
+    def templates(api: Any, source: str, *, controller_templates: bool) -> dict[str, bytes]:
+        assert source == "c" * 40 and controller_templates is True
+        data["calls"].append("read separate C templates")
+        return {path: sources[path] for path in docker_sources._ALERT_SELECTION_FILES[:5]}
+
+    monkeypatch.setattr(docker_sources, "_alertmanager_source_snapshot", templates)
+    monkeypatch.setattr(
+        docker_sources,
+        "_alertmanager_render_source_contract",
+        lambda *args, **kwargs: data["calls"].append("validated BASE first"),
+    )
+    data["versions"] = [
+        {
+            "id": 1,
+            "name": graph["manifest"]["digest"],
+            "metadata": {
+                "container": {"tags": ["alertmanager-0.34.1-" + graph["manifest"]["digest"][7:]]}
+            },
+        }
+    ]
+    monkeypatch.setattr(
+        transport, "existing_public_package", lambda api: ({"exact": "synthetic"}, data["versions"])
+    )
+    data.update(
+        {
+            "api": API(),
+            "sources": sources,
+            "output": tmp_path,
+            "deadline": time.monotonic() + 60,
+            "args": Namespace(material_root=tmp_path),
+            "route": {"base": "b" * 40},
+        }
+    )
+    return data
+
+
+@pytest.mark.parametrize(
+    "fault",
+    [
+        None,
+        "unmerged",
+        "wrong-PR",
+        "merge",
+        "workflow",
+        "branch",
+        "event",
+        "attempt",
+        "repository",
+        "head-repository",
+        "workflow-ID",
+        "run-head",
+        "pending",
+        "run-failure",
+        "job-name",
+        "job-run",
+        "job-head",
+        "job-pending",
+        "job-failure",
+        "duplicate-job",
+        "count-drift",
+        "missing-tag",
+        "tag-conflict",
+        "source-drift",
+        "manifest-drift",
+    ],
+)
+def test_alertmanager_published_route_requires_native_predecessor_before_login(
+    alertmanager_published_reader_io: dict[str, Any],
+    fault: str | None,
+) -> None:
+    data = alertmanager_published_reader_io
+    if fault == "unmerged":
+        data["pr"]["merged"] = False
+    elif fault == "wrong-PR":
+        data["pr"]["number"] = 2477
+    elif fault == "merge":
+        data["pr"]["merge_commit_sha"] = "unknown"
+    elif fault == "workflow":
+        data["workflow"]["path"] = ".github/workflows/build.yml"
+    elif fault in {
+        "branch",
+        "event",
+        "attempt",
+        "workflow-ID",
+        "run-head",
+        "pending",
+        "run-failure",
+    }:
+        key, value = {
+            "branch": ("head_branch", "other"),
+            "event": ("event", "push"),
+            "attempt": ("run_attempt", True),
+            "workflow-ID": ("workflow_id", 99),
+            "run-head": ("head_sha", "c" * 40),
+            "pending": ("status", "queued"),
+            "run-failure": ("conclusion", "failure"),
+        }[fault]
+        data["runs"][0][key] = value
+    elif fault in {"repository", "head-repository"}:
+        data["runs"][0][fault.replace("-", "_")] = {"id": 1}
+    elif fault in {"job-name", "job-run", "job-head", "job-pending", "job-failure"}:
+        key, value = {
+            "job-name": ("name", "prometheus-publish"),
+            "job-run": ("run_id", 99),
+            "job-head": ("head_sha", "c" * 40),
+            "job-pending": ("status", "in_progress"),
+            "job-failure": ("conclusion", "failure"),
+        }[fault]
+        data["jobs"][0][key] = value
+    elif fault == "duplicate-job":
+        data["jobs"].append({**data["jobs"][0], "id": 78})
+    elif fault == "count-drift":
+        data["count_drift"] = True
+    elif fault == "missing-tag":
+        data["versions"].clear()
+    elif fault == "tag-conflict":
+        data["versions"][0]["name"] = "sha256:" + "c" * 64
+    elif fault == "source-drift":
+        data["sources"] = {**data["sources"], "deploy/alertmanager/alertmanager.yml": b"drift"}
+    elif fault == "manifest-drift":
+        data["manifest"] += b"\n"
+
+    def invoke() -> dict[str, Any]:
+        return docker_sources._alertmanager_pull_published(
+            data["api"],
+            data["args"],
+            data["route"],
+            data["sources"],
+            data["output"],
+            data["deadline"],
+        )
+
+    if fault is None:
+        result = invoke()
+        assert result["registry_login"] is True
+        assert result["publication_predecessor"]["job"]["id"] == 77
+        assert result["docker_load_transport"] is None
+        assert not any(
+            "/artifacts/" in entry or "/zip" in entry
+            for entry in data["calls"]
+            if isinstance(entry, str)
+        )
+    else:
+        with pytest.raises(RuntimeError):
+            invoke()
+        login = [entry for entry in data["calls"] if isinstance(entry, list) and "login" in entry]
+        assert bool(login) is (fault == "manifest-drift")
+    assert data["calls"][:2] == ["read separate C templates", "validated BASE first"]
+
+
+def test_alertmanager_preparation_shorter_parent_preempts_before_own_budget(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A nested preparation may not postpone an already armed caller deadline."""
+    import signal
+    import time
+    from argparse import Namespace
+
+    previous = signal.getsignal(signal.SIGALRM)
+    original_timer = signal.getitimer(signal.ITIMER_REAL)
+    monkeypatch.setattr(docker_sources, "_alertmanager_controller_binding", lambda args: None)
+
+    def blocked(*args: Any) -> None:
+        time.sleep(3)
+        pytest.fail("shorter parent clock was replaced")
+
+    monkeypatch.setattr(docker_sources, "_alertmanager_prepare_candidate_body", blocked)
+    started = time.monotonic()
+    signal.setitimer(signal.ITIMER_REAL, 0.2)
+    try:
+        with pytest.raises(TimeoutError, match="complete preparation600"):
+            docker_sources._alertmanager_prepare_candidate(Namespace(), {"PREP_SECONDS": 600})
+        assert time.monotonic() - started < 1
+        assert signal.getsignal(signal.SIGALRM) is previous
+    finally:
+        signal.setitimer(signal.ITIMER_REAL, *original_timer)
+
+
+def _alertmanager_current_scan_report() -> dict[str, Any]:
+    """Complete synthetic scanner carrier using the separately retained immutable inventory oracle."""
+    oracle = docker_sources._ALERT_CURRENT_SCAN_ORACLE
+    os_packages = []
+    for row in oracle["expected_OS"]["packages"]:
+        os_packages.append(
+            {
+                **dict(zip(("ID", "Name", "Version", "Arch", "SrcName", "SrcVersion"), row[2:8])),
+                "Identifier": {"PURL": row[8]},
+            }
+        )
+    return {
+        "SchemaVersion": 2,
+        "ArtifactType": "container_image",
+        "Metadata": {
+            "ImageID": oracle["subject"]["config"],
+            "OS": deepcopy(oracle["expected_OS"]["OS"]),
+        },
+        "Results": [
+            {
+                "Target": "current immutable S",
+                "Class": "os-pkgs",
+                "Type": "debian",
+                "Packages": os_packages,
+            },
+            *[
+                {
+                    "Target": "usr/bin/" + binary,
+                    "Class": "lang-pkgs",
+                    "Type": "gobinary",
+                    "Packages": [
+                        {"Name": name, "Version": version} for name, version in modules.items()
+                    ],
+                }
+                for binary, modules in oracle["expected_modules"].items()
+            ],
+        ],
+    }
+
+
+@pytest.mark.parametrize("target", (0, 1, 2))
+@pytest.mark.parametrize(
+    "fault",
+    (
+        None,
+        "remove",
+        "alter",
+        "add",
+        "duplicate",
+        "missing-target",
+        "wrong-subject",
+        "secret",
+        "new-HIGH",
+        "target-CVE-LOW",
+        "mixed-proof",
+        "mixed-binary",
+    ),
+)
+def test_alertmanager_current_scan_requires_complete_accepted_OS_and_both_native_module_sets(
+    target: int,
+    fault: str | None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    report = _alertmanager_current_scan_report()
+    assert [len(row["Packages"]) for row in report["Results"]] == [6, 117, 112]
+    row = report["Results"][target]
+    if fault == "remove":
+        row["Packages"].pop()
+    elif fault == "alter":
+        row["Packages"][0]["Version"] = "unreviewed"
+    elif fault == "add":
+        row["Packages"].append({**row["Packages"][0], "Name": "unreviewed", "ID": "unreviewed@1"})
+    elif fault == "duplicate":
+        row["Packages"].append(deepcopy(row["Packages"][0]))
+    elif fault == "missing-target":
+        report["Results"].pop(target)
+    elif fault == "wrong-subject":
+        report["Metadata"]["ImageID"] = "sha256:" + "0" * 64
+    elif fault == "secret":
+        row["Secrets"] = [{"RuleID": "synthetic", "Severity": "CRITICAL"}]
+    elif fault in ("new-HIGH", "target-CVE-LOW"):
+        row["Vulnerabilities"] = [
+            {
+                "VulnerabilityID": "CVE-new" if fault == "new-HIGH" else "CVE-2026-97031",
+                "Severity": "HIGH" if fault == "new-HIGH" else "LOW",
+                "PkgName": "synthetic",
+                "InstalledVersion": "1",
+            }
+        ]
+    elif fault == "mixed-binary":
+        changed = deepcopy(docker_sources._ALERT_ACCEPTED_CANDIDATE)
+        changed["graph"]["files"]["usr/bin/amtool"] = "0" * 64
+        monkeypatch.setattr(docker_sources, "_ALERT_ACCEPTED_CANDIDATE", changed)
+    args = (
+        report,
+        docker_sources._ALERT_CURRENT_SCAN_ORACLE["subject"]["config"],
+        None,
+        {} if fault == "mixed-proof" else None,
+    )
+    if fault is None:
+        assert len(docker_sources._alertmanager_candidate_inventory(*args)["packages"]) == 235
+    else:
+        with pytest.raises(RuntimeError, match="AM_"):
+            docker_sources._alertmanager_candidate_inventory(*args)
+
+
+@pytest.mark.parametrize(
+    "kind,job",
+    [
+        ("ci-lint", 170),
+        ("shared-pr", 170),
+        ("shared-main", 290),
+        ("standalone", 80),
+        ("third-main", 110),
+    ],
+)
+@pytest.mark.parametrize(
+    "fault",
+    (
+        None,
+        "too-small",
+        "too-large",
+        "malformed",
+        "unknown-route",
+        "native-override",
+        "reservation-drift",
+    ),
+)
+def test_alertmanager_caller_budgets_reject_unadmitted_effective_overrides(
+    alertmanager_proposal_environment: None,
+    monkeypatch: pytest.MonkeyPatch,
+    kind: str,
+    job: int,
+    fault: str | None,
+) -> None:
+    for key, value in {
+        "ALERTMANAGER_CALLER_KIND": kind,
+        "ALERTMANAGER_JOB_TIMEOUT_MINUTES": str(job),
+        "ALERTMANAGER_GENERIC_NATIVE_MINUTES": "40",
+        "ALERTMANAGER_LINT_CHECK_MINUTES": "40",
+        "PROMETHEUS_PUBLICATION_WAIT_SECONDS": "10800",
+        "PROMETHEUS_CONSUME_SECONDS": "900",
+        "PROMETHEUS_CLEANUP_SECONDS": "120",
+        "PROMETHEUS_SECURITY_RESERVE_SECONDS": "2400",
+    }.items():
+        monkeypatch.setenv(key, value)
+    if fault == "too-small":
+        monkeypatch.setenv("ALERTMANAGER_JOB_TIMEOUT_MINUTES", str(job - 1))
+    elif fault == "too-large":
+        monkeypatch.setenv("ALERTMANAGER_JOB_TIMEOUT_MINUTES", "361")
+    elif fault == "malformed":
+        monkeypatch.setenv("ALERTMANAGER_JOB_TIMEOUT_MINUTES", " 170 ")
+    elif fault == "unknown-route":
+        monkeypatch.setenv("ALERTMANAGER_CALLER_KIND", "caller-claims-budget")
+    elif fault == "native-override":
+        monkeypatch.setenv("ALERTMANAGER_GENERIC_NATIVE_MINUTES", "39")
+    elif fault == "reservation-drift":
+        monkeypatch.setenv("PROMETHEUS_PUBLICATION_WAIT_SECONDS", "10799")
+    rejects = (
+        fault in {"too-small", "too-large", "malformed", "unknown-route"}
+        or (fault == "native-override" and kind in {"ci-lint", "third-main"})
+        or (fault == "reservation-drift" and kind == "shared-main")
+    )
+    if rejects:
+        with pytest.raises(RuntimeError, match="AM_"):
+            docker_sources._alertmanager_limits(caller=True)
+    else:
+        assert docker_sources._alertmanager_limits(caller=True)["PREP_SECONDS"] == 600
+
+
+@pytest.mark.parametrize(
+    "class_name,type_name", [("lang-pkgs", "npm"), ("unknown", "gobinary"), ("os-pkgs", "unknown")]
+)
+def test_alertmanager_current_inventory_rejects_extra_unclassified_package_carrier(
+    class_name: str,
+    type_name: str,
+) -> None:
+    report = _alertmanager_current_scan_report()
+    report["Results"].append(
+        {
+            "Target": "unexpected/package-lock.json",
+            "Class": class_name,
+            "Type": type_name,
+            "Packages": [{"Name": "synthetic-unknown-payload", "Version": "1.0.0"}],
+        }
+    )
+    with pytest.raises(
+        RuntimeError, match="AM_(unclassified_package_bearing_target|candidate_OS_classifier)"
+    ):
+        docker_sources._alertmanager_candidate_inventory(
+            report, report["Metadata"]["ImageID"], None, None
+        )
+
+
+@pytest.mark.parametrize(
+    "route",
+    (
+        "own-pr",
+        "ordinary-pr",
+        "first-main-squash",
+        "first-main-merge",
+        "later-main",
+        "tag",
+        "schedule",
+    ),
+)
+@pytest.mark.parametrize(
+    "fault",
+    (
+        None,
+        "event-repository",
+        "event-head-repository",
+        "current-main",
+        "unknown-before",
+        "wrong-parents",
+        "PR-graph",
+    ),
+)
+def test_alertmanager_three_positive_routes_bind_native_event_and_keep_first_main_independent(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    route: str,
+    fault: str | None,
+) -> None:
+    from argparse import Namespace
+    from scripts.ci import prometheus_source_image as transport
+    import time
+
+    repo = {"id": 1043311030, "full_name": "Katsiarynakavaleuskaya/PulsePlate"}
+    before, head, merge = "a" * 40, "b" * 40, "c" * 40
+    is_pr = route.endswith("pr")
+    first = route.startswith("first-main")
+    source = head if is_pr else merge
+    number = 2494 if route != "ordinary-pr" else 2500
+    pr = {
+        "number": number,
+        "state": "open" if is_pr else "closed",
+        "merged": not is_pr,
+        "merge_commit_sha": merge if first else "d" * 40,
+        "commits": 2,
+        "head": {
+            "repo": repo,
+            "ref": docker_sources._ALERT_Q_BRANCH if number == 2494 else "ordinary",
+            "sha": head,
+        },
+        "base": {"repo": repo, "ref": "main", "sha": before if is_pr else merge},
+    }
+    event = {
+        "repository": repo,
+        "number": number,
+        "pull_request": deepcopy(pr),
+        "ref": "refs/heads/main",
+        "deleted": False,
+        "after": merge,
+        "before": before,
+    }
+    name = "pull_request" if is_pr else "schedule" if route == "schedule" else "push"
+    ref = (
+        "refs/pull/2494/merge"
+        if is_pr
+        else "refs/tags/v1.0.0" if route == "tag" else "refs/heads/main"
+    )
+    if route == "tag":
+        event["ref"] = ref
+    for key, value in {
+        "GITHUB_EVENT_NAME": name,
+        "GITHUB_REF": ref,
+        "GITHUB_RUN_ATTEMPT": "1",
+        "GITHUB_SHA": source,
+    }.items():
+        monkeypatch.setenv(key, value)
+    current = before if is_pr else merge
+    if fault == "event-repository":
+        event["repository"] = {"id": 1, "full_name": "elsewhere/project"}
+    if fault == "event-head-repository":
+        event["pull_request"]["head"]["repo"] = {"id": 1}
+    if fault == "current-main":
+        current = "f" * 40
+    if fault == "unknown-before":
+        event["before"] = "unknown"
+    expected_parent = [merge, before, head] if route == "first-main-merge" else [merge, before]
+    if fault == "wrong-parents":
+        expected_parent = [merge, "f" * 40]
+    calls = []
+
+    class API:
+        def json(self, endpoint: str) -> Any:
+            calls.append(endpoint)
+            if endpoint.endswith("/git/ref/heads/main"):
+                return {"object": {"sha": current}}
+            if endpoint.endswith("/pulls/" + str(number)):
+                return pr
+            pytest.fail(
+                "route consulted registry/history instead of its positive native case:" + endpoint
+            )
+
+        def pages(self, endpoint: str, key: Any, count: int) -> Any:
+            assert endpoint.endswith("/commits") and count == 2
+            accepted_source = docker_sources._ALERT_ACCEPTED_CANDIDATE["source"]
+            return [
+                {"sha": accepted_source, "parents": []},
+                {"sha": head, "parents": [] if fault == "PR-graph" else [{"sha": accepted_source}]},
+            ]
+
+    class Native:
+        def __init__(self, *args: Any) -> None:
+            pass
+
+        def run(self, argv: list[str], *args: Any, **kwargs: Any) -> bytes:
+            assert argv[-5:] == ["rev-list", "--parents", "-n", "1", merge]
+            return (" ".join(expected_parent) + "\n").encode()
+
+    monkeypatch.setattr(transport, "Native", Native)
+    monkeypatch.setattr(shutil, "which", lambda name: "/synthetic/" + name)
+    reject = (
+        fault in {"event-repository", "current-main"}
+        or (fault == "event-head-repository" and is_pr)
+        or (fault in {"unknown-before", "wrong-parents"} and first)
+        or (fault == "PR-graph" and (first or route == "own-pr"))
+    )
+
+    def invoke() -> dict[str, Any]:
+        return docker_sources._alertmanager_reader_route(
+            API(),
+            Namespace(source_sha=source, material_root=tmp_path),
+            event,
+            tmp_path,
+            time.monotonic() + 60,
+        )
+
+    if reject:
+        with pytest.raises(RuntimeError):
+            invoke()
+    else:
+        observed = invoke()
+        assert observed["mode"] == (
+            "initial_own_PR_retained"
+            if route == "own-pr"
+            else (
+                "ordinary_published_PR"
+                if is_pr
+                else "genuine_first_main_retained" if first else "ordinary_published_main"
+            )
+        )
+        if first:
+            assert observed["base"] == before and pr["base"]["sha"] == merge
+    assert all("/packages/" not in endpoint and "/artifacts/" not in endpoint for endpoint in calls)
+
+
+@pytest.mark.parametrize(
+    "fault",
+    [
+        None,
+        "unset-C",
+        "wrong-C",
+        "commit",
+        "tree-record",
+        "truncated",
+        "duplicate",
+        "missing",
+        "directory-mode",
+        "leaf-mode",
+        "leaf-type",
+        "leaf-sha",
+        "contents-sha",
+        "contents-size",
+        "contents-type",
+        "mixed-case",
+    ],
+)
+def test_alertmanager_controller_templates_use_native_regular_git_objects(
+    monkeypatch: pytest.MonkeyPatch, fault: str | None
+) -> None:
+    """A source ref alone cannot authorize symlinks or incomplete native Git tree metadata."""
+    import base64
+    from hashlib import sha1
+
+    revision = "c" * 40
+    monkeypatch.setenv("ALERTMANAGER_CONTROLLER_SOURCE", revision)
+    raw = {
+        path: (REPO_ROOT / path).read_bytes() for path in docker_sources._ALERT_SELECTION_FILES[:5]
+    }
+    directory_ids = {"": "1" * 40, "deploy": "2" * 40, "deploy/alertmanager": "3" * 40}
+    blobs = {
+        path: sha1(
+            b"blob " + str(len(value)).encode() + b"\0" + value, usedforsecurity=False
+        ).hexdigest()
+        for path, value in raw.items()
+    }
+    trees: dict[str, Any] = {
+        sha: {"sha": sha, "truncated": False, "tree": []} for sha in directory_ids.values()
+    }
+    for path, sha in directory_ids.items():
+        if path:
+            parent, _, leaf = path.rpartition("/")
+            trees[directory_ids[parent]]["tree"].append(
+                {"path": leaf, "mode": "040000", "type": "tree", "sha": sha}
+            )
+    for path, sha in blobs.items():
+        parent, _, leaf = path.rpartition("/")
+        trees[directory_ids[parent]]["tree"].append(
+            {"path": leaf, "mode": "100644", "type": "blob", "sha": sha}
+        )
+    first = trees["2" * 40]["tree"][1]
+    assert first["path"] == "docker-compose.staging.yaml"
+    if fault == "unset-C":
+        monkeypatch.delenv("ALERTMANAGER_CONTROLLER_SOURCE")
+    elif fault == "wrong-C":
+        monkeypatch.setenv("ALERTMANAGER_CONTROLLER_SOURCE", "d" * 40)
+    elif fault == "truncated":
+        trees["2" * 40]["truncated"] = True
+    elif fault == "duplicate":
+        trees["2" * 40]["tree"].append(deepcopy(first))
+    elif fault == "missing":
+        trees["2" * 40]["tree"].remove(first)
+    elif fault == "directory-mode":
+        trees["1" * 40]["tree"][0]["mode"] = "100644"
+    elif fault == "leaf-mode":
+        first["mode"] = "120000"
+    elif fault == "leaf-type":
+        first["type"] = "commit"
+    elif fault == "leaf-sha":
+        first["sha"] = "e" * 40
+
+    class API:
+        def json(self, endpoint: str) -> Any:
+            if "/git/commits/" in endpoint:
+                return {
+                    "sha": "a" * 40 if fault == "commit" else revision,
+                    "tree": [] if fault == "tree-record" else {"sha": "1" * 40},
+                }
+            if "/git/trees/" in endpoint:
+                return trees[endpoint.rsplit("/", 1)[-1]]
+            assert "/contents/" in endpoint and endpoint.endswith("?ref=" + revision)
+            path = endpoint.split("/contents/", 1)[1].split("?", 1)[0]
+            return {
+                "path": path,
+                "type": "symlink" if fault == "contents-type" else "file",
+                "encoding": "base64",
+                "size": len(raw[path]) + int(fault == "contents-size"),
+                "content": base64.b64encode(raw[path]).decode(),
+                "sha": "a" * 40 if fault == "contents-sha" else blobs[path],
+            }
+
+    if fault is None:
+        assert (
+            docker_sources._alertmanager_source_snapshot(API(), revision, controller_templates=True)
+            == raw
+        )
+    else:
+        diagnostic = {
+            "unset-C": "AM_designated_controller_data_source",
+            "wrong-C": "AM_designated_controller_data_source",
+            "commit": "AM_controller_data_commit_tree",
+            "tree-record": "AM_controller_data_commit_tree",
+            "truncated": "AM_controller_data_complete_distinct_tree",
+            "duplicate": "AM_controller_data_complete_distinct_tree",
+            "missing": "AM_controller_data_regular_git_path",
+            "directory-mode": "AM_controller_data_regular_git_path",
+            "leaf-mode": "AM_controller_data_regular_git_path",
+            "leaf-type": "AM_controller_data_regular_git_path",
+            "leaf-sha": "AM_controller_data_leaf_cross_binding",
+            "contents-sha": "AM_producer_raw_Git_blob",
+            "contents-size": "AM_producer_raw_Git_blob",
+            "contents-type": "AM_producer_finite_source_blob",
+            "mixed-case": "AM_source_cases_are_disjoint",
+        }[fault]
+        with pytest.raises(RuntimeError, match=diagnostic):
+            docker_sources._alertmanager_source_snapshot(
+                API(), revision, controller_templates=True, accepted=fault == "mixed-case"
+            )
+
+
+@pytest.mark.parametrize("case", ["accepted", "old"])
+@pytest.mark.parametrize(
+    "fault",
+    [
+        None,
+        "include",
+        "extends",
+        "external-env",
+        "config",
+        "policy",
+        "missing-template",
+        "second-subject",
+    ],
+)
+def test_alertmanager_render_binds_reviewed_data_before_native_compose(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, case: str, fault: str | None
+) -> None:
+    """Exercise actual reviewed template bytes, the old transition and required synthetic input."""
+    import time
+    from scripts.ci import prometheus_source_image as transport
+    from tests.test_deploy_contract_scripts import (
+        FAKE_PROMETHEUS_COMPOSE_JSON,
+        _staging_compose_fixture_json,
+    )
+
+    templates = {
+        path: (REPO_ROOT / path).read_bytes() for path in docker_sources._ALERT_SELECTION_FILES[:5]
+    }
+    sources = {
+        **templates,
+        docker_sources._ALERT_SELECTION_FILES[-1]: Path(docker_sources.__file__).read_bytes(),
+    }
+    if case == "old":
+        for path in docker_sources._ALERT_SELECTION_FILES[:3]:
+            sources[path] = sources[path].replace(
+                docker_sources._alertmanager_contract_subject()[0].encode(),
+                docker_sources._ALERT_OLD_RUNTIME_REF.encode(),
+            )
+        # Exact retired policy fixture remains independent of current Git HEAD.
+        sources["deploy/alertmanager/trivy-ignore.yaml"] = (
+            b"vulnerabilities:\n"
+            b"  - id: CVE-2026-84445\n"
+            b"    purls:\n"
+            b"      - pkg:golang/google.golang.org/grpc@v1.83.1\n"
+            b"    expired_at: 2026-10-21\n"
+            b"    statement: >-\n"
+            b"      Seven-day exception for the exact official Alertmanager v0.34.1 linux/amd64\n"
+            b"      image. The verified release list on 2026-10-14 has no newer release.\n"
+            b"      Component fixes exist; qualification of a replacement covering all admitted\n"
+            b"      findings is carryover to the next substantive PR. See\n"
+            b"      docs/security/CVE-2026-84445-alertmanager.md. Remove after all admitted\n"
+            b"      findings are remediated and the replacement passes native/security acceptance.\n"
+            b"  - id: CVE-2026-78669\n"
+            b"    purls:\n"
+            b"      - pkg:golang/golang.org/x/net@v0.58.0\n"
+            b"      - pkg:golang/stdlib@v1.26.8\n"
+            b"    expired_at: 2026-10-21\n"
+            b"    statement: >-\n"
+            b"      Seven-day exception for the exact official Alertmanager v0.34.1 linux/amd64\n"
+            b"      image. The verified release list on 2026-10-14 has no newer release.\n"
+            b"      Component fixes exist; qualification of a replacement covering all admitted\n"
+            b"      findings is carryover to the next substantive PR. See\n"
+            b"      docs/security/CVE-2026-84445-alertmanager.md. Remove after all admitted\n"
+            b"      findings are remediated and the replacement passes native/security acceptance.\n"
+            b"  - id: CVE-2026-78667\n"
+            b"    purls:\n"
+            b"      - pkg:golang/stdlib@v1.26.8\n"
+            b"    expired_at: 2026-10-21\n"
+            b"    statement: >-\n"
+            b"      Seven-day exception for the exact official Alertmanager v0.34.1 linux/amd64\n"
+            b"      image. The verified release list on 2026-10-14 has no newer release.\n"
+            b"      Component fixes exist; qualification of a replacement covering all admitted\n"
+            b"      findings is carryover to the next substantive PR. See\n"
+            b"      docs/security/CVE-2026-84445-alertmanager.md. Remove after all admitted\n"
+            b"      findings are remediated and the replacement passes native/security acceptance.\n"
+            b"  - id: CVE-2026-97031\n"
+            b"    purls:\n"
+            b"      - pkg:golang/stdlib@v1.26.8\n"
+            b"    expired_at: 2026-10-21\n"
+            b"    statement: >-\n"
+            b"      Seven-day exception for the exact official Alertmanager v0.34.1 linux/amd64\n"
+            b"      image. The verified release list on 2026-10-14 has no newer release.\n"
+            b"      Component fixes exist; qualification of a replacement covering all admitted\n"
+            b"      findings is carryover to the next substantive PR. See\n"
+            b"      docs/security/CVE-2026-84445-alertmanager.md. Remove after all admitted\n"
+            b"      findings are remediated and the replacement passes native/security acceptance.\n"
+        )
+    if fault in ("include", "extends", "external-env"):
+        injected = {
+            "include": b"\ninclude: ../outside.yaml\n",
+            "extends": b"\nextends: ../outside.yaml\n",
+            "external-env": b"\nenv_file: ../private.env\n",
+        }[fault]
+        sources[docker_sources._ALERT_SELECTION_FILES[0]] += injected
+    elif fault == "config":
+        sources["deploy/alertmanager/alertmanager.yml"] += b"# changed\n"
+    elif fault == "policy":
+        sources["deploy/alertmanager/trivy-ignore.yaml"] += b"\n"
+    elif fault == "missing-template":
+        templates.pop(docker_sources._ALERT_SELECTION_FILES[0])
+    elif fault == "second-subject":
+        templates[
+            docker_sources._ALERT_SELECTION_FILES[0]
+        ] += docker_sources._alertmanager_contract_subject()[0].encode()
+    calls: list[str] = []
+
+    class Native:
+        def __init__(self, *args: Any) -> None:
+            assert fault is None, "unreviewed source reached native setup"
+
+        def run(self, argv: list[str], label: str, env: dict[str, str], **kwargs: Any) -> bytes:
+            assert argv[:3] == ["/synthetic/docker", "compose", "--env-file"]
+            assert argv[4] == "--project-directory" and argv[6] == "-f"
+            assert argv[8:] == ["--profile", "*", "config", "--format", "json"]
+            assert (
+                Path(argv[3]).read_bytes() == b""
+                and Path(env["STAGING_ENV_FILE"]).read_bytes() == b""
+            )
+            compose = Path(argv[7])
+            assert Path(argv[5]) == kwargs["cwd"] == compose.parent
+            assert kwargs["maximum_seconds"] == 8 and kwargs["output_bound"] == 1048576
+            if compose.name.endswith("selfhosted.yaml"):
+                assert "${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}" in compose.read_text()
+                assert env["POSTGRES_PASSWORD"] == "synthetic"
+            assert set(env) == {
+                "PATH",
+                "HOME",
+                "COMPOSE_PROFILES",
+                "STAGING_IMAGE_REF",
+                "STAGING_CADDY_IMAGE_REF",
+                "PROMETHEUS_RUNTIME_REF",
+                "IMAGE_REF",
+                "STAGING_ENV_FILE",
+                "POSTGRES_USER",
+                "POSTGRES_DB",
+                "POSTGRES_PASSWORD",
+                "DATABASE_URL",
+                "STAGING_DOMAIN",
+                "PRODUCTION_DOMAIN",
+                "STAGING_FALLBACK_DOMAIN",
+            }
+            model = json.loads(
+                _staging_compose_fixture_json(compose.parent)
+                if "staging" in compose.name
+                else FAKE_PROMETHEUS_COMPOSE_JSON
+            )
+            model["services"]["alertmanager"]["image"] = (
+                docker_sources._ALERT_OLD_RUNTIME_REF
+                if case == "old"
+                else docker_sources._alertmanager_contract_subject()[0]
+            )
+            model["services"]["alertmanager"]["volumes"] = [
+                {
+                    "type": "bind",
+                    "source": str(compose.parent / "alertmanager/alertmanager.yml"),
+                    "target": "/etc/alertmanager/alertmanager.yml",
+                    "read_only": True,
+                }
+            ]
+            model["secrets"]["alertmanager_smtp_key"]["file"] = str(
+                compose.parent / "secrets/alertmanager_smtp_key"
+            )
+            calls.append(label)
+            return json.dumps(model).encode()
+
+    monkeypatch.setattr(transport, "Native", Native)
+    monkeypatch.setattr(shutil, "which", lambda command: "/synthetic/" + command)
+    work = tmp_path / "native"
+    if fault:
+        with pytest.raises(RuntimeError, match="AM_"):
+            docker_sources._alertmanager_render_source_contract(
+                sources,
+                work,
+                time.monotonic() + 30,
+                expected_case=case,
+                controller_templates=templates,
+            )
+        assert not work.exists() and not calls
+    else:
+        docker_sources._alertmanager_render_source_contract(
+            sources, work, time.monotonic() + 30, expected_case=case, controller_templates=templates
+        )
+        assert calls == ["BASE-all-profile-0", "BASE-all-profile-1", "BASE-all-profile-2"]
+
+
+@pytest.mark.parametrize("drift", [False, True])
+def test_alertmanager_initial_pr_binds_current_data_before_acquisition(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, drift: bool
+) -> None:
+    """Initial retained acquisition cannot authorize changed data after C designation."""
+    from argparse import Namespace
+    from scripts.ci import prometheus_source_image as transport
+    import time
+
+    accepted = docker_sources._alertmanager_accepted_producer()
+    templates = {
+        path: (REPO_ROOT / path).read_bytes() for path in docker_sources._ALERT_SELECTION_FILES[:5]
+    }
+    material = {
+        **templates,
+        docker_sources._ALERT_SELECTION_FILES[-1]: Path(docker_sources.__file__).read_bytes(),
+    }
+    if drift:
+        material[docker_sources._ALERT_SELECTION_FILES[0]] += b"\ninclude: ../external.yaml\n"
+    event = tmp_path / "event.json"
+    event.write_text("{}")
+    monkeypatch.setenv("GITHUB_EVENT_PATH", str(event))
+    monkeypatch.setenv("GITHUB_EVENT_NAME", "pull_request")
+    monkeypatch.setenv("GITHUB_REPOSITORY", "Katsiarynakavaleuskaya/PulsePlate")
+    monkeypatch.setenv("ALERTMANAGER_CONTROLLER_SOURCE", "c" * 40)
+    calls: list[str] = []
+
+    class API:
+        def __init__(self, private: Path, *args: Any) -> None:
+            self.private = private
+            private.mkdir()
+
+    def snapshot(api: Any, source: str, *, controller_templates: bool) -> dict[str, bytes]:
+        assert source == "c" * 40 and controller_templates is True
+        calls.append("templates")
+        return templates
+
+    def acquisition(*args: Any, **kwargs: Any) -> Any:
+        calls.append("acquisition")
+        raise RuntimeError("synthetic acquisition reached")
+
+    monkeypatch.setattr(transport, "GitHubRead", API)
+    monkeypatch.setattr(
+        docker_sources, "_alertmanager_reader_route", lambda *a: {"mode": "own_PR_retained"}
+    )
+    monkeypatch.setattr(docker_sources, "_alertmanager_bind_material", lambda *a: material)
+    monkeypatch.setattr(docker_sources, "_alertmanager_source_snapshot", snapshot)
+    monkeypatch.setattr(docker_sources, "_alertmanager_authenticated_inputs", acquisition)
+    monkeypatch.setattr(
+        docker_sources,
+        "_alertmanager_close_preparation_api",
+        lambda api, deadline: api.private.rmdir(),
+    )
+    args = Namespace(
+        output_dir=tmp_path / "output",
+        material_root=tmp_path,
+        source_sha="d" * 40,
+        alertmanager_candidate_run=accepted["run"],
+        alertmanager_candidate_artifact=accepted["artifact"],
+        alertmanager_candidate_source=accepted["source"],
+        alertmanager_qualification_run=1,
+        alertmanager_qualification_artifact=2,
+        alertmanager_qualification_source="e" * 40,
+    )
+    with pytest.raises(
+        RuntimeError,
+        match="AM_reviewed_controller_data_closure" if drift else "synthetic acquisition reached",
+    ):
+        docker_sources._alertmanager_prepare_candidate_body(
+            args, {"CLEANUP_SECONDS": 45}, time.monotonic() + 30
+        )
+    assert calls == (["templates"] if drift else ["templates", "acquisition"])
+    assert not (args.output_dir / "private").exists()
+
+
+def test_alertmanager_actual_preparation_observation_is_retained_by_every_consumer(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Bind the actual producer's written filename to each existing workflow artifact selector."""
+    from argparse import Namespace
+
+    selected = docker_sources._alertmanager_accepted_producer()
+    output = tmp_path / "consumer"
+    output.mkdir()
+    payload = output / "candidate"
+    payload.mkdir()
+    prepared = {
+        "image_id": selected["graph"]["config"]["digest"],
+        "config_sha256": sha256(
+            (REPO_ROOT / "deploy/alertmanager/alertmanager.yml").read_bytes()
+        ).hexdigest(),
+    }
+    monkeypatch.setattr(docker_sources, "_alertmanager_limits", lambda **kwargs: {})
+    monkeypatch.setattr(
+        docker_sources,
+        "_alertmanager_prepare_candidate",
+        lambda *args: ({"graph": selected["graph"]}, payload, output, prepared),
+    )
+    monkeypatch.setattr(
+        docker_sources,
+        "_alertmanager_native_candidate",
+        lambda *args, **kwargs: pytest.fail("prepare-only executed full native fixtures"),
+    )
+    args = Namespace(
+        alertmanager_candidate_run=selected["run"],
+        alertmanager_candidate_artifact=selected["artifact"],
+        alertmanager_candidate_source=selected["source"],
+        alertmanager_prepare_only=True,
+        source_sha="a" * 40,
+        material_root=REPO_ROOT,
+    )
+    docker_sources._alertmanager_consume(args)
+    written = [path for path in output.iterdir() if path.is_file()]
+    assert len(written) == 1
+    observation = json.loads(written[0].read_text())
+    assert observation["compiler_starts"] == 0 and observation["registry_login"] is False
+    assert observation["original_producer"] == selected and "native" not in observation
+    assert dict(line.split("=", 1) for line in capsys.readouterr().out.splitlines()) == {
+        "image_id": prepared["image_id"],
+        "config_sha256": prepared["config_sha256"],
+        "observation": str(payload / "candidate-observation.json"),
+    }
+    for workflow, job in (
+        ("ci.yml", "lint"),
+        ("cd.yml", "alertmanager-retained-candidate"),
+        ("cd.yml", "prometheus-image-security-pr"),
+        ("cd.yml", "prometheus-image-security-trusted"),
+        ("cd.yml", "obs2a-checkpoint-native"),
+    ):
+        steps = _load_workflow(WORKFLOWS_DIR / workflow)["jobs"][job]["steps"]
+        uploads = [
+            step["with"]["path"]
+            for step in steps
+            if str(step.get("uses", "")).startswith("actions/upload-artifact@")
+        ]
+        matches = [paths for paths in uploads if "/" + written[0].name in paths]
+        assert len(matches) == 1, (workflow, job, written[0].name)
+        assert "/github-read-evidence/" in matches[0] and "/preparation/evidence/" in matches[0]
+        assert "/candidate.zip" not in matches[0] and "/private/" not in matches[0]

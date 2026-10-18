@@ -60,6 +60,8 @@ EXPECTED_AUXILIARY_PYTHON_SETUP_OWNERS = (
     (".github/workflows/cd.yml", "alertmanager-candidate-build"),
     (".github/workflows/cd.yml", "alertmanager-retained-candidate"),
     (".github/workflows/cd.yml", "alertmanager-main-publication"),
+    (".github/workflows/cd.yml", "prometheus-image-security-pr"),
+    (".github/workflows/cd.yml", "prometheus-image-security-trusted"),
     (".github/workflows/cd.yml", "postgres-pgvector-ci-admission"),
     (".github/workflows/cd.yml", "obs2a-checkpoint-native"),
     (".github/workflows/ci-metrics.yml", "collect-ci-metrics"),

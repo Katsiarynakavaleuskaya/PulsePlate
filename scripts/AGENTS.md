@@ -132,9 +132,11 @@
   the fixed 825-second metadata replay. The separate manual `build` route must
   consume actual qualification/support predecessors and never start another
   resolver replay. Its executable proposal, selectors and source checks do not
-  supply the separate human compiler decision. PR consumers load the original
-  retained candidate without registry access or compilation; manual publication
-  additionally requires the actual merged main and canonical package/tag guards.
+  supply the separate human compiler decision. Initial own-PR and genuine first-main
+  consumers load the accepted original candidate without AM registry access or
+  compilation. Ordinary consumers require a positive same-repository merged-PR/CD
+  publication predecessor and exact package/tag before registry login. Manual
+  publication requires actual merged main and copies the saved OCI without rebuild.
 - AM host checks must skip the shared SDK/base install and use the existing
   guarded `requirements-dev.txt`/`constraints.txt` installer in a fresh private
   venv, with an aggregate ten-minute selection/install/import budget, explicit
@@ -263,6 +265,29 @@
   source archive before and after successful scanning.
   Mocked AM Native fixtures must model tool/resource inputs, retain low-resource
   negatives, and preserve production guards and reserves.
+
+- The existing fetcher owns AM candidate/runtime predicates and the stdlib-only
+  `--alertmanager-contract` / `--alertmanager-contract-collect` deploy entries.
+  The latter permits only fixed native Compose/config/census/inspect reads, with
+  one decreasing 90-second envelope, eight-second calls and reserved cleanup.
+  Both shell readers execute independently hash-bound held helper bytes; incoming
+  bundles supply data. Unknown identity/status, missing or changed captures, and
+  unresolved owned process groups remain HOLD; collection does not activate services.
+- PR readers run a separately reviewed immutable controller checkout with explicit
+  material data. Trusted-main readers authenticate the actual reviewed main revision.
+  Both routes bind the five data files to the separately designated immutable
+  controller templates before native rendering; initial own-PR data is checked before
+  retained acquisition. Only the first-main old subject permits the exact reviewed
+  image-reference transition and original complete policy hash. Changed data or an
+  empty controller pin is HOLD, never permission to execute PR HEAD
+  with credentials. Preparation includes authentication, complete retained validation
+  or positive publication proof, local image loading/inspection, and cleanup before
+  material execution. A shorter caller deadline is never extended by a child phase.
+- Durable current scans reuse the accepted subject's native build-info/OS inventory
+  oracle in this owner and require every supported package in both binaries and the
+  base. They retain all severities and all four live control families; omitted
+  `Secrets` fields alone prove no scanner execution. Original retained solver/base
+  evidence stays independent from current DB observations and artifact expiry.
 
 - When adding Alertmanager workflow jobs, reconcile the exact checkout inventory in
   `tests/test_ci_workflow_pr_size_governance_contract.py` and Python setup owner

@@ -233,6 +233,7 @@ def test_production_deploy_syncs_shell_bundle_for_caddy_rebuild() -> None:
         r"\s+deploy/prometheus/prometheus\.yml \\\n"
         r"\s+deploy/prometheus/image-manifest\.json \\\n"
         r"\s+scripts/ci/prometheus_source_image\.py \\\n"
+        r"\s+scripts/ci/fetch_docker_source_artifacts\.py \\\n"
         r"\s+scripts/diagnose_web\.sh \\\n"
         r"\s+scripts/redeploy_caddy\.sh \\\n"
         r"\s+scripts/ops/postgres_backup\.sh \\\n"
@@ -268,7 +269,7 @@ def test_production_deploy_jobs_delegate_registry_login_to_deploy_script() -> No
     self_hosted_section = workflow_text.split("deploy-production-self-hosted:", maxsplit=1)[1]
 
     assert (
-        "envs: DEPLOY_SCRIPT_SHA256,PROMETHEUS_HELPER_SHA256,IMAGE_REF,TAG,PRODUCTION_DOMAIN,DEPLOY_DIR,GHCR_USER,GHCR_TOKEN"
+        "envs: DEPLOY_SCRIPT_SHA256,PROMETHEUS_HELPER_SHA256,ALERTMANAGER_HELPER_SHA256,IMAGE_REF,TAG,PRODUCTION_DOMAIN,DEPLOY_DIR,GHCR_USER,GHCR_TOKEN"
         in ssh_section
     )
     assert (
@@ -488,7 +489,21 @@ def test_cd_has_no_prometheus_candidate_publication_carrier() -> None:
 
     dispatch = triggers["workflow_dispatch"]
     assert set(dispatch) == {"inputs"}
-    assert set(dispatch["inputs"]) == {"postgres_mode", "source_sha", "alertmanager_mode"}
+    assert set(dispatch["inputs"]) == {
+        "postgres_mode",
+        "source_sha",
+        "alertmanager_mode",
+        "alertmanager_qualification_run",
+        "alertmanager_qualification_artifact",
+        "alertmanager_qualification_source",
+        "alertmanager_support_run",
+        "alertmanager_support_artifact",
+        "alertmanager_support_source",
+        "alertmanager_candidate_run",
+        "alertmanager_candidate_artifact",
+        "alertmanager_candidate_source",
+        "alertmanager_pr",
+    }
     assert dispatch["inputs"]["postgres_mode"]["options"] == [
         "disabled",
         "synthetic-probe",
@@ -499,7 +514,10 @@ def test_cd_has_no_prometheus_candidate_publication_carrier() -> None:
     assert dispatch["inputs"]["alertmanager_mode"]["options"] == [
         "disabled",
         "module-qualify",
+        "input-inspect",
+        "support-inspect",
         "build",
+        "publish",
     ]
     alert = jobs["alertmanager-module-qualification"]
     assert "github.event_name == 'workflow_dispatch'" in alert["if"]
@@ -555,6 +573,7 @@ def test_prometheus_cd_registry_credential_route_preserves_base_execution_bounda
         "Checkout exact changed PR Prometheus contracts",
         "Checkout fixed trusted Prometheus control",
         "Checkout exact unchanged PR contracts after trusted cleanup",
+        "Checkout separately designated AM controller",
     ]
     event = steps["Validate exact Prometheus checkout revisions"]
     assert "secrets." not in str(event)
@@ -762,11 +781,22 @@ def test_checkpoint_native_consumer_precedes_secret_free_child(
             < selected["steps"].index(step)
         )
     else:
-        assert step["env"]["GHCR_READ_TOKEN"] == credential
-        assert (
-            step["env"]["GH_TOKEN"] == step["env"]["GITHUB_TOKEN"] == "${{ secrets.GITHUB_TOKEN }}"
+        consumer = next(
+            s
+            for s in selected["steps"]
+            if s.get("name") == "Consume exact Prometheus before main native fixtures"
         )
-        assert script.index("--operation consume") < script.index("sudo /usr/bin/env -i ")
+        assert consumer["env"]["GHCR_READ_TOKEN"] == credential
+        assert (
+            consumer["env"]["GH_TOKEN"]
+            == consumer["env"]["GITHUB_TOKEN"]
+            == "${{ secrets.GITHUB_TOKEN }}"
+        )
+        assert selected["steps"].index(consumer) < selected["steps"].index(step)
+        assert "--operation consume" in consumer["run"] and "--operation consume" not in script
+        assert not {"GH_TOKEN", "GITHUB_TOKEN", "GHCR_READ_TOKEN"} & step["env"].keys()
+        assert consumer["timeout-minutes"] == 18
+        assert step["timeout-minutes"] == "${{ fromJSON(env.ALERTMANAGER_GENERIC_NATIVE_MINUTES) }}"
     child = next(
         line.strip()
         for line in script.splitlines()
@@ -775,6 +805,10 @@ def test_checkpoint_native_consumer_precedes_secret_free_child(
     assert not any(
         value in child for value in ("GH_TOKEN", "GITHUB_TOKEN", "GHCR_READ_TOKEN", "DOCKER_CONFIG")
     )
-    assert 'native_python="$(command -v python)"' in script
+    assert (
+        'native_python="$(command -v python)"'
+        if filename == "ci.yml"
+        else 'native_python="$AM_HOST_PYTHON"'
+    ) in script
     assert 'exit "$native_status"' in script and 'exit "$capture_status"' in script
     assert not any("login-action" in str(s.get("uses", "")) for s in selected["steps"])
