@@ -479,6 +479,14 @@ Backlog: docs/roadmap/BACKLOG_LEDGER.md#agent-consistency-preflight
     be empty. Redirection and proof-rich retirement fail closed. Other admitted
     material edits may remain dirty; the operation preserves their bytes, the
     complete index and draft and grants no freeze, disposition or publication.
+    Complete canonical proof inventory belongs to
+    `scripts/orchestration/review_mapping_artifact.py`: its existing finite
+    lexical grammar must account for the whole input before selecting one
+    nonempty supported Fixed section. Missing, empty or duplicate sections and
+    recognized proof or No-actionables markers outside that span fail closed
+    for complete consumers. Retirement delegates to that owner's strict
+    proof-empty predicate; partial section views cannot authorize deletion.
+    This does not claim arbitrary Markdown or human-proof completeness.
     Include actual retirement with the genuine executable/test fix `Q_fix`.
     A required real `docs(agents)` policy commit also belongs to material;
     when it follows `Q_fix`, final material is `M=Q_docs`. Freeze actual final
