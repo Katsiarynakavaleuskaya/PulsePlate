@@ -810,6 +810,10 @@ rg -n "sys\.modules\.get\(\"recipe_store\"\)|recipe_store.*spec_from_file_locati
 
 ## Finite source-image producer tests
 
+- For already-approved public-checksum annotations in source-image fixtures,
+  inspect the actual literal line after formatting and rerun the real detector.
+  Keep strict checksum assertions; formatting or AST equivalence alone does not
+  prove the annotation still applies.
 - Keep metadata, synthetic format observations and actual native candidate
   evidence distinct. Synthetic selected-manifest fixtures exercise only parser
   and caller rejection; they are not authenticated artifacts or build receipts.
