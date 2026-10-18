@@ -9786,7 +9786,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] **Legacy guard baseline reuse post-main prerequisite (LEGACY-GUARD-BASELINE-REUSE-1/v1)**
   - Owner: @katsiaryna_kavaleuskaya (QA implementation and Legacy post-main validation)
   - Priority: P1
-  - Target PR: Unassigned (`codex/legacy-guard-baseline-reuse`)
+  - Target PR: [PR #2493](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2493) (`codex/legacy-guard-baseline-reuse`)
   - Status: OPEN / BLOCKING POST-MAIN PREREQUISITE; closure requires verified successor-main recovery and terminal reconciliation.
   - Reason (EN): PR #2492 merged at `e8fad93772cb8c9eea35c0b8334706d3feffbf73`, but its own main CI 39079330398 failed: Python 3.12 and 3.13 shard 2 reached the existing 4800-second watchdog and expected full coverage XML is missing. Reuse one genuine complete positive baseline within a stable module lifetime while preserving every real mutant; source-derived removal of seven duplicate positives does not establish a runtime speedup or recovered CI.
   - Dependency: Blocks [PR #2492 terminal continuity](#ledger-p1-legacy-api-key-python-export-retirement) D8 until actual recovered-main proof and its original archive, same-ID readback, outgoing carryover, owned cleanup and final QA obligations are observed. All original D1-D8 remain unchanged; PROJECT_LEGACY stays OPEN with R29 PARTIAL / UNWAIVED, historical O1 NOT_ADMITTED and the shared-runtime follow-up OPEN.
