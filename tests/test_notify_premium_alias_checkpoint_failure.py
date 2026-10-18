@@ -2026,6 +2026,7 @@ def _native_alertmanager_candidate(
     config.chmod(0o444)
     document = directory / "probe-document"
     document.mkdir()
+    document.chmod(0o755)
     (document / "index.html").write_text("pulseplate-owned-httpd-probe\n")
     (document / "index.html").chmod(0o444)
 
@@ -2262,6 +2263,26 @@ def _native_alertmanager_candidate(
         print("native_AM_UI_probes_UID_storage_restart=pass", flush=True)
     except BaseException as error:
         primary = error
+        try:
+            metadata = {}
+            for label, path in (("document", document), ("index", document / "index.html")):
+                try:
+                    info = path.lstat()
+                    metadata[label] = {
+                        "mode": oct(info.st_mode & 0o7777),
+                        "type": oct(info.st_mode & 0o170000),
+                        "uid": info.st_uid,
+                        "gid": info.st_gid,
+                    }
+                except OSError as observation_error:
+                    metadata[label] = {"unavailable": type(observation_error).__name__}
+            error.add_note(
+                "Owned HTTP probe fixture metadata: "
+                + json.dumps(metadata, ensure_ascii=True, sort_keys=True)
+            )
+        except BaseException:
+            # Optional owned metadata must not replace the primary failure or its cleanup.
+            pass
         raise
     finally:
         try:
@@ -3978,6 +3999,293 @@ def test_alertmanager_native_candidate_hashes_large_binaries_without_diagnostic_
             _native_alertmanager_candidate(tmp_path, image, evidence)
         assert ca_calls == []
     assert copied == ["alertmanager", "amtool"] and removed
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        "body",
+        "wrong-body",
+        "refused",
+        "launch",
+        "timeout",
+        "metadata-unavailable",
+        "metadata-render",
+        "metadata-note",
+        "cleanup",
+        "metadata-cleanup",
+        "traversal-negative",
+    ],
+)
+def test_alertmanager_native_candidate_probe_permissions_body_and_cleanup(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    case: str,
+) -> None:
+    image, cid, volume = "sha256:" + "1" * 64, "2" * 64, "3" * 64
+    document = tmp_path / "probe-document"
+    index = document / "index.html"
+    marker = "pulseplate-owned-httpd-probe\n"
+    bodies = {"alertmanager": b"synthetic-AM", "amtool": b"synthetic-amtool"}
+    ca = b"synthetic-owned-CA"
+    html = gzip.compress(b'<script src="./assets/owned.js"></script>')
+    asset = gzip.compress(b"synthetic-owned-asset")
+    hashes = {"usr/bin/" + key: hashlib.sha256(body).hexdigest() for key, body in bodies.items()}
+    hashes.update(
+        {
+            key: "f" * 64
+            for key in (
+                "usr/bin/wget",
+                "usr/bin/httpd",
+                "etc/alertmanager/alertmanager.yml",
+                "LICENSE",
+                "NOTICE",
+            )
+        }
+    )
+    evidence = {
+        "graph": {
+            "config": {"digest": image},
+            "files": hashes,
+            "default_CA_sha256": hashlib.sha256(ca).hexdigest(),
+        },
+        "UI_file_hashes": {
+            "index.html.gz": hashlib.sha256(html).hexdigest(),
+            "assets/owned.js.gz": hashlib.sha256(asset).hexdigest(),
+        },
+    }
+    mkdir, chmod, lstat, dumps = Path.mkdir, Path.chmod, Path.lstat, json.dumps
+    created = removed = probe_started = False
+    name = token = ""
+    clock = 0.0
+    calls: list[list[str]] = []
+
+    def restrictive_mkdir(path: Path, *args: object, **kwargs: object) -> None:
+        mkdir(path, *args, **kwargs)
+        if path == document:
+            chmod(path, 0o700)
+
+    def controlled_chmod(path: Path, mode: int, **kwargs: object) -> None:
+        chmod(path, 0o700 if case == "traversal-negative" and path == document else mode, **kwargs)
+
+    def observed_lstat(path: Path) -> os.stat_result:
+        if (
+            probe_started
+            and path == document
+            and case
+            in (
+                "metadata-unavailable",
+                "metadata-cleanup",
+            )
+        ):
+            raise OSError("synthetic owned metadata unavailable")
+        return lstat(path)
+
+    def observed_dumps(value: object, **kwargs: object) -> str:
+        if (
+            case == "metadata-render"
+            and isinstance(value, dict)
+            and set(value)
+            == {
+                "document",
+                "index",
+            }
+        ):
+            raise ValueError("synthetic metadata rendering failure")
+        return dumps(value, **kwargs)
+
+    class ProbeError(RuntimeError):
+        def add_note(self, note: str) -> None:
+            if case == "metadata-note" and note.startswith("Owned HTTP probe fixture metadata: "):
+                raise RuntimeError("synthetic diagnostic note failure")
+            super().add_note(note)
+
+    primary = ProbeError("synthetic boundary after exact probe body")
+    launch_error = ProbeError("synthetic httpd launch failure")
+    timeout_error = subprocess.TimeoutExpired(["synthetic-owned-wget"], 10)
+
+    class Response:
+        status = 200
+        headers = {"Content-Encoding": "gzip"}
+
+        def __init__(self, body: bytes) -> None:
+            self.body = body
+
+        def __enter__(self) -> Response:
+            return self
+
+        def __exit__(self, *args: object) -> None:
+            del args
+
+        def read(self, size: int) -> bytes:
+            return self.body[:size]
+
+    class Opener:
+        def open(self, request: Request, *, timeout: int) -> Response:
+            assert timeout == 10
+            assert request.full_url in (
+                "http://127.0.0.1:19095/",
+                "http://127.0.0.1:19095/assets/owned.js",
+            )
+            return Response(html if request.full_url.endswith("19095/") else asset)
+
+    def native(argv: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        nonlocal name, token, created, removed, probe_started, clock
+        calls.append(argv)
+        stdout, stderr, code = "", "", 0
+        if "create" in argv:
+            name = argv[argv.index("--name") + 1]
+            token = argv[argv.index("--label") + 1].split("=", 1)[1]
+            assert document.is_dir() and not document.is_symlink()
+            assert (
+                document.stat().st_mode & 0o777 == 0o755
+            ), "probe document must allow non-owner65534 traversal"
+            assert document.stat().st_mode & 0o005 == 0o005
+            assert index.stat().st_mode & 0o777 == 0o444 and index.read_text() == marker
+            assert "--user=65534:65534" in argv and "--read-only" in argv
+            assert "--cap-drop=ALL" in argv and "--security-opt=no-new-privileges:true" in argv
+            assert "type=bind,source=" + str(document) + ",target=/probe-document,readonly" in argv
+            created, stdout = True, cid
+        elif "inspect" in argv and "volume" not in argv:
+            stdout = dumps(
+                {
+                    "Id": cid,
+                    "Name": "/" + name,
+                    "Image": image,
+                    "Config": {"Labels": {"pulseplate.am-native": token}},
+                    "Mounts": [
+                        {
+                            "Destination": "/alertmanager",
+                            "Name": volume,
+                            "Type": "volume",
+                            "RW": True,
+                        }
+                    ],
+                }
+            )
+        elif "volume" in argv:
+            if removed:
+                code, stderr = 1, "Error: no such volume: " + volume
+            else:
+                stdout = dumps([{"Name": volume}])
+        elif "top" in argv:
+            stdout = "UID PID ARGS\n65534 123 /bin/alertmanager\n"
+        elif "cp" in argv:
+            if argv[-2].endswith("/ca-certificates.crt"):
+                assert kwargs.get("binary") is True and argv[-1] == "-"
+                archive = io.BytesIO()
+                with tarfile.open(fileobj=archive, mode="w") as output:
+                    entry = tarfile.TarInfo("ca-certificates.crt")
+                    entry.size = len(ca)
+                    output.addfile(entry, io.BytesIO(ca))
+                stdout = base64.b64encode(archive.getvalue()).decode("ascii")
+            else:
+                binary = argv[-2].rsplit("/", 1)[1]
+                assert binary in bodies and argv[-1] != "-" and not kwargs.get("binary")
+                Path(argv[-1]).write_bytes(bodies[binary])
+        elif "ps" in argv:
+            stdout = cid if created and not removed else ""
+        elif "rm" in argv:
+            assert argv[-1] == cid and "--volumes" in argv
+            if case in ("cleanup", "metadata-cleanup"):
+                raise RuntimeError("synthetic owned cleanup failure")
+            removed = True
+        elif "/usr/bin/httpd" in argv:
+            assert argv == [
+                "docker",
+                "exec",
+                "--detach",
+                cid,
+                "/usr/bin/httpd",
+                "-f",
+                "-p",
+                "127.0.0.1:19096",
+                "-h",
+                "/probe-document",
+            ]
+            probe_started = True
+            if case in ("launch", "metadata-render", "metadata-note"):
+                raise launch_error
+        elif argv[-1] == "http://127.0.0.1:19096/":
+            assert probe_started and kwargs == {"timeout": 10, "check": False}
+            if case == "timeout":
+                raise timeout_error
+            if case in ("refused", "metadata-unavailable", "cleanup", "metadata-cleanup"):
+                clock = 31
+                code, stderr = 1, "wget: connection refused\n"
+            else:
+                stdout = "wrong-body\n" if case == "wrong-body" else marker
+        elif "/usr/bin/amtool" in argv:
+            assert probe_started and "silence" in argv and "add" in argv
+            raise primary
+        elif "exec" in argv:
+            assert argv[-1] == "http://127.0.0.1:19095/-/ready"
+            stdout = "OK\n"
+        return subprocess.CompletedProcess(argv, code, stdout, stderr)
+
+    monkeypatch.setattr(Path, "mkdir", restrictive_mkdir)
+    monkeypatch.setattr(Path, "chmod", controlled_chmod)
+    monkeypatch.setattr(Path, "lstat", observed_lstat)
+    monkeypatch.setattr(json, "dumps", observed_dumps)
+    monkeypatch.setattr(sys.modules[__name__], "_native", native)
+    monkeypatch.setattr(sys.modules[__name__], "build_opener", lambda *args: Opener())
+    monkeypatch.setattr(time, "monotonic", lambda: clock)
+    monkeypatch.setattr(time, "sleep", lambda _seconds: None)
+    expected = (
+        subprocess.TimeoutExpired
+        if case == "timeout"
+        else (
+            ProbeError
+            if case in ("body", "launch", "metadata-render", "metadata-note")
+            else AssertionError
+        )
+    )
+    with pytest.raises(expected) as caught:
+        _native_alertmanager_candidate(tmp_path, image, evidence)
+    notes = getattr(caught.value, "__notes__", [])
+    if case == "traversal-negative":
+        assert str(caught.value).splitlines()[0] == (
+            "probe document must allow non-owner65534 traversal"
+        )
+        assert not created and not probe_started and not removed
+        assert document.stat().st_mode & 0o777 == 0o700
+    else:
+        assert created and probe_started
+        assert removed is (case not in ("cleanup", "metadata-cleanup"))
+        if case == "body":
+            assert caught.value is primary
+        elif case in ("launch", "metadata-render", "metadata-note"):
+            assert caught.value is launch_error
+        elif case == "timeout":
+            assert caught.value is timeout_error
+        elif case == "wrong-body":
+            assert "wrong-body" in str(caught.value) and "pulseplate-owned-httpd-probe" in str(
+                caught.value
+            )
+        else:
+            assert str(caught.value) == "actual httpd/wget request did not complete"
+        if case in ("metadata-render", "metadata-note"):
+            assert notes == []
+        else:
+            note = next(n for n in notes if n.startswith("Owned HTTP probe fixture metadata: "))
+            metadata = json.loads(note.split(": ", 1)[1])
+            assert set(metadata) == {"document", "index"}
+            assert metadata["index"]["mode"] == "0o444"
+            if case in ("metadata-unavailable", "metadata-cleanup"):
+                assert metadata["document"] == {"unavailable": "OSError"}
+            else:
+                observed = lstat(document)
+                assert metadata["document"] == {
+                    "mode": "0o755",
+                    "type": "0o40000",
+                    "uid": observed.st_uid,
+                    "gid": observed.st_gid,
+                }
+        if case in ("cleanup", "metadata-cleanup"):
+            assert notes[-1] == "Owned candidate cleanup failed: RuntimeError"
+        else:
+            assert calls[-1] == ["docker", "volume", "inspect", volume]
+    assert not any("/usr/bin/amtool" in argv for argv in calls) or case == "body"
 
 
 @pytest.mark.parametrize("binary", [False, True])
