@@ -7303,6 +7303,25 @@ def test_alertmanager_both_security_callers_use_actual_authenticated_support_ref
     if caller == "fresh-native":
         source = tmp_path / "candidate.oci.tar"
         transport.pack_layout(d["seed"], source)
+        work = tmp_path / "security"
+        original_disk_usage = shutil.disk_usage
+        usage_type = type(original_disk_usage(tmp_path))
+        resource_observations: list[Any] = []
+        delegated_resources: list[tuple[Any, tuple[Any, ...], dict[str, Any]]] = []
+
+        def disk_usage(path: Any, *args: Any, **kwargs: Any) -> Any:
+            if path != work or args or kwargs:
+                delegated_resources.append((path, args, kwargs))
+                return original_disk_usage(path, *args, **kwargs)
+            total, free = 128 * 1024**3, 96 * 1024**3
+            observed = usage_type(total=total, used=total - free, free=free)
+            resource_observations.append(observed)
+            return observed
+
+        monkeypatch.setattr(shutil, "disk_usage", disk_usage)
+        unrelated = shutil.disk_usage(tmp_path)
+        assert delegated_resources == [(tmp_path, (), {})]
+        assert tuple(unrelated) == (unrelated.total, unrelated.used, unrelated.free)
 
         class Native:
             def __init__(self, evidence: Path, deadline: float, cleanup: int) -> None:
@@ -7338,7 +7357,7 @@ def test_alertmanager_both_security_callers_use_actual_authenticated_support_ref
                 source,
                 graph,
                 support,
-                tmp_path / "security",
+                work,
                 docker_sources._alertmanager_limits(),
                 build_information=build_information,
             )
@@ -7472,6 +7491,12 @@ def test_alertmanager_both_security_callers_use_actual_authenticated_support_ref
     ):
         invoke()
     assert bound == ([] if caller == "retained-failed-candidate" else [base])
+    if caller == "fresh-native":
+        assert len(resource_observations) >= 2
+        assert all(
+            row.total == row.used + row.free and row.free == 96 * 1024**3 and len(row) == 3
+            for row in resource_observations
+        )
 
 
 @pytest.mark.parametrize("binary", ["alertmanager", "amtool"])
@@ -7699,6 +7724,24 @@ def test_alertmanager_phase_observation_failure_preserves_actual_owner_error_and
     source = tmp_path / "candidate.oci.tar"
     transport.pack_layout(d["seed"], source)
     work = tmp_path / phase
+    original_disk_usage = shutil.disk_usage
+    usage_type = type(original_disk_usage(tmp_path))
+    resource_observations: list[Any] = []
+    delegated_resources: list[tuple[Any, tuple[Any, ...], dict[str, Any]]] = []
+
+    def disk_usage(path: Any, *args: Any, **kwargs: Any) -> Any:
+        if path != work or args or kwargs:
+            delegated_resources.append((path, args, kwargs))
+            return original_disk_usage(path, *args, **kwargs)
+        total, free = 128 * 1024**3, 96 * 1024**3
+        observed = usage_type(total=total, used=total - free, free=free)
+        resource_observations.append(observed)
+        return observed
+
+    monkeypatch.setattr(shutil, "disk_usage", disk_usage)
+    unrelated = shutil.disk_usage(tmp_path)
+    assert delegated_resources == [(tmp_path, (), {})]
+    assert tuple(unrelated) == (unrelated.total, unrelated.used, unrelated.free)
     observation_leaf = work / (phase + "-observation.json")
     primary = RuntimeError("synthetic actual native primary")
     write_error = OSError("synthetic observation write secondary")
@@ -7836,6 +7879,11 @@ def test_alertmanager_phase_observation_failure_preserves_actual_owner_error_and
         retained / (phase + "-evidence") / (first + ".stderr")
     ).read_bytes() == b"synthetic retained native stderr"
     assert not list(retained.rglob("config.json"))
+    assert len(resource_observations) >= 2
+    assert all(
+        row.total == row.used + row.free and row.free == 96 * 1024**3 and len(row) == 3
+        for row in resource_observations
+    )
 
 
 @pytest.mark.parametrize("alertmanager_proposal_graph", ["gzip"], indirect=True)
