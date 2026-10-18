@@ -146,6 +146,16 @@
   output remains HOLD. Treat the result as bounded same-client application
   evidence and keep other native controls independent. Follow the connected
   fixture rules in [tests/AGENTS.md](../tests/AGENTS.md).
+- The AM fixture parent stays unprivileged: stage and install/remove only its
+  exact owned scratch unit with noninteractive sudo, and verify the incumbent
+  typed systemd properties before start. The fresh sender clears its startup
+  environment before the exact venv interpreter and rechecks the same original
+  owned-empty Docker config used by parent sends. Global phase interruption
+  bypasses ordinary fixture aggregation; safe bounded metadata never prints
+  exception prose. Candidate consumption/publication requires the independently
+  selected accepted producer, raw source/recipe/native bytes and complete OCI
+  graph before credential effects; an unconfigured selection remains HOLD and
+  does not prevent the separately admitted build route.
 - The qualification checkout selects the workflow event's `github.sha`; supplied
   `source_sha` must equal that revision and the Commit API result. Require the API
   and native Git commands to succeed before comparing their output; matching
