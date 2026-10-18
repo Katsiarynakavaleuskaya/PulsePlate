@@ -32,6 +32,7 @@ from html.parser import HTMLParser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.request import ProxyHandler, Request, build_opener
+from collections.abc import Callable
 
 import pytest
 import yaml
@@ -2435,12 +2436,16 @@ def _native_alertmanager_candidate(
         ],
         check=False,
     )
-    assert default_ca.returncode != 0 and re.search(
-        r"(?:HTTP|status|response)[^\n]*404|\[404\]",
-        default_ca.stdout + default_ca.stderr,
-        flags=re.IGNORECASE,
-    ), "default-root TLS requires an explicit verified HTTP404"
-    print("native_AM_default_CA_verified_HTTP404=pass", flush=True)
+    assert (
+        default_ca.returncode == 1
+        and default_ca.stdout == ""
+        and default_ca.stderr
+        in (
+            "amtool: error: [GET /alerts] getAlerts (status 404): {}\n\n",
+            "amtool: error: [GET /alerts] getAlerts (status 410): {}\n\n",
+        )
+    ), "default-root TLS requires an exact amtool HTTP404/410 response"
+    print("native_AM_default_CA_verified_HTTP404_or_410=pass", flush=True)
 
 
 def _native_alertmanager_local_tls(directory: Path, image: str) -> None:
@@ -4539,3 +4544,532 @@ def test_alertmanager_full_native_entry_checks_both_real_stamped_version_outputs
         )
         assert calls == ["alertmanager", "amtool"]
     assert _AM_NATIVE_DOCKER_CONFIG is None
+
+
+@pytest.fixture
+def alertmanager_default_ca_native_io(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> tuple[Callable[[], None], dict[str, object], dict[str, object]]:
+    """Control native IO while keeping both real candidate/managed-helper owners."""
+    image = "sha256:" + "4" * 64
+    ids = {"main": "1" * 64, "unwritable": "2" * 64, "default": "3" * 64}
+    volume, silence = (
+        "5" * 64,
+        "6" * 8 + "-" + "6" * 4 + "-" + "6" * 4 + "-" + "6" * 4 + "-" + "6" * 12,
+    )
+    ca = b"synthetic-default-bundle"
+    binaries = {"alertmanager": b"synthetic-alertmanager", "amtool": b"synthetic-amtool"}
+    html = gzip.compress(b'<script src="./assets/owned.js"></script>')
+    asset = gzip.compress(b"synthetic-native-asset")
+    files = {"usr/bin/" + key: hashlib.sha256(body).hexdigest() for key, body in binaries.items()}
+    files.update(
+        {
+            key: "f" * 64
+            for key in (
+                "usr/bin/wget",
+                "usr/bin/httpd",
+                "etc/alertmanager/alertmanager.yml",
+                "LICENSE",
+                "NOTICE",
+            )
+        }
+    )
+    evidence = {
+        "graph": {
+            "config": {"digest": image},
+            "files": files,
+            "default_CA_sha256": hashlib.sha256(ca).hexdigest(),
+        },
+        "UI_file_hashes": {
+            "index.html.gz": hashlib.sha256(html).hexdigest(),
+            "assets/owned.js.gz": hashlib.sha256(asset).hexdigest(),
+        },
+    }
+    control: dict[str, object] = {
+        "exit": 1,
+        "stdout": "",
+        "stderr": "amtool: error: [GET /alerts] getAlerts (status 410): {}\n\n",
+        "fault": None,
+    }
+    calls: list[list[str]] = []
+    roles: dict[str, dict[str, object]] = {}
+    trace: dict[str, object] = {
+        "calls": calls,
+        "roles": roles,
+        "default_creates": 0,
+        "default_inspects": 0,
+        "storage_archive": False,
+        "restored_silence": False,
+        "volume_absence": False,
+    }
+    timeout_error = subprocess.TimeoutExpired(["synthetic-owned-amtool"], 30)
+    cleanup_error = OSError("synthetic owned amtool cleanup failure")
+    transport_error = RuntimeError("synthetic owned amtool transport failure")
+    trace.update(
+        timeout_error=timeout_error, cleanup_error=cleanup_error, transport_error=transport_error
+    )
+
+    class Response:
+        status = 200
+
+        def __init__(self, body: bytes, headers: dict[str, str]) -> None:
+            self.body, self.headers = body, headers
+
+        def __enter__(self) -> Response:
+            return self
+
+        def __exit__(self, *args: object) -> None:
+            del args
+
+        def read(self, size: int) -> bytes:
+            return self.body[:size]
+
+    class Opener:
+        def open(self, request: Request, *, timeout: int) -> Response:
+            assert timeout == 10
+            if request.full_url == "http://127.0.0.1:19095/":
+                return Response(html, {"Content-Encoding": "gzip"})
+            if request.full_url == "http://127.0.0.1:19095/assets/owned.js":
+                return Response(asset, {"Content-Encoding": "gzip"})
+            assert request.full_url == "http://127.0.0.1:19095/api/v2/silence/" + silence
+            trace["restored_silence"] = True
+            return Response(
+                json.dumps({"id": silence}).encode(), {"Content-Type": "application/json"}
+            )
+
+    def native(argv: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        calls.append(argv)
+        assert argv[0] == "docker"
+        fault = control["fault"]
+        stdout, stderr, code = "", "", 0
+        if "create" in argv:
+            role = (
+                "default"
+                if "--entrypoint=/usr/bin/amtool" in argv
+                else "unwritable" if "--tmpfs" in argv else "main"
+            )
+            name = argv[argv.index("--name") + 1]
+            key, value = argv[argv.index("--label") + 1].split("=", 1)
+            roles[role] = {"name": name, "key": key, "value": value, "removed": False}
+            assert "--user=65534:65534" in argv and "--read-only" in argv
+            assert "--cap-drop=ALL" in argv and "--security-opt=no-new-privileges:true" in argv
+            if role == "default":
+                trace["default_creates"] = int(trace["default_creates"]) + 1
+                assert argv[-6:] == [
+                    image,
+                    "--no-version-check",
+                    "--timeout=10s",
+                    "--alertmanager.url=https://github.com",
+                    "alert",
+                    "query",
+                ]
+                assert "--network=host" in argv
+                assert "--mount" not in argv and "--env" not in argv
+                assert not any("insecure" in word or "ca_file" in word for word in argv)
+            stdout = ids[role]
+        elif "ps" in argv:
+            label = argv[-1].removeprefix("label=")
+            matches = [
+                role
+                for role, row in roles.items()
+                if row["key"] + "=" + row["value"] == label and not row["removed"]
+            ]
+            assert len(matches) <= 1
+            if matches:
+                stdout = ids[matches[0]]
+                if matches[0] == "default" and fault == "cleanup-census":
+                    stdout += "\n" + "7" * 64
+        elif "volume" in argv:
+            assert argv[-1] == volume
+            if roles["main"]["removed"]:
+                code, stderr = 1, "Error: no such volume: " + volume
+                trace["volume_absence"] = True
+            else:
+                stdout = json.dumps([{"Name": volume}])
+        elif "inspect" in argv:
+            role = next(name for name, identifier in ids.items() if identifier == argv[-1])
+            row = roles[role]
+            if argv[-2] == "{{json .State}}":
+                assert role == "main"
+                stdout = json.dumps({"Running": False, "Status": "exited", "ExitCode": 0})
+            else:
+                observed = {
+                    "Id": ids[role],
+                    "Name": "/" + row["name"],
+                    "Image": image,
+                    "Config": {
+                        "Labels": {row["key"]: row["value"]},
+                        "Env": ["SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt"],
+                    },
+                    "Mounts": [
+                        {
+                            "Destination": "/alertmanager",
+                            "Name": volume,
+                            "Type": "volume",
+                            "RW": True,
+                        }
+                    ],
+                }
+                if role == "default":
+                    trace["default_inspects"] = int(trace["default_inspects"]) + 1
+                    terminal = trace["default_inspects"] == 1
+                    malformed = {
+                        "exit-bool": True,
+                        "exit-float": 1.0,
+                        "exit-string": "1",
+                        "exit-unknown": None,
+                    }
+                    exit_code = malformed.get(fault, control["exit"])
+                    state = {
+                        "Status": "exited",
+                        "ExitCode": exit_code,
+                        "Running": False,
+                        "Restarting": False,
+                        "Dead": False,
+                        "OOMKilled": False,
+                        "Error": "",
+                    }
+                    observed["State"] = state
+                    if terminal:
+                        if fault in ("cid", "name", "image"):
+                            observed[{"cid": "Id", "name": "Name", "image": "Image"}[fault]] = (
+                                "7" * 64
+                            )
+                        elif fault == "label":
+                            observed["Config"]["Labels"][row["key"]] = "wrong-owned-token"
+                        elif fault == "status":
+                            state["Status"] = "unknown"
+                        elif fault in ("Running", "Restarting", "Dead", "OOMKilled"):
+                            state[fault] = True
+                        elif fault == "Error":
+                            state["Error"] = "synthetic terminal error"
+                    elif fault == "cleanup-identity":
+                        observed["Id"] = "7" * 64
+                stdout = json.dumps(observed)
+        elif "cp" in argv:
+            source = argv[-2]
+            if source.endswith(":/etc/ssl/certs/ca-certificates.crt") or source.endswith(
+                ":/alertmanager"
+            ):
+                assert kwargs.get("binary") is True and argv[-1] == "-"
+                raw = io.BytesIO()
+                with tarfile.open(fileobj=raw, mode="w") as archive:
+                    if source.endswith(":/alertmanager"):
+                        trace["storage_archive"] = True
+                        root = tarfile.TarInfo("alertmanager")
+                        root.type, root.mode, root.uid, root.gid = (
+                            tarfile.DIRTYPE,
+                            0o700,
+                            65534,
+                            65534,
+                        )
+                        archive.addfile(root)
+                        member, body = tarfile.TarInfo("alertmanager/silences.json"), b"owned-state"
+                    else:
+                        member, body = tarfile.TarInfo("ca-certificates.crt"), ca
+                    member.size = len(body)
+                    archive.addfile(member, io.BytesIO(body))
+                stdout = base64.b64encode(raw.getvalue()).decode("ascii")
+            else:
+                binary = source.rsplit("/", 1)[1]
+                assert source == ids["main"] + ":/usr/bin/" + binary
+                assert argv[-1] != "-" and not kwargs.get("binary")
+                Path(argv[-1]).write_bytes(binaries[binary])
+        elif "top" in argv:
+            stdout = "UID PID ARGS\n65534 123 /bin/alertmanager\n"
+        elif "exec" in argv:
+            if "/usr/bin/httpd" in argv:
+                assert "--detach" in argv and argv[-1] == "/probe-document"
+            elif argv[-1] == "http://127.0.0.1:19096/":
+                stdout = "pulseplate-owned-httpd-probe\n"
+            elif "/usr/bin/amtool" in argv:
+                assert "silence" in argv and "add" in argv
+                stdout = silence
+            else:
+                assert argv[-1] == "http://127.0.0.1:19095/-/ready"
+                stdout = "OK\n"
+        elif "start" in argv:
+            if "--attach" in argv:
+                assert argv[-1] == ids["default"] and kwargs == {"timeout": 30, "check": False}
+                if fault in ("timeout", "timeout-cleanup"):
+                    raise timeout_error
+                if fault == "transport":
+                    raise transport_error
+                assert type(control["exit"]) is int
+                code = control["exit"]
+                if fault == "attach-exit":
+                    code = 2
+                assert isinstance(control["stdout"], str) and isinstance(control["stderr"], str)
+                stdout, stderr = control["stdout"], control["stderr"]
+        elif "stop" in argv:
+            assert argv[-1] == ids["main"] and kwargs == {"timeout": 35}
+        elif "wait" in argv:
+            if argv[-1] == ids["default"]:
+                assert kwargs == {"timeout": 10}
+                malformed = {
+                    "exit-bool": True,
+                    "exit-float": 1.0,
+                    "exit-string": "1",
+                    "exit-unknown": None,
+                }
+                stdout = str(malformed.get(fault, control["exit"])) + "\n"
+                if fault == "wait":
+                    stdout = "2\n"
+            else:
+                assert argv[-1] == ids["unwritable"] and kwargs == {"timeout": 30}
+                stdout = "1\n"
+        elif "logs" in argv:
+            assert argv[-1] == ids["unwritable"]
+            stderr = "open /alertmanager: permission denied\n"
+        elif "rm" in argv:
+            role = next(name for name, identifier in ids.items() if identifier == argv[-1])
+            assert "--force" in argv and "--volumes" in argv
+            if role == "default" and fault in ("cleanup", "timeout-cleanup"):
+                raise cleanup_error
+            roles[role]["removed"] = True
+        else:
+            pytest.fail("unexpected controlled native command: " + repr(argv))
+        return subprocess.CompletedProcess(argv, code, stdout, stderr)
+
+    monkeypatch.setattr(sys.modules[__name__], "_native", native)
+    monkeypatch.setattr(sys.modules[__name__], "build_opener", lambda *args: Opener())
+
+    def execute() -> None:
+        try:
+            _native_alertmanager_candidate(tmp_path, image, evidence)
+        finally:
+            print(
+                "synthetic_default_CA_reached_trace="
+                + json.dumps(
+                    {
+                        "default_creates": trace["default_creates"],
+                        "storage_archive": trace["storage_archive"],
+                        "restored_silence": trace["restored_silence"],
+                        "volume_absence": trace["volume_absence"],
+                        "roles": roles,
+                        "last_default_calls": [
+                            argv
+                            for argv in calls
+                            if ids["default"] in argv
+                            or "--entrypoint=/usr/bin/amtool" in argv
+                            or any("pulseplate.amtool-native=" in word for word in argv)
+                        ],
+                    },
+                    sort_keys=True,
+                )
+            )
+
+    return execute, control, trace
+
+
+@pytest.mark.parametrize(
+    "exit_code,stdout,stderr,accepted",
+    [
+        pytest.param(
+            1,
+            "",
+            "amtool: error: [GET /alerts] getAlerts (status 404): {}\n\n",
+            True,
+            id="exact404",
+        ),
+        pytest.param(
+            1,
+            "",
+            "amtool: error: [GET /alerts] getAlerts (status 410): {}\n\n",
+            True,
+            id="exact410",
+        ),
+        pytest.param(
+            1, "", "x509: untrusted certificate; HTTP status 404\n", False, id="tls404-error"
+        ),
+        *[
+            pytest.param(
+                code,
+                "",
+                "amtool: error: [GET /alerts] getAlerts (status 410): {}\n\n",
+                False,
+                id="exit-" + str(code),
+            )
+            for code in (0, 2, -1)
+        ],
+        pytest.param(
+            1,
+            "unexpected output",
+            "amtool: error: [GET /alerts] getAlerts (status 410): {}\n\n",
+            False,
+            id="stdout",
+        ),
+        pytest.param(
+            1,
+            "amtool: error: [GET /alerts] getAlerts (status 404): {}\n\n",
+            "",
+            False,
+            id="wrong-stream",
+        ),
+        *[
+            pytest.param(
+                1,
+                "",
+                "amtool: error: [GET /alerts] getAlerts (status " + str(status) + "): {}\n\n",
+                False,
+                id="status-" + str(status),
+            )
+            for status in (200, 400, 401, 403, 429, 500)
+        ],
+        *[
+            pytest.param(1, "", raw, False, id=name)
+            for name, raw in (
+                ("wrong-method", "amtool: error: [POST /alerts] getAlerts (status 410): {}\n\n"),
+                ("wrong-path", "amtool: error: [GET /silences] getAlerts (status 410): {}\n\n"),
+                (
+                    "wrong-operation",
+                    "amtool: error: [GET /alerts] getSilences (status 410): {}\n\n",
+                ),
+                ("wrong-body", "amtool: error: [GET /alerts] getAlerts (status 410): []\n\n"),
+                (
+                    "extra-body",
+                    'amtool: error: [GET /alerts] getAlerts (status 410): {"error":404}\n\n',
+                ),
+                ("prefix", "error: [GET /alerts] getAlerts (status 410): {}\n\n"),
+                ("case", "AMTOOL: error: [GET /alerts] getAlerts (status 410): {}\n\n"),
+                ("unicode-prefix", "amtооl: error: [GET /alerts] getAlerts (status 410): {}\n\n"),
+                (
+                    "unicode-status",
+                    "amtool: error: [GET /alerts] getAlerts (status ４１０): {}\n\n",
+                ),
+                ("one-LF", "amtool: error: [GET /alerts] getAlerts (status 410): {}\n"),
+                ("no-LF", "amtool: error: [GET /alerts] getAlerts (status 410): {}"),
+                ("extra-LF", "amtool: error: [GET /alerts] getAlerts (status 410): {}\n\n\n"),
+                ("CRLF", "amtool: error: [GET /alerts] getAlerts (status 410): {}\r\n\r\n"),
+                ("leading-space", " amtool: error: [GET /alerts] getAlerts (status 410): {}\n\n"),
+                ("trailing-space", "amtool: error: [GET /alerts] getAlerts (status 410): {}\n\n "),
+                ("junk", "junk\namtool: error: [GET /alerts] getAlerts (status 410): {}\n\n"),
+                (
+                    "duplicate",
+                    "amtool: error: [GET /alerts] getAlerts (status 410): {}\n\namtool: error: [GET /alerts] getAlerts (status 410): {}\n\n",
+                ),
+                (
+                    "mixed",
+                    "amtool: error: [GET /alerts] getAlerts (status 404): {}\n\namtool: error: [GET /alerts] getAlerts (status 410): {}\n\n",
+                ),
+                (
+                    "second-failure",
+                    "amtool: error: [GET /alerts] getAlerts (status 410): {}\n\nx509: unknown authority\n",
+                ),
+                ("tls410", "TLS handshake failed: response 410\n"),
+                ("DNS", "lookup status 404: no such host\n"),
+                ("timeout", "request timeout [404]\n"),
+                ("refused", "connect: connection refused (status 410)\n"),
+                ("JSON", '{"status":410,"error":"untrusted"}\n'),
+                ("malformed", "JSON parse error in HTTP 404 response\n"),
+                ("empty", ""),
+            )
+        ],
+    ],
+)
+def test_alertmanager_native_default_ca_accepts_only_complete_http_results(
+    alertmanager_default_ca_native_io: tuple[
+        Callable[[], None], dict[str, object], dict[str, object]
+    ],
+    capsys: pytest.CaptureFixture[str],
+    exit_code: int,
+    stdout: str,
+    stderr: str,
+    accepted: bool,
+) -> None:
+    execute, control, trace = alertmanager_default_ca_native_io
+    control.update(exit=exit_code, stdout=stdout, stderr=stderr)
+    if accepted:
+        assert execute() is None
+    else:
+        with pytest.raises(
+            AssertionError, match="default-root TLS requires an exact amtool HTTP404/410 response"
+        ) as caught:
+            execute()
+        tb = caught.value.__traceback__
+        while tb.tb_next is not None:
+            tb = tb.tb_next
+        assert tb.tb_frame.f_code is _native_alertmanager_candidate.__code__
+    output = capsys.readouterr().out
+    assert "native_AM_UI_probes_UID_storage_restart=pass\n" in output
+    assert trace["default_creates"] == 1 and trace["storage_archive"] is True
+    assert trace["restored_silence"] is True and trace["volume_absence"] is True
+    assert all(row["removed"] for row in trace["roles"].values())
+    marker = "native_AM_default_CA_verified_HTTP404_or_410=pass\n"
+    assert (marker in output) is accepted
+    assert "native_AM_default_CA_verified_HTTP404=pass" not in output
+
+
+@pytest.mark.parametrize(
+    "fault",
+    [
+        "exit-bool",
+        "exit-float",
+        "exit-string",
+        "exit-unknown",
+        "wait",
+        "attach-exit",
+        "cid",
+        "name",
+        "image",
+        "label",
+        "status",
+        "Running",
+        "Restarting",
+        "Dead",
+        "OOMKilled",
+        "Error",
+        "timeout",
+        "transport",
+        "cleanup",
+        "timeout-cleanup",
+        "cleanup-identity",
+        "cleanup-census",
+    ],
+)
+def test_alertmanager_native_default_ca_rejects_real_managed_helper_failure(
+    alertmanager_default_ca_native_io: tuple[
+        Callable[[], None], dict[str, object], dict[str, object]
+    ],
+    capsys: pytest.CaptureFixture[str],
+    fault: str,
+) -> None:
+    execute, control, trace = alertmanager_default_ca_native_io
+    control["fault"] = fault
+    expected = (
+        subprocess.TimeoutExpired
+        if fault in ("timeout", "timeout-cleanup")
+        else (
+            OSError
+            if fault == "cleanup"
+            else RuntimeError if fault == "transport" else AssertionError
+        )
+    )
+    with pytest.raises(expected) as caught:
+        execute()
+    codes = []
+    tb = caught.value.__traceback__
+    while tb is not None:
+        codes.append(tb.tb_frame.f_code)
+        tb = tb.tb_next
+    assert _native_amtool_candidate.__code__ in codes
+    if expected is AssertionError:
+        assert codes[-1] is _native_amtool_candidate.__code__
+    elif fault in ("timeout", "timeout-cleanup"):
+        assert caught.value is trace["timeout_error"]
+    elif fault == "cleanup":
+        assert caught.value is trace["cleanup_error"]
+    else:
+        assert caught.value is trace["transport_error"]
+    if fault == "timeout-cleanup":
+        assert "Owned amtool cleanup failed: OSError" in caught.value.__notes__
+    output = capsys.readouterr().out
+    assert "native_AM_UI_probes_UID_storage_restart=pass\n" in output
+    assert "native_AM_default_CA_verified_HTTP" not in output
+    assert trace["default_creates"] == 1 and trace["storage_archive"] is True
+    assert trace["restored_silence"] is True and trace["volume_absence"] is True
+    roles = trace["roles"]
+    assert roles["main"]["removed"] is True and roles["unwritable"]["removed"] is True
+    assert roles["default"]["removed"] is (
+        fault not in ("cleanup", "timeout-cleanup", "cleanup-identity", "cleanup-census")
+    )
