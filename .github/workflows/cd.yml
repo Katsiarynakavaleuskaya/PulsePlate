@@ -371,6 +371,20 @@ jobs:
           assert callable(prometheus_source_image.one_object)
           assert callable(notify_premium_alias_checkpoint_failure.main)
           assert callable(native.native_alertmanager_main)
+          # Read-only prerequisite observation; actual owned install/start is native evidence.
+          import os
+          import shutil
+          import subprocess
+          tools = {name: shutil.which(name) for name in
+                   ("sudo", "test", "install", "rm", "env", "systemctl", "busctl", "docker", "openssl")}
+          assert all(path and os.path.isabs(path) for path in tools.values())
+          assert Path("/run/systemd/system").is_dir()
+          subprocess.run(
+              [tools["sudo"], "-n", tools["test"], "-w", "/run/systemd/system"],
+              env={"PATH": os.defpath, "LANG": "C"}, stdin=subprocess.DEVNULL,
+              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+              timeout=5, check=True,
+          )
           print(json.dumps({
               "python": sys.version,
               "executable": sys.executable,

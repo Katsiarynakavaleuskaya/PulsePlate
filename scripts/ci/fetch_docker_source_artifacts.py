@@ -91,6 +91,9 @@ _ALERT_S_SOURCE_FILES = {
     ".github/workflows/cd.yml": "d7f5942a8394254add0a8de162413345908085edab89014c7bc9295b76729465",
 }
 _ALERT_ASSEMBLY_RECIPE_SHA256 = "8321b8129f819fadd64df26f0607c66fbabcef578bc76fe658e0d6d2cbab7347"
+# Filled only by a later reviewed material update after actual full acceptance.
+# Failed build artifacts and caller-supplied ancestors never select a producer.
+_ALERT_ACCEPTED_CANDIDATE: dict[str, Any] | None = None
 
 # Only these two reviewed upstream repository/ref records use codeload basenames.
 _PINNED_CODELOAD_SOURCES = {
@@ -1056,6 +1059,7 @@ def _alertmanager_cleanup_member(
     index: int,
     docker_config: Path,
 ) -> None:
+    """Remove only a retained full create ID whose exact name and owner label still match."""
     from scripts.ci.prometheus_source_image import decode_objects
 
     if identifier not in owned_ids or re.fullmatch(r"[0-9a-f]{64}", identifier) is None:
@@ -1095,6 +1099,7 @@ def _alertmanager_cleanup_member(
 
 
 def _alertmanager_compare_replays(replay: list[dict[str, object]]) -> None:
+    """Reconcile both complete replay inventories before the bounded sumdb exception."""
     from scripts.ci.prometheus_source_image import MAX_CACHE_BYTES
 
     if (
@@ -1257,6 +1262,7 @@ def _retain_alertmanager_inputs(
 
 
 def _alertmanager_loaded_base(objects: list[dict[str, Any]]) -> str:
+    """Bind the single native public-base config, platform, digest and thirteen diffIDs."""
     if len(objects) != 1:
         raise RuntimeError("Exact public base native observation ambiguous.")
     image = objects[0]
@@ -1301,6 +1307,7 @@ def _alertmanager_loaded_base(objects: list[dict[str, Any]]) -> str:
 
 
 def _alertmanager_finalize_payload(evidence: Path, deadline: float) -> None:
+    """Bound and retain the full native file/mode inventory in its one fresh footer."""
     from scripts.ci.prometheus_source_image import tree_inventory, check_deadline, MAX_CACHE_BYTES
 
     check_deadline(deadline)
@@ -2058,6 +2065,67 @@ def _alertmanager_module_phase(output: Path, deadline: float, seconds: int) -> N
     _alertmanager_finalize_payload(evidence, native.cleanup_deadline)
 
 
+def _alertmanager_accepted_producer(
+    run_id: int | None = None,
+    artifact_id: int | None = None,
+    source: str | None = None,
+) -> dict[str, Any]:
+    """Require the independent accepted A in this existing artifact owner before effects."""
+    from scripts.ci.prometheus_source_image import require
+
+    selected = _ALERT_ACCEPTED_CANDIDATE
+    require(type(selected) is dict, "AM_accepted_producer_UNCONFIGURED_HOLD")
+    selected = cast(dict[str, Any], selected)
+    require(
+        set(selected)
+        == {
+            "run",
+            "attempt",
+            "artifact",
+            "source",
+            "job",
+            "zip_sha256",
+            "source_files",
+            "graph",
+            "OCI_archive_sha256",
+        }
+        and all(
+            type(selected.get(key)) is int and selected[key] > 0
+            for key in ("run", "artifact", "job")
+        )
+        and type(selected.get("attempt")) is int
+        and selected["attempt"] == 1
+        and type(selected.get("source")) is str
+        and re.fullmatch(r"[0-9a-f]{40}", selected["source"]) is not None
+        and all(
+            type(selected.get(key)) is str and _HEX_RE.fullmatch(selected[key]) is not None
+            for key in ("zip_sha256", "OCI_archive_sha256")
+        )
+        and type(selected.get("source_files")) is dict
+        and set(selected["source_files"])
+        == {*_ALERT_Q_SOURCE_FILES, "tests/test_notify_premium_alias_checkpoint_failure.py"}
+        and all(
+            type(value) is str and _HEX_RE.fullmatch(value) is not None
+            for value in selected["source_files"].values()
+        )
+        and selected["source_files"]["deploy/alertmanager/Containerfile"]
+        == _ALERT_ASSEMBLY_RECIPE_SHA256
+        and type(selected.get("graph")) is dict
+        and bool(selected["graph"]),
+        "AM_accepted_producer_canonical_binding",
+    )
+    if any(value is not None for value in (run_id, artifact_id, source)):
+        require(
+            type(run_id) is int
+            and type(artifact_id) is int
+            and type(source) is str
+            and (run_id, artifact_id, source)
+            == (selected["run"], selected["artifact"], selected["source"]),
+            "AM_accepted_producer_exact_selectors",
+        )
+    return selected
+
+
 def _alertmanager_authenticated_inputs(
     api: GitHubRead,
     run_id: int,
@@ -2073,10 +2141,17 @@ def _alertmanager_authenticated_inputs(
     from scripts.ci.prometheus_source_image import require
 
     require(kind in ("qualification", "support", "candidate"), "AM_closed_artifact_kind")
+    accepted = (
+        _alertmanager_accepted_producer(run_id, artifact_id, source) if kind == "candidate" else {}
+    )
     selected_run, selected_artifact, selected_source, selected_job = (
         (_ALERT_Q_RUN, _ALERT_Q_ARTIFACT, _ALERT_Q_SOURCE, _ALERT_Q_JOB)
         if kind == "qualification"
-        else (_ALERT_S_RUN, _ALERT_S_ARTIFACT, _ALERT_S_SOURCE, _ALERT_S_JOB)
+        else (
+            (_ALERT_S_RUN, _ALERT_S_ARTIFACT, _ALERT_S_SOURCE, _ALERT_S_JOB)
+            if kind == "support"
+            else (accepted["run"], accepted["artifact"], accepted["source"], accepted["job"])
+        )
     )
     require(
         type(run_id) is int
@@ -2085,10 +2160,7 @@ def _alertmanager_authenticated_inputs(
         and artifact_id > 0
         and type(source) is str
         and re.fullmatch(r"[0-9a-f]{40}", source) is not None
-        and (
-            kind == "candidate"
-            or (run_id, artifact_id, source) == (selected_run, selected_artifact, selected_source)
-        ),
+        and (run_id, artifact_id, source) == (selected_run, selected_artifact, selected_source),
         "AM_qualification_exact_selectors",
     )
     job_name, artifact_name = {
@@ -2139,7 +2211,7 @@ def _alertmanager_authenticated_inputs(
     require(
         len(selected) == 1
         and type(selected[0].get("id")) is int
-        and (kind == "candidate" or selected[0]["id"] == selected_job)
+        and selected[0]["id"] == selected_job
         and type(selected[0].get("run_id")) is int
         and selected[0]["run_id"] == run_id
         and selected[0].get("head_sha") == source
@@ -2152,7 +2224,7 @@ def _alertmanager_authenticated_inputs(
     if kind == "support":
         source_contract = dict(_ALERT_S_SOURCE_FILES)
     elif kind == "candidate":
-        source_contract["deploy/alertmanager/Containerfile"] = _ALERT_ASSEMBLY_RECIPE_SHA256
+        source_contract = dict(accepted["source_files"])
     for path, expected in source_contract.items():
         record = api.json(endpoint + "/contents/" + path + "?ref=" + source)
         require(
@@ -2167,13 +2239,7 @@ def _alertmanager_authenticated_inputs(
         )
         raw = base64.b64decode(record["content"].replace("\n", ""), validate=True)
         require(
-            len(raw) == record["size"]
-            and (
-                kind == "candidate"
-                and path
-                in ("scripts/ci/fetch_docker_source_artifacts.py", ".github/workflows/cd.yml")
-                or sha256(raw).hexdigest() == expected
-            ),
+            len(raw) == record["size"] and sha256(raw).hexdigest() == expected,
             "AM_qualification_source_bytes",
         )
         source_hashes[path] = sha256(raw).hexdigest()
@@ -2195,9 +2261,13 @@ def _alertmanager_authenticated_inputs(
         and type(artifact.get("digest")) is str
         and re.fullmatch(r"sha256:[0-9a-f]{64}", artifact["digest"]) is not None
         and (
-            kind == "candidate"
-            or artifact["digest"]
-            == "sha256:" + (_ALERT_Q_ZIP_SHA256 if kind == "qualification" else _ALERT_S_ZIP_SHA256)
+            artifact["digest"]
+            == "sha256:"
+            + (
+                accepted["zip_sha256"]
+                if kind == "candidate"
+                else (_ALERT_Q_ZIP_SHA256 if kind == "qualification" else _ALERT_S_ZIP_SHA256)
+            )
         )
         and type(artifact.get("workflow_run")) is dict
         and type(artifact["workflow_run"].get("id")) is int
@@ -3599,6 +3669,7 @@ def _alertmanager_support_observation(archive: Path, output: Path) -> dict[str, 
 def _alertmanager_secret_controls(
     positive: dict[str, Any], negative: dict[str, Any], positive_path: str, negative_path: str
 ) -> dict[str, Any]:
+    """Bind the same-scanner positive and clean control subjects and exact findings."""
     from scripts.ci.prometheus_source_image import require
 
     observed: list[list[tuple[str, Any, Any]]] = []
@@ -3637,6 +3708,7 @@ def _alertmanager_secret_controls(
 def _alertmanager_support_inventory(
     report: dict[str, Any], *, probe_path: str | None = None
 ) -> dict[str, Any]:
+    """Decode retained base/probe inventory without manufacturing scanner members."""
     from scripts.ci.prometheus_source_image import require
 
     require(
@@ -3796,12 +3868,20 @@ def _alertmanager_limits() -> dict[str, int]:
     return result
 
 
-def _alertmanager_source_snapshot(api: GitHubRead, source: str) -> dict[str, bytes]:
+def _alertmanager_source_snapshot(
+    api: GitHubRead,
+    source: str,
+    *,
+    accepted: bool = False,
+) -> dict[str, bytes]:
     """The existing AM finite Contents reader; never call the Prometheus-only source selector."""
     import base64
     import hashlib
     from scripts.ci.prometheus_source_image import require
 
+    selected = _alertmanager_accepted_producer() if accepted else None
+    if selected is not None:
+        require(source == selected["source"], "AM_accepted_producer_exact_selectors")
     result = {}
     for path in (*_ALERT_Q_SOURCE_FILES, "tests/test_notify_premium_alias_checkpoint_failure.py"):
         record = api.json(
@@ -3826,6 +3906,11 @@ def _alertmanager_source_snapshot(api: GitHubRead, source: str) -> dict[str, byt
             == record.get("sha"),
             "AM_producer_raw_Git_blob",
         )
+        if selected is not None:
+            require(
+                sha256(raw).hexdigest() == selected["source_files"][path],
+                "AM_accepted_producer_source_bytes",
+            )
         result[path] = raw
     return result
 
@@ -3837,6 +3922,7 @@ def _alertmanager_candidate_payload(
     inspected: dict[str, Any],
     support: Path,
 ) -> dict[str, Any]:
+    """Validate the retained accepted A against independent source and full graph identity."""
     import zipfile
     from scripts.ci.prometheus_source_image import (
         _zip_members,
@@ -3846,6 +3932,16 @@ def _alertmanager_candidate_payload(
         unpack_layout,
     )
 
+    accepted = _alertmanager_accepted_producer()
+    require(
+        sha256(archive.read_bytes()).hexdigest() == accepted["zip_sha256"],
+        "AM_accepted_producer_archive_bytes",
+    )
+    require(
+        {path: sha256(raw).hexdigest() for path, raw in source_files.items()}
+        == accepted["source_files"],
+        "AM_accepted_producer_source_bytes",
+    )
     files = _zip_members(archive)
     footer = one_object(files["artifact-payload-members.json"])
     require(
@@ -3924,6 +4020,12 @@ def _alertmanager_candidate_payload(
             "AM_candidate_retained_native_modes",
         )
     result: dict[str, Any] = one_object(files["candidate-observation.json"])
+    require(
+        result.get("source") == accepted["source"]
+        and result.get("graph") == accepted["graph"]
+        and result.get("OCI_archive_sha256") == accepted["OCI_archive_sha256"],
+        "AM_accepted_producer_subject_graph",
+    )
     require(
         result.get("status") == "OBSERVED_NATIVE_SECURITY_ACCEPTED"
         and result.get("failure") is None
@@ -5661,6 +5763,7 @@ def _alertmanager_final_security(
 def _alertmanager_native_candidate(
     candidate: dict[str, Any], observation: Path, work: Path, limits: dict[str, int]
 ) -> dict[str, Any]:
+    """Run retained local OCI bytes through the existing bounded Linux fixture owner."""
     from scripts.ci.prometheus_source_image import Native, fresh_directory, require
 
     require(
@@ -5670,7 +5773,8 @@ def _alertmanager_native_candidate(
     fresh_directory(work)
     evidence = work / "evidence"
     fresh_directory(evidence)
-    # The child owns its 2400-second alarm, followed by its independent cleanup.
+    # The child owns its main alarm; this outer deadline retains the cleanup margin.
+    # The cleanup environment value alone is not child-side cleanup enforcement.
     started = time.monotonic()
     native = Native(
         evidence,
@@ -5779,6 +5883,11 @@ def _alertmanager_consume(args: argparse.Namespace) -> None:
         require,
     )
 
+    _alertmanager_accepted_producer(
+        args.alertmanager_candidate_run,
+        args.alertmanager_candidate_artifact,
+        args.alertmanager_candidate_source,
+    )
     require(
         os.environ.get("GITHUB_EVENT_NAME") == "pull_request"
         and os.environ.get("GITHUB_REPOSITORY") == "Katsiarynakavaleuskaya/PulsePlate",
@@ -5850,7 +5959,9 @@ def _alertmanager_consume(args: argparse.Namespace) -> None:
             output / "candidate.zip",
             kind="candidate",
         )
-        source = _alertmanager_source_snapshot(api, args.alertmanager_candidate_source)
+        source = _alertmanager_source_snapshot(
+            api, args.alertmanager_candidate_source, accepted=True
+        )
     finally:
         api.close()
     inspected = _alertmanager_qualified_payload(output / "qualification.zip")
@@ -5906,6 +6017,11 @@ def _alertmanager_publish(
         check_deadline,
     )
 
+    _alertmanager_accepted_producer(
+        args.alertmanager_candidate_run,
+        args.alertmanager_candidate_artifact,
+        args.alertmanager_candidate_source,
+    )
     current = api.json("/repos/Katsiarynakavaleuskaya/PulsePlate/git/ref/heads/main")
     require(
         current.get("object", {}).get("sha") == args.source_sha, "AM_exact_current_main_publication"
@@ -5937,7 +6053,7 @@ def _alertmanager_publish(
         output / "candidate.zip",
         kind="candidate",
     )
-    source = _alertmanager_source_snapshot(api, args.alertmanager_candidate_source)
+    source = _alertmanager_source_snapshot(api, args.alertmanager_candidate_source, accepted=True)
     inspected = _alertmanager_qualified_payload(output / "qualification.zip")
     support = output / "support"
     supported = _alertmanager_support_payload(output / "support.zip", support)
@@ -6157,6 +6273,12 @@ def _alertmanager_execution(args: argparse.Namespace) -> None:
     import shutil
     from scripts.ci.prometheus_source_image import GitHubRead, file_hash, fresh_directory, require
 
+    if args.alertmanager_stage == "publish":
+        _alertmanager_accepted_producer(
+            args.alertmanager_candidate_run,
+            args.alertmanager_candidate_artifact,
+            args.alertmanager_candidate_source,
+        )
     limits = _alertmanager_limits()
     require(
         args.artifact == "alertmanager"
@@ -6340,6 +6462,7 @@ def _alertmanager_execution(args: argparse.Namespace) -> None:
 
 
 def _inspect_alertmanager_inputs(args: argparse.Namespace) -> None:
+    """Inspect retained Q and optional native support without starting a compiler."""
     from scripts.ci.prometheus_source_image import GitHubRead, fresh_directory, require
 
     require(

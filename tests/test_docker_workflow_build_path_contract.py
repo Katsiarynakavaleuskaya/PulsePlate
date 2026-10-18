@@ -3341,6 +3341,7 @@ def test_alertmanager_bootstrap_is_isolated_guarded_and_precedes_all_host_effect
         "sys",
         "pytest",
         "yaml",
+        *({"os", "shutil", "subprocess"} if job_name == "alertmanager-candidate-build" else set()),
     }
     for statement in (
         "from scripts.ci import fetch_docker_source_artifacts, prometheus_source_image",
@@ -4708,6 +4709,7 @@ def test_alertmanager_retained_Q_requires_exact_authenticated_successful_CD_epoc
 def test_alertmanager_source_recipe_binds_historical_QS_and_current_candidate_separately(
     tmp_path: Path,
     alertmanager_api_epoch: dict[str, Any],
+    monkeypatch: pytest.MonkeyPatch,
     kind: str,
     fault: str | None,
 ) -> None:
@@ -4761,6 +4763,26 @@ def test_alertmanager_source_recipe_binds_historical_QS_and_current_candidate_se
     data["artifact"]["workflow_run"].update(id=run, head_sha=source)
     expected = current if kind == "candidate" else historical
     data["source_files"][recipe_path] = expected
+    if kind == "candidate":
+        native_path = "tests/test_notify_premium_alias_checkpoint_failure.py"
+        data["source_files"][native_path] = b"synthetic independently accepted native owner"
+        monkeypatch.setattr(
+            docker_sources,
+            "_ALERT_ACCEPTED_CANDIDATE",
+            {
+                "run": run,
+                "attempt": 1,
+                "artifact": artifact,
+                "source": source,
+                "job": job,
+                "zip_sha256": sha256(data["zip"]).hexdigest(),
+                "source_files": {
+                    path: sha256(raw).hexdigest() for path, raw in data["source_files"].items()
+                },
+                "graph": {"synthetic_known_graph": True},
+                "OCI_archive_sha256": "e" * 64,
+            },
+        )
     if fault == "other-epoch":
         data["source_files"][recipe_path] = historical if kind == "candidate" else current
     elif fault == "changed":
@@ -4848,7 +4870,12 @@ def test_alertmanager_future_stages_cannot_activate_compiler_or_publication(
     monkeypatch.setattr(docker_sources, "_inspect_alertmanager_inputs", forbidden)
     monkeypatch.setattr(docker_sources, "load_manifest", forbidden)
     monkeypatch.delenv("ALERTMANAGER_PREP_SECONDS", raising=False)
-    with pytest.raises(RuntimeError, match="AM_explicit_phase_budget_PREP_SECONDS"):
+    expected = (
+        "AM_accepted_producer_UNCONFIGURED_HOLD"
+        if stage == "publish"
+        else "AM_explicit_phase_budget_PREP_SECONDS"
+    )
+    with pytest.raises(RuntimeError, match=expected):
         docker_sources.main(["--artifact", "alertmanager", "--alertmanager-stage", stage])
     assert docker_sources.parse_args([]).alertmanager_stage == "disabled"
 
@@ -7597,11 +7624,15 @@ def test_alertmanager_both_security_callers_use_actual_authenticated_support_ref
 
     else:
         plan = {"UI_file_hashes": {"index.html.gz": "f" * 64}}
-        source = {"synthetic-source.py": b"synthetic bound producer"}
-        files = {
-            "producer-source/synthetic-source.py": source["synthetic-source.py"],
-            "security-evidence/candidate-full-supported.private.json": json.dumps(full).encode(),
+        source = {
+            path: (REPO_ROOT / path).read_bytes()
+            for path in (
+                *docker_sources._ALERT_Q_SOURCE_FILES,
+                "tests/test_notify_premium_alias_checkpoint_failure.py",
+            )
         }
+        files = {"producer-source/" + path: raw for path, raw in source.items()}
+        files["security-evidence/candidate-full-supported.private.json"] = json.dumps(full).encode()
         phase_records = {}
         for phase in ("pair", "security", "native"):
             label = "full-AM-native" if phase == "native" else "synthetic-" + phase
@@ -7623,6 +7654,8 @@ def test_alertmanager_both_security_callers_use_actual_authenticated_support_ref
                 }
             ]
         observed = {
+            "source": "a" * 40,
+            "OCI_archive_sha256": "e" * 64,
             "status": "OBSERVED_NATIVE_SECURITY_ACCEPTED",
             "failure": None,
             "cleanup_failure": None,
@@ -7704,6 +7737,22 @@ def test_alertmanager_both_security_callers_use_actual_authenticated_support_ref
                 info = zipfile.ZipInfo(name)
                 info.external_attr = (stat.S_IFREG | 0o600) << 16
                 retained.writestr(info, raw)
+
+        monkeypatch.setattr(
+            docker_sources,
+            "_ALERT_ACCEPTED_CANDIDATE",
+            {
+                "run": 101,
+                "attempt": 1,
+                "artifact": 102,
+                "source": "a" * 40,
+                "job": 103,
+                "zip_sha256": sha256(archive.read_bytes()).hexdigest(),
+                "source_files": {path: sha256(raw).hexdigest() for path, raw in source.items()},
+                "graph": deepcopy(observed["graph"]),
+                "OCI_archive_sha256": "e" * 64,
+            },
+        )
 
         def invoke() -> None:
             docker_sources._alertmanager_candidate_payload(
@@ -8583,3 +8632,311 @@ def test_alertmanager_real_phase_renders_private_Docker_transport_without_changi
             if phase == "native":
                 assert report["failure"] == "QualificationError:" + expected_guard
         assert not list(retained.rglob("docker-load.tar"))
+
+
+@pytest.fixture
+def accepted_alertmanager_artifact_io(
+    monkeypatch: pytest.MonkeyPatch,
+) -> tuple[dict[str, Any], dict[str, bytes], Any]:
+    """Synthetic independent A drives the existing exact three-kind transport."""
+    import base64
+    from hashlib import sha1
+
+    source = {
+        path: (REPO_ROOT / path).read_bytes()
+        for path in (
+            *docker_sources._ALERT_Q_SOURCE_FILES,
+            "tests/test_notify_premium_alias_checkpoint_failure.py",
+        )
+    }
+    archive = b"synthetic accepted artifact transport"
+    selected: dict[str, Any] = {
+        "run": 101,
+        "attempt": 1,
+        "artifact": 102,
+        "source": "a" * 40,
+        "job": 103,
+        "zip_sha256": sha256(archive).hexdigest(),
+        "source_files": {path: sha256(raw).hexdigest() for path, raw in source.items()},
+        "graph": {"manifest": {"digest": "sha256:" + "b" * 64}},
+        "OCI_archive_sha256": "c" * 64,
+    }
+    monkeypatch.setattr(docker_sources, "_ALERT_ACCEPTED_CANDIDATE", selected)
+
+    class API:
+        calls: list[str]
+        fault: str | None = None
+
+        def __init__(self) -> None:
+            self.calls = []
+
+        def json(self, endpoint: str) -> dict[str, Any]:
+            self.calls.append(endpoint)
+            if endpoint.endswith("/PulsePlate"):
+                return {"id": 1043311030, "full_name": "Katsiarynakavaleuskaya/PulsePlate"}
+            if endpoint.endswith("/actions/workflows/cd.yml"):
+                return {"id": 88, "path": ".github/workflows/cd.yml"}
+            if endpoint.endswith("/actions/runs/101"):
+                return {
+                    "id": 101,
+                    "head_sha": "a" * 40,
+                    "head_branch": docker_sources._ALERT_Q_BRANCH,
+                    "event": "workflow_dispatch",
+                    "run_attempt": 1,
+                    "status": "completed",
+                    "conclusion": "success",
+                    "workflow_id": 88,
+                    "repository": {"id": 1043311030},
+                    "head_repository": {"id": 1043311030},
+                }
+            if "/jobs?" in endpoint:
+                return {"total_count": 1}
+            if "/contents/" in endpoint:
+                path = endpoint.split("/contents/", 1)[1].split("?ref=", 1)[0]
+                raw = source[path] + (b"mixed unreviewed source" if self.fault == path else b"")
+                return {
+                    "path": path,
+                    "type": "file",
+                    "encoding": "base64",
+                    "size": len(raw),
+                    "content": base64.b64encode(raw).decode(),
+                    "sha": sha1(
+                        b"blob " + str(len(raw)).encode() + b"\0" + raw, usedforsecurity=False
+                    ).hexdigest(),
+                }
+            assert endpoint.endswith("/actions/artifacts/102")
+            return {
+                "id": 102,
+                "expired": False,
+                "name": "alertmanager-candidate-101-1",
+                "size_in_bytes": len(archive),
+                "digest": "sha256:"
+                + ("d" * 64 if self.fault == "archive" else sha256(archive).hexdigest()),
+                "workflow_run": {
+                    "id": 101,
+                    "head_sha": "a" * 40,
+                    "repository_id": 1043311030,
+                    "head_repository_id": 1043311030,
+                },
+                "expires_at": "2099-01-01T00:00:00Z",
+            }
+
+        def pages(self, endpoint: str, key: str, count: int) -> list[dict[str, Any]]:
+            assert (
+                endpoint.endswith("/actions/runs/101/attempts/1/jobs")
+                and key == "jobs"
+                and count == 1
+            )
+            return [
+                {
+                    "id": 104 if self.fault == "job" else 103,
+                    "name": "alertmanager-candidate-build",
+                    "run_id": 101,
+                    "head_sha": "a" * 40,
+                    "status": "completed",
+                    "conclusion": "success",
+                }
+            ]
+
+        def raw(self, endpoint: str, maximum: int) -> bytes:
+            self.calls.append(endpoint)
+            assert endpoint.endswith("/actions/artifacts/102/zip") and maximum == 1024**3
+            return archive
+
+    return selected, source, API()
+
+
+@pytest.mark.parametrize(
+    "entry", ["consume", "publish", "execution", "authenticated", "snapshot", "payload"]
+)
+def test_alertmanager_unconfigured_accepted_producer_holds_before_credentials_or_files(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    entry: str,
+) -> None:
+    from argparse import Namespace
+    from scripts.ci import prometheus_source_image as transport
+
+    monkeypatch.setattr(docker_sources, "_ALERT_ACCEPTED_CANDIDATE", None)
+    monkeypatch.setattr(
+        transport,
+        "GitHubRead",
+        lambda *a, **k: pytest.fail("unconfigured producer acquired credentials"),
+    )
+
+    class API:
+        def json(self, *args: Any) -> Any:
+            pytest.fail("unconfigured producer reached authenticated API")
+
+    args = Namespace(
+        alertmanager_stage="publish",
+        alertmanager_candidate_run=101,
+        alertmanager_candidate_artifact=102,
+        alertmanager_candidate_source="a" * 40,
+    )
+    with pytest.raises(RuntimeError, match="AM_accepted_producer_UNCONFIGURED_HOLD"):
+        if entry == "consume":
+            docker_sources._alertmanager_consume(args)
+        elif entry == "publish":
+            docker_sources._alertmanager_publish(args, API(), tmp_path, tmp_path, {}, {})
+        elif entry == "execution":
+            docker_sources._alertmanager_execution(args)
+        elif entry == "authenticated":
+            docker_sources._alertmanager_authenticated_inputs(
+                API(), 101, 102, "a" * 40, tmp_path / "candidate.zip", kind="candidate"
+            )
+        elif entry == "snapshot":
+            docker_sources._alertmanager_source_snapshot(API(), "a" * 40, accepted=True)
+        else:
+            docker_sources._alertmanager_candidate_payload(
+                tmp_path / "absent.zip", tmp_path / "payload", {}, {}, tmp_path
+            )
+    assert list(tmp_path.iterdir()) == []
+
+
+@pytest.mark.parametrize(
+    "fault",
+    [
+        None,
+        "early-ancestor",
+        "run",
+        "artifact",
+        "job",
+        "archive",
+        "scripts/ci/fetch_docker_source_artifacts.py",
+        ".github/workflows/cd.yml",
+        "tests/test_notify_premium_alias_checkpoint_failure.py",
+        "deploy/alertmanager/Containerfile",
+    ],
+)
+def test_alertmanager_accepted_producer_identity_precedes_retained_download(
+    tmp_path: Path,
+    accepted_alertmanager_artifact_io: tuple[dict[str, Any], dict[str, bytes], Any],
+    fault: str | None,
+) -> None:
+    selected, source, api = accepted_alertmanager_artifact_io
+    api.fault = fault
+    run, artifact, revision = selected["run"], selected["artifact"], selected["source"]
+    if fault == "early-ancestor":
+        revision = "1" * 40
+    elif fault == "run":
+        run += 1
+    elif fault == "artifact":
+        artifact += 1
+    target = tmp_path / "candidate.zip"
+    if fault is None:
+        result = docker_sources._alertmanager_authenticated_inputs(
+            api, run, artifact, revision, target, kind="candidate"
+        )
+        assert result["source_files"] == selected["source_files"]
+        assert target.read_bytes() == b"synthetic accepted artifact transport"
+        # A later consumer's local fetcher can differ; only immutable A source is compared.
+        snapshot = docker_sources._alertmanager_source_snapshot(api, revision, accepted=True)
+        assert snapshot == source
+    else:
+        expected = (
+            "AM_accepted_producer_exact_selectors"
+            if fault in {"early-ancestor", "run", "artifact"}
+            else (
+                "AM_qualification_successful_unique_job"
+                if fault == "job"
+                else (
+                    "AM_qualification_artifact_identity"
+                    if fault == "archive"
+                    else "AM_qualification_source_bytes"
+                )
+            )
+        )
+        with pytest.raises(RuntimeError, match=expected):
+            docker_sources._alertmanager_authenticated_inputs(
+                api, run, artifact, revision, target, kind="candidate"
+            )
+        assert not target.exists() and not any(call.endswith("/zip") for call in api.calls)
+        if fault in {"early-ancestor", "run", "artifact"}:
+            assert api.calls == []
+
+
+@pytest.mark.parametrize(
+    "fault", ["native-source", "recipe", "subject", "graph", "archive", "consumer"]
+)
+def test_alertmanager_payload_independent_A_binds_source_recipe_and_full_subject(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    accepted_alertmanager_artifact_io: tuple[dict[str, Any], dict[str, bytes], Any],
+    fault: str,
+) -> None:
+    selected, source, api = accepted_alertmanager_artifact_io
+    del api
+    archive = tmp_path / "candidate.zip"
+    archive.write_bytes(b"synthetic accepted artifact transport")
+    if fault == "native-source":
+        source = {**source, "tests/test_notify_premium_alias_checkpoint_failure.py": b"mixed"}
+    elif fault == "recipe":
+        source = {**source, "deploy/alertmanager/Containerfile": b"mixed"}
+    elif fault == "archive":
+        archive.write_bytes(b"mixed archive")
+    elif fault == "consumer":
+        # Current consumer identity is deliberately independent of the selected A bytes.
+        monkeypatch.setattr(docker_sources, "REPO_ROOT", tmp_path / "later-consumer")
+    from scripts.ci import prometheus_source_image as transport
+
+    if fault in {"subject", "graph"}:
+        import zipfile
+
+        observed = {
+            "source": "f" * 40 if fault == "subject" else selected["source"],
+            "graph": (
+                {"manifest": {"digest": "sha256:" + "e" * 64}}
+                if fault == "graph"
+                else selected["graph"]
+            ),
+            "OCI_archive_sha256": selected["OCI_archive_sha256"],
+        }
+        raw = json.dumps(observed).encode()
+        footer = {
+            "files": [
+                {
+                    "path": "candidate-observation.json",
+                    "size": len(raw),
+                    "mode": 0o600,
+                    "sha256": sha256(raw).hexdigest(),
+                }
+            ],
+            "directories": [],
+            "inventory_carrier_exception": "Exactly artifact-payload-members.json is bound by external artifact bytes; its own hash is not recursively embedded.",
+        }
+        with zipfile.ZipFile(archive, "w") as retained:
+            for name, value in (
+                ("candidate-observation.json", raw),
+                ("artifact-payload-members.json", json.dumps(footer).encode()),
+            ):
+                info = zipfile.ZipInfo(name)
+                info.external_attr = (stat.S_IFREG | 0o600) << 16
+                retained.writestr(info, value)
+        selected["zip_sha256"] = sha256(archive.read_bytes()).hexdigest()
+        with pytest.raises(RuntimeError, match="AM_accepted_producer_subject_graph"):
+            docker_sources._alertmanager_candidate_payload(
+                archive, tmp_path / "payload", source, {}, tmp_path
+            )
+        assert not (tmp_path / "payload").exists()
+        return
+
+    def members(path: Path) -> dict[str, bytes]:
+        assert path == archive
+        raise RuntimeError("reached-original-payload-reader")
+
+    monkeypatch.setattr(transport, "_zip_members", members)
+    expected = (
+        "AM_accepted_producer_source_bytes"
+        if fault in {"native-source", "recipe"}
+        else (
+            "AM_accepted_producer_archive_bytes"
+            if fault == "archive"
+            else "reached-original-payload-reader"
+        )
+    )
+    with pytest.raises(RuntimeError, match=expected):
+        docker_sources._alertmanager_candidate_payload(
+            archive, tmp_path / "payload", source, {}, tmp_path
+        )
+    assert not (tmp_path / "payload").exists()

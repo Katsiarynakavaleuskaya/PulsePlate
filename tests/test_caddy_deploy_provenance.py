@@ -4084,7 +4084,28 @@ def test_alertmanager_publication_entrypoint_uses_canonical_guards_and_exact_cop
     monkeypatch.setattr(transport, "existing_public_package", package)
     monkeypatch.setattr(transport, "immutable_tag_state", tag)
     monkeypatch.setattr(fetcher, "_alertmanager_authenticated_inputs", authenticated)
-    monkeypatch.setattr(fetcher, "_alertmanager_source_snapshot", lambda *a: {})
+    monkeypatch.setattr(fetcher, "_alertmanager_source_snapshot", lambda *a, **k: {})
+    monkeypatch.setattr(
+        fetcher,
+        "_ALERT_ACCEPTED_CANDIDATE",
+        {
+            "run": 888,
+            "attempt": 1,
+            "artifact": 777,
+            "source": "c" * 40,
+            "job": 666,
+            "zip_sha256": "e" * 64,
+            "source_files": {
+                path: hashlib.sha256((REPO_ROOT / path).read_bytes()).hexdigest()
+                for path in (
+                    *fetcher._ALERT_Q_SOURCE_FILES,
+                    "tests/test_notify_premium_alias_checkpoint_failure.py",
+                )
+            },
+            "graph": {"synthetic_guarded_publication_only": True},
+            "OCI_archive_sha256": "f" * 64,
+        },
+    )
     monkeypatch.setattr(fetcher, "_alertmanager_package_read", lambda *a: {})
     monkeypatch.setattr(fetcher, "_alertmanager_qualified_payload", lambda *a: {"plan": {}})
     monkeypatch.setattr(fetcher, "_alertmanager_support_payload", support)
@@ -4131,3 +4152,59 @@ def test_alertmanager_publication_entrypoint_uses_canonical_guards_and_exact_cop
         assert result["package_WRITE"] == "OBSERVED_SUCCESSFUL_INTENDED_COPY" and native_calls
     if case not in ("absent", "same"):
         assert native_calls == []
+
+
+@pytest.mark.parametrize("fault", [None, "missing-tool", "not-directory", "denied"])
+def test_alertmanager_precompiler_capability_is_bounded_readonly_permission_observation(
+    monkeypatch: pytest.MonkeyPatch,
+    fault: str | None,
+) -> None:
+    """Execute the workflow's actual fixed capability block with synthetic IO."""
+    import ast
+    import subprocess
+
+    smoke = _named_step(
+        _steps(_job(_workflow(CD_WORKFLOW), "alertmanager-candidate-build")),
+        "Verify isolated AM host import capability before effects",
+    )["run"]
+    source = smoke.split("# Read-only prerequisite observation;", 1)[1]
+    source = source[source.index("import os\n") : source.index("print(json.dumps({")]
+    tree = ast.parse(source)
+    calls: list[list[str]] = []
+    monkeypatch.setattr(
+        shutil,
+        "which",
+        lambda name: None if fault == "missing-tool" and name == "install" else "/absolute/" + name,
+    )
+    real_is_dir = Path.is_dir
+
+    def is_dir(path: Path) -> bool:
+        return (
+            fault != "not-directory" if path == Path("/run/systemd/system") else real_is_dir(path)
+        )
+
+    monkeypatch.setattr(Path, "is_dir", is_dir)
+
+    def run(argv: list[str], **kwargs: Any) -> subprocess.CompletedProcess[bytes]:
+        calls.append(argv)
+        assert argv == ["/absolute/sudo", "-n", "/absolute/test", "-w", "/run/systemd/system"]
+        assert kwargs == {
+            "env": {"PATH": os.defpath, "LANG": "C"},
+            "stdin": subprocess.DEVNULL,
+            "stdout": subprocess.DEVNULL,
+            "stderr": subprocess.DEVNULL,
+            "timeout": 5,
+            "check": True,
+        }
+        if fault == "denied":
+            raise subprocess.CalledProcessError(1, argv)
+        return subprocess.CompletedProcess(argv, 0, b"", b"")
+
+    monkeypatch.setattr(subprocess, "run", run)
+    if fault is None:
+        exec(compile(tree, "cd.yml:AM-readonly-prerequisite", "exec"), {"Path": Path})
+    else:
+        with pytest.raises(subprocess.CalledProcessError if fault == "denied" else AssertionError):
+            exec(compile(tree, "cd.yml:AM-readonly-prerequisite", "exec"), {"Path": Path})
+    assert len(calls) == (0 if fault in {"missing-tool", "not-directory"} else 1)
+    assert "install/start is native evidence" in smoke

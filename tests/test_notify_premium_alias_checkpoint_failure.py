@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import base64
+import errno
 import gzip
 import hashlib
 import io
@@ -16,6 +17,7 @@ import shutil
 import signal
 import socket
 import ssl
+import stat
 import subprocess
 import sys
 import tarfile
@@ -1314,9 +1316,221 @@ def _native_query_lifetime(directory: Path, prometheus_image_id: str) -> None:
             raise cleanup_errors[0]
 
 
+def _amtool_fixture_context(compose: Path, config: Path, expected: str | None = None) -> str:
+    """Bind the generated sender's regular Compose file and same empty private config."""
+    directory = compose.parent
+    assert compose.name == "amtool-compose.yaml" and config == directory / "empty-docker-config"
+    assert re.fullmatch(r"pulseplate-am-only-native-[a-z0-9_]{8}", directory.name)
+    assert all(
+        path.is_absolute()
+        and path == path.resolve()
+        and not path.is_symlink()
+        and re.fullmatch(r"/[A-Za-z0-9_./-]+", str(path)) is not None
+        and ".." not in path.parts
+        for path in (directory, compose, config)
+    ), "AM sender paths must be canonical owned data"
+    parent_info, compose_info, config_info = (path.lstat() for path in (directory, compose, config))
+    assert (
+        stat.S_ISDIR(parent_info.st_mode)
+        and stat.S_IMODE(parent_info.st_mode) == 0o700
+        and stat.S_ISREG(compose_info.st_mode)
+        and stat.S_IMODE(compose_info.st_mode) == 0o600
+        and compose_info.st_nlink == 1
+        and stat.S_ISDIR(config_info.st_mode)
+        and stat.S_IMODE(config_info.st_mode) == 0o700
+        and parent_info.st_uid == compose_info.st_uid == config_info.st_uid
+        and not list(config.iterdir())
+    ), "AM sender requires the original owner's empty private context"
+    identity = ":".join(
+        str(value)
+        for value in (
+            parent_info.st_uid,
+            parent_info.st_dev,
+            parent_info.st_ino,
+            compose_info.st_dev,
+            compose_info.st_ino,
+            config_info.st_dev,
+            config_info.st_ino,
+        )
+    )
+    if expected is None:
+        assert parent_info.st_uid == os.getuid(), "AM parent must own the sender context"
+    else:
+        assert (
+            re.fullmatch(r"[0-9]+(?::[0-9]+){6}", expected) and identity == expected
+        ), "AM sender context identity changed"
+    return identity
+
+
+def _native_am_send(argv: list[str]) -> bool:
+    """Give AM parent sends the same private Docker identity as its native owner."""
+    config = _AM_NATIVE_DOCKER_CONFIG
+    if config is None:
+        return notifier._send(argv)
+    info = config.lstat()
+    assert (
+        config.is_absolute()
+        and config == config.resolve()
+        and not config.is_symlink()
+        and config.name == "empty-docker-config"
+        and stat.S_ISDIR(info.st_mode)
+        and stat.S_IMODE(info.st_mode) == 0o700
+        and info.st_uid == config.parent.stat().st_uid
+        and not list(config.iterdir())
+    ), "AM send private config changed"
+    assert argv and os.path.isabs(argv[0]) and argv[1:2] == ["compose"]
+    return notifier._send(
+        [argv[0], "--config", str(config), *argv[1:]],
+        {
+            "PATH": os.defpath,
+            "LANG": "C",
+            "HOME": str(config.parent),
+            "COMPOSE_PROFILES": "",
+            "DOCKER_CONFIG": str(config),
+        },
+    )
+
+
+def _amtool_fixture_send(compose: Path, config: Path, identity: str) -> int:
+    """Recheck the parent-owned identity in the fresh root sender before Docker."""
+    _amtool_fixture_context(compose, config, identity)
+    docker = shutil.which("docker")
+    assert docker is not None and os.path.isabs(docker)
+    start = datetime.now(timezone.utc)
+    argv = notifier._argv(
+        docker,
+        compose,
+        "staging",
+        notifier._timestamp(start),
+        notifier._timestamp(start + timedelta(seconds=900)),
+    )
+    with pytest.MonkeyPatch.context() as runtime:
+        runtime.setattr(sys.modules[__name__], "_AM_NATIVE_DOCKER_CONFIG", config)
+        return 0 if _native_am_send(argv) else 1
+
+
+def _amtool_owned_unit_file(path: Path, expected: bytes) -> None:
+    """An attempted install alone never authorizes deleting foreign or partial bytes."""
+    info = path.lstat()
+    assert (
+        not path.is_symlink()
+        and stat.S_ISREG(info.st_mode)
+        and info.st_nlink == 1
+        and info.st_uid == 0
+        and stat.S_IMODE(info.st_mode) == 0o644
+        and path.read_bytes() == expected
+    ), "AM installed unit ownership or bytes unknown"
+
+
+def _amtool_owned_unit(
+    unit: str,
+    path: Path,
+    expected: bytes,
+    command: list[str],
+    *,
+    before_start: bool = False,
+) -> None:
+    """Bind the exact loaded scratch unit through the incumbent typed systemd owner."""
+    _amtool_owned_unit_file(path, expected)
+    systemctl = shutil.which("systemctl")
+    assert systemctl is not None and os.path.isabs(systemctl)
+    loaded = _native([systemctl, "show", unit, "--property=LoadState", "--value"])
+    assert loaded.stdout == "loaded\n", "AM unit load state unknown"
+    assert _property(unit, "Unit", "FragmentPath", "s") == str(path)
+    assert _property(unit, "Unit", "DropInPaths", "as") == []
+    assert _property(unit, "Unit", "NeedDaemonReload", "b") is False
+    actual = _property(unit, "Service", "ExecStart", "a(sasbttttuii)")
+    assert isinstance(actual, list) and len(actual) == 1
+    assert actual[0][0] == command[0] and actual[0][1] == command and actual[0][2] is False
+    for name, signature, value in (
+        ("WorkingDirectory", "s", str(ROOT)),
+        ("User", "s", "root"),
+        ("Environment", "as", []),
+        ("EnvironmentFiles", "a(sb)", []),
+        ("Type", "s", "oneshot"),
+        ("TimeoutStartUSec", "t", 960_000_000),
+        ("TimeoutStopUSec", "t", 10_000_000),
+        ("KillMode", "s", "control-group"),
+        ("Restart", "s", "no"),
+    ):
+        assert _property(unit, "Service", name, signature) == value
+    if before_start:
+        assert _property(unit, "Unit", "ActiveState", "s") == "inactive"
+        assert _property(unit, "Unit", "SubState", "s") == "dead"
+        for name in ("MainPID", "ControlPID"):
+            value = _property(unit, "Service", name, "u")
+            assert type(value) is int and value == 0, "AM unit already has a process"
+
+
+def _native_am_failure(label: str, error: BaseException) -> None:
+    """Project finite primary metadata; exception prose and custom names stay private."""
+    try:
+        assert label in {"amtool_lifetime", "alertmanager", "owned_fixture", "timer_cleanup"}
+        known = (
+            AssertionError,
+            OSError,
+            PermissionError,
+            FileNotFoundError,
+            RuntimeError,
+            TimeoutError,
+            ValueError,
+            TypeError,
+            subprocess.TimeoutExpired,
+        )
+        record: dict[str, object] = {
+            "native_AM_fixture_failure": label,
+            "type": type(error).__name__ if type(error) in known else "unknown_exception",
+            "message": "withheld",
+        }
+        if (
+            isinstance(error, OSError)
+            and type(error.errno) is int
+            and error.errno in errno.errorcode
+        ):
+            record.update(
+                errno=error.errno,
+                errno_name=errno.errorcode[error.errno],
+                errno_description=os.strerror(error.errno),
+            )
+        frames = []
+        current = error.__traceback__
+        visited = 0
+        while current is not None and visited < 32 and len(frames) < 16:
+            visited += 1
+            code = current.tb_frame.f_code
+            if code.co_filename == __file__ and code.co_name in {
+                "_native",
+                "_native_amtool_lifetime",
+                "_amtool_owned_unit_file",
+                "_amtool_owned_unit",
+                "_native_alertmanager",
+                "_native_am_send",
+                "_amtool_fixture_context",
+                "_amtool_fixture_send",
+                "native_alertmanager_main",
+            }:
+                frames.append(
+                    {
+                        "file": "tests/test_notify_premium_alias_checkpoint_failure.py",
+                        "line": current.tb_lineno,
+                        "function": code.co_name,
+                    }
+                )
+            current = current.tb_next
+        record["frames"] = frames
+        print(json.dumps(record), flush=True)
+    except Exception:
+        # Failure was recorded by the owner before this optional projection.
+        try:
+            print("native_AM_failure_metadata_unavailable", flush=True)
+        except Exception:
+            return
+
+
 def _native_amtool_lifetime(
     directory: Path, image: str = ALERTMANAGER_IMAGE, *, independent: bool = False
 ) -> None:
+    """Observe bounded amtool cleanup, with one narrowly installed owned unit."""
     release = threading.Event()
     entered = threading.Event()
     methods: list[str] = []
@@ -1343,8 +1557,13 @@ def _native_amtool_lifetime(
     compose_attempted = False
     unit = "obs2aamtool" + uuid.uuid4().hex + ".service"
     unit_file = SYSTEMD_UNIT_DIRECTORY / unit
+    staged_unit = directory / unit
+    unit_attempted = False
+    unit_start_attempted = False
+    unit_bytes = b""
     primary_failure: BaseException | None = None
     try:
+        assert not unit_file.exists() and not unit_file.is_symlink(), "AM unit already exists"
         server = ThreadingHTTPServer(("127.0.0.1", 9093), Handler)
         server.daemon_threads = True
         thread = threading.Thread(target=server.serve_forever, daemon=True)
@@ -1356,6 +1575,7 @@ def _native_amtool_lifetime(
         compose.write_text(
             f"services:\n  alertmanager:\n    profiles: [alerting]\n    image: {image}\n    pull_policy: never\n    platform: linux/amd64\n    user: '65534:65534'\n    cap_drop: [ALL]\n    security_opt: ['no-new-privileges:true']\n    read_only: true\n    network_mode: host\n    tmpfs: ['/alertmanager:uid=65534,gid=65534,mode=0700,size=16m']\n    command: ['--config.file=/etc/alertmanager/alertmanager.yml', '--storage.path=/alertmanager', '--cluster.listen-address=', '--web.listen-address=127.0.0.1:19093']\n    volumes: ['{config}:/etc/alertmanager/alertmanager.yml:ro']\n"
         )
+        compose.chmod(0o600)
         if not independent:
             selected_manifest = directory / "prometheus/image-manifest.json"
             selected_manifest.parent.mkdir(exist_ok=True)
@@ -1379,10 +1599,10 @@ def _native_amtool_lifetime(
             notifier._timestamp(start + timedelta(seconds=900)),
         )
         release.set()
-        assert notifier._send(argv)
+        assert _native_am_send(argv)
         release.clear()
         entered.clear()
-        assert notifier._send(argv) is False
+        assert _native_am_send(argv) is False
         assert (
             entered.is_set() and "GET" not in methods
         ), "uncontexted status request occurred despite no-version-check"
@@ -1395,19 +1615,61 @@ def _native_amtool_lifetime(
         ), "ordinary fixture response failed to finish task"
         release.clear()
         entered.clear()
-        sender = (
-            f"tests.test_notify_premium_alias_checkpoint_failure --amtool-fixture-send {compose}"
-            if independent
-            else f"scripts.ops.notify_premium_alias_checkpoint_failure --compose-file {compose} --environment staging"
+        sender = [
+            sys.executable,
+            "-s",
+            "-B",
+            "-m",
+            "scripts.ops.notify_premium_alias_checkpoint_failure",
+            "--compose-file",
+            str(compose),
+            "--environment",
+            "staging",
+        ]
+        if independent:
+            assert _AM_NATIVE_DOCKER_CONFIG is not None
+            identity = _amtool_fixture_context(compose, _AM_NATIVE_DOCKER_CONFIG)
+            sender = [
+                sys.executable,
+                "-s",
+                "-B",
+                "-m",
+                "tests.test_notify_premium_alias_checkpoint_failure",
+                "--amtool-fixture-send",
+                str(compose),
+                "--amtool-fixture-config",
+                str(_AM_NATIVE_DOCKER_CONFIG),
+                "--amtool-fixture-context",
+                identity,
+            ]
+        assert Path(sys.executable).is_absolute() and Path(sys.executable).is_file()
+        environment = shutil.which("env")
+        sudo, install, remove, systemctl = (
+            shutil.which(name) for name in ("sudo", "install", "rm", "systemctl")
         )
-        unit_file.write_text(
-            f"[Service]\nType=oneshot\nWorkingDirectory={ROOT}\nExecStart={sys.executable} -m {sender}\nTimeoutStartSec=16min\nTimeoutStopSec=10s\nKillMode=control-group\nRestart=no\n"
+        assert all(
+            value is not None and os.path.isabs(value)
+            for value in (environment, sudo, install, remove, systemctl)
         )
-        _native(["sudo", "systemctl", "daemon-reload"])
-        _native(["sudo", "systemctl", "start", "--no-block", unit])
+        command = [str(environment), "-i", "PATH=" + os.defpath, "LANG=C", *sender]
+        assert all(re.fullmatch(r"[A-Za-z0-9_./:=,-]+", token) for token in [str(ROOT), *command])
+        unit_bytes = (
+            f"[Service]\nType=oneshot\nUser=root\nWorkingDirectory={ROOT}\nExecStart={' '.join(command)}\nTimeoutStartSec=16min\nTimeoutStopSec=10s\nKillMode=control-group\nRestart=no\n"
+        ).encode()
+        with staged_unit.open("xb") as stream:
+            stream.write(unit_bytes)
+        staged_unit.chmod(0o600)
+        unit_attempted = True
+        _native(
+            [str(sudo), "-n", str(install), "-m", "0644", "--", str(staged_unit), str(unit_file)]
+        )
+        _native([str(sudo), "-n", str(systemctl), "daemon-reload"])
+        _amtool_owned_unit(unit, unit_file, unit_bytes, command, before_start=True)
+        unit_start_attempted = True
+        _native([str(sudo), "-n", str(systemctl), "start", "--no-block", unit])
         assert entered.wait(10)
         stopped_at = time.monotonic()
-        _native(["sudo", "systemctl", "stop", unit])
+        _native([str(sudo), "-n", str(systemctl), "stop", unit])
         if not _owned_task_stopped(cid, "amtool", stopped_at, "P01_systemd_interruption"):
             failures.append(
                 "owned amtool cleanup not proved within interruption plus10s stop bound"
@@ -1435,20 +1697,25 @@ def _native_amtool_lifetime(
                 assert not thread.is_alive(), "owned server thread did not stop"
             except Exception as cleanup_error:
                 cleanup_errors.append(cleanup_error)
-        if unit_file.exists():
+        if unit_attempted:
             unit_stopped = False
             try:
-                _native(["sudo", "systemctl", "stop", unit])
+                _amtool_owned_unit_file(unit_file, unit_bytes)
+                if unit_start_attempted:
+                    _amtool_owned_unit(unit, unit_file, unit_bytes, command)
+                    _native([str(sudo), "-n", str(systemctl), "stop", unit])
                 unit_stopped = True
             except Exception as cleanup_error:
                 cleanup_errors.append(cleanup_error)
             if unit_stopped:
                 try:
-                    unit_file.unlink()
+                    _amtool_owned_unit_file(unit_file, unit_bytes)
+                    _native([str(sudo), "-n", str(remove), "--", str(unit_file)])
+                    assert not unit_file.exists() and not unit_file.is_symlink()
                 except Exception as cleanup_error:
                     cleanup_errors.append(cleanup_error)
             try:
-                _native(["sudo", "systemctl", "daemon-reload"])
+                _native([str(sudo), "-n", str(systemctl), "daemon-reload"])
             except Exception as cleanup_error:
                 cleanup_errors.append(cleanup_error)
         if cid:
@@ -1466,9 +1733,7 @@ def _native_amtool_lifetime(
                 except Exception as cleanup_error:
                     cleanup_errors.append(cleanup_error)
         for cleanup_error in cleanup_errors:
-            print(
-                "native_cleanup_failure=owned_fixture:" + type(cleanup_error).__name__, flush=True
-            )
+            _native_am_failure("owned_fixture", cleanup_error)
         if cleanup_errors and primary_failure is None:
             raise cleanup_errors[0]
 
@@ -1536,6 +1801,7 @@ def _native_alertmanager(
         cert.chmod(0o444)
         key.chmod(0o600)
         context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        context.minimum_version = ssl.TLSVersion.TLSv1_2
         context.load_cert_chain(cert, key)
         trusted_ca = cert
         if tls_failure == "untrusted":
@@ -1700,7 +1966,7 @@ def _native_alertmanager(
                 docker, compose, "staging", notifier._timestamp(start), notifier._timestamp(end)
             )
             # Real native command, then an actual same-event resend and later event.
-            assert notifier._send(argv)
+            assert _native_am_send(argv)
             first = json.loads(_native(query).stdout)
             assert len(first) == 1 and first[0]["labels"] == {
                 "alertname": "PulsePlateAliasCheckpointFailed",
@@ -1738,7 +2004,7 @@ def _native_alertmanager(
             epoch = time.monotonic()
             for slot in range(1, 15):
                 time.sleep(max(0, epoch + slot * 60 - time.monotonic()))
-                assert notifier._send(argv)
+                assert _native_am_send(argv)
                 assert json.loads(_native(query).stdout)[0]["fingerprint"] == fingerprint
             assert (
                 len(received) == 1
@@ -1748,7 +2014,7 @@ def _native_alertmanager(
             time.sleep(max(0, epoch + 905 - time.monotonic()))
             assert json.loads(_native(query).stdout) == [], "bounded event did not expire"
             later = datetime.now(timezone.utc)
-            assert notifier._send(
+            assert _native_am_send(
                 notifier._argv(
                     docker,
                     compose,
@@ -1780,7 +2046,7 @@ def _native_alertmanager(
                 notifier._timestamp(later),
                 notifier._timestamp(later + timedelta(seconds=900)),
             )
-            assert notifier._send(failed_argv) is False
+            assert _native_am_send(failed_argv) is False
             assert (
                 json.loads(
                     _native(
@@ -1791,7 +2057,7 @@ def _native_alertmanager(
             )
             _native(["docker", "rm", cid])
             cid = ""
-            assert notifier._send(failed_argv) is False
+            assert _native_am_send(failed_argv) is False
             assert _native([*prefix, "ps", "-a", "-q", "alertmanager"]).stdout.strip() == ""
             print("native_profile_off_exec=running_submit_stopped_absent_rejection", flush=True)
         except BaseException as exc:
@@ -1830,10 +2096,7 @@ def _native_alertmanager(
                     except Exception as cleanup_error:
                         cleanup_errors.append(cleanup_error)
             for cleanup_error in cleanup_errors:
-                print(
-                    "native_cleanup_failure=owned_fixture:" + type(cleanup_error).__name__,
-                    flush=True,
-                )
+                _native_am_failure("owned_fixture", cleanup_error)
             if cleanup_errors and primary_failure is None:
                 raise cleanup_errors[0]
 
@@ -2496,9 +2759,11 @@ def _native_alertmanager_local_tls(directory: Path, image: str) -> None:
         server.daemon_threads = True
         thread: threading.Thread | None = None
         count = len(hits)
+        primary_failure: BaseException | None = None
         try:
             if case != "plaintext":
                 context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+                context.minimum_version = ssl.TLSVersion.TLSv1_2
                 context.load_cert_chain(cert, key)
                 server.socket = context.wrap_socket(server.socket, server_side=True)
             thread = threading.Thread(target=server.serve_forever, daemon=True)
@@ -2532,15 +2797,30 @@ def _native_alertmanager_local_tls(directory: Path, image: str) -> None:
                     actual.stderr + actual.stdout,
                     flags=re.IGNORECASE,
                 )
+        except BaseException as error:
+            primary_failure = error
+            raise
         finally:
-            try:
-                if thread is not None and thread.is_alive():
+            cleanup_errors: list[Exception] = []
+            if thread is not None and thread.is_alive():
+                try:
                     server.shutdown()
-            finally:
+                except Exception as cleanup_error:
+                    cleanup_errors.append(cleanup_error)
+            try:
                 server.server_close()
-                if thread is not None and thread.ident is not None:
+            except Exception as cleanup_error:
+                cleanup_errors.append(cleanup_error)
+            if thread is not None and thread.ident is not None:
+                try:
                     thread.join(5)
                     assert not thread.is_alive()
+                except Exception as cleanup_error:
+                    cleanup_errors.append(cleanup_error)
+            for cleanup_error in cleanup_errors:
+                _native_am_failure("owned_fixture", cleanup_error)
+            if cleanup_errors and primary_failure is None:
+                raise cleanup_errors[0]
     print("native_AM_local_TLS_SAN_and_protocol=pass", flush=True)
 
 
@@ -2660,7 +2940,7 @@ def native_alertmanager_main(
                 check()
             except Exception as error:
                 failures.append(name)
-                print("native_AM_fixture_failure=" + name + ":" + type(error).__name__, flush=True)
+                _native_am_failure(name, error)
         assert not failures, "AM-only native fixtures failed: " + ",".join(failures)
         if observation is not None:
             for case in ("untrusted", "hostname", "plaintext"):
@@ -3586,8 +3866,23 @@ def test_checkpoint_partial_server_setup_attempts_independent_release(
 @pytest.mark.parametrize("fixture", ["query", "amtool"])
 @pytest.mark.parametrize("fault", ["shutdown", "container"])
 def test_checkpoint_cleanup_failure_without_primary_is_not_success(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fixture: str, fault: str
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    request: pytest.FixtureRequest,
+    fixture: str,
+    fault: str,
 ) -> None:
+    if fixture == "amtool":
+        state = request.getfixturevalue("amtool_native_lifecycle_io")
+        state["fault"] = fault
+        with pytest.raises(OSError, match="synthetic cleanup-only failure"):
+            _native_amtool_lifetime(state["directory"], independent=True)
+        assert all(
+            operation in state["released"]
+            for operation in ("shutdown", "close", "join", "container")
+        )
+        assert state["released"].count("container") == 1
+        return
     from scripts import verify_premium_alias_telemetry as verifier
 
     image_id = ""
@@ -3721,7 +4016,20 @@ def test_checkpoint_cleanup_failure_without_primary_is_not_success(
     assert released.count("container") == (2 if fixture == "query" else 1)
 
 
-if __name__ == "__main__":
+def _interrupt_am_native(signum: int, frame: object) -> None:
+    """Global interruption bypasses ordinary fixture aggregation and later work."""
+    del frame
+    raise SystemExit(
+        "native_AM_phase_interrupted="
+        + {
+            signal.SIGALRM: "SIGALRM",
+            signal.SIGTERM: "SIGTERM",
+        }.get(signum, "unknown_signal")
+    )
+
+
+def _native_cli(argv: list[str] | None = None) -> None:
+    """Dispatch one explicit fixture mode and retain the global phase interruption."""
     parser = argparse.ArgumentParser()
     parser.add_argument("--native", action="store_true")
     parser.add_argument("--native-alertmanager", action="store_true")
@@ -3729,48 +4037,72 @@ if __name__ == "__main__":
     parser.add_argument("--alertmanager-config-sha256")
     parser.add_argument("--alertmanager-observation", type=Path)
     parser.add_argument("--amtool-fixture-send", type=Path)
+    parser.add_argument("--amtool-fixture-config", type=Path)
+    parser.add_argument("--amtool-fixture-context")
     parser.add_argument("--query-container", nargs=2, metavar=("PROMETHEUS_CID", "APP_CID"))
     parser.add_argument("--native-fixture")
     parser.add_argument("--directory", type=Path)
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
+    if (
+        sum(
+            bool(value)
+            for value in (
+                args.native,
+                args.native_alertmanager,
+                args.amtool_fixture_send,
+                args.query_container,
+                args.native_fixture,
+            )
+        )
+        != 1
+    ):
+        parser.error("exactly one explicit native fixture mode required")
+    if not args.amtool_fixture_send and (
+        args.amtool_fixture_config is not None or args.amtool_fixture_context is not None
+    ):
+        parser.error("sender context is exclusive to the AM sender mode")
     if args.native_alertmanager:
         if args.native or not args.alertmanager_image_id or not args.alertmanager_config_sha256:
             parser.error("AM-only mode requires exact local image ID and configuration hash")
-
-        def interrupted(signum: int, frame: object) -> None:
-            del signum, frame
-            raise TimeoutError("bounded AM native phase interrupted")
 
         if args.alertmanager_observation is not None:
             seconds = os.environ.get("ALERTMANAGER_NATIVE_SECONDS", "")
             if re.fullmatch(r"[1-9][0-9]{0,3}", seconds) is None or not 1230 < int(seconds) <= 2400:
                 parser.error("full native phase requires its explicit independent budget")
-            signal.signal(signal.SIGTERM, interrupted)
-            signal.signal(signal.SIGALRM, interrupted)
+            signal.signal(signal.SIGTERM, _interrupt_am_native)
+            signal.signal(signal.SIGALRM, _interrupt_am_native)
             signal.setitimer(signal.ITIMER_REAL, int(seconds))
+        primary: BaseException | None = None
         try:
             native_alertmanager_main(
                 args.alertmanager_image_id,
                 args.alertmanager_config_sha256,
                 args.alertmanager_observation,
             )
+        except BaseException as error:
+            primary = error
+            raise
         finally:
-            signal.setitimer(signal.ITIMER_REAL, 0)
+            try:
+                signal.setitimer(signal.ITIMER_REAL, 0)
+            except Exception as error:
+                if primary is None:
+                    raise
+                _native_am_failure("timer_cleanup", error)
     elif args.amtool_fixture_send:
-        docker = shutil.which("docker")
-        assert docker is not None and args.amtool_fixture_send.is_file()
-        start = datetime.now(timezone.utc)
-        argv = notifier._argv(
-            docker,
-            args.amtool_fixture_send,
-            "staging",
-            notifier._timestamp(start),
-            notifier._timestamp(start + timedelta(seconds=900)),
-        )
+        if (
+            args.amtool_fixture_config is None
+            or args.amtool_fixture_context is None
+            or args.directory is not None
+            or args.alertmanager_image_id is not None
+            or args.alertmanager_config_sha256 is not None
+            or args.alertmanager_observation is not None
+        ):
+            parser.error("AM sender requires only its exact private context operands")
         raise SystemExit(
-            0
-            if notifier._send(argv, {"PATH": os.defpath, "LANG": "C", "COMPOSE_PROFILES": ""})
-            else 1
+            _amtool_fixture_send(
+                args.amtool_fixture_send, args.amtool_fixture_config, args.amtool_fixture_context
+            )
         )
     elif args.native:
         native_main()
@@ -3790,6 +4122,10 @@ if __name__ == "__main__":
         raise SystemExit(_native_checkpoint_fixture(args.native_fixture, args.directory))
     else:
         parser.error("explicit native mode required")
+
+
+if __name__ == "__main__":
+    _native_cli()
 
 
 @pytest.mark.parametrize("ambient", [None, "hostile.invalid/incorrect:latest"])
@@ -5072,4 +5408,639 @@ def test_alertmanager_native_default_ca_rejects_real_managed_helper_failure(
     assert roles["main"]["removed"] is True and roles["unwritable"]["removed"] is True
     assert roles["default"]["removed"] is (
         fault not in ("cleanup", "timeout-cleanup", "cleanup-identity", "cleanup-census")
+    )
+
+
+@pytest.fixture
+def amtool_native_lifecycle_io(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> dict[str, object]:
+    """Exercise the real owned-unit predicates with synthetic native IO only."""
+    directory = tmp_path / "pulseplate-am-only-native-abcdefgh"
+    directory.mkdir(mode=0o700)
+    config = directory / "empty-docker-config"
+    config.mkdir(mode=0o700)
+    units = tmp_path / "units"
+    units.mkdir()
+    calls: list[list[str]] = []
+    sends: list[tuple[list[str], dict[str, str]]] = []
+    released: list[str] = []
+    state: dict[str, object] = {
+        "directory": directory,
+        "config": config,
+        "units": units,
+        "calls": calls,
+        "sends": sends,
+        "fault": None,
+        "released": released,
+    }
+
+    class Event:
+        def set(self) -> None:
+            return None
+
+        def clear(self) -> None:
+            return None
+
+        def is_set(self) -> bool:
+            return True
+
+        def wait(self, timeout: float) -> bool:
+            assert timeout == 10
+            return True
+
+    class Server:
+        daemon_threads = False
+
+        def __init__(self, *args: object) -> None:
+            del args
+
+        def serve_forever(self) -> None:
+            return None
+
+        def shutdown(self) -> None:
+            released.append("shutdown")
+            if state["fault"] == "shutdown":
+                raise OSError("synthetic cleanup-only failure")
+
+        def server_close(self) -> None:
+            released.append("close")
+
+    class Thread:
+        ident: int | None = None
+        running = False
+
+        def __init__(self, **kwargs: object) -> None:
+            del kwargs
+
+        def start(self) -> None:
+            self.ident, self.running = 1, True
+
+        def is_alive(self) -> bool:
+            return self.running
+
+        def join(self, timeout: float) -> None:
+            assert timeout == 5
+            self.running = False
+            released.append("join")
+
+    original_lstat = Path.lstat
+
+    def lstat(path: Path, *args: object, **kwargs: object) -> os.stat_result:
+        info = original_lstat(path, *args, **kwargs)
+        if path.parent == units:
+            fields = list(info)
+            fields[4] = 0
+            return os.stat_result(fields)
+        return info
+
+    def native(argv: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        del kwargs
+        calls.append(argv)
+        if "start" in argv and state["fault"] == "interrupt":
+            _interrupt_am_native(signal.SIGALRM, None)
+        if argv[:3] == ["docker", "rm", "-f"]:
+            released.append("container")
+            if state["fault"] == "container":
+                raise OSError("synthetic cleanup-only failure")
+        if len(argv) > 2 and Path(argv[2]).name == "install":
+            target, source = Path(argv[-1]), Path(argv[-2])
+            target.write_bytes(source.read_bytes())
+            target.chmod(0o644)
+            state["target"] = target
+            if state["fault"] == "partial-mismatch":
+                target.write_bytes(b"unknown partial bytes")
+            if state["fault"] in {"install", "partial-mismatch"}:
+                raise PermissionError(errno.EACCES, "private-primary-sentinel", str(target))
+        elif len(argv) > 2 and Path(argv[2]).name == "rm":
+            if state.get("secondary") == "remove":
+                raise PermissionError(errno.EPERM, "private-secondary-remove")
+            assert argv[:4] == ["/absolute/sudo", "-n", "/absolute/rm", "--"]
+            if any("start" in call for call in calls):
+                assert any("stop" in call for call in calls[:-1])
+            Path(argv[-1]).unlink()
+        if "stop" in argv and state["fault"] == "stop":
+            raise OSError(errno.EIO, "private-cleanup-sentinel")
+        stdout = "f" * 64 if "ps" in argv else ""
+        if "show" in argv:
+            assert argv[0] == "/absolute/systemctl" and argv[-2:] == [
+                "--property=LoadState",
+                "--value",
+            ]
+            stdout = "not-found\n" if state["fault"] == "LoadState" else "loaded\n"
+        return subprocess.CompletedProcess(argv, 0, stdout, "")
+
+    def property_value(unit: str, interface: str, name: str, signature: str) -> object:
+        target = units / unit
+        text = target.read_text()
+        command = shlex.split(
+            next(line[10:] for line in text.splitlines() if line.startswith("ExecStart="))
+        )
+        values: dict[str, tuple[str, str, object]] = {
+            "ActiveState": ("Unit", "s", "inactive"),
+            "SubState": ("Unit", "s", "dead"),
+            "MainPID": ("Service", "u", 0),
+            "ControlPID": ("Service", "u", 0),
+            "FragmentPath": ("Unit", "s", str(target)),
+            "DropInPaths": ("Unit", "as", []),
+            "NeedDaemonReload": ("Unit", "b", False),
+            "ExecStart": ("Service", "a(sasbttttuii)", [[command[0], command, False]]),
+            "WorkingDirectory": ("Service", "s", str(ROOT)),
+            "User": ("Service", "s", "root"),
+            "Environment": ("Service", "as", []),
+            "EnvironmentFiles": ("Service", "a(sb)", []),
+            "Type": ("Service", "s", "oneshot"),
+            "TimeoutStartUSec": ("Service", "t", 960_000_000),
+            "TimeoutStopUSec": ("Service", "t", 10_000_000),
+            "KillMode": ("Service", "s", "control-group"),
+            "Restart": ("Service", "s", "no"),
+        }
+        wanted_interface, wanted_signature, value = values[name]
+        assert (interface, signature) == (wanted_interface, wanted_signature)
+        if name == "ActiveState" and state["fault"] in {"active", "activating"}:
+            return state["fault"]
+        if name in {"MainPID", "ControlPID"} and state["fault"] == name:
+            return 12345
+        if state["fault"] == name:
+            return ["foreign.conf"] if name == "DropInPaths" else "foreign"
+        return value
+
+    def send(argv: list[str], env: dict[str, str]) -> bool:
+        sends.append((argv, env))
+        return len(sends) == 1
+
+    monkeypatch.setattr(Path, "lstat", lstat)
+    monkeypatch.setattr(threading, "Event", Event)
+    monkeypatch.setattr(threading, "Thread", Thread)
+    monkeypatch.setattr(sys.modules[__name__], "ThreadingHTTPServer", Server)
+    monkeypatch.setattr(sys.modules[__name__], "SYSTEMD_UNIT_DIRECTORY", units)
+    monkeypatch.setattr(sys.modules[__name__], "_AM_NATIVE_DOCKER_CONFIG", config)
+    monkeypatch.setattr(sys.modules[__name__], "_native", native)
+    monkeypatch.setattr(sys.modules[__name__], "_property", property_value)
+    monkeypatch.setattr(sys.modules[__name__], "_owned_task_stopped", lambda *a, **k: True)
+    monkeypatch.setattr(shutil, "which", lambda name: "/absolute/" + name)
+    monkeypatch.setattr(notifier, "_send", send)
+    return state
+
+
+@pytest.mark.parametrize(
+    "fault",
+    [
+        None,
+        "install",
+        "partial-mismatch",
+        "stop",
+        "DropInPaths",
+        "FragmentPath",
+        "ExecStart",
+        "WorkingDirectory",
+        "Environment",
+        "EnvironmentFiles",
+        "NeedDaemonReload",
+        "active",
+        "activating",
+        "SubState",
+        "MainPID",
+        "ControlPID",
+        "LoadState",
+    ],
+)
+def test_amtool_native_exact_owned_install_and_cleanup(
+    amtool_native_lifecycle_io: dict[str, object],
+    fault: str | None,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    state = amtool_native_lifecycle_io
+    state["fault"] = fault
+    directory = state["directory"]
+    assert isinstance(directory, Path)
+    if fault is None:
+        _native_amtool_lifetime(directory, independent=True)
+    else:
+        with pytest.raises((AssertionError, OSError)) as raised:
+            _native_amtool_lifetime(directory, independent=True)
+        if fault in {"install", "partial-mismatch"}:
+            assert type(raised.value) is PermissionError and raised.value.errno == errno.EACCES
+    calls = state["calls"]
+    assert isinstance(calls, list)
+    installed = [call for call in calls if len(call) > 2 and Path(call[2]).name == "install"]
+    assert len(installed) == 1 and installed[0][:6] == [
+        "/absolute/sudo",
+        "-n",
+        "/absolute/install",
+        "-m",
+        "0644",
+        "--",
+    ]
+    target = state["target"]
+    assert isinstance(target, Path)
+    assert target.exists() is (fault in {"stop", "partial-mismatch"})
+    starts = [call for call in calls if "start" in call]
+    assert bool(starts) is (fault in {None, "stop"})
+    if fault in {"active", "activating", "SubState", "MainPID", "ControlPID", "LoadState"}:
+        assert not any("stop" in call for call in calls)
+    assert "private-primary-sentinel" not in capsys.readouterr().out
+
+
+def test_amtool_native_unit_fresh_sender_same_config_and_venv_symlink(
+    amtool_native_lifecycle_io: dict[str, object],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    state = amtool_native_lifecycle_io
+    directory = state["directory"]
+    assert isinstance(directory, Path)
+    python = tmp_path / "venv/bin/python"
+    python.parent.mkdir(parents=True)
+    python.symlink_to(sys.executable)
+    monkeypatch.setattr(sys, "executable", str(python))
+    _native_amtool_lifetime(directory, independent=True)
+    staged = next(directory.glob("obs2aamtool*.service"))
+    command = shlex.split(
+        next(line[10:] for line in staged.read_text().splitlines() if line.startswith("ExecStart="))
+    )
+    assert command[:8] == [
+        "/absolute/env",
+        "-i",
+        "PATH=" + os.defpath,
+        "LANG=C",
+        str(python),
+        "-s",
+        "-B",
+        "-m",
+    ]
+    assert "-I" not in command and "PYTHONPATH" not in " ".join(command)
+    sends: list[tuple[list[str], dict[str, str]]] = []
+    monkeypatch.setattr(
+        notifier, "_send", lambda argv, env: sends.append((argv, env)) is None or True
+    )
+    # Root sender accepts the original runner-owned context; it never requires child UID equality.
+    monkeypatch.setattr(os, "getuid", lambda: 0 if directory.stat().st_uid != 0 else 12345)
+    with pytest.raises(SystemExit) as result:
+        _native_cli(command[9:])
+    assert result.value.code == 0 and len(sends) == 1
+    argv, env = sends[0]
+    assert argv[:4] == ["/absolute/docker", "--config", str(state["config"]), "compose"]
+    assert env == {
+        "PATH": os.defpath,
+        "LANG": "C",
+        "HOME": str(directory),
+        "COMPOSE_PROFILES": "",
+        "DOCKER_CONFIG": str(state["config"]),
+    }
+    for parent_argv, parent_env in state["sends"]:
+        assert parent_argv[:4] == argv[:4] and parent_env == env
+
+
+@pytest.mark.parametrize(
+    "fault",
+    [
+        "missing",
+        "symlink",
+        "credentials",
+        "plugin",
+        "foreign",
+        "compose-symlink",
+        "compose-hardlink",
+        "owner",
+        "identity",
+        "mixed",
+        "percent",
+        "whitespace-parent",
+        "percent-parent",
+        "newline-parent",
+    ],
+)
+def test_amtool_fresh_sender_rejects_changed_context_before_effects(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    fault: str,
+) -> None:
+    directory = tmp_path / "pulseplate-am-only-native-abcdefgh"
+    directory.mkdir(mode=0o700)
+    compose = directory / "amtool-compose.yaml"
+    compose.write_text("services: {}")
+    compose.chmod(0o600)
+    config = directory / "empty-docker-config"
+    config.mkdir(mode=0o700)
+    identity = _amtool_fixture_context(compose, config)
+    if fault == "missing":
+        config.rmdir()
+    elif fault == "symlink":
+        config.rmdir()
+        config.symlink_to(tmp_path, target_is_directory=True)
+    elif fault in {"credentials", "plugin"}:
+        (config / ("config.json" if fault == "credentials" else "cli-plugins")).write_text(
+            "private-sentinel"
+        )
+    elif fault == "foreign":
+        config = tmp_path
+    elif fault == "compose-symlink":
+        compose.unlink()
+        compose.symlink_to(__file__)
+    elif fault == "compose-hardlink":
+        os.link(compose, directory / "alias")
+    elif fault == "owner":
+        identity = "999999:" + identity.split(":", 1)[1]
+    elif fault == "identity":
+        identity += ":1"
+    elif fault == "percent":
+        config = directory / "empty%20docker-config"
+    elif fault in {"whitespace-parent", "percent-parent", "newline-parent"}:
+        outer = (
+            tmp_path
+            / {
+                "whitespace-parent": "bad parent",
+                "percent-parent": "bad%parent",
+                "newline-parent": "bad\nparent",
+            }[fault]
+        )
+        outer.mkdir()
+        moved = outer / directory.name
+        directory.rename(moved)
+        compose, config = moved / compose.name, moved / config.name
+    args = [
+        "--amtool-fixture-send",
+        str(compose),
+        "--amtool-fixture-config",
+        str(config),
+        "--amtool-fixture-context",
+        identity,
+    ]
+    if fault == "mixed":
+        args += ["--native"]
+    monkeypatch.setattr(shutil, "which", lambda *a: pytest.fail("invalid context resolved Docker"))
+    monkeypatch.setattr(
+        notifier, "_send", lambda *a, **k: pytest.fail("invalid context sent Docker")
+    )
+    with pytest.raises((AssertionError, OSError, SystemExit)):
+        _native_cli(args)
+
+
+def test_amtool_preexisting_unit_is_never_stopped_or_deleted(
+    amtool_native_lifecycle_io: dict[str, object],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from types import SimpleNamespace
+
+    state = amtool_native_lifecycle_io
+    units, directory = state["units"], state["directory"]
+    assert isinstance(units, Path) and isinstance(directory, Path)
+    monkeypatch.setattr(uuid, "uuid4", lambda: SimpleNamespace(hex="a" * 32))
+    foreign = units / ("obs2aamtool" + "a" * 32 + ".service")
+    foreign.write_text("foreign")
+    with pytest.raises(AssertionError, match="AM unit already exists"):
+        _native_amtool_lifetime(directory, independent=True)
+    assert foreign.read_text() == "foreign" and state["calls"] == []
+
+
+@pytest.mark.parametrize("failure", ["ordinary", "alarm", "term"])
+def test_alertmanager_global_interrupt_bypasses_real_fixture_aggregate(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    failure: str,
+) -> None:
+    image = "sha256:" + "a" * 64
+    seen: list[str] = []
+    observation = tmp_path / "observation.json"
+    observation.write_text("{}")
+    monkeypatch.setattr(sys, "platform", "linux")
+
+    def native(argv: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        del kwargs
+        text = (
+            json.dumps(
+                {
+                    "Id": image,
+                    "Os": "linux",
+                    "Architecture": "amd64",
+                    "Config": {"User": "65534:65534"},
+                }
+            )
+            if "inspect" in argv
+            else "version 0.34.1"
+        )
+        if "--version" in argv:
+            binary = (
+                argv[argv.index("--entrypoint=/bin/alertmanager")]
+                if "--entrypoint=/bin/alertmanager" in argv
+                else "--entrypoint=/bin/amtool"
+            )
+            name = binary.rsplit("/", 1)[1]
+            text = (
+                name
+                + ", version 0.34.1 (branch: HEAD, revision: 73c6bfe7393929211294c1954f30d8ed78e4d0ad)\n"
+                "  build user: pulseplate@builder\n  build date: 19700101-00:00:00\n"
+                "  go version: go1.27.2\n  platform: linux/amd64\n  tags: netgo\n"
+            )
+        return subprocess.CompletedProcess(argv, 0, text, "")
+
+    def lifetime(*args: object, **kwargs: object) -> None:
+        del args, kwargs
+        seen.append("lifetime")
+        try:
+            if failure == "ordinary":
+                raise TimeoutError("private-timeout-sentinel")
+            _interrupt_am_native(signal.SIGALRM if failure == "alarm" else signal.SIGTERM, None)
+        finally:
+            seen.append("cleanup")
+
+    monkeypatch.setattr(sys.modules[__name__], "_native", native)
+    monkeypatch.setattr(sys.modules[__name__], "_native_alertmanager_candidate", lambda *a: None)
+    monkeypatch.setattr(sys.modules[__name__], "_native_alertmanager_local_tls", lambda *a: None)
+    monkeypatch.setattr(sys.modules[__name__], "_native_amtool_lifetime", lifetime)
+    monkeypatch.setattr(
+        sys.modules[__name__], "_native_alertmanager", lambda *a: seen.append("smtp")
+    )
+    with pytest.raises(AssertionError if failure == "ordinary" else SystemExit):
+        native_alertmanager_main(
+            image, "5dc1025c293763618febeb74c17edcb126ad943f9b20c2296c67847e9f977549", observation
+        )
+    assert seen == (
+        ["lifetime", "cleanup", "smtp"] if failure == "ordinary" else ["lifetime", "cleanup"]
+    )
+    output = capsys.readouterr().out
+    assert (
+        "private-timeout-sentinel" not in output
+        and "controls=pass" not in output
+        and "subset=pass" not in output
+    )
+
+
+def test_alertmanager_cli_uses_process_control_handler_and_preserves_primary_cleanup(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    handlers: dict[int, Callable[..., None]] = {}
+    timers: list[float] = []
+    monkeypatch.setenv("ALERTMANAGER_NATIVE_SECONDS", "2400")
+    monkeypatch.setattr(signal, "signal", lambda key, handler: handlers.update({key: handler}))
+
+    def timer(kind: int, value: float) -> None:
+        assert kind == signal.ITIMER_REAL
+        timers.append(value)
+        if value == 0:
+            raise OSError(errno.EIO, "private-timer-cleanup")
+
+    def main(*args: object) -> None:
+        del args
+        handlers[signal.SIGALRM](signal.SIGALRM, None)
+
+    monkeypatch.setattr(signal, "setitimer", timer)
+    monkeypatch.setattr(sys.modules[__name__], "native_alertmanager_main", main)
+    with pytest.raises(SystemExit, match="native_AM_phase_interrupted=SIGALRM"):
+        _native_cli(
+            [
+                "--native-alertmanager",
+                "--alertmanager-image-id",
+                "sha256:" + "a" * 64,
+                "--alertmanager-config-sha256",
+                "f" * 64,
+                "--alertmanager-observation",
+                "/synthetic/observation.json",
+            ]
+        )
+    assert handlers[signal.SIGTERM] is handlers[signal.SIGALRM] is _interrupt_am_native
+    assert timers == [2400, 0]
+
+
+def test_alertmanager_safe_primary_metadata_withholds_custom_prose_and_diagnostic_fault(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    error = PermissionError(errno.EACCES, "private-prose-sentinel", "/private-name-sentinel")
+    _native_am_failure("amtool_lifetime", error)
+    output = capsys.readouterr().out
+    value = json.loads(output)
+    assert value["type"] == "PermissionError" and value["errno"] == errno.EACCES
+    assert value["errno_name"] == "EACCES" and value["message"] == "withheld"
+    assert "private" not in output
+    custom = type("private_custom_class_sentinel", (RuntimeError,), {})("private-args")
+    _native_am_failure("alertmanager", custom)
+    assert json.loads(capsys.readouterr().out)["type"] == "unknown_exception"
+    monkeypatch.setattr(
+        json, "dumps", lambda *a, **k: (_ for _ in ()).throw(ValueError("private-render"))
+    )
+    _native_am_failure("alertmanager", custom)
+    assert capsys.readouterr().out == "native_AM_failure_metadata_unavailable\n"
+
+
+@pytest.mark.parametrize("owner", ["smtp", "local"])
+def test_alertmanager_actual_TLS_context_floor_precedes_chain_and_preserves_maximum(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    owner: str,
+) -> None:
+    contexts: list[object] = []
+
+    class TLS:
+        minimum_version = ssl.TLSVersion.MINIMUM_SUPPORTED
+        maximum_version = ssl.TLSVersion.MAXIMUM_SUPPORTED
+
+        def load_cert_chain(self, cert: Path, key: Path) -> None:
+            assert cert.is_file() and key.is_file()
+            assert self.minimum_version == ssl.TLSVersion.TLSv1_2
+            assert self.maximum_version == ssl.TLSVersion.MAXIMUM_SUPPORTED
+            contexts.append(self)
+            raise RuntimeError("synthetic-stop-after-real-TLS-floor")
+
+    class Server:
+        daemon_threads = False
+
+        def __init__(self, *args: object) -> None:
+            del args
+
+        def server_close(self) -> None:
+            return None
+
+    def native(argv: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        del kwargs
+        assert argv[:2] == ["openssl", "req"]
+        for option in ("-keyout", "-out"):
+            Path(argv[argv.index(option) + 1]).write_bytes(b"synthetic TLS input")
+        return subprocess.CompletedProcess(argv, 0, "", "")
+
+    monkeypatch.setattr(sys.modules[__name__], "_native", native)
+    monkeypatch.setattr(sys.modules[__name__], "ThreadingHTTPServer", Server)
+    monkeypatch.setattr(ssl, "SSLContext", lambda protocol: TLS())
+    with pytest.raises(RuntimeError, match="synthetic-stop-after-real-TLS-floor"):
+        if owner == "smtp":
+            _native_alertmanager(tmp_path)
+        else:
+            _native_alertmanager_local_tls(tmp_path, "sha256:" + "a" * 64)
+    assert len(contexts) == 1
+
+
+def test_alertmanager_primary_permission_metadata_retains_only_known_repo_frame(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    def denied(*args: object, **kwargs: object) -> None:
+        del args, kwargs
+        raise PermissionError(errno.EACCES, "private-prose", "/private-path")
+
+    monkeypatch.setattr(shutil, "which", lambda name: "/absolute/" + name)
+    monkeypatch.setattr(subprocess, "run", denied)
+    try:
+        _native(["docker", "synthetic"])
+    except PermissionError as error:
+        _native_am_failure("amtool_lifetime", error)
+    else:
+        pytest.fail("synthetic transport did not fail")
+    value = json.loads(capsys.readouterr().out)
+    assert value["errno_name"] == "EACCES" and value["frames"]
+    assert all(
+        frame["file"] == "tests/test_notify_premium_alias_checkpoint_failure.py"
+        and frame["function"] == "_native"
+        and type(frame["line"]) is int
+        for frame in value["frames"]
+    )
+    assert "private" not in json.dumps(value)
+
+
+def test_amtool_primary_global_interruption_survives_real_owned_secondary_cleanup(
+    amtool_native_lifecycle_io: dict[str, object],
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    state = amtool_native_lifecycle_io
+    state["fault"], state["secondary"] = "interrupt", "remove"
+    directory = state["directory"]
+    assert isinstance(directory, Path)
+    with pytest.raises(SystemExit, match="native_AM_phase_interrupted=SIGALRM"):
+        _native_amtool_lifetime(directory, independent=True)
+    calls = state["calls"]
+    assert isinstance(calls, list)
+    assert any("stop" in call for call in calls)
+    assert any(len(call) > 2 and Path(call[2]).name == "rm" for call in calls)
+    target = state["target"]
+    assert isinstance(target, Path) and target.exists()
+    assert all(
+        operation in state["released"] for operation in ("shutdown", "close", "join", "container")
+    )
+    output = capsys.readouterr().out
+    assert "private-secondary" not in output and '"errno_name": "EPERM"' in output
+
+
+def test_alertmanager_failure_metadata_output_error_is_secondary(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    writes: list[str] = []
+
+    class Sink:
+        def write(self, value: str) -> None:
+            writes.append(value)
+            raise OSError(errno.EIO, "private-diagnostic-write")
+
+        def flush(self) -> None:
+            return None
+
+    error = PermissionError(errno.EACCES, "private-primary-prose")
+    with monkeypatch.context() as patch:
+        patch.setattr(sys, "stdout", Sink())
+        _native_am_failure("amtool_lifetime", error)
+    assert len(writes) == 2
+    assert all(
+        "private-primary-prose" not in value and "private-diagnostic-write" not in value
+        for value in writes
     )
