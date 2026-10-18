@@ -462,6 +462,7 @@ def test_retired_lifecycle_access_restoration_fails_aggregate_guard(
     valid_repo_baseline: None,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Reject a restored scheduler getter after the shared complete baseline."""
     original_read = legacy_guard._read
 
     def read_with_getter(path: Path, repo_root: Path, errors: list[str]) -> str | None:
@@ -1016,6 +1017,7 @@ def test_retired_openapi_reimport_fails_aggregate_guard(
     valid_repo_baseline: None,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Reject a retired OpenAPI import with both intended aggregate diagnostics."""
     original_read = legacy_guard._read
 
     def read_with_reintroduced_import(path: Path, repo_root: Path, errors: list[str]) -> str | None:
@@ -13100,6 +13102,7 @@ def test_retired_metadata_projection_restoration_fails_aggregate_guard(
     valid_repo_baseline: None,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Reject restored application metadata after the shared complete baseline."""
     sources = _openapi_ownership_sources()
     assert legacy_guard.validate_application_metadata_openapi_ownership(*sources) == []
     assert legacy_guard.validate_retired_legacy_python_bindings(sources[0]) == []
