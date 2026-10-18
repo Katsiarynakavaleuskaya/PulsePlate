@@ -77,6 +77,7 @@ from scripts.orchestration.review_mapping_artifact import (  # noqa: E402
     NO_ACTIONABLE_LINE,
     extract_fixed_mapping_section,
     mapping_artifact_path,
+    require_proof_empty_mapping_artifact,
     validate_mapping_artifact_text,
 )
 
@@ -426,16 +427,7 @@ def _cmd_retire_stale(args: argparse.Namespace) -> None:
     if _load_json_bytes(binding[2], label="bound retirement draft") != state:
         raise CloseoutError("retirement draft changed during authenticated observation")
     markdown = binding[0].decode("utf-8")
-    errors = validate_mapping_artifact_text(markdown)
-    if (
-        errors
-        or extract_fixed_mapping_section(markdown).strip() != NO_ACTIONABLE_LINE
-        or re.search(
-            r"(?m)^(Disposition|Commit|Evidence|Backlog|Fingerprint|Cause|Material-Digest|Verified-Fix):",
-            markdown,
-        )
-    ):
-        raise CloseoutError("retirement requires an exact proof-empty No-actionables artifact")
+    require_proof_empty_mapping_artifact(markdown)
     seal = parse_embedded_review_seal(markdown)
     material = seal["material"]
     historical = _stale_seal_material_manifest(

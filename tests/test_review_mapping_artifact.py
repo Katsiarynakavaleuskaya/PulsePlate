@@ -528,3 +528,216 @@ Evidence: docs/review/PR_1000_FIXED_MAPPING.md:1
 """
     errors = artifact.validate_fixed_mapping_section(section)
     assert any("DEFERRED requires a 'Backlog:'" in error for error in errors)
+
+
+@pytest.mark.parametrize(
+    ("body", "message"),
+    [
+        ("## Other\nplain text", "Missing '## Fixed in Commit Mapping' section."),
+        (
+            "## Fixed in Commit Mapping\n\n## Other",
+            "'## Fixed in Commit Mapping' section is empty.",
+        ),
+        ("### Fixed in Commit Mapping\n \t", "'## Fixed in Commit Mapping' section is empty."),
+        (
+            "## Fixed in Commit Mapping\n## Fixed in Commit Mapping\nproof",
+            "Expected exactly one Fixed in Commit Mapping section; found 2.",
+        ),
+        (
+            "## Fixed in Commit Mapping\n\n## Other\n### Fixed in Commit Mapping\nproof",
+            "Expected exactly one Fixed in Commit Mapping section; found 2.",
+        ),
+        (
+            "### Fixed in Commit Mapping\nproof\n## Other\n## Fixed in Commit Mapping",
+            "Expected exactly one Fixed in Commit Mapping section; found 2.",
+        ),
+        (
+            "## Fixed in Commit Mapping\nproof\n### Fixed in Commit Mapping\nproof",
+            "Expected exactly one Fixed in Commit Mapping section; found 2.",
+        ),
+        (
+            "## Fixed in Commit Mapping\nproof\n```\n## Fixed in Commit Mapping\n```",
+            "Expected exactly one Fixed in Commit Mapping section; found 2.",
+        ),
+        (
+            "##  Fixed\t in Commit Mapping\nproof\n## Other\n### Fixed in Commit Mapping\nproof",
+            "Expected exactly one Fixed in Commit Mapping section; found 2.",
+        ),
+        (
+            "##\u00a0Fixed in Commit Mapping\nproof\n## Other\n### Fixed in Commit Mapping\nproof",
+            "Expected exactly one Fixed in Commit Mapping section; found 2.",
+        ),
+    ],
+    ids=[
+        "missing",
+        "empty-double",
+        "empty-triple",
+        "adjacent",
+        "empty-first-mixed",
+        "empty-last-mixed",
+        "nested",
+        "lexical-fence",
+        "normalized-duplicate",
+        "unicode-duplicate",
+    ],
+)
+def test_complete_consumers_reject_ambiguous_fixed_spans(body: str, message: str) -> None:
+    """Reject structural ambiguity consistently before any complete consumer selects content."""
+    for extract in (
+        artifact.extract_fixed_mapping_section,
+        lambda text: artifact.extract_section(text, "## Fixed in Commit Mapping"),
+        lambda text: artifact.extract_section(text, "### Fixed in Commit Mapping"),
+        lambda text: artifact.parse_canonical_fingerprint_records(text, pr_number=998),
+        artifact.require_proof_empty_mapping_artifact,
+    ):
+        with pytest.raises(artifact.ReviewEvidenceError) as rejected:
+            extract(body)
+        assert str(rejected.value) == message
+    assert artifact.validate_mapping_artifact_text(body) == [message]
+
+
+@pytest.mark.parametrize(
+    "reserved",
+    [
+        "- https://github.com/org/repo/pull/998#discussion_r1 -> abc1234",
+        "- https://github.com/org/repo/pull/998#discussion_r1",
+        "Disposition: FIXED",
+        "Commit: abc1234",
+        "Evidence: file.py:1",
+        "Backlog: docs/roadmap/BACKLOG_LEDGER.md#item",
+        "Reason: retained proof",
+        "Fingerprint:",
+        "Cause:",
+        "Material-Digest:",
+        "Verified-Fix:",
+        "- No actionable review comments",
+        "  Evidence: indented.py:1",
+    ],
+)
+@pytest.mark.parametrize("placement", ["before", "after", "lexical-fence"])
+def test_complete_consumers_reject_reserved_lines_outside_fixed_span(
+    reserved: str, placement: str
+) -> None:
+    """Retain known proof markers anywhere outside the sole span, including partial fields."""
+    valid = "## Fixed in Commit Mapping\n- No actionable review comments\n"
+    if placement == "before":
+        text = f"{reserved}\n{valid}"
+        line = 1
+    else:
+        text = valid + "## Retained context\n"
+        if placement == "lexical-fence":
+            text += "```\n"
+        line = len(text.splitlines()) + 1
+        text += reserved + "\n"
+        if placement == "lexical-fence":
+            text += "```\n"
+    message = (
+        "Recognized proof or No-actionables marker outside Fixed in Commit Mapping "
+        f"section at line {line}."
+    )
+    for extract in (
+        artifact.extract_fixed_mapping_section,
+        lambda value: artifact.extract_section(value, "### Fixed in Commit Mapping"),
+        lambda value: artifact.parse_canonical_fingerprint_records(value, pr_number=998),
+        artifact.require_proof_empty_mapping_artifact,
+    ):
+        with pytest.raises(artifact.ReviewEvidenceError) as rejected:
+            extract(text)
+        assert str(rejected.value) == message
+    assert artifact.validate_mapping_artifact_text(text) == [message]
+
+
+@pytest.mark.parametrize(
+    "heading",
+    [
+        "## Fixed in Commit Mapping",
+        "### Fixed in Commit Mapping",
+        "  ##  Fixed\t in Commit Mapping  ",
+        "##\u00a0Fixed in Commit Mapping",
+    ],
+)
+def test_proof_empty_owner_preserves_singleton_heading_compatibility(heading: str) -> None:
+    """Admit supported singleton whitespace forms while leaving benign outer prose alone."""
+    text = (
+        "## Discussion Thread Pass\n"
+        "- [x] Discussion-thread pass completed\n- [x] Fixed in commit mapping completed\n"
+        f"{heading}\n- No actionable review comments\n## Context\nPlain retained prose.\n"
+    )
+    assert artifact.extract_fixed_mapping_section(text) == artifact.NO_ACTIONABLE_LINE
+    assert artifact.validate_mapping_artifact_text(text) == []
+    artifact.require_proof_empty_mapping_artifact(text)
+    assert artifact.parse_canonical_fingerprint_records(text, pr_number=998) == {}
+
+
+def test_proof_empty_owner_rejects_valid_ordinary_disposition() -> None:
+    """A valid complete ordinary proof is not eligible for destructive proof-empty retirement."""
+    assert artifact.validate_mapping_artifact_text(FIXTURE_ARTIFACT) == []
+    with pytest.raises(artifact.ReviewEvidenceError) as rejected:
+        artifact.require_proof_empty_mapping_artifact(FIXTURE_ARTIFACT)
+    assert str(rejected.value) == "retirement requires an exact proof-empty No-actionables artifact"
+
+
+def test_complete_inventory_preserves_valid_fingerprint_record() -> None:
+    """Recognize a real canonical fingerprint inside the sole span without changing its meaning."""
+    material_digest = "sha256:" + "a" * 64
+    fix = "b" * 40
+    fingerprint = artifact.unavailable_review_ref_fingerprint(
+        pr_number=998, material_digest=material_digest, verified_real_fix_sha=fix
+    )
+    text = (
+        "## Discussion Thread Pass\n"
+        "- [x] Discussion-thread pass completed\n- [x] Fixed in commit mapping completed\n"
+        "### Fixed in Commit Mapping\nDisposition: NOT-A-BUG\n"
+        "Evidence: policy.py:1\nReason: Ref unavailable\n"
+        f"Fingerprint: {fingerprint}\nCause: {artifact.UNAVAILABLE_REVIEW_REF_CAUSE}\n"
+        f"Material-Digest: {material_digest}\nVerified-Fix: {fix}\n"
+        "- https://github.com/org/repo/pull/998#discussion_r1\n"
+    )
+    records = artifact.parse_canonical_fingerprint_records(text, pr_number=998)
+    assert set(records) == {fingerprint}
+    assert records[fingerprint].verified_fix == fix
+    assert artifact.validate_mapping_artifact_text(text) == []
+
+
+@pytest.mark.parametrize("placement", ["before", "after"])
+def test_complete_inventory_rejects_full_fingerprint_record_outside_span(placement: str) -> None:
+    """Retain even a fully valid fingerprint record when its location is outside the sole span."""
+    material_digest = "sha256:" + "a" * 64
+    fix = "b" * 40
+    fingerprint = artifact.unavailable_review_ref_fingerprint(
+        pr_number=998, material_digest=material_digest, verified_real_fix_sha=fix
+    )
+    record = (
+        "Disposition: NOT-A-BUG\nEvidence: policy.py:1\nReason: Ref unavailable\n"
+        f"Fingerprint: {fingerprint}\nCause: {artifact.UNAVAILABLE_REVIEW_REF_CAUSE}\n"
+        f"Material-Digest: {material_digest}\nVerified-Fix: {fix}\n"
+        "- https://github.com/org/repo/pull/998#discussion_r1\n"
+    )
+    discussion = (
+        "## Discussion Thread Pass\n- [x] Discussion-thread pass completed\n"
+        "- [x] Fixed in commit mapping completed\n"
+    )
+    valid = discussion + "## Fixed in Commit Mapping\n" + record
+    assert artifact.validate_mapping_artifact_text(valid) == []
+    assert set(artifact.parse_canonical_fingerprint_records(valid, pr_number=998)) == {fingerprint}
+    empty = discussion + "## Fixed in Commit Mapping\n- No actionable review comments\n"
+    if placement == "before":
+        text = record + empty
+        line = 1
+    else:
+        text = empty + "## Retained proof\n"
+        line = len(text.splitlines()) + 1
+        text += record
+    message = (
+        "Recognized proof or No-actionables marker outside Fixed in Commit Mapping "
+        f"section at line {line}."
+    )
+    for extract in (
+        artifact.extract_fixed_mapping_section,
+        lambda value: artifact.parse_canonical_fingerprint_records(value, pr_number=998),
+        artifact.require_proof_empty_mapping_artifact,
+    ):
+        with pytest.raises(artifact.ReviewEvidenceError) as rejected:
+            extract(text)
+        assert str(rejected.value) == message
+    assert artifact.validate_mapping_artifact_text(text) == [message]

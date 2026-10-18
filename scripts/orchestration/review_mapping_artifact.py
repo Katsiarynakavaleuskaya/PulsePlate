@@ -373,11 +373,66 @@ def read_mapping_artifact(pr_number: int) -> str:
     return path.read_text(encoding="utf-8")
 
 
+@dataclass(frozen=True)
+class _FixedMappingInventory:
+    """Keep the sole lexical section and its recognized proof locations together."""
+
+    section: str
+    proof_lines: tuple[int, ...]
+
+
+def _fixed_mapping_inventory(markdown_text: str) -> _FixedMappingInventory:
+    """Account for all supported headings and reserved proof lines before selecting a span."""
+    lines = markdown_text.splitlines()
+    headings = [
+        index
+        for index, line in enumerate(lines)
+        if re.sub(r"\s+", " ", line.strip()) in FIXED_MAPPING_HEADINGS
+    ]
+    if not headings:
+        raise ReviewEvidenceError("Missing '## Fixed in Commit Mapping' section.")
+    if len(headings) != 1:
+        raise ReviewEvidenceError(
+            f"Expected exactly one Fixed in Commit Mapping section; found {len(headings)}."
+        )
+    start = headings[0]
+    heading = lines[start].lstrip()
+    level = len(heading) - len(heading.lstrip("#"))
+    end = len(lines)
+    for index in range(start + 1, len(lines)):
+        stripped = lines[index].lstrip()
+        if stripped.startswith("#") and len(stripped) - len(stripped.lstrip("#")) <= level:
+            end = index
+            break
+    section = "\n".join(lines[start + 1 : end]).strip()
+    if not section:
+        raise ReviewEvidenceError("'## Fixed in Commit Mapping' section is empty.")
+    proof_lines: list[int] = []
+    for index, line in enumerate(lines):
+        stripped = line.strip()
+        is_proof = bool(
+            MAPPING_LINE_RE.match(stripped)
+            or THREAD_LINE_RE.match(stripped)
+            or stripped.startswith(DETAIL_PREFIXES)
+        )
+        if is_proof or stripped == NO_ACTIONABLE_LINE:
+            if not start < index < end:
+                raise ReviewEvidenceError(
+                    "Recognized proof or No-actionables marker outside Fixed in Commit Mapping "
+                    f"section at line {index + 1}."
+                )
+            if is_proof:
+                proof_lines.append(index + 1)
+    return _FixedMappingInventory(section, tuple(proof_lines))
+
+
 def extract_section(markdown_text: str, heading: str) -> str:
     """
     Extract section body for a markdown heading (## or ###).
     Returns content after heading until next heading at same or higher level.
     """
+    if re.sub(r"\s+", " ", heading.strip()) in FIXED_MAPPING_HEADINGS:
+        return _fixed_mapping_inventory(markdown_text).section
     lines = markdown_text.splitlines()
     inside = False
     collected: list[str] = []
@@ -406,12 +461,8 @@ def extract_discussion_thread_pass_section(markdown_text: str) -> str:
 
 
 def extract_fixed_mapping_section(markdown_text: str) -> str:
-    """Extract Fixed in Commit Mapping section (## or ###)."""
-    for heading in FIXED_MAPPING_HEADINGS:
-        section = extract_section(markdown_text, heading)
-        if section:
-            return section
-    return ""
+    """Return the sole supported nonempty section after complete lexical admission."""
+    return _fixed_mapping_inventory(markdown_text).section
 
 
 def validate_discussion_thread_pass_section(section: str) -> list[str]:
@@ -498,7 +549,10 @@ def validate_mapping_artifact_text(markdown_text: str) -> list[str]:
     errors: list[str] = []
 
     discussion_section = extract_discussion_thread_pass_section(markdown_text)
-    fixed_mapping_section = extract_fixed_mapping_section(markdown_text)
+    try:
+        fixed_mapping_section = extract_fixed_mapping_section(markdown_text)
+    except ReviewEvidenceError as exc:
+        return [str(exc)]
 
     version_matches = REVIEW_SEAL_VERSION_RE.findall(markdown_text)
     if len(version_matches) > 1:
@@ -531,6 +585,18 @@ def validate_mapping_artifact_text(markdown_text: str) -> list[str]:
             errors.append(f"Invalid v1 review seal: {exc}")
 
     return errors
+
+
+def require_proof_empty_mapping_artifact(markdown_text: str) -> None:
+    """Admit only a valid complete artifact with the exact singleton No-actionables section."""
+    inventory = _fixed_mapping_inventory(markdown_text)
+    errors = validate_mapping_artifact_text(markdown_text)
+    if errors:
+        raise ReviewEvidenceError("Canonical mapping artifact is invalid: " + "; ".join(errors))
+    if inventory.section != NO_ACTIONABLE_LINE or inventory.proof_lines:
+        raise ReviewEvidenceError(
+            "retirement requires an exact proof-empty No-actionables artifact"
+        )
 
 
 def review_seal_version(markdown_text: str) -> str | None:
