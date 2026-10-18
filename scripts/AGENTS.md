@@ -135,6 +135,11 @@
   supply the separate human compiler decision. PR consumers load the original
   retained candidate without registry access or compilation; manual publication
   additionally requires the actual merged main and canonical package/tag guards.
+- AM host checks must skip the shared SDK/base install and use the existing
+  guarded `requirements-dev.txt`/`constraints.txt` installer in a fresh private
+  venv, with an aggregate ten-minute selection/install/import budget, explicit
+  preflight and pre-effect AM capability checks; keep foreign Python unchanged
+  and actual bootstrap/native evidence separate from mocked contract tests.
 - The qualification checkout selects the workflow event's `github.sha`; supplied
   `source_sha` must equal that revision and the Commit API result. Require the API
   and native Git commands to succeed before comparing their output; matching
