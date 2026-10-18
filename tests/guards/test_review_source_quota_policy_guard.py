@@ -175,16 +175,9 @@ def test_closeout_exposes_only_current_review_authoring_modes() -> None:
         "add-disposition",
         "freeze",
         "init",
-        "retire-stale",
         "seal",
         "validate",
     }
-    retirement = _subparsers_action().choices["retire-stale"]
-    retirement_options = {
-        option for action in retirement._actions for option in action.option_strings
-    }
-    assert retirement_options == {"-h", "--help", "--repo", "--pr-number"}
-    assert not retirement_options.intersection(PROVIDER_SEAL_AUTHORING_OPTIONS)
     options = _seal_option_strings()
     assert options == {
         "-h",

@@ -588,7 +588,6 @@ def test_complete_consumers_reject_ambiguous_fixed_spans(body: str, message: str
         lambda text: artifact.extract_section(text, "## Fixed in Commit Mapping"),
         lambda text: artifact.extract_section(text, "### Fixed in Commit Mapping"),
         lambda text: artifact.parse_canonical_fingerprint_records(text, pr_number=998),
-        artifact.require_proof_empty_mapping_artifact,
     ):
         with pytest.raises(artifact.ReviewEvidenceError) as rejected:
             extract(body)
@@ -639,7 +638,6 @@ def test_complete_consumers_reject_reserved_lines_outside_fixed_span(
         artifact.extract_fixed_mapping_section,
         lambda value: artifact.extract_section(value, "### Fixed in Commit Mapping"),
         lambda value: artifact.parse_canonical_fingerprint_records(value, pr_number=998),
-        artifact.require_proof_empty_mapping_artifact,
     ):
         with pytest.raises(artifact.ReviewEvidenceError) as rejected:
             extract(text)
@@ -656,7 +654,7 @@ def test_complete_consumers_reject_reserved_lines_outside_fixed_span(
         "##\u00a0Fixed in Commit Mapping",
     ],
 )
-def test_proof_empty_owner_preserves_singleton_heading_compatibility(heading: str) -> None:
+def test_complete_inventory_preserves_singleton_heading_compatibility(heading: str) -> None:
     """Admit supported singleton whitespace forms while leaving benign outer prose alone."""
     text = (
         "## Discussion Thread Pass\n"
@@ -665,16 +663,7 @@ def test_proof_empty_owner_preserves_singleton_heading_compatibility(heading: st
     )
     assert artifact.extract_fixed_mapping_section(text) == artifact.NO_ACTIONABLE_LINE
     assert artifact.validate_mapping_artifact_text(text) == []
-    artifact.require_proof_empty_mapping_artifact(text)
     assert artifact.parse_canonical_fingerprint_records(text, pr_number=998) == {}
-
-
-def test_proof_empty_owner_rejects_valid_ordinary_disposition() -> None:
-    """A valid complete ordinary proof is not eligible for destructive proof-empty retirement."""
-    assert artifact.validate_mapping_artifact_text(FIXTURE_ARTIFACT) == []
-    with pytest.raises(artifact.ReviewEvidenceError) as rejected:
-        artifact.require_proof_empty_mapping_artifact(FIXTURE_ARTIFACT)
-    assert str(rejected.value) == "retirement requires an exact proof-empty No-actionables artifact"
 
 
 def test_complete_inventory_preserves_valid_fingerprint_record() -> None:
@@ -735,7 +724,6 @@ def test_complete_inventory_rejects_full_fingerprint_record_outside_span(placeme
     for extract in (
         artifact.extract_fixed_mapping_section,
         lambda value: artifact.parse_canonical_fingerprint_records(value, pr_number=998),
-        artifact.require_proof_empty_mapping_artifact,
     ):
         with pytest.raises(artifact.ReviewEvidenceError) as rejected:
             extract(text)

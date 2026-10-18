@@ -1825,8 +1825,10 @@ def test_main_rejects_ambiguous_mapping_before_no_threads(
         return []
 
     monkeypatch.setattr(_disposition_mod, "_collect_resolved_threads", collect_no_threads)
-    with pytest.raises(evidence_module.ReviewEvidenceError) as rejected:
+    with pytest.raises(SystemExit) as rejected:
         _disposition_mod.main()
-    assert str(rejected.value) == message
+    assert rejected.value.code == 1
     assert collected == []
-    assert "OK: No resolved review threads found" not in capsys.readouterr().out
+    captured = capsys.readouterr()
+    assert captured.out == f"ERROR: {message}\n"
+    assert captured.err == ""

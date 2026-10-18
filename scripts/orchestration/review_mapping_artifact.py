@@ -375,10 +375,9 @@ def read_mapping_artifact(pr_number: int) -> str:
 
 @dataclass(frozen=True)
 class _FixedMappingInventory:
-    """Keep the sole lexical section and its recognized proof locations together."""
+    """Keep the sole lexical section after complete proof-location admission."""
 
     section: str
-    proof_lines: tuple[int, ...]
 
 
 def _fixed_mapping_inventory(markdown_text: str) -> _FixedMappingInventory:
@@ -407,7 +406,6 @@ def _fixed_mapping_inventory(markdown_text: str) -> _FixedMappingInventory:
     section = "\n".join(lines[start + 1 : end]).strip()
     if not section:
         raise ReviewEvidenceError("'## Fixed in Commit Mapping' section is empty.")
-    proof_lines: list[int] = []
     for index, line in enumerate(lines):
         stripped = line.strip()
         is_proof = bool(
@@ -421,9 +419,7 @@ def _fixed_mapping_inventory(markdown_text: str) -> _FixedMappingInventory:
                     "Recognized proof or No-actionables marker outside Fixed in Commit Mapping "
                     f"section at line {index + 1}."
                 )
-            if is_proof:
-                proof_lines.append(index + 1)
-    return _FixedMappingInventory(section, tuple(proof_lines))
+    return _FixedMappingInventory(section)
 
 
 def extract_section(markdown_text: str, heading: str) -> str:
@@ -585,18 +581,6 @@ def validate_mapping_artifact_text(markdown_text: str) -> list[str]:
             errors.append(f"Invalid v1 review seal: {exc}")
 
     return errors
-
-
-def require_proof_empty_mapping_artifact(markdown_text: str) -> None:
-    """Admit only a valid complete artifact with the exact singleton No-actionables section."""
-    inventory = _fixed_mapping_inventory(markdown_text)
-    errors = validate_mapping_artifact_text(markdown_text)
-    if errors:
-        raise ReviewEvidenceError("Canonical mapping artifact is invalid: " + "; ".join(errors))
-    if inventory.section != NO_ACTIONABLE_LINE or inventory.proof_lines:
-        raise ReviewEvidenceError(
-            "retirement requires an exact proof-empty No-actionables artifact"
-        )
 
 
 def review_seal_version(markdown_text: str) -> str | None:

@@ -1161,13 +1161,10 @@ def main() -> None:
     except FileNotFoundError as e:
         print(f"ERROR: {e}")
         sys.exit(1)
-    section = _artifact_extract_fixed_mapping(artifact_text)
-
-    if not section:
-        print(
-            f"ERROR: Missing '## Fixed in Commit Mapping' section in canonical artifact "
-            f"docs/review/PR_{pr_number}_FIXED_MAPPING.md"
-        )
+    try:
+        section = _artifact_extract_fixed_mapping(artifact_text)
+    except ReviewEvidenceError as exc:
+        print(f"ERROR: {exc}")
         sys.exit(1)
 
     # Reject invalid FIXED mappings: validate raw section for any "- url -> X" lines
