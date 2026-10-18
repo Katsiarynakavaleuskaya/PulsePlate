@@ -10,6 +10,7 @@ import subprocess
 from argparse import Namespace
 from pathlib import Path
 from typing import Any, cast
+from urllib.parse import parse_qs, urlsplit
 
 import pytest
 
@@ -165,6 +166,7 @@ def _publication_closeout_fixture(
         material_head_sha=head,
         material_digest=manifest.digest,
     )
+    assert manifest.diff_summary is not None
     report["scope_reviewed"]["diff_summary"] = {
         "files": manifest.diff_summary.files,
         "additions": manifest.diff_summary.additions,
@@ -373,30 +375,121 @@ def _retirement_fixture(
         head,
         tuple(PrCommitEvidence(sha, None) for sha in dict.fromkeys((old.head_sha, prior, head))),
     )
-    monkeypatch.setattr(closeout, "fetch_pr_snapshot", lambda *_a, **_k: snapshot)
+    current = [snapshot]
+    monkeypatch.setattr(closeout, "fetch_pr_snapshot", lambda *_a, **_k: current[0])
+    real_classify = identity.classify_commit_ref
+    real_ancestor = identity.is_ancestor
     classified: list[str] = []
+    resolutions: list[identity.CommitResolution] = []
+    commit_requests: list[str] = []
+    compare_requests: list[tuple[str, str, int]] = []
 
-    def classify(sha: str, observed: PrSnapshot, **_kwargs: Any) -> Any:
-        """Bind synthetic API classification to an existing commit in the real test graph."""
-        assert observed is snapshot
-        # Native Git objects remain independent of the synthetic API identity.
-        assert _publication_git(repo, "rev-parse", f"{sha}^{{commit}}") == sha
-        classified.append(sha)
-        kind = (
-            identity.CommitRefKind.PR_COMMIT
-            if sha in snapshot.commit_shas
-            else (identity.CommitRefKind.REPO_COMMIT_OUTSIDE_PR)
+    def request_json(url: str, *, token: str) -> dict[str, Any]:
+        """Supply only synthetic Commit/Compare responses derived from the real fixture graph."""
+        assert token == "opaque"
+        parsed = urlsplit(url)
+        prefix = "/repos/owner/repo/"
+        assert parsed.scheme == "https" and parsed.netloc == "api.github.com"
+        assert parsed.path.startswith(prefix) and not parsed.fragment
+        route = parsed.path.removeprefix(prefix)
+        if route.startswith("commits/"):
+            assert not parsed.query
+            sha = route.removeprefix("commits/")
+            resolved = _publication_git(repo, "rev-parse", f"{sha}^{{commit}}")
+            assert resolved == sha
+            commit_requests.append(sha)
+            return {"sha": resolved}
+        assert route.startswith("compare/"), "unexpected fixture API endpoint"
+        first, second = route.removeprefix("compare/").split("...")
+        query = parse_qs(parsed.query, strict_parsing=True)
+        assert set(query) == {"per_page", "page"} and query["per_page"] == ["1"]
+        assert len(query["page"]) == 1 and query["page"][0].isdigit()
+        page = int(query["page"][0])
+        assert page > 0
+        behind, ahead = (
+            int(count)
+            for count in _publication_git(
+                repo, "rev-list", "--left-right", "--count", f"{first}...{second}"
+            ).split()
         )
-        return identity.RepositoryCommitRef(sha, kind)
+        commits = _publication_git(
+            repo, "rev-list", "--reverse", "--topo-order", f"{first}..{second}"
+        ).splitlines()
+        assert len(commits) == ahead
+        status = (
+            "identical"
+            if behind == ahead == 0
+            else "ahead" if behind == 0 else "behind" if ahead == 0 else "diverged"
+        )
+        compare_requests.append((first, second, page))
+        return {
+            "status": status,
+            "ahead_by": ahead,
+            "behind_by": behind,
+            "base_commit": {"sha": first},
+            "head_commit": {"sha": second},
+            "merge_base_commit": {"sha": _publication_git(repo, "merge-base", first, second)},
+            "total_commits": len(commits),
+            "commits": [{"sha": sha} for sha in commits[page - 1 : page]],
+        }
 
-    def ancestor(first: Any, second: Any, **_kwargs: Any) -> bool:
-        """Observe ancestry from the synthetic repository's actual Git graph."""
-        return not _publication_git(repo, "rev-list", first.sha, f"^{second.sha}")
+    def classify(sha: str, observed: PrSnapshot, *, token: str) -> identity.CommitResolution:
+        """Run the canonical classifier with explicit supported request injection and record its result."""
+        assert observed is current[0]
+        resolved = real_classify(sha, observed, token=token, request_json=request_json)
+        classified.append(sha)
+        resolutions.append(resolved)
+        return resolved
+
+    def ancestor(
+        first: identity.RepositoryCommitRef,
+        second: identity.RepositoryCommitRef,
+        *,
+        repository: str,
+        token: str,
+    ) -> bool:
+        """Run the canonical Compare validator against the Git-derived paginated transport."""
+        return real_ancestor(
+            first, second, repository=repository, token=token, request_json=request_json
+        )
 
     monkeypatch.setattr(identity, "classify_commit_ref", classify)
     monkeypatch.setattr(identity, "is_ancestor", ancestor)
-    fixture.update(snapshot=snapshot, prior=prior, classified=classified)
+    monkeypatch.setattr(closeout, "classify_commit_ref", classify)
+    monkeypatch.setattr(closeout, "is_ancestor", ancestor)
+    fixture.update(
+        snapshot=snapshot,
+        prior=prior,
+        classified=classified,
+        resolutions=resolutions,
+        commit_requests=commit_requests,
+        compare_requests=compare_requests,
+        identity_snapshot=current,
+    )
     return fixture
+
+
+def _assert_real_retirement_identities(fixture: dict[str, Any]) -> None:
+    """Verify actual ref kinds and exclusively the required paginated material-to-head relation."""
+    from scripts.orchestration import pr_commit_identity as identity
+
+    snapshot = fixture["identity_snapshot"][0]
+    historical = fixture["seal"]["material"]
+    material, base = historical["material_head_sha"], historical["base_ref_oid"]
+    assert fixture["classified"] == [snapshot.head_sha, material, base, snapshot.base_sha]
+    assert fixture["commit_requests"] == fixture["classified"]
+    assert all(isinstance(ref, identity.RepositoryCommitRef) for ref in fixture["resolutions"])
+    assert [ref.kind for ref in fixture["resolutions"]] == [
+        identity.CommitRefKind.PR_HEAD,
+        identity.CommitRefKind.PR_COMMIT,
+        identity.CommitRefKind.REPO_COMMIT_OUTSIDE_PR,
+        identity.CommitRefKind.REPO_COMMIT_OUTSIDE_PR,
+    ]
+    total = int(
+        _publication_git(fixture["repo"], "rev-list", "--count", f"{material}..{snapshot.head_sha}")
+    )
+    pages = [1] if total <= 1 else [1, total]
+    assert fixture["compare_requests"] == [(material, snapshot.head_sha, page) for page in pages]
 
 
 def _retirement_payload_state(fixture: dict[str, Any]) -> tuple[Path, tuple[bytes, ...]]:
@@ -470,6 +563,7 @@ def test_retire_stale_accepts_unmerged_base_tips(
         snapshot.base_sha,
     ]
     assert checked == [(material, snapshot.head_sha)]
+    _assert_real_retirement_identities(fixture)
     assert not fixture["target"].exists()
     assert (
         (repo / ".git/index").read_bytes(),
@@ -623,6 +717,7 @@ def test_retire_stale_preserves_dirty_material_index_and_draft(
         ["retire-stale", "--repo", "owner/repo", "--pr-number", "42"]
     )
     args.handler(args)
+    _assert_real_retirement_identities(fixture)
     assert not fixture["target"].exists()
     assert (index.read_bytes(), draft.read_bytes(), dirty.read_bytes()) == before
     assert "no freeze, disposition, publication or readiness claim" in capsys.readouterr().out
@@ -682,7 +777,9 @@ def test_retire_stale_rejects_uncertainty_without_deleting(
             closeout._write_state(
                 fixture["state"] | {"dispositions": [{"disposition": "FIXED", "commit": "a" * 40}]}
             )
-            return fixture["snapshot"]
+            snapshot = fixture["snapshot"]
+            assert isinstance(snapshot, PrSnapshot)
+            return snapshot
 
         monkeypatch.setattr(closeout, "fetch_pr_snapshot", add_proof)
     elif mutation == "snapshot-identity":
@@ -892,11 +989,11 @@ def _ordinary_retirement_closeout_fixture(
 ) -> dict[str, Any]:
     """Exercise Q_fix retirement, real docs M, freeze M, FIXED-Q_fix and ADD-R."""
     from dataclasses import replace
-    from scripts.orchestration import pr_commit_identity as identity
 
     fixture = _retirement_fixture(tmp_path, monkeypatch)
     repo, args = fixture["repo"], fixture["args"]
     closeout._cmd_retire_stale(args)
+    _assert_real_retirement_identities(fixture)
     (repo / "README.md").write_text(
         "real timestamp and retirement implementation Q\n", encoding="utf-8"
     )
@@ -923,20 +1020,8 @@ def _ordinary_retirement_closeout_fixture(
             PrCommitEvidence(material, None),
         ),
     )
-    current = [snapshot]
-    monkeypatch.setattr(closeout, "fetch_pr_snapshot", lambda *_a, **_k: current[0])
-    monkeypatch.setattr(
-        closeout,
-        "classify_commit_ref",
-        lambda sha, *_a, **_k: identity.RepositoryCommitRef(sha, identity.CommitRefKind.PR_COMMIT),
-    )
-    monkeypatch.setattr(
-        closeout,
-        "is_ancestor",
-        lambda first, second, **_k: not _publication_git(
-            repo, "rev-list", first.sha, f"^{second.sha}"
-        ),
-    )
+    current = fixture["identity_snapshot"]
+    current[0] = snapshot
     closeout._cmd_freeze(args)
     root = "https://github.com/owner/repo/pull/42#discussion_r700"
     closeout._cmd_add_disposition(
@@ -963,6 +1048,7 @@ def _ordinary_retirement_closeout_fixture(
         material_head_sha=material,
         material_digest=manifest.digest,
     )
+    assert manifest.diff_summary is not None
     report["scope_reviewed"]["diff_summary"] = {
         "files": manifest.diff_summary.files,
         "additions": manifest.diff_summary.additions,
@@ -985,8 +1071,18 @@ def test_retire_stale_registered_q_then_normal_mapping_add_r(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Bind the seal to docs material M and FIXED to Q_fix before the sole mapping ADD-R."""
+    from scripts.orchestration import pr_commit_identity as identity
+
     fixture = _ordinary_retirement_closeout_fixture(tmp_path, monkeypatch)
     seal = closeout.validate_live_mapping(repository="owner/repo", pr_number=42, token="opaque")
+    assert all(isinstance(ref, identity.RepositoryCommitRef) for ref in fixture["resolutions"])
+    assert any(
+        ref.sha == fixture["q"] and ref.kind is identity.CommitRefKind.PR_COMMIT
+        for ref in fixture["resolutions"]
+    )
+    assert fixture["resolutions"][-1].sha == fixture["m"]
+    assert fixture["resolutions"][-1].kind is identity.CommitRefKind.PR_COMMIT
+    assert (fixture["q"], fixture["m"], 1) in fixture["compare_requests"]
     assert seal["material"]["material_head_sha"] == fixture["m"]
     assert seal["self_review"]["material_head_sha"] == fixture["m"]
     assert closeout._load_state(42)["freeze"]["material_head_sha"] == fixture["m"]
