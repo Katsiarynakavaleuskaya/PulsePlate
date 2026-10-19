@@ -2061,14 +2061,9 @@ def _assert_checkpoint_pr_selection_uses_real_git(
     else:
         selected = case == "own" and expected_selected
         assert result.returncode == 0, result.stderr
-        expected_mode = (
-            "changed_pr_candidate"
-            if selected_path == "deploy/prometheus/image-manifest.json"
-            else "unchanged_pr_published"
-        )
-        assert output.read_text() == (
-            f"selected=true\nmode={expected_mode}\n" if selected else "selected=false\n"
-        )
+        # This step owns only native surface selection; the fixed-control step
+        # separately invokes the canonical four-blob classifier before credentials.
+        assert output.read_text() == ("selected=true\n" if selected else "selected=false\n")
         assert not (tmp_path / "native-calls").exists()
         if selected:
             # The synthetic consumer exit models the separate step result. The
@@ -2206,19 +2201,27 @@ def _assert_checkpoint_pr_native_job(workflow: dict[str, object]) -> None:
     control = _named_step(steps, "Checkout fixed trusted Prometheus control")
     cleanup = _named_step(steps, "Remove fixed trusted Prometheus control checkout")
     selection = _named_step(steps, "Select native OBS2A material before PR startup")
+    classifier = _named_step(steps, "Classify the fixed regular Prometheus source blobs")
+    assert classifier["id"] == "checkpoint-route"
+    assert classifier["if"] == control["if"] == consumer["if"] == native["if"]
+    assert set(classifier["env"]) == {"PROMETHEUS_EVENT_HEAD", "PROMETHEUS_EVENT_BASE"}
+    assert "secrets." not in str(classifier)
+    assert classifier["run"].count('trusted["classify_source_change"](previous, current)') == 1
+    assert "mode=" not in selection["run"]
     # pragma: allowlist nextline secret - public trusted control commit
-    assert control["with"]["ref"] == "5064aded22f478a22a4319b684e95d6c0b3ae46f"
+    assert control["with"]["ref"] == "ef9e369052751d47c04f651f7d615714d918fc16"
     assert control["with"]["persist-credentials"] is False
     assert "python3 -I -S" in consumer["run"] and "runpy.run_path(str(helper))" in consumer["run"]
     assert consumer["env"]["GH_TOKEN"] == "${{ secrets.GITHUB_TOKEN }}"
     assert (
         consumer["env"]["GHCR_READ_TOKEN"]
-        == "${{ steps.checkpoint-selection.outputs.mode == 'unchanged_pr_published' && secrets.GITHUB_TOKEN || '' }}"
+        == "${{ steps.checkpoint-route.outputs.mode == 'unchanged_pr_published' && secrets.GITHUB_TOKEN || '' }}"
     )
     assert (
         steps.index(checkout)
         < steps.index(selection)
         < steps.index(control)
+        < steps.index(classifier)
         < steps.index(consumer)
         < steps.index(cleanup)
         < steps.index(setup)
@@ -2266,6 +2269,11 @@ def _assert_checkpoint_pr_native_job(workflow: dict[str, object]) -> None:
         ("tests/test_notify_premium_alias_checkpoint_failure.py", True),
         (".github/workflows/ci.yml", True),
         (".github/workflows/cd.yml", True),
+        ("scripts/ci/prometheus_source_image.py", True),
+        (".github/workflows/build.yml", True),
+        ("deploy/prometheus/Containerfile", True),
+        ("scripts/ci/prometheus_source_image.py.bak", False),
+        ("deploy/prometheus/Containerfile.bak", False),
         ("docs/unrelated.md", False),
         ("unrelated.txt", False),
     ],

@@ -204,8 +204,11 @@
   no local Go compiler and no BuildKit Prometheus producer. Invocation history
   is nonrenewable when inputs change. Complete the raw helper and `build.yml`,
   including SDK and backend export seams, before spending the pair.
-- A changed PR consumes only its authenticated same-repository retained artifact
-  after full raw producer/input equivalence and source ancestry within the PR.
+- A manifest-changing original producer PR consumes only its authenticated
+  same-repository retained artifact after full raw producer/input equivalence
+  and source ancestry within that PR. An unchanged-manifest helper change with
+  unchanged build/recipe reauthenticates the original merged source separately
+  from receiving-main ancestry; historical code remains data only.
   A new main selection additionally binds the actual squash and final PR head;
   the PR producer is not required to be an ancestor of the squash commit.
   Unchanged published components use the immutable subject and a positive
@@ -230,16 +233,23 @@
   incoming archives are material/data. Root merge, deployment, credentials,
   volume changes and observation clocks retain their existing authority gates.
 - CI/CD PR image consumption must finish before PR-local actions, imports or
-  native programs start. The changed-candidate route executes only the sparse
-  fixed control checkout at `5064aded22f478a22a4319b684e95d6c0b3ae46f`, with
-  helper SHA-256 `0e7a73b0159c442cf5f9377aa862e38d643145f81ac6a54ee50b31682f6c3e3e`,
-  through isolated stdlib `runpy` and an explicit material root. API credentials
-  belong to that step only; changed candidates receive no registry credential.
-  Same-repository PR published reads use the limited ephemeral `GITHUB_TOKEN`;
-  the distinct trusted CD job uses the `staging` Environment's `GHCR_READ_TOKEN`.
-  Preserve
-  the existing consumer evidence and outputs, and remove the owned control
-  checkout before PR startup. A missing base published capability remains a hold.
+  native programs start. Acquire exact event-H material as data, then verify the
+  sparse fixed control checkout at `ef9e369052751d47c04f651f7d615714d918fc16`, with
+  helper SHA-256 `0fedf3e9ac865fe2b89a3367e5e4065e1c0c28fca88465c7f2b41775dbf4070a`,
+  before credential-free canonical four-blob classification. Native regular Git
+  blobs supply B/H helper, build workflow, recipe and manifest bytes; the canonical
+  helper alone selects manifest-change, historical-helper-change or published use.
+  Both local PR modes execute that control through isolated stdlib `runpy`, receive
+  no registry credential and retain full original producer/candidate admission;
+  historical source is data only. Unchanged PRs use the same fixed control at H
+  and require a positive immutable publication predecessor. API credentials belong
+  only to the consumer step; same-repository published reads use the limited
+  ephemeral `GITHUB_TOKEN`. Fresh canonical consume cross-binds route, event,
+  current H and publisher independently of classification. Preserve bounded
+  consumer evidence/result binding and remove the owned control checkout before
+  PR startup. The closed non-PR CD branch retains `trusted_published`, its separate
+  publication wait and the `staging` Environment's `GHCR_READ_TOKEN`; it does not
+  dereference PR-only control or reinterpret main recovery as a local candidate.
 
 ## Deploy-tool Python selection
 
@@ -383,6 +393,9 @@ or claim that passing this probe validates the application on Python 3.14.
   finite recorded transition live in `docs/DEPENDENCY_MANAGEMENT.md`.
 
 ## Governed Experimentation Runner
+
+- For mode-aware CV intent versus Oracle context-path handling, follow the canonical
+  [CV packet contract](../docs/orchestration/CV_EXPERIMENTATION_PROTOCOL.md#2-cv-packet-contract).
 
 - `experiment_runner_dispatch.py build-image` requires `--psycopg-sdk-root`
   pointing to the private, externally qualified genuine ARM SDK export. The
