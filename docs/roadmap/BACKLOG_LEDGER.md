@@ -22,6 +22,21 @@ If it is not recorded here — it does not exist.
 
 ## Open Items
 
+<a id="ledger-p1-local-oracle-runner-qualification"></a>
+- [ ] P1: Qualify the immutable local Apple Oracle Runner and preserve exact CI check identity
+  - Owner: @katsiaryna_kavaleuskaya with agent-coordinator, security-auditor, dev-operator and QA
+  - Priority: P1
+  - Target PR: current substantive local Oracle qualification lane (number pending publication)
+  - Status: OPEN — source implementation in progress; image/native/Oracle/local-hosted-review/terminal qualification remains pending. Accepted criteria: LOCAL-ORACLE-RUNNER-QUALIFICATION-1/v1, all O1–O12 retained.
+  - Reason for deferral: failed179 and unqualified222 do not supply the fresh Oracle transferred from Legacy. Actual222 has four HIGH findings; its separate empty secret report has OS130/Python152 Packages/no Secrets. New native facts cannot be manufactured from source tests or historical counts.
+  - Scope: Native ps with unchanged one-second census; original-builder-preserving runtime-preparation; exact six tools/eight launchers plus positively identified single inherited seed/full ensurepip retirement; same existing dual-producer/current-OCI consumer; Python3.13 aggregate reserve with truthful exact-name coupling. Preserve SDK/proxy/default CA/locks, healthy build/all other payload/default nine plugins, three original Oracle commands/order and initial600/test3/network0/provider0; candidate cap5 does not limit full actual review context.
+  - DoD: Individually evidence O1–O12: native process capability; all selected AND retained payload/shared ownership/seed/bootstrap proof; original builder/source controls; default runtime/plugins/original commands; full OCI/native SDK/TLS/DB; unsuppressed full vulnerability and all-severity file/config secret producers with real canary rejection; independent control/image/strict Apple admission; evidence-based CI budget/name preservation; own focused/narrow/current-head hosted gates; accepted new Oracle/companions/exportrestore; premortem/post-open/self-review/seal/strict/wait/authorized merge; truthful continuity/post-main/preservation/owned cleanup/final QA. No source-only completion claim.
+  - Boundaries: No seventh distribution/orphan sweep, application manifest/lock/profile change, new consumer/helper/schema, suppression/VEX, relaxed child/coverage/topology/producers/thresholds or protected settings change. Prometheus/CD remains #2494; global Legacy/originalDK2 stays open separately. No historical status or foreign ledger anchor is changed.
+  - Rollback: Review coupled runtime stage/COPY/tool/seed/contracts and coupled CI allowance/exact-name/tests/note reversal; retain immutable failed evidence and block unqualified images. No automatic next lane or Docker fallback.
+  - Links: [Runner runbook](../orchestration/EXPERIMENT_RUNNER_MACOS_RUNBOOK.md#current-local-qualification-boundary), [security owner](../security/EXPERIMENT_RUNNER_CONTAINER_CVE_REMEDIATION.md#local-oracle-successor--qualification-pending).
+  - Required-hook environment qualification (EN, 2026-10-20): The unchanged locked Node 24.18.1/npm 11.16.0 local npm ci exited 0 and the actual frontend hook passed. Its retained existing npm-ci bulk log reports 10 affected graph nodes, five identity keys and 15 advisory records, with nested fields incomplete; this is not a fresh full-repository SCA or exact-batch admission. The findings remain OPEN with the existing dependency/security + frontend-tooling P1 owner and [dependency follow-up](#ledger-p1-dependency-alerts-after-main-recovery). Default allow-scripts warnings are retained without approval/ignore flags or source changes. No dependency remediation, no-findings, universal non-reachability, inherited/dev-only exemption or security-gate waiver is claimed; a concrete active required-gate defect still requires bounded current closure before readiness.
+
+
 <a id="ledger-p2-checkpoint-manifest-reader-bandit-2477"></a>
 - [ ] P2: Reassess the four checkpoint manifest-reader Bandit annotations
   - Owner: security-auditor / dev-operator

@@ -2689,7 +2689,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Overall allowances include setup, queued shard waves and coverage/upload.
+        # Outer allowances include setup, queued shard waves and coverage/upload.
+        # The 3.13 reserve is aggregate headroom, not a fix for a child timeout.
         # Per-shard watchdog remains 4800s; test work is unchanged.
         include:
           - python-version: '3.11'
@@ -2697,7 +2698,7 @@ jobs:
           - python-version: '3.12'
             timeout-minutes: 120
           - python-version: '3.13'
-            timeout-minutes: 120
+            timeout-minutes: 180
 
     steps:
       - name: Enforce prerequisite results

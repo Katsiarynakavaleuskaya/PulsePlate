@@ -9,6 +9,7 @@ import os
 from pathlib import Path
 import re
 import shutil
+import shlex
 import stat
 import subprocess
 import sys
@@ -1136,7 +1137,7 @@ def _trivy_coverage_validator_source() -> str:
     start = (
         'TRIVY_COVERAGE_RECEIPT="$('
         "\n"
-        '  "${RUNNER_PYTHON}" - "${RUNNER_TRIVY_REPORT}" "${RUNNER_PIP_SBOM}" <<\'PY\'\n'
+        '  "${RUNNER_PYTHON}" - "${RUNNER_TRIVY_REPORT}" "${RUNNER_PIP_SBOM}" "${RUNNER_SECRET_REPORT}" "${RUNNER_OCI_LAYOUT}" "${RUNNER_TOP_INDEX_DIGEST}" "${RUNNER_VULN_STATUS}" "${RUNNER_SECRET_STATUS}" "${RUNNER_TRIVY_STARTED_NS}" <<\'PY\'\n'
     )
     end = '\nPY\n)"'
     assert runbook.count(start) == 1
@@ -1150,6 +1151,7 @@ def _run_trivy_coverage_validator(
     *,
     tmp_path: Path,
     sbom_case: str | None = None,
+    producer_case: str | None = None,
 ) -> subprocess.CompletedProcess[str]:
     report_path = tmp_path / "trivy.json"
     report_path.write_text(report_text, encoding="utf-8")
@@ -1170,12 +1172,179 @@ def _run_trivy_coverage_validator(
         sbom_path.write_bytes(b"X" + sbom_path.read_bytes()[1:])
     elif sbom_case is not None:
         raise AssertionError(sbom_case)
+    # Synthetic OCI and producer fixtures exercise the existing inline consumer.
+    # They do not represent a native scanner/canary run or a qualified image.
+    layout = tmp_path / "scan-oci"
+    blobs = layout / "blobs" / "sha256"
+    blobs.mkdir(parents=True)
+    layers = []
+    for index in range(8):
+        raw = f"synthetic-layer-{index}".encode()
+        digest = "sha256:" + hashlib.sha256(raw).hexdigest()
+        (blobs / digest.removeprefix("sha256:")).write_bytes(raw)
+        layers.append(
+            {
+                "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+                "digest": digest,
+                "size": len(raw),
+            }
+        )
+    diff_ids = ["sha256:" + hashlib.sha256(f"diff-{i}".encode()).hexdigest() for i in range(8)]
+    synthetic_layer = {"Digest": layers[-1]["digest"], "DiffID": diff_ids[-1]}
+    config = {
+        "architecture": "arm64",
+        "os": "linux",
+        "rootfs": {"type": "layers", "diff_ids": diff_ids},
+    }
+    config_raw = json.dumps(config).encode()
+    config_digest = "sha256:" + hashlib.sha256(config_raw).hexdigest()
+    (blobs / config_digest.removeprefix("sha256:")).write_bytes(config_raw)
+    manifest = {
+        "schemaVersion": 2,
+        "config": {
+            "mediaType": "application/vnd.oci.image.config.v1+json",
+            "digest": config_digest,
+            "size": len(config_raw),
+        },
+        "layers": layers,
+    }
+    manifest_raw = json.dumps(manifest).encode()
+    manifest_digest = "sha256:" + hashlib.sha256(manifest_raw).hexdigest()
+    (blobs / manifest_digest.removeprefix("sha256:")).write_bytes(manifest_raw)
+    top = {
+        "schemaVersion": 2,
+        "manifests": [
+            {
+                "mediaType": "application/vnd.oci.image.manifest.v1+json",
+                "platform": {"architecture": "arm64", "os": "linux"},
+                "digest": manifest_digest,
+                "size": len(manifest_raw),
+            }
+        ],
+    }
+    top_raw = json.dumps(top).encode()
+    top_digest = "sha256:" + hashlib.sha256(top_raw).hexdigest()
+    (blobs / top_digest.removeprefix("sha256:")).write_bytes(top_raw)
+    (layout / "index.json").write_text(
+        json.dumps(
+            {
+                "schemaVersion": 2,
+                "manifests": [
+                    {
+                        "mediaType": "application/vnd.oci.image.index.v1+json",
+                        "digest": top_digest,
+                        "size": len(top_raw),
+                    }
+                ],
+            }
+        )
+    )
+    secret_report = _clean_trivy_admission_report()
+    try:
+        report = json.loads(report_text)
+    except json.JSONDecodeError:
+        report = None
+    for value in (report, secret_report):
+        if not isinstance(value, dict):
+            continue
+        value.update(
+            ArtifactID=config_digest, ArtifactName=str(layout), Trivy={"Version": "0.74.0"}
+        )
+        metadata = value.get("Metadata")
+        if isinstance(metadata, dict):
+            metadata.update(ImageID=config_digest, DiffIDs=diff_ids)
+        if isinstance(value.get("Results"), list):
+            for result in value["Results"]:
+                if not isinstance(result, dict) or not isinstance(result.get("Packages"), list):
+                    continue
+                for package in result["Packages"]:
+                    if isinstance(package, dict) and package.get("Layer") == _TRIVY_PYTHON_LAYER:
+                        package["Layer"] = dict(synthetic_layer)
+    if report is not None:
+        report_path.write_text(json.dumps(report))
+    secret_path = tmp_path / "secret.json"
+    vuln_status = secret_status = "0"
+    if producer_case == "file_secret":
+        secret_report["Results"].append(
+            {
+                "Target": "synthetic/file",
+                "Secrets": [{"RuleID": "synthetic-unit-only", "Severity": "LOW"}],
+            }
+        )
+        secret_status = "1"
+    elif producer_case == "config_secret":
+        secret_report["Results"].append(
+            {
+                "Target": "synthetic/config",
+                "Secrets": [{"RuleID": "synthetic-unit-only", "Severity": "UNKNOWN"}],
+            }
+        )
+        secret_status = "1"
+    elif producer_case == "secret_malformed":
+        secret_report["Results"][0]["Secrets"] = {}
+    elif producer_case == "secret_bad_package":
+        secret_report["Results"][0]["Packages"] = ["malformed"]
+    elif producer_case == "secret_missing_result":
+        secret_report["Results"].pop()
+    elif producer_case == "secret_duplicate_result":
+        secret_report["Results"].append(dict(secret_report["Results"][0]))
+    elif producer_case == "secret_subject":
+        secret_report["Metadata"]["ImageID"] = _OTHER_DIGEST
+    elif producer_case == "vuln_subject":
+        report["Metadata"]["ImageID"] = _OTHER_DIGEST
+        report_path.write_text(json.dumps(report))
+    elif producer_case == "secret_diffids":
+        secret_report["Metadata"]["DiffIDs"] = [_OTHER_DIGEST]
+    elif producer_case == "secret_failure":
+        secret_status = "2"
+    elif producer_case == "vuln_failure":
+        vuln_status = "2"
+    elif producer_case == "changed_layer":
+        (blobs / layers[0]["digest"].removeprefix("sha256:")).write_bytes(b"changed")
+    elif producer_case == "changed_config":
+        (blobs / config_digest.removeprefix("sha256:")).write_bytes(b"changed")
+    elif producer_case == "changed_manifest":
+        (blobs / manifest_digest.removeprefix("sha256:")).write_bytes(b"changed")
+    elif producer_case == "changed_index":
+        (blobs / top_digest.removeprefix("sha256:")).write_bytes(b"changed")
+    secret_path.write_text(json.dumps(secret_report))
+    if producer_case == "missing_secret":
+        secret_path.unlink()
+    elif producer_case == "invalid_secret_json":
+        secret_path.write_text("not-json")
+    elif producer_case == "stale_secret":
+        os.utime(secret_path, ns=(0, 0))
+    elif producer_case == "linked_secret":
+        target = tmp_path / "linked-report.json"
+        secret_path.rename(target)
+        secret_path.symlink_to(target)
+    source = _trivy_coverage_validator_source()
+    # Replace only the independent native lineage pin for this synthetic image.
+    source = re.sub(
+        r"^EXPECTED_PYTHON_LAYER = .*?$",
+        "EXPECTED_PYTHON_LAYER = " + repr(synthetic_layer),
+        source,
+        flags=re.MULTILINE,
+    )
     return subprocess.run(
-        [sys.executable, "-", str(report_path), str(sbom_path)],
+        [
+            sys.executable,
+            "-",
+            str(report_path),
+            str(sbom_path),
+            str(secret_path),
+            str(layout),
+            top_digest,
+            vuln_status,
+            secret_status,
+            "1",
+        ],
         check=False,
         capture_output=True,
-        input=_trivy_coverage_validator_source(),
+        input=source,
         text=True,
+        env={"PATH": os.defpath},
+        timeout=10,
     )
 
 
@@ -1291,6 +1460,217 @@ def test_oci_layer_admission_rejects_incomplete_or_changed_blobs(
 
     assert completed.returncode != 0
     assert completed.stdout == ""
+
+
+@pytest.mark.parametrize(
+    ("case", "diagnostic"),
+    (
+        ("file_secret", "secret_findings"),
+        ("config_secret", "secret_findings"),
+        ("secret_bad_package", "secret_shape"),
+        ("secret_missing_result", "secret_shape"),
+        ("secret_duplicate_result", "secret_shape"),
+        ("secret_malformed", "secret_shape"),
+        ("secret_subject", "current_subject"),
+        ("vuln_subject", "current_subject"),
+        ("secret_diffids", "current_subject"),
+        ("secret_failure", "producer_status"),
+        ("vuln_failure", "producer_status"),
+        ("missing_secret", "secret_read"),
+        ("invalid_secret_json", "secret_read"),
+        ("stale_secret", "secret_freshness"),
+        ("linked_secret", "secret_read"),
+        ("changed_layer", "oci_blob"),
+        ("changed_config", "oci_blob"),
+        ("changed_manifest", "oci_blob"),
+        ("changed_index", "oci_blob"),
+    ),
+)
+def test_same_trivy_consumer_requires_both_fresh_current_subject_producers(
+    case: str, diagnostic: str, tmp_path: Path
+) -> None:
+    """Synthetic producer/OCI mutations never claim native canary proof."""
+    completed = _run_trivy_coverage_validator(
+        json.dumps(_clean_trivy_admission_report()), tmp_path=tmp_path, producer_case=case
+    )
+    assert completed.returncode != 0
+    assert completed.stdout == ""
+    assert completed.stderr.strip() == "trivy_admission_report_invalid:" + diagnostic
+
+
+@pytest.mark.parametrize("contamination", ("ambient", "default_config"))
+@pytest.mark.parametrize("vuln_exit,secret_exit", ((0, 0), (1, 2)))
+def test_runbook_trivy_producers_isolate_environment_and_secret_config(
+    contamination: str, vuln_exit: int, secret_exit: int, tmp_path: Path
+) -> None:
+    """Execute documented shell with a synthetic stub, never a native scanner."""
+    runbook = _runner_doc_text(_RUNNER_RUNBOOK)
+    setup = runbook.split('TRIVY_BIN="${RUNNER_TRIVY_DIR}/trivy"\n', 1)[1].split(
+        '"${CONTAINER_BIN}" image inspect', 1
+    )[0]
+    operations = runbook.split('\' | "${TEE_BIN}" "${RUNNER_RUNTIME_REPORT}"\n\n', 1)[1].split(
+        "RUNNER_PIP_SBOM=", 1
+    )[0]
+    evidence = tmp_path / "evidence"
+    evidence.mkdir(mode=0o700)
+    scanner_dir = evidence / "scanner"
+    scanner_dir.mkdir(mode=0o700)
+    log = tmp_path / "stub-calls.jsonl"
+    (tmp_path / "trivy-secret.yaml").write_text('skip-patterns: ["**"]\n')
+    parent_home = tmp_path / "parent-home"
+    parent_home.mkdir()
+    parent_secret_config = parent_home / "parent-secret.yaml"
+    parent_secret_config.write_text('skip-patterns: ["**"]\n')
+    stub = scanner_dir / "trivy"
+    stub.write_text(
+        f"#!{sys.executable} -I\n"
+        + "import json, os, sys\nfrom pathlib import Path\n"
+        + f"log = Path({str(log)!r})\n"
+        + f"statuses = {{'vuln': {vuln_exit}, 'secret': {secret_exit}}}\n"
+        + """args = sys.argv[1:]
+def option(name, default=None):
+    for index, argument in enumerate(args):
+        if argument == name:
+            return args[index + 1]
+        if argument.startswith(name + "="):
+            return argument[len(name) + 1:]
+    return default
+secret_config = option("--secret-config", os.environ.get("TRIVY_SECRET_CONFIG", "trivy-secret.yaml"))
+cache = option("--cache-dir", os.environ.get("TRIVY_CACHE_DIR", str(Path.home() / ".cache" / "trivy")))
+operation = "version" if "--version" in args else ("db" if "--download-db-only" in args else option("--scanners"))
+config_loaded = bool(secret_config) and Path(secret_config).exists()
+entry = {"argv": args, "env": dict(os.environ), "operation": operation,
+         "secret_config": secret_config, "secret_config_loaded": config_loaded, "cache": cache}
+with log.open("a") as stream:
+    stream.write(json.dumps(entry) + "\\n")
+if operation == "version":
+    print("Version: 0.74.0")
+elif operation == "db":
+    Path(cache).mkdir(parents=True, exist_ok=True)
+    (Path(cache) / "synthetic-db-witness").write_text("synthetic")
+else:
+    if not (Path(cache) / "synthetic-db-witness").is_file():
+        raise SystemExit("synthetic shared cache missing")
+    Path(option("--output")).write_text(json.dumps({"synthetic_stub_only": True}))
+    print("synthetic producer stdout")
+    print("synthetic producer stderr", file=sys.stderr)
+    raise SystemExit(statuses[operation])
+"""
+    )
+    stub.chmod(0o700)
+    shell = shutil.which("bash")
+    grep = shutil.which("grep")
+    assert shell is not None and grep is not None
+    environment = {
+        "PATH": os.defpath,
+        "HOME": str(parent_home),
+        "TMPDIR": str(tmp_path / "parent-tmp"),
+        "XDG_CACHE_HOME": str(tmp_path / "parent-cache"),
+        "LANG": "C",
+        "LC_ALL": "C",
+    }
+    if contamination == "ambient":
+        environment.update(
+            TRIVY_SKIP_FILES="**",
+            TRIVY_SKIP_DIRS="**",
+            TRIVY_SERVER="https://synthetic.invalid",
+            TRIVY_SECRET_CONFIG=str(parent_secret_config),
+            TRIVY_CACHE_DIR=str(tmp_path / "poison-cache"),
+            TRIVY_CONFIG=str(parent_home / "trivy.yaml"),
+            HTTP_PROXY="http://synthetic.invalid",
+            HTTPS_PROXY="http://synthetic.invalid",
+            AWS_SECRET_ACCESS_KEY="synthetic-unit-only",
+            PYTHONPATH="/synthetic/untrusted",
+            BASH_ENV="/synthetic/absent",
+        )
+    bindings = {
+        "RUNNER_TRIVY_DIR": scanner_dir,
+        "TRIVY_BIN": stub,
+        "RUNNER_EVIDENCE_DIR": evidence,
+        "RUNNER_TRIVY_REPORT": evidence / "vuln.json",
+        "RUNNER_OCI_LAYOUT": tmp_path / "synthetic-oci",
+        "RUNNER_STATUS_REPORT": evidence / "statuses.txt",
+        "RUNNER_PYTHON": sys.executable,
+        "GREP_BIN": grep,
+    }
+    program = (
+        "set -euo pipefail\n"
+        + "\n".join(f"{key}={shlex.quote(str(value))}" for key, value in bindings.items())
+        + "\n"
+        + setup
+        + operations
+    )
+    completed = subprocess.run(
+        [shell, "-c", program],
+        cwd=tmp_path,
+        env=environment,
+        capture_output=True,
+        text=True,
+        timeout=15,
+        check=False,
+    )
+    assert completed.returncode == 0, completed.stderr
+    calls = [json.loads(line) for line in log.read_text().splitlines()]
+    assert [entry["operation"] for entry in calls] == ["version", "db", "vuln", "secret"]
+    assert (
+        evidence / "statuses.txt"
+    ).read_text() == f"trivy_vuln_exit={vuln_exit}\ntrivy_secret_exit={secret_exit}\n"
+    prescribed = {
+        "HOME": str(scanner_dir / "home"),
+        "TMPDIR": str(scanner_dir / "tmp"),
+        "XDG_CACHE_HOME": str(scanner_dir / "cache"),
+        "PATH": "/usr/bin:/bin",
+        "LANG": "C",
+        "LC_ALL": "C",
+    }
+    # Compare with an independent prescribed-only child: macOS Python may add
+    # __CF_USER_TEXT_ENCODING at startup. No inherited setting is allowlisted.
+    control = subprocess.run(
+        [sys.executable, "-I", "-c", "import json, os; print(json.dumps(dict(os.environ)))"],
+        env=prescribed,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=10,
+    )
+    assert control.returncode == 0, control.stderr
+    expected_transport = json.loads(control.stdout)
+    for entry in calls:
+        assert entry["env"] == expected_transport, entry
+        assert entry["env"]["HOME"] != str(parent_home), entry
+        for key in ("HOME", "TMPDIR", "XDG_CACHE_HOME"):
+            path = Path(entry["env"][key])
+            assert path.is_absolute() and path.is_relative_to(evidence)
+            assert stat.S_IMODE(path.stat().st_mode) == 0o700
+        assert entry["cache"] == entry["env"]["XDG_CACHE_HOME"]
+    for entry in calls[1:]:
+        assert entry["secret_config"] == ""
+        assert entry["secret_config_loaded"] is False
+    assert (tmp_path / "trivy-secret.yaml").read_text() == 'skip-patterns: ["**"]\n'
+
+
+def test_runner_scan_producers_capture_both_results_before_same_consumer() -> None:
+    """The documented native operations stay explicit; these assertions run no scanner."""
+    text = _runner_doc_text(_RUNNER_RUNBOOK)
+    scan = text.split("RUNNER_TRIVY_STARTED_NS=", 1)[1].split("RUNNER_PIP_SBOM=", 1)[0]
+    assert (
+        scan.count(
+            '"${TRIVY_BIN}" --config /dev/null --cache-dir "${RUNNER_SCAN_CACHE}" image --input "${RUNNER_OCI_LAYOUT}"'
+        )
+        == 2
+    )
+    assert "--scanners vuln --severity HIGH,CRITICAL" in scan
+    assert "--scanners secret --image-config-scanners secret" in scan
+    assert "--severity UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL" in scan
+    assert scan.count("--ignorefile /dev/null --ignore-policy= --ignore-status=") == 2
+    assert scan.count("--ignore-unfixed=false --vex= --exit-code 1 --format json") == 2
+    assert "RUNNER_VULN_STATUS=$?" in scan and "RUNNER_SECRET_STATUS=$?" in scan
+    assert '"${RUNNER_VULN_STATUS}" "${RUNNER_SECRET_STATUS}"' in scan
+    consumer = _trivy_coverage_validator_source()
+    assert "current_subject(secret_report)" in consumer
+    assert "current_subject(report)" in consumer
+    assert "for layer in layers:" in consumer
+    assert 'metadata.get("DiffIDs") != diff_ids' in consumer
 
 
 def test_trivy_admission_report_requires_exact_os_and_python_coverage(tmp_path: Path) -> None:
@@ -1453,9 +1833,100 @@ def test_runner_containerfile_pins_exact_base_and_shared_python_runtime() -> Non
         "FROM scratch AS verified-sources",
         "FROM ${RUNNER_BASE} AS python-runtime",
         "FROM python-runtime AS builder",
+        "FROM builder AS runtime-preparation",
         "FROM python-runtime AS runner",
     ]
-    assert containerfile.count("COPY --from=builder /opt/venv /opt/venv") == 1
+    assert containerfile.count("COPY --from=runtime-preparation /opt/venv /opt/venv") == 1
+    assert "COPY --from=builder /opt/venv /opt/venv" not in containerfile
+
+
+def test_runner_runtime_preparation_retires_only_selected_tools_after_builder() -> None:
+    """The ordinary stage uses native offline uninstall and preserves the builder."""
+    text = _runner_containerfile_text()
+    builder, preparation = text.split("FROM builder AS runtime-preparation", 1)
+    preparation, runner = preparation.split("FROM python-runtime AS runner", 1)
+    assert (
+        builder.split("# Keep the original builder usable.", 1)[0]
+        .rstrip()
+        .endswith("&& chmod -R a+rX /opt/venv")
+    )
+    assert "--network=none" in preparation
+    assert "/opt/venv/bin/python -m pip uninstall --yes" in preparation
+    assert "pip-api pip-tools pip-audit virtualenv pre-commit pip" in preparation
+    assert "--mount=type=secret" not in preparation
+    assert "importlib.metadata" in preparation
+    assert "find_spec" in preparation
+    assert 'version("build") != "1.5.0"' in preparation
+    assert "COPY --from=runtime-preparation /opt/venv /opt/venv" in runner
+    assert "COPY --from=builder /usr/local/lib/ /usr/local/lib/" in runner
+    assert "COPY --from=builder /usr/local/share/doc/pulseplate-native/" in runner
+    assert "seed_source=" not in runner
+    assert "RETIRE_SEED_PY" in runner
+    assert "shutil.rmtree(ensurepip)" in runner
+
+
+@pytest.mark.parametrize(
+    "case", ("valid", "extra", "missing", "symlink", "size", "digest", "ensurepip_link")
+)
+def test_runner_seed_retirement_requires_exact_native_operand_before_removal(
+    case: str, tmp_path: Path
+) -> None:
+    """Execute the source guard with explicitly synthetic paths and seed bytes."""
+    seed_dir = tmp_path / "wheels"
+    seed_dir.mkdir()
+    seed = seed_dir / "pip-25.1.1-py3-none-any.whl"
+    payload = b"synthetic seed fixture"
+    seed.write_bytes(payload)
+    ensurepip = tmp_path / "ensurepip"
+    ensurepip.mkdir()
+    (ensurepip / "_bundled").mkdir()
+    (ensurepip / "_bundled" / "payload").write_bytes(b"synthetic fallback")
+    if case == "extra":
+        (seed_dir / "unexpected.whl").write_bytes(payload)
+    elif case == "missing":
+        seed.unlink()
+    elif case == "symlink":
+        target = tmp_path / "linked-seed"
+        seed.rename(target)
+        seed.symlink_to(target)
+    elif case == "size":
+        seed.write_bytes(payload + b"x")
+    elif case == "digest":
+        seed.write_bytes(b"X" + payload[1:])
+    elif case == "ensurepip_link":
+        target = tmp_path / "linked-tree"
+        ensurepip.rename(target)
+        ensurepip.symlink_to(target, target_is_directory=True)
+    text = _runner_containerfile_text()
+    source = text.split("<<'RETIRE_SEED_PY'\n", 1)[1].split("\nRETIRE_SEED_PY", 1)[0]
+    # Substitute only native operands/pins, never guard decisions or branches.
+    source = source.replace('"/usr/share/python3.13-wheels"', repr(str(seed_dir)))
+    source = source.replace('"/usr/lib64/python3.13/ensurepip"', repr(str(ensurepip)))
+    source = source.replace("1303656", str(len(payload)))
+    source = source.replace(
+        "2cc72b63ce38c42dffda258ccbbf737381ec0bcdc3deaa65746c459600a99936",
+        hashlib.sha256(payload).hexdigest(),
+    )
+    completed = subprocess.run(
+        [sys.executable, "-I", "-"],
+        input=source,
+        text=True,
+        capture_output=True,
+        check=False,
+        cwd=tmp_path,
+        env={"PATH": os.defpath},
+        timeout=10,
+    )
+    if case == "valid":
+        assert completed.returncode == 0, completed.stderr
+        assert completed.stdout == "inherited_seed_and_full_ensurepip_retired\n"
+        assert not seed.exists() and not ensurepip.exists()
+    else:
+        assert completed.returncode != 0
+        assert completed.stdout == ""
+        assert ensurepip.exists()
+        if case != "missing":
+            assert seed.exists() or seed.is_symlink()
 
 
 def test_runner_containerfile_verifies_external_sources_and_python_patch() -> None:
@@ -1506,6 +1977,7 @@ def test_runner_containerfile_has_minimal_exact_package_contract() -> None:
             "shadow-utils-4.15.0-11.el10",
             "util-linux-core-2.40.2-18.el10",
             "openssl-libs-3.5.8-2.el10_2",
+            "procps-ng-4.0.4-11.el10",
         ),
     ]
     assert rpm_inventory_contracts == [
@@ -1518,8 +1990,8 @@ def test_runner_containerfile_has_minimal_exact_package_contract() -> None:
             "485f2a7e:91850f39:662acff6:c97ad12e:321c377e:3c40f404:" "a91b9172:a6e10175",
         ),
         (
-            "129",
-            "4a9eb99a:ba1b6a59:9fccd7ef:6d32a3b6:cbed8b47:4e89de93:" "6697a78b:370494a8",
+            "130",
+            "aa987831:dead4a21:9e60d869:dc215e98:c6f21eb5:2de5447f:" "011ec352:8fdd8382",
         ),
     ]
     assert containerfile.count("%{SHA256HEADER} %{PAYLOADDIGEST} %{PAYLOADDIGESTALGO}") == 3
@@ -1528,7 +2000,19 @@ def test_runner_containerfile_has_minimal_exact_package_contract() -> None:
     assert not re.search(r"\b(?:apk|apt|apt-get|aptitude|dpkg|dnf|yum)\b", logical_containerfile)
 
 
-@pytest.mark.parametrize("query_index", range(7))
+def test_runner_containerfile_requires_native_ps_before_final_user() -> None:
+    """Require the package check and real census path before switching runtime user."""
+    runner = _runner_containerfile_text().split("FROM python-runtime AS runner", 1)[1]
+    provider_query = runner.index("' procps-ng)")
+    inventory = runner.index('rpm_inventory="$(rpm -qa')
+    regular_leaf = runner.index("test -f /usr/bin/ps;")
+    unlinked_leaf = runner.index("test ! -L /usr/bin/ps;")
+    executable = runner.index("test -x /bin/ps;")
+    assert provider_query < inventory < regular_leaf < unlinked_leaf < executable
+    assert executable < runner.index("USER 65532:65532")
+
+
+@pytest.mark.parametrize("query_index", range(8))
 @pytest.mark.parametrize("producer_exit,valid_output", ((0, True), (23, True), (0, False)))
 def test_runner_containerfile_scalar_rpm_queries_require_success_before_comparison(
     tmp_path: Path, query_index: int, producer_exit: int, valid_output: bool
@@ -1541,7 +2025,7 @@ def test_runner_containerfile_scalar_rpm_queries_require_success_before_comparis
             logical,
         )
     )
-    assert len(source_fragments) == 7
+    assert len(source_fragments) == 8
     expected = source_fragments[query_index].group(1)
     output = expected if valid_output else expected + "-unexpected"
     shell = shutil.which("sh")
@@ -1728,16 +2212,15 @@ def test_runner_containerfile_preserves_secret_and_non_root_hygiene() -> None:
     assert "--require-virtualenv" in containerfile
     assert containerfile.count("--upgrade-pip --upgrade-pip-spec 'pip>=26.2,<27'") == 2
     assert "&& chmod -R a+rX /opt/venv" in containerfile
-    assert containerfile.index("COPY --from=builder /opt/venv /opt/venv") < containerfile.index(
-        "seed_dir=/usr/share/python3.13-wheels"
-    )
     assert containerfile.index(
-        "ensurepip_seed_payload_verified_before_removal"
-    ) < containerfile.index('rm -- "$old_seed"')
-    assert containerfile.index('rm -- "$old_seed"') < containerfile.index(
-        "ensurepip_default_seed=26.2.1"
+        "COPY --from=runtime-preparation /opt/venv /opt/venv"
+    ) < containerfile.index('seed_dir = Path("/usr/share/python3.13-wheels")')
+    assert containerfile.index("bootstrap_seed_digest_invalid") < containerfile.index(
+        "seed.unlink()"
     )
-    assert "71138adf1f4ca900cdb7d289c21b7494329f2332b6d85f0e1c42108c0384ed3e" in containerfile
+    assert containerfile.index("seed.unlink()") < containerfile.index("shutil.rmtree(ensurepip)")
+    assert "ensurepip_default_seed=26.2.1" not in containerfile
+    assert "2cc72b63ce38c42dffda258ccbbf737381ec0bcdc3deaa65746c459600a99936" in containerfile
     assert "pip install" not in containerfile
     assert "COPY /run/secrets" not in containerfile
     assert "groupadd --gid 65532 runner" in runner_stage
@@ -1918,10 +2401,10 @@ def test_runner_admission_docs_require_exact_digest_bound_oci_scan() -> None:
         'TRIVY_ASSET="trivy_${TRIVY_VERSION}_macOS-ARM64.tar.gz"',
         'TRIVY_CHECKSUMS="trivy_${TRIVY_VERSION}_checksums.txt"',
         '"${SHASUM_BIN}" -a 256 -c selected-checksum.txt',
-        '"${TRIVY_BIN}" --version',
+        '"${TRIVY_BIN}" --config /dev/null --cache-dir "${RUNNER_SCAN_CACHE}" --version',
         "Version: 0.74.0",
-        "--config /dev/null image --download-db-only --no-progress",
-        '--config /dev/null image --input "${RUNNER_OCI_LAYOUT}"',
+        '--config /dev/null --cache-dir "${RUNNER_SCAN_CACHE}" image --download-db-only --no-progress --secret-config=',
+        '--config /dev/null --cache-dir "${RUNNER_SCAN_CACHE}" image --input "${RUNNER_OCI_LAYOUT}"',
         "--scanners vuln",
         "--severity HIGH,CRITICAL",
         "--ignorefile /dev/null",
@@ -1931,7 +2414,7 @@ def test_runner_admission_docs_require_exact_digest_bound_oci_scan() -> None:
         "--vex=",
         "--exit-code 1",
         'TRIVY_COVERAGE_RECEIPT="$(',
-        '"${RUNNER_PYTHON}" - "${RUNNER_TRIVY_REPORT}" "${RUNNER_PIP_SBOM}" <<\'PY\'',
+        '"${RUNNER_PYTHON}" - "${RUNNER_TRIVY_REPORT}" "${RUNNER_PIP_SBOM}" "${RUNNER_SECRET_REPORT}" "${RUNNER_OCI_LAYOUT}" "${RUNNER_TOP_INDEX_DIGEST}" "${RUNNER_VULN_STATUS}" "${RUNNER_SECRET_STATUS}" "${RUNNER_TRIVY_STARTED_NS}" <<\'PY\'',
         "def package_count(result):",
         'report.get("SchemaVersion") != 2',
         'report.get("ArtifactType") != "container_image"',
@@ -1954,22 +2437,37 @@ def test_runner_admission_docs_require_exact_digest_bound_oci_scan() -> None:
     assert "trivy image --scanners vuln" not in runbook
     admission_lines = [line.strip() for line in admission.splitlines()]
     assert [line for line in admission_lines if line.startswith('"${TRIVY_BIN}" --config')] == [
-        '"${TRIVY_BIN}" --config /dev/null image --download-db-only --no-progress',
-        '"${TRIVY_BIN}" --config /dev/null image --input "${RUNNER_OCI_LAYOUT}" \\',
+        '"${TRIVY_BIN}" --config /dev/null --cache-dir "${RUNNER_SCAN_CACHE}" --version | "${GREP_BIN}" -Fx \'Version: 0.74.0\'',
+        '"${TRIVY_BIN}" --config /dev/null --cache-dir "${RUNNER_SCAN_CACHE}" image --download-db-only --no-progress --secret-config=',
+        '"${TRIVY_BIN}" --config /dev/null --cache-dir "${RUNNER_SCAN_CACHE}" image --input "${RUNNER_OCI_LAYOUT}" \\',
+        '"${TRIVY_BIN}" --config /dev/null --cache-dir "${RUNNER_SCAN_CACHE}" image --input "${RUNNER_OCI_LAYOUT}" \\',
     ]
+    assert (
+        admission.count('/usr/bin/env -i HOME="${RUNNER_SCAN_HOME}" TMPDIR="${RUNNER_SCAN_TMP}"')
+        == 4
+    )
+    assert admission.count("--secret-config=") >= 3
+    scan_source = admission.split("RUNNER_TRIVY_STARTED_NS=", 1)[1].split("RUNNER_PIP_SBOM=", 1)[0]
     for option in ("--ignore-policy=", "--ignore-status=", "--vex="):
-        assert [line for line in admission_lines if line.startswith(option)] == [f"{option} \\"]
+        assert scan_source.count(option) == 2
+    assert "--scanners secret --image-config-scanners secret" in scan_source
+    assert "--severity UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL" in scan_source
     assert "--pkg-types" not in admission
     assert "[.Results[]?.Vulnerabilities[]?] | length" not in admission
     assert "TRIVY_FINDING_COUNT" not in admission
     assert 'TRIVY_COVERAGE_RECEIPT="$("${JQ_BIN}"' not in admission
-    scan_index = admission.index('--config /dev/null image --input "${RUNNER_OCI_LAYOUT}"')
+    scan_index = admission.index(
+        '--config /dev/null --cache-dir "${RUNNER_SCAN_CACHE}" image --input "${RUNNER_OCI_LAYOUT}"'
+    )
     layer_guard_index = admission.index('OCI_LAYER_RECEIPT="$(')
     coverage_guard_index = admission.index('TRIVY_COVERAGE_RECEIPT="$(')
     probe_index = admission.index("experiment_runner_dispatch.py probe")
-    status_receipt_index = admission.index('>"${RUNNER_STATUS_REPORT}"')
+    native_status_index = admission.index('>"${RUNNER_STATUS_REPORT}"')
+    status_receipt_index = admission.index('>>"${RUNNER_STATUS_REPORT}"')
     assert layer_guard_index < scan_index
-    assert scan_index < coverage_guard_index < probe_index < status_receipt_index
+    assert (
+        scan_index < native_status_index < coverage_guard_index < probe_index < status_receipt_index
+    )
     assert "consumes only the manifest-bound OCI layout" in security_note
     assert "oci_layer_count=5" in security_note
     assert "`--config /dev/null`" in security_note

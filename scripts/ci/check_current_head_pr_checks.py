@@ -60,7 +60,7 @@ CANONICAL_FALLBACK_CI_CHECK_NAMES = {
     "test-pr (3.13)",
     "test-main (3.11, 120)",
     "test-main (3.12, 120)",
-    "test-main (3.13, 120)",
+    "test-main (3.13, 180)",
     "coverage-pr",
     "diff-coverage",
 }
