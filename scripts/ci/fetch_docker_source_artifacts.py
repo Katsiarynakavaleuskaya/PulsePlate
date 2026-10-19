@@ -2774,6 +2774,7 @@ def _alertmanager_publication_predecessor(
         ),
         "AM_publication_actual_merged_own_PR",
     )
+    merge = cast(str, merge)
     git = shutil.which("git")
     require(git is not None and Path(git).is_absolute(), "AM_publication_native_Git")
     fresh_directory(work)
@@ -4512,6 +4513,7 @@ def _alertmanager_source_snapshot(
             and re.fullmatch(r"[0-9a-f]{40}", root_tree) is not None,
             "AM_controller_data_commit_tree",
         )
+        root_tree = cast(str, root_tree)
         trees: dict[str, dict[str, Any]] = {}
         for path in _ALERT_SELECTION_FILES[:5]:
             tree_sha = root_tree
@@ -4542,7 +4544,8 @@ def _alertmanager_source_snapshot(
                     and re.fullmatch(r"[0-9a-f]{40}", row["sha"]) is not None,
                     "AM_controller_data_regular_git_path",
                 )
-                tree_sha = row["sha"]
+                row = cast(dict[str, Any], row)
+                tree_sha = cast(str, row["sha"])
             leaf_sha[path] = tree_sha
     paths = (
         _ALERT_SELECTION_FILES[:5]
@@ -5114,7 +5117,7 @@ def _alertmanager_build_information(raw: bytes, binary: str) -> dict[str, Any]:
 
 
 # Accepted native build-info and base-package oracle, bound to immutable S.
-_ALERT_CURRENT_SCAN_ORACLE = {
+_ALERT_CURRENT_SCAN_ORACLE: dict[str, dict[str, Any]] = {
     "subject": {
         "manifest": "sha256:bc6c847d25e48a8bcddfd8fef0aec25b6ac890346b4bfe6dea3d2d82cd0dc3b9",
         "config": "sha256:46928bb4d3eac8b7bd9d8516a9427c3ec684244fc5f74260324e0acb6bcea9d4",
@@ -5469,6 +5472,8 @@ def _alertmanager_candidate_inventory(
             "AM_current_scan_accepted_subject",
         )
     else:
+        # The disjoint-mode guard above proves this optional operand is present.
+        build_information = cast(dict[str, Any], build_information)
         require(
             set(build_information) == {"alertmanager", "amtool"},
             "AM_candidate_both_actual_buildinfo_required",
@@ -6913,7 +6918,7 @@ def _alertmanager_live_security(args: argparse.Namespace) -> None:
             and {name: file_hash(cache / name) for name in database} == database,
             "AM_live_scanner_DB_post_drift",
         )
-        return report
+        return cast(dict[str, Any], report)
 
     result: dict[str, Any] = {
         "compiler_starts": 0,
@@ -7221,6 +7226,7 @@ def _alertmanager_regular_sources(
             rb"100644 blob ([0-9a-f]{40})\t" + re.escape(path.encode()) + b"\x00", row
         )
         require(match is not None, "AM_selection_regular100644_blob")
+        match = cast(re.Match[bytes], match)
         raw = native.run(
             [*prefix, "cat-file", "blob", revision + ":" + path],
             "selection-blob-" + str(index),
@@ -7424,7 +7430,7 @@ def _alertmanager_reader_route(
             authenticate_pr_source(
                 api,
                 number,
-                _ALERT_ACCEPTED_CANDIDATE["source"],
+                _alertmanager_accepted_producer()["source"],
                 args.source_sha,
                 "refs/heads/" + _ALERT_Q_BRANCH,
             )
@@ -7474,7 +7480,7 @@ def _alertmanager_reader_route(
         authenticate_pr_source(
             api,
             2494,
-            _ALERT_ACCEPTED_CANDIDATE["source"],
+            _alertmanager_accepted_producer()["source"],
             pr["head"]["sha"],
             "refs/heads/" + _ALERT_Q_BRANCH,
         )
@@ -7550,6 +7556,7 @@ def _alertmanager_controller_binding(args: argparse.Namespace) -> None:
         type(controller) is str and re.fullmatch(r"[0-9a-f]{40}", controller) is not None,
         "AM_controller_UNCONFIGURED_HOLD",
     )
+    controller = cast(str, controller)
     material = getattr(args, "material_root", None)
     require(
         isinstance(material, Path)
@@ -7820,7 +7827,7 @@ def _alertmanager_prepare_candidate_body(
         require,
     )
 
-    _alertmanager_accepted_producer(
+    accepted = _alertmanager_accepted_producer(
         args.alertmanager_candidate_run,
         args.alertmanager_candidate_artifact,
         args.alertmanager_candidate_source,
@@ -7864,7 +7871,7 @@ def _alertmanager_prepare_candidate_body(
             prepared = _alertmanager_pull_published(
                 api, args, route, material_sources, output, deadline
             )
-            candidate = {"graph": _ALERT_ACCEPTED_CANDIDATE["graph"]}
+            candidate = {"graph": accepted["graph"]}
             payload = output / "candidate"
             fresh_directory(payload)
             (payload / "candidate-observation.json").write_text(json.dumps(candidate) + "\n")
@@ -8620,7 +8627,7 @@ def _alertmanager_contract_json(raw: bytes) -> dict[str, Any] | list[Any]:
     )
     value = json.loads(raw.decode("utf-8"), object_pairs_hook=unique, parse_constant=nonfinite)
     _alertmanager_contract_require(type(value) in (dict, list), "AM_contract_JSON_shape")
-    return value
+    return cast(dict[str, Any] | list[Any], value)
 
 
 def _alertmanager_contract_file(path: Path) -> bytes:
@@ -8721,7 +8728,7 @@ def _alertmanager_contract_subject() -> tuple[str, str]:
 
 
 def _alertmanager_contract_candidate(
-    payload: dict[str, Any],
+    payload: dict[str, Any] | list[Any],
     compose: Path,
     alert_config: Path,
     ignore: Path,
@@ -8734,6 +8741,7 @@ def _alertmanager_contract_candidate(
         type(payload) is dict and expected_environment in ("staging", "production"),
         "AM_contract_contour",
     )
+    payload = cast(dict[str, Any], payload)
     # The trusted caller selects this existing context before inspecting incoming data.
     # Intended AM target leaves may be absent before the first bundle transaction.
     _alertmanager_contract_file(installed_compose)
@@ -8973,7 +8981,7 @@ def _alertmanager_contract_project(installed: Any, candidate: Any) -> str:
         and candidate.get("name") == project,
         "AM_contract_installed_project_identity",
     )
-    return project
+    return cast(str, project)
 
 
 def _alertmanager_contract_census(raw: bytes) -> str:
@@ -9018,7 +9026,7 @@ def _alertmanager_contract_container(value: Any, cid: str, project: str) -> str:
         type(image) is str and re.fullmatch(r"sha256:[0-9a-f]{64}", image) is not None,
         "AM_contract_container_image",
     )
-    return image
+    return cast(str, image)
 
 
 def _alertmanager_contract_image(value: Any, image_id: str) -> str:
@@ -9048,7 +9056,8 @@ def _alertmanager_contract_image(value: Any, image_id: str) -> str:
         image_id == accepted_config and accepted_ref in refs, "AM_contract_runtime_image"
     )
     _alertmanager_contract_require(
-        row.get("RootFS", {}).get("Layers") == _ALERT_ACCEPTED_CANDIDATE["graph"]["diff_ids"],
+        row.get("RootFS", {}).get("Layers")
+        == cast(dict[str, Any], _ALERT_ACCEPTED_CANDIDATE)["graph"]["diff_ids"],
         "AM_contract_runtime_layers",
     )
     return "accepted"
@@ -9274,7 +9283,7 @@ def _alertmanager_contract_collect(argv: Sequence[str]) -> int:
         _alertmanager_contract_require(directory is not None, "AM_contract_owned_capture_directory")
         budget = arm_work()
         phase_deadline = min(work_deadline, time.monotonic() + budget)
-        path = directory / name
+        path = cast(Path, directory) / name
         fd = os.open(path, os.O_RDWR | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
         info = os.fstat(fd)
         owned.append((path, info.st_dev, info.st_ino))
@@ -9295,14 +9304,14 @@ def _alertmanager_contract_collect(argv: Sequence[str]) -> int:
                 process.stdout is not None and process.stderr is not None,
                 "AM_contract_native_capture_streams",
             )
-            for stream in (process.stdout, process.stderr):
+            for stream in (cast(BinaryIO, process.stdout), cast(BinaryIO, process.stderr)):
                 os.set_blocking(stream.fileno(), False)
                 selector.register(stream, selectors.EVENT_READ)
             while selector.get_map():
                 remaining = phase_deadline - time.monotonic()
                 _alertmanager_contract_require(remaining > 0, "AM_contract_capture_timeout:" + name)
                 for key, _ in selector.select(remaining):
-                    block = os.read(key.fileobj.fileno(), 8192)
+                    block = os.read(key.fd, 8192)
                     if not block:
                         selector.unregister(key.fileobj)
                     elif key.fileobj is process.stdout:
@@ -9328,6 +9337,7 @@ def _alertmanager_contract_collect(argv: Sequence[str]) -> int:
                 waited is not None and waited.si_pid == process.pid,
                 "AM_contract_native_wait_identity",
             )
+            waited = cast(os.waitid_result, waited)
             status = waited.si_status if waited.si_code == os.CLD_EXITED else -waited.si_status
             capture_statuses[name] = status
             _alertmanager_contract_require(

@@ -16443,3 +16443,38 @@ def test_production_incoming_renderers_share_installed_project_directory(
     assert all("--project-directory " + str(project / "deploy") in line for line in calls)
     assert any("-f " + str(bundle / "deploy") in line for line in calls)
     assert not (bundle / "deploy/.env").exists()
+
+
+@pytest.mark.parametrize("raw", [b"[]", b"[{}]"])
+def test_alertmanager_candidate_keeps_object_guard_after_union_decode(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, raw: bytes
+) -> None:
+    """Inspection arrays remain decodable but cannot become a candidate object by typing."""
+    decoded = alertmanager_source._alertmanager_contract_json(raw)
+    assert type(decoded) is list
+    monkeypatch.setattr(
+        alertmanager_source,
+        "_alertmanager_contract_file",
+        lambda *args: pytest.fail("array candidate reached source-file reads"),
+    )
+    with pytest.raises(ValueError, match="AM_contract_contour"):
+        alertmanager_source._alertmanager_contract_candidate(
+            decoded,
+            tmp_path / "compose.yaml",
+            tmp_path / "config.yaml",
+            tmp_path / "policy.yaml",
+            "production",
+            installed_compose=tmp_path / "installed.yaml",
+        )
+
+
+def test_alertmanager_pure_image_keeps_unconfigured_subject_hold_before_optional_graph(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    runtime_ref, config_id = alertmanager_source._alertmanager_contract_subject()
+    image = [
+        {"Id": config_id, "Os": "linux", "Architecture": "amd64", "RepoDigests": [runtime_ref]}
+    ]
+    monkeypatch.setattr(alertmanager_source, "_ALERT_ACCEPTED_CANDIDATE", None)
+    with pytest.raises(ValueError, match="AM_accepted_producer_UNCONFIGURED_HOLD"):
+        alertmanager_source._alertmanager_contract_image(image, config_id)

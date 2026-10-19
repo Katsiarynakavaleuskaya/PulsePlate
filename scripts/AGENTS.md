@@ -1089,6 +1089,11 @@ First-class repo wrappers:
 - `scripts/orchestration/local_support_plane.py` is an **experimental non-canonical** operator KV store under gitignored `artifacts/orchestration/local_support_plane/` (override via `LOCAL_SUPPORT_PLANE_ROOT`). Mutations require `AGENT_CONTROL_ALLOWLIST` to include `local_support_plane:artifacts_kv` and a compatible `AGENT_CONTROL_EXECUTION_MODE` (see `app/security/agent_control_plane.py`). It is not orchestration SoT.
 - **Advisory wiki compiler** (local-only, gitignored): `wiki_ingest.py`, `wiki_query.py`, `wiki_lint.py`, `wiki_promote.py` under `scripts/orchestration/` with shared `_wiki_compiler_support.py`. Writes markdown under `artifacts/orchestration/wiki/` and may mirror metadata to the support plane using `wiki.*` keys. See `docs/orchestration/LOCAL_WIKI_SUPPORT_PLANE.md`.
 
+The isolated mypy hook runs only at pre-push; an all-files pre-commit PASS does
+not execute it. Before expensive validation of changed Python tooling, run
+`pre-commit run mypy --hook-stage pre-push --files <changed-script.py>` on the
+working bytes and fix its actual failures without weakening runtime guards.
+
 **Change detection order:**
 
 1. Native pre-commit sets `PRE_COMMIT=1` for hook execution, including its
