@@ -273,6 +273,20 @@
   Both shell readers execute independently hash-bound held helper bytes; incoming
   bundles supply data. Unknown identity/status, missing or changed captures, and
   unresolved owned process groups remain HOLD; collection does not activate services.
+- Saved AM publication keeps the actual merged own-PR revision Q distinct from
+  the current-main publisher P. Native Git must prove Q is an ancestor of P and
+  the six regular historical AM blobs match before current P/C/template admission
+  and registry login. A successful manual main publication witness binds its run
+  and job to P and proves Q <= P <= consumer BASE. Historical Q/P equality does
+  not freeze future reviewed consumer F or unrelated Compose data: current
+  BASE/HEAD/executed-F and separately designated C/template/accepted-image checks
+  remain independent. Unknown ancestry, shallow history, or filtered run count
+  at or above 1,000 stays HOLD; main movement still preserves the actual copy and
+  cleanup outcome without retry or relabeling P as Q.
+- Native test doubles must retain the incumbent required keyword arguments,
+  including `cwd`. Exercise a bounded real owned Git/controller call before
+  claiming mocked native admission works; a permissive double is not interface
+  compatibility evidence.
 - PR readers run a separately reviewed immutable controller checkout with explicit
   material data. Trusted-main readers authenticate the actual reviewed main revision.
   Both routes bind the five data files to the separately designated immutable
