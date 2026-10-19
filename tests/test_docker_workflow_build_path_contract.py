@@ -3254,6 +3254,12 @@ def test_alertmanager_bootstrap_is_isolated_guarded_and_precedes_all_host_effect
     from scripts.ci import install_locked_python_requirements as installer
 
     job = _load_workflow(WORKFLOWS_DIR / "cd.yml")["jobs"][job_name]
+    if job_name == "alertmanager-main-publication":
+        assert _step_by_name(job, "Checkout exact AM executable proposal")["with"] == {
+            "ref": "${{ github.sha }}",
+            "persist-credentials": False,
+            "fetch-depth": 0,
+        }
     setup = next(
         step for step in job["steps"] if step.get("uses") == "./.github/actions/python-setup"
     )
@@ -9081,6 +9087,7 @@ def alertmanager_published_reader_io(
         "manifest": manifest,
         "count_drift": False,
     }
+    (tmp_path / "github-read-evidence").mkdir()
     private = tmp_path / "private"
     for name in ("home", "config", "cache", "tmp"):
         (private / name).mkdir(parents=True)
@@ -9097,8 +9104,13 @@ def alertmanager_published_reader_io(
             if endpoint.endswith("/actions/workflows/cd.yml"):
                 return data["workflow"]
             if "/actions/workflows/cd.yml/runs?" in endpoint:
-                assert "event=workflow_dispatch&head_sha=" + data["merge"] in endpoint
-                return {"total_count": len(data["runs"]), "workflow_runs": data["runs"]}
+                assert "branch=main&event=workflow_dispatch&status=success" in endpoint
+                assert "head_sha=" not in endpoint
+                page = int(endpoint.rsplit("page=", 1)[1])
+                return {
+                    "total_count": data.get("count", len(data["runs"])),
+                    "workflow_runs": data["runs"][(page - 1) * 100 : page * 100],
+                }
             if "/actions/runs/66/attempts/1/jobs?" in endpoint:
                 return {
                     "total_count": len(data["jobs"])
@@ -9142,10 +9154,19 @@ def alertmanager_published_reader_io(
 
     class Native:
         def __init__(self, *args: Any) -> None:
-            pass
+            self.records: list[dict[str, Any]] = []
 
-        def run(self, argv: list[str], *args: Any, **kwargs: Any) -> bytes:
-            assert argv[-4:] == ["merge-base", "--is-ancestor", "a" * 40, "b" * 40]
+        def run(self, argv: list[str], *args: Any, cwd: Path, **kwargs: Any) -> bytes:
+            assert cwd == tmp_path and "--no-replace-objects" in argv
+            if argv[-2:] == ["rev-parse", "--is-shallow-repository"]:
+                return b"true\n" if data.get("shallow") else b"false\n"
+            assert argv[-4:-2] == ["merge-base", "--is-ancestor"]
+            assert tuple(argv[-2:]) in {
+                (data["merge"], data["runs"][0]["head_sha"]),
+                (data["runs"][0]["head_sha"], data["route"]["base"]),
+            }
+            if data.get("ancestry-failure"):
+                raise RuntimeError("synthetic native ancestry failure")
             data["calls"].append("native merged selection ancestry")
             return b""
 
@@ -9155,7 +9176,18 @@ def alertmanager_published_reader_io(
     ).read_bytes()
     monkeypatch.setattr(transport, "Native", Native)
     monkeypatch.setattr(shutil, "which", lambda name: "/synthetic/" + name)
-    monkeypatch.setattr(docker_sources, "_alertmanager_regular_sources", lambda *args: sources)
+
+    def regular(root: Path, revision: str, work: Path, deadline: float) -> dict[str, bytes]:
+        del work, deadline
+        assert root == tmp_path
+        historical = data.get("historical", sources)
+        if revision == data["route"]["base"]:
+            return sources
+        if revision == data["merge"]:
+            return historical
+        return data.get("published", historical)
+
+    monkeypatch.setattr(docker_sources, "_alertmanager_regular_sources", regular)
 
     def templates(api: Any, source: str, *, controller_templates: bool) -> dict[str, bytes]:
         assert source == "c" * 40 and controller_templates is True
@@ -9250,7 +9282,7 @@ def test_alertmanager_published_route_requires_native_predecessor_before_login(
             "event": ("event", "push"),
             "attempt": ("run_attempt", True),
             "workflow-ID": ("workflow_id", 99),
-            "run-head": ("head_sha", "c" * 40),
+            "run-head": ("head_sha", "unknown"),
             "pending": ("status", "queued"),
             "run-failure": ("conclusion", "failure"),
         }[fault]
@@ -9643,7 +9675,8 @@ def test_alertmanager_three_positive_routes_bind_native_event_and_keep_first_mai
         def __init__(self, *args: Any) -> None:
             pass
 
-        def run(self, argv: list[str], *args: Any, **kwargs: Any) -> bytes:
+        def run(self, argv: list[str], *args: Any, cwd: Path, **kwargs: Any) -> bytes:
+            assert cwd == tmp_path
             assert argv[-5:] == ["rev-list", "--parents", "-n", "1", merge]
             return (" ".join(expected_parent) + "\n").encode()
 
@@ -9917,8 +9950,11 @@ def test_alertmanager_render_binds_reviewed_data_before_native_compose(
     class Native:
         def __init__(self, *args: Any) -> None:
             assert fault is None, "unreviewed source reached native setup"
+            self.records: list[dict[str, Any]] = []
 
-        def run(self, argv: list[str], label: str, env: dict[str, str], **kwargs: Any) -> bytes:
+        def run(
+            self, argv: list[str], label: str, env: dict[str, str], *, cwd: Path, **kwargs: Any
+        ) -> bytes:
             assert argv[:3] == ["/synthetic/docker", "compose", "--env-file"]
             assert argv[4] == "--project-directory" and argv[6] == "-f"
             assert argv[8:] == ["--profile", "*", "config", "--format", "json"]
@@ -9927,7 +9963,7 @@ def test_alertmanager_render_binds_reviewed_data_before_native_compose(
                 and Path(env["STAGING_ENV_FILE"]).read_bytes() == b""
             )
             compose = Path(argv[7])
-            assert Path(argv[5]) == kwargs["cwd"] == compose.parent
+            assert Path(argv[5]) == cwd == compose.parent
             assert kwargs["maximum_seconds"] == 8 and kwargs["output_bound"] == 1048576
             if compose.name.endswith("selfhosted.yaml"):
                 assert "${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}" in compose.read_text()
@@ -10132,3 +10168,472 @@ def test_alertmanager_actual_preparation_observation_is_retained_by_every_consum
         assert len(matches) == 1, (workflow, job, written[0].name)
         assert "/github-read-evidence/" in matches[0] and "/preparation/evidence/" in matches[0]
         assert "/candidate.zip" not in matches[0] and "/private/" not in matches[0]
+
+
+@pytest.mark.parametrize("later_change", [None, "fetcher", "non-AM-compose"])
+def test_alertmanager_descendant_witness_keeps_current_consumer_material_independent(
+    alertmanager_published_reader_io: dict[str, Any], later_change: str | None
+) -> None:
+    """Historical Q/P closure cannot freeze later reviewed BASE/HEAD/controller bytes."""
+    data = alertmanager_published_reader_io
+    data["runs"][0]["head_sha"] = data["jobs"][0]["head_sha"] = "d" * 40
+    data["historical"] = dict(data["sources"])
+    if later_change == "fetcher":
+        data["historical"]["scripts/ci/fetch_docker_source_artifacts.py"] = b"historical F"
+    elif later_change == "non-AM-compose":
+        data["historical"]["deploy/docker-compose.production.yaml"] = b"earlier backend data"
+    result = docker_sources._alertmanager_pull_published(
+        data["api"], data["args"], data["route"], data["sources"], data["output"], data["deadline"]
+    )
+    assert result["registry_login"] is True
+    assert result["publication_predecessor"]["merge"] == "a" * 40
+    assert result["publication_predecessor"]["run"]["head_sha"] == "d" * 40
+    assert not any(
+        "/artifacts/" in call or "/zip" in call for call in data["calls"] if isinstance(call, str)
+    )
+
+
+@pytest.mark.parametrize("member", docker_sources._ALERT_SELECTION_FILES)
+def test_alertmanager_predecessor_rejects_each_historical_source_drift_before_login(
+    alertmanager_published_reader_io: dict[str, Any], member: str
+) -> None:
+    data = alertmanager_published_reader_io
+    data["runs"][0]["head_sha"] = data["jobs"][0]["head_sha"] = "d" * 40
+    data["published"] = {**data["sources"], member: b"unreviewed historical change"}
+    with pytest.raises(RuntimeError, match="AM_publication_historical_six_source_drift"):
+        docker_sources._alertmanager_pull_published(
+            data["api"],
+            data["args"],
+            data["route"],
+            data["sources"],
+            data["output"],
+            data["deadline"],
+        )
+    assert not any(isinstance(call, list) and "login" in call for call in data["calls"])
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        "zero",
+        "999",
+        "1000",
+        "bool",
+        "string",
+        "negative",
+        "duplicate",
+        "malformed",
+        "shallow",
+        "ancestry",
+    ],
+)
+def test_alertmanager_predecessor_keeps_bounded_complete_query_and_native_history(
+    alertmanager_published_reader_io: dict[str, Any], case: str
+) -> None:
+    data = alertmanager_published_reader_io
+    if case == "zero":
+        data["runs"] = []
+    elif case == "999":
+        data["runs"] += [{**data["runs"][0], "id": n + 100, "event": "push"} for n in range(998)]
+    elif case in {"1000", "bool", "string", "negative"}:
+        data["count"] = {"1000": 1000, "bool": True, "string": "1", "negative": -1}[case]
+    elif case == "duplicate":
+        data["runs"] *= 2
+    elif case == "malformed":
+        data["runs"] = [None]
+    elif case == "shallow":
+        data["shallow"] = True
+    else:
+        data["ancestry-failure"] = True
+
+    def invoke() -> dict[str, Any]:
+        return docker_sources._alertmanager_publication_predecessor(
+            data["api"],
+            data["args"].material_root,
+            data["route"]["base"],
+            data["output"] / "witness",
+            data["deadline"],
+        )
+
+    if case == "999":
+        assert invoke()["run"]["id"] == 66
+    else:
+        with pytest.raises(RuntimeError):
+            invoke()
+    assert not any(isinstance(call, list) and "login" in call for call in data["calls"])
+
+
+@pytest.fixture
+def alertmanager_temporary_history(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> dict[str, Any]:
+    """Real local Git objects with synthetic identity; no shared refs, hooks or network."""
+    import tempfile
+
+    monkeypatch.setattr(tempfile, "tempdir", str(tmp_path.resolve()))
+    git = shutil.which("git")
+    assert git is not None
+    root = tmp_path / "repository"
+    root.mkdir()
+    for key in tuple(os.environ):
+        if (
+            key.startswith(("GH", "GITHUB", "GIT_", "DEVPI_", "DOCKER_"))
+            or key.upper().endswith("PROXY")
+            or key in {"NETRC", "PYTHONPATH", "PYTHONHOME"}
+        ):
+            monkeypatch.delenv(key, raising=False)
+    environment = {
+        "PATH": os.defpath,
+        "HOME": str(tmp_path),
+        "GIT_CONFIG_NOSYSTEM": "1",
+        "GIT_CONFIG_GLOBAL": "/dev/null",
+        "GIT_NO_REPLACE_OBJECTS": "1",
+    }
+
+    def command(*argv: str) -> str:
+        result = subprocess.run(
+            [
+                git,
+                "--no-replace-objects",
+                "-c",
+                "core.hooksPath=/dev/null",
+                "-c",
+                "commit.gpgsign=false",
+                "-c",
+                "user.name=AM synthetic fixture",
+                "-c",
+                "user.email=am-fixture@example.invalid",
+                "-C",
+                str(root),
+                *argv,
+            ],
+            env=environment,
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=10,
+        )
+        return result.stdout.strip()
+
+    command("init", "--initial-branch=main")
+    for name in docker_sources._ALERT_SELECTION_FILES:
+        path = root / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes((REPO_ROOT / name).read_bytes())
+    command("add", ".")
+    command("commit", "-m", "Synthetic merged AM material")
+    merged = command("rev-parse", "HEAD")
+    (root / "unrelated.txt").write_text("synthetic unrelated change\n")
+    command("add", ".")
+    command("commit", "-m", "Synthetic descendant publisher")
+    publisher = command("rev-parse", "HEAD")
+    return {"root": root, "command": command, "Q": merged, "P": publisher, "work": tmp_path}
+
+
+@pytest.mark.parametrize("fault", [None, "wrong-controller", "changed-worktree-F"])
+def test_alertmanager_actual_controller_and_regular_source_interface_uses_required_cwd(
+    alertmanager_temporary_history: dict[str, Any],
+    monkeypatch: pytest.MonkeyPatch,
+    fault: str | None,
+) -> None:
+    import time
+    from argparse import Namespace
+
+    data = alertmanager_temporary_history
+    root = data["root"]
+    monkeypatch.setattr(docker_sources, "REPO_ROOT", root)
+    monkeypatch.setenv("ALERTMANAGER_CONTROLLER_SOURCE", data["P"])
+    args = Namespace(
+        material_root=root,
+        alertmanager_controller_source="f" * 40 if fault == "wrong-controller" else data["P"],
+    )
+    if fault == "wrong-controller":
+        with pytest.raises(RuntimeError, match="AM_controller_actual_checkout"):
+            docker_sources._alertmanager_controller_binding(args)
+        return
+    docker_sources._alertmanager_controller_binding(args)
+    if fault == "changed-worktree-F":
+        (root / "scripts/ci/fetch_docker_source_artifacts.py").write_bytes(b"changed worktree F")
+        with pytest.raises(RuntimeError, match="AM_actual_material_not_admitted_HEAD"):
+            docker_sources._alertmanager_bind_material(
+                root, data["P"], data["work"] / "material", time.monotonic() + 30
+            )
+    else:
+        sources = docker_sources._alertmanager_bind_material(
+            root, data["P"], data["work"] / "material", time.monotonic() + 30
+        )
+        assert set(sources) == set(docker_sources._ALERT_SELECTION_FILES)
+        assert sources == docker_sources._alertmanager_regular_sources(
+            root, data["Q"], data["work"] / "original", time.monotonic() + 30
+        )
+        observation = json.loads((data["work"] / "original/native-observation.json").read_text())
+        assert len(observation["native_records"]) == 12
+        assert all(
+            row["exit"] == 0 and row["cwd"] == str(root) for row in observation["native_records"]
+        )
+
+
+@pytest.mark.parametrize("member", docker_sources._ALERT_SELECTION_FILES)
+@pytest.mark.parametrize("mode", ["executable", "symlink", "missing"])
+def test_alertmanager_actual_historical_regular_sources_reject_nonregular_members(
+    alertmanager_temporary_history: dict[str, Any], member: str, mode: str
+) -> None:
+    import time
+
+    data = alertmanager_temporary_history
+    path = data["root"] / member
+    if mode == "executable":
+        path.chmod(0o755)
+    else:
+        path.unlink()
+        if mode == "symlink":
+            path.symlink_to("/absent-synthetic-input")
+    data["command"]("add", "--all")
+    data["command"]("commit", "-m", "Synthetic invalid historical member")
+    changed = data["command"]("rev-parse", "HEAD")
+    with pytest.raises(RuntimeError, match="AM_selection_regular100644_blob"):
+        docker_sources._alertmanager_regular_sources(
+            data["root"], changed, data["work"] / "read", time.monotonic() + 30
+        )
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        "equal",
+        "descendant",
+        "later-consumer",
+        "unrelated",
+        "shallow",
+        "missing-Q",
+        "missing-P",
+        "missing-B",
+        "publisher-after-base",
+        "historical-content",
+    ],
+)
+def test_alertmanager_actual_native_predecessor_binds_Q_P_B_without_archive_or_registry(
+    alertmanager_temporary_history: dict[str, Any], case: str
+) -> None:
+    import time
+    from scripts.ci import prometheus_source_image as transport
+
+    data = alertmanager_temporary_history
+    merged = data["Q"]
+    publisher = merged if case == "equal" else data["P"]
+    revision = data["P"]
+    if case == "later-consumer":
+        (data["root"] / "scripts/ci/fetch_docker_source_artifacts.py").write_bytes(
+            b"later reviewed F"
+        )
+        (data["root"] / "deploy/docker-compose.production.yaml").write_text(
+            "later reviewed backend material\n"
+        )
+        data["command"]("add", ".")
+        data["command"]("commit", "-m", "Synthetic later reviewed consumer")
+        revision = data["command"]("rev-parse", "HEAD")
+    elif case == "unrelated":
+        data["command"]("checkout", "--orphan", "unrelated")
+        data["command"]("commit", "-m", "Synthetic unrelated publisher")
+        publisher = revision = data["command"]("rev-parse", "HEAD")
+    elif case == "shallow":
+        (data["root"] / ".git/shallow").write_text(merged + "\n")
+    elif case == "missing-Q":
+        merged = "f" * 40
+    elif case == "missing-P":
+        publisher = "f" * 40
+    elif case == "missing-B":
+        revision = "f" * 40
+    elif case == "publisher-after-base":
+        revision = merged
+    elif case == "historical-content":
+        (data["root"] / "deploy/alertmanager/trivy-ignore.yaml").write_text(
+            "changed historical policy\n"
+        )
+        data["command"]("add", ".")
+        data["command"]("commit", "-m", "Synthetic incompatible publisher")
+        publisher = revision = data["command"]("rev-parse", "HEAD")
+    repo = {"id": 1043311030}
+    run = {
+        "id": 66,
+        "head_sha": publisher,
+        "head_branch": "main",
+        "event": "workflow_dispatch",
+        "run_attempt": 1,
+        "status": "completed",
+        "conclusion": "success",
+        "workflow_id": 55,
+        "repository": repo,
+        "head_repository": repo,
+    }
+    job = {
+        "id": 77,
+        "run_id": 66,
+        "head_sha": publisher,
+        "name": "alertmanager-main-publication",
+        "status": "completed",
+        "conclusion": "success",
+    }
+    calls: list[str] = []
+
+    class API:
+        def json(self, endpoint: str) -> dict[str, Any]:
+            calls.append(endpoint)
+            if endpoint.endswith("/pulls/2494"):
+                return {
+                    "number": 2494,
+                    "merged": True,
+                    "state": "closed",
+                    "merge_commit_sha": merged,
+                    "base": {"ref": "main", "repo": repo},
+                    "head": {"ref": docker_sources._ALERT_Q_BRANCH, "repo": repo},
+                }
+            if endpoint.endswith("/actions/workflows/cd.yml"):
+                return {"id": 55, "path": ".github/workflows/cd.yml"}
+            if "/actions/workflows/cd.yml/runs?" in endpoint:
+                assert "branch=main&event=workflow_dispatch&status=success" in endpoint
+                return {"total_count": 1, "workflow_runs": [run]}
+            assert "/actions/runs/66/attempts/1/jobs?" in endpoint
+            return {"total_count": 1, "jobs": [job]}
+
+        def pages(self, endpoint: str, key: str, count: int) -> list[dict[str, Any]]:
+            return transport.GitHubRead.pages(self, endpoint, key, count)
+
+    def invoke() -> dict[str, Any]:
+        return docker_sources._alertmanager_publication_predecessor(
+            API(), data["root"], revision, data["work"] / "predecessor", time.monotonic() + 60
+        )
+
+    if case in {"equal", "descendant", "later-consumer"}:
+        result = invoke()
+        assert (
+            result["merge"] == merged
+            and result["run"]["head_sha"] == result["job"]["head_sha"] == publisher
+        )
+    else:
+        with pytest.raises(RuntimeError):
+            invoke()
+    assert all(
+        "/artifacts/" not in call and "/zip" not in call and "packages" not in call
+        for call in calls
+    )
+
+
+@pytest.mark.parametrize("owner", ["regular", "predecessor", "render"])
+@pytest.mark.parametrize("primary_failure", [False, True])
+def test_alertmanager_proof_retention_failure_preserves_native_primary_exception(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, owner: str, primary_failure: bool
+) -> None:
+    """Diagnostic retention cannot turn a failed native proof into success or erase its cause."""
+    import time
+    from scripts.ci import prometheus_source_image as transport
+    from tests.test_deploy_contract_scripts import _staging_compose_fixture_json
+
+    for key in tuple(os.environ):
+        if key.startswith(("GH", "GITHUB", "DEVPI_", "DOCKER_")) or key.upper().endswith("PROXY"):
+            monkeypatch.delenv(key, raising=False)
+    sources = {
+        name: (REPO_ROOT / name).read_bytes() for name in docker_sources._ALERT_SELECTION_FILES
+    }
+    work = tmp_path / "proof"
+    expected_error = RuntimeError("synthetic original native failure")
+    real_write = Path.write_text
+
+    def write(path: Path, *args: Any, **kwargs: Any) -> int:
+        if path.name == "native-observation.json":
+            raise OSError("synthetic retained write failure")
+        return real_write(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "write_text", write)
+    monkeypatch.setattr(shutil, "which", lambda name: "/synthetic/" + name)
+
+    class Native:
+        def __init__(self, *args: Any) -> None:
+            self.records: list[dict[str, Any]] = []
+
+        def run(
+            self, argv: list[str], name: str, env: dict[str, str], *, cwd: Path, **kwargs: Any
+        ) -> bytes:
+            self.records.append(
+                {"argv": argv, "cwd": str(cwd), "exit": 1 if primary_failure else 0}
+            )
+            if primary_failure:
+                raise expected_error
+            if "--is-shallow-repository" in argv:
+                return b"false\n"
+            if "ls-tree" in argv:
+                member = argv[-1]
+                raw = sources[member]
+                import hashlib
+
+                digest = hashlib.sha1(
+                    b"blob " + str(len(raw)).encode() + b"\0" + raw, usedforsecurity=False
+                ).hexdigest()
+                return b"100644 blob " + digest.encode() + b"\t" + member.encode() + b"\0"
+            if "cat-file" in argv:
+                return sources[argv[-1].split(":", 1)[1]]
+            assert owner == "render"
+            compose = Path(argv[argv.index("-f") + 1])
+            model = json.loads(_staging_compose_fixture_json(compose.parent))
+            if "staging" not in compose.name:
+                model["services"]["prometheus"]["environment"][
+                    "PULSEPLATE_ENVIRONMENT"
+                ] = "production"
+                model["services"]["app"]["networks"] = {"web": {}, "observability": {}}
+            return json.dumps(model).encode()
+
+    monkeypatch.setattr(transport, "Native", Native)
+
+    class API:
+        def json(self, endpoint: str) -> dict[str, Any]:
+            if endpoint.endswith("/pulls/2494"):
+                repo = {"id": 1043311030}
+                return {
+                    "number": 2494,
+                    "merged": True,
+                    "state": "closed",
+                    "merge_commit_sha": "a" * 40,
+                    "base": {"ref": "main", "repo": repo},
+                    "head": {"ref": docker_sources._ALERT_Q_BRANCH, "repo": repo},
+                }
+            if endpoint.endswith("/cd.yml"):
+                return {"id": 55, "path": ".github/workflows/cd.yml"}
+            return {"total_count": 0, "workflow_runs": []}
+
+        def pages(self, *args: Any) -> list[dict[str, Any]]:
+            return []
+
+    if owner == "predecessor" and not primary_failure:
+        # No witness is itself the primary admission failure; retention must preserve it.
+        match = "AM_positive_publication_predecessor_missing"
+        expected_type: type[BaseException] = RuntimeError
+    else:
+        match = (
+            "synthetic original native failure"
+            if primary_failure
+            else "synthetic retained write failure"
+        )
+        expected_type = RuntimeError if primary_failure else OSError
+    with pytest.raises(expected_type, match=match) as raised:
+        if owner == "regular":
+            docker_sources._alertmanager_regular_sources(
+                tmp_path, "a" * 40, work, time.monotonic() + 30
+            )
+        elif owner == "predecessor":
+            docker_sources._alertmanager_publication_predecessor(
+                API(), tmp_path, "b" * 40, work, time.monotonic() + 30
+            )
+        else:
+            docker_sources._alertmanager_render_source_contract(
+                sources,
+                work,
+                time.monotonic() + 30,
+                expected_case="accepted",
+                controller_templates={
+                    p: sources[p] for p in docker_sources._ALERT_SELECTION_FILES[:5]
+                },
+            )
+    if primary_failure:
+        assert raised.value is expected_error
+    if primary_failure or owner == "predecessor":
+        assert "AM native proof retention failed: OSError" in raised.value.__notes__

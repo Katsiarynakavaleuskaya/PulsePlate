@@ -697,6 +697,7 @@ jobs:
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
+          fetch-depth: 0
       - name: Validate existing credential-free AM native Python proxy
         env:
           PULSEPLATE_PYTHON_INDEX_URL: ${{ vars.PULSEPLATE_PYTHON_INDEX_URL }}

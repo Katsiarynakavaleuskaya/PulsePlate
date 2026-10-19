@@ -6419,15 +6419,15 @@ def test_production_all_profile_alertmanager_security_denies_forged_service_or_n
 
 @pytest.mark.parametrize("contour", ["staging", "production"])
 @pytest.mark.parametrize(
-    ("utc_instant", "selected_allowed"),
+    "utc_instant",
     [
-        ("2026-10-20T23:59:59+00:00", True),
-        ("2026-10-21T00:00:00+00:00", False),
-        ("2026-10-21T00:00:01+00:00", False),
+        "2026-10-20T23:59:59+00:00",
+        "2026-10-21T00:00:00+00:00",
+        "2026-10-21T00:00:01+00:00",
     ],
 )
-def test_selected_alertmanager_utc_waiver_boundary_and_off_profile_independence(
-    tmp_path: Path, contour: str, utc_instant: str, selected_allowed: bool
+def test_selected_accepted_alertmanager_is_date_independent_and_off_profile_independent(
+    tmp_path: Path, contour: str, utc_instant: str
 ) -> None:
     if contour == "staging":
         env, log_file = _staging_deploy_fixture(tmp_path)
@@ -6446,7 +6446,6 @@ def test_selected_alertmanager_utc_waiver_boundary_and_off_profile_independence(
         source = REPO_ROOT / "scripts/deploy_production.sh"
         args = ["--preflight-only"]
     observed_date_script = _alertmanager_clock_bound_deploy(tmp_path, env, source, utc_instant)
-    selected_allowed = True  # Accepted S is independent of the old waiver date.
     key.write_text("synthetic-only", encoding="ascii")
     key.chmod(0o444)
     env["COMPOSE_PROFILES"] = "scheduler-external, alerting"
@@ -6458,9 +6457,7 @@ def test_selected_alertmanager_utc_waiver_boundary_and_off_profile_independence(
         capture_output=True,
         check=False,
     )
-    assert (selected.returncode == 0) is selected_allowed, selected.stderr
-    if not selected_allowed:
-        assert "Alertmanager Trivy exception has expired" in selected.stderr
+    assert selected.returncode == 0, selected.stderr
     key.unlink()
     env.pop("COMPOSE_PROFILES", None)
     off = subprocess.run(
@@ -16478,3 +16475,15 @@ def test_alertmanager_pure_image_keeps_unconfigured_subject_hold_before_optional
     monkeypatch.setattr(alertmanager_source, "_ALERT_ACCEPTED_CANDIDATE", None)
     with pytest.raises(ValueError, match="AM_accepted_producer_UNCONFIGURED_HOLD"):
         alertmanager_source._alertmanager_contract_image(image, config_id)
+
+
+def test_alertmanager_trusted_helper_readers_bind_complete_current_source_bytes() -> None:
+    """Reader consistency only; hashes do not grant independent trust or authorization."""
+    expected = hashlib.sha256(
+        (REPO_ROOT / "scripts/ci/fetch_docker_source_artifacts.py").read_bytes()
+    ).hexdigest()
+    for relative in ("scripts/deploy.sh", "scripts/deploy_production.sh"):
+        assert re.findall(
+            r'ALERTMANAGER_CONTRACT_HELPER_SHA256="([0-9a-f]{64})"',
+            (REPO_ROOT / relative).read_text(),
+        ) == [expected]

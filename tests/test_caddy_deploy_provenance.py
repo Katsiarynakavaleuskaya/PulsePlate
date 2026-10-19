@@ -3673,6 +3673,20 @@ def test_alertmanager_PR_retained_candidate_has_no_registry_or_compiler_authorit
     [
         "absent",
         "same",
+        "descendant",
+        "proof-retention",
+        "primary-proof-retention",
+        "unmerged",
+        "wrong-pr",
+        "foreign-pr",
+        "merge-invalid",
+        "not-ancestor",
+        "shallow",
+        "source-drift",
+        "template-drift",
+        "main-before-login",
+        "main-before-copy",
+        "main-after-copy",
         "inventory",
         "conflict",
         "denied",
@@ -3734,10 +3748,23 @@ def test_alertmanager_publication_entrypoint_uses_canonical_guards_and_exact_cop
         "GITHUB_TOKEN": "synthetic-publish-credential",
     }.items():
         monkeypatch.setenv(key, value)
+    if case in ("proof-retention", "primary-proof-retention"):
+        original_write = Path.write_text
+
+        def write(path: Path, *args: Any, **kwargs: Any) -> int:
+            if (
+                path.name == "native-observation.json"
+                and path.parent.name == "publication-source-proof"
+            ):
+                raise OSError("synthetic publication proof retention failed")
+            return original_write(path, *args, **kwargs)
+
+        monkeypatch.setattr(Path, "write_text", write)
     events: list[str] = []
     native_calls: list[str] = []
     graph: dict[str, Any] = {}
     reads = 0
+    main_reads = 0
     original_tag = transport.immutable_tag_state
     closed = False
     tool_bytes = b"synthetic qualified ORAS transport"
@@ -3752,14 +3779,34 @@ def test_alertmanager_publication_entrypoint_uses_canonical_guards_and_exact_cop
                 (private / name).mkdir()
 
         def json(self, endpoint: str) -> dict[str, Any]:
+            nonlocal main_reads
             if "/git/ref/" in endpoint:
-                return {"object": {"sha": "a" * 40}}
+                main_reads += 1
+                drift_at = {
+                    "main-before-login": 2,
+                    "main-before-copy": 3,
+                    "main-after-copy": 4,
+                }.get(case)
+                return {"object": {"sha": ("f" if main_reads == drift_at else "a") * 40}}
             if "/pulls/" in endpoint:
                 return {
-                    "merged": True,
-                    "merge_commit_sha": "a" * 40,
-                    "base": {"ref": "main"},
-                    "head": {"ref": fetcher._ALERT_Q_BRANCH, "sha": "c" * 40},
+                    "number": 2477 if case == "wrong-pr" else 2494,
+                    "state": "closed",
+                    "merged": case != "unmerged",
+                    "merge_commit_sha": (
+                        "unknown"
+                        if case == "merge-invalid"
+                        else ("d" if case == "descendant" else "a") * 40
+                    ),
+                    "base": {
+                        "ref": "main",
+                        "repo": {"id": 1 if case == "foreign-pr" else 1043311030},
+                    },
+                    "head": {
+                        "ref": fetcher._ALERT_Q_BRANCH,
+                        "sha": "c" * 40,
+                        "repo": {"id": 1043311030},
+                    },
                 }
             assert "/commits/" in endpoint
             return {"sha": "a" * 40}
@@ -3928,6 +3975,62 @@ def test_alertmanager_publication_entrypoint_uses_canonical_guards_and_exact_cop
         (work / "evidence").mkdir()
         return {"synthetic_control_only": True}
 
+    sources = {path: b"synthetic reviewed source" for path in fetcher._ALERT_SELECTION_FILES}
+
+    class PublicationNative:
+        def __init__(self, evidence: Path, deadline: float, cleanup: int) -> None:
+            assert evidence.parent.name == "retained"
+            assert evidence.name == "publication-source-proof" and cleanup == 45
+            self.records: list[dict[str, Any]] = []
+
+        def run(
+            self,
+            argv: list[str],
+            label: str,
+            environment: dict[str, str],
+            *,
+            cwd: Path,
+            **kwargs: Any,
+        ) -> bytes:
+            assert cwd == fetcher.REPO_ROOT and "--no-replace-objects" in argv
+            assert environment["GIT_NO_REPLACE_OBJECTS"] == "1"
+            if argv[-2:] == ["rev-parse", "--is-shallow-repository"]:
+                return b"true\n" if case == "shallow" else b"false\n"
+            assert argv[-4:] == [
+                "merge-base",
+                "--is-ancestor",
+                ("d" if case == "descendant" else "a") * 40,
+                "a" * 40,
+            ]
+            if case in ("not-ancestor", "primary-proof-retention"):
+                raise RuntimeError("synthetic native Git exit1")
+            return b""
+
+    monkeypatch.setattr(transport, "Native", PublicationNative)
+    monkeypatch.setattr(fetcher, "_alertmanager_bind_material", lambda *a: sources)
+    monkeypatch.setattr(
+        fetcher,
+        "_alertmanager_regular_sources",
+        lambda *a: (
+            {**sources, "deploy/alertmanager/trivy-ignore.yaml": b"drift"}
+            if case == "source-drift"
+            else sources
+        ),
+    )
+
+    def render(
+        supplied: dict[str, bytes],
+        work: Path,
+        deadline: float,
+        *,
+        expected_case: str,
+        controller_templates: dict[str, bytes],
+    ) -> None:
+        assert supplied == sources and expected_case == "accepted"
+        if case == "template-drift":
+            raise RuntimeError("AM_reviewed_controller_data_closure")
+
+    monkeypatch.setattr(fetcher, "_alertmanager_render_source_contract", render)
     monkeypatch.setattr(transport, "GitHubRead", API)
     monkeypatch.setattr(transport, "authenticate_pr_source", lambda *a: {"synthetic": True})
     monkeypatch.setattr(transport, "retained_tool", tool)
@@ -3981,16 +4084,39 @@ def test_alertmanager_publication_entrypoint_uses_canonical_guards_and_exact_cop
         "--alertmanager-candidate-source",
         "c" * 40,
     ]
-    if case not in ("absent", "same"):
-        with pytest.raises(RuntimeError):
+    if case not in ("absent", "same", "descendant"):
+        with pytest.raises(OSError if case == "proof-retention" else RuntimeError) as raised:
             fetcher.main(argv)
+        if case == "primary-proof-retention":
+            assert str(raised.value) == "synthetic native Git exit1"
+            assert "AM native proof retention failed: OSError" in raised.value.__notes__
     else:
         assert fetcher.main(argv) == 0
     result = json.loads((output / "retained/candidate-observation.json").read_text())
     assert result["compiler_starts"] == result["logical_build_starts"] == 0
     assert "synthetic-publish-credential" not in json.dumps(result)
     assert events.count("copy") == (
-        0 if case in ("same", "inventory", "conflict", "credential-mode") else 1
+        0
+        if case
+        in (
+            "same",
+            "inventory",
+            "conflict",
+            "credential-mode",
+            "unmerged",
+            "wrong-pr",
+            "foreign-pr",
+            "merge-invalid",
+            "not-ancestor",
+            "shallow",
+            "source-drift",
+            "template-drift",
+            "main-before-login",
+            "main-before-copy",
+            "proof-retention",
+            "primary-proof-retention",
+        )
+        else 1
     )
     if case in ("inventory", "conflict"):
         assert "login" not in events and native_calls == []
@@ -3998,10 +4124,17 @@ def test_alertmanager_publication_entrypoint_uses_canonical_guards_and_exact_cop
         assert result["package_WRITE"] == "UNPROVED" and result["copy_invocations"] == 0
     if case == "same":
         assert result["package_WRITE"] == "UNEXERCISED_EXISTING_SAME_SUBJECT" and native_calls
-    if case == "absent":
+    if case in ("absent", "descendant"):
         assert result["package_WRITE"] == "OBSERVED_SUCCESSFUL_INTENDED_COPY" and native_calls
-    if case not in ("absent", "same"):
+    if case not in ("absent", "same", "descendant"):
         assert native_calls == []
+
+    if case in ("main-after-copy", "pullback", "post-readback"):
+        assert result["copy_attempts"] == result["copy_invocations"] == 1
+        assert result["package_WRITE"] == "OBSERVED_SUCCESSFUL_INTENDED_COPY"
+    if case == "descendant":
+        assert result["publication_source_sha"] == "a" * 40
+        assert result["publication_merge_sha"] == "d" * 40
 
 
 @pytest.mark.parametrize("fault", [None, "missing-tool", "not-directory", "denied"])
@@ -4140,8 +4273,15 @@ def test_alertmanager_current_four_controls_retain_native_reports_and_reject_unp
             self.records: list[dict[str, Any]] = []
 
         def run(
-            self, argv: list[str], label: str, environment: dict[str, str], **kwargs: Any
+            self,
+            argv: list[str],
+            label: str,
+            environment: dict[str, str],
+            *,
+            cwd: Path,
+            **kwargs: Any,
         ) -> bytes:
+            assert cwd == args.output_dir
             calls.append(label)
             assert not any("TOKEN" in key for key in environment)
             assert environment["DOCKER_CONFIG"].endswith("empty-docker-config")

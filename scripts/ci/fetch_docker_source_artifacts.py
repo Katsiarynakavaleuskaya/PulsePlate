@@ -2786,78 +2786,120 @@ def _alertmanager_publication_predecessor(
         "GIT_CONFIG_GLOBAL": "/dev/null",
         "GIT_NO_REPLACE_OBJECTS": "1",
     }
-    native.run(
-        [
-            git,
-            "--no-replace-objects",
-            "-c",
-            "core.fsmonitor=false",
-            "-c",
-            "core.hooksPath=/dev/null",
-            "-C",
-            str(root),
-            "merge-base",
-            "--is-ancestor",
-            merge,
-            revision,
-        ],
-        "AM-actual-merged-selection-ancestor",
-        environment,
-        maximum_seconds=8,
-    )
-    workflow = api.json(endpoint + "/actions/workflows/cd.yml")
-    require(
-        type(workflow) is dict
-        and type(workflow.get("id")) is int
-        and workflow["id"] > 0
-        and workflow.get("path") == ".github/workflows/cd.yml",
-        "AM_publication_actual_CD_workflow",
-    )
-    runs_endpoint = (
-        endpoint + "/actions/workflows/cd.yml/runs?event=workflow_dispatch&head_sha=" + merge
-    )
-    page = api.json(runs_endpoint + "&per_page=100&page=1")
-    require(type(page) is dict, "AM_publication_runs")
-    runs = api.pages(runs_endpoint, "workflow_runs", page.get("total_count"))
-    positive = []
-    for run in runs:
-        require(type(run.get("id")) is int and run["id"] > 0, "AM_publication_run_ID")
-        if not (
-            run.get("head_sha") == merge
-            and run.get("head_branch") == "main"
-            and run.get("event") == "workflow_dispatch"
-            and type(run.get("run_attempt")) is int
-            and run["run_attempt"] == 1
-            and run.get("status") == "completed"
-            and run.get("conclusion") == "success"
-            and type(run.get("workflow_id")) is int
-            and run["workflow_id"] == workflow["id"]
-            and all(
-                type(run.get(key, {}).get("id")) is int and run[key]["id"] == 1043311030
-                for key in ("repository", "head_repository")
+    prefix = [
+        git,
+        "--no-replace-objects",
+        "-c",
+        "core.fsmonitor=false",
+        "-c",
+        "core.hooksPath=/dev/null",
+        "-C",
+        str(root),
+    ]
+    proof_failure: BaseException | None = None
+    try:
+        require(
+            native.run(
+                [*prefix, "rev-parse", "--is-shallow-repository"],
+                "AM-publication-complete-Git",
+                environment,
+                cwd=root,
+                maximum_seconds=8,
             )
-        ):
-            continue
-        jobs_endpoint = endpoint + f'/actions/runs/{run["id"]}/attempts/1/jobs'
-        first = api.json(jobs_endpoint + "?per_page=100&page=1")
-        require(type(first) is dict, "AM_publication_jobs")
-        jobs = api.pages(jobs_endpoint, "jobs", first.get("total_count"))
-        selected = [job for job in jobs if job.get("name") == "alertmanager-main-publication"]
-        require(len(selected) <= 1, "AM_publication_unique_job")
-        if selected:
-            job = selected[0]
+            == b"false\n",
+            "AM_publication_shallow_history",
+        )
+        workflow = api.json(endpoint + "/actions/workflows/cd.yml")
+        require(
+            type(workflow) is dict
+            and type(workflow.get("id")) is int
+            and workflow["id"] > 0
+            and workflow.get("path") == ".github/workflows/cd.yml",
+            "AM_publication_actual_CD_workflow",
+        )
+        runs_endpoint = (
+            endpoint
+            + "/actions/workflows/cd.yml/runs?branch=main&event=workflow_dispatch&status=success"
+        )
+        page = api.json(runs_endpoint + "&per_page=100&page=1")
+        require(type(page) is dict, "AM_publication_runs")
+        count = page.get("total_count")
+        require(type(count) is int and 0 <= count < 1000, "AM_publication_filtered_run_bound")
+        runs = api.pages(runs_endpoint, "workflow_runs", count)
+        positive = []
+        for run in runs:
+            require(type(run.get("id")) is int and run["id"] > 0, "AM_publication_run_ID")
+            publisher = run.get("head_sha")
             require(
-                type(job.get("id")) is int
-                and job["id"] > 0
-                and type(job.get("run_id")) is int
-                and job["run_id"] == run["id"]
-                and job.get("head_sha") == merge,
-                "AM_publication_job_binding",
+                type(publisher) is str and re.fullmatch(r"[0-9a-f]{40}", publisher) is not None,
+                "AM_publication_run_source",
             )
-            if job.get("status") == "completed" and job.get("conclusion") == "success":
-                positive.append({"run": run, "job": job, "merge": merge})
-    require(bool(positive), "AM_positive_publication_predecessor_missing")
-    return max(positive, key=lambda value: value["run"]["id"])
+            publisher = cast(str, publisher)
+            if not (
+                run.get("head_branch") == "main"
+                and run.get("event") == "workflow_dispatch"
+                and type(run.get("run_attempt")) is int
+                and run["run_attempt"] == 1
+                and run.get("status") == "completed"
+                and run.get("conclusion") == "success"
+                and type(run.get("workflow_id")) is int
+                and run["workflow_id"] == workflow["id"]
+                and all(
+                    type(run.get(key, {}).get("id")) is int and run[key]["id"] == 1043311030
+                    for key in ("repository", "head_repository")
+                )
+            ):
+                continue
+            jobs_endpoint = endpoint + f'/actions/runs/{run["id"]}/attempts/1/jobs'
+            first = api.json(jobs_endpoint + "?per_page=100&page=1")
+            require(type(first) is dict, "AM_publication_jobs")
+            jobs = api.pages(jobs_endpoint, "jobs", first.get("total_count"))
+            selected = [job for job in jobs if job.get("name") == "alertmanager-main-publication"]
+            require(len(selected) <= 1, "AM_publication_unique_job")
+            if selected:
+                job = selected[0]
+                require(
+                    type(job.get("id")) is int
+                    and job["id"] > 0
+                    and type(job.get("run_id")) is int
+                    and job["run_id"] == run["id"]
+                    and job.get("head_sha") == publisher,
+                    "AM_publication_job_binding",
+                )
+                if job.get("status") == "completed" and job.get("conclusion") == "success":
+                    for ancestor, descendant, suffix in (
+                        (merge, publisher, "merge-to-publisher"),
+                        (publisher, revision, "publisher-to-consumer"),
+                    ):
+                        native.run(
+                            [*prefix, "merge-base", "--is-ancestor", ancestor, descendant],
+                            "AM-publication-" + str(run["id"]) + "-" + suffix,
+                            environment,
+                            cwd=root,
+                            maximum_seconds=8,
+                        )
+                    historical = _alertmanager_regular_sources(
+                        root, merge, work / (str(run["id"]) + "-merged-sources"), deadline
+                    )
+                    published = _alertmanager_regular_sources(
+                        root, publisher, work / (str(run["id"]) + "-publisher-sources"), deadline
+                    )
+                    require(historical == published, "AM_publication_historical_six_source_drift")
+                    positive.append({"run": run, "job": job, "merge": merge})
+        require(bool(positive), "AM_positive_publication_predecessor_missing")
+        return max(positive, key=lambda value: value["run"]["id"])
+    except BaseException as error:
+        proof_failure = error
+        raise
+    finally:
+        try:
+            (work / "native-observation.json").write_text(
+                json.dumps({"native_records": native.records}, indent=2) + "\n"
+            )
+        except BaseException as error:
+            if proof_failure is None:
+                raise
+            proof_failure.add_note("AM native proof retention failed: " + type(error).__name__)
 
 
 def _alertmanager_package_read(api: GitHubRead) -> dict[str, Any]:
@@ -6935,6 +6977,7 @@ def _alertmanager_live_security(args: argparse.Namespace) -> None:
                 [str(scanner), "--version", "--format", "json"],
                 "current-scanner-version",
                 environment,
+                cwd=work,
                 maximum_seconds=30,
             )
         )
@@ -6948,6 +6991,7 @@ def _alertmanager_live_security(args: argparse.Namespace) -> None:
                 [*prefix, "image", "inspect", "--format", "{{json .}}", image_id],
                 "live-local-candidate",
                 environment,
+                cwd=work,
                 maximum_seconds=30,
             )
         )
@@ -6965,6 +7009,7 @@ def _alertmanager_live_security(args: argparse.Namespace) -> None:
             [*prefix, "pull", "--platform", "linux/amd64", _ALERT_OLD_RUNTIME_REF],
             "live-old-control-pull",
             environment,
+            cwd=work,
             maximum_seconds=120,
         )
         old = one_object(
@@ -6972,6 +7017,7 @@ def _alertmanager_live_security(args: argparse.Namespace) -> None:
                 [*prefix, "image", "inspect", "--format", "{{json .}}", _ALERT_OLD_RUNTIME_REF],
                 "live-old-control-identity",
                 environment,
+                cwd=work,
                 maximum_seconds=30,
             )
         )
@@ -7213,38 +7259,54 @@ def _alertmanager_regular_sources(
         "GIT_NO_REPLACE_OBJECTS": "1",
         "LANG": "C",
     }
-    result = {}
-    for index, path in enumerate(_ALERT_SELECTION_FILES):
-        row = native.run(
-            [*prefix, "ls-tree", "-z", revision, "--", path],
-            "selection-tree-" + str(index),
-            env,
-            maximum_seconds=8,
-            output_bound=4096,
-        )
-        match = re.fullmatch(
-            rb"100644 blob ([0-9a-f]{40})\t" + re.escape(path.encode()) + b"\x00", row
-        )
-        require(match is not None, "AM_selection_regular100644_blob")
-        match = cast(re.Match[bytes], match)
-        raw = native.run(
-            [*prefix, "cat-file", "blob", revision + ":" + path],
-            "selection-blob-" + str(index),
-            env,
-            maximum_seconds=8,
-            output_bound=1048576,
-        )
-        require(
-            0 < len(raw) <= 1048576
-            and sha256(raw).hexdigest()
-            and sha1(b"blob " + str(len(raw)).encode() + b"\x00" + raw, usedforsecurity=False)
-            .hexdigest()
-            .encode()
-            == match[1],
-            "AM_selection_raw_Git_object",
-        )
-        result[path] = raw
-    return result
+    proof_failure: BaseException | None = None
+    try:
+        result = {}
+        for index, path in enumerate(_ALERT_SELECTION_FILES):
+            row = native.run(
+                [*prefix, "ls-tree", "-z", revision, "--", path],
+                "selection-tree-" + str(index),
+                env,
+                cwd=root,
+                maximum_seconds=8,
+                output_bound=4096,
+            )
+            match = re.fullmatch(
+                rb"100644 blob ([0-9a-f]{40})\t" + re.escape(path.encode()) + b"\x00", row
+            )
+            require(match is not None, "AM_selection_regular100644_blob")
+            match = cast(re.Match[bytes], match)
+            raw = native.run(
+                [*prefix, "cat-file", "blob", revision + ":" + path],
+                "selection-blob-" + str(index),
+                env,
+                cwd=root,
+                maximum_seconds=8,
+                output_bound=1048576,
+            )
+            require(
+                0 < len(raw) <= 1048576
+                and sha256(raw).hexdigest()
+                and sha1(b"blob " + str(len(raw)).encode() + b"\x00" + raw, usedforsecurity=False)
+                .hexdigest()
+                .encode()
+                == match[1],
+                "AM_selection_raw_Git_object",
+            )
+            result[path] = raw
+        return result
+    except BaseException as error:
+        proof_failure = error
+        raise
+    finally:
+        try:
+            (work / "native-observation.json").write_text(
+                json.dumps({"native_records": native.records}, indent=2) + "\n"
+            )
+        except BaseException as error:
+            if proof_failure is None:
+                raise
+            proof_failure.add_note("AM native proof retention failed: " + type(error).__name__)
 
 
 def _alertmanager_bind_material(
@@ -7337,39 +7399,53 @@ def _alertmanager_render_source_contract(
     }
     # These exact reviewed templates use only the declared synthetic env-file and mounts.
     # HEAD is never rendered, and no ambient sibling .env/COMPOSE_FILE or secret is read.
-    for index, path in enumerate(_ALERT_SELECTION_FILES[:3]):
-        compose = work / path
-        raw = native.run(
-            [
-                docker,
-                "compose",
-                "--env-file",
-                str(empty),
-                "--project-directory",
-                str(deploy),
-                "-f",
-                str(compose),
-                "--profile",
-                "*",
-                "config",
-                "--format",
-                "json",
-            ],
-            "BASE-all-profile-" + str(index),
-            env,
-            cwd=deploy,
-            maximum_seconds=8,
-            output_bound=1048576,
-        )
-        case = _alertmanager_contract_candidate(
-            one_object(raw),
-            compose,
-            deploy / "alertmanager/alertmanager.yml",
-            deploy / "alertmanager/trivy-ignore.yaml",
-            "staging" if index == 0 else "production",
-            installed_compose=compose,
-        )
-        require(case == expected_case, "AM_source_transition_selection")
+    proof_failure: BaseException | None = None
+    try:
+        for index, path in enumerate(_ALERT_SELECTION_FILES[:3]):
+            compose = work / path
+            raw = native.run(
+                [
+                    docker,
+                    "compose",
+                    "--env-file",
+                    str(empty),
+                    "--project-directory",
+                    str(deploy),
+                    "-f",
+                    str(compose),
+                    "--profile",
+                    "*",
+                    "config",
+                    "--format",
+                    "json",
+                ],
+                "BASE-all-profile-" + str(index),
+                env,
+                cwd=deploy,
+                maximum_seconds=8,
+                output_bound=1048576,
+            )
+            case = _alertmanager_contract_candidate(
+                one_object(raw),
+                compose,
+                deploy / "alertmanager/alertmanager.yml",
+                deploy / "alertmanager/trivy-ignore.yaml",
+                "staging" if index == 0 else "production",
+                installed_compose=compose,
+            )
+            require(case == expected_case, "AM_source_transition_selection")
+    except BaseException as error:
+        proof_failure = error
+        raise
+    finally:
+        try:
+            (evidence / "native-observation.json").write_text(
+                json.dumps({"native_records": native.records}, indent=2) + "\n"
+            )
+        except BaseException as error:
+            if proof_failure is None:
+                raise
+            proof_failure.add_note("AM native proof retention failed: " + type(error).__name__)
 
 
 def _alertmanager_reader_route(
@@ -7519,6 +7595,7 @@ def _alertmanager_reader_route(
             ],
             "actual-first-parent",
             env,
+            cwd=args.material_root,
             maximum_seconds=8,
         )
         parents = raw.decode().strip().split()
@@ -7590,6 +7667,7 @@ def _alertmanager_controller_binding(args: argparse.Namespace) -> None:
                 "GIT_CONFIG_NOSYSTEM": "1",
                 "GIT_CONFIG_GLOBAL": "/dev/null",
             },
+            cwd=REPO_ROOT,
             maximum_seconds=8,
             output_bound=4096,
         )
@@ -7723,7 +7801,11 @@ def _alertmanager_pull_published(
         "AM_published_complete_BASE_HEAD_selection",
     )
     predecessor = _alertmanager_publication_predecessor(
-        api, args.material_root, route["base"], output / "published-predecessor-Git", deadline
+        api,
+        args.material_root,
+        route["base"],
+        output / "github-read-evidence/published-predecessor-Git",
+        deadline,
     )
     graph = _alertmanager_accepted_producer()["graph"]
     digest = graph["manifest"]["digest"]
@@ -8053,6 +8135,8 @@ def _alertmanager_publish(
     import shutil
     from scripts.ci.prometheus_source_image import (
         authenticate_pr_source,
+        Native,
+        fresh_directory,
         require,
         retained_tool,
         existing_public_package,
@@ -8078,8 +8162,17 @@ def _alertmanager_publish(
     )
     pr = api.json("/repos/Katsiarynakavaleuskaya/PulsePlate/pulls/" + str(args.alertmanager_pr))
     require(
-        pr.get("merged") is True
-        and pr.get("merge_commit_sha") == args.source_sha
+        type(pr.get("number")) is int
+        and pr["number"] == 2494
+        and pr.get("merged") is True
+        and pr.get("state") == "closed"
+        and type(pr.get("merge_commit_sha")) is str
+        and re.fullmatch(r"[0-9a-f]{40}", pr["merge_commit_sha"]) is not None
+        and all(
+            type(pr.get(side, {}).get("repo", {}).get("id")) is int
+            and pr[side]["repo"]["id"] == 1043311030
+            for side in ("head", "base")
+        )
         and pr.get("base", {}).get("ref") == "main"
         and pr.get("head", {}).get("ref") == _ALERT_Q_BRANCH,
         "AM_separate_human_merge_observed",
@@ -8091,6 +8184,80 @@ def _alertmanager_publish(
         pr["head"]["sha"],
         "refs/heads/" + _ALERT_Q_BRANCH,
     )
+    merged = pr["merge_commit_sha"]
+    work = retained / "publication-source-proof"
+    fresh_directory(work)
+    native = Native(work, api.deadline, limits["CLEANUP_SECONDS"])
+    git = shutil.which("git")
+    require(git is not None and Path(git).is_absolute(), "AM_publication_native_Git")
+    prefix = [
+        git,
+        "--no-replace-objects",
+        "-c",
+        "core.fsmonitor=false",
+        "-c",
+        "core.hooksPath=/dev/null",
+        "-C",
+        str(REPO_ROOT),
+    ]
+    environment = {
+        "PATH": "/usr/bin:/bin",
+        "HOME": str(work),
+        "GIT_CONFIG_NOSYSTEM": "1",
+        "GIT_CONFIG_GLOBAL": "/dev/null",
+        "GIT_NO_REPLACE_OBJECTS": "1",
+    }
+    proof_failure: BaseException | None = None
+    try:
+        require(
+            native.run(
+                [*prefix, "rev-parse", "--is-shallow-repository"],
+                "publication-complete-Git",
+                environment,
+                cwd=REPO_ROOT,
+                maximum_seconds=8,
+            )
+            == b"false\n",
+            "AM_publication_shallow_history",
+        )
+        native.run(
+            [*prefix, "merge-base", "--is-ancestor", merged, args.source_sha],
+            "publication-merged-ancestor",
+            environment,
+            cwd=REPO_ROOT,
+            maximum_seconds=8,
+        )
+        published = _alertmanager_bind_material(
+            REPO_ROOT, args.source_sha, work / "publisher-sources", api.deadline
+        )
+        historical = _alertmanager_regular_sources(
+            REPO_ROOT, merged, work / "merged-sources", api.deadline
+        )
+        require(historical == published, "AM_publication_historical_six_source_drift")
+        templates = _alertmanager_source_snapshot(
+            api, os.environ.get("ALERTMANAGER_CONTROLLER_SOURCE", ""), controller_templates=True
+        )
+        _alertmanager_render_source_contract(
+            published,
+            work / "accepted-contract",
+            api.deadline,
+            expected_case="accepted",
+            controller_templates=templates,
+        )
+        result["publication_merge_sha"] = merged
+        result["publication_source_sha"] = args.source_sha
+    except BaseException as error:
+        proof_failure = error
+        raise
+    finally:
+        try:
+            (work / "native-observation.json").write_text(
+                json.dumps({"native_records": native.records}, indent=2) + "\n"
+            )
+        except BaseException as error:
+            if proof_failure is None:
+                raise
+            proof_failure.add_note("AM native proof retention failed: " + type(error).__name__)
     original = _alertmanager_authenticated_inputs(
         api,
         args.alertmanager_candidate_run,
