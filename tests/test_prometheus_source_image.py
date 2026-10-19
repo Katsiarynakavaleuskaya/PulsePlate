@@ -1631,6 +1631,225 @@ def ghcr_synthetic_responses() -> tuple[dict[str, Any], dict[str, Any]]:
     return repository, package
 
 
+class _PublicPackageInventoryAPI:
+    """Synthetic transport data only; no auth, native-capacity or atomicity evidence."""
+
+    gh = "/synthetic/gh"
+
+    def __init__(self, count: Any) -> None:
+        self.repository, self.package = ghcr_synthetic_responses()
+        self.repository["id"] = self.package["repository"]["id"] = 1043311030
+        self.repository["owner"]["id"] = self.package["owner"]["id"] = 169792616
+        self.package["id"] = 9374404
+        self.package["version_count"] = count
+        self.after_repository: dict[str, Any] | None = None
+        self.after_package: dict[str, Any] | None = None
+        self.pages: dict[int, bytes] = {}
+        self.repository_reads = 0
+        self.package_reads = 0
+        self.version_requests: list[tuple[int, int]] = []
+        self.enforce_capture_bound = True
+
+    def json(self, endpoint: str) -> dict[str, Any]:
+        assert endpoint == "/repos/" + source.GHCR_REPOSITORY
+        self.repository_reads += 1
+        value = self.after_repository if self.repository_reads == 2 else None
+        return copy.deepcopy(self.repository if value is None else value)
+
+    def _capture(self, argv: list[str], maximum: int) -> bytes:
+        assert argv[:6] == [self.gh, "api", "--hostname", "github.com", "--method", "GET"]
+        assert len(argv) == 7 and 0 < maximum <= 16 * 1024**2
+        endpoint = source.GHCR_REQUESTS[1]
+        if argv[6] == endpoint:
+            self.package_reads += 1
+            value = self.after_package if self.package_reads == 2 else None
+            raw = source.canonical_data(self.package if value is None else value)
+        else:
+            prefix = endpoint + "/versions?per_page=100&page="
+            assert argv[6].startswith(prefix)
+            page = int(argv[6].removeprefix(prefix))
+            self.version_requests.append((page, maximum))
+            count = self.package["version_count"]
+            rows = [
+                {"id": number, "metadata": {"container": {"tags": []}}}
+                for number in range((page - 1) * 100 + 1, min(page * 100, count) + 1)
+            ]
+            raw = self.pages.get(page, source.canonical_data(rows))
+        if self.enforce_capture_bound and len(raw) > maximum:
+            raise source.QualificationError("GitHub_native_output_bound")
+        return raw
+
+
+@pytest.mark.parametrize("count", [0, 99, 100, 9999, 10000, 16557, 16575, 20000])
+def test_public_package_inventory_count_derived_terminal_and_full_rows(count: int) -> None:
+    api = _PublicPackageInventoryAPI(count)
+    identity, rows = source.existing_public_package(api)
+    assert identity["package"]["id"] == 9374404
+    assert [row["id"] for row in rows] == list(range(1, count + 1))
+    assert api.version_requests == [(page, 1024**2) for page in range(1, count // 100 + 2)]
+    assert api.package_reads == api.repository_reads == 2
+
+
+@pytest.mark.parametrize("count", [None, True, False, -1, 20001, "16557", 1.5, "missing"])
+def test_public_package_inventory_rejects_invalid_count_before_pages(count: Any) -> None:
+    api = _PublicPackageInventoryAPI(count)
+    if count == "missing":
+        del api.package["version_count"]
+    with pytest.raises(source.QualificationError, match="package_version_count"):
+        source.existing_public_package(api)
+    assert api.version_requests == []
+    assert api.package_reads == api.repository_reads == 1
+
+
+@pytest.mark.parametrize(
+    "raw,diagnostic",
+    [
+        (b"{}", "package_native_versions"),
+        (b"null", "package_native_versions"),
+        (b"[true]", "package_native_versions"),
+        (b'[{"id":true}]', "package_native_versions"),
+        (b'[{"id":0}]', "package_native_versions"),
+        (b'[{"id":-1}]', "package_native_versions"),
+        (b'[{"id":"1"}]', "package_native_versions"),
+        (b'[{"id":1,"id":2}]', "duplicate_JSON_key"),
+        (b'[{"id":NaN}]', "nonfinite_JSON"),
+    ],
+)
+def test_public_package_inventory_rejects_malformed_rows(raw: bytes, diagnostic: str) -> None:
+    api = _PublicPackageInventoryAPI(1)
+    api.pages[1] = raw
+    with pytest.raises(source.QualificationError, match=diagnostic):
+        source.existing_public_package(api)
+    assert api.package_reads == api.repository_reads == 1
+
+
+@pytest.mark.parametrize(
+    "count,page,ids,diagnostic",
+    [
+        (101, 1, list(range(1, 100)), "package_complete_inventory_count"),
+        (100, 2, [101], "package_complete_inventory_count"),
+        (101, 1, list(range(1, 102)), "package_native_versions"),
+        (2, 1, [1, 1], "package_pagination_distinct"),
+        (101, 2, [1], "package_pagination_distinct"),
+    ],
+)
+def test_public_package_inventory_rejects_partial_extra_or_repeated_pages(
+    count: int, page: int, ids: list[int], diagnostic: str
+) -> None:
+    api = _PublicPackageInventoryAPI(count)
+    api.pages[page] = source.canonical_data([{"id": value} for value in ids])
+    with pytest.raises(source.QualificationError, match=diagnostic):
+        source.existing_public_package(api)
+    assert api.package_reads == api.repository_reads == 1
+
+
+@pytest.mark.parametrize("fault", ["count", "bool_count", "package_id", "repository_id"])
+def test_public_package_inventory_rejects_identity_or_count_readback_drift(fault: str) -> None:
+    api = _PublicPackageInventoryAPI(1)
+    api.after_package = copy.deepcopy(api.package)
+    api.after_repository = copy.deepcopy(api.repository)
+    if fault == "count":
+        api.after_package["version_count"] = 2
+    elif fault == "bool_count":
+        api.after_package["version_count"] = True
+    elif fault == "package_id":
+        api.after_package["id"] += 1
+    else:
+        api.after_repository["id"] += 1
+        api.after_package["repository"]["id"] = api.after_repository["id"]
+    with pytest.raises(
+        source.QualificationError, match="package_inventory_identity_or_count_drift"
+    ):
+        source.existing_public_package(api)
+    assert api.package_reads == api.repository_reads == 2
+
+
+@pytest.mark.parametrize("extra", [0, 1])
+def test_public_package_inventory_obeys_native_page_capture_ceiling(extra: int) -> None:
+    api = _PublicPackageInventoryAPI(0)
+    api.pages[1] = b"[]" + b" " * (1024**2 - 2 + extra)
+    if extra:
+        with pytest.raises(source.QualificationError, match="GitHub_native_output_bound"):
+            source.existing_public_package(api)
+    else:
+        assert source.existing_public_package(api)[1] == []
+    assert api.version_requests == [(1, 1024**2)]
+
+
+def test_public_package_inventory_aggregate_refusal_precedes_json_decode(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    api = _PublicPackageInventoryAPI(1)
+    api.pages[1] = b"not JSON"
+    api.enforce_capture_bound = False  # A faulty fake return must not bypass the aggregate guard.
+    monkeypatch.setattr(source, "PACKAGE_VERSION_STDOUT_BYTES_MAX", 3)
+    with pytest.raises(source.QualificationError, match="package_inventory_stdout_bound"):
+        source.existing_public_package(api)
+    assert api.version_requests == [(1, 3)]
+    assert api.package_reads == api.repository_reads == 1
+
+
+def test_public_package_inventory_exhaustion_stops_before_next_page(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    api = _PublicPackageInventoryAPI(101)
+    first = source.canonical_data([{"id": value} for value in range(1, 101)])
+    api.pages[1] = first
+    monkeypatch.setattr(source, "PACKAGE_VERSION_STDOUT_BYTES_MAX", len(first))
+    with pytest.raises(source.QualificationError, match="package_inventory_stdout_bound"):
+        source.existing_public_package(api)
+    assert api.version_requests == [(1, len(first))]
+    assert api.package_reads == api.repository_reads == 1
+
+
+def test_public_package_inventory_preserves_collision_after_page_100() -> None:
+    api = _PublicPackageInventoryAPI(10001)
+    api.pages[101] = source.canonical_data(
+        [
+            {
+                "id": 10001,
+                "name": "sha256:" + "b" * 64,
+                "metadata": {"container": {"tags": ["selected"]}},
+            }
+        ]
+    )
+    _identity, rows = source.existing_public_package(api)
+    with pytest.raises(
+        source.QualificationError, match="immutable_tag_existing_other_subject_HOLD"
+    ):
+        source.immutable_tag_state(rows, "selected", "sha256:" + "a" * 64)
+    assert api.version_requests[-1][0] == 101
+
+
+def test_public_package_inventory_accepts_exact_aggregate_stdout_budget(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    api = _PublicPackageInventoryAPI(1)
+    raw = source.canonical_data([{"id": 1}])
+    api.pages[1] = raw
+    monkeypatch.setattr(source, "PACKAGE_VERSION_STDOUT_BYTES_MAX", len(raw))
+    assert source.existing_public_package(api)[1] == [{"id": 1}]
+    assert api.version_requests == [(1, len(raw))]
+
+
+@pytest.mark.parametrize("diagnostic", ["deadline", "GitHub_native_failed"])
+def test_public_package_inventory_propagates_terminal_native_failure(
+    monkeypatch: pytest.MonkeyPatch, diagnostic: str
+) -> None:
+    api = _PublicPackageInventoryAPI(100)
+    capture = api._capture
+
+    def fail_terminal(argv: list[str], maximum: int) -> bytes:
+        if argv[-1].endswith("/versions?per_page=100&page=2"):
+            raise source.QualificationError(diagnostic)
+        return capture(argv, maximum)
+
+    monkeypatch.setattr(api, "_capture", fail_terminal)
+    with pytest.raises(source.QualificationError, match=diagnostic):
+        source.existing_public_package(api)
+    assert api.package_reads == api.repository_reads == 1
+
+
 def ghcr_synthetic_HTTP(value: Any) -> bytes:
     return b"HTTP/2.0 200 OK\nContent-Type: application/json\r\n\r\n" + json.dumps(value).encode()
 
@@ -1894,6 +2113,15 @@ def _fixed_native_capture_fixture(
         + " else: sys.stdout.write('synthetic auth status')\n"
         + " sys.exit(1 if mode=='auth_nonzero' else 0)\n"
         + "if adapter=='GitHubRead':\n"
+        + " if sys.argv[1:] == ['combined-output']:\n"
+        + "  assert mode in ('combined_balanced_exact','combined_balanced_over','combined_stderr_exact','combined_stderr_over')\n"
+        + "  out_size=131072 if mode.startswith('combined_stderr') else 524288\n"
+        + "  err_size=1048576-out_size+(1 if mode.endswith('_over') else 0)\n"
+        + "  trace.with_suffix('.capture-pid').write_text(str(os.getpid()))\n"
+        + "  trace.with_suffix('.capture-group').write_text(str(os.getpgid(0)))\n"
+        + "  sys.stdout.buffer.write(b'o'*out_size); sys.stdout.buffer.flush()\n"
+        + "  sys.stderr.buffer.write(b'e'*err_size); sys.stderr.buffer.flush()\n"
+        + "  sys.exit(0)\n"
         + " if sys.argv[1:] == ['stdin']:\n"
         + "  sys.stderr.write('x'*131072); sys.stderr.flush()\n"
         + "  received=sys.stdin.buffer.read(); assert received == ('synthetic.'+'q'*160000+'.opaque\\n').encode()\n"
@@ -2649,6 +2877,481 @@ def test_github_native_namespace_exact_root_and_existing_children_only(
         assert observed == []
 
 
+def _publisher_job_rows(
+    status: str = "completed", conclusion: str | None = "success"
+) -> list[dict[str, Any]]:
+    """Exact synthetic native job fields for the three current-run predecessors."""
+    return [
+        {
+            "id": index,
+            "name": name,
+            "run_id": 123,
+            "run_attempt": 1,
+            "head_sha": "a" * 40,
+            "head_branch": "main",
+            "run_url": "https://api.github.com/repos/"
+            + source.GHCR_REPOSITORY
+            + "/actions/runs/123",
+            "status": status if name == "publish" else "completed",
+            "conclusion": conclusion if name == "publish" else "success",
+        }
+        for index, name in enumerate(("build", "security-scan", "publish"), 101)
+    ]
+
+
+def _writer_ordering_fixture(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    snapshots: list[list[dict[str, Any]] | BaseException],
+    *,
+    fault: str | None = None,
+    cleanup_hold: bool = False,
+) -> tuple[Path, Path, Path, list[str], dict[str, Any]]:
+    """Real promotion, page reader and inventory; synthetic transport and clock only."""
+    real_pages = source.GitHubRead.pages
+    real_inventory = source.existing_public_package
+    root, work, config, trace, manifest = _promotion_fixture(
+        monkeypatch, tmp_path, cleanup_hold=cleanup_hold
+    )
+    parent = source.GitHubRead
+    clock = [100.0]
+    state: dict[str, Any] = {
+        "reads": 0,
+        "sleeps": [],
+        "deadlines": [],
+        "inventory": [],
+        "read_effects": [],
+    }
+    inventory = _PublicPackageInventoryAPI(101 if fault == "overlap" else 1)
+    expected_jobs = "/repos/" + source.GHCR_REPOSITORY + "/actions/runs/123/attempts/1/jobs"
+
+    class API(parent):
+        pages = real_pages
+
+        def __init__(self, private: Path, evidence: Path, deadline: float, cleanup: int) -> None:
+            super().__init__(private, evidence, deadline, cleanup)
+            state["deadlines"].append(deadline)
+            if fault == "expired":
+                clock[0] = deadline
+
+        def json(self, endpoint: str) -> dict[str, Any]:
+            if endpoint == expected_jobs + "?per_page=100&page=1":
+                state["deadlines"].append(self.deadline)
+                index = state["reads"]
+                state["reads"] += 1
+                if fault == "page-native" and index == 3:
+                    raise source.QualificationError("GitHub_native_failed")
+                observation = snapshots[min(index // 2, len(snapshots) - 1)]
+                state["read_effects"].append(tuple(trace))
+                assert not config.exists() and "candidate" not in trace and "package" not in trace
+                if isinstance(observation, BaseException):
+                    raise observation
+                count: Any = len(observation)
+                if fault == "count-drift" and index == 1:
+                    count += 1
+                elif fault == "count-bool":
+                    count = True
+                elif fault == "count-string":
+                    count = "3"
+                elif fault == "count-large":
+                    count = 101
+                elif fault == "count-negative":
+                    count = -1
+                if fault == "count-missing":
+                    return {"jobs": observation}
+                rows = copy.deepcopy(observation)
+                if fault == "metadata-pending" and index == 0:
+                    rows[-1].update(status="queued", conclusion=None)
+                if fault == "bad-page" and index == 1:
+                    return {"total_count": count, "jobs": None}
+                return {"total_count": count, "jobs": rows}
+            if endpoint == "/repos/" + source.GHCR_REPOSITORY:
+                return inventory.json(endpoint)
+            if fault == "main-after-wait" and endpoint.endswith("/git/ref/heads/main"):
+                return {"object": {"sha": "b" * 40}}
+            return super().json(endpoint)
+
+        def _capture(self, argv: list[str], maximum: int, **kwargs: Any) -> bytes:
+            if argv[-1].startswith(source.GHCR_REQUESTS[1]):
+                if argv[-1] == source.GHCR_REQUESTS[1] and inventory.package_reads % 2 == 0:
+                    trace.append("package")
+                state["inventory"].append(argv[-1])
+                selection = manifest["selection"]
+                tag = "prometheus-3.15.0-" + selection["manifest_digest"][7:]
+                inventory.pages[1] = source.canonical_data(
+                    [
+                        {
+                            "id": 1,
+                            "name": selection["manifest_digest"],
+                            "metadata": {"container": {"tags": [tag] if "copy" in trace else []}},
+                        }
+                    ]
+                )
+                if fault == "overlap":
+                    inventory.pages[1] = source.canonical_data([{"id": i} for i in range(1, 101)])
+                    inventory.pages[2] = source.canonical_data([{"id": 100}])
+                elif fault == "inventory-count":
+                    inventory.package["version_count"] = 2
+                elif fault == "inventory-tag":
+                    inventory.pages[1] = source.canonical_data(
+                        [
+                            {
+                                "id": 1,
+                                "name": "sha256:" + "f" * 64,
+                                "metadata": {"container": {"tags": [tag]}},
+                            }
+                        ]
+                    )
+                elif fault == "post-copy-count" and "copy" in trace:
+                    inventory.package["version_count"] = 2
+                return inventory._capture(argv, maximum)
+            return super()._capture(argv, maximum, **kwargs)
+
+    def sleep(seconds: float) -> None:
+        state["sleeps"].append(seconds)
+        assert "candidate" not in trace and "package" not in trace and not config.exists()
+        if fault == "interrupt":
+            raise KeyboardInterrupt("synthetic publisher interruption")
+        clock[0] += seconds
+
+    monkeypatch.setattr(source, "GitHubRead", API)
+    monkeypatch.setattr(source, "existing_public_package", real_inventory)
+    monkeypatch.setattr(source.time, "monotonic", lambda: clock[0])
+    monkeypatch.setattr(source.time, "sleep", sleep)
+    return root, work, config, trace, state
+
+
+@pytest.mark.parametrize("pending", [False, True])
+@pytest.mark.parametrize("metadata_progress", [False, True])
+def test_promote_waits_for_same_run_writer_before_real_inventory(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, pending: bool, metadata_progress: bool
+) -> None:
+    snapshots = (
+        [_publisher_job_rows("queued", None), _publisher_job_rows("in_progress", None)]
+        if pending
+        else []
+    ) + [_publisher_job_rows()]
+    root, work, config, trace, state = _writer_ordering_fixture(
+        monkeypatch, tmp_path, snapshots, fault="metadata-pending" if metadata_progress else None
+    )
+    result = source.promote_image(work, root, 1800, 120)
+    assert result["copy_invocations"] == 1
+    assert state["reads"] == 2 * len(snapshots)
+    assert state["sleeps"] == ([60, 60] if pending else [])
+    assert set(state["deadlines"]) == {1900.0}
+    assert state["read_effects"] == [("event",)] * state["reads"]
+    assert trace.index("candidate") < trace.index("package") < trace.index("login")
+    assert sum("versions?" in endpoint for endpoint in state["inventory"]) == 2
+    assert trace[-1] == "owned-cleanup" and not config.exists()
+
+
+@pytest.mark.parametrize("name", ["build", "security-scan", "publish"])
+@pytest.mark.parametrize(
+    "field,bad",
+    [
+        ("id", True),
+        ("id", 0),
+        ("id", -1),
+        ("id", "3"),
+        ("run_id", True),
+        ("run_id", 124),
+        ("run_attempt", True),
+        ("run_attempt", 2),
+        ("head_sha", "b" * 40),
+        ("head_branch", "other"),
+        ("run_url", "https://api.github.com/repos/foreign/repo/actions/runs/123"),
+        ("run_url", "https://api.github.com/repos/" + source.GHCR_REPOSITORY + "/actions/runs/124"),
+    ],
+)
+def test_promote_writer_rejects_wrong_native_job_identity(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, name: str, field: str, bad: Any
+) -> None:
+    rows = _publisher_job_rows()
+    next(row for row in rows if row["name"] == name)[field] = bad
+    root, work, config, trace, state = _writer_ordering_fixture(monkeypatch, tmp_path, [rows])
+    with pytest.raises(source.QualificationError, match="^publisher_selected_job_identity$"):
+        source.promote_image(work, root, 1800, 120)
+    assert state["reads"] == 2 and not state["sleeps"]
+    assert "candidate" not in trace and not state["inventory"] and not config.exists()
+    assert trace[-1] == "owned-cleanup"
+
+
+@pytest.mark.parametrize(
+    "fault,diagnostic",
+    [
+        ("missing", "publisher_selected_job_cardinality"),
+        ("duplicate", "publisher_selected_job_cardinality"),
+        ("own-job", "publisher_selected_job_cardinality"),
+        ("id-missing", "publisher_selected_job_identity"),
+        ("status-missing", "publisher_backend_publish_state"),
+        ("conclusion-missing", "publisher_backend_publish_state"),
+        ("unknown-status", "publisher_backend_publish_state"),
+        ("pending-success", "publisher_backend_publish_state"),
+        ("build-pending", "publisher_positive_build_security_predecessors"),
+        ("security-failed", "publisher_positive_build_security_predecessors"),
+    ],
+)
+def test_promote_writer_rejects_incomplete_or_ambiguous_jobs(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, fault: str, diagnostic: str
+) -> None:
+    rows = _publisher_job_rows()
+    if fault == "missing":
+        rows.pop()
+    elif fault == "duplicate":
+        rows.append({**rows[-1], "id": 4})
+    elif fault == "own-job":
+        rows[-1]["name"] = "prometheus-publish"
+    elif fault.endswith("-missing"):
+        del rows[-1][fault.removesuffix("-missing")]
+    elif fault == "unknown-status":
+        rows[-1]["status"] = "waiting"
+    elif fault == "pending-success":
+        rows[-1]["status"] = "in_progress"
+    elif fault == "build-pending":
+        rows[0].update(status="in_progress", conclusion=None)
+    else:
+        rows[1]["conclusion"] = "failure"
+    root, work, config, trace, state = _writer_ordering_fixture(monkeypatch, tmp_path, [rows])
+    with pytest.raises(source.QualificationError, match="^" + diagnostic + "$"):
+        source.promote_image(work, root, 1800, 120)
+    assert "candidate" not in trace and not state["inventory"] and not config.exists()
+
+
+@pytest.mark.parametrize(
+    "conclusion",
+    [None, "failure", "cancelled", "skipped", "neutral", "timed_out", "action_required", "unknown"],
+)
+def test_promote_writer_requires_positive_completion(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, conclusion: str | None
+) -> None:
+    root, work, config, trace, state = _writer_ordering_fixture(
+        monkeypatch, tmp_path, [_publisher_job_rows("completed", conclusion)]
+    )
+    with pytest.raises(source.QualificationError, match="^publisher_backend_publish_success$"):
+        source.promote_image(work, root, 1800, 120)
+    assert state["reads"] == 2 and not state["sleeps"]
+    assert "candidate" not in trace and not config.exists()
+
+
+@pytest.mark.parametrize(
+    "fault,diagnostic",
+    [
+        ("count-drift", "GitHub_page_count_drift"),
+        ("bad-page", "GitHub_page_shape"),
+        ("count-bool", "publisher_jobs_count"),
+        ("count-string", "publisher_jobs_count"),
+        ("count-large", "publisher_jobs_count"),
+        ("count-negative", "publisher_jobs_count"),
+        ("count-missing", "publisher_jobs_count"),
+    ],
+)
+def test_promote_writer_rejects_native_count_and_page_failures(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, fault: str, diagnostic: str
+) -> None:
+    root, work, config, trace, state = _writer_ordering_fixture(
+        monkeypatch, tmp_path, [_publisher_job_rows()], fault=fault
+    )
+    with pytest.raises(source.QualificationError, match="^" + diagnostic + "$"):
+        source.promote_image(work, root, 1800, 120)
+    assert state["reads"] == (2 if fault in {"count-drift", "bad-page"} else 1)
+    assert not state["sleeps"] and not state["inventory"] and "candidate" not in trace
+    assert not config.exists()
+
+
+@pytest.mark.parametrize("fault", ["regression", "build-id", "security-id", "publish-id"])
+def test_promote_writer_rejects_observed_state_or_identity_regression(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, fault: str
+) -> None:
+    rows = _publisher_job_rows("queued", None) if fault == "regression" else _publisher_job_rows()
+    if fault != "regression":
+        rows[{"build-id": 0, "security-id": 1, "publish-id": 2}[fault]]["id"] += 10
+    root, work, config, trace, state = _writer_ordering_fixture(
+        monkeypatch, tmp_path, [_publisher_job_rows("in_progress", None), rows]
+    )
+    diagnostic = (
+        "publisher_backend_publish_regression"
+        if fault == "regression"
+        else "publisher_selected_job_identity_drift"
+    )
+    with pytest.raises(source.QualificationError, match="^" + diagnostic + "$"):
+        source.promote_image(work, root, 1800, 120)
+    assert state["reads"] == 4 and state["sleeps"] == [60]
+    assert not state["inventory"] and "candidate" not in trace and not config.exists()
+
+
+@pytest.mark.parametrize(
+    "fault,seconds,reads,sleeps,diagnostic",
+    [
+        (None, 1800, 32, [60] * 15, "publisher_backend_publish_wait_bound"),
+        (None, 61, 4, [60, 1], "qualification_deadline"),
+        ("expired", 60, 0, [], "qualification_deadline"),
+        ("interrupt", 1800, 2, [60], "synthetic publisher interruption"),
+    ],
+)
+def test_promote_writer_wait_shares_original_deadline_and_cleanup(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    fault: str | None,
+    seconds: int,
+    reads: int,
+    sleeps: list[int],
+    diagnostic: str,
+) -> None:
+    root, work, config, trace, state = _writer_ordering_fixture(
+        monkeypatch, tmp_path, [_publisher_job_rows("in_progress", None)], fault=fault
+    )
+    error = KeyboardInterrupt if fault == "interrupt" else source.QualificationError
+    with pytest.raises(error, match="^" + diagnostic + "$"):
+        source.promote_image(work, root, seconds, 120)
+    assert state["reads"] == reads and state["sleeps"] == sleeps
+    assert set(state["deadlines"]) == {100.0 + seconds}
+    assert trace[-1] == "owned-cleanup" and not config.exists()
+    assert "candidate" not in trace and not state["inventory"]
+
+
+@pytest.mark.parametrize(
+    "diagnostic", ["GitHub_native_failed", "GitHub_page_shape", "duplicate_JSON_key"]
+)
+@pytest.mark.parametrize("cleanup_hold", [False, True])
+def test_promote_writer_failed_read_is_terminal_and_keeps_primary(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    diagnostic: str,
+    cleanup_hold: bool,
+) -> None:
+    root, work, config, trace, state = _writer_ordering_fixture(
+        monkeypatch,
+        tmp_path,
+        [_publisher_job_rows("queued", None), source.QualificationError(diagnostic)],
+        cleanup_hold=cleanup_hold,
+    )
+    with pytest.raises(source.QualificationError, match="^" + diagnostic + "$"):
+        source.promote_image(work, root, 1800, 120)
+    assert state["reads"] == 3 and state["sleeps"] == [60]
+    assert "candidate" not in trace and not config.exists() and not state["inventory"]
+    assert (work / "GitHub-private").exists() is cleanup_hold
+    assert ("Publisher cleanup also failed:" in capsys.readouterr().err) is cleanup_hold
+
+
+@pytest.mark.parametrize("field", ["GITHUB_RUN_ID", "GITHUB_RUN_ATTEMPT"])
+@pytest.mark.parametrize("value", ["", "0", "01", "-1", "1.0", " 1", "1\n", "١"])
+def test_promote_writer_coordinates_are_canonical_positive_decimal(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, field: str, value: str
+) -> None:
+    root, work, config, trace, state = _writer_ordering_fixture(
+        monkeypatch, tmp_path, [_publisher_job_rows()]
+    )
+    monkeypatch.setenv(field, value)
+    with pytest.raises(source.QualificationError, match="^publisher_run_attempt_coordinates$"):
+        source.promote_image(work, root, 1800, 120)
+    assert state["reads"] == 0 and not state["inventory"] and "candidate" not in trace
+    assert not config.exists()
+
+
+@pytest.mark.parametrize(
+    "fault,diagnostic",
+    [
+        ("main-after-wait", "publisher_main_before_inventory"),
+        ("overlap", "package_pagination_distinct"),
+        ("inventory-count", "package_complete_inventory_count"),
+        ("inventory-tag", "immutable_tag_existing_other_subject_HOLD"),
+        ("post-copy-count", "package_complete_inventory_count"),
+    ],
+)
+def test_promote_writer_success_does_not_bypass_main_or_package_guards(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, fault: str, diagnostic: str
+) -> None:
+    root, work, config, trace, state = _writer_ordering_fixture(
+        monkeypatch,
+        tmp_path,
+        [_publisher_job_rows("in_progress", None), _publisher_job_rows()],
+        fault=fault,
+    )
+    with pytest.raises(source.QualificationError, match="^" + diagnostic + "$"):
+        source.promote_image(work, root, 1800, 120)
+    assert state["reads"] == 4 and state["sleeps"] == [60]
+    assert ("copy" in trace) is (fault == "post-copy-count")
+    assert not config.exists() and not (work / "evidence/publication.json").exists()
+    if fault == "main-after-wait":
+        assert not state["inventory"]
+
+
+def test_promote_known_writer_order_has_frozen_acyclic_workflow() -> None:
+    import yaml
+
+    raw = (Path(__file__).resolve().parents[1] / ".github/workflows/build.yml").read_bytes()
+    assert (
+        hashlib.sha256(raw).hexdigest()
+        # pragma: allowlist nextline secret - public frozen build workflow digest
+        == "6530b5170bb6bd3e3186d21ba7e88cb91e52bcd13a0083788a06119df059038c"
+    )
+    jobs = yaml.safe_load(raw)["jobs"]
+    assert jobs["publish"]["needs"] == ["build", "security-scan"]
+    assert jobs["prometheus-publish"]["needs"] == ["build", "security-scan"]
+
+
+@pytest.mark.parametrize("variant", ["equal-boundary", "changed-boundary", "within", "nonadjacent"])
+def test_public_package_inventory_retains_observed_overlap_rejection(variant: str) -> None:
+    """Replay the retained page5/page6 ID boundary with deterministic transport rows."""
+    api = _PublicPackageInventoryAPI(16575)
+    row = {"id": 1306109302, "metadata": {"container": {"tags": []}}}
+    fifth = [{"id": value} for value in range(401, 500)] + [row]
+    sixth = [copy.deepcopy(row)] + [{"id": value} for value in range(502, 601)]
+    expected_page = 6
+    if variant == "changed-boundary":
+        sixth[0]["metadata"]["container"]["tags"] = ["changed"]
+    elif variant == "within":
+        fifth[-2] = copy.deepcopy(row)
+        expected_page = 5
+    elif variant == "nonadjacent":
+        api.pages[3] = source.canonical_data([{"id": value} for value in range(201, 300)] + [row])
+        fifth[-1] = {"id": 500}
+    api.pages[5] = source.canonical_data(fifth)
+    api.pages[6] = source.canonical_data(sixth)
+    with pytest.raises(source.QualificationError, match="^package_pagination_distinct$"):
+        source.existing_public_package(api)
+    assert [page for page, _ in api.version_requests] == list(range(1, expected_page + 1))
+    assert api.repository_reads == api.package_reads == 1
+
+
+@pytest.mark.parametrize(
+    "fault", ["100-jobs", "queued-again", "page-native", "duplicate-native-id"]
+)
+def test_promote_writer_polling_obeys_complete_native_snapshot_boundary(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, fault: str
+) -> None:
+    complete = _publisher_job_rows()
+    if fault == "100-jobs":
+        complete += [{"id": value, "name": "other"} for value in range(200, 297)]
+        snapshots = [complete]
+    elif fault == "duplicate-native-id":
+        complete[-1]["id"] = complete[0]["id"]
+        snapshots = [complete]
+    else:
+        snapshots = [
+            _publisher_job_rows("queued", None),
+            _publisher_job_rows("queued", None),
+            complete,
+        ]
+    root, work, config, trace, state = _writer_ordering_fixture(
+        monkeypatch, tmp_path, snapshots, fault=fault
+    )
+    if fault in {"page-native", "duplicate-native-id"}:
+        diagnostic = (
+            "GitHub_native_failed" if fault == "page-native" else "GitHub_complete_distinct_pages"
+        )
+        with pytest.raises(source.QualificationError, match="^" + diagnostic + "$"):
+            source.promote_image(work, root, 1800, 120)
+        assert state["reads"] == (4 if fault == "page-native" else 2)
+        assert not state["inventory"] and "candidate" not in trace
+    else:
+        assert source.promote_image(work, root, 1800, 120)["copy_invocations"] == 1
+        assert state["reads"] == (2 if fault == "100-jobs" else 6)
+        assert state["sleeps"] == ([] if fault == "100-jobs" else [60, 60])
+    assert trace[-1] == "owned-cleanup" and not config.exists()
+
+
 def _promotion_fixture(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -2791,19 +3494,16 @@ def _promotion_fixture(
 
         def json(self, endpoint: str) -> dict[str, Any]:
             if "/jobs?" in endpoint:
-                return {"total_count": 2}
+                return {"total_count": 3}
             assert endpoint.endswith("/git/ref/heads/main")
             self.main_reads += 1
-            bad = rejection == "main-before-credentials" or (
-                rejection == "main-before-write" and self.main_reads == 2
+            bad = (rejection == "main-before-credentials" and self.main_reads == 2) or (
+                rejection == "main-before-write" and self.main_reads == 3
             )
             return {"object": {"sha": "c" * 40 if bad else "a" * 40}}
 
-        def pages(self, *args: Any) -> list[dict[str, str]]:
-            return [
-                {"name": name, "head_sha": "a" * 40, "conclusion": "success", "status": "completed"}
-                for name in ("build", "security-scan")
-            ]
+        def pages(self, *args: Any) -> list[dict[str, Any]]:
+            return _publisher_job_rows()
 
         def _capture(self, argv: list[str], maximum: int, **kwargs: Any) -> bytes:
             if "login" in argv:
@@ -5843,3 +6543,93 @@ def test_historical_consumer_rejects_wrong_event_and_admission_mode(
         source.consume_image(work, root, 30, 2)
     assert not reader.exists() and "login" not in trace and "candidate" not in trace
     assert "load" not in trace and not (work / "evidence/consumer.json").exists()
+
+
+@pytest.mark.parametrize("tool", [False, True])
+@pytest.mark.parametrize(
+    "changed", ["scripts/ci/prometheus_source_image.py", ".github/workflows/build.yml"]
+)
+def test_public_package_inventory_change_keeps_full_raw_tool_and_pair_binding(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, tool: bool, changed: str
+) -> None:
+    manifest = {"schema": source.IMAGE_SCHEMA, "inputs": {"oras": {"retained": None}}}
+    files = {name: b"synthetic frozen producer bytes" for name in source.PRODUCER_FILES}
+    files[source.MANIFEST_PATH] = source.canonical_data(manifest)
+    for name, raw in files.items():
+        path = tmp_path / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(raw)
+
+    class FrozenSourceAPI:
+        def source_files(self, revision: str, names: tuple[str, ...]) -> dict[str, bytes]:
+            assert revision == "1" * 40
+            assert names == (*source.PRODUCER_FILES, source.MANIFEST_PATH)
+            return dict(files)
+
+    monkeypatch.setattr(
+        source, "read_image_manifest", lambda *args, **kwargs: copy.deepcopy(manifest)
+    )
+    api = FrozenSourceAPI()
+    assert source.authenticate_producer_inputs(api, tmp_path, "1" * 40, tool=tool)
+    files[changed] += b" changed"
+    with pytest.raises(source.QualificationError, match="full_raw_producer_input_drift"):
+        source.authenticate_producer_inputs(api, tmp_path, "1" * 40, tool=tool)
+
+
+@pytest.mark.parametrize("stdout_bytes", [512 * 1024, 128 * 1024])
+@pytest.mark.parametrize("extra", [0, 1])
+def test_public_package_inventory_real_capture_combined_stream_bound_and_cleanup(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, stdout_bytes: int, extra: int
+) -> None:
+    """Real owned pipes/process; synthetic CLI data, no provider or native-capacity claim."""
+    shape = "stderr" if stdout_bytes == 128 * 1024 else "balanced"
+    outcome = "over" if extra else "exact"
+    runner, trace, gh = _fixed_native_capture_fixture(
+        tmp_path, f"combined_{shape}_{outcome}", "GitHubRead"
+    )
+    for key in ("GH_TOKEN", "GITHUB_TOKEN", "GHCR_READ_TOKEN", "GHCR_TOKEN"):
+        monkeypatch.delenv(key, raising=False)
+    credential = "synthetic.capture." + "opaque." * 80
+    monkeypatch.setenv("GH_TOKEN", credential)
+    monkeypatch.setenv("GITHUB_TOKEN", "synthetic.capture.writer")
+    monkeypatch.setattr(source, "INTERRUPTIONS", [])
+    monkeypatch.setattr(source.shutil, "which", lambda name: str(gh) if name == "gh" else None)
+    monkeypatch.setattr(
+        source.Native, "run", lambda *args, **kwargs: pytest.fail("credential-bearing Native.run")
+    )
+    evidence = runner / "evidence"
+    evidence.mkdir()
+    private = runner / "private"
+    adapter = source.GitHubRead(private, evidence, source.time.monotonic() + 8, 2)
+    try:
+        if extra:
+            with pytest.raises(source.QualificationError, match="^GitHub_native_output_bound$"):
+                adapter._capture([str(gh), "combined-output"], 1024**2)
+            assert adapter.cleanup_deadline is not None
+            assert not any(
+                (evidence / f"GitHub-2.{suffix}").exists()
+                for suffix in ("json", "stdout", "stderr")
+            )
+        else:
+            raw = adapter._capture([str(gh), "combined-output"], 1024**2)
+            stderr = (evidence / "GitHub-2.stderr").read_bytes()
+            assert raw == b"o" * stdout_bytes
+            assert stderr == b"e" * (1024**2 - stdout_bytes)
+            assert len(raw) + len(stderr) == 1024**2
+            assert adapter.cleanup_deadline is None
+        assert adapter.process is None
+        assert adapter.seen == {}
+    finally:
+        adapter.close()
+    assert not private.exists()
+    assert adapter.process is None and adapter.seen == {}
+    commands = [json.loads(line)["argv"] for line in trace.read_text().splitlines()]
+    assert commands == [["auth", "status", "--hostname", "github.com"], ["combined-output"]]
+    pid = int(trace.with_suffix(".capture-pid").read_text())
+    group = int(trace.with_suffix(".capture-group").read_text())
+    rows = source.process_census(source.time.monotonic() + 2, ())
+    assert pid not in rows
+    assert not any(row["pgid"] == group for row in rows.values())
+    for path in evidence.iterdir():
+        raw = path.read_bytes()
+        assert credential.encode() not in raw and b"synthetic.capture.writer" not in raw

@@ -84,6 +84,27 @@ and create a new epoch after the config change; leave eligibility `HOLD` when
 any exact series is absent or positive. No rule-file merge alone proves that
 the host loaded the new rules.
 
+### Retained Prometheus publisher inventory
+
+The main-only publisher in `scripts/ci/prometheus_source_image.py:7791` waits for
+the exact same-repository run/attempt/head backend `publish` job to finish with
+`completed/success` before candidate preparation and package inventory. The wait
+includes that job's registry attestations. It uses at most 16 complete jobs
+observations and 15 clipped 60-second sleeps within the existing 1800-second work
+deadline; cleanup retains its separate 120-second limit. Missing, ambiguous or
+unsuccessful jobs and failed API reads stop publication. Known-writer completion
+does not establish registry-wide quiescence.
+
+The existing package owner admits at most 20,000 versions, with a 1 MiB combined
+native capture per page and 64 MiB aggregate versions stdout. It must read the
+actual short or empty terminal page, reconcile the complete count and distinct
+IDs, and recheck package/repository identity and count. An overlapping page,
+count drift, tag collision or resource-limit failure remains `HOLD`; retain its
+raw evidence rather than deduplicating rows or restarting an incomplete window.
+The three deploy readers bind the complete helper bytes. The original retained
+producer, copier, image and recipe identities remain independent of this current
+consumer/publisher repair; publication still copies saved bytes without rebuilding.
+
 ### Optional Alertmanager email routing (OBS2A PR2)
 
 The three Compose contours declare the `alerting` profile, which remains off
