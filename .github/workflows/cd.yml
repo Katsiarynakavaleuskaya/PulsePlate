@@ -104,7 +104,7 @@ env:
   IMAGE_NAME: ${{ github.repository }}
   # Phase values are workflow-owned. Code validates ceilings without fallback values.
   # ROOT designates this immutable controller only after concrete review and publication.
-  ALERTMANAGER_CONTROLLER_SOURCE: ''
+  ALERTMANAGER_CONTROLLER_SOURCE: '22758996ca1af7fe125536ab3db9a26425c44a8a'
   ALERTMANAGER_PREPARATION_MINUTES: '14'
   ALERTMANAGER_NATIVE_STEP_MINUTES: '42'
   ALERTMANAGER_LIVE_SECURITY_MINUTES: '32'
