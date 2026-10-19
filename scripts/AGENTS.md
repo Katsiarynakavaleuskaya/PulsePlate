@@ -368,6 +368,18 @@
   candidate with registry credentials. Preserve original producer provenance,
   SPDX, immutable tag collision checks and byte-identical pullback. Existing
   promtool/runtime/security checks remain mandatory and suppression-free.
+- Public package inventory requires the actual count-derived short or empty
+  terminal page, distinct native IDs, exact count and identity/count readback.
+  Keep the finite limits: 20,000 versions, 1 MiB combined stdout/stderr per page
+  capture and 64 MiB aggregate versions stdout. Never deduplicate, admit partial
+  inventory, stop at a matching tag or retry failed reads.
+- Before candidate preparation or first inventory, main promotion must observe
+  the exact same-run/attempt/head backend `publish` job completed with success;
+  build and security predecessors remain mandatory. Poll only valid pending
+  states: at most 16 snapshots, 32 jobs GETs and 15 sleeps of 60 seconds clipped
+  to the inherited deadline. Waiting shares the existing 1,800-second work
+  budget and 120-second cleanup cap; it does not renew them or prove global
+  registry quiescence. Preserve all subsequent package and current-main guards.
 - Deploy readers execute only the separately SHA-bound standalone helper;
   incoming archives are material/data. Root merge, deployment, credentials,
   volume changes and observation clocks retain their existing authority gates.
