@@ -323,14 +323,14 @@
         "-ldflags=-X oras.land/oras/internal/version.Version=1.3.4 -X oras.land/oras/internal/version.GitCommit=db9e29505c3059f2b8fde34ae8cae266c5c765e9 -X oras.land/oras/internal/version.BuildMetadata= -X oras.land/oras/internal/version.GitTreeState=clean"
       ],
       "retained": {
-        "source_head": "9c1b48f8b3a63bf827543cf69090505c1f157fc6",
-        "run_id": 39020247533,
-        "artifact_id": 12096756048,
-        "artifact_name": "prometheus-oras-39020247533-1",
-        "artifact_digest": "sha256:a3c459d33b38a745dd6b24b3014640f4bb9f48a2bb2e0107ae2cc5188a99dca4",
+        "source_head": "a18d636138bbab67e96c902b1c61f690263c8b55",
+        "run_id": 38269614712,
+        "artifact_id": 11755354665,
+        "artifact_name": "prometheus-oras-38269614712-1",
+        "artifact_digest": "sha256:1dabc3dc1cbf3bbb314c02f76fe8d32eb8f7c5bf07055b0d155862d6085f5b7b",
         "binary_sha256": "8c88339f9c1da7826734fa67fff5802ec9be6673a5e7db869758be96412fd9bf",
         "binary_bytes": 18507104,
-        "input_digest": "sha256:6e993b4c790a95676afedcd23191da8beacb1bbb7a85257baa2219276531dfe0"
+        "input_digest": "sha256:3fe854ed2a252a330e44702396f7bdc26703c047fb65a80183ed621ad1d4d08c"
       }
     },
     "platform": "linux/amd64",
@@ -473,13 +473,13 @@
     "producer": {
       "workflow_id": 199904435,
       "workflow_path": ".github/workflows/build.yml",
-      "source_head": "e2b86644a9a0264098f57f1bbca5914a3438fbe6",
-      "source_ref": "refs/heads/codex/consolidate-legacy-ownership-guard",
-      "pr_number": 2476,
-      "run_id": 39033193167,
+      "source_head": "b732222719f70fa592218d2255324850843e9eea",
+      "source_ref": "refs/heads/codex/dependency-native-runtime-remediation",
+      "pr_number": 2477,
+      "run_id": 38291450453,
       "run_attempt": 1,
       "job_ids": [
-        117397709770
+        114952275845
       ],
       "raw_producer": {
         ".github/workflows/build.yml": {
@@ -491,28 +491,28 @@
           "sha256": "544b1a116963f57ef3f4fe59e4aac41c03a26029babd36496e9e39ed3d514778"
         },
         "scripts/ci/prometheus_source_image.py": {
-          "bytes": 328955,
-          "sha256": "2cf12999d73fc2e783ede78ba118c19484dc186b340d7acc0fed1ce8199fd94f"
+          "bytes": 315949,
+          "sha256": "0e7a73b0159c442cf5f9377aa862e38d643145f81ac6a54ee50b31682f6c3e3e"
         }
       },
-      "input_projection_sha256": "a9529264210048e78dee128371a162bf1d90aa0b7371aec749bc44ff6ba3953a"
+      "input_projection_sha256": "ba5f3d0490f538f0884ebf965781020eb4ff05134918d5c8aa97653bce4cfd27"
     },
     "artifact": {
-      "id": 12101780971,
-      "name": "prometheus-source-candidate-39033193167-1",
-      "digest": "sha256:688d212da99e8e87fe376936770fc3d4a0c675ee5b84c8d2a0724a6f1a081114",
-      "size": 944756338,
-      "expires_at": "2027-01-15T12:36:28Z",
-      "archive_sha256": "688d212da99e8e87fe376936770fc3d4a0c675ee5b84c8d2a0724a6f1a081114"
+      "id": 11767273029,
+      "name": "prometheus-source-candidate-38291450453-1",
+      "digest": "sha256:7171ba69ef60b96bd979b3bf02e5554c77d41ecafda5d8f18978b12003af62c8",
+      "size": 931804024,
+      "expires_at": "2027-01-10T18:31:10Z",
+      "archive_sha256": "7171ba69ef60b96bd979b3bf02e5554c77d41ecafda5d8f18978b12003af62c8"
     },
     "outputs": {
       "oci_archive_sha256": "ff9ad00fa774c140e1af1f0d4ac8fb5af095fcb7a9eb56447f467d906557c15a",
       "docker_archive_sha256": "338015d0d034fa1fdc412b931bbbce643a1e5683cd5b46c8549b8f52ddfd7347",
-      "pair_report_sha256": "574cf099110e9519b962c395d6a80d187cbc1a0af7376f5617b0b0f0ec3bc71a",
+      "pair_report_sha256": "f98840ffec3d73c3aa467dc3fd8025ce8515f1e7e2c4171dd45525efb76666bb",
       "native_report_sha256": "0be3fdf165a60fb47fd0adc6560cf2fbbacf2dcfd5642b3b02d61ad5b83a7c87",
-      "spdx_sha256": "7a2a305c8c0feaac2f01aaf13b237d29964316517aabb10018149ded71c00298",
-      "provenance_bundle_sha256": "6d09af8a9a21ada282cb7fcb0f05446e87b4d6cc0077c5f94806584921f1b597",
-      "sbom_bundle_sha256": "cd25cb6c07a240fd65d1dc51d36dbc4558cd9567a6a7ba4ea834226aaae67ce1"
+      "spdx_sha256": "05b6faa6a1e0c3e24d20b43290a45a2ec7c2b86a2c8e3a5c0f78a021ca5ebf7d",
+      "provenance_bundle_sha256": "ecbf52750d291ed6747a030e6fe51240ec0ab4083e1ce2d38f2dd2429338ad11",
+      "sbom_bundle_sha256": "55361c4b584a291c2ed92004ae9eeedc4b5cad3a89b5a3056823a1b41587ba59"
     }
   }
 }
