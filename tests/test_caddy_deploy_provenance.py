@@ -185,17 +185,16 @@ def test_alertmanager_inspection_shell_rejects_bad_selectors_before_reader(
         _steps(_job(_workflow(CD_WORKFLOW), "alertmanager-input-inspection")),
         "Inspect authenticated retained Alertmanager inputs and read existing package metadata",
     )
-    binaries = tmp_path / "bin"
-    binaries.mkdir()
-    git = binaries / "git"
-    git.write_text('#!/bin/sh\nprintf "%s\\n" "$GITHUB_SHA"\nexit "$SYNTHETIC_GIT_EXIT"\n')
-    git.chmod(0o755)
-    python = binaries / "python3"
-    python.write_text('#!/bin/sh\nprintf "%s\\n" "$@" > "$READER_MARKER"\n')
-    python.chmod(0o755)
+    # Keep transport stubs in this shell: selector validation must not depend
+    # on launching generated executables. The existing five-second timeout
+    # remains a hang guard for the finite shell program.
+    program = (
+        'git() { printf "%s\\n" "$GITHUB_SHA"; return "$SYNTHETIC_GIT_EXIT"; }\n'
+        'python3() { printf "%s\\n" "$@" > "$READER_MARKER"; }\n' + step["run"]
+    )
     marker = tmp_path / "reader.args"
     env = {
-        "PATH": str(binaries),
+        "PATH": str(tmp_path / "absent"),
         "HOME": str(tmp_path),
         "GH_CONFIG_DIR": str(tmp_path / "gh"),
         "GH_TOKEN": "synthetic-test-token",
@@ -223,7 +222,7 @@ def test_alertmanager_inspection_shell_rejects_bad_selectors_before_reader(
     elif fault == "qualification-source":
         env["QUALIFICATION_SOURCE"] = "HEAD"
     result = subprocess.run(
-        ["/bin/bash", "-c", step["run"]],
+        ["/bin/bash", "-c", program],
         env=env,
         cwd=tmp_path,
         stdin=subprocess.DEVNULL,
