@@ -615,7 +615,7 @@ def test_prometheus_cd_registry_credential_route_preserves_base_execution_bounda
     assert (
         control["with"]["ref"]
         # pragma: allowlist nextline secret - public trusted control commit
-        == "ef9e369052751d47c04f651f7d615714d918fc16"
+        == "3dd9ed1a095c03937e381e79dd2a386bcea05f54"
     )
     assert control["with"]["persist-credentials"] is False
     assert control["with"]["sparse-checkout"] == "scripts/ci/prometheus_source_image.py"
@@ -627,15 +627,15 @@ def test_prometheus_cd_registry_credential_route_preserves_base_execution_bounda
     )
     for script in (route["run"], consumer["run"]):
         assert "Prometheus_control_interface_HOLD" in script
-        assert "328857" in script
+        assert "333502" in script
         assert (
             # pragma: allowlist nextline secret - public trusted control blob
-            "9d921263edf33797988e0200015f27469ba848ec"
+            "49a8f31040a500a86da72126a5b4a491144ad0e9"
             in script
         )
         assert (
             # pragma: allowlist nextline secret - public trusted control digest
-            "0fedf3e9ac865fe2b89a3367e5e4065e1c0c28fca88465c7f2b41775dbf4070a"
+            "95ad21d28bb79f2a772677befb3d824cd1de01d1555c932c61307c3cd07a0fd0"
             in script
         )
     assert 'trusted["consume_image"](work, material' in consumer["run"]

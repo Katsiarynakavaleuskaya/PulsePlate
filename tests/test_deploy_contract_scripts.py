@@ -3981,7 +3981,7 @@ def test_prometheus_cd_uses_authenticated_finite_consumer_and_retains_strict_sca
     assert "python3 -I -S" in consumer["run"]
     fixed = steps["Checkout fixed trusted Prometheus control"]
     assert fixed["with"] == {
-        "ref": "ef9e369052751d47c04f651f7d615714d918fc16",  # pragma: allowlist secret - public trusted control commit
+        "ref": "3dd9ed1a095c03937e381e79dd2a386bcea05f54",  # pragma: allowlist secret - public trusted control commit
         "persist-credentials": False,
         "path": "artifacts/orchestration/prometheus-control",
         "sparse-checkout": "scripts/ci/prometheus_source_image.py",
@@ -4023,10 +4023,10 @@ def test_prometheus_cd_uses_authenticated_finite_consumer_and_retains_strict_sca
         names.index(name) for name in ordered_names
     )
     for program in (classifier["run"], consumer["run"]):
-        assert "328857" in program
+        assert "333502" in program
         assert (
             # pragma: allowlist nextline secret - public trusted control blob
-            "9d921263edf33797988e0200015f27469ba848ec"
+            "49a8f31040a500a86da72126a5b4a491144ad0e9"
             in program
         )
         assert "Prometheus_control_interface_HOLD" in program
@@ -4159,17 +4159,17 @@ def _synthetic_fixed_prometheus_control(
     rebound = tuple(
         program.replace(
             # pragma: allowlist nextline secret - public trusted control commit
-            "ef9e369052751d47c04f651f7d615714d918fc16",
+            "3dd9ed1a095c03937e381e79dd2a386bcea05f54",
             revision,
         )
         .replace(
             # pragma: allowlist nextline secret - public trusted control blob
-            "9d921263edf33797988e0200015f27469ba848ec",
+            "49a8f31040a500a86da72126a5b4a491144ad0e9",
             blob,
         )
-        .replace("328857", str(len(raw)))
+        .replace("333502", str(len(raw)))
         .replace(
-            "0fedf3e9ac865fe2b89a3367e5e4065e1c0c28fca88465c7f2b41775dbf4070a",  # pragma: allowlist secret - public protected helper digest
+            "95ad21d28bb79f2a772677befb3d824cd1de01d1555c932c61307c3cd07a0fd0",  # pragma: allowlist secret - public protected helper digest
             hashlib.sha256(raw).hexdigest(),
         )
         for program in programs
