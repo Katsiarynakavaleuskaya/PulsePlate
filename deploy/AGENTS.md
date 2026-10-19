@@ -79,6 +79,30 @@ PRODUCTION_DOMAIN=example.com STAGING_FALLBACK_DOMAIN=staging.example.com \
   compiled default paths to it. Native system `_ssl`, HTTP/default trust,
   providers, loaded DSO hashes and database consumers must be observed on the
   final image; a custom test CA or matching version is not that proof.
+- Required native tools must come from the pinned distro provider and complete
+  stage inventory. Qualify `/bin/ps` through the unchanged bounded process census
+  under the final image user and isolation; package presence or a build-time
+  executable check alone does not prove that consumer works. A no-install RPM
+  diagnostic does not establish real installation, disk space or native ABI.
+- Preserve the original builder target. Retire only pip, pip-api, pip-tools,
+  pip-audit, virtualenv and pre-commit in an ordinary runtime-preparation stage
+  after its last operation, with native offline pip uninstall and pip last.
+  Final venv COPY uses that stage; validated native COPY still uses builder.
+  Before admitting a build that prunes tools, capture complete selected AND
+  retained native ownership/RECORD/payload/version/type/mode/link/cache and
+  shared paths. Preserve healthy build, every other distribution and default
+  plugins. Unknown ownership or a necessary retired-tool dependency stops work.
+- Positively bind the sole inherited system seed's source/RPM/type/bytes/hash
+  before retiring it and the complete ensurepip tree. Check normal-site original
+  system and venv absence independently of a usable bare --without-pip child.
+  Default CLI venv and genuine writable build isolation must fail at intended
+  bootstrap before install; unrelated project/permission failures are not proof.
+- Admission requires both genuine full vulnerability and all-severity file plus
+  image-config secret scans through the existing consumer. Bind fresh native
+  statuses/reports to the current inspected/exported OCI index, ARM manifest,
+  config and every layer; matching report pairs or optional Secrets are not
+  execution proof. Native file/config canaries and complete retained-payload
+  proof remain required; synthetic unit tests do not qualify an image.
 - Image builds may use the approved private proxy. Experiment runs must use a
   prebuilt immutable `name@sha256:<digest>` reference and must not install
   dependencies or pull images after the strict backend probe.
