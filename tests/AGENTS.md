@@ -22,6 +22,12 @@
   at an earlier prerequisite is insufficient. When a prerequisite or admission
   boundary changes, recheck every case whose intended branch evidence was
   previously masked.
+  A non-autouse fixture with module scope, defined in the owning test module,
+  may share a real complete baseline through explicit dependencies before
+  mutation only within an unchanged input/rule lifetime. Baseline errors must
+  fail setup; every mutant still runs the real complete guard and proves its
+  independent cause. Changed inputs or rules require a fresh baseline, never
+  a cached validator verdict.
 - Temporary Git repositories must use `git_env_without_parent_state()` and
   `safe_git_config_args()` from `scripts/orchestration/creative_code_patch_workspace.py`
   for Git subprocesses. Pass the sanitized environment to tools such as
@@ -47,6 +53,10 @@
   asserting real owned-resource cleanup and attempt counts. Keep actual process
   execution and timeout enforcement in their owning sandbox/integration tests;
   do not make cleanup correctness depend on host process-start latency.
+  For positive real-process exit fixtures, coordinate release after a stable owned
+  identity witness; require a fresh genuine inactive census within the original cap.
+  Keep unknown/exec identity negatives independent and retain private state when
+  ownership or cleanup absence is uncertain.
 - Main-test shard processes share one checkout and Git common directory. A
   helper that needs PR ancestry must use the already available full local graph
   before any depth-limited fetch; canonical full-history CI must never add a
@@ -800,6 +810,10 @@ rg -n "sys\.modules\.get\(\"recipe_store\"\)|recipe_store.*spec_from_file_locati
 
 ## Finite source-image producer tests
 
+- For already-approved public-checksum annotations in source-image fixtures,
+  inspect the actual literal line after formatting and rerun the real detector.
+  Keep strict checksum assertions; formatting or AST equivalence alone does not
+  prove the annotation still applies.
 - Keep metadata, synthetic format observations and actual native candidate
   evidence distinct. Synthetic selected-manifest fixtures exercise only parser
   and caller rejection; they are not authenticated artifacts or build receipts.

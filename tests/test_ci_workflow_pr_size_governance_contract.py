@@ -1153,8 +1153,8 @@ def test_all_active_checkout_uses_have_one_exact_v7_pin() -> None:
         ".github/workflows/security.yml",
         ".github/workflows/trivy.yml",
     }
-    # The original95 plus four AM jobs and four actual PR controller-use sites.
-    assert len(observed_checkout_uses) == 103
+    # Incoming91 checkout sites plus eight retained AM execution sites.
+    assert len(observed_checkout_uses) == 99
     assert {path for path, _ in observed_checkout_uses} == expected_checkout_workflows
 
 

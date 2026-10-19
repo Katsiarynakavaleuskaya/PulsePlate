@@ -2670,14 +2670,9 @@ def _assert_checkpoint_pr_selection_uses_real_git(
     else:
         selected = case == "own" and expected_selected
         assert result.returncode == 0, result.stderr
-        expected_mode = (
-            "changed_pr_candidate"
-            if selected_path == "deploy/prometheus/image-manifest.json"
-            else "unchanged_pr_published"
-        )
-        assert output.read_text() == (
-            f"selected=true\nmode={expected_mode}\n" if selected else "selected=false\n"
-        )
+        # This step owns only native surface selection; the fixed-control step
+        # separately invokes the canonical four-blob classifier before credentials.
+        assert output.read_text() == ("selected=true\n" if selected else "selected=false\n")
         assert not (tmp_path / "native-calls").exists()
         if selected:
             # The synthetic consumer exit models the separate step result. The
@@ -2824,19 +2819,27 @@ def _assert_checkpoint_pr_native_job(workflow: dict[str, object]) -> None:
     control = _named_step(steps, "Checkout fixed trusted Prometheus control")
     cleanup = _named_step(steps, "Remove fixed trusted Prometheus control checkout")
     selection = _named_step(steps, "Select native OBS2A material before PR startup")
+    classifier = _named_step(steps, "Classify the fixed regular Prometheus source blobs")
+    assert classifier["id"] == "checkpoint-route"
+    assert classifier["if"] == control["if"] == consumer["if"] == native["if"]
+    assert set(classifier["env"]) == {"PROMETHEUS_EVENT_HEAD", "PROMETHEUS_EVENT_BASE"}
+    assert "secrets." not in str(classifier)
+    assert classifier["run"].count('trusted["classify_source_change"](previous, current)') == 1
+    assert "mode=" not in selection["run"]
     # pragma: allowlist nextline secret - public trusted control commit
-    assert control["with"]["ref"] == "5064aded22f478a22a4319b684e95d6c0b3ae46f"
+    assert control["with"]["ref"] == "ef9e369052751d47c04f651f7d615714d918fc16"
     assert control["with"]["persist-credentials"] is False
     assert "python3 -I -S" in consumer["run"] and "runpy.run_path(str(helper))" in consumer["run"]
     assert consumer["env"]["GH_TOKEN"] == "${{ secrets.GITHUB_TOKEN }}"
     assert (
         consumer["env"]["GHCR_READ_TOKEN"]
-        == "${{ steps.checkpoint-selection.outputs.mode == 'unchanged_pr_published' && secrets.GITHUB_TOKEN || '' }}"
+        == "${{ steps.checkpoint-route.outputs.mode == 'unchanged_pr_published' && secrets.GITHUB_TOKEN || '' }}"
     )
     assert (
         steps.index(checkout)
         < steps.index(selection)
         < steps.index(control)
+        < steps.index(classifier)
         < steps.index(consumer)
         < steps.index(cleanup)
         < steps.index(setup)
@@ -2887,6 +2890,11 @@ def _assert_checkpoint_pr_native_job(workflow: dict[str, object]) -> None:
         ("tests/test_notify_premium_alias_checkpoint_failure.py", True),
         (".github/workflows/ci.yml", True),
         (".github/workflows/cd.yml", True),
+        ("scripts/ci/prometheus_source_image.py", True),
+        (".github/workflows/build.yml", True),
+        ("deploy/prometheus/Containerfile", True),
+        ("scripts/ci/prometheus_source_image.py.bak", False),
+        ("deploy/prometheus/Containerfile.bak", False),
         ("docs/unrelated.md", False),
         ("unrelated.txt", False),
     ],
@@ -4448,14 +4456,10 @@ def test_alertmanager_actual_caller_steps_fit_distinct_enclosing_budgets_and_ret
 
     shared = _steps(_job(workflow, "prometheus-image-security-pr"))
     pr_only = {
-        "Checkout immutable PR base Prometheus contracts",
-        "Checkout exact changed PR Prometheus contracts",
-        "Require the trusted base published consumer capability",
+        "Checkout immutable PR head Prometheus contracts",
         "Require fresh fixed Prometheus control checkout",
         "Checkout fixed trusted Prometheus control",
         "Remove fixed trusted Prometheus control checkout",
-        "Bind the unchanged PR admission after trusted cleanup",
-        "Checkout exact unchanged PR contracts after trusted cleanup",
         "Require separately designated AM controller",
         "Checkout separately designated AM controller",
         "Remove designated AM controller after credential cleanup",
@@ -4464,28 +4468,15 @@ def test_alertmanager_actual_caller_steps_fit_distinct_enclosing_budgets_and_ret
         "Verify isolated AM host import capability before effects",
         "Run full accepted AM native controls on this runner",
     }
+    assert pr_only <= {step["name"] for step in shared}
     main_steps = [step for step in shared if step["name"] not in pr_only]
     assert sum(map(minutes, main_steps)) <= 285
-    for mode in ("changed", "ordinary"):
-        excluded = {
-            "Checkout immutable published Prometheus contracts",
-            "Wait for the exact trusted Prometheus publisher",
-        }
-        excluded.update(
-            {
-                "Require the trusted base published consumer capability",
-                "Bind the unchanged PR admission after trusted cleanup",
-                "Checkout exact unchanged PR contracts after trusted cleanup",
-            }
-            if mode == "changed"
-            else {
-                "Checkout exact changed PR Prometheus contracts",
-                "Require fresh fixed Prometheus control checkout",
-                "Checkout fixed trusted Prometheus control",
-                "Remove fixed trusted Prometheus control checkout",
-            }
-        )
-        assert sum(minutes(step) for step in shared if step["name"] not in excluded) <= 165
+    # Changed, historical and ordinary PRs all execute the fixed-control steps.
+    excluded = {
+        "Checkout immutable published Prometheus contracts",
+        "Wait for the exact trusted Prometheus publisher",
+    }
+    assert sum(minutes(step) for step in shared if step["name"] not in excluded) <= 165
     assert sum(map(minutes, _steps(_job(workflow, "alertmanager-retained-candidate")))) <= 78
     assert sum(map(minutes, _steps(_job(workflow, "obs2a-checkpoint-native")))) <= 102
     assert (

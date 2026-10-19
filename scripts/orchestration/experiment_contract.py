@@ -6,6 +6,7 @@ EN: Shared constants and fail-closed validation helpers for experiment packets.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 import os
 from pathlib import Path
 import re
@@ -216,7 +217,9 @@ CREATIVE_RESEARCH_PROMOTION_DECISIONS: tuple[str, ...] = (
 CREATIVE_RESEARCH_ORIGIN_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
 CV_EXPERIMENT_HINTS: tuple[str, ...] = (
     "cv",
-    "image",
+    "image recognition",
+    "image classification",
+    "image segmentation",
     "multimodal",
     "photo",
     "vision",
@@ -554,11 +557,20 @@ def validate_creative_research_origin(raw_origin: Any) -> dict[str, str] | None:
     return normalized
 
 
-def is_cv_experiment(*parts: Any) -> bool:
-    """Return whether the experiment intent is CV-oriented and needs cv_context."""
+def is_cv_experiment(
+    *parts: Any,
+    runner_mode: Any = DEFAULT_RUNNER_MODE,
+    surface_paths: Sequence[str] = (),
+) -> bool:
+    """Match finite CV cues per intent part, adding candidate paths only in candidate mode."""
 
-    normalized = normalize_text(*[str(part) for part in parts if str(part).strip()])
-    return bool(normalized) and _contains_hint(normalized, CV_EXPERIMENT_HINTS)
+    validated_mode = validate_runner_mode(runner_mode)
+    selected_parts = parts
+    if validated_mode == DEFAULT_RUNNER_MODE:
+        selected_parts = (*parts, *surface_paths)
+    return any(
+        _contains_hint(normalize_text(str(part)), CV_EXPERIMENT_HINTS) for part in selected_parts
+    )
 
 
 def _require_non_empty_string(
@@ -792,7 +804,9 @@ def validate_experiment_packet(packet: dict[str, Any]) -> dict[str, Any]:
 
     promotion_target = validate_promotion_target(str(packet.get("promotion_target", "")))
     cv_context_raw = packet.get("cv_context")
-    requires_cv_context = is_cv_experiment(decision_question, task_class, *mutable_surface)
+    requires_cv_context = is_cv_experiment(
+        decision_question, task_class, runner_mode=runner_mode, surface_paths=mutable_surface
+    )
     if cv_context_raw is None:
         if requires_cv_context:
             raise ValueError(

@@ -3981,13 +3981,57 @@ def test_prometheus_cd_uses_authenticated_finite_consumer_and_retains_strict_sca
     assert "python3 -I -S" in consumer["run"]
     fixed = steps["Checkout fixed trusted Prometheus control"]
     assert fixed["with"] == {
-        "ref": "5064aded22f478a22a4319b684e95d6c0b3ae46f",  # pragma: allowlist secret - public trusted control commit
+        "ref": "ef9e369052751d47c04f651f7d615714d918fc16",  # pragma: allowlist secret - public trusted control commit
         "persist-credentials": False,
         "path": "artifacts/orchestration/prometheus-control",
         "sparse-checkout": "scripts/ci/prometheus_source_image.py",
         "sparse-checkout-cone-mode": False,
     }
     assert consumer["id"] == "prometheus-image"
+    names = [step["name"] for step in job["steps"]]
+    initial = steps["Checkout immutable PR head Prometheus contracts"]
+    classifier = steps["Classify the fixed regular Prometheus source blobs"]
+    cleanup = steps["Remove fixed trusted Prometheus control checkout"]
+    assert initial["with"] == {
+        "persist-credentials": False,
+        "fetch-depth": 0,
+        "ref": "${{ github.event.pull_request.head.sha }}",
+    }
+    assert fixed["if"] == "${{ success() && github.event_name == 'pull_request' }}"
+    assert classifier["env"] == {
+        "PROMETHEUS_EVENT_HEAD": "${{ steps.prometheus-event.outputs.head }}",
+        "PROMETHEUS_EVENT_BASE": "${{ steps.prometheus-event.outputs.base }}",
+    }
+    assert 'trusted["classify_source_change"](previous, current)' in classifier["run"]
+    assert "secrets." not in str(classifier)
+    assert "Require the trusted base published consumer capability" not in names
+    assert "Bind the unchanged PR admission after trusted cleanup" not in names
+    assert cleanup["if"] == (
+        "${{ always() && github.event_name == 'pull_request' && "
+        "(steps.prometheus-control-checkout.outcome == 'success' || "
+        "steps.prometheus-control-checkout.outcome == 'failure') }}"
+    )
+    ordered_names = [
+        initial["name"],
+        fixed["name"],
+        classifier["name"],
+        consumer["name"],
+        cleanup["name"],
+        "Check canonical Prometheus config with exact-image promtool",
+    ]
+    assert [names.index(name) for name in ordered_names] == sorted(
+        names.index(name) for name in ordered_names
+    )
+    for program in (classifier["run"], consumer["run"]):
+        assert "328857" in program
+        assert (
+            # pragma: allowlist nextline secret - public trusted control blob
+            "9d921263edf33797988e0200015f27469ba848ec"
+            in program
+        )
+        assert "Prometheus_control_interface_HOLD" in program
+    assert "historical_pr_candidate" in consumer["run"]
+    assert 'trusted["one_object"](raw).get("admission")' in consumer["run"]
     assert job["permissions"] == {"contents": "read", "actions": "read", "packages": "read"}
     assert "environment" not in job
     assert job["env"] == {
@@ -4031,40 +4075,69 @@ def _prometheus_cd_python(step: dict[str, object]) -> str:
 
 
 def _synthetic_fixed_prometheus_control(
-    repository: Path, environment: dict[str, str], program: str
-) -> str:
-    """Substitute only fixed binding coordinates; execute the workflow loader algorithm.
+    repository: Path, environment: dict[str, str], programs: tuple[str, ...]
+) -> tuple[str, ...]:
+    """Run the real canonical classifier; substitute only image/API work and fixed coordinates.
 
-    This trusted consumer is synthetic and supplies no API/image/native proof.
-    The PR helper remains a distinct malicious import canary.
+    Actual workflow Git/control checks still run. This synthetic consumer grants
+    no native image, original-producer, publisher or authenticated API proof.
     """
     control = repository / "artifacts/orchestration/prometheus-control"
     helper = control / "scripts/ci/prometheus_source_image.py"
     helper.parent.mkdir(parents=True)
-    helper.write_text(
-        "import json,os\nfrom pathlib import Path\n"
-        "def require(value, diagnostic):\n if not value: raise RuntimeError(diagnostic)\n"
-        "def interrupt(signum, frame): raise KeyboardInterrupt()\n"
-        "def diagnostic_code(error): return str(error)\n"
-        "def consume_image(work, material, seconds, cleanup):\n"
-        " assert material==Path(os.environ['GITHUB_WORKSPACE'])\n"
-        " assert seconds==900 and cleanup==120\n"
-        " assert os.environ['GH_TOKEN']=='synthetic.ephemeral.reader'\n"
-        " assert not os.environ.get('GHCR_READ_TOKEN')\n"
-        " trace=Path(os.environ['SYNTHETIC_TRACE'])\n"
-        " with trace.open('a') as stream: stream.write(json.dumps('CONTROL-consume')+'\\n')\n"
-        " if os.environ['SYNTHETIC_OUTCOME']=='changed-api-failure': raise RuntimeError('synthetic_API_failed')\n"
-        " if os.environ['SYNTHETIC_OUTCOME']=='changed-cleanup-failure': raise RuntimeError('synthetic_cleanup_failed')\n"
-        " (work/'evidence').mkdir(parents=True)\n"
-        " (work/'evidence/consumer.json').write_text(json.dumps({'synthetic':True}))\n"
-        " with trace.open('a') as stream: stream.write(json.dumps('CONTROL-cleanup')+'\\n')\n"
-        " selection={'manifest_digest':'sha256:'+ '1'*64,'config_digest':'sha256:'+ '2'*64,"
-        "'source_revision':'3'*40,'runtime_ref':'synthetic@sha256:'+ '1'*64}\n"
-        " return {'selection':selection}\n"
+    helper.write_bytes(
+        (REPO_ROOT / "scripts/ci/prometheus_source_image.py").read_bytes()
+        + b"\n"
+        + (
+            "_fixture_real_classifier=classify_source_change\n"
+            "def classify_source_change(base, head):\n"
+            " assert not any(os.environ.get(key) for key in ('GH_TOKEN','GITHUB_TOKEN','GHCR_READ_TOKEN','GHCR_TOKEN','GH_ENTERPRISE_TOKEN','GITHUB_ENTERPRISE_TOKEN','DOCKER_CONFIG','DOCKER_AUTH_CONFIG'))\n"
+            " with Path(os.environ['SYNTHETIC_TRACE']).open('a') as stream: stream.write(json.dumps('CONTROL-classify')+'\\n')\n"
+            " return _fixture_real_classifier(base, head)\n"
+            "def consume_image(work, material, seconds, cleanup):\n"
+            " assert material==Path(os.environ['GITHUB_WORKSPACE'])\n"
+            " assert seconds==900 and cleanup==120\n"
+            " assert os.environ['GH_TOKEN']=='synthetic.ephemeral.reader'\n"
+            " route=os.environ['PROMETHEUS_CREDENTIAL_ROUTE']\n"
+            " assert route in ('changed_pr_candidate','historical_pr_candidate','unchanged_pr_published')\n"
+            " assert bool(os.environ.get('GHCR_READ_TOKEN'))==(route=='unchanged_pr_published')\n"
+            " trace=Path(os.environ['SYNTHETIC_TRACE'])\n"
+            " def record(value):\n"
+            "  with trace.open('a') as stream: stream.write(json.dumps(value)+'\\n')\n"
+            " record('CONTROL-consume')\n"
+            " outcome=os.environ['SYNTHETIC_OUTCOME']\n"
+            " if outcome in ('changed-api-failure','historical-api-failure'): raise QualificationError('synthetic_API_failed')\n"
+            " if outcome in ('changed-cleanup-failure','historical-cleanup-failure'): raise QualificationError('synthetic_cleanup_failed')\n"
+            " private=Path(os.environ['RUNNER_TEMP'])/'synthetic-registry-state'\n"
+            " if route=='unchanged_pr_published': private.write_text('synthetic config placeholder')\n"
+            " if outcome=='cleanup-failure': raise QualificationError('synthetic_owned_cleanup_failed')\n"
+            " if private.exists(): private.unlink()\n"
+            " record('CONTROL-cleanup')\n"
+            " if outcome=='consume-failure': raise QualificationError('synthetic_original_consumer_failed')\n"
+            " event=json.loads(Path(os.environ['GITHUB_EVENT_PATH']).read_bytes())\n"
+            " mode='unchanged_published' if route=='unchanged_pr_published' else route\n"
+            " admission={'mode':mode,'head':event['pull_request']['head']['sha'],'publisher_head':event['pull_request']['base']['sha'] if route=='unchanged_pr_published' else None}\n"
+            " selection={'manifest_digest':'sha256:'+ '1'*64,'config_digest':'sha256:'+ '2'*64,'source_revision':'3'*40,'runtime_ref':'synthetic@sha256:'+ '1'*64}\n"
+            " result={'admission':dict(admission),'selection':selection}\n"
+            " if outcome=='head-drift': admission['head']='f'*40\n"
+            " if outcome=='base-drift': admission['publisher_head']='f'*40\n"
+            " if outcome=='mode-drift': admission['mode']='changed_pr_candidate'\n"
+            " (work/'evidence').mkdir(parents=True)\n"
+            " raw=json.dumps({'admission':admission})\n"
+            " if outcome=='malformed-result': raw='{invalid'\n"
+            " if outcome!='missing-result': (work/'evidence/consumer.json').write_text(raw)\n"
+            " return result\n"
+            + (
+                "classify_source_change=None\n"
+                if environment["SYNTHETIC_OUTCOME"] == "unsupported-control"
+                else ""
+            )
+        ).encode()
     )
     helper.chmod(0o644)
 
     def git(*args: str) -> str:
+        """Bind the synthetic fixed checkout through real isolated Git objects."""
         completed = subprocess.run(
             ["/usr/bin/git", *safe_git_config_args(), *args],
             cwd=control,
@@ -4076,35 +4149,49 @@ def _synthetic_fixed_prometheus_control(
         return completed.stdout.strip()
 
     git("init", "--template=", "-q")
+    git("config", "--local", "maintenance.auto", "false")
+    git("config", "--local", "gc.auto", "0")
     git("add", "scripts/ci/prometheus_source_image.py")
     git("commit", "-qm", "synthetic fixed control")
     revision = git("rev-parse", "HEAD")
     blob = git("rev-parse", "HEAD:scripts/ci/prometheus_source_image.py")
     raw = helper.read_bytes()
-    program = program.replace("5064aded22f478a22a4319b684e95d6c0b3ae46f", revision)
-    program = program.replace("3029aeba29126a05fba5cbd6953916618852d0e2", blob)
-    program = program.replace("315949", str(len(raw)))
-    program = program.replace(
-        "0e7a73b0159c442cf5f9377aa862e38d643145f81ac6a54ee50b31682f6c3e3e",  # pragma: allowlist secret - public protected helper digest
-        hashlib.sha256(raw).hexdigest(),
+    rebound = tuple(
+        program.replace(
+            # pragma: allowlist nextline secret - public trusted control commit
+            "ef9e369052751d47c04f651f7d615714d918fc16",
+            revision,
+        )
+        .replace(
+            # pragma: allowlist nextline secret - public trusted control blob
+            "9d921263edf33797988e0200015f27469ba848ec",
+            blob,
+        )
+        .replace("328857", str(len(raw)))
+        .replace(
+            "0fedf3e9ac865fe2b89a3367e5e4065e1c0c28fca88465c7f2b41775dbf4070a",  # pragma: allowlist secret - public protected helper digest
+            hashlib.sha256(raw).hexdigest(),
+        )
+        for program in programs
     )
     variant = environment["SYNTHETIC_OUTCOME"]
-    if variant == "changed-control-bytes":
+    if variant.endswith("control-bytes"):
         helper.write_text("raise SystemExit('malicious control must not execute')\n")
-    elif variant == "changed-control-mode":
+    elif variant.endswith("control-mode"):
         helper.chmod(0o755)
-    elif variant == "changed-control-symlink":
+    elif variant.endswith("control-symlink"):
         original = helper.with_suffix(".saved")
         helper.rename(original)
         helper.symlink_to(original)
-    elif variant == "changed-control-ref":
+    elif variant.endswith("control-ref"):
         (control / "different.txt").write_text("different revision\n")
         git("add", "different.txt")
         git("commit", "-qm", "wrong control revision")
-    return program
+    return rebound
 
 
 def _prometheus_cd_route_fixture(tmp_path: Path, variant: str) -> tuple[Path, dict[str, str]]:
+    """Real finite B/H Git data, with a separate ordinary PR startup canary."""
     repository = tmp_path / "repository"
     repository.mkdir()
     environment = git_env_without_parent_state()
@@ -4115,6 +4202,8 @@ def _prometheus_cd_route_fixture(tmp_path: Path, variant: str) -> tuple[Path, di
         "GHCR_TOKEN",
         "GH_ENTERPRISE_TOKEN",
         "GITHUB_ENTERPRISE_TOKEN",
+        "DOCKER_CONFIG",
+        "DOCKER_AUTH_CONFIG",
     ):
         environment.pop(key, None)
     environment.update(
@@ -4143,6 +4232,7 @@ def _prometheus_cd_route_fixture(tmp_path: Path, variant: str) -> tuple[Path, di
     )
 
     def git(*arguments: str) -> str:
+        """Create only this fixture's bounded native B/H repository history."""
         result = subprocess.run(
             ["/usr/bin/git", *safe_git_config_args(), *arguments],
             cwd=repository,
@@ -4153,58 +4243,69 @@ def _prometheus_cd_route_fixture(tmp_path: Path, variant: str) -> tuple[Path, di
         )
         return result.stdout.strip()
 
-    git("init", "-q")
-    manifest = repository / "deploy/prometheus/image-manifest.json"
-    manifest.parent.mkdir(parents=True)
-    manifest.write_text('{"synthetic": "published"}')
-    package = repository / "scripts/ci"
-    package.mkdir(parents=True)
-    (package.parent / "__init__.py").write_text("")
-    (package / "__init__.py").write_text("")
-    helper = package / "prometheus_source_image.py"
-    helper.write_text(
-        "import json,os,sys\nfrom pathlib import Path\n"
-        "trace=Path(os.environ['SYNTHETIC_TRACE'])\n"
-        "def record(value):\n with trace.open('a') as stream: stream.write(json.dumps(value)+'\\n')\n"
-        "def one_object(raw): return json.loads(raw)\n"
-        "record('BASE-import')\n"
-        "if __name__=='__main__':\n"
-        " operation=sys.argv[sys.argv.index('--operation')+1]\n"
-        " if operation=='read-manifest':\n"
-        "  assert not os.environ.get('GHCR_READ_TOKEN')\n"
-        "  record('BASE-read-manifest')\n"
-        "  if os.environ['SYNTHETIC_OUTCOME']=='unsupported-base':\n"
-        "   print('synthetic_base_capability_unsupported',file=sys.stderr); sys.exit(1)\n"
-        "  sys.exit(0)\n"
-        " assert operation=='consume' and os.environ['GHCR_READ_TOKEN']=='synthetic.registry.reader'\n"
-        " record('BASE-consume')\n"
-        " private=Path(os.environ['RUNNER_TEMP'])/'synthetic-registry-state'\n"
-        " private.write_text('synthetic config placeholder')\n"
-        " outcome=os.environ['SYNTHETIC_OUTCOME']\n"
-        " if outcome=='cleanup-failure':\n"
-        "  print('synthetic_owned_cleanup_failed',file=sys.stderr); sys.exit(1)\n"
-        " private.unlink(); record('BASE-cleanup')\n"
-        " if outcome=='consume-failure':\n"
-        "  print('synthetic_original_consumer_failed',file=sys.stderr); sys.exit(1)\n"
-        " work=Path(sys.argv[sys.argv.index('--work-dir')+1]); (work/'evidence').mkdir(parents=True)\n"
-        " admission={'mode':'unchanged_published','head':os.environ['PROMETHEUS_EVENT_HEAD'],'publisher_head':os.environ['PROMETHEUS_EVENT_BASE']}\n"
-        " if outcome=='head-drift': admission['head']='f'*40\n"
-        " if outcome=='base-drift': admission['publisher_head']='f'*40\n"
-        " if outcome=='mode-drift': admission['mode']='changed_pr_candidate'\n"
-        " raw=json.dumps({'admission':admission})\n"
-        " if outcome=='malformed-result': raw='{invalid'\n"
-        " if outcome!='missing-result': (work/'evidence'/'consumer.json').write_text(raw)\n"
-    )
+    git("init", "--template=", "-q")
+    git("config", "--local", "maintenance.auto", "false")
+    git("config", "--local", "gc.auto", "0")
+    raw_paths = (*prometheus_source.PRODUCER_FILES, prometheus_source.MANIFEST_PATH)
+    files = {
+        raw_paths[0]: b"# synthetic unchanged material helper; never a credentialed executable\n",
+        raw_paths[1]: b"name: synthetic fixed producer recipe\n",
+        raw_paths[2]: b"# synthetic fixed Containerfile data\n",
+        raw_paths[3]: b'{"synthetic": "published"}',
+    }
+    for relative, raw in files.items():
+        path = repository / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(raw)
+        path.chmod(0o644)
+    (repository / "scripts/__init__.py").write_text("")
+    (repository / "scripts/ci/__init__.py").write_text("")
+    source_fault = re.fullmatch(r"(base|head)-source-([0-3])-(missing|mode|empty)", variant)
+
+    def source_fault_at(side: str) -> None:
+        """Keep each invalid native file attached to its intended B or H seam."""
+        if source_fault is None or source_fault[1] != side:
+            return
+        target = repository / raw_paths[int(source_fault[2])]
+        if source_fault[3] == "missing":
+            target.unlink()
+        elif source_fault[3] == "mode":
+            target.chmod(0o755)
+        else:
+            target.write_bytes(b"")
+
+    helper = repository / raw_paths[0]
+    manifest = repository / raw_paths[3]
     if variant == "missing-helper":
         helper.unlink()
     if variant == "base-wrong-mode":
         manifest.unlink()
         manifest.symlink_to("untrusted-manifest")
+    source_fault_at("base")
     git("add", ".")
     git("commit", "-qm", "synthetic base")
     base = git("rev-parse", "HEAD")
-    if variant in {"changed", "wrong-mode"} or variant.startswith("changed-"):
+    # Restore valid H prerequisites for every independent B-file negative.
+    for relative, raw in files.items():
+        path = repository / relative
+        if path.is_symlink():
+            path.unlink()
+        path.write_bytes(raw)
+        path.chmod(0o644)
+    changed = variant in {"changed", "wrong-mode", "manifest-and-helper"} or variant.startswith(
+        "changed-"
+    )
+    historical = variant.startswith("historical") or variant == "helper-recipe-drift"
+    if changed:
         manifest.write_text('{"synthetic": "candidate"}')
+    if historical or variant == "manifest-and-helper":
+        helper.write_text(
+            "import json,os\nfrom pathlib import Path\n"
+            "with Path(os.environ['SYNTHETIC_TRACE']).open('a') as stream: stream.write(json.dumps('PR-helper-import')+'\\n')\n"
+            "if any(os.environ.get(key) for key in ('GH_TOKEN','GITHUB_TOKEN','GHCR_READ_TOKEN')): raise SystemExit('PR_credential_overlap')\n"
+        )
+    if variant in {"helper-recipe-drift", "recipe-only"}:
+        (repository / raw_paths[1]).write_text("name: synthetic changed recipe\n")
     if variant == "wrong-mode":
         manifest.unlink()
         manifest.symlink_to("untrusted-manifest")
@@ -4212,24 +4313,19 @@ def _prometheus_cd_route_fixture(tmp_path: Path, variant: str) -> tuple[Path, di
         manifest.chmod(0o755)
     if variant == "missing-manifest":
         manifest.unlink()
-    if variant == "base-wrong-mode":
-        manifest.unlink()
-        manifest.write_text('{"synthetic": "candidate"}')
-    helper.write_text(
-        "import json,os,sys\nfrom pathlib import Path\n"
-        "trace=Path(os.environ['SYNTHETIC_TRACE'])\n"
-        "with trace.open('a') as stream: stream.write(json.dumps('PR-import')+'\\n')\n"
+    (repository / "scripts/__init__.py").write_text(
+        "import json,os\nfrom pathlib import Path\n"
+        "with Path(os.environ['SYNTHETIC_TRACE']).open('a') as stream: stream.write(json.dumps('PR-import')+'\\n')\n"
         "if any(os.environ.get(key) for key in ('GH_TOKEN','GITHUB_TOKEN','GHCR_READ_TOKEN')): raise SystemExit('PR_credential_overlap')\n"
-        "if __name__=='__main__':\n"
-        " with trace.open('a') as stream: stream.write(json.dumps('PR-consume')+'\\n')\n"
     )
+    if variant != "unselected":
+        selected = repository / "deploy/systemd/synthetic-selected.txt"
+        selected.parent.mkdir(parents=True)
+        selected.write_text("synthetic selected OBS2A surface\n")
+    source_fault_at("head")
     git("add", ".")
     if variant == "submodule-manifest":
-        git(
-            "update-index",
-            "--cacheinfo",
-            "160000," + base + ",deploy/prometheus/image-manifest.json",
-        )
+        git("update-index", "--cacheinfo", "160000," + base + "," + raw_paths[3])
     git("commit", "-qm", "synthetic PR")
     head = git("rev-parse", "HEAD")
     identity = {"id": 1043311030, "full_name": "Katsiarynakavaleuskaya/PulsePlate"}
@@ -4250,9 +4346,13 @@ def _prometheus_cd_route_fixture(tmp_path: Path, variant: str) -> tuple[Path, di
     event_file = tmp_path / "event.json"
     event_file.write_text(json.dumps(event))
     environment.update(
-        GITHUB_EVENT_PATH=str(event_file), GITHUB_SHA="a" * 40, GITHUB_WORKSPACE=str(repository)
+        GITHUB_EVENT_PATH=str(event_file),
+        GITHUB_SHA="a" * 40,
+        GITHUB_WORKSPACE=str(repository),
+        OBS2A_BASE_SHA=base,
+        OBS2A_HEAD_SHA=head,
     )
-    git("checkout", "--detach", "-q", head if variant == "wrong-checkout" else base)
+    git("checkout", "--detach", "-q", base if variant == "wrong-checkout" else head)
     return repository, environment
 
 
@@ -4260,13 +4360,22 @@ def _prometheus_cd_route_fixture(tmp_path: Path, variant: str) -> tuple[Path, di
     "variant,diagnostic",
     [
         ("changed", None),
+        ("unchanged", None),
+        ("historical", None),
+        ("manifest-and-helper", None),
+        ("recipe-only", None),
         ("changed-control-bytes", "Prometheus_control_bytes_HOLD"),
         ("changed-control-mode", "Prometheus_control_mode_HOLD"),
         ("changed-control-symlink", "Prometheus_control_path_HOLD"),
         ("changed-control-ref", "Prometheus_control_revision_HOLD"),
+        ("unsupported-control", "Prometheus_control_interface_HOLD"),
         ("changed-api-failure", "synthetic_API_failed"),
         ("changed-cleanup-failure", "synthetic_cleanup_failed"),
-        ("unchanged", None),
+        ("historical-api-failure", "synthetic_API_failed"),
+        ("historical-cleanup-failure", "synthetic_cleanup_failed"),
+        ("historical-registry-token", "Prometheus_candidate_registry_HOLD"),
+        ("classification-token", "Prometheus_classification_credential_HOLD"),
+        ("helper-recipe-drift", "source_change_recipe_drift"),
         ("fork", "Prometheus_event_identity_HOLD"),
         ("bad-sha", "Prometheus_event_identity_HOLD"),
         ("missing-object", "Prometheus_git_object_HOLD"),
@@ -4277,7 +4386,6 @@ def _prometheus_cd_route_fixture(tmp_path: Path, variant: str) -> tuple[Path, di
         ("base-wrong-mode", "Prometheus_regular_blob_HOLD"),
         ("wrong-checkout", "Prometheus_checkout_binding_HOLD"),
         ("missing-helper", "Prometheus_regular_blob_HOLD"),
-        ("unsupported-base", "synthetic_base_capability_unsupported"),
         ("unknown-mode", "Prometheus credential route HOLD"),
         ("head-drift", "Prometheus_unchanged_admission_HOLD"),
         ("base-drift", "Prometheus_unchanged_admission_HOLD"),
@@ -4286,12 +4394,26 @@ def _prometheus_cd_route_fixture(tmp_path: Path, variant: str) -> tuple[Path, di
         ("malformed-result", "JSONDecodeError"),
         ("consume-failure", "synthetic_original_consumer_failed"),
         ("cleanup-failure", "synthetic_owned_cleanup_failed"),
+        *[
+            (f"{side}-source-{index}-{fault}", "Prometheus_regular_blob_HOLD")
+            for side in ("base", "head")
+            for index in range(4)
+            for fault in ("missing", "mode")
+        ],
+        *[
+            (
+                f"{side}-source-{index}-empty",
+                "Prometheus_manifest_size_HOLD" if index == 3 else "Prometheus_source_size_HOLD",
+            )
+            for side in ("base", "head")
+            for index in range(4)
+        ],
     ],
 )
 def test_prometheus_cd_classifies_before_pr_code_and_binds_trusted_handoff(
     tmp_path: Path, variant: str, diagnostic: str | None
 ) -> None:
-    """Actual fixed workflow/Git controls, with a synthetic consumer; no publisher/native proof."""
+    """Actual isolated workflow/Git checks and canonical classifier; image consumer synthetic."""
     repository, environment = _prometheus_cd_route_fixture(tmp_path, variant)
     steps = {
         step["name"]: step
@@ -4301,16 +4423,12 @@ def test_prometheus_cd_classifies_before_pr_code_and_binds_trusted_handoff(
     }
     output_file = tmp_path / "outputs"
 
-    def python_step(name: str, *, isolated: bool = True) -> subprocess.CompletedProcess[str]:
+    def python_step(name: str) -> subprocess.CompletedProcess[str]:
+        """Execute the actual isolated workflow adapter with synthetic environment."""
         output_file.write_text("")
         environment["GITHUB_OUTPUT"] = str(output_file)
         return subprocess.run(
-            [
-                sys.executable,
-                *(["-I", "-S"] if isolated else []),
-                "-c",
-                _prometheus_cd_python(steps[name]),
-            ],
+            [sys.executable, "-I", "-S", "-c", _prometheus_cd_python(steps[name])],
             cwd=repository,
             env=environment,
             capture_output=True,
@@ -4319,6 +4437,8 @@ def test_prometheus_cd_classifies_before_pr_code_and_binds_trusted_handoff(
         )
 
     result = python_step("Validate exact Prometheus checkout revisions")
+    mode: str | None = None
+    control_created = False
     if result.returncode == 0:
         event_outputs = dict(line.split("=", 1) for line in output_file.read_text().splitlines())
         event = json.loads(Path(environment["GITHUB_EVENT_PATH"]).read_bytes())
@@ -4329,193 +4449,74 @@ def test_prometheus_cd_classifies_before_pr_code_and_binds_trusted_handoff(
         environment.update(
             PROMETHEUS_EVENT_HEAD=event_outputs["head"], PROMETHEUS_EVENT_BASE=event_outputs["base"]
         )
-        result = python_step("Classify the fixed regular Prometheus manifest blobs")
-    mode = None
+        classification = steps["Classify the fixed regular Prometheus source blobs"]
+        consumer = steps["Admit retained PR candidate or published immutable subject"]
+        classification["run"], consumer["run"] = _synthetic_fixed_prometheus_control(
+            repository, environment, (classification["run"], consumer["run"])
+        )
+        control_created = True
+        if variant == "classification-token":
+            environment["GH_TOKEN"] = "synthetic.forbidden.classifier.token"
+        result = python_step("Classify the fixed regular Prometheus source blobs")
+        environment.pop("GH_TOKEN", None)
     if result.returncode == 0:
         route = dict(line.split("=", 1) for line in output_file.read_text().splitlines())
         mode = "unknown" if variant == "unknown-mode" else route["mode"]
-        if mode == "changed_pr_candidate":
-            subprocess.run(
-                [
-                    "/usr/bin/git",
-                    *safe_git_config_args(),
-                    "checkout",
-                    "--detach",
-                    "-q",
-                    route["head"],
-                ],
-                cwd=repository,
-                env=environment,
-                check=True,
-            )
-        if mode == "unchanged_pr_published":
-            result = subprocess.run(
-                [
-                    "/bin/bash",
-                    "-c",
-                    steps["Require the trusted base published consumer capability"]["run"],
-                ],
-                cwd=repository,
-                env=environment,
-                capture_output=True,
-                text=True,
-                check=False,
-            )
-        if result.returncode == 0:
-            consumer_env = dict(
-                environment,
-                GH_TOKEN="synthetic.ephemeral.reader",
-                GITHUB_TOKEN="synthetic.ephemeral.reader",
-                GHCR_READ_TOKEN=(
-                    "synthetic.registry.reader"
-                    if mode in ("unchanged_pr_published", "trusted_published")
-                    else ""
-                ),
-                PROMETHEUS_CREDENTIAL_ROUTE=mode,
-            )
-            program = steps["Admit retained PR candidate or published immutable subject"]["run"]
-            if mode == "changed_pr_candidate":
-                program = _synthetic_fixed_prometheus_control(repository, environment, program)
-            result = subprocess.run(
-                [
-                    "/bin/bash",
-                    "-c",
-                    program,
-                ],
-                cwd=repository,
-                env=consumer_env,
-                capture_output=True,
-                text=True,
-                check=False,
-            )
-        if result.returncode == 0 and mode == "unchanged_pr_published":
-            result = python_step(
-                "Bind the unchanged PR admission after trusted cleanup", isolated=False
-            )
-            if result.returncode == 0:
-                subprocess.run(
-                    [
-                        "/usr/bin/git",
-                        *safe_git_config_args(),
-                        "checkout",
-                        "--detach",
-                        "-q",
-                        route["head"],
-                    ],
-                    cwd=repository,
-                    env=environment,
-                    check=True,
-                )
-                result = subprocess.run(
-                    [sys.executable, "-c", "import scripts.ci.prometheus_source_image"],
-                    cwd=repository,
-                    env=environment,
-                    capture_output=True,
-                    text=True,
-                    check=False,
-                )
+        if variant in {"changed", "manifest-and-helper"}:
+            assert mode == "changed_pr_candidate"
+        elif variant == "historical":
+            assert mode == "historical_pr_candidate"
+        elif variant == "unchanged":
+            assert mode == "unchanged_pr_published"
+        consumer_env = dict(
+            environment,
+            GH_TOKEN="synthetic.ephemeral.reader",
+            GITHUB_TOKEN="synthetic.ephemeral.reader",
+            GHCR_READ_TOKEN=(
+                "synthetic.registry.reader"
+                if mode == "unchanged_pr_published" or variant == "historical-registry-token"
+                else ""
+            ),
+            PROMETHEUS_CREDENTIAL_ROUTE=mode,
+        )
+        output_file.write_text("")
+        result = subprocess.run(
+            [
+                "/bin/bash",
+                "-c",
+                steps["Admit retained PR candidate or published immutable subject"]["run"],
+            ],
+            cwd=repository,
+            env=consumer_env,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    if control_created:
+        cleanup = subprocess.run(
+            ["/bin/bash", "-c", steps["Remove fixed trusted Prometheus control checkout"]["run"]],
+            cwd=repository,
+            env=environment,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        assert cleanup.returncode == 0, cleanup.stderr
+        assert not (repository / "artifacts/orchestration/prometheus-control").exists()
     trace = tmp_path / "trace.jsonl"
     observed = (
         [json.loads(line) for line in trace.read_text().splitlines()] if trace.exists() else []
     )
+    assert "PR-import" not in observed and "PR-helper-import" not in observed
     assert "synthetic.registry.reader" not in result.stdout + result.stderr
-    if diagnostic is None:
-        assert result.returncode == 0, result.stderr
-        if variant == "unchanged":
-            assert "PR-import" in observed
-            assert observed.index("BASE-cleanup") < observed.index("PR-import")
-            assert not (tmp_path / "synthetic-registry-state").exists()
-        else:
-            assert observed == ["CONTROL-consume", "CONTROL-cleanup"]
-            values = dict(line.split("=", 1) for line in output_file.read_text().splitlines())
-            assert {
-                "manifest_digest",
-                "config_digest",
-                "source_revision",
-                "runtime_ref",
-            } <= values.keys()
-    else:
-        assert result.returncode != 0
-        assert diagnostic in result.stderr
-        assert "PR-import" not in observed
-
-
-@pytest.mark.parametrize(
-    "variant,diagnostic",
-    [
-        ("changed", None),
-        ("changed-control-bytes", "Prometheus_control_bytes_HOLD"),
-        ("changed-control-mode", "Prometheus_control_mode_HOLD"),
-        ("changed-control-symlink", "Prometheus_control_path_HOLD"),
-        ("changed-control-ref", "Prometheus_control_revision_HOLD"),
-        ("changed-api-failure", "synthetic_API_failed"),
-        ("changed-cleanup-failure", "synthetic_cleanup_failed"),
-    ],
-)
-def test_prometheus_ci_trusted_control_precedes_first_pr_import(
-    tmp_path: Path, variant: str, diagnostic: str | None
-) -> None:
-    repository, environment = _prometheus_cd_route_fixture(tmp_path, variant)
-    event = json.loads(Path(environment["GITHUB_EVENT_PATH"]).read_bytes())
-    subprocess.run(
-        [
-            "/usr/bin/git",
-            *safe_git_config_args(),
-            "checkout",
-            "--detach",
-            "-q",
-            event["pull_request"]["head"]["sha"],
-        ],
-        cwd=repository,
-        env=environment,
-        check=True,
-    )
-    steps = {
-        step["name"]: step
-        for step in yaml.safe_load((REPO_ROOT / ".github/workflows/ci.yml").read_text())["jobs"][
-            "lint"
-        ]["steps"]
-        if "name" in step
-    }
-    consumer = steps["Consume exact Prometheus subject before PR startup"]
-    program = _synthetic_fixed_prometheus_control(repository, environment, consumer["run"])
-    output = tmp_path / "outputs"
-    environment["GITHUB_OUTPUT"] = str(output)
-    credentials = dict(
-        environment,
-        GH_TOKEN="synthetic.ephemeral.reader",
-        GITHUB_TOKEN="synthetic.ephemeral.reader",
-        GHCR_READ_TOKEN="",
-        PROMETHEUS_CREDENTIAL_ROUTE="changed_pr_candidate",
-    )
-    result = subprocess.run(
-        ["/bin/bash", "-c", program],
-        cwd=repository,
-        env=credentials,
-        text=True,
-        capture_output=True,
-        check=False,
-    )
-    assert "synthetic.ephemeral.reader" not in result.stdout + result.stderr
-    trace = tmp_path / "trace.jsonl"
-    observed = (
-        [json.loads(line) for line in trace.read_text().splitlines()] if trace.exists() else []
-    )
-    assert "PR-import" not in observed
     if diagnostic is not None:
         assert result.returncode != 0 and diagnostic in result.stderr
         return
     assert result.returncode == 0, result.stderr
-    cleanup = subprocess.run(
-        ["/bin/bash", "-c", steps["Remove fixed trusted Prometheus control checkout"]["run"]],
-        cwd=repository,
-        env=environment,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    assert cleanup.returncode == 0, cleanup.stderr
-    assert not (repository / "artifacts/orchestration/prometheus-control").exists()
+    assert observed == ["CONTROL-classify", "CONTROL-consume", "CONTROL-cleanup"]
+    values = dict(line.split("=", 1) for line in output_file.read_text().splitlines())
+    assert {"manifest_digest", "config_digest", "source_revision", "runtime_ref"} <= values.keys()
+    assert not (tmp_path / "synthetic-registry-state").exists()
     startup = subprocess.run(
         [sys.executable, "-c", "import scripts.ci.prometheus_source_image"],
         cwd=repository,
@@ -4526,7 +4527,190 @@ def test_prometheus_ci_trusted_control_precedes_first_pr_import(
     )
     assert startup.returncode == 0, startup.stderr
     observed = [json.loads(line) for line in trace.read_text().splitlines()]
-    assert observed == ["CONTROL-consume", "CONTROL-cleanup", "PR-import"]
+    assert observed.index("CONTROL-cleanup") < observed.index("PR-import")
+
+
+@pytest.mark.parametrize(
+    "variant,diagnostic",
+    [
+        ("changed", None),
+        ("unchanged", None),
+        ("historical", None),
+        ("manifest-and-helper", None),
+        ("recipe-only", None),
+        ("unselected", None),
+        ("changed-control-bytes", "Prometheus_control_bytes_HOLD"),
+        ("changed-control-mode", "Prometheus_control_mode_HOLD"),
+        ("changed-control-symlink", "Prometheus_control_path_HOLD"),
+        ("changed-control-ref", "Prometheus_control_revision_HOLD"),
+        ("unsupported-control", "Prometheus_control_interface_HOLD"),
+        ("changed-api-failure", "synthetic_API_failed"),
+        ("changed-cleanup-failure", "synthetic_cleanup_failed"),
+        ("historical-api-failure", "synthetic_API_failed"),
+        ("historical-cleanup-failure", "synthetic_cleanup_failed"),
+        ("historical-registry-token", "Prometheus_candidate_registry_HOLD"),
+        ("classification-token", "Prometheus_classification_credential_HOLD"),
+        ("unknown-mode", "Prometheus_credential_route_HOLD"),
+        ("head-drift", "Prometheus_unchanged_admission_HOLD"),
+        ("base-drift", "Prometheus_unchanged_admission_HOLD"),
+        ("mode-drift", "Prometheus_unchanged_admission_HOLD"),
+        ("missing-result", "Prometheus_unchanged_result_HOLD"),
+        ("malformed-result", "JSONDecodeError"),
+        ("material-head-drift", "Prometheus_material_revision_HOLD"),
+        ("wrong-event", "Prometheus_material_revision_HOLD"),
+        ("classification-wrong-event", "Prometheus_event_identity_HOLD"),
+    ],
+)
+def test_prometheus_ci_trusted_control_precedes_first_pr_import(
+    tmp_path: Path, variant: str, diagnostic: str | None
+) -> None:
+    repository, environment = _prometheus_cd_route_fixture(tmp_path, variant)
+    event = json.loads(Path(environment["GITHUB_EVENT_PATH"]).read_bytes())
+    steps = {
+        step["name"]: step
+        for step in yaml.safe_load((REPO_ROOT / ".github/workflows/ci.yml").read_text())["jobs"][
+            "lint"
+        ]["steps"]
+        if "name" in step
+    }
+    output = tmp_path / "outputs"
+    environment.update(
+        GITHUB_OUTPUT=str(output),
+        PROMETHEUS_EVENT_HEAD=event["pull_request"]["head"]["sha"],
+        PROMETHEUS_EVENT_BASE=event["pull_request"]["base"]["sha"],
+    )
+    output.write_text("")
+    selected = subprocess.run(
+        ["/bin/bash", "-c", steps["Select native OBS2A material before PR startup"]["run"]],
+        cwd=repository,
+        env=environment,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert selected.returncode == 0, selected.stderr
+    assert output.read_text() == (
+        "selected=false\n" if variant == "unselected" else "selected=true\n"
+    )
+    if variant == "unselected":
+        assert not (repository / "artifacts/orchestration/prometheus-control").exists()
+        return
+    classification = steps["Classify the fixed regular Prometheus source blobs"]
+    consumer = steps["Consume exact Prometheus subject before PR startup"]
+    classification["run"], consumer["run"] = _synthetic_fixed_prometheus_control(
+        repository, environment, (classification["run"], consumer["run"])
+    )
+    output.write_text("")
+    if variant == "classification-token":
+        environment["GH_TOKEN"] = "synthetic.forbidden.classifier.token"
+    if variant == "classification-wrong-event":
+        environment["GITHUB_EVENT_NAME"] = "push"
+    result = subprocess.run(
+        ["/bin/bash", "-c", classification["run"]],
+        cwd=repository,
+        env=environment,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    environment.pop("GH_TOKEN", None)
+    if result.returncode == 0:
+        route = dict(line.split("=", 1) for line in output.read_text().splitlines())["mode"]
+        expected = (
+            "historical_pr_candidate"
+            if variant.startswith("historical")
+            else (
+                "changed_pr_candidate"
+                if variant in {"changed", "manifest-and-helper"} or variant.startswith("changed-")
+                else "unchanged_pr_published"
+            )
+        )
+        assert route == expected
+        if variant == "unknown-mode":
+            route = "unknown"
+        if variant == "material-head-drift":
+            subprocess.run(
+                [
+                    "/usr/bin/git",
+                    *safe_git_config_args(),
+                    "checkout",
+                    "--detach",
+                    "-q",
+                    event["pull_request"]["base"]["sha"],
+                ],
+                cwd=repository,
+                env=environment,
+                capture_output=True,
+                check=True,
+            )
+        if variant == "wrong-event":
+            environment["GITHUB_EVENT_NAME"] = "push"
+        credentials = dict(
+            environment,
+            GH_TOKEN="synthetic.ephemeral.reader",
+            GITHUB_TOKEN="synthetic.ephemeral.reader",
+            GHCR_READ_TOKEN=(
+                "synthetic.registry.reader"
+                if route == "unchanged_pr_published" or variant == "historical-registry-token"
+                else ""
+            ),
+            PROMETHEUS_CREDENTIAL_ROUTE=route,
+        )
+        output.write_text("")
+        result = subprocess.run(
+            ["/bin/bash", "-c", consumer["run"]],
+            cwd=repository,
+            env=credentials,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+    cleanup = subprocess.run(
+        ["/bin/bash", "-c", steps["Remove fixed trusted Prometheus control checkout"]["run"]],
+        cwd=repository,
+        env=environment,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert cleanup.returncode == 0, cleanup.stderr
+    assert not (repository / "artifacts/orchestration/prometheus-control").exists()
+    trace = tmp_path / "trace.jsonl"
+    observed = (
+        [json.loads(line) for line in trace.read_text().splitlines()] if trace.exists() else []
+    )
+    assert "PR-import" not in observed and "PR-helper-import" not in observed
+    assert "synthetic.ephemeral.reader" not in result.stdout + result.stderr
+    if diagnostic is not None:
+        assert result.returncode != 0 and diagnostic in result.stderr
+        return
+    assert result.returncode == 0, result.stderr
+    assert observed == ["CONTROL-classify", "CONTROL-consume", "CONTROL-cleanup"]
+    names = list(steps)
+    assert (
+        names.index("Remove fixed trusted Prometheus control checkout")
+        < names.index("Restore lint workflow revision")
+        < names.index("Verify lint workflow revision")
+        < names.index("Setup Python environment")
+    )
+    assert steps["Restore lint workflow revision"]["with"] == {
+        "ref": "${{ github.sha }}",
+        "fetch-depth": 0,
+        "persist-credentials": False,
+        "clean": False,
+    }
+    assert 'test "$restored_sha" = "$GITHUB_SHA"' in steps["Verify lint workflow revision"]["run"]
+    startup = subprocess.run(
+        [sys.executable, "-c", "import scripts.ci.prometheus_source_image"],
+        cwd=repository,
+        env=environment,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert startup.returncode == 0, startup.stderr
+    observed = [json.loads(line) for line in trace.read_text().splitlines()]
+    assert observed.index("CONTROL-cleanup") < observed.index("PR-import")
 
 
 def test_prometheus_cd_git_fixture_preserves_separate_inherited_parent(
@@ -4591,12 +4775,61 @@ def test_prometheus_cd_git_fixture_preserves_separate_inherited_parent(
 def test_prometheus_cd_preserves_closed_non_pr_checkout_events(
     tmp_path: Path, event_name: str, reference: str, admitted: bool
 ) -> None:
+    """The shared non-PR classifier never dereferences a PR-only fixed checkout."""
     steps = yaml.safe_load(CD_WORKFLOW_PATH.read_text())["jobs"]["prometheus-image-security-pr"][
         "steps"
     ]
-    step = next(
+    validator = next(
         item for item in steps if item["name"] == "Validate exact Prometheus checkout revisions"
     )
+    classifier = next(
+        item
+        for item in steps
+        if item["name"] == "Classify the fixed regular Prometheus source blobs"
+    )
+    environment = git_env_without_parent_state()
+    for key in (
+        "GH_TOKEN",
+        "GITHUB_TOKEN",
+        "GHCR_READ_TOKEN",
+        "GHCR_TOKEN",
+        "GH_ENTERPRISE_TOKEN",
+        "GITHUB_ENTERPRISE_TOKEN",
+        "DOCKER_CONFIG",
+        "DOCKER_AUTH_CONFIG",
+    ):
+        environment.pop(key, None)
+    environment.update(
+        {
+            "HOME": str(tmp_path),
+            "PATH": os.defpath,
+            "LANG": "C",
+            "GIT_AUTHOR_NAME": "Synthetic Fixture",
+            "GIT_COMMITTER_NAME": "Synthetic Fixture",
+            "GIT_AUTHOR_EMAIL": "fixture@example.invalid",
+            "GIT_COMMITTER_EMAIL": "fixture@example.invalid",
+        }
+    )
+
+    def git(*arguments: str) -> str:
+        """Supply a real trusted event commit without any PR-only control files."""
+        completed = subprocess.run(
+            ["/usr/bin/git", *safe_git_config_args(), *arguments],
+            cwd=tmp_path,
+            env=environment,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        return completed.stdout.strip()
+
+    git("init", "--template=", "-q")
+    git("config", "--local", "maintenance.auto", "false")
+    git("config", "--local", "gc.auto", "0")
+    (tmp_path / "material.txt").write_text("synthetic trusted published material")
+    git("add", "material.txt")
+    git("commit", "-qm", "synthetic trusted event")
+    head = git("rev-parse", "HEAD")
     event_file, output = tmp_path / "event.json", tmp_path / "outputs"
     output.write_text("")
     event_file.write_text(
@@ -4607,19 +4840,17 @@ def test_prometheus_cd_preserves_closed_non_pr_checkout_events(
             }
         )
     )
-    environment = {
-        "HOME": str(tmp_path),
-        "PATH": os.defpath,
-        "LANG": "C",
-        "GITHUB_REPOSITORY": "Katsiarynakavaleuskaya/PulsePlate",
-        "GITHUB_EVENT_PATH": str(event_file),
-        "GITHUB_EVENT_NAME": event_name,
-        "GITHUB_REF": reference,
-        "GITHUB_SHA": "a" * 40,
-        "GITHUB_OUTPUT": str(output),
-    }
+    environment.update(
+        GITHUB_REPOSITORY="Katsiarynakavaleuskaya/PulsePlate",
+        GITHUB_EVENT_PATH=str(event_file),
+        GITHUB_EVENT_NAME=event_name,
+        GITHUB_REF=reference,
+        GITHUB_SHA=head,
+        GITHUB_OUTPUT=str(output),
+        GITHUB_WORKSPACE=str(tmp_path),
+    )
     result = subprocess.run(
-        [sys.executable, "-I", "-S", "-c", _prometheus_cd_python(step)],
+        [sys.executable, "-I", "-S", "-c", _prometheus_cd_python(validator)],
         cwd=tmp_path,
         env=environment,
         text=True,
@@ -4629,12 +4860,28 @@ def test_prometheus_cd_preserves_closed_non_pr_checkout_events(
     if admitted:
         assert result.returncode == 0, result.stderr
         assert dict(line.split("=", 1) for line in output.read_text().splitlines()) == {
-            "head": "a" * 40,
-            "base": "a" * 40,
+            "head": head,
+            "base": head,
         }
+        environment.update(PROMETHEUS_EVENT_HEAD=head, PROMETHEUS_EVENT_BASE=head)
+        output.write_text("")
+        result = subprocess.run(
+            [sys.executable, "-I", "-S", "-c", _prometheus_cd_python(classifier)],
+            cwd=tmp_path,
+            env=environment,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        assert result.returncode == 0, result.stderr
+        assert dict(line.split("=", 1) for line in output.read_text().splitlines()) == {
+            "mode": "trusted_published",
+            "head": head,
+            "base": head,
+        }
+        assert not (tmp_path / "artifacts/orchestration/prometheus-control").exists()
     else:
-        assert result.returncode != 0
-        assert "Prometheus_event_identity_HOLD" in result.stderr
+        assert result.returncode != 0 and "Prometheus_event_identity_HOLD" in result.stderr
         assert output.read_bytes() == b""
 
 

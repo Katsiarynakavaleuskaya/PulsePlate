@@ -3,16 +3,19 @@
 from __future__ import annotations
 
 from dataclasses import replace
+import base64
+import hashlib
 import copy
 from email.message import Message
 import gzip
 import io
 import json
 from pathlib import Path
+import re
 import signal
 import tarfile
 import time
-from typing import Any
+from typing import Any, cast
 from urllib.request import HTTPSHandler, ProxyHandler, build_opener
 from urllib.response import addinfourl
 import zipfile
@@ -855,11 +858,17 @@ def test_finite_consumer_result_table_has_only_three_positive_transitions(
 
 @pytest.fixture(autouse=True)
 def isolated_credentials(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Remove the finite declared credential and configuration sources before synthetic tests."""
     for name in (
         "GH_TOKEN",
         "GITHUB_TOKEN",
         "GH_ENTERPRISE_TOKEN",
         "GITHUB_ENTERPRISE_TOKEN",
+        "GHCR_READ_TOKEN",
+        "GHCR_TOKEN",
+        "DOCKER_CONFIG",
+        "DOCKER_AUTH_CONFIG",
+        "PROMETHEUS_CREDENTIAL_ROUTE",
         "GH_CONFIG_DIR",
         "GH_HOST",
         "GH_DEBUG",
@@ -1820,13 +1829,32 @@ def _fixed_native_capture_fixture(
         + "ready=Path("
         + repr(str(trace.with_suffix(".child-ready")))
         + ")\n"
+        + (
+            "release=Path("
+            + repr(str(trace.with_suffix(".child-release")))
+            + ")\nlifetime_end=time.monotonic()+5\n"
+            if mode == "owned_residual"
+            else ""
+        )
         + "def terminate(signum, frame):\n marker.write_text('SIGTERM\\n')\n"
         + (
             " os.execv('/bin/sleep', ['/bin/sleep', '0.2'])\n"
             if mode == "owned_residual_exec_exit"
-            else " raise SystemExit(128+signum)\n"
+            else (
+                " while not release.exists():\n"
+                "  assert time.monotonic()<lifetime_end\n"
+                "  time.sleep(0.01)\n"
+                " raise SystemExit(128+signum)\n"
+                if mode == "owned_residual"
+                else " raise SystemExit(128+signum)\n"
+            )
         )
-        + "signal.signal(signal.SIGTERM, terminate)\nready.write_text('ready')\ntime.sleep(5)\n"
+        + "signal.signal(signal.SIGTERM, terminate)\nready.write_text('ready')\n"
+        + (
+            "time.sleep(max(0,lifetime_end-time.monotonic()))\n"
+            if mode == "owned_residual"
+            else "time.sleep(5)\n"
+        )
     )
     gh.write_text(
         "#!"
@@ -1892,6 +1920,78 @@ def _fixed_native_capture_fixture(
     return runner, trace, gh
 
 
+def _coordinate_residual_fixture_exit(
+    monkeypatch: pytest.MonkeyPatch, trace: Path
+) -> list[dict[str, Any]]:
+    """Coordinate one ordinary fixture exit using only genuine bounded native censuses.
+
+    Production identity uncertainty remains terminal. The fixture holds its
+    unchanged child in its handler until this observer witnesses the owned
+    identity and releases it, then returns only the actually inactive snapshot.
+    No native row is added, removed, rewritten or declared absent synthetically.
+    """
+    real_census = source.process_census
+    known_identity: tuple[Any, ...] | None = None
+    observations: list[dict[str, Any]] = []
+
+    def census(cap: float, known: tuple[bytes, ...]) -> dict[int, dict[str, Any]]:
+        """Keep the original cap while separating stable ownership from actual exit."""
+        nonlocal known_identity
+        rows = real_census(cap, known)
+        pid_file, group_file = trace.with_suffix(".child-pid"), trace.with_suffix(".child-group")
+        if (
+            observations
+            or not pid_file.exists()
+            or not group_file.exists()
+            or not trace.with_suffix(".child-ready").exists()
+        ):
+            return rows
+        child, group = int(pid_file.read_text()), int(group_file.read_text())
+        row = rows.get(child)
+        if row is not None and not row["state"].startswith("Z"):
+            assert row["pid"] == child and row["pgid"] == group
+            assert row["uid"] == source.os.getuid()
+            identity = source.process_identity(row)
+            if known_identity is None:
+                known_identity = identity
+            assert identity == known_identity
+        if not trace.with_suffix(".child-signal").exists():
+            return rows
+        assert trace.with_suffix(".child-signal").read_bytes() == b"SIGTERM\n"
+        assert known_identity is not None and row is not None
+        assert not row["state"].startswith("Z")
+        assert source.process_identity(row) == known_identity
+        trace.with_suffix(".child-release").write_text("release witnessed fixture exit\n")
+        while True:
+            # This is a fresh real snapshot, not the earlier ownership witness.
+            rows = real_census(cap, known)
+            child_row = rows.get(child)
+            active = [
+                current
+                for current in rows.values()
+                if current["pgid"] == group and not current["state"].startswith("Z")
+            ]
+            if (child_row is None or child_row["state"].startswith("Z")) and not active:
+                observations.append(
+                    {
+                        "child_pid": child,
+                        "pgid": group,
+                        "stable_owned_identity_before_release": known_identity,
+                        "observed_child_state": (
+                            "absent" if child_row is None else child_row["state"]
+                        ),
+                        "active_group_pids": [],
+                        "original_cap": cap,
+                    }
+                )
+                return rows
+            source.check_deadline(cap)
+            source.time.sleep(min(0.01, max(0, cap - source.time.monotonic())))
+
+    monkeypatch.setattr(source, "process_census", census)
+    return observations
+
+
 @pytest.mark.parametrize(
     "mode",
     [
@@ -1918,6 +2018,9 @@ def test_ghcr_fixed_native_capture_and_hygiene(
 ) -> None:
     """Real child pipes/processes, synthetic GH program; not an authenticated API proof."""
     runner, trace, gh = _fixed_native_capture_fixture(tmp_path, mode)
+    exit_observations = (
+        _coordinate_residual_fixture_exit(monkeypatch, trace) if mode == "owned_residual" else []
+    )
     for key in ("GH_TOKEN", "GITHUB_TOKEN", "GHCR_READ_TOKEN", "GHCR_TOKEN"):
         monkeypatch.delenv(key, raising=False)
     monkeypatch.setattr(source, "INTERRUPTIONS", [])
@@ -2068,6 +2171,12 @@ def test_ghcr_fixed_native_capture_and_hygiene(
         }
         assert selected == {key for key in expected_environment_keys if key.startswith("GH_")}
     assert not any("GITHUB_TOKEN" in command["environment_keys"] for command in commands)
+    if mode == "owned_residual":
+        assert len(exit_observations) == 1
+        assert exit_observations[0]["active_group_pids"] == []
+        assert exit_observations[0]["child_pid"] == int(trace.with_suffix(".child-pid").read_text())
+        assert exit_observations[0]["pgid"] == int(trace.with_suffix(".child-group").read_text())
+        assert trace.with_suffix(".child-release").is_file()
     assert work.exists() is (mode in {"cleanup_failure", "owned_residual_exec_exit"})
     if mode == "owned_residual_exec_exit":
         assert str(failure.value) == "GHCR_owned_group_survived"
@@ -2133,6 +2242,9 @@ def test_github_fixed_native_capture_and_hygiene(
 ) -> None:
     """Same native child fixture/canonical recognizer, synthetic auth only."""
     runner, trace, gh = _fixed_native_capture_fixture(tmp_path, mode, "GitHubRead")
+    exit_observations = (
+        _coordinate_residual_fixture_exit(monkeypatch, trace) if mode == "owned_residual" else []
+    )
     for key in ("GH_TOKEN", "GITHUB_TOKEN", "GHCR_READ_TOKEN", "GHCR_TOKEN"):
         monkeypatch.delenv(key, raising=False)
     credential = "synthetic.opaque." + "a." * 260
@@ -2255,6 +2367,16 @@ def test_github_fixed_native_capture_and_hygiene(
                 # Only observed inactivity now permits existing cleanup; its cap is unchanged.
                 adapter.close()
                 assert adapter.cleanup_deadline == cleanup_deadline
+        if mode == "owned_residual":
+            assert len(exit_observations) == 1
+            assert exit_observations[0]["active_group_pids"] == []
+            assert exit_observations[0]["child_pid"] == int(
+                trace.with_suffix(".child-pid").read_text()
+            )
+            assert exit_observations[0]["pgid"] == int(
+                trace.with_suffix(".child-group").read_text()
+            )
+            assert trace.with_suffix(".child-release").is_file()
         assert private.exists() is (mode == "cleanup_failure")
     for path in evidence.iterdir():
         assert credential.encode() not in path.read_bytes()
@@ -2535,6 +2657,7 @@ def _promotion_fixture(
     unchanged: bool = False,
     cleanup_hold: bool = False,
     already_present: bool = False,
+    historical: bool = False,
 ) -> tuple[Path, Path, Path, list[str], dict[str, Any]]:
     """Synthetic sequencing data only; no native origin, artifact or registry proof."""
     from tests.test_deploy_contract_scripts import _synthetic_prometheus_manifest
@@ -2599,6 +2722,7 @@ def _promotion_fixture(
     def candidate_input(*args: Any) -> dict[str, Any]:
         trace.append("candidate")
         assert not config.exists()
+        assert args[1] == (selected_root if historical else root)
         if rejection in {"input", "artifact", "native", "scanner"}:
             raise source.QualificationError("synthetic_reject_" + rejection)
         return candidate
@@ -2608,7 +2732,27 @@ def _promotion_fixture(
         assert not config.exists()
         if rejection == "event":
             raise source.QualificationError("synthetic_reject_event")
-        return {"mode": "unchanged_published" if unchanged else "new_main_selection"}
+        return {
+            "mode": (
+                "unchanged_published"
+                if unchanged
+                else "historical_main_recovery" if historical else "new_main_selection"
+            ),
+            "head": "a" * 40,
+            "publisher_head": "a" * 40,
+            "historical_source_head": "3" * 40 if historical else None,
+        }
+
+    selected_root = tmp_path / "historical-data"
+    selected_root.mkdir()
+
+    def candidate_root(api: Any, material: Path, work_dir: Path, event: dict[str, Any]) -> Path:
+        assert material == root and work_dir == work and not config.exists()
+        if historical:
+            assert event["mode"] == "historical_main_recovery"
+            trace.append("source-root")
+            return selected_root
+        return material
 
     identity = {
         "repository": {"id": 1043311030},
@@ -2664,7 +2808,16 @@ def _promotion_fixture(
         def _capture(self, argv: list[str], maximum: int, **kwargs: Any) -> bytes:
             if "login" in argv:
                 trace.append("login")
-                assert trace[:2] == ["event", "predecessor" if unchanged else "candidate"]
+                expected_prefix = (
+                    ["event", "predecessor"]
+                    if unchanged
+                    else (
+                        ["event", "source-root", "candidate"]
+                        if historical
+                        else ["event", "candidate"]
+                    )
+                )
+                assert trace[: len(expected_prefix)] == expected_prefix
                 assert "package" in trace and config.is_dir()
                 assert kwargs["input_data"] == source.os.environ["GITHUB_TOKEN"].encode() + b"\n"
                 assert not {"GH_TOKEN", "GITHUB_TOKEN"}.intersection(kwargs["environment"])
@@ -2727,6 +2880,8 @@ def _promotion_fixture(
     monkeypatch.setattr(source, "GitHubRead", FixtureAPI)
     monkeypatch.setattr(source, "event_admission", admission)
     monkeypatch.setattr(source, "candidate_payload", candidate_input)
+    # A data-root seam spy only; separate semantic tests exercise its real native proof.
+    monkeypatch.setattr(source, "candidate_source_root", candidate_root, raising=False)
     monkeypatch.setattr(source, "existing_public_package", package)
     monkeypatch.setattr(source, "require_publication_predecessor", predecessor)
     monkeypatch.setattr(
@@ -2747,29 +2902,46 @@ def _promotion_fixture(
 
 
 @pytest.mark.parametrize(
-    "rejection",
+    "rejection,diagnostic",
     [
-        "event",
-        "prepared",
-        "input",
-        "artifact",
-        "tool",
-        "native",
-        "scanner",
-        "package",
-        "tag",
-        "main-before-credentials",
-        "predecessor",
+        pytest.param("event", "synthetic_reject_event", id="event"),
+        pytest.param("prepared", "source_prepared_not_consumable", id="prepared"),
+        pytest.param("input", "synthetic_reject_input", id="input"),
+        pytest.param("artifact", "synthetic_reject_artifact", id="artifact"),
+        pytest.param("tool", "publisher_retained_tool_changed", id="tool"),
+        pytest.param("native", "synthetic_reject_native", id="native"),
+        pytest.param("scanner", "synthetic_reject_scanner", id="scanner"),
+        pytest.param("package", "synthetic_reject_package", id="package"),
+        pytest.param("tag", "immutable_tag_existing_other_subject_HOLD", id="tag"),
+        pytest.param(
+            "main-before-credentials",
+            "publisher_main_before_credentials",
+            id="main-before-credentials",
+        ),
+        pytest.param("predecessor", "synthetic_reject_predecessor", id="predecessor"),
     ],
 )
 def test_promote_rejection_precedes_registry_directory_and_login(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, rejection: str
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, rejection: str, diagnostic: str
 ) -> None:
+    """Prove the named original rejection is reached before registry activation."""
     root, work, config, trace, _manifest = _promotion_fixture(
         monkeypatch, tmp_path, rejection, unchanged=rejection == "predecessor"
     )
-    with pytest.raises(source.QualificationError):
+    with pytest.raises(source.QualificationError, match="^" + re.escape(diagnostic) + "$"):
         source.promote_image(work, root, 30, 2)
+    expected_seam = (
+        "predecessor"
+        if rejection == "predecessor"
+        else (
+            "candidate"
+            if rejection in {"input", "artifact", "tool", "native", "scanner"}
+            else (
+                "package" if rejection in {"package", "tag", "main-before-credentials"} else "event"
+            )
+        )
+    )
+    assert expected_seam in trace
     assert "login" not in trace and "copy" not in trace
     assert not config.exists()
     assert not (work / "evidence/publication.json").exists()
@@ -2810,12 +2982,20 @@ def test_promote_exact_pullback_and_original_bundles_precede_cleanup(
         assert (work / "evidence/original-sbom-verification.json").read_bytes() == b"[]\n"
 
 
-@pytest.mark.parametrize("failure", ["login", "main-before-write", "verification"])
+@pytest.mark.parametrize(
+    "failure,diagnostic",
+    [
+        pytest.param("login", "synthetic_login_failed", id="login"),
+        pytest.param("main-before-write", "publisher_main_before_write", id="main-before-write"),
+        pytest.param("verification", "synthetic_verification_failed", id="verification"),
+    ],
+)
 def test_promote_operation_failure_cleans_credentials_without_success_output(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, failure: str
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, failure: str, diagnostic: str
 ) -> None:
+    """Preserve each exact original native failure and owned credential cleanup."""
     root, work, config, trace, _manifest = _promotion_fixture(monkeypatch, tmp_path, failure)
-    with pytest.raises(source.QualificationError):
+    with pytest.raises(source.QualificationError, match="^" + re.escape(diagnostic) + "$"):
         source.promote_image(work, root, 30, 2)
     assert not config.exists() and "owned-cleanup" in trace
     assert not (work / "evidence/publication.json").exists()
@@ -3275,7 +3455,13 @@ def test_derivation_offline_keeps_both_production_graphs_and_existing_sandbox_co
 
 
 def _consumer_fixture(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, *, published: bool, fault: str | None = None
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    *,
+    published: bool,
+    fault: str | None = None,
+    mode: str | None = None,
+    event_name: str = "pull_request",
 ) -> tuple[Path, Path, Path, list[str]]:
     """Synthetic admission ordering only, not authentic artifact/native evidence."""
     from tests.test_deploy_contract_scripts import _synthetic_prometheus_manifest
@@ -3319,8 +3505,18 @@ def _consumer_fixture(
         "RepoDigests": [selection["runtime_ref"]],
     }
     source.native_image_contract(image, selection, local=not published)
+    selected_mode = mode or ("unchanged_published" if published else "changed_pr_candidate")
+    publisher_head = "a" * 40 if event_name == "push" else "b" * 40
+    route = (
+        "trusted_published"
+        if event_name == "push"
+        else "unchanged_pr_published" if published else selected_mode
+    )
     event = tmp_path / "event.json"
-    event.write_text(json.dumps({"pull_request": {"head": {"sha": "a" * 40}}}))
+    event_data: dict[str, Any] = {"number": 2493, "ref": "refs/heads/main", "before": "b" * 40}
+    if event_name == "pull_request":
+        event_data["pull_request"] = {"head": {"sha": "a" * 40}, "base": {"sha": "b" * 40}}
+    event.write_text(json.dumps(event_data))
     for key in (
         "GH_TOKEN",
         "GITHUB_TOKEN",
@@ -3338,9 +3534,13 @@ def _consumer_fixture(
         monkeypatch.delenv(key, raising=False)
     token = "synthetic.reader." + "r." * 260
     for key, value in {
-        "GITHUB_EVENT_NAME": "pull_request",
+        "GITHUB_EVENT_NAME": event_name,
+        "GITHUB_REF": "refs/heads/main" if event_name == "push" else "refs/pull/2493/merge",
+        "GITHUB_REPOSITORY": source.GHCR_REPOSITORY,
+        "GITHUB_REPOSITORY_ID": "1043311030",
         "GITHUB_SHA": "a" * 40,
         "GITHUB_EVENT_PATH": str(event),
+        "PROMETHEUS_CREDENTIAL_ROUTE": route,
         "GITHUB_REPOSITORY_OWNER": source.GHCR_OWNER,
         "GITHUB_RUN_ID": "123",
         "GITHUB_RUN_ATTEMPT": "1",
@@ -3349,7 +3549,7 @@ def _consumer_fixture(
         "GITHUB_TOKEN": "synthetic.api",
     }.items():
         monkeypatch.setenv(key, value)
-    if fault != "missing-token":
+    if published and fault != "missing-token":
         monkeypatch.setenv("GHCR_READ_TOKEN", token)
     if fault == "owner":
         monkeypatch.setenv("GITHUB_REPOSITORY_OWNER", "foreign")
@@ -3375,6 +3575,17 @@ def _consumer_fixture(
             self.private = private
             private.mkdir(mode=0o700)
             (private / "home").mkdir(mode=0o700)
+
+        def json(self, endpoint: str) -> dict[str, Any]:
+            """Return only synthetic live coordinates for the before-use freshness check."""
+            if endpoint.endswith("/git/ref/heads/main"):
+                return {"object": {"sha": "a" * 40}}
+            assert endpoint.endswith("/pulls/2493")
+            return {
+                "state": "open",
+                "head": {"sha": "a" * 40, "repo": {"id": 1043311030}},
+                "base": {"sha": "b" * 40, "repo": {"id": 1043311030}},
+            }
 
         def _capture(self, argv: list[str], maximum: int, **kwargs: Any) -> bytes:
             assert published
@@ -3407,28 +3618,45 @@ def _consumer_fixture(
         trace.append("event")
         if fault == "event":
             raise source.QualificationError("consumer_actual_open_PR")
+        if fault == "restore-bound-manifest":
+            path.write_bytes(source.canonical_data(manifest))
         return {
-            "mode": "unchanged_published" if published else "changed_pr_candidate",
-            "head": "a" * 40,
-            "publisher_head": "b" * 40,
+            "mode": selected_mode,
+            "head": "c" * 40 if fault == "head-binding" else "a" * 40,
+            "publisher_head": (
+                "c" * 40 if fault == "publisher-binding" else publisher_head if published else None
+            ),
+            "historical_source_head": "3" * 40 if selected_mode.startswith("historical_") else None,
         }
+
+    selected_root = tmp_path / "historical-data"
+    selected_root.mkdir()
+
+    def candidate_root(api: Any, material: Path, work_dir: Path, event: dict[str, Any]) -> Path:
+        assert material == root and work_dir == work and not reader.exists()
+        if selected_mode == "historical_pr_candidate":
+            trace.append("source-root")
+            return selected_root
+        return material
 
     def candidate(*args: Any) -> dict[str, Any]:
         trace.append("candidate")
         assert not reader.exists()
+        assert args[1] == (selected_root if selected_mode == "historical_pr_candidate" else root)
         if fault == "candidate":
             raise source.QualificationError("artifact_identity_expiry_size")
         return {"docker_archive": tmp_path / "synthetic-image.docker.tar"}
 
-    def predecessor(*args: Any) -> dict[str, str]:
+    def predecessor(*args: Any) -> dict[str, Any]:
         trace.append("predecessor")
+        assert args[1] == publisher_head
         if fault == "predecessor":
             clock[0] += 100
             raise source.QualificationError("positive_publication_predecessor_pending_or_missing")
         return {
             "run": {
                 "id": 1,
-                "head_sha": "b" * 40,
+                "head_sha": publisher_head,
                 "head_branch": "main",
                 "event": "push",
                 "status": "completed",
@@ -3436,7 +3664,7 @@ def _consumer_fixture(
             },
             "job": {
                 "id": 1,
-                "head_sha": "b" * 40,
+                "head_sha": publisher_head,
                 "name": "prometheus-publish",
                 "status": "completed",
                 "conclusion": "success",
@@ -3479,6 +3707,8 @@ def _consumer_fixture(
     monkeypatch.setattr(source, "GitHubRead", API)
     monkeypatch.setattr(source, "event_admission", admission)
     monkeypatch.setattr(source, "candidate_payload", candidate)
+    # This spy checks flow only; real historical-data admission has separate native fixtures.
+    monkeypatch.setattr(source, "candidate_source_root", candidate_root, raising=False)
     monkeypatch.setattr(source, "require_publication_predecessor", predecessor)
     monkeypatch.setattr(source, "existing_public_package", package)
     monkeypatch.setattr(source.shutil, "which", lambda name: "/synthetic/docker")
@@ -4905,3 +5135,711 @@ def test_failed_prefetch_purpose_cannot_enter_success_readers_or_pair(
         )
     with pytest.raises(source.QualificationError, match="^tool_prefetch_explicit_predecessor$"):
         source.manual_hosted_admission(api, "tool", prefetch_predecessor="38170923494:11713828763")
+
+
+# These fixed data fixtures exercise admission; they are not native build/publication receipts.
+_HISTORICAL_SOURCE_PATHS = (
+    "scripts/ci/prometheus_source_image.py",
+    ".github/workflows/build.yml",
+    "deploy/prometheus/Containerfile",
+    "deploy/prometheus/image-manifest.json",
+)
+
+
+@pytest.mark.parametrize(
+    "delta,expected",
+    [
+        ("0000", "unchanged_published"),
+        ("0001", "unchanged_published"),
+        ("0010", "unchanged_published"),
+        ("0011", "unchanged_published"),
+        ("0100", "historical_helper_change"),
+        ("0101", "source_change_recipe_drift"),
+        ("0110", "source_change_recipe_drift"),
+        ("0111", "source_change_recipe_drift"),
+        ("1000", "manifest_changed"),
+        ("1001", "manifest_changed"),
+        ("1010", "manifest_changed"),
+        ("1011", "manifest_changed"),
+        ("1100", "manifest_changed"),
+        ("1101", "manifest_changed"),
+        ("1110", "manifest_changed"),
+        ("1111", "manifest_changed"),
+    ],
+)
+def test_historical_source_change_has_manifest_first_closed_table(
+    delta: str, expected: str
+) -> None:
+    """Independent16-row source-case oracle; no result confers image validity."""
+    before = {name: ("original " + name).encode() for name in _HISTORICAL_SOURCE_PATHS}
+    after = dict(before)
+    order = (_HISTORICAL_SOURCE_PATHS[3], *_HISTORICAL_SOURCE_PATHS[:3])
+    for bit, name in zip(delta, order, strict=True):
+        if bit == "1":
+            after[name] += b" changed"
+    if expected == "source_change_recipe_drift":
+        with pytest.raises(source.QualificationError, match="^source_change_recipe_drift$"):
+            source.classify_source_change(before, after)
+    else:
+        assert source.classify_source_change(before, after) == expected
+
+
+@pytest.mark.parametrize("fault", ["missing", "extra", "nonbytes"])
+def test_historical_source_classifier_rejects_incomplete_data(fault: str) -> None:
+    """Require the complete fixed raw-source universe before source-case selection."""
+    before = {name: name.encode() for name in _HISTORICAL_SOURCE_PATHS}
+    assert source.classify_source_change(before, dict(before)) == "unchanged_published"
+    after: dict[str, Any] = dict(before)
+    if fault == "missing":
+        after.pop(_HISTORICAL_SOURCE_PATHS[0])
+    elif fault == "extra":
+        after["unselected.py"] = b"extra"
+    else:
+        after[_HISTORICAL_SOURCE_PATHS[0]] = True
+    with pytest.raises(source.QualificationError, match="^source_change_inventory$"):
+        source.classify_source_change(before, after)
+
+
+@pytest.mark.parametrize(
+    "suffix,accepted",
+    [
+        ("a" * 40 + "..." + "b" * 40, True),
+        ("a" * 40 + "%2e%2e%2e" + "b" * 40, False),
+        ("a" * 40 + "...refs/heads/main", False),
+        ("A" * 40 + "..." + "b" * 40, False),
+        ("a" * 39 + "..." + "b" * 40, False),
+        ("a" * 40 + "..." + "b" * 40 + "?per_page=250", False),
+        ("a" * 40 + "..." + "b" * 40 + "#fragment", False),
+        ("a" * 40 + "..." + "b" * 40 + "/extra", False),
+        ("../foreign", False),
+    ],
+)
+def test_historical_compare_namespace_is_exclusive(
+    monkeypatch: pytest.MonkeyPatch, suffix: str, accepted: bool
+) -> None:
+    """Reject encoded or alternate comparison forms before native capture."""
+    adapter = source.GitHubRead.__new__(source.GitHubRead)
+    adapter.gh = "/synthetic/gh"
+    calls: list[list[str]] = []
+
+    def capture(argv: list[str], maximum: int) -> bytes:
+        calls.append(argv)
+        return b"{}"
+
+    monkeypatch.setattr(adapter, "_capture", capture)
+    endpoint = "/repos/" + source.GHCR_REPOSITORY + "/compare/" + suffix
+    if accepted:
+        assert adapter.raw(endpoint) == b"{}"
+        assert calls == [
+            [adapter.gh, "api", "--hostname", "github.com", "--method", "GET", endpoint]
+        ]
+    else:
+        with pytest.raises(source.QualificationError, match="^GitHub_same_repository_endpoint$"):
+            adapter.raw(endpoint)
+        assert calls == []
+
+
+class _HistoricalAPI:
+    """Typed native-shaped data only; transport, token auth and image proof are separate."""
+
+    def __init__(self, files: dict[str, dict[str, bytes]], private: Path) -> None:
+        """Prepare immutable-shaped synthetic native records without performing transport."""
+        self.files = files
+        self.private = private
+        self.deadline = time.monotonic() + 30
+        self.calls: list[str] = []
+        self.current: dict[str, Any] = {
+            "number": 2493,
+            "state": "open",
+            "head": {"sha": "5" * 40, "repo": {"id": 1043311030}},
+            "base": {"sha": "4" * 40, "ref": "main", "repo": {"id": 1043311030}},
+        }
+        self.original: dict[str, Any] = {
+            "number": 2477,
+            "state": "closed",
+            "merged": True,
+            "merge_commit_sha": "3" * 40,
+            "head": {
+                "sha": "2" * 40,
+                "ref": "synthetic-parser-fixture",
+                "repo": {"id": 1043311030},
+            },
+            "base": {"ref": "main", "repo": {"id": 1043311030}},
+            "commits": 2,
+        }
+        self.graph: list[dict[str, Any]] = [
+            {"sha": "1" * 40, "parents": [{"sha": "0" * 40}]},
+            {"sha": "2" * 40, "parents": [{"sha": "1" * 40}]},
+        ]
+        self.comparisons = {
+            ("3" * 40, "4" * 40): _historical_comparison("3" * 40, "4" * 40),
+            ("4" * 40, "5" * 40): _historical_comparison("4" * 40, "5" * 40),
+        }
+
+    def json(self, endpoint: str) -> dict[str, Any]:
+        """Return one declared synthetic native response, never make an HTTP request."""
+        self.calls.append(endpoint)
+        prefix = "/repos/" + source.GHCR_REPOSITORY
+        if endpoint == prefix + "/pulls/2493":
+            return self.current
+        if endpoint == prefix + "/pulls/2477":
+            return self.original
+        if endpoint == prefix + "/git/ref/heads/main":
+            return {"object": {"sha": "5" * 40}}
+        if endpoint.startswith(prefix + "/git/commits/"):
+            revision = endpoint.rsplit("/", 1)[1]
+            return {"sha": revision, "tree": {"sha": "f" * 40}, "parents": []}
+        if endpoint.startswith(prefix + "/compare/"):
+            pair = tuple(endpoint.rsplit("/", 1)[1].split("..."))
+            assert len(pair) == 2
+            return self.comparisons[(pair[0], pair[1])]
+        raise AssertionError("Unexpected synthetic native endpoint: " + endpoint)
+
+    def pages(self, endpoint: str, key: None, count: int) -> list[dict[str, Any]]:
+        """Return the complete original producer PR graph fixture."""
+        assert endpoint == "/repos/" + source.GHCR_REPOSITORY + "/pulls/2477/commits"
+        assert key is None and count == 2
+        self.calls.append(endpoint)
+        return self.graph
+
+    def source_files(self, revision: str, paths: tuple[str, ...]) -> dict[str, bytes]:
+        """Return raw data from one declared synthetic source revision."""
+        assert set(paths) <= set(_HISTORICAL_SOURCE_PATHS)
+        self.calls.append("files:" + revision + ":" + ",".join(paths))
+        return {name: self.files[revision][name] for name in paths}
+
+
+def _historical_comparison(ancestor: str, target: str) -> dict[str, Any]:
+    """Finite observed compare shape; no inferred edge through a squash."""
+    return {
+        "base_commit": {"sha": ancestor},
+        "merge_base_commit": {"sha": ancestor},
+        "status": "ahead",
+        "ahead_by": 1,
+        "behind_by": 0,
+        "total_commits": 1,
+        "commits": [{"sha": target, "parents": [{"sha": ancestor}]}],
+    }
+
+
+def _historical_fixture(tmp_path: Path) -> tuple[Path, _HistoricalAPI, dict[str, Any]]:
+    """Complete synthetic H/B/S/P data, not an authenticated candidate artifact."""
+    from tests.test_deploy_contract_scripts import _synthetic_prometheus_manifest
+
+    marker = tmp_path / "historical-executed"
+    historical_helper = (
+        "from pathlib import Path\n"
+        + "Path("
+        + repr(str(marker))
+        + ").write_text('must never execute')\n"
+        + "raise AssertionError('historical source is data only')\n"
+    ).encode()
+    old = {
+        _HISTORICAL_SOURCE_PATHS[0]: historical_helper,
+        _HISTORICAL_SOURCE_PATHS[1]: b"synthetic producer workflow data\n",
+        _HISTORICAL_SOURCE_PATHS[2]: source.finite_recipe(),
+    }
+    manifest = cast(dict[str, Any], _synthetic_prometheus_manifest())
+    manifest["candidate"]["producer"]["raw_producer"] = {
+        name: {"bytes": len(raw), "sha256": source.sha(raw)} for name, raw in old.items()
+    }
+    old[_HISTORICAL_SOURCE_PATHS[3]] = source.canonical_data(manifest)
+    current = dict(old)
+    current[_HISTORICAL_SOURCE_PATHS[0]] = b"# synthetic proposed consumer data\n"
+    root = tmp_path / "material"
+    root.mkdir()
+    for name, raw in current.items():
+        path = root / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(raw)
+        path.chmod(0o644)
+    source.read_image_manifest(root / source.MANIFEST_PATH)
+    files = {revision * 40: dict(old) for revision in ("1", "2", "3", "4")}
+    files["5" * 40] = current
+    api = _HistoricalAPI(files, tmp_path / "GitHub-private")
+    event = {
+        "number": 2493,
+        "ref": "refs/heads/main",
+        "before": "4" * 40,
+        "pull_request": copy.deepcopy(api.current),
+    }
+    return root, api, event
+
+
+@pytest.mark.parametrize("event_name", ["pull_request", "push"])
+def test_historical_event_binds_merged_squash_and_both_native_relations(
+    tmp_path: Path, event_name: str
+) -> None:
+    """Keep original PR ancestry and receiving squash lineage independent for both events."""
+    root, api, event = _historical_fixture(tmp_path)
+    result = source.event_admission(api, root, event, event_name, "5" * 40)
+    expected_mode = (
+        "historical_pr_candidate" if event_name == "pull_request" else "historical_main_recovery"
+    )
+    assert result["mode"] == expected_mode
+    assert result["head"] == "5" * 40 and result["historical_source_head"] == "3" * 40
+    assert result["publisher_head"] == (None if event_name == "pull_request" else "5" * 40)
+    prefix = "/repos/" + source.GHCR_REPOSITORY
+    assert prefix + "/pulls/2477/commits" in api.calls
+    assert prefix + "/compare/" + "3" * 40 + "..." + "4" * 40 in api.calls
+    assert prefix + "/compare/" + "4" * 40 + "..." + "5" * 40 in api.calls
+    assert not any("/compare/" + "1" * 40 + "..." + "3" * 40 in item for item in api.calls)
+
+
+@pytest.mark.parametrize(
+    "fault,diagnostic",
+    [
+        ("unmerged", "historical_original_merged_PR"),
+        ("open-original", "historical_original_merged_PR"),
+        ("missing-squash", "historical_original_merged_PR"),
+        ("squash-outside-base", "native_ancestor_relation"),
+        ("foreign-original", "candidate_same_repository_PR"),
+        ("wrong-ref", "candidate_same_repository_PR"),
+        ("missing-producer", "producer_and_final_within_PR"),
+        ("disconnected-producer", "producer_ancestor_within_PR"),
+        ("selected-manifest", "historical_selected_manifest"),
+        ("historical-recipe", "historical_recipe_drift"),
+    ],
+)
+def test_historical_event_rejects_at_its_actual_original_source_boundary(
+    tmp_path: Path, fault: str, diagnostic: str
+) -> None:
+    """Reach each named original-source rejection from a valid historical baseline."""
+    root, api, event = _historical_fixture(tmp_path)
+    baseline = source.event_admission(api, root, event, "pull_request", "5" * 40)
+    assert baseline["mode"] == "historical_pr_candidate"
+    if fault == "unmerged":
+        api.original["merged"] = False
+    elif fault == "open-original":
+        api.original["state"] = "open"
+    elif fault == "missing-squash":
+        api.original["merge_commit_sha"] = None
+    elif fault == "squash-outside-base":
+        api.original["merge_commit_sha"] = "6" * 40
+        api.files["6" * 40] = dict(api.files["3" * 40])
+        comparison = _historical_comparison("6" * 40, "4" * 40)
+        comparison["merge_base_commit"]["sha"] = "9" * 40
+        api.comparisons[("6" * 40, "4" * 40)] = comparison
+    elif fault == "foreign-original":
+        api.original["head"]["repo"]["id"] = 999
+    elif fault == "wrong-ref":
+        api.original["head"]["ref"] = "foreign"
+    elif fault == "missing-producer":
+        api.graph[0]["sha"] = "0" * 40
+    elif fault == "disconnected-producer":
+        api.graph[1]["parents"] = [{"sha": "0" * 40}]
+    elif fault == "selected-manifest":
+        api.files["3" * 40][source.MANIFEST_PATH] += b" "
+    else:
+        api.files["3" * 40][_HISTORICAL_SOURCE_PATHS[2]] += b"changed"
+    with pytest.raises(source.QualificationError, match="^" + re.escape(diagnostic) + "$"):
+        source.event_admission(api, root, event, "pull_request", "5" * 40)
+
+
+def test_historical_helper_change_does_not_rescue_changed_manifest_wrong_producer(
+    tmp_path: Path,
+) -> None:
+    """A helper delta cannot rescue a manifest change by a nonproducer PR."""
+    root, api, event = _historical_fixture(tmp_path)
+    path = root / source.MANIFEST_PATH
+    raw = path.read_bytes() + b" "
+    path.write_bytes(raw)
+    api.files["5" * 40][source.MANIFEST_PATH] = raw
+    with pytest.raises(source.QualificationError, match="^changed_PR_original_producer$"):
+        source.event_admission(api, root, event, "pull_request", "5" * 40)
+
+
+def test_historical_no_helper_delta_still_requires_real_published_predecessor(
+    tmp_path: Path,
+) -> None:
+    """Keep the old published branch when no helper delta selects historical admission."""
+    root, api, event = _historical_fixture(tmp_path)
+    same = api.files["4" * 40][_HISTORICAL_SOURCE_PATHS[0]]
+    api.files["5" * 40][_HISTORICAL_SOURCE_PATHS[0]] = same
+    (root / _HISTORICAL_SOURCE_PATHS[0]).write_bytes(same)
+    result = source.event_admission(api, root, event, "pull_request", "5" * 40)
+    assert result == {"mode": "unchanged_published", "head": "5" * 40, "publisher_head": "4" * 40}
+    assert not any("/compare/" in item for item in api.calls)
+    # The existing native predecessor test independently covers success/failure/pending.
+
+
+@pytest.mark.parametrize(
+    "fault,diagnostic",
+    [
+        ("status", "native_ancestor_relation"),
+        ("base", "native_ancestor_relation"),
+        ("merge-base", "native_ancestor_relation"),
+        ("behind", "native_ancestor_relation"),
+        ("bool", "native_ancestor_inventory"),
+        ("oversized", "native_ancestor_inventory"),
+        ("partial", "native_ancestor_inventory"),
+        ("duplicate", "native_ancestor_inventory"),
+        ("target", "native_ancestor_inventory"),
+        ("parents", "native_ancestor_inventory"),
+        ("duplicate-parent", "native_ancestor_inventory"),
+    ],
+)
+def test_historical_native_ancestry_rejects_incomplete_or_wrong_relation(
+    tmp_path: Path, fault: str, diagnostic: str
+) -> None:
+    """Reject the intended native relation or inventory defect after its valid control."""
+    _root, api, _event = _historical_fixture(tmp_path)
+    ancestor, head = "3" * 40, "4" * 40
+    source.require_native_ancestor(api, ancestor, head)
+    value = api.comparisons[(ancestor, head)]
+    if fault == "status":
+        value["status"] = "diverged"
+    elif fault == "base":
+        value["base_commit"]["sha"] = "9" * 40
+    elif fault == "merge-base":
+        value["merge_base_commit"]["sha"] = "9" * 40
+    elif fault == "behind":
+        value["behind_by"] = 1
+    elif fault == "bool":
+        value["total_commits"] = True
+    elif fault == "oversized":
+        value["ahead_by"] = value["total_commits"] = 251
+    elif fault == "partial":
+        value["commits"] = []
+    elif fault == "duplicate":
+        value["ahead_by"] = value["total_commits"] = 2
+        value["commits"] *= 2
+    elif fault == "target":
+        value["commits"][0]["sha"] = "9" * 40
+    elif fault == "parents":
+        value["commits"][0]["parents"] = None
+    else:
+        value["commits"][0]["parents"] *= 2
+    with pytest.raises(source.QualificationError, match="^" + diagnostic + "$"):
+        source.require_native_ancestor(api, ancestor, head)
+
+
+def test_historical_native_ancestry_identity_uses_native_commit_not_a_synthetic_edge(
+    tmp_path: Path,
+) -> None:
+    """Authenticate an identical commit without manufacturing a comparison edge."""
+    _root, api, _event = _historical_fixture(tmp_path)
+    source.require_native_ancestor(api, "3" * 40, "3" * 40)
+    assert api.calls == ["/repos/" + source.GHCR_REPOSITORY + "/git/commits/" + "3" * 40]
+
+
+@pytest.mark.parametrize("path", _HISTORICAL_SOURCE_PATHS)
+@pytest.mark.parametrize("fault", ["bytes", "size", "mode", "symlink", "hardlink"])
+def test_historical_material_binding_rejects_dirty_files_with_unchanged_head(
+    tmp_path: Path, path: str, fault: str
+) -> None:
+    """Native head labels cannot conceal dirty bytes, executable modes or aliased leaves."""
+    root, api, _event = _historical_fixture(tmp_path)
+    expected = api.files["5" * 40]
+    source.authenticate_material_files(root, expected, api.deadline)
+    target = root / path
+    if fault == "bytes":
+        raw = target.read_bytes()
+        target.write_bytes(bytes([raw[0] ^ 1]) + raw[1:])
+    elif fault == "size":
+        target.write_bytes(target.read_bytes() + b" ")
+    elif fault == "mode":
+        target.chmod(0o755)
+    else:
+        saved = tmp_path / "saved-source"
+        target.rename(saved)
+        if fault == "symlink":
+            target.symlink_to(saved)
+        else:
+            target.hardlink_to(saved)
+    with pytest.raises(source.QualificationError, match="^material_source_binding$"):
+        source.authenticate_material_files(root, expected, api.deadline)
+
+
+@pytest.mark.parametrize("prefix", [".github", "scripts", "deploy"])
+def test_historical_material_binding_keeps_lexical_intermediate_prefixes(
+    tmp_path: Path, prefix: str
+) -> None:
+    """Retain lexical directory prefixes so real outside children cannot hide a symlink."""
+    root, api, _event = _historical_fixture(tmp_path)
+    source.authenticate_material_files(root, api.files["5" * 40], api.deadline)
+    outside = tmp_path / "outside"
+    (root / prefix).rename(outside)
+    (root / prefix).symlink_to(outside, target_is_directory=True)
+    with pytest.raises(source.QualificationError, match="^nonreal_directory_chain$"):
+        source.authenticate_material_files(root, api.files["5" * 40], api.deadline)
+
+
+def test_historical_candidate_root_is_one_authenticated_data_snapshot(tmp_path: Path) -> None:
+    """Keep all selected squash bytes as data and retain literal original-producer equality."""
+    root, api, event = _historical_fixture(tmp_path)
+    admission = source.event_admission(api, root, event, "pull_request", "5" * 40)
+    assert admission["mode"] == "historical_pr_candidate"
+    work = tmp_path / "consumer-work"
+    work.mkdir()
+    selected = source.candidate_source_root(api, root, work, admission)
+    assert selected != root and selected.is_relative_to(work)
+    assert not selected.is_relative_to(api.private)
+    for name in _HISTORICAL_SOURCE_PATHS:
+        assert (selected / name).read_bytes() == api.files["3" * 40][name]
+    assert not (tmp_path / "historical-executed").exists()
+    raw = source.authenticate_producer_inputs(api, selected, "1" * 40)
+    assert set(raw) == set(_HISTORICAL_SOURCE_PATHS[:3])
+    api.files["1" * 40][_HISTORICAL_SOURCE_PATHS[0]] += b"changed original raw source"
+    with pytest.raises(source.QualificationError, match="^full_raw_producer_input_drift$"):
+        source.authenticate_producer_inputs(api, selected, "1" * 40)
+
+
+@pytest.mark.parametrize("mode", ["historical_pr_candidate", "historical_main_recovery"])
+@pytest.mark.parametrize("admission", ["success", "skipped", "failure", "cancelled", "unknown"])
+@pytest.mark.parametrize("promotion", ["success", "skipped", "failure", "cancelled", "unknown"])
+def test_historical_consumer_result_table_has_only_two_additional_transitions(
+    mode: str, admission: str, promotion: str
+) -> None:
+    """The two historical modes add exactly one local and one published result."""
+    expected = {
+        ("historical_pr_candidate", "success", "skipped"): "local",
+        ("historical_main_recovery", "success", "success"): "published",
+    }
+    if (mode, admission, promotion) in expected:
+        assert (
+            source.consumer_result(mode, admission, promotion)
+            == expected[(mode, admission, promotion)]
+        )
+    else:
+        with pytest.raises(source.QualificationError, match="^consumer_predecessors$"):
+            source.consumer_result(mode, admission, promotion)
+
+
+@pytest.mark.parametrize("mode", ["changed_pr_candidate", "historical_pr_candidate"])
+def test_historical_and_original_local_consumers_reject_dedicated_registry_token(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, mode: str
+) -> None:
+    """Neither local candidate branch may activate registry credentials or native load."""
+    root, work, reader, trace = _consumer_fixture(monkeypatch, tmp_path, published=False, mode=mode)
+    monkeypatch.setenv("GHCR_READ_TOKEN", "synthetic.registry.forbidden")
+    with pytest.raises(source.QualificationError, match="^consumer_candidate_registry_token$"):
+        source.consume_image(work, root, 30, 2)
+    assert not reader.exists() and "login" not in trace and "load" not in trace
+    assert "candidate" not in trace and not (work / "evidence/consumer.json").exists()
+
+
+def test_historical_pr_consumer_uses_data_root_and_cleans_before_native_load(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Local historical admission delegates to its data root before credential-free native use."""
+    root, work, reader, trace = _consumer_fixture(
+        monkeypatch, tmp_path, published=False, mode="historical_pr_candidate"
+    )
+    result = source.consume_image(work, root, 30, 2)
+    assert trace == ["event", "source-root", "candidate", "cleanup", "load", "inspect"]
+    assert result["component_consumption"] == "local" and not reader.exists()
+    assert result["runtime_ref"] == result["selection"]["config_digest"]
+
+
+@pytest.mark.parametrize(
+    "fault,route,diagnostic",
+    [
+        (None, "unknown", "consumer_credential_route"),
+        (None, "historical_pr_candidate", "consumer_route_binding"),
+        ("head-binding", "unchanged_pr_published", "consumer_route_binding"),
+        ("publisher-binding", "unchanged_pr_published", "consumer_route_binding"),
+    ],
+)
+def test_historical_fresh_consumer_binding_rejects_route_head_or_publisher_drift(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, fault: str | None, route: str, diagnostic: str
+) -> None:
+    """Reauthenticate the exact route and coordinates before creating registry auth state."""
+    root, work, reader, trace = _consumer_fixture(
+        monkeypatch, tmp_path, published=True, fault=fault
+    )
+    monkeypatch.setenv("PROMETHEUS_CREDENTIAL_ROUTE", route)
+    with pytest.raises(source.QualificationError, match="^" + diagnostic + "$"):
+        source.consume_image(work, root, 30, 2)
+    assert not reader.exists() and "login" not in trace and "pull" not in trace
+    assert not (work / "evidence/consumer.json").exists()
+
+
+def test_historical_main_consumer_requires_positive_publisher_and_uses_registry(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Main consumers await actual publication rather than loading retained local bytes."""
+    root, work, reader, trace = _consumer_fixture(
+        monkeypatch, tmp_path, published=True, mode="historical_main_recovery", event_name="push"
+    )
+    result = source.consume_image(work, root, 30, 2)
+    assert trace == [
+        "event",
+        "predecessor",
+        "public-package",
+        "login",
+        "pull",
+        "raw",
+        "cleanup",
+        "inspect",
+    ]
+    assert result["component_consumption"] == "published" and not reader.exists()
+    assert "candidate" not in trace and "load" not in trace
+
+
+@pytest.mark.parametrize("already_present", [False, True])
+def test_historical_main_publisher_admits_full_data_before_credentials_and_original_bundles(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, already_present: bool
+) -> None:
+    """Main promotion keeps retained proof, immutable copy and original verification ordering."""
+    root, work, config, trace, _manifest = _promotion_fixture(
+        monkeypatch, tmp_path, historical=True, already_present=already_present
+    )
+    result = source.promote_image(work, root, 30, 2)
+    assert trace.index("source-root") < trace.index("candidate") < trace.index("login")
+    assert (
+        trace.index("login")
+        < trace.index("pullback")
+        < trace.index("verify")
+        < trace.index("owned-cleanup")
+    )
+    assert trace.count("verify") == 2 and not config.exists()
+    assert result["compile_invocations"] == 0
+    assert result["copy_invocations"] == (0 if already_present else 1)
+
+
+@pytest.mark.parametrize(
+    "fault,diagnostic",
+    [("input", "synthetic_reject_input"), ("tool", "publisher_retained_tool_changed")],
+)
+def test_historical_main_publisher_rejection_precedes_writer_credentials(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, fault: str, diagnostic: str
+) -> None:
+    """A historical input or tool rejection stops before writer credentials exist."""
+    root, work, config, trace, _manifest = _promotion_fixture(
+        monkeypatch, tmp_path, fault, historical=True
+    )
+    with pytest.raises(source.QualificationError, match="^" + diagnostic + "$"):
+        source.promote_image(work, root, 30, 2)
+    assert "source-root" in trace and "candidate" in trace and "login" not in trace
+    assert not config.exists() and not (work / "evidence/publication.json").exists()
+
+
+@pytest.mark.parametrize(
+    "fault,diagnostic",
+    [
+        ("truncated", "GitHub_complete_source_tree"),
+        ("missing", "GitHub_regular_source_blob"),
+        ("duplicate", "GitHub_regular_source_blob"),
+        ("symlink", "GitHub_regular_source_blob"),
+        ("executable", "GitHub_regular_source_blob"),
+        ("encoding", "GitHub_blob_encoding"),
+        ("size", "GitHub_blob_native_identity"),
+        ("identity", "GitHub_blob_native_identity"),
+    ],
+)
+def test_historical_native_four_blob_reader_retains_actual_rejection_causes(
+    monkeypatch: pytest.MonkeyPatch, fault: str, diagnostic: str
+) -> None:
+    """Exercise the real existing native reader from a complete valid four-blob baseline."""
+    revision, tree_id = "a" * 40, "b" * 40
+    files = {name: ("synthetic native blob " + name).encode() for name in _HISTORICAL_SOURCE_PATHS}
+    blobs: dict[str, dict[str, Any]] = {}
+    rows = []
+    for name, raw in files.items():
+        oid = hashlib.sha1(
+            b"blob " + str(len(raw)).encode() + b"\0" + raw, usedforsecurity=False
+        ).hexdigest()
+        rows.append({"path": name, "mode": "100644", "type": "blob", "sha": oid})
+        blobs[oid] = {
+            "encoding": "base64",
+            "content": base64.b64encode(raw).decode(),
+            "size": len(raw),
+            "sha": oid,
+        }
+    tree: dict[str, Any] = {"sha": tree_id, "truncated": False, "tree": rows}
+    adapter = source.GitHubRead.__new__(source.GitHubRead)
+
+    def native_json(endpoint: str) -> dict[str, Any]:
+        prefix = "/repos/" + source.GHCR_REPOSITORY
+        if endpoint == prefix + "/git/commits/" + revision:
+            return {"sha": revision, "tree": {"sha": tree_id}}
+        if endpoint == prefix + "/git/trees/" + tree_id + "?recursive=1":
+            return tree
+        assert endpoint.startswith(prefix + "/git/blobs/")
+        return blobs[endpoint.rsplit("/", 1)[1]]
+
+    monkeypatch.setattr(adapter, "json", native_json)
+    assert adapter.source_files(revision, _HISTORICAL_SOURCE_PATHS) == files
+    first = blobs[rows[0]["sha"]]
+    if fault == "truncated":
+        tree["truncated"] = True
+    elif fault == "missing":
+        rows.pop(0)
+    elif fault == "duplicate":
+        rows.append(dict(rows[0]))
+    elif fault in {"symlink", "executable"}:
+        rows[0]["mode"] = "120000" if fault == "symlink" else "100755"
+    elif fault == "encoding":
+        first["encoding"] = "utf-8"
+    elif fault == "size":
+        first["size"] = True
+    else:
+        first["sha"] = "f" * 40
+    with pytest.raises(source.QualificationError, match="^" + diagnostic + "$"):
+        adapter.source_files(revision, _HISTORICAL_SOURCE_PATHS)
+
+
+def test_historical_event_rejects_dirty_local_selection_even_with_valid_native_blobs(
+    tmp_path: Path,
+) -> None:
+    """A valid typed local selection still must equal authenticated current-head bytes."""
+    root, api, event = _historical_fixture(tmp_path)
+    baseline = source.event_admission(api, root, event, "pull_request", "5" * 40)
+    assert baseline["mode"] == "historical_pr_candidate"
+    manifest = source.read_image_manifest(root / source.MANIFEST_PATH)
+    manifest["selection"]["config_digest"] = "sha256:" + "e" * 64
+    (root / source.MANIFEST_PATH).write_bytes(source.canonical_data(manifest))
+    source.read_image_manifest(root / source.MANIFEST_PATH)
+    with pytest.raises(source.QualificationError, match="^material_source_binding$"):
+        source.event_admission(api, root, event, "pull_request", "5" * 40)
+
+
+def test_historical_consumer_uses_manifest_bound_by_admission_not_stale_prebinding_selection(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Synthetic admission sequencing only; the semantic H binding has separate real tests."""
+    root, work, _reader, trace = _consumer_fixture(
+        monkeypatch,
+        tmp_path,
+        published=False,
+        mode="historical_pr_candidate",
+        fault="restore-bound-manifest",
+    )
+    path = root / source.MANIFEST_PATH
+    bound = source.read_image_manifest(path)["selection"]
+    stale = source.read_image_manifest(path)
+    stale["selection"]["config_digest"] = "sha256:" + "e" * 64
+    path.write_bytes(source.canonical_data(stale))
+    source.read_image_manifest(path)
+    result = source.consume_image(work, root, 30, 2)
+    assert result["selection"] == bound
+    assert trace == ["event", "source-root", "candidate", "cleanup", "load", "inspect"]
+
+
+@pytest.mark.parametrize(
+    "event_name,mode,published,route",
+    [
+        ("pull_request", "historical_main_recovery", True, "unchanged_pr_published"),
+        ("pull_request", "new_main_selection", True, "unchanged_pr_published"),
+        ("push", "changed_pr_candidate", False, "trusted_published"),
+        ("push", "historical_pr_candidate", False, "trusted_published"),
+    ],
+)
+def test_historical_consumer_rejects_wrong_event_and_admission_mode(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    event_name: str,
+    mode: str,
+    published: bool,
+    route: str,
+) -> None:
+    """A mode valid for another event cannot cross the closed credential route relation."""
+    root, work, reader, trace = _consumer_fixture(
+        monkeypatch, tmp_path, published=published, mode=mode, event_name=event_name
+    )
+    monkeypatch.setenv("PROMETHEUS_CREDENTIAL_ROUTE", route)
+    with pytest.raises(source.QualificationError, match="^consumer_route_binding$"):
+        source.consume_image(work, root, 30, 2)
+    assert not reader.exists() and "login" not in trace and "candidate" not in trace
+    assert "load" not in trace and not (work / "evidence/consumer.json").exists()
