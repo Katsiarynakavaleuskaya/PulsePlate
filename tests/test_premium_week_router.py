@@ -5,9 +5,11 @@ RU: Тесты для роутера Premium Week.
 EN: Tests for Premium Week router.
 """
 
+from collections.abc import Iterator
 from unittest.mock import MagicMock, patch
 
 import pytest
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from app.routers.premium_week import (
@@ -16,24 +18,31 @@ from app.routers.premium_week import (
     TargetsIn,
     router,
 )
+from tests._client import open_test_client
+
+
+@pytest.fixture
+def premium_week_client(test_environment: None) -> Iterator[TestClient]:
+    """Open the isolated router client after the test environment is installed."""
+    app = FastAPI()
+    app.include_router(router)
+
+    with open_test_client(app) as client:
+        yield client
 
 
 class TestPremiumWeekRouter:
     """Test Premium Week router functionality."""
 
-    def setup_method(self) -> None:
-        """Set up test client."""
-        from fastapi import FastAPI
-
-        app = FastAPI()
-        app.include_router(router)
-        self.client = TestClient(app)
-
     @patch("app.routers.premium_week.FoodDB")
     @patch("app.routers.premium_week.RecipeDB")
     @patch("app.routers.premium_week.build_week")
     def test_generate_week_plan_with_targets(
-        self, mock_build_week, mock_recipe_db, mock_food_db
+        self,
+        mock_build_week: MagicMock,
+        mock_recipe_db: MagicMock,
+        mock_food_db: MagicMock,
+        premium_week_client: TestClient,
     ) -> None:
         """Test week plan generation with provided targets."""
         # Mock the databases
@@ -71,7 +80,7 @@ class TestPremiumWeekRouter:
             "adherence_score": 0.95,
         }
 
-        response = self.client.post(
+        response = premium_week_client.post(
             "/api/v1/premium/plan/week-flexible",
             json={
                 "targets": {
@@ -93,6 +102,7 @@ class TestPremiumWeekRouter:
         )
 
         assert response.status_code == 200
+        assert response.headers["content-type"].startswith("application/json")
         data = response.json()
         assert "daily_menus" in data
         assert "weekly_coverage" in data
@@ -107,7 +117,12 @@ class TestPremiumWeekRouter:
     @patch("app.routers.premium_week.build_week")
     @patch("app.services.nutrition_targets.estimate_targets_from_profile")
     def test_generate_week_plan_with_profile(
-        self, mock_estimate_targets, mock_build_week, mock_recipe_db, mock_food_db
+        self,
+        mock_estimate_targets: MagicMock,
+        mock_build_week: MagicMock,
+        mock_recipe_db: MagicMock,
+        mock_food_db: MagicMock,
+        premium_week_client: TestClient,
     ) -> None:
         """Test week plan generation with user profile."""
         # Mock the databases
@@ -159,7 +174,7 @@ class TestPremiumWeekRouter:
             "adherence_score": 0.95,
         }
 
-        response = self.client.post(
+        response = premium_week_client.post(
             "/api/v1/premium/plan/week-flexible",
             json={
                 "sex": "male",
@@ -175,6 +190,7 @@ class TestPremiumWeekRouter:
         )
 
         assert response.status_code == 200
+        assert response.headers["content-type"].startswith("application/json")
         data = response.json()
         assert "daily_menus" in data
         assert "weekly_coverage" in data
@@ -182,9 +198,9 @@ class TestPremiumWeekRouter:
         assert "total_cost" in data
         assert "adherence_score" in data
 
-    def test_generate_week_plan_missing_profile_data(self) -> None:
+    def test_generate_week_plan_missing_profile_data(self, premium_week_client: TestClient) -> None:
         """Test week plan generation with missing profile data."""
-        response = self.client.post(
+        response = premium_week_client.post(
             "/api/v1/premium/plan/week-flexible",
             json={
                 "sex": "male",
@@ -197,13 +213,18 @@ class TestPremiumWeekRouter:
         )
 
         assert response.status_code == 400
+        assert response.headers["content-type"].startswith("application/json")
         assert "Missing user profile data" in response.json()["detail"]
 
     @patch("app.routers.premium_week.FoodDB")
     @patch("app.routers.premium_week.RecipeDB")
     @patch("app.services.nutrition_targets.estimate_targets_from_profile")
     def test_generate_week_plan_unable_to_derive_targets(
-        self, mock_estimate_targets, mock_recipe_db, mock_food_db
+        self,
+        mock_estimate_targets: MagicMock,
+        mock_recipe_db: MagicMock,
+        mock_food_db: MagicMock,
+        premium_week_client: TestClient,
     ) -> None:
         """Test week plan generation when unable to derive targets."""
         # Mock the databases
@@ -216,7 +237,7 @@ class TestPremiumWeekRouter:
         # Mock the profile-derived planning target adapter to return None.
         mock_estimate_targets.return_value = None
 
-        response = self.client.post(
+        response = premium_week_client.post(
             "/api/v1/premium/plan/week-flexible",
             json={
                 "sex": "male",
@@ -230,6 +251,7 @@ class TestPremiumWeekRouter:
         )
 
         assert response.status_code == 400
+        assert response.headers["content-type"].startswith("application/json")
         assert "Unable to derive targets" in response.json()["detail"]
 
     def test_targets_in_model_validation(self) -> None:

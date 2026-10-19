@@ -9,6 +9,7 @@ import subprocess
 import sys
 import textwrap
 import time
+from dataclasses import replace
 from pathlib import Path
 from typing import Any, Literal, Mapping, cast
 
@@ -203,6 +204,21 @@ RETIRED_LEGACY_PYTHON_BINDINGS = (
     "_api_description",
     "lifespan",
     "get_update_scheduler",
+    "limiter",
+    "limit_if_available",
+    "RATE_LIMIT_EXPORTS",
+    "RATE_LIMIT_INSIGHT",
+    "RATE_LIMIT_429_RESPONSES",
+    "_RATE_LIMIT_429_RESPONSES",
+    "_TypeVar",
+    "_F",
+    "_LimitValue",
+    "LimiterType",
+    "_Limiter",
+    "Limiter",
+    "slowapi_available",
+    "get_api_key",
+    "_get_api_key_dynamic",
 )
 
 RETIRED_PRO_NUTRITION_BINDINGS = RETIRED_LEGACY_PYTHON_BINDINGS[10:20]
@@ -220,6 +236,228 @@ RETIRED_BMI_COMPAT_BINDINGS = RETIRED_LEGACY_PYTHON_BINDINGS[99:106]
 RETIRED_METADATA_ERROR_BINDINGS = RETIRED_LEGACY_PYTHON_BINDINGS[106:109]
 RETIRED_METADATA_PROJECTION_BINDINGS = RETIRED_LEGACY_PYTHON_BINDINGS[109:115]
 RETIRED_LIFECYCLE_ACCESS_BINDINGS = RETIRED_LEGACY_PYTHON_BINDINGS[115:117]
+RETIRED_RATE_LIMIT_BINDINGS = RETIRED_LEGACY_PYTHON_BINDINGS[117:130]
+
+
+def test_retired_api_key_tail_is_exact_and_disjoint() -> None:
+    """Append only the selected API-key pair while preserving the prior 130 names."""
+    prior = RETIRED_LEGACY_PYTHON_BINDINGS[:130]
+    selected = RETIRED_LEGACY_PYTHON_BINDINGS[130:132]
+    assert len(prior) == len(set(prior)) == 130
+    assert selected == ("get_api_key", "_get_api_key_dynamic")
+    assert set(prior).isdisjoint(selected)
+    assert len(RETIRED_LEGACY_PYTHON_BINDINGS) == len(set(RETIRED_LEGACY_PYTHON_BINDINGS)) == 132
+    assert legacy_guard.RETIRED_LEGACY_PYTHON_BINDINGS == frozenset(prior) | set(selected)
+
+
+@pytest.mark.parametrize("binding_name", ("get_api_key", "_get_api_key_dynamic"))
+@pytest.mark.parametrize(
+    "source_template",
+    (
+        "{name} = canonical\n",
+        "{name}: object = canonical\n",
+        "{name}: object\n",
+        "from canonical_owner import canonical as {name}\n",
+        "def {name}():\n    return None\n",
+        "class {name}:\n    pass\n",
+        "del {name}\n",
+        "def mutate():\n    global {name}\n",
+        "if TYPE_CHECKING:\n    {name}: object\nelse:\n    {name} = canonical\n",
+        "try:\n    from canonical_owner import canonical as {name}\n"
+        "except ImportError:\n    {name} = None\n",
+    ),
+)
+def test_retired_api_key_binding_carriers(binding_name: str, source_template: str) -> None:
+    """Reject each selected Legacy name through the existing binding carriers."""
+    assert legacy_guard.validate_retired_legacy_python_bindings(
+        source_template.format(name=binding_name)
+    ) == [f"legacy_app.py: retired Python compatibility binding is forbidden: {binding_name}"]
+
+
+@pytest.mark.parametrize("binding_name", ("get_api_key", "_get_api_key_dynamic"))
+def test_retired_api_key_guard_allows_canonical_and_local_mentions(binding_name: str) -> None:
+    """Keep canonical definitions and harmless nonbinding Legacy mentions permitted."""
+    assert (
+        legacy_guard.validate_retired_legacy_python_bindings(
+            f"{binding_name} = canonical\n",
+            filename="app/routers/api_key.py",
+        )
+        == []
+    )
+    assert (
+        legacy_guard.validate_retired_legacy_python_bindings(
+            f'"{binding_name}"\n# {binding_name}\nholder.{binding_name} = canonical\n'
+            f"def local():\n    {binding_name} = canonical\n"
+        )
+        == []
+    )
+
+
+@pytest.mark.parametrize("binding_name", ("get_api_key", "_get_api_key_dynamic"))
+@pytest.mark.parametrize("same_name_alias", (False, True))
+def test_retired_api_key_guard_rejects_canonical_reimport(
+    binding_name: str,
+    same_name_alias: bool,
+) -> None:
+    """Reject plain and same-name canonical imports through retirement and growth checks."""
+    suffix = f" as {binding_name}" if same_name_alias else ""
+    source = f"from app.routers.api_key import {binding_name}{suffix}\n"
+    assert legacy_guard.validate_retired_legacy_python_bindings(source) == [
+        f"legacy_app.py: retired Python compatibility binding is forbidden: {binding_name}"
+    ]
+    owner = f" -> {binding_name}" if same_name_alias else ""
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected app.routers import growth: "
+        f"router_import:app.routers.api_key:{binding_name}{owner}"
+    ]
+
+
+@pytest.mark.parametrize("binding_name", ("get_api_key", "_get_api_key_dynamic"))
+@pytest.mark.parametrize("same_name_alias", (False, True))
+def test_retired_api_key_reimport_fails_aggregate_guard(
+    binding_name: str,
+    same_name_alias: bool,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Require both intended aggregate diagnostics after restoring one retired import."""
+    assert legacy_guard.validate_repo(REPO_ROOT) == []
+    original_read = legacy_guard._read
+    suffix = f" as {binding_name}" if same_name_alias else ""
+
+    def read_with_restoration(path: Path, repo_root: Path, errors: list[str]) -> str | None:
+        """Restore only the selected import in the existing guard's Legacy source read."""
+        source = original_read(path, repo_root, errors)
+        if path == REPO_ROOT / "legacy_app.py" and source is not None:
+            return source + f"\nfrom app.routers.api_key import {binding_name}{suffix}\n"
+        return source
+
+    with monkeypatch.context() as isolated_patch:
+        isolated_patch.setattr(legacy_guard, "_read", read_with_restoration)
+        owner = f" -> {binding_name}" if same_name_alias else ""
+        assert legacy_guard.validate_repo(REPO_ROOT) == [
+            "legacy_app.py: unexpected app.routers import growth: "
+            f"router_import:app.routers.api_key:{binding_name}{owner}",
+            f"legacy_app.py: retired Python compatibility binding is forbidden: {binding_name}",
+        ]
+
+
+def test_retired_rate_limit_tail_is_exact_and_disjoint() -> None:
+    """Preserve prior 117/lifecycle membership and append the exact independent 13 cohort."""
+    assert RETIRED_RATE_LIMIT_BINDINGS == (
+        "limiter",
+        "limit_if_available",
+        "RATE_LIMIT_EXPORTS",
+        "RATE_LIMIT_INSIGHT",
+        "RATE_LIMIT_429_RESPONSES",
+        "_RATE_LIMIT_429_RESPONSES",
+        "_TypeVar",
+        "_F",
+        "_LimitValue",
+        "LimiterType",
+        "_Limiter",
+        "Limiter",
+        "slowapi_available",
+    )
+    prior = RETIRED_LEGACY_PYTHON_BINDINGS[:117]
+    assert len(prior) == len(set(prior)) == 117
+    assert set(prior).isdisjoint(RETIRED_RATE_LIMIT_BINDINGS)
+    assert RETIRED_LIFECYCLE_ACCESS_BINDINGS == ("lifespan", "get_update_scheduler")
+    assert len(RETIRED_LEGACY_PYTHON_BINDINGS) == len(set(RETIRED_LEGACY_PYTHON_BINDINGS)) == 132
+    assert legacy_guard.RETIRED_LEGACY_PYTHON_BINDINGS == frozenset(RETIRED_LEGACY_PYTHON_BINDINGS)
+    shim_tree = ast.parse((REPO_ROOT / "tests/test_legacy_bmi_shims.py").read_text())
+    shim_inventory = next(
+        node.value
+        for node in shim_tree.body
+        if isinstance(node, ast.Assign)
+        and any(
+            isinstance(target, ast.Name) and target.id == "RETIRED_LEGACY_PYTHON_BINDINGS"
+            for target in node.targets
+        )
+    )
+    assert set(ast.literal_eval(shim_inventory)) == set(RETIRED_LEGACY_PYTHON_BINDINGS)
+
+
+@pytest.mark.parametrize("binding_name", RETIRED_RATE_LIMIT_BINDINGS)
+@pytest.mark.parametrize(
+    "source_template",
+    (
+        "{name} = canonical\n",
+        "{name}: object = canonical\n",
+        "{name}: object\n",
+        "from canonical_owner import canonical as {name}\n",
+        "def {name}():\n    return None\n",
+        "class {name}:\n    pass\n",
+        "del {name}\n",
+        "def mutate():\n    global {name}\n",
+        "if TYPE_CHECKING:\n    {name}: object\nelse:\n    {name} = canonical\n",
+        "try:\n    from canonical_owner import canonical as {name}\n"
+        "except ImportError:\n    {name} = None\n",
+    ),
+)
+def test_retired_rate_limit_binding_carriers(binding_name: str, source_template: str) -> None:
+    """Reject each retired name through the admitted ordinary and conditional carriers."""
+    assert legacy_guard.validate_retired_legacy_python_bindings(
+        source_template.format(name=binding_name)
+    ) == [f"legacy_app.py: retired Python compatibility binding is forbidden: {binding_name}"]
+
+
+@pytest.mark.parametrize("binding_name", RETIRED_RATE_LIMIT_BINDINGS[:5])
+@pytest.mark.parametrize("same_name_alias", (False, True))
+def test_retired_rate_limit_guard_rejects_canonical_reimport(
+    binding_name: str,
+    same_name_alias: bool,
+) -> None:
+    """Reject canonical-looking imports that would restore a legacy rate-limit binding."""
+    suffix = f" as {binding_name}" if same_name_alias else ""
+    assert legacy_guard.validate_retired_legacy_python_bindings(
+        f"from app.security.rate_limit import {binding_name}{suffix}\n"
+    ) == [f"legacy_app.py: retired Python compatibility binding is forbidden: {binding_name}"]
+
+
+@pytest.mark.parametrize("binding_name", RETIRED_RATE_LIMIT_BINDINGS)
+def test_retired_rate_limit_guard_allows_canonical_and_local_mentions(binding_name: str) -> None:
+    """Allow canonical owners and mentions that do not bind the legacy module namespace."""
+    assert (
+        legacy_guard.validate_retired_legacy_python_bindings(
+            f"{binding_name} = canonical\n",
+            filename="app/security/rate_limit.py",
+        )
+        == []
+    )
+    assert (
+        legacy_guard.validate_retired_legacy_python_bindings(
+            f'"{binding_name}"\n# {binding_name}\nholder.{binding_name} = canonical\n'
+            f"def local():\n    {binding_name} = canonical\n"
+        )
+        == []
+    )
+
+
+def test_retired_rate_limit_restoration_fails_aggregate_guard(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Reject whole-cohort restoration through the existing repository guard consumer."""
+    assert legacy_guard.validate_repo(REPO_ROOT) == []
+    original_read = legacy_guard._read
+
+    def read_with_restoration(path: Path, repo_root: Path, errors: list[str]) -> str | None:
+        """Inject synthetic bare annotations only into the legacy source read seam."""
+        source = original_read(path, repo_root, errors)
+        if path == REPO_ROOT / "legacy_app.py" and source is not None:
+            return (
+                source
+                + "\n"
+                + "\n".join(f"{name}: object" for name in RETIRED_RATE_LIMIT_BINDINGS)
+                + "\n"
+            )
+        return source
+
+    with monkeypatch.context() as isolated_patch:
+        isolated_patch.setattr(legacy_guard, "_read", read_with_restoration)
+        assert legacy_guard.validate_repo(REPO_ROOT) == [
+            f"legacy_app.py: retired Python compatibility binding is forbidden: {name}"
+            for name in sorted(RETIRED_RATE_LIMIT_BINDINGS)
+        ]
 
 
 def test_retired_bmi_compat_tail_is_exact_and_disjoint() -> None:
@@ -236,8 +474,8 @@ def test_retired_bmi_compat_tail_is_exact_and_disjoint() -> None:
     assert len(RETIRED_LEGACY_PYTHON_BINDINGS[:99]) == 99
     assert len(set(RETIRED_LEGACY_PYTHON_BINDINGS[:99])) == 99
     assert set(RETIRED_LEGACY_PYTHON_BINDINGS[:99]).isdisjoint(RETIRED_BMI_COMPAT_BINDINGS)
-    assert len(RETIRED_LEGACY_PYTHON_BINDINGS) == 117
-    assert len(set(RETIRED_LEGACY_PYTHON_BINDINGS)) == 117
+    assert len(RETIRED_LEGACY_PYTHON_BINDINGS) == 132
+    assert len(set(RETIRED_LEGACY_PYTHON_BINDINGS)) == 132
 
 
 @pytest.mark.parametrize("binding_name", RETIRED_BMI_COMPAT_BINDINGS)
@@ -3076,6 +3314,7 @@ def test_api_key_ownership_guard_resolves_nonlocal_alias_before_reassignment() -
 
 
 def test_api_key_ownership_guard_accepts_direct_identity_preserving_reexports() -> None:
+    """Ownership-only acceptance; retirement and growth reject these Legacy imports."""
     legacy_source = (
         "from app.routers.api_key import (\n    _get_api_key_dynamic,\n    get_api_key,\n)\n"
     )
@@ -3083,19 +3322,20 @@ def test_api_key_ownership_guard_accepts_direct_identity_preserving_reexports() 
     assert _validate_api_key_dependency_ownership(legacy_source, {}) == []
 
 
-def test_api_key_ownership_guard_requires_module_level_reexports() -> None:
-    legacy_source = textwrap.dedent("""
-        def compatibility_imports():
-            from app.routers.api_key import _get_api_key_dynamic, get_api_key
-            return _get_api_key_dynamic, get_api_key
-        """)
-
-    assert _validate_api_key_dependency_ownership(legacy_source, {}) == [
-        "legacy_app.py: canonical API-key compatibility re-export must preserve identity: "
-        "_get_api_key_dynamic",
-        "legacy_app.py: canonical API-key compatibility re-export must preserve identity: "
-        "get_api_key",
-    ]
+def test_api_key_ownership_guard_accepts_retired_legacy_surface() -> None:
+    """Accept absent Legacy aliases when application consumers import the canonical owner."""
+    assert (
+        _validate_api_key_dependency_ownership(
+            "",
+            {
+                "app/main.py": (
+                    "from app.routers.api_key import get_api_key, _get_api_key_dynamic\n"
+                    "dependency = _get_api_key_dynamic\n"
+                )
+            },
+        )
+        == []
+    )
 
 
 @pytest.mark.parametrize(
@@ -12313,6 +12553,90 @@ def test_legacy_growth_guard_ignores_unreachable_empty_zip_body() -> None:
     assert legacy_guard.validate_legacy_growth(source) == []
 
 
+@pytest.mark.parametrize("stored", [False, True])
+@pytest.mark.parametrize(
+    ("invocation", "reachable"),
+    [
+        ("zip([], routes.values())", False),
+        ("zip(routes.values(), [])", False),
+        ("zip((), routes.values())", False),
+        ("zip([1], (), routes.values())", False),
+        ("zip()", False),
+        ("zip(*([], routes.values()))", False),
+        ("zip([1], routes.values())", True),
+        ("zip(unknown, routes.values())", True),
+    ],
+)
+def test_consol_zip_empty_cardinality_preserves_loop_reachability(
+    stored: bool, invocation: str, reachable: bool
+) -> None:
+    setup = f"pending = {invocation}\n" if stored else ""
+    iterable = "pending" if stored else invocation
+    source = (
+        "routes = {'route': app.get}\n"
+        + setup
+        + f"for row in {iterable}:\n"
+        + "    app.get('/api/v1/zip-cardinality-route')(handler)\n"
+    )
+    errors = legacy_guard.validate_legacy_growth(source)
+    if reachable:
+        assert any("/api/v1/zip-cardinality-route" in error for error in errors)
+    else:
+        assert errors == []
+
+
+@pytest.mark.parametrize("stored", [False, True])
+@pytest.mark.parametrize(
+    "invocation",
+    [
+        "zip([], routes.values(), strict=False)",
+        "zip([], routes.values(), strict=True)",
+        "zip([], routes.values(), **unknown_keywords)",
+        "zip(*unknown)",
+    ],
+)
+def test_consol_zip_keyword_and_unresolved_shapes_keep_conservative_projection(
+    stored: bool, invocation: str
+) -> None:
+    setup = f"pending = {invocation}\n" if stored else ""
+    iterable = "pending" if stored else invocation
+    source = (
+        "routes = {'route': app.get}\n"
+        + setup
+        + f"for row in {iterable}:\n"
+        + "    app.get('/api/v1/zip-unsupported-shape')(handler)\n"
+    )
+    errors = legacy_guard.validate_legacy_growth(source)
+    assert any("/api/v1/zip-unsupported-shape" in error for error in errors)
+
+
+@pytest.mark.parametrize(
+    ("invocation", "expected_trace"),
+    [
+        ("zip([], map(consume, [1]), eager())", "EO"),
+        ("zip(map(consume, [1]), [], eager())", "EAO"),
+        ("zip([], eager(), map(consume, [1]))", "EO"),
+        ("zip(map(consume, [1]), eager())", "EAO"),
+    ],
+)
+def test_consol_zip_empty_result_preserves_eager_and_prefix_effects(
+    invocation: str, expected_trace: str
+) -> None:
+    source = (
+        "trace = ''\n"
+        "def consume(value):\n    global trace\n    trace = trace + 'A'\n    return value\n"
+        "def eager():\n    global trace\n    trace = trace + 'E'\n    return []\n"
+        f"for row in {invocation}:\n    trace = trace + 'B'\n"
+        "else:\n    trace = trace + 'O'\n"
+    )
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="example.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(ast.parse(source))
+    assert visitor.errors == []
+    assert visitor.scope.strings["trace"] == expected_trace
+
+
 @pytest.mark.parametrize(
     ("lookup", "method"),
     [
@@ -13313,7 +13637,7 @@ def test_api_key_ownership_guard_rejects_full_inventory_module_bindings(
 
 
 @pytest.mark.parametrize(
-    ("imports", "missing", "rebound"),
+    ("imports", "retired", "rebound"),
     [
         pytest.param(
             "from unrelated import _get_api_key_dynamic, get_api_key\n",
@@ -13323,19 +13647,19 @@ def test_api_key_ownership_guard_rejects_full_inventory_module_bindings(
         ),
         pytest.param(
             "from app.routers.api_key import _get_api_key_dynamic, get_api_key as renamed\n",
-            ("get_api_key",),
+            ("_get_api_key_dynamic",),
             (),
             id="renamed-getter",
         ),
         pytest.param(
             "from app.routers.api_key import _get_api_key_dynamic\n",
-            ("get_api_key",),
+            ("_get_api_key_dynamic",),
             (),
             id="missing-getter",
         ),
         pytest.param(
             "from app.routers.api_key import get_api_key\n",
-            ("_get_api_key_dynamic",),
+            ("get_api_key",),
             (),
             id="missing-dynamic-getter",
         ),
@@ -13347,26 +13671,28 @@ def test_api_key_ownership_guard_rejects_full_inventory_module_bindings(
         ),
     ],
 )
-def test_api_key_ownership_guard_requires_exact_two_absolute_imports(
-    imports: str, missing: tuple[str, ...], rebound: tuple[str, ...]
+def test_api_key_ownership_guard_distinguishes_retired_import_shapes(
+    imports: str, retired: tuple[str, ...], rebound: tuple[str, ...]
 ) -> None:
-    """Wrong, renamed, missing or conditional imports cannot witness unconditional identity."""
-    expected = [
-        f"legacy_app.py: canonical API-key compatibility re-export must preserve identity: {name}"
-        for name in missing
-    ] + [_CONSOL_API_KEY_REBINDING_ERRORS[name] for name in rebound]
+    """Keep ownership rebinding and actual retired binding diagnostics independent."""
+    expected = [_CONSOL_API_KEY_REBINDING_ERRORS[name] for name in rebound]
     assert _validate_api_key_dependency_ownership(imports, {}) == sorted(expected)
+    assert legacy_guard.validate_retired_legacy_python_bindings(imports) == sorted(
+        f"legacy_app.py: retired Python compatibility binding is forbidden: {name}"
+        for name in retired
+    )
 
 
 @pytest.mark.parametrize("level", [1, 2], ids=["relative-one", "relative-two"])
 def test_api_key_ownership_guard_rejects_relative_reexports(level: int) -> None:
-    """Matching module text with nonzero ImportFrom.level fails both existing import sites."""
+    """Relative imports cannot evade either ownership or the retired binding check."""
     source = f"from {'.' * level}app.routers.api_key import _get_api_key_dynamic, get_api_key\n"
-    expected = [
-        f"legacy_app.py: canonical API-key compatibility re-export must preserve identity: {name}"
-        for name in _CONSOL_LEGACY_GETTERS
-    ] + [_CONSOL_API_KEY_REBINDING_ERRORS[name] for name in _CONSOL_LEGACY_GETTERS]
+    expected = [_CONSOL_API_KEY_REBINDING_ERRORS[name] for name in _CONSOL_LEGACY_GETTERS]
     assert _validate_api_key_dependency_ownership(source, {}) == sorted(expected)
+    assert legacy_guard.validate_retired_legacy_python_bindings(source) == sorted(
+        f"legacy_app.py: retired Python compatibility binding is forbidden: {name}"
+        for name in _CONSOL_LEGACY_GETTERS
+    )
 
 
 @pytest.mark.parametrize(
@@ -13673,7 +13999,7 @@ def test_legacy_growth_guard_real_current_root_cli() -> None:
             capture_output=True,
             text=True,
             check=False,
-            timeout=120,
+            timeout=3600,
         )
     except subprocess.TimeoutExpired:
         try:
@@ -20055,7 +20381,12 @@ def test_consol_own_key_resolver_restores_scope_on_resolution_error(
     key = cast(ast.Assign, tree.body[0]).value
     original_scope = visitor.scope
 
-    def reject_resolution(node: ast.AST, bindings: Mapping[str, str]) -> str | None:
+    def reject_resolution(
+        node: ast.AST,
+        bindings: Mapping[str, str],
+        *,
+        ownership_family: Literal["api_key", "openapi"] | None = None,
+    ) -> str | None:
         raise RuntimeError("synthetic key-resolution failure")
 
     monkeypatch.setattr(legacy_guard, "_resolve_static_string", reject_resolution)
@@ -26377,11 +26708,12 @@ def test_consol_module_namespace_augmented_name_result_keeps_captured_target(
 
 
 def test_retired_lifecycle_access_tail_is_exact_and_disjoint() -> None:
+    """Keep the prior two lifecycle bindings in their unchanged historical tuple slice."""
     assert RETIRED_LIFECYCLE_ACCESS_BINDINGS == ("lifespan", "get_update_scheduler")
     prior = RETIRED_LEGACY_PYTHON_BINDINGS[:115]
     assert len(prior) == len(set(prior)) == 115
     assert set(prior).isdisjoint(RETIRED_LIFECYCLE_ACCESS_BINDINGS)
-    assert len(RETIRED_LEGACY_PYTHON_BINDINGS) == len(set(RETIRED_LEGACY_PYTHON_BINDINGS)) == 117
+    assert len(RETIRED_LEGACY_PYTHON_BINDINGS) == len(set(RETIRED_LEGACY_PYTHON_BINDINGS)) == 132
     assert legacy_guard.RETIRED_LEGACY_PYTHON_BINDINGS == frozenset(RETIRED_LEGACY_PYTHON_BINDINGS)
 
 
@@ -26472,8 +26804,8 @@ def test_retired_metadata_error_tail_is_exact_and_disjoint() -> None:
     assert len(RETIRED_LEGACY_PYTHON_BINDINGS[:106]) == 106
     assert len(set(RETIRED_LEGACY_PYTHON_BINDINGS[:106])) == 106
     assert set(RETIRED_LEGACY_PYTHON_BINDINGS[:106]).isdisjoint(RETIRED_METADATA_ERROR_BINDINGS)
-    assert len(RETIRED_LEGACY_PYTHON_BINDINGS) == 117
-    assert len(set(RETIRED_LEGACY_PYTHON_BINDINGS)) == 117
+    assert len(RETIRED_LEGACY_PYTHON_BINDINGS) == 132
+    assert len(set(RETIRED_LEGACY_PYTHON_BINDINGS)) == 132
     assert legacy_guard.RETIRED_LEGACY_PYTHON_BINDINGS == frozenset(RETIRED_LEGACY_PYTHON_BINDINGS)
 
 
@@ -26617,7 +26949,7 @@ def test_retired_metadata_projection_tail_is_exact_and_disjoint() -> None:
     prior = RETIRED_LEGACY_PYTHON_BINDINGS[:109]
     assert len(prior) == len(set(prior)) == 109
     assert set(prior).isdisjoint(RETIRED_METADATA_PROJECTION_BINDINGS)
-    assert len(RETIRED_LEGACY_PYTHON_BINDINGS) == len(set(RETIRED_LEGACY_PYTHON_BINDINGS)) == 117
+    assert len(RETIRED_LEGACY_PYTHON_BINDINGS) == len(set(RETIRED_LEGACY_PYTHON_BINDINGS)) == 132
     assert legacy_guard.RETIRED_LEGACY_PYTHON_BINDINGS == frozenset(RETIRED_LEGACY_PYTHON_BINDINGS)
 
 
@@ -27420,3 +27752,4565 @@ def test_consol_shadowed_object_factory_keeps_unknown_selector_protection() -> N
     ) == [
         "app/routers/example.py: dynamic legacy API-key dependency lookup is forbidden: <dynamic>"
     ]
+
+
+@pytest.mark.parametrize("family", ["api", "openapi"])
+@pytest.mark.parametrize("consumer", ["for", "list", "next"])
+def test_consol_deferred_identity_helper_argument_keeps_captured_callback(
+    family: str, consumer: str
+) -> None:
+    member = "require_app_api_key" if family == "api" else "_install_openapi_builder"
+    action = {
+        "for": "for value in values:\n        pass",
+        "list": "list(values)",
+        "next": "next(values)",
+    }[consumer]
+    source = (
+        "import legacy_app as legacy\n"
+        f"def access(owner):\n    return owner.{member}\n"
+        f"def consume(values):\n    {action}\n"
+        "consume(map(access, [legacy]))\n"
+    )
+    errors = (
+        _validate_api_key_dependency_ownership(
+            _CONSOL_GETTER_IMPORTS, {"app/routers/example.py": source}
+        )
+        if family == "api"
+        else _consol_openapi_errors(source)
+    )
+    assert errors
+    assert all("legacy" in error for error in errors)
+
+
+@pytest.mark.parametrize("family", ["api", "openapi"])
+@pytest.mark.parametrize("keyword", [False, True])
+def test_consol_deferred_identity_awaited_to_thread_forwards_callback_input(
+    family: str, keyword: bool
+) -> None:
+    member = "require_app_api_key" if family == "api" else "_install_openapi_builder"
+    forwarded = "owner=legacy" if keyword else "legacy"
+    source = (
+        "import asyncio\nimport legacy_app as legacy\n"
+        f"def access(owner):\n    return owner.{member}\n"
+        "async def main():\n"
+        f"    await asyncio.to_thread(access, {forwarded})\n"
+        "asyncio.run(main())\n"
+    )
+    errors = (
+        _validate_api_key_dependency_ownership(
+            _CONSOL_GETTER_IMPORTS, {"app/routers/example.py": source}
+        )
+        if family == "api"
+        else _consol_openapi_errors(source)
+    )
+    assert errors
+    assert all("legacy" in error for error in errors)
+
+
+@pytest.mark.parametrize("family", ["api", "openapi"])
+def test_consol_deferred_identity_nested_shared_factory_has_independent_value(
+    family: str,
+) -> None:
+    member = "require_app_api_key" if family == "api" else "_install_openapi_builder"
+    source = (
+        "import legacy_app as legacy\n"
+        f"def access(owner):\n    return owner.{member}\n"
+        "def build(callback, values):\n    return map(callback, values)\n"
+        "def outer(owner):\n    list(build(access, [owner]))\n"
+        "list(build(outer, [legacy]))\n"
+    )
+    errors = (
+        _validate_api_key_dependency_ownership(
+            _CONSOL_GETTER_IMPORTS, {"app/routers/example.py": source}
+        )
+        if family == "api"
+        else _consol_openapi_errors(source)
+    )
+    assert errors
+
+
+@pytest.mark.parametrize(
+    ("body", "expected"),
+    [
+        (
+            "first = build(access, [1])\nsecond = build(access, [1])\n"
+            "list(first)\nlist(second)\n",
+            "CC",
+        ),
+        (
+            "first = build(access, [1])\nsecond = first\nlist(first)\nlist(second)\n",
+            "C",
+        ),
+        (
+            "first = build(access, [1])\nlist(first)\nsecond = build(access, [1])\n"
+            "list(first)\nlist(second)\n",
+            "CC",
+        ),
+    ],
+)
+def test_consol_deferred_identity_independent_alias_and_old_fresh(body: str, expected: str) -> None:
+    source = (
+        "trace = ''\n"
+        "def access(value):\n    global trace\n    trace = trace + 'C'\n    return value\n"
+        "def build(callback, values):\n    return map(callback, values)\n" + body
+    )
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="deferred-identity.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(ast.parse(source))
+    assert visitor.scope.strings["trace"] == expected
+    assert visitor.errors == []
+
+
+@pytest.mark.parametrize("purpose", ["ordinary", "ownership_audit"])
+def test_consol_deferred_identity_unconsumed_loop_keeps_creation_dormant(
+    purpose: Literal["ordinary", "ownership_audit"],
+) -> None:
+    source = (
+        "trace = ''\n"
+        "def access(value):\n    global trace\n    trace = trace + 'C'\n    return value\n"
+        "for value in range(2):\n    pending = map(access, [value])\n"
+    )
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="deferred-identity.py",
+        errors=[],
+        analyze_function_bodies=False,
+        purpose=purpose,
+    )
+    visitor.visit(ast.parse(source))
+    assert visitor.scope.strings["trace"] == ""
+    assert visitor.errors == []
+    assert 0 <= visitor._remaining_loop_iterations < 128
+
+
+@pytest.mark.parametrize("consume_child", [False, True])
+def test_consol_deferred_identity_escaping_child_keeps_its_own_lifetime(
+    consume_child: bool,
+) -> None:
+    source = (
+        "trace = ''\n"
+        "def generate(value):\n    global trace\n    trace = trace + 'G'\n    yield value\n"
+        "def make(value):\n    global trace\n    trace = trace + 'C'\n"
+        "    return generate(value)\n"
+        "child = next(map(make, [1]))\n" + ("list(child)\n" if consume_child else "")
+    )
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="deferred-identity.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(ast.parse(source))
+    assert visitor.scope.strings["trace"] == ("CG" if consume_child else "C")
+    assert visitor.errors == []
+
+
+def test_consol_deferred_identity_branch_predecessors_keep_progress_separate() -> None:
+    source = (
+        "trace = ''\n"
+        "def access(value):\n    global trace\n    trace = trace + 'C'\n    return value\n"
+        "def build(callback, values):\n    return map(callback, values)\n"
+        "pending = build(access, [1])\n"
+        "if condition:\n    list(pending)\nelse:\n    list(pending)\n"
+    )
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="deferred-identity.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(ast.parse(source))
+    assert visitor.scope.strings["trace"] == "C"
+    assert visitor.errors == []
+
+
+def test_consol_deferred_identity_immediate_loop_discards_only_parent_view() -> None:
+    source = (
+        "state = ''\n"
+        "def callback(value):\n    global state\n    state = 'C'\n    return value\n"
+        "for value in [1]:\n    result = list(map(callback, [value]))\n"
+    )
+    tree = ast.parse(source)
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="deferred-identity.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(tree)
+    assert visitor.scope.strings["state"] == "C"
+    assert visitor.scope.resolve_iterable_element("result") is not None
+    assert not any(
+        isinstance(record, tuple) and record[0][0] == "transient"
+        for record in visitor._consumed_deferred_calls
+    )
+    assert visitor.errors == []
+
+
+@pytest.mark.parametrize("abrupt", ["break", "continue", "raise ValueError()"])
+def test_consol_deferred_identity_private_cleanup_covers_abrupt_products(abrupt: str) -> None:
+    statement = (
+        "try:\n            raise ValueError()\n        except ValueError:\n            break"
+        if abrupt.startswith("raise")
+        else abrupt
+    )
+    source = (
+        "state = ''\n"
+        "def callback(value):\n    return value\n"
+        "for value in [1]:\n    try:\n        list(map(callback, [value]))\n        "
+        + statement
+        + "\n    finally:\n        state = 'F'\n"
+    )
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="deferred-identity.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(ast.parse(source))
+    assert visitor.scope.strings["state"] == "F"
+    assert not any(
+        isinstance(record, tuple) and record[0][0] == "transient"
+        for record in visitor._consumed_deferred_calls
+    )
+
+
+def test_consol_deferred_identity_starmap_keeps_order_duplicates_and_one_cursor() -> None:
+    # This is the retained conservative literal-row transfer, not Python next()
+    # prefix simulation. Every represented row transfers once, in source order.
+    source = (
+        "from itertools import starmap\ntrace = ''\n"
+        "def callback(value):\n    global trace\n    trace = trace + value\n    return value\n"
+        "rows = [('B',), ('B',), ('A',)]\n"
+        "pending = starmap(callback, rows)\nalias = pending\n"
+        "next(pending)\nafter_first = trace\nlist(alias)\n"
+    )
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="deferred-identity.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(ast.parse(source))
+    assert visitor.scope.strings["after_first"] == "BBA"
+    assert visitor.scope.strings["trace"] == "BBA"
+    assert visitor._remaining_loop_iterations == 125
+
+
+def test_consol_deferred_identity_to_thread_positional_func_and_forwarded_keyword() -> None:
+    source = (
+        "import asyncio\ntrace = ''\n"
+        "def callback(*, func):\n    global trace\n    trace = trace + func\n"
+        "async def main():\n    await asyncio.to_thread(callback, func='K')\n"
+        "asyncio.run(main())\n"
+    )
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="deferred-identity.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(ast.parse(source))
+    assert visitor.scope.strings["trace"] == "K"
+
+
+def test_consol_deferred_identity_to_thread_keyword_does_not_supply_positional_func() -> None:
+    source = (
+        "import asyncio\ntrace = ''\n"
+        "def callback():\n    global trace\n    trace = trace + 'C'\n"
+        "pending = asyncio.to_thread(func=callback)\n"
+    )
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="deferred-identity.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(ast.parse(source))
+    assert visitor.scope.strings["trace"] == ""
+    assert visitor.scope.resolve_deferred_calls("pending") == frozenset()
+
+
+@pytest.mark.parametrize("wrapped", [False, True])
+def test_consol_deferred_identity_to_thread_captures_bound_receiver_before_effects(
+    wrapped: bool,
+) -> None:
+    callee = "partial(owner.callback)" if wrapped else "owner.callback"
+    source = (
+        "import asyncio\nfrom functools import partial\ntrace = ''\n"
+        "class First:\n    def callback(self, *, value):\n"
+        "        global trace\n        trace = trace + 'A' + value\n"
+        "class Other:\n    def callback(self, *, value):\n"
+        "        global trace\n        trace = trace + 'B' + value\n"
+        "owner = First()\n"
+        "def change():\n    global owner, trace\n    owner = Other()\n"
+        "    trace = trace + 'E'\n    return 'K'\n"
+        f"async def main():\n    await asyncio.to_thread({callee}, value=change())\n"
+        "asyncio.run(main())\n"
+    )
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="deferred-identity.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(ast.parse(source))
+    assert visitor.scope.strings["trace"] == "EAK"
+
+
+def test_consol_deferred_identity_capture_keeps_callback_globals_at_execution_phase() -> None:
+    source = (
+        "import asyncio\ntrace = ''\nstate = 'O'\n"
+        "def callback(value):\n    global trace\n    trace = trace + state\n"
+        "def argument():\n    global trace\n    trace = trace + 'E'\n    return 1\n"
+        "pending = asyncio.to_thread(callback, argument())\n"
+        "state = 'N'\nasyncio.run(pending)\n"
+    )
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="deferred-identity.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(ast.parse(source))
+    assert visitor.scope.strings["trace"] == "EN"
+
+
+@pytest.mark.parametrize("kind", ["generator", "coroutine"])
+@pytest.mark.parametrize("consume_child", [False, True])
+def test_consol_deferred_identity_thread_normal_returned_value_stays_dormant(
+    kind: str, consume_child: bool
+) -> None:
+    deferred = (
+        "def deferred():\n    global trace\n    trace = trace + 'D'\n    yield 1\n"
+        if kind == "generator"
+        else "async def deferred():\n    global trace\n    trace = trace + 'D'\n    return 1\n"
+    )
+    consume = "list(child)" if kind == "generator" else "await child"
+    source = (
+        "import asyncio\ntrace = ''\n"
+        + deferred
+        + "def normal():\n    global trace\n    trace = trace + 'N'\n    return deferred()\n"
+        "async def main():\n    child = await asyncio.to_thread(normal)\n"
+        + ("    " + consume + "\n" if consume_child else "")
+        + "asyncio.run(main())\n"
+    )
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="deferred-identity.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(ast.parse(source))
+    assert visitor.scope.strings["trace"] == ("ND" if consume_child else "N")
+
+
+@pytest.mark.parametrize("shared", [False, True])
+def test_consol_deferred_identity_keeps_shared_and_independent_nonlocal_owners(
+    shared: bool,
+) -> None:
+    source = (
+        "def make():\n    trace = ''\n    def callback(value):\n"
+        "        nonlocal trace\n        trace = trace + 'C'\n        return trace\n"
+        "    return callback\n"
+        "first = make()\n"
+        + ("second = first\n" if shared else "second = make()\n")
+        + "one = next(map(first, [1]))\ntwo = next(map(second, [1]))\n"
+    )
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="deferred-identity.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(ast.parse(source))
+    assert visitor.scope.strings["one"] == "C"
+    assert visitor.scope.strings["two"] == ("CC" if shared else "C")
+
+
+def test_consol_deferred_identity_flow_clone_equivalence_preserves_alias_topology() -> None:
+    source = (
+        "def make():\n    value = 'C'\n    def callback():\n        return value\n"
+        "    return callback\nfirst = make()\nsecond = make()\n"
+    )
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="deferred-identity.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(ast.parse(source))
+    left = visitor.scope.clone(capture_flow=False)
+    right = visitor.scope.clone(capture_flow=False)
+    left._flow_snapshot = visitor._capture_deferred_flow(left)
+    right._flow_snapshot = visitor._capture_deferred_flow(right)
+    assert visitor._bindings_equal(left, right)
+    right.callables["first"] = right.callables["second"]
+    right._flow_snapshot = visitor._capture_deferred_flow(right)
+    assert not visitor._bindings_equal(left, right)
+
+
+def test_consol_deferred_identity_branch_disagreement_is_unknown_not_available() -> None:
+    source = (
+        "def callback(value):\n    return value\n"
+        "pending = map(callback, [1])\n"
+        "if condition:\n    list(pending)\n"
+        "list(pending)\n"
+    )
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="deferred-identity.py", errors=[], analyze_function_bodies=False
+    )
+    with pytest.raises(legacy_guard.LegacyGrowthAnalysisError, match="disagrees"):
+        visitor.visit(ast.parse(source))
+
+
+def test_consol_deferred_identity_consumed_escaping_loop_summary_stays_unknown() -> None:
+    source = (
+        "def callback(value):\n    return value\n"
+        "for value in values:\n    pending = map(callback, [value])\n"
+        "list(pending)\n"
+    )
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="deferred-identity.py", errors=[], analyze_function_bodies=False
+    )
+    with pytest.raises(legacy_guard.LegacyGrowthAnalysisError, match="deferred"):
+        visitor.visit(ast.parse(source))
+
+
+def test_consol_deferred_identity_r2_snapshot_keeps_actual_function_root_first() -> None:
+    source = (
+        "state = 'S'\n"
+        "def module_callback(value):\n    global state\n    state = value\n"
+        "def return_callback(value):\n    return module_callback\n"
+        "def make():\n    local = 'L'\n    pending = map(return_callback, [1])\n"
+        "    list(pending)\n    def held():\n        return local\n    return held\n"
+        "held = make()\n"
+    )
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="deferred-identity.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(ast.parse(source))
+    module = visitor.scope
+    held = next(iter(module.resolve_callables("held")))
+    current = visitor._function_definition_scopes[held]
+    assert current.scope_kind == "function"
+    visitor.scope = current
+    snapshot = visitor._capture_deferred_flow(current)
+    owners = [owner for owner, _fields in snapshot[0]]
+    assert owners[0] is current
+    assert module in owners
+    assert len(owners) == len(set(owners))
+    assert snapshot[0][0][1].strings["local"] == "L"
+    assert any(
+        isinstance(record, tuple)
+        and record[2] is not None
+        and module.resolve_callables("module_callback") <= record[2].callables
+        for record in snapshot[1]
+    )
+
+
+def test_consol_deferred_identity_r2_function_branch_joins_module_callback_writes() -> None:
+    source = (
+        "state = 'S'\n"
+        "def module_callback(value):\n    global state\n    state = value\n"
+        "def return_callback(value):\n    return module_callback\n"
+        "pending = map(return_callback, [1])\nlist(pending)\n"
+        "def invoke(callback=module_callback):\n    global state\n    local = 'L'\n"
+        "    if condition:\n        callback('A')\n        local = 'X'\n"
+        "    else:\n        callback('B')\n        local = 'Y'\n"
+        "    return local\nresult = invoke()\n"
+    )
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="deferred-identity.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(ast.parse(source))
+    assert visitor.scope.resolve_string("state") in {None, legacy_guard._DYNAMIC_STRING_BINDING}
+    assert visitor.scope.resolve_string("result") in {None, legacy_guard._DYNAMIC_STRING_BINDING}
+    assert visitor.errors == []
+
+
+@pytest.mark.parametrize("family", ["api", "openapi"])
+@pytest.mark.parametrize("empty_first", [False, True])
+@pytest.mark.parametrize("transport", ["direct", "factory", "zip"])
+def test_consol_deferred_identity_r2_map_stops_after_earlier_protected_input(
+    family: str, empty_first: bool, transport: str
+) -> None:
+    member = "require_app_api_key" if family == "api" else "_install_openapi_builder"
+    operands = "[], source(legacy)" if empty_first else "source(legacy), []"
+    expression = f"map(combine, {operands})"
+    factory = f"def build():\n    return {expression}\n" if transport == "factory" else ""
+    consumed = "build()" if transport == "factory" else expression
+    if transport == "zip":
+        consumed = f"zip({consumed})"
+    source = (
+        "import legacy_app as legacy\n"
+        f"def source(owner):\n    value = owner.{member}\n    yield value\n"
+        "def combine(left, right):\n    return left\n" + factory + f"list({consumed})\n"
+    )
+    errors = (
+        _validate_api_key_dependency_ownership(
+            _CONSOL_GETTER_IMPORTS, {"app/routers/example.py": source}
+        )
+        if family == "api"
+        else _consol_openapi_errors(source)
+    )
+    assert bool(errors) is (not empty_first)
+
+
+@pytest.mark.parametrize(
+    ("operands", "expected", "empty_output"),
+    [
+        ("source('A'), [], source('C')", "A", True),
+        ("[], source('B'), source('C')", "", True),
+        ("['x'], source('B'), []", "B", True),
+        ("source('A'), source('B'), [], source('C')", "AB", True),
+        ("source('A'), source('B')", "ABM", False),
+    ],
+)
+def test_consol_deferred_identity_r2_map_empty_result_preserves_input_stop_order(
+    operands: str, expected: str, empty_output: bool
+) -> None:
+    source = (
+        "trace = ''\n"
+        "def source(label):\n    global trace\n    trace = trace + label\n    yield label\n"
+        "def combine(*parts):\n    global trace\n    trace = trace + 'M'\n    return None\n"
+        f"pending = map(combine, {operands})\ncreated = trace\nlist(pending)\n"
+    )
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="deferred-identity.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(ast.parse(source))
+    assert visitor.scope.strings["created"] == ""
+    assert visitor.scope.strings["trace"] == expected
+    assert (visitor.scope.resolve_ordered_items("pending") == ()) is empty_output
+    assert visitor.scope.resolve_deferred_calls("pending")
+    assert visitor._remaining_loop_iterations == 128
+
+
+def test_consol_deferred_identity_r2_positive_start_empty_islice_keeps_input_effect() -> None:
+    source = (
+        "from itertools import islice\ntrace = ''\n"
+        "def callback(value):\n    global trace\n    trace = trace + 'C'\n    return value\n"
+        "list(islice(map(callback, [1]), 1, 1))\n"
+    )
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="deferred-identity.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(ast.parse(source))
+    assert visitor.scope.strings["trace"] == "C"
+    assert visitor.errors == []
+
+
+@pytest.mark.parametrize("name", ["node", "source"])
+def test_consol_deferred_identity_r2_user_labels_keep_lexical_parameter_default_keyword_facts(
+    name: str,
+) -> None:
+    source = (
+        f"{name} = 'L'\n"
+        f"def use({name}={name}):\n    for step in [1]:\n        observed = {name}\n"
+        "    return observed\n"
+        f"keyword_result = use({name}='K')\ndefault_result = use()\n"
+    )
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="deferred-identity.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(ast.parse(source))
+    assert visitor.scope.strings[name] == "L"
+    assert visitor.scope.strings["keyword_result"] == "K"
+    assert visitor.scope.strings["default_result"] == "L"
+    assert visitor.errors == []
+
+
+@pytest.mark.parametrize("name", ["node", "source"])
+def test_consol_deferred_identity_r2_user_labels_do_not_coalesce_nonlocal_owners(
+    name: str,
+) -> None:
+    source = (
+        f"def make({name}='C'):\n    value = {name}\n"
+        "    def callback():\n        return value\n    return callback\n"
+        "first = make()\nsecond = make()\n"
+    )
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="deferred-identity.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(ast.parse(source))
+    left = visitor.scope.clone(capture_flow=False)
+    right = visitor.scope.clone(capture_flow=False)
+    left._flow_snapshot = visitor._capture_deferred_flow(left)
+    right._flow_snapshot = visitor._capture_deferred_flow(right)
+    assert visitor._bindings_equal(left, right)
+    right.callables["first"] = right.callables["second"]
+    right._flow_snapshot = visitor._capture_deferred_flow(right)
+    assert not visitor._bindings_equal(left, right)
+
+
+def test_consol_deferred_identity_live_scope_walk_keeps_each_temporary_binding_owner() -> None:
+    labels = ("A", "B", "C", "A", "D", "E", "F", "B")
+    source = (
+        "def make(marker):\n    local = marker\n"
+        "    def callback():\n        return local\n    return callback\n"
+        + "".join(f"held_{index} = make({label!r})\n" for index, label in enumerate(labels))
+    )
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="deferred-identity.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(ast.parse(source))
+    callbacks = [
+        next(iter(visitor.scope.resolve_callables(f"held_{index}"))) for index in range(len(labels))
+    ]
+    owners = [visitor._function_definition_scopes[callback] for callback in callbacks]
+    assert len(set(owners)) == len(labels)
+    snapshot = visitor._capture_deferred_flow(visitor.scope)
+    saved = dict(snapshot[0])
+    assert snapshot[0][0][0] is visitor.scope
+    for owner, label in zip(owners, labels, strict=True):
+        assert owner in saved
+        assert saved[owner].strings["local"] == label
+    assert visitor.errors == []
+
+
+def test_consol_deferred_identity_empty_corridor_has_only_consumed_snapshot_work() -> None:
+    class SnapshotVisitor(legacy_guard._ApiKeyLookupVisitor):
+        def __init__(self) -> None:
+            super().__init__(
+                filename="deferred-identity.py", errors=[], analyze_function_bodies=False
+            )
+            self.capture_count = 0
+
+        def _capture_deferred_flow(
+            self, root: legacy_guard._LexicalBindings
+        ) -> legacy_guard._DeferredFlowSnapshot:
+            self.capture_count += 1
+            return super()._capture_deferred_flow(root)
+
+    tree = ast.parse("value = 'K'\n")
+    visitor = SnapshotVisitor()
+    visitor.visit(tree)
+    # Scalar assignment requires the final module freeze, not an unread entry
+    # snapshot. The live facts and original source root remain fully captured.
+    assert visitor.capture_count == 1
+    snapshot = visitor.scope._flow_snapshot
+    assert snapshot is not None
+    assert snapshot[0][0][0] is visitor.scope
+    assert snapshot[0][0][1].strings["value"] == "K"
+    assert snapshot[5] is tree
+    assert visitor.scope.strings["value"] == "K"
+    assert visitor._active_replay_contexts == []
+    assert visitor.errors == []
+
+
+def test_consol_deferred_identity_source_root_tracks_nested_module_and_fragment() -> None:
+    outer = ast.parse("outer = 'O'\n")
+    inner = ast.parse("inner = 'I'\n")
+    expression = ast.parse("('S',)\n").body[0]
+    assert isinstance(expression, ast.Expr)
+    fragment = expression.value
+    assert isinstance(fragment, ast.Tuple)
+
+    class SourceRootVisitor(legacy_guard._ApiKeyLookupVisitor):
+        def __init__(self) -> None:
+            super().__init__(
+                filename="deferred-identity.py", errors=[], analyze_function_bodies=False
+            )
+            self.source_roots: list[ast.AST | None] = []
+
+        def visit_Module(self, node: ast.Module) -> None:
+            self.source_roots.append(self._capture_deferred_flow(self.scope)[5])
+            if node is outer:
+                self.visit(inner)
+                self.source_roots.append(self._capture_deferred_flow(self.scope)[5])
+            super().visit_Module(node)
+
+        def visit_Tuple(self, node: ast.Tuple) -> None:
+            self.source_roots.append(self._capture_deferred_flow(self.scope)[5])
+            super().visit_Tuple(node)
+
+    visitor = SourceRootVisitor()
+    visitor.visit(outer)
+    assert len(visitor.source_roots) == 3
+    assert visitor.source_roots[0] is outer
+    assert visitor.source_roots[1] is inner
+    assert visitor.source_roots[2] is outer
+    assert visitor.scope.strings["inner"] == "I"
+    assert visitor.scope.strings["outer"] == "O"
+    # Once the frames are gone, the prior snapshot remains the source fallback.
+    assert visitor._capture_deferred_flow(visitor.scope)[5] is outer
+    assert visitor._active_replay_contexts == []
+    assert visitor.errors == []
+
+    standalone = SourceRootVisitor()
+    standalone.visit(fragment)
+    assert standalone.source_roots == [None]
+    assert standalone._capture_deferred_flow(standalone.scope)[5] is None
+    assert standalone._active_replay_contexts == []
+    assert standalone.errors == []
+
+
+@pytest.mark.parametrize(
+    "channel",
+    [
+        "class_reference",
+        "instance_reference",
+        "callables",
+        "deferred_calls",
+        "mapping",
+        "class_references",
+        "descriptors",
+        "iterable_element",
+        "ordered_items",
+        "call_receivers",
+    ],
+)
+def test_consol_deferred_identity_sparse_scope_walk_preserves_each_owner_edge(
+    channel: str,
+) -> None:
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="deferred-identity.py", errors=[], analyze_function_bodies=False
+    )
+    root = visitor.scope
+    owner = legacy_guard._LexicalBindings(parent=root, scope_kind="function")
+    owner.bind("marker", reference=None, string="C")
+    callback = ast.parse("def held(value):\n    return value\n").body[0]
+    assert isinstance(callback, ast.FunctionDef)
+    visitor._function_definition_scopes[callback] = owner
+    captured = legacy_guard._ResolvedBinding(None, None, callables=frozenset({callback}))
+    class_reference = f"{legacy_guard._CLASS_REFERENCE_PREFIX}held>"
+    instance_reference = f"{legacy_guard._INSTANCE_REFERENCE_PREFIX}held>"
+    for reference in (class_reference, instance_reference):
+        visitor._class_member_callables[(reference, "held")] = frozenset({callback})
+    mapping_site = ast.parse("{'held': None}", mode="eval").body
+    assert isinstance(mapping_site, ast.Dict)
+    mapping = legacy_guard._StaticMapping(
+        mapping_site,
+        (legacy_guard._StaticMappingEntry(mapping_site.keys[0], captured),),
+    )
+    payloads = {
+        "class_reference": legacy_guard._ResolvedBinding(class_reference, None),
+        "instance_reference": legacy_guard._ResolvedBinding(instance_reference, None),
+        "callables": captured,
+        "deferred_calls": legacy_guard._ResolvedBinding(
+            None,
+            None,
+            deferred_calls=frozenset(
+                {legacy_guard._DeferredFunctionCall(callback, (("value", captured),))}
+            ),
+        ),
+        "mapping": legacy_guard._ResolvedBinding(None, None, mapping=mapping),
+        "class_references": legacy_guard._ResolvedBinding(
+            None, None, class_references=frozenset({class_reference})
+        ),
+        "descriptors": legacy_guard._ResolvedBinding(
+            None, None, descriptors=frozenset({(callback, "plain")})
+        ),
+        "iterable_element": legacy_guard._ResolvedBinding(None, None, iterable_element=captured),
+        "ordered_items": legacy_guard._ResolvedBinding(
+            None, None, ordered_items=(captured, captured)
+        ),
+        "call_receivers": legacy_guard._ResolvedBinding(
+            None, None, call_receivers=frozenset({(callback, "bound", captured)})
+        ),
+    }
+    payload = payloads[channel]
+    root.bind(
+        "edge",
+        reference=payload.reference,
+        string=payload.string,
+        callables=payload.callables,
+        deferred_calls=payload.deferred_calls,
+        mapping=payload.mapping,
+        class_references=payload.class_references,
+        descriptors=payload.descriptors,
+        iterable_element=payload.iterable_element,
+        ordered_items=payload.ordered_items,
+        call_receivers=payload.call_receivers,
+    )
+    root.bind("scalar", reference="external.safe", string="S")
+    root.bind("prefix_neighbor", reference="<class-neighbor:held>", string="N")
+    snapshot = visitor._capture_deferred_flow(root)
+    assert [current for current, _fields in snapshot[0]] == [root, owner]
+    saved = dict(snapshot[0])
+    assert saved[owner].strings["marker"] == "C"
+    assert saved[root].references == root.references
+    assert saved[root].strings == root.strings
+    assert saved[root].strings["scalar"] == "S"
+    assert saved[root].strings["prefix_neighbor"] == "N"
+    if channel == "ordered_items":
+        assert len(saved[root].ordered_items["edge"]) == 2
+        assert saved[root].ordered_items["edge"][0] is saved[root].ordered_items["edge"][1]
+    assert visitor.errors == []
+
+
+class _EulerFactProjectionVisitor(legacy_guard._ApiKeyLookupVisitor):
+    """Observe real Flow captures without replacing their implementation."""
+
+    def __init__(self, **kwargs: Any) -> None:
+        super().__init__(filename="fact-projection.py", errors=[], **kwargs)
+        self.captured_roots: list[legacy_guard._LexicalBindings] = []
+
+    def _capture_deferred_flow(
+        self, root: legacy_guard._LexicalBindings
+    ) -> legacy_guard._DeferredFlowSnapshot:
+        self.captured_roots.append(root)
+        return super()._capture_deferred_flow(root)
+
+
+@pytest.mark.parametrize("family", ["api_key", "openapi"])
+@pytest.mark.parametrize(
+    "flags", [(a, b, c) for a in (False, True) for b in (False, True) for c in (False, True)]
+)
+def test_consol_fact_join_has_independent_full_field_oracle(
+    family: Literal["api_key", "openapi"], flags: tuple[bool, bool, bool]
+) -> None:
+    visitor = _EulerFactProjectionVisitor(
+        ownership_family=family,
+        preserve_fastapi_conflicts=flags[0],
+        preserve_lifecycle_conflicts=flags[1],
+        preserve_route_method_conflicts=flags[2],
+    )
+    active = visitor.scope
+    first, second = ast.parse("def first():\n    yield 1\ndef second():\n    yield 2\n").body
+    assert isinstance(first, ast.FunctionDef) and isinstance(second, ast.FunctionDef)
+    deferred = legacy_guard._DeferredFunctionCall(first, ())
+    shared = legacy_guard._StaticMapping(ast.Dict(keys=[], values=[]), ())
+    separate = legacy_guard._StaticMapping(shared.site, ())
+    element = legacy_guard._ResolvedBinding("legacy_app", "get_api_key")
+    left, right = (legacy_guard._LexicalBindings(parent=None) for _ in range(2))
+    for scope, function, label in ((left, first, "left"), (right, second, "right")):
+        scope.references = {"owner": "legacy_app"}
+        scope.strings = {"member": "get_api_key"}
+        scope.callables = {"callback": frozenset({function})}
+        scope.deferred_calls = {"pending": frozenset({deferred})}
+        scope.mappings = {"shared": shared, "independent": shared if scope is left else separate}
+        scope.class_references = {"kind": frozenset({label})}
+        scope.descriptors = {"descriptor": frozenset({(function, "plain")})}
+        scope.iterable_elements = {"iterable": element}
+        scope.ordered_items = {"rows": (element, element)}
+        scope.call_receivers = {"receiver": frozenset({(function, "bound", element)})}
+        scope.bound_names = {"bound", label}
+        scope.possibly_bound_names = {"bound", label}
+    left.references.update(fastapi="fastapi.FastAPI", lifecycle="builtins.__import__")
+    right.references.update(fastapi="external.safe", lifecycle="external.safe")
+    left.strings.update(
+        route_conflict="get",
+        api_conflict="get_api_key",
+        openapi_conflict="_install_openapi_builder",
+    )
+    right.strings.update(route_conflict="safe", api_conflict="safe", openapi_conflict="safe")
+    expected_references = {"owner": "legacy_app"}
+    if flags[0]:
+        expected_references["fastapi"] = "<possible:fastapi>"
+    if flags[1]:
+        expected_references["lifecycle"] = "<possible:import_callable>"
+    expected_strings = {"member": "get_api_key"}
+    expected_strings["api_conflict" if family == "api_key" else "openapi_conflict"] = (
+        "<possible:api_key_symbol>" if family == "api_key" else "<possible:openapi_symbol>"
+    )
+    if flags[2]:
+        expected_strings["route_conflict"] = "<possible:route_method>"
+    target = legacy_guard._LexicalBindings(parent=None)
+
+    visitor._merge_binding_facts(target, [left, right])
+
+    assert target.references == expected_references
+    assert target.strings == expected_strings
+    assert target.callables == {"callback": frozenset({first, second})}
+    assert target.deferred_calls == {"pending": frozenset({deferred})}
+    assert target.mappings == {"shared": shared}
+    assert target.mappings["shared"] is shared
+    assert target.class_references == {"kind": frozenset({"left", "right"})}
+    assert target.descriptors == {
+        "callback": frozenset({(first, "plain"), (second, "plain")}),
+        "descriptor": frozenset({(first, "plain"), (second, "plain")}),
+    }
+    assert target.iterable_elements == {"iterable": element}
+    assert target.ordered_items == {"rows": (element, element)}
+    assert target.call_receivers == {
+        "receiver": frozenset({(first, "bound", element), (second, "bound", element)})
+    }
+    assert target.bound_names == {"bound"}
+    assert target.possibly_bound_names == {"bound", "left", "right"}
+    assert target._flow_owner is None and target._flow_snapshot is None
+    assert visitor.scope is active and visitor.captured_roots == []
+    assert left.mappings["independent"] is shared
+    assert right.mappings["independent"] is separate
+    projection = legacy_guard._LexicalBindings(parent=None)
+    projection.callables = {"untouched": frozenset({first})}
+    projection.bound_names = {"untouched"}
+    visitor._merge_binding_facts(projection, [left, right], snapshot_projection=True)
+    assert projection.references == expected_references
+    assert projection.strings == expected_strings
+    assert projection.callables == {"untouched": frozenset({first})}
+    assert projection.bound_names == {"untouched"}
+    assert projection._flow_owner is None and projection._flow_snapshot is None
+    for mapping, expected_mapping in ((shared, shared), (separate, None)):
+        result = visitor._join_resolved_bindings(
+            [
+                legacy_guard._ResolvedBinding(
+                    None, None, callables=frozenset({first}), mapping=shared
+                ),
+                legacy_guard._ResolvedBinding(
+                    None, None, callables=frozenset({second}), mapping=mapping
+                ),
+            ]
+        )
+        assert result.mapping is expected_mapping
+        assert result.callables == frozenset({first, second})
+        assert result.descriptors == frozenset()
+    assert visitor.scope is active and visitor.captured_roots == []
+
+
+@pytest.mark.parametrize("family", ["api_key", "openapi"])
+@pytest.mark.parametrize("consumer", ["snapshot", "binding"])
+@pytest.mark.parametrize("registered_owner", [False, True])
+def test_consol_temporary_fact_consumers_preserve_active_owner_progress_and_metadata(
+    family: Literal["api_key", "openapi"], consumer: str, registered_owner: bool
+) -> None:
+    node = ast.Name(id="value", ctx=ast.Load())
+    references = {id(node): {"stable": "legacy_app", "old": "external.safe"}}
+    strings = {id(node): {"stable": "safe", "old": "safe"}}
+    visitor = _EulerFactProjectionVisitor(
+        ownership_family=family, reference_snapshots=references, string_snapshots=strings
+    )
+    active = visitor.scope
+    active.references = {"stable": "legacy_app"}
+    active.strings = {"stable": "safe"}
+    owner = legacy_guard._LexicalBindings(parent=active, scope_kind="function")
+    owner.strings = {"captured": "C"}
+    function = ast.parse("def held():\n    yield 1\n").body[0]
+    assert isinstance(function, ast.FunctionDef)
+    visitor._function_definition_scopes[function] = owner
+    payload = legacy_guard._ResolvedBinding(None, None, callables=frozenset({function}))
+    active.callables["held"] = frozenset({function})
+    key: legacy_guard._DeferredValueKey = ("precise", node, (), None)
+    progress: legacy_guard._DeferredProgress = (key, "available", payload)
+    visitor._consumed_deferred_calls.add(progress)
+    visitor._call_result_bindings[id(node)] = payload
+    deferred = legacy_guard._DeferredFunctionCall(function, (), value_key=key)
+    visitor._deferred_call_bindings[id(node)] = frozenset({deferred})
+    visitor._function_default_bindings[function] = {"value": payload}
+    old_snapshot = visitor._capture_deferred_flow(active)
+    active._flow_snapshot = old_snapshot
+    if not registered_owner:
+        active._flow_owner = None
+    visitor.captured_roots.clear()
+
+    if consumer == "snapshot":
+        visitor._record_snapshot(node)
+        assert references[id(node)] == {"stable": "legacy_app"}
+        assert strings[id(node)] == {"stable": "safe"}
+    else:
+        result = visitor._join_resolved_bindings([payload, payload])
+        assert result.callables == frozenset({function})
+        assert result.descriptors == frozenset()
+        assert result.reference is None and result.string is None
+    assert visitor.captured_roots == []
+    assert visitor.scope is active and active._flow_snapshot is old_snapshot
+    assert active._flow_owner is visitor
+    assert active.references == {"stable": "legacy_app"}
+    assert active.strings == {"stable": "safe"}
+    assert owner.strings == {"captured": "C"}
+    assert visitor._consumed_deferred_calls == {progress}
+    assert visitor._call_result_bindings == {id(node): payload}
+    assert visitor._deferred_call_bindings == {id(node): frozenset({deferred})}
+    assert visitor._function_definition_scopes == {function: owner}
+    assert visitor._function_default_bindings == {function: {"value": payload}}
+    assert visitor._function_decorator_bindings == {}
+    assert visitor._mapping_invalidation_counts == {}
+    assert visitor._remaining_loop_iterations == 128
+
+
+@pytest.mark.parametrize("transfer", ["clone", "switch", "merge"])
+@pytest.mark.parametrize("module_source", [False, True])
+def test_consol_fact_projection_stale_snapshot_recaptures_before_physical_transfer(
+    transfer: str, module_source: bool
+) -> None:
+    visitor = _EulerFactProjectionVisitor(analyze_function_bodies=False)
+    tree = ast.parse("marker = 'old'\n")
+    if module_source:
+        visitor.visit(tree)
+    else:
+        visitor.scope.strings["marker"] = "old"
+        visitor.scope._flow_snapshot = visitor._capture_deferred_flow(visitor.scope)
+    active = visitor.scope
+    old = active._flow_snapshot
+    assert old is not None
+    active.strings["marker"] = "new"
+    visitor.captured_roots.clear()
+    result = visitor._join_resolved_bindings(
+        [legacy_guard._ResolvedBinding("legacy_app", "safe")] * 2
+    )
+    assert result.reference == "legacy_app" and result.string == "safe"
+    assert visitor.captured_roots == [] and active._flow_snapshot is old
+    assert dict(old[0])[active].strings["marker"] == "old"
+
+    if transfer == "clone":
+        target = active.clone()
+    elif transfer == "switch":
+        target = active.clone()
+        visitor._switch_deferred_scope(target, restore_flow=True)
+        target = target.clone()
+    else:
+        # A real incoming transfer retains its existing source lineage.
+        target = active.clone()
+        visitor._merge_outcomes(target, [active])
+    snapshot = target._flow_snapshot
+    assert snapshot is not None
+    assert target.strings["marker"] == "new"
+    assert dict(snapshot[0])[snapshot[0][0][0]].strings["marker"] == "new"
+    assert snapshot[5] is (tree if module_source else None)
+    assert visitor.captured_roots
+    assert visitor._active_replay_contexts == []
+    assert visitor.errors == []
+
+
+def test_consol_fact_projection_keeps_nested_module_and_fragment_source_roots() -> None:
+    outer = ast.parse("outer = 'O'\n")
+    inner = ast.parse("inner = 'I'\n")
+    fragment = ast.parse("('F',)\n").body[0]
+    assert isinstance(fragment, ast.Expr)
+
+    class SourceVisitor(_EulerFactProjectionVisitor):
+        def __init__(self) -> None:
+            super().__init__(analyze_function_bodies=False)
+            self.sources: list[ast.AST | None] = []
+
+        def visit_Module(self, node: ast.Module) -> None:
+            value = self._join_resolved_bindings(
+                [legacy_guard._ResolvedBinding("legacy_app", "safe")] * 2
+            )
+            assert value.reference == "legacy_app"
+            self.sources.append(self._capture_deferred_flow(self.scope)[5])
+            if node is outer:
+                self.visit(inner)
+                self.sources.append(self._capture_deferred_flow(self.scope)[5])
+            super().visit_Module(node)
+
+    visitor = SourceVisitor()
+    visitor.visit(outer)
+    assert visitor.sources == [outer, inner, outer]
+    assert visitor.scope.strings["outer"] == "O"
+    assert visitor.scope.strings["inner"] == "I"
+    assert visitor._capture_deferred_flow(visitor.scope)[5] is outer
+    visitor.visit(fragment.value)
+    assert visitor._capture_deferred_flow(visitor.scope)[5] is outer
+    standalone = SourceVisitor()
+    standalone.visit(fragment.value)
+    assert standalone._capture_deferred_flow(standalone.scope)[5] is None
+    assert visitor.errors == standalone.errors == []
+
+
+@pytest.mark.parametrize("control", ["branch", "return", "raise", "break", "continue", "context"])
+def test_consol_fact_join_before_abrupt_transfer_keeps_alias_and_independent_progress(
+    control: str,
+) -> None:
+    bodies = {
+        "branch": "if choice:\n    return value\nreturn value\n",
+        "return": "return value\n",
+        "raise": "try:\n    raise RuntimeError()\nexcept RuntimeError:\n    return value\n",
+        "break": "for item in [None]:\n    result = value\n    break\nreturn result\n",
+        "continue": "for item in [None]:\n    result = value\n    continue\nreturn result\n",
+        "context": "with Hold():\n    return value\n",
+    }
+    source = (
+        "trace = ''\n"
+        "class Hold:\n"
+        "    def __enter__(self):\n        return None\n"
+        "    def __exit__(self, kind, error, tb):\n        return None\n"
+        "def factory(tag):\n"
+        "    def child():\n"
+        "        global trace\n        trace = trace + tag\n        yield tag\n"
+        "    return child()\n"
+        "def identity(value):\n"
+        + textwrap.indent(bodies[control], "    ")
+        + "first = identity(factory('A'))\nalias = first\nsecond = identity(factory('B'))\n"
+        "list(first)\nlist(alias)\nlist(second)\n"
+    )
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="fact-projection.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(ast.parse(source))
+    assert visitor.scope.strings["trace"] == "AB"
+    assert visitor.errors == []
+    assert visitor._active_replay_contexts == []
+    assert not visitor._active_function_replays
+    assert visitor.scope._flow_snapshot is not None
+
+
+def test_consol_fact_join_empty_consumers_keep_their_existing_contracts() -> None:
+    visitor = _EulerFactProjectionVisitor()
+    active = visitor.scope
+    active._flow_owner = None
+    assert visitor._join_resolved_bindings([]) == legacy_guard._ResolvedBinding(None, None)
+    assert visitor.scope is active and visitor.captured_roots == []
+    assert active._flow_owner is None
+    visitor._record_snapshot(ast.Name(id="fresh", ctx=ast.Load()))
+    assert visitor.scope is active and active._flow_owner is None
+    assert visitor.captured_roots == []
+    active._flow_owner = visitor
+    target = legacy_guard._LexicalBindings(parent=None)
+    target.strings["kept"] = "K"
+    visitor._merge_outcomes(target, [])
+    assert visitor.scope is target
+    assert target.strings == {"kept": "K"}
+    assert visitor.captured_roots == [active]
+    assert target._flow_owner is None and target._flow_snapshot is None
+
+
+@pytest.mark.parametrize("partial", [False, True])
+def test_consol_fact_join_retains_existing_payload_normalization_failure(partial: bool) -> None:
+    visitor = _EulerFactProjectionVisitor()
+    active = visitor.scope
+    deferred = legacy_guard._DeferredFunctionCall(None, (), partial_template=partial)
+    value = legacy_guard._ResolvedBinding(None, None, deferred_calls=frozenset({deferred}))
+    for _ in range(8):
+        value = legacy_guard._ResolvedBinding(None, None, iterable_element=value)
+    message = "partial payload exceeds" if partial else "legacy deferred payload exceeds"
+    with pytest.raises(legacy_guard.LegacyGrowthAnalysisError, match=message):
+        visitor._join_resolved_bindings([value])
+    assert visitor.scope is active and visitor.captured_roots == []
+    assert visitor._consumed_deferred_calls == set()
+    assert visitor.errors == []
+
+
+@pytest.mark.parametrize("prefix_join", [False, True])
+@pytest.mark.parametrize("unknown_condition", [False, True])
+@pytest.mark.parametrize("parent_consumed", [False, True])
+@pytest.mark.parametrize("independent_values", [False, True])
+def test_consol_fact_join_preserves_real_argument_evaluator_owner_activation(
+    prefix_join: bool, unknown_condition: bool, parent_consumed: bool, independent_values: bool
+) -> None:
+    prefix = ("(g, h)" if independent_values else "(g, g)") if prefix_join else "None"
+    condition = "choice" if unknown_condition else "False"
+    parent_consumer = "list(g)\n" if parent_consumed else ""
+    source = (
+        "from external import choice\n"
+        "def child():\n    yield 'G'\n"
+        "def sink(a, b, c):\n    return c\n"
+        "g = child()\nh = child()\n"
+        + parent_consumer
+        + f"sink({prefix}, list(g) if {condition} else (), list(g))\n"
+    )
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="fact-projection-evaluator.py", errors=[], analyze_function_bodies=False
+    )
+    # Actual arguments retain the parent's progress. Capturing a tuple does
+    # not renew consumed g; only an available/consumed branch disagreement
+    # remains unknown and must fail closed.
+    if unknown_condition and not parent_consumed:
+        with pytest.raises(
+            legacy_guard.LegacyGrowthAnalysisError,
+            match="deferred consumption disagrees across incoming flows",
+        ):
+            visitor.visit(ast.parse(source))
+    else:
+        visitor.visit(ast.parse(source))
+    assert visitor.errors == []
+    if parent_consumed or not unknown_condition:
+        assert any(
+            isinstance(record, tuple) and record[1] == "consumed"
+            for record in visitor._consumed_deferred_calls
+        )
+    g_calls = visitor.scope.resolve_deferred_calls("g")
+    h_calls = visitor.scope.resolve_deferred_calls("h")
+    assert len(g_calls) == len(h_calls) == 1
+    g_key = next(iter(g_calls)).value_key
+    h_key = next(iter(h_calls)).value_key
+    assert g_key is not None and h_key is not None and g_key != h_key
+    assert not any(
+        record[0] == h_key and record[1] == "consumed"
+        for record in visitor._consumed_deferred_calls
+    )
+    if parent_consumed or not unknown_condition:
+        assert any(
+            record[0] == g_key and record[1] == "consumed"
+            for record in visitor._consumed_deferred_calls
+        )
+
+
+def test_consol_nested_fact_join_retains_detached_owner_before_branch_progress_transfer() -> None:
+    visitor = _EulerFactProjectionVisitor(analyze_function_bodies=False)
+    active = visitor.scope.detached_clone()
+    visitor.scope = active
+    assert active._flow_owner is None and active._flow_snapshot is None
+    active.strings["marker"] = "R"
+    captured = legacy_guard._LexicalBindings(parent=active, scope_kind="function")
+    captured.strings["marker"] = "C"
+    function = ast.parse("def held():\n    yield 'G'\n").body[0]
+    assert isinstance(function, ast.FunctionDef)
+    visitor._function_definition_scopes[function] = captured
+    active.callables["held"] = frozenset({function})
+    leaf = legacy_guard._ResolvedBinding(None, None, callables=frozenset({function}))
+    nested = legacy_guard._ResolvedBinding(
+        None, None, iterable_element=leaf, ordered_items=(leaf, leaf)
+    )
+    key: legacy_guard._DeferredValueKey = ("precise", function, (), None)
+    available: legacy_guard._DeferredProgress = (key, "available", leaf)
+    visitor._consumed_deferred_calls = {available}
+
+    result = visitor._join_resolved_bindings([nested, nested])
+
+    assert result.iterable_element is not None
+    assert result.iterable_element.callables == frozenset({function})
+    assert result.ordered_items is not None and len(result.ordered_items) == 2
+    assert all(item.callables == frozenset({function}) for item in result.ordered_items)
+    assert visitor.scope is active and active._flow_owner is visitor
+    assert active._flow_snapshot is None and visitor.captured_roots == []
+    assert visitor._consumed_deferred_calls == {available}
+    assert captured.strings == {"marker": "C"}
+
+    entry = active.clone()
+    first = entry.clone()
+    visitor._switch_deferred_scope(first, restore_flow=True)
+    visitor._consumed_deferred_calls = {(key, "consumed", leaf)}
+    consumed_branch = visitor.scope.clone()
+    visitor._switch_deferred_scope(entry.clone(), restore_flow=True)
+    assert visitor._consumed_deferred_calls == {available}
+    available_branch = visitor.scope.clone()
+    assert not visitor._bindings_equal(consumed_branch, available_branch)
+    visitor._merge_outcomes(entry, [consumed_branch, available_branch])
+    assert visitor._consumed_deferred_calls == {(key, "unknown", None)}
+    assert entry.strings["marker"] == "R"
+    assert captured.strings == {"marker": "C"}
+    assert entry._flow_snapshot is not None
+    assert entry._flow_snapshot[0][0][0] is entry
+    assert entry._flow_snapshot[5] is None
+    assert visitor.errors == []
+
+
+@pytest.mark.parametrize("iterations", [1, 2, 4])
+def test_consol_depth_summary_survives_repeated_iteration(iterations: int) -> None:
+    summary = legacy_guard._normalize_resolved_binding(
+        legacy_guard._ResolvedBinding("pulseplate.app.get", None), remaining_depth=0
+    )
+    assert summary.reference == legacy_guard._POSSIBLE_APP_CALL_REFERENCE
+    assert summary.string == legacy_guard._DYNAMIC_STRING_BINDING
+    assert summary.iterable_element is None
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="depth-summary.py", errors=[], analyze_function_bodies=False
+    )
+    visitor._bind_resolved_name("overflow", summary)
+    iterator = "overflow"
+    for index in range(iterations):
+        target = f"fresh_element_{index}"
+        assert target not in visitor.scope.references
+        visitor._bind_iteration_target(
+            ast.Name(id=target, ctx=ast.Store()), ast.Name(id=iterator, ctx=ast.Load())
+        )
+        assert visitor.scope.references[target] == legacy_guard._POSSIBLE_APP_CALL_REFERENCE
+        assert visitor.scope.strings[target] == legacy_guard._DYNAMIC_STRING_BINDING
+        iterator = target
+    assert visitor.errors == []
+
+
+@pytest.mark.parametrize(
+    ("reference", "stored_string", "expected_reference"),
+    [
+        (
+            legacy_guard._ITERABLE_APP_ELEMENT_REFERENCE,
+            None,
+            legacy_guard._POSSIBLE_APP_REFERENCE,
+        ),
+        (
+            legacy_guard._ITERABLE_SENSITIVE_ELEMENT_REFERENCE,
+            None,
+            legacy_guard._POSSIBLE_APP_CALL_REFERENCE,
+        ),
+        (legacy_guard._KNOWN_NON_APP_REFERENCE, None, None),
+        (None, None, None),
+        (
+            legacy_guard._KNOWN_NON_APP_REFERENCE,
+            legacy_guard._POSSIBLE_APP_CALL_REFERENCE,
+            None,
+        ),
+    ],
+    ids=[
+        "iterable-app",
+        "iterable-sensitive",
+        "known-non-app",
+        "unbound",
+        "marker-as-user-string",
+    ],
+)
+def test_consol_depth_summary_iteration_preserves_reference_tag_controls(
+    reference: str | None, stored_string: str | None, expected_reference: str | None
+) -> None:
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="depth-controls.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.scope.bind("iterator", reference=reference, string=stored_string)
+    visitor._bind_iteration_target(
+        ast.Name(id="fresh_element", ctx=ast.Store()),
+        ast.Name(id="iterator", ctx=ast.Load()),
+    )
+    assert visitor.scope.references.get("fresh_element") == expected_reference
+    assert visitor.scope.strings.get("fresh_element") is None
+    assert visitor.errors == []
+
+
+def test_consol_fact_join_argument_evaluator_does_not_invent_fragment_source_origin() -> None:
+    definitions = ast.parse(
+        "def child():\n    yield None\n"
+        "def factory():\n    return child()\n"
+        "def identity(value):\n    return value\n"
+    )
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="foreign-fragment.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(definitions)
+    fragment = ast.parse("identity(factory())", mode="eval").body
+    with pytest.raises(
+        legacy_guard.LegacyGrowthAnalysisError,
+        match="deferred construction has no original parsed source origin",
+    ):
+        visitor.visit(fragment)
+    assert visitor._active_replay_contexts == []
+
+
+@pytest.mark.parametrize("depth_delta", [-1, 0, 1])
+def test_consol_depth_summary_normalization_boundary_is_conservative(depth_delta: int) -> None:
+    depth = legacy_guard._MAX_ITERABLE_ELEMENT_BINDING_DEPTH
+    nesting = depth + depth_delta
+    binding = legacy_guard._ResolvedBinding("pulseplate.app.get", None)
+    for _ in range(nesting):
+        binding = legacy_guard._ResolvedBinding(
+            legacy_guard._KNOWN_NON_APP_REFERENCE, None, iterable_element=binding
+        )
+    normalized = legacy_guard._normalize_resolved_binding(binding)
+    leaf = normalized
+    retained_edges = 0
+    while leaf.iterable_element is not None:
+        leaf = leaf.iterable_element
+        retained_edges += 1
+    assert retained_edges == min(nesting, depth)
+    if nesting < depth:
+        assert leaf.reference == "pulseplate.app.get"
+        assert leaf.string is None
+    else:
+        assert leaf.reference == legacy_guard._POSSIBLE_APP_CALL_REFERENCE
+        assert leaf.string == legacy_guard._DYNAMIC_STRING_BINDING
+    assert legacy_guard._normalize_resolved_binding(normalized) == normalized
+
+
+def test_consol_fact_join_argument_evaluator_preserves_active_function_reentrancy(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original_replay = legacy_guard._ApiKeyLookupVisitor._replay_function_call
+    replay_attempts = 0
+
+    def counted_replay(
+        visitor: legacy_guard._ApiKeyLookupVisitor,
+        node: legacy_guard._FunctionNode,
+        arguments: legacy_guard.Mapping[str, legacy_guard._ResolvedBinding],
+    ) -> legacy_guard._ResolvedBinding:
+        nonlocal replay_attempts
+        replay_attempts += 1
+        assert (
+            replay_attempts <= 64
+        ), "recursive argument evaluation bypassed the active replay guard"
+        return original_replay(visitor, node, arguments)
+
+    # Observe all fresh evaluators and fail promptly on recursion; never replace a replay result.
+    monkeypatch.setattr(legacy_guard._ApiKeyLookupVisitor, "_replay_function_call", counted_replay)
+    source = (
+        "trace = ''\n"
+        "def child():\n"
+        "    global trace\n    trace = trace + 'X'\n    yield None\n"
+        "def identity(value):\n    return value\n"
+        "def factory():\n"
+        "    global trace\n    trace = trace + 'F'\n"
+        "    child()\n    return identity(factory())\n"
+        "factory()\n"
+    )
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="reentrant-argument.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(ast.parse(source))
+    assert visitor.scope.strings["trace"] == "F"
+    assert 1 <= replay_attempts <= 64
+    assert visitor.errors == []
+    assert visitor._active_replay_contexts == []
+    assert not visitor._active_function_replays
+
+
+@pytest.mark.parametrize(
+    "argument",
+    [
+        "factory({tag})",
+        "value=factory({tag})",
+        "*(factory({tag}),)",
+        "**{'value': factory({tag})}",
+        "*box(factory({tag}))",
+    ],
+    ids=["positional", "named", "starred", "unpacked-keyword", "container"],
+)
+def test_consol_capture_once_keeps_actual_escaped_definition_and_default_owner(
+    argument: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    replay = legacy_guard._ApiKeyLookupVisitor._replay_function_call
+    define = legacy_guard._ApiKeyLookupVisitor._visit_function
+    bind = legacy_guard._ApiKeyLookupVisitor._resolve_call_argument_bindings
+    attempts: list[tuple[legacy_guard._ApiKeyLookupVisitor, str]] = []
+    definitions: list[legacy_guard._ApiKeyLookupVisitor] = []
+    operands: list[legacy_guard._ResolvedBinding] = []
+    returned: list[legacy_guard._ResolvedBinding] = []
+
+    def observed_replay(
+        owner: legacy_guard._ApiKeyLookupVisitor,
+        function: legacy_guard._FunctionNode,
+        arguments: Mapping[str, legacy_guard._ResolvedBinding],
+    ) -> legacy_guard._ResolvedBinding:
+        attempts.append((owner, function.name))
+        result = replay(owner, function, arguments)
+        if function.name == "factory":
+            returned.append(result)
+            assert len(result.deferred_calls) == 1
+            child = next(iter(result.deferred_calls)).function
+            assert child is not None and child.name == "child"
+            assert child in owner._function_binding_nodes.values()
+            assert (
+                owner._function_definition_scopes[child].strings["tag"] == arguments["tag"].string
+            )
+            assert owner._function_default_bindings[child]["value"] == arguments["tag"]
+        return result
+
+    def observed_definition(
+        owner: legacy_guard._ApiKeyLookupVisitor, function: legacy_guard._FunctionNode
+    ) -> None:
+        if function.name == "child":
+            definitions.append(owner)
+        define(owner, function)
+
+    def observed_binding(
+        owner: legacy_guard._ApiKeyLookupVisitor,
+        function: legacy_guard._FunctionNode,
+        call: ast.Call,
+        **kwargs: Any,
+    ) -> dict[str, legacy_guard._ResolvedBinding] | None:
+        result = bind(owner, function, call, **kwargs)
+        if function.name == "identity":
+            assert kwargs.get("captured_callee") is not None
+            assert result is not None
+            operands.append(result["value"])
+            for descriptor in result["value"].deferred_calls:
+                assert descriptor.function in owner._function_definition_scopes
+        return result
+
+    # These observers delegate the real writers/replay/binder for every visitor,
+    # including any detached one; none supplies a fabricated analysis result.
+    monkeypatch.setattr(legacy_guard._ApiKeyLookupVisitor, "_replay_function_call", observed_replay)
+    monkeypatch.setattr(legacy_guard._ApiKeyLookupVisitor, "_visit_function", observed_definition)
+    monkeypatch.setattr(
+        legacy_guard._ApiKeyLookupVisitor, "_resolve_call_argument_bindings", observed_binding
+    )
+    source = (
+        "trace = ''\ndef factory(tag):\n"
+        "    def child(value=tag):\n"
+        "        global trace\n        trace = trace + value\n        yield value\n"
+        "    return child()\ndef identity(value):\n    return value\n"
+        "def box(value):\n    return (value,)\n"
+        + "first = identity("
+        + argument.replace("{tag}", "'A'")
+        + ")\n"
+        + "alias = first\nsecond = identity("
+        + argument.replace("{tag}", "'B'")
+        + ")\n"
+        + "list(first)\nlist(alias)\nlist(second)\n"
+    )
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="capture-once.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(ast.parse(source))
+    assert visitor.scope.strings["trace"] == "AB"
+    assert definitions == [visitor, visitor]
+    assert len(operands) == len(returned) == 2
+    if argument == "*box(factory({tag}))":
+        # Re-capturing box's bound value adds the existing unknown-string fact.
+        # Every other field must still match the actual factory-created value.
+        assert all(value.string is None for value in returned)
+        assert all(value.string == legacy_guard._DYNAMIC_STRING_BINDING for value in operands)
+        assert [replace(value, string=None) for value in operands] == returned
+    else:
+        assert operands == returned
+    for operand, created in zip(operands, returned, strict=True):
+        assert len(operand.deferred_calls) == 1
+        transported_call = next(iter(operand.deferred_calls))
+        created_call = next(iter(created.deferred_calls))
+        assert transported_call.function is created_call.function
+        assert transported_call.value_key == created_call.value_key
+        assert transported_call.value_key is not None
+        progress = visitor._deferred_progress(transported_call.value_key)
+        assert progress is not None and progress[1] == "consumed"
+    assert operands[0].deferred_calls != operands[1].deferred_calls
+    assert all(owner is visitor for owner, _name in attempts)
+    assert [name for _owner, name in attempts].count("factory") == 2
+    assert [name for _owner, name in attempts].count("identity") == 2
+    assert [name for _owner, name in attempts].count("child") == 2
+    assert [name for _owner, name in attempts].count("box") == (
+        2 if argument == "*box(factory({tag}))" else 0
+    )
+    children = [next(iter(value.deferred_calls)).function for value in operands]
+    assert children[0] is not children[1]
+    assert (
+        visitor._function_definition_scopes[children[0]]
+        is not visitor._function_definition_scopes[children[1]]
+    )
+    assert visitor.errors == []
+    assert visitor._active_replay_contexts == []
+    assert not visitor._active_function_replays
+
+
+@pytest.mark.parametrize(
+    ("invocation", "expected_trace", "expected_result"),
+    [
+        ("sink(mark('A'))", "AS", "A"),
+        ("sink(*(mark('A'),))", "AS", "A"),
+        ("sink(value=mark('A'))", "AS", "A"),
+        ("sink(**{'value': mark('A'), 'value': mark('B')})", "ABS", "B"),
+        ("sink(mark('A'), value=mark('B'))", "AB", legacy_guard._DYNAMIC_STRING_BINDING),
+        (
+            "sink(value=mark('A'), **{'value': mark('B')})",
+            "AB",
+            legacy_guard._DYNAMIC_STRING_BINDING,
+        ),
+        ("sink(mark('A'), mark('B'))", "AB", legacy_guard._DYNAMIC_STRING_BINDING),
+        ("sink()", "", legacy_guard._DYNAMIC_STRING_BINDING),
+    ],
+    ids=[
+        "positional",
+        "starred",
+        "named",
+        "mapping-last-write",
+        "duplicate-positional",
+        "duplicate-unpacking",
+        "excess-positional",
+        "missing-positional",
+    ],
+)
+def test_consol_capture_once_preserves_eager_effects_and_invalid_arity(
+    invocation: str,
+    expected_trace: str,
+    expected_result: str | None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    replay = legacy_guard._ApiKeyLookupVisitor._replay_function_call
+    marks: list[legacy_guard._ApiKeyLookupVisitor] = []
+    sinks: list[legacy_guard._ApiKeyLookupVisitor] = []
+
+    def observe(
+        owner: legacy_guard._ApiKeyLookupVisitor,
+        function: legacy_guard._FunctionNode,
+        arguments: Mapping[str, legacy_guard._ResolvedBinding],
+    ) -> legacy_guard._ResolvedBinding:
+        if function.name == "mark":
+            marks.append(owner)
+        elif function.name == "sink":
+            sinks.append(owner)
+        return replay(owner, function, arguments)
+
+    monkeypatch.setattr(legacy_guard._ApiKeyLookupVisitor, "_replay_function_call", observe)
+    source = (
+        "trace = ''\ndef mark(value):\n"
+        "    global trace\n    trace = trace + value\n    return value\n"
+        "def sink(value):\n    global trace\n    trace = trace + 'S'\n    return value\n"
+        + f"result = {invocation}\n"
+    )
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="capture-once.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(ast.parse(source))
+    assert visitor.scope.strings["trace"] == expected_trace
+    assert visitor.scope.strings.get("result") == expected_result
+    assert len(marks) == expected_trace.count("A") + expected_trace.count("B")
+    assert all(owner is visitor for owner in marks)
+    assert sinks == ([visitor] if "S" in expected_trace else [])
+    assert visitor.errors == []
+
+
+def test_consol_capture_once_keeps_unknown_spreads_conservative_without_repeating_operands(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    bind = legacy_guard._ApiKeyLookupVisitor._resolve_call_argument_bindings
+    seen: list[dict[str, Any]] = []
+
+    def observe(
+        owner: legacy_guard._ApiKeyLookupVisitor,
+        function: legacy_guard._FunctionNode,
+        call: ast.Call,
+        **kwargs: Any,
+    ) -> dict[str, legacy_guard._ResolvedBinding] | None:
+        if function.name == "sink":
+            seen.append(kwargs)
+        return bind(owner, function, call, **kwargs)
+
+    monkeypatch.setattr(
+        legacy_guard._ApiKeyLookupVisitor, "_resolve_call_argument_bindings", observe
+    )
+    source = (
+        "from external import rows, mapping\ntrace = ''\n"
+        "def mark(tag, value):\n    global trace\n    trace = trace + tag\n    return value\n"
+        "def sink(*values, **keywords):\n    global trace\n    trace = trace + 'S'\n"
+        "sink(*mark('P', rows), named=mark('N', rows), **mark('K', mapping))\n"
+    )
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="capture-once.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(ast.parse(source))
+    assert visitor.scope.strings["trace"] == "PNKS"
+    assert len(seen) == 1
+    assert seen[0]["captured_positional"] == [(visitor._conservative_argument_binding(), True)]
+    assert seen[0]["captured_unresolved_keywords"] == [visitor._conservative_argument_binding()]
+    assert [name for name, _binding in seen[0]["captured_keywords"]] == ["named"]
+    assert visitor.errors == []
+
+
+@pytest.mark.parametrize("member", [False, True], ids=["regular-name", "explicit-member"])
+def test_consol_capture_once_regular_callee_precedes_later_argument_rebinding(member: bool) -> None:
+    owner_definition = (
+        "class First:\n    @staticmethod\n    def method(value):\n"
+        "        global trace\n        trace = trace + 'O'\n        return value\n"
+        "class Second:\n    @staticmethod\n    def method(value):\n"
+        "        global trace\n        trace = trace + 'R'\n        return value\n"
+        "Holder = First\n"
+        if member
+        else "def original(value):\n    global trace\n    trace = trace + 'O'\n    return value\n"
+        "selected = original\n"
+    )
+    globals_line = "    global trace, Holder\n" if member else "    global trace, selected\n"
+    rebinding = "    Holder = Second\n" if member else "    selected = replacement\n"
+    invocation = (
+        "result = Holder.method(effect())\nlater = Holder.method('L')\n"
+        if member
+        else "result = selected(effect())\nlater = selected('L')\n"
+    )
+    source = (
+        "trace = ''\ndef replacement(value):\n"
+        "    global trace\n    trace = trace + 'R'\n    return value\n"
+        + owner_definition
+        + "def effect():\n"
+        + globals_line
+        + "    trace = trace + 'A'\n"
+        + rebinding
+        + "    return 'V'\n"
+        + invocation
+    )
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="capture-once.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(ast.parse(source))
+    assert visitor.scope.strings["trace"] == "AOR"
+    assert visitor.scope.strings["result"] == "V"
+    assert visitor.scope.strings["later"] == "L"
+    assert visitor.errors == []
+
+
+def test_consol_capture_once_implicit_instance_selects_call_after_eager_arguments(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    lookup = legacy_guard._ApiKeyLookupVisitor._captured_callback_callee
+    phases: list[tuple[legacy_guard._ApiKeyLookupVisitor, str | None, str | None]] = []
+
+    def observe(
+        owner: legacy_guard._ApiKeyLookupVisitor, callee: legacy_guard._ResolvedBinding
+    ) -> legacy_guard._ResolvedBinding:
+        original_reference = owner.scope.resolve_reference("original")
+        if original_reference is not None and callee.reference == original_reference:
+            phases.append((owner, callee.reference, owner.scope.resolve_string("trace")))
+            assert owner.scope.resolve_reference("selected") == owner.scope.resolve_reference(
+                "second"
+            )
+        return lookup(owner, callee)
+
+    monkeypatch.setattr(legacy_guard._ApiKeyLookupVisitor, "_captured_callback_callee", observe)
+    source = (
+        "trace = ''\nclass First:\n    def __call__(self, value):\n"
+        "        global trace\n        trace = trace + 'O'\n        return value\n"
+        "class Second:\n    def __call__(self, value):\n        return value\n"
+        "original = First()\nsecond = Second()\nselected = original\n"
+        "def effect():\n    global trace, selected\n    trace = trace + 'A'\n"
+        "    selected = second\n    return 'V'\nresult = selected(effect())\n"
+    )
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="capture-once.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(ast.parse(source))
+    assert visitor.scope.strings["trace"] == "AO"
+    assert visitor.scope.strings["result"] == "V"
+    assert visitor.scope.references["original"] != visitor.scope.references["second"]
+    assert visitor.scope.references["selected"] == visitor.scope.references["second"]
+    assert phases == [(visitor, visitor.scope.references["original"], "A")]
+    assert visitor.errors == []
+
+
+@pytest.mark.parametrize("partial_shape", ["supported", "keyword", "starred", "unresolved"])
+def test_consol_capture_once_named_partial_keeps_incumbent_conservative_shapes(
+    partial_shape: str,
+) -> None:
+    prefix = "'P'" if partial_shape != "unresolved" else "**{'prefix': 'P'}"
+    argument = {
+        "supported": "mark('A')",
+        "keyword": "value=mark('A')",
+        "starred": "*(mark('A'),)",
+        "unresolved": "mark('A')",
+    }[partial_shape]
+    source = (
+        "from functools import partial\ntrace = ''\n"
+        "def mark(value):\n    global trace\n    trace = trace + value\n    return value\n"
+        "def sink(prefix, value):\n    return prefix + value\n"
+        + f"held = partial(sink, {prefix})\nresult = held({argument})\n"
+    )
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="capture-once.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(ast.parse(source))
+    assert visitor.scope.strings["trace"] == "A"
+    assert visitor.scope.strings.get("result") == (
+        "PA" if partial_shape == "supported" else legacy_guard._DYNAMIC_STRING_BINDING
+    )
+    assert visitor.errors == []
+
+
+def test_consol_capture_once_keeps_escaped_local_default_and_late_global_phases() -> None:
+    source = (
+        "from external import choice\nglobal_value = 'G'\n"
+        "def factory(tag):\n    local = tag\n"
+        "    def child(default=tag):\n        nonlocal local\n"
+        "        previous = local\n        local = default + 'X'\n"
+        "        return previous + default + global_value\n    return child\n"
+        "def identity(value, later):\n    return value\n"
+        "first = identity(factory('A'), 'left' if choice else 'right')\n"
+        "second = identity(factory('B'), None)\nalias = first\nglobal_value = 'L'\n"
+        "one = first()\ntwo = alias()\nthree = second()\n"
+    )
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="capture-once.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(ast.parse(source))
+    assert visitor.scope.strings["one"] == "AAL"
+    assert visitor.scope.strings["two"] == "AXAL"
+    assert visitor.scope.strings["three"] == "BBL"
+    assert visitor.errors == []
+
+
+def test_consol_capture_once_named_partial_retains_original_bound_receiver() -> None:
+    source = (
+        "from functools import partial\nclass First:\n"
+        "    def combine(self, prefix, value):\n        return self\n"
+        "class Second:\n    pass\n"
+        "first = First()\noriginal = first\nsecond = Second()\n"
+        "held = partial(first.combine, 'P')\nfirst = second\nresult = held('V')\n"
+    )
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="capture-once.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(ast.parse(source))
+    assert visitor.scope.references["result"] == visitor.scope.references["original"]
+    assert visitor.scope.references["result"] != visitor.scope.references["second"]
+    assert visitor.errors == []
+
+
+@pytest.mark.parametrize(
+    "fact",
+    [
+        "<dynamic:string>",
+        "<possible:api_key_symbol>",
+        "<possible:openapi_symbol>",
+        "<possible:route_method>",
+        "<conflicted:route_method>",
+    ],
+    ids=["dynamic", "api", "openapi", "route", "conflicted-route"],
+)
+def test_consol_string_family_direct_identity_and_separator_contribution(fact: str) -> None:
+    bindings = {"value": fact, "separator": fact}
+    for expression in ["value", "value + ''", "f'{value}'", "''.join([value])"]:
+        node = ast.parse(expression, mode="eval").body
+        families: tuple[Literal["api_key", "openapi"] | None, ...] = (None, "api_key", "openapi")
+        for family in families:
+            assert (
+                legacy_guard._resolve_static_string(node, bindings, ownership_family=family) == fact
+            )
+        assert legacy_guard._resolve_static_string(node, bindings) == fact
+    for items, count in [("[]", 0), ("['safe']", 1), ("['safe', 'safe']", 2)]:
+        node = ast.parse(f"separator.join({items})", mode="eval").body
+        compatible = "" if count == 0 else "safe" if count == 1 else f"safe{fact}safe"
+        api = (
+            compatible
+            if count < 2
+            else (
+                "<possible:openapi_symbol>"
+                if fact == "<possible:openapi_symbol>"
+                else "<dynamic:string>"
+            )
+        )
+        openapi = (
+            "<possible:openapi_symbol>"
+            if count == 2 and fact == "<possible:openapi_symbol>"
+            else compatible
+        )
+        assert legacy_guard._resolve_static_string(node, bindings) == compatible
+        assert (
+            legacy_guard._resolve_static_string(node, bindings, ownership_family=None) == compatible
+        )
+        assert (
+            legacy_guard._resolve_static_string(node, bindings, ownership_family="api_key") == api
+        )
+        assert (
+            legacy_guard._resolve_static_string(node, bindings, ownership_family="openapi")
+            == openapi
+        )
+    call = cast(ast.Call, ast.parse("getattr(app, value + '')", mode="eval").body)
+    assert legacy_guard._is_unresolved_getattr_method(call, static_string_bindings=bindings) is (
+        fact in {"<dynamic:string>", "<possible:route_method>", "<conflicted:route_method>"}
+    )
+
+
+@pytest.mark.parametrize(
+    ("expression", "bindings", "api", "openapi", "compatible"),
+    [
+        (
+            "value + value",
+            {"value": "<dynamic:string>"},
+            "<dynamic:string>",
+            "<dynamic:string><dynamic:string>",
+            "<dynamic:string><dynamic:string>",
+        ),
+        (
+            "f'{value}{value}'",
+            {"value": "<possible:api_key_symbol>"},
+            "<dynamic:string>",
+            "<possible:api_key_symbol><possible:api_key_symbol>",
+            "<possible:api_key_symbol><possible:api_key_symbol>",
+        ),
+        (
+            "value + 'suffix'",
+            {"value": "<possible:openapi_symbol>"},
+            "<possible:openapi_symbol>",
+            "<possible:openapi_symbol>",
+            "<possible:openapi_symbol>suffix",
+        ),
+        (
+            "value + 'suffix'",
+            {"value": "<possible:route_method>"},
+            "<dynamic:string>",
+            "<possible:route_method>suffix",
+            "<possible:route_method>suffix",
+        ),
+        (
+            "''.join([value, 'suffix'])",
+            {"value": "<conflicted:route_method>"},
+            "<dynamic:string>",
+            "<conflicted:route_method>suffix",
+            "<conflicted:route_method>suffix",
+        ),
+        (
+            "'op' + ('enapi' + value)",
+            {"value": "<dynamic:string>"},
+            "<possible:openapi_symbol>",
+            "openapi<dynamic:string>",
+            "openapi<dynamic:string>",
+        ),
+        (
+            "('op' + 'enapi') + value",
+            {"value": "<dynamic:string>"},
+            "<possible:openapi_symbol>",
+            "openapi<dynamic:string>",
+            "openapi<dynamic:string>",
+        ),
+        (
+            "''.join(['op', f'enapi{value}'])",
+            {"value": "<dynamic:string>"},
+            "<possible:openapi_symbol>",
+            "openapi<dynamic:string>",
+            "openapi<dynamic:string>",
+        ),
+        (
+            "'openapi'.join(['left', value])",
+            {"value": "<dynamic:string>"},
+            "<possible:openapi_symbol>",
+            "leftopenapi<dynamic:string>",
+            "leftopenapi<dynamic:string>",
+        ),
+        (
+            "'openapi'.join([value])",
+            {"value": "<dynamic:string>"},
+            "<dynamic:string>",
+            "<dynamic:string>",
+            "<dynamic:string>",
+        ),
+        ("(held := 'get_') + 'api_key'", {}, "get_api_key", "get_api_key", "get_api_key"),
+        ("'get_' + 'api_key'", {}, "get_api_key", "get_api_key", "get_api_key"),
+        (
+            "'left<dynamic:string>right' + 'tail'",
+            {},
+            "left<dynamic:string>righttail",
+            "left<dynamic:string>righttail",
+            "left<dynamic:string>righttail",
+        ),
+        (
+            "'literal<possible:openapi_symbol>text' + 'tail'",
+            {},
+            "literal<possible:openapi_symbol>texttail",
+            "literal<possible:openapi_symbol>texttail",
+            "literal<possible:openapi_symbol>texttail",
+        ),
+        ("missing + 'suffix'", {}, None, None, None),
+        ("missing.join([])", {}, None, None, None),
+        ("missing.join(['safe'])", {}, None, None, None),
+        ("''.join([missing])", {}, None, None, None),
+        ("1", {}, None, None, None),
+    ],
+    ids=[
+        "dynamic-add",
+        "api-format",
+        "openapi-fact",
+        "route-add",
+        "conflicted-join",
+        "right-associated-run",
+        "left-associated-run",
+        "nested-format-join",
+        "concrete-separator",
+        "unused-concrete-separator",
+        "named-expression",
+        "known-key",
+        "literal-marker-near-miss",
+        "literal-family-text",
+        "unbound-add",
+        "unbound-separator-empty",
+        "unbound-separator-single",
+        "unbound-item",
+        "nonstring",
+    ],
+)
+def test_consol_string_family_projection_and_default_compatibility(
+    expression: str,
+    bindings: dict[str, str],
+    api: str | None,
+    openapi: str | None,
+    compatible: str | None,
+) -> None:
+    node = ast.parse(expression, mode="eval").body
+    assert legacy_guard._resolve_static_string(node, bindings, ownership_family="api_key") == api
+    assert (
+        legacy_guard._resolve_static_string(node, bindings, ownership_family="openapi") == openapi
+    )
+    assert legacy_guard._resolve_static_string(node, bindings) == compatible
+    assert legacy_guard._resolve_static_string(node, bindings, ownership_family=None) == compatible
+
+
+@pytest.mark.parametrize(
+    "composition",
+    ["prefix + value", "f'{prefix}{value}'", "''.join([prefix, value])"],
+    ids=["add", "format", "join"],
+)
+@pytest.mark.parametrize("partial_shape", ["keyword", "starred", "constructor"])
+def test_consol_string_family_valid_partial_cannot_hide_api_key_lookup(
+    composition: str,
+    partial_shape: str,
+) -> None:
+    invocation = {
+        "keyword": "held = partial(combine, 'get_')\nname = held(value='api_key')\n",
+        "starred": "held = partial(combine, 'get_')\nname = held(*('api_key',))\n",
+        "constructor": "held = partial(combine, **{'value': 'api_key'})\nname = held('get_')\n",
+    }[partial_shape]
+    prefix = (
+        "import legacy_app as legacy\nfrom functools import partial\nother = object()\n"
+        f"def combine(prefix, value):\n    return {composition}\n" + invocation
+    )
+    for receiver in ["legacy", "other"]:
+        expected = (
+            [
+                "app/routers/example.py: dynamic legacy API-key dependency lookup is forbidden: <dynamic>"
+            ]
+            if receiver == "legacy"
+            else []
+        )
+        assert (
+            _validate_api_key_dependency_ownership(
+                _CONSOL_GETTER_IMPORTS,
+                {"app/routers/example.py": prefix + f"getattr({receiver}, name)\n"},
+            )
+            == expected
+        )
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        "return 'op' + ('enapi' + piece)\n",
+        "return ('op' + 'enapi') + piece\n",
+        "fragment = 'enapi' + piece\nreturn 'op' + fragment\n",
+        "fragment = f'enapi{piece}'\nreturn f'op{fragment}'\n",
+        "fragment = ''.join(['enapi', piece])\nreturn ''.join(['op', fragment])\n",
+    ],
+    ids=["right-associated", "left-associated", "stored-add", "stored-format", "stored-join"],
+)
+def test_consol_string_family_openapi_keeps_concrete_run_across_bindings(body: str) -> None:
+    source = (
+        "import legacy_app as legacy\nfrom functools import partial\ndef combine(piece):\n"
+        + textwrap.indent(body, "    ")
+        + "held = partial(combine, **{'piece': 'x'})\nname = held()\ngetattr(legacy, name)\n"
+    )
+    assert _consol_openapi_errors(source) == [
+        "app/main.py: OpenAPI symbol must not be accessed through legacy"
+    ]
+
+
+@pytest.mark.parametrize(
+    ("items", "forbidden"),
+    [("[]", False), ("['safe']", False), ("['safe', 'safe']", True)],
+)
+def test_consol_string_family_semantic_openapi_separator_contributes_only_when_used(
+    items: str,
+    forbidden: bool,
+) -> None:
+    source = (
+        "import legacy_app as legacy\nfrom external import choice\n"
+        "if choice:\n    separator = '_install_openapi_builder'\nelse:\n    separator = 'safe'\n"
+        f"name = separator.join({items})\ngetattr(legacy, name)\n"
+    )
+    assert _consol_openapi_errors(source) == (
+        ["app/main.py: OpenAPI symbol must not be accessed through legacy"] if forbidden else []
+    )
+
+
+def test_consol_string_family_unknown_only_and_known_literal_controls_stay_separate() -> None:
+    source = (
+        "import legacy_app as legacy\nfrom functools import partial\n"
+        "def combine(piece):\n    return piece + piece\n"
+        "held = partial(combine, **{'piece': 'x'})\nname = held()\ngetattr(legacy, name)\n"
+    )
+    assert _consol_openapi_errors(source) == []
+    for expression in ["'safe'", "'left<dynamic:string>right'", "1", "not_assigned"]:
+        assert (
+            _validate_api_key_dependency_ownership(
+                _CONSOL_GETTER_IMPORTS,
+                {
+                    "app/routers/example.py": f"import legacy_app as legacy\ngetattr(legacy, {expression})\n"
+                },
+            )
+            == []
+        )
+    assert _consol_openapi_errors(
+        "import legacy_app as legacy\ngetattr(legacy, '_collect_schema_refs')\n"
+    ) == ["app/main.py: OpenAPI symbol must not be accessed through legacy"]
+
+
+@pytest.mark.parametrize("conflicted", [False, True])
+def test_consol_string_family_default_route_consumer_retains_current_scope_facts(
+    conflicted: bool,
+) -> None:
+    source = "from fastapi import FastAPI\napp = FastAPI()\nmethod = 'get'\n"
+    source += "method = 'post'\n" if conflicted else ""
+    source += "@getattr(app, method + '')('/family-probe')\ndef endpoint():\n    return None\n"
+    facts = legacy_guard.collect_legacy_route_facts(source)
+    assert any(
+        fact.action == ("dynamic" if conflicted else "get") and fact.target == "/family-probe"
+        for fact in facts
+    )
+
+
+def test_consol_string_family_context_reaches_own_snapshot_and_real_collectors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    resolve = legacy_guard._resolve_static_string
+    observed: list[str] = []
+
+    def observe(
+        node: ast.AST,
+        bindings: Mapping[str, str],
+        *,
+        ownership_family: Literal["api_key", "openapi"] | None = None,
+    ) -> str | None:
+        if ownership_family is not None:
+            observed.append(ownership_family)
+        return resolve(node, bindings, ownership_family=ownership_family)
+
+    monkeypatch.setattr(legacy_guard, "_resolve_static_string", observe)
+    cases: tuple[tuple[Literal["api_key", "openapi"], str], ...] = (
+        ("api_key", "<dynamic:string>"),
+        ("openapi", "<dynamic:string><dynamic:string>"),
+    )
+    for family, expected in cases:
+        node = ast.parse("piece + piece", mode="eval").body
+        visitor = legacy_guard._ApiKeyLookupVisitor(
+            filename="family-context.py",
+            errors=[],
+            analyze_function_bodies=False,
+            ownership_family=family,
+            reference_snapshots={id(node): {}},
+            string_snapshots={id(node): {"piece": "<dynamic:string>"}},
+        )
+        original = visitor.scope
+        assert visitor._resolve_string(node, own_environment=True) == expected
+        assert visitor.scope is original
+    source = (
+        "import legacy_app as legacy\nfrom functools import partial\n"
+        "def combine(piece):\n    fragment = 'enapi' + piece\n    return 'op' + fragment\n"
+        "held = partial(combine, **{'piece': 'x'})\nname = held()\ngetattr(legacy, name)\n"
+    )
+    assert _consol_openapi_errors(source) == [
+        "app/main.py: OpenAPI symbol must not be accessed through legacy"
+    ]
+    assert set(observed) == {"api_key", "openapi"}
+
+
+@pytest.mark.parametrize("starred", [False, True])
+def test_consol_nested_destructure_uses_captured_value_before_later_rhs_rebinding(
+    starred: bool,
+) -> None:
+    target = "[[value], *other]" if starred else "[[value], other]"
+    source = (
+        "trace = ''\n"
+        "def original():\n    global trace\n    trace = trace + 'C'\n    yield None\n"
+        "def replacement():\n    global trace\n    trace = trace + 'X'\n    yield None\n"
+        "pending = original()\nalias = pending\n"
+        "def late():\n    global pending, trace\n    trace = trace + 'L'\n"
+        "    pending = replacement()\n    return None\n"
+        + target
+        + " = [pending, late()]\nlist(alias)\nlist(pending)\n"
+    )
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="captured-destructure.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(ast.parse(source))
+    assert visitor.scope.strings["trace"] == "LCX"
+    assert visitor.errors == []
+
+
+@pytest.mark.parametrize("bound", [False, True])
+def test_consol_variadic_order_is_exact_only_when_all_rows_survive(bound: bool) -> None:
+    definition = (
+        "class Owner:\n    def values(self, *rest):\n        return rest\n"
+        "values = Owner().values\n"
+        if bound
+        else "def values(prefix, *rest):\n    return rest\n"
+    )
+    prefix = "" if bound else "'P', "
+    empty_call = "values()" if bound else "values('P')"
+    source = (
+        definition
+        + f"empty = {empty_call}\none = values({prefix}'K')\n"
+        + f"many = values({prefix}'K', 'L')\n"
+    )
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="variadic-shape.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(ast.parse(source))
+    assert visitor.scope.resolve_ordered_items("empty") == ()
+    one = visitor.scope.resolve_ordered_items("one")
+    assert one is not None and tuple(value.string for value in one) == ("K",)
+    assert visitor.scope.resolve_ordered_items("many") is None
+    assert visitor.errors == []
+
+
+def test_consol_conditional_initial_deferred_values_remain_available() -> None:
+    source = (
+        "trace = ''\n"
+        "def mark(value):\n    global trace\n    trace = 'T'\n    return value\n"
+        "pending = map(mark, [1]) if condition else map(mark, [2])\n"
+        "list(pending)\n"
+    )
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="initial-deferred.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(ast.parse(source))
+    assert visitor.scope.strings["trace"] == "T"
+    assert visitor.errors == []
+
+
+@pytest.mark.parametrize("factory_first", [False, True])
+@pytest.mark.parametrize("mixed_route", [False, True])
+def test_consol_factory_collection_keeps_independent_route_sensitivity(
+    factory_first: bool, mixed_route: bool
+) -> None:
+    sibling = "app.get" if mixed_route else "None"
+    rows = f"captured, {sibling}" if factory_first else f"{sibling}, captured"
+    index = int(factory_first) if mixed_route else int(not factory_first)
+    invocation = (
+        f"holder[{index}]('/api/v1/mixed-factory-route')(handler)\n"
+        if mixed_route
+        else f"@holder[{index}]()\ndef protected_factory():\n    return None\n"
+    )
+    source = (
+        "import builtins\napp = resolve_app()\noriginal_object = builtins.object\n"
+        "builtins.object = lambda: app.get('/api/v1/held-factory')\n"
+        "captured = builtins.object\nbuiltins.object = original_object\n"
+        + f"holder = ({rows})\n"
+        + invocation
+    )
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: "
+        + (
+            "registration:dynamic:/api/v1/mixed-factory-route"
+            if mixed_route
+            else "decorator:dynamic:<missing> -> protected_factory"
+        )
+    ]
+
+
+@pytest.mark.parametrize("capability", ["callable", "nested"])
+def test_consol_factory_tag_does_not_erase_independent_binding_capability(
+    capability: str,
+) -> None:
+    function = cast(ast.FunctionDef, ast.parse("def callback():\n    return None\n").body[0])
+    binding = legacy_guard._ResolvedBinding(
+        reference=legacy_guard._CAPTURED_POSSIBLE_APP_FACTORY_REFERENCE,
+        string=None,
+        callables=frozenset({function}) if capability == "callable" else frozenset(),
+        iterable_element=(
+            legacy_guard._ResolvedBinding("pulseplate.app.get", None)
+            if capability == "nested"
+            else None
+        ),
+    )
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="factory-capability.py", errors=[], analyze_function_bodies=False
+    )
+    result = visitor._variadic_iterable_binding([binding])
+    assert result.reference == legacy_guard._ITERABLE_SENSITIVE_ELEMENT_REFERENCE
+    assert result.iterable_element is not None
+    assert (
+        result.iterable_element.callables == binding.callables
+        and result.iterable_element.iterable_element == binding.iterable_element
+    )
+
+
+def _consol_requested_step(
+    source: str,
+) -> tuple[
+    legacy_guard._ApiKeyLookupVisitor,
+    legacy_guard._TerminalControlBindings,
+    legacy_guard._ResolvedBinding,
+]:
+    """Exercise one actual invocation with the existing frame request channel."""
+    tree = ast.parse(source)
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="requested-step.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(tree)
+    targets = visitor.scope.resolve_callables("step")
+    assert len(targets) == 1
+    request = legacy_guard._TerminalControlBindings(return_scopes=[], raise_scopes=[])
+    visitor._active_replay_contexts.append(
+        (object(), tree, (), (), (), (), None, frozenset(ast.walk(tree)), request)
+    )
+    try:
+        binding = visitor._replay_function_call(next(iter(targets)), {})
+    finally:
+        visitor._active_replay_contexts.pop()
+    return visitor, request, binding
+
+
+def _consol_outcome_traces(
+    visitor: legacy_guard._ApiKeyLookupVisitor,
+    outcomes: list[legacy_guard._LexicalBindings],
+) -> list[str | None]:
+    active = visitor.scope
+    entry = visitor._capture_deferred_flow(active)
+    traces: list[str | None] = []
+    try:
+        for outcome in outcomes:
+            visitor._switch_deferred_scope(outcome.clone(), restore_flow=True)
+            traces.append(visitor.scope.visible_strings().get("trace"))
+    finally:
+        visitor._restore_deferred_flow(entry)
+        visitor.scope = active
+    return traces
+
+
+_CONSOL_REQUESTED_TRACE_SOURCE = (
+    "trace = ''\n"
+    "def tick(value):\n    global trace\n    trace = trace + value\n"
+    "def crash():\n    tick('C')\n    raise RuntimeError\n"
+)
+
+
+@pytest.mark.parametrize(
+    "statement",
+    [
+        "crash() + tick('BAD')",
+        "foreign(crash(), tick('BAD'))",
+        "value = [crash(), tick('BAD')]",
+        "value = {'first': crash(), 'last': tick('BAD')}",
+        "value = [tick('BAD') for item in crash()]",
+        "value = (tick('BAD') for item in crash())",
+        "value = [crash() for item in [1]]",
+        "assert crash(), tick('BAD')",
+        "assert False, crash()",
+        "class Inner(crash()):\n        tick('BAD')",
+        "def inner(value=crash()):\n        tick('BAD')",
+    ],
+)
+def test_consol_requested_invocation_stops_mandatory_eager_suffix(statement: str) -> None:
+    body = "\n".join("    " + line for line in statement.splitlines())
+    source = (
+        _CONSOL_REQUESTED_TRACE_SOURCE
+        + "async def step():\n"
+        + body
+        + "\n    tick('BAD')\n    return 'V'\n"
+    )
+    compile(source, "<requested-eager-stop>", "exec")
+    visitor, request, _binding = _consol_requested_step(source)
+    assert request.return_scopes == []
+    assert request.raise_scopes
+    assert set(_consol_outcome_traces(visitor, request.raise_scopes)) == {"C"}
+    assert visitor.errors == []
+
+
+@pytest.mark.parametrize(
+    "statement",
+    ["False and crash()", "True or crash()", "0 > 1 < crash()", "assert True, crash()"],
+)
+def test_consol_requested_invocation_keeps_optional_eager_paths_dormant(statement: str) -> None:
+    visitor, request, binding = _consol_requested_step(
+        _CONSOL_REQUESTED_TRACE_SOURCE + f"async def step():\n    {statement}\n    return 'V'\n"
+    )
+    assert _consol_outcome_traces(visitor, request.return_scopes) == [""]
+    assert request.raise_scopes == []
+    assert binding.string == "V"
+
+
+@pytest.mark.parametrize(
+    "definition,body,normal,abrupt",
+    [
+        ("", "return None", [""], []),
+        ("", "return", [""], []),
+        ("", "tick('N')", ["N"], []),
+        ("", "crash()\nreturn 'BAD'", [], ["C"]),
+        (
+            "def nested():\n    crash()\n    tick('BAD')\n",
+            "nested()\nreturn 'BAD'",
+            [],
+            ["C"],
+        ),
+        (
+            "async def child():\n    tick('CHILD')\n",
+            "try:\n    return child()\nfinally:\n    tick('F')\n    raise RuntimeError",
+            [],
+            ["F"],
+        ),
+        ("", "try:\n    return 'V'\nfinally:\n    tick('F')", ["F"], []),
+    ],
+)
+def test_consol_requested_invocation_finalizes_real_terminal_controls(
+    definition: str, body: str, normal: list[str], abrupt: list[str]
+) -> None:
+    source = (
+        _CONSOL_REQUESTED_TRACE_SOURCE
+        + definition
+        + "async def step():\n"
+        + "\n".join("    " + line for line in body.splitlines())
+        + "\n"
+    )
+    compile(source, "<requested-finalization>", "exec")
+    visitor, request, _binding = _consol_requested_step(source)
+    assert sorted(set(_consol_outcome_traces(visitor, request.return_scopes))) == normal
+    assert sorted(set(_consol_outcome_traces(visitor, request.raise_scopes))) == abrupt
+    assert visitor.errors == []
+
+
+@pytest.mark.parametrize("imported", [False, True])
+@pytest.mark.parametrize("nested", [False, True])
+def test_consol_requested_unknown_invocation_keeps_actual_post_eager_flow(
+    imported: bool, nested: bool
+) -> None:
+    definition = "from foreign_owner import mystery\n" if imported else ""
+    body = "mystery(tick('A'))\ntick('N')\nreturn 'V'"
+    if nested:
+        definition += (
+            "def helper():\n" + "\n".join("    " + line for line in body.splitlines()) + "\n"
+        )
+        body = "return helper()"
+    visitor, request, binding = _consol_requested_step(
+        _CONSOL_REQUESTED_TRACE_SOURCE
+        + definition
+        + "async def step():\n"
+        + "\n".join("    " + line for line in body.splitlines())
+        + "\n"
+    )
+    assert set(_consol_outcome_traces(visitor, request.return_scopes)) == {"AN"}
+    assert set(_consol_outcome_traces(visitor, request.raise_scopes)) == {"A"}
+    assert binding.string == "V"
+
+
+def test_consol_requested_assert_unknown_preserves_separate_message_flow() -> None:
+    visitor, request, binding = _consol_requested_step(
+        _CONSOL_REQUESTED_TRACE_SOURCE
+        + "async def step():\n    assert condition, tick('M')\n    return 'V'\n"
+    )
+    assert _consol_outcome_traces(visitor, request.return_scopes) == [""]
+    assert _consol_outcome_traces(visitor, request.raise_scopes) == ["M"]
+    assert binding.string == "V"
+
+
+def test_consol_requested_uncorrelated_child_returns_stop_before_consumption() -> None:
+    source = (
+        _CONSOL_REQUESTED_TRACE_SOURCE + "async def first():\n    tick('FIRST')\n"
+        "async def second():\n    tick('SECOND')\n"
+        "async def step():\n    if condition:\n        return first()\n    return second()\n"
+    )
+    with pytest.raises(
+        legacy_guard.LegacyGrowthAnalysisError,
+        match="requested invocation has uncorrelated finalized normal return values",
+    ):
+        _consol_requested_step(source)
+
+
+@pytest.mark.parametrize("request_slot", [False, True])
+def test_consol_requested_default_frame_keeps_incumbent_generic_assert(
+    request_slot: bool,
+) -> None:
+    tree = ast.parse(_CONSOL_REQUESTED_TRACE_SOURCE + "assert True, tick('M')\n")
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="default-assert.py", errors=[], analyze_function_bodies=False
+    )
+    frame: tuple[object, ...] = (object(), tree, (), (), (), (), None, frozenset(ast.walk(tree)))
+    visitor._active_replay_contexts.append((*frame, None) if request_slot else frame)
+    try:
+        visitor.visit(tree)
+    finally:
+        visitor._active_replay_contexts.pop()
+    assert visitor.scope.strings["trace"] == "M"
+    assert visitor._invocation_outcome_request() is None
+
+
+def test_consol_requested_suspension_preserves_latest_frame_prefix_and_exception() -> None:
+    visitor = legacy_guard._ApiKeyLookupVisitor(filename="fence.py", errors=[])
+    request = legacy_guard._TerminalControlBindings(return_scopes=[], raise_scopes=[])
+    tree = ast.parse("pass")
+    frame = (object(), tree, (), (), (), (), None, frozenset(ast.walk(tree)), request)
+    visitor._active_replay_contexts.append(frame)
+    with pytest.raises(RuntimeError, match="original"):
+        with visitor._suspend_invocation_outcomes():
+            assert visitor._invocation_outcome_request() is None
+            with visitor._suspend_invocation_outcomes():
+                updated = (
+                    *frame[:2],
+                    (legacy_guard._ResolvedBinding(None, "held"),),
+                    *frame[3:8],
+                    None,
+                )
+                visitor._active_replay_contexts[-1] = updated
+                raise RuntimeError("original")
+    current = visitor._active_replay_contexts.pop()
+    assert current[:8] == updated[:8]
+    assert current[8] is request
+
+
+@pytest.mark.parametrize("synchronous_next", [False, True])
+def test_consol_requested_loop_consumes_only_actual_normal_next(synchronous_next: bool) -> None:
+    next_method = (
+        "    def __anext__(self):\n        tick('S')\n        return child()\n"
+        if synchronous_next
+        else "    async def __anext__(self):\n        tick('N')\n        return 'V'\n"
+    )
+    source = (
+        "import asyncio\n"
+        + _CONSOL_REQUESTED_TRACE_SOURCE
+        + "async def child():\n    tick('N')\n    return 'V'\n"
+        "class C:\n    def __aiter__(self):\n        tick('I')\n        return self\n"
+        + next_method
+        + "async def main():\n    async for value in C():\n        tick(value)\n        tick('B')\n        break\nasyncio.run(main())\n"
+    )
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="normal-next.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(ast.parse(source))
+    assert visitor.scope.strings["trace"] == ("ISNVB" if synchronous_next else "INVB")
+    assert visitor.errors == []
+
+
+def test_consol_requested_loop_does_not_enter_body_after_nested_raise() -> None:
+    source = (
+        "import asyncio\n"
+        + _CONSOL_REQUESTED_TRACE_SOURCE
+        + "def nested():\n    crash()\n    tick('BAD')\n"
+        "class C:\n    def __aiter__(self):\n        tick('I')\n        return self\n"
+        "    async def __anext__(self):\n        nested()\n        return 'BAD'\n"
+        "async def main():\n    async for value in C():\n        tick('BAD')\n        break\nasyncio.run(main())\n"
+    )
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="abrupt-next.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(ast.parse(source))
+    assert visitor.scope.strings["trace"] == "IC"
+    assert visitor.errors == []
+
+
+def test_consol_requested_context_exit_raise_still_runs_outer_exit() -> None:
+    source = (
+        _CONSOL_REQUESTED_TRACE_SOURCE
+        + "class Outer:\n    def __enter__(self):\n        return None\n"
+        "    def __exit__(self, *args):\n        tick('O')\n"
+        "class Inner:\n    def __enter__(self):\n        return None\n"
+        "    def __exit__(self, *args):\n        tick('I')\n        raise RuntimeError\n"
+        "async def step():\n    with Outer(), Inner():\n        tick('B')\n"
+        "    tick('BAD')\n    return 'V'\n"
+    )
+    visitor, request, _binding = _consol_requested_step(source)
+    assert request.return_scopes == []
+    traces = _consol_outcome_traces(visitor, request.raise_scopes)
+    assert "BIO" in traces
+    assert all(trace is not None and "BAD" not in trace for trace in traces)
+    assert visitor.errors == []
+
+
+@pytest.mark.parametrize("family", ["api", "openapi"])
+@pytest.mark.parametrize("kind", ["direct", "nested", "imported", "captured", "post_eager"])
+@pytest.mark.parametrize("protected", [False, True])
+def test_consol_requested_next_preserves_early_stop_owner_before_body_rebinding(
+    family: str, kind: str, protected: bool
+) -> None:
+    module = "app.routers.api_key" if family == "api" else "app.bootstrap.openapi"
+    member = "require_app_api_key" if family == "api" else "_install_openapi_builder"
+    owner = "legacy" if protected else "canonical"
+    unknown_import = (
+        "from foreign_owner import maybe_stop\n"
+        if kind in {"imported", "captured", "post_eager"}
+        else ""
+    )
+    definition = (
+        "def maybe_stop():\n    if condition:\n        raise StopAsyncIteration\n    return None\n"
+        if kind == "nested"
+        else ""
+    )
+    next_body = {
+        "direct": "if condition:\n    raise StopAsyncIteration\nreturn 'V'",
+        "nested": "maybe_stop()\nreturn 'V'",
+        "imported": "maybe_stop()\nreturn 'V'",
+        "captured": "await asyncio.to_thread(maybe_stop)\nreturn 'V'",
+        "post_eager": "maybe_stop(set_owner())\nreturn 'V'",
+    }[kind]
+    source = (
+        "import asyncio\n"
+        + unknown_import
+        + f"import legacy_app as legacy\nimport {module} as canonical\n"
+        + f"owner = {'canonical' if kind == 'post_eager' else owner}\n"
+        + f"def set_owner():\n    global owner\n    owner = {owner}\n"
+        + definition
+        + "class C:\n    def __aiter__(self):\n        return self\n"
+        + "    async def __anext__(self):\n"
+        + "\n".join("        " + line for line in next_body.splitlines())
+        + "\nasync def main():\n    global owner\n    async for value in C():\n        owner = canonical\n        break\n"
+        + f"    observed = owner.{member}\nasyncio.run(main())\n"
+    )
+    compile(source, "<requested-stop-owner>", "exec")
+    errors = (
+        _validate_api_key_dependency_ownership(
+            _CONSOL_GETTER_IMPORTS, {"app/routers/example.py": source}
+        )
+        if family == "api"
+        else _consol_openapi_errors(source)
+    )
+    assert bool(errors) is protected
+
+
+@pytest.mark.parametrize("named_rows", [False, True])
+@pytest.mark.parametrize("structured", [False, True])
+@pytest.mark.parametrize("requested", [False, True])
+def test_consol_captured_iteration_row_consumes_only_structured_child(
+    named_rows: bool, structured: bool, requested: bool
+) -> None:
+    target = "[value]" if structured else "value"
+    row_source = "rows" if named_rows else "[pending]"
+    prefix = (
+        _CONSOL_REQUESTED_TRACE_SOURCE + "def access():\n    tick('C')\n    yield None\n"
+        "pending = access()\nalias = pending\nrows = [pending]\n"
+    )
+    body = f"for {target} in {row_source}:\n    break\n"
+    if requested:
+        visitor, outcomes, _binding = _consol_requested_step(
+            prefix
+            + "async def step():\n"
+            + "\n".join("    " + row for row in body.splitlines())
+            + "\n    return 'V'\n"
+        )
+        assert set(_consol_outcome_traces(visitor, outcomes.return_scopes)) == {
+            "C" if structured else ""
+        }
+    else:
+        visitor = legacy_guard._ApiKeyLookupVisitor(
+            filename="captured-row.py", errors=[], analyze_function_bodies=False
+        )
+        visitor.visit(ast.parse(prefix + body + "before = trace\nlist(alias)\n"))
+        assert visitor.scope.strings["before"] == ("C" if structured else "")
+        assert visitor.scope.strings["trace"] == "C"
+    assert visitor.errors == []
+
+
+@pytest.mark.parametrize("reverse", [False, True])
+@pytest.mark.parametrize("rhs_effect", [False, True])
+def test_consol_requested_structural_target_orders_consumption_before_later_owner(
+    reverse: bool, rhs_effect: bool
+) -> None:
+    targets = "crash().attr, [value]" if reverse else "[value], crash().attr"
+    values = "rhs(), access()" if reverse else "access(), rhs()"
+    prefix = (
+        "trace = ''\n"
+        "def tick(value):\n    global trace\n    trace = trace + value\n"
+        "def access():\n    tick('C')\n    yield None\n"
+        "def crash():\n    tick('R')\n    raise RuntimeError\n"
+        + (
+            "def rhs():\n    tick('L')\n    return None\n"
+            if rhs_effect
+            else "def rhs():\n    return None\n"
+        )
+    )
+    visitor, outcomes, _binding = _consol_requested_step(
+        prefix
+        + f"async def step():\n    [{targets}] = [{values}]\n    tick('BAD')\n    return 'V'\n"
+    )
+    assert outcomes.return_scopes == []
+    assert set(_consol_outcome_traces(visitor, outcomes.raise_scopes)) == {
+        ("L" if rhs_effect else "") + ("R" if reverse else "CR")
+    }
+
+
+@pytest.mark.parametrize("subscript", [False, True])
+def test_consol_requested_captured_target_visits_each_owner_and_slice_once(subscript: bool) -> None:
+    target = "owner()[index()]" if subscript else "owner().attr"
+    visitor, outcomes, _binding = _consol_requested_step(
+        _CONSOL_REQUESTED_TRACE_SOURCE + "def access():\n    tick('C')\n    yield None\n"
+        "def owner():\n    tick('O')\n    return receiver\n"
+        "def index():\n    tick('S')\n    return 0\n"
+        + f"async def step():\n    [[value], {target}] = [access(), None]\n    return 'V'\n"
+    )
+    assert set(_consol_outcome_traces(visitor, outcomes.return_scopes)) == {
+        "COS" if subscript else "CO"
+    }
+    assert outcomes.raise_scopes == []
+
+
+@pytest.mark.parametrize("asynchronous", [False, True])
+@pytest.mark.parametrize("structured", [False, True])
+def test_consol_captured_enter_row_is_consumed_at_structured_as_target(
+    asynchronous: bool, structured: bool
+) -> None:
+    enter = "async def __aenter__" if asynchronous else "def __enter__"
+    exit_method = "async def __aexit__" if asynchronous else "def __exit__"
+    target = "[value]" if structured else "value"
+    with_keyword = "async with" if asynchronous else "with"
+    source = (
+        _CONSOL_REQUESTED_TRACE_SOURCE
+        + "def access():\n    tick('C')\n    yield None\n"
+        + f"class Context:\n    {enter}(self):\n        return access()\n"
+        + f"    {exit_method}(self, *args):\n        tick('X')\n"
+        + f"async def step():\n    {with_keyword} Context() as {target}:\n        tick('B')\n    return 'V'\n"
+    )
+    compile(source, "<captured-enter-target>", "exec")
+    visitor, outcomes, _binding = _consol_requested_step(source)
+    assert set(_consol_outcome_traces(visitor, outcomes.return_scopes)) == {
+        "CBX" if structured else "BX"
+    }
+    assert visitor.errors == []
+
+
+@pytest.mark.parametrize("structured", [False, True])
+def test_consol_captured_actual_next_row_is_consumed_only_by_structured_target(
+    structured: bool,
+) -> None:
+    target = "[value]" if structured else "value"
+    source = (
+        "import asyncio\n"
+        + _CONSOL_REQUESTED_TRACE_SOURCE
+        + "def access():\n    tick('C')\n    yield None\n"
+        "class Iterator:\n    def __aiter__(self):\n        return self\n"
+        "    async def __anext__(self):\n        return access()\n"
+        + f"async def main():\n    async for {target} in Iterator():\n        tick('B')\n        break\nasyncio.run(main())\n"
+    )
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="captured-next-target.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(ast.parse(source))
+    assert visitor.scope.strings["trace"] == ("CB" if structured else "B")
+    assert visitor.errors == []
+
+
+@pytest.mark.parametrize("kind", ["indexed", "mapping", "comprehension"])
+def test_consol_captured_pair_and_comprehension_readers_reuse_child_consumption(kind: str) -> None:
+    body = {
+        "indexed": "for key, [value] in enumerate(rows):\n    break\n",
+        "mapping": "for key, [value] in {'key': pending}.items():\n    break\n",
+        "comprehension": "produced = (None for [value] in rows)\nlist(produced)\n",
+    }[kind]
+    visitor, outcomes, _binding = _consol_requested_step(
+        _CONSOL_REQUESTED_TRACE_SOURCE + "def access():\n    tick('C')\n    yield None\n"
+        "pending = access()\nrows = [pending]\n"
+        "async def step():\n"
+        + "\n".join("    " + row for row in body.splitlines())
+        + "\n    return 'V'\n"
+    )
+    assert set(_consol_outcome_traces(visitor, outcomes.return_scopes)) == {"C"}
+    assert visitor.errors == []
+
+
+@pytest.mark.parametrize("consume_remainder", [False, True])
+def test_consol_captured_starred_remainder_keeps_child_dormant_until_consumed(
+    consume_remainder: bool,
+) -> None:
+    source = (
+        _CONSOL_REQUESTED_TRACE_SOURCE + "def access():\n    tick('C')\n    yield None\n"
+        "async def step():\n    pending = access()\n    [*packed] = [pending]\n"
+        + ("    only, = packed\n    list(only)\n" if consume_remainder else "")
+        + "    return 'V'\n"
+    )
+    visitor, outcomes, _binding = _consol_requested_step(source)
+    assert set(_consol_outcome_traces(visitor, outcomes.return_scopes)) == {
+        "C" if consume_remainder else ""
+    }
+
+
+@pytest.mark.parametrize(
+    "statement,expected",
+    [
+        ("owner().attr: int = None", "O"),
+        ("owner().attr += tick('V')", "OV"),
+        ("(value := tick('V'))", "V"),
+    ],
+)
+def test_consol_captured_target_delta_keeps_scalar_evaluation_once(
+    statement: str, expected: str
+) -> None:
+    visitor, outcomes, _binding = _consol_requested_step(
+        _CONSOL_REQUESTED_TRACE_SOURCE
+        + "def owner():\n    tick('O')\n    return receiver\n"
+        + f"async def step():\n    {statement}\n    return 'V'\n"
+    )
+    assert set(_consol_outcome_traces(visitor, outcomes.return_scopes)) == {expected}
+    assert visitor.errors == []
+
+
+def test_consol_captured_context_target_raise_runs_exit_after_prior_unpack() -> None:
+    source = (
+        "trace = ''\n"
+        "def tick(value):\n    global trace\n    trace = trace + value\n"
+        "def access():\n    tick('C')\n    yield None\n"
+        "def crash():\n    tick('R')\n    raise RuntimeError\n"
+        "class Context:\n    def __enter__(self):\n        return [access(), None]\n"
+        "    def __exit__(self, *args):\n        tick('X')\n"
+        "async def step():\n    with Context() as [[value], crash().attr]:\n        tick('BAD')\n    return 'V'\n"
+    )
+    compile(source, "<captured-context-target-raise>", "exec")
+    visitor, outcomes, _binding = _consol_requested_step(source)
+    assert outcomes.return_scopes == []
+    traces = _consol_outcome_traces(visitor, outcomes.raise_scopes)
+    assert "CRX" in traces
+    assert all(trace is not None and "BAD" not in trace for trace in traces)
+
+
+def test_consol_requested_nested_unpack_retains_earlier_rhs_and_shared_alias() -> None:
+    source = (
+        _CONSOL_REQUESTED_TRACE_SOURCE + "def original():\n    tick('C')\n    yield None\n"
+        "def replacement():\n    tick('X')\n    yield None\n"
+        "pending = original()\nalias = pending\n"
+        "def late():\n    global pending\n    tick('L')\n    pending = replacement()\n    return None\n"
+        "async def step():\n    [[value], other] = [pending, late()]\n"
+        "    list(alias)\n    list(pending)\n    return 'V'\n"
+    )
+    visitor, outcomes, _binding = _consol_requested_step(source)
+    assert set(_consol_outcome_traces(visitor, outcomes.return_scopes)) == {"LCX"}
+    assert visitor.errors == []
+
+
+@pytest.mark.parametrize("requested", [False, True])
+@pytest.mark.parametrize("harmless", [False, True])
+def test_consol_leaf_projection_preserves_with_prebind_sensitive_fallback(
+    requested: bool, harmless: bool
+) -> None:
+    value = "0" if harmless else "unknown_name"
+    prefix = (
+        "from fastapi import FastAPI\napp = FastAPI()\n"
+        + f"class Context:\n    def __enter__(self):\n        return {value}\n"
+        + "    def __exit__(self, *args):\n        return None\n"
+    )
+    body = "route = app.get\nwith Context() as route:\n    pass\n"
+    expected = (
+        legacy_guard._KNOWN_NON_APP_REFERENCE
+        if harmless
+        else legacy_guard._POSSIBLE_APP_CALL_REFERENCE
+    )
+    if requested:
+        _visitor, outcomes, binding = _consol_requested_step(
+            prefix
+            + "async def step():\n"
+            + "\n".join("    " + row for row in body.splitlines())
+            + "\n    return route\n"
+        )
+        assert outcomes.return_scopes
+        assert binding.reference == expected
+    else:
+        visitor = legacy_guard._ApiKeyLookupVisitor(
+            filename="with-prebind.py", errors=[], analyze_function_bodies=False
+        )
+        visitor.visit(ast.parse(prefix + body))
+        assert visitor.scope.resolve_reference("route") == expected
+
+
+def test_consol_leaf_projection_is_visible_to_later_structured_target_owner() -> None:
+    source = (
+        "from fastapi import FastAPI\napp = FastAPI()\nobserved = None\n"
+        "class Context:\n    def __enter__(self):\n        return [unknown_name, None]\n"
+        "    def __exit__(self, *args):\n        return None\n"
+        "def receiver(value):\n    global observed\n    observed = value\n    return target\n"
+        "async def step():\n    route = app.get\n"
+        "    with Context() as [route, receiver(route).attr]:\n        pass\n"
+        "    return observed\n"
+    )
+    _visitor, outcomes, binding = _consol_requested_step(source)
+    assert outcomes.return_scopes
+    assert binding.reference == legacy_guard._POSSIBLE_APP_CALL_REFERENCE
+
+
+@pytest.mark.parametrize("requested", [False, True])
+@pytest.mark.parametrize("harmless", [False, True])
+def test_consol_literal_scalar_row_retains_source_sensitive_publication(
+    requested: bool, harmless: bool
+) -> None:
+    value = "0" if harmless else "unknown_name"
+    prefix = "from fastapi import FastAPI\napp = FastAPI()\n"
+    body = f"route = app.get\nfor route in [{value}]:\n    break\n"
+    expected = (
+        legacy_guard._KNOWN_NON_APP_REFERENCE
+        if harmless
+        else legacy_guard._POSSIBLE_APP_CALL_REFERENCE
+    )
+    if requested:
+        _visitor, outcomes, binding = _consol_requested_step(
+            prefix
+            + "async def step():\n"
+            + "\n".join("    " + row for row in body.splitlines())
+            + "\n    return route\n"
+        )
+        assert outcomes.return_scopes
+        assert binding.reference == expected
+    else:
+        visitor = legacy_guard._ApiKeyLookupVisitor(
+            filename="literal-scalar-fallback.py", errors=[], analyze_function_bodies=False
+        )
+        visitor.visit(ast.parse(prefix + body))
+        assert visitor.scope.resolve_reference("route") == expected
+
+
+@pytest.mark.parametrize("harmless", [False, True])
+def test_consol_chained_scalar_projection_preserves_complete_assignment_source_fact(
+    harmless: bool,
+) -> None:
+    value = "[0]" if harmless else "unknown_values"
+    source = (
+        "from fastapi import FastAPI\napp = FastAPI()\n"
+        + f"async def step():\n    route = app.get\n    route = [ignored] = {value}\n    return route\n"
+    )
+    _visitor, outcomes, binding = _consol_requested_step(source)
+    assert outcomes.return_scopes
+    assert binding.reference == (
+        legacy_guard._KNOWN_NON_APP_REFERENCE
+        if harmless
+        else legacy_guard._POSSIBLE_APP_CALL_REFERENCE
+    )
+    assert binding.string == (None if harmless else legacy_guard._DYNAMIC_STRING_BINDING)
+
+
+def test_consol_chained_scalar_source_fact_is_frozen_before_target_rebind() -> None:
+    source = (
+        "rows = unknown_values\n"
+        "def clear_rows():\n    global rows\n    rows = None\n    return receiver\n"
+        "async def step():\n    clear_rows().attr = name = [ignored] = rows\n    return name\n"
+    )
+    _visitor, outcomes, binding = _consol_requested_step(source)
+    assert outcomes.return_scopes
+    assert binding.reference is None
+    assert binding.string == legacy_guard._DYNAMIC_STRING_BINDING
+
+
+def test_consol_chained_scalar_root_fact_does_not_replace_nested_child_fact() -> None:
+    _visitor, outcomes, binding = _consol_requested_step(
+        "from fastapi import FastAPI\napp = FastAPI()\n"
+        "async def step():\n    packed = [route] = [app.get]\n    return route\n"
+    )
+    assert outcomes.return_scopes
+    assert binding.reference == "pulseplate.app.get"
+
+
+@pytest.mark.parametrize(
+    "kind,expected",
+    [
+        ("nested", "ISNVB"),
+        ("thread", "ISNVB"),
+        ("synthetic_row", "ISCVB"),
+        ("grandchild", "ISNB"),
+        ("finally", "ISFNVB"),
+        ("cancel", "ISF"),
+        ("alternatives", "ISNVB"),
+        ("unrelated", "ISNVB"),
+        ("reused_method", "ISSB"),
+    ],
+)
+def test_consol_private_return_protocol_lifetime(kind: str, expected: str) -> None:
+    definitions = (
+        "async def child():\n    tick('N')\n    return 'V'\n"
+        "def forward():\n    return child()\n"
+        "def work():\n    tick('N')\n    return 'V'\n"
+        "def row():\n    tick('C')\n    yield 'V'\n"
+    )
+    returned = {
+        "nested": "return forward()",
+        "thread": "return asyncio.to_thread(work)",
+        "synthetic_row": "return asyncio.to_thread(row)",
+        "grandchild": "return child()",
+        "finally": "try:\n            return child()\n        finally:\n            tick('F')",
+        "cancel": "try:\n            return child()\n        finally:\n            tick('F')\n            raise ValueError",
+        "alternatives": "return selected()",
+        "unrelated": "unused = child()\n        return child()",
+        "reused_method": "return asyncio.to_thread(self.__anext__)",
+    }[kind]
+    if kind == "grandchild":
+        definitions = definitions.replace("return 'V'\n", "return row()\n", 1)
+    if kind == "alternatives":
+        definitions += (
+            "async def second():\n    tick('N')\n    return 'V'\n"
+            "if condition:\n    selected = child\nelse:\n    selected = second\n"
+        )
+    target = "[value]" if kind == "synthetic_row" else "value"
+    value_tick = "" if kind in {"grandchild", "reused_method"} else "        tick(value)\n"
+    source = (
+        "import asyncio\n"
+        + _CONSOL_REQUESTED_TRACE_SOURCE
+        + definitions
+        + "class C:\n    def __aiter__(self):\n        tick('I')\n        return self\n"
+        + "    def __anext__(self):\n        tick('S')\n        "
+        + returned
+        + "\nasync def main():\n    async for "
+        + target
+        + " in C():\n"
+        + value_tick
+        + "        tick('B')\n        break\nasyncio.run(main())\n"
+    )
+    compile(source, "<private-return-lifetime>", "exec")
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="private-return-lifetime.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(ast.parse(source))
+    assert visitor.scope.strings["trace"] == expected
+    assert visitor.errors == []
+    assert visitor._active_replay_contexts == []
+    assert not any(
+        isinstance(record, tuple) and record[0][0] == "transient"
+        for record in visitor._consumed_deferred_calls
+    )
+
+
+@pytest.mark.parametrize(
+    "observer",
+    ["available", "active", "consumed", "unknown", "default", "normal", "raise", "entry"],
+)
+def test_consol_private_creation_rejects_old_observer_without_partial_registration(
+    observer: str,
+) -> None:
+    tree = ast.parse(
+        "async def left():\n    return 'L'\n"
+        "async def right():\n    return 'R'\n"
+        "def forward():\n    return left()\n"
+        "async def owner():\n    async for value in source:\n        break\n"
+    )
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="private-registration.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(tree)
+    forward = next(iter(visitor.scope.callables["forward"]))
+    left = next(iter(visitor.scope.callables["left"]))
+    right = next(iter(visitor.scope.callables["right"]))
+    call = next(node for node in ast.walk(tree) if isinstance(node, ast.Call))
+    loop = next(node for node in ast.walk(tree) if isinstance(node, ast.AsyncFor))
+    source_nodes = visitor._source_nodes()
+    entry = visitor._capture_deferred_flow(visitor.scope)
+    request = legacy_guard._TerminalControlBindings(return_scopes=[], raise_scopes=[])
+    visitor._active_replay_contexts.append((None, loop, (), (), (), (), None, source_nodes, None))
+    owner_index = len(visitor._active_replay_contexts)
+    visitor._active_replay_contexts.append(
+        (None, loop, (), (), (forward, left, right, call), (), entry, source_nodes, request)
+    )
+    visitor._active_replay_contexts.append(
+        (None, forward, (), (), (), (), None, source_nodes, None)
+    )
+    left_key = visitor._deferred_value_key(
+        call, child=visitor._original_callable(left), actual_construction=True
+    )
+    right_key = visitor._deferred_value_key(
+        call, child=visitor._original_callable(right), actual_construction=True
+    )
+    assert left_key[0] == right_key[0] == "transient"
+    left_call = legacy_guard._DeferredFunctionCall(left, (), value_key=left_key, execution="await")
+    right_call = legacy_guard._DeferredFunctionCall(
+        right, (), value_key=right_key, execution="await"
+    )
+    if observer in {"available", "active", "consumed", "unknown"}:
+        visitor._set_deferred_progress(
+            left_key, cast(Literal["available", "active", "consumed", "unknown"], observer)
+        )
+    elif observer == "default":
+        visitor._function_default_bindings[forward] = {
+            "held": legacy_guard._ResolvedBinding(None, None, deferred_calls=frozenset({left_call}))
+        }
+    else:
+        visitor._consumed_deferred_calls.add((left_key, "consumed", None))
+        saved = visitor.scope.clone()
+        visitor._consumed_deferred_calls.clear()
+        if observer == "entry":
+            frame = cast(tuple[object, ...], visitor._active_replay_contexts[owner_index])
+            visitor._active_replay_contexts[owner_index] = (
+                *frame[:6],
+                saved._flow_snapshot,
+                *frame[7:],
+            )
+        else:
+            (request.return_scopes if observer == "normal" else request.raise_scopes).append(saved)
+    before_progress = frozenset(visitor._consumed_deferred_calls)
+    before_owned = cast(tuple[object, ...], visitor._active_replay_contexts[owner_index])[5]
+    with pytest.raises(legacy_guard.LegacyGrowthAnalysisError, match="transient identity collides"):
+        visitor._register_private_deferred_creation(call, frozenset({left_call, right_call}))
+    assert frozenset(visitor._consumed_deferred_calls) == before_progress
+    assert (
+        cast(tuple[object, ...], visitor._active_replay_contexts[owner_index])[5]
+        == before_owned
+        == ()
+    )
+    assert visitor._deferred_progress(right_key) is None
+
+
+def test_consol_private_inactive_return_pool_keeps_its_negative_owner_fence() -> None:
+    tree = ast.parse(
+        "async def child():\n    return 'V'\n"
+        "def forward():\n    return child()\n"
+        "async def main():\n    async for value in source:\n        break\n"
+    )
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="inactive-return-pool.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(tree)
+    forward = next(iter(visitor.scope.callables["forward"]))
+    call = next(node for node in ast.walk(tree) if isinstance(node, ast.Call))
+    loop = next(node for node in ast.walk(tree) if isinstance(node, ast.AsyncFor))
+    source = visitor._source_nodes()
+    entry = visitor._capture_deferred_flow(visitor.scope)
+    visitor._active_replay_contexts.extend(
+        [
+            (None, loop, (), (), (), (), None, source, None),
+            (None, loop, (), (), (call,), (), entry, source, None),
+            (None, forward, (), (), (), (), None, source, None),
+        ]
+    )
+    owner = cast(tuple[object, ...], visitor._active_replay_contexts[1])
+    assert visitor._private_deferred_corridor_operand(
+        None, return_source=True, owner_frame=owner, owner_kind=True
+    ) == (loop,)
+    assert (
+        visitor._private_deferred_corridor_operand(call, return_source=True, owner_frame=owner)
+        == ()
+    )
+    assert visitor._deferred_value_key(call, actual_construction=True)[0] == "summary"
+    detached = visitor._detached_analysis_visitor(
+        visitor.scope, original_parent=visitor.scope, analyze_function_bodies=False
+    )
+    assert cast(tuple[object, ...], detached._active_replay_contexts[1])[4] == ()
+    assert cast(tuple[object, ...], visitor._active_replay_contexts[1])[4] == (call,)
+    assert call in detached._source_nodes()
+
+    fragment = ast.Module(body=[ast.Expr(value=call)], type_ignores=[])
+    visitor._active_replay_contexts.append(
+        (None, fragment, (), (), (), (), None, frozenset(ast.walk(fragment)), None)
+    )
+    # A negative owner-kind fence survives source switching. It cannot lend
+    # that old owner's positive source eligibility to the independent fragment.
+    assert visitor._private_deferred_corridor_operand(
+        None, return_source=True, owner_frame=owner, owner_kind=True
+    ) == (loop,)
+    assert (
+        visitor._private_deferred_corridor_operand(call, return_source=True, owner_frame=owner)
+        == ()
+    )
+    assert visitor._deferred_value_key(call, actual_construction=True)[0] == "summary"
+    independent = visitor._detached_analysis_visitor(
+        visitor.scope, original_parent=visitor.scope, analyze_function_bodies=False
+    )
+    assert cast(tuple[object, ...], independent._active_replay_contexts[1])[4] == ()
+
+
+def test_consol_immediate_await_unknown_callback_keeps_both_post_eager_outcomes() -> None:
+    visitor, outcomes, _binding = _consol_requested_step(
+        "import asyncio\nfrom foreign_owner import maybe_stop\n"
+        + _CONSOL_REQUESTED_TRACE_SOURCE
+        + "async def step():\n    await asyncio.to_thread(maybe_stop, tick('L'))\n"
+        "    tick('N')\n    return 'V'\n"
+    )
+    assert set(_consol_outcome_traces(visitor, outcomes.return_scopes)) == {"LN"}
+    assert set(_consol_outcome_traces(visitor, outcomes.raise_scopes)) == {"L"}
+    assert visitor.errors == []
+    assert visitor._active_replay_contexts == []
+    assert not any(
+        isinstance(record, tuple) and record[0][0] == "transient"
+        for record in visitor._consumed_deferred_calls
+    )
+
+
+@pytest.mark.parametrize("use", ["assigned", "returned", "operand", "mapping", "closure"])
+def test_consol_immediate_await_full_known_result_survives_parent_close(use: str) -> None:
+    setup = "original = {'value': 'P'}\n"
+    callback = "def work():\n    tick('W')\n    return 'P'\n"
+    body = {
+        "assigned": "value = await asyncio.to_thread(work)\n    return value",
+        "returned": "return await asyncio.to_thread(work)",
+        "operand": "return [await asyncio.to_thread(work), 'Z']",
+        "mapping": "value = await asyncio.to_thread(work)\n    return value",
+        "closure": "value = await asyncio.to_thread(work)\n    return value()",
+    }[use]
+    if use == "mapping":
+        callback = "def work():\n    tick('W')\n    return original\n"
+    if use == "closure":
+        setup += (
+            "def factory():\n    held = original\n"
+            "    def read(value=held):\n        return value\n"
+            "    return read\noriginal_reader = factory()\n"
+        )
+        callback = "def work():\n    tick('W')\n    return original_reader\n"
+    visitor, outcomes, binding = _consol_requested_step(
+        "import asyncio\n"
+        + _CONSOL_REQUESTED_TRACE_SOURCE
+        + setup
+        + callback
+        + "async def step():\n    "
+        + body
+        + "\n"
+    )
+    assert set(_consol_outcome_traces(visitor, outcomes.return_scopes)) == {"W"}
+    assert outcomes.raise_scopes == []
+    if use in {"mapping", "closure"}:
+        assert binding.mapping is visitor.scope.resolve_mapping("original")
+        assert binding.mapping is not None
+    elif use == "operand":
+        assert binding.ordered_items is not None
+        assert [item.string for item in binding.ordered_items] == ["P", "Z"]
+    else:
+        assert binding.string == "P"
+    assert visitor.errors == []
+    assert not any(
+        isinstance(record, tuple) and record[0][0] == "transient"
+        for record in visitor._consumed_deferred_calls
+    )
+
+
+@pytest.mark.parametrize("kind", ["generator", "coroutine"])
+@pytest.mark.parametrize("consume", [False, True])
+def test_consol_immediate_await_returned_child_remains_separate_and_dormant(
+    kind: str, consume: bool
+) -> None:
+    child = (
+        "def child():\n    tick('G')\n    yield 'P'\n"
+        if kind == "generator"
+        else "async def child():\n    tick('G')\n    return 'P'\n"
+    )
+    use = (
+        ("list(value)\n    list(value)\n    " if kind == "generator" else "await value\n    ")
+        if consume
+        else ""
+    )
+    visitor, outcomes, binding = _consol_requested_step(
+        "import asyncio\n"
+        + _CONSOL_REQUESTED_TRACE_SOURCE
+        + child
+        + "async def step():\n    value = await asyncio.to_thread(child)\n"
+        "    tick('B')\n    " + use + "return value\n"
+    )
+    assert set(_consol_outcome_traces(visitor, outcomes.return_scopes)) == {
+        "BG" if consume else "B"
+    }
+    if kind == "generator" and consume:
+        assert set(_consol_outcome_traces(visitor, outcomes.raise_scopes)) == {"B", "BG"}
+    else:
+        assert outcomes.raise_scopes == []
+    assert len(binding.deferred_calls) == 1
+    descriptor = next(iter(binding.deferred_calls))
+    assert descriptor.function is not None and descriptor.payload_known
+    assert descriptor.value_key is not None and descriptor.value_key[3] is not None
+    assert descriptor.operation == "real"
+    assert visitor.errors == []
+    assert not any(
+        isinstance(record, tuple) and record[0][0] == "transient"
+        for record in visitor._consumed_deferred_calls
+    )
+
+
+@pytest.mark.parametrize("mode", ["live", "inactive", "callback", "detached", "foreign"])
+def test_consol_immediate_await_requires_current_constructor_phase_and_operation(
+    mode: str,
+) -> None:
+    tree = ast.parse(
+        "import asyncio\n"
+        "async def step():\n    async for value in source:\n"
+        "        await asyncio.to_thread(callback)\n"
+    )
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="immediate-await-fence.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(tree)
+    awaited = next(node for node in ast.walk(tree) if isinstance(node, ast.Await))
+    call = cast(ast.Call, awaited.value)
+    loop = next(node for node in ast.walk(tree) if isinstance(node, ast.AsyncFor))
+    source = visitor._source_nodes()
+    entry = visitor._capture_deferred_flow(visitor.scope)
+    request = legacy_guard._TerminalControlBindings(return_scopes=[], raise_scopes=[])
+    visitor._active_replay_contexts.extend(
+        [
+            (None, loop, (), (), (), (), None, source, None),
+            (None, awaited, (), (), (call,), (), entry, source, request),
+            (None, call, (), (), (), (), None, source, request),
+        ]
+    )
+    owner = cast(tuple[object, ...], visitor._active_replay_contexts[1])
+    assert visitor._deferred_value_key(call, actual_construction=True)[0] == "summary"
+    if mode == "inactive":
+        visitor._active_replay_contexts[1] = (*owner[:4], (), *owner[5:])
+    elif mode == "callback":
+        function = next(iter(visitor.scope.callables["step"]))
+        visitor._active_replay_contexts.append(
+            (None, function, (), (), (), (), None, source, request)
+        )
+    elif mode == "detached":
+        visitor = visitor._detached_analysis_visitor(
+            visitor.scope, original_parent=visitor.scope, analyze_function_bodies=False
+        )
+        assert cast(tuple[object, ...], visitor._active_replay_contexts[1])[4] == ()
+    elif mode == "foreign":
+        fragment = ast.Module(body=[ast.Expr(value=call)], type_ignores=[])
+        visitor._active_replay_contexts.append(
+            (None, fragment, (), (), (), (), None, frozenset(ast.walk(fragment)), request)
+        )
+    current = cast(tuple[object, ...], visitor._active_replay_contexts[1])
+    assert visitor._private_deferred_corridor_operand(
+        None, return_source=True, owner_frame=current, owner_kind=True
+    ) == (awaited,)
+    key = visitor._deferred_value_key(
+        call, actual_construction=True, captured_operation="to_thread"
+    )
+    assert key[0] == ("transient" if mode == "live" else "summary")
+    if mode == "live":
+        wrong = legacy_guard._DeferredFunctionCall(
+            None,
+            (),
+            operation="map",
+            execution="iterate",
+            value_key=key,
+            callee=legacy_guard._ResolvedBinding(None, None),
+        )
+        before = frozenset(visitor._consumed_deferred_calls)
+        with pytest.raises(legacy_guard.LegacyGrowthAnalysisError, match="positive source owner"):
+            visitor._register_private_deferred_creation(call, frozenset({wrong}))
+        assert frozenset(visitor._consumed_deferred_calls) == before
+        assert cast(tuple[object, ...], visitor._active_replay_contexts[1])[5] == ()
+
+
+def test_consol_immediate_await_unknown_bundle_remains_hard() -> None:
+    source = (
+        "import asyncio\nfrom foreign_owner import callback, arguments\n"
+        "async def step():\n    await asyncio.to_thread(callback, *arguments)\n"
+        "    return 'BAD'\n"
+    )
+    with pytest.raises(legacy_guard.LegacyGrowthAnalysisError, match="payload is unknown"):
+        _consol_requested_step(source)
+
+
+@pytest.mark.parametrize(
+    "expression",
+    ["'P'", "reader", "Service.read", "receiver.read", "Service", "{'value': 'P'}", "['P', 'Z']"],
+)
+def test_consol_immediate_await_preserves_every_field_of_the_actual_captured_result(
+    expression: str,
+) -> None:
+    visitor, outcomes, binding = _consol_requested_step(
+        "import asyncio\n"
+        "def reader(value='P'):\n    return value\n"
+        "class Service:\n    def read(self):\n        return 'P'\n"
+        "receiver = Service()\noriginal = " + expression + "\n"
+        "def work():\n    return original\n"
+        "async def step():\n    return await asyncio.to_thread(work)\n"
+    )
+    assert outcomes.return_scopes and outcomes.raise_scopes == []
+    original_name = next(
+        node
+        for node in visitor._source_nodes()
+        if isinstance(node, ast.Name) and node.id == "original" and isinstance(node.ctx, ast.Load)
+    )
+    expected = visitor._capture_argument_binding(original_name)
+    for field in binding.__dataclass_fields__:
+        actual, prior = getattr(binding, field), getattr(expected, field)
+        if field == "mapping":
+            assert actual is prior
+        else:
+            assert actual == prior, field
+    assert visitor.errors == []
+
+
+@pytest.mark.parametrize("mixed", [False, True])
+def test_consol_immediate_await_never_publishes_a_normal_result_on_abrupt_flow(mixed: bool) -> None:
+    callback = (
+        "def work():\n    tick('W')\n    if condition:\n        raise ValueError\n    return 'P'\n"
+        if mixed
+        else "def work():\n    tick('W')\n    raise ValueError\n"
+    )
+    visitor, outcomes, binding = _consol_requested_step(
+        "import asyncio\n"
+        + _CONSOL_REQUESTED_TRACE_SOURCE
+        + callback
+        + "async def step():\n    value = await asyncio.to_thread(work)\n"
+        "    tick('N')\n    return value\n"
+    )
+    assert set(_consol_outcome_traces(visitor, outcomes.raise_scopes)) == {"W"}
+    assert set(_consol_outcome_traces(visitor, outcomes.return_scopes)) == (
+        {"WN"} if mixed else set()
+    )
+    if mixed:
+        assert binding.string == "P"
+    awaited = next(node for node in visitor._source_nodes() if isinstance(node, ast.Await))
+    for saved in outcomes.raise_scopes:
+        assert saved._flow_snapshot is not None
+        assert id(awaited) not in saved._flow_snapshot[2]
+    assert visitor.errors == []
+
+
+def test_consol_immediate_await_cleanup_does_not_mask_the_primary_analysis_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original_close = legacy_guard._ApiKeyLookupVisitor._close_private_deferred_frame
+
+    def fail_await_cleanup(
+        self: legacy_guard._ApiKeyLookupVisitor,
+        frame: tuple[object, ...],
+        offsets: list[tuple[list[legacy_guard._LexicalBindings], int]],
+    ) -> None:
+        if isinstance(frame[1], ast.Await):
+            raise ValueError("secondary cleanup witness")
+        original_close(self, frame, offsets)
+
+    monkeypatch.setattr(
+        legacy_guard._ApiKeyLookupVisitor, "_close_private_deferred_frame", fail_await_cleanup
+    )
+    with pytest.raises(
+        legacy_guard.LegacyGrowthAnalysisError, match="payload is unknown"
+    ) as caught:
+        _consol_requested_step(
+            "import asyncio\nfrom foreign_owner import callback, arguments\n"
+            "async def step():\n    await asyncio.to_thread(callback, *arguments)\n"
+        )
+    assert any("secondary cleanup witness" in note for note in caught.value.__notes__)
+
+
+def test_consol_immediate_await_revisit_replaces_current_result_without_rewriting_prior_value() -> (
+    None
+):
+    visitor, outcomes, binding = _consol_requested_step(
+        "import asyncio\noriginal = 'P'\n"
+        "def work():\n    return original\n"
+        "async def forward():\n    return await asyncio.to_thread(work)\n"
+        "async def step():\n    global original\n"
+        "    first = await forward()\n    original = 'Q'\n"
+        "    second = await forward()\n    return [first, second]\n"
+    )
+    assert outcomes.return_scopes and outcomes.raise_scopes == []
+    assert binding.ordered_items is not None
+    assert [item.string for item in binding.ordered_items] == ["P", "Q"]
+    assert visitor.errors == []
+
+
+def _consol_requested_outward_caller(
+    *,
+    nonlocal_owner: bool,
+    callee_body: str,
+    pending: str | None = None,
+    local_shadow: bool = False,
+    initial: str = "A",
+) -> tuple[
+    legacy_guard._ApiKeyLookupVisitor,
+    legacy_guard._TerminalControlBindings,
+    legacy_guard._LexicalBindings,
+]:
+    declaration = "nonlocal owner" if nonlocal_owner else "global owner"
+    caller_declaration = "owner = 'LOCAL'" if local_shadow else declaration
+    definitions = (
+        "def set_owner(value='B'):\n    " + declaration + "\n    owner = value\n"
+        "def caller():\n    " + caller_declaration + "\n    pass\n"
+        "def callee():\n    " + "\n    ".join(callee_body.splitlines()) + "\n"
+    )
+    source = (
+        "from foreign_owner import maybe_stop\n"
+        + _CONSOL_REQUESTED_TRACE_SOURCE
+        + (
+            "def factory():\n    owner = "
+            + repr(initial)
+            + "\n"
+            + "\n".join("    " + line for line in definitions.splitlines())
+            + "\n    return [caller, callee]\nbundle = factory()\n"
+            if nonlocal_owner
+            else "owner = " + repr(initial) + "\n" + definitions
+        )
+    )
+    tree = ast.parse(source)
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="outward-caller-projection.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(tree)
+    if nonlocal_owner:
+        bundle = visitor.scope.resolve_ordered_items("bundle")
+        assert bundle is not None and len(bundle) == 2
+        caller, callee = (next(iter(item.callables)) for item in bundle)
+    else:
+        caller = next(iter(visitor.scope.resolve_callables("caller")))
+        callee = next(iter(visitor.scope.resolve_callables("callee")))
+    lexical_parent = visitor._function_definition_scopes.get(
+        caller, visitor.scope
+    ).function_parent()
+    targets = visitor._enter_function_binding_scope(caller, lexical_parent, {})
+    caller_scope = visitor.scope
+    if local_shadow:
+        caller_scope.bind(
+            "owner",
+            reference=legacy_guard._KNOWN_NON_APP_REFERENCE,
+            string="LOCAL",
+            runtime_binding=False,
+        )
+        target = lexical_parent if nonlocal_owner else visitor._module_scope()
+    else:
+        target = targets["owner"]
+    if pending is not None:
+        caller_scope.bind(
+            "owner",
+            reference=legacy_guard._KNOWN_NON_APP_REFERENCE,
+            string=pending,
+            runtime_binding=False,
+        )
+    request = legacy_guard._TerminalControlBindings(return_scopes=[], raise_scopes=[])
+    visitor._outward_binding_targets.append(targets)
+    visitor._active_replay_contexts.append(
+        (object(), caller, (), (), (), (), None, frozenset(ast.walk(tree)), request)
+    )
+    try:
+        visitor._replay_function_call(callee, {})
+    finally:
+        visitor._active_replay_contexts.pop()
+        visitor._outward_binding_targets.pop()
+    return visitor, request, target
+
+
+@pytest.mark.parametrize("nonlocal_owner", [False, True])
+@pytest.mark.parametrize("keyword", [False, True])
+def test_consol_outward_projection_preserves_post_eager_owner_in_both_physical_views(
+    nonlocal_owner: bool,
+    keyword: bool,
+) -> None:
+    invocation = (
+        "maybe_stop(tick('A'), value=set_owner())"
+        if keyword
+        else "maybe_stop(tick('A'), set_owner())"
+    )
+    visitor, request, target = _consol_requested_outward_caller(
+        nonlocal_owner=nonlocal_owner,
+        callee_body=invocation + "\ntick('N')\nreturn 'V'",
+    )
+    assert set(_consol_outcome_traces(visitor, request.return_scopes)) == {"AN"}
+    assert set(_consol_outcome_traces(visitor, request.raise_scopes)) == {"A"}
+    entry, active = visitor._capture_deferred_flow(visitor.scope), visitor.scope
+    try:
+        for outcome in [*request.return_scopes, *request.raise_scopes]:
+            visitor._switch_deferred_scope(outcome.clone(), restore_flow=True)
+            assert visitor.scope.strings["owner"] == "B"
+            assert target.strings["owner"] == "B"
+    finally:
+        visitor._restore_deferred_flow(entry)
+        visitor.scope = active
+    assert visitor.errors == []
+
+
+@pytest.mark.parametrize("nonlocal_owner", [False, True])
+@pytest.mark.parametrize("initial,pending", [("A", "B"), ("B", "A")])
+@pytest.mark.parametrize("replacement", [None, "baseline", "C"])
+def test_consol_outward_projection_reconciles_pending_write_before_entry_and_each_outcome(
+    nonlocal_owner: bool,
+    initial: str,
+    pending: str,
+    replacement: str | None,
+) -> None:
+    actual_replacement = initial if replacement == "baseline" else replacement
+    write = "" if actual_replacement is None else f"set_owner({actual_replacement!r})\n"
+    visitor, request, target = _consol_requested_outward_caller(
+        nonlocal_owner=nonlocal_owner,
+        pending=pending,
+        initial=initial,
+        callee_body=write + "maybe_stop()\nreturn 'V'",
+    )
+    expected = pending if actual_replacement is None else actual_replacement
+    assert request.return_scopes and request.raise_scopes
+    entry, active = visitor._capture_deferred_flow(visitor.scope), visitor.scope
+    try:
+        for outcome in [*request.raise_scopes, *request.return_scopes]:
+            visitor._switch_deferred_scope(outcome.clone(), restore_flow=True)
+            assert visitor.scope.strings["owner"] == expected
+            assert target.strings["owner"] == expected
+    finally:
+        visitor._restore_deferred_flow(entry)
+        visitor.scope = active
+    assert visitor.errors == []
+
+
+@pytest.mark.parametrize("nonlocal_owner", [False, True])
+def test_consol_outward_projection_does_not_rebase_an_ordinary_local_shadow(
+    nonlocal_owner: bool,
+) -> None:
+    visitor, request, target = _consol_requested_outward_caller(
+        nonlocal_owner=nonlocal_owner,
+        local_shadow=True,
+        callee_body="set_owner()\nmaybe_stop()\nreturn 'V'",
+    )
+    assert request.return_scopes and request.raise_scopes
+    entry, active = visitor._capture_deferred_flow(visitor.scope), visitor.scope
+    try:
+        for outcome in [*request.return_scopes, *request.raise_scopes]:
+            visitor._switch_deferred_scope(outcome.clone(), restore_flow=True)
+            assert visitor.scope.strings["owner"] == "LOCAL"
+            assert target.strings["owner"] == "B"
+    finally:
+        visitor._restore_deferred_flow(entry)
+        visitor.scope = active
+    assert visitor.errors == []
+
+
+@pytest.mark.parametrize("nonlocal_owner", [False, True])
+def test_consol_outward_projection_keeps_mixed_saved_outcomes_independent(
+    nonlocal_owner: bool,
+) -> None:
+    body = "if condition:\n    set_owner('R')\n    raise ValueError\n" "set_owner('N')\nreturn 'V'"
+    visitor, request, target = _consol_requested_outward_caller(
+        nonlocal_owner=nonlocal_owner,
+        pending="B",
+        callee_body=body,
+    )
+    assert request.return_scopes and request.raise_scopes
+    snapshots = [
+        outcome._flow_snapshot for outcome in [*request.raise_scopes, *request.return_scopes]
+    ]
+    entry, active = visitor._capture_deferred_flow(visitor.scope), visitor.scope
+    try:
+        for outcomes, expected in [(request.raise_scopes, "R"), (request.return_scopes, "N")]:
+            for outcome in outcomes:
+                visitor._switch_deferred_scope(outcome.clone(), restore_flow=True)
+                assert visitor.scope.strings["owner"] == target.strings["owner"] == expected
+        for outcome, snapshot in zip(
+            [*request.raise_scopes, *request.return_scopes], snapshots, strict=True
+        ):
+            assert outcome._flow_snapshot is snapshot
+    finally:
+        visitor._restore_deferred_flow(entry)
+        visitor.scope = active
+    assert visitor.errors == []
+
+
+@pytest.mark.parametrize("nonlocal_owner", [False, True])
+def test_consol_outward_projection_finalizer_cancellation_has_only_the_final_abrupt_owner(
+    nonlocal_owner: bool,
+) -> None:
+    visitor, request, target = _consol_requested_outward_caller(
+        nonlocal_owner=nonlocal_owner,
+        callee_body=(
+            "try:\n    set_owner('R')\n    return 'V'\n"
+            "finally:\n    set_owner('F')\n    raise ValueError"
+        ),
+    )
+    assert request.return_scopes == [] and request.raise_scopes
+    entry, active = visitor._capture_deferred_flow(visitor.scope), visitor.scope
+    try:
+        for outcome in request.raise_scopes:
+            visitor._switch_deferred_scope(outcome.clone(), restore_flow=True)
+            assert visitor.scope.strings["owner"] == target.strings["owner"] == "F"
+    finally:
+        visitor._restore_deferred_flow(entry)
+        visitor.scope = active
+    assert visitor.errors == []
+
+
+def test_consol_outward_projection_finds_the_declared_caller_behind_a_comprehension() -> None:
+    visitor, outcomes, binding = _consol_requested_step(
+        "from foreign_owner import maybe_stop\nowner = 'A'\n"
+        "def set_owner():\n    global owner\n    owner = 'B'\n"
+        "def helper():\n    set_owner()\n    maybe_stop()\n    return 'V'\n"
+        "async def step():\n    global owner\n    owner = 'P'\n"
+        "    values = [helper() for unused in [None]]\n    return owner\n"
+    )
+    assert outcomes.return_scopes and outcomes.raise_scopes
+    assert binding.string == "B"
+    assert all(
+        outcome.strings["owner"] == "B"
+        for outcome in [*outcomes.return_scopes, *outcomes.raise_scopes]
+    )
+    assert visitor.errors == []
+
+
+@pytest.mark.parametrize("abrupt", [False, True])
+def test_consol_outward_projection_class_consumer_uses_the_actual_caller_views(
+    abrupt: bool,
+) -> None:
+    suffix = "        raise ValueError\n" if abrupt else ""
+    source = (
+        "owner = 'A'\n"
+        "def set_owner():\n    global owner\n    owner = 'B'\n"
+        "async def step():\n    global owner\n    owner = 'P'\n"
+        "    class Nested:\n        set_owner()\n" + suffix + "    return owner\n"
+    )
+    visitor, outcomes, binding = _consol_requested_step(source)
+    assert bool(outcomes.return_scopes) is not abrupt
+    assert bool(outcomes.raise_scopes) is abrupt
+    if not abrupt:
+        assert binding.string == "B"
+    for outcome in [*outcomes.return_scopes, *outcomes.raise_scopes]:
+        assert outcome.strings["owner"] == "B"
+    assert visitor.errors == []
+
+
+@pytest.mark.parametrize("kind", ["mapping", "callable", "receiver", "ordered", "delete"])
+def test_consol_outward_projection_preserves_full_name_state_and_unbinding(kind: str) -> None:
+    value = {
+        "mapping": "payload",
+        "callable": "read",
+        "receiver": "instance.read",
+        "ordered": "[read, payload]",
+        "delete": "None",
+    }[kind]
+    mutation = "del owner" if kind == "delete" else "owner = " + value
+    visitor, outcomes, binding = _consol_requested_step(
+        "payload = {'value': 'P'}\nowner = 'A'\n"
+        "def read():\n    return payload\n"
+        "class Service:\n    def read(self):\n        return payload\ninstance = Service()\n"
+        "def mutate():\n    global owner\n    " + mutation + "\n"
+        "def helper():\n    mutate()\n"
+        "async def step():\n    global owner\n    owner = 'P'\n"
+        "    helper()\n    return " + ("'V'" if kind == "delete" else "owner") + "\n"
+    )
+    assert outcomes.return_scopes and outcomes.raise_scopes == []
+    if kind == "delete":
+        assert all(
+            "owner" not in outcome.possibly_bound_names for outcome in outcomes.return_scopes
+        )
+    elif kind == "mapping":
+        assert binding.mapping is visitor.scope.resolve_mapping("payload")
+        assert binding.mapping is not None
+    elif kind == "ordered":
+        assert binding.ordered_items is not None and len(binding.ordered_items) == 2
+        assert binding.ordered_items[0].callables
+        assert binding.ordered_items[1].mapping is visitor.scope.resolve_mapping("payload")
+    elif kind == "receiver":
+        assert binding.callables and binding.call_receivers
+    else:
+        assert binding.callables == visitor.scope.resolve_callables("read")
+    assert visitor.errors == []
+
+
+@pytest.mark.parametrize("requested", [False, True])
+@pytest.mark.parametrize("structured", [False, True])
+@pytest.mark.parametrize("alias_rows", [False, True])
+@pytest.mark.parametrize("tuple_rows", [False, True])
+def test_consol_known_ordered_for_entry_preserves_the_shared_child_cursor(
+    requested: bool,
+    structured: bool,
+    alias_rows: bool,
+    tuple_rows: bool,
+) -> None:
+    rows = "(pending,)" if tuple_rows else "[pending]"
+    source_name = "held" if alias_rows else "rows"
+    target = "[value]" if structured else "value"
+    prefix = (
+        _CONSOL_REQUESTED_TRACE_SOURCE + "def access():\n    tick('C')\n    yield None\n"
+        "pending = access()\nalias = pending\nrows = " + rows + "\nheld = rows\n"
+    )
+    body = f"for {target} in {source_name}:\n    break\n" "before = trace\nlist(alias)\n"
+    if requested:
+        visitor, outcomes, binding = _consol_requested_step(
+            prefix
+            + "async def step():\n"
+            + "\n".join("    " + line for line in body.splitlines())
+            + "\n    return before\n"
+        )
+        assert outcomes.return_scopes
+        assert set(_consol_outcome_traces(visitor, outcomes.raise_scopes)) == {
+            "C" if structured else ""
+        }
+        assert binding.string == ("C" if structured else "")
+        assert set(_consol_outcome_traces(visitor, outcomes.return_scopes)) == {"C"}
+    else:
+        visitor = legacy_guard._ApiKeyLookupVisitor(
+            filename="known-ordered-rows.py", errors=[], analyze_function_bodies=False
+        )
+        visitor.visit(ast.parse(prefix + body))
+        assert visitor.scope.strings["before"] == ("C" if structured else "")
+        assert visitor.scope.strings["trace"] == "C"
+    assert visitor.errors == []
+
+
+@pytest.mark.parametrize("requested", [False, True])
+@pytest.mark.parametrize("tuple_rows", [False, True])
+def test_consol_known_empty_ordered_for_uses_else_without_consuming_child(
+    requested: bool,
+    tuple_rows: bool,
+) -> None:
+    rows = "()" if tuple_rows else "[]"
+    prefix = (
+        _CONSOL_REQUESTED_TRACE_SOURCE + "def access():\n    tick('C')\n    yield None\n"
+        "pending = access()\nrows = " + rows + "\nheld = rows\n"
+    )
+    body = (
+        "for [value] in held:\n    tick('BAD')\n"
+        "else:\n    tick('E')\nbefore = trace\nlist(pending)\n"
+    )
+    if requested:
+        visitor, outcomes, binding = _consol_requested_step(
+            prefix
+            + "async def step():\n"
+            + "\n".join("    " + line for line in body.splitlines())
+            + "\n    return before\n"
+        )
+        assert outcomes.return_scopes
+        assert set(_consol_outcome_traces(visitor, outcomes.raise_scopes)) == {"E"}
+        assert binding.string == "E"
+        assert set(_consol_outcome_traces(visitor, outcomes.return_scopes)) == {"EC"}
+    else:
+        visitor = legacy_guard._ApiKeyLookupVisitor(
+            filename="known-empty-rows.py", errors=[], analyze_function_bodies=False
+        )
+        visitor.visit(ast.parse(prefix + body))
+        assert visitor.scope.strings["before"] == "E"
+        assert visitor.scope.strings["trace"] == "EC"
+        assert "value" not in visitor.scope.possibly_bound_names
+    assert visitor.errors == []
+
+
+def test_consol_unknown_ordered_for_keeps_real_zero_entry_disagreement() -> None:
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="unknown-ordered-rows.py", errors=[], analyze_function_bodies=False
+    )
+    source = (
+        _CONSOL_REQUESTED_TRACE_SOURCE + "def access():\n    tick('C')\n    yield None\n"
+        "pending = access()\nalias = pending\n"
+        "if condition:\n    rows = []\nelse:\n    rows = [pending]\n"
+        "for [value] in rows:\n    break\nlist(alias)\n"
+    )
+    with pytest.raises(legacy_guard.LegacyGrowthAnalysisError, match="disagrees across incoming"):
+        visitor.visit(ast.parse(source))
+
+
+def test_consol_deferred_outer_for_source_retains_its_zero_entry_boundary() -> None:
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="deferred-outer-rows.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(
+        ast.parse(
+            _CONSOL_REQUESTED_TRACE_SOURCE + "def identity(value):\n    return value\n"
+            "rows = map(identity, ['V'])\n"
+            "for value in rows:\n    tick('B')\n    break\nobserved = trace\n"
+        )
+    )
+    assert visitor.scope.resolve_deferred_calls("rows")
+    assert visitor.scope.strings.get("observed") != "B"
+    assert visitor.errors == []
+
+
+def test_consol_known_ordered_for_freezes_post_eager_header_cardinality_once() -> None:
+    source = (
+        _CONSOL_REQUESTED_TRACE_SOURCE + "def access():\n    tick('C')\n    yield None\n"
+        "pending = access()\nalias = pending\nrows = [pending]\n"
+        "def header():\n    tick('H')\n    return rows\n"
+        "for [value] in header():\n    rows = []\n    break\n"
+        "before = trace\nlist(alias)\n"
+    )
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="post-eager-known-rows.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(ast.parse(source))
+    assert visitor.scope.strings["before"] == "HC"
+    assert visitor.scope.strings["trace"] == "HC"
+    assert visitor.errors == []
+
+
+@pytest.mark.parametrize("nonlocal_owner", [False, True])
+@pytest.mark.parametrize("shadow", [False, True])
+@pytest.mark.parametrize("delete", [False, True])
+def test_consol_wrapper_outward_uses_declared_source_for_normal_and_abrupt_views(
+    nonlocal_owner: bool, shadow: bool, delete: bool
+) -> None:
+    declaration = "nonlocal owner" if nonlocal_owner else "global owner"
+    mutation = "del owner" if delete else "owner = 'B'"
+    target_name = "owner" if shadow else "unused"
+    visitor, request, target = _consol_requested_outward_caller(
+        nonlocal_owner=nonlocal_owner,
+        pending="P",
+        callee_body=(
+            declaration
+            + "\n"
+            + mutation
+            + "\n"
+            + f"values = [maybe_stop() for {target_name} in ['LOCAL']]\nreturn 'V'"
+        ),
+    )
+    assert request.return_scopes and request.raise_scopes
+    outcomes = [*request.return_scopes, *request.raise_scopes]
+    snapshots = [outcome._flow_snapshot for outcome in outcomes]
+    entry, active = visitor._capture_deferred_flow(visitor.scope), visitor.scope
+    try:
+        for outcome in [*outcomes, *reversed(outcomes)]:
+            visitor._switch_deferred_scope(outcome.clone(), restore_flow=True)
+            for physical_view in (visitor.scope, target):
+                if delete:
+                    assert "owner" not in physical_view.possibly_bound_names
+                else:
+                    assert physical_view.strings["owner"] == "B"
+            target.bind(
+                "owner",
+                reference=legacy_guard._KNOWN_NON_APP_REFERENCE,
+                string="AFTER",
+                runtime_binding=False,
+            )
+        assert all(
+            outcome._flow_snapshot is snapshot
+            for outcome, snapshot in zip(outcomes, snapshots, strict=True)
+        )
+    finally:
+        visitor._restore_deferred_flow(entry)
+        visitor.scope = active
+    assert visitor.errors == []
+
+
+@pytest.mark.parametrize("kind", ["mapping", "receiver", "ordered"])
+def test_consol_wrapper_outward_preserves_full_declared_field_identity(
+    kind: str,
+) -> None:
+    replacement = {
+        "mapping": "payload",
+        "receiver": "instance.read",
+        "ordered": "[read, payload]",
+    }[kind]
+    visitor, outcomes, binding = _consol_requested_step(
+        "from foreign_owner import maybe_stop\npayload = {'value': 'P'}\nowner = 'A'\n"
+        "def read():\n    return payload\n"
+        "class Service:\n    def read(self):\n        return payload\ninstance = Service()\n"
+        "async def step():\n    global owner\n    owner = " + replacement + "\n"
+        "    values = [maybe_stop() for owner in ['LOCAL']]\n    return owner\n"
+    )
+    assert outcomes.return_scopes and outcomes.raise_scopes
+    assert len(visitor._mapping_literal_snapshots) == 1
+    expected_mapping = next(iter(visitor._mapping_literal_snapshots.values()))
+    assert visitor._mapping_literal_snapshots[id(expected_mapping.site)] is expected_mapping
+    assert len(expected_mapping.entries) == 1
+    payload_entry = expected_mapping.entries[0]
+    assert payload_entry.key is expected_mapping.site.keys[0]
+    assert isinstance(payload_entry.key, ast.Constant) and payload_entry.key.value == "value"
+    assert payload_entry.binding.string == "P"
+    if kind == "ordered":
+        assert binding.ordered_items is not None
+        assert binding.ordered_items[1].mapping is expected_mapping
+    entry, active = visitor._capture_deferred_flow(visitor.scope), visitor.scope
+    try:
+        for outcome in [*outcomes.raise_scopes, *outcomes.return_scopes]:
+            visitor._switch_deferred_scope(outcome.clone(), restore_flow=True)
+            current = visitor._capture_argument_binding(ast.Name(id="owner", ctx=ast.Load()))
+            if kind == "mapping":
+                assert current.mapping is binding.mapping
+                assert current.mapping is visitor.scope.resolve_mapping("payload")
+                assert current.mapping is not None
+            elif kind == "receiver":
+                assert current.callables == binding.callables and current.callables
+                assert current.call_receivers == binding.call_receivers and current.call_receivers
+            else:
+                assert current.ordered_items is not None and len(current.ordered_items) == 2
+                assert current.ordered_items[0].callables == visitor.scope.resolve_callables("read")
+                assert current.ordered_items[1].mapping is expected_mapping
+                assert visitor.scope.resolve_mapping("payload") is None
+    finally:
+        visitor._restore_deferred_flow(entry)
+        visitor.scope = active
+    assert visitor.errors == []
+
+
+@pytest.mark.parametrize("requested", [False, True])
+@pytest.mark.parametrize("structured", [False, True])
+@pytest.mark.parametrize("rows,callee", [("[pending]", "enumerate"), ("(pending,)", "index_rows")])
+def test_consol_enumerate_ordered_rows_preserve_shared_child_consumption(
+    requested: bool, structured: bool, rows: str, callee: str
+) -> None:
+    target = "[value]" if structured else "value"
+    prefix = (
+        _CONSOL_REQUESTED_TRACE_SOURCE + "def access():\n    tick('C')\n    yield None\n"
+        "pending = access()\nalias = pending\nrows = "
+        + rows
+        + "\nheld = rows\nindex_rows = enumerate\n"
+    )
+    body = f"for key, {target} in {callee}(held):\n    break\nbefore = trace\nlist(alias)\n"
+    if requested:
+        visitor, outcomes, binding = _consol_requested_step(
+            prefix
+            + "async def step():\n"
+            + "\n".join("    " + line for line in body.splitlines())
+            + "\n    return before\n"
+        )
+        assert outcomes.return_scopes
+        assert set(_consol_outcome_traces(visitor, outcomes.raise_scopes)) == (
+            {"", "C"} if structured else {""}
+        )
+        assert binding.string == ("C" if structured else "")
+        assert set(_consol_outcome_traces(visitor, outcomes.return_scopes)) == {"C"}
+    else:
+        visitor = legacy_guard._ApiKeyLookupVisitor(
+            filename="enumerate-ordered-rows.py",
+            errors=[],
+            analyze_function_bodies=False,
+        )
+        visitor.visit(ast.parse(prefix + body))
+        assert visitor.scope.strings["before"] == ("C" if structured else "")
+        assert visitor.scope.strings["trace"] == "C"
+    assert visitor.errors == []
+
+
+@pytest.mark.parametrize("requested", [False, True])
+def test_consol_enumerate_empty_rows_take_only_the_else_path(requested: bool) -> None:
+    source = _CONSOL_REQUESTED_TRACE_SOURCE + "rows = ()\nheld = rows\nindex_rows = enumerate\n"
+    body = "for key, value in index_rows(held):\n    tick('BAD')\nelse:\n    tick('E')\n"
+    if requested:
+        visitor, outcomes, binding = _consol_requested_step(
+            source
+            + "async def step():\n"
+            + "\n".join("    " + line for line in body.splitlines())
+            + "\n    return trace\n"
+        )
+        assert outcomes.return_scopes
+        assert set(_consol_outcome_traces(visitor, outcomes.raise_scopes)) == {""}
+        assert binding.string == "E"
+    else:
+        visitor = legacy_guard._ApiKeyLookupVisitor(
+            filename="enumerate-empty.py", errors=[], analyze_function_bodies=False
+        )
+        visitor.visit(ast.parse(source + body))
+        assert visitor.scope.strings["trace"] == "E"
+        assert "value" not in visitor.scope.possibly_bound_names
+    assert visitor.errors == []
+
+
+@pytest.mark.parametrize("arguments", ["rows", "rows, 1", "rows, start=1", "*(rows,)"])
+def test_consol_enumerate_transports_distinct_captured_rows_without_fake_indices(
+    arguments: str,
+) -> None:
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="enumerate-distinct-rows.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(
+        ast.parse(
+            "payload = {'value': 'P'}\nrows = ['A', payload, 'B']\nresult = enumerate("
+            + arguments
+            + ")\n"
+        )
+    )
+    assert len(visitor._mapping_literal_snapshots) == 1
+    expected_mapping = next(iter(visitor._mapping_literal_snapshots.values()))
+    assert visitor._mapping_literal_snapshots[id(expected_mapping.site)] is expected_mapping
+    assert len(expected_mapping.entries) == 1
+    payload_entry = expected_mapping.entries[0]
+    assert payload_entry.key is expected_mapping.site.keys[0]
+    assert isinstance(payload_entry.key, ast.Constant) and payload_entry.key.value == "value"
+    assert payload_entry.binding.string == "P"
+    rows = visitor.scope.resolve_ordered_items("result")
+    assert rows is not None and len(rows) == 3
+    assert all(row.reference == legacy_guard._INDEXED_PAIR_ELEMENT_REFERENCE for row in rows)
+    assert all(row.ordered_items is None for row in rows)
+    first, middle, last = (row.iterable_element for row in rows)
+    assert first is not None and first.string == "A"
+    assert middle is not None and middle.mapping is expected_mapping
+    assert visitor.scope.resolve_mapping("payload") is None
+    assert middle.mapping is not None
+    assert last is not None and last.string == "B"
+    assert visitor.errors == []
+
+
+@pytest.mark.parametrize("requested", [False, True])
+@pytest.mark.parametrize("factory", [False, True])
+def test_consol_enumerate_freezes_callee_and_first_operand_before_start_effects(
+    requested: bool, factory: bool
+) -> None:
+    prefix = (
+        _CONSOL_REQUESTED_TRACE_SOURCE + "def access():\n    tick('C')\n    yield None\n"
+        "pending = access()\nalias = pending\nrows = [pending]\nindex_rows = enumerate\n"
+        "def callee():\n    tick('F')\n    return index_rows\n"
+        "def header():\n    tick('H')\n    return rows\n"
+        "def start():\n    global rows, index_rows\n    tick('S')\n"
+        "    rows = []\n    index_rows = foreign\n    return 0\n"
+    )
+    callee = "callee()" if factory else "index_rows"
+    expected = ("F" if factory else "") + "HSC"
+    body = (
+        f"for key, [value] in {callee}(header(), start=start()):\n    break\n"
+        "before = trace\nlist(alias)\n"
+    )
+    if requested:
+        visitor, outcomes, binding = _consol_requested_step(
+            prefix
+            + "async def step():\n"
+            + "\n".join("    " + line for line in body.splitlines())
+            + "\n    return before\n"
+        )
+        assert outcomes.return_scopes
+        assert set(_consol_outcome_traces(visitor, outcomes.raise_scopes)) == {
+            expected[:-1],
+            expected,
+        }
+        assert binding.string == expected
+        assert set(_consol_outcome_traces(visitor, outcomes.return_scopes)) == {expected}
+    else:
+        visitor = legacy_guard._ApiKeyLookupVisitor(
+            filename="enumerate-frozen-operands.py",
+            errors=[],
+            analyze_function_bodies=False,
+        )
+        visitor.visit(ast.parse(prefix + body))
+        assert visitor.scope.strings["before"] == expected
+        assert visitor.scope.strings["trace"] == expected
+    assert visitor.errors == []
+
+
+@pytest.mark.parametrize(
+    "setup,call",
+    [
+        ("rows = foreign_rows", "enumerate(rows)"),
+        ("rows = ['A'] if condition else []", "enumerate(rows)"),
+        ("rows = map(str, ['A'])", "enumerate(rows)"),
+        ("rows = ['A']\nindex_rows = foreign", "index_rows(rows)"),
+        ("rows = ['A']", "enumerate(rows, extra=0)"),
+        ("rows = ['A']", "enumerate(rows, *extra)"),
+        ("rows = ['A']", "enumerate(rows, **extra)"),
+        ("rows = ['A']", "enumerate(rows, 0, 1)"),
+        ("rows = ['A']", "enumerate(rows, 0, start=1)"),
+    ],
+)
+def test_consol_enumerate_uncertain_or_unsupported_bundle_has_no_exact_outer_order(
+    setup: str, call: str
+) -> None:
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="enumerate-uncertain.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(ast.parse(setup + "\nresult = " + call + "\n"))
+    assert visitor.scope.resolve_ordered_items("result") is None
+    assert visitor.errors == []
+
+
+@pytest.mark.parametrize(
+    "method,form,empty",
+    [
+        (method, form, False)
+        for method in ("items", "values")
+        for form in (
+            "literal",
+            "named",
+            "returned",
+            "stored",
+            "unbound",
+            "unbound-literal",
+            "unbound-returned",
+        )
+    ]
+    + [("items", "literal", True), ("values", "unbound", True)],
+)
+def test_consol_mapping_iterator_preserves_captured_literal_order(
+    method: str, form: str, empty: bool
+) -> None:
+    literal = "{}" if empty else "{'a': 'A', 'b': 'B'}"
+    setup = _CONSOL_REQUESTED_TRACE_SOURCE + "rows = " + literal + "\n"
+    if form == "literal":
+        call = literal + "." + method + "()"
+    elif form == "returned":
+        setup += "def receiver():\n    tick('H')\n    return rows\n"
+        call = "receiver()." + method + "()"
+    elif form == "stored":
+        setup += "read_rows = rows." + method + "\n"
+        call = "read_rows()"
+    elif form == "unbound":
+        call = "dict." + method + "(rows)"
+    elif form == "unbound-literal":
+        call = "dict." + method + "(" + literal + ")"
+    elif form == "unbound-returned":
+        setup += "def receiver():\n    tick('H')\n    return rows\n"
+        call = "dict." + method + "(receiver())"
+    else:
+        call = "rows." + method + "()"
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="mapping-iterator-order.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(ast.parse(setup + "result = " + call + "\n"))
+    actual = visitor.scope.resolve_ordered_items("result")
+    assert actual is not None
+    assert len(actual) == (0 if empty else 2)
+    values = [row.iterable_element if method == "items" else row for row in actual]
+    assert all(value is not None for value in values)
+    assert [value.string for value in values if value is not None] == ([] if empty else ["A", "B"])
+    if method == "items":
+        assert all(row.reference == legacy_guard._INDEXED_PAIR_ELEMENT_REFERENCE for row in actual)
+        assert all(row.ordered_items is None for row in actual)
+    assert visitor.scope.strings["trace"] == (
+        "H" if form in {"returned", "unbound-returned"} else ""
+    )
+    assert visitor.errors == []
+
+
+@pytest.mark.parametrize("requested", [False, True])
+@pytest.mark.parametrize("structured", [False, True])
+@pytest.mark.parametrize("method", ["items", "values"])
+def test_consol_mapping_iterator_consumes_only_the_structured_shared_child(
+    requested: bool, structured: bool, method: str
+) -> None:
+    target = "[value]" if structured else "value"
+    if method == "items":
+        target = "key, " + target
+    prefix = (
+        _CONSOL_REQUESTED_TRACE_SOURCE + "def access():\n    tick('C')\n    yield None\n"
+        "pending = access()\nalias = pending\n"
+    )
+    body = (
+        "for " + target + " in {'key': pending}." + method + "():\n    break\n"
+        "before = trace\nlist(alias)\n"
+    )
+    if requested:
+        visitor, outcomes, binding = _consol_requested_step(
+            prefix
+            + "async def step():\n"
+            + "\n".join("    " + line for line in body.splitlines())
+            + "\n    return before\n"
+        )
+        assert outcomes.return_scopes
+        assert set(_consol_outcome_traces(visitor, outcomes.return_scopes)) == {"C"}
+        assert set(_consol_outcome_traces(visitor, outcomes.raise_scopes)) == (
+            {"", "C"} if structured else {""}
+        )
+        assert binding.string == ("C" if structured else "")
+    else:
+        visitor = legacy_guard._ApiKeyLookupVisitor(
+            filename="mapping-iterator-child.py", errors=[], analyze_function_bodies=False
+        )
+        visitor.visit(ast.parse(prefix + body))
+        assert visitor.scope.strings["before"] == ("C" if structured else "")
+        assert visitor.scope.strings["trace"] == "C"
+    assert visitor.errors == []
+
+
+@pytest.mark.parametrize("method", ["items", "values"])
+@pytest.mark.parametrize("shared", [False, True])
+def test_consol_mapping_iterator_keeps_distinct_and_aliased_child_identity(
+    method: str, shared: bool
+) -> None:
+    source = (
+        "def first():\n    yield 'A'\n"
+        "def second():\n    yield 'B'\n"
+        "left = first()\nright = " + ("left" if shared else "second()") + "\n"
+        "result = {'a': left, 'b': right}." + method + "()\n"
+    )
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="mapping-iterator-child-identity.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(ast.parse(source))
+    actual = visitor.scope.resolve_ordered_items("result")
+    assert actual is not None and len(actual) == 2
+    values = [row.iterable_element if method == "items" else row for row in actual]
+    assert all(value is not None for value in values)
+    left, right = values
+    assert left is not None and right is not None
+    assert left.deferred_calls == visitor.scope.resolve_deferred_calls("left")
+    assert right.deferred_calls == visitor.scope.resolve_deferred_calls("right")
+    assert len(left.deferred_calls) == len(right.deferred_calls) == 1
+    assert (left.deferred_calls == right.deferred_calls) is shared
+    child_keys = {call.value_key for value in (left, right) for call in value.deferred_calls}
+    assert None not in child_keys
+    assert not any(
+        isinstance(record, tuple) and record[0] in child_keys and record[1] != "available"
+        for record in visitor._consumed_deferred_calls
+    )
+    assert visitor.errors == []
+
+
+@pytest.mark.parametrize(
+    "setup,call",
+    [
+        ("rows = {'a': 'A', 'b': 'B', 'a': 'C'}", "rows.items()"),
+        ("rows = {True: 'A', 1: 'B'}", "rows.values()"),
+        ("rows = {unknown: 'A'}", "rows.items()"),
+        ("rows = {'a': 'A', **{'b': 'B'}}", "rows.values()"),
+        ("rows = {'a': 'A'} | {'b': 'B'}", "rows.items()"),
+        ("original = {'a': 'A'}\nrows = original.copy()", "rows.values()"),
+        ("rows = dict(a='A', b='B')", "rows.items()"),
+        ("rows = {key: value for key, value in [('a', 'A'), ('b', 'B')]}", "rows.values()"),
+        ("rows = {[]: 'A'}", "rows.items()"),
+        ("rows = {'a': 'A'}\nmethod = rows.items\nrows.clear()", "method()"),
+        ("rows = {'a': 'A'}", "rows.items(extra=1)"),
+    ],
+)
+def test_consol_mapping_iterator_retains_uncertainty_without_original_unique_key_order(
+    setup: str, call: str
+) -> None:
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="mapping-iterator-order-boundary.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(ast.parse(setup + "\nresult = " + call + "\n"))
+    assert visitor.scope.resolve_ordered_items("result") is None
+    if "'a': 'C'" in setup:
+        mapping = visitor.scope.resolve_mapping("rows")
+        assert mapping is not None
+        selected, unresolved = legacy_guard._static_mapping_binding(mapping, "a")
+        assert selected is not None and selected.string == "C" and not unresolved
+    assert visitor.errors == []
+
+
+@pytest.mark.parametrize("kind", ["return", "raise", "unknown"])
+def test_consol_requested_handlerless_finalizer_uses_only_actual_terminal_outcomes(
+    kind: str,
+) -> None:
+    body = {
+        "return": "tick('A')\nreturn 'V'",
+        "raise": "tick('A')\nraise ValueError",
+        "unknown": "maybe_stop(tick('A'))\nreturn 'V'",
+    }[kind]
+    visitor, outcomes, binding = _consol_requested_step(
+        "from foreign_owner import maybe_stop\n"
+        + _CONSOL_REQUESTED_TRACE_SOURCE
+        + "async def step():\n    try:\n"
+        + "\n".join("        " + line for line in body.splitlines())
+        + "\n    finally:\n        tick('F')\n"
+    )
+    assert set(_consol_outcome_traces(visitor, outcomes.return_scopes)) == (
+        set() if kind == "raise" else {"AF"}
+    )
+    assert set(_consol_outcome_traces(visitor, outcomes.raise_scopes)) == (
+        set() if kind == "return" else {"AF"}
+    )
+    if kind != "raise":
+        assert binding.string == "V"
+    assert visitor.errors == []
+
+
+@pytest.mark.parametrize(
+    "body,assignment,expected,normal,abrupt",
+    [
+        ("tick('C')\nyield 'V'\nreturn ['WRONG']", "[value] = pending", "V", {"C"}, set()),
+        ("yield", "[value] = pending", None, {""}, set()),
+        ("if False:\n    yield 'BAD'", "[*value] = pending", None, {""}, set()),
+        ("if False:\n    yield 'BAD'", "[value] = pending", None, set(), {""}),
+        ("yield 'A'\nyield 'B'", "left, right = pending\nvalue = left + right", "AB", {""}, set()),
+        (
+            "if condition:\n    yield 'V'",
+            "[value] = pending",
+            legacy_guard._POSSIBLE_API_KEY_SYMBOL,
+            {""},
+            {""},
+        ),
+        (
+            "try:\n    yield 'V'\nfinally:\n    tick('F')\n    return 'WRONG'",
+            "[value] = pending",
+            "V",
+            {"F"},
+            set(),
+        ),
+        ("tick('P')\nraise ValueError\nyield 'BAD'", "[value] = pending", None, set(), {"P"}),
+        ("yield 'V'\ntick('Q')\nraise ValueError", "[value] = pending", None, set(), {"Q"}),
+    ],
+)
+def test_consol_current_yield_rows_are_separate_from_generator_completion(
+    body: str, assignment: str, expected: str | None, normal: set[str], abrupt: set[str]
+) -> None:
+    source = (
+        _CONSOL_REQUESTED_TRACE_SOURCE
+        + "def rows():\n"
+        + "\n".join("    " + line for line in body.splitlines())
+        + "\npending = rows()\nasync def step():\n"
+        + "\n".join("    " + line for line in assignment.splitlines())
+        + "\n    return value\n"
+    )
+    visitor, request, binding = _consol_requested_step(source)
+    assert set(_consol_outcome_traces(visitor, request.return_scopes)) == normal
+    assert set(_consol_outcome_traces(visitor, request.raise_scopes)) == abrupt
+    if normal:
+        assert binding.string == expected
+    assert visitor.errors == []
+    assert not visitor._active_replay_contexts
+    assert not visitor._active_function_replays
+
+
+@pytest.mark.parametrize("consume_default", [False, True])
+@pytest.mark.parametrize("starred", [False, True])
+def test_consol_current_yield_exhaustion_never_reads_historical_return_payload(
+    consume_default: bool, starred: bool
+) -> None:
+    target = "[*value]" if starred else "[value]"
+    visitor, request, binding = _consol_requested_step(
+        _CONSOL_REQUESTED_TRACE_SOURCE
+        + "def rows():\n    tick('C')\n    yield 'V'\n    return ['WRONG']\n"
+        + "pending = rows()\nalias = pending\n"
+        + ("list(pending)\n" if consume_default else "")
+        + "async def step():\n"
+        + ("" if consume_default else "    [first] = pending\n")
+        + f"    {target} = alias\n    return value\n"
+    )
+    assert set(_consol_outcome_traces(visitor, request.return_scopes)) == (
+        {"C"} if starred else set()
+    )
+    assert set(_consol_outcome_traces(visitor, request.raise_scopes)) == (
+        set() if starred else {"C"}
+    )
+    if starred:
+        assert binding.ordered_items == ()
+    assert visitor.errors == []
+
+
+@pytest.mark.parametrize("delegated", ["child()", "alias", "return_child()", "return_rows()"])
+def test_consol_current_yield_from_uses_one_fresh_delegate_result(delegated: str) -> None:
+    visitor, request, binding = _consol_requested_step(
+        _CONSOL_REQUESTED_TRACE_SOURCE
+        + "def child():\n    tick('C')\n    yield 'V'\n    return ['WRONG']\n"
+        + "alias = child()\n"
+        + "def return_child():\n    tick('R')\n    return child()\n"
+        + "def return_rows():\n    tick('R')\n    return ['V']\n"
+        + f"def parent():\n    tick('P')\n    yield from {delegated}\n    tick('F')\n"
+        + "pending = parent()\nasync def step():\n    [value] = pending\n    return value\n"
+    )
+    expected = {"child()": "PCF", "alias": "PCF", "return_child()": "PRCF", "return_rows()": "PRF"}[
+        delegated
+    ]
+    assert set(_consol_outcome_traces(visitor, request.return_scopes)) == {expected}
+    assert not request.raise_scopes
+    assert binding.string == "V"
+    assert visitor.errors == []
+
+
+def test_consol_current_yield_from_shared_delegate_is_exhausted_once() -> None:
+    visitor, request, binding = _consol_requested_step(
+        _CONSOL_REQUESTED_TRACE_SOURCE
+        + "def child():\n    tick('C')\n    yield 'V'\n"
+        + "alias = child()\n"
+        + "def parent():\n    yield from alias\n    yield from alias\n"
+        + "pending = parent()\nasync def step():\n    [value] = pending\n    return value\n"
+    )
+    assert _consol_outcome_traces(visitor, request.return_scopes) == ["C"]
+    assert not request.raise_scopes
+    assert binding.string == "V"
+
+
+def test_consol_current_yield_fresh_and_exhausted_alternatives_keep_arity_flows() -> None:
+    visitor, request, binding = _consol_requested_step(
+        _CONSOL_REQUESTED_TRACE_SOURCE
+        + "def child():\n    tick('C')\n    yield 'V'\n    return ['WRONG']\n"
+        + "old = child()\nlist(old)\nfresh = child()\n"
+        + "if condition:\n    selected = old\nelse:\n    selected = fresh\n"
+        + "async def step():\n    [value] = selected\n    return value\n"
+    )
+    assert set(_consol_outcome_traces(visitor, request.return_scopes)) == {"CC"}
+    assert set(_consol_outcome_traces(visitor, request.raise_scopes)) == {"C"}
+    assert binding.string == "V"
+    assert visitor.errors == []
+
+
+@pytest.mark.parametrize("preset", [False, True])
+@pytest.mark.parametrize("requested", [False, True])
+def test_consol_current_yield_sink_restores_old_slot_without_using_it_as_mode(
+    preset: bool, requested: bool
+) -> None:
+    tree = ast.parse(
+        "payload = {'key': 'V'}\n"
+        "def rows():\n    yield payload\n    return ['WRONG']\n"
+        "pending = rows()\nasync def step():\n    [value] = pending\n    return value\n"
+    )
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="yield-slot.py", errors=[], analyze_function_bodies=False
+    )
+    visitor.visit(tree)
+    row_function = next(iter(visitor.scope.resolve_callables("rows")))
+    mapping = visitor.scope.resolve_mapping("payload")
+    assert mapping is not None
+    old = legacy_guard._ResolvedBinding(None, "OLD", mapping=mapping)
+    if preset:
+        visitor._call_result_bindings[id(row_function)] = old
+    request = legacy_guard._TerminalControlBindings(return_scopes=[], raise_scopes=[])
+    frame = (
+        object(),
+        tree,
+        (),
+        (),
+        (),
+        (),
+        None,
+        frozenset(ast.walk(tree)),
+        request if requested else None,
+    )
+    visitor._active_replay_contexts.append(frame)
+    try:
+        if requested:
+            result = visitor._replay_function_call(
+                next(iter(visitor.scope.resolve_callables("step"))), {}
+            )
+            assert result.mapping is mapping
+            assert request.return_scopes
+            for saved in [*request.return_scopes, *request.raise_scopes]:
+                assert saved._flow_snapshot is not None
+                values = saved._flow_snapshot[2]
+                assert (
+                    (values.get(id(row_function)) is old)
+                    if preset
+                    else id(row_function) not in values
+                )
+                assert id(row_function) not in saved._flow_snapshot[4]
+        else:
+            result = visitor._replay_deferred_calls(
+                visitor.scope.resolve_deferred_calls("pending"), execution="iterate"
+            )
+            assert result is not None and result.ordered_items is not None
+            assert [row.string for row in result.ordered_items] == ["WRONG"]
+        assert (
+            (visitor._call_result_bindings.get(id(row_function)) is old)
+            if preset
+            else id(row_function) not in visitor._call_result_bindings
+        )
+        assert visitor._active_replay_contexts[0][4] == ()
+    finally:
+        visitor._active_replay_contexts.pop()
+    assert visitor.errors == []
+
+
+def test_consol_current_yield_keeps_callable_default_and_dormant_child_identity() -> None:
+    visitor, request, binding = _consol_requested_step(
+        "payload = {'key': 'V'}\n"
+        "def callback(value=payload):\n    return value\n"
+        "def child():\n    yield 'CHILD'\n"
+        "dormant = child()\n"
+        "def parent():\n    yield [callback, dormant]\n"
+        "pending = parent()\nasync def step():\n    [value] = pending\n    return value\n"
+    )
+    assert request.return_scopes and not request.raise_scopes
+    assert binding.ordered_items is not None and len(binding.ordered_items) == 2
+    callback, dormant = binding.ordered_items
+    assert callback.callables == visitor.scope.resolve_callables("callback")
+    original_callback = next(iter(callback.callables))
+    mapping = visitor._function_default_bindings[original_callback]["value"].mapping
+    assert mapping is not None
+    assert mapping is visitor._mapping_literal_snapshots[id(mapping.site)]
+    assert dormant.deferred_calls == visitor.scope.resolve_deferred_calls("dormant")
+    keys = {call.value_key for call in dormant.deferred_calls}
+    assert len(keys) == 1
+    for outcome in request.return_scopes:
+        assert outcome._flow_snapshot is not None
+        assert all(
+            not (isinstance(record, tuple) and record[0] in keys and record[1] != "available")
+            for record in outcome._flow_snapshot[1]
+        )
+    assert visitor.errors == []
+
+
+def test_consol_current_yield_ignores_dormant_nested_function_and_preserves_equal_branches() -> (
+    None
+):
+    visitor, request, binding = _consol_requested_step(
+        _CONSOL_REQUESTED_TRACE_SOURCE
+        + "def parent():\n    def dormant():\n        tick('BAD')\n        yield 'WRONG'\n"
+        + "    if condition:\n        yield 'V'\n    else:\n        yield 'V'\n"
+        + "pending = parent()\nasync def step():\n    [value] = pending\n    return value\n"
+    )
+    assert set(_consol_outcome_traces(visitor, request.return_scopes)) == {""}
+    assert not request.raise_scopes
+    assert binding.string == "V"
+    assert visitor.errors == []
+
+
+@pytest.mark.parametrize("different_current_trace", [False, True])
+def test_consol_nonroot_owner_join_preserves_finalized_flow_and_updates_current_root(
+    different_current_trace: bool,
+) -> None:
+    tree = ast.parse(
+        "def child(value=None):\n    yield value\na = child()\nb = child()\nrows = []\n"
+    )
+    function = cast(ast.FunctionDef, tree.body[0])
+    first_call = cast(ast.Call, cast(ast.Assign, tree.body[1]).value)
+    second_call = cast(ast.Call, cast(ast.Assign, tree.body[2]).value)
+    consumer = cast(ast.List, cast(ast.Assign, tree.body[3]).value)
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="saved-owner-join.py", errors=[], analyze_function_bodies=False
+    )
+    module = visitor.scope
+    module.strings = {"trace": "ISN"}
+    historical = legacy_guard._LexicalBindings(parent=module, scope_kind="function")
+    historical.strings = {"local": "HISTORICAL", "removed": "OLD"}
+    historical.bound_names = {"local", "removed"}
+    historical.possibly_bound_names = {"local", "removed"}
+    mapping = legacy_guard._StaticMapping(site=ast.Dict(keys=[], values=[]), entries=())
+    key: legacy_guard._DeferredValueKey = ("precise", first_call, (), None)
+    child_key: legacy_guard._DeferredValueKey = ("precise", second_call, (), None)
+    child = legacy_guard._DeferredFunctionCall(
+        function, (), value_key=child_key, execution="iterate"
+    )
+    child_value = legacy_guard._ResolvedBinding(None, "CHILD", deferred_calls=frozenset({child}))
+    receiver = legacy_guard._ResolvedBinding(None, "RECEIVER", mapping=mapping)
+    payload = legacy_guard._ResolvedBinding(
+        legacy_guard._KNOWN_NON_APP_REFERENCE,
+        "V",
+        callables=frozenset({function}),
+        deferred_calls=frozenset({child}),
+        mapping=mapping,
+        class_references=frozenset({"C"}),
+        descriptors=frozenset({(function, "plain")}),
+        iterable_element=child_value,
+        ordered_items=(child_value,),
+        call_receivers=frozenset({(function, "bound", receiver)}),
+    )
+    historical.bind(
+        "payload", **{name: getattr(payload, name) for name in payload.__dataclass_fields__}
+    )
+    visitor._function_definition_scopes[function] = historical
+    visitor._function_default_bindings[function] = {"value": payload}
+    historical_progress = frozenset({(key, "consumed", payload), (child_key, "available", None)})
+    original = (
+        (
+            (historical, historical.clone(capture_flow=False)),
+            (module, module.clone(capture_flow=False)),
+        ),
+        historical_progress,
+        {id(consumer): payload},
+        {id(second_call): frozenset({child})},
+        frozenset({id(consumer)}),
+        tree,
+    )
+    historical._flow_snapshot = original
+    historical._flow_owner = visitor
+    incoming = legacy_guard._LexicalBindings(parent=module, scope_kind="function")
+    incoming.callables["held"] = frozenset({function})
+    visitor.scope = incoming
+    incoming._flow_owner = visitor
+    visitor._active_replay_contexts.append(
+        (object(), tree, (payload,), (), (consumer,), (), None, frozenset(ast.walk(tree)), None)
+    )
+    normal = []
+    current_progress = frozenset({(key, "active", None), (child_key, "available", None)})
+    for trace in ["CURRENT", "OTHER" if different_current_trace else "CURRENT"]:
+        root = legacy_guard._LexicalBindings(parent=module, scope_kind="function")
+        root.callables["held"] = frozenset({function})
+        root.strings["result"] = "V"
+        saved_owner = historical.clone(capture_flow=False)
+        saved_owner.unbind("removed")
+        saved_owner.strings["local"] = "CURRENT_LOCAL"
+        saved_module = module.clone(capture_flow=False)
+        saved_module.strings["trace"] = trace
+        root._flow_snapshot = (
+            (
+                (root, root.clone(capture_flow=False)),
+                (historical, saved_owner),
+                (module, saved_module),
+            ),
+            current_progress,
+            {id(consumer): payload},
+            {id(second_call): frozenset({child})},
+            frozenset({id(consumer)}),
+            tree,
+        )
+        root._flow_owner = visitor
+        normal.append(root)
+    module.strings["trace"] = "IS"
+    try:
+        visitor._merge_outcomes(incoming, normal)
+        assert historical._flow_snapshot is original
+        assert historical.strings["local"] == "CURRENT_LOCAL"
+        assert "removed" not in historical.bound_names and "removed" not in historical.strings
+        assert module.strings.get("trace") == (None if different_current_trace else "CURRENT")
+        current = incoming._flow_snapshot
+        assert current is not None and current is not original
+        assert current[1] == current_progress
+        assert current[2][id(consumer)] is payload and current[5] is tree
+        assert visitor.scope is incoming and incoming.strings["result"] == "V"
+        visitor._restore_deferred_flow(original)
+        assert historical._flow_snapshot is original
+        assert module.strings["trace"] == "ISN"
+        assert (
+            historical.strings["local"] == "HISTORICAL" and historical.strings["removed"] == "OLD"
+        )
+        assert visitor._consumed_deferred_calls == set(historical_progress)
+        assert visitor._call_result_bindings[id(consumer)] is payload
+        assert historical.mappings["payload"] is mapping
+        assert historical.callables["payload"] == payload.callables
+        assert historical.descriptors["payload"] == payload.descriptors
+        assert historical.ordered_items["payload"] == (child_value,)
+        assert historical.iterable_elements["payload"] is child_value
+        assert historical.call_receivers["payload"] == payload.call_receivers
+        assert historical.deferred_calls["payload"] == frozenset({child})
+        assert visitor._function_definition_scopes[function] is historical
+        assert visitor._function_default_bindings[function]["value"] is payload
+        visitor._restore_deferred_flow(current)
+        assert module.strings.get("trace") == (None if different_current_trace else "CURRENT")
+        assert historical.strings["local"] == "CURRENT_LOCAL"
+        assert visitor._consumed_deferred_calls == set(current_progress)
+        assert historical._flow_snapshot is original
+    finally:
+        visitor._active_replay_contexts.pop()
+    assert visitor.errors == []

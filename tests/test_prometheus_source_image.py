@@ -2109,7 +2109,13 @@ def _fixed_native_capture_fixture(
         + "  while not ready.exists():\n"
         + "   assert time.monotonic()<ready_deadline\n"
         + "   time.sleep(0.01)\n"
-        + "  time.sleep(0.5)\n"
+        + "  if adapter=='GitHubRead' and mode=='owned_held_pipes':\n"
+        + "   ack=trace.with_suffix('.child-ack'); ack_deadline=time.monotonic()+2\n"
+        + "   while not ack.exists():\n"
+        + "    assert time.monotonic()<ack_deadline\n"
+        + "    time.sleep(0.01)\n"
+        + "   assert json.loads(ack.read_text())=={'leader':os.getpid(),'child':child.pid}\n"
+        + "  else: time.sleep(0.5)\n"
         + " if mode=='deadline': time.sleep(3)\n"
         + " if mode=='output_bound': sys.stdout.write('x'*(1024**2+1))\n"
         + " elif mode=='auth_reflection': sys.stdout.write(token)\n"
@@ -2416,20 +2422,39 @@ def test_github_fixed_native_capture_and_hygiene(
             cap: float,
             known: tuple[bytes, ...],
         ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+            ready_before_census = (
+                trace.with_suffix(".child-ready").exists()
+                and trace.with_suffix(".child-pid").exists()
+            )
+            ready_child_text = (
+                trace.with_suffix(".child-pid").read_text() if ready_before_census else ""
+            )
+            ready_child = int(ready_child_text) if ready_child_text.isdecimal() else None
             members = real_owned_members(process, seen, cap, known)
             if (
                 not source.CLEANING
                 and process is adapter.process
                 and not deadline_witnesses
-                and trace.with_suffix(".child-ready").exists()
-                and trace.with_suffix(".child-pid").exists()
+                and ready_before_census
             ):
-                child_pid = int(trace.with_suffix(".child-pid").read_text())
                 active_pids = tuple(row["pid"] for row in members[1])
-                if child_pid in active_pids:
+                leader = next((row for row in members[1] if row["pid"] == process.pid), None)
+                if (
+                    ready_child is not None
+                    and ready_child in active_pids
+                    and leader is not None
+                    and source.process_identity(leader) == seen.get(process.pid)
+                ):
                     previous = adapter.deadline
                     adapter.deadline = min(previous, source.time.monotonic() + 1)
-                    deadline_witnesses.append((previous, adapter.deadline, child_pid, active_pids))
+                    deadline_witnesses.append(
+                        (previous, adapter.deadline, ready_child, active_pids)
+                    )
+                    pending_ack = trace.with_suffix(".child-ack-pending")
+                    pending_ack.write_text(
+                        json.dumps({"leader": process.pid, "child": ready_child})
+                    )
+                    pending_ack.replace(trace.with_suffix(".child-ack"))
             return members
 
         monkeypatch.setattr(source, "owned_members", observe_ready_members)
@@ -2475,6 +2500,12 @@ def test_github_fixed_native_capture_and_hygiene(
                 previous, tightened, witnessed_child, active_pids = deadline_witnesses[0]
                 assert tightened <= previous
                 assert witnessed_child == child and child in active_pids
+                acknowledgment = json.loads(trace.with_suffix(".child-ack").read_text())
+                assert acknowledgment["child"] == child
+                assert acknowledgment["leader"] in active_pids
+                assert acknowledgment["leader"] == int(
+                    trace.with_suffix(".child-group").read_text()
+                )
             if mode == "owned_residual_exec_exit":
                 assert private.is_dir()
                 assert (
