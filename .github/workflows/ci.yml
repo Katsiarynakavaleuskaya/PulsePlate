@@ -730,7 +730,7 @@ jobs:
   lint:
     needs: [private_python_proxy_health]
     if: ${{ !cancelled() }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: &am-ci-lint-timeout ${{ fromJSON(vars.CI_LINT_TIMEOUT_MINUTES || '170') }}
     permissions:
       contents: read
@@ -838,6 +838,8 @@ jobs:
           controller="$material/artifacts/orchestration/alertmanager-control"
           test ! -L "$controller"
           test "$(git -C "$controller" rev-parse HEAD)" = "$ALERTMANAGER_CONTROLLER_SOURCE"
+          docker version --format 'client={{json .Client.Version}} server={{json .Server.Version}}'
+          docker info --format 'driver={{json .Driver}} driver_status={{json .DriverStatus}} os={{json .OSType}} arch={{json .Architecture}}'
           cd "$controller"
           python3 -E -s -S -m scripts.ci.fetch_docker_source_artifacts \
             --artifact alertmanager --alertmanager-stage candidate-check --alertmanager-prepare-only \

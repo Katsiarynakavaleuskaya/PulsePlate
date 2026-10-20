@@ -4194,6 +4194,23 @@ def _prometheus_cd_route_fixture(tmp_path: Path, variant: str) -> tuple[Path, di
     """Real finite B/H Git data, with a separate ordinary PR startup canary."""
     repository = tmp_path / "repository"
     repository.mkdir()
+    command_directory = tmp_path / "synthetic-bin"
+    command_directory.mkdir()
+    docker = command_directory / "docker"
+    docker.write_text(
+        f"#!{sys.executable}\n"
+        "import json,os,sys\nfrom pathlib import Path\n"
+        "commands={\n"
+        " ('version','--format','client={{json .Client.Version}} server={{json .Server.Version}}'):'DOCKER-version',\n"
+        " ('info','--format','driver={{json .Driver}} driver_status={{json .DriverStatus}} os={{json .OSType}} arch={{json .Architecture}}'):'DOCKER-info',\n"
+        "}\n"
+        "command=commands.get(tuple(sys.argv[1:]))\n"
+        "if command is None: raise SystemExit('unexpected_synthetic_docker_command')\n"
+        "with Path(os.environ['SYNTHETIC_TRACE']).open('a') as stream: stream.write(json.dumps(command)+'\\n')\n"
+        "if os.environ['SYNTHETIC_OUTCOME']=='metadata-failure': raise SystemExit('synthetic_docker_metadata_failed')\n"
+        "print('synthetic Docker metadata')\n"
+    )
+    docker.chmod(0o755)
     environment = git_env_without_parent_state()
     for key in (
         "GH_TOKEN",
@@ -4208,7 +4225,9 @@ def _prometheus_cd_route_fixture(tmp_path: Path, variant: str) -> tuple[Path, di
         environment.pop(key, None)
     environment.update(
         {
-            "PATH": str(Path(sys.executable).parent) + os.pathsep + os.defpath,
+            "PATH": os.pathsep.join(
+                (str(command_directory), str(Path(sys.executable).parent), os.defpath)
+            ),
             "HOME": str(tmp_path),
             "LANG": "C",
             "GIT_CONFIG_NOSYSTEM": "1",
@@ -4364,6 +4383,7 @@ def _prometheus_cd_route_fixture(tmp_path: Path, variant: str) -> tuple[Path, di
         ("historical", None),
         ("manifest-and-helper", None),
         ("recipe-only", None),
+        ("metadata-failure", "synthetic_docker_metadata_failed"),
         ("changed-control-bytes", "Prometheus_control_bytes_HOLD"),
         ("changed-control-mode", "Prometheus_control_mode_HOLD"),
         ("changed-control-symlink", "Prometheus_control_path_HOLD"),
@@ -4509,11 +4529,20 @@ def test_prometheus_cd_classifies_before_pr_code_and_binds_trusted_handoff(
     )
     assert "PR-import" not in observed and "PR-helper-import" not in observed
     assert "synthetic.registry.reader" not in result.stdout + result.stderr
+    if variant == "metadata-failure":
+        assert observed == ["CONTROL-classify", "DOCKER-version"]
+        assert not (tmp_path / "synthetic-registry-state").exists()
     if diagnostic is not None:
         assert result.returncode != 0 and diagnostic in result.stderr
         return
     assert result.returncode == 0, result.stderr
-    assert observed == ["CONTROL-classify", "CONTROL-consume", "CONTROL-cleanup"]
+    assert observed == [
+        "CONTROL-classify",
+        "DOCKER-version",
+        "DOCKER-info",
+        "CONTROL-consume",
+        "CONTROL-cleanup",
+    ]
     values = dict(line.split("=", 1) for line in output_file.read_text().splitlines())
     assert {"manifest_digest", "config_digest", "source_revision", "runtime_ref"} <= values.keys()
     assert not (tmp_path / "synthetic-registry-state").exists()

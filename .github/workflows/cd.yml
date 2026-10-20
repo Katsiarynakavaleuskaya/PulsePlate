@@ -453,7 +453,7 @@ jobs:
       github.event_name == 'pull_request' && github.repository == 'Katsiarynakavaleuskaya/PulsePlate'
       && github.event.pull_request.head.repo.id == 1043311030
       && github.event.pull_request.head.ref == 'codex/dependency-alertmanager-remediation'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 80
     permissions:
       contents: read
@@ -506,6 +506,8 @@ jobs:
           controller="$material/artifacts/orchestration/alertmanager-control"
           test ! -L "$controller"
           test "$(git -C "$controller" rev-parse HEAD)" = "$ALERTMANAGER_CONTROLLER_SOURCE"
+          docker version --format 'client={{json .Client.Version}} server={{json .Server.Version}}'
+          docker info --format 'driver={{json .Driver}} driver_status={{json .DriverStatus}} os={{json .OSType}} arch={{json .Architecture}}'
           cd "$controller"
           python3 -E -s -S -m scripts.ci.fetch_docker_source_artifacts \
             --artifact alertmanager --alertmanager-stage candidate-check --alertmanager-prepare-only \
@@ -1277,7 +1279,7 @@ jobs:
       && github.event_name == 'pull_request'
       && needs.postgres-pgvector-contract.result == 'success'
     needs: [postgres-pgvector-contract, postgres-pgvector-admission, postgres-pgvector-reuse]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: &am-pr-timeout ${{ fromJSON(vars.ALERTMANAGER_CD_PR_JOB_TIMEOUT_MINUTES || '170') }}
     env:
       ALERTMANAGER_JOB_TIMEOUT_MINUTES: *am-pr-timeout
@@ -1556,6 +1558,8 @@ jobs:
             unchanged_pr_published | trusted_published) ;;
             *) echo "Prometheus credential route HOLD" >&2; exit 1 ;;
           esac
+          docker version --format 'client={{json .Client.Version}} server={{json .Server.Version}}'
+          docker info --format 'driver={{json .Driver}} driver_status={{json .DriverStatus}} os={{json .OSType}} arch={{json .Architecture}}'
           if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
           python3 -I -S - <<'PY'
           import hashlib, os, runpy, signal, stat, subprocess
@@ -2299,7 +2303,7 @@ jobs:
         )
       )
     needs: [postgres-pgvector-contract, postgres-pgvector-admission, postgres-pgvector-reuse]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: &prometheus-trusted-timeout ${{ fromJSON(vars.ALERTMANAGER_CD_TRUSTED_JOB_TIMEOUT_MINUTES || '290') }}
     environment: staging
     env:
@@ -2361,7 +2365,7 @@ jobs:
       && github.event_name == 'push'
       && github.ref == 'refs/heads/main'
       && needs.prometheus-image-security.result == 'success'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: &am-third-timeout ${{ fromJSON(vars.ALERTMANAGER_NATIVE_JOB_TIMEOUT_MINUTES || '110') }}
     environment: staging
     env:
@@ -2439,6 +2443,8 @@ jobs:
           fi
           test ! -L "$controller"
           test "$(git -C "$controller" rev-parse HEAD)" = "$controller_source"
+          docker version --format 'client={{json .Client.Version}} server={{json .Server.Version}}'
+          docker info --format 'driver={{json .Driver}} driver_status={{json .DriverStatus}} os={{json .OSType}} arch={{json .Architecture}}'
           cd "$controller"
           python3 -E -s -S -m scripts.ci.fetch_docker_source_artifacts \
             --artifact alertmanager --alertmanager-stage candidate-check --alertmanager-prepare-only \

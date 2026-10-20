@@ -5286,15 +5286,27 @@ def test_test_pr_contract_capture_supports_real_ci_root_conftest(tmp_path: Path)
             "DB_FALLBACK_URL": "sqlite:///" + str(database),
             "TMPDIR": str(profile / "tmp"),
         }
-        result = subprocess.run(
-            command,
-            cwd=REPO_ROOT,
-            env=environment,
-            capture_output=True,
-            text=True,
-            timeout=30,
-            check=False,
-        )
+        try:
+            result = subprocess.run(
+                command,
+                cwd=REPO_ROOT,
+                env=environment,
+                capture_output=True,
+                text=True,
+                timeout=30,
+                check=False,
+            )
+        except subprocess.TimeoutExpired as timeout:
+            for suffix, raw in (("stdout", timeout.stdout), ("stderr", timeout.stderr)):
+                path = tmp_path / f"ci-capture-{capture}.{suffix}.log"
+                try:
+                    path.write_bytes(raw if isinstance(raw, bytes) else (raw or "").encode())
+                    path.chmod(0o600)
+                except OSError as retention_error:
+                    timeout.add_note(
+                        f"Timeout evidence retention failed for {suffix}: {retention_error}"
+                    )
+            raise
         for suffix, raw in (("stdout", result.stdout), ("stderr", result.stderr)):
             path = tmp_path / f"ci-capture-{capture}.{suffix}.log"
             path.write_text(raw)
@@ -5321,6 +5333,113 @@ def test_test_pr_contract_capture_supports_real_ci_root_conftest(tmp_path: Path)
             cases = list(ET.parse(junit).getroot().iter("testcase"))
             assert len(cases) == 1 and cases[0].get("name") == node
             assert cases[0].find("failure") is None and cases[0].find("error") is None
+
+
+@pytest.mark.parametrize(
+    ("partial_stdout", "partial_stderr"),
+    [
+        (b"partial-stdout\xff\n", b"partial-stderr\xfe\n"),
+        ("stdout é\n", "stderr é\n"),
+        (None, None),
+    ],
+    ids=["bytes", "text", "absent"],
+)
+@pytest.mark.parametrize("retention_failure", [False, True])
+def test_test_pr_contract_capture_preserves_timeout_output_and_primary_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    partial_stdout: bytes | str | None,
+    partial_stderr: bytes | str | None,
+    retention_failure: bool,
+) -> None:
+    import stat
+    import sys
+
+    timeout = subprocess.TimeoutExpired([], 30, output=partial_stdout, stderr=partial_stderr)
+    calls: list[str] = []
+
+    def observe_run(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        capture = "tee-sys" if not calls else "no"
+        profile = tmp_path / capture
+        database = profile / "batch.sqlite"
+        expected_environment = {
+            "PATH": os.defpath,
+            "HOME": str(profile / "home"),
+            "LANG": "C.UTF-8",
+            "CI": "true",
+            "TESTING": "true",
+            "APP_ENV": "test",
+            "ENVIRONMENT": "test",
+            "PYTHONUNBUFFERED": "1",
+            "PYTEST_FAULTHANDLER_TIMEOUT_S": "600",
+            "COVERAGE_FILE": str(profile / ".coverage"),
+            "COV_CORE_DATAFILE": str(profile / ".coverage"),
+            "TEST_DB_PATH": str(database),
+            "DATABASE_URL": "sqlite:///" + str(database),
+            "DB_FALLBACK_URL": "sqlite:///" + str(database),
+            "TMPDIR": str(profile / "tmp"),
+        }
+        assert command == [
+            sys.executable,
+            "-m",
+            "coverage",
+            "run",
+            "--append",
+            "-m",
+            "pytest",
+            "-q",
+            "--capture=" + capture,
+            "--verbosity=1",
+            "-p",
+            "no:xdist",
+            "tests/test_ci_workflow_pr_size_governance_contract.py::"
+            "test_contract_risk_suites_use_bounded_coverage_batches",
+            "--junitxml=" + str(profile / "result.xml"),
+            "--basetemp=" + str(profile / "pytest"),
+            "-o",
+            "junit_family=legacy",
+        ]
+        assert kwargs == {
+            "cwd": REPO_ROOT,
+            "env": expected_environment,
+            "capture_output": True,
+            "text": True,
+            "timeout": 30,
+            "check": False,
+        }
+        calls.append(capture)
+        if capture == "tee-sys":
+            return subprocess.CompletedProcess(
+                command,
+                4,
+                "",
+                "conftest.py:22: faulthandler.enable() io.UnsupportedOperation: fileno",
+            )
+        timeout.cmd = command
+        raise timeout
+
+    original_write_bytes = Path.write_bytes
+
+    def fail_stdout_retention(path: Path, data: bytes) -> int:
+        if path == tmp_path / "ci-capture-no.stdout.log":
+            raise OSError("synthetic timeout retention failure")
+        return original_write_bytes(path, data)
+
+    monkeypatch.setattr(subprocess, "run", observe_run)
+    if retention_failure:
+        monkeypatch.setattr(Path, "write_bytes", fail_stdout_retention)
+    with pytest.raises(subprocess.TimeoutExpired) as caught:
+        test_test_pr_contract_capture_supports_real_ci_root_conftest(tmp_path)
+    assert caught.value is timeout and calls == ["tee-sys", "no"]
+    for suffix, raw in (("stdout", partial_stdout), ("stderr", partial_stderr)):
+        path = tmp_path / f"ci-capture-no.{suffix}.log"
+        if retention_failure and suffix == "stdout":
+            assert not path.exists()
+            assert any("synthetic timeout retention failure" in note for note in timeout.__notes__)
+        else:
+            assert path.read_bytes() == (raw if isinstance(raw, bytes) else (raw or "").encode())
+            assert stat.S_IMODE(path.stat().st_mode) == 0o600
+    assert json.loads((tmp_path / "ci-capture-observed.json").read_text())[0]["native_exit"] == 4
 
 
 def test_test_pr_contract_139_retains_real_pytest_and_native_stderr_transport(

@@ -122,6 +122,16 @@
 
 ## Alertmanager source preparation
 
+- Saved-image consumers in CI `lint` and CD `alertmanager-retained-candidate`,
+  `prometheus-image-security-pr`, `prometheus-image-security-trusted` and
+  `obs2a-checkpoint-native` select the qualified `ubuntu-24.04` family explicitly.
+  Keep their config/manifest/diffID/payload admission unchanged and retain actual
+  Docker client/server and image-store metadata before native import. A family
+  label is mutable and is not proof of a fixed Docker version or native success;
+  qualify a different importer environment before changing this placement.
+  Runner drift grants no producer rebuild, SDK change, tag fallback or retry.
+  Keep isolated shell fixtures current when adding diagnostic commands: use
+  synthetic command-only adapters and prove failure before image consumption.
 - The existing Docker source catalog/fetch owner admits only the exact acquired
   Alertmanager source and matching UI through `--artifact alertmanager`. Default
   callers retain their incumbent fifteen inputs; this pair has one aggregate

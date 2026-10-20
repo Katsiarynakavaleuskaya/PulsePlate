@@ -10151,21 +10151,45 @@ def test_alertmanager_actual_preparation_observation_is_retained_by_every_consum
         "config_sha256": prepared["config_sha256"],
         "observation": str(payload / "candidate-observation.json"),
     }
-    for workflow, job in (
+    consumers = (
         ("ci.yml", "lint"),
         ("cd.yml", "alertmanager-retained-candidate"),
         ("cd.yml", "prometheus-image-security-pr"),
         ("cd.yml", "prometheus-image-security-trusted"),
         ("cd.yml", "obs2a-checkpoint-native"),
-    ):
-        steps = _load_workflow(WORKFLOWS_DIR / workflow)["jobs"][job]["steps"]
+    )
+    prepare_name = "Prepare exact AM subject before material execution"
+    discovered = {
+        (workflow, name)
+        for workflow in ("ci.yml", "cd.yml")
+        for name, job in _load_workflow(WORKFLOWS_DIR / workflow)["jobs"].items()
+        if any(step.get("name") == prepare_name for step in job.get("steps", []))
+    }
+    assert discovered == set(consumers)
+    for workflow, job_name in consumers:
+        job = _load_workflow(WORKFLOWS_DIR / workflow)["jobs"][job_name]
+        assert job["runs-on"] == "ubuntu-24.04", (workflow, job_name)
+        metadata_name = (
+            "Admit retained PR candidate or published immutable subject"
+            if job_name.startswith("prometheus-image-security-")
+            else prepare_name
+        )
+        prepare = _step_by_name(job, metadata_name)["run"]
+        version = "docker version --format 'client={{json .Client.Version}} server={{json .Server.Version}}'"
+        store = (
+            "docker info --format 'driver={{json .Driver}} driver_status={{json .DriverStatus}} "
+            "os={{json .OSType}} arch={{json .Architecture}}'"
+        )
+        assert version in prepare and store in prepare
+        assert prepare.index(version) < prepare.index(store) < prepare.index("python3 ")
+        steps = job["steps"]
         uploads = [
             step["with"]["path"]
             for step in steps
             if str(step.get("uses", "")).startswith("actions/upload-artifact@")
         ]
         matches = [paths for paths in uploads if "/" + written[0].name in paths]
-        assert len(matches) == 1, (workflow, job, written[0].name)
+        assert len(matches) == 1, (workflow, job_name, written[0].name)
         assert "/github-read-evidence/" in matches[0] and "/preparation/evidence/" in matches[0]
         assert "/candidate.zip" not in matches[0] and "/private/" not in matches[0]
 
