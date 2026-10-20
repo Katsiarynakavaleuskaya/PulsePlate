@@ -4192,10 +4192,10 @@ def test_alertmanager_precompiler_capability_is_bounded_readonly_permission_obse
 
     monkeypatch.setattr(subprocess, "run", run)
     if fault is None:
-        exec(compile(tree, "cd.yml:AM-readonly-prerequisite", "exec"), {"Path": Path})
+        exec(compile(tree, "<cd.yml:AM-readonly-prerequisite>", "exec"), {"Path": Path})
     else:
         with pytest.raises(subprocess.CalledProcessError if fault == "denied" else AssertionError):
-            exec(compile(tree, "cd.yml:AM-readonly-prerequisite", "exec"), {"Path": Path})
+            exec(compile(tree, "<cd.yml:AM-readonly-prerequisite>", "exec"), {"Path": Path})
     assert len(calls) == (0 if fault in {"missing-tool", "not-directory"} else 1)
     assert "install/start is native evidence" in smoke
 

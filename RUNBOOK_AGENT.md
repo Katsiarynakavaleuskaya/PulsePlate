@@ -236,6 +236,13 @@ required/current-head checks, the relevant `test-main` matrix,
 
 **This is the authoritative procedural checklist.** Thresholds/policy live in `AGENTS.md`.
 
+When a test compiles an in-memory workflow snippet, use a synthetic diagnostic
+filename such as `<cd.yml:AM-readonly-prerequisite>`. A label shaped as a real
+repository filename can make coverage XML fail with `No source for code` after
+the tests have passed. Diagnose this with the owning focused test under the
+existing coverage configuration, followed by `coverage xml`; preserve the
+collection configuration and coverage thresholds.
+
 ### Merge-Ready Bundle (Blocking vs Advisory)
 
 Use this bundle when you need a strict merge claim:
