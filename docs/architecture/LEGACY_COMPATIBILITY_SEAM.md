@@ -56,6 +56,11 @@ callables directly. The `legacy_app.get_api_key` and
 `app.routers.api_key`. The separate package aliases and the intentional
 `app.get_api_key` override remain exact canonical contracts; wrappers or mutable
 legacy-owned warning state would break FastAPI dependency identity.
+The protected set also includes `api_key_header`, `validate_app_api_key` and
+`require_app_api_key`; protection authorizes no Legacy re-export. The strict
+canonical-source witness and absolute-import boundary are enforced by
+`validate_api_key_dependency_ownership` in
+`scripts/ci/check_legacy_growth_guard.py:17075`.
 
 Application metadata is canonically owned by
 `app/application_metadata.py:56` and constructed through the environment-aware
@@ -262,7 +267,7 @@ that count includes scaffolding and is not a supported public export inventory.
 The independent test inventory preserves the previous 91-name prefix and every
 historical cohort assertion, then appends exactly these eight unique names for
 99. Only eight protected-name literals change in
-`scripts/ci/check_legacy_growth_guard.py:133`; its recognition algorithm and
+`scripts/ci/check_legacy_growth_guard.py:138`; its recognition algorithm and
 separately owned PR #2433 / #2434 hunks are unchanged. Existing supported binding
 forms and exact canonical imports have negative controls. The existing fresh
 process probe extends both actual import-order strings while retaining planning
@@ -387,7 +392,7 @@ The merged `LEGACY-BMI-PYTHON-EXPORT-RETIREMENT-1/v1` child
 `_BMI_COMPAT_REEXPORTS`, and `_BMI_SCHEMA_COMPAT_REEXPORTS` from ordinary
 `legacy_app.py` bindings without replacement. The previous 99 retirement
 members remain; this child's historical exact inventory is 106
-(`scripts/ci/check_legacy_growth_guard.py:40`). The two tuples have no
+(`scripts/ci/check_legacy_growth_guard.py:51`). The two tuples have no
 replacement. The two distinct canonical classes remain in
 `app/schemas/bmi_compat.py:21` and `app/schemas/bmi_compat.py:120`; the service
 helper stays at `app/services/bmi_compat.py:26`, and renderer ownership stays in
@@ -469,7 +474,7 @@ The `LEGACY-API-KEY-EXPORT-RETIREMENT-1/v1` child is OPEN in
 authentication behavior. The independent ordered inventory appends only this
 cohort at `[130:132]`, retaining every prior130 member and rate-limit
 `[117:130]`. Three independently authored inventories contain exactly132 unique
-members (`scripts/ci/check_legacy_growth_guard.py:40`,
+members (`scripts/ci/check_legacy_growth_guard.py:41`,
 `tests/test_legacy_growth_guard.py:13`, `tests/test_legacy_bmi_shims.py:29`).
 
 The canonical family remains `api_key_header`, `get_api_key`,
@@ -562,7 +567,7 @@ and type scaffolding, including bare annotations and coupled unused imports,
 are removed (`legacy_app.py:4`). The independent tuple appends only this cohort
 at `[117:130]`, retaining all prior117 and lifecycle `[115:117]`; the guard and
 two independent test inventories contain exactly130 unique members
-(`scripts/ci/check_legacy_growth_guard.py:40`,
+(`scripts/ci/check_legacy_growth_guard.py:41`,
 `tests/test_legacy_growth_guard.py:13`, `tests/test_legacy_bmi_shims.py:29`).
 
 The five public objects remain owned by `app.security.rate_limit`. Attribute
@@ -591,7 +596,7 @@ already-loaded module dictionaries remain outside fresh-process proof.
 
 CLOSED / MERGED in PR #2490, actual separately authorized squash `d0ccf3e98cfcfce5dc6b0e68f564c2bc99dc672c` at `2026-10-17T11:01:26Z`, approved head `b018bb235144b534eb6b9ab131e3dfe2615ec1c0`, synchronized material `888f044f6c8c929cfa0bf9c3bdd9e455bb51b1de` / base `99b692dfd431d8dcc90c1d60d28f3c9fcfddb5b7`, whole-tree equality. Exactly13 facade bindings/scaffolding retired; all prior117 preserved and three independent inventories exactly130. Canonical five-object ownership, 429 handler/model/middleware/real routes and production/staging fail-closed invariants remain preserved; private scaffold names gain no replacement API. Whole incoming #2489 was first committed at `613603bd8b952b05590628eaa7d9d22179521e64` and is RECONCILED IN MAIN; original Target2489 and truthful incoming2488 are unchanged. Own approved-head CI39021031021 SUCCESS (15 successful jobs/7 conditional skips/0 failures); JUnit9826/0fail/0error/0skip; all5XML; numeric diff100%/1eligible/0missing, with PR full-main total unselected/unknown. Required narrow/role/red-first/premortem/admitted Oracle/self-review/disposition/static no-claim seal/strict/wait proof passed; no full local make verify or provider PASS/no-findings claim. Clean synchronized squash main, focused2560+18 overflow/0fail/0error/0skip and direct Legacy guard passed. Own exact-squash main CI39027114651 SUCCESS (10 successful jobs/14 conditional skips/0 failures/cancellations), all three Python test-main and coverage-main; native TOTAL97.63%/97.65%/97.65%, each threshold97. Failed CD/Docker remains independently owned under the direct human scope clarification; no global-green/deployment claim or foreign repair. Multipart core index <https://drive.google.com/file/d/1sm5qrBmJDDG9vX_S8RvaV1VKWQdRWEMc/view> reconstructs65963107bytes/SHA256 `6b02f5ddfbdec10a3ec58fb245cdd34ded951930823b9fcc01d147a581fe1f3c`; actual download/all865payloads866members/selected15-commit Git/fsck/tree/no-alternates/all6 native transport recovery verified, with83 private original companion refs preserved outside removed worktrees and excluded from public ZIP. One same-ID Living Doc and PROJECT_LEGACY-only capsule content pass/readback preserved864 native-prefix elements, styles/controls, ACL/parents and every existing capsule byte. Owned cleanup at `2026-10-17T12:49:42.290037+00:00`: M/T paths/registrations and local/remote owned branch absent, remote already server-absent; expected-head local CAS and native removals exited0; exact redundant staging/rehearsals removed after preservation, shared/foreign resources retained, no broad worktree prune. Same-ID terminal supplement <https://drive.google.com/file/d/10tt3NE0G56D1poA-okJ1wtqjDO4WSDQM/view> retains late QA/outgoing/publication receipts. Outgoing reconciliation is PREPARED / ARCHIVED / NOT YET APPLIED for the first next substantive Legacy child after fresh admission; this patch does not apply itself. PROJECT_LEGACY OPEN; R29 PARTIAL/UNWAIVED; O1 historical NOT_ADMITTED; shared-runtime P1 OPEN. External/computed/hot-state limitations and targeted rollback remain; no docs-only closeout or automatic next removal.
 
-Evidence: `scripts/ci/check_legacy_growth_guard.py:40`,
+Evidence: `scripts/ci/check_legacy_growth_guard.py:41`,
 `tests/test_legacy_growth_guard.py:164`, `tests/test_legacy_bmi_shims.py:344`,
 `tests/test_fitchef_insight_api.py:1030`,
 [canonical fixed mapping](../review/PR_2490_FIXED_MAPPING.md),
@@ -639,7 +644,7 @@ The `LEGACY-LIFECYCLE-ACCESS-EXPORT-RETIREMENT-1/v1` child is MERGED in
 [PR #2489](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2489). It retires exactly `legacy_app.lifespan`
 and `legacy_app.get_update_scheduler`. Every prior115 name remains and the
 independent tuple appends only these two at `[115:117]`; the three inventories
-contain exactly117 names (`scripts/ci/check_legacy_growth_guard.py:40`,
+contain exactly117 names (`scripts/ci/check_legacy_growth_guard.py:51`,
 `tests/test_legacy_growth_guard.py:13`, `tests/test_legacy_bmi_shims.py:29`).
 Historical BMI `[99:106]`, metadata/error `[106:109]` and metadata/environment
 `[109:115]` cohorts keep their original membership.
@@ -741,7 +746,7 @@ ordinary bindings: `APPLICATION_METADATA`, `RUNTIME_ENV`, `_app_env`,
 names and historical BMI `[99:106]` and metadata/error `[106:109]` cohorts remain;
 the new cohort is `[109:115]`. The guard and two independently authored test
 inventories agree by exact membership rather than only cardinality
-(`scripts/ci/check_legacy_growth_guard.py:40`, `tests/test_legacy_growth_guard.py:13`,
+(`scripts/ci/check_legacy_growth_guard.py:51`, `tests/test_legacy_growth_guard.py:13`,
 `tests/test_legacy_bmi_shims.py:29`).
 
 Canonical startup values remain `app.bootstrap.application.RUNTIME_ENV` and
@@ -857,7 +862,7 @@ removes exactly `build_application_metadata`,
 `ENHANCED_PLATE_GENERATION_FAILED_DETAIL`, and
 `INVALID_PREMIUM_PLATE_INPUT_DETAIL` from ordinary `legacy_app.py` bindings.
 The previous 106 members remain and the current exact retirement inventory is
-109 (`scripts/ci/check_legacy_growth_guard.py:40`). The historical BMI cohort
+109 (`scripts/ci/check_legacy_growth_guard.py:51`). The historical BMI cohort
 retains positions `[99:106]`; this three-name cohort occupies `[106:109]` in
 `tests/test_legacy_growth_guard.py`. These are independently checked named
 inventories, not a census of every obsolete Legacy behavior.
@@ -1416,14 +1421,179 @@ recognizer separately rejects reintroduction of the former exact dynamic
 `app.routers.plan_export -> _plan_mod` fact; this does not widen the ordinary
 binding rule or certify arbitrary namespace mutation.
 
-The same guard now verifies application-metadata/OpenAPI ownership: extracted
+The same guard verifies application-metadata/OpenAPI ownership: extracted
 functions cannot be redefined or rebound in legacy, `app/main.py` must import
 the canonical OpenAPI lifecycle directly, the package facade cannot install OpenAPI,
-and canonical modules cannot reverse-import the compatibility app. The check is
-bounded AST analysis and intentionally does not interpret arbitrary Python.
+and canonical modules cannot reverse-import the compatibility app. The main
+reporting adapter uses only the visited node's existing lexical reference,
+string and resolved-call snapshots; absent own-node evidence is not filled from
+an outer or final-module environment. API-key and OpenAPI strings use separate
+closed families and absorbing possible markers in the existing join. The
+OpenAPI family is the exact seven compatibility names or a name containing
+`openapi` after case folding. Receiver, member and builtin-callee provenance
+remain independent, including deferred/local/nonlocal and postponed-annotation
+contexts (`scripts/ci/check_legacy_growth_guard.py:18414`). Protected attribute
+and namespace writes and deletions use the target's own evidence as well as
+the receiver and member evidence; comprehension targets remain local while
+genuine containing-scope protected-name bindings remain rejected.
+
+The strict API-key source validator requires readable, parseable
+`app/routers/api_key.py` and all five actual module bindings from the existing
+visitor's `bound_names`; nested-only, possibly-bound, bare-annotation and deleted
+names are not owner witnesses. Both compatibility-import witnesses and permitted
+binder skips require level zero, the exact owner module and the same exported
+name, with no alias or an explicit same-name alias. The direct ownership
+validator rejects absolute star imports from the canonical API-key owner without
+expanding the imported namespace. The owner predicate proves
+structural binding presence, not declaration shape, binding origin, runtime
+values or callable signatures. Writes and deletions from explicitly invoked
+helpers use the existing replay's real outward module target; dormant helpers
+and genuine local bindings remain separate
+(`scripts/ci/check_legacy_growth_guard.py:16743`). Immediate awaited calls to proven
+builtin `anext` or direct `__anext__` on a captured async generator reuse deferred
+replay after argument evaluation, while unawaited consumers remain dormant in
+ordinary analysis. Defining defaults and
+exception types before their aliases/bodies are inspected in the containing
+scope; lambda bodies remain local. Generic declarations mask type-parameter
+names in their actual parameter scope. Function annotations and class bases
+and keywords use that scope; function defaults and decorators and class
+decorators retain their containing scope. Lazy bounds, constraints and defaults
+receive independent detached ownership-audit evidence without changing ordinary
+execution or transferring effects between independent lazy expressions.
+Type aliases bind their actual names in the containing scope and audit lazy
+values independently under declared parameter masks and the real class parent,
+preserving ordinary lazy execution and isolation between independent audits.
+Ordinary method bodies retain parameter masks without inheriting class-only
+visibility (`scripts/ci/check_legacy_growth_guard.py:3018`,
+`scripts/ci/check_legacy_growth_guard.py:7799`). Eager versus postponed annotations
+and positional/keyword defaults preserve their current execution boundary.
+These source witnesses do not establish configured keys or runtime authorization
+(`scripts/ci/check_legacy_growth_guard.py:17075`,
+`scripts/ci/check_legacy_growth_guard.py:12114`).
+
+Resolved matching tuple/list/nested local assignments preserve their mapping
+identity through the existing paired binder; generic collection escapes and
+unmatched/starred constructions retain their separate conservative handling.
+Actual class members invalidate shared mapping identity before class-scope
+restoration, excluding global/nonlocal declarations and avoiding repeated
+invalidation of already-removed aliases. Copied mappings and ordered snapshots
+remain distinct (`scripts/ci/check_legacy_growth_guard.py:11021`,
+`scripts/ci/check_legacy_growth_guard.py:8558`). Built-in `vars`, the finite
+`dict.get`, `dict.__getitem__`, `dict.pop` and `dict.setdefault` method set, and
+stored namespace methods retain actual legacy-namespace provenance in the
+existing reference/call seams. The four lookup methods and nine mutator methods
+remain separate finite sets; stored mutators retain their existing destructive
+or supplied-key semantics and capture the bound callee and receiver before
+later argument effects. Conditional and branch joins preserve possible legacy
+mutator provenance while retaining builtin/current-module effects in mixed joins,
+for the same nine methods and wildcard joins. The finite `map`, `filter`,
+`itertools.starmap` and `asyncio.to_thread` constructors transport captured callee,
+receiver, positional and keyword facts through the existing resolved/deferred
+bindings and canonical binder. Capture evaluates operands once in source order;
+consumption selects one source-keyed progress record before callback replay.
+Aliases share that record, while independent factory calls retain distinct
+original call/row contexts. Known literal starmap rows retain order and repeated
+rows. Map/filter retain their representative source-fact transfer; this is not
+exact iterator-prefix or predicate/yield simulation
+(`scripts/ci/check_legacy_growth_guard.py:13056`,
+`scripts/ci/check_legacy_growth_guard.py:13426`).
+`to_thread` requires a positional callback and forwards keyword `func` to that
+callback when present. A normal callback returning a generator/coroutine retains
+its separate dormant value until a later supported consumer. Captured callable
+objects do not freeze free globals; implicit `__call__` lookup retains the
+existing execution phase. Private immediate-consumer views restore only their
+owned constructor/intermediate result slots after publishing the full outer
+result, preserving transported aliases and escaping children
+(`scripts/ci/check_legacy_growth_guard.py:13263`,
+`scripts/ci/check_legacy_growth_guard.py:4434`).
+Consumed known `zip` arguments keep the existing operand order and empty-prefix
+boundary; its queue refers to full deferred descriptors and owns no second
+cursor. A recognized keyword-free zip with resolved operands and a proven-empty
+operand publishes the canonical empty result after the existing eager and prefix
+effects; keyword/strict and unresolved shapes retain their conservative projection.
+A known-empty map output still consumes earlier inputs in left-to-right
+order before that empty input stops the representative row; the callback and
+later inputs remain dormant. Flow owner snapshots begin with the actual current
+lexical root before following module/captured owners. Raw parameter, default,
+keyword and lexical names such as `node` and `source` remain data; internal graph
+references are constructed explicitly and are never inferred from those labels.
+Repeated escaping allocations use a stable unknown-payload summary;
+dormant summaries do not execute callbacks, and unsupported consumption fails
+closed. For-loop header declarations become active before the first transfer snapshot,
+so the fixed-point comparison includes their current possible-name facts
+(`scripts/ci/check_legacy_growth_guard.py:9242`).
+Flow snapshots restore lexical fields, progress and current results;
+existing per-visitor definition/default/descriptor/intern tables retain their
+ambient writer semantics. Equality recomputes both live projections under that
+same metadata using a verified labelled owner bijection; the boolean pairing
+never chooses physical restore/join owners
+(`scripts/ci/check_legacy_growth_guard.py:12868`,
+`scripts/ci/check_legacy_growth_guard.py:4934`).
+Dormant, shadowed and known-invalid call shapes retain separate controls. These
+finite facts do not establish general heap, scheduler or Python completeness.
+Proven builtin `sorted`, `min` and `max` key callables
+reuse the existing replay with captured input-element and key bindings after
+argument evaluation and iterable consumption. Key returns are discarded;
+consumer results retain input
+element provenance. Shadowed builtins, unrelated receivers, safe member names,
+proven empty inputs and `key=None` remain independent controls. The per-loop 32
+and total 128 transfer
+budgets are unchanged (`scripts/ci/check_legacy_growth_guard.py:3533`). These
+bounded repairs preserve the original independent 87-name baseline plus the
+inherited four-name subset. The eight utility names inherited from main extended
+that preserved 91-name prefix to the historical 99-name inventory. The seven BMI
+names inherited from PR #2483 brought that historical inventory to 106; later
+inherited retirements bring the current exact set to 132. This ownership repair
+introduces no further retirement and does not certify arbitrary Python reflection.
 
 The guard does not authorize runtime behavior. It only prevents unreviewed seam
 growth while later extraction PRs move routes behind canonical routers.
+
+Temporary reference/string and returned-binding projections share one canonical
+lexical-fact calculation (`scripts/ci/check_legacy_growth_guard.py:6357`).
+Their two joining exits retain the previous active-owner attachment while avoiding
+full Flow graph captures and scope switches. Empty/no-join paths remain unchanged.
+Nested binding joins can also attach the active owner, so this calculation is not
+transitively free of Flow metadata writes. Within the reviewed bounded fact body,
+no owner/source/progress reader or callback observes an earlier recursive attachment;
+the owner after each joining consumer retains its incumbent meaning.
+The physical wrapper retains capture, progress, scope and final-source handling
+(`scripts/ci/check_legacy_growth_guard.py:6664`). This separation does
+not apply to all `flow_join=False` calls and does not initialize other evaluator
+construction paths. Active snapshot refresh timing may differ, while later physical
+observations and failure boundaries remain unchanged. This source argument supplies
+no measured runtime improvement or arbitrary-Python completeness claim.
+Depth-exhausted registration summaries retain their existing conservative reference
+and dynamic-string facts through subsequent iteration. The ordinary call operand
+arm captures the actual evaluated callee and each eager argument once in its owning
+visitor, then supplies the existing canonical binder's ordered positional, named
+and unresolved-keyword channels. Escaped values therefore retain their actual
+per-visitor definition scopes, defaults, descriptors and interned identities.
+Regular callee identity precedes argument effects; implicit instance dispatch
+selects the existing `__call__` descriptor after those effects. Actual deferred
+construction follows eager capture and retains its source-keyed progress and
+creation/consumption boundary. The earlier specialized operand arms, later
+consumer tails and their uncaptured helper calls preserve their existing phases.
+Those remaining argument evaluators retain genuine caller source frames,
+detached scope isolation and the same active-function replay guard. Foreign
+standalone fragments do not acquire a synthesized source origin. This bounded
+change does not introduce a metadata importer or claim arbitrary-Python
+completeness or a measured performance gain.
+
+The existing static-string resolver accepts the visitor's existing ownership
+family. API analysis projects composed abstract uncertainty to its canonical
+dynamic fact, preserving direct/identity facts and nominal foreign OpenAPI
+evidence. OpenAPI analysis retains incumbent rendered fragments through actual
+bindings, so a concrete `openapi` run split across assignments remains visible;
+this rendering is compatibility evidence rather than a known runtime string.
+The exact possible-OpenAPI fact retains its nominal meaning. Other resolver
+callers keep their default rendering, including scoped route facts. Separator
+facts contribute only between two or more join items. Genuine unresolved values,
+ordinary marker-containing literals and the existing exact-marker collision
+remain distinct. This uses one existing resolver and existing family context;
+it supplies no universal string, formatting, precision or reflection claim.
+(`scripts/ci/check_legacy_growth_guard.py:1879`,
+`scripts/ci/check_legacy_growth_guard.py:6184`).
 
 ## Static Guard Threat Model
 
@@ -1456,12 +1626,293 @@ Retire this seam only when all are true:
 
 ## Validation
 
-Use:
+Resolve the repo-approved absolute `VENV_PYTHON` through the interpreter
+procedure in `RUNBOOK_AGENT.md`, then use explicit guard/module arguments:
 
 ```bash
-python3 scripts/ci/check_legacy_growth_guard.py
-pytest -q tests/test_legacy_growth_guard.py
+"$VENV_PYTHON" scripts/ci/check_legacy_growth_guard.py --repo-root "$PWD"
+"$VENV_PYTHON" -m pytest -q tests/test_legacy_growth_guard.py
 ```
 
 This guard does not open runtime behavior, OpenAPI, semantic-cache serving,
 FoodDB cutover, or broad refactor scope.
+
+Explicit syntax consumers preserve the same creation/consumption boundary:
+starred LOAD expansion, destructuring and reached membership operands consume
+captured deferred iterators without evaluating their expressions twice. Reached
+chained comparisons retain conditional outcomes; only the finite literal-scalar
+comparison set can prove an early short circuit. A synchronous consumer does not
+execute a non-generator coroutine body. Known partial callbacks reuse captured
+prefixes and the canonical binder. The existing partial-template carrier also
+retains the exact `getattr`, `setattr` and `delattr` builtin identities for supported
+positional invocations; unsupported keyword/star shapes establish no completeness
+claim. Literal-key mapping selections and partial callee observations use the
+existing resolved-result evidence owner. Accumulated Name observations are
+published for reporting while current evaluation continues to use lexical state;
+mutable mapping escape and generic invalidation remain conservative.
+
+Nested assignment targets recurse over the already captured ordered values
+(`scripts/ci/check_legacy_growth_guard.py:7445`);
+destructuring a child consumes that child's iterator, while storing a scalar or
+starred remainder preserves dormancy. A later RHS write cannot replace an earlier
+captured iterator, and aliases retain their shared consumption identity. The
+canonical call binder (`scripts/ci/check_legacy_growth_guard.py:12114`) publishes
+exact variadic order only while its finite state
+retains every supplied position and receiver; saturation keeps an element summary
+instead of asserting a shorter exact tuple. The progress join
+(`scripts/ci/check_legacy_growth_guard.py:4861`) preserves the same first-consumption
+behavior for missing progress and an exact initial available record; consumed,
+active and unknown disagreements retain their existing fail-closed meaning. Factory-only
+collection provenance (`scripts/ci/check_legacy_growth_guard.py:11565`) uses the
+existing tag and registration predicate; independent
+route, callable or nested sensitivity retains the conservative collection result.
+
+Named iteration rows, actual async-next items, context enter results and captured
+comprehension rows share that same captured-target operation. Existing indexed
+pair recognition delegates its child facts to it. A structured target consumes
+its actual child before binding its leaves; scalar storage and starred packing
+keep their children dormant. Requested structured assignment evaluates its RHS
+once, then evaluates each reached leaf owner/slice in binding order. An earlier
+child consumption therefore precedes a later target-owner exception. Explicit
+caller-owned leaf evaluation adds no target visit when omitted, preserving the
+already-evaluated scalar/annotation/augmented-assignment paths.
+The same leaf callback may project an existing complete binding for immediate
+publication. Context targets retain their pre-bind sensitive fallback, and outer
+scalar chained targets use the original scalar assignment fact frozen before
+writes. Nested children keep their own facts; they do not inherit root-list
+non-app classification. The passive scalar source-fact calculation is shared with
+the incumbent scalar path, including dynamic strings and namespace provenance.
+
+Actual async-next consumption (`scripts/ci/check_legacy_growth_guard.py:9242`)
+uses one optional request in the existing replay frame after charging the existing
+loop-transfer budget. The canonical invocation path
+(`scripts/ci/check_legacy_growth_guard.py:16743`) finalizes
+modeled normal and untyped abrupt continuations separately, projects each saved
+Flow onto the actual caller owners, and resumes only normal continuations before
+binding the item or visiting the loop body. A completed normal next followed by
+`break` does not regain the pre-next zero-iteration state. Unknown invocation
+retains both continuations from its actual post-eager operand phase; this is not a
+claim to recognize every Python exception or prove that a callable cannot raise.
+
+The request lives only in the existing active frame's ninth slot. No-request
+frames, including compatible eight-slot frames, keep the incumbent analysis.
+Binding-only and detached preparations suspend that slot; actual source operands,
+headers, context cleanup and selected branches retain it. Saved pending outcomes
+remain roots of the existing Flow/liveness/cleanup mechanism. A returned coroutine
+or generator remains dormant until its actual consumer requests execution.
+Requested results use the complete common final normal binding, including mapping
+identity and deferred ownership. Distinct uncorrelated final normal values stop
+with an analysis error before a returned child executes; no scope/value zip or
+weaker result projection substitutes for correlation. This bounded limitation
+cannot justify changing an existing required successful case or declaring its
+failure acceptable. Bare return, implicit fallthrough and explicit `None` use the
+same existing actual-None fact only when real terminal control proves completion;
+an empty abstract value or collector provides no such proof.
+
+Consumed one-argument `iter`, supported positional `islice`, and literal outer
+list/tuple `chain.from_iterable` calls reuse the existing callback capture queue.
+All eager wrapper effects precede callback replay; an empty `islice` result with a
+positive start still consumes input. Literal list/tuple `functools.reduce` folds
+capture callback, items and optional initializer in evaluation order, then carry
+each returned accumulator through the canonical binder and shared replay budget.
+No initializer on an empty input yields no inferred successful return.
+
+The API application ownership audit publishes reference/string snapshots only
+for expression nodes, retaining the full module and unused-body traversal. Its
+detached writers share that projection. Ordinary and OpenAPI snapshot consumers
+retain full publication by default. This reduces unused environment copies; it
+does not identify the cause of a native process crash or establish Linux timing
+without current native execution evidence.
+
+The direct API-key owner check rejects canonical, foreign and relative star
+imports in `legacy_app.py` in either order around historical identity-preserving
+import shapes; the aggregate guard independently rejects the retired bindings. Unknown exported bindings cannot establish that the
+protected names remain untouched. The aggregate retirement guard independently
+rejects wildcard imports; ordinary application modules retain their separate
+unrelated-import contract.
+
+Reached context and async iterator syntax uses the existing local class
+callable/descriptor facts for the exact `__enter__`, `__exit__`, `__aenter__`,
+`__aexit__`, `__aiter__` and `__anext__` methods through one protocol adapter
+(`scripts/ci/check_legacy_growth_guard.py:9148`). Canonical binding supplies
+captured instance/class receivers without changing ordinary binder defaults.
+Enter and exit lookup facts are captured before entry/body effects. Entered
+values precede `as` bindings; captured exits run in reverse order, including
+after a later known-invalid acquisition. Normal `with` executes an ordinary
+synchronous method call; async and generator methods return dormant bindings
+through the existing deferred-call carrier. A later supported await/iteration
+may consume an entered result, while a discarded exit result stays dormant.
+Captured exits finalize newly produced return, raise, break and continue scopes;
+earlier independent outcomes retain their own state. Nested module-owned replay
+uses the active branch without replacing captured function scopes or defaults.
+Async context dispatch retains its await behavior. Async iteration uses the
+actual synchronous `__aiter__` result and replays next before each existing
+representative loop transfer. Complete-MRO facts and the canonical binder can
+prove a finite invocation invalid; unresolved owners or member values retain
+conservative handling. This does not prove arbitrary callee exception or
+exception-suppression behavior beyond the existing control-flow model.
+
+Ordinary calls on captured local instances select `__call__` through the existing
+class-member resolver (`scripts/ci/check_legacy_growth_guard.py:5549`) and
+canonical argument binder (`scripts/ci/check_legacy_growth_guard.py:12114`). Plain,
+classmethod and
+staticmethod descriptors retain their captured receiver rules and MRO; invalid
+arity does not invoke a body. Coroutine/generator calls create the existing
+deferred binding and execute only at a supported later consumption. The callee
+instance is captured before argument effects and the existing class facts
+select `__call__` after arguments. Direct functions and bound methods keep their
+existing earlier capture. Arbitrary class-dictionary mutation remains outside
+these finite facts; this does not establish a general Python timing proof.
+
+Named API-key attribute selectors with an imported or captured unknown value
+use the existing dynamic-string fact and may name a protected API-key member.
+OpenAPI retains its separate closed family of seven names and names containing
+`openapi`; unknown reflection alone is not an OpenAPI finding.
+Literal nonstrings and their known aliases, definitely unbound names, known
+harmless strings and nonlegacy receivers remain independent controls. The
+existing detached synchronous API-key ownership audit inspects unused source
+bodies; its unknown parameters are source possibilities, not observed runtime arguments.
+That audit does not force an ordinary dormant coroutine or generator body.
+
+This dispatch does not model constructor-stored instance fields such as
+`self.owner`, per-instance aliases or a general heap. Shared class-site identity
+must not stand in for distinct instance state. The existing arbitrary data-flow
+and reflection limits continue to apply; no complete Python execution or
+instance-field ownership proof follows.
+
+
+### Finite protocol Return-source lifetime
+
+The protocol consumer may retain a fresh direct Return-result construction in
+one existing private frame through synchronous finalizers, actual returned-parent
+await and reached structured-target consumption. Source eligibility requires the
+live anchored synchronous forwarding path and genuine captured construction;
+static source membership and the invocation outcome request do not grant it.
+Normal, captured and synthetic-child producers share one full-batch registration
+before private progress or publication, using the canonical root walk for entry,
+current, default and pending observers. Synthetic children keep their original
+child discriminator. Scalar grandchildren and older aliases remain separate;
+only owned temporary views are removed before body/fixed-point observation.
+Existing ambiguous summary/private-escape errors remain bounded errors, while
+all established successful cases retain their original assertions.
+
+Evidence: `scripts/ci/check_legacy_growth_guard.py:4232`, `scripts/ci/check_legacy_growth_guard.py:12927`, and `scripts/ci/check_legacy_growth_guard.py:9242`.
+
+Phase eligibility ends with each actual invocation, even if its callable binding
+is reused by a later callback. Seed the exact current next target, revoke its
+function anchors before await, and revoke independently selected await anchors
+before target work. The existing nested transfer-frame topology supplies only a
+negative owner-kind fence, so inactive Return Call views never fall through to
+old private-corridor membership. It is not a freshness or allocation grant.
+
+
+### Immediate captured-Await parent lifetime
+
+The real original Await can own its direct captured `to_thread` construction
+through the existing nine-slot private frame. The actual producer and atomic
+registration independently check operation, execution, source and constructor
+phase. Structural membership is only a candidate; callback/body/default and
+separate returned-child allocations receive no inherited grant. The completed
+full normal value is published under the Await in the existing result map before
+constructor-private cleanup, then retained by the existing enclosing operand
+roots until canonical capture or discard. Abrupt saved flows receive no normal
+value. Strict cleanup restores older constructor cache objects and removes only
+owned parent progress/views. Unknown callbacks preserve both modeled post-eager
+outcomes; unknown wrapper payload and existing summary/escape errors remain hard.
+
+Evidence: `scripts/ci/check_legacy_growth_guard.py:3775`,
+`scripts/ci/check_legacy_growth_guard.py:4232`, and
+`scripts/ci/check_legacy_growth_guard.py:16657`.
+
+
+### Requested caller outward-view coherence
+
+Global/nonlocal caller fields are existing copied views of canonical physical
+targets. Before requested function/class entry capture, the nearest genuine
+pending caller source is transferred to its target and matching views. For each
+independently restored normal/abrupt outcome, those declared views are rebased
+from the actual restored targets before capturing caller Flow. Existing full-field
+transfer includes deletion/unbound state; ordinary local shadows remain separate.
+For an outcome rooted at a comprehension wrapper, each callee outward source
+is selected through its existing declared-target identity, not the wrapper's
+own missing or shadowed field. Genuine declaring-owner deletion still unbinds.
+Both entry and outcome ordering are required to preserve a pending caller write
+and a callee overwrite back to the original value without mutation-history data.
+The existing class projector uses the same inputs. This changes no private
+source/key/progress mechanism or unknown-call normal/abrupt contract.
+
+Evidence: `scripts/ci/check_legacy_growth_guard.py:4117`,
+`scripts/ci/check_legacy_growth_guard.py:8558`, and
+`scripts/ci/check_legacy_growth_guard.py:16743`.
+
+
+### Captured ordered-container For entry
+
+After the real synchronous For header effects, its existing exact ordered outer
+rows may prove empty/nonempty only when no top-level deferred cursor is present.
+This consumes a captured container fact once; it does not execute the header again
+or infer an iterator's remaining cardinality. Nested child descriptors retain their
+shared cursor and structured consumption. Known empty uses the existing else path;
+known nonempty excludes only the impossible zero-entry state. Unknown/saturated
+shapes and deferred sources keep their incumbent branches and strict disagreement
+errors. Progress joins, keys, alias identity, loop bounds and AsyncFor do not change.
+
+Evidence: `scripts/ci/check_legacy_growth_guard.py:9242`.
+
+
+### Enumerate captured row projection
+
+The canonical enumerate producer transports each actual captured ordered input
+row through the existing indexed-pair fact when the captured callee and argument
+bundle qualify and the input has no top-level deferred cursor. Empty input keeps
+the existing empty fact. Per-row full payloads and nested child cursor identity
+are retained; numeric index facts are not introduced. This prevents a known
+nonempty indexed container from regaining an impossible zero-entry branch.
+Later start-argument writes cannot replace the already captured first operand.
+Unknown, saturated, shadowed or unsupported forms keep their existing summary.
+
+Evidence: `scripts/ci/check_legacy_growth_guard.py:15605`.
+
+
+### Mapping iterator rows and finalized requested outcomes
+
+The items/values result producer retains full ordered rows only for the actual
+unreduced literal snapshot with unique concrete hashable keys. Direct receivers
+are captured after real callee evaluation; named, returned, stored-bound and
+unbound forms share that producer. Duplicate-key last-write values do not prove
+Python insertion order, so reduced/synthetic, duplicate, unknown and invalidated
+shapes retain their existing aggregate result. No key/index or cursor model is
+added.
+
+Requested handlerless try/finally projects actual terminal raises and normal
+completion through its finalizer. Generic before/after-expression snapshots no
+longer fabricate invocation failures on this path. They remain available to the
+ordinary and handler analysis paths. Real unknown-call alternatives, explicit
+raises and finalizer replacement remain preserved.
+
+### Current generator iteration results
+
+Actual requested generator replay aggregates reached Yield values in a temporary
+full-binding result slot. Finalized normal outcomes after finalizers own their
+individual aggregates; Return and fallthrough do not emit elements. YieldFrom
+consumes one current delegate result and appends its yielded rows, while a
+supported exhausted cursor contributes no new rows irrespective of an older
+completion payload. Structured targets apply arity and leaf effects to each
+normal result before merging. Unknown cardinality retains possible failure.
+
+The outlet is the existing result map at an actual non-Call consumer node. Its
+old entry, live membership and source-view tuple are restored on every exit,
+including saved abrupt flows. No additional cursor key, provenance store or
+resumable interpreter is introduced. Ordinary/coroutine returns and map callback
+values retain their own semantics; an iterable callback value remains one value.
+
+A join of live physical non-root owners uses the existing lexical fact kernel,
+leaving each earlier finalized outcome's saved Flow intact. The enclosing join
+publishes a fresh current-root Flow after all owner fields and progress/maps are
+merged. This preserves both current physical updates and independent restoration
+of earlier alternatives; it does not sort/rekey owners or add a correlation store.
+
+Evidence: `scripts/ci/check_legacy_growth_guard.py:3957` (slot lifetime),
+`scripts/ci/check_legacy_growth_guard.py:10661` (actual yielded rows),
+`scripts/ci/check_legacy_growth_guard.py:13547` (current consumption),
+and `scripts/ci/check_legacy_growth_guard.py:4861` (physical owner join).

@@ -198,6 +198,26 @@
   modes and source inventories, plus diagnostic errors alongside primary failures;
   missing historical post-state remains unknown. Publish and review the correction
   before any separately coordinated recovery dispatch.
+- The closed PR #2476 recovery arm on
+  `refs/heads/codex/consolidate-legacy-ownership-guard` has no legacy predecessor
+  selector and no automatic retry. It authenticates the open same-repository
+  PR, current first-attempt run/job, and two complete both-purpose native job
+  inventories. Preserve all four historical ORAS jobs and the historical pair;
+  exclude only the exact current in-progress job occurrence. A new pair also
+  requires exactly one successful new ORAS job, the selected retained-tool full
+  proof, full raw producer equivalence and existing PR ancestry before compile.
+  Its existing admission budget fields express separately permitted aggregate
+  maxima Tool3/Prometheus4. Per-invocation successful counters remain Tool1,
+  logical images2 and Prometheus compiler starts4. Historical counters and
+  selectors are immutable; jobs never stand in for compiler evidence.
+- For that explicitly authorized recovery, transition the existing image record
+  to `source_prepared`, `selection=null`, `candidate=null`; clear obsolete ORAS
+  coordinates with the existing nullable `inputs.oras.retained`. Ordinary image
+  consumers reject this state. Populate retained coordinates only from the
+  actual successful newly qualified tool, then select pair outputs only after
+  actual pair success. A metadata-only successor can differ from the tool
+  source while ancestry and complete raw producer-byte equivalence still pass.
+  These technical conditions grant no native invocation or extra scope authority.
 - Manual `prometheus-source-pair` permits exactly two serial logical image
   builds, each containing the two named commands and bounded to 3600 seconds.
   Use independent empty source/cache/output areas, no automatic retries,
@@ -224,6 +244,18 @@
   pre-commit. Preserve its untracked selection evidence with `clean: false`,
   retain full history and nonpersistent checkout credentials, and verify HEAD
   against `GITHUB_SHA`; do not relax the dependency evidence resolver.
+- The existing public-package inventory walk admits a strict integer count up
+  to 20000 and uses fixed 100-row pages through the exact terminal remainder;
+  exact multiples require an empty terminal page. Require unique positive IDs,
+  count equality, and the same fixed repository/owner/public-package identity
+  and count on readback within each walk. Keep all-page immutable-tag checks.
+  Version-page captures allow at most 1 MiB combined stdout/stderr each, at
+  most 201 captures per walk, and 64 MiB cumulative returned stdout checked
+  before decoding or retaining rows. Exhaustion or drift is HOLD, never prefix
+  acceptance. These bounds do not establish Python heap capacity, an atomic
+  registry snapshot or absence of concurrent replacement. Helper/workflow edits
+  still invalidate full-raw retained producer proof and never renew spent
+  native allowances; separately reviewed native execution remains required.
 - Main-only promotion reuses the retained qualified copier and copies precise
   OCI bytes into the existing public package; it never rebuilds or executes a
   candidate with registry credentials. Preserve original producer provenance,
@@ -312,13 +344,22 @@ or claim that passing this probe validates the application on Python 3.14.
   their existing behavior; binary-only installs retain target-Python selection.
   Dedicated SDK builds reject an explicit target-Python option because the
   unchanged four-input build uses its loader interpreter.
-- Before VS Code Reopen builds a fresh trusted checkout, run the existing
-  `make docker-source-artifacts` target on the host using an approved existing
-  `DEV_PYTHON` interpreter. CLI `dc-up`, `docker-run` and `docker-run-dev` own
-  that prerequisite; a source-preparation failure stops before Compose. This is
-  source verification/acquisition only; do not install/activate a host backend
-  venv or native macOS SDK, transfer `.env`/credentials/HOME, or add automatic
-  repository-code initialization. Container bootstrap remains manual after trust.
+- The OWNER-admitted Dev Container before-build exception runs only
+  `/usr/bin/env -i PATH=/usr/bin:/bin LANG=C.UTF-8 /usr/bin/python3 -I -S
+  scripts/ci/fetch_docker_source_artifacts.py` from the reviewed trusted checkout.
+  `initializeCommand` runs before image creation; after-container hooks cannot
+  supply missing Docker COPY inputs. This acquires/verifies the existing default
+  source catalogue only. It does not select SDK builds, create/activate a host
+  backend venv or automatically run container bootstrap. Other repository-code
+  lifecycle hooks remain absent. The child environment and Python startup are
+  constrained; the process still has host filesystem/same-user access and trusts
+  the host launcher, interpreter and approved checkout. This is not secret or
+  host-process isolation. Do not forward `.env`, credentials, netrc or HOME.
+  Missing host tools, unsupported default-path compatibility or source failures
+  stop image preparation; no hidden Dockerfile fetch or SDK removal follows.
+  Manual `make docker-source-artifacts` remains the explicit pre-Reopen path;
+  CLI `dc-up`, `docker-run` and `docker-run-dev` keep their existing prerequisite.
+  The full SDK/wheelhouse consumer stays intact and bootstrap remains manual.
 - `make dc-up` credential forwarding is explicit opt-in through
   `PULSEPLATE_NATIVE_SDK_NETRC_FILE`, defaulting to `/dev/null`. Use only a temporary
   read-only file scoped to the approved package host after reviewing/trusting the
@@ -1052,3 +1093,257 @@ evidence without inferring missing J, time or outcomes. These operations grant
 no downstream authority. Follow the
 [episode contract](../docs/orchestration/contracts/INVARIANT_FAMILY_REVIEW_EPISODE_CONTRACT.md#optional-lifecycle-supervision-euler-ops-1)
 and its [focused tests](../tests/test_invariant_family_review_episode.py).
+
+## Legacy compatibility guard repair
+
+For `scripts/ci/check_legacy_growth_guard.py`, preserve the existing mapping,
+lexical snapshot, binding and loop-budget seams. Keep the full canonical API-key
+owner fixture, the five-protected-name inventory and exact retired getter pair;
+explicit corrupt or missing owner inputs must reach the strict production
+validator. Preserve independent allowed counterexamples and the retired-name
+inventory when repairing a recognizer; source counts do not prove behavior.
+
+Capture callee, receiver and member facts at their own evaluation points; later
+argument effects must not rewrite earlier facts. Keep `ownership_audit` purpose
+distinct from symbol-family selection and ordinary runtime analysis. Preserve
+required unused ownership evidence and dormant execution boundaries.
+
+When tightening dormant-body replay, verify both result-shape recognition and
+callback consumption for the affected finite iterable consumers. Reuse canonical
+call binding and capture/replay queues; preserve eager argument effects, lazy
+creation, and definite invalid-arity stopping. Charge callback-row replay against
+the existing analysis budget at consumption. Test supported literal-vector
+boundaries and unconsumed or lexically shadowed counterexamples explicitly;
+unsupported shapes do not establish safety or completeness.
+
+For lazy callback values, preserve the source-keyed descriptor through assignment,
+arguments, returns, ordered literal rows and the existing queue views. Keep one
+progress owner across aliases and restore it with lexical/current-result flow;
+advance it before reentrant callback consumption. Capture full canonical binder
+inputs once, including keyword occurrences and bound receivers. `to_thread` calls
+its captured callback normally: returned generators/coroutines stay dormant.
+Repeated escaping allocations retain stable conservative summaries rather than
+fresh visit IDs. Private immediate-consumer cleanup may remove only its own
+unpublished parent key after full outer/child result publication. Keep existing
+ambient metadata writers and detached-visitor isolation; owner correspondence is
+pure boolean and never selects physical join or restore targets. Preserve
+representative map/filter, ordered literal starmap, direct-consumer controls and
+all existing depth/loop/CLI budgets. Preserve the actual current root as the first
+saved Flow owner and test function/global/outward joins. Empty output does not
+prove no input consumption: keep left-to-right stop order. Encode raw graph facts
+once; user names must never be interpreted as internal reference tags. See the
+source-fact boundary in
+[the compatibility seam](../docs/architecture/LEGACY_COMPATIBILITY_SEAM.md).
+
+For preserving or flattening wrappers, distinguish an empty result from no input
+consumption: a positive `islice` start can execute callbacks even with empty
+output. Finite `reduce` folds remain eager independently of an outer lazy consumer;
+capture each input and the initializer before replaying the canonical binder.
+Snapshot cost reductions must preserve every environment actually consumed by the
+owning audit. Keep full snapshots as the default for ordinary and OpenAPI consumers
+and propagate any narrower internal publication mode to detached writers.
+
+The direct API-key ownership validator must reject every star import in
+`legacy_app.py`, including foreign and relative modules with unknown exports.
+Retired binding absence does not make wildcard rebinding safe.
+Keep unrelated star imports in ordinary application modules on their existing
+separate contract; aggregate retirement rejection does not replace direct-owner
+validation.
+
+Module-namespace API-key writes use the existing lexical namespace and mutation
+seams. Preserve actual execution, captured receiver/callee/scalar keys, and the
+five-name inventory. Literal update keys and explicit keyword names are finite
+evidence; computed or unpacked keys on a proven module namespace conservatively
+report the protected inventory. Do not reinterpret AST keys after value effects
+or add a second namespace scanner. Shadowed producers, local namespaces, dormant
+bodies, empty updates and proven unrelated literal keys remain independent controls.
+
+Implicit context/async-iteration dispatch is limited to captured local instance
+facts and the six known methods `__enter__`, `__exit__`, `__aenter__`, `__aexit__`,
+`__aiter__` and `__anext__`. Reuse class callable/descriptor tables, canonical
+argument binding and existing loop transfers. Capture enter and exit lookups
+before entry effects; bind the entered result and unwind acquired exits in reverse
+order, including after a later known-invalid acquisition. Normal `with` uses
+normal calls: async/generator methods return dormant existing deferred bindings,
+consumed only by a later supported await/iteration. Preserve async dispatch,
+known-invalid stopping and unresolved outcomes. Finalize newly produced abrupt
+control scopes through the captured exits while preserving earlier outcomes.
+Module-owned replay follows the active branch; captured function scopes and
+definition-time defaults retain their lexical binding. Receiver identity is not
+instance-field state: never attach constructor field values to a shared class-site
+reference or claim general object/data-flow coverage from this wiring.
+
+Implicit calls on captured local instances reuse the ordinary callable resolver,
+class descriptor/MRO facts and canonical call binder for `__call__`. Capture the
+callee instance before argument effects, then select `__call__` through the
+existing class facts after arguments. Preserve descriptor receivers, invalid
+arity and coroutine/generator creation versus later consumption. This does not
+model arbitrary class-dictionary mutation or instance fields.
+
+Unknown named API-key attribute selectors use the existing dynamic-string fact
+on a proven legacy receiver. OpenAPI retains its separate closed-name family;
+unknown reflection alone does not establish an OpenAPI finding. Preserve literal
+nonstrings and their known aliases,
+definitely unbound names, harmless strings and canonical receivers as independent
+controls. The detached synchronous API-key ownership audit may inspect unused
+source bodies with unknown parameters; that evidence does not execute an ordinary
+dormant coroutine/generator or authorize a general Python execution claim.
+
+Temporary reference/string and resolved-binding projections share one canonical
+lexical-fact calculation without full Flow graph capture. Retain the incumbent
+active-owner attachment after each selected joining consumer, including nested
+binding joins; empty/no-join paths must not gain this attachment. The calculation
+is not transitively free of Flow metadata writes. Keep physical branch, captured
+owner and escaping late-parent joins on the existing Flow wrapper;
+`flow_join=False` alone does not establish a temporary projection. Preserve later
+snapshot readers, current-source fallback and Module-finally freeze when reducing
+unconsumed captures. Active snapshot refresh timing may differ; subsequent
+owner/progress/source observations and the existing evaluator construction contract
+must retain their meaning.
+Keep depth-exhausted conservative reference/string facts through subsequent
+iteration. In the ordinary call operand arm, evaluate the callee and each eager
+operand once in the owning visitor and pass their captured bindings to the existing
+canonical binder. Keep escaped definition/default/descriptor metadata with that
+visitor; do not export fresh evaluator results without their context. Preserve
+ordered spread/keyword facts, invalid arity, implicit lookup after arguments and
+actual deferred progress. The earlier specialized operand arms and orthogonal
+consumer tails retain their existing execution phases. Uncaptured helper callers
+still require detached scope isolation, genuine caller source frames and the same
+active-function replay guard; a foreign standalone fragment gains no source origin.
+Nested destructuring consumes the captured child value, preserving earlier RHS
+facts despite later rebinding. Saturated or unresolved variadic arguments retain
+their element summary without an invented exact ordered length. Initial deferred
+availability may join with absence; actual consumption disagreement stays unknown.
+Collection factory provenance must not erase independently sensitive callable or
+nested facts. Preserve the original positive and negative controls for each case.
+Use the same captured-target recursion for already-produced iteration/context/
+comprehension rows and async-next items. Do not flatten a structured target into
+its names or reread the source value. Requested leaf-owner evaluation follows
+actual child consumption left to right; scalar callers that already evaluated
+those targets do not visit them again. Preserve dormant scalar/starred children.
+Publish caller-projected full leaf bindings immediately. Preserve With pre-bind
+sensitive fallback and the complete frozen scalar source fact for chained scalar
+legs; nested children never inherit an outer-list non-app classification.
+Real async-next consumption may request separate normal/raise outcomes through
+slot 8 of the existing replay frame, after the existing loop-budget charge.
+Project each finalized caller Flow before union; resume normal paths only, retain
+unknown post-eager alternatives, and preserve pending full-Flow roots and cleanup.
+No-request/eight-slot behavior stays incumbent; binding-only and detached scans
+suspend the request. Do not infer completion from an empty binding or collector.
+Keep returned children dormant, and reject uncorrelated distinct normal results
+before consumption. If an original required success reaches that limit, stop the
+candidate for a representation decision; never weaken that oracle or call the
+failure an accepted unsupported case. Assertion messages, short-circuit suffixes
+and later definition/body work must follow their actual requested control paths.
+An actual protocol transfer may keep one existing private frame through sync
+finalization, returned-parent await and reached structured target. Its typed
+function anchors and reached Return-result source candidates require a live
+synchronous forwarding chain plus actual captured construction; slot 8 supplies
+no provenance. Register the full same-creation descriptor batch atomically through
+one canonical factor at all three producers before private progress/publication.
+Use the canonical live-root walk for entry/current/default/pending observers.
+Keep older aliases and scalar grandchildren separate, strip new eligibility from
+detached/uncaptured copies, and close only owned views before body/equality.
+Outside this finite corridor summary/private-escape errors remain strict; never
+replace a required successful case with such an error.
+String composition receives the existing ownership family at the visitor's
+canonical resolver call. API projection preserves canonical uncertainty and
+nominal foreign-family facts; OpenAPI preserves its existing rendered fragments
+across bindings and semantic possible-family evidence. Rendered uncertainty is
+compatibility information, not a concrete runtime value. Keep default callers,
+five exact fact tags, unresolved values, literal near misses and zero/one-item
+join separator non-contribution separate. Do not apply a global collapse or add
+a marker-substring/provenance mechanism to a selector consumer.
+
+Provide focused commands with an explicit `tests/test_legacy_growth_guard.py`
+module or literal node selectors and the repo-approved Python interpreter.
+A shell continuation must be continuous: no blank line may detach selectors
+from its command. Never propose selector-free pytest for this guard repair.
+A command proposal or successful AST parse is not a native test receipt; record
+actual argv, output, exit status and source identity under the root local narrow
+validation budget. See `RUNBOOK_AGENT.md` for interpreter and gate procedures.
+
+The canonical CI `test-pr` job has a 120-minute whole-job ceiling for its
+smoke, contract/risk and coverage producers. This does not change local
+validation budgets. The real legacy CLI test has a separate 3600-second child
+timeout for the current source inventory; a timeout remains a failed gate.
+
+Phase eligibility ends with each actual invocation, even if its callable binding
+is reused by a later callback. Seed the exact current next target, revoke its
+function anchors before await, and revoke independently selected await anchors
+before target work. The existing nested transfer-frame topology supplies only a
+negative owner-kind fence, so inactive Return Call views never fall through to
+old private-corridor membership. It is not a freshness or allocation grant.
+
+
+An actual immediate Await may own only its direct captured `to_thread` parent
+through the existing private-frame machinery. The actual captured operation,
+original source and live constructor phase must independently qualify the key
+and registration; structural candidacy or an invocation request is insufficient.
+Publish the complete actual normal result under the real Await in the existing
+result map before parent cleanup, retaining existing operand roots until capture
+or discard. Abrupt outcomes gain no successful result. Unknown callback targets
+retain both post-eager normal and abrupt possibilities; genuinely unknown wrapper
+payload stays an error. Inactive, copied and source-switched Await pools retain
+their negative fence. Prior Return phases and separate child/default/closure/
+mapping owners remain unchanged; no parent grant extends to callback descendants.
+
+
+Requested invocation projection must keep declared caller global/nonlocal views
+coherent with their actual physical targets. Publish the nearest pending caller
+write before entry capture, then rebase those same declared views after each
+independently restored normal/abrupt outcome before caller Flow capture. Reuse
+the existing full-field outward helpers, including deletion state; local shadows
+remain local. A wrapper-rooted outcome must select each source through the
+existing declared-target lookup, not the wrapper's own missing or shadowed name. The same projector's requested class consumer follows this ordering.
+A late refresh alone or a target-value delta cannot preserve both pending writes
+and a real overwrite back to the original value. No write-history carrier is used.
+
+
+Synchronous For entry cardinality may reuse the actual post-header exact ordered
+outer-container fact when that source has no top-level deferred cursor. Known
+empty uses the existing empty/else path; known nonempty excludes the impossible
+zero-entry branch. Nested deferred children retain their own cursor and do not
+invalidate outer container nonemptiness. Unknown/saturated shapes and deferred
+outer sources keep their existing uncertainty. Never reset progress, split aliases
+or weaken the disagreement guard to compensate for an impossible entry branch.
+
+
+The canonical enumerate producer may preserve exact outer row order only from
+its actual captured callee and supported, fully resolved argument bundle, with
+known ordered input rows and no top-level deferred source. Wrap each full row in
+the existing indexed-pair fact; never substitute repeated aggregate values or
+invent numeric index facts. Later start-argument effects must not reread/rebind
+the first operand. Uncertain, shadowed and unsupported calls retain the existing
+summary. This preserves nested child cursor identity and ordinary For semantics.
+
+
+Mapping iteration may publish exact ordered rows only from the actual captured
+literal snapshot with unreduced source-key order and unique concrete hashable
+keys. Capture a direct items/values receiver after its real callee evaluation;
+stored-bound and unbound forms reuse the same result producer. Last-write value
+deduplication does not prove Python first-insertion order. Duplicate, unknown,
+synthetic/reduced or invalidated shapes retain aggregate uncertainty.
+
+For a requested handlerless try/finally, only actual terminal raises enter the
+finalized abrupt outcome channel. Generic expression snapshots remain diagnostic
+handler-entry evidence. Preserve the ordinary no-request and handler paths,
+actual unknown-call abrupt alternatives, and finalizer replacement/cancellation.
+
+Requested whole-body generator iteration uses actual reached Yield operands as
+full iterable rows. Return/fallthrough are completion only; bare Yield is one
+known-None row, not exhaustion. A temporary FunctionNode current-result sink is
+cleared for every actual replay and seeded only by an explicit current consuming
+Tuple/List target or YieldFrom outlet. Restore old slots and live membership in
+active and saved outcomes; pin no Call or FunctionNode as a private source.
+Read fresh per-normal projections before unpack/delegation merges. A supported
+exhausted cursor contributes zero new rows without reading its historical result;
+unknown and abrupt paths never fabricate empty success. Ordinary return/await
+and captured callback value semantics remain separate. This is representative
+whole-body consumption, not native generator next/send/resume behavior.
+
+Non-root physical owners in a Flow join use the existing lexical fact kernel;
+only the enclosing current-root join publishes a new finalized Flow. Preserve
+inactive saved outcomes byte-for-byte as independently restorable records while
+updating actual owner fields. Never recapture their history from another
+alternative's ambient graph or depend on owner-set iteration order.
