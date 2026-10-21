@@ -14,7 +14,7 @@ from collections import Counter
 from contextlib import ExitStack
 import copy
 from datetime import datetime, timedelta, timezone
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 import hashlib
 import inspect
 import json
@@ -220,7 +220,7 @@ def _ocw_usage(value: object) -> tuple[dict[str, Any] | None, int | float | None
     if (type(numeric) is float and not math.isfinite(numeric)) or numeric < 0:
         raise ValueError("ocw_usage")
     # Retain returned cache/reasoning/currency detail as provider data. It is not
-    # invoice truth; the caller separately admits a documented USD basis.
+    # invoice truth; known USD additionally requires explicit returned currency.
     _canonical(raw)
     return copy.deepcopy(raw), numeric
 
@@ -614,7 +614,6 @@ class AttemptLedger:
         self.http_observations: list[dict[str, Any]] = []
         self._comparison_secrets: tuple[str, ...] = ()
         self.pricing_valid_until: datetime | None = None
-        self.cost_currency_basis = {"sonar": "unknown", "sol": "unknown"}
         self.reservation_publications = 0
         self.reservation_publication_uncertain = False
         self._published_attempts: set[int] = set()
@@ -924,10 +923,7 @@ class AttemptLedger:
                 )
                 native["provider_declared_cost"] = declared
                 currency = declared.get("currency") if type(declared) is dict else None
-                known_usd = currency == "USD" or (
-                    currency is None
-                    and self.cost_currency_basis.get(self.arm or "") == "documented_usd"
-                )
+                known_usd = currency == "USD"
                 native["cost_usd"] = declared_amount if known_usd else None
                 native["cost_basis"] = (
                     "provider_declaration_usd" if known_usd else "unknown_currency"
@@ -2291,6 +2287,113 @@ def _ocw_observe_post(
     return record
 
 
+def _validate_ocw_run(run: dict[str, Any]) -> dict[tuple[str, str], dict[str, Any]]:
+    """Check the existing finite producer shape, without authenticating its provenance."""
+    if type(run) is not dict or set(run) != {
+        "id",
+        "code_sha",
+        "code_hashes",
+        "manifest_fingerprint",
+        "input_fingerprints",
+        "rubric_sha256",
+        "pricing_fingerprint",
+        "request_preflight",
+        "route_limit",
+        "pacing_seconds",
+        "capture_kind",
+    }:
+        raise ValueError("ocw_run")
+    _check_depth(run)
+    if len(_canonical(run)) > MAX_LINE_BYTES:
+        raise ValueError("ocw_run")
+    if (
+        type(run["id"]) is not str
+        or re.fullmatch(r"[A-Za-z0-9_.:-]{1,80}", run["id"]) is None
+        or type(run["code_sha"]) is not str
+        or re.fullmatch(r"[0-9a-f]{40}", run["code_sha"]) is None
+        or type(run["code_hashes"]) is not dict
+        or set(run["code_hashes"])
+        != {
+            "collector",
+            "evaluator",
+            "fitchef_runtime",
+            "fitchef_companion",
+            "perplexity_adapter",
+            "perplexity_agent",
+            "mascot_router",
+        }
+        or any(
+            type(value) is not str or re.fullmatch(r"[0-9a-f]{64}", value) is None
+            for value in run["code_hashes"].values()
+        )
+        or type(run["input_fingerprints"]) is not dict
+        or set(run["input_fingerprints"]) != set(_OCW_CASES)
+        or any(
+            type(value) is not str or re.fullmatch(r"sha256:[0-9a-f]{64}", value) is None
+            for value in [
+                run["manifest_fingerprint"],
+                run["rubric_sha256"],
+                run["pricing_fingerprint"],
+                *run["input_fingerprints"].values(),
+            ]
+        )
+        or type(run["route_limit"]) is not str
+        or run["route_limit"] != "10/minute"
+        or type(run["pacing_seconds"]) is not float
+        or run["pacing_seconds"] != _OCW_PACE_SECONDS
+        or type(run["capture_kind"]) is not str
+        or run["capture_kind"] != "native_guarded_http_observation"
+        or type(run["request_preflight"]) is not list
+        or len(run["request_preflight"]) != len(_OCW_CASES) * len(_OCW_MODELS)
+    ):
+        raise ValueError("ocw_run")
+    pairs = [(case, arm) for case in _OCW_CASES for arm in _OCW_MODELS]
+    preflight: dict[tuple[str, str], dict[str, Any]] = {}
+    arm_bounds: dict[str, str] = {}
+    for key, row in zip(pairs, run["request_preflight"], strict=True):
+        if (
+            type(row) is not dict
+            or set(row)
+            != {
+                "case_id",
+                "arm",
+                "prompt_sha256",
+                "request_bytes",
+                "upper_usd_per_attempt",
+                "observation_kind",
+                "reserved_cents",
+            }
+            or type(row["case_id"]) is not str
+            or type(row["arm"]) is not str
+            or (row["case_id"], row["arm"]) != key
+            or type(row["prompt_sha256"]) is not str
+            or re.fullmatch(r"[0-9a-f]{64}", row["prompt_sha256"]) is None
+            or type(row["request_bytes"]) is not int
+            or not 0 < row["request_bytes"] <= _MAX_HTTP_BODY_BYTES
+            or type(row["upper_usd_per_attempt"]) is not str
+            or len(row["upper_usd_per_attempt"]) > MAX_LINE_BYTES
+            or type(row["observation_kind"]) is not str
+            or row["observation_kind"] != "local_mock_serialization_only"
+            or type(row["reserved_cents"]) is not int
+            or row["reserved_cents"] != 0
+        ):
+            raise ValueError("ocw_run")
+        try:
+            upper = Decimal(row["upper_usd_per_attempt"])
+        except InvalidOperation as exc:
+            raise ValueError("ocw_run") from exc
+        if (
+            not upper.is_finite()
+            or not 0 <= upper <= Decimal("0.15")
+            or str(upper) != row["upper_usd_per_attempt"]
+            or arm_bounds.setdefault(key[1], row["upper_usd_per_attempt"])
+            != row["upper_usd_per_attempt"]
+        ):
+            raise ValueError("ocw_run")
+        preflight[key] = row
+    return preflight
+
+
 def validate_ocw_records(
     records: list[object], *, expected_run: dict[str, Any]
 ) -> list[dict[str, Any]]:
@@ -2314,8 +2417,7 @@ def _validate_ocw_records(
 
     if type(records) is not list or len(records) != 16:
         raise ValueError("ocw_capture_incomplete")
-    if type(expected_run) is not dict or type(expected_run.get("id")) is not str:
-        raise ValueError("ocw_record_binding")
+    preflight = _validate_ocw_run(expected_run)
     result: list[dict[str, Any]] = []
     seen: set[tuple[str, str]] = set()
     physical_attempts: set[int] = set()
@@ -2421,6 +2523,10 @@ def _validate_ocw_records(
         ).hexdigest() != expected_run["input_fingerprints"].get(row["case_id"]):
             raise ValueError("ocw_record_binding")
         prompt, sources = _ocw_prompt(inner)
+        if preflight[key]["prompt_sha256"] != hashlib.sha256(
+            prompt.encode("utf-8")
+        ).hexdigest() or preflight[key]["request_bytes"] < len(prompt.encode("utf-8")):
+            raise ValueError("ocw_run")
         if (
             row.get("prompt") != prompt
             or _canonical(row.get("admitted_sources")) != _canonical(sources)
@@ -2507,12 +2613,11 @@ def _validate_ocw_records(
                 or type(declared_cost) is not dict
                 or attempt["cost_usd"] != declared_amount
                 or attempt.get("cost_basis") != "provider_declaration_usd"
-                or declared_cost.get("currency") not in (None, "USD")
+                or declared_cost.get("currency") != "USD"
                 or attempt.get("invoice_verified") is not False
             ):
                 raise ValueError("ocw_record_binding")
-            # Captured basis labels are consistency data. An omitted currency
-            # does not independently authenticate documentary USD or invoice truth.
+            # Explicit returned USD is consistency evidence, never invoice truth.
             if index == len(provider["attempts"]) - 1:
                 if (
                     type(attempt.get("status_code")) is not int
@@ -2719,9 +2824,6 @@ def collect_ocw_comparison(
         datetime.fromisoformat(row["verified_at"].replace("Z", "+00:00")) + _OCW_PRICING_MAX_AGE
         for row in prices.values()
     )
-    ledger.cost_currency_basis = {
-        arm: row["returned_cost_currency_basis"] for arm, row in prices.items()
-    }
     code_sha, code_hashes = _code_sha(), _ocw_code_hashes()
     rubric_bytes = _read_input(rubric)
     canonical_rubric = (

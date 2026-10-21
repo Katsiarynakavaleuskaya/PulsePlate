@@ -2262,6 +2262,7 @@ def test_ocw_response_publication_and_cleanup_cannot_mask_original_failure(
     "outcome",
     [
         "success",
+        "currency-absent",
         "sonar-401",
         "sonar-transient",
         "sonar-plain-transient",
@@ -2661,6 +2662,7 @@ with patch.dict(os.environ, {
                     'content':[{'type':'output_text','text':raw,'annotations':[]}]}],
                 'usage':{'input_tokens':12,'output_tokens':8,'total_tokens':20}}
         payload['usage']['cost']={'total_cost':0.001,'currency':'USD'}
+        if outcome=='currency-absent': del payload['usage']['cost']['currency']
         return httpx.Response(200,json=payload)
     def transport(ledger):
         global transport_allocations
@@ -3033,8 +3035,118 @@ with patch.dict(os.environ, {
     assert all(r['field_origin']['message']==('fallback' if outcome=='blocker-fallback' and r['arm']=='sonar' else 'provider_normalized') for r in records)
     assert all(set(v)=={'schema_version','opaque_id','material_fingerprint','rubric_sha256',
         'requested_language','query','final_answer','sources'} for v in views)
+    if outcome=='currency-absent':
+        assert all(row['provider']['cost_status']=='unknown' and row['provider']['cost_usd'] is None for row in records)
+        for row in records:
+            attempt=row['provider']['attempts'][0]
+            assert attempt['usage']['cost']==attempt['provider_declared_cost']=={'total_cost':0.001}
+            assert attempt['cost_status']=='unknown' and attempt['cost_usd'] is None
+            assert attempt['cost_basis']=='unknown_currency' and attempt['invoice_verified'] is False
+        print(json.dumps({'currency_absent_unknown_records':len(records),'raw_cost_and_reservations_preserved':True}))
+        assert status['reserved_cents']==15*expected_sends and status['observed_http_outcomes']==expected_sends
+        print(json.dumps({'mock_route_cases':16,'sdk_requests':expected_sends,'paced_intervals':15,
+            'active_rate':'10/minute','frozen_blind_views':len(views)}))
+        sys.exit(0)
     if outcome=='success':
         assert collector.validate_ocw_records(records,expected_run=run)==records
+        def rehash_records(frozen,expected):
+            for row in frozen:
+                row['run']=json.loads(json.dumps(expected))
+                material={k:v for k,v in row.items() if k not in ('material_fingerprint','idempotency_key')}
+                row['material_fingerprint']='sha256:'+hashlib.sha256(collector._canonical(material)).hexdigest()
+                row['idempotency_key']='sha256:'+hashlib.sha256(collector._canonical({'run_id':expected.get('id',run['id']),
+                    'case_id':row['case_id'],'arm':row['arm'],'material_fingerprint':row['material_fingerprint']})).hexdigest()
+            return frozen
+        currency_rejections=0; currency_positives=0
+        for arm in ('sonar','sol'):
+            for currency in ('absent',None,'EUR',True):
+                frozen=json.loads(json.dumps(records)); row=next(row for row in frozen if row['arm']==arm)
+                attempt=row['provider']['attempts'][0]
+                declared={'total_cost':0.14}
+                if currency!='absent': declared['currency']=currency
+                attempt['usage']['cost']=declared
+                attempt['provider_declared_cost']=json.loads(json.dumps(declared))
+                attempt['cost_usd']=row['provider']['cost_usd']=0.14
+                attempt['cost_status']=row['provider']['cost_status']='known'
+                attempt['cost_basis']='provider_declaration_usd'; attempt['invoice_verified']=False
+                rehash_records(frozen,run)
+                try: collector.validate_ocw_records(frozen,expected_run=run)
+                except ValueError as error: assert error.args==('ocw_record_binding',)
+                else: raise AssertionError('currency-less or foreign known USD admitted:'+arm+':'+str(currency))
+                currency_rejections+=1
+            for amount,currency,status in ((0,'USD','known'),(0.14,'USD','known'),(0.14,None,'unknown')):
+                frozen=json.loads(json.dumps(records)); row=next(row for row in frozen if row['arm']==arm)
+                attempt=row['provider']['attempts'][0]; declared={'total_cost':amount}
+                if currency is not None: declared['currency']=currency
+                attempt['usage']['cost']=declared; attempt['provider_declared_cost']=dict(declared)
+                attempt['cost_usd']=row['provider']['cost_usd']=amount if status=='known' else None
+                attempt['cost_status']=row['provider']['cost_status']=status
+                attempt['cost_basis']='provider_declaration_usd' if status=='known' else 'unknown_currency'
+                rehash_records(frozen,run)
+                assert collector.validate_ocw_records(frozen,expected_run=run)==frozen
+                currency_positives+=1
+        run_mutations=[('missing',field,None) for field in run]
+        run_mutations += [('root','extra','unadmitted'),('root','id',True),('root','id',''),
+            ('root','id','x'*81),('root','id','not admitted'),('root','code_sha',True),
+            ('root','code_sha','b'*39),('root','code_sha','B'*40),('root','code_hashes',[]),
+            ('root','input_fingerprints',[]),('root','request_preflight',{}),
+            ('root','route_limit',True),('root','route_limit','11/minute'),
+            ('root','pacing_seconds','6.1'),('root','pacing_seconds',True),('root','pacing_seconds',6.2),
+            ('root','capture_kind','mock_execution')]
+        for field in ('manifest_fingerprint','rubric_sha256','pricing_fingerprint'):
+            for value in (True,'sha256:'+'x'*64,'sha256:'+'a'*63): run_mutations.append(('root',field,value))
+        run_mutations += [('code_hashes','missing',None),('code_hashes','extra','b'*64),
+            ('code_hashes','collector','not-a-sha256'),('code_hashes','collector',True),
+            ('input_fingerprints','missing',None),('input_fingerprints','extra','sha256:'+'b'*64),
+            ('input_fingerprints','OCW-N01',True),('input_fingerprints','OCW-N01','sha256:'+'b'*63),
+            ('preflight','missing',None),('preflight','extra',None),('preflight','duplicate',None),
+            ('preflight','reorder',None),('preflight','not_object',None)]
+        for field in run['request_preflight'][0]: run_mutations.append(('preflight_missing',field,None))
+        run_mutations += [('preflight_field','extra',None),('preflight_field','case_id',True),
+            ('preflight_field','case_id','OCW-N09'),('preflight_field','arm','foreign'),
+            ('preflight_field','prompt_sha256',True),('preflight_field','prompt_sha256','b'*63),
+            ('preflight_field','prompt_sha256','b'*64),('preflight_field','request_bytes',True),
+            ('preflight_field','request_bytes',0),('preflight_field','request_bytes',32769),
+            ('preflight_field','request_bytes',1),('preflight_field','request_bytes','1000'),
+            ('preflight_field','observation_kind','provider_execution'),('preflight_field','reserved_cents',True),
+            ('preflight_field','reserved_cents',15)]
+        for value in (0.14,True,'NaN','Infinity','-0.01','0.15001','nonnumeric',' 0.14','0.14_0'):
+            run_mutations.append(('preflight_field','upper_usd_per_attempt',value))
+        run_mutations.append(('preflight_field','upper_usd_per_attempt','0.14'))
+        for target,field,value in run_mutations:
+            expected=json.loads(json.dumps(run))
+            if target=='missing': del expected[field]
+            elif target=='root': expected[field]=value
+            elif target in ('code_hashes','input_fingerprints'):
+                if field=='missing': del expected[target][next(iter(expected[target]))]
+                else: expected[target][field]=value
+            elif target=='preflight':
+                if field=='missing': expected['request_preflight'].pop()
+                elif field=='extra': expected['request_preflight'].append(dict(expected['request_preflight'][0]))
+                elif field=='duplicate': expected['request_preflight'][-1]=dict(expected['request_preflight'][0])
+                elif field=='reorder': expected['request_preflight'].reverse()
+                else: expected['request_preflight'][0]=[]
+            elif target=='preflight_missing': del expected['request_preflight'][0][field]
+            else: expected['request_preflight'][0][field]=value
+            frozen=rehash_records(json.loads(json.dumps(records)),expected)
+            try: collector.validate_ocw_records(frozen,expected_run=expected)
+            except ValueError as error: assert error.args==('ocw_run',),(target,field,value,error)
+            else: raise AssertionError('coherently rehashed malformed run admitted:'+str((target,field,value)))
+        historical=json.loads(json.dumps(run)); historical['id']='a'*80
+        historical['code_sha']='b'*40; historical['code_hashes']={name:'c'*64 for name in run['code_hashes']}
+        positives=rehash_records(json.loads(json.dumps(records)),historical)
+        assert collector.validate_ocw_records(positives,expected_run=historical)==positives
+        for arm in ('sonar','sol'):
+            for upper in ('0','0.15'):
+                expected=json.loads(json.dumps(run))
+                for item in expected['request_preflight']:
+                    if item['arm']==arm:
+                        item['upper_usd_per_attempt']=upper
+                        item['request_bytes']=32768
+                frozen=rehash_records(json.loads(json.dumps(records)),expected)
+                assert collector.validate_ocw_records(frozen,expected_run=expected)==frozen
+        print(json.dumps({'frozen_currency_rejections':currency_rejections,'frozen_currency_positives':currency_positives,
+            'complete_run_rejections':len(run_mutations),'historical_provenance_and_upper_bound_positives':5}))
         def rehash_usage(arm,usage):
             frozen=json.loads(json.dumps(records))
             row=next(row for row in frozen if row['arm']==arm)
@@ -3294,11 +3406,18 @@ with patch.dict(os.environ, {
         timeout=180,
     )
     assert completed.returncode == 0, completed.stdout[-1500:] + completed.stderr[-4500:]
+    if outcome in ("success", "currency-absent"):
+        print(completed.stdout, end="")
     if outcome == "success":
         assert '"frozen_usage_valid_boundaries": 14' in completed.stdout
         assert '"frozen_usage_rejections": 28' in completed.stdout
         assert '"rehashed_unsafe_query_rejections": 2' in completed.stdout
         assert '"unexpected_guard_failures_preserved": 3' in completed.stdout
+        assert '"frozen_currency_rejections": 8' in completed.stdout
+        assert '"frozen_currency_positives": 6' in completed.stdout
+        assert '"complete_run_rejections": 82' in completed.stdout
+    if outcome == "currency-absent":
+        assert '"currency_absent_unknown_records": 16' in completed.stdout
     if outcome == "status-after":
         write_report(tmp_path / "post-link-process.stdout", completed.stdout.encode("utf-8"))
         write_report(tmp_path / "post-link-process.stderr", completed.stderr.encode("utf-8"))
@@ -3319,6 +3438,7 @@ with patch.dict(os.environ, {
         if outcome
         not in {
             "success",
+            "currency-absent",
             "sonar-transient",
             "sonar-plain-transient",
             "sonar-badjson-transient",
