@@ -1158,20 +1158,35 @@ If it is not recorded here — it does not exist.
       non-force publication was consumed at `419842d8` on
       `2026-10-21T17:35:18Z`. Subsequent correcting publications of this same
       PR remain bounded by the same direct temporary owner instruction and
-      unchanged scope/expiry; the consumed one-use receipt cannot be reused.
+      unchanged expiry; the consumed one-use receipt cannot be reused.
+      At `2026-10-21T23:04:03Z`, the owner explicitly answered "Yes, add these
+      16 IDs" to extend this same PR's temporary inventory from nine to 25.
     - Exact scope: `requirements.txt:23` retains `certifi==2026.1.4` with
       `PYSEC-2026-4320`; `requirements.txt:125` retains `pillow==12.3.0` with
       `CVE-2026-112895`, `CVE-2026-112400`, `CVE-2026-112397`,
       `CVE-2026-112896`, `CVE-2026-112897`, `CVE-2026-112395`,
-      `CVE-2026-112404` and `CVE-2026-112899`.
+      `CVE-2026-112404`, `CVE-2026-112899`, `CVE-2026-112402`,
+      `CVE-2026-112900`, `CVE-2026-112893`, `CVE-2026-112392`,
+      `CVE-2026-112891`, `CVE-2026-112405`, `CVE-2026-112390`,
+      `CVE-2026-112401`, `CVE-2026-112901`, `CVE-2026-112391`,
+      `CVE-2026-112894`, `CVE-2026-112406`, `CVE-2026-112399`,
+      `CVE-2026-112892`, `CVE-2026-112393` and `CVE-2026-112396`.
       Frozen requirements SHA-256:
       `45856873613fa43e5ac34c2673ecd3cb29e97aecf33b91dedcefcf7aee56d054`.
     - Evidence: The actual unignored strict audit exited 1; retain
       `artifacts/orchestration/ocw-1a/coordinator-oct21/remote-required-pip-audit/pip-audit.log`,
       SHA-256 `f67eaf65fc3f5f5c0da5b0d19fbbe84285abc0218adf3f5d6ba076a2fc52592d`.
+      The fresh native audit at `5a41e070983ed85c93922db0a2a40398598774cc`
+      also exited 1: "Found 16 known vulnerabilities, ignored 9 in 1 package";
+      requirements remained identical and no publication followed that failure.
+      Retain `artifacts/orchestration/ocw-1a/coordinator-oct21/correcting-waived-audit-readback-proof.json`
+      and its raw audit SHA-256
+      `e0db11164c5ee05c871de2a8a281c8c50a5a72ba1684b7d56c0be3e1af580e27`.
+      PyPI reports `13.0.0` as the fix for the 24 Pillow records; this exception
+      does not establish remediation or an unfixed-upstream condition.
     - Procedure: Before each correcting publication, run a fresh native pinned
-      pip-audit v2.10.1 with the existing strict hook arguments and nine repeated
-      `--ignore-vuln` options; require exit 0, exactly these nine ignored
+      pip-audit v2.10.1 with the existing strict hook arguments and 25 repeated
+      `--ignore-vuln` options; require exit 0, exactly these 25 ignored
       advisories, no additional findings/errors and exact current material and
       frozen requirements binding. Retain a new private actual publication
       receipt for each normal push. `PIP_AUDIT_IGNORE_VULNS` is unsupported.
@@ -1184,7 +1199,7 @@ If it is not recorded here — it does not exist.
       retire this ledger exception with the owning dependency fix and an
       unignored strict audit exit 0. On expiry, drift, a new finding or scanner
       error, do not push and preserve the evidence.
-    - This accepts nine known advisories temporarily; it records no remediation,
+    - This accepts exactly 25 known advisories temporarily; it records no remediation,
       unignored security PASS, current-head CI, readiness or merge authority.
       All 53 original acceptance criteria and the existing DoD remain governing.
   - Links: docs/evals/EVIDENCE_RELATION_CAUSAL_AUDIT_V1.md,
