@@ -225,6 +225,24 @@ def _ocw_usage(value: object) -> tuple[dict[str, Any] | None, int | float | None
     return copy.deepcopy(raw), numeric
 
 
+def _ocw_cost_currency(declared: object) -> object:
+    """Read the same finite native currency fact for live and frozen admission."""
+    return declared.get("currency") if type(declared) is dict else None
+
+
+def _ocw_retryable_http_outcome(native: dict[str, Any]) -> bool:
+    """Recognize only retained Sonar transient status without terminal body facts."""
+    return (
+        native.get("arm") == "sonar"
+        and type(native.get("status_code")) is int
+        and native["status_code"] in {408, 429, 500, 502, 503, 504}
+        and native.get("raw_error_body_status")
+        not in ("omitted_noncanonical_metadata", "omitted_credential_reflection")
+        and "response_failure_type" not in native
+        and "outcome_material_status" not in native
+    )
+
+
 def _validate_ocw_usage_token_limits(usage: dict[str, Any] | None) -> None:
     """Apply the same finite reported-token bounds to capture and frozen replay."""
     if usage is None:
@@ -922,7 +940,7 @@ class AttemptLedger:
                     else None
                 )
                 native["provider_declared_cost"] = declared
-                currency = declared.get("currency") if type(declared) is dict else None
+                currency = _ocw_cost_currency(declared)
                 known_usd = currency == "USD"
                 native["cost_usd"] = declared_amount if known_usd else None
                 native["cost_basis"] = (
@@ -959,10 +977,10 @@ class AttemptLedger:
         if native["cost_usd"] is not None and native["cost_usd"] > _RESERVE_USD:
             self.reported_overrun_usd = native["cost_usd"]
             self.terminal_reason = "reported_cost_overrun"
+        self.retryable = self.terminal_reason is None and _ocw_retryable_http_outcome(native)
         if response.status_code not in (200, 201):
-            self.retryable = response.status_code in {408, 429, 500, 502, 503, 504}
             if not self.retryable:
-                self.terminal_reason = "provider_http_terminal"
+                self.terminal_reason = self.terminal_reason or "provider_http_terminal"
         self._retain_ocw_http_outcome(native)
         if self.terminal_reason is not None:
             self.retryable = False
@@ -970,6 +988,7 @@ class AttemptLedger:
 
     def _retain_ocw_http_outcome(self, native: dict[str, Any]) -> None:
         """Keep observed header/body admission facts even when the body is rejected."""
+        native["retryable"] = self.retryable and self.terminal_reason is None
         self.http_observations.append(native)
         content = _canonical(native)
         self.require_secret_free(content)
@@ -1002,6 +1021,7 @@ class AttemptLedger:
             native.update(summary)
             self.terminal_reason = self.terminal_reason or "outcome_limit"
             self.retryable = False
+            native["retryable"] = False
             content = _canonical(native)
         encoded = content + b"\n"
         try:
@@ -1831,7 +1851,8 @@ def validate_ocw_environment(fitchef_key: str, *, output_dir: Path | None = None
         capture_root = output_dir.resolve()
         if any(path.resolve().is_relative_to(capture_root) for path in (database_path, audit_path)):
             raise ValueError("ocw_runtime_output_overlap")
-    _validate_runtime_location(database_path, kind="database")
+    for path in database_paths:
+        _validate_runtime_location(path, kind="database")
     _validate_audit_location(audit_path)
     with session_scope() as session:
         counts = session.scalars(
@@ -2602,6 +2623,8 @@ def _validate_ocw_records(
             declared_cost = usage.get("cost") if usage is not None else None
             if _canonical(attempt.get("provider_declared_cost")) != _canonical(declared_cost):
                 raise ValueError("ocw_record_binding")
+            if _ocw_cost_currency(declared_cost) not in (None, "USD"):
+                raise ValueError("ocw_record_binding")
             if attempt["cost_status"] == "unknown":
                 if attempt.get("cost_usd") is not None:
                     raise ValueError("ocw_record_binding")
@@ -2625,11 +2648,15 @@ def _validate_ocw_records(
                     or attempt.get("raw_assistant_text") != row["raw_assistant_text"]
                     or type(row["raw_assistant_text"]) is not str
                     or attempt.get("returned_model") != provider["returned_model"]
+                    or (key[1] == "sol" and attempt.get("returned_model") != _OCW_MODELS["sol"])
                 ):
                     raise ValueError("ocw_record_binding")
-            elif attempt.get("status_code") not in {408, 429, 500, 502, 503, 504} and not (
-                attempt.get("failure_type") in {"APIConnectionError", "APITimeoutError"}
-                and attempt.get("retryable") is True
+            elif attempt.get("retryable") is not True or not (
+                _ocw_retryable_http_outcome(attempt)
+                or (
+                    "status_code" not in attempt
+                    and attempt.get("failure_type") in {"APIConnectionError", "APITimeoutError"}
+                )
             ):
                 raise ValueError("ocw_record_binding")
         known = len(provider["attempts"]) == 1

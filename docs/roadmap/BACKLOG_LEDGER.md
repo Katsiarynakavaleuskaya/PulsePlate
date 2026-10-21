@@ -1154,9 +1154,11 @@ If it is not recorded here — it does not exist.
       Target PR: [#2487](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2487)
       is the exception carrier; the certifi/Pillow remediation owner and target
       remain unassigned/unproven, separate from #2494's Alertmanager work.
-    - Authorization checkpoint (2026-10-21): Direct owner authorization
-      recorded; at this checkpoint, the waived audit and single normal
-      non-force publication push have not yet executed.
+    - Authorization checkpoint (2026-10-21): The first authorized normal
+      non-force publication was consumed at `419842d8` on
+      `2026-10-21T17:35:18Z`. Subsequent correcting publications of this same
+      PR remain bounded by the same direct temporary owner instruction and
+      unchanged scope/expiry; the consumed one-use receipt cannot be reused.
     - Exact scope: `requirements.txt:23` retains `certifi==2026.1.4` with
       `PYSEC-2026-4320`; `requirements.txt:125` retains `pillow==12.3.0` with
       `CVE-2026-112895`, `CVE-2026-112400`, `CVE-2026-112397`,
@@ -1167,16 +1169,18 @@ If it is not recorded here — it does not exist.
     - Evidence: The actual unignored strict audit exited 1; retain
       `artifacts/orchestration/ocw-1a/coordinator-oct21/remote-required-pip-audit/pip-audit.log`,
       SHA-256 `f67eaf65fc3f5f5c0da5b0d19fbbe84285abc0218adf3f5d6ba076a2fc52592d`.
-    - Procedure: Before that one push, run pinned pip-audit v2.10.1 with the
-      existing strict hook arguments and nine repeated `--ignore-vuln` options;
-      require exit 0, exactly these nine ignored advisories, no additional
-      findings/errors and matching frozen source/requirements hashes.
-      `PIP_AUDIT_IGNORE_VULNS` is unsupported. Only that push process may use
-      `SKIP=pip-audit`; every other stock hook remains required, without global
-      exports or hook/config/scanner changes.
-    - Expiry/removal: `2026-10-28T00:00:00Z`, or earlier upon consumption,
-      input/version/inventory drift or remediation; no automatic renewal.
-      Record actual consumption in retained lane evidence and the PR body;
+    - Procedure: Before each correcting publication, run a fresh native pinned
+      pip-audit v2.10.1 with the existing strict hook arguments and nine repeated
+      `--ignore-vuln` options; require exit 0, exactly these nine ignored
+      advisories, no additional findings/errors and exact current material and
+      frozen requirements binding. Retain a new private actual publication
+      receipt for each normal push. `PIP_AUDIT_IGNORE_VULNS` is unsupported.
+      Only that push process may use `SKIP=pip-audit`; every other stock hook
+      remains required, without global exports or hook/config/scanner changes.
+    - Expiry/removal: unchanged `2026-10-28T00:00:00Z`, or earlier upon
+      requirements/version/inventory drift, remediation or owner revocation;
+      no automatic renewal or extension of the consumed one-use receipt.
+      Record each actual publication in retained lane evidence and the PR body;
       retire this ledger exception with the owning dependency fix and an
       unignored strict audit exit 0. On expiry, drift, a new finding or scanner
       error, do not push and preserve the evidence.

@@ -639,6 +639,7 @@ def test_ocw_typed_transient_status_with_malformed_body_remains_bounded(
     for index in range(1, sends + 1):
         native = read_jsonl(tmp_path / f"attempt-result-{index:04d}.json")[0]
         assert native["status_code"] == status and native["cost_status"] == "unknown"
+        assert native["retryable"] is admitted_retry
         assert native["raw_assistant_text"] is None
         assert "raw_error_body_base64" not in native
         assert native["raw_error_body_status"] == "omitted_invalid_json"
@@ -676,6 +677,7 @@ def test_transient_status_cannot_override_accounting_terminal_latch(
     native = read_jsonl(tmp_path / "attempt-result-0001.json")[0]
     assert native["status_code"] == 503 and native["usage"] == usage
     assert ledger.retryable is False and ledger.attempts == 1
+    assert native["retryable"] is False
 
 
 @pytest.mark.parametrize("kind", ["credential", "body_limit"])
@@ -3057,6 +3059,36 @@ with patch.dict(os.environ, {
                 row['idempotency_key']='sha256:'+hashlib.sha256(collector._canonical({'run_id':expected.get('id',run['id']),
                     'case_id':row['case_id'],'arm':row['arm'],'material_fingerprint':row['material_fingerprint']})).hexdigest()
             return frozen
+        late_rejections=0; late_accepted=[]
+        for change in ('foreign_unknown_currency','foreign_sol_model','terminal_503'):
+            frozen=json.loads(json.dumps(records))
+            row=next(row for row in frozen if row['arm']==('sonar' if change=='terminal_503' else 'sol'))
+            attempt=row['provider']['attempts'][0]
+            if change=='foreign_unknown_currency':
+                declared={'total_cost':0.14,'currency':'EUR'}
+                attempt['usage']['cost']=declared; attempt['provider_declared_cost']=dict(declared)
+                attempt['cost_usd']=row['provider']['cost_usd']=None
+                attempt['cost_status']=row['provider']['cost_status']='unknown'
+                attempt['cost_basis']='unknown_currency'
+            elif change=='foreign_sol_model':
+                attempt['returned_model']=row['provider']['returned_model']='foreign-model'
+            else:
+                prior=json.loads(json.dumps(attempt)); prior['status_code']=503
+                prior['raw_error_body_status']='omitted_noncanonical_metadata'; prior['retryable']=False
+                prior['cost_usd']=None; prior['cost_status']='unknown'
+                prior['usage']=prior['provider_declared_cost']=None
+                for other in frozen:
+                    for item in other['provider']['attempts']: item['attempt']+=1
+                row['provider']['attempts'].insert(0,prior)
+                row['provider']['reserved_cents']=30
+                row['provider']['cost_usd']=None; row['provider']['cost_status']='unknown'
+            rehash_records(frozen,run)
+            try: collector.validate_ocw_records(frozen,expected_run=run)
+            except ValueError as error: assert error.args==('ocw_record_binding',),(change,error)
+            else: late_accepted.append(change)
+            late_rejections+=1
+        assert not late_accepted,late_accepted
+        print(json.dumps({'late_admission_rejections':late_rejections}))
         currency_rejections=0; currency_positives=0
         for arm in ('sonar','sol'):
             for currency in ('absent',None,'EUR',True):
@@ -6378,12 +6410,12 @@ def test_audit_admission_uncertainty_stops_capture_before_resources(
     expected_calls = (
         1
         if failure.startswith("root_")
-        else 2 if failure == "ancestor_identity" else 3 if failure.startswith("index_") else 4
+        else 5 if failure == "ancestor_identity" else 6 if failure.startswith("index_") else 7
     )
     assert (
         git_calls
         == [
-            ["rev-parse", "--show-toplevel"],  # The selected DB is outside this source checkout.
+            *[["rev-parse", "--show-toplevel"] for _ in range(4)],  # Fixed SQLite cohort outside.
             ["rev-parse", "--show-toplevel"],  # The audit target enters the shared owner next.
             ["ls-files", "--cached", "-z"],
             ["check-ignore", "-z", "--stdin"],
@@ -6554,3 +6586,87 @@ def test_collector_missing_git_is_a_closed_prerequisite(
     monkeypatch.setenv("PATH", str(tmp_path))
     with pytest.raises(ValueError, match="git binary is required"):
         collector._code_sha()
+
+
+@pytest.mark.parametrize("suffix", ["-journal", "-wal", "-shm"])
+@pytest.mark.parametrize("location", ["tracked", "nonignored", "ignored", "private"])
+def test_ocw_database_sidecars_admit_before_quota_or_capture(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, suffix: str, location: str
+) -> None:
+    source = (tmp_path / "source").resolve()
+    state = (tmp_path / "state").resolve()
+    for directory in (source, state):
+        directory.mkdir(mode=0o700)
+        directory.chmod(0o700)
+    module = source / "scripts/evals/collect_fitchef_answers.py"
+    module.parent.mkdir(parents=True)
+    module.write_bytes(Path(collector.__file__).read_bytes())
+    fixture = source / "tests/fixtures/ocw/fitchef_nutrition_cases.v1.jsonl"
+    fixture.parent.mkdir(parents=True)
+    fixture.write_bytes((Path(__file__).parent / "fixtures/ocw" / fixture.name).read_bytes())
+    database = (state if location == "private" else source) / "quota.db"
+    sidecar = database.with_name(database.name + suffix)
+    write_report(database, b"")
+    original = b"synthetic-native-sidecar\n"
+    write_report(sidecar, original)
+    ignored = (
+        [database.name]
+        + [database.name + item for item in ("-journal", "-wal", "-shm") if item != suffix]
+        if location in {"tracked", "nonignored"}
+        else ["quota.db*"]
+    )
+    (source / ".gitignore").write_text("\n".join(ignored) + "\n", encoding="utf-8")
+    collector.run_git(["init", "-q"], cwd=source)
+    collector.run_git(["add", "--", ".gitignore", "scripts", "tests"], cwd=source)
+    if location == "tracked":
+        collector.run_git(["add", "-f", "--", sidecar.name], cwd=source)
+    audit = state / "audit.jsonl"
+    output = state / "capture"
+    output.mkdir(mode=0o700)
+    key = "ocw-eval-synthetic-vip"
+    provider_label = "synthetic-provider"
+    for name, value in {
+        "APP_ENV": "development",
+        "SUBSCRIPTION_DB_ENABLED": "false",
+        "LLM_PROVIDER": "perplexity",
+        "PERPLEXITY_MODEL": "sonar",
+        "PERPLEXITY_ENDPOINT": collector._EXPECTED_ENDPOINT,
+        "VIP_API_KEYS": key,
+        "PERPLEXITY_API_KEY": provider_label,
+        "SERVER_SALT": "synthetic-salt",
+        "AGENT_CONTROL_AUDIT_SIGNING_KEY": "synthetic-signing",
+        "AGENT_CONTROL_AUDIT_LOG_PATH": str(audit),
+        "DATABASE_URL": f"sqlite:///{database}",
+    }.items():
+        monkeypatch.setenv(name, value)
+    monkeypatch.setattr(collector, "__file__", str(module))
+    effects: list[str] = []
+
+    def quota_boundary() -> Any:
+        effects.append("quota")
+        raise ValueError("test_quota_boundary")
+
+    def forbidden_resource(*args: Any, **kwargs: Any) -> Any:
+        effects.append("capture_or_transport")
+        raise AssertionError("sidecar admission reached capture or transport")
+
+    monkeypatch.setattr(collector, "session_scope", quota_boundary)
+    for name in ("ocw_request_preflight", "write_report", "_ocw_http_client"):
+        monkeypatch.setattr(collector, name, forbidden_resource)
+    expected = {"tracked": "tracked_database_path", "nonignored": "nonignored_database_path"}.get(
+        location, "test_quota_boundary"
+    )
+    with pytest.raises(ValueError, match=f"^{expected}$"):
+        collector.collect_ocw_comparison(
+            list(_ocw_rows()),
+            output_dir=output,
+            rubric=RUBRIC,
+            pricing=list(_ocw_prices()),
+            fitchef_key=key,
+            perplexity_key=provider_label,
+            run_id="sidecar-admission",
+        )
+    assert effects == ([] if location in {"tracked", "nonignored"} else ["quota"])
+    assert sidecar.read_bytes() == original and database.read_bytes() == b""
+    assert not list(output.iterdir()) and not audit.exists()
+    assert not database.with_name(database.name + ".run.jsonl").exists()
