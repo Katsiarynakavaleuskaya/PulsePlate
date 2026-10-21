@@ -90,8 +90,13 @@ PRODUCTION_DOMAIN=example.com STAGING_FALLBACK_DOMAIN=staging.example.com \
   Final venv COPY uses that stage; validated native COPY still uses builder.
   Before admitting a build that prunes tools, capture complete selected AND
   retained native ownership/RECORD/payload/version/type/mode/link/cache and
-  shared paths. Preserve healthy build, every other distribution and default
-  plugins. Unknown ownership or a necessary retired-tool dependency stops work.
+  shared paths. Preserve healthy build, default plugins and every unaffected
+  distribution payload. Any preservation exception requires explicit external
+  owner authority and exact evidence in the
+  [canonical security owner](../docs/security/EXPERIMENT_RUNNER_CONTAINER_CVE_REMEDIATION.md).
+  Candidate documentation cannot grant or broaden that exception. Preserve
+  dependency membership at its canonical source/profile owner. Unknown
+  ownership or a necessary retired-tool dependency stops work.
 - Positively bind the sole inherited system seed's source/RPM/type/bytes/hash
   before retiring it and the complete ensurepip tree. Check normal-site original
   system and venv absence independently of a usable bare --without-pip child.
@@ -103,6 +108,13 @@ PRODUCTION_DOMAIN=example.com STAGING_FALLBACK_DOMAIN=staging.example.com \
   config and every layer; matching report pairs or optional Secrets are not
   execution proof. Native file/config canaries and complete retained-payload
   proof remain required; synthetic unit tests do not qualify an image.
+  Check both image inventories independently against the observed physical
+  profile, including exact Python metadata ownership and layer identity.
+  After pip retirement, its obsolete vendor BOM is not the retained vendor
+  inventory. Bind the eight actual shipped source artifacts and their real
+  native status/report operands through the same consumer; delegate decoding
+  and advisory comparison to Trivy. Unsupported or partial recognition remains
+  unknown. HIGH/CRITICAL selects vulnerabilities; ALL severities selects secrets.
 - Image builds may use the approved private proxy. Experiment runs must use a
   prebuilt immutable `name@sha256:<digest>` reference and must not install
   dependencies or pull images after the strict backend probe.

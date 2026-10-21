@@ -552,6 +552,12 @@ The merge-readiness gate remains separate and still requires `GITHUB_TOKEN` for 
 **Pre-commit hook policy (mandatory before push):**
 
 - **Always run `pre-commit run --all-files` locally before pushing any PR.**
+- Before a normal commit, inspect the hook's actual whole-branch selection:
+  backend hooks may include the merge-base diff as well as staged paths. A small
+  staged change does not establish a small validation workload. For admitted
+  heavy Linux work, use an owned VPS checkout with genuine ancestry and active
+  normal hooks, then verify and return its actual commit. Do not substitute a
+  synthetic Git witness, disabled hooks or an automatic heavy Mac fallback.
 - **If hooks modify files:**
   1. Run `pre-commit run --all-files`
   2. Check `git status` for modified files (e.g., `.secrets.baseline`, whitespace fixes, formatting)

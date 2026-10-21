@@ -1694,7 +1694,7 @@ def test_ds3_mypy_hook_remains_isolated_changed_file_pre_push_guard() -> None:
     types_pyyaml_dev_versions = _requirement_package_versions(
         REPO_ROOT / "requirements-dev.txt", "types-pyyaml"
     )
-    assert pydantic_runtime_versions == {"2.13.4"}
+    assert pydantic_runtime_versions == {"2.14.1"}
     assert types_pyyaml_dev_versions == {"6.0.12.20260815"}
     assert mypy_hook["additional_dependencies"] == [
         "pydantic==2.13.4",
@@ -1705,8 +1705,8 @@ def test_ds3_mypy_hook_remains_isolated_changed_file_pre_push_guard() -> None:
 def test_runtime_dependency_profiles_pin_fastapi_pydantic_refresh() -> None:
     expected_runtime_pins = {
         "fastapi": "0.138.1",
-        "pydantic": "2.13.4",
-        "pydantic-core": "2.46.4",
+        "pydantic": "2.14.1",
+        "pydantic-core": "2.50.1",
         "starlette": "1.3.1",
     }
 

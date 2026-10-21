@@ -476,6 +476,8 @@ def _trivy_packages(prefix: str, count: int) -> list[dict[str, str]]:
     return [{"Name": f"{prefix}-{index:03d}", "Version": "1.0.0"} for index in range(1, count + 1)]
 
 
+# Historical predecessor projection. These synthetic transport fixtures must
+# not be relabeled as a qualified successor or derived from current lock counts.
 _TRIVY_PHYSICAL_METADATA = (
     (
         "aiosqlite",
@@ -965,63 +967,10 @@ _TRIVY_PHYSICAL_METADATA = (
     ),
 )
 
-_PIP_VENDOR_COMPONENTS = (
-    ("CacheControl", "0.14.4"),
-    ("certifi", "2026.6.17"),
-    ("distlib", "0.4.2"),
-    ("distro", "1.9.0"),
-    ("idna", "3.18"),
-    ("msgpack", "1.1.2"),
-    ("packaging", "26.2"),
-    ("platformdirs", "4.10.0"),
-    ("pygments", "2.20.0"),
-    ("pyproject-hooks", "1.2.0"),
-    ("requests", "2.34.2"),
-    ("resolvelib", "1.2.1"),
-    ("rich", "14.2.0"),
-    ("setuptools", "70.3.0"),
-    ("tomli", "2.4.1"),
-    ("tomli-w", "1.2.0"),
-    ("truststore", "0.10.4"),
-    ("urllib3", "2.7.0"),
-)
-
 _TRIVY_PYTHON_LAYER = {
     "Digest": "sha256:1fb871361e453637230e1d88374621b44811cd6c365ecda7acb229ed5646c346",
     "DiffID": "sha256:e27988ccf24b562c671d682a9f091034066e843c6646e33bbd6eb5b2494eecec",
 }
-
-
-def _pip_vendor_sbom_bytes() -> bytes:
-    root = {"bom-ref": "bom-ref:pip", "name": "pip", "type": "library"}
-    components = [dict(root)] + [
-        {
-            "bom-ref": f"pkg:pypi/{name}@{version}",
-            "name": name,
-            "purl": f"pkg:pypi/{name}@{version}",
-            "type": "library",
-            "version": version,
-        }
-        for name, version in _PIP_VENDOR_COMPONENTS
-    ]
-    refs = [component["bom-ref"] for component in components[1:]]
-    sbom = {
-        "$schema": "http://cyclonedx.org/schema/bom-1.4.schema.json",
-        "bomFormat": "CycloneDX",
-        "components": components,
-        "dependencies": [{"dependsOn": refs, "ref": "bom-ref:pip"}]
-        + [{"ref": ref} for ref in refs],
-        "metadata": {"component": root, "tools": [{"name": "vendoring", "version": "1.4.0"}]},
-        "specVersion": "1.4",
-        "version": 1,
-    }
-    payload = json.dumps(sbom, sort_keys=True, indent=2).encode("utf-8")
-    assert (
-        len(payload) == 5319
-        and hashlib.sha256(payload).hexdigest()
-        == "797e200aa7fff16fad9fb2deeaece50a2b2bec623eb6c3759176eee6cee19328"
-    )
-    return payload
 
 
 def _trivy_python_packages() -> list[dict[str, Any]]:
@@ -1036,21 +985,7 @@ def _trivy_python_packages() -> list[dict[str, Any]]:
         }
         for name, version, path in _TRIVY_PHYSICAL_METADATA
     ]
-    vendors = [
-        {
-            "Name": name,
-            "Version": version,
-            "ID": f"{name}@{version}",
-            "AnalyzedBy": "sbom",
-            "Identifier": {
-                "PURL": f"pkg:pypi/{re.sub(r'[-_.]+', '-', name).lower()}@{version}",
-                "BOMRef": f"pkg:pypi/{name}@{version}",
-            },
-            "Layer": dict(_TRIVY_PYTHON_LAYER),
-        }
-        for name, version in _PIP_VENDOR_COMPONENTS
-    ]
-    return physical + vendors
+    return physical
 
 
 def _clean_trivy_admission_report() -> dict[str, Any]:
@@ -1137,7 +1072,7 @@ def _trivy_coverage_validator_source() -> str:
     start = (
         'TRIVY_COVERAGE_RECEIPT="$('
         "\n"
-        '  "${RUNNER_PYTHON}" - "${RUNNER_TRIVY_REPORT}" "${RUNNER_PIP_SBOM}" "${RUNNER_SECRET_REPORT}" "${RUNNER_OCI_LAYOUT}" "${RUNNER_TOP_INDEX_DIGEST}" "${RUNNER_VULN_STATUS}" "${RUNNER_SECRET_STATUS}" "${RUNNER_TRIVY_STARTED_NS}" <<\'PY\'\n'
+        '  "${RUNNER_PYTHON}" - "${RUNNER_TRIVY_REPORT}" "${RUNNER_SECRET_REPORT}" "${RUNNER_OCI_LAYOUT}" "${RUNNER_TOP_INDEX_DIGEST}" "${RUNNER_VULN_STATUS}" "${RUNNER_SECRET_STATUS}" "${RUNNER_TRIVY_STARTED_NS}" <<\'PY\'\n'
     )
     end = '\nPY\n)"'
     assert runbook.count(start) == 1
@@ -1150,28 +1085,10 @@ def _run_trivy_coverage_validator(
     report_text: str,
     *,
     tmp_path: Path,
-    sbom_case: str | None = None,
     producer_case: str | None = None,
 ) -> subprocess.CompletedProcess[str]:
     report_path = tmp_path / "trivy.json"
     report_path.write_text(report_text, encoding="utf-8")
-    sbom_path = tmp_path / "pip-vendor-bom.cdx.json"
-    sbom_path.write_bytes(_pip_vendor_sbom_bytes())
-    if sbom_case == "missing":
-        sbom_path.unlink()
-    elif sbom_case == "symlink":
-        target = tmp_path / "actual-sbom.json"
-        sbom_path.rename(target)
-        sbom_path.symlink_to(target)
-    elif sbom_case == "directory":
-        sbom_path.unlink()
-        sbom_path.mkdir()
-    elif sbom_case == "size":
-        sbom_path.write_bytes(sbom_path.read_bytes() + b"x")
-    elif sbom_case == "hash":
-        sbom_path.write_bytes(b"X" + sbom_path.read_bytes()[1:])
-    elif sbom_case is not None:
-        raise AssertionError(sbom_case)
     # Synthetic OCI and producer fixtures exercise the existing inline consumer.
     # They do not represent a native scanner/canary run or a qualified image.
     layout = tmp_path / "scan-oci"
@@ -1295,6 +1212,24 @@ def _run_trivy_coverage_validator(
         report_path.write_text(json.dumps(report))
     elif producer_case == "secret_diffids":
         secret_report["Metadata"]["DiffIDs"] = [_OTHER_DIGEST]
+    elif producer_case == "secret_wrong_python_member":
+        package = secret_report["Results"][1]["Packages"][0]
+        package.update(
+            Name="unknown",
+            Version="1.0",
+            FilePath="opt/venv/lib/python3.13/site-packages/unknown-1.0.dist-info/METADATA",
+            Identifier={"PURL": "pkg:pypi/unknown@1.0"},
+        )
+    elif producer_case == "secret_wrong_layer":
+        secret_report["Results"][1]["Packages"][0]["Layer"] = {
+            "Digest": _OTHER_DIGEST,
+            "DiffID": _OTHER_DIGEST,
+        }
+    elif producer_case == "secret_duplicate_python":
+        packages = secret_report["Results"][1]["Packages"]
+        packages[1] = dict(packages[0])
+    elif producer_case == "secret_wrong_os_count":
+        secret_report["Results"][0]["Packages"].pop()
     elif producer_case == "secret_failure":
         secret_status = "2"
     elif producer_case == "vuln_failure":
@@ -1331,7 +1266,6 @@ def _run_trivy_coverage_validator(
             sys.executable,
             "-",
             str(report_path),
-            str(sbom_path),
             str(secret_path),
             str(layout),
             top_digest,
@@ -1474,6 +1408,10 @@ def test_oci_layer_admission_rejects_incomplete_or_changed_blobs(
         ("secret_subject", "current_subject"),
         ("vuln_subject", "current_subject"),
         ("secret_diffids", "current_subject"),
+        ("secret_wrong_python_member", "python_physical_inventory"),
+        ("secret_wrong_layer", "python_package_lineage"),
+        ("secret_duplicate_python", "duplicate_package"),
+        ("secret_wrong_os_count", "secret_package_count"),
         ("secret_failure", "producer_status"),
         ("vuln_failure", "producer_status"),
         ("missing_secret", "secret_read"),
@@ -1509,7 +1447,7 @@ def test_runbook_trivy_producers_isolate_environment_and_secret_config(
         '"${CONTAINER_BIN}" image inspect', 1
     )[0]
     operations = runbook.split('\' | "${TEE_BIN}" "${RUNNER_RUNTIME_REPORT}"\n\n', 1)[1].split(
-        "RUNNER_PIP_SBOM=", 1
+        "TRIVY_COVERAGE_RECEIPT=", 1
     )[0]
     evidence = tmp_path / "evidence"
     evidence.mkdir(mode=0o700)
@@ -1652,7 +1590,7 @@ else:
 def test_runner_scan_producers_capture_both_results_before_same_consumer() -> None:
     """The documented native operations stay explicit; these assertions run no scanner."""
     text = _runner_doc_text(_RUNNER_RUNBOOK)
-    scan = text.split("RUNNER_TRIVY_STARTED_NS=", 1)[1].split("RUNNER_PIP_SBOM=", 1)[0]
+    scan = text.split("RUNNER_TRIVY_STARTED_NS=", 1)[1].split("TRIVY_COVERAGE_RECEIPT=", 1)[0]
     assert (
         scan.count(
             '"${TRIVY_BIN}" --config /dev/null --cache-dir "${RUNNER_SCAN_CACHE}" image --input "${RUNNER_OCI_LAYOUT}"'
@@ -1679,17 +1617,13 @@ def test_trivy_admission_report_requires_exact_os_and_python_coverage(tmp_path: 
         tmp_path=tmp_path,
     )
 
-    assert completed.returncode == 0, completed.stderr
-    assert completed.stderr == ""
-    assert completed.stdout.splitlines() == [
-        "trivy_artifact_type=container_image",
-        "trivy_os_family=redhat",
-        "trivy_os_version=10.2",
-        "trivy_os_package_count=129",
-        "trivy_python_package_count=134",
-        "trivy_pip_vendor_component_count=18",
-        "trivy_high_critical_findings=0",
-    ]
+    # Historical physical fixtures exercise both image-producer paths only.
+    # They cannot stand in for the eight successor vendor producer operands.
+    assert completed.returncode != 0
+    assert completed.stdout == ""
+    assert completed.stderr.strip() == (
+        "trivy_admission_report_invalid:vendor_producer_evidence_pending"
+    )
 
 
 @pytest.mark.parametrize(
@@ -1746,15 +1680,11 @@ def test_trivy_admission_report_rejects_invalid_json(tmp_path: Path) -> None:
     ("case", "diagnostic"),
     (
         ("unknown_analyzer", "python_unknown_origin"),
+        ("unbound_vendor_source", "python_unknown_origin"),
         ("unknown_layer", "python_package_lineage"),
         ("nested_metadata", "python_metadata_origin"),
         ("metadata_version", "python_metadata_identity"),
         ("unknown_physical", "python_physical_inventory"),
-        ("vendor_missing", "python_vendor_coverage"),
-        ("vendor_extra", "python_vendor_lineage"),
-        ("vendor_duplicate", "duplicate_package"),
-        ("vendor_path", "python_vendor_origin"),
-        ("vendor_bomref", "python_vendor_lineage"),
         ("normalized_duplicate", "duplicate_package"),
         ("secrets_malformed", "secrets"),
         ("secrets_nonempty", "secrets"),
@@ -1767,6 +1697,8 @@ def test_trivy_origin_inventory_rejects_specific_invalid_member(
     packages = report["Results"][1]["Packages"]
     if case == "unknown_analyzer":
         packages[0]["AnalyzedBy"] = "unrecognized"
+    elif case == "unbound_vendor_source":
+        packages[0]["AnalyzedBy"] = "sbom"
     elif case == "unknown_layer":
         packages[0]["Layer"] = {"Digest": _DIGEST, "DiffID": _OTHER_DIGEST}
     elif case == "nested_metadata":
@@ -1780,16 +1712,6 @@ def test_trivy_origin_inventory_rejects_specific_invalid_member(
             FilePath="opt/venv/lib/python3.13/site-packages/unrecognized-1.0.dist-info/METADATA",
             Identifier={"PURL": "pkg:pypi/unrecognized@1.0"},
         )
-    elif case == "vendor_missing":
-        packages.pop()
-    elif case == "vendor_extra":
-        packages[-1]["ID"] = "unrecognized@1.0"
-    elif case == "vendor_duplicate":
-        packages.append(dict(packages[-1]))
-    elif case == "vendor_path":
-        packages[-1]["FilePath"] = "pip/_vendor/urllib3/METADATA"
-    elif case == "vendor_bomref":
-        packages[-1]["Identifier"]["BOMRef"] = "pkg:pypi/other@1.0"
     elif case == "normalized_duplicate":
         packages[1] = dict(packages[0])
         packages[1]["Name"] = packages[0]["Name"].upper()
@@ -1798,27 +1720,6 @@ def test_trivy_origin_inventory_rejects_specific_invalid_member(
     elif case == "secrets_nonempty":
         report["Results"][0]["Secrets"] = [{"RuleID": "synthetic"}]
     completed = _run_trivy_coverage_validator(json.dumps(report), tmp_path=tmp_path)
-    assert completed.returncode != 0
-    assert completed.stdout == ""
-    assert completed.stderr.strip() == "trivy_admission_report_invalid:" + diagnostic
-
-
-@pytest.mark.parametrize(
-    ("case", "diagnostic"),
-    (
-        ("missing", "pip_sbom_read"),
-        ("symlink", "pip_sbom_read"),
-        ("directory", "pip_sbom_read"),
-        ("size", "pip_sbom_file"),
-        ("hash", "pip_sbom_bytes"),
-    ),
-)
-def test_trivy_origin_inventory_rejects_unbound_source_operand(
-    case: str, diagnostic: str, tmp_path: Path
-) -> None:
-    completed = _run_trivy_coverage_validator(
-        json.dumps(_clean_trivy_admission_report()), tmp_path=tmp_path, sbom_case=case
-    )
     assert completed.returncode != 0
     assert completed.stdout == ""
     assert completed.stderr.strip() == "trivy_admission_report_invalid:" + diagnostic
@@ -2414,7 +2315,7 @@ def test_runner_admission_docs_require_exact_digest_bound_oci_scan() -> None:
         "--vex=",
         "--exit-code 1",
         'TRIVY_COVERAGE_RECEIPT="$(',
-        '"${RUNNER_PYTHON}" - "${RUNNER_TRIVY_REPORT}" "${RUNNER_PIP_SBOM}" "${RUNNER_SECRET_REPORT}" "${RUNNER_OCI_LAYOUT}" "${RUNNER_TOP_INDEX_DIGEST}" "${RUNNER_VULN_STATUS}" "${RUNNER_SECRET_STATUS}" "${RUNNER_TRIVY_STARTED_NS}" <<\'PY\'',
+        '"${RUNNER_PYTHON}" - "${RUNNER_TRIVY_REPORT}" "${RUNNER_SECRET_REPORT}" "${RUNNER_OCI_LAYOUT}" "${RUNNER_TOP_INDEX_DIGEST}" "${RUNNER_VULN_STATUS}" "${RUNNER_SECRET_STATUS}" "${RUNNER_TRIVY_STARTED_NS}" <<\'PY\'',
         "def package_count(result):",
         'report.get("SchemaVersion") != 2',
         'report.get("ArtifactType") != "container_image"',
@@ -2447,7 +2348,9 @@ def test_runner_admission_docs_require_exact_digest_bound_oci_scan() -> None:
         == 4
     )
     assert admission.count("--secret-config=") >= 3
-    scan_source = admission.split("RUNNER_TRIVY_STARTED_NS=", 1)[1].split("RUNNER_PIP_SBOM=", 1)[0]
+    scan_source = admission.split("RUNNER_TRIVY_STARTED_NS=", 1)[1].split(
+        "TRIVY_COVERAGE_RECEIPT=", 1
+    )[0]
     for option in ("--ignore-policy=", "--ignore-status=", "--vex="):
         assert scan_source.count(option) == 2
     assert "--scanners secret --image-config-scanners secret" in scan_source

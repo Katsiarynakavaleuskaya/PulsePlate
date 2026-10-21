@@ -5,13 +5,22 @@ promotion, merge, release, GitHub App, or Slack authority.
 
 ## Current local qualification boundary
 
-`LOCAL-ORACLE-RUNNER-QUALIFICATION-1/v1` is in progress. The source recipe now
+`LOCAL-ORACLE-RUNNER-QUALIFICATION-1/v2` is in progress. The source recipe now
 preserves the original builder and uses ordinary runtime-preparation for exact
 pip, pip-api, pip-tools, pip-audit, virtualenv and pre-commit retirement, with pip
 last. Its final venv excludes those tools and eight launchers; the final system
 retires the positively guarded inherited pip seed and full ensurepip tree.
 Healthy build and all other distribution payload/default plugins stay required.
 The expected seed pin is historical source evidence, not a fresh observation.
+
+The exact owner-approved preservation exceptions are ast-serialize 0.6.0 to
+0.7.0, Pydantic 2.13.4 to 2.14.1, pydantic-core 2.46.4 to 2.50.1,
+typing-extensions 4.15.0 to 4.16.0 and typing-inspection 0.4.2 to 0.4.4.
+The genuine runtime-first commit and all six constrained canonical Make outputs
+have been retained; every other dependency tuple is unchanged. These selected
+Python floors do not invent advisory ranges from the wheels' Cargo components.
+Ast remains owned by dev/aggregate, with no pure runtime/Docker/CI-lite addition.
+Every unaffected native payload and all original twelve outcomes remain required.
 
 Before any actual pruning build, the operator must capture the original builder's
 selected AND every retained native RECORD/payload/version/type/mode/link/cache,
@@ -21,13 +30,20 @@ proxy/default CA/locks and acquisition-cleanup/quarantine/network-none validatio
 activation/offline-consume/native-COPY ordering. No seventh distribution or
 orphan sweep is admitted.
 
-The image-specific admission pins and pip-vendor inventory in the historical
-example below have NOT been updated to a qualified successor. They remain hard
+The image-specific admission pins in the historical example below have NOT
+been updated to a qualified successor. They remain hard
 checks, not parameters to bypass. A successor needs observed full native final
 RPM/Python/vendor/lineage and current OCI descriptors before these pins can be
 reconciled. Actual failed179 and four-HIGH222 remain failed/unqualified; the
 separate222 secret output contained OS130/Python152 Packages and no Secrets.
 Source tests and an empty Secrets field never promote those histories.
+The obsolete pip capture and its root/18-vendor checks have been removed. The
+same consumer rejects admission with `vendor_producer_evidence_pending` until
+all eight actual retained source artifacts and their genuine native producer
+statuses/reports have independent physical-profile bindings. Until those
+operands and new subject pins exist,
+the historical command block cannot admit the successor. Do not delete that
+requirement, substitute an empty BOM or infer replacement counts from source.
 
 Native qualification must independently prove ordinary-site original system AND
 venv module/metadata/physical/launcher/seed absence, usable `venv --without-pip`,
@@ -711,26 +727,8 @@ else
 fi
 printf 'trivy_vuln_exit=%s\ntrivy_secret_exit=%s\n' \
   "${RUNNER_VULN_STATUS}" "${RUNNER_SECRET_STATUS}" >"${RUNNER_STATUS_REPORT}"
-RUNNER_PIP_SBOM="${RUNNER_EVIDENCE_DIR}/pip-vendor-bom.cdx.json"
-test ! -e "${RUNNER_PIP_SBOM}"
-test ! -L "${RUNNER_PIP_SBOM}"
-"${CONTAINER_BIN}" run --rm --read-only --no-dns "${RUNNER_IMAGE_REF}" \
-  /opt/venv/bin/python -I -S -c '
-import os, stat, sys
-path = "/opt/venv/lib/python3.13/site-packages/pip/_vendor/bom.cdx.json"
-fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
-with os.fdopen(fd, "rb") as stream:
-    before = os.fstat(stream.fileno())
-    if not stat.S_ISREG(before.st_mode) or not 0 < before.st_size <= 65536:
-        raise SystemExit("pip_sbom_capture_invalid")
-    raw = stream.read(65537)
-    after = os.fstat(stream.fileno())
-    if len(raw) != before.st_size or (before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns) != (after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns):
-        raise SystemExit("pip_sbom_capture_changed")
-    sys.stdout.buffer.write(raw)
-' >"${RUNNER_PIP_SBOM}"
 TRIVY_COVERAGE_RECEIPT="$(
-  "${RUNNER_PYTHON}" - "${RUNNER_TRIVY_REPORT}" "${RUNNER_PIP_SBOM}" "${RUNNER_SECRET_REPORT}" "${RUNNER_OCI_LAYOUT}" "${RUNNER_TOP_INDEX_DIGEST}" "${RUNNER_VULN_STATUS}" "${RUNNER_SECRET_STATUS}" "${RUNNER_TRIVY_STARTED_NS}" <<'PY'
+  "${RUNNER_PYTHON}" - "${RUNNER_TRIVY_REPORT}" "${RUNNER_SECRET_REPORT}" "${RUNNER_OCI_LAYOUT}" "${RUNNER_TOP_INDEX_DIGEST}" "${RUNNER_VULN_STATUS}" "${RUNNER_SECRET_STATUS}" "${RUNNER_TRIVY_STARTED_NS}" <<'PY'
 import hashlib
 import json
 import os
@@ -805,7 +803,7 @@ def package_count(result):
     if not isinstance(packages, list) or not packages:
         fail("packages")
     python_result = (result.get("Class"), result.get("Type"), result.get("Target")) == ("lang-pkgs", "python-pkg", "Python")
-    identities, top_names, top_paths, vendor_records = set(), set(), set(), set()
+    identities, top_names, top_paths = set(), set(), set()
     physical_records = set()
     for package in packages:
         if not isinstance(package, dict):
@@ -837,15 +835,6 @@ def package_count(result):
             top_paths.add(path)
             physical_records.add((normalized, version, path))
             identities.add((normalized, version))
-        elif package.get("AnalyzedBy") == "sbom":
-            if "FilePath" in package:
-                fail("python_vendor_origin")
-            record = (name, version, package.get("ID"), identifier.get("BOMRef"), identifier.get("PURL"))
-            if any(not isinstance(value, str) or not value for value in record) or record not in EXPECTED_VENDOR_RECORDS:
-                fail("python_vendor_lineage")
-            if record in vendor_records:
-                fail("duplicate_package")
-            vendor_records.add(record)
         else:
             fail("python_unknown_origin")
     if python_result:
@@ -854,28 +843,24 @@ def package_count(result):
         inventory_bytes = json.dumps(sorted(physical_records), separators=(",", ":"), ensure_ascii=True).encode("ascii")
         if hashlib.sha256(inventory_bytes).hexdigest() != '15b8a47e4a9978b9efc73e395bcc691246594d2a987f792dbdfc338bc827437e':
             fail("python_physical_inventory")
-        if vendor_records != EXPECTED_VENDOR_RECORDS or len(vendor_records) != 18:
-            fail("python_vendor_coverage")
         return len(identities)
     return len(packages)
 
 
-EXPECTED_PIP_SBOM_COMPONENTS = {('resolvelib', '1.2.1', 'pkg:pypi/resolvelib@1.2.1'), ('certifi', '2026.6.17', 'pkg:pypi/certifi@2026.6.17'), ('rich', '14.2.0', 'pkg:pypi/rich@14.2.0'), ('tomli', '2.4.1', 'pkg:pypi/tomli@2.4.1'), ('idna', '3.18', 'pkg:pypi/idna@3.18'), ('msgpack', '1.1.2', 'pkg:pypi/msgpack@1.1.2'), ('platformdirs', '4.10.0', 'pkg:pypi/platformdirs@4.10.0'), ('urllib3', '2.7.0', 'pkg:pypi/urllib3@2.7.0'), ('tomli-w', '1.2.0', 'pkg:pypi/tomli-w@1.2.0'), ('setuptools', '70.3.0', 'pkg:pypi/setuptools@70.3.0'), ('pyproject-hooks', '1.2.0', 'pkg:pypi/pyproject-hooks@1.2.0'), ('distro', '1.9.0', 'pkg:pypi/distro@1.9.0'), ('pygments', '2.20.0', 'pkg:pypi/pygments@2.20.0'), ('CacheControl', '0.14.4', 'pkg:pypi/CacheControl@0.14.4'), ('requests', '2.34.2', 'pkg:pypi/requests@2.34.2'), ('truststore', '0.10.4', 'pkg:pypi/truststore@0.10.4'), ('distlib', '0.4.2', 'pkg:pypi/distlib@0.4.2'), ('packaging', '26.2', 'pkg:pypi/packaging@26.2')}
-EXPECTED_PIP_ROOT = {'bom-ref': 'bom-ref:pip', 'name': 'pip', 'type': 'library'}
 EXPECTED_PYTHON_LAYER = {'Digest': 'sha256:1fb871361e453637230e1d88374621b44811cd6c365ecda7acb229ed5646c346', 'DiffID': 'sha256:e27988ccf24b562c671d682a9f091034066e843c6646e33bbd6eb5b2494eecec'}
 
-if len(sys.argv) != 9:
+if len(sys.argv) != 8:
     fail("arguments")
-if sys.argv[6] not in {"0", "1"} or sys.argv[7] not in {"0", "1"}:
+if sys.argv[5] not in {"0", "1"} or sys.argv[6] not in {"0", "1"}:
     fail("producer_status")
-if not re.fullmatch(r"[1-9][0-9]*", sys.argv[8]):
+if not re.fullmatch(r"[1-9][0-9]*", sys.argv[7]):
     fail("producer_start")
-started_ns = int(sys.argv[8])
-layout = Path(sys.argv[4])
+started_ns = int(sys.argv[7])
+layout = Path(sys.argv[3])
 try:
     index = read_report(layout / "index.json", "oci_index", 0)
     roots = index.get("manifests") if isinstance(index, dict) else None
-    if not isinstance(index, dict) or index.get("schemaVersion") != 2 or not isinstance(roots, list) or len(roots) != 1 or roots[0].get("digest") != sys.argv[5] or roots[0].get("mediaType") != "application/vnd.oci.image.index.v1+json":
+    if not isinstance(index, dict) or index.get("schemaVersion") != 2 or not isinstance(roots, list) or len(roots) != 1 or roots[0].get("digest") != sys.argv[4] or roots[0].get("mediaType") != "application/vnd.oci.image.index.v1+json":
         fail("current_subject")
     top = json.loads(oci_blob(roots[0]))
     if not isinstance(top, dict) or top.get("schemaVersion") != 2:
@@ -904,7 +889,7 @@ try:
         fail("python_package_lineage")
 except (KeyError, TypeError, AttributeError, UnicodeDecodeError, json.JSONDecodeError):
     fail("current_subject")
-secret_report = read_report(sys.argv[3], "secret", started_ns)
+secret_report = read_report(sys.argv[2], "secret", started_ns)
 current_subject(secret_report)
 secret_results = secret_report.get("Results")
 if not isinstance(secret_results, list) or not secret_results:
@@ -931,40 +916,20 @@ for result in secret_results:
             fail("secret_shape")
 if secret_identities != {("os-pkgs", "redhat"), ("lang-pkgs", "python-pkg")}:
     fail("secret_shape")
-try:
-    fd = os.open(sys.argv[2], os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
-    with os.fdopen(fd, "rb") as stream:
-        info = os.fstat(stream.fileno())
-        if not stat.S_ISREG(info.st_mode) or info.st_size != 5319:
-            fail("pip_sbom_file")
-        sbom_raw = stream.read(5320)
-    if len(sbom_raw) != 5319 or hashlib.sha256(sbom_raw).hexdigest() != "797e200aa7fff16fad9fb2deeaece50a2b2bec623eb6c3759176eee6cee19328":
-        fail("pip_sbom_bytes")
-    sbom = json.loads(sbom_raw)
-except (OSError, UnicodeDecodeError, json.JSONDecodeError):
-    fail("pip_sbom_read")
-if not isinstance(sbom, dict) or sbom.get("bomFormat") != "CycloneDX" or sbom.get("specVersion") != "1.4":
-    fail("pip_sbom_shape")
-source_components = sbom.get("components")
-if not isinstance(source_components, list) or len(source_components) != 19 or any(not isinstance(c, dict) for c in source_components):
-    fail("pip_sbom_components")
-pip_roots = [c for c in source_components if c.get("bom-ref") == "bom-ref:pip"]
-if pip_roots != [EXPECTED_PIP_ROOT]:
-    fail("pip_sbom_root")
-source_vendors = []
-for c in source_components:
-    if c.get("bom-ref") == "bom-ref:pip":
-        continue
-    values = (c.get("name"), c.get("version"), c.get("bom-ref"))
-    if c.get("type") != "library" or any(not isinstance(v, str) or not v for v in values) or c.get("purl") != values[2]:
-        fail("pip_sbom_component")
-    source_vendors.append(values)
-if len(source_vendors) != 18 or len(set(source_vendors)) != 18 or set(source_vendors) != EXPECTED_PIP_SBOM_COMPONENTS:
-    fail("pip_sbom_lineage")
-EXPECTED_VENDOR_RECORDS = {
-    (name, version, name + "@" + version, ref, "pkg:pypi/" + re.sub(r"[-_.]+", "-", name).lower() + "@" + version)
-    for name, version, ref in source_vendors
-}
+# Apply the physical/origin baseline to the secret producer independently.
+# Merely matching the vulnerability producer (or retaining nonempty names)
+# does not establish the actual inventory. This baseline remains historical
+# until successor native operands are measured and rebound above.
+secret_counts = {}
+for result in secret_results:
+    identity = (result["Class"], result["Type"], result["Target"])
+    if identity in secret_counts:
+        fail("secret_shape")
+    secret_counts[identity] = package_count(result)
+if sorted(secret_counts.values()) != [129, 134]:
+    fail("secret_package_count")
+if not any(identity[:2] == ("os-pkgs", "redhat") and count == 129 for identity, count in secret_counts.items()) or secret_counts.get(("lang-pkgs", "python-pkg", "Python")) != 134:
+    fail("secret_package_count")
 
 report = read_report(sys.argv[1], "vuln", started_ns)
 if not isinstance(report, dict):
@@ -1031,22 +996,13 @@ if python_package_counts[0] != 134:
 if finding_count:
     fail("selected_findings")
 current_subject(report)
-if sys.argv[6:8] != ["0", "0"]:
+if sys.argv[5:7] != ["0", "0"]:
     fail("producer_status")
 
-print(
-    "\n".join(
-        (
-            "trivy_artifact_type=container_image",
-            "trivy_os_family=redhat",
-            "trivy_os_version=10.2",
-            "trivy_os_package_count=129",
-            "trivy_python_package_count=134",
-            "trivy_pip_vendor_component_count=18",
-            "trivy_high_critical_findings=0",
-        )
-    )
-)
+# The eight retained source/native-report/status bindings have not yet been
+# rebound to a measured successor. Removing the retired pip operand supplies
+# no replacement vendor evidence and cannot authorize image admission.
+fail("vendor_producer_evidence_pending")
 PY
 )"
 "${RUNNER_PYTHON}" scripts/orchestration/experiment_runner_dispatch.py probe \

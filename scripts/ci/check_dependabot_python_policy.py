@@ -113,6 +113,7 @@ EXPECTED_GROUPS: dict[str, dict[str, tuple[str, ...] | str]] = {
             "marshmallow",
             "msgpack",
             "mypy",
+            "ast-serialize",
             "ruff",
             "black",
             "types-pyyaml",
