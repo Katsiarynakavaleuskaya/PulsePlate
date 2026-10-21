@@ -2260,7 +2260,7 @@ def test_security_scan_workflow_audits_runtime_and_optional_manifests() -> None:
     assert "|| true" not in ci_pip_audit_text
     assert "--no-deps" in ci_pip_audit_text
     assert "--disable-pip" in ci_pip_audit_text
-    assert "--ignore-vuln" not in ci_pip_audit_text
+    assert "check_python_dependency_surfaces.py" in ci_pip_audit_text
     assert "CVE-2025-3000" not in ci_pip_audit_text
 
 
@@ -2274,150 +2274,39 @@ def test_pre_push_pip_audit_does_not_create_or_upgrade_an_installer_environment(
         if hook.get("id") == "pip-audit"
     )
 
-    assert "--no-deps" in pip_audit_hook["args"]
-    assert "--disable-pip" in pip_audit_hook["args"]
+    assert pip_audit_hook["entry"] == "/bin/bash scripts/ci_pip_audit.sh"
+    assert pip_audit_hook["args"] == ["--pre-push"]
+    assert pip_audit_hook["pass_filenames"] is False
 
 
-def test_pip_audit_helper_invokes_cpu_rag_vector_manifest(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+@pytest.mark.parametrize("pre_push", [False, True])
+@pytest.mark.parametrize("failure", [False, True])
+def test_pip_audit_helper_closed_dispatch_and_preserves_failure(
+    tmp_path: Path, pre_push: bool, failure: bool
 ) -> None:
-    fake_bin = tmp_path / "bin"
-    fake_bin.mkdir()
-    log_path = tmp_path / "pip-audit-args.log"
-    fake_pip_audit = fake_bin / "pip-audit"
-    fake_pip_audit.write_text(
-        """#!/usr/bin/env bash
-set -euo pipefail
-printf '%s\n' "$*" >> "${PIP_AUDIT_LOG}"
-output=""
-while [[ "$#" -gt 0 ]]; do
-  case "$1" in
-    -o)
-      output="$2"
-      shift 2
-      ;;
-    *)
-      shift
-      ;;
-  esac
-done
-if [[ -n "${output}" ]]; then
-  printf '{}\n' > "${output}"
-fi
-""",
+    helper = tmp_path / "scripts/ci_pip_audit.sh"
+    helper.parent.mkdir()
+    shutil.copyfile(REPO_ROOT / "scripts/ci_pip_audit.sh", helper)
+    hooks = tmp_path / "scripts/hooks"
+    hooks.mkdir()
+    # This shell-only fixture tests the real helper's dispatch, not native
+    # scanner/report semantics. The canonical owner has behavioral tests.
+    resolver = hooks / "repo_python.sh"
+    resolver.write_text(
+        'resolve_repo_python() { printf "%s\\n" "$1/fake-python"; }\n', encoding="utf-8"
+    )
+    interpreter = tmp_path / "fake-python"
+    interpreter.write_text(
+        "#!/bin/bash\n"
+        'printf "%s\\n" "$*" >> "$AUDIT_DISPATCH_LOG"\n'
+        'if [[ "$*" == *"--audit-manifest requirements.txt"* && "$AUDIT_FAILURE" == 1 ]]; then exit 7; fi\n',
         encoding="utf-8",
     )
-    fake_pip_audit.chmod(0o755)
-    for manifest in (
-        "requirements.txt",
-        "requirements-docker-runtime.txt",
-        "requirements-data.txt",
-        "requirements-evals.txt",
-        "requirements-rag-vector.txt",
-        "requirements-rag-vector-cpu.txt",
-    ):
-        (tmp_path / manifest).write_text("example==1.0.0\n", encoding="utf-8")
-
-    env = os.environ.copy()
-    env["CI"] = "1"
-    env["PATH"] = os.pathsep.join((str(fake_bin), "/usr/bin", "/bin", "/usr/sbin", "/sbin"))
-    env["PIP_AUDIT_LOG"] = str(log_path)
-
-    result = subprocess.run(
-        ["/bin/bash", str(REPO_ROOT / "scripts" / "ci_pip_audit.sh")],
-        cwd=tmp_path,
-        env=env,
-        text=True,
-        capture_output=True,
-        check=False,
-    )
-
-    assert result.returncode == 0
-    assert (
-        "-r requirements-rag-vector-cpu.txt --no-deps --disable-pip -f json "
-        "-o pip-audit-requirements-rag-vector-cpu.json" in log_path.read_text(encoding="utf-8")
-    )
-    assert "--ignore-vuln" not in log_path.read_text(encoding="utf-8")
-    assert "CVE-2025-3000" not in log_path.read_text(encoding="utf-8")
-    assert (
-        "-r requirements-data.txt --no-deps --disable-pip -f json "
-        "-o pip-audit-requirements-data.json" in log_path.read_text(encoding="utf-8")
-    )
-    assert (
-        "-r requirements-evals.txt --no-deps --disable-pip -f json "
-        "-o pip-audit-requirements-evals.json" in log_path.read_text(encoding="utf-8")
-    )
-    assert (tmp_path / "pip-audit-requirements-rag-vector-cpu.json").exists()
-    assert (tmp_path / "pip-audit-requirements-data.json").exists()
-    assert (tmp_path / "pip-audit-requirements-evals.json").exists()
-
-
-def test_pip_audit_helper_scans_all_manifests_before_returning_failure(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    fake_bin = tmp_path / "bin"
-    fake_bin.mkdir()
-    log_path = tmp_path / "pip-audit-args.log"
-    fake_pip_audit = fake_bin / "pip-audit"
-    fake_pip_audit.write_text(
-        """#!/usr/bin/env bash
-set -euo pipefail
-manifest=""
-output=""
-while [[ "$#" -gt 0 ]]; do
-  case "$1" in
-    -r)
-      manifest="$2"
-      shift 2
-      ;;
-    -o)
-      output="$2"
-      shift 2
-      ;;
-    *)
-      shift
-      ;;
-  esac
-done
-printf '%s\n' "${manifest}" >> "${PIP_AUDIT_LOG}"
-if [[ "${manifest}" == "requirements.txt" ]]; then
-  exit 7
-fi
-if [[ -n "${output}" ]]; then
-  printf '{}\n' > "${output}"
-fi
-""",
-        encoding="utf-8",
-    )
-    fake_pip_audit.chmod(0o755)
-    for manifest in (
-        "requirements.txt",
-        "requirements-docker-runtime.txt",
-        "requirements-data.txt",
-        "requirements-evals.txt",
-        "requirements-rag-vector.txt",
-        "requirements-rag-vector-cpu.txt",
-    ):
-        (tmp_path / manifest).write_text("example==1.0.0\n", encoding="utf-8")
-
-    env = os.environ.copy()
-    env["CI"] = "1"
-    env["PATH"] = os.pathsep.join((str(fake_bin), "/usr/bin", "/bin", "/usr/sbin", "/sbin"))
-    env["PIP_AUDIT_LOG"] = str(log_path)
-
-    result = subprocess.run(
-        ["/bin/bash", str(REPO_ROOT / "scripts" / "ci_pip_audit.sh")],
-        cwd=tmp_path,
-        env=env,
-        text=True,
-        capture_output=True,
-        check=False,
-    )
-
-    assert result.returncode == 7
-    assert "requirements.txt" in result.stderr
-    assert "one or more dependency manifests failed audit" in result.stderr
-    assert log_path.read_text(encoding="utf-8").splitlines() == [
+    interpreter.chmod(0o755)
+    binary = tmp_path / "pip-audit"
+    binary.write_text("#!/bin/bash\nexit 0\n", encoding="utf-8")
+    binary.chmod(0o755)
+    manifests = [
         "requirements.txt",
         "requirements-docker-runtime.txt",
         "requirements-data.txt",
@@ -2425,11 +2314,45 @@ fi
         "requirements-rag-vector.txt",
         "requirements-rag-vector-cpu.txt",
     ]
-    assert (tmp_path / "pip-audit-requirements-docker-runtime.json").exists()
-    assert (tmp_path / "pip-audit-requirements-data.json").exists()
-    assert (tmp_path / "pip-audit-requirements-evals.json").exists()
-    assert (tmp_path / "pip-audit-requirements-rag-vector.json").exists()
-    assert (tmp_path / "pip-audit-requirements-rag-vector-cpu.json").exists()
+    for manifest in manifests:
+        (tmp_path / manifest).write_text("example==1.0.0\n", encoding="utf-8")
+    log = tmp_path / "dispatch.log"
+    result = subprocess.run(
+        ["/bin/bash", str(helper), *(["--pre-push"] if pre_push else [])],
+        cwd=tmp_path,
+        env={
+            "PATH": f"{tmp_path}:/usr/bin:/bin",
+            "AUDIT_DISPATCH_LOG": str(log),
+            "AUDIT_FAILURE": "1" if failure else "0",
+        },
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=10,
+    )
+    assert result.returncode == (7 if failure else 0)
+    calls = log.read_text().splitlines()
+    assert len(calls) == (1 if pre_push else 6)
+    for call, manifest in zip(calls, manifests):
+        assert f"--audit-manifest {manifest}" in call
+        assert ("--audit-pre-push" in call) == pre_push
+    if failure:
+        assert "one or more dependency manifests failed audit" in result.stderr
+
+
+@pytest.mark.parametrize(
+    "arguments", [["--ignore-vuln", "CVE-other"], ["--pre-push", "extra"], ["requirements.txt"]]
+)
+def test_pip_audit_helper_rejects_unknown_arguments(arguments: list[str]) -> None:
+    result = subprocess.run(
+        ["/bin/bash", str(REPO_ROOT / "scripts/ci_pip_audit.sh"), *arguments],
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=10,
+    )
+    assert result.returncode == 2
+    assert "supported arguments" in result.stderr
 
 
 def test_dependency_audit_uses_strict_pip_audit_helper_without_safety_legacy() -> None:

@@ -480,7 +480,12 @@ def test_pytorch_jit_cve_pip_audit_waiver_is_retired_by_vector_backend_removal()
 
     assert "PYTORCH_JIT_CVE_ID" not in pip_audit_text
     assert PYTORCH_JIT_CVE_ID not in pip_audit_text
-    assert "--ignore-vuln" not in pip_audit_text
+    exception_text = (REPO_ROOT / "scripts/ci/check_python_dependency_surfaces.py").read_text(
+        encoding="utf-8"
+    )
+    assert PYTORCH_JIT_CVE_ID not in exception_text
+    assert PYTORCH_JIT_GHSA_ID not in exception_text
+    assert "PILLOW_AUDIT_ALIASES" in exception_text
 
     advisory_text = (REPO_ROOT / "docs/security/PYTORCH_JIT_CVE_2025_3000_ADVISORY.md").read_text(
         encoding="utf-8"

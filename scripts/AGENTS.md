@@ -555,6 +555,24 @@ or claim that passing this probe validates the application on Python 3.14.
   separately from version P and final gate success. Command procedure and the
   finite recorded transition live in `docs/DEPENDENCY_MANAGEMENT.md`.
 
+- For owned offline validation children, isolate package-index and credential
+  environment controls from the base image. Do not inherit ambient pip/uv index
+  overrides; negative tests must inject their own synthetic controls.
+
+## Python audit compatibility exception
+
+- `ci_pip_audit.sh` owns only no-argument CI mode and exact `--pre-push` mode.
+  Keep the single PR #2494 Pillow cohort/predicate in the existing
+  `ci/check_python_dependency_surfaces.py`: check current carriers/version/UTC
+  hard expiry before each actual ignore and before promotion, retain fresh
+  unsuppressed plus ignored native reports and separate native exits from policy
+  acceptance. Unknown findings, unsupported aliases/format, skipped dependencies,
+  input drift or expiry block acceptance. Never invoke pytest as this guard,
+  forward arbitrary audit arguments, add another waiver registry, or describe
+  accepted Pillow 12.3.0 risk as remediation/no-findings. Retire the exact branch
+  and obsolete ignores with a qualified compatible fix; dates and full retained
+  inventory live in `docs/security/PR_2494_CERTIFI_PILLOW_REMEDIATION.md`.
+
 ## Governed Experimentation Runner
 
 - For mode-aware CV intent versus Oracle context-path handling, follow the canonical

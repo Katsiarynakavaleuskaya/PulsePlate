@@ -122,6 +122,7 @@ CRYPTOGRAPHY_F_CUTOFF = {
 }
 
 CURRENT_ENFORCED_RUNTIME_FLOORS = {
+    "certifi": "2026.10.19",
     "click": "8.3.3",
     "cryptography": "50.0.2",
     "pillow": "12.3.0",
@@ -132,6 +133,7 @@ CURRENT_ENFORCED_RUNTIME_FLOORS = {
 
 REMEDIATION_FIXED_FLOORS = {
     "anyio": Version("4.14.2"),
+    "certifi": Version("2026.10.19"),
     "httpcore2": Version("2.12.0"),
     "httpx2": Version("2.12.0"),
     "urllib3": Version("2.8.0"),
@@ -2976,6 +2978,53 @@ def _assert_remediated_dependency_surface(
         ), f"{path.name}: {label} {version} matches blocked range {blocked}"
     # PEP 440's exclusive < range excludes prereleases of its boundary version.
     assert version >= floor, f"{path.name}: version is below fixed {label} floor"
+
+
+@pytest.mark.parametrize("package", ["certifi"])
+def test_october_dependency_floors_cover_current_governed_surfaces(package: str) -> None:
+    """Prevent regression of certifi remediation across current governed surfaces."""
+    registered = registered_dependabot_requirement_carriers()
+    assert discover_dependabot_requirement_carriers(REPO_ROOT) == registered
+    affected_profiles = {
+        "runtime",
+        "docker-runtime",
+        "ci-lite",
+        "dev",
+        "rag-vector",
+        "rag-vector-cpu",
+        "aggregate",
+    }
+    compiled = compiled_dependency_surfaces()
+    assert affected_profiles <= {surface.compile_profile for surface in compiled}
+    required = {"requirements.in", "constraints.txt"} | {
+        surface.lockfile for surface in compiled if surface.compile_profile in affected_profiles
+    }
+    locks = {surface.lockfile for surface in compiled}
+    for name in sorted(registered):
+        _assert_remediated_dependency_surface(
+            REPO_ROOT / name,
+            required=name in required,
+            pinned=name in locks or name == "constraints.txt",
+            package=package,
+        )
+
+
+@pytest.mark.parametrize(
+    ("package", "requirement"),
+    [
+        ("certifi", "certifi==2026.1.4"),
+        ("certifi", "certifi==2026.10.18"),
+        ("certifi", "certifi==2026.10.19rc1"),
+        ("certifi", "certifi==2026.10.19\ncertifi==2026.10.19"),
+    ],
+)
+def test_october_dependency_floors_reject_affected_or_ambiguous_occurrences(
+    tmp_path: Path, package: str, requirement: str
+) -> None:
+    surface = tmp_path / "requirements.txt"
+    surface.write_text(requirement + "\n", encoding="utf-8")
+    with pytest.raises(AssertionError):
+        _assert_remediated_dependency_surface(surface, required=True, pinned=True, package=package)
 
 
 def test_anyio_current_governed_surfaces_are_safe() -> None:

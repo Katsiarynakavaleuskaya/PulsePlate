@@ -365,10 +365,12 @@ options, including values equal to installation defaults. Mixed selectors or
 stray build inputs fail before acquisition, preflight or backend execution.
 
 Refresh runtime alone with `make requirements-locks`, collect its complete
-input/output/delta evidence, run the focused host gates and commit runtime.
-Only then refresh the constrained Docker-runtime, CI-lite, dev and aggregate
-profiles. A stronger source floor is valid when it exceeds the current schema
-floor and its canonical range contains its own declared minimum. Raise the
+input/output/delta evidence, then refresh the constrained Docker-runtime,
+CI-lite, dev and aggregate profiles in a separate generator invocation. Keep a
+coherent admitted correction in one source/tests/docs commit after focused
+proof; the profile dependency order does not require intermediate commits or
+repeated unchanged full hook runs. A stronger source floor is valid when it
+exceeds the current schema floor and its canonical range contains its own declared minimum. Raise the
 live schema after all affected locks reach the selected target; never relax a
 guard or restore weaker intent bytes to pass hooks. Full local `make verify`
 retains the root human-authorization rule.
@@ -1563,3 +1565,38 @@ prove the reviewed clean supporting-tool root, network-none SDK validation,
 offline Runner consumption/final COPY, Apple Oracle or final native runtime.
 Use those independent owning checks before closeout. No local C++ rebuild or
 new registry package is implied by retaining hosted image bytes.
+
+## Temporary Pillow audit handling (PR #2494)
+
+The current bounded decision is certifi remediation plus retained Pillow 12.3.0
+risk. The superseded Pillow 13 dependent transaction failed on FastEmbed's <13
+constraint; do not retry that unchanged transaction or claim Pillow remediation.
+The single owner is
+[PR #2494 security record](docs/security/PR_2494_CERTIFI_PILLOW_REMEDIATION.md).
+
+Use `bash scripts/ci_pip_audit.sh` for the six declared CI manifests, or
+`bash scripts/ci_pip_audit.sh --pre-push` for requirements.txt. Other arguments
+are rejected. The pinned pre-commit hook delegates to this same helper; it
+retains the existing auditor environment and never installs/resolves packages.
+The existing dependency-surface owner checks current registry/discovery, exact
+retained Pillow carriers and hard expiry before each actual invocation and
+again before promotion. Review reminder: 2026-10-23T00:00:00Z; hard expiry:
+2026-10-28T00:00:00Z (equality rejects). There is no clock override.
+
+The helper retains a fresh unsuppressed report before the exact eight-ID native
+ignore operation. Native 2.10.1 ignored JSON removes finding details, so retain
+both reports and their native exits. Raw exit 1 with admitted findings is not
+native PASS; an ignored exit 0 alone is insufficient. Unknown findings/aliases,
+scanner errors/skips, report/input drift and expiry remain blocking. Unique
+raw/native/stdout/stderr evidence stays under `artifacts/security_lab/pip-audit/`;
+CI exposes the existing canonical JSON names plus unsuppressed/native companions.
+Pre-push leaves its evidence in that ignored directory. A no-Pillow/empty input
+is a scoped result and does not require eight reported findings.
+
+Retained Pillow risk remains open in the
+[ledger](docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-pillow-arrow-residual-2494).
+When a compatible applicable fix is qualified, remove the obsolete literal
+cohort and retained-version branch with the owning dependency update. Do not
+turn this exception into a generic waiver or a permanent 12.3.0 requirement.
+Fresh exact-head gates, review, mapping, wait and conditional merge requirements
+remain independent. The four original AM exceptions are a separate subject.

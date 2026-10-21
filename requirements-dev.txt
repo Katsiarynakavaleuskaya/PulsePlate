@@ -25,9 +25,10 @@ cachecontrol[filecache]==0.14.4
     # via
     #   cachecontrol
     #   pip-audit
-certifi==2026.1.4
+certifi==2026.10.19
     # via
     #   -c requirements.txt
+    #   -r requirements-dev.in
     #   requests
 cffi==2.0.0
     # via
