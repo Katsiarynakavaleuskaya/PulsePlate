@@ -1149,6 +1149,40 @@ If it is not recorded here — it does not exist.
     Evidence Graph, provider, cost-routing and semantic-cache owners. Retain
     measured response gaps under the separate product AI/evaluation follow-up
     below; measurement does not fix or authorize production behavior changes.
+  - Temporary publication exception (EN, 2026-10-21):
+    - Priority: P1. Owner: agent-coordinator / security-auditor (tracking).
+      Target PR: [#2487](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2487)
+      is the exception carrier; the certifi/Pillow remediation owner and target
+      remain unassigned/unproven, separate from #2494's Alertmanager work.
+    - Authorization checkpoint (2026-10-21): Direct owner authorization
+      recorded; at this checkpoint, the waived audit and single normal
+      non-force publication push have not yet executed.
+    - Exact scope: `requirements.txt:23` retains `certifi==2026.1.4` with
+      `PYSEC-2026-4320`; `requirements.txt:125` retains `pillow==12.3.0` with
+      `CVE-2026-112895`, `CVE-2026-112400`, `CVE-2026-112397`,
+      `CVE-2026-112896`, `CVE-2026-112897`, `CVE-2026-112395`,
+      `CVE-2026-112404` and `CVE-2026-112899`.
+      Frozen requirements SHA-256:
+      `45856873613fa43e5ac34c2673ecd3cb29e97aecf33b91dedcefcf7aee56d054`.
+    - Evidence: The actual unignored strict audit exited 1; retain
+      `artifacts/orchestration/ocw-1a/coordinator-oct21/remote-required-pip-audit/pip-audit.log`,
+      SHA-256 `f67eaf65fc3f5f5c0da5b0d19fbbe84285abc0218adf3f5d6ba076a2fc52592d`.
+    - Procedure: Before that one push, run pinned pip-audit v2.10.1 with the
+      existing strict hook arguments and nine repeated `--ignore-vuln` options;
+      require exit 0, exactly these nine ignored advisories, no additional
+      findings/errors and matching frozen source/requirements hashes.
+      `PIP_AUDIT_IGNORE_VULNS` is unsupported. Only that push process may use
+      `SKIP=pip-audit`; every other stock hook remains required, without global
+      exports or hook/config/scanner changes.
+    - Expiry/removal: `2026-10-28T00:00:00Z`, or earlier upon consumption,
+      input/version/inventory drift or remediation; no automatic renewal.
+      Record actual consumption in retained lane evidence and the PR body;
+      retire this ledger exception with the owning dependency fix and an
+      unignored strict audit exit 0. On expiry, drift, a new finding or scanner
+      error, do not push and preserve the evidence.
+    - This accepts nine known advisories temporarily; it records no remediation,
+      unignored security PASS, current-head CI, readiness or merge authority.
+      All 53 original acceptance criteria and the existing DoD remain governing.
   - Links: docs/evals/EVIDENCE_RELATION_CAUSAL_AUDIT_V1.md,
     docs/evals/FITCHEF_CLAIM_EVIDENCE_EVAL_V1.md,
     docs/orchestration/AGENT_CONTEXT_MAP.md
