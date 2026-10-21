@@ -524,21 +524,23 @@ def test_cd_has_no_prometheus_candidate_publication_carrier() -> None:
 
 
 def test_prometheus_cd_registry_credential_route_preserves_base_execution_boundary() -> None:
+    """Historical node name; fixed reviewed control now replaces executable base capability."""
     workflow = yaml.safe_load(CD_WORKFLOW_PATH.read_text(encoding="utf-8"))
     job = workflow["jobs"]["prometheus-image-security-pr"]
     ordered = job["steps"]
     steps = {step["name"]: step for step in ordered}
     names = [step["name"] for step in ordered]
-    initial_pr = steps["Checkout immutable PR base Prometheus contracts"]
+    initial_pr = steps["Checkout immutable PR head Prometheus contracts"]
     assert initial_pr["if"] == "${{ github.event_name == 'pull_request' }}"
     assert initial_pr["with"] == {
         "persist-credentials": False,
         "fetch-depth": 0,
-        "ref": "${{ github.event.pull_request.base.sha }}",
+        "ref": "${{ github.event.pull_request.head.sha }}",
     }
     initial_published = steps["Checkout immutable published Prometheus contracts"]
-    assert initial_published["if"] == (
-        "${{ github.event_name == 'push' || github.event_name == 'schedule' }}"
+    assert (
+        initial_published["if"]
+        == "${{ github.event_name == 'push' || github.event_name == 'schedule' }}"
     )
     assert initial_published["with"] == {
         "persist-credentials": False,
@@ -552,101 +554,91 @@ def test_prometheus_cd_registry_credential_route_preserves_base_execution_bounda
     ] == [
         initial_pr["name"],
         initial_published["name"],
-        "Checkout exact changed PR Prometheus contracts",
         "Checkout fixed trusted Prometheus control",
-        "Checkout exact unchanged PR contracts after trusted cleanup",
     ]
     event = steps["Validate exact Prometheus checkout revisions"]
     assert "secrets." not in str(event)
     assert 'head, base = sha(pr["head"].get("sha")), sha(pr["base"].get("sha"))' in event["run"]
     assert 'output.write("head=" + head + "\\nbase=" + base + "\\n")' in event["run"]
     assert "checkout_ref" not in str(job)
-    route = steps["Classify the fixed regular Prometheus manifest blobs"]
+    route = steps["Classify the fixed regular Prometheus source blobs"]
     assert route["id"] == "prometheus-route" and "secrets." not in str(route)
-    assert '"--no-replace-objects"' in route["run"]
-    assert '"GIT_CONFIG_NOSYSTEM": "1"' in route["run"]
-    assert '"GIT_CONFIG_GLOBAL": "/dev/null"' in route["run"]
-    assert 'fields[:2] == [b"100644", b"blob"]' in route["run"]
-    assert "if manifest(base) == manifest(head):" in route["run"]
-    assert 'regular_blob(base, "scripts/ci/prometheus_source_image.py")' in route["run"]
-    assert 'elif os.environ["GITHUB_EVENT_NAME"] in ("push", "schedule"):' in route["run"]
+    assert set(route["env"]) == {"PROMETHEUS_EVENT_HEAD", "PROMETHEUS_EVENT_BASE"}
+    for invariant in (
+        '"--no-replace-objects"',
+        '"GIT_CONFIG_NOSYSTEM": "1"',
+        '"GIT_CONFIG_GLOBAL": "/dev/null"',
+        'fields[:2] == [b"100644", b"blob"]',
+        'paths = (*trusted["PRODUCER_FILES"], trusted["MANIFEST_PATH"])',
+        "source_blob(base, path)",
+        "source_blob(head, path)",
+        '"Prometheus_source_object_HOLD"',
+        '"Prometheus_manifest_object_HOLD"',
+        'elif os.environ["GITHUB_EVENT_NAME"] in ("push", "schedule"):',
+    ):
+        assert invariant in route["run"]
+    assert route["run"].count('trusted["classify_source_change"](previous, current)') == 1
+    assert 'require(git("rev-parse", "HEAD").strip().decode() == head' in route["run"]
+    assert '"historical_helper_change": "historical_pr_candidate"' in route["run"]
     consumer = steps["Admit retained PR candidate or published immutable subject"]
     assert consumer["id"] == "prometheus-image"
-    assert (
-        consumer["env"]["GHCR_READ_TOKEN"]
-        == "${{ github.event_name == 'pull_request' && steps.prometheus-route.outputs.mode == 'unchanged_pr_published' && secrets.GITHUB_TOKEN || github.event_name != 'pull_request' && steps.prometheus-route.outputs.mode == 'trusted_published' && secrets.GHCR_READ_TOKEN || '' }}"
+    assert consumer["env"]["GHCR_READ_TOKEN"] == (
+        "${{ github.event_name == 'pull_request' && steps.prometheus-route.outputs.mode == 'unchanged_pr_published' && secrets.GITHUB_TOKEN || github.event_name != 'pull_request' && steps.prometheus-route.outputs.mode == 'trusted_published' && secrets.GHCR_READ_TOKEN || '' }}"
     )
-    assert 'changed_pr_candidate) test -z "${GHCR_READ_TOKEN:-}"' in consumer["run"]
+    assert "changed_pr_candidate | historical_pr_candidate)" in consumer["run"]
+    assert "Prometheus_candidate_registry_HOLD" in consumer["run"]
     assert '*) echo "Prometheus credential route HOLD" >&2; exit 1' in consumer["run"]
+    assert 'if [ "$GITHUB_EVENT_NAME" = pull_request ]; then' in consumer["run"]
+    assert 'test "$PROMETHEUS_CREDENTIAL_ROUTE" = trusted_published' in consumer["run"]
     assert "scripts.ci.prometheus_source_image --operation consume" in consumer["run"]
     control = steps["Checkout fixed trusted Prometheus control"]
     cleanup = steps["Remove fixed trusted Prometheus control checkout"]
-    # pragma: allowlist nextline secret - public trusted control commit
-    assert control["with"]["ref"] == "5064aded22f478a22a4319b684e95d6c0b3ae46f"
+    assert (
+        control["with"]["ref"]
+        # pragma: allowlist nextline secret - public trusted control commit
+        == "ef9e369052751d47c04f651f7d615714d918fc16"
+    )
     assert control["with"]["persist-credentials"] is False
     assert control["with"]["sparse-checkout"] == "scripts/ci/prometheus_source_image.py"
-    assert 'trusted["consume_image"](work, material' in consumer["run"]
-    assert (
-        names.index("Checkout exact changed PR Prometheus contracts")
-        < names.index(control["name"])
-        < names.index(consumer["name"])
-        < names.index(cleanup["name"])
-        < names.index("Check canonical Prometheus config with exact-image promtool")
+    assert control["if"] == "${{ success() && github.event_name == 'pull_request' }}"
+    assert cleanup["if"] == (
+        "${{ always() && github.event_name == 'pull_request' && "
+        "(steps.prometheus-control-checkout.outcome == 'success' || "
+        "steps.prometheus-control-checkout.outcome == 'failure') }}"
     )
-    for name, mode in (
-        ("Checkout exact changed PR Prometheus contracts", "changed_pr_candidate"),
-        ("Checkout exact unchanged PR contracts after trusted cleanup", "unchanged_pr_published"),
-    ):
-        step = steps[name]
+    for script in (route["run"], consumer["run"]):
+        assert "Prometheus_control_interface_HOLD" in script
+        assert "328857" in script
         assert (
-            step["if"] == "${{ success() && github.event_name == 'pull_request' && "
-            "steps.prometheus-route.outputs.mode == '" + mode + "' }}"
+            # pragma: allowlist nextline secret - public trusted control blob
+            "9d921263edf33797988e0200015f27469ba848ec"
+            in script
         )
-        assert step["with"] == {
-            "persist-credentials": False,
-            "fetch-depth": 0,
-            "ref": "${{ github.event.pull_request.head.sha }}",
-        }
-    capability = steps["Require the trusted base published consumer capability"]
-    handoff = steps["Bind the unchanged PR admission after trusted cleanup"]
-    assert (
-        capability["if"]
-        == handoff["if"]
-        == "${{ success() && steps.prometheus-route.outputs.mode == 'unchanged_pr_published' }}"
-    )
-    assert "--operation read-manifest --field selection" in capability["run"]
-    assert "secrets." not in str(capability) + str(handoff)
-    assert 'admission.get("mode") != "unchanged_published"' in handoff["run"]
-    assert 'admission.get("head") != os.environ["PROMETHEUS_EVENT_HEAD"]' in handoff["run"]
-    assert (
-        'admission.get("publisher_head") != os.environ["PROMETHEUS_EVENT_BASE"]' in handoff["run"]
-    )
-    assert [
-        names.index(name)
-        for name in (
-            event["name"],
-            initial_pr["name"],
-            initial_published["name"],
-            route["name"],
-            capability["name"],
-            consumer["name"],
-            handoff["name"],
-            "Checkout exact unchanged PR contracts after trusted cleanup",
-            "Check canonical Prometheus config with exact-image promtool",
+        assert (
+            # pragma: allowlist nextline secret - public trusted control digest
+            "0fedf3e9ac865fe2b89a3367e5e4065e1c0c28fca88465c7f2b41775dbf4070a"
+            in script
         )
-    ] == sorted(
-        names.index(name)
-        for name in (
-            event["name"],
-            initial_pr["name"],
-            initial_published["name"],
-            route["name"],
-            capability["name"],
-            consumer["name"],
-            handoff["name"],
-            "Checkout exact unchanged PR contracts after trusted cleanup",
-            "Check canonical Prometheus config with exact-image promtool",
-        )
+    assert 'trusted["consume_image"](work, material' in consumer["run"]
+    assert 'trusted["one_object"](raw).get("admission")' in consumer["run"]
+    assert 'admission != result["admission"]' in consumer["run"]
+    assert "Prometheus_unchanged_result_HOLD" in consumer["run"]
+    assert "Prometheus_unchanged_admission_HOLD" in consumer["run"]
+    assert "Require the trusted base published consumer capability" not in names
+    assert "Bind the unchanged PR admission after trusted cleanup" not in names
+    expected_order = [
+        event["name"],
+        initial_pr["name"],
+        initial_published["name"],
+        control["name"],
+        route["name"],
+        "Wait for the exact trusted Prometheus publisher",
+        consumer["name"],
+        cleanup["name"],
+        "Check canonical Prometheus config with exact-image promtool",
+    ]
+    assert [names.index(name) for name in expected_order] == sorted(
+        names.index(name) for name in expected_order
     )
 
 
@@ -744,7 +736,7 @@ def test_checkpoint_native_consumer_precedes_secret_free_child(
         consumer = next(s for s in selected["steps"] if s.get("id") == "checkpoint-image")
         assert consumer["env"]["GH_TOKEN"] == consumer["env"]["GITHUB_TOKEN"] == credential
         assert consumer["env"]["GHCR_READ_TOKEN"] == (
-            "${{ steps.checkpoint-selection.outputs.mode == 'unchanged_pr_published' && secrets.GITHUB_TOKEN || '' }}"
+            "${{ steps.checkpoint-route.outputs.mode == 'unchanged_pr_published' && secrets.GITHUB_TOKEN || '' }}"
         )
         assert 'trusted["consume_image"](work, material' in consumer["run"]
         setup = next(

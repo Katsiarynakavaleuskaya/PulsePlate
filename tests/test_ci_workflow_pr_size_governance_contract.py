@@ -1153,9 +1153,9 @@ def test_all_active_checkout_uses_have_one_exact_v7_pin() -> None:
         ".github/workflows/security.yml",
         ".github/workflows/trivy.yml",
     }
-    # The 89 prior execution sites gain one lint restore and five CD checkouts
-    # reused by the distinct trusted job through its shared step-list alias.
-    assert len(observed_checkout_uses) == 95
+    # The 95 prior execution sites lose two redundant checkout steps in each
+    # of the two Prometheus CD jobs sharing the same step-list alias.
+    assert len(observed_checkout_uses) == 91
     assert {path for path, _ in observed_checkout_uses} == expected_checkout_workflows
 
 
