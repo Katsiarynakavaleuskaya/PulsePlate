@@ -22,6 +22,21 @@
   regular UI membership, rejects ignored/omitted members and checks exact native
   lint/startup outcomes with owned fixture cleanup. Python `node24` workflow
   contracts bind reviewed wiring only; actual ESLint execution is separate evidence.
+- Tailwind uses the existing PostCSS configuration and explicit `@config`/`@source`
+  declarations in `src/index.css`; keep source discovery limited to `index.html`
+  and `src/**/*.{ts,tsx}`. Generated token mirrors and their import order stay
+  authoritative. For build-stack changes, compare actual compiled styles,
+  class-merge winners, keyboard/forced-color focus and a genuine dev/HMR update;
+  selector presence alone does not establish compatibility. `npm run smoke:css`
+  requires the unique index-linked production bundle and checks finite exact
+  utility selectors through PostCSS. Root dependency/gate policy remains canonical.
+- The finite compatibility cases in `e2e/hpp-smoke.spec.ts` use the synthetic
+  same-origin session seam. Run both producer and runner with
+  `VITE_API_BASE=/api/v1 VITE_HPP_LIVE_WS_URL=''`; for example,
+  `VITE_API_BASE=/api/v1 VITE_HPP_LIVE_WS_URL='' npm run build` and
+  `VITE_API_BASE=/api/v1 VITE_HPP_LIVE_WS_URL='' npm run test:e2e`.
+  Production evidence also requires an owned preview of that fresh, bound dist;
+  the default dev server alone does not establish production compatibility.
 - Build: `npm run build`
 - Preview: `npm run preview`
 - Test: `npm run test`, `npm run test:ci`, `npm run test:precommit`, `npm run test:coverage`
@@ -33,6 +48,15 @@
 - Generate API types: `npm run generate-types`
 - OpenAPI sync parity: when `make openapi` or frontend type generation touches
   `frontend/`, run those steps under Node `24.x` to match CI and lockfile engines.
+
+## Browser interaction evidence
+
+- Establish keyboard tests from a real, verified starting point and assert the
+  actually focused control at each intended native transition. Do not assume a
+  programmatic focus plus Tab/Shift-Tab roundtrip returns to the same control.
+- Record computed styles and document/window focus facts before asserting
+  visibility. A selected state or `:focus-visible` match alone does not prove
+  a visible focus indicator; preserve the failing observation before repair.
 
 ## Conventions
 - Production build performs TypeScript checking before Vite bundling.
