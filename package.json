@@ -30,7 +30,7 @@
   },
   "dependencies": {
     "docx": "^9.7.1",
-    "thesvg": "^2.0.1"
+    "thesvg": "^3.3.2"
   },
   "devDependencies": {
     "@cspell/dict-data-science": "^2.0.9",
