@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-10-04",
-  "review_by": "2026-10-21",
-  "reason": "Reviewed official SQLite 3.53.2, util-linux 2.42.3, PCRE2 10.49 and its exact upstream SLJIT gitlink sources for the existing bounded native runtime-library builds. All four archive identities and digests are retained; fetch and checksum verification precede Docker builds. Exact reviewed zlib 1.3.2 plus df84 gzwrite fix, ncurses 6.6, shared OpenSSL 3.5.9 and client-only PostgreSQL 18.6 inputs extend this manifest; the prior four identities and source review date remain unchanged. Five exact adjacent official zlib maintenance commits support the retained public gzip-write and printf contract; the original nine input records are unchanged. The exact official a82e include-order correction follows d81; all prior fourteen records and bytes remain unchanged.",
+  "generated_at": "2026-10-21",
+  "review_by": "2026-10-28",
+  "reason": "Dated October 21 source-owner review covers all 17 unchanged records: SQLite 3.53.2, util-linux 2.42.3, PCRE2 10.49 and its exact SLJIT gitlink; zlib 1.3.2 plus seven official patches, ncurses 6.6, OpenSSL 3.5.9, client-only PostgreSQL 18.6, and Alertmanager source/UI 0.34.1. Primary upstream release/provenance records, complete exact source bytes and the unchanged canonical fetcher were reconciled. Names, versions, filenames, URLs, ordering and digest parts remain unchanged. Only the bounded source-review window is renewed; signatures, per-use checksums, current security/native admission, residual-risk expiry and publication gates remain required.",
   "artifacts": [
     {
       "name": "sqlite-autoconf",
