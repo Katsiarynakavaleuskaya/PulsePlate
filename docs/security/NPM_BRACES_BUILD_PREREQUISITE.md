@@ -1,18 +1,20 @@
 # npm:braces frontend build prerequisite
 
-Status: the latest observed implementation checkpoint is committed as
-`7972247c9e6d807bbf7d2e030bcb236643d5bf67`, with normal commit hooks and the
-recorded narrow local bundle exited **0**. Genuine **Darwin** installation is
-observed; Linux installation/build/watch, full `P`, current-head CI, review and
-final criteria QA remain **PENDING**. The initial normal publication attempt's
-strict pip-audit subcommand is **FAIL / exit 1**, with the exact 37-row Python
-cohort recorded below. The dated publication-only boundary is not an audit
-PASS, CI/runtime waiver or readiness claim.
+Status at the recorded **2026-10-22T22:56:56Z** coordinator cutoff:
+[PR #2495](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2495)
+was published at `efb261c668e0fdd25a006b69a8d2b9b19475673c`. The meaningful
+post-open correcting commit `499aa6a6ee0064bfa8264fd12b043fb538544ba3`
+completed normal hooks but remained unpublished after its normal push failed
+only the unchanged strict 37-finding Python audit. The initial publication
+exception is consumed. The distinct post-open correction publication use
+recorded below was **PENDING / not consumed at that cutoff**, subject to its
+own immediate fresh audit and one-use admission; no old grant is reused.
+Linux/full `P`, current-head CI and final review/merge outcomes remain pending.
 
 This document owns the `D / S / F_cutoff / A / R / P` evidence for this one
 prerequisite. It does not record completed remediation or whole-audit closure.
 
-## Latest observed implementation checkpoint
+## Historical implementation checkpoint before post-open corrections
 
 The following observations predate this documentation update:
 
@@ -250,13 +252,18 @@ Full return integrity and the independent post-observation established own B
 quiescence, after which its heavy slot was released. That release supplies no
 next native START or merge authority.
 
-B03's technical byte/delta replay component is observed. The historical A
-manual-admission gap remains **OPEN**, A qualification remains **HOLD**, and A
-is admitted only as a functional comparator. B success cannot perform the
-missing earlier A act or make the complete B03 criterion achieved. Final
-criteria QA remains pending. This metadata-only resolution with
-`--ignore-scripts` is not genuine installation, whole-graph admission,
-executable absence, compatibility or remediation `P` proof.
+The earlier pre-open B03 assessment was awaiting ordinary QA; it is retained
+as a historical assessment, not an additional acceptance requirement.
+Completed ordinary post-open QA (`post-open-qa2495.json`, original
+`BRACES-BUILD/v1.0` criterion B03) assesses **B03 achieved** through the
+independently admitted valid B, complete canonical byte/delta replay and
+13/76 transition partition above. The historical A manual-admission gap
+remains **OPEN**, A qualification remains **HOLD**, and A remains a functional
+comparator only. B does not retroactively supply A's missing act, but original
+B03 creates no A-recovery or new acquire/A/B replay criterion. This
+metadata-only resolution with `--ignore-scripts` is not genuine installation,
+whole-graph admission, executable absence, compatibility or remediation `P`
+proof; the other original criteria remain independently required.
 
 ## P: permanent current-head consumer and native proof
 
@@ -448,9 +455,11 @@ observations retain `none`, `0s`, opacity `1`. No tolerance is widened here.
 
 B01–B09 remain subject to individual evidence review. In particular:
 
-- **OBSERVED COMPONENTS B02/B03, final QA pending:** the historical five-surface
-  cutoff, later committed checkpoint and technical complete A/B replay above.
-  Historical A manual-admission qualification remains unresolved.
+- **B03 achieved by completed ordinary QA:** the historical five-surface
+  inventory and independently valid B support the original canonical replay/
+  partition criterion. The old pre-open final-QA-pending statement is historical.
+  A remains OPEN/HOLD, functional comparator only; no A recovery or replay
+  criterion is added. This does not complete the remaining original criteria.
 - **OBSERVED B04 metadata component; B04/P pending:** canonical retained-archive
   proof inspected 779 records, six parent-owned leaves and eight package
   documents. The complete two-module focused gate passed all 733 cases at the
@@ -604,3 +613,80 @@ Linux installation/build/Storybook/browser/source-watch, full `P`, current-head
 CI and review were still pending at this cutoff; the historical A gap remains
 open. These observations supply no readiness, provider PASS, no-findings,
 C14 or merge achievement.
+
+## Distinct one-use post-open correction publication
+
+Recorded coordinator decision cutoff: **2026-10-22T22:56:56Z**. The initial
+publication grant was **CONSUMED**, as retained unchanged in
+`publication37-use-receipt.json`, for the publication at efb261c/PR #2495.
+Its section, dates, consumed limit and historical cutoffs above remain
+historical evidence, not authority for another use.
+
+The current Root coordinator made a **separate bounded choice** in
+`publication37-postopen-coordinator-admission.json` under the owner's
+persistent direct necessary-procedure and bounded time-limited-risk
+instructions. This records Root's application of those standing instructions;
+it is not a new human approval, a fabricated owner timestamp, candidate
+self-authorization or an audit/CI/merge waiver. Owner for the publication
+procedure remains dependency/security triage + frontend coordinator. No new
+Python remediation lane/batch, dependency action or foreign-owner assignment
+is admitted.
+
+The single mandatory post-open QA → bug-hunter → security pass completed.
+The four existing-file source corrections are in normal commit
+`499aa6a6ee0064bfa8264fd12b043fb538544ba3` (`postopen-corrections2495-commit-result.json`,
+exit 0, SKIP unset). Their retained affected evidence is 44 network-denied
+guard cases, ten native CSS fixture controls matching expected outcomes,
+five focused UI tests, and E2E listing of 29 tests. Listing is collection,
+not execution of those browser tests. `postopen-narrow2495-result.json`
+records consistency, `make validate-changed` and all-files hooks exit 0 with
+SKIP unset. The correcting source fixes do not establish current Linux
+production/browser/source-watch parity, full `P`, hosted CI or merge readiness.
+
+The subsequent **normal, unskipped** push of 499aa6a failed only pip-audit
+(exit 1, 68.887 seconds; `postopen-normal-push2495-result.json`). Other
+applicable hooks, including backend and full Bandit, passed. Remote readback
+in `postopen-normal-push2495-remote-readback.json` still showed efb261c; the
+correction was not published. `postopen-normal-push2495-exact37.json` proves
+multiplicity-preserving Counter equality with the **same complete 37
+package/version/ID/fix tuples** in the canonical table above and unchanged
+requirements SHA-256
+`45856873613fa43e5ac34c2673ecd3cb29e97aecf33b91dedcefcf7aee56d054`.
+The raw audit stays FAIL. No tuple table or JSON copy is substituted here.
+
+At the recorded coordinator cutoff this **new use was PENDING, not consumed**.
+It covers at most **one meaningful post-open correction publication push**
+for this same PR, including this necessary owning documentation update:
+
+- Only a child-process **`SKIP=pip-audit`** is conditionally permitted. Every
+  other hook remains required; never `--no-verify`, another hook skip or a
+  persistent configuration/environment change.
+- This is a distinct decision, not reuse of the consumed initial grant. It
+  permits no retry, second use, automatic renewal or mapping-only publication
+  push, and grants no CI/runtime/required-check or merge exception.
+- Review deadline remains **2026-10-23T12:00:00Z**; hard remove-by remains
+  **2026-10-23T23:59:59Z**. Neither date is extended. These are explicit
+  procedural limits, not a newly implemented automatic expiry policy.
+- After the normal documentation checks/commit, Root must immediately run the
+  unchanged **UNSKIPPED strict pip-audit** at the actual new documentation
+  head, with SKIP unset, and retain the complete raw exit/report. It must
+  prove the same all-and-only 37 tuples, including multiplicity, and unchanged
+  input/tool binding before separately admitting that one publication use.
+  Earlier failure cuts do not satisfy this new-head prerequisite.
+- Any changed/missing/extra tuple, input drift, tool error, expiry, ambiguous
+  material or another hook failure means **STOP**. No skip, dependency, lock,
+  baseline, ignore, scanner/provider or CI change can be inferred from this
+  record. Record any eventual use/publication from actual terminal/readback
+  evidence and PR-body status rather than treating this dated pending state
+  as permanently current.
+- Before merge readiness, **UNSKIPPED strict audit PASS** and every original
+  security/current-head CI/native/review/criteria gate remain mandatory.
+  A skipped publication hook is never audit PASS, vulnerability remediation,
+  a safety result or a promise of readiness.
+
+The actual material remains fourteen paths; CAB remains twenty. Original
+18-GHSA npm findings, all other identities and the historical A OPEN/HOLD gap
+stay independent. Later material/closeout decisions retain the actual Runner
+attribution and canonical current-material linkage, without rewriting earlier
+commits or replaying successful acquire/A/B or paid validation merely for
+this documentation record.
