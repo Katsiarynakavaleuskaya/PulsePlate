@@ -1,0 +1,441 @@
+# npm:braces frontend build prerequisite
+
+Status: current uncommitted candidate inventory, technical A/B replay and a
+bounded retained-archive/native metadata proof are observed. The supported
+flat-bundle provenance implementation is available; its complete two-module
+focused validation exited **0**, with **733 passed, zero failures, errors or
+skips**, bound to unchanged guard/instruction/lock hashes. Genuine installation, executable build/watch absence, compatibility,
+publication and final criteria QA remain **PENDING**. This document
+owns the `D / S / F_cutoff / A / R / P` evidence for this one prerequisite.
+It does not record completed remediation or a whole-audit security result.
+
+## Goal and authority
+
+Remove `npm:braces` through the admitted frontend build-parent migration while
+preserving the existing UI/CSS, token imports, class-merge behavior and the
+accepted Safari 16.4+, Chrome 111+, Firefox 128+ support contract. The separate
+CAB-07C PR #2484 retains its 20-path scope and original C01–C14 criteria.
+
+The governing packet is `01ea883bb040`, with accepted criteria
+`BRACES-BUILD/v1.0` B01–B09. The owner admitted one start from the exact base
+below despite separately owned main failures, then the bounded 13-path scope
+including `frontend/src/components/ui/RadioGroup.tsx`. The later same-lane
+admission expands the hard cap to 15 substantive paths (14 currently changed),
+plus one mapping path for a maximum of 16. It admits the existing canonical
+root guard and `tests/AGENTS.md` for the supported bundle class; CAB stays at
+20 paths. The exact scope and capability are retained in
+`bundle-implementation-admission-and-handoff.json`. Those decisions do not
+supply successful checks, browser observations or healthy-main evidence.
+Conditional human merge delegation remains subject to the central Root slot,
+exact material and every applicable gate; personal OWNER inspection acts remain
+separate. No provider invocation, suppression or deployment is authorized here.
+
+Canonical policy: `AGENTS.md` (application dependency remediation v2).
+The independently open follow-up is
+[the existing braces prerequisite ledger item](../roadmap/BACKLOG_LEDGER.md#ledger-p1-npm-braces-build-prerequisite).
+
+## D and exact base
+
+`D = npm:braces`. The base is
+`48d36c220ff58dec82450da66ef0599c6da71787`.
+`npm:brace-expansion` is a different identity with independently required
+minimatch/ESLint controls. Existing overrides are preserved, including
+`frontend/package.json:91`. The historical browserslist/qs batch and its
+cutoffs remain independent (`tests/test_frontend_dependency_guards.py:233`).
+
+The accepted primary intake is the retained local
+`primary-intake/20261021T144728Z-prepared/reconciliation.json`, SHA-256
+`2994046c4d138a4668ba226c4b931c7bdeb78909a638e941d997711debec782c`.
+These local evidence paths are relative to the ignored
+`artifacts/orchestration/braces-build/` directory. They are evidence references,
+not committed source dependencies or an additional policy carrier.
+
+## S_base and base occurrences
+
+The captured independently enumerated standard tracked npm surface inventory
+contains these five surfaces. This is a historical inventory, not a permanent
+five-path allowlist. Current discovery uses the existing Git-based mechanism
+at `tests/test_frontend_dependency_guards.py:1252`.
+
+| Base surface | SHA-256 |
+| --- | --- |
+| `frontend/package-lock.json` | `6227a413247ffb9d38491c64ee270de18f44bfebc1bd0d4d91dc37da24278645` |
+| `frontend/package.json` | `c52c2d3870db4787d27abff663fd46e48a12f9922390825c5ed25916acbd7bba` |
+| `package-lock.json` | `9fe0630047798a9947926f903b2b4114f5b0ccc188880dbb2c9463ea28723419` |
+| `package.json` | `8181e4f5b7a68c0d1219c1875a616c57ba516ac67fa272b9c01d2d1e1cbbbcbe` |
+| `scripts/business_collateral/package.json` | `8005a3491db7d92f36ac66369861589f9c47123d3a7c71e643fc2c06168cd45a` |
+
+The base has one installed target node in `frontend/package-lock.json`:
+`packages["node_modules/braces"]`, exact version `3.0.3`, canonical source
+`https://registry.npmjs.org/braces/-/braces-3.0.3.tgz`, with recorded sha512 SRI.
+The two incoming requests are `chokidar@3.6.0` → `braces: ~3.0.2` and
+`micromatch@4.0.8` → `braces: ^3.0.3`. Request ranges are declaration evidence;
+they are not compared as installed versions. The existing identity recognizers
+are `tests/test_root_npm_dependency_guards.py:363` and
+`tests/test_root_npm_dependency_guards.py:634`.
+
+No additional target alias/request was found in the captured admitted base
+inventory. This bounded finding does not describe arbitrary embedded code or
+untracked installations.
+
+The current **uncommitted** candidate has a reviewed five-surface `S_head`
+inventory in `lock-adoption-root-full-review.json`. This observed census is not
+a fixed allowlist. `HEAD` remains the base above and the index remains its
+recorded `4e38392b31f7c60cb3606103feffd942571c9d23` tree; no new candidate commit,
+PR, push or merge is represented by this snapshot.
+
+| Current candidate surface | SHA-256 | Base comparison |
+| --- | --- | --- |
+| `frontend/package-lock.json` | `385dedaf7b27f2cc0725f3dee6f8bd30c2d33a75c7c5abd644e27326f7623e08` | Changed; 390,235 bytes |
+| `frontend/package.json` | `fab6d86a58c8baf6c21521f9986d2b13316e8ef325673a8329c45b4b00d950f7` | Changed; 3,759 bytes |
+| `package-lock.json` | `9fe0630047798a9947926f903b2b4114f5b0ccc188880dbb2c9463ea28723419` | Unchanged |
+| `package.json` | `8181e4f5b7a68c0d1219c1875a616c57ba516ac67fa272b9c01d2d1e1cbbbcbe` | Unchanged |
+| `scripts/business_collateral/package.json` | `8005a3491db7d92f36ac66369861589f9c47123d3a7c71e643fc2c06168cd45a` | Unchanged |
+
+The adopted lock is byte-identical to the retained B output. B02 inventory is
+observed for this material; final criterion QA remains pending. Inventory and
+byte equality do not establish canonical graph admission or executable absence.
+
+## Finite F_cutoff and A
+
+The retrieval interval was `2026-10-21T15:04:43.907074+00:00` through the last
+response at `2026-10-21T15:04:58.313254+00:00`. Ten complete HTTP-200 bodies
+were retained: six GitHub Global Advisories queries covering
+reviewed/unreviewed/malware × withdrawn true/false, one OSV exact npm package
+query without a version, and three exact selected parent registry records.
+Pagination terminality was checked in that captured intake; it was not an
+atomic global snapshot.
+
+Authoritative inputs are the captured
+[GitHub Global Advisories query](https://api.github.com/advisories?ecosystem=npm&affects=braces&type=reviewed&is_withdrawn=false&per_page=100),
+its other five recorded filter combinations, and the
+[OSV query endpoint](https://api.osv.dev/v1/query) with body
+`{"package":{"ecosystem":"npm","name":"braces"}}`.
+The finite reconciled union contains four candidate IDs and seven advisory
+source records: four GAD records, including one withdrawn record, plus three
+OSV records. Seven is not the dependency occurrence count.
+
+| Candidate | Captured affected range | Base `3.0.3` disposition | Captured patch/withdrawal |
+| --- | --- | --- | --- |
+| [GHSA-vfj7-8cjw-p6xm](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm) | `<=3.0.3` | Applicable; the exact installed node is an affected witness | No first patched version captured |
+| [GHSA-grv7-fg5c-xmjg](https://github.com/advisories/GHSA-grv7-fg5c-xmjg) | `<3.0.3` | Non-applicable; `3.0.3` equals the exclusive upper boundary | First patched `3.0.3` |
+| [GHSA-cwfw-4gq5-mrqx](https://github.com/advisories/GHSA-cwfw-4gq5-mrqx) | `>=2.2.0,<2.3.1` | Non-applicable; `3.0.3` is above the upper boundary | First patched `2.3.1` |
+| [GHSA-g95f-p29q-9xw4](https://github.com/advisories/GHSA-g95f-p29q-9xw4) | `<2.3.1` | Non-applicable by version independently of withdrawal | First patched `2.3.1`; withdrawn `2026-02-03T17:47:36Z`; duplicate of cwfw retained |
+
+Thus `A = {GHSA-vfj7-8cjw-p6xm}` is nonempty. All four candidates, including
+non-applicable and withdrawn members, remain in the universal head
+postcondition. The original 18-GHSA inventory and every other identity's findings
+remain independently open. Resolver collateral movement cannot close them.
+
+The retained reconciliation command receipt records exit `0` for the local
+data-only analysis, with this raw stdout (not a new execution in this action):
+
+```text
+F_count4
+A=[GHSA-vfj7-8cjw-p6xm]
+surfaces5 nodes1 requests2
+```
+
+Its recorded command, rendered relative to the repository, was
+`.venv/bin/python -B < artifacts/orchestration/braces-build/primary-intake/20261021T144728Z-prepared/reconcile_primary.py`.
+The exact original command and source/result hashes remain in
+`primary-intake/20261021T144728Z-prepared/reconciliation-command-result.json`.
+
+## R: one admitted operation and complete transition partition
+
+The three authored manifest parameters are a single admitted parent migration
+for removing `D`; they are not solver-selected intent:
+
+| JSON pointer in `frontend/package.json` | Before | Authored value |
+| --- | --- | --- |
+| `/devDependencies/tailwindcss` | `^3.4.4` | `4.3.3` |
+| `/devDependencies/@tailwindcss~1postcss` | absent | `4.3.3` |
+| `/dependencies/tailwind-merge` | `^2.4.0` | `3.7.0` |
+
+Captured primary parameter metadata:
+[Tailwind 4.3.3](https://registry.npmjs.org/tailwindcss/4.3.3),
+[PostCSS integration 4.3.3](https://registry.npmjs.org/%40tailwindcss%2Fpostcss/4.3.3),
+[tailwind-merge 3.7.0](https://registry.npmjs.org/tailwind-merge/3.7.0).
+Metadata is not successful acquisition, installation or native compatibility.
+The authored source declarations are at `frontend/package.json:52`,
+`frontend/package.json:61` and `frontend/package.json:85`.
+
+The returned B comparison records 13 `I_R_direct_projection` JSON-pointer
+transitions for those manifest declarations and their nonoverlapping
+lock-root/direct-node projection for `tailwindcss`, `@tailwindcss/postcss` and
+`tailwind-merge`. CSS/PostCSS, interaction, tests and instructions remain
+authored integration work.
+The PostCSS integration is `frontend/postcss.config.cjs:3`; token import order
+is `frontend/src/main.tsx:4`; class merging delegates through
+`frontend/src/lib/utils.ts:4`.
+
+Every other package-node, edge, version, source, integrity, hoisting or optional
+platform transition is `C_R` only after exact-base canonical replay. Each
+physical transition must be classified exactly once; unclassified, manual or
+unreplayable deltas stop promotion. No independently authored action on
+DOMPurify, Undici, Vite, selector-parser, source-map-js, Node, PostCSS or
+Autoprefixer is admitted. Preserve all existing overrides.
+
+The actual B canonical resolver command, recorded from guest
+`/braces/material/frontend`, was:
+
+```bash
+/bin/bash /braces/material/scripts/frontend_npm.sh install --package-lock-only --ignore-scripts --no-audit --no-fund --cache /baseline/npm-cache
+```
+
+Its retained command receipt records exit `0` and raw stdout
+`up to date in 5s`; stderr is empty. This used the separately owned Node
+`24.18.1` / npm `11.16.0`, original base lock and identical recorded A/B
+input/configuration/seed bindings. The seed digest is
+`b6aa5b96f483bc603e5090da24f3da8903f93e4048f17f40570b8d35fbd50915`.
+
+Root's `browser-baseline-stage/candidate-resolver-solve-b-root-terminal-review.json`
+records controller/native resolver exits `0`, complete 390,235-byte A/B lock
+equality and complete transition equality. The 89 transitions comprise 13
+`I_R_direct_projection` plus 76 `C_R_complete_replay_observed` transitions in
+`host/complete-replay-comparison.json`. The original native
+`evidence/complete-lock-transition.json` retains its pre-comparison
+`C_R_pending_complete_replay` labels; that historical artifact is not rewritten.
+
+The returned B evidence is under
+`browser-baseline-stage/candidate-resolver-solve-b-return/verified/solve-b/`.
+Recorded integrity coordinates are:
+
+- Complete return archive: 547,264 bytes, 124 members including the manifest;
+  SHA-256 `a63e9b157ec35073a449629ed28ec796171c8872397f24c59d9bfd2859fcf754`.
+- Native complete transition artifact:
+  SHA-256 `9ca1562f51eb57664a8b905797de39947b1ad1b01f4478e66f72e5b3df4e070e`.
+- Complete replay comparison:
+  SHA-256 `4f4f11be2c659a8971c76e3ab3036de339f2acdd00444e0fa1773af3f4444d87`.
+
+Before B's single stdin release, the recorded own CID/image/PID `3234019`,
+UID `1001`, exact unified cgroup membership and final binding agreed. The
+four selected effective raw values were `cpu.max=200000 100000 LF`,
+`memory.max=8589934592 LF`, `memory.swap.max=0 LF` and `pids.max=256 LF`.
+These are finite observations, not a continuous resource/identity guarantee.
+All 33 retained host commands exited `0`; the actual stopped terminal had
+exit `0`, no OOM, primary null, secondary empty and no cleanup stop attempt.
+Full return integrity and the independent post-observation established own B
+quiescence, after which its heavy slot was released. That release supplies no
+next native START or merge authority.
+
+B03's technical byte/delta replay component is observed. The historical A
+manual-admission gap remains **OPEN**, A qualification remains **HOLD**, and A
+is admitted only as a functional comparator. B success cannot perform the
+missing earlier A act or make the complete B03 criterion achieved. Final
+criteria QA remains pending. This metadata-only resolution with
+`--ignore-scripts` is not genuine installation, whole-graph admission,
+executable absence, compatibility or remediation `P` proof.
+
+## P: permanent current-head consumer and native proof
+
+The selected postcondition remains executable absence of `braces`, independent
+of version. Current tracked standard npm manifests/locks are dynamically
+enumerated (`tests/test_frontend_dependency_guards.py:1252`), duplicate-key
+loaded (`tests/test_frontend_dependency_guards.py:1586`) and required nonempty.
+The absence consumer at `tests/test_frontend_dependency_guards.py:5036` checks
+installed identities and requests on every lock entry, including root,
+optional and peer requests, plus all returned publisher declarations including
+dev fields. The existing virtual graph check at
+`tests/test_frontend_dependency_guards.py:1609` remains mandatory.
+
+The frontend admission delegates to the one canonical root producer at
+`tests/test_root_npm_dependency_guards.py:1231`. Its returned
+`_NpmLockMaterial` (`tests/test_root_npm_dependency_guards.py:816`) is current
+packages, publisher manifests and parent ownership data, not an approval flag
+or stored verdict. Ordinary registry provenance remains required. Supported
+flat bundled leaves instead derive provenance from the current canonical
+parent URL and verified SHA-512 archive; absent leaf `resolved`/`integrity`
+values are never fabricated. Unproved bundles, nested bundles, links,
+published shrinkwrap/lock files and unsupported metadata fail closed.
+
+The archive owner at `tests/test_root_npm_dependency_guards.py:953` retains
+and checks every file's type, path and size. Every exact-basename
+`package.json` is strictly decoded with duplicate, nonfinite and depth checks;
+other payload files remain bytes with no npm graph/provenance authority.
+There is no JSONC parser or package/filename exception. The only supported
+nested package metadata is exactly `{"type":"module"}` below one proven leaf,
+with no additional installed root in the independent native inventory.
+
+The admitted acquisition is anonymous official canonical HTTPS only, with no
+proxy, auth or redirect; raw byte cache reuse always revalidates SHA-512.
+Bounds are 16 MiB compressed, 32 MiB expanded, 4,096 members, 128 package
+manifests, 1 MiB per manifest and depth 32. Chunk reads and metadata operations
+share a 90-second proof deadline. Physically npm-bound Arborist `loadActual`
+reads an isolated physical metadata tree under a synthetic wrapper
+(`tests/test_root_npm_dependency_guards.py:1055`); it does not install, reify,
+run lifecycle scripts or execute package payloads. Complete archive/lock/native
+root and required prod/optional/peer edge inventories are reconciled, with
+multiplicity checked before sets (`tests/test_root_npm_dependency_guards.py:1141`).
+The scoped contract is `tests/AGENTS.md:164`.
+
+### Observed bounded metadata proof and remaining validation
+
+`bundle-current-archive-proof-after-selector-result.json` records exit **0**
+in 0.810 seconds for the current adopted lock and retained archive, with OS
+network denial. The exact inline command source is
+`bundle-current-archive-proof.code.py`, SHA-256
+`4246fa0145537268ca4e3207f302c19c75f1aa04f731599b2e8c179f94385337`;
+the original sandbox/interpreter/`-c` argv is retained in
+`bundle-current-archive-proof-result.json`. Its raw stdout is:
+
+```text
+[Raw JSON record rendered as individual fields; names and values unchanged.]
+scope: current canonical provenance/whole-lock and parent archive/native metadata only; warm raw bytes reverified, no install/build/cold-CI/P
+lock_sha256: 385dedaf7b27f2cc0725f3dee6f8bd30c2d33a75c7c5abd644e27326f7623e08
+archive_sha256: d5b61fbe10d237f7565032a74b03b5be6c83b309037ee407e2b5b46f24738823
+parent_owned_occurrences: 6
+published_package_documents: 8
+lock_package_records: 779
+braces_lock_and_published_requests: absent in inspected finite metadata
+network: OS denied; retained bytes only
+```
+
+That receipt binds the corrected selector source `49f8b920…`. Subsequent
+full-identity discovery and diagnostic corrections are present in the current
+root `7f343ba8…` and frontend `9c0d22bb…`; the current scoped instruction
+hash is `bf401fc3…`. Earlier full-suite output remains preserved: 733 cases,
+732 passed and one diagnostic mismatch, corrected afterward. The affected
+12-case retry in `bundle-timeout-narrow-result.json` exited **0** in 78.868
+seconds, with raw stdout `............ [100%]`. Its retained stderr includes
+a faulthandler SSL/read1 stack dump at 20 seconds; the terminal result records
+no timeout. This is scoped test evidence, not the complete owning gate.
+
+The separate single-process two-module run admitted by
+`bundle-owning-guards-network-budget-admission.json` has an actual terminal
+result in `bundle-owning-guards-network-budget-result.json`: exit **0**, no
+timeout, 371.288 seconds host elapsed and 364,298,240 bytes maximum resident
+memory. Its complete JUnit inventory records **733 tests, zero failures,
+errors or skips**. With the controller repository interpreter rendered as
+`.venv/bin/python`, the recorded command arguments are:
+
+```bash
+.venv/bin/python -m pytest -p pytest_asyncio.plugin -q tests/test_root_npm_dependency_guards.py tests/test_frontend_dependency_guards.py --maxfail=10 -o faulthandler_timeout=60 --junitxml=artifacts/orchestration/braces-build/bundle-owning-guards-network-budget.junit.xml
+```
+
+The exact original interpreter/argv is retained in the result. Raw stdout's
+terminal line and stderr's faulthandler diagnostic are:
+
+```text
+.............                                                            [100%]
+Timeout (0:01:00)!
+```
+
+The stderr stack points to the SSL/read1 acquisition path; that diagnostic at
+60 seconds did not terminate this 900-second-budget run. The earlier
+180-second full-gate timeout and prior diagnostic failures remain preserved,
+not rewritten as success. The terminal receipt's unchanged source bindings
+were rechecked before this documentation update:
+
+- Root guard: `7f343ba898a9a8fd47cd263466be8713722160e9d18f0eb25bee112e7f8b585d`.
+- Frontend guard: `9c0d22bb4f8d64d34f5a1f02837eaa8f92f94d2b58d9ab0aaf6038c13f3c7f35`.
+- Tests instructions: `bf401fc32c3ef896d72d97a6826192cc339894a78cd3452269b6c32ded600b65`.
+- Candidate lock: `385dedaf7b27f2cc0725f3dee6f8bd30c2d33a75c7c5abd644e27326f7623e08`.
+
+This is the scoped two-module test result. Linux, cold CI, genuine
+installation, platform artifacts, build/watch executable
+absence and final criteria QA remain pending. Neither this metadata class nor
+these observations prove absence or safety of arbitrary embedded payload code,
+remediation `P`, a provider scan, or whole-audit closure. Permanent tests retain
+current-head discovery rather than historical dependency versions/deltas.
+
+## HISTORY: early opaque-graph metadata diagnostic
+
+The adopted candidate contains optional
+`node_modules/@tailwindcss/oxide-wasm32-wasi` with six `bundleDependencies`
+(`frontend/package-lock.json:3846`), plus six nested `inBundle: true` records.
+Their identities are `@emnapi/core`, `@emnapi/runtime`,
+`@emnapi/wasi-threads`, `@napi-rs/wasm-runtime`, `@tybys/wasm-util` and `tslib`.
+Optional/platform status does not exempt those tracked lock records from the
+existing fail-closed admission contract.
+
+Root ran one source-bound selected-helper diagnostic, recorded in
+`opaque-graph-onecase-actual-result.json`. Its command, rendered relative to
+the repository with the recorded repo Python, was:
+
+```bash
+.venv/bin/python -I artifacts/orchestration/braces-build/opaque-graph-onecase-diagnostic.prepared.py
+```
+
+It selected only `_assert_manifest_dependency_container_shapes` and
+`_assert_no_published_opaque_inner_graph`, returned from the selected helper's
+empty control, then rejected the actual candidate. Two raw output lines are:
+
+```text
+[Raw JSON record rendered as individual fields; names and values unchanged.]
+scope: selected existing helper only; not pytest/native/whole-head absence
+source_sha256: 48f71e85db154ff79c53f93d298eeb4e0ed7710ab9a1ff51ba6d4571501560c3
+lock_sha256: 385dedaf7b27f2cc0725f3dee6f8bd30c2d33a75c7c5abd644e27326f7623e08
+empty_helper_control: returned
+AssertionError: frontend/package-lock.json:node_modules/@tailwindcss/oxide-wasm32-wasi: published bundled dependencies block batch admission
+```
+
+Recorded exit: **1**. The assertion is at
+`tests/test_frontend_dependency_guards.py:1798`. This is a selected-helper
+static metadata diagnostic, not a full pytest run, required-gate result,
+native virtual graph, installation or `P` proof. The source and lock bindings
+in that receipt are the historical guard source and the unchanged adopted
+candidate lock hashes.
+
+All six nested entries also omit `resolved` and `integrity`. Source inspection
+of the then-current ordinary-registry-only guard at historical
+`tests/test_root_npm_dependency_guards.py:644` and
+`tests/test_root_npm_dependency_guards.py:664` showed that it would reject
+missing canonical source/nonempty SRI metadata.
+That provenance check was **not executed** by this diagnostic; it is a separate
+source-inspection conclusion, not a second observed failure result.
+
+This diagnostic blocked admission at that historical source. Its raw failure
+is retained; the later supported-class implementation and bounded metadata
+proof above address that carrier boundary without omission, allowlisting,
+suppression or manual lock editing. B04 and `P` remain **PENDING** for genuine
+installation, applicable complete native gates and executable build/watch
+absence; the selected-helper failure is not represented as a passing test.
+
+## Retained baseline constraints and pending acceptance
+
+Historical baseline evidence is bound to the exact base, the 5,717-entry source
+manifest and separately owned Linux material. Qualified browser identities in
+the retained cutoff were Chromium `145.0.7632.6`, Firefox `146.0.1` and WebKit
+`26.0`, with Node `24.18.1`, npm `11.16.0` and Playwright `1.58.2`.
+Those identities do not prove testing at every minimum supported browser version.
+
+Retain `finite-baseline-freeze.final-observation-cutoff-v4.json` and the
+W1440 v5 addendum with their original failed/unknown observations. The later
+addendum supplies only the missing WebKit 1440 primitive/theme observations.
+WebKit forced-color ordinary-input/radio failures, the original HPP
+25-pass/two-failure baseline, and the new-source hot canary failure remain
+historical facts. The candidate must satisfy the original assertions and
+finite K01–K07 cases, including real Plate/Progress with the existing synthetic
+session seam. It must retain raw styles/focus/media facts before assertions.
+
+The pulse addendum binds the actual base keyframes
+`@keyframes pulse{50%{opacity:.5}}` and effective `2s` infinite pulse timing.
+Candidate evidence must include actual animation effect/timing/progress and
+opacity change; static in-range opacity is insufficient. Reduced-motion
+observations retain `none`, `0s`, opacity `1`. No tolerance is widened here.
+
+B01–B09 remain subject to individual evidence review. In particular:
+
+- **OBSERVED COMPONENTS B02/B03, final QA pending:** the current uncommitted
+  five-surface inventory and technical complete A/B byte/delta replay above.
+  Historical A manual-admission qualification remains unresolved.
+- **OBSERVED B04 metadata component; B04/P pending:** canonical retained-archive
+  proof inspected 779 records, six parent-owned leaves and eight package
+  documents. The complete two-module focused gate passed all 733 cases at the
+  recorded source bindings; genuine installation, applicable native gates and
+  production/build/watch absence remain unproven.
+- **PENDING B05–B06:** candidate finite browser/CSS/cn/source/HMR evidence,
+  meaningful detection negatives, focused guards/UI tests, build, Storybook,
+  design/token checks and the required narrow local bundle.
+- **PENDING B08:** actual-diff premortem, Experiment Runner, non-draft PR,
+  required post-open roles, current-head CI/security/coverage, exact-material
+  self-review, dispositions, provider-neutral seal and review wait window.
+- **PENDING B09:** all-gates exact-head merge decision in the central Root slot,
+  actual merge, synchronized-main health and owned cleanup. CAB readmission
+  requires that real prerequisite outcome.
+
+The next action is the remaining admitted installation/native and
+narrow/frontend gates after the scoped two-module result. The historical A
+gap remains open. This documentation update ran no tests or native commands. No readiness, scan, approval,
+provider PASS, no-findings, `P`, C14 or merge achievement is claimed.

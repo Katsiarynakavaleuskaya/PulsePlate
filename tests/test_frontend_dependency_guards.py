@@ -6,8 +6,6 @@ EN: Ensure frontend security overrides are pinned to safe npm releases.
 
 from __future__ import annotations
 
-import base64
-import binascii
 import hashlib
 import json
 import os
@@ -25,10 +23,18 @@ import pytest
 from packaging.specifiers import SpecifierSet
 from packaging.version import InvalidVersion, Version
 from tests.test_root_npm_dependency_guards import (
+    npm_flat_bundle_material as npm_flat_bundle_material,
+    _synthetic_npm_bundle_archive,
+    _synthetic_npm_bundle_sri,
+    _NpmLockMaterial,
+    _assert_parent_owned_occurrence,
+    _assert_manifest_dependency_container_shapes,
+    _assert_sha512_integrity,
     _assert_lock_surface_canonical_provenance,
     _find_lock_occurrences,
     _find_manifest_occurrences,
     _find_opaque_npm_dependency_source_occurrences,
+    _canonical_registry_tarball_identity,
     _lock_path_package_identity,
 )
 
@@ -584,8 +590,11 @@ def _fully_decode_url_path(path: str) -> str:
 
 
 def _has_registry_tarball_path_signal(value: object, *, target: str) -> bool:
-    """Discover a candidate by package pathname before validating its origin."""
+    """Use canonical full identity, retaining wide discovery for unproved sources."""
 
+    canonical = _canonical_registry_tarball_identity(value)
+    if canonical is not None:
+        return canonical[0] == target
     if not isinstance(value, str):
         return False
     parsed = urlparse(value)
@@ -1414,6 +1423,13 @@ def _assert_brace_expansion_surface_ownership(
             document=document,
             surfaces=surfaces,
         )
+        if PurePosixPath(relative).name in NPM_LOCK_SURFACE_BASENAMES:
+            material = _assert_no_published_opaque_inner_graph(surface=relative, document=document)
+            for published_path, published in material.published_manifests.items():
+                for path, value in _find_manifest_occurrences(
+                    published, target="brace-expansion"
+                ).items():
+                    manifest_occurrences[(published_path, *path)] = value
         if manifest_occurrences or lock_entries:
             discovered_surfaces.add(relative)
         if relative in FRONTEND_BRACE_EXPANSION_SURFACES:
@@ -1435,6 +1451,7 @@ def _assert_brace_expansion_security_class(
     package_lock: dict,
     surface: str = "frontend/package.json",
     surfaces: dict[str, dict] | None = None,
+    material: _NpmLockMaterial | None = None,
 ) -> None:
     """Validate every current occurrence, while allowing executable absence."""
 
@@ -1468,21 +1485,33 @@ def _assert_brace_expansion_security_class(
         assert parsed_output.major == major, f"{path}: brace-expansion major mismatch"
         manifest_versions.add(parsed_output)
 
+    if material is not None:
+        for published_path, published in material.published_manifests.items():
+            assert not _find_manifest_occurrences(
+                published, target="brace-expansion"
+            ), f"{published_path}: unapproved published brace-expansion request"
     packages = package_lock.get("packages")
     discovered_entries = _discover_brace_expansion_lock_entries(packages)
     lock_versions: set[Version] = set()
     for raw_path, package in discovered_entries.items():
         parsed_version = _parse_version(value=package.get("version"), source=raw_path)
         assert not parsed_version.is_prerelease, f"{raw_path}: prerelease output is not approved"
-        resolved = package.get("resolved")
-        raw_version = package.get("version")
-        assert isinstance(raw_version, str)
-        expected_resolved = (
-            "https://registry.npmjs.org/brace-expansion/-/" f"brace-expansion-{raw_version}.tgz"
-        )
-        assert resolved == expected_resolved, f"{raw_path}: brace-expansion provenance mismatch"
-        integrity = package.get("integrity")
-        assert isinstance(integrity, str) and integrity.strip(), f"{raw_path}: integrity missing"
+        if material is not None and raw_path in material.parent_owned:
+            _assert_parent_owned_occurrence(
+                material=material, path=raw_path, entry=package, target="brace-expansion"
+            )
+        else:
+            resolved = package.get("resolved")
+            raw_version = package.get("version")
+            assert isinstance(raw_version, str)
+            expected_resolved = (
+                "https://registry.npmjs.org/brace-expansion/-/" f"brace-expansion-{raw_version}.tgz"
+            )
+            assert resolved == expected_resolved, f"{raw_path}: brace-expansion provenance mismatch"
+            integrity = package.get("integrity")
+            assert (
+                isinstance(integrity, str) and integrity.strip()
+            ), f"{raw_path}: integrity missing"
         lock_versions.add(parsed_version)
 
     missing_lock_outputs = manifest_versions - lock_versions
@@ -1552,53 +1581,6 @@ def _assert_transitive_npm_head_postcondition(
             version not in affected_range for affected_range in affected_ranges
         ), f"{target}/{advisory}: governed occurrence remains affected"
     return version
-
-
-def _assert_sha512_integrity(*, value: object, source: str) -> None:
-    """Require one syntactically valid 64-byte sha512 SRI digest."""
-
-    assert isinstance(value, str) and value.startswith(
-        "sha512-"
-    ), f"{source}: integrity must use sha512 SRI"
-    encoded = value.removeprefix("sha512-")
-    try:
-        digest = base64.b64decode(encoded, validate=True)
-    except (binascii.Error, ValueError) as exc:
-        raise AssertionError(f"{source}: integrity must contain valid base64") from exc
-    assert len(digest) == 64, f"{source}: integrity sha512 digest must be 64 bytes"
-
-
-def _assert_manifest_dependency_container_shapes(*, document: dict, surface: str) -> None:
-    """Keep JSON structure local while npm owns dependency-source semantics."""
-
-    for field in (
-        "dependencies",
-        "devDependencies",
-        "optionalDependencies",
-        "peerDependencies",
-        "overrides",
-    ):
-        if field in document:
-            assert isinstance(document[field], dict), f"{surface}:{field} must be an object"
-    for field in ("bundleDependencies", "bundledDependencies"):
-        if field not in document:
-            continue
-        bundled = document[field]
-        if type(bundled) is bool:
-            continue
-        assert isinstance(bundled, list), f"{surface}:{field} must be an array"
-        assert all(
-            isinstance(value, str) and value for value in bundled
-        ), f"{surface}:{field} entries must be non-empty package names"
-    peer_metadata = document.get("peerDependenciesMeta", {})
-    assert isinstance(peer_metadata, dict), f"{surface}: peerDependenciesMeta must be an object"
-    for peer, metadata in peer_metadata.items():
-        assert isinstance(peer, str) and peer, f"{surface}: peer metadata name must be text"
-        assert isinstance(metadata, dict), f"{surface}:{peer}: peer metadata must be an object"
-        assert set(metadata) <= {"optional"}, f"{surface}:{peer}: unknown peer metadata field"
-        assert (
-            type(metadata.get("optional", False)) is bool
-        ), f"{surface}:{peer}: peer optional must be an exact boolean"
 
 
 def _load_transitive_npm_surface(path: Path) -> dict:
@@ -1750,7 +1732,7 @@ def _assert_npm_virtual_lock_graphs(*, surfaces: dict[str, dict]) -> None:
 
 
 def _assert_transitive_npm_occurrence(
-    *, target: str, surface: str, path: str, package: dict
+    *, target: str, surface: str, path: str, package: dict, material: _NpmLockMaterial | None = None
 ) -> None:
     """Apply only target identity, advisory, provenance, and SRI policy."""
 
@@ -1761,7 +1743,9 @@ def _assert_transitive_npm_occurrence(
     assert "link" not in package, f"{source}: symbolic link lock occurrence is forbidden"
     in_bundle = package.get("inBundle", False)
     assert type(in_bundle) is bool, f"{source}: inBundle must be boolean when present"
-    assert not in_bundle, f"{source}: bundled lock occurrence is forbidden"
+    assert not in_bundle or (
+        material is not None and path in material.parent_owned
+    ), f"{source}: bundled lock occurrence is forbidden"
     raw_version = package.get("version")
     _assert_transitive_npm_head_postcondition(
         target=target,
@@ -1769,40 +1753,19 @@ def _assert_transitive_npm_occurrence(
         source=source,
     )
     assert isinstance(raw_version, str)
-    expected_resolved = f"https://registry.npmjs.org/{target}/-/{target}-{raw_version}.tgz"
-    assert (
-        package.get("resolved") == expected_resolved
-    ), f"{source}: {target} canonical provenance mismatch"
-    _assert_sha512_integrity(value=package.get("integrity"), source=source)
+    if material is not None and path in material.parent_owned:
+        _assert_parent_owned_occurrence(material=material, path=path, entry=package, target=target)
+    else:
+        expected_resolved = f"https://registry.npmjs.org/{target}/-/{target}-{raw_version}.tgz"
+        assert (
+            package.get("resolved") == expected_resolved
+        ), f"{source}: {target} canonical provenance mismatch"
+        _assert_sha512_integrity(value=package.get("integrity"), source=source)
 
 
-def _assert_no_published_opaque_inner_graph(*, surface: str, document: dict) -> None:
-    """Reject finite npm-v3 inner-graph carriers before target claims."""
-
-    packages = document.get("packages")
-    assert isinstance(packages, dict), f"{surface}: packages must be an object"
-    for package_path, package in packages.items():
-        assert isinstance(package_path, str), f"{surface}: package path must be text"
-        assert isinstance(package, dict), f"{surface}:{package_path}: package must be an object"
-        _assert_manifest_dependency_container_shapes(
-            document=package, surface=f"{surface}:{package_path}"
-        )
-        has_shrinkwrap = package.get("hasShrinkwrap", False)
-        assert (
-            type(has_shrinkwrap) is bool
-        ), f"{surface}:{package_path}: hasShrinkwrap must be an exact boolean"
-        assert (
-            not has_shrinkwrap
-        ), f"{surface}:{package_path}: published nested shrinkwrap blocks batch admission"
-        for field in ("bundleDependencies", "bundledDependencies"):
-            assert not package.get(
-                field, []
-            ), f"{surface}:{package_path}: published bundled dependencies block batch admission"
-        in_bundle = package.get("inBundle", False)
-        assert (
-            type(in_bundle) is bool
-        ), f"{surface}:{package_path}: inBundle must be boolean when present"
-        assert not in_bundle, f"{surface}:{package_path}: bundled lock occurrence is forbidden"
+def _assert_no_published_opaque_inner_graph(*, surface: str, document: dict) -> _NpmLockMaterial:
+    """Consume the canonical current archive/lock/native proof as data."""
+    return _assert_lock_surface_canonical_provenance(surface=surface, document=document)
 
 
 def _assert_transitive_npm_security_batch(*, root: Path = REPO_ROOT) -> dict[str, frozenset[str]]:
@@ -1838,15 +1801,20 @@ def _assert_transitive_npm_security_batch(*, root: Path = REPO_ROOT) -> dict[str
         assert (
             document.get("lockfileVersion") == 3
         ), f"{relative}: transitive batch supports only npm lockfileVersion 3"
-        _assert_lock_surface_canonical_provenance(surface=relative, document=document)
-        _assert_no_published_opaque_inner_graph(surface=relative, document=document)
+        material = _assert_no_published_opaque_inner_graph(surface=relative, document=document)
         for target in AUTHORIZED_TRANSITIVE_NPM_BATCH:
+            for published_path, published in material.published_manifests.items():
+                requests = _find_manifest_occurrences(published, target=target)
+                assert (
+                    not requests
+                ), f"{relative}:{published_path}: direct {target} published authority is forbidden"
             for path, package in _find_lock_occurrences(
                 document,
                 target=target,
             ).items():
                 _assert_transitive_npm_occurrence(
                     target=target,
+                    material=material,
                     surface=relative,
                     path=path,
                     package=package,
@@ -1909,11 +1877,14 @@ def _assert_frontend_security_targets(*, root: Path = REPO_ROOT) -> None:
         relative: _load_transitive_npm_surface(root / relative)
         for relative in _enumerate_repo_npm_surfaces(root=root)
     }
+    materials: dict[str, _NpmLockMaterial] = {}
     for relative, document in surfaces.items():
         if PurePosixPath(relative).name == "package.json":
             _assert_manifest_dependency_container_shapes(document=document, surface=relative)
         else:
-            _assert_lock_surface_canonical_provenance(surface=relative, document=document)
+            materials[relative] = _assert_no_published_opaque_inner_graph(
+                surface=relative, document=document
+            )
             for path, package in document["packages"].items():
                 assert isinstance(
                     package, dict
@@ -1936,6 +1907,9 @@ def _assert_frontend_security_targets(*, root: Path = REPO_ROOT) -> None:
                     manifest_occurrences[(relative, *path)] = value
                 continue
             assert basename in NPM_LOCK_SURFACE_BASENAMES
+            for published_path, published in materials[relative].published_manifests.items():
+                for path, value in _find_manifest_occurrences(published, target=target).items():
+                    manifest_occurrences[(relative, published_path, *path)] = value
             for path, package in _discover_frontend_target_lock_entries(
                 document.get("packages"), target=target
             ).items():
@@ -1965,16 +1939,24 @@ def _assert_frontend_security_targets(*, root: Path = REPO_ROOT) -> None:
                 raw_version=raw_version,
             )
             assert raw_version == selected, f"{relative}:{path}: {target} selected target drift"
-            expected_resolved = f"https://registry.npmjs.org/{target}/-/{target}-{selected}.tgz"
-            assert (
-                package.get("resolved") == expected_resolved
-            ), f"{relative}:{path}: {target} canonical provenance mismatch"
-            source = f"{relative}:{path}"
-            assert "link" not in package, f"{source}: symbolic link lock occurrence is forbidden"
-            in_bundle = package.get("inBundle", False)
-            assert type(in_bundle) is bool, f"{source}: inBundle must be boolean when present"
-            assert not in_bundle, f"{source}: bundled lock occurrence is forbidden"
-            _assert_sha512_integrity(value=package.get("integrity"), source=source)
+            material = materials[relative]
+            if path in material.parent_owned:
+                _assert_parent_owned_occurrence(
+                    material=material, path=path, entry=package, target=target
+                )
+            else:
+                expected_resolved = f"https://registry.npmjs.org/{target}/-/{target}-{selected}.tgz"
+                assert (
+                    package.get("resolved") == expected_resolved
+                ), f"{relative}:{path}: {target} canonical provenance mismatch"
+                source = f"{relative}:{path}"
+                assert (
+                    "link" not in package
+                ), f"{source}: symbolic link lock occurrence is forbidden"
+                in_bundle = package.get("inBundle", False)
+                assert type(in_bundle) is bool, f"{source}: inBundle must be boolean when present"
+                assert not in_bundle, f"{source}: bundled lock occurrence is forbidden"
+                _assert_sha512_integrity(value=package.get("integrity"), source=source)
             lock_versions.add(parsed_version)
         assert lock_versions == {Version(selected)}, f"{target}: manifest/lock target disagreement"
 
@@ -2063,8 +2045,12 @@ def _assert_vitest_security_surfaces(surfaces: dict[str, dict]) -> None:
             assert not opaque, f"{relative}: opaque npm dependency source {opaque!r}"
             continue
         assert basename in NPM_LOCK_SURFACE_BASENAMES, f"{relative}: unexpected npm surface"
-        _assert_lock_surface_canonical_provenance(surface=relative, document=document)
-        _assert_no_published_opaque_inner_graph(surface=relative, document=document)
+        material = _assert_no_published_opaque_inner_graph(surface=relative, document=document)
+        for target in VITEST_DIRECT_COHORT | set(VITEST_ADVISORY_RANGES):
+            for published_path, published in material.published_manifests.items():
+                assert not _find_manifest_occurrences(
+                    published, target=target
+                ), f"{relative}:{published_path}: unexpected {target} published carrier"
         for target in VITEST_ADVISORY_RANGES:
             for path, package in _find_lock_occurrences(document, target=target).items():
                 source = f"{relative}:{path}"
@@ -2073,13 +2059,18 @@ def _assert_vitest_security_surfaces(surfaces: dict[str, dict]) -> None:
                 ), f"{source}: {target} alias/noncanonical installed path"
                 assert "link" not in package, f"{source}: symbolic link is forbidden"
                 in_bundle = package.get("inBundle", False)
-                assert (
-                    type(in_bundle) is bool and not in_bundle
+                assert type(in_bundle) is bool and (
+                    not in_bundle or path in material.parent_owned
                 ), f"{source}: bundled or malformed inBundle occurrence is forbidden"
                 _assert_vitest_safe_version(
                     target=target, value=package.get("version"), source=source
                 )
-                _assert_sha512_integrity(value=package.get("integrity"), source=source)
+                if path in material.parent_owned:
+                    _assert_parent_owned_occurrence(
+                        material=material, path=path, entry=package, target=target
+                    )
+                else:
+                    _assert_sha512_integrity(value=package.get("integrity"), source=source)
                 lock_entries[target][source] = package
 
     packages = frontend_lock.get("packages")
@@ -2190,6 +2181,9 @@ def test_frontend_brace_expansion_class_covers_all_lock_variants() -> None:
         package_json=package_json,
         package_lock=package_lock,
         surfaces=surfaces,
+        material=_assert_no_published_opaque_inner_graph(
+            surface="frontend/package-lock.json", document=package_lock
+        ),
     )
 
 
@@ -3212,7 +3206,7 @@ def test_transitive_npm_batch_allows_per_identity_executable_absence(
     carrier = lock["packages"]["node_modules/carrier"]
     assert isinstance(carrier, dict)
     for value, message in (
-        (True, "published nested shrinkwrap blocks batch admission"),
+        (True, "published nested shrinkwrap"),
         ("false", "hasShrinkwrap must be an exact boolean"),
     ):
         carrier["hasShrinkwrap"] = value
@@ -3228,8 +3222,8 @@ def test_transitive_npm_batch_allows_per_identity_executable_absence(
                 _assert_transitive_npm_security_batch(root=tmp_path)[absent_target] == frozenset()
             )
         for value, message in (
-            ([absent_target], "published bundled dependencies block batch admission"),
-            (True, "published bundled dependencies block batch admission"),
+            ([absent_target], "published bundled dependencies"),
+            (True, "published bundled dependencies"),
             ("false", f"{field} must be an array"),
             ({}, f"{field} must be an array"),
             (None, f"{field} must be an array"),
@@ -3242,8 +3236,8 @@ def test_transitive_npm_batch_allows_per_identity_executable_absence(
         del carrier[field]
     for value, message in (
         (True, "bundled lock occurrence is forbidden"),
-        ("false", "inBundle must be boolean when present"),
-        (1, "inBundle must be boolean when present"),
+        ("false", "inBundle must be boolean"),
+        (1, "inBundle must be boolean"),
     ):
         carrier["inBundle"] = value
         lock_path.write_text(json.dumps(lock), encoding="utf-8")
@@ -3919,7 +3913,7 @@ def test_transitive_npm_batch_is_conjunctive_for_mixed_safe_and_affected_targets
         ("short-integrity", "integrity sha512 digest must be 64 bytes"),
         ("symbolic-link", "symbolic link lock occurrence is forbidden"),
         ("bundled-record", "bundled lock occurrence is forbidden"),
-        ("malformed-bundle-flag", "inBundle must be boolean when present"),
+        ("malformed-bundle-flag", "inBundle must be boolean"),
     ),
 )
 @pytest.mark.parametrize(
@@ -4445,6 +4439,24 @@ def test_transitive_npm_batch_receipt_rejects_duplicate_json_keys() -> None:
         _extract_transitive_npm_batch_receipt(ambiguous)
 
 
+def test_frontend_target_discovery_distinguishes_scoped_tarball_sibling() -> None:
+    """A distinct scoped basename does not hide or impersonate the real target."""
+    postcss = _transitive_npm_entry(target="postcss", version="1.0.0")
+    scoped = {
+        "name": "@fixture/postcss",
+        "version": "1.0.0",
+        "resolved": "https://registry.npmjs.org/@fixture/postcss/-/postcss-1.0.0.tgz",
+        "integrity": postcss["integrity"],
+    }
+    packages = {"node_modules/@fixture/postcss": scoped, "node_modules/postcss": postcss}
+    assert _discover_frontend_target_lock_entries(packages, target="postcss") == {
+        "node_modules/postcss": postcss
+    }
+    assert not _find_override_key_paths(
+        {"dependencies": {"scoped": scoped["resolved"]}}, target="postcss"
+    )
+
+
 def test_frontend_security_targets_cover_all_current_tracked_surfaces() -> None:
     """Every non-brace batch target has one bounded carrier and universal postcondition."""
 
@@ -4794,13 +4806,13 @@ def _vitest_guard_fixture() -> dict[str, dict]:
         ("malformed-lock", "packages.*must be a dict"),
         ("missing-integrity", "integrity"),
         ("wrong-provenance", "resolved"),
-        ("nested-shrinkwrap", "published nested shrinkwrap blocks batch admission"),
+        ("nested-shrinkwrap", "published nested shrinkwrap"),
         ("malformed-shrinkwrap", "hasShrinkwrap must be an exact boolean"),
-        ("bundled-mocker-carrier", "published bundled dependencies block batch admission"),
-        ("alternate-bundled-carrier", "published bundled dependencies block batch admission"),
+        ("bundled-mocker-carrier", "published bundled dependencies"),
+        ("alternate-bundled-carrier", "published bundled dependencies"),
         ("malformed-bundle-carrier", "bundleDependencies must be an array"),
         ("in-bundle-carrier", "bundled lock occurrence is forbidden"),
-        ("malformed-in-bundle-carrier", "inBundle must be boolean when present"),
+        ("malformed-in-bundle-carrier", "inBundle must be boolean"),
         ("prerelease", "prerelease"),
     ),
 )
@@ -5019,3 +5031,317 @@ def test_brace_expansion_new_cutoff_record_boundaries(
     assert _version_is_affected(version=Version(below), advisory=advisory)
     assert not _version_is_affected(version=Version(floor), advisory=advisory)
     assert not _version_is_affected(version=Version(selected), advisory=advisory)
+
+
+def _assert_braces_absent_from_npm_surfaces(*, surfaces: dict[str, dict]) -> None:
+    """Require braces absence after the existing finite npm admission checks."""
+    assert surfaces, "braces absence requires a non-empty tracked npm surface universe"
+    for relative, document in surfaces.items():
+        basename = PurePosixPath(relative).name
+        if basename == "package.json":
+            _assert_manifest_dependency_container_shapes(document=document, surface=relative)
+            requests = _find_manifest_occurrences(document, target="braces")
+            assert not requests, f"{relative}: braces manifest request remains: {requests!r}"
+            opaque = _find_opaque_npm_dependency_source_occurrences(document)
+            assert not opaque, f"{relative}: opaque npm dependency source blocks braces absence"
+            continue
+        assert basename in NPM_LOCK_SURFACE_BASENAMES, f"{relative}: unexpected npm surface"
+        material = _assert_no_published_opaque_inner_graph(surface=relative, document=document)
+        for published_path, published in material.published_manifests.items():
+            requests = _find_manifest_occurrences(published, target="braces")
+            assert (
+                not requests
+            ), f"{relative}:{published_path}: braces published request remains: {requests!r}"
+        installed = _find_lock_occurrences(document, target="braces")
+        assert not installed, f"{relative}: installed braces occurrence remains: {installed!r}"
+        for package_path, package in document["packages"].items():
+            source = f"{relative}:{package_path}"
+            assert "link" not in package, f"{source}: symbolic link blocks braces absence"
+            requests = _find_manifest_occurrences(package, target="braces")
+            assert not requests, f"{source}: braces lock request remains: {requests!r}"
+    _assert_npm_virtual_lock_graphs(surfaces=surfaces)
+
+
+def _assert_braces_absent_from_current_npm_surfaces(*, root: Path = REPO_ROOT) -> None:
+    """Discover current tracked manifests/locks without freezing an incident tree."""
+    surfaces = {
+        relative: _load_transitive_npm_surface(root / relative)
+        for relative in sorted(_enumerate_repo_npm_surfaces(root=root))
+    }
+    _assert_braces_absent_from_npm_surfaces(surfaces=surfaces)
+
+
+def test_braces_is_absent_from_every_current_tracked_npm_surface() -> None:
+    _assert_braces_absent_from_current_npm_surfaces()
+
+
+@pytest.fixture(scope="module")
+def braces_absence_surfaces() -> dict[str, dict]:
+    """Prove the complete real native baseline before any independent mutation."""
+    manifest = {"name": "fixture", "version": "1.0.0", "dependencies": {"carrier": "1.0.0"}}
+    surfaces = {
+        "future/build/package.json": manifest,
+        "future/build/npm-shrinkwrap.json": {
+            "name": "fixture",
+            "version": "1.0.0",
+            "lockfileVersion": 3,
+            "packages": {
+                "": deepcopy(manifest),
+                "node_modules/carrier": {
+                    **_transitive_npm_entry(target="carrier", version="1.0.0"),
+                    "dependencies": {"brace-expansion": "2.1.7", "renamed": "npm:other@1.0.0"},
+                    "hasShrinkwrap": False,
+                    "bundledDependencies": [],
+                    "inBundle": False,
+                },
+                "node_modules/brace-expansion": _transitive_npm_entry(
+                    target="brace-expansion", version="2.1.7"
+                ),
+                "node_modules/renamed": {
+                    **_transitive_npm_entry(target="other", version="1.0.0"),
+                    "name": "other",
+                },
+            },
+        },
+    }
+    _assert_braces_absent_from_npm_surfaces(surfaces=surfaces)
+    return surfaces
+
+
+@pytest.mark.parametrize(
+    "carrier",
+    (
+        {"dependencies": {"braces": "99.0.0"}},
+        {"devDependencies": {"braces": "3.0.3"}},
+        {"optionalDependencies": {"braces": "3.0.3"}},
+        {"peerDependencies": {"braces": "3.0.3"}},
+        {"dependencies": {"renamed": "npm:braces@3.0.3"}},
+        {"dependencies": {"renamed": "https://registry.npmjs.org/braces/-/braces-3.0.3.tgz"}},
+        {"overrides": {"parent": {"braces@^3": {".": "3.0.3"}}}},
+        {"bundleDependencies": ["braces"]},
+        {"bundledDependencies": ["braces"]},
+    ),
+)
+def test_braces_absence_rejects_manifest_requests(
+    braces_absence_surfaces: dict[str, dict], carrier: dict
+) -> None:
+    surfaces = deepcopy(braces_absence_surfaces)
+    surfaces["future/build/package.json"].update(carrier)
+    with pytest.raises(AssertionError, match="braces manifest request remains"):
+        _assert_braces_absent_from_npm_surfaces(surfaces=surfaces)
+
+
+@pytest.mark.parametrize("package_path", ("", "node_modules/carrier"))
+@pytest.mark.parametrize(
+    "field", ("dependencies", "devDependencies", "optionalDependencies", "peerDependencies")
+)
+@pytest.mark.parametrize("name,spec", (("braces", "3.0.3"), ("renamed-braces", "npm:braces@3.0.3")))
+def test_braces_absence_rejects_lock_requests_without_installed_target(
+    braces_absence_surfaces: dict[str, dict], package_path: str, field: str, name: str, spec: str
+) -> None:
+    surfaces = deepcopy(braces_absence_surfaces)
+    packages = surfaces["future/build/npm-shrinkwrap.json"]["packages"]
+    packages[package_path].setdefault(field, {})[name] = spec
+    with pytest.raises(AssertionError, match="braces lock request remains"):
+        _assert_braces_absent_from_npm_surfaces(surfaces=surfaces)
+
+
+@pytest.mark.parametrize(
+    "package_path,name",
+    (
+        ("node_modules/braces", None),
+        ("node_modules/carrier/node_modules/braces", None),
+        ("node_modules/renamed-braces", "braces"),
+    ),
+)
+def test_braces_absence_rejects_installed_nested_and_alias_nodes(
+    braces_absence_surfaces: dict[str, dict], package_path: str, name: str | None
+) -> None:
+    surfaces = deepcopy(braces_absence_surfaces)
+    entry = _transitive_npm_entry(target="braces", version="3.0.3")
+    if name is not None:
+        entry["name"] = name
+    surfaces["future/build/npm-shrinkwrap.json"]["packages"][package_path] = entry
+    with pytest.raises(AssertionError, match="installed braces occurrence remains"):
+        _assert_braces_absent_from_npm_surfaces(surfaces=surfaces)
+
+
+@pytest.mark.parametrize(
+    "carrier",
+    (
+        {"workspaces": ["packages/*"]},
+        {"dependencies": {"renamed": "file:../hidden"}},
+        {"dependencies": {"renamed": "git+https://example.invalid/hidden.git"}},
+        {"dependencies": {"renamed": "npm:other@1.0.0"}},
+    ),
+)
+def test_braces_absence_rejects_opaque_manifest_sources(
+    braces_absence_surfaces: dict[str, dict], carrier: dict
+) -> None:
+    surfaces = deepcopy(braces_absence_surfaces)
+    surfaces["future/build/package.json"].update(carrier)
+    with pytest.raises(AssertionError, match="opaque npm dependency source blocks braces absence"):
+        _assert_braces_absent_from_npm_surfaces(surfaces=surfaces)
+
+
+@pytest.mark.parametrize(
+    "mutation,message",
+    (
+        ({"hasShrinkwrap": True}, "published nested shrinkwrap"),
+        ({"hasShrinkwrap": "false"}, "hasShrinkwrap must be an exact boolean"),
+        ({"bundleDependencies": ["hidden"]}, "published bundled dependencies"),
+        ({"bundledDependencies": True}, "published bundled dependencies"),
+        ({"inBundle": True}, "bundled lock occurrence is forbidden"),
+        ({"inBundle": "false"}, "inBundle must be boolean"),
+        ({"link": True}, "symbolic link lock occurrence"),
+        ({"integrity": ""}, "integrity must be non-empty"),
+        ({"resolved": "file:../hidden"}, "exact canonical npm registry tarball"),
+        ({"version": "invalid"}, "version must be exact npm SemVer"),
+        ({"dependencies": []}, "dependencies must be an object"),
+    ),
+)
+def test_braces_absence_rejects_malformed_or_opaque_non_target_lock_carrier(
+    braces_absence_surfaces: dict[str, dict], mutation: dict, message: str
+) -> None:
+    surfaces = deepcopy(braces_absence_surfaces)
+    carrier = surfaces["future/build/npm-shrinkwrap.json"]["packages"]["node_modules/carrier"]
+    carrier.update(mutation)
+    with pytest.raises(AssertionError, match=message):
+        _assert_braces_absent_from_npm_surfaces(surfaces=surfaces)
+
+
+@pytest.mark.parametrize("version", (2, "3", True))
+def test_braces_absence_rejects_unsupported_lock_version(
+    braces_absence_surfaces: dict[str, dict], version: object
+) -> None:
+    surfaces = deepcopy(braces_absence_surfaces)
+    surfaces["future/build/npm-shrinkwrap.json"]["lockfileVersion"] = version
+    with pytest.raises(AssertionError, match="lockfileVersion must be exact integer 3"):
+        _assert_braces_absent_from_npm_surfaces(surfaces=surfaces)
+
+
+def test_braces_absence_requires_nonempty_discovered_inventory(
+    braces_absence_surfaces: dict[str, dict], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setitem(globals(), "_enumerate_repo_npm_surfaces", lambda **kwargs: frozenset())
+    with pytest.raises(AssertionError, match="non-empty tracked npm surface universe"):
+        _assert_braces_absent_from_current_npm_surfaces()
+
+
+@pytest.mark.parametrize("defect", ("mismatch", "missing-node"))
+def test_braces_absence_keeps_native_graph_consistency_mandatory(
+    braces_absence_surfaces: dict[str, dict], defect: str
+) -> None:
+    surfaces = deepcopy(braces_absence_surfaces)
+    surfaces["future/build/package.json"]["dependencies"]["missing"] = "1.0.0"
+    if defect == "missing-node":
+        root_package = surfaces["future/build/npm-shrinkwrap.json"]["packages"][""]
+        root_package["dependencies"]["missing"] = "1.0.0"
+    message = (
+        "root dependencies must exactly match"
+        if defect == "mismatch"
+        else "npm virtual graph rejected"
+    )
+    with pytest.raises(AssertionError, match=message):
+        _assert_braces_absent_from_npm_surfaces(surfaces=surfaces)
+
+
+@pytest.mark.parametrize("defect", ("duplicate", "invalid-json", "symlink"))
+def test_braces_current_surface_loader_rejects_unreadable_inventory(
+    braces_absence_surfaces: dict[str, dict],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    defect: str,
+) -> None:
+    """Keep real discovery/file admission and the duplicate-key loader in the consumer."""
+    for relative, document in braces_absence_surfaces.items():
+        path = tmp_path / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(document), encoding="utf-8")
+    tracked = b"\0".join(path.encode() for path in braces_absence_surfaces) + b"\0"
+    monkeypatch.setitem(globals(), "_git_stdout", lambda *args, **kwargs: tracked)
+    _assert_braces_absent_from_current_npm_surfaces(root=tmp_path)
+    path = tmp_path / "future/build/npm-shrinkwrap.json"
+    if defect == "symlink":
+        target = tmp_path / "saved-lock.json"
+        path.rename(target)
+        path.symlink_to(target)
+        error: type[Exception] = AssertionError
+        message = "regular non-symlink file"
+    elif defect == "duplicate":
+        path.write_text('{"packages":{"node_modules/braces":{}},"packages":{}}', encoding="utf-8")
+        error = AssertionError
+        message = "duplicate JSON key: packages"
+    else:
+        path.write_text("{", encoding="utf-8")
+        error = json.JSONDecodeError
+        message = "Expecting property name"
+    with pytest.raises(error, match=message):
+        _assert_braces_absent_from_current_npm_surfaces(root=tmp_path)
+
+
+def test_braces_absence_distinguishes_unrelated_scoped_package_identity(
+    braces_absence_surfaces: dict[str, dict],
+) -> None:
+    surfaces = deepcopy(braces_absence_surfaces)
+    packages = surfaces["future/build/npm-shrinkwrap.json"]["packages"]
+    packages["node_modules/carrier"]["dependencies"]["@fixture/braces"] = "1.0.0"
+    packages["node_modules/@fixture/braces"] = {
+        **_transitive_npm_entry(target="@fixture/braces", version="1.0.0"),
+        "resolved": "https://registry.npmjs.org/@fixture/braces/-/braces-1.0.0.tgz",
+    }
+    _assert_braces_absent_from_npm_surfaces(surfaces=surfaces)
+
+
+def test_braces_absence_rejects_unchecked_legacy_lock_tree(
+    braces_absence_surfaces: dict[str, dict],
+) -> None:
+    surfaces = deepcopy(braces_absence_surfaces)
+    surfaces["future/build/npm-shrinkwrap.json"]["dependencies"] = {}
+    with pytest.raises(AssertionError, match="top-level legacy dependencies are forbidden"):
+        _assert_braces_absent_from_npm_surfaces(surfaces=surfaces)
+
+
+def test_braces_absence_consumes_verified_published_dev_declarations(
+    npm_flat_bundle_material: dict,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A publisher-only dev request reaches the existing absence consumer."""
+    state = npm_flat_bundle_material
+    monkeypatch.setattr(__name__ + "._assert_npm_virtual_lock_graphs", lambda **kwargs: None)
+    surfaces = {"package-lock.json": state["lock"]}
+    _assert_braces_absent_from_npm_surfaces(surfaces=surfaces)
+    parent_name = "package/package.json"
+    published = deepcopy(state["documents"][parent_name])
+    # A direct registry selector is transparent to the source classifier; the
+    # identity-bearing request key must still reach the braces consumer.
+    published["devDependencies"] = {"braces": "1.0.0", "unused-tool": "^1.0.0"}
+    files = [
+        (name, json.dumps(published).encode() if name == parent_name else value)
+        for name, value in state["files"]
+    ]
+    state["raw"] = _synthetic_npm_bundle_archive(files)
+    state["lock"]["packages"]["node_modules/fixture-parent"]["integrity"] = (
+        _synthetic_npm_bundle_sri(state["raw"])
+    )
+    with pytest.raises(AssertionError, match="braces published request remains"):
+        _assert_braces_absent_from_npm_surfaces(surfaces=surfaces)
+
+
+def test_braces_absence_rejects_published_dev_source_alias(
+    npm_flat_bundle_material: dict,
+) -> None:
+    state = npm_flat_bundle_material
+    parent_name = "package/package.json"
+    published = deepcopy(state["documents"][parent_name])
+    published["devDependencies"]["hidden"] = "npm:braces@1.0.0"
+    files = [
+        (name, json.dumps(published).encode() if name == parent_name else value)
+        for name, value in state["files"]
+    ]
+    state["raw"] = _synthetic_npm_bundle_archive(files)
+    state["lock"]["packages"]["node_modules/fixture-parent"]["integrity"] = (
+        _synthetic_npm_bundle_sri(state["raw"])
+    )
+    with pytest.raises(AssertionError, match="opaque published dependency source"):
+        _assert_braces_absent_from_npm_surfaces(surfaces={"package-lock.json": state["lock"]})

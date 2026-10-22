@@ -7,16 +7,31 @@ freezing an individual PR's historical dependency delta.
 
 from __future__ import annotations
 
+import base64
+import binascii
+import gzip
+import hashlib
+import hmac
+import io
 import json
+import math
 import os
 import posixpath
 import re
 import shutil
+import ssl
 import subprocess
+import tarfile
+import tempfile
+import time
+import zlib
 from collections.abc import Iterable
+from copy import deepcopy
+from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Any, cast
 from urllib.parse import unquote, urlparse
+from urllib.request import HTTPRedirectHandler, HTTPSHandler, ProxyHandler, Request, build_opener
 
 import pytest
 from packaging.specifiers import SpecifierSet
@@ -104,7 +119,9 @@ process.stdout.write(JSON.stringify(classifications));
 def _load_json(path: Path) -> dict[str, Any]:
     """RU/EN: Read one governed UTF-8 JSON object or fail closed."""
     try:
-        document = json.loads(path.read_text(encoding="utf-8"))
+        document = json.loads(
+            path.read_text(encoding="utf-8"), object_pairs_hook=_reject_npm_json_duplicates
+        )
     except (OSError, UnicodeError, json.JSONDecodeError) as exc:
         raise AssertionError(f"{path}: npm surface must be readable UTF-8 JSON") from exc
     assert isinstance(document, dict), f"{path}: npm surface must be an object"
@@ -273,7 +290,7 @@ def _resolve_current_npm_registry_parser_runtime() -> tuple[str, str]:
 
 
 def _classify_current_npm_registry_specs(
-    values: Iterable[object], *, root: Path = REPO_ROOT
+    values: Iterable[object], *, root: Path = REPO_ROOT, timeout: float = 30
 ) -> dict[str, bool]:
     """Batch version/range admission through parser modules owned by installed npm."""
     specs = sorted(
@@ -309,7 +326,7 @@ def _classify_current_npm_registry_specs(
             input=json.dumps(specs, ensure_ascii=True).encode("utf-8"),
             capture_output=True,
             env=parser_env,
-            timeout=30,
+            timeout=timeout,
         )
     except (OSError, subprocess.SubprocessError) as exc:
         raise AssertionError("npm registry-spec classifier execution failed") from exc
@@ -381,6 +398,8 @@ def _find_manifest_occurrences(
 
 def _find_opaque_npm_dependency_source_occurrences(
     document: dict[str, Any],
+    *,
+    timeout: float | None = None,
 ) -> dict[tuple[str, ...], object]:
     """Find dependency sources whose identity/provenance is opaque to package.json."""
     occurrences: dict[tuple[str, ...], object] = {}
@@ -405,7 +424,11 @@ def _find_opaque_npm_dependency_source_occurrences(
                 candidates[child_path] = child
 
     walk_overrides(document.get("overrides"), ("overrides",))
-    classifications = _classify_current_npm_registry_specs(candidates.values())
+    classifications = (
+        _classify_current_npm_registry_specs(candidates.values())
+        if timeout is None
+        else _classify_current_npm_registry_specs(candidates.values(), timeout=timeout)
+    )
     occurrences.update(
         {
             path: value
@@ -625,7 +648,7 @@ def _find_lock_occurrences(document: dict[str, Any], *, target: str) -> dict[str
     return occurrences
 
 
-def _assert_lock_surface_canonical_provenance(*, surface: str, document: dict[str, Any]) -> None:
+def _assert_registry_lock_surface_provenance(*, surface: str, document: dict[str, Any]) -> None:
     """Require canonical provenance for every non-root package in one npm lock."""
     packages = _require_supported_lock_packages(document, surface=surface)
     for raw_path, raw_entry in packages.items():
@@ -667,12 +690,716 @@ def _assert_lock_surface_canonical_provenance(*, surface: str, document: dict[st
         ), f"{surface}:{raw_path}: integrity must be non-empty"
 
 
+def _assert_manifest_dependency_container_shapes(*, document: dict, surface: str) -> None:
+    """Keep JSON structure local while npm owns dependency-source semantics."""
+
+    for field in (
+        "dependencies",
+        "devDependencies",
+        "optionalDependencies",
+        "peerDependencies",
+        "overrides",
+    ):
+        if field in document:
+            assert isinstance(document[field], dict), f"{surface}:{field} must be an object"
+    for field in ("bundleDependencies", "bundledDependencies"):
+        if field not in document:
+            continue
+        bundled = document[field]
+        if type(bundled) is bool:
+            continue
+        assert isinstance(bundled, list), f"{surface}:{field} must be an array"
+        assert all(
+            isinstance(value, str) and value for value in bundled
+        ), f"{surface}:{field} entries must be non-empty package names"
+    peer_metadata = document.get("peerDependenciesMeta", {})
+    assert isinstance(peer_metadata, dict), f"{surface}: peerDependenciesMeta must be an object"
+    for peer, metadata in peer_metadata.items():
+        assert isinstance(peer, str) and peer, f"{surface}: peer metadata name must be text"
+        assert isinstance(metadata, dict), f"{surface}:{peer}: peer metadata must be an object"
+        assert set(metadata) <= {"optional"}, f"{surface}:{peer}: unknown peer metadata field"
+        assert (
+            type(metadata.get("optional", False)) is bool
+        ), f"{surface}:{peer}: peer optional must be an exact boolean"
+
+
+def _assert_sha512_integrity(*, value: object, source: str) -> None:
+    """Require one syntactically valid 64-byte sha512 SRI digest."""
+
+    assert isinstance(value, str) and value.startswith(
+        "sha512-"
+    ), f"{source}: integrity must use sha512 SRI"
+    encoded = value.removeprefix("sha512-")
+    try:
+        digest = base64.b64decode(encoded, validate=True)
+    except (binascii.Error, ValueError) as exc:
+        raise AssertionError(f"{source}: integrity must contain valid base64") from exc
+    assert len(digest) == 64, f"{source}: integrity sha512 digest must be 64 bytes"
+
+
+# One closed archive class in the existing provenance owner. These are byte/shape
+# limits, not package/version/path allowlists or persisted approval receipts.
+_NPM_BUNDLE_COMPRESSED_LIMIT = 16 * 1024 * 1024
+_NPM_BUNDLE_UNPACKED_LIMIT = 32 * 1024 * 1024
+_NPM_BUNDLE_MEMBER_LIMIT = 4096
+_NPM_BUNDLE_JSON_LIMIT = 128
+_NPM_BUNDLE_JSON_BYTES_LIMIT = 1024 * 1024
+_NPM_BUNDLE_DEPTH_LIMIT = 32
+_NPM_PUBLISHED_KEYS = frozenset(
+    {
+        "name",
+        "version",
+        "description",
+        "main",
+        "module",
+        "types",
+        "typings",
+        "jsnext:main",
+        "type",
+        "sideEffects",
+        "exports",
+        "browser",
+        "files",
+        "engines",
+        "cpu",
+        "os",
+        "license",
+        "author",
+        "repository",
+        "bugs",
+        "homepage",
+        "publishConfig",
+        "keywords",
+        "funding",
+        "scripts",
+        "dependencies",
+        "devDependencies",
+        "optionalDependencies",
+        "peerDependencies",
+        "peerDependenciesMeta",
+        "overrides",
+        "bundleDependencies",
+        "bundledDependencies",
+    }
+)
+_NPM_BUNDLE_ACTUAL_GRAPH_JS = r"""
+const fs = require('node:fs');
+const path = require('node:path');
+const {createRequire} = require('node:module');
+const [npmArgument, root] = process.argv.slice(1);
+const npmCli = fs.realpathSync(npmArgument);
+const npmRoot = path.dirname(path.dirname(npmCli));
+const nativeRequire = createRequire(npmCli);
+const arboristRoot = fs.realpathSync(path.join(npmRoot, 'node_modules/@npmcli/arborist'));
+const arboristEntry = fs.realpathSync(nativeRequire.resolve('@npmcli/arborist'));
+const relative = path.relative(arboristRoot, arboristEntry);
+if (!relative || relative === '..' || relative.startsWith('..' + path.sep) || path.isAbsolute(relative)) {
+  throw new Error('Arborist must be physically owned by installed npm');
+}
+const Arborist = nativeRequire(arboristEntry);
+(async () => {
+  const tree = await new Arborist({path: root, offline: true, ignoreScripts: true,
+    registry: 'https://127.0.0.1:9'}).loadActual();
+  const nodes = [...tree.inventory.values()].map(n => ({
+    location: n.location, name: n.package.name, version: n.package.version,
+    isRoot: n.isRoot, isLink: n.isLink,
+    errors: n.errors.map(e => ({code: e.code || null, message: e.message || String(e)})),
+    edges: [...n.edgesOut.values()].map(e => ({name: e.name, type: e.type, spec: e.spec,
+      valid: e.valid, error: e.error || null, to: e.to ? e.to.location : null})),
+  }));
+  process.stdout.write(JSON.stringify({node: process.version, arboristEntry, nodes}));
+})().catch(error => { process.stderr.write(String(error.stack || error)); process.exitCode = 1; });
+"""
+
+
+@dataclass(frozen=True)
+class _NpmLockMaterial:
+    """Ephemeral current data, never an approval flag or reusable verdict."""
+
+    packages: dict[str, dict[str, Any]]
+    published_manifests: dict[str, dict[str, Any]]
+    parent_owned: dict[str, str]
+
+
+def _reject_npm_json_duplicates(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for key, value in pairs:
+        assert key not in result, f"duplicate npm JSON key: {key}"
+        result[key] = value
+    return result
+
+
+def _decode_npm_json(raw: bytes, *, source: str) -> Any:
+    def reject_constant(value: str) -> None:
+        raise AssertionError(f"{source}: non-JSON numeric constant {value}")
+
+    try:
+        document = json.loads(
+            raw.decode("utf-8"),
+            object_pairs_hook=_reject_npm_json_duplicates,
+            parse_constant=reject_constant,
+        )
+        pending = [(document, 0)]
+        while pending:
+            value, depth = pending.pop()
+            assert depth <= _NPM_BUNDLE_DEPTH_LIMIT, f"{source}: npm JSON depth limit"
+            if isinstance(value, dict):
+                pending.extend((child, depth + 1) for child in value.values())
+            elif isinstance(value, list):
+                pending.extend((child, depth + 1) for child in value)
+        return document
+    except (UnicodeError, json.JSONDecodeError) as exc:
+        raise AssertionError(f"{source}: readable UTF-8 JSON required") from exc
+
+
+def _npm_bundle_remaining(deadline: float) -> float:
+    remaining = deadline - time.monotonic()
+    assert math.isfinite(remaining) and remaining > 0, "npm bundle deadline exhausted"
+    return remaining
+
+
+def _bundle_names(document: dict[str, Any], *, source: str) -> tuple[str, ...]:
+    variants: list[tuple[str, ...]] = []
+    for field in ("bundleDependencies", "bundledDependencies"):
+        if field not in document:
+            continue
+        value = document[field]
+        if value is False:
+            variants.append(())
+            continue
+        assert isinstance(
+            value, list
+        ), f"{source}: published bundled dependencies need explicit array"
+        assert all(
+            isinstance(name, str) and _lock_path_package_identity("node_modules/" + name) == name
+            for name in value
+        ), f"{source}: malformed bundle identity"
+        assert len(value) == len(set(value)), f"{source}: duplicate bundled dependency"
+        variants.append(tuple(value))
+    if len(variants) == 2:
+        assert set(variants[0]) == set(
+            variants[1]
+        ), f"{source}: published bundled dependencies have conflicting bundle declarations"
+    return variants[0] if variants else ()
+
+
+class _NoNpmBundleRedirect(HTTPRedirectHandler):
+    def redirect_request(
+        self, req: Request, fp: Any, code: int, msg: str, headers: Any, newurl: str
+    ) -> None:
+        raise AssertionError("npm bundle redirects are forbidden")
+
+
+def _verify_npm_bundle_sri(raw: bytes, *, integrity: object, source: str) -> None:
+    assert (
+        type(raw) is bytes and len(raw) <= _NPM_BUNDLE_COMPRESSED_LIMIT
+    ), f"{source}: compressed npm bundle limit/type"
+    _assert_sha512_integrity(value=integrity, source=source)
+    assert isinstance(integrity, str)
+    digest = base64.b64decode(integrity[7:], validate=True)
+    assert hmac.compare_digest(
+        hashlib.sha512(raw).digest(), digest
+    ), f"{source}: npm bundle SRI mismatch"
+
+
+def _read_npm_bundle_archive(
+    *,
+    url: str,
+    integrity: str,
+    deadline: float,
+    raw_cache: dict[tuple[str, str], bytes],
+) -> bytes:
+    """One anonymous official fetch or SRI-revalidated raw-byte reuse; no verdict cache."""
+    assert _canonical_registry_tarball_identity(url) is not None, "noncanonical bundle URL"
+    key = (url, integrity)
+    if key in raw_cache:
+        raw = raw_cache[key]
+    else:
+        opener = build_opener(
+            ProxyHandler({}),
+            _NoNpmBundleRedirect(),
+            HTTPSHandler(context=ssl.create_default_context()),
+        )
+        request = Request(
+            url, headers={"Accept-Encoding": "identity", "User-Agent": "PulsePlate-npm-guard"}
+        )
+        try:
+            with opener.open(request, timeout=min(10, _npm_bundle_remaining(deadline))) as response:
+                assert (
+                    response.status == 200 and response.geturl() == url
+                ), "npm bundle HTTP/source mismatch"
+                assert (
+                    response.headers.get("Content-Encoding", "identity") == "identity"
+                ), "encoded HTTP bundle"
+                chunks: list[bytes] = []
+                total = 0
+                while total <= _NPM_BUNDLE_COMPRESSED_LIMIT:
+                    _npm_bundle_remaining(deadline)
+                    chunk = response.read1(min(65536, _NPM_BUNDLE_COMPRESSED_LIMIT + 1 - total))
+                    if not chunk:
+                        break
+                    chunks.append(chunk)
+                    total += len(chunk)
+                raw = b"".join(chunks)
+        except (OSError, TimeoutError) as exc:
+            raise AssertionError("anonymous npm bundle acquisition failed") from exc
+        _npm_bundle_remaining(deadline)
+        _verify_npm_bundle_sri(raw, integrity=integrity, source=url)
+        raw_cache[key] = raw
+    _verify_npm_bundle_sri(raw, integrity=integrity, source=url)
+    return raw
+
+
+def _inspect_npm_bundle_archive(
+    raw: bytes, *, deadline: float
+) -> tuple[dict[str, bytes], dict[str, Any]]:
+    """Retain all bounded members; strictly decode every exact-basename package.json."""
+    try:
+        decoder = zlib.decompressobj(16 + zlib.MAX_WBITS)
+        unpacked = decoder.decompress(raw, _NPM_BUNDLE_UNPACKED_LIMIT + 1)
+        assert len(unpacked) <= _NPM_BUNDLE_UNPACKED_LIMIT, "unpacked npm bundle limit"
+        assert (
+            decoder.eof and not decoder.unused_data and not decoder.unconsumed_tail
+        ), "truncated/concatenated npm bundle gzip"
+        files: dict[str, bytes] = {}
+        documents: dict[str, Any] = {}
+        seen: set[str] = set()
+        next_offset = 0
+        with tarfile.open(fileobj=io.BytesIO(unpacked), mode="r:") as archive:
+            for member in archive:
+                _npm_bundle_remaining(deadline)
+                assert len(seen) < _NPM_BUNDLE_MEMBER_LIMIT, "npm bundle member limit"
+                name = member.name
+                path = PurePosixPath(name)
+                assert (
+                    name
+                    and name.isascii()
+                    and "\\" not in name
+                    and not path.is_absolute()
+                    and path.as_posix() == name.rstrip("/")
+                    and all(part not in {"", ".", ".."} for part in name.rstrip("/").split("/"))
+                    and path.parts[0] == "package"
+                    and len(path.parts) <= _NPM_BUNDLE_DEPTH_LIMIT
+                ), "unsafe npm bundle path/depth"
+                canonical = path.as_posix()
+                assert name == canonical or (
+                    member.isdir() and name == canonical + "/"
+                ), "npm member path alias"
+                assert canonical not in seen, "duplicate npm bundle member"
+                seen.add(canonical)
+                assert (
+                    member.offset == next_offset and member.offset_data - member.offset == 512
+                ), "unsupported npm tar extension/header"
+                assert not member.pax_headers and not member.sparse, "unsupported npm tar metadata"
+                assert member.type in {
+                    tarfile.REGTYPE,
+                    tarfile.AREGTYPE,
+                    tarfile.DIRTYPE,
+                }, "unsafe npm member type"
+                assert not (member.mode & 0o7000), "unsafe npm member permissions"
+                assert path.parts.count("node_modules") <= 1, "nested npm bundle topology"
+                if "node_modules" in path.parts:
+                    assert path.parts.index("node_modules") == 1, "nonflat npm bundle topology"
+                assert path.name not in {
+                    "npm-shrinkwrap.json",
+                    "package-lock.json",
+                    ".package-lock.json",
+                }, "published npm shrinkwrap/lock is unsupported"
+                next_offset = member.offset_data + ((member.size + 511) // 512) * 512
+                if member.isdir():
+                    assert member.size == 0, "npm directory carries bytes"
+                    continue
+                stream = archive.extractfile(member)
+                assert stream is not None, "npm member data missing"
+                value = stream.read(member.size + 1)
+                assert len(value) == member.size, "truncated npm member"
+                files[canonical] = value
+                if path.name == "package.json":
+                    assert len(documents) < _NPM_BUNDLE_JSON_LIMIT, "npm JSON count limit"
+                    assert len(value) <= _NPM_BUNDLE_JSON_BYTES_LIMIT, "npm JSON byte limit"
+                    documents[canonical] = _decode_npm_json(value, source=canonical)
+        assert len(unpacked) - next_offset >= 1024 and not any(
+            unpacked[next_offset:]
+        ), "npm tar missing terminal zero blocks or trailing material"
+        _npm_bundle_remaining(deadline)
+        return files, documents
+    except (OSError, EOFError, tarfile.TarError, zlib.error) as exc:
+        raise AssertionError("malformed/truncated npm bundle archive") from exc
+
+
+def _assert_published_npm_manifest(
+    document: dict[str, Any], *, source: str, deadline: float
+) -> None:
+    assert set(document) <= _NPM_PUBLISHED_KEYS, f"{source}: unknown published manifest key"
+    assert "workspaces" not in document, f"{source}: workspaces unsupported"
+    _assert_manifest_dependency_container_shapes(document=document, surface=source)
+    assert (
+        _parse_exact_npm_semver(document.get("version")) is not None
+    ), f"{source}: exact version required"
+    name = document.get("name")
+    assert (
+        isinstance(name, str) and _lock_path_package_identity("node_modules/" + name) == name
+    ), f"{source}: canonical published identity required"
+    for field in ("dependencies", "devDependencies", "optionalDependencies", "peerDependencies"):
+        for identity in document.get(field, {}):
+            assert (
+                isinstance(identity, str)
+                and _lock_path_package_identity("node_modules/" + identity) == identity
+            ), f"{source}: malformed dependency identity"
+    opaque = _find_opaque_npm_dependency_source_occurrences(
+        document, timeout=min(30, _npm_bundle_remaining(deadline))
+    )
+    assert not opaque, f"{source}: opaque published dependency source"
+
+
+def _native_npm_bundle_graph(
+    *,
+    files: dict[str, bytes],
+    manifests: dict[str, dict[str, Any]],
+    parent_name: str,
+    deadline: float,
+) -> dict[str, Any]:
+    """Read actual metadata with Arborist physically bound to installed npm; never reify."""
+    node, cli = _resolve_current_npm_registry_parser_runtime()
+    npm_root = Path(cli).parent.parent
+    arborist_root = (npm_root / "node_modules/@npmcli/arborist").resolve(strict=True)
+    api = _load_json(arborist_root / "package.json")
+    assert isinstance(api.get("main"), str), "Arborist entry metadata missing"
+    entry = (arborist_root / api["main"]).resolve(strict=True)
+    assert entry.is_relative_to(arborist_root) and entry.is_file(), "Arborist entry outside npm"
+    bound_paths = [
+        Path(node),
+        Path(cli),
+        npm_root / "package.json",
+        arborist_root / "package.json",
+        entry,
+    ]
+    before = [hashlib.sha256(path.read_bytes()).hexdigest() for path in bound_paths]
+    parent = manifests["package/package.json"]
+    with tempfile.TemporaryDirectory(prefix="pulseplate-npm-bundle-") as directory:
+        temporary = Path(directory).resolve(strict=True)
+        tree = temporary / "tree"
+        tree.mkdir(mode=0o700)
+        wrapper = {
+            "name": "synthetic-archive-graph-inspection",
+            "version": "0.0.0",
+            "dependencies": {parent_name: parent["version"]},
+        }
+        (tree / "package.json").write_text(json.dumps(wrapper), encoding="utf-8")
+        destination = tree / "node_modules" / parent_name
+        destination.mkdir(mode=0o700, parents=True)
+        for name, value in files.items():
+            path = destination.joinpath(*PurePosixPath(name).parts[1:])
+            path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+            with path.open("xb") as output:
+                output.write(value)
+        home = temporary / "home"
+        home.mkdir(mode=0o700)
+        env = {
+            "PATH": "/usr/bin:/bin",
+            "HOME": str(home),
+            "TMPDIR": str(temporary),
+            "LANG": "C.UTF-8",
+            "LC_ALL": "C.UTF-8",
+            "npm_config_offline": "true",
+            "npm_config_ignore_scripts": "true",
+        }
+        try:
+            result = subprocess.run(
+                [node, "--input-type=commonjs", "-e", _NPM_BUNDLE_ACTUAL_GRAPH_JS, cli, str(tree)],
+                check=False,
+                capture_output=True,
+                env=env,
+                cwd=temporary,
+                timeout=min(30, _npm_bundle_remaining(deadline)),
+            )
+        except (OSError, subprocess.SubprocessError) as exc:
+            raise AssertionError("npm bundle native metadata execution failed") from exc
+        assert result.returncode == 0 and not result.stderr, "npm bundle native metadata failed"
+        assert (
+            len(result.stdout) <= 4 * 1024 * 1024 and len(result.stderr) <= 64 * 1024
+        ), "native npm report byte limit"
+        graph = _decode_npm_json(result.stdout, source="native npm bundle graph")
+    assert before == [
+        hashlib.sha256(path.read_bytes()).hexdigest() for path in bound_paths
+    ], "physical npm/Arborist material changed"
+    assert isinstance(graph, dict) and set(graph) == {
+        "node",
+        "arboristEntry",
+        "nodes",
+    }, "native npm graph shape"
+    assert graph["node"] == "v" + (REPO_ROOT / ".nvmrc").read_text().strip().removeprefix(
+        "v"
+    ), "native npm Node binding drift"
+    assert (
+        Path(graph["arboristEntry"]).resolve(strict=True) == entry
+    ), "native Arborist binding drift"
+    _npm_bundle_remaining(deadline)
+    return graph
+
+
+def _assert_npm_bundle_native_inventory(
+    graph: dict[str, Any],
+    *,
+    manifests: dict[str, dict[str, Any]],
+    parent_name: str,
+) -> None:
+    parent_location = "node_modules/" + parent_name
+    expected = {
+        "": {
+            "name": "synthetic-archive-graph-inspection",
+            "version": "0.0.0",
+            "dependencies": {parent_name: manifests["package/package.json"]["version"]},
+        }
+    }
+    expected.update(
+        {
+            parent_location + name[len("package") : -len("/package.json")]: document
+            for name, document in manifests.items()
+        }
+    )
+    nodes = graph.get("nodes")
+    assert isinstance(nodes, list) and all(
+        isinstance(row, dict) for row in nodes
+    ), "native npm node inventory"
+    locations = [row.get("location") for row in nodes]
+    assert all(isinstance(value, str) for value in locations), "native npm location must be text"
+    assert len(locations) == len(set(locations)) and set(locations) == set(
+        expected
+    ), "native npm installed-root inventory mismatch/duplicate"
+    for row in nodes:
+        assert set(row) == {
+            "location",
+            "name",
+            "version",
+            "isRoot",
+            "isLink",
+            "errors",
+            "edges",
+        }, "native npm node fields incomplete"
+        location = row["location"]
+        document = expected[location]
+        assert (
+            row["name"] == document["name"] and row["version"] == document["version"]
+        ), "native npm identity/version drift"
+        assert (
+            row["isRoot"] is (location == "") and row["isLink"] is False and row["errors"] == []
+        ), "native npm link/root/parse error"
+        declarations: dict[str, tuple[str, str]] = {}
+        for field, edge_type in (
+            ("dependencies", "prod"),
+            ("optionalDependencies", "optional"),
+            ("peerDependencies", "peer"),
+        ):
+            for name, spec in document.get(field, {}).items():
+                assert (
+                    name not in declarations
+                ), "overlapping installed dependency classes unsupported"
+                selected_type = edge_type
+                if field == "peerDependencies" and document.get("peerDependenciesMeta", {}).get(
+                    name, {}
+                ).get("optional", False):
+                    selected_type = "peerOptional"
+                declarations[name] = (selected_type, spec)
+        edges = row["edges"]
+        assert isinstance(edges, list) and all(
+            isinstance(edge, dict) for edge in edges
+        ), "native npm edge inventory"
+        names = [edge.get("name") for edge in edges]
+        assert all(isinstance(name, str) for name in names), "native npm edge name"
+        assert len(names) == len(set(names)) and set(names) == set(
+            declarations
+        ), "native npm edge inventory incomplete/duplicate"
+        for edge in edges:
+            assert set(edge) == {
+                "name",
+                "type",
+                "spec",
+                "valid",
+                "error",
+                "to",
+            }, "native npm edge fields incomplete"
+            assert (edge["type"], edge["spec"]) == declarations[
+                edge["name"]
+            ], "native npm declaration drift"
+            assert (
+                edge["valid"] is True and edge["error"] is None and edge["to"] in expected
+            ), "native npm edge invalid/unresolved"
+            assert expected[edge["to"]]["name"] == edge["name"], "native npm alias edge unsupported"
+
+
+def _assert_lock_surface_canonical_provenance(
+    *,
+    surface: str,
+    document: dict[str, Any],
+    archive_cache: dict[tuple[str, str], bytes] | None = None,
+) -> _NpmLockMaterial:
+    """One current ordinary/closed-flat provenance producer for every lock record."""
+    binding = json.dumps(document, sort_keys=True, ensure_ascii=True)
+    current = deepcopy(document)
+    packages = _require_supported_lock_packages(current, surface=surface)
+    parents: dict[str, tuple[str, ...]] = {}
+    bundled: set[str] = set()
+    for path, package in packages.items():
+        assert isinstance(path, str), f"{surface}: package path must be text"
+        assert isinstance(package, dict), f"{surface}:{path}: package entry must be an object"
+        _assert_manifest_dependency_container_shapes(document=package, surface=f"{surface}:{path}")
+        assert (
+            "link" not in package
+        ), f"{surface}:{path}: symbolic link lock occurrence is forbidden"
+        shrinkwrap = package.get("hasShrinkwrap", False)
+        assert type(shrinkwrap) is bool, f"{surface}:{path}: hasShrinkwrap must be an exact boolean"
+        assert not shrinkwrap, f"{surface}:{path}: published nested shrinkwrap blocks admission"
+        in_bundle = package.get("inBundle", False)
+        assert type(in_bundle) is bool, f"{surface}:{path}: inBundle must be boolean"
+        names = _bundle_names(package, source=f"{surface}:{path}")
+        if names:
+            assert path and not in_bundle, "nested bundled parent unsupported"
+            parents[path] = names
+        if in_bundle:
+            bundled.add(path)
+    parent_owned: dict[str, str] = {}
+    for path in bundled:
+        owners = [
+            parent
+            for parent in parents
+            if path.startswith(parent + "/node_modules/")
+            and _lock_path_package_identity(path[len(parent) + 1 :])
+            == path[len(parent + "/node_modules/") :]
+        ]
+        assert (
+            len(owners) == 1
+        ), f"{surface}:{path}: bundled lock occurrence is forbidden without one flat owner"
+        parent_owned[path] = owners[0]
+        assert (
+            "resolved" not in packages[path] and "integrity" not in packages[path]
+        ), "parent-owned leaf must not fabricate independent registry provenance"
+    ordinary = {path: package for path, package in packages.items() if path not in parent_owned}
+    _assert_registry_lock_surface_provenance(
+        surface=surface, document={**current, "packages": ordinary}
+    )
+    published: dict[str, dict[str, Any]] = {}
+    deadline = time.monotonic() + 90
+    raw_cache = archive_cache if archive_cache is not None else {}
+    for parent_path, declared in parents.items():
+        parent_entry = packages[parent_path]
+        identity = _lock_path_package_identity(parent_path)
+        assert (
+            identity is not None and parent_entry.get("name", identity) == identity
+        ), "bundle parent alias unsupported"
+        owned = {
+            path[len(parent_path + "/node_modules/") :]: path
+            for path, owner in parent_owned.items()
+            if owner == parent_path
+        }
+        assert set(owned) == set(
+            declared
+        ), "published bundled dependencies require complete flat lock inventory"
+        raw = _read_npm_bundle_archive(
+            url=parent_entry["resolved"],
+            integrity=parent_entry["integrity"],
+            deadline=deadline,
+            raw_cache=raw_cache,
+        )
+        _verify_npm_bundle_sri(raw, integrity=parent_entry["integrity"], source=parent_path)
+        files, json_documents = _inspect_npm_bundle_archive(raw, deadline=deadline)
+        archive_manifests = {
+            name: value
+            for name, value in json_documents.items()
+            if PurePosixPath(name).name == "package.json"
+        }
+        assert "package/package.json" in archive_manifests, "bundle outer package manifest missing"
+        outer = archive_manifests["package/package.json"]
+        assert isinstance(outer, dict), "bundle outer manifest must be object"
+        _assert_published_npm_manifest(outer, source=parent_path, deadline=deadline)
+        assert (
+            outer["name"] == identity and outer["version"] == parent_entry["version"]
+        ), "bundle outer identity/version mismatch"
+        assert set(_bundle_names(outer, source=parent_path)) == set(
+            declared
+        ), "archive/lock bundle declarations differ"
+        roots: dict[str, dict[str, Any]] = {"package/package.json": outer}
+        for leaf_name, lock_path in owned.items():
+            name = "package/node_modules/" + leaf_name + "/package.json"
+            leaf = archive_manifests.get(name)
+            assert isinstance(leaf, dict), "bundle archive leaf missing"
+            _assert_published_npm_manifest(leaf, source=name, deadline=deadline)
+            assert not _bundle_names(leaf, source=name), "nested published bundle unsupported"
+            assert (
+                packages[lock_path].get("name", leaf_name) == leaf_name
+            ), "parent-owned lock leaf explicit identity drift"
+            assert (
+                leaf["name"] == leaf_name and leaf["version"] == packages[lock_path]["version"]
+            ), "archive/lock leaf identity/version drift"
+            for field in (
+                "dependencies",
+                "optionalDependencies",
+                "peerDependencies",
+                "peerDependenciesMeta",
+            ):
+                assert leaf.get(field, {}) == packages[lock_path].get(
+                    field, {}
+                ), "archive/lock dependency metadata drift"
+            if "devDependencies" in packages[lock_path]:
+                assert packages[lock_path]["devDependencies"] == leaf.get(
+                    "devDependencies", {}
+                ), "published dev metadata drift"
+            roots[name] = leaf
+            published[lock_path] = leaf
+        for name, metadata in archive_manifests.items():
+            if name in roots:
+                continue
+            owners = [
+                leaf_name
+                for leaf_name in owned
+                if name.startswith("package/node_modules/" + leaf_name + "/")
+            ]
+            assert (
+                len(owners) == 1 and metadata == {"type": "module"} and set(metadata) == {"type"}
+            ), "unsupported nested package metadata/unknown key"
+            published[parent_path + "::" + name] = metadata
+        for field in (
+            "dependencies",
+            "optionalDependencies",
+            "peerDependencies",
+            "peerDependenciesMeta",
+        ):
+            assert outer.get(field, {}) == parent_entry.get(
+                field, {}
+            ), "outer archive/lock dependency drift"
+        published[parent_path] = outer
+        graph = _native_npm_bundle_graph(
+            files=files, manifests=roots, parent_name=identity, deadline=deadline
+        )
+        _assert_npm_bundle_native_inventory(graph, manifests=roots, parent_name=identity)
+        _verify_npm_bundle_sri(raw, integrity=parent_entry["integrity"], source=parent_path)
+        _npm_bundle_remaining(deadline)
+    assert (
+        json.dumps(document, sort_keys=True, ensure_ascii=True) == binding
+    ), "lock material changed during provenance"
+    return _NpmLockMaterial(packages, published, parent_owned)
+
+
+def _assert_parent_owned_occurrence(
+    *, material: _NpmLockMaterial, path: str, entry: dict[str, Any], target: str
+) -> None:
+    """Consume returned current data, never synthesize a registry URL or SRI."""
+    assert (
+        path in material.parent_owned and material.packages[path] == entry
+    ), "parent-owned material/entry drift"
+    manifest = material.published_manifests[path]
+    assert (
+        manifest["name"] == target and manifest["version"] == entry["version"]
+    ), "parent-owned identity/version drift"
+
+
 def _assert_occurrences_outside_ranges(
     *,
     surface: str,
     target: str,
     occurrences: dict[str, dict[str, Any]],
     affected_ranges: tuple[SpecifierSet, ...],
+    material: _NpmLockMaterial | None = None,
 ) -> None:
     for package_path, entry in occurrences.items():
         raw_version = entry.get("version")
@@ -685,17 +1412,22 @@ def _assert_occurrences_outside_ranges(
         assert (
             not is_prerelease
         ), f"{surface}:{package_path}: prerelease target versions fail closed"
-        resolved_version = _resolved_registry_version(entry.get("resolved"), target=target)
-        assert (
-            resolved_version is not None
-        ), f"{surface}:{package_path}: resolved must be the canonical {target} registry tarball"
-        assert (
-            resolved_version == raw_version
-        ), f"{surface}:{package_path}: resolved tarball version must equal package version"
-        integrity = entry.get("integrity")
-        assert (
-            isinstance(integrity, str) and integrity.strip()
-        ), f"{surface}:{package_path}: integrity must be non-empty"
+        if material is not None and package_path in material.parent_owned:
+            _assert_parent_owned_occurrence(
+                material=material, path=package_path, entry=entry, target=target
+            )
+        else:
+            resolved_version = _resolved_registry_version(entry.get("resolved"), target=target)
+            assert (
+                resolved_version is not None
+            ), f"{surface}:{package_path}: resolved must be the canonical {target} registry tarball"
+            assert (
+                resolved_version == raw_version
+            ), f"{surface}:{package_path}: resolved tarball version must equal package version"
+            integrity = entry.get("integrity")
+            assert (
+                isinstance(integrity, str) and integrity.strip()
+            ), f"{surface}:{package_path}: integrity must be non-empty"
         assert not any(
             version in affected for affected in affected_ranges
         ), f"{surface}:{package_path}: {version} remains inside a reconciled affected range"
@@ -892,6 +1624,15 @@ def test_retired_pptx_graph_stays_absent_from_all_tracked_npm_surfaces() -> None
                 ), f"{relative}: retired {target} declaration or alias reintroduced"
             continue
         assert basename in NPM_LOCK_SURFACE_BASENAMES
+        material = _assert_lock_surface_canonical_provenance(surface=relative, document=document)
+        for published_path, published in material.published_manifests.items():
+            assert not _find_manifest_occurrences(
+                published, target="pptxgenjs"
+            ), f"{relative}:{published_path}: retired pptxgenjs published request"
+        for published_path, published in material.published_manifests.items():
+            assert not _find_manifest_occurrences(
+                published, target="image-size"
+            ), f"{relative}:{published_path}: retired image-size published request"
         for target in ("pptxgenjs", "image-size"):
             assert not _find_lock_occurrences(
                 document, target=target
@@ -917,9 +1658,18 @@ def test_nanoid_occurrences_stay_outside_all_reconciled_affected_ranges() -> Non
             )
             continue
         assert basename in NPM_LOCK_SURFACE_BASENAMES
+        material = _assert_lock_surface_canonical_provenance(surface=relative, document=document)
+        for published_path, published in material.published_manifests.items():
+            _assert_manifest_occurrences_outside_ranges(
+                surface=f"{relative}:{published_path}",
+                target="nanoid",
+                occurrences=_find_manifest_occurrences(published, target="nanoid"),
+                affected_ranges=NANOID_AFFECTED_RANGES,
+            )
         _assert_occurrences_outside_ranges(
             surface=relative,
             target="nanoid",
+            material=material,
             occurrences=_find_lock_occurrences(document, target="nanoid"),
             affected_ranges=NANOID_AFFECTED_RANGES,
         )
@@ -944,9 +1694,18 @@ def test_smol_toml_occurrences_stay_outside_all_reconciled_affected_ranges() -> 
             )
             continue
         assert basename in NPM_LOCK_SURFACE_BASENAMES
+        material = _assert_lock_surface_canonical_provenance(surface=relative, document=document)
+        for published_path, published in material.published_manifests.items():
+            _assert_manifest_occurrences_outside_ranges(
+                surface=f"{relative}:{published_path}",
+                target="smol-toml",
+                occurrences=_find_manifest_occurrences(published, target="smol-toml"),
+                affected_ranges=SMOL_TOML_AFFECTED_RANGES,
+            )
         _assert_occurrences_outside_ranges(
             surface=relative,
             target="smol-toml",
+            material=material,
             occurrences=_find_lock_occurrences(document, target="smol-toml"),
             affected_ranges=SMOL_TOML_AFFECTED_RANGES,
         )
@@ -982,17 +1741,34 @@ def test_react_router_occurrences_stay_outside_all_reconciled_affected_ranges() 
             )
             continue
         assert basename in NPM_LOCK_SURFACE_BASENAMES
+        material = _assert_lock_surface_canonical_provenance(surface=relative, document=document)
+        for published_path, published in material.published_manifests.items():
+            _assert_manifest_occurrences_outside_ranges(
+                surface=f"{relative}:{published_path}",
+                target="react-router",
+                occurrences=_find_manifest_occurrences(published, target="react-router"),
+                affected_ranges=REACT_ROUTER_AFFECTED_RANGES,
+            )
+        for published_path, published in material.published_manifests.items():
+            _assert_manifest_occurrences_outside_ranges(
+                surface=f"{relative}:{published_path}",
+                target="react-router-dom",
+                occurrences=_find_manifest_occurrences(published, target="react-router-dom"),
+                affected_ranges=REACT_ROUTER_AFFECTED_RANGES,
+            )
         router_occurrences = _find_lock_occurrences(document, target="react-router")
         dom_occurrences = _find_lock_occurrences(document, target="react-router-dom")
         _assert_occurrences_outside_ranges(
             surface=relative,
             target="react-router",
+            material=material,
             occurrences=router_occurrences,
             affected_ranges=REACT_ROUTER_AFFECTED_RANGES,
         )
         _assert_occurrences_outside_ranges(
             surface=relative,
             target="react-router-dom",
+            material=material,
             occurrences=dom_occurrences,
             affected_ranges=REACT_ROUTER_AFFECTED_RANGES,
         )
@@ -2988,3 +3764,314 @@ def test_react_router_guard_allows_future_exact_safe_carrier(
     )
 
     test_react_router_occurrences_stay_outside_all_reconciled_affected_ranges()
+
+
+def _synthetic_npm_bundle_archive(files: list[tuple[str, bytes]]) -> bytes:
+    """Small deterministic SRI-bound fixture; never fetch published material."""
+    output = io.BytesIO()
+    with tarfile.open(fileobj=output, mode="w:", format=tarfile.USTAR_FORMAT) as archive:
+        for name, value in files:
+            member = tarfile.TarInfo(name)
+            member.size = len(value)
+            member.mode = 0o644
+            archive.addfile(member, io.BytesIO(value))
+    return gzip.compress(output.getvalue(), mtime=0)
+
+
+def _synthetic_npm_bundle_sri(raw: bytes) -> str:
+    return "sha512-" + base64.b64encode(hashlib.sha512(raw).digest()).decode("ascii")
+
+
+@pytest.fixture
+def npm_flat_bundle_material(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
+    """Qualify a real native positive first; negatives reuse its observed graph."""
+    parent = {
+        "name": "fixture-parent",
+        "version": "1.0.0",
+        "dependencies": {"leaf-a": "1.0.0", "leaf-b": "1.0.0"},
+        "devDependencies": {"unused-tool": "^1.0.0"},
+        "bundleDependencies": ["leaf-a", "leaf-b"],
+    }
+    leaf_a = {"name": "leaf-a", "version": "1.0.0", "optionalDependencies": {"leaf-b": "1.0.0"}}
+    leaf_b = {
+        "name": "leaf-b",
+        "version": "1.0.0",
+        "peerDependencies": {"leaf-a": "1.0.0"},
+        "peerDependenciesMeta": {"leaf-a": {"optional": True}},
+    }
+    documents = {
+        "package/package.json": parent,
+        "package/node_modules/leaf-a/package.json": leaf_a,
+        "package/node_modules/leaf-b/package.json": leaf_b,
+        "package/node_modules/leaf-a/dist/cjs/package.json": {"type": "module"},
+    }
+    files = [
+        (name, json.dumps(value, sort_keys=True).encode()) for name, value in documents.items()
+    ]
+    files.append(
+        (
+            "package/node_modules/leaf-a/dist/metadata.json",
+            b'// arbitrary payload comment\n{"metadataVersion":1}\n',
+        )
+    )
+    raw = _synthetic_npm_bundle_archive(files)
+    lock = {
+        "lockfileVersion": 3,
+        "packages": {
+            "": {"name": "fixture-wrapper", "version": "1.0.0"},
+            "node_modules/fixture-parent": {
+                **parent,
+                "resolved": "https://registry.npmjs.org/fixture-parent/-/fixture-parent-1.0.0.tgz",
+                "integrity": _synthetic_npm_bundle_sri(raw),
+            },
+            "node_modules/fixture-parent/node_modules/leaf-a": {**leaf_a, "inBundle": True},
+            "node_modules/fixture-parent/node_modules/leaf-b": {**leaf_b, "inBundle": True},
+        },
+    }
+    state: dict[str, Any] = {
+        "lock": lock,
+        "files": files,
+        "raw": raw,
+        "documents": documents,
+        "reader": _read_npm_bundle_archive,
+        "native": _native_npm_bundle_graph,
+    }
+
+    def no_network(*args: Any, **kwargs: Any) -> Any:
+        raise AssertionError("synthetic bundle fixture attempted real network")
+
+    def archive_bytes(**kwargs: Any) -> bytes:
+        return state["raw"]
+
+    native = _native_npm_bundle_graph
+
+    def observe_native(**kwargs: Any) -> dict[str, Any]:
+        graph = native(**kwargs)
+        state["graph"] = deepcopy(graph)
+        return graph
+
+    monkeypatch.setattr(__name__ + ".build_opener", no_network)
+    monkeypatch.setattr(__name__ + "._read_npm_bundle_archive", archive_bytes)
+    monkeypatch.setattr(__name__ + "._native_npm_bundle_graph", observe_native)
+    state["material"] = _assert_lock_surface_canonical_provenance(
+        surface="synthetic/package-lock.json", document=lock
+    )
+    assert len(state["graph"]["nodes"]) == 4
+    assert len(state["material"].parent_owned) == 2
+    # Subsequent independent mutations use the actual complete native result.
+    monkeypatch.setattr(
+        __name__ + "._native_npm_bundle_graph", lambda **kwargs: deepcopy(state["graph"])
+    )
+    return state
+
+
+def test_closed_bundle_positive_uses_parent_owned_data(
+    npm_flat_bundle_material: dict[str, Any],
+) -> None:
+    state = npm_flat_bundle_material
+    material = state["material"]
+    path = "node_modules/fixture-parent/node_modules/leaf-a"
+    _assert_occurrences_outside_ranges(
+        surface="synthetic",
+        target="leaf-a",
+        occurrences={path: state["lock"]["packages"][path]},
+        affected_ranges=(SpecifierSet("<1.0.0"),),
+        material=material,
+    )
+    assert "integrity" not in material.packages[path]
+    assert material.published_manifests["node_modules/fixture-parent"]["devDependencies"] == {
+        "unused-tool": "^1.0.0"
+    }
+
+
+@pytest.mark.parametrize(
+    "mutation,diagnostic",
+    [
+        ("leaf-name", "explicit identity drift"),
+        ("compressed-oversized", "compressed npm bundle limit"),
+        ("marker-name", "unsupported nested package metadata"),
+        ("marker-deps", "unsupported nested package metadata"),
+        ("marker-unknown", "unsupported nested package metadata"),
+        ("marker-duplicate", "duplicate npm JSON key"),
+        ("manifest-duplicate", "duplicate npm JSON key"),
+        ("manifest-malformed", "readable UTF-8 JSON"),
+        ("non-json-number", "non-JSON numeric constant"),
+        ("deep-json", "npm JSON depth limit"),
+        ("missing-leaf", "bundle archive leaf missing"),
+        ("extra-leaf", "unsupported nested package metadata"),
+        ("duplicate-leaf", "duplicate npm bundle member"),
+        ("unsafe-path", "unsafe npm bundle path"),
+        ("truncated", "truncated"),
+        ("oversized", "unpacked npm bundle limit"),
+        ("wrong-sri", "npm bundle SRI mismatch"),
+        ("wrong-url", "canonical npm registry tarball"),
+        ("second-bundle", "complete flat lock inventory"),
+    ],
+)
+def test_closed_bundle_rejects_independent_archive_mutations(
+    npm_flat_bundle_material: dict[str, Any],
+    mutation: str,
+    diagnostic: str,
+) -> None:
+    state = npm_flat_bundle_material
+    files = list(state["files"])
+    marker = "package/node_modules/leaf-a/dist/cjs/package.json"
+    if mutation == "leaf-name":
+        state["lock"]["packages"]["node_modules/fixture-parent/node_modules/leaf-a"][
+            "name"
+        ] = "braces"
+    elif mutation == "compressed-oversized":
+        state["raw"] = b"x" * (_NPM_BUNDLE_COMPRESSED_LIMIT + 1)
+    elif mutation.startswith("marker-"):
+        values = {
+            "marker-name": b'{"type":"module","name":"braces"}',
+            "marker-deps": b'{"type":"module","devDependencies":{"hidden":"npm:braces@1.0.0"}}',
+            "marker-unknown": b'{"type":"module","unknown":true}',
+            "marker-duplicate": b'{"type":"module","type":"module"}',
+        }
+        files = [(name, values[mutation] if name == marker else value) for name, value in files]
+    elif mutation == "deep-json":
+        files.append(("package/extra/package.json", b"[" * 33 + b"0" + b"]" * 33))
+    elif mutation == "non-json-number":
+        files.append(("package/extra/package.json", b'{"value":NaN}'))
+    elif mutation == "manifest-malformed":
+        files.append(("package/extra/package.json", b"{"))
+    elif mutation == "manifest-duplicate":
+        files.append(("package/extra/package.json", b'{"key":1,"key":2}'))
+    elif mutation == "missing-leaf":
+        files = [
+            (name, value)
+            for name, value in files
+            if name != "package/node_modules/leaf-b/package.json"
+        ]
+    elif mutation == "extra-leaf":
+        files.append(
+            (
+                "package/node_modules/leaf-extra/package.json",
+                b'{"name":"leaf-extra","version":"1.0.0"}',
+            )
+        )
+    elif mutation == "duplicate-leaf":
+        files.append(files[1])
+    elif mutation == "unsafe-path":
+        files.append(("package/../escape.json", b"{}"))
+    elif mutation == "oversized":
+        state["raw"] = gzip.compress(b"0" * (_NPM_BUNDLE_UNPACKED_LIMIT + 1), mtime=0)
+    elif mutation == "wrong-url":
+        state["lock"]["packages"]["node_modules/fixture-parent"][
+            "resolved"
+        ] = "https://example.invalid/package.tgz"
+    elif mutation == "second-bundle":
+        state["lock"]["packages"]["node_modules/second-parent"] = {
+            "version": "1.0.0",
+            "bundleDependencies": ["unproved"],
+            "resolved": "https://registry.npmjs.org/second-parent/-/second-parent-1.0.0.tgz",
+            "integrity": _synthetic_npm_bundle_sri(state["raw"]),
+        }
+    if mutation not in {"oversized", "compressed-oversized", "wrong-url", "second-bundle"}:
+        state["raw"] = _synthetic_npm_bundle_archive(files)
+    if mutation == "truncated":
+        state["raw"] = state["raw"][:-5]
+    parent = state["lock"]["packages"]["node_modules/fixture-parent"]
+    parent["integrity"] = _synthetic_npm_bundle_sri(state["raw"])
+    if mutation == "wrong-sri":
+        parent["integrity"] = _synthetic_npm_bundle_sri(b"other")
+    with pytest.raises(AssertionError, match=diagnostic):
+        _assert_lock_surface_canonical_provenance(surface="synthetic", document=state["lock"])
+
+
+@pytest.mark.parametrize(
+    "mutation,diagnostic",
+    [
+        ("native-error", "native npm link/root/parse error"),
+        ("partial", "installed-root inventory"),
+        ("duplicate-node", "installed-root inventory"),
+        ("extra-node", "installed-root inventory"),
+        ("missing-edge", "edge inventory"),
+        ("duplicate-edge", "edge inventory"),
+        ("malformed", "node inventory"),
+    ],
+)
+def test_closed_bundle_rejects_native_inventory_mutations(
+    npm_flat_bundle_material: dict[str, Any],
+    mutation: str,
+    diagnostic: str,
+) -> None:
+    state = npm_flat_bundle_material
+    graph = state["graph"]
+    if mutation == "native-error":
+        graph["nodes"][0]["errors"] = [{"code": "SYNTHETIC", "message": "bad metadata"}]
+    elif mutation == "partial":
+        graph["nodes"].pop()
+    elif mutation == "duplicate-node":
+        graph["nodes"].append(deepcopy(graph["nodes"][0]))
+    elif mutation == "extra-node":
+        extra = deepcopy(graph["nodes"][0])
+        extra["location"] = "node_modules/extra"
+        graph["nodes"].append(extra)
+    elif mutation in {"missing-edge", "duplicate-edge"}:
+        row = next(row for row in graph["nodes"] if row["edges"])
+        if mutation == "missing-edge":
+            row["edges"].pop()
+        else:
+            row["edges"].append(deepcopy(row["edges"][0]))
+    else:
+        graph["nodes"] = "malformed"
+    with pytest.raises(AssertionError, match=diagnostic):
+        _assert_lock_surface_canonical_provenance(surface="synthetic", document=state["lock"])
+
+
+def test_closed_bundle_preserves_input_binding(
+    npm_flat_bundle_material: dict[str, Any],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    state = npm_flat_bundle_material
+
+    def mutate(**kwargs: Any) -> dict[str, Any]:
+        state["lock"]["packages"][""]["devDependencies"] = {"braces": "1.0.0"}
+        return deepcopy(state["graph"])
+
+    monkeypatch.setattr(__name__ + "._native_npm_bundle_graph", mutate)
+    with pytest.raises(AssertionError, match="lock material changed"):
+        _assert_lock_surface_canonical_provenance(surface="synthetic", document=state["lock"])
+
+
+def test_closed_bundle_raw_cache_revalidates_sri(npm_flat_bundle_material: dict[str, Any]) -> None:
+    state = npm_flat_bundle_material
+    parent = state["lock"]["packages"]["node_modules/fixture-parent"]
+    # Call the actual reader, bypassing only this fixture's archive-byte adapter.
+    with pytest.raises(AssertionError, match="npm bundle SRI mismatch"):
+        state["reader"](
+            url=parent["resolved"],
+            integrity=parent["integrity"],
+            deadline=time.monotonic() + 5,
+            raw_cache={(parent["resolved"], parent["integrity"]): b"mutated"},
+        )
+
+
+@pytest.mark.parametrize("outcome", ("nonzero", "non-json", "partial-report"))
+def test_closed_bundle_native_transport_fails_closed(
+    npm_flat_bundle_material: dict[str, Any],
+    monkeypatch: pytest.MonkeyPatch,
+    outcome: str,
+) -> None:
+    state = npm_flat_bundle_material
+    raw = b"not-json" if outcome == "non-json" else b"{}"
+    result = subprocess.CompletedProcess(
+        args=[], returncode=1 if outcome == "nonzero" else 0, stdout=raw, stderr=b""
+    )
+    monkeypatch.setattr(subprocess, "run", lambda *args, **kwargs: result)
+    roots = {
+        name: value
+        for name, value in state["documents"].items()
+        if isinstance(value, dict) and "name" in value
+    }
+    with pytest.raises(
+        AssertionError, match="native metadata failed|readable UTF-8 JSON|native npm graph shape"
+    ):
+        state["native"](
+            files=dict(state["files"]),
+            manifests=roots,
+            parent_name="fixture-parent",
+            deadline=time.monotonic() + 5,
+        )

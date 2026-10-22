@@ -1,44 +1,93 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss" source(none);
+@config "../tailwind.config.ts";
+@source "../index.html";
+@source "./**/*.{ts,tsx}";
+
+/* Preserve the v3 utility shadows independently of the dynamic token shadows.
+   Inline values prevent the existing --shadow-* tokens from changing these
+   utility meanings in dark mode. Token authoring and generated mirrors stay put. */
+@theme inline {
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+}
+
+/* Existing focus:outline-none consumers use the v3 accessible hidden outline. */
+@utility outline-none {
+  outline: 2px solid transparent;
+  outline-offset: 2px;
+}
+
+/* Preserve v3 hover selectors for existing pointer interactions. */
+@custom-variant hover (&:hover);
+
+@layer base {
+  /* Retain v3 preflight defaults for plain borders, controls and placeholders. */
+  *, ::before, ::after, ::backdrop, ::file-selector-button {
+    border-color: var(--color-gray-200, currentColor);
+  }
+  button, [role="button"] { cursor: pointer; }
+  :disabled { cursor: default; }
+  input::placeholder, textarea::placeholder {
+    opacity: 1;
+    color: var(--color-gray-400);
+  }
+
+  html, body, #root { min-height: 100%; }
+  body {
+    background: var(--pp-navy);
+    color: var(--pp-text);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--pp-primary);
+    outline-offset: 2px;
+  }
+
+  /* Defaults stay below authored utilities, as they did before CSS layers. */
+  h1 { font-size: 1.75rem; line-height: 1.2; }
+  h2 { font-size: 1.375rem; line-height: 1.25; }
+  p, li { line-height: 1.55; }
+}
+
+@layer utilities {
+  .bg-pp-primary { background: var(--pp-primary); }
+  .text-white { color: var(--color-surface); }
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+}
 
 @media (prefers-reduced-motion: reduce) {
   * { animation: none !important; transition: none !important; }
 }
 
-/* Base theming from tokens */
-html, body, #root {
-  min-height: 100%;
+/* Preserve native arrow-key focus visibility when the UA drops :focus-visible. */
+.ppm-page fieldset[data-keyboard-navigation="true"] .ppm-fitchef-option:has(input:focus) {
+  outline: 2px solid var(--pp-blue);
+  outline-offset: 3px;
 }
-body {
-  background: var(--pp-navy);
-  color: var(--pp-text);
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
-
-/* Utilities */
-.bg-pp-primary { background: var(--pp-primary); }
-.text-white { color: var(--color-surface); }
-.sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border: 0;
-}
-
-/* Видимый фокус по умолчанию */
-:focus-visible {
-  outline: 2px solid var(--pp-primary);
+.ppm-page fieldset[data-keyboard-navigation="true"] .ppm-fitchef-option input:focus {
+  outline: 2px solid var(--pp-blue);
   outline-offset: 2px;
 }
 
-/* Заголовки — лёгкая шкала, без фанатизма */
-h1 { font-size: 1.75rem; line-height: 1.2; }
-h2 { font-size: 1.375rem; line-height: 1.25; }
-p, li { line-height: 1.55; }
+/* Keep keyboard focus visible when forced colors replace shadow-based rings. */
+@media (forced-colors: active) {
+  :root :is(input, button):focus-visible {
+    outline: 2px solid Highlight;
+    outline-offset: 2px;
+  }
+}
