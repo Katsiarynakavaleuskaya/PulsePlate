@@ -53,9 +53,10 @@ async function findBuiltCssFile() {
   const index = await readFile(indexPath);
   const indexText = index.toString("utf8");
   // Bind the exact existing Vite entry-link format, not a general HTML grammar.
-  const entryStyles = [...indexText.matchAll(/<link\b[^>]*\bhref="(\/assets\/index-[A-Za-z0-9_-]+\.css)"[^>]*>/g)]
-    .map((match) => match[1]);
-  if (entryStyles.length !== 1 || entryStyles[0] !== `/assets/${cssFiles[0]}`) {
+  const entryStyles = [...indexText.matchAll(/<link\b[^>]*\shref="(\/assets\/index-[A-Za-z0-9_-]+\.css)"[^>]*>/g)]
+    .map((match) => ({ href: match[1], relations: [...match[0].matchAll(/\srel="([^"]*)"/g)] }));
+  if (entryStyles.length !== 1 || entryStyles[0].href !== `/assets/${cssFiles[0]}` ||
+      entryStyles[0].relations.length !== 1 || entryStyles[0].relations[0][1] !== "stylesheet") {
     throw new Error("Built frontend index must reference the unique current index CSS bundle.");
   }
   return { cssFile, index };

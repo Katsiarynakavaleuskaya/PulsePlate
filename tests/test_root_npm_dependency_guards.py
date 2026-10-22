@@ -745,6 +745,9 @@ _NPM_BUNDLE_MEMBER_LIMIT = 4096
 _NPM_BUNDLE_JSON_LIMIT = 128
 _NPM_BUNDLE_JSON_BYTES_LIMIT = 1024 * 1024
 _NPM_BUNDLE_DEPTH_LIMIT = 32
+# Ephemeral raw bytes only; each hit is revalidated and the total stays within
+# the existing compressed-byte bound. No parsed metadata or proof is cached.
+_NPM_BUNDLE_RAW_CACHE: dict[tuple[str, str], bytes] = {}
 _NPM_PUBLISHED_KEYS = frozenset(
     {
         "name",
@@ -788,13 +791,23 @@ const path = require('node:path');
 const {createRequire} = require('node:module');
 const [npmArgument, root] = process.argv.slice(1);
 const npmCli = fs.realpathSync(npmArgument);
-const npmRoot = path.dirname(path.dirname(npmCli));
+const npmRoot = fs.realpathSync(path.dirname(path.dirname(npmCli)));
 const nativeRequire = createRequire(npmCli);
+const npmNodeModules = fs.realpathSync(path.join(npmRoot, 'node_modules'));
+const npmScope = fs.realpathSync(path.join(npmRoot, 'node_modules/@npmcli'));
 const arboristRoot = fs.realpathSync(path.join(npmRoot, 'node_modules/@npmcli/arborist'));
+for (const ownedRoot of [npmNodeModules, npmScope, arboristRoot]) {
+  const relative = path.relative(npmRoot, ownedRoot);
+  if (!relative || relative === '..' || relative.startsWith('..' + path.sep) || path.isAbsolute(relative) || !fs.statSync(ownedRoot).isDirectory()) {
+    throw new Error('Arborist must be physically owned by installed npm');
+  }
+}
 const arboristEntry = fs.realpathSync(nativeRequire.resolve('@npmcli/arborist'));
-const relative = path.relative(arboristRoot, arboristEntry);
-if (!relative || relative === '..' || relative.startsWith('..' + path.sep) || path.isAbsolute(relative)) {
-  throw new Error('Arborist must be physically owned by installed npm');
+for (const owner of [npmRoot, arboristRoot]) {
+  const relative = path.relative(owner, arboristEntry);
+  if (!relative || relative === '..' || relative.startsWith('..' + path.sep) || path.isAbsolute(relative)) {
+    throw new Error('Arborist must be physically owned by installed npm');
+  }
 }
 const Arborist = nativeRequire(arboristEntry);
 (async () => {
@@ -945,6 +958,11 @@ def _read_npm_bundle_archive(
             raise AssertionError("anonymous npm bundle acquisition failed") from exc
         _npm_bundle_remaining(deadline)
         _verify_npm_bundle_sri(raw, integrity=integrity, source=url)
+        if raw_cache is _NPM_BUNDLE_RAW_CACHE and (
+            sum(len(value) for value in raw_cache.values()) + len(raw)
+            > _NPM_BUNDLE_COMPRESSED_LIMIT
+        ):
+            raw_cache.clear()
         raw_cache[key] = raw
     _verify_npm_bundle_sri(raw, integrity=integrity, source=url)
     return raw
@@ -1061,12 +1079,20 @@ def _native_npm_bundle_graph(
 ) -> dict[str, Any]:
     """Read actual metadata with Arborist physically bound to installed npm; never reify."""
     node, cli = _resolve_current_npm_registry_parser_runtime()
-    npm_root = Path(cli).parent.parent
+    npm_root = Path(cli).parent.parent.resolve(strict=True)
+    npm_node_modules = (npm_root / "node_modules").resolve(strict=True)
+    npm_scope = (npm_root / "node_modules/@npmcli").resolve(strict=True)
     arborist_root = (npm_root / "node_modules/@npmcli/arborist").resolve(strict=True)
+    for owned_root in (npm_node_modules, npm_scope, arborist_root):
+        assert (
+            owned_root != npm_root and owned_root.is_relative_to(npm_root) and owned_root.is_dir()
+        ), "Arborist must be physically owned by installed npm"
     api = _load_json(arborist_root / "package.json")
     assert isinstance(api.get("main"), str), "Arborist entry metadata missing"
     entry = (arborist_root / api["main"]).resolve(strict=True)
-    assert entry.is_relative_to(arborist_root) and entry.is_file(), "Arborist entry outside npm"
+    assert (
+        entry.is_relative_to(npm_root) and entry.is_relative_to(arborist_root) and entry.is_file()
+    ), "Arborist entry outside npm"
     bound_paths = [
         Path(node),
         Path(cli),
@@ -1280,7 +1306,7 @@ def _assert_lock_surface_canonical_provenance(
     )
     published: dict[str, dict[str, Any]] = {}
     deadline = time.monotonic() + 90
-    raw_cache = archive_cache if archive_cache is not None else {}
+    raw_cache = archive_cache if archive_cache is not None else _NPM_BUNDLE_RAW_CACHE
     for parent_path, declared in parents.items():
         parent_entry = packages[parent_path]
         identity = _lock_path_package_identity(parent_path)
@@ -4075,3 +4101,209 @@ def test_closed_bundle_native_transport_fails_closed(
             parent_name="fixture-parent",
             deadline=time.monotonic() + 5,
         )
+
+
+def _synthetic_arborist_escape(tmp_path: Path, component: str) -> tuple[Path, Path]:
+    """An intact external package records any accidental require before rejection."""
+    npm_root = tmp_path / "npm"
+    (npm_root / "bin").mkdir(parents=True)
+    cli = npm_root / "bin/npm-cli.js"
+    cli.write_text("// synthetic CLI identity; never executed\n", encoding="utf-8")
+    external_modules = tmp_path / "external/node_modules"
+    external_scope = external_modules / "@npmcli"
+    external_package = external_scope / "arborist"
+    (external_package / "lib").mkdir(parents=True)
+    (external_package / "package.json").write_text(
+        json.dumps({"name": "@npmcli/arborist", "version": "0.0.0", "main": "lib/index.js"}),
+        encoding="utf-8",
+    )
+    marker = tmp_path / "external-module-loaded"
+    (external_package / "lib/index.js").write_text(
+        "require('node:fs').writeFileSync(" + json.dumps(str(marker)) + ", 'loaded');\n"
+        "module.exports = class { async loadActual() { throw new Error('external module loaded'); } };\n",
+        encoding="utf-8",
+    )
+    if component == "package":
+        (npm_root / "node_modules/@npmcli").mkdir(parents=True)
+        (npm_root / "node_modules/@npmcli/arborist").symlink_to(
+            external_package, target_is_directory=True
+        )
+    elif component == "scope":
+        (npm_root / "node_modules").mkdir()
+        (npm_root / "node_modules/@npmcli").symlink_to(external_scope, target_is_directory=True)
+    else:
+        assert component == "node_modules"
+        (npm_root / "node_modules").symlink_to(external_modules, target_is_directory=True)
+    return cli, marker
+
+
+@pytest.mark.parametrize("component", ("package", "scope", "node_modules"))
+def test_closed_bundle_python_rejects_physical_arborist_escape_before_metadata(
+    npm_flat_bundle_material: dict[str, Any],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    component: str,
+) -> None:
+    state = npm_flat_bundle_material  # Existing genuine native positive must complete first.
+    node, _ = _resolve_current_npm_registry_parser_runtime()
+    cli, marker = _synthetic_arborist_escape(tmp_path, component)
+    monkeypatch.setattr(
+        __name__ + "._resolve_current_npm_registry_parser_runtime", lambda: (node, str(cli))
+    )
+
+    def forbid_metadata(*args: Any, **kwargs: Any) -> Any:
+        raise AssertionError("Arborist metadata read before ownership rejection")
+
+    def forbid_native(*args: Any, **kwargs: Any) -> Any:
+        raise AssertionError("native execution before ownership rejection")
+
+    monkeypatch.setattr(__name__ + "._load_json", forbid_metadata)
+    monkeypatch.setattr(subprocess, "run", forbid_native)
+    with pytest.raises(AssertionError, match="Arborist must be physically owned by installed npm"):
+        state["native"](
+            files={}, manifests={}, parent_name="fixture-parent", deadline=time.monotonic() + 5
+        )
+    assert not marker.exists()
+
+
+@pytest.mark.parametrize("component", ("package", "scope", "node_modules"))
+def test_closed_bundle_javascript_rejects_physical_arborist_escape_before_require(
+    npm_flat_bundle_material: dict[str, Any],
+    tmp_path: Path,
+    component: str,
+) -> None:
+    assert npm_flat_bundle_material["graph"]["nodes"]  # Genuine internal npm positive.
+    node, _ = _resolve_current_npm_registry_parser_runtime()
+    cli, marker = _synthetic_arborist_escape(tmp_path, component)
+    result = subprocess.run(
+        [node, "--input-type=commonjs", "-e", _NPM_BUNDLE_ACTUAL_GRAPH_JS, str(cli), str(tmp_path)],
+        cwd=tmp_path,
+        env={"PATH": "/usr/bin:/bin", "HOME": str(tmp_path), "TMPDIR": str(tmp_path)},
+        capture_output=True,
+        check=False,
+        timeout=10,
+    )
+    assert result.returncode != 0
+    assert b"Arborist must be physically owned by installed npm" in result.stderr
+    assert not marker.exists()
+
+
+@pytest.fixture
+def npm_bundle_reader_cache(
+    npm_flat_bundle_material: dict[str, Any],
+    monkeypatch: pytest.MonkeyPatch,
+) -> dict[str, Any]:
+    """The actual reader with synthetic transport and an isolated process cache."""
+    state = npm_flat_bundle_material
+    state.update(cache={}, fetches=[], native_calls=[], archive_calls=[], transport_error=False)
+    monkeypatch.setattr(__name__ + "._NPM_BUNDLE_RAW_CACHE", state["cache"])
+    monkeypatch.setattr(__name__ + "._read_npm_bundle_archive", state["reader"])
+
+    class Response(io.BytesIO):
+        status = 200
+        headers: dict[str, str] = {}
+
+        def __init__(self, url: str, raw: bytes) -> None:
+            super().__init__(raw)
+            self.url = url
+
+        def geturl(self) -> str:
+            return self.url
+
+    class Opener:
+        def open(self, request: Request, *, timeout: float) -> Response:
+            state["fetches"].append(request.full_url)
+            if state["transport_error"]:
+                raise OSError("synthetic cold acquisition failure")
+            return Response(request.full_url, state["raw"])
+
+    monkeypatch.setattr(__name__ + ".build_opener", lambda *args: Opener())
+    inspect = _inspect_npm_bundle_archive
+
+    def inspect_fresh(raw: bytes, *, deadline: float) -> tuple[dict[str, bytes], dict[str, Any]]:
+        state["archive_calls"].append(raw)
+        return inspect(raw, deadline=deadline)
+
+    def native_fresh(**kwargs: Any) -> dict[str, Any]:
+        state["native_calls"].append(kwargs["manifests"])
+        return deepcopy(state["graph"])
+
+    monkeypatch.setattr(__name__ + "._inspect_npm_bundle_archive", inspect_fresh)
+    monkeypatch.setattr(__name__ + "._native_npm_bundle_graph", native_fresh)
+    return state
+
+
+def test_closed_bundle_default_raw_cache_reuses_bytes_with_fresh_proofs(
+    npm_bundle_reader_cache: dict[str, Any],
+) -> None:
+    state = npm_bundle_reader_cache
+    first = _assert_lock_surface_canonical_provenance(surface="synthetic", document=state["lock"])
+    second = _assert_lock_surface_canonical_provenance(surface="synthetic", document=state["lock"])
+    assert first is not second
+    assert len(state["fetches"]) == 1
+    assert len(state["archive_calls"]) == len(state["native_calls"]) == 2
+    parent = state["lock"]["packages"]["node_modules/fixture-parent"]
+    assert state["cache"] == {(parent["resolved"], parent["integrity"]): state["raw"]}
+
+
+def test_closed_bundle_explicit_raw_cache_stays_isolated(
+    npm_bundle_reader_cache: dict[str, Any],
+) -> None:
+    state = npm_bundle_reader_cache
+    _assert_lock_surface_canonical_provenance(surface="synthetic", document=state["lock"])
+    explicit: dict[tuple[str, str], bytes] = {}
+    _assert_lock_surface_canonical_provenance(
+        surface="synthetic", document=state["lock"], archive_cache=explicit
+    )
+    _assert_lock_surface_canonical_provenance(
+        surface="synthetic", document=state["lock"], archive_cache=explicit
+    )
+    assert explicit is not state["cache"] and explicit == state["cache"]
+    assert len(state["fetches"]) == 2
+    assert len(state["archive_calls"]) == len(state["native_calls"]) == 3
+
+
+@pytest.mark.parametrize("mutation", ("sri", "oversize"))
+def test_closed_bundle_default_raw_cache_rejects_mutation(
+    npm_bundle_reader_cache: dict[str, Any],
+    mutation: str,
+) -> None:
+    state = npm_bundle_reader_cache
+    _assert_lock_surface_canonical_provenance(surface="synthetic", document=state["lock"])
+    key = next(iter(state["cache"]))
+    state["cache"][key] = (
+        b"mutated" if mutation == "sri" else b"x" * (_NPM_BUNDLE_COMPRESSED_LIMIT + 1)
+    )
+    with pytest.raises(AssertionError, match="npm bundle SRI mismatch|compressed npm bundle limit"):
+        _assert_lock_surface_canonical_provenance(surface="synthetic", document=state["lock"])
+    assert len(state["fetches"]) == len(state["native_calls"]) == 1
+
+
+def test_closed_bundle_default_raw_cache_keeps_cold_failure_explicit(
+    npm_bundle_reader_cache: dict[str, Any],
+) -> None:
+    state = npm_bundle_reader_cache
+    state["transport_error"] = True
+    with pytest.raises(AssertionError, match="anonymous npm bundle acquisition failed"):
+        _assert_lock_surface_canonical_provenance(surface="synthetic", document=state["lock"])
+    assert len(state["fetches"]) == 1 and not state["cache"]
+    assert not state["archive_calls"] and not state["native_calls"]
+
+
+def test_closed_bundle_default_raw_cache_retains_only_bounded_bytes(
+    npm_bundle_reader_cache: dict[str, Any],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    state = npm_bundle_reader_cache
+    monkeypatch.setattr(__name__ + "._NPM_BUNDLE_COMPRESSED_LIMIT", len(state["raw"]))
+    parent = state["lock"]["packages"]["node_modules/fixture-parent"]
+    second_url = "https://registry.npmjs.org/second-cache-fixture/-/second-cache-fixture-1.0.0.tgz"
+    for url in (parent["resolved"], second_url):
+        state["reader"](
+            url=url,
+            integrity=parent["integrity"],
+            deadline=time.monotonic() + 5,
+            raw_cache=state["cache"],
+        )
+    assert state["cache"] == {(second_url, parent["integrity"]): state["raw"]}
+    assert len(state["fetches"]) == 2

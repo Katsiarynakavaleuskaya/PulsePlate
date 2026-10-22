@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { lstatSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { expect, test } from '@playwright/test';
 import type { Locator, Page, TestInfo } from '@playwright/test';
 import { createElement } from 'react';
@@ -11,7 +12,6 @@ import { Button } from '../src/components/ui/Button';
 import { Card, CardContent } from '../src/components/ui/Card';
 import { Input } from '../src/components/ui/Input';
 import { Skeleton, ChartSkeleton, CardSkeleton } from '../src/components/ui/Skeleton';
-import { assertTailwindUtilities } from '../scripts/check-tailwind-utilities.mjs';
 
 const syntheticProSession: ProSessionStatus = {
   status: 'ok', authenticated: true, auth_source: 'cookie', tier: 'PRO',
@@ -964,7 +964,33 @@ async function readCompatibilityStyle(node: Locator) {
             .map((key) => [key, scalar(frame[key])]))) : null,
       };
     });
+    // Resolve only the existing focus/surface tokens through the browser's own
+    // serialization. This is a finite compatibility witness, not a color parser.
+    const probe = document.createElement('span');
+    probe.style.cssText = 'position:fixed;pointer-events:none;visibility:hidden;forced-color-adjust:none';
+    for (const token of ['--color-primary', '--color-error', '--pp-blue', '--color-surface']) {
+      probe.style.setProperty(token, style.getPropertyValue(token));
+    }
+    document.body.appendChild(probe);
+    const color = (value: string): string => {
+      probe.style.color = value;
+      return getComputedStyle(probe).color;
+    };
+    const ring = (value: string): string => {
+      // Existing input ring-2 plus ring-offset-1 has a 3px outer spread.
+      probe.style.boxShadow = `0 0 0 3px var(${value})`;
+      return getComputedStyle(probe).boxShadow;
+    };
+    const expectedFocus = {
+      forcedColorsActive: matchMedia('(forced-colors: active)').matches,
+      primary: color('var(--color-primary)'), brand: color('var(--pp-blue)'),
+      highlight: color('Highlight'), canvasText: color('CanvasText'),
+      surface: color('var(--color-surface)'),
+      primaryRing: ring('--color-primary'), errorRing: ring('--color-error'),
+    };
+    probe.remove();
     return {
+      expectedFocus,
       classes: element.className, width: rect.width, height: rect.height,
       rect: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
       disabled: (element instanceof HTMLButtonElement || element instanceof HTMLInputElement) && element.disabled,
@@ -1012,10 +1038,28 @@ async function keyboardCompatibilityTarget(page: Page, targetId: string, testInf
   }
 }
 
+function hasVisibleCompatibilityOutline(
+  observation: Awaited<ReturnType<typeof readCompatibilityStyle>>,
+  colors = [observation.expectedFocus.forcedColorsActive
+    ? observation.expectedFocus.highlight : observation.expectedFocus.primary],
+): boolean {
+  return Number.parseFloat(observation.style['outline-width']) >= 2 &&
+    observation.style['outline-style'] === 'solid' &&
+    Number.parseFloat(observation.style['outline-offset']) >= 0 &&
+    colors.includes(observation.style['outline-color']);
+}
+
 function expectVisibleCompatibilityOutline(observation: Awaited<ReturnType<typeof readCompatibilityStyle>>): void {
-  expect(Number.parseFloat(observation.style['outline-width'])).toBeGreaterThanOrEqual(2);
-  expect(['none', 'hidden']).not.toContain(observation.style['outline-style']);
-  expect(['transparent', 'rgba(0, 0, 0, 0)']).not.toContain(observation.style['outline-color']);
+  expect(hasVisibleCompatibilityOutline(observation)).toBe(true);
+}
+
+function hasVisibleCompatibilityInputRing(
+  observation: Awaited<ReturnType<typeof readCompatibilityStyle>>,
+): boolean {
+  const expected = observation.ariaInvalid === 'true'
+    ? observation.expectedFocus.errorRing : observation.expectedFocus.primaryRing;
+  return observation.focus.active && expected !== 'none' && expected !== '' &&
+    observation.style['box-shadow'].includes(expected);
 }
 
 for (const width of [320, 1440] as const) {
@@ -1075,7 +1119,7 @@ for (const width of [320, 1440] as const) {
       await keyboardCompatibilityTarget(page, `input-${state}`, testInfo);
       const focused = await readCompatibilityStyle(target(`input-${state}`));
       await attachCompatibility(testInfo, `input-${state}-focus`, focused);
-      expect(focused.style['box-shadow']).not.toBe('none');
+      expect(hasVisibleCompatibilityInputRing(focused)).toBe(true);
     }
     const chart = target('chart-skeleton').locator('.rounded-lg');
     expect((await chart.getAttribute('class'))?.split(/\s+/)).not.toContain('rounded-md');
@@ -1130,8 +1174,10 @@ test('forced-color input and button focus stays visible', async ({ page, baseURL
       const observation = await readCompatibilityStyle(page.locator(`[data-compat-target="${id}"]`));
       await attachCompatibility(testInfo, `${id}-${forcedColors}`, { emulated: forcedColors, observedActive,
         unsupportedUnknown: forcedColors === 'active' && !observedActive, observation });
+      expect(observation.focus.active).toBe(true);
       if (forcedColors === 'active' && observedActive) expectVisibleCompatibilityOutline(observation);
-      else expect(observation.focus.active).toBe(true);
+      else if (id.startsWith('input-')) expect(hasVisibleCompatibilityInputRing(observation)).toBe(true);
+      else expectVisibleCompatibilityOutline(observation);
     }
   }
 });
@@ -1163,10 +1209,9 @@ for (const forcedColors of ['none', 'active'] as const) {
       const input = await readCompatibilityStyle(week);
       const label = await readCompatibilityStyle(week.locator('..'));
       await attachCompatibility(testInfo, `radio-${key}-${forcedColors}`, { observedActive, input, label });
-      expect([input, label].some((node) =>
-        Number.parseFloat(node.style['outline-width']) >= 2 &&
-        !['', 'none', 'hidden'].includes(node.style['outline-style']) &&
-        !['', 'transparent', 'rgba(0, 0, 0, 0)'].includes(node.style['outline-color']))).toBe(true);
+      expect([input, label].some((node) => hasVisibleCompatibilityOutline(node,
+        observedActive ? [node.expectedFocus.highlight, node.expectedFocus.canvasText]
+          : [node.expectedFocus.brand]))).toBe(true);
       await today.click();
       await expect(group).not.toHaveAttribute('data-keyboard-navigation', 'true');
       const pointer = await readCompatibilityStyle(today.locator('..'));
@@ -1183,7 +1228,62 @@ for (const forcedColors of ['none', 'active'] as const) {
   });
 }
 
+test('focus witnesses reject transparent colors and zero-geometry shadows', async ({ page, baseURL }, testInfo) => {
+  await showCompatibilitySpecimens(page, new URL(baseURL ?? '').origin);
+  await keyboardCompatibilityTarget(page, 'button-primary-default', testInfo);
+  const button = page.locator('[data-compat-target="button-primary-default"]');
+  const originalButtonStyle = await button.getAttribute('style');
+  const buttonBefore = await readCompatibilityStyle(button);
+  expectVisibleCompatibilityOutline(buttonBefore);
+  const outlineNegatives = [];
+  try {
+    for (const color of ['color(srgb 0 0 0 / 0)', 'rgba(51, 159, 255, 0.001)']) {
+      await button.evaluate((element, value) => {
+        (element as HTMLElement).style.outline = `2px solid ${value}`;
+      }, color);
+      const observed = await readCompatibilityStyle(button);
+      outlineNegatives.push(observed);
+      expect(hasVisibleCompatibilityOutline(observed)).toBe(false);
+    }
+    await button.evaluate((element) => {
+      (element as HTMLElement).style.outline = '0px solid var(--color-primary)';
+    });
+    const zeroWidth = await readCompatibilityStyle(button);
+    outlineNegatives.push(zeroWidth);
+    expect(hasVisibleCompatibilityOutline(zeroWidth)).toBe(false);
+  } finally {
+    await button.evaluate((element, value) => {
+      if (value === null) element.removeAttribute('style');
+      else element.setAttribute('style', value);
+    }, originalButtonStyle);
+  }
+  expectVisibleCompatibilityOutline(await readCompatibilityStyle(button));
+  await keyboardCompatibilityTarget(page, 'input-ordinary', testInfo);
+  const input = page.locator('[data-compat-target="input-ordinary"]');
+  const originalInputStyle = await input.getAttribute('style');
+  const inputBefore = await readCompatibilityStyle(input);
+  expect(hasVisibleCompatibilityInputRing(inputBefore)).toBe(true);
+  const ringNegatives = [];
+  try {
+    for (const shadow of ['0 0 0 3px rgba(51, 159, 255, 0)', '0 0 0 0 var(--color-primary)']) {
+      await input.evaluate((element, value) => { (element as HTMLElement).style.boxShadow = value; }, shadow);
+      const observed = await readCompatibilityStyle(input);
+      ringNegatives.push(observed);
+      expect(hasVisibleCompatibilityInputRing(observed)).toBe(false);
+    }
+  } finally {
+    await input.evaluate((element, value) => {
+      if (value === null) element.removeAttribute('style');
+      else element.setAttribute('style', value);
+    }, originalInputStyle);
+  }
+  expect(hasVisibleCompatibilityInputRing(await readCompatibilityStyle(input))).toBe(true);
+  await attachCompatibility(testInfo, 'focus-negative-controls', { buttonBefore, outlineNegatives, inputBefore, ringNegatives });
+});
+
 test('CSS smoke rejects an exact missing grid despite grid-cols neighbors', async ({ page, baseURL }, testInfo) => {
+  // Keep the native .mjs helper on Node's ESM loader instead of a transformed require.
+  const { assertTailwindUtilities } = await import(pathToFileURL(resolve('scripts/check-tailwind-utilities.mjs')).href);
   await showCompatibilitySpecimens(page, new URL(baseURL ?? '').origin);
   const css = await page.evaluate(() => Array.from(document.styleSheets).flatMap((sheet) =>
     Array.from(sheet.cssRules).map((rule) => rule.cssText)).join('\n'));
@@ -1227,6 +1327,10 @@ for (const width of [320, 768, 1440] as const) {
     await attachCompatibility(testInfo, 'home-keyboard', { width, browserName, version: browser.version(),
       before, focused, sessionCalls: sessionCalls() });
     await expect(choice).toBeFocused();
+    const homeText = await readCompatibilityStyle(page.locator('#planning-intent-heading'));
+    expect(homeText.classes.split(/\s+/)).toContain('text-white');
+    expect(homeText.style.color).toBe(homeText.expectedFocus.surface);
+    await attachCompatibility(testInfo, 'home-text-white', homeText);
     expectVisibleCompatibilityOutline(focused);
     await choice.hover();
     await attachCompatibility(testInfo, 'home-hover', await readCompatibilityStyle(choice));

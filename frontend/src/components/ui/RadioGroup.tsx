@@ -40,11 +40,12 @@ export function RadioGroup({
       onPointerDownCapture={() => setKeyboardNavigation(false)}
       onBlurCapture={(event) => {
         const group = event.currentTarget;
-        queueMicrotask(() => {
-          if (!group.contains(group.ownerDocument.activeElement)) {
-            setKeyboardNavigation(false);
-          }
-        });
+        const next = event.relatedTarget;
+        // Focusout precedes the native focus move; relatedTarget is its destination.
+        // Keep keyboard treatment while the owner document itself loses focus.
+        if (next ? !group.contains(next) : group.ownerDocument.hasFocus()) {
+          setKeyboardNavigation(false);
+        }
       }}
     >
       <legend className="text-sm font-medium text-[var(--color-text)]">{legend}</legend>
