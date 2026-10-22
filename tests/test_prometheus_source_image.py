@@ -678,47 +678,447 @@ def test_immutable_promotion_tag_cannot_overwrite_other_subject() -> None:
         source.immutable_tag_state(versions, "selected", "sha256:" + "b" * 64)
 
 
-@pytest.mark.parametrize("conclusion", ["success", "failure", None])
-def test_unchanged_publication_requires_successful_native_publisher_job(
-    conclusion: str | None,
-) -> None:
-    head = "1" * 40
-    run = {
-        "id": 12,
-        "run_attempt": 1,
-        "head_sha": head,
+def _publication_run(
+    run_id: int = 12,
+    *,
+    attempt: int = 1,
+    status: str = "completed",
+    conclusion: str | None = "success",
+) -> dict[str, Any]:
+    return {
+        "id": run_id,
+        "run_attempt": attempt,
+        "workflow_id": 1234,
+        "path": ".github/workflows/build.yml",
+        "head_sha": "1" * 40,
         "head_branch": "main",
+        "event": "push",
         "repository": {"id": 1043311030},
         "head_repository": {"id": 1043311030},
-        "event": "push",
-        "status": "completed",
-        "conclusion": "success",
-    }
-    job = {
-        "name": "prometheus-publish",
-        "status": "completed",
+        "status": status,
         "conclusion": conclusion,
-        "head_sha": head,
     }
 
-    class FixtureAPI:
-        def json(self, endpoint: str) -> dict[str, int]:
-            return {"total_count": 1}
 
-        def pages(self, endpoint: str, key: str, count: int) -> list[dict[str, Any]]:
-            assert count == 1
-            return [run] if key == "workflow_runs" else [job]
+def _publication_job(
+    run_id: int = 12,
+    *,
+    attempt: int = 1,
+    status: str = "completed",
+    conclusion: str | None = "success",
+) -> dict[str, Any]:
+    return {
+        "id": run_id * 10,
+        "run_id": run_id,
+        "run_attempt": attempt,
+        "name": "prometheus-publish",
+        "head_sha": "1" * 40,
+        "status": status,
+        "conclusion": conclusion,
+    }
 
-    if conclusion == "success":
-        assert source.require_publication_predecessor(FixtureAPI(), head) == {
-            "run": run,
-            "job": job,
+
+class _PublicationPredecessorAPI(source.GitHubRead):
+    """Native-shaped observations through the real bounded pages reader; no external API."""
+
+    def __init__(
+        self,
+        runs: list[dict[str, Any]] | None = None,
+        jobs: dict[int, list[dict[str, Any]]] | None = None,
+        *,
+        snapshots: list[tuple[list[dict[str, Any]], dict[int, list[dict[str, Any]]]]] | None = None,
+    ) -> None:
+        self.snapshots = (
+            copy.deepcopy(snapshots)
+            if snapshots is not None
+            else [
+                (
+                    [_publication_run()] if runs is None else copy.deepcopy(runs),
+                    {12: [_publication_job()]} if jobs is None else copy.deepcopy(jobs),
+                )
+            ]
+        )
+        self.observation = 0
+        self.current = self.snapshots[0]
+        self.requests: list[str] = []
+        self.overrides: dict[str, Any] = {}
+
+    def json(self, endpoint: str) -> Any:
+        self.requests.append(endpoint)
+        if endpoint in self.overrides:
+            value = self.overrides[endpoint]
+            if isinstance(value, BaseException):
+                raise value
+            return copy.deepcopy(value)
+        prefix = f"/repos/{source.GHCR_REPOSITORY}/actions/"
+        if endpoint.startswith(prefix + "workflows/build.yml/runs?"):
+            runs, _jobs = self.snapshots[min(self.observation, len(self.snapshots) - 1)]
+            return {"total_count": len(runs), "workflow_runs": copy.deepcopy(runs)}
+        match = re.fullmatch(
+            re.escape(prefix) + r"runs/(\d+)/attempts/(\d+)/jobs\?per_page=100&page=1", endpoint
+        )
+        if match:
+            run_id, attempt = map(int, match.groups())
+            assert any(
+                row["id"] == run_id and row["run_attempt"] == attempt for row in self.current[0]
+            )
+            jobs = self.current[1].get(run_id, [])
+            return {"total_count": len(jobs), "jobs": copy.deepcopy(jobs)}
+        match = re.fullmatch(re.escape(prefix) + r"runs/(\d+)", endpoint)
+        assert match is not None, endpoint
+        return copy.deepcopy(next(row for row in self.current[0] if row["id"] == int(match[1])))
+
+    def pages(self, endpoint: str, key: str | None, count: int) -> list[dict[str, Any]]:
+        if key == "workflow_runs":
+            self.current = self.snapshots[min(self.observation, len(self.snapshots) - 1)]
+        values = super().pages(endpoint, key, count)
+        if key == "workflow_runs":
+            self.observation += 1
+        return values
+
+
+def _publication_wait_observations(
+    case: str,
+) -> tuple[list[tuple[list[dict[str, Any]], dict[int, list[dict[str, Any]]]]], str | None, int]:
+    """One finite caller-regression table, shared by the workflow and internal consumer."""
+    active = ([_publication_run(status="in_progress", conclusion=None)], {12: []})
+    success = ([_publication_run()], {12: [_publication_job()]})
+    terminal = (
+        [_publication_run(status="in_progress", conclusion=None)],
+        {12: [_publication_job(conclusion="failure")]},
+    )
+    if case == "missing-active-success":
+        return [([], {}), active, success], None, 2
+    if case == "new-attempt-success":
+        return (
+            [active, ([_publication_run(attempt=2)], {12: [_publication_job(attempt=2)]})],
+            None,
+            1,
+        )
+    if case == "pending-terminal":
+        return [active, terminal], "publication_predecessor_failed", 1
+    if case == "missing-timeout":
+        return [([], {})], "qualification_deadline", -1
+    if case == "active-timeout":
+        return [active], "qualification_deadline", -1
+    if case == "missing-job":
+        return [([_publication_run()], {12: []})], "publication_predecessor_not_published", 0
+    if case == "skipped-job":
+        return (
+            [(active[0], {12: [_publication_job(conclusion="skipped")]})],
+            "publication_predecessor_not_published",
+            0,
+        )
+    if case == "malformed":
+        return (
+            [([_publication_run()], {12: [_publication_job(attempt=2)]})],
+            "publication_predecessor_job_identity",
+            0,
+        )
+    if case == "api-error":
+        return [success], "GitHub_native_failed", 0
+    job_failure = case.startswith("job-")
+    conclusion = case.removeprefix("job-")
+    diagnostics = {
+        "failure": "publication_predecessor_failed",
+        "cancelled": "publication_predecessor_cancelled",
+        "timed_out": "publication_predecessor_timed_out",
+    }
+    assert conclusion in diagnostics
+    run = (
+        _publication_run(status="in_progress", conclusion=None)
+        if job_failure
+        else _publication_run(conclusion=conclusion)
+    )
+    job = _publication_job(conclusion=conclusion if job_failure else "success")
+    return [([run], {12: [job]})], diagnostics[conclusion], 0
+
+
+@pytest.mark.parametrize(
+    "run_status,run_conclusion,job_status,job_conclusion,diagnostic",
+    [
+        ("completed", "success", "completed", "success", None),
+        ("in_progress", None, "in_progress", None, "positive_publication_predecessor_active"),
+        ("queued", None, None, None, "positive_publication_predecessor_active"),
+        ("waiting", None, "queued", None, "positive_publication_predecessor_active"),
+        ("pending", None, "queued", None, "positive_publication_predecessor_active"),
+        ("requested", None, "queued", None, "positive_publication_predecessor_active"),
+        ("in_progress", None, "completed", "success", "positive_publication_predecessor_active"),
+        ("in_progress", None, "completed", "failure", "publication_predecessor_failed"),
+        ("in_progress", None, "completed", "cancelled", "publication_predecessor_cancelled"),
+        ("in_progress", None, "completed", "timed_out", "publication_predecessor_timed_out"),
+        ("completed", "failure", "completed", "success", "publication_predecessor_failed"),
+        ("completed", "cancelled", None, None, "publication_predecessor_cancelled"),
+        ("completed", "timed_out", None, None, "publication_predecessor_timed_out"),
+        ("completed", "neutral", None, None, "publication_predecessor_not_published"),
+        ("completed", "skipped", None, None, "publication_predecessor_not_published"),
+        ("completed", "action_required", None, None, "publication_predecessor_not_published"),
+        ("completed", "stale", None, None, "publication_predecessor_not_published"),
+        ("completed", "startup_failure", None, None, "publication_predecessor_not_published"),
+        ("completed", "success", None, None, "publication_predecessor_not_published"),
+        ("in_progress", None, "completed", "skipped", "publication_predecessor_not_published"),
+        ("in_progress", None, "completed", "neutral", "publication_predecessor_not_published"),
+        (
+            "completed",
+            "success",
+            "completed",
+            "failure",
+            "publication_predecessor_run_job_contradiction",
+        ),
+        (
+            "completed",
+            "success",
+            "in_progress",
+            None,
+            "publication_predecessor_run_job_contradiction",
+        ),
+        ("completed", "success", "completed", None, "publication_predecessor_state"),
+        ("in_progress", None, "future-status", None, "publication_predecessor_state"),
+        ("completed", None, None, None, "publication_predecessor_state"),
+        ("in_progress", "failure", None, None, "publication_predecessor_state"),
+        ("future-status", None, None, None, "publication_predecessor_state"),
+        ("completed", "future-conclusion", None, None, "publication_predecessor_state"),
+    ],
+)
+def test_publication_predecessor_recognizes_bound_native_state(
+    run_status: str,
+    run_conclusion: str | None,
+    job_status: str | None,
+    job_conclusion: str | None,
+    diagnostic: str | None,
+) -> None:
+    run = _publication_run(status=run_status, conclusion=run_conclusion)
+    jobs = (
+        []
+        if job_status is None
+        else [_publication_job(status=job_status, conclusion=job_conclusion)]
+    )
+    api = _PublicationPredecessorAPI([run], {12: jobs})
+    if diagnostic is None:
+        assert source.require_publication_predecessor(api, "1" * 40) == {"run": run, "job": jobs[0]}
+    else:
+        with pytest.raises(source.QualificationError, match="^" + diagnostic + "$"):
+            source.require_publication_predecessor(api, "1" * 40)
+
+
+def test_publication_predecessor_missing_is_not_an_api_error() -> None:
+    api = _PublicationPredecessorAPI([], {})
+    with pytest.raises(
+        source.QualificationError, match="^positive_publication_predecessor_missing$"
+    ):
+        source.require_publication_predecessor(api, "1" * 40)
+    assert len(api.requests) == 2 and api.observation == 1
+
+
+@pytest.mark.parametrize("head", [None, True, "1" * 39, "../main", "A" * 40])
+def test_publication_predecessor_rejects_malformed_head_before_api(head: object) -> None:
+    api = _PublicationPredecessorAPI()
+    with pytest.raises(source.QualificationError, match="^publication_predecessor_head$"):
+        source.require_publication_predecessor(api, cast(str, head))
+    assert api.requests == []
+
+
+def test_publication_predecessor_other_jobs_cannot_substitute_required_publication() -> None:
+    job = {**_publication_job(), "name": "build"}
+    api = _PublicationPredecessorAPI([_publication_run()], {12: [job]})
+    with pytest.raises(source.QualificationError, match="^publication_predecessor_not_published$"):
+        source.require_publication_predecessor(api, "1" * 40)
+
+
+def test_publication_predecessor_keeps_real_page_count_drift_rejection() -> None:
+    class API(_PublicationPredecessorAPI):
+        def json(self, endpoint: str) -> Any:
+            result = super().json(endpoint)
+            if "/workflows/build.yml/runs?" in endpoint and len(self.requests) > 1:
+                result["total_count"] = 2
+            return result
+
+    api = API()
+    with pytest.raises(source.QualificationError, match="^GitHub_page_count_drift$"):
+        source.require_publication_predecessor(api, "1" * 40)
+    assert len(api.requests) == 2
+
+
+@pytest.mark.parametrize(
+    "foreign", ["head_sha", "head_branch", "event", "repository", "head_repository"]
+)
+def test_publication_predecessor_preserves_positive_precedence(foreign: str) -> None:
+    unrelated = _publication_run(40, conclusion="failure")
+    unrelated[foreign] = (
+        {"id": 123}
+        if foreign.endswith("repository")
+        else ("2" * 40 if foreign == "head_sha" else "foreign")
+    )
+    runs = [
+        _publication_run(30, conclusion="failure"),
+        _publication_run(10),
+        unrelated,
+        _publication_run(20),
+    ]
+    jobs = {n: [_publication_job(n)] for n in (10, 20, 30)}
+    api = _PublicationPredecessorAPI(runs, jobs)
+    assert source.require_publication_predecessor(api, "1" * 40) == {
+        "run": runs[3],
+        "job": jobs[20][0],
+    }
+    assert not any(
+        "/runs/40/" in endpoint or endpoint.endswith("/runs/40") for endpoint in api.requests
+    )
+
+
+@pytest.mark.parametrize("conclusion", ["success", "failure"])
+@pytest.mark.parametrize("eligible", [False, True])
+def test_publication_predecessor_binds_exact_native_workflow_path(
+    conclusion: str,
+    eligible: bool,
+) -> None:
+    foreign = {**_publication_run(40, conclusion=conclusion), "path": ".github/workflows/ci.yml"}
+    runs = [_publication_run(10), foreign, _publication_run(20)] if eligible else [foreign]
+    jobs = {n: [_publication_job(n)] for n in (10, 20, 40)}
+    api = _PublicationPredecessorAPI(runs, jobs)
+    if eligible:
+        assert source.require_publication_predecessor(api, "1" * 40) == {
+            "run": runs[2],
+            "job": jobs[20][0],
         }
     else:
         with pytest.raises(
-            source.QualificationError, match="positive_publication_predecessor_pending_or_missing"
+            source.QualificationError, match="^positive_publication_predecessor_missing$"
         ):
-            source.require_publication_predecessor(FixtureAPI(), head)
+            source.require_publication_predecessor(api, "1" * 40)
+    assert not any(
+        "/runs/40/" in endpoint or endpoint.endswith("/runs/40") for endpoint in api.requests
+    )
+
+
+@pytest.mark.parametrize("reverse", [False, True])
+def test_publication_predecessor_does_not_rescue_latest_failure_with_older_active_run(
+    reverse: bool,
+) -> None:
+    runs = [
+        _publication_run(11, status="in_progress", conclusion=None),
+        _publication_run(12, conclusion="failure"),
+    ]
+    if reverse:
+        runs.reverse()
+    api = _PublicationPredecessorAPI(runs, {11: [], 12: [_publication_job(conclusion="failure")]})
+    with pytest.raises(source.QualificationError, match="^publication_predecessor_failed$"):
+        source.require_publication_predecessor(api, "1" * 40)
+    assert api.observation == 1
+
+
+@pytest.mark.parametrize(
+    "fault,diagnostic",
+    [
+        ("run-bool", "publication_predecessor_run_identity"),
+        ("attempt-zero", "publication_predecessor_run_identity"),
+        ("repository-shape", "publication_predecessor_run_identity"),
+        ("path-empty", "publication_predecessor_run_identity"),
+        ("path-missing", "publication_predecessor_run_identity"),
+        ("path-type", "publication_predecessor_run_identity"),
+        ("job-bool", "publication_predecessor_job_identity"),
+        ("job-run", "publication_predecessor_job_identity"),
+        ("job-attempt", "publication_predecessor_job_identity"),
+        ("job-head", "publication_predecessor_job_identity"),
+        ("duplicate-publisher", "publication_predecessor_publisher_ambiguous"),
+        ("attempt-drift", "publication_predecessor_run_drift"),
+        ("head-drift", "publication_predecessor_run_drift"),
+        ("path-drift", "publication_predecessor_run_drift"),
+        ("terminal-regression", "publication_predecessor_run_drift"),
+        ("run-count", "GitHub_complete_distinct_pages"),
+        ("run-count-type", "GitHub_finite_page_count"),
+        ("run-missing-count", "publication_predecessor_run_inventory"),
+        ("job-missing-count", "publication_predecessor_job_inventory"),
+        ("duplicate-run", "GitHub_complete_distinct_pages"),
+        ("malformed-page", "GitHub_page_shape"),
+        ("api-error", "GitHub_native_failed"),
+    ],
+)
+def test_publication_predecessor_uncertainty_never_becomes_pending(
+    fault: str,
+    diagnostic: str,
+) -> None:
+    run, job = _publication_run(), _publication_job()
+    if fault == "run-bool":
+        run["id"] = True
+    elif fault == "attempt-zero":
+        run["run_attempt"] = 0
+    elif fault == "repository-shape":
+        run["repository"] = None
+    elif fault == "path-empty":
+        run["path"] = ""
+    elif fault == "path-missing":
+        run.pop("path")
+    elif fault == "path-type":
+        run["path"] = True
+    elif fault == "job-bool":
+        job["id"] = True
+    elif fault == "job-run":
+        job["run_id"] = 13
+    elif fault == "job-attempt":
+        job["run_attempt"] = 2
+    elif fault == "job-head":
+        job["head_sha"] = "2" * 40
+    jobs = [job, {**job, "id": 121}] if fault == "duplicate-publisher" else [job]
+    api = _PublicationPredecessorAPI([run, run] if fault == "duplicate-run" else [run], {12: jobs})
+    endpoint = f"/repos/{source.GHCR_REPOSITORY}/actions/workflows/build.yml/runs?event=push&head_sha={'1' * 40}&per_page=100&page=1"
+    if fault.startswith("run-") and fault in {"run-count", "run-count-type", "run-missing-count"}:
+        api.overrides[endpoint] = {"workflow_runs": [run]}
+        if fault != "run-missing-count":
+            api.overrides[endpoint]["total_count"] = True if fault == "run-count-type" else 2
+    elif fault == "malformed-page":
+        api.overrides[endpoint] = {"total_count": 1, "workflow_runs": [None]}
+    elif fault == "job-missing-count":
+        api.overrides[
+            f"/repos/{source.GHCR_REPOSITORY}/actions/runs/12/attempts/1/jobs?per_page=100&page=1"
+        ] = {}
+    elif fault == "api-error":
+        api.overrides[endpoint] = source.QualificationError("GitHub_native_failed")
+    elif fault in {"attempt-drift", "head-drift", "path-drift", "terminal-regression"}:
+        changed = dict(run)
+        changed[
+            {
+                "attempt-drift": "run_attempt",
+                "head-drift": "head_sha",
+                "path-drift": "path",
+                "terminal-regression": "conclusion",
+            }[fault]
+        ] = {
+            "attempt-drift": 2,
+            "head-drift": "2" * 40,
+            "path-drift": ".github/workflows/ci.yml",
+            "terminal-regression": "failure",
+        }[
+            fault
+        ]
+        api.overrides[f"/repos/{source.GHCR_REPOSITORY}/actions/runs/12"] = changed
+    with pytest.raises(source.QualificationError, match="^" + diagnostic + "$"):
+        source.require_publication_predecessor(api, "1" * 40)
+
+
+def test_publication_predecessor_uses_terminal_detail_observed_during_active_run() -> None:
+    api = _PublicationPredecessorAPI(
+        [_publication_run(status="in_progress", conclusion=None)],
+        {12: [_publication_job(status="in_progress", conclusion=None)]},
+    )
+    api.overrides[f"/repos/{source.GHCR_REPOSITORY}/actions/runs/12"] = _publication_run(
+        conclusion="failure"
+    )
+    with pytest.raises(source.QualificationError, match="^publication_predecessor_failed$"):
+        source.require_publication_predecessor(api, "1" * 40)
+
+
+def test_publication_predecessor_accepts_coherent_completion_during_observation() -> None:
+    api = _PublicationPredecessorAPI(
+        [_publication_run(status="in_progress", conclusion=None)],
+        {12: [_publication_job()]},
+    )
+    current = _publication_run()
+    api.overrides[f"/repos/{source.GHCR_REPOSITORY}/actions/runs/12"] = current
+    assert source.require_publication_predecessor(api, "1" * 40) == {
+        "run": current,
+        "job": _publication_job(),
+    }
 
 
 def _projection_case(tmp_path: Path) -> tuple[Path, dict[str, Any], dict[str, Any]]:
@@ -4352,7 +4752,7 @@ def _consumer_fixture(
         assert args[1] == publisher_head
         if fault == "predecessor":
             clock[0] += 100
-            raise source.QualificationError("positive_publication_predecessor_pending_or_missing")
+            raise source.QualificationError("positive_publication_predecessor_active")
         return {
             "run": {
                 "id": 1,
@@ -4467,6 +4867,176 @@ def test_consumer_rejects_at_intended_admission_and_retains_uncertain_credential
     if fault not in {"login", "cleanup", "login-cleanup"}:
         assert "login" not in trace
     assert not (work / "evidence/consumer.json").exists()
+
+
+@pytest.mark.parametrize(
+    "case,cleanup_failure",
+    [
+        (case, False)
+        for case in (
+            "failure",
+            "cancelled",
+            "timed_out",
+            "job-failure",
+            "job-cancelled",
+            "job-timed_out",
+            "missing-job",
+            "skipped-job",
+            "malformed",
+            "api-error",
+            "pending-terminal",
+            "missing-active-success",
+            "new-attempt-success",
+            "missing-timeout",
+            "active-timeout",
+        )
+    ]
+    + [("job-failure", True), ("api-error", True)],
+)
+def test_consumer_publication_wait_uses_real_recognizer_without_terminal_retry(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    case: str,
+    cleanup_failure: bool,
+) -> None:
+    real_predecessor = source.require_publication_predecessor
+    root, work, reader, trace = _consumer_fixture(
+        monkeypatch,
+        tmp_path,
+        published=True,
+        fault="cleanup" if cleanup_failure else None,
+        event_name="push",
+    )
+    base_api = source.GitHubRead
+    snapshots, diagnostic, expected_sleeps = _publication_wait_observations(case)
+    observed: list[_PublicationPredecessorAPI] = []
+    clock = [100.0]
+    sleeps: list[float] = []
+
+    def sleep(seconds: float) -> None:
+        sleeps.append(seconds)
+        clock[0] += seconds
+
+    class API(base_api):
+        def __init__(self, private: Path, evidence: Path, deadline: float, cleanup: int) -> None:
+            super().__init__(private, evidence, deadline, cleanup)
+            assert deadline == 130 and cleanup == 2
+            self.publication = _PublicationPredecessorAPI(snapshots=snapshots)
+            if case == "api-error":
+                endpoint = f"/repos/{source.GHCR_REPOSITORY}/actions/workflows/build.yml/runs?event=push&head_sha={'a' * 40}&per_page=100&page=1"
+                self.publication.overrides[endpoint] = source.QualificationError(
+                    "GitHub_native_failed"
+                )
+            observed.append(self.publication)
+
+        def json(self, endpoint: str) -> dict[str, Any]:
+            if "/actions/" in endpoint:
+                return self.publication.json(endpoint)
+            return super().json(endpoint)
+
+        def pages(self, endpoint: str, key: str | None, count: int) -> list[dict[str, Any]]:
+            return self.publication.pages(endpoint, key, count)
+
+        def begin_cleanup(self) -> float:
+            return clock[0] + 2
+
+    # The consumer fixture's event/publisher head is a; bind the synthetic native
+    # observations to that same head rather than bypassing the real recognizer.
+    for runs, jobs in snapshots:
+        for row in runs:
+            row["head_sha"] = "a" * 40
+        for rows in jobs.values():
+            for row in rows:
+                row["head_sha"] = "a" * 40
+    monkeypatch.setattr(source, "GitHubRead", API)
+    monkeypatch.setattr(source, "require_publication_predecessor", real_predecessor)
+    monkeypatch.setattr(source.time, "monotonic", lambda: clock[0])
+    monkeypatch.setattr(source.time, "sleep", sleep)
+    if diagnostic is None:
+        source.consume_image(work, root, 30, 2)
+        assert "public-package" in trace and "login" in trace and "inspect" in trace
+    else:
+        with pytest.raises(source.QualificationError, match="^" + diagnostic + "$"):
+            source.consume_image(work, root, 30, 2)
+        assert not {"public-package", "login", "pull", "raw", "load", "inspect"}.intersection(trace)
+        assert not reader.exists() and not (work / "evidence/consumer.json").exists()
+    if expected_sleeps >= 0:
+        assert len(sleeps) == expected_sleeps
+        assert observed[0].observation == (0 if case == "api-error" else expected_sleeps + 1)
+    else:
+        assert clock[0] == 130 and sum(sleeps) == 30 and observed[0].observation == 6
+    if case == "new-attempt-success":
+        assert any("/attempts/2/jobs" in endpoint for endpoint in observed[0].requests)
+    if cleanup_failure:
+        assert (
+            "Consumer cleanup also failed:GHCR_unknown_or_reused_group_member"
+            in capsys.readouterr().err
+        )
+
+
+@pytest.mark.parametrize("case", ["success", "failure", "job-timed_out", "missing", "active"])
+def test_nonpolling_promoter_keeps_native_predecessor_admission(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    case: str,
+) -> None:
+    real_predecessor = source.require_publication_predecessor
+    root, work, config, trace, _manifest = _promotion_fixture(monkeypatch, tmp_path, unchanged=True)
+    base_api = source.GitHubRead
+    if case == "success":
+        snapshots, diagnostic = [([_publication_run()], {12: [_publication_job()]})], None
+    elif case == "missing":
+        snapshots, diagnostic = [([], {})], "positive_publication_predecessor_missing"
+    elif case == "active":
+        snapshots, diagnostic = [
+            ([_publication_run(status="in_progress", conclusion=None)], {12: []})
+        ], "positive_publication_predecessor_active"
+    else:
+        snapshots, diagnostic, _sleeps = _publication_wait_observations(case)
+    for runs, jobs in snapshots:
+        for row in runs:
+            row["head_sha"] = "b" * 40
+        for rows in jobs.values():
+            for row in rows:
+                row["head_sha"] = "b" * 40
+    observed: list[_PublicationPredecessorAPI] = []
+
+    class API(base_api):
+        def __init__(self, private: Path, evidence: Path, deadline: float, cleanup: int) -> None:
+            super().__init__(private, evidence, deadline, cleanup)
+            self.publication = _PublicationPredecessorAPI(snapshots=snapshots)
+            observed.append(self.publication)
+
+        def json(self, endpoint: str) -> dict[str, Any]:
+            if (
+                "/workflows/build.yml/runs?" in endpoint
+                or "/actions/runs/12/" in endpoint
+                or endpoint.endswith("/actions/runs/12")
+            ):
+                return self.publication.json(endpoint)
+            return super().json(endpoint)
+
+        def pages(self, endpoint: str, key: str | None, count: int) -> list[dict[str, Any]]:
+            if key == "workflow_runs" or "/actions/runs/12/" in endpoint:
+                if key == "workflow_runs":
+                    trace.append("predecessor")
+                return self.publication.pages(endpoint, key, count)
+            return super().pages(endpoint, key, count)
+
+    monkeypatch.setattr(source, "GitHubRead", API)
+    monkeypatch.setattr(source, "require_publication_predecessor", real_predecessor)
+    monkeypatch.setattr(
+        source.time, "sleep", lambda _seconds: pytest.fail("nonpolling predecessor slept")
+    )
+    if diagnostic is None:
+        assert source.promote_image(work, root, 30, 2)["copy_invocations"] == 0
+        assert "package" in trace and "login" in trace
+    else:
+        with pytest.raises(source.QualificationError, match="^" + diagnostic + "$"):
+            source.promote_image(work, root, 30, 2)
+        assert not {"package", "login", "copy", "candidate"}.intersection(trace)
+    assert observed[0].observation == 1 and not config.exists()
 
 
 @pytest.mark.parametrize("root_module", (source.ROOT_MODULE, "oras.land/oras"))

@@ -4023,10 +4023,10 @@ def test_prometheus_cd_uses_authenticated_finite_consumer_and_retains_strict_sca
         names.index(name) for name in ordered_names
     )
     for program in (classifier["run"], consumer["run"]):
-        assert "333502" in program
+        assert "338496" in program
         assert (
             # pragma: allowlist nextline secret - public trusted control blob
-            "49a8f31040a500a86da72126a5b4a491144ad0e9"
+            "198e851eff021b879a2f844ff2d6d56a2efc286c"
             in program
         )
         assert "Prometheus_control_interface_HOLD" in program
@@ -4164,12 +4164,12 @@ def _synthetic_fixed_prometheus_control(
         )
         .replace(
             # pragma: allowlist nextline secret - public trusted control blob
-            "49a8f31040a500a86da72126a5b4a491144ad0e9",
+            "198e851eff021b879a2f844ff2d6d56a2efc286c",
             blob,
         )
-        .replace("333502", str(len(raw)))
+        .replace("338496", str(len(raw)))
         .replace(
-            "95ad21d28bb79f2a772677befb3d824cd1de01d1555c932c61307c3cd07a0fd0",  # pragma: allowlist secret - public protected helper digest
+            "6a73c0f822c74fd8e6cd0a3691a05e8d49915766142bd8ce8d511f71a52c9ef0",  # pragma: allowlist secret - public protected helper digest
             hashlib.sha256(raw).hexdigest(),
         )
         for program in programs
@@ -15851,9 +15851,7 @@ def test_trusted_prometheus_wait_keeps_admission_and_cleanup_boundaries(
         if case == "interrupt":
             raise KeyboardInterrupt
         if case == "timeout" or elapsed[0] <= 900:
-            raise prometheus_source.QualificationError(
-                "positive_publication_predecessor_pending_or_missing"
-            )
+            raise prometheus_source.QualificationError("positive_publication_predecessor_active")
         return {"run": {"head_sha": head, "conclusion": "success"}}
 
     monkeypatch.setattr(prometheus_source, "GitHubRead", API)
@@ -15885,6 +15883,151 @@ def test_trusted_prometheus_wait_keeps_admission_and_cleanup_boundaries(
         assert calls[0:2] == ["api", "admission"] and calls[-1] == "close"
     if case == "timeout":
         assert elapsed[0] == 10800
+
+
+@pytest.mark.parametrize(
+    "case,cleanup_failure",
+    [
+        (case, False)
+        for case in (
+            "failure",
+            "cancelled",
+            "timed_out",
+            "job-failure",
+            "job-cancelled",
+            "job-timed_out",
+            "missing-job",
+            "skipped-job",
+            "malformed",
+            "api-error",
+            "pending-terminal",
+            "missing-active-success",
+            "new-attempt-success",
+            "missing-timeout",
+            "active-timeout",
+        )
+    ]
+    + [("job-failure", True), ("api-error", True)],
+)
+def test_trusted_prometheus_wait_uses_real_terminal_recognition(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    case: str,
+    cleanup_failure: bool,
+) -> None:
+    import signal
+    import time
+    from tests.test_prometheus_source_image import (
+        _PublicationPredecessorAPI,
+        _publication_wait_observations,
+    )
+
+    workflow = yaml.safe_load(CD_WORKFLOW_PATH.read_text())
+    steps = workflow["jobs"]["prometheus-image-security-trusted"]["steps"]
+    step = next(
+        row for row in steps if row.get("name") == "Wait for the exact trusted Prometheus publisher"
+    )
+    consumer = next(row for row in steps if row.get("id") == "prometheus-image")
+    assert "if" not in consumer and "continue-on-error" not in step
+    event = tmp_path / "event.json"
+    event.write_text('{"ref":"refs/heads/main"}')
+    environment = {
+        "GITHUB_EVENT_NAME": "push",
+        "GITHUB_EVENT_PATH": str(event),
+        "GITHUB_SHA": "1" * 40,
+        "GITHUB_WORKSPACE": str(REPO_ROOT),
+        "RUNNER_TEMP": str(tmp_path),
+        "GITHUB_RUN_ID": "123",
+        "GITHUB_RUN_ATTEMPT": "1",
+        "GH_TOKEN": "synthetic-read-token",
+        "GITHUB_TOKEN": "synthetic-read-token",
+        "PROMETHEUS_CREDENTIAL_ROUTE": "trusted_published",
+        "PROMETHEUS_PUBLICATION_WAIT_SECONDS": "120",
+        "PROMETHEUS_CONSUME_SECONDS": "900",
+        "PROMETHEUS_CLEANUP_SECONDS": "120",
+        "PROMETHEUS_SECURITY_RESERVE_SECONDS": "2400",
+        "PROMETHEUS_JOB_TIMEOUT_MINUTES": "255",
+    }
+    monkeypatch.setattr(os, "environ", environment)
+    elapsed = [0.0]
+    sleeps: list[float] = []
+
+    def sleep(seconds: float) -> None:
+        sleeps.append(seconds)
+        elapsed[0] += seconds
+
+    monkeypatch.setattr(time, "monotonic", lambda: elapsed[0])
+    monkeypatch.setattr(time, "sleep", sleep)
+    monkeypatch.setattr(signal, "signal", lambda *args: None)
+    snapshots, diagnostic, expected_sleeps = _publication_wait_observations(case)
+    observed: list[_PublicationPredecessorAPI] = []
+    real_close = prometheus_source.GitHubRead.close
+
+    class API(_PublicationPredecessorAPI):
+        def __init__(self, private: Path, evidence: Path, deadline: float, cleanup: int) -> None:
+            super().__init__(snapshots=snapshots)
+            assert deadline == 120 and cleanup == 120
+            self.private = private
+            self.private.mkdir(mode=0o700)
+            for child in ("home", "config", "cache", "tmp"):
+                (self.private / child).mkdir(mode=0o700)
+            self.process = None
+            self.environment = {}
+            self.known = b""
+            self.additional_known = ()
+            if case == "api-error":
+                endpoint = f"/repos/{prometheus_source.GHCR_REPOSITORY}/actions/workflows/build.yml/runs?event=push&head_sha={'1' * 40}&per_page=100&page=1"
+                self.overrides[endpoint] = prometheus_source.QualificationError(
+                    "GitHub_native_failed"
+                )
+            observed.append(self)
+
+        def begin_cleanup(self) -> float:
+            if cleanup_failure:
+                raise prometheus_source.QualificationError("synthetic_cleanup_failure")
+            return elapsed[0] + 120
+
+        def close(self) -> None:
+            # Exercise the existing primary-preserving cleanup implementation,
+            # rather than a mocked close that erases the publication error.
+            real_close(self)
+
+    def admission(*args: object) -> dict[str, str]:
+        return {"publisher_head": "1" * 40}
+
+    monkeypatch.setattr(prometheus_source, "GitHubRead", API)
+    monkeypatch.setattr(prometheus_source, "event_admission", admission)
+    program = compile(_prometheus_cd_python(step), "<trusted-publication-wait>", "exec")
+    if diagnostic is None:
+        exec(program, {"__name__": "__main__"})
+        result = json.loads(
+            (tmp_path / "prometheus-publication-wait-123-1/evidence/predecessor.json").read_text()
+        )
+        assert result["run"]["conclusion"] == result["job"]["conclusion"] == "success"
+    else:
+        with pytest.raises(prometheus_source.QualificationError) as raised:
+            exec(program, {"__name__": "__main__"})
+        # pytest's regex match includes exception notes; check the primary
+        # diagnostic and the cleanup note independently and exactly.
+        assert str(raised.value) == diagnostic
+        assert getattr(raised.value, "__notes__", []) == (
+            ["GitHub cleanup also failed:synthetic_cleanup_failure"] if cleanup_failure else []
+        )
+        assert not (
+            tmp_path / "prometheus-publication-wait-123-1/evidence/predecessor.json"
+        ).exists()
+    if expected_sleeps >= 0:
+        assert len(sleeps) == expected_sleeps
+        assert observed[0].observation == (0 if case == "api-error" else expected_sleeps + 1)
+    else:
+        assert elapsed[0] == 120 and sum(sleeps) == 120 and observed[0].observation == 4
+    if case == "new-attempt-success":
+        assert any("/attempts/2/jobs" in endpoint for endpoint in observed[0].requests)
+    if cleanup_failure:
+        assert "GitHub cleanup also failed:synthetic_cleanup_failure" in capsys.readouterr().err
+    else:
+        assert not observed[0].private.exists()
 
 
 @pytest.fixture

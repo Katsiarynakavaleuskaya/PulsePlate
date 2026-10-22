@@ -1255,8 +1255,8 @@ def _contract_suite_targets_by_group(
 
 
 NODE24_FRONTEND_BUILD_LINE = (
-    "FROM node:24.18.1-bookworm-slim@"
-    "sha256:235600a8101ab264e117b1768e925532262668dc9b581ef1dd7d96ced463b8e7"
+    "FROM node:24.22.1-bookworm-slim@"
+    "sha256:55fb5f5a527ea2c5c4a95f963e48ef90aa38c7b346054fdc8ee9957a2b55d205"
     " AS frontend-build"
 )
 NODE24_FRONTEND_BUILD_RUN_LINE = "RUN npm run build"
@@ -1514,9 +1514,9 @@ def test_node24_runtime_baseline_surfaces_stay_coherent() -> None:
     public_readme = (REPO_ROOT / "README_V2_PUBLIC_DRAFT.md").read_text(encoding="utf-8")
     dockerfile = (REPO_ROOT / "frontend" / "Dockerfile.caddy-spa").read_text(encoding="utf-8")
 
-    assert nvmrc == "24.18.1"
-    assert "- Node `24.18.1` for the web client" in public_readme
-    assert "`nvm use` reads the repo-root `.nvmrc` and selects Node `24.18.1`." in public_readme
+    assert nvmrc == "24.22.1"
+    assert "- Node `24.22.1` for the web client" in public_readme
+    assert "`nvm use` reads the repo-root `.nvmrc` and selects Node `24.22.1`." in public_readme
     assert "24.16.0" not in public_readme
     assert frontend_package["engines"]["node"] == ">=24.0.0 <25.0.0"
     assert frontend_lock["packages"][""]["engines"]["node"] == ">=24.0.0 <25.0.0"

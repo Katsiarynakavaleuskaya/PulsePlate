@@ -368,6 +368,17 @@
   the wait result is not an admission receipt. Effective job timeout must cover
   wait, consume, both cleanup allowances and the scan/runtime reserve. PR callers
   do not execute this wait. Its deadline does not guarantee scheduler completion.
+  The shared recognizer distinguishes a complete missing-run observation from
+  an active native attempt. Only these incomplete states may poll inside the
+  original absolute deadline. Preserve eligible-success precedence; otherwise
+  the greatest-ID relevant run governs. An observed terminal required publisher
+  job stops even while the aggregate run is active; completed missing, skipped
+  or nonpositive publication never admits or keeps waiting. Native API/identity
+  uncertainty stays a distinct failure. A permitted pending poll may rediscover
+  the current independently created native attempt, but never creates a rerun,
+  falls back to a prior attempt, resets time, or polls again after terminal
+  rejection. Cross-bind run/attempt/jobs within each observation and preserve
+  the original safe diagnostic through both callers and bounded owned cleanup.
 - CI lint restores the exact workflow `github.sha` for every PR after the
   credentialed consumer and control-checkout cleanup, before Python setup or
   pre-commit. Preserve its untracked selection evidence with `clean: false`,
@@ -562,7 +573,7 @@ or claim that passing this probe validates the application on Python 3.14.
 ## Python audit compatibility exception
 
 - `ci_pip_audit.sh` owns only no-argument CI mode and exact `--pre-push` mode.
-  Keep the single PR #2494 Pillow cohort/predicate in the existing
+  Keep the human-accepted Pillow cohort authored in PR #2494 in the existing
   `ci/check_python_dependency_surfaces.py`: check current carriers/version/UTC
   hard expiry before each actual ignore and before promotion, retain fresh
   unsuppressed plus ignored native reports and separate native exits from policy
@@ -572,6 +583,11 @@ or claim that passing this probe validates the application on Python 3.14.
   accepted Pillow 12.3.0 risk as remediation/no-findings. Retire the exact branch
   and obsolete ignores with a qualified compatible fix; dates and full retained
   inventory live in `docs/security/PR_2494_CERTIFI_PILLOW_REMEDIATION.md`.
+  The canonical helper applies that cohort through repository-default CI and
+  pre-push use; it does not enforce a PR number or whole-material digest. Later
+  lanes still require their own admission and current-use proof. Keep the exact
+  accepted membership and selected dates in the canonical helper/owner rather
+  than adding another waiver registry or duplicating them here.
 
 ## Governed Experimentation Runner
 

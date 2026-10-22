@@ -1107,19 +1107,35 @@ def validate_repo(repo_root: Path = REPO_ROOT) -> list[str]:
     return errors
 
 
-# Literal PR2494 compatibility exception; this is not a generic waiver registry.
+# Human-accepted PR2494 compatibility exception; repository-default use, no generic registry.
 PILLOW_AUDIT_ALIASES = {
+    "CVE-2026-112390": "GHSA-22hg-r758-rrw9",
+    "CVE-2026-112391": "GHSA-254f-3936-288h",
+    "CVE-2026-112392": "GHSA-27h8-gf7j-v5hc",
+    "CVE-2026-112393": "GHSA-332p-7hrc-92wf",
     "CVE-2026-112395": "GHSA-462x-pgg6-55fp",
+    "CVE-2026-112396": "GHSA-4rr5-89j8-mwwm",
     "CVE-2026-112397": "GHSA-58r4-6rv3-gfh8",
+    "CVE-2026-112399": "GHSA-5xm2-6676-qcp9",
     "CVE-2026-112400": "GHSA-65qm-jvmh-6pqg",
+    "CVE-2026-112401": "GHSA-74r2-7ff9-mjj2",
+    "CVE-2026-112402": "GHSA-7mwm-ghpf-9vrm",
     "CVE-2026-112404": "GHSA-c6hw-5grf-ff96",
+    "CVE-2026-112405": "GHSA-cp9v-662q-vvx9",
+    "CVE-2026-112406": "GHSA-f2g6-542v-9j58",
+    "CVE-2026-112891": "GHSA-fc9g-5qg7-mf45",
+    "CVE-2026-112892": "GHSA-gg2r-wvfm-q9rx",
+    "CVE-2026-112893": "GHSA-j4m9-6w36-pw47",
+    "CVE-2026-112894": "GHSA-jg86-v3jv-hrpm",
     "CVE-2026-112895": "GHSA-p4wg-p73j-c528",
     "CVE-2026-112896": "GHSA-pchr-8j38-3x4p",
     "CVE-2026-112897": "GHSA-q45j-58j2-45rg",
     "CVE-2026-112899": "GHSA-vx6w-vv9f-6gvg",
+    "CVE-2026-112900": "GHSA-w889-685w-c8fh",
+    "CVE-2026-112901": "GHSA-xgh8-jp6q-p5x8",
 }
-PILLOW_EXCEPTION_REVIEW = datetime(2026, 10, 23, tzinfo=timezone.utc)
-PILLOW_EXCEPTION_EXPIRY = datetime(2026, 10, 28, tzinfo=timezone.utc)
+PILLOW_EXCEPTION_REVIEW = datetime(2026, 11, 6, tzinfo=timezone.utc)
+PILLOW_EXCEPTION_EXPIRY = datetime(2026, 11, 21, tzinfo=timezone.utc)
 
 
 def _audit_requirements(repo_root: Path, name: str) -> list[Requirement]:
@@ -1145,7 +1161,7 @@ def pillow_exception_inputs(repo_root: Path, now: datetime | None = None) -> dic
     if instant.tzinfo is None or instant.utcoffset() is None:
         raise ValueError("Pillow exception requires aware UTC time")
     if instant >= PILLOW_EXCEPTION_EXPIRY:
-        raise ValueError("Pillow compatibility exception expired at 2026-10-28T00:00:00Z")
+        raise ValueError("Pillow compatibility exception expired at 2026-11-21T00:00:00Z")
     validate_compile_registry()
     registered = registered_dependabot_requirement_carriers()
     if _existing_requirement_surfaces(repo_root) != registered:

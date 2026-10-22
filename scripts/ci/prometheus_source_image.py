@@ -4341,40 +4341,158 @@ def event_admission(
 
 
 def require_publication_predecessor(api: GitHubRead, head: str) -> dict[str, Any]:
+    """Recognize one observed publisher attempt; terminal evidence never grants another poll."""
+    require(
+        type(head) is str and re.fullmatch(r"[0-9a-f]{40}", head) is not None,
+        "publication_predecessor_head",
+    )
+    active = {"queued", "in_progress", "waiting", "pending", "requested"}
+    conclusions = {
+        "success",
+        "failure",
+        "cancelled",
+        "timed_out",
+        "skipped",
+        "neutral",
+        "action_required",
+        "stale",
+        "startup_failure",
+    }
+
+    def run_identity(value: object) -> tuple[object, ...]:
+        require(type(value) is dict, "publication_predecessor_run_identity")
+        row = cast(dict[str, Any], value)
+        require(
+            all(
+                type(row.get(key)) is int and row[key] > 0
+                for key in ("id", "run_attempt", "workflow_id")
+            )
+            and type(row.get("head_sha")) is str
+            and re.fullmatch(r"[0-9a-f]{40}", row["head_sha"]) is not None
+            and type(row.get("head_branch")) is str
+            and bool(row["head_branch"])
+            and type(row.get("event")) is str
+            and bool(row["event"])
+            and type(row.get("path")) is str
+            and bool(row["path"])
+            and all(
+                type(row.get(key)) is dict
+                and type(row[key].get("id")) is int
+                and row[key]["id"] > 0
+                for key in ("repository", "head_repository")
+            ),
+            "publication_predecessor_run_identity",
+        )
+        return (
+            row["id"],
+            row["run_attempt"],
+            row["workflow_id"],
+            row["head_sha"],
+            row["head_branch"],
+            row["event"],
+            row["repository"]["id"],
+            row["head_repository"]["id"],
+            row["path"],
+        )
+
+    def state(row: dict[str, Any]) -> tuple[str, str | None]:
+        status, conclusion = row.get("status"), row.get("conclusion")
+        require(
+            "conclusion" in row
+            and type(status) is str
+            and (
+                (status in active and conclusion is None)
+                or (status == "completed" and type(conclusion) is str and conclusion in conclusions)
+            ),
+            "publication_predecessor_state",
+        )
+        return cast(str, status), cast(str | None, conclusion)
+
     endpoint = (
         f"/repos/{GHCR_REPOSITORY}/actions/workflows/build.yml/runs?event=push&head_sha={head}"
     )
     first = api.json(endpoint + "&per_page=100&page=1")
+    require(
+        type(first) is dict and "total_count" in first,
+        "publication_predecessor_run_inventory",
+    )
     runs = api.pages(endpoint, "workflow_runs", first["total_count"])
     eligible = []
+    observed = []
     for run in runs:
+        identity = run_identity(run)
         if (
             run.get("head_sha") != head
             or run.get("head_branch") != "main"
             or run.get("repository", {}).get("id") != 1043311030
             or run.get("head_repository", {}).get("id") != 1043311030
             or run.get("event") != "push"
-            or run.get("status") != "completed"
-            or run.get("conclusion") != "success"
+            or run.get("path") != ".github/workflows/build.yml"
         ):
             continue
+        old_status, old_conclusion = state(run)
         jobs_endpoint = (
             f'/repos/{GHCR_REPOSITORY}/actions/runs/{run["id"]}/attempts/{run["run_attempt"]}/jobs'
         )
         page = api.json(jobs_endpoint + "?per_page=100&page=1")
+        require(
+            type(page) is dict and "total_count" in page,
+            "publication_predecessor_job_inventory",
+        )
         jobs = api.pages(jobs_endpoint, "jobs", page["total_count"])
-        positive = [
-            job
-            for job in jobs
-            if job.get("name") == "prometheus-publish"
-            and job.get("status") == "completed"
-            and job.get("conclusion") == "success"
-            and job.get("head_sha") == head
-        ]
-        if len(positive) == 1:
-            eligible.append({"run": run, "job": positive[0]})
-    require(bool(eligible), "positive_publication_predecessor_pending_or_missing")
-    return max(eligible, key=lambda value: value["run"]["id"])
+        for job in jobs:
+            require(
+                type(job.get("id")) is int
+                and job["id"] > 0
+                and type(job.get("run_id")) is int
+                and job["run_id"] == run["id"]
+                and type(job.get("run_attempt")) is int
+                and job["run_attempt"] == run["run_attempt"]
+                and job.get("head_sha") == head
+                and type(job.get("name")) is str
+                and bool(job["name"]),
+                "publication_predecessor_job_identity",
+            )
+        publishers = [job for job in jobs if job["name"] == "prometheus-publish"]
+        require(len(publishers) <= 1, "publication_predecessor_publisher_ambiguous")
+        job = publishers[0] if publishers else None
+        job_state = state(job) if job is not None else None
+        # A later allowed poll may discover an operator-created attempt. Within
+        # this observation the run and its jobs must still bind the same attempt.
+        current = api.json(f'/repos/{GHCR_REPOSITORY}/actions/runs/{run["id"]}')
+        require(run_identity(current) == identity, "publication_predecessor_run_drift")
+        current = cast(dict[str, Any], current)
+        run_state = state(current)
+        require(
+            old_status != "completed" or run_state == (old_status, old_conclusion),
+            "publication_predecessor_run_drift",
+        )
+        require(
+            run_state != ("completed", "success") or job_state in (None, ("completed", "success")),
+            "publication_predecessor_run_job_contradiction",
+        )
+        if run_state == job_state == ("completed", "success"):
+            eligible.append({"run": current, "job": job})
+        observed.append((current, run_state, job_state))
+    if eligible:
+        return max(eligible, key=lambda value: value["run"]["id"])
+    require(bool(observed), "positive_publication_predecessor_missing")
+    _run, run_state, job_state = max(observed, key=lambda value: value[0]["id"])
+    terminal = {
+        "failure": "publication_predecessor_failed",
+        "cancelled": "publication_predecessor_cancelled",
+        "timed_out": "publication_predecessor_timed_out",
+    }
+    for conclusion in (run_state[1], job_state[1] if job_state is not None else None):
+        diagnostic = terminal.get(conclusion) if conclusion is not None else None
+        if diagnostic is not None:
+            raise QualificationError(diagnostic)
+    require(
+        run_state[0] != "completed"
+        and (job_state is None or job_state[0] != "completed" or job_state[1] == "success"),
+        "publication_predecessor_not_published",
+    )
+    raise QualificationError("positive_publication_predecessor_active")
 
 
 def authenticated_artifact(
@@ -7488,16 +7606,18 @@ def consume_image(work: Path, root: Path, seconds: int, cleanup: int) -> dict[st
         else:
             # No registry availability probe can substitute for a positive publisher.
             while True:
+                check_deadline(native.deadline)
                 try:
                     admission["publication_predecessor"] = require_publication_predecessor(
                         api, admission["publisher_head"]
                     )
                     break
                 except QualificationError as error:
-                    require(
-                        str(error) == "positive_publication_predecessor_pending_or_missing",
-                        "publication_read_failed",
-                    )
+                    if str(error) not in (
+                        "positive_publication_predecessor_missing",
+                        "positive_publication_predecessor_active",
+                    ):
+                        raise
                     check_deadline(native.deadline)
                     time.sleep(min(5, max(0, native.deadline - time.monotonic())))
             identity, versions = existing_public_package(api)

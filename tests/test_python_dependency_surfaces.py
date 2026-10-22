@@ -4082,12 +4082,13 @@ def _write_pillow_native_pair(root: Path) -> tuple[Path, Path, dict[str, str]]:
     "instant,accepted",
     [
         (datetime(2026, 10, 22, tzinfo=timezone.utc), True),
-        (datetime(2026, 10, 23, tzinfo=timezone.utc), True),
-        (datetime(2026, 10, 27, 23, 59, 59, tzinfo=timezone.utc), True),
-        (datetime(2026, 10, 28, tzinfo=timezone.utc), False),
-        (datetime.fromisoformat("2026-10-28T03:00:00+03:00"), False),
-        (datetime(2026, 10, 29, tzinfo=timezone.utc), False),
-        (datetime(2026, 10, 27), False),
+        (datetime(2026, 10, 28, tzinfo=timezone.utc), True),
+        (datetime(2026, 11, 6, tzinfo=timezone.utc), True),
+        (datetime(2026, 11, 20, 23, 59, 59, tzinfo=timezone.utc), True),
+        (datetime(2026, 11, 21, tzinfo=timezone.utc), False),
+        (datetime.fromisoformat("2026-11-21T03:00:00+03:00"), False),
+        (datetime(2026, 11, 22, tzinfo=timezone.utc), False),
+        (datetime(2026, 11, 20), False),
     ],
 )
 def test_pillow_exception_current_carriers_and_utc_boundary(
@@ -4151,7 +4152,7 @@ def test_pillow_exception_rejects_discovery_drift(tmp_path: Path) -> None:
 
 def test_pillow_native_pair_accepts_only_complete_removed_tuples(tmp_path: Path) -> None:
     raw, ignored, expected = _write_pillow_native_pair(tmp_path)
-    assert surfaces.validate_pillow_audit_reports(raw, 1, expected, ignored, 0) == 8
+    assert surfaces.validate_pillow_audit_reports(raw, 1, expected, ignored, 0) == 24
     report = json.loads(raw.read_text())
     report["dependencies"][1]["vulns"] = report["dependencies"][1]["vulns"][:1]
     raw.write_text(json.dumps(report), encoding="utf-8")
@@ -4162,7 +4163,10 @@ def test_pillow_native_pair_accepts_only_complete_removed_tuples(tmp_path: Path)
     "mutation",
     [
         "unknown-id",
+        "known-outside-cohort",
         "unknown-alias",
+        "wrong-alias",
+        "wrong-fix-version",
         "duplicate-id",
         "wrong-package",
         "wrong-version",
@@ -4185,8 +4189,14 @@ def test_pillow_native_pair_rejects_report_drift(tmp_path: Path, mutation: str) 
     row = report["dependencies"][1]
     if mutation == "unknown-id":
         row["vulns"][0]["id"] = "GHSA-654x-cwwv-5j9c"
+    elif mutation == "known-outside-cohort":
+        row["vulns"][0]["id"] = "CVE-2026-112403"
     elif mutation == "unknown-alias":
         row["vulns"][0]["aliases"].append("GHSA-unknown")
+    elif mutation == "wrong-alias":
+        row["vulns"][0]["aliases"] = ["GHSA-vx6w-vv9f-6gvg"]
+    elif mutation == "wrong-fix-version":
+        row["vulns"][0]["fix_versions"] = ["13.0.1"]
     elif mutation == "duplicate-id":
         row["vulns"].append(row["vulns"][0])
     elif mutation == "wrong-package":
@@ -4385,17 +4395,35 @@ def test_pillow_real_path_rejects_before_ignore_and_never_reuses_old_report(
 
 
 def test_pillow_configured_cohort_is_exact_without_retired_pytorch_ids() -> None:
-    assert set(surfaces.PILLOW_AUDIT_ALIASES) == {
-        "CVE-2026-112395",
-        "CVE-2026-112397",
-        "CVE-2026-112400",
-        "CVE-2026-112404",
-        "CVE-2026-112895",
-        "CVE-2026-112896",
-        "CVE-2026-112897",
-        "CVE-2026-112899",
+    assert surfaces.PILLOW_AUDIT_ALIASES == {
+        "CVE-2026-112390": "GHSA-22hg-r758-rrw9",
+        "CVE-2026-112391": "GHSA-254f-3936-288h",
+        "CVE-2026-112392": "GHSA-27h8-gf7j-v5hc",
+        "CVE-2026-112393": "GHSA-332p-7hrc-92wf",
+        "CVE-2026-112395": "GHSA-462x-pgg6-55fp",
+        "CVE-2026-112396": "GHSA-4rr5-89j8-mwwm",
+        "CVE-2026-112397": "GHSA-58r4-6rv3-gfh8",
+        "CVE-2026-112399": "GHSA-5xm2-6676-qcp9",
+        "CVE-2026-112400": "GHSA-65qm-jvmh-6pqg",
+        "CVE-2026-112401": "GHSA-74r2-7ff9-mjj2",
+        "CVE-2026-112402": "GHSA-7mwm-ghpf-9vrm",
+        "CVE-2026-112404": "GHSA-c6hw-5grf-ff96",
+        "CVE-2026-112405": "GHSA-cp9v-662q-vvx9",
+        "CVE-2026-112406": "GHSA-f2g6-542v-9j58",
+        "CVE-2026-112891": "GHSA-fc9g-5qg7-mf45",
+        "CVE-2026-112892": "GHSA-gg2r-wvfm-q9rx",
+        "CVE-2026-112893": "GHSA-j4m9-6w36-pw47",
+        "CVE-2026-112894": "GHSA-jg86-v3jv-hrpm",
+        "CVE-2026-112895": "GHSA-p4wg-p73j-c528",
+        "CVE-2026-112896": "GHSA-pchr-8j38-3x4p",
+        "CVE-2026-112897": "GHSA-q45j-58j2-45rg",
+        "CVE-2026-112899": "GHSA-vx6w-vv9f-6gvg",
+        "CVE-2026-112900": "GHSA-w889-685w-c8fh",
+        "CVE-2026-112901": "GHSA-xgh8-jp6q-p5x8",
     }
-    assert len(set(surfaces.PILLOW_AUDIT_ALIASES.values())) == 8
+    assert len(set(surfaces.PILLOW_AUDIT_ALIASES.values())) == 24
+    assert surfaces.PILLOW_EXCEPTION_REVIEW == datetime(2026, 11, 6, tzinfo=timezone.utc)
+    assert surfaces.PILLOW_EXCEPTION_EXPIRY == datetime(2026, 11, 21, tzinfo=timezone.utc)
     source = ast.parse(Path(surfaces.__file__).read_text(encoding="utf-8"))
     assignment = next(
         node
@@ -4407,7 +4435,7 @@ def test_pillow_configured_cohort_is_exact_without_retired_pytorch_ids() -> None
         )
     )
     assert isinstance(assignment.value, ast.Dict)
-    assert len(assignment.value.keys) == 8  # A duplicate literal key cannot disappear silently.
+    assert len(assignment.value.keys) == 24  # A duplicate literal key cannot disappear silently.
 
 
 def test_pillow_audit_preserves_existing_non_pillow_distribution_extras(tmp_path: Path) -> None:

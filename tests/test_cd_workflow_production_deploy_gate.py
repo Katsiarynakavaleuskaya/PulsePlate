@@ -627,15 +627,15 @@ def test_prometheus_cd_registry_credential_route_preserves_base_execution_bounda
     )
     for script in (route["run"], consumer["run"]):
         assert "Prometheus_control_interface_HOLD" in script
-        assert "333502" in script
+        assert "338496" in script
         assert (
             # pragma: allowlist nextline secret - public trusted control blob
-            "49a8f31040a500a86da72126a5b4a491144ad0e9"
+            "198e851eff021b879a2f844ff2d6d56a2efc286c"
             in script
         )
         assert (
             # pragma: allowlist nextline secret - public trusted control digest
-            "95ad21d28bb79f2a772677befb3d824cd1de01d1555c932c61307c3cd07a0fd0"
+            "6a73c0f822c74fd8e6cd0a3691a05e8d49915766142bd8ce8d511f71a52c9ef0"
             in script
         )
     assert 'trusted["consume_image"](work, material' in consumer["run"]

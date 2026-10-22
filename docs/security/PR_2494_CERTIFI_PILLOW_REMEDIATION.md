@@ -11,7 +11,7 @@ The achievable route is **certifi-only remediation to 2026.10.19 plus a separate
 
 The original 2026-10-21T00:00:00Z deadline was missed and remains UNACHIEVED. The owner permits revising future timing but supplied no replacement timestamp. The review/expiry dates below are prospective ROOT-selected bounds under that instruction, not literal human timestamps, a rewritten AM deadline or a renewal of expired AM admission. Current production incident/exposure is not established by these CI findings.
 
-The exact writer handoff covers 17 admitted source/test/config/document paths; ROOT alone owns seven generated locks and remote execution. Final path inventory, generated dependency delta and trusted scope admission remain ROOT's publication prerequisites. This document does not turn the old 30+1 scope or any future unrelated dependency into permission.
+The original writer handoff covered 17 admitted source/test/config/document paths; ROOT alone owns seven generated locks and remote execution. Final path inventory, generated dependency delta and trusted scope admission remain ROOT's publication prerequisites. This document does not turn the old 30+1 scope or any future unrelated dependency into permission.
 
 ## Immutable full scanner snapshot and native format observations
 
@@ -23,9 +23,9 @@ The exact writer handoff covers 17 admitted source/test/config/document paths; R
 Found 9 known vulnerabilities in 2 packages
 ```
 
-PYSEC-2026-4320/GHSA-6q48-6c7w-9gw2 are one certifi finding. Eight native Pillow IDs are the exact exception cohort below; their count does not replace the 61-row primary inventory.
+PYSEC-2026-4320/GHSA-6q48-6c7w-9gw2 are one certifi finding. The eight native Pillow IDs were the original exception cohort. The October 22 B24 amendment below supersedes current eligibility; this nine-finding snapshot and the 61-row primary inventory stay unchanged.
 
-Native 2.10.1 qualification on the identical 89-dependency dev input proved that ignored JSON has `dependencies`/`fixes`, resolved rows have `name`/`version`/`vulns`, and ignored Pillow rows have `vulns: []` with **no ignored-details field**. The ignored diagnostic exited 1 because certifi remained active; stderr reported 1 active and 8 ignored. A fresh unsuppressed counterpart exited 1 and retained all 9 finding details. Both observations had identical dependency names/versions and exact input SHA-256 `173aaf867f1654dd36cda34151f78db8e64cf19210ae301c32b7234d5f8a86e8`. Exactly eight removed tuples bind Pillow 12.3.0 and the cohort below. This is format/negative-control evidence, not a passing security gate.
+Native 2.10.1 qualification on the identical 89-dependency dev input proved that ignored JSON has `dependencies`/`fixes`, resolved rows have `name`/`version`/`vulns`, and ignored Pillow rows have `vulns: []` with **no ignored-details field**. The ignored diagnostic exited 1 because certifi remained active; stderr reported 1 active and 8 ignored. A fresh unsuppressed counterpart exited 1 and retained all 9 finding details. Both observations had identical dependency names/versions and exact input SHA-256 `173aaf867f1654dd36cda34151f78db8e64cf19210ae301c32b7234d5f8a86e8`. Exactly eight removed tuples bound Pillow 12.3.0 and the original eight-entry cohort. This is format/negative-control evidence, not a passing security gate.
 
 Raw report SHA-256 `d71eb671ce0ef53ec290e5ec92c85afde6c55285046a318186034a190064666d`; ignored report SHA-256 `e7f5b6eeb2f309b77ba4d379bae4928667a9dafe7d866921fcfb5289b16ab55f`; paired ROOT receipt SHA-256 `d758ada44451fbb3489d12e8bf0b9dc0cd6f8dc3727bbb199ab91ea244f6a6a2`.
 
@@ -142,40 +142,60 @@ The CNA HTTP 404 for CVE-2026-112899 remains an unavailable source, not NOT-A-BU
 
 ## Temporary retained Pillow 12.3.0 exception
 
-All 41 base-applicable source rows remain affected at retained 12.3.0: 8 native reported rows plus 33 additional affected rows. Source-row severities are 13 HIGH / 2 CRITICAL / 23 MEDIUM / 3 LOW, not distinct flaws or deployed exploitability counts. All 20 base-NAB rows remain in the head inventory. GHSA-654x-cwwv-5j9c separately affects 11.2.1–13.0.0 inclusive; Arrow export with PILLOW_ALIGNMENT>1 may expose stale heap bytes and the retained advisory names no patched version. Deployed configuration, indirect paths and exploitability remain UNKNOWN. Tracked absence of direct Arrow calls does not prove no exposure.
+All 41 base-applicable source rows remain affected at retained 12.3.0. The original October 21 native snapshot reported eight; the later October 22 B24 observation reports 24 already-frozen rows, leaving 17 other affected rows. No primary row is added or dropped. Source-row severities are 13 HIGH / 2 CRITICAL / 23 MEDIUM / 3 LOW, not distinct flaws or deployed exploitability counts. All 20 base-NAB rows remain in the head inventory. GHSA-654x-cwwv-5j9c separately affects 11.2.1–13.0.0 inclusive; Arrow export with PILLOW_ALIGNMENT>1 may expose stale heap bytes and the retained advisory names no patched version. Deployed configuration, indirect paths and exploitability remain UNKNOWN. Tracked absence of direct Arrow calls does not prove no exposure.
+
+On October 22 the human repository owner explicitly accepted option B: the exact 24 native CVE/GHSA pairs below on retained Pillow 12.3.0, including the existing helper's repository-default CI/pre-push inheritance and later admissible PR #2476 adoption. Each later lane still needs its own material, audit and review gates. The helper has no PR-number or whole-material-digest enforcement; per-use carrier hashes bind its actual inputs. Immutable proposal SHA-256 `eec15ab825357ef63eaf4e49064484235a966702bfad14366b420b52c1cf4517` and native human-act receipt SHA-256 `bf39193767402a4e3d9f69eb645c84a6ac97c06e8ddd0cbd9e90f55609fde9a6` retain that external scope. The later direct extension instruction and delegated ROOT selection are bound by receipt SHA-256 `62b05409fcf45e9219abff01c1baf5c98872a5421a675f73db0f6ce7b0204e06`; they extend only this Pillow exception.
+
+The external PR #2476 first pip-audit invocation retained native exit 1 and 25 findings: old certifi plus these 24 Pillow tuples. Its 2,606-byte active-log prefix SHA-256 `2190345aef37afb1af572ef6ba4464f8f4494d6b6959a0d145b988c08cb629b8` and inventory reconciliation SHA-256 `f4511b3b0da5ad4ed13160f6cd25704e12629daf5e63e38831ba061f794ae6c0` prove all 24 were already within the frozen 61/41 inventory. This is external technical evidence, not a new own audit, whole-push result, current-head CI or successful use of B24.
 
 Only the following closed native cohort on PyPI:pillow==12.3.0 is eligible:
 
 | Native ID | Bound upstream alias |
 | --- | --- |
+| CVE-2026-112390 | GHSA-22hg-r758-rrw9 |
+| CVE-2026-112391 | GHSA-254f-3936-288h |
+| CVE-2026-112392 | GHSA-27h8-gf7j-v5hc |
+| CVE-2026-112393 | GHSA-332p-7hrc-92wf |
 | CVE-2026-112395 | GHSA-462x-pgg6-55fp |
+| CVE-2026-112396 | GHSA-4rr5-89j8-mwwm |
 | CVE-2026-112397 | GHSA-58r4-6rv3-gfh8 |
+| CVE-2026-112399 | GHSA-5xm2-6676-qcp9 |
 | CVE-2026-112400 | GHSA-65qm-jvmh-6pqg |
+| CVE-2026-112401 | GHSA-74r2-7ff9-mjj2 |
+| CVE-2026-112402 | GHSA-7mwm-ghpf-9vrm |
 | CVE-2026-112404 | GHSA-c6hw-5grf-ff96 |
+| CVE-2026-112405 | GHSA-cp9v-662q-vvx9 |
+| CVE-2026-112406 | GHSA-f2g6-542v-9j58 |
+| CVE-2026-112891 | GHSA-fc9g-5qg7-mf45 |
+| CVE-2026-112892 | GHSA-gg2r-wvfm-q9rx |
+| CVE-2026-112893 | GHSA-j4m9-6w36-pw47 |
+| CVE-2026-112894 | GHSA-jg86-v3jv-hrpm |
 | CVE-2026-112895 | GHSA-p4wg-p73j-c528 |
 | CVE-2026-112896 | GHSA-pchr-8j38-3x4p |
 | CVE-2026-112897 | GHSA-q45j-58j2-45rg |
 | CVE-2026-112899 | GHSA-vx6w-vv9f-6gvg |
+| CVE-2026-112900 | GHSA-w889-685w-c8fh |
+| CVE-2026-112901 | GHSA-xgh8-jp6q-p5x8 |
 
-Owner: dependency/security. Review reminder 2026-10-23T00:00:00Z; hard expiry 2026-10-28T00:00:00Z. At `now>=expiry` the actual helper rejects before every ignored invocation and before promotion; the reminder is not an earlier hidden expiry. There is no user-set clock override, package/severity ignore or global bypass.
+Owner: dependency/security. Review reminder 2026-11-06T00:00:00Z; hard expiry 2026-11-21T00:00:00Z (both 03:00 Europe/Minsk). ROOT selected and announced these instants under the direct human extension instruction; they are not literal human timestamps. They supersede the former October 23/28 Pillow bounds only. Source-catalog dates, independent nosec expiries and the missed original deadline are unchanged. At `now>=expiry` the actual helper rejects before every ignored invocation and before promotion; the reminder is not an earlier hidden expiry. There is no user-set clock override, package/severity ignore or global bypass.
 
 The existing `scripts/ci_pip_audit.sh` owns no-args CI mode (six declared manifests, not all 10 coverage) and the exact `--pre-push` selector (requirements.txt only). The remote pre-commit hook retains pip-audit 2.10.1 and delegates to that helper. `scripts/ci/check_python_dependency_surfaces.py` owns one literal predicate/cohort. CI now also uses `--strict` alongside retained `--no-deps --disable-pip`; this is explicit strengthening.
 
-Each current invocation retains an unsuppressed JSON report first. Only a complete exact dependency/version inventory with admitted Pillow tuples may reach the ignored invocation. Both current reports must bind the same unchanged input/carriers; their exact removed finding subset must be admitted and the ignored native exit must be 0 with no active findings. A raw native 1 is recorded as findings, never native PASS. Native errors/nonexpected exits, skips, unknown IDs/aliases, wrong package/version, stale/missing/malformed reports, carrier drift or expiry block acceptance. The native ignored format removes details, so ignored JSON alone never proves eligibility. No-Pillow/no-findings inputs do not need eight finding rows and must not invoke ignores.
+Each current invocation retains an unsuppressed JSON report first. Only a complete exact dependency/version inventory with admitted Pillow tuples may reach the ignored invocation. Both current reports must bind the same unchanged input/carriers; their exact removed finding subset must be admitted and the ignored native exit must be 0 with no active findings. A raw native 1 is recorded as findings, never native PASS. Native errors/nonexpected exits, skips, unknown IDs/aliases, wrong package/version, stale/missing/malformed reports, carrier drift or expiry block acceptance. The native ignored format removes details, so ignored JSON alone never proves eligibility. No-Pillow/no-findings inputs do not need all 24 finding rows and must not invoke ignores.
 
 Unique raw/native/stdout/stderr evidence is retained under `artifacts/security_lab/pip-audit/`; CI also exposes canonical `pip-audit-*.json` copies including unsuppressed/native counterparts for existing artifact retention. Pre-push keeps its reports in that ignored evidence directory. Historical evidence is not deleted or reused. The exact retired PyTorch CVE-2025-3000/GHSA-rrmf-rvhw-rf47 exception remains absent.
 
-This is policy acceptance of known retained risk, **not Pillow remediation, FIXED, NOT-A-BUG, no findings, security-safe status or successful former two-identity P**. The other 33 applicable primary rows remain documented risk; their absence from native output does not ignore their identifiers. Any newly emitted finding outside the exact eight blocks the actual audit. Four original AM exception retirements are a separate subject and do not mean all repository security exceptions disappeared.
+This is policy acceptance of known retained risk, **not Pillow remediation, FIXED, NOT-A-BUG, no findings, security-safe status or successful former two-identity P**. The other 17 applicable primary rows remain documented risk; their absence from native output does not ignore their identifiers. Any newly emitted finding outside the exact 24 blocks the actual audit. Four original AM exception retirements are a separate subject and do not mean all repository security exceptions disappeared.
 
 ## Follow-up, removal and rollback
 
-Track the complete retained risk at [the canonical ledger](../roadmap/BACKLOG_LEDGER.md#ledger-p1-pillow-arrow-residual-2494). Qualify a compatible applicable fix against the full retained inventory as soon as available; regenerate all affected locks and remove the exact obsolete ignores plus temporary 12.3 equality branch. Preserve ordinary future schema-driven floors rather than permanently freezing 12.3. Pillow removal/replacement feasibility is a future dependency decision covering ReportLab/PDF, Matplotlib visualization, FastEmbed and tooling consumers; no migration is implemented here.
+Pillow remediation remains OPEN after B24 acceptance and after any PR #2494 merge. Track the complete retained risk at [the canonical ledger](../roadmap/BACKLOG_LEDGER.md#ledger-p1-pillow-arrow-residual-2494). Qualify a compatible applicable fix, alternative or executable removal against every retained advisory and all manifest/lock/constraint/transitive carriers, preserving PDF/ReportLab, Matplotlib visualization, FastEmbed/RAG and tooling functions. Qualification must include licensing/provenance, compatibility and unsuppressed security evidence. Regenerate affected locks through Make and remove the exact obsolete ignores plus temporary 12.3 equality branch only with that qualified outcome. Preserve ordinary future schema-driven floors rather than permanently freezing 12.3. No replacement library, migration or feature removal is selected by this exception.
 
 Rollback the coherent correction on compatibility regression, preserve known vulnerable baseline/failure evidence and stop readiness. Do not silently broaden ignores, change SDK/features or extend expiry. At hard expiry, an unresolved case remains blocked absent a new explicit owner decision.
 
 ## Validation status and outcome boundary
 
-Implementation references: scripts/ci/check_python_dependency_surfaces.py:1142; scripts/ci_pip_audit.sh:1; .pre-commit-config.yaml:126; tests/test_dependency_security_guard.py:124; tests/fixtures/dependency_security_schema.json:1. Canonical generation remains Makefile:106 and scripts/ci/compile_locked_python_requirements.py:1498.
+Implementation references: scripts/ci/check_python_dependency_surfaces.py:1158; scripts/ci_pip_audit.sh:1; .pre-commit-config.yaml:126; tests/test_dependency_security_guard.py:124; tests/fixtures/dependency_security_schema.json:1. Canonical generation remains Makefile:106 and scripts/ci/compile_locked_python_requirements.py:1498.
 
 First generation, before the later three source-floor additions, observed on 2026-10-21: canonical generation and its independent exact-be27 replay completed with all four Make transactions exit 0, native total 679.083773 seconds, no timeout and empty stderr for all four commands. All seven output blobs are byte-identical to their independent replay. ROOT verified full 5,718 typed source/index/hook parity, original process absence, and all 131 evidence archive members by type/mode/size/SHA-256/readback before transferring the exact generated blobs to Mac. The raw index remains unchanged; no source commit or publication follows from that transfer.
 
@@ -195,9 +215,9 @@ The subsequent current-floor guard exposed missing explicit certifi declarations
 
 The final focused run on this compatible graph completed native exit 0 in 465.037276 seconds, host exit 0: 1,033 complete JUnit cases, 1,028 passed, no failures/errors, and five unchanged intentional skips. The five source/constraint-style blocked-range cases apply only to pinned surfaces; their function AST equals the existing base, while current source floors, universal certifi witnesses and the on-by-default repo policy guard executed. Full 5,718 typed source/index/hook parity and original process absence were independently checked before all 36 raw members were returned and verified: 2,000,964-byte archive SHA-256 `8597245f8851c57161af94d6d72ccb7db3814b22d006f66341c80ad46a7742c3`.
 
-The actual existing pre-push helper also completed policy exit 0 using the qualified installed pip-audit 2.10.1 on the 68-distribution runtime input. Its fresh unsuppressed native exit 1 retained all eight admitted Pillow findings; the separate ignored invocation exited 0. Certifi 2026.10.19 had no reported finding in that input. All 21 carrier hashes were bound before each invocation and promotion. The full raw/native pair and evidence were preserved in the verified 80-member, 2,479,377-byte archive SHA-256 `35ff1250e1402aee10d111c382cbc49a99765bf9264dc85507a966e5312b8beb`. This is the runtime helper result, not Git publication, complete CI, no-findings or Pillow remediation.
+The original eight-entry pre-push helper completed historical policy exit 0 on October 21 using the qualified installed pip-audit 2.10.1 on the 68-distribution runtime input. Its fresh unsuppressed native exit 1 retained all eight admitted Pillow findings; the separate ignored invocation exited 0. Certifi 2026.10.19 had no reported finding in that input. All 21 carrier hashes were bound before each invocation and promotion. The full raw/native pair and evidence were preserved in the verified 80-member, 2,479,377-byte archive SHA-256 `35ff1250e1402aee10d111c382cbc49a99765bf9264dc85507a966e5312b8beb`. This is the runtime helper result, not Git publication, complete CI, no-findings or Pillow remediation.
 
-The remaining narrow final gates, actual publication, current-head hosted CI/security and numeric coverage >=97% remain PENDING until observed. Earlier failed preparations and focused runs remain preserved; no historical run is relabeled as current-head evidence.
+B24 parameter implementation has no new native audit result yet; the earlier eight-entry runtime pair is historical evidence only. The remaining narrow final gates, actual publication, current-head hosted CI/security and numeric coverage >=97% remain PENDING until observed. Earlier failed preparations and focused runs remain preserved; no historical run is relabeled as current-head evidence.
 
 The existing human conditional merge instruction persists only after fresh exact-head review/dispositions/mapping/seal/wait/strict readiness. No temporary exception grants merge/release/production authority, completes original 20+P01 or repairs the historical deadline miss.
 
