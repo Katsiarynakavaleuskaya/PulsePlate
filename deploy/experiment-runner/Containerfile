@@ -303,7 +303,7 @@ RUN set -eu; \
     test "${rpm_query_output}" = \
       'procps-ng-4.0.4-11.el10'; \
     expected_rpm_package_count='130'; \
-    expected_rpm_inventory_sha256='aa987831:dead4a21:9e60d869:dc215e98:c6f21eb5:2de5447f:011ec352:8fdd8382'; \
+    expected_rpm_inventory_sha256='939bb657:bf29ee0c:83139adb:ffa1880e:710ad991:0836ad2e:88a54f67:68bed2c5'; \
     expected_rpm_inventory_sha256="$(printf '%s' "${expected_rpm_inventory_sha256}" | tr -d ':')"; \
     rpm_inventory="$(rpm -qa --qf '%{NAME}-%{EPOCHNUM}:%{VERSION}-%{RELEASE}.%{ARCH} %{SHA256HEADER} %{PAYLOADDIGEST} %{PAYLOADDIGESTALGO}\n')"; \
     rpm_inventory="$(printf '%s\n' "${rpm_inventory}" | LC_ALL=C sort)"; \

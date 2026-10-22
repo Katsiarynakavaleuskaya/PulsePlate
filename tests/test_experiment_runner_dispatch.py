@@ -1892,7 +1892,7 @@ def test_runner_containerfile_has_minimal_exact_package_contract() -> None:
         ),
         (
             "130",
-            "aa987831:dead4a21:9e60d869:dc215e98:c6f21eb5:2de5447f:" "011ec352:8fdd8382",
+            "939bb657:bf29ee0c:83139adb:ffa1880e:710ad991:0836ad2e:" "88a54f67:68bed2c5",
         ),
     ]
     assert containerfile.count("%{SHA256HEADER} %{PAYLOADDIGEST} %{PAYLOADDIGESTALGO}") == 3
