@@ -1,13 +1,41 @@
 # npm:braces frontend build prerequisite
 
-Status: current uncommitted candidate inventory, technical A/B replay and a
-bounded retained-archive/native metadata proof are observed. The supported
-flat-bundle provenance implementation is available; its complete two-module
-focused validation exited **0**, with **733 passed, zero failures, errors or
-skips**, bound to unchanged guard/instruction/lock hashes. Genuine installation, executable build/watch absence, compatibility,
-publication and final criteria QA remain **PENDING**. This document
-owns the `D / S / F_cutoff / A / R / P` evidence for this one prerequisite.
-It does not record completed remediation or a whole-audit security result.
+Status: the latest observed implementation checkpoint is committed as
+`7972247c9e6d807bbf7d2e030bcb236643d5bf67`, with normal commit hooks and the
+recorded narrow local bundle exited **0**. Genuine **Darwin** installation is
+observed; Linux installation/build/watch, full `P`, current-head CI, review and
+final criteria QA remain **PENDING**. The initial normal publication attempt's
+strict pip-audit subcommand is **FAIL / exit 1**, with the exact 37-row Python
+cohort recorded below. The dated publication-only boundary is not an audit
+PASS, CI/runtime waiver or readiness claim.
+
+This document owns the `D / S / F_cutoff / A / R / P` evidence for this one
+prerequisite. It does not record completed remediation or whole-audit closure.
+
+## Latest observed implementation checkpoint
+
+The following observations predate this documentation update:
+
+| Observed component | Actual evidence and limit |
+| --- | --- |
+| Normal implementation commit | `implementation-commit-v2-result.json`: exit 0, hooks enabled/unmodified, head `7972247c9e6d807bbf7d2e030bcb236643d5bf67`; commit hooks do not include the later pre-push audit result |
+| Genuine Darwin `npm ci` | `frontend-native-setup-result.json`: exit 0, source unchanged; raw stdout `added 666 packages in 1m`; no Linux/build/watch/UI claim |
+| Focused frontend checks | `frontend-focused-result.json`: foundation/UI lint and focused tests exit 0; five files / 20 tests passed in `frontend-focused-2.stdout` |
+| CSS native controls | `css-native-controls-v2-result.json`: all 10 isolated CLI controls matched expected outcomes and restored fixtures; current compiler CSS and retained CSS data only, no Vite/browser parity |
+| Narrow local bundle at head7972247 | `prepublication-local-result.json`: preflight, consistency, `make validate-changed` and `pre-commit run --all-files` all exit 0; the later pre-push audit FAIL remains independent |
+| Actual Oracle v2 | Accepted exact-function evidence at head7972247/base48, one attempt, zero retries, two commands with 54 and 43 observed dots, mutated paths empty, promotion false; `oracle-v2-occurrence6-consumption.json` records its bounded disposition |
+
+Oracle v2 is finite Python governance/metadata evidence, not a Node-capable
+image, native frontend parity, provider security review or whole-CI result.
+The first Oracle guard-failure request remains rejected and preserved. The
+premortem and Oracle inform publication/closeout; later necessary
+material-decision/closeout work must retain the exact trailer
+`Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`.
+The earlier implementation commit predates the accepted Oracle and must not
+be rewritten. Once a real documentation commit changes this material, the
+head7972247 observations become historical bindings for that later head;
+canonical current-material linkage and validation must be handled normally,
+without pretending that an old Oracle/local receipt is a fresh seal.
 
 ## Goal and authority
 
@@ -78,13 +106,16 @@ No additional target alias/request was found in the captured admitted base
 inventory. This bounded finding does not describe arbitrary embedded code or
 untracked installations.
 
-The current **uncommitted** candidate has a reviewed five-surface `S_head`
-inventory in `lock-adoption-root-full-review.json`. This observed census is not
-a fixed allowlist. `HEAD` remains the base above and the index remains its
-recorded `4e38392b31f7c60cb3606103feffd942571c9d23` tree; no new candidate commit,
-PR, push or merge is represented by this snapshot.
+**HISTORICAL pre-installation evidence cutoff:** before implementation commit
+7972247, the uncommitted candidate had a reviewed five-surface `S_head`
+inventory in `lock-adoption-root-full-review.json`. At that snapshot `HEAD`
+was base48 and the index tree was
+`4e38392b31f7c60cb3606103feffd942571c9d23`; that snapshot represented no new
+candidate commit, PR, push or merge. The table retains those exact surface
+observations; it is neither a fixed allowlist nor the current publication
+state. The committed/Darwin checkpoint above is later evidence.
 
-| Current candidate surface | SHA-256 | Base comparison |
+| Historical candidate surface | SHA-256 | Base comparison |
 | --- | --- | --- |
 | `frontend/package-lock.json` | `385dedaf7b27f2cc0725f3dee6f8bd30c2d33a75c7c5abd644e27326f7623e08` | Changed; 390,235 bytes |
 | `frontend/package.json` | `fab6d86a58c8baf6c21521f9986d2b13316e8ef325673a8329c45b4b00d950f7` | Changed; 3,759 bytes |
@@ -332,9 +363,9 @@ were rechecked before this documentation update:
 - Tests instructions: `bf401fc32c3ef896d72d97a6826192cc339894a78cd3452269b6c32ded600b65`.
 - Candidate lock: `385dedaf7b27f2cc0725f3dee6f8bd30c2d33a75c7c5abd644e27326f7623e08`.
 
-This is the scoped two-module test result. Linux, cold CI, genuine
-installation, platform artifacts, build/watch executable
-absence and final criteria QA remain pending. Neither this metadata class nor
+This is the scoped two-module test result. The later checkpoint above records
+genuine Darwin installation. Linux installation, cold CI, platform artifacts,
+build/watch executable absence and final criteria QA remain pending. Neither this metadata class nor
 these observations prove absence or safety of arbitrary embedded payload code,
 remediation `P`, a provider scan, or whole-audit closure. Permanent tests retain
 current-head discovery rather than historical dependency versions/deltas.
@@ -388,7 +419,7 @@ source-inspection conclusion, not a second observed failure result.
 This diagnostic blocked admission at that historical source. Its raw failure
 is retained; the later supported-class implementation and bounded metadata
 proof above address that carrier boundary without omission, allowlisting,
-suppression or manual lock editing. B04 and `P` remain **PENDING** for genuine
+suppression or manual lock editing. B04 and `P` remain **PENDING** for Linux
 installation, applicable complete native gates and executable build/watch
 absence; the selected-helper failure is not represented as a passing test.
 
@@ -417,25 +448,159 @@ observations retain `none`, `0s`, opacity `1`. No tolerance is widened here.
 
 B01–B09 remain subject to individual evidence review. In particular:
 
-- **OBSERVED COMPONENTS B02/B03, final QA pending:** the current uncommitted
-  five-surface inventory and technical complete A/B byte/delta replay above.
+- **OBSERVED COMPONENTS B02/B03, final QA pending:** the historical five-surface
+  cutoff, later committed checkpoint and technical complete A/B replay above.
   Historical A manual-admission qualification remains unresolved.
 - **OBSERVED B04 metadata component; B04/P pending:** canonical retained-archive
   proof inspected 779 records, six parent-owned leaves and eight package
   documents. The complete two-module focused gate passed all 733 cases at the
-  recorded source bindings; genuine installation, applicable native gates and
-  production/build/watch absence remain unproven.
-- **PENDING B05–B06:** candidate finite browser/CSS/cn/source/HMR evidence,
-  meaningful detection negatives, focused guards/UI tests, build, Storybook,
-  design/token checks and the required narrow local bundle.
-- **PENDING B08:** actual-diff premortem, Experiment Runner, non-draft PR,
+  recorded source bindings; Darwin installation is separately observed. Linux
+  installation, applicable native gates and production/build/watch absence
+  remain unproven.
+- **OBSERVED B06 components, full B05–B06 pending:** the scoped focused/CSS and
+  narrow bundle results above do not establish Linux production/browser/source/
+  HMR parity, build, Storybook or complete individual criterion achievement.
+- **OBSERVED B08 advisory components, remaining B08 pending:** actual-diff
+  premortem and accepted Oracle v2 at head7972247; non-draft publication,
   required post-open roles, current-head CI/security/coverage, exact-material
-  self-review, dispositions, provider-neutral seal and review wait window.
+  self-review, dispositions, provider-neutral seal and review wait window remain
+  separate obligations. The publication-only Python audit exception below
+  cannot substitute for any of them.
 - **PENDING B09:** all-gates exact-head merge decision in the central Root slot,
   actual merge, synchronized-main health and owned cleanup. CAB readmission
   requires that real prerequisite outcome.
 
-The next action is the remaining admitted installation/native and
-narrow/frontend gates after the scoped two-module result. The historical A
-gap remains open. This documentation update ran no tests or native commands. No readiness, scan, approval,
-provider PASS, no-findings, `P`, C14 or merge achievement is claimed.
+## P1 publication-only pip-audit prerequisite: exact 37-row cutoff
+
+Owner: **dependency/security triage + frontend coordinator**. Target: this
+bounded publication under `PR-TBD-BRACES-BUILD`, plus separate future
+per-identity placeholders `PR-TBD-PY-CERTIFI`,
+`PR-TBD-PY-OPENTELEMETRY-API` and `PR-TBD-PY-PILLOW`. These are tracking
+placeholders, not new lane admission, a Python remediation batch, or an
+assignment to foreign PR #2494. That PR owns Alertmanager only. No Python
+package, version, lock, hook or ignore change is admitted by this subsection.
+
+Recorded publication-disposition cutoff: **2026-10-22T21:00:41Z**. The
+associated first normal push subsequently terminated **exit 1**, no timeout,
+in **285.745 seconds**, at head7972247 with no publication and a clean tree
+(`first-prerequisite-push-result.json`). Only pip-audit failed; all other
+applicable hooks, including backend tests and full Bandit, passed. At that
+preparation cutoff the dated one-use exception had not been used.
+
+The normal attempt's pip-audit v2.10.1 subcommand exited **1**. The complete
+raw report comes from `first-prerequisite-push.stdout`, not its stderr. The immutable extracted cut is
+`first-push-pip-audit-exact37.raw.txt`, SHA-256
+`325ca3cfd23d1a9cb3e407480455d2c4624af75abe77d002e4fcc637c3565de0`;
+`first-push-pip-audit-exact37.json` retains all 37 tuples and input binding.
+Raw report lines include:
+
+```text
+pip-audit (pip vulns)....................................................Failed
+- exit code: 1
+Found 37 known vulnerabilities in 3 packages
+```
+
+The input `requirements.txt` SHA-256 is
+`45856873613fa43e5ac34c2673ecd3cb29e97aecf33b91dedcefcf7aee56d054`,
+recorded identical to admitted base48. The unchanged pins are at
+`requirements.txt:23`, `requirements.txt:101` and `requirements.txt:125`.
+The unchanged strict pre-push hook is `.pre-commit-config.yaml:130` and uses
+`--no-deps --disable-pip --strict`. Reported fix versions below are captured
+scanner output, not selected or independently admitted remediation targets.
+Exploit reachability is **UNKNOWN**; unchanged input is not a safety argument.
+
+| Package | Installed version | Exact finding ID | Captured fix version(s) |
+| --- | --- | --- | --- |
+| `certifi` | `2026.1.4` | `PYSEC-2026-4320` | `2026.10.19` |
+| `opentelemetry-api` | `1.44.0` | `CVE-2026-114603` | `1.45.1` |
+| `pillow` | `12.3.0` | `CVE-2026-112895` | `13.0.0` |
+| `pillow` | `12.3.0` | `CVE-2026-112400` | `13.0.0` |
+| `pillow` | `12.3.0` | `CVE-2026-112397` | `13.0.0` |
+| `pillow` | `12.3.0` | `CVE-2026-112896` | `13.0.0` |
+| `pillow` | `12.3.0` | `CVE-2026-112897` | `13.0.0` |
+| `pillow` | `12.3.0` | `CVE-2026-112395` | `13.0.0` |
+| `pillow` | `12.3.0` | `CVE-2026-112404` | `13.0.0` |
+| `pillow` | `12.3.0` | `CVE-2026-112899` | `13.0.0` |
+| `pillow` | `12.3.0` | `CVE-2026-112402` | `13.0.0` |
+| `pillow` | `12.3.0` | `CVE-2026-112900` | `13.0.0` |
+| `pillow` | `12.3.0` | `CVE-2026-112893` | `13.0.0` |
+| `pillow` | `12.3.0` | `CVE-2026-112392` | `13.0.0` |
+| `pillow` | `12.3.0` | `CVE-2026-112891` | `13.0.0` |
+| `pillow` | `12.3.0` | `CVE-2026-112405` | `13.0.0` |
+| `pillow` | `12.3.0` | `CVE-2026-112390` | `13.0.0` |
+| `pillow` | `12.3.0` | `CVE-2026-112401` | `13.0.0` |
+| `pillow` | `12.3.0` | `CVE-2026-112901` | `13.0.0` |
+| `pillow` | `12.3.0` | `CVE-2026-112391` | `13.0.0` |
+| `pillow` | `12.3.0` | `CVE-2026-112894` | `13.0.0` |
+| `pillow` | `12.3.0` | `CVE-2026-112406` | `13.0.0` |
+| `pillow` | `12.3.0` | `CVE-2026-112399` | `13.0.0` |
+| `pillow` | `12.3.0` | `CVE-2026-112892` | `13.0.0` |
+| `pillow` | `12.3.0` | `CVE-2026-112393` | `13.0.0` |
+| `pillow` | `12.3.0` | `CVE-2026-112396` | `13.0.0` |
+| `pillow` | `12.3.0` | `CVE-2026-96638` | `13.0.0` |
+| `pillow` | `12.3.0` | `CVE-2026-96641` | `13.0.0` |
+| `pillow` | `12.3.0` | `CVE-2026-96640` | `13.0.0` |
+| `pillow` | `12.3.0` | `CVE-2026-96642` | `13.0.0` |
+| `pillow` | `12.3.0` | `CVE-2026-96639` | `13.0.0` |
+| `pillow` | `12.3.0` | `CVE-2026-96643` | `13.0.0` |
+| `pillow` | `12.3.0` | `CVE-2026-96637` | `13.0.0` |
+| `pillow` | `12.3.0` | `CVE-2026-96644` | `13.0.0` |
+| `pillow` | `12.3.0` | `CVE-2026-96778` | `13.0.0` |
+| `pillow` | `12.3.0` | `CVE-2026-96636` | `13.0.0` |
+| `pillow` | `12.3.0` | `GHSA-78g4-xqwv-q3g8` | `13.0.0` |
+
+### Single-use publication boundary and hard stop
+
+The current coordinator's bounded decision under the direct owner's
+persistent procedure/risk instructions uses the existing **publication-only**
+mechanism illustrated at `docs/roadmap/BACKLOG_LEDGER.md:14735`.
+That historical consumed exception supplies no authority for this use. Neither
+it nor the older 25-finding exception applies to the present 37-row cohort.
+The original full audit remains **FAIL**; none of these findings is FIXED,
+NOT-A-BUG, suppressed, ignored by an audit flag, or remediated by this text.
+
+This is one intentional, time-bounded **publication-only hook skip**, tracked
+as P1 in the existing braces ledger subsection. Only `SKIP=pip-audit` may be
+used for **one** publication push after separate Root application/admission.
+Every other hook remains required; `--no-verify`, other hook skips and any
+hook/configuration/baseline/security-provider change are forbidden. There is
+no runtime, CI, required-check or merge waiver, and no promise of readiness.
+
+- Review deadline: **2026-10-23T12:00:00Z**.
+- Hard remove-by / last permitted use: **2026-10-23T23:59:59Z**.
+- No automatic extension, renewal, second use or implicit transport retry.
+  These are explicit owner/coordinator procedural limits; no automated expiry
+  guard or policy change is represented by this documentation.
+- Before any use, Root must first observe the initial normal push's terminal
+  outcome. Any other hook failure stops the publication procedure.
+- Immediately before that one use, Root must run the **unskipped unchanged
+  strict pip-audit hook**, with `SKIP` unset, and retain its complete raw
+  output/exit and input/tool binding. It must prove the same unchanged
+  requirements hash and the **all-and-only 37 package/version/ID/fix tuples**
+  above, including multiplicity before comparison. A scanner/tool error,
+  missing row, added row, changed tuple/input, expiry or any other hook failure
+  means **STOP**; do not expand or reuse this exception.
+- The fresh audit's expected retained cohort result is still FAIL/exit 1,
+  never PASS. A publication push that omits this hook is not an audit result.
+- DoD before merge readiness: obtain an **UNSKIPPED strict pip-audit PASS** and
+  all required current-head CI, along with every ordinary review/security and
+  original B01–B09 gate. The future per-identity Python work must follow its
+  own canonical admission and evidence; this record neither admits that work
+  nor waives this prerequisite. If expiry or scope drift prevents the bounded
+  use, wait for remediation or a new explicit owner decision; do not silently
+  extend dates or broaden ignores.
+
+The original 18-GHSA npm cohort, CAB's separately dated risks, all other
+findings and the historical A manual-admission gap remain independent. This
+publication record does not supply a CVE suppression or a remediation result.
+
+The preparation state above is historical at the recorded
+**2026-10-22T21:00:41Z** attempt cutoff; it is not an evergreen claim that the
+exception remains unused. Subsequent application, Runner-attributed
+documentation commit, fresh strict audit, publication use and PR creation
+must be identified by their actual raw terminal records and PR-body status,
+without treating this cutoff as proof that those later actions occurred.
+Linux installation/build/Storybook/browser/source-watch, full `P`, current-head
+CI and review were still pending at this cutoff; the historical A gap remains
+open. These observations supply no readiness, provider PASS, no-findings,
+C14 or merge achievement.
