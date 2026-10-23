@@ -403,8 +403,15 @@ not download sources, scan images, edit dates or supply suppression/merge
 approval. Scheduled runs and notifications are best-effort; no warning does not
 prove the material remains current.
 
-The source manifest review is October 21, 2026 inclusive; October 22 rejects
-stale source review (`scripts/ci/docker_source_artifacts.json:4`). The current
+The operator-requested temporary source-manifest deadline is October 28, 2026
+inclusive; October 29 rejects stale source review
+(`scripts/ci/docker_source_artifacts.json:4`). The `generated_at` metadata
+remains October 4, 2026; the prior October 21 deadline remains historical
+provenance. This bounded
+renewal for PR #2487 retains all 17 source records; it does not establish fresh
+upstream review, acquisition, native build or image-scan evidence. The existing
+agent-coordinator/security-auditor owns reassessment before the deadline; no
+automatic renewal follows. The current
 `trivy/ignore-policy.rego:1` is the complete canonical never-ignore file, with no
 R1 rules or exclusive helpers. Only those exact complete bytes are expiry-free.
 Missing, unreadable, malformed, partial or additional executable policies do

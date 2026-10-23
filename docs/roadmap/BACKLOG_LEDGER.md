@@ -1202,6 +1202,25 @@ If it is not recorded here — it does not exist.
     - This accepts exactly 25 known advisories temporarily; it records no remediation,
       unignored security PASS, current-head CI, readiness or merge authority.
       All 53 original acceptance criteria and the existing DoD remain governing.
+  - Temporary Docker source-manifest deadline extension (EN, 2026-10-23):
+    - Owner: agent-coordinator / security-auditor. Priority: P1.
+      Target PR: [#2487](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2487).
+    - Reason: The operator requested a bounded deadline extension to finish
+      this PR. Accept continued use of the existing reviewed source inventory
+      through `review_by=2026-10-28` inclusive; `2026-10-29` fails closed.
+      Preserve `generated_at=2026-10-04`, the prior October 21 deadline and all
+      17 artifact identities, URLs, versions and digests. No fresh upstream
+      review, source acquisition, native qualification or image scan is claimed.
+    - Removal/DoD: Reassess the complete source inventory with current evidence
+      before the deadline and land the owning reviewed renewal/remediation,
+      or retain the stale-date failure after expiry. No automatic renewal.
+      Rollback restores `review_by=2026-10-21` and the corresponding contract
+      assertions; the source gate then remains blocked on current dates.
+    - This changes no recipe, source inventory, dependency or validator rule.
+      The independent exact-25 publication exception still expires at
+      `2026-10-28T00:00:00Z`; this inclusive calendar deadline does not renew it.
+      Prometheus publication, iPad UI cancellation and other required failures
+      keep their independent owners and remain blocking until proven corrected.
   - Links: docs/evals/EVIDENCE_RELATION_CAUSAL_AUDIT_V1.md,
     docs/evals/FITCHEF_CLAIM_EVIDENCE_EVAL_V1.md,
     docs/orchestration/AGENT_CONTEXT_MAP.md

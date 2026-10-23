@@ -917,7 +917,7 @@ def test_docker_source_artifact_manifest_pins_sqlite_source() -> None:
     artifacts = manifest["artifacts"]
     assert manifest["schema_version"] == 1
     assert manifest["generated_at"] == "2026-10-04"
-    assert manifest["review_by"] == "2026-10-21"
+    assert manifest["review_by"] == "2026-10-28"
     assert len(artifacts) == 17
     assert [row["name"] for row in artifacts[-2:]] == ["alertmanager-source", "alertmanager-ui"]
     assert [row["name"] for row in artifacts[:4]] == [
@@ -951,7 +951,7 @@ def test_docker_source_artifact_manifest_pins_sqlite_source() -> None:
 
 
 def test_docker_source_artifact_manifest_review_window_is_inclusive(tmp_path: Path) -> None:
-    """Preserve historical5/6 source rejection and current21/22 admission."""
+    """Preserve historical windows and the temporary28/29 review boundary."""
     manifest_path = REPO_ROOT / "scripts/ci/docker_source_artifacts.json"
     historical = json.loads(manifest_path.read_text())
     historical["generated_at"] = "2026-09-28"
@@ -960,10 +960,10 @@ def test_docker_source_artifact_manifest_review_window_is_inclusive(tmp_path: Pa
     assert len(docker_sources.load_manifest(old_path, today=date(2026, 10, 5))) == 15
     with pytest.raises(RuntimeError, match="review_by is stale: 2026-10-05"):
         docker_sources.load_manifest(old_path, today=date(2026, 10, 6))
-    for day in (6, 8, 21):
+    for day in (6, 8, 21, 23, 28):
         assert len(docker_sources.load_manifest(manifest_path, today=date(2026, 10, day))) == 15
-    with pytest.raises(RuntimeError, match="review_by is stale: 2026-10-21"):
-        docker_sources.load_manifest(manifest_path, today=date(2026, 10, 22))
+    with pytest.raises(RuntimeError, match="review_by is stale: 2026-10-28"):
+        docker_sources.load_manifest(manifest_path, today=date(2026, 10, 29))
 
 
 def _forecast_workflow_step() -> tuple[dict[str, object], str]:
@@ -3914,3 +3914,14 @@ def test_zlib_www_challenge_and_redirect_never_admit_source(
             docker_sources._write_verified_artifact(artifact, output)
     assert calls == [(artifact.url, 60)]
     assert list(output.iterdir()) == []
+
+
+def test_docker_source_artifact_manifest_preserves_previous_review_window(tmp_path: Path) -> None:
+    """Keep the prior21/22 deadline boundary alongside the temporary renewal."""
+    manifest_path = REPO_ROOT / "scripts/ci/docker_source_artifacts.json"
+    historical = json.loads(manifest_path.read_text())
+    historical["review_by"] = "2026-10-21"
+    old_path = _write_docker_source_manifest(tmp_path, historical)
+    assert len(docker_sources.load_manifest(old_path, today=date(2026, 10, 21))) == 15
+    with pytest.raises(RuntimeError, match="review_by is stale: 2026-10-21"):
+        docker_sources.load_manifest(old_path, today=date(2026, 10, 22))
