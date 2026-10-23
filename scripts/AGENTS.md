@@ -407,7 +407,7 @@
 - CI/CD PR image consumption must finish before PR-local actions, imports or
   native programs start. Acquire exact event-H material as data, then verify the
   <!-- pragma: allowlist nextline secret - public trusted control commit -->
-  sparse fixed control checkout at `a0bc88e42fb12e521b18db25a172b84e8d631539`, with
+  sparse fixed control checkout at `0d6a4c09477ad3174252eab15f80cdd4a76df5bc`, with
   <!-- pragma: allowlist nextline secret - public trusted control digest -->
   helper SHA-256 `2b6edfa63f55b17cafdff100151b4b7cebef93a757fc3ab04b00eea77ca0ac6a`,
   before credential-free canonical four-blob classification. Native regular Git
