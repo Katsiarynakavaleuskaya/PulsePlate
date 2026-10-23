@@ -1094,6 +1094,8 @@ function hasVisibleCompatibilityInputRing(
 
 for (const width of [320, 1440] as const) {
   test(`source primitives preserve bounded CSS states at ${width}px`, async ({ page, baseURL, browserName, browser }, testInfo) => {
+    // Budget aggregate 19 default + 11 pointer/keyboard observations on the bounded browser runner; not a UI latency SLO.
+    if (width === 1440) test.setTimeout(45_000);
     await page.setViewportSize({ width, height: width === 320 ? 900 : 1000 });
     const html = await showCompatibilitySpecimens(page, new URL(baseURL ?? '').origin);
     const target = (id: string): Locator => page.locator(`[data-compat-target="${id}"]`);
@@ -1213,8 +1215,8 @@ test('forced-color input and button focus stays visible', async ({ page, baseURL
   for (const forcedColors of ['none', 'active'] as const) {
     await page.emulateMedia({ forcedColors });
     const observedActive = await page.evaluate(() => matchMedia('(forced-colors: active)').matches);
+    const keyboard = await keyboardCompatibilityTarget(page, 'input-invalid', testInfo);
     for (const id of ['input-ordinary', 'input-invalid', 'button-primary-default', 'button-secondary-default']) {
-      const keyboard = await keyboardCompatibilityTarget(page, id, testInfo);
       const observation = keyboard[id];
       await attachCompatibility(testInfo, `${id}-${forcedColors}`, { emulated: forcedColors, observedActive,
         unsupportedUnknown: forcedColors === 'active' && !observedActive, observation });
