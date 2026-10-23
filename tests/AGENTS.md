@@ -162,11 +162,17 @@
   (e.g., `_boost.py`, `_v2.py` variants). Fixing one file and missing its twin is a recurring incident.
 - Repo policy guards must not reference temporary/untracked files; AST scan path lists must filter by `.exists()`.
 - Npm dependency guards that claim safety for every tracked lock occurrence must
-  inspect opaque inner-graph metadata on **every** lock package record before
-  checking target versions. Reuse the existing shared lock-v3 admission for
-  `hasShrinkwrap`, both bundled-dependency fields, and `inBundle`; test a
-  non-target carrier, malformed values, and valid empty controls. A safe
-  target pin or outer `packages` map alone does not prove the installed graph.
+  consume the canonical provenance producer in `test_root_npm_dependency_guards.py`
+  before checking targets. Its bounded flat-bundle class binds current parent
+  registry URL/SHA-512 archive bytes, every exact-basename `package.json`
+  strictly decoded, complete archive/lock inventory and physically npm-bound
+  Arborist `loadActual` metadata. All other payload files remain bounded,
+  retained bytes and confer no npm graph or provenance authority.
+  Consumers inspect the returned publisher declarations (including dev fields)
+  and parent-owned leaf data, never fabricated leaf registry provenance or an
+  approval boolean. Nested bundles, shrinkwrap, links and unsupported metadata
+  fail closed. Synthetic controls start from a complete native positive graph,
+  use no real network, and mutate independent inventory/provenance boundaries.
 - `ui_labels` is a required part of `WHOTargetsResponse` contract (SoT: `app/schemas/premium_contracts.py`); assert ES anchor string (`"Calorías diarias"`) in snapshot tests and do not feature-gate this contract after implementation.
 - Any new authenticated, paid-tier, hidden mutating, or object-identifier API route must be registered in `tests/security/_api_authz_contracts.py` with method, path, authentication class, minimum tier, principal source, ownership policy, OpenAPI exposure, and a cross-principal negative test where applicable.
 

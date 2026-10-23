@@ -1,4 +1,4 @@
-import { useId, type InputHTMLAttributes, type PropsWithChildren, type ReactElement, type ReactNode } from 'react';
+import { useId, useState, type InputHTMLAttributes, type PropsWithChildren, type ReactElement, type ReactNode } from 'react';
 import { hasInvalidState } from './fieldState';
 
 interface RadioGroupProps extends PropsWithChildren {
@@ -21,9 +21,33 @@ export function RadioGroup({
 }: RadioGroupProps): ReactElement {
   const generatedId = useId();
   const errorId = error ? `radio-group-${generatedId}-error` : undefined;
+  const [keyboardNavigation, setKeyboardNavigation] = useState(false);
 
   return (
-    <fieldset aria-describedby={errorId} className="space-y-3">
+    <fieldset
+      aria-describedby={errorId}
+      className="space-y-3"
+      data-keyboard-navigation={keyboardNavigation ? 'true' : undefined}
+      onKeyDownCapture={(event) => {
+        if (
+          event.target instanceof HTMLInputElement &&
+          event.target.type === 'radio' &&
+          ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)
+        ) {
+          setKeyboardNavigation(true);
+        }
+      }}
+      onPointerDownCapture={() => setKeyboardNavigation(false)}
+      onBlurCapture={(event) => {
+        const group = event.currentTarget;
+        const next = event.relatedTarget;
+        // Focusout precedes the native focus move; relatedTarget is its destination.
+        // Keep keyboard treatment while the owner document itself loses focus.
+        if (next ? !group.contains(next) : group.ownerDocument.hasFocus()) {
+          setKeyboardNavigation(false);
+        }
+      }}
+    >
       <legend className="text-sm font-medium text-[var(--color-text)]">{legend}</legend>
       <div className={orientation === 'horizontal' ? 'grid gap-3 md:grid-cols-2' : 'space-y-3'}>
         {children}
