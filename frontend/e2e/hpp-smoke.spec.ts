@@ -8,10 +8,6 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import postcss from 'postcss';
 import type { ProSessionStatus } from '../src/api/client';
-import { Button } from '../src/components/ui/Button';
-import { Card, CardContent } from '../src/components/ui/Card';
-import { Input } from '../src/components/ui/Input';
-import { Skeleton, ChartSkeleton, CardSkeleton } from '../src/components/ui/Skeleton';
 
 const syntheticProSession: ProSessionStatus = {
   status: 'ok', authenticated: true, auth_source: 'cookie', tier: 'PRO',
@@ -878,33 +874,51 @@ test('FitChef preview stays usable at 320px, text spacing, and effective 200% zo
 });
 
 // The specimens render the current source components, not copied utility lists.
-function renderCompatibilitySpecimens(): string {
-  const h = createElement;
-  const specimens: string[] = [];
-  const add = (id: string, node: Parameters<typeof renderToStaticMarkup>[0]): void => {
-    specimens.push(renderToStaticMarkup(h('section', {
-      'data-compat-section': id, style: { padding: 16, marginBottom: 16 },
-    }, node)));
-  };
-  for (const variant of ['primary', 'secondary', 'destructive'] as const) {
-    for (const state of ['default', 'disabled', 'loading'] as const) {
-      const id = `button-${variant}-${state}`;
-      add(id, h(Button, { variant, disabled: state === 'disabled', loading: state === 'loading',
-        ...{ 'data-compat-target': id } }, id));
+async function renderCompatibilitySpecimens(): Promise<string> {
+  // Playwright's TSX transform produces transport descriptors, not React nodes.
+  // Compile the actual source components through the existing Vite React pipeline.
+  const { createServer } = await import('vite');
+  const ssr = await createServer({
+    root: resolve(),
+    configFile: resolve('vite.config.ts'),
+    envFile: false,
+    appType: 'custom',
+    server: { middlewareMode: true, ws: false, hmr: false, watch: null },
+  });
+  try {
+    const { Button } = await ssr.ssrLoadModule('/src/components/ui/Button.tsx') as typeof import('../src/components/ui/Button');
+    const { Card, CardContent } = await ssr.ssrLoadModule('/src/components/ui/Card.tsx') as typeof import('../src/components/ui/Card');
+    const { Input } = await ssr.ssrLoadModule('/src/components/ui/Input.tsx') as typeof import('../src/components/ui/Input');
+    const { Skeleton, ChartSkeleton, CardSkeleton } = await ssr.ssrLoadModule('/src/components/ui/Skeleton.tsx') as typeof import('../src/components/ui/Skeleton');
+    const h = createElement;
+    const specimens: string[] = [];
+    const add = (id: string, node: Parameters<typeof renderToStaticMarkup>[0]): void => {
+      specimens.push(renderToStaticMarkup(h('section', {
+        'data-compat-section': id, style: { padding: 16, marginBottom: 16 },
+      }, node)));
+    };
+    for (const variant of ['primary', 'secondary', 'destructive'] as const) {
+      for (const state of ['default', 'disabled', 'loading'] as const) {
+        const id = `button-${variant}-${state}`;
+        add(id, h(Button, { variant, disabled: state === 'disabled', loading: state === 'loading',
+          ...{ 'data-compat-target': id } }, id));
+      }
     }
+    for (const state of ['ordinary', 'invalid', 'disabled'] as const) {
+      const id = `input-${state}`;
+      add(id, h(Input, { invalid: state === 'invalid', disabled: state === 'disabled',
+        'aria-label': id, placeholder: id, ...{ 'data-compat-target': id } }));
+    }
+    add('card', h(Card, { ...{ 'data-compat-target': 'card' } },
+      h(CardContent, { ...{ 'data-compat-target': 'card-content' } }, 'Actual Card content')));
+    add('skeleton', h(Skeleton, { ariaLabel: 'Owned skeleton', className: 'h-8 w-48',
+      ...{ 'data-compat-target': 'skeleton' } }));
+    add('chart-skeleton', h('div', { 'data-compat-target': 'chart-skeleton' }, h(ChartSkeleton)));
+    add('card-skeleton', h('div', { 'data-compat-target': 'card-skeleton' }, h(CardSkeleton)));
+    return specimens.join('');
+  } finally {
+    await ssr.close();
   }
-  for (const state of ['ordinary', 'invalid', 'disabled'] as const) {
-    const id = `input-${state}`;
-    add(id, h(Input, { invalid: state === 'invalid', disabled: state === 'disabled',
-      'aria-label': id, placeholder: id, ...{ 'data-compat-target': id } }));
-  }
-  add('card', h(Card, { ...{ 'data-compat-target': 'card' } },
-    h(CardContent, { ...{ 'data-compat-target': 'card-content' } }, 'Actual Card content')));
-  add('skeleton', h(Skeleton, { ariaLabel: 'Owned skeleton', className: 'h-8 w-48',
-    ...{ 'data-compat-target': 'skeleton' } }));
-  add('chart-skeleton', h('div', { 'data-compat-target': 'chart-skeleton' }, h(ChartSkeleton)));
-  add('card-skeleton', h('div', { 'data-compat-target': 'card-skeleton' }, h(CardSkeleton)));
-  return specimens.join('');
 }
 
 async function showCompatibilitySpecimens(page: Page, origin: string): Promise<string> {
@@ -915,7 +929,7 @@ async function showCompatibilitySpecimens(page: Page, origin: string): Promise<s
   const styles = await page.locator('head style, head link[rel="stylesheet"]').evaluateAll((nodes) =>
     nodes.map((node) => node.outerHTML).join(''));
   expect(styles.length).toBeGreaterThan(0);
-  const html = renderCompatibilitySpecimens();
+  const html = await renderCompatibilitySpecimens();
   await page.setContent(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">${styles}</head><body><main>${html}</main></body></html>`);
   await page.evaluate(() => document.fonts.ready);
   await expect(page.locator('[data-compat-target="input-ordinary"]')).toHaveCSS('min-height', '44px');
