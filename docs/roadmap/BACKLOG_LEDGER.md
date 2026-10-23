@@ -1084,13 +1084,22 @@ If it is not recorded here — it does not exist.
     are changed.
 
 <a id="ledger-p1-graph-fed-1-read-only-evidence-projection"></a>
-- [ ] P1: GRAPH-FED-1 typed read-only evidence projection
+- [x] P1: GRAPH-FED-1 typed read-only evidence projection
   - Owner: backend-engineer / architecture-specialist / security-auditor
   - Priority: P1
   - Target PR: [#2480](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2480)
     on codex/graph-fed-1-evidence-projection
-  - Status: In implementation; focused material validation and the required
-    PR/review/current-head CI lifecycle remain pending.
+  - Status: Merged and terminally closed in PR #2480 as
+    `7b28b502c3d257c1da905ed386d79fab1a12869a`; its own post-merge CI
+    [37832590536](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/37832590536)
+    completed successfully. Retained owner reconciliation covers all 50
+    GRAPH-FED-1 criteria, 230 archive members, six same-ID document readbacks
+    and owned cleanup. This closes that projection's DoD only.
+  - Carryover (EN): OCW-1A carrier PR
+    [#2487](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2487)
+    reconciles this stale ledger state; #2480 remains the owning Target PR.
+    Dynamic native OCW delivery and paired FitChef capture are tracked
+    separately below.
   - Area: pure core / offline evidence inspection
   - Reason (EN): Return the complete represented exact claim/context/time
     neighborhood and explicit revision/dependency closure in one inspection,
@@ -1110,6 +1119,185 @@ If it is not recorded here — it does not exist.
     broader Evidence Graph umbrella.
   - Rollback (EN): Revert projection/inspect while preserving source v1 and
     legacy validate/report; no migration or provider switch.
+
+<a id="ledger-p1-ocw-1a-evidence-consumer"></a>
+- [ ] P1: OCW-1A existing Evidence Graph advisory consumer
+  - Owner: agent-coordinator / security-auditor / QA / evaluation owner
+  - Priority: P1
+  - Target PR: [#2487](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2487)
+    on `codex/ocw-1a-fitchef-evidence-consumer`.
+  - Status: Open non-draft implementation PR. Frozen capture and assessment
+    cover 16 observations across eight paired synthetic units, with 16
+    published reservations and US$2.40 reserved under the approved cap.
+    The actual coordinator consumer replay covers all 16 delivered observations;
+    independent QA and criterion-level acceptance evidence are retained separately
+    from current-head CI/review and terminal closeout. Full individually evidenced
+    acceptance of all 53 criteria, current-head CI/review, merge authorization
+    and terminal same-ID document/archive/owned-cleanup closeout remain open.
+  - Measurement (EN): The immutable provider-blind six-dimension assessment,
+    unblinded only after immutable assessment, retains 10 defect, five
+    no-change and one data-gap verdicts with unchanged judgments. These are
+    eight paired units, not 16 independent quality units or production rates; no provider
+    superiority or production improvement is claimed. US$2.40 is reservation,
+    not an invoice or a known full actual cost.
+  - Area: existing orchestration/eval seams
+  - Reason (EN): GRAPH-FED-1 delivers read-only inspection; current coordinator
+    and QA still need independently bound advisory material and observed
+    answer/source reconciliation without new runtime authority.
+  - Carryover (EN): Carrier #2487 reconciles only the verified #2480 owning
+    ledger item. Preserve #2459's closed implementation and wider open
+    Evidence Graph, provider, cost-routing and semantic-cache owners. Retain
+    measured response gaps under the separate product AI/evaluation follow-up
+    below; measurement does not fix or authorize production behavior changes.
+  - Temporary publication exception (EN, 2026-10-21):
+    - Priority: P1. Owner: agent-coordinator / security-auditor (tracking).
+      Target PR: [#2487](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2487)
+      is the exception carrier; the certifi/Pillow/OpenTelemetry remediation owner and target
+      remain unassigned/unproven, separate from #2494's Alertmanager work.
+    - Authorization checkpoint (2026-10-21): The first authorized normal
+      non-force publication was consumed at `419842d8` on
+      `2026-10-21T17:35:18Z`. Subsequent correcting publications of this same
+      PR remain bounded by the same direct temporary owner instruction and
+      unchanged expiry; the consumed one-use receipt cannot be reused.
+      At `2026-10-21T23:04:03Z`, the owner explicitly answered "Yes, add these
+      16 IDs" to extend this same PR's temporary inventory from nine to 25.
+    - Authorization addendum (2026-10-23): After the native exact-25 audit
+      at `b770945d058532cc7ca62560f771fea801fff214` exited 1 with 12
+      additional findings, the owner directly authorized those exact 12 IDs
+      for the same publication exception, making 37 in total. The expiry
+      remains `2026-10-28T00:00:00Z`; no versions or other scope changed.
+    - Exact scope: `requirements.txt:23` retains `certifi==2026.1.4` with
+      `PYSEC-2026-4320`; `requirements.txt:125` retains `pillow==12.3.0` with
+      `CVE-2026-112895`, `CVE-2026-112400`, `CVE-2026-112397`,
+      `CVE-2026-112896`, `CVE-2026-112897`, `CVE-2026-112395`,
+      `CVE-2026-112404`, `CVE-2026-112899`, `CVE-2026-112402`,
+      `CVE-2026-112900`, `CVE-2026-112893`, `CVE-2026-112392`,
+      `CVE-2026-112891`, `CVE-2026-112405`, `CVE-2026-112390`,
+      `CVE-2026-112401`, `CVE-2026-112901`, `CVE-2026-112391`,
+      `CVE-2026-112894`, `CVE-2026-112406`, `CVE-2026-112399`,
+      `CVE-2026-112892`, `CVE-2026-112393` and `CVE-2026-112396`.
+      The separately authorized additions retain `pillow==12.3.0` at
+      `requirements.txt:125` with `CVE-2026-96638`, `CVE-2026-96641`,
+      `CVE-2026-96640`, `CVE-2026-96642`, `CVE-2026-96639`,
+      `CVE-2026-96643`, `CVE-2026-96637`, `CVE-2026-96644`,
+      `CVE-2026-96778`, `CVE-2026-96636` and `GHSA-78g4-xqwv-q3g8`;
+      `requirements.txt:101` retains `opentelemetry-api==1.44.0` with
+      `CVE-2026-114603`.
+      Frozen requirements SHA-256:
+      `45856873613fa43e5ac34c2673ecd3cb29e97aecf33b91dedcefcf7aee56d054`.
+    - Evidence: The actual unignored strict audit exited 1; retain
+      `artifacts/orchestration/ocw-1a/coordinator-oct21/remote-required-pip-audit/pip-audit.log`,
+      SHA-256 `f67eaf65fc3f5f5c0da5b0d19fbbe84285abc0218adf3f5d6ba076a2fc52592d`.
+      The fresh native audit at `5a41e070983ed85c93922db0a2a40398598774cc`
+      also exited 1: "Found 16 known vulnerabilities, ignored 9 in 1 package";
+      requirements remained identical and no publication followed that failure.
+      Retain `artifacts/orchestration/ocw-1a/coordinator-oct21/correcting-waived-audit-readback-proof.json`
+      and its raw audit SHA-256
+      `e0db11164c5ee05c871de2a8a281c8c50a5a72ba1684b7d56c0be3e1af580e27`.
+      PyPI reports `13.0.0` as the fix for the 24 Pillow records; this exception
+      does not establish remediation or an unfixed-upstream condition.
+      The later exact-25 native audit at `b770945d058532cc7ca62560f771fea801fff214`
+      exited 1: "Found 12 known vulnerabilities, ignored 25 in 2 packages".
+      Retain the raw audit SHA-256
+      `94e6c5250ac994e7f92603a140192bc47ac92950b8f418c83843ca03e898333a`.
+      The source and frozen requirements were unchanged; no push followed.
+      The scanner reports `13.0.0` for the 11 additional Pillow IDs and
+      `1.45.1` for OpenTelemetry API as fixes. Their temporary acceptance
+      establishes neither remediation nor an unfixed-upstream condition.
+    - Procedure: Before each correcting publication, run a fresh native pinned
+      pip-audit v2.10.1 with the existing strict hook arguments and 37 repeated
+      `--ignore-vuln` options; require exit 0, exactly these 37 ignored
+      advisories, no additional findings/errors and exact current material and
+      frozen requirements binding. Retain a new private actual publication
+      receipt for each normal push. `PIP_AUDIT_IGNORE_VULNS` is unsupported.
+      Only that push process may use `SKIP=pip-audit`; every other stock hook
+      remains required, without global exports or hook/config/scanner changes.
+    - Expiry/removal: unchanged `2026-10-28T00:00:00Z`, or earlier upon
+      requirements/version/inventory drift, remediation or owner revocation;
+      no automatic renewal or extension of the consumed one-use receipt.
+      Record each actual publication in retained lane evidence and the PR body;
+      retire this ledger exception with the owning dependency fix and an
+      unignored strict audit exit 0. On expiry, drift, a new finding or scanner
+      error, do not push and preserve the evidence.
+    - This accepts exactly 37 known advisories temporarily; it records no remediation,
+      unignored security PASS, current-head CI, readiness or merge authority.
+      All 53 original acceptance criteria and the existing DoD remain governing.
+  - Temporary Docker source-manifest deadline extension (EN, 2026-10-23):
+    - Owner: agent-coordinator / security-auditor. Priority: P1.
+      Target PR: [#2487](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2487).
+    - Reason: The operator requested a bounded deadline extension to finish
+      this PR. Accept continued use of the existing reviewed source inventory
+      through `review_by=2026-10-28` inclusive; `2026-10-29` fails closed.
+      Preserve `generated_at=2026-10-04`, the prior October 21 deadline and all
+      17 artifact identities, URLs, versions and digests. No fresh upstream
+      review, source acquisition, native qualification or image scan is claimed.
+    - Removal/DoD: Reassess the complete source inventory with current evidence
+      before the deadline and land the owning reviewed renewal/remediation,
+      or retain the stale-date failure after expiry. No automatic renewal.
+      Rollback restores `review_by=2026-10-21` and the corresponding contract
+      assertions; the source gate then remains blocked on current dates.
+    - This changes no recipe, source inventory, dependency or validator rule.
+      The independent exact-37 publication exception still expires at
+      `2026-10-28T00:00:00Z`; this inclusive calendar deadline does not renew it.
+      Prometheus publication, iPad UI cancellation and other required failures
+      keep their independent owners and remain blocking until proven corrected.
+  - Links: docs/evals/EVIDENCE_RELATION_CAUSAL_AUDIT_V1.md,
+    docs/evals/FITCHEF_CLAIM_EVIDENCE_EVAL_V1.md,
+    docs/orchestration/AGENT_CONTEXT_MAP.md
+  - DoD: All 53 owner-accepted OCW-1A-AC-v1.0 items (A01-A13, B01-B21,
+    C01-C19) retain individual observed evidence; exact current dynamic
+    attachment and immutable canonical complete graph/source reconciliation;
+    literal false flags and whole 64-KiB depth-one bound; actual native
+    coordinator/QA consumption; eight RU canonical scenarios and 16 actual
+    guarded mascot observations with identical paired inputs/full prompts;
+    provider-blind six-dimension assessment after freeze; shared US$4.80/32
+    physical-send cap with durable integer reservations and complete failures;
+    narrow gates/current-head CI/review, separate merge approval and governed
+    same-ID document/archive/owned-cleanup closeout.
+  - Out of scope (EN): Public API/DTO/OpenAPI, production provider migration,
+    nutrition calculations, product plan mutation, semantic cache, graph
+    serving, knowledge promotion and foreign CD/nightly fixes.
+  - Rollback (EN): Revert the optional attachment, closed comparison mode,
+    fixtures and their coverage membership; retain private captured evidence
+    and the unchanged graph/runtime/default dispatch contracts.
+
+<a id="ledger-p1-fitchef-observed-nutrition-response-gaps"></a>
+- [ ] P1: FitChef mascot observed nutrition and action gaps from OCW-1A
+  - Owner: product AI / backend-engineer / evaluation owner
+  - Priority: P1
+  - Target PR: `PR-TBD` through separately admitted product response-quality
+    work after owner review of the frozen #2487 observations.
+  - Status: Deferred measured response-quality follow-up; original answers,
+    sources, raw-to-final origins and six-dimension judgments remain frozen.
+  - Area: FitChef mascot message / action extraction and fallback / evaluation
+  - Reason (EN): OCW-1A observes output quality against supplied synthetic
+    evidence; its graph/capture/consumer implementation does not repair
+    production response behavior. These findings need bounded component-owner
+    remedies and regression evidence in their own admitted product lane.
+  - Observed gaps (EN): Unsupported nutrition composition and diary estimates
+    in N01/N07; unsolicited food advice in N01/N02/N03/N05; English
+    task-mismatched default actions in N02/Sol and N06/Sonar; an unsupported
+    removal assertion in N06/Sonar; unresolved preparation/catalog
+    applicability in N06/Sol; and light/small-meal plus added-walk action
+    framing in N08/Sonar. N08's source support remains unknown; its wording
+    concern establishes no compensatory intent or general safety conclusion.
+  - Links: [OCW-1A #2487](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2487),
+    docs/evals/FITCHEF_CLAIM_EVIDENCE_EVAL_V1.md#ocw-1a-closed-paired-nutrition-comparison,
+    docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-ocw-1a-evidence-consumer,
+    docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-noos-1c-fitchef-response-quality-routing,
+    docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-noos-fitchef-cost-routing
+  - DoD: Review the exact affected message/action components and retain
+    deterministic controls for missing amount/composition, applicable product
+    information, RU action language and task relevance, and ordinary bounded
+    non-compensatory support. Preserve supplied-density arithmetic, the N02
+    correction, measured peel handling and already peeled mass; leave missing
+    preparation/density explicit. Admit and validate any production prompt,
+    extraction or fallback remedy separately, keeping nutrition/plan authority
+    in canonical backend owners and original capture/judgment bytes unchanged.
+  - Out of scope (EN): Provider switching, the broader cost-routing owner,
+    nutrition engines, public API migrations, new retrieval/cache serving or
+    generalized model/safety claims. This entry authorizes no new provider run
+    or production change and reopens neither #2459 nor #2480.
 
 <a id="ledger-p1-noos-1b-fitchef-answer-evaluation"></a>
 - [x] P1: NOOS-1B FitChef answer-content evaluation
