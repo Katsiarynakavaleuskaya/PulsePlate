@@ -1283,7 +1283,54 @@ test('focus witnesses reject transparent colors and zero-geometry shadows', asyn
 
 test('CSS smoke rejects an exact missing grid despite grid-cols neighbors', async ({ page, baseURL }, testInfo) => {
   // Keep the native .mjs helper on Node's ESM loader instead of a transformed require.
-  const { assertTailwindUtilities } = await import(pathToFileURL(resolve('scripts/check-tailwind-utilities.mjs')).href);
+  const { assertTailwindUtilities, assertBuiltCssEntry } = await import(pathToFileURL(resolve('scripts/check-tailwind-utilities.mjs')).href);
+  const entry = '<link rel="stylesheet" href="/assets/index-proof.css">';
+  const html = (content: string): string => `<!doctype html><html><head>${content}</head><body></body></html>`;
+  const sentinel = '__pulseplateCssDomSmokeExecuted';
+  expect(Object.prototype.hasOwnProperty.call(globalThis, sentinel)).toBe(false);
+  const inert = [
+    `<!-- ${entry} -->`,
+    `<script>globalThis.${sentinel}=true; const link = '${entry}';</script>`,
+    `<style>${entry}</style>`,
+    `<title>${entry}</title>`,
+    `<textarea>${entry}</textarea>`,
+    `<template><template>${entry}</template></template>`,
+    `<noscript>${entry}</noscript>`,
+    `<plaintext>${entry}`,
+  ];
+  const rejected: string[] = [];
+  for (const content of inert) {
+    expect(() => assertBuiltCssEntry(html(content), 'index-proof.css')).toThrow('Built frontend index must reference');
+    rejected.push(content);
+  }
+  const duplicateAttributes = [
+    'rel="stylesheet" rel="preload" href="/assets/index-proof.css"',
+    'rel="preload" rel="stylesheet" href="/assets/index-proof.css"',
+    'REL="stylesheet" rel="preload" href="/assets/index-proof.css"',
+    'rel="preload" ReL="stylesheet" href="/assets/index-proof.css"',
+    'rel="stylesheet" href="/assets/index-proof.css" href="/assets/index-stale.css"',
+    'rel="stylesheet" href="/assets/index-stale.css" href="/assets/index-proof.css"',
+    'rel="stylesheet" HREF="/assets/index-proof.css" href="/assets/index-stale.css"',
+    'rel="stylesheet" href="/assets/index-stale.css" HrEf="/assets/index-proof.css"',
+  ];
+  for (const attributes of duplicateAttributes) {
+    const content = `<!-- Unicode offset: 😀 Ж --> <link ${attributes}>`;
+    expect(() => assertBuiltCssEntry(html(content), 'index-proof.css')).toThrow('Duplicate attributes on an HTML link');
+    rejected.push(content);
+  }
+  for (const neighbor of [entry, '<link rel="preload" href="/assets/index-proof.css">',
+    '<link rel="stylesheet" href="/assets/index-stale.css">']) {
+    expect(() => assertBuiltCssEntry(html(entry + neighbor), 'index-proof.css')).toThrow('Built frontend index must reference');
+    rejected.push(entry + neighbor);
+  }
+  const positive = html(`<!-- Unicode offset: 😀 Ж -->${entry}${inert.slice(0, 7).join('')}`);
+  expect(() => assertBuiltCssEntry(positive, 'index-proof.css')).not.toThrow();
+  expect(() => assertBuiltCssEntry(html(`${entry}<template><link rel="preload" rel="stylesheet" href="/assets/index-proof.css"></template>`), 'index-proof.css')).not.toThrow();
+  expect(Object.prototype.hasOwnProperty.call(globalThis, sentinel)).toBe(false);
+  await attachCompatibility(testInfo, 'css-document-entry-controls', {
+    rejected, positive, scriptSentinelAbsent: !Object.prototype.hasOwnProperty.call(globalThis, sentinel),
+    scope: 'Parsed document entry membership only; no CSS fetch, cascade or visual claim',
+  });
   await showCompatibilitySpecimens(page, new URL(baseURL ?? '').origin);
   const css = await page.evaluate(() => Array.from(document.styleSheets).flatMap((sheet) =>
     Array.from(sheet.cssRules).map((rule) => rule.cssText)).join('\n'));

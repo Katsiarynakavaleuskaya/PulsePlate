@@ -1,8 +1,17 @@
 import { createHash } from "node:crypto";
 import { lstat, readdir, readFile } from "node:fs/promises";
+import { createRequire } from "node:module";
 import { join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import postcss from "postcss";
+
+// jsdom is a declared direct dependency; use its public parse5 dependency edge.
+// Do not import jsdom itself or assume its transitive dependency is hoisted.
+const jsdomRequire = createRequire(createRequire(import.meta.url).resolve("jsdom"));
+const { parse, ErrorCodes } = await import(pathToFileURL(jsdomRequire.resolve("parse5")).href);
+if (typeof parse !== "function" || ErrorCodes?.duplicateAttribute !== "duplicate-attribute") {
+  throw new Error("Required public parse5 HTML parser API is unavailable.");
+}
 
 const cssDirectoryPath = fileURLToPath(new URL("../dist/assets/", import.meta.url));
 const indexPath = fileURLToPath(new URL("../dist/index.html", import.meta.url));
@@ -39,6 +48,65 @@ export function assertTailwindUtilities(css) {
   }
 }
 
+// Document-tree membership only; no resource loading, script execution or CSS application.
+export function assertBuiltCssEntry(indexText, cssFileName) {
+  const message = "Built frontend index must reference the unique current index CSS bundle.";
+  const duplicates = [];
+  const document = parse(indexText, {
+    scriptingEnabled: true,
+    sourceCodeLocationInfo: true,
+    onParseError: (error) => {
+      if (error.code === ErrorCodes.duplicateAttribute) duplicates.push(error);
+    },
+  });
+  const links = [];
+  function visit(node) {
+    if (node.namespaceURI === "http://www.w3.org/1999/xhtml" && node.tagName === "link") {
+      links.push(node);
+    }
+    // Template content is a separate inert fragment, never a document child.
+    for (const child of node.childNodes ?? []) visit(child);
+  }
+  visit(document);
+  const inRange = (location, emptyAllowed = false) =>
+    Number.isInteger(location?.startOffset) && Number.isInteger(location?.endOffset) &&
+    location.startOffset >= 0 && location.endOffset <= indexText.length &&
+    (emptyAllowed ? location.endOffset >= location.startOffset : location.endOffset > location.startOffset);
+  const ranges = [];
+  for (const link of links) {
+    const location = link.sourceCodeLocation;
+    // Public parse5 locations for void elements may omit optional startTag.
+    const startTag = location?.startTag === undefined ? location : location.startTag;
+    if (!inRange(location) || !inRange(startTag) || location.endTag !== undefined ||
+        startTag.startOffset !== location.startOffset || startTag.endOffset > location.endOffset) {
+      throw new Error(`${message} HTML link source location is unavailable or ambiguous.`);
+    }
+    ranges.push(startTag);
+  }
+  // Attribute normalization discards duplicates, so bind diagnostics before attrs projection.
+  for (const error of duplicates) {
+    if (!inRange(error, true)) {
+      throw new Error(`${message} Duplicate-attribute source location is unavailable.`);
+    }
+    const owners = ranges.filter((range) => error.startOffset >= range.startOffset &&
+      error.startOffset < range.endOffset && error.endOffset <= range.endOffset);
+    if (owners.length > 0) {
+      throw new Error(`${message} Duplicate attributes on an HTML link are ambiguous.`);
+    }
+  }
+  // Count actual current-index candidates before selecting only perfect witnesses.
+  const candidates = links.filter((link) => link.attrs.some((attribute) =>
+    attribute.name === "href" && attribute.namespace === undefined &&
+    /^\/assets\/index-[A-Za-z0-9_-]+\.css$/.test(attribute.value)));
+  if (candidates.length !== 1) throw new Error(message);
+  const attributes = candidates[0].attrs;
+  const href = attributes.find((attribute) => attribute.name === "href" && attribute.namespace === undefined);
+  const rel = attributes.find((attribute) => attribute.name === "rel" && attribute.namespace === undefined);
+  if (href?.value !== `/assets/${cssFileName}` || rel?.value !== "stylesheet") {
+    throw new Error(message);
+  }
+}
+
 async function findBuiltCssFile() {
   const files = await readdir(cssDirectoryPath);
   const cssFiles = files.filter((fileName) => /^index-[A-Za-z0-9_-]+\.css$/.test(fileName));
@@ -51,14 +119,7 @@ async function findBuiltCssFile() {
     throw new Error("Built frontend index and CSS must be regular files.");
   }
   const index = await readFile(indexPath);
-  const indexText = index.toString("utf8");
-  // Bind the exact existing Vite entry-link format, not a general HTML grammar.
-  const entryStyles = [...indexText.matchAll(/<link\b[^>]*\shref="(\/assets\/index-[A-Za-z0-9_-]+\.css)"[^>]*>/g)]
-    .map((match) => ({ href: match[1], relations: [...match[0].matchAll(/\srel="([^"]*)"/g)] }));
-  if (entryStyles.length !== 1 || entryStyles[0].href !== `/assets/${cssFiles[0]}` ||
-      entryStyles[0].relations.length !== 1 || entryStyles[0].relations[0][1] !== "stylesheet") {
-    throw new Error("Built frontend index must reference the unique current index CSS bundle.");
-  }
+  assertBuiltCssEntry(index.toString("utf8"), cssFiles[0]);
   return { cssFile, index };
 }
 
