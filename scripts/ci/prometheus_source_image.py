@@ -4455,8 +4455,8 @@ def require_publication_predecessor(api: GitHubRead, head: str) -> dict[str, Any
             )
         publishers = [job for job in jobs if job["name"] == "prometheus-publish"]
         require(len(publishers) <= 1, "publication_predecessor_publisher_ambiguous")
-        job = publishers[0] if publishers else None
-        job_state = state(job) if job is not None else None
+        publisher_job = publishers[0] if publishers else None
+        job_state = state(publisher_job) if publisher_job is not None else None
         # A later allowed poll may discover an operator-created attempt. Within
         # this observation the run and its jobs must still bind the same attempt.
         current = api.json(f'/repos/{GHCR_REPOSITORY}/actions/runs/{run["id"]}')
@@ -4472,7 +4472,7 @@ def require_publication_predecessor(api: GitHubRead, head: str) -> dict[str, Any
             "publication_predecessor_run_job_contradiction",
         )
         if run_state == job_state == ("completed", "success"):
-            eligible.append({"run": current, "job": job})
+            eligible.append({"run": current, "job": publisher_job})
         observed.append((current, run_state, job_state))
     if eligible:
         return max(eligible, key=lambda value: value["run"]["id"])

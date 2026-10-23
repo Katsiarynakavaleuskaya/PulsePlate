@@ -409,7 +409,7 @@
   <!-- pragma: allowlist nextline secret - public trusted control commit -->
   sparse fixed control checkout at `a0bc88e42fb12e521b18db25a172b84e8d631539`, with
   <!-- pragma: allowlist nextline secret - public trusted control digest -->
-  helper SHA-256 `6a73c0f822c74fd8e6cd0a3691a05e8d49915766142bd8ce8d511f71a52c9ef0`,
+  helper SHA-256 `2b6edfa63f55b17cafdff100151b4b7cebef93a757fc3ab04b00eea77ca0ac6a`,
   before credential-free canonical four-blob classification. Native regular Git
   blobs supply B/H helper, build workflow, recipe and manifest bytes; the canonical
   helper alone selects manifest-change, historical-helper-change or published use.

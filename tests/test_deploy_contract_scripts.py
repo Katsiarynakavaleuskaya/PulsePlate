@@ -4023,10 +4023,10 @@ def test_prometheus_cd_uses_authenticated_finite_consumer_and_retains_strict_sca
         names.index(name) for name in ordered_names
     )
     for program in (classifier["run"], consumer["run"]):
-        assert "338496" in program
+        assert "338536" in program
         assert (
             # pragma: allowlist nextline secret - public trusted control blob
-            "198e851eff021b879a2f844ff2d6d56a2efc286c"
+            "175520fe70b30c885448b95718b25b27985d3f8c"
             in program
         )
         assert "Prometheus_control_interface_HOLD" in program
@@ -4164,12 +4164,12 @@ def _synthetic_fixed_prometheus_control(
         )
         .replace(
             # pragma: allowlist nextline secret - public trusted control blob
-            "198e851eff021b879a2f844ff2d6d56a2efc286c",
+            "175520fe70b30c885448b95718b25b27985d3f8c",
             blob,
         )
-        .replace("338496", str(len(raw)))
+        .replace("338536", str(len(raw)))
         .replace(
-            "6a73c0f822c74fd8e6cd0a3691a05e8d49915766142bd8ce8d511f71a52c9ef0",  # pragma: allowlist secret - public protected helper digest
+            "2b6edfa63f55b17cafdff100151b4b7cebef93a757fc3ab04b00eea77ca0ac6a",  # pragma: allowlist secret - public protected helper digest
             hashlib.sha256(raw).hexdigest(),
         )
         for program in programs
