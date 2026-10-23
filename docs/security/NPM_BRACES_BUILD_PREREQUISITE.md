@@ -690,3 +690,57 @@ stay independent. Later material/closeout decisions retain the actual Runner
 attribution and canonical current-material linkage, without rewriting earlier
 commits or replaying successful acquire/A/B or paid validation merely for
 this documentation record.
+
+## Bounded Docker source review deadline extension — 2026-10-23
+
+The human owner directly requested a temporary Docker manifest deadline extension
+so this substantive PR can finish. The coordinator selected **2026-10-30
+inclusive**, seven calendar days after that request. This is a bounded deferral
+of the existing source-review checkpoint, not a newly completed upstream review.
+The earlier October 21 deadline and its stale failures remain historical evidence.
+
+Only `scripts/ci/docker_source_artifacts.json:4` changes from October 21 to
+October 30. Its October 4 `generated_at`, reason and all **17** artifact records
+remain byte-identical: names, versions/commit identities, filenames, official URLs
+and SHA3/SHA-256 parts are unchanged. The existing default selector still owns
+15 inputs; the separate Alertmanager selector owns two. No source bytes, dependency,
+fetcher, scanner, suppression, redirect, TLS, checksum or policy rule changes.
+`tests/test_docker_workflow_build_path_contract.py:913` updates the existing date
+expectation and inclusive-boundary test only; the loader still rejects a deadline
+strictly before its current calendar date at
+`scripts/ci/fetch_docker_source_artifacts.py:334`. October 30 is accepted;
+October 31 is rejected. Historical October 5/6 controls remain intact.
+
+Owner: dependency/security triage + frontend coordinator. Target: this bounded
+prerequisite in [PR #2495](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2495).
+Review by October 30; no automatic renewal. End the deferral earlier when the
+owning source review is completed and its proper deadline is adopted, or when
+changed upstream evidence, artifact/integrity failure or a required gate failure
+invalidates the retained-input decision. At the deadline, complete that review or
+stop; the unchanged loader rejects the next day. Rollback is a normal revert of
+this manifest/test pairing and this dated record, restoring the stale rejection.
+No expiry, suppression or advisory deadline elsewhere is extended.
+
+Read-only overlap inspection found [PR #2494 at
+5e290ec5](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2494/files)
+open with the identical October 21 manifest and unchanged versions of these two
+deadline tests; its other fetcher/test work remains separately owned. This change
+neither edits that PR nor supplies its publication or security proof. The existing
+ledger's #2120/#2133 history records the same two-file manifest/test freshness
+pairing (`docs/roadmap/BACKLOG_LEDGER.md:1648`). Current admitted scope becomes
+**17 substantive paths**, including the prior 15 plus manifest and existing test;
+a later canonical mapping would be path 18. CAB remains 20.
+
+No archives were reacquired and no current upstream-advisory or source-safety
+claim follows from this date change. Existing canonical fetch/checksum/native and
+current-head CI requirements remain required for their selected callers. The
+separate base publisher prerequisite is still failed: [run39267765759,
+job118113412991](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/39267765759/job/118113412991)
+ended at 2026-10-19T14:25:14Z with
+`Prometheus qualification failed: QualificationError:package_pagination_distinct`
+and exit 1. CD39899190340 still lacks that positive base48 publication. This is
+a separately owned shared publisher prerequisite; this date extension alone
+cannot make CI/CD green. The unchanged strict **37-finding Python audit remains
+FAIL**; its input, prior publication-use records and October 23 review/remove-by
+limits are independent and unchanged. All original native, review, criteria and
+merge requirements remain open until their own observed evidence exists.

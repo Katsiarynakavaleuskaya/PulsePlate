@@ -35,8 +35,10 @@
   `VITE_API_BASE=/api/v1 VITE_HPP_LIVE_WS_URL=''`; for example,
   `VITE_API_BASE=/api/v1 VITE_HPP_LIVE_WS_URL='' npm run build` and
   `VITE_API_BASE=/api/v1 VITE_HPP_LIVE_WS_URL='' npm run test:e2e`.
-  Production evidence also requires an owned preview of that fresh, bound dist;
-  the default dev server alone does not establish production compatibility.
+  The canonical `npm run test:e2e` server builds the current frontend, then owns
+  its strict-port production preview with these synthetic producer variables.
+  It refuses an existing server on port 4173; stop only your own prior server
+  before running it. Dev/HMR qualification remains a separate owned check.
 - Build: `npm run build`
 - Preview: `npm run preview`
 - Test: `npm run test`, `npm run test:ci`, `npm run test:precommit`, `npm run test:coverage`

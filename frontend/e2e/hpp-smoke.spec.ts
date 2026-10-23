@@ -874,7 +874,18 @@ test('FitChef preview stays usable at 320px, text spacing, and effective 200% zo
 });
 
 // The specimens render the current source components, not copied utility lists.
-async function renderCompatibilitySpecimens(): Promise<string> {
+// Each worker uses frozen source; every page still receives fresh DOM and styles.
+let compatibilitySpecimens: Promise<string> | undefined;
+
+function renderCompatibilitySpecimens(): Promise<string> {
+  compatibilitySpecimens ??= renderCompatibilitySpecimensUncached().catch((error) => {
+    compatibilitySpecimens = undefined;
+    throw error;
+  });
+  return compatibilitySpecimens;
+}
+
+async function renderCompatibilitySpecimensUncached(): Promise<string> {
   // Playwright's TSX transform produces transport descriptors, not React nodes.
   // Compile the actual source components through the existing Vite React pipeline.
   const { createServer } = await import('vite');
@@ -883,6 +894,7 @@ async function renderCompatibilitySpecimens(): Promise<string> {
     configFile: resolve('vite.config.ts'),
     envFile: false,
     appType: 'custom',
+    optimizeDeps: { noDiscovery: true },
     server: { middlewareMode: true, ws: false, hmr: false, watch: null },
   });
   try {
@@ -1091,10 +1103,16 @@ for (const width of [320, 1440] as const) {
     await expect(page.locator('[data-compat-section]')).toHaveCount(specimenIds.length);
     expect(await page.locator('[data-compat-section]').evaluateAll((nodes) =>
       nodes.map((node) => node.getAttribute('data-compat-section')))).toEqual(specimenIds);
-    for (const id of specimenIds) defaults[id] = await readCompatibilityStyle(target(id));
-    defaults['card-content'] = await readCompatibilityStyle(target('card-content'));
-    defaults['card-skeleton-shadow'] = await readCompatibilityStyle(target('card-skeleton').locator(':scope > div'));
-    defaults['chart-rounded-override'] = await readCompatibilityStyle(target('chart-skeleton').locator('.rounded-lg'));
+    const defaultTargets: [string, Locator][] = [
+      ...specimenIds.map((id): [string, Locator] => [id, target(id)]),
+      ['card-content', target('card-content')],
+      ['card-skeleton-shadow', target('card-skeleton').locator(':scope > div')],
+      ['chart-rounded-override', target('chart-skeleton').locator('.rounded-lg')],
+    ];
+    // Complete all independent default observations before any interaction.
+    const observations = await Promise.all(defaultTargets.map(async ([id, node]) =>
+      [id, await readCompatibilityStyle(node)] as const));
+    for (const [id, observation] of observations) defaults[id] = observation;
     await attachCompatibility(testInfo, 'primitive-defaults', { viewport: page.viewportSize(), browserName, version: browser.version(),
       markupSha256: createHash('sha256').update(html).digest('hex'), specimenIds, defaults });
     expect(Object.keys(defaults)).toHaveLength(19);
@@ -1211,17 +1229,20 @@ for (const forcedColors of ['none', 'active'] as const) {
     await page.emulateMedia({ forcedColors });
     const observedActive = await page.evaluate(() => matchMedia('(forced-colors: active)').matches);
     for (const key of ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown']) {
-      await today.click();
-      await attachCompatibility(testInfo, `radio-start-${key}-${forcedColors}`, await readCompatibilityStyle(today));
-      await expect(today).toBeFocused();
-      await expect(today).toBeChecked();
+      const backwards = key === 'ArrowLeft' || key === 'ArrowUp';
+      const start = backwards ? week : today;
+      const destination = backwards ? today : week;
+      await start.click();
+      await attachCompatibility(testInfo, `radio-start-${key}-${forcedColors}`, await readCompatibilityStyle(start));
+      await expect(start).toBeFocused();
+      await expect(start).toBeChecked();
       await page.keyboard.press(key);
-      await expect(week).toBeFocused();
-      await expect(week).toBeChecked();
-      await expect(today).not.toBeChecked();
+      await expect(destination).toBeFocused();
+      await expect(destination).toBeChecked();
+      await expect(start).not.toBeChecked();
       await expect(group).toHaveAttribute('data-keyboard-navigation', 'true');
-      const input = await readCompatibilityStyle(week);
-      const label = await readCompatibilityStyle(week.locator('..'));
+      const input = await readCompatibilityStyle(destination);
+      const label = await readCompatibilityStyle(destination.locator('..'));
       await attachCompatibility(testInfo, `radio-${key}-${forcedColors}`, { observedActive, input, label });
       expect([input, label].some((node) => hasVisibleCompatibilityOutline(node,
         observedActive ? [node.expectedFocus.highlight, node.expectedFocus.canvasText]

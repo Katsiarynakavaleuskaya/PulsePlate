@@ -7,6 +7,9 @@
    Inline values prevent the existing --shadow-* tokens from changing these
    utility meanings in dark mode. Token authoring and generated mirrors stay put. */
 @theme inline {
+  /* Existing small filter consumers retain the v3 scale. */
+  --drop-shadow-sm: 0 1px 1px rgb(0 0 0 / 0.05);
+  --blur-sm: 4px;
   --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
   --shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
   --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
@@ -55,6 +58,8 @@
 }
 
 @layer utilities {
+  /* The existing MobileMenu black overlay uses this finite legacy pair. */
+  .bg-black.bg-opacity-25 { background-color: rgb(0 0 0 / 0.25); }
   .bg-pp-primary { background: var(--pp-primary); }
   .text-white { color: var(--color-surface); }
   .sr-only {
