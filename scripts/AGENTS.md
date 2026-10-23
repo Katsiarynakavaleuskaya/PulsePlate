@@ -391,6 +391,36 @@ or claim that passing this probe validates the application on Python 3.14.
   a seed/lock or rotate a baseline. Record actual hook creation/seed/config bytes
   separately from version P and final gate success. Command procedure and the
   finite recorded transition live in `docs/DEPENDENCY_MANAGEMENT.md`.
+- Before freezing an affected lock tuple, enumerate the existing installer's
+  installation compositions. Propagate changed shared constraints through every
+  dependent lock, including locks without the original security identities.
+  Preserve exact-pin conflict rejection; individual lock audits do not establish
+  that composed profiles are installable.
+
+## FastEmbed compatibility wheel
+
+- `build_fastembed_compat_wheel.py` is an offline transformer of the single
+  hash-pinned wheel in its adjacent recipe. Supply `--source-wheel` and an
+  existing owned `--output-dir`; acquisition, installation and publication are
+  separate operations. Keep the original wheel and failed outputs intact.
+- Preserve every payload byte and mode except the recipe's distribution-version
+  and Pillow-upper-bound metadata edits, matching dist-info coordinates and
+  regenerated complete RECORD. Do not execute wheel code or widen the recipe
+  into a generic patcher. Two identical builds establish reproducibility only.
+- Native RAG/Pillow compatibility and matching private-index wheel readback are
+  required before lock adoption. Keep the same BGE model/tokenizer and persisted
+  BGE comparison; matching dimensions do not establish historical MPNet parity.
+- `ci_pip_audit.sh` retains the scanner subprocess and six-profile selection.
+  Its `audit_fastembed_compat.py` prepare/validate adapter admits only the exact
+  private FastEmbed coordinate as an explicit upstream advisory comparand after
+  checking both current private-index wheel bytes with the canonical builder.
+  Preserve all other actual pins, strict collection, raw JSON/stderr, complete
+  report inventory and nonzero exits. Rebind original/comparand/provenance bytes
+  after the scanner; intermediate files and final sidecars grant no authority.
+  Require fresh output paths and retain failed raw reports before a new attempt.
+  Another private identity, unsupported carrier or executable patch requires
+  rescope. PyPI does not directly audit the private version; the separate final
+  ten-lock audit and runtime/profile compatibility evidence remain required.
 
 ## Governed Experimentation Runner
 
