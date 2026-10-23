@@ -1033,7 +1033,84 @@ jobs:
       - {uses: ./.github/actions/npm-ci-with-retry, with: {working-directory: frontend}}
       - name: Pre-commit (lint/format/security quick checks)
         timeout-minutes: ${{ fromJSON(vars.CI_LINT_CHECKS_TIMEOUT_MINUTES || '40') }}
-        run: pre-commit run --all-files --show-diff-on-failure
+        run: |
+          set -euo pipefail
+          : "${RUNNER_TEMP:?RUNNER_TEMP is required for the owned pip seed.}"
+          pip_seed_root="$(mktemp -d "$RUNNER_TEMP/pulseplate-hook-seed.XXXXXXXX")"
+          trap 'rm -rf -- "$pip_seed_root"' EXIT
+          env -u PULSEPLATE_PSYCOPG_C_SDK python - "$pip_seed_root" <<'PY'
+          import json
+          from pathlib import Path
+          import sys
+          from scripts.ci.install_locked_python_requirements import (
+              acquire_locked_wheelhouse,
+              _validate_exact_wheelhouse,
+              resolve_private_proxy_settings,
+          )
+
+          root = Path(sys.argv[1])
+          requirement = root / "pip-seed.txt"
+          requirement.write_text("pip==26.2.2\n", encoding="utf-8")
+          index, trusted_host = resolve_private_proxy_settings(index_url=None, trusted_host=None)
+          acquire_locked_wheelhouse(
+              python_executable=sys.executable, requirement_files=[requirement],
+              constraints_file=None, wheelhouse=root / "wheels",
+              index_url=index, trusted_host=trusted_host, sdk=None,
+          )
+          artifacts = _validate_exact_wheelhouse(
+              wheelhouse=root / "wheels", expected=frozenset({("pip", "26.2.2")}),
+          )
+          seed = artifacts[0]
+          if (seed.path.name != "pip-26.2.2-py3-none-any.whl"
+              or seed.snapshot.size != 1819850
+              or seed.snapshot.digest != "fd7f4dfa8190e014013b9f08f3e973f4e4c26ffd179a204895533a7254813a70"):
+              raise SystemExit("Missing or incorrect reviewed pip seed")
+          print(json.dumps({"pip_seed": seed.path.name, "bytes": seed.snapshot.size,
+                            "sha256": seed.snapshot.digest}))
+          PY
+          export VIRTUALENV_PIP=26.2.2
+          export VIRTUALENV_EXTRA_SEARCH_DIR="$pip_seed_root/wheels"
+          export VIRTUALENV_NO_PERIODIC_UPDATE=true
+          export VIRTUALENV_DOWNLOAD=false
+          export VIRTUALENV_APP_DATA="$pip_seed_root/app-data"
+          export PRE_COMMIT_HOME="$pip_seed_root/pre-commit"
+          mkdir -m 700 "$PRE_COMMIT_HOME"
+          pip_observation='import hashlib, importlib.metadata, json, sys
+          from pathlib import Path
+          import pip._vendor.certifi as certifi
+          version = importlib.metadata.version("pip")
+          trust = hashlib.sha256(Path(certifi.where()).read_bytes()).hexdigest()
+          print(json.dumps({"python": sys.executable, "prefix": sys.prefix,
+                            "base_prefix": sys.base_prefix, "pip": version,
+                            "embedded_trust_store_sha256": trust}))
+          assert sys.prefix != sys.base_prefix
+          assert version == "26.2.2"
+          assert trust == "50f79f98dac192b20dbf73f35c56f0b0c557ab267ff5199d1117cc1180b70785"
+          '
+          python -m virtualenv --no-download --no-periodic-update \
+            --app-data "$VIRTUALENV_APP_DATA" "$pip_seed_root/probe"
+          "$pip_seed_root/probe/bin/python" -I -c "$pip_observation"
+          if pre-commit run --all-files --show-diff-on-failure; then
+            pre_commit_status=0
+          else
+            pre_commit_status=$?
+          fi
+          shopt -s nullglob
+          hook_pythons=("$PRE_COMMIT_HOME"/repo*/py_env-*/bin/python)
+          observation_status=0
+          if [[ "${#hook_pythons[@]}" -eq 0 ]]; then
+            echo "::error::No fresh Python hook interpreter was observed."
+            observation_status=1
+          fi
+          for hook_python in "${hook_pythons[@]}"; do
+            if ! "$hook_python" -I -c "$pip_observation"; then
+              observation_status=1
+            fi
+          done
+          if [[ "$pre_commit_status" -ne 0 ]]; then
+            exit "$pre_commit_status"
+          fi
+          exit "$observation_status"
         env:
           SKIP: no-commit-to-branch
 

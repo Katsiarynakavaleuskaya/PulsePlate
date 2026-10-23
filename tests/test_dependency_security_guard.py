@@ -124,7 +124,7 @@ CRYPTOGRAPHY_F_CUTOFF = {
 CURRENT_ENFORCED_RUNTIME_FLOORS = {
     "click": "8.3.3",
     "cryptography": "50.0.2",
-    "pillow": "12.3.0",
+    "pillow": "13.0.0",
     "python-multipart": "0.0.31",
     "setuptools": "83.0.0",
     "starlette": "1.3.1",
@@ -132,10 +132,14 @@ CURRENT_ENFORCED_RUNTIME_FLOORS = {
 
 REMEDIATION_FIXED_FLOORS = {
     "anyio": Version("4.14.2"),
+    "black": Version("26.10.1"),
+    "certifi": Version("2026.10.19"),
     "httpcore2": Version("2.12.0"),
     "httpx2": Version("2.12.0"),
+    "opentelemetry-api": Version("1.45.1"),
+    "pillow": Version("13.0.0"),
     "urllib3": Version("2.8.0"),
-    "virtualenv": Version("21.14.4"),
+    "virtualenv": Version("21.14.9"),
 }
 
 VIRTUALENV_F_CUTOFF = {
@@ -146,10 +150,58 @@ VIRTUALENV_F_CUTOFF = {
     "GHSA-94p9-xgh2-xp45": "<=21.7.11",
     "GHSA-9h9j-4vrj-gf7g": "<=21.7.10",
     "GHSA-c947-3pg5-gm8q": "<=21.14.1",
+    "GHSA-c978-59m8-c77v": "<21.14.9",
     "GHSA-p58f-9548-mpm2": "<=21.7.12",
     "GHSA-rqc4-2hc7-8c8v": "<20.26.6",
+    "GHSA-vxj4-q4g9-crj7": "<=21.14.6",
     "GHSA-x78j-v8h9-3j2q": "<=21.7.11",
 }
+
+# Reconciled primary ranges at the October 23 cutoff; no historical lock/delta binding.
+PYTHON_STABILIZATION_F_CUTOFF = {
+    "black": {"GHSA-cg8m-r9f2-5wm2": "<26.10.1"},
+    "certifi": {"GHSA-6q48-6c7w-9gw2": ">=2019.03.09,<2026.10.19"},
+    "opentelemetry-api": {"GHSA-xcq7-p3pf-p88h": "<=1.45.0"},
+    "pillow": {
+        "GHSA-22hg-r758-rrw9": ">=7.2.0,<13.0.0",
+        "GHSA-24rc-8hj2-v98c": ">=9.1.0,<13.0.0",
+        "GHSA-254f-3936-288h": ">=5.1.0,<13.0.0",
+        "GHSA-27h8-gf7j-v5hc": "<=12.3.0",
+        "GHSA-332p-7hrc-92wf": ">=2.0.0,<13.0.0",
+        "GHSA-3j72-p6qg-6xp7": "<13.0.0",
+        "GHSA-462x-pgg6-55fp": ">=8.2.0,<13.0.0",
+        "GHSA-4rm8-3hmm-39fg": "<13.0.0",
+        "GHSA-4rr5-89j8-mwwm": ">=11.3.0,<13.0.0",
+        "GHSA-58r4-6rv3-gfh8": "<=12.3.0",
+        "GHSA-5xm2-6676-qcp9": ">=8.1.0,<13.0.0",
+        "GHSA-65qm-jvmh-6pqg": ">=9.2.0,<13.0.0",
+        "GHSA-74r2-7ff9-mjj2": ">=5.4.0,<13.0.0",
+        "GHSA-78g4-xqwv-q3g8": ">=11.1.0,<13.0.0",
+        "GHSA-7mwm-ghpf-9vrm": "<=12.3.0",
+        "GHSA-9v9v-9qvf-h2hj": "<13.0.0",
+        "GHSA-c6hw-5grf-ff96": ">=8.1.0,<13.0.0",
+        "GHSA-cp9v-662q-vvx9": ">=12.0.0,<13.0.0",
+        "GHSA-f2g6-542v-9j58": ">=5.1.0,<13.0.0",
+        "GHSA-fc9g-5qg7-mf45": ">=9.2.0,<13.0.0",
+        "GHSA-g4qv-2jxx-769h": ">=11.0.0,<13.0.0",
+        "GHSA-g7cr-3p24-7wf7": ">=9.4.0,<13.0.0",
+        "GHSA-g842-9rc4-69pw": "<13.0.0",
+        "GHSA-gg2r-wvfm-q9rx": ">=4.1.0,<13.0.0",
+        "GHSA-j4m9-6w36-pw47": ">=10.0.0,<13.0.0",
+        "GHSA-jg86-v3jv-hrpm": ">=5.1.0,<13.0.0",
+        "GHSA-mrfp-p49p-3hf2": ">=5.1.0,<13.0.0",
+        "GHSA-p4wg-p73j-c528": ">=5.1.0,<13.0.0",
+        "GHSA-p8hx-v2p6-rp84": "<13.0.0",
+        "GHSA-pchr-8j38-3x4p": "<=12.3.0",
+        "GHSA-q45j-58j2-45rg": ">=5.3.0,<13.0.0",
+        "GHSA-v9pv-5gc8-w2m6": ">=11.0.0,<13.0.0",
+        "GHSA-vx6w-vv9f-6gvg": ">=2.3.0,<=12.3.0",
+        "GHSA-w889-685w-c8fh": ">=2.6.0,<13.0.0",
+        "GHSA-xgh8-jp6q-p5x8": "<=12.3.0",
+    },
+    "virtualenv": {"GHSA-c978-59m8-c77v": "<21.14.9", "GHSA-vxj4-q4g9-crj7": "<=21.14.6"},
+}
+
 
 CURRENT_BLOCKED_VERSION_SPECIFIERS = {
     "anyio": f"<{REMEDIATION_FIXED_FLOORS['anyio']}",
@@ -661,7 +713,7 @@ def _min_version_for_pkg(req: Requirement, pkg: str, *, pinned: bool) -> Optiona
     if pinned:
         equals = [sp.version for sp in req.specifier if sp.operator == "=="]
         return min(equals, key=lambda v: Version(v)) if equals else None
-    floors = [sp.version for sp in req.specifier if sp.operator in (">=", "==")]
+    floors = [sp.version for sp in req.specifier if sp.operator in (">=", "==", "~=")]
     if not floors:
         return None
     return min(floors, key=lambda v: Version(v))
@@ -2942,6 +2994,10 @@ def _assert_remediated_dependency_surface(
     """Enforce finite admitted package floors using the existing parser."""
     floor = REMEDIATION_FIXED_FLOORS[package]
     label = "AnyIO" if package == "anyio" else package
+    if package in PYTHON_STABILIZATION_F_CUTOFF and (path.exists() or path.is_symlink()):
+        assert (
+            not path.is_symlink() and path.is_file()
+        ), f"{path.name}: {label} carrier must be a regular non-symlink file"
     _minima, carriers = _requirement_evidence_per_package(path)
     occurrences = carriers.get(package, ())
     if package == "virtualenv":
@@ -2960,10 +3016,10 @@ def _assert_remediated_dependency_surface(
         assert (
             len(specifiers) == 1 and specifiers[0].operator == "=="
         ), f"{path.name}: {label} lock requires exactly one == pin"
-    if package == "virtualenv":
+    if package in PYTHON_STABILIZATION_F_CUTOFF:
         assert all(
             spec.operator != "===" for spec in specifiers
-        ), f"{path.name}: arbitrary equality cannot establish virtualenv range evidence"
+        ), f"{path.name}: arbitrary equality cannot establish {package} range evidence"
     candidate = _min_version_for_pkg(requirement, package, pinned=pinned)
     assert candidate is not None, f"{path.name}: {label} requires a comparable floor or pin"
     version = Version(candidate)
@@ -3613,7 +3669,7 @@ def test_virtualenv_current_governed_surfaces_are_safe() -> None:
     assert "virtualenv" not in schema["min_versions"], "virtualenv must not force runtime presence"
     assert schema["blocked_versions"]["virtualenv"] == sorted(
         VIRTUALENV_F_CUTOFF.values()
-    ), "virtualenv schema must retain all ten advisory range members"
+    ), "virtualenv schema must retain every advisory range member"
     locks = {surface.lockfile for surface in compiled}
     for name in sorted(discovered):
         _assert_remediated_dependency_surface(
@@ -3639,7 +3695,7 @@ def test_virtualenv_current_governed_surfaces_are_safe() -> None:
 def test_virtualenv_each_cutoff_advisory_rejects_affected_occurrence(
     tmp_path: Path, advisory: str, affected: str
 ) -> None:
-    """All F10 members matter, including the three base-inapplicable candidates."""
+    """Historical cutoff members remain enforced after the October floor rotation."""
     assert SpecifierSet(VIRTUALENV_F_CUTOFF[advisory]).contains(affected, prereleases=True)
     path = tmp_path / "requirements.txt"
     path.write_text(f"virtualenv=={affected}\n", encoding="utf-8")
@@ -3708,10 +3764,10 @@ def test_virtualenv_surface_rejects_malformed_url_or_editable_carriers(
 @pytest.mark.parametrize(
     "name,text,required,pinned",
     (
-        ("requirements.txt", "virtualenv==21.14.4\n", True, True),
-        ("requirements.txt", "virtualenv==21.14.5\n", True, True),
+        ("requirements.txt", "virtualenv==21.14.9\n", True, True),
+        ("requirements.txt", "virtualenv==21.14.10\n", True, True),
         ("requirements.txt", "virtualenv==22.0.0\n", True, True),
-        ("requirements.in", "virtualenv>=21.14.4,<23\n", True, False),
+        ("requirements.in", "virtualenv>=21.14.9,<23\n", True, False),
         ("requirements-evals.txt", "# optional absence\n", False, True),
         ("requirements-all.txt", "virtualenv>=22.0.0\n", False, False),
     ),
@@ -3817,5 +3873,207 @@ def test_virtualenv_consumer_rejects_omitted_advisory_member(
     schema = deepcopy(_load_schema(SCHEMA_PATH))
     schema["blocked_versions"]["virtualenv"].pop()
     monkeypatch.setattr(f"{__name__}._load_schema", lambda _path: schema)
-    with pytest.raises(AssertionError, match="retain all ten advisory range members"):
+    with pytest.raises(AssertionError, match="retain every advisory range member"):
         test_virtualenv_current_governed_surfaces_are_safe()
+
+
+def test_python_stabilization_current_governed_surfaces_are_safe() -> None:
+    """Check every present occurrence against the complete finite advisory inventory."""
+    registered = registered_dependabot_requirement_carriers()
+    discovered = discover_dependabot_requirement_carriers(REPO_ROOT)
+    assert discovered, "Python stabilization carrier inventory must not be empty"
+    assert discovered == registered, "Python stabilization carrier inventory differs from registry"
+    locks = {surface.lockfile for surface in compiled_dependency_surfaces()}
+    schema = _load_schema(SCHEMA_PATH)
+    for package, advisories in PYTHON_STABILIZATION_F_CUTOFF.items():
+        assert set(advisories.values()) <= set(
+            schema["blocked_versions"].get(package, ())
+        ), f"{package}: schema must retain every October advisory range"
+        for name in sorted(discovered):
+            _assert_remediated_dependency_surface(
+                REPO_ROOT / name, package=package, required=False, pinned=name in locks
+            )
+
+
+@pytest.fixture
+def python_stabilization_repo(idna_consumer_repo: Path) -> Path:
+    """Reuse the real indexed carrier fixture with explicitly safe synthetic requirements."""
+    locks = {surface.lockfile for surface in compiled_dependency_surfaces()}
+    for name in registered_dependabot_requirement_carriers():
+        path = idna_consumer_repo / name
+        lines = []
+        for line in path.read_text(encoding="utf-8").splitlines():
+            requirement = _parse_requirement(line.split("#", 1)[0].strip(), path)
+            package = canonicalize_name(requirement.name) if requirement is not None else None
+            if package in PYTHON_STABILIZATION_F_CUTOFF:
+                operator = "==" if name in locks else ">="
+                line = f"{package}{operator}{REMEDIATION_FIXED_FLOORS[package]}"
+            lines.append(line)
+        path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    test_python_stabilization_current_governed_surfaces_are_safe()
+    return idna_consumer_repo
+
+
+@pytest.mark.parametrize(
+    ("package", "advisory", "affected_range"),
+    [
+        (package, advisory, affected_range)
+        for package, advisories in PYTHON_STABILIZATION_F_CUTOFF.items()
+        for advisory, affected_range in advisories.items()
+    ],
+)
+def test_python_stabilization_enforces_each_primary_advisory_range(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    package: str,
+    advisory: str,
+    affected_range: str,
+) -> None:
+    """Each retained interval rejects its comparable regression witness on its own."""
+    affected = {
+        "black": "26.5.1",
+        "certifi": "2026.1.4",
+        "opentelemetry-api": "1.44.0",
+        "pillow": "12.3.0",
+        "virtualenv": "21.14.5",
+    }[package]
+    assert SpecifierSet(affected_range).contains(affected, prereleases=True), advisory
+    schema = deepcopy(_load_schema(SCHEMA_PATH))
+    schema["blocked_versions"][package] = [affected_range]
+    monkeypatch.setattr(f"{__name__}._load_schema", lambda _path: schema)
+    path = tmp_path / "requirements.txt"
+    path.write_text(f"{package}=={REMEDIATION_FIXED_FLOORS[package]}\n", encoding="utf-8")
+    _assert_remediated_dependency_surface(path, package=package, required=True, pinned=True)
+    path.write_text(f"{package}=={affected}\n", encoding="utf-8")
+    with pytest.raises(AssertionError, match="matches blocked range"):
+        _assert_remediated_dependency_surface(path, package=package, required=True, pinned=True)
+
+
+@pytest.mark.parametrize("package", tuple(PYTHON_STABILIZATION_F_CUTOFF))
+@pytest.mark.parametrize(
+    "malformation",
+    (
+        "affected-alias",
+        "duplicate-alias",
+        "unversioned",
+        "wildcard",
+        "range",
+        "arbitrary",
+        "marker",
+        "extras",
+        "malformed",
+        "url",
+    ),
+)
+def test_python_stabilization_rejects_unsafe_optional_carriers(
+    python_stabilization_repo: Path, package: str, malformation: str
+) -> None:
+    """Canonical name equivalence and invalid carriers cannot hide optional occurrences."""
+    version = str(REMEDIATION_FIXED_FLOORS[package])
+    alias = package.upper().replace("-", "_")
+    forms = {
+        "affected-alias": f"{alias}==1.0.0",
+        "duplicate-alias": f"{package}=={version}\n{alias}=={version}",
+        "unversioned": package,
+        "wildcard": f"{package}=={version}.*",
+        "range": f"{package}>={version}",
+        "arbitrary": f"{package}==={version}",
+        "marker": f'{package}=={version}; python_version < "0"',
+        "extras": f"{package}[extra]=={version}",
+        "malformed": f"{package}==1..0",
+        "url": f"{package} @ https://example.invalid/package.whl",
+    }
+    path = python_stabilization_repo / "requirements-evals.txt"
+    path.write_text(forms[malformation] + "\n", encoding="utf-8")
+    with pytest.raises((AssertionError, InvalidVersion, pytest.fail.Exception)):
+        test_python_stabilization_current_governed_surfaces_are_safe()
+
+
+@pytest.mark.parametrize("package", tuple(PYTHON_STABILIZATION_F_CUTOFF))
+@pytest.mark.parametrize(
+    "lockfile", tuple(surface.lockfile for surface in compiled_dependency_surfaces())
+)
+def test_python_stabilization_checks_every_registered_lock(
+    python_stabilization_repo: Path, package: str, lockfile: str
+) -> None:
+    """A safe inventory becomes invalid when any selected identity regresses in any lock."""
+    path = python_stabilization_repo / lockfile
+    path.write_text(f"{package}==1.0.0\n", encoding="utf-8")
+    with pytest.raises(AssertionError):
+        test_python_stabilization_current_governed_surfaces_are_safe()
+
+
+@pytest.mark.parametrize("package", tuple(PYTHON_STABILIZATION_F_CUTOFF))
+@pytest.mark.parametrize("kind", ("future-pin", "compatible-floor", "absence"))
+def test_python_stabilization_allows_safe_future_versions_or_absence(
+    python_stabilization_repo: Path, package: str, kind: str
+) -> None:
+    """Permanent postconditions do not freeze historical versions or dependency deltas."""
+    if kind == "absence":
+        for name in registered_dependabot_requirement_carriers():
+            path = python_stabilization_repo / name
+            path.write_text(
+                "\n".join(
+                    line
+                    for line in path.read_text(encoding="utf-8").splitlines()
+                    if not line.startswith(package)
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+    else:
+        name = "requirements-data.txt" if kind == "future-pin" else "requirements-all.txt"
+        operator = "==" if kind == "future-pin" else "~="
+        (python_stabilization_repo / name).write_text(
+            f"{package}{operator}9999.0.0\n", encoding="utf-8"
+        )
+    test_python_stabilization_current_governed_surfaces_are_safe()
+
+
+@pytest.mark.parametrize(
+    "mutation", ("omit-registered", "add-unregistered", "symlink", "directory")
+)
+def test_python_stabilization_rejects_incomplete_or_nonregular_inventory(
+    python_stabilization_repo: Path, mutation: str
+) -> None:
+    if mutation == "omit-registered":
+        _git_command(["rm", "--cached", "requirements-all.txt"])
+    elif mutation == "add-unregistered":
+        (python_stabilization_repo / "requirements-extra.txt").write_text(
+            "black==26.10.1\n", encoding="utf-8"
+        )
+        _git_command(["add", "requirements-extra.txt"])
+    else:
+        path = python_stabilization_repo / "requirements-data.txt"
+        path.unlink()
+        if mutation == "symlink":
+            path.symlink_to(python_stabilization_repo / "requirements.txt")
+        else:
+            path.mkdir()
+    with pytest.raises(AssertionError, match="inventory differs|regular non-symlink"):
+        test_python_stabilization_current_governed_surfaces_are_safe()
+
+
+@pytest.mark.parametrize("package", tuple(PYTHON_STABILIZATION_F_CUTOFF))
+def test_python_stabilization_rejects_omitted_advisory_range(
+    python_stabilization_repo: Path, monkeypatch: pytest.MonkeyPatch, package: str
+) -> None:
+    schema = deepcopy(_load_schema(SCHEMA_PATH))
+    omitted = next(iter(PYTHON_STABILIZATION_F_CUTOFF[package].values()))
+    schema["blocked_versions"][package] = [
+        value for value in schema["blocked_versions"][package] if value != omitted
+    ]
+    monkeypatch.setattr(f"{__name__}._load_schema", lambda _path: schema)
+    with pytest.raises(AssertionError, match="schema must retain every October advisory range"):
+        test_python_stabilization_current_governed_surfaces_are_safe()
+
+
+def test_python_stabilization_rejects_empty_carrier_inventory(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(f"{__name__}.registered_dependabot_requirement_carriers", frozenset)
+    monkeypatch.setattr(
+        f"{__name__}.discover_dependabot_requirement_carriers", lambda _root: frozenset()
+    )
+    with pytest.raises(AssertionError, match="carrier inventory must not be empty"):
+        test_python_stabilization_current_governed_surfaces_are_safe()

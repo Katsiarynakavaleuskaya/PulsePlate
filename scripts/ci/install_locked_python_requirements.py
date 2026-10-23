@@ -1288,7 +1288,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--upgrade-pip-spec",
-        default="pip",
+        default="pip>=26.2.2,<27.0",
         help=(
             "Simple numeric pip requirement spec (no extras/markers/wildcards), e.g. "
             "'pip', 'pip==24.0', or 'pip>=23,<24', used with --upgrade-pip or "

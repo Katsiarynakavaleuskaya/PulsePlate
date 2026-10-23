@@ -6502,7 +6502,85 @@ def _assert_ci_lint_node24_frontend_hook_dependency_contract(
     assert pre_commit_step == {
         "name": "Pre-commit (lint/format/security quick checks)",
         "timeout-minutes": "${{ fromJSON(vars.CI_LINT_CHECKS_TIMEOUT_MINUTES || '40') }}",
-        "run": "pre-commit run --all-files --show-diff-on-failure",
+        "run": (
+            "set -euo pipefail\n"
+            ': "${RUNNER_TEMP:?RUNNER_TEMP is required for the owned pip seed.}"\n'
+            'pip_seed_root="$(mktemp -d "$RUNNER_TEMP/pulseplate-hook-seed.XXXXXXXX")"\n'
+            "trap 'rm -rf -- \"$pip_seed_root\"' EXIT\n"
+            "env -u PULSEPLATE_PSYCOPG_C_SDK python - \"$pip_seed_root\" <<'PY'\n"
+            "import json\n"
+            "from pathlib import Path\n"
+            "import sys\n"
+            "from scripts.ci.install_locked_python_requirements import (\n"
+            "    acquire_locked_wheelhouse,\n"
+            "    _validate_exact_wheelhouse,\n"
+            "    resolve_private_proxy_settings,\n"
+            ")\n"
+            "\n"
+            "root = Path(sys.argv[1])\n"
+            'requirement = root / "pip-seed.txt"\n'
+            'requirement.write_text("pip==26.2.2\\n", encoding="utf-8")\n'
+            "index, trusted_host = resolve_private_proxy_settings(index_url=None, trusted_host=None)\n"
+            "acquire_locked_wheelhouse(\n"
+            "    python_executable=sys.executable, requirement_files=[requirement],\n"
+            '    constraints_file=None, wheelhouse=root / "wheels",\n'
+            "    index_url=index, trusted_host=trusted_host, sdk=None,\n"
+            ")\n"
+            "artifacts = _validate_exact_wheelhouse(\n"
+            '    wheelhouse=root / "wheels", expected=frozenset({("pip", "26.2.2")}),\n'
+            ")\n"
+            "seed = artifacts[0]\n"
+            'if (seed.path.name != "pip-26.2.2-py3-none-any.whl"\n'
+            "    or seed.snapshot.size != 1819850\n"
+            '    or seed.snapshot.digest != "fd7f4dfa8190e014013b9f08f3e973f4e4c26ffd179a204895533a7254813a70"):\n'
+            '    raise SystemExit("Missing or incorrect reviewed pip seed")\n'
+            'print(json.dumps({"pip_seed": seed.path.name, "bytes": seed.snapshot.size,\n'
+            '                  "sha256": seed.snapshot.digest}))\n'
+            "PY\n"
+            "export VIRTUALENV_PIP=26.2.2\n"
+            'export VIRTUALENV_EXTRA_SEARCH_DIR="$pip_seed_root/wheels"\n'
+            "export VIRTUALENV_NO_PERIODIC_UPDATE=true\n"
+            "export VIRTUALENV_DOWNLOAD=false\n"
+            'export VIRTUALENV_APP_DATA="$pip_seed_root/app-data"\n'
+            'export PRE_COMMIT_HOME="$pip_seed_root/pre-commit"\n'
+            'mkdir -m 700 "$PRE_COMMIT_HOME"\n'
+            "pip_observation='import hashlib, importlib.metadata, json, sys\n"
+            "from pathlib import Path\n"
+            "import pip._vendor.certifi as certifi\n"
+            'version = importlib.metadata.version("pip")\n'
+            "trust = hashlib.sha256(Path(certifi.where()).read_bytes()).hexdigest()\n"
+            'print(json.dumps({"python": sys.executable, "prefix": sys.prefix,\n'
+            '                  "base_prefix": sys.base_prefix, "pip": version,\n'
+            '                  "embedded_trust_store_sha256": trust}))\n'
+            "assert sys.prefix != sys.base_prefix\n"
+            'assert version == "26.2.2"\n'
+            'assert trust == "50f79f98dac192b20dbf73f35c56f0b0c557ab267ff5199d1117cc1180b70785"\n'
+            "'\n"
+            "python -m virtualenv --no-download --no-periodic-update \\\n"
+            '  --app-data "$VIRTUALENV_APP_DATA" "$pip_seed_root/probe"\n'
+            '"$pip_seed_root/probe/bin/python" -I -c "$pip_observation"\n'
+            "if pre-commit run --all-files --show-diff-on-failure; then\n"
+            "  pre_commit_status=0\n"
+            "else\n"
+            "  pre_commit_status=$?\n"
+            "fi\n"
+            "shopt -s nullglob\n"
+            'hook_pythons=("$PRE_COMMIT_HOME"/repo*/py_env-*/bin/python)\n'
+            "observation_status=0\n"
+            'if [[ "${#hook_pythons[@]}" -eq 0 ]]; then\n'
+            '  echo "::error::No fresh Python hook interpreter was observed."\n'
+            "  observation_status=1\n"
+            "fi\n"
+            'for hook_python in "${hook_pythons[@]}"; do\n'
+            '  if ! "$hook_python" -I -c "$pip_observation"; then\n'
+            "    observation_status=1\n"
+            "  fi\n"
+            "done\n"
+            'if [[ "$pre_commit_status" -ne 0 ]]; then\n'
+            '  exit "$pre_commit_status"\n'
+            "fi\n"
+            'exit "$observation_status"\n'
+        ),
         "env": {"SKIP": "no-commit-to-branch"},
     }
 

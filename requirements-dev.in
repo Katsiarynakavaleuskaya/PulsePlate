@@ -25,20 +25,20 @@ marshmallow>=4.1.2  # Explicit floor to keep CVE fix independent of transitive d
 cryptography>=50.0.2,<51.0.0  # Keep explicit dependency floor for dependency-security guard
 requests>=2.33.0  # Security floor for GHSA-gc5v-m9x4-r6x2 across dev tooling surfaces
 click>=8.3.3,<9.0.0  # Security floor for unsafe editor invocation across dev tooling surfaces
-pillow>=12.3.0,<13.0.0  # Security floor for the July 2026 Pillow advisory cluster
+pillow>=13.0.0,<14.0.0  # Security floor for the October 23 Pillow advisory cutoff
 python-multipart>=0.0.31,<1.0.0  # SFTY-20260615 multipart parser floor across dev tooling surfaces
 starlette>=1.3.1,<2.0.0  # SFTY-20260615 Starlette floor across dev tooling surfaces
 mako>=1.3.12,<2.0.0  # Security floor for GHSA-v92g-xgxw-vvmm / GHSA-2h4p-vjrc-8xpq across dev tooling surfaces
 msgpack>=1.2.1,<2.0.0  # Security floor for GHSA-6v7p-g79w-8964 via CacheControl/pip-audit
 setuptools>=83.0.0,<84.0.0  # Security floor for CVE-2026-59890 across dev tooling surfaces
 pre-commit~=4.6.1
-# virtualenv: security floor for the complete PR #2455 advisory cutoff.
-virtualenv>=21.14.5
-pip-tools~=7.6.0
+# virtualenv: security floor for the complete October 23 advisory cutoff.
+virtualenv>=21.14.9
+pip-tools~=7.6.1
 detect-secrets~=1.5.0
 mypy==2.3.1
 types-pyyaml~=6.0.12.20260815
 yamllint~=1.38.0
-black~=26.5.1
+black~=26.10.1
 ruff~=0.16.4
 nh3>=0.3.2  # HTML sanitization (required for data_sanitizer security tests)
