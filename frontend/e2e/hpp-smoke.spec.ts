@@ -1040,7 +1040,7 @@ async function attachCompatibility(testInfo: TestInfo, name: string, observation
   await testInfo.attach(name, { contentType: 'application/json', body: JSON.stringify(observation, null, 2) });
 }
 
-async function keyboardCompatibilityTarget(page: Page, targetId: string, testInfo: TestInfo): Promise<void> {
+async function keyboardCompatibilityTarget(page: Page, targetId: string, testInfo: TestInfo): Promise<Record<string, Awaited<ReturnType<typeof readCompatibilityStyle>>>> {
   const expected = ['button-primary-default', 'button-secondary-default', 'button-destructive-default', 'input-ordinary', 'input-invalid'];
   const controls = await page.locator('[data-compat-target]').evaluateAll((nodes) => nodes.filter((node) =>
     (node instanceof HTMLButtonElement || node instanceof HTMLInputElement) && !node.disabled &&
@@ -1056,12 +1056,16 @@ async function keyboardCompatibilityTarget(page: Page, targetId: string, testInf
     return document.elementFromPoint(rect.left + 1, rect.top + 1) === element;
   })).toBe(true);
   await anchor.click({ position: { x: 1, y: 1 } });
+  const observations: Record<string, Awaited<ReturnType<typeof readCompatibilityStyle>>> = {};
   for (let position = 0; position <= index; position += 1) {
     await page.keyboard.press('Tab');
     const intermediate = page.locator(`[data-compat-target="${expected[position]}"]`);
-    await attachCompatibility(testInfo, `keyboard-${targetId}-${position}`, await readCompatibilityStyle(intermediate));
+    const observation = await readCompatibilityStyle(intermediate);
+    observations[expected[position]] = observation;
+    await attachCompatibility(testInfo, `keyboard-${targetId}-${position}`, observation);
     await expect(intermediate).toBeFocused();
   }
+  return observations;
 }
 
 function hasVisibleCompatibilityOutline(
@@ -1131,6 +1135,10 @@ for (const width of [320, 1440] as const) {
     expect(defaults['card-content'].style['padding-bottom']).toBe('24px');
     await expect(target('input-invalid')).toHaveAttribute('aria-invalid', 'true');
     await expect(target('input-disabled')).toBeDisabled();
+    const buttonStates: Record<string, {
+      hover: Awaited<ReturnType<typeof readCompatibilityStyle>>;
+      active: Awaited<ReturnType<typeof readCompatibilityStyle>>;
+    }> = {};
     for (const variant of ['primary', 'secondary', 'destructive'] as const) {
       await expect(target(`button-${variant}-disabled`)).toBeDisabled();
       await expect(target(`button-${variant}-loading`)).toBeDisabled();
@@ -1142,14 +1150,18 @@ for (const width of [320, 1440] as const) {
       await page.mouse.down();
       let active;
       try { active = await readCompatibilityStyle(button); } finally { await page.mouse.up(); }
-      await keyboardCompatibilityTarget(page, id, testInfo);
-      const focus = await readCompatibilityStyle(button);
-      await attachCompatibility(testInfo, id, { hover, active, focus });
+      buttonStates[id] = { hover, active };
+    }
+    // Visit each enabled control once in native Tab order after pointer sampling.
+    const keyboard = await keyboardCompatibilityTarget(page, 'input-invalid', testInfo);
+    for (const variant of ['primary', 'secondary', 'destructive'] as const) {
+      const id = `button-${variant}-default`;
+      const focus = keyboard[id];
+      await attachCompatibility(testInfo, id, { ...buttonStates[id], focus });
       expectVisibleCompatibilityOutline(focus);
     }
     for (const state of ['ordinary', 'invalid'] as const) {
-      await keyboardCompatibilityTarget(page, `input-${state}`, testInfo);
-      const focused = await readCompatibilityStyle(target(`input-${state}`));
+      const focused = keyboard[`input-${state}`];
       await attachCompatibility(testInfo, `input-${state}-focus`, focused);
       expect(hasVisibleCompatibilityInputRing(focused)).toBe(true);
     }
@@ -1202,8 +1214,8 @@ test('forced-color input and button focus stays visible', async ({ page, baseURL
     await page.emulateMedia({ forcedColors });
     const observedActive = await page.evaluate(() => matchMedia('(forced-colors: active)').matches);
     for (const id of ['input-ordinary', 'input-invalid', 'button-primary-default', 'button-secondary-default']) {
-      await keyboardCompatibilityTarget(page, id, testInfo);
-      const observation = await readCompatibilityStyle(page.locator(`[data-compat-target="${id}"]`));
+      const keyboard = await keyboardCompatibilityTarget(page, id, testInfo);
+      const observation = keyboard[id];
       await attachCompatibility(testInfo, `${id}-${forcedColors}`, { emulated: forcedColors, observedActive,
         unsupportedUnknown: forcedColors === 'active' && !observedActive, observation });
       expect(observation.focus.active).toBe(true);
@@ -1265,10 +1277,10 @@ for (const forcedColors of ['none', 'active'] as const) {
 
 test('focus witnesses reject transparent colors and zero-geometry shadows', async ({ page, baseURL }, testInfo) => {
   await showCompatibilitySpecimens(page, new URL(baseURL ?? '').origin);
-  await keyboardCompatibilityTarget(page, 'button-primary-default', testInfo);
+  const buttonKeyboard = await keyboardCompatibilityTarget(page, 'button-primary-default', testInfo);
   const button = page.locator('[data-compat-target="button-primary-default"]');
   const originalButtonStyle = await button.getAttribute('style');
-  const buttonBefore = await readCompatibilityStyle(button);
+  const buttonBefore = buttonKeyboard['button-primary-default'];
   expectVisibleCompatibilityOutline(buttonBefore);
   const outlineNegatives = [];
   try {
@@ -1293,10 +1305,10 @@ test('focus witnesses reject transparent colors and zero-geometry shadows', asyn
     }, originalButtonStyle);
   }
   expectVisibleCompatibilityOutline(await readCompatibilityStyle(button));
-  await keyboardCompatibilityTarget(page, 'input-ordinary', testInfo);
+  const inputKeyboard = await keyboardCompatibilityTarget(page, 'input-ordinary', testInfo);
   const input = page.locator('[data-compat-target="input-ordinary"]');
   const originalInputStyle = await input.getAttribute('style');
-  const inputBefore = await readCompatibilityStyle(input);
+  const inputBefore = inputKeyboard['input-ordinary'];
   expect(hasVisibleCompatibilityInputRing(inputBefore)).toBe(true);
   const ringNegatives = [];
   try {
