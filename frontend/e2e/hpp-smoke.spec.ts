@@ -1346,8 +1346,48 @@ test('CSS smoke rejects an exact missing grid despite grid-cols neighbors', asyn
     scope: 'Parsed document entry membership only; no CSS fetch, cascade or visual claim',
   });
   await showCompatibilitySpecimens(page, new URL(baseURL ?? '').origin);
-  const css = await page.evaluate(() => Array.from(document.styleSheets).flatMap((sheet) =>
+  // The guard consumes generated CSS source, not browser CSSOM serialization.
+  const origin = new URL(baseURL ?? '').origin;
+  const productionCss = page.locator('head link[rel="stylesheet"][href^="/assets/index-"]');
+  let css: string;
+  let source: { kind: 'production' | 'dev'; location: string; sha256: string };
+  if (await productionCss.count() > 0) {
+    await expect(productionCss).toHaveCount(1);
+    const href = await productionCss.getAttribute('href');
+    if (href === null) throw new Error('Production stylesheet href is missing');
+    expect(href).toMatch(/^\/assets\/index-[A-Za-z0-9_-]+\.css$/);
+    const url = new URL(href, origin);
+    expect(url.origin).toBe(origin);
+    const response = await page.request.get(url.href, { maxRedirects: 0 });
+    try {
+      expect(response.status()).toBe(200);
+      expect(response.url()).toBe(url.href);
+      expect(response.headers()['content-type']).toMatch(/^text\/css(?:;|$)/);
+      const bytes = await response.body();
+      const file = resolve('dist', url.pathname.slice(1));
+      const stat = lstatSync(file);
+      expect(stat.isFile() && !stat.isSymbolicLink()).toBe(true);
+      const digest = createHash('sha256').update(bytes).digest('hex');
+      expect(digest).toBe(createHash('sha256').update(readFileSync(file)).digest('hex'));
+      css = bytes.toString('utf8');
+      source = { kind: 'production', location: url.href, sha256: digest };
+    } finally {
+      await response.dispose();
+    }
+  } else {
+    const devCss = page.locator('head style[data-vite-dev-id$="/src/index.css"]');
+    await expect(devCss).toHaveCount(1);
+    const id = await devCss.getAttribute('data-vite-dev-id');
+    expect(id).toBe(resolve('src/index.css').replaceAll('\\', '/'));
+    const text = await devCss.textContent();
+    if (text === null || id === null) throw new Error('Current Vite source stylesheet is missing');
+    css = text;
+    source = { kind: 'dev', location: id, sha256: createHash('sha256').update(css).digest('hex') };
+  }
+  const cssom = await page.evaluate(() => Array.from(document.styleSheets).flatMap((sheet) =>
     Array.from(sheet.cssRules).map((rule) => rule.cssText)).join('\n'));
+  await attachCompatibility(testInfo, 'css-raw-source', { source, css, cssom,
+    cssomSha256: createHash('sha256').update(cssom).digest('hex') });
   assertTailwindUtilities(css);
   const negative = postcss.parse(css);
   let removed = 0;
