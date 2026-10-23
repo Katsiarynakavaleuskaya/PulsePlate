@@ -27,6 +27,7 @@ const requiredUtilityWitnesses = [
     ".space-y-4",
     ".space-y-4>:not([hidden])~:not([hidden])",
     ":where(.space-y-4>:not(:last-child))",
+    ":where(.space-y-4 > :not(:last-child))",
   ],
   [".md\\:grid-cols-2"],
   [".bg-\\[var\\(--color-primary\\)\\]"],

@@ -1435,6 +1435,18 @@ test('CSS smoke rejects an exact missing grid despite grid-cols neighbors', asyn
     negativeSha256: createHash('sha256').update(negative.toString()).digest('hex') });
   expect(() => assertTailwindUtilities(negative.toString()))
     .toThrow('Built CSS bundle is missing Tailwind selectors: .grid');
+  const spacingNegative = postcss.parse(css);
+  let replaced = 0;
+  spacingNegative.walkRules((rule) => {
+    const selector = rule.selector.replaceAll('.space-y-4', '.space-y-40');
+    if (selector !== rule.selector) { rule.selector = selector; replaced += 1; }
+  });
+  expect(replaced).toBeGreaterThan(0);
+  await attachCompatibility(testInfo, 'css-spacing-negative', { replaced,
+    positiveSha256: createHash('sha256').update(css).digest('hex'),
+    negativeSha256: createHash('sha256').update(spacingNegative.toString()).digest('hex') });
+  expect(() => assertTailwindUtilities(spacingNegative.toString()))
+    .toThrow('Built CSS bundle is missing Tailwind selectors: .space-y-4');
 });
 
 
