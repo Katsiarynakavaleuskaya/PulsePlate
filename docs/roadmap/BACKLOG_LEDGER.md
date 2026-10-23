@@ -1152,7 +1152,7 @@ If it is not recorded here — it does not exist.
   - Temporary publication exception (EN, 2026-10-21):
     - Priority: P1. Owner: agent-coordinator / security-auditor (tracking).
       Target PR: [#2487](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2487)
-      is the exception carrier; the certifi/Pillow remediation owner and target
+      is the exception carrier; the certifi/Pillow/OpenTelemetry remediation owner and target
       remain unassigned/unproven, separate from #2494's Alertmanager work.
     - Authorization checkpoint (2026-10-21): The first authorized normal
       non-force publication was consumed at `419842d8` on
@@ -1161,6 +1161,11 @@ If it is not recorded here — it does not exist.
       unchanged expiry; the consumed one-use receipt cannot be reused.
       At `2026-10-21T23:04:03Z`, the owner explicitly answered "Yes, add these
       16 IDs" to extend this same PR's temporary inventory from nine to 25.
+    - Authorization addendum (2026-10-23): After the native exact-25 audit
+      at `b770945d058532cc7ca62560f771fea801fff214` exited 1 with 12
+      additional findings, the owner directly authorized those exact 12 IDs
+      for the same publication exception, making 37 in total. The expiry
+      remains `2026-10-28T00:00:00Z`; no versions or other scope changed.
     - Exact scope: `requirements.txt:23` retains `certifi==2026.1.4` with
       `PYSEC-2026-4320`; `requirements.txt:125` retains `pillow==12.3.0` with
       `CVE-2026-112895`, `CVE-2026-112400`, `CVE-2026-112397`,
@@ -1171,6 +1176,13 @@ If it is not recorded here — it does not exist.
       `CVE-2026-112401`, `CVE-2026-112901`, `CVE-2026-112391`,
       `CVE-2026-112894`, `CVE-2026-112406`, `CVE-2026-112399`,
       `CVE-2026-112892`, `CVE-2026-112393` and `CVE-2026-112396`.
+      The separately authorized additions retain `pillow==12.3.0` at
+      `requirements.txt:125` with `CVE-2026-96638`, `CVE-2026-96641`,
+      `CVE-2026-96640`, `CVE-2026-96642`, `CVE-2026-96639`,
+      `CVE-2026-96643`, `CVE-2026-96637`, `CVE-2026-96644`,
+      `CVE-2026-96778`, `CVE-2026-96636` and `GHSA-78g4-xqwv-q3g8`;
+      `requirements.txt:101` retains `opentelemetry-api==1.44.0` with
+      `CVE-2026-114603`.
       Frozen requirements SHA-256:
       `45856873613fa43e5ac34c2673ecd3cb29e97aecf33b91dedcefcf7aee56d054`.
     - Evidence: The actual unignored strict audit exited 1; retain
@@ -1184,9 +1196,17 @@ If it is not recorded here — it does not exist.
       `e0db11164c5ee05c871de2a8a281c8c50a5a72ba1684b7d56c0be3e1af580e27`.
       PyPI reports `13.0.0` as the fix for the 24 Pillow records; this exception
       does not establish remediation or an unfixed-upstream condition.
+      The later exact-25 native audit at `b770945d058532cc7ca62560f771fea801fff214`
+      exited 1: "Found 12 known vulnerabilities, ignored 25 in 2 packages".
+      Retain the raw audit SHA-256
+      `94e6c5250ac994e7f92603a140192bc47ac92950b8f418c83843ca03e898333a`.
+      The source and frozen requirements were unchanged; no push followed.
+      The scanner reports `13.0.0` for the 11 additional Pillow IDs and
+      `1.45.1` for OpenTelemetry API as fixes. Their temporary acceptance
+      establishes neither remediation nor an unfixed-upstream condition.
     - Procedure: Before each correcting publication, run a fresh native pinned
-      pip-audit v2.10.1 with the existing strict hook arguments and 25 repeated
-      `--ignore-vuln` options; require exit 0, exactly these 25 ignored
+      pip-audit v2.10.1 with the existing strict hook arguments and 37 repeated
+      `--ignore-vuln` options; require exit 0, exactly these 37 ignored
       advisories, no additional findings/errors and exact current material and
       frozen requirements binding. Retain a new private actual publication
       receipt for each normal push. `PIP_AUDIT_IGNORE_VULNS` is unsupported.
@@ -1199,7 +1219,7 @@ If it is not recorded here — it does not exist.
       retire this ledger exception with the owning dependency fix and an
       unignored strict audit exit 0. On expiry, drift, a new finding or scanner
       error, do not push and preserve the evidence.
-    - This accepts exactly 25 known advisories temporarily; it records no remediation,
+    - This accepts exactly 37 known advisories temporarily; it records no remediation,
       unignored security PASS, current-head CI, readiness or merge authority.
       All 53 original acceptance criteria and the existing DoD remain governing.
   - Temporary Docker source-manifest deadline extension (EN, 2026-10-23):
@@ -1217,7 +1237,7 @@ If it is not recorded here — it does not exist.
       Rollback restores `review_by=2026-10-21` and the corresponding contract
       assertions; the source gate then remains blocked on current dates.
     - This changes no recipe, source inventory, dependency or validator rule.
-      The independent exact-25 publication exception still expires at
+      The independent exact-37 publication exception still expires at
       `2026-10-28T00:00:00Z`; this inclusive calendar deadline does not renew it.
       Prometheus publication, iPad UI cancellation and other required failures
       keep their independent owners and remain blocking until proven corrected.
