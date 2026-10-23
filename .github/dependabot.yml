@@ -101,6 +101,7 @@ updates:
           - "marshmallow"
           - "msgpack"
           - "mypy"
+          - "ast-serialize"
           - "ruff"
           - "black"
           - "types-pyyaml"

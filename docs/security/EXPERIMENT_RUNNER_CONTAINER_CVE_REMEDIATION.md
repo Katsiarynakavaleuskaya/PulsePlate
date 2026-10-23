@@ -1,8 +1,88 @@
 # Experiment Runner container CVE remediation
 
-**Status:** Historical image admitted locally; SDK successor and final PR/merge evidence pending
+**Status:** Historical image evidence retained; local Oracle successor qualification and final PR/merge evidence pending
 **Suppression expires:** N/A (no suppression added)
-**Last reviewed:** 2026-10-15
+**Last reviewed:** 2026-10-20
+
+## Local Oracle successor — qualification pending
+
+The bounded source change preserves the original builder and retires exactly
+pip, pip-api, pip-tools, pip-audit, virtualenv and pre-commit from an ordinary
+runtime-preparation stage using native offline uninstall, pip last. Final venv
+COPY changes stage; original SDK/config/notices COPY, source/proxy/CA/locks and
+healthy build/default plugins remain required. The final system positively guards
+the known inherited seed before removing it and the complete ensurepip tree.
+Source: `deploy/experiment-runner/Containerfile` runtime-preparation and
+RETIRE_SEED_PY; owning tests: `tests/test_experiment_runner_dispatch.py`.
+
+The active criteria are `LOCAL-ORACLE-RUNNER-QUALIFICATION-1/v2`. The direct
+owner amendment additionally admits exactly five Python distribution changes:
+ast-serialize 0.6.0 to 0.7.0, Pydantic 2.13.4 to 2.14.1,
+pydantic-core 2.46.4 to 2.50.1, typing-extensions 4.15.0 to 4.16.0 and
+typing-inspection 0.4.2 to 0.4.4. This is a one-off preservation exception,
+not general batch authority or a claim that every lower Python version has
+the embedded Cargo advisory. Ast remains dev/aggregate-owned. Preserve every
+unaffected dependency tuple and native payload plus healthy build/default plugins.
+
+The genuine runtime-first normal commit is
+`59bf4d15a4a341a9e327d9d737f4065c9fbfddf0`. It precedes the six successful
+serial canonical Make transactions: docker-runtime, ci-lite, dev, aggregate,
+rag-vector and rag-vector-cpu. Their complete candidate validation retained
+respectively 59, 104, 89, 135, 35 and 35 lock identities, with exactly the
+approved per-profile version subsets and unchanged requirement metadata.
+These are solver observations, not native final-image inventory counts.
+Source controls are in `tests/test_dependency_security_guard.py` at
+`test_oracle_owned_dependencies_current_surfaces`; they enforce current
+owned floors, constraints and membership without freezing the historical delta.
+
+No suppression, VEX, threshold reduction,
+seventh retirement, orphan sweep or BOM-only deletion is admitted. Before any
+pruning build, observe selected AND all retained native ownership/RECORD/payload/
+version/type/mode/link/cache/shared paths and actual single seed provenance.
+No new native observation, image digest or qualified inventory is claimed here.
+
+The same runbook consumer now requires separate genuine full vulnerability and
+all-five-severity file/image-config secret producers, fresh reports and native
+statuses bound to current OCI index/ARM manifest/config/every layer. Trivy0.74.0 producer processes now use allowlisted environments and fresh private
+HOME/cache/TMP, with explicit shared private cache and `--secret-config=`. Main
+`--config /dev/null` alone does not exclude TRIVY_* flags or the separate default
+secret YAML. The pinned empty-path loader selects built-in rules/allow rules and
+default skip patterns; no custom rule suppression is supplied. Synthetic
+unit cases exercise source branches only. Existing image-specific pins remain
+historical and fail closed until actual successor facts are reconciled. Real
+native file/config canaries, complete native final OS/physical Python/vendor/
+origin/lineage, SDK/TLS/DB/process/Apple controls and own material gates are pending.
+The partial source consumer now applies its historical Python physical/origin
+checks to each image producer independently. The obsolete pip capture and
+root/18-vendor assertions have been removed. Its predecessor OS/count/physical
+pins still require measured successor membership, and the eight actual
+source/native-report/status bindings are not yet integrated. The consumer
+explicitly rejects admission with `vendor_producer_evidence_pending` after
+the existing image/status/finding checks; removing pip supplies no vendor PASS.
+The historical command is not a runnable successor admission recipe. Empty,
+unsupported or partial vendor recognition remains unknown; no hardcoded vendor
+success, invented count or new advisory decoder supplies missing evidence.
+
+The original vulnerability selection remains HIGH/CRITICAL; all five severities
+apply to file/config secrets. The finite Pillow advisory research retains
+affected ranges and patch unknowns. Its universal head postcondition applies
+if Pillow remediation is authored; no Pillow action or unconditional all63
+Oracle gate is admitted here. The bounded relevance review established no
+distinct collector compromise, isolation escape or original-command trigger
+from its supplied examples. It grants no formal finding disposition, native
+coverage waiver or permission to ignore an actual selected finding.
+
+Preserve failed179 and actual222's four HIGH findings. Its separately produced
+empty secret report had OS130/Python152 Packages and no Secrets; that absence
+is neither proof of producer execution nor permission to discard the findings.
+No historical success is fresh Oracle evidence or a backfill of Legacy DK2.
+The Python3.13 outer180 allowance is aggregate reserve under owner intent; it
+keeps the4800 child watchdog and does not fix historicalE8 or guarantee success.
+
+Rollback requires reviewed coupled stage/COPY/tools/seed/contracts and coupled
+CI allowance/name/tests/note reversal. Vulnerable or unqualified images stay
+blocked; no fallback build or production action follows. Track all twelve
+outcomes in [the owned ledger item](../roadmap/BACKLOG_LEDGER.md#ledger-p1-local-oracle-runner-qualification).
 
 ## Security decision
 

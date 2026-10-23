@@ -234,13 +234,48 @@ RUN --network=none /usr/bin/env -i HOME=/tmp PATH=/usr/bin:/bin LANG=C.UTF-8 \
 RUN --network=none /opt/venv/bin/pip uninstall -y setuptools wheel \
     && chmod -R a+rX /opt/venv
 
+# Keep the original builder usable. ROOT captures complete selected AND retained
+# native ownership/payload evidence before admitting any build of this stage.
+FROM builder AS runtime-preparation
+
+RUN --network=none /usr/bin/env -i HOME=/tmp PATH=/usr/bin:/bin LANG=C.UTF-8 \
+    PIP_CONFIG_FILE=/dev/null PIP_NO_INDEX=1 PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    /opt/venv/bin/python -m pip uninstall --yes \
+      pip-api pip-tools pip-audit virtualenv pre-commit pip
+RUN --network=none /opt/venv/bin/python -I - <<'RETIRED_TOOLS_PY'
+import importlib.metadata
+from importlib.util import find_spec
+from pathlib import Path
+import re
+
+retired = {"pip", "pip-api", "pip-tools", "pip-audit", "virtualenv", "pre-commit"}
+for distribution in importlib.metadata.distributions():
+    name = re.sub(r"[-_.]+", "-", distribution.metadata["Name"]).lower()
+    if name in retired:
+        raise SystemExit("retired distribution remains: " + name)
+for module in ("pip", "pip_api", "piptools", "pip_audit", "virtualenv", "pre_commit"):
+    if find_spec(module) is not None:
+        raise SystemExit("retired module remains: " + module)
+    root = Path("/opt/venv/lib/python3.13/site-packages")
+    if any((root / leaf).exists() or (root / leaf).is_symlink() for leaf in (module, module + ".py")):
+        raise SystemExit("retired physical payload remains: " + module)
+for launcher in ("pip", "pip3", "pip3.13", "pip-compile", "pip-sync", "pip-audit", "virtualenv", "pre-commit"):
+    path = Path("/opt/venv/bin") / launcher
+    if path.exists() or path.is_symlink():
+        raise SystemExit("retired launcher remains: " + launcher)
+if importlib.metadata.version("build") != "1.5.0":
+    raise SystemExit("retained build identity changed")
+print("runtime_preparation_selected_tools_absent")
+RETIRED_TOOLS_PY
+
 FROM python-runtime AS runner
 
 LABEL org.opencontainers.image.title="PulsePlate Experiment Runner" \
       org.opencontainers.image.description="Strict local oracle execution image" \
       org.opencontainers.image.source="https://github.com/Katsiarynakavaleuskaya/PulsePlate"
 
-COPY --from=builder /opt/venv /opt/venv
+COPY --from=runtime-preparation /opt/venv /opt/venv
 
 RUN set -eu; \
     microdnf install -y --setopt=install_weak_deps=0 \
@@ -248,7 +283,8 @@ RUN set -eu; \
       make-4.4.1-9.el10 \
       shadow-utils-4.15.0-11.el10 \
       util-linux-core-2.40.2-18.el10 \
-      openssl-libs-3.5.8-2.el10_2; \
+      openssl-libs-3.5.8-2.el10_2 \
+      procps-ng-4.0.4-11.el10; \
     microdnf clean all; \
     rpm -e epel-release; \
     rpm_query_output="$(rpm -q --qf '%{NAME}-%{VERSION}-%{RELEASE}\n' git-core)"; \
@@ -263,8 +299,11 @@ RUN set -eu; \
     rpm_query_output="$(rpm -q --qf '%{NAME}-%{VERSION}-%{RELEASE}\n' util-linux-core)"; \
     test "${rpm_query_output}" = \
       'util-linux-core-2.40.2-18.el10'; \
-    expected_rpm_package_count='129'; \
-    expected_rpm_inventory_sha256='4a9eb99a:ba1b6a59:9fccd7ef:6d32a3b6:cbed8b47:4e89de93:6697a78b:370494a8'; \
+    rpm_query_output="$(rpm -q --qf '%{NAME}-%{VERSION}-%{RELEASE}\n' procps-ng)"; \
+    test "${rpm_query_output}" = \
+      'procps-ng-4.0.4-11.el10'; \
+    expected_rpm_package_count='130'; \
+    expected_rpm_inventory_sha256='939bb657:bf29ee0c:83139adb:ffa1880e:710ad991:0836ad2e:88a54f67:68bed2c5'; \
     expected_rpm_inventory_sha256="$(printf '%s' "${expected_rpm_inventory_sha256}" | tr -d ':')"; \
     rpm_inventory="$(rpm -qa --qf '%{NAME}-%{EPOCHNUM}:%{VERSION}-%{RELEASE}.%{ARCH} %{SHA256HEADER} %{PAYLOADDIGEST} %{PAYLOADDIGESTALGO}\n')"; \
     rpm_inventory="$(printf '%s\n' "${rpm_inventory}" | LC_ALL=C sort)"; \
@@ -275,53 +314,43 @@ RUN set -eu; \
     test -x /usr/bin/git; \
     test -x /usr/bin/make; \
     test -x /usr/bin/unshare; \
+    test -f /usr/bin/ps; \
+    test ! -L /usr/bin/ps; \
+    test -x /bin/ps; \
     groupadd --gid 65532 runner; \
     useradd --uid 65532 --gid 65532 --no-create-home \
       --home-dir /tmp --shell /sbin/nologin runner; \
     mkdir -p /repo/artifacts/orchestration/experiments/results; \
-    chown -R 65532:65532 /repo; \
-    seed_dir=/usr/share/python3.13-wheels; \
-    seed_source=/opt/venv/lib/python3.13/site-packages/virtualenv/seed/wheels/embed/pip-26.2.1-py3-none-any.whl; \
-    old_seed="$seed_dir/pip-25.1.1-py3-none-any.whl"; \
-    new_seed="$seed_dir/pip-26.2.1-py3-none-any.whl"; \
-    test -d "$seed_dir"; test ! -L "$seed_dir"; \
-    set -- "$seed_dir"/pip-*.whl; \
-    test "$#" -eq 1; test "$1" = "$old_seed"; \
-    test -f "$old_seed"; test ! -L "$old_seed"; \
-    test "$(wc -c < "$old_seed" | tr -d ' ')" = 1303656; \
-    test "$(sha256sum "$old_seed" | cut -d ' ' -f 1)" = 2cc72b63ce38c42dffda258ccbbf737381ec0bcdc3deaa65746c459600a99936; \
-    test -f "$seed_source"; test ! -L "$seed_source"; \
-    test "$(wc -c < "$seed_source" | tr -d ' ')" = 1816632; \
-    test "$(sha256sum "$seed_source" | cut -d ' ' -f 1)" = 71138adf1f4ca900cdb7d289c21b7494329f2332b6d85f0e1c42108c0384ed3e; \
-    test ! -e "$new_seed"; test ! -L "$new_seed"; \
-    install -m 0644 "$seed_source" "$new_seed"; \
-    test "$(wc -c < "$new_seed" | tr -d ' ')" = 1816632; \
-    test "$(sha256sum "$new_seed" | cut -d ' ' -f 1)" = 71138adf1f4ca900cdb7d289c21b7494329f2332b6d85f0e1c42108c0384ed3e; \
-    python3.13 -I -c 'import hashlib, stat; from pathlib import Path; from email.parser import BytesParser; from zipfile import ZipFile; \
-source = Path("/opt/venv/lib/python3.13/site-packages/virtualenv/seed/wheels/embed/pip-26.2.1-py3-none-any.whl"); \
-selected = Path("/usr/share/python3.13-wheels/pip-26.2.1-py3-none-any.whl"); payload = selected.read_bytes(); \
-assert not selected.is_symlink() and stat.S_IMODE(selected.stat().st_mode) == 0o644; \
-assert len(payload) == 1816632 and hashlib.sha256(payload).hexdigest() == "71138adf1f4ca900cdb7d289c21b7494329f2332b6d85f0e1c42108c0384ed3e"; \
-assert source.read_bytes() == payload; wheel = ZipFile(selected); \
-assert wheel.namelist().count("pip-26.2.1.dist-info/METADATA") == 1; \
-metadata = BytesParser().parsebytes(wheel.read("pip-26.2.1.dist-info/METADATA")); wheel.close(); \
-assert metadata.get_all("Name") == ["pip"] and metadata.get_all("Version") == ["26.2.1"]; \
-print("ensurepip_seed_payload_verified_before_removal=26.2.1")'; \
-    rm -- "$old_seed"; \
-    test ! -e "$old_seed"; test ! -L "$old_seed"; \
-    set -- "$seed_dir"/pip-*.whl; \
-    test "$#" -eq 1; test "$1" = "$new_seed"; \
-    python3.13 -I - <<'ENSUREPIP_SEED_PY'
-import ensurepip
-import sysconfig
+    chown -R 65532:65532 /repo
+
+# Positively guard the known inherited seed before retiring bootstrap capability.
+# This expected identity is not a fresh native observation or a build admission.
+RUN --network=none python3.13 -I - <<'RETIRE_SEED_PY'
+import hashlib
+import shutil
+import stat
 from pathlib import Path
-selected = Path("/usr/share/python3.13-wheels/pip-26.2.1-py3-none-any.whl")
-assert sysconfig.get_config_var("WHEEL_PKG_DIR") == "/usr/share/python3.13-wheels"
-with ensurepip._get_pip_whl_path_ctx() as actual:
-    assert Path(actual) == selected
-assert ensurepip._get_pip_version() == "26.2.1"
-print("ensurepip_default_seed=26.2.1;seed_payload_sha256=71138adf1f4ca900cdb7d289c21b7494329f2332b6d85f0e1c42108c0384ed3e")
-ENSUREPIP_SEED_PY
+
+seed_dir = Path("/usr/share/python3.13-wheels")
+seed = seed_dir / "pip-25.1.1-py3-none-any.whl"
+ensurepip = Path("/usr/lib64/python3.13/ensurepip")
+if seed_dir.is_symlink() or not seed_dir.is_dir():
+    raise SystemExit("bootstrap_seed_directory_invalid")
+if list(seed_dir.iterdir()) != [seed]:
+    raise SystemExit("bootstrap_seed_membership_invalid")
+info = seed.lstat()
+if not stat.S_ISREG(info.st_mode) or info.st_size != 1303656:
+    raise SystemExit("bootstrap_seed_file_invalid")
+if hashlib.sha256(seed.read_bytes()).hexdigest() != "2cc72b63ce38c42dffda258ccbbf737381ec0bcdc3deaa65746c459600a99936":
+    raise SystemExit("bootstrap_seed_digest_invalid")
+if ensurepip.is_symlink() or not ensurepip.is_dir():
+    raise SystemExit("ensurepip_tree_invalid")
+seed.unlink()
+shutil.rmtree(ensurepip)
+if list(seed_dir.iterdir()) or ensurepip.exists() or ensurepip.is_symlink():
+    raise SystemExit("bootstrap_retirement_incomplete")
+print("inherited_seed_and_full_ensurepip_retired")
+RETIRE_SEED_PY
 
 COPY --from=builder /usr/local/lib/ /usr/local/lib/
 COPY --from=builder /usr/local/share/doc/pulseplate-native/ /usr/local/share/doc/pulseplate-native/

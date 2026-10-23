@@ -13,7 +13,7 @@ starlette>=1.3.1,<2.0.0
 uvicorn>=0.38.0,<1.0.0
 # Security floor: unsafe editor invocation fixed in Click 8.3.3.
 click>=8.3.3,<9.0.0
-pydantic>=2.13.4,<3.0.0
+pydantic>=2.14.1,<3.0.0
 openai>=2.8.1,<3.0.0
 opentelemetry-api>=1.38.0,<2.0.0
 opentelemetry-sdk>=1.38.0,<2.0.0

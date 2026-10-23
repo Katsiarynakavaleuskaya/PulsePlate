@@ -71,13 +71,13 @@ def test_fallback_ci_allowlist_matches_canonical_pr_workflow_jobs() -> None:
     assert _job_display_names("test-main", jobs["test-main"]) == {
         "test-main (3.11, 120)",
         "test-main (3.12, 120)",
-        "test-main (3.13, 120)",
+        "test-main (3.13, 180)",
     }
 
 
 @pytest.mark.parametrize(
     "check_name",
-    ("test-main (3.11, 120)", "test-main (3.12, 120)", "test-main (3.13, 120)"),
+    ("test-main (3.11, 120)", "test-main (3.12, 120)", "test-main (3.13, 180)"),
 )
 @pytest.mark.parametrize(
     ("status", "conclusion", "expected_state"),

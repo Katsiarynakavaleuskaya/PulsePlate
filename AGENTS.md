@@ -552,6 +552,12 @@ The merge-readiness gate remains separate and still requires `GITHUB_TOKEN` for 
 **Pre-commit hook policy (mandatory before push):**
 
 - **Always run `pre-commit run --all-files` locally before pushing any PR.**
+- Before a normal commit, inspect the hook's actual whole-branch selection:
+  backend hooks may include the merge-base diff as well as staged paths. A small
+  staged change does not establish a small validation workload. For admitted
+  heavy Linux work, use an owned VPS checkout with genuine ancestry and active
+  normal hooks, then verify and return its actual commit. Do not substitute a
+  synthetic Git witness, disabled hooks or an automatic heavy Mac fallback.
 - **If hooks modify files:**
   1. Run `pre-commit run --all-files`
   2. Check `git status` for modified files (e.g., `.secrets.baseline`, whitespace fixes, formatting)
@@ -2895,6 +2901,7 @@ Do not remove this exclusion without a product decision and a separate PR
 - **Allowed:** `continue-on-error: true` **only** as metadata at job/step level in YAML, when the step is genuinely optional (e.g., non-blocking notifications, optional reports).
 - **Note:** `continue-on-error: true` is allowed only at YAML level (job/step), **not** inside shell commands.
 - **Rationale:** Prevents "false green" CI runs where real issues are hidden. Shell-level masking (`|| true`) breaks `set -euo pipefail` safety; YAML-level `continue-on-error` is explicit and auditable.
+- **CI budget interpretation:** Outer matrix job allowances cover aggregate setup, serial work, queued shard waves, coverage and uploads. Child and coverage watchdogs remain independent. Diagnose the native timeout owner before changing a budget; a larger outer allowance does not repair a child timeout or guarantee completion. Keep numeric values in the owning workflow and its existing contract assertions.
 - **Timeout single-source-of-truth (hard rule):** CI timeouts must be defined in workflow env (or step env) and consumed from env by scripts/tests. Do not duplicate default timeout literals across shell + embedded scripts (drift/flake risk). If an env var is required for determinism, fail fast with a clear error.
 
 ---

@@ -2920,6 +2920,268 @@ def test_repo_managed_lock_surfaces_do_not_pin_pip() -> None:
     )
 
 
+# These are selected owner/compatibility floors, not PyPI advisory ranges
+# inferred from the Cargo components bundled inside particular wheels.
+ORACLE_OWNED_FLOORS = {
+    "ast-serialize": Version("0.7.0"),
+    "pydantic": Version("2.14.1"),
+    "pydantic-core": Version("2.50.1"),
+    "typing-extensions": Version("4.16.0"),
+    "typing-inspection": Version("0.4.4"),
+}
+ORACLE_RUNTIME_PROFILES = frozenset({"runtime", "docker-runtime", "ci-lite", "aggregate"})
+ORACLE_AST_PROFILES = frozenset({"dev", "aggregate"})
+
+
+def _assert_oracle_owned_carrier(
+    path: Path, package: str, *, required: bool, pinned: bool, forbidden: bool = False
+) -> Requirement | None:
+    """Check one current owned occurrence through the existing Requirement parser."""
+    occurrences = []
+    for line in _iter_requirement_lines(path):
+        requirement = _parse_requirement(line, path)
+        if requirement is not None and _normalized_package_name(requirement.name) == package:
+            occurrences.append(requirement)
+    if forbidden:
+        assert not occurrences, f"{path.name}: {package} is outside its owned profiles"
+        return None
+    if not required and not occurrences:
+        return None
+    assert len(occurrences) == 1, f"{path.name}: expected exactly one {package} carrier"
+    requirement = occurrences[0]
+    assert requirement.name == package, f"{path.name}: {package} alias is not canonical"
+    assert requirement.marker is None, f"{path.name}: {package} carrier must be unconditional"
+    assert not requirement.extras, f"{path.name}: {package} carrier must not declare extras"
+    assert requirement.url is None, f"{path.name}: {package} requires a comparable floor or pin"
+    specifiers = tuple(requirement.specifier)
+    assert all(
+        spec.operator != "===" and "*" not in spec.version for spec in specifiers
+    ), f"{path.name}: {package} requires comparable specifiers"
+    if pinned:
+        assert (
+            len(specifiers) == 1 and specifiers[0].operator == "=="
+        ), f"{path.name}: {package} lock requires exactly one == pin"
+    candidate = _min_version_for_pkg(requirement, package, pinned=pinned)
+    assert candidate is not None, f"{path.name}: {package} requires a comparable floor or pin"
+    version = Version(candidate)
+    assert requirement.specifier.contains(
+        version, prereleases=True
+    ), f"{path.name}: {package} excludes its comparable floor or pin"
+    assert version >= ORACLE_OWNED_FLOORS[package], f"{path.name}: below selected {package} floor"
+    cap = {"ast-serialize": Version("1.0.0"), "pydantic": Version("3.0.0")}.get(package)
+    if cap is not None:
+        assert version < cap, f"{path.name}: {package} exceeds its canonical major cap"
+        # constraints.txt mirrors a minimum; the owning manifests retain caps.
+        if not pinned and path.name != "constraints.txt":
+            assert any(
+                spec.operator == "==" or (spec.operator == "<" and Version(spec.version) <= cap)
+                for spec in specifiers
+            ), f"{path.name}: {package} requires its canonical major cap"
+    return requirement
+
+
+def test_oracle_owned_dependencies_current_surfaces() -> None:
+    """Check current registry membership and constraints, without historical delta pins."""
+    registered = registered_dependabot_requirement_carriers()
+    discovered = discover_dependabot_requirement_carriers(REPO_ROOT)
+    assert discovered == registered, "Oracle requirement carrier inventory differs from registry"
+    compiled = compiled_dependency_surfaces()
+    profiles = {surface.compile_profile: surface for surface in compiled}
+    expected_profiles = (
+        ORACLE_RUNTIME_PROFILES | ORACLE_AST_PROFILES | {"rag-vector", "rag-vector-cpu"}
+    )
+    assert expected_profiles <= profiles.keys(), "Oracle required compile profile is missing"
+    locks = {surface.lockfile for surface in compiled}
+    ast_owned = {"requirements-dev.in"} | {
+        profiles[profile].lockfile for profile in ORACLE_AST_PROFILES
+    }
+    pydantic_sources = {
+        "requirements.in",
+        "requirements-ci-lite.in",
+        "requirements-docker-runtime.in",
+        "constraints.txt",
+    }
+    required = {
+        package: {profiles[profile].lockfile for profile in ORACLE_RUNTIME_PROFILES}
+        for package in ("pydantic", "pydantic-core", "typing-inspection")
+    }
+    required["pydantic"] |= pydantic_sources
+    required["ast-serialize"] = ast_owned
+    required["typing-extensions"] = {profiles[profile].lockfile for profile in expected_profiles}
+    assert set().union(*required.values()) <= discovered, "Oracle required carrier is missing"
+    parsed: dict[tuple[str, str], Requirement] = {}
+    for name in sorted(discovered):
+        for package in ORACLE_OWNED_FLOORS:
+            requirement = _assert_oracle_owned_carrier(
+                REPO_ROOT / name,
+                package,
+                required=name in required[package],
+                pinned=name in locks,
+                forbidden=package == "ast-serialize" and name not in ast_owned,
+            )
+            if requirement is not None:
+                parsed[name, package] = requirement
+    for surface in compiled:
+        for package in ORACLE_OWNED_FLOORS:
+            pin = parsed.get((surface.lockfile, package))
+            if pin is None:
+                continue
+            version = Version(next(iter(pin.specifier)).version)
+            for name in (*surface.compile_sources, "constraints.txt"):
+                declaration = parsed.get((name, package))
+                if declaration is not None:
+                    assert declaration.specifier.contains(
+                        version, prereleases=True
+                    ), f"{surface.lockfile}: {package} pin violates {name} constraints"
+
+
+@pytest.mark.parametrize("package", tuple(ORACLE_OWNED_FLOORS))
+@pytest.mark.parametrize(
+    "case",
+    (
+        "missing",
+        "lower",
+        "duplicate",
+        "alias",
+        "marker",
+        "extra",
+        "range",
+        "wildcard",
+        "arbitrary",
+        "excluded",
+    ),
+)
+def test_oracle_owned_carrier_rejects_unsafe_occurrences(
+    tmp_path: Path, package: str, case: str
+) -> None:
+    floor = ORACLE_OWNED_FLOORS[package]
+    text = f"{package}=={floor}\n"
+    if case == "missing":
+        text = "# missing owned dependency\n"
+    elif case == "lower":
+        text = f"{package}=={floor}rc1\n"
+    elif case == "duplicate":
+        text += f"{package.upper()}=={floor}\n"
+    elif case == "alias":
+        text = f"{package.upper().replace('-', '_')}=={floor}\n"
+    elif case == "marker":
+        text = f'{package}=={floor}; python_version < "0"\n'
+    elif case == "extra":
+        text = f"{package}[synthetic]=={floor}\n"
+    elif case == "range":
+        text = f"{package}>={floor}\n"
+    elif case == "wildcard":
+        text = f"{package}=={floor}.*\n"
+    elif case == "arbitrary":
+        text = f"{package}==={floor}\n"
+    elif case == "excluded":
+        text = f"{package}>={floor},!={floor}\n"
+    path = tmp_path / "requirements.txt"
+    path.write_text(text, encoding="utf-8")
+    with pytest.raises(AssertionError, match=package):
+        _assert_oracle_owned_carrier(path, package, required=True, pinned=True)
+
+
+@pytest.mark.parametrize("text", ("ast-serialize==0.7.0\n", "Ast_Serialize==0.7.0\n"))
+def test_oracle_ast_is_forbidden_outside_dev_owner(tmp_path: Path, text: str) -> None:
+    path = tmp_path / "requirements.txt"
+    path.write_text(text, encoding="utf-8")
+    with pytest.raises(AssertionError, match="outside its owned profiles"):
+        _assert_oracle_owned_carrier(
+            path, "ast-serialize", required=False, pinned=True, forbidden=True
+        )
+
+
+@pytest.mark.parametrize(
+    ("package", "text", "pinned"),
+    (
+        ("pydantic", "pydantic>=2.15.0,<3.0.0\n", False),
+        ("pydantic", "pydantic==2.15.0\n", True),
+        ("ast-serialize", "ast-serialize>=0.8.0,<1.0.0\n", False),
+        ("typing-extensions", "# optional occurrence absent\n", True),
+    ),
+)
+def test_oracle_owned_carrier_allows_coherent_future_or_optional_absence(
+    tmp_path: Path, package: str, text: str, pinned: bool
+) -> None:
+    path = tmp_path / ("requirements.txt" if pinned else "requirements.in")
+    path.write_text(text, encoding="utf-8")
+    _assert_oracle_owned_carrier(path, package, required=False, pinned=pinned)
+
+
+@pytest.mark.parametrize(
+    ("text", "diagnostic"),
+    (
+        ("pydantic>=2.14.1,!=2.14.1,<3.0.0\n", "excludes its comparable"),
+        ("pydantic>=2.14.1\n", "canonical major cap"),
+        ("pydantic==3.0.0\n", "canonical major cap"),
+        ("pydantic\n", "comparable floor or pin"),
+    ),
+)
+def test_oracle_owned_declaration_requires_consistent_capped_floor(
+    tmp_path: Path, text: str, diagnostic: str
+) -> None:
+    path = tmp_path / "requirements.in"
+    path.write_text(text, encoding="utf-8")
+    with pytest.raises(AssertionError, match=diagnostic):
+        _assert_oracle_owned_carrier(path, "pydantic", required=True, pinned=False)
+
+
+@pytest.mark.parametrize(
+    "text", ("pydantic==2..14.1\n", "pydantic @ https://example.invalid/pydantic.whl\n")
+)
+def test_oracle_owned_carrier_rejects_malformed_or_url(tmp_path: Path, text: str) -> None:
+    path = tmp_path / "requirements.txt"
+    path.write_text(text, encoding="utf-8")
+    with pytest.raises(pytest.fail.Exception):
+        _assert_oracle_owned_carrier(path, "pydantic", required=True, pinned=True)
+
+
+def test_oracle_owned_inventory_rejects_unregistered_alias(monkeypatch: pytest.MonkeyPatch) -> None:
+    carriers = registered_dependabot_requirement_carriers() | {"config/requirements-alias.txt"}
+    monkeypatch.setattr(
+        f"{__name__}.discover_dependabot_requirement_carriers", lambda _root: carriers
+    )
+    with pytest.raises(AssertionError, match="inventory differs from registry"):
+        test_oracle_owned_dependencies_current_surfaces()
+
+
+def test_oracle_owned_inventory_rejects_missing_profile(monkeypatch: pytest.MonkeyPatch) -> None:
+    compiled = tuple(
+        surface for surface in compiled_dependency_surfaces() if surface.compile_profile != "dev"
+    )
+    monkeypatch.setattr(f"{__name__}.compiled_dependency_surfaces", lambda: compiled)
+    with pytest.raises(AssertionError, match="required compile profile is missing"):
+        test_oracle_owned_dependencies_current_surfaces()
+
+
+def test_oracle_owned_inventory_rejects_missing_source(monkeypatch: pytest.MonkeyPatch) -> None:
+    carriers = registered_dependabot_requirement_carriers() - {"requirements-dev.in"}
+    monkeypatch.setattr(f"{__name__}.registered_dependabot_requirement_carriers", lambda: carriers)
+    monkeypatch.setattr(
+        f"{__name__}.discover_dependabot_requirement_carriers", lambda _root: carriers
+    )
+    with pytest.raises(AssertionError, match="required carrier is missing"):
+        test_oracle_owned_dependencies_current_surfaces()
+
+
+def test_oracle_owned_pin_must_satisfy_its_current_declaration(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original = _iter_requirement_lines
+
+    def changed_declaration(path: Path) -> Iterable[str]:
+        for line in original(path):
+            if path.name == "requirements.in" and line.startswith("pydantic>="):
+                yield "pydantic>=2.15.0,<3.0.0"
+            else:
+                yield line
+
+    monkeypatch.setattr(f"{__name__}._iter_requirement_lines", changed_declaration)
+    with pytest.raises(AssertionError, match="pydantic pin violates requirements.in"):
+        test_oracle_owned_dependencies_current_surfaces()
+
+
 # These current runtime-consuming profiles require AnyIO; optional data/evals
 # profiles are inspected for occurrences without acquiring a new dependency.
 ANYIO_REQUIRED_COMPILE_PROFILES = frozenset(

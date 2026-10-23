@@ -11,8 +11,10 @@ anyio==4.14.2
     #   -c requirements.txt
     #   httpx2
     #   starlette
-ast-serialize==0.6.0
-    # via mypy
+ast-serialize==0.7.0
+    # via
+    #   -r requirements-dev.in
+    #   mypy
 bandit==1.9.4
     # via -r requirements-dev.in
 black==26.5.1
@@ -272,7 +274,7 @@ truststore==0.10.4
     #   httpx2
 types-pyyaml==6.0.12.20260815
     # via -r requirements-dev.in
-typing-extensions==4.15.0
+typing-extensions==4.16.0
     # via
     #   -c requirements.txt
     #   mypy

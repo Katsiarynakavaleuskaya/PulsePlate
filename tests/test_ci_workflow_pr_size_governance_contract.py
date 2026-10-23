@@ -5249,6 +5249,7 @@ def test_test_pr_contract_capture_supports_real_ci_root_conftest(tmp_path: Path)
             (profile / name).mkdir()
         database = profile / "batch.sqlite"
         coverage = profile / ".coverage"
+        pytest_cache = profile / "pytest-cache"
         junit = profile / "result.xml"
         command = [
             sys.executable,
@@ -5268,6 +5269,8 @@ def test_test_pr_contract_capture_supports_real_ci_root_conftest(tmp_path: Path)
             "--basetemp=" + str(profile / "pytest"),
             "-o",
             "junit_family=legacy",
+            "-o",
+            "cache_dir=" + str(pytest_cache),
         ]
         # A complete allowlist supplies synthetic CI/DB state, never host credentials.
         environment = {
@@ -5287,15 +5290,27 @@ def test_test_pr_contract_capture_supports_real_ci_root_conftest(tmp_path: Path)
             "DB_FALLBACK_URL": "sqlite:///" + str(database),
             "TMPDIR": str(profile / "tmp"),
         }
-        result = subprocess.run(
-            command,
-            cwd=REPO_ROOT,
-            env=environment,
-            capture_output=True,
-            text=True,
-            timeout=30,
-            check=False,
-        )
+        try:
+            result = subprocess.run(
+                command,
+                cwd=REPO_ROOT,
+                env=environment,
+                capture_output=True,
+                text=True,
+                timeout=30,
+                check=False,
+            )
+        except subprocess.TimeoutExpired as error:
+            for suffix, partial in (("stdout", error.stdout), ("stderr", error.stderr)):
+                if partial is None:
+                    continue
+                path = tmp_path / f"ci-capture-{capture}.{suffix}.log"
+                if isinstance(partial, bytes):
+                    path.write_bytes(partial)
+                else:
+                    path.write_text(partial)
+                path.chmod(0o600)
+            raise
         for suffix, raw in (("stdout", result.stdout), ("stderr", result.stderr)):
             path = tmp_path / f"ci-capture-{capture}.{suffix}.log"
             path.write_text(raw)
@@ -5322,6 +5337,13 @@ def test_test_pr_contract_capture_supports_real_ci_root_conftest(tmp_path: Path)
             cases = list(ET.parse(junit).getroot().iter("testcase"))
             assert len(cases) == 1 and cases[0].get("name") == node
             assert cases[0].find("failure") is None and cases[0].find("error") is None
+            display_cache = (
+                pytest_cache.relative_to(REPO_ROOT)
+                if pytest_cache.is_relative_to(REPO_ROOT)
+                else pytest_cache
+            )
+            assert f"cachedir: {display_cache}" in result.stdout
+            assert json.loads((pytest_cache / "v" / "cache" / "nodeids").read_text()) == [target]
 
 
 def test_test_pr_contract_139_retains_real_pytest_and_native_stderr_transport(
@@ -6743,7 +6765,7 @@ def test_main_branch_python_sharded_runner_preserves_required_check_policy() -> 
     assert isinstance(matrix, list)
 
     timeouts = {entry["python-version"]: entry["timeout-minutes"] for entry in matrix}
-    assert timeouts == {"3.11": 120, "3.12": 120, "3.13": 120}
+    assert timeouts == {"3.11": 120, "3.12": 120, "3.13": 180}
 
     workflow_text = CI_WORKFLOW_PATH.read_text(encoding="utf-8")
     test_main_section = _extract_job_section(workflow_text, "  test-main:")
