@@ -40,9 +40,9 @@ fi
 
 for manifest in "${manifests[@]}"; do
   stem="${manifest%.txt}"
-  output="pip-audit-${stem}.json"
   comparison_dir="$(mktemp -d "${TMPDIR:-/tmp}/pulseplate-pip-audit.XXXXXXXX")"
   comparison_dir="$(cd "${comparison_dir}" && pwd -P)"
+  output="pip-audit-${stem}-${comparison_dir##*/}.json"
   echo "[ci_pip_audit] Running pip-audit for ${manifest} -> ${output}" >&2
   if ! "${audit_python}" "${comparison_helper}" prepare \
     --manifest "${manifest}" --output "${output}" --work-dir "${comparison_dir}"; then

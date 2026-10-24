@@ -38,6 +38,8 @@
   scanned-file inventory alongside its exit status. Prove AST equality for
   comment-only edits against the admitted base; repair any parse omission or
   executable delta before claiming that the bounded review is complete.
+  For Git-backed scanner evidence, verify the actual scanned file inventory includes
+  every new candidate path after index admission; explicit path arguments alone do not prove inclusion.
 
 - Before mocking a pinned external CLI or workflow adapter, verify its real
   flags, serialization fields and permitted Actions contexts through native
@@ -168,6 +170,38 @@
   preparation. Frozen Prometheus inputs stay unchanged; their projection does
   not establish SDK nonimpact for catalog/fetcher changes.
 
+## Retained Alertmanager consumer admission
+
+- The same source owner consumes the one fixed Q/S/C10 lineage. Keep original
+  producer PR/ref/run/attempt/job/source/artifact and all content hashes intact;
+  the explicitly admitted receiver has its own event/ref/head/base checks.
+  Original C10-to-donor ancestry must never be invented in the receiver graph.
+- Only retained candidate/security and separately gated main publication are
+  connected. New input/support inspection and producer build paths are not
+  admitted; the existing build choice stays held. Consumer work never renews
+  a compiler budget or starts another pair.
+- Require current six-file regular Git material and five separately reviewed
+  controller templates before native rendering. ROOT creates real commit C,
+  independently reviews/designates its exact bytes, then pins its known full
+  SHA in H. One ordinary push may contain C,H; authenticate remote C/live H
+  before protected execution. A hash or publication does not supply review.
+- Preserve initial receiver, genuine first-main and ordinary published cases.
+  Ordinary readers require an actual positive publication predecessor, never
+  tag existence or retained-image fallback. Manual publication is a separately
+  authorized operation; code adoption/merge does not prove publication.
+- Validate complete original source/payload/OCI/config/ordered-layer/diffID,
+  binary/probe/CA, tool/DB and positive/negative scan inventories. Historical
+  scanner evidence is separate from the required fresh supported scan. Failed
+  scans or incomplete negative reports cannot prove rejection success.
+- Finish authenticated preparation and bounded credential cleanup before the
+  secret-free native child. Preserve aggregate deadlines, shorter parent timers,
+  held-FD capture and WNOWAIT process ownership, complete statuses and owned
+  cleanup. Incoming bundle data never chooses the installed project context.
+- The corrected candidate has an exact empty CVE policy. Old selected or running
+  bytes retain their original expiry, including selected-new/running-old cases.
+  Absent/stopped/off-profile controls never activate or stop a service. Candidate
+  edits are not native acceptance, effective retirement or deployment.
+
 ## Official Prometheus image selection
 
 - `deploy/prometheus/image-manifest.json` is the sole v3 image record.
@@ -229,13 +263,21 @@
   candidate with registry credentials. Preserve original producer provenance,
   SPDX, immutable tag collision checks and byte-identical pullback. Existing
   promtool/runtime/security checks remain mandatory and suppression-free.
+- Public package inventory admits at most 20,000 versions, with 1 MiB native
+  capture per page and 64 MiB aggregate versions stdout. Read the count-derived
+  short/empty terminal page, reject duplicate IDs and recheck complete identity
+  and count. Failed reads, partial pages or tag existence never replace proof.
+- Main promotion observes the same-run/attempt/head backend publish success
+  before inventory. Pending transitions share the existing deadline (at most
+  16 observations and 15 clipped sleeps); failed/regressing/ambiguous states
+  reject. This does not prove global registry quiescence.
 - Deploy readers execute only the separately SHA-bound standalone helper;
   incoming archives are material/data. Root merge, deployment, credentials,
   volume changes and observation clocks retain their existing authority gates.
 - CI/CD PR image consumption must finish before PR-local actions, imports or
   native programs start. Acquire exact event-H material as data, then verify the
-  sparse fixed control checkout at `ef9e369052751d47c04f651f7d615714d918fc16`, with
-  helper SHA-256 `0fedf3e9ac865fe2b89a3367e5e4065e1c0c28fca88465c7f2b41775dbf4070a`,
+  sparse fixed control checkout at `0d6a4c09477ad3174252eab15f80cdd4a76df5bc`, with
+  helper SHA-256 `2b6edfa63f55b17cafdff100151b4b7cebef93a757fc3ab04b00eea77ca0ac6a`,
   before credential-free canonical four-blob classification. Native regular Git
   blobs supply B/H helper, build workflow, recipe and manifest bytes; the canonical
   helper alone selects manifest-change, historical-helper-change or published use.
@@ -381,6 +423,14 @@ or claim that passing this probe validates the application on Python 3.14.
   Only the installer's existing package-scoped pip retry evidence may avoid a
   new probe. Git-index discovery must neutralize executable repository Git
   configuration while retaining a positive carrier-discovery path.
+
+- For each newly created child venv, establish the required pip/trust-store
+  baseline through the canonical installer
+  `install_locked_python_requirements.py --upgrade-pip-only` before profile
+  acquisition. Enforce the actual child pip version and vendored CA identity;
+  a parent upgrade or a late version print does not establish this ordering.
+  Distinguish the initial trusted pip bootstrap, and test upgrade failure, stale
+  child pip and CA mismatch before any later package acquisition.
 
 - For `make requirements-locks` graph changes, select only a complete fixed
   alternative from the existing v1 admission owner; preserve default/legacy

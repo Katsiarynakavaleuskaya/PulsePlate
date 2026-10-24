@@ -5,6 +5,18 @@ name: CI
 # Periodically update these SHAs to newer versions for security updates and bug fixes.
 
 env:
+  # ROOT creates C, independently reviews/designates it, then pins C before one normal C,H push.
+  ALERTMANAGER_CONTROLLER_SOURCE: '0d6a4c09477ad3174252eab15f80cdd4a76df5bc' # Public immutable controller commit
+  ALERTMANAGER_PREPARATION_MINUTES: '14'
+  ALERTMANAGER_PREP_SECONDS: '600'
+  ALERTMANAGER_PAIR_SECONDS: '1800'
+  ALERTMANAGER_SECURITY_SECONDS: '1800'
+  ALERTMANAGER_NATIVE_SECONDS: '2400'
+  ALERTMANAGER_PUBLICATION_SECONDS: '1800'
+  ALERTMANAGER_CLEANUP_SECONDS: '45'
+  ALERTMANAGER_NATIVE_CLEANUP_SECONDS: '120'
+  ALERTMANAGER_SCAN_TIMEOUT_SECONDS: '300'
+  ALERTMANAGER_SCAN_PROCESS_SECONDS: '330'
   PYTHON_VERSION: "3.13.14"
   FRONTEND_NODE_VERSION_FILE: ".nvmrc"
   CONTRACT_RISK_CLEANUP_SECONDS: "5"
@@ -718,17 +730,22 @@ jobs:
   lint:
     needs: [private_python_proxy_health]
     if: ${{ !cancelled() }}
-    runs-on: ubuntu-latest
-    timeout-minutes: ${{ fromJSON(vars.CI_LINT_TIMEOUT_MINUTES || '90') }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: &am-ci-lint-timeout ${{ fromJSON(vars.CI_LINT_TIMEOUT_MINUTES || '170') }}
     permissions:
       contents: read
       actions: read
       packages: read
     env:
+      ALERTMANAGER_JOB_TIMEOUT_MINUTES: *am-ci-lint-timeout
+      ALERTMANAGER_CALLER_KIND: ci-lint
+      ALERTMANAGER_GENERIC_NATIVE_MINUTES: ${{ vars.OBS2A_NATIVE_JOB_TIMEOUT_MINUTES || '40' }}
+      ALERTMANAGER_LINT_CHECK_MINUTES: ${{ vars.CI_LINT_CHECKS_TIMEOUT_MINUTES || '40' }}
       PROMETHEUS_CONSUME_SECONDS: '900'
       PROMETHEUS_CLEANUP_SECONDS: '120'
     steps:
       - name: Enforce prerequisite results
+        timeout-minutes: 1
         env:
           PRIVATE_PYTHON_PROXY_HEALTH_RESULT: ${{ needs.private_python_proxy_health.result }}
         run: |
@@ -738,6 +755,7 @@ jobs:
           fi
 
       - name: Checkout
+        timeout-minutes: 1
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
@@ -745,6 +763,7 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Select native OBS2A material before PR startup
+        timeout-minutes: 1
         id: checkpoint-selection
         if: github.event_name == 'pull_request'
         env:
@@ -770,6 +789,8 @@ jobs:
             deploy/systemd scripts/ops/notify_premium_alias_checkpoint_failure.py deploy/prometheus/image-manifest.json \
             scripts/ci/prometheus_source_image.py .github/workflows/build.yml deploy/prometheus/Containerfile \
             scripts/verify_premium_alias_telemetry.py tests/test_notify_premium_alias_checkpoint_failure.py \
+            scripts/ci/fetch_docker_source_artifacts.py deploy/alertmanager/alertmanager.yml deploy/alertmanager/trivy-ignore.yaml \
+            deploy/docker-compose.staging.yaml deploy/docker-compose.production.yaml deploy/docker-compose.production.selfhosted.yaml \
             .github/workflows/ci.yml .github/workflows/cd.yml scripts/deploy.sh scripts/deploy_production.sh; then
             diff_status=0
           else
@@ -781,7 +802,69 @@ jobs:
             *) echo "Native surface discovery failed" >&2; exit "$diff_status" ;;
           esac
 
+      - name: Require separately designated AM controller
+        if: github.event_name == 'pull_request' && steps.checkpoint-selection.outputs.selected == 'true'
+        timeout-minutes: 1
+        run: |
+          set -euo pipefail
+          [[ "$ALERTMANAGER_CONTROLLER_SOURCE" =~ ^[0-9a-f]{40}$ ]]
+          test ! -e artifacts/orchestration/alertmanager-control
+          test ! -L artifacts/orchestration/alertmanager-control
+
+      - name: Checkout separately designated AM controller
+        id: alertmanager-control
+        if: github.event_name == 'pull_request' && steps.checkpoint-selection.outputs.selected == 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        timeout-minutes: 3
+        with:
+          ref: ${{ env.ALERTMANAGER_CONTROLLER_SOURCE }}
+          persist-credentials: false
+          fetch-depth: 0
+          path: artifacts/orchestration/alertmanager-control
+
+      - name: Prepare exact AM subject before material execution
+        id: alertmanager-image
+        if: github.event_name == 'pull_request' && steps.checkpoint-selection.outputs.selected == 'true'
+        timeout-minutes: ${{ fromJSON(env.ALERTMANAGER_PREPARATION_MINUTES) }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GHCR_READ_TOKEN: ${{ github.event_name != 'pull_request' && secrets.GHCR_READ_TOKEN || '' }}
+          SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          umask 077
+          material="$GITHUB_WORKSPACE"
+          controller="$material/artifacts/orchestration/alertmanager-control"
+          test ! -L "$controller"
+          test "$(git -C "$controller" rev-parse HEAD)" = "$ALERTMANAGER_CONTROLLER_SOURCE"
+          docker version --format 'client={{json .Client.Version}} server={{json .Server.Version}}'
+          docker info --format 'driver={{json .Driver}} driver_status={{json .DriverStatus}} os={{json .OSType}} arch={{json .Architecture}}'
+          cd "$controller"
+          python3 -E -s -S -m scripts.ci.fetch_docker_source_artifacts \
+            --artifact alertmanager --alertmanager-stage candidate-check --alertmanager-prepare-only \
+            --source-sha "$SOURCE_SHA" --material-root "$material" \
+            --alertmanager-controller-source "$ALERTMANAGER_CONTROLLER_SOURCE" \
+            --alertmanager-qualification-run 39018353942 --alertmanager-qualification-artifact 12095483900 \
+            --alertmanager-qualification-source 36cd171c4ebe44f63cb58d09a741b3d07098904d \
+            --alertmanager-support-run 39030856891 --alertmanager-support-artifact 12100576545 \
+            --alertmanager-support-source df5ebd017bda93e31fbf9eccfd7cc7b98973a3c6 \
+            --alertmanager-candidate-run 39143039135 --alertmanager-candidate-artifact 12142714566 \
+            --alertmanager-candidate-source 63455b8a750ef07a1e525078b4e3ce2089eecdde \
+            --output-dir "$RUNNER_TEMP/alertmanager-consumer-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" >> "$GITHUB_OUTPUT"
+
+      - name: Remove designated AM controller after credential cleanup
+        if: always() && (steps.alertmanager-control.outcome == 'success' || steps.alertmanager-control.outcome == 'failure')
+        timeout-minutes: 1
+        run: |
+          set -euo pipefail
+          controller="$GITHUB_WORKSPACE/artifacts/orchestration/alertmanager-control"
+          test ! -L "$controller"
+          rm -rf -- "$controller"
+          test ! -e "$controller" && test ! -L "$controller"
+
       - name: Require fresh fixed Prometheus control checkout
+        timeout-minutes: 1
         if: github.event_name == 'pull_request' && steps.checkpoint-selection.outputs.selected == 'true'
         run: |
           set -euo pipefail
@@ -792,11 +875,12 @@ jobs:
           done
 
       - name: Checkout fixed trusted Prometheus control
+        timeout-minutes: 3
         id: prometheus-control-checkout
         if: github.event_name == 'pull_request' && steps.checkpoint-selection.outputs.selected == 'true'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ef9e369052751d47c04f651f7d615714d918fc16 # pragma: allowlist secret - public trusted control commit
+          ref: 0d6a4c09477ad3174252eab15f80cdd4a76df5bc # pragma: allowlist secret - public trusted control commit
           persist-credentials: false
           path: artifacts/orchestration/prometheus-control
           sparse-checkout: scripts/ci/prometheus_source_image.py
@@ -876,18 +960,18 @@ jobs:
               if not helper.is_file() or stat.S_IMODE(helper.stat().st_mode) != 0o644:
                   raise SystemExit("Prometheus_control_mode_HOLD")
               raw = helper.read_bytes()
-              if len(raw) != 328857 or hashlib.sha256(raw).hexdigest() != "0fedf3e9ac865fe2b89a3367e5e4065e1c0c28fca88465c7f2b41775dbf4070a":  # pragma: allowlist secret - public trusted control digest
+              if len(raw) != 338536 or hashlib.sha256(raw).hexdigest() != "2b6edfa63f55b17cafdff100151b4b7cebef93a757fc3ab04b00eea77ca0ac6a":  # pragma: allowlist secret - public trusted control digest
                   raise SystemExit("Prometheus_control_bytes_HOLD")
               environment = {"PATH": "/usr/bin:/bin", "LANG": "C", "GIT_NO_REPLACE_OBJECTS": "1",
                              "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_COUNT": "0"}
               revision = subprocess.run(["/usr/bin/git", "--no-replace-objects", "-C", str(control),
                                          "rev-parse", "HEAD"], env=environment, capture_output=True, check=True)
-              if revision.stdout.strip() != b"ef9e369052751d47c04f651f7d615714d918fc16":  # pragma: allowlist secret - public trusted control commit
+              if revision.stdout.strip() != b"0d6a4c09477ad3174252eab15f80cdd4a76df5bc":  # pragma: allowlist secret - public trusted control commit
                   raise SystemExit("Prometheus_control_revision_HOLD")
               object_row = subprocess.run(["/usr/bin/git", "--no-replace-objects", "-C", str(control),
                                           "ls-tree", "-z", "HEAD", "--", "scripts/ci/prometheus_source_image.py"],
                                          env=environment, capture_output=True, check=True)
-              if object_row.stdout != b"100644 blob 9d921263edf33797988e0200015f27469ba848ec\tscripts/ci/prometheus_source_image.py\0":  # pragma: allowlist secret - public trusted control blob
+              if object_row.stdout != b"100644 blob 175520fe70b30c885448b95718b25b27985d3f8c\tscripts/ci/prometheus_source_image.py\0":  # pragma: allowlist secret - public trusted control blob
                   raise SystemExit("Prometheus_control_object_HOLD")
               trusted = runpy.run_path(str(helper))
               if not all(callable(trusted.get(name)) for name in
@@ -908,6 +992,7 @@ jobs:
           PY
 
       - name: Consume exact Prometheus subject before PR startup
+        timeout-minutes: 18
         id: checkpoint-image
         if: github.event_name == 'pull_request' && steps.checkpoint-selection.outputs.selected == 'true'
         env:
@@ -934,18 +1019,18 @@ jobs:
           if not helper.is_file() or stat.S_IMODE(helper.stat().st_mode) != 0o644:
               raise SystemExit("Prometheus_control_mode_HOLD")
           raw = helper.read_bytes()
-          if len(raw) != 328857 or hashlib.sha256(raw).hexdigest() != "0fedf3e9ac865fe2b89a3367e5e4065e1c0c28fca88465c7f2b41775dbf4070a":  # pragma: allowlist secret - public trusted control digest
+          if len(raw) != 338536 or hashlib.sha256(raw).hexdigest() != "2b6edfa63f55b17cafdff100151b4b7cebef93a757fc3ab04b00eea77ca0ac6a":  # pragma: allowlist secret - public trusted control digest
               raise SystemExit("Prometheus_control_bytes_HOLD")
           environment = {"PATH": "/usr/bin:/bin", "LANG": "C", "GIT_NO_REPLACE_OBJECTS": "1",
                          "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_COUNT": "0"}
           revision = subprocess.run(["/usr/bin/git", "--no-replace-objects", "-C", str(control),
                                      "rev-parse", "HEAD"], env=environment, capture_output=True, check=True)
-          if revision.stdout.strip() != b"ef9e369052751d47c04f651f7d615714d918fc16":  # pragma: allowlist secret - public trusted control commit
+          if revision.stdout.strip() != b"0d6a4c09477ad3174252eab15f80cdd4a76df5bc":  # pragma: allowlist secret - public trusted control commit
               raise SystemExit("Prometheus_control_revision_HOLD")
           object_row = subprocess.run(["/usr/bin/git", "--no-replace-objects", "-C", str(control),
                                       "ls-tree", "-z", "HEAD", "--", "scripts/ci/prometheus_source_image.py"],
                                      env=environment, capture_output=True, check=True)
-          if object_row.stdout != b"100644 blob 9d921263edf33797988e0200015f27469ba848ec\tscripts/ci/prometheus_source_image.py\0":  # pragma: allowlist secret - public trusted control blob
+          if object_row.stdout != b"100644 blob 175520fe70b30c885448b95718b25b27985d3f8c\tscripts/ci/prometheus_source_image.py\0":  # pragma: allowlist secret - public trusted control blob
               raise SystemExit("Prometheus_control_object_HOLD")
           trusted = runpy.run_path(str(helper))
           if not all(callable(trusted.get(name)) for name in
@@ -991,6 +1076,7 @@ jobs:
           PY
 
       - name: Remove fixed trusted Prometheus control checkout
+        timeout-minutes: 1
         if: always() && github.event_name == 'pull_request' && (steps.prometheus-control-checkout.outcome == 'success' || steps.prometheus-control-checkout.outcome == 'failure')
         run: |
           set -euo pipefail
@@ -1000,6 +1086,7 @@ jobs:
           test ! -e "$control" && test ! -L "$control"
 
       - name: Restore lint workflow revision
+        timeout-minutes: 2
         if: github.event_name == 'pull_request'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -1009,6 +1096,7 @@ jobs:
           clean: false
 
       - name: Verify lint workflow revision
+        timeout-minutes: 1
         if: github.event_name == 'pull_request'
         run: |
           set -euo pipefail
@@ -1016,6 +1104,7 @@ jobs:
           test "$restored_sha" = "$GITHUB_SHA"
 
       - name: Setup Python environment
+        timeout-minutes: 20
         uses: ./.github/actions/python-setup
         env:
           DEVPI_CI_USER: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && secrets.DEVPI_CI_USER || '' }}
@@ -1026,13 +1115,14 @@ jobs:
           install-mode: direct-proxy
 
       - name: Setup Node.js
+        timeout-minutes: 3
         uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
         with: {node-version-file: "${{ env.FRONTEND_NODE_VERSION_FILE }}",
                cache: npm, cache-dependency-path: frontend/package-lock.json}
 
-      - {uses: ./.github/actions/npm-ci-with-retry, with: {working-directory: frontend}}
+      - {uses: ./.github/actions/npm-ci-with-retry, timeout-minutes: 6, with: {working-directory: frontend}}
       - name: Pre-commit (lint/format/security quick checks)
-        timeout-minutes: ${{ fromJSON(vars.CI_LINT_CHECKS_TIMEOUT_MINUTES || '40') }}
+        timeout-minutes: ${{ fromJSON(env.ALERTMANAGER_LINT_CHECK_MINUTES) }}
         run: |
           set -euo pipefail
           : "${RUNNER_TEMP:?RUNNER_TEMP is required for the owned pip seed.}"
@@ -1117,8 +1207,10 @@ jobs:
       - name: Native OBS2A checkpoint lifecycle and owned-task challenge
         id: checkpoint-native
         if: github.event_name == 'pull_request' && steps.checkpoint-selection.outputs.selected == 'true'
-        timeout-minutes: ${{ fromJSON(vars.OBS2A_NATIVE_JOB_TIMEOUT_MINUTES || '40') }}
+        timeout-minutes: ${{ fromJSON(env.ALERTMANAGER_GENERIC_NATIVE_MINUTES) }}
         env:
+          AM_IMAGE_ID: ${{ steps.alertmanager-image.outputs.image_id }}
+          AM_CONFIG_SHA256: ${{ steps.alertmanager-image.outputs.config_sha256 }}
           PROMETHEUS_RUNTIME_REF: ${{ steps.checkpoint-image.outputs.runtime_ref }}
         run: |
           set -euo pipefail
@@ -1126,7 +1218,8 @@ jobs:
           mkdir -p artifacts/orchestration/obs2a_pr3
           if {
             sudo /usr/bin/env -i PATH=/usr/local/bin:/usr/bin:/bin LANG=C HOME=/tmp PYTHONDONTWRITEBYTECODE=1 \
-            "$native_python" -m tests.test_notify_premium_alias_checkpoint_failure --native
+            "$native_python" -m tests.test_notify_premium_alias_checkpoint_failure --native \
+              --alertmanager-image-id "$AM_IMAGE_ID" --alertmanager-config-sha256 "$AM_CONFIG_SHA256"
           } 2>&1 | tee artifacts/orchestration/obs2a_pr3/native-result.log; then
             pipeline_status=("${PIPESTATUS[@]}")
           else
@@ -1140,6 +1233,7 @@ jobs:
           exit "$capture_status"
 
       - name: Retain selected PR OBS2A native observations
+        timeout-minutes: 5
         if: always() && github.event_name == 'pull_request' && (steps.checkpoint-selection.outputs.selected == 'true' || steps.checkpoint-selection.outcome == 'failure')
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1 / Node 24
         with:
@@ -1148,6 +1242,9 @@ jobs:
             artifacts/orchestration/obs2a_pr3/selection.log
             artifacts/orchestration/obs2a_pr3/native-result.log
             ${{ runner.temp }}/prometheus-obs2a-consumer-${{ github.run_id }}-${{ github.run_attempt }}/evidence/
+            ${{ runner.temp }}/alertmanager-consumer-${{ github.run_id }}-${{ github.run_attempt }}/consumer-observation.json
+            ${{ runner.temp }}/alertmanager-consumer-${{ github.run_id }}-${{ github.run_attempt }}/github-read-evidence/
+            ${{ runner.temp }}/alertmanager-consumer-${{ github.run_id }}-${{ github.run_attempt }}/preparation/evidence/
           if-no-files-found: error
           retention-days: 7
 

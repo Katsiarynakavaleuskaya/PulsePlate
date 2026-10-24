@@ -855,3 +855,31 @@ input/report hashes, image identity, native evidence and exact command receipts.
 Before completion it also retains the merge receipt, clean main `0 0`, sanity,
 review evidence, verified Git bundle and same-ID readback of the four approved
 Drive records. No standalone bookkeeping PR or automatic prevention PR is opened.
+
+
+## Receiving P01 repair in PR #2497
+
+The operator authorized the bounded package-inventory and same-run publication
+ordering repair from PR #2494 source
+`b82f3868caa305ef8592a30d707ca37d7725905d`. This Carryover preserves the full
+`.github/workflows/build.yml`, Prometheus Containerfile and image manifest bytes.
+The existing `historical_helper_change` route independently authenticates the
+original retained source and the current receiver; it does not rebuild or
+weaken the ordinary positive-publication requirement.
+
+The existing package reader requires all count-derived pages, including the
+terminal short/empty page, distinct native IDs and exact package/repository
+identity and count readback. Limits are 20,000 versions, 1 MiB native capture per
+page and 64 MiB aggregate versions stdout. It does not deduplicate or stop after
+a matching tag. Main promotion waits for the actual same-run/attempt/head backend
+publish job to complete successfully before package inventory; malformed,
+regressing or terminal unsuccessful states reject. Pending waits share the
+existing work deadline and preserve separate cleanup and raw failures.
+
+Source anchors: `scripts/ci/prometheus_source_image.py:4343` (predecessor),
+`scripts/ci/prometheus_source_image.py:7822` (inventory),
+`scripts/ci/prometheus_source_image.py:7911` (promotion).
+Focused results, current-head gates and actual publication/pullback/downstream
+outcomes are separate evidence. Code adoption or merge does not prove those
+outcomes. This change does not adopt the donor's source-catalog requalification;
+our original seventeen source records and `generated_at` remain unchanged.

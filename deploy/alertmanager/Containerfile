@@ -10,7 +10,7 @@ COPY alertmanager.yml /etc/alertmanager/alertmanager.yml
 COPY LICENSE /LICENSE
 COPY NOTICE /NOTICE
 USER 65534:65534
-COPY --chown=65534:65534 storage-dir /alertmanager
+COPY --chown=65534:65534 --chmod=0700 storage-dir /alertmanager
 WORKDIR /alertmanager
 EXPOSE 9093
 VOLUME ["/alertmanager"]

@@ -462,8 +462,11 @@ boundary. A `CURRENT` finding fails its corresponding gate now; fix the bounded
 cause before readiness. Applicable upstream fixes call for remediation and
 proven suppression retirement, not blind date extension. Review source/removal
 triggers weekly. Forecast output does not replace native build/scanner proof,
-current-head CI or human merge authority. The independent Alertmanager exception
-retains its own expiry (`deploy/alertmanager/trivy-ignore.yaml:5`).
+current-head CI or human merge authority. The retained Alertmanager replacement
+candidate has an exact empty policy (`deploy/alertmanager/trivy-ignore.yaml:1`).
+Old selected or running bytes retain their original October 21 UTC cutoff.
+Current receiver/native/security proof and actual publication remain separate
+requirements; an empty candidate policy alone does not establish retirement.
 
 For PR builds, native Trivy policy controls follow the pinned image scan and
 precede report validation (`.github/workflows/build.yml:183`). Byte-bind the
@@ -1614,3 +1617,37 @@ prove the reviewed clean supporting-tool root, network-none SDK validation,
 offline Runner consumption/final COPY, Apple Oracle or final native runtime.
 Use those independent owning checks before closeout. No local C++ rebuild or
 new registry package is implied by retaining hosted image bytes.
+
+
+## Retained Alertmanager receiver and P01 publication checks
+
+Preserve the original Q/S/C10 producer identity when adopting the explicitly
+approved receiver. The source owner authenticates the original producer graph
+separately from current receiver event/ref/head/base and keeps all original
+content/tool/DB hashes. A matching ZIP is transport evidence, not a fresh native
+or scanner result. The candidate may select the exact retained C10 subject and
+delete only its four obsolete CVE waiver entries; acceptance still requires all
+content/native/security and current receiver/controller checks. Old selected or
+running bytes continue to reject at their original expiry.
+
+Create a real local controller commit C, independently review/designate its
+exact bytes, then author H with the known full C SHA and current helper bindings.
+Keep helper and five-template bytes equal to C. Run the required local bundle
+and normal pre-push checks, then one ordinary push may publish both commits.
+Authenticate actual remote C/live H before protected execution; do not require
+that remote-dependent evidence before the same push. Current native/CI/security,
+review, closeout and wait gates are required before merge readiness.
+
+Retained consumers start no compiler. Initial receiver and genuine first-main
+cases retain their explicit predicates; ordinary readers still require a real
+positive publication predecessor. AM publication remains a separately authorized
+manual main dispatch, with immutable copy/pullback rather than rebuilding.
+Neither merge nor a selected image proves publication, an ordinary working base
+or downstream CD. No automatic deployment/start/stop follows this procedure.
+
+For P01, inspect the same-run backend publish job and complete native package
+page/count/identity evidence. Known pending states use the existing bounded
+wait; terminal failure or malformed/duplicate inventory is a failure, not a retry
+instruction. Preserve original raw logs and cleanup results. Canonical evidence:
+`docs/security/CVE-2026-84445-alertmanager.md` and
+`docs/security/MAIN_RECOVERY_1_CONTAINER_PUBLICATION.md`.

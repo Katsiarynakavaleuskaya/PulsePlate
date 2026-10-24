@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ast
+import hashlib
 import json
 import os
 import re
@@ -11,6 +12,8 @@ import runpy
 import shutil
 import subprocess
 import sys
+import time
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any, cast
 
 from packaging.requirements import InvalidRequirement
@@ -776,7 +779,11 @@ def test_ci_pre_commit_seed_lifecycle_preserves_failures_and_observes_created_ho
     step = _workflow_step_by_name(
         ".github/workflows/ci.yml", "lint", "Pre-commit (lint/format/security quick checks)"
     )
-    assert step["timeout-minutes"] == "${{ fromJSON(vars.CI_LINT_CHECKS_TIMEOUT_MINUTES || '40') }}"
+    assert step["timeout-minutes"] == "${{ fromJSON(env.ALERTMANAGER_LINT_CHECK_MINUTES) }}"
+    lint = _load_workflow(".github/workflows/ci.yml")["jobs"]["lint"]
+    assert lint["env"]["ALERTMANAGER_LINT_CHECK_MINUTES"] == (
+        "${{ vars.CI_LINT_CHECKS_TIMEOUT_MINUTES || '40' }}"
+    )
     assert step["env"] == {"SKIP": "no-commit-to-branch"}
     assert "if" not in step and "continue-on-error" not in step
     script = step["run"]
@@ -2547,14 +2554,29 @@ def test_pre_push_pip_audit_does_not_create_or_upgrade_an_installer_environment(
 
 
 def _fake_strict_auditor(
-    tmp_path: Path, *, fail_first: bool = False, malformed: bool = False
+    tmp_path: Path,
+    *,
+    fail_first: bool = False,
+    malformed: bool = False,
+    barrier: Path | None = None,
 ) -> tuple[Path, Path]:
     fake_bin = tmp_path / "bin"
     fake_bin.mkdir()
+    (tmp_path / "controller-home").mkdir(mode=0o700)
+    (tmp_path / "temporary").mkdir(mode=0o700)
+    for name in (
+        "requirements.txt",
+        "requirements-docker-runtime.txt",
+        "requirements-data.txt",
+        "requirements-evals.txt",
+        "requirements-rag-vector.txt",
+        "requirements-rag-vector-cpu.txt",
+    ):
+        (tmp_path / name).write_text(f"# {name}\nexample==1.0.0\n", encoding="utf-8")
     log = tmp_path / "audit-argv.jsonl"
     script = fake_bin / "pip-audit"
     program = r"""
-import json, os, sys
+import json, os, sys, time
 from pathlib import Path
 if sys.argv[1:] == ['--version']:
     print('pip-audit 2.10.1')
@@ -2566,7 +2588,16 @@ args = sys.argv[1:]
 with Path(__LOG__).open('a') as stream:
     stream.write(json.dumps(args) + '\n')
 output = Path(args[args.index('-o') + 1])
-if __FAIL__ and output.name == 'pip-audit-requirements.json':
+barrier = __BARRIER__
+if barrier is not None:
+    rendezvous = Path(barrier)
+    (rendezvous / output.name).write_text('ready')
+    deadline = time.monotonic() + 30
+    while not (rendezvous / 'release').exists():
+        if time.monotonic() >= deadline:
+            raise RuntimeError('synthetic scanner rendezvous timed out')
+        time.sleep(0.01)
+if __FAIL__ and len(Path(__LOG__).read_text().splitlines()) == 1:
     print('synthetic scanner failure', file=sys.stderr)
     raise SystemExit(7)
 manifest = Path(args[args.index('-r') + 1])
@@ -2582,34 +2613,32 @@ print('synthetic scanner stderr', file=sys.stderr)
         + program.replace("__LOG__", repr(str(log)))
         .replace("__FAIL__", repr(fail_first))
         .replace("__MALFORMED__", repr(malformed))
+        .replace("__BARRIER__", repr(str(barrier) if barrier is not None else None))
     )
     script.chmod(0o755)
     return fake_bin, log
 
 
 def _run_strict_audit_shell(tmp_path: Path, fake_bin: Path) -> subprocess.CompletedProcess[str]:
-    for name in (
-        "requirements.txt",
-        "requirements-docker-runtime.txt",
-        "requirements-data.txt",
-        "requirements-evals.txt",
-        "requirements-rag-vector.txt",
-        "requirements-rag-vector-cpu.txt",
-    ):
-        (tmp_path / name).write_text("example==1.0.0\n")
-    env = os.environ.copy()
-    env.update(
-        CI="1",
-        VENV_PYTHON=sys.executable,
-        GH_TOKEN="synthetic-not-forwarded",
-        GITHUB_TOKEN="synthetic-not-forwarded",
-        PYPI_TOKEN="synthetic-not-forwarded",
-        TWINE_PASSWORD="synthetic-not-forwarded",
-        NETRC="synthetic-not-forwarded",
-        DEVPI_CI_PASSWORD="synthetic-not-forwarded",
-        PULSEPLATE_PYTHON_INDEX_URL="https://packages.example.invalid/simple/",
-        PATH=os.pathsep.join((str(fake_bin), "/usr/bin", "/bin", "/usr/sbin", "/sbin")),
-    )
+    env = {
+        "CI": "1",
+        "HOME": str(tmp_path / "controller-home"),
+        "TMPDIR": str(tmp_path / "temporary"),
+        "LANG": "C.UTF-8",
+        "PIP_CONFIG_FILE": "/dev/null",
+        "PYTHONNOUSERSITE": "1",
+        "VENV_PYTHON": sys.executable,
+        "GH_TOKEN": "synthetic-not-forwarded",
+        "GITHUB_TOKEN": "synthetic-not-forwarded",
+        "PYPI_TOKEN": "synthetic-not-forwarded",
+        "TWINE_PASSWORD": "synthetic-not-forwarded",
+        "NETRC": "synthetic-not-forwarded",
+        "DEVPI_CI_PASSWORD": "synthetic-not-forwarded",
+        "PYTHONPATH": "synthetic-not-forwarded",
+        "HTTPS_PROXY": "synthetic-not-forwarded",
+        "PULSEPLATE_PYTHON_INDEX_URL": "https://packages.example.invalid/simple/",
+        "PATH": os.pathsep.join((str(fake_bin), "/usr/bin", "/bin", "/usr/sbin", "/sbin")),
+    }
     return subprocess.run(
         ["/bin/bash", str(REPO_ROOT / "scripts/ci_pip_audit.sh")],
         cwd=tmp_path,
@@ -2617,7 +2646,13 @@ def _run_strict_audit_shell(tmp_path: Path, fake_bin: Path) -> subprocess.Comple
         text=True,
         capture_output=True,
         check=False,
+        timeout=60,
     )
+
+
+def _strict_audit_outputs(log: Path) -> list[str]:
+    commands = [json.loads(line) for line in log.read_text().splitlines()]
+    return [command[command.index("-o") + 1] for command in commands]
 
 
 def test_pip_audit_helper_invokes_cpu_rag_vector_manifest(tmp_path: Path) -> None:
@@ -2625,20 +2660,28 @@ def test_pip_audit_helper_invokes_cpu_rag_vector_manifest(tmp_path: Path) -> Non
     result = _run_strict_audit_shell(tmp_path, fake_bin)
     assert result.returncode == 0, result.stderr
     commands = [json.loads(line) for line in log.read_text().splitlines()]
-    outputs = [command[command.index("-o") + 1] for command in commands]
-    assert outputs == [
-        "pip-audit-requirements.json",
-        "pip-audit-requirements-docker-runtime.json",
-        "pip-audit-requirements-data.json",
-        "pip-audit-requirements-evals.json",
-        "pip-audit-requirements-rag-vector.json",
-        "pip-audit-requirements-rag-vector-cpu.json",
+    outputs = _strict_audit_outputs(log)
+    manifests = [
+        "requirements.txt",
+        "requirements-docker-runtime.txt",
+        "requirements-data.txt",
+        "requirements-evals.txt",
+        "requirements-rag-vector.txt",
+        "requirements-rag-vector-cpu.txt",
     ]
-    for command, output in zip(commands, outputs, strict=True):
+    assert len(outputs) == len(set(outputs)) == 6
+    for command, output, manifest in zip(commands, outputs, manifests, strict=True):
+        assert Path(output).parent == Path(".")
+        assert output.startswith(f"pip-audit-{manifest.removesuffix('.txt')}-")
+        assert output.endswith(".json")
         assert command[2:] == ["--no-deps", "--disable-pip", "--strict", "-f", "json", "-o", output]
         assert "--ignore-vuln" not in command and "--timeout" not in command
         evidence = json.loads((tmp_path / output.replace(".json", ".evidence.json")).read_text())
         assert evidence["passed"] is True and evidence["upstream_comparison"] is False
+        assert (
+            evidence["original_input_sha256"]
+            == hashlib.sha256((tmp_path / manifest).read_bytes()).hexdigest()
+        )
         assert (
             evidence["original_coordinates"]
             == evidence["query_coordinates"]
@@ -2656,14 +2699,14 @@ def test_pip_audit_helper_scans_all_manifests_before_returning_failure(tmp_path:
     assert "one or more dependency manifests failed audit" in result.stderr
     commands = [json.loads(line) for line in log.read_text().splitlines()]
     assert len(commands) == 6
-    assert (tmp_path / "pip-audit-requirements.json").read_bytes() == b""
-    assert (
-        tmp_path / "pip-audit-requirements.stderr.log"
-    ).read_text() == "synthetic scanner failure\n"
-    evidence = json.loads((tmp_path / "pip-audit-requirements.evidence.json").read_text())
+    outputs = _strict_audit_outputs(log)
+    output = tmp_path / outputs[0]
+    assert output.read_bytes() == b""
+    assert output.with_suffix(".stderr.log").read_text() == "synthetic scanner failure\n"
+    evidence = json.loads(output.with_suffix(".evidence.json").read_text())
     assert evidence["scanner_exit"] == 7 and evidence["passed"] is False
     assert evidence["inventory_validation_error"] == "invalid_scanner_json"
-    assert (tmp_path / "pip-audit-requirements-rag-vector-cpu.json").exists()
+    assert (tmp_path / outputs[-1]).exists()
 
 
 def test_pip_audit_helper_rejects_empty_object_reports_without_rewriting_raw_bytes(
@@ -2673,8 +2716,9 @@ def test_pip_audit_helper_rejects_empty_object_reports_without_rewriting_raw_byt
     result = _run_strict_audit_shell(tmp_path, fake_bin)
     assert result.returncode == 1
     assert len(log.read_text().splitlines()) == 6
-    assert (tmp_path / "pip-audit-requirements.json").read_bytes() == b"{}\n"
-    evidence = json.loads((tmp_path / "pip-audit-requirements.evidence.json").read_text())
+    output = tmp_path / _strict_audit_outputs(log)[0]
+    assert output.read_bytes() == b"{}\n"
+    evidence = json.loads(output.with_suffix(".evidence.json").read_text())
     assert evidence["inventory_validation_error"] == "invalid_scanner_report_shape"
     assert evidence["passed"] is False
 
@@ -4067,3 +4111,57 @@ def test_black_hook_parity_rejects_mismatched_or_ambiguous_owners(
     path.write_text(yaml.safe_dump(config), encoding="utf-8")
     with pytest.raises((AssertionError, InvalidVersion)):
         _assert_black_hook_lock_parity(black_hook_repo)
+
+
+@pytest.mark.parametrize("first_fails", (False, True))
+def test_pip_audit_repeated_invocations_preserve_all_previous_outputs(
+    tmp_path: Path, first_fails: bool
+) -> None:
+    fake_bin, log = _fake_strict_auditor(tmp_path, fail_first=first_fails)
+    first = _run_strict_audit_shell(tmp_path, fake_bin)
+    assert first.returncode == (7 if first_fails else 0), first.stderr
+    first_outputs = _strict_audit_outputs(log)
+    assert len(first_outputs) == 6
+    retained = {path: path.read_bytes() for path in tmp_path.glob("pip-audit-*")}
+    assert len(retained) == 18
+    second = _run_strict_audit_shell(tmp_path, fake_bin)
+    assert second.returncode == 0, second.stderr
+    outputs = _strict_audit_outputs(log)
+    assert len(outputs) == len(set(outputs)) == 12
+    assert all(path.read_bytes() == raw for path, raw in retained.items())
+    assert len(list(tmp_path.glob("pip-audit-*"))) == 36
+    for output in outputs[6:]:
+        evidence = json.loads((tmp_path / output).with_suffix(".evidence.json").read_text())
+        assert evidence["passed"] is True
+
+
+def test_pip_audit_concurrent_invocations_keep_distinct_retained_outputs(tmp_path: Path) -> None:
+    barrier = tmp_path / "scanner-barrier"
+    barrier.mkdir()
+    fake_bin, log = _fake_strict_auditor(tmp_path, barrier=barrier)
+    retained = {}
+    for suffix in ("json", "stderr.log", "evidence.json"):
+        path = tmp_path / f"pip-audit-requirements.{suffix}"
+        path.write_bytes(b"retained previous invocation\n")
+        retained[path] = path.read_bytes()
+    immutable_inputs = {path: path.read_bytes() for path in tmp_path.glob("requirements*.txt")}
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        futures = [executor.submit(_run_strict_audit_shell, tmp_path, fake_bin) for _ in range(2)]
+        try:
+            deadline = time.monotonic() + 20
+            while len(list(barrier.glob("pip-audit-*.json"))) < 2 and time.monotonic() < deadline:
+                time.sleep(0.01)
+            assert len(list(barrier.glob("pip-audit-*.json"))) == 2, "both scanners must overlap"
+        finally:
+            (barrier / "release").write_text("release\n", encoding="utf-8")
+        results = [future.result(timeout=60) for future in futures]
+    assert all(result.returncode == 0 for result in results), [result.stderr for result in results]
+    outputs = _strict_audit_outputs(log)
+    assert len(outputs) == len(set(outputs)) == 12
+    assert len(list(tmp_path.glob("pip-audit-*"))) == 39
+    assert all(path.read_bytes() == raw for path, raw in retained.items())
+    assert all(path.read_bytes() == raw for path, raw in immutable_inputs.items())
+    for output in outputs:
+        assert Path(output).parent == Path(".") and output.startswith("pip-audit-")
+        evidence = json.loads((tmp_path / output).with_suffix(".evidence.json").read_text())
+        assert evidence["passed"] is True

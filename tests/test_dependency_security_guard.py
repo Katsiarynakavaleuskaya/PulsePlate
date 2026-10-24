@@ -743,13 +743,13 @@ def _min_version_for_pkg(req: Requirement, pkg: str, *, pinned: bool) -> Optiona
     floors = [sp.version for sp in req.specifier if sp.operator in (">=", "==", "~=")]
     if not floors:
         return None
-    return min(floors, key=lambda v: Version(v))
+    return max(floors, key=lambda v: Version(v))
 
 
 def _effective_min_version_in_file(path: Path, package: str) -> Optional[Version]:
     """
     Return the effective minimum version for `package` in this file.
-    Pinned surfaces: min of == pins. Constraint surfaces: min of >= and ==.
+    Pinned surfaces: min of == pins. Constraints: strongest supported floor per carrier.
     """
     pinned = not _is_constraint_style(path)
     versions: list[Version] = []
@@ -4178,3 +4178,68 @@ def test_python_stabilization_canonical_required_floor_allows_later_patch(
         test_dependency_security_guard_enforces_min_versions(path)
     with pytest.raises(AssertionError, match="blocked range"):
         _assert_remediated_dependency_surface(path, package=package, required=True, pinned=True)
+
+
+@pytest.mark.parametrize(
+    "constraint",
+    (
+        ">={floor},~={later}",
+        "~={later},>={floor}",
+        ">={floor},>={later},<{upper}",
+        ">={later},<{upper},>={floor}",
+        "=={later},>={floor}",
+        ">={floor},=={later}",
+        "~={floor},>={later}",
+        "~={later}",
+    ),
+)
+def test_python_stabilization_source_uses_strongest_conjunctive_floor(
+    tmp_path: Path, constraint: str
+) -> None:
+    """Clause order cannot turn a permitted stronger intersection into a false rejection."""
+    floor = REMEDIATION_FIXED_FLOORS["black"]
+    later = f"{floor.major}.{floor.minor}.{floor.micro + 1}"
+    spec = constraint.format(floor=floor, later=later, upper=f"{floor.major + 1}.0.0")
+    requirement = Requirement(f"black{spec}")
+    assert _min_version_for_pkg(requirement, "black", pinned=False) == later
+    path = tmp_path / "requirements-dev.in"
+    path.write_text(str(requirement) + "\n", encoding="utf-8")
+    _assert_remediated_dependency_surface(path, package="black", required=True, pinned=False)
+
+
+@pytest.mark.parametrize(
+    "constraint",
+    (
+        ">={later},=={floor}",
+        "=={floor},>={later}",
+        ">={later},<{later}",
+        ">={later},!={later}",
+        "=={later},!={later}",
+        "~={floor},>={upper}",
+    ),
+)
+def test_python_stabilization_source_rejects_excluded_strongest_candidate(
+    tmp_path: Path, constraint: str
+) -> None:
+    """Keep full membership: do not search past exclusions or solve arbitrary intervals."""
+    floor = REMEDIATION_FIXED_FLOORS["black"]
+    later = f"{floor.major}.{floor.minor}.{floor.micro + 1}"
+    spec = constraint.format(floor=floor, later=later, upper=f"{floor.major + 1}.0.0")
+    path = tmp_path / "requirements-dev.in"
+    path.write_text(f"black{spec}\n", encoding="utf-8")
+    with pytest.raises(AssertionError, match="excludes its comparable floor or pin"):
+        _assert_remediated_dependency_surface(path, package="black", required=True, pinned=False)
+
+
+def test_python_stabilization_compound_constraint_keeps_affected_and_exact_pin_rejection(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "requirements-dev.in"
+    source.write_text("black>=26.5.0,~=26.5.1\n", encoding="utf-8")
+    with pytest.raises(AssertionError, match="blocked range"):
+        _assert_remediated_dependency_surface(source, package="black", required=True, pinned=False)
+    lock = tmp_path / "requirements-dev.txt"
+    floor = REMEDIATION_FIXED_FLOORS["black"]
+    lock.write_text(f"black=={floor},>={floor}\n", encoding="utf-8")
+    with pytest.raises(AssertionError, match="exactly one == pin"):
+        _assert_remediated_dependency_surface(lock, package="black", required=True, pinned=True)

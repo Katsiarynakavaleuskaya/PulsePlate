@@ -21,19 +21,29 @@ export const validDietFlags = [
 
 export const setupSchema = z.object({
   sex: z.enum(["male", "female"]),
-  age: z.number().int().min(13).max(90),
-  height_cm: z.number().min(120).max(230),
-  weight_kg: z.number().min(30).max(300),
+  age: z.number({ error: "Required" })
+    .int({ error: "Expected integer, received float" })
+    .min(13, { error: "Number must be greater than or equal to 13" })
+    .max(90, { error: "Number must be less than or equal to 90" }),
+  height_cm: z.number({ error: "Required" })
+    .min(120, { error: "Number must be greater than or equal to 120" })
+    .max(230, { error: "Number must be less than or equal to 230" }),
+  weight_kg: z.number({ error: "Required" })
+    .min(30, { error: "Number must be greater than or equal to 30" })
+    .max(300, { error: "Number must be less than or equal to 300" }),
   activity: z.enum(["sedentary", "light", "moderate", "active", "athlete"]),
   goal: z.enum(["lose", "maintain", "gain"]),
-  diet_flags: z.array(z.enum(validDietFlags)).default([]),
+  diet_flags: z.array(z.enum(validDietFlags)).max(validDietFlags.length).default([]),
 });
 
-export type SetupFormValues = z.infer<typeof setupSchema>;
+export type SetupFormInput = z.input<typeof setupSchema>;
+export type SetupFormValues = z.output<typeof setupSchema>;
 export type DietFlag = typeof validDietFlags[number];
 
-export const isValidSetupFormValues = (data: unknown): data is SetupFormValues =>
-  setupSchema.safeParse(data).success;
+export const parseSetupFormValues = (data: unknown): SetupFormValues | undefined => {
+  const result = setupSchema.safeParse(data);
+  return result.success ? result.data : undefined;
+};
 
 export type NormalizedBmrMethod =
   | "Mifflin-St Jeor"

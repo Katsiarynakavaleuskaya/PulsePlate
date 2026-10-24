@@ -889,7 +889,60 @@ corresponding revalidation. Consult the canonical PR/mapping and exact-material
 receipts for current gate outcomes; missing evidence stays unproven. Native profile
 success does not establish final-image, hosted workflow or merge readiness.
 
-Prometheus publisher/CD recovery remains owned by #2494. Rollback uses a normal
+The October 24 AM04 decision transfers only the necessary retained Alertmanager
+receiver and P01 package-inventory/publication-order code from exact #2494
+source into #2497. The original producer identity and other owners remain
+unchanged. Actual AM publication still requires its separately authorized manual
+main dispatch; current native checks, immutable pullback and downstream CD are
+independent outcomes. Code adoption/merge cannot establish a working ordinary
+published base while its positive publication predecessor is absent. The AM
+owner is `docs/security/CVE-2026-84445-alertmanager.md`. Rollback uses a normal
 reviewed revert; restoring vulnerable pins reintroduces known findings and
 requires explicit decision. No automatic downgrade, history rewrite, merge or
 production action follows from this document.
+
+
+## Exact nine-site Bandit decision AM05
+
+On October 24 the human owner explicitly accepted only nine existing annotations
+from the reviewed finite report SHA-256
+`12c7f2674a8b83bd0a73c67dc49c7fb7fbca70b612c3be6698831ffd1a33ed2e`:
+four B404 imports, four B603 fixed subprocess calls and one B105 synthetic
+configuration value. This is a separate residual-risk decision from the seven
+Python dependency remediations and the four-CVE AM replacement. It adds no
+application-dependency CVE exception, scanner setting or static allowlist.
+
+| Existing source | Cases | Retained boundary |
+| --- | --- | --- |
+| `scripts/ops/notify_premium_alias_checkpoint_failure.py:11` | B404, B603 | Fixed canonical manifest reader, minimal environment, ten-second timeout, validated output, no Compose send after failure |
+| `scripts/verify_premium_alias_telemetry.py:16` | B404, B603 | Same bounded manifest authority before telemetry operations |
+| `scripts/ops/ops_context_report.py:11` | B404, B603 | Absolute native Git, fixed argv/cwd/minimal environment, five-second timeout and sanitized commit identity errors |
+| `scripts/ci/fetch_docker_source_artifacts.py:5869`, `:7810` | B105, B404, B603 | Synthetic Compose config only; fixed read-only held-FD collector with bounded captures and owned process-group cleanup |
+
+Owner: security-auditor / dev-operator. Mandatory manual reassessment is due
+**2026-10-30**. The unchanged calendar-date guard accepts **2026-10-31
+inclusive** and rejects **2026-11-01**. The decision permits no automatic renewal
+or tenth annotation. Previous assessment dates and original producer hashes
+remain historical evidence.
+
+Within the NOSEC-only delta, the complete executable AST is unchanged. Any
+approved embedded collector source must also retain its decoded AST; arbitrary
+string changes cannot be hidden by an AST comparison. AM04 receiver logic is a
+separate executable delta. Current notifier/verifier/AM helper deployment pins
+must be recomputed from actual bytes, together with the independently designated
+controller. Original Q/S/C10 source/ZIP/OCI/graph/tool/DB hashes are immutable.
+
+Required evidence comprises ordinary and ignore-nosec scans of exactly these
+four files, nine expected unsuppressed finding identities and zero parse errors,
+the existing expiry/absolute-binary/process/reader/deploy checks and all final
+local/current-head gates. Ordinary suppressed output is not a global no-findings
+claim. Actual results live in exact-material receipts and the PR; this scope
+record does not mark future checks passed.
+
+Remove the annotations when the operation is retired or a reviewed smaller
+implementation preserves every process/identity/error boundary. Reassess on any
+changed interpreter/helper/binary/argv/environment/timeout/output contract or
+new finding/failing control. Rollback reverts the comments and coupled current
+pins together and restores the blocking warning/expiry condition; it never
+weakens a scanner or authorizes production action. Tracking remains in the
+existing checkpoint/OPS and AM ledger entries.

@@ -2,7 +2,13 @@
 
 from __future__ import annotations
 
+import hashlib
+import os
 import re
+import shutil
+import stat
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -233,6 +239,7 @@ def test_production_deploy_syncs_shell_bundle_for_caddy_rebuild() -> None:
         r"\s+deploy/prometheus/prometheus\.yml \\\n"
         r"\s+deploy/prometheus/image-manifest\.json \\\n"
         r"\s+scripts/ci/prometheus_source_image\.py \\\n"
+        r"\s+scripts/ci/fetch_docker_source_artifacts\.py \\\n"
         r"\s+scripts/diagnose_web\.sh \\\n"
         r"\s+scripts/redeploy_caddy\.sh \\\n"
         r"\s+scripts/ops/postgres_backup\.sh \\\n"
@@ -268,7 +275,7 @@ def test_production_deploy_jobs_delegate_registry_login_to_deploy_script() -> No
     self_hosted_section = workflow_text.split("deploy-production-self-hosted:", maxsplit=1)[1]
 
     assert (
-        "envs: DEPLOY_SCRIPT_SHA256,PROMETHEUS_HELPER_SHA256,IMAGE_REF,TAG,PRODUCTION_DOMAIN,DEPLOY_DIR,GHCR_USER,GHCR_TOKEN"
+        "envs: DEPLOY_SCRIPT_SHA256,PROMETHEUS_HELPER_SHA256,ALERTMANAGER_HELPER_SHA256,IMAGE_REF,TAG,PRODUCTION_DOMAIN,DEPLOY_DIR,GHCR_USER,GHCR_TOKEN"
         in ssh_section
     )
     assert (
@@ -488,7 +495,21 @@ def test_cd_has_no_prometheus_candidate_publication_carrier() -> None:
 
     dispatch = triggers["workflow_dispatch"]
     assert set(dispatch) == {"inputs"}
-    assert set(dispatch["inputs"]) == {"postgres_mode", "source_sha", "alertmanager_mode"}
+    assert set(dispatch["inputs"]) == {
+        "postgres_mode",
+        "source_sha",
+        "alertmanager_mode",
+        "alertmanager_qualification_run",
+        "alertmanager_qualification_artifact",
+        "alertmanager_qualification_source",
+        "alertmanager_support_run",
+        "alertmanager_support_artifact",
+        "alertmanager_support_source",
+        "alertmanager_candidate_run",
+        "alertmanager_candidate_artifact",
+        "alertmanager_candidate_source",
+        "alertmanager_pr",
+    }
     assert dispatch["inputs"]["postgres_mode"]["options"] == [
         "disabled",
         "synthetic-probe",
@@ -500,6 +521,7 @@ def test_cd_has_no_prometheus_candidate_publication_carrier() -> None:
         "disabled",
         "module-qualify",
         "build",
+        "publish",
     ]
     alert = jobs["alertmanager-module-qualification"]
     assert "github.event_name == 'workflow_dispatch'" in alert["if"]
@@ -555,6 +577,7 @@ def test_prometheus_cd_registry_credential_route_preserves_base_execution_bounda
         initial_pr["name"],
         initial_published["name"],
         "Checkout fixed trusted Prometheus control",
+        "Checkout separately designated AM controller",
     ]
     event = steps["Validate exact Prometheus checkout revisions"]
     assert "secrets." not in str(event)
@@ -596,7 +619,7 @@ def test_prometheus_cd_registry_credential_route_preserves_base_execution_bounda
     assert (
         control["with"]["ref"]
         # pragma: allowlist nextline secret - public trusted control commit
-        == "ef9e369052751d47c04f651f7d615714d918fc16"
+        == "0d6a4c09477ad3174252eab15f80cdd4a76df5bc"
     )
     assert control["with"]["persist-credentials"] is False
     assert control["with"]["sparse-checkout"] == "scripts/ci/prometheus_source_image.py"
@@ -608,15 +631,15 @@ def test_prometheus_cd_registry_credential_route_preserves_base_execution_bounda
     )
     for script in (route["run"], consumer["run"]):
         assert "Prometheus_control_interface_HOLD" in script
-        assert "328857" in script
+        assert "338536" in script
         assert (
             # pragma: allowlist nextline secret - public trusted control blob
-            "9d921263edf33797988e0200015f27469ba848ec"
+            "175520fe70b30c885448b95718b25b27985d3f8c"
             in script
         )
         assert (
             # pragma: allowlist nextline secret - public trusted control digest
-            "0fedf3e9ac865fe2b89a3367e5e4065e1c0c28fca88465c7f2b41775dbf4070a"
+            "2b6edfa63f55b17cafdff100151b4b7cebef93a757fc3ab04b00eea77ca0ac6a"
             in script
         )
     assert 'trusted["consume_image"](work, material' in consumer["run"]
@@ -635,6 +658,10 @@ def test_prometheus_cd_registry_credential_route_preserves_base_execution_bounda
         "Wait for the exact trusted Prometheus publisher",
         consumer["name"],
         cleanup["name"],
+        "Require separately designated AM controller",
+        "Checkout separately designated AM controller",
+        "Prepare exact AM subject before material execution",
+        "Remove designated AM controller after credential cleanup",
         "Check canonical Prometheus config with exact-image promtool",
     ]
     assert [names.index(name) for name in expected_order] == sorted(
@@ -754,11 +781,22 @@ def test_checkpoint_native_consumer_precedes_secret_free_child(
             < selected["steps"].index(step)
         )
     else:
-        assert step["env"]["GHCR_READ_TOKEN"] == credential
-        assert (
-            step["env"]["GH_TOKEN"] == step["env"]["GITHUB_TOKEN"] == "${{ secrets.GITHUB_TOKEN }}"
+        consumer = next(
+            s
+            for s in selected["steps"]
+            if s.get("name") == "Consume exact Prometheus before main native fixtures"
         )
-        assert script.index("--operation consume") < script.index("sudo /usr/bin/env -i ")
+        assert consumer["env"]["GHCR_READ_TOKEN"] == credential
+        assert (
+            consumer["env"]["GH_TOKEN"]
+            == consumer["env"]["GITHUB_TOKEN"]
+            == "${{ secrets.GITHUB_TOKEN }}"
+        )
+        assert selected["steps"].index(consumer) < selected["steps"].index(step)
+        assert "--operation consume" in consumer["run"] and "--operation consume" not in script
+        assert not {"GH_TOKEN", "GITHUB_TOKEN", "GHCR_READ_TOKEN"} & step["env"].keys()
+        assert consumer["timeout-minutes"] == 18
+        assert step["timeout-minutes"] == "${{ fromJSON(env.ALERTMANAGER_GENERIC_NATIVE_MINUTES) }}"
     child = next(
         line.strip()
         for line in script.splitlines()
@@ -767,6 +805,140 @@ def test_checkpoint_native_consumer_precedes_secret_free_child(
     assert not any(
         value in child for value in ("GH_TOKEN", "GITHUB_TOKEN", "GHCR_READ_TOKEN", "DOCKER_CONFIG")
     )
-    assert 'native_python="$(command -v python)"' in script
+    assert (
+        'native_python="$(command -v python)"'
+        if filename == "ci.yml"
+        else 'native_python="$AM_HOST_PYTHON"'
+    ) in script
     assert 'exit "$native_status"' in script and 'exit "$capture_status"' in script
     assert not any("login-action" in str(s.get("uses", "")) for s in selected["steps"])
+
+
+@pytest.mark.parametrize("symlink_position", [None, 0, 1, 2])
+@pytest.mark.parametrize("old_and_list_oracle", [False, True])
+def test_trusted_ssh_file_loop_rejects_matching_symlink_before_file_effects(
+    tmp_path: Path,
+    symlink_position: int | None,
+    old_and_list_oracle: bool,
+) -> None:
+    """Execute only the extracted local boundary with synthetic files, never SSH/deployment."""
+    workflow = yaml.safe_load(CD_WORKFLOW_PATH.read_text())
+    step = next(
+        item
+        for item in workflow["jobs"]["deploy-production"]["steps"]
+        if item.get("name") == "Deploy to production over SSH (pinned digest)"
+    )
+    actual = step["with"]["script"]
+    start = actual.index('for trusted in "$tmp_script"')
+    end = actual.index("\nbundle_name=", start)
+    snippet = actual[start:end]
+    fixed = '[ ! -L "$trusted" ]\n  [ -f "$trusted" ]'
+    assert fixed in snippet
+    if old_and_list_oracle:
+        snippet = snippet.replace(fixed, '[ ! -L "$trusted" ] && [ -f "$trusted" ]')
+    assert '/bin/bash "$tmp_script" --preflight-only' in actual
+    snippet = "set -euo pipefail\n" + snippet + '\n/bin/bash "$tmp_script" --preflight-only\n'
+    tools = tmp_path / "trusted-tools"
+    tools.mkdir(mode=0o700)
+    trace = tmp_path / "effects"
+    contents = [
+        b'#!/bin/sh\nprintf "launch\\n" >> "$CONTROL_TRACE"\n',
+        b"# synthetic Prometheus helper\n",
+        b"# synthetic AM helper\n",
+    ]
+    files = [tools / name for name in ("deploy.sh", "prometheus.py", "alertmanager.py")]
+    for path, content in zip(files, contents):
+        path.write_bytes(content)
+        path.chmod(0o640)
+    target = tmp_path / "owned-target-outside-tool-directory"
+    if symlink_position is not None:
+        target.write_bytes(contents[symlink_position])
+        target.chmod(0o640)
+        files[symlink_position].unlink()
+        files[symlink_position].symlink_to(target)
+        assert files[symlink_position].read_bytes() == contents[symlink_position]
+        assert files[symlink_position].lstat().st_uid == os.geteuid()
+        assert files[symlink_position].lstat().st_nlink == 1
+    commands = tmp_path / "commands"
+    commands.mkdir()
+    native_observer = f"#!{sys.executable}\n" + r"""
+import hashlib
+import os
+from pathlib import Path
+import sys
+name = Path(sys.argv[0]).name
+args = sys.argv[1:]
+trace = Path(os.environ["CONTROL_TRACE"])
+def record(value):
+    with trace.open("a") as stream:
+        stream.write(value + "\n")
+if name == "stat":
+    assert args[:2] == ["-c", "%u:%h"] and len(args) == 3
+    path = Path(args[2])
+    record("stat|" + str(path))
+    value = path.lstat()
+    print(str(value.st_uid) + ":" + str(value.st_nlink))
+elif name == "sha256sum":
+    assert len(args) == 1
+    path = Path(args[0])
+    record("hash|" + str(path))
+    print(hashlib.sha256(path.read_bytes()).hexdigest() + "  " + str(path))
+elif name == "chmod":
+    assert args[:2] == ["600", "--"] and len(args) == 5
+    record("chmod")
+    for raw in args[2:]:
+        path = Path(raw)
+        assert path.resolve().is_relative_to(Path(os.environ["CONTROL_ROOT"]))
+        path.chmod(0o600)
+else:
+    raise AssertionError(name)
+"""
+    for name in ("stat", "sha256sum", "chmod"):
+        command = commands / name
+        command.write_text(native_observer)
+        command.chmod(0o700)
+    environment = {
+        "PATH": str(commands) + os.pathsep + os.defpath,
+        "HOME": str(tmp_path),
+        "LANG": "C",
+        "tmp_script": str(files[0]),
+        "PROMETHEUS_CONTRACT_HELPER": str(files[1]),
+        "ALERTMANAGER_CONTRACT_HELPER": str(files[2]),
+        "DEPLOY_SCRIPT_SHA256": hashlib.sha256(contents[0]).hexdigest(),
+        "PROMETHEUS_HELPER_SHA256": hashlib.sha256(contents[1]).hexdigest(),
+        "ALERTMANAGER_HELPER_SHA256": hashlib.sha256(contents[2]).hexdigest(),
+        "CONTROL_TRACE": str(trace),
+        "CONTROL_ROOT": str(tmp_path),
+    }
+    bash = shutil.which("bash")
+    assert bash is not None
+    result = subprocess.run(
+        [bash, "-c", snippet],
+        env=environment,
+        text=True,
+        capture_output=True,
+        timeout=10,
+        check=False,
+    )
+    events = trace.read_text().splitlines() if trace.exists() else []
+    if symlink_position is None:
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert events == [
+            *("stat|" + str(path) for path in files),
+            *("hash|" + str(path) for path in files),
+            "chmod",
+            "launch",
+        ]
+        assert all(stat.S_IMODE(path.stat().st_mode) == 0o600 for path in files)
+    elif old_and_list_oracle:
+        # Counterfactual reproduces the original bug despite matching hash/owner/link count.
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert "stat|" + str(files[symlink_position]) in events
+        assert events[-2:] == ["chmod", "launch"]
+        assert stat.S_IMODE(target.stat().st_mode) == 0o600
+    else:
+        assert result.returncode != 0
+        assert events == ["stat|" + str(path) for path in files[:symlink_position]]
+        assert stat.S_IMODE(target.stat().st_mode) == 0o640
+        assert all(stat.S_IMODE(path.stat().st_mode) == 0o640 for path in files)
+        assert target.read_bytes() == contents[symlink_position]
