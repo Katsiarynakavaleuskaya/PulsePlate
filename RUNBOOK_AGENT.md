@@ -236,6 +236,13 @@ required/current-head checks, the relevant `test-main` matrix,
 
 **This is the authoritative procedural checklist.** Thresholds/policy live in `AGENTS.md`.
 
+When a test compiles an in-memory workflow snippet, use a synthetic diagnostic
+filename such as `<cd.yml:AM-readonly-prerequisite>`. A label shaped as a real
+repository filename can make coverage XML fail with `No source for code` after
+the tests have passed. Diagnose this with the owning focused test under the
+existing coverage configuration, followed by `coverage xml`; preserve the
+collection configuration and coverage thresholds.
+
 ### Merge-Ready Bundle (Blocking vs Advisory)
 
 Use this bundle when you need a strict merge claim:
@@ -358,10 +365,12 @@ options, including values equal to installation defaults. Mixed selectors or
 stray build inputs fail before acquisition, preflight or backend execution.
 
 Refresh runtime alone with `make requirements-locks`, collect its complete
-input/output/delta evidence, run the focused host gates and commit runtime.
-Only then refresh the constrained Docker-runtime, CI-lite, dev and aggregate
-profiles. A stronger source floor is valid when it exceeds the current schema
-floor and its canonical range contains its own declared minimum. Raise the
+input/output/delta evidence, then refresh the constrained Docker-runtime,
+CI-lite, dev and aggregate profiles in a separate generator invocation. Keep a
+coherent admitted correction in one source/tests/docs commit after focused
+proof; the profile dependency order does not require intermediate commits or
+repeated unchanged full hook runs. A stronger source floor is valid when it
+exceeds the current schema floor and its canonical range contains its own declared minimum. Raise the
 live schema after all affected locks reach the selected target; never relax a
 guard or restore weaker intent bytes to pass hooks. Full local `make verify`
 retains the root human-authorization rule.
@@ -420,8 +429,14 @@ boundary. A `CURRENT` finding fails its corresponding gate now; fix the bounded
 cause before readiness. Applicable upstream fixes call for remediation and
 proven suppression retirement, not blind date extension. Review source/removal
 triggers weekly. Forecast output does not replace native build/scanner proof,
-current-head CI or human merge authority. The independent Alertmanager exception
-retains its own expiry (`deploy/alertmanager/trivy-ignore.yaml:5`).
+current-head CI or human merge authority. Alertmanager's obsolete policy is now
+exactly `vulnerabilities: []` (`deploy/alertmanager/trivy-ignore.yaml:1`). The old
+vulnerable selected or running subject still rejects at October 21 00:00 UTC;
+unknown identity is HOLD. Retained native/scanner evidence is accepted; publication
+and immutable pullback remain pending. Their canonical evidence owner is
+`docs/security/CVE-2026-84445-alertmanager.md`.
+An unsuccessful current scan or missing publication proof is never repaired by
+rebuilding, re-enabling the old exception or automatically stopping monitoring.
 
 For PR builds, native Trivy policy controls follow the pinned image scan and
 precede report validation (`.github/workflows/build.yml:183`). Byte-bind the
@@ -1550,3 +1565,38 @@ prove the reviewed clean supporting-tool root, network-none SDK validation,
 offline Runner consumption/final COPY, Apple Oracle or final native runtime.
 Use those independent owning checks before closeout. No local C++ rebuild or
 new registry package is implied by retaining hosted image bytes.
+
+## Temporary Pillow audit handling (PR #2494)
+
+The current bounded decision is certifi remediation plus retained Pillow 12.3.0
+risk. The superseded Pillow 13 dependent transaction failed on FastEmbed's <13
+constraint; do not retry that unchanged transaction or claim Pillow remediation.
+The single owner is
+[PR #2494 security record](docs/security/PR_2494_CERTIFI_PILLOW_REMEDIATION.md).
+
+Use `bash scripts/ci_pip_audit.sh` for the six declared CI manifests, or
+`bash scripts/ci_pip_audit.sh --pre-push` for requirements.txt. Other arguments
+are rejected. The pinned pre-commit hook delegates to this same helper; it
+retains the existing auditor environment and never installs/resolves packages.
+The existing dependency-surface owner checks current registry/discovery, exact
+retained Pillow carriers and hard expiry before each actual invocation and
+again before promotion. Review reminder: 2026-10-23T00:00:00Z; hard expiry:
+2026-10-28T00:00:00Z (equality rejects). There is no clock override.
+
+The helper retains a fresh unsuppressed report before the exact eight-ID native
+ignore operation. Native 2.10.1 ignored JSON removes finding details, so retain
+both reports and their native exits. Raw exit 1 with admitted findings is not
+native PASS; an ignored exit 0 alone is insufficient. Unknown findings/aliases,
+scanner errors/skips, report/input drift and expiry remain blocking. Unique
+raw/native/stdout/stderr evidence stays under `artifacts/security_lab/pip-audit/`;
+CI exposes the existing canonical JSON names plus unsuppressed/native companions.
+Pre-push leaves its evidence in that ignored directory. A no-Pillow/empty input
+is a scoped result and does not require eight reported findings.
+
+Retained Pillow risk remains open in the
+[ledger](docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-pillow-arrow-residual-2494).
+When a compatible applicable fix is qualified, remove the obsolete literal
+cohort and retained-version branch with the owning dependency update. Do not
+turn this exception into a generic waiver or a permanent 12.3.0 requirement.
+Fresh exact-head gates, review, mapping, wait and conditional merge requirements
+remain independent. The four original AM exceptions are a separate subject.

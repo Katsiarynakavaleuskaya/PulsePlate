@@ -49,6 +49,21 @@ PRODUCTION_DOMAIN=example.com STAGING_FALLBACK_DOMAIN=staging.example.com \
   digest-pinned Compose service. Floating tags and `latest` are forbidden.
 - `STAGING_ATTESTED_DIGEST_READY=true` may be enabled only after the server-local Compose, Caddyfile, deploy script, Postgres backup helper, root-owned contract marker, and current-commit hashes are synchronized. The staging `.env` must be a regular non-symlink file with mode `0600`; it is Compose data and must never be shell-sourced by the deploy path. Merge alone does not update `/srv/pulseplate-staging`.
 
+## Incoming deployment bundle validation
+
+- Validate incoming Compose/config/policy bytes at their original bundle paths,
+  separately from the trusted installed Compose project directory. Render both
+  pending and installed models with that explicitly selected installed directory;
+  compare normalized bind and secret paths to their intended installed targets.
+  A candidate model or its project name must never choose the installed context.
+- An explicit `--env-file` supplies interpolation values; it does not replace a
+  service relative `env_file`. Keep missing installed environment files fatal and
+  never copy or symlink a production `.env` into an incoming bundle.
+- Changes to relative `env_file`, bind or secret resolution require a real native
+  Compose configuration-only regression using synthetic files, an absent incoming
+  `.env` and the existing native fixture. Stubbed JSON alone cannot prove those
+  path semantics. No image execution or deployment authority follows.
+
 ## Commands (run from repo root)
 - Build images: `make docker-build`, `make docker-build-dev`
 - Run containers: `make docker-run`, `make docker-run-dev`
@@ -130,8 +145,8 @@ PRODUCTION_DOMAIN=example.com STAGING_FALLBACK_DOMAIN=staging.example.com \
   coupling; native Compose owns normalization and valid non-AM dependencies
   remain allowed.
   It is not part of ordinary app/DB/metrics startup. Its exact image, private
-  network topology, `environment` label authority, config and narrow Trivy
-  exception must pass CD and both deploy admissions before product mutation.
+  network topology, `environment` label authority, config and exact empty Trivy
+  policy must pass CD and both deploy admissions before product mutation.
   Only selected alerting requires a Compose-account-owned mode-0444 SMTP key
   in the existing protected mode-0700 secrets directory; the bind mount makes
   the file readable to Alertmanager UID 65534 without ownership remapping.
@@ -157,18 +172,19 @@ PRODUCTION_DOMAIN=example.com STAGING_FALLBACK_DOMAIN=staging.example.com \
   cannot activate a profile. Configuration-only profile rendering does not
   authorize runtime activation. Prove precedence with native Compose;
   arbitrary sourced-shell behavior is outside this bounded profile check.
-- The Alertmanager exception expires at `2026-10-21T00:00:00Z`; selected
-  alerting must reject at or after that UTC instant. Profile-off production
-  admission also performs a read-only all-state Docker label census of the
-  installed Compose project's Alertmanager, including on a first bundle when
-  the old installed Compose has no Alertmanager service or config files.
-  Bind the sole full container ID, project/service labels
-  and consistent Docker state; errors, multiple IDs, restarting or unknown
-  states are `HOLD`. A running instance must pass the same expiry check;
-  absent or proven stopped instances do not require an SMTP key. Rejection
-  must precede product mutation and must not automatically stop or start
-  Alertmanager. This census is an admission boundary, not continuous or
-  whole-host monitoring.
+- The old vulnerable Alertmanager subject expires at `2026-10-21T00:00:00Z`.
+  The remediated accepted subject and exact empty policy remain date independent.
+  Both readers use the same trusted fetcher owner for a read-only all-state census
+  of the installed Compose project even when alerting is off. Production also
+  checks its independently installed model before a first incoming bundle adds
+  the service. Staging is installed-only: missing AM files/context remain HOLD,
+  not proof of absence or a successful migration. Bind the full container ID, labels,
+  strict state and running image's config/RepoDigest/Linux-amd64 tuple. A selected
+  corrected image cannot hide an old running instance at the cutoff. Unknown IDs,
+  states, images or capture status remain HOLD; absent/proven stopped instances
+  need no SMTP file when the profile is off. Rejection precedes product mutation
+  and never automatically starts or stops Alertmanager. This is a bounded
+  admission observation, not continuous or whole-host monitoring.
 
 ## Immutable PostgreSQL 15 plus pgvector contour
 

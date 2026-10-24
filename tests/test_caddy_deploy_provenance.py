@@ -6,12 +6,14 @@ import hashlib
 import json
 import os
 import re
+import shlex
 import shutil
 import stat
 import subprocess
 import sys
 from copy import deepcopy
 from pathlib import Path
+from typing import Any
 
 import pytest
 import yaml
@@ -39,6 +41,732 @@ ALERTMANAGER_CONFIG = REPO_ROOT / "deploy" / "alertmanager" / "alertmanager.yml"
 ALERTMANAGER_IGNORE = REPO_ROOT / "deploy" / "alertmanager" / "trivy-ignore.yaml"
 
 
+def test_alertmanager_input_support_job_is_independent_manual_read_permissions_without_compiler() -> (
+    None
+):
+    workflow = _workflow(CD_WORKFLOW)
+    job = _job(workflow, "alertmanager-input-inspection")
+    assert "needs" not in job
+    assert job["permissions"] == {"contents": "read", "actions": "read", "packages": "read"}
+    assert job["if"] == (
+        "github.event_name == 'workflow_dispatch' "
+        "&& (inputs.alertmanager_mode == 'input-inspect' || inputs.alertmanager_mode == 'support-inspect') "
+        "&& github.repository == 'Katsiarynakavaleuskaya/PulsePlate' "
+        "&& startsWith(github.ref, 'refs/heads/') && github.run_attempt == 1 "
+        "&& inputs.postgres_mode == 'disabled'"
+    )
+    step = _named_step(
+        _steps(job),
+        "Inspect authenticated retained Alertmanager inputs and read existing package metadata",
+    )
+    assert step["env"]["GH_TOKEN"] == step["env"]["GITHUB_TOKEN"] == "${{ secrets.GITHUB_TOKEN }}"
+    assert '--alertmanager-stage "$ALERTMANAGER_STAGE"' in step["run"]
+    for selector in ("run", "artifact", "source"):
+        assert "--alertmanager-qualification-" + selector in step["run"]
+    assert "docker " not in step["run"] and "go build" not in step["run"]
+    assert "--alertmanager-module-qualify" not in step["run"]
+    assert "prometheus" not in step["run"].lower()
+    assert (
+        _named_step(_steps(job), "Checkout exact Alertmanager inspection implementation")["with"][
+            "persist-credentials"
+        ]
+        is False
+    )
+
+
+def test_alertmanager_support_job_covers_aggregate_budgets_and_retains_screened_API_evidence() -> (
+    None
+):
+    workflow = _workflow(CD_WORKFLOW)
+    job = _job(workflow, "alertmanager-input-inspection")
+    budgets = {**workflow["env"], **job["env"]}
+    tool_fetch = _named_step(
+        _steps(job), "Prepare exact existing Alertmanager support scanner and Buildx CLI"
+    )
+    assert job["timeout-minutes"] == 55
+    # The distinct existing API and Native owners each retain their own cleanup.
+    # Keep at least five minutes for pure data inspection and artifact upload.
+    acquisition = tool_fetch["run"].count("curl -q ") * int(
+        budgets["ALERTMANAGER_TOOL_FETCH_SECONDS"]
+    )
+    work = (
+        acquisition
+        + int(budgets["ALERTMANAGER_INPUT_INSPECT_SECONDS"])
+        + int(budgets["ALERTMANAGER_SUPPORT_SECONDS"])
+    )
+    assert job["timeout-minutes"] * 60 - (work + 2 * 45) >= 5 * 60
+    assert (
+        0
+        < int(budgets["ALERTMANAGER_TOOL_CONNECT_SECONDS"])
+        <= int(budgets["ALERTMANAGER_TOOL_FETCH_SECONDS"])
+    )
+    assert (
+        0
+        < int(budgets["ALERTMANAGER_SCAN_TIMEOUT_SECONDS"])
+        < int(budgets["ALERTMANAGER_SCAN_PROCESS_SECONDS"])
+        <= int(budgets["ALERTMANAGER_SUPPORT_SECONDS"])
+    )
+    assert (
+        tool_fetch["run"].count(
+            '--connect-timeout "$ALERTMANAGER_TOOL_CONNECT_SECONDS" --max-time "$ALERTMANAGER_TOOL_FETCH_SECONDS"'
+        )
+        == 2
+    )
+    retained = _named_step(
+        _steps(job), "Retain Alertmanager input observations without compiler authority"
+    )
+    prefix = "${{ runner.temp }}/alertmanager-input-inspection-${{ github.run_id }}-${{ github.run_attempt }}/"
+    assert retained["if"] == "always()"
+    assert retained["with"]["path"].splitlines() == [
+        prefix + name
+        for name in ("input-inspection.json", "github-read-evidence/", "native-support/")
+    ]
+    assert not any(
+        value in retained["with"]["path"]
+        for value in ("/private/", "/home/", "qualification.zip", "*")
+    )
+
+
+@pytest.mark.parametrize(
+    "connect,fetch",
+    [
+        (None, "180"),
+        ("", "180"),
+        ("0", "180"),
+        ("01", "180"),
+        ("15", None),
+        ("15", ""),
+        ("15", "0"),
+        ("15", "1.5"),
+        ("15", " 180"),
+        ("181", "180"),
+    ],
+)
+def test_alertmanager_support_tool_budget_rejects_before_any_acquisition(
+    tmp_path: Path, connect: str | None, fetch: str | None
+) -> None:
+    job = _job(_workflow(CD_WORKFLOW), "alertmanager-input-inspection")
+    step = _named_step(
+        _steps(job), "Prepare exact existing Alertmanager support scanner and Buildx CLI"
+    )
+    # No executables on PATH: the shell must reject invalid budget configuration
+    # before attempting mktemp, curl or any other acquisition command.
+    env = {
+        "PATH": str(tmp_path / "absent"),
+        "RUNNER_TEMP": str(tmp_path),
+        "GITHUB_ENV": str(tmp_path / "env"),
+    }
+    for name, value in (
+        ("ALERTMANAGER_TOOL_CONNECT_SECONDS", connect),
+        ("ALERTMANAGER_TOOL_FETCH_SECONDS", fetch),
+    ):
+        if value is not None:
+            env[name] = value
+    result = subprocess.run(
+        ["/bin/bash", "-c", step["run"]],
+        cwd=tmp_path,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=5,
+        check=False,
+    )
+    assert result.returncode != 0 and "command not found" not in result.stderr
+    assert not (tmp_path / "env").exists()
+
+
+@pytest.mark.parametrize(
+    "fault", [None, "source", "git-failure", "run", "artifact", "qualification-source"]
+)
+def test_alertmanager_inspection_shell_rejects_bad_selectors_before_reader(
+    tmp_path: Path, fault: str | None
+) -> None:
+    step = _named_step(
+        _steps(_job(_workflow(CD_WORKFLOW), "alertmanager-input-inspection")),
+        "Inspect authenticated retained Alertmanager inputs and read existing package metadata",
+    )
+    # Keep transport stubs in this shell: selector validation must not depend
+    # on launching generated executables. The existing five-second timeout
+    # remains a hang guard for the finite shell program.
+    program = (
+        'git() { printf "%s\\n" "$GITHUB_SHA"; return "$SYNTHETIC_GIT_EXIT"; }\n'
+        'python3() { printf "%s\\n" "$@" > "$READER_MARKER"; }\n' + step["run"]
+    )
+    marker = tmp_path / "reader.args"
+    env = {
+        "PATH": str(tmp_path / "absent"),
+        "HOME": str(tmp_path),
+        "GH_CONFIG_DIR": str(tmp_path / "gh"),
+        "GH_TOKEN": "synthetic-test-token",
+        "GITHUB_TOKEN": "synthetic-test-token",
+        "INSPECTION_SOURCE": "b" * 40,
+        "GITHUB_SHA": "b" * 40,
+        "QUALIFICATION_RUN": "39018353942",
+        "QUALIFICATION_ARTIFACT": "12095483900",
+        "QUALIFICATION_SOURCE": "36cd171c4ebe44f63cb58d09a741b3d07098904d",
+        "ALERTMANAGER_STAGE": "input-inspect",
+        "SYNTHETIC_GIT_EXIT": "0",
+        "RUNNER_TEMP": str(tmp_path),
+        "GITHUB_RUN_ID": "456",
+        "GITHUB_RUN_ATTEMPT": "1",
+        "READER_MARKER": str(marker),
+    }
+    if fault == "source":
+        env["INSPECTION_SOURCE"] = "a" * 40
+    elif fault == "git-failure":
+        env["SYNTHETIC_GIT_EXIT"] = "1"
+    elif fault == "run":
+        env["QUALIFICATION_RUN"] = "latest"
+    elif fault == "artifact":
+        env["QUALIFICATION_ARTIFACT"] = ""
+    elif fault == "qualification-source":
+        env["QUALIFICATION_SOURCE"] = "HEAD"
+    result = subprocess.run(
+        ["/bin/bash", "-c", program],
+        env=env,
+        cwd=tmp_path,
+        stdin=subprocess.DEVNULL,
+        capture_output=True,
+        text=True,
+        timeout=5,
+        check=False,
+    )
+    assert (result.returncode == 0) is (fault is None), result.stderr
+    assert marker.exists() is (fault is None)
+    if fault is None:
+        args = marker.read_text().splitlines()
+        assert (
+            args[args.index("--alertmanager-qualification-source") + 1]
+            == env["QUALIFICATION_SOURCE"]
+        )
+        assert args[args.index("--alertmanager-stage") + 1] == "input-inspect"
+
+
+@pytest.fixture
+def alertmanager_support_native(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
+    import io
+    import struct
+    import tarfile
+    import time
+    import zipfile
+    from scripts.ci import fetch_docker_source_artifacts as fetcher
+    from scripts.ci import prometheus_source_image as transport
+
+    # Only external native operations are replaced. Files, digests, ELF header,
+    # default scanner argv, reports and cleanup control flow use the real owner.
+    data: dict[str, Any] = {
+        "fault": None,
+        "calls": [],
+        "present": False,
+        "instances": [],
+        "anonymous_volume": False,
+    }
+    for variable in (
+        "GH_TOKEN",
+        "GITHUB_TOKEN",
+        "GHCR_READ_TOKEN",
+        "GH_ENTERPRISE_TOKEN",
+        "GITHUB_ENTERPRISE_TOKEN",
+        "GH_HOST",
+        "GH_CONFIG_DIR",
+        "DOCKER_CONFIG",
+        "DOCKER_AUTH_CONFIG",
+        "NETRC",
+        "HTTP_PROXY",
+        "HTTPS_PROXY",
+        "ALL_PROXY",
+        "http_proxy",
+        "https_proxy",
+        "all_proxy",
+    ):
+        monkeypatch.delenv(variable, raising=False)
+    tools = tmp_path / "tools"
+    tools.mkdir()
+    for name in ("trivy", "docker-buildx", "docker"):
+        path = tools / name
+        path.write_bytes(("synthetic selected tool: " + name).encode())
+        path.chmod(0o755)
+    monkeypatch.setenv("TRIVY_BIN", str(tools / "trivy"))
+    monkeypatch.setenv("BUILDX_BIN", str(tools / "docker-buildx"))
+    workflow = _workflow(CD_WORKFLOW)
+    budgets = {**workflow["env"], **_job(workflow, "alertmanager-input-inspection")["env"]}
+    for name in (
+        "ALERTMANAGER_SUPPORT_SECONDS",
+        "ALERTMANAGER_SCAN_TIMEOUT_SECONDS",
+        "ALERTMANAGER_SCAN_PROCESS_SECONDS",
+    ):
+        monkeypatch.setenv(name, budgets[name])
+    data["scan_timeout"] = budgets["ALERTMANAGER_SCAN_TIMEOUT_SECONDS"]
+    data["scan_process"] = budgets["ALERTMANAGER_SCAN_PROCESS_SECONDS"]
+    monkeypatch.setattr(
+        fetcher, "_ALERT_TRIVY_SHA256", hashlib.sha256((tools / "trivy").read_bytes()).hexdigest()
+    )
+    monkeypatch.setattr(
+        fetcher,
+        "_ALERT_BUILDX_SHA256",
+        hashlib.sha256((tools / "docker-buildx").read_bytes()).hexdigest(),
+    )
+    probe = bytearray(1173752)
+    probe[:6] = b"\x7fELF\x02\x01"
+    struct.pack_into("<HH", probe, 16, 2, 62)
+    struct.pack_into("<Q", probe, 32, 64)
+    struct.pack_into("<HH", probe, 54, 56, 1)
+    struct.pack_into("<I", probe, 64, 1)
+    marker = b"BusyBox v1.38.0 (synthetic fixture)"
+    probe[128 : 128 + len(marker)] = marker
+    data["probe"] = bytes(probe)
+    monkeypatch.setattr(fetcher, "_ALERT_PROBE_SHA256", hashlib.sha256(probe).hexdigest())
+    layer_buffer = io.BytesIO()
+    with tarfile.open(fileobj=layer_buffer, mode="w") as layer_tar:
+        member = tarfile.TarInfo("etc/os-release")
+        body = b"ID=debian\nVERSION_ID=13\n"
+        member.mode, member.size = 0o644, len(body)
+        layer_tar.addfile(member, io.BytesIO(body))
+    layer_bytes = layer_buffer.getvalue()
+    diff_id = "sha256:" + hashlib.sha256(layer_bytes).hexdigest()
+    config_bytes = json.dumps(
+        {
+            "os": "linux",
+            "architecture": "amd64",
+            "rootfs": {"type": "layers", "diff_ids": [diff_id]},
+        }
+    ).encode()
+    base_id = "sha256:" + hashlib.sha256(config_bytes).hexdigest()
+    config_descriptor = {
+        "mediaType": "application/vnd.oci.image.config.v1+json",
+        "digest": base_id,
+        "size": len(config_bytes),
+    }
+    layer_descriptor = {
+        "mediaType": "application/vnd.oci.image.layer.v1.tar",
+        "digest": diff_id,
+        "size": len(layer_bytes),
+    }
+    manifest_bytes = json.dumps(
+        {
+            "schemaVersion": 2,
+            "mediaType": "application/vnd.oci.image.manifest.v1+json",
+            "config": config_descriptor,
+            "layers": [layer_descriptor],
+        }
+    ).encode()
+    manifest_digest = "sha256:" + hashlib.sha256(manifest_bytes).hexdigest()
+    base_members = {
+        "oci-layout": b'{"imageLayoutVersion":"1.0.0"}',
+        "index.json": json.dumps(
+            {
+                "schemaVersion": 2,
+                "mediaType": "application/vnd.oci.image.index.v1+json",
+                "manifests": [
+                    {
+                        "mediaType": "application/vnd.oci.image.manifest.v1+json",
+                        "digest": manifest_digest,
+                        "size": len(manifest_bytes),
+                    }
+                ],
+            }
+        ).encode(),
+        "blobs/sha256/" + base_id[7:]: config_bytes,
+        "blobs/sha256/" + diff_id[7:]: layer_bytes,
+        "blobs/sha256/" + manifest_digest[7:]: manifest_bytes,
+        "manifest.json": json.dumps(
+            [
+                {
+                    "Config": "blobs/sha256/" + base_id[7:],
+                    "RepoTags": None,
+                    "Layers": ["blobs/sha256/" + diff_id[7:]],
+                }
+            ]
+        ).encode(),
+    }
+    base_buffer = io.BytesIO()
+    with tarfile.open(fileobj=base_buffer, mode="w") as base_tar:
+        for name, body in base_members.items():
+            member = tarfile.TarInfo(name)
+            member.mode, member.size = 0o644, len(body)
+            base_tar.addfile(member, io.BytesIO(body))
+    base = {
+        "Id": base_id,
+        "Os": "linux",
+        "Architecture": "amd64",
+        "RootFS": {"Type": "layers", "Layers": [diff_id]},
+    }
+    archive = tmp_path / "qualification.zip"
+    with zipfile.ZipFile(archive, "w") as zip_file:
+        zip_file.writestr("base-retention/base-image.tar", base_buffer.getvalue())
+        zip_file.writestr("public-base-inspect.stdout", json.dumps(base))
+    monkeypatch.setattr(
+        fetcher, "_ALERT_Q_ZIP_SHA256", hashlib.sha256(archive.read_bytes()).hexdigest()
+    )
+    original_which = shutil.which
+    monkeypatch.setattr(
+        shutil,
+        "which",
+        lambda name: str(tools / "docker") if name == "docker" else original_which(name),
+    )
+    original_copy = shutil.copyfile
+
+    def copy(source: object, destination: object, **kwargs: Any) -> str:
+        result = original_copy(source, destination, **kwargs)
+        if (
+            data["fault"] == "copied-scanner"
+            and Path(destination).name == "trivy"
+            or data["fault"] == "copied-buildx"
+            and Path(destination).name == "docker-buildx"
+        ):
+            Path(destination).write_bytes(b"tampered copied tool")
+        return result
+
+    monkeypatch.setattr(shutil, "copyfile", copy)
+
+    class Native:
+        def __init__(self, evidence: Path, deadline: float, cleanup: int) -> None:
+            self.evidence, self.deadline, self.cleanup = evidence, deadline, cleanup
+            self.cleanup_deadline: float | None = None
+            self.records: list[dict[str, Any]] = []
+            data["instances"].append(self)
+
+        def begin_cleanup(self) -> None:
+            assert self.cleanup == 45
+            self.cleanup_deadline = time.monotonic() + 45
+
+        def run(
+            self, argv: list[str], label: str, env: dict[str, str], *, cwd: Path, **kwargs: Any
+        ) -> bytes:
+            assert set(env) == {"PATH", "HOME", "DOCKER_CONFIG", "LANG"}
+            assert not any(
+                key in env for key in ("GH_TOKEN", "GITHUB_TOKEN", "GHCR_READ_TOKEN", "NETRC")
+            )
+            data["calls"].append((label, argv, kwargs))
+            raw = b""
+            failure = None
+            try:
+                if label == "base-inspect":
+                    raw = json.dumps(base).encode()
+                elif label == "probe-origin-inspect":
+                    raw = json.dumps(
+                        {
+                            "Id": "sha256:53622b714941158bc20cc92a7571aef515556218eef914b7b8ec5b2a0cb6f607",
+                            "Os": "linux",
+                            "Architecture": "amd64",
+                            "RepoDigests": [
+                                "prom/alertmanager@sha256:84967b9b7ba45e38a9278d3e594305f43d4993c310df3905b51138b816c365f3"
+                            ],
+                        }
+                    ).encode()
+                elif label == "probe-owned-create-never-start":
+                    data["name"] = argv[argv.index("--name") + 1]
+                    data["label"] = argv[argv.index("--label") + 1].split("=", 1)[1]
+                    data["present"] = True
+                    # Image-declared VOLUME initialization occurs during create,
+                    # including a transport failure after the server-side effect.
+                    data["anonymous_volume"] = True
+                    if data["fault"] == "create-after-effect":
+                        raise RuntimeError("synthetic create transport failure")
+                    raw = ("a" * 64 + "\n").encode()
+                elif label == "probe-native-copy":
+                    path = Path(argv[-1])
+                    path.write_bytes(data["probe"])
+                    path.chmod(0o755)
+                elif label == "retain-known-vulnerable-control":
+                    Path(argv[argv.index("--output") + 1]).write_bytes(
+                        b"synthetic old image control export"
+                    )
+                elif label == "buildx-version-only":
+                    raw = b"github.com/docker/buildx v0.37.0 synthetic\n"
+                elif label == "buildx-help-only":
+                    raw = b"--build-context --network --output\n"
+                elif label == "scanner-version":
+                    raw = b'{"Version":"0.74.0"}'
+                elif label == "scanner-DB-acquisition":
+                    db = Path(argv[argv.index("--cache-dir") + 1]) / "db"
+                    db.mkdir(parents=True)
+                    (db / "trivy.db").write_bytes(b"synthetic database")
+                    (db / "metadata.json").write_text(
+                        '{"Version":2,"UpdatedAt":"2026-10-17T00:00:00Z"}'
+                    )
+                elif "--output" in argv:
+                    assert kwargs["maximum_seconds"] == int(data["scan_process"])
+                    assert argv[argv.index("--timeout") + 1] == data["scan_timeout"] + "s"
+                    for flag in (
+                        "--offline-scan",
+                        "--skip-db-update",
+                        "--list-all-pkgs",
+                        "--skip-vex-repo-update",
+                    ):
+                        assert flag in argv
+                    assert argv[argv.index("--scanners") + 1] == "vuln,secret"
+                    assert argv[argv.index("--severity") + 1] == "UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL"
+                    if data["fault"] == "scanner-error":
+                        raise RuntimeError("synthetic scanner exit2")
+                    if data["fault"] == "timeout":
+                        raise TimeoutError("synthetic scanner timeout")
+                    subject = argv[-1]
+                    # v0.74.0 Report.Results omitempty preserves the actual zero shape.
+                    report: dict[str, Any] = {
+                        "SchemaVersion": 2,
+                        "ArtifactName": subject,
+                        "ArtifactType": "filesystem",
+                    }
+                    if label == "secret-positive":
+                        report["Results"] = [
+                            {
+                                "Target": "credentials.txt",
+                                "Class": "secret",
+                                "Secrets": [{"RuleID": "github-pat", "Severity": "CRITICAL"}],
+                            }
+                        ]
+                        if data["fault"] == "positive-missing":
+                            report["Results"] = []
+                        elif data["fault"] == "positive-omitted":
+                            report.pop("Results")
+                    elif label == "base-full-supported-scan":
+                        report["ArtifactType"] = "container_image"
+                        report["Metadata"] = {"ImageID": base_id}
+                        report["Results"] = [
+                            {
+                                "Target": "debian",
+                                "Class": "os-pkgs",
+                                "Type": "debian",
+                                "Packages": [{"Name": "base-files", "Version": "1"}],
+                                "Vulnerabilities": [],
+                            }
+                        ]
+                        if data["fault"] == "base-target":
+                            report["Metadata"]["ImageID"] = "sha256:" + "f" * 64
+                        elif data["fault"] == "omitted-base":
+                            report["Results"] = []
+                        elif data["fault"] == "absent-base":
+                            report.pop("Results")
+                        elif data["fault"] == "secret":
+                            report["Results"][0]["Secrets"] = [{"RuleID": "synthetic"}]
+                        elif data["fault"] == "high":
+                            report["Results"][0]["Vulnerabilities"] = [
+                                {
+                                    "VulnerabilityID": "CVE-synthetic",
+                                    "PkgName": "base-files",
+                                    "InstalledVersion": "1",
+                                    "Severity": "HIGH",
+                                }
+                            ]
+                    elif label == "known-vulnerable-full-control":
+                        report["ArtifactType"] = "container_image"
+                        report["Metadata"] = {
+                            "ImageID": "sha256:53622b714941158bc20cc92a7571aef515556218eef914b7b8ec5b2a0cb6f607"
+                        }
+                        report["Results"] = [
+                            {
+                                "Target": target,
+                                "Class": "lang-pkgs",
+                                "Type": "gobinary",
+                                "Packages": [
+                                    {"Name": "stdlib", "Version": "v1.26.8"},
+                                    {"Name": "golang.org/x/net", "Version": "v0.58.0"},
+                                    {"Name": "google.golang.org/grpc", "Version": "v1.83.1"},
+                                ],
+                                "Vulnerabilities": [
+                                    {
+                                        "VulnerabilityID": cve,
+                                        "PkgIdentifier": {"PURL": purl},
+                                        "Severity": "HIGH",
+                                    }
+                                    for cve, purl in (
+                                        (
+                                            "CVE-2026-84445",
+                                            "pkg:golang/google.golang.org/grpc@v1.83.1",
+                                        ),
+                                        ("CVE-2026-78669", "pkg:golang/golang.org/x/net@v0.58.0"),
+                                        ("CVE-2026-78669", "pkg:golang/stdlib@v1.26.8"),
+                                        ("CVE-2026-78667", "pkg:golang/stdlib@v1.26.8"),
+                                        ("CVE-2026-97031", "pkg:golang/stdlib@v1.26.8"),
+                                    )
+                                ],
+                            }
+                            for target in ("bin/alertmanager", "bin/amtool")
+                        ]
+                        if data["fault"] == "vulnerability-control-missing":
+                            report["Results"].pop()
+                    if data["fault"] == label + "-null":
+                        report["Results"] = None
+                    elif data["fault"] == label + "-scalar":
+                        report["Results"] = "invalid"
+                    # The pinned scanner has no standalone BusyBox recognizer;
+                    # a real empty supported domain is not fabricated as a busybox Package.
+                    Path(argv[argv.index("--output") + 1]).write_text(
+                        "{" if data["fault"] == "malformed" else json.dumps(report)
+                    )
+                    if data["fault"] == "DB-drift":
+                        (Path(argv[argv.index("--cache-dir") + 1]) / "db/trivy.db").write_bytes(
+                            b"changed DB"
+                        )
+                elif label in ("support-cleanup-census", "support-cleanup-absence"):
+                    assert kwargs["cleaning"] is True
+                    raw = ("a" * 64 + "\n").encode() if data["present"] else b""
+                elif label == "support-cleanup-inspect":
+                    raw = json.dumps(
+                        {
+                            "Id": "a" * 64,
+                            "Name": "/" + data["name"],
+                            "Config": {
+                                "Labels": {"pulseplate.alertmanager-support": data["label"]}
+                            },
+                        }
+                    ).encode()
+                elif label == "support-cleanup-remove":
+                    data["present"] = False
+                    if "--volumes" in argv:
+                        data["anonymous_volume"] = False
+                else:
+                    assert label in ("base-load", "probe-public-origin-pull"), label
+                return raw
+            except BaseException as error:
+                failure = type(error).__name__
+                raise
+            finally:
+                self.records.append(
+                    {
+                        "argv": argv,
+                        "environment": env,
+                        "exit": 0 if failure is None else 2,
+                        "failure": failure,
+                        "cwd": str(cwd),
+                    }
+                )
+
+    monkeypatch.setattr(transport, "Native", Native)
+    data.update({"archive": archive, "output": tmp_path, "fetcher": fetcher})
+    return data
+
+
+@pytest.mark.parametrize(
+    "fault,diagnostic",
+    [
+        ("copied-scanner", "AM_copied_scanner_bytes"),
+        ("copied-buildx", "AM_copied_Buildx_bytes"),
+        ("positive-missing", "AM_secret_positive_or_negative_control"),
+        ("positive-omitted", "AM_scan_native_schema"),
+        ("absent-base", "AM_scan_native_schema"),
+        ("secret-negative-null", "AM_scan_native_schema"),
+        ("secret-negative-scalar", "AM_scan_native_schema"),
+        ("probe-full-supported-scan-null", "AM_scan_native_schema"),
+        ("probe-full-supported-scan-scalar", "AM_scan_native_schema"),
+        ("base-target", "AM_base_scan_exact_subject"),
+        ("omitted-base", "AM_base_supported_OS_inventory_missing"),
+        ("secret", "AM_support_secret_HOLD"),
+        ("high", "AM_new_blocking_support_finding_HOLD"),
+        ("DB-drift", "AM_scanner_or_DB_drift"),
+        ("create-after-effect", "synthetic create transport failure"),
+        ("scanner-error", "synthetic scanner exit2"),
+        ("timeout", "synthetic scanner timeout"),
+        ("vulnerability-control-missing", "AM_known_vulnerable_control_inventory_changed_HOLD"),
+    ],
+)
+def test_alertmanager_native_support_keeps_unsupported_scopes_and_failures_explicit(
+    alertmanager_support_native: dict[str, Any], fault: str | None, diagnostic: str
+) -> None:
+    data = alertmanager_support_native
+    data["fault"] = fault
+    error_type = TimeoutError if fault == "timeout" else RuntimeError
+    with pytest.raises(error_type, match=diagnostic):
+        data["fetcher"]._alertmanager_support_observation(data["archive"], data["output"])
+    assert data["present"] is False
+    for label, argv, _ in data["calls"]:
+        assert "start" not in argv and "run" not in argv and "--bootstrap" not in argv
+        assert "build" not in argv or "--help" in argv
+    if fault == "create-after-effect":
+        removals = [argv for label, argv, _ in data["calls"] if label == "support-cleanup-remove"]
+        assert len(removals) == 1
+        assert removals[0][-4:] == ["rm", "--force", "--volumes", "a" * 64]
+        assert data["anonymous_volume"] is False
+
+
+@pytest.mark.parametrize(
+    "scan_seconds,process_seconds", [(None, None), ("1", "2"), ("97", "123"), ("299", "330")]
+)
+def test_alertmanager_native_supported_empty_probe_is_bounded_observation_not_acceptance(
+    alertmanager_support_native: dict[str, Any],
+    monkeypatch: pytest.MonkeyPatch,
+    scan_seconds: str | None,
+    process_seconds: str | None,
+) -> None:
+    data = alertmanager_support_native
+    for variable, key, value in (
+        ("ALERTMANAGER_SCAN_TIMEOUT_SECONDS", "scan_timeout", scan_seconds),
+        ("ALERTMANAGER_SCAN_PROCESS_SECONDS", "scan_process", process_seconds),
+    ):
+        if value is not None:
+            monkeypatch.setenv(variable, value)
+            data[key] = value
+    observed = data["fetcher"]._alertmanager_support_observation(data["archive"], data["output"])
+    assert data["present"] is False and observed["owned_container_absence_observed"] is True
+    assert observed["compiler_starts"] == observed["logical_build_starts"] == 0
+    assert observed["secret_controls"]["positive"]["rule"] == "github-pat"
+    assert observed["vulnerability_control"]["known_HIGH_occurrences"] == 10
+    assert (
+        observed["probe_scan"]["packages"] == [] and "not" not in observed["support_status"].lower()
+    )
+    assert "no standalone BusyBox" in observed["probe_scan"]["support_limit"]
+    assert observed["final_candidate_acceptance"] == "UNACHIEVED_NO_CANDIDATE_OR_BUILD"
+    assert (data["output"] / "native-support/artifact-payload-members.json").is_file()
+    evidence = data["output"] / "native-support/evidence"
+    assert "Results" not in json.loads((evidence / "secret-negative.private.json").read_text())
+    assert "Results" not in json.loads(
+        (evidence / "probe-full-supported-scan.private.json").read_text()
+    )
+
+
+@pytest.mark.parametrize(
+    "scan_seconds,process_seconds",
+    [
+        (None, "330"),
+        ("", "330"),
+        ("0", "330"),
+        ("0300", "330"),
+        ("300\n", "330"),
+        ("1.5", "330"),
+        ("300", None),
+        ("300", ""),
+        ("300", "0"),
+        ("300", "false"),
+        ("330", "330"),
+        ("331", "330"),
+        ("301", "330"),
+        ("300", "331"),
+        ("300", "1801"),
+        ("9999", "10000"),
+    ],
+)
+def test_alertmanager_scan_budget_is_required_canonical_and_bounded_before_native(
+    alertmanager_support_native: dict[str, Any],
+    monkeypatch: pytest.MonkeyPatch,
+    scan_seconds: str | None,
+    process_seconds: str | None,
+) -> None:
+    data = alertmanager_support_native
+    for variable, value in (
+        ("ALERTMANAGER_SCAN_TIMEOUT_SECONDS", scan_seconds),
+        ("ALERTMANAGER_SCAN_PROCESS_SECONDS", process_seconds),
+    ):
+        if value is None:
+            monkeypatch.delenv(variable)
+        else:
+            monkeypatch.setenv(variable, value)
+    with pytest.raises(RuntimeError, match="AM_support_scan_budgets"):
+        data["fetcher"]._alertmanager_support_observation(data["archive"], data["output"])
+    assert data["calls"] == [] and data["instances"] == []
+    assert not (data["output"] / "native-support").exists()
+
+
+def test_alertmanager_native_support_malformed_report_cannot_be_a_negative_control(
+    alertmanager_support_native: dict[str, Any],
+) -> None:
+    data = alertmanager_support_native
+    data["fault"] = "malformed"
+    with pytest.raises(ValueError):
+        data["fetcher"]._alertmanager_support_observation(data["archive"], data["output"])
+    assert data["present"] is False
+
+
 def test_alertmanager_cd_contract_carries_exact_files_and_keeps_scans_separate() -> None:
     workflow = CD_WORKFLOW.read_text(encoding="utf-8")
     for name, output in (
@@ -50,11 +778,11 @@ def test_alertmanager_cd_contract_carries_exact_files_and_keeps_scans_separate()
         assert workflow.count(f"[ ! -L ./{path} ]") == 2
         assert workflow.count(f'"${output}" ]') == 2
         assert f"deploy/{path}" in workflow
-    assert "Admit exact Alertmanager image, config, and narrow CVE exception" in workflow
+    assert "Scan accepted AM and execute all four current controls" in workflow
     assert '--ignorefile "$TRIVY_IGNORE_FILE"' in workflow  # Prometheus stays separate.
-    assert '--ignorefile "$ignore"' in workflow  # Alertmanager only.
+    assert "--alertmanager-stage security-check" in workflow
     assert '"-e", "PULSEPLATE_ENVIRONMENT=staging"' in workflow
-    assert "CVE-2026-84445" in ALERTMANAGER_IGNORE.read_text(encoding="utf-8")
+    assert ALERTMANAGER_IGNORE.read_bytes() == b"vulnerabilities: []\n"
     assert "group_interval: 5m" in ALERTMANAGER_CONFIG.read_text(encoding="utf-8")
     for required in (
         "Prove staging environment label reaches Alertmanager despite forged metric label",
@@ -68,156 +796,6 @@ def test_alertmanager_cd_contract_carries_exact_files_and_keeps_scans_separate()
         assert required in workflow
 
 
-def _run_alertmanager_scan_fixture(
-    tmp_path: Path, scenario: str
-) -> subprocess.CompletedProcess[str]:
-    """Execute the actual admission step with controlled native-command outcomes."""
-    step = _named_step(
-        _steps(_job(_workflow(CD_WORKFLOW), "prometheus-image-security-pr")),
-        "Admit exact Alertmanager image, config, and narrow CVE exception",
-    )
-    script = step["run"]
-    assert isinstance(script, str)
-    workspace = tmp_path / "workspace"
-    config = workspace / "deploy" / "alertmanager"
-    config.mkdir(parents=True)
-    shutil.copyfile(ALERTMANAGER_CONFIG, config / "alertmanager.yml")
-    shutil.copyfile(ALERTMANAGER_IGNORE, config / "trivy-ignore.yaml")
-    binaries = tmp_path / "bin"
-    binaries.mkdir()
-    digest = "sha256:84967b9b7ba45e38a9278d3e594305f43d4993c310df3905b51138b816c365f3"
-    docker = binaries / "docker"
-    docker.write_text(
-        f"#!{sys.executable}\n"
-        "import json,sys\n"
-        f"digest={digest!r}\n"
-        "args=sys.argv[1:]\n"
-        "if args[:2]==['buildx','imagetools']:\n"
-        " print(json.dumps({'manifests':[{'digest':digest,'platform':{'os':'linux','architecture':'amd64'}}]}))\n"
-        "elif args[:2]==['image','inspect']:\n"
-        " print(json.dumps([{'Os':'linux','Architecture':'amd64','RepoDigests':['prom/alertmanager@'+digest]}]))\n"
-        "elif '--version' in args: print('alertmanager, version 0.34.1')\n",
-        encoding="utf-8",
-    )
-    docker.chmod(0o755)
-    report = {
-        "SchemaVersion": 2,
-        "ArtifactName": "prom/alertmanager@" + digest,
-        "Results": [
-            {
-                "Target": target,
-                "Vulnerabilities": [
-                    {"VulnerabilityID": cve, "PkgIdentifier": {"PURL": purl}, "Severity": "HIGH"}
-                    for cve, purl in (
-                        ("CVE-2026-84445", "pkg:golang/google.golang.org/grpc@v1.83.1"),
-                        ("CVE-2026-78669", "pkg:golang/golang.org/x/net@v0.58.0"),
-                        ("CVE-2026-78669", "pkg:golang/stdlib@v1.26.8"),
-                        ("CVE-2026-78667", "pkg:golang/stdlib@v1.26.8"),
-                        ("CVE-2026-97031", "pkg:golang/stdlib@v1.26.8"),
-                    )
-                ],
-            }
-            for target in ("bin/alertmanager", "bin/amtool")
-        ],
-    }
-    (tmp_path / "report.json").write_text(json.dumps(report), encoding="utf-8")
-    trivy = binaries / "trivy"
-    trivy.write_text(
-        f"#!{sys.executable}\n"
-        "import json,os,sys\nfrom pathlib import Path\n"
-        "args=sys.argv[1:]\n"
-        "if args==['--version','--format','json']:\n"
-        " print(json.dumps({'Version':'0.74.0'})); sys.exit(0)\n"
-        "ignore=Path(args[args.index('--ignorefile')+1]).name if '--ignorefile' in args else ''\n"
-        "negative=bool(ignore) and ignore!='trivy-ignore.yaml'\n"
-        "late='expired' in ignore\n"
-        "scenario=os.environ['SCAN_SCENARIO']\n"
-        "report=json.loads(Path(os.environ['SCAN_REPORT']).read_text())\n"
-        "if negative:\n"
-        " policy=Path(args[args.index('--ignorefile')+1]).read_text()\n"
-        " if late:\n"
-        "  assert policy.count('expired_at: 2026-01-01')==4 and 'expired_at: 2026-10-21' not in policy\n"
-        " else:\n"
-        "  for package,original in (('google.golang.org/grpc','1.83.1'),('golang.org/x/net','0.58.0'),('stdlib','1.26.8')):\n"
-        "   assert 'pkg:golang/'+package+'@v0.0.0' in policy\n"
-        "   assert 'pkg:golang/'+package+'@v'+original not in policy\n"
-        " with Path(os.environ['SCAN_CALLS']).open('a') as stream: stream.write(ignore+'\\n')\n"
-        " if scenario in ('exit1','exit2'):\n"
-        "  print('scanner prerequisite failed; no report',file=sys.stderr); sys.exit(int(scenario[-1]))\n"
-        " if scenario=='stale' and late: sys.exit(0)\n"
-        " if scenario=='empty': report['Results']=[]\n"
-        " if scenario=='wrong': report['Results'][0]['Vulnerabilities'][0]['PkgIdentifier']['PURL']='pkg:golang/google.golang.org/grpc@v1.83.0'\n"
-        " if scenario=='extra': report['Results'][0]['Vulnerabilities'].append({'VulnerabilityID':'CVE-0000-0000','PkgIdentifier':{'PURL':'pkg:generic/other@1'}})\n"
-        " if scenario=='secret': report['Results'][0]['Secrets']=[{'RuleID':'synthetic','Severity':'HIGH'}]\n"
-        "if '--output' in args:\n"
-        " output=Path(args[args.index('--output')+1])\n"
-        " output.write_text('{' if negative and scenario=='malformed' else json.dumps(report))\n",
-        encoding="utf-8",
-    )
-    trivy.chmod(0o755)
-    runner = tmp_path / "runner"
-    runner.mkdir()
-    (runner / "prometheus-consumer-123-1" / "evidence").mkdir(parents=True)
-    cache = tmp_path / "trivy-cache" / "db"
-    cache.mkdir(parents=True)
-    (cache / "metadata.json").write_text('{"Version": 2}', encoding="utf-8")
-    (cache / "trivy.db").write_bytes(b"synthetic database")
-    env = {
-        "PATH": str(binaries) + os.pathsep + os.defpath,
-        "HOME": str(tmp_path),
-        "LANG": "C",
-        "GITHUB_WORKSPACE": str(workspace),
-        "GITHUB_RUN_ID": "123",
-        "GITHUB_RUN_ATTEMPT": "1",
-        "GITHUB_SHA": "c" * 40,
-        "PROMETHEUS_EVENT_HEAD": "a" * 40,
-        "RUNNER_TEMP": str(runner),
-        "TRIVY_BIN": str(trivy),
-        "TRIVY_CACHE_DIR": str(cache.parent),
-        "SCAN_SCENARIO": scenario,
-        "SCAN_REPORT": str(tmp_path / "report.json"),
-        "SCAN_CALLS": str(tmp_path / "calls.log"),
-    }
-    return subprocess.run(
-        ["/bin/bash", "-c", script],
-        cwd=workspace,
-        env=env,
-        capture_output=True,
-        text=True,
-        timeout=20,
-    )
-
-
-@pytest.mark.parametrize(
-    "scenario", ("exit1", "exit2", "malformed", "empty", "wrong", "extra", "secret", "stale")
-)
-def test_alertmanager_negative_controls_reject_unproven_scans(
-    tmp_path: Path, scenario: str
-) -> None:
-    """An error or absent/different report cannot masquerade as policy rejection."""
-    result = _run_alertmanager_scan_fixture(tmp_path, scenario)
-    assert result.returncode != 0, result.stdout + result.stderr
-    assert (tmp_path / "calls.log").read_text(encoding="utf-8").strip()
-    if scenario in ("exit1", "exit2"):
-        assert result.returncode == int(scenario[-1])
-        assert "scanner prerequisite failed; no report" in result.stderr
-    elif scenario in ("malformed", "stale"):
-        assert "JSONDecodeError" in result.stderr
-    elif scenario == "secret":
-        assert "Alertmanager scan contains unexpected secret findings" in result.stderr
-    else:
-        assert "Unsuppressed Alertmanager finding inventory changed" in result.stderr
-
-
-def test_alertmanager_negative_controls_require_both_retained_inventories(tmp_path: Path) -> None:
-    """Both real scan-success branches must retain the complete frozen inventory."""
-    result = _run_alertmanager_scan_fixture(tmp_path, "valid")
-    assert result.returncode == 0, result.stdout + result.stderr
-    calls = (tmp_path / "calls.log").read_text(encoding="utf-8").splitlines()
-    assert len(calls) == 2
-    assert "wrong" in calls[0] and "expired" in calls[1]
-
-
 PROMETHEUS_RULES_HASH_CHECK = (
     """[ "$(sha256sum ./prometheus/alias-alerts.yml | cut -d' ' -f1)" """
     '= "$PROMETHEUS_RULES_SHA256" ]'
@@ -228,8 +806,8 @@ GO_BUILDER = (
     "sha256:96123126ac58e910f4dd3619a8901e2fb6d1ad84b59b1232cac7c9ea65a8f888"
 )
 NODE_BUILDER = (
-    "node:24.18.1-bookworm-slim@"
-    "sha256:235600a8101ab264e117b1768e925532262668dc9b581ef1dd7d96ced463b8e7"
+    "node:24.22.1-bookworm-slim@"
+    "sha256:55fb5f5a527ea2c5c4a95f963e48ef90aa38c7b346054fdc8ee9957a2b55d205"
 )
 CADDY_BASE = (
     "caddy:2.11.4-alpine@" "sha256:5f5c8640aae01df9654968d946d8f1a56c497f1dd5c5cda4cf95ab7c14d58648"
@@ -931,7 +1509,7 @@ def test_cd_builds_attests_scans_and_deploys_both_same_job_digests() -> None:
         "STAGING_DOMAIN,STAGING_IMAGE_REF,STAGING_CADDY_IMAGE_REF,"
         "DEPLOY_SCRIPT_SHA256,STAGING_COMPOSE_SHA256,"
         "PROMETHEUS_CONFIG_SHA256,PROMETHEUS_RULES_SHA256,"
-        "PROMETHEUS_IMAGE_MANIFEST_SHA256,PROMETHEUS_CONTRACT_HELPER_SHA256,"
+        "PROMETHEUS_IMAGE_MANIFEST_SHA256,PROMETHEUS_CONTRACT_HELPER_SHA256,ALERTMANAGER_CONTRACT_HELPER_SHA256,"
         "ALERTMANAGER_CONFIG_SHA256,ALERTMANAGER_TRIVY_IGNORE_SHA256,"
         "POSTGRES_IMAGE_MANIFEST_SHA256,"
         "STAGING_CADDYFILE_SHA256,BACKUP_HELPER_SHA256,RESTORE_HELPER_SHA256,"
@@ -957,7 +1535,7 @@ def test_cd_builds_attests_scans_and_deploys_both_same_job_digests() -> None:
         "GHCR_USER,GHCR_TOKEN,STAGING_DOMAIN,STAGING_IMAGE_REF,"
         "STAGING_CADDY_IMAGE_REF,DEPLOY_SCRIPT_SHA256,STAGING_COMPOSE_SHA256,"
         "PROMETHEUS_CONFIG_SHA256,PROMETHEUS_RULES_SHA256,"
-        "PROMETHEUS_IMAGE_MANIFEST_SHA256,PROMETHEUS_CONTRACT_HELPER_SHA256,"
+        "PROMETHEUS_IMAGE_MANIFEST_SHA256,PROMETHEUS_CONTRACT_HELPER_SHA256,ALERTMANAGER_CONTRACT_HELPER_SHA256,"
         "ALERTMANAGER_CONFIG_SHA256,ALERTMANAGER_TRIVY_IGNORE_SHA256,"
         "POSTGRES_IMAGE_MANIFEST_SHA256,"
         "STAGING_CADDYFILE_SHA256,BACKUP_HELPER_SHA256,RESTORE_HELPER_SHA256,"
@@ -1019,7 +1597,7 @@ def test_remote_contract_preflight_has_no_registry_secret_and_checks_current_fil
     assert with_block["envs"] == (
         "STAGING_DOMAIN,STAGING_IMAGE_REF,STAGING_CADDY_IMAGE_REF,DEPLOY_SCRIPT_SHA256,"
         "STAGING_COMPOSE_SHA256,PROMETHEUS_CONFIG_SHA256,PROMETHEUS_RULES_SHA256,"
-        "PROMETHEUS_IMAGE_MANIFEST_SHA256,PROMETHEUS_CONTRACT_HELPER_SHA256,ALERTMANAGER_CONFIG_SHA256,"
+        "PROMETHEUS_IMAGE_MANIFEST_SHA256,PROMETHEUS_CONTRACT_HELPER_SHA256,ALERTMANAGER_CONTRACT_HELPER_SHA256,ALERTMANAGER_CONFIG_SHA256,"
         "ALERTMANAGER_TRIVY_IGNORE_SHA256,POSTGRES_IMAGE_MANIFEST_SHA256,"
         "STAGING_CADDYFILE_SHA256,BACKUP_HELPER_SHA256,RESTORE_HELPER_SHA256,"
         "STAGING_SECURITY_HELPER_SHA256,PGVECTOR_ATTESTATION_HELPER_SHA256,"
@@ -1164,7 +1742,7 @@ def test_credentialed_deploy_revalidates_the_preflighted_remote_contract() -> No
     assert with_block["envs"].endswith(
         "DEPLOY_SCRIPT_SHA256,STAGING_COMPOSE_SHA256,PROMETHEUS_CONFIG_SHA256,"
         "PROMETHEUS_RULES_SHA256,"
-        "PROMETHEUS_IMAGE_MANIFEST_SHA256,PROMETHEUS_CONTRACT_HELPER_SHA256,ALERTMANAGER_CONFIG_SHA256,"
+        "PROMETHEUS_IMAGE_MANIFEST_SHA256,PROMETHEUS_CONTRACT_HELPER_SHA256,ALERTMANAGER_CONTRACT_HELPER_SHA256,ALERTMANAGER_CONFIG_SHA256,"
         "ALERTMANAGER_TRIVY_IGNORE_SHA256,POSTGRES_IMAGE_MANIFEST_SHA256,"
         "STAGING_CADDYFILE_SHA256,BACKUP_HELPER_SHA256,RESTORE_HELPER_SHA256,"
         "STAGING_SECURITY_HELPER_SHA256,PGVECTOR_ATTESTATION_HELPER_SHA256,"
@@ -1623,7 +2201,7 @@ def _assert_checkpoint_native_job(workflow: dict[str, object]) -> None:
     scan = _job(workflow, "prometheus-image-security-pr")
     assert (
         scan["timeout-minutes"]
-        == "${{ fromJSON(vars.PROMETHEUS_IMAGE_SECURITY_TIMEOUT_MINUTES || '55') }}"
+        == "${{ fromJSON(vars.ALERTMANAGER_CD_PR_JOB_TIMEOUT_MINUTES || '170') }}"
     )
     assert not any(step.get("id") == "checkpoint-native" for step in _steps(scan))
     job = _job(workflow, "obs2a-checkpoint-native")
@@ -1633,7 +2211,8 @@ def _assert_checkpoint_native_job(workflow: dict[str, object]) -> None:
         == "!cancelled() && github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.prometheus-image-security.result == 'success'"
     ), "checkpoint_native_scan_result"
     assert (
-        job["timeout-minutes"] == "${{ fromJSON(vars.OBS2A_NATIVE_JOB_TIMEOUT_MINUTES || '40') }}"
+        job["timeout-minutes"]
+        == "${{ fromJSON(vars.ALERTMANAGER_NATIVE_JOB_TIMEOUT_MINUTES || '110') }}"
     )
     assert job.get("permissions") == {
         "contents": "read",
@@ -1641,7 +2220,12 @@ def _assert_checkpoint_native_job(workflow: dict[str, object]) -> None:
         "packages": "read",
     }, "checkpoint_native_reader_permissions"
     assert job.get("environment") == "staging", "checkpoint_native_reader_environment"
-    assert job["env"] == {"PROMETHEUS_CONSUME_SECONDS": "900", "PROMETHEUS_CLEANUP_SECONDS": "120"}
+    assert job["env"]["PROMETHEUS_CONSUME_SECONDS"] == "900"
+    assert job["env"]["PROMETHEUS_CLEANUP_SECONDS"] == "120"
+    assert (
+        job["env"]["ALERTMANAGER_GENERIC_NATIVE_MINUTES"]
+        == "${{ vars.OBS2A_NATIVE_JOB_TIMEOUT_MINUTES || '40' }}"
+    )
     build = _job(workflow, "build")
     assert build["needs"] == [
         "prometheus-image-security",
@@ -1662,23 +2246,23 @@ def _assert_checkpoint_native_job(workflow: dict[str, object]) -> None:
     text = selection["run"]
     assert 'test "$(git rev-parse HEAD)" = "$OBS2A_HEAD_SHA"' in text
     assert '1) echo "selected=true"' in text and 'exit "$diff_status"' in text
-    setup = _named_step(steps, "Setup bounded checkpoint native Python")
-    assert setup["with"] == {
-        "python-version": "3.13.14",
-        "requirements-profile": "ci-lite",
-        "install-mode": "direct-proxy",
-    }
+    setup = _named_step(steps, "Select AM Python without dependency or SDK installation")
+    assert setup["with"] == {"python-version": "3.13.14", "skip-base-install": "true"}
     assert "secrets." not in str(setup)
     assert setup["env"]["DEVPI_CI_USER"] == "" and setup["env"]["DEVPI_CI_PASSWORD"] == ""
     native = _named_step(steps, "Native main OBS2A checkpoint lifecycle and owned-task challenge")
     assert native["if"] == setup["if"]
     assert "steps.checkpoint-native.outputs.selected == 'true'" in native["if"]
+    consume = _named_step(steps, "Consume exact Prometheus before main native fixtures")
+    assert steps.index(consume) < steps.index(native)
+    assert consume["timeout-minutes"] == 18
+    assert native["timeout-minutes"] == "${{ fromJSON(env.ALERTMANAGER_GENERIC_NATIVE_MINUTES) }}"
+    assert "--operation consume" in consume["run"] and "--operation consume" not in native["run"]
     assert native["env"] == {
-        "GH_TOKEN": "${{ secrets.GITHUB_TOKEN }}",
-        "GITHUB_TOKEN": "${{ secrets.GITHUB_TOKEN }}",
-        "GHCR_READ_TOKEN": "${{ secrets.GHCR_READ_TOKEN }}",
+        "AM_HOST_PYTHON": "${{ steps.am-python.outputs.python }}",
+        "AM_IMAGE_ID": "${{ steps.alertmanager-image.outputs.image_id }}",
+        "AM_CONFIG_SHA256": "${{ steps.alertmanager-image.outputs.config_sha256 }}",
     }
-    assert native["run"].index("--operation consume") < native["run"].index("sudo /usr/bin/env -i")
     child = native["run"].split("sudo /usr/bin/env -i", 1)[1].split("} 2>&1", 1)[0]
     assert (
         "GH_TOKEN" not in child and "GITHUB_TOKEN" not in child and "GHCR_READ_TOKEN" not in child
@@ -1692,7 +2276,10 @@ def _assert_checkpoint_native_job(workflow: dict[str, object]) -> None:
     assert retention["with"] == {
         "name": "obs2a-native-main-${{ github.sha }}",
         "path": "artifacts/orchestration/obs2a_pr3/native-result.log\n"
-        "${{ runner.temp }}/prometheus-obs2a-consumer-${{ github.run_id }}-${{ github.run_attempt }}/evidence/\n",
+        "${{ runner.temp }}/prometheus-obs2a-consumer-${{ github.run_id }}-${{ github.run_attempt }}/evidence/\n"
+        "${{ runner.temp }}/alertmanager-consumer-${{ github.run_id }}-${{ github.run_attempt }}/consumer-observation.json\n"
+        "${{ runner.temp }}/alertmanager-consumer-${{ github.run_id }}-${{ github.run_attempt }}/github-read-evidence/\n"
+        "${{ runner.temp }}/alertmanager-consumer-${{ github.run_id }}-${{ github.run_attempt }}/preparation/evidence/\n",
         "if-no-files-found": "error",
         "retention-days": 7,
     }
@@ -1720,7 +2307,17 @@ def test_checkpoint_native_main_pipeline_preserves_both_statuses(
         'tee() { "$FIXTURE_TEE" "$@"; return "$CAPTURE_STATUS"; }\n'
     )
     result = subprocess.run(
-        [bash, "-c", fixture + native["run"]],
+        [
+            bash,
+            "-c",
+            fixture
+            + _named_step(
+                _steps(_job(_workflow(CD_WORKFLOW), "obs2a-checkpoint-native")),
+                "Consume exact Prometheus before main native fixtures",
+            )["run"]
+            + "\n"
+            + native["run"],
+        ],
         cwd=tmp_path,
         env={
             "PATH": os.defpath,
@@ -1731,6 +2328,9 @@ def test_checkpoint_native_main_pipeline_preserves_both_statuses(
             "GITHUB_RUN_ATTEMPT": "1",
             "PROMETHEUS_CONSUME_SECONDS": "900",
             "PROMETHEUS_CLEANUP_SECONDS": "120",
+            "AM_HOST_PYTHON": "python",
+            "AM_IMAGE_ID": "sha256:" + "1" * 64,
+            "AM_CONFIG_SHA256": "2" * 64,
             "CONSUME_STATUS": str(consume_status),
             "NATIVE_STATUS": str(native_status),
             "CAPTURE_STATUS": str(capture_status),
@@ -1766,6 +2366,12 @@ def test_checkpoint_native_main_pipeline_preserves_both_statuses(
     [
         (".github/workflows/ci.yml", True),
         ("deploy/prometheus/image-manifest.json", True),
+        ("scripts/ci/fetch_docker_source_artifacts.py", True),
+        ("deploy/alertmanager/alertmanager.yml", True),
+        ("deploy/alertmanager/trivy-ignore.yaml", True),
+        ("deploy/docker-compose.staging.yaml", True),
+        ("deploy/docker-compose.production.yaml", True),
+        ("deploy/docker-compose.production.selfhosted.yaml", True),
         ("deploy/prometheus/image-manifest.json.bak", False),
     ],
 )
@@ -2018,6 +2624,8 @@ def _assert_checkpoint_pr_selection_uses_real_git(
             "GITHUB_RUN_ATTEMPT": "1",
             "PROMETHEUS_CONSUME_SECONDS": "900",
             "PROMETHEUS_CLEANUP_SECONDS": "120",
+            "AM_IMAGE_ID": "sha256:" + "a" * 64,
+            "AM_CONFIG_SHA256": "b" * 64,
             "CONSUME_STATUS": str(consume_status),
             "NATIVE_CALLS": str(tmp_path / "native-calls"),
             "GITHUB_OUTPUT": str(tmp_path / "github-output"),
@@ -2103,6 +2711,12 @@ def test_checkpoint_pr_selection_uses_unique_real_merge_base(tmp_path: Path, cas
     ("selected_path", "expected_selected"),
     [
         ("deploy/prometheus/image-manifest.json", True),
+        ("scripts/ci/fetch_docker_source_artifacts.py", True),
+        ("deploy/alertmanager/alertmanager.yml", True),
+        ("deploy/alertmanager/trivy-ignore.yaml", True),
+        ("deploy/docker-compose.staging.yaml", True),
+        ("deploy/docker-compose.production.yaml", True),
+        ("deploy/docker-compose.production.selfhosted.yaml", True),
         ("deploy/prometheus/image-manifest.json.bak", False),
     ],
 )
@@ -2148,10 +2762,17 @@ def _assert_checkpoint_pr_native_job(workflow: dict[str, object]) -> None:
     lint = _job(workflow, "lint")
     assert lint["needs"] == ["private_python_proxy_health"]
     assert lint["permissions"] == {"contents": "read", "actions": "read", "packages": "read"}
-    assert lint["env"] == {"PROMETHEUS_CONSUME_SECONDS": "900", "PROMETHEUS_CLEANUP_SECONDS": "120"}
+    assert lint["env"] == {
+        "PROMETHEUS_CONSUME_SECONDS": "900",
+        "PROMETHEUS_CLEANUP_SECONDS": "120",
+        "ALERTMANAGER_JOB_TIMEOUT_MINUTES": "${{ fromJSON(vars.CI_LINT_TIMEOUT_MINUTES || '170') }}",
+        "ALERTMANAGER_CALLER_KIND": "ci-lint",
+        "ALERTMANAGER_GENERIC_NATIVE_MINUTES": "${{ vars.OBS2A_NATIVE_JOB_TIMEOUT_MINUTES || '40' }}",
+        "ALERTMANAGER_LINT_CHECK_MINUTES": "${{ vars.CI_LINT_CHECKS_TIMEOUT_MINUTES || '40' }}",
+    }
     assert "environment" not in lint
     assert lint["if"] == "${{ !cancelled() }}"
-    assert lint["timeout-minutes"] == "${{ fromJSON(vars.CI_LINT_TIMEOUT_MINUTES || '90') }}"
+    assert lint["timeout-minutes"] == "${{ fromJSON(vars.CI_LINT_TIMEOUT_MINUTES || '170') }}"
     steps = _steps(lint)
     prerequisite = _named_step(steps, "Enforce prerequisite results")
     assert (
@@ -2178,22 +2799,18 @@ def _assert_checkpoint_pr_native_job(workflow: dict[str, object]) -> None:
         "DEVPI_CI_PASSWORD": "${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && secrets.DEVPI_CI_PASSWORD || '' }}",
     }
     precommit = _named_step(steps, "Pre-commit (lint/format/security quick checks)")
-    assert (
-        precommit["timeout-minutes"]
-        == "${{ fromJSON(vars.CI_LINT_CHECKS_TIMEOUT_MINUTES || '40') }}"
-    )
+    assert precommit["timeout-minutes"] == "${{ fromJSON(env.ALERTMANAGER_LINT_CHECK_MINUTES) }}"
     native = _named_step(steps, "Native OBS2A checkpoint lifecycle and owned-task challenge")
     assert native["id"] == "checkpoint-native"
     assert native["if"] == (
         "github.event_name == 'pull_request' && steps.checkpoint-selection.outputs.selected == 'true'"
     )
     # The actual existing CD owner supplies native budget parity; this PR does not redefine it.
-    assert (
-        native["timeout-minutes"]
-        == _job(_workflow(CD_WORKFLOW), "obs2a-checkpoint-native")["timeout-minutes"]
-    )
+    assert native["timeout-minutes"] == "${{ fromJSON(env.ALERTMANAGER_GENERIC_NATIVE_MINUTES) }}"
     assert native["env"] == {
-        "PROMETHEUS_RUNTIME_REF": "${{ steps.checkpoint-image.outputs.runtime_ref }}"
+        "AM_IMAGE_ID": "${{ steps.alertmanager-image.outputs.image_id }}",
+        "AM_CONFIG_SHA256": "${{ steps.alertmanager-image.outputs.config_sha256 }}",
+        "PROMETHEUS_RUNTIME_REF": "${{ steps.checkpoint-image.outputs.runtime_ref }}",
     }
     assert "--operation consume" not in native["run"]
     assert all(key not in native["env"] for key in ("GH_TOKEN", "GITHUB_TOKEN", "GHCR_READ_TOKEN"))
@@ -2209,7 +2826,7 @@ def _assert_checkpoint_pr_native_job(workflow: dict[str, object]) -> None:
     assert classifier["run"].count('trusted["classify_source_change"](previous, current)') == 1
     assert "mode=" not in selection["run"]
     # pragma: allowlist nextline secret - public trusted control commit
-    assert control["with"]["ref"] == "ef9e369052751d47c04f651f7d615714d918fc16"
+    assert control["with"]["ref"] == "0d6a4c09477ad3174252eab15f80cdd4a76df5bc"
     assert control["with"]["persist-credentials"] is False
     assert "python3 -I -S" in consumer["run"] and "runpy.run_path(str(helper))" in consumer["run"]
     assert consumer["env"]["GH_TOKEN"] == "${{ secrets.GITHUB_TOKEN }}"
@@ -2236,7 +2853,10 @@ def _assert_checkpoint_pr_native_job(workflow: dict[str, object]) -> None:
         "name": "obs2a-native-pr-${{ github.event.pull_request.number }}-${{ github.run_attempt }}",
         "path": "artifacts/orchestration/obs2a_pr3/selection.log\n"
         "artifacts/orchestration/obs2a_pr3/native-result.log\n"
-        "${{ runner.temp }}/prometheus-obs2a-consumer-${{ github.run_id }}-${{ github.run_attempt }}/evidence/\n",
+        "${{ runner.temp }}/prometheus-obs2a-consumer-${{ github.run_id }}-${{ github.run_attempt }}/evidence/\n"
+        "${{ runner.temp }}/alertmanager-consumer-${{ github.run_id }}-${{ github.run_attempt }}/consumer-observation.json\n"
+        "${{ runner.temp }}/alertmanager-consumer-${{ github.run_id }}-${{ github.run_attempt }}/github-read-evidence/\n"
+        "${{ runner.temp }}/alertmanager-consumer-${{ github.run_id }}-${{ github.run_attempt }}/preparation/evidence/\n",
         "if-no-files-found": "error",
         "retention-days": 7,
     }
@@ -2899,3 +3519,987 @@ def test_caddy_full_observation_keeps_native_diagnostics_without_inventing_secre
     assert "Results_Secrets_fields_absent" in publication
     assert 'native["Results"]' in publication
     assert 'row["Secrets"] = []' not in publication
+
+
+@pytest.mark.parametrize("mode", ["build", "publish"])
+def test_alertmanager_executable_stages_have_exact_manual_events_and_no_Q(mode: str) -> None:
+    workflow = _workflow(CD_WORKFLOW)
+    name = "alertmanager-candidate-build" if mode == "build" else "alertmanager-main-publication"
+    job = _job(workflow, name)
+    ref = "codex/dependency-alertmanager-remediation" if mode == "build" else "main"
+    assert job["if"] == (
+        "github.event_name == 'workflow_dispatch' && inputs.alertmanager_mode == '" + mode + "' "
+        "&& github.repository == 'Katsiarynakavaleuskaya/PulsePlate' && github.repository_id == '1043311030' "
+        "&& github.ref == 'refs/heads/" + ref + "' "
+        "&& github.run_attempt == 1 && inputs.postgres_mode == 'disabled'"
+    )
+    assert "needs" not in job
+    assert job["permissions"] == {
+        "contents": "read",
+        "actions": "read",
+        "packages": "read" if mode == "build" else "write",
+    }
+    steps = _steps(job)
+    setup = _named_step(steps, "Select AM Python without dependency or SDK installation")
+    assert setup["uses"] == "./.github/actions/python-setup"
+    assert setup["with"] == {
+        "python-version": "3.13.14",
+        "skip-base-install": "true",
+    }
+    assert setup["env"]["DEVPI_CI_USER"] == setup["env"]["DEVPI_CI_PASSWORD"] == ""
+    install = _named_step(steps, "Install isolated AM host tools through the locked owner")
+    smoke = _named_step(steps, "Verify isolated AM host import capability before effects")
+    driver = next(
+        step
+        for step in steps
+        if "--artifact alertmanager --alertmanager-stage " + mode in step.get("run", "")
+    )
+    assert (
+        _step_index(steps, setup["name"])
+        < _step_index(steps, install["name"])
+        < _step_index(steps, smoke["name"])
+        < _step_index(steps, driver["name"])
+    )
+    assert smoke["id"] == "am-python"
+    assert driver["env"]["AM_HOST_PYTHON"] == "${{ steps.am-python.outputs.python }}"
+    assert (
+        '"$AM_HOST_PYTHON" -m scripts.ci.fetch_docker_source_artifacts '
+        "--artifact alertmanager --alertmanager-stage " + mode
+    ) in driver["run"]
+    assert "python -m scripts.ci.fetch_docker_source_artifacts" not in driver["run"]
+    assert '"$AM_HOST_PYTHON" -I' not in driver["run"]
+    for step in (install, smoke):
+        assert (
+            'am_root="$RUNNER_TEMP/pulseplate-am-python-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"'
+            in step["run"]
+        )
+        assert 'am_python="$am_root/bin/python"' in step["run"]
+    assert "GITHUB_OUTPUT" not in install["run"]
+    assert (
+        smoke["run"].index("assert callable(native.native_alertmanager_main)")
+        < smoke["run"].index(
+            '"$am_python" -m tests.test_notify_premium_alias_checkpoint_failure --help'
+        )
+        < smoke["run"].index('printf \'python=%s\\n\' "$am_python" >> "$GITHUB_OUTPUT"')
+    )
+    runs = "\n".join(step.get("run", "") for step in steps)
+    assert "--alertmanager-stage " + mode in runs
+    assert "--alertmanager-module-qualify" not in runs
+    assert "go get" not in runs and "docker build" not in runs
+    assert 'test "$checkout_sha" = "$SOURCE_SHA"' in runs
+    assert all(
+        step.get("with", {}).get("persist-credentials") is False
+        for step in steps
+        if str(step.get("uses", "")).startswith("actions/checkout@")
+    )
+    assert all(
+        "/retained/" in step["with"]["path"] and "/private/" not in step["with"]["path"]
+        for step in steps
+        if str(step.get("uses", "")).startswith("actions/upload-artifact@")
+    )
+    if mode == "build":
+        upload = next(
+            step
+            for step in steps
+            if str(step.get("uses", "")).startswith("actions/upload-artifact@")
+        )
+        assert (
+            upload["with"]["include-hidden-files"] is True
+        ), "retained producer-source/.github must survive artifact upload"
+
+
+def test_alertmanager_independent_phase_ceilings_fit_each_actual_job_with_retention_headroom() -> (
+    None
+):
+    workflow = _workflow(CD_WORKFLOW)
+    env = workflow["env"]
+    setup = int(env["ALERTMANAGER_SETUP_MINUTES"]) * 60
+    upload = int(env["ALERTMANAGER_UPLOAD_MINUTES"]) * 60
+    prep = int(env["ALERTMANAGER_PREP_SECONDS"])
+    cleanup = int(env["ALERTMANAGER_CLEANUP_SECONDS"])
+    native = int(env["ALERTMANAGER_NATIVE_SECONDS"])
+    native_cleanup = int(env["ALERTMANAGER_NATIVE_CLEANUP_SECONDS"])
+    assert native > 905 + 325
+    assert (
+        0
+        < int(env["ALERTMANAGER_SCAN_TIMEOUT_SECONDS"])
+        < int(env["ALERTMANAGER_SCAN_PROCESS_SECONDS"])
+        <= int(env["ALERTMANAGER_SECURITY_SECONDS"])
+    )
+    work = {
+        "alertmanager-candidate-build": prep
+        + int(env["ALERTMANAGER_PAIR_SECONDS"])
+        + int(env["ALERTMANAGER_SECURITY_SECONDS"])
+        + native
+        + 4 * cleanup
+        + native_cleanup,
+        "alertmanager-retained-candidate": prep + cleanup + native + native_cleanup,
+        "alertmanager-main-publication": prep
+        + cleanup
+        + int(env["ALERTMANAGER_PUBLICATION_SECONDS"])
+        + native_cleanup
+        + native
+        + native_cleanup,
+    }
+    for name, seconds in work.items():
+        job = _job(workflow, name)
+        assert job["timeout-minutes"] * 60 - (seconds + setup + upload) >= 300
+        for step in _steps(job):
+            if str(step.get("uses", "")).startswith("actions/upload-artifact@"):
+                assert step["timeout-minutes"] == "${{ fromJSON(env.ALERTMANAGER_UPLOAD_MINUTES) }}"
+
+
+def test_alertmanager_PR_retained_candidate_has_no_registry_or_compiler_authority() -> None:
+    workflow = _workflow(CD_WORKFLOW)
+    job = _job(workflow, "alertmanager-retained-candidate")
+    assert job["if"] == (
+        "github.event_name == 'pull_request' && github.repository == 'Katsiarynakavaleuskaya/PulsePlate' "
+        "&& github.event.pull_request.head.repo.id == 1043311030 "
+        "&& github.event.pull_request.head.ref == 'codex/dependency-alertmanager-remediation'"
+    )
+    assert job["permissions"] == {"contents": "read", "actions": "read"}
+    assert job["env"] == {
+        "ALERTMANAGER_JOB_TIMEOUT_MINUTES": "80",
+        "ALERTMANAGER_CALLER_KIND": "standalone",
+        "AM_CANDIDATE_RUN": "39143039135",
+        "AM_CANDIDATE_ARTIFACT": "12142714566",
+        "AM_CANDIDATE_SOURCE": "63455b8a750ef07a1e525078b4e3ce2089eecdde",
+    }
+    runs = "\n".join(step.get("run", "") for step in _steps(job))
+    assert "--alertmanager-stage candidate-check" in runs
+    assert "--alertmanager-stage build" not in runs and "--alertmanager-module-qualify" not in runs
+    assert "docker login" not in runs and "GHCR_READ_TOKEN" not in runs
+    assert (
+        _job(workflow, "alertmanager-module-qualification")["if"].count("inputs.alertmanager_mode")
+        == 1
+    )
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        "absent",
+        "same",
+        "descendant",
+        "proof-retention",
+        "primary-proof-retention",
+        "unmerged",
+        "wrong-pr",
+        "foreign-pr",
+        "merge-invalid",
+        "not-ancestor",
+        "shallow",
+        "source-drift",
+        "template-drift",
+        "main-before-login",
+        "main-before-copy",
+        "main-after-copy",
+        "inventory",
+        "conflict",
+        "denied",
+        "pullback",
+        "post-readback",
+        "credential-mode",
+        "cleanup",
+    ],
+)
+def test_alertmanager_publication_entrypoint_uses_canonical_guards_and_exact_copy_order(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    case: str,
+) -> None:
+    from scripts.ci import fetch_docker_source_artifacts as fetcher
+    from scripts.ci import prometheus_source_image as transport
+    from tests.test_docker_workflow_build_path_contract import _alertmanager_proposal_arguments
+
+    original_which = shutil.which
+    synthetic_docker = "/synthetic/alertmanager-publication/docker"
+
+    def resolve_docker(command: str | bytes, *args: Any, **kwargs: Any) -> str | bytes | None:
+        if command == "docker":
+            return synthetic_docker
+        return original_which(command, *args, **kwargs)
+
+    monkeypatch.setattr(shutil, "which", resolve_docker)
+    for key in (
+        "GH_TOKEN",
+        "GITHUB_TOKEN",
+        "GHCR_READ_TOKEN",
+        "GH_ENTERPRISE_TOKEN",
+        "GITHUB_ENTERPRISE_TOKEN",
+        "GH_HOST",
+        "GH_CONFIG_DIR",
+        "DOCKER_CONFIG",
+        "DOCKER_AUTH_CONFIG",
+        "NETRC",
+        "HTTP_PROXY",
+        "HTTPS_PROXY",
+        "ALL_PROXY",
+        "http_proxy",
+        "https_proxy",
+        "all_proxy",
+    ):
+        monkeypatch.delenv(key, raising=False)
+    for key, value in _workflow(CD_WORKFLOW)["env"].items():
+        if key.startswith("ALERTMANAGER_"):
+            monkeypatch.setenv(key, value)
+    for key, value in {
+        "GITHUB_EVENT_NAME": "workflow_dispatch",
+        "GITHUB_REPOSITORY": "Katsiarynakavaleuskaya/PulsePlate",
+        "GITHUB_REPOSITORY_ID": "1043311030",
+        "GITHUB_REF": "refs/heads/main",
+        "GITHUB_RUN_ATTEMPT": "1",
+        "GITHUB_SHA": "a" * 40,
+        "GITHUB_REPOSITORY_OWNER": "Katsiarynakavaleuskaya",
+        "GH_TOKEN": "synthetic-publish-credential",
+        "GITHUB_TOKEN": "synthetic-publish-credential",
+    }.items():
+        monkeypatch.setenv(key, value)
+    if case in ("proof-retention", "primary-proof-retention"):
+        original_write = Path.write_text
+
+        def write(path: Path, *args: Any, **kwargs: Any) -> int:
+            if (
+                path.name == "native-observation.json"
+                and path.parent.name == "publication-source-proof"
+            ):
+                raise OSError("synthetic publication proof retention failed")
+            return original_write(path, *args, **kwargs)
+
+        monkeypatch.setattr(Path, "write_text", write)
+    events: list[str] = []
+    native_calls: list[str] = []
+    graph: dict[str, Any] = {}
+    reads = 0
+    main_reads = 0
+    original_tag = transport.immutable_tag_state
+    closed = False
+    tool_bytes = b"synthetic qualified ORAS transport"
+    monkeypatch.setattr(fetcher, "_ALERT_ORAS_SHA256", hashlib.sha256(tool_bytes).hexdigest())
+
+    class API:
+        def __init__(self, private: Path, evidence: Path, deadline: float, cleanup: int) -> None:
+            del evidence, cleanup
+            self.private, self.deadline, self.cleanup_seconds = private, deadline, 45
+            private.mkdir()
+            for name in ("home", "config", "cache", "tmp"):
+                (private / name).mkdir()
+
+        def json(self, endpoint: str) -> dict[str, Any]:
+            nonlocal main_reads
+            if "/git/ref/" in endpoint:
+                main_reads += 1
+                drift_at = {
+                    "main-before-login": 2,
+                    "main-before-copy": 3,
+                    "main-after-copy": 4,
+                }.get(case)
+                return {"object": {"sha": ("f" if main_reads == drift_at else "a") * 40}}
+            if "/pulls/" in endpoint:
+                return {
+                    "number": 2477 if case == "wrong-pr" else 2494,
+                    "state": "closed",
+                    "merged": case != "unmerged",
+                    "merge_commit_sha": (
+                        "unknown"
+                        if case == "merge-invalid"
+                        else ("d" if case == "descendant" else "a") * 40
+                    ),
+                    "base": {
+                        "ref": "main",
+                        "repo": {"id": 1 if case == "foreign-pr" else 1043311030},
+                    },
+                    "head": {
+                        "ref": fetcher._ALERT_Q_BRANCH,
+                        "sha": "c" * 40,
+                        "repo": {"id": 1043311030},
+                    },
+                }
+            assert "/commits/" in endpoint
+            return {"sha": "a" * 40}
+
+        def _capture(self, argv: list[str], maximum: int, **kwargs: Any) -> bytes:
+            del maximum
+            environment = kwargs.get("environment", {})
+            assert all(
+                key not in environment
+                for key in ("GH_TOKEN", "GITHUB_TOKEN", "GHCR_READ_TOKEN", "HTTP_PROXY")
+            )
+            if "rev-parse" in argv:
+                return ("a" * 40 + "\n").encode()
+            if "login" in argv:
+                events.append("login")
+                assert argv[0] == synthetic_docker
+                assert "tag" in events and kwargs["input_data"] == b"synthetic-publish-credential\n"
+                credential = Path(argv[argv.index("--config") + 1]) / "config.json"
+                credential.write_text('{"auths":{"ghcr.io":{"auth":"synthetic-only"}}}')
+                credential.chmod(0o644 if case == "credential-mode" else 0o600)
+            elif "--from-oci-layout" in argv:
+                events.append("copy")
+                assert events[-2] == "login" and case != "same"
+                if case == "denied":
+                    raise RuntimeError("synthetic denied real intended copy")
+                assert argv[-2].endswith("@" + graph["manifest"]["digest"])
+                assert (
+                    argv[-1]
+                    == "ghcr.io/katsiarynakavaleuskaya/pulseplate:alertmanager-0.34.1-"
+                    + graph["manifest"]["digest"][7:]
+                )
+            elif "--to-oci-layout" in argv:
+                events.append("pullback")
+                assert (
+                    argv[-2]
+                    == "ghcr.io/katsiarynakavaleuskaya/pulseplate@" + graph["manifest"]["digest"]
+                )
+                destination = Path(argv[-1].removesuffix(":pullback"))
+                shutil.copytree(destination.parent / "candidate/layout", destination)
+                if case == "pullback":
+                    (destination / "blobs/sha256" / graph["layers"][0]["digest"][7:]).write_bytes(
+                        b"changed retained layer"
+                    )
+            else:
+                pytest.fail("unexpected native transport argv")
+            return b"synthetic success"
+
+        def close(self) -> None:
+            nonlocal closed
+            events.append("close")
+            if case == "cleanup":
+                raise RuntimeError("synthetic private cleanup failed")
+            shutil.rmtree(self.private)
+            closed = True
+
+    def authenticated(
+        api: API, run: int, artifact: int, source: str, destination: Path, **kwargs: str
+    ) -> dict[str, Any]:
+        del api, run, artifact
+        destination.write_bytes(b"synthetic authenticated artifact")
+        return {
+            "source": source,
+            "zip_sha256": "e" * 64,
+            "kind": kwargs.get("kind", "qualification"),
+        }
+
+    def support(archive: Path, destination: Path) -> dict[str, Any]:
+        del archive
+        destination.mkdir()
+        return {"probe": {}}
+
+    def candidate(
+        archive: Path,
+        destination: Path,
+        source: dict[str, bytes],
+        inspected: dict[str, Any],
+        support: Path,
+    ) -> dict[str, Any]:
+        del archive, source, inspected, support
+        layout = destination / "layout"
+        (layout / "blobs/sha256").mkdir(parents=True)
+
+        def blob(raw: bytes, media: str) -> dict[str, Any]:
+            digest = hashlib.sha256(raw).hexdigest()
+            (layout / "blobs/sha256" / digest).write_bytes(raw)
+            return {"digest": "sha256:" + digest, "size": len(raw), "mediaType": media}
+
+        configuration = blob(
+            b'{"architecture":"amd64","os":"linux"}', "application/vnd.oci.image.config.v1+json"
+        )
+        layer = blob(b"synthetic retained layer", "application/vnd.oci.image.layer.v1.tar")
+        manifest = blob(
+            json.dumps(
+                {
+                    "schemaVersion": 2,
+                    "mediaType": "application/vnd.oci.image.manifest.v1+json",
+                    "config": configuration,
+                    "layers": [layer],
+                }
+            ).encode(),
+            "application/vnd.oci.image.manifest.v1+json",
+        )
+        (layout / "oci-layout").write_text('{"imageLayoutVersion":"1.0.0"}')
+        (layout / "index.json").write_text(
+            json.dumps(
+                {
+                    "schemaVersion": 2,
+                    "mediaType": "application/vnd.oci.image.index.v1+json",
+                    "manifests": [manifest],
+                }
+            )
+        )
+        graph.update(
+            {
+                "manifest": manifest,
+                "config": configuration,
+                "layers": [layer],
+                "files": {"usr/bin/alertmanager": "1" * 64},
+            }
+        )
+        return {"source": "c" * 40, "graph": graph, "status": "OBSERVED_NATIVE_SECURITY_ACCEPTED"}
+
+    def tool(api: API, root: Path, output: Path) -> tuple[Path, dict[str, Any]]:
+        del api
+        assert root == fetcher.REPO_ROOT
+        path = output / "oras"
+        path.write_bytes(tool_bytes)
+        return path, {"coordinates": {"binary_sha256": hashlib.sha256(tool_bytes).hexdigest()}}
+
+    def package(api: API) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+        nonlocal reads
+        del api
+        reads += 1
+        events.append("inventory")
+        if case == "inventory":
+            raise transport.QualificationError("package_complete_inventory_bound")
+        digest = graph["manifest"]["digest"]
+        tag = "alertmanager-0.34.1-" + digest[7:]
+        versions = []
+        if case in ("same", "conflict") or reads > 1:
+            versions = [
+                {
+                    "id": 1,
+                    "name": (
+                        "sha256:" + "9" * 64
+                        if case == "conflict" or case == "post-readback" and reads > 1
+                        else digest
+                    ),
+                    "metadata": {"container": {"tags": [tag]}},
+                }
+            ]
+        return {"repository": {"id": 1043311030}, "package": {"id": 9374404}}, versions
+
+    def tag(versions: list[dict[str, Any]], value: str, digest: str) -> bool:
+        events.append("tag")
+        return original_tag(versions, value, digest)
+
+    def native(
+        result: dict[str, Any], observation: Path, work: Path, limits: dict[str, int]
+    ) -> dict[str, Any]:
+        del result, limits
+        assert closed and "close" == events[-1] and not (work.parent / "private").exists()
+        assert observation.is_file() and (observation.parent / "candidate.oci.tar").is_file()
+        native_calls.append("same-immutable-pullback")
+        work.mkdir()
+        (work / "evidence").mkdir()
+        return {"synthetic_control_only": True}
+
+    sources = {path: b"synthetic reviewed source" for path in fetcher._ALERT_SELECTION_FILES}
+
+    class PublicationNative:
+        def __init__(self, evidence: Path, deadline: float, cleanup: int) -> None:
+            assert evidence.parent.name == "retained"
+            assert evidence.name == "publication-source-proof" and cleanup == 45
+            self.records: list[dict[str, Any]] = []
+
+        def run(
+            self,
+            argv: list[str],
+            label: str,
+            environment: dict[str, str],
+            *,
+            cwd: Path,
+            **kwargs: Any,
+        ) -> bytes:
+            assert cwd == fetcher.REPO_ROOT and "--no-replace-objects" in argv
+            assert environment["GIT_NO_REPLACE_OBJECTS"] == "1"
+            if argv[-2:] == ["rev-parse", "--is-shallow-repository"]:
+                return b"true\n" if case == "shallow" else b"false\n"
+            assert argv[-4:] == [
+                "merge-base",
+                "--is-ancestor",
+                ("d" if case == "descendant" else "a") * 40,
+                "a" * 40,
+            ]
+            if case in ("not-ancestor", "primary-proof-retention"):
+                raise RuntimeError("synthetic native Git exit1")
+            return b""
+
+    monkeypatch.setattr(transport, "Native", PublicationNative)
+    monkeypatch.setattr(fetcher, "_alertmanager_bind_material", lambda *a: sources)
+    monkeypatch.setattr(
+        fetcher,
+        "_alertmanager_regular_sources",
+        lambda *a: (
+            {**sources, "deploy/alertmanager/trivy-ignore.yaml": b"drift"}
+            if case == "source-drift"
+            else sources
+        ),
+    )
+
+    def render(
+        supplied: dict[str, bytes],
+        work: Path,
+        deadline: float,
+        *,
+        expected_case: str,
+        controller_templates: dict[str, bytes],
+    ) -> None:
+        assert supplied == sources and expected_case == "accepted"
+        if case == "template-drift":
+            raise RuntimeError("AM_reviewed_controller_data_closure")
+
+    monkeypatch.setattr(fetcher, "_alertmanager_render_source_contract", render)
+    monkeypatch.setattr(transport, "GitHubRead", API)
+    monkeypatch.setattr(transport, "authenticate_pr_source", lambda *a: {"synthetic": True})
+    monkeypatch.setattr(transport, "retained_tool", tool)
+    monkeypatch.setattr(transport, "existing_public_package", package)
+    monkeypatch.setattr(transport, "immutable_tag_state", tag)
+    monkeypatch.setattr(fetcher, "_alertmanager_authenticated_inputs", authenticated)
+    monkeypatch.setattr(fetcher, "_alertmanager_source_snapshot", lambda *a, **k: {})
+    monkeypatch.setattr(
+        fetcher,
+        "_ALERT_ACCEPTED_CANDIDATE",
+        {
+            "run": 888,
+            "attempt": 1,
+            "artifact": 777,
+            "source": "c" * 40,
+            "job": 666,
+            "zip_sha256": "e" * 64,
+            "source_files": {
+                path: hashlib.sha256((REPO_ROOT / path).read_bytes()).hexdigest()
+                for path in (
+                    *fetcher._ALERT_Q_SOURCE_FILES,
+                    "tests/test_notify_premium_alias_checkpoint_failure.py",
+                )
+            },
+            "graph": {"synthetic_guarded_publication_only": True},
+            "OCI_archive_sha256": "f" * 64,
+        },
+    )
+    monkeypatch.setattr(fetcher, "_alertmanager_package_read", lambda *a: {})
+    monkeypatch.setattr(fetcher, "_alertmanager_qualified_payload", lambda *a: {"plan": {}})
+    monkeypatch.setattr(fetcher, "_alertmanager_support_payload", support)
+    monkeypatch.setattr(fetcher, "_alertmanager_candidate_payload", candidate)
+    monkeypatch.setattr(fetcher, "_alertmanager_candidate_graph", lambda *a: graph)
+    monkeypatch.setattr(fetcher, "_alertmanager_native_candidate", native)
+    monkeypatch.setattr(
+        fetcher, "_alertmanager_pair", lambda *a: pytest.fail("publication rebuilt candidate")
+    )
+    monkeypatch.setattr(
+        fetcher, "_qualify_alertmanager_modules", lambda *a: pytest.fail("publication renewed Q")
+    )
+    output = tmp_path / "owned-publication"
+    argv = _alertmanager_proposal_arguments(output)
+    argv[argv.index("build")] = "publish"
+    argv += [
+        "--alertmanager-pr",
+        "2494",
+        "--alertmanager-candidate-run",
+        "888",
+        "--alertmanager-candidate-artifact",
+        "777",
+        "--alertmanager-candidate-source",
+        "c" * 40,
+    ]
+    if case not in ("absent", "same", "descendant"):
+        with pytest.raises(OSError if case == "proof-retention" else RuntimeError) as raised:
+            fetcher.main(argv)
+        if case == "primary-proof-retention":
+            assert str(raised.value) == "synthetic native Git exit1"
+            assert "AM native proof retention failed: OSError" in raised.value.__notes__
+    else:
+        assert fetcher.main(argv) == 0
+    result = json.loads((output / "retained/candidate-observation.json").read_text())
+    assert result["compiler_starts"] == result["logical_build_starts"] == 0
+    assert "synthetic-publish-credential" not in json.dumps(result)
+    assert events.count("copy") == (
+        0
+        if case
+        in (
+            "same",
+            "inventory",
+            "conflict",
+            "credential-mode",
+            "unmerged",
+            "wrong-pr",
+            "foreign-pr",
+            "merge-invalid",
+            "not-ancestor",
+            "shallow",
+            "source-drift",
+            "template-drift",
+            "main-before-login",
+            "main-before-copy",
+            "proof-retention",
+            "primary-proof-retention",
+        )
+        else 1
+    )
+    if case in ("inventory", "conflict"):
+        assert "login" not in events and native_calls == []
+    if case == "denied":
+        assert result["package_WRITE"] == "UNPROVED" and result["copy_invocations"] == 0
+    if case == "same":
+        assert result["package_WRITE"] == "UNEXERCISED_EXISTING_SAME_SUBJECT" and native_calls
+    if case in ("absent", "descendant"):
+        assert result["package_WRITE"] == "OBSERVED_SUCCESSFUL_INTENDED_COPY" and native_calls
+    if case not in ("absent", "same", "descendant"):
+        assert native_calls == []
+
+    if case in ("main-after-copy", "pullback", "post-readback"):
+        assert result["copy_attempts"] == result["copy_invocations"] == 1
+        assert result["package_WRITE"] == "OBSERVED_SUCCESSFUL_INTENDED_COPY"
+    if case == "descendant":
+        assert result["publication_source_sha"] == "a" * 40
+        assert result["publication_merge_sha"] == "d" * 40
+
+
+@pytest.mark.parametrize("fault", [None, "missing-tool", "not-directory", "denied"])
+def test_alertmanager_precompiler_capability_is_bounded_readonly_permission_observation(
+    monkeypatch: pytest.MonkeyPatch,
+    fault: str | None,
+) -> None:
+    """Execute the workflow's actual fixed capability block with synthetic IO."""
+    import ast
+    import subprocess
+
+    smoke = _named_step(
+        _steps(_job(_workflow(CD_WORKFLOW), "alertmanager-candidate-build")),
+        "Verify isolated AM host import capability before effects",
+    )["run"]
+    source = smoke.split("# Read-only prerequisite observation;", 1)[1]
+    source = source[source.index("import os\n") : source.index("print(json.dumps({")]
+    tree = ast.parse(source)
+    calls: list[list[str]] = []
+    monkeypatch.setattr(
+        shutil,
+        "which",
+        lambda name: None if fault == "missing-tool" and name == "install" else "/absolute/" + name,
+    )
+    real_is_dir = Path.is_dir
+
+    def is_dir(path: Path) -> bool:
+        return (
+            fault != "not-directory" if path == Path("/run/systemd/system") else real_is_dir(path)
+        )
+
+    monkeypatch.setattr(Path, "is_dir", is_dir)
+
+    def run(argv: list[str], **kwargs: Any) -> subprocess.CompletedProcess[bytes]:
+        calls.append(argv)
+        assert argv == ["/absolute/sudo", "-n", "/absolute/test", "-w", "/run/systemd/system"]
+        assert kwargs == {
+            "env": {"PATH": os.defpath, "LANG": "C"},
+            "stdin": subprocess.DEVNULL,
+            "stdout": subprocess.DEVNULL,
+            "stderr": subprocess.DEVNULL,
+            "timeout": 5,
+            "check": True,
+        }
+        if fault == "denied":
+            raise subprocess.CalledProcessError(1, argv)
+        return subprocess.CompletedProcess(argv, 0, b"", b"")
+
+    monkeypatch.setattr(subprocess, "run", run)
+    if fault is None:
+        exec(compile(tree, "<cd.yml:AM-readonly-prerequisite>", "exec"), {"Path": Path})
+    else:
+        with pytest.raises(subprocess.CalledProcessError if fault == "denied" else AssertionError):
+            exec(compile(tree, "<cd.yml:AM-readonly-prerequisite>", "exec"), {"Path": Path})
+    assert len(calls) == (0 if fault in {"missing-tool", "not-directory"} else 1)
+    assert "install/start is native evidence" in smoke
+
+
+@pytest.mark.parametrize(
+    "fault",
+    (
+        None,
+        "scanner-exit",
+        "missing-report",
+        "malformed",
+        "partial",
+        "wrong-subject",
+        "new-HIGH",
+        "secret",
+        "old-missing",
+        "positive-missing",
+        "negative-secret",
+        "DB-drift",
+        "observation-write",
+        "primary-and-observation",
+    ),
+)
+def test_alertmanager_current_four_controls_retain_native_reports_and_reject_unproven_scans(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    fault: str | None,
+) -> None:
+    """Drive the actual current four-control owner through bounded synthetic native I/O."""
+    from argparse import Namespace
+    from copy import deepcopy
+    from scripts.ci import fetch_docker_source_artifacts as fetcher
+    from scripts.ci import prometheus_source_image as transport
+    from tests.test_docker_workflow_build_path_contract import _alertmanager_current_scan_report
+
+    for key in (
+        "GH_TOKEN",
+        "GITHUB_TOKEN",
+        "GHCR_READ_TOKEN",
+        "DOCKER_CONFIG",
+        "DOCKER_AUTH_CONFIG",
+    ):
+        monkeypatch.delenv(key, raising=False)
+    for key, value in _workflow(CD_WORKFLOW)["env"].items():
+        if key.startswith("ALERTMANAGER_"):
+            monkeypatch.setenv(key, value)
+    monkeypatch.setenv("ALERTMANAGER_CALLER_KIND", "shared-pr")
+    monkeypatch.setenv("ALERTMANAGER_JOB_TIMEOUT_MINUTES", "170")
+    scanner = tmp_path / "trivy"
+    scanner.write_bytes(b"synthetic native tool")
+    monkeypatch.setattr(
+        fetcher, "_ALERT_TRIVY_SHA256", hashlib.sha256(scanner.read_bytes()).hexdigest()
+    )
+    cache = tmp_path / "cache"
+    (cache / "db").mkdir(parents=True)
+    (cache / "db/trivy.db").write_bytes(b"synthetic native DB")
+    (cache / "db/metadata.json").write_text('{"Version":2,"UpdatedAt":"2026-10-18T00:00:00Z"}')
+    monkeypatch.setattr(shutil, "which", lambda name: "/synthetic/" + name)
+    calls: list[str] = []
+    timers: list[float] = []
+    if fault in ("observation-write", "primary-and-observation"):
+        import signal
+
+        monkeypatch.setattr(signal, "getitimer", lambda timer: (5.0, 0.0))
+        monkeypatch.setattr(signal, "setitimer", lambda timer, value, *args: timers.append(value))
+        monkeypatch.setattr(fetcher.time, "monotonic", lambda: 100.0)
+        write = Path.write_text
+
+        def write_observation(path: Path, *args: Any, **kwargs: Any) -> Any:
+            if path.name == "security-observation.json":
+                raise OSError("synthetic observation write failed")
+            return write(path, *args, **kwargs)
+
+        monkeypatch.setattr(Path, "write_text", write_observation)
+
+    graph = fetcher._ALERT_ACCEPTED_CANDIDATE["graph"]
+    subject = graph["config"]["digest"]
+    report = _alertmanager_current_scan_report()
+
+    class Native:
+        def __init__(self, *args: Any) -> None:
+            self.records: list[dict[str, Any]] = []
+
+        def run(
+            self,
+            argv: list[str],
+            label: str,
+            environment: dict[str, str],
+            *,
+            cwd: Path,
+            **kwargs: Any,
+        ) -> bytes:
+            assert cwd == args.output_dir
+            calls.append(label)
+            assert not any("TOKEN" in key for key in environment)
+            assert environment["DOCKER_CONFIG"].endswith("empty-docker-config")
+            if label == "current-scanner-version":
+                return b'{"Version":"0.74.0"}'
+            if label == "live-local-candidate":
+                return json.dumps(
+                    {
+                        "Id": subject,
+                        "Os": "linux",
+                        "Architecture": "amd64",
+                        "RootFS": {"Layers": graph["diff_ids"]},
+                    }
+                ).encode()
+            if label == "live-old-control-identity":
+                return json.dumps(
+                    {
+                        "Id": fetcher._ALERT_OLD_RUNTIME_CONFIG,
+                        "Os": "linux",
+                        "Architecture": "amd64",
+                        "RepoDigests": [fetcher._ALERT_OLD_RUNTIME_REF],
+                    }
+                ).encode()
+            if label == "live-old-control-pull":
+                return b"pulled old control only"
+            assert argv[argv.index("--severity") + 1] == "UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL"
+            assert "--list-all-pkgs" in argv and "--skip-db-update" in argv and "--scanners" in argv
+            assert Path(argv[argv.index("--ignorefile") + 1]).read_bytes() == b""
+            if argv[1] == "image":
+                assert argv[argv.index("--image-src") + 1] == "docker"
+            if fault in ("scanner-exit", "primary-and-observation"):
+                self.records.append({"label": label, "exit": 2})
+                raise RuntimeError("synthetic scanner native exit2")
+            target = Path(argv[argv.index("--output") + 1])
+            if fault == "missing-report":
+                return b""
+            if fault == "malformed":
+                target.write_bytes(b"{")
+                return b""
+            data = deepcopy(report)
+            if label == "current-candidate-full-supported":
+                if fault == "partial":
+                    data["Results"][1]["Packages"].pop()
+                elif fault == "wrong-subject":
+                    data["Metadata"]["ImageID"] = "sha256:" + "0" * 64
+                elif fault == "secret":
+                    data["Results"][0]["Secrets"] = [{"RuleID": "synthetic"}]
+                elif fault == "new-HIGH":
+                    data["Results"][0]["Vulnerabilities"] = [
+                        {
+                            "VulnerabilityID": "CVE-new",
+                            "PkgName": "synthetic",
+                            "InstalledVersion": "1",
+                            "Severity": "HIGH",
+                        }
+                    ]
+            elif label == "current-known-vulnerable-control":
+                cases = [
+                    ("CVE-2026-84445", "google.golang.org/grpc@v1.83.1"),
+                    ("CVE-2026-78669", "golang.org/x/net@v0.58.0"),
+                    ("CVE-2026-78669", "stdlib@v1.26.8"),
+                    ("CVE-2026-78667", "stdlib@v1.26.8"),
+                    ("CVE-2026-97031", "stdlib@v1.26.8"),
+                ]
+                data = {
+                    "SchemaVersion": 2,
+                    "ArtifactType": "container_image",
+                    "Metadata": {"ImageID": fetcher._ALERT_OLD_RUNTIME_CONFIG},
+                    "Results": [
+                        {
+                            "Target": "bin/" + name,
+                            "Class": "lang-pkgs",
+                            "Type": "gobinary",
+                            "Packages": [{"Name": "stdlib", "Version": "v1.26.8"}],
+                            "Vulnerabilities": [
+                                {
+                                    "VulnerabilityID": cve,
+                                    "PkgIdentifier": {"PURL": "pkg:golang/" + purl},
+                                    "Severity": "HIGH",
+                                }
+                                for cve, purl in cases
+                            ],
+                        }
+                        for name in ("alertmanager", "amtool")
+                    ],
+                }
+                if fault == "old-missing":
+                    data["Results"][0]["Vulnerabilities"].pop()
+            else:
+                positive = label == "current-secret-positive"
+                data = {"SchemaVersion": 2, "ArtifactType": "filesystem", "ArtifactName": argv[-1]}
+                if (
+                    positive
+                    and fault != "positive-missing"
+                    or not positive
+                    and fault == "negative-secret"
+                ):
+                    data["Results"] = [
+                        {
+                            "Target": "credentials.txt",
+                            "Secrets": [{"RuleID": "github-pat", "Severity": "CRITICAL"}],
+                        }
+                    ]
+                elif positive:
+                    data["Results"] = []
+            target.write_text(json.dumps(data))
+            if fault == "DB-drift":
+                (cache / "db/trivy.db").write_bytes(b"drift")
+            self.records.append({"label": label, "exit": 0})
+            return b""
+
+    monkeypatch.setattr(transport, "Native", Native)
+    args = Namespace(
+        alertmanager_scanner=scanner, alertmanager_cache=cache, output_dir=tmp_path / "observation"
+    )
+    if fault is None:
+        fetcher._alertmanager_live_security(args)
+        assert [name for name in calls if name.startswith("current-")] == [
+            "current-scanner-version",
+            "current-candidate-full-supported",
+            "current-known-vulnerable-control",
+            "current-secret-positive",
+            "current-secret-negative",
+        ]
+    else:
+        with pytest.raises((RuntimeError, ValueError, OSError)) as observed:
+            fetcher._alertmanager_live_security(args)
+        if fault in ("observation-write", "primary-and-observation"):
+            assert timers[0] <= 5.0 and timers[-1] == 5.0
+            assert not (args.output_dir / "security-observation.json").exists()
+            if fault == "primary-and-observation":
+                assert str(observed.value) == "synthetic scanner native exit2"
+                assert (
+                    "AM current security observation also failed: OSError"
+                    in observed.value.__notes__
+                )
+            return
+    record = json.loads((args.output_dir / "security-observation.json").read_bytes())
+    assert (record.get("status") == "OBSERVED_CURRENT_SUPPORTED_INVENTORY_AND_FOUR_CONTROLS") is (
+        fault is None
+    )
+    if fault not in ("scanner-exit", "missing-report"):
+        assert (
+            args.output_dir / "evidence/current-candidate-full-supported.private.json"
+        ).is_file()
+    assert record["DB"] and record["scanner_sha256"]
+
+
+def test_alertmanager_actual_caller_steps_fit_distinct_enclosing_budgets_and_retain_evidence() -> (
+    None
+):
+    """Enumerate actual conditional source/native/scanner caps rather than borrowing another route's job."""
+    workflow = _workflow(CD_WORKFLOW)
+    env = workflow["env"]
+
+    def minutes(step: dict[str, Any]) -> int:
+        value = step.get("timeout-minutes")
+        if isinstance(value, str):
+            match = re.fullmatch(r"\$\{\{ fromJSON\(env\.(\w+)\) \}\}", value)
+            assert match is not None, (step.get("name"), value)
+            value = 40 if match[1] == "ALERTMANAGER_GENERIC_NATIVE_MINUTES" else int(env[match[1]])
+        assert type(value) is int and value > 0, step.get("name")
+        return value
+
+    shared = _steps(_job(workflow, "prometheus-image-security-pr"))
+    pr_only = {
+        "Checkout immutable PR head Prometheus contracts",
+        "Require fresh fixed Prometheus control checkout",
+        "Checkout fixed trusted Prometheus control",
+        "Remove fixed trusted Prometheus control checkout",
+        "Require separately designated AM controller",
+        "Checkout separately designated AM controller",
+        "Remove designated AM controller after credential cleanup",
+        "Select AM Python without dependency or SDK installation",
+        "Install isolated AM host tools through the locked owner",
+        "Verify isolated AM host import capability before effects",
+        "Run full accepted AM native controls on this runner",
+    }
+    assert pr_only <= {step["name"] for step in shared}
+    main_steps = [step for step in shared if step["name"] not in pr_only]
+    assert sum(map(minutes, main_steps)) <= 285
+    # Changed, historical and ordinary PRs all execute the fixed-control steps.
+    excluded = {
+        "Checkout immutable published Prometheus contracts",
+        "Wait for the exact trusted Prometheus publisher",
+    }
+    assert sum(minutes(step) for step in shared if step["name"] not in excluded) <= 165
+    assert sum(map(minutes, _steps(_job(workflow, "alertmanager-retained-candidate")))) <= 78
+    assert sum(map(minutes, _steps(_job(workflow, "obs2a-checkpoint-native")))) <= 102
+    assert (
+        "ALERTMANAGER_CD_PR_JOB_TIMEOUT_MINUTES"
+        in _job(workflow, "prometheus-image-security-pr")["timeout-minutes"]
+    )
+    trusted = _job(workflow, "prometheus-image-security-trusted")
+    assert "ALERTMANAGER_CD_TRUSTED_JOB_TIMEOUT_MINUTES" in trusted["timeout-minutes"]
+    assert trusted["env"]["PROMETHEUS_JOB_TIMEOUT_MINUTES"] == trusted["timeout-minutes"]
+    for step in shared:
+        if step["name"] in {
+            "Require separately designated AM controller",
+            "Checkout separately designated AM controller",
+            "Run full accepted AM native controls on this runner",
+        }:
+            assert step["if"] == "github.event_name == 'pull_request'"
+    retain = _named_step(shared, "Retain exact Prometheus consumer evidence")["with"]["path"]
+    for suffix in (
+        "/consumer-observation.json",
+        "/native.stdout",
+        "/native.stderr",
+        "/github-read-evidence/",
+        "/preparation/evidence/",
+        "/security-observation.json",
+    ):
+        assert suffix in retain
+    assert "/candidate.zip" not in retain and "/private/" not in retain

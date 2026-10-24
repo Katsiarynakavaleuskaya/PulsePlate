@@ -17,6 +17,7 @@ from pathlib import Path
 import pytest
 import yaml
 
+from scripts.ci import fetch_docker_source_artifacts as alertmanager_source
 from scripts.ci import prometheus_source_image as prometheus_source
 from scripts.orchestration.creative_code_patch_workspace import (
     git_env_without_parent_state,
@@ -34,9 +35,7 @@ PROMETHEUS_RULES_PATH = REPO_ROOT / "deploy" / "prometheus" / "alias-alerts.yml"
 PROMETHEUS_MANIFEST_PATH = REPO_ROOT / "deploy" / "prometheus" / "image-manifest.json"
 ALERTMANAGER_CONFIG_PATH = REPO_ROOT / "deploy" / "alertmanager" / "alertmanager.yml"
 ALERTMANAGER_IGNORE_PATH = REPO_ROOT / "deploy" / "alertmanager" / "trivy-ignore.yaml"
-ALERTMANAGER_RUNTIME_REF = (
-    "prom/alertmanager@sha256:84967b9b7ba45e38a9278d3e594305f43d4993c310df3905b51138b816c365f3"
-)
+ALERTMANAGER_RUNTIME_REF = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:bc6c847d25e48a8bcddfd8fef0aec25b6ac890346b4bfe6dea3d2d82cd0dc3b9"
 POSTGRES_MANIFEST_PATH = REPO_ROOT / "deploy" / "postgres-pgvector" / "image-manifest.json"
 # Parser/caller fixtures only: these coordinates do not claim an artifact or native build.
 PROMETHEUS_SOURCE_REVISION = prometheus_source.REVISION
@@ -149,10 +148,11 @@ def _synthetic_prometheus_manifest_text() -> str:
 
 
 def _write_prometheus_helper(root: Path) -> None:
-    target = root / "scripts/ci/prometheus_source_image.py"
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_bytes((REPO_ROOT / "scripts/ci/prometheus_source_image.py").read_bytes())
-    target.chmod(0o644)
+    for name in ("prometheus_source_image.py", "fetch_docker_source_artifacts.py"):
+        target = root / "scripts/ci" / name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes((REPO_ROOT / "scripts/ci" / name).read_bytes())
+        target.chmod(0o644)
 
 
 DEPLOY_PYTHON_CALLERS = (
@@ -529,7 +529,7 @@ def test_deploy_relative_directory_reaches_verified_helper_without_product_mutat
     else:
         assert result.returncode != 0
         assert "Duplicate required environment keys found" in result.stdout
-        assert "Invalid trusted Prometheus helper operand" not in result.stderr
+        assert "Invalid trusted contract helper operand" not in result.stderr
         assert calls == ["compose version"]
 
 
@@ -647,7 +647,17 @@ FAKE_PROMETHEUS_IMAGE_INSPECT_JSON = json.dumps(
     separators=(",", ":"),
 )
 FAKE_ALERTMANAGER_IMAGE_INSPECT_JSON = json.dumps(
-    [{"Os": "linux", "Architecture": "amd64", "RepoDigests": [ALERTMANAGER_RUNTIME_REF]}],
+    [
+        {
+            "Id": alertmanager_source._alertmanager_contract_subject()[1],
+            "Os": "linux",
+            "Architecture": "amd64",
+            "RepoDigests": [ALERTMANAGER_RUNTIME_REF],
+            "RootFS": {
+                "Layers": alertmanager_source._ALERT_ACCEPTED_CANDIDATE["graph"]["diff_ids"]
+            },
+        }
+    ],
     separators=(",", ":"),
 )
 FAKE_POSTGRES_IMAGE_INSPECT_JSON = json.dumps(
@@ -898,6 +908,7 @@ def _write_shell_bundle_archive(
         "deploy/alertmanager/alertmanager.yml",
         "deploy/alertmanager/trivy-ignore.yaml",
         "scripts/ci/prometheus_source_image.py",
+        "scripts/ci/fetch_docker_source_artifacts.py",
         "scripts/diagnose_web.sh",
         "scripts/ops/postgres_backup.sh",
         "scripts/redeploy_caddy.sh",
@@ -3970,7 +3981,7 @@ def test_prometheus_cd_uses_authenticated_finite_consumer_and_retains_strict_sca
     assert "python3 -I -S" in consumer["run"]
     fixed = steps["Checkout fixed trusted Prometheus control"]
     assert fixed["with"] == {
-        "ref": "ef9e369052751d47c04f651f7d615714d918fc16",  # pragma: allowlist secret - public trusted control commit
+        "ref": "0d6a4c09477ad3174252eab15f80cdd4a76df5bc",  # pragma: allowlist secret - public trusted control commit
         "persist-credentials": False,
         "path": "artifacts/orchestration/prometheus-control",
         "sparse-checkout": "scripts/ci/prometheus_source_image.py",
@@ -4012,10 +4023,10 @@ def test_prometheus_cd_uses_authenticated_finite_consumer_and_retains_strict_sca
         names.index(name) for name in ordered_names
     )
     for program in (classifier["run"], consumer["run"]):
-        assert "328857" in program
+        assert "338536" in program
         assert (
             # pragma: allowlist nextline secret - public trusted control blob
-            "9d921263edf33797988e0200015f27469ba848ec"
+            "175520fe70b30c885448b95718b25b27985d3f8c"
             in program
         )
         assert "Prometheus_control_interface_HOLD" in program
@@ -4023,7 +4034,12 @@ def test_prometheus_cd_uses_authenticated_finite_consumer_and_retains_strict_sca
     assert 'trusted["one_object"](raw).get("admission")' in consumer["run"]
     assert job["permissions"] == {"contents": "read", "actions": "read", "packages": "read"}
     assert "environment" not in job
-    assert job["env"] == {"PROMETHEUS_CONSUME_SECONDS": "900", "PROMETHEUS_CLEANUP_SECONDS": "120"}
+    assert job["env"] == {
+        "PROMETHEUS_CONSUME_SECONDS": "900",
+        "PROMETHEUS_CLEANUP_SECONDS": "120",
+        "ALERTMANAGER_JOB_TIMEOUT_MINUTES": "${{ fromJSON(vars.ALERTMANAGER_CD_PR_JOB_TIMEOUT_MINUTES || '170') }}",
+        "ALERTMANAGER_CALLER_KIND": "shared-pr",
+    }
     assert consumer["env"] == {
         "GH_TOKEN": "${{ secrets.GITHUB_TOKEN }}",
         "GITHUB_TOKEN": "${{ secrets.GITHUB_TOKEN }}",
@@ -4143,17 +4159,17 @@ def _synthetic_fixed_prometheus_control(
     rebound = tuple(
         program.replace(
             # pragma: allowlist nextline secret - public trusted control commit
-            "ef9e369052751d47c04f651f7d615714d918fc16",
+            "0d6a4c09477ad3174252eab15f80cdd4a76df5bc",
             revision,
         )
         .replace(
             # pragma: allowlist nextline secret - public trusted control blob
-            "9d921263edf33797988e0200015f27469ba848ec",
+            "175520fe70b30c885448b95718b25b27985d3f8c",
             blob,
         )
-        .replace("328857", str(len(raw)))
+        .replace("338536", str(len(raw)))
         .replace(
-            "0fedf3e9ac865fe2b89a3367e5e4065e1c0c28fca88465c7f2b41775dbf4070a",  # pragma: allowlist secret - public protected helper digest
+            "2b6edfa63f55b17cafdff100151b4b7cebef93a757fc3ab04b00eea77ca0ac6a",  # pragma: allowlist secret - public protected helper digest
             hashlib.sha256(raw).hexdigest(),
         )
         for program in programs
@@ -4178,6 +4194,23 @@ def _prometheus_cd_route_fixture(tmp_path: Path, variant: str) -> tuple[Path, di
     """Real finite B/H Git data, with a separate ordinary PR startup canary."""
     repository = tmp_path / "repository"
     repository.mkdir()
+    command_directory = tmp_path / "synthetic-bin"
+    command_directory.mkdir()
+    docker = command_directory / "docker"
+    docker.write_text(
+        f"#!{sys.executable}\n"
+        "import json,os,sys\nfrom pathlib import Path\n"
+        "commands={\n"
+        " ('version','--format','client={{json .Client.Version}} server={{json .Server.Version}}'):'DOCKER-version',\n"
+        " ('info','--format','driver={{json .Driver}} driver_status={{json .DriverStatus}} os={{json .OSType}} arch={{json .Architecture}}'):'DOCKER-info',\n"
+        "}\n"
+        "command=commands.get(tuple(sys.argv[1:]))\n"
+        "if command is None: raise SystemExit('unexpected_synthetic_docker_command')\n"
+        "with Path(os.environ['SYNTHETIC_TRACE']).open('a') as stream: stream.write(json.dumps(command)+'\\n')\n"
+        "if os.environ['SYNTHETIC_OUTCOME']=='metadata-failure': raise SystemExit('synthetic_docker_metadata_failed')\n"
+        "print('synthetic Docker metadata')\n"
+    )
+    docker.chmod(0o755)
     environment = git_env_without_parent_state()
     for key in (
         "GH_TOKEN",
@@ -4192,7 +4225,9 @@ def _prometheus_cd_route_fixture(tmp_path: Path, variant: str) -> tuple[Path, di
         environment.pop(key, None)
     environment.update(
         {
-            "PATH": str(Path(sys.executable).parent) + os.pathsep + os.defpath,
+            "PATH": os.pathsep.join(
+                (str(command_directory), str(Path(sys.executable).parent), os.defpath)
+            ),
             "HOME": str(tmp_path),
             "LANG": "C",
             "GIT_CONFIG_NOSYSTEM": "1",
@@ -4348,6 +4383,7 @@ def _prometheus_cd_route_fixture(tmp_path: Path, variant: str) -> tuple[Path, di
         ("historical", None),
         ("manifest-and-helper", None),
         ("recipe-only", None),
+        ("metadata-failure", "synthetic_docker_metadata_failed"),
         ("changed-control-bytes", "Prometheus_control_bytes_HOLD"),
         ("changed-control-mode", "Prometheus_control_mode_HOLD"),
         ("changed-control-symlink", "Prometheus_control_path_HOLD"),
@@ -4493,11 +4529,20 @@ def test_prometheus_cd_classifies_before_pr_code_and_binds_trusted_handoff(
     )
     assert "PR-import" not in observed and "PR-helper-import" not in observed
     assert "synthetic.registry.reader" not in result.stdout + result.stderr
+    if variant == "metadata-failure":
+        assert observed == ["CONTROL-classify", "DOCKER-version"]
+        assert not (tmp_path / "synthetic-registry-state").exists()
     if diagnostic is not None:
         assert result.returncode != 0 and diagnostic in result.stderr
         return
     assert result.returncode == 0, result.stderr
-    assert observed == ["CONTROL-classify", "CONTROL-consume", "CONTROL-cleanup"]
+    assert observed == [
+        "CONTROL-classify",
+        "DOCKER-version",
+        "DOCKER-info",
+        "CONTROL-consume",
+        "CONTROL-cleanup",
+    ]
     values = dict(line.split("=", 1) for line in output_file.read_text().splitlines())
     assert {"manifest_digest", "config_digest", "source_revision", "runtime_ref"} <= values.keys()
     assert not (tmp_path / "synthetic-registry-state").exists()
@@ -4885,17 +4930,6 @@ def test_prometheus_cd_preserves_closed_non_pr_checkout_events(
 def test_alertmanager_cd_consumes_unsuppressed_inventory_without_extra_findings(
     tmp_path: Path, fault: str
 ) -> None:
-    workflow = yaml.safe_load(CD_WORKFLOW_PATH.read_text(encoding="utf-8"))
-    steps = workflow["jobs"]["prometheus-image-security-pr"]["steps"]
-    step = next(
-        item
-        for item in steps
-        if item.get("name") == "Admit exact Alertmanager image, config, and narrow CVE exception"
-    )
-    run = step["run"]
-    marker = "python3 - \"$1\" <<'PY'\n"
-    assert run.count(marker) == 1
-    program = run.split(marker, 1)[1].split("\nPY", 1)[0]
     admitted = (
         ("CVE-2026-84445", "pkg:golang/google.golang.org/grpc@v1.83.1"),
         ("CVE-2026-78669", "pkg:golang/golang.org/x/net@v0.58.0"),
@@ -4935,98 +4969,34 @@ def test_alertmanager_cd_consumes_unsuppressed_inventory_without_extra_findings(
         results[0]["Vulnerabilities"][0]["Severity"] = "CRITICAL"
     elif fault == "secret":
         results[0]["Secrets"] = [{"Match": "synthetic-sensitive-body"}]
-    scan = tmp_path / "scan.json"
-    scan.write_text(json.dumps({"Results": results}), encoding="utf-8")
-    completed = subprocess.run(
-        [sys.executable, "-c", program, str(scan)],
-        text=True,
-        capture_output=True,
-        check=False,
-    )
-    assert (completed.returncode != 0) is (fault != "none")
-    if fault == "secret":
-        assert "Alertmanager scan contains unexpected secret findings" in completed.stderr
-        assert "synthetic-sensitive-body" not in completed.stderr
-    elif fault != "none":
-        assert "Unsuppressed Alertmanager finding inventory changed" in completed.stderr
-
-
-@pytest.mark.parametrize("secret_finding", (False, True))
-def test_alertmanager_cd_retains_report_before_inventory_rejection(
-    tmp_path: Path, secret_finding: bool
-) -> None:
-    steps = yaml.safe_load(CD_WORKFLOW_PATH.read_text())["jobs"]["prometheus-image-security-pr"][
-        "steps"
-    ]
-    step = next(
-        item
-        for item in steps
-        if item.get("name") == "Admit exact Alertmanager image, config, and narrow CVE exception"
-    )
-    run = step["run"]
-    assert step["env"]["TRIVY_CACHE_DIR"] == "/tmp/trivy-cache-prometheus-image-security"
-    retention = run[run.index('python3 - "$scan"') : run.index("verify_alertmanager_inventory() {")]
-    verify = run[
-        run.index("verify_alertmanager_inventory() {") : run.index(
-            'verify_alertmanager_inventory "$scan"'
+    del tmp_path
+    for row in results:
+        row.update(
+            {
+                "Class": "lang-pkgs",
+                "Type": "gobinary",
+                "Packages": [{"Name": "synthetic", "Version": "1"}],
+            }
         )
-        + len('verify_alertmanager_inventory "$scan"')
-    ]
-    evidence = tmp_path / "prometheus-consumer-123-1" / "evidence"
-    evidence.mkdir(parents=True)
-    cache = tmp_path / "cache" / "db"
-    cache.mkdir(parents=True)
-    (cache / "metadata.json").write_text('{"Version": 2}')
-    (cache / "trivy.db").write_bytes(b"synthetic database")
-    scan = tmp_path / "scan.json"
-    raw = b'{"Results":[{"Target":"bin/alertmanager","Vulnerabilities":[]}]}\n'
-    if secret_finding:
-        raw = json.dumps(
-            {"Results": [{"Secrets": [{"Match": "synthetic-sensitive-body"}]}]}
-        ).encode()
-    scan.write_bytes(raw)
-    scanner = tmp_path / "trivy"
-    scanner.write_text("#!/bin/sh\nprintf '%s\\n' '{\"Version\":\"0.74.0\"}'\n")
-    scanner.chmod(0o755)
-    environment = {
-        "PATH": os.defpath,
-        "HOME": str(tmp_path),
-        "RUNNER_TEMP": str(tmp_path),
-        "GITHUB_RUN_ID": "123",
-        "GITHUB_RUN_ATTEMPT": "1",
-        "GITHUB_SHA": "c" * 40,
-        "PROMETHEUS_EVENT_HEAD": "a" * 40,
-        "TRIVY_BIN": str(scanner),
-        "TRIVY_CACHE_DIR": str(cache.parent),
+    report = {
+        "ArtifactType": "container_image",
+        "Metadata": {"ImageID": alertmanager_source._ALERT_OLD_RUNTIME_CONFIG},
+        "Results": results,
     }
-    completed = subprocess.run(
-        [
-            "/bin/bash",
-            "-c",
-            'set -euo pipefail\nscan="$1"\nalert_ref="$2"\n' + retention + verify,
-            "fixture",
-            str(scan),
-            "prom/alertmanager@sha256:" + "b" * 64,
-        ],
-        env=environment,
-        text=True,
-        capture_output=True,
-        check=False,
-    )
-    assert completed.returncode != 0
-    if secret_finding:
-        assert "Alertmanager scan contains unexpected secret findings" in completed.stderr
-        assert not (evidence / "alertmanager-unsuppressed.json").exists()
-        assert list(evidence.iterdir()) == []
-        return
-    assert "Unsuppressed Alertmanager finding inventory changed" in completed.stderr
-    assert (evidence / "alertmanager-unsuppressed.json").read_bytes() == raw
-    context = json.loads((evidence / "alertmanager-scan-context.json").read_bytes())
-    assert context["head"] == "a" * 40
-    assert context["workflow_execution_sha"] == "c" * 40
-    assert context["scanner_version"] == {"Version": "0.74.0"}
-    assert context["database_metadata"] == {"Version": 2}
-    assert context["report_sha256"] == hashlib.sha256(raw).hexdigest()
+    if fault == "none":
+        observed = alertmanager_source._alertmanager_vulnerability_control(
+            report, alertmanager_source._ALERT_OLD_RUNTIME_CONFIG
+        )
+        assert observed["known_HIGH_occurrences"] == 10
+    else:
+        with pytest.raises(
+            RuntimeError,
+            match="AM_(vulnerable_control_result|known_vulnerable_control_inventory_changed_HOLD)",
+        ) as observed:
+            alertmanager_source._alertmanager_vulnerability_control(
+                report, alertmanager_source._ALERT_OLD_RUNTIME_CONFIG
+            )
+        assert "synthetic-sensitive-body" not in str(observed.value)
 
 
 def test_prometheus_config_has_one_private_exact_target() -> None:
@@ -5338,15 +5308,15 @@ def test_staging_selected_alertmanager_accepts_compose_owned_readable_file(
         ),
         (
             "alertmanager/trivy-ignore.yaml",
-            "grpc@v1.83.1",
-            "grpc@v1.83.2",
-            "Alertmanager Trivy exception differs from the admitted complete file",
+            "vulnerabilities: []",
+            "vulnerabilities: [{id: CVE-2099-00000}]",
+            "Alertmanager Trivy policy differs from the admitted complete file",
         ),
         (
             "alertmanager/trivy-ignore.yaml",
-            "expired_at: 2026-10-21",
-            "expired_at: 2026-10-21\n  - id: CVE-2099-00000",
-            "Alertmanager Trivy exception differs from the admitted complete file",
+            "vulnerabilities: []",
+            "vulnerabilities: []\nunknown: true",
+            "Alertmanager Trivy policy differs from the admitted complete file",
         ),
     ),
 )
@@ -6001,6 +5971,8 @@ def _staging_compose_fixture_json(project_dir: Path = Path("/srv/pulseplate-stag
     from scripts.ops.check_staging_security import POSTGRES_COMMAND, STORAGE_ROOT
 
     payload = json.loads(FAKE_PROMETHEUS_COMPOSE_JSON)
+    payload["name"] = project_dir.name
+
     payload["services"]["postgres"]["environment"].update(
         {
             "POSTGRES_DB": "pulseplate",
@@ -6076,16 +6048,19 @@ if "STUB_PROMETHEUS_COMPOSE_JSON" not in os.environ and isinstance(payload, dict
     match = re.search(r"-f\\s+(\\S+)", os.environ["STUB_COMPOSE_ARGS"])
     if match:
         compose = Path(match.group(1))
-        payload["name"] = compose.parent.name
+        project_match = re.search(r"--project-directory\\s+(\\S+)", os.environ["STUB_COMPOSE_ARGS"])
+        project = Path(project_match.group(1)) if project_match else compose.parent
+        payload["name"] = project.name
         if os.environ.get("STUB_INSTALLED_NO_ALERTMANAGER") == str(compose.resolve()):
             payload["services"].pop("alertmanager", None)
+            payload["name"] = os.environ.get("STUB_INSTALLED_PROJECT_NAME", payload["name"])
         else:
             payload["services"]["alertmanager"]["volumes"] = [{{
-                "type": "bind", "source": str(compose.parent / "alertmanager/alertmanager.yml"),
+                "type": "bind", "source": str(project / "alertmanager/alertmanager.yml"),
                 "target": "/etc/alertmanager/alertmanager.yml", "read_only": True
             }}]
         payload["secrets"]["alertmanager_smtp_key"]["file"] = str(
-            compose.parent / "secrets/alertmanager_smtp_key"
+            project / "secrets/alertmanager_smtp_key"
         )
 if "STUB_COMPOSE_PROJECT_NAME" in os.environ and isinstance(payload, dict):
     payload["name"] = os.environ["STUB_COMPOSE_PROJECT_NAME"]
@@ -6273,8 +6248,12 @@ print(json.dumps(payload))
       printf '%s\\n' '{FAKE_POSTGRES_IMAGE_INSPECT_JSON}'
     fi
     ;;
-  image\\ inspect\\ *alertmanager*)
+  image\\ inspect\\ {ALERTMANAGER_RUNTIME_REF}|image\\ inspect\\ {alertmanager_source._alertmanager_contract_subject()[1]})
+    if [ "${{STUB_ALERTMANAGER_IMAGE_ABSENT:-0}}" = 1 ]; then exit 91; fi
     printf '%s\\n' '{FAKE_ALERTMANAGER_IMAGE_INSPECT_JSON}'
+    ;;
+  image\\ inspect\\ {alertmanager_source._ALERT_OLD_RUNTIME_CONFIG})
+    printf '%s\\n' '{json.dumps([{"Id": alertmanager_source._ALERT_OLD_RUNTIME_CONFIG, "Os": "linux", "Architecture": "amd64", "RepoDigests": [alertmanager_source._ALERT_OLD_RUNTIME_REF]}])}'
     ;;
   image\\ inspect\\ {POSTGRES_CONFIG_DIGEST})
     printf '%s\\n' 'unexpected bare-ID image inspect' >&2
@@ -6527,7 +6506,10 @@ def test_production_selected_alertmanager_requires_smtp_key_before_docker(
     )
     assert result.returncode != 0
     assert "Selected Alertmanager requires a regular non-symlink SMTP key" in result.stderr
-    assert not log_file.exists()
+    assert all(
+        " pull " not in line and " up " not in line and " stop " not in line
+        for line in log_file.read_text().splitlines()
+    )
 
 
 @pytest.mark.parametrize("mode", (0o444, 0o600))
@@ -6596,9 +6578,9 @@ def test_production_selected_alertmanager_key_must_be_nonempty(
         ),
         (
             "alertmanager/trivy-ignore.yaml",
-            "grpc@v1.83.1",
-            "grpc@v1.83.2",
-            "Alertmanager Trivy exception differs from the admitted complete file",
+            "vulnerabilities: []",
+            "vulnerabilities: [{id: CVE-2099-00000}]",
+            "Alertmanager Trivy policy differs from the admitted complete file",
         ),
     ),
 )
@@ -6713,15 +6695,15 @@ def test_production_all_profile_alertmanager_security_denies_forged_service_or_n
 
 @pytest.mark.parametrize("contour", ["staging", "production"])
 @pytest.mark.parametrize(
-    ("utc_instant", "selected_allowed"),
+    "utc_instant",
     [
-        ("2026-10-20T23:59:59+00:00", True),
-        ("2026-10-21T00:00:00+00:00", False),
-        ("2026-10-21T00:00:01+00:00", False),
+        "2026-10-20T23:59:59+00:00",
+        "2026-10-21T00:00:00+00:00",
+        "2026-10-21T00:00:01+00:00",
     ],
 )
-def test_selected_alertmanager_utc_waiver_boundary_and_off_profile_independence(
-    tmp_path: Path, contour: str, utc_instant: str, selected_allowed: bool
+def test_selected_accepted_alertmanager_is_date_independent_and_off_profile_independent(
+    tmp_path: Path, contour: str, utc_instant: str
 ) -> None:
     if contour == "staging":
         env, log_file = _staging_deploy_fixture(tmp_path)
@@ -6739,15 +6721,7 @@ def test_selected_alertmanager_utc_waiver_boundary_and_off_profile_independence(
         key = project_dir / "deploy/secrets/alertmanager_smtp_key"
         source = REPO_ROOT / "scripts/deploy_production.sh"
         args = ["--preflight-only"]
-    original = source.read_text(encoding="utf-8")
-    clock_expression = "datetime.now(timezone.utc)"
-    assert original.count(clock_expression) == 1
-    observed_date_script = tmp_path / f"{contour}-observed-date-deploy.sh"
-    observed_date_script.write_text(
-        original.replace(clock_expression, f'datetime.fromisoformat("{utc_instant}")'),
-        encoding="utf-8",
-    )
-    observed_date_script.chmod(0o755)
+    observed_date_script = _alertmanager_clock_bound_deploy(tmp_path, env, source, utc_instant)
     key.write_text("synthetic-only", encoding="ascii")
     key.chmod(0o444)
     env["COMPOSE_PROFILES"] = "scheduler-external, alerting"
@@ -6759,9 +6733,7 @@ def test_selected_alertmanager_utc_waiver_boundary_and_off_profile_independence(
         capture_output=True,
         check=False,
     )
-    assert (selected.returncode == 0) is selected_allowed, selected.stderr
-    if not selected_allowed:
-        assert "Alertmanager Trivy exception has expired" in selected.stderr
+    assert selected.returncode == 0, selected.stderr
     key.unlink()
     env.pop("COMPOSE_PROFILES", None)
     off = subprocess.run(
@@ -6968,7 +6940,9 @@ def test_alertmanager_email_noncanonical_bytes_reject_before_product_effects(
         argv, cwd=REPO_ROOT, env=env, capture_output=True, text=True, check=False
     )
     assert completed.returncode != 0
-    assert "Alertmanager" in completed.stderr or "UnicodeDecodeError" in completed.stderr
+    assert "Alertmanager" in completed.stderr or (
+        "AM_contract_HOLD:" in completed.stderr and "utf-8" in completed.stderr
+    )
     _assert_dependency_admission_has_no_product_effect(log_file)
     assert source.read_bytes() == faulty
     assert {name: (project / name).read_bytes() for name in installed_paths} == installed
@@ -7246,6 +7220,32 @@ def test_production_incoming_alertmanager_dependency_rejects_before_contract_pub
             archive.unlink(missing_ok=True)
 
 
+def _alertmanager_clock_bound_deploy(
+    tmp_path: Path, env: dict[str, str], source: Path, instant: str
+) -> Path:
+    """Freeze the actual same-owner clock in a separately bound test helper, never a runtime override."""
+    root = Path(env.get("PROJECT_DIR", env.get("DEPLOY_DIR", "")))
+    helper = root / "scripts/ci/fetch_docker_source_artifacts.py"
+    raw = helper.read_text()
+    clock = "datetime.now(timezone.utc) < datetime(2026, 10, 21"
+    assert raw.count(clock) == 1
+    helper.write_text(
+        raw.replace(clock, 'datetime.fromisoformat("' + instant + '") < datetime(2026, 10, 21')
+    )
+    script = tmp_path / (source.stem + "-test-clock.sh")
+    text, replacements = re.subn(
+        r'ALERTMANAGER_CONTRACT_HELPER_SHA256="[0-9a-f]{64}"',
+        'ALERTMANAGER_CONTRACT_HELPER_SHA256="'
+        + hashlib.sha256(helper.read_bytes()).hexdigest()
+        + '"',
+        source.read_text(),
+    )
+    assert replacements == 1
+    script.write_text(text)
+    script.chmod(0o755)
+    return script
+
+
 def _alertmanager_census_inspect_record(
     *,
     status: str = "running",
@@ -7255,6 +7255,7 @@ def _alertmanager_census_inspect_record(
 ) -> dict[str, object]:
     return {
         "Id": full_id,
+        "Image": alertmanager_source._ALERT_OLD_RUNTIME_CONFIG,
         "Config": {
             "Labels": {
                 "com.docker.compose.project": project,
@@ -7346,15 +7347,9 @@ def test_production_off_profile_census_only_running_alertmanager_enforces_expiry
     )
     env.pop("COMPOSE_PROFILES", None)
     env["STUB_CENSUS_LOG"] = str(log_file)
-    source = (REPO_ROOT / "scripts/deploy_production.sh").read_text(encoding="utf-8")
-    clock_expression = "datetime.now(timezone.utc)"
-    assert source.count(clock_expression) == 1
-    script = tmp_path / "production-census-observed-clock.sh"
-    script.write_text(
-        source.replace(clock_expression, f'datetime.fromisoformat("{utc_instant}")'),
-        encoding="utf-8",
+    script = _alertmanager_clock_bound_deploy(
+        tmp_path, env, REPO_ROOT / "scripts/deploy_production.sh", utc_instant
     )
-    script.chmod(0o755)
     if presence != "absent":
         env["STUB_ALERTMANAGER_PS_IDS"] = "e" * 64
         status = "running" if presence == "running" else "exited"
@@ -7387,19 +7382,19 @@ def test_production_off_profile_census_only_running_alertmanager_enforces_expiry
 @pytest.mark.parametrize(
     ("fault", "expected"),
     (
-        ("ps-error", "Unable to census"),
-        ("multiple", "ambiguous or malformed container IDs"),
-        ("duplicate", "ambiguous or malformed container IDs"),
-        ("short-id", "ambiguous or malformed container IDs"),
-        ("malformed-id", "ambiguous or malformed container IDs"),
-        ("inspect-error", "Unable to prove"),
-        ("restarting", "unknown or restarting"),
-        ("unknown-state", "unknown or inconsistent"),
-        ("paused", "paused, dead, or unknown"),
-        ("wrong-project-label", "project or service identity is ambiguous"),
-        ("wrong-service-label", "project or service identity is ambiguous"),
-        ("wrong-id", "ID differs from Compose census"),
-        ("wrong-project-name", "project identity is missing or ambiguous"),
+        ("ps-error", "AM_contract_native_exit:census"),
+        ("multiple", "AM_contract_census_full_ID"),
+        ("duplicate", "AM_contract_census_full_ID"),
+        ("short-id", "AM_contract_census_full_ID"),
+        ("malformed-id", "AM_contract_census_full_ID"),
+        ("inspect-error", "AM_contract_native_exit:container"),
+        ("restarting", "AM_contract_runtime_state"),
+        ("unknown-state", "AM_contract_runtime_state"),
+        ("paused", "AM_contract_runtime_state"),
+        ("wrong-project-label", "AM_contract_container_identity"),
+        ("wrong-service-label", "AM_contract_container_identity"),
+        ("wrong-id", "AM_contract_container_identity"),
+        ("wrong-project-name", "AM_contract_installed_project_identity"),
     ),
 )
 def test_production_off_profile_census_fails_closed_before_product_mutation(
@@ -7504,9 +7499,9 @@ def test_production_empty_alertmanager_census_requires_canonical_project_identit
     )
     assert (completed.returncode == 0) is allowed, completed.stderr
     if not allowed:
-        assert "Compose project identity is missing or ambiguous" in completed.stderr
+        assert "AM_contract_installed_project_identity" in completed.stderr
     log = log_file.read_text().splitlines()
-    assert any("--profile alerting config --format json" in line for line in log)
+    assert any("--profile * config --format json" in line for line in log)
     assert (
         any(
             "ps --all --no-trunc --quiet --filter label=com.docker.compose.project=" in line
@@ -7717,6 +7712,9 @@ def test_production_partial_alertmanager_publication_holds_then_readmits_exact_b
         "SOURCE_BACKUP_HELPER": str(source / "scripts/ops/postgres_backup.sh"),
         "PROMETHEUS_CONTRACT_HELPER_SHA256": hashlib.sha256(
             (REPO_ROOT / "scripts/ci/prometheus_source_image.py").read_bytes()
+        ).hexdigest(),
+        "ALERTMANAGER_CONTRACT_HELPER_SHA256": hashlib.sha256(
+            (REPO_ROOT / "scripts/ci/fetch_docker_source_artifacts.py").read_bytes()
         ).hexdigest(),
     }
     published = subprocess.run(
@@ -8810,7 +8808,7 @@ set -euo pipefail
 printf 'docker %s\n' "$*" >> "{log_file}"
 if [ "${{STUB_ALERTMANAGER_IMAGE_ABSENT:-0}}" = 1 ]; then
   case "$*" in
-    *"pull alertmanager"*|*"image inspect prom/alertmanager@"*|*"--entrypoint /bin/amtool"*) exit 91 ;;
+    *"pull alertmanager"*|*"image inspect {ALERTMANAGER_RUNTIME_REF}"*|*"--entrypoint /bin/amtool"*) exit 91 ;;
   esac
 fi
 case "$*" in
@@ -8879,7 +8877,7 @@ printf 'curl %s\n' "$*" >> "{log_file}"
         (index, line)
         for index, line in enumerate(log_lines)
         if "pull alertmanager" in line
-        or "image inspect prom/alertmanager@" in line
+        or f"image inspect {ALERTMANAGER_RUNTIME_REF}" in line
         or "--entrypoint /bin/amtool" in line
     ]
     assert bool(alertmanager_commands) is alerting_selected
@@ -12278,7 +12276,7 @@ set -euo pipefail
 printf 'docker %s\n' "$*" >> "{log_file}"
 if [ "${{STUB_ALERTMANAGER_IMAGE_ABSENT:-0}}" = 1 ]; then
   case "$*" in
-    *"pull alertmanager"*|*"image inspect prom/alertmanager@"*|*"--entrypoint /bin/amtool"*) exit 91 ;;
+    *"pull alertmanager"*|*"image inspect {ALERTMANAGER_RUNTIME_REF}"*|*"--entrypoint /bin/amtool"*) exit 91 ;;
   esac
 fi
 printf 'env backend=%s caddy=%s config=%s\n' "${{STAGING_IMAGE_REF:-}}" "${{STAGING_CADDY_IMAGE_REF:-}}" "${{DOCKER_CONFIG:-}}" >> "{log_file}"
@@ -12577,7 +12575,7 @@ def test_staging_deploy_preserves_backup_migration_caddy_order_and_cli_identity(
         (index, line)
         for index, line in enumerate(log_lines)
         if "pull alertmanager" in line
-        or "image inspect prom/alertmanager@" in line
+        or f"image inspect {ALERTMANAGER_RUNTIME_REF}" in line
         or "--entrypoint /bin/amtool" in line
     ]
     assert bool(alertmanager_commands) is alerting_selected
@@ -14559,6 +14557,8 @@ def test_staging_promtool_preflight_does_not_create_a_service_data_volume(
         '"$DOCKER_BIN" run', script.index('echo "Validating the exact Prometheus configuration')
     )
     end = script.index('\necho "Invoking the canonical application', start)
+    launcher_start = script.index("run_trusted_contract() {")
+    launcher_end = script.index("\nvalidate_prometheus_image_manifest() {", launcher_start)
     selector_start = script.index("alertmanager_selected() {")
     selector_end = script.index("\n}\n", selector_start) + len("\n}\n")
     argv_file = tmp_path / "argv.jsonl"
@@ -14572,17 +14572,31 @@ def test_staging_promtool_preflight_does_not_create_a_service_data_volume(
     env = {
         **os.environ,
         "DOCKER_BIN": str(docker),
+        "PYTHON_BIN": sys.executable,
+        "PROJECT_DIR": str(tmp_path),
+        "ALERTMANAGER_CONTRACT_HELPER": str(
+            REPO_ROOT / "scripts/ci/fetch_docker_source_artifacts.py"
+        ),
+        "ALERTMANAGER_CASE": "accepted",
         "PROMETHEUS_RUNTIME_REF": PROMETHEUS_RUNTIME_REF,
         "PROMETHEUS_CONFIG": str(tmp_path / "config.yml"),
         "PROMETHEUS_RULES": str(tmp_path / "alias-alerts.yml"),
         "ALERTMANAGER_CONFIG": str(tmp_path / "alertmanager.yml"),
+        "ALERTMANAGER_RUNTIME_REF": ALERTMANAGER_RUNTIME_REF,
+        "ALERTMANAGER_SELECTION": "selected" if profiles is not None else "off",
         "METRICS_SECRET_FILE": str(tmp_path / "key"),
     }
     env.pop("COMPOSE_PROFILES", None)
     if profiles is not None:
         env["COMPOSE_PROFILES"] = profiles
     completed = subprocess.run(
-        [bash, "-euc", script[selector_start:selector_end] + script[start:end]],
+        [
+            bash,
+            "-euc",
+            script[launcher_start:launcher_end]
+            + script[selector_start:selector_end]
+            + script[start:end],
+        ],
         env=env,
         capture_output=True,
         text=True,
@@ -15547,6 +15561,11 @@ def test_checkpoint_admission_rejects_before_protected_publication(
     project = tmp_path / "production"
     bundle = tmp_path / "bundle"
     _write_checkpoint_contract(project)
+    installed_am_helper = project / "scripts/ci/fetch_docker_source_artifacts.py"
+    installed_am_helper.parent.mkdir(parents=True, exist_ok=True)
+    installed_am_helper.write_bytes(
+        (REPO_ROOT / "scripts/ci/fetch_docker_source_artifacts.py").read_bytes()
+    )
     if carrier == "bundle":
         _write_shell_bundle_contract(bundle)
     else:
@@ -15610,6 +15629,9 @@ def test_checkpoint_admission_rejects_before_protected_publication(
         env={
             "PATH": os.environ["PATH"],
             "PYTHON_BIN": sys.executable,
+            "ALERTMANAGER_CONTRACT_HELPER_SHA256": hashlib.sha256(
+                (REPO_ROOT / "scripts/ci/fetch_docker_source_artifacts.py").read_bytes()
+            ).hexdigest(),
             "REQUESTED_DEPLOY_DIR": str(project),
             "COMPOSE_RELATIVE_IDENTITY": CANONICAL_MANAGED_COMPOSE,
             "PROMETHEUS_CONTRACT_HELPER_SHA256": hashlib.sha256(
@@ -15829,9 +15851,7 @@ def test_trusted_prometheus_wait_keeps_admission_and_cleanup_boundaries(
         if case == "interrupt":
             raise KeyboardInterrupt
         if case == "timeout" or elapsed[0] <= 900:
-            raise prometheus_source.QualificationError(
-                "positive_publication_predecessor_pending_or_missing"
-            )
+            raise prometheus_source.QualificationError("positive_publication_predecessor_active")
         return {"run": {"head_sha": head, "conclusion": "success"}}
 
     monkeypatch.setattr(prometheus_source, "GitHubRead", API)
@@ -15863,3 +15883,1026 @@ def test_trusted_prometheus_wait_keeps_admission_and_cleanup_boundaries(
         assert calls[0:2] == ["api", "admission"] and calls[-1] == "close"
     if case == "timeout":
         assert elapsed[0] == 10800
+
+
+@pytest.mark.parametrize(
+    "case,cleanup_failure",
+    [
+        (case, False)
+        for case in (
+            "failure",
+            "cancelled",
+            "timed_out",
+            "job-failure",
+            "job-cancelled",
+            "job-timed_out",
+            "missing-job",
+            "skipped-job",
+            "malformed",
+            "api-error",
+            "pending-terminal",
+            "missing-active-success",
+            "new-attempt-success",
+            "missing-timeout",
+            "active-timeout",
+        )
+    ]
+    + [("job-failure", True), ("api-error", True)],
+)
+def test_trusted_prometheus_wait_uses_real_terminal_recognition(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    case: str,
+    cleanup_failure: bool,
+) -> None:
+    import signal
+    import time
+    from tests.test_prometheus_source_image import (
+        _PublicationPredecessorAPI,
+        _publication_wait_observations,
+    )
+
+    workflow = yaml.safe_load(CD_WORKFLOW_PATH.read_text())
+    steps = workflow["jobs"]["prometheus-image-security-trusted"]["steps"]
+    step = next(
+        row for row in steps if row.get("name") == "Wait for the exact trusted Prometheus publisher"
+    )
+    consumer = next(row for row in steps if row.get("id") == "prometheus-image")
+    assert "if" not in consumer and "continue-on-error" not in step
+    event = tmp_path / "event.json"
+    event.write_text('{"ref":"refs/heads/main"}')
+    environment = {
+        "GITHUB_EVENT_NAME": "push",
+        "GITHUB_EVENT_PATH": str(event),
+        "GITHUB_SHA": "1" * 40,
+        "GITHUB_WORKSPACE": str(REPO_ROOT),
+        "RUNNER_TEMP": str(tmp_path),
+        "GITHUB_RUN_ID": "123",
+        "GITHUB_RUN_ATTEMPT": "1",
+        "GH_TOKEN": "synthetic-read-token",
+        "GITHUB_TOKEN": "synthetic-read-token",
+        "PROMETHEUS_CREDENTIAL_ROUTE": "trusted_published",
+        "PROMETHEUS_PUBLICATION_WAIT_SECONDS": "120",
+        "PROMETHEUS_CONSUME_SECONDS": "900",
+        "PROMETHEUS_CLEANUP_SECONDS": "120",
+        "PROMETHEUS_SECURITY_RESERVE_SECONDS": "2400",
+        "PROMETHEUS_JOB_TIMEOUT_MINUTES": "255",
+    }
+    monkeypatch.setattr(os, "environ", environment)
+    elapsed = [0.0]
+    sleeps: list[float] = []
+
+    def sleep(seconds: float) -> None:
+        sleeps.append(seconds)
+        elapsed[0] += seconds
+
+    monkeypatch.setattr(time, "monotonic", lambda: elapsed[0])
+    monkeypatch.setattr(time, "sleep", sleep)
+    monkeypatch.setattr(signal, "signal", lambda *args: None)
+    snapshots, diagnostic, expected_sleeps = _publication_wait_observations(case)
+    observed: list[_PublicationPredecessorAPI] = []
+    real_close = prometheus_source.GitHubRead.close
+
+    class API(_PublicationPredecessorAPI):
+        def __init__(self, private: Path, evidence: Path, deadline: float, cleanup: int) -> None:
+            super().__init__(snapshots=snapshots)
+            assert deadline == 120 and cleanup == 120
+            self.private = private
+            self.private.mkdir(mode=0o700)
+            for child in ("home", "config", "cache", "tmp"):
+                (self.private / child).mkdir(mode=0o700)
+            self.process = None
+            self.environment = {}
+            self.known = b""
+            self.additional_known = ()
+            if case == "api-error":
+                endpoint = f"/repos/{prometheus_source.GHCR_REPOSITORY}/actions/workflows/build.yml/runs?event=push&head_sha={'1' * 40}&per_page=100&page=1"
+                self.overrides[endpoint] = prometheus_source.QualificationError(
+                    "GitHub_native_failed"
+                )
+            observed.append(self)
+
+        def begin_cleanup(self) -> float:
+            if cleanup_failure:
+                raise prometheus_source.QualificationError("synthetic_cleanup_failure")
+            return elapsed[0] + 120
+
+        def close(self) -> None:
+            # Exercise the existing primary-preserving cleanup implementation,
+            # rather than a mocked close that erases the publication error.
+            real_close(self)
+
+    def admission(*args: object) -> dict[str, str]:
+        return {"publisher_head": "1" * 40}
+
+    monkeypatch.setattr(prometheus_source, "GitHubRead", API)
+    monkeypatch.setattr(prometheus_source, "event_admission", admission)
+    program = compile(_prometheus_cd_python(step), "<trusted-publication-wait>", "exec")
+    if diagnostic is None:
+        exec(program, {"__name__": "__main__"})
+        result = json.loads(
+            (tmp_path / "prometheus-publication-wait-123-1/evidence/predecessor.json").read_text()
+        )
+        assert result["run"]["conclusion"] == result["job"]["conclusion"] == "success"
+    else:
+        with pytest.raises(prometheus_source.QualificationError) as raised:
+            exec(program, {"__name__": "__main__"})
+        # pytest's regex match includes exception notes; check the primary
+        # diagnostic and the cleanup note independently and exactly.
+        assert str(raised.value) == diagnostic
+        assert getattr(raised.value, "__notes__", []) == (
+            ["GitHub cleanup also failed:synthetic_cleanup_failure"] if cleanup_failure else []
+        )
+        assert not (
+            tmp_path / "prometheus-publication-wait-123-1/evidence/predecessor.json"
+        ).exists()
+    if expected_sleeps >= 0:
+        assert len(sleeps) == expected_sleeps
+        assert observed[0].observation == (0 if case == "api-error" else expected_sleeps + 1)
+    else:
+        assert elapsed[0] == 120 and sum(sleeps) == 120 and observed[0].observation == 4
+    if case == "new-attempt-success":
+        assert any("/attempts/2/jobs" in endpoint for endpoint in observed[0].requests)
+    if cleanup_failure:
+        assert "GitHub cleanup also failed:synthetic_cleanup_failure" in capsys.readouterr().err
+    else:
+        assert not observed[0].private.exists()
+
+
+@pytest.fixture
+def alertmanager_contract_inputs(tmp_path: Path) -> tuple[Path, dict[str, object]]:
+    """A complete valid AM model for the actual pure CLI; no Docker execution or credential input."""
+    root = tmp_path / "installed"
+    root.mkdir()
+    (root / "alertmanager").mkdir()
+    compose = root / "docker-compose.staging.yaml"
+    selected, _ = alertmanager_source._alertmanager_contract_subject()
+    compose.write_text(STAGING_COMPOSE_PATH.read_text().replace(ALERTMANAGER_RUNTIME_REF, selected))
+    shutil.copyfile(ALERTMANAGER_CONFIG_PATH, root / "alertmanager/alertmanager.yml")
+    (root / "alertmanager/trivy-ignore.yaml").write_bytes(b"vulnerabilities: []\n")
+    model = json.loads(_staging_compose_fixture_json(root))
+    model["name"] = "deploy"
+    model["services"]["alertmanager"]["image"] = selected
+    return root, model
+
+
+def _run_alertmanager_pure_contract(
+    root: Path,
+    model: dict[str, object],
+    *,
+    runtime: str = "absent",
+    profiles: str = "",
+    fault: str | None = None,
+    instant: str | None = None,
+) -> subprocess.CompletedProcess[str]:
+    """Exercise the real same-FD input protocol with native-shaped synthetic captures."""
+    selected, config_id = alertmanager_source._alertmanager_contract_subject()
+    candidate = json.dumps(model).encode()
+    installed = json.dumps(model).encode()
+    census = b"" if runtime == "absent" else ("e" * 64 + "\n").encode()
+    container = _alertmanager_census_inspect_record(
+        status="exited" if runtime == "stopped" else "running"
+    )
+    container["Image"] = (
+        alertmanager_source._ALERT_OLD_RUNTIME_CONFIG if runtime == "old" else config_id
+    )
+    image = {
+        "Id": container["Image"],
+        "Os": "linux",
+        "Architecture": "amd64",
+        "RepoDigests": [
+            alertmanager_source._ALERT_OLD_RUNTIME_REF if runtime == "old" else selected
+        ],
+        "RootFS": {"Layers": alertmanager_source._ALERT_ACCEPTED_CANDIDATE["graph"]["diff_ids"]},
+    }
+    status = 0
+    if fault == "namespace":
+        installed = json.dumps({**model, "name": "another"}).encode()
+    elif fault == "failed-empty":
+        status = 1
+    elif fault == "duplicate-census":
+        census += census
+    elif fault == "short-census":
+        census = b"eeee\n"
+    elif fault == "carriage-census":
+        census = b"e" * 64 + b"\r\n"
+    elif fault == "container-id":
+        container["Id"] = "f" * 64
+    elif fault == "state-string":
+        container["State"]["Running"] = "false"
+    elif fault == "state-restarting":
+        container["State"]["Restarting"] = True
+    elif fault == "image-config":
+        image["Id"] = (
+            alertmanager_source._ALERT_OLD_RUNTIME_CONFIG if runtime != "old" else config_id
+        )
+    elif fault == "repo-suffix":
+        image["RepoDigests"] = ["evil.invalid/pulseplate@" + selected.split("@", 1)[1]]
+    elif fault == "duplicate-repo":
+        image["RepoDigests"] *= 2
+    elif fault == "missing-repo":
+        image["RepoDigests"] = []
+    elif fault == "oom-history":
+        container["State"]["OOMKilled"] = True
+    elif fault == "duplicate-json":
+        installed = b'{"name":"deploy","name":"deploy"}'
+    elif fault == "nonfinite":
+        installed = b'{"name":"deploy","x":NaN}'
+    elif fault == "oversize":
+        installed = b" " * (1048576 + 1)
+    capture_values = {"candidate": candidate, "installed-compose": installed, "census": census}
+    if runtime != "absent":
+        capture_values["container"] = json.dumps([container]).encode()
+    if runtime not in ("absent", "stopped"):
+        capture_values["image"] = json.dumps([image]).encode()
+    opened = {}
+    try:
+        for name, value in capture_values.items():
+            path = root / (name + ".capture")
+            path.write_bytes(value)
+            path.chmod(0o600)
+            opened[name] = path.open("rb")
+            # A previous prefix has exhausted the file description; final must pread offset zero.
+            opened[name].read()
+        script = REPO_ROOT / "scripts/ci/fetch_docker_source_artifacts.py"
+        if instant is not None:
+            frozen = root / "clock-bound-fetcher.py"
+            source = script.read_text()
+            clock = "datetime.now(timezone.utc) < datetime(2026, 10, 21"
+            assert source.count(clock) == 1
+            frozen.write_text(
+                source.replace(
+                    clock, 'datetime.fromisoformat("' + instant + '") < datetime(2026, 10, 21'
+                )
+            )
+            script = frozen
+        argv = [
+            sys.executable,
+            "-I",
+            "-S",
+            str(script),
+            "--alertmanager-contract",
+            "--phase",
+            "final",
+            "--compose",
+            str(root / "docker-compose.staging.yaml"),
+            "--installed-compose",
+            str(root / "docker-compose.staging.yaml"),
+            "--config",
+            str(root / "alertmanager/alertmanager.yml"),
+            "--policy",
+            str(root / "alertmanager/trivy-ignore.yaml"),
+            "--contour",
+            "staging",
+            "--profiles=" + profiles,
+        ]
+        for name in capture_values:
+            if name != "candidate":
+                argv += [
+                    "--" + name + "-fd",
+                    str(opened[name].fileno()),
+                    "--" + name + "-exit",
+                    str(status if name == "census" else 0),
+                ]
+        if fault == "alias":
+            index = argv.index("--installed-compose-fd") + 1
+            argv[index] = str(opened["candidate"].fileno())
+        return subprocess.run(
+            argv,
+            stdin=opened["candidate"],
+            pass_fds=tuple(value.fileno() for value in opened.values()),
+            env={"PATH": os.defpath, "PYTHONDONTWRITEBYTECODE": "1"},
+            text=True,
+            capture_output=True,
+            timeout=10,
+            check=False,
+        )
+    finally:
+        for stream in opened.values():
+            stream.close()
+
+
+@pytest.mark.parametrize("runtime", ("absent", "stopped", "accepted"))
+@pytest.mark.parametrize("profiles", ("", "alerting"))
+def test_alertmanager_same_F_final_rereads_complete_captures_after_prefix_EOF(
+    alertmanager_contract_inputs: tuple[Path, dict[str, object]], runtime: str, profiles: str
+) -> None:
+    root, model = alertmanager_contract_inputs
+    actual = _run_alertmanager_pure_contract(
+        root, model, runtime=runtime, profiles=profiles, instant="2026-10-22T00:00:00+00:00"
+    )
+    assert actual.returncode == 0, actual.stderr
+    assert actual.stdout == ("selected\n" if profiles else "off\n")
+
+
+@pytest.mark.parametrize(
+    "fault",
+    (
+        "namespace",
+        "failed-empty",
+        "duplicate-census",
+        "short-census",
+        "carriage-census",
+        "container-id",
+        "state-string",
+        "state-restarting",
+        "image-config",
+        "repo-suffix",
+        "duplicate-repo",
+        "missing-repo",
+        "duplicate-json",
+        "nonfinite",
+        "oversize",
+        "alias",
+    ),
+)
+def test_alertmanager_same_F_final_rejects_actual_native_boundary_fault(
+    alertmanager_contract_inputs: tuple[Path, dict[str, object]], fault: str
+) -> None:
+    root, model = alertmanager_contract_inputs
+    actual = _run_alertmanager_pure_contract(root, model, runtime="accepted", fault=fault)
+    assert actual.returncode != 0
+    assert "AM_contract" in actual.stderr
+    assert actual.stdout == ""
+
+
+@pytest.mark.parametrize(
+    "instant,allowed",
+    (
+        ("2026-10-20T23:59:59+00:00", True),
+        ("2026-10-21T00:00:00+00:00", False),
+        ("2026-10-22T00:00:00+00:00", False),
+    ),
+)
+@pytest.mark.parametrize("profiles", ("", "alerting"))
+def test_alertmanager_same_F_selected_S_still_censuses_running_O_at_final_cutoff(
+    alertmanager_contract_inputs: tuple[Path, dict[str, object]],
+    instant: str,
+    allowed: bool,
+    profiles: str,
+) -> None:
+    root, model = alertmanager_contract_inputs
+    actual = _run_alertmanager_pure_contract(
+        root, model, runtime="old", profiles=profiles, instant=instant
+    )
+    assert (actual.returncode == 0) is allowed, actual.stderr
+    if not allowed:
+        assert "Trivy exception has expired" in actual.stderr
+
+
+def test_alertmanager_same_F_stopped_oom_history_is_not_new_health_invariant(
+    alertmanager_contract_inputs: tuple[Path, dict[str, object]],
+) -> None:
+    root, model = alertmanager_contract_inputs
+    actual = _run_alertmanager_pure_contract(root, model, runtime="stopped", fault="oom-history")
+    assert actual.returncode == 0, actual.stderr
+
+
+@pytest.mark.parametrize("runtime", ("absent", "stopped", "accepted"))
+@pytest.mark.parametrize("native_failure", (False, True))
+def test_alertmanager_collector_actual_status_private_captures_and_fixed_native_operands(
+    alertmanager_contract_inputs: tuple[Path, dict[str, object]], runtime: str, native_failure: bool
+) -> None:
+    root, model = alertmanager_contract_inputs
+    selected, config_id = alertmanager_source._alertmanager_contract_subject()
+    container = _alertmanager_census_inspect_record(
+        status="exited" if runtime == "stopped" else "running"
+    )
+    container["Image"] = config_id
+    image = {
+        "Id": config_id,
+        "Os": "linux",
+        "Architecture": "amd64",
+        "RepoDigests": [selected],
+        "RootFS": {"Layers": alertmanager_source._ALERT_ACCEPTED_CANDIDATE["graph"]["diff_ids"]},
+    }
+    docker = root / "synthetic-docker"
+    log = root / "calls.jsonl"
+    docker.write_text(
+        "#!"
+        + sys.executable
+        + "\nimport json,sys\n"
+        + "args=sys.argv[1:]\n"
+        + "with open("
+        + repr(str(log))
+        + ", 'a') as stream:stream.write(json.dumps(args)+'\\n')\n"
+        + "if args[0]=='compose': print("
+        + repr(json.dumps(model))
+        + ")\n"
+        + "elif args[0]=='ps':\n"
+        + (
+            " sys.exit(7)\n"
+            if native_failure
+            else " print("
+            + repr("" if runtime == "absent" else "e" * 64)
+            + ") if "
+            + repr(runtime != "absent")
+            + " else None\n"
+        )
+        + "elif args[:2]==['image','inspect']: print("
+        + repr(json.dumps([image]))
+        + ")\n"
+        + "elif args[0]=='inspect': print("
+        + repr(json.dumps([container]))
+        + ")\n"
+        + "else:sys.exit(99)\n"
+    )
+    docker.chmod(0o755)
+    environment = root / "selected.env"
+    environment.write_bytes(b"")
+    argv = [
+        sys.executable,
+        "-I",
+        "-S",
+        str(REPO_ROOT / "scripts/ci/fetch_docker_source_artifacts.py"),
+        "--alertmanager-contract-collect",
+        "--compose",
+        str(root / "docker-compose.staging.yaml"),
+        "--installed-compose",
+        str(root / "docker-compose.staging.yaml"),
+        "--config",
+        str(root / "alertmanager/alertmanager.yml"),
+        "--policy",
+        str(root / "alertmanager/trivy-ignore.yaml"),
+        "--contour",
+        "staging",
+        "--profiles=",
+        "--env-file",
+        str(environment),
+        "--docker",
+        str(docker),
+    ]
+    actual = subprocess.run(
+        argv,
+        env={"PATH": os.defpath, "TMPDIR": str(root)},
+        text=True,
+        capture_output=True,
+        timeout=15,
+        check=False,
+    )
+    assert (actual.returncode == 0) is not native_failure, actual.stderr
+    assert actual.stdout == ("" if native_failure else "off accepted\n")
+    if native_failure:
+        assert "AM_contract_native_exit:census:7" in actual.stderr
+    calls = [json.loads(line) for line in log.read_text().splitlines()]
+    assert calls[0][0] == calls[1][0] == "compose"
+    assert all(call[call.index("--project-directory") + 1] == str(root) for call in calls[:2])
+    assert all(call[0] in ("compose", "ps", "inspect", "image") for call in calls)
+    assert not any("pull" in call or "up" in call or "stop" in call for call in calls)
+    if not native_failure:
+        assert len(calls) == {"absent": 3, "stopped": 4, "accepted": 5}[runtime]
+    assert not list(root.glob("pulseplate-am-admission-*")), "owned raw captures survived cleanup"
+
+
+@pytest.mark.parametrize("selected_case", ("old", "accepted"))
+@pytest.mark.parametrize("wrong_case", (False, True))
+def test_alertmanager_selected_image_phase_uses_only_canonical_tuple_and_ref_projection(
+    selected_case: str,
+    wrong_case: bool,
+) -> None:
+    ref, config_id = alertmanager_source._alertmanager_contract_subject()
+    if selected_case == "old":
+        ref, config_id = (
+            alertmanager_source._ALERT_OLD_RUNTIME_REF,
+            alertmanager_source._ALERT_OLD_RUNTIME_CONFIG,
+        )
+    args = [
+        sys.executable,
+        "-I",
+        "-S",
+        str(REPO_ROOT / "scripts/ci/fetch_docker_source_artifacts.py"),
+        "--alertmanager-contract",
+        "--phase",
+        "selected-image",
+        "--selected-case",
+        selected_case,
+    ]
+    projected = subprocess.run(
+        [*args, "--field", "runtime_ref"],
+        env={"PATH": os.defpath},
+        stdin=subprocess.DEVNULL,
+        capture_output=True,
+        text=True,
+        timeout=5,
+        check=False,
+    )
+    assert projected.returncode == 0 and projected.stdout == ref + "\n", projected.stderr
+    image = {
+        "Id": config_id,
+        "Os": "linux",
+        "Architecture": "amd64",
+        "RepoDigests": [ref],
+        "RootFS": {"Layers": alertmanager_source._ALERT_ACCEPTED_CANDIDATE["graph"]["diff_ids"]},
+    }
+    if wrong_case:
+        image["Id"] = (
+            alertmanager_source._ALERT_OLD_RUNTIME_CONFIG
+            if selected_case == "accepted"
+            else alertmanager_source._alertmanager_contract_subject()[1]
+        )
+    actual = subprocess.run(
+        args,
+        input=json.dumps([image]),
+        env={"PATH": os.defpath},
+        capture_output=True,
+        text=True,
+        timeout=5,
+        check=False,
+    )
+    assert (actual.returncode == 0) is not wrong_case, actual.stderr
+    assert actual.stdout == ("" if wrong_case else selected_case + "\n")
+
+
+def test_alertmanager_collector_shorter_parent_rejects_before_native_effect(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The collector reserves cleanup inside an existing parent deadline before dispatch."""
+    import signal
+
+    calls: list[float] = []
+    monkeypatch.setattr(signal, "getitimer", lambda timer: (2.0, 0.0))
+    monkeypatch.setattr(signal, "setitimer", lambda timer, value, *rest: calls.append(value))
+    monkeypatch.setattr(
+        subprocess,
+        "Popen",
+        lambda *args, **kwargs: pytest.fail("native operation escaped parent bound"),
+    )
+    with pytest.raises(ValueError, match="AM_contract_parent_budget"):
+        alertmanager_source._alertmanager_contract_collect([])
+    assert calls == [], "rejection must preserve the existing parent's alarm"
+
+
+@pytest.mark.parametrize("survivor", (False, True))
+def test_alertmanager_collector_keeps_exited_leader_until_descendant_cleanup(
+    alertmanager_contract_inputs: tuple[Path, dict[str, object]],
+    monkeypatch: pytest.MonkeyPatch,
+    survivor: bool,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """An exited successful leader cannot turn a surviving owned descendant into admission."""
+    import signal
+    from types import SimpleNamespace
+
+    root, model = alertmanager_contract_inputs
+    docker = root / "synthetic-docker"
+    docker.write_bytes(b"synthetic executable")
+    docker.chmod(0o755)
+    environment = root / "selected.env"
+    environment.write_bytes(b"")
+    events: list[str] = []
+    state = {"group_live": False, "clock": 0.0}
+    monkeypatch.setattr(alertmanager_source.time, "monotonic", lambda: state["clock"])
+    monkeypatch.setattr(
+        alertmanager_source.time,
+        "sleep",
+        lambda value: state.__setitem__("clock", state["clock"] + value),
+    )
+    monkeypatch.setattr(signal, "getitimer", lambda timer: (0.0, 0.0))
+    monkeypatch.setattr(signal, "setitimer", lambda *args: None)
+    monkeypatch.setattr(signal, "getsignal", lambda sig: signal.SIG_DFL)
+    monkeypatch.setattr(signal, "signal", lambda *args: None)
+
+    class Child:
+        pid = 987654
+
+        def __init__(self, command: list[str], **kwargs: object) -> None:
+            assert kwargs["start_new_session"] is True
+            state["group_live"] = True
+            self.stdout, self.stderr = self.pipe(
+                json.dumps(model).encode() if command[1] == "compose" else b""
+            ), self.pipe(b"")
+
+        @staticmethod
+        def pipe(raw: bytes) -> object:
+            read, write = os.pipe()
+            os.write(write, raw)
+            os.close(write)
+            return os.fdopen(read, "rb")
+
+        def poll(self) -> int:
+            pytest.fail("leader was reaped before owned-group cleanup")
+
+        def wait(self, **kwargs: object) -> int:
+            assert events[-1] == "kill-owned-group"
+            events.append("reap-own-leader")
+            return 0
+
+    def waitid(kind: int, pid: int, flags: int) -> object:
+        assert kind == os.P_PID and pid == Child.pid and flags & os.WNOWAIT
+        events.append("observe-without-reaping")
+        return SimpleNamespace(si_pid=pid, si_status=0, si_code=os.CLD_EXITED)
+
+    def killpg(pid: int, value: int) -> None:
+        assert pid == Child.pid
+        if value == signal.SIGKILL:
+            assert events[-1] == "observe-without-reaping"
+            events.append("kill-owned-group")
+            state["group_live"] = survivor
+        else:
+            assert value == 0 and "reap-own-leader" in events
+            if not state["group_live"]:
+                events.append("observed-absence")
+                raise ProcessLookupError()
+
+    monkeypatch.setattr(subprocess, "Popen", Child)
+    monkeypatch.setattr(os, "waitid", waitid)
+    monkeypatch.setattr(os, "getpgid", lambda pid: pid)
+    monkeypatch.setattr(os, "killpg", killpg)
+    argv = [
+        "--alertmanager-contract-collect",
+        "--compose",
+        str(root / "docker-compose.staging.yaml"),
+        "--installed-compose",
+        str(root / "docker-compose.staging.yaml"),
+        "--config",
+        str(root / "alertmanager/alertmanager.yml"),
+        "--policy",
+        str(root / "alertmanager/trivy-ignore.yaml"),
+        "--contour",
+        "staging",
+        "--profiles=",
+        "--env-file",
+        str(environment),
+        "--docker",
+        str(docker),
+    ]
+    if survivor:
+        with pytest.raises(ValueError, match="AM_contract_owned_group_survived"):
+            alertmanager_source._alertmanager_contract_collect(argv)
+        assert capsys.readouterr().out == ""
+        assert events == ["observe-without-reaping", "kill-owned-group", "reap-own-leader"]
+    else:
+        assert alertmanager_source._alertmanager_contract_collect(argv) == 0
+        assert capsys.readouterr().out == "off accepted\n"
+        assert (
+            events
+            == [
+                "observe-without-reaping",
+                "kill-owned-group",
+                "reap-own-leader",
+                "observed-absence",
+            ]
+            * 3
+        )
+
+
+@pytest.mark.parametrize("leaf", ("alertmanager.yml", "trivy-ignore.yaml"))
+def test_staging_missing_installed_alertmanager_files_hold_without_runtime_absence_claim(
+    tmp_path: Path,
+    leaf: str,
+) -> None:
+    env, log = _staging_deploy_fixture(tmp_path)
+    (Path(env["PROJECT_DIR"]) / "alertmanager" / leaf).unlink()
+    result = subprocess.run(
+        [
+            str(REPO_ROOT / "scripts/deploy.sh"),
+            "--preflight-only",
+            "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "a" * 64,
+            "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "b" * 64,
+        ],
+        env=env,
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert (
+        result.returncode != 0
+        and "Staging file must be a regular non-symlink file" in result.stderr
+    )
+    assert "/alertmanager/" + leaf in result.stderr
+    assert "preflight passed" not in result.stdout
+    assert not log.exists() or all(
+        not any(verb in line for verb in (" pull ", " up ", " start ", " stop "))
+        for line in log.read_text().splitlines()
+    )
+
+
+@pytest.mark.parametrize(
+    "arguments,diagnostic",
+    [
+        (["--phase", "candidate", "--phase", "final"], "AM_contract_duplicate_option"),
+        (["--phas", "candidate"], "unrecognized arguments"),
+    ],
+)
+def test_alertmanager_pure_ABI_rejects_duplicate_and_abbreviated_options_before_data_reads(
+    arguments: list[str],
+    diagnostic: str,
+) -> None:
+    selected = [
+        sys.executable,
+        "-I",
+        "-S",
+        str(REPO_ROOT / "scripts/ci/fetch_docker_source_artifacts.py"),
+        "--alertmanager-contract",
+        *arguments,
+    ]
+    result = subprocess.run(
+        selected,
+        stdin=subprocess.DEVNULL,
+        env={"PATH": os.defpath},
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode != 0 and result.stdout == ""
+    # An abbreviated missing required phase is rejected by argparse before operand/file reads.
+    assert diagnostic in result.stderr or (
+        arguments[0] == "--phas" and "required: --phase" in result.stderr
+    )
+
+
+@pytest.mark.parametrize("profiles", ("", "alerting"))
+@pytest.mark.parametrize("fault", ("old-at-cutoff", "old-after-cutoff", "namespace"))
+def test_production_first_bundle_rejects_running_old_or_changed_installed_namespace(
+    tmp_path: Path,
+    profiles: str,
+    fault: str,
+) -> None:
+    env, project, log, bundle = _production_preflight_fixture(tmp_path, with_bundle=True)
+    assert bundle is not None
+    installed = project / "deploy/docker-compose.production.yaml"
+    model = yaml.safe_load(installed.read_text())
+    model["services"].pop("alertmanager")
+    installed.write_text(yaml.safe_dump(model, sort_keys=False))
+    for leaf in ("alertmanager.yml", "trivy-ignore.yaml"):
+        (project / "deploy/alertmanager" / leaf).unlink()
+    (project / "deploy/alertmanager").rmdir()
+    instant = (
+        "2026-10-21T00:00:01+00:00" if fault == "old-after-cutoff" else "2026-10-21T00:00:00+00:00"
+    )
+    script = _alertmanager_clock_bound_deploy(
+        tmp_path, env, REPO_ROOT / "scripts/deploy_production.sh", instant
+    )
+    (bundle / "scripts/ci/fetch_docker_source_artifacts.py").write_bytes(
+        (project / "scripts/ci/fetch_docker_source_artifacts.py").read_bytes()
+    )
+    env.update(
+        {
+            "COMPOSE_PROFILES": profiles,
+            "STUB_INSTALLED_NO_ALERTMANAGER": str(installed),
+            "STUB_CENSUS_LOG": str(log),
+            "STUB_ALERTMANAGER_PS_IDS": "e" * 64,
+            "STUB_ALERTMANAGER_INSPECT_JSON": json.dumps([_alertmanager_census_inspect_record()]),
+        }
+    )
+    if fault == "namespace":
+        env["STUB_INSTALLED_PROJECT_NAME"] = "different-project"
+    result = subprocess.run(
+        [str(script), "--preflight-only"],
+        cwd=REPO_ROOT,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode != 0
+    assert (
+        "AM_contract_installed_project_identity"
+        if fault == "namespace"
+        else "Selected or running Alertmanager Trivy exception has expired"
+    ) in result.stderr
+    assert not (project / "deploy/alertmanager").exists()
+    entries = log.read_text().splitlines() if log.exists() else []
+    assert any("ps --all --no-trunc --quiet" in line for line in entries) is (fault != "namespace")
+    assert all(
+        not any(verb in line for verb in (" pull ", " up ", " stop ", " start "))
+        for line in entries
+    )
+
+
+@pytest.mark.parametrize("profiles", ("", "alerting"))
+def test_staging_new_selection_still_rejects_running_old_at_cutoff(
+    tmp_path: Path,
+    profiles: str,
+) -> None:
+    env, log = _staging_deploy_fixture(tmp_path)
+    env.update(
+        {
+            "COMPOSE_PROFILES": profiles,
+            "STUB_CENSUS_LOG": str(log),
+            "STUB_ALERTMANAGER_PS_IDS": "e" * 64,
+            "STUB_ALERTMANAGER_INSPECT_JSON": json.dumps(
+                [_alertmanager_census_inspect_record(project=Path(env["PROJECT_DIR"]).name)]
+            ),
+        }
+    )
+    script = _alertmanager_clock_bound_deploy(
+        tmp_path, env, REPO_ROOT / "scripts/deploy.sh", "2026-10-21T00:00:00+00:00"
+    )
+    result = subprocess.run(
+        [
+            str(script),
+            "--preflight-only",
+            "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "a" * 64,
+            "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "b" * 64,
+        ],
+        cwd=REPO_ROOT,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert (
+        result.returncode != 0
+        and "Selected or running Alertmanager Trivy exception has expired" in result.stderr
+    )
+    assert any("ps --all --no-trunc --quiet" in line for line in log.read_text().splitlines())
+    assert all(
+        not any(verb in line for verb in (" pull ", " up ", " stop ", " start "))
+        for line in log.read_text().splitlines()
+    )
+
+
+@pytest.mark.parametrize(
+    "fault",
+    [
+        None,
+        "missing-context",
+        "relative-context",
+        "symlink-context",
+        "mount",
+        "secret",
+        "config",
+        "policy",
+    ],
+)
+def test_alertmanager_pure_candidate_separates_incoming_bytes_from_installed_targets(
+    alertmanager_contract_inputs: tuple[Path, dict[str, object]], fault: str | None
+) -> None:
+    installed, model = alertmanager_contract_inputs
+    incoming = installed.parent / "payload"
+    shutil.copytree(installed, incoming)
+    # A first bundle has source bytes but no installed AM leaves yet.
+    shutil.rmtree(installed / "alertmanager")
+    context = installed / "docker-compose.staging.yaml"
+    if fault == "relative-context":
+        context = Path("docker-compose.staging.yaml")
+    elif fault == "symlink-context":
+        linked = installed.parent / "linked-compose.yaml"
+        linked.symlink_to(context)
+        context = linked
+    elif fault == "mount":
+        model["services"]["alertmanager"]["volumes"][0]["source"] = str(
+            incoming / "alertmanager/alertmanager.yml"
+        )
+    elif fault == "secret":
+        model["secrets"]["alertmanager_smtp_key"]["file"] = str(
+            incoming / "secrets/alertmanager_smtp_key"
+        )
+    elif fault == "config":
+        (incoming / "alertmanager/alertmanager.yml").write_text("invalid incoming configuration")
+    elif fault == "policy":
+        (incoming / "alertmanager/trivy-ignore.yaml").write_bytes(b"vulnerabilities: []\n\n")
+    argv = [
+        sys.executable,
+        "-I",
+        "-S",
+        str(REPO_ROOT / "scripts/ci/fetch_docker_source_artifacts.py"),
+        "--alertmanager-contract",
+        "--phase",
+        "candidate",
+        "--compose",
+        str(incoming / "docker-compose.staging.yaml"),
+        "--config",
+        str(incoming / "alertmanager/alertmanager.yml"),
+        "--policy",
+        str(incoming / "alertmanager/trivy-ignore.yaml"),
+        "--contour",
+        "staging",
+        "--profiles=",
+    ]
+    if fault != "missing-context":
+        argv += ["--installed-compose", str(context)]
+    result = subprocess.run(
+        argv,
+        input=json.dumps(model),
+        env={"PATH": os.defpath},
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
+    )
+    assert (result.returncode == 0) is (fault is None), result.stderr
+    assert result.stdout == ("accepted\n" if fault is None else "")
+    assert not (installed / "alertmanager").exists()
+
+
+def test_alertmanager_selected_image_rejects_surplus_installed_context(tmp_path: Path) -> None:
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-I",
+            "-S",
+            str(REPO_ROOT / "scripts/ci/fetch_docker_source_artifacts.py"),
+            "--alertmanager-contract",
+            "--phase",
+            "selected-image",
+            "--selected-case",
+            "accepted",
+            "--field",
+            "runtime_ref",
+            "--installed-compose",
+            str(tmp_path / "absent"),
+        ],
+        stdin=subprocess.DEVNULL,
+        env={"PATH": os.defpath},
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
+    )
+    assert result.returncode != 0 and result.stdout == ""
+    assert "AM_contract_selected_image_operands" in result.stderr
+
+
+@pytest.mark.parametrize("self_hosted", [False, True])
+def test_production_incoming_renderers_share_installed_project_directory(
+    tmp_path: Path, self_hosted: bool
+) -> None:
+    env, project, log, bundle = _production_preflight_fixture(tmp_path, with_bundle=True)
+    assert bundle is not None
+    if self_hosted:
+        name = "docker-compose.production.selfhosted.yaml"
+        # The existing fixture owns the complete self-hosted source/manifest contract.
+        for root in (project, bundle):
+            (root / "deploy" / name).write_bytes(SELF_HOSTED_COMPOSE_PATH.read_bytes())
+        env["COMPOSE_FILE"] = "deploy/" + name
+        env.update(
+            {
+                "POSTGRES_DB": "synthetic",
+                "POSTGRES_USER": "synthetic",
+                "POSTGRES_PASSWORD": "synthetic",
+            }
+        )
+        stub = Path(env["DOCKER_BIN"])
+        stub.write_text(
+            stub.read_text().replace(
+                "app\\nworker\\ncaddy\\nprometheus\\n",
+                "app\\nworker\\ncaddy\\nprometheus\\npostgres\\n",
+            )
+        )
+    assert not (bundle / "deploy/.env").exists()
+    result = subprocess.run(
+        [str(REPO_ROOT / "scripts/deploy_production.sh"), "--preflight-only"],
+        cwd=REPO_ROOT,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    calls = [line for line in log.read_text().splitlines() if "config --format json" in line]
+    assert calls
+    assert all("--project-directory " + str(project / "deploy") in line for line in calls)
+    assert any("-f " + str(bundle / "deploy") in line for line in calls)
+    assert not (bundle / "deploy/.env").exists()
+
+
+@pytest.mark.parametrize("raw", [b"[]", b"[{}]"])
+def test_alertmanager_candidate_keeps_object_guard_after_union_decode(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, raw: bytes
+) -> None:
+    """Inspection arrays remain decodable but cannot become a candidate object by typing."""
+    decoded = alertmanager_source._alertmanager_contract_json(raw)
+    assert type(decoded) is list
+    monkeypatch.setattr(
+        alertmanager_source,
+        "_alertmanager_contract_file",
+        lambda *args: pytest.fail("array candidate reached source-file reads"),
+    )
+    with pytest.raises(ValueError, match="AM_contract_contour"):
+        alertmanager_source._alertmanager_contract_candidate(
+            decoded,
+            tmp_path / "compose.yaml",
+            tmp_path / "config.yaml",
+            tmp_path / "policy.yaml",
+            "production",
+            installed_compose=tmp_path / "installed.yaml",
+        )
+
+
+def test_alertmanager_pure_image_keeps_unconfigured_subject_hold_before_optional_graph(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    runtime_ref, config_id = alertmanager_source._alertmanager_contract_subject()
+    image = [
+        {"Id": config_id, "Os": "linux", "Architecture": "amd64", "RepoDigests": [runtime_ref]}
+    ]
+    monkeypatch.setattr(alertmanager_source, "_ALERT_ACCEPTED_CANDIDATE", None)
+    with pytest.raises(ValueError, match="AM_accepted_producer_UNCONFIGURED_HOLD"):
+        alertmanager_source._alertmanager_contract_image(image, config_id)
+
+
+def test_alertmanager_trusted_helper_readers_bind_complete_current_source_bytes() -> None:
+    """Reader consistency only; hashes do not grant independent trust or authorization."""
+    expected = hashlib.sha256(
+        (REPO_ROOT / "scripts/ci/fetch_docker_source_artifacts.py").read_bytes()
+    ).hexdigest()
+    for relative in ("scripts/deploy.sh", "scripts/deploy_production.sh"):
+        assert re.findall(
+            r'ALERTMANAGER_CONTRACT_HELPER_SHA256="([0-9a-f]{64})"',
+            (REPO_ROOT / relative).read_text(),
+        ) == [expected]

@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from dataclasses import replace
+import ast
+from datetime import datetime, timezone
 import hashlib
 import json
 import netrc
@@ -4014,3 +4016,480 @@ def test_virtualenv_captured_plan_cannot_borrow_another_input_tuple(
         changed = replace(plan, output_path=tmp_path / "requirements-ci-lite.txt")
     with pytest.raises(RuntimeError, match="Captured virtualenv"):
         compiler._assert_plans_match_graph_change_admission((changed,), admission)
+
+
+# PR2494: meaningful behavior tests for the literal compatibility exception.
+def _pillow_exception_repo(root: Path) -> None:
+    _write_valid_contract_repo(root)
+    locks = {
+        "runtime",
+        "docker-runtime",
+        "ci-lite",
+        "dev",
+        "rag-vector",
+        "rag-vector-cpu",
+        "aggregate",
+    }
+    for surface in surfaces.compiled_dependency_surfaces():
+        if surface.compile_profile in locks:
+            _append_requirement(root, surface.lockfile, "pillow==12.3.0")
+    for name in (
+        "requirements.in",
+        "requirements-docker-runtime.in",
+        "requirements-ci-lite.in",
+        "requirements-dev.in",
+    ):
+        _append_requirement(root, name, "pillow>=12.3.0,<13.0.0")
+    (root / "constraints.txt").write_text("pillow==12.3.0\n", encoding="utf-8")
+    _stage_fixture_paths(root, ".")
+
+
+def _pillow_native_report(expected: dict[str, str], findings: bool = True) -> dict[str, object]:
+    return {
+        "dependencies": [
+            {
+                "name": name,
+                "version": version,
+                "vulns": (
+                    [
+                        {
+                            "id": identifier,
+                            "aliases": [alias],
+                            "fix_versions": ["13.0.0"],
+                            "description": "retained synthetic finding",
+                        }
+                        for identifier, alias in surfaces.PILLOW_AUDIT_ALIASES.items()
+                    ]
+                    if name == "pillow" and findings
+                    else []
+                ),
+            }
+            for name, version in expected.items()
+        ],
+        "fixes": [],
+    }
+
+
+def _write_pillow_native_pair(root: Path) -> tuple[Path, Path, dict[str, str]]:
+    expected = {"example": "1.0.0", "pillow": "12.3.0"}
+    raw, ignored = root / "raw.json", root / "ignored.json"
+    raw.write_text(json.dumps(_pillow_native_report(expected)), encoding="utf-8")
+    ignored.write_text(json.dumps(_pillow_native_report(expected, False)), encoding="utf-8")
+    return raw, ignored, expected
+
+
+@pytest.mark.parametrize(
+    "instant,accepted",
+    [
+        (datetime(2026, 10, 22, tzinfo=timezone.utc), True),
+        (datetime(2026, 10, 28, tzinfo=timezone.utc), True),
+        (datetime(2026, 11, 6, tzinfo=timezone.utc), True),
+        (datetime(2026, 11, 20, 23, 59, 59, tzinfo=timezone.utc), True),
+        (datetime(2026, 11, 21, tzinfo=timezone.utc), False),
+        (datetime.fromisoformat("2026-11-21T03:00:00+03:00"), False),
+        (datetime(2026, 11, 22, tzinfo=timezone.utc), False),
+        (datetime(2026, 11, 20), False),
+    ],
+)
+def test_pillow_exception_current_carriers_and_utc_boundary(
+    tmp_path: Path, instant: datetime, accepted: bool
+) -> None:
+    _pillow_exception_repo(tmp_path)
+    if accepted:
+        assert (
+            set(surfaces.pillow_exception_inputs(tmp_path, instant))
+            == surfaces.registered_dependabot_requirement_carriers()
+        )
+    else:
+        with pytest.raises(ValueError, match="expired|aware"):
+            surfaces.pillow_exception_inputs(tmp_path, instant)
+
+
+@pytest.mark.parametrize(
+    "declaration",
+    [
+        "pillow==12.2.0",
+        "pillow==13.0.0",
+        "pillow==12.3.0rc1",
+        "PILLOW==12.3.0",
+        "pillow==12.3.0\npillow==12.3.0",
+        "pillow[extra]==12.3.0",
+        "pillow==12.3.0; python_version >= '3.13'",
+        "pillow @ https://example.invalid/pillow.whl",
+        "pillow",
+        "pillow==not-a-version",
+        "example==1.0.0",
+    ],
+)
+def test_pillow_exception_rejects_ambiguous_or_different_lock(
+    tmp_path: Path, declaration: str
+) -> None:
+    _pillow_exception_repo(tmp_path)
+    valid_time = datetime(2026, 10, 21, tzinfo=timezone.utc)
+    surfaces.pillow_exception_inputs(tmp_path, valid_time)
+    (tmp_path / "requirements.txt").write_text(declaration + "\n", encoding="utf-8")
+    with pytest.raises(ValueError):
+        surfaces.pillow_exception_inputs(tmp_path, valid_time)
+
+
+@pytest.mark.parametrize(
+    "declaration", ["pillow>=12.3.0,<13.0.0,!=12.3.0", "pillow==12.3.0", "pillow>=12.2.0,<13.0.0"]
+)
+def test_pillow_exception_source_is_true_retained_range(tmp_path: Path, declaration: str) -> None:
+    _pillow_exception_repo(tmp_path)
+    (tmp_path / "requirements.in").write_text(declaration + "\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="carrier"):
+        surfaces.pillow_exception_inputs(tmp_path, datetime(2026, 10, 21, tzinfo=timezone.utc))
+
+
+def test_pillow_exception_rejects_discovery_drift(tmp_path: Path) -> None:
+    _pillow_exception_repo(tmp_path)
+    (tmp_path / "requirements-new.in").write_text("pillow>=12.3.0\n", encoding="utf-8")
+    _stage_fixture_paths(tmp_path, "requirements-new.in")
+    with pytest.raises(ValueError, match="discovery"):
+        surfaces.pillow_exception_inputs(tmp_path, datetime(2026, 10, 21, tzinfo=timezone.utc))
+
+
+def test_pillow_native_pair_accepts_only_complete_removed_tuples(tmp_path: Path) -> None:
+    raw, ignored, expected = _write_pillow_native_pair(tmp_path)
+    assert surfaces.validate_pillow_audit_reports(raw, 1, expected, ignored, 0) == 24
+    report = json.loads(raw.read_text())
+    report["dependencies"][1]["vulns"] = report["dependencies"][1]["vulns"][:1]
+    raw.write_text(json.dumps(report), encoding="utf-8")
+    assert surfaces.validate_pillow_audit_reports(raw, 1, expected, ignored, 0) == 1
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        "unknown-id",
+        "known-outside-cohort",
+        "unknown-alias",
+        "wrong-alias",
+        "wrong-fix-version",
+        "duplicate-id",
+        "wrong-package",
+        "wrong-version",
+        "missing-row",
+        "extra-row",
+        "duplicate-row",
+        "skipped-row",
+        "extra-field",
+        "bad-fixes",
+        "malformed",
+        "missing",
+        "ignored-active",
+        "ignored-inventory",
+        "duplicate-json-field",
+    ],
+)
+def test_pillow_native_pair_rejects_report_drift(tmp_path: Path, mutation: str) -> None:
+    raw, ignored, expected = _write_pillow_native_pair(tmp_path)
+    report = json.loads(raw.read_text())
+    row = report["dependencies"][1]
+    if mutation == "unknown-id":
+        row["vulns"][0]["id"] = "GHSA-654x-cwwv-5j9c"
+    elif mutation == "known-outside-cohort":
+        row["vulns"][0]["id"] = "CVE-2026-112403"
+    elif mutation == "unknown-alias":
+        row["vulns"][0]["aliases"].append("GHSA-unknown")
+    elif mutation == "wrong-alias":
+        row["vulns"][0]["aliases"] = ["GHSA-vx6w-vv9f-6gvg"]
+    elif mutation == "wrong-fix-version":
+        row["vulns"][0]["fix_versions"] = ["13.0.1"]
+    elif mutation == "duplicate-id":
+        row["vulns"].append(row["vulns"][0])
+    elif mutation == "wrong-package":
+        report["dependencies"][0]["vulns"] = row["vulns"]
+    elif mutation == "wrong-version":
+        row["version"] = "13.0.0"
+    elif mutation == "missing-row":
+        report["dependencies"].pop()
+    elif mutation == "extra-row":
+        report["dependencies"].append({"name": "other", "version": "1", "vulns": []})
+    elif mutation == "duplicate-row":
+        report["dependencies"].append(row)
+    elif mutation == "skipped-row":
+        row["skip_reason"] = "not audited"
+    elif mutation == "extra-field":
+        report["ignored_vulns"] = []
+    elif mutation == "bad-fixes":
+        report["fixes"] = [{"attempted": True}]
+    elif mutation == "ignored-active":
+        ignored.write_text(json.dumps(report), encoding="utf-8")
+    elif mutation == "ignored-inventory":
+        other = json.loads(ignored.read_text())
+        other["dependencies"].pop()
+        ignored.write_text(json.dumps(other), encoding="utf-8")
+    raw.write_text(json.dumps(report), encoding="utf-8")
+    if mutation == "malformed":
+        raw.write_text("{", encoding="utf-8")
+    if mutation == "duplicate-json-field":
+        raw.write_text(
+            raw.read_text().replace('"fixes": []', '"fixes": [], "fixes": []'), encoding="utf-8"
+        )
+    if mutation == "missing":
+        raw.unlink()
+    with pytest.raises(ValueError):
+        surfaces.validate_pillow_audit_reports(raw, 1, expected, ignored, 0)
+
+
+@pytest.mark.parametrize("raw_status,ignored_status", [(0, 0), (2, 0), (1, 1), (1, 2), (-15, 0)])
+def test_pillow_pair_native_errors_stay_blocking(
+    tmp_path: Path, raw_status: int, ignored_status: int
+) -> None:
+    raw, ignored, expected = _write_pillow_native_pair(tmp_path)
+    with pytest.raises(ValueError):
+        surfaces.validate_pillow_audit_reports(raw, raw_status, expected, ignored, ignored_status)
+
+
+def test_pillow_no_findings_and_declared_empty_inputs_are_scoped(tmp_path: Path) -> None:
+    raw = tmp_path / "raw.json"
+    for expected in ({}, {"example": "1.0.0"}, {"pillow": "12.3.0"}):
+        raw.write_text(json.dumps(_pillow_native_report(expected, False)), encoding="utf-8")
+        assert surfaces.validate_pillow_audit_reports(raw, 0, expected) == 0
+        with pytest.raises(ValueError):
+            surfaces.validate_pillow_audit_reports(raw, 0, expected, raw, 0)
+
+
+@pytest.mark.parametrize("stop_at", [0, 2, 3, 4])
+def test_pillow_actual_invocation_rechecks_expiry_and_promotion(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, stop_at: int
+) -> None:
+    _pillow_exception_repo(tmp_path)
+    real_guard, real_run = surfaces.pillow_exception_inputs, subprocess.run
+    valid, expired = datetime(2026, 10, 21, tzinfo=timezone.utc), surfaces.PILLOW_EXCEPTION_EXPIRY
+    calls: list[list[str]] = []
+    auditor = tmp_path / "synthetic-auditor"
+    auditor.write_bytes(b"synthetic auditor; no execution")
+    checks = 0
+
+    def guard(root: Path) -> dict[str, str]:
+        nonlocal checks
+        checks += 1
+        return real_guard(root, expired if stop_at and checks == stop_at else valid)
+
+    def fake_run(argv: list[str], **kwargs: object) -> subprocess.CompletedProcess[bytes]:
+        if argv[0] != str(auditor):
+            return real_run(argv, **kwargs)
+        calls.append(argv)
+        if argv[1:] == ["--version"]:
+            return subprocess.CompletedProcess(argv, 0, b"pip-audit 2.10.1\n", b"")
+        output = Path(argv[argv.index("-o") + 1])
+        ignored = "--ignore-vuln" in argv
+        output.write_text(
+            json.dumps(
+                _pillow_native_report({"example": "1.0.0", "pillow": "12.3.0"}, not ignored)
+            ),
+            encoding="utf-8",
+        )
+        return subprocess.CompletedProcess(argv, 0 if ignored else 1, b"", b"")
+
+    monkeypatch.setattr(surfaces, "pillow_exception_inputs", guard)
+    monkeypatch.setattr(
+        surfaces.shutil, "which", lambda name: str(auditor) if name == "pip-audit" else None
+    )
+    monkeypatch.setattr(surfaces.subprocess, "run", fake_run)
+    assert surfaces.run_dependency_audit(tmp_path, "requirements.txt") == (0 if stop_at == 0 else 1)
+    ignore_calls = [c for c in calls if "--ignore-vuln" in c]
+    assert len(ignore_calls) == (1 if stop_at in (0, 4) else 0)
+    if ignore_calls:
+        argv = ignore_calls[0]
+        assert [argv[i + 1] for i, x in enumerate(argv) if x == "--ignore-vuln"] == list(
+            surfaces.PILLOW_AUDIT_ALIASES
+        )
+        assert all(x in argv for x in ("--no-deps", "--disable-pip", "--strict"))
+    if stop_at == 4:
+        receipt = json.loads((tmp_path / "pip-audit-requirements-native.json").read_text())
+        assert receipt["policy_accepted"] is False
+        assert receipt["unsuppressed_exit"] == 1 and receipt["ignored_exit"] == 0
+
+
+def test_pillow_no_actual_ignore_after_initial_expiry(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _pillow_exception_repo(tmp_path)
+
+    def expired(root: Path) -> dict[str, str]:
+        return original(root, surfaces.PILLOW_EXCEPTION_EXPIRY)
+
+    original = surfaces.pillow_exception_inputs
+    monkeypatch.setattr(surfaces, "pillow_exception_inputs", expired)
+
+    def forbidden(*args: object, **kwargs: object) -> None:
+        pytest.fail("no native auditor may run after failed expiry guard")
+
+    monkeypatch.setattr(surfaces.subprocess, "run", forbidden)
+    assert surfaces.run_dependency_audit(tmp_path, "requirements.txt") == 1
+
+
+@pytest.mark.parametrize(
+    "argv", [["--ignore-vuln", "CVE-other"], ["--pre-push", "anything"], ["requirements.txt"]]
+)
+def test_pillow_audit_cli_rejects_forwarded_arbitrary_args(argv: list[str]) -> None:
+    with pytest.raises(SystemExit):
+        surfaces.parse_args(argv)
+
+
+@pytest.mark.parametrize(
+    "damage", ["missing-report", "unknown-finding", "wrong-tool", "native-error", "timeout"]
+)
+def test_pillow_real_path_rejects_before_ignore_and_never_reuses_old_report(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, damage: str
+) -> None:
+    _pillow_exception_repo(tmp_path)
+    old = tmp_path / "pip-audit-requirements.json"
+    old.write_text(
+        json.dumps(_pillow_native_report({"example": "1.0.0", "pillow": "12.3.0"}, False)),
+        encoding="utf-8",
+    )
+    original_guard, original_run = surfaces.pillow_exception_inputs, subprocess.run
+    auditor = tmp_path / "synthetic-auditor"
+    auditor.write_bytes(b"synthetic auditor")
+    calls: list[list[str]] = []
+
+    def fake_run(argv: list[str], **kwargs: object) -> subprocess.CompletedProcess[bytes]:
+        if argv[0] != str(auditor):
+            return original_run(argv, **kwargs)
+        calls.append(argv)
+        if argv[1:] == ["--version"]:
+            return subprocess.CompletedProcess(
+                argv,
+                0,
+                b"pip-audit 2.11.0\n" if damage == "wrong-tool" else b"pip-audit 2.10.1\n",
+                b"",
+            )
+        assert "--ignore-vuln" not in argv
+        if damage == "timeout":
+            raise subprocess.TimeoutExpired(
+                argv, 300, output=b"partial stdout", stderr=b"primary timeout detail"
+            )
+        output = Path(argv[argv.index("-o") + 1])
+        report = _pillow_native_report({"example": "1.0.0", "pillow": "12.3.0"})
+        if damage == "unknown-finding":
+            report["dependencies"][1]["vulns"][0]["id"] = "CVE-unadmitted"
+        if damage != "missing-report":
+            output.write_text(json.dumps(report), encoding="utf-8")
+        return subprocess.CompletedProcess(
+            argv, 2 if damage == "native-error" else 1, b"", b"retained raw failure"
+        )
+
+    monkeypatch.setattr(
+        surfaces,
+        "pillow_exception_inputs",
+        lambda root: original_guard(root, datetime(2026, 10, 21, tzinfo=timezone.utc)),
+    )
+    monkeypatch.setattr(
+        surfaces.shutil, "which", lambda name: str(auditor) if name == "pip-audit" else None
+    )
+    monkeypatch.setattr(surfaces.subprocess, "run", fake_run)
+    assert surfaces.run_dependency_audit(tmp_path, "requirements.txt") == 1
+    assert not any("--ignore-vuln" in call for call in calls)
+    receipt = json.loads((tmp_path / "pip-audit-requirements-native.json").read_text())
+    assert receipt["policy_accepted"] is False
+    if damage == "timeout":
+        assert receipt["unsuppressed_timed_out"] is True
+        evidence = list((tmp_path / "artifacts/security_lab/pip-audit").iterdir())[0]
+        assert (evidence / "unsuppressed.stdout").read_bytes() == b"partial stdout"
+        assert (evidence / "unsuppressed.stderr").read_bytes() == b"primary timeout detail"
+
+
+def test_pillow_configured_cohort_is_exact_without_retired_pytorch_ids() -> None:
+    assert surfaces.PILLOW_AUDIT_ALIASES == {
+        "CVE-2026-112390": "GHSA-22hg-r758-rrw9",
+        "CVE-2026-112391": "GHSA-254f-3936-288h",
+        "CVE-2026-112392": "GHSA-27h8-gf7j-v5hc",
+        "CVE-2026-112393": "GHSA-332p-7hrc-92wf",
+        "CVE-2026-112395": "GHSA-462x-pgg6-55fp",
+        "CVE-2026-112396": "GHSA-4rr5-89j8-mwwm",
+        "CVE-2026-112397": "GHSA-58r4-6rv3-gfh8",
+        "CVE-2026-112399": "GHSA-5xm2-6676-qcp9",
+        "CVE-2026-112400": "GHSA-65qm-jvmh-6pqg",
+        "CVE-2026-112401": "GHSA-74r2-7ff9-mjj2",
+        "CVE-2026-112402": "GHSA-7mwm-ghpf-9vrm",
+        "CVE-2026-112404": "GHSA-c6hw-5grf-ff96",
+        "CVE-2026-112405": "GHSA-cp9v-662q-vvx9",
+        "CVE-2026-112406": "GHSA-f2g6-542v-9j58",
+        "CVE-2026-112891": "GHSA-fc9g-5qg7-mf45",
+        "CVE-2026-112892": "GHSA-gg2r-wvfm-q9rx",
+        "CVE-2026-112893": "GHSA-j4m9-6w36-pw47",
+        "CVE-2026-112894": "GHSA-jg86-v3jv-hrpm",
+        "CVE-2026-112895": "GHSA-p4wg-p73j-c528",
+        "CVE-2026-112896": "GHSA-pchr-8j38-3x4p",
+        "CVE-2026-112897": "GHSA-q45j-58j2-45rg",
+        "CVE-2026-112899": "GHSA-vx6w-vv9f-6gvg",
+        "CVE-2026-112900": "GHSA-w889-685w-c8fh",
+        "CVE-2026-112901": "GHSA-xgh8-jp6q-p5x8",
+    }
+    assert len(set(surfaces.PILLOW_AUDIT_ALIASES.values())) == 24
+    assert surfaces.PILLOW_EXCEPTION_REVIEW == datetime(2026, 11, 6, tzinfo=timezone.utc)
+    assert surfaces.PILLOW_EXCEPTION_EXPIRY == datetime(2026, 11, 21, tzinfo=timezone.utc)
+    source = ast.parse(Path(surfaces.__file__).read_text(encoding="utf-8"))
+    assignment = next(
+        node
+        for node in source.body
+        if isinstance(node, ast.Assign)
+        and any(
+            isinstance(target, ast.Name) and target.id == "PILLOW_AUDIT_ALIASES"
+            for target in node.targets
+        )
+    )
+    assert isinstance(assignment.value, ast.Dict)
+    assert len(assignment.value.keys) == 24  # A duplicate literal key cannot disappear silently.
+
+
+def test_pillow_audit_preserves_existing_non_pillow_distribution_extras(tmp_path: Path) -> None:
+    _pillow_exception_repo(tmp_path)
+    for declaration in (
+        "psycopg[c]==3.3.4",
+        "coverage[toml]==7.13.4",
+        "cachecontrol[filecache]==0.14.4",
+    ):
+        _append_requirement(tmp_path, "requirements.txt", declaration)
+    surfaces.pillow_exception_inputs(tmp_path, datetime(2026, 10, 21, tzinfo=timezone.utc))
+    expected = surfaces._audit_lock_versions(tmp_path, "requirements.txt")
+    assert expected == {
+        "example": "1.0.0",
+        "pillow": "12.3.0",
+        "psycopg": "3.3.4",
+        "coverage": "7.13.4",
+        "cachecontrol": "0.14.4",
+    }
+    raw = tmp_path / "raw.json"
+    raw.write_text(json.dumps(_pillow_native_report(expected, False)), encoding="utf-8")
+    assert surfaces.validate_pillow_audit_reports(raw, 0, expected) == 0
+
+
+@pytest.mark.parametrize(
+    "declaration",
+    [
+        "psycopg[c]==3.3.4; python_version >= '3.13'",
+        "psycopg[c] @ https://example.invalid/wheel.whl",
+        "psycopg[c]==3.3.4\npsycopg==3.3.4",
+    ],
+)
+def test_pillow_audit_extras_do_not_weaken_exact_distribution_binding(
+    tmp_path: Path, declaration: str
+) -> None:
+    (tmp_path / "requirements.txt").write_text(declaration + "\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="unique unconditional exact pins"):
+        surfaces._audit_lock_versions(tmp_path, "requirements.txt")
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        "-r requirements-data.txt\n",
+        "-c foreign.txt\n",
+        "--index-url https://example.invalid/\n",
+        "# empty runtime\n",
+    ],
+)
+def test_pillow_audit_does_not_expand_compiled_directives_or_empty_locks(
+    tmp_path: Path, body: str
+) -> None:
+    (tmp_path / "requirements.txt").write_text(body, encoding="utf-8")
+    with pytest.raises(ValueError, match="directive|empty"):
+        surfaces._audit_lock_versions(tmp_path, "requirements.txt")
+    (tmp_path / "requirements-evals.txt").write_text("# declared empty\n", encoding="utf-8")
+    assert surfaces._audit_lock_versions(tmp_path, "requirements-evals.txt") == {}

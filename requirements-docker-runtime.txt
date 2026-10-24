@@ -28,9 +28,10 @@ anyio==4.14.2
     #   httpx
     #   openai
     #   starlette
-certifi==2026.1.4
+certifi==2026.10.19
     # via
     #   -c requirements.txt
+    #   -r requirements-docker-runtime.in
     #   httpcore
     #   httpx
     #   requests

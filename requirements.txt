@@ -20,8 +20,9 @@ anyio==4.14.2
     #   httpx
     #   openai
     #   starlette
-certifi==2026.1.4
+certifi==2026.10.19
     # via
+    #   -r requirements.in
     #   httpcore
     #   httpx
     #   requests

@@ -84,11 +84,34 @@ and create a new epoch after the config change; leave eligibility `HOLD` when
 any exact series is absent or positive. No rule-file merge alone proves that
 the host loaded the new rules.
 
+### Retained Prometheus publisher inventory
+
+The main-only publisher in `scripts/ci/prometheus_source_image.py:7791` waits for
+the exact same-repository run/attempt/head backend `publish` job to finish with
+`completed/success` before candidate preparation and package inventory. The wait
+includes that job's registry attestations. It uses at most 16 complete jobs
+observations and 15 clipped 60-second sleeps within the existing 1800-second work
+deadline; cleanup retains its separate 120-second limit. Missing, ambiguous or
+unsuccessful jobs and failed API reads stop publication. Known-writer completion
+does not establish registry-wide quiescence.
+
+The existing package owner admits at most 20,000 versions, with a 1 MiB combined
+native capture per page and 64 MiB aggregate versions stdout. It must read the
+actual short or empty terminal page, reconcile the complete count and distinct
+IDs, and recheck package/repository identity and count. An overlapping page,
+count drift, tag collision or resource-limit failure remains `HOLD`; retain its
+raw evidence rather than deduplicating rows or restarting an incomplete window.
+The three deploy readers bind the complete helper bytes. The original retained
+producer, copier, image and recipe identities remain independent of this current
+consumer/publisher repair; publication still copies saved bytes without rebuilding.
+
 ### Optional Alertmanager email routing (OBS2A PR2)
 
 The three Compose contours declare the `alerting` profile, which remains off
-for ordinary app and metrics startup. Its official Alertmanager v0.34.1
-linux/amd64 image is pinned by platform digest in the Compose files. The
+for ordinary app and metrics startup. The accepted Alertmanager v0.34.1 source
+build uses Go 1.27.2, x/net 0.60.0 and gRPC 1.83.2; its linux/amd64 manifest
+is pinned in all three Compose files. Publication and deployment are separate
+observations from accepted retained candidate bytes. The
 service has no host port or Caddy route, runs as UID 65534 with a read-only
 root, dropped capabilities, a 16 MiB temporary store, and no cluster listener.
 Prometheus and Alertmanager share only the internal `alerting` network;
@@ -136,9 +159,13 @@ UID 65534 read the key without granting the app or Prometheus the mount.
 Create a Resend Free account, verify only `alerts.pulseplate.app`, and place
 the separate SMTP key directly on the host; never place its value in Git,
 logs, chat or Drive. Repository merge does not create the key or select the
-profile. The exception for the exact bundled gRPC finding is recorded in
-`docs/security/CVE-2026-84445-alertmanager.md`; a suppressed scan is not a
-clean scan.
+profile. The obsolete four-CVE policy is removed; its exact file contains only
+`vulnerabilities: []`. The original cohort, accepted native candidate and pending
+publication evidence are recorded in `docs/security/CVE-2026-84445-alertmanager.md`.
+Both deploy readers inspect the installed project's actual running image even
+when alerting is off. Selected or proven-running old vulnerable bytes reject at
+2026-10-21 00:00 UTC, including selected-new/running-old transitions; missing or
+ambiguous identity remains HOLD. This check does not stop a running monitor.
 
 Keep `MERGED_REPO`, `MAIN_VERIFIED`, `HOST_ACTIVATED`, received Prometheus
 email, received checkpoint-failure email and scheduled checkpoint as separate

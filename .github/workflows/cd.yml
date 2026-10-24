@@ -37,11 +37,51 @@ on:
         type: choice
         options: [disabled, synthetic-probe, reuse]
       alertmanager_mode:
-        description: Explicit metadata replay only; build remains disabled until separate admission
+        description: Explicit AM stage; default disabled and operator controls compiler/publication dispatch
         required: true
         default: disabled
         type: choice
-        options: [disabled, module-qualify, build]
+        options: [disabled, module-qualify, input-inspect, support-inspect, build, publish]
+      alertmanager_qualification_run:
+        description: Exact successful retained Alertmanager metadata run ID
+        required: false
+        type: string
+      alertmanager_qualification_artifact:
+        description: Exact immutable Alertmanager metadata artifact ID
+        required: false
+        type: string
+      alertmanager_qualification_source:
+        description: Exact source SHA of the retained metadata qualification
+        required: false
+        type: string
+      alertmanager_support_run:
+        description: Exact observed compiler-free AM support run
+        required: false
+        type: string
+      alertmanager_support_artifact:
+        description: Exact observed AM support artifact
+        required: false
+        type: string
+      alertmanager_support_source:
+        description: Exact original AM support implementation source
+        required: false
+        type: string
+      alertmanager_candidate_run:
+        description: Actual successful retained AM candidate producer run, publication only
+        required: false
+        type: string
+      alertmanager_candidate_artifact:
+        description: Actual retained AM candidate artifact, publication only
+        required: false
+        type: string
+      alertmanager_candidate_source:
+        description: Actual original candidate producer source, publication only
+        required: false
+        type: string
+      alertmanager_pr:
+        description: Actual separately merged AM PR, publication only
+        required: false
+        type: string
       source_sha:
         description: Exact same-repository commit SHA for synthetic probe
         required: false
@@ -62,11 +102,32 @@ permissions:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
+  # Phase values are workflow-owned. Code validates ceilings without fallback values.
+  # ROOT designates this immutable controller only after concrete review and publication.
+  ALERTMANAGER_CONTROLLER_SOURCE: '0d6a4c09477ad3174252eab15f80cdd4a76df5bc' # pragma: allowlist secret - public immutable controller commit
+  ALERTMANAGER_PREPARATION_MINUTES: '14'
+  ALERTMANAGER_NATIVE_STEP_MINUTES: '42'
+  ALERTMANAGER_LIVE_SECURITY_MINUTES: '32'
+  ALERTMANAGER_PREP_SECONDS: '600'
+  ALERTMANAGER_PAIR_SECONDS: '1800'
+  ALERTMANAGER_SECURITY_SECONDS: '1800'
+  ALERTMANAGER_NATIVE_SECONDS: '2400'
+  ALERTMANAGER_PUBLICATION_SECONDS: '1800'
+  ALERTMANAGER_CLEANUP_SECONDS: '45'
+  ALERTMANAGER_NATIVE_CLEANUP_SECONDS: '120'
+  ALERTMANAGER_SCAN_TIMEOUT_SECONDS: '300'
+  ALERTMANAGER_SCAN_PROCESS_SECONDS: '330'
+  ALERTMANAGER_SETUP_MINUTES: '10'
+  ALERTMANAGER_PYTHON_SETUP_MINUTES: '3'
+  ALERTMANAGER_PYTHON_INSTALL_MINUTES: '6'
+  ALERTMANAGER_PYTHON_SMOKE_MINUTES: '1'
+  ALERTMANAGER_UPLOAD_MINUTES: '5'
 
 jobs:
   alertmanager-module-qualification:
     if: >-
-      github.event_name == 'workflow_dispatch' && inputs.alertmanager_mode != 'disabled'
+      github.event_name == 'workflow_dispatch'
+      && inputs.alertmanager_mode == 'module-qualify'
       && github.repository == 'Katsiarynakavaleuskaya/PulsePlate'
       && startsWith(github.ref, 'refs/heads/') && github.run_attempt == 1
     runs-on: ubuntu-latest
@@ -112,6 +173,697 @@ jobs:
           name: alertmanager-module-qualification-${{ github.run_id }}-${{ github.run_attempt }}
           path: build/docker-sources/alertmanager-module-evidence
           if-no-files-found: warn
+
+  alertmanager-input-inspection:
+    if: >-
+      github.event_name == 'workflow_dispatch'
+      && (inputs.alertmanager_mode == 'input-inspect' || inputs.alertmanager_mode == 'support-inspect')
+      && github.repository == 'Katsiarynakavaleuskaya/PulsePlate'
+      && startsWith(github.ref, 'refs/heads/') && github.run_attempt == 1
+      && inputs.postgres_mode == 'disabled'
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    permissions:
+      contents: read
+      actions: read
+      packages: read
+    env:
+      ALERTMANAGER_TOOL_CONNECT_SECONDS: '15'
+      ALERTMANAGER_TOOL_FETCH_SECONDS: '180'
+      ALERTMANAGER_INPUT_INSPECT_SECONDS: '600'
+      ALERTMANAGER_SUPPORT_SECONDS: '1800'
+    steps:
+      - name: Checkout exact Alertmanager inspection implementation
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Prepare exact existing Alertmanager support scanner and Buildx CLI
+        if: inputs.alertmanager_mode == 'support-inspect'
+        run: |
+          set -euo pipefail
+          umask 077
+          if ! [[ "$ALERTMANAGER_TOOL_CONNECT_SECONDS" =~ ^[1-9][0-9]{0,2}$ ]]; then exit 1; fi
+          if ! [[ "$ALERTMANAGER_TOOL_FETCH_SECONDS" =~ ^[1-9][0-9]{0,2}$ ]]; then exit 1; fi
+          test "$ALERTMANAGER_TOOL_CONNECT_SECONDS" -le "$ALERTMANAGER_TOOL_FETCH_SECONDS"
+          native_tools="$(mktemp -d "$RUNNER_TEMP/pulseplate-am-tools.XXXXXXXX")"
+          curl -q --fail --silent --show-error --location --proto '=https' --proto-redir '=https' \
+            --connect-timeout "$ALERTMANAGER_TOOL_CONNECT_SECONDS" --max-time "$ALERTMANAGER_TOOL_FETCH_SECONDS" \
+            --output "$native_tools/trivy.tar.gz" \
+            https://github.com/aquasecurity/trivy/releases/download/v0.74.0/trivy_0.74.0_Linux-64bit.tar.gz
+          printf '%s  %s\n' 2ae6fe3ee734b7fdf11335663e18c75ea12dccc76062f09f164a3b0f8be4371a "$native_tools/trivy.tar.gz" | sha256sum -c -
+          tar -xzf "$native_tools/trivy.tar.gz" -C "$native_tools" trivy
+          test -f "$native_tools/trivy"
+          test ! -L "$native_tools/trivy"
+          printf '%s  %s\n' d89bcc6510a267f11b773398cbf1be5520ce39f9e8b6633178c4487f05b7d791 "$native_tools/trivy" | sha256sum -c -
+          curl -q --fail --silent --show-error --location --proto '=https' --proto-redir '=https' \
+            --connect-timeout "$ALERTMANAGER_TOOL_CONNECT_SECONDS" --max-time "$ALERTMANAGER_TOOL_FETCH_SECONDS" \
+            --output "$native_tools/docker-buildx" \
+            https://github.com/docker/buildx/releases/download/v0.37.0/buildx-v0.37.0.linux-amd64
+          printf '%s  %s\n' ae43fa08c796b44efc86d7a63c55f73f7c35f3101188dea7bf93bcd6f99577ba "$native_tools/docker-buildx" | sha256sum -c -
+          chmod 0555 "$native_tools/trivy" "$native_tools/docker-buildx"
+          printf 'TRIVY_BIN=%s\nBUILDX_BIN=%s\n' "$native_tools/trivy" "$native_tools/docker-buildx" >> "$GITHUB_ENV"
+      - name: Inspect authenticated retained Alertmanager inputs and read existing package metadata
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          INSPECTION_SOURCE: ${{ inputs.source_sha }}
+          QUALIFICATION_RUN: ${{ inputs.alertmanager_qualification_run }}
+          QUALIFICATION_ARTIFACT: ${{ inputs.alertmanager_qualification_artifact }}
+          QUALIFICATION_SOURCE: ${{ inputs.alertmanager_qualification_source }}
+          ALERTMANAGER_STAGE: ${{ inputs.alertmanager_mode }}
+        run: |
+          set -euo pipefail
+          umask 077
+          [[ "$INSPECTION_SOURCE" =~ ^[0-9a-f]{40}$ ]]
+          test "$INSPECTION_SOURCE" = "$GITHUB_SHA"
+          inspection_checkout="$(git rev-parse HEAD)"
+          test "$inspection_checkout" = "$INSPECTION_SOURCE"
+          if ! [[ "$QUALIFICATION_RUN" =~ ^[1-9][0-9]*$ ]]; then exit 1; fi
+          if ! [[ "$QUALIFICATION_ARTIFACT" =~ ^[1-9][0-9]*$ ]]; then exit 1; fi
+          if ! [[ "$QUALIFICATION_SOURCE" =~ ^[0-9a-f]{40}$ ]]; then exit 1; fi
+          case "$ALERTMANAGER_STAGE" in input-inspect|support-inspect) ;; *) exit 1 ;; esac
+          python3 -m scripts.ci.fetch_docker_source_artifacts --artifact alertmanager \
+            --alertmanager-stage "$ALERTMANAGER_STAGE" \
+            --alertmanager-qualification-run "$QUALIFICATION_RUN" \
+            --alertmanager-qualification-artifact "$QUALIFICATION_ARTIFACT" \
+            --alertmanager-qualification-source "$QUALIFICATION_SOURCE" \
+            --output-dir "$RUNNER_TEMP/alertmanager-input-inspection-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+      - name: Retain Alertmanager input observations without compiler authority
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1 / Node 24
+        with:
+          name: alertmanager-input-inspection-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/alertmanager-input-inspection-${{ github.run_id }}-${{ github.run_attempt }}/input-inspection.json
+            ${{ runner.temp }}/alertmanager-input-inspection-${{ github.run_id }}-${{ github.run_attempt }}/github-read-evidence/
+            ${{ runner.temp }}/alertmanager-input-inspection-${{ github.run_id }}-${{ github.run_attempt }}/native-support/
+          if-no-files-found: warn
+
+  alertmanager-candidate-build:
+    if: >-
+      github.event_name == 'workflow_dispatch' && inputs.alertmanager_mode == 'build'
+      && github.repository == 'Katsiarynakavaleuskaya/PulsePlate' && github.repository_id == '1043311030'
+      && github.ref == 'refs/heads/codex/dependency-alertmanager-remediation'
+      && github.run_attempt == 1 && inputs.postgres_mode == 'disabled'
+    runs-on: ubuntu-latest
+    timeout-minutes: 140
+    permissions:
+      contents: read
+      actions: read
+      packages: read
+    steps:
+      - name: Checkout exact AM executable proposal
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Validate existing credential-free AM native Python proxy
+        env:
+          PULSEPLATE_PYTHON_INDEX_URL: ${{ vars.PULSEPLATE_PYTHON_INDEX_URL }}
+          PULSEPLATE_PYTHON_TRUSTED_HOST: ${{ vars.PULSEPLATE_PYTHON_TRUSTED_HOST }}
+        run: |
+          set -euo pipefail
+          : "${PULSEPLATE_PYTHON_INDEX_URL:?Existing credential-free package proxy is required.}"
+          case "$PULSEPLATE_PYTHON_INDEX_URL${PULSEPLATE_PYTHON_TRUSTED_HOST:-}" in
+            *://*@*|*$'\n'*|*$'\r'*) exit 1 ;;
+          esac
+      - name: Select AM Python without dependency or SDK installation
+        uses: ./.github/actions/python-setup
+        timeout-minutes: ${{ fromJSON(env.ALERTMANAGER_PYTHON_SETUP_MINUTES) }}
+        env:
+          PULSEPLATE_PYTHON_INDEX_URL: ${{ vars.PULSEPLATE_PYTHON_INDEX_URL }}
+          PULSEPLATE_PYTHON_TRUSTED_HOST: ${{ vars.PULSEPLATE_PYTHON_TRUSTED_HOST }}
+          DEVPI_CI_USER: ''
+          DEVPI_CI_PASSWORD: ''
+        with:
+          python-version: '3.13.14'
+          skip-base-install: 'true'
+      - name: Install isolated AM host tools through the locked owner
+        timeout-minutes: ${{ fromJSON(env.ALERTMANAGER_PYTHON_INSTALL_MINUTES) }}
+        env:
+          PULSEPLATE_PYTHON_INDEX_URL: ${{ vars.PULSEPLATE_PYTHON_INDEX_URL }}
+          PULSEPLATE_PYTHON_TRUSTED_HOST: ${{ vars.PULSEPLATE_PYTHON_TRUSTED_HOST }}
+          DEVPI_CI_USER: ''
+          DEVPI_CI_PASSWORD: ''
+          PULSEPLATE_PSYCOPG_C_SDK: ''
+          PULSEPLATE_DOCKER_SINGLE_PASS_LOCKED_INSTALL: ''
+          PULSEPLATE_DOCKER_PIP_LAYER_CACHE: ''
+          PYTHONHOME: ''
+          PYTHONPATH: ''
+          PYTHONNOUSERSITE: '1'
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: |
+          set -euo pipefail
+          umask 077
+          : "${RUNNER_TEMP:?Owned AM Python directory is required.}"
+          : "${PULSEPLATE_PYTHON_INDEX_URL:?Existing credential-free package proxy is required.}"
+          am_root="$RUNNER_TEMP/pulseplate-am-python-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          test ! -e "$am_root"
+          test ! -L "$am_root"
+          python -I -m venv "$am_root"
+          mkdir "$am_root/installer-home"
+          am_python="$am_root/bin/python"
+          install_args=(
+            --python-executable "$am_python"
+            --requirements-file "$GITHUB_WORKSPACE/requirements-dev.txt"
+            --constraints-file "$GITHUB_WORKSPACE/constraints.txt"
+            --require-virtualenv --install-mode direct-proxy
+            --index-url "$PULSEPLATE_PYTHON_INDEX_URL"
+            --emergency-wheel-manifest "$GITHUB_WORKSPACE/scripts/ci/emergency_python_wheels.json"
+          )
+          if [[ -n "${PULSEPLATE_PYTHON_TRUSTED_HOST:-}" ]]; then
+            install_args+=(--trusted-host "$PULSEPLATE_PYTHON_TRUSTED_HOST")
+          fi
+          HOME="$am_root/installer-home" "$am_python" -I "$GITHUB_WORKSPACE/scripts/ci/install_locked_python_requirements.py" \
+            "${install_args[@]}" --preflight-only
+          HOME="$am_root/installer-home" "$am_python" -I "$GITHUB_WORKSPACE/scripts/ci/install_locked_python_requirements.py" \
+            "${install_args[@]}"
+      - name: Verify isolated AM host import capability before effects
+        id: am-python
+        timeout-minutes: ${{ fromJSON(env.ALERTMANAGER_PYTHON_SMOKE_MINUTES) }}
+        env:
+          PYTHONHOME: ''
+          PYTHONPATH: ''
+          PYTHONNOUSERSITE: '1'
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: |
+          set -euo pipefail
+          umask 077
+          am_root="$RUNNER_TEMP/pulseplate-am-python-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          am_python="$am_root/bin/python"
+          "$am_python" - <<'PY'
+          import json
+          import site
+          import sys
+          from importlib import metadata
+          from pathlib import Path
+          import pytest
+          import yaml
+          from scripts.ci import fetch_docker_source_artifacts, prometheus_source_image
+          from scripts.ops import notify_premium_alias_checkpoint_failure
+          from tests import test_notify_premium_alias_checkpoint_failure as native
+          assert sys.version_info[:3] == (3, 13, 14)
+          assert sys.prefix != sys.base_prefix and sys.base_prefix not in site.PREFIXES
+          assert site.ENABLE_USER_SITE is False
+          assert sys.executable == str(Path(sys.prefix) / "bin/python")
+          assert metadata.version("pytest") == "9.1.1"
+          assert metadata.version("PyYAML") == "6.0.3"
+          assert yaml.safe_load("probe: true\n") == {"probe": True}
+          with pytest.MonkeyPatch.context():
+              pass
+          assert callable(fetch_docker_source_artifacts.main)
+          assert callable(prometheus_source_image.one_object)
+          assert callable(notify_premium_alias_checkpoint_failure.main)
+          assert callable(native.native_alertmanager_main)
+          # Read-only prerequisite observation; actual owned install/start is native evidence.
+          import os
+          import shutil
+          import subprocess
+          tools = {name: shutil.which(name) for name in
+                   ("sudo", "test", "install", "rm", "env", "systemctl", "busctl", "docker", "openssl")}
+          assert all(path and os.path.isabs(path) for path in tools.values())
+          assert Path("/run/systemd/system").is_dir()
+          subprocess.run(
+              [tools["sudo"], "-n", tools["test"], "-w", "/run/systemd/system"],
+              env={"PATH": os.defpath, "LANG": "C"}, stdin=subprocess.DEVNULL,
+              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+              timeout=5, check=True,
+          )
+          print(json.dumps({
+              "python": sys.version,
+              "executable": sys.executable,
+              "pip": metadata.version("pip"),
+              "pytest": metadata.version("pytest"),
+              "PyYAML": metadata.version("PyYAML"),
+              "packages": sorted((dist.metadata["Name"], dist.version)
+                                 for dist in metadata.distributions()),
+          }, sort_keys=True))
+          PY
+          "$am_python" -m tests.test_notify_premium_alias_checkpoint_failure --help
+          printf 'python=%s\n' "$am_python" >> "$GITHUB_OUTPUT"
+      - name: Execute separately dispatched AM pair and retained candidate acceptance
+        env:
+          AM_HOST_PYTHON: ${{ steps.am-python.outputs.python }}
+          PYTHONHOME: ''
+          PYTHONPATH: ''
+          PYTHONNOUSERSITE: '1'
+          PYTHONDONTWRITEBYTECODE: '1'
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SOURCE_SHA: ${{ inputs.source_sha }}
+          QUALIFICATION_RUN: ${{ inputs.alertmanager_qualification_run }}
+          QUALIFICATION_ARTIFACT: ${{ inputs.alertmanager_qualification_artifact }}
+          QUALIFICATION_SOURCE: ${{ inputs.alertmanager_qualification_source }}
+          SUPPORT_RUN: ${{ inputs.alertmanager_support_run }}
+          SUPPORT_ARTIFACT: ${{ inputs.alertmanager_support_artifact }}
+          SUPPORT_SOURCE: ${{ inputs.alertmanager_support_source }}
+        run: |
+          set -euo pipefail
+          umask 077
+          for value in "$QUALIFICATION_RUN" "$QUALIFICATION_ARTIFACT" "$SUPPORT_RUN" "$SUPPORT_ARTIFACT"; do
+            if ! [[ "$value" =~ ^[1-9][0-9]*$ ]]; then exit 1; fi
+          done
+          for value in "$SOURCE_SHA" "$QUALIFICATION_SOURCE" "$SUPPORT_SOURCE"; do
+            if ! [[ "$value" =~ ^[0-9a-f]{40}$ ]]; then exit 1; fi
+          done
+          test "$SOURCE_SHA" = "$GITHUB_SHA"
+          checkout_sha="$(git rev-parse HEAD)"
+          test "$checkout_sha" = "$SOURCE_SHA"
+          "$AM_HOST_PYTHON" -m scripts.ci.fetch_docker_source_artifacts --artifact alertmanager --alertmanager-stage build \
+            --source-sha "$SOURCE_SHA" \
+            --alertmanager-qualification-run "$QUALIFICATION_RUN" \
+            --alertmanager-qualification-artifact "$QUALIFICATION_ARTIFACT" \
+            --alertmanager-qualification-source "$QUALIFICATION_SOURCE" \
+            --alertmanager-support-run "$SUPPORT_RUN" --alertmanager-support-artifact "$SUPPORT_ARTIFACT" \
+            --alertmanager-support-source "$SUPPORT_SOURCE" \
+            --output-dir "$RUNNER_TEMP/alertmanager-candidate-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+      - name: Retain the actual AM candidate and raw execution observations
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1 / Node 24
+        timeout-minutes: ${{ fromJSON(env.ALERTMANAGER_UPLOAD_MINUTES) }}
+        with:
+          name: alertmanager-candidate-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/alertmanager-candidate-${{ github.run_id }}-${{ github.run_attempt }}/retained/
+          include-hidden-files: true
+          if-no-files-found: error
+
+  alertmanager-retained-candidate:
+    if: >-
+      github.event_name == 'pull_request' && github.repository == 'Katsiarynakavaleuskaya/PulsePlate'
+      && github.event.pull_request.head.repo.id == 1043311030
+      && github.event.pull_request.head.ref == 'codex/dependency-alertmanager-remediation'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 80
+    permissions:
+      contents: read
+      actions: read
+    env:
+      ALERTMANAGER_JOB_TIMEOUT_MINUTES: '80'
+      ALERTMANAGER_CALLER_KIND: standalone
+      # Real retained coordinates are set only after the separately admitted candidate exists.
+      AM_CANDIDATE_RUN: '39143039135'
+      AM_CANDIDATE_ARTIFACT: '12142714566'
+      AM_CANDIDATE_SOURCE: '63455b8a750ef07a1e525078b4e3ce2089eecdde'
+    steps:
+      - name: Checkout exact current AM PR source
+        timeout-minutes: 1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Require separately designated AM controller
+        timeout-minutes: 1
+        run: |
+          set -euo pipefail
+          [[ "$ALERTMANAGER_CONTROLLER_SOURCE" =~ ^[0-9a-f]{40}$ ]]
+          test ! -e artifacts/orchestration/alertmanager-control
+          test ! -L artifacts/orchestration/alertmanager-control
+
+      - name: Checkout separately designated AM controller
+        id: alertmanager-control
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        timeout-minutes: 3
+        with:
+          ref: ${{ env.ALERTMANAGER_CONTROLLER_SOURCE }}
+          persist-credentials: false
+          fetch-depth: 0
+          path: artifacts/orchestration/alertmanager-control
+
+      - name: Prepare exact AM subject before material execution
+        id: alertmanager-image
+        timeout-minutes: ${{ fromJSON(env.ALERTMANAGER_PREPARATION_MINUTES) }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GHCR_READ_TOKEN: ${{ github.event_name != 'pull_request' && secrets.GHCR_READ_TOKEN || '' }}
+          SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          umask 077
+          material="$GITHUB_WORKSPACE"
+          controller="$material/artifacts/orchestration/alertmanager-control"
+          test ! -L "$controller"
+          test "$(git -C "$controller" rev-parse HEAD)" = "$ALERTMANAGER_CONTROLLER_SOURCE"
+          docker version --format 'client={{json .Client.Version}} server={{json .Server.Version}}'
+          docker info --format 'driver={{json .Driver}} driver_status={{json .DriverStatus}} os={{json .OSType}} arch={{json .Architecture}}'
+          cd "$controller"
+          python3 -E -s -S -m scripts.ci.fetch_docker_source_artifacts \
+            --artifact alertmanager --alertmanager-stage candidate-check --alertmanager-prepare-only \
+            --source-sha "$SOURCE_SHA" --material-root "$material" \
+            --alertmanager-controller-source "$ALERTMANAGER_CONTROLLER_SOURCE" \
+            --alertmanager-qualification-run 39018353942 --alertmanager-qualification-artifact 12095483900 \
+            --alertmanager-qualification-source 36cd171c4ebe44f63cb58d09a741b3d07098904d \
+            --alertmanager-support-run 39030856891 --alertmanager-support-artifact 12100576545 \
+            --alertmanager-support-source df5ebd017bda93e31fbf9eccfd7cc7b98973a3c6 \
+            --alertmanager-candidate-run 39143039135 --alertmanager-candidate-artifact 12142714566 \
+            --alertmanager-candidate-source 63455b8a750ef07a1e525078b4e3ce2089eecdde \
+            --output-dir "$RUNNER_TEMP/alertmanager-consumer-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" >> "$GITHUB_OUTPUT"
+
+      - name: Remove designated AM controller after credential cleanup
+        if: always() && (steps.alertmanager-control.outcome == 'success' || steps.alertmanager-control.outcome == 'failure')
+        timeout-minutes: 1
+        run: |
+          set -euo pipefail
+          controller="$GITHUB_WORKSPACE/artifacts/orchestration/alertmanager-control"
+          test ! -L "$controller"
+          rm -rf -- "$controller"
+          test ! -e "$controller" && test ! -L "$controller"
+
+      - name: Validate existing credential-free AM native Python proxy
+        timeout-minutes: 1
+        env:
+          PULSEPLATE_PYTHON_INDEX_URL: ${{ vars.PULSEPLATE_PYTHON_INDEX_URL }}
+          PULSEPLATE_PYTHON_TRUSTED_HOST: ${{ vars.PULSEPLATE_PYTHON_TRUSTED_HOST }}
+        run: |
+          set -euo pipefail
+          : "${PULSEPLATE_PYTHON_INDEX_URL:?Existing credential-free package proxy is required.}"
+          case "$PULSEPLATE_PYTHON_INDEX_URL${PULSEPLATE_PYTHON_TRUSTED_HOST:-}" in
+            *://*@*|*$'\n'*|*$'\r'*) exit 1 ;;
+          esac
+      - name: Select AM Python without dependency or SDK installation
+        uses: ./.github/actions/python-setup
+        timeout-minutes: ${{ fromJSON(env.ALERTMANAGER_PYTHON_SETUP_MINUTES) }}
+        env:
+          PULSEPLATE_PYTHON_INDEX_URL: ${{ vars.PULSEPLATE_PYTHON_INDEX_URL }}
+          PULSEPLATE_PYTHON_TRUSTED_HOST: ${{ vars.PULSEPLATE_PYTHON_TRUSTED_HOST }}
+          DEVPI_CI_USER: ''
+          DEVPI_CI_PASSWORD: ''
+        with:
+          python-version: '3.13.14'
+          skip-base-install: 'true'
+      - name: Install isolated AM host tools through the locked owner
+        timeout-minutes: ${{ fromJSON(env.ALERTMANAGER_PYTHON_INSTALL_MINUTES) }}
+        env:
+          PULSEPLATE_PYTHON_INDEX_URL: ${{ vars.PULSEPLATE_PYTHON_INDEX_URL }}
+          PULSEPLATE_PYTHON_TRUSTED_HOST: ${{ vars.PULSEPLATE_PYTHON_TRUSTED_HOST }}
+          DEVPI_CI_USER: ''
+          DEVPI_CI_PASSWORD: ''
+          PULSEPLATE_PSYCOPG_C_SDK: ''
+          PULSEPLATE_DOCKER_SINGLE_PASS_LOCKED_INSTALL: ''
+          PULSEPLATE_DOCKER_PIP_LAYER_CACHE: ''
+          PYTHONHOME: ''
+          PYTHONPATH: ''
+          PYTHONNOUSERSITE: '1'
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: |
+          set -euo pipefail
+          umask 077
+          : "${RUNNER_TEMP:?Owned AM Python directory is required.}"
+          : "${PULSEPLATE_PYTHON_INDEX_URL:?Existing credential-free package proxy is required.}"
+          am_root="$RUNNER_TEMP/pulseplate-am-python-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          test ! -e "$am_root"
+          test ! -L "$am_root"
+          python -I -m venv "$am_root"
+          mkdir "$am_root/installer-home"
+          am_python="$am_root/bin/python"
+          install_args=(
+            --python-executable "$am_python"
+            --requirements-file "$GITHUB_WORKSPACE/requirements-dev.txt"
+            --constraints-file "$GITHUB_WORKSPACE/constraints.txt"
+            --require-virtualenv --install-mode direct-proxy
+            --index-url "$PULSEPLATE_PYTHON_INDEX_URL"
+            --emergency-wheel-manifest "$GITHUB_WORKSPACE/scripts/ci/emergency_python_wheels.json"
+          )
+          if [[ -n "${PULSEPLATE_PYTHON_TRUSTED_HOST:-}" ]]; then
+            install_args+=(--trusted-host "$PULSEPLATE_PYTHON_TRUSTED_HOST")
+          fi
+          HOME="$am_root/installer-home" "$am_python" -I "$GITHUB_WORKSPACE/scripts/ci/install_locked_python_requirements.py" \
+            "${install_args[@]}" --preflight-only
+          HOME="$am_root/installer-home" "$am_python" -I "$GITHUB_WORKSPACE/scripts/ci/install_locked_python_requirements.py" \
+            "${install_args[@]}"
+      - name: Verify isolated AM host import capability before effects
+        id: am-python
+        timeout-minutes: ${{ fromJSON(env.ALERTMANAGER_PYTHON_SMOKE_MINUTES) }}
+        env:
+          PYTHONHOME: ''
+          PYTHONPATH: ''
+          PYTHONNOUSERSITE: '1'
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: |
+          set -euo pipefail
+          umask 077
+          am_root="$RUNNER_TEMP/pulseplate-am-python-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          am_python="$am_root/bin/python"
+          "$am_python" - <<'PY'
+          import json
+          import site
+          import sys
+          from importlib import metadata
+          from pathlib import Path
+          import pytest
+          import yaml
+          from scripts.ci import fetch_docker_source_artifacts, prometheus_source_image
+          from scripts.ops import notify_premium_alias_checkpoint_failure
+          from tests import test_notify_premium_alias_checkpoint_failure as native
+          assert sys.version_info[:3] == (3, 13, 14)
+          assert sys.prefix != sys.base_prefix and sys.base_prefix not in site.PREFIXES
+          assert site.ENABLE_USER_SITE is False
+          assert sys.executable == str(Path(sys.prefix) / "bin/python")
+          assert metadata.version("pytest") == "9.1.1"
+          assert metadata.version("PyYAML") == "6.0.3"
+          assert yaml.safe_load("probe: true\n") == {"probe": True}
+          with pytest.MonkeyPatch.context():
+              pass
+          assert callable(fetch_docker_source_artifacts.main)
+          assert callable(prometheus_source_image.one_object)
+          assert callable(notify_premium_alias_checkpoint_failure.main)
+          assert callable(native.native_alertmanager_main)
+          print(json.dumps({
+              "python": sys.version,
+              "executable": sys.executable,
+              "pip": metadata.version("pip"),
+              "pytest": metadata.version("pytest"),
+              "PyYAML": metadata.version("PyYAML"),
+              "packages": sorted((dist.metadata["Name"], dist.version)
+                                 for dist in metadata.distributions()),
+          }, sort_keys=True))
+          PY
+          "$am_python" -m tests.test_notify_premium_alias_checkpoint_failure --help
+          printf 'python=%s\n' "$am_python" >> "$GITHUB_OUTPUT"
+      - name: Run full accepted AM native controls on this runner
+        timeout-minutes: ${{ fromJSON(env.ALERTMANAGER_NATIVE_STEP_MINUTES) }}
+        env:
+          AM_IMAGE_ID: ${{ steps.alertmanager-image.outputs.image_id }}
+          AM_CONFIG_SHA256: ${{ steps.alertmanager-image.outputs.config_sha256 }}
+          AM_OBSERVATION: ${{ steps.alertmanager-image.outputs.observation }}
+        run: |
+          set -euo pipefail
+          native_python="${{ steps.am-python.outputs.python }}"
+          evidence="$RUNNER_TEMP/alertmanager-consumer-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          if /usr/bin/env -i PATH=/usr/local/bin:/usr/bin:/bin LANG=C HOME=/tmp PYTHONDONTWRITEBYTECODE=1 \
+            ALERTMANAGER_NATIVE_SECONDS="$ALERTMANAGER_NATIVE_SECONDS" \
+            ALERTMANAGER_NATIVE_CLEANUP_SECONDS="$ALERTMANAGER_NATIVE_CLEANUP_SECONDS" \
+            "$native_python" -m tests.test_notify_premium_alias_checkpoint_failure --native-alertmanager \
+            --alertmanager-image-id "$AM_IMAGE_ID" --alertmanager-config-sha256 "$AM_CONFIG_SHA256" \
+            --alertmanager-observation "$AM_OBSERVATION" > "$evidence/native.stdout" 2> "$evidence/native.stderr"; then
+            native_status=0
+          else
+            native_status=$?
+          fi
+          capture_status=0
+          cat "$evidence/native.stdout" || capture_status=$?
+          cat "$evidence/native.stderr" >&2 || capture_status=$?
+          if [ "$native_status" -ne 0 ]; then exit "$native_status"; fi
+          exit "$capture_status"
+
+      - name: Retain AM current-PR consumption evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1 / Node 24
+        timeout-minutes: ${{ fromJSON(env.ALERTMANAGER_UPLOAD_MINUTES) }}
+        with:
+          name: alertmanager-consumer-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/alertmanager-consumer-${{ github.run_id }}-${{ github.run_attempt }}/consumer-observation.json
+            ${{ runner.temp }}/alertmanager-consumer-${{ github.run_id }}-${{ github.run_attempt }}/native.stdout
+            ${{ runner.temp }}/alertmanager-consumer-${{ github.run_id }}-${{ github.run_attempt }}/native.stderr
+            ${{ runner.temp }}/alertmanager-consumer-${{ github.run_id }}-${{ github.run_attempt }}/github-read-evidence/
+            ${{ runner.temp }}/alertmanager-consumer-${{ github.run_id }}-${{ github.run_attempt }}/preparation/evidence/
+          if-no-files-found: error
+
+  alertmanager-main-publication:
+    if: >-
+      github.event_name == 'workflow_dispatch' && inputs.alertmanager_mode == 'publish'
+      && github.repository == 'Katsiarynakavaleuskaya/PulsePlate' && github.repository_id == '1043311030'
+      && github.ref == 'refs/heads/main' && github.run_attempt == 1 && inputs.postgres_mode == 'disabled'
+    runs-on: ubuntu-latest
+    timeout-minutes: 110
+    permissions:
+      contents: read
+      actions: read
+      packages: write
+    steps:
+      - name: Checkout exact AM executable proposal
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Validate existing credential-free AM native Python proxy
+        env:
+          PULSEPLATE_PYTHON_INDEX_URL: ${{ vars.PULSEPLATE_PYTHON_INDEX_URL }}
+          PULSEPLATE_PYTHON_TRUSTED_HOST: ${{ vars.PULSEPLATE_PYTHON_TRUSTED_HOST }}
+        run: |
+          set -euo pipefail
+          : "${PULSEPLATE_PYTHON_INDEX_URL:?Existing credential-free package proxy is required.}"
+          case "$PULSEPLATE_PYTHON_INDEX_URL${PULSEPLATE_PYTHON_TRUSTED_HOST:-}" in
+            *://*@*|*$'\n'*|*$'\r'*) exit 1 ;;
+          esac
+      - name: Select AM Python without dependency or SDK installation
+        uses: ./.github/actions/python-setup
+        timeout-minutes: ${{ fromJSON(env.ALERTMANAGER_PYTHON_SETUP_MINUTES) }}
+        env:
+          PULSEPLATE_PYTHON_INDEX_URL: ${{ vars.PULSEPLATE_PYTHON_INDEX_URL }}
+          PULSEPLATE_PYTHON_TRUSTED_HOST: ${{ vars.PULSEPLATE_PYTHON_TRUSTED_HOST }}
+          DEVPI_CI_USER: ''
+          DEVPI_CI_PASSWORD: ''
+        with:
+          python-version: '3.13.14'
+          skip-base-install: 'true'
+      - name: Install isolated AM host tools through the locked owner
+        timeout-minutes: ${{ fromJSON(env.ALERTMANAGER_PYTHON_INSTALL_MINUTES) }}
+        env:
+          PULSEPLATE_PYTHON_INDEX_URL: ${{ vars.PULSEPLATE_PYTHON_INDEX_URL }}
+          PULSEPLATE_PYTHON_TRUSTED_HOST: ${{ vars.PULSEPLATE_PYTHON_TRUSTED_HOST }}
+          DEVPI_CI_USER: ''
+          DEVPI_CI_PASSWORD: ''
+          PULSEPLATE_PSYCOPG_C_SDK: ''
+          PULSEPLATE_DOCKER_SINGLE_PASS_LOCKED_INSTALL: ''
+          PULSEPLATE_DOCKER_PIP_LAYER_CACHE: ''
+          PYTHONHOME: ''
+          PYTHONPATH: ''
+          PYTHONNOUSERSITE: '1'
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: |
+          set -euo pipefail
+          umask 077
+          : "${RUNNER_TEMP:?Owned AM Python directory is required.}"
+          : "${PULSEPLATE_PYTHON_INDEX_URL:?Existing credential-free package proxy is required.}"
+          am_root="$RUNNER_TEMP/pulseplate-am-python-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          test ! -e "$am_root"
+          test ! -L "$am_root"
+          python -I -m venv "$am_root"
+          mkdir "$am_root/installer-home"
+          am_python="$am_root/bin/python"
+          install_args=(
+            --python-executable "$am_python"
+            --requirements-file "$GITHUB_WORKSPACE/requirements-dev.txt"
+            --constraints-file "$GITHUB_WORKSPACE/constraints.txt"
+            --require-virtualenv --install-mode direct-proxy
+            --index-url "$PULSEPLATE_PYTHON_INDEX_URL"
+            --emergency-wheel-manifest "$GITHUB_WORKSPACE/scripts/ci/emergency_python_wheels.json"
+          )
+          if [[ -n "${PULSEPLATE_PYTHON_TRUSTED_HOST:-}" ]]; then
+            install_args+=(--trusted-host "$PULSEPLATE_PYTHON_TRUSTED_HOST")
+          fi
+          HOME="$am_root/installer-home" "$am_python" -I "$GITHUB_WORKSPACE/scripts/ci/install_locked_python_requirements.py" \
+            "${install_args[@]}" --preflight-only
+          HOME="$am_root/installer-home" "$am_python" -I "$GITHUB_WORKSPACE/scripts/ci/install_locked_python_requirements.py" \
+            "${install_args[@]}"
+      - name: Verify isolated AM host import capability before effects
+        id: am-python
+        timeout-minutes: ${{ fromJSON(env.ALERTMANAGER_PYTHON_SMOKE_MINUTES) }}
+        env:
+          PYTHONHOME: ''
+          PYTHONPATH: ''
+          PYTHONNOUSERSITE: '1'
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: |
+          set -euo pipefail
+          umask 077
+          am_root="$RUNNER_TEMP/pulseplate-am-python-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          am_python="$am_root/bin/python"
+          "$am_python" - <<'PY'
+          import json
+          import site
+          import sys
+          from importlib import metadata
+          from pathlib import Path
+          import pytest
+          import yaml
+          from scripts.ci import fetch_docker_source_artifacts, prometheus_source_image
+          from scripts.ops import notify_premium_alias_checkpoint_failure
+          from tests import test_notify_premium_alias_checkpoint_failure as native
+          assert sys.version_info[:3] == (3, 13, 14)
+          assert sys.prefix != sys.base_prefix and sys.base_prefix not in site.PREFIXES
+          assert site.ENABLE_USER_SITE is False
+          assert sys.executable == str(Path(sys.prefix) / "bin/python")
+          assert metadata.version("pytest") == "9.1.1"
+          assert metadata.version("PyYAML") == "6.0.3"
+          assert yaml.safe_load("probe: true\n") == {"probe": True}
+          with pytest.MonkeyPatch.context():
+              pass
+          assert callable(fetch_docker_source_artifacts.main)
+          assert callable(prometheus_source_image.one_object)
+          assert callable(notify_premium_alias_checkpoint_failure.main)
+          assert callable(native.native_alertmanager_main)
+          print(json.dumps({
+              "python": sys.version,
+              "executable": sys.executable,
+              "pip": metadata.version("pip"),
+              "pytest": metadata.version("pytest"),
+              "PyYAML": metadata.version("PyYAML"),
+              "packages": sorted((dist.metadata["Name"], dist.version)
+                                 for dist in metadata.distributions()),
+          }, sort_keys=True))
+          PY
+          "$am_python" -m tests.test_notify_premium_alias_checkpoint_failure --help
+          printf 'python=%s\n' "$am_python" >> "$GITHUB_OUTPUT"
+      - name: Publish the accepted AM bytes after canonical merged-main package and tag admission
+        env:
+          AM_HOST_PYTHON: ${{ steps.am-python.outputs.python }}
+          PYTHONHOME: ''
+          PYTHONPATH: ''
+          PYTHONNOUSERSITE: '1'
+          PYTHONDONTWRITEBYTECODE: '1'
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SOURCE_SHA: ${{ inputs.source_sha }}
+          QUALIFICATION_RUN: ${{ inputs.alertmanager_qualification_run }}
+          QUALIFICATION_ARTIFACT: ${{ inputs.alertmanager_qualification_artifact }}
+          QUALIFICATION_SOURCE: ${{ inputs.alertmanager_qualification_source }}
+          SUPPORT_RUN: ${{ inputs.alertmanager_support_run }}
+          SUPPORT_ARTIFACT: ${{ inputs.alertmanager_support_artifact }}
+          SUPPORT_SOURCE: ${{ inputs.alertmanager_support_source }}
+          CANDIDATE_RUN: ${{ inputs.alertmanager_candidate_run }}
+          CANDIDATE_ARTIFACT: ${{ inputs.alertmanager_candidate_artifact }}
+          CANDIDATE_SOURCE: ${{ inputs.alertmanager_candidate_source }}
+          AM_PR: ${{ inputs.alertmanager_pr }}
+        run: |
+          set -euo pipefail
+          umask 077
+          for value in "$QUALIFICATION_RUN" "$QUALIFICATION_ARTIFACT" "$SUPPORT_RUN" "$SUPPORT_ARTIFACT"; do
+            if ! [[ "$value" =~ ^[1-9][0-9]*$ ]]; then exit 1; fi
+          done
+          for value in "$SOURCE_SHA" "$QUALIFICATION_SOURCE" "$SUPPORT_SOURCE"; do
+            if ! [[ "$value" =~ ^[0-9a-f]{40}$ ]]; then exit 1; fi
+          done
+          test "$SOURCE_SHA" = "$GITHUB_SHA"
+          checkout_sha="$(git rev-parse HEAD)"
+          test "$checkout_sha" = "$SOURCE_SHA"
+          for value in "$CANDIDATE_RUN" "$CANDIDATE_ARTIFACT" "$AM_PR"; do
+            if ! [[ "$value" =~ ^[1-9][0-9]*$ ]]; then exit 1; fi
+          done
+          [[ "$CANDIDATE_SOURCE" =~ ^[0-9a-f]{40}$ ]]
+          "$AM_HOST_PYTHON" -m scripts.ci.fetch_docker_source_artifacts --artifact alertmanager --alertmanager-stage publish \
+            --source-sha "$SOURCE_SHA" \
+            --alertmanager-qualification-run "$QUALIFICATION_RUN" \
+            --alertmanager-qualification-artifact "$QUALIFICATION_ARTIFACT" \
+            --alertmanager-qualification-source "$QUALIFICATION_SOURCE" \
+            --alertmanager-support-run "$SUPPORT_RUN" --alertmanager-support-artifact "$SUPPORT_ARTIFACT" \
+            --alertmanager-support-source "$SUPPORT_SOURCE" \
+            --alertmanager-candidate-run "$CANDIDATE_RUN" --alertmanager-candidate-artifact "$CANDIDATE_ARTIFACT" \
+            --alertmanager-candidate-source "$CANDIDATE_SOURCE" --alertmanager-pr "$AM_PR" \
+            --output-dir "$RUNNER_TEMP/alertmanager-publication-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+      - name: Retain actual AM publication admission and failures
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1 / Node 24
+        timeout-minutes: ${{ fromJSON(env.ALERTMANAGER_UPLOAD_MINUTES) }}
+        with:
+          name: alertmanager-publication-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/alertmanager-publication-${{ github.run_id }}-${{ github.run_attempt }}/retained/
+          if-no-files-found: error
 
   staging-postgres-native-integration:
     name: PostgreSQL configuration admission
@@ -527,9 +1279,11 @@ jobs:
       && github.event_name == 'pull_request'
       && needs.postgres-pgvector-contract.result == 'success'
     needs: [postgres-pgvector-contract, postgres-pgvector-admission, postgres-pgvector-reuse]
-    runs-on: ubuntu-latest
-    timeout-minutes: ${{ fromJSON(vars.PROMETHEUS_IMAGE_SECURITY_TIMEOUT_MINUTES || '55') }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: &am-pr-timeout ${{ fromJSON(vars.ALERTMANAGER_CD_PR_JOB_TIMEOUT_MINUTES || '170') }}
     env:
+      ALERTMANAGER_JOB_TIMEOUT_MINUTES: *am-pr-timeout
+      ALERTMANAGER_CALLER_KIND: shared-pr
       PROMETHEUS_CONSUME_SECONDS: '900'
       PROMETHEUS_CLEANUP_SECONDS: '120'
     permissions:
@@ -538,6 +1292,7 @@ jobs:
       packages: read
     steps: &prometheus-image-security-steps
       - name: Validate exact Prometheus checkout revisions
+        timeout-minutes: 1
         id: prometheus-event
         run: |
           set -euo pipefail
@@ -579,6 +1334,7 @@ jobs:
           PY
 
       - name: Checkout immutable PR head Prometheus contracts
+        timeout-minutes: 2
         if: ${{ github.event_name == 'pull_request' }}
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -587,6 +1343,7 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha }}
 
       - name: Checkout immutable published Prometheus contracts
+        timeout-minutes: 2
         if: ${{ github.event_name == 'push' || github.event_name == 'schedule' }}
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -595,6 +1352,7 @@ jobs:
           ref: ${{ github.sha }}
 
       - name: Require fresh fixed Prometheus control checkout
+        timeout-minutes: 1
         if: ${{ success() && github.event_name == 'pull_request' }}
         run: |
           set -euo pipefail
@@ -606,17 +1364,19 @@ jobs:
           done
 
       - name: Checkout fixed trusted Prometheus control
+        timeout-minutes: 3
         id: prometheus-control-checkout
         if: ${{ success() && github.event_name == 'pull_request' }}
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ef9e369052751d47c04f651f7d615714d918fc16 # pragma: allowlist secret - public trusted control commit
+          ref: 0d6a4c09477ad3174252eab15f80cdd4a76df5bc # pragma: allowlist secret - public trusted control commit
           persist-credentials: false
           path: artifacts/orchestration/prometheus-control
           sparse-checkout: scripts/ci/prometheus_source_image.py
           sparse-checkout-cone-mode: false
 
       - name: Classify the fixed regular Prometheus source blobs
+        timeout-minutes: 1
         id: prometheus-route
         env:
           PROMETHEUS_EVENT_HEAD: ${{ steps.prometheus-event.outputs.head }}
@@ -689,18 +1449,18 @@ jobs:
               if not helper.is_file() or stat.S_IMODE(helper.stat().st_mode) != 0o644:
                   raise SystemExit("Prometheus_control_mode_HOLD")
               raw = helper.read_bytes()
-              if len(raw) != 328857 or hashlib.sha256(raw).hexdigest() != "0fedf3e9ac865fe2b89a3367e5e4065e1c0c28fca88465c7f2b41775dbf4070a":  # pragma: allowlist secret - public trusted control digest
+              if len(raw) != 338536 or hashlib.sha256(raw).hexdigest() != "2b6edfa63f55b17cafdff100151b4b7cebef93a757fc3ab04b00eea77ca0ac6a":  # pragma: allowlist secret - public trusted control digest
                   raise SystemExit("Prometheus_control_bytes_HOLD")
               environment = {"PATH": "/usr/bin:/bin", "LANG": "C", "GIT_NO_REPLACE_OBJECTS": "1",
                              "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_COUNT": "0"}
               revision = subprocess.run(["/usr/bin/git", "--no-replace-objects", "-C", str(control),
                                          "rev-parse", "HEAD"], env=environment, capture_output=True, check=True)
-              if revision.stdout.strip() != b"ef9e369052751d47c04f651f7d615714d918fc16":  # pragma: allowlist secret - public trusted control commit
+              if revision.stdout.strip() != b"0d6a4c09477ad3174252eab15f80cdd4a76df5bc":  # pragma: allowlist secret - public trusted control commit
                   raise SystemExit("Prometheus_control_revision_HOLD")
               object_row = subprocess.run(["/usr/bin/git", "--no-replace-objects", "-C", str(control),
                                           "ls-tree", "-z", "HEAD", "--", "scripts/ci/prometheus_source_image.py"],
                                          env=environment, capture_output=True, check=True)
-              if object_row.stdout != b"100644 blob 9d921263edf33797988e0200015f27469ba848ec\tscripts/ci/prometheus_source_image.py\0":  # pragma: allowlist secret - public trusted control blob
+              if object_row.stdout != b"100644 blob 175520fe70b30c885448b95718b25b27985d3f8c\tscripts/ci/prometheus_source_image.py\0":  # pragma: allowlist secret - public trusted control blob
                   raise SystemExit("Prometheus_control_object_HOLD")
               trusted = runpy.run_path(str(helper))
               if not all(callable(trusted.get(name)) for name in
@@ -723,6 +1483,7 @@ jobs:
           PY
 
       - name: Wait for the exact trusted Prometheus publisher
+        timeout-minutes: 183
         if: ${{ success() && github.event_name != 'pull_request' && steps.prometheus-route.outputs.mode == 'trusted_published' }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -769,7 +1530,10 @@ jobs:
                       predecessor = source.require_publication_predecessor(api, admission["publisher_head"])
                       break
                   except source.QualificationError as error:
-                      if str(error) != "positive_publication_predecessor_pending_or_missing":
+                      if str(error) not in (
+                          "positive_publication_predecessor_missing",
+                          "positive_publication_predecessor_active",
+                      ):
                           raise
                       source.check_deadline(deadline)
                       time.sleep(min(30, max(0, deadline - time.monotonic())))
@@ -780,6 +1544,7 @@ jobs:
           PY
 
       - name: Admit retained PR candidate or published immutable subject
+        timeout-minutes: 18
         id: prometheus-image
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -796,6 +1561,8 @@ jobs:
             unchanged_pr_published | trusted_published) ;;
             *) echo "Prometheus credential route HOLD" >&2; exit 1 ;;
           esac
+          docker version --format 'client={{json .Client.Version}} server={{json .Server.Version}}'
+          docker info --format 'driver={{json .Driver}} driver_status={{json .DriverStatus}} os={{json .OSType}} arch={{json .Architecture}}'
           if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
           python3 -I -S - <<'PY'
           import hashlib, os, runpy, signal, stat, subprocess
@@ -814,18 +1581,18 @@ jobs:
           if not helper.is_file() or stat.S_IMODE(helper.stat().st_mode) != 0o644:
               raise SystemExit("Prometheus_control_mode_HOLD")
           raw = helper.read_bytes()
-          if len(raw) != 328857 or hashlib.sha256(raw).hexdigest() != "0fedf3e9ac865fe2b89a3367e5e4065e1c0c28fca88465c7f2b41775dbf4070a":  # pragma: allowlist secret - public trusted control digest
+          if len(raw) != 338536 or hashlib.sha256(raw).hexdigest() != "2b6edfa63f55b17cafdff100151b4b7cebef93a757fc3ab04b00eea77ca0ac6a":  # pragma: allowlist secret - public trusted control digest
               raise SystemExit("Prometheus_control_bytes_HOLD")
           environment = {"PATH": "/usr/bin:/bin", "LANG": "C", "GIT_NO_REPLACE_OBJECTS": "1",
                          "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_COUNT": "0"}
           revision = subprocess.run(["/usr/bin/git", "--no-replace-objects", "-C", str(control),
                                      "rev-parse", "HEAD"], env=environment, capture_output=True, check=True)
-          if revision.stdout.strip() != b"ef9e369052751d47c04f651f7d615714d918fc16":  # pragma: allowlist secret - public trusted control commit
+          if revision.stdout.strip() != b"0d6a4c09477ad3174252eab15f80cdd4a76df5bc":  # pragma: allowlist secret - public trusted control commit
               raise SystemExit("Prometheus_control_revision_HOLD")
           object_row = subprocess.run(["/usr/bin/git", "--no-replace-objects", "-C", str(control),
                                       "ls-tree", "-z", "HEAD", "--", "scripts/ci/prometheus_source_image.py"],
                                      env=environment, capture_output=True, check=True)
-          if object_row.stdout != b"100644 blob 9d921263edf33797988e0200015f27469ba848ec\tscripts/ci/prometheus_source_image.py\0":  # pragma: allowlist secret - public trusted control blob
+          if object_row.stdout != b"100644 blob 175520fe70b30c885448b95718b25b27985d3f8c\tscripts/ci/prometheus_source_image.py\0":  # pragma: allowlist secret - public trusted control blob
               raise SystemExit("Prometheus_control_object_HOLD")
           trusted = runpy.run_path(str(helper))
           if not all(callable(trusted.get(name)) for name in
@@ -877,6 +1644,7 @@ jobs:
           fi
 
       - name: Remove fixed trusted Prometheus control checkout
+        timeout-minutes: 1
         if: ${{ always() && github.event_name == 'pull_request' && (steps.prometheus-control-checkout.outcome == 'success' || steps.prometheus-control-checkout.outcome == 'failure') }}
         run: |
           set -euo pipefail
@@ -885,7 +1653,77 @@ jobs:
           rm -rf -- "$control"
           test ! -e "$control" && test ! -L "$control"
 
+      - name: Require separately designated AM controller
+        if: github.event_name == 'pull_request'
+        timeout-minutes: 1
+        run: |
+          set -euo pipefail
+          [[ "$ALERTMANAGER_CONTROLLER_SOURCE" =~ ^[0-9a-f]{40}$ ]]
+          test ! -e artifacts/orchestration/alertmanager-control
+          test ! -L artifacts/orchestration/alertmanager-control
+
+      - name: Checkout separately designated AM controller
+        if: github.event_name == 'pull_request'
+        id: alertmanager-control
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        timeout-minutes: 3
+        with:
+          ref: ${{ env.ALERTMANAGER_CONTROLLER_SOURCE }}
+          persist-credentials: false
+          fetch-depth: 0
+          path: artifacts/orchestration/alertmanager-control
+
+      - name: Prepare exact AM subject before material execution
+        id: alertmanager-image
+        timeout-minutes: ${{ fromJSON(env.ALERTMANAGER_PREPARATION_MINUTES) }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GHCR_READ_TOKEN: ${{ github.event_name != 'pull_request' && secrets.GHCR_READ_TOKEN || '' }}
+          SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          umask 077
+          material="$GITHUB_WORKSPACE"
+          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
+            controller="$material/artifacts/orchestration/alertmanager-control"
+            controller_source="$ALERTMANAGER_CONTROLLER_SOURCE"
+          else
+            # Native authenticated main equality precedes loading material as trusted control.
+            timeout --signal=TERM --kill-after=2s 15s gh auth status --hostname github.com
+            main_sha="$(timeout --signal=TERM --kill-after=2s 15s gh api --method GET repos/Katsiarynakavaleuskaya/PulsePlate/git/ref/heads/main --jq .object.sha)"
+            [[ "$main_sha" =~ ^[0-9a-f]{40}$ ]]
+            test "$SOURCE_SHA" = "$GITHUB_SHA" && test "$SOURCE_SHA" = "$main_sha"
+            controller="$material"
+            controller_source="$main_sha"
+          fi
+          test ! -L "$controller"
+          test "$(git -C "$controller" rev-parse HEAD)" = "$controller_source"
+          cd "$controller"
+          python3 -E -s -S -m scripts.ci.fetch_docker_source_artifacts \
+            --artifact alertmanager --alertmanager-stage candidate-check --alertmanager-prepare-only \
+            --source-sha "$SOURCE_SHA" --material-root "$material" \
+            --alertmanager-controller-source "$controller_source" \
+            --alertmanager-qualification-run 39018353942 --alertmanager-qualification-artifact 12095483900 \
+            --alertmanager-qualification-source 36cd171c4ebe44f63cb58d09a741b3d07098904d \
+            --alertmanager-support-run 39030856891 --alertmanager-support-artifact 12100576545 \
+            --alertmanager-support-source df5ebd017bda93e31fbf9eccfd7cc7b98973a3c6 \
+            --alertmanager-candidate-run 39143039135 --alertmanager-candidate-artifact 12142714566 \
+            --alertmanager-candidate-source 63455b8a750ef07a1e525078b4e3ce2089eecdde \
+            --output-dir "$RUNNER_TEMP/alertmanager-consumer-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" >> "$GITHUB_OUTPUT"
+
+      - name: Remove designated AM controller after credential cleanup
+        if: always() && (steps.alertmanager-control.outcome == 'success' || steps.alertmanager-control.outcome == 'failure')
+        timeout-minutes: 1
+        run: |
+          set -euo pipefail
+          controller="$GITHUB_WORKSPACE/artifacts/orchestration/alertmanager-control"
+          test ! -L "$controller"
+          rm -rf -- "$controller"
+          test ! -e "$controller" && test ! -L "$controller"
+
       - name: Check canonical Prometheus config with exact-image promtool
+        timeout-minutes: 2
         env:
           PROMETHEUS_RUNTIME_REF: ${{ steps.prometheus-image.outputs.runtime_ref }}
         run: |
@@ -920,6 +1758,7 @@ jobs:
             "$PROMETHEUS_RUNTIME_REF" test rules /etc/prometheus/alias-alerts.test.yml
 
       - name: Create empty Prometheus Trivy ignore file
+        timeout-minutes: 1
         id: prometheus_trivy_ignore
         run: |
           set -euo pipefail
@@ -932,6 +1771,7 @@ jobs:
           printf 'path=%s\n' "$empty_ignore" >> "$GITHUB_OUTPUT"
 
       - name: Install exact Trivy CLI
+        timeout-minutes: 2
         id: prometheus_trivy
         env:
           TRIVY_VERSION: 0.74.0
@@ -962,6 +1802,7 @@ jobs:
           printf 'path=%s\n' "$trivy_path" >> "$GITHUB_OUTPUT"
 
       - name: Scan exact Prometheus image without suppressions
+        timeout-minutes: 16
         env:
           TRIVY_DB_REPOSITORY: ghcr.io/aquasecurity/trivy-db
           PROMETHEUS_RUNTIME_REF: ${{ steps.prometheus-image.outputs.runtime_ref }}
@@ -989,130 +1830,176 @@ jobs:
             --cache-dir /tmp/trivy-cache-prometheus-image-security \
             "$PROMETHEUS_RUNTIME_REF"
 
-      - name: Admit exact Alertmanager image, config, and narrow CVE exception
+      - name: Select AM Python without dependency or SDK installation
+        if: github.event_name == 'pull_request'
+        uses: ./.github/actions/python-setup
+        timeout-minutes: ${{ fromJSON(env.ALERTMANAGER_PYTHON_SETUP_MINUTES) }}
         env:
-          TRIVY_DB_REPOSITORY: ghcr.io/aquasecurity/trivy-db
-          TRIVY_BIN: ${{ steps.prometheus_trivy.outputs.path }}
-          TRIVY_CACHE_DIR: /tmp/trivy-cache-prometheus-image-security
-          PROMETHEUS_EVENT_HEAD: ${{ steps.prometheus-route.outputs.head }}
+          PULSEPLATE_PYTHON_INDEX_URL: ${{ vars.PULSEPLATE_PYTHON_INDEX_URL }}
+          PULSEPLATE_PYTHON_TRUSTED_HOST: ${{ vars.PULSEPLATE_PYTHON_TRUSTED_HOST }}
+          DEVPI_CI_USER: ''
+          DEVPI_CI_PASSWORD: ''
+        with:
+          python-version: '3.13.14'
+          skip-base-install: 'true'
+      - name: Install isolated AM host tools through the locked owner
+        if: github.event_name == 'pull_request'
+        timeout-minutes: ${{ fromJSON(env.ALERTMANAGER_PYTHON_INSTALL_MINUTES) }}
+        env:
+          PULSEPLATE_PYTHON_INDEX_URL: ${{ vars.PULSEPLATE_PYTHON_INDEX_URL }}
+          PULSEPLATE_PYTHON_TRUSTED_HOST: ${{ vars.PULSEPLATE_PYTHON_TRUSTED_HOST }}
+          DEVPI_CI_USER: ''
+          DEVPI_CI_PASSWORD: ''
+          PULSEPLATE_PSYCOPG_C_SDK: ''
+          PULSEPLATE_DOCKER_SINGLE_PASS_LOCKED_INSTALL: ''
+          PULSEPLATE_DOCKER_PIP_LAYER_CACHE: ''
+          PYTHONHOME: ''
+          PYTHONPATH: ''
+          PYTHONNOUSERSITE: '1'
+          PYTHONDONTWRITEBYTECODE: '1'
         run: |
           set -euo pipefail
-          alert_ref='prom/alertmanager@sha256:84967b9b7ba45e38a9278d3e594305f43d4993c310df3905b51138b816c365f3'
-          ignore='deploy/alertmanager/trivy-ignore.yaml'
-          test -f "$ignore"
-          test ! -L "$ignore"
-          docker buildx imagetools inspect --raw prom/alertmanager:v0.34.1 | python3 -c '
-          import json, sys
-          index=json.load(sys.stdin)
-          matches=[item.get("digest") for item in index.get("manifests", [])
-                   if item.get("platform", {}).get("os")=="linux"
-                   and item.get("platform", {}).get("architecture")=="amd64"]
-          if matches != ["sha256:84967b9b7ba45e38a9278d3e594305f43d4993c310df3905b51138b816c365f3"]:
-              raise SystemExit("Official Alertmanager v0.34.1 linux/amd64 digest changed")
-          '
-          docker pull --platform linux/amd64 "$alert_ref"
-          docker image inspect "$alert_ref" | python3 -c '
-          import json, sys
-          rows=json.load(sys.stdin)
-          expected="prom/alertmanager@sha256:84967b9b7ba45e38a9278d3e594305f43d4993c310df3905b51138b816c365f3"
-          assert len(rows)==1 and rows[0]["Os"]=="linux" and rows[0]["Architecture"]=="amd64"
-          assert expected in rows[0]["RepoDigests"] or "docker.io/"+expected in rows[0]["RepoDigests"]
-          '
-          docker run --rm --pull never --platform linux/amd64 --network none \
-            --read-only --entrypoint /bin/alertmanager "$alert_ref" --version \
-            | grep -F 'version 0.34.1'
-          scan="$(mktemp "${RUNNER_TEMP}/pulseplate-alertmanager-scan.XXXXXX")"
-          wrong="$(mktemp "${RUNNER_TEMP}/pulseplate-alertmanager-wrong.XXXXXX")"
-          expired="$(mktemp "${RUNNER_TEMP}/pulseplate-alertmanager-expired.XXXXXX")"
-          negative_scan="$(mktemp "${RUNNER_TEMP}/pulseplate-alertmanager-negative-scan.XXXXXX")"
-          trap 'rm -f -- "$scan" "$wrong" "$expired" "$negative_scan"' EXIT
-          docker run --rm --pull never --platform linux/amd64 --network none \
-            --read-only --user 65534:65534 --cap-drop ALL \
-            --security-opt no-new-privileges:true --entrypoint /bin/amtool \
-            --mount "type=bind,source=${GITHUB_WORKSPACE}/deploy/alertmanager/alertmanager.yml,target=/etc/alertmanager/alertmanager.yml,readonly" \
-            "$alert_ref" check-config /etc/alertmanager/alertmanager.yml
-          "$TRIVY_BIN" image --scanners vuln,secret --format json \
-            --pkg-types os,library --severity CRITICAL,HIGH --exit-code 0 \
-            --timeout 15m --output "$scan" "$alert_ref"
-          python3 - "$scan" <<'PY'
-          import json, sys
-          data=json.load(open(sys.argv[1], encoding="utf-8"))
-          if any(r.get("Secrets") for r in data.get("Results", [])):
-              raise SystemExit("Alertmanager scan contains unexpected secret findings")
-          PY
-          evidence_dir="$RUNNER_TEMP/prometheus-consumer-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT/evidence"
-          cp -- "$scan" "$evidence_dir/alertmanager-unsuppressed.json"
-          "$TRIVY_BIN" --version --format json > "$evidence_dir/alertmanager-trivy-version.json"
-          python3 - "$alert_ref" "$TRIVY_BIN" "$TRIVY_CACHE_DIR" "$evidence_dir" <<'PY'
-          import hashlib, json, os, sys
-          from pathlib import Path
-
-          image, scanner, cache, evidence = sys.argv[1:]
-          evidence = Path(evidence)
-          def digest(path):
-              value = hashlib.sha256()
-              with path.open("rb") as stream:
-                  for block in iter(lambda: stream.read(1024 * 1024), b""):
-                      value.update(block)
-              return value.hexdigest()
-          metadata = Path(cache) / "db" / "metadata.json"
-          database = Path(cache) / "db" / "trivy.db"
-          observed = {
-              "image": image,
-              "run_id": os.environ["GITHUB_RUN_ID"],
-              "run_attempt": os.environ["GITHUB_RUN_ATTEMPT"],
-              "head": os.environ["PROMETHEUS_EVENT_HEAD"],
-              "workflow_execution_sha": os.environ["GITHUB_SHA"],
-              "scanner_sha256": digest(Path(scanner)),
-              "scanner_version": json.loads((evidence / "alertmanager-trivy-version.json").read_bytes()),
-              "report_sha256": digest(evidence / "alertmanager-unsuppressed.json"),
-              "database_metadata": json.loads(metadata.read_bytes()),
-              "database_metadata_sha256": digest(metadata),
-              "database_sha256": digest(database),
-          }
-          (evidence / "alertmanager-scan-context.json").write_text(
-              json.dumps(observed, indent=2) + "\n", encoding="utf-8"
+          umask 077
+          : "${RUNNER_TEMP:?Owned AM Python directory is required.}"
+          : "${PULSEPLATE_PYTHON_INDEX_URL:?Existing credential-free package proxy is required.}"
+          case "$PULSEPLATE_PYTHON_INDEX_URL${PULSEPLATE_PYTHON_TRUSTED_HOST:-}" in
+            *://*@*|*$'\n'*|*$'\r'*) exit 1 ;;
+          esac
+          am_root="$RUNNER_TEMP/pulseplate-am-python-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          test ! -e "$am_root"
+          test ! -L "$am_root"
+          python -I -m venv "$am_root"
+          mkdir "$am_root/installer-home"
+          am_python="$am_root/bin/python"
+          install_args=(
+            --python-executable "$am_python"
+            --requirements-file "$GITHUB_WORKSPACE/requirements-dev.txt"
+            --constraints-file "$GITHUB_WORKSPACE/constraints.txt"
+            --require-virtualenv --install-mode direct-proxy
+            --index-url "$PULSEPLATE_PYTHON_INDEX_URL"
+            --emergency-wheel-manifest "$GITHUB_WORKSPACE/scripts/ci/emergency_python_wheels.json"
           )
+          if [[ -n "${PULSEPLATE_PYTHON_TRUSTED_HOST:-}" ]]; then
+            install_args+=(--trusted-host "$PULSEPLATE_PYTHON_TRUSTED_HOST")
+          fi
+          HOME="$am_root/installer-home" "$am_python" -I "$GITHUB_WORKSPACE/scripts/ci/install_locked_python_requirements.py" \
+            "${install_args[@]}" --preflight-only
+          HOME="$am_root/installer-home" "$am_python" -I "$GITHUB_WORKSPACE/scripts/ci/install_locked_python_requirements.py" \
+            "${install_args[@]}"
+      - name: Verify isolated AM host import capability before effects
+        if: github.event_name == 'pull_request'
+        id: am-python
+        timeout-minutes: ${{ fromJSON(env.ALERTMANAGER_PYTHON_SMOKE_MINUTES) }}
+        env:
+          PYTHONHOME: ''
+          PYTHONPATH: ''
+          PYTHONNOUSERSITE: '1'
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: |
+          set -euo pipefail
+          umask 077
+          am_root="$RUNNER_TEMP/pulseplate-am-python-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          am_python="$am_root/bin/python"
+          "$am_python" - <<'PY'
+          import json
+          import site
+          import sys
+          from importlib import metadata
+          from pathlib import Path
+          import pytest
+          import yaml
+          from scripts.ci import fetch_docker_source_artifacts, prometheus_source_image
+          from scripts.ops import notify_premium_alias_checkpoint_failure
+          from tests import test_notify_premium_alias_checkpoint_failure as native
+          assert sys.version_info[:3] == (3, 13, 14)
+          assert sys.prefix != sys.base_prefix and sys.base_prefix not in site.PREFIXES
+          assert site.ENABLE_USER_SITE is False
+          assert sys.executable == str(Path(sys.prefix) / "bin/python")
+          assert metadata.version("pytest") == "9.1.1"
+          assert metadata.version("PyYAML") == "6.0.3"
+          assert yaml.safe_load("probe: true\n") == {"probe": True}
+          with pytest.MonkeyPatch.context():
+              pass
+          assert callable(fetch_docker_source_artifacts.main)
+          assert callable(prometheus_source_image.one_object)
+          assert callable(notify_premium_alias_checkpoint_failure.main)
+          assert callable(native.native_alertmanager_main)
+          print(json.dumps({
+              "python": sys.version,
+              "executable": sys.executable,
+              "pip": metadata.version("pip"),
+              "pytest": metadata.version("pytest"),
+              "PyYAML": metadata.version("PyYAML"),
+              "packages": sorted((dist.metadata["Name"], dist.version)
+                                 for dist in metadata.distributions()),
+          }, sort_keys=True))
           PY
-          verify_alertmanager_inventory() {
-            python3 - "$1" <<'PY'
-          import json, sys
-          data=json.load(open(sys.argv[1], encoding="utf-8"))
-          if any(r.get("Secrets") for r in data.get("Results", [])):
-              raise SystemExit("Alertmanager scan contains unexpected secret findings")
-          found=[(r.get("Target"), v.get("VulnerabilityID"), (v.get("PkgIdentifier") or {}).get("PURL"), v.get("Severity"))
-                 for r in data.get("Results", []) for v in (r.get("Vulnerabilities") or [])]
-          expected={(target, cve, purl, "HIGH")
-                    for target in ("bin/alertmanager", "bin/amtool")
-                    for cve, purl in (
-                        ("CVE-2026-84445", "pkg:golang/google.golang.org/grpc@v1.83.1"),
-                        ("CVE-2026-78669", "pkg:golang/golang.org/x/net@v0.58.0"),
-                        ("CVE-2026-78669", "pkg:golang/stdlib@v1.26.8"),
-                        ("CVE-2026-78667", "pkg:golang/stdlib@v1.26.8"),
-                        ("CVE-2026-97031", "pkg:golang/stdlib@v1.26.8"),
-                    )}
-          if set(found) != expected or len(found) != len(expected):
-              raise SystemExit("Unsuppressed Alertmanager finding inventory changed")
-          PY
-          }
-          verify_alertmanager_inventory "$scan"
-          "$TRIVY_BIN" image --scanners vuln,secret --format table \
-            --pkg-types os,library --severity CRITICAL,HIGH --exit-code 1 \
-            --timeout 15m --ignorefile "$ignore" "$alert_ref"
-          sed -e 's|pkg:golang/google[.]golang[.]org/grpc@v1[.]83[.]1|pkg:golang/google.golang.org/grpc@v0.0.0|' \
-            -e 's|pkg:golang/golang[.]org/x/net@v0[.]58[.]0|pkg:golang/golang.org/x/net@v0.0.0|' \
-            -e 's|pkg:golang/stdlib@v1[.]26[.]8|pkg:golang/stdlib@v0.0.0|' "$ignore" > "$wrong"
-          sed 's/expired_at: 2026-10-21/expired_at: 2026-01-01/' "$ignore" > "$expired"
-          for negative in "$wrong" "$expired"; do
-            : > "$negative_scan"
-            "$TRIVY_BIN" image --scanners vuln,secret --format json \
-              --pkg-types os,library --severity CRITICAL,HIGH --exit-code 0 \
-              --timeout 15m --ignorefile "$negative" --output "$negative_scan" "$alert_ref"
-            verify_alertmanager_inventory "$negative_scan"
+          "$am_python" -m tests.test_notify_premium_alias_checkpoint_failure --help
+          printf 'python=%s\n' "$am_python" >> "$GITHUB_OUTPUT"
+      - name: Run full accepted AM native controls on this runner
+        if: github.event_name == 'pull_request'
+        timeout-minutes: ${{ fromJSON(env.ALERTMANAGER_NATIVE_STEP_MINUTES) }}
+        env:
+          AM_IMAGE_ID: ${{ steps.alertmanager-image.outputs.image_id }}
+          AM_CONFIG_SHA256: ${{ steps.alertmanager-image.outputs.config_sha256 }}
+          AM_OBSERVATION: ${{ steps.alertmanager-image.outputs.observation }}
+        run: |
+          set -euo pipefail
+          native_python="${{ steps.am-python.outputs.python }}"
+          evidence="$RUNNER_TEMP/alertmanager-consumer-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          if /usr/bin/env -i PATH=/usr/local/bin:/usr/bin:/bin LANG=C HOME=/tmp PYTHONDONTWRITEBYTECODE=1 \
+            ALERTMANAGER_NATIVE_SECONDS="$ALERTMANAGER_NATIVE_SECONDS" \
+            ALERTMANAGER_NATIVE_CLEANUP_SECONDS="$ALERTMANAGER_NATIVE_CLEANUP_SECONDS" \
+            "$native_python" -m tests.test_notify_premium_alias_checkpoint_failure --native-alertmanager \
+            --alertmanager-image-id "$AM_IMAGE_ID" --alertmanager-config-sha256 "$AM_CONFIG_SHA256" \
+            --alertmanager-observation "$AM_OBSERVATION" > "$evidence/native.stdout" 2> "$evidence/native.stderr"; then
+            native_status=0
+          else
+            native_status=$?
+          fi
+          capture_status=0
+          cat "$evidence/native.stdout" || capture_status=$?
+          cat "$evidence/native.stderr" >&2 || capture_status=$?
+          if [ "$native_status" -ne 0 ]; then exit "$native_status"; fi
+          exit "$capture_status"
+
+      - name: Check exact prepared AM versions and configuration
+        timeout-minutes: 2
+        env:
+          AM_IMAGE_ID: ${{ steps.alertmanager-image.outputs.image_id }}
+          AM_CONFIG_SHA256: ${{ steps.alertmanager-image.outputs.config_sha256 }}
+        run: |
+          set -euo pipefail
+          [[ "$AM_IMAGE_ID" =~ ^sha256:[0-9a-f]{64}$ ]]
+          test "$(sha256sum deploy/alertmanager/alertmanager.yml | cut -d' ' -f1)" = "$AM_CONFIG_SHA256"
+          for binary in alertmanager amtool; do
+            docker run --rm --pull never --platform linux/amd64 --network none --read-only \
+              --user 65534:65534 --cap-drop ALL --security-opt no-new-privileges:true \
+              --entrypoint "/bin/$binary" "$AM_IMAGE_ID" --version | grep -F 'version 0.34.1'
           done
+          docker run --rm --pull never --platform linux/amd64 --network none --read-only \
+            --user 65534:65534 --cap-drop ALL --security-opt no-new-privileges:true \
+            --entrypoint /bin/amtool \
+            --mount "type=bind,source=$GITHUB_WORKSPACE/deploy/alertmanager/alertmanager.yml,target=/etc/alertmanager/alertmanager.yml,readonly" \
+            "$AM_IMAGE_ID" check-config /etc/alertmanager/alertmanager.yml
+
+      - name: Scan accepted AM and execute all four current controls
+        timeout-minutes: ${{ fromJSON(env.ALERTMANAGER_LIVE_SECURITY_MINUTES) }}
+        env:
+          TRIVY_BIN: ${{ steps.prometheus_trivy.outputs.path }}
+          TRIVY_CACHE_DIR: /tmp/trivy-cache-prometheus-image-security
+        run: |
+          set -euo pipefail
+          umask 077
+          python -m scripts.ci.fetch_docker_source_artifacts --artifact alertmanager \
+            --alertmanager-stage security-check --alertmanager-scanner "$TRIVY_BIN" \
+            --alertmanager-cache "$TRIVY_CACHE_DIR" \
+            --output-dir "$RUNNER_TEMP/alertmanager-live-security-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
 
       - name: Prove staging environment label reaches Alertmanager despite forged metric label
+        timeout-minutes: 3
         env:
+          AM_IMAGE_ID: ${{ steps.alertmanager-image.outputs.image_id }}
           PROMETHEUS_RUNTIME_REF: ${{ steps.prometheus-image.outputs.runtime_ref }}
         run: |
           set -euo pipefail
@@ -1135,7 +2022,9 @@ jobs:
               raise SystemExit("Invalid bounded OBS2A CI resource identity")
           name = f"pulseplate-obs2a-ci-{run_id}-{attempt}"
           app, manager, prometheus = (f"{name}-{suffix}" for suffix in ("app", "am", "prom"))
-          alert_ref = "prom/alertmanager@sha256:84967b9b7ba45e38a9278d3e594305f43d4993c310df3905b51138b816c365f3"
+          alert_ref = os.environ["AM_IMAGE_ID"]
+          if not re.fullmatch(r"sha256:[0-9a-f]{64}", alert_ref):
+              raise SystemExit("Explicit prepared AM local identity is required")
           prom_ref = os.environ["PROMETHEUS_RUNTIME_REF"]
           root = Path(os.environ["GITHUB_WORKSPACE"])
           created: list[str] = []
@@ -1246,6 +2135,7 @@ jobs:
           PY
 
       - name: Prove synthetic non-root header and named-volume runtime
+        timeout-minutes: 2
         env:
           PROMETHEUS_RUNTIME_REF: ${{ steps.prometheus-image.outputs.runtime_ref }}
         run: |
@@ -1376,6 +2266,7 @@ jobs:
           fi
 
       - name: Retain exact Prometheus consumer evidence
+        timeout-minutes: 5
         if: ${{ always() }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1 / Node 24
         with:
@@ -1383,6 +2274,13 @@ jobs:
           path: |
             ${{ runner.temp }}/prometheus-consumer-${{ github.run_id }}-${{ github.run_attempt }}/evidence/
             ${{ runner.temp }}/prometheus-publication-wait-${{ github.run_id }}-${{ github.run_attempt }}/evidence/
+            ${{ runner.temp }}/alertmanager-consumer-${{ github.run_id }}-${{ github.run_attempt }}/consumer-observation.json
+            ${{ runner.temp }}/alertmanager-consumer-${{ github.run_id }}-${{ github.run_attempt }}/native.stdout
+            ${{ runner.temp }}/alertmanager-consumer-${{ github.run_id }}-${{ github.run_attempt }}/native.stderr
+            ${{ runner.temp }}/alertmanager-consumer-${{ github.run_id }}-${{ github.run_attempt }}/github-read-evidence/
+            ${{ runner.temp }}/alertmanager-consumer-${{ github.run_id }}-${{ github.run_attempt }}/preparation/evidence/
+            ${{ runner.temp }}/alertmanager-live-security-${{ github.run_id }}-${{ github.run_attempt }}/security-observation.json
+            ${{ runner.temp }}/alertmanager-live-security-${{ github.run_id }}-${{ github.run_attempt }}/evidence/
           if-no-files-found: error
           retention-days: 30
 
@@ -1408,10 +2306,12 @@ jobs:
         )
       )
     needs: [postgres-pgvector-contract, postgres-pgvector-admission, postgres-pgvector-reuse]
-    runs-on: ubuntu-latest
-    timeout-minutes: &prometheus-trusted-timeout ${{ fromJSON(vars.PROMETHEUS_IMAGE_SECURITY_TIMEOUT_MINUTES || '255') }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: &prometheus-trusted-timeout ${{ fromJSON(vars.ALERTMANAGER_CD_TRUSTED_JOB_TIMEOUT_MINUTES || '290') }}
     environment: staging
     env:
+      ALERTMANAGER_JOB_TIMEOUT_MINUTES: *prometheus-trusted-timeout
+      ALERTMANAGER_CALLER_KIND: shared-main
       PROMETHEUS_JOB_TIMEOUT_MINUTES: *prometheus-trusted-timeout
       PROMETHEUS_PUBLICATION_WAIT_SECONDS: ${{ vars.PROMETHEUS_PUBLICATION_WAIT_SECONDS || '10800' }}
       PROMETHEUS_SECURITY_RESERVE_SECONDS: '2400'
@@ -1468,10 +2368,13 @@ jobs:
       && github.event_name == 'push'
       && github.ref == 'refs/heads/main'
       && needs.prometheus-image-security.result == 'success'
-    runs-on: ubuntu-latest
-    timeout-minutes: ${{ fromJSON(vars.OBS2A_NATIVE_JOB_TIMEOUT_MINUTES || '40') }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: &am-third-timeout ${{ fromJSON(vars.ALERTMANAGER_NATIVE_JOB_TIMEOUT_MINUTES || '110') }}
     environment: staging
     env:
+      ALERTMANAGER_JOB_TIMEOUT_MINUTES: *am-third-timeout
+      ALERTMANAGER_CALLER_KIND: third-main
+      ALERTMANAGER_GENERIC_NATIVE_MINUTES: ${{ vars.OBS2A_NATIVE_JOB_TIMEOUT_MINUTES || '40' }}
       PROMETHEUS_CONSUME_SECONDS: '900'
       PROMETHEUS_CLEANUP_SECONDS: '120'
     permissions:
@@ -1480,6 +2383,7 @@ jobs:
       packages: read
     steps:
       - name: Checkout immutable OBS2A native contracts
+        timeout-minutes: 2
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -1487,6 +2391,7 @@ jobs:
           ref: ${{ github.sha }}
 
       - name: Select main OBS2A native controls
+        timeout-minutes: 1
         id: checkpoint-native
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         env:
@@ -1501,6 +2406,8 @@ jobs:
           if git diff --quiet "$OBS2A_BASE_SHA" "$OBS2A_HEAD_SHA" -- \
             deploy/systemd scripts/ops/notify_premium_alias_checkpoint_failure.py deploy/prometheus/image-manifest.json \
             scripts/verify_premium_alias_telemetry.py tests/test_notify_premium_alias_checkpoint_failure.py \
+            scripts/ci/fetch_docker_source_artifacts.py deploy/alertmanager/alertmanager.yml deploy/alertmanager/trivy-ignore.yaml \
+            deploy/docker-compose.staging.yaml deploy/docker-compose.production.yaml deploy/docker-compose.production.selfhosted.yaml \
             .github/workflows/ci.yml .github/workflows/cd.yml scripts/deploy.sh scripts/deploy_production.sh; then
             diff_status=0
           else
@@ -1512,9 +2419,52 @@ jobs:
             *) echo "Native surface discovery failed" >&2; exit "$diff_status" ;;
           esac
 
-      - name: Setup bounded checkpoint native Python
+      - name: Prepare exact AM subject before material execution
+        id: alertmanager-image
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.checkpoint-native.outputs.selected == 'true'
+        timeout-minutes: ${{ fromJSON(env.ALERTMANAGER_PREPARATION_MINUTES) }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GHCR_READ_TOKEN: ${{ github.event_name != 'pull_request' && secrets.GHCR_READ_TOKEN || '' }}
+          SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          umask 077
+          material="$GITHUB_WORKSPACE"
+          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
+            controller="$material/artifacts/orchestration/alertmanager-control"
+            controller_source="$ALERTMANAGER_CONTROLLER_SOURCE"
+          else
+            # Native authenticated main equality precedes loading material as trusted control.
+            timeout --signal=TERM --kill-after=2s 15s gh auth status --hostname github.com
+            main_sha="$(timeout --signal=TERM --kill-after=2s 15s gh api --method GET repos/Katsiarynakavaleuskaya/PulsePlate/git/ref/heads/main --jq .object.sha)"
+            [[ "$main_sha" =~ ^[0-9a-f]{40}$ ]]
+            test "$SOURCE_SHA" = "$GITHUB_SHA" && test "$SOURCE_SHA" = "$main_sha"
+            controller="$material"
+            controller_source="$main_sha"
+          fi
+          test ! -L "$controller"
+          test "$(git -C "$controller" rev-parse HEAD)" = "$controller_source"
+          docker version --format 'client={{json .Client.Version}} server={{json .Server.Version}}'
+          docker info --format 'driver={{json .Driver}} driver_status={{json .DriverStatus}} os={{json .OSType}} arch={{json .Architecture}}'
+          cd "$controller"
+          python3 -E -s -S -m scripts.ci.fetch_docker_source_artifacts \
+            --artifact alertmanager --alertmanager-stage candidate-check --alertmanager-prepare-only \
+            --source-sha "$SOURCE_SHA" --material-root "$material" \
+            --alertmanager-controller-source "$controller_source" \
+            --alertmanager-qualification-run 39018353942 --alertmanager-qualification-artifact 12095483900 \
+            --alertmanager-qualification-source 36cd171c4ebe44f63cb58d09a741b3d07098904d \
+            --alertmanager-support-run 39030856891 --alertmanager-support-artifact 12100576545 \
+            --alertmanager-support-source df5ebd017bda93e31fbf9eccfd7cc7b98973a3c6 \
+            --alertmanager-candidate-run 39143039135 --alertmanager-candidate-artifact 12142714566 \
+            --alertmanager-candidate-source 63455b8a750ef07a1e525078b4e3ce2089eecdde \
+            --output-dir "$RUNNER_TEMP/alertmanager-consumer-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" >> "$GITHUB_OUTPUT"
+
+      - name: Select AM Python without dependency or SDK installation
         if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.checkpoint-native.outputs.selected == 'true'
         uses: ./.github/actions/python-setup
+        timeout-minutes: ${{ fromJSON(env.ALERTMANAGER_PYTHON_SETUP_MINUTES) }}
         env:
           PULSEPLATE_PYTHON_INDEX_URL: ${{ vars.PULSEPLATE_PYTHON_INDEX_URL }}
           PULSEPLATE_PYTHON_TRUSTED_HOST: ${{ vars.PULSEPLATE_PYTHON_TRUSTED_HOST }}
@@ -1522,25 +2472,131 @@ jobs:
           DEVPI_CI_PASSWORD: ''
         with:
           python-version: '3.13.14'
-          requirements-profile: ci-lite
-          install-mode: direct-proxy
-
-      - name: Native main OBS2A checkpoint lifecycle and owned-task challenge
+          skip-base-install: 'true'
+      - name: Install isolated AM host tools through the locked owner
         if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.checkpoint-native.outputs.selected == 'true'
+        timeout-minutes: ${{ fromJSON(env.ALERTMANAGER_PYTHON_INSTALL_MINUTES) }}
         env:
+          PULSEPLATE_PYTHON_INDEX_URL: ${{ vars.PULSEPLATE_PYTHON_INDEX_URL }}
+          PULSEPLATE_PYTHON_TRUSTED_HOST: ${{ vars.PULSEPLATE_PYTHON_TRUSTED_HOST }}
+          DEVPI_CI_USER: ''
+          DEVPI_CI_PASSWORD: ''
+          PULSEPLATE_PSYCOPG_C_SDK: ''
+          PULSEPLATE_DOCKER_SINGLE_PASS_LOCKED_INSTALL: ''
+          PULSEPLATE_DOCKER_PIP_LAYER_CACHE: ''
+          PYTHONHOME: ''
+          PYTHONPATH: ''
+          PYTHONNOUSERSITE: '1'
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: |
+          set -euo pipefail
+          umask 077
+          : "${RUNNER_TEMP:?Owned AM Python directory is required.}"
+          : "${PULSEPLATE_PYTHON_INDEX_URL:?Existing credential-free package proxy is required.}"
+          case "$PULSEPLATE_PYTHON_INDEX_URL${PULSEPLATE_PYTHON_TRUSTED_HOST:-}" in
+            *://*@*|*$'\n'*|*$'\r'*) exit 1 ;;
+          esac
+          am_root="$RUNNER_TEMP/pulseplate-am-python-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          test ! -e "$am_root"
+          test ! -L "$am_root"
+          python -I -m venv "$am_root"
+          mkdir "$am_root/installer-home"
+          am_python="$am_root/bin/python"
+          install_args=(
+            --python-executable "$am_python"
+            --requirements-file "$GITHUB_WORKSPACE/requirements-dev.txt"
+            --constraints-file "$GITHUB_WORKSPACE/constraints.txt"
+            --require-virtualenv --install-mode direct-proxy
+            --index-url "$PULSEPLATE_PYTHON_INDEX_URL"
+            --emergency-wheel-manifest "$GITHUB_WORKSPACE/scripts/ci/emergency_python_wheels.json"
+          )
+          if [[ -n "${PULSEPLATE_PYTHON_TRUSTED_HOST:-}" ]]; then
+            install_args+=(--trusted-host "$PULSEPLATE_PYTHON_TRUSTED_HOST")
+          fi
+          HOME="$am_root/installer-home" "$am_python" -I "$GITHUB_WORKSPACE/scripts/ci/install_locked_python_requirements.py" \
+            "${install_args[@]}" --preflight-only
+          HOME="$am_root/installer-home" "$am_python" -I "$GITHUB_WORKSPACE/scripts/ci/install_locked_python_requirements.py" \
+            "${install_args[@]}"
+      - name: Verify isolated AM host import capability before effects
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.checkpoint-native.outputs.selected == 'true'
+        id: am-python
+        timeout-minutes: ${{ fromJSON(env.ALERTMANAGER_PYTHON_SMOKE_MINUTES) }}
+        env:
+          PYTHONHOME: ''
+          PYTHONPATH: ''
+          PYTHONNOUSERSITE: '1'
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: |
+          set -euo pipefail
+          umask 077
+          am_root="$RUNNER_TEMP/pulseplate-am-python-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          am_python="$am_root/bin/python"
+          "$am_python" - <<'PY'
+          import json
+          import site
+          import sys
+          from importlib import metadata
+          from pathlib import Path
+          import pytest
+          import yaml
+          from scripts.ci import fetch_docker_source_artifacts, prometheus_source_image
+          from scripts.ops import notify_premium_alias_checkpoint_failure
+          from tests import test_notify_premium_alias_checkpoint_failure as native
+          assert sys.version_info[:3] == (3, 13, 14)
+          assert sys.prefix != sys.base_prefix and sys.base_prefix not in site.PREFIXES
+          assert site.ENABLE_USER_SITE is False
+          assert sys.executable == str(Path(sys.prefix) / "bin/python")
+          assert metadata.version("pytest") == "9.1.1"
+          assert metadata.version("PyYAML") == "6.0.3"
+          assert yaml.safe_load("probe: true\n") == {"probe": True}
+          with pytest.MonkeyPatch.context():
+              pass
+          assert callable(fetch_docker_source_artifacts.main)
+          assert callable(prometheus_source_image.one_object)
+          assert callable(notify_premium_alias_checkpoint_failure.main)
+          assert callable(native.native_alertmanager_main)
+          print(json.dumps({
+              "python": sys.version,
+              "executable": sys.executable,
+              "pip": metadata.version("pip"),
+              "pytest": metadata.version("pytest"),
+              "PyYAML": metadata.version("PyYAML"),
+              "packages": sorted((dist.metadata["Name"], dist.version)
+                                 for dist in metadata.distributions()),
+          }, sort_keys=True))
+          PY
+          "$am_python" -m tests.test_notify_premium_alias_checkpoint_failure --help
+          printf 'python=%s\n' "$am_python" >> "$GITHUB_OUTPUT"
+      - name: Consume exact Prometheus before main native fixtures
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.checkpoint-native.outputs.selected == 'true'
+        timeout-minutes: 18
+        env:
+          AM_HOST_PYTHON: ${{ steps.am-python.outputs.python }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GHCR_READ_TOKEN: ${{ secrets.GHCR_READ_TOKEN }}
         run: |
           set -euo pipefail
-          native_python="$(command -v python)"
-          mkdir -p artifacts/orchestration/obs2a_pr3
+          native_python="$AM_HOST_PYTHON"
           "$native_python" -m scripts.ci.prometheus_source_image --operation consume \
             --work-dir "$RUNNER_TEMP/prometheus-obs2a-consumer-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" \
             --timeout-seconds "$PROMETHEUS_CONSUME_SECONDS" --cleanup-seconds "$PROMETHEUS_CLEANUP_SECONDS"
+
+      - name: Native main OBS2A checkpoint lifecycle and owned-task challenge
+        timeout-minutes: ${{ fromJSON(env.ALERTMANAGER_GENERIC_NATIVE_MINUTES) }}
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.checkpoint-native.outputs.selected == 'true'
+        env:
+          AM_HOST_PYTHON: ${{ steps.am-python.outputs.python }}
+          AM_IMAGE_ID: ${{ steps.alertmanager-image.outputs.image_id }}
+          AM_CONFIG_SHA256: ${{ steps.alertmanager-image.outputs.config_sha256 }}
+        run: |
+          set -euo pipefail
+          native_python="$AM_HOST_PYTHON"
+          mkdir -p artifacts/orchestration/obs2a_pr3
           if {
             sudo /usr/bin/env -i PATH=/usr/local/bin:/usr/bin:/bin LANG=C HOME=/tmp PYTHONDONTWRITEBYTECODE=1 \
-            "$native_python" -m tests.test_notify_premium_alias_checkpoint_failure --native
+            "$native_python" -m tests.test_notify_premium_alias_checkpoint_failure --native \
+              --alertmanager-image-id "$AM_IMAGE_ID" --alertmanager-config-sha256 "$AM_CONFIG_SHA256"
           } 2>&1 | tee artifacts/orchestration/obs2a_pr3/native-result.log; then
             pipeline_status=("${PIPESTATUS[@]}")
           else
@@ -1554,6 +2610,7 @@ jobs:
           exit "$capture_status"
 
       - name: Retain selected main OBS2A native observations
+        timeout-minutes: 5
         if: always() && github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.checkpoint-native.outputs.selected == 'true'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1 / Node 24
         with:
@@ -1561,6 +2618,9 @@ jobs:
           path: |
             artifacts/orchestration/obs2a_pr3/native-result.log
             ${{ runner.temp }}/prometheus-obs2a-consumer-${{ github.run_id }}-${{ github.run_attempt }}/evidence/
+            ${{ runner.temp }}/alertmanager-consumer-${{ github.run_id }}-${{ github.run_attempt }}/consumer-observation.json
+            ${{ runner.temp }}/alertmanager-consumer-${{ github.run_id }}-${{ github.run_attempt }}/github-read-evidence/
+            ${{ runner.temp }}/alertmanager-consumer-${{ github.run_id }}-${{ github.run_attempt }}/preparation/evidence/
           if-no-files-found: error
           retention-days: 7
 
@@ -3857,6 +4917,7 @@ jobs:
             echo "prometheus_rules_sha256=$(sha256sum deploy/prometheus/alias-alerts.yml | cut -d' ' -f1)"
             echo "prometheus_image_manifest_sha256=$(sha256sum deploy/prometheus/image-manifest.json | cut -d' ' -f1)"
             echo "prometheus_contract_helper_sha256=$(sha256sum scripts/ci/prometheus_source_image.py | cut -d' ' -f1)"
+            echo "alertmanager_contract_helper_sha256=$(sha256sum scripts/ci/fetch_docker_source_artifacts.py | cut -d' ' -f1)"
             echo "alertmanager_config_sha256=$(sha256sum deploy/alertmanager/alertmanager.yml | cut -d' ' -f1)"
             echo "alertmanager_trivy_ignore_sha256=$(sha256sum deploy/alertmanager/trivy-ignore.yaml | cut -d' ' -f1)"
             echo "postgres_image_manifest_sha256=$(sha256sum deploy/postgres-pgvector/image-manifest.json | cut -d' ' -f1)"
@@ -3896,6 +4957,7 @@ jobs:
           PROMETHEUS_RULES_SHA256: ${{ steps.staging-contract.outputs.prometheus_rules_sha256 }}
           PROMETHEUS_IMAGE_MANIFEST_SHA256: ${{ steps.staging-contract.outputs.prometheus_image_manifest_sha256 }}
           PROMETHEUS_CONTRACT_HELPER_SHA256: ${{ steps.staging-contract.outputs.prometheus_contract_helper_sha256 }}
+          ALERTMANAGER_CONTRACT_HELPER_SHA256: ${{ steps.staging-contract.outputs.alertmanager_contract_helper_sha256 }}
           ALERTMANAGER_CONFIG_SHA256: ${{ steps.staging-contract.outputs.alertmanager_config_sha256 }}
           ALERTMANAGER_TRIVY_IGNORE_SHA256: ${{ steps.staging-contract.outputs.alertmanager_trivy_ignore_sha256 }}
           POSTGRES_IMAGE_MANIFEST_SHA256: ${{ steps.staging-contract.outputs.postgres_image_manifest_sha256 }}
@@ -3919,7 +4981,7 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
           fingerprint: ${{ secrets.SSH_HOST_STAGING_FINGERPRINT }}
-          envs: STAGING_DOMAIN,STAGING_IMAGE_REF,STAGING_CADDY_IMAGE_REF,DEPLOY_SCRIPT_SHA256,STAGING_COMPOSE_SHA256,PROMETHEUS_CONFIG_SHA256,PROMETHEUS_RULES_SHA256,PROMETHEUS_IMAGE_MANIFEST_SHA256,PROMETHEUS_CONTRACT_HELPER_SHA256,ALERTMANAGER_CONFIG_SHA256,ALERTMANAGER_TRIVY_IGNORE_SHA256,POSTGRES_IMAGE_MANIFEST_SHA256,STAGING_CADDYFILE_SHA256,BACKUP_HELPER_SHA256,RESTORE_HELPER_SHA256,STAGING_SECURITY_HELPER_SHA256,PGVECTOR_ATTESTATION_HELPER_SHA256,NATIVE_ATTESTATION_HELPER_SHA256,POSTGRES_HBA_SHA256,STAGING_STORAGE_SYSTEMD_SHA256,STAGING_BACKUP_SYSTEMD_SHA256,STAGING_BACKUP_TIMER_SHA256,CHECKPOINT_VERIFIER_SHA256,CHECKPOINT_NOTIFIER_SHA256,CHECKPOINT_SERVICE_SHA256,CHECKPOINT_TIMER_SHA256,CHECKPOINT_FAILURE_SHA256
+          envs: STAGING_DOMAIN,STAGING_IMAGE_REF,STAGING_CADDY_IMAGE_REF,DEPLOY_SCRIPT_SHA256,STAGING_COMPOSE_SHA256,PROMETHEUS_CONFIG_SHA256,PROMETHEUS_RULES_SHA256,PROMETHEUS_IMAGE_MANIFEST_SHA256,PROMETHEUS_CONTRACT_HELPER_SHA256,ALERTMANAGER_CONTRACT_HELPER_SHA256,ALERTMANAGER_CONFIG_SHA256,ALERTMANAGER_TRIVY_IGNORE_SHA256,POSTGRES_IMAGE_MANIFEST_SHA256,STAGING_CADDYFILE_SHA256,BACKUP_HELPER_SHA256,RESTORE_HELPER_SHA256,STAGING_SECURITY_HELPER_SHA256,PGVECTOR_ATTESTATION_HELPER_SHA256,NATIVE_ATTESTATION_HELPER_SHA256,POSTGRES_HBA_SHA256,STAGING_STORAGE_SYSTEMD_SHA256,STAGING_BACKUP_SYSTEMD_SHA256,STAGING_BACKUP_TIMER_SHA256,CHECKPOINT_VERIFIER_SHA256,CHECKPOINT_NOTIFIER_SHA256,CHECKPOINT_SERVICE_SHA256,CHECKPOINT_TIMER_SHA256,CHECKPOINT_FAILURE_SHA256
           script: |
             set -euo pipefail
             cd /srv/pulseplate-staging
@@ -3948,6 +5010,9 @@ jobs:
             [ ! -L ./scripts/ci/prometheus_source_image.py ]
             [ -f ./scripts/ci/prometheus_source_image.py ]
             [ "$(sha256sum ./scripts/ci/prometheus_source_image.py | cut -d' ' -f1)" = "$PROMETHEUS_CONTRACT_HELPER_SHA256" ]
+            [ ! -L ./scripts/ci/fetch_docker_source_artifacts.py ]
+            [ -f ./scripts/ci/fetch_docker_source_artifacts.py ]
+            [ "$(sha256sum ./scripts/ci/fetch_docker_source_artifacts.py | cut -d' ' -f1)" = "$ALERTMANAGER_CONTRACT_HELPER_SHA256" ]
             [ ! -L ./alertmanager/alertmanager.yml ]
             [ -f ./alertmanager/alertmanager.yml ]
             [ "$(sha256sum ./alertmanager/alertmanager.yml | cut -d' ' -f1)" = "$ALERTMANAGER_CONFIG_SHA256" ]
@@ -4033,6 +5098,7 @@ jobs:
           PROMETHEUS_RULES_SHA256: ${{ steps.staging-contract.outputs.prometheus_rules_sha256 }}
           PROMETHEUS_IMAGE_MANIFEST_SHA256: ${{ steps.staging-contract.outputs.prometheus_image_manifest_sha256 }}
           PROMETHEUS_CONTRACT_HELPER_SHA256: ${{ steps.staging-contract.outputs.prometheus_contract_helper_sha256 }}
+          ALERTMANAGER_CONTRACT_HELPER_SHA256: ${{ steps.staging-contract.outputs.alertmanager_contract_helper_sha256 }}
           ALERTMANAGER_CONFIG_SHA256: ${{ steps.staging-contract.outputs.alertmanager_config_sha256 }}
           ALERTMANAGER_TRIVY_IGNORE_SHA256: ${{ steps.staging-contract.outputs.alertmanager_trivy_ignore_sha256 }}
           POSTGRES_IMAGE_MANIFEST_SHA256: ${{ steps.staging-contract.outputs.postgres_image_manifest_sha256 }}
@@ -4056,7 +5122,7 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
           fingerprint: ${{ secrets.SSH_HOST_STAGING_FINGERPRINT }}
-          envs: GHCR_USER,GHCR_TOKEN,STAGING_DOMAIN,STAGING_IMAGE_REF,STAGING_CADDY_IMAGE_REF,DEPLOY_SCRIPT_SHA256,STAGING_COMPOSE_SHA256,PROMETHEUS_CONFIG_SHA256,PROMETHEUS_RULES_SHA256,PROMETHEUS_IMAGE_MANIFEST_SHA256,PROMETHEUS_CONTRACT_HELPER_SHA256,ALERTMANAGER_CONFIG_SHA256,ALERTMANAGER_TRIVY_IGNORE_SHA256,POSTGRES_IMAGE_MANIFEST_SHA256,STAGING_CADDYFILE_SHA256,BACKUP_HELPER_SHA256,RESTORE_HELPER_SHA256,STAGING_SECURITY_HELPER_SHA256,PGVECTOR_ATTESTATION_HELPER_SHA256,NATIVE_ATTESTATION_HELPER_SHA256,POSTGRES_HBA_SHA256,STAGING_STORAGE_SYSTEMD_SHA256,STAGING_BACKUP_SYSTEMD_SHA256,STAGING_BACKUP_TIMER_SHA256,CHECKPOINT_VERIFIER_SHA256,CHECKPOINT_NOTIFIER_SHA256,CHECKPOINT_SERVICE_SHA256,CHECKPOINT_TIMER_SHA256,CHECKPOINT_FAILURE_SHA256
+          envs: GHCR_USER,GHCR_TOKEN,STAGING_DOMAIN,STAGING_IMAGE_REF,STAGING_CADDY_IMAGE_REF,DEPLOY_SCRIPT_SHA256,STAGING_COMPOSE_SHA256,PROMETHEUS_CONFIG_SHA256,PROMETHEUS_RULES_SHA256,PROMETHEUS_IMAGE_MANIFEST_SHA256,PROMETHEUS_CONTRACT_HELPER_SHA256,ALERTMANAGER_CONTRACT_HELPER_SHA256,ALERTMANAGER_CONFIG_SHA256,ALERTMANAGER_TRIVY_IGNORE_SHA256,POSTGRES_IMAGE_MANIFEST_SHA256,STAGING_CADDYFILE_SHA256,BACKUP_HELPER_SHA256,RESTORE_HELPER_SHA256,STAGING_SECURITY_HELPER_SHA256,PGVECTOR_ATTESTATION_HELPER_SHA256,NATIVE_ATTESTATION_HELPER_SHA256,POSTGRES_HBA_SHA256,STAGING_STORAGE_SYSTEMD_SHA256,STAGING_BACKUP_SYSTEMD_SHA256,STAGING_BACKUP_TIMER_SHA256,CHECKPOINT_VERIFIER_SHA256,CHECKPOINT_NOTIFIER_SHA256,CHECKPOINT_SERVICE_SHA256,CHECKPOINT_TIMER_SHA256,CHECKPOINT_FAILURE_SHA256
           script: |
             set -euo pipefail
             cd /srv/pulseplate-staging
@@ -4085,6 +5151,9 @@ jobs:
             [ ! -L ./scripts/ci/prometheus_source_image.py ]
             [ -f ./scripts/ci/prometheus_source_image.py ]
             [ "$(sha256sum ./scripts/ci/prometheus_source_image.py | cut -d' ' -f1)" = "$PROMETHEUS_CONTRACT_HELPER_SHA256" ]
+            [ ! -L ./scripts/ci/fetch_docker_source_artifacts.py ]
+            [ -f ./scripts/ci/fetch_docker_source_artifacts.py ]
+            [ "$(sha256sum ./scripts/ci/fetch_docker_source_artifacts.py | cut -d' ' -f1)" = "$ALERTMANAGER_CONTRACT_HELPER_SHA256" ]
             [ ! -L ./alertmanager/alertmanager.yml ]
             [ -f ./alertmanager/alertmanager.yml ]
             [ "$(sha256sum ./alertmanager/alertmanager.yml | cut -d' ' -f1)" = "$ALERTMANAGER_CONFIG_SHA256" ]
@@ -4854,8 +5923,11 @@ jobs:
         id: deploy-script
         run: |
           set -euo pipefail
-          echo "script_sha256=$(sha256sum scripts/deploy_production.sh | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
-          echo "helper_sha256=$(sha256sum scripts/ci/prometheus_source_image.py | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+          {
+            echo "script_sha256=$(sha256sum scripts/deploy_production.sh | cut -d' ' -f1)"
+            echo "helper_sha256=$(sha256sum scripts/ci/prometheus_source_image.py | cut -d' ' -f1)"
+            echo "am_helper_sha256=$(sha256sum scripts/ci/fetch_docker_source_artifacts.py | cut -d' ' -f1)"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Stage production shell bundle for SSH deploy
         env:
@@ -4892,6 +5964,7 @@ jobs:
             deploy/prometheus/prometheus.yml \
             deploy/prometheus/image-manifest.json \
             scripts/ci/prometheus_source_image.py \
+            scripts/ci/fetch_docker_source_artifacts.py \
             scripts/diagnose_web.sh \
             scripts/redeploy_caddy.sh \
             scripts/ops/postgres_backup.sh \
@@ -4914,7 +5987,7 @@ jobs:
           test ! -e "$target" && test ! -L "$target"
           mkdir -m 700 -- "$target"
           TRUSTED_TOOLS
-          scp -i "$key_path" scripts/deploy_production.sh scripts/ci/prometheus_source_image.py \
+          scp -i "$key_path" scripts/deploy_production.sh scripts/ci/prometheus_source_image.py scripts/ci/fetch_docker_source_artifacts.py \
             "${SSH_USER}@${SSH_HOST_PRODUCTION}:${tool_dir}/"
           scp -i "$key_path" \
             "$archive_path" \
@@ -4926,7 +5999,7 @@ jobs:
           host: ${{ secrets.SSH_HOST_PRODUCTION }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
-          envs: DEPLOY_SCRIPT_SHA256,PROMETHEUS_HELPER_SHA256,IMAGE_REF,TAG,PRODUCTION_DOMAIN,DEPLOY_DIR,GHCR_USER,GHCR_TOKEN
+          envs: DEPLOY_SCRIPT_SHA256,PROMETHEUS_HELPER_SHA256,ALERTMANAGER_HELPER_SHA256,IMAGE_REF,TAG,PRODUCTION_DOMAIN,DEPLOY_DIR,GHCR_USER,GHCR_TOKEN
           script: |
             set -euo pipefail
 
@@ -4948,23 +6021,26 @@ jobs:
             [ "$(stat -c '%u:%a' "$tool_dir")" = "${EUID}:700" ]
             tmp_script="$tool_dir/deploy_production.sh"
             export PROMETHEUS_CONTRACT_HELPER="$tool_dir/prometheus_source_image.py"
-            for trusted in "$tmp_script" "$PROMETHEUS_CONTRACT_HELPER"; do
+            export ALERTMANAGER_CONTRACT_HELPER="$tool_dir/fetch_docker_source_artifacts.py"
+            for trusted in "$tmp_script" "$PROMETHEUS_CONTRACT_HELPER" "$ALERTMANAGER_CONTRACT_HELPER"; do
               [ ! -L "$trusted" ] && [ -f "$trusted" ]
               [ "$(stat -c '%u:%h' "$trusted")" = "${EUID}:1" ]
             done
             [ "$(sha256sum "$tmp_script" | cut -d' ' -f1)" = "$DEPLOY_SCRIPT_SHA256" ]
             [ "$(sha256sum "$PROMETHEUS_CONTRACT_HELPER" | cut -d' ' -f1)" = "$PROMETHEUS_HELPER_SHA256" ]
-            chmod 600 -- "$tmp_script" "$PROMETHEUS_CONTRACT_HELPER"
+            [ "$(sha256sum "$ALERTMANAGER_CONTRACT_HELPER" | cut -d' ' -f1)" = "$ALERTMANAGER_HELPER_SHA256" ]
+            chmod 600 -- "$tmp_script" "$PROMETHEUS_CONTRACT_HELPER" "$ALERTMANAGER_CONTRACT_HELPER"
             bundle_name="pulseplate-shell-bundle-${{ github.run_id }}-${{ github.run_attempt }}"
             export SHELL_BUNDLE_ARCHIVE="/tmp/${bundle_name}.tgz"
             cleanup_trusted_tools() {
               local original_status=$?
               trap - EXIT
               if [ ! -L "$tool_dir" ] && [ "$(stat -c '%u:%a' "$tool_dir")" = "${EUID}:700" ] &&
-                 [ ! -L "$tmp_script" ] && [ ! -L "$PROMETHEUS_CONTRACT_HELPER" ] &&
+                 [ ! -L "$tmp_script" ] && [ ! -L "$PROMETHEUS_CONTRACT_HELPER" ] && [ ! -L "$ALERTMANAGER_CONTRACT_HELPER" ] &&
                  [ "$(sha256sum "$tmp_script" | cut -d' ' -f1)" = "$DEPLOY_SCRIPT_SHA256" ] &&
-                 [ "$(sha256sum "$PROMETHEUS_CONTRACT_HELPER" | cut -d' ' -f1)" = "$PROMETHEUS_HELPER_SHA256" ]; then
-                rm -- "$tmp_script" "$PROMETHEUS_CONTRACT_HELPER"
+                 [ "$(sha256sum "$PROMETHEUS_CONTRACT_HELPER" | cut -d' ' -f1)" = "$PROMETHEUS_HELPER_SHA256" ] &&
+                 [ "$(sha256sum "$ALERTMANAGER_CONTRACT_HELPER" | cut -d' ' -f1)" = "$ALERTMANAGER_HELPER_SHA256" ]; then
+                rm -- "$tmp_script" "$PROMETHEUS_CONTRACT_HELPER" "$ALERTMANAGER_CONTRACT_HELPER"
                 rmdir -- "$tool_dir"
               else
                 echo "Trusted deploy-tool identity changed; retained for recovery" >&2
@@ -4978,6 +6054,7 @@ jobs:
         env:
           DEPLOY_SCRIPT_SHA256: ${{ steps.deploy-script.outputs.script_sha256 }}
           PROMETHEUS_HELPER_SHA256: ${{ steps.deploy-script.outputs.helper_sha256 }}
+          ALERTMANAGER_HELPER_SHA256: ${{ steps.deploy-script.outputs.am_helper_sha256 }}
           DEPLOY_DIR: ${{ vars.DEPLOY_DIR }}
           PRODUCTION_DOMAIN: ${{ secrets.PRODUCTION_DOMAIN }}
           IMAGE_REF: ghcr.io/${{ needs.build-production.outputs.image_name }}@${{ needs.build-production.outputs.digest }}
@@ -5008,6 +6085,7 @@ jobs:
           export IMAGE_REF="ghcr.io/${{ needs.build-production.outputs.image_name }}@${{ needs.build-production.outputs.digest }}"
           export SHELL_BUNDLE_DIR="${GITHUB_WORKSPACE}"
           export PROMETHEUS_CONTRACT_HELPER="${GITHUB_WORKSPACE}/scripts/ci/prometheus_source_image.py"
+          export ALERTMANAGER_CONTRACT_HELPER="${GITHUB_WORKSPACE}/scripts/ci/fetch_docker_source_artifacts.py"
           bash scripts/deploy_production.sh --preflight-only
 
       - name: Deploy on self-hosted runner (pinned digest)
@@ -5022,6 +6100,7 @@ jobs:
           export GHCR_TOKEN='${{ secrets.GHCR_READ_TOKEN }}'
           export SHELL_BUNDLE_DIR="${GITHUB_WORKSPACE}"
           export PROMETHEUS_CONTRACT_HELPER="${GITHUB_WORKSPACE}/scripts/ci/prometheus_source_image.py"
+          export ALERTMANAGER_CONTRACT_HELPER="${GITHUB_WORKSPACE}/scripts/ci/fetch_docker_source_artifacts.py"
           bash scripts/deploy_production.sh
 
       - name: Best-effort self-hosted Docker image prune

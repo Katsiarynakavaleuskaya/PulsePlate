@@ -10,6 +10,12 @@ from __future__ import annotations
 import argparse
 import ast
 from dataclasses import dataclass
+from datetime import datetime, timezone
+import hashlib
+import json
+import shutil
+import subprocess  # nosec B404: closed native auditor invocation (remove-by: 2026-10-28, ref: PR-2494)
+import tempfile
 from pathlib import Path
 import re
 import sys
@@ -17,6 +23,8 @@ import sys
 from packaging.requirements import InvalidRequirement
 from packaging.requirements import Requirement
 from packaging.utils import canonicalize_name
+from packaging.specifiers import SpecifierSet
+from packaging.version import Version
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
@@ -1099,6 +1107,345 @@ def validate_repo(repo_root: Path = REPO_ROOT) -> list[str]:
     return errors
 
 
+# Human-accepted PR2494 compatibility exception; repository-default use, no generic registry.
+PILLOW_AUDIT_ALIASES = {
+    "CVE-2026-112390": "GHSA-22hg-r758-rrw9",
+    "CVE-2026-112391": "GHSA-254f-3936-288h",
+    "CVE-2026-112392": "GHSA-27h8-gf7j-v5hc",
+    "CVE-2026-112393": "GHSA-332p-7hrc-92wf",
+    "CVE-2026-112395": "GHSA-462x-pgg6-55fp",
+    "CVE-2026-112396": "GHSA-4rr5-89j8-mwwm",
+    "CVE-2026-112397": "GHSA-58r4-6rv3-gfh8",
+    "CVE-2026-112399": "GHSA-5xm2-6676-qcp9",
+    "CVE-2026-112400": "GHSA-65qm-jvmh-6pqg",
+    "CVE-2026-112401": "GHSA-74r2-7ff9-mjj2",
+    "CVE-2026-112402": "GHSA-7mwm-ghpf-9vrm",
+    "CVE-2026-112404": "GHSA-c6hw-5grf-ff96",
+    "CVE-2026-112405": "GHSA-cp9v-662q-vvx9",
+    "CVE-2026-112406": "GHSA-f2g6-542v-9j58",
+    "CVE-2026-112891": "GHSA-fc9g-5qg7-mf45",
+    "CVE-2026-112892": "GHSA-gg2r-wvfm-q9rx",
+    "CVE-2026-112893": "GHSA-j4m9-6w36-pw47",
+    "CVE-2026-112894": "GHSA-jg86-v3jv-hrpm",
+    "CVE-2026-112895": "GHSA-p4wg-p73j-c528",
+    "CVE-2026-112896": "GHSA-pchr-8j38-3x4p",
+    "CVE-2026-112897": "GHSA-q45j-58j2-45rg",
+    "CVE-2026-112899": "GHSA-vx6w-vv9f-6gvg",
+    "CVE-2026-112900": "GHSA-w889-685w-c8fh",
+    "CVE-2026-112901": "GHSA-xgh8-jp6q-p5x8",
+}
+PILLOW_EXCEPTION_REVIEW = datetime(2026, 11, 6, tzinfo=timezone.utc)
+PILLOW_EXCEPTION_EXPIRY = datetime(2026, 11, 21, tzinfo=timezone.utc)
+
+
+def _audit_requirements(repo_root: Path, name: str) -> list[Requirement]:
+    """Use packaging on the existing flat, unhashed governed requirement grammar."""
+    path = repo_root / name
+    if path.is_symlink() or not path.is_file():
+        raise ValueError(f"audit carrier is missing or not regular: {name}")
+    requirements: list[Requirement] = []
+    for raw in path.read_text(encoding="utf-8").splitlines():
+        line = raw.split("#", 1)[0].strip()
+        if not line or line.startswith(("-c ", "-r ")):
+            continue
+        try:
+            requirements.append(Requirement(line))
+        except InvalidRequirement as exc:
+            raise ValueError(f"unsupported audit requirement in {name}") from exc
+    return requirements
+
+
+def pillow_exception_inputs(repo_root: Path, now: datetime | None = None) -> dict[str, str]:
+    """Bind the current registry, literal version and UTC expiry before use/promotion."""
+    instant = datetime.now(timezone.utc) if now is None else now
+    if instant.tzinfo is None or instant.utcoffset() is None:
+        raise ValueError("Pillow exception requires aware UTC time")
+    if instant >= PILLOW_EXCEPTION_EXPIRY:
+        raise ValueError("Pillow compatibility exception expired at 2026-11-21T00:00:00Z")
+    validate_compile_registry()
+    registered = registered_dependabot_requirement_carriers()
+    if _existing_requirement_surfaces(repo_root) != registered:
+        raise ValueError("Pillow audit carrier discovery differs from current registry")
+    profiles = {
+        "runtime",
+        "docker-runtime",
+        "ci-lite",
+        "dev",
+        "rag-vector",
+        "rag-vector-cpu",
+        "aggregate",
+    }
+    compiled = compiled_dependency_surfaces()
+    if not profiles <= {surface.compile_profile for surface in compiled}:
+        raise ValueError("Pillow audit required compile profile is missing")
+    locks = {s.lockfile for s in compiled if s.compile_profile in profiles}
+    sources = {
+        "requirements.in",
+        "requirements-docker-runtime.in",
+        "requirements-ci-lite.in",
+        "requirements-dev.in",
+    }
+    expected = locks | sources | {"constraints.txt"}
+    if not expected <= registered:
+        raise ValueError("Pillow audit required carrier is missing from registry")
+    digests: dict[str, str] = {}
+    for name in sorted(registered):
+        rows = [
+            r for r in _audit_requirements(repo_root, name) if canonicalize_name(r.name) == "pillow"
+        ]
+        if bool(rows) != (name in expected) or len(rows) > 1:
+            raise ValueError(f"Pillow carrier membership/duplicates differ: {name}")
+        if rows:
+            row = rows[0]
+            if row.name != "pillow" or row.extras or row.marker is not None or row.url:
+                raise ValueError(f"unsupported Pillow carrier: {name}")
+            wanted = SpecifierSet(">=12.3.0,<13.0.0" if name in sources else "==12.3.0")
+            if row.specifier != wanted:
+                raise ValueError(f"Pillow exception requires retained12.3.0 carrier: {name}")
+        digests[name] = hashlib.sha256((repo_root / name).read_bytes()).hexdigest()
+    return digests
+
+
+def _audit_lock_versions(repo_root: Path, manifest: str) -> dict[str, str]:
+    surface = next((s for s in compiled_dependency_surfaces() if s.lockfile == manifest), None)
+    if surface is None:
+        raise ValueError("audit subject is not a compiled registry lock")
+    for raw in (repo_root / manifest).read_text(encoding="utf-8").splitlines():
+        line = raw.split("#", 1)[0].strip()
+        if line.startswith("-") and line not in surface.allow_lock_directives:
+            raise ValueError("audit lock contains an unsupported resolver directive")
+    expected: dict[str, str] = {}
+    for row in _audit_requirements(repo_root, manifest):
+        specs = list(row.specifier)
+        name = str(canonicalize_name(row.name))
+        if (
+            row.marker is not None
+            or row.url
+            or len(specs) != 1
+            or specs[0].operator != "=="
+            or "*" in specs[0].version
+            or name in expected
+        ):
+            raise ValueError(f"audit lock needs unique unconditional exact pins: {manifest}")
+        expected[name] = str(Version(specs[0].version))
+    if not expected and not surface.allow_empty_lock:
+        raise ValueError("audit lock is unexpectedly empty")
+    return expected
+
+
+def _audit_report(path: Path, expected: dict[str, str]) -> dict[str, list[dict[str, object]]]:
+    """Recognize only observed pip-audit2.10.1 resolved rows; skipped rows fail."""
+    if path.is_symlink() or not path.is_file():
+        raise ValueError("native audit report missing or not regular")
+
+    def unique_fields(pairs: list[tuple[str, object]]) -> dict[str, object]:
+        fields: dict[str, object] = {}
+        for key, value in pairs:
+            if key in fields:
+                raise ValueError("duplicate native audit JSON field")
+            fields[key] = value
+        return fields
+
+    data = json.loads(path.read_text(encoding="utf-8"), object_pairs_hook=unique_fields)
+    if (
+        not isinstance(data, dict)
+        or set(data) != {"dependencies", "fixes"}
+        or data["fixes"] != []
+        or not isinstance(data["dependencies"], list)
+    ):
+        raise ValueError("unsupported native audit report shape")
+    result: dict[str, list[dict[str, object]]] = {}
+    for row in data["dependencies"]:
+        if not isinstance(row, dict) or set(row) != {"name", "version", "vulns"}:
+            raise ValueError("unresolved/skipped native audit dependency")
+        name, version, vulns = row["name"], row["version"], row["vulns"]
+        if (
+            not isinstance(name, str)
+            or name != canonicalize_name(name)
+            or name in result
+            or expected.get(name) != version
+            or not isinstance(vulns, list)
+        ):
+            raise ValueError("native dependency inventory/version differs from input")
+        ids: set[str] = set()
+        for vuln in vulns:
+            if not isinstance(vuln, dict) or set(vuln) != {
+                "id",
+                "aliases",
+                "fix_versions",
+                "description",
+            }:
+                raise ValueError("unsupported native finding shape")
+            identifier = vuln["id"]
+            if (
+                name != "pillow"
+                or version != "12.3.0"
+                or not isinstance(identifier, str)
+                or identifier not in PILLOW_AUDIT_ALIASES
+                or identifier in ids
+                or vuln["aliases"] != [PILLOW_AUDIT_ALIASES[identifier]]
+                or vuln["fix_versions"] != ["13.0.0"]
+                or not isinstance(vuln["description"], str)
+            ):
+                raise ValueError("non-admitted native finding or alias")
+            ids.add(identifier)
+        result[name] = vulns
+    if set(result) != set(expected):
+        raise ValueError("native audit dependency inventory is incomplete")
+    return result
+
+
+def validate_pillow_audit_reports(
+    raw: Path,
+    raw_status: int,
+    expected: dict[str, str],
+    ignored: Path | None = None,
+    ignored_status: int | None = None,
+) -> int:
+    """Return the admitted raw finding count, preserving native status semantics."""
+    original = _audit_report(raw, expected)
+    findings = sum(len(rows) for rows in original.values())
+    if raw_status != (1 if findings else 0):
+        raise ValueError("raw native audit exit does not match its inventory")
+    if findings:
+        if ignored is None or ignored_status != 0:
+            raise ValueError("ignored native audit must complete with exit0")
+        retained = _audit_report(ignored, expected)
+        if any(retained.values()):
+            raise ValueError("ignored native report retains active findings")
+        # Both complete inventories bind to the same immutable lock. Every removed
+        # tuple was checked above, including package/version/id/alias/fix fields.
+    elif ignored is not None or ignored_status is not None:
+        raise ValueError("empty raw inventory must not invoke native ignores")
+    return findings
+
+
+def run_dependency_audit(repo_root: Path, manifest: str, *, pre_push: bool = False) -> int:
+    """Fresh unsuppressed report, exact native ignores if needed, then promotion."""
+    evidence: Path | None = None
+    native: dict[str, object] = {"manifest": manifest, "policy_accepted": False}
+    try:
+        if pre_push and manifest != "requirements.txt":
+            raise ValueError("pre-push audit requires requirements.txt")
+        initial = pillow_exception_inputs(repo_root)
+        expected = _audit_lock_versions(repo_root, manifest)
+        binary = shutil.which("pip-audit")
+        if binary is None:
+            raise ValueError("pip-audit is required on PATH")
+        evidence_root = repo_root / "artifacts/security_lab/pip-audit"
+        evidence_root.mkdir(parents=True, exist_ok=True)
+        evidence = Path(tempfile.mkdtemp(prefix=f"{Path(manifest).stem}-", dir=evidence_root))
+        native["auditor_path"] = binary
+        native["auditor_sha256"] = hashlib.sha256(Path(binary).read_bytes()).hexdigest()
+        native["input_sha256"] = initial[manifest]
+        native["carrier_sha256"] = initial
+        version = subprocess.run(  # nosec B603: resolved auditor, closed version argv (remove-by: 2026-10-28, ref: PR-2494)
+            [binary, "--version"], capture_output=True, timeout=60, check=False
+        )
+        (evidence / "version.stdout").write_bytes(version.stdout)
+        (evidence / "version.stderr").write_bytes(version.stderr)
+        native["version_exit"] = version.returncode
+        if version.returncode != 0 or version.stdout.strip() != b"pip-audit 2.10.1":
+            raise ValueError("pip-audit2.10.1 qualification differs")
+
+        def invoke(label: str, ignore: bool) -> tuple[Path, int]:
+            if pillow_exception_inputs(repo_root) != initial:
+                raise ValueError("audit input changed before invocation")
+            report = evidence / f"{label}.json"
+            argv = [
+                binary,
+                "-r",
+                manifest,
+                "--no-deps",
+                "--disable-pip",
+                "--strict",
+                "--timeout",
+                "60",
+                "-f",
+                "json",
+                "-o",
+                str(report),
+            ]
+            if ignore:
+                for identifier in PILLOW_AUDIT_ALIASES:
+                    argv.extend(("--ignore-vuln", identifier))
+            try:
+                completed = subprocess.run(  # nosec B603: resolved auditor, closed argv and registered lock (remove-by: 2026-10-28, ref: PR-2494)
+                    argv, cwd=repo_root, capture_output=True, timeout=300, check=False
+                )
+            except subprocess.TimeoutExpired as exc:
+                (evidence / f"{label}.stdout").write_bytes(exc.stdout or b"")
+                (evidence / f"{label}.stderr").write_bytes(exc.stderr or b"")
+                native[f"{label}_exit"] = None
+                native[f"{label}_timed_out"] = True
+                raise
+            (evidence / f"{label}.stdout").write_bytes(completed.stdout)
+            (evidence / f"{label}.stderr").write_bytes(completed.stderr)
+            native[f"{label}_exit"] = completed.returncode
+            native[f"{label}_argv"] = argv
+            native[f"{label}_report_sha256"] = (
+                hashlib.sha256(report.read_bytes()).hexdigest() if report.is_file() else None
+            )
+            print(f"[ci_pip_audit] {manifest}: {label} native exit={completed.returncode}")
+            sys.stdout.buffer.write(completed.stdout)
+            sys.stderr.buffer.write(completed.stderr)
+            return report, completed.returncode
+
+        raw, raw_status = invoke("unsuppressed", False)
+        parsed = _audit_report(raw, expected)
+        count = sum(len(rows) for rows in parsed.values())
+        if raw_status != (1 if count else 0):
+            raise ValueError("raw native audit exit does not match its inventory")
+        ignored: Path | None = None
+        ignored_status: int | None = None
+        if count:
+            ignored, ignored_status = invoke("ignored", True)
+        validate_pillow_audit_reports(raw, raw_status, expected, ignored, ignored_status)
+        if pillow_exception_inputs(repo_root) != initial:
+            raise ValueError("audit input changed before promotion")
+        native.update(policy_accepted=True, admitted_pillow_findings=count)
+        print(
+            f"[ci_pip_audit] {manifest}: policy-accepted; retained Pillow findings={count}; not remediation/no-findings"
+        )
+        return 0
+    except (
+        ValueError,
+        OSError,
+        DependabotRequirementDiscoveryError,
+        subprocess.SubprocessError,
+    ) as exc:
+        native["error"] = str(exc)
+        print(f"[ci_pip_audit] ERROR: {manifest}: {exc}", file=sys.stderr)
+        return 1
+    finally:
+        if evidence is not None:
+            (evidence / "native.json").write_text(
+                json.dumps(native, indent=2) + "\n", encoding="utf-8"
+            )
+            stem = Path(manifest).stem
+            # Canonical artifact names are current copies; each invocation's full
+            # raw/native evidence remains in its unique directory, including errors.
+            for source, suffix in (
+                ("unsuppressed.json", "-unsuppressed"),
+                ("native.json", "-native"),
+                (
+                    (
+                        "ignored.json"
+                        if (evidence / "ignored.json").is_file()
+                        else "unsuppressed.json"
+                    ),
+                    "",
+                ),
+            ):
+                if pre_push:
+                    continue
+                target = repo_root / f"pip-audit-{stem}{suffix}.json"
+                if target.is_symlink():
+                    raise ValueError("canonical audit output is a symlink")
+                if (evidence / source).is_file():
+                    shutil.copyfile(evidence / source, target)
+
+
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -1107,11 +1454,21 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=REPO_ROOT,
         help="Repository root to validate. Defaults to the current checkout root.",
     )
+    parser.add_argument(
+        "--audit-manifest", choices=[s.lockfile for s in compiled_dependency_surfaces()]
+    )
+    parser.add_argument("--audit-pre-push", action="store_true")
     return parser.parse_args(argv)
 
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
+    if args.audit_manifest is not None:
+        return run_dependency_audit(
+            args.repo_root, args.audit_manifest, pre_push=args.audit_pre_push
+        )
+    if args.audit_pre_push:
+        raise ValueError("pre-push selector requires audit manifest")
     errors = validate_repo(args.repo_root)
     if errors:
         print("Python dependency surface contract violations:")

@@ -213,6 +213,66 @@ Original logs and the immutable `candidate-admission-snapshot.json` remain
 ignored local evidence. Exact-head CI/review, separately approved squash merge
 and post-merge published/main proof are still pending.
 
+## Docker source review checkpoint — 2026-10-21
+
+The existing source owner reviewed the complete seventeen-record catalog before
+its October 21 deadline. The reviewed set retains SQLite 3.53.2, util-linux
+2.42.3, PCRE2 10.49 and its exact upstream SLJIT gitlink; zlib 1.3.2 and all
+seven official patches; ncurses 6.6, OpenSSL 3.5.9, client-only PostgreSQL 18.6,
+and the exact Alertmanager source and UI 0.34.1. All names, versions, URLs,
+filenames, ordering and digest parts remain unchanged. Only `generated_at`,
+`review_by` and the factual review reason change. The new source-review window
+ends October 28 inclusive; October 29 rejects under the existing process-calendar
+comparison. This does not renew Pillow or any other security exception or expiry.
+
+The four original archives matched their reviewed digests: SQLite 3,279,926
+bytes, util-linux 23,193,616, PCRE2 3,454,764 and SLJIT 1,466,254. Primary SQLite
+release history, kernel.org checksums, the PCRE2 advisory and the exact upstream
+SLJIT gitlink were read independently. Newer SQLite and util-linux releases
+remain visible; retaining these exact inputs is not a latest-release or
+all-advisory safety claim. The existing util-linux build selects `libuuid.la`,
+and PostgreSQL remains a client-only input.
+
+All thirteen additional records were reconciled with their original review
+and current primary origin/provenance records. The seven exact official zlib
+patches matched both digests and their bounded sizes. Zlib, ncurses, PostgreSQL
+and Alertmanager source archives matched their unchanged pins. The original
+931,784-byte Alertmanager UI also passed current source/member checks and
+matched the current official release asset digest. The complete 53,462,951-byte
+OpenSSL archive matched both pins after one diagnosed placement correction
+to the already qualified VPS. Its native read exited zero; every member of the
+explicit source/evidence return was verified outside the VPS. No compiler,
+SDK, image, source version or producer allowance changed.
+
+Negative observations are retained separately: the Mac OpenSSL read timed out
+with partial bytes; a remote shared-directory preparation error occurred before
+source/network execution; ncurses announcement decoding/transport and a GNU
+index request failed; and a fresh UI URL request rejected a redirect. None is
+called a successful acquisition. Exact retained UI evidence supports retained
+input identity, while a future missing input, redirect, checksum or signature
+failure still stops its actual consumer. No URL fallback or redirect bypass
+was introduced. The independent positive ncurses archive does not erase the
+failed announcement observations.
+
+The unchanged canonical fetcher accepted every one of the seventeen complete
+source/patch payloads through its existing identity, member and license checks,
+with exit zero. The existing Alertmanager input-plan reader produced equal
+complete values before and after this metadata-only candidate: 701 source/UI
+records, including seventeen UI records, and unchanged source, lock and assembly
+inputs. This is declared-input evidence, not a new build or image result.
+Historical Q/S/C10 catalog hashes and producer receipts retain their original
+subjects. Signatures, per-use source checks, current security/native admission,
+exact-head PR gates and the actual publisher, immutable pullback and required
+downstream CD execution remain independently required.
+
+Evidence anchors: `scripts/ci/docker_source_artifacts.json:3`,
+`scripts/ci/fetch_docker_source_artifacts.py:811`,
+`scripts/ci/fetch_docker_source_artifacts.py:3535`,
+`tests/test_docker_workflow_build_path_contract.py:922`, `Dockerfile:435`.
+The ignored source-owner packet retains each raw response, failure, source hash,
+the complete seventeen-record inventory and original native command receipts.
+This checkpoint supersedes only the earlier Docker source-review window.
+
 ## Native attestation inventory continuation
 
 PR #2394 merged as `b89e833af752d2b68f8d8b0fa99ab18b59e856e9`.

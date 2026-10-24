@@ -18,7 +18,8 @@ opentelemetry-exporter-otlp-proto-http>=1.38.0,<2.0.0
 httpx>=0.28.1,<1.0.0
 # Security floor: GHSA-gc5v-m9x4-r6x2 (transitive via opentelemetry exporter)
 requests>=2.33.0,<3.0.0
-# Security floor: July 2026 Pillow advisory cluster fixed in 12.3.0.
+certifi>=2026.10.19  # PYSEC-2026-4320 security floor
+# Temporary compatibility risk: docs/security/PR_2494_CERTIFI_PILLOW_REMEDIATION.md.
 pillow>=12.3.0,<13.0.0
 # Security floor: GHSA-5239-wwwm-4pmq
 pygments==2.20.0

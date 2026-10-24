@@ -122,6 +122,16 @@
 
 ## Alertmanager source preparation
 
+- Saved-image consumers in CI `lint` and CD `alertmanager-retained-candidate`,
+  `prometheus-image-security-pr`, `prometheus-image-security-trusted` and
+  `obs2a-checkpoint-native` select the qualified `ubuntu-24.04` family explicitly.
+  Keep their config/manifest/diffID/payload admission unchanged and retain actual
+  Docker client/server and image-store metadata before native import. A family
+  label is mutable and is not proof of a fixed Docker version or native success;
+  qualify a different importer environment before changing this placement.
+  Runner drift grants no producer rebuild, SDK change, tag fallback or retry.
+  Keep isolated shell fixtures current when adding diagnostic commands: use
+  synthetic command-only adapters and prove failure before image consumption.
 - The existing Docker source catalog/fetch owner admits only the exact acquired
   Alertmanager source and matching UI through `--artifact alertmanager`. Default
   callers retain their incumbent fifteen inputs; this pair has one aggregate
@@ -129,8 +139,35 @@
   stay outside build contexts and uploaded source/evidence bundles.
 - Existing CD `alertmanager_mode` defaults to `disabled`. Only authenticated
   same-repository, exact-full-SHA, first-attempt manual `module-qualify` can run
-  the fixed 825-second metadata replay. `build` is explicitly held until actual
-  qualification, full finding/support review and separate build admission.
+  the fixed 825-second metadata replay. The separate manual `build` route must
+  consume actual qualification/support predecessors and never start another
+  resolver replay. Its executable proposal, selectors and source checks do not
+  supply the separate human compiler decision. Initial own-PR and genuine first-main
+  consumers load the accepted original candidate without AM registry access or
+  compilation. Ordinary consumers require a positive same-repository merged-PR/CD
+  publication predecessor and exact package/tag before registry login. Manual
+  publication requires actual merged main and copies the saved OCI without rebuild.
+- AM host checks must skip the shared SDK/base install and use the existing
+  guarded `requirements-dev.txt`/`constraints.txt` installer in a fresh private
+  venv, with an aggregate ten-minute selection/install/import budget, explicit
+  preflight and pre-effect AM capability checks; keep foreign Python unchanged
+  and actual bootstrap/native evidence separate from mocked contract tests.
+- AM default-root controls must bind the same client, default CA bundle and
+  complete expected result after the existing identity, terminal-state and
+  cleanup guards. A nonzero exit or a status substring is insufficient; unknown
+  output remains HOLD. Treat the result as bounded same-client application
+  evidence and keep other native controls independent. Follow the connected
+  fixture rules in [tests/AGENTS.md](../tests/AGENTS.md).
+- The AM fixture parent stays unprivileged: stage and install/remove only its
+  exact owned scratch unit with noninteractive sudo, and verify the incumbent
+  typed systemd properties before start. The fresh sender clears its startup
+  environment before the exact venv interpreter and rechecks the same original
+  owned-empty Docker config used by parent sends. Global phase interruption
+  bypasses ordinary fixture aggregation; safe bounded metadata never prints
+  exception prose. Candidate consumption/publication requires the independently
+  selected accepted producer, raw source/recipe/native bytes and complete OCI
+  graph before credential effects; an unconfigured selection remains HOLD and
+  does not prevent the separately admitted build route.
 - The qualification checkout selects the workflow event's `github.sha`; supplied
   `source_sha` must equal that revision and the Commit API result. Require the API
   and native Git commands to succeed before comparing their output; matching
@@ -147,8 +184,14 @@
   its own qualified identity; every Docker operation uses one owned empty config
   and offline queries bind the observed base ID with pull disabled. Bad cached
   bytes are rejected before reading or replacement, with no retry/fallback.
-  Compare complete explicit GOMODCACHE payloads between replays; retain each
-  whole GOPATH/GOCACHE inventory and its individual offline stability. Original
+  Validate every complete raw GOMODCACHE row before cross-replay comparison.
+  Only exact canonical descendants of `cache/download/sumdb/`, owned by the
+  qualified Go checksum client, may differ between independent online replays;
+  every other complete row, its membership and order must compare exactly.
+  Retain all unfiltered GOMODCACHE and whole GOPATH/GOCACHE inventories and
+  require each complete raw cache to remain stable offline, including sumdb
+  rows. This is no general nondeterminism exemption; another unexplained
+  carrier requires coordinator rescope. Original
   and derived locks/projections plus bounded frozen inputs remain in the existing
   module-evidence upload. The complete artifact, including final inventory bytes,
   keeps the existing 2 GiB/250000-member bounds. Metadata finalization shares the
@@ -167,6 +210,112 @@
   coordinates, consumer references or ignore retirement follow from source
   preparation. Frozen Prometheus inputs stay unchanged; their projection does
   not establish SDK nonimpact for catalog/fetcher changes.
+- Keep authenticated Q/S source recipe hashes historical. The existing current
+  assembly parameter alone binds the reviewed numeric chown/chmod storage COPY
+  in candidate source, input-plan and context checks; do not rewrite Q/S pins
+  when the later assembly recipe changes.
+- Manual `input-inspect` and `support-inspect` consume the exact authenticated
+  successful qualification run, attempt, branch, source and artifact through the
+  existing bounded read transport. Bind every retained byte, native command and
+  six-root frozen input inventory before reuse. A later consumer implementation
+  head does not require another solver replay when the recorded source epoch,
+  locks, graphs, input identities and recipe remain exact. Selectors and hashes
+  establish integrity only; they grant no compiler or publication authority.
+- Input inspection performs only retained-data checks and one existing-package
+  metadata GET. A successful GET proves read access only. Support inspection is
+  separately invoked, compiler-free and secret-free after credential cleanup:
+  retain the exact base export, immutable upstream probe origin, executed pinned
+  scanner/Buildx bytes, frozen DB, full native reports, commands and exits.
+  The same default scanner settings must observe the positive and clean secret
+  controls, known-vulnerable old-image control, and full supported base/probe
+  inventory at all severities. Missing native success, malformed output, drift,
+  unsupported required targets or new blocking findings remain HOLD.
+  Trivy's documented omitted `Results` for a genuinely empty clean/probe report
+  is retained unchanged; explicit null is rejected. Empty supported BusyBox
+  inventory does not establish universal CVE or secret coverage, or final
+  candidate acceptance. Never manufacture package metadata or scanner reports.
+- Buildx version/help is a CLI observation, not image assembly feasibility.
+  Declare the exact offline pair commands, COPY context and pinned local OCI
+  named-context assembly before separate human build admission. Do not create
+  or bootstrap a builder, compile, outline or assemble during support inspection.
+  Keep automatic PR/push compiler/publication paths disabled;
+  cleanup retains the primary failure and removes only independently confirmed
+  exact owned container IDs, including a failed create's labelled residue.
+  Declare assembly's fixed child-only `umask 022` launcher in the existing argv
+  without changing the parent's private mask.
+- Preserve the same authenticated support inventory in the final candidate
+  consumer: compare every OS package's native comparable identity and OS
+  classifier, plus both required Go targets. Transport paths, compressed layer
+  digests and opaque scanner UIDs are not package identity. Retain complete raw
+  reports; an omitted package cannot establish a complete supported inventory.
+  Reconcile each Go target against its own actual build-info dependencies and
+  stdlib, with explicit native main-module identity. Preserve the pinned Go
+  format: trimpath may omit linker flags from build-info, so bind runtime stamps
+  through both actual version outputs and retain the executed compiler argv.
+- Retain successful compiler output bytes and build information before assembly
+  or later acceptance can fail. The existing uploaded evidence path must retain
+  each attempted phase's raw outputs and observation on failure as well as
+  success, excluding private credentials/configuration. Preserve the original
+  failure independently when evidence retention or cleanup also fails.
+  Forward existing bounded layout-rejection facts through ASCII-safe primary
+  traceback notes without letting optional diagnostic failures change the outcome.
+- Native binary transport must accommodate actual executable sizes through
+  fresh regular owned files and bounded streamed hashes. Keep diagnostic output
+  bounds independent; tiny mock executables cannot prove large-byte transport.
+  Cleanup of a known create binds the independently retained full returned ID;
+  a matching census name/label alone cannot replace it. Treat failed-create
+  residue separately, requiring its exact attempted name, label and inspected
+  full ID before removal, and preserve unknown survivors as HOLD.
+- Retained pure OCI remains the scanner/artifact/publication subject. Native
+  Docker load uses only the owning phase's private closed wrapper: unchanged
+  recognized OCI members plus one standard untagged Docker header. Rendering
+  never rebuilds/re-exports or transforms layers, accepts another image carrier,
+  or establishes native success or authority; preserve loaded identity checks.
+  Scan the existing recognized pure-OCI directory and bind the same graph and
+  source archive before and after successful scanning.
+  Mocked AM Native fixtures must model tool/resource inputs, retain low-resource
+  negatives, and preserve production guards and reserves.
+
+- The existing fetcher owns AM candidate/runtime predicates and the stdlib-only
+  `--alertmanager-contract` / `--alertmanager-contract-collect` deploy entries.
+  The latter permits only fixed native Compose/config/census/inspect reads, with
+  one decreasing 90-second envelope, eight-second calls and reserved cleanup.
+  Both shell readers execute independently hash-bound held helper bytes; incoming
+  bundles supply data. Unknown identity/status, missing or changed captures, and
+  unresolved owned process groups remain HOLD; collection does not activate services.
+- Saved AM publication keeps the actual merged own-PR revision Q distinct from
+  the current-main publisher P. Native Git must prove Q is an ancestor of P and
+  the six regular historical AM blobs match before current P/C/template admission
+  and registry login. A successful manual main publication witness binds its run
+  and job to P and proves Q <= P <= consumer BASE. Historical Q/P equality does
+  not freeze future reviewed consumer F or unrelated Compose data: current
+  BASE/HEAD/executed-F and separately designated C/template/accepted-image checks
+  remain independent. Unknown ancestry, shallow history, or filtered run count
+  at or above 1,000 stays HOLD; main movement still preserves the actual copy and
+  cleanup outcome without retry or relabeling P as Q.
+- Native test doubles must retain the incumbent required keyword arguments,
+  including `cwd`. Exercise a bounded real owned Git/controller call before
+  claiming mocked native admission works; a permissive double is not interface
+  compatibility evidence.
+- PR readers run a separately reviewed immutable controller checkout with explicit
+  material data. Trusted-main readers authenticate the actual reviewed main revision.
+  Both routes bind the five data files to the separately designated immutable
+  controller templates before native rendering; initial own-PR data is checked before
+  retained acquisition. Only the first-main old subject permits the exact reviewed
+  image-reference transition and original complete policy hash. Changed data or an
+  empty controller pin is HOLD, never permission to execute PR HEAD
+  with credentials. Preparation includes authentication, complete retained validation
+  or positive publication proof, local image loading/inspection, and cleanup before
+  material execution. A shorter caller deadline is never extended by a child phase.
+- Durable current scans reuse the accepted subject's native build-info/OS inventory
+  oracle in this owner and require every supported package in both binaries and the
+  base. They retain all severities and all four live control families; omitted
+  `Secrets` fields alone prove no scanner execution. Original retained solver/base
+  evidence stays independent from current DB observations and artifact expiry.
+
+- When adding Alertmanager workflow jobs, reconcile the exact checkout inventory in
+  `tests/test_ci_workflow_pr_size_governance_contract.py` and Python setup owner
+  multiplicities in `tests/test_runtime_toolchain_alignment.py` against the actual steps.
 
 ## Official Prometheus image selection
 
@@ -219,6 +368,17 @@
   the wait result is not an admission receipt. Effective job timeout must cover
   wait, consume, both cleanup allowances and the scan/runtime reserve. PR callers
   do not execute this wait. Its deadline does not guarantee scheduler completion.
+  The shared recognizer distinguishes a complete missing-run observation from
+  an active native attempt. Only these incomplete states may poll inside the
+  original absolute deadline. Preserve eligible-success precedence; otherwise
+  the greatest-ID relevant run governs. An observed terminal required publisher
+  job stops even while the aggregate run is active; completed missing, skipped
+  or nonpositive publication never admits or keeps waiting. Native API/identity
+  uncertainty stays a distinct failure. A permitted pending poll may rediscover
+  the current independently created native attempt, but never creates a rerun,
+  falls back to a prior attempt, resets time, or polls again after terminal
+  rejection. Cross-bind run/attempt/jobs within each observation and preserve
+  the original safe diagnostic through both callers and bounded owned cleanup.
 - CI lint restores the exact workflow `github.sha` for every PR after the
   credentialed consumer and control-checkout cleanup, before Python setup or
   pre-commit. Preserve its untracked selection evidence with `clean: false`,
@@ -229,13 +389,27 @@
   candidate with registry credentials. Preserve original producer provenance,
   SPDX, immutable tag collision checks and byte-identical pullback. Existing
   promtool/runtime/security checks remain mandatory and suppression-free.
+- Public package inventory requires the actual count-derived short or empty
+  terminal page, distinct native IDs, exact count and identity/count readback.
+  Keep the finite limits: 20,000 versions, 1 MiB combined stdout/stderr per page
+  capture and 64 MiB aggregate versions stdout. Never deduplicate, admit partial
+  inventory, stop at a matching tag or retry failed reads.
+- Before candidate preparation or first inventory, main promotion must observe
+  the exact same-run/attempt/head backend `publish` job completed with success;
+  build and security predecessors remain mandatory. Poll only valid pending
+  states: at most 16 snapshots, 32 jobs GETs and 15 sleeps of 60 seconds clipped
+  to the inherited deadline. Waiting shares the existing 1,800-second work
+  budget and 120-second cleanup cap; it does not renew them or prove global
+  registry quiescence. Preserve all subsequent package and current-main guards.
 - Deploy readers execute only the separately SHA-bound standalone helper;
   incoming archives are material/data. Root merge, deployment, credentials,
   volume changes and observation clocks retain their existing authority gates.
 - CI/CD PR image consumption must finish before PR-local actions, imports or
   native programs start. Acquire exact event-H material as data, then verify the
-  sparse fixed control checkout at `ef9e369052751d47c04f651f7d615714d918fc16`, with
-  helper SHA-256 `0fedf3e9ac865fe2b89a3367e5e4065e1c0c28fca88465c7f2b41775dbf4070a`,
+  <!-- pragma: allowlist nextline secret - public trusted control commit -->
+  sparse fixed control checkout at `0d6a4c09477ad3174252eab15f80cdd4a76df5bc`, with
+  <!-- pragma: allowlist nextline secret - public trusted control digest -->
+  helper SHA-256 `2b6edfa63f55b17cafdff100151b4b7cebef93a757fc3ab04b00eea77ca0ac6a`,
   before credential-free canonical four-blob classification. Native regular Git
   blobs supply B/H helper, build workflow, recipe and manifest bytes; the canonical
   helper alone selects manifest-change, historical-helper-change or published use.
@@ -391,6 +565,29 @@ or claim that passing this probe validates the application on Python 3.14.
   a seed/lock or rotate a baseline. Record actual hook creation/seed/config bytes
   separately from version P and final gate success. Command procedure and the
   finite recorded transition live in `docs/DEPENDENCY_MANAGEMENT.md`.
+
+- For owned offline validation children, isolate package-index and credential
+  environment controls from the base image. Do not inherit ambient pip/uv index
+  overrides; negative tests must inject their own synthetic controls.
+
+## Python audit compatibility exception
+
+- `ci_pip_audit.sh` owns only no-argument CI mode and exact `--pre-push` mode.
+  Keep the human-accepted Pillow cohort authored in PR #2494 in the existing
+  `ci/check_python_dependency_surfaces.py`: check current carriers/version/UTC
+  hard expiry before each actual ignore and before promotion, retain fresh
+  unsuppressed plus ignored native reports and separate native exits from policy
+  acceptance. Unknown findings, unsupported aliases/format, skipped dependencies,
+  input drift or expiry block acceptance. Never invoke pytest as this guard,
+  forward arbitrary audit arguments, add another waiver registry, or describe
+  accepted Pillow 12.3.0 risk as remediation/no-findings. Retire the exact branch
+  and obsolete ignores with a qualified compatible fix; dates and full retained
+  inventory live in `docs/security/PR_2494_CERTIFI_PILLOW_REMEDIATION.md`.
+  The canonical helper applies that cohort through repository-default CI and
+  pre-push use; it does not enforce a PR number or whole-material digest. Later
+  lanes still require their own admission and current-use proof. Keep the exact
+  accepted membership and selected dates in the canonical helper/owner rather
+  than adding another waiver registry or duplicating them here.
 
 ## Governed Experimentation Runner
 
@@ -976,6 +1173,11 @@ First-class repo wrappers:
 3. Direct `python3 scripts/orchestration/task_bootstrap.py ...` after `check_preflight.py`
 - `scripts/orchestration/local_support_plane.py` is an **experimental non-canonical** operator KV store under gitignored `artifacts/orchestration/local_support_plane/` (override via `LOCAL_SUPPORT_PLANE_ROOT`). Mutations require `AGENT_CONTROL_ALLOWLIST` to include `local_support_plane:artifacts_kv` and a compatible `AGENT_CONTROL_EXECUTION_MODE` (see `app/security/agent_control_plane.py`). It is not orchestration SoT.
 - **Advisory wiki compiler** (local-only, gitignored): `wiki_ingest.py`, `wiki_query.py`, `wiki_lint.py`, `wiki_promote.py` under `scripts/orchestration/` with shared `_wiki_compiler_support.py`. Writes markdown under `artifacts/orchestration/wiki/` and may mirror metadata to the support plane using `wiki.*` keys. See `docs/orchestration/LOCAL_WIKI_SUPPORT_PLANE.md`.
+
+The isolated mypy hook runs only at pre-push; an all-files pre-commit PASS does
+not execute it. Before expensive validation of changed Python tooling, run
+`pre-commit run mypy --hook-stage pre-push --files <changed-script.py>` on the
+working bytes and fix its actual failures without weakening runtime guards.
 
 **Change detection order:**
 

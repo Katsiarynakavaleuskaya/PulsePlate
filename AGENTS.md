@@ -2612,13 +2612,13 @@ host-process secret isolation. These checks grant no deployment authority.
 4. **Token:** Use `${{ secrets.GHCR_READ_TOKEN }}` from environment secrets
 5. **Package access:** Package must grant repository access in settings
 
-The existing CI lint OBS2A native Prometheus consumer and CD PR Prometheus image-security consumer may use the existing ephemeral `${{
+The existing CI lint OBS2A and shared CD PR image-security consumers may use the existing ephemeral `${{
 secrets.GITHUB_TOKEN }}` with `contents: read`, `actions: read`, and `packages: read` for the
-same-repository `pull_request` published-subject branch only. It must independently retain the
+same-repository `pull_request` published-subject branches for Prometheus and Alertmanager only. Each canonical owner must independently retain the
 existing authenticated event/PR binding, exact existing public package identity, immutable subject
 and positive publication predecessor before registry login. The canonical consumer owns stdin-only
 login and bounded credential/process cleanup before the secret-free native child. The changed-PR
-candidate branch performs no registry login. This exception adds no staging environment or
+candidate branch performs no registry login. Alertmanager also requires its actual merged-own-PR/CD publication job predecessor, complete BASE native selection, exact six BASE/HEAD source blobs, the separately designated controller, and the exact public package/tag before login. Its initial own-PR retained route has no AM registry login. This exception adds no staging environment or
 long-lived secret to either PR job, creates no new secret, and grants no registry write, fallback, weaker
 verification, deployment, or merge authority. Other GHCR readers keep the existing
 environment-scoped GHCR_READ_TOKEN rule.

@@ -89,6 +89,10 @@
   `tests/conftest.py` and must enter `tests._client.open_test_client(...)`.
   The managed wrapper owns one lifespan, exact `dependency_overrides`
   restoration, and temporary finite SlowAPI limiter isolation.
+- Singleton-reset discovery reads only concrete `app` / `main_app` bindings
+  observed during the finite loaded-module traversal; do not invoke arbitrary
+  lazy module exports. Later client lifecycle and limiter ownership remain with
+  `tests._client.open_test_client(...)`, respecting explicit rate-limit opt-in.
 - The root `MetricsAwareTestClient` assignment is a temporary PR-TC2
   compatibility bridge. Do not add another patch owner or new callers of raw
   `make_test_client()`, `get_client()`, or `TestClient(...)` in shared provider

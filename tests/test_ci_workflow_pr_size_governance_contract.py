@@ -1153,9 +1153,8 @@ def test_all_active_checkout_uses_have_one_exact_v7_pin() -> None:
         ".github/workflows/security.yml",
         ".github/workflows/trivy.yml",
     }
-    # The 95 prior execution sites lose two redundant checkout steps in each
-    # of the two Prometheus CD jobs sharing the same step-list alias.
-    assert len(observed_checkout_uses) == 91
+    # Incoming91 checkout sites plus eight retained AM execution sites.
+    assert len(observed_checkout_uses) == 99
     assert {path for path, _ in observed_checkout_uses} == expected_checkout_workflows
 
 
@@ -1256,8 +1255,8 @@ def _contract_suite_targets_by_group(
 
 
 NODE24_FRONTEND_BUILD_LINE = (
-    "FROM node:24.18.1-bookworm-slim@"
-    "sha256:235600a8101ab264e117b1768e925532262668dc9b581ef1dd7d96ced463b8e7"
+    "FROM node:24.22.1-bookworm-slim@"
+    "sha256:55fb5f5a527ea2c5c4a95f963e48ef90aa38c7b346054fdc8ee9957a2b55d205"
     " AS frontend-build"
 )
 NODE24_FRONTEND_BUILD_RUN_LINE = "RUN npm run build"
@@ -1515,9 +1514,9 @@ def test_node24_runtime_baseline_surfaces_stay_coherent() -> None:
     public_readme = (REPO_ROOT / "README_V2_PUBLIC_DRAFT.md").read_text(encoding="utf-8")
     dockerfile = (REPO_ROOT / "frontend" / "Dockerfile.caddy-spa").read_text(encoding="utf-8")
 
-    assert nvmrc == "24.18.1"
-    assert "- Node `24.18.1` for the web client" in public_readme
-    assert "`nvm use` reads the repo-root `.nvmrc` and selects Node `24.18.1`." in public_readme
+    assert nvmrc == "24.22.1"
+    assert "- Node `24.22.1` for the web client" in public_readme
+    assert "`nvm use` reads the repo-root `.nvmrc` and selects Node `24.22.1`." in public_readme
     assert "24.16.0" not in public_readme
     assert frontend_package["engines"]["node"] == ">=24.0.0 <25.0.0"
     assert frontend_lock["packages"][""]["engines"]["node"] == ">=24.0.0 <25.0.0"
@@ -4903,7 +4902,10 @@ start = {
     "database_url": os.environ["DATABASE_URL"],
     "fallback_url": os.environ["DB_FALLBACK_URL"],
 }
-(events / f"start-{index}.json").write_text(json.dumps(start))
+# Publish complete start metadata before the partner can trigger termination.
+pending_start = events / f".start-{index}.json.tmp"
+pending_start.write_text(json.dumps(start))
+pending_start.replace(events / f"start-{index}.json")
 assert len(list(events.glob("running-*"))) <= 2
 partner = index + 1 if index % 2 else index - 1
 if partner <= batch_count:
@@ -5287,15 +5289,27 @@ def test_test_pr_contract_capture_supports_real_ci_root_conftest(tmp_path: Path)
             "DB_FALLBACK_URL": "sqlite:///" + str(database),
             "TMPDIR": str(profile / "tmp"),
         }
-        result = subprocess.run(
-            command,
-            cwd=REPO_ROOT,
-            env=environment,
-            capture_output=True,
-            text=True,
-            timeout=30,
-            check=False,
-        )
+        try:
+            result = subprocess.run(
+                command,
+                cwd=REPO_ROOT,
+                env=environment,
+                capture_output=True,
+                text=True,
+                timeout=30,
+                check=False,
+            )
+        except subprocess.TimeoutExpired as timeout:
+            for suffix, raw in (("stdout", timeout.stdout), ("stderr", timeout.stderr)):
+                path = tmp_path / f"ci-capture-{capture}.{suffix}.log"
+                try:
+                    path.write_bytes(raw if isinstance(raw, bytes) else (raw or "").encode())
+                    path.chmod(0o600)
+                except OSError as retention_error:
+                    timeout.add_note(
+                        f"Timeout evidence retention failed for {suffix}: {retention_error}"
+                    )
+            raise
         for suffix, raw in (("stdout", result.stdout), ("stderr", result.stderr)):
             path = tmp_path / f"ci-capture-{capture}.{suffix}.log"
             path.write_text(raw)
@@ -5322,6 +5336,113 @@ def test_test_pr_contract_capture_supports_real_ci_root_conftest(tmp_path: Path)
             cases = list(ET.parse(junit).getroot().iter("testcase"))
             assert len(cases) == 1 and cases[0].get("name") == node
             assert cases[0].find("failure") is None and cases[0].find("error") is None
+
+
+@pytest.mark.parametrize(
+    ("partial_stdout", "partial_stderr"),
+    [
+        (b"partial-stdout\xff\n", b"partial-stderr\xfe\n"),
+        ("stdout é\n", "stderr é\n"),
+        (None, None),
+    ],
+    ids=["bytes", "text", "absent"],
+)
+@pytest.mark.parametrize("retention_failure", [False, True])
+def test_test_pr_contract_capture_preserves_timeout_output_and_primary_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    partial_stdout: bytes | str | None,
+    partial_stderr: bytes | str | None,
+    retention_failure: bool,
+) -> None:
+    import stat
+    import sys
+
+    timeout = subprocess.TimeoutExpired([], 30, output=partial_stdout, stderr=partial_stderr)
+    calls: list[str] = []
+
+    def observe_run(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        capture = "tee-sys" if not calls else "no"
+        profile = tmp_path / capture
+        database = profile / "batch.sqlite"
+        expected_environment = {
+            "PATH": os.defpath,
+            "HOME": str(profile / "home"),
+            "LANG": "C.UTF-8",
+            "CI": "true",
+            "TESTING": "true",
+            "APP_ENV": "test",
+            "ENVIRONMENT": "test",
+            "PYTHONUNBUFFERED": "1",
+            "PYTEST_FAULTHANDLER_TIMEOUT_S": "600",
+            "COVERAGE_FILE": str(profile / ".coverage"),
+            "COV_CORE_DATAFILE": str(profile / ".coverage"),
+            "TEST_DB_PATH": str(database),
+            "DATABASE_URL": "sqlite:///" + str(database),
+            "DB_FALLBACK_URL": "sqlite:///" + str(database),
+            "TMPDIR": str(profile / "tmp"),
+        }
+        assert command == [
+            sys.executable,
+            "-m",
+            "coverage",
+            "run",
+            "--append",
+            "-m",
+            "pytest",
+            "-q",
+            "--capture=" + capture,
+            "--verbosity=1",
+            "-p",
+            "no:xdist",
+            "tests/test_ci_workflow_pr_size_governance_contract.py::"
+            "test_contract_risk_suites_use_bounded_coverage_batches",
+            "--junitxml=" + str(profile / "result.xml"),
+            "--basetemp=" + str(profile / "pytest"),
+            "-o",
+            "junit_family=legacy",
+        ]
+        assert kwargs == {
+            "cwd": REPO_ROOT,
+            "env": expected_environment,
+            "capture_output": True,
+            "text": True,
+            "timeout": 30,
+            "check": False,
+        }
+        calls.append(capture)
+        if capture == "tee-sys":
+            return subprocess.CompletedProcess(
+                command,
+                4,
+                "",
+                "conftest.py:22: faulthandler.enable() io.UnsupportedOperation: fileno",
+            )
+        timeout.cmd = command
+        raise timeout
+
+    original_write_bytes = Path.write_bytes
+
+    def fail_stdout_retention(path: Path, data: bytes) -> int:
+        if path == tmp_path / "ci-capture-no.stdout.log":
+            raise OSError("synthetic timeout retention failure")
+        return original_write_bytes(path, data)
+
+    monkeypatch.setattr(subprocess, "run", observe_run)
+    if retention_failure:
+        monkeypatch.setattr(Path, "write_bytes", fail_stdout_retention)
+    with pytest.raises(subprocess.TimeoutExpired) as caught:
+        test_test_pr_contract_capture_supports_real_ci_root_conftest(tmp_path)
+    assert caught.value is timeout and calls == ["tee-sys", "no"]
+    for suffix, raw in (("stdout", partial_stdout), ("stderr", partial_stderr)):
+        path = tmp_path / f"ci-capture-no.{suffix}.log"
+        if retention_failure and suffix == "stdout":
+            assert not path.exists()
+            assert any("synthetic timeout retention failure" in note for note in timeout.__notes__)
+        else:
+            assert path.read_bytes() == (raw if isinstance(raw, bytes) else (raw or "").encode())
+            assert stat.S_IMODE(path.stat().st_mode) == 0o600
+    assert json.loads((tmp_path / "ci-capture-observed.json").read_text())[0]["native_exit"] == 4
 
 
 def test_test_pr_contract_139_retains_real_pytest_and_native_stderr_transport(
@@ -6326,6 +6447,7 @@ def test_ci_lint_restores_workflow_sha_before_pr_python_startup() -> None:
     restore = _job_step_by_name(workflow, job_id="lint", step_name="Restore lint workflow revision")
     assert restore == {
         "name": "Restore lint workflow revision",
+        "timeout-minutes": 2,
         "if": "github.event_name == 'pull_request'",
         "uses": f"actions/checkout@{CHECKOUT_V7_SHA}",
         "with": {
@@ -6444,6 +6566,10 @@ def _assert_ci_lint_node24_frontend_hook_dependency_contract(
     assert lint_job["env"] == {
         "PROMETHEUS_CONSUME_SECONDS": "900",
         "PROMETHEUS_CLEANUP_SECONDS": "120",
+        "ALERTMANAGER_JOB_TIMEOUT_MINUTES": "${{ fromJSON(vars.CI_LINT_TIMEOUT_MINUTES || '170') }}",
+        "ALERTMANAGER_CALLER_KIND": "ci-lint",
+        "ALERTMANAGER_GENERIC_NATIVE_MINUTES": "${{ vars.OBS2A_NATIVE_JOB_TIMEOUT_MINUTES || '40' }}",
+        "ALERTMANAGER_LINT_CHECK_MINUTES": "${{ vars.CI_LINT_CHECKS_TIMEOUT_MINUTES || '40' }}",
     }
     assert "environment" not in lint_job, "ci_lint_reader_environment"
     for forbidden_key in (
@@ -6469,6 +6595,7 @@ def _assert_ci_lint_node24_frontend_hook_dependency_contract(
     checkout_step = unique_step("Checkout")
     assert checkout_step == {
         "name": "Checkout",
+        "timeout-minutes": 1,
         "uses": f"actions/checkout@{CHECKOUT_V7_SHA}",
         "with": {
             "fetch-depth": 0,
@@ -6480,6 +6607,7 @@ def _assert_ci_lint_node24_frontend_hook_dependency_contract(
     setup_node_step = unique_step("Setup Node.js")
     assert setup_node_step == {
         "name": "Setup Node.js",
+        "timeout-minutes": 3,
         "uses": f"actions/setup-node@{SETUP_NODE_NODE24_SHA}",
         "with": {
             "node-version-file": "${{ env.FRONTEND_NODE_VERSION_FILE }}",
@@ -6495,13 +6623,14 @@ def _assert_ci_lint_node24_frontend_hook_dependency_contract(
     install_step = install_steps[0]
     assert install_step == {
         "uses": "./.github/actions/npm-ci-with-retry",
+        "timeout-minutes": 6,
         "with": {"working-directory": "frontend"},
     }
 
     pre_commit_step = unique_step("Pre-commit (lint/format/security quick checks)")
     assert pre_commit_step == {
         "name": "Pre-commit (lint/format/security quick checks)",
-        "timeout-minutes": "${{ fromJSON(vars.CI_LINT_CHECKS_TIMEOUT_MINUTES || '40') }}",
+        "timeout-minutes": "${{ fromJSON(env.ALERTMANAGER_LINT_CHECK_MINUTES) }}",
         "run": "pre-commit run --all-files --show-diff-on-failure",
         "env": {"SKIP": "no-commit-to-branch"},
     }

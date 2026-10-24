@@ -130,14 +130,9 @@ repos:
       - id: pip-audit
         name: pip-audit (pip vulns)
         stages: [pre-push]
-        args:
-          - --requirement
-          - requirements.txt
-          - --no-deps
-          - --disable-pip
-          - --strict
-          - --timeout
-          - '60'
+        entry: /bin/bash scripts/ci_pip_audit.sh
+        pass_filenames: false
+        args: [--pre-push]
 
   # --- Docstrings: pydocstyle (re-enabled on pre-push)
   - repo: https://github.com/PyCQA/pydocstyle
