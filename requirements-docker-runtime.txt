@@ -228,7 +228,7 @@ requests==2.33.0
     #   -r requirements-docker-runtime.in
     #   opentelemetry-exporter-http-transport
     #   opentelemetry-exporter-otlp-proto-http
-setuptools==83.0.0
+setuptools==84.1.0
     # via
     #   -c requirements.txt
     #   -r requirements-docker-runtime.in

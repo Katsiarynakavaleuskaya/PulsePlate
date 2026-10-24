@@ -26,8 +26,10 @@ charset-normalizer==3.4.4
     #   requests
 fastembed==0.8.0+pulseplate.1
     # via -r requirements-rag-vector.in
-filelock==3.29.4
-    # via huggingface-hub
+filelock==4.2.1
+    # via
+    #   -r requirements-rag-vector.in
+    #   huggingface-hub
 flatbuffers==25.12.19
     # via onnxruntime
 fsspec==2026.6.0

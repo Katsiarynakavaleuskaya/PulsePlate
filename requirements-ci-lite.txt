@@ -102,8 +102,9 @@ fastapi==0.138.1
     # via
     #   -c requirements.txt
     #   -r requirements-ci-lite.in
-filelock==3.24.3
+filelock==4.2.1
     # via
+    #   -r requirements-ci-lite.in
     #   cachecontrol
     #   python-discovery
     #   virtualenv
@@ -348,7 +349,7 @@ rich==14.3.3
     # via
     #   bandit
     #   pip-audit
-setuptools==83.0.0
+setuptools==84.1.0
     # via
     #   -c requirements.txt
     #   -r requirements-ci-lite.in
@@ -418,7 +419,7 @@ uvicorn==0.42.0
     # via
     #   -c requirements.txt
     #   -r requirements-ci-lite.in
-virtualenv==21.14.9
+virtualenv==21.14.10
     # via
     #   -r requirements-ci-lite.in
     #   pre-commit

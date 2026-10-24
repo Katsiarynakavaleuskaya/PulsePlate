@@ -51,5 +51,5 @@ cryptography>=50.0.2,<51.0.0
 # Optional: Required for premium endpoints (plate visualization with HTML sanitization).
 # Runtime-guarded via _require_nh3(); raises clear error if missing.
 nh3>=0.3.2,<1.0.0
-# Security: CVE-2026-59890 exclusion bypass is fixed in setuptools 83.0.0.
-setuptools>=83.0.0,<84.0.0
+# Security: CVE-2026-59890 and GHSA-xmj3-9gf7-h52w require setuptools >=84.1.0.
+setuptools>=84.1.0,<85.0.0

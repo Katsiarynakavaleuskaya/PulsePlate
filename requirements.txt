@@ -170,7 +170,7 @@ requests==2.33.0
     #   -r requirements.in
     #   opentelemetry-exporter-http-transport
     #   opentelemetry-exporter-otlp-proto-http
-setuptools==83.0.0
+setuptools==84.1.0
     # via -r requirements.in
 six==1.17.0
     # via python-dateutil

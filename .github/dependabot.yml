@@ -116,6 +116,7 @@ updates:
           - "pip-audit"
           - "pre-commit"
           - "virtualenv"
+          - "filelock"
           - "bandit"
           - "detect-secrets"
           - "distlib"

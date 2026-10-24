@@ -2599,7 +2599,7 @@ def _copy_graph_change_admission_repo(destination: Path) -> None:
     payload["record"]["runtime_target_observation"]["sha256_bytes"] = list(
         hashlib.sha256(_synthetic_runtime_target(destination)).digest()
     )
-    admission_path.write_text(json.dumps(payload), encoding="utf-8")
+    admission_path.write_text(json.dumps(payload, separators=(",", ":")), encoding="utf-8")
 
 
 def _synthetic_runtime_surface() -> surfaces.DependencySurface:
@@ -2908,7 +2908,7 @@ def test_closed_graph_change_admission_rejects_malformed_schema(
         else:
             payload["record"]["profile_universe"] = "runtime"
             expected = "array of strings"
-        path.write_text(json.dumps(payload), encoding="utf-8")
+        path.write_text(json.dumps(payload, separators=(",", ":")), encoding="utf-8")
 
     with pytest.raises(RuntimeError, match=expected):
         compiler._authorize_graph_changes(
@@ -3412,7 +3412,7 @@ def _write_psycopg_admission_repo(root: Path, monkeypatch: pytest.MonkeyPatch) -
         json.dumps(record, sort_keys=True, separators=(",", ":")).encode()
     ).hexdigest()
     monkeypatch.setattr(compiler, "PSYCOPG_C_RECORD_SHA256", digest)
-    path.write_text(json.dumps(payload), encoding="utf-8")
+    path.write_text(json.dumps(payload, separators=(",", ":")), encoding="utf-8")
     return baselines
 
 
@@ -3512,7 +3512,7 @@ def test_psycopg_admission_rejects_source_and_record_drift(
     path = tmp_path / compiler.GRAPH_CHANGE_ADMISSION_PATH
     payload = json.loads(path.read_text())
     payload["psycopg_c_oct2"]["graph_change"]["additions"].append("other")
-    path.write_text(json.dumps(payload))
+    path.write_text(json.dumps(payload, separators=(",", ":")))
     with pytest.raises(RuntimeError, match="exact fixed v1 migration alternative"):
         _select_psycopg_runtime(tmp_path)
 
@@ -3583,7 +3583,7 @@ def _write_virtualenv_admission_repo(
         json.dumps(record, sort_keys=True, separators=(",", ":")).encode("utf-8")
     ).hexdigest()
     monkeypatch.setattr(compiler, "VIRTUALENV_2455_RECORD_SHA256", fingerprint)
-    admission_path.write_text(json.dumps(payload), encoding="utf-8")
+    admission_path.write_text(json.dumps(payload, separators=(",", ":")), encoding="utf-8")
     return registry, baselines, candidates
 
 
@@ -3635,7 +3635,7 @@ def test_virtualenv_whole_transaction_captures_three_distinct_relations(
     path = tmp_path / compiler.GRAPH_CHANGE_ADMISSION_PATH
     payload = json.loads(path.read_text(encoding="utf-8"))
     del payload["virtualenv_2455"]
-    path.write_text(json.dumps(payload), encoding="utf-8")
+    path.write_text(json.dumps(payload, separators=(",", ":")), encoding="utf-8")
     with pytest.raises(RuntimeError, match="fixed virtualenv_2455 slot"):
         _select_virtualenv_admission(tmp_path)
 
@@ -3647,7 +3647,7 @@ def test_virtualenv_fixed_record_preserves_legacy_root_and_unselected_bindings(
     path = tmp_path / compiler.GRAPH_CHANGE_ADMISSION_PATH
     extended = json.loads(path.read_text(encoding="utf-8"))
     for payload in (extended, {"schema": extended["schema"], "record": extended["record"]}):
-        path.write_text(json.dumps(payload), encoding="utf-8")
+        path.write_text(json.dumps(payload, separators=(",", ":")), encoding="utf-8")
         admission = compiler._authorize_graph_changes(
             repo_root=tmp_path,
             profiles=("runtime",),
@@ -3751,7 +3751,7 @@ def test_virtualenv_changed_or_malformed_record_rejects_before_acquisition(
     if malformation == "duplicate":
         path.write_text(
             path.read_text().replace(
-                '"virtualenv_2455": {', '"virtualenv_2455": {"admission_id": "duplicate",', 1
+                '"virtualenv_2455":{', '"virtualenv_2455":{"admission_id":"duplicate",', 1
             ),
             encoding="utf-8",
         )
@@ -3776,7 +3776,7 @@ def test_virtualenv_changed_or_malformed_record_rejects_before_acquisition(
             record["profile_deltas"]["dev"]["python-discovery"]["before"] = "1.2.1"
         elif malformation == "second-intent":
             record["upgrades"]["python-discovery"] = "1.6.1"
-        path.write_text(json.dumps(payload), encoding="utf-8")
+        path.write_text(json.dumps(payload, separators=(",", ":")), encoding="utf-8")
 
     def acquisition_must_not_run(*_: object, **__: object) -> dict[str, str]:
         raise AssertionError("malformed transaction reached credentialed acquisition")
@@ -4146,8 +4146,12 @@ def _write_stabilization_repo(
     candidates: dict[str, str] = {}
     for profile, surface in registry.items():
         relations = [record["changes"][name] for name in record["profile_changes"][profile]]
+        before_values = [
+            row["before"][profile] if isinstance(row["before"], dict) else row["before"]
+            for row in relations
+        ]
         before = "example==1.0.0\n" + "".join(
-            row["before"] + "\n" for row in relations if row["before"] is not None
+            value + "\n" for value in before_values if value is not None
         )
         after = "example==1.0.0\n" + "".join(row["after"] + "\n" for row in relations)
         baselines[profile] = before.encode()
@@ -4185,7 +4189,7 @@ def _write_stabilization_repo(
     monkeypatch.setattr(
         compiler, "_stabilization_runtime", lambda: ("linux", "x86_64", "cpython", "3.13")
     )
-    path.write_text(json.dumps(document), encoding="utf-8")
+    path.write_text(json.dumps(document, separators=(",", ":")), encoding="utf-8")
     return registry, baselines, candidates, record["upgrades"]
 
 
@@ -4296,6 +4300,7 @@ def test_stabilization_runtime_then_all_dependent_profiles_keep_exact_extras(
     assert set(dependent.effective_upgrades("rag-vector", upgrades)) == {
         "certifi",
         "fastembed",
+        "filelock",
         "packaging",
         "pillow",
     }
@@ -4368,6 +4373,9 @@ def test_stabilization_candidate_rejects_each_unclassified_transition(
         "reordered",
         "missing-test-profile",
         "missing-target",
+        "missing-filelock",
+        "missing-setuptools",
+        "old-virtualenv",
         "extra-target",
         "missing-toolchain",
         "wrong-toolchain",
@@ -4394,23 +4402,29 @@ def test_stabilization_request_rejects_before_acquisition(
         )
     elif mutation == "missing-target":
         upgrades.pop("fastembed")
-        expected = "seven-target request"
+        expected = "nine-target request"
+    elif mutation in {"missing-filelock", "missing-setuptools"}:
+        upgrades.pop(mutation.removeprefix("missing-"))
+        expected = "nine-target request"
+    elif mutation == "old-virtualenv":
+        upgrades["virtualenv"] = "21.14.9"
+        expected = "nine-target request"
     elif mutation == "extra-target":
         upgrades["other"] = "1.0"
-        expected = "seven-target request"
+        expected = "nine-target request"
     elif mutation == "missing-toolchain":
         upgrades.pop("pip-tools")
-        expected = "seven-target request"
+        expected = "nine-target request"
     elif mutation == "wrong-toolchain":
         upgrades["pip-tools"] = "7.6.0"
-        expected = "seven-target request"
+        expected = "nine-target request"
     elif mutation == "graph":
         graph = frozenset({"unexpected"})
     elif mutation == "record":
         path = tmp_path / compiler.GRAPH_CHANGE_ADMISSION_PATH
         doc = json.loads(path.read_text())
         doc["python_stabilization_oct23"]["upgrades"]["black"] = "26.5.1"
-        path.write_text(json.dumps(doc))
+        path.write_text(json.dumps(doc, separators=(",", ":")))
         expected = "exact frozen v1 alternative"
     else:
         monkeypatch.setattr(
@@ -4566,7 +4580,7 @@ def test_stabilization_record_shape_never_reaches_acquisition(
         elif mutation == "nonfinite":
             record["artifacts"]["black"]["bytes"] = float("nan")
             expected = "Invalid graph-change admission constant"
-    text = json.dumps(payload)
+    text = json.dumps(payload, separators=(",", ":"))
     if mutation == "duplicate-key":
         text = text.replace(
             '"python_stabilization_oct23":',
@@ -4742,3 +4756,93 @@ def test_stabilization_test_closure_preserves_exact_installation_compositions(
     assert dict(expected)["packaging"] == "26.3"
     assert source.read_bytes() == source_bytes
     assert not tuple(tmp_path.glob(".*.candidate"))
+
+
+@pytest.mark.parametrize(
+    "profile,wrong_before",
+    (
+        ("ci-lite", "3.29.1"),
+        ("dev", "3.29.4"),
+        ("aggregate", "3.24.3"),
+        ("rag-vector", "3.29.1"),
+        ("rag-vector-cpu", "3.24.3"),
+    ),
+)
+def test_stabilization_rejects_filelock_before_borrowed_from_another_profile(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, profile: str, wrong_before: str
+) -> None:
+    """A valid version from a different profile cannot rewrite hash-bound base history."""
+    _, _, _, upgrades = _write_stabilization_repo(tmp_path, monkeypatch)
+    path = tmp_path / compiler.GRAPH_CHANGE_ADMISSION_PATH
+    document = json.loads(path.read_text())
+    record = document["python_stabilization_oct23"]
+    record["changes"]["filelock"]["before"][profile] = f"filelock=={wrong_before}"
+    monkeypatch.setattr(
+        compiler,
+        "STABILIZATION_RECORD_SHA256",
+        hashlib.sha256(
+            json.dumps(record, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest(),
+    )
+    path.write_text(json.dumps(document, separators=(",", ":")))
+    with pytest.raises(RuntimeError, match=f"{profile}: filelock before pin differs"):
+        _select_stabilization(tmp_path, upgrades)
+
+
+@pytest.mark.parametrize(
+    "mutation,expected",
+    (
+        ("missing-before", "filelock before"),
+        ("extra-before", "filelock before"),
+        ("flat-before", "filelock before"),
+        ("missing-profile", "filelock profile membership"),
+        ("extra-profile", "filelock profile membership"),
+        ("wrong-identity", "identity/metadata differs"),
+        ("marker-before", "identity/metadata differs"),
+        ("null-before", "one exact requirement"),
+        ("multiline-before", "one exact requirement"),
+        ("null-after", "one exact requirement"),
+        ("unowned-relation", "unowned packages"),
+    ),
+)
+def test_stabilization_filelock_relation_rejects_incomplete_or_malformed_history(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mutation: str, expected: str
+) -> None:
+    """Exercise semantic relation rejection after independently accepting its synthetic hash."""
+    _, _, _, upgrades = _write_stabilization_repo(tmp_path, monkeypatch)
+    path = tmp_path / compiler.GRAPH_CHANGE_ADMISSION_PATH
+    document = json.loads(path.read_text())
+    record = document["python_stabilization_oct23"]
+    relation = record["changes"]["filelock"]
+    if mutation == "missing-before":
+        relation["before"].pop("dev")
+    elif mutation == "extra-before":
+        relation["before"]["runtime"] = "filelock==3.24.3"
+    elif mutation == "flat-before":
+        relation["before"] = "filelock==3.24.3"
+    elif mutation == "missing-profile":
+        record["profile_changes"]["dev"].remove("filelock")
+    elif mutation == "extra-profile":
+        record["profile_changes"]["runtime"].append("filelock")
+    elif mutation == "wrong-identity":
+        relation["before"]["dev"] = "setuptools==3.24.3"
+    elif mutation == "marker-before":
+        relation["before"]["dev"] = 'filelock==3.24.3; python_version >= "3.13"'
+    elif mutation == "null-before":
+        relation["before"]["dev"] = None
+    elif mutation == "multiline-before":
+        relation["before"]["dev"] = "filelock==3.24.3\nexample==1.0.0"
+    elif mutation == "null-after":
+        relation["after"] = None
+    else:
+        record["changes"]["unused"] = {"before": "unused==1.0.0", "after": "unused==2.0.0"}
+    monkeypatch.setattr(
+        compiler,
+        "STABILIZATION_RECORD_SHA256",
+        hashlib.sha256(
+            json.dumps(record, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest(),
+    )
+    path.write_text(json.dumps(document, separators=(",", ":")))
+    with pytest.raises(RuntimeError, match=expected):
+        _select_stabilization(tmp_path, upgrades)

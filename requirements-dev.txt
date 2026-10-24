@@ -69,8 +69,9 @@ execnet==2.1.2
     # via pytest-xdist
 faker==40.37.0
     # via -r requirements-dev.in
-filelock==3.24.3
+filelock==4.2.1
     # via
+    #   -r requirements-dev.in
     #   cachecontrol
     #   python-discovery
     #   virtualenv
@@ -247,7 +248,7 @@ rich==14.3.3
     #   pip-audit
 ruff==0.16.4
     # via -r requirements-dev.in
-setuptools==83.0.0
+setuptools==84.1.0
     # via
     #   -c requirements.txt
     #   -r requirements-dev.in
@@ -280,7 +281,7 @@ urllib3==2.8.0
     # via
     #   -c requirements.txt
     #   requests
-virtualenv==21.14.9
+virtualenv==21.14.10
     # via
     #   -r requirements-dev.in
     #   pre-commit

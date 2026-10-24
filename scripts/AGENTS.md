@@ -388,9 +388,14 @@ or claim that passing this probe validates the application on Python 3.14.
   requires native canonical output plus independent original-base replay before
   it is called C_R. Retain no-deps acquisition, destroyed credentialed HOME,
   offline profile views and rollback; do not add another upgrade intent, hand-edit
-  a seed/lock or rotate a baseline. Record actual hook creation/seed/config bytes
+  a seed/lock or rotate a baseline. Profile-specific before pins must match each
+  profile's hash-verified original seed, including distinct versions of the same
+  package; never flatten them into an invented common baseline. Record actual hook creation/seed/config bytes
   separately from version P and final gate success. Command procedure and the
   finite recorded transition live in `docs/DEPENDENCY_MANAGEMENT.md`.
+- When the shared admission changes, run all of `tests/test_python_dependency_surfaces.py`
+  before long all-files validation, including legacy fixture consumers. Keep synthetic JSON
+  compact within the unchanged production bound; retain oversized and duplicate-key negatives.
 - Before freezing an affected lock tuple, enumerate the existing installer's
   installation compositions. Propagate changed shared constraints through every
   dependent lock, including locks without the original security identities.

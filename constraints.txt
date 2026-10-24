@@ -21,7 +21,8 @@ ruff>=0.16.4  # Fast local/pre-commit lint companion.
 # Security - allow patch updates for vulnerability fixes
 bandit>=1.9.4
 pip-audit>=2.10.1
-setuptools>=83.0.0  # Security floor for CVE-2026-59890
+setuptools>=84.1.0  # Security floor for GHSA-xmj3-9gf7-h52w
+filelock>=4.2.1  # October 24 filelock advisory cohort
 
 # Dev tools - allow minor updates
 pre-commit>=4.6.0

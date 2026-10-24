@@ -40,15 +40,18 @@ psycopg[c]>=3.2.3,<4.0.0
 email-validator>=2.3.0,<3.0.0
 cryptography>=50.0.2,<51.0.0
 nh3>=0.3.2,<1.0.0
-setuptools>=83.0.0,<84.0.0
+setuptools>=84.1.0,<85.0.0
 
 # Control-plane CI tooling only.
 pre-commit~=4.6.1
-# virtualenv: security floor for the complete October 23 advisory cutoff.
-virtualenv>=21.14.9
+# virtualenv: security floor for the reconciled October 24 advisory cutoff.
+virtualenv>=21.14.10
 bandit>=1.9.4
 pip-audit>=2.10.1
 diff-cover~=10.3.0
 pytest~=9.1.1
 # Required by the focused Coverage HTML security canary selected by pre-commit.
 coverage>=7.15.4,<7.15.5
+
+# Security: the October 24 filelock advisory cohort is fixed in 4.2.1.
+filelock>=4.2.1,<5.0.0

@@ -2052,12 +2052,12 @@ def test_setuptools_security_floor_covers_governed_dependency_surfaces() -> None
         "requirements-dev.in",
     ):
         assert _requirement_package_specifiers(REPO_ROOT / source_file, "setuptools") == {
-            (">=", "83.0.0"),
-            ("<", "84.0.0"),
+            (">=", "84.1.0"),
+            ("<", "85.0.0"),
         }
 
     assert _requirement_package_specifiers(REPO_ROOT / "constraints.txt", "setuptools") == {
-        (">=", "83.0.0")
+        (">=", "84.1.0")
     }
 
     for lockfile in (
@@ -2068,7 +2068,7 @@ def test_setuptools_security_floor_covers_governed_dependency_surfaces() -> None
         "requirements-lock.txt",
     ):
         assert _requirement_package_specifiers(REPO_ROOT / lockfile, "setuptools") == {
-            ("==", "83.0.0")
+            ("==", "84.1.0")
         }
 
 

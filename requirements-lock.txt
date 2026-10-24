@@ -123,8 +123,9 @@ fastapi==0.138.1
     # via
     #   -c requirements.txt
     #   -r requirements.in
-filelock==3.29.1
+filelock==4.2.1
     # via
+    #   -r requirements-dev.in
     #   cachecontrol
     #   python-discovery
     #   virtualenv
@@ -445,7 +446,7 @@ rich==15.0.0
     #   pip-audit
 ruff==0.16.4
     # via -r requirements-dev.in
-setuptools==83.0.0
+setuptools==84.1.0
     # via
     #   -c requirements.txt
     #   -r requirements-dev.in
@@ -528,7 +529,7 @@ uvicorn==0.42.0
     # via
     #   -c requirements.txt
     #   -r requirements.in
-virtualenv==21.14.9
+virtualenv==21.14.10
     # via
     #   -r requirements-dev.in
     #   pre-commit

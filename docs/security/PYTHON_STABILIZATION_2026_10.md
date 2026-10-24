@@ -3,24 +3,327 @@
 ## Status and external instruction
 
 This is the single owner document for the in-progress
-`codex/python-setup-security-stabilization` prerequisite. Its exact base is
-`48d36c220ff58dec82450da66ef0599c6da71787`. The human operator explicitly
-accepted the five-identity batch from the terminal October 23 scanner snapshot,
-plus separate FastEmbed compatibility, pip tooling and source-review actions.
-The document records that instruction; it cannot authorize itself or another
-batch. Merge requires a separate decision on the verified head.
+`codex/python-setup-security-stabilization` prerequisite, based on
+`48d36c220ff58dec82450da66ef0599c6da71787`. The operator accepted the original
+five-identity batch and separately authorized FastEmbed compatibility, pip tooling
+and the source-review window. On October 24 the operator explicitly amended
+this same PR to seven security identities: add setuptools 84.1.0 and filelock
+4.2.1, and advance virtualenv to 21.14.10. The other four security targets and
+the FastEmbed/pip-tools companions remain unchanged. This document records
+external instructions; it cannot create or broaden them.
 
-Eight generated locks were adopted byte-for-byte after independent A2/B2
-outputs matched across all ten registered locks. Canonical exact-pin checks
-also accepted all eight installation compositions. The current working-material
-carrier guards and a fresh strict ten-lock audit passed. Eight fresh Linux amd64
-profile installs and their bounded native consumer checks subsequently passed,
-including both actual RAG selections. Final-material local gates, hosted CI,
-review and merge remain **pending**. The internal FastEmbed wheel has a successful authorized
-publication and independent public HTTPS byte/hash readback. No suppression,
-provider migration, API/DTO/OpenAPI change or production deployment is included.
+The operator has also given advance conditional permission to merge this one
+prerequisite after every required current-material validation, CI, review,
+closeout and wait-window gate passes. There is no deployment authority.
 
-## Frozen advisory and surface inventory
+**AM03 component checkpoint — 2026-10-24 03:26 UTC:** both independent
+canonical replays are complete and
+their verified locks are adopted. All ten locks passed the strict audit, all 53
+primary postconditions passed, and four adopted-material guards passed. The
+amended native matrix also completed all ten steps, covering eight product
+profiles and one reference-only baseline. Publication and closeout independently
+require the final local gates, current Oracle/role review and hosted CI; their
+live outcomes belong to the PR, canonical mapping and exact-material receipts. Earlier
+successful generation/install/audit results below retain their original
+material and advisory cutoff. The ordinary pre-push of the earlier c981
+candidate failed after its prior successful audit; a complete rescan confirmed
+five advisory IDs in three packages;
+those failures are not suppressed or replaced by the earlier successful scan.
+The published internal FastEmbed wheel and its verified bytes remain unchanged.
+
+## October 24 governing advisory inventory and authored correction
+
+A new terminal pip-audit 2.10.1 scan of all ten original-base locks ran from
+`2026-10-24T02:15:37.407738Z` to `2026-10-24T02:17:44.748688Z`. It observed
+553 package occurrences, seven affected identities, 52 distinct advisory IDs,
+316 finding occurrences and no skipped packages. The separate scan of
+`c98177bf123a59dc6b46cd487f00d644c53e542b` observed 561 package occurrences,
+five advisory IDs and 23 finding occurrences across filelock, setuptools and
+virtualenv. Both complete scans exited 1 because of retained findings.
+The immutable combined analysis SHA-256 is
+`8c5df2d89275ca9081e7c33473ab22c39f246068cb8dc8657f70f8f0569e1f1e`.
+
+Primary reconciliation retains 53 `F_cutoff` entries: the 52 base-applicable
+entries plus `GHSA-4f8h-vr72-p32c`, which applies to the previous virtualenv
+21.14.9 candidate. The complete primary-payload index SHA-256 is
+`f0538c40f2c0946ac7b01b355d61e90d98186d5624159284cc2173faa7d99e20`.
+Seven security identities, nine authored package coordinates (including the two
+compatibility companions), 53 reconciled advisories and 52 base-applicable
+advisories are distinct counts. Every governed head occurrence must satisfy
+all corresponding retained ranges; a clean subset does not establish final P.
+
+| Identity | Authored carriers | Selected replacement |
+| --- | --- | --- |
+| black | Existing dev/convenience/constraint/hook owners | 26.10.1 |
+| certifi | Existing runtime/constraint owners | 2026.10.19 |
+| filelock | CI-lite, dev, both RAG inputs and constraints | 4.2.1 |
+| opentelemetry-api | Existing runtime, Docker and CI-lite inputs | 1.45.1 |
+| pillow | Existing runtime, Docker, CI-lite, dev and constraint owners | 13.0.0 |
+| setuptools | Runtime, Docker, CI-lite, dev and constraints | 84.1.0 |
+| virtualenv | Existing CI-lite and dev inputs | 21.14.10 |
+
+FastEmbed `0.8.0+pulseplate.1` and pip-tools `7.6.1` remain separately authorized
+compatibility actions. Pip remains outside application locks with its unchanged
+26.2.2 minimum. No unrelated dependency intent, suppression or new registry is
+included. The same canonical runtime-then-seven-dependent transaction is replayed
+from the original base twice before adoption; current commands are in
+[the runbook](../../RUNBOOK_AGENT.md#native-python-client-build-and-lock-refresh).
+
+The existing finite admission now represents filelock's actual before values
+per profile: ci-lite/dev 3.24.3, aggregate 3.29.1 and both RAG profiles 3.29.4.
+Every value must match a hash-verified original seed; missing/extra profiles,
+wrong-profile substitutions and source drift reject before acquisition. The
+existing `exact_profile_deltas` remains the single projection. The admission
+remains within its existing 32768-byte cap, and legacy records and original-base
+hashes are preserved. Evidence anchors:
+`scripts/ci/compile_locked_python_requirements.py:1177` and
+`tests/test_python_dependency_surfaces.py:4771`.
+
+The direct filelock floor also requires exactly one existing Dependabot owner.
+The necessary two-line companion adds `filelock` to `supply-chain-tools` in
+`.github/dependabot.yml:119` and its existing closed validator mirror at
+`scripts/ci/check_dependabot_python_policy.py:131`. It changes no schedules,
+registries, credentials, update types or ownership algorithm. The concrete
+implementation now has 43 material paths; the sole numbered mapping brings the
+final footprint to 44. This companion adds no dependency identity or target and
+requires the same concrete scope justification and publication gates.
+
+### Primary advisory reconciliation
+
+Each row's selected target is outside its primary structured range. This is
+range comparison, not proof of installation or absence of unknown defects.
+
+| Identity | Primary advisory / scanner ID | Primary affected range | Base witness or disposition | Selected target |
+| --- | --- | --- | --- | --- |
+| black | [GHSA-cg8m-r9f2-5wm2](https://github.com/advisories/GHSA-cg8m-r9f2-5wm2) / CVE-2026-114134 | `<26.10.1` | 26.5.1: affected | 26.10.1 |
+| certifi | [GHSA-6q48-6c7w-9gw2](https://github.com/advisories/GHSA-6q48-6c7w-9gw2) / PYSEC-2026-4320 | `<2026.10.19,>=2019.03.09` | 2026.1.4: affected | 2026.10.19 |
+| filelock | [GHSA-567q-5qvw-pf92](https://github.com/advisories/GHSA-567q-5qvw-pf92) / CVE-2026-112907 | `<=4.2.0,>=3.22.0` | 3.24.3, 3.29.1, 3.29.4: affected | 4.2.1 |
+| filelock | [GHSA-9vhv-jxww-xfm5](https://github.com/advisories/GHSA-9vhv-jxww-xfm5) / CVE-2026-112913 | `<=4.2.0,>=3.20.4` | 3.24.3, 3.29.1, 3.29.4: affected | 4.2.1 |
+| filelock | [GHSA-v4x8-3wr5-3wq8](https://github.com/advisories/GHSA-v4x8-3wr5-3wq8) / CVE-2026-112940 | `<=4.2.0,>=3.20.4` | 3.24.3, 3.29.1, 3.29.4: affected | 4.2.1 |
+| opentelemetry-api | [GHSA-xcq7-p3pf-p88h](https://github.com/advisories/GHSA-xcq7-p3pf-p88h) / CVE-2026-114603 | `<=1.45.0` | 1.44.0: affected | 1.45.1 |
+| pillow | [GHSA-22hg-r758-rrw9](https://github.com/advisories/GHSA-22hg-r758-rrw9) / CVE-2026-112390 | `<13.0.0,>=7.2.0` | 12.3.0: affected | 13.0.0 |
+| pillow | [GHSA-24rc-8hj2-v98c](https://github.com/advisories/GHSA-24rc-8hj2-v98c) / CVE-2026-96638 | `<13.0.0,>=9.1.0` | 12.3.0: affected | 13.0.0 |
+| pillow | [GHSA-254f-3936-288h](https://github.com/advisories/GHSA-254f-3936-288h) / CVE-2026-112391 | `<13.0.0,>=5.1.0` | 12.3.0: affected | 13.0.0 |
+| pillow | [GHSA-27h8-gf7j-v5hc](https://github.com/advisories/GHSA-27h8-gf7j-v5hc) / CVE-2026-112392 | `<=12.3.0` | 12.3.0: affected | 13.0.0 |
+| pillow | [GHSA-332p-7hrc-92wf](https://github.com/advisories/GHSA-332p-7hrc-92wf) / CVE-2026-112393 | `<13.0.0,>=2.0.0` | 12.3.0: affected | 13.0.0 |
+| pillow | [GHSA-3j72-p6qg-6xp7](https://github.com/advisories/GHSA-3j72-p6qg-6xp7) / CVE-2026-96642 | `<13.0.0` | 12.3.0: affected | 13.0.0 |
+| pillow | [GHSA-462x-pgg6-55fp](https://github.com/advisories/GHSA-462x-pgg6-55fp) / CVE-2026-112395 | `<13.0.0,>=8.2.0` | 12.3.0: affected | 13.0.0 |
+| pillow | [GHSA-4rm8-3hmm-39fg](https://github.com/advisories/GHSA-4rm8-3hmm-39fg) / CVE-2026-96641 | `<13.0.0` | 12.3.0: affected | 13.0.0 |
+| pillow | [GHSA-4rr5-89j8-mwwm](https://github.com/advisories/GHSA-4rr5-89j8-mwwm) / CVE-2026-112396 | `<13.0.0,>=11.3.0` | 12.3.0: affected | 13.0.0 |
+| pillow | [GHSA-58r4-6rv3-gfh8](https://github.com/advisories/GHSA-58r4-6rv3-gfh8) / CVE-2026-112397 | `<=12.3.0` | 12.3.0: affected | 13.0.0 |
+| pillow | [GHSA-5x8w-8jj5-q52h](https://github.com/advisories/GHSA-5x8w-8jj5-q52h) / CVE-2026-112398 | `<=12.3.0` | 12.3.0: affected | 13.0.0 |
+| pillow | [GHSA-5xm2-6676-qcp9](https://github.com/advisories/GHSA-5xm2-6676-qcp9) / CVE-2026-112399 | `<13.0.0,>=8.1.0` | 12.3.0: affected | 13.0.0 |
+| pillow | [GHSA-654x-cwwv-5j9c](https://github.com/advisories/GHSA-654x-cwwv-5j9c) / CVE-2026-114501 | `<13.0.0,>=11.2.1` | 12.3.0: affected | 13.0.0 |
+| pillow | [GHSA-65qm-jvmh-6pqg](https://github.com/advisories/GHSA-65qm-jvmh-6pqg) / CVE-2026-112400 | `<13.0.0,>=9.2.0` | 12.3.0: affected | 13.0.0 |
+| pillow | [GHSA-74r2-7ff9-mjj2](https://github.com/advisories/GHSA-74r2-7ff9-mjj2) / CVE-2026-112401 | `<13.0.0,>=5.4.0` | 12.3.0: affected | 13.0.0 |
+| pillow | [GHSA-78g4-xqwv-q3g8](https://github.com/advisories/GHSA-78g4-xqwv-q3g8) | `<13.0.0,>=11.1.0` | 12.3.0: affected | 13.0.0 |
+| pillow | [GHSA-7mwm-ghpf-9vrm](https://github.com/advisories/GHSA-7mwm-ghpf-9vrm) / CVE-2026-112402 | `<=12.3.0` | 12.3.0: affected | 13.0.0 |
+| pillow | [GHSA-9v9v-9qvf-h2hj](https://github.com/advisories/GHSA-9v9v-9qvf-h2hj) / CVE-2026-96644 | `<13.0.0` | 12.3.0: affected | 13.0.0 |
+| pillow | [GHSA-c6hw-5grf-ff96](https://github.com/advisories/GHSA-c6hw-5grf-ff96) / CVE-2026-112404 | `<13.0.0,>=8.1.0` | 12.3.0: affected | 13.0.0 |
+| pillow | [GHSA-cp9v-662q-vvx9](https://github.com/advisories/GHSA-cp9v-662q-vvx9) / CVE-2026-112405 | `<13.0.0,>=12.0.0` | 12.3.0: affected | 13.0.0 |
+| pillow | [GHSA-f2g6-542v-9j58](https://github.com/advisories/GHSA-f2g6-542v-9j58) / CVE-2026-112406 | `<13.0.0,>=5.1.0` | 12.3.0: affected | 13.0.0 |
+| pillow | [GHSA-fc9g-5qg7-mf45](https://github.com/advisories/GHSA-fc9g-5qg7-mf45) / CVE-2026-112891 | `<13.0.0,>=9.2.0` | 12.3.0: affected | 13.0.0 |
+| pillow | [GHSA-g4qv-2jxx-769h](https://github.com/advisories/GHSA-g4qv-2jxx-769h) / CVE-2026-96643 | `<13.0.0,>=11.0.0` | 12.3.0: affected | 13.0.0 |
+| pillow | [GHSA-g7cr-3p24-7wf7](https://github.com/advisories/GHSA-g7cr-3p24-7wf7) / CVE-2026-96778 | `<13.0.0,>=9.4.0` | 12.3.0: affected | 13.0.0 |
+| pillow | [GHSA-g842-9rc4-69pw](https://github.com/advisories/GHSA-g842-9rc4-69pw) / CVE-2026-96637 | `<13.0.0` | 12.3.0: affected | 13.0.0 |
+| pillow | [GHSA-gg2r-wvfm-q9rx](https://github.com/advisories/GHSA-gg2r-wvfm-q9rx) / CVE-2026-112892 | `<13.0.0,>=4.1.0` | 12.3.0: affected | 13.0.0 |
+| pillow | [GHSA-j4m9-6w36-pw47](https://github.com/advisories/GHSA-j4m9-6w36-pw47) / CVE-2026-112893 | `<13.0.0,>=10.0.0` | 12.3.0: affected | 13.0.0 |
+| pillow | [GHSA-jg86-v3jv-hrpm](https://github.com/advisories/GHSA-jg86-v3jv-hrpm) / CVE-2026-112894 | `<13.0.0,>=5.1.0` | 12.3.0: affected | 13.0.0 |
+| pillow | [GHSA-mrfp-p49p-3hf2](https://github.com/advisories/GHSA-mrfp-p49p-3hf2) / CVE-2026-96640 | `<13.0.0,>=5.1.0` | 12.3.0: affected | 13.0.0 |
+| pillow | [GHSA-p4wg-p73j-c528](https://github.com/advisories/GHSA-p4wg-p73j-c528) / CVE-2026-112895 | `<13.0.0,>=5.1.0` | 12.3.0: affected | 13.0.0 |
+| pillow | [GHSA-p8hx-v2p6-rp84](https://github.com/advisories/GHSA-p8hx-v2p6-rp84) / CVE-2026-96636 | `<13.0.0` | 12.3.0: affected | 13.0.0 |
+| pillow | [GHSA-pchr-8j38-3x4p](https://github.com/advisories/GHSA-pchr-8j38-3x4p) / CVE-2026-112896 | `<=12.3.0` | 12.3.0: affected | 13.0.0 |
+| pillow | [GHSA-q45j-58j2-45rg](https://github.com/advisories/GHSA-q45j-58j2-45rg) / CVE-2026-112897 | `<13.0.0,>=5.3.0` | 12.3.0: affected | 13.0.0 |
+| pillow | [GHSA-v9pv-5gc8-w2m6](https://github.com/advisories/GHSA-v9pv-5gc8-w2m6) / CVE-2026-96639 | `<13.0.0,>=11.0.0` | 12.3.0: affected | 13.0.0 |
+| pillow | [GHSA-vx6w-vv9f-6gvg](https://github.com/advisories/GHSA-vx6w-vv9f-6gvg) / CVE-2026-112899 | `<=12.3.0,>=2.3.0` | 12.3.0: affected | 13.0.0 |
+| pillow | [GHSA-w889-685w-c8fh](https://github.com/advisories/GHSA-w889-685w-c8fh) / CVE-2026-112900 | `<13.0.0,>=2.6.0` | 12.3.0: affected | 13.0.0 |
+| pillow | [GHSA-xgh8-jp6q-p5x8](https://github.com/advisories/GHSA-xgh8-jp6q-p5x8) / CVE-2026-112901 | `<=12.3.0` | 12.3.0: affected | 13.0.0 |
+| setuptools | [GHSA-xmj3-9gf7-h52w](https://github.com/advisories/GHSA-xmj3-9gf7-h52w) | `<84.1.0,>=38.2.2` | 83.0.0: affected | 84.1.0 |
+| virtualenv | [GHSA-394h-qwmc-48pf](https://github.com/advisories/GHSA-394h-qwmc-48pf) / CVE-2026-113718 | `<21.14.9` | 21.14.5: affected | 21.14.10 |
+| virtualenv | [GHSA-494p-63j8-28p3](https://github.com/advisories/GHSA-494p-63j8-28p3) / CVE-2026-113714 | `<21.14.9` | 21.14.5: affected | 21.14.10 |
+| virtualenv | [GHSA-4f8h-vr72-p32c](https://github.com/advisories/GHSA-4f8h-vr72-p32c) / CVE-2026-113713 | `<21.14.10,>=21.14.8` | 21.14.5: outside structured range; 21.14.9 candidate affected | 21.14.10 |
+| virtualenv | [GHSA-6w3r-xr62-4xcp](https://github.com/advisories/GHSA-6w3r-xr62-4xcp) / CVE-2026-113723 | `<21.14.9` | 21.14.5: affected | 21.14.10 |
+| virtualenv | [GHSA-c978-59m8-c77v](https://github.com/advisories/GHSA-c978-59m8-c77v) / CVE-2026-113722 | `<21.14.9` | 21.14.5: affected | 21.14.10 |
+| virtualenv | [GHSA-cx28-75q4-x26q](https://github.com/advisories/GHSA-cx28-75q4-x26q) / CVE-2026-113717 | `<21.14.9` | 21.14.5: affected | 21.14.10 |
+| virtualenv | [GHSA-fc2g-4w5p-6whm](https://github.com/advisories/GHSA-fc2g-4w5p-6whm) / CVE-2026-113720 | `<21.14.9` | 21.14.5: affected | 21.14.10 |
+| virtualenv | [GHSA-qmx5-4p3x-wvqf](https://github.com/advisories/GHSA-qmx5-4p3x-wvqf) / CVE-2026-113715 | `<21.14.9` | 21.14.5: affected | 21.14.10 |
+| virtualenv | [GHSA-vxj4-q4g9-crj7](https://github.com/advisories/GHSA-vxj4-q4g9-crj7) / CVE-2026-113725 | `<=21.14.6` | 21.14.5: affected | 21.14.10 |
+
+`GHSA-4f8h-vr72-p32c` needs a narrow disposition: base virtualenv 21.14.5 is
+outside the current structured primary range `>=21.14.8,<21.14.10`; this does
+not demonstrate that the underlying bug was absent from that older release.
+The advisory prose still discusses an unavailable fix and an unverified earlier
+20.0.6 boundary, while its structured record identifies 21.14.10 as fixed.
+The verified 21.14.10 wheel independently contains the seeder correction:
+`options.symlink_app_data and not self.app_data.transient`. Source comparison
+corroborates the selected fix; actual execution remains a separate test.
+The universal head guard retains this advisory and uses 21.14.9 as its affected
+witness (`tests/test_dependency_security_guard.py:3952`).
+
+All three corrected artifacts were obtained through the existing private index
+and matched primary PyPI sizes/hashes before ZIP metadata inspection:
+
+| Artifact | Bytes | SHA-256 |
+| --- | ---: | --- |
+| `setuptools==84.1.0` | 819380 | `5231689c6ac8156cd155cfb98c3fd6fb252c3e7e9bd3d78b64d3c55f132624c9` |
+| `filelock==4.2.1` | 162455 | `7be2662e9e826b9bba28afc0f843a123280d799a2ea44bb5d35ccec67905ae44` |
+| `virtualenv==21.14.10` | 5494519 | `bf4a0f9671731d097e017e41280aa05e1e1adcd536b0e804fceb3179947ad50e` |
+
+The 125-case synthetic admission/advisory/schema selection exited 0 in 11.02s;
+the canonical isolated pre-push mypy hook and targeted Ruff checks also passed.
+A direct unconfigured mypy invocation first reported duplicate module discovery;
+the canonical hook then exposed two typing errors, which were fixed and rerun.
+Those raw failures remain retained. Synthetic tests are not canonical resolver,
+installation, final audit or current-head CI evidence.
+
+### AM03 canonical replay, complete delta and audit
+
+Four canonical Make transactions completed in the qualified owned Linux amd64
+CPython 3.13.14 environment: A runtime 142.77s and dependents 507.44s;
+B runtime 116.77s and dependents 501.22s. All four exited 0, with no yanked
+warnings. Compiler pip 26.2.2 and pip-tools 7.6.1 stayed fixed; its setuptools
+was updated to 84.1.0. Each independent export started from the same immutable
+original-base seeds. All ten output files matched byte-for-byte across A/B;
+the existing exact-pin reader accepted all eight installation compositions.
+Replay proof SHA-256:
+`2d6f44730d89baa0509c4c4f6261234a220df1ab703bb6a69218d6037f2d3ced`.
+
+The generated outputs were adopted without hand edits. Eight locks differ from
+the original base; seven changed from the previous c981 candidate because its
+test lock already matched the independently reproduced result. Data and eval
+remain unchanged and stay inside the audit inventory. Four adopted-material
+checks (complete advisory surfaces, virtualenv, schema and setuptools floor)
+exited 0: `4 passed in 1.50s`.
+
+The complete dependency delta has 17 identities: seven authored security
+replacements, the two separately authorized compatibility companions and eight
+independently reproduced solver-closure transitions. No transition is omitted;
+filelock's different original versions are retained per profile. Requirement
+strings preserve extras and contain no markers or URLs.
+
+```json
+{
+  "black": {"before":"black==26.5.1","after":"black==26.10.1","profiles":["dev","aggregate"],"class":"authored_security_replacement"},
+  "certifi": {"before":"certifi==2026.1.4","after":"certifi==2026.10.19","profiles":["runtime","docker-runtime","ci-lite","dev","rag-vector","rag-vector-cpu","aggregate"],"class":"authored_security_replacement"},
+  "fastembed": {"before":"fastembed==0.8.0","after":"fastembed==0.8.0+pulseplate.1","profiles":["rag-vector","rag-vector-cpu"],"class":"separately_authorized_compatibility_companion"},
+  "filelock": {"before_by_profile":{"ci-lite":"filelock==3.24.3","dev":"filelock==3.24.3","rag-vector":"filelock==3.29.4","rag-vector-cpu":"filelock==3.29.4","aggregate":"filelock==3.29.1"},"after":"filelock==4.2.1","class":"authored_security_replacement"},
+  "opentelemetry-api": {"before":"opentelemetry-api==1.44.0","after":"opentelemetry-api==1.45.1","profiles":["runtime","docker-runtime","ci-lite","aggregate"],"class":"authored_security_replacement"},
+  "opentelemetry-exporter-http-transport": {"before":null,"after":"opentelemetry-exporter-http-transport[requests]==0.66b1","profiles":["runtime","docker-runtime","ci-lite","aggregate"],"class":"independently_reproduced_solver_closure"},
+  "opentelemetry-exporter-otlp-common": {"before":null,"after":"opentelemetry-exporter-otlp-common==0.66b1","profiles":["runtime","docker-runtime","ci-lite","aggregate"],"class":"independently_reproduced_solver_closure"},
+  "opentelemetry-exporter-otlp-proto-common": {"before":"opentelemetry-exporter-otlp-proto-common==1.44.0","after":"opentelemetry-exporter-otlp-proto-common==1.45.1","profiles":["runtime","docker-runtime","ci-lite","aggregate"],"class":"independently_reproduced_solver_closure"},
+  "opentelemetry-exporter-otlp-proto-http": {"before":"opentelemetry-exporter-otlp-proto-http==1.44.0","after":"opentelemetry-exporter-otlp-proto-http==1.45.1","profiles":["runtime","docker-runtime","ci-lite","aggregate"],"class":"independently_reproduced_solver_closure"},
+  "opentelemetry-proto": {"before":"opentelemetry-proto==1.44.0","after":"opentelemetry-proto==1.45.1","profiles":["runtime","docker-runtime","ci-lite","aggregate"],"class":"independently_reproduced_solver_closure"},
+  "opentelemetry-sdk": {"before":"opentelemetry-sdk==1.44.0","after":"opentelemetry-sdk==1.45.1","profiles":["runtime","docker-runtime","ci-lite","aggregate"],"class":"independently_reproduced_solver_closure"},
+  "opentelemetry-semantic-conventions": {"before":"opentelemetry-semantic-conventions==0.65b0","after":"opentelemetry-semantic-conventions==0.66b1","profiles":["runtime","docker-runtime","ci-lite","aggregate"],"class":"independently_reproduced_solver_closure"},
+  "packaging": {"before":"packaging==25.0","after":"packaging==26.3","profiles":["runtime","docker-runtime","ci-lite","test","dev","rag-vector","rag-vector-cpu","aggregate"],"class":"independently_reproduced_solver_closure"},
+  "pillow": {"before":"pillow==12.3.0","after":"pillow==13.0.0","profiles":["runtime","docker-runtime","ci-lite","dev","rag-vector","rag-vector-cpu","aggregate"],"class":"authored_security_replacement"},
+  "pip-tools": {"before":"pip-tools==7.6.0","after":"pip-tools==7.6.1","profiles":["dev","aggregate"],"class":"separately_authorized_compatibility_companion"},
+  "setuptools": {"before":"setuptools==83.0.0","after":"setuptools==84.1.0","profiles":["runtime","docker-runtime","ci-lite","dev","aggregate"],"class":"authored_security_replacement"},
+  "virtualenv": {"before":"virtualenv==21.14.5","after":"virtualenv==21.14.10","profiles":["ci-lite","dev","aggregate"],"class":"authored_security_replacement"}
+}
+```
+
+The final candidate-A audit ran from `2026-10-24T02:58:20.557568Z` through
+`2026-10-24T03:01:14.462470Z`. Every scanner and adapter validation returned 0:
+ten locks, 561 package occurrences, zero findings, zero skips and no inventory
+errors. The later binding verified that every audited input equals both replay
+outputs and the adopted lock bytes. All 53 primary head postconditions passed.
+The two private FastEmbed occurrences retain the explicit byte-proven upstream
+comparison; no direct PyPI audit of the private version is claimed. Audit proof
+SHA-256:
+`984355915034a47d778aa569c423240e6c2b73e3d9d1243dd287bfb464119dbb`.
+
+| Adopted lock | Packages | Findings | Exit | SHA-256 |
+| --- | ---: | ---: | ---: | --- |
+| `requirements-ci-lite.txt` | 106 | 0 | 0 | `535374684bf646b5ebfc4622d566bbc9325189c5e1f82efeba5fc3ac0c408709` |
+| `requirements-data.txt` | 5 | 0 | 0 | `1d6ccad5c345d99ef0e67fc85c6eea5350a1e4aed839e0aeb132beb393712792` |
+| `requirements-dev.txt` | 89 | 0 | 0 | `44b1c1c0c79ceed5a7ac64886b40a0314e80268d3b9e8bdf53b93fbcc39992e0` |
+| `requirements-docker-runtime.txt` | 61 | 0 | 0 | `946244b2713e43f8fc42066eac794e47ce23d19e259bc5592925f58be72b2d96` |
+| `requirements-evals.txt` | 0 | 0 | 0 | `e67fe66dfd94ccda260fee2fbaf6da25ae28262753e849b454b1f26baad8c206` |
+| `requirements-lock.txt` | 137 | 0 | 0 | `4d015a1be44a183e84eabe07f41c5611f4eff83fc498c1cb854b03ea8f666106` |
+| `requirements-rag-vector-cpu.txt` | 35 | 0 | 0 | `05f64424ae0779765239e9e5cc73362f07828808db046efcf3a260bdfb99eaaf` |
+| `requirements-rag-vector.txt` | 35 | 0 | 0 | `9de7f03220711fa24b6291a7889bdf12ddf7e989502b5b1ac4c41051165bcfd2` |
+| `requirements-test.txt` | 23 | 0 | 0 | `5d0c7403d86c48cea7b500328de68fce74e76b5eaa5419f592c7710c89fd103e` |
+| `requirements.txt` | 70 | 0 | 0 | `a6abdaa0af537fd519950127707ebf5f4cb1774db84935e1bf609c44274600f5` |
+
+The eight exact installation selections contain runtime 70, runtime-dev 137,
+runtime-test 87, CI-lite 106, CI-test 118, runtime+RAG 88, Docker runtime 61
+and manual CPU 35 artifacts, excluding bootstrap pip. Composition agreement is
+not installation or runtime execution proof; the separately observed native
+matrix below supplies those bounded execution results. Final narrow gates,
+hosted current-head CI and review remain independent publication requirements.
+
+### AM03 native profile and consumer evidence
+
+The fresh amended matrix ran from `2026-10-24T03:10:34.566872Z` to
+`2026-10-24T03:24:43.356467Z`, taking 848.752s. Preparation, one reference-only
+baseline and all eight product profiles exited 0. The owned emulated Linux
+amd64 CPython 3.13.14 guest used two CPUs and two GiB; installation consumed the
+canonical exact profile selections, and native probes used the existing clean,
+offline namespace boundary. Each actual installed inventory matched its exact
+selection; startup guards and `pip check` passed. The guest was stopped normally
+after its owned work completed.
+
+This run remains bound to its actual frozen 5722-path source snapshot:
+`41330f91574c8edc5148052ee5fe0b7b6aa4925176f170151990d53062237c31`.
+The snapshot bytes stayed unchanged. At 03:26 UTC the recorded working-tree
+comparison differed only in this owner document and the ledger; executable and
+dependency bytes then matched. Subsequent fixture-serialization and Dependabot
+owner corrections have their own focused validation and do not change native
+consumer, compiler or lock inputs. This is component continuity, not retroactive
+execution of later documentation, control-plane changes or a final Git head. Native matrix proof SHA-256:
+`1f6b03c4f4c1882ae25b98ad14f5fe57b1564fbae70ecfdf0a1048f56f90097f`;
+observed summary SHA-256:
+`4cdf8e21c94a64995cdf88663230d5b481022d73aa0ecefa5db80c2c118c7418`.
+
+All eight product environments observed pip 26.2.2 and the fixed CA payload
+`50f79f98dac192b20dbf73f35c56f0b0c557ab267ff5199d1117cc1180b70785`.
+Applicable profiles observed setuptools 84.1.0, filelock 4.2.1 and virtualenv
+21.14.10. Runtime-dev also executed pip-tools 7.6.1, Black 26.10.1 and a fresh
+offline virtualenv child. The seven SDK-bearing profiles loaded Psycopg C 3.3.4,
+libpq 180006 and OpenSSL 3.5.9 with the same qualified native library hashes.
+A real database connection was not exercised. Existing OpenTelemetry and
+TestClient probes retain their recorded local/offline scope.
+
+Both runtime+RAG and manual CPU executed the real offline embedding comparison
+against the unchanged reference model `BAAI/bge-base-en-v1.5`, revision
+`199291fdd1aa89faf9c20b722dc72ad5e17aa0d0`, tokenizer 0.23.1 and ONNXRuntime
+1.27.0. They produced finite `[13, 768]` arrays with maximum absolute delta
+`0.0`, within `rtol=1e-5` and `atol=1e-6`; query rankings were identical and
+retrieval against persisted baseline BGE vectors succeeded. Each observed only
+loopback and external-connect errno 101. Candidate-result hashes are
+`df5901cea3b7dc9d7a6011745d0b5042023d9fee8827596d4ef5baec45605ffa`
+(runtime+RAG) and
+`f8120bffbde18a003000f7f34ba8dfe06b316e26d6b35138438ddd11797ffe7c`
+(manual CPU).
+
+Exactly four shared package versions differ from the reference: FastEmbed,
+Pillow, packaging 25.0 to 26.3 and filelock 3.29.4 to 4.2.1. Runtime+RAG also
+contains 53 additional packages; manual CPU has no additions. The reference's
+older Pillow/filelock versions are retained only for the isolated comparison,
+not as product locks or an audit PASS. These observations establish the named
+graph/corpus compatibility, not isolated two-package causality or historical
+MPNet compatibility.
+
+The seven export-bearing product profiles produced and decoded real
+PNG/JPEG/WEBP files and canonical CSV/PDF/image-PDF outputs. Six profiles also
+executed the existing Matplotlib chart; Docker's profile intentionally has no
+Matplotlib and uses a real Pillow image. All fourteen PDFs independently parsed
+as one page. Both Docker PDFs rendered successfully and were visually inspected:
+the meal table/totals were readable and the embedded image appeared correctly.
+Parser proof SHA-256:
+`138f6cff0e4d69d58fd450ac6aaa8f4414adeae42ef92350b325a670b95aacc3`;
+visual-observation proof SHA-256:
+`dcfb3ec74ff38170b785066b35030040d6e2cf335944d85725d6569424571769`.
+
+This owned Linux consumer matrix does not establish a final Docker image build,
+real database connectivity, hosted workflow success, review completion or merge
+readiness. Those applicable final gates remain independently required.
+
+## Historical October 23 advisory and surface inventory
+
+The following subsection preserves the original five-identity snapshot and its
+then-selected targets. It is not the governing AM03 inventory or current success.
 
 Pip-audit 2.10.1 observed all ten registered compiled locks from
 `2026-10-23T10:19:10.624000Z` through `2026-10-23T10:19:14.400522Z`:
@@ -122,7 +425,7 @@ This component result does not replace final current-head CI or runtime proof.
 | opentelemetry-api | [GHSA-xcq7-p3pf-p88h](https://github.com/advisories/GHSA-xcq7-p3pf-p88h) / CVE-2026-114603 | `<= 1.45.0` | `1.44.0`: affected | `1.45.1`: outside |
 | pillow | [GHSA-xgh8-jp6q-p5x8](https://github.com/advisories/GHSA-xgh8-jp6q-p5x8) / CVE-2026-112901 | `<= 12.3.0` | `12.3.0`: affected | `13.0.0`: outside |
 
-## Authored actions and resolver closure
+## Historical October 23 authored actions and resolver closure
 
 Security I_R contains exactly the five replacements above. FastEmbed, pip and
 the explicitly approved pip-tools compatibility amendment are separate
@@ -179,7 +482,7 @@ postcondition and Black hook parity checks returned `4 passed in 1.55s`, exit 0.
 The initial parity check exposed a stale 26.5.1 test expectation; it was corrected
 to the already adopted Black 26.10.1 without changing the hook or admission.
 
-## Native generation, complete delta and candidate audit
+## Historical October 23 generation, delta, audit and native evidence
 
 The exact base remained `48d36c220ff58dec82450da66ef0599c6da71787`.
 Execution used owned Linux amd64 CPython 3.13.14 under Mac emulation, pip 26.2.2,
@@ -199,8 +502,9 @@ A2/B2 terminal receipt hashes are
 `98500e6282602932b25921c550c0deca39e1a60bb2c7cb6a7d1c6f3898866e18`
 and `b52024524a3f0229a0a2b7c8450f54cef7535fecdeeeeb8275848cc429476478`.
 
-Reproduction uses the exact seven-target request and two graph additions in
-[the runbook commands](../../RUNBOOK_AGENT.md), with the qualified owned
+The historical run used its then-authorized seven-target request. AM03 uses
+the revised nine-target request in [the runbook commands](../../RUNBOOK_AGENT.md),
+with the qualified owned
 interpreter, approved index and SDK selected explicitly:
 
 ```bash
@@ -363,7 +667,7 @@ specified corpus, model and Linux ARM environment.
 Candidate embedding-result JSON SHA-256:
 `580f26af41e6a75a57cf8dc2cd65cb5a3b1ff5398e302c2c715f7e18b9abba8b`.
 
-The final Linux amd64 matrix independently installed the unchanged 35-package
+The earlier October 23 Linux amd64 matrix independently installed the unchanged 35-package
 reference fixture, then actually executed both canonical runtime+RAG and manual
 CPU selections with the same model, tokenizer, corpus and ONNXRuntime 1.27.0.
 Each produced finite `[13, 768]` vectors, maximum absolute delta `0.0` within
@@ -380,8 +684,8 @@ manual CPU has no additions. Full inventories and every addition are retained.
 This is graph compatibility evidence, not isolated two-package causality or
 historical MPNet compatibility.
 
-The final eight product environments produced and decoded real PNG/JPEG/WEBP
-files. All seven SDK-bearing profiles exercised canonical PDF/CSV and image-PDF
+The seven earlier export-bearing product environments produced and decoded real
+PNG/JPEG/WEBP files and exercised canonical PDF/CSV and image-PDF
 exports; the six containing matplotlib 3.10.8 also executed the canonical BMI
 chart. Docker intentionally has no Matplotlib and embeds a real Pillow image.
 All fourteen PDFs independently parsed as one page, and both Docker PDFs were
@@ -480,8 +784,8 @@ No enumerated trust override keys were present. Trust-payload JSON SHA-256:
 `8a7197492756c78b6d4b467253e1c8468ff5fec2d0c7fe5427db1b7a8a3141d2`.
 The subsequent eight fresh amd64 product profiles and reference baseline each
 observed pip 26.2.2 and this same fixed CA payload. This proves the recorded
-versions and readable payloads; final project images and effective trust under
-every hosted caller remain pending.
+versions and readable payloads. Final project-image contents and effective
+trust under each applicable hosted caller require independent evidence.
 
 A separate fresh Mac arm64 virtualenv 21.14.9 probe exposed default pip 26.2.1
 seeding, with embedded CA SHA-256
@@ -565,14 +869,15 @@ Black/Ruff/diff checks passed. These results precede final dependency
 compilation. Raw scripts, terminal logs, result JSON, model bindings and output
 files remain in the owned gitignored stabilization evidence directory.
 
-Required remaining evidence: the final material's complete local narrow bundle including
+Publication and closeout require the final material's complete local narrow bundle including
 `make validate-changed` and terminal all-files hooks, premortem/Runner,
 post-open roles, current-head CI/security/coverage, exact-material self-review,
-provider-neutral seal, dispositions, strict wrapper, wait window and separately
-authorized merge. The generation/replay, full classified delta, working-material
+provider-neutral seal, dispositions, strict wrapper and wait window before the
+already conditionally authorized merge. The generation/replay, full classified delta, working-material
 carrier postconditions, exact ten-lock audit and native final-profile checks
 above retain their bounded component meaning; later input changes require
-corresponding revalidation. Missing evidence remains pending. Native profile
+corresponding revalidation. Consult the canonical PR/mapping and exact-material
+receipts for current gate outcomes; missing evidence stays unproven. Native profile
 success does not establish final-image, hosted workflow or merge readiness.
 
 Prometheus publisher/CD recovery remains owned by #2494. Rollback uses a normal

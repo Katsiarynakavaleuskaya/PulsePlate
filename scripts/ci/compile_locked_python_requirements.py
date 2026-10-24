@@ -90,38 +90,38 @@ STABILIZATION_GRAPH = frozenset(
 # Frozen technical material, not operator authority or native C_R proof.
 STABILIZATION_RECORD_SHA256 = bytes(
     (
-        35,
-        36,
-        57,
-        212,
-        229,
-        242,
-        86,
-        193,
-        153,
-        52,
         88,
+        195,
+        162,
+        5,
+        101,
+        128,
+        21,
+        246,
+        238,
+        175,
+        46,
+        77,
+        90,
+        43,
         122,
-        227,
-        145,
-        199,
-        32,
-        28,
-        184,
-        161,
-        212,
+        245,
+        125,
         111,
-        62,
-        117,
-        139,
-        142,
-        62,
-        146,
-        47,
-        0,
-        4,
-        161,
-        215,
+        20,
+        232,
+        162,
+        253,
+        125,
+        182,
+        196,
+        20,
+        178,
+        127,
+        58,
+        242,
+        187,
+        83,
     )
 ).hex()
 PSYCOPG_C_RECORD_SHA256 = bytes(
@@ -1154,13 +1154,15 @@ def _authorize_stabilization(
         "certifi": "2026.10.19",
         "opentelemetry-api": "1.45.1",
         "pillow": "13.0.0",
-        "virtualenv": "21.14.9",
+        "virtualenv": "21.14.10",
         "black": "26.10.1",
+        "filelock": "4.2.1",
+        "setuptools": "84.1.0",
         "fastembed": "0.8.0+pulseplate.1",
         "pip-tools": "7.6.1",
     }
     if record["upgrades"] != expected_upgrades or dict(upgrades) != expected_upgrades:
-        raise RuntimeError("Stabilization requires the complete seven-target request.")
+        raise RuntimeError("Stabilization requires the complete nine-target request.")
     runtime = ("linux", "x86_64", "cpython", "3.13")
     if record["runtime"] != list(runtime) or _stabilization_runtime() != runtime:
         raise RuntimeError("Stabilization artifacts require Linux x86_64 CPython 3.13.")
@@ -1172,6 +1174,7 @@ def _authorize_stabilization(
     digests: dict[str, str] = {}
     sizes: dict[str, int] = {}
     frozen: list[tuple[Path, FileSnapshot]] = []
+    original_pins: dict[str, dict[str, ExactPin]] = {}
     for profile, value in baselines.items():
         baseline = _require_exact_keys(
             value, keys=frozenset({"lockfile", "bytes", "sha256_bytes"}), label="Stabilization seed"
@@ -1189,6 +1192,9 @@ def _authorize_stabilization(
             if (observed.snapshot.digest, observed.snapshot.size) != (digests[profile], size):
                 raise RuntimeError(f"Stabilization {profile} seed bytes differ from original base.")
             frozen.append((seed_path, observed.snapshot))
+            original_pins[profile] = _exact_pin_map(
+                observed.content.decode("utf-8"), label=f"Stabilization {profile} original seed"
+            )
     source_names = frozenset(
         {
             source
@@ -1221,47 +1227,75 @@ def _authorize_stabilization(
 
     if type(record["changes"]) is not dict:
         raise RuntimeError("Stabilization changes must be an object.")
-    changes: dict[str, tuple[ExactPin | None, ExactPin]] = {}
-    for name, value in record["changes"].items():
-        relation = _require_exact_keys(
-            value, keys=frozenset({"before", "after"}), label="Stabilization relation"
-        )
-        pins: list[ExactPin | None] = []
-        for side in ("before", "after"):
-            text = relation[side]
-            if side == "before" and text is None:
-                pins.append(None)
-                continue
-            if type(text) is not str or "\n" in text or "\r" in text:
-                raise RuntimeError("Stabilization relation must contain one exact requirement.")
-            parsed = _exact_pin_map(text, label="Stabilization relation")
-            if (
-                set(parsed) != {name}
-                or parsed[name].marker is not None
-                or parsed[name].url is not None
-            ):
-                raise RuntimeError("Stabilization relation identity/metadata differs.")
-            pins.append(parsed[name])
-        before, after = pins
-        if after is None:
-            raise RuntimeError("Stabilization cannot remove a package.")
-        changes[name] = (before, after)
-    profile_changes = _require_exact_keys(
+    profile_values = _require_exact_keys(
         record["profile_changes"],
         keys=frozenset(STABILIZATION_PROFILES),
         label="Stabilization profile changes",
     )
-    deltas: dict[str, dict[str, tuple[ExactPin | None, ExactPin]]] = {}
-    for profile, value in profile_changes.items():
+    profile_changes: dict[str, tuple[str, ...]] = {}
+    for profile, value in profile_values.items():
         names = _require_string_list(value, label="Stabilization profile relation")
-        if not names or len(set(names)) != len(names) or not set(names) <= set(changes):
+        if not names or len(set(names)) != len(names) or not set(names) <= set(record["changes"]):
             raise RuntimeError(
                 "Stabilization profile relation contains missing/duplicate packages."
             )
-        deltas[profile] = {name: changes[name] for name in names}
+        profile_changes[profile] = names
+    if set(record["changes"]) != {name for names in profile_changes.values() for name in names}:
+        raise RuntimeError("Stabilization relation contains unowned packages.")
+
+    def relation_pin(value: object, *, package: str) -> ExactPin:
+        if type(value) is not str or "\n" in value or "\r" in value:
+            raise RuntimeError("Stabilization relation must contain one exact requirement.")
+        parsed = _exact_pin_map(value, label="Stabilization relation")
+        if (
+            set(parsed) != {package}
+            or parsed[package].marker is not None
+            or parsed[package].url is not None
+        ):
+            raise RuntimeError("Stabilization relation identity/metadata differs.")
+        return parsed[package]
+
+    after_pins: dict[str, ExactPin] = {}
+    before_pins: dict[str, dict[str, ExactPin | None]] = {}
+    for name, value in record["changes"].items():
+        relation = _require_exact_keys(
+            value, keys=frozenset({"before", "after"}), label="Stabilization relation"
+        )
+        owned_profiles = frozenset(
+            profile for profile, names in profile_changes.items() if name in names
+        )
+        if name == "filelock":
+            if owned_profiles != frozenset(
+                {"ci-lite", "dev", "aggregate", "rag-vector", "rag-vector-cpu"}
+            ):
+                raise RuntimeError("Stabilization filelock profile membership differs.")
+            profile_before = _require_exact_keys(
+                relation["before"], keys=owned_profiles, label="Stabilization filelock before"
+            )
+            before_pins[name] = {
+                profile: relation_pin(text, package=name)
+                for profile, text in profile_before.items()
+            }
+        else:
+            before = (
+                None
+                if relation["before"] is None
+                else relation_pin(relation["before"], package=name)
+            )
+            before_pins[name] = {profile: before for profile in owned_profiles}
+        after = relation_pin(relation["after"], package=name)
+        after_pins[name] = after
+    deltas = {
+        profile: {name: (before_pins[name][profile], after_pins[name]) for name in names}
+        for profile, names in profile_changes.items()
+    }
+    for profile, seed_pins in original_pins.items():
+        for name, (before, _after) in deltas[profile].items():
+            if seed_pins.get(name) != before:
+                raise RuntimeError(f"Stabilization {profile}: {name} before pin differs.")
 
     artifacts = _require_exact_keys(
-        record["artifacts"], keys=frozenset(changes), label="Stabilization artifacts"
+        record["artifacts"], keys=frozenset(after_pins), label="Stabilization artifacts"
     )
     bound_artifacts: dict[tuple[str, str], tuple[str, int, str, str]] = {}
     for name, value in artifacts.items():
@@ -1277,7 +1311,7 @@ def _authorize_stabilization(
             or not 0 < size <= ARTIFACT_ADMISSION_MAX_BYTES
         ):
             raise RuntimeError("Stabilization artifact filename/size differs.")
-        bound_artifacts[(name, changes[name][1].version)] = (
+        bound_artifacts[(name, after_pins[name].version)] = (
             filename,
             size,
             _require_sha256_bytes(artifact["sha256_bytes"], label="Stabilization wheel"),

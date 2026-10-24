@@ -126,7 +126,7 @@ CURRENT_ENFORCED_RUNTIME_FLOORS = {
     "cryptography": "50.0.2",
     "pillow": "13.0.0",
     "python-multipart": "0.0.31",
-    "setuptools": "83.0.0",
+    "setuptools": "84.1.0",
     "starlette": "1.3.1",
 }
 
@@ -134,33 +134,47 @@ REMEDIATION_FIXED_FLOORS = {
     "anyio": Version("4.14.2"),
     "black": Version("26.10.1"),
     "certifi": Version("2026.10.19"),
+    "filelock": Version("4.2.1"),
+    "setuptools": Version("84.1.0"),
     "httpcore2": Version("2.12.0"),
     "httpx2": Version("2.12.0"),
     "opentelemetry-api": Version("1.45.1"),
     "pillow": Version("13.0.0"),
     "urllib3": Version("2.8.0"),
-    "virtualenv": Version("21.14.9"),
+    "virtualenv": Version("21.14.10"),
 }
 
 VIRTUALENV_F_CUTOFF = {
+    "GHSA-394h-qwmc-48pf": "<21.14.9",
     "GHSA-3jhc-wjqf-5f2c": "<1.5",
+    "GHSA-494p-63j8-28p3": "<21.14.9",
+    "GHSA-4f8h-vr72-p32c": "<21.14.10,>=21.14.8",
     "GHSA-597g-3phw-6986": "<20.36.1",
     "GHSA-5vjq-rrrf-7h2q": "<=21.14.3",
+    "GHSA-6w3r-xr62-4xcp": "<21.14.9",
     "GHSA-8rjx-v5ww-45pp": "<=21.14.1,>=20.26.6",
     "GHSA-94p9-xgh2-xp45": "<=21.7.11",
     "GHSA-9h9j-4vrj-gf7g": "<=21.7.10",
     "GHSA-c947-3pg5-gm8q": "<=21.14.1",
     "GHSA-c978-59m8-c77v": "<21.14.9",
+    "GHSA-cx28-75q4-x26q": "<21.14.9",
+    "GHSA-fc2g-4w5p-6whm": "<21.14.9",
     "GHSA-p58f-9548-mpm2": "<=21.7.12",
+    "GHSA-qmx5-4p3x-wvqf": "<21.14.9",
     "GHSA-rqc4-2hc7-8c8v": "<20.26.6",
     "GHSA-vxj4-q4g9-crj7": "<=21.14.6",
     "GHSA-x78j-v8h9-3j2q": "<=21.7.11",
 }
 
-# Reconciled primary ranges at the October 23 cutoff; no historical lock/delta binding.
+# Reconciled primary ranges at the October 24 cutoff; no historical lock/delta binding.
 PYTHON_STABILIZATION_F_CUTOFF = {
     "black": {"GHSA-cg8m-r9f2-5wm2": "<26.10.1"},
     "certifi": {"GHSA-6q48-6c7w-9gw2": ">=2019.03.09,<2026.10.19"},
+    "filelock": {
+        "GHSA-567q-5qvw-pf92": "<=4.2.0,>=3.22.0",
+        "GHSA-9vhv-jxww-xfm5": "<=4.2.0,>=3.20.4",
+        "GHSA-v4x8-3wr5-3wq8": "<=4.2.0,>=3.20.4",
+    },
     "opentelemetry-api": {"GHSA-xcq7-p3pf-p88h": "<=1.45.0"},
     "pillow": {
         "GHSA-22hg-r758-rrw9": ">=7.2.0,<13.0.0",
@@ -173,7 +187,9 @@ PYTHON_STABILIZATION_F_CUTOFF = {
         "GHSA-4rm8-3hmm-39fg": "<13.0.0",
         "GHSA-4rr5-89j8-mwwm": ">=11.3.0,<13.0.0",
         "GHSA-58r4-6rv3-gfh8": "<=12.3.0",
+        "GHSA-5x8w-8jj5-q52h": "<=12.3.0",
         "GHSA-5xm2-6676-qcp9": ">=8.1.0,<13.0.0",
+        "GHSA-654x-cwwv-5j9c": "<13.0.0,>=11.2.1",
         "GHSA-65qm-jvmh-6pqg": ">=9.2.0,<13.0.0",
         "GHSA-74r2-7ff9-mjj2": ">=5.4.0,<13.0.0",
         "GHSA-78g4-xqwv-q3g8": ">=11.1.0,<13.0.0",
@@ -199,7 +215,18 @@ PYTHON_STABILIZATION_F_CUTOFF = {
         "GHSA-w889-685w-c8fh": ">=2.6.0,<13.0.0",
         "GHSA-xgh8-jp6q-p5x8": "<=12.3.0",
     },
-    "virtualenv": {"GHSA-c978-59m8-c77v": "<21.14.9", "GHSA-vxj4-q4g9-crj7": "<=21.14.6"},
+    "setuptools": {"GHSA-xmj3-9gf7-h52w": "<84.1.0,>=38.2.2"},
+    "virtualenv": {
+        "GHSA-394h-qwmc-48pf": "<21.14.9",
+        "GHSA-494p-63j8-28p3": "<21.14.9",
+        "GHSA-4f8h-vr72-p32c": "<21.14.10,>=21.14.8",
+        "GHSA-6w3r-xr62-4xcp": "<21.14.9",
+        "GHSA-c978-59m8-c77v": "<21.14.9",
+        "GHSA-cx28-75q4-x26q": "<21.14.9",
+        "GHSA-fc2g-4w5p-6whm": "<21.14.9",
+        "GHSA-qmx5-4p3x-wvqf": "<21.14.9",
+        "GHSA-vxj4-q4g9-crj7": "<=21.14.6",
+    },
 }
 
 
@@ -208,7 +235,7 @@ CURRENT_BLOCKED_VERSION_SPECIFIERS = {
     "httpcore2": f"<{REMEDIATION_FIXED_FLOORS['httpcore2']}",
     "httpx2": f"<{REMEDIATION_FIXED_FLOORS['httpx2']}",
     "python-multipart": "<0.0.31",
-    "setuptools": "<83.0.0",
+    "setuptools": "<84.1.0",
     "urllib3": f"<{REMEDIATION_FIXED_FLOORS['urllib3']}",
 }
 
@@ -3764,10 +3791,10 @@ def test_virtualenv_surface_rejects_malformed_url_or_editable_carriers(
 @pytest.mark.parametrize(
     "name,text,required,pinned",
     (
-        ("requirements.txt", "virtualenv==21.14.9\n", True, True),
+        ("requirements.txt", "virtualenv==21.14.11\n", True, True),
         ("requirements.txt", "virtualenv==21.14.10\n", True, True),
         ("requirements.txt", "virtualenv==22.0.0\n", True, True),
-        ("requirements.in", "virtualenv>=21.14.9,<23\n", True, False),
+        ("requirements.in", "virtualenv>=21.14.10,<23\n", True, False),
         ("requirements-evals.txt", "# optional absence\n", False, True),
         ("requirements-all.txt", "virtualenv>=22.0.0\n", False, False),
     ),
@@ -3933,10 +3960,14 @@ def test_python_stabilization_enforces_each_primary_advisory_range(
     affected = {
         "black": "26.5.1",
         "certifi": "2026.1.4",
+        "filelock": "3.24.3",
+        "setuptools": "83.0.0",
         "opentelemetry-api": "1.44.0",
         "pillow": "12.3.0",
         "virtualenv": "21.14.5",
     }[package]
+    if advisory == "GHSA-4f8h-vr72-p32c":
+        affected = "21.14.9"
     assert SpecifierSet(affected_range).contains(affected, prereleases=True), advisory
     schema = deepcopy(_load_schema(SCHEMA_PATH))
     schema["blocked_versions"][package] = [affected_range]

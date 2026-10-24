@@ -377,13 +377,15 @@ checkpoint grants no hook, validation or merge bypass.
 
 The same transaction includes the owner's explicit pip-tools 7.6.1
 compatibility amendment for pip 26.2.2. Only dev and aggregate acquire that
-authored companion; the five security identities remain unchanged. Supply an
+authored companion. The explicitly approved October 24 amendment covers seven
+security identities and nine authored targets including both companions. Supply an
 absolute qualified Linux x86_64 CPython 3.13 compiler interpreter and retain
 each terminal result plus the runtime checkpoint before the second command:
 
 ```bash
 STABILIZATION_UPGRADES='certifi==2026.10.19 opentelemetry-api==1.45.1
-pillow==13.0.0 virtualenv==21.14.9 black==26.10.1
+pillow==13.0.0 virtualenv==21.14.10 black==26.10.1
+filelock==4.2.1 setuptools==84.1.0
 fastembed==0.8.0+pulseplate.1 pip-tools==7.6.1'
 STABILIZATION_GRAPH='opentelemetry-exporter-http-transport opentelemetry-exporter-otlp-common'
 export PULSEPLATE_PYTHON_INDEX_URL='https://packages.pulseplate.app/root/pulseplate/+simple/'
