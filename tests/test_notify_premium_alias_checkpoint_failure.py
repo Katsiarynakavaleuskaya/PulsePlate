@@ -543,6 +543,9 @@ def _native(
     """Run one bounded secret-free fixture child and retain its actual exit and diagnostics."""
     resolved = shutil.which(argv[0])
     assert resolved is not None and os.path.isabs(resolved), f"native binary missing: {argv[0]}"
+    argv_sha256 = hashlib.sha256(
+        json.dumps([resolved, *argv[1:]], separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
     environment = {
         "PATH": os.defpath,
         "LANG": "C",
@@ -566,18 +569,19 @@ def _native(
         )
     except subprocess.TimeoutExpired as error:
         if _AM_NATIVE_DOCKER_CONFIG is not None:
+            stdout_partial = (error.stdout or b"")[: 1024 * 1024]
+            stderr_partial = (error.stderr or b"")[: 1024 * 1024]
             print(
                 json.dumps(
                     {
-                        "AM_native_argv": [resolved, *argv[1:]],
+                        "AM_native_argc": len(argv),
+                        "AM_native_argv_sha256": argv_sha256,
                         "exit": None,
                         "failure": "TimeoutExpired",
-                        "stdout_partial_base64": base64.b64encode(
-                            (error.stdout or b"")[: 1024 * 1024]
-                        ).decode("ascii"),
-                        "stderr_partial_base64": base64.b64encode(
-                            (error.stderr or b"")[: 1024 * 1024]
-                        ).decode("ascii"),
+                        "stdout_partial_bytes": len(stdout_partial),
+                        "stdout_partial_sha256": hashlib.sha256(stdout_partial).hexdigest(),
+                        "stderr_partial_bytes": len(stderr_partial),
+                        "stderr_partial_sha256": hashlib.sha256(stderr_partial).hexdigest(),
                     }
                 ),
                 flush=True,
@@ -595,17 +599,20 @@ def _native(
         print(
             json.dumps(
                 {
-                    "AM_native_argv": result.args,
-                    "environment": environment,
+                    "AM_native_argc": len(argv),
+                    "AM_native_argv_sha256": argv_sha256,
+                    "environment_keys": sorted(environment),
                     "exit": result.returncode,
-                    "stdout": result.stdout,
-                    "stderr": result.stderr,
+                    "stdout_bytes": len(result.stdout.encode("utf-8")),
+                    "stdout_sha256": hashlib.sha256(result.stdout.encode("utf-8")).hexdigest(),
+                    "stderr_bytes": len(result.stderr.encode("utf-8")),
+                    "stderr_sha256": hashlib.sha256(result.stderr.encode("utf-8")).hexdigest(),
                 }
             ),
             flush=True,
         )
     if check:
-        assert result.returncode == 0, result.stderr[-2048:]
+        assert result.returncode == 0, f"native command failed: exit={result.returncode}"
     return result
 
 
@@ -1850,6 +1857,7 @@ def _native_alertmanager(
                 timeout=30,
             )
             trusted_ca.chmod(0o444)
+        ca_fixture_name = "unrelated-ca.crt" if tls_failure == "untrusted" else "smtp.crt"
 
         class Handler(StreamRequestHandler):
             def handle(self) -> None:
@@ -1911,9 +1919,9 @@ def _native_alertmanager(
             configuration = directory / "alertmanager.yml"
             configuration.write_bytes((ROOT / "deploy/alertmanager/alertmanager.yml").read_bytes())
             configuration.chmod(0o444)
-            secret = directory / "synthetic-smtp"
-            secret.write_text("synthetic-smtp")
-            secret.chmod(0o444)
+            smtp_fixture_file = directory / "smtp-fixture-value"
+            smtp_fixture_file.write_text("test-only-value")
+            smtp_fixture_file.chmod(0o444)
             template_data = directory / "email-template-data.json"
             template_data.write_text(
                 json.dumps(
@@ -1939,8 +1947,19 @@ def _native_alertmanager(
             template_data.chmod(0o444)
             compose = directory / "compose.yaml"
             compose.write_text(
-                f"services:\n  alertmanager:\n    profiles: [alerting]\n    image: {image}\n    pull_policy: never\n    platform: linux/amd64\n    user: '65534:65534'\n    read_only: true\n    cap_drop: [ALL]\n    security_opt: ['no-new-privileges:true']\n    network_mode: host\n    extra_hosts: ['smtp.resend.com:127.0.0.1']\n    command: ['--config.file=/etc/alertmanager/alertmanager.yml', '--storage.path=/alertmanager', '--cluster.listen-address=', '--web.listen-address=127.0.0.1:9093']\n    tmpfs: ['/alertmanager:uid=65534,gid=65534,mode=0700,size=16m']\n    volumes:\n      - {configuration}:/etc/alertmanager/alertmanager.yml:ro\n      - {secret}:/run/secrets/alertmanager_smtp_key:ro\n      - {trusted_ca}:/etc/ssl/certs/ca-certificates.crt:ro\n"
-                f"      - {template_data}:/email-template-data.json:ro\n"
+                f"services:\n  alertmanager:\n    profiles: [alerting]\n    image: {image}\n    pull_policy: never\n    platform: linux/amd64\n    user: '65534:65534'\n    read_only: true\n    cap_drop: [ALL]\n    security_opt: ['no-new-privileges:true']\n    network_mode: host\n    extra_hosts: ['smtp.resend.com:127.0.0.1']\n    command: ['--config.file=/etc/alertmanager/alertmanager.yml', '--storage.path=/alertmanager', '--cluster.listen-address=', '--web.listen-address=127.0.0.1:9093']\n    tmpfs: ['/alertmanager:uid=65534,gid=65534,mode=0700,size=16m']\n    volumes:\n      - ./alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro\n      - ./smtp-fixture-value:/run/secrets/alertmanager_smtp_key:ro\n      - ./{ca_fixture_name}:/etc/ssl/certs/ca-certificates.crt:ro\n"
+                f"      - ./email-template-data.json:/email-template-data.json:ro\n"
+            )
+            assert "test-only-value" not in compose.read_text(encoding="utf-8")
+            assert str(directory) not in compose.read_text(encoding="utf-8")
+            assert all(
+                (directory / name).is_file()
+                for name in (
+                    "alertmanager.yml",
+                    "smtp-fixture-value",
+                    ca_fixture_name,
+                    "email-template-data.json",
+                )
             )
             docker = shutil.which("docker")
             assert docker is not None
@@ -4960,7 +4979,7 @@ def test_alertmanager_native_amtool_uses_terminal_exit_and_exact_owned_cleanup(
 
 
 @pytest.mark.parametrize("failure", ["exit", "timeout"])
-def test_alertmanager_native_transport_retains_raw_terminal_diagnostics_before_failure(
+def test_alertmanager_native_transport_redacts_terminal_diagnostics_before_failure(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
@@ -4989,14 +5008,35 @@ def test_alertmanager_native_transport_retains_raw_terminal_diagnostics_before_f
         _native(["docker", "synthetic-owned-command"])
     raw = capsys.readouterr().out
     assert "synthetic-not-forwarded" not in raw
+    assert "synthetic-owned-command" not in raw
+    assert "synthetic partial stdout" not in raw
+    assert "synthetic partial stderr" not in raw
+    assert "synthetic native stdout" not in raw
+    assert "synthetic native stderr" not in raw
     report = json.loads(raw)
-    assert report["AM_native_argv"] == ["/absolute/docker", "synthetic-owned-command"]
+    assert report["AM_native_argc"] == 2
+    assert (
+        report["AM_native_argv_sha256"]
+        == hashlib.sha256(b'["/absolute/docker","synthetic-owned-command"]').hexdigest()
+    )
     if failure == "timeout":
         assert report["failure"] == "TimeoutExpired" and report["exit"] is None
-        assert base64.b64decode(report["stdout_partial_base64"]) == b"synthetic partial stdout"
+        assert report["stdout_partial_bytes"] == len(b"synthetic partial stdout")
+        assert (
+            report["stdout_partial_sha256"]
+            == hashlib.sha256(b"synthetic partial stdout").hexdigest()
+        )
+        assert report["stderr_partial_bytes"] == len(b"synthetic partial stderr")
+        assert (
+            report["stderr_partial_sha256"]
+            == hashlib.sha256(b"synthetic partial stderr").hexdigest()
+        )
     else:
-        assert report["exit"] == 7 and report["stdout"] == "synthetic native stdout"
-        assert report["stderr"] == "synthetic native stderr"
+        assert report["exit"] == 7
+        assert report["stdout_bytes"] == len(b"synthetic native stdout")
+        assert report["stdout_sha256"] == hashlib.sha256(b"synthetic native stdout").hexdigest()
+        assert report["stderr_bytes"] == len(b"synthetic native stderr")
+        assert report["stderr_sha256"] == hashlib.sha256(b"synthetic native stderr").hexdigest()
 
 
 def test_alertmanager_local_tls_partial_setup_closes_owned_server_without_start_or_amtool(

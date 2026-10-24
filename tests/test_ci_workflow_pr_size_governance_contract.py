@@ -4902,7 +4902,10 @@ start = {
     "database_url": os.environ["DATABASE_URL"],
     "fallback_url": os.environ["DB_FALLBACK_URL"],
 }
-(events / f"start-{index}.json").write_text(json.dumps(start))
+# Publish complete start metadata before the partner can trigger termination.
+pending_start = events / f".start-{index}.json.tmp"
+pending_start.write_text(json.dumps(start))
+pending_start.replace(events / f"start-{index}.json")
 assert len(list(events.glob("running-*"))) <= 2
 partner = index + 1 if index % 2 else index - 1
 if partner <= batch_count:

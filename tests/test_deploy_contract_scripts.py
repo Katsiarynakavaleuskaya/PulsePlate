@@ -529,7 +529,7 @@ def test_deploy_relative_directory_reaches_verified_helper_without_product_mutat
     else:
         assert result.returncode != 0
         assert "Duplicate required environment keys found" in result.stdout
-        assert "Invalid trusted Prometheus helper operand" not in result.stderr
+        assert "Invalid trusted contract helper operand" not in result.stderr
         assert calls == ["compose version"]
 
 
