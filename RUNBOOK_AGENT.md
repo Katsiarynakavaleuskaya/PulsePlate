@@ -366,6 +366,43 @@ live schema after all affected locks reach the selected target; never relax a
 guard or restore weaker intent bytes to pass hooks. Full local `make verify`
 retains the root human-authorization rule.
 
+For the exact `python-stabilization-2026-10-23` transaction only, the admitted
+runtime checkpoint may remain in the working tree without an intermediate
+Git commit. Retain the successful runtime Make command, environment/tool versions,
+terminal log, original input/output hashes and complete dependency delta; bind
+the saved runtime hash before and after the dependent Make transaction. Commit
+the complete material only after the full batch and required narrow gates pass.
+Other transactions retain the runtime-first commit procedure above; this narrow
+checkpoint grants no hook, validation or merge bypass.
+
+The same transaction includes the owner's explicit pip-tools 7.6.1
+compatibility amendment for pip 26.2.2. Only dev and aggregate acquire that
+authored companion. The explicitly approved October 24 amendment covers seven
+security identities and nine authored targets including both companions. Supply an
+absolute qualified Linux x86_64 CPython 3.13 compiler interpreter and retain
+each terminal result plus the runtime checkpoint before the second command:
+
+```bash
+STABILIZATION_UPGRADES='certifi==2026.10.19 opentelemetry-api==1.45.1
+pillow==13.0.0 virtualenv==21.14.10 black==26.10.1
+filelock==4.2.1 setuptools==84.1.0
+fastembed==0.8.0+pulseplate.1 pip-tools==7.6.1'
+STABILIZATION_GRAPH='opentelemetry-exporter-http-transport opentelemetry-exporter-otlp-common'
+export PULSEPLATE_PYTHON_INDEX_URL='https://packages.pulseplate.app/root/pulseplate/+simple/'
+make requirements-locks \
+  VENV_PYTHON="${STABILIZATION_PYTHON:?qualified compiler interpreter required}" \
+  LOCK_PROFILES='runtime' UPGRADE_PACKAGES="$STABILIZATION_UPGRADES" \
+  GRAPH_CHANGE_PACKAGES="$STABILIZATION_GRAPH" \
+  GRAPH_CHANGE_ADMISSION='python-stabilization-2026-10-23'
+# After retaining the successful runtime checkpoint:
+make requirements-locks \
+  VENV_PYTHON="${STABILIZATION_PYTHON:?qualified compiler interpreter required}" \
+  LOCK_PROFILES='docker-runtime ci-lite dev test rag-vector rag-vector-cpu aggregate' \
+  UPGRADE_PACKAGES="$STABILIZATION_UPGRADES" \
+  GRAPH_CHANGE_PACKAGES="$STABILIZATION_GRAPH" \
+  GRAPH_CHANGE_ADMISSION='python-stabilization-2026-10-23'
+```
+
 When a native API probe fails, retain its observed public return value,
 immediate errno and public error code in the same bounded failure report before
 changing assertions. Inspect the exact applied source and the selected
@@ -403,8 +440,13 @@ not download sources, scan images, edit dates or supply suppression/merge
 approval. Scheduled runs and notifications are best-effort; no warning does not
 prove the material remains current.
 
-The source manifest review is October 21, 2026 inclusive; October 22 rejects
-stale source review (`scripts/ci/docker_source_artifacts.json:4`). The current
+The source manifest review is October 30, 2026 inclusive; October 31 rejects
+stale source review (`scripts/ci/docker_source_artifacts.json:4`). This manually
+admitted extension preserves `generated_at` and all seventeen source records;
+it is not source requalification. The coordinator/security owner must reassess
+the sources before that boundary under
+[the tracked source-review obligation](docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-python-stabilization-source-review).
+The current
 `trivy/ignore-policy.rego:1` is the complete canonical never-ignore file, with no
 R1 rules or exclusive helpers. Only those exact complete bytes are expiry-free.
 Missing, unreadable, malformed, partial or additional executable policies do
@@ -670,6 +712,28 @@ not a permanent availability claim.
    - When the manifest reports `retired=true` → no emergency wheel is runtime-effective, and mirror lag must be fixed in the private proxy.
    - When the proxy itself is fully unhealthy (true Cloudflare 521 / origin down) → the emergency manifest **cannot keep installs going on its own** for unlisted pins. Do **not** present it as a "521 fallback" to operators. The only correct operator paths in that case are: (a) restore the *packages* origin per the SRE/infra section below, or (b) use an out-of-band complete offline wheelhouse (not part of this PR's scope). This is also the reason `ledger-p1-private-pypi-proxy-mirror-parity` exists — see `docs/roadmap/BACKLOG_LEDGER.md`.
    - Any change to the manifest must pass `tests/test_python_supply_chain_controls.py`, `tests/test_emergency_wheel_mirror_parity.py`, and installer tests; security review applies.
+
+For the exact FastEmbed compatibility package, `bash scripts/ci_pip_audit.sh`
+retains its six selected CI manifests and strict PyPI scanner calls. The narrow
+adapter verifies the current upstream/private wheel bytes through the canonical
+builder before querying upstream 0.8.0 as an explicit comparand, then validates
+the complete report against the preserved original/projection inventory.
+Raw JSON/stderr stay unchanged and a separate evidence sidecar identifies the
+comparison; it is not a direct PyPI audit of the private version. Use fresh
+report paths, preserve failures, and retain the separate final ten-lock audit.
+
+The October 23 bounded Cloudflare tightening removed the managed-rule skip
+from three existing custom rules while preserving the maintenance gate. Package
+GET/HEAD success remained distinct from the failed upload POST: the authenticated
+Ray observation confirms an edge Managed Rules block, but no exact rule is
+available from the sampled event. Do not infer devpi credential failure or grant
+an upload exemption from the separate GET challenge. The response-rule UI also
+changed from implicit to explicit default, so it is not a no-change result.
+A subsequent separately authorized publication through the existing SSH and
+loopback devpi route returned 200; independent public HTTPS readback matched
+the exact internal wheel. This establishes that package's delivery only.
+Retained configuration, benign checks and closed-site results are recorded in
+[the stabilization owner](docs/security/PYTHON_STABILIZATION_2026_10.md#fastembed-compatibility-evidence).
 
 ### SRE / infra (scoped fix for 521)
 

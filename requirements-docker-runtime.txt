@@ -28,7 +28,7 @@ anyio==4.14.2
     #   httpx
     #   openai
     #   starlette
-certifi==2026.1.4
+certifi==2026.10.19
     # via
     #   -c requirements.txt
     #   httpcore
@@ -127,40 +127,50 @@ openai==2.29.0
     # via
     #   -c requirements.txt
     #   -r requirements-docker-runtime.in
-opentelemetry-api==1.44.0
+opentelemetry-api==1.45.1
     # via
     #   -c requirements.txt
     #   -r requirements-docker-runtime.in
+    #   opentelemetry-exporter-http-transport
     #   opentelemetry-exporter-otlp-proto-http
     #   opentelemetry-sdk
     #   opentelemetry-semantic-conventions
-opentelemetry-exporter-otlp-proto-common==1.44.0
+opentelemetry-exporter-http-transport[requests]==0.66b1
     # via
     #   -c requirements.txt
     #   opentelemetry-exporter-otlp-proto-http
-opentelemetry-exporter-otlp-proto-http==1.44.0
+opentelemetry-exporter-otlp-common==0.66b1
+    # via
+    #   -c requirements.txt
+    #   opentelemetry-exporter-otlp-proto-http
+opentelemetry-exporter-otlp-proto-common==1.45.1
+    # via
+    #   -c requirements.txt
+    #   opentelemetry-exporter-otlp-proto-http
+opentelemetry-exporter-otlp-proto-http==1.45.1
     # via
     #   -c requirements.txt
     #   -r requirements-docker-runtime.in
-opentelemetry-proto==1.44.0
+opentelemetry-proto==1.45.1
     # via
     #   -c requirements.txt
     #   opentelemetry-exporter-otlp-proto-common
     #   opentelemetry-exporter-otlp-proto-http
-opentelemetry-sdk==1.44.0
+opentelemetry-sdk==1.45.1
     # via
     #   -c requirements.txt
     #   -r requirements-docker-runtime.in
+    #   opentelemetry-exporter-otlp-common
     #   opentelemetry-exporter-otlp-proto-http
-opentelemetry-semantic-conventions==0.65b0
+opentelemetry-semantic-conventions==0.66b1
     # via
     #   -c requirements.txt
     #   opentelemetry-sdk
-packaging==25.0
+packaging==26.3
     # via
     #   -c requirements.txt
     #   limits
-pillow==12.3.0
+pillow==13.0.0
     # via
     #   -c requirements.txt
     #   -r requirements-docker-runtime.in
@@ -216,8 +226,9 @@ requests==2.33.0
     # via
     #   -c requirements.txt
     #   -r requirements-docker-runtime.in
+    #   opentelemetry-exporter-http-transport
     #   opentelemetry-exporter-otlp-proto-http
-setuptools==83.0.0
+setuptools==84.1.0
     # via
     #   -c requirements.txt
     #   -r requirements-docker-runtime.in

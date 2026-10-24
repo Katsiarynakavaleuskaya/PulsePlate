@@ -3,5 +3,9 @@
 # Optional vector runtime profile for RAG embeddings + pgvector search.
 # Feature-flagged via FEATURE_RAG_VECTOR; keep opt-in only.
 # FastEmbed uses ONNXRuntime for local embeddings.
-fastembed==0.8.0
+# Temporary metadata-only compatibility build; see docs/security/PYTHON_STABILIZATION_2026_10.md.
+fastembed==0.8.0+pulseplate.1
 pgvector==0.5.0
+
+# Security: retain the fixed lock implementation used by model caching.
+filelock>=4.2.1,<5.0.0

@@ -1,0 +1,26 @@
+{
+  "source_filename": "fastembed-0.8.0-py3-none-any.whl",
+  "output_filename": "fastembed-0.8.0+pulseplate.1-py3-none-any.whl",
+  "source_sha256": "40bee672657574a1009e35ec50030a55f2b426842cb011845379817641bbbbd0",
+  "source_size": 116572,
+  "member_count": 64,
+  "uncompressed_size": 382377,
+  "metadata_replacements": [
+    {
+      "before": "Version: 0.8.0",
+      "after": "Version: 0.8.0+pulseplate.1"
+    },
+    {
+      "before": "Requires-Dist: pillow (>=10.3.0,<13.0) ; python_version >= \"3.10\" and python_version < \"3.13\"",
+      "after": "Requires-Dist: pillow (>=10.3.0,<14.0) ; python_version >= \"3.10\" and python_version < \"3.13\""
+    },
+    {
+      "before": "Requires-Dist: pillow (>=11.0.0,<13.0) ; python_version == \"3.13\"",
+      "after": "Requires-Dist: pillow (>=11.0.0,<14.0) ; python_version == \"3.13\""
+    },
+    {
+      "before": "Requires-Dist: pillow (>=12.0.0,<13.0) ; python_version >= \"3.14\"",
+      "after": "Requires-Dist: pillow (>=12.0.0,<14.0) ; python_version >= \"3.14\""
+    }
+  ]
+}

@@ -22,6 +22,28 @@ If it is not recorded here — it does not exist.
 
 ## Open Items
 
+<a id="ledger-p1-python-stabilization-source-review"></a>
+- [ ] P1: Reassess the unchanged Docker source inventory before October 30
+  - Owner: agent-coordinator / security-auditor
+  - Priority: P1
+  - Target PR: substantive `codex/python-setup-security-stabilization` implementation lane.
+  - Status: OPEN. The explicitly accepted candidate extends only `review_by` to 2026-10-30 inclusive; October 31 rejects. Original `generated_at=2026-10-04` and all seventeen source records remain unchanged. The historical October 21 deadline remains provenance, not the current candidate cutoff.
+  - Reason for deferral: This bounded setup repair admits continued use of the retained inventory; it does not repeat source qualification, remediate native CVEs, renew another exception or establish publisher/CD recovery.
+  - Links: [Python stabilization owner](../security/PYTHON_STABILIZATION_2026_10.md); `scripts/ci/docker_source_artifacts.json:4`; [source-review runbook](../../RUNBOOK_AGENT.md#nightly-docker-and-trivy-review-deadline-forecast).
+  - DoD: Reassess every retained source and removal trigger before the review window expires; record observed primary-source evidence and required native qualification separately. Land any necessary bounded correction through normal gates. Preserve default fifteen-source selection, the separately selected Alertmanager pair, historical boundary tests, and CURRENT/+4 forecast. No automatic date renewal or merge authority.
+  - Rollback: A normal reviewed revert restores the previous stale-review rejection; do not disable the date gate or substitute a suppression extension.
+
+<a id="ledger-p1-fastembed-pillow13-compat-retirement"></a>
+- [ ] P1: Retire the temporary FastEmbed Pillow 13 compatibility package
+  - Owner: backend-engineer / security-auditor
+  - Priority: P1
+  - Target PR: current substantive `codex/python-setup-security-stabilization` PR for introduction; upstream retirement PR after a compatible release is available.
+  - Status: OPEN. The fixed upstream-wheel transformation and bounded Linux/aarch64 CPython 3.13 BGE/Pillow comparison have observed local evidence; private-index POST returned 200 and independent public HTTPS readback matched the exact wheel size/hash. The earlier candidate locks were independently reproduced and passed their recorded audit/native-profile checks. A later required audit found newly indexed findings; the explicitly approved October 24 seven-identity amendment adds filelock/setuptools and advances virtualenv. The amended original-base A/B replays now agree across all ten locks; their adopted bytes passed the complete audit with zero findings/skips and all 53 primary postconditions. The amended native matrix completed ten steps, including eight product profiles and the reference baseline, with matching BGE vectors and valid export artifacts. Final local/Oracle/role/hosted-CI/closeout gates are independently required and tracked in current PR receipts; native proof retains its frozen source identity. Hosted current-head PR checks, review/merge readiness and upstream retirement remain separate requirements; this item stays OPEN until its upstream-retirement DoD is satisfied.
+  - Reason for deferral: Upstream FastEmbed 0.8.0 declares Pillow upper bounds below 13. The separately authorized `0.8.0+pulseplate.1` changes distribution metadata only; it is not a security-remediation identity or a provider migration.
+  - Links: [Python stabilization owner](../security/PYTHON_STABILIZATION_2026_10.md#fastembed-compatibility-evidence); `scripts/ci/fastembed_compat_build.json`; `core/rag/rag_constants.py:21`.
+  - DoD: Select a real upstream release supporting the corrected Pillow dependency, verify its provenance and exact private-index bytes, repeat the same pinned-model/tokenizer/ONNXRuntime/corpus comparison and existing BGE-vector retrieval checks, regenerate affected locks through the canonical Make workflow, then remove the temporary builder/recipe when no call sites remain. Preserve the model acknowledgement gate and separate historical MPNet boundary.
+  - Rollback: Reverting to the old Pillow pin restores known advisory findings and requires explicit review; no automatic downgrade, production deployment or unbounded compatibility claim.
+
 <a id="ledger-p2-checkpoint-manifest-reader-bandit-2477"></a>
 - [ ] P2: Reassess the four checkpoint manifest-reader Bandit annotations
   - Owner: security-auditor / dev-operator
