@@ -16,6 +16,7 @@ from typing import Any, cast
 from packaging.requirements import InvalidRequirement
 from packaging.requirements import Requirement
 from packaging.utils import canonicalize_name
+from packaging.version import InvalidVersion, Version
 import pytest
 import yaml
 
@@ -169,12 +170,7 @@ DS3_HOOK_LOCK_PARITY = {
         "hook_id": "black",
         "hook_count": 1,
         "package": "black",
-        "revision": "26.10.1",
-        "inputs": {
-            "requirements-dev.in": {("~=", "26.10.1")},
-            "constraints.txt": {(">=", "26.10.1")},
-            "requirements-all.txt": {(">=", "26.10.1")},
-        },
+        "inputs": ("requirements-dev.in", "constraints.txt", "requirements-all.txt"),
         "locks": ("requirements-dev.txt", "requirements-lock.txt"),
     },
     "https://github.com/astral-sh/ruff-pre-commit": {
@@ -1874,6 +1870,37 @@ def test_httpx2_testclient_backend_stays_dev_and_test_only() -> None:
         assert canonicalize_name("httpx2") not in package_names
 
 
+def _assert_black_hook_lock_parity(repo_root: Path) -> None:
+    """Compare live Black configuration; security floors remain with their canonical guard."""
+    url = "https://github.com/psf/black"
+    relation = DS3_HOOK_LOCK_PARITY[url]
+    config = yaml.safe_load((repo_root / ".pre-commit-config.yaml").read_text(encoding="utf-8"))
+    repositories = [item for item in config["repos"] if item.get("repo") == url]
+    assert len(repositories) == 1, "Black requires one hook repository"
+    repository = repositories[0]
+    assert len([hook for hook in repository["hooks"] if hook.get("id") == "black"]) == 1
+    revision = repository["rev"]
+    assert isinstance(revision, str)
+    selected_version = Version(revision.removeprefix("v"))
+    for filename in (*relation["inputs"], *relation["locks"]):
+        requirements = [
+            item
+            for item in _requirement_entries(repo_root / filename)
+            if canonicalize_name(item.name) == "black"
+        ]
+        assert len(requirements) == 1, f"{filename}: expected one Black owner"
+        requirement = requirements[0]
+        assert requirement.marker is None and requirement.url is None and not requirement.extras
+        assert requirement.specifier, f"{filename}: missing Black constraint"
+        if filename in relation["locks"]:
+            specifiers = tuple(requirement.specifier)
+            assert len(specifiers) == 1 and specifiers[0].operator == "=="
+            assert "*" not in specifiers[0].version
+            assert Version(specifiers[0].version) == selected_version, "Black hook/lock mismatch"
+        else:
+            assert requirement.specifier.contains(selected_version), "Black is outside source range"
+
+
 def test_ds3_hook_revisions_match_finite_dev_lock_owners() -> None:
     config = yaml.safe_load((REPO_ROOT / ".pre-commit-config.yaml").read_text(encoding="utf-8"))
     repositories = config["repos"]
@@ -1882,6 +1909,9 @@ def test_ds3_hook_revisions_match_finite_dev_lock_owners() -> None:
         hook_id = relation["hook_id"]
         hook_count = relation["hook_count"]
         package_name = relation["package"]
+        if package_name == "black":
+            _assert_black_hook_lock_parity(REPO_ROOT)
+            continue
         exact_revision = relation["revision"]
         assert isinstance(hook_id, str)
         assert isinstance(hook_count, int)
@@ -1995,7 +2025,6 @@ def test_runtime_dependency_profiles_pin_fastapi_pydantic_refresh() -> None:
     ("package_name", "expected_specifiers"),
     [
         ("click", {(">=", "8.3.3"), ("<", "9.0.0")}),
-        ("pillow", {(">=", "13.0.0"), ("<", "14.0.0")}),
     ],
 )
 def test_runtime_source_profiles_keep_single_security_floor(
@@ -2020,8 +2049,8 @@ def test_runtime_source_profiles_keep_single_security_floor(
         } == expected_specifiers
 
 
-def test_click_and_pillow_security_pins_cover_every_existing_lock_surface() -> None:
-    expected_pins = {"click": "8.3.3", "pillow": "13.0.0"}
+def test_click_security_pin_covers_existing_lock_surfaces() -> None:
+    expected_pins = {"click": "8.3.3"}
     lockfiles = (
         "requirements.txt",
         "requirements-ci-lite.txt",
@@ -2035,41 +2064,12 @@ def test_click_and_pillow_security_pins_cover_every_existing_lock_surface() -> N
     for lockfile in lockfiles:
         lock_path = REPO_ROOT / lockfile
         package_names = _requirement_package_names(lock_path)
-        assert canonicalize_name("pillow") in package_names
         for package_name, expected_version in expected_pins.items():
             if canonicalize_name(package_name) not in package_names:
                 continue
             assert _requirement_package_specifiers(lock_path, package_name) == {
                 ("==", expected_version)
             }
-
-
-def test_setuptools_security_floor_covers_governed_dependency_surfaces() -> None:
-    for source_file in (
-        "requirements.in",
-        "requirements-ci-lite.in",
-        "requirements-docker-runtime.in",
-        "requirements-dev.in",
-    ):
-        assert _requirement_package_specifiers(REPO_ROOT / source_file, "setuptools") == {
-            (">=", "84.1.0"),
-            ("<", "85.0.0"),
-        }
-
-    assert _requirement_package_specifiers(REPO_ROOT / "constraints.txt", "setuptools") == {
-        (">=", "84.1.0")
-    }
-
-    for lockfile in (
-        "requirements.txt",
-        "requirements-ci-lite.txt",
-        "requirements-docker-runtime.txt",
-        "requirements-dev.txt",
-        "requirements-lock.txt",
-    ):
-        assert _requirement_package_specifiers(REPO_ROOT / lockfile, "setuptools") == {
-            ("==", "84.1.0")
-        }
 
 
 def test_base_runtime_dependency_profile_excludes_vector_ml_stack() -> None:
@@ -3989,3 +3989,81 @@ def test_comparison_diagnostic_does_not_echo_untrusted_requirement_credentials(
     stderr = capsys.readouterr().err
     assert "invalid_exact_requirement_inventory" in stderr
     assert "synthetic-secret" not in stderr
+
+
+@pytest.fixture
+def black_hook_repo(tmp_path: Path) -> Path:
+    """A later patch satisfies the unchanged compatible source lower bound."""
+    config = {
+        "repos": [
+            {"repo": "https://github.com/psf/black", "rev": "26.10.2", "hooks": [{"id": "black"}]}
+        ]
+    }
+    (tmp_path / ".pre-commit-config.yaml").write_text(yaml.safe_dump(config), encoding="utf-8")
+    for filename in ("requirements-dev.txt", "requirements-lock.txt"):
+        (tmp_path / filename).write_text("black==26.10.2\n", encoding="utf-8")
+    for filename in ("constraints.txt", "requirements-all.txt"):
+        (tmp_path / filename).write_text("black>=26.10.1\n", encoding="utf-8")
+    (tmp_path / "requirements-dev.in").write_text("black~=26.10.1\n", encoding="utf-8")
+    return tmp_path
+
+
+@pytest.mark.parametrize("revision", ("26.10.2", "v26.10.2"))
+def test_black_hook_parity_allows_later_patch_with_unchanged_source_floor(
+    black_hook_repo: Path, revision: str
+) -> None:
+    path = black_hook_repo / ".pre-commit-config.yaml"
+    config = yaml.safe_load(path.read_text())
+    config["repos"][0]["rev"] = revision
+    path.write_text(yaml.safe_dump(config), encoding="utf-8")
+    _assert_black_hook_lock_parity(black_hook_repo)
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    (
+        "hook-mismatch",
+        "aggregate-mismatch",
+        "source-excludes",
+        "duplicate-hook",
+        "duplicate-repository",
+        "missing-source",
+        "duplicate-source",
+        "missing-lock",
+        "duplicate-lock",
+        "marked-lock",
+        "invalid-revision",
+    ),
+)
+def test_black_hook_parity_rejects_mismatched_or_ambiguous_owners(
+    black_hook_repo: Path, mutation: str
+) -> None:
+    path = black_hook_repo / ".pre-commit-config.yaml"
+    config = yaml.safe_load(path.read_text())
+    if mutation == "hook-mismatch":
+        config["repos"][0]["rev"] = "26.10.3"
+    elif mutation == "aggregate-mismatch":
+        (black_hook_repo / "requirements-lock.txt").write_text("black==26.10.3\n")
+    elif mutation == "source-excludes":
+        (black_hook_repo / "requirements-dev.in").write_text("black~=26.11.0\n")
+    elif mutation == "duplicate-hook":
+        config["repos"][0]["hooks"].append({"id": "black"})
+    elif mutation == "duplicate-repository":
+        config["repos"].append(config["repos"][0])
+    elif mutation == "missing-source":
+        (black_hook_repo / "constraints.txt").write_text("# no owner\n")
+    elif mutation == "duplicate-source":
+        (black_hook_repo / "requirements-all.txt").write_text("black>=26.10.1\nBlack>=26.10.1\n")
+    elif mutation == "missing-lock":
+        (black_hook_repo / "requirements-dev.txt").write_text("# no owner\n")
+    elif mutation == "duplicate-lock":
+        (black_hook_repo / "requirements-dev.txt").write_text("black==26.10.2\nBlack==26.10.2\n")
+    elif mutation == "marked-lock":
+        (black_hook_repo / "requirements-dev.txt").write_text(
+            'black==26.10.2; python_version >= "3.13"\n'
+        )
+    else:
+        config["repos"][0]["rev"] = "not-a-version"
+    path.write_text(yaml.safe_dump(config), encoding="utf-8")
+    with pytest.raises((AssertionError, InvalidVersion)):
+        _assert_black_hook_lock_parity(black_hook_repo)

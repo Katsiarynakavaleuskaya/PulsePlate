@@ -88,6 +88,15 @@ implementation now has 43 material paths; the sole numbered mapping brings the
 final footprint to 44. This companion adds no dependency identity or target and
 requires the same concrete scope justification and publication gates.
 
+Permanent security floors, affected ranges and required carrier presence remain
+owned by `tests/test_dependency_security_guard.py`, including Pillow in both
+RAG locks (`tests/test_dependency_security_guard.py:3907`). Black consumer tests
+compare the live hook and lock versions and require membership in owning input
+specifiers; a compatible-release lower bound is not another selected-version
+constant (`tests/test_python_supply_chain_controls.py:1873`,
+`tests/test_install_locked_python_requirements.py:2960`). These continuing
+consumer contracts do not relax the exact one-time compiler transition.
+
 ### Primary advisory reconciliation
 
 Each row's selected target is outside its primary structured range. This is
@@ -158,7 +167,7 @@ The verified 21.14.10 wheel independently contains the seeder correction:
 `options.symlink_app_data and not self.app_data.transient`. Source comparison
 corroborates the selected fix; actual execution remains a separate test.
 The universal head guard retains this advisory and uses 21.14.9 as its affected
-witness (`tests/test_dependency_security_guard.py:3952`).
+witness (`tests/test_dependency_security_guard.py:3961`).
 
 All three corrected artifacts were obtained through the existing private index
 and matched primary PyPI sizes/hashes before ZIP metadata inspection:
@@ -851,7 +860,7 @@ obfuscation.
 | `tests/test_python_supply_chain_controls.py:736` | Hex High Entropy String | `5dea9dea65238a640165a7ceb3990edee64837d0` | Embedded CA content SHA-256 `50f79f98dac192b20dbf73f35c56f0b0c557ab267ff5199d1117cc1180b70785`; 238856 bytes verified. |
 | `tests/test_python_supply_chain_controls.py:2607` | Secret Keyword | `572662ff4bbac5d8fbe3fd244a4b0d7c44f517fa` | Synthetic `TWINE_PASSWORD` canary exercises child-environment isolation and must not be forwarded. |
 
-Final candidate baseline SHA-256:
+Earlier reviewed baseline SHA-256 (before later native line-number refreshes):
 `18414c32780f253e4f606276893fb9399d58f28235e83fb61a4df85f614e7aa0`.
 The first native exact-set admission receipt SHA-256 is
 `edb644ba5df7ec9d0b0612e4d46176fff88199e0052f285b6c0b2f0d2f7d704e`;

@@ -3904,6 +3904,11 @@ def test_virtualenv_consumer_rejects_omitted_advisory_member(
         test_virtualenv_current_governed_surfaces_are_safe()
 
 
+PILLOW_REQUIRED_RAG_LOCKS = frozenset(
+    {"requirements-rag-vector.txt", "requirements-rag-vector-cpu.txt"}
+)
+
+
 def test_python_stabilization_current_governed_surfaces_are_safe() -> None:
     """Check every present occurrence against the complete finite advisory inventory."""
     registered = registered_dependabot_requirement_carriers()
@@ -3911,6 +3916,7 @@ def test_python_stabilization_current_governed_surfaces_are_safe() -> None:
     assert discovered, "Python stabilization carrier inventory must not be empty"
     assert discovered == registered, "Python stabilization carrier inventory differs from registry"
     locks = {surface.lockfile for surface in compiled_dependency_surfaces()}
+    assert PILLOW_REQUIRED_RAG_LOCKS <= locks & discovered, "Pillow required RAG lock is missing"
     schema = _load_schema(SCHEMA_PATH)
     for package, advisories in PYTHON_STABILIZATION_F_CUTOFF.items():
         assert set(advisories.values()) <= set(
@@ -3918,7 +3924,10 @@ def test_python_stabilization_current_governed_surfaces_are_safe() -> None:
         ), f"{package}: schema must retain every October advisory range"
         for name in sorted(discovered):
             _assert_remediated_dependency_surface(
-                REPO_ROOT / name, package=package, required=False, pinned=name in locks
+                REPO_ROOT / name,
+                package=package,
+                required=package == "pillow" and name in PILLOW_REQUIRED_RAG_LOCKS,
+                pinned=name in locks,
             )
 
 
@@ -4029,7 +4038,12 @@ def test_python_stabilization_checks_every_registered_lock(
 ) -> None:
     """A safe inventory becomes invalid when any selected identity regresses in any lock."""
     path = python_stabilization_repo / lockfile
-    path.write_text(f"{package}==1.0.0\n", encoding="utf-8")
+    retained = [
+        line
+        for line in path.read_text(encoding="utf-8").splitlines()
+        if not line.startswith(f"{package}==")
+    ]
+    path.write_text("\n".join([*retained, f"{package}==1.0.0"]) + "\n", encoding="utf-8")
     with pytest.raises(AssertionError):
         test_python_stabilization_current_governed_surfaces_are_safe()
 
@@ -4042,6 +4056,8 @@ def test_python_stabilization_allows_safe_future_versions_or_absence(
     """Permanent postconditions do not freeze historical versions or dependency deltas."""
     if kind == "absence":
         for name in registered_dependabot_requirement_carriers():
+            if package == "pillow" and name in PILLOW_REQUIRED_RAG_LOCKS:
+                continue
             path = python_stabilization_repo / name
             path.write_text(
                 "\n".join(
@@ -4108,3 +4124,57 @@ def test_python_stabilization_rejects_empty_carrier_inventory(
     )
     with pytest.raises(AssertionError, match="carrier inventory must not be empty"):
         test_python_stabilization_current_governed_surfaces_are_safe()
+
+
+@pytest.mark.parametrize("lockfile", sorted(PILLOW_REQUIRED_RAG_LOCKS))
+@pytest.mark.parametrize("value", (None, "pillow==12.3.0", "pillow>=13.0.0"))
+def test_python_stabilization_requires_valid_pillow_in_each_rag_lock(
+    python_stabilization_repo: Path, lockfile: str, value: str | None
+) -> None:
+    """Neither optional-profile naming nor the other RAG lock excuses missing/unsafe Pillow."""
+    path = python_stabilization_repo / lockfile
+    rows = [line for line in path.read_text().splitlines() if not line.startswith("pillow==")]
+    if value is not None:
+        rows.append(value)
+    path.write_text("\n".join(rows) + "\n", encoding="utf-8")
+    with pytest.raises(AssertionError, match="pillow|Pillow"):
+        test_python_stabilization_current_governed_surfaces_are_safe()
+
+
+@pytest.mark.parametrize("lockfile", sorted(PILLOW_REQUIRED_RAG_LOCKS))
+@pytest.mark.parametrize("kind", ("patch", "major"))
+def test_python_stabilization_rag_pillow_accepts_future_safe_pins(
+    python_stabilization_repo: Path, lockfile: str, kind: str
+) -> None:
+    floor = REMEDIATION_FIXED_FLOORS["pillow"]
+    version = (
+        f"{floor.major}.{floor.minor}.{floor.micro + 1}"
+        if kind == "patch"
+        else f"{floor.major + 1}.0.0"
+    )
+    path = python_stabilization_repo / lockfile
+    rows = [line for line in path.read_text().splitlines() if not line.startswith("pillow==")]
+    path.write_text("\n".join([*rows, f"pillow=={version}"]) + "\n", encoding="utf-8")
+    test_python_stabilization_current_governed_surfaces_are_safe()
+
+
+@pytest.mark.parametrize("package,affected", (("setuptools", "83.0.0"), ("pillow", "12.3.0")))
+def test_python_stabilization_canonical_required_floor_allows_later_patch(
+    tmp_path: Path, package: str, affected: str
+) -> None:
+    """Required-carrier and range owners accept safe evolution without consumer pin constants."""
+    schema = _load_schema(SCHEMA_PATH)
+    versions = {str(name): str(value) for name, value in schema["min_versions"].items()}
+    floor = Version(versions[package])
+    future = f"{floor.major}.{floor.minor}.{floor.micro + 1}"
+    path = tmp_path / "requirements.txt"
+    versions[package] = future
+    path.write_text("".join(f"{name}=={version}\n" for name, version in versions.items()))
+    test_dependency_security_guard_enforces_min_versions(path)
+    _assert_remediated_dependency_surface(path, package=package, required=True, pinned=True)
+    versions[package] = affected
+    path.write_text("".join(f"{name}=={version}\n" for name, version in versions.items()))
+    with pytest.raises(pytest.fail.Exception, match="minimum safe version"):
+        test_dependency_security_guard_enforces_min_versions(path)
+    with pytest.raises(AssertionError, match="blocked range"):
+        _assert_remediated_dependency_surface(path, package=package, required=True, pinned=True)
