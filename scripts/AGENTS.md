@@ -297,7 +297,7 @@
   volume changes and observation clocks retain their existing authority gates.
 - CI/CD PR image consumption must finish before PR-local actions, imports or
   native programs start. Acquire exact event-H material as data, then verify the
-  sparse fixed control checkout at `c023efbaf3e188b5da3bb5cedbf6363a182ce4d3`, with
+  sparse fixed control checkout at `e2b22f6a689b6131f4e95d0432c35c3b8c2c2425`, with
   helper SHA-256 `74bfb41b44caf439eeb06723e2dea42831888bfbdbd0c21338d0a82810b59786`,
   before credential-free canonical four-blob classification. Native regular Git
   blobs supply B/H helper, build workflow, recipe and manifest bytes; the canonical

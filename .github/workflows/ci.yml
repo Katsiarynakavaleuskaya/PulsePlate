@@ -6,7 +6,7 @@ name: CI
 
 env:
   # ROOT creates C, independently reviews/designates it, then pins C before one normal C,H push.
-  ALERTMANAGER_CONTROLLER_SOURCE: 'c023efbaf3e188b5da3bb5cedbf6363a182ce4d3' # Public immutable controller commit
+  ALERTMANAGER_CONTROLLER_SOURCE: 'e2b22f6a689b6131f4e95d0432c35c3b8c2c2425' # Public immutable controller commit
   ALERTMANAGER_PREPARATION_MINUTES: '14'
   ALERTMANAGER_PREP_SECONDS: '600'
   ALERTMANAGER_PAIR_SECONDS: '1800'
@@ -880,7 +880,7 @@ jobs:
         if: github.event_name == 'pull_request' && steps.checkpoint-selection.outputs.selected == 'true'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: c023efbaf3e188b5da3bb5cedbf6363a182ce4d3 # pragma: allowlist secret - public trusted control commit
+          ref: e2b22f6a689b6131f4e95d0432c35c3b8c2c2425 # pragma: allowlist secret - public trusted control commit
           persist-credentials: false
           path: artifacts/orchestration/prometheus-control
           sparse-checkout: scripts/ci/prometheus_source_image.py
@@ -966,7 +966,7 @@ jobs:
                              "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_COUNT": "0"}
               revision = subprocess.run(["/usr/bin/git", "--no-replace-objects", "-C", str(control),
                                          "rev-parse", "HEAD"], env=environment, capture_output=True, check=True)
-              if revision.stdout.strip() != b"c023efbaf3e188b5da3bb5cedbf6363a182ce4d3":  # pragma: allowlist secret - public trusted control commit
+              if revision.stdout.strip() != b"e2b22f6a689b6131f4e95d0432c35c3b8c2c2425":  # pragma: allowlist secret - public trusted control commit
                   raise SystemExit("Prometheus_control_revision_HOLD")
               object_row = subprocess.run(["/usr/bin/git", "--no-replace-objects", "-C", str(control),
                                           "ls-tree", "-z", "HEAD", "--", "scripts/ci/prometheus_source_image.py"],
@@ -1025,7 +1025,7 @@ jobs:
                          "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_COUNT": "0"}
           revision = subprocess.run(["/usr/bin/git", "--no-replace-objects", "-C", str(control),
                                      "rev-parse", "HEAD"], env=environment, capture_output=True, check=True)
-          if revision.stdout.strip() != b"c023efbaf3e188b5da3bb5cedbf6363a182ce4d3":  # pragma: allowlist secret - public trusted control commit
+          if revision.stdout.strip() != b"e2b22f6a689b6131f4e95d0432c35c3b8c2c2425":  # pragma: allowlist secret - public trusted control commit
               raise SystemExit("Prometheus_control_revision_HOLD")
           object_row = subprocess.run(["/usr/bin/git", "--no-replace-objects", "-C", str(control),
                                       "ls-tree", "-z", "HEAD", "--", "scripts/ci/prometheus_source_image.py"],
