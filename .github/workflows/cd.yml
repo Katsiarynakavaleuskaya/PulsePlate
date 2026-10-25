@@ -130,7 +130,7 @@ jobs:
       && inputs.alertmanager_mode == 'module-qualify'
       && github.repository == 'Katsiarynakavaleuskaya/PulsePlate'
       && startsWith(github.ref, 'refs/heads/') && github.run_attempt == 1
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     permissions:
       contents: read
@@ -181,7 +181,7 @@ jobs:
       && github.repository == 'Katsiarynakavaleuskaya/PulsePlate'
       && github.ref == 'refs/heads/codex/python-setup-security-stabilization' && github.run_attempt == 1
       && inputs.postgres_mode == 'disabled'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 55
     permissions:
       contents: read
@@ -270,7 +270,7 @@ jobs:
       && github.repository == 'Katsiarynakavaleuskaya/PulsePlate' && github.repository_id == '1043311030'
       && github.ref == 'refs/heads/codex/python-setup-security-stabilization'
       && github.run_attempt == 1 && inputs.postgres_mode == 'disabled'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 140
     permissions:
       contents: read
@@ -740,7 +740,7 @@ jobs:
       github.event_name == 'workflow_dispatch' && inputs.alertmanager_mode == 'publish'
       && github.repository == 'Katsiarynakavaleuskaya/PulsePlate' && github.repository_id == '1043311030'
       && github.ref == 'refs/heads/main' && github.run_attempt == 1 && inputs.postgres_mode == 'disabled'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 110
     permissions:
       contents: read

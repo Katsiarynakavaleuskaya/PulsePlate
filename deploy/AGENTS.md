@@ -159,6 +159,10 @@ PRODUCTION_DOMAIN=example.com STAGING_FALLBACK_DOMAIN=staging.example.com \
   received email and host activation require separate evidence; see
   `docs/deploy/OPERATIONAL_SIGNALS.md` and
   `docs/security/CVE-2026-84445-alertmanager.md`.
+- Alertmanager module qualification, support inspection, candidate builds and
+  publication use the qualified `ubuntu-24.04` runner. Runner or Docker image-store
+  changes require native requalification while preserving the exact config,
+  manifest and ordered-layer checks.
 - OBS2A deploy admission binds the complete reviewed Prometheus config, alias
   rules and Alertmanager Trivy ignore bytes, plus the exact reviewed
   Alertmanager route. A change to any of these files requires reviewing the
@@ -467,7 +471,6 @@ PRODUCTION_DOMAIN=example.com STAGING_FALLBACK_DOMAIN=staging.example.com \
   An incoming archive must never choose executable host code for its own checks.
 - Image selection does not deploy or migrate a host, change volume ownership,
   enable staging attestation flags, or start the production observation clock.
-
 
 ## Production tag gate
 - Semver production tags stay build-only until all three deploy inputs agree: `PROD_DEPLOY_MODE`,

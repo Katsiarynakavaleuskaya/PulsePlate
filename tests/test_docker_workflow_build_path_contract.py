@@ -9726,3 +9726,18 @@ print("observation=synthetic-observation")
         == "${{ steps.alertmanager-image.outputs.controller_source }}"
     )
     assert environment["ALERTMANAGER_CONTROLLER_SOURCE"] == fixed
+
+
+@pytest.mark.parametrize(
+    "job_name",
+    [
+        "alertmanager-module-qualification",
+        "alertmanager-input-inspection",
+        "alertmanager-candidate-build",
+        "alertmanager-main-publication",
+    ],
+)
+def test_alertmanager_native_producers_keep_qualified_runner(job_name: str) -> None:
+    """Keep native config-ID consumers on their qualified Docker runner environment."""
+    workflow = _load_workflow(WORKFLOWS_DIR / "cd.yml")
+    assert workflow["jobs"][job_name]["runs-on"] == "ubuntu-24.04"
