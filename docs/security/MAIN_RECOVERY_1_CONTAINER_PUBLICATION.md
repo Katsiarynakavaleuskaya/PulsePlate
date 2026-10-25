@@ -890,8 +890,9 @@ our original seventeen source records and `generated_at` remain unchanged.
 The owner admitted the current image-security blockers and the required CI lint
 budget repair in this substantive PR. The finite fixes are tracked individually:
 [Brotli](CVE-2026-111497-brotli.md), [compress](CVE-2026-63209-klauspost-compress.md)
-and [Go trust store](CVE-2026-111943-go-trust-store.md). New ORAS/AM/Prometheus
-native output selection remains unset until actual qualified results exist.
+and [Go trust store](CVE-2026-111943-go-trust-store.md). ORAS now selects the actual
+qualified tool documented there. AM/Prometheus image output selection remains
+unset until actual qualified results exist.
 Historical C10 and prior failed/spent compiler records retain their identities.
 No suppression, deployment or automatic retry follows from source preparation.
 
@@ -902,3 +903,57 @@ lint job 190 minutes, with maintained steps184 plus unchanged margin6. Native,
 compiler, scan and cleanup limits do not change. Budget availability is not a
 passing result. Evidence: `.github/workflows/ci.yml:734`,
 `scripts/ci/fetch_docker_source_artifacts.py:4663`.
+
+
+## PR #2497 bounded CodeQL source-flow analysis
+
+CodeQL check `121154462244` reported alerts
+[698](https://github.com/Katsiarynakavaleuskaya/PulsePlate/security/code-scanning/698)
+and [699](https://github.com/Katsiarynakavaleuskaya/PulsePlate/security/code-scanning/699)
+on material head `c22d641bc0d4dce56925114c827be6d712db7070`.
+Native SARIF analysis `2021988016` executed at PR merge
+`f0e64aa4100903c18dd16407502b30ca591ececd`. Authenticated Git evidence binds its
+parents to base `48d36c220ff58dec82450da66ef0599c6da71787` and that material head;
+both trees are `5d33c717172e1487bc4ebf502866104277321952`.
+The synthetic execution merge is source-binding evidence, not a FIXED commit or
+PR-ancestry proof. The original SARIF and source binding remain retained.
+
+The native fixture module is executable tooling. Its filename does not justify
+a test-file exclusion. Source-flow analysis supports NOT-A-BUG for these exact
+reported flows:
+
+- Alert 698, `py/clear-text-storage-sensitive-data`, follows `cert` and
+  `trusted_ca` Path values and the `directory / "synthetic-smtp"` Path into
+  the Compose mount-source strings. The sink formats paths; it does not read
+  certificate, private-key or SMTP-file contents. The SMTP file is explicitly
+  written with the fixed public fixture value `synthetic-smtp`.
+  Evidence: `tests/test_notify_premium_alias_checkpoint_failure.py:1830`,
+  `tests/test_notify_premium_alias_checkpoint_failure.py:1914`,
+  `tests/test_notify_premium_alias_checkpoint_failure.py:1942`.
+- Alert 699, `py/clear-text-logging-sensitive-data`, follows the public fixture
+  CA pathname through `str(trusted_ca)`, the OpenSSL argv list and
+  `AM_native_argv`. Its emitted flow does not follow timeout stdout/stderr or
+  private-key bytes. The actual argv begins with the literal `openssl`; the
+  unrelated CA path is an output-path operand. The existing raw native
+  diagnostics remain unchanged.
+  Evidence: `tests/test_notify_premium_alias_checkpoint_failure.py:1832`,
+  `tests/test_notify_premium_alias_checkpoint_failure.py:1844`,
+  `tests/test_notify_premium_alias_checkpoint_failure.py:544`,
+  `tests/test_notify_premium_alias_checkpoint_failure.py:572`.
+
+The fixture's generated private key remains separate from its public certificate
+and has mode 0600. Its native owner creates a fresh temporary directory and an
+empty private Docker configuration. These are the observed source boundaries,
+not a universal no-secrets claim about every possible native-tool invocation.
+Evidence: `tests/test_notify_premium_alias_checkpoint_failure.py:1826`,
+`tests/test_notify_premium_alias_checkpoint_failure.py:3017`.
+
+On 2026-10-25 at 12:54:35Z and 12:54:36Z, the authenticated GitHub disposition
+responses for alerts 698 and 699 respectively returned `dismissed`, reason
+`false positive`, for both the alert and current PR instance. The responses
+identify the repository owner's account and retain the precise source-flow
+explanations. Authenticated readback at 13:03:46Z confirmed the same false-positive
+dispositions for both alerts and their current PR instances. Current-head check
+completion and merge readiness require their own fresh observations.
+No query configuration, scanner exclusion, ignore, runtime logging rule or
+security predicate was changed for this analysis.

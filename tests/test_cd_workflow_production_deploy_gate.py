@@ -630,19 +630,17 @@ def test_prometheus_cd_registry_credential_route_preserves_base_execution_bounda
         "(steps.prometheus-control-checkout.outcome == 'success' || "
         "steps.prometheus-control-checkout.outcome == 'failure') }}"
     )
+    control_bytes = (REPO_ROOT / "scripts/ci/prometheus_source_image.py").read_bytes()
+    control_blob = hashlib.sha1(
+        b"blob " + str(len(control_bytes)).encode("ascii") + b"\0" + control_bytes,
+        usedforsecurity=False,
+    ).hexdigest()
+    control_object = f"100644 blob {control_blob}\\tscripts/ci/prometheus_source_image.py\\0"
     for script in (route["run"], consumer["run"]):
         assert "Prometheus_control_interface_HOLD" in script
-        assert "350738" in script
-        assert (
-            # pragma: allowlist nextline secret - public trusted control blob
-            "175520fe70b30c885448b95718b25b27985d3f8c"
-            in script
-        )
-        assert (
-            # pragma: allowlist nextline secret - public trusted control digest
-            "ccedfd864af2201e9c218b0d35eb5087a90189f3dcf4c5d67689f74a2666f4b7"
-            in script
-        )
+        assert str(len(control_bytes)) in script
+        assert control_object in script
+        assert hashlib.sha256(control_bytes).hexdigest() in script
     assert 'trusted["consume_image"](work, material' in consumer["run"]
     assert 'trusted["one_object"](raw).get("admission")' in consumer["run"]
     assert 'admission != result["admission"]' in consumer["run"]

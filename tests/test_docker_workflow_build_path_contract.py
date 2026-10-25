@@ -5315,6 +5315,72 @@ def test_alertmanager_unadmitted_stages_cannot_activate_compiler_or_publication(
 
 
 @pytest.mark.parametrize(
+    "payload", [b"synthetic current Go\n", b"different current Go bytes\n"], ids=["first", "second"]
+)
+@pytest.mark.parametrize(
+    "case", ["fresh", "retained", "size", "digest", "symlink", "directory", "hardlink"]
+)
+def test_alertmanager_current_go_archive_guard_uses_acquired_owner_before_extract(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, payload: bytes, case: str
+) -> None:
+    """Exercise the real guard with synthetic artifact bytes; never qualify or execute Go."""
+    from scripts.ci import prometheus_source_image as source
+
+    current = replace(source.CURRENT_GO, size=len(payload), digest=sha256(payload).hexdigest())
+    legacy = source.GO
+    archive = tmp_path / "go1.27.3.linux-amd64.tar.gz"
+    acquisitions: list[Path] = []
+    extractions: list[Path] = []
+    if case == "symlink":
+        archive.symlink_to(tmp_path / "absent-target")
+    elif case == "directory":
+        archive.mkdir()
+    elif case != "fresh":
+        archive.write_bytes(
+            payload + b"extra"
+            if case == "size"
+            else bytes([payload[0] ^ 1]) + payload[1:] if case == "digest" else payload
+        )
+        if case == "hardlink":
+            (tmp_path / "second-link").hardlink_to(archive)
+
+    def acquire(artifact: source.Artifact, destination: Path, deadline: float) -> None:
+        assert artifact is current and destination == archive and deadline > 0
+        assert case == "fresh"
+        acquisitions.append(destination)
+        destination.write_bytes(payload)
+
+    def extract(artifact: source.Artifact, path: Path, target: Path, deadline: float) -> None:
+        assert artifact is current and path == archive and deadline > 0
+        assert target == tmp_path / "alertmanager-go" and path.read_bytes() == payload
+        extractions.append(path)
+        raise RuntimeError("synthetic_current_go_extract_boundary")
+
+    def no_native(*args: Any, **kwargs: Any) -> None:
+        pytest.fail("archive validation must precede every native command")
+
+    monkeypatch.setenv("ALERTMANAGER_QUALIFY_SECONDS", "825")
+    monkeypatch.setattr(source, "CURRENT_GO", current)
+    monkeypatch.setattr(source, "acquire", acquire)
+    monkeypatch.setattr(source, "extract", extract)
+    monkeypatch.setattr(source.Native, "run", no_native)
+    monkeypatch.setattr(docker_sources, "load_manifest", lambda *a, **k: [])
+    monkeypatch.setattr(docker_sources, "_fetch_alertmanager_pair", lambda *a, **k: None)
+    valid = case in {"fresh", "retained"}
+    diagnostic = (
+        "^synthetic_current_go_extract_boundary$"
+        if valid
+        else "^Exact Go input changed; no overwrite, replacement or retry\\.$"
+    )
+    with pytest.raises(RuntimeError, match=diagnostic):
+        docker_sources._qualify_alertmanager_modules(tmp_path)
+    assert acquisitions == ([archive] if case == "fresh" else [])
+    assert extractions == ([archive] if valid else [])
+    assert source.GO is legacy
+    assert not (tmp_path / "alertmanager-module-evidence/module-qualification.json").exists()
+
+
+@pytest.mark.parametrize(
     "relative",
     [
         "pkg/mod/cache/download/sumdb/sum.golang.org/lookup/module@v1.2.3",

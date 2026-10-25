@@ -1899,9 +1899,8 @@ def _alertmanager_module_phase(output: Path, deadline: float, seconds: int) -> N
             go_archive.is_symlink()
             or not go_archive.is_file()
             or go_archive.stat().st_nlink != 1
-            or go_archive.stat().st_size != 70590635
-            or file_hash(go_archive, deadline)
-            != "ecbadb99091a3f46e31f5f934b068b1864eafa7995211b39eaddf76996045fe5"
+            or go_archive.stat().st_size != GO.size
+            or file_hash(go_archive, deadline) != GO.digest
         ):
             raise RuntimeError("Exact Go input changed; no overwrite, replacement or retry.")
         toolchain = output / "alertmanager-go"

@@ -4085,13 +4085,16 @@ def test_prometheus_cd_uses_authenticated_finite_consumer_and_retains_strict_sca
     assert [names.index(name) for name in ordered_names] == sorted(
         names.index(name) for name in ordered_names
     )
+    control_bytes = (REPO_ROOT / "scripts/ci/prometheus_source_image.py").read_bytes()
+    control_blob = hashlib.sha1(
+        b"blob " + str(len(control_bytes)).encode("ascii") + b"\0" + control_bytes,
+        usedforsecurity=False,
+    ).hexdigest()
+    control_object = f"100644 blob {control_blob}\\tscripts/ci/prometheus_source_image.py\\0"
     for program in (classifier["run"], consumer["run"]):
-        assert "350738" in program
-        assert (
-            # pragma: allowlist nextline secret - public trusted control blob
-            "175520fe70b30c885448b95718b25b27985d3f8c"
-            in program
-        )
+        assert str(len(control_bytes)) in program
+        assert control_object in program
+        assert hashlib.sha256(control_bytes).hexdigest() in program
         assert "Prometheus_control_interface_HOLD" in program
     assert "historical_pr_candidate" in consumer["run"]
     assert 'trusted["one_object"](raw).get("admission")' in consumer["run"]
@@ -4145,14 +4148,33 @@ def _synthetic_fixed_prometheus_control(
     Actual workflow Git/control checks still run. This synthetic consumer grants
     no native image, original-producer, publisher or authenticated API proof.
     """
+    production_bytes = (REPO_ROOT / "scripts/ci/prometheus_source_image.py").read_bytes()
+    production_blob = hashlib.sha1(
+        b"blob " + str(len(production_bytes)).encode("ascii") + b"\0" + production_bytes,
+        usedforsecurity=False,
+    ).hexdigest()
+    production_object = f"100644 blob {production_blob}\\tscripts/ci/prometheus_source_image.py\\0"
+    for program in programs:
+        assert program.count(production_object) == 1
+        assert str(len(production_bytes)) in program
+        assert hashlib.sha256(production_bytes).hexdigest() in program
+    object_failure = environment["SYNTHETIC_OUTCOME"] in {
+        "changed-control-object",
+        "changed-consumer-control-object",
+    }
+    import_marker = (
+        "with Path(os.environ['SYNTHETIC_TRACE']).with_name('control-imports').open('a') as stream: stream.write('import\\n')\n"
+        if object_failure
+        else ""
+    )
     control = repository / "artifacts/orchestration/prometheus-control"
     helper = control / "scripts/ci/prometheus_source_image.py"
     helper.parent.mkdir(parents=True)
     helper.write_bytes(
-        (REPO_ROOT / "scripts/ci/prometheus_source_image.py").read_bytes()
+        production_bytes
         + b"\n"
         + (
-            "_fixture_real_classifier=classify_source_change\n"
+            import_marker + "_fixture_real_classifier=classify_source_change\n"
             "def classify_source_change(base, head):\n"
             " assert not any(os.environ.get(key) for key in ('GH_TOKEN','GITHUB_TOKEN','GHCR_READ_TOKEN','GHCR_TOKEN','GH_ENTERPRISE_TOKEN','GITHUB_ENTERPRISE_TOKEN','DOCKER_CONFIG','DOCKER_AUTH_CONFIG'))\n"
             " with Path(os.environ['SYNTHETIC_TRACE']).open('a') as stream: stream.write(json.dumps('CONTROL-classify')+'\\n')\n"
@@ -4225,19 +4247,27 @@ def _synthetic_fixed_prometheus_control(
             "a68910bf7339a38a1b2d6fa39eb019cff8786551",
             revision,
         )
+        .replace(production_blob, blob)
+        .replace(str(len(production_bytes)), str(len(raw)))
         .replace(
-            # pragma: allowlist nextline secret - public trusted control blob
-            "175520fe70b30c885448b95718b25b27985d3f8c",
-            blob,
-        )
-        .replace("350738", str(len(raw)))
-        .replace(
-            "ccedfd864af2201e9c218b0d35eb5087a90189f3dcf4c5d67689f74a2666f4b7",  # pragma: allowlist secret - public protected helper digest
+            hashlib.sha256(production_bytes).hexdigest(),
             hashlib.sha256(raw).hexdigest(),
         )
         for program in programs
     )
     variant = environment["SYNTHETIC_OUTCOME"]
+    if object_failure:
+        target = 1 if variant == "changed-consumer-control-object" else 0
+        native_object = f"100644 blob {blob}\\tscripts/ci/prometheus_source_image.py\\0"
+        assert rebound[target].count(native_object) == 1
+        rebound = tuple(
+            (
+                program.replace(native_object, native_object.replace(blob, "0" * 40))
+                if index == target
+                else program
+            )
+            for index, program in enumerate(rebound)
+        )
     if variant.endswith("control-bytes"):
         helper.write_text("raise SystemExit('malicious control must not execute')\n")
     elif variant.endswith("control-mode"):
@@ -4451,6 +4481,8 @@ def _prometheus_cd_route_fixture(tmp_path: Path, variant: str) -> tuple[Path, di
         ("changed-control-mode", "Prometheus_control_mode_HOLD"),
         ("changed-control-symlink", "Prometheus_control_path_HOLD"),
         ("changed-control-ref", "Prometheus_control_revision_HOLD"),
+        ("changed-control-object", "Prometheus_control_object_HOLD"),
+        ("changed-consumer-control-object", "Prometheus_control_object_HOLD"),
         ("unsupported-control", "Prometheus_control_interface_HOLD"),
         ("changed-api-failure", "synthetic_API_failed"),
         ("changed-cleanup-failure", "synthetic_cleanup_failed"),
@@ -4592,6 +4624,10 @@ def test_prometheus_cd_classifies_before_pr_code_and_binds_trusted_handoff(
     )
     assert "PR-import" not in observed and "PR-helper-import" not in observed
     assert "synthetic.registry.reader" not in result.stdout + result.stderr
+    if variant in {"changed-control-object", "changed-consumer-control-object"}:
+        marker = tmp_path / "control-imports"
+        imports = marker.read_text() if marker.exists() else ""
+        assert imports == ("import\n" if variant == "changed-consumer-control-object" else "")
     if variant == "metadata-failure":
         assert observed == ["CONTROL-classify", "DOCKER-version"]
         assert not (tmp_path / "synthetic-registry-state").exists()
@@ -4635,6 +4671,8 @@ def test_prometheus_cd_classifies_before_pr_code_and_binds_trusted_handoff(
         ("changed-control-mode", "Prometheus_control_mode_HOLD"),
         ("changed-control-symlink", "Prometheus_control_path_HOLD"),
         ("changed-control-ref", "Prometheus_control_revision_HOLD"),
+        ("changed-control-object", "Prometheus_control_object_HOLD"),
+        ("changed-consumer-control-object", "Prometheus_control_object_HOLD"),
         ("unsupported-control", "Prometheus_control_interface_HOLD"),
         ("changed-api-failure", "synthetic_API_failed"),
         ("changed-cleanup-failure", "synthetic_cleanup_failed"),
@@ -4773,6 +4811,10 @@ def test_prometheus_ci_trusted_control_precedes_first_pr_import(
     )
     assert "PR-import" not in observed and "PR-helper-import" not in observed
     assert "synthetic.ephemeral.reader" not in result.stdout + result.stderr
+    if variant in {"changed-control-object", "changed-consumer-control-object"}:
+        marker = tmp_path / "control-imports"
+        imports = marker.read_text() if marker.exists() else ""
+        assert imports == ("import\n" if variant == "changed-consumer-control-object" else "")
     if diagnostic is not None:
         assert result.returncode != 0 and diagnostic in result.stderr
         return

@@ -17,6 +17,13 @@
   hooks. This early check supplements, and never replaces, the required all-files
   and ordinary pre-push gates.
 
+- Keep protected-helper commit, regular path/mode, byte length, SHA-256 and Git
+  blob pins synchronized. Before synthetic rebinding, regression tests must
+  derive byte/object identities from the actual helper bytes and reject a stale
+  object with the other pins valid; copied literals are not an independent oracle.
+  Current compiler acquisition and extraction guards must use the same owning
+  artifact size/digest fields; historical compiler identities stay explicit.
+
 - Locked-install settings and the installer-owned direct project-page reader share default
   `.netrc`/`_netrc` admission in `install_locked_python_requirements.py` only,
   before its CLI dispatch or its own connection/context creation.
