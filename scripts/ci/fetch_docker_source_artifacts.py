@@ -2854,16 +2854,16 @@ def _alertmanager_current_inputs(
         require(len(found) == 1, "AM_current_input_artifact_unique")
         matches.append({"run": run, "artifact": found[0]})
     require(len(matches) == 1, "AM_current_input_unique")
-    selected = matches[0]
+    matched_input = matches[0]
     return _alertmanager_authenticated_inputs(
         api,
-        selected["run"]["id"],
-        selected["artifact"]["id"],
+        matched_input["run"]["id"],
+        matched_input["artifact"]["id"],
         source,
         destination,
         kind=kind,
         current_source_files=source_files,
-        current_artifact_digest=selected["artifact"]["digest"],
+        current_artifact_digest=matched_input["artifact"]["digest"],
     )
 
 
@@ -2895,7 +2895,7 @@ def _alertmanager_selected_inputs(
             )
         else:
             binding = _alertmanager_authenticated_inputs(
-                api, *supplied, output / (prefix + ".zip"), kind=kind
+                api, supplied[0], supplied[1], supplied[2], output / (prefix + ".zip"), kind=kind
             )
         bindings.append(binding)
     return bindings[0], bindings[1]
@@ -5025,7 +5025,7 @@ def _alertmanager_candidate_payload(
     require(
         result["security"].get("scanner", {}).get("sha256") == _ALERT_TRIVY_SHA256
         and result["security"]["scanner"].get("DB")
-        == (support_report["scanner"]["DB"] if current else _ALERT_DB),
+        == (cast(dict[str, Any], support_report)["scanner"]["DB"] if current else _ALERT_DB),
         "AM_candidate_exact_scanner_DB",
     )
     actual_build_information = {}
@@ -5124,7 +5124,7 @@ def _alertmanager_current_support_transport(
     api_files = inspected.get("github_read_evidence")
     require(type(api_files) is list and bool(api_files), "AM_support_API_inventory")
     declared_api: set[str] = set()
-    for row in api_files:
+    for row in cast(list[Any], api_files):
         require(
             type(row) is dict
             and set(row) == {"path", "size", "mode", "sha256"}
@@ -5316,7 +5316,7 @@ def _alertmanager_support_payload(
             type(scanner_record) is dict and type(scanner_record.get("DB")) is dict,
             "AM_support_current_DB_binding",
         )
-        database = scanner_record["DB"]
+        database = cast(dict[str, Any], scanner_record)["DB"]
         require(
             set(database) == set(_ALERT_DB)
             and all(

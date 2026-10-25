@@ -1522,7 +1522,7 @@ jobs:
               if not helper.is_file() or stat.S_IMODE(helper.stat().st_mode) != 0o644:
                   raise SystemExit("Prometheus_control_mode_HOLD")
               raw = helper.read_bytes()
-              if len(raw) != 350684 or hashlib.sha256(raw).hexdigest() != "74bfb41b44caf439eeb06723e2dea42831888bfbdbd0c21338d0a82810b59786":  # pragma: allowlist secret - public trusted control digest
+              if len(raw) != 350738 or hashlib.sha256(raw).hexdigest() != "ccedfd864af2201e9c218b0d35eb5087a90189f3dcf4c5d67689f74a2666f4b7":  # pragma: allowlist secret - public trusted control digest
                   raise SystemExit("Prometheus_control_bytes_HOLD")
               environment = {"PATH": "/usr/bin:/bin", "LANG": "C", "GIT_NO_REPLACE_OBJECTS": "1",
                              "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_COUNT": "0"}
@@ -1654,7 +1654,7 @@ jobs:
           if not helper.is_file() or stat.S_IMODE(helper.stat().st_mode) != 0o644:
               raise SystemExit("Prometheus_control_mode_HOLD")
           raw = helper.read_bytes()
-          if len(raw) != 350684 or hashlib.sha256(raw).hexdigest() != "74bfb41b44caf439eeb06723e2dea42831888bfbdbd0c21338d0a82810b59786":  # pragma: allowlist secret - public trusted control digest
+          if len(raw) != 350738 or hashlib.sha256(raw).hexdigest() != "ccedfd864af2201e9c218b0d35eb5087a90189f3dcf4c5d67689f74a2666f4b7":  # pragma: allowlist secret - public trusted control digest
               raise SystemExit("Prometheus_control_bytes_HOLD")
           environment = {"PATH": "/usr/bin:/bin", "LANG": "C", "GIT_NO_REPLACE_OBJECTS": "1",
                          "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_COUNT": "0"}

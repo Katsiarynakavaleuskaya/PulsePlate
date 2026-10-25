@@ -4995,7 +4995,7 @@ def manual_hosted_admission(
             and current.get("head_branch") == "codex/python-setup-security-stabilization",
             "stabilization_current_PR_source",
         )
-        expected = (
+        expected_spent_runs = (
             (
                 (
                     38170923494,
@@ -5053,13 +5053,13 @@ def manual_hosted_admission(
         )
         expected_rows = [
             {"run_id": r, "job_id": j, "status": "completed", "conclusion": outcome}
-            for r, j, _source, _branch, outcome in expected
+            for r, j, _source, _branch, outcome in expected_spent_runs
         ]
         require(
             sorted(observed, key=lambda value: (value["run_id"], value["job_id"])) == expected_rows,
             "stabilization_complete_spent_history",
         )
-        for prior_run, prior_job, prior_source, prior_branch, outcome in expected:
+        for prior_run, prior_job, prior_source, prior_branch, outcome in expected_spent_runs:
             runs = [row for row in history if row.get("id") == prior_run]
             require(len(runs) == 1, "stabilization_prior_run_unique")
             prior = runs[0]
@@ -5710,8 +5710,8 @@ def manual_hosted_admission(
             )
         exact_data(start["failure"], None)
         exact_data(final["failure"], {"class": "QualificationError", "code": "layout_regular_leaf"})
-        for key in set(start) - {"failure"}:
-            exact_data(start[key], final[key])
+        for report_key in set(start) - {"failure"}:
+            exact_data(start[report_key], final[report_key])
         exact_data(final["identity"], "PulsePlate-rebuilt ORAS 1.3.4")
         exact_data(final["source_revision"], ORAS_REVISION)
         exact_data(final["source_tree"], ORAS_TREE)
