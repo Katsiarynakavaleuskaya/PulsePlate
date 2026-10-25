@@ -11,6 +11,12 @@
 - Prefer small, focused edits; update any dependent docs or Make targets if needed.
 - Avoid adding network calls to scripts used in CI unless explicitly required.
 
+- Before freezing changed CI/security Python helper controllers or starting their
+  long validation, run the configured mypy hook with `--hook-stage pre-push` on the
+  changed Python paths. Default-stage `--all-files` does not execute pre-push-only
+  hooks. This early check supplements, and never replaces, the required all-files
+  and ordinary pre-push gates.
+
 - Locked-install settings and the installer-owned direct project-page reader share default
   `.netrc`/`_netrc` admission in `install_locked_python_requirements.py` only,
   before its CLI dispatch or its own connection/context creation.
@@ -297,7 +303,7 @@
   volume changes and observation clocks retain their existing authority gates.
 - CI/CD PR image consumption must finish before PR-local actions, imports or
   native programs start. Acquire exact event-H material as data, then verify the
-  sparse fixed control checkout at `e2b22f6a689b6131f4e95d0432c35c3b8c2c2425`, with
+  sparse fixed control checkout at `a68910bf7339a38a1b2d6fa39eb019cff8786551`, with
   helper SHA-256 `ccedfd864af2201e9c218b0d35eb5087a90189f3dcf4c5d67689f74a2666f4b7`,
   before credential-free canonical four-blob classification. Native regular Git
   blobs supply B/H helper, build workflow, recipe and manifest bytes; the canonical
